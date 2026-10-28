@@ -34,7 +34,7 @@ function cuerpoJson(cuerpo: unknown): RequestInit {
   return { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify(cuerpo) };
 }
 /** Petición con tope de tiempo, sin redirecciones y con errores tipados. */
-async function pedir<T>(op: OpcionesOpenHands, ruta: string, init: RequestInit, secreto?: string): Promise<T> {
+async function pedir<T>(op: OpcionesOpenHands, ruta: string, init: RequestInit, secreto?: string, textoCrudo = false): Promise<T> {
   const f = op.fetch ?? ((url: string, opciones?: RequestInit) => fetch(url, opciones));
   const tiempoMs = op.tiempoMs ?? TIEMPO_MS;
   const control = new AbortController();
@@ -56,6 +56,9 @@ async function pedir<T>(op: OpcionesOpenHands, ruta: string, init: RequestInit, 
       throw new ErrorOpenHands("http", `El Agent Server respondió ${r.status}${detalle ? `: ${detalle}` : ""}.`, r.status);
     }
     if (!texto) return undefined as T;
+    if (textoCrudo) {
+      try { const valor = JSON.parse(texto) as unknown; return (typeof valor === "string" ? valor : texto) as T; } catch { return texto as T; }
+    }
     try { return JSON.parse(texto) as T; } catch {
       throw new ErrorOpenHands("respuesta", "El Agent Server devolvió algo que no es JSON.");
     }
@@ -69,12 +72,11 @@ async function pedir<T>(op: OpcionesOpenHands, ruta: string, init: RequestInit, 
     clearTimeout(plazo);
   }
 }
-/** GET /health. La respuesta real del Agent Server es un texto de estado. */
+/** GET /health. Responde una cadena JSON o texto plano; se aceptan las dos. */
 export async function salud(op: OpcionesOpenHands): Promise<{ sano: boolean; estado: string }> {
-  const estado = await pedir<unknown>(op, "/health", { method: "GET", headers: { accept: "application/json" } });
-  return { sano: true, estado: typeof estado === "string" ? estado : "ok" };
+  const estado = await pedir<string>(op, "/health", { method: "GET", headers: { accept: "application/json" } }, undefined, true);
+  return { sano: true, estado: estado || "ok" };
 }
-
 /** POST /api/conversations con el esquema StartConversationRequest. */
 export async function crearConversacion(cfg: CfgConversacion): Promise<ConversacionCreada> {
   const llm: Record<string, unknown> = { model: cfg.modelo };
@@ -92,7 +94,6 @@ export async function crearConversacion(cfg: CfgConversacion): Promise<Conversac
   if (cfg.mensajeInicial) cuerpo.initial_message = { role: "user", content: [{ type: "text", text: cfg.mensajeInicial }] };
   return pedir<ConversacionCreada>(cfg, "/api/conversations", cuerpoJson(cuerpo), cfg.apiKey);
 }
-
 /** POST …/events con el esquema SendMessageRequest. */
 export async function enviarMensaje(id: string, texto: string, op: OpcionesOpenHands): Promise<RespuestaOk> {
   const r = await pedir<{ success?: boolean }>(op, `${rutaConv(id)}/events`, cuerpoJson({ role: "user", content: [{ type: "text", text: texto }] }));
@@ -106,13 +107,11 @@ async function sinCuerpo(id: string, sufijo: string, op: OpcionesOpenHands): Pro
 export async function ejecutar(id: string, op: OpcionesOpenHands): Promise<RespuestaOk> { return sinCuerpo(id, "/run", op); }
 /** POST …/pause: la deja pausada para reanudarla después. */
 export async function pausar(id: string, op: OpcionesOpenHands): Promise<RespuestaOk> { return sinCuerpo(id, "/pause", op); }
-
 /** GET …/events/search. `desde` es el `next_page_id` de la página anterior. */
 export async function eventos(id: string, op: OpcionesOpenHands, desde?: string | null): Promise<PaginaEventos> {
   const cola = desde ? `?${new URLSearchParams({ page_id: desde })}` : "";
   return pedir<PaginaEventos>(op, `${rutaConv(id)}/events/search${cola}`, { method: "GET", headers: { accept: "application/json" } });
 }
-
 /** POST …/confirmation_policy con SetConfirmationPolicyRequest. */
 export async function politicaConfirmacion(id: string, politica: PoliticaConfirmacion, op: OpcionesOpenHands): Promise<RespuestaOk> {
   const r = await pedir<{ success?: boolean }>(op, `${rutaConv(id)}/confirmation_policy`, cuerpoJson({ policy: { kind: politica } }));

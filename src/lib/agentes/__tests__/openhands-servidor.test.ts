@@ -43,6 +43,11 @@ describe("cliente del Agent Server de OpenHands", () => {
     expect(llamadas[0].init?.redirect).toBe("manual");
   });
 
+  it("salud: acepta el estado como texto plano, sin exigir JSON", async () => {
+    const { f } = capturar(() => new Response("OK", { status: 200 }));
+    await expect(salud(op(f))).resolves.toEqual({ sano: true, estado: "OK" });
+  });
+
   it("crearConversacion: esquema StartConversationRequest y aprobación por defecto", async () => {
     const { f, llamadas } = capturar(() => json({ id: "c-1" }));
     const c = await crearConversacion({
@@ -108,7 +113,7 @@ describe("cliente del Agent Server de OpenHands", () => {
     const tiempo = await fallo(salud(op(lento, { tiempoMs: 5 })));
     expect(tiempo).toMatchObject({ fallo: "tiempo" });
 
-    const roto = await fallo(salud(op(capturar(() => new Response("no-json", { status: 200 })).f)));
+    const roto = await fallo(eventos("c1", op(capturar(() => new Response("no-json", { status: 200 })).f)));
     expect(roto).toMatchObject({ fallo: "respuesta" });
   });
 });
