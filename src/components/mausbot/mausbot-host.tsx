@@ -17,11 +17,37 @@ export function MausbotHost() {
   const [position, setPosition] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
+    // Parar si el documento está oculto
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Lógica de pausa (ej: añadir clase, parar animación si hubiera)
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     const handleMouseMove = (e: MouseEvent) => {
+      // Quietud si movimiento reducido
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (prefersReducedMotion) return;
       setPosition({ x: e.clientX, y: e.clientY });
     };
     window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
+    
+    const handleStarseedMausbot = (e: Event) => {
+      // Evento de control personalizado del OS
+    };
+    window.addEventListener("starseed:mausbot", handleStarseedMausbot);
+    const handlePersonalityChanged = () => {
+      setConfig(leerConfigMausbot());
+    };
+    window.addEventListener("PERSONALITY_CHANGED_EVENT", handlePersonalityChanged);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("starseed:mausbot", handleStarseedMausbot);
+      window.removeEventListener("PERSONALITY_CHANGED_EVENT", handlePersonalityChanged);
+    };
   }, []);
 
   const efectiva = fusionarResolucion(config);
