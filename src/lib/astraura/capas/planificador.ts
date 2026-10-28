@@ -1,6 +1,7 @@
 import type { classifyTask, estimateDifficulty } from "@/ai/astraura/router";
 import { sesgoNivelador, type PreferenciaCapas } from "@/lib/astraura/capas-conciencia";
 import { profundidadNeedle, type Capa } from "./catalogo";
+import { ordenarPorMedidas, type MedidasAlmacen, type CandidatoConMedida } from "./medidas";
 
 type Tarea = ReturnType<typeof classifyTask>["kind"];
 type Dificultad = ReturnType<typeof estimateDifficulty>;
@@ -41,6 +42,8 @@ export interface EntradaPlanificador {
   instaladas: readonly CapaInstalada[];
   nodos: readonly NodoCapas[];
   preferencias: PreferenciaCapas;
+  medidas?: MedidasAlmacen;
+  neurona?: string;
 }
 const ORDEN: Record<Capa, readonly string[]> = {
   reflejo: ["needle3-reflejo"],
@@ -72,7 +75,7 @@ function verificada(c: CapaInstalada): boolean {
 
 interface Candidato extends PasoPlan { puntos: number; capa?: CapaInstalada; }
 
-export function planificar(entrada: EntradaPlanificador): PlanCapas {
+async function candidatosConMedida(entrada: EntradaPlanificador): Promise<CandidatoConMedida[]> {
   const capa = capaPara(entrada);
   const { preferencias: p, perfil } = entrada;
   const hayRed = perfil.conexion !== "sin";
@@ -80,14 +83,14 @@ export function planificar(entrada: EntradaPlanificador): PlanCapas {
     (perfil.bateriaPct != null && perfil.bateriaPct < 20);
   const orden = ORDEN[capa];
   const puntuarModelo = (id: string) => orden.includes(id) ? orden.length - orden.indexOf(id) : 0;
-  const candidatos: Candidato[] = [];
+  const candidatos: CandidatoConMedida[] = [];
   const limiteRam = Math.min(perfil.ramMb, entrada.presupuesto.ramMb);
   if (p.activo && p.capas.local) {
     for (const instalada of entrada.instaladas) {
       const webIncapaz = perfil.medio === "web" && capa !== "reflejo" && !perfil.webgpu;
       if (instalada.capa === capa && verificada(instalada) && !webIncapaz &&
           (instalada.ramMinMb ?? 0) <= limiteRam) {
-        candidatos.push({ modelo: instalada.id, donde: "local", capa: instalada,
+        candidatos.push({ modelo: instalada.id, donde: "local",
           puntos: 30 + puntuarModelo(instalada.id) + sesgoNivelador(p, "astraura-158-local") });
       }
     }
@@ -106,15 +109,27 @@ export function planificar(entrada: EntradaPlanificador): PlanCapas {
         puntos: 10 + sesgoNivelador(p, "openrouter") });
     }
     for (const disponible of capas) candidatos.push({ modelo: disponible.id, donde: nodo.tipo, nodo: nodo.id,
-      capa: disponible, puntos: 24 + puntuarModelo(disponible.id) - ((nodo.latenciaMs ?? 0) > (entrada.latenciaMs ?? Infinity) ? 8 : 0) });
+      puntos: 24 + puntuarModelo(disponible.id) - ((nodo.latenciaMs ?? 0) > (entrada.latenciaMs ?? Infinity) ? 8 : 0) });
   }
   candidatos.sort((a, b) => b.puntos - a.puntos || a.modelo.localeCompare(b.modelo));
+
+  if (entrada.medidas && entrada.neurona) {
+    return ordenarPorMedidas(candidatos, entrada.medidas, entrada.neurona);
+  }
+  return candidatos;
+}
+
+export async function planificar(entrada: EntradaPlanificador): Promise<PlanCapas> {
+  const capa = capaPara(entrada);
+  const candidatos = await candidatosConMedida(entrada);
   const elegido = candidatos[0];
   if (!elegido) return { capa, modelo: "ninguno", donde: "local", respaldo: [],
     motivo: "No hay una capa verificada permitida para este medio y privacidad." };
   const profundidad = capa === "reflejo"
     ? Math.min(elegido.capa?.profundidad ?? 20, profundidadNeedle(entrada.presupuesto.discoMb)) || undefined
     : undefined;
+  const fondo = entrada.segundoPlano || entrada.perfil.visible === false || entrada.perfil.saveData === true ||
+    (entrada.perfil.bateriaPct != null && entrada.perfil.bateriaPct < 20);
   return { capa, modelo: elegido.modelo, donde: elegido.donde, nodo: elegido.nodo, profundidad,
     respaldo: candidatos.slice(1, 5).map(({ modelo, donde, nodo }) => ({ modelo, donde, nodo })),
     motivo: `${fondo ? "Segundo plano" : "Reflejo previo"}; ${capa} en ${elegido.donde}, con privacidad ${entrada.privacidad}.` };
