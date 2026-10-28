@@ -1,0 +1,15 @@
+[Unit]
+Description=StarSeed · vigía de modelos cada día a las 04:20 (VGM1016E)
+# requiere: /home/starseed/starseed-system/scripts/puente/vigia_modelos.py
+
+[Timer]
+# Por calendario y no «20 min después de la última vez»: al reinstalar la unidad se pierde
+# esa marca relativa y el temporizador se quedaba sin próxima vuelta (medido el 2026-10-10).
+OnCalendar=*-*-* 04:20
+# Si el A1 estuvo apagado a esa hora, la pasada se recupera al volver. El ExecCondition del
+# servicio evita repetirla si ya se hizo hace menos de 20 h.
+Persistent=true
+Unit=starseed-vigia-modelos.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,27 @@
+[Unit]
+Description=StarSeed · vigía de modelos y versiones: una pasada al día en el A1 (VGM1016E)
+After=network-online.target
+Wants=network-online.target
+# requiere: /home/starseed/starseed-system/scripts/puente/vigia_modelos.py
+# requiere: /home/starseed/starseed-system/config/vigia-areas.json
+# temporizado
+# Lee el repo del OS (solo lectura) porque el vigía necesita config/vigia-areas.json y los
+# catálogos de src/lib. La última pasada queda en ~/.starseed/vigia-modelos.json; si tiene
+# menos de 20 h no repite (§6 del contrato), la haya hecho el A1, la Mac o el líder de
+# MetaGenesis (VGM1016F). Regla de licencia: nunca no comercial por defecto ni en uso comercial.
+StartLimitIntervalSec=3600
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed/starseed-system
+Environment=STARSEED_MEDIO=oracle_a1 STARSEED_DONDE=oracle STARSEED_ROOT=/home/starseed/starseed-system PYTHONUNBUFFERED=1
+# El estado se comprueba antes de arrancar; si la pasada es reciente, el servicio no corre.
+ExecCondition=/usr/bin/python3 -c "import sys; sys.path.insert(0, '/home/starseed/starseed-system/scripts/puente'); import vigia_modelos as v; raise SystemExit(0 if v.toca_pasada(v._leer_json(v.RUTA_ESTADO, {})) else 1)"
+ExecStart=/usr/bin/python3 -u /home/starseed/starseed-system/scripts/puente/vigia_modelos.py
+# Una pasada con red puede tardar: no es un servicio encendido, es un trabajo diario.
+TimeoutStartSec=3600
+MemoryMax=1G
+Nice=10
