@@ -23,8 +23,9 @@ describe("catálogo JSON con las 9 capas de Colibri", () => {
   it("leerCatalogo lee las 9 y todas pasan el esquema de EntradaCapa", () => {
     expect(colibri).toHaveLength(9);
     expect(colibri.map((e) => e.id)).toEqual(IDS_COLIBRI);
-    // 22 y no 24: las 2 entradas «oído» de antes ya quedaban fuera del esquema.
-    expect(catalogo.capas).toHaveLength(22);
+    // 23 y no 22: la incrustación de LEANN (1028L) entra válida al esquema; las 2
+    // entradas «oído» de antes ya quedaban fuera.
+    expect(catalogo.capas).toHaveLength(23);
   });
 
   it("ninguna capa de Colibri es usable todavía", () => {

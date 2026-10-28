@@ -23,6 +23,7 @@ export type RuntimeCapa =
   | "llama-cpp"
   | "bitnet-cpp"
   | "colibri"
+  | "ollama"
   | "mlx";
 
 /** «por-verificar»: entra al catálogo sin SHA medido y no se usa hasta que el instalador lo anote. */
@@ -54,6 +55,8 @@ export interface EntradaCapa {
   espejos: string[];
   estado: EstadoCapa;
   medios: Medio[];
+  /** Aclaración opcional del catálogo: por qué está aquí y con qué licencia. */
+  nota?: string;
 }
 
 export interface CatalogoCapas {
@@ -81,6 +84,7 @@ const RUNTIMES: readonly RuntimeCapa[] = [
   "llama-cpp",
   "bitnet-cpp",
   "colibri",
+  "ollama",
   "mlx",
 ];
 const ESTADOS: readonly EstadoCapa[] = [
@@ -135,6 +139,7 @@ function entradaValida(v: unknown): v is EntradaCapa {
   if (!esNumero(e.disco_mb) || !esNumero(e.ram_min_mb)) return false;
   if (e.streaming_disco !== undefined && typeof e.streaming_disco !== "boolean") return false;
   if (e.ram_ok_mb !== undefined && !esNumero(e.ram_ok_mb)) return false;
+  if (e.nota !== undefined && !esTexto(e.nota)) return false;
   if (!Array.isArray(e.espejos) || !e.espejos.every(esTexto)) return false;
   if (
     !Array.isArray(e.medios) ||
