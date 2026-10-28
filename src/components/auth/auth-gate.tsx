@@ -49,7 +49,11 @@ export function AuthGate() {
   if (!ready || authed) return null;
 
   // La página decide qué hacer al entrar (el rito, los escritorios): la ventana se queda.
-  return <PaginaAcceso desde="bienvenida" pasoInicial="acceso" pestanaInicial="signin" destinoAlEntrar={null} />;
+  // (Ola 1021G · GUI1021K1, §5 de `architecture/guias-introduccion.md`) La puerta del acceso YA no es
+  // «la bienvenida»: esa ruta monta su propia `PaginaAcceso`. Aquí el botón «Conoce StarSeed» que la
+  // ventana única enseña bajo Entrar y Crear cuenta abre la guía con `desde: "login"` y sin tocar el
+  // inicio de sesión: ni entra, ni registra, ni deja al usuario en bucle.
+  return <PaginaAcceso desde="login" pasoInicial="acceso" pestanaInicial="signin" destinoAlEntrar={null} />;
 }
 
 export default AuthGate;
