@@ -142,6 +142,7 @@ function ShareCanvasDialog({
                 aria-label="Comentario de la publicación (opcional)"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
+                aria-label="Comentario de la publicación (opcional)"
                 placeholder="Añade un comentario (opcional)…"
                 rows={2}
                 className="w-full rounded-xl border border-white/10 bg-black/30 p-2.5 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-emerald-400/40 resize-none"

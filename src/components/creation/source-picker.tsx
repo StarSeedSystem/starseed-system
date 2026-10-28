@@ -16,7 +16,11 @@
 // Estilo Crystal Liquid Glass · iconos Lucide · alias @/.
 // ─────────────────────────────────────────────────────────────────────────────
 
+<<<<<<< HEAD
 import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
+=======
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+>>>>>>> abbc2e2d9 (salvavidas · SP092941c: trabajo del agente antes de las puertas (tsc / vitest))
 import {
     Dialog,
     DialogContent,
@@ -275,6 +279,7 @@ function DevicePanel({ folder, onPick }: { folder: string; onPick: (r: SourceRef
                 type="file"
                 aria-label="Archivo del dispositivo"
                 className="hidden"
+                aria-label="Archivo del dispositivo"
                 onChange={(e) => void onChoose(e)}
             />
         </div>
@@ -289,12 +294,21 @@ function UrlPanel({ onPick }: { onPick: (r: SourceRef) => void }) {
     const [url, setUrl] = useState("");
     const [label, setLabel] = useState("");
     const valid = /^https?:\/\/\S+/i.test(url.trim());
+    // ids únicos por instancia para vincular cada label con su input (accesibilidad).
+    const urlId = useId();
+    const etiquetaId = useId();
     return (
         <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
             <div className="space-y-1.5">
+<<<<<<< HEAD
                 <label htmlFor={idUrl} className="text-[11px] uppercase tracking-wider text-white/40">URL</label>
                 <Input
                     id={idUrl}
+=======
+                <label htmlFor={urlId} className="text-[11px] uppercase tracking-wider text-white/40">URL</label>
+                <Input
+                    id={urlId}
+>>>>>>> abbc2e2d9 (salvavidas · SP092941c: trabajo del agente antes de las puertas (tsc / vitest))
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
                     placeholder="https://…"
@@ -302,9 +316,15 @@ function UrlPanel({ onPick }: { onPick: (r: SourceRef) => void }) {
                 />
             </div>
             <div className="space-y-1.5">
+<<<<<<< HEAD
                 <label htmlFor={idEtiqueta} className="text-[11px] uppercase tracking-wider text-white/40">Etiqueta (opcional)</label>
                 <Input
                     id={idEtiqueta}
+=======
+                <label htmlFor={etiquetaId} className="text-[11px] uppercase tracking-wider text-white/40">Etiqueta (opcional)</label>
+                <Input
+                    id={etiquetaId}
+>>>>>>> abbc2e2d9 (salvavidas · SP092941c: trabajo del agente antes de las puertas (tsc / vitest))
                     value={label}
                     onChange={(e) => setLabel(e.target.value)}
                     placeholder="Nombre visible"
