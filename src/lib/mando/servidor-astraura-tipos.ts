@@ -15,7 +15,18 @@
  * aquí.
  */
 
+import type { CapacidadInsomne, EstadoInsomne, PoliticaInsomne } from "@/lib/neurons/insomne";
+
 // ── Energía: reposo, batería, quién impide que la Mac se duerma ─────────────
+
+/** Lo que la neurona insomne (INS1027) puede y está haciendo con la pantalla cerrada. */
+export interface InsomneServidor {
+    capacidad: CapacidadInsomne;
+    estado: EstadoInsomne;
+    politica?: PoliticaInsomne;
+    /** `debeSoltarTrabajo`: quedan menos de 15 min, batería baja sin cargar o calor crítico. */
+    soltarTrabajo: boolean;
+}
 
 /** De dónde saca corriente la Mac ahora mismo (`pmset -g batt`). */
 export type Alimentacion = "ac" | "bateria" | "desconocida";
@@ -389,6 +400,8 @@ export interface EnergiaServidor {
     reposoPantallaMin: number | null;
     reposoDesactivado: boolean;
     reposoImpedidoPor: string[];
+    /** Estado de la neurona insomne; ausente en respuestas antiguas o si no se pudo medir. */
+    insomne?: InsomneServidor;
 }
 
 export interface EstadoServidorAstraura {
