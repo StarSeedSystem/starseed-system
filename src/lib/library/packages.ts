@@ -83,6 +83,10 @@ import { FICHAS_REPOS_1027B } from "./repos-1027b";
 // Tanda del 2026-10-28 (Ola 1028 · LNN1028): LEANN, el recuerdo semántico de Astraura.
 // Contrato: architecture/leann-recuerdo-semantico.md.
 import { FICHAS_REPOS_1028 } from "./repos-1028";
+// Voces de uso personal no comercial (VZR1011C): F5-TTS y XTTS-v2 opcionales,
+// ChatTTS solo ficha. El catálogo y sus licencias viven en un módulo puro para
+// que la ficha de la Biblioteca no las invente ni las duplique.
+import { FICHAS_VOCES_NO_COMERCIALES } from "@/lib/aurora/tts-oss/voces-no-comerciales";
 // Repo builtin externo de la Ola 1020: 14 repos verificados con upstream y canal
 // para que la Biblioteca autobúsque sus releases/tags/commits.
 import { REPO_EXTERNOS_1020, REPOS_YA_PRESENTES } from "./repos-externos-1020";
@@ -790,6 +794,39 @@ export const FONDO_SHADER_REPO: LibraryRepo = {
   builtin: true,
   packages: buildFondosShadersPackages(),
 };
+/**
+ * Fichas de las voces con pesos NO comerciales (VZR1011C): F5-TTS, XTTS-v2 y
+ * ChatTTS. Comparten el catálogo puro de `voces-no-comerciales.ts`, de modo que
+ * la licencia que enseña la Biblioteca es la del contrato. Todas llevan
+ * `githubRepo` para comprobar versión y `enAutoPorDefecto: false`; ChatTTS no se
+ * integra (solo ficha) y las otras dos exigen opt-in personal.
+ */
+const VOCES_NO_COMERCIALES_PACKAGES: LibraryPackage[] = FICHAS_VOCES_NO_COMERCIALES.map((f) => ({
+  id: `voz-${f.id}`,
+  kind: "repo",
+  name: f.nombre,
+  description: `${f.nota} Licencia: código ${f.licenciaCodigo}; pesos ${f.licenciaPesos}. ${f.integrado ? "Opcional, apagada por defecto y solo para uso personal no comercial." : "Solo ficha: no se integra en el producto."}`,
+  icon: "Mic",
+  tags: ["voces", "voz", "tts", "no-comercial", f.español ? "espanol" : "sin-espanol"],
+  version: "1.0.0",
+  author: f.autor,
+  sourceRepoId: "starseed-labs",
+  free: true,
+  payload: {
+    upstream: f.repo,
+    externalUrl: f.repo,
+    githubRepo: f.repoGithub,
+    categoria: "voces",
+    motorId: f.id,
+    licencia: f.licenciaPesos,
+    licenciaCodigo: f.licenciaCodigo,
+    claseLicencia: f.integrado ? "personal" : "solo-ficha",
+    opcionalPersonal: f.opcionalPersonal,
+    integrado: f.integrado,
+    enAutoPorDefecto: f.enAutoPorDefecto,
+  },
+}));
+
 const LABS_PACKAGES: LibraryPackage[] = [
   /* ── SmolLM3 en el navegador (WebGPU · sin clave) ── */
   {
@@ -866,10 +903,10 @@ const LABS_PACKAGES: LibraryPackage[] = [
   {
     id: "voz-chatterbox", kind: "repo", name: "Chatterbox · Resemble AI",
     description:
-      "TTS de 0,5 B parámetros (MIT) con control de exageración emocional y clonación zero-shot. PyTorch: necesita GPU o una CPU potente y ~1,5 GB de pesos. Se integra como segundo daemon detrás del mismo contrato de VoiceMorphic. Su dial de estilo ya viaja como instrucción por timbre.",
-    icon: "Sparkles", tags: ["voces", "voz", "tts", "emocion", "pytorch"], version: "0.1.0",
+      "TTS MIT de Resemble AI con control de exageración emocional, clonación zero-shot y español (Multilingual V3: 23+ idiomas, con paquetes de español latino y de España). Marca de agua Perth en todo lo generado. PyTorch: CUDA, CPU o MPS y ~1,5 GB de pesos. Se integra detrás del mismo contrato de VoiceMorphic.",
+    icon: "Sparkles", tags: ["voces", "voz", "tts", "emocion", "pytorch", "libre"], version: "0.1.0",
     author: "Resemble AI", sourceRepoId: "starseed-labs", free: true,
-    payload: { externalUrl: "https://github.com/resemble-ai/chatterbox", githubRepo: "resemble-ai/chatterbox", categoria: "voces", motorId: "chatterbox" },
+    payload: { upstream: "https://github.com/resemble-ai/chatterbox", externalUrl: "https://github.com/resemble-ai/chatterbox", githubRepo: "resemble-ai/chatterbox", categoria: "voces", motorId: "chatterbox", licencia: "MIT", claseLicencia: "libre" },
   },
   {
     id: "voz-voxcpm", kind: "repo", name: "VoxCPM · OpenBMB",
@@ -882,11 +919,14 @@ const LABS_PACKAGES: LibraryPackage[] = [
   {
     id: "voz-openvoice2", kind: "repo", name: "OpenVoice V2 · MyShell (nube gratuita)",
     description:
-      "Clonación de voz (MIT) usada por Spaces públicos de Hugging Face: requiere internet y depende de que estén despiertos. Solo respaldo; nunca por defecto en descargas.",
-    icon: "Cloud", tags: ["voces", "voz", "tts", "nube", "respaldo"], version: "2.0.0",
+      "Clonación de voz MIT (código y checkpoints V2) con uso comercial libre, usada por Spaces públicos de Hugging Face: requiere internet y depende de que estén despiertos. Solo respaldo; nunca por defecto en descargas.",
+    icon: "Cloud", tags: ["voces", "voz", "tts", "nube", "respaldo", "libre"], version: "2.0.0",
     author: "MyShell", sourceRepoId: "starseed-labs", free: true,
-    payload: { externalUrl: "https://github.com/myshell-ai/OpenVoice", githubRepo: "myshell-ai/OpenVoice", categoria: "voces", motorId: "openvoice2" },
+    payload: { upstream: "https://github.com/myshell-ai/OpenVoice", externalUrl: "https://github.com/myshell-ai/OpenVoice", githubRepo: "myshell-ai/OpenVoice", categoria: "voces", motorId: "openvoice2", licencia: "MIT", claseLicencia: "libre" },
   },
+  /* Voces con pesos no comerciales (VZR1011C): fichas honestas, apagadas por
+     defecto y nunca en la cadena AUTO. ChatTTS solo ficha. */
+  ...VOCES_NO_COMERCIALES_PACKAGES,
   {
     id: "voz-referencias", kind: "research", name: "Referencias de voz humana · fuentes públicas",
     description:
