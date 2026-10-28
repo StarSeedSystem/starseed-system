@@ -18,8 +18,10 @@ IMPURO (capa de accion, sin pruebas):
 
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import unicodedata
 
 RUTA_MANDO = "/genesis"
@@ -97,29 +99,52 @@ def capturar(ruta, destino, puerto=9002, espera_s=6):
     """Captura `ruta` local en `destino` con Chrome headless; None si no hay Chrome.
 
     No instala nada ni levanta la Mac: si el binario no existe devuelve None y
-    una frase explicando por qué. El headless va por `--virtual-time-budget`
-    para dejar que el JS pinte antes del screenshot.
+    una frase explicando por qué. Va con `--user-data-dir` propio en un
+    `tempfile.mkdtemp()` (se borra al terminar): no toca el perfil real y evita
+    los restos de primera ejecución (`--no-first-run --no-default-browser-check`).
+    Sobre evadir los clones de firma (DEC1028H): se corre con `Popen` y al vencer
+    el tiempo se hace `terminate()` + `wait(15)` ANTES de `kill()`, para que
+    Chrome cierre limpio y se lleve su clon; el `subprocess.run(timeout=…)` de
+    antes lo mataba a SIGKILL y el clon de ~1,4 GB se quedaba en el disco.
+    El headless va por `--virtual-time-budget` para dejar que el JS pinte antes
+    del screenshot.
     """
     if not os.path.exists(RUTA_CHROME):
         return None
     url = "http://localhost:%d%s" % (puerto, ruta)
     os.makedirs(os.path.dirname(destino), exist_ok=True)
+    perfil = tempfile.mkdtemp(prefix="captura-prueba-")
     comando = [
         RUTA_CHROME,
         "--headless=new",
         "--disable-gpu",
+        "--user-data-dir=%s" % perfil,
+        "--no-first-run",
+        "--no-default-browser-check",
         "--screenshot=%s" % destino,
         "--window-size=1440,900",
         "--virtual-time-budget=%d" % int(espera_s * 1000),
         url,
     ]
+    codeo = None
     try:
-        proc = subprocess.run(comando, capture_output=True, timeout=60)
-        if proc.returncode != 0:
+        proc = subprocess.Popen(comando, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            codeo = proc.wait(timeout=60)
+        except subprocess.TimeoutExpired:
+            proc.terminate()  # SIGTERM primero: Chrome cierra limpio y se borra su clon de firma
+            try:
+                codeo = proc.wait(15)
+            except subprocess.TimeoutExpired:  # terco: al SIGKILL se va y su clon quizá quede
+                proc.kill()
+                codeo = proc.wait()
+        if codeo != 0:
             return None
         return destino if os.path.exists(destino) else None
-    except (subprocess.TimeoutExpired, OSError):
+    except OSError:
         return None
+    finally:
+        shutil.rmtree(perfil, ignore_errors=True)
 
 
 def _destino_por_defecto():
