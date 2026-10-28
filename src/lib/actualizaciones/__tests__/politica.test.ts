@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CAPAS_ORDEN } from "../manifiesto";
 import {
   VENTANA_NOCTURNA, decidirPolitica, politicaPorDefecto, sanearPolitica,
-  sistemaRequiereAprobacion, type PoliticaCapa,
+  sistemaRequiereAprobacion, type PoliticaCapa, type TipoEntidad,
 } from "../politica";
 const modos = (tipo: Parameters<typeof politicaPorDefecto>[0]) => CAPAS_ORDEN.map((c) => politicaPorDefecto(tipo)[c].modo);
 describe("política por defecto por tipo de sistema", () => {
@@ -22,6 +22,11 @@ describe("política por defecto por tipo de sistema", () => {
   });
   it("grupo jerárquico se comporta como un perfil privado", () => {
     expect(politicaPorDefecto("grupo-jerarquico")).toEqual(politicaPorDefecto("perfil-privado"));
+  });
+  it("los tipos que no son el OS ni la página comparten la política base", () => {
+    const base = politicaPorDefecto("perfil");
+    const otros: TipoEntidad[] = ["grupo", "comunidad", "estudio", "evento"];
+    for (const tipo of otros) expect(politicaPorDefecto(tipo), tipo).toEqual(base);
   });
   it("grupo democrático: mismos modos, cada capa marcada «requiere aprobación»", () => {
     const demo = politicaPorDefecto("grupo-democratico");
