@@ -22,7 +22,8 @@ import path from "node:path";
 
 import { guardianMando } from "@/lib/mando/guardian";
 import { raizDelProyecto } from "@/lib/mando/raiz";
-import { construirResumenRed, leerBanco, leerCatalogoCapas, leerNuevas } from "@/lib/mando/capas-red";
+import { construirResumenRed, leerBanco, leerNuevas } from "@/lib/mando/capas-red";
+import type { CapaCatalogo } from "@/lib/mando/capas-red";
 import { entradasColibri, leerCatalogo } from "@/lib/astraura/capas/catalogo";
 import type { CapacidadesNodo } from "@/lib/network/capacidades-nodo";
 
@@ -77,10 +78,15 @@ export async function GET(peticion: Request): Promise<Response> {
 
     const catalogoBase = leerCatalogo(crudoCatalogo);
     const colibriEntradas = entradasColibri(crudoColibri);
-    const catalogo = {
-      ...catalogoBase,
-      capas: [...catalogoBase.capas, ...colibriEntradas],
-    };
+    const catalogo: CapaCatalogo[] = [...catalogoBase.capas, ...colibriEntradas].map((capa) => ({
+        id: capa.id,
+        capa: capa.capa,
+        modelo: capa.modelo,
+        version: capa.version,
+        estado: capa.estado,
+        espejos: capa.espejos,
+        sha256: capa.sha256,
+    }));
     const { nuevas, actualizado } = leerNuevas(crudoEstado);
     const resumen = construirResumenRed({
         catalogo,

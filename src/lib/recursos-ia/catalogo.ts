@@ -281,17 +281,19 @@ export function modelosDeColibri(json: unknown): RequisitosModelo[] {
         const modoAlmacenamiento = streaming ? "streaming" : "carga-completa";
         const lecturaMin = streaming ? 500 : undefined; // Colibri pide disco rápido
 
-        const mediosRaw = Array.isArray(c.medios)
+        const mediosRaw: MedioApp[] = Array.isArray(c.medios)
             ? c.medios.filter((m): m is MedioApp => MEDIOS_VALIDOS.includes(m as MedioApp))
             : ["servidor"];
-        const medios = mediosRaw.length > 0 ? mediosRaw : ["servidor"];
+        const medios: MedioApp[] = mediosRaw.length > 0 ? mediosRaw : ["servidor"];
 
         const estado = c.estado === "por-verificar" ? "en-pruebas" : "recomendado";
+        const licenciaModelo = esTexto(c.licencia_modelo) ? c.licencia_modelo : "";
+        const licencia = licenciaModelo && licenciaModelo !== "por verificar" ? licenciaModelo : "por-verificar";
 
         const notas: string[] = [];
         if (streaming) notas.push("Streaming de expertos desde disco: pide disco rápido (NVMe/SSD), no toda la RAM.");
-        if (c.licencia_modelo && c.licencia_modelo !== "por verificar") {
-            notas.push(`Licencia del modelo: ${c.licencia_modelo}.`);
+        if (licenciaModelo && licenciaModelo !== "por verificar") {
+            notas.push(`Licencia del modelo: ${licenciaModelo}.`);
         }
         if (c.medida && esTexto(c.medida)) {
             notas.push(`Medida: ${c.medida}.`);
@@ -314,7 +316,7 @@ export function modelosDeColibri(json: unknown): RequisitosModelo[] {
                 soloLocal: true, // Colibri corre en la neurona/servidor local
             },
             medios,
-            licencia: c.licencia_modelo === "por verificar" ? "por-verificar" : (c.licencia_modelo ?? "por-verificar"),
+            licencia,
             upstream: c.repo_hf && esTexto(c.repo_hf) ? `https://huggingface.co/${c.repo_hf}` : "",
             estado,
             origen: "capas",

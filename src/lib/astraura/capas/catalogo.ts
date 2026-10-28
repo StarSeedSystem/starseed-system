@@ -227,10 +227,10 @@ export function entradasColibri(json: unknown): EntradaCapa[] {
 
     const familia = esTexto(c.repo_hf) ? c.repo_hf.trim() : "JustVugg/colibri";
     const modelo = esTexto(c.modelo) ? c.modelo.trim() : id;
-    const mediosRaw = Array.isArray(c.medios)
+    const mediosRaw: Medio[] = Array.isArray(c.medios)
       ? c.medios.filter((m): m is Medio => MEDIOS.includes(m as Medio))
       : ["servidor"];
-    const medios = mediosRaw.length > 0 ? mediosRaw : ["servidor"];
+    const medios: Medio[] = mediosRaw.length > 0 ? mediosRaw : ["servidor"];
 
     const discoGb = esNumero(c.disco_gb) ? c.disco_gb : 0;
     const ramMinGb = esNumero(c.ram_min_gb) ? c.ram_min_gb : 0;
