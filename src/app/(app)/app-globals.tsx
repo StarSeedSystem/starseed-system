@@ -45,6 +45,8 @@ import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
 import { AcompanantePersonalidad } from "@/components/avatares/acompanante-personalidad";
 import { InstalacionesPendientes } from "@/components/library/instalaciones-pendientes";
 import { RegistroRecientesAccesos } from "@/components/widgets-libres/familias/accesos-registro";
+// Menú del clic derecho sobre texto (TRD1020E): registro compartido para Traducir y Variaciones públicas.
+import { MenuTexto } from "@/components/traduccion/menu-texto";
 
 // Entrada XR global (XR1010F · contrato starseed-xr §0.6 y §3 c): ligera y sin SSR.
 // El motor 3D no se carga aquí: el botón navega a `/xr/os?modo=…` (XR1010G).
@@ -94,6 +96,8 @@ export default function AppGlobals() {
           discreta «X pidió instalar Y aquí» con «Instalar aquí» / «Ahora no». Sin UI
           mientras no haya pedidos para este dispositivo. */}
       <InstalacionesPendientes />
+      {/* Menú global del clic derecho sobre texto (TRD1020E · §4 de repos-libreria-1020d.md). */}
+      <MenuTexto />
     </SoloFueraDeConsola>
   );
 }
