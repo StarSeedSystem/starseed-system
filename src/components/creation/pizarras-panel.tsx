@@ -138,7 +138,11 @@ function ShareCanvasDialog({
                     <X className="w-4 h-4" />
                 </button>
             </div>
+            <label htmlFor="share-note" className="text-[11px] font-medium text-white/60 block mb-1">
+                Comentario (opcional)
+            </label>
             <textarea
+                id="share-note"
                 aria-label="Comentario de la publicación (opcional)"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
@@ -146,7 +150,12 @@ function ShareCanvasDialog({
                 rows={2}
                 className="w-full rounded-xl border border-white/10 bg-black/30 p-2.5 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-emerald-400/40 resize-none"
             />
-            <DestSelector value={dest} onChange={setDest} ownValue={own} onOwnChange={setOwn} />
+            <label htmlFor="share-dest" className="text-[11px] font-medium text-white/60 block mb-1">
+                Publicar en
+            </label>
+            <div id="share-dest">
+                <DestSelector value={dest} onChange={setDest} ownValue={own} onOwnChange={setOwn} />
+            </div>
             <div className="flex justify-end">
                 <Button
                     onClick={() => void handleShare()}
