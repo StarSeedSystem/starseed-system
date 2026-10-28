@@ -4,13 +4,21 @@
 // (vendor/habilidades/diagram-design/) se pinta SOLO en un iframe `sandbox` sin `allow-same-origin` (prepararDiagrama),
 // con las fuentes del OS, zoom, desplazamiento, piel clara u oscura y Exportar SVG/PNG. Nada sale de la neurona.
 
+import dynamic from "next/dynamic";
 import { useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
-import { FileDown, ImageDown, Minus, Moon, Plus, RotateCcw } from "lucide-react";
+import { Box, FileDown, ImageDown, Minus, Moon, Plus, RotateCcw } from "lucide-react";
 import { prepararDiagrama } from "@/lib/diagramas/aislar-diagrama";
+import { estructuraDeSvg, type TipoEscena } from "@/lib/diagramas/diagrama-3d";
 import { sustituirFuentes, type FuenteDisponible } from "@/lib/diagramas/fuentes-locales";
 import { conModo, modoDeDiagrama, planPng, svgDeDiagrama, type ModoDiagrama } from "@/lib/diagramas/exportar-diagrama";
 import { descargarBlob } from "@/lib/conversion/cliente";
 import { cn } from "@/lib/utils";
+
+// La escena 3D es pesada: se carga solo al pedirla y nunca en el servidor.
+const Diagrama3D = dynamic(() => import("@/components/vivo/espacial/diagrama-3d"), {
+  ssr: false,
+  loading: () => <div className="grid h-full place-items-center text-xs text-white/60">Preparando la escena…</div>,
+});
 
 export interface VistaDiagramaProps {
   html: string;
@@ -46,7 +54,10 @@ export function VistaDiagrama({ html, titulo = "Diagrama", nombre, fuentes, esca
   const [zoom, setZoom] = useState(1);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [aviso, setAviso] = useState<string | null>(null);
+  const [en3d, setEn3d] = useState(false);
   const arrastre = useRef<{ x: number; y: number } | null>(null);
+  const estructura = useMemo(() => estructuraDeSvg(html), [html]);
+  const tipo3d: TipoEscena = estructura.capas.some((c) => c.nodos.length) ? "capas" : "grafo";
   const original = useMemo(() => modoDeDiagrama(html), [html]);
   const modo = elegido ?? original;
   const aislado = useMemo(
@@ -100,17 +111,25 @@ export function VistaDiagrama({ html, titulo = "Diagrama", nombre, fuentes, esca
         <Boton etiqueta="Acercar" onClick={teclas["+"]}><Plus /></Boton>
         <Boton etiqueta="Restablecer la vista" onClick={reiniciar}><RotateCcw /></Boton>
         <Boton etiqueta="Piel oscura" pulsado={modo === "oscuro"} onClick={() => setElegido(modo === "oscuro" ? "claro" : "oscuro")}><Moon /></Boton>
+        <Boton etiqueta={en3d ? "Volver a la vista 2D" : "Ver el diagrama en 3D"} texto="3D" pulsado={en3d} onClick={() => setEn3d((v) => !v)}><Box /></Boton>
         <span className="flex-1" />
         <Boton etiqueta="Exportar SVG" texto="SVG" onClick={() => exportar("svg")}><FileDown /></Boton>
         <Boton etiqueta="Exportar PNG" texto="PNG" onClick={() => exportar("png")}><ImageDown /></Boton>
       </div>
-      <div tabIndex={0} role="group" onKeyDown={alTeclear} style={{ height: alto }}
-        aria-label={`${titulo}: arrastra para desplazarte, flechas para moverte, + y - para el zoom, 0 para restablecer`}
+      <div tabIndex={en3d ? -1 : 0} role="group" onKeyDown={en3d ? undefined : alTeclear} style={{ height: alto }}
+        aria-label={en3d ? `${titulo} en 3D: arrastra para girar, rueda o pellizca para recorrer`
+          : `${titulo}: arrastra para desplazarte, flechas para moverte, + y - para el zoom, 0 para restablecer`}
         className="relative overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60">
-        <iframe srcDoc={aislado.srcdoc} sandbox={aislado.sandbox} title={titulo} className="absolute left-0 top-0 h-full w-full border-0"
-          style={{ transform: `translate(${pos.x}px, ${pos.y}px) scale(${zoom})`, transformOrigin: "0 0" }} />
-        <div aria-hidden="true" data-testid="capa-arrastre" className="absolute inset-0 cursor-grab touch-none active:cursor-grabbing"
-          onPointerDown={alPulsar} onPointerMove={alMover} onPointerUp={alSoltar} onPointerCancel={alSoltar} />
+        {en3d ? (
+          <Diagrama3D svg={html} tipo={tipo3d} alto={alto} etiqueta={`${titulo} en 3D`} />
+        ) : (
+          <>
+            <iframe srcDoc={aislado.srcdoc} sandbox={aislado.sandbox} title={titulo} className="absolute left-0 top-0 h-full w-full border-0"
+              style={{ transform: `translate(${pos.x}px, ${pos.y}px) scale(${zoom})`, transformOrigin: "0 0" }} />
+            <div aria-hidden="true" data-testid="capa-arrastre" className="absolute inset-0 cursor-grab touch-none active:cursor-grabbing"
+              onPointerDown={alPulsar} onPointerMove={alMover} onPointerUp={alSoltar} onPointerCancel={alSoltar} />
+          </>
+        )}
       </div>
       {aviso && <figcaption role="status" className="border-t border-white/10 px-3 py-1.5 text-xs text-amber-200">{aviso}</figcaption>}
     </figure>
