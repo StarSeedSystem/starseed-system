@@ -461,8 +461,8 @@ const IR_A = (texto: string, destino: string): AccionMedidor => ({
  * panel. Un clic de más no puede deshacer trabajo integrado.
  */
 export function accionesDeTarea(estado: string | undefined): AccionMedidor[] {
-    // (2026-09-29) Un sueño con su informe tampoco se descarta ni se reintenta desde aquí: se
-    // verifica o se rehace con `suenos.py` (panel «Sueños profundos»).
+    // (2026-09-29) Una imaginación con su informe tampoco se descarta ni se reintenta desde aquí: se
+    // verifica o se rehace con `suenos.py` (panel «Imaginación profunda»).
     if (!estado || TERMINALES.has(estado) || estado === "informe") return [];
     return [
         { clase: "descartar", texto: "Descartar", destructiva: true },
@@ -1341,7 +1341,7 @@ export interface DatosMedidores {
         medio?: string;
         /** Título legible (solo lo traen los latidos externos de `latido_externo.py`). */
         titulo?: string;
-        /** (2026-09-29) Qué hace un sueño profundo dentro de «analizando». */
+        /** (2026-09-29) Qué hace una imaginación profunda dentro de «analizando». */
         subfase?: string;
         /** (PDA1012) Nube de GitHub: el paso REAL del job («Enjambre», «Entregar…») y su avance. */
         paso?: string;
@@ -1519,7 +1519,7 @@ const FASE_VERIFICANDO: Record<string, string> = {
     integrando: "puertas en verde: integrando en main",
     "esperando-memoria": "aún sin verificar: esperando memoria para compilar",
     escribiendo: "aún sin verificar: está escribiendo",
-    analizando: "sueño profundo: leyendo y analizando (no escribe código)",
+    analizando: "imaginación profunda: leyendo y analizando (no escribe código)",
 };
 
 /**
@@ -1535,7 +1535,7 @@ export function verificacionDe(
     const sha = entrada?.sha ? ` (${entrada.sha.slice(0, 8)})` : "";
     const motivo = entrada?.motivo_vb ? `: ${entrada.motivo_vb}` : "";
     if (TERMINALES.has(estado)) return { texto: `puertas en verde e integrada en main${sha}`, aviso: false };
-    if (estado === "informe") return { texto: "sueño profundo: informe escrito, sin código que integrar (lo verifica un supervisor Claude)", aviso: false };
+    if (estado === "informe") return { texto: "imaginación profunda: informe escrito, sin código que integrar (lo verifica un supervisor Claude)", aviso: false };
     if (estado === "rechazada") return { texto: `rechazada${motivo || " por la revisión"}`, aviso: true };
     if (estado === "bloqueante") return { texto: `la revisión puso una pega bloqueante${motivo}`, aviso: true };
     if (estado.startsWith("fallo")) {
@@ -1587,7 +1587,7 @@ export function filasDeOlasActivas(d: DatosMedidores, repo?: string): FilaMedido
                 etapa = "integrada";
                 porcentaje = 100;
             } else if (estado === "informe") {
-                // Sueño profundo terminado: su «entrega» es un informe, no un commit.
+                // Imaginación profunda terminada: su «entrega» es un informe, no un commit.
                 estadoFila = "informe escrito";
                 etapa = "informe";
                 porcentaje = 100;
@@ -1673,7 +1673,7 @@ export function filasDeOlasActivas(d: DatosMedidores, repo?: string): FilaMedido
             etapa: ola.medio === "mac" ? "en la Mac" : `en ${ola.medio}`,
             porcentaje: n ? Math.round(((integradas + informes) / n) * 100) : 0,
             porque:
-                `${n} tarea(s): ${integradas} integrada(s)${informes ? ` · ${informes} informe(s) de sueños` : ""} · ${enCurso} en curso · ${paradas} parada(s) · ` +
+                `${n} tarea(s): ${integradas} integrada(s)${informes ? ` · ${informes} informe(s) de imaginación` : ""} · ${enCurso} en curso · ${paradas} parada(s) · ` +
                 `${resto} ${ola.asignacionConocida ? "por empezar" : "en el run, sin dato en vivo"}`,
             quien: `${ola.agentes} agente(s) · ${ola.medio}`,
             desde: ola.minutos !== undefined ? `${ola.minutos} min` : undefined,
@@ -2350,7 +2350,7 @@ export function detalleDeMedidor(
                     porque = `fase: ${l.fase ?? "sin fase"} · avisa al cambiar de fase (no escribe registro en la Mac)`;
                 } else if (sonando) {
                     estado = "soñando";
-                    porque = `sueño profundo · ${l.subfase || "analizando"} (lee, no escribe código)`;
+                    porque = `imaginación profunda · ${l.subfase || "analizando"} (lee, no escribe código)`;
                 } else if (/esperando aprobaci|visto bueno/.test(fase)) {
                     // La rama está hecha y espera una decisión: no escribe nadie, y no es un fantasma.
                     estado = "esperando aprobación";
