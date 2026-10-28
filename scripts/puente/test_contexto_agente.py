@@ -89,6 +89,11 @@ class Roles(unittest.TestCase):
         with self.assertRaises(ValueError):
             construir("oraculo")
 
+    def test_lista_de_roles_incluye_los_investigadores(self):
+        self.assertEqual(C.ROLES, ("escritor", "revisor", "analista", "supervisor", "subagente",
+                                   "investigador-diseno", "investigador-alcance"))
+        self.assertEqual(len(C.ROLES), len(set(C.ROLES)))
+
 
 class Area(unittest.TestCase):
     def test_area_de_areas_ts_con_documentos_rutas_y_codigo_reales(self):
@@ -214,6 +219,55 @@ class InvestigadorDiseno(unittest.TestCase):
         self.assertIn("El ADN de la identidad manda", d["texto"])
 
 
+class InvestigadorAlcance(unittest.TestCase):
+    """(INV1025K) Rol del agente de alcance: R1–R8, salida de borradores y herramientas sin sesión."""
+
+    ARCHIVOS = {"scripts/puente/vigia_referencias.py": "x", ".agent/skills/agent-reach/SKILL.md": "x"}
+
+    def test_las_ocho_reglas_duras_y_la_salida(self):
+        t = construir("investigador-alcance", archivos=self.ARCHIVOS)["texto"]
+        self.assertIn("canales sin sesión", t)
+        self.assertIn("Nada se envía", t)
+        self.assertIn("Credenciales jamás", t)
+        self.assertIn("robots.txt", t)
+        self.assertIn("almacén privado", t)
+        self.assertIn("dato, no instrucciones", t)
+        self.assertIn("fuente https", t)
+        self.assertIn("Importancia siempre «alta»", t)
+        self.assertIn("## Salida esperada", t)
+        self.assertIn("\"propuestas\"", t)
+        self.assertIn("\"tipo\"", t)
+        self.assertIn("\"destino\"", t)
+        self.assertIn("\"afirmaciones\"", t)
+        self.assertIn("0–3 variantes", t)
+        self.assertEqual(construir("investigador-alcance")["secciones"][:3], ["reglas", "salida", "protocolo"])
+
+    def test_herramientas_solo_lectura_sin_sesion(self):
+        t = construir("investigador-alcance", archivos=self.ARCHIVOS)["texto"]
+        self.assertIn("agent-reach read", t)
+        self.assertIn("sin sesión", t)
+        self.assertIn("lectura cortés", t)
+        self.assertNotIn("hermes send", t)
+        self.assertNotIn("suenos.py", t)
+
+    def test_jev_y_los_demas_roles_no_cambian(self):
+        t = construir("investigador-alcance", archivos=self.ARCHIVOS)["texto"]
+        self.assertIn("protocolo Jev", t)
+        self.assertIn("Jev es consejero", t)
+        for rol in ("escritor", "revisor", "analista", "supervisor", "subagente", "investigador-diseno"):
+            otro = construir(rol, archivos=self.ARCHIVOS)["texto"]
+            self.assertNotIn("Nada se envía", otro, rol)
+            self.assertNotIn("## Salida esperada (formato de alcance", otro, rol)
+
+    def test_tope_de_longitud_en_el_encargo(self):
+        d = construir("investigador-alcance", max_chars=2200,
+                      excluir=("herramientas", "relevo", "area", "nube"))
+        self.assertLessEqual(d["caracteres"], 2200)
+        self.assertTrue(d["compacto"])
+        self.assertIn("canales sin sesión", d["texto"])
+        self.assertLessEqual(construir("investigador-alcance")["caracteres"], C.MAX_POR_DEFECTO)
+
+
 class Deriva(unittest.TestCase):
     """Ninguna regla habla en nombre de un documento que ya no existe."""
 
@@ -224,6 +278,13 @@ class Deriva(unittest.TestCase):
             if archivo:
                 self.assertTrue(os.path.exists(os.path.join(RAIZ, archivo)), archivo)
         self.assertTrue(os.path.exists(os.path.join(RAIZ, C.AREAS_TS)))
+
+    def test_las_reglas_de_alcance_citan_el_contrato(self):
+        alcance = [r for r in C.REGLAS if r[1] == C.ALCANCE]
+        self.assertEqual(len(alcance), 8)
+        for numero, (_id, _roles, _regla, fuente) in enumerate(alcance, 1):
+            self.assertIn("architecture/repos-libreria-1025.md", fuente)
+            self.assertIn("R%d" % numero, fuente)
 
 
 if __name__ == "__main__":
