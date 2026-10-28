@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ThemeGallery } from "./theme-gallery";
 import { OsThemeSelector } from "./os-theme-selector";
 import { CursorSettingsPanel } from "@/components/desktop/cursor-fx";
+import { MausbotAjustes } from "@/components/mausbot/mausbot-ajustes";
 import { PerformanceSettings } from "./performance-settings";
 import { LayoutSettings } from "./layout-settings";
 import { BackgroundSettings } from "./background-settings";
