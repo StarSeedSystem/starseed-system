@@ -77,6 +77,9 @@ import { FICHAS_REPOS_1025, conSeguimiento1025 } from "./repos-1025";
 import { FICHAS_REPOS_1026, conSeguimiento1026 } from "./repos-1026";
 // Tanda del 2026-10-27 (Ola MBT1027 · N): OpenMausBot, Insomnia y Colibri. Contrato: architecture/mausbot-astraura.md.
 import { FICHAS_REPOS_1027 } from "./repos-1027";
+// Tanda del 2026-10-27 (Ola 1027b): Meta^n (automejora recursiva) y Memvid (cápsulas de memoria).
+// Contratos: architecture/automejora-meta-n.md y architecture/memvid-capsulas.md.
+import { FICHAS_REPOS_1027B } from "./repos-1027b";
 // Repo builtin externo de la Ola 1020: 14 repos verificados con upstream y canal
 // para que la Biblioteca autobúsque sus releases/tags/commits.
 import { REPO_EXTERNOS_1020 } from "./repos-externos-1020";
@@ -1005,6 +1008,8 @@ const LABS_PACKAGES: LibraryPackage[] = [
     ...FICHAS_REPOS_1026,
     /* ── Tanda del 2026-10-27 (Ola MBT1027 · N): OpenMausBot, Insomnia y Colibri ── */
     ...FICHAS_REPOS_1027,
+    /* ── Tanda del 2026-10-27 (Ola 1027b): Meta^n y Memvid ── */
+    ...FICHAS_REPOS_1027B,
 ];
 
 /** Repo builtin de laboratorio (modelos/repos OSS reales del visionario). */
