@@ -9,7 +9,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { CARPETA_INSOMNIA, carpetaInsomniaPorDefecto, leerEstadoInsomne } from "../insomne-servidor";
+import { carpetaInsomniaPorDefecto, leerEstadoInsomne } from "../insomne-servidor";
 
 const AHORA = Date.parse("2026-10-27T12:00:00.000Z");
 
@@ -29,7 +29,6 @@ afterEach(() => {
 
 describe("carpetaInsomniaPorDefecto", () => {
   it("cuelga de Library/Application Support del home recibido", () => {
-    expect(CARPETA_INSOMNIA).toEqual(["Library", "Application Support", "Insomnia"]);
     expect(carpetaInsomniaPorDefecto("/Users/prueba")).toBe("/Users/prueba/Library/Application Support/Insomnia");
   });
 });

@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { estadoDesdeSesionInsomnia, type EstadoInsomne, type SesionInsomniaCruda } from "./insomne";
 
 /** Carpetas de Insomnia dentro del home de la persona, en macOS. */
-export const CARPETA_INSOMNIA = ["Library", "Application Support", "Insomnia"] as const;
+const CARPETA_INSOMNIA = ["Library", "Application Support", "Insomnia"] as const;
 
 export interface OpcionesLecturaInsomne {
   /** Instante de la lectura; por defecto, ahora. */
