@@ -14,6 +14,8 @@ import Link from "next/link";
 import { Radio, Trash2, Inbox, FileText, MessageSquare, Signal, ShieldAlert, ShieldCheck, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNetworkInbox, clearNetworkInbox } from "@/ai/astraura/mesh";
+// Aviso común «Inicia sesión para…» (GUI1021M2 · §5 de architecture/guias-introduccion.md).
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 
 const TYPE_META: Record<string, { label: string; icon: typeof FileText; cls: string }> = {
   post: { label: "Publicación", icon: FileText, cls: "text-emerald-300 bg-emerald-500/15" },
@@ -109,9 +111,15 @@ export function NetworkFeed({ embedded = false }: { embedded?: boolean }) {
           <Inbox className="h-8 w-8 text-white/25" />
           <p className="text-[13px] font-medium text-white/70">Aún no ha llegado nada</p>
           <p className="max-w-md text-[11px] leading-snug text-white/45">
-            Cuando otra neurona de la red publique o te envíe algo, aparecerá aquí. Inicia sesión y ten el
-            internet público encendido en Señales para participar en el feed.
+            Cuando otra neurona de la red publique o te envíe algo, aparecerá aquí.
           </p>
+          {/* El aviso de sesión de este sitio ya no es un texto suelto: usa el aviso
+              común con «Iniciar sesión» y «Conoce StarSeed», conservando su texto. */}
+          <AvisoSesion
+            compacto
+            texto="Inicia sesión y ten el internet público encendido en Señales para participar en el feed."
+            className="max-w-md bg-transparent"
+          />
         </div>
       ) : (
         <div className="space-y-2">
