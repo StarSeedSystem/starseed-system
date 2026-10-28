@@ -11,6 +11,17 @@
  */
 
 import type { CuratedPresetMood } from "@/lib/themes/curated-presets";
+import type { RegistroMovimiento } from "@/lib/design/registros-movimiento";
+
+/** Registro de movimiento por defecto de una variación pública. */
+const MOVIMIENTO_POR_DEFECTO: RegistroMovimiento = "sobrio";
+
+/** Valida el registro que viaja con la variación: lo desconocido vuelve al defecto. */
+function registroValido(valor: unknown): RegistroMovimiento {
+    return valor === "sobrio" || valor === "expresivo" || valor === "experimental"
+        ? valor
+        : MOVIMIENTO_POR_DEFECTO;
+}
 
 /** Variantes visuales creativas que soporta el fondo «living». */
 export type VarianteVisual =
@@ -38,6 +49,8 @@ export interface ContextoVisual {
     dispositivoModesto: boolean;
     /** Semilla estable (id de perfil, por ejemplo) para desempatar. */
     semilla?: string;
+    /** Registro de movimiento que debe viajar con la variación pública (opcional). */
+    movimiento?: RegistroMovimiento;
 }
 
 /** Variación visual resuelta, lista para `AppearanceConfig.background.living`. */
@@ -53,6 +66,8 @@ export interface VariacionVisual {
     acentos: string[];
     /** Explica la elección en español, para que la interfaz pueda enseñarlo. */
     motivo: string;
+    /** Registro de movimiento que la variación pública lleva consigo. */
+    movimiento?: RegistroMovimiento;
 }
 
 /** Configuración base (velocidad, intensidad y acentos) de cada variante. */
@@ -263,5 +278,6 @@ export function variacionPara(ctx: ContextoVisual): VariacionVisual {
         cicloSegundos,
         acentos,
         motivo: motivos.join(" · "),
+        movimiento: registroValido(ctx.movimiento),
     };
 }
