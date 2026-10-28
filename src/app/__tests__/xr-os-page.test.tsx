@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import type { PlanEntrada } from "@/lib/xr/capacidades";
 import type { ModoXR } from "@/lib/xr/tipos";
@@ -12,10 +12,9 @@ vi.mock("next/link", () => ({
   ),
 }));
 vi.mock("next/dynamic", () => ({
-  default: () =>
-    function EscenaOSSimulada({ modoInicial }: { modoInicial: string }) {
-      return <div data-testid="escena-os" data-modo-inicial={modoInicial} />;
-    },
+  default: (_loader: () => Promise<unknown>, _options: { ssr: boolean }) => ({ modoInicial }: { modoInicial: string }) => (
+    <div data-testid="escena-os" data-modo-inicial={modoInicial} />
+  ),
 }));
 vi.mock("@/components/xr/shell/boton-entrada-xr", () => ({
   BotonEntradaXR: ({ modo, variante }: { modo: string; variante: string }) => (
@@ -84,10 +83,10 @@ describe("debeAutoEntrar", () => {
 });
 
 describe("PageXROs exports", () => {
-  test("solo exporta default, metadata, dynamic, maxDuration, config, runtime", () => {
-    const mod = require("@/app/xr-os-entry");
+  test("solo exporta default, metadata, maxDuration, debeAutoEntrar", async () => {
+    const mod = await import("@/app/xr-os-entry");
     const exports = Object.keys(mod);
-    const permitidos = ["default", "metadata", "dynamic", "maxDuration", "config", "runtime"];
+    const permitidos = ["default", "metadata", "maxDuration", "debeAutoEntrar"];
     for (const exp of exports) {
       expect(permitidos).toContain(exp);
     }
@@ -96,7 +95,7 @@ describe("PageXROs exports", () => {
 
 describe("PageXROs render", () => {
   test("enlace 'Salir al sistema' está presente y apunta a /dashboard", async () => {
-    render(<PageXROs searchParams={Promise.resolve({})} />);
+    render(<PageXROs searchParams={{}} />);
     const enlace = screen.getByTestId("enlace-salir");
     expect(enlace).toBeInTheDocument();
     expect(enlace).toHaveAttribute("href", "/dashboard");
@@ -104,26 +103,26 @@ describe("PageXROs render", () => {
   });
 
   test("renderiza EscenaOS con modoInicial auto por defecto", async () => {
-    render(<PageXROs searchParams={Promise.resolve({})} />);
+    render(<PageXROs searchParams={{}} />);
     const escena = screen.getByTestId("escena-os");
     expect(escena).toBeInTheDocument();
     expect(escena).toHaveAttribute("data-modo-inicial", "auto");
   });
 
   test("renderiza EscenaOS con modoInicial vr-inmersivo cuando modo=vr", async () => {
-    render(<PageXROs searchParams={Promise.resolve({ modo: "vr" })} />);
+    render(<PageXROs searchParams={{ modo: "vr" }} />);
     const escena = screen.getByTestId("escena-os");
     expect(escena).toHaveAttribute("data-modo-inicial", "vr-inmersivo");
   });
 
   test("renderiza EscenaOS con modoInicial ar-passthrough cuando modo=ar", async () => {
-    render(<PageXROs searchParams={Promise.resolve({ modo: "ar" })} />);
+    render(<PageXROs searchParams={{ modo: "ar" }} />);
     const escena = screen.getByTestId("escena-os");
     expect(escena).toHaveAttribute("data-modo-inicial", "ar-passthrough");
   });
 
   test("renderiza BotonEntradaXR con variante insertado", async () => {
-    render(<PageXROs searchParams={Promise.resolve({})} />);
+    render(<PageXROs searchParams={{}} />);
     const boton = screen.getByTestId("boton-entrada-xr");
     expect(boton).toBeInTheDocument();
     expect(boton).toHaveAttribute("data-variante", "insertado");
