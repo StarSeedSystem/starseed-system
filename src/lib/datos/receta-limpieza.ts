@@ -7,7 +7,6 @@ export type OperacionOpenRefine = Record<string, unknown>;
 /** Topes duros de una receta aceptada. */
 export const MAX_OPERACIONES = 100;
 export const MAX_BYTES = 200 * 1024;
-
 /** Operaciones que no ejecutan código ni salen a la red. Nombres exactos de OpenRefine 3.x. */
 export const OPERACIONES_PERMITIDAS = [
   "core/text-transform",
@@ -23,7 +22,6 @@ export const OPERACIONES_PERMITIDAS = [
   "core/multivalued-cell-join",
   "core/column-reorder",
 ] as const;
-
 /**
  * Reconciliación: no entra en la lista blanca general. Solo se admite si la receta declara
  * `datos: "publicos"` y el servicio es https de Wikidata.
@@ -33,7 +31,6 @@ export const OPERACIONES_RECONCILIACION = [
   "core/recon-clear-one-cell", "core/recon-clear-similar-cells", "core/recon-discard-judgments",
   "core/recon-use-values",
 ] as const;
-
 /** Dominios de reconciliación permitidos (R9). Cualquier otro host se rechaza. */
 export const HOSTS_RECONCILIACION = [
   "wikidata.reconci.link",
@@ -41,7 +38,6 @@ export const HOSTS_RECONCILIACION = [
   "wikidata.org",
   "query.wikidata.org",
 ] as const;
-
 export interface RecetaValida {
   valida: true;
   datos: DatosReceta;
@@ -117,3 +113,8 @@ function servicioPermitido(entrada: string): boolean {
     return url.protocol === "https:" && !url.username && !url.password && (url.port === "" || url.port === "443") && HOSTS.has(url.hostname.toLowerCase());
   } catch { return false; }
 }
+/** El propio validador revisa la lista blanca al cargar el módulo, no solo en las pruebas. */
+const COHERENCIA = validarReceta({ datos: "publicos", operaciones: [
+  ...OPERACIONES_PERMITIDAS.map((op) => ({ op })),
+  ...OPERACIONES_RECONCILIACION.map((op) => (op === "core/recon" ? { op, service: `https://${HOSTS_RECONCILIACION[0]}/` } : { op }))] });
+if (!COHERENCIA.valida) throw new Error(`Lista blanca de recetas incoherente: ${COHERENCIA.errores.join(" ")}`);
