@@ -16,6 +16,7 @@
  * `gb: null` = desconocido o depende de la variante: hay que PREGUNTAR (regla de Alex).
  */
 import capasJson from "../../../config/capas-astraura.json";
+import colibriJson from "../../../config/capas-colibri-1027.json";
 import { LOCAL_LLM_SPECS, LOCAL_VOICE_SPECS, type ModelSpec } from "@/ai/astraura/model-requirements";
 import { MODELOS_IMAGEN, type ModeloImagen } from "@/lib/imagenes/modelos";
 import type { Acelerador, Arquitectura, Bits, Capacidad, MedioApp, RequisitosModelo } from "./tipos";
@@ -222,6 +223,121 @@ export function modelosDeCapas(json: unknown): RequisitosModelo[] {
         if (aceleradoresRequeridos) entrada.aceleradoresRequeridos = aceleradoresRequeridos;
         if (arquitecturas) entrada.arquitecturas = arquitecturas;
         if (notas.length) entrada.notas = notas.join(" ");
+        salida.push(entrada);
+    }
+    return salida;
+}
+
+/* ───────────────────────────── 1b. Capas de Colibri ───────────────────────────── */
+
+/** Papel de la capa de Colibri → qué sabe hacer. */
+function capacidadesDeCapaColibri(capa: string, modelo: string): Capacidad[] {
+    switch (capa) {
+        case "juicio":
+            return ["decision"];
+        case "palabra":
+            return ["texto"];
+        case "razon":
+            return ["texto", "razon", "codigo"];
+        case "profunda": {
+            const caps: Capacidad[] = ["texto", "razon", "codigo"];
+            if (modelo.toLowerCase().includes("visión") || modelo.toLowerCase().includes("vision")) {
+                caps.push("vision");
+            }
+            return caps;
+        }
+        default:
+            return [];
+    }
+}
+
+/** Convierte las entradas de Colibri de `config/capas-colibri-1027.json` en requisitos del contrato. */
+export function modelosDeColibri(json: unknown): RequisitosModelo[] {
+    const raiz = (typeof json === "object" && json !== null ? json : {}) as { entradas?: unknown };
+    const entradas = Array.isArray(raiz.entradas) ? raiz.entradas : [];
+    const salida: RequisitosModelo[] = [];
+
+    for (const cruda of entradas) {
+        if (typeof cruda !== "object" || cruda === null) continue;
+        const c = cruda as Record<string, unknown>;
+
+        if (!esTexto(c.id) || !esTexto(c.capa)) continue;
+        const id = c.id.trim();
+        const familia = esTexto(c.repo_hf) ? c.repo_hf : "JustVugg/colibri";
+        const modelo = esTexto(c.modelo) ? c.modelo : id;
+        const capa = esTexto(c.capa) ? c.capa : "";
+        const capacidades = capacidadesDeCapaColibri(capa, modelo);
+        if (capacidades.length === 0) continue;
+
+        // Bits: 4 (int4) u 8 (int8) según el modelo. Buscar en el texto.
+        const textoBits = [id, modelo, c.repo_hf].filter(Boolean).join(" ").toLowerCase();
+        const bits: Bits = textoBits.includes("int8") || textoBits.includes("int 8") ? 8 : 4;
+
+        const discoGb = esPositivo(c.disco_gb) ? arribaCent(c.disco_gb) : null;
+        const ramMinGb = esPositivo(c.ram_min_gb) ? arribaCent(c.ram_min_gb) : 0;
+        const ramOkGb = esPositivo(c.ram_ok_gb) ? arribaCent(c.ram_ok_gb) : ramMinGb;
+
+        const streaming = c.streaming_disco === true;
+        const modoAlmacenamiento = streaming ? "streaming" : "carga-completa";
+        const lecturaMin = streaming ? 500 : undefined; // Colibri pide disco rápido
+
+        const mediosRaw = Array.isArray(c.medios)
+            ? c.medios.filter((m): m is MedioApp => MEDIOS_VALIDOS.includes(m as MedioApp))
+            : ["servidor"];
+        const medios = mediosRaw.length > 0 ? mediosRaw : ["servidor"];
+
+        const estado = c.estado === "por-verificar" ? "en-pruebas" : "recomendado";
+
+        const notas: string[] = [];
+        if (streaming) notas.push("Streaming de expertos desde disco: pide disco rápido (NVMe/SSD), no toda la RAM.");
+        if (c.licencia_modelo && c.licencia_modelo !== "por verificar") {
+            notas.push(`Licencia del modelo: ${c.licencia_modelo}.`);
+        }
+        if (c.medida && esTexto(c.medida)) {
+            notas.push(`Medida: ${c.medida}.`);
+        }
+
+        const entrada: RequisitosModelo = {
+            id,
+            nombre: modelo,
+            familia,
+            capacidades,
+            bits,
+            formato: streaming ? "colibri-streaming" : "gguf",
+            runtime: "colibri",
+            parametrosB: 0, // MoE: parámetros totales no publicados en la config
+            disco: { gb: discoGb, verificado: false, descargaGb: esPositivo(c.descarga_gb) ? c.descarga_gb : undefined },
+            ramMinGb,
+            almacenamiento: {
+                modo: modoAlmacenamiento,
+                lecturaMinMBs: lecturaMin,
+                soloLocal: true, // Colibri corre en la neurona/servidor local
+            },
+            medios,
+            licencia: c.licencia_modelo === "por verificar" ? "por-verificar" : (c.licencia_modelo ?? "por-verificar"),
+            upstream: c.repo_hf && esTexto(c.repo_hf) ? `https://huggingface.co/${c.repo_hf}` : "",
+            estado,
+            origen: "capas",
+            notas: notas.length ? notas.join(" ") : undefined,
+            arquitecturas: ["arm64", "x86_64"],
+        };
+
+        if (esPositivo(c.ram_ok_gb) && c.ram_ok_gb !== c.ram_min_gb) {
+            entrada.vramMinGb = ramOkGb;
+        }
+        if (esPositivo(c.parametros)) {
+            entrada.parametrosB = parametrosEnB(c.parametros);
+        }
+        if (c.activos_b) {
+            entrada.activosB = parametrosEnB(c.activos_b);
+        }
+        if (c.herramientas === true) {
+            entrada.herramientasRequeridas = ["colibri-tools"];
+        }
+        if (c.api && esTexto(c.api)) {
+            entrada.servidor = { protocolo: "openai", url: "http://127.0.0.1:4480/v1" };
+        }
+
         salida.push(entrada);
     }
     return salida;
@@ -518,13 +634,14 @@ export function modelosDeImagen(lista: readonly ModeloImagen[]): RequisitosModel
 
 let memo: RequisitosModelo[] | null = null;
 
-/** Catálogo completo: capas + especificaciones locales + extras, sin duplicados, 1.58-bit primero. */
+/** Catálogo completo: capas + Colibri + especificaciones locales + extras, sin duplicados, 1.58-bit primero. */
 export function catalogoRecursos(): RequisitosModelo[] {
     if (!memo) {
         const vistos = new Set<string>();
         const unicos: RequisitosModelo[] = [];
         const todos = [
             ...modelosDeCapas(capasJson),
+            ...modelosDeColibri(colibriJson),
             ...MODELOS_EXTRA,
             ...modelosLocales([...LOCAL_LLM_SPECS, ...LOCAL_VOICE_SPECS]),
             SUPERTONIC_3,
