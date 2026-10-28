@@ -4662,3 +4662,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-28 13:55 · mg-oracle-1028-0547
+
+**Lo que se pidió.** agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (MBT1027L, CNV1023C, VZF1015Vd-d2, RLB1020Sb-d2). Es 67 % de la ola.
+- 2 tareas se fueron por lo mismo — los tipos no compilan (CLB1027G, CLB1027C). Es 33 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `MBT1027L` — otra cosa: ningún proveedor respondió (todos caídos)
+- `CLB1027G` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/CLB1027G conservada)
+- `CLB1027C` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/CLB1027C conservada)
+- `CNV1023C` — otra cosa: ningún proveedor respondió (todos caídos)
+- `VZF1015Vd-d2` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RLB1020Sb-d2` — otra cosa: ningún proveedor respondió (todos caídos)
