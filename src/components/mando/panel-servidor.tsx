@@ -162,6 +162,23 @@ function SeccionInsomne({ insomne }: { insomne?: InsomneServidor }) {
             <p className="mt-0.5 text-xs text-white/60">
                 Proveedor: {insomne.capacidad.proveedor} · {insomne.estado.motivo}
             </p>
+            {/* Sin sesión en una Mac compatible: la ficha de la Biblioteca (lib-insomnia) es la que explica qué falta. */}
+            {!activo && insomne.capacidad.proveedor === "insomnia" && (
+                <p className="mt-1 text-[11px] text-white/40">
+                    Insomnia no está instalada o sin sesión (la sesión la empieza la persona en su barra de menús):{" "}
+                    <a
+                        href="https://github.com/krishhgg/Insomnia"
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label="Abrir la ficha de Insomnia (ficha lib-insomnia de la Biblioteca)"
+                        className="inline-flex cursor-pointer items-center gap-1 text-sky-300 transition-colors hover:underline"
+                    >
+                        ficha de Insomnia
+                        <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+                    </a>
+                    .
+                </p>
+            )}
             {activo && (
                 <p className="mt-1 text-xs text-white/60">
                     Sigue sirviendo: {sigue.length ? sigue.join(", ") : "nada (política apagada)"}.
