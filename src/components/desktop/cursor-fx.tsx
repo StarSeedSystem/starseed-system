@@ -15,14 +15,20 @@
 // Los diseños del Mausbot (src/lib/mausbot/disenos.ts) se aplican aquí: los de
 // fábrica pintan su degradado Trinity por cuerpo, y los propios (SVG saneado con
 // sanearSvg antes de pintarse) se eligen, se guardan y se borran desde el panel.
+//
+// PRECEDENCIA DEL PUNTERO (contrato §4):
+//   Mausbot (opción "mausbot" encendida) > cursorfx (CursorOption ≠ "mausbot")
+//   > customCursorSvg de appearance-context.
+// Si Mausbot está encendido, su cursor gana siempre; si no, cursorfx; si no,
+// el SVG personalizado de appearance-context.
 // ════════════════════════════════════════════════════════════════
 
 import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { MousePointer2, MousePointerClick, Accessibility } from "lucide-react";
+import { MousePointer2, MousePointerClick, Accessibility, Settings, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CUERPOS_MAUSBOT, IDS_CUERPO_MAUSBOT, type CuerpoId } from "@/lib/mausbot/cuerpos";
 import { DISENO_POR_DEFECTO, disenoPorId, type DisenoMausbot } from "@/lib/mausbot/disenos";
-import { sanearSvg } from "@/lib/dock/iconos/sanear-svg";
+import { sanearSvg, svgADataUrl } from "@/lib/dock/iconos/sanear-svg";
 import { CursorDisenosPanel } from "./cursor-disenos-panel";
 import { CURSOR_LISTINGS, GESTURE_ANIMATION_LISTINGS, PREFIJO_CURSOR_MAUSBOT } from "./desktop-listings";
 
@@ -31,11 +37,12 @@ type CursorMausbotOption = `${typeof PREFIJO_CURSOR_MAUSBOT}${CuerpoId}`;
 /** Un diseño propio del Mausbot elegido como cursor (`mausbot-diseno-<id>`). */
 type CursorDisenoOption = `mausbot-diseno-${string}`;
 const PREFIJO_DISENO = "mausbot-diseno-" as const;
-export type CursorOption = "system" | "starseed-triangle" | "orb" | CursorMausbotOption | CursorDisenoOption;
+/** Opción que activa el Mausbot de Astraura como cursor (usa el diseño activo). */
+export type CursorOption = "system" | "starseed-triangle" | "orb" | "mausbot" | CursorMausbotOption | CursorDisenoOption;
 export type ClickFxOption = "none" | "liquid-ripple" | "star-burst" | "neon-bubble";
 
 /** Un cuerpo del Mausbot elegido como cursor; cualquier otra cosa cae al puntero del sistema. */
-function esCursorMausbot(valor: unknown): valor is CursorMausbotOption {
+export function esCursorMausbot(valor: unknown): valor is CursorMausbotOption {
     return typeof valor === "string"
         && valor.startsWith(PREFIJO_CURSOR_MAUSBOT)
         && (IDS_CUERPO_MAUSBOT as readonly string[]).includes(valor.slice(PREFIJO_CURSOR_MAUSBOT.length));
@@ -43,6 +50,11 @@ function esCursorMausbot(valor: unknown): valor is CursorMausbotOption {
 
 function esCursorDiseno(valor: unknown): valor is CursorDisenoOption {
     return typeof valor === "string" && valor.startsWith(PREFIJO_DISENO) && valor.length > PREFIJO_DISENO.length;
+}
+
+/** True si la opción es "mausbot" (activa el Mausbot de Astraura como cursor). */
+export function esCursorMausbotGeneral(cursor: CursorOption): cursor is "mausbot" {
+    return cursor === "mausbot";
 }
 
 /** El id del diseño propio dentro de una opción `mausbot-diseno-<id>` ya validada. */
@@ -77,7 +89,7 @@ function readConfig(): CursorFxConfig {
         try {
             const p = JSON.parse(raw) as Partial<CursorFxConfig>;
         const cursor: CursorOption =
-            p.cursor === "starseed-triangle" || p.cursor === "orb" || esCursorMausbot(p.cursor) || esCursorDiseno(p.cursor)
+            p.cursor === "mausbot" || p.cursor === "starseed-triangle" || p.cursor === "orb" || esCursorMausbot(p.cursor) || esCursorDiseno(p.cursor)
                 ? p.cursor
                 : "system";
             const click: ClickFxOption =
@@ -137,20 +149,21 @@ export const CURSOR_PREVIEW_URI: Record<"starseed-triangle" | "orb", string> = {
     orb: svgUri(ORB_SVG),
 };
 
-/** ¿Pinta este opción un cuerpo del Mausbot (de fábrica o diseño propio)? */
+/** ¿Pinta esta opción un cursor del Mausbot (mausbot general, de fábrica o diseño propio)? */
 function esCursorDelMausbot(cursor: CursorOption): boolean {
-    return esCursorMausbot(cursor) || esCursorDiseno(cursor);
+    return esCursorMausbotGeneral(cursor) || esCursorMausbot(cursor) || esCursorDiseno(cursor);
 }
 
-/** El diseño que pinta un cursor del Mausbot: propio por id, de fábrica por cuerpo; desconocido → el de fábrica. */
+/** El diseño que pinta un cursor del Mausbot: propio por id, de fábrica por cuerpo, "mausbot" → diseño por defecto. */
 function disenoDeCursor(cursor: CursorOption): DisenoMausbot {
+    if (esCursorMausbotGeneral(cursor)) return DISENO_POR_DEFECTO;
     if (esCursorDiseno(cursor)) return disenoPorId(idDisenoDeCursor(cursor) ?? "");
     if (esCursorMausbot(cursor)) return disenoPorId(`fabrica-${cursor.slice(PREFIJO_CURSOR_MAUSBOT.length)}`);
     return DISENO_POR_DEFECTO;
 }
 
 /** El diseño del Mausbot como SVG de cursor: SVG propio saneado o cuerpo del catálogo con su degradado. */
-function mausbotSvg(cursor: CursorOption): string | null {
+export function mausbotSvg(cursor: CursorOption): string | null {
     const diseno = disenoDeCursor(cursor);
     if (diseno.cuerpo === "svg") {
         const r = sanearSvg(diseno.svgCuerpo);
@@ -168,14 +181,27 @@ export function cursorPreviewUri(cursor: CursorOption): string | null {
     if (cursor === "starseed-triangle" || cursor === "orb") return CURSOR_PREVIEW_URI[cursor];
     if (!esCursorDelMausbot(cursor)) return null;
     const svg = mausbotSvg(cursor);
-    return svg ? svgUri(svg) : null;
+    if (!svg) return null;
+    // Para "mausbot" y diseños propios usamos data URI con charset=utf-8 (svgADataUrl).
+    if (esCursorMausbotGeneral(cursor) || esCursorDiseno(cursor)) {
+        return svgADataUrl(svg);
+    }
+    return svgUri(svg);
 }
 
-function cursorCssValue(cursor: CursorOption): string | null {
+export function cursorCssValue(cursor: CursorOption): string | null {
     const uri = cursorPreviewUri(cursor);
     if (!uri) return null;
     if (cursor === "starseed-triangle") return `url("${uri}") 3 2, auto`;
     if (cursor === "orb") return `url("${uri}") 10 10, auto`;
+    if (esCursorMausbotGeneral(cursor)) {
+        const diseno = DISENO_POR_DEFECTO;
+        if (diseno.cuerpo !== "svg") {
+            const anchor = CUERPOS_MAUSBOT[diseno.cuerpo].anchor;
+            return `url("${uri}") ${Math.round(anchor.x)} ${Math.round(anchor.y)}, auto`;
+        }
+        return `url("${uri}") 16 16, auto`;
+    }
     return `url("${uri}") ${disenoDeCursor(cursor).cuerpo === "cursor" ? "8 1" : "16 16"}, auto`;
 }
 
@@ -451,6 +477,21 @@ export function CursorSettingsPanel({ className }: { className?: string }): Reac
                 previewDe={cursorPreviewUri}
                 onElegir={(opcion) => setCursorFxConfig({ cursor: opcion })}
             />
+
+            {esCursorMausbotGeneral(cfg.cursor) && (
+                <div className="rounded-2xl border border-sky-400/30 bg-sky-400/5 px-3 py-2.5">
+                    <button
+                        type="button"
+                        onClick={() => window.open("/ajustes/mausbot", "_blank")}
+                        className="inline-flex items-center gap-2 text-[11px] font-semibold text-sky-300 hover:text-sky-100 cursor-pointer"
+                        title="Abrir ajustes del Mausbot"
+                    >
+                        <Settings className="size-3.5" />
+                        <span>Ajustes del Mausbot</span>
+                        <ExternalLink className="size-3.5 opacity-60" />
+                    </button>
+                </div>
+            )}
 
             <section className="space-y-2">
                 <h4 className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-muted-foreground">

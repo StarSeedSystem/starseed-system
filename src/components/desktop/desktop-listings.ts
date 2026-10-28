@@ -54,6 +54,13 @@ export const CURSOR_LISTINGS: DesktopListing[] = [
         preview: "🔮",
         paleta: ["#EAF6FF", "#3FB6FF", "#6D28D9"],
     },
+    {
+        id: "mausbot",
+        nombre: "Mausbot de Astraura",
+        descripcion: "El cursor con cara del Mausbot: usa el diseño de la personalidad activa, mira donde vas y reacciona a Astraura.",
+        preview: "🤖",
+        paleta: ["#66E3FF", "#007FFF", "#7C3AED"],
+    },
     ...CURSORES_MAUSBOT,
 ];
 
