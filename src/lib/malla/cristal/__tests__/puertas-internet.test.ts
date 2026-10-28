@@ -399,16 +399,18 @@ describe('elegirPuerta', () => {
     const puertasNoPermitidas = [
       {
         ...puertas[0],
-        compartir: 'nadie' as Compartir, // Nadie puede usar
+        compartir: 'nadie' as Compartir, // Nadie (excepto dueño) puede usar
       },
     ];
+
+    const noEsDueno: Solicitante = { cuenta: 'c99', vinculado: false, grupos: [] };
 
     expect(
       elegirPuerta({
         clase: 'interno' as ClaseDato,
         necesitaInternet: true,
         puertas: puertasNoPermitidas,
-        solicitante: baseSolicitante,
+        solicitante: noEsDueno,
       })
     ).toEqual({
       puerta: null,
@@ -506,5 +508,73 @@ describe('puertaParaTesela', () => {
     expect(salida.usadoMesMb).toBe(200);
     expect(salida.reservaDuenoPct).toBe(20);
     expect(salida.grupos).toEqual(['grupo1']);
+  });
+});
+
+describe("rama · comportamiento adicional", () => {
+  const basePuerta: PuertaInternet = {
+    id: 'p1',
+    neurona: 'n1',
+    cuenta: 'c1',
+    tipo: 'movil-4g',
+    bajadaKbps: 10000,
+    subidaKbps: 5000,
+    latenciaMs: 50,
+    medida: true,
+    topeMensualMb: 1000,
+    usadoMesMb: 200,
+    reservaDuenoPct: 20,
+    compartir: 'publico',
+  };
+
+  const baseSolicitante: Solicitante = {
+    cuenta: 'c1',
+    vinculado: true,
+    grupos: [],
+  };
+
+  it('permite al dueño aunque la puerta sea para nadie: las reglas de compartir no le aplican', () => {
+    expect(
+      puedeUsar(
+        { ...basePuerta, compartir: 'nadie' },
+        { ...baseSolicitante, cuenta: 'c1' } // dueño
+      )
+    ).toEqual({ ok: true, motivo: 'Dueño dentro de su tope' });
+  });
+
+  it('desempata por id cuando dos permitidas empatan en coste', () => {
+    const gemelas: PuertaInternet[] = [
+      {
+        id: 'zeta',
+        neurona: 'n1',
+        cuenta: 'c1',
+        tipo: 'wifi-externa',
+        bajadaKbps: 5000,
+        subidaKbps: 5000,
+        latenciaMs: 100, // coste 0,1 + 0,5 = 0,6 (no medida)
+        medida: false,
+        compartir: 'publico',
+      },
+      {
+        id: 'alfa',
+        neurona: 'n2',
+        cuenta: 'c1',
+        tipo: 'cable',
+        bajadaKbps: 5000,
+        subidaKbps: 5000,
+        latenciaMs: 100, // mismo coste que zeta: 0,6
+        medida: false,
+        compartir: 'publico',
+      },
+    ];
+
+    const resultado = elegirPuerta({
+      clase: 'interno' as ClaseDato,
+      necesitaInternet: true,
+      puertas: gemelas,
+      solicitante: baseSolicitante,
+    });
+
+    expect(resultado.puerta?.id).toBe('alfa');
   });
 });

@@ -35,11 +35,17 @@ export function restanteParaOtrosMb(p: PuertaInternet): number | null {
 }
 
 export function puedeUsar(p: PuertaInternet, s: Solicitante): {ok: boolean; motivo: string} {
+  // El dueño siempre hasta su tope
+  if (s.cuenta === p.cuenta) {
+    if (!p.medida || !p.topeMensualMb) return {ok: true, motivo: 'Dueño sin límite de datos'};
+    const usado = p.usadoMesMb ?? 0;
+    if (usado >= p.topeMensualMb) return {ok: false, motivo: 'Dueño ha superado su tope mensual'};
+    return {ok: true, motivo: 'Dueño dentro de su tope'};
+  }
+
   switch (p.compartir) {
     case 'nadie': return {ok: false, motivo: 'Puerta configurada para no compartir'};
-    case 'mi-cuenta':
-      if (s.cuenta !== p.cuenta) return {ok: false, motivo: 'Solo la cuenta propietaria puede usar esta puerta'};
-      break;
+    case 'mi-cuenta': return {ok: false, motivo: 'Solo la cuenta propietaria puede usar esta puerta'};
     case 'vinculos':
       if (!s.vinculado) return {ok: false, motivo: 'Solicitante no está vinculado a la cuenta'};
       break;
@@ -47,14 +53,6 @@ export function puedeUsar(p: PuertaInternet, s: Solicitante): {ok: boolean; moti
       if (!s.grupos.some(g => p.grupos?.includes(g))) return {ok: false, motivo: 'Solicitante no tiene grupos en común'};
       break;
     case 'publico': break;
-  }
-
-  // El dueño siempre hasta su tope
-  if (s.cuenta === p.cuenta) {
-    if (!p.medida || !p.topeMensualMb) return {ok: true, motivo: 'Dueño sin límite de datos'};
-    const usado = p.usadoMesMb ?? 0;
-    if (usado >= p.topeMensualMb) return {ok: false, motivo: 'Dueño ha superado su tope mensual'};
-    return {ok: true, motivo: 'Dueño dentro de su tope'};
   }
 
   // Para otros, verificar según restante para otros
@@ -91,16 +89,11 @@ export function elegirPuerta(e: {
   const puertasPermitidas = e.puertas.filter(p => puedeUsar(p, e.solicitante).ok);
   if (!puertasPermitidas.length) return {puerta: null, motivo: 'No hay puertas permitidas para el solicitante'};
 
-  let mejorPuerta = puertasPermitidas[0];
-  let mejorCoste = costePuerta(mejorPuerta);
+  // Ordenar por coste, luego por id alfabéticamente para desempate determinista
+  const ordenadas = [...puertasPermitidas].sort((a, b) => costePuerta(a) - costePuerta(b) || a.id.localeCompare(b.id));
 
-  for (const puerta of puertasPermitidas.slice(1)) {
-    const coste = costePuerta(puerta);
-    if (coste < mejorCoste) {
-      mejorCoste = coste;
-      mejorPuerta = puerta;
-    }
-  }
+  let mejorPuerta = ordenadas[0];
+  let mejorCoste = costePuerta(mejorPuerta);
 
   if (e.actual) {
     const puertaActual = e.puertas.find(p => p.id === e.actual);
