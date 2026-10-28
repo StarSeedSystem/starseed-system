@@ -1,6 +1,7 @@
 import type { classifyTask, estimateDifficulty } from "@/ai/astraura/router";
 import { sesgoNivelador, type PreferenciaCapas } from "@/lib/astraura/capas-conciencia";
 import { profundidadNeedle, type Capa } from "./catalogo";
+import { type AlmacenMedidas, ordenarPorMedidas } from "./medidas";
 
 type Tarea = ReturnType<typeof classifyTask>["kind"];
 type Dificultad = ReturnType<typeof estimateDifficulty>;
@@ -41,6 +42,8 @@ export interface EntradaPlanificador {
   instaladas: readonly CapaInstalada[];
   nodos: readonly NodoCapas[];
   preferencias: PreferenciaCapas;
+  almacenMedidas?: AlmacenMedidas;
+  neurona?: string;
 }
 const ORDEN: Record<Capa, readonly string[]> = {
   reflejo: ["needle3-reflejo"],
@@ -109,7 +112,12 @@ export function planificar(entrada: EntradaPlanificador): PlanCapas {
       capa: disponible, puntos: 24 + puntuarModelo(disponible.id) - ((nodo.latenciaMs ?? 0) > (entrada.latenciaMs ?? Infinity) ? 8 : 0) });
   }
   candidatos.sort((a, b) => b.puntos - a.puntos || a.modelo.localeCompare(b.modelo));
-  const elegido = candidatos[0];
+  
+  const finalCandidatos = entrada.almacenMedidas && entrada.neurona
+    ? ordenarPorMedidas(candidatos, entrada.almacenMedidas, entrada.neurona)
+    : candidatos;
+
+  const elegido = finalCandidatos[0];
   if (!elegido) return { capa, modelo: "ninguno", donde: "local", respaldo: [],
     motivo: "No hay una capa verificada permitida para este medio y privacidad." };
   const profundidad = capa === "reflejo"
