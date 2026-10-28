@@ -119,6 +119,67 @@ def huella_maquina() -> str:
 # ─── medidas ─────────────────────────────────────────────────────────────────────────────
 
 
+def cpu_pct() -> Optional[float]:
+    """Porcentaje de CPU ocupado. Linux: dos lecturas de /proc/stat separadas 0,3 s.
+    macOS u otros: None — nunca un número inventado."""
+    if sys.platform != "linux":
+        return None
+    try:
+        with open("/proc/stat") as f:
+            linea = f.readline()
+        m = re.match(r"^cpu\s+(\d+\s+\d+\d+\d+\d+\d+\d+\d+\d+\d+)", linea)
+        if not m:
+            return None
+        prim = [int(x) for x in m.group(1).split()]
+        time.sleep(0.3)
+        with open("/proc/stat") as f:
+            linea2 = f.readline()
+        m2 = re.match(r"^cpu\s+(\d+\s+\d+\d+\d+\d+\d+\d+\d+\d+\d+)", linea2)
+        if not m2:
+            return None
+        seg = [int(x) for x in m2.group(1).split()]
+        total_prim = sum(prim)
+        idle_prim = prim[3]
+        total_seg = sum(seg)
+        idle_seg = seg[3]
+        total_delta = total_seg - total_prim
+        if total_delta == 0:
+            return None
+        idle_delta = idle_seg - idle_prim
+        pct = 100.0 * (total_delta - idle_delta) / total_delta
+        return round(pct, 1)
+    except Exception:
+        return None
+
+
+def ram_total_mb() -> Optional[int]:
+    """Total de RAM en MB. Linux: /proc/meminfo MemTotal.
+    macOS: sysctl -n hw.memsize con tope de 2 s. Otros: None — nunca un número inventado."""
+    if sys.platform == "darwin":
+        try:
+            rc, out = _sh(["sysctl", "-n", "hw.memsize"], tope=2)
+            if rc == 0 and out.strip().isdigit():
+                return int(out.strip()) // (1024 * 1024)
+        except Exception:
+            pass
+    try:
+        with open("/proc/meminfo") as f:
+            for linea in f:
+                if linea.startswith("MemTotal:"):
+                    return int(linea.split()[1]) // 1024
+    except OSError:
+        pass
+    return None
+
+
+def disco_total_gb(ruta: str) -> Optional[float]:
+    """Total de disco en GB para la ruta dada, usando shutil.disk_usage."""
+    try:
+        return round(shutil.disk_usage(ruta).total / 1e9, 1)
+    except OSError:
+        return None
+
+
 def ram_libre_mb() -> Optional[int]:
     try:
         with open("/proc/meminfo") as f:
