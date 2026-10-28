@@ -23,6 +23,7 @@ import json
 import os
 import re
 import sys
+from typing import Optional
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(os.path.dirname(DIRECTORIO))
@@ -218,11 +219,11 @@ PROTOCOLO_COMPACTO = (
 )
 
 ORDEN = {
-    "escritor": ("reglas", "protocolo", "herramientas", "area", "relevo"),
+    "escritor": ("reglas", "protocolo", "herramientas", "area", "recuerdos", "relevo"),
     "revisor": ("reglas", "area", "protocolo", "herramientas"),
     "analista": ("reglas", "area", "protocolo", "herramientas"),
-    "supervisor": ("reglas", "protocolo", "herramientas", "nube", "area", "relevo"),
-    "subagente": ("reglas", "protocolo", "herramientas", "nube", "relevo", "area"),
+    "supervisor": ("reglas", "protocolo", "herramientas", "nube", "area", "recuerdos", "relevo"),
+    "subagente": ("reglas", "protocolo", "herramientas", "nube", "relevo", "area", "recuerdos"),
     "investigador-diseno": ("reglas", "salida", "protocolo", "herramientas", "area"),
 }
 
@@ -424,6 +425,38 @@ def seccion_relevo(texto):
     return "## Dónde vamos (relevo)\n" + trozo[:900]
 
 
+def _recuerdos_de_agente(tarea: str, max_chars: int = 500) -> str:
+    """Obtiene recuerdos del agente desde Memvid (opcional, no bloquea si no hay servidor)."""
+    # Inferir nombre de agente de la tarea o usar uno por defecto
+    agente = "desconocido"
+    if "agente" in tarea.lower():
+        # Intentar extraer nombre de agente de la tarea
+        import re
+        m = re.search(r"agente[-\s](\w+)", tarea.lower())
+        if m:
+            agente = m.group(1)
+    elif "escritor" in tarea.lower():
+        agente = "escritor"
+    elif "revisor" in tarea.lower():
+        agente = "revisor"
+    elif "analista" in tarea.lower():
+        agente = "analista"
+    
+    try:
+        import memvid_cliente as mc
+        frames = mc.buscar_recuerdos(agente, tarea[:200], k=3)
+        if not frames:
+            return ""
+        lineas = ["## Recuerdos de este agente"]
+        for f in frames:
+            preview = f.text[:200].replace("\n", " ")
+            lineas.append(f"- [{f.title or 'sin título'}] {preview} (mv2://...)")
+        return "\n".join(lineas)
+    except Exception:
+        # Si no hay servidor o falla importar, no sale nada (no bloquea)
+        return ""
+
+
 def _recortar(texto, n):
     if len(texto) <= n:
         return texto
@@ -462,6 +495,7 @@ def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, ex
         "relevo": lambda: seccion_relevo(leer(RELEVO)),
         "nube": lambda: seccion_nube(oracle),
         "salida": lambda: seccion_salida(rol),
+        "recuerdos": lambda: _recuerdos_de_agente(tarea),
     }
     partes, puestas, recortadas = [cabecera], [], []
     usado = len(cabecera)
@@ -513,7 +547,7 @@ def main(argv=None, salida=None):
     ap.add_argument("--area", default=None)
     ap.add_argument("--tarea", default="")
     ap.add_argument("--max", type=int, default=MAX_POR_DEFECTO)
-    ap.add_argument("--excluir", default="", help="secciones a omitir: reglas,protocolo,herramientas,nube,area,relevo")
+    ap.add_argument("--excluir", default="", help="secciones a omitir: reglas,protocolo,herramientas,nube,area,relevo,recuerdos")
     ap.add_argument("--raiz", default=None, help=argparse.SUPPRESS)
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
