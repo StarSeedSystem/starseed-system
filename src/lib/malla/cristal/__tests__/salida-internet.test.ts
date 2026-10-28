@@ -85,6 +85,18 @@ describe('planSalida', () => {
     expect(p.motivo).not.toBe('va por la malla P2P')
   })
 
+  it('público difundido elige la puerta medida más barata aunque otra tenga más ancho, y la ruta llega en dos saltos', () => {
+    const barata = puerta('p-c', 'c', { medida: true, topeMensualMb: 100, usadoMesMb: 10 })
+    const cara = puerta('p-cara', 'c', { medida: true, topeMensualMb: 100, usadoMesMb: 95, bajadaKbps: 9000 })
+    const p = planSalida({
+      cristal: cristal(['a', 'b'], ['b', 'c']), reticula: reticula(señal('a', 'b'), señal('b', 'c')),
+      dato: dato({ destino: null }), ctx, puertas: [cara, barata], solicitante: sol,
+    })
+    expect(p.puerta?.id).toBe('p-c')
+    expect(p.ruta?.saltos).toEqual(['a', 'b', 'c'])
+    expect(p.motivo).not.toBe('va por la malla P2P')
+  })
+
   it('una puerta del cristal inalcanzable se salta y prueba la siguiente', () => {
     const p = planSalida({
       // 'iran' existe en el cristal pero no hay señal con la retícula: no apta
@@ -103,6 +115,6 @@ describe('planSalida', () => {
     })
     expect(p.puerta).toBeNull()
     expect(p.ruta).toBeNull()
-    expect(p.motivo.length).toBeGreaterThan(0)
+    expect(p.motivo).toBe('Ninguna puerta permitida tiene ruta por la malla')
   })
 })
