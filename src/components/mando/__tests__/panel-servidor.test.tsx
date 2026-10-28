@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 import { PanelServidor } from "@/components/mando/panel-servidor";
-import type { EstadoServidorAstraura } from "@/lib/mando/servidor-astraura-tipos";
+import { politicaInsomne, type CapacidadInsomne, type EstadoInsomne, type PoliticaInsomne } from "@/lib/neurons/insomne";
+import type { EstadoServidorAstraura, InsomneServidor } from "@/lib/mando/servidor-astraura-tipos";
+
+const capacidadMac: CapacidadInsomne = { proveedor: "insomnia", disponible: true, motivo: "Insomnia mantiene la sesión abierta" };
 
 function fixtureEstado(): EstadoServidorAstraura {
     return {
@@ -189,5 +192,54 @@ describe("PanelServidor", () => {
         render(<PanelServidor />);
         await waitFor(() => expect(screen.getByText(/Máquinas/i)).toBeInTheDocument());
         expect(screen.queryByText(/ocid1.instance/)).not.toBeInTheDocument();
+    });
+
+    function conInsomne(par: {
+        capacidad: CapacidadInsomne;
+        estado: EstadoInsomne;
+        politica?: PoliticaInsomne;
+        soltarTrabajo?: boolean;
+    }): EstadoServidorAstraura {
+        return {
+            ...estado,
+            energia: { ...estado.energia, insomne: { politica: politicaInsomne(), soltarTrabajo: false, ...par } as InsomneServidor },
+        };
+    }
+
+    it("con sesión activa enseña hasta qué hora sigue disponible y el motivo", async () => {
+        const hasta = new Date(Date.now() + 3 * 60_000).toISOString();
+        estado = conInsomne({
+            capacidad: capacidadMac,
+            estado: { activo: true, hasta, proveedor: "insomnia", motivo: "sesión de Insomnia activa" },
+            politica: politicaInsomne(),
+            soltarTrabajo: false,
+        });
+        render(<PanelServidor />);
+        expect(await screen.findByText(/Siempre disponible hasta las /i)).toBeInTheDocument();
+        expect(screen.getByText(/sesión de Insomnia activa/i)).toBeInTheDocument();
+    });
+
+    it("sin sesión activa (sesión vencida) lo dice con su motivo", async () => {
+        estado = conInsomne({
+            capacidad: capacidadMac,
+            estado: { activo: false, hasta: null, proveedor: "insomnia", motivo: "sesión de Insomnia vencida" },
+            politica: politicaInsomne(),
+            soltarTrabajo: true,
+        });
+        render(<PanelServidor />);
+        expect(await screen.findByText(/Siempre disponible \(sin sesión activa\)/i)).toBeInTheDocument();
+        expect(screen.getByText(/sesión de Insomnia vencida/i)).toBeInTheDocument();
+    });
+
+    it("Insomnia no disponible: título honesto y el motivo a la vista", async () => {
+        estado = conInsomne({
+            capacidad: { proveedor: "no", disponible: false, motivo: "Insomnia no está instalada o no tiene sesión" },
+            estado: { activo: false, hasta: null, proveedor: "no", motivo: "Insomnia no está instalada o no tiene sesión" },
+            politica: politicaInsomne(),
+            soltarTrabajo: true,
+        });
+        render(<PanelServidor />);
+        expect(await screen.findByText(/No puede seguir con la pantalla cerrada/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/Insomnia no está instalada/i).length).toBeGreaterThan(0);
     });
 });
