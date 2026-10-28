@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   PAQUETES_EXTERNOS,
   REPOS_EXCLUIDOS,
+  REPOS_YA_PRESENTES,
   REPO_EXTERNOS_1020,
 } from "../repos-externos-1020";
 import { listRepos } from "../packages";
@@ -21,14 +22,14 @@ describe("REPO_EXTERNOS_1020 · repo builtin externo de la Ola 1020", () => {
     expect(REPO_EXTERNOS_1020.builtin).toBe(true);
   });
 
-  it("mapea las 14 publicaciones del catálogo verificado", () => {
-    expect(paquetes).toHaveLength(14);
+  it("mapea las 41 publicaciones de las tres tandas (14 + 14 + 13)", () => {
+    expect(paquetes).toHaveLength(41);
   });
 
-  it("tiene 14 ids únicos", () => {
+  it("tiene 41 ids únicos", () => {
     const ids = paquetes.map((p) => p.id);
-    expect(new Set(ids).size).toBe(14);
-    expect(ids).toHaveLength(14);
+    expect(new Set(ids).size).toBe(41);
+    expect(ids).toHaveLength(41);
   });
 
   it("cada paquete apunta a su URL de GitHub", () => {
@@ -92,14 +93,14 @@ describe("REPO_EXTERNOS_1020 · repo builtin externo de la Ola 1020", () => {
   });
 });
 
-describe("PAQUETES_EXTERNOS · 2.ª tanda fusionada con la 1.ª", () => {
+describe("PAQUETES_EXTERNOS · 3 tandas fusionadas (1.ª + 2.ª + 3.ª)", () => {
   const ids = PAQUETES_EXTERNOS.map((p) => p.id);
   const githubRepos = PAQUETES_EXTERNOS.map((p) => p.githubRepo);
   const externalUrls = PAQUETES_EXTERNOS.map((p) => p.externalUrl);
 
-  it("tienen 28 ids únicos", () => {
-    expect(new Set(ids).size).toBe(28);
-    expect(ids.length).toBe(28);
+  it("tienen 41 ids únicos", () => {
+    expect(new Set(ids).size).toBe(41);
+    expect(ids.length).toBe(41);
   });
 
   it("cada paquete tiene githubRepo y externalUrl de GitHub", () => {
@@ -112,9 +113,11 @@ describe("PAQUETES_EXTERNOS · 2.ª tanda fusionada con la 1.ª", () => {
   it("no aparecen las exclusiones de seguridad de ninguna tanda", () => {
     expect(ids).not.toContain("zhaoxuya520/reverse-skill");
     expect(ids).not.toContain("Vikunja-Self-Hosted/Vikunja-Task-Management");
+    expect(ids).not.toContain("Kritt-ai/open-kritt");
     for (const p of PAQUETES_EXTERNOS) {
       expect(p.repo).not.toContain("reverse-skill");
       expect(p.repo).not.toBe("Vikunja-Self-Hosted/Vikunja-Task-Management");
+      expect(p.repo).not.toBe("Kritt-ai/open-kritt");
     }
   });
 
@@ -124,8 +127,39 @@ describe("PAQUETES_EXTERNOS · 2.ª tanda fusionada con la 1.ª", () => {
     expect(entry?.id).toBe("lib-vikunja");
   });
 
-  it("REPOS_EXCLUIDOS incluye las dos exclusiones", () => {
+  it("penpot/penpot NO aparece duplicado (ya existe en packages.ts como iatool-penpot)", () => {
+    const penpotEntries = PAQUETES_EXTERNOS.filter((p) => p.githubRepo === "penpot/penpot");
+    expect(penpotEntries).toHaveLength(0);
+  });
+
+  it("REPOS_EXCLUIDOS incluye las tres exclusiones", () => {
     expect(REPOS_EXCLUIDOS).toContain("zhaoxuya520/reverse-skill");
     expect(REPOS_EXCLUIDOS).toContain("Vikunja-Self-Hosted/Vikunja-Task-Management");
+    expect(REPOS_EXCLUIDOS).toContain("Kritt-ai/open-kritt");
+  });
+
+  it("REPOS_YA_PRESENTES lista penpot/penpot con su id original", () => {
+    expect(REPOS_YA_PRESENTES).toContainEqual({ repo: "penpot/penpot", id: "iatool-penpot" });
+  });
+
+  it("las 13 nuevas de la 3.ª tanda están presentes", () => {
+    const idsTercera = [
+      "lib-openworker",
+      "lib-trail-code",
+      "lib-img2threejs",
+      "lib-openwhispr",
+      "lib-paperclip",
+      "lib-magnitude",
+      "lib-artcraft",
+      "lib-pocketbase",
+      "lib-openmaic",
+      "lib-chatwoot",
+      "lib-excalidraw",
+      "lib-nextcloud",
+      "lib-supra-tex",
+    ];
+    for (const id of idsTercera) {
+      expect(ids, `falta ${id}`).toContain(id);
+    }
   });
 });
