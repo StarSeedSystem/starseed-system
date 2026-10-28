@@ -22,6 +22,7 @@ import {
 import { useAppearance } from "@/context/appearance-context";
 import { useRitoActivo } from "@/lib/ui/rito-activo";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { leerNivelMovimiento } from "@/lib/movimiento/nivel";
 import { TrinityFab } from "./trinity-fab";
 import { DockDeslizable } from "./dock-deslizable";
 import { usePerfilIconos } from "@/lib/dock/iconos/almacen";
@@ -711,12 +712,12 @@ function DockItem({
     objetivoCarpeta?: boolean;
 }) {
     const p = DOCK_PALETTE[color];
-    // (Adenda 190) Forma de los iconos: REDONDOS por defecto (el diseño
-    // clásico); "square" (cuadrado redondeado) es opción de tema por perfil.
     const { config: cfgForma } = useAppearance();
     const redondo = ((cfgForma?.trinity as { dockIconShape?: string } | undefined)?.dockIconShape ?? "round") !== "square";
-    const registroDock = { reducido: false, registro: "sobrio" as const, seccion: "trinity" as const };
-    const fase = active ? "pulsado" : levantado ? "pulsado" : "reposo";
+    const [hover, setHover] = useState(false);
+    const reducido = leerNivelMovimiento() === "minimo";
+    const registroDock = { reducido, registro: "sobrio" as const, seccion: "trinity" as const };
+    const fase = arrastrando ? "lanzando" : active || levantado ? "pulsado" : hover ? "hover" : "reposo";
     const est = estiloIcono(fase, registroDock);
 
     return (
@@ -741,6 +742,8 @@ function DockItem({
         >
             <button
                 onClick={onClick}
+                onMouseEnter={() => setHover(true)}
+                onMouseLeave={() => setHover(false)}
                 aria-current={active ? "page" : undefined}
                 title={label}
                 data-guide={guia}
