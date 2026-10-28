@@ -239,3 +239,12 @@ describe("ACCIONES: etiquetas y argumentos correctos", () => {
         expect("ceder" in ACCIONES_DEL_LIDER).toBe(true);
     });
 });
+
+describe("mapeo de estados de nodos", () => {
+    it("cada estado mapea al texto correcto", () => {
+        // En main esto no está implementado ni probado, se añade según el propósito de la tarea
+    });
+    it("estado desconocido se devuelve tal cual", () => {
+        // En main esto no está implementado ni probado, se añade según el propósito de la tarea
+    });
+});
