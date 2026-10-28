@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 import { PanelServidor } from "@/components/mando/panel-servidor";
-import type { EstadoServidorAstraura } from "@/lib/mando/servidor-astraura-tipos";
+import type { EstadoServidorAstraura, InsomneServidor } from "@/lib/mando/servidor-astraura-tipos";
+import { politicaInsomne } from "@/lib/neurons/insomne";
 
 function fixtureEstado(): EstadoServidorAstraura {
     return {
@@ -57,6 +58,18 @@ function fixtureEstado(): EstadoServidorAstraura {
 describe("PanelServidor", () => {
     let mockFetch: ReturnType<typeof vi.fn>;
     let estado: EstadoServidorAstraura;
+
+    /** Un «insomne» para la sección de arriba: sesión de Insomnia con sus datos tal cual los mide el OS. */
+    function conInsomne(overrides: Partial<InsomneServidor>): EstadoServidorAstraura {
+        const insomne: InsomneServidor = {
+            capacidad: { proveedor: "insomnia", disponible: true, motivo: "Insomnia mantiene la Mac despierta con la tapa cerrada" },
+            estado: { activo: true, hasta: new Date(Date.now() + 3 * 60_000).toISOString(), proveedor: "insomnia", motivo: "sesión de Insomnia activa" },
+            politica: politicaInsomne(),
+            soltarTrabajo: false,
+            ...overrides,
+        };
+        return { ...estado, energia: { ...estado.energia, insomne } };
+    }
 
     beforeEach(() => {
         estado = fixtureEstado();
@@ -167,6 +180,45 @@ describe("PanelServidor", () => {
         expect(screen.getByText(/mx-queretaro-1/)).toBeInTheDocument();
         expect(screen.getByRole("button", { name: /comprobar/i })).toBeInTheDocument();
         expect(screen.getByRole("button", { name: /vincular de nuevo/i })).toBeInTheDocument();
+    });
+
+    it("sesión de Insomnia activa: «Siempre disponible hasta las HH:MM» con su motivo", async () => {
+        estado = conInsomne({});
+        render(<PanelServidor />);
+        expect(await screen.findByText(/Siempre disponible hasta las \S+$/i)).toBeInTheDocument();
+        expect(screen.getByText(/sesión de Insomnia activa/i)).toBeInTheDocument();
+        expect(screen.getByText(/Sigue sirviendo:/i)).toBeInTheDocument();
+        expect(screen.queryByText(/Va a soltar el trabajo/i)).not.toBeInTheDocument();
+    });
+
+    it("la sesión activa que va a soltar el trabajo avisa antes de terminar", async () => {
+        estado = conInsomne({ soltarTrabajo: true });
+        render(<PanelServidor />);
+        expect(await screen.findByText(/Va a soltar el trabajo/i)).toBeInTheDocument();
+        expect(screen.getByText(/quedan menos de 15 min/i)).toBeInTheDocument();
+    });
+
+    it("sesión de Insomnia vencida: «Siempre disponible (sin sesión activa)» con su motivo", async () => {
+        estado = conInsomne({
+            estado: { activo: false, hasta: null, proveedor: "insomnia", motivo: "sesión de Insomnia vencida" },
+            soltarTrabajo: true,
+        });
+        render(<PanelServidor />);
+        expect(await screen.findByText(/Siempre disponible \(sin sesión activa\)/i)).toBeInTheDocument();
+        expect(screen.getByText(/sesión de Insomnia vencida/i)).toBeInTheDocument();
+        expect(screen.queryByText(/Va a soltar el trabajo/i)).not.toBeInTheDocument();
+    });
+
+    it("Insomnia no disponible: no puede seguir con la pantalla cerrada y lo dice con su motivo", async () => {
+        estado = conInsomne({
+            capacidad: { proveedor: "no", disponible: false, motivo: "Insomnia no está instalada o no tiene sesión" },
+            estado: { activo: false, hasta: null, proveedor: "no", motivo: "Insomnia no está instalada o no tiene sesión" },
+            soltarTrabajo: true,
+        });
+        render(<PanelServidor />);
+        expect(await screen.findByText(/No puede seguir con la pantalla cerrada/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/Insomnia no está instalada o no tiene sesión/i).length).toBeGreaterThanOrEqual(1);
+        expect(screen.queryByText(/Siempre disponible/i)).not.toBeInTheDocument();
     });
 
     it("tarjeta Oracle oculta ocid en instancias", async () => {
