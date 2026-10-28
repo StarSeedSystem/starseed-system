@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ""))
 
 from asignaciones_agentes import (
+    RAIZ,
     leer_asignaciones_agentes,
     modelo_por_papel,
     habilitar_director,
@@ -215,6 +216,26 @@ class TestAsignacionesAgentes(unittest.TestCase):
 
         for director in ["chat", "optimizador", "diseño", "producción", "nube", "medidores", "aprendizaje"]:
             self.assertFalse(habilitar_director(director, asignaciones))
+
+
+    def test_raiz_por_defecto_es_la_del_repo(self):
+        """RAIZ, sin STARSEED_ROOT, apunta a la raíz del repositorio (contiene CLAUDE.md)."""
+        self.assertTrue(os.path.isfile(os.path.join(RAIZ, "CLAUDE.md")))
+
+    def test_raiz_respeta_starseed_root(self):
+        """RAIZ respeta la variable de entorno STARSEED_ROOT cuando está puesta."""
+        self.temp_dir = tempfile.mkdtemp()
+        with patch.dict(os.environ, {"STARSEED_ROOT": self.temp_dir}):
+            import importlib
+
+            import asignaciones_agentes as modulo
+
+            importlib.reload(modulo)
+            self.assertEqual(modulo.RAIZ, self.temp_dir)
+            self.assertEqual(
+                modulo.RUTA_ASIGNACIONES,
+                os.path.join(self.temp_dir, "starseed_memory_root", "mando", "asignaciones-agentes.json"),
+            )
 
 
 if __name__ == "__main__":
