@@ -332,6 +332,57 @@ def duplicadas(propuestas):
             g = sorted(g, key=reciente, reverse=True)
             fuera += [(p, g[0].get("id")) for p in g[1:]]
     return fuera
+# ── familias (Ola 1028 · IMG1028B): la misma idea repetida por archivo llega como UNA decisión ──
+#: Máximo de variantes que una cabeza guarda por familia.
+MAX_VARIANTES = 20
+#: Nombres de archivo conocidos SIN extensión.
+SIN_EXTENSION = ("dockerfile", "makefile", "readme", "license", "gemfile", "procfile", "jenkinsfile")
+#: Un token con ruta y extensión («IDEA.md», «setup_autostart.sh», «vercel.backup.json», «.github/x.yml»).
+_COMO_ARCHIVO = re.compile(r"^[a-z0-9.][a-z0-9_./\\-]*\.[a-z][a-z0-9]{0,5}$")
+_SEPARADORES = "/|·—–"
+def _parece_archivo(token):
+    t = str(token).strip(_SEPARADORES)
+    return t in SIN_EXTENSION or bool(_COMO_ARCHIVO.match(t))
+def familia(p):
+    """El título sin el archivo final («Optimización ARM NEON para IDEA.md» y «… para Dockerfile» comparten
+    la familia «optimizacion arm neon para»), normalizado con `_norm`: la misma idea repetida por archivo es
+    UNA decisión y Alex la decide de una vez. Solo se quita el archivo de la COLA (token con ruta+extensión,
+    nombre sin extensión o separador suelto); si el título entero es un archivo, queda vacía. PURA."""
+    tokens = _norm(p.get("titulo") if isinstance(p, dict) else (p or "")).split()
+    while tokens and (not tokens[-1].strip(_SEPARADORES) or _parece_archivo(tokens[-1])):
+        tokens.pop()
+    return " ".join(tokens)
+def familias(propuestas, maximo=MAX_VARIANTES):
+    """Entre las pendientes (`PENDIENTES`, lo que el director llama REVISABLES) de la misma fuente, ámbito y
+    familia, la más reciente queda como CABEZA y las demás son sus variantes. Nada se rechaza ni se borra —la automática nunca rechaza—: devuelve
+    ({id_cabeza: [{id, titulo, archivos}, … ≤ maximo]}, [(id_variante, id_cabeza)]) y el director guarda las
+    `variantes` y `n_variantes` en la cabeza y pasa cada variante a «agrupada» con `agrupada_en`, así que
+    vuelve a contar UNA vez en «por decidir». PURA."""
+    grupos = {}
+    for p in propuestas:
+        if not isinstance(p, dict) or (p.get("estado") or "nueva") not in PENDIENTES or p.get("fuente") not in FUENTES_AUTO: continue
+        f = familia(p)
+        if f: grupos.setdefault((p.get("fuente"), p.get("ambito") or "metagenesis", f), []).append(p)
+    cabeceras, variantes = {}, []
+    for g in grupos.values():
+        if len(g) < 2: continue
+        g.sort(key=reciente, reverse=True)
+        cabeza = str(g[0].get("id") or "")
+        cabeceras[cabeza] = [{"id": str(q.get("id")), "titulo": q.get("titulo"), "archivos": _archivos(q)}
+                             for q in g[1:]][:maximo]
+        variantes += [(str(q.get("id")), cabeza) for q in g[1:]]
+    return cabeceras, variantes
+def motivo_descartada(p):
+    """El motivo que una descartada debe llevar, None si el que trae ya vale: un estado y su motivo no pueden
+    contradecirse (Ola 1028). Una descartada que arrastra un «→ pregunta» de una evaluación vieja se corrige
+    con su `motivo_destino` (por qué se descartó de verdad: «duplicada de…», «Astraura ya la autorizó…») o,
+    si tampoco se sabe, con el aviso honesto de que se descartó sola en un ciclo anterior. PURA."""
+    if not isinstance(p, dict) or (p.get("estado") or "nueva") != "descartada": return None
+    if "→ pregunta" not in str(p.get("motivo") or ""): return None
+    destino = str(p.get("motivo_destino") or "")
+    if destino and "→ pregunta" not in destino: return destino
+    return "descartada sola por el automático en un ciclo anterior: no queda nada que decidir"
+
 def orden_reimaginar(propuestas):
     """Primero la más importante y, dentro, la más reciente (el tope por ciclo corta por aquí). PURA."""
     return sorted(propuestas, key=lambda p: (NIVELES.index(importancia(p)), reciente(p)), reverse=True)

@@ -434,5 +434,82 @@ class TokenSoloComoCredencial(unittest.TestCase):
             self.assertTrue(D.es_de_alex({"titulo": t, "cuerpo": ""}), t)
 
 
+# ─────────────── Ola 1028 · IMG1028B: la misma idea repetida por archivo llega como UNA decisión ───────────────
+TITULOS_ARM = (
+    "Optimización ARM NEON para Dockerfile",
+    "Optimización ARM NEON para IDEA.md",
+    "Optimización ARM NEON para setup_autostart.sh",
+    "Optimización ARM NEON para tunnel_monitor.sh",
+    "Optimización ARM NEON para tunnel_watchdog.sh",
+    "Optimización ARM NEON para install_and_run.sh",
+)
+
+class FamiliasTest(unittest.TestCase):
+    def test_los_seis_titulos_por_archivo_son_la_misma_familia(self):
+        familias = {D.familia({"titulo": t}) for t in TITULOS_ARM}
+        self.assertEqual(len(familias), 1, familias)
+        f = familias.pop()
+        self.assertIn("arm neon para", f)
+        self.assertNotIn("dockerfile", f)
+        self.assertNotIn("idea", f)
+        self.assertNotIn("watchdog", f)
+
+    def test_familias_distintas_no_se_agrupan(self):
+        base = {"fuente": "astraura", "ambito": "metagenesis", "estado": "nueva"}
+        a = {"id": "a1", **base, "titulo": TITULOS_ARM[0]}
+        b = {"id": "a2", **base, "estado": "esperando-aprobacion", "titulo": TITULOS_ARM[5]}
+        cab, agr = D.familias([a, b])
+        self.assertEqual(sorted(cab), ["a2"])          # la más reciente queda como cabeza
+        self.assertEqual(agr, [("a1", "a2")])
+        distintas = [
+           {"id": "a3", **base, "titulo": "Optimizar la apertura del lector de archivos"},
+           {"id": "a4", **base, "titulo": "Encalar las fachadas de la comunidad"},
+        ]
+        for extra in distintas:
+            self.assertEqual(D.familias([a, dict(extra, titulo=extra["titulo"])]), ({}, []), extra["titulo"])
+
+    def test_otra_fuente_ambito_o_lo_decidido_nada_de_agrupar(self):
+        base = {"id": "a1", "titulo": TITULOS_ARM[0], "ambito": "metagenesis", "estado": "nueva", "fuente": "astraura"}
+        for cambio in ({"id": "a2", "fuente": "agentes"}, {"id": "a3", "ambito": "personal"}):
+            self.assertEqual(D.familias([base, dict(base, **cambio)]), ({}, []))
+        tormenta = dict(base, id="a4", titulo=TITULOS_ARM[2])
+        cab, agr = D.familias([base, tormenta])        # misma familia y fuente: sí se agrupan
+        self.assertEqual(sorted(cab), ["a4"])
+        self.assertEqual(agr, [("a1", "a4")])
+
+
+    def test_tope_de_20_variantes_y_nada_se_borra(self):
+        ps = [{"id": "a%d" % i, "fuente": "astraura", "ambito": "metagenesis", "estado": "esperando-aprobacion",
+               "titulo": "Optimización ARM NEON para modulo_%d.sh" % i} for i in range(23)]
+        cab, agr = D.familias(ps)
+        self.assertEqual(len(agr), 22)
+        self.assertEqual(len(cab["a22"]), 20)          # solo se anotan las 20 primeras
+        self.assertEqual(set(cab["a22"][0]), {"id", "titulo", "archivos"})
+        self.assertEqual(sorted({cid for _, cid in agr}), ["a22"])
+        todas = D.familias(ps, maximo=100)[1]
+        self.assertEqual(len(todas), 22)
+
+
+class MotivoDescartadaTest(unittest.TestCase):
+    def test_una_descartada_nunca_lleva_un_motivo_pregunta(self):
+        p = {"id": "x1", "estado": "descartada",
+             "motivo": "no accionable por el enjambre (credenciales): es de Alex → pregunta",
+             "motivo_destino": "duplicada de x0"}
+        corregido = D.motivo_descartada(p)
+        self.assertEqual(corregido, "duplicada de x0")
+        self.assertNotIn("pregunta", corregido)
+        sin_dato = {"id": "x2", "estado": "descartada", "motivo": "… → pregunta"}
+        r = D.motivo_descartada(sin_dato)
+        self.assertNotIn("→ pregunta", r)
+        self.assertIn("descartada", r)
+
+    def test_el_motivo_que_ya_dice_por_que_o_no_es_descartada_no_se_toca(self):
+        self.assertIsNone(D.motivo_descartada({"estado": "descartada", "motivo": "duplicada de x7"}))
+        self.assertIsNone(D.motivo_descartada({"estado": "nueva", "motivo": "… → pregunta"}))
+        self.assertIsNone(D.motivo_descartada({}))
+        roto = {"estado": "descartada", "motivo": "… → pregunta", "motivo_destino": "… → pregunta"}
+        self.assertNotIn("→ pregunta", D.motivo_descartada(roto))
+
+
 if __name__ == "__main__":
     unittest.main()

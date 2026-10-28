@@ -172,6 +172,8 @@ def _aplicar(p, dest, ahora_iso, firma=None):
     p.update(aprobacion_diff=dest["aprobacion_diff"], motivo_destino=dest["motivo"])
     if dest["destino"] == "reimaginando": AR.pedir(p, dest["notas"], p.get("referencias") or [], "automatica", ahora_iso)
     else: p["estado"] = dest["destino"]
+    # Ola 1028: un estado y su motivo no pueden contradecirse; una descartada dice POR QUÉ se descartó.
+    if dest["destino"] == "descartada" and dest["motivo"]: p["motivo"] = dest["motivo"]
     if dest["destino"] == "aprobada": p.update(aprobada_por="automatica", decidida=ahora_iso)
     if p["estado"] != antes or not p.get("t"): p["t"] = ahora_iso
     if firma: p["auto_firma"] = firma
@@ -191,6 +193,21 @@ def _en_vuelo_automatico(propuestas):
                and (p.get("reimaginacion") or {}).get("por") != "alex" and not (p.get("reimaginacion") or {}).get("recibida"))
 
 
+def _agrupar_familias(previas):
+    """La misma idea repetida por archivo es UNA decisión (Ola 1028): la cabeza de familia guarda sus
+    `variantes` (id, título, archivos; máx. 20) y cuenta `n_variantes`; las demás pasan a «agrupada» con
+    `agrupada_en` (dejan de contar en «por decidir»). Nada se rechaza ni se borra; Alex decide la familia."""
+    cabeceras, variantes = AD.familias(previas.values())
+    for cid, listado in cabeceras.items():
+        cabeza = previas.get(cid)
+        if cabeza and listado: cabeza.update(variantes=listado, n_variantes=len(listado))
+    n = 0
+    for pid, cid in variantes:
+        p = previas.get(pid)
+        if p: p.update(estado="agrupada", agrupada_en=cid); n += 1
+    return n
+
+
 def _decidir_lote(previas, nuevas, aj, existe, consejo, iso, firma):
     """Decide lo nuevo y, con el botón encendido, lo pendiente con otra firma; antes, las duplicadas. Las
     reimaginaciones automáticas nuevas tienen tope por ciclo y en vuelo (las de más importancia y más
@@ -208,7 +225,15 @@ def _decidir_lote(previas, nuevas, aj, existe, consejo, iso, firma):
         ya = {id(p) for p in candidatas}
         candidatas += [p for p in previas.values() if id(p) not in ya and p.get("estado") in REVISABLES
                        and p.get("fuente") in AD.FUENTES_AUTO and p.get("auto_firma") != firma]
-    evaluadas = [(p, _evaluar(p, aj, existe, consejo)) for p in candidatas if p.get("estado") != "descartada"]
+    # Ola 1028: una descartada ya no arrastra un «→ pregunta» heredado; y la familia se agrupa siempre
+    # (con o sin firma), también las que ya esperaban de una pasada anterior.
+    for p in previas.values():
+        m = AD.motivo_descartada(p)
+        if m: p["motivo"] = m
+    n_agrupadas = _agrupar_familias(previas)
+    if n_agrupadas: reparto["agrupadas"] += n_agrupadas
+    evaluadas = [(p, _evaluar(p, aj, existe, consejo)) for p in candidatas
+                 if p.get("estado") not in ("descartada", "agrupada")]
     cupo = max(0, min(AD.TOPE_POR_CICLO, AD.MAX_EN_VUELO - _en_vuelo_automatico(previas.values())))
     turno = {id(p) for p in AD.orden_reimaginar([p for p, d in evaluadas if d["destino"] == "reimaginando"])[:cupo]}
     for p, d in evaluadas:
