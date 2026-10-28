@@ -319,6 +319,12 @@ except Exception:  # sin el módulo, se comporta como antes
             return False
 
         @staticmethod
+        def sin_modelo_en(salida):
+            return False
+
+        HORAS_SIN_MODELO = 0
+
+        @staticmethod
         def anotar(motivo=""):
             return 0
 
@@ -7721,6 +7727,37 @@ def ejecutar(t, intento=1):
         if reaccion == "red":
             return
         if reaccion in ("pasarela", "cuota"):
+            continue
+        # (2026-10-28, DEC1028C) MODELO NO ADMITIDO con la cuenta de ChatGPT: la
+        # CLI responde 400 `model_not_found` («not supported when using Codex
+        # with a ChatGPT account») aunque la cuota esté intacta. `agotado_en`
+        # no lo mira, así que Codex seguía en la rotación y cada tarea quemaba
+        # su primer intento con él (DEC1028A lo hizo 8 veces). Como una pasarela
+        # caída: se aparta 24 h y se pasa al siguiente modelo SIN contar el
+        # intento.
+        if (
+            modelo in MODELOS_CODEX
+            and not _cupo_codex.agotado_en(out)
+            and _cupo_codex.sin_modelo_en(out)
+        ):
+            try:
+                _cupo_codex.anotar(
+                    "cuenta de ChatGPT sin Codex para %s" % modelo,
+                    horas=_cupo_codex.HORAS_SIN_MODELO,
+                )
+            except Exception:
+                pass
+            for _m in list(MODELOS_CODEX):
+                if _m in MODELOS:
+                    MODELOS.remove(_m)
+            evento(
+                "proveedor_caido",
+                tid,
+                "Codex: el modelo %s no se admite con la cuenta de ChatGPT "
+                "(model_not_found) → fuera de la rotación %d h, la tarea pasa "
+                "al siguiente modelo sin gastar intento"
+                % (modelo, int(_cupo_codex.HORAS_SIN_MODELO)),
+            )
             continue
         # Agotamiento de la suscripción de ChatGPT: se anota para que las tareas
         # siguientes no repitan la espera, y Codex sale de la rotación de esta ola.

@@ -13,6 +13,13 @@ import cupo_codex as C
 REAL = ("ERROR: You've hit your usage limit. Upgrade to Pro "
         "(https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage")
 
+#: Salida real del 2026-10-28 (206 sesiones con el mismo 400): el modelo no se
+#: admite con la cuenta de ChatGPT. La cuota NO está agotada: reacciona distinto.
+REAL_SIN_MODELO = (
+    '{"status":400, "message":"The \'gpt-5.6-sol\' model is not supported when '
+    'using Codex with a ChatGPT account.","code":"model_not_found"}'
+)
+
 AHORA = 1_700_000_000.0
 
 
@@ -26,9 +33,21 @@ class TestDeteccion(unittest.TestCase):
         self.assertFalse(C.agotado_en("ERROR: model 'gpt-9' does not exist"))
         self.assertFalse(C.agotado_en("error: the argument '--sandbox' cannot be used"))
 
+    def test_la_salida_real_de_modelo_no_admitido(self):
+        # (2026-10-28, DEC1028C) gpt-5.6-sol y gpt-5.5 con cuenta de ChatGPT: 400
+        # model_not_found. No es cuota y no debe confundirla con ella.
+        self.assertTrue(C.sin_modelo_en(REAL_SIN_MODELO))
+        self.assertFalse(C.agotado_en(REAL_SIN_MODELO))
+        self.assertFalse(C.sin_modelo_en(REAL))
+        # Igual con cualquier otro modelo de Codex (gpt-5.5 pasa lo mismo).
+        self.assertTrue(C.sin_modelo_en(REAL_SIN_MODELO.replace(
+            "'gpt-5.6-sol'", "'gpt-5.5'")))
+
     def test_vacio_no_es_agotamiento(self):
         self.assertFalse(C.agotado_en(""))
         self.assertFalse(C.agotado_en(None))
+        self.assertFalse(C.sin_modelo_en(""))
+        self.assertFalse(C.sin_modelo_en(None))
 
     def test_da_igual_como_lo_escriban(self):
         for t in ("Usage limit reached for your plan", "QUOTA EXCEEDED", "Upgrade to Pro"):
@@ -62,6 +81,13 @@ class TestVentana(unittest.TestCase):
 
     def test_se_puede_ajustar(self):
         self.assertAlmostEqual(C.hasta_cuando(AHORA, horas=0.5) - AHORA, 1800, places=3)
+
+    def test_24_horas_de_aparta_por_modelo_no_admitido(self):
+        # (2026-10-28, DEC1028C) La cuenta de ChatGPT ya no admite el modelo se
+        # anota con HORAS_SIN_MODELO: como mucho 3 archivos, sin tocarle nada más.
+        self.assertEqual(C.HORAS_SIN_MODELO, 24.0)
+        self.assertAlmostEqual(
+            C.hasta_cuando(AHORA, horas=C.HORAS_SIN_MODELO) - AHORA, 24 * 3600, places=3)
 
 
 class TestDisco(unittest.TestCase):

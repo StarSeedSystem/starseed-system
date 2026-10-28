@@ -47,8 +47,27 @@ PISTAS = (
     "upgrade to pro",
 )
 
-#: Cuánto se aparta tras un agotamiento.
+#: Cuántas horas se aparta a Codex por agotamiento de cuota.
 HORAS = 3.0
+
+#: Lo que dice la CLI de codex cuando el MODELO no se admite con la cuenta de
+#: ChatGPT (2026-10-28: `The 'gpt-5.6-sol' model is not supported when using
+#: Codex with a ChatGPT account.` con `code: model_not_found`). No es cuota: la
+#: cuenta puede tener saldo y aun así nada va a responder, así que se aparta
+#: más tiempo y SIN gastar el intento de la tarea. En minúsculas.
+PISTAS_SIN_MODELO = (
+    "is not supported when using codex with a chatgpt account",
+    "model_not_found",
+)
+
+#: Cuánto se aparta por modelo no admitido, hasta que Alex lo resuelva por arriba.
+HORAS_SIN_MODELO = 24.0
+
+
+def sin_modelo_en(salida):
+    """¿Esta salida es un modelo que la cuenta de ChatGPT no admite?"""
+    b = (salida or "").lower()
+    return any(p in b for p in PISTAS_SIN_MODELO)
 
 
 def agotado_en(salida):
