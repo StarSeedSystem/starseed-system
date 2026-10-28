@@ -70,6 +70,22 @@ class Disponible(unittest.TestCase):
         self.assertIn("solo Windows 10/11", r["fallo"])
         self.assertIn("blender-voxel", r["fallo"])
 
+    def test_disponible_true_when_conditions_met(self):
+        """When mocked to Windows, with nvidia-smi and ComfyUI responding, disponible returns True."""
+        comfy = ComfyFalso(clases={n: {} for n in pa.NODOS_REQUERIDOS})
+        with mock.patch.object(pa.platform, "system", return_value="Windows"), \
+             mock.patch.object(pa, "_hay_nvidia", return_value=True):
+            self.assertTrue(pa.disponible(comfy)["ok"])
+
+    def test_disponible_false_en_linux(self):
+        """On Linux, disponible should return False because it requires Windows."""
+        for so in ("Darwin", "Linux"):
+            with mock.patch.object(pa.platform, "system", return_value=so):
+                r = pa.disponible(ComfyFalso())
+            self.assertFalse(r["ok"])
+            self.assertIn("solo Windows 10/11", r["fallo"])
+            self.assertIn("blender-voxel", r["fallo"])
+
     def test_windows_sin_nvidia_dice_que_no(self):
         with mock.patch.object(pa.platform, "system", return_value="Windows"), \
              mock.patch.object(pa, "_hay_nvidia", return_value=False):
@@ -223,6 +239,24 @@ class RemallarImagen(unittest.TestCase):
         self.assertTrue(r["fallo"])
         self.assertGreaterEqual(r["segundos"], 0.0)
         self.assertGreaterEqual(r["pico_memoria_gb"], 0.0)
+
+    def test_remallar_imagen_cuando_no_disponible(self):
+        """Cuando el motor no está disponible, remallar_imagen debe devolver un dict de error."""
+        result = pa.remallar_imagen(
+            "/fake/path/image.png",
+            resolucion=512,
+            carpeta_workflows=self.tmp,
+            comfy=ComfyFalso(),
+            dormir=lambda _: None
+        )
+        self.assertFalse(result["ok"])
+        self.assertIsNone(result["glb"])
+        self.assertIsInstance(result["procedencia"], list)
+        self.assertGreaterEqual(len(result["procedencia"]), 2)  # piezas de flujo y nodos
+        self.assertIsInstance(result["fallo"], str)
+        self.assertGreaterEqual(len(result["fallo"]), 1)
+        self.assertGreaterEqual(result["segundos"], 0.0)
+        self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
 
     def test_flujo_desconocido(self):
         r = pa.remallar_imagen("a.png", flujo="inventado", comfy=ComfyFalso())
