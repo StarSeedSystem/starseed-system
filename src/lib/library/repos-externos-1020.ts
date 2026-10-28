@@ -5,13 +5,17 @@
 // autobúsque releases/tags/commits por payload.externalUrl. Nada se descarga ni
 // se ejecuta; por eso todas llevan comingSoon:true. Módulo PURO (sin node:*):
 // lo consume el bundle de cliente de packages.ts.
-// Contrato: architecture/repos-libreria-1020.md §5.
+// Contrato: architecture/repos-libreria-1020.md §5 + architecture/repos-libreria-1020d.md.
+// La 4.ª tanda (1020d) declara `requisitos` por paquete (REQUISITOS_1020D, para la
+// bolsa de recursos) y trae repos que YA existen en packages.ts: la comparación es
+// SIN distinguir mayúsculas, como GitHub.
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { LibraryPackage, LibraryRepo, PackageKind } from "./packages";
 import catalogo1020 from "../../../config/repos-libreria-1020.json";
 import catalogo1020b from "../../../config/repos-libreria-1020b.json";
 import catalogo1020c from "../../../config/repos-libreria-1020c.json";
+import catalogo1020d from "../../../config/repos-libreria-1020d.json";
 
 interface Entrada1020 {
   id: string; repo: string; nombre: string; kind: string;
@@ -19,14 +23,29 @@ interface Entrada1020 {
   que_es: string; aviso?: string; skillId?: string; assets?: string[];
   patron_tag?: string; efecto?: string; preinstalar?: string;
   claude?: string | boolean;
+  nota?: string; requisitos?: Partial<Requisitos1020Recurso>;
 }
 interface Catalogo1020 { paquetes: Entrada1020[]; excluida?: { repo: string } }
 interface Catalogo1020b { paquetes: Entrada1020[]; excluidas?: { repo: string }[] }
 interface Catalogo1020c { paquetes: Entrada1020[]; excluidas?: { repo: string; motivo: string }[]; duplicadas?: Record<string, string> }
+interface Catalogo1020d { paquetes: Entrada1020[]; duplicadas?: Record<string, string> }
+
+/// Requisitos de un servicio pesado para la bolsa de recursos
+/// (architecture/repos-libreria-1020d.md §3). `null` = sin medir.
+export interface Requisitos1020Recurso {
+  ram_gb: number | null;
+  vram_gb: number | null;
+  gpu: string;
+  docker: string;
+  arquitecturas: string[];
+  so: string[];
+  fuente: string;
+}
 
 const CATALOGO = catalogo1020 as unknown as Catalogo1020;
 const CATALOGO_B = catalogo1020b as unknown as Catalogo1020b;
 const CATALOGO_C = catalogo1020c as unknown as Catalogo1020c;
+const CATALOGO_D = catalogo1020d as unknown as Catalogo1020d;
 const ICONOS: Record<string, string> = { app: "AppWindow", "ai-source": "BrainCircuit", function: "Boxes" };
 
 function autorDe(repo: string): string { return repo.split("/")[0] ?? repo; }
@@ -52,7 +71,7 @@ function paqueteDe(e: Entrada1020): LibraryPackage {
   };
 }
 
-// ── Fusión 1.ª + 2.ª + 3.ª tanda (Ola 1020T): exclusiones de seguridad y vista plana ──
+// ── Fusión 1.ª + 2.ª + 3.ª + 4.ª tanda (Ola 1020U): exclusiones, duplicados y vista plana ──
 
 export const REPOS_EXCLUIDOS: string[] = [
   CATALOGO.excluida?.repo,
@@ -60,16 +79,21 @@ export const REPOS_EXCLUIDOS: string[] = [
   ...(CATALOGO_C.excluidas ?? []).map((e) => e.repo),
 ].filter((v): v is string => Boolean(v));
 
-/// Repos de la 3.ª tanda que YA EXISTEN en packages.ts (mismo GitHub repo por externalUrl).
-/// No se crean paquetes duplicados; esta lista sirve de visibilidad para la integración.
+/// Repos de tandas anteriores que YA EXISTEN en packages.ts con su id original.
+/// No se crean paquetes duplicados; la lista sirve de visibilidad para la
+/// integración. La comparación es SIN mayúsculas: GitHub no las distingue.
 export const REPOS_YA_PRESENTES: { repo: string; id: string }[] = [
   { repo: "penpot/penpot", id: "iatool-penpot" },
+  { repo: "coollabsio/coolify", id: "iatool-coolify" },
+  { repo: "OpenHands/OpenHands", id: "iatool-openhands" },
+  { repo: "Stirling-Tools/Stirling-PDF", id: "iatool-stirling-pdf" },
 ];
 
-const yaPresentes = new Set(REPOS_YA_PRESENTES.map((r) => r.repo));
-const excluidos = new Set(REPOS_EXCLUIDOS);
+const yaPresentes = new Set(REPOS_YA_PRESENTES.map((r) => r.repo.toLowerCase()));
+const excluidos = new Set(REPOS_EXCLUIDOS.map((v) => v.toLowerCase()));
 const esExcluida = (e: Entrada1020): boolean =>
-  excluidos.has(e.repo) || yaPresentes.has(e.repo) || e.id.includes("reverse-skill") || e.repo.includes("reverse-skill");
+  excluidos.has(e.repo.toLowerCase()) || yaPresentes.has(e.repo.toLowerCase()) ||
+  e.id.includes("reverse-skill") || e.repo.includes("reverse-skill");
 
 export const REPO_EXTERNOS_1020: LibraryRepo = {
   id: "starseed-biblioteca-externa", name: "Biblioteca externa",
@@ -77,6 +101,7 @@ export const REPO_EXTERNOS_1020: LibraryRepo = {
     ...CATALOGO.paquetes.filter((e) => !esExcluida(e)).map(paqueteDe),
     ...CATALOGO_B.paquetes.filter((e) => !esExcluida(e)).map(paqueteDe),
     ...CATALOGO_C.paquetes.filter((e) => !esExcluida(e)).map(paqueteDe),
+    ...CATALOGO_D.paquetes.filter((e) => !esExcluida(e)).map(paqueteDe),
   ],
 };
 
@@ -105,4 +130,26 @@ export const PAQUETES_EXTERNOS: ReposExternosPaquete[] = [
   ...CATALOGO.paquetes,
   ...CATALOGO_B.paquetes,
   ...CATALOGO_C.paquetes,
+  ...CATALOGO_D.paquetes,
 ].filter((e) => !esExcluida(e)).map(transformaPaquete);
+
+/// Requisitos de los paquetes de la 4.ª tanda para la bolsa de recursos
+/// (architecture/repos-libreria-1020d.md §3). Incluye los repos que ya estaban
+/// en packages.ts (Coolify, OpenHands y Stirling-PDF): también son servicios
+/// pesados que la bolsa coloca. Lo no medido va como `null` y con su `fuente`.
+function requisitosDe(e: Entrada1020): Requisitos1020Recurso {
+  const r = e.requisitos;
+  return {
+    ram_gb: r?.ram_gb ?? null,
+    vram_gb: r?.vram_gb ?? null,
+    gpu: r?.gpu ?? "",
+    docker: r?.docker ?? "",
+    arquitecturas: [...(r?.arquitecturas ?? [])],
+    so: [...(r?.so ?? [])],
+    fuente: r?.fuente ?? "",
+  };
+}
+
+export const REQUISITOS_1020D: Record<string, Requisitos1020Recurso> = Object.fromEntries(
+  CATALOGO_D.paquetes.map((e) => [e.id, requisitosDe(e)]),
+);
