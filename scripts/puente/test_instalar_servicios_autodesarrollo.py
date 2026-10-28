@@ -64,6 +64,8 @@ class ServicioAutodesarrollo(unittest.TestCase):
         self.assertEqual(p["WorkingDirectory"], RAIZ)
         self.assertEqual(p["EnvironmentVariables"]["STARSEED_ROOT"], RAIZ)
         self.assertEqual(p["StandardOutPath"], "/tmp/starseed-autodesarrollo.log")
+        # El error va al mismo registro: un fallo del ciclo no se pierde en /dev/null.
+        self.assertEqual(p["StandardErrorPath"], p["StandardOutPath"])
 
     def test_lanzador_tcc_de_padre_y_rutas_absolutas(self):
         args = self.plist["ProgramArguments"]
