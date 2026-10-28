@@ -136,3 +136,12 @@ enjambre/colas/estado-*/
 
 # (2026-10-18) Dependencias de los servicios propios (taller 3D, etc.): nunca al repositorio
 servicios/*/node_modules/
+
+# (2026-10-28, RIA1023Ic) Artefactos de compilación de la app nativa: los commiteó un agente
+# de la nube por correr cargo en su máquina; el lock real (Cargo.lock) sí se versiona, el
+# directorio target/ no.
+native/src-tauri/target/
+# (RIA1023Ic) Generados en local, nunca en el repo: iconos por `tauri icon` (el CI los
+# regenera con native-build.yml / ci.yml) y `gen/schemas` por tauri-build.
+native/src-tauri/icons/
+native/src-tauri/gen/
