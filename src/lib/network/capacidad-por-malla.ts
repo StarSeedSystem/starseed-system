@@ -7,6 +7,18 @@
  * Cliente `pedirCapacidad` nunca lanza: {ok:false, motivo}.
  */
 
+import {
+  FORMATOS_VIDEO_MALLA,
+  VIDEO_MALLA_MAX_COMPOSICION,
+  VIDEO_MALLA_MAX_RECURSOS,
+  admiteVideoMalla,
+  esAnfitrionPrivado,
+  anfitrionesPrivadosAjenos,
+  renderVideoPorMalla,
+  type ContextoServidaVideo,
+  type ResultadoVideoMalla,
+} from "@/lib/network/video-por-malla";
+
 export const CAPACIDAD_MALLA_NS = "capacidad.";
 export const CAPACIDAD_MALLA_MAX_BYTES = 16 * 1024;
 const MARGEN = 256;
@@ -82,6 +94,49 @@ export function pedirCapacidad(
       else if (msg.t === "capacidad.error") resolve({ ok: false, motivo: msg.mensaje });
     };
   });
+}
+
+/** Topes que este relé anuncia para la capacidad de vídeo (los fija `video-por-malla`). */
+export const LIMITES_VIDEO_CAPACIDAD = Object.freeze({
+  formatos: FORMATOS_VIDEO_MALLA,
+  maxComposicion: VIDEO_MALLA_MAX_COMPOSICION,
+  maxRecursos: VIDEO_MALLA_MAX_RECURSOS,
+});
+
+/**
+ * atenderPeticionCapacidadMalla — punto de entrada del relé `capacidad.*` para una
+ * petición ya recibida. La capacidad `render` se valida y se encola con
+ * `renderVideoPorMalla` (misma cuenta o grupo con permiso, sin GSAP del OS y sin
+ * recursos remotos privados ajenos); el resto aún no tiene manejador y se rechaza.
+ */
+export function atenderPeticionCapacidadMalla(
+  peticion: MsgPedir,
+  contextoVideo: ContextoServidaVideo,
+): ResultadoVideoMalla {
+  if (peticion.tipo !== "render")
+    return { aceptado: false, motivo: `Rechazo: esta neurona no sirve la capacidad «${peticion.tipo}».` };
+
+  const cuerpo = peticion.cuerpo;
+  const cuenta = typeof cuerpo.cuenta === "string" ? cuerpo.cuenta : "";
+  const grupo = typeof cuerpo.grupo === "string" && cuerpo.grupo ? cuerpo.grupo : undefined;
+
+  const admision = admiteVideoMalla({ cuenta, grupo }, contextoVideo);
+  if (!admision.ok) return { aceptado: false, motivo: admision.motivo };
+
+  const composicion = typeof cuerpo.composicion === "string" ? cuerpo.composicion : "";
+  const recursos = Array.isArray(cuerpo.recursos)
+    ? cuerpo.recursos.filter((r): r is string => typeof r === "string")
+    : [];
+  const ajenos = anfitrionesPrivadosAjenos(composicion, recursos, contextoVideo.origenesPropios ?? [])
+    .filter(esAnfitrionPrivado);
+  if (ajenos.length) {
+    return {
+      aceptado: false,
+      motivo: `Rechazo: la composición usa ${ajenos.length} recurso(s) remoto(s) privado(s) que no son de esta cuenta.`,
+    };
+  }
+
+  return renderVideoPorMalla(cuerpo, contextoVideo);
 }
 
 function esObjeto(x: unknown): x is Record<string, unknown> { return !!x && typeof x === "object"; }
