@@ -25,6 +25,32 @@
     backface-visibility: hidden;
 }
 
+/* Entrada cardinal 1024D: nace en su borde con los tokens; solo translate y opacity. */
+.panel {
+    --cortina-desde-x: 0px;
+    --cortina-desde-y: 0px;
+    animation: cortina-entrar var(--cortina-entrada-ms, 220ms) var(--cortina-curva-entrada, cubic-bezier(0.4, 0, 0.2, 1)) backwards;
+}
+.panel[data-lado="izquierda"] { --cortina-desde-x: -18px; }
+.panel[data-lado="derecha"] { --cortina-desde-x: 18px; }
+.panel[data-lado="arriba"] { --cortina-desde-y: -18px; }
+.panel[data-lado="abajo"] { --cortina-desde-y: 18px; }
+.panel[data-cortina-saliendo] {
+    animation: cortina-salir var(--cortina-salida-ms, 150ms) var(--cortina-curva-salida, cubic-bezier(0.7, 0, 0.84, 0)) both;
+}
+
+@keyframes cortina-entrar {
+    from { opacity: 0; translate: var(--cortina-desde-x) var(--cortina-desde-y); }
+}
+@keyframes cortina-salir {
+    to { opacity: 0; translate: var(--cortina-desde-x) var(--cortina-desde-y); }
+}
+
+/* Movimiento reducido: estado final de golpe, sin desplazamiento ni fundido. */
+@media (prefers-reduced-motion: reduce) {
+    .panel, .panel[data-cortina-saliendo] { animation: none; translate: none; opacity: 1; }
+}
+
 .lado_izquierda,
 .lado_derecha {
     touch-action: pan-y pinch-zoom;

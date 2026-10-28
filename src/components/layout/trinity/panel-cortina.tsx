@@ -22,14 +22,28 @@
  * `usePresence` dentro del hook.
  */
 
-import { createContext, useContext, useMemo, useRef, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
 import { useArrastrePanel } from "@/hooks/use-arrastre-panel";
 import { useModalA11y } from "@/hooks/use-modal-a11y";
+import { useNivelMovimiento } from "@/hooks/use-nivel-movimiento";
+import { aplicarMovimientoReducido, movimientoDe, type RegistroMovimiento } from "@/lib/design/registros-movimiento";
 import type { BordeTrinity, Lado } from "@/lib/gestos";
 import estilos from "./panel-cortina.module.css";
+
+/** Movimiento de la cortina desde la única fuente del OS (reducido = 0 ms). */
+export function estiloMovimientoCortina(registro: RegistroMovimiento = "expresivo", reducido = false) {
+    const completo = movimientoDe(registro, "trinity");
+    const mov = reducido ? aplicarMovimientoReducido(completo) : completo;
+    return {
+        "--cortina-entrada-ms": `${mov.entrada.ms}ms`,
+        "--cortina-curva-entrada": mov.entrada.curva,
+        "--cortina-salida-ms": `${mov.salida.ms}ms`,
+        "--cortina-curva-salida": mov.salida.curva,
+    };
+}
 
 interface ContextoPanelCortina {
     /** Cierre animado: el panel vuelve a su borde y luego se desmonta. */
@@ -62,6 +76,8 @@ export interface PanelCortinaProps {
     claseBotonCerrar?: string;
     /** Rueda / trackpad horizontal (escritorio). Por defecto en los laterales. */
     rueda?: boolean;
+    /** Carácter del movimiento (sobrio · expresivo · experimental). */
+    registro?: RegistroMovimiento;
     testId?: string;
     id?: string;
 }
@@ -78,11 +94,15 @@ export function PanelCortina({
     botonCerrar = "esquina",
     claseBotonCerrar,
     rueda,
+    registro = "expresivo",
     testId,
     id,
 }: PanelCortinaProps) {
     const panelRef = useRef<HTMLDivElement | null>(null);
     const lateral = lado === "izquierda" || lado === "derecha";
+    const nivel = useNivelMovimiento();
+    const reducido = nivel === "minimo";
+    const estiloMovimiento = estiloMovimientoCortina(registro, reducido);
     const arrastre = useArrastrePanel({
         lado,
         borde,
@@ -91,7 +111,13 @@ export function PanelCortina({
         soloAgarres,
         rueda: rueda ?? lateral,
     });
-    const { cerrar } = arrastre;
+    const { cerrar: cerrarArrastre } = arrastre;
+    // La salida corre con los tokens de la cortina (más corta que la entrada):
+    // se marca el panel para que el CSS use --cortina-salida-ms y su curva.
+    const cerrar = useCallback(() => {
+        panelRef.current?.setAttribute("data-cortina-saliendo", "");
+        cerrarArrastre();
+    }, [cerrarArrastre]);
 
     useModalA11y({ open: true, onClose: cerrar, containerRef: panelRef, initialFocus: "container" });
 
@@ -120,7 +146,7 @@ export function PanelCortina({
                 data-testid={testId}
                 data-lado={lado}
                 className={cn("outline-none", estilos.panel, estilos[`lado_${lado}`], className)}
-                style={{ transform: arrastre.transform, transformOrigin: arrastre.origen }}
+                style={{ ...estiloMovimiento, transform: arrastre.transform, transformOrigin: arrastre.origen }}
                 {...arrastre.manejadores}
             >
                 {children}
