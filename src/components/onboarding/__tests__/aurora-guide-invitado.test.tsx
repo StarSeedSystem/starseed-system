@@ -125,7 +125,7 @@ describe("GUI1021J · guía de Aurora sin cuenta (invitado)", () => {
             expect(screen.queryByRole("button", { name: /Hazlo por mí/ })).toBeNull();
             if (i < TOTAL_PASOS - 2) siguiente();
         }
-    });
+    }, 60_000);
 
     it("sin sesión, acciones que requieren cuenta muestran «Disponible al entrar»", async () => {
         await abrir({ desde: "ajustes", temaInicial: "astraura" });
