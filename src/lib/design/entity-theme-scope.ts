@@ -81,6 +81,13 @@ interface ThemeSnapshot {
     background: string | null | undefined;
     motion: string | null | undefined;
     fontBody: string | null | undefined;
+    /** Registro previo en <html> (undefined = esta aplicación no lo tocó). */
+    movimiento: string | null | undefined;
+}
+
+/** Distingue las capas (cuenta/página/grupo) de un único tema de entidad. */
+function esCapasTema(valor: TemaEntidad | CapasTemaEntidad): valor is CapasTemaEntidad {
+    return "cuenta" in valor || "pagina" in valor || "grupo" in valor;
 }
 
 function isPlausibleMixSlots(v: unknown): v is MixSlots {
@@ -122,19 +129,20 @@ function resolveEntityTokens(layout: TemaEntidad, mode: "light" | "dark"): Theme
     return null;
 }
 
-function snapshotFor(tokens: ThemeTokens): ThemeSnapshot {
+function snapshotFor(tokens: ThemeTokens | null): ThemeSnapshot {
     const root = document.documentElement;
     const vars: Record<string, string | null> = {};
-    for (const k of Object.keys(tokens.vars || {})) {
+    for (const k of Object.keys(tokens?.vars || {})) {
         const current = root.style.getPropertyValue(`--${k}`);
         vars[k] = current || null;
     }
     return {
         vars,
-        material: tokens.materialClass !== undefined ? (root.dataset.ssMaterial ?? null) : undefined,
-        background: tokens.background !== undefined ? (root.dataset.ssBackground ?? null) : undefined,
-        motion: tokens.motion !== undefined ? (root.style.getPropertyValue("--ss-motion") || null) : undefined,
-        fontBody: tokens.fontFamily ? (root.style.getPropertyValue("--font-body") || null) : undefined,
+        material: tokens?.materialClass !== undefined ? (root.dataset.ssMaterial ?? null) : undefined,
+        background: tokens?.background !== undefined ? (root.dataset.ssBackground ?? null) : undefined,
+        motion: tokens?.motion !== undefined ? (root.style.getPropertyValue("--ss-motion") || null) : undefined,
+        fontBody: tokens?.fontFamily ? (root.style.getPropertyValue("--font-body") || null) : undefined,
+        movimiento: undefined,
     };
 }
 
@@ -160,6 +168,10 @@ function restoreSnapshot(snap: ThemeSnapshot): void {
         if (snap.fontBody === null) root.style.removeProperty("--font-body");
         else root.style.setProperty("--font-body", snap.fontBody);
     }
+    if (snap.movimiento !== undefined) {
+        if (snap.movimiento === null) delete root.dataset.ssMovimiento;
+        else root.dataset.ssMovimiento = snap.movimiento;
+    }
     try { window.dispatchEvent(new CustomEvent("starseed:theme-applied")); } catch { /* noop */ }
 }
 
@@ -168,30 +180,60 @@ function restoreSnapshot(snap: ThemeSnapshot): void {
  * el componente que llama a este hook está montado — lo restaura al salir.
  * Úsalo en la página de la entidad, pasándole directamente su `EntityLayout`
  * (o `null`/`undefined` mientras aún no ha cargado — no hace nada hasta que
- * haya datos reales).
+ * haya datos reales). También acepta las capas `CapasTemaEntidad` para
+ * resolver el movimiento con la herencia cuenta › página › grupo: el tema
+ * visual sale de la capa más concreta y el registro de `movimiento` viaja al
+ * documento como `data-ss-movimiento`, listo para que cada sección lo use.
  */
-export function useEntityThemeScope(layout: TemaEntidad | null | undefined): void {
+export function useEntityThemeScope(
+    layout: TemaEntidad | CapasTemaEntidad | null | undefined,
+): void {
     const { resolvedTheme } = useTheme();
     const mode: "light" | "dark" = resolvedTheme === "light" ? "light" : "dark";
     const snapRef = useRef<ThemeSnapshot | null>(null);
 
-    const themeId = layout?.themeId ?? null;
-    const themeMixKey = layout?.themeMix ? JSON.stringify(layout.themeMix) : "";
+    // Un `EntityLayout` suelto (como lo pasan página y grupo) es una única
+    // capa; las capas explícitas conservan su orden de herencia.
+    const capas: CapasTemaEntidad | null = layout
+        ? esCapasTema(layout)
+            ? layout
+            : { cuenta: layout }
+        : null;
+    const tema = capas?.grupo ?? capas?.pagina ?? capas?.cuenta ?? null;
+    const themeId = tema?.themeId ?? null;
+    const themeMixKey = tema?.themeMix ? JSON.stringify(tema.themeMix) : "";
+    const movimiento = capas ? registroMovimientoEfectivo(capas) : MOVIMIENTO_POR_DEFECTO;
+    const movimientoPropio = Boolean(
+        capas &&
+            (capas.cuenta?.movimiento !== undefined ||
+                capas.pagina?.movimiento !== undefined ||
+                capas.grupo?.movimiento !== undefined),
+    );
+    const aplica = Boolean(themeId || themeMixKey || movimientoPropio);
 
     useEffect(() => {
         if (typeof document === "undefined") return;
-        if (!themeId && !themeMixKey) return; // sin tema propio: cero efecto, cero regresión
+        if (!aplica) return; // sin tema ni movimiento propio: cero efecto, cero regresión
 
-        const tokens = resolveEntityTokens({ themeId, themeMix: themeMixKey ? JSON.parse(themeMixKey) : null }, mode);
-        if (!tokens) return;
+        const tokens =
+            themeId || themeMixKey
+                ? resolveEntityTokens({ themeId, themeMix: themeMixKey ? JSON.parse(themeMixKey) : null }, mode)
+                : null;
+        if (!tokens && !movimientoPropio) return;
 
-        snapRef.current = snapshotFor(tokens);
-        applyThemeTokens(tokens);
+        const snap = snapshotFor(tokens);
+        snap.movimiento = document.documentElement.dataset.ssMovimiento ?? null;
+        snapRef.current = snap;
+
+        if (tokens) applyThemeTokens(tokens);
+        // El registro efectivo queda en <html>; las secciones lo leen y
+        // `movimientoDe(registro, sección)` traduce a los tokens del OS.
+        document.documentElement.dataset.ssMovimiento = movimiento;
 
         return () => {
             if (snapRef.current) restoreSnapshot(snapRef.current);
             snapRef.current = null;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [themeId, themeMixKey, mode]);
+    }, [themeId, themeMixKey, mode, movimiento, aplica, movimientoPropio]);
 }
