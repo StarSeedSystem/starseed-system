@@ -67,6 +67,14 @@ describe("corregirConGlosario", () => {
     expect(resultado.cambios).toEqual(["Starra Seed → StarSeed"]);
   });
 
+  it("une dos palabras de un nombre del usuario o del grupo", () => {
+    const resultado = corregirConGlosario("Madrina Orbit", ["Madrina Orbita", "Astraura"], "es");
+    expect(resultado).toEqual({
+      texto: "Madrina Orbita",
+      cambios: ["Madrina Orbit → Madrina Orbita"],
+    });
+  });
+
   it("no une el par cuando el segundo vocablo ya es el nombre exacto (no se come el artículo)", () => {
     const resultado = corregirConGlosario("The Astraura said", glosario, "en");
     expect(resultado.texto).toBe("The Astraura said");
@@ -83,6 +91,11 @@ describe("corregirConGlosario", () => {
     const resultado = corregirConGlosario("una estrella brilla", glosario, "es");
     expect(resultado.texto).toBe("una estrella brilla");
     expect(resultado.cambios).toEqual([]);
+  });
+
+  it("no muerde palabras comunes en inglés", () => {
+    const texto = "the star was said";
+    expect(corregirConGlosario(texto, glosario, "en")).toEqual({ texto, cambios: [] });
   });
 
   it("corrige una minúscula solo si ya casi coincide (≤ 0,15): starseed → StarSeed", () => {
