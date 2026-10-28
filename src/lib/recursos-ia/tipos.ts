@@ -22,7 +22,8 @@ export type Capacidad =
     | "vision" // entender imágenes
     | "embeddings" // memoria/búsqueda semántica
     | "video"
-    | "3d";
+    | "3d"
+    | "codigo"; // generación y comprensión de código
 
 export const CAPACIDADES: readonly Capacidad[] = [
     "texto",
@@ -35,6 +36,7 @@ export const CAPACIDADES: readonly Capacidad[] = [
     "embeddings",
     "video",
     "3d",
+    "codigo",
 ] as const;
 
 export const NOMBRE_CAPACIDAD: Record<Capacidad, string> = {
@@ -48,6 +50,7 @@ export const NOMBRE_CAPACIDAD: Record<Capacidad, string> = {
     embeddings: "Memoria semántica",
     video: "Vídeo",
     "3d": "3D",
+    codigo: "Código",
 };
 
 /**
@@ -215,7 +218,8 @@ export interface RequisitosModelo {
     herramientasRequeridas?: string[];
     almacenamiento: {
         /** `streaming-ssd`: lee pesos del disco en cada token (TurboFieldfare) → disco local rápido obligatorio. */
-        modo: "carga-completa" | "mmap" | "streaming-ssd";
+        /** `streaming`: lee expertos del disco bajo demanda (Colibri) → disco rápido, no toda la RAM. */
+        modo: "carga-completa" | "mmap" | "streaming-ssd" | "streaming";
         lecturaMinMBs?: number;
         /** Los pesos tienen que estar en la neurona que procesa (no por red). */
         soloLocal: boolean;

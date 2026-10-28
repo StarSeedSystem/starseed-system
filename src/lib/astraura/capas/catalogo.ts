@@ -209,3 +209,55 @@ export function profundidadNeedle(presupuestoMb: number): number {
   }
   return elegida;
 }
+
+/** Convierte las entradas de Colibri de `config/capas-colibri-1027.json` a `EntradaCapa[]`. */
+export function entradasColibri(json: unknown): EntradaCapa[] {
+  const raiz = (typeof json === "object" && json !== null ? json : {}) as { entradas?: unknown };
+  const entradas = Array.isArray(raiz.entradas) ? raiz.entradas : [];
+  const salida: EntradaCapa[] = [];
+
+  for (const cruda of entradas) {
+    if (typeof cruda !== "object" || cruda === null) continue;
+    const c = cruda as Record<string, unknown>;
+
+    if (!esTexto(c.id) || !esTexto(c.capa)) continue;
+    const id = c.id.trim();
+    const capa = c.capa.trim();
+    if (!CAPAS.includes(capa as Capa)) continue;
+
+    const familia = esTexto(c.repo_hf) ? c.repo_hf.trim() : "JustVugg/colibri";
+    const modelo = esTexto(c.modelo) ? c.modelo.trim() : id;
+    const mediosRaw = Array.isArray(c.medios)
+      ? c.medios.filter((m): m is Medio => MEDIOS.includes(m as Medio))
+      : ["servidor"];
+    const medios = mediosRaw.length > 0 ? mediosRaw : ["servidor"];
+
+    const discoGb = esNumero(c.disco_gb) ? c.disco_gb : 0;
+    const ramMinGb = esNumero(c.ram_min_gb) ? c.ram_min_gb : 0;
+    const ramOkGb = esNumero(c.ram_ok_gb) ? c.ram_ok_gb : ramMinGb;
+    const streaming = c.streaming_disco === true;
+
+    const entrada: EntradaCapa = {
+      id,
+      familia,
+      capa: capa as Capa,
+      modelo,
+      version: "v2.0.0",
+      formato: "safetensors",
+      runtime: "colibri",
+      parametros: discoGb > 0 ? `${discoGb} GB` : "desconocido",
+      disco_mb: Math.round(discoGb * 1000),
+      ram_min_mb: Math.round(ramMinGb * 1024),
+      streaming_disco: streaming,
+      ram_ok_mb: ramOkGb > ramMinGb ? Math.round(ramOkGb * 1024) : undefined,
+      sha256: "por-verificar",
+      fuente_oficial: esTexto(c.repo_hf) ? `https://huggingface.co/${c.repo_hf}` : "",
+      espejos: [],
+      estado: "por-verificar",
+      medios,
+    };
+
+    salida.push(entrada);
+  }
+  return salida;
+}

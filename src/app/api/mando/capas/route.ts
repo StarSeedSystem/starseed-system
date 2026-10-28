@@ -23,6 +23,7 @@ import path from "node:path";
 import { guardianMando } from "@/lib/mando/guardian";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import { construirResumenRed, leerBanco, leerCatalogoCapas, leerNuevas } from "@/lib/mando/capas-red";
+import { entradasColibri, leerCatalogo } from "@/lib/astraura/capas/catalogo";
 import type { CapacidadesNodo } from "@/lib/network/capacidades-nodo";
 
 export const runtime = "nodejs";
@@ -66,14 +67,20 @@ export async function GET(peticion: Request): Promise<Response> {
     if (veto) return veto;
 
     const hogar = os.homedir();
-    const [crudoCatalogo, crudoEstado, crudoFichas, crudoBanco] = await Promise.all([
+    const [crudoCatalogo, crudoColibri, crudoEstado, crudoFichas, crudoBanco] = await Promise.all([
         leerJson(path.join(raizDelProyecto(), "config", "capas-astraura.json")),
+        leerJson(path.join(raizDelProyecto(), "config", "capas-colibri-1027.json")),
         leerJson(path.join(hogar, ".starseed", "capas-estado.json")),
         leerJson(path.join(hogar, ".starseed", "capacidades-nodos.json")),
         leerJson(path.join(hogar, ".starseed", "capas-banco.json")),
     ]);
 
-    const catalogo = leerCatalogoCapas(crudoCatalogo);
+    const catalogoBase = leerCatalogo(crudoCatalogo);
+    const colibriEntradas = entradasColibri(crudoColibri);
+    const catalogo = {
+      ...catalogoBase,
+      capas: [...catalogoBase.capas, ...colibriEntradas],
+    };
     const { nuevas, actualizado } = leerNuevas(crudoEstado);
     const resumen = construirResumenRed({
         catalogo,
