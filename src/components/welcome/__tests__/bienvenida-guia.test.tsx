@@ -33,11 +33,7 @@ vi.mock("@/utils/supabase/client", () => ({
           session: {
             user: {
               id: "uid-1021k2",
-<<<<<<< HEAD
               email: "invitada@star.seed",
-=======
-              email: "invitado@star.seed",
->>>>>>> 0bf4ef2b5 (salvavidas · GUI1021K2b: trabajo del agente antes de las puertas (tsc / vitest))
               user_metadata: { handle: "invitada1021" },
             },
           },
