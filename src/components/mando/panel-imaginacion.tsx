@@ -35,6 +35,7 @@ import {
     TIPOS_PROPUESTA,
     UMBRAL_MINIMO,
     esDecidible,
+    esperaAAlex,
     filasMedidor,
     normalizarReferencias,
     vetoReimaginar,
@@ -172,18 +173,19 @@ const CHIP = "rounded-full border px-2 py-0.5 text-[11px] leading-5";
 
 // ── Pestañas y filtros ──────────────────────────────────────────────────────────────────────────────
 
-type Pestana = "por-decidir" | "reimaginando" | "integradas" | "cerradas" | "todas";
+type Pestana = "por-decidir" | "reimaginando" | "integradas" | "cerradas" | "descartadas" | "todas";
 const INTEGRADAS = new Set<EstadoPropuesta>(["aprobada", "autodesarrollo", "encargada", "hecha"]);
 const PESTANAS: { id: Pestana; texto: string; entra: (p: PropuestaNormalizada) => boolean; vacio: string }[] = [
-    { id: "por-decidir", texto: "Por decidir", entra: (p) => esDecidible(p.estado), vacio: "Nada espera tu decisión aquí." },
+    { id: "por-decidir", texto: "Por decidir", entra: (p) => esperaAAlex(p.estado), vacio: "Nada espera tu decisión aquí." },
     { id: "reimaginando", texto: "Reimaginando", entra: (p) => p.estado === "reimaginando", vacio: "Nada se está reimaginando ahora." },
     { id: "integradas", texto: "Integradas", entra: (p) => INTEGRADAS.has(p.estado), vacio: "Aún no se ha integrado nada de aquí." },
     {
         id: "cerradas",
-        texto: "Rechazadas y pospuestas",
-        entra: (p) => p.estado === "rechazada" || p.estado === "pospuesta" || p.estado === "descartada",
-        vacio: "Nada rechazado, pospuesto ni descartado.",
+        texto: "Rechazadas",
+        entra: (p) => p.estado === "rechazada",
+        vacio: "Nada rechazado.",
     },
+    { id: "descartadas", texto: "Descartadas", entra: (p) => p.estado === "descartada", vacio: "Nada descartado." },
     { id: "todas", texto: "Todas", entra: () => true, vacio: "Ninguna propuesta en este ámbito." },
 ];
 const FUENTES = Object.keys(NOMBRE_FUENTE) as FuentePropuesta[];
@@ -864,10 +866,11 @@ export function PanelImaginacion({
     const actual = PESTANAS.find((x) => x.id === pestana) ?? PESTANAS[0];
     const visibles = filtradas.filter(actual.entra);
     const decidiblesFiltradas = filtradas.filter((p) => esDecidible(p.estado));
-    const esperanAlex = decidiblesFiltradas.filter((p) => p.estado === "esperando-aprobacion" || p.estado === "pregunta").length;
+    const esperaFiltradas = filtradas.filter((p) => esperaAAlex(p.estado));
+    const esperanAlex = esperaFiltradas.length;
     const hayFiltro = tipo !== "todos" || fuente !== "todas";
     const nSel = seleccion.size;
-    const nTodas = decidiblesFiltradas.length;
+    const nTodas = esperaFiltradas.length;
     const visiblesDecidibles = visibles.filter((p) => esDecidible(p.estado));
     const todasVisiblesMarcadas = visiblesDecidibles.length > 0 && visiblesDecidibles.every((p) => seleccion.has(p.id));
 
@@ -896,9 +899,10 @@ export function PanelImaginacion({
     );
 
     const ejecutarLote = async (l: Lote, extra: Record<string, unknown> = {}) => {
-        // «Todas» sin filtro = «pendientes» (el servidor toma TODAS las decidibles del ámbito); con un
-        // filtro puesto, solo las que se ven: nunca se decide sobre lo que no está en pantalla.
-        const ids = l.alcance === "seleccion" ? [...seleccion] : hayFiltro ? decidiblesFiltradas.map((p) => p.id) : "pendientes";
+        // «Todas» sin filtro = todas las que esperan a Alex en el ámbito; con un filtro puesto,
+        // solo las que se ven: nunca se decide sobre lo que no está en pantalla.
+        const todasEspera = propuestas.filter((p) => esperaAAlex(p.estado)).map((p) => p.id);
+        const ids = l.alcance === "seleccion" ? [...seleccion] : hayFiltro ? esperaFiltradas.map((p) => p.id) : todasEspera;
         setOcupadoLote(true);
         setResultadoLote(null);
         const e = await enviar({ accion: "lote", ids, hacer: l.hacer, ambito, ...extra });

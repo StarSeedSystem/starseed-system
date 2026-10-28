@@ -222,6 +222,7 @@ export function vetoDecision(p: PropuestaImaginacion, hacer: HacerDecision, por:
 }
 
 const ESPERAN: EstadoPropuesta[] = ["esperando-aprobacion", "pregunta"];
+export const esperaAAlex = (estado: EstadoPropuesta) => ESPERAN.includes(estado);
 const INTEGRADAS: EstadoPropuesta[] = ["aprobada", "autodesarrollo", "encargada", "hecha"];
 const PESO_IMPORTANCIA: Record<ImportanciaPropuesta, number> = { crítica: 3, alta: 2, media: 1, baja: 0 };
 const mismoDia = (iso: string, hoy: Date) => {
@@ -236,7 +237,7 @@ export interface ResumenPastilla { texto: string; tono: "ok" | "atencion" | "avi
  * Tono: aviso si espera algo alto o crítico; atención si espera algo; ok si nada.
  */
 export function resumenPastilla(propuestas: PropuestaImaginacion[], hoy: Date): ResumenPastilla {
-  const espera = propuestas.filter((p) => ESPERAN.includes(p.estado));
+  const espera = propuestas.filter((p) => esperaAAlex(p.estado));
   const reimaginando = propuestas.filter((p) => p.estado === "reimaginando").length;
   const integradasHoy = propuestas.filter((p) => INTEGRADAS.includes(p.estado) && mismoDia(p.decidida ?? p.t, hoy)).length;
   const tono = espera.some((p) => exigeVistoBueno(p.importancia)) ? "aviso" : espera.length ? "atencion" : "ok";

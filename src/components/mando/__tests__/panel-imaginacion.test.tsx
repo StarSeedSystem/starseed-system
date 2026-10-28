@@ -140,16 +140,16 @@ describe("PanelImaginacion", () => {
         );
         render(<PanelImaginacion ambito="metagenesis" />);
         await screen.findByTestId("propuesta-d1");
-        expect(screen.getByRole("tab", { name: /Por decidir/ })).toHaveTextContent("(3)");
+        expect(screen.getByRole("tab", { name: /Por decidir/ })).toHaveTextContent("(2)");
         expect(screen.getByRole("tab", { name: /Integradas/ })).toHaveTextContent("(1)");
-        expect(screen.getByRole("tab", { name: /Rechazadas y pospuestas/ })).toHaveTextContent("(1)");
+        expect(screen.getByRole("tab", { name: /Rechazadas/ })).toHaveTextContent("(1)");
         expect(screen.getByRole("tab", { name: /Reimaginando/ })).toHaveTextContent("(1)");
 
         fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "diseno" } });
         expect(screen.getByTestId("propuesta-d1")).toBeInTheDocument();
         expect(screen.getByTestId("propuesta-d2")).toBeInTheDocument();
         expect(screen.queryByTestId("propuesta-c1")).toBeNull();
-        expect(screen.getByRole("tab", { name: /Por decidir/ })).toHaveTextContent("(2)");
+        expect(screen.getByRole("tab", { name: /Por decidir/ })).toHaveTextContent("(1)");
 
         fireEvent.change(screen.getByLabelText("Fuente"), { target: { value: "agentes" } });
         expect(screen.getByTestId("propuesta-d1")).toBeInTheDocument();
@@ -161,7 +161,7 @@ describe("PanelImaginacion", () => {
         expect(screen.queryByTestId("propuesta-d1")).toBeNull();
         // Flechas del teclado entre pestañas.
         fireEvent.keyDown(screen.getByRole("tablist"), { key: "ArrowRight" });
-        expect(screen.getByRole("tab", { name: /Rechazadas y pospuestas/ })).toHaveAttribute("aria-selected", "true");
+        expect(screen.getByRole("tab", { name: /Rechazadas/ })).toHaveAttribute("aria-selected", "true");
     });
 
     it("reimaginar valida notas y referencias antes de enviar, y dice lo que contestó el servidor", async () => {
@@ -210,6 +210,13 @@ describe("PanelImaginacion", () => {
             [prop({ id: "a", titulo: "Uno" }), prop({ id: "b", titulo: "Dos", fuente: "astraura" }), prop({ id: "c", titulo: "Tres" })],
             (c, estado) => {
                 if (c.accion !== "lote") return sinPost();
+                if (c.hacer === "rechazar" && Array.isArray(c.ids)) {
+                    for (const id of c.ids) {
+                        const p = estado.propuestas.find(p => p.id === id);
+                        if (p) p.estado = "rechazada";
+                    }
+                    return { json: { ok: true, resultados: c.ids.map(id => ({ id, ok: true })) } };
+                }
                 if (c.ids === "pendientes") {
                     for (const p of estado.propuestas) p.estado = "rechazada";
                     return { json: { ok: true, resultados: estado.propuestas.map((p) => ({ id: p.id, ok: true })) } };
@@ -243,7 +250,7 @@ describe("PanelImaginacion", () => {
         fireEvent.change(within(confirmar).getByLabelText("Motivo (opcional)"), { target: { value: " no encaja " } });
         fireEvent.click(within(confirmar).getByRole("button", { name: "Sí, rechazar las 2" }));
         await waitFor(() => expect(posts).toHaveLength(2));
-        expect(posts[1]).toEqual({ accion: "lote", ids: "pendientes", hacer: "rechazar", ambito: "metagenesis", motivo: "no encaja" });
+        expect(posts[1]).toEqual({ accion: "lote", ids: ["b", "c"], hacer: "rechazar", ambito: "metagenesis", motivo: "no encaja" });
         expect(await screen.findByText(/Nada espera tu decisión aquí/)).toBeInTheDocument();
     });
 
