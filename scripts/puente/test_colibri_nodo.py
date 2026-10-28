@@ -109,6 +109,17 @@ class PruebaPlan(unittest.TestCase):
         self.assertIn(["git", "-C", C.REPO_CLONE_RUTA, "fetch", "--depth", "1", "origin", "tag", C.ETIQUETA], trae)
         self.assertIn(["git", "-C", C.REPO_CLONE_RUTA, "checkout", "--detach", C.ETIQUETA], trae)
 
+    def test_plan_laya_no_sirve_y_clona_del_repo_oficial(self):
+        """(Rama nube 28-10) Nada del plan deja nada sirviendo: el `serve` lo hace
+        starseed-colibri.service, no el plan de instalación; y el clon va del repo oficial,
+        no de otro sitio."""
+        plan = C.plan_instalacion("colibri-laya", "/srv/Colibri-modelos")
+        for paso in plan:
+            self.assertNotIn("--port", paso["args"])
+        clon = plan[0]["args"]
+        self.assertIn("--branch", clon)
+        self.assertIn(C.REPO_COLIBRI, clon)
+
     def test_plan_laya_el_hf_va_en_su_venv_pep668(self):
         """La descarga usa la ruta del venv y su propio entorno del paso; nada de `pip --user`
         ni `--break-system-packages`, tenga o no `hf` en el PATH (es la ruta determinista)."""
@@ -146,6 +157,25 @@ class PruebaPlan(unittest.TestCase):
         self.assertEqual(descarga[descarga.index("--local-dir") + 1], "/srv/GLiNER2.5-Decide")
         self.assertIn("gliner_decide", " ".join(" ".join(p["args"]) for p in plan))
         self.assertNotIn("start-here.sh", " ".join(" ".join(p["args"]) for p in plan))
+
+    def test_plan_gliner_compila_su_objetivo_exacto(self):
+        plan = C.plan_instalacion("colibri-gliner-decide", "/srv")
+        compila = [paso["args"] for paso in plan if paso["args"][0] == "make"]
+        self.assertEqual(compila, [["make", "-C", "c", "gliner_decide"]])
+
+    def test_plan_chat_clona_en_la_ruta_de_la_unidad_y_no_sirve(self):
+        """(Rama nube 28-10, adaptado a CLB1028H) Los de catálogo: solo despliegue (git) y su
+        setup; nada de `hf` ni `make`, y el setup NO deja nada sirviendo (`--no-start`)."""
+        plan = C.plan_instalacion("colibri-qwen3-coder-30b", "/srv/colibri")
+        self.assertEqual([p["args"][0] for p in plan],
+                         ["git", "git", "git", "./start-here.sh"])
+        self.assertFalse([p for p in plan if p.get("hf_ruta")])
+        clon = plan[0]["args"]
+        self.assertEqual(clon[-1], C.REPO_CLONE_RUTA)
+        prepara = plan[3]["args"]
+        self.assertEqual(prepara, ["./start-here.sh", "--model", "qwen3-coder-30b",
+                                   "--dir", "/srv/colibri", "--yes", "--no-gpu",
+                                   "--no-start", "--no-browser"])
 
     def test_plan_qwen3_coder_por_setup_y_sin_arrancar(self):
         """Los de catálogo no tocan el venv de HF ni el `hf`: solo el despliegue y su setup."""

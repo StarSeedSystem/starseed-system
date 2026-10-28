@@ -34,6 +34,13 @@ class Plan(unittest.TestCase):
         self.assertEqual(descargas[0][descargas[0].index("--local-dir") + 1], N.COLIBRI_MODELO_A1)
         self.assertIn(["make", "-C", "c", "laya"], [p["args"] for p in plan])
 
+    def test_anota_la_huella_de_los_pesos_de_laya(self):
+        plan = N.plan_colibri()
+        huellas = [paso["args"] for paso in plan if paso["args"][0] == "sha256sum"]
+        self.assertEqual(len(huellas), 1)
+        self.assertEqual(huellas[0][1],
+                         os.path.join(N.COLIBRI_MODELO_A1, "model.safetensors"))
+
     def test_carpeta_del_modelo_configurable(self):
         plan = N.plan_colibri("/srv/modelos")
         descarga = [p["args"] for p in plan if p["args"][0] == "hf"][0]
