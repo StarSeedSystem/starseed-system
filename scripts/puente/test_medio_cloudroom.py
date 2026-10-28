@@ -1,5 +1,6 @@
 """Pruebas puras de la sonda Cloudroom; nunca ejecuta room-cli."""
 import tempfile, types, os, sys, unittest
+from unittest import mock
 sys.path.insert(0, os.path.dirname(__file__))
 from medio_cloudroom import cli_path, interpretar, sondear
 
@@ -44,6 +45,21 @@ class Localizador(unittest.TestCase):
 
     def test_sin_variable_responde_el_path_y_sin_este_no_hay_ruta(self):
         self.assertEqual(cli_path({}, which=lambda n: "/de/which/room-cli"), "/de/which/room-cli")
+
+    def test_si_no_hay_ni_variable_ni_path_busca_en_el_local_bin_del_dorso(self):
+        """De la rama nube/40073425475: el refugio `~/.local/bin` de RTCRM1024Hb se respeta
+        (hoy se responde ""), y la ausencia también («no ejecuta nada» equivale en la rama a "")."""
+        with mock.patch.dict(os.environ):
+            with tempfile.TemporaryDirectory() as casa:
+                bin_local = os.path.join(casa, ".local", "bin")
+                os.makedirs(bin_local)
+                ruta = os.path.join(bin_local, "room-cli")
+                open(ruta, "w").close()
+                os.environ["HOME"] = casa
+                self.assertEqual(cli_path({}, which=lambda n: None), ruta)
+            with tempfile.TemporaryDirectory() as otra:
+                os.environ["HOME"] = otra
+                self.assertEqual(cli_path({}, which=lambda n: None), "")
 
 
 class SondearLocal(unittest.TestCase):
@@ -93,6 +109,19 @@ class SondearLocal(unittest.TestCase):
             # Hoy el sondeador reporta el error observado en el detalle; «sin iniciar sesión»
             # lo dice `interpretar` directamente (ya probado arriba).
             self.assertIn("comando fallido", d["detalle"])
+
+    def test_sin_room_cli_no_ejecuta_nada(self):
+        """De la rama nube/40073425475. `sondear` hoy solo acepta `run` y `env`;
+        `which` queda atado como argumento por defecto al importar, así que la vía limpia
+        para entornos sin room-cli es tapar `cli_path`: tiene que devolver el
+        veredicto sin llamar nunca a la orden."""
+        def corredor(*a, **k):
+            raise AssertionError("room-cli no debería ejecutarse")
+
+        with mock.patch("medio_cloudroom.cli_path", return_value=""):
+            d = sondear(corredor, {})
+        self.assertEqual(d["estado"], "no_disponible")
+        self.assertIn("app sin instalar", d["detalle"])
 
 if __name__ == "__main__":
     unittest.main()
