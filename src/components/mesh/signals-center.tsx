@@ -66,18 +66,7 @@ import { hablar } from "@/lib/aurora/voz-unica";
 // Recibe el `estado()` del motor de MC1012Q, alimentado aquí con las capas
 // reales de la malla (mismo acoplado que ya usa `recibos-chips`).
 import { PanelReticula } from "@/components/malla/panel-reticula";
-import { crearMotorCristal } from "@/lib/malla/cristal/motor";
-import { useCristal } from "@/lib/malla/cristal/usar-cristal";
-import { crearDifusor } from "@/lib/malla/cristal/difusion-teselas";
-import {
-  senalesDeNodosMesh, senalesDeEnlacesLocales,
-  type NodoMeshMedido, type EnlaceLocalMedido,
-} from "@/lib/malla/cristal/medidas-locales";
-import type { NeuronaReticula, SenalMedida, Tesela } from "@/lib/malla/cristal/tipos";
-import { enlacesLocalesVivos } from "@/lib/malla/registro-enlaces-locales";
-import { signContent } from "@/ai/astraura/mesh/mesh-identity";
-import { getSharedMesh } from "@/lib/network/lan-sync";
-import { enviarAPar, vinculosActivos } from "@/lib/network/vinculos-entre-cuentas";
+import { useMotorCristal } from "@/components/malla/motor-cristal-mount";
 
 const ICON: Record<SignalKind, LucideIcon> = {
   mesh: RadioTower, wifi: Wifi, cellular: Signal, bluetooth: Bluetooth,
@@ -91,23 +80,6 @@ const STATUS_META: Record<SignalSource["status"], { label: string; cls: string; 
   unsupported: { label: "sin API", cls: "text-white/40 bg-white/[0.05]", dot: "bg-zinc-500" },
   info: { label: "informativa", cls: "text-violet-300 bg-violet-500/15", dot: "bg-violet-400" },
 };
-
-/* ══ Retícula SiO₂: difusor de teselas por los canales REALES que ya existen ══
-   Broadcast de la malla, vínculos entre cuentas y radio LoRa (el mismo
-   acoplado que usa `recibos-chips`); a nivel de módulo para que el motor
-   nunca cambie de identidad entre renders. */
-const difusorReticula = crearDifusor({
-  broadcastMalla: (texto: string) => {
-    const malla = getSharedMesh();
-    return malla ? malla.broadcast(texto) : 0;
-  },
-  enviarAPares: (texto: string) => {
-    for (const v of vinculosActivos()) enviarAPar(v.vinculoId, texto);
-  },
-  enviarLora: (texto: string) => {
-    sendOverMesh({ type: "message", cls: "P1", body: texto });
-  },
-});
 
 /** Resumen legible del cuerpo de un mensaje recibido de la red. */
 function summarizeInbound(body: unknown): string {
@@ -289,82 +261,12 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
     }
   };
 
-  // ══ Retícula SiO₂ (Ola 1012W): motor de MC1012Q con las capas reales. ══
-  // `medir` lee los nodos del radar mesh (RF) y los enlaces locales vivo,
-  // `firmar` usa la identidad ECDSA de la neurona y `difundir` los canales de
-  // arriba. Callbacks lisos para que `useMemo` no re-creé el motor jamás.
-  const miNeuronaReticula = useCallback((): NeuronaReticula => {
-    const propia = getMeshState().self;
-    return {
-      id: propia?.id ?? thisDeviceId(),
-      cuenta: "",
-      capacidad: { ramGb: 8, bateriaPct: null, cargando: false },
-      medios: [],
-    };
-  }, []);
-
-  const medirReticula = useCallback(async (): Promise<SenalMedida[]> => {
-    const yo = getMeshState().self?.id ?? thisDeviceId();
-    const ahora = Date.now();
-    const salida: SenalMedida[] = [];
-    try {
-      const nodos: NodoMeshMedido[] = meshRef.current.nodes.map((n) => ({
-        id: n.id ?? "", snr: n.snr, rssi: n.rssi, lastHeard: n.lastHeard,
-      }));
-      salida.push(...senalesDeNodosMesh(yo, nodos, ahora));
-    } catch { /* sin radar de radio: sigue con lo demás */ }
-    try {
-      const enlaces: EnlaceLocalMedido[] = enlacesLocalesVivos().map((e) => ({
-        id: e.id,
-        tipo: e.par.plataforma ? "webrtc" : undefined,
-        par: e.par.neuronDeviceId ?? e.par.syncDeviceId ?? undefined,
-        rttMs: e.rttMs() ?? undefined,
-      }));
-      salida.push(...senalesDeEnlacesLocales(yo, enlaces, ahora));
-    } catch { /* sin enlaces locales: lo que haya basta */ }
-    return salida;
-  }, []);
-
-  const firmarTesela = useCallback(async (t: Tesela): Promise<string | null> => {
-    try {
-      const r = await signContent(t);
-      return r ? r.s : null;
-    } catch { return null; }
-  }, []);
-
-  const difundirTesela = useCallback((t: Tesela): void => { difusorReticula(t); }, []);
-
-  const motorReticula = useMemo(
-    () => crearMotorCristal({
-      miNeurona: miNeuronaReticula,
-      medir: medirReticula,
-      reloj: () => Date.now(),
-      firmar: firmarTesela,
-      difundir: difundirTesela,
-      ahora: () => Date.now(),
-    }),
-    [miNeuronaReticula, medirReticula, firmarTesela, difundirTesela],
-  );
-
-  // El estado que `motorReticula.estado()` devuelve es lo que muestra el panel.
-  const estadoReticula = useCristal(motorReticula);
-
-  // Cada vuelta mide y publica la tesela; el ritmo lo marca el estado vítreo
-  // propio del motor (5 s caliente → 60 s vítreo).
-  useEffect(() => {
-    let vivo = true;
-    let temporizador: ReturnType<typeof setTimeout> | null = null;
-    const rodar = async () => {
-      try { await motorReticula.vuelta(); } catch { /* la retícula queda con lo que hay */ }
-      if (!vivo) return;
-      temporizador = setTimeout(() => { void rodar(); }, motorReticula.intervaloMs());
-    };
-    void rodar();
-    return () => {
-      vivo = false;
-      if (temporizador) clearTimeout(temporizador);
-    };
-  }, [motorReticula]);
+  // ══ Retícula SiO₂ (Ola 1012W): motor de MC1012Q desde MotorCristalMount (singleton). ══
+  // El hook `useMotorCristal` crea/usa el motor único con: identidadDispositivo,
+  // capacidad de malla-neuronas, medidas de radar/enlaces, reloj Lamport (tick),
+  // firma ECDSA (signContent), difusión por mesh/vínculos, y bucle con crearBucle
+  // (solo pestaña líder y aparato visible). Exporta MotorCristalMount y useMotorCristal.
+  const estadoReticula = useMotorCristal().estado();
 
   const runAction = async (sig: SignalSource, action: string) => {
     try {
