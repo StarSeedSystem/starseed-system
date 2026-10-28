@@ -34,6 +34,18 @@ function idsDe(bloque: string): string[] {
 
 afterEach(() => localStorage.clear());
 
+it("con papel «chat»: entran las sin routing, las de preferStrong y las de web; no las de solo planificación", () => {
+  espejo(["pm", "agent-recipes", "web-senses"]);
+  const bloque = skillsSystemPrompt();
+  const etiquetas = idsDe(bloque).map((l) => l.split(":")[0]);
+  expect(etiquetas.some((l) => l.startsWith("PM"))).toBe(true);
+  expect(etiquetas.some((l) => l.startsWith("Sentidos web"))).toBe(true);
+  // Solo planificación: sirve a escritor/código/producción, no al chat.
+  expect(etiquetas.some((l) => l.startsWith("Recetas"))).toBe(false);
+  // Y el formato del bloque no cambia: misma cabecera de siempre.
+  expect(bloque.startsWith("Capacidades activas de Aurora (Biblioteca StarSeed):\n")).toBe(true);
+});
+
 describe("skillsSystemPrompt · capa completa y filtro por chat", () => {
   it("el texto de la habilidad va COMPLETO (capa por defecto) y con su etiqueta", () => {
     espejo(["pm"]);
