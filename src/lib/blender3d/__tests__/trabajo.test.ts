@@ -112,3 +112,109 @@ describe("pureza y vocabulario", () => {
     for (const def of [...Object.values(vocabulario.operaciones), ...Object.values(vocabulario.salidas)]) for (const espec of Object.values(def.params)) revisar(espec as { t: string });
   });
 });
+
+describe("valores por defecto del vocabulario", () => {
+  it("aplica los valores por defecto de cámara, material, transformar y salida", () => {
+    const t = valido(base());
+    expect(t.v).toBe(1);
+    expect(t.escena).toHaveLength(3);
+    expect(t.salidas).toHaveLength(1);
+    expect(t.escena[1].lente_mm).toBe(50);
+    expect(t.escena[1].ortografica).toBe(false);
+    expect(t.salidas[0].fondo_transparente).toBe(false);
+    expect(t.limites).toBeUndefined();
+    const conMaterial = valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "material", objeto: "c" }]));
+    expect(conMaterial.escena[1].color).toEqual([0.8, 0.8, 0.8, 1]);
+    expect(conMaterial.escena[1].rugosidad).toBe(0.5);
+    const conTransformar = valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "transformar", objeto: "c" }]));
+    expect(conTransformar.escena[1].escala).toEqual([1, 1, 1]);
+  });
+});
+
+describe("contrato de versión, título y límites", () => {
+  it("fija la versión del vocabulario y valida título y límites", () => {
+    expect(VERSION_VOCABULARIO).toBe(1);
+    expect(VERSION_VOCABULARIO).toBe(vocabulario.version);
+    expect(motivos({ ...base(), v: 2 }).join(" ")).toContain("v debe ser 1");
+    expect(motivos({ ...base(), titulo: "   " }).join(" ")).toContain("titulo");
+    expect(motivos({ ...base(), titulo: "x".repeat(81) }).join(" ")).toContain("titulo");
+    expect(motivos({ ...base(), titulo: 12 }).join(" ")).toContain("titulo");
+    const conLimites = valido({ ...base(), limites: { segundos: 300, memoriaMB: 2048 } });
+    expect(conLimites.limites).toEqual({ segundos: 300, memoriaMB: 2048 });
+    expect(motivos({ ...base(), limites: { segundos: 2000 } }).join(" ")).toContain("limites");
+    expect(motivos({ ...base(), limites: { segundos: -1 } }).join(" ")).toContain("limites");
+  });
+});
+
+describe("números, topes y referencias", () => {
+  it("rechaza NaN, Infinity, valores fuera de rango y no enteros donde toca", () => {
+    expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: Number.NaN }])).join(" ")).toContain("número en rango");
+    expect(motivos(conEscena([{ op: "luz", nombre: "l", tipo: "sol", energia: Number.POSITIVE_INFINITY }])).join(" ")).toContain("número en rango");
+    expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "camara", nombre: "cam", ubicacion: [Number.NaN, 0, 0], mira_a: [0, 0, 0] }])).join(" ")).toContain("vector de 3 números");
+    expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "material", objeto: "c", color: [1, Number.NaN, 0.5, 1] }])).join(" ")).toContain("rgba");
+    expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "material", objeto: "c", alfa: 2 }])).join(" ")).toContain("número en rango");
+    expect(motivos(conEscena(base().escena as unknown[], [{ tipo: "render_png", ancho: 512.5, alto: 256, muestras: 8, motor: "workbench" }])).join(" ")).toContain("entero");
+  });
+
+  it("valida el número de salidas y rechaza operaciones y salidas desconocidas", () => {
+    expect(motivos(conEscena(base().escena as unknown[], [])).join(" ")).toContain("entre 1 y 4");
+    const png = { tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" };
+    expect(motivos(conEscena(base().escena as unknown[], [png, png, png, png, png])).join(" ")).toContain("entre 1 y 4");
+    expect(motivos(conEscena([{ op: "teleportar", nombre: "N" }])).join(" ")).toContain("operacion desconocida");
+    expect(motivos(conEscena(base().escena as unknown[], [{ ...png, tipo: "render_gif" }])).join(" ")).toContain("salida desconocida");
+  });
+
+  it("acepta rutas relativas con subcarpetas y extensiones permitidas", () => {
+    expect(valido(conEscena([{ op: "importar", archivo: "piezas/modelo.glb", nombre: "Modelo" }])).escena).toHaveLength(1);
+    expect(valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "mundo", hdri: "fondos/amanecer.hdr", fuerza: 1 }])).escena).toHaveLength(2);
+  });
+});
+
+describe("nombres, textos y opciones cerradas", () => {
+  it("rechaza nombres con inyección, saltos de línea, unicode ajeno o demasiado largos", () => {
+    for (const nombre of ['"); import os', "Cubo\nrm -rf /", "Cuboño", "立立方方", "a".repeat(33), "2empieza"])
+      expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre, tam: 1 }])).join(" ")).toContain("nombre");
+  });
+
+  it("rechaza textos 3D con comillas, saltos de línea, unicode ajeno o más de 64", () => {
+    const textoMalo = (texto: string): string =>
+      motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "texto3d", nombre: "Texto", texto, extrusion: 0.2, tam: 1.2 }])).join(" ");
+    expect(textoMalo('"); import os')).toContain("texto");
+    expect(textoMalo("línea uno\nlínea dos")).toContain("texto");
+    expect(textoMalo("Cubo\u2028 业")).toContain("texto");
+    expect(textoMalo("x".repeat(65))).toContain("más largo de 64");
+  });
+
+  it("recorre todas las opciones cerradas de primitivas, modificadores y luces", () => {
+    const tipos = ["cubo", "esfera", "icosfera", "cilindro", "cono", "toro", "plano", "circulo"];
+    for (const [i, tipo] of tipos.entries())
+      expect(valido(conEscena([{ op: "primitiva", tipo, nombre: `Obj${i}`, tam: 1 }])).escena).toHaveLength(1);
+    const modificadores = ["subdivision", "bisel", "solidificar", "espejo", "matriz", "decimar", "malla_alambre"];
+    for (const tipo of modificadores)
+      expect(valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "Cubo", tam: 1 }, { op: "modificador", objeto: "Cubo", tipo }])).escena).toHaveLength(2);
+    const luces = ["sol", "punto", "foco", "area"];
+    for (const [i, tipo] of luces.entries())
+      expect(valido(conEscena([{ op: "luz", nombre: `L${i}`, tipo, energia: 10 }])).escena).toHaveLength(1);
+  });
+});
+
+describe("coste de fotogramas y confirmación por vértices", () => {
+  it("cuenta los fotogramas del mp4 y no añade coste al GLB", () => {
+    const mp4 = estimarCoste(valido(conEscena(base().escena as unknown[], [{ tipo: "render_mp4", ancho: 320, alto: 240, fps: 12, desde: 0, hasta: 60, muestras: 16, motor: "workbench" }])));
+    expect(mp4.segundos).toBeCloseTo(214.162, 2);
+    const glb = estimarCoste(valido(conEscena(base().escena as unknown[], [{ tipo: "exportar_glb" }])));
+    expect(glb.segundos).toBe(0);
+    expect(glb.vertices).toBe(8);
+  });
+
+  it("el perfil ligero pide confirmación si el coste en vértices pesa", () => {
+    const pesado = valido(conEscena([
+      { op: "primitiva", tipo: "esfera", nombre: "e", tam: 1 },
+      { op: "modificador", objeto: "e", tipo: "subdivision", niveles: 4 },
+    ], [{ tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" }]));
+    expect(estimarCoste(pesado).vertices).toBe(482 * 4 ** 4);
+    expect(necesitaConfirmacion(pesado, "ligero")).toBe(true);
+    expect(necesitaConfirmacion(pesado, "estandar")).toBe(false);
+    expect(necesitaConfirmacion(valido(base()), "estandar")).toBe(false);
+  });
+});
