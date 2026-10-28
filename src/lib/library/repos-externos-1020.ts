@@ -71,12 +71,24 @@ const excluidos = new Set(REPOS_EXCLUIDOS);
 const esExcluida = (e: Entrada1020): boolean =>
   excluidos.has(e.repo) || yaPresentes.has(e.repo) || e.id.includes("reverse-skill") || e.repo.includes("reverse-skill");
 
+export const REPOS_EXTERNOS_1020 = CATALOGO.paquetes
+  .filter((e) => !esExcluida(e))
+  .map(paqueteDe)
+export const REPOS_EXTERNOS_1020B = CATALOGO_B.paquetes
+  .filter((e) => !esExcluida(e))
+  .map(paqueteDe)
+export const REPOS_EXTERNOS_1020C = CATALOGO_C.paquetes
+  .filter((e) => !esExcluida(e))
+  .map(paqueteDe)
+
 export const REPO_EXTERNOS_1020: LibraryRepo = {
-  id: "starseed-biblioteca-externa", name: "Biblioteca externa",
-  builtin: true, packages: [
-    ...CATALOGO.paquetes.filter((e) => !esExcluida(e)).map(paqueteDe),
-    ...CATALOGO_B.paquetes.filter((e) => !esExcluida(e)).map(paqueteDe),
-    ...CATALOGO_C.paquetes.filter((e) => !esExcluida(e)).map(paqueteDe),
+  id: "starseed-biblioteca-externa",
+  name: "Biblioteca externa",
+  builtin: true,
+  packages: [
+    ...REPOS_EXTERNOS_1020,
+    ...REPOS_EXTERNOS_1020B,
+    ...REPOS_EXTERNOS_1020C,
   ],
 };
 
