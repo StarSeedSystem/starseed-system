@@ -157,7 +157,7 @@ def ram_total_mb() -> Optional[int]:
     macOS: sysctl -n hw.memsize con tope de 2 s. Otros: None — nunca un número inventado."""
     if sys.platform == "darwin":
         try:
-            rc, out = _sh(["sysctl", "-n", "hw.memsize"], tope=2)
+            rc, out = _sh(["/usr/sbin/sysctl", "-n", "hw.memsize"], tope=2)
             if rc == 0 and out.strip().isdigit():
                 return int(out.strip()) // (1024 * 1024)
         except Exception:
