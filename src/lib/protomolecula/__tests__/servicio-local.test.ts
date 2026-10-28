@@ -100,6 +100,32 @@ describe("servicio-local · llamadas a 127.0.0.1", () => {
   });
 });
 
+describe("servicio-local · HyperFrames (puerto 4490, salud en /salud)", () => {
+  const HF = SERVICIOS_CONOCIDOS.find((d) => d.id === "hyperframes");
+  it("la definición conocida valida y declara el contrato del servicio de vídeo", () => {
+    expect(HF).toBeDefined();
+    expect(HF).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900_000 });
+    expect(validarDefinicion(HF as DefinicionServicio)).toBeNull();
+  });
+  it("la salud de HyperFrames se consulta solo en 127.0.0.1:4490/salud, por GET y sin token", async () => {
+    const f = vi.fn<FetchLocal>(async () => resp(200, '{"vivo":true}'));
+    const r = await sondearServicio(HF as DefinicionServicio, f);
+    const [url, init] = f.mock.calls[0] as [string, PeticionLocal];
+    expect(url).toBe("http://127.0.0.1:4490/salud");
+    expect(init).toMatchObject({ method: "GET", headers: { accept: "application/json" } });
+    expect(init.headers.authorization).toBeUndefined();
+    expect(r).toMatchObject({ vivo: true, motivo: expect.stringContaining("HyperFrames") });
+  });
+  it("la llamada al servicio de vídeo usa su tiempo propio (15 min) y no el genérico", async () => {
+    const { reloj, avanzar } = relojFalso();
+    const nunca: FetchLocal = () => new Promise<RespuestaLocal>(() => undefined);
+    const p = llamarServicio(HF as DefinicionServicio, "/render", { a: 1 }, nunca, { reloj });
+    avanzar(899_999);
+    avanzar(1);
+    expect(await p).toMatchObject({ ok: false, fallo: "tiempo", ms: 900_000 });
+  });
+});
+
 describe("servicio-local · lanzador nativo (lista blanca y confirmación siempre)", () => {
   const ctx: ContextoLanzamiento = { rol: "dueno", origen: "mano", ambito: "personal", appNativa: true, ahora: 7 };
   it("binario fuera de la lista blanca cerrada: rechazado", () => {
