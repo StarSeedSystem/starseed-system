@@ -9,6 +9,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import type { LucideIcon } from "lucide-react";
+import type { ModoApp, RequisitosApp } from "@/lib/recursos/modos-app";
 
 /** Modos de apertura de una app. La complejidad vive en el sistema (asimetría funcional). */
 export type OpenMode =
@@ -53,6 +54,13 @@ export interface StarseedApp {
     status?: AppStatus;
     /** Marca apps con modo inmersivo (VR/AR — Fase 3). */
     vrCapable?: boolean;
+    /**
+     * Formas de abrir por la malla (§5 apps-en-la-malla.md). Sin campo =
+     * ['local'], como hoy: corre en la neurona y nada más.
+     */
+    ejecucion?: ModoApp[];
+    /** Lo que necesita en la neurona que la abre (la bolsa dice si cabe). */
+    requisitos?: RequisitosApp;
 }
 
 // ── Presets de personalización ───────────────────────────────────
