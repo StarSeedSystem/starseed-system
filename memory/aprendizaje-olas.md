@@ -4662,3 +4662,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-28 19:32 · mg-oracle-1028-1145
+
+**Lo que se pidió.** Colibri · qué modelos caben en cada neurona y cómo se instalarían (sin ejecutar nada)
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — pruebas en rojo (DSN1025C, DSN1025B, COL1012H). Es 50 % de la ola.
+- 2 tareas se fueron por lo mismo — no escribió nada (RTCLB1027E, RTCOL1012Ab). Es 33 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+- openrouter/thinkingmachines/inkling:free no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTCLB1027E` — no escribió nada
+- `DSN1025C` — pruebas en rojo: vitest falla (rama conservada)
+- `DSN1025B` — pruebas en rojo: vitest falla (rama conservada)
+- `COL1012H` — pruebas en rojo: vitest falla (rama conservada)
+- `RTCOL1012Ab` — no escribió nada
+- `VZF1015N` — otra cosa: ningún proveedor respondió (todos caídos)
