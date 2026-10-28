@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // src/lib/aurora/voz-starseed/__tests__/voicestudio.test.ts
 /**
  * TESTS DEL CLIENTE DE VOICESTUDIO (Ola 1018V · Voz de Astraura + VoiceStudio: motores libres,
@@ -53,6 +54,13 @@ afterEach(() => {
 });
 
 describe("descubrir", () => {
+=======
+import { describe, it, expect, vi } from "vitest";
+import { crearFetchMock } from "@/lib/test/fetch-mock";
+import { descubrir, voces, transcribir, hablar } from "../voicestudio";
+
+describe("voicestudio service", () => {
+>>>>>>> b844cfabd (salvavidas · RTRTRTRTCOL1012Bdsbbbbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
   it("debe retornar vivo:true cuando el servicio responde correctamente", async () => {
     const { fetch } = crearFetchMock([
       {
@@ -143,9 +151,13 @@ describe("descubrir", () => {
     expect(llamadas).toHaveLength(1);
     expect(llamadas[0].url.toString()).toBe("https://mi-servidor.com/.well-known/voicestudio-speech");
   });
+<<<<<<< HEAD
 });
 
 describe("voces", () => {
+=======
+
+>>>>>>> b844cfabd (salvavidas · RTRTRTRTCOL1012Bdsbbbbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
   it("debe retornar la lista de IDs de voz cuando el servicio responde correctamente", async () => {
     const { fetch } = crearFetchMock([
       {
@@ -169,6 +181,7 @@ describe("voces", () => {
   it("debe lanzar un error cuando el servicio responde con error HTTP", async () => {
     const { fetch } = crearFetchMock([
       {
+<<<<<<< HEAD
         url: "http://127.0.0.1:3900/v1/audio/voices",
         status: 401,
         ok: false,
@@ -178,6 +191,19 @@ describe("voces", () => {
     ]);
     vi.stubGlobal("fetch", fetch);
     await expect(voces()).rejects.toThrow("Error 401: Unauthorized");
+=======
+        url: "http://127.0.0.1:3900/v1/audio/transcriptions",
+        status: 422,
+        ok: false,
+        body: "Unprocessable Entity",
+        statusText: "Unprocessable Entity",
+        method: "POST",
+      },
+    ]);
+    vi.stubGlobal("fetch", fetch);
+    const params = {};
+    await expect(transcribir(undefined, params)).rejects.toThrow("Error 422: Unprocessable Entity");
+>>>>>>> b844cfabd (salvavidas · RTRTRTRTCOL1012Bdsbbbbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
   });
 
   it("debe lanzar un error cuando la respuesta no tiene el formato esperado", async () => {
@@ -198,6 +224,7 @@ describe("voces", () => {
       throw new TypeError("Failed to fetch");
     });
     vi.stubGlobal("fetch", fetchMock);
+<<<<<<< HEAD
     await expect(voces()).rejects.toThrow("Error de red: no se pudo conectar al servicio");
   });
 });
@@ -231,10 +258,26 @@ describe("hablar", () => {
         ok: false,
         body: "Bad Request",
         statusText: "Bad Request",
+=======
+    const params = {};
+    await expect(transcribir(undefined, params)).rejects.toThrow("Error de red: no se pudo conectar al servicio");
+  });
+
+  it("debe retornar los bytes de audio cuando el servicio responde correctamente", async () => {
+    const audioBytes = new Uint8Array([82, 73, 70, 70]); // "RIFF" en ASCII, inicio de un WAV
+    const { fetch } = crearFetchMock([
+      {
+        url: "http://127.0.0.1:3900/v1/audio/speech",
+        status: 200,
+        ok: true,
+        body: new Blob([audioBytes], { type: "audio/mpeg" }),
+        contentType: "audio/mpeg",
+>>>>>>> b844cfabd (salvavidas · RTRTRTRTCOL1012Bdsbbbbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
         method: "POST",
       },
     ]);
     vi.stubGlobal("fetch", fetch);
+<<<<<<< HEAD
     await expect(hablar(undefined, params)).rejects.toThrow("Error 400: Bad Request");
   });
 
@@ -251,6 +294,13 @@ describe("transcribir", () => {
     const audioBytes = new Uint8Array([82, 73, 70, 70]);
     const params: TranscribirParams = { audio: audioBytes.buffer, idioma: "es" };
 
+=======
+    const params = {};
+    const resultado = await hablar(undefined, params);
+    expect(resultado).toEqual(audioBytes);
+  });
+
+>>>>>>> b844cfabd (salvavidas · RTRTRTRTCOL1012Bdsbbbbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
   it("debe retornar el texto transcrito cuando el servicio responde correctamente", async () => {
     const { fetch } = crearFetchMock([
       {
@@ -262,6 +312,7 @@ describe("transcribir", () => {
       },
     ]);
     vi.stubGlobal("fetch", fetch);
+<<<<<<< HEAD
     const resultado = await transcribir(undefined, params.audio, params.idioma);
     expect(resultado).toBe("Hola mundo");
   });
@@ -288,4 +339,10 @@ describe("transcribir", () => {
     vi.stubGlobal("fetch", fetchMock);
     await expect(transcribir(undefined, params.audio, params.idioma)).rejects.toThrow("Error de red: no se pudo conectar al servicio");
   });
+=======
+    const params = {};
+    const resultado = await transcribir(undefined, params);
+    expect(resultado).toBe("Hola mundo");
+  });
+>>>>>>> b844cfabd (salvavidas · RTRTRTRTCOL1012Bdsbbbbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
 });
