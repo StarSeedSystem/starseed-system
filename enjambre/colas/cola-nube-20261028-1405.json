@@ -1,0 +1,91 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "ola": "1021G",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40253173687",
+   "id": "GUI1021Gb-d3",
+   "titulo": "Guías · tarjetas de la Guía de la red con los temas nuevos y los textos corregidos (parte 3 de 3)",
+   "archivos": [
+    "src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx"
+   ],
+   "depende": [
+    "GUI1021Gb-d2"
+   ],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§ indicado); los textos de §3 son la fuente de verdad: cópialos tal cual, sin inventar ni añadir funciones. §1 y §3. En `areas-explicadas.tsx`, las explicaciones de `/protomolecula`, `/network/politics`, `/network/education`, `/network/culture`, `/genesis` y `/cerebro` salen de `TODOS_LOS_TEMAS` (queEs = cuerpo, comoFunciona = puntos, empiezaPor = la pregunta a Aurora), y `/cerebros`, `/library` y `/red-mesh` pasan a usar los temas `neuronas-cerebro`, `libreria-biblioteca` y `malla`. En `onboarding-wizard.tsx` añade a `AREAS` las tarjetas que falten de esas rutas (con icono y tip corto) y cambia la de Cerebros a `/cerebro`. Pruebas: cada ruta nueva abre su explicación y ninguna tarjeta habla de «varios cerebros». Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; animaciones con framer-motion que respetan reduced-motion; dianas de 44 px y cursor pointer; honestidad radical (lo que no existe no se presenta como hecho).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40253173687`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40253173687:refs/remotes/origin/nube/40253173687\"` y `git cherry-pick --no-commit a5cc4606efbc`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx, src/components/onboarding/areas-explicadas.tsx, src/components/onboarding/onboarding-wizard.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 3 DE 3 (la dirección dividió GUI1021Gb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GUI1021Gb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  },
+  {
+   "id": "CHD1028A",
+   "ola": "1028 · Chat de la dirección",
+   "depende": [],
+   "titulo": "Chat de la dirección · baja solo al último mensaje cada vez que llega uno",
+   "archivos": [
+    "src/components/mando/chat-director.tsx",
+    "src/components/mando/__tests__/chat-director.test.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados y ≤ 120 líneas nuevas o cambiadas por archivo.\n\nContexto (Alex, 2026-10-28): «haz que los chats del director se reacomoden cada vez que llega un mensaje para que no se quede atrás cuando lleguen nuevos mensajes». Causa medida: en `chat-director.tsx` el feed se recorta a 500 (`.slice(-500)`, línea ~114) y el efecto que baja al final depende de `visibles.length` (línea ~233). Con 500 mensajes, cada mensaje nuevo entra y otro sale: la longitud no cambia y la lista se queda donde estaba. Tampoco baja cuando crece el alto de un mensaje (texto que llega por partes, una imagen que carga, un bloque que se despliega).\n\nArreglo: 1) el efecto depende de la identidad del ÚLTIMO mensaje visible (su id, o su `t` si no hay id) y del número de caracteres de su texto, no de la longitud. 2) «Pegado al final»: un `useRef` que dice si la lista estaba a ≤ 80 px del fondo antes del cambio (se actualiza en `onScroll`). Si estaba pegado, baja al final; si Alex subió a leer algo, NO lo arrastra: aparece un botón flotante abajo «↓ N nuevos» (con `aria-label`), que baja y se oculta al pulsarlo o al volver al fondo a mano. 3) Un `ResizeObserver` sobre el contenido de la lista vuelve a bajar si estaba pegado y crece el alto (con `typeof ResizeObserver` comprobado para jsdom). 4) Al abrir o desplegar el chat, y al enviar Alex un mensaje, siempre baja al final. Sin animación larga: `scrollTop = scrollHeight` (o `behavior: \"auto\"`).\nPruebas en `chat-director.test.tsx`: con 500 mensajes, llega el 501 y la lista queda al fondo; si se subió antes, no se mueve y aparece «1 nuevos»; pulsar el botón baja y lo oculta. Corre `npx vitest run src/components/mando/__tests__/chat-director.test.tsx` y `npx tsc --noEmit -p .`.\nVerificación en http://localhost:9002/mando: con mensajes llegando, la lista sigue al último."
+  },
+  {
+   "id": "LNN1028Hb",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "Capas · el modelo de incrustaciones como entrada «por-verificar»",
+   "archivos": [
+    "config/capas-astraura.json",
+    "src/lib/astraura/capas/__tests__/catalogo-incrustaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nAñade a `capas` la entrada `ollama-qwen3-embedding-0.6b` (capa «memoria», runtime el de Ollama que ya exista en el catálogo —si no existe, «ollama» y dilo en tu respuesta—, `disco_mb` 639, `ram_min_mb` 1024, `medios` [\"servidor\"], `sha256: null`, `estado: \"por-verificar\"`, `fuente_oficial` `https://ollama.com/library/qwen3-embedding`, nota «solo para incrustaciones de LEANN; Apache-2.0 de Qwen; se verifica al instalar»). Sube la versión del archivo como se hizo con CLB1027B. Prueba de que se lee y no es usable sin SHA.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40738718717`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40738718717:refs/remotes/origin/nube/40738718717\"` y `git cherry-pick --no-commit b30dfbe2cb72`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: config/capas-astraura.json, src/lib/astraura/capas/__tests__/catalogo-incrustaciones.test.ts, src/lib/astraura/capas/catalogo.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40738718717",
+   "dependencias_ya_en_main": [
+    "CLB1027B"
+   ]
+  },
+  {
+   "id": "HFR1018O",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Servicio hyperframes · actualización segura con render de prueba y vuelta atrás",
+   "archivos": [
+    "servicios/hyperframes/src/actualizar.mjs",
+    "src/lib/__tests__/hyperframes-actualizar.test.ts"
+   ],
+   "depende": [
+    "HFR1018G"
+   ],
+   "prompt": "`planActualizacion({ actual, disponible })` y `aplicar(plan, deps)` con deps inyectadas (instalar en carpeta aparte, `lint`, `render` de 3 fotogramas de la plantilla, comparar huellas con las de referencia con tolerancia, cambiar el enlace). Si algo falla, se queda la versión anterior y devuelve el motivo. Nunca baja de versión sola; nunca ejecuta nada si la versión no es semver. Pruebas con deps falsas. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "DGM1018F",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Astraura · herramienta `diagrama.crear` en chats, agentes y bots",
+   "archivos": [
+    "src/lib/diagramas/herramienta-diagrama.ts",
+    "src/lib/protomolecula/accion-agente.ts",
+    "src/lib/diagramas/__tests__/herramienta-diagrama.test.ts"
+   ],
+   "depende": [
+    "HFR1018M"
+   ],
+   "prompt": "`pedidoDiagrama({ peticion, tipo?, perfil, tamano, animado })` arma el contexto para el modelo (tipo elegido, guía del tipo desde references/type-*.md, perfil de marca) y `recibirDiagrama(respuesta)` extrae el HTML, lo pasa por fuentes-locales y aislar-diagrama y devuelve { ok, srcdoc, sandbox, tipo, motivos }. En accion-agente.ts añade la acción `diagrama.crear` con el patrón de las demás (solo añadir). Pruebas con respuestas de ejemplo. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "DGM1018C"
+   ],
+   "dependencias_ya_en_main": [
+    "DGM1018D",
+    "DGM1018E"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "LNN1028Hb",
+   "CHD1028A"
+  ]
+ }
+}
