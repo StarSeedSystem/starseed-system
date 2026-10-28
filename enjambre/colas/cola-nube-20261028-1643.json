@@ -1,0 +1,83 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "CVV1028E",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Contenido vivo · película de scroll en canvas con fundido de fotogramas",
+   "archivos": [
+    "src/lib/contenido-vivo/pelicula-scroll.ts",
+    "src/lib/contenido-vivo/__tests__/pelicula-scroll.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nCódigo propio. `crearPeliculaScroll({canvas, fotogramas: (i) => url, total, fundido: true, inercia: 0.09, dpr: 2, cubrir: true, seccion})`: precarga perezosa (IntersectionObserver con margen), el cabezal sigue al scroll de la sección con inercia en `requestAnimationFrame` (nunca un oyente de scroll crudo: `passive` y rAF), dibuja el fotograma actual y el siguiente encima con opacidad igual a la fracción (fundido), pausa fuera de pantalla, y con movimiento reducido o modo «apagado» muestra el último fotograma. Expón `parar()` y `jank()` (p95 y máximo de ms por fotograma). Pruebas de la fracción, del fundido y del modo apagado."
+  },
+  {
+   "id": "CVV1028J",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Conectores · Spline y Higgsfield para cada cuenta, página y grupo",
+   "archivos": [
+    "src/lib/connectors/registry.ts",
+    "src/lib/connectors/__tests__/registry-vivo.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nMira la forma de las entradas de `BUILTIN_CONNECTORS` y añade, si no existen: `spline` (MCP HTTP `https://mcp.spline.design/mcp`, inicio de sesión con su cuenta, para escenas 3D; nota: el plan Pro da 200 llamadas al día) y `higgsfield` (imagen y vídeo; la clave va a la bóveda, nunca al código; reutiliza lo de `src/lib/brains/adapters.ts` si encaja). Sin duplicar los adaptadores de cerebros. Pruebas: ids únicos y ninguna entrada con un valor de clave."
+  },
+  {
+   "id": "CVV1028L",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Contenido vivo · comprobador de una página viva",
+   "archivos": [
+    "scripts/contenido_vivo/comprobar.py",
+    "scripts/contenido_vivo/test_comprobar.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nCódigo propio, solo biblioteca estándar. `python3 scripts/contenido_vivo/comprobar.py <index.html>` imprime cada prueba y PASA o FALLA (código 1): niveles presentes (iframe 3D o `data-vivo-herramienta`), escudo sobre cada iframe 3D, como mucho dos escenas 3D, sin «haz clic para jugar»/«mueve el cursor», movimiento reducido o interruptor, ningún `addEventListener('scroll'` sin rAF o `passive`, recursos locales existentes, sin cajas de relleno ni lorem ipsum, sin rayas largas en el texto visible, `window.__ready`. Pruebas con HTML de ejemplo que pasa y otros que fallan por cada regla."
+  },
+  {
+   "id": "CVV1028M",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Contenido vivo · cortes y continuidad de la película",
+   "archivos": [
+    "scripts/contenido_vivo/cortes.py",
+    "scripts/contenido_vivo/test_cortes.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nCódigo propio. Con ffmpeg (filtro ssim): `cortes(clip)` busca cortes dentro de un clip (par vecino muy por debajo de la mediana del clip) y `continuidad(carpeta_fotogramas, paso=4)` juzga cada par contra su mediana LOCAL (ventana ±3): corte si < 45 % de la mediana local, congelado si > 0,995; falla con un corte o más de dos congelados, y nunca pasa con menos de 3 pares medidos. Las pruebas usan la función de puntuación pura con series inventadas (sin ffmpeg): movimiento rápido y suave pasa aunque la SSIM sea baja; un desplome local falla."
+  },
+  {
+   "id": "CVV1028A",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Contenido vivo · tipos y catálogo de rutas locales y externas",
+   "archivos": [
+    "src/lib/contenido-vivo/tipos.ts",
+    "src/lib/contenido-vivo/catalogo-rutas.ts",
+    "src/lib/contenido-vivo/__tests__/catalogo-rutas.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nMódulos PUROS (sin red, sin React). `tipos.ts`: `NivelVivo` (1 | 2 | 3), `TareaViva` (escena-3d, fotograma-clave, foto, clip-pelicula, foto-viva, grafico-vivo, revision-texto, comprobacion), `Ruta` {id, nombre, tipo: \"local\" | \"externo\", tareas, calidad (0–1 por tarea), creditos por unidad y unidad, requiere (gpu | neurona-capaz | conector | cuenta), privacidad (\"local\" | \"sale-de-la-neurona\"), licencia, comercial (bool), latenciaS, verificado (AAAA-MM-DD o \"por-verificar\"), fuente, enlaceConectar?}. `catalogo-rutas.ts`: las rutas de la tabla del §3 del contrato (Three.js átomo escena3d, Blender, Spline MCP y escena de la comunidad embebida, modelos de imagen locales, Higgsfield Nano Banana 2 y Seedance 2.0, Google Flow, ffmpeg para foto viva, código/HyperFrames para gráfico vivo, revisión y comprobación locales), con los créditos y cupos del contrato y `verificado: \"2026-10-28\"` solo en lo que el contrato da como medido. Pruebas: cada tarea tiene ≥ 1 ruta local salvo clip-pelicula; grafico-vivo, revision-texto y comprobacion solo locales; ninguna ruta externa sin `enlaceConectar`."
+  },
+  {
+   "id": "CVV1028D",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Contenido vivo · escudo para el 3D (el scroll nunca se atrapa) e interruptor de movimiento",
+   "archivos": [
+    "src/lib/contenido-vivo/escudo-3d.ts",
+    "src/lib/contenido-vivo/interruptor-movimiento.ts",
+    "src/lib/contenido-vivo/__tests__/runtime.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nCódigo propio. `escudo-3d.ts`: `ponerEscudo(iframe)` coloca una capa transparente encima. Para escenas propias (`my.spline.design` o el visor 3D del OS) reenvía pointermove, pointerleave, pointerdown, pointerup y click por `postMessage` con coordenadas relativas (0–1), y la rueda siempre desplaza la página. Para escenas ajenas: capa simple, sin píldoras ni «haz clic para jugar». Devuelve una función para quitarlo. `interruptor-movimiento.ts`: modos «apagado» (fotograma final quieto), «encendido» y «rayos-x» (pinta la etiqueta `data-vivo=\"qué · cómo\"` y `data-vivo-herramienta` de cada pieza), con `?movimiento=` en la URL, respeto de `prefers-reduced-motion` y evento `contenido-vivo:modo`. Pruebas con jsdom."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "CVV1028A",
+   "CVV1028D",
+   "CVV1028E",
+   "CVV1028J",
+   "CVV1028L",
+   "CVV1028M"
+  ]
+ }
+}
