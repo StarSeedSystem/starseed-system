@@ -43,9 +43,32 @@ describe("corregirConGlosario", () => {
     expect(resultado.cambios).toEqual(["Astora → Astraura"]);
   });
 
-  it("no corrige palabras comunes del idioma, aunque llevaran mayúscula suelta", () => {
+  it("corrige Genesis, Hermes, Aurora, MetaGenesis, PoliGenesis y ProtoGenesis", () => {
+    expect(corregirConGlosario("dime Genasis", glosario, "es").texto).toBe("dime Genesis");
+    expect(corregirConGlosario("dime Ermes", glosario, "es").texto).toBe("dime Hermes");
+    expect(corregirConGlosario("dime Auro ra", glosario, "es").texto).toBe("dime Aurora");
+    expect(corregirConGlosario("dime Metagenesi", glosario, "es").texto).toBe(
+      "dime MetaGenesis"
+    );
+    expect(corregirConGlosario("hola Poli Genesi", glosario, "es").texto).toBe(
+      "hola PoliGenesis"
+    );
+    expect(corregirConGlosario("hola Proto Genesi", glosario, "es").texto).toBe(
+      "hola ProtoGenesis"
+    );
+  });
+
+  it("no corrige palabras comunes del idioma en minúscula", () => {
     const resultado = corregirConGlosario("star said sed", glosario, "es");
     expect(resultado.texto).toBe("star said sed");
+    expect(resultado.cambios).toEqual([]);
+  });
+
+  it("no corrige una palabra común capitalizada dentro de una frase en minúscula", () => {
+    // «star» y «said» están en la lista corta es/en: con mayúscula suelta
+    // tampoco se convierten en nombre propio («el Star brilla»).
+    const resultado = corregirConGlosario("el Star brilla y dijo Said", glosario, "es");
+    expect(resultado.texto).toBe("el Star brilla y dijo Said");
     expect(resultado.cambios).toEqual([]);
   });
 
@@ -55,7 +78,7 @@ describe("corregirConGlosario", () => {
     expect(resultado.cambios).toEqual(["Star Sed → StarSeed", "Estora → Astraura"]);
   });
 
-  it("correge en inglés las formas medidas de Parakeet", () => {
+  it("corrige en inglés las formas medidas de Parakeet", () => {
     const resultado = corregirConGlosario("Hello Star Said how are you Astora", glosario, "en");
     expect(resultado.texto).toBe("Hello StarSeed how are you Astraura");
     expect(resultado.cambios).toEqual(["Star Said → StarSeed", "Astora → Astraura"]);
@@ -98,6 +121,12 @@ describe("corregirConGlosario", () => {
     expect(resultado.cambios).toEqual(["Test Nam → TestName"]);
   });
 
+  it("corrige los nombres propios del usuario, sus bots y su grupo vía glosarioBase", () => {
+    const propio = glosarioBase(["Jev", "Madrina Orbita"]);
+    expect(corregirConGlosario("hola jev", propio, "es").texto).toBe("hola Jev");
+    expect(corregirConGlosario("Madrina Orbit", propio, "es").texto).toBe("Madrina Orbita");
+  });
+
   it("devuelve la forma del glosario aunque la entrada vaya en minúscula", () => {
     const resultado = corregirConGlosario("astraura", glosario, "es");
     expect(resultado.texto).toBe("Astraura");
@@ -133,5 +162,11 @@ describe("glosarioBase", () => {
     const conOtros = glosarioBase(["Jev", "Astraura", "Madrina Orbita", "  Jev  ", "   ", ""]);
     expect(conOtros.slice(base.length)).toEqual(["Jev", "Madrina Orbita"]);
     expect(conOtros.filter((nombre) => nombre === "Astraura").length).toBe(1);
+  });
+
+  it("quita repeticiones de la base sin importar mayúsculas ni espacios", () => {
+    const base = glosarioBase();
+    const conOtros = glosarioBase(["ASTRAURA", "  starseed  ", "astrura"]);
+    expect(conOtros).toEqual([...base, "astrura"]);
   });
 });
