@@ -664,7 +664,10 @@ async function neuralSpeakVibeVoice(
 
   let blob: Blob | null = null;
   try {
-    const url = endpoint.replace(/\/$/, "") + "/api/vibevoice/synthesize";
+    // (SGO1024C) Si el endpoint ya trae ruta explícita (p. ej.
+    // `https://host/voz/propia`) se usa TAL CUAL, igual que el resto de motores
+    // en `neuralSynthesize`; solo al origen se le añade la ruta del registro.
+    const url = candidateUrls(engine, endpoint)[0] ?? endpoint;
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

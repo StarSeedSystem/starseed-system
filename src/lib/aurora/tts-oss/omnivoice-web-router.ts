@@ -122,6 +122,11 @@ const DEFAULT_CHAIN_PRIORITY = [
   // Chatterbox (VZR1011B): detrás de OmniVoice/OpenVoice y antes de Kokoro. Sin
   // estar aquí, `applyVoiceChainPriority` lo mandaba al final, DETRÁS de Kokoro.
   "chatterbox",
+  // xAI (SGO1024C): no está en AUTO_ENDPOINT_ORDER a propósito (gratis-primero:
+  // solo entra por pin o elección explícita), así que su sitio es el final de
+  // los motores de nube/endpoint: detrás de los gratuitos y delante del suelo
+  // local (Kokoro). Sin estar aquí, un pin a xAI caía al final, DETRÁS de Kokoro.
+  "xai",
   "kokoro",
   "voxcpm",
   "bark",
