@@ -34,6 +34,8 @@ import { useGestoDock, CARRIL_RAIZ } from "./dock/use-gesto-dock";
 import { AvisoDeshacer } from "./dock/aviso-deshacer";
 import { construirEntradas, carpetaDe, devolverAlDock, meterEnCarpeta, quitarDelDock, sacarDeCarpeta } from "@/lib/dock/orden-dock";
 const MenuDockItem = lazy(() => import("./dock/menu-dock-item"));
+import { estiloIcono, REGISTRO_DOCK, type FaseIconoDock } from "./omni-dock-movimiento";
+import { leerNivelMovimiento } from "@/lib/movimiento/nivel";
 import {
     loadDockConfig,
     saveDockConfig,
@@ -714,6 +716,20 @@ function DockItem({
     // clásico); "square" (cuadrado redondeado) es opción de tema por perfil.
     const { config: cfgForma } = useAppearance();
     const redondo = ((cfgForma?.trinity as { dockIconShape?: string } | undefined)?.dockIconShape ?? "round") !== "square";
+    // Movimiento del icono (Ola 1024D): hover, pulsación y lanzamiento con los tokens
+    // del ADN StarSeed. En reposo SIN estilo: mandan las clases Tailwind de siempre.
+    const [fase, setFase] = useState<FaseIconoDock>("reposo");
+    const pingLanzamiento = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // El gesto propio (levantar/arrastrar) tiene su estilo: la fase queda en reposo.
+    useEffect(() => { if (levantado || arrastrando) setFase("reposo"); }, [levantado, arrastrando]);
+    const lanzar = () => {
+        if (pingLanzamiento.current) clearTimeout(pingLanzamiento.current);
+        setFase("lanzando");
+        pingLanzamiento.current = window.setTimeout(() => setFase("reposo"), 170);
+    };
+    const estiloFase = fase === "reposo"
+        ? undefined
+        : estiloIcono(fase, { registro: REGISTRO_DOCK, reducido: leerNivelMovimiento() === "minimo" });
 
     return (
         <div
@@ -736,11 +752,15 @@ function DockItem({
             )}
         >
             <button
-                onClick={onClick}
+                onClick={() => { lanzar(); onClick(); }}
                 aria-current={active ? "page" : undefined}
                 title={label}
                 data-guide={guia}
                 data-ss-coreo={active ? "activo" : undefined}
+                style={estiloFase}
+                onPointerEnter={() => setFase("hover")}
+                onPointerLeave={() => setFase("reposo")}
+                onPointerDown={() => setFase("pulsado")}
                 className={cn(
                     // Contenedor de icono "cristal" unificado (misma familia que
                     // biblioteca/hub vía .ss-icon-3d--sheen: barrido especular al
