@@ -127,7 +127,8 @@ export function alcanceDelAdaptador(alcances: readonly AlcanceMemoria[]): Alcanc
     return ORDEN_ALCANCE.find((a) => alcances.includes(a)) ?? "publica";
 }
 
-const FORMATO_POR_MOTOR: Record<MotorFabrica, FormatoAdaptador> = {
+// Meta^n no fabrica adaptadores: mejora el proceso, no los pesos, y se decide fuera de esta puerta.
+const FORMATO_POR_MOTOR: Record<Exclude<MotorFabrica, "meta-n">, FormatoAdaptador> = {
     qvac: "lora-gguf",
     soup: "gguf-fusionado",
     onebitllms: "base-nuevo",
@@ -244,6 +245,7 @@ export function planificarAdaptador(p: PeticionAdaptador): PlanAdaptador {
     avisos.push(...entrenamiento.avisos);
 
     const motor = entrenamiento.motor;
+    if (motor === "meta-n") return { ok: false, errores: ["Meta^n no fabrica adaptadores: mejora el proceso de la capa, no los pesos."] };
     const formato = FORMATO_POR_MOTOR[motor];
     const ahora = p.ahora ?? new Date();
     const id = `ad-${motor}-${s.tipo}-${slug}-${fechaCompacta(ahora)}`;
