@@ -303,3 +303,56 @@ class RemallarImagen(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RemallarImagenNoDisponible(unittest.TestCase):
+    def test_remallar_imagen_cuando_no_disponible(self):
+        """Cuando el motor no está disponible, remallar_imagen debe devolver un dict de error."""
+        import tempfile
+        tmp = tempfile.mkdtemp()
+        try:
+            with mock.patch.object(pa.platform, "system", return_value="Linux"):
+                result = pa.remallar_imagen(
+                    "/fake/path/image.png",
+                    resolucion=512,
+                    carpeta_workflows=tmp,
+                    comfy=ComfyFalso(),
+                    dormir=lambda _: None
+                )
+            self.assertFalse(result["ok"])
+            self.assertIsNone(result["glb"])
+            self.assertIsInstance(result["procedencia"], list)
+            self.assertGreaterEqual(len(result["procedencia"]), 2)  # piezas de flujo y nodos
+            self.assertIsInstance(result["fallo"], str)
+            self.assertGreaterEqual(len(result["fallo"]), 1)
+            self.assertGreaterEqual(result["segundos"], 0.0)
+            self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
+        finally:
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_cuando_no_disponible_devuelve_dict_de_error(self):
+        # Sin Windows o sin ComfyUI al otro lado, remallar_imagen responde con el
+        # dict común de error: ok=False, glb=None, procedencia con sus dos piezas.
+        import tempfile
+        tmp = tempfile.mkdtemp()
+        try:
+            with mock.patch.object(pa.platform, "system", return_value="Linux"):
+                result = pa.remallar_imagen(
+                    "/fake/path/image.png",
+                    resolucion=512,
+                    carpeta_workflows=tmp,
+                    comfy=pa.ClienteComfyUI(),
+                    dormir=lambda _: None,
+                )
+            self.assertFalse(result["ok"])
+            self.assertIsNone(result["glb"])
+            self.assertIsInstance(result["procedencia"], list)
+            self.assertGreaterEqual(len(result["procedencia"]), 2)  # flujo and nodos
+            self.assertIsInstance(result["fallo"], str)
+            self.assertGreaterEqual(len(result["fallo"]), 1)
+            self.assertGreaterEqual(result["segundos"], 0.0)
+            self.assertGreaterEqual(result["pico_memoria_gb"], 0.0)
+        finally:
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
