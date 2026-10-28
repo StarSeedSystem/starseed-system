@@ -60,6 +60,14 @@ import { llmSourceAccessClass, type ModelAccessClass } from "@/lib/astraura/mode
 import { QuantumOrb, type QuantumOrbState } from "./quantum-orb";
 import { onQuantumOrbParams } from "@/lib/aurora/quantum-orb-bus";
 import type { QuantumOrbParams } from "@/lib/aurora/quantum-orb-theme";
+import { CURVA } from "@/lib/design/movimiento";
+import {
+  DESTELLOS_MAX_POR_SEGUNDO,
+  cssKeyframesOrbe,
+  presetOrbe,
+  repeticionesDe,
+  type EstadoOrbe,
+} from "@/lib/design/animaciones-orbe";
 import styles from "./aurora-orb.module.css";
 
 type RGB = [number, number, number];
@@ -222,6 +230,20 @@ export function AuroraOrb({
   // Ids únicos para los gradientes SVG (sin ":" — deben ser válidos en url(#…)).
   const gid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
 
+  // Movimiento reducido del sistema: la orbe queda quieta en su estado final.
+  const [reducido, setReducido] = useState(false);
+  useEffect(() => {
+    try {
+      const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const oir = () => setReducido(mq.matches);
+      oir();
+      mq.addEventListener?.("change", oir);
+      return () => mq.removeEventListener?.("change", oir);
+    } catch {
+      return undefined;
+    }
+  }, []);
+
   // Estado vivo leído dentro del bucle de animación (sin re-crear el bucle).
   const modeRef = useRef({ speaking, listening, paused, supported, unavailable, thinking });
   modeRef.current = { speaking, listening, paused, supported, unavailable, thinking };
@@ -366,6 +388,31 @@ export function AuroraOrb({
   const rim = Math.max(4, Math.round(size * 0.09));
   const coreSize = size - rim * 2;
   const starSize = Math.round(coreSize * 0.68);
+
+  // ── Preset de la orbe de Astraura (DAN1024C) ──
+  // El estado real de la voz manda y el registro expresivo pone el carácter.
+  // `repeticionesDe` deja la siembra en una sola pasada; el periodo se acota
+  // para no superar los destellos por segundo del OS. Solo transform/opacity.
+  const estadoOrbe: EstadoOrbe = paused
+    ? "reposo"
+    : speaking
+      ? "habla"
+      : listening
+        ? "escucha"
+        : thinking
+          ? "piensa"
+          : "reposo";
+  const preset = presetOrbe(estadoOrbe, "expresivo", reducido);
+  const repeticiones = repeticionesDe(estadoOrbe);
+  const periodoMs = Math.max(preset.periodoMs, Math.ceil(1000 / DESTELLOS_MAX_POR_SEGUNDO));
+  const nombreAnimacion = `orbe-${estadoOrbe}-${gid}`;
+  const keyframes = cssKeyframesOrbe(preset).replace(
+    /@keyframes\s+[^\s{]+/,
+    `@keyframes ${nombreAnimacion}`,
+  );
+  const animacion = preset.periodoMs > 0
+    ? `${nombreAnimacion} ${periodoMs}ms ${CURVA.suave} ${repeticiones === 1 ? "1" : "infinite"} both`
+    : "none";
 
   // ── Bucle de dibujo: aurora interior + CSS vars (energy/flux/rgb) ──
   useEffect(() => {
@@ -601,6 +648,8 @@ export function AuroraOrb({
         "--aurora-rgb": "159 232 112",
       } as React.CSSProperties}
     >
+      <style>{keyframes}</style>
+      <div style={{ position: "absolute", inset: 0, animation: animacion }}>
       {/* Capa REPOSO — la orbe del OS de siempre, intacta byte a byte. Se
           desvanece (solo opacity — el bucle de dibujo de abajo sigue vivo,
           así el regreso a reposo es instantáneo y sin parpadeo) cuando la
@@ -708,6 +757,7 @@ export function AuroraOrb({
           size={size}
           trail
         />
+      </div>
       </div>
     </div>
 
