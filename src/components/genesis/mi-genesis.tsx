@@ -11,7 +11,7 @@ import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { ShieldCheck } from "lucide-react";
 import { useAppearance } from "@/context/appearance-context";
-import { puertosDelOs, contextoDeMiCuenta } from "@/lib/genesis/puertos-os";
+import { puertosDelOs, contextoDeMiCuenta, miCuenta } from "@/lib/genesis/puertos-os";
 import type { Ambito } from "@/lib/genesis/operaciones";
 import { PanelOperaciones } from "./panel-operaciones";
 import { AtajosGenesis } from "./atajos-genesis";
@@ -24,6 +24,13 @@ const AMBITO: Ambito = { tipo: "persona" };
 // el layout raíz no carga nada pesado de forma estática.
 const SeccionBotsGenesis = dynamic(
     () => import("./seccion-bots").then((m) => m.SeccionBotsGenesis),
+    { ssr: false },
+);
+
+// Asistente «Conectar Genesis» (Ola 1019G · architecture/genesis-conectores-abiertos.md §10):
+// su sitio es «Genesis › Conectar», aquí con el ámbito de la cuenta personal (su id).
+const AsistenteConectores = dynamic(
+    () => import("./conectores/asistente-conectores").then((m) => m.AsistenteConectores),
     { ssr: false },
 );
 
@@ -56,6 +63,18 @@ export function MiGenesis() {
 
     const cargarContexto = useCallback(() => contextoDeMiCuenta(), []);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    const [cuentaId, setCuentaId] = useState<string | null>(null);
+
+    // Ámbito de la cuenta para el asistente «Conectar» (el id de la sesión).
+    useEffect(() => {
+        let vivo = true;
+        void miCuenta().then((id) => {
+            if (vivo) setCuentaId(id);
+        });
+        return () => {
+            vivo = false;
+        };
+    }, []);
 
     useEffect(() => {
         const almacen = almacenNavegador();
@@ -100,6 +119,11 @@ export function MiGenesis() {
                 <h2 className="text-base font-semibold">Mis bots</h2>
                 <SeccionBotsGenesis />
             </section>
+            {cuentaId ? (
+                <section id="conectar" aria-label="Conectar Genesis">
+                    <AsistenteConectores ambito={cuentaId} />
+                </section>
+            ) : null}
             <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis">
                 <h2 className="text-base font-semibold">ProtoGenesis de mis moléculas</h2>
                 {encargos === null ? (
