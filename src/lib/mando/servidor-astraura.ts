@@ -30,10 +30,9 @@ import { analizarPmset } from "@/lib/mando/hardware";
 import {
     capacidadInsomne,
     debeSoltarTrabajo,
-    estadoDesdeSesionInsomnia,
     politicaInsomne,
-    type SesionInsomniaCruda,
 } from "@/lib/neurons/insomne";
+import { carpetaInsomniaPorDefecto, leerEstadoInsomne } from "@/lib/neurons/insomne-servidor";
 import {
     calcularAvisos,
     ETIQUETA_DESPIERTO,
@@ -111,10 +110,6 @@ async function guardarDespiertoJson(datos: { activo: boolean; desde: number | nu
     await rename(temporal, ruta);
 }
 
-function rutaSesionInsomnia(): string {
-    return path.join(os.homedir(), "Library", "Application Support", "Insomnia", "session.json");
-}
-
 async function plataformaInsomne(): Promise<{ plataforma: string; version: string }> {
     if (process.platform === "darwin") {
         return { plataforma: "macos", version: (await ejecutar("sw_vers", ["-productVersion"])).trim() };
@@ -125,28 +120,21 @@ async function plataformaInsomne(): Promise<{ plataforma: string; version: strin
 }
 
 /**
- * Lee el estado de Insomnia si la persona lo instaló (INS1027). El OS solo LEE
- * `session.json`: nunca escribe en su carpeta ni ejecuta `pmset` con sudo. Si
- * no hay sesión, se dice tal cual; no se finge que la pantalla cerrada aguanta.
+ * Lee el estado de Insomnia si la persona lo instaló (INS1027). Delega en
+ * `leerEstadoInsomne` (solo LEE `session.json` y `state.json`: nunca escribe en
+ * su carpeta ni ejecuta `pmset` con sudo) y le suma la batería medida con
+ * `pmset`. Si no hay sesión, se dice tal cual; no se finge que la pantalla
+ * cerrada aguanta.
  */
 async function medirInsomne(bateria: Bateria): Promise<InsomneServidor> {
     const { plataforma, version } = await plataformaInsomne();
-    let sesion: SesionInsomniaCruda = {};
-    try {
-        const crudo = JSON.parse(await readFile(rutaSesionInsomnia(), "utf-8")) as unknown;
-        if (crudo && typeof crudo === "object" && !Array.isArray(crudo)) sesion = crudo as SesionInsomniaCruda;
-    } catch {
-        sesion = {};
-    }
     const ahora = Date.now();
-    const estado = estadoDesdeSesionInsomnia(
-        {
-            ...sesion,
-            ...(typeof bateria.porcentaje === "number" ? { bateria: bateria.porcentaje } : {}),
-            cargando: bateria.cargando,
-        },
-        ahora,
-    );
+    const leido = leerEstadoInsomne({ carpeta: carpetaInsomniaPorDefecto(), ahora });
+    const estado = {
+        ...leido,
+        ...(typeof bateria.porcentaje === "number" ? { bateria: bateria.porcentaje } : {}),
+        cargando: bateria.cargando,
+    };
     return {
         capacidad: capacidadInsomne(plataforma, `${version} ${process.arch}`.trim()),
         estado,
