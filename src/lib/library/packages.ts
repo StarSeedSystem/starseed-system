@@ -77,7 +77,7 @@ import { FICHAS_REPOS_1025, conSeguimiento1025 } from "./repos-1025";
 import { FICHAS_REPOS_1026, conSeguimiento1026 } from "./repos-1026";
 // Repo builtin externo de la Ola 1020: 14 repos verificados con upstream y canal
 // para que la Biblioteca autobúsque sus releases/tags/commits.
-import { REPO_EXTERNOS_1020 } from "./repos-externos-1020";
+import { REPO_EXTERNOS_1020, registrarReposYaPresentes } from "./repos-externos-1020";
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
@@ -2242,6 +2242,8 @@ function writeMinePackages(pkgs: LibraryPackage[]): void {
 export function listRepos(): LibraryRepo[] {
   const mine = readMineRepo();
   const base = [STARSEED_CORE_REPO, STARSEED_LABS_REPO, STARSEED_IA_TOOLS_REPO, STARSEED_AGENTS_REPO, STARSEED_THEMES_REPO, STARSEED_DESIGN_ELEMENTS_REPO, REPO_DECISIONES, FONDO_SHADER_REPO, REPO_EXTERNOS_1020];
+  // Ola 1020T (RLB1020K): REPOS_YA_PRESENTES se deriva de estos builtin reales al arrancar.
+  registrarReposYaPresentes(base);
   // El repo local del usuario solo se lista si tiene réplicas (evita ruido).
   if (mine.packages.length) base.push(mine);
   return [...base, ...readExternalRepos()];

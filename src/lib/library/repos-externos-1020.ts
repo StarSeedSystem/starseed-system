@@ -72,12 +72,53 @@ const esExcluida = (e: Entrada1020): boolean =>
 
 export interface RepoYaPresente { repo: string; id: string }
 
-/** Para que se vea: builtin con el MISMO repo por payload.externalUrl (sin duplicar). */
+/**
+ *. Semilla del contrato (packages.ts la confirma y la deriva de sus builtin al
+ * arrancar, ver `registrarReposYaPresentes`): builtin con el MISMO repo por
+ * payload.externalUrl o payload.githubRepo.
+ */
 export const REPOS_YA_PRESENTES: RepoYaPresente[] = [
   { repo: "penpot/penpot", id: "iatool-penpot" },
 ];
 
-const yaPresentes = new Set(REPOS_YA_PRESENTES.map((r) => r.repo));
+const RE_REPOS_GITHUB = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)$/;
+
+function repoGithubDe(p: { payload?: Record<string, unknown> }): string {
+  const gh = p.payload?.githubRepo;
+  if (typeof gh === "string" && gh) return gh;
+  const url = p.payload?.externalUrl;
+  return typeof url === "string" ? RE_REPOS_GITHUB.exec(url)?.[1] ?? "" : "";
+}
+
+/** Deriva los ya presentes de verdad: builtin que ya sirve un repo de la 3.ª tanda. */
+export function reposYaPresentesDe(builtins: readonly LibraryRepo[]): RepoYaPresente[] {
+  const deLaTandaC = new Set(CATALOGO_C.paquetes.map((e) => e.repo));
+  const vistos = new Map<string, string>();
+  for (const repo of builtins) {
+    for (const p of repo.packages) {
+      const repoGh = repoGithubDe(p);
+      if (deLaTandaC.has(repoGh) && !vistos.has(repoGh)) vistos.set(repoGh, p.id);
+    }
+  }
+  return [...vistos].map(([repo, id]) => ({ repo, id }));
+}
+
+let cacheYaPresentes: Set<string> | null = null;
+
+/**
+ * APLICA la derivación: `packages.ts` la llama con sus builtin al arrancar y
+ * `REPOS_YA_PRESENTES` deja de ser la semilla y pasa a ser lo real.
+ */
+export function registrarReposYaPresentes(builtins: readonly LibraryRepo[]): RepoYaPresente[] {
+  REPOS_YA_PRESENTES.splice(0, REPOS_YA_PRESENTES.length, ...reposYaPresentesDe(builtins));
+  cacheYaPresentes = null;
+  return REPOS_YA_PRESENTES;
+}
+
+function esRepoYaPresente(repo: string): boolean {
+  cacheYaPresentes ??= new Set(REPOS_YA_PRESENTES.map((r) => r.repo));
+  return cacheYaPresentes.has(repo);
+}
 
 export const REPO_EXTERNOS_1020: LibraryRepo = {
   id: "starseed-biblioteca-externa", name: "Biblioteca externa",
@@ -108,5 +149,5 @@ function transformaPaquete(p: Entrada1020): ReposExternosPaquete {
 export const PAQUETES_EXTERNOS: ReposExternosPaquete[] = [
   ...CATALOGO.paquetes,
   ...CATALOGO_B.paquetes,
-  ...CATALOGO_C.paquetes.filter((e) => !yaPresentes.has(e.repo)),
+  ...CATALOGO_C.paquetes.filter((e) => !esRepoYaPresente(e.repo)),
 ].filter((e) => !esExcluida(e)).map(transformaPaquete);
