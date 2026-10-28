@@ -26,6 +26,7 @@ import type { AppearanceConfig } from "../../../context/appearance-context";
 import type { AgenteMundoRef } from "@/lib/avatares/mundo/agente-mundo";
 import type { AccionBot, Previo, TipoAccion } from "../acciones";
 import { apilar, esCapaValida, normalizarCapa, retirar, type CapaActiva } from "../capa-pantalla";
+import { emitirAccionAgente } from "@/lib/mausbot/estado-astraura";
 import { ejecutar, type OpcionesComputadora } from "./computadora-cliente";
 import { registrarEnEjecutor, type DepsCreacion, type EjecutorCreacion } from "./acciones-creacion";
 
@@ -186,6 +187,7 @@ const PROXIMAMENTE: Partial<Record<TipoAccion, string>> = {
 
 /** Traduce una acción YA autorizada por el bucle al ejecutor real del OS. Nunca lanza. */
 export async function ejecutarAccion(accion: AccionBot, dep: DepsEjecutor): Promise<ResultadoEjecucion> {
+   emitirAccionAgente({ accion: accion.tipo, fase: "empezar" });
    try {
       switch (accion.tipo) {
          case "navegar": {
@@ -237,5 +239,7 @@ export async function ejecutarAccion(accion: AccionBot, dep: DepsEjecutor): Prom
       }
    } catch {
       return f(`No pude ejecutar «${accion.tipo}»: ocurrió un error inesperado.`);
+   } finally {
+      emitirAccionAgente({ accion: accion.tipo, fase: "acabar" });
    }
 }
