@@ -17,6 +17,7 @@
 import { useSyncExternalStore, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
+import { geometriaVentana } from "@/lib/design/composicion";
 
 // ── Tipos del modelo ─────────────────────────────────────────────
 export type DesktopIconKind = "app" | "file" | "folder" | "widget" | "link";
@@ -1152,10 +1153,14 @@ export function openWindow(
         if (existing) {
             resultId = existing.id;
             const z = nextZ(d);
+            const vw = isClient() ? window.innerWidth : 1280;
+            const vh = isClient() ? window.innerHeight : 800;
+            const x = Math.max(0, Math.min(existing.x, vw - existing.w));
+            const y = Math.max(DESKTOP_TOP_INSET, Math.min(existing.y, vh - existing.h));
             return {
                 ...d,
                 windows: d.windows.map((w) =>
-                    w.id === existing.id ? { ...w, minimized: false, z } : w,
+                    w.id === existing.id ? { ...w, minimized: false, z, x, y } : w,
                 ),
             };
         }
@@ -1163,14 +1168,14 @@ export function openWindow(
         const vh = isClient() ? window.innerHeight : 800;
         const w = Math.min(opts?.w ?? 760, Math.max(300, vw - 48));
         const h = Math.min(opts?.h ?? 520, Math.max(220, vh - 150));
-        const idx = d.windows.length;
-        // Cascada que NUNCA invade la banda de la barra superior (B-1).
-        const maxY = Math.max(DESKTOP_TOP_INSET, vh - h - 120);
+        const geo = geometriaVentana({ ancho: vw, alto: vh }, { tipo: "ventana", ancho: w, alto: h });
+        const x = Math.max(0, Math.min(geo.x, vw - w));
+        const y = Math.max(DESKTOP_TOP_INSET, Math.min(geo.y, vh - h));
         const win: DesktopWindow = {
             id: resultId,
             contentRef,
-            x: Math.max(8, Math.min(48 + (idx % 6) * 36, vw - w - 16)),
-            y: Math.min(clampWindowY(DESKTOP_TOP_INSET + 6 + (idx % 6) * 30), maxY),
+            x,
+            y,
             w,
             h,
             z: nextZ(d),
