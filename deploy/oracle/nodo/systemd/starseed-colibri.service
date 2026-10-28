@@ -1,0 +1,25 @@
+[Unit]
+Description=StarSeed · Colibri con Laya para la capa juicio de Astraura (CLB1027)
+After=network-online.target
+Wants=network-online.target
+# requiere: /home/starseed/colibri/c/coli
+# requiere: /home/starseed/colibri-modelos/laya
+
+[Service]
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed
+# Solo en local: el 8000 es el backend de Astraura 1.58 y no se comparte el puerto.
+ExecStart=/home/starseed/colibri/c/coli serve --host 127.0.0.1 --port 4480 --model /home/starseed/colibri-modelos/laya
+# Con el modelo ya descargado no debe reiniciar en bucle si algo falla al arrancar.
+Restart=on-failure
+RestartSec=20
+# Laya pide 1,7 GB; 4 GB dejan margen para el motor en un A1 de 12 GB que comparte
+# RAM con el enjambre. GLiNER2.5-Decide, si se enciende, va en otra instancia.
+MemoryMax=4G
+# Decisiones cortas en segundo plano: el enjambre manda en la CPU.
+Nice=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
