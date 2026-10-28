@@ -1,23 +1,19 @@
 /**
- * Trabajo 3D como DATO — `architecture/blender-3d.md` §4. Puro: sin módulos de Node, React, red ni evaluación dinámica.
- * Especificaciones del vocabulario (idénticas en Python); cualquiera admite `"opc":true` y `"def":valor`:
- *   num {t,min,max,ent?} · enum {v} · bool · vec {n,min,max} · rgba · nombre · ref
- *   txt {max,patron} · ruta {ext} (relativa, sin «..» ni «/» inicial) · lista {de,max} · obj {campos}
- *   `nombre` crea un objeto único ^[A-Za-z][A-Za-z0-9_-]{0,31}$; `ref` exige un nombre creado antes.
+ * Trabajo 3D como DATO — `architecture/blender-3d.md` §4. Puro: sin Node, React, red ni evaluación dinámica.
+ * Especificaciones (idénticas en Python; toda clase admite `"opc":true` y `"def":valor`): num {t,min,max,ent?} ·
+ * enum {v} · bool · vec {n,min,max} · rgba · nombre · ref · txt {max,patron} · ruta {ext} relativa sin «..» ni «/» inicial · lista {de,max} · obj {campos}; `nombre` crea un objeto único ^[A-Za-z][A-Za-z0-9_-]{0,31}$; `ref` exige uno ya creado.
  */
 import vocabulario from "./vocabulario.json";
-export const VERSION_VOCABULARIO = 1;
 export type Operacion = { op: string } & Record<string, unknown>;
 export type Salida = { tipo: string } & Record<string, unknown>;
 export interface Trabajo3D { v: 1; titulo: string; calidad: "borrador" | "normal" | "final"; ambito: "personal" | "perfil" | "grupo" | "publica"; origen: "protomolecula" | "astraura" | "estudio" | "xr" | "avatares" | "orbe" | "api"; quien: "persona" | "agente"; escena: Operacion[]; salidas: Salida[]; limites?: { segundos?: number; memoriaMB?: number } }
 type Espec = { t: string; min?: number; max?: number; ent?: boolean; v?: unknown[]; n?: number; de?: Espec; campos?: Record<string, Espec>; ext?: string[]; patron?: string; opc?: boolean; def?: unknown };
 type Def = { estado?: string; motivo?: string; params: Record<string, Espec> };
-type Ctx = { nombres: Set<string>; crear: boolean };
+type Ctx = { nombres: Set<string> };
 const V = vocabulario as unknown as { version: number; topes: Record<string, number>; operaciones: Record<string, Def>; salidas: Record<string, Def> };
-const RE_NOMBRE = /^[A-Za-z][A-Za-z0-9_-]{0,31}$/;
-const RE_RUTA = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/;
-const BASE: Record<string, number> = { cubo: 8, plano: 4, circulo: 32, esfera: 482, icosfera: 42, cilindro: 64, cono: 64, toro: 576 };
-const VELOCIDAD: Record<string, number> = { workbench: 350000, "cycles-cpu": 120000, "cycles-gpu": 1500000, eevee: 15000 };
+export const VERSION_VOCABULARIO: number = V.version;
+const RE_NOMBRE = /^[A-Za-z][A-Za-z0-9_-]{0,31}$/, RE_RUTA = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/;
+const BASE: Record<string, number> = { cubo: 8, plano: 4, circulo: 32, esfera: 482, icosfera: 42, cilindro: 64, cono: 64, toro: 576 }, VELOCIDAD: Record<string, number> = { workbench: 350000, "cycles-cpu": 120000, "cycles-gpu": 1500000, eevee: 15000 };
 function esObj(v: unknown): v is Record<string, unknown> { return typeof v === "object" && v !== null && !Array.isArray(v); }
 function validarObjeto(e: Espec, v: unknown, ctx: Ctx): string | null {
   if (!esObj(v)) return "debe ser un objeto";
@@ -62,17 +58,21 @@ function validarElemento(v: unknown, tipo: unknown, defs: Record<string, Def>, c
   const cuerpo = { ...v }; delete cuerpo[clase === "operacion" ? "op" : "tipo"];
   return validarObjeto({ t: "obj", campos: definicion.params }, cuerpo, ctx);
 }
+function normalizar(v: Record<string, unknown>, def: Def, clave: string): Record<string, unknown> {
+  const salida: Record<string, unknown> = { [clave]: v[clave] };
+  for (const [campo, espec] of Object.entries(def.params)) { const valor = v[campo] !== undefined ? v[campo] : espec.def; if (valor !== undefined) salida[campo] = valor; }
+  return salida; }
 export function validarTrabajo(bruto: unknown): { ok: true; trabajo: Trabajo3D } | { ok: false; motivos: string[] } {
   const motivos: string[] = [];
   if (!esObj(bruto)) return { ok: false, motivos: ["el trabajo debe ser un objeto"] };
   const permitidos = ["v", "titulo", "calidad", "ambito", "origen", "quien", "escena", "salidas", "limites"];
   for (const clave of Object.keys(bruto)) if (!permitidos.includes(clave)) motivos.push(`campo desconocido en el trabajo: ${clave}`);
-  if (bruto.v !== 1) motivos.push("v debe ser 1");
+  if (bruto.v !== VERSION_VOCABULARIO) motivos.push(`v debe ser ${VERSION_VOCABULARIO}`);
   if (typeof bruto.titulo !== "string" || bruto.titulo.trim().length === 0 || bruto.titulo.length > 80) motivos.push("titulo debe ser texto de 1 a 80 caracteres");
   const ENUMS: Record<string, string[]> = { calidad: ["borrador", "normal", "final"], ambito: ["personal", "perfil", "grupo", "publica"], origen: ["protomolecula", "astraura", "estudio", "xr", "avatares", "orbe", "api"] };
   for (const [campo, opciones] of Object.entries(ENUMS)) if (!opciones.includes(String(bruto[campo]))) motivos.push(`${campo} no válido`);
   if (bruto.quien !== "persona" && bruto.quien !== "agente") motivos.push("quien debe ser persona o agente");
-  const ctx: Ctx = { nombres: new Set(), crear: true };
+  const ctx: Ctx = { nombres: new Set() };
   if (!Array.isArray(bruto.escena)) motivos.push("escena debe ser una lista");
   else {
     if (bruto.escena.length > V.topes.operaciones) motivos.push(`demasiadas operaciones: máximo ${V.topes.operaciones}`);
@@ -87,7 +87,9 @@ export function validarTrabajo(bruto: unknown): { ok: true; trabajo: Trabajo3D }
     for (const clave of ["segundos", "memoriaMB"]) { const x = bruto.limites[clave]; if (x !== undefined && (typeof x !== "number" || !Number.isFinite(x) || x <= 0 || (clave === "segundos" && x > V.topes.segundos))) motivos.push(`limites.${clave} debe ser un número positivo dentro de los topes`); }
   }
   if (motivos.length) return { ok: false, motivos };
-  const trabajo = bruto as unknown as Trabajo3D;
+  const escena = (bruto.escena as Record<string, unknown>[]).map((op) => normalizar(op, V.operaciones[String(op.op)], "op")) as Operacion[];
+  const salidas = (bruto.salidas as Record<string, unknown>[]).map((s) => normalizar(s, V.salidas[String(s.tipo)], "tipo")) as Salida[];
+  const trabajo: Trabajo3D = { v: VERSION_VOCABULARIO as 1, titulo: bruto.titulo as string, calidad: bruto.calidad as Trabajo3D["calidad"], ambito: bruto.ambito as Trabajo3D["ambito"], origen: bruto.origen as Trabajo3D["origen"], quien: bruto.quien as Trabajo3D["quien"], escena, salidas, ...(bruto.limites !== undefined ? { limites: bruto.limites as Trabajo3D["limites"] } : {}) };
   const coste = estimarCoste(trabajo);
   if (coste.vertices > V.topes.vertices) motivos.push(`demasiados vértices: ${coste.vertices} (máximo ${V.topes.vertices})`);
   if (coste.segundos > V.topes.segundos) motivos.push(`demasiados segundos estimados: ${coste.segundos} (máximo ${V.topes.segundos})`);
@@ -105,14 +107,14 @@ export function estimarCoste(trabajo: Trabajo3D): { vertices: number; segundos: 
   return { vertices, segundos: Math.round(segundos * 1000) / 1000 };
 }
 const TOPES: Record<string, { ancho: number; alto: number; muestras: number; fotogramas: number; memoriaMB: number } | null> = {
-  ninguno: null, ligero: { ancho: 1280, alto: 720, muestras: 64, fotogramas: 120, memoriaMB: 2048 },
-  estandar: { ancho: 1920, alto: 1080, muestras: 256, fotogramas: 300, memoriaMB: 4096 }, estudio: { ancho: 3840, alto: 2160, muestras: 1024, fotogramas: 1800, memoriaMB: 8192 },
-};
+  ninguno: null, ligero: { ancho: 1280, alto: 720, muestras: 64, fotogramas: 120, memoriaMB: 2048 }, estandar: { ancho: 1920, alto: 1080, muestras: 256, fotogramas: 300, memoriaMB: 4096 }, estudio: { ancho: 3840, alto: 2160, muestras: 1024, fotogramas: 1800, memoriaMB: 8192 } };
 export function necesitaConfirmacion(trabajo: Trabajo3D, perfil: "ninguno" | "ligero" | "estandar" | "estudio"): boolean {
   if (trabajo.ambito === "grupo" || trabajo.ambito === "publica" || trabajo.calidad === "final") return true;
   if (trabajo.escena.some((op) => op.op === "importar")) return true;
   const tope = TOPES[perfil];
   if (!tope) return true;
   if ((trabajo.limites?.memoriaMB ?? 0) > tope.memoriaMB) return true;
+  const coste = estimarCoste(trabajo);
+  if (perfil === "ligero" && (coste.segundos > 60 || coste.vertices > 50000)) return true;
   return trabajo.salidas.some((s) => { if (!s.tipo.startsWith("render_")) return false; const fotogramas = s.tipo === "render_mp4" ? Math.max(1, Number(s.hasta) - Number(s.desde) + 1) : 1; return Number(s.ancho) > tope.ancho || Number(s.alto) > tope.alto || Number(s.muestras) > tope.muestras || fotogramas > tope.fotogramas; });
 }
