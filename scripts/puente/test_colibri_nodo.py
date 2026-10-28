@@ -4,6 +4,8 @@
 Casos de la tarea: el A1 (12 GB, 18,5 GB libres) solo deja Laya y GLiNER2.5-Decide, y Qwen3-Coder
 no; la Mac (8 GB con presión) no deja a ninguno. Sin red, sin descargas, sin tocar el disco.
 """
+import contextlib
+import io
 import json
 import os
 import sys
@@ -168,6 +170,28 @@ class PruebaPlan(unittest.TestCase):
         clon = C.plan_instalacion("colibri-laya", "/srv")[0]["args"]
         self.assertEqual(clon[:2], ["git", "clone"])
         self.assertIn(C.REPO_COLIBRI, clon)
+
+
+class PruebaMain(unittest.TestCase):
+    """Adaptado de la rama nube/40611446903: hoy la CLI no recibe --ram/--disco (mide la máquina),
+    pero conserva el contrato del caso: --plan imprime el veredicto y NUNCA ejecuta nada."""
+
+    def test_main_plan_imprime_y_no_ejecuta(self):
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            rc = C.main(["--plan"])
+        texto = salida.getvalue()
+        self.assertEqual(rc, 0)
+        self.assertIn("Esta máquina:", texto)
+        self.assertIn("colibri-laya:", texto)
+        self.assertIn("Nada de esto se descarga ni se ejecuta", texto)
+
+    def test_main_sin_plan_dicta_el_uso_y_sale_2(self):
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            rc = C.main([])
+        self.assertEqual(rc, 2)
+        self.assertIn("uso:", salida.getvalue())
 
 
 if __name__ == "__main__":
