@@ -159,6 +159,31 @@ class Destino(unittest.TestCase):
                  "c": nodo("oracle-a1", desconectando=True), "d": dict(nodo("oracle-a1"), contenedor={"activo": False, "agentes": 2})}
         self.assertIsNone(C.elegir_destino({"id": "T"}, nodos, {})[0])
 
+    def test_a_igual_medio_gana_la_sesion_insomne_mas_larga(self):
+        nodos = {"neurona-x": nodo("neurona", insomne={"hasta": 1800}),
+                 "neurona-y": nodo("neurona", insomne={"hasta": 3600})}
+        self.assertEqual(C.elegir_destino({"id": "T"}, nodos, {})[0], "neurona-y")
+
+    def test_una_neurona_insomne_gana_a_la_que_no_lo_es(self):
+        nodos = {"sin-sesion": nodo("neurona"), "con-sesion": nodo("neurona", insomne={"hasta": 1200})}
+        self.assertEqual(C.elegir_destino({"id": "T"}, nodos, {})[0], "con-sesion")
+
+    def test_nunca_una_sesion_que_termina_antes_de_15_min(self):
+        nodos = {"neurona-x": nodo("neurona", insomne={"hasta": 899})}
+        self.assertIsNone(C.elegir_destino({"id": "T"}, nodos, {})[0])
+        nodos["neurona-x"]["insomne"]["hasta"] = 900
+        self.assertEqual(C.elegir_destino({"id": "T"}, nodos, {})[0], "neurona-x")
+
+    def test_lee_el_insomne_de_las_senales_de_presencia(self):
+        nodos = {"neurona-x": nodo("neurona", senales={"insomne": {"hasta": 3600}}),
+                 "neurona-y": nodo("neurona", insomne={"hasta": 1800})}
+        self.assertEqual(C.elegir_destino({"id": "T"}, nodos, {})[0], "neurona-x")
+
+    def test_la_preferencia_de_medio_manda_sobre_una_sesion_mas_larga(self):
+        nodos = {"oracle-a1-y": nodo("oracle-a1", insomne={"hasta": 900}),
+                 "mac-1": nodo("mac", insomne={"hasta": 100_000})}
+        self.assertEqual(C.elegir_destino({"id": "T"}, nodos, {})[0], "oracle-a1-y")
+
 
 class PlanRelevo(unittest.TestCase):
     def test_la_mac_se_va_y_sus_tareas_siguen_en_el_a1_desde_su_punto(self):
@@ -201,6 +226,22 @@ class DesconexionSola(unittest.TestCase):
         self.assertTrue(C.debe_desconectarse_solo({"apagado_en_s": 120})[0])
         self.assertFalse(C.debe_desconectarse_solo({"apagado_en_s": 3600})[0])
         self.assertFalse(C.debe_desconectarse_solo({})[0])
+
+    def test_suelta_cuando_la_sesion_insomne_termina_en_menos_de_5_min(self):
+        ok, porque = C.debe_desconectarse_solo({"insomne": {"hasta": 299}})
+        self.assertTrue(ok)
+        self.assertEqual(porque, "la sesión insomne termina en 4 min")
+        self.assertTrue(C.debe_desconectarse_solo({"insomne": {"hasta": 60}})[0])
+        self.assertTrue(C.debe_desconectarse_solo({"insomne": {"hasta": 0}})[0])
+        self.assertIn("termina en 1 min", C.debe_desconectarse_solo({"insomne": {"hasta": 60}})[1])
+
+    def test_no_suelta_con_5_min_o_mas_de_sesion_insomne(self):
+        self.assertFalse(C.debe_desconectarse_solo({"insomne": {"hasta": 300}})[0])
+        self.assertFalse(C.debe_desconectarse_solo({"insomne": {"hasta": 3600}})[0])
+        self.assertFalse(C.debe_desconectarse_solo({"insomne": {}})[0])
+
+    def test_lee_el_insomne_de_las_senales_de_presencia(self):
+        self.assertTrue(C.debe_desconectarse_solo({"senales": {"insomne": {"hasta": 120}}})[0])
 
 
 if __name__ == "__main__":
