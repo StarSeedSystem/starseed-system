@@ -11,12 +11,12 @@ import {
 
 const medio = (id: string): MedioFabrica => MEDIOS_FABRICA.find((m) => m.id === id)!;
 
-describe("fábrica intercambiable · los tres motores", () => {
-    it("declara qvac, soup y onebitllms con licencia, repo y lo que NO hacen", () => {
-        expect(Object.keys(MOTORES).sort()).toEqual(["onebitllms", "qvac", "soup"]);
+describe("fábrica intercambiable · los motores", () => {
+    it("declara qvac, soup, onebitllms y meta-n con licencia, repo y lo que NO hacen", () => {
+        expect(Object.keys(MOTORES).sort()).toEqual(["meta-n", "onebitllms", "qvac", "soup"]);
         for (const m of Object.values(MOTORES)) {
             expect(m.repo).toMatch(/^https:\/\/github\.com\//);
-            expect(m.licencia).toBe("Apache-2.0");
+            expect(["Apache-2.0", "MIT"]).toContain(m.licencia);
             expect(m.limites.length).toBeGreaterThan(0);
         }
         expect(MOTORES.soup.tareas).toEqual(["adaptador", "preferencias"]);

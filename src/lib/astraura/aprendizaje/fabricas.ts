@@ -9,15 +9,19 @@
  *   qvac       · adaptadores LoRA GGUF para el BitNet 1.58 de Astraura, en el aparato (Metal), por turnos.
  *   soup       · adaptadores (SFT) y preferencias (DPO, ORPO, KTO) para bases estándar de Hugging Face.
  *   onebitllms · refresco del BASE 1.58 (afinado completo), solo GPU NVIDIA en la nube.
+ *   meta-n     · mejora el PROCESO de la capa (pautas y funciones de ayuda), en una caja Docker.
  *
  * Sin I/O, sin red, sin claves y sin `node:*` (CLAUDE.md, trampa 11). SOP:
  * architecture/astraura-158-aprendizaje-continuo.md §2.2 y §2.2.1.
  */
 
-export type MotorFabrica = "qvac" | "soup" | "onebitllms";
+export type MotorFabrica = "qvac" | "soup" | "onebitllms" | "meta-n";
 export type Acelerador = "cuda" | "mps" | "ninguno";
-/** Qué se quiere fabricar. `preferencias` = DPO, ORPO o KTO (aprender de «mejor/peor»). */
-export type TareaFabrica = "adaptador" | "preferencias" | "refresco-base";
+/**
+ * Qué se quiere fabricar. `preferencias` = DPO, ORPO o KTO (aprender de «mejor/peor»).
+ * `proceso` = mejorar CÓMO resuelve la capa (pautas y funciones de ayuda), no sus pesos.
+ */
+export type TareaFabrica = "adaptador" | "preferencias" | "refresco-base" | "proceso";
 /** Sobre qué modelo: el BitNet 1.58 de Astraura o una base estándar de Hugging Face (Qwen, Llama, Gemma…). */
 export type FamiliaBase = "bitnet-1.58" | "estandar";
 
@@ -32,6 +36,8 @@ export interface MedioFabrica {
     /** `true`: aparato o servidor de la persona (el archivo de entrenamiento no sale). `false`: GPU prestada. */
     local: boolean;
     gratuito: boolean;
+    /** `true`: tiene Docker para la caja sin red de Meta^n. La Mac de 8 GB no lo tiene. */
+    docker?: boolean;
 }
 
 export interface MotorInfo {
@@ -97,22 +103,48 @@ export const MOTORES: Readonly<Record<MotorFabrica, MotorInfo>> = {
         requisitos: ["GPU NVIDIA (kernels Triton)", "El ejemplo del repo usa 8×A10G durante 8,5 h: sin cifra propia de memoria mínima"],
         limites: ["No corre en Mac ni sin GPU NVIDIA", "Es afinado completo del base: nunca en la Mac"],
     },
+    "meta-n": {
+        id: "meta-n",
+        nombre: "Meta^n (automejora del proceso)",
+        repo: "https://github.com/minnesotanlp/meta-n",
+        licencia: "MIT",
+        tareas: ["proceso"],
+        // No toca los pesos: el mismo proceso sirve sobre el BitNet 1.58 o sobre una base estándar.
+        bases: [],
+        // No entrena: solo propone dentro de su caja Docker.
+        entrena_en: [],
+        salida: "Pautas de texto para la capa y propuestas de funciones de ayuda",
+        requisitos: ["Python ≥ 3.11 y Docker para la caja sin red ni claves", "Sin GPU; ~1 GB de RAM"],
+        limites: [
+            "Solo PROPONE dentro de la caja: el juez de StarSeed decide fuera y nunca ejecuta su código",
+            "Las funciones de ayuda nunca se cargan en caliente: salen como propuesta de tarea al enjambre",
+            "No mejora los pesos del modelo: mejora el proceso de la capa",
+        ],
+    },
 };
 
 /** Medios que conocemos hoy. Las cifras de Kaggle y Colab son del reparto gratuito y cambian con la cuota del día. */
 export const MEDIOS_FABRICA: readonly MedioFabrica[] = [
-    { id: "mac-8gb", nombre: "Mac de la fundación (8 GB, Apple Silicon)", ram_gb: 8, acelerador: "mps", local: true, gratuito: true },
-    { id: "a1-oracle", nombre: "A1 de Oracle (ARM, 2 OCPU, 12 GB, sin GPU)", ram_gb: 12, acelerador: "ninguno", local: true, gratuito: true },
-    { id: "contenedor-github", nombre: "Contenedor de GitHub (sin GPU)", ram_gb: 7, acelerador: "ninguno", local: false, gratuito: true },
+    { id: "mac-8gb", nombre: "Mac de la fundación (8 GB, Apple Silicon)", ram_gb: 8, acelerador: "mps", local: true, gratuito: true, docker: false },
+    { id: "a1-oracle", nombre: "A1 de Oracle (ARM, 2 OCPU, 12 GB, sin GPU)", ram_gb: 12, acelerador: "ninguno", local: true, gratuito: true, docker: true },
+    { id: "contenedor-github", nombre: "Contenedor de GitHub (sin GPU)", ram_gb: 7, acelerador: "ninguno", local: false, gratuito: true, docker: true },
     { id: "kaggle-gpu", nombre: "Kaggle · GPU gratuita (T4 o P100, ~15 GB)", ram_gb: 29, acelerador: "cuda", vram_gb: 15, local: false, gratuito: true },
     { id: "colab-gpu", nombre: "Colab · GPU gratuita (T4, ~15 GB)", ram_gb: 12, acelerador: "cuda", vram_gb: 15, local: false, gratuito: true },
 ];
+
+/** Ámbito de lo que se mejora: lo privado NUNCA va a un contenedor de GitHub. */
+export type AmbitoFabrica = "privado" | "colectivo";
 
 export interface NecesidadFabrica {
     tarea: TareaFabrica;
     base: FamiliaBase;
     /** Tamaño del modelo en miles de millones de parámetros, si se conoce (para comprobar la memoria). */
     parametros_b?: number;
+    /**
+     * Ámbito de la mejora (solo lo usa `proceso`). Sin declararlo se asume `privado`, que es lo más
+     * protector: un ámbito colectivo tiene que decirlo a propósito para salir a un runner.
+     */
+    ambito?: AmbitoFabrica;
 }
 
 export type ModoFabrica = "entrenar" | "preparar" | "sin-camino";
@@ -149,7 +181,10 @@ export function vramMinimaQLoRA(parametros_b: number): number {
 /** Regla de la casa (no de Soup): memoria unificada que comparte el sistema; con menos no se entrena en MPS. */
 export const RAM_MINIMA_MPS_SOUP_GB = 16;
 
+const MOTIVO_PROCESO = "Meta^n mejora el PROCESO de la capa: escribe pautas y funciones de ayuda, no los pesos.";
+
 function motorPara(n: NecesidadFabrica): { motor: MotorFabrica | null; motivo: string } {
+    if (n.tarea === "proceso") return { motor: "meta-n", motivo: MOTIVO_PROCESO };
     if (n.tarea === "refresco-base") {
         return n.base === "bitnet-1.58"
             ? { motor: "onebitllms", motivo: "El refresco del base 1.58 es afinado completo: solo lo hace onebitllms, en GPU NVIDIA." }
@@ -170,6 +205,53 @@ const PREPARAR_SOUP = [
     "Validar e inspeccionar el corpus exportado («soup data validate», «soup data inspect»)",
     "Comprobar el soup.yaml («soup doctor --config soup.yaml») antes de gastar GPU",
 ];
+
+/** Por qué un medio no puede ejecutar Meta^n. La caja Docker sin red y claves es obligatoria. */
+function faltaParaProceso(medio: MedioFabrica, ambito: AmbitoFabrica): string[] {
+    const falta: string[] = [];
+    if (medio.docker !== true) falta.push(`${medio.nombre} no tiene Docker: Meta^n corre dentro de una caja sin red ni claves.`);
+    if (medio.ram_gb < 1) falta.push(`Meta^n pide ~1 GB de RAM y el medio tiene ${medio.ram_gb}.`);
+    if (medio.id === "contenedor-github" && ambito === "privado") {
+        falta.push("Lo privado nunca va a un contenedor de GitHub: ese medio solo vale para el ámbito colectivo.");
+    }
+    return falta;
+}
+
+/** La decisión de `proceso`: Meta^n dentro de una caja Docker, nunca `LocalExecutor` fuera de ella. */
+function decidirProceso(medio: MedioFabrica, n: NecesidadFabrica, medios: readonly MedioFabrica[]): DecisionFabrica {
+    const ambito = n.ambito ?? "privado";
+    const avisos = [
+        "Meta^n solo propone: el juez de StarSeed decide fuera de la caja y no ejecuta su código.",
+        "Las funciones de ayuda nunca se cargan en caliente: salen como propuesta de tarea al enjambre.",
+    ];
+    const falta = faltaParaProceso(medio, ambito);
+    if (falta.length === 0) {
+        return {
+            motor: "meta-n",
+            modo: "entrenar",
+            medio: medio.id,
+            motivo: MOTIVO_PROCESO,
+            haceAqui: [
+                "Ejecutar Meta^n dentro de una caja Docker sin red y sin claves",
+                "Proponer pautas de texto para la capa y funciones de ayuda que juzga StarSeed",
+            ],
+            falta: [],
+            derivarA: [],
+            avisos,
+        };
+    }
+    const derivarA = medios.filter((m) => m.id !== medio.id && faltaParaProceso(m, ambito).length === 0).map((m) => m.id);
+    return {
+        motor: "meta-n",
+        modo: "sin-camino",
+        medio: medio.id,
+        motivo: `${MOTIVO_PROCESO} ${medio.nombre} no puede: ${falta.join(" ")}`,
+        haceAqui: [],
+        falta,
+        derivarA,
+        avisos,
+    };
+}
 
 /** ¿En qué medios conocidos entrenaría este motor con esta necesidad? */
 function medioQueEntrena(motor: MotorFabrica, n: NecesidadFabrica, medio: MedioFabrica): string[] {
@@ -196,6 +278,8 @@ export function elegirFabrica(medio: MedioFabrica, necesidad: NecesidadFabrica =
     if (!motor) {
         return { motor: null, modo: "sin-camino", medio: medio.id, motivo, haceAqui: [], falta: [motivo], derivarA: [], avisos: [] };
     }
+    // Meta^n no entrena pesos ni prepara en un medio sin caja: se decide aparte, antes de la tabla de aceleradores.
+    if (necesidad.tarea === "proceso") return decidirProceso(medio, necesidad, medios);
     const info = MOTORES[motor];
     const falta = medioQueEntrena(motor, necesidad, medio);
     const avisos: string[] = [];
