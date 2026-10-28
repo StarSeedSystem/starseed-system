@@ -161,6 +161,34 @@ describe("ofertaDesdeAsignaciones", () => {
         expect(oferta.presta.publico).toBe(false);
     });
 
+    // Rescate RTRIA1023F (rama nube/a1-20261026-002110-RIA1023Fb), adaptados al contrato de hoy:
+    // solo la topología «servidor-propio» que nombra ESTA neurona en `servidorNeuronaId` abre la
+    // prestación; lo demás queda cerrado (sin cuenta, sin grupos, sin público y sin servidor-ia).
+    it("topología servidor-propio sin servidorNeuronaId: no presta ni añade servidor-ia", () => {
+        const estado = fijarTopologia(estadoVacio(), {
+            topologia: "servidor-propio",
+            vias: ["local"],
+            alcance: ALCANCE_PRIVADO,
+        });
+        expect(esServidorPropio(estado, N1)).toBe(false);
+        const oferta = ofertaDesdeAsignaciones(inventarioTest(), estado, new Date(0));
+        expect(oferta.presta).toEqual({ cuenta: false, grupos: [], publico: false, topes: expect.anything() });
+        expect(oferta.apps.some((a) => a.id === "servidor-ia")).toBe(false);
+    });
+
+    it("topología que no es servidor-propio (almacen-externo) con alcance de grupo: no presta", () => {
+        const estado = fijarTopologia(estadoVacio(), {
+            topologia: "almacen-externo",
+            almacenExternoId: `${N1}:interno`,
+            vias: ["local"],
+            alcance: { tipo: "grupo", id: "g-externo", visibilidad: "privada" },
+        });
+        expect(esServidorPropio(estado, N1)).toBe(false);
+        const oferta = ofertaDesdeAsignaciones(inventarioTest(), estado, new Date(0));
+        expect(oferta.presta).toEqual({ cuenta: false, grupos: [], publico: false, topes: expect.anything() });
+        expect(oferta.apps.some((a) => a.id === "servidor-ia")).toBe(false);
+    });
+
     it("modelosServidos: modelos instalados en almacén de esta neurona, sin destino y corregidos por asignación", () => {
         const inventario: InventarioRecursos = {
             ...inventarioTest(),
