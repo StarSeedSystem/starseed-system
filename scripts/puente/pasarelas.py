@@ -22,6 +22,8 @@ SIN_CLAVE = "sin_clave"             # falta la clave o no vale: hay que renovarl
 SIN_CANAL = "sin_canal"             # la pasarela no tiene proveedor para ese modelo
 MODELO_FUERA = "modelo_fuera"       # el modelo ya no existe en el catálogo
 LENTA = "lenta"                     # acepta y no emite: cola o congestión
+SATURADA = "saturada"               # (2026-10-28) el servidor existe y contesta, pero está
+                                    # sobrecargado ahora mismo; se repone sola
 CAIDA = "caida"                     # no responde de ninguna forma
 FICHAJE = "fichaje"                 # exige un fichaje diario en su web para lo gratis
 
@@ -81,6 +83,19 @@ _PISTAS = (
     ("model_not_found", MODELO_FUERA),
     ("does not exist", MODELO_FUERA),
     ("unavailable for free", MODELO_FUERA),
+    # SATURACIÓN NO ES CAÍDA (2026-10-28). Google contestó 503 «The model is
+    # overloaded. Please try again later» mientras listar modelos y generateContent
+    # respondían 200 minutos después: la clave funcionaba. Mandar a renovarla es
+    # la peor clase de aviso, la misma que «TARDAR NO ES MORIR». Va DESPUÉS del
+    # fichaje y de «unavailable for free», que deben seguir ganando.
+    ("overloaded", SATURADA),
+    ("try again later", SATURADA),
+    ("high demand", SATURADA),
+    ("temporarily unavailable", SATURADA),
+    ("service unavailable", SATURADA),
+    # Los gemini-2.5-flash y -lite contestan 404 con este texto: el modelo ya no
+    # entra para cuentas nuevas, no es una saturación ni una clave mala.
+    ("no longer available", MODELO_FUERA),
     ("free-model token quota", SIN_CUPO),
     # CRÉDITOS GASTADOS ≠ CLAVE MALA (2026-09-16, 22:10). xAI contesta 403 a una
     # clave PERFECTAMENTE VÁLIDA cuando el equipo se queda sin saldo:
@@ -118,6 +133,7 @@ OPCIONES_CONSEJERO = {
     FICHAJE: "pide un fichaje, check-in o acción manual diaria del usuario en su web",
     MODELO_FUERA: "ese modelo concreto no existe o fue retirado; otros de la pasarela sí",
     SIN_CANAL: "la pasarela no tiene ningún proveedor detrás de ese modelo",
+    SATURADA: "el servidor contesta pero está sobrecargado: se repone sola, reintenta en un rato",
     CAIDA: "error interno, mantenimiento o la pasarela no funciona",
 }
 
@@ -159,6 +175,10 @@ def clasificar(http, cuerpo="", hubo_tokens=False, consejero=None):
         return SIN_CUPO
     if http in (402, 404):
         return MODELO_FUERA
+    # (2026-10-28) 503 de Google es «overloaded, try again later»: saturación
+    # pasajera, no caída. Igual 500, 502, 504 y 529 (overloaded de Cloudflare).
+    if http in (500, 502, 503, 504, 529):
+        return SATURADA
     if http >= 500:
         return CAIDA
     return CAIDA
@@ -199,6 +219,9 @@ def accion_de(clave, estado):
     if estado == LENTA:
         return {"texto": "acepta y no emite (cola o congestión): dale más margen o bájale el ritmo",
                 "enlace": "", "humano": False}
+    if estado == SATURADA:
+        return {"texto": "saturada ahora mismo: se repone sola, reintenta en un rato",
+                "enlace": "", "humano": False}
     return {"texto": "no responde: fuera de la rotación hasta nuevo aviso",
             "enlace": ficha["enlace"], "humano": False}
 
@@ -210,8 +233,8 @@ def informe(resultados):
     # El fichaje va justo detrás de las vivas: es la única línea del informe que
     # Alex puede convertir en ocho modelos con un clic. Enterrarla abajo es
     # desperdiciarla.
-    orden = {ESCRIBE: 0, FICHAJE: 1, LENTA: 2, SIN_CUPO: 3, SIN_CANAL: 4,
-             MODELO_FUERA: 5, SIN_CLAVE: 6, CAIDA: 7}
+    orden = {ESCRIBE: 0, FICHAJE: 1, LENTA: 2, SATURADA: 3, SIN_CUPO: 4,
+             SIN_CANAL: 5, MODELO_FUERA: 6, SIN_CLAVE: 7, CAIDA: 8}
     for r in sorted(resultados, key=lambda x: orden.get(x.get("estado"), 9)):
         ficha = CATALOGO.get(r.get("clave"), {})
         a = accion_de(r.get("clave"), r.get("estado"))
