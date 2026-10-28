@@ -62,6 +62,7 @@ import { IDS_SIEMBRA_1025 } from "./repos-1025";
 import { IDS_SIEMBRA_1026 } from "./repos-1026";
 import { IDS_SIEMBRA_1027 } from "./repos-1027";
 import { IDS_SIEMBRA_1027B } from "./repos-1027b";
+import { IDS_SIEMBRA_1028 } from "./repos-1028";
 
 /** Marca de estado de la siembra (viaja con la cuenta vía SYNCED_KEYS). */
 export const SEED_KEY = "starseed.library.seed.v1";
@@ -71,7 +72,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 20;
+export const SEED_VERSION = 21;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -357,9 +358,14 @@ const RECOMMENDED_HASTA_16: string[] = [
  * `config/repos-libreria-1027b.json` (módulo puro `repos-1027b.ts`). Instalar SOLO registra el enlace; Meta^n
  * propone dentro de una caja Docker sin red y el juez de StarSeed decide fuera, y Memvid corre en un servidor
  * propio sin telemetría. La activación la decide la persona y está explicada en `aviso`.
+ *
+ * (SEED_VERSION 21 · Ola 1028 · LNN1028) LEANN, DEL 2026-10-28: con `preinstalar: "siempre"` en
+ * `config/repos-libreria-1028.json` (módulo puro `repos-1028.ts`). Instalar SOLO registra el enlace;
+ * LEANN corre en el servidor de cerebro (hoy el A1) en 127.0.0.1:4495 con token, y la activación
+ * la decide la persona, explicada en `aviso`.
  */
 export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
-  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B]),
+  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028]),
 );
 
 /**
