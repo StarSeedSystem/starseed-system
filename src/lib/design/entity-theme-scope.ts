@@ -21,7 +21,56 @@ import { useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
 import { applyThemeTokens, listThemes, type ThemePack, type ThemeTokens } from "./theme-engine";
 import { mixThemes, SLOT_ORDER, type MixSlots } from "./theme-mixer";
-import type { EntityLayout } from "@/lib/entity-layout";
+import type { RegistroMovimiento } from "./registros-movimiento";
+
+/* ───────────────── Registro de movimiento por entidad ───────────────────── */
+
+/** Carácter del movimiento cuando la entidad no declara uno propio. */
+export const MOVIMIENTO_POR_DEFECTO: RegistroMovimiento = "sobrio";
+
+/**
+ * Tema propio de una entidad (cuenta, página o grupo). Es un subconjunto
+ * estructural de `EntityLayout`: los temas guardados antes de este campo
+ * siguen siendo válidos y el movimiento ausente se resuelve a «sobrio».
+ */
+export interface TemaEntidad {
+    themeId?: string | null;
+    themeMix?: Record<string, unknown> | null;
+    /** Registro de movimiento opcional (retrocompatible: ausente → «sobrio»). */
+    movimiento?: RegistroMovimiento;
+}
+
+/** Capas de tema de las que se hereda el movimiento: cuenta › página › grupo. */
+export interface CapasTemaEntidad {
+    cuenta?: TemaEntidad | null;
+    pagina?: TemaEntidad | null;
+    grupo?: TemaEntidad | null;
+}
+
+/** Valida un registro: cualquier valor desconocido vuelve al defecto. */
+export function normalizarRegistroMovimiento(valor: unknown): RegistroMovimiento {
+    return valor === "sobrio" || valor === "expresivo" || valor === "experimental"
+        ? valor
+        : MOVIMIENTO_POR_DEFECTO;
+}
+
+/**
+ * Registro efectivo con la herencia del resto de campos: de lo más general a
+ * lo más concreto (cuenta › página › grupo), lo concreto pisa a lo general.
+ * Sin ninguna capa con movimiento propio, manda «sobrio».
+ */
+export function registroMovimientoEfectivo(capas: CapasTemaEntidad): RegistroMovimiento {
+    let registro = MOVIMIENTO_POR_DEFECTO;
+    const toma = (tema?: TemaEntidad | null): void => {
+        if (tema?.movimiento !== undefined) {
+            registro = normalizarRegistroMovimiento(tema.movimiento);
+        }
+    };
+    toma(capas.cuenta);
+    toma(capas.pagina);
+    toma(capas.grupo);
+    return registro;
+}
 
 /** Solo las claves que ESTA aplicación concreta va a tocar (nunca más que
  *  eso) — así la restauración es exacta y no interfiere con nada que el
@@ -59,7 +108,7 @@ function tokensForMode(pack: ThemePack, mode: "light" | "dark"): ThemeTokens | n
 
 /** Resuelve la entidad a un ThemeTokens concreto (claro u oscuro), o `null`
  *  si no hay tema propio válido — nunca lanza. */
-function resolveEntityTokens(layout: Pick<EntityLayout, "themeId" | "themeMix">, mode: "light" | "dark"): ThemeTokens | null {
+function resolveEntityTokens(layout: TemaEntidad, mode: "light" | "dark"): ThemeTokens | null {
     if (layout.themeMix && isPlausibleMixSlots(layout.themeMix)) {
         try {
             const { pack } = mixThemes(layout.themeMix);
@@ -121,7 +170,7 @@ function restoreSnapshot(snap: ThemeSnapshot): void {
  * (o `null`/`undefined` mientras aún no ha cargado — no hace nada hasta que
  * haya datos reales).
  */
-export function useEntityThemeScope(layout: Pick<EntityLayout, "themeId" | "themeMix"> | null | undefined): void {
+export function useEntityThemeScope(layout: TemaEntidad | null | undefined): void {
     const { resolvedTheme } = useTheme();
     const mode: "light" | "dark" = resolvedTheme === "light" ? "light" : "dark";
     const snapRef = useRef<ThemeSnapshot | null>(null);
