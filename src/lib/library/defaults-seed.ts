@@ -72,7 +72,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 21;
+export const SEED_VERSION = 22;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -364,8 +364,34 @@ const RECOMMENDED_HASTA_16: string[] = [
  * LEANN corre en el servidor de cerebro (hoy el A1) en 127.0.0.1:4495 con token, y la activación
  * la decide la persona, explicada en `aviso`.
  */
+
+/**
+ * (SEED_VERSION 22 · Ola 1020T) LA 3.ª TANDA DE REPOS, SOLO LAS «SIEMPRE». De las 14 entradas de
+ * `config/repos-libreria-1020c.json` (que el cargador ya sirve como repo builtin «Biblioteca
+ * externa», repos-externos-1020.ts), se siembran las 9 con `preinstalar: "siempre"` MENOS la que ya
+ * existe: `lib-penpot` no se duplica porque Penpot ya entra como `iatool-penpot` (SEED_VERSION 15).
+ * Quedan los 8 ids de IDS_SIEMBRA_1020C. Mismo contrato honesto que las tandas anteriores:
+ * instalar SOLO registra la ficha, su enlace o su conector (servidor levantado por Alex y endpoint
+ * pegado a mano en el Hub). Cero descarga, cero ejecución de código, cero ruta abierta y cero clave
+ * durante la siembra. Las «manual» (Trail Code, img2threejs, Paperclip, Magnitude, ArtCraft) NO
+ * entran: ejecutan código, piden servidor propio o dependen de proveedores de pago. `open-kritt`
+ * está excluida del catálogo entero por ser herramienta ofensiva (no es decisión de siembra).
+ * `ensureDefaultsSeeded` nunca abre una ruta al instalar (ignora action/href), así que sembrar
+ * Excalidraw o Nextcloud no navega a ningún sitio.
+ */
+export const IDS_SIEMBRA_1020C: string[] = [
+  "lib-openworker",   // compañero de trabajo con IA de escritorio (beta): solo ficha y enlace
+  "lib-openwhispr",   // dictado por voz de escritorio; dentro del navegador manda la voz del OS
+  "lib-pocketbase",   // backend ligero en un binario por neurona/grupo; Supabase sigue siendo el central
+  "lib-openmaic",     // aulas interactivas multiagente para la educación personal y de grupo
+  "lib-chatwoot",     // buzón público de atención: NO es la mensajería social del OS
+  "lib-excalidraw",   // pizarra dibujada como componente React en la Protomolécula y los cerebros
+  "lib-nextcloud",    // servidor propio de archivos y colaboración para grupos (pesado: instancia compartida)
+  "lib-supra-tex",    // 3D con textura PBR desde una imagen; su adaptador es de licencia no comercial
+];
+
 export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
-  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028]),
+  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...IDS_SIEMBRA_1020C]),
 );
 
 /**
