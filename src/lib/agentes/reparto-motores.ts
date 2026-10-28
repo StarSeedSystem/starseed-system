@@ -1,7 +1,31 @@
 // Reparto de motores por rol y medio - puro, sin node:*, sin red, sin disco
-import type { EstadoMotor, MedioEjecucion, MotorAgente, RolAgente } from "./reparto-motores"
 
-export type { EstadoMotor, MedioEjecucion, MotorAgente, RolAgente }
+export type EstadoMotor = "activo" | "candidato" | "invitado" | "referencia";
+
+export type MedioEjecucion =
+  | "web-publica"
+  | "neurona-mac"
+  | "neurona-a1"
+  | "nube-actions"
+  | "movil-nativo";
+
+export type RolAgente =
+  | "escritor-codigo"
+  | "revisor-codigo"
+  | "supervision-humana"
+  | "equipo-roles"
+  | "decision-tipada"
+  | "flujo-largo"
+  | "asistente-canales"
+  | "creador-apps"
+  | "enrutador-mcp"
+  | "agente-nativo-movil";
+
+export interface MotorAgente {
+  estado: EstadoMotor;
+  medios: MedioEjecucion[];
+  aviso: string;
+}
 
 export const MOTORES: Record<string, MotorAgente> = {
   nativo: {
@@ -124,10 +148,6 @@ export function motoresPara(
       continue
     }
     if (!admitir.includes(motor.estado)) {
-      if (motor.estado === "referencia") {
-        descartados.push({ id, motivo: "estado referencia: no se usa como motor" })
-        continue
-      }
       if (motor.estado === "candidato") {
         descartados.push({ id, motivo: "estado candidato: no admitido por defecto" })
         continue
