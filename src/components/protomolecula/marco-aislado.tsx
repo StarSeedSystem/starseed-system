@@ -5,8 +5,8 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 
 import { VISTAS_COMPONENTE } from "@/lib/protomolecula/atomos";
 import { crearToken, destinoDe, esUrlEmbebible, MENSAJES_POR_SEGUNDO, mensajeParaMarco, procesarMensaje, type EstadoLimite, type Marco } from "@/lib/protomolecula/puente-herramientas";
-import type { DefinicionAtomo, Parametro } from "@/lib/protomolecula/registro-atomos";
-import type { EstadoValores, Operacion, ValorParametro } from "@/lib/protomolecula/tipos";
+import type { DefinicionAtomo, Parametro, VistaProps } from "@/lib/protomolecula/registro-atomos";
+import type { EstadoValores, ValorParametro } from "@/lib/protomolecula/tipos";
 
 const SANDBOX_DOCUMENTO = "allow-scripts";
 const SANDBOX_EXTERNA = "allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads";
@@ -33,8 +33,7 @@ function valoresDelAtomo(valores: EstadoValores, atomoId: string): ValoresAtomo 
   return out;
 }
 
-const diferencia = (antes: ValoresAtomo, ahora: ValoresAtomo): Array<[string, ValorParametro]> =>
-  Object.entries(ahora).filter(([id, valor]) => !Object.is(antes[id], valor));
+const diferencia = (antes: ValoresAtomo, ahora: ValoresAtomo): Array<[string, ValorParametro]> => Object.entries(ahora).filter(([id, valor]) => !Object.is(antes[id], valor));
 export function MarcoAislado({ definicion, atomoId, valores, alCambio, alExportar, alDeclarar }: MarcoAisladoProps) {
   const vista = definicion.vista;
   const [token] = useState(nuevoToken);
@@ -90,9 +89,10 @@ export function MarcoAislado({ definicion, atomoId, valores, alCambio, alExporta
 
   if (vista.tipo === "componente") {
     if (!Vista) return <p role="status" className="text-sm text-muted-foreground">{SIN_VISTA}</p>;
-    const alCambiar = (op: Operacion) => {
-      if (op.accion.tipo === "exacta") alCambio(op.objetivo.parametroId, op.accion.valor);
-      else if (op.accion.tipo === "disparo") alCambio(op.objetivo.parametroId, true);
+    const alCambiar: NonNullable<VistaProps["alCambiar"]> = (op) => {
+      const accion = op.accion as { tipo?: string; valor?: ValorParametro };
+      if (accion.tipo === "exacta" && accion.valor !== undefined) alCambio(op.objetivo.parametroId, accion.valor);
+      else if (accion.tipo === "disparo") alCambio(op.objetivo.parametroId, true);
     };
     return <Suspense fallback={<p role="status" className="text-sm text-muted-foreground">Cargando vista…</p>}>
       <Vista atomoId={atomoId} valores={valoresDelAtomo(valores, atomoId)} alCambiar={alCambiar} />
