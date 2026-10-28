@@ -15,6 +15,7 @@
 export type Capacidad =
     | "texto" // conversar, escribir
     | "razon" // razonamiento profundo
+    | "codigo" // escribir y revisar código (Colibri)
     | "decision" // reflejo/decisiones tipadas (Needle, Jev local)
     | "voz-tts" // hablar
     | "voz-asr" // oír
@@ -27,6 +28,7 @@ export type Capacidad =
 export const CAPACIDADES: readonly Capacidad[] = [
     "texto",
     "razon",
+    "codigo",
     "decision",
     "voz-tts",
     "voz-asr",
@@ -40,6 +42,7 @@ export const CAPACIDADES: readonly Capacidad[] = [
 export const NOMBRE_CAPACIDAD: Record<Capacidad, string> = {
     texto: "Conversar y escribir",
     razon: "Razonamiento profundo",
+    codigo: "Escribir y revisar código",
     decision: "Reflejo y decisiones",
     "voz-tts": "Voz (hablar)",
     "voz-asr": "Oído (escuchar)",

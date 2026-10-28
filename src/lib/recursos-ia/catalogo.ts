@@ -70,6 +70,14 @@ function bitsPorTamano(bytes: number, parametrosB: number): Bits | null {
     return mejor;
 }
 
+/**
+ * Colibri sirve sus MoE en int4 (por defecto) o int8: los bits salen del nombre del modelo,
+ * no del tamaño del archivo (que incluye expertos que no se cargan enteros).
+ */
+function bitsDeColibri(texto: string): Bits {
+    return /q8|int8|(^|[^0-9.])8[-_ ]?bit/i.test(texto) ? 8 : 4;
+}
+
 /* ───────────────────────────── Utilidades ───────────────────────────── */
 
 const MEDIOS_VALIDOS: readonly MedioApp[] = ["web", "pwa", "nativo", "servidor"];
@@ -93,8 +101,28 @@ function parametrosEnB(texto: unknown): number {
 
 /* ───────────────────────────── 1. Capas de Astraura ───────────────────────────── */
 
+/** Colibri cubre otra tabla de capas (`architecture/colibri-multicapas.md` §2). */
+function capacidadesColibri(capa: string, modelo: string): Capacidad[] {
+    const ve = /visi[oó]n|vision|multimodal|\bvl\b|\bvlm\b/i.test(modelo);
+    switch (capa) {
+        case "juicio":
+            // Laya, GLiNER2.5-Decide y Clef: decisión con probabilidad, sin generar texto.
+            return ["decision"];
+        case "palabra":
+            return ["texto"];
+        case "razon":
+            return ["texto", "razon", "codigo"];
+        case "profunda":
+            // Solo los que lo dicen entienden imágenes (Qwen3.8-Flash-Next); el resto razona.
+            return ve ? ["texto", "razon", "codigo", "vision"] : ["texto", "razon", "codigo"];
+        default:
+            return [];
+    }
+}
+
 /** Papel de la capa → qué sabe hacer (tabla §3 de `architecture/capas-autoadaptables.md`). */
-function capacidadesDeCapa(capa: string, runtime: string): Capacidad[] {
+function capacidadesDeCapa(capa: string, runtime: string, modelo = ""): Capacidad[] {
+    if (runtime === "colibri") return capacidadesColibri(capa, modelo);
     switch (capa) {
         case "reflejo":
             // Needle 3 también da embeddings: §3 lo pone de último recurso de la memoria.
