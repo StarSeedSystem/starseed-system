@@ -1,6 +1,6 @@
 {
   "esquema": 1,
-  "actualizado": "2026-10-09",
+  "actualizado": "2026-10-27",
   "descripcion": "Catálogo de capas de Astraura (architecture/capas-autoadaptables.md §1 y §3). Una capa sin su SHA en este catálogo no se usa jamás (§6). Los sha256 quedan en \"por-verificar\" hasta que scripts/puente/capas_renovar.py los rellene desde la API de Hugging Face (lfs.oid = sha256, sin descargar; §9). Las fuentes se corrigieron el 2026-10-09 a los repos que existen de verdad (los anteriores daban 401/307).",
   "capas": [
     {
@@ -15,16 +15,33 @@
       "disco_mb": 29,
       "ram_min_mb": 256,
       "profundidades": [
-        { "capas": 2, "disco_mb": 8 },
-        { "capas": 6, "disco_mb": 12 },
-        { "capas": 12, "disco_mb": 20 },
-        { "capas": 20, "disco_mb": 29 }
+        {
+          "capas": 2,
+          "disco_mb": 8
+        },
+        {
+          "capas": 6,
+          "disco_mb": 12
+        },
+        {
+          "capas": 12,
+          "disco_mb": 20
+        },
+        {
+          "capas": 20,
+          "disco_mb": 29
+        }
       ],
       "sha256": "c9d915eca282ed42d1a09b143b592adb4cc6744ffe2d294adf5cfc5548170c38",
       "fuente_oficial": "https://huggingface.co/Cactus-Compute/needle3",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["web", "pwa", "nativo", "servidor"],
+      "medios": [
+        "web",
+        "pwa",
+        "nativo",
+        "servidor"
+      ],
       "archivo": "needle3.cact",
       "tamano_bytes": 35335380,
       "verificado": "2026-10-09"
@@ -44,7 +61,11 @@
       "fuente_oficial": "https://huggingface.co/microsoft/bitnet-embedding-0.6b",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["pwa", "nativo", "servidor"],
+      "medios": [
+        "pwa",
+        "nativo",
+        "servidor"
+      ],
       "archivo": "bitnet-embeddings-0.6b-bf16-i2_s.gguf",
       "tamano_bytes": 427935008,
       "verificado": "2026-10-09"
@@ -64,7 +85,11 @@
       "fuente_oficial": "https://huggingface.co/microsoft/bitnet-embedding-270m",
       "espejos": [],
       "estado": "respaldo",
-      "medios": ["pwa", "nativo", "servidor"],
+      "medios": [
+        "pwa",
+        "nativo",
+        "servidor"
+      ],
       "archivo": "bitnet-embeddings-270m-bf16-i2_s.gguf",
       "tamano_bytes": 367487040,
       "verificado": "2026-10-09"
@@ -84,7 +109,10 @@
       "fuente_oficial": "https://huggingface.co/prism-ml/Ternary-Bonsai-4B-gguf",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["nativo", "servidor"],
+      "medios": [
+        "nativo",
+        "servidor"
+      ],
       "archivo": "Ternary-Bonsai-4B-Q2_0.gguf",
       "tamano_bytes": 1074969344,
       "verificado": "2026-10-09"
@@ -104,10 +132,15 @@
       "fuente_oficial": "https://huggingface.co/onnx-community/Ternary-Bonsai-4B-ONNX",
       "espejos": [],
       "estado": "respaldo",
-      "medios": ["pwa"],
+      "medios": [
+        "pwa"
+      ],
       "archivo": "onnx/model_q2.onnx",
       "tamano_bytes": 1158443034,
-      "archivos": { "onnx/model_q2.onnx": "eaca74cb7b9e2f697fb4e13f7872af648dea2edb743af34a36deb26852c2ebd8", "onnx/model_q2.onnx_data": "8d7acae71cc34257b36e6a01fa94ae544a6ab5d08493ead31bce91958633aa8b" },
+      "archivos": {
+        "onnx/model_q2.onnx": "eaca74cb7b9e2f697fb4e13f7872af648dea2edb743af34a36deb26852c2ebd8",
+        "onnx/model_q2.onnx_data": "8d7acae71cc34257b36e6a01fa94ae544a6ab5d08493ead31bce91958633aa8b"
+      },
       "verificado": "2026-10-09"
     },
     {
@@ -125,7 +158,11 @@
       "fuente_oficial": "https://huggingface.co/prism-ml/Ternary-Bonsai-1.7B-gguf",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["pwa", "nativo", "servidor"],
+      "medios": [
+        "pwa",
+        "nativo",
+        "servidor"
+      ],
       "archivo": "Ternary-Bonsai-1.7B-Q2_0.gguf",
       "tamano_bytes": 463290464,
       "verificado": "2026-10-09"
@@ -145,10 +182,16 @@
       "fuente_oficial": "https://huggingface.co/onnx-community/Ternary-Bonsai-1.7B-ONNX",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["web", "pwa"],
+      "medios": [
+        "web",
+        "pwa"
+      ],
       "archivo": "onnx/model_q2.onnx",
       "tamano_bytes": 505911234,
-      "archivos": { "onnx/model_q2.onnx": "b9ca23940a37127a850ece4ed035c6b8fedfe1b6ca2ee71fbce58df146661812", "onnx/model_q2.onnx_data": "5833cb460a946094cf66d2319379f673b7534bbcdd80fc35e4a7b7512eec8d28" },
+      "archivos": {
+        "onnx/model_q2.onnx": "b9ca23940a37127a850ece4ed035c6b8fedfe1b6ca2ee71fbce58df146661812",
+        "onnx/model_q2.onnx_data": "5833cb460a946094cf66d2319379f673b7534bbcdd80fc35e4a7b7512eec8d28"
+      },
       "verificado": "2026-10-09"
     },
     {
@@ -166,7 +209,11 @@
       "fuente_oficial": "https://huggingface.co/prism-ml/Bonsai-1.7B-gguf",
       "espejos": [],
       "estado": "respaldo",
-      "medios": ["pwa", "nativo", "servidor"],
+      "medios": [
+        "pwa",
+        "nativo",
+        "servidor"
+      ],
       "archivo": "Bonsai-1.7B.gguf",
       "tamano_bytes": 248302272,
       "verificado": "2026-10-09"
@@ -186,7 +233,10 @@
       "fuente_oficial": "https://huggingface.co/prism-ml/Ternary-Bonsai-8B-gguf",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["nativo", "servidor"],
+      "medios": [
+        "nativo",
+        "servidor"
+      ],
       "archivo": "Ternary-Bonsai-8B-Q2_0.gguf",
       "tamano_bytes": 2182184672,
       "verificado": "2026-10-09"
@@ -206,7 +256,10 @@
       "fuente_oficial": "https://huggingface.co/microsoft/bitnet-b1.58-2B-4T-gguf",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["nativo", "servidor"],
+      "medios": [
+        "nativo",
+        "servidor"
+      ],
       "archivo": "ggml-model-i2_s.gguf",
       "tamano_bytes": 1187801280,
       "verificado": "2026-10-09"
@@ -226,7 +279,9 @@
       "fuente_oficial": "https://huggingface.co/prism-ml/Ternary-Bonsai-2-27B-gguf",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["servidor"]
+      "medios": [
+        "servidor"
+      ]
     },
     {
       "id": "bonsai-1bit-27b",
@@ -243,7 +298,9 @@
       "fuente_oficial": "https://huggingface.co/prism-ml/Bonsai-27B-gguf",
       "espejos": [],
       "estado": "respaldo",
-      "medios": ["servidor"],
+      "medios": [
+        "servidor"
+      ],
       "archivo": "Bonsai-27B-Q1_0.gguf",
       "tamano_bytes": 3803452480,
       "verificado": "2026-10-09"
@@ -263,52 +320,260 @@
       "fuente_oficial": "https://huggingface.co/microsoft/VibeVoice-ASR-BitNet",
       "espejos": [],
       "estado": "recomendado",
-      "medios": ["nativo", "servidor"],
+      "medios": [
+        "nativo",
+        "servidor"
+      ],
       "archivo": "vibeasr-lm-i2_s-embed-q6_k.gguf",
-      "archivos_extra": ["vibeasr-vae-encoder-i8_s.gguf"],
+      "archivos_extra": [
+        "vibeasr-vae-encoder-i8_s.gguf"
+      ],
       "tamano_bytes": 1695957664,
-      "archivos": { "vibeasr-lm-i2_s-embed-q6_k.gguf": "fbe273d8dc2f2433bb25f849e19d77ea65aaa2188d12c20cee987ab6f321e002", "vibeasr-vae-encoder-i8_s.gguf": "4941c82608c253ec066b5cc74d3dd11a5c8fef96cccbc5b87359ef0fe4338df6" },
+      "archivos": {
+        "vibeasr-lm-i2_s-embed-q6_k.gguf": "fbe273d8dc2f2433bb25f849e19d77ea65aaa2188d12c20cee987ab6f321e002",
+        "vibeasr-vae-encoder-i8_s.gguf": "4941c82608c253ec066b5cc74d3dd11a5c8fef96cccbc5b87359ef0fe4338df6"
+      },
       "verificado": "2026-10-09"
-     },
-     {
-       "id": "phonon-2",
-       "familia": "FermionResearch/Phonon-2",
-       "capa": "oído",
-       "modelo": "Phonon-2",
-       "version": "2.0",
-       "formato": "bps.tar.zst",
-       "runtime": "phonon-2",
-       "parametros": "0.6 B",
-       "disco_mb": 156,
-       "ram_min_mb": 256,
-       "sha256": "98125795b6dda72f5c6eee9ba33d19815df65dcb18b50a357bf9f73c9935309e",
-       "fuente_oficial": "https://huggingface.co/FermionResearch/Phonon-2",
-       "espejos": [],
-       "estado": "recomendado",
-       "medios": ["nativo", "servidor"],
-       "archivo": "phonon-2.bps.tar.zst",
-       "tamano_bytes": 163515201,
-       "verificado": "2026-10-19"
-     },
-     {
-       "id": "parakeet-tdt-0-6b-v3",
-       "familia": "nvidia/parakeet-tdt-0-6b-v3",
-       "capa": "oído",
-       "modelo": "Parakeet TDT 0.6B v3",
-       "version": "0.6b-v3",
-       "formato": "gguf",
-       "runtime": "llama-cpp",
-       "parametros": "0.6 B",
-       "disco_mb": 681,
-       "ram_min_mb": 2048,
-       "sha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
-       "fuente_oficial": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3",
-       "espejos": [],
-       "estado": "recomendado",
-       "medios": ["nativo", "servidor"],
-       "archivo": "parakeet-tdt-0.6b-v3.q8_0.gguf",
-       "tamano_bytes": 713975456,
-       "verificado": "2026-10-19"
-     }
-   ]
+    },
+    {
+      "id": "phonon-2",
+      "familia": "FermionResearch/Phonon-2",
+      "capa": "oído",
+      "modelo": "Phonon-2",
+      "version": "2.0",
+      "formato": "bps.tar.zst",
+      "runtime": "phonon-2",
+      "parametros": "0.6 B",
+      "disco_mb": 156,
+      "ram_min_mb": 256,
+      "sha256": "98125795b6dda72f5c6eee9ba33d19815df65dcb18b50a357bf9f73c9935309e",
+      "fuente_oficial": "https://huggingface.co/FermionResearch/Phonon-2",
+      "espejos": [],
+      "estado": "recomendado",
+      "medios": [
+        "nativo",
+        "servidor"
+      ],
+      "archivo": "phonon-2.bps.tar.zst",
+      "tamano_bytes": 163515201,
+      "verificado": "2026-10-19"
+    },
+    {
+      "id": "parakeet-tdt-0-6b-v3",
+      "familia": "nvidia/parakeet-tdt-0-6b-v3",
+      "capa": "oído",
+      "modelo": "Parakeet TDT 0.6B v3",
+      "version": "0.6b-v3",
+      "formato": "gguf",
+      "runtime": "llama-cpp",
+      "parametros": "0.6 B",
+      "disco_mb": 681,
+      "ram_min_mb": 2048,
+      "sha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+      "fuente_oficial": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3",
+      "espejos": [],
+      "estado": "recomendado",
+      "medios": [
+        "nativo",
+        "servidor"
+      ],
+      "archivo": "parakeet-tdt-0.6b-v3.q8_0.gguf",
+      "tamano_bytes": 713975456,
+      "verificado": "2026-10-19"
+    },
+    {
+      "id": "colibri-laya",
+      "familia": "convaiinnovations/laya",
+      "capa": "juicio",
+      "modelo": "Laya (Convai Innovations)",
+      "version": "colibri v2.0.0",
+      "formato": "safetensors",
+      "runtime": "colibri",
+      "parametros": "0.85 GB",
+      "disco_mb": 870,
+      "ram_min_mb": 1741,
+      "sha256": null,
+      "fuente_oficial": "https://huggingface.co/convaiinnovations/laya",
+      "espejos": [],
+      "estado": "por-verificar",
+      "medios": [
+        "nativo",
+        "servidor"
+      ],
+      "verificado": null,
+      "ram_ok_mb": 1741
+    },
+    {
+      "id": "colibri-gliner-decide",
+      "familia": "fastino/GLiNER2.5-Decide",
+      "capa": "juicio",
+      "modelo": "GLiNER2.5-Decide (fastino)",
+      "version": "colibri v2.0.0",
+      "formato": "safetensors",
+      "runtime": "colibri",
+      "parametros": "1.95 GB",
+      "disco_mb": 1997,
+      "ram_min_mb": 1946,
+      "sha256": null,
+      "fuente_oficial": "https://huggingface.co/fastino/GLiNER2.5-Decide",
+      "espejos": [],
+      "estado": "por-verificar",
+      "medios": [
+        "nativo",
+        "servidor"
+      ],
+      "verificado": null,
+      "ram_ok_mb": 1946
+    },
+    {
+      "id": "colibri-clef",
+      "familia": "JustVugg/colibri",
+      "capa": "juicio",
+      "modelo": "Clef (Cloudflare): Qwen3.8-27B con cabeza de decisión, también conversa",
+      "version": "colibri v2.0.0",
+      "formato": "safetensors",
+      "runtime": "colibri",
+      "parametros": "52 GB",
+      "disco_mb": 53248,
+      "ram_min_mb": 19456,
+      "sha256": null,
+      "fuente_oficial": "https://github.com/JustVugg/colibri",
+      "espejos": [],
+      "estado": "por-verificar",
+      "medios": [
+        "servidor"
+      ],
+      "verificado": null,
+      "ram_ok_mb": 56320
+    },
+    {
+      "id": "colibri-olmoe-7b",
+      "familia": "JustVugg/colibri",
+      "capa": "palabra",
+      "modelo": "OLMoE 7B (int8 tras convertir)",
+      "version": "colibri v2.0.0",
+      "formato": "safetensors",
+      "runtime": "colibri",
+      "parametros": "7 GB",
+      "disco_mb": 7168,
+      "ram_min_mb": 8192,
+      "sha256": null,
+      "fuente_oficial": "https://github.com/JustVugg/colibri",
+      "espejos": [],
+      "estado": "por-verificar",
+      "medios": [
+        "servidor"
+      ],
+      "verificado": null,
+      "ram_ok_mb": 8192
+    },
+    {
+      "id": "colibri-qwen3-coder-30b",
+      "familia": "Justvugg/Qwen3-Coder-30B-A3B-colibri-int4",
+      "capa": "razon",
+      "modelo": "Qwen3-Coder-30B-A3B (int4)",
+      "version": "colibri v2.0.0",
+      "formato": "safetensors",
+      "runtime": "colibri",
+      "parametros": "19.4 GB",
+      "disco_mb": 19866,
+      "ram_min_mb": 8192,
+      "sha256": null,
+      "fuente_oficial": "https://huggingface.co/Justvugg/Qwen3-Coder-30B-A3B-colibri-int4",
+      "espejos": [],
+      "estado": "por-verificar",
+      "medios": [
+        "servidor"
+      ],
+      "verificado": null,
+      "ram_ok_mb": 18432
+    },
+    {
+      "id": "colibri-qwen36-35b",
+      "familia": "Kreuzzelg/qwen36-35b-a3b-colibri-i4-gs64",
+      "capa": "razon",
+      "modelo": "Qwen3.6-35B-A3B (int4, piensa y usa herramientas)",
+      "version": "colibri v2.0.0",
+      "formato": "safetensors",
+      "runtime": "colibri",
+      "parametros": "23.1 GB",
+      "disco_mb": 23654,
+      "ram_min_mb": 10240,
+      "sha256": null,
+      "fuente_oficial": "https://huggingface.co/Kreuzzelg/qwen36-35b-a3b-colibri-i4-gs64",
+      "espejos": [],
+      "estado": "por-verificar",
+      "medios": [
+        "servidor"
+      ],
+      "verificado": null,
+      "ram_ok_mb": 20480
+    },
+    {
+      "id": "colibri-deepseek-v4-flash-reap",
+      "familia": "puwaer/DeepSeek-V4-Flash-0731-reap-150b",
+      "capa": "profunda",
+      "modelo": "DeepSeek V4 Flash REAP 150B (132 de 256 expertos)",
+      "version": "colibri v2.0.0",
+      "formato": "safetensors",
+      "runtime": "colibri",
+      "parametros": "84.7 GB",
+      "disco_mb": 86733,
+      "ram_min_mb": 16384,
+      "sha256": null,
+      "fuente_oficial": "https://huggingface.co/puwaer/DeepSeek-V4-Flash-0731-reap-150b",
+      "espejos": [],
+      "estado": "por-verificar",
+      "medios": [
+        "servidor"
+      ],
+      "verificado": null,
+      "ram_ok_mb": 32768,
+      "streaming_disco": true
+    },
+    {
+      "id": "colibri-qwen38-flash-next",
+      "familia": "Qwen/Qwen3.8-Flash-Next-FP8",
+      "capa": "profunda",
+      "modelo": "Qwen3.8-Flash-Next (125B + 51B n-grama; visión y herramientas)",
+      "version": "colibri v2.0.0",
+      "formato": "safetensors",
+      "runtime": "colibri",
+      "parametros": "186 GB",
+      "disco_mb": 190464,
+      "ram_min_mb": 24576,
+      "sha256": null,
+      "fuente_oficial": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next-FP8",
+      "espejos": [],
+      "estado": "por-verificar",
+      "medios": [
+        "servidor"
+      ],
+      "verificado": null,
+      "ram_ok_mb": 32768,
+      "streaming_disco": true
+    },
+    {
+      "id": "colibri-glm-5.2",
+      "familia": "mastouri/GLM-5.2-colibri-int4-g64-with-int8-mtp",
+      "capa": "profunda",
+      "modelo": "GLM-5.2 (744B, modelo de referencia, cabeza MTP)",
+      "version": "colibri v2.0.0",
+      "formato": "safetensors",
+      "runtime": "colibri",
+      "parametros": "429.3 GB",
+      "disco_mb": 439603,
+      "ram_min_mb": 16384,
+      "sha256": null,
+      "fuente_oficial": "https://huggingface.co/mastouri/GLM-5.2-colibri-int4-g64-with-int8-mtp",
+      "espejos": [],
+      "estado": "por-verificar",
+      "medios": [
+        "servidor"
+      ],
+      "verificado": null,
+      "ram_ok_mb": 24576,
+      "streaming_disco": true
+    }
+  ]
 }
