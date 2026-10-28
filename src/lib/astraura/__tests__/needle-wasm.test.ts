@@ -189,6 +189,31 @@ describe("needle-wasm", () => {
     expect(buscado).toBe(1); // solo el engine; los pesos vienen del almacén
   });
 
+  it("no usa del almacén una capa sin meta cerrada y verificada", async () => {
+    const almacen = almacenamientoEnMemoria();
+    const sha = await sha256Hex(PESOS_FALSOS);
+    const entrada = entradaNeedleWeb(await catalogoConSha())!;
+    // Trozo suelto sin meta: no consta como capa completa, así que no se da por propia.
+    await new AlmacenCapas(almacen).guardarTrozo({ ...entrada, sha256: sha }, {
+      indice: 0,
+      sha256: sha,
+      datos: PESOS_FALSOS,
+    });
+    let buscado = 0;
+    const engine = await cargarNeedleWasm(
+      entornoFalso(await catalogoConSha(), {
+        almacen,
+        buscar: async (url) => {
+          buscado += 1;
+          return url === DEFAULT_URL_ENGINE ? WASM_FALSO : PESOS_FALSOS;
+        },
+      }),
+    );
+    expect(engine.disponible).toBe(true);
+    expect(engine.origenPesos).toBe(DEFAULT_URL_PESOS);
+    expect(buscado).toBe(2); // pesos por red + engine
+  });
+
   it("decidirEnDispositivo con motor falso devuelve llamadas normalizadas", async () => {
     const dec = await decidirEnDispositivo("activar modo oscuro", herramientasEjemplo, {
       entorno: entornoFalso(await catalogoConSha()),
