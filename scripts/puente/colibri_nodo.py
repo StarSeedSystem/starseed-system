@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Colibri en las capas de Astraura (CLB1027E): qué modelos caben en esta neurona y cómo se instalarían.
+"""Colibri en las capas de Astraura (CLB1027E; plan de CLB1028G según docs/laya.md y docs/gliner_decide.md
+de Colibri v2.0.0): qué modelos caben en esta neurona y cómo se instalarían.
 Puro salvo main: nada se descarga ni se ejecuta NUNCA (contrato architecture/colibri-multicapas.md);
 instalar SIEMPRE necesita el visto bueno. Datos: config/capas-colibri-1027.json; puerto 127.0.0.1:4480 (el 8000 es de Astraura 1.58). Órdenes como LISTAS de argumentos, nunca strings de shell.
 """
@@ -21,6 +22,28 @@ PUERTO_STARSEED = 4480
 # la RAM recomendada de cada modelo. En una neurona DEDICADA a Colibri quien llama pasa margen_gb=0.
 MARGEN_SISTEMA_GB = 4.5
 CARPETA_DEFECTO = str(Path.home() / "Colibri-modelos")
+#: (CLB1028G) La ruta del clon NO sale de `carpeta`: `starseed-colibri.service` da por hecho el motor
+#: en /home/starseed/colibri (deploy/oracle/nodo/systemd), así que el clon va SIEMPRE allí.
+RUTA_CLON = "/home/starseed/colibri"
+#: (CLB1028G) Los modelos de JUICIO no van por `setup`: `c/setup_catalog.py` no los tiene. Según los
+#: docs de Colibri v2.0.0 se descargan de Hugging Face y se compilan con `make`.
+#: Tupla: (repo de HF, subcarpeta destino, objetivo de make, archivos a descargar).
+MODELOS_JUICIO = {
+    "colibri-laya": ("convaiinnovations/laya", "laya", "laya",
+                     ("model.safetensors", "rl_agent_config.json", "encoder/*", "tokenizer/*")),
+    "colibri-gliner-decide": ("fastino/GLiNER2.5-Decide", "GLiNER2.5-Decide", "gliner_decide",
+                              ("model.safetensors", "config.json", "encoder_config/*", "tokenizer.json",
+                               "tokenizer_config.json", "special_tokens_map.json")),
+}
+#: (CLB1028G) Los de chat van por `./start-here.sh` (que es `coli setup`), cuyo `--model` pide el id
+#: de SU catálogo (c/setup_catalog.py), sin el prefijo `colibri-` de StarSeed: mapa id StarSeed → id Colibri.
+MAPA_SETUP = {
+    "colibri-qwen36-35b": "qwen36-35b",
+    "colibri-qwen3-coder-30b": "qwen3-coder-30b",
+    "colibri-deepseek-v4-flash-reap": "deepseek-v4-flash-reap",
+    "colibri-qwen38-flash-next": "qwen38-flash-next",
+    "colibri-glm-5.2": "glm-5.2",
+}
 
 
 def entradas() -> list[dict[str, Any]]:
@@ -64,21 +87,50 @@ def caben(lista: list[dict[str, Any]], ram_gb: float, disco_libre_gb: float,
     return filas
 
 
+def _clon() -> dict[str, Any]:
+    """Primer paso común: el motor Apache-2.0 en su etiqueta verificada, en la RUTA_CLON de la unidad."""
+    return {"porque": f"clona el motor Apache-2.0 en su etiqueta verificada {ETIQUETA}, en la ruta que "
+                      "da por hecha starseed-colibri.service",
+            "args": ["git", "clone", "--depth", "1", "--branch", ETIQUETA, REPO_COLIBRI, RUTA_CLON]}
+
+
 def plan_instalacion(id_modelo: str, carpeta: str) -> list[dict[str, Any]]:
-    """Las órdenes para instalar `id_modelo` en `carpeta`, como LISTAS de argumentos, sin ejecutar."""
+    """Las órdenes para instalar `id_modelo` en `carpeta`, como LISTAS de argumentos, sin ejecutar.
+
+    (CLB1028G) Según los docs de Colibri v2.0.0: los de JUICIO (Laya, GLiNER2.5-Decide) se descargan
+    con `hf` y se compilan con `make` — `setup` NO los tiene en su catálogo— y los de chat van por
+    `./start-here.sh` con el id de Colibri. NINGUNO incluye un paso de «serve»: quien sirve en
+    127.0.0.1:4480 es la unidad `starseed-colibri.service` (ya en main). Clef no cabe en esta neurona."""
     ids = {e["id"] for e in entradas()}
     if id_modelo not in ids:
         raise ValueError(f"id desconocido «{id_modelo}»: no está en config/capas-colibri-1027.json")
-    copia = f"{carpeta}/colibri-{ETIQUETA}"
-    return [
-        {"porque": f"clona el motor Apache-2.0 en su etiqueta verificada {ETIQUETA}",
-         "args": ["git", "clone", "--depth", "1", "--branch", ETIQUETA, REPO_COLIBRI, copia]},
-        {"porque": "compila y prepara el modelo en la carpeta de la neurona, sin pedir GPU",
-         "args": ["./start-here.sh", "--model", id_modelo, "--dir", carpeta, "--yes", "--no-gpu"]},
-        {"porque": f"lo sirve solo en local, en 127.0.0.1:{PUERTO_STARSEED} (el 8000 es de Astraura 1.58)",
-         "args": ["./start-here.sh", "--model", id_modelo, "--dir", carpeta,
-                  "--host", "127.0.0.1", "--port", str(PUERTO_STARSEED)]},
-    ]
+    if id_modelo == "colibri-clef":
+        raise ValueError("no cabe en esta neurona: Clef pide 52 GB de disco y 19-55 GB de RAM "
+                         "(config/capas-colibri-1027.json)")
+    if id_modelo in MODELOS_JUICIO:
+        repo_hf, subcarpeta, objetivo, archivos = MODELOS_JUICIO[id_modelo]
+        destino = f"{carpeta}/{subcarpeta}"
+        return [
+            _clon(),
+            {"porque": "si falta hf, instala el cliente de Hugging Face (idempotente)",
+             "args": ["python3", "-m", "pip", "install", "--user", "huggingface_hub[cli]"]},
+            {"porque": f"descarga el modelo de {repo_hf} en {destino}",
+             "args": ["hf", "download", repo_hf, *archivos, "--local-dir", destino]},
+            {"porque": f"compila el binario {objetivo} del motor",
+             "args": ["make", "-C", "c", objetivo]},
+            {"porque": "anota el SHA-256 del model.safetensors descargado (las capas no pasan a «recomendado» sin él)",
+             "args": ["sha256sum", f"{destino}/model.safetensors"]},
+        ]
+    if id_modelo in MAPA_SETUP:
+        return [
+            _clon(),
+            {"porque": f"compila y prepara {MAPA_SETUP[id_modelo]} en la carpeta de la neurona, sin GPU, "
+                       "sin arrancar servidor ni abrir navegador: sirve la unidad starseed-colibri.service",
+             "args": ["./start-here.sh", "--model", MAPA_SETUP[id_modelo], "--dir", carpeta,
+                      "--yes", "--no-gpu", "--no-start", "--no-browser"]},
+        ]
+    raise ValueError(f"no hay pasos verificados para «{id_modelo}»: su conversión es a mano "
+                     "(config/capas-colibri-1027.json)")
 
 
 def medir_maquina() -> tuple[float, float, bool]:
@@ -101,7 +153,12 @@ def _plan_maquina(carpeta: str) -> None:
         print(f"[{fila['capa']}] {fila['id']}: {fila['veredicto']} — {fila['porque']}")
     for fila in (f for f in filas if f["veredicto"] == "cabe"):
         print(f"\nPlan de instalación de {fila['id']} en {carpeta} (listas de argumentos, sin ejecutar):")
-        for paso in plan_instalacion(fila["id"], carpeta):
+        try:
+            pasos = plan_instalacion(fila["id"], carpeta)
+        except ValueError as e:
+            print(f"  · {e}")
+            continue
+        for paso in pasos:
             print(f"  · {paso['porque']}: {' '.join(paso['args'])}")
     print("\nNada de esto se descarga ni se ejecuta: instalar necesita SIEMPRE el visto bueno.")
 

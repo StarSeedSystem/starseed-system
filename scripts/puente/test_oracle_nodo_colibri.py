@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Pruebas de la orden `colibri` del A1 (CLB1027F): el plan de Laya y que sin `--aplicar` no se
-llama a SSH. Sin red, sin descargas y sin tocar el disco del A1."""
+"""Pruebas de la orden `colibri` del A1 (CLB1027F; plan por CLB1028G): el plan de Laya —hf download
++ make, sin setup ni serve: lo hace la unidad— y que sin `--aplicar` no se llama a SSH. Sin red,
+sin descargas y sin tocar el disco del A1."""
 import contextlib
 import io
 import json
@@ -19,22 +20,25 @@ SERVICIO = os.path.normpath(os.path.join(
 
 
 class Plan(unittest.TestCase):
-    def test_tres_pasos_con_el_checkout_canonico(self):
+    def test_pasos_de_laya_hf_y_make_con_el_checkout_de_la_unidad(self):
         plan = N.plan_colibri()
-        self.assertEqual(len(plan), 3)
-        clon, prepara, sirve = (paso["args"] for paso in plan)
-        self.assertEqual(clon[0], "git")
-        self.assertIn("v2.0.0", clon)
-        self.assertEqual(clon[-1], N.COLIBRI_REPO_A1)
-        self.assertEqual(prepara[:2], ["./start-here.sh", "--model"])
-        self.assertEqual(prepara[prepara.index("--dir") + 1], N.COLIBRI_MODELOS_A1)
-        self.assertEqual(sirve[sirve.index("--host") + 1], "127.0.0.1")
-        self.assertEqual(sirve[sirve.index("--port") + 1], "4480")
+        self.assertEqual(plan[0]["args"][0], "git")
+        self.assertIn("v2.0.0", plan[0]["args"])
+        self.assertEqual(plan[0]["args"][-1], N.COLIBRI_REPO_A1)
+        ordenes = [" ".join(paso["args"]) for paso in plan]
+        self.assertTrue(all("start-here.sh" not in o for o in ordenes))
+        for paso in plan:
+            self.assertNotIn("--port", paso["args"])  # el serve lo hace starseed-colibri.service
+        descarga = plan[2]["args"]
+        self.assertEqual(descarga[:2], ["hf", "download"])
+        self.assertEqual(descarga[descarga.index("--local-dir") + 1], N.COLIBRI_MODELO_A1)
+        self.assertEqual(plan[3]["args"], ["make", "-C", "c", "laya"])
+        self.assertEqual(plan[4]["args"][0], "sha256sum")
 
     def test_carpeta_del_modelo_configurable(self):
         plan = N.plan_colibri("/srv/modelos")
-        prepara = plan[1]["args"]
-        self.assertEqual(prepara[prepara.index("--dir") + 1], "/srv/modelos")
+        descarga = plan[2]["args"]
+        self.assertEqual(descarga[descarga.index("--local-dir") + 1], "/srv/modelos/laya")
 
     def test_argumentos_como_listas_y_sin_claves(self):
         plan = N.plan_colibri()
@@ -43,7 +47,8 @@ class Plan(unittest.TestCase):
             self.assertTrue(all(isinstance(a, str) for a in paso["args"]))
             self.assertTrue(paso["porque"])
         texto = json.dumps(plan, ensure_ascii=False).upper()
-        for prohibido in ("API_KEY", "TOKEN", "SECRET", "PASSWORD"):
+        # «TOKEN» a secas ya no vale como prohibido: los docs de Colibri piden tokenizer.json.
+        for prohibido in ("API_KEY", "SECRET", "PASSWORD", "HF_TOKEN", "BEARER "):
             self.assertNotIn(prohibido, texto)
 
 
@@ -74,8 +79,8 @@ class SSH(unittest.TestCase):
         self.assertEqual(self.llamadas, [])
         datos = json.loads(salida)
         self.assertFalse(datos["aplicado"])
-        self.assertEqual(len(datos["pasos"]), 3)
-        self.assertIn("--port", datos["pasos"][2]["args"])
+        self.assertEqual(len(datos["pasos"]), 5)
+        self.assertTrue(any(p["args"][0] == "sha256sum" for p in datos["pasos"]))
 
     def test_con_aplicar_corre_el_plan_por_ssh(self):
         rc, salida = self._main("colibri", "--aplicar")
@@ -84,8 +89,9 @@ class SSH(unittest.TestCase):
         llamada = self.llamadas[0]
         self.assertEqual(llamada["orden"], "sudo -u starseed python3 -")
         self.assertIn(N.COLIBRI_REPO_A1, llamada["entrada"])
-        self.assertIn("--port", llamada["entrada"])
-        self.assertIn("4480", llamada["entrada"])
+        self.assertIn(N.COLIBRI_MODELO_A1, llamada["entrada"])
+        self.assertIn("sha256sum", llamada["entrada"])
+        self.assertNotIn("--port", llamada["entrada"])
         self.assertGreaterEqual(llamada["timeout"], 3600)
         self.assertTrue(json.loads(salida)["ok"])
 

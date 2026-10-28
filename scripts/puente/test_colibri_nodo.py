@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Pruebas de colibri_nodo (CLB1027E): qué cabe en cada neurona y el plan de instalación sin ejecutar.
+"""Pruebas de colibri_nodo (CLB1027E; plan de instalación por CLB1028G): qué cabe en cada neurona
+y cómo se instalaría sin ejecutar nada. Los modelos de juicio NO van por setup (docs de Colibri v2.0.0).
 
 Casos de la tarea: el A1 (12 GB, 18,5 GB libres) solo deja Laya y GLiNER2.5-Decide, y Qwen3-Coder
 no; la Mac (8 GB con presión) no deja a ninguno. Sin red, sin descargas, sin tocar el disco.
@@ -71,19 +72,50 @@ class PruebaCaben(unittest.TestCase):
 
 
 class PruebaPlan(unittest.TestCase):
-    def test_plan_laya_tres_ordenes_como_listas(self):
+    def test_plan_laya_descarga_y_make_sin_setup_ni_serve(self):
         plan = C.plan_instalacion("colibri-laya", "/srv/colibri")
-        self.assertEqual(len(plan), 3)
-        clon, prepara, sirve = (paso["args"] for paso in plan)
+        ordenes = [" ".join(paso["args"]) for paso in plan]
+        self.assertTrue(all("start-here.sh" not in o for o in ordenes))
+        self.assertTrue(all("--port" not in paso["args"] for paso in plan))
+        clon, hf_cli, descarga, compila, huella = (paso["args"] for paso in plan)
         self.assertEqual(clon[0], "git")
         self.assertIn("--branch", clon)
         self.assertIn("v2.0.0", clon)
         self.assertIn("https://github.com/JustVugg/colibri", clon)
-        self.assertIn("/srv/colibri", clon[-1])
-        self.assertEqual(prepara, ["./start-here.sh", "--model", "colibri-laya",
-                                   "--dir", "/srv/colibri", "--yes", "--no-gpu"])
-        self.assertEqual(sirve[sirve.index("--host") + 1], "127.0.0.1")
-        self.assertEqual(sirve[sirve.index("--port") + 1], "4480")
+        self.assertEqual(clon[-1], C.RUTA_CLON)  # la ruta que pide la unidad, no <carpeta>/colibri-v2.0.0
+        self.assertIn("huggingface_hub[cli]", hf_cli[-1])
+        self.assertEqual(descarga[:2], ["hf", "download"])
+        self.assertIn("convaiinnovations/laya", descarga)
+        self.assertEqual(descarga[descarga.index("--local-dir") + 1], "/srv/colibri/laya")
+        self.assertEqual(compila, ["make", "-C", "c", "laya"])
+        self.assertEqual(huella[0], "sha256sum")
+        self.assertTrue(huella[1].endswith("/laya/model.safetensors"))
+
+    def test_plan_gliner_mismas_fases_que_laya(self):
+        plan = C.plan_instalacion("colibri-gliner-decide", "/srv/colibri")
+        ordenes = [" ".join(paso["args"]) for paso in plan]
+        self.assertTrue(all("start-here.sh" not in o for o in ordenes))
+        self.assertEqual(len(plan), 5)
+        self.assertEqual(plan[3]["args"], ["make", "-C", "c", "gliner_decide"])
+        self.assertEqual(plan[2]["args"][2], "fastino/GLiNER2.5-Decide")
+
+    def test_plan_chat_usa_el_id_de_colibri_y_no_arranca(self):
+        plan = C.plan_instalacion("colibri-qwen3-coder-30b", "/srv/colibri")
+        self.assertEqual(len(plan), 2)
+        clon, prepara = (paso["args"] for paso in plan)
+        self.assertEqual(clon[-1], C.RUTA_CLON)
+        self.assertEqual(prepara, ["./start-here.sh", "--model", "qwen3-coder-30b",
+                                   "--dir", "/srv/colibri", "--yes", "--no-gpu",
+                                   "--no-start", "--no-browser"])
+
+    def test_clef_no_cabe_en_esta_neurona(self):
+        with self.assertRaises(ValueError) as ctx:
+            C.plan_instalacion("colibri-clef", "/srv/colibri")
+        self.assertIn("no cabe en esta neurona", str(ctx.exception))
+
+    def test_olmoe_sin_pasos_verificados(self):
+        with self.assertRaises(ValueError):
+            C.plan_instalacion("colibri-olmoe-7b", "/srv/colibri")
 
     def test_id_desconocido(self):
         with self.assertRaises(ValueError):
