@@ -256,6 +256,44 @@ export const BUILTIN_CONNECTORS: Connector[] = [
     configHint: "figd_… (Personal Access Token)",
   },
 
+  /* ═════════════ Adenda CVV1028-J · contenido vivo (oct-2026) ════════════════
+   * Conectores de contenido vivo (architecture/contenido-vivo.md §3). Son
+   * fichas de catálogo SOLO: no duplican los adaptadores de generación de
+   * src/lib/brains/adapters.ts (Higgsfield se sirve de ese preset y su clave
+   * vive en la BÓVEDA, jamás en el código). Ninguno se activa solo. */
+
+  // ── Escenas 3D (contenido vivo · nivel 1) ──
+  {
+    id: "spline",
+    name: "Spline (escenas 3D)",
+    category: "custom",
+    kind: "free",
+    authType: "oauth",
+    status: "needs-auth",
+    free: true,
+    icon: "Boxes",
+    description:
+      "Opcional: escenas 3D para el nivel «3D vivo» del contenido vivo (cuentas, páginas y grupos). Se conecta por MCP con tu propia cuenta de Spline; el plan Pro trae 200 llamadas al día que se reinician a las 00:00 UTC. Local primero: Three.js y Blender no gastan llamadas. Nunca se editan escenas ajenas: solo embeber o remezclar.",
+    docsUrl: "https://mcp.spline.design/mcp",
+    configHint: "Se conecta con tu cuenta de Spline (MCP)",
+  },
+
+  // ── Imagen y vídeo de pago (contenido vivo · niveles 2 y 3) ──
+  {
+    id: "higgsfield",
+    name: "Higgsfield (imagen y vídeo)",
+    category: "custom",
+    kind: "paid",
+    authType: "apiKey",
+    status: "needs-auth",
+    free: false,
+    icon: "Clapperboard",
+    description:
+      "Opcional: fotogramas y clips de la «película de scroll» y las fotos vivas. Gasta créditos (p. ej. Nano Banana 2 ≈ 2 por imagen, Seedance 1080p/5 s ≈ 60). Reutiliza el preset ya definido en los servidores de cerebro (adaptador higgsfield): pega el endpoint de tu cuenta y el NOMBRE de la variable de tu clave en la bóveda. Nada sale de tu dispositivo sin cotización y tu «sí».",
+    docsUrl: "https://cloud.higgsfield.ai",
+    configHint: "Endpoint de cloud.higgsfield.ai + clave guardada en la bóveda",
+  },
+
   /* ═════════════ Adenda 67 · P4 (jul-2026) ══════════════════════════════
    * Cinco conectores nuevos en el Hub. Se ordenan por el principio rector del
    * fichero: primero lo PROPIO/OSS auto-hospedado, y solo después el servicio
