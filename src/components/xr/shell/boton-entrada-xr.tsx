@@ -7,6 +7,7 @@
  * (el del hook vivo, sin duplicar). Lo montan XR1010F (global) y XR1010G (/xr/os).
  */
 import { useCallback, useState } from "react";
+import Link from "next/link";
 import { Glasses } from "lucide-react";
 import { PERFILES } from "@/lib/xr/calidad-perfiles";
 import type { ModoXR } from "@/lib/xr/tipos";
@@ -116,6 +117,15 @@ export function BotonEntradaXR({ modo = "auto", variante = "insertado", alEntrar
                 <p className="text-xs text-[#DC143C]" role="alert" data-testid="error-entrada-xr">
                     {error}
                 </p>
+            )}
+            {error !== null && (
+                <Link
+                    href="/xr/diagnostico"
+                    className="cursor-pointer text-xs text-[#B9C0D8] underline underline-offset-2 hover:text-[#F5F7FF]"
+                    data-testid="enlace-diagnostico-xr"
+                >
+                    Diagnóstico del visor
+                </Link>
             )}
         </div>
     );
