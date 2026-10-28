@@ -1,0 +1,64 @@
+{
+ "llm7": {
+  "ultimo_429": "2026-10-25 21:50:27",
+  "estado": "caido",
+  "t": "2026-10-25 21:50:28",
+  "desde": "2026-10-25 21:50:28"
+ },
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-10-28 17:04:01",
+  "desde": "2026-10-25 03:52:13",
+  "sin_cupo_hasta": "2026-10-28 18:00:38",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-10-28 17:04:01",
+  "desde": "2026-10-25 03:52:13"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-10-28 17:04:01",
+  "desde": "2026-10-25 03:52:13",
+  "sin_cupo_hasta": "2026-10-27 15:27:52",
+  "motivo": "contenido: Sorry, to prevent abuse of free resources, accounts that have not been recharged"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-10-28 17:04:01",
+  "desde": "2026-10-25 03:52:16",
+  "sin_cupo_hasta": "2026-10-28 18:00:38",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-10-28 17:04:01",
+  "desde": "2026-10-26 13:19:46",
+  "sin_cupo_hasta": "2026-10-28 18:05:27",
+  "motivo": "$ opencode run --model apinex/free/gemini-3.8-flash · 2026-10-27 18:04:40 \u001b[0m> build · free/gemini-3.8-flash \u001b[0m \u001b[91m\u001b[1mError: \u001b[0mDaily"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-10-28 17:04:02",
+  "desde": "2026-10-25 03:52:18"
+ },
+ "explabs": {
+  "ultimo_429": "2026-10-25 04:13:25",
+  "estado": "vivo",
+  "t": "2026-10-28 17:04:02",
+  "desde": "2026-10-25 03:57:08"
+ },
+ "groq": {
+  "ultimo_429": "2026-10-26 15:27:52",
+  "estado": "vivo",
+  "t": "2026-10-28 17:04:01",
+  "desde": "2026-10-25 03:55:53"
+ },
+ "google": {
+  "sin_cupo_hasta": "2026-10-29 01:00:36",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "opencode": {},
+ "ultimo_revisor_ok": "freellmapi/auto"
+}
