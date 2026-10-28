@@ -45,12 +45,8 @@ export function mediaMedidas(medidas: MedidaNeurona[]): {
   acierto?: number;
   muestras: number;
 } {
-  if (medidas.length === 0) return { latenciaMs: 0, muestras: 0 };
-  let sumaLat = 0;
-  let sumaTok = 0;
-  let sumaAci = 0;
-  let nTok = 0;
-  let nAci = 0;
+  if (!medidas.length) return { latenciaMs: 0, muestras: 0 };
+  let sumaLat = 0, sumaTok = 0, sumaAci = 0, nTok = 0, nAci = 0;
   for (const m of medidas) {
     sumaLat += m.latenciaMs;
     if (m.tokPorS != null) { sumaTok += m.tokPorS; nTok++; }
@@ -58,8 +54,8 @@ export function mediaMedidas(medidas: MedidaNeurona[]): {
   }
   return {
     latenciaMs: Math.round(sumaLat / medidas.length),
-    tokPorS: nTok > 0 ? Math.round(sumaTok / nTok) : undefined,
-    acierto: nAci > 0 ? Number((sumaAci / nAci).toFixed(3)) : undefined,
+    tokPorS: nTok ? Math.round(sumaTok / nTok) : undefined,
+    acierto: nAci ? Number((sumaAci / nAci).toFixed(3)) : undefined,
     muestras: medidas.length,
   };
 }
