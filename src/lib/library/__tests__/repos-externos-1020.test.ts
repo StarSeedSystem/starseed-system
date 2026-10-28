@@ -97,9 +97,9 @@ describe("PAQUETES_EXTERNOS · 2.ª tanda fusionada con la 1.ª", () => {
   const githubRepos = PAQUETES_EXTERNOS.map((p) => p.githubRepo);
   const externalUrls = PAQUETES_EXTERNOS.map((p) => p.externalUrl);
 
-  it("tienen 28 ids únicos", () => {
-    expect(new Set(ids).size).toBe(28);
-    expect(ids.length).toBe(28);
+  it("tienen 41 ids únicos (28 de las tandas 1.ª-2.ª + 13 restantes de la 3.ª)", () => {
+    expect(new Set(ids).size).toBe(41);
+    expect(ids.length).toBe(41);
   });
 
   it("cada paquete tiene githubRepo y externalUrl de GitHub", () => {

@@ -5,12 +5,16 @@
 // autobúsque releases/tags/commits por payload.externalUrl. Nada se descarga ni
 // se ejecuta; por eso todas llevan comingSoon:true. Módulo PURO (sin node:*):
 // lo consume el bundle de cliente de packages.ts.
-// Contrato: architecture/repos-libreria-1020.md §5.
+// Contratos: architecture/repos-libreria-1020.md §5 (1.ª), repos-libreria-1020b.md
+// (2.ª) y repos-libreria-1020c.md §3 (3.ª, Ola 1020T).
+// La 2.ª y la 3.ª tanda viven en PAQUETES_EXTERNOS (vista plana); la repo builtin
+// REPO_EXTERNOS_1020 conserva la 1.ª, como dejó la Ola 1020D.
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { LibraryPackage, LibraryRepo, PackageKind } from "./packages";
 import catalogo1020 from "../../../config/repos-libreria-1020.json";
 import catalogo1020b from "../../../config/repos-libreria-1020b.json";
+import catalogo1020c from "../../../config/repos-libreria-1020c.json";
 
 interface Entrada1020 {
   id: string; repo: string; nombre: string; kind: string;
@@ -21,9 +25,11 @@ interface Entrada1020 {
 }
 interface Catalogo1020 { paquetes: Entrada1020[]; excluida?: { repo: string } }
 interface Catalogo1020b { paquetes: Entrada1020[]; excluidas?: { repo: string }[] }
+interface Catalogo1020c { paquetes: Entrada1020[]; excluidas?: { repo: string }[] }
 
 const CATALOGO = catalogo1020 as unknown as Catalogo1020;
 const CATALOGO_B = catalogo1020b as unknown as Catalogo1020b;
+const CATALOGO_C = catalogo1020c as unknown as Catalogo1020c;
 const ICONOS: Record<string, string> = { app: "AppWindow", "ai-source": "BrainCircuit", function: "Boxes" };
 
 function autorDe(repo: string): string { return repo.split("/")[0] ?? repo; }
@@ -49,16 +55,29 @@ function paqueteDe(e: Entrada1020): LibraryPackage {
   };
 }
 
-// ── Fusión 1.ª + 2.ª tanda (Ola 1020D): exclusiones de seguridad y vista plana ──
+// ── Fusión 1.ª + 2.ª + 3.ª tanda (Olas 1020D y 1020K): exclusiones de seguridad,
+//    repos ya presentes como builtin y vista plana ──
 
 export const REPOS_EXCLUIDOS: string[] = [
   CATALOGO.excluida?.repo,
   ...(CATALOGO_B.excluidas ?? []).map((e) => e.repo),
+  ...(CATALOGO_C.excluidas ?? []).map((e) => e.repo),
 ].filter((v): v is string => Boolean(v));
 
 const excluidos = new Set(REPOS_EXCLUIDOS);
 const esExcluida = (e: Entrada1020): boolean =>
   excluidos.has(e.repo) || e.id.includes("reverse-skill") || e.repo.includes("reverse-skill");
+
+// ── 3.ª tanda (RLB1020K): no duplicar repos que ya son builtin en packages.ts ──
+
+export interface RepoYaPresente { repo: string; id: string }
+
+/** Para que se vea: builtin con el MISMO repo por payload.externalUrl (sin duplicar). */
+export const REPOS_YA_PRESENTES: RepoYaPresente[] = [
+  { repo: "penpot/penpot", id: "iatool-penpot" },
+];
+
+const yaPresentes = new Set(REPOS_YA_PRESENTES.map((r) => r.repo));
 
 export const REPO_EXTERNOS_1020: LibraryRepo = {
   id: "starseed-biblioteca-externa", name: "Biblioteca externa",
@@ -89,4 +108,5 @@ function transformaPaquete(p: Entrada1020): ReposExternosPaquete {
 export const PAQUETES_EXTERNOS: ReposExternosPaquete[] = [
   ...CATALOGO.paquetes,
   ...CATALOGO_B.paquetes,
+  ...CATALOGO_C.paquetes.filter((e) => !yaPresentes.has(e.repo)),
 ].filter((e) => !esExcluida(e)).map(transformaPaquete);
