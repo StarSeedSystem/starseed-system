@@ -99,13 +99,10 @@ function deMapa(
   return motor ? { motor, provenance, scopeId: id } : null;
 }
 
-/**
- * Motor fijado por la JERARQUÍA, o `null` si ningún ámbito elige (⇒ AUTO).
- * Precedencia: agente > personalidad > cerebro > neurona > cuenta.
- */
-export function resolveVoiceChoiceFrom(
+/** Precedencia sobre un store ya completo: agente > personalidad > cerebro > neurona > cuenta. */
+function elegirDeStore(
   store: VoiceHierarchyStore,
-  ctx: VoiceHierarchyContext = {},
+  ctx: VoiceHierarchyContext,
 ): ResolvedVoiceChoice | null {
   const cuenta = motorDe(store.cuenta?.motor);
   return (
@@ -115,6 +112,21 @@ export function resolveVoiceChoiceFrom(
     deMapa(store.neurona, ctx.deviceId, "neurona") ??
     (cuenta ? { motor: cuenta, provenance: "cuenta" } : null)
   );
+}
+
+/**
+ * Motor fijado por la JERARQUÍA, o `null` si ningún ámbito elige (⇒ AUTO).
+ * Precedencia: agente > personalidad > cerebro > neurona > cuenta.
+ *
+ * Pasa SIEMPRE por `voiceHierarchyStoreFrom`: es el único camino que completa
+ * el store y lo que usa el router en producción, así que no queda una segunda
+ * precedencia que se pueda desincronizar de la cadena de voz.
+ */
+export function resolveVoiceChoiceFrom(
+  store: VoiceHierarchyStore,
+  ctx: VoiceHierarchyContext = {},
+): ResolvedVoiceChoice | null {
+  return elegirDeStore(voiceHierarchyStoreFrom({ store, ctx }), ctx);
 }
 
 /**
@@ -219,7 +231,8 @@ export function voiceHierarchyStoreFrom(
 export function resolveVoiceChoice(
   sources: VoiceHierarchySources = {},
 ): ResolvedVoiceChoice | null {
-  return resolveVoiceChoiceFrom(voiceHierarchyStoreFrom(sources), sources.ctx ?? {});
+  const ctx = sources.ctx ?? {};
+  return elegirDeStore(voiceHierarchyStoreFrom(sources), ctx);
 }
 
 /**
