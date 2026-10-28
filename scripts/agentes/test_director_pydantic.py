@@ -59,6 +59,15 @@ class Indicacion(unittest.TestCase):
         texto = D.construir_indicacion({"titulo": "x" * 2000})
         self.assertLessEqual(len(texto.split("Título: ", 1)[1]), D.MAX_TEXTO)
 
+    def test_omite_los_campos_vacios(self):
+        texto = D.construir_indicacion(
+            {"id": "T1", "titulo": "Contrato", "motivo": "", "vacio": ""}
+        )
+        self.assertIn("Id: T1", texto)
+        self.assertIn("Título: Contrato", texto)
+        self.assertNotIn("Motivo del bloqueo", texto)
+        self.assertNotIn("vacio", texto)
+
 class Conversion(unittest.TestCase):
     def test_desde_dict_modelo_y_objeto(self):
         plano = {"prioridad": 0.25, "motivo": "reduce el alcance", "accion": "transformar"}
@@ -110,6 +119,25 @@ class ConPydanticAI(unittest.TestCase):
         decision = D.decidir_tarea({"id": "AGF2", "titulo": "Revisión"}, agente=agente)
         self.assertEqual(decision.como_dict()["accion"], "pedir-a-alex")
         self.assertEqual(decision.prioridad, 0.3)
+
+    def test_modelo_desde_cliente_usa_la_base_del_enrutador(self):
+        from modelos_propios import ClienteOpenAI
+        try:
+            from pydantic_ai.models.openai import OpenAIChatModel as ModeloEsperado
+        except ImportError:
+            from pydantic_ai.models.openai import OpenAIModel as ModeloEsperado
+
+        cliente = ClienteOpenAI("http://127.0.0.1:4480/v1", "qwen-coder", "clave-falsa")
+        modelo = D.modelo_desde_cliente(cliente)
+        self.assertIsInstance(modelo, ModeloEsperado)
+        self.assertEqual(getattr(modelo, "model_name", getattr(modelo, "model", None)), "qwen-coder")
+        # La base del enrutador llega por provider (pydantic-ai moderno) o client (legacy).
+        base_url = getattr(getattr(modelo, "provider", None), "base_url", None)
+        if base_url is None:
+            base_url = getattr(getattr(modelo, "client", None), "base_url", None)
+        self.assertIsNotNone(base_url, "el modelo no expone la base_url del enrutador")
+        self.assertEqual(str(base_url).rstrip("/"), "http://127.0.0.1:4480/v1")
+        self.assertNotIn("clave-falsa", repr(cliente))
 
 if __name__ == "__main__":
     unittest.main()
