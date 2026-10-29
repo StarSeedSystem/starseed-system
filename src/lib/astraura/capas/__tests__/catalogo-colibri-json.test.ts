@@ -24,7 +24,8 @@ describe("catálogo JSON con las 9 capas de Colibri", () => {
     expect(colibri).toHaveLength(9);
     expect(colibri.map((e) => e.id)).toEqual(IDS_COLIBRI);
     // 22 y no 24: las 2 entradas «oído» de antes ya quedaban fuera del esquema.
-    expect(catalogo.capas).toHaveLength(22);
+    // (2026-10-29, PUB1029D) 23: LNN1028H añadió a propósito `ollama-qwen3-embedding-0.6b` (LEANN).
+    expect(catalogo.capas).toHaveLength(23);
   });
 
   it("ninguna capa de Colibri es usable todavía", () => {

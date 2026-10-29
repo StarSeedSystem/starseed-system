@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { validarCola } from "@/lib/mando/colas";
+import { baseDeParte, validarCola } from "@/lib/mando/colas";
 
 /**
  * Ola 1025R: las colas que dejan los cinco grupos de la tanda de repos (agentes, capas, diseño, infra,
@@ -23,6 +23,18 @@ interface Tarea { id: string; ola: string; titulo: string; archivos: string[]; d
 function leer(grupo: string): Tarea[] {
     return JSON.parse(readFileSync(path.join(OLAS, `cola-${grupo}-1025.json`), "utf8")) as Tarea[];
 }
+
+describe("dependencias a partes del revisor de Bloqueadas (PUB1029C)", () => {
+    const tarea = (id: string, depende: string[] = []) => ({ id, titulo: id, archivos: ["a.ts"], prompt: "p", depende });
+    it("una parte «-dN» de una tarea de la cola vale; algo inexistente no", () => {
+        expect(baseDeParte("ART1025B-d3")).toBe("ART1025B");
+        expect(baseDeParte("X-d2b-d1")).toBe("X");
+        const ok = validarCola("1029-prueba", [tarea("A1"), tarea("B1", ["A1-d3"]), tarea("C1", ["A1-d2b"])]);
+        expect(ok.errores.filter((e) => e.includes("depende"))).toEqual([]);
+        const mal = validarCola("1029-prueba", [tarea("A1"), tarea("B1", ["Z9-d3"])]);
+        expect(mal.errores.some((e) => e.includes("Z9-d3"))).toBe(true);
+    });
+});
 
 describe("colas de la Ola 1025R", () => {
     it("están las nueve colas, con el número de tareas que dejaron sus grupos", () => {

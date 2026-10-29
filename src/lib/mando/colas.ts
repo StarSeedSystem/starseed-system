@@ -263,6 +263,13 @@ async function colasDelBus(): Promise<ColaCompleta[]> {
  * a cambio necesita área y lente. A las tareas de código con más de 3 archivos se les avisa:
  * las de 6 o 9 archivos son las que fallan tarde (memory/orquestacion-economica.md §12.2).
  */
+/** «ART1025B-d3» → «ART1025B»; «X-d2b-d1» → «X». Un id sin sufijo de parte se queda igual. */
+export function baseDeParte(id: string): string {
+    let base = id;
+    while (/-d\d+[a-z]*$/.test(base)) base = base.replace(/-d\d+[a-z]*$/, "");
+    return base;
+}
+
 export function validarCola(nombre: string, bruto: unknown): { errores: string[]; tareas: TareaCola[]; avisos: string[] } {
     const errores: string[] = [];
     const avisos: string[] = [];
@@ -315,7 +322,9 @@ export function validarCola(nombre: string, bruto: unknown): { errores: string[]
     }
     for (const t of tareas) {
         for (const dep of t.depende) {
-            if (!ids.has(dep)) errores.push(`${t.id}: depende de «${dep}», que no está en la cola.`);
+            // (2026-10-29, PUB1029C) Una parte «<ID>-d3», «-d2b»… la crea el revisor de Bloqueadas y vive en
+            // progreso.json: vale si la tarea base está en la cola.
+            if (!ids.has(dep) && !ids.has(baseDeParte(dep))) errores.push(`${t.id}: depende de «${dep}», que no está en la cola.`);
             if (dep === t.id) errores.push(`${t.id}: no puede depender de sí misma.`);
         }
     }

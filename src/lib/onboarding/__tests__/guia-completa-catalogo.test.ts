@@ -99,7 +99,10 @@ describe("guardia de huérfanas · ninguna demostración sin paso", () => {
   it("las listas de claves del catálogo son exactamente las de los componentes", () => {
     expect([...CLAVES_DEMO_SISTEMA].sort()).toEqual([...sistema].sort());
     expect([...CLAVES_DEMO_RED].sort()).toEqual([...red].sort());
-    expect([...CLAVES_DEMO_PASO].sort()).toEqual([...stepDemo].sort());
+    // (2026-10-29, PUB1029E) StepDemo pinta ya TODAS las demostraciones (paso, sistema y red): sus `case` son
+    // CLAVES_DEMO entero, y cada clave de paso sigue teniendo el suyo.
+    expect([...CLAVES_DEMO].sort()).toEqual([...new Set(stepDemo)].sort());
+    expect(CLAVES_DEMO_PASO.filter((k) => !stepDemo.includes(k))).toEqual([]);
   });
 
   it("`CLAVES_STEPDEMO` de aurora-guide-demos.tsx sigue a los `case` de StepDemo", () => {
