@@ -25,6 +25,7 @@ describe("registry-vivo · conectores de contenido vivo", () => {
     expect(s.description).toContain("200 llamadas al día");
     expect(s.description).toMatch(/tu cuenta de Spline/);
     expect(s.description).toMatch(/tres|variantes locales|Three\.js/);
+    expect(s.configHint).toContain("https://mcp.spline.design/mcp");
   });
 
   it("Higgsfield: de pago, clave en la bóveda, sin duplicar adaptadores", () => {

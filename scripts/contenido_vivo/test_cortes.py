@@ -76,3 +76,43 @@ def test_cortes_de_un_clip_contra_la_mediana_de_toda_la_obra():
     assert etiquetas(serie)[2] == "corte"
     # cortes.py importa limpio en un módulo puro: la parte de ffmpeg queda solo para el chequeo real.
     assert cortes.MINIMO_PARES == 3
+
+
+def test_movimiento_rapido_y_suave_pasa():
+    serie = [0.42, 0.39, 0.41, 0.38, 0.40, 0.37, 0.41, 0.39]
+    rótulos = etiquetas(serie)
+    assert all(r == "ok" for r in rótulos)
+    aprobado, _ = veredicto(rótulos, len(serie))
+    assert aprobado
+    assert rótulos.count("corte") == 0
+
+
+def test_mas_de_dos_congelados_falla():
+    serie = [0.999] * 6
+    rótulos = etiquetas(serie)
+    assert rótulos.count("congelado") > 2
+    aprobado, _ = veredicto(rótulos, len(serie))
+    assert not aprobado
+
+
+def test_corte_contra_mediana_del_clip():
+    serie = [0.90, 0.91, 0.10, 0.90, 0.89]
+    cortes = posiciones_corte(serie)
+    assert [i for i, _ in cortes] == [2]
+    rótulos = etiquetas(serie)
+    aprobado, _ = veredicto(rótulos, len(serie))
+    assert not aprobado
+
+
+def test_clip_estable_pasa():
+    serie = [0.80, 0.81, 0.79, 0.80]
+    assert posiciones_corte(serie) == []
+    rótulos = etiquetas(serie)
+    aprobado, _ = veredicto(rótulos, len(serie))
+    assert aprobado
+
+
+def test_clip_corto_no_pasa():
+    serie = [0.9, 0.9]
+    aprobado, _ = veredicto(etiquetas(serie), len(serie))
+    assert not aprobado
