@@ -12,6 +12,13 @@ describe("núcleo puro de los bots de Astraura", () => {
   it("están los seis módulos del contrato (los que se añadan arriba también han de ser puros)", () => {
     expect(NUCLEO).toEqual(expect.arrayContaining(["acciones", "bucle", "permisos", "personalidad-adaptable", "reparto-de-modelo", "tipos"]));
   });
+  it("los conectores de bots invitados existen y no están vacíos", () => {
+    const conectores = ["ag-ui", "invitados"] as const;
+    for (const c of conectores) {
+      expect(NUCLEO).toContain(c);
+      expect(leer(c).trim().length).toBeGreaterThan(0);
+    }
+  });
   it.each(NUCLEO)("%s.ts: ≤ 200 líneas", (n) => {
     expect(leer(n).split("\n").length).toBeLessThanOrEqual(200);
   });
