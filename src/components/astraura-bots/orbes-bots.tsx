@@ -17,6 +17,9 @@ import { leerBots, suscribirBots } from "@/lib/astraura-bots/adaptadores/almacen
 import { EVENTO_BUCLE_UI, type DetalleBucleUI } from "@/lib/astraura-bots/adaptadores/evento-bucle-ui";
 import { avanzar, bucleInicial, indicadorVisible, type EstadoBucle, type EventoBucle } from "@/lib/astraura-bots/bucle";
 import type { Bot } from "@/lib/astraura-bots/tipos";
+import { CURVA } from "@/lib/design/movimiento";
+import { DESTELLOS_MAX_POR_SEGUNDO, cssKeyframesOrbe, repeticionesDe } from "@/lib/design/animaciones-orbe";
+import { estadoOrbeDeFase, movimientoOrbe, presetOrbeDeFase } from "@/lib/design/orbe-bucle";
 import { DIAMETRO_ANILLO, IndicadorSentidos } from "./indicador-sentidos";
 import {
   MAX_ORBES_VISIBLES,
@@ -80,6 +83,8 @@ export function OrbesBots({ extra = SIN_EXTRA, principal, perfilId, cuentaId }: 
   const arrastre = useRef<{ id: string; x0: number; y0: number; movido: boolean } | null>(null);
   const [bucle, setBucle] = useState<Record<string, EstadoBucle>>({});
   const reducido = useMemo(() => prefersReducedMotion(), []);
+  // Movimiento de Astraura con el registro sobrio: la única fuente de tiempos.
+  const movOrbe = movimientoOrbe(undefined, reducido);
   // El puente de sentidos (BOT1011F) avisa de cada paso del bucle: el anillo vive en la orbe (BOT1011E2).
   useEffect(() => {
     const alBucle = (e: Event) => {
@@ -140,13 +145,19 @@ export function OrbesBots({ extra = SIN_EXTRA, principal, perfilId, cuentaId }: 
     if (a && !a.movido) enfocar(a.id);
     else if (a) { setDatos((s) => ({ ...s, pos: { ...s.pos, [a.id]: pos } })); guardarPosicion(a.id, pos); }
   };
-  const lado = (r: number) => (r > 0.5 ? -46 : 46), transicion = reducido ? "none" : "left 200ms ease-out, top 200ms ease-out, transform 200ms ease-out";
+  const lado = (r: number) => (r > 0.5 ? -46 : 46);
+  const t = movOrbe.entrada.ms > 0 ? `${movOrbe.entrada.ms}ms ${movOrbe.entrada.curva}` : "";
+  const transicion = t ? `left ${t}, top ${t}, transform ${t}` : "none";
   return (
     <>
       {visibles.map(({ id, pos }) => {
         const b = porId.get(id), p = moviendo?.id === id ? moviendo.pos : pos, est = bucle[id];
+        const fase = est?.fase ?? "reposo", estado = estadoOrbeDeFase(fase), preset = presetOrbeDeFase(fase, undefined, reducido);
+        const nombre = `orbe-bot-${id.replace(/[^a-zA-Z0-9_-]/g, "-")}`, periodo = Math.max(preset.periodoMs, Math.ceil(1000 / DESTELLOS_MAX_POR_SEGUNDO));
+        const animacion = preset.periodoMs > 0 ? `${nombre} ${periodo}ms ${CURVA.suave} ${repeticionesDe(estado) === 1 ? "1" : "infinite"} both` : "none";
         return b ? (
           <Fragment key={id}>
+            {animacion !== "none" ? <style>{cssKeyframesOrbe(preset).replace(/@keyframes\s+[^\s{]+/, `@keyframes ${nombre}`)}</style> : null}
             <button type="button" aria-label={`Orbe de ${b.nombre}`} aria-pressed={enfocado === id} data-bot-id={id}
               title={`${b.nombre} · toca para enfocarlo, arrastra para moverlo`}
               onPointerDown={(e) => { arrastre.current = { id, x0: e.clientX, y0: e.clientY, movido: false }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* sin captura */ } }}
@@ -154,7 +165,9 @@ export function OrbesBots({ extra = SIN_EXTRA, principal, perfilId, cuentaId }: 
               onClick={(e) => { if (e.detail === 0) enfocar(id); }}
               className={cn("fixed cursor-pointer touch-none select-none rounded-full", !reducido && "hover:scale-105", enfocado === id && "ring-2 ring-cyan-300/70")}
               style={{ left: p.xRatio * vista.ancho - D / 2, top: p.yRatio * vista.alto - D / 2, zIndex: 41 + capas.indexOf(id), transition: moviendo?.id === id ? "none" : transicion }}>
-              <QuantumOrbAvatar personaId={b.id} size={D} />
+              <div style={{ width: D, height: D, animation: animacion }}>
+                <QuantumOrbAvatar personaId={b.id} size={D} />
+              </div>
             </button>
             {est && indicadorVisible(est) ? (
               <div data-anillo-bot={id} className="pointer-events-none fixed" style={{ left: p.xRatio * vista.ancho - DIAMETRO_ANILLO / 2, top: p.yRatio * vista.alto - DIAMETRO_ANILLO / 2, width: DIAMETRO_ANILLO, height: DIAMETRO_ANILLO, zIndex: 41 + capas.indexOf(id) }}>
