@@ -24,7 +24,12 @@
 
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
-import { nivelPara, siguienteNivel, NIVELES, type NivelVoz } from "./niveles";
+import { nivelPara, siguienteNivel, NIVELES, type NivelVoz, type DisponibilidadEstudio } from "./niveles";
+// (VST1018F) Licencia por contexto (`licencia-voz.ts`, puro) para el elector
+// instantáneo; las MEDIDAS llegan como dato (no se importa `medidas-voz.ts`,
+// que toca `localStorage`): en las pruebas son medidas falsas.
+import { motoresPermitidos, type ContextoLicenciaVoz, type MotorInfo } from "./licencia-voz";
+import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
 import {
     soporteSupertonic,
     nivelParaVoz,
@@ -228,13 +233,152 @@ export function nivelActual(): NivelVoz | null {
 /**
  * Resuelve el nivel concreto a usar: el que pidió el usuario si es válido para
  * este equipo; si no, el mejor que el hardware pueda sostener en este momento.
+ * (VST1018F) El nivel «estudio» exige su disponibilidad medida (VoiceStudio
+ * vivo u otra neurona que lo sirva) y SOLO sale para lectura larga, doblaje y
+ * audiolibros; un uso distinto cae al nivel siguiente con el mismo timbre.
  */
-async function resolverNivel(explicito?: NivelVoz): Promise<NivelVoz> {
-    const caps: Capacidades = await detectarCapacidades();
-    const auto = nivelPara(caps);
+async function resolverNivel(explicito?: NivelVoz, uso?: string): Promise<NivelVoz> {
     if (explicito) return explicito;
+    const caps: Capacidades = await detectarCapacidades();
+    const auto = nivelPara(caps, await disponibilidadEstudio());
     const preferencia = nivelPreferido();
-    return preferencia === "auto" ? auto : preferencia;
+    const elegido = preferencia === "auto" ? auto : preferencia;
+    if (elegido === "estudio" && !esUsoEstudio(uso)) return siguienteNivel(elegido) ?? elegido;
+    return elegido;
+}
+
+// ── (VST1018F) NIVEL «ESTUDIO» (VoiceStudio) Y PRIMERA FRASE INSTANTÁNEA ────
+
+/** Clave con la que la malla marca que otra neurona SIRVE el nivel estudio a esta. */
+export const CLAVE_ESTUDIO_MALLA = "starseed.voz.estudio-malla";
+/** El descubrimiento de VoiceStudio se repite como mucho cada 5 minutos. */
+const CACHE_ESTUDIO_MS = 5 * 60 * 1000;
+let cacheEstudio: { en: number; datos: Partial<DisponibilidadEstudio> } | null = null;
+
+/** true si otra neurona de la malla sirve «estudio» a esta (lo escribe el relé `capacidad.*`). Nunca lanza. */
+export function estudioServidoDeMalla(): boolean {
+    if (typeof window === "undefined") return false;
+    try {
+        return window.localStorage.getItem(CLAVE_ESTUDIO_MALLA) === "1";
+    } catch {
+        return false;
+    }
+}
+
+/** Disponibilidad de «estudio» para `nivelPara`: descubre VoiceStudio y lee la marca de la malla. */
+async function disponibilidadEstudio(): Promise<Partial<DisponibilidadEstudio>> {
+    const malla = estudioServidoDeMalla();
+    if (
+        cacheEstudio
+        && Date.now() - cacheEstudio.en < CACHE_ESTUDIO_MS
+        && cacheEstudio.datos.servidaPorOtraNeurona === malla
+    ) return cacheEstudio.datos;
+    const datos: Partial<DisponibilidadEstudio> = { servidaPorOtraNeurona: malla };
+    try {
+        const vs = await import("./voicestudio");
+        datos.voicestudioVivo = (await vs.descubrir()).vivo;
+    } catch {
+        datos.voicestudioVivo = false; // sin VoiceStudio: el estudio no se promete
+    }
+    cacheEstudio = { en: Date.now(), datos };
+    return datos;
+}
+
+/** Usos a los que el contrato reserva el nivel «estudio»: lectura larga, doblaje y audiolibros. */
+export type UsoEstudio = "lectura-larga" | "doblaje" | "audiolibro";
+const USOS_ESTUDIO: ReadonlySet<string> = new Set(["lectura-larga", "doblaje", "audiolibro"]);
+
+/** true si ESE uso puede salir del motor de estudio. Pura. */
+export function esUsoEstudio(uso: string | undefined): boolean {
+    return !!uso && USOS_ESTUDIO.has(uso.trim().toLowerCase());
+}
+
+/**
+ * Nivel que el motor del catálogo sostiene. Pura. «estudio» aquí solo significa
+ * que el motor ES de estudio: `resolverNivel` lo revisa contra el uso real.
+ */
+export function nivelDeMotor(id: string): NivelVoz {
+    switch (id) {
+        case "voicemorphic":
+        case "voicestudio":
+            return "estudio";
+        case "kokoro":
+        case "kittentts":
+        case "moss-tts-nano":
+            return "ligera";
+        case "sistema":
+            return "minima";
+        default:
+            // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
+            return "nube";
+    }
+}
+
+/** Una medida de latencia tal y como la entrega `leerMedidas()` de `medidas-voz.ts`. */
+export type MedidaLatencia = { motor: string; tipo: string; valor: number };
+
+/** Latencia MEDIA de «primer-sonido» de un motor en esta neurona, o `undefined` sin medidas. Pura. */
+export function mediaPrimerSonido(medidas: readonly MedidaLatencia[], motor: string): number | undefined {
+    const valores = medidas
+        .filter((m) => m.motor === motor && m.tipo === "primer-sonido" && Number.isFinite(m.valor) && m.valor >= 0)
+        .map((m) => m.valor);
+    if (valores.length === 0) return undefined;
+    return valores.reduce((a, b) => a + b, 0) / valores.length;
+}
+
+/** Candidato de la primera frase instantánea: un motor + si tiene la voz de esa persona. */
+export interface CandidatoInstantaneo extends MotorInfo {
+    /** true solo si este motor puede reproducir la voz de esa persona. */
+    conVoz: boolean;
+}
+
+/** Todo lo que necesita la regla instantánea. Puro: nada de I/O dentro. */
+export interface OpcionesInstantaneo {
+    candidatos: CandidatoInstantaneo[];
+    /** Contexto de licencia: personal, grupo, comunidad, público o comercial. */
+    contextoLicencia: ContextoLicenciaVoz;
+    capas: CapasPrefs;
+    /** Medidas de esta neurona (de `leerMedidas()` u otras falsas en las pruebas). */
+    medidas: readonly MedidaLatencia[];
+}
+
+/**
+ * ELIGE el motor de la PRIMERA frase de una conversación (contrato §4): el
+ * motor PERMITIDO (por `motoresPermitidos`) con MENOR latencia medida que
+ * PUEDA reproducir la voz de esa persona. Sin medidas manda el orden del
+ * catálogo; si nadie cumple, `motor` es `null` y se sigue la cadena normal.
+ * Pura: sin red, disco ni reloj — las pruebas pasan medidas falsas.
+ */
+export function elegirMotorInstantaneo(
+    opciones: OpcionesInstantaneo,
+): { motor: CandidatoInstantaneo | null; motivo: string } {
+    const { permitidos } = motoresPermitidos(opciones.candidatos, opciones.contextoLicencia, opciones.capas);
+    const conVoz = permitidos.filter((m): m is CandidatoInstantaneo => (m as CandidatoInstantaneo).conVoz === true);
+    if (conVoz.length === 0) {
+        return { motor: null, motivo: "Ningún motor permitido reproduce la voz de esa persona" };
+    }
+    const conLatencia = conVoz
+        .map((candidato) => ({ candidato, latencia: mediaPrimerSonido(opciones.medidas, candidato.id) }))
+        .sort((a, b) => (a.latencia ?? Infinity) - (b.latencia ?? Infinity));
+    return { motor: conLatencia[0].candidato, motivo: "Menor latencia medida con la voz de esa persona" };
+}
+
+/**
+ * (VST1018F) Habla por VoiceStudio (API compatible con OpenAI en local), el
+ * motor del nivel «estudio». Devuelve true si la frase llegó a sonar; nunca lanza.
+ */
+async function hablarPorVoicestudio(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
+    try {
+        const vs = await import("./voicestudio");
+        if (!(await vs.descubrir()).vivo) return false;
+        const audio = await vs.hablar(undefined, { texto, voz: timbre.local.voz, formato: "wav" });
+        if (!audio.length) return false;
+        try { alEmpezar?.(); } catch { /* el aviso no puede romper */ }
+        const ml = await import("@/lib/aurora/motor-local");
+        return await ml.reproducirLocal(new Blob([new Uint8Array(audio)], { type: "audio/wav" }));
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -312,6 +456,18 @@ export interface OpcionesHablar {
      * esta opción solo es para vías que ya entregan el texto normalizado.
      */
     sinNormalizar?: boolean;
+    /**
+     * (VST1018F) Uso concreto del turno: solo «lectura-larga», «doblaje» y
+     * «audiolibro» pueden salir del motor de estudio. Si falta, se deduce del
+     * `contexto` (la lectura larga es la narración; lo demás es conversación).
+     */
+    uso?: string;
+    /**
+     * (VST1018F) La PRIMERA frase de una conversación sale del motor PERMITIDO
+     * con menor latencia medida que tenga la voz de esa persona. El mensaje
+     * entero sale por UN motor: nunca se parte entre dos.
+     */
+    instantaneo?: OpcionesInstantaneo;
 }
 
 /**
@@ -415,7 +571,13 @@ async function hablarPorSistema(texto: string, timbre: Timbre, alEmpezar?: () =>
 
 /** Sintetiza por la vía existente en el OS para ese nivel. Nunca lanza. */
 async function sintetizar(nivel: NivelVoz, texto: string, timbre: Timbre, opciones: OpcionesHablar): Promise<boolean> {
-    if (nivel === "estudio" || nivel === "alta") return hablarPorLocal(texto, timbre, opciones.alEmpezar);
+    if (nivel === "estudio" || nivel === "alta") {
+        // (VST1018F) VoiceStudio detrás de la única puerta: para el nivel de
+        // estudio se prueba primero y, si no responde, el demonio OmniVoice
+        // local sigue el mismo recorrido de siempre.
+        if (nivel === "estudio" && (await hablarPorVoicestudio(texto, timbre, opciones.alEmpezar))) return true;
+        return hablarPorLocal(texto, timbre, opciones.alEmpezar);
+    }
     if (nivel === "nube") return hablarPorNube(texto, timbre, opciones.alEmpezar);
     if (nivel === "ligera") return hablarPorKokoro(texto, timbre, opciones.alEmpezar);
     if (opciones.sinSistema) return false;
@@ -447,28 +609,28 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     // que la degradación de nivel no cambia ni el carácter ni la emoción.
     const timbre = timbreConEmocion(opciones.timbre, resuelta.emocion, resuelta.intensidad);
 
+    // (VST1018F) El nivel sale del motor que la neurona puede sostener… con el
+    // género del catálogo; y el estudio, con el uso real del turno.
+    const uso: string = opciones.contexto === "lectura"
+        ? "lectura-larga"
+        : opciones.uso ?? "conversacion";
     const plataforma = detectarPlataforma();
     const { memoriaGB } = await detectarCapacidades();
     const ramGB = memoriaGB ?? 8;
     const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
-    let nivel: NivelVoz;
-    switch (motorCat.id) {
-        case "voicemorphic":
-        case "voicestudio":
-            nivel = "estudio";
-            break;
-        case "kokoro":
-        case "kittentts":
-        case "moss-tts-nano":
-            nivel = "ligera";
-            break;
-        case "sistema":
-            nivel = "minima";
-            break;
-        default:
-            // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
-            nivel = "nube";
-            break;
+    let nivel: NivelVoz = nivelDeMotor(motorCat.id);
+    if (nivel === "estudio" && !esUsoEstudio(uso)) {
+        // «estudio» solo para lectura larga, doblaje y audiolibros: un mensaje
+        // normal sale entero por un motor más rápido, nunca a medias.
+        nivel = siguienteNivel(nivel) ?? nivel;
+    }
+    // (VST1018F) Primera frase instantánea de una conversación: el motor
+    // PERMITIDO (licencia-voz) con menor latencia medida (medidas-voz) que
+    // tenga la voz de esa persona. El nivel completo se cambia UNA vez: un
+    // mensaje nunca se parte entre dos motores.
+    if (opciones.instantaneo && opciones.contexto === "conversacion") {
+        const eleccion = elegirMotorInstantaneo(opciones.instantaneo);
+        if (eleccion.motor) nivel = nivelDeMotor(eleccion.motor.id);
     }
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
