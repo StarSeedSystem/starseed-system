@@ -193,7 +193,8 @@ class PruebasRevisionDireccion(unittest.TestCase):
                 f.write('{"claude": {"motivo": "429"')
             med = med_bueno("codex", 100)
             mc.alimentar_salud({"codex": med}, ruta_s, os.path.join(tmp, "c", "salud.lock"), AHORA)
-            self.assertEqual(open(ruta_s).read(), '{"claude": {"motivo": "429"')
+            with open(ruta_s, encoding="utf-8") as f_s:
+                self.assertEqual(f_s.read(), '{"claude": {"motivo": "429"')
 
     def test_sin_cambios_no_toca_el_archivo(self):
         with tempfile.TemporaryDirectory() as tmp:
