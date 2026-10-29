@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { CAPACIDADES, HINT_INSTALACION, leerSobre, resolverComando, validarEntrada } from "../agent-reach-comandos";
+import { INTEGRATIONS } from "../registry";
+import { getIntegration as getIntegracionCatalogo } from "@/ai/astraura/integration-catalog";
 
 const argv = (cap: string, cuerpo: Record<string, unknown>, login = false) => {
   const r = resolverComando(cap, cuerpo, { login });
@@ -116,5 +118,18 @@ describe("leerSobre · JSON de la v1.6", () => {
   it("la pista de instalación avisa de PyPI y da la orden de uv", () => {
     expect(HINT_INSTALACION).toContain("uv tool install https://github.com/Panniantong/Agent-Reach/releases/latest/download/agent-reach.zip");
     expect(HINT_INSTALACION).toContain("PyPI");
+  });
+});
+
+describe("catálogo y registro · Agent-Reach dice la verdad (INV1025B)", () => {
+  it("ningún texto manda a pip ni a npx; la instalación es la de uv", () => {
+    const registro = INTEGRATIONS.find((i) => i.id === "agent-reach");
+    const catalogo = getIntegracionCatalogo("agent-reach");
+    expect(registro).toBeDefined();
+    expect(catalogo).not.toBeNull();
+    const texto = JSON.stringify({ registro, catalogo });
+    expect(texto).not.toContain("pip install agent-reach");
+    expect(texto).not.toContain("npx agent-reach");
+    expect(texto).toContain("uv tool install https://github.com/Panniantong/Agent-Reach/releases/latest/download/agent-reach.zip");
   });
 });
