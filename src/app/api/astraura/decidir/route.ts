@@ -9,13 +9,19 @@ import {
   UMBRAL_LAYA_EJECUTAR,
   decidirConJev,
   decidirConLaya,
+  decidirHabilidad,
   decidirTipoDiagrama,
   esPeticionDeDiagrama,
   planDeDecision,
+  type RespuestaHabilidad,
   type RespuestaJev,
   type RespuestaLaya,
   type RespuestaTipoDiagrama,
 } from "@/lib/astraura/decision-hibrida";
+import {
+  CAPAS_HABILIDAD,
+  type CapaHabilidad,
+} from "@/ai/astraura/habilidades/elegir-habilidad";
 import { esConsultaDePato, decidirConNeedlePato } from "@/lib/astraura/needle-pato";
 import { type Astraura158Target } from "@/lib/astraura/astraura-158-client";
 
@@ -24,6 +30,8 @@ export async function POST(req: Request) {
     const body = (await req.json()) as {
       consulta?: string;
       herramientas?: HerramientaNeedle[];
+      /** Capa que va a responder: manda el tamaño del bloque de habilidad (contrato §5). */
+      capa?: string;
       target?: Astraura158Target;
     };
     if (!body.consulta || !Array.isArray(body.herramientas)) {
@@ -32,6 +40,10 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    const capa = typeof body.capa === "string"
+      && (CAPAS_HABILIDAD as readonly string[]).includes(body.capa)
+      ? body.capa as CapaHabilidad
+      : undefined;
 
     const target = body.target ?? "nube";
     const apiKey = process.env.OPENROUTER_API_KEY;
@@ -87,6 +99,15 @@ export async function POST(req: Request) {
       msJev = Date.now() - t2;
     }
 
+    // Capa 2c: Laya elige QUÉ habilidad de ingeniería aplica (contrato §4-§5);
+    // la capa que responde (body.capa) manda el tamaño del bloque inyectable.
+    // Falla en silencio como el resto de capas: sin Laya no hay habilidad.
+    let habRes: RespuestaHabilidad | null = null;
+    let msHab: number | undefined = undefined;
+    const t4 = Date.now();
+    habRes = await decidirHabilidad(body.consulta, capa);
+    msHab = Date.now() - t4;
+
     // Plan híbrido final
     const plan = planDeDecision(needleRes, layaRes, jevRes);
 
@@ -115,6 +136,13 @@ export async function POST(req: Request) {
           tipo: tipoRes?.tipo ?? null,
           confianza: tipoRes?.confianza ?? null,
           ok: tipoRes !== null,
+        } : null,
+        habilidad: msHab !== undefined ? {
+          ms: msHab,
+          habilidad: habRes?.habilidad ?? null,
+          confianza: habRes?.confianza ?? null,
+          bloque: habRes?.bloque ?? null,
+          ok: habRes !== null,
         } : null,
       },
     });

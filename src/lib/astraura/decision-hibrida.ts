@@ -1,6 +1,14 @@
 import { UMBRAL_EJECUTAR as UMBRAL_NEEDLE_EJECUTAR, zonaDeConfianza,
   type DecisionNeedle, type LlamadaNeedle, type HerramientaNeedle } from "./needle3-client";
 import { preguntaTipo } from "@/ai/astraura/habilidades/diagramas";
+// (Ola 1018L · LYS1018K) El punto «habilidad.elegir» del catálogo arma la choice
+// con las habilidades reales: `preguntaHabilidad` es «cuando» de cada una +
+// «ninguna», y `bloqueHabilidad` saca el texto a inyectar según la capa.
+import {
+  bloqueHabilidad, OPCION_NINGUNA, preguntaHabilidad,
+  type CapaHabilidad,
+} from "@/ai/astraura/habilidades/elegir-habilidad";
+import { leerRespuesta } from "@/lib/jev/decisiones";
 // Cliente único de Laya (Ola 1018L · Tarea B): aquí es donde debía usarse `preguntarALaya`,
 // que era la única llamada a Laya del servidor TS, con plazos del catálogo y relé de malla.
 import { preguntarALaya, puntoDeLlamada, type RelojLaya, type Siesta } from "./laya/cliente-laya";
@@ -155,6 +163,47 @@ export async function decidirTipoDiagrama(
       : decision.confidence;
     if (typeof cruda !== "number" || !Number.isFinite(cruda)) return null;
     return { tipo: decision.choice, confianza: cruda, motor: "laya-local" };
+  } catch {
+    return null;
+  }
+}
+
+export interface RespuestaHabilidad {
+  habilidad: string; confianza: number; bloque: string; motor: "laya-local";
+}
+
+/** Capa 2c · Laya elige QUÉ habilidad de ingeniería aplica (contrato §4-§5) por
+ *  el punto «habilidad.elegir»: criteria = «cuando» de cada una + «ninguna».
+ *  La capa que va a responder manda el tamaño del bloque a inyectar (tarjeta
+ *  para Needle/BitNet, resumen para Bonsai, referencia a la completa para las
+ *  capas mayores); «ninguna» o confianza bajo el umbral → bloque vacío. Como
+ *  el resto, falla en silencio: sin Laya no hay habilidad, ni bloque ni fallo. */
+export async function decidirHabilidad(
+  consulta: string, capa?: CapaHabilidad, transporte?: typeof fetch
+): Promise<RespuestaHabilidad | null> {
+  const pregunta = preguntaHabilidad();
+  const opciones = pregunta.criteria;
+  try {
+    const salida = await preguntarALaya(
+      { punto: { ...puntoDeLlamada("habilidad.elegir"), preguntas: { habilidad: pregunta } },
+        estado: consulta, medio: "a1" },
+      { ...RELOJ_REAL, fetch: transporte ?? fetch });
+    const bruta = salida.respuestas?.habilidad as unknown;
+    if (!bruta || typeof bruta !== "object") return null;
+    const decision = leerRespuesta({ answers: { habilidad: bruta } })["habilidad"];
+    if (decision.tipo !== "choice") return null;
+    if (typeof decision.valor !== "string"
+      || !Object.prototype.hasOwnProperty.call(opciones, decision.valor)) return null;
+    const id = decision.valor as string;
+    if (id === OPCION_NINGUNA) {
+      return { habilidad: id, confianza: decision.confianza, bloque: "", motor: "laya-local" };
+    }
+    return {
+      habilidad: id,
+      confianza: decision.confianza,
+      bloque: capa ? bloqueHabilidad(decision, capa) : "",
+      motor: "laya-local",
+    };
   } catch {
     return null;
   }

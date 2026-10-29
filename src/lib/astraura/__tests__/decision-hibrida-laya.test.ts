@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MODELO_JEV } from "@/lib/jev/decisiones";
 import {
   decidirConLaya,
+  decidirHabilidad,
   decidirTipoDiagrama,
   planDeDecision,
   UMBRAL_LAYA_EJECUTAR,
@@ -122,6 +123,63 @@ describe("decidirTipoDiagrama", () => {
       answers: { tipo: { type: "choice", choice: "sankey", confidence: 0.9 } },
     }), { status: 200, headers: { "Content-Type": "application/json" } });
     await expect(decidirTipoDiagrama("dibuja", ["flowchart"], ajeno)).resolves.toBeNull();
+  });
+});
+
+describe("decidirHabilidad", () => {
+  it("pregunta con la choice de las habilidades + «ninguna», y la capa manda el tamaño", async () => {
+    let cuerpo: unknown;
+    const deLaya = async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toBe("http://127.0.0.1:4470/v1/systemone");
+      cuerpo = JSON.parse(String(init?.body)) as unknown;
+      return new Response(JSON.stringify({
+        answers: { habilidad: { type: "choice", choice: "tdd",
+          probabilities: { tdd: 0.83 }, confidence: 0.9, answer_confidence: 0.83 } },
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    };
+    await expect(decidirHabilidad("entra con pruebas rojas", "reflejo", deLaya))
+      .resolves.toMatchObject({
+        habilidad: "tdd", confianza: 0.83, motor: "laya-local",
+        bloque: expect.stringContaining("TDD"),
+      });
+    expect(cuerpo).toMatchObject({
+      model: MODELO_JEV,
+      state: "entra con pruebas rojas",
+      questions: { habilidad: { type: "choice", criteria: {
+        tdd: expect.any(String), ninguna: expect.any(String),
+      } } },
+    });
+    // La misma elección con una capa mayor lleva menos del texto completo (referencia).
+    const completa = await decidirHabilidad("entra con pruebas rojas", "nube", deLaya);
+    expect(completa?.bloque).toContain("tdd/SKILL.md");
+  });
+
+  it("con «ninguna» o bajo el umbral responde normalmente: bloque vacío, sin fallo", async () => {
+    const ninguna = async () => new Response(JSON.stringify({
+      answers: { habilidad: { type: "choice", choice: "ninguna",
+        confidence: 0.95, answer_confidence: 0.95 } },
+    }), { status: 200 });
+    await expect(decidirHabilidad("hola", "razón", ninguna)).resolves.toEqual({
+      habilidad: "ninguna", confianza: 0.95, bloque: "", motor: "laya-local",
+    });
+    const dudosa = async () => new Response(JSON.stringify({
+      answers: { habilidad: { type: "choice", choice: "tdd",
+        confidence: 0.95, answer_confidence: 0.4 } },
+    }), { status: 200 });
+    const r = await decidirHabilidad("consulta", "razón", dudosa);
+    expect(r?.habilidad).toBe("tdd");
+    expect(r?.bloque).toBe("");
+  });
+
+  it("devuelve null ante fallo HTTP, forma rara o un id fuera de las opciones", async () => {
+    const fallo = async () => new Response(null, { status: 503 });
+    await expect(decidirHabilidad("consulta", "razón", fallo)).resolves.toBeNull();
+    const fantasma = async () => new Response(JSON.stringify({
+      answers: { habilidad: { type: "choice", choice: "no-existe", confidence: 0.9 } },
+    }), { status: 200 });
+    await expect(decidirHabilidad("consulta", "razón", fantasma)).resolves.toBeNull();
+    const vacia = async () => new Response(JSON.stringify({ answers: {} }), { status: 200 });
+    await expect(decidirHabilidad("consulta", "razón", vacia)).resolves.toBeNull();
   });
 });
 

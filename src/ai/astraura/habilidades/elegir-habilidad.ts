@@ -71,6 +71,10 @@ const TAMANO_POR_CAPA: Record<CapaHabilidad, "tarjeta" | "resumen" | "completa">
   nube: "completa",
 };
 
+/** Las capas, para que el llamador valide la que pasa (misma forma del contrato §5). */
+export const CAPAS_HABILIDAD: readonly CapaHabilidad[] =
+  Object.keys(TAMANO_POR_CAPA) as CapaHabilidad[];
+
 const baseTexto = (h: HabilidadIngenieria): string =>
   `Habilidad «${h.nombre}» (${h.autor}, ${h.licencia}) — `;
 
