@@ -16,11 +16,13 @@
  */
 
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BrainCircuit, CircleDashed, CircleDollarSign, Clock3, Copy, ExternalLink, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MenuListaMovil } from "@/components/ui/menu-lista-movil";
+// (UIG1029D) Secciones plegables de Genesis: cada panel de cada pestaña se pliega a una línea.
+import { SeccionPlegable, usePlegarTodo } from "@/components/mando/seccion-plegable";
 import type { EstadoMando, ProveedorUso } from "@/lib/mando/tipos";
 import { flotaConocida } from "@/lib/mando/flota";
 import "@/components/mando/mando-cristal.css";
@@ -848,6 +850,26 @@ instalarGuardiaFetchMando();
 // basta, se recarga (con el servidor sano). Ver `autocuracion-pagina.ts`.
 instalarAutocuracionPagina();
 
+/** UIG1029D: panel de pestaña dentro de la sección plegable de Genesis (SeccionPlegable, UIG1029A).
+    El id es estable (`genesis.<pestana>.<panel>`) y cada sección recuerda en localStorage lo que
+    eligió Alex; aquí solo se fija el defecto: el primer panel nace abierto, el resto cerrado. */
+export function PanelPlegable({ id, titulo, primero = false, children }: {
+    id: string;
+    titulo: string;
+    /** true solo en el primer panel de su pestaña: ese nace abierto. */
+    primero?: boolean;
+    children?: ReactNode;
+}) {
+    return (
+        <SeccionPlegable id={id} titulo={titulo} abiertaPorDefecto={primero}>
+            {children}
+        </SeccionPlegable>
+    );
+}
+
+/** id estable de la sección plegable de un panel: genesis.<pestana>.<panel>. */
+export const idPlegable = (pestana: string, panel: string): string => `genesis.${pestana}.${panel}`;
+
 export function CentroMando() {
     // La consola ocupa la pantalla entera y no necesita el cromo del OS: al declararse
     // «rito» se apagan dock, cortinas, bordes Trinity y paleta de comandos, que es
@@ -858,6 +880,8 @@ export function CentroMando() {
     }, []);
 
     const [pestana, setPestana] = useState<IdPestana>("procesos");
+    // (UIG1029D) Un solo mando para todas las secciones plegables de la pestaña visible.
+    const plegarTodo = usePlegarTodo();
     const [estado, setEstado] = useState<EstadoMando | null>(null);
     // Salud de la neurona (memoria, voz, BitNet, Ollama) para los medidores de
     // la cabecera; si la sonda falla, se queda en null y la cabecera sigue igual.
@@ -2451,6 +2475,19 @@ export function CentroMando() {
                         className="w-full"
                     />
                 </div>
+                {/* (UIG1029D) «Plegar todo / Desplegar todo»: pliega o abre todas las secciones
+                    plegables de la pestaña visible (y de las listas de la cabecera). */}
+                <div className="flex justify-end pr-1">
+                    <button
+                        type="button"
+                        onClick={plegarTodo.alternar}
+                        aria-pressed={plegarTodo.plegado}
+                        title={plegarTodo.plegado ? "Abre todas las listas de esta pestaña" : "Cierra todas las listas de esta pestaña"}
+                        className="mc-alzar inline-flex cursor-pointer items-center rounded-md border border-cyan-300/40 bg-cyan-400/10 px-2.5 py-1 text-[11px] text-cyan-100"
+                    >
+                        {plegarTodo.etiqueta}
+                    </button>
+                </div>
                 {/* (2026-10-09) Alex: «las posiciones y órdenes de los botones… y los nombres de cada
                     sección están feos». Las familias se nombraban DENTRO de la fila, entre pestañas
                     («salida», «fuera»…), la barra se partía en tres filas desiguales y «Ajustes» eran
@@ -2482,12 +2519,18 @@ export function CentroMando() {
                 </TabsList>
 
                 <TabsContent value="procesos">
-                    <PanelProcesos />
+                    <PanelPlegable id={idPlegable("procesos", "procesos")} titulo="Procesos en marcha" primero>
+                        <PanelProcesos />
+                    </PanelPlegable>
                     {/* 2026-09-29 · Sueños profundos: la flota de análisis y su verificación por Claude. */}
-                    <PanelSuenos />
+                    <PanelPlegable id={idPlegable("procesos", "suenos")} titulo="Sueños de la ola">
+                        <PanelSuenos />
+                    </PanelPlegable>
                 </TabsContent>
                 <TabsContent value="director">
-                    <ControlDirectores />
+                    <PanelPlegable id={idPlegable("director", "directores")} titulo="Directores" primero>
+                        <ControlDirectores />
+                    </PanelPlegable>
                 </TabsContent>
                 <TabsContent value="oficina">
                     {/* Ola 272 · O3B: Three.js solo se carga al abrir la pestaña.
@@ -2495,99 +2538,173 @@ export function CentroMando() {
                         siquiera se pida antes de tiempo; al volver a la pestaña
                         la oficina se vuelve a montar limpia. Así `/genesis?pestana=oficina`
                         funciona igual si el usuario entra directo por URL. */}
-                    {pestana === "oficina" ? <OficinaMando alCambiarPestana={alCambiarPestana} /> : null}
+                    {pestana === "oficina" ? (
+                        <PanelPlegable id={idPlegable("oficina", "oficina")} titulo="Oficina 3D" primero>
+                            <OficinaMando alCambiarPestana={alCambiarPestana} />
+                        </PanelPlegable>
+                    ) : null}
                 </TabsContent>
                 <TabsContent value="olas">
-                    <PanelOlas />
+                    <PanelPlegable id={idPlegable("olas", "olas")} titulo="Olas e informes" primero>
+                        <PanelOlas />
+                    </PanelPlegable>
                 </TabsContent>
                 <TabsContent value="commits">
-                    <PanelPublicaciones pedidoPublicar={pedidoPublicar} alAtenderPedido={atenderPedidoPublicar} />
+                    <PanelPlegable id={idPlegable("commits", "commits")} titulo="Commits pendientes" primero>
+                        <PanelPublicaciones pedidoPublicar={pedidoPublicar} alAtenderPedido={atenderPedidoPublicar} />
+                    </PanelPlegable>
                 </TabsContent>
                 <TabsContent value="publicar">
-                    <PanelPublicacion />
+                    <PanelPlegable id={idPlegable("publicar", "publicar")} titulo="Publicación" primero>
+                        <PanelPublicacion />
+                    </PanelPlegable>
                 </TabsContent>
                 <TabsContent value="actualizaciones">
-                    {pestana === "actualizaciones" ? <ActualizacionesMetaGenesis /> : null}
+                    {pestana === "actualizaciones" ? (
+                        <PanelPlegable id={idPlegable("actualizaciones", "capas")} titulo="Actualizaciones por capas" primero>
+                            <ActualizacionesMetaGenesis />
+                        </PanelPlegable>
+                    ) : null}
                     {pestana === "actualizaciones" ? (
                         <div className="mt-4">
-                            <PanelMejorasNeurona informes={[]} generado={null} />
+                            <PanelPlegable id={idPlegable("actualizaciones", "mejoras")} titulo="Mejoras de la neurona">
+                                <PanelMejorasNeurona informes={[]} generado={null} />
+                            </PanelPlegable>
                         </div>
                     ) : null}
                 </TabsContent>
                 <TabsContent value="metageminis">
                     {/* Una lectura cada 10 min como mucho (contrato «consumo»): son 5 tablas. */}
-                    {pestana === "metageminis" ? <MetaGeminisPanel recargarCadaMs={10 * 60_000} /> : null}
+                    {pestana === "metageminis" ? (
+                        <PanelPlegable id={idPlegable("metageminis", "metageminis")} titulo="MetaGeminis" primero>
+                            <MetaGeminisPanel recargarCadaMs={10 * 60_000} />
+                        </PanelPlegable>
+                    ) : null}
                 </TabsContent>
                 <TabsContent value="canales">
                     {/* Ola 285 · K3: el panel de canales solo se monta al abrir
                         la pestaña (chunk diferido + render condicional); Radix lo
                         desmonta al salir, como con las voces y la oficina. */}
-                    {pestana === "canales" ? <PanelCanales /> : null}
+                    {pestana === "canales" ? (
+                        <PanelPlegable id={idPlegable("canales", "canales")} titulo="Canales StarSeed" primero>
+                            <PanelCanales />
+                        </PanelPlegable>
+                    ) : null}
                 </TabsContent>
                 <TabsContent value="astra">
                     {/* Ola 294 · AR4: mismo patrón que Canales — chunk diferido y
                         montaje condicional: el panel no cuesta nada hasta pedirlo. */}
-                    {pestana === "astra" ? <PanelAstra /> : null}
+                    {pestana === "astra" ? (
+                        <PanelPlegable id={idPlegable("astra", "astra")} titulo="Astra" primero>
+                            <PanelAstra />
+                        </PanelPlegable>
+                    ) : null}
                 </TabsContent>
                 <TabsContent value="taller">
-                    {pestana === "taller" ? <PanelTaller /> : null}
+                    {pestana === "taller" ? (
+                        <PanelPlegable id={idPlegable("taller", "taller")} titulo="Taller del agente" primero>
+                            <PanelTaller />
+                        </PanelPlegable>
+                    ) : null}
                 </TabsContent>
                 <TabsContent value="flota">
-                    <PanelFlota />
+                    <PanelPlegable id={idPlegable("flota", "flota")} titulo="Flota de agentes" primero>
+                        <PanelFlota />
+                    </PanelPlegable>
                 </TabsContent>
                 <TabsContent value="novedades-modelos">
-                    <PanelNovedadesModelos />
+                    <PanelPlegable id={idPlegable("novedades-modelos", "novedades")} titulo="Novedades de modelos" primero>
+                        <PanelNovedadesModelos />
+                    </PanelPlegable>
                 </TabsContent>
                 <TabsContent value="neurona">
-                    <PanelNeurona />
+                    <PanelPlegable id={idPlegable("neurona", "salud")} titulo="Salud de la neurona" primero>
+                        <PanelNeurona />
+                    </PanelPlegable>
                 </TabsContent>
                 <TabsContent value="servidor">
-                    {pestana === "servidor" ? <PanelServidor /> : null}
+                    {pestana === "servidor" ? (
+                        <PanelPlegable id={idPlegable("servidor", "servidor")} titulo="Servidor 1.58" primero>
+                            <PanelServidor />
+                        </PanelPlegable>
+                    ) : null}
                 </TabsContent>
                 <TabsContent value="voces">
                     {/* El Estudio pesa (forja, motores, oído): solo se monta al abrir
                         la pestaña; Radix lo desmonta al salir (forceMount no se usa). */}
-                    {pestana === "voces" ? <PanelVoces /> : null}
+                    {pestana === "voces" ? (
+                        <PanelPlegable id={idPlegable("voces", "voces")} titulo="Voces" primero>
+                            <PanelVoces />
+                        </PanelPlegable>
+                    ) : null}
                 </TabsContent>
                 <TabsContent value="aprendizaje">
-                    <PanelAprendizaje />
+                    <PanelPlegable id={idPlegable("aprendizaje", "aprendizaje")} titulo="Aprendizaje" primero>
+                        <PanelAprendizaje />
+                    </PanelPlegable>
                 </TabsContent>
                 <TabsContent value="reportes">
                     {/* p323D: la bandeja curada se monta al abrirla; el conteo
                         de la insignia es ligero y va aparte, en la pestaña misma. */}
-                    {pestana === "reportes" ? <PanelReportes /> : null}
+                    {pestana === "reportes" ? (
+                        <PanelPlegable id={idPlegable("reportes", "bandeja")} titulo="Bandeja de reportes" primero>
+                            <PanelReportes />
+                        </PanelPlegable>
+                    ) : null}
                 </TabsContent>
                 <TabsContent value="chat">
-                    <ChatOrquestacion />
+                    <PanelPlegable id={idPlegable("chat", "chat")} titulo="Chat de orquestación" primero>
+                        <ChatOrquestacion />
+                    </PanelPlegable>
                 </TabsContent>
                 <TabsContent value="areas">
-                    <PanelAreas />
+                    <PanelPlegable id={idPlegable("areas", "areas")} titulo="Áreas" primero>
+                        <PanelAreas />
+                    </PanelPlegable>
                 </TabsContent>
                 <TabsContent value="contextos">
-                    <PanelContextos />
+                    <PanelPlegable id={idPlegable("contextos", "contextos")} titulo="Contextos" primero>
+                        <PanelContextos />
+                    </PanelPlegable>
                 </TabsContent>
                 <TabsContent value="memorias">
                     {/* Ola de Memorias: mismo patrón que Canales/Astra — chunk diferido
                         y montaje condicional, porque recorre disco (repo + home) al abrirse. */}
-                    {pestana === "memorias" ? <PanelMemorias /> : null}
+                    {pestana === "memorias" ? (
+                        <PanelPlegable id={idPlegable("memorias", "memorias")} titulo="Memorias" primero>
+                            <PanelMemorias />
+                        </PanelPlegable>
+                    ) : null}
                 </TabsContent>
                 <TabsContent value="entornos">
-                    <PanelEntornos />
+                    <PanelPlegable id={idPlegable("entornos", "entornos")} titulo="Entornos" primero>
+                        <PanelEntornos />
+                    </PanelPlegable>
                 </TabsContent>
                 <TabsContent value="ajustes_director">
-                    <AjustesDirector />
+                    <PanelPlegable id={idPlegable("ajustes_director", "directores")} titulo="Ajustes de directores" primero>
+                        <AjustesDirector />
+                    </PanelPlegable>
                 </TabsContent>
                 <TabsContent value="ajustes">
-                    <PanelAjustes />
+                    <PanelPlegable id={idPlegable("ajustes", "general")} titulo="Ajustes generales" primero>
+                        <PanelAjustes />
+                    </PanelPlegable>
                 </TabsContent>
                  <TabsContent value="accesos">
-                     <MetaGenesisAccesos />
+                     <PanelPlegable id={idPlegable("accesos", "accesos")} titulo="Accesos a MetaGenesis" primero>
+                         <MetaGenesisAccesos />
+                     </PanelPlegable>
                  </TabsContent>
                  <TabsContent value="tunel-metagenesis">
-                     <TunelMetaGenesisEstado />
+                     <PanelPlegable id={idPlegable("tunel-metagenesis", "tunel")} titulo="Túnel MetaGenesis" primero>
+                         <TunelMetaGenesisEstado />
+                     </PanelPlegable>
                  </TabsContent>
             <TabsContent value="capas-red">
-                <PanelCapasRed />
+                <PanelPlegable id={idPlegable("capas-red", "capas")} titulo="Capas de la red" primero>
+                    <PanelCapasRed />
+                </PanelPlegable>
             </TabsContent>
             </Tabs>
             {/* Control de la voz junto a la orbe: activar/silenciar sin abrir la pestaña. */}
