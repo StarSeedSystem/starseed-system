@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync, promises as fs } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -63,6 +63,16 @@ describe("encolarTrabajo", () => {
   it("listarRecientes limita a 20", async () => {
     const list = await listarRecientes(25);
     expect(list.length).toBeLessThanOrEqual(20);
+  });
+
+  it("no arranca segundo ejecutor si lock existe", async () => {
+    mkdirSync(raiz, { recursive: true });
+    writeFileSync(path.join(raiz, "ejecutor.lock"), "x");
+    let lanzados = 0;
+    _ponerProcesos(fichaLigera, () => { lanzados++; });
+    const r = await encolarTrabajo(base());
+    expect(r.ok).toBe(true);
+    expect(lanzados).toBe(0);
   });
 
   it("no devuelve rutas absolutas", async () => {
