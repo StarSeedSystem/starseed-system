@@ -7,6 +7,7 @@
  */
 import { decidir } from "./permisos";
 import type { Ambito, Autor, Capa, Molecula, Origen, Rol } from "./tipos";
+export type { Capa };
 
 export type EstadoCandidato = "propuesto" | "aceptado" | "rechazado";
 /** Un cambio de código PROPUESTO y guardado; nunca algo que el OS ejecute. */

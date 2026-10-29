@@ -24,7 +24,7 @@ describe("candidatos de código · escáner y revisión", () => {
 
   it("ejecución de código ajeno: eval, new Function, import( y node: saltan en la revisión", () => {
     const c = proponer(p({ propuesto: "eval(cadena);\nconst f = new Function(\"a\");\nawait import(\"algo\");\nimport os from \"node:os\";" }));
-    expect(c.avisos.join(" | ")).toMatch(/eval\(.*new Function\(.*import\(.*node:/s);
+    expect(c.avisos.join(" | ")).toMatch(/eval\([\s\S]*new Function\([\s\S]*import\([\s\S]*node:/);
   });
 
   it("ruta del disco y núcleo del OS: avisos, sin bloquear por sí mismos", () => {

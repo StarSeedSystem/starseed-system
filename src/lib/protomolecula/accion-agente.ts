@@ -5,6 +5,7 @@ import type { Controlador, EstadoControl } from "./controlador";
 import { candidatosDe } from "./registro-atomos";
 import { claveDe, describirCambio, formatearValor, normalizar, valorActual } from "./parametros";
 import { metricaDeFuente } from "./permisos";
+import { proponer, diff } from "./candidatos-codigo";
 import { PROTO_ORB_ABRIR_EVENT, PROTO_ORB_CERRAR_EVENT, leerActivada, fijarOrbeActivada, alternarOrbe } from "./orbe-bus";
 import { METRICAS_SALUD, type Accion, type Autor, type CandidatoParametro, type ModoRelativo, type Parametro } from "./tipos";
 import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memoria";
@@ -18,7 +19,6 @@ export interface ResultadoAccionProto { ok: boolean; message: string; status?: s
 export interface ContextoAccionProto { abrirRuta?: (ruta: string) => void; avisarOrbe?: (moleculaId?: string) => boolean;
   actor?: ActorMemoria; ahora?: () => number; nuevoId?: () => string; fijarOrbe?: (activada: boolean) => boolean; cerrarOrbe?: () => void }
 export const TOPE_LINEAS_ESTADO = 40, TOPE_BYTES_ESTADO = 4096;
-export const MENSAJE_PROPONER_CODIGO = "próximamente: las propuestas de código llegan con la fase F7; hoy no se ejecuta ni se guarda nada.";
 const PENDIENTE = "queda pendiente de que la persona la confirme en el panel", SALUD = new Set<string>(METRICAS_SALUD);
 const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir", "pedir", "video.componer", "diagrama.crear", "activar", "desactivar", "alternar", "cerrar"];
 const MODOS: ModoRelativo[] = ["delta", "porcentaje-valor", "porcentaje-rango", "pasos"];
@@ -141,7 +141,18 @@ function diagramaCrear(args: Record<string, unknown>): ResultadoAccionProto {
 export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): ResultadoAccionProto {
   const accion = texto(args.accion), moleculaId = texto(args.molecula) || undefined, atomo = texto(args.atomo);
   const autor: Autor = { tipo: "agente", id: texto(args.agente) || "astraura" }, herramienta = texto(args.herramienta);
-  if (accion === "proponer-codigo") return no(MENSAJE_PROPONER_CODIGO);
+  if (accion === "proponer-codigo") {
+    // §8.2: la IA (o la mano) PROPONE un candidato y se GUARDA; nunca se ejecuta ni se toca la capa. Lo acepta la persona con la mano.
+    const propuesto = texto(args.codigo) || texto(args.propuesto) || texto(args.descripcion);
+    if (!propuesto) return no("Falta «codigo»: es el texto que propongo. Se guarda sin ejecutar nada, y solo la persona lo acepta.");
+    const c = proponer({ capaId: texto(args.capa) || texto(args.capaId) || texto(args.destino),
+      lenguajeOrigen: texto(args.lenguaje) || texto(args.lenguajeOrigen) || "text",
+      lenguajeDestino: texto(args.hacia) || texto(args.lenguajeDestino) || undefined,
+      propuesto, original: texto(args.original), autor });
+    return { ok: true, status: "Guardando la propuesta de código…",
+      message: `Candidato «${c.id}» guardado sin ejecutar ni tocar la capa: la persona lo revisa en el panel y lo acepta con la mano.${c.avisos.length ? ` Avisos: ${c.avisos.join(" ")}` : ""}`,
+      datos: { id: c.id, avisos: c.avisos, diff: diff(texto(args.original), propuesto) } };
+  }
   if (accion === "pedir") return no("«pedir» espera a la IA para planificar: usa manejarAccionProtomoleculaAsync.");
   if (!ACCIONES.includes(accion)) return no(`No conozco la acción «${accion}». Usa: ${ACCIONES.join(", ")}.`);
   if (accion === "convertir") return convertir(ctx, args);
