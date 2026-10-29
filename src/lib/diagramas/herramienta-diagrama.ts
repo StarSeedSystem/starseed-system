@@ -32,24 +32,21 @@ const ALIAS_TIPO: Record<string, TipoDiagrama> = {
   gantt: "gantt", kanban: "kanban", sankey: "sankey", venn: "venn", piramide: "pyramid", embudo: "pyramid",
   "espina-de-pescado": "fishbone", wardley: "wardley", "viaje-de-usuario": "journey", "mapa-de-calor": "heatmap",
   cascada: "waterfall", barras: "bar", "mapa-de-arbol": "treemap", "clases-uml": "uml-class",
-  dependencias: "dependency", despliegue: "deployment", radar: "radar", cuadrante: "quadrant",
-  bucle: "loop", perspectivas: "quadrant", plot: "scatter",
+  dependencias: "dependency", despliegue: "deployment", radar: "radar", cuadrante: "quadrant", bucle: "loop", perspectivas: "quadrant", plot: "scatter",
 };
 /** Guía corta de cada tipo, resumida de `references/type-<slug>.md` de la skill. */
 const GUIA_TIPO: Partial<Record<TipoDiagrama, string>> = {
   architecture: "bloques por niveles con flechas de dependencia, caja por servicio y protocolo en subetiqueta",
   flowchart: "decisiones y bifurcaciones: óvalo inicio/fin, rectángulo de paso, rombo de decisión con salidas etiquetadas",
   sequence: "actores con líneas de vida e interacciones ordenadas hacia abajo, anotaciones HTTP/API",
-  state: "estados con transiciones etiquetadas por evento, inicial y final marcados",
-  er: "entidades con sus campos y relaciones con cardinalidad explícita en notación crow",
+  state: "estados con transiciones etiquetadas por evento, inicial y final marcados", er: "entidades con sus campos y relaciones con cardinalidad explícita en notación crow",
   "org-chart": "jerárquico vertical de una persona por nodo, con conexiones ortogonales",
   layers: "capas apiladas, una por plano, con la dependencia de abajo a arriba",
   timeline: "hitos ordenados por fecha sobre una línea de eje, con fechas en subetiqueta mono",
   journey: "fases del recorrido con emociones y puntos de dolor por fase",
 };
 /** minúsculas, sin tildes y con separador uniforme: para comparar tipos y aliases. */
-const normalizar = (s: string): string =>
-  s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const normalizar = (s: string): string => s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 /** El tipo por lo que se escribió a mano, o a ojo por la petición; avisa SIEMPRE que adivine. */
 function resolverTipo(peticion: string, tipo?: string): { tipo: TipoDiagrama; avisos: string[] } {
   const avisos: string[] = [];
@@ -70,8 +67,7 @@ function resolverTipo(peticion: string, tipo?: string): { tipo: TipoDiagrama; av
 }
 
 /** Resumen de una sola línea: lo del tipo concreto, o el patrón genérico de la skill. */
-const guiaDe = (tipo: TipoDiagrama): string =>
-  (GUIA_TIPO[tipo] ?? "dibuja el patrón semántico del tipo según la guía que ya conoces") + ".";
+const guiaDe = (tipo: TipoDiagrama): string => (GUIA_TIPO[tipo] ?? "dibuja el patrón semántico del tipo según la guía que ya conoces") + ".";
 
 const TEXTO_TAMANO: Record<TamanoDiagrama, string> = {
   tarjeta: "minimalista para caber en una tarjeta o un mensaje: lo esencial, casi sin texto",
@@ -112,10 +108,13 @@ function extraerHtml(respuesta: string): string | null {
 
 /** Extrae el HTML, lo pasa por fuentes-locales y aislar-diagrama: nunca se muestra fuera del iframe sandbox. */
 export function recibirDiagrama(respuesta: string, opciones: OpcionesRecibir = {}): RespuestaDiagrama {
-  const tipo = resolverTipo("", opciones.tipo).tipo;
+  const resuelto = resolverTipo("", opciones.tipo ?? "");
+  /** El tipo entrado a mano no correspondía a la skill: aviso en los motivos, sin callarse. */
+  const avisoDesconocido = resuelto.avisos.find((a) => a.includes("No conozco el tipo")) ?? "";
+  const motivos: string[] = avisoDesconocido ? [avisoDesconocido] : [];
   const html = extraerHtml(respuesta ?? "");
-  if (!html) return { ok: false, sandbox: "", tipo, motivos: ["La respuesta no trae HTML de diagrama: repite el pedido."] };
+  if (!html) return { ok: false, sandbox: "", tipo: resuelto.tipo, motivos: [...motivos, "La respuesta no trae HTML de diagrama: repite el pedido."] };
   const local = sustituirFuentes(html, opciones.fuentes ?? []);
   const r = prepararDiagrama(local, { permitirAnimacion: opciones.animado === true });
-  return { ok: r.ok, srcdoc: r.srcdoc, sandbox: r.sandbox, tipo, motivos: r.motivos };
+  return { ok: r.ok, srcdoc: r.srcdoc, sandbox: r.sandbox, tipo: resuelto.tipo, motivos: [...motivos, ...r.motivos] };
 }

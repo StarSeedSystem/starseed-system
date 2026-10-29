@@ -68,6 +68,18 @@ describe("recibirDiagrama", () => {
     expect(r.srcdoc).toContain("<svg");
   });
 
+  it("si el tipo entrado a mano no existe, avisa en los motivos y no se calla", () => {
+    const r = recibirDiagrama(RESPUESTA, { tipo: "collage" });
+    expect(r.tipo).toBe("flowchart");
+    expect(r.motivos[0]).toContain("No conozco el tipo «collage»");
+  });
+
+  it("resuelve el tipo por alias en español también al recibir", () => {
+    const r = recibirDiagrama(RESPUESTA, { tipo: "organigrama" });
+    expect(r.tipo).toBe("org-chart");
+    expect(r.ok).toBe(true);
+  });
+
   it("sustituye las fuentes de Google por caras locales: sin peticiones a terceros", () => {
     const r = recibirDiagrama(RESPUESTA);
     expect(r.srcdoc).not.toContain("fonts.googleapis.com");
