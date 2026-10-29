@@ -13,6 +13,7 @@ import { OrbitControls } from "@react-three/drei";
 import Link from "next/link";
 import { nivelInicial, perfilDeNivel } from "@/lib/xr/calidad";
 import { modeloQuest, type PlanEntrada } from "@/lib/xr/capacidades";
+import { useCalidadDinamica } from "./use-calidad-dinamica";
 import type { ModoXR } from "@/lib/xr/tipos";
 import { CRISTAL } from "@/lib/xr/tokens-3d";
 import { mensajeErrorXR } from "@/components/vivo/espacial/use-sesion-xr";
@@ -64,6 +65,7 @@ export function EscenaOS({ modo = null }: Props) {
     const [enSesion, setEnSesion] = useState(false);
     const intentadoRef = useRef(false);
     const alturaOjosRef = useRef<{ metros: number } | null>(null);
+    const { nivel: calidadNivel, cambio, aviso } = useCalidadDinamica();
 
     // Una sola pasada: conseguir el almacén (el botón comparte el singleton) y, si toca, entrar solo.
     useEffect(() => {
@@ -107,6 +109,7 @@ export function EscenaOS({ modo = null }: Props) {
                 </Suspense>
             </Canvas>
             <div className="absolute inset-x-0 top-0 z-10 flex flex-wrap items-center gap-3 p-4" data-testid="corte-xr">
+                {aviso && <p className="max-w-xs text-xs text-[#F5F7FF] bg-[#1E1E2E] px-3 py-1 rounded text-center" role="alert">{aviso}</p>}
                 <BotonEntradaXR variante="insertado" modo={modoBotonDe(modoUrl, capacidades.modos)} alEntrar={() => setEnSesion(true)} />
                 {fallo !== null && <p className="max-w-xs text-xs text-[#DC143C]" role="alert" data-testid="fallo-auto-entrar">{fallo}</p>}
                 <Link href="/dashboard" data-testid="salir-sistema" className="cursor-pointer ml-auto inline-flex min-h-11 items-center text-sm text-[#F5F7FF] underline decoration-white/30 underline-offset-4 hover:decoration-[#39FF14]">
