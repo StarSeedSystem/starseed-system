@@ -15,8 +15,9 @@
  *   agente > personalidad > cerebro > neurona > cuenta > cadena AUTO
  *
  * Es PURA (entrada → salida): no toca red ni disco y nunca lanza. El llamador
- * le pasa las elecciones que ya conoce; si ningún ámbito fija motor, devuelve
- * `null` y manda la selección automática de `buildVoiceChain`.
+ * le pasa las elecciones que ya conoce (`voiceHierarchyStoreFrom`) o las
+ * fuentes crudas del turno (`resolveVoiceChoice`); si ningún ámbito fija motor,
+ * devuelve `null` y manda la selección automática de `buildVoiceChain`.
  */
 
 import {
@@ -76,9 +77,17 @@ export interface PersonalityVoiceShape {
 /** Config de voz persistida (solo lo que decide el motor). */
 export type VoiceConfigShape = Pick<AuroraVoiceConfig, "engine" | "autoDownload">;
 
-/** Normaliza un id de motor: solo devuelve motores conocidos. */
+/**
+ * Normaliza un id de motor: solo devuelve motores conocidos. Tolera espacios y
+ * mayúsculas de valores guardados a mano (`" VibeVoice "`), pero nunca inventa
+ * un motor ni acepta «browser»: el navegador NO es un pin sino el suelo
+ * garantizado (igual que `buildVoiceChain`), así que ese ámbito hereda.
+ */
 function motorDe(v: unknown): AuroraVoiceEngine | null {
-  return isVoiceEngineId(v) ? v : null;
+  if (typeof v !== "string") return null;
+  const limpio = v.trim().toLowerCase();
+  if (!isVoiceEngineId(limpio) || limpio === "browser") return null;
+  return limpio;
 }
 
 /** Elige en un mapa por id (agente/personalidad/cerebro/neurona). */
@@ -92,13 +101,10 @@ function deMapa(
   return motor ? { motor, provenance, scopeId: id } : null;
 }
 
-/**
- * Motor fijado por la JERARQUÍA, o `null` si ningún ámbito elige (⇒ AUTO).
- * Precedencia: agente > personalidad > cerebro > neurona > cuenta.
- */
-export function resolveVoiceChoiceFrom(
+/** Precedencia sobre un store ya completo: agente > personalidad > cerebro > neurona > cuenta. */
+function elegirDeStore(
   store: VoiceHierarchyStore,
-  ctx: VoiceHierarchyContext = {},
+  ctx: VoiceHierarchyContext,
 ): ResolvedVoiceChoice | null {
   const cuenta = motorDe(store.cuenta?.motor);
   return (
@@ -108,6 +114,21 @@ export function resolveVoiceChoiceFrom(
     deMapa(store.neurona, ctx.deviceId, "neurona") ??
     (cuenta ? { motor: cuenta, provenance: "cuenta" } : null)
   );
+}
+
+/**
+ * Motor fijado por la JERARQUÍA, o `null` si ningún ámbito elige (⇒ AUTO).
+ * Precedencia: agente > personalidad > cerebro > neurona > cuenta.
+ *
+ * Pasa SIEMPRE por `voiceHierarchyStoreFrom`: es el único camino que completa
+ * el store y el que usan el router y el registro, así que no queda una segunda
+ * precedencia que se pueda desincronizar de la cadena de voz.
+ */
+export function resolveVoiceChoiceFrom(
+  store: VoiceHierarchyStore,
+  ctx: VoiceHierarchyContext = {},
+): ResolvedVoiceChoice | null {
+  return elegirDeStore(voiceHierarchyStoreFrom({ store, ctx }), ctx);
 }
 
 /**
@@ -139,7 +160,81 @@ export function voiceChoiceFromOverride(
 export function voiceChoiceFromConfig(
   cfg: VoiceConfigShape | null | undefined,
 ): AuroraVoiceEngine | null {
-  return cfg?.engine === "browser" ? null : motorDe(cfg?.engine);
+  return motorDe(cfg?.engine);
+}
+
+/**
+ * Fuentes CRUDAS de un turno, tal como las tiene el llamador (router): las
+ * elecciones guardadas por ámbito, el contexto de quién habla y los pines que
+ * viven fuera del store (personalidad, neurona×personalidad y cuenta).
+ */
+export interface VoiceHierarchySources {
+  /** Elecciones ya guardadas por ámbito. Manda sobre lo derivado. */
+  store?: VoiceHierarchyStore;
+  /** Qué agente, personalidad, cerebro y neurona hablan en este turno. */
+  ctx?: VoiceHierarchyContext;
+  /** Perfil de la personalidad activa (pin de voz). */
+  personality?: PersonalityVoiceShape | null;
+  /** Override neurona×personalidad de esta neurona (Adenda 149). */
+  override?: { voz?: { motor?: string } } | null;
+  /** Config de la cuenta (Ajustes → Voz). */
+  config?: VoiceConfigShape | null;
+}
+
+/**
+ * Completa un mapa por id con un motor derivado, SIN pisar una elección válida
+ * que ya estuviera guardada en el store. Si no hay id o motor, deja el mapa tal
+ * cual: ese ámbito simplemente hereda del siguiente.
+ */
+function conMotor(
+  mapa: Record<string, VoiceScopeChoice> | undefined,
+  id: string | null | undefined,
+  motor: AuroraVoiceEngine | null,
+): Record<string, VoiceScopeChoice> | undefined {
+  if (!id || !motor) return mapa;
+  if (motorDe(mapa?.[id]?.motor)) return mapa;
+  return { ...(mapa ?? {}), [id]: { ...(mapa?.[id] ?? {}), motor } };
+}
+
+/**
+ * Construye el store de la jerarquía a partir de las fuentes crudas del turno:
+ * lo guardado en `store` manda; lo que falte se deriva de la personalidad, del
+ * override neurona×personalidad y de la cuenta. Función pura; nunca lanza.
+ */
+export function voiceHierarchyStoreFrom(
+  sources: VoiceHierarchySources = {},
+): VoiceHierarchyStore {
+  const store = sources.store ?? {};
+  const ctx = sources.ctx ?? {};
+  const cuentaMotor = motorDe(store.cuenta?.motor) ?? voiceChoiceFromConfig(sources.config);
+  return {
+    agente: store.agente,
+    personalidad: conMotor(
+      store.personalidad,
+      ctx.personaId,
+      voiceChoiceFromPersonality(sources.personality),
+    ),
+    cerebro: store.cerebro,
+    neurona: conMotor(
+      store.neurona,
+      ctx.deviceId,
+      voiceChoiceFromOverride(sources.override),
+    ),
+    cuenta: cuentaMotor ? { ...(store.cuenta ?? {}), motor: cuentaMotor } : store.cuenta,
+  };
+}
+
+/**
+ * Motor elegido por la JERARQUÍA a partir de las fuentes crudas del turno, o
+ * `null` si ningún ámbito fija motor (⇒ manda la cadena AUTO). Es el mismo
+ * camino que recorre `speakWithConfiguredEngine`, expuesto en una sola llamada
+ * para que nadie tenga que recomponer la precedencia a mano.
+ */
+export function resolveVoiceChoice(
+  sources: VoiceHierarchySources = {},
+): ResolvedVoiceChoice | null {
+  const ctx = sources.ctx ?? {};
+  return elegirDeStore(voiceHierarchyStoreFrom(sources), ctx);
 }
 
 /**
