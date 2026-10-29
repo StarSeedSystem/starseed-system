@@ -72,6 +72,8 @@ try:
 except Exception:  # pragma: no cover — sin el módulo, el orquestador funciona como antes
     _puntos_control = None
 
+# (Ola 1018L · L) Tarjeta de habilidad de Matt Pocock según la tarea (datos puros, sin red).
+import habilidades_enjambre as _habilidades_enjambre
 
 
 # El MISMO archivo corre en la Mac de Alex y en el contenedor de Cowork: sin variables de
@@ -5805,7 +5807,7 @@ def contexto_tarea(t, raiz=None):
         "y nunca rutas inventadas como `/workspace/...`: cualquier ruta fuera de la raiz se rechaza "
         "automaticamente y pierdes el intento.\n\n"
     ) % raiz
-    return (
+    prompt = (
         regla_raiz
         + "Trabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). "
         "Lee primero CLAUDE.md (secciones 8, 11 y 💠) y los archivos implicados. Reglas: sin `any`; cursor-pointer en lo clicable; "
@@ -5848,6 +5850,7 @@ def contexto_tarea(t, raiz=None):
         ", ".join(t.get("archivos", [])),
         t["prompt"],
     )
+    return _habilidades_enjambre.con_habilidad(prompt, t)
 
 
 # ── latidos: qué está haciendo AHORA cada tarea ─────────────────────────────
