@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { manejarAccionProtomolecula as accion, MENSAJE_PROPONER_CODIGO, TOPE_BYTES_ESTADO, TOPE_LINEAS_ESTADO, type ContextoAccionProto } from "../accion-agente";
+import { manejarAccionProtomolecula as accion, TOPE_BYTES_ESTADO, TOPE_LINEAS_ESTADO, type ContextoAccionProto } from "../accion-agente";
 import { crearControlador, type Controlador } from "../controlador";
 import { registrarControlador, limpiarControladores } from "../controlador-activo";
 import { registrarAtomo, limpiarRegistro, type DefinicionAtomo } from "../registro-atomos";
@@ -96,10 +96,10 @@ describe("acción de agente de la Protomolécula", () => {
     const sinOrbe = ctx();
     expect(accion({ accion: "abrir", molecula: "m 2" }, sinOrbe).ok).toBe(true); expect(sinOrbe.abrirRuta).toHaveBeenCalledWith("/protomolecula?molecula=m%202");
   });
-  it("proponer-codigo es honesto: ok false y no guarda nada", () => {
-    const c = abrirMol(), antes = c.obtener(), r = accion({ accion: "proponer-codigo", codigo: "alert(1)" }, ctx());
-    expect(r).toMatchObject({ ok: false, message: MENSAJE_PROPONER_CODIGO }); expect(c.obtener()).toBe(antes);
-    expect(accion({ accion: "borrar-todo" }, ctx()).message).toContain("No conozco la acción");
+  it("proponer-codigo guarda un candidato sin tocar la capa", () => {
+    const m = { ...mol("personal", uno), capas: [{ id: "c1", tipo: "codigo" as const, titulo: "Código", formato: "ts", referencia: null, orden: 0, visible: true, bloqueada: false }] }, c = crearControlador({ molecula: m, rol: "dueno", ahora: () => ++n, nuevoId: () => `id-${++n}` }); registrarControlador("mol-1", c);
+    const r = accion({ accion: "proponer-codigo", capa: "c1", codigo: "const x = 1;", lenguaje: "ts" }, ctx());
+    expect(r.ok).toBe(true); expect(r.message).toContain("candidato"); expect(c.obtener().molecula).toEqual(m);
   });
   it("una operación del agente en espacio compartido queda pendiente de la persona", () => {
     const c = abrirMol("grupo", "editor");
