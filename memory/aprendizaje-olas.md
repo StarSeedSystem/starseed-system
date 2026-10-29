@@ -4662,3 +4662,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-29 03:37 · mg-oracle-1028-2106
+
+**Lo que se pidió.** Almacén del ADN en la Biblioteca y avatar 3D en perfiles, grupos, comunidades y páginas
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — no escribió nada (RTAV1011Dd-d2c, RTFS1013Ad-d1b, RTCB1013K, GUI1021K2, VPU1019P, RTCRM1024Dds). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTAV1011Dd-d2c` — no escribió nada
+- `RTFS1013Ad-d1b` — no escribió nada
+- `RTCB1013K` — no escribió nada
+- `GUI1021K2` — no escribió nada
+- `VPU1019P` — no escribió nada
+- `RTCRM1024Dds` — no escribió nada
