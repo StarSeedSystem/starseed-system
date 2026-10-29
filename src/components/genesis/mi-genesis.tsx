@@ -17,6 +17,7 @@ import { PanelOperaciones } from "./panel-operaciones";
 import { AtajosGenesis } from "./atajos-genesis";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
+import { PanelProtoGenesis } from "@/components/protogenesis/panel-protogenesis";
 
 const AMBITO: Ambito = { tipo: "persona" };
 
@@ -56,6 +57,7 @@ export function MiGenesis() {
 
     const cargarContexto = useCallback(() => contextoDeMiCuenta(), []);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    const [abierto, setAbierto] = useState<RegistroEncargo | null>(null);
 
     useEffect(() => {
         const almacen = almacenNavegador();
@@ -100,8 +102,11 @@ export function MiGenesis() {
                 <h2 className="text-base font-semibold">Mis bots</h2>
                 <SeccionBotsGenesis />
             </section>
-            <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis">
+            <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis" data-testid="protogenesis-personal">
                 <h2 className="text-base font-semibold">ProtoGenesis de mis moléculas</h2>
+                <p className="text-[11px] text-white/55">
+                    La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.
+                </p>
                 {encargos === null ? (
                     <p className="text-[11px] text-white/50">Cargando encargos…</p>
                 ) : encargos.length === 0 ? (
@@ -129,6 +134,13 @@ export function MiGenesis() {
                                         </span>
                                     ) : null}
                                 </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setAbierto(registro)}
+                                    className="shrink-0 cursor-pointer rounded-md border border-white/15 px-2 py-1 text-[10px] text-white/80 transition-colors duration-200 hover:bg-white/10"
+                                >
+                                    Abrir panel
+                                </button>
                                 <span className="text-[10px] text-white/45">
                                     {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
                                 </span>
@@ -137,6 +149,16 @@ export function MiGenesis() {
                     })}
                     </ul>
                 )}
+                {abierto ? (
+                    <PanelProtoGenesis
+                        moleculaId={abierto.encargo.moleculaId}
+                        ambito="personal"
+                        esDueno
+                        plan={abierto.plan}
+                        estados={abierto.estados}
+                        asignaciones={abierto.asignaciones}
+                    />
+                ) : null}
             </section>
         </section>
     );

@@ -23,6 +23,9 @@ import { PanelOperaciones } from "./panel-operaciones";
 import { BotsEntidad } from "@/components/astraura-bots/bots-entidad";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
+import { PanelProtoGenesis } from "@/components/protogenesis/panel-protogenesis";
+import { GobiernoProtoResumen } from "@/components/protomolecula/gobierno";
+import type { ContextoProto } from "@/lib/protomolecula/peticion/contrato";
 
 const SUGERENCIAS = ["Actualiza la descripción para presentar mejor al grupo", "Cambia el color de acento a verde esmeralda", "Crea un agente público que dé la bienvenida a quien llega"];
 
@@ -35,6 +38,7 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
     const [aplicadas, setAplicadas] = useState<Set<string>>(new Set());
     const [aplicando, setAplicando] = useState<string | null>(null);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    const [abierto, setAbierto] = useState<RegistroEncargo | null>(null);
     const puertos = useMemo(() => puertosDelOs(), []);
 
     useEffect(() => {
@@ -48,6 +52,18 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
 
     const entidad = lista?.find((e) => e.id === elegida) ?? null;
     const ambito: Ambito | null = useMemo(() => (entidad ? { tipo: "entidad", entidad: { tipo: entidad.tipo, id: entidad.id, slug: entidad.slug, nombre: entidad.nombre } } : null), [entidad]);
+
+    // El gobierno de la Protomolécula de esta entidad, con su contexto (no se duplican reglas).
+    const contextoProto: ContextoProto | null = useMemo(() => {
+        if (!entidad) return null;
+        const tipo = entidad.tipo;
+        return {
+            ruta: `/${tipo === "pagina" ? "pagina" : "grupo"}/${entidad.slug}`,
+            ambito: "grupo",
+            entidad: { tipo, id: entidad.id, nombre: entidad.nombre },
+            gobernadaPor: { tipo, id: entidad.id, nombre: entidad.nombre },
+        };
+    }, [entidad]);
 
     // La decisión del resultado de cada encargo (§2.7): en entidad manda su gobierno,
     // y lo que toca fuera de la molécula se convierte en borrador para MetaGenesis (§4).
@@ -76,6 +92,7 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
     useEffect(() => {
         if (!entidad) return;
         setModo(null);
+        setAbierto(null);
         void modoDe(entidad).then(setModo);
         void cargarPropuestas();
         // Load encargos for this entity
@@ -162,7 +179,7 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
 
             {ambito && decision ? (
                 <PanelOperaciones
-                    key={ambito.tipo === "entidad" ? ambito.entidad.id : "x"}
+                    key={ambito.tipo === "entidad" ? `ops-${ambito.entidad.id}` : "x"}
                     ambito={ambito}
                     modo={decision.modo}
                     motivoModo={decision.motivo}
@@ -179,7 +196,7 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
             )}
 
             {ambito?.tipo === "entidad" && entidad ? (
-                <BotsEntidad key={ambito.entidad.id} entidad={ambito.entidad} rol={entidad.dueña ? "dueno" : entidad.rango >= 3 ? "admin" : entidad.rango >= 2 ? "miembro" : "observador"} />
+                <BotsEntidad key={`bots-${ambito.entidad.id}`} entidad={ambito.entidad} rol={entidad.dueña ? "dueno" : entidad.rango >= 3 ? "admin" : entidad.rango >= 2 ? "miembro" : "observador"} />
             ) : null}
 
             {enVotacion.length + aprobadas.length > 0 ? (
@@ -215,43 +232,66 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     </ul>
                 </section>
             ) : null}
-            {/* Nuevo section for ProtoGenesis encargos */}
+            {/* ProtoGenesis de las moléculas de esta entidad (§2.8): encargos y su panel. */}
             {encargos !== null && (
-                <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis para esta entidad">
+                <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis para esta entidad" data-testid="protogenesis-entidad" className="space-y-2">
                     <h2 className="text-base font-semibold">ProtoGenesis de esta entidad</h2>
+                    <p className="text-[11px] text-white/55">
+                        La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.
+                    </p>
                     {encargos.length === 0 ? (
                         <p className="text-[11px] text-white/60">
                             Aún no hay encargos para esta entidad.
                         </p>
                     ) : (
                         <ul className="space-y-1">
-                    {encargos.map((registro) => {
-                        const decision = decisionPara(registro);
-                        return (
-                            <li key={registro.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
-                                <div className="flex-1">
-                                    <span className="block truncate">{registro.encargo.intencion}</span>
-                                    {registro.plan ? (
-                                        <span className="text-[10px] text-white/45">Con plan: {registro.plan.pasos.length} pasos</span>
-                                    ) : (
-                                        <span className="text-[10px] text-white/45">Sin plan</span>
-                                    )}
-                                    {/* Quién decide el resultado aquí: el gobierno de la entidad (§2.7). */}
-                                    <span className="block truncate text-[10px] text-cyan-200/70">{decision.motivo}</span>
-                                    {decision.modo === "proponer-metagenesis" && decision.borrador ? (
-                                        <span className="block truncate text-[10px] text-amber-200/80">
-                                            Borrador para MetaGenesis: {decision.borrador.id} — {decision.borrador.titulo}
+                            {encargos.map((registro) => {
+                                const decision = decisionPara(registro);
+                                return (
+                                    <li key={registro.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
+                                        <div className="flex-1">
+                                            <span className="block truncate">{registro.encargo.intencion}</span>
+                                            {registro.plan ? (
+                                                <span className="text-[10px] text-white/45">Con plan: {registro.plan.pasos.length} pasos</span>
+                                            ) : (
+                                                <span className="text-[10px] text-white/45">Sin plan</span>
+                                            )}
+                                            {/* Quién decide el resultado aquí: el gobierno de la entidad (§2.7). */}
+                                            <span className="block truncate text-[10px] text-cyan-200/70">{decision.motivo}</span>
+                                            {decision.modo === "proponer-metagenesis" && decision.borrador ? (
+                                                <span className="block truncate text-[10px] text-amber-200/80">
+                                                    Borrador para MetaGenesis: {decision.borrador.id} — {decision.borrador.titulo}
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAbierto(registro)}
+                                            className="shrink-0 cursor-pointer rounded-md border border-white/15 px-2 py-1 text-[10px] text-white/80 transition-colors duration-200 hover:bg-white/10"
+                                        >
+                                            Abrir panel
+                                        </button>
+                                        <span className="text-[10px] text-white/45">
+                                            {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
                                         </span>
-                                    ) : null}
-                                </div>
-                                <span className="text-[10px] text-white/45">
-                                    {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
-                                </span>
-                            </li>
-                        );
-                    })}
+                                    </li>
+                                );
+                            })}
                         </ul>
                     )}
+                    {abierto && entidad ? (
+                        <PanelProtoGenesis
+                            moleculaId={abierto.encargo.moleculaId}
+                            ambito="grupo"
+                            rol={entidad.dueña ? "owner" : entidad.rol}
+                            democratico={modo?.democratico ?? false}
+                            esDueno={entidad.dueña}
+                            plan={abierto.plan}
+                            estados={abierto.estados}
+                            asignaciones={abierto.asignaciones}
+                        />
+                    ) : null}
+                    {contextoProto ? <GobiernoProtoResumen contexto={contextoProto} /> : null}
                 </section>
             )}
         </section>
