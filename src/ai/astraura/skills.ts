@@ -25,7 +25,8 @@ import {
   ATRIBUCION_DIAGRAMAS, HABILIDAD_DIAGRAMAS, comoCapacidad,
 } from "./habilidades/diagramas";
 import { CAPACIDADES_REPOS_1026 } from "./habilidades/repos-1026";
-import { HABILIDADES_INGENIERIA_A, comoCapacidad as comoCapacidadIngenieria } from "./habilidades/ingenieria-a";
+import { HABILIDADES_INGENIERIA_A, comoCapacidad as comoCapacidadIngenieria, ATRIBUCION_INGENIERIA } from "./habilidades/ingenieria-a";
+import { HABILIDADES_INGENIERIA } from "./habilidades/elegir-habilidad";
 
 /** Espejo local de capacidades activas (lo mantiene sincronizado library-sync
  *  con `user_settings.prefs.capabilities` de la cuenta soberana). */
@@ -691,6 +692,28 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     routing: {},
     rutaCompleta: h.rutaCompleta,
   })),
+  /* ═══ HABILIDADES · Laya elige cuál aplica y la capa manda el tamaño (Ola 1018L) ═══
+   * Una capacidad que engloba las habilidades de ingeniería, activa por defecto
+   * y desactivable en Ajustes: la pregunta «choice» de Laya sale de
+   * `preguntaHabilidad` (criterio = cuándo aplica cada una + «ninguna») y el
+   * bloque a inyectar de `bloqueHabilidad` (tarjeta para Needle/BitNet,
+   * resumen para Bonsai y referencia al SKILL.md completo para las capas
+   * mayores). Contrato: architecture/laya-y-habilidades.md §5. */
+  {
+    id: "habilidades-ingenieria",
+    label: "Habilidades de ingeniería (Laya elige la skill)",
+    systemPrompt:
+      `Eres ingenieril: tienes ${HABILIDADES_INGENIERIA.length} habilidades de ingeniería ` +
+      `(${HABILIDADES_INGENIERIA.map((h) => h.id).join(", ")}) que aplicas cuando encajan con la tarea. ` +
+      "La skill se elige con una pregunta «choice» de Laya que te hace quien te llama, y el texto " +
+      "que te inyecta sale de la capa que responde: " +
+      "el reflejo y la palabra pequeña (Needle, BitNet) llevan la tarjeta, la palabra y la razón con Bonsai el resumen, y las capas profunda y nube cargan el SKILL.md completo. " +
+      "Si la elección llega «ninguna» o con confianza bajo el umbral, responde con normalidad, sin bloque extra. " +
+      ATRIBUCION_INGENIERIA,
+    routing: {},
+    defaultOn: true,
+    skillIds: ["habilidades-ingenieria"],
+  },
 ];
 
 function isClient(): boolean {
