@@ -135,6 +135,18 @@ export function acotarNivel(n: NivelVoz, tope: NivelVoz): NivelVoz {
 }
 
 /**
+ * Aplica el tope del uso al nivel elegido por hardware. Sin uso no acota nada
+ * (los llamadores antiguos conservan su comportamiento); en conversación y
+ * avisos baja «estudio» a «alta» y deja «estudio» para lectura, doblaje y
+ * audiolibros. Pura.
+ */
+function acotarPorUso(n: NivelVoz, uso?: UsoVoz): NivelVoz {
+    if (!uso) return n;
+    const tope = nivelTopeSegunUso(uso);
+    return tope ? acotarNivel(n, tope) : n;
+}
+
+/**
  * Nivel por defecto (decisión automática). A los cuatro niveles por hardware
  * se une el «nube» (2026-09-07, Ola 279 · V6): si no hay demonio local PERO hay
  * conexión, la síntesis por el servidor del OS suena bien sin descargar nada,
@@ -146,13 +158,17 @@ export function acotarNivel(n: NivelVoz, tope: NivelVoz): NivelVoz {
  * (el demonio local no hace falta). Sin esas condiciones el demonio queda como
  * «alta». Sin datos de VoiceStudio (llamadores antiguos) manda la regla
  * histórica del demonio con 8 GB de RAM.
+ *
+ * El `uso` del turno se aplica aquí mismo: en conversación y avisos el tope es
+ * «alta», y «estudio» queda solo para lectura, doblaje y audiolibros. Sin `uso`
+ * no se acota (compatibilidad con los llamadores que aún no lo declaran).
  */
-export function nivelPorDefecto(c: Capacidades, estudio?: EstadoEstudio): NivelVoz {
+export function nivelPorDefecto(c: Capacidades, estudio?: EstadoEstudio, uso?: UsoVoz): NivelVoz {
     if (estudio !== undefined) {
-        if (estudioDisponible(estudio)) return "estudio";
+        if (estudioDisponible(estudio)) return acotarPorUso("estudio", uso);
         if (c.daemonLocal) return "alta";
     } else if (c.daemonLocal && (c.memoriaGB ?? 0) >= 8) {
-        return "estudio";
+        return acotarPorUso("estudio", uso);
     }
     if (c.daemonLocal) return "alta";
     // `navigator.onLine` solo existe en el navegador; el servidor cae a ligera/mínima.
@@ -170,17 +186,20 @@ export function nivelPorDefecto(c: Capacidades, estudio?: EstadoEstudio): NivelV
  *  · en línea y sin demonio                                       → nube (Gemini/Pollinations)
  *  · escritorio con WebGPU o WASM SIMD                            → ligera
  *  · cualquier otro caso                                          → minima
+ *
+ * Con `uso`, el resultado nunca supera su tope (conversación y avisos no
+ * llegan a «estudio»); sin `uso` se mantiene la decisión solo por hardware.
  */
-export function nivelPara(c: Capacidades, estudio?: EstadoEstudio): NivelVoz {
-    return nivelPorDefecto(c, estudio);
+export function nivelPara(c: Capacidades, estudio?: EstadoEstudio, uso?: UsoVoz): NivelVoz {
+    return nivelPorDefecto(c, estudio, uso);
 }
 
 /**
- * Niveles que puede ofrecer este equipo, del mejor al peor.
- * Siempre incluye «minima», la red de seguridad que nunca falla.
+ * Niveles que puede ofrecer este equipo, del mejor al peor, ya acotados por el
+ * uso del turno. Siempre incluye «minima», la red de seguridad que nunca falla.
  */
-export function nivelesDisponibles(c: Capacidades, estudio?: EstadoEstudio): NivelVoz[] {
-    const mejor = nivelPara(c, estudio);
+export function nivelesDisponibles(c: Capacidades, estudio?: EstadoEstudio, uso?: UsoVoz): NivelVoz[] {
+    const mejor = nivelPara(c, estudio, uso);
     return ORDEN.slice(ORDEN.indexOf(mejor));
 }
 
