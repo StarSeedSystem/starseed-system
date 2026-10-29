@@ -219,5 +219,65 @@ class TestBriefRise(unittest.TestCase):
         self.assertNotIn("RISE", texto)
 
 
+class TestBriefHerramientasPaquetes(unittest.TestCase):
+    """Los paquetes de diseño de la ola entran en el brief por palabra clave."""
+
+    def _brief(self, tarea, max_chars=9000):
+        tarea = dict(tarea)
+        tarea.setdefault("archivos", ["src/app/x/page.tsx"])
+        return brief(tarea, MEMORIA_PRUEBA, max_chars=max_chars)
+
+    def test_presentacion_trae_frontend_slides(self):
+        texto = self._brief({"titulo": "Presentación del Café"})
+        self.assertIn("frontend-slides — https://github.com/zarazhangrui/frontend-slides", texto)
+
+    def test_diapositiva_y_conferencia_traen_frontend_slides(self):
+        for palabra in ("Diapositivas del Café", "Charla de conferencia"):
+            with self.subTest(palabra=palabra):
+                texto = self._brief({"titulo": palabra})
+                self.assertIn("frontend-slides", texto)
+
+    def test_design_md_trae_awesome_design_md(self):
+        texto = self._brief({"titulo": "Escribir el design.md del contexto"})
+        self.assertIn("awesome-design-md — https://github.com/VoltAgent/awesome-design-md", texto)
+        self.assertIn("nunca la identidad de una marca", texto)
+
+    def test_sistema_de_diseno_trae_awesome_design_md(self):
+        texto = self._brief({"titulo": "Sistema de diseño del Café"})
+        self.assertIn("awesome-design-md", texto)
+
+    def test_documentacion_y_educacion_traen_docusaurus(self):
+        for palabra in ("Documentación del OS", "Nodo de educación"):
+            with self.subTest(palabra=palabra):
+                texto = self._brief({"titulo": palabra})
+                self.assertIn("Docusaurus — https://github.com/facebook/docusaurus", texto)
+
+    def test_panel_de_datos_trae_refine(self):
+        texto = self._brief({"titulo": "Panel de datos del Café"})
+        self.assertIn("Refine — https://github.com/refinedev/refine", texto)
+        self.assertIn("telemetría apagada", texto)
+
+    def test_panel_de_administracion_trae_refine(self):
+        texto = self._brief({"titulo": "Panel de administración del Café"})
+        self.assertIn("Refine", texto)
+
+    def test_taste_skill_sigue_en_toda_tarea(self):
+        texto = self._brief({"titulo": "Formulario de ajustes"})
+        self.assertIn("taste-skill — https://github.com/Leonxlnx/taste-skill", texto)
+        self.assertIn("el ADN manda", texto)
+
+    def test_ninguna_linea_sale_dos_veces(self):
+        texto = self._brief({"titulo": "Presentación, diapositivas y conferencia"})
+        self.assertEqual(texto.count("frontend-slides — https://github.com/zarazhangrui/frontend-slides"), 1)
+
+    def test_varias_claves_conservan_apartados_6_y_7(self):
+        tarea = {"titulo": "Presentación de documentación con panel de datos",
+                 "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA)
+        self.assertLessEqual(len(texto), 2500)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+
+
 if __name__ == "__main__":
     unittest.main()
