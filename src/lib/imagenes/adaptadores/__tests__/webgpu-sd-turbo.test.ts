@@ -10,6 +10,7 @@ import {
   type ImagenSDTurbo, type MotorSDTurbo, type SondasWebGPU,
 } from "../webgpu-sd-turbo";
 import { modeloPorId } from "../../modelos";
+import { crearMotorReal } from "../webgpu-sd-turbo.worker";
 
 const BUENAS: SondasWebGPU = { hayWebGPU: true, hayAdaptador: true, f16: true };
 const IMAGEN: ImagenSDTurbo = { ancho: 512, alto: 512, pixeles: new Uint8Array(4), motor: "sd-turbo" };
@@ -25,6 +26,19 @@ function motor(over: Partial<MotorSDTurbo> = {}, llamadas: string[] = []): Motor
     generar: async () => { llamadas.push("generar"); return IMAGEN; },
     ...over,
   };
+}
+
+/** Mete un `self` de mentira con el `navigator` que pida cada prueba y lo devuelve a su sitio al salir. */
+async function conNavDeMentira(nav: unknown, prueba: () => Promise<void>): Promise<void> {
+  const g = globalThis as unknown as { self?: unknown };
+  const antes = g.self;
+  Object.defineProperty(g, "self", { value: { navigator: nav }, configurable: true, writable: true });
+  try {
+    await prueba();
+  } finally {
+    if (antes === undefined) delete g.self;
+    else Object.defineProperty(g, "self", { value: antes, configurable: true, writable: true });
+  }
 }
 
 describe("webgpu-sd-turbo · catálogo del módulo", () => {
@@ -59,7 +73,9 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
 
   it("solo los TRES archivos necesarios: ni encoder del VAE ni scheduler", () => {
     expect(PESOS_SD_TURBO.map((p) => p.ruta)).toEqual(["unet/model.onnx", "text_encoder/model.onnx", "vae_decoder/model.onnx"]);
-    for (const p of PESOS_SD_TURBO) expect(p.bytes).toBeGreaterThan(0);
+    // Los bytes son los MEDIDOS del repo de Hugging Face (2026-10-22): ni un byte inventado.
+    expect(PESOS_SD_TURBO.map((p) => p.bytes)).toEqual([1733430199, 681393168, 99094314]);
+    expect(BYTES_PESOS_SD_TURBO).toBe(1733430199 + 681393168 + 99094314);
   });
 
   it("textoBytes: GB con coma y MB redondeados; no inventa tamaños inválidos", () => {
@@ -101,6 +117,11 @@ describe("planPesos · reglas de la descarga (contrato §8)", () => {
     expect(planPesos({ enCache: true, permiso: false, cuotaLibreBytes: null }).motivo).toContain("no se descarga nada");
     expect(planPesos({ enCache: false, permiso: false, cuotaLibreBytes: 1e12 }).motivo).toContain("sin que lo permitas");
     expect(planPesos({ enCache: false, permiso: true, cuotaLibreBytes: null }).motivo).toContain("No se puede comprobar el espacio libre");
+  });
+
+  it("al pedir permiso se dice EL TAMAÑO: se permite sabiendo lo que se va a bajar", () => {
+    expect(planPesos({ enCache: true, permiso: false, cuotaLibreBytes: null }).motivo).not.toContain("2,3 GB");
+    expect(planPesos({ enCache: false, permiso: false, cuotaLibreBytes: 1e12 }).motivo).toContain("2,3 GB");
   });
 
   it("exige el TRIPLE del peso de los pesos, ni un byte menos", () => {
@@ -161,6 +182,50 @@ describe("generaEnPestana · flujo completo con el motor simulado", () => {
     expect(falloGenera.motivo).toContain("sin memoria en la GPU");
     expect(falloGenera.imagen).toBeUndefined();
     expect(llamadas).toEqual([]);
+  });
+});
+
+describe("crearMotorReal · el motor del worker, con un navegador de mentira (sin red, sin Cache API)", () => {
+  it("sin WebGPU en el navegador, las tres sondas en falso y sin preguntar nada", async () => {
+    await conNavDeMentira({}, async () => {
+      expect(await crearMotorReal(() => {}).sondear()).toEqual({ hayWebGPU: false, hayAdaptador: false, f16: false });
+    });
+  });
+
+  it("con WebGPU lee el adaptador y su f16; si el pedido cae, se ve SIN adaptador", async () => {
+    const conF16 = (has: boolean) => ({ gpu: { requestAdapter: async () => ({ features: { has: () => has } }) } });
+    await conNavDeMentira({ gpu: { requestAdapter: async () => null } }, async () => {
+      expect(await crearMotorReal(() => {}).sondear()).toEqual({ hayWebGPU: true, hayAdaptador: false, f16: false });
+    });
+    await conNavDeMentira(conF16(true), async () => {
+      expect(await crearMotorReal(() => {}).sondear()).toEqual({ hayWebGPU: true, hayAdaptador: true, f16: true });
+    });
+    await conNavDeMentira(conF16(false), async () => {
+      expect(await crearMotorReal(() => {}).sondear()).toEqual({ hayWebGPU: true, hayAdaptador: true, f16: false });
+    });
+    await conNavDeMentira({ gpu: { requestAdapter: async () => { throw new Error("boom"); } } }, async () => {
+      expect(await crearMotorReal(() => {}).sondear()).toEqual({ hayWebGPU: true, hayAdaptador: false, f16: false });
+    });
+  });
+
+  it("cuotaLibre: sin storage es null, y el espacio libre NUNCA sale negativo", async () => {
+    await conNavDeMentira({}, async () => {
+      expect(await crearMotorReal(() => {}).cuotaLibre()).toBeNull();
+    });
+    await conNavDeMentira({ storage: { estimate: async () => ({ quota: 10, usage: 20 }) } }, async () => {
+      expect(await crearMotorReal(() => {}).cuotaLibre()).toBe(0);
+    });
+    await conNavDeMentira({ storage: { estimate: async () => ({ quota: 16, usage: 4 }) } }, async () => {
+      expect(await crearMotorReal(() => {}).cuotaLibre()).toBe(12);
+    });
+  });
+
+  it("sin Cache API: los pesos no están y descargar se corta con un aviso en claro", async () => {
+    await conNavDeMentira({}, async () => {
+      const real = crearMotorReal(() => {});
+      expect(await real.hayPesosEnCache()).toBe(false);
+      await expect(real.descargarPesos()).rejects.toThrow("no tiene Cache API");
+    });
   });
 });
 
