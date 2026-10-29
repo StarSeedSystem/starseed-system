@@ -1,0 +1,53 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "UIG1029E",
+   "ola": "1029 · Ventanas plegables de Genesis",
+   "depende": [],
+   "titulo": "Genesis · las ventanas de los medidores agrupan su información en secciones plegables",
+   "archivos": [
+    "src/components/mando/medidor-abrible.tsx",
+    "src/components/mando/__tests__/medidor-abrible-plegable.test.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas (el detector de la autopublicación las frena). Textos de la interfaz en español, sin rayas largas.\n\nAlex (2026-10-28): «mejora las vistas de las ventanas Fila por agente, Fila de la ola, Bloqueadas y rechazadas, con botón de cerrar lista, y también todas las demás ventanas deben poder desplegar o cerrar su información para que sea más fácil de entender cada área de MetaGenesis y el resto de Genesis». Diseño: el ADN StarSeed (tokens, contraste medido), centrado y legible en móvil, sin elementos juntos ni textos cortados (reglas de Alex de pantallas chicas).\n\nLas ventanas que abre cada pastilla del pulso (`medidor-abrible.tsx` y el panel genérico de filas que use) agrupan sus filas por tipo o estado en `SeccionPlegable`, con «Cerrar lista» y el resumen cuando están cerradas; si el medidor ya trae grupos, úsalos. Si el panel genérico vive en otro archivo, añádelo como tercero. Pruebas.",
+   "dependencias_ya_en_main": [
+    "UIG1029A"
+   ]
+  },
+  {
+   "id": "ART1025I",
+   "ola": "Ola 1025C · ArtCraft y Rare",
+   "titulo": "GridCraft ↔ tabla viva: CSV, rangos y plan de llamadas",
+   "area": "artcraft",
+   "archivos": [
+    "src/lib/artcraft/tabla-gridcraft.ts",
+    "src/lib/artcraft/__tests__/tabla-gridcraft.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: `architecture/artcraft-y-rare.md` §4.2 (GridCraft = datos y tablas). La app en vivo «Tabla de datos» (`src/lib/vivo/tabla.ts`, `src/lib/vivo/tabla/csv.ts`, `modelo.ts`) sigue siendo la entidad; GridCraft solo calcula, convierte y da formato a una COPIA de trabajo. Módulo PURO: no hables con la pasarela; devuelve planes y datos.\n\nExporta: `csvParaGridcraft(t: Tabla): string` (usa `csvDesdeTabla` con `separador: \",\"`); `matrizACsv(filas: unknown[][]): string` (para volver de `read_range`: valores `string|number|boolean|null`, escapa comillas y saltos, tope `MAX_BYTES_IMPORTAR` de `csv.ts`; lo demás se descarta con aviso); `planGridcraftDesdeTabla(t: Tabla, o: { archivo: string; encabezadoNegrita?: boolean; tabla?: boolean; grafica?: { tipo: string; titulo?: string } }): { llamadas: { herramienta: string; parametros: Record<string, unknown> }[]; avisos: string[] }` que produce, en orden, `new_workbook`, `write_range { range: \"A1\", values }` (matriz 2-D con los encabezados), `format_range { range, bold: true }` para la fila de encabezados, `create_table { range, header: true }` si `tabla`, `insert_chart { range, type, title }` si `grafica`, y `save_workbook { path: \"salida/<archivo>.xlsx\" }`. `archivo` solo `[a-z0-9-_]` (si no, se sanea) y la ruta es RELATIVA a `salida/`. Notas: los rangos A1 se calculan con una función `rangoA1(filas, columnas)` que soporta más de 26 columnas (AA, AB…); las columnas `calculado` y las celdas de fórmula se exportan como su valor y se avisa; tope de filas y columnas según `LIMITES` de `modelo.ts`.\n\nPruebas (≥ 12): `rangoA1` en los bordes (A1, Z1, AA1, 52 columnas); CSV con comas, comillas y saltos; plan con y sin tabla ni gráfica; archivo con nombre malo saneado; columna calculada avisa; matriz con `null` y booleanos; tabla vacía no genera llamadas de escritura.\n\nREGLAS COMUNES: lee primero la sección que se cita de `architecture/artcraft-y-rare.md` (el contrato). Español con acentos en todo texto que lea una persona. TypeScript estricto, sin `any`. Los módulos de `src/lib/artcraft/` son PUROS (sin `node:*`, sin React, sin red), salvo `pasarela-servidor.ts`, que es solo de servidor y que ningún componente de cliente puede importar (`next build` falla con `node:*` en el cliente). Ni claves ni rutas del disco en el código ni en las pruebas; las cadenas con forma de clave se montan en tiempo de ejecución (`[\"a\", \"b\"].join(\"\")`). Como mucho 3 archivos y 120 líneas por archivo (estilo denso del repo, sin relleno). Pruebas vitest propias en `__tests__`; ejecuta solo las relacionadas, nunca `tsc` ni `next build`. No toques `src/lib/protomolecula/catalogo-herramientas.ts`.",
+   "dependencias_ya_en_main": [
+    "ART1025B-d3"
+   ]
+  },
+  {
+   "id": "IMG1029A",
+   "ola": "1029 · Imaginación sin atascos",
+   "depende": [],
+   "titulo": "Imaginación · «(libre, registro, pago)» no hace que una referencia sea «de Alex»",
+   "archivos": [
+    "scripts/puente/autodesarrollo_decidir.py",
+    "scripts/puente/agente_referencias_diseno.py",
+    "scripts/puente/test_autodesarrollo_decidir.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas (el detector de la autopublicación las frena). Textos de la interfaz en español, sin rayas largas.\n\nAlex (2026-10-28): «Imaginación tiene muchas por decidir, revisa por qué y soluciona cualquier falla de los procesos automáticos». Medido en `/api/mando/imaginacion?ambito=metagenesis`: 480 propuestas = 417 descartadas, 31 preguntas, 20 nuevas, 11 esperando aprobación.\n\n19 de las 31 preguntas son «Candidata al catálogo de referencias: <sitio>» (agente `referencias-diseno`) con motivo «no accionable por el enjambre (pago): es de Alex». Es un falso positivo: la plantilla del agente (`agente_referencias_diseno.py`, línea ~1138) dice «su acceso (libre, registro, pago)», y `es_de_alex` casa `\\bpago\\b`. Arreglo: (1) en `es_de_alex`, antes de mirar RESERVADOS, quita las enumeraciones de tipos de acceso (un paréntesis o una lista que nombra «libre», «gratis», «abierto» o «registro» junto a «pago»); «pagar», «comprar», «suscripción» y «pago de…» siguen siendo de Alex. (2) En la plantilla del agente, escribe el acceso sin esa palabra («abierto, con registro o con coste»). (3) Las preguntas que ya existen con ese motivo se vuelven a decidir en la siguiente pasada: busca cómo se fuerza la revisión de las pendientes (`auto_firma` en `director_autodesarrollo._decidir_lote`) y, sin tocar ese archivo, limpia el campo en la pasada de `es_de_alex` solo si la ruta lo permite; si no, explica en tu respuesta la línea exacta. Pruebas: la plantilla nueva no es de Alex; «hay que pagar la suscripción» sí."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "ART1025I",
+   "IMG1029A",
+   "UIG1029E"
+  ]
+ }
+}
