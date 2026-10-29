@@ -16,6 +16,7 @@ import { compatibilidad, type EntradaTabla, type ResultadoCompatibilidad } from 
 import { planRadios, type RouterMalla, type TroncalResult } from "@/lib/network/routers-malla/plan-radios";
 import { guionAplicar, uciMalla, type BandaWifi, type CfgUciMalla } from "@/lib/network/routers-malla/uci-malla";
 import { PERFILES_WIFI, type CanalWifi } from "@/ai/astraura/mesh/camr/regulacion";
+import { TitanioPortatilPanel } from "@/components/network/titanio-portatil-panel";
 
 const LISTA = "starseed.routers-malla.v1";
 const BUSCAR = "https://openwrt.org/toh/start";
@@ -23,7 +24,7 @@ const SEL = "cursor-pointer rounded-md border border-white/10 bg-white/5 px-1 te
 type Campo = "banda" | "canal" | "anchoMhz" | "pireDbm";
 
 /** Router de la lista guardada: solo datos, NINGUNA clave. */
-export interface RouterGuardado { id: string; fabricante: string; modelo: string; version?: string; deOperador: boolean; openwrt: boolean }
+export interface RouterGuardado { id: string; fabricante: string; modelo: string; version?: string; deOperador: boolean; openwrt: boolean; portatil?: boolean }
 
 /** Clave de la malla en el navegador: 24 bytes de crypto.getRandomValues en base64url. */
 export function generarClaveMalla(): string {
@@ -48,6 +49,7 @@ export function RoutersMallaPanel({ tabla }: { tabla?: EntradaTabla[] }) {
   const [routers, setRouters] = useState<RouterGuardado[]>([]);
   const [form, setForm] = useState({ fabricante: "", modelo: "", version: "" });
   const [deOperador, setDeOperador] = useState(false);
+  const [portatil, setPortatil] = useState(false);
   const [region, setRegion] = useState("ES");
   const [par, setPar] = useState<[string, string]>(["", ""]);
   const [troncales, setTroncales] = useState<Array<[string, string]>>([]);
@@ -69,9 +71,9 @@ export function RoutersMallaPanel({ tabla }: { tabla?: EntradaTabla[] }) {
     if (!form.fabricante.trim() || !form.modelo.trim()) return;
     setRouters((rs) => [...rs, {
       id: `rt-${Date.now().toString(36)}`, fabricante: form.fabricante.trim(), modelo: form.modelo.trim(),
-      version: form.version.trim() || undefined, deOperador, openwrt: false,
+      version: form.version.trim() || undefined, deOperador, openwrt: false, portatil: portatil || undefined,
     }]);
-    setForm({ fabricante: "", modelo: "", version: "" }); setDeOperador(false);
+    setForm({ fabricante: "", modelo: "", version: "" }); setDeOperador(false); setPortatil(false);
   };
 
   /** Compatibilidad de cada router con (o sin) la tabla de hardware por prop. */
@@ -185,6 +187,10 @@ export function RoutersMallaPanel({ tabla }: { tabla?: EntradaTabla[] }) {
           <input type="checkbox" className="cursor-pointer" checked={deOperador} onChange={(e) => setDeOperador(e.target.checked)} />
           Es el router que me dio mi operador
         </label>
+        <label className="flex cursor-pointer items-center gap-2 text-[12px] text-white/60">
+          <input type="checkbox" className="cursor-pointer" checked={portatil} onChange={(e) => setPortatil(e.target.checked)} />
+          Es un router portátil (titanio móvil)
+        </label>
         <button onClick={añadir} className="cursor-pointer rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-sm text-white/80 hover:bg-white/10">Añadir</button>
       </div>
       <div className="mt-3 space-y-2">
@@ -213,6 +219,18 @@ export function RoutersMallaPanel({ tabla }: { tabla?: EntradaTabla[] }) {
           );
         })}
       </div>
+
+      {(() => {
+        const primero = routers.find((r) => r.portatil);
+        if (!primero) return null;
+        return (
+          <div className="mt-3 border-t border-white/10 pt-3">
+            <TitanioPortatilPanel tabla={tabla} base={{
+              fabricante: primero.fabricante, modelo: primero.modelo, version: primero.version, deOperador: primero.deOperador,
+            }} />
+          </div>
+        );
+      })()}
 
       {routers.some((r) => r.openwrt) && (
         <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
