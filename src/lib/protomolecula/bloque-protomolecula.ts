@@ -5,6 +5,34 @@ import { AMBITOS } from "./tipos";
 import type { Ambito, AtomoEnUso, Capa, Molecula } from "./tipos";
 import { referenciasRotas } from "./permisos";
 
+/** Qué vista mostrar para el átomo «video-html». */
+export type VistaVideoHtml = "poster" | "video" | "preview";
+
+/** Parámetros para decidir la vista del vídeo. */
+export interface ElegirVistaArgs {
+    /** Átomo en uso (contiene `herramientaId` y `id`). */
+    atomo: AtomoEnUso;
+    /** Si el servicio local (HyperFrames) está vivo y responde. */
+    servicioVivo: boolean;
+    /** Si el render ya terminó y hay un archivo de vídeo listo. */
+    renderHecho: boolean;
+}
+
+/**
+ * Decide qué vista mostrar para el átomo «video-html».
+ * - Si `renderHecho` → «video» (el vídeo renderizado).
+ * - Sino si `servicioVivo` → «preview» (vista previa en vivo del servicio).
+ * - Sino → «poster» (imagen estática / póster).
+ */
+export function elegirVista({ atomo, servicioVivo, renderHecho }: ElegirVistaArgs): VistaVideoHtml {
+    if (atomo.herramientaId !== "hyperframes" && atomo.herramientaId !== "video-html") {
+        return "poster";
+    }
+    if (renderHecho) return "video";
+    if (servicioVivo) return "preview";
+    return "poster";
+}
+
 /** Versión del sobre JSON del bloque. */
 export const VERSION_BLOQUE = 1;
 /** Tope del bloque serializado (deja margen dentro de MAX_SS_META_BYTES). */
