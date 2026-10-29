@@ -182,6 +182,13 @@ const PanelProtomoleculaAutonomo = dynamic(
     () => import("@/components/protomolecula/panel-protomolecula").then((mod) => mod.PanelProtomoleculaAutonomo),
     { ssr: false, loading: dashboardWidgetLoading }
 );
+// Estudio de vídeo (HFR1018K, ola 1018H): widget/ventana para dashboard, escritorio, pizarra
+// y flotante. Su tipo llega por string («estudio-video») desde esas superficies, aún no está
+// en la unión WidgetType; se compara como string y se carga perezoso como los demás.
+const EstudioVideoVentana = dynamic(
+    () => import("@/components/video/estudio-video-ventana").then((mod) => mod.EstudioVideoVentana),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
 
 interface WidgetProps {
     widget: DashboardWidget;
@@ -244,6 +251,18 @@ function WidgetRegistryInner({ widget, onUpdateSettings }: WidgetProps) {
     if (!clasico) {
         const libre = widgetLibre(widget, onUpdateSettings);
         if (libre) return libre;
+    }
+
+    // Estudio de vídeo (HFR1018K): entrada como widget «estudio-video» (o ESTUDIO_VIDEO).
+    const tipoRegistro = widget.widget_type as string;
+    if (tipoRegistro === "estudio-video" || tipoRegistro === "ESTUDIO_VIDEO") {
+        return (
+            <EstudioVideoVentana
+                htmlComposicion={widget.settings?.composicionHtml}
+                idVista={widget.settings?.idVista}
+                compacto={config.widgets?.compact === true}
+            />
+        );
     }
 
     let cuerpo = cuerpoClasico(widget, config.widgets?.weatherVariant, onUpdateSettings);
