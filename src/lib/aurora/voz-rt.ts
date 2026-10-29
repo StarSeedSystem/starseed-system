@@ -37,6 +37,7 @@ import {
 } from "@/lib/aurora/colchon-voz";
 import { pedirLimiteFondo } from "@/lib/perf/fondo-vivo";
 import { anotarMedida } from "@/lib/aurora/medidas-voz";
+import { identidadVoz, pautaPersonalidad } from "@/lib/aurora/identidad-voz";
 
 const BASE = "/api/voz-rt";
 /** (2026-09-24) Lo medido en este equipo: RTF del motor, ritmo del texto, duración típica. */
@@ -78,7 +79,7 @@ interface Pendiente {
     promesa: Promise<AudioBuffer | null>;
 }
 
-/** La voz elegida para una personalidad (preferencia guardada > mapa > F1). PURA salvo localStorage. */
+/** La voz elegida para una personalidad (preferencia guardada > resolutor > F1). PURA salvo localStorage. */
 export function vozDePersona(personaId?: string): string {
     try {
         const elegida = typeof window !== "undefined" ? window.localStorage.getItem(CLAVE_VOZ) : null;
@@ -86,8 +87,13 @@ export function vozDePersona(personaId?: string): string {
     } catch {
         /* sin almacenamiento */
     }
-    const id = (personaId || "").toLowerCase().replace(/\s+/g, "_");
-    return VOZ_POR_PERSONA[id] ?? "F1";
+    // (VZF1015M) Un solo resolutor de identidad de voz: el mapa de aquí ya no decide por su
+    // cuenta; es la capa «personalidad» del resolutor (agente › personalidad › cerebro ›
+    // neurona › cuenta). Sin personalidad conocida: la voz F1 de Alex, como siempre.
+    return identidadVoz({
+        personalidad: pautaPersonalidad(personaId, VOZ_POR_PERSONA),
+        porDefecto: { vozRT: "F1", motor: "supertonic" },
+    }).vozRT;
 }
 
 class VozRT {
