@@ -68,7 +68,17 @@ import {
   applyVoiceChainPriority,
 } from "@/lib/aurora/tts-oss/omnivoice-web-router";
 import { BrainApiManager } from "@/lib/aurora/tts-oss/brain-api-manager";
-import { cronometroHabla } from "@/lib/aurora/medidas-voz";
+import { cronometroHabla, leerMedidas } from "@/lib/aurora/medidas-voz";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
+import {
+  elegirMotor,
+  medidasPorMotor,
+  type CandidatoVoz,
+  type CapaVoz,
+  type ContextoVoz,
+  type MedidasPorMotor,
+  type MotorElegido,
+} from "@/lib/aurora/tts-oss/conversacion-fluida";
 import {
   getEngineSettings,
   getVoiceConfig,
@@ -111,6 +121,12 @@ export interface ConfiguredSpeakOptions {
    * en UNA sola síntesis. Si no aplica, se ignora.
    */
   multiSpeakerScript?: string;
+  /**
+   * (VZR1011D) Contexto del turno. En `conversacion` la cadena se reordena por
+   * la latencia MEDIDA en esta neurona (≤ 0,8 s al primer sonido y RTF ≤ 1);
+   * en `lectura`/`narracion` manda la calidad. Sin medidas no cambia nada.
+   */
+  contexto?: ContextoVoz;
 }
 
 // ── Auto-detección de idioma HABLADO (sin dependencias) ─────────────────────
@@ -328,6 +344,70 @@ function recordarMotorQueSono(link: string): void {
 export function motorQueSono(): string | null {
   if (typeof window === "undefined") return null;
   try { return window.localStorage.getItem(MOTOR_QUE_SONO_KEY); } catch { return null; }
+}
+
+/**
+ * (VZR1011D) Capa de un eslabón de la cadena. Los endpoints configurados y
+ * Kokoro son «aparato»; OpenVoice V2 suena por Spaces públicos. La otra
+ * neurona y la malla entran como candidatos externos en `elegirMotor`.
+ */
+function capaDeLink(link: VoiceChainLink): CapaVoz {
+  return link === "openvoice2" ? "spaces" : "aparato";
+}
+
+/** Medidas de ESTA neurona, listas para el elector puro. */
+function medidasDeEstaNeurona(): MedidasPorMotor {
+  return medidasPorMotor(
+    leerMedidas(neuronDeviceIdActual()).map((m) => ({ motor: m.motor, tipo: m.tipo, valor: m.valor })),
+  );
+}
+
+function candidatosDeCadena(chain: readonly VoiceChainLink[]): CandidatoVoz[] {
+  return chain.map((link, orden) => ({ id: link, capa: capaDeLink(link), orden }));
+}
+
+/**
+ * (VZR1011D) Motor de la cadena elegido por la latencia MEDIDA aquí, no por la
+ * ficha. En conversación respeta las capas y descarta lo que no llega al
+ * presupuesto o no va a tiempo real; en lectura/narración manda la calidad.
+ * Sin medidas devuelve el primero de la cadena, sin inventar latencia.
+ */
+export function elegirMotorDeConversacion(opciones: {
+  contexto?: ContextoVoz;
+  cadena?: readonly VoiceChainLink[];
+  medidas?: MedidasPorMotor;
+} = {}): MotorElegido | null {
+  try {
+    const cadena = opciones.cadena ?? buildVoiceChain(getVoiceConfig());
+    if (!cadena.length) return null;
+    const medidas = opciones.medidas ?? medidasDeEstaNeurona();
+    return elegirMotor(candidatosDeCadena(cadena), medidas, {
+      contexto: opciones.contexto ?? "conversacion",
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Reordena la cadena para el turno: el motor elegido por la medida va primero y
+ * el resto conserva su orden de relevo. Sin medidas o sin contexto, cadena igual.
+ */
+function ordenarCadenaPorMedida(
+  chain: readonly VoiceChainLink[],
+  contexto?: ContextoVoz,
+): VoiceChainLink[] {
+  if (!contexto) return [...chain];
+  try {
+    const medidas = medidasDeEstaNeurona();
+    const elegido = elegirMotor(candidatosDeCadena(chain), medidas, { contexto });
+    if (!elegido) return [...chain];
+    const primero = chain.find((link) => link === elegido.motor.id);
+    if (!primero) return [...chain];
+    return [primero, ...chain.filter((link) => link !== primero)];
+  } catch {
+    return [...chain];
+  }
 }
 
 /**
@@ -579,6 +659,9 @@ export async function speakWithConfiguredEngine(
     // Preferencias de jerarquización (Adenda 94): el usuario reordena la cadena
     // de motores en la ventana de voz; aquí la respetamos antes de hablar.
     const orderedChain = applyVoiceChainPriority(chain);
+    // (VZR1011D) En conversación manda la latencia MEDIDA en esta neurona; en
+    // lectura/narración, la calidad. Sin `contexto` la cadena queda como estaba.
+    const cadenaDelTurno = ordenarCadenaPorMedida(orderedChain, opts.contexto);
     // ACTIVACIÓN AUTOMÁTICA POR SESIÓN (Adenda 94): si la cadena incluye el
     // motor web OpenVoice, descubre los Spaces HF Running UNA vez por sesión de
     // chat (al iniciar/actualizar la sesión de la neurona activa) para que
@@ -612,7 +695,7 @@ export async function speakWithConfiguredEngine(
     // `playSequentialViaMixer`), sin tocar la voz. El cambio de motor solo
     // ocurre cuando el actual FALLA de verdad, y nunca a mitad de locución ya
     // empezada (`allowFamilyFailover`).
-    for (const link of orderedChain) {
+    for (const link of cadenaDelTurno) {
       // Cada eslabón envuelto: nunca lanzar sin capturar en cadenas de failover.
       const outcome = await Promise.resolve()
         .then(() => runLink(link, clean, cfg, wrappedOpts, detectedLang))
@@ -633,7 +716,11 @@ export async function speakWithConfiguredEngine(
   }
 }
 
-/** Corta cualquier reproducción OSS/neural en curso. NUNCA lanza. */
+/**
+ * Corta cualquier reproducción OSS/neural en curso —es el corte de la
+ * interrupción por voz (VZR1011D): la persona habla y la voz calla al instante.
+ * NUNCA lanza.
+ */
 export async function stopConfiguredEngine(): Promise<void> {
   try {
     // Cancelar una síntesis xAI en vuelo ANTES de cerrar el mixer: si no, el
