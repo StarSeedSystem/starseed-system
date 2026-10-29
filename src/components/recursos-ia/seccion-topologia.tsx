@@ -10,6 +10,8 @@ import { ArrowUp, Check, Hexagon, RadioTower, Server, Sparkles, Split, TriangleA
 
 import { Field, LABEL, SELECT, SUB } from "@/components/astraura/s158/shared";
 import { cn } from "@/lib/utils";
+import { destinoDeIA } from "@/lib/recursos-ia/enrutado";
+import type { Asignacion } from "@/lib/recursos-ia/tipos";
 import {
     CAPACIDADES,
     NOMBRE_CAPACIDAD,
@@ -58,12 +60,14 @@ export function configPara(t: Topologia, actual: ConfigTopologia, inv: Inventari
 export function SeccionTopologia({
     inv,
     actual,
+    asignaciones,
     sugerida,
     guardada,
     alGuardar,
 }: {
     inv: InventarioRecursos;
     actual: ConfigTopologia;
+    asignaciones: Record<string, Asignacion>;
     sugerida: ConfigTopologia | null;
     /** true si la persona ya eligió una (si no, se ve la sugerida sin guardar). */
     guardada: boolean;
@@ -130,7 +134,34 @@ export function SeccionTopologia({
                     <p className="text-[11px] leading-snug text-white/70">Cada neurona elige sus modelos según su procesador y su disco. Las vías de abajo sirven para pedir ayuda a otra si una no puede.</p>
                 )}
                 <ControlVias actual={actual} alGuardar={alGuardar} />
+                <DestinoAIa inv={inv} plan={actual} asignaciones={asignaciones} />
             </div>
+        </div>
+    );
+}
+
+/** A dónde va la IA de cada capacidad con la topología elegida (RIA1023C · `destinoDeIA`). */
+function DestinoAIa({ inv, plan, asignaciones }: { inv: InventarioRecursos; plan: ConfigTopologia; asignaciones: Record<string, Asignacion> }) {
+    return (
+        <div className="flex flex-col gap-1.5" data-testid="destino-ia">
+            <p className={LABEL}>A qué servidor va la IA de cada capacidad</p>
+            <ul className="flex flex-col gap-1">
+                {CAPACIDADES.map((c) => {
+                    const d = destinoDeIA(plan, asignaciones, inv, c);
+                    return (
+                        <li
+                            key={c}
+                            className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-[10px] leading-snug text-white/60"
+                            data-testid={`destino-${c}`}
+                        >
+                            <span className="text-[11px] font-medium text-white/85">{NOMBRE_CAPACIDAD[c]}</span>
+                            <span>{nombreVia(d.via)}{d.neuronaId ? ` · ${nombreNeurona(inv, d.neuronaId) || d.neuronaId}` : ""}</span>
+                            {d.baseUrl && <span className="font-code text-white/80">{d.baseUrl}</span>}
+                            {!d.baseUrl && d.neuronaId && d.via !== "local" && <span> · dirección por anunciar</span>}
+                        </li>
+                    );
+                })}
+            </ul>
         </div>
     );
 }
