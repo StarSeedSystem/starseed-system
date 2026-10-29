@@ -162,6 +162,27 @@ describe("disponibilidad.ts", () => {
       expect([...reg.get("t4")!.orden.get("solo")!.bits.slice(0, 2)]).toEqual([3, 3]);
     });
   });
+
+  // Rescate de la rama nube/a1-20261023-184106-APM1017U (RTAPM1017Ub) · bordes sin cubrir en main.
+  // Descartados de la rama: decodificar(null/undefined) tolerante (main es estricta a propósito)
+  // y los casos de arbol-relevo (main arma el relevo con bolsa.planificar, sin árbol).
+  describe("bordes de vacío (rescate de rama)", () => {
+    it("decodificar una cadena vacía devuelve un mapa de bits vacío", () => {
+      const bits = decodificar("");
+      expect(bits.length).toBe(0);
+      expect([...bits]).toEqual([]);
+    });
+
+    it("fusionar sin anuncios da un registro vacío", () => {
+      const reg = fusionar([]);
+      expect(reg.size).toBe(0);
+      expect(quienTiene(reg, "t1", 0, 60_000)).toEqual([]);
+    });
+
+    it("anuncio sin nada que anunciar no crea piezas", () => {
+      expect(anuncio("nodo-vacio", "t5", 10, [], 0)).toEqual([]);
+    });
+  });
 });
 
 function vistosDe(p: AnuncioDisponibilidad, bits: Uint8Array): number[] {
