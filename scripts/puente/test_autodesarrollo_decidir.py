@@ -443,6 +443,16 @@ class FamiliaYVariantesTest(unittest.TestCase):
         self.assertEqual([(p["id"], prim["id"]) for p, prim in D.agrupar([a, b, otra_fuente, otra_familia])],
                          [("b", "a")])
 
+    def test_lo_ya_decidido_no_crea_otra_familia(self):
+        """Ola 1028B: solo lo pendiente se agrupa; lo que ya tiene decisión no vuelve a la lista."""
+        base = {"fuente": "astraura", "ambito": "metagenesis", "titulo": self.TITULOS[0]}
+        pendiente = dict(base, id="a1", estado="nueva")
+        for estado in ("agrupada", "aprobada", "descartada", "reimaginando", "reimaginada"):
+            self.assertEqual(
+                D.agrupar([pendiente, dict(base, id="a2", titulo=self.TITULOS[5], estado=estado)]),
+                [], estado,
+            )
+
     def test_el_tope_de_20_variantes_agrupa_pero_no_borra_ninguna(self):
         """Ola 1028B: la cabeza anota como mucho 20 variantes; las demás se agrupan sin perder la decisión."""
         props = [{"id": "a%d" % i, "fuente": "astraura", "ambito": "metagenesis",

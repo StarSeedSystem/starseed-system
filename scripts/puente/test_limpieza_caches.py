@@ -51,6 +51,21 @@ class LimpiezaCaches(unittest.TestCase):  # plan (puro), aplicar, recortar, reco
         self.assertEqual(L.clones_de_chrome_a_borrar([(suyo, t12 - 30), (borde, t12 - 60)], t12), [])
         self.assertEqual(L.clones_de_chrome_a_borrar([(borde, t12 - 61)], t12), [borde])
 
+    def test_recoger_extrae_el_arranque_del_chrome_principal_mas_viejo(self):
+        """Ola 1028B: de varios Chrome, cuenta el principal más viejo; sus ayudantes y otros procesos no llegan.
+        Si el ps no salió, no se sabe cuándo arrancó y no se recoge ningún clon."""
+        maquina = L.EJECUTABLE_CHROME
+        ps_l = ("   742 Sun Oct 25 12:38:00 2026 %s\n" % maquina
+                + "   900 Sat Oct 25 03:24:11 2026 %s\n" % maquina
+                + "   901 Sat Oct 25 03:24:12 2026 %s Helper (Renderer)-x86_64\n" % maquina
+                + "   902 Sat Oct 25 03:24:13 2026 /opt/homebrew/bin/claude\n")
+        r = L.recoger(4.0, home=H, glob_fn=lambda p: [], correr=lambda o, ok=(0,): ps_l,
+                      es_enlace=lambda e: False, ruta_real=str)
+        self.assertEqual(r["inicio_chrome_mas_viejo"], time.mktime((2026, 10, 25, 3, 24, 11, 0, 0, -1)))
+        r2 = L.recoger(4.0, home=H, glob_fn=lambda p: [], correr=lambda o, ok=(0,): None,
+                       es_enlace=lambda e: False, ruta_real=str)
+        self.assertIsNone(r2["inicio_chrome_mas_viejo"])
+
     def test_ruta_vetada_nunca_se_borra_y_ps_sin_salida_no_borra_nada(self):
         self.assertEqual(L.clones_de_chrome_a_borrar([("/a/.env/cls", 0.0), ("rel/cls", 0.0)], None), [])
         self.assertEqual(L.inicio_chrome_de_ps(None), (None, True))  # ps no salió: no se sabe, no se borra
