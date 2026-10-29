@@ -3,13 +3,18 @@
 """Ola 1025S · IMG1025B: el análisis de la Imaginación llega a la flota aunque la Mac tenga presión de memoria.
 
 Antes, reimaginar y preparar entregables esperaban a `toca_ejecutar` (que es falso con presión 2, casi
-siempre en la Mac de 8 GB) y, encoladas, nadie lanzaba sus colas `cola-suenos-*`: la reimaginación caducaba."""
+siempre en la Mac de 8 GB) y, encoladas, nadie lanzaba sus colas `cola-suenos-*`: la reimaginación caducaba.
+
+Ola 1029B · IMG1029B: ninguna propuesta se queda «nueva» más de un ciclo. Una «nueva» que otro proceso
+escribió en `propuestas.json` (o que quedó aplazada) con la misma firma decide a la siguiente pasada."""
 import json, os, sys, tempfile, time, unittest
 from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import autodesarrollo_logica as AL  # noqa: E402
+import autodesarrollo_decidir as AD  # noqa: E402
 import autodesarrollo_reimaginar as AR  # noqa: E402
+import director_autodesarrollo as D  # noqa: E402
 
 AHORA = datetime(2026, 10, 25, 13, 0)
 CAP = {"huecos_mac": 0, "huecos_a1": 0, "huecos_nube": 0, "proveedores_con_cupo": 3, "presion_mac": 2}
@@ -102,6 +107,52 @@ class Flota(unittest.TestCase):
 
     def test_sin_tareas_no_hace_nada(self):
         self.assertEqual(AR.a_la_flota(self.raiz, [], vivos=[]), {"accion": "nada", "tareas": 0})
+
+
+# ─────────────── Ola 1029B · IMG1029B: «nueva» no dura más de un ciclo ───────────────
+AJUSTES = {"automatico": True, "auto": {"aprobar": True, "reimaginar": True, "umbral": 0.75,
+                                        "max_reimaginaciones": 2}}
+ISO = "2026-10-29T12:00:00"
+
+
+def _ajustes(auto):
+    d = {**AJUSTES, "automatico": auto, "auto": {**AJUSTES["auto"], "aprobar": auto, "reimaginar": auto}}
+    return AL.validar_ajustes(d)
+
+
+class NadaNuevaMasDeUnCiclo(unittest.TestCase):
+    def _lote(self, previas, aj, firma):
+        return D._decidir_lote(previas, [], aj, lambda r: True, None, ISO, firma)
+
+    def test_nueva_contada_el_ciclo_pasado_redecide_con_la_misma_firma(self):
+        aj = _ajustes(True)
+        firma = AD.firma(aj)
+        nueva = {"id": "agentes:a", "fuente": "agentes", "tipo": "codigo", "ambito": "metagenesis",
+                 "titulo": "Arreglar la cache de la cola en src/lib/x.ts", "cuerpo": "ajustar src/lib/x.ts",
+                 "archivos": ["src/lib/x.ts"], "cita": "", "verificacion": "verificado", "impacto": 8,
+                 "esfuerzo": 8, "origen": {}, "estado": "nueva", "auto_firma": firma}
+        decidida = dict(nueva, id="agentes:b", titulo="Documentar la cola de suenos",
+                        cuerpo="escribir la guia", verificacion="sin verificar", impacto=1, esfuerzo=10,
+                        estado="autodesarrollo")
+        previas = {p["id"]: p for p in (nueva, decidida)}
+        self._lote(previas, aj, firma)
+        self.assertEqual(nueva["estado"], "autodesarrollo")  # la «nueva» sale con destino de una vez
+        self.assertEqual(decidida["estado"], "autodesarrollo")  # lo ya decidido con esa firma no se toca
+
+    def test_nueva_con_motivo_de_pregunta_queda_en_pregunta(self):
+        aj = _ajustes(False)  # automático entero apagado: la firma es None (como el ciclo real)
+        atascada = {"id": "astraura:cr-1", "fuente": "astraura", "titulo": "Instalar las credenciales de R2",
+                    "cuerpo": "instalar las credenciales de R2 en el backend", "archivos": [], "cita": "",
+                    "verificacion": "sin_verificar", "impacto": 3, "esfuerzo": 3,
+                    "origen": {"id": "cr-1", "tipo": "creacion", "status": "pending_approval"},
+                    "estado": "nueva",
+                    "motivo": "no accionable por el enjambre (credenciales): es de Alex → pregunta"}
+        previas = {atascada["id"]: atascada}
+        reparto = self._lote(previas, aj, None)
+        self.assertEqual(atascada["estado"], "pregunta")
+        self.assertEqual(atascada.get("motivo") or "", "no accionable por el enjambre (credenciales): es de Alex → pregunta")
+        self.assertEqual(reparto.get("pregunta"), 1)
+        self.assertTrue("pregunta" in str(atascada.get("motivo_destino") or ""))
 
 
 if __name__ == "__main__":
