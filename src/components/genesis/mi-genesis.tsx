@@ -17,6 +17,7 @@ import { PanelOperaciones } from "./panel-operaciones";
 import { AtajosGenesis } from "./atajos-genesis";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
+import { PanelProtoGenesis } from "@/components/protogenesis/panel-protogenesis";
 
 const AMBITO: Ambito = { tipo: "persona" };
 
@@ -68,6 +69,8 @@ export function MiGenesis() {
         }
     }, []);
 
+    const [encargoAbierto, setEncargoAbierto] = useState<RegistroEncargo | null>(null);
+
     const decisionPara = useCallback((r: RegistroEncargo): { modo: string; motivo: string; borrador: { id: string; titulo: string } | null } => {
         const falta: Falta | null = faltaDePlan(r.plan);
         const d = decidirResultado({
@@ -102,6 +105,7 @@ export function MiGenesis() {
             </section>
             <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis">
                 <h2 className="text-base font-semibold">ProtoGenesis de mis moléculas</h2>
+                <p className="text-[11px] text-white/50">La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.</p>
                 {encargos === null ? (
                     <p className="text-[11px] text-white/50">Cargando encargos…</p>
                 ) : encargos.length === 0 ? (
@@ -132,10 +136,30 @@ export function MiGenesis() {
                                 <span className="text-[10px] text-white/45">
                                     {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
                                 </span>
+                                <button
+                                    type="button"
+                                    className="cursor-pointer rounded-md bg-emerald-500/20 px-2 py-0.5 text-[10px] hover:bg-emerald-500/30"
+                                    onClick={() => setEncargoAbierto(registro)}
+                                    aria-label={`Abrir ProtoGenesis para ${registro.encargo.intencion}`}
+                                >
+                                    ProtoGenesis
+                                </button>
                             </li>
                         );
                     })}
                     </ul>
+                )}
+                {encargoAbierto && (
+                    <div className="mt-3 rounded-xl border border-white/10 bg-black/30 p-3">
+                        <PanelProtoGenesis
+                            moleculaId={encargoAbierto.encargo.moleculaId}
+                            ambito={encargoAbierto.encargo.ambito}
+                            esDueno={true}
+                            plan={encargoAbierto.plan}
+                            estados={encargoAbierto.estados}
+                            asignaciones={encargoAbierto.asignaciones}
+                        />
+                    </div>
                 )}
             </section>
         </section>

@@ -23,6 +23,7 @@ import { PanelOperaciones } from "./panel-operaciones";
 import { BotsEntidad } from "@/components/astraura-bots/bots-entidad";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
+import { PanelProtoGenesis } from "@/components/protogenesis/panel-protogenesis";
 
 const SUGERENCIAS = ["Actualiza la descripción para presentar mejor al grupo", "Cambia el color de acento a verde esmeralda", "Crea un agente público que dé la bienvenida a quien llega"];
 
@@ -35,6 +36,7 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
     const [aplicadas, setAplicadas] = useState<Set<string>>(new Set());
     const [aplicando, setAplicando] = useState<string | null>(null);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    const [encargoAbierto, setEncargoAbierto] = useState<RegistroEncargo | null>(null);
     const puertos = useMemo(() => puertosDelOs(), []);
 
     useEffect(() => {
@@ -219,6 +221,7 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
             {encargos !== null && (
                 <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis para esta entidad">
                     <h2 className="text-base font-semibold">ProtoGenesis de esta entidad</h2>
+                    <p className="text-[11px] text-white/50">La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.</p>
                     {encargos.length === 0 ? (
                         <p className="text-[11px] text-white/60">
                             Aún no hay encargos para esta entidad.
@@ -247,10 +250,32 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                                 <span className="text-[10px] text-white/45">
                                     {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
                                 </span>
+                                <button
+                                    type="button"
+                                    className="cursor-pointer rounded-md bg-cyan-500/20 px-2 py-0.5 text-[10px] hover:bg-cyan-500/30"
+                                    onClick={() => setEncargoAbierto(registro)}
+                                    aria-label={`Abrir ProtoGenesis para ${registro.encargo.intencion}`}
+                                >
+                                    ProtoGenesis
+                                </button>
                             </li>
                         );
                     })}
                         </ul>
+                    )}
+                    {encargoAbierto && (
+                        <div className="mt-3 rounded-xl border border-white/10 bg-black/30 p-3">
+                            <PanelProtoGenesis
+                                moleculaId={encargoAbierto.encargo.moleculaId}
+                                ambito={encargoAbierto.encargo.ambito}
+                                esDueno={entidad?.dueña ?? false}
+                                rol={entidad?.dueña ? "owner" : entidad?.rol ?? null}
+                                democratico={modo?.democratico ?? false}
+                                plan={encargoAbierto.plan}
+                                estados={encargoAbierto.estados}
+                                asignaciones={encargoAbierto.asignaciones}
+                            />
+                        </div>
                     )}
                 </section>
             )}
