@@ -3,8 +3,9 @@
  *
  * Es el plano de datos de la topología «Un servidor propio para toda mi IA» de Recursos de IA
  * (architecture/recursos-ia-neurona.md §2 y §7): la neurona que procesa une sus motores locales —
- * BitNet 1.58 (llama-server en :8790), Ollama, TurboFieldfare (:8080), LM Studio y Laya (decisiones)
- * — tras UNA API compatible con OpenAI, y las demás neuronas de la cuenta la usan por la malla
+ * BitNet 1.58 (llama-server en :8790), Ollama, TurboFieldfare (:8080), LM Studio, PowerInfer ·
+ * SmallThinker (:8794) y Transformers (:8795) — y Laya (decisiones), todo tras UNA API compatible
+ * con OpenAI, y las demás neuronas de la cuenta la usan por la malla
  * local o la red de StarSeed. Hono porque corre igual en Node, Bun, Deno y Workers: el mismo
  * servidor vale para la Mac, el A1 de Oracle, un Raspberry o un borde en la nube.
  *
@@ -24,6 +25,12 @@ export const MOTORES = [
     { id: "turbo-fieldfare", nombre: "TurboFieldfare · Gemma 4 26B-A4B", base: "http://127.0.0.1:8080/v1" },
     { id: "ollama", nombre: "Ollama", base: "http://127.0.0.1:11434/v1" },
     { id: "lmstudio", nombre: "LM Studio", base: "http://127.0.0.1:1234/v1" },
+    // `transformers serve` escucha por defecto en 8000, el puerto del backend de Astraura, así que
+    // SIEMPRE se arranca con `--port 8795`; y con HF_HUB_OFFLINE=1 (recomendado, sin probar) para
+    // que no descargue modelos: solo lista en /v1/models lo que ya está en la caché de Hugging
+    // Face, y este servidor solo reenvía modelos que el motor lista, así que nadie fuerza una descarga.
+    { id: "powerinfer", nombre: "PowerInfer · SmallThinker", base: "http://127.0.0.1:8794/v1" },
+    { id: "transformers", nombre: "Transformers (transformers serve)", base: "http://127.0.0.1:8795/v1" },
 ];
 export const LAYA = "http://127.0.0.1:4470/v1/systemone";
 const CATALOGO_MS = 30_000;
