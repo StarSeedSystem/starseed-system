@@ -32,6 +32,14 @@ describe("simbolo-geometria · el rombo oficial", () => {
         expect(Math.abs(alturaAbajo - esperada)).toBeLessThanOrEqual(0.5);
         expect(alturaArriba).toBeCloseTo(alturaAbajo, 6);
     });
+
+    it("los ápices oficiales del rombo quedan en (200, 80) y (200, 320); altura total 240", () => {
+        expect(APICES).toEqual({
+            arriba: { x: 200, y: 80 },
+            abajo: { x: 200, y: 320 },
+        });
+        expect(APICES.abajo.y - APICES.arriba.y).toBe(240);
+    });
 });
 
 describe("simbolo-geometria · la lente del ojo", () => {
