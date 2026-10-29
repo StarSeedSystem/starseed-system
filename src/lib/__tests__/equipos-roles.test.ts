@@ -15,6 +15,10 @@ function otroRol(base: RolEquipo): RolEquipo {
 }
 
 describe("equipos base", () => {
+  it("declara exactamente los tres equipos con ids únicos", () => {
+    expect(EQUIPOS_BASE.map((e) => e.id)).toEqual(["publicacion", "app-widget", "atomo-proto"]);
+  });
+
   it("los tres equipos son válidos en ámbito personal", () => {
     for (const e of EQUIPOS_BASE) {
       expect(validarEquipo(e)).toEqual([]);
@@ -78,6 +82,26 @@ describe("validarEquipo detecta cada regla rota", () => {
     const e = equipo("publicacion");
     e.motoresValidos = ["motor-que-no-existe"];
     expect(validarEquipo(e).some((p) => p.includes("inexistente"))).toBe(true);
+  });
+
+  it("lista de motores vacía", () => {
+    const e = equipo("publicacion");
+    e.motoresValidos = [];
+    expect(validarEquipo(e)).toContain("motoresValidos está vacío");
+  });
+
+  it("la última tarea no la ejecuta un rol que verifica", () => {
+    const e: EquipoRoles = {
+      id: "ultima-sin-visto-bueno", nombre: "Última sin verificación",
+      contexto: "protogenesis", proceso: "secuencial",
+      roles: [otroRol(EQUIPOS_BASE[2].roles[0]), otroRol(EQUIPOS_BASE[2].roles[2])],
+      tareas: [
+        { id: "previa", descripcion: "Previa preparatoria", rol: "verificador", depende: [], salidaEsperada: "Previo preparado" },
+        { id: "final", descripcion: "Final sin verificación", rol: "director", depende: ["previa"], salidaEsperada: "Resultado final" },
+      ],
+      motoresValidos: ["nativo"], revisionHumana: false,
+    };
+    expect(validarEquipo(e).some((p) => p.includes("última tarea") && p.includes("verifica"))).toBe(true);
   });
 
   it("texto con forma de clave montado en tiempo de ejecución", () => {
