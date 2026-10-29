@@ -10,7 +10,7 @@
 // para que aparezca en perfiles, páginas, grupos o secciones de la red.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,7 @@ function ShareCanvasDialog({
     const [dest, setDest] = useState<CreationDest>("perfil");
     const [own, setOwn] = useState<OwnEntityOption | null>(null);
     const [note, setNote] = useState("");
+    const noteId = useId();
     const [publishing, setPublishing] = useState(false);
 
     const handleShare = useCallback(async () => {
@@ -138,7 +139,9 @@ function ShareCanvasDialog({
                     <X className="w-4 h-4" />
                 </button>
             </div>
+            <label htmlFor={noteId} className="text-[11px] uppercase tracking-wider text-white/40">Comentario (opcional)</label>
             <textarea
+                id={noteId}
                 aria-label="Comentario de la publicación (opcional)"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
