@@ -1,0 +1,134 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "PUB1029E",
+   "ola": "1029 · CI de producción en verde",
+   "depende": [],
+   "titulo": "Guía de la red · las claves de demostración del catálogo vuelven a cuadrar con los pasos",
+   "archivos": [
+    "src/lib/onboarding/__tests__/guia-completa-catalogo.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta (corre la prueba citada: si ya pasa, responde NO APLICA y no toques nada).\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de cadenas con forma de clave en código ni pruebas.\n\nContexto (2026-10-29): la autopublicación, parada desde el 25-10, ya pasa el detector de secretos y las 3.627 pruebas del puente, pero el CI de GitHub (run 40821862697, candidato c339920f7) falla en Vitest con 6 de 17.056 pruebas. Mientras haya una en rojo, nada se publica. Arregla la causa, no la prueba, salvo que la prueba sea la que quedó vieja (dilo en tu respuesta).\n\nFalla `guia-completa-catalogo.test.ts` («guardia de huérfanas · ninguna demostración sin paso»): `CLAVES_DEMO_PASO` tiene 11 claves y los pasos tienen 21 (faltan, entre otras, «capas-conciencia», «genesis», «libreria-biblioteca», «malla», «neuronas-cerebro», «personalizacion-segura», «pilar-cultura», «pilar-educacion», «pilar-politica», «protomolecula»). Las partes GUI1021Gb-d1b, -d2 y -d3 del 28-10 tocaron la guía. Busca dónde se declaran `CLAVES_DEMO_PASO` y los componentes de demostración: cada paso con demo debe tener su clave y su componente (añade esos archivos a la tarea, como mucho 3 en total). Si una demo falta de verdad, que el paso no la pida; nunca una demostración sin paso."
+  },
+  {
+   "ola": "Rescate de las ramas de la nube",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261015-203923-RTRTRTRTS1010-EV-ORACLE-1abc",
+   "id": "RTRTRTRTS1010-EV-ORACLE-1abcb-d3",
+   "titulo": "Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas (parte 3 de 3)",
+   "archivos": [
+    "src/lib/estaciones/__tests__/rele-salas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea RTRTRTS1010-EV-ORACLE-1abc («Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas») se hizo en main por otro camino; su rama nube/a1-20261013-223040-RTRTRTS1010-EV-ORACLE-1abc queda archivada en `refs/archivo/nube/a1-20261013-223040-RTRTRTS1010-EV-ORACLE-1abc` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.96)\n\nTU TAREA (RTRTRTRTS1010-EV-ORACLE-1abc · solo estos archivos: scripts/puente/test_espejo_estado.py, src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/estaciones/__tests__/rele-salas.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# scripts/puente/test_espejo_estado.py\n    def test_que_copiar_selecciona_correctamente(self):\n        # Create a listado with all files that should be selected\n        ahora = AHORA\n        reciente = ahora - 3600  # 1 hour ago\n        listado = self.pares(\n            \"progreso.json\",\n            \"progreso.md\",\n            \"medios.json\",\n            \"puntos-control.json\",\n            \"cola-1.json\",\n            \"cola-2.json\",\n            \"cola-antigua.json\",\n            \"evento1.jsonl\",\n            \"evento2.jsonl\",\n            \"log.txt\",\n            mtime=reciente\n        )\n        seleccion = que_copiar(listado, ahora)\n        esperados = {\n            \"progreso.json\",\n            \"progreso.md\",\n            \"medios.json\",\n            \"puntos-control.json\",\n            \"cola-1.json\",\n            \"cola-2.json\",\n            \"cola-antigua.json\",\n            \"evento1.jsonl\",\n            \"evento2.jsonl\",\n            \"log.txt\",\n        }\n        self.assertEqual(set(seleccion), esperados)\n\n# scripts/puente/test_espejo_estado.py\n    def test_empaquetar_crea_tar_gz(self):\n        seleccion = [\n            \"progreso.json\",\n            \"progreso.md\",\n            \"medios.json\",\n            \"puntos-control.json\",\n            \"cola-1.json\",\n            \"evento1.jsonl\",\n            \"log.txt\",\n        ]\n        # Create a temporary directory with all the necessary files\n        with tempfile.TemporaryDirectory() as tmp_dir:\n            # Create the olas directory\n            olas_dir = os.path.join(tmp_dir, \"olas\")\n            os.makedirs(olas_dir)\n            \n            # Create all the files in the selection\n            for nombre in seleccion:\n                file_path = os.path.join(olas_dir, nombre)\n                if nombre == \"progreso.json\":\n                    with open(file_path, \"w\", encoding=\"utf-8\") as f:\n                        json.dump({\"ola\": \"1012C\"}, f)\n                elif nombre == \"progreso.md\":\n                    # Create a file with 300 lines\n                    with open(file_path, \"w\", encoding=\"utf-8\") as f:\n                        f.write(\"\\n\".join([f\"Línea {i}\" for i in range(300)]))\n                elif nombre == \"medios.json\":\n                    with open(file_path, \"w\", encoding=\"utf-8\") as f:\n                        json.dump({\"medios\": [\"oracle-a1\"]}, f)\n                elif nombre == \"puntos-control.json\":\n                    with open(file_path, \"w\", encoding=\"utf-8\") as f:\n                        json.dump({\"puntos\": [{\"nombre\": \"pc1\"}]}, f)\n                elif nombre == \"cola-1.json\":\n                    with open(file_path, \"w\", encoding=\"utf-8\") as f:\n                        json.dump({\"tareas\": []}, f)\n                elif nombre == \"evento1.jsonl\":\n                    # Create a file with 200 lines\n                    with open(file_path, \"w\", encoding=\"utf-8\") as f:\n                        for i in range(200):\n                            f.write(json.dumps({\"evento\": i, \"ts\": 1000+i}) + \"\\n\")\n                elif nombre == \"log.txt\":\n                    # Create a file with 200 lines\n                    with open(file_path, \"w\", encoding=\"utf-8\") as f:\n                        f.write(\"\\n\".join([f\"Log line {i}\" for i in range(200)]))\n            \n            # Now call empaquetar\n            salida_dir = os.path.join(tmp_dir, \"salida\")\n            os.makedirs(salida_dir)\n            ruta_tar = empaquetar(seleccion, olas_dir, salida_dir)\n            self.assertTrue(os.path.exists(ruta_tar))\n            with tarfile.open(ruta_tar, \"r:gz\") as tar:\n                extra_dir = os.path.join(tmp_dir, \"extra\")\n                os.makedirs(extra_dir, exist_ok=True)\n                tar.extractall(path=extra_dir)\n                # The tar contains files directly in the root, not in a subdirectory\n                contenido_extra = os.listdir(extra_dir)\n                self.assertEqual(set(contenido_extra), set(seleccion))\n                esperadas_lineas = {\n                    \"progreso.json\": 1,\n                    \"progreso.md\": 300,\n                    \"medios.json\": 1,\n                    \"puntos-control.json\": 1,\n                    \"cola-1.json\": 1,\n                    \"evento1.jsonl\": 200,\n                    \"log.txt\": 200,\n                }\n                for nombre, esperada in esperadas_lineas.items():\n                    ruta_extra = os.path.join(extra_dir, nombre)\n                    with open(ruta_extra, \"r\", encoding=\"utf-8\") as f:\n                        lineas = f.read().splitlines()\n                    self.assertEqual(len(lineas), esperada, f\"{nombre}: {len(lineas)} != {esperada}\")\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"muestra el botón de desconectar cuando hay trabajo en curso\", async () => {\n        // Modify the first node to have work in progress\n        const estadoConTrabajo = estadoDePrueba({\n            nodos: [\n                {\n                    ...estadoDePrueba().nodos[0],\n                    enCurso: [\n                        {\n                            id: \"task-1\",\n                            fase: \"escribiendo\",\n                            punto: {\n                                rama: \"main\",\n                                sha: \"abc123\",\n                                t: Date.now() - 5 * 60_000, // 5 minutes ago\n                            },\n                        },\n                    ],\n                },\n                estadoDePrueba().nodos[1]\n            ]\n        });\n        \n        pintar(estadoConTrabajo);\n        // In a real test, we'd look for the actual button\n        // For now, we'll just verify the test structure\n        expect(true).toBe(true);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"muestra el botón de usar como contenedor cuando el nodo puede ser contenedor\", async () => {\n        // Modify the first node to have a contenedor object\n        const estadoConContenedor = estadoDePrueba({\n            nodos: [\n                {\n                    ...estadoDePrueba().nodos[0],\n                    contenedor: {\n                        activo: true,\n                        agentes: 2,\n                        apto: true,\n                        motivo: \"Listo para trabajar\",\n                    },\n                },\n                estadoDePrueba().nodos[1]\n            ]\n        });\n        \n        pintar(estadoConContenedor);\n        expect(true).toBe(true);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"muestra información de tarea a medias cuando existe\", async () => {\n        // Modify the first node to have work in progress\n        const estadoConTrabajo = estadoDePrueba({\n            nodos: [\n                {\n                    ...estadoDePrueba().nodos[0],\n                    enCurso: [\n                        {\n                            id: \"task-1\",\n                            fase: \"escribiendo\",\n                            punto: {\n                                rama: \"main\",\n                                sha: \"abc123\",\n                                t: Date.now() - 5 * 60_000, // 5 minutes ago\n                            },\n                        },\n                    ],\n                },\n                estadoDePrueba().nodos[1]\n            ]\n        });\n        \n        pintar(estadoConTrabajo);\n        expect(true).toBe(true);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"muestra la línea de información bajo el nombre del nodo\", async () => {\n        // This test would check that some info line is shown under the node name\n        pintar();\n        expect(true).toBe(true);\n    });\n\n# src/lib/estaciones/__tests__/rele-salas.test.ts\n    it(\"debería permitir entrar con tema válido y dentro de límites\", () => {\n        // This is a placeholder test - in a real implementation, we'd test the actual logic\n        expect(true).toBe(true);\n    });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261015-203923-RTRTRTRTS1010-EV-ORACLE-1abc`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261015-203923-RTRTRTRTS1010-EV-ORACLE-1abc:refs/remotes/origin/nube/a1-20261015-203923-RTRTRTRTS1010-EV-ORACLE-1abc\"` y `git cherry-pick --no-commit b71cf5126119`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/puente/test_espejo_estado.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 3 DE 3 (la dirección dividió RTRTRTRTS1010-EV-ORACLE-1abcb: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/estaciones/__tests__/rele-salas.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "RTRTRTRTS1010-EV-ORACLE-1abcb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "RTRTRTRTS1010-EV-ORACLE-1abcb-d2"
+   ]
+  },
+  {
+   "ola": "1021G",
+   "revisor_quitadas": [
+    "GUI1021I"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40098899044",
+   "id": "GUI1021K1b-d2",
+   "titulo": "Guía sin cuenta · «Conoce StarSeed (sin cuenta)» en la pantalla de acceso (parte 2 de 2)",
+   "archivos": [
+    "src/components/auth/__tests__/auth-gate-guia.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. En `auth-gate.tsx`, bajo los dos modos (Entrar y Crear cuenta), un botón secundario «Conoce StarSeed (sin cuenta)» que llama a `abrirGuia({desde: 'login'})`. No cambia nada del inicio de sesión. Pruebas: el botón está en ambos modos y lanza el evento con `desde: 'login'`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40098899044`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama (la reasignación apuntaba al run 40103101721 de nube-gh, que ya terminó, y esta rama es de otro medio)). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40098899044:refs/remotes/origin/nube/40098899044\"` y `git cherry-pick --no-commit 4a8f92691ae5`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/auth/__tests__/auth-gate-guia.test.tsx, src/components/auth/auth-gate.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió GUI1021K1b: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/auth/__tests__/auth-gate-guia.test.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GUI1021K1b",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "GUI1021K1b-d1"
+   ]
+  },
+  {
+   "ola": "1020U",
+   "revisor_quitadas": [
+    "IMG1020B"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261027-101913-IMG1020C",
+   "id": "IMG1020Cb-d2",
+   "titulo": "Astraura · la generación con ComfyUI deja de mandar texto suelto y usa un flujo de verdad (parte 2 de 2)",
+   "archivos": [
+    "src/ai/astraura/media/__tests__/media-gen-comfyui.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). `comfyuiImage` manda hoy `{prompt: texto}` a `/prompt`, que un ComfyUI real rechaza. Cámbialo: construye `textoAImagen` (IMG1020A) con el checkpoint de las preferencias si existe o el primero de `checkpointsDisponibles()`; si no hay ninguno, error honesto («instala un checkpoint en tu ComfyUI»); con `opciones > 1`, `variaciones` con semillas distintas; devuelve el `MediaGenResult` de siempre con la URL de `/view` (y la galería si hay varias). Conserva el mensaje actual cuando no hay endpoint. Pruebas con fetch simulado: una imagen, varias opciones, sin checkpoint, error del flujo. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261027-101913-IMG1020C`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261027-101913-IMG1020C:refs/remotes/origin/nube/a1-20261027-101913-IMG1020C\"` y `git cherry-pick --no-commit 155b149b637a 7ed3c966d03f a8346bf25c6f 6f7cb84d760f`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/media/__tests__/media-gen-comfyui.test.ts, src/ai/astraura/media/media-gen.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió IMG1020Cb: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/ai/astraura/media/__tests__/media-gen-comfyui.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG1020Cb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "IMG1020Cb-d1"
+   ]
+  },
+  {
+   "ola": "1020U",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40404199319",
+   "id": "OHS1020Ac-d2",
+   "titulo": "OpenHands · cliente puro del Agent Server (conversaciones, mensajes, ejecutar, pausar, eventos y confirmación) (parte 2 de 2)",
+   "archivos": [
+    "src/lib/agentes/__tests__/openhands-servidor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md (§2 y §7). La API del Agent Server ya está VERIFICADA: su descripción real (OpenAPI de la versión 1.7.1 instalada en el A1) está en docs/referencias/openhands-agent-server-1.7.1-openapi.json; búscala con grep, no la cargues entera. Escribe un cliente puro con `fetch` inyectado, `redirect: \"manual\"` y tope de tiempo: `salud()` (GET /health), `crearConversacion(cfg)` (POST /api/conversations, con los campos que pide su esquema), `enviarMensaje(id, texto)` (POST /api/conversations/{id}/events con el esquema de mensaje del archivo), `ejecutar(id)` (POST …/run), `pausar(id)` (POST …/pause), `eventos(id, desde?)` (GET …/events/search) y `politicaConfirmacion(id, politica)` (POST …/confirmation_policy). Usa SOLO rutas y campos que estén en ese archivo; si algo no está, no lo pongas. La clave del modelo la pasa quien llama y nunca aparece en errores. Por defecto, política de confirmación que pide permiso antes de acciones (los agentes no actúan sin aprobación). Pruebas con fetch simulado de cada función y de los errores. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40404199319`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40404199319:refs/remotes/origin/nube/40404199319\"` y `git cherry-pick --no-commit 7b9618349a98 9c3256a7948d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/protomolecula/gobierno/__tests__/ayudas-prueba.ts, src/components/protomolecula/gobierno/__tests__/gobierno-proto-resumen.test.tsx, src/components/protomolecula/gobierno/__tests__/seccion-gobierno-proto.test.tsx, src/components/protomolecula/gobierno/ayudas-prueba.ts, src/lib/agentes/__tests__/openhands-servidor.test.ts, src/lib/agentes/openhands-servidor.ts, src/lib/integrations/__tests__/openhands-conector.test.ts, src/lib/integrations/clients/openhands.ts, src/lib/integrations/registry.ts, src/lib/integrations/run.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió OHS1020Ac: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/agentes/__tests__/openhands-servidor.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "OHS1020Ac",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "OHS1020Ac-d1"
+   ]
+  },
+  {
+   "ola": "1021G",
+   "revisor_quitadas": [
+    "GUI1021I"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40098899044",
+   "id": "GUI1021Ob-d2",
+   "titulo": "Guía sin cuenta · Ajustes: «Ver la guía de introducción» con la lista de temas (parte 2 de 2)",
+   "archivos": [
+    "src/components/settings/appearance/__tests__/guide-button-toggle-temas.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Junto al botón de abrir la guía, una lista de los diez temas de `TODOS_LOS_TEMAS` (título e icono) y cada uno abre la guía en ese tema con `abrirGuia({desde: 'ajustes', temaInicial})`. Nada más cambia. Pruebas. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40098899044`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama (la reasignación apuntaba al run 40103101721 de nube-gh, que ya terminó, y esta rama es de otro medio)). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40098899044:refs/remotes/origin/nube/40098899044\"` y `git cherry-pick --no-commit e606c88ccb43`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/settings/appearance/__tests__/guide-button-toggle-temas.test.tsx, src/components/settings/appearance/guide-button-toggle.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió GUI1021Ob: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/settings/appearance/__tests__/guide-button-toggle-temas.test.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GUI1021Ob",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "GUI1021Ob-d1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "PUB1029E",
+   "GUI1021K1b-d2",
+   "GUI1021Ob-d2",
+   "IMG1020Cb-d2",
+   "OHS1020Ac-d2",
+   "RTRTRTRTS1010-EV-ORACLE-1abcb-d3"
+  ]
+ }
+}
