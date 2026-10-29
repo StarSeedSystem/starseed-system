@@ -1,0 +1,38 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "APR1019A",
+   "ola": "Ola 1019N · Apps en la malla, lado nativo: ventana_remota rehecha con las API reales (cargo check en verde)",
+   "titulo": "Ventanas prestables y captura con xcap 0.9 (compila)",
+   "archivos": [
+    "native/src-tauri/src/ventana_remota.rs",
+    "native/src-tauri/Cargo.toml",
+    "native/src-tauri/src/lib.rs"
+   ],
+   "depende": [],
+   "prompt": "Rehaz `ventanas_prestables` y `capturar_ventana` de `ventana_remota.rs` con la API real de xcap 0.9 (lista de `Window::all()`, sin duplicar por id; nombre de app con `app_name()`; captura con `capture_image()`, redimensiona con image 0.25 y devuelve PNG en base64 con el engine de base64 0.22). Quita el campo repetido de `VentanaInfo`. Deja `entrada_ventana` fuera por ahora (APR1019B). Vuelve a declarar `#[cfg(desktop)] mod ventana_remota;` y registra los dos comandos en `generate_handler!` separados por comas; si `generate_handler!` no admite `#[cfg]` dentro, registra la lista de escritorio en un bloque `#[cfg(desktop)]` aparte. Añade xcap = \"0.9\", image = \"0.25\" y base64 = \"0.22\". Contexto: `architecture/apps-en-la-malla.md` y el commit 4e8fac291, que sacó `ventana_remota` de la compilación porque no compilaba (features inexistentes, comandos sin comas en `generate_handler!`, campo repetido, API de xcap y base64 que ya no existen). Versiones REALES: xcap 0.9 (features: image, wgc; `xcap::Window::all()`, `app_name()`, `title()`, `id()` devuelven Result; `capture_image()` devuelve `image::RgbaImage` de image 0.25), enigo 0.6 (sin features keyboard/mouse; `Enigo::new(&Settings::default())`, traits `Keyboard` y `Mouse`, `Direction::Click`, `Coordinate::Abs`), image 0.25 y base64 0.22 (`base64::engine::general_purpose::STANDARD.encode`). Comprueba la API en docs.rs de esa versión antes de escribir. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las dependencias van en la sección de escritorio de Cargo.toml; no quites el pin de rust-ini; comentarios en español; `cargo check --manifest-path native/src-tauri/Cargo.toml` debe pasar en Linux (es el job «Tauri · cargo check» del CI)."
+  },
+  {
+   "id": "FSH1018F",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Fondos · capa de difuminado (transparente, borrosa, blanca, negra o de cualquier tono, con textura)",
+   "archivos": [
+    "src/components/backgrounds/capa-difusion.tsx",
+    "src/lib/appearance/difusion.ts",
+    "src/lib/appearance/__tests__/difusion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "difusion.ts PURO: `estiloDifusion(d)` → objeto de estilo CSS (backdrop-filter blur, fondo con tono y opacidad, textura como data URL SVG de ruido determinista, sin red). capa-difusion.tsx lo aplica con su transform y máscara. Pruebas de cada modo. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "FSH1018B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "FSH1018F",
+   "APR1019A"
+  ]
+ }
+}
