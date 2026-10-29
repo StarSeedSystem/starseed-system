@@ -117,6 +117,50 @@ export function nivelPara(c: Capacidades): NivelVoz {
     return nivelPorDefecto(c);
 }
 
+/** RAM libre mínima (GB) para ofrecer «estudio» en esta neurona. */
+export const RAM_MIN_ESTUDIO_GB = 8;
+
+/**
+ * Señales que no vienen del hardware local y las inyecta quien llama (así la
+ * decisión sigue siendo pura): el descubrimiento de VoiceStudio y la malla.
+ */
+export interface SenalesEstudio {
+    /** `descubrir()` de `voicestudio.ts` dijo que el motor está vivo. */
+    voicestudioVivo: boolean;
+    /** Otra neurona de la malla sirve el nivel «estudio» a esta. */
+    servidoPorOtraNeurona?: boolean;
+    /** GB libres reales; si falta se usa `capacidades.memoriaGB`. */
+    memoriaLibreGB?: number | null;
+}
+
+/**
+ * ¿Puede esta neurona ofrecer «estudio»? (contrato `voz-voicestudio.md` §4).
+ * Solo con VoiceStudio vivo Y (≥ 8 GB libres O servido por otra neurona). Pura.
+ */
+export function estudioDisponible(c: Capacidades, s: SenalesEstudio): boolean {
+    if (!s.voicestudioVivo) return false;
+    if (s.servidoPorOtraNeurona === true) return true;
+    const libre = s.memoriaLibreGB ?? c.memoriaGB;
+    return typeof libre === "number" && Number.isFinite(libre) && libre >= RAM_MIN_ESTUDIO_GB;
+}
+
+/**
+ * Nivel por hardware CON la compuerta de «estudio»: si el hardware pediría
+ * estudio pero VoiceStudio no está vivo (o no cabe y nadie lo sirve), baja a
+ * «alta», el siguiente escalón del mismo timbre. Pura.
+ */
+export function nivelConEstudio(c: Capacidades, s: SenalesEstudio): NivelVoz {
+    if (estudioDisponible(c, s)) return "estudio";
+    const base = nivelPorDefecto(c);
+    return base === "estudio" ? "alta" : base;
+}
+
+/** Niveles ofrecidos con la compuerta de «estudio» aplicada, del mejor al peor. Pura. */
+export function nivelesDisponiblesConEstudio(c: Capacidades, s: SenalesEstudio): NivelVoz[] {
+    const mejor = nivelConEstudio(c, s);
+    return ORDEN.slice(ORDEN.indexOf(mejor));
+}
+
 /**
  * Niveles que puede ofrecer este equipo, del mejor al peor.
  * Siempre incluye «minima», la red de seguridad que nunca falla.

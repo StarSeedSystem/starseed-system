@@ -24,7 +24,21 @@
 
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
-import { nivelPara, siguienteNivel, NIVELES, type NivelVoz } from "./niveles";
+import {
+    nivelPara,
+    siguienteNivel,
+    NIVELES,
+    estudioDisponible,
+    type NivelVoz,
+    type SenalesEstudio,
+} from "./niveles";
+import { descubrir } from "./voicestudio";
+import {
+    motoresPermitidos,
+    type ClaseLicenciaVoz,
+    type ContextoLicenciaVoz,
+} from "./licencia-voz";
+import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
 import {
     soporteSupertonic,
     nivelParaVoz,
@@ -223,6 +237,119 @@ function timbreConEmocion(timbre: Timbre, emocion: EmocionVoz, intensidad: numbe
 /** Último nivel que usó el motor, o `null` si aún no ha hablado en esta sesión. */
 export function nivelActual(): NivelVoz | null {
     return nivelEnUso;
+}
+
+// (Ola 1018V · F) «Estudio» solo se ofrece si VoiceStudio respondió vivo. La
+// comprobación se cachea un minuto para no sondear en cada frase.
+const CACHE_VOICESTUDIO_MS = 60_000;
+let cacheVoicestudio: { vivo: boolean; en: number } | null = null;
+
+async function voicestudioVivo(): Promise<boolean> {
+    const ahora = Date.now();
+    if (cacheVoicestudio && ahora - cacheVoicestudio.en < CACHE_VOICESTUDIO_MS) {
+        return cacheVoicestudio.vivo;
+    }
+    let vivo = false;
+    try {
+        vivo = (await descubrir()).vivo === true;
+    } catch {
+        vivo = false;
+    }
+    cacheVoicestudio = { vivo, en: ahora };
+    return vivo;
+}
+
+// ── (Ola 1018V · F) ELECCIÓN DEL MOTOR DE LA PRIMERA FRASE ───────────────────
+// La conversación empieza a sonar con el motor PERMITIDO por licencia que tenga
+// la voz de esa persona y menor latencia medida (contrato §4). «Estudio» queda
+// para los usos largos (lectura, doblaje, audiolibro) y, en conversación, va al
+// final: no se gasta el motor caro en la primera frase. El motor se fija por
+// mensaje (`motorFijado`) para que un mensaje nunca se parta entre dos motores.
+
+export type UsoVoz = "conversacion" | "lectura" | "doblaje" | "audiolibro";
+
+/** ¿Este uso justifica el nivel «estudio»? Pura. */
+export function usoDeEstudio(uso: UsoVoz): boolean {
+    return uso === "lectura" || uso === "doblaje" || uso === "audiolibro";
+}
+
+/** Traduce el contexto del motor único al uso de voz. Pura. */
+export function usoDesdeContexto(contexto: ContextoVoz): UsoVoz {
+    return contexto === "lectura" ? "lectura" : "conversacion";
+}
+
+/** Un motor candidato, con lo medido y lo declarado que decide la elección. */
+export interface CandidatoVoz {
+    id: string;
+    nivel: NivelVoz;
+    claseLicencia: ClaseLicenciaVoz;
+    condicionCumplida?: boolean;
+    /** Puede sintetizar la voz de esa persona (timbre/referencia disponibles). */
+    tieneVoz: boolean;
+    /** Latencia medida del primer sonido, en ms; `null` si aún no se ha medido. */
+    latenciaMs: number | null;
+}
+
+export type MotivoEleccionVoz = "elegido" | "fijado" | "sin-voz" | "sin-licencia";
+
+export interface EleccionVoz {
+    motor: string | null;
+    nivel: NivelVoz | null;
+    motivo: MotivoEleccionVoz;
+}
+
+/**
+ * Elige el motor de UNA frase. Pura: recibe candidatos, contexto, capas y uso;
+ * no toca red, disco, reloj ni audio.
+ *
+ *  · Solo entran motores que `motoresPermitidos` deja pasar en ese contexto.
+ *  · Solo entran motores que tienen la voz de esa persona.
+ *  · Uso corto: el «estudio» va al final aunque tenga la mejor latencia; si es
+ *    la única opción, se usa (Aurora nunca se queda muda).
+ *  · Uso largo: el «estudio» va primero; después, la menor latencia medida.
+ *  · Sin medida (`null`) se coloca tras los medidos, en el orden del catálogo.
+ *  · Con `motorFijado` se respeta mientras siga permitido y con voz: así un
+ *    mensaje no se parte entre dos motores.
+ */
+export function elegirMotorDeFrase(
+    candidatos: readonly CandidatoVoz[],
+    contexto: ContextoLicenciaVoz,
+    capas: CapasPrefs,
+    uso: UsoVoz = "conversacion",
+    motorFijado?: string | null,
+): EleccionVoz {
+    const conVoz = candidatos.filter((c) => c.tieneVoz);
+    if (!conVoz.length) return { motor: null, nivel: null, motivo: "sin-voz" };
+
+    const permisos = motoresPermitidos(
+        conVoz.map((c) => ({
+            id: c.id,
+            claseLicencia: c.claseLicencia,
+            condicionCumplida: c.condicionCumplida,
+        })),
+        contexto,
+        capas,
+    );
+    const permitidos = new Set(permisos.permitidos.map((m) => m.id));
+    const viables = conVoz.filter((c) => permitidos.has(c.id));
+    if (!viables.length) return { motor: null, nivel: null, motivo: "sin-licencia" };
+
+    if (motorFijado) {
+        const fijado = viables.find((c) => c.id === motorFijado);
+        if (fijado) return { motor: fijado.id, nivel: fijado.nivel, motivo: "fijado" };
+    }
+
+    const largo = usoDeEstudio(uso);
+    const orden = [...viables].sort((a, b) => {
+        const ea = a.nivel === "estudio" ? 1 : 0;
+        const eb = b.nivel === "estudio" ? 1 : 0;
+        if (ea !== eb) return largo ? eb - ea : ea - eb;
+        const la = a.latenciaMs ?? Number.POSITIVE_INFINITY;
+        const lb = b.latenciaMs ?? Number.POSITIVE_INFINITY;
+        return la === lb ? 0 : la - lb;
+    });
+    const elegido = orden[0];
+    return { motor: elegido.id, nivel: elegido.nivel, motivo: "elegido" };
 }
 
 /**
@@ -448,7 +575,8 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     const timbre = timbreConEmocion(opciones.timbre, resuelta.emocion, resuelta.intensidad);
 
     const plataforma = detectarPlataforma();
-    const { memoriaGB } = await detectarCapacidades();
+    const caps = await detectarCapacidades();
+    const { memoriaGB } = caps;
     const ramGB = memoriaGB ?? 8;
     const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
     let nivel: NivelVoz;
@@ -469,6 +597,16 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
             // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
             nivel = "nube";
             break;
+    }
+
+    // (Ola 1018V · F) «Estudio» solo para usos largos y con VoiceStudio vivo: la
+    // primera frase de una conversación sale del motor más rápido permitido.
+    if (nivel === "estudio") {
+        const uso = usoDesdeContexto(opciones.contexto);
+        const senales: SenalesEstudio = {
+            voicestudioVivo: usoDeEstudio(uso) ? await voicestudioVivo() : false,
+        };
+        nivel = estudioDisponible(caps, senales) ? "estudio" : "alta";
     }
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
