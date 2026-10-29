@@ -74,10 +74,47 @@ import {
 } from "@/ai/astraura/media/media-gen";
 import { saveResource } from "@/lib/library-store";
 import { thisDeviceId } from "@/lib/neurons/neurons";
+import { TarjetaImagenes, opcionesDesdeGaleria } from "@/components/imagenes";
+import { useTarjetaImagenes } from "@/lib/imagenes/adaptadores/use-tarjeta-imagenes";
+import type { GaleriaImagenes } from "@/ai/astraura/media/proveedor-neuronas";
 
 // ── Constantes de la UI ───────────────────────────────────────────────────
 
 const KIND_LABEL: Record<MediaKind, string> = { image: "imagen", video: "vídeo", audio: "audio" };
+
+/**
+ * La galería del proveedor «neuronas» montada con la tarjeta de opciones de imagen (IMG1011C/J).
+ * Elegir produce el archivo con el servicio enrutado y lo guarda en la Biblioteca (regla de oro:
+ * Pollinations responde siempre como suelo); Guardar guarda la opción ya generada; Editar abre la
+ * Protomolécula con la imagen cuando su editor esté enchufado; Variar se dice con honestidad adónde va. Sin opciones
+ * presentables no renderiza nada (no inventa fichas).
+ */
+function TarjetaGaleria({ galeria, prompt }: { galeria: GaleriaImagenes; prompt: string }) {
+  const lasOpciones = opcionesDesdeGaleria(galeria, prompt || "Imagen generada");
+  const { elegirOpcion, guardarEnBiblioteca, abrirEnProtomolecula } = useTarjetaImagenes();
+  if (!lasOpciones.length) return null;
+  return (
+    <TarjetaImagenes
+      opciones={lasOpciones}
+      onElegir={(o) =>
+        void elegirOpcion(o).then((url) =>
+          url ? toast.success("Imagen generada y guardada en tu Biblioteca.") : toast.error("No salió archivo; prueba otra opción."),
+        )
+      }
+      onGuardar={(o) =>
+        void guardarEnBiblioteca(o).then((r) =>
+          r ? toast.success("Guardada en tu Biblioteca.") : toast.error("Esa opción aún no tiene archivo; elígela primero."),
+        )
+      }
+      onEditar={(o) =>
+        void abrirEnProtomolecula.abrirProtomoleculaEditor(o.url ?? "").then(() =>
+          toast.info("«Editar» abrirá el lienzo de la Protomolécula en cuanto su editor reciba imágenes (IMG1011C, parte 3)."),
+        )
+      }
+      onVariar={() => toast.info("Para variaciones, vuelve a generar con otra semilla (opciones avanzadas).")}
+    />
+  );
+}
 
 /** Proveedores que aceptan un endpoint propio en esta habilidad. */
 const ENDPOINT_PROVIDER_IDS: MediaProviderId[] = ["automatic1111", "fooocus", "comfyui", "custom-endpoint"];
@@ -522,6 +559,12 @@ export default function MediaGenPanel({ neuronId, configOnly = false, className 
               alt={prompt || "Imagen generada"}
               className="mt-3 max-h-[420px] w-full rounded-xl border border-white/10 object-contain"
             />
+          )}
+
+          {result?.ok && result.galeria && result.galeria.opciones.length > 0 && (
+            <div className="mt-4">
+              <TarjetaGaleria galeria={result.galeria} prompt={prompt.trim()} />
+            </div>
           )}
         </div>
       )}

@@ -1,6 +1,6 @@
 # Imágenes locales de Astraura por capas y malla · contrato (IMG1011)
 
-> Fecha: 2026-10-11 · Pedido por Alex · Núcleo: `src/lib/imagenes/` (modelos, plan, sugerencias; 21 pruebas)
+> Fecha: 2026-10-11 · Pedido por Alex · Núcleo: `src/lib/imagenes/` (modelos, plan, sugerencias; 30 pruebas verificadas el 2026-10-29)
 > Se apoya en `architecture/generacion-audiovisual-astraura.md` (Adenda 138, `src/ai/astraura/media/media-gen.ts`):
 > su **regla de oro sigue intacta** — la imagen por texto SIEMPRE funciona gracias a la web gratis (Pollinations).
 > Esto la amplía con modelos LOCALES por capas, varias opciones por petición y la malla de neuronas.
@@ -93,3 +93,30 @@ el entorno y nunca en el código.
 IMG1011A servicio local de imágenes por neurona · B proveedor «neuronas» en media-gen · C tarjeta de opciones
 de la Protomolécula · D chats, agentes y bots · E sugerencias e instalador en las apps · F malla · G explorador
 y autoactualización · H SD-Turbo en la pestaña · I fichas del catálogo · J integración y verificación.
+
+## §9+ · Estado REAL de cada tarea (verificación de integración · IMG1011J · 2026-10-29)
+
+Puertas corridas ese día: `tsc` (caché por repo, 0 errores) · vitest de `src/lib/imagenes` +
+`src/ai/astraura/media` + `src/lib/astraura-bots` + `src/lib/protomolecula` +
+`src/components/imagenes` (1921 pruebas en 120 archivos, 0 fallos) · pytest de
+`servicios/imagenes-local` y `scripts/imagenes` (18, 0 fallos). No se corrió `next build`.
+
+| Tarea | Estado real (2026-10-29) |
+|---|---|
+| **A servicio local** | OK con «basta de ilusiones»: `servicios/imagenes-local` (9 pruebas) lee hierro, disco e instalados REALES, instala solo con permiso, espacio ≥ 3× y token propio para «gated». Generar usa `sd.cpp` si el binario existe; si no, error honesto (nunca inventa imagen). ⚠️ Pendiente: el binario `sd.cpp` no se autoinstala. |
+| **B proveedor «neuronas»** | OK: `src/ai/astraura/media/proveedor-neuronas.ts` (18 pruebas) reparte con `planImagen`, ejecuta el servicio local de cada neurona y suelta lo fallado por la siguiente del plan; cableado en `media-gen.ts` (`opciones > 1` → galería). Sin sondeo a Supabase: capacidades publicadas con el latido (IMG1011A). |
+| **C tarjeta** | OK y **MONTADA**: `src/components/imagenes/` (5 pruebas DOM) con montura única `src/components/imagenes/index.ts` (IMG1011J; 8 pruebas): `peticionDesdeHerramienta` (entrada de la tool → petición) y `opcionesDesdeGaleria` (galería de «neuronas» → fichas). Viva en los ajustes de la generación audiovisual (panel media-gen): la galería del proveedor «neuronas» se muestra con la tarjeta, y Elegir (genera y guarda en la Biblioteca), Guardar, Variar y Editar responden con aviso honesto. |
+| **D chats/agentes/bots** | La tool `generar_imagen` (aurora-tools) y la acción de bot `imagen.generar` (acciones.ts) están registradas; la galería de media-gen llega con opciones. ⚠️ La tarjeta incrustada EN el mensaje del chat no está aún: queda lista en una línea por la montura única; el enchufe en `chat-surface`/`aurora-chat-section` es tarea propia (fuera del presupuesto de 3 archivos de esta cola). |
+| **E sugerencias/instalador** | OK: `SugerenciasInstalacion` montada en `/habilidades` (sección «Generación audiovisual», junto al panel) con tamaño REAL de descarga (archivos exactos de Hugging Face), espacio libre y explicación del token para «gated»; instalación con un toque vía el servicio local. Hygiene de huella para no repetirla. |
+| **F malla** | La repartición por capas usa el núcleo puro (plan.ts) y la malla de neuronas del OS (`useMallaNeuronasEstado`, 21 pruebas de malla-imagenes). El reparto-taller 3D de G3D1011D existe (`src/lib/avatares/adaptadores/reparto-taller.ts`); no se toca. |
+| **G explorador** | OK: `scripts/imagenes/explorador_modelos.py` (9 pruebas) consulta Hugging Face y propone fichas con licencia y «gated»; nada se instala solo. |
+| **H SD-Turbo pestaña** | OK: WebGPU SD-Turbo (`src/lib/imagenes/adaptadores/webgpu-sd-turbo*`, 36 pruebas) corre en la pestaña con WebGPU y su worker; en las pruebas no se toca la red. |
+| **I fichas del catálogo** | OK: `modelos.ts` con fecha de verificación `FECHA_VERIFICACION_IMAGENES = "2026-10-16"` y las licencias del §1 aplicadas a las fichas. |
+| **J integración** | ESTA tarea: montura única + montaje real en ajustes + verificación de TODO lo anterior + este cuadro. |
+
+Pendientes honestos (no corren aquí): «Editar» de la tarjeta avisa que el lienzo de la
+Protomolécula aún no recibe imágenes (`src/lib/protomolecula/editor.ts` es placeholder;
+parte 3) y «Pasando a borrador de publicación» lo mismo (`src/lib/publicacion/borrador.ts`); el
+«Usar como referencia para 3D» de la tarjeta abre el diálogo real `Generar3D` (G3D1011D/E), pero
+la función puente `usarComoReferencia3D` del hook sigue como placeholder. La incrustación en el
+chat (D) es la siguiente tarea natural de esta ola.
