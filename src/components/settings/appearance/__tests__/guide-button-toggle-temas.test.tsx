@@ -1,3 +1,5 @@
+// GUI1021O · Ajustes → la guía de introducción con sus diez temas.
+// Lo puro: el mapa de tema a icono. Lo visible: cada uno abre la guía en su tema.
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { HelpCircle } from "lucide-react";
 import { afterEach, describe, expect, it } from "vitest";
