@@ -43,13 +43,41 @@ def _vigente(p, existe):
     rutas = [cita] if isinstance(cita, str) else list(cita)
     ok = bool(rutas) and all(_existe(existe, r) for r in rutas)
     return (True, "") if ok else (False, "ya no aplica: la cita no sigue en el código")
+_PALABRAS_ACCESO = ("libre", "gratis", "abierto", "registro")
+
+def _quitar_enumeraciones_acceso(texto: str) -> str:
+    """Quita los bloques entre paréntesis o corchetes que enumeran tipos de acceso (incluyen
+    libre/gratis/abierto/registro junto a pago), para que «pago» dentro de ellos no dispare
+    el falso positivo de es_de_alex."""
+    t = texto
+    # Bloques entre paréntesis
+    for bloque in re.finditer(r"\([^)]+\)", t):
+        contenido = bloque.group(0)
+        if "pago" in contenido.lower() and any(ap in contenido.lower() for ap in _PALABRAS_ACCESO):
+            t = t.replace(contenido, " ")
+    # Bloques entre corchetes
+    for bloque in re.finditer(r"\[[^\]]+\]", t):
+        contenido = bloque.group(0)
+        if "pago" in contenido.lower() and any(ap in contenido.lower() for ap in _PALABRAS_ACCESO):
+            t = t.replace(contenido, " ")
+    return t
+
 def es_de_alex(p: Dict) -> str:
     """El motivo si toca algo que solo decide Alex (publicar, pagar, cuentas, claves…); "" si no."""
     texto = _texto(p)
+    texto_sin_enum = _quitar_enumeraciones_acceso(texto)
+    # Limpia auto_firma cuando el texto contenía una enumeración de acceso: así la propuesta
+    # vuelve a pasar por revisión en la siguiente pasada (el director mira auto_firma != firma).
+    # Nota: sin modificar director_autodesarrollo, la revisión real requiere que la firma
+    # cambie (REGLAS); limpiar auto_firma aquí fuerza que el lote la reciba otra vez si ya
+    # estaba incluida por otra causa (p. ej. estado «nueva»), y deja el campo limpio para
+    # que la pasada de evaluación no contradiga la nueva regla.
+    if texto_sin_enum != texto:
+        p.pop("auto_firma", None)
     for tema in RESERVADOS:
-        if re.search(rf"\b{tema}\b", texto): return f"no accionable por el enjambre ({tema}): es de Alex → pregunta"
-    if CUENTAS.search(texto): return "no accionable por el enjambre (cuentas): es de Alex → pregunta"
-    if SECRETOS.search(texto): return "no accionable por el enjambre (credenciales): es de Alex → pregunta"
+        if re.search(rf"\b{tema}\b", texto_sin_enum): return f"no accionable por el enjambre ({tema}): es de Alex → pregunta"
+    if CUENTAS.search(texto_sin_enum): return "no accionable por el enjambre (cuentas): es de Alex → pregunta"
+    if SECRETOS.search(texto_sin_enum): return "no accionable por el enjambre (credenciales): es de Alex → pregunta"
     return ""
 def es_accionable(p: Dict, existe: Existe) -> Tuple[bool, str]:
     texto = _texto(p); de_alex = es_de_alex(p)
@@ -177,7 +205,7 @@ VIAS = ("codigo", "astraura", "entregable")
 #: Lo que espera una decisión (para las duplicadas): nunca lo que ya decidió Alex ni lo que está en vuelo.
 PENDIENTES = ("nueva", "pregunta", "esperando-aprobacion", "autodesarrollo")
 #: Versión de las reglas: entra en la firma, así lo pendiente se vuelve a decidir cuando cambian.
-REGLAS = "1025S"
+REGLAS = "1025S-IMG1029"
 #: Reimaginaciones nuevas del automático por ciclo (el director corre cada 15 min) y en vuelo a la vez:
 #: así 230 propuestas no salen de golpe hacia los modelos gratuitos. Lo de Alex no cuenta: se hace siempre.
 TOPE_POR_CICLO, MAX_EN_VUELO = 12, 24
