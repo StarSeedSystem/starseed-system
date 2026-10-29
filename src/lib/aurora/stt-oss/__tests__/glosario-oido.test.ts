@@ -43,6 +43,22 @@ describe("corregirConGlosario", () => {
     expect(resultado.cambios).toEqual(["Astora → Astraura"]);
   });
 
+  it("con un glosario vacío no cambia nada", () => {
+    // Rescate rama nube/40695130948: sin nombres no hay corrección posible.
+    const resultado = corregirConGlosario("hola Estora", [], "es");
+    expect(resultado.texto).toBe("hola Estora");
+    expect(resultado.cambios).toEqual([]);
+  });
+
+  it("no muerde palabras comunes en inglés que ya existen", () => {
+    // Rescate rama nube/40695130948: en la lista corta «en» van «the», «star»,
+    // «said» y «store»: en solitario (con o sin mayúscula) siguen siendo
+    // palabras del idioma, no nombres propios.
+    const resultado = corregirConGlosario("the Star shines and the Store shines too", glosario, "en");
+    expect(resultado.texto).toBe("the Star shines and the Store shines too");
+    expect(resultado.cambios).toEqual([]);
+  });
+
   it("corrige Genesis, Hermes, Aurora, MetaGenesis, PoliGenesis y ProtoGenesis", () => {
     expect(corregirConGlosario("dime Genasis", glosario, "es").texto).toBe("dime Genesis");
     expect(corregirConGlosario("dime Ermes", glosario, "es").texto).toBe("dime Hermes");
