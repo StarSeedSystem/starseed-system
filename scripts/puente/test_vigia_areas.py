@@ -40,6 +40,10 @@ class AreasDelVigia(unittest.TestCase):
     def test_el_dato_real_es_valido_y_sus_catalogos_existen(self):
         areas = V.cargar_areas()  # valida también que cada `catalogo` existe en el repo
         self.assertEqual([a["id"] for a in areas], AREAS_DEL_CONTRATO)
+        habilidades = next(a for a in areas if a["id"] == "habilidades")
+        self.assertEqual(habilidades["catalogo"], "src/ai/astraura/skills-ingenieria.ts")
+        self.assertTrue({"mattpocock/skills", "heygen-com/hyperframes", "cathrynlavery/diagram-design"}
+                        <= set(habilidades["repos_github"]), habilidades["repos_github"])
         for a in areas:
             self.assertTrue(os.path.isfile(os.path.join(V.RAIZ_REPO, a["catalogo"])), a["catalogo"])
             self.assertEqual(a["licencias_conocidas"]["qwen-research"], "personal")
@@ -50,6 +54,25 @@ class AreasDelVigia(unittest.TestCase):
         self.assertEqual(motores["alias_github"]["comfyanonymous/ComfyUI"], "Comfy-Org/ComfyUI")
         self.assertTrue({"Qwen", "Tongyi-MAI"} <= set(areas[0]["autores"]) and "text-to-image" in areas[0]["pipeline_tags"])
         self.assertTrue({"unsloth", "city96", "QuantStack"} <= set(areas[0]["cuantizadores"]))
+
+    def test_diagram_design_en_habilidades_y_copia_en_vendor(self):
+        """Diagram Design (Ola 1018D, contrato architecture/diagramas.md): repo vigilado, señal de
+        versión (manifiesto `.claude-plugin/plugin.json`, campo «version») y copia en vendor/."""
+        habilidades = next(a for a in V.cargar_areas() if a["id"] == "habilidades")
+        self.assertIn("cathrynlavery/diagram-design", habilidades["repos_github"])
+        nota = habilidades["nota"]
+        self.assertIn(".claude-plugin/plugin.json", nota)  # señal de versión del plugin
+        self.assertIn("«version»", nota)
+        self.assertIn("vendor/habilidades/diagram-design", nota)  # carpeta de destino de la copia
+        self.assertIn("MIT", nota)  # licencia conocida: hay que citarla
+        copia = os.path.join(V.RAIZ_REPO, "vendor", "habilidades", "diagram-design")
+        for rel in ("SKILL.md", "LICENSE", "ORIGEN.md", os.path.join("references", "type-architecture.md")):
+            self.assertTrue(os.path.isfile(os.path.join(copia, rel)), rel)
+        with open(os.path.join(copia, "ORIGEN.md"), encoding="utf-8") as f:
+            origen = f.read()
+        self.assertIn("cathrynlavery/diagram-design", origen)
+        self.assertIn("MIT", origen)
+        self.assertIn("vigía", origen)  # la copia se renueva cuando el área `habilidades` avisa
 
     def test_resuelve_herencias(self):
         imagen, motores = V.validar_areas(con(lambda d: d["areas"][0].pop("cuantizadores")))
