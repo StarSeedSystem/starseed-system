@@ -191,7 +191,7 @@ export async function exportarFilas(
 ): Promise<IntegrationResult<Blob>> {
   const ep = cleanEndpoint(cfg.endpoint || DEFAULT_ENDPOINT);
 
-  return proxyFetch<Blob>({
+  return proxyFetch({
     id: "openrefine-export",
     endpoint: ep,
     method: "POST",
