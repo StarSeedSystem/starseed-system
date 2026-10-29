@@ -114,7 +114,7 @@ describe("puedeGastar", () => {
     expect(puedeGastar(ajustes({ aprobacion: "personas" }), 0, 5, "alex").si).toBe(false);
   });
 
-  it("en modo yo hace falta saber quién aprueba", () => {
+  it("en modo yo hace falta saber quién apruela", () => {
     expect(puedeGastar(ajustes(), 0, 5, "").si).toBe(false);
     expect(puedeGastar(ajustes(), 0, 5, "alex").si).toBe(true);
   });
