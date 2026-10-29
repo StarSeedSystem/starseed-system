@@ -15,7 +15,9 @@ lo que no soporta lo informa como «no soportada aquí: usa OpenRefine».
 Puro y determinista: stdlib, sin red, sin disco, sin reloj.
 """
 
+import argparse
 import csv
+import json
 import re
 import sys
 import unicodedata
@@ -66,7 +68,7 @@ def limpiar_url(valor):
     if not partes.netloc:
         return valor
     pares = [p for p in urllib.parse.parse_qsl(partes.query, keep_blank_values=True) if not UTM.match(p[0])]
-    ruta = partes.path[:-1] if partes.path.endswith("/") and partes.path != "/" else partes.path
+    ruta = partes.path[:-1] if partes.path.endswith("/") else partes.path
     return urllib.parse.urlunsplit(
         ("https", partes.netloc.lower(), ruta, urllib.parse.urlencode(pares), "")
     )
@@ -150,8 +152,8 @@ def _separar_columna(op, filas):
     separador = _primera(op, ["separator"])
     if not isinstance(separador, str) or separador == "":
         return False
-    trozos = [(f, [_celda(f, columna).split(separador) if _celda(f, columna) else [""]]) for f in filas]
-    extra = max(len(t[1]) for _, t in trozos)
+    trozos = [(f, _celda(f, columna).split(separador) if _celda(f, columna) else [""]) for f in filas]
+    extra = max(len(t) for _, t in trozos)
     for fila, t in trozos:
         partes = partes_relleno(t, extra)
         fila[columna] = partes[0]
@@ -274,6 +276,33 @@ def fila_unida(fila):
     return "|".join(fila.get(c, "") for c in _columnas([fila]))
 
 
+def _text_transform(op, vivos, no_soportadas, cambios):
+    """text-transform: una expresión simple sobre toda una columna."""
+    columna = _primera(op, ["columnName", "column"])
+    if not isinstance(columna, str):
+        no_soportadas.append("text-transform: falta «columnName»; no soportada aquí: usa OpenRefine")
+        return vivos
+    texto = op.get("expression", "")
+    for indice, fila in vivos:
+        if not _transformar(op, fila, columna, cambios, indice):
+            no_soportadas.append("text-transform: la expresión «%s» no soportada aquí: usa OpenRefine" % texto)
+            return vivos
+    return vivos
+
+
+def _mass_edit_todas(op, vivos, no_soportadas, cambios):
+    """mass-edit: el mapa de sustituciones sobre toda una columna."""
+    edits = op.get("edits")
+    if not isinstance(edits, list) or not isinstance(_primera(op, ["columnName", "column"]), str):
+        no_soportadas.append("mass-edit: falta «columnName» o «edits»; no soportada aquí: usa OpenRefine")
+        return vivos
+    for indice, fila in vivos:
+        if not _mass_edit(op, fila, cambios, indice):
+            no_soportadas.append("mass-edit: sustitución no ejecutable; no soportada aquí: usa OpenRefine")
+            return vivos
+    return vivos
+
+
 def aplicar(filas, receta):
     """Aplica la receta a la lista de filas (dict) sin tocar la entrada.
 
@@ -283,12 +312,17 @@ def aplicar(filas, receta):
     versión nativa no ejecuta («no soportada aquí: usa OpenRefine»).
     """
     datos, ops = extraccion_operaciones(receta)
-    no_soportadas = [] if datos is not None and isinstance(ops, list) else ["la receta debe declarar datos: \"publicos\" y «operaciones» válidas"]
-    if datos is not None:
-        vivos = list(enumerate(dict((c, f[c]) for c in f) for f in filas))
+    no_soportadas = (
+        []
+        if datos is not None and isinstance(ops, list)
+        else ["la receta debe declarar datos: \"publicos\" y «operaciones» válidas"]
+    )
+    vivos, duplicados, cambios = [], [], []
+    if datos is not None and isinstance(ops, list):
+        vivos = list(enumerate(dict(f) for f in filas))
         for op in ops:
-            vivos = ejecutar_op(op, vivos, no_soportadas)
-        dedup = receta.get("deduplicar") if isinstance(receta, dict) else None
+            vivos = ejecutar_op(op, vivos, no_soportadas, cambios)
+        dedup = receta.get("deduplicar")
         if isinstance(dedup, dict):
             clave = dedup.get("columna")
             if clave is not None and not isinstance(clave, str):
@@ -298,29 +332,26 @@ def aplicar(filas, receta):
             else:
                 vivos, duplicados = deduplicar(vivos, clave)
     return {
-        "filas": [f for _, f in vivos] if datos is not None else [],
-        "cambios": CAMBIOS[:] if datos is not None else [],
-        "duplicados": DUPLICADOS[:] if datos is not None else [],
+        "filas": [f for _, f in vivos],
+        "cambios": cambios,
+        "duplicados": duplicados,
         "no_soportadas": no_soportadas,
     }
 
 
-CAMBIOS: list = []
-
-
-def ejecutar_op(op, vivos, no_soportadas):
+def ejecutar_op(op, vivos, no_soportadas, cambios):
     """Ejecuta una `op` soportada sobre los pares (índice, fila) vivos."""
     if not isinstance(op, dict) or not isinstance(op.get("op"), str):
         no_soportadas.append("op inválida: cada operación necesita su campo «op»")
         return vivos
     nombre = _canon(op["op"])
     if nombre == "text-transform":
-        return _text_transform(op, vivos, no_soportadas)
+        return _text_transform(op, vivos, no_soportadas, cambios)
     if nombre == "mass-edit":
-       return _mass_edit_todas(op, vivos, no_soportadas)
+        return _mass_edit_todas(op, vivos, no_soportadas, cambios)
     if nombre == "column-split" and _separar_columna(op, [f for _, f in vivos]):
         return vivos
-    if nombre == "column-merge" and _unir_columnas(op, [f for _, f in vivos]):
+    if nombre == "column-merge" and _unir_columnas(op, [f for _, f in vivos], cambios):
         return vivos
     if nombre == "column-rename" and _renombrar(op, [f for _, f in vivos]):
         return vivos
@@ -332,3 +363,46 @@ def ejecutar_op(op, vivos, no_soportadas):
         return quedan
     no_soportadas.append("%s: no soportada aquí: usa OpenRefine" % op["op"])
     return vivos
+
+
+# ═══ CLI: `limpieza_datos.py --receta r.json entrada.csv > salida.csv` ═══
+
+
+def _escribir_csv(filas, columnas_entrada, destino):
+    """El CSV limpio por el destino dado; las columnas nuevas van al final."""
+    columnas = list(columnas_entrada)
+    columnas.extend(c for f in filas for c in f if c not in columnas)
+    escritor = csv.DictWriter(destino, fieldnames=columnas)
+    escritor.writeheader()
+    escritor.writerows(filas)
+
+
+def main(argv=None):
+    """El CSV limpio por stdout y los avisos («usa OpenRefine») por stderr."""
+    ap = argparse.ArgumentParser(
+        prog="limpieza_datos.py",
+        description="Limpieza nativa de listas con una receta de OpenRefine (sin JVM).",
+    )
+    ap.add_argument("--receta", required=True, help="Archivo JSON con la receta (formato INV1025F)")
+    ap.add_argument("entrada", nargs="?", help="CSV de entrada (stdin si falta)")
+    ap.add_argument("--salida", help="CSV de salida (stdout si falta)")
+    args = ap.parse_args(argv)
+    with open(args.receta, encoding="utf-8") as f:
+        receta = json.load(f)
+    if args.entrada:
+        with open(args.entrada, encoding="utf-8", newline="") as origen:
+            filas = list(csv.DictReader(origen))
+    else:
+        filas = list(csv.DictReader(sys.stdin))
+    resultado = aplicar(filas, receta)
+    for aviso in resultado["no_soportadas"]:
+        print("aviso: %s" % aviso, file=sys.stderr)
+    destino = open(args.salida, "w", encoding="utf-8", newline="") if args.salida else sys.stdout
+    _escribir_csv(resultado["filas"], _columnas(filas), destino)
+    if destino is not sys.stdout:
+        destino.close()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
