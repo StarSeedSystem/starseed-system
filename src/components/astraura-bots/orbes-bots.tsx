@@ -21,6 +21,8 @@ import { CURVA } from "@/lib/design/movimiento";
 import { DESTELLOS_MAX_POR_SEGUNDO, cssKeyframesOrbe, repeticionesDe } from "@/lib/design/animaciones-orbe";
 import { estadoOrbeDeFase, movimientoOrbe, presetOrbeDeFase } from "@/lib/design/orbe-bucle";
 import { DIAMETRO_ANILLO, IndicadorSentidos } from "./indicador-sentidos";
+import { TarjetaPropuesta } from "./tarjeta-propuesta";
+import { RegistroBot } from "./registro-bot";
 import {
   MAX_ORBES_VISIBLES,
   disposicionOrbes,
@@ -174,6 +176,20 @@ export function OrbesBots({ extra = SIN_EXTRA, principal, perfilId, cuentaId }: 
                 <IndicadorSentidos estado={est} nombreBot={b.nombre}
                   onApagarSentido={(sentido) => moverBucle(id, { tipo: "soltar", sentido, at: Date.now() })}
                   onPausarBot={() => moverBucle(id, { tipo: "pausar", quien: "persona", at: Date.now() })} />
+              </div>
+            ) : null}
+            {est && (est.fase === "esperando" || enfocado === id) ? (
+              <div className="fixed z-[60] w-72 space-y-2" style={{ left: Math.min(Math.max(p.xRatio * vista.ancho + D / 2, 8), Math.max(vista.ancho - 296, 8)), top: p.yRatio * vista.alto + D / 2 + DIAMETRO_ANILLO / 2 }}>
+                <TarjetaPropuesta estado={est} bot={b} sesion="privada"
+                  onConfirmar={() => moverBucle(id, { tipo: "confirmar", quien: "persona", at: Date.now() })}
+                  onRechazar={() => moverBucle(id, { tipo: "rechazar", quien: "persona", at: Date.now() })} />
+                {enfocado === id ? (
+                  <div className="rounded-lg border border-white/10 bg-zinc-950/80 p-2">
+                    <p className="mb-1 text-[11px] font-medium text-zinc-400">Registro de {b.nombre}</p>
+                    <RegistroBot registro={est.registro}
+                      onDeshacer={() => moverBucle(id, { tipo: "deshacer", quien: "persona", at: Date.now() })} />
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </Fragment>

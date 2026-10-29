@@ -23,10 +23,18 @@ export function deshacible(e: EntradaRegistro): boolean {
   return "accion" in e.deshacer || "retirar" in e.deshacer;
 }
 
-/** Índice en el registro de la última aplicada reversible; −1 si no hay ninguna. */
+/** Índice de la ÚLTIMA aplicada si ES deshacible; si la última es irreversible o nadie quedó −1:
+ * lo irreversible tapa lo anterior (el bucle solo deshace `ultimaAplicada`). */
 export function indiceUltimaDeshacible(registro: readonly EntradaRegistro[]): number {
-  for (let i = registro.length - 1; i >= 0; i -= 1) if (deshacible(registro[i])) return i;
-  return -1;
+  let ultima = -1;
+  let deshechaDespues = false;
+  for (let i = registro.length - 1; i >= 0; i -= 1) {
+    const e = registro[i];
+    if (e.tipo === "aplicada") { ultima = i; break; }
+    if (e.tipo === "deshecha") deshechaDespues = true;
+  }
+  if (ultima === -1 || deshechaDespues) return -1;
+  return deshacible(registro[ultima]) ? ultima : -1;
 }
 
 /** Habla la entrada: qué pasó, con el sentido o la acción si los tiene. */
