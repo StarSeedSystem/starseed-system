@@ -80,6 +80,26 @@ describe("movimientoDe — 18 pares registro × sección", () => {
         }
     });
 
+    it("el experimental retira a pausado con la curva de salida", () => {
+        for (const seccion of SECCIONES) {
+            const m = movimientoDe("experimental", seccion);
+            expect(m.salida).toEqual({ ms: DURACION.pausado, curva: CURVA.salida });
+        }
+    });
+
+    it("la amplitud de la respiración la manda el registro, no la sección", () => {
+        expect(movimientoDe("sobrio", "trinity").respiracion.escala).toBe(1.01);
+        expect(movimientoDe("expresivo", "trinity").respiracion.escala).toBe(1.02);
+        expect(movimientoDe("experimental", "trinity").respiracion.escala).toBe(1.03);
+    });
+
+    it("el periodo de la respiración lo manda la sección, no el registro", () => {
+        const conTrinity = REGISTROS.map((r) => movimientoDe(r, "trinity").respiracion.periodoMs);
+        expect(new Set(conTrinity).size).toBe(1);
+        const conGenesis = REGISTROS.map((r) => movimientoDe(r, "genesis").respiracion.periodoMs);
+        expect(new Set(conGenesis).size).toBe(1);
+    });
+
     it("el expresivo entra con la curva de aparición y a pausado", () => {
         const m = movimientoDe("expresivo", "genesis");
         expect(m.entrada.ms).toBe(DURACION.pausado);
