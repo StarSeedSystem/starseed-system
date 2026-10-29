@@ -1,0 +1,100 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "CPZ1025G",
+   "ola": "Ola 1025R · Capas de conciencia (PowerInfer, LlamaFactory, Transformers, billion-context)",
+   "titulo": "Matriz de cuantización de transformers por tipo de procesador (datos de referencia para Recursos de IA)",
+   "archivos": [
+    "src/lib/recursos-ia/cuantizacion-hf.ts",
+    "src/lib/recursos-ia/__tests__/cuantizacion-hf.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contexto. La documentación de transformers (docs/source/en/quantization/overview.md, commit 50e35cc del 2026-10-23, v5.20.2) trae la tabla de qué método de cuantización funciona en qué procesador. Alex quiere que el sistema se adapte «a los tipos de procesadores». Esta tarea recoge la tabla como DATOS tipados para que Recursos de IA pueda sugerir un método según el dispositivo. Es un módulo puro de referencia; no se conecta a nada todavía.\nDatos (ok = sí, par = parcial, no = no; \"1/8\" y similares se guardan como `bitsMin` y `bitsMax`):\n - AWQ: alaVuelta no; cpu ok; cuda ok; rocm ok; metal no; intel ok; bits 4; peft sí.\n - bitsandbytes: alaVuelta sí; cpu ok; cuda ok; rocm par; metal par; intel ok; bits 4/8; peft sí.\n - GGUF (llama.cpp): alaVuelta no; cpu ok; cuda ok; rocm no; metal ok; intel ok; bits 1/8; peft no.\n - GPT-QModel: alaVuelta no; cpu ok; cuda ok; rocm ok; metal ok; intel ok; bits 2/3/4/8; peft sí.\n - HQQ: alaVuelta sí; cpu ok; cuda ok; rocm no; metal no; intel ok; bits 1/8; peft sí.\n - Metal (kernels de Apple Silicon): alaVuelta sí; cpu no; cuda no; rocm no; metal ok; intel no; bits 2/4/8; peft no.\n - optimum-quanto: alaVuelta sí; cpu ok; cuda ok; rocm no; metal ok; intel ok; bits 2/4/8; peft no.\n - torchao: alaVuelta sí; cpu ok; cuda ok; rocm no; metal par; intel ok; bits 4/8; peft desconocido (null).\n - SINQ: alaVuelta sí; cpu ok; cuda ok; rocm par; metal par; intel par; bits 2/3/4/6/8; peft no.\nNota importante: los modelos BitNet no se cuantizan al vuelo en transformers (solo existen entrenados ya en ternario por QAT); no apliques esta tabla a BitNet ni a Ternary Bonsai.\n\nHaz `src/lib/recursos-ia/cuantizacion-hf.ts` (PURO, ≤120 líneas) exportando: `type Soporte = \"ok\" | \"parcial\" | \"no\"`; `type DispositivoHF = \"cpu\" | \"cuda\" | \"rocm\" | \"metal\" | \"intel\"`; `interface MetodoCuantizacion { id: string; nombre: string; alaVuelta: boolean; soporte: Record<DispositivoHF, Soporte>; bitsMin: number; bitsMax: number; peft: boolean | null; enlace: string }`; `METODOS_HF: MetodoCuantizacion[]` (los 9 de arriba, con `enlace` a su repositorio como figura en la tabla: p. ej. bitsandbytes `https://github.com/bitsandbytes-foundation/bitsandbytes`); `FUENTE_METODOS_HF = \"transformers docs/source/en/quantization/overview.md @ 50e35cc (2026-10-23)\"`; `NOTA_BITNET` (el aviso de arriba); y `cuantizacionesPara(dispositivo: DispositivoHF, op?: { alaVuelta?: boolean; peft?: boolean; bitsMax?: number }): MetodoCuantizacion[]` que filtra los métodos con soporte ≠ \"no\" en ese dispositivo, aplica `alaVuelta` (true ⇒ solo al vuelo), `peft` (true ⇒ solo `peft === true`) y `bitsMax` (el método tiene `bitsMin ≤ bitsMax`), y ordena poniendo antes `ok` que `parcial` y, a igualdad, por nombre. Comentario de cabecera: «tabla parcial; faltan AQLM, AutoRound, compressed-tensors, EETQ, FP8, HIGGS, VPTQ, SpQR y Quark: se añaden si hacen falta».\nPrueba `src/lib/recursos-ia/__tests__/cuantizacion-hf.test.ts`: ids únicos; en `metal` salen GGUF, GPT-QModel, optimum-quanto y el método Metal con `ok` antes que bitsandbytes (parcial); en `rocm` salen AWQ y GPT-QModel; `{ alaVuelta: true, peft: true }` en `cuda` incluye bitsandbytes y HQQ pero no GGUF; `{ bitsMax: 2 }` deja fuera AWQ y bitsandbytes; en `intel` no sale ningún método sin soporte; `NOTA_BITNET` menciona BitNet.\nAbre SOLO los archivos que se nombran en esta tarea: NO explores el repositorio entero. Contrato final de la ola: `architecture/repos-libreria-1025.md` (si aún no existe, esta tarea es autosuficiente). TypeScript estricto, sin `any`, sin `node:*` en código de cliente, ≤120 líneas por archivo nuevo, comentarios en español con acentos, sin emojis. Termina con las pruebas indicadas en verde (`npx vitest run <ruta>`) y `npx tsc --noEmit` limpio."
+  },
+  {
+   "id": "CPZ1025H",
+   "ola": "Ola 1025R · Capas de conciencia (PowerInfer, LlamaFactory, Transformers, billion-context)",
+   "titulo": "Pliegue de historial por niveles, reversible y con búsqueda (idea de billion-context, código propio) para el contexto corto del 1.58",
+   "archivos": [
+    "src/lib/astraura/contexto/pliegue.ts",
+    "src/lib/astraura/contexto/__tests__/pliegue.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contexto. billion-context (ranxianglei/billion-context, MIT + cláusula de atribución, v0.1.206) es un proxy para agentes de código con modelos grandes que comprime el historial por niveles, de forma incremental y reversible. Su propio estudio mide −31 % a −54 % de tokens facturados en un piloto (no el «5×» de su portada) y el paquete tiene riesgos que impiden instalarlo en el OS (descifra TLS, se autoactualiza con avisos remotos, procedencia de licencia dudosa). StarSeed adapta SOLO la IDEA, con código propio y sin copiar nada suyo: (a) lo viejo se pliega en bloques con rangos estables contados desde el índice 0, así los bloques ya hechos no cambian cuando llegan turnos nuevos (amigable con cachés de prefijo); (b) nada se borra: el historial original sigue guardado y cada bloque se puede restaurar; (c) se puede buscar dentro de lo plegado.\nProblema real del OS: `buildAstraura158Prompt` (`src/ai/providers/astraura-158.ts`, líneas ~193-245) solo conserva los turnos recientes que caben en 9.000 caracteres y TIRA el resto: Astraura 1.58 (BitNet 2B, contexto de 4096 tokens) olvida por completo lo anterior.\n\nHaz `src/lib/astraura/contexto/pliegue.ts` (carpeta nueva; PURO, determinista, sin red ni node:*; ≤120 líneas), con este comentario de cabecera: «Idea inspirada en billion-context (MIT + atribución); sin código copiado»:\n- Tipos: `interface Turno { rol: \"user\" | \"assistant\"; texto: string }`; `interface BloquePlegado { id: string; nivel: 1 | 2 | 3; desde: number; hasta: number; resumen: string }` (rango [desde, hasta) sobre el historial original); `interface OpcionesPliegue { presupuestoChars: number; recientesChars?: number; maxResumenChars?: number; resumidor?: (turnos: Turno[], maxChars: number) => string }`; `interface ResultadoPliegue { recientes: Turno[]; bloques: BloquePlegado[]; texto: string; descartadosChars: number }`.\n- `resumenExtractivo(turnos, maxChars)`: por turno, `U:`/`A:` + primera frase (hasta 140 caracteres, cortada en palabra, con «…»), unidos con « | » y recortados a `maxChars`.\n- `plegarHistorial(historial: Turno[], op: OpcionesPliegue): ResultadoPliegue`: los turnos recientes (de atrás hacia delante, hasta `recientesChars`; por defecto el 60 % del presupuesto) quedan íntegros; los anteriores se agrupan en bloques de nivel 1 de 6 turnos contados desde el índice 0 (el último puede ser más corto); si los resúmenes superan `presupuestoChars - recientes`, se fusionan de 4 en 4 los más antiguos (nivel 2, luego 3: resumen de los resúmenes, con el `resumidor` si existe); si aun así no cabe, se recorta el bloque más antiguo y la diferencia se suma a `descartadosChars`. `texto` = encabezado `[RESUMEN DE LO ANTERIOR · solo recordatorio, no lo repitas]` + una línea `- (turnos a–b) resumen` por bloque (vacío si no hay bloques). El `resumidor` inyectado es para modelos capaces (Bonsai 8B, nube); por defecto el extractivo (barato, sin modelo, apto para el 1.58 local).\n- `restaurarBloque(historial, bloque): Turno[]` (el trozo original) y `buscarEnBloques(historial, bloques, consulta, k = 3): BloquePlegado[]` (puntuación léxica: palabras de la consulta de ≥ 4 letras, minúsculas y sin acentos, presentes en el texto original del bloque; solo puntuaciones > 0; orden estable).\nPrueba `src/lib/astraura/contexto/__tests__/pliegue.test.ts`: cabe todo ⇒ sin bloques y `texto` vacío; 40 turnos largos ⇒ los recientes ≤ `recientesChars`, los bloques cubren [0, n) sin huecos ni solapes y `texto` ≤ presupuesto; ESTABILIDAD (caso sin fusiones de nivel superior): añadir 3 turnos al final no cambia ni el rango ni el `resumen` de los bloques de nivel 1 ya existentes; `restaurarBloque` devuelve exactamente el trozo; `buscarEnBloques` encuentra el bloque con la palabra y devuelve [] si no hay coincidencias; el `resumidor` inyectado se usa; dos ejecuciones iguales dan resultados iguales.\nAbre SOLO los archivos que se nombran en esta tarea: NO explores el repositorio entero. Contrato final de la ola: `architecture/repos-libreria-1025.md` (si aún no existe, esta tarea es autosuficiente). TypeScript estricto, sin `any`, sin `node:*` en código de cliente, ≤120 líneas por archivo nuevo, comentarios en español con acentos, sin emojis. Termina con las pruebas indicadas en verde (`npx vitest run <ruta>`) y `npx tsc --noEmit` limpio."
+  },
+  {
+   "id": "CPZ1025J",
+   "ola": "Ola 1025R · Capas de conciencia (PowerInfer, LlamaFactory, Transformers, billion-context)",
+   "titulo": "Catálogo de capas: dar de alta Ternary Bonsai 2 de 2B, 4B y 9B en el banco (sin promoverlos)",
+   "archivos": [
+    "config/capas-astraura.json",
+    "src/lib/astraura/capas/__tests__/catalogo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contexto. Hallazgo del 2026-10-25 (API de Hugging Face, sin descargar nada): `config/capas-astraura.json` (esquema 1, actualizado 2026-10-09) solo tiene Ternary Bonsai 2 de 27B; los repos pequeños `prism-ml/Ternary-Bonsai-2-{2B,4B,9B}-gguf` (Apache-2.0, bases Qwen/Qwen3.5-{2B,4B,9B}, creados el 2026-09-23 y actualizados el 2026-10-14/15) NO están. El de 9B (2,0 GB) cabe en la Mac de 8 GB (en el A1 de Oracle solo liberando RAM de otro servicio) y es ternario: encaja con la regla «1.58 primero» y compite con SmallThinker 4B (solo inglés, 4 bits) por el hueco de «más potente en equipos modestos». Pero NO se promueven a ninguna capa hasta que el banco (`scripts/puente/capas_banco.py`) los valide: por eso entran con `estado: \"en-banco\"` (la función `usable()` ya los trata como no usables, ver la prueba de `catalogo.test.ts`) y SIN tocar el planificador (`ORDEN` en `src/lib/astraura/capas/planificador.ts`).\n\nHaz:\n(1) En `config/capas-astraura.json` añade al final de `capas` tres entradas con el formato de `ternary-bonsai-4b` (cópialo): `familia` `prism-ml/Ternary-Bonsai`; `formato` `gguf`; `runtime` `llama-cpp`; `version` «2 (2026-09-23)»; `estado` `en-banco`; `medios` `[\"nativo\",\"servidor\"]`; `espejos` `[]`; `verificado` `2026-10-25`; `fuente_oficial` `https://huggingface.co/prism-ml/Ternary-Bonsai-2-<N>-gguf`; modelo «Ternary Bonsai 2 <N>». Archivo PTQ1_0 (el mismo tipo que usa la entrada del 27B) con datos medidos de la API de Hugging Face:\n - `ternary-bonsai2-2b`: capa `palabra`, parametros «2 B», archivo `Ternary-Bonsai-2-2B-PTQ1_0.gguf`, tamano_bytes 429183456, sha256 `36061ad406df8a4903a6db005be350c50fabfaf717f9ef0acf4b76adcd9929fa`, disco_mb 429, ram_min_mb 2048.\n - `ternary-bonsai2-4b`: capa `palabra`, parametros «4 B», archivo `Ternary-Bonsai-2-4B-PTQ1_0.gguf`, tamano_bytes 949549920, sha256 `56711263ec9a9ffeaa74a3a0e58dece8127cf9268404746c721113ca76994d60`, disco_mb 949, ram_min_mb 2560.\n - `ternary-bonsai2-9b`: capa `razon`, parametros «9 B», archivo `Ternary-Bonsai-2-9B-PTQ1_0.gguf`, tamano_bytes 1997486976, sha256 `3561df7ac7d26a71ffa991ac2db740b10841c3a350aa2676ccd3ff5d428b4e8b`, disco_mb 1997, ram_min_mb 4096.\n `ram_min_mb` es ESTIMADO con la regla ceil((disco_mb × 1,5 + 1024) / 512) × 512; dilo en una frase añadida a `descripcion` y pon `actualizado` en `2026-10-25`. NO toques la entrada `ternary-bonsai2-27b` (su SHA «por-verificar» y su prueba actual dependen de ello). No añadas las variantes PQ2_0/Q2_0: las verá el banco cuando se pida (constan en `architecture/repos-libreria-1025.md`).\n(2) En `src/lib/astraura/capas/__tests__/catalogo.test.ts` añade una prueba que lea el JSON real (`readFileSync(join(process.cwd(), \"config/capas-astraura.json\"), \"utf8\")`) y compruebe que las tres entradas existen, son `en-banco`, su `sha256` es hexadecimal de 64 caracteres en minúsculas y `tamano_bytes` > 0; y que el JSON sigue siendo válido y los ids siguen siendo únicos.\n(3) Verifica que `npx vitest run src/lib/astraura/capas src/lib/recursos-ia` sigue en verde (la prueba «mapea todas las capas vigentes del JSON» deberá seguir pasando sola); si otra prueba cuenta las capas por número, ajústala lo mínimo.\nAbre SOLO los archivos que se nombran en esta tarea: NO explores el repositorio entero. Contrato final de la ola: `architecture/repos-libreria-1025.md` (si aún no existe, esta tarea es autosuficiente). TypeScript estricto, sin `any`, sin `node:*` en código de cliente, ≤120 líneas por archivo nuevo, comentarios en español con acentos, sin emojis. Termina con las pruebas indicadas en verde (`npx vitest run <ruta>`) y `npx tsc --noEmit` limpio."
+  },
+  {
+   "id": "RFI1018F",
+   "ola": "Ola 1018R · Referencias e inspiración: categoría de la Biblioteca y conocimiento de Astraura en todos los contextos",
+   "titulo": "Astraura · herramienta `referencias.buscar` en chats, agentes, Protomolécula y pizarras",
+   "archivos": [
+    "src/lib/library/referencias/buscar-referencias.ts",
+    "src/lib/protomolecula/accion-agente.ts",
+    "src/lib/library/referencias/__tests__/buscar-referencias.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`buscarReferencias({ peticion, contexto: { tipo: \"perfil\"|\"pagina\"|\"grupo\"|\"mensaje\"|\"publicacion\"|\"pizarra\"|\"escritorio\", privado }, personalidad?, adnDiseno?, laya? }, deps)`: tema y subtema por Laya (`choice` con los temas del catálogo; sin Laya, por palabras), orden por la personalidad del agente y el ADN de diseño, y para cada referencia elegida consulta solo los canales que `canalPara` permite (MCP o API conectados; si no, la devuelve como enlace). Devuelve tarjetas { entradaId, porque, enlaces, canalUsado }. En accion-agente.ts añade la acción `referencias.buscar` (solo añadir). Pruebas con deps falsas. Contrato: architecture/referencias-inspiracion.md (léelo entero antes de empezar) y su catálogo config/referencias-inspiracion.json (datos verificados: no los cambies salvo que la tarea lo diga). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; respeta SIEMPRE `canales` y `prohibido` de cada entrada (nada de scraping, descarga masiva, caché más allá de lo permitido ni entrenar IA con contenido de terceros); nunca copies textos, marcas, logos, capturas ni assets de terceros: de una referencia sale un diseño propio con la referencia citada; módulos PUROS siempre que se pueda (red, reloj y MCP inyectables); pruebas sin red; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "DGM1018F",
+    "RFI1018A"
+   ],
+   "dependencias_ya_en_main": [
+    "RFI1018B"
+   ]
+  },
+  {
+   "id": "DGM1018H",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Protomolécula · átomo «diagrama»",
+   "archivos": [
+    "src/lib/protomolecula/atomos/diagrama.ts",
+    "src/lib/protomolecula/atomos/index.ts",
+    "src/lib/protomolecula/__tests__/atomo-diagrama.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Patrón `DefinicionAtomo`: herramientaId \"diagram-design\", parámetros (tipo entre los 45, tema claro/oscuro, animado, ancho, perfil de marca), entradas (texto, datos, draw.io, Mermaid, Excalidraw) y salidas (html, svg, png). Plan PURO; regístralo en index.ts (solo añadir la línea). Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "DGM1018F"
+   ],
+   "dependencias_ya_en_main": [
+    "FSH1018O"
+   ]
+  },
+  {
+   "id": "INV1025B",
+   "ola": "Ola 1025R · Investigación y alcance (Agent-Reach, ScrapeGraphAI, OpenRefine, Inbox Zero)",
+   "titulo": "Agent-Reach 1.6: cliente, catálogo y registro dicen la verdad",
+   "archivos": [
+    "src/lib/integrations/clients/agent-reach.ts",
+    "src/ai/astraura/integration-catalog.ts",
+    "src/lib/integrations/registry.ts"
+   ],
+   "depende": [],
+   "prompt": "Depende de INV1025A (la ruta ya acepta los ids). (1) `clients/agent-reach.ts`: `callProxy` usa exactamente los ids de `agent-reach-comandos.ts` (impórtalos desde allí); `health` es GET a `/api/agent-reach/health`; devuelve `error.code` y `hint` tal cual vienen; `NEED_LOGIN_BLOQUEADO` es un fallo normal, no una excepción; el cliente de Reddit queda devolviendo ese motivo (R1).\n(2) `integration-catalog.ts`, entrada `agent-reach`: sustituye `pip install agent-reach` por la instalación real (uv + el zip de GitHub) y avisa de que el paquete de PyPI no es este; `repo` y `autoUpdate.github` con la forma canónica `Panniantong/Agent-Reach`.\n(3) `registry.ts`, entrada `agent-reach`: sustituye `npx agent-reach` por lo mismo; di en `capabilities` la verdad (la web usa Exa para buscar y Jina Reader para leer, que son terceros; GitHub; subtítulos de YouTube; V2EX y Bilibili; Reddit, X y LinkedIn necesitan sesión y quedan apagados); deja las `actions` con los mismos ids.\nPruebas: ejecuta las existentes de integraciones y catálogos (`src/lib/integrations/__tests__`, `src/ai/astraura/__tests__/local-158-context.test.ts`) y arregla lo que rompa el texto; en la prueba existente del catálogo añade una comprobación de que ningún texto de `agent-reach` contiene `pip install agent-reach` ni `npx agent-reach`.\n\nContrato: architecture/repos-libreria-1025.md (grupo investigación: reglas duras R1–R10 y el diseño del agente de alcance). Reglas de la casa: español con acentos en comentarios y textos; nada de `any`; módulos puros con red, disco y reloj inyectables; claves solo en variables de entorno; nada de `node:*` en código de cliente; ≤ 3 archivos y ≤ 120 líneas por archivo; pruebas reales (si una prueba vieja falla, se arregla el código, no la prueba). Antes de empezar comprueba si lo pedido ya está hecho; si ya está, NO APLICA.",
+   "dependencias_ya_en_main": [
+    "INV1025A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "INV1025B",
+   "RFI1018F",
+   "CPZ1025H",
+   "DGM1018H",
+   "CPZ1025G",
+   "CPZ1025J"
+  ]
+ }
+}
