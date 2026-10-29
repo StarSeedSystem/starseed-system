@@ -100,6 +100,18 @@ describe("disponibilidad.ts", () => {
     });
   });
 
+  describe("casos borde", () => {
+    it("retorna arreglo vacío para base64 nulo", () => {
+      expect([...decodificar(null as unknown as string)]).toEqual([]);
+      expect([...decodificar(undefined as unknown as string)]).toEqual([]);
+      expect([...decodificar("")]).toEqual([]);
+    });
+
+    it("fusionar vacío retorna mapa vacío", () => {
+      expect(fusionar([])).toEqual(new Map());
+    });
+  });
+
   describe("fusionar y quienTiene", () => {
     const AHORA = 60_000;
 

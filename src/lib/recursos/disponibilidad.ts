@@ -54,7 +54,8 @@ export function codificar(bytes: Uint8Array): string {
 }
 
 /** Decodifica base64 puro (ignora el relleno «=», falla con carácter fuera del alfabeto). */
-export function decodificar(texto: string): Uint8Array {
+export function decodificar(texto: string | null | undefined): Uint8Array {
+  if (!texto) return new Uint8Array();
   const limpio = texto.replace(/=+$/, "");
   const salida = new Uint8Array(Math.floor((limpio.length * 6) / 8));
   let escritos = 0;
