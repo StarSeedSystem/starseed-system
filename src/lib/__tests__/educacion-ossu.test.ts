@@ -21,12 +21,12 @@ import {
 import type { UpsertGuideInput } from "@/lib/education/study";
 import type { EduNode } from "@/lib/education/curriculum";
 
-type NodoPlano = { id: string; parentId: string | null };
+type NodoPlano = { id: string; parentId: string | null; name?: string };
 
 async function nodosBuiltin(): Promise<NodoPlano[]> {
     try {
         const mod = await import("@/lib/education/curriculum");
-        return mod.BUILTIN_NODES.map((n: EduNode) => ({ id: n.id, parentId: n.parentId }));
+        return mod.BUILTIN_NODES.map((n: EduNode) => ({ id: n.id, parentId: n.parentId, name: n.name }));
     } catch {
         const texto = readFileSync(
             path.join(process.cwd(), "src/lib/education/curriculum.ts"),
@@ -114,7 +114,7 @@ describe("itinerarioOssu · forma de UpsertGuideInput", () => {
         const itin: UpsertGuideInput = itinerarioOssu();
         expect(itin.kind).toBe("itinerario");
         expect(itin.title).toBe("Ruta de Ciencias de la Computación (OSSU)");
-        expect(itin.summary.length).toBeGreaterThan(40);
+        expect(itin.summary?.length ?? 0).toBeGreaterThan(40);
         for (const s of itin.sections) {
             expect(s.title.length).toBeGreaterThan(0);
             expect(s.body.length).toBeGreaterThan(0);

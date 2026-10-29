@@ -98,7 +98,9 @@ export function buscarEnOssu(consulta: string, max = 5): CursoOssu[] {
 // ──────────────────────────── Itinerario ──────────────────────────────────
 
 /** Solo enlaces https: sale como recurso; algo distinto (no hay nada en el dato) no se enlaza. */
-function recursoCurso(c: CursoOssu): UpsertGuideInput["sections"][number]["resources"][number] | null {
+function recursoCurso(
+    c: CursoOssu,
+): NonNullable<UpsertGuideInput["sections"][number]["resources"]>[number] | null {
     if (!c.url.startsWith("https:")) return null;
     return { label: c.nombre, url: c.url, kind: "curso" };
 }

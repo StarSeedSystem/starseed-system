@@ -1,7 +1,7 @@
 {
  "fuente": "https://github.com/ossu/computer-science",
  "licencia_del_repositorio": "MIT (Copyright 2015-2023 Open Source Society University)",
- "aviso_licencia": "El MIT cubre el texto del repositorio (la lista y su orden). Los cursos enlazados son de sus anfitriones (MIT OpenCourseWare, Open Learning Library, Harvard, Coursera, edX…) con licencias propias, a menudo no comerciales: el OS enlaza, nunca copia ni redistribuye su material.",
+ "aviso_licencia": "El MIT cubre el texto del repositorio (la lista y su orden). Los cursos enlazados son de sus anfitriones (MIT OpenCourseWare, Open Learning Library, Harvard, Coursera, edX…) con licencias propias, a menudo no comerciales: el OS enlaza, no copia ni redistribuye su material.",
  "commit_main": "33d44a44e3526ede8e862bf1ad50ae5ae7a2f112",
  "fecha_commit": "2026-07-13",
  "etiqueta_mas_reciente": "v8.0.0 (2017-11-02; el currículo vivo está en main, en revisión para v9)",
