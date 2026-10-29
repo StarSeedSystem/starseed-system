@@ -60,6 +60,8 @@ const TODOS_LOS_TIPOS: WidgetType[] = [
     "NETWORK_FEED_MINI",
     // ── Protomolécula (ola 1010P) ──
     "PROTOMOLECULA",
+    // ── Vídeo con HyperFrames (ola 1018H · HFR1018K) ──
+    "ESTUDIO_VIDEO",
 ];
 
 describe("WIDGET_MANIFEST completitud", () => {

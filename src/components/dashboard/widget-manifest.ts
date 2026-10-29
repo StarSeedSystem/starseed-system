@@ -144,6 +144,9 @@ export const WIDGET_MANIFEST: Partial<Record<WidgetType, WidgetManifestEntry>> =
     // ── Protomolécula (ola 1010P): función universal de creación y edición ──
     PROTOMOLECULA: { label: "Protomolécula", category: "creatividad", w: 4, h: 5, minW: 3, minH: 4, relevance: 60 },
 
+    // ── Vídeo con HyperFrames (ola 1018H): ancho para la línea de tiempo y la vista previa ──
+    ESTUDIO_VIDEO: { label: "Estudio de vídeo", category: "creatividad", w: 5, h: 4, minW: 3, minH: 3, relevance: 74 },
+
     // ── Ola 305: los 21 huérfanos entran en el manifiesto ─────────
     // Ningún WidgetType puede quedarse sin entrada: hasta ahora caían al
     // DEFAULT_MANIFEST {minW:2,minH:2} y el usuario podía encogerlos hasta

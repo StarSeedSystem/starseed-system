@@ -183,8 +183,9 @@ const PanelProtomoleculaAutonomo = dynamic(
     { ssr: false, loading: dashboardWidgetLoading }
 );
 // Estudio de vídeo (HFR1018K, ola 1018H): widget/ventana para dashboard, escritorio, pizarra
-// y flotante. Su tipo llega por string («estudio-video») desde esas superficies, aún no está
-// en la unión WidgetType; se compara como string y se carga perezoso como los demás.
+// y flotante. En la unión y el manifiesto vive como «ESTUDIO_VIDEO»; su tipo también llega por
+// string («estudio-video») desde superficies de texto libre (pizarra, flotante): se compara por
+// string y se carga perezoso como los demás.
 const EstudioVideoVentana = dynamic(
     () => import("@/components/video/estudio-video-ventana").then((mod) => mod.EstudioVideoVentana),
     { ssr: false, loading: dashboardWidgetLoading }
