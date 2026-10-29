@@ -134,7 +134,12 @@ class Prestamo(unittest.TestCase):
         # Nota sin rama citada, y lo que no es «reasignada · oracle»: nada.
         p2 = {"U": {"estado": "reasignada", "medio": "oracle", "nota": "sin rama"},
               "V": {"estado": "commit", "medio": "oracle",
-                    "nota": "movida a oracle (colas/oracle-20261018-231246) desde Genesis"}}
+                    "nota": "movida a oracle (colas/oracle-20261018-231246) desde Genesis"},
+              # Rescatado de nube/40131365064: lo prestado a la nube de GitHub con nota de oracle
+              # tampoco vuelve, y un valor que no sea dict no tumba el barrido.
+              "W": {"estado": "reasignada", "medio": "nube",
+                    "nota": "movida a oracle (colas/oracle-20261018-231246) desde Genesis"},
+              "X": "basura"}
         self.assertEqual(N.devolver_de_oracle(p2, [], {}, True, nacida + 3 * 3600 + 60), [])
 
 
