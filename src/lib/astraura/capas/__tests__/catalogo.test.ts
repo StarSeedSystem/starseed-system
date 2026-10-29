@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   leerCatalogo,
@@ -142,5 +144,44 @@ describe("profundidadNeedle", () => {
   it("sin presupuesto suficiente no hay reflejo local", () => {
     expect(profundidadNeedle(0)).toBe(0);
     expect(profundidadNeedle(7)).toBe(0);
+  });
+});
+
+describe("Bonsai 2 pequeñas en el catálogo real (entradas del 2026-10-25)", () => {
+  // El JSON vivo del repo: las tres capas 2B/4B/9B del hallazgo, en el banco y sin promover.
+  const json: unknown = JSON.parse(readFileSync(join(process.cwd(), "config/capas-astraura.json"), "utf8"));
+  const catalogo = leerCatalogo(json);
+  const porId = (id: string): { entrada: EntradaCapa; tamano: number } | undefined => {
+    const entrada = catalogo.capas.find((e) => e.id === id);
+    if (!entrada) return undefined;
+    const tamano = (entrada as { tamano_bytes?: number }).tamano_bytes ?? 0;
+    return { entrada, tamano };
+  };
+
+  it("ternary-bonsai2-{2b,4b,9b} existen, están en-banco y nada de ellos es usable", () => {
+    for (const id of ["ternary-bonsai2-2b", "ternary-bonsai2-4b", "ternary-bonsai2-9b"]) {
+      const hallada = porId(id);
+      expect(hallada, id).toBeDefined();
+      if (!hallada) return;
+      expect(hallada.entrada.estado, id).toBe("en-banco");
+      // «en-banco» = a la espera de que el banque los valide: no se usa jamás en este estado.
+      expect(usable(hallada.entrada), id).toBe(false);
+    }
+  });
+
+  it("las tres tienen SHA-256 de 64 hex en minúsculas y tamaño medido positivo", () => {
+    for (const id of ["ternary-bonsai2-2b", "ternary-bonsai2-4b", "ternary-bonsai2-9b"]) {
+      const hallada = porId(id);
+      expect(hallada, id).toBeDefined();
+      if (!hallada) return;
+      expect(hallada.entrada.sha256, id).toMatch(/^[0-9a-f]{64}$/);
+      expect(hallada.tamano, id).toBeGreaterThan(0);
+    }
+  });
+
+  it("el catálogo real sigue siendo válido y los ids únicos", () => {
+    expect(catalogo.esquema).toBe(1);
+    const ids = catalogo.capas.map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
