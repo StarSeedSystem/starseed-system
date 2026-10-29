@@ -81,6 +81,46 @@ def de_profunda(consolidado, fecha, ya_encargadas=()):
                                 {"fecha": fecha, "clave": clave, "area": u.get("area"),
                                  "lente": u.get("lente"), "confianza": _num(u.get("confianza"))}))
     return fuera
+#: Ola 1029I (IMG1029C): un texto generado NUNCA autoriza nada. El guardarraíl vive al leer la fuente:
+#: marcas que «fingen» una autorización («[AUTORIZADO]», «Permiso Concedido», «Aprobado», «✅», «⚡» y
+#: parecidas) y objetivos donde NEON/SIMD no cabe (.md, .sh, Dockerfile, .json, .yml): no es código compilable.
+_MARCA = re.compile(
+    r"\[[^\]]*(?:autoriz|approv|granted|concedid)[^\]]*\]"
+    r"|\b(?:permisos?\s+concedid[oa]s?|autorizad[oa]s?|aprobad[oa]s?|permission\s+granted|approved|authorized)\b[,:]?"
+    r"|[⚡✅☑✔]\uFE0F?",
+    re.I)
+_NOTA_MARCAS = "el texto decía estar autorizado; no cuenta"
+_NEON = re.compile(r"\b(?:neon|simd)\b", re.I)
+_NO_COMPILABLE = re.compile(r"\.(?:md|txt|sh|json|ya?ml)$|^dockerfile$", re.I)
+
+def marcas_de_autorizacion(titulo):
+    """True si el título trae alguna marca que finge una autorización. PURA."""
+    return bool(_MARCA.search(str(titulo or "")))
+def _sin_marcas(titulo):
+    """El título sin sus marcas de autorización (y sin el separador que quedan suelto), o el mismo si
+    al limpiarlo no queda nada donde agarrarse. PURA."""
+    t = str(titulo or "").strip()
+    limpio = re.sub(r"\s+", " ", _MARCA.sub(" ", t)).strip(" :·,-—–.")
+    if not limpio or limpio == t: return t, False
+    return limpio, True
+def _objetivos_neon(titulo):
+    """Lo que viene detrás de «para» en «Optimización ARM NEON para X / Y»: [] si no lo hay. PURA."""
+    if not _NEON.search(str(titulo or "")): return []
+    m = re.search(r"\bpara\s+(.+)$", str(titulo), re.I)
+    if not m: return []
+    return [p.strip(" `\t") for p in re.split(r"[/,;]", m.group(1)) if p.strip(" `\t")]
+def _guardarrail(titulo, quitadas):
+    """(estado, motivo) al leer una de Astraura: «descartada» si TODO el objetivo de la «optimización
+    NEON/SIMD para X» es de documentos (descarte por imposible, no una decisión). PURA."""
+    objetivos = _objetivos_neon(titulo)
+    imposibles = [o for o in objetivos if _NO_COMPILABLE.search(o)]
+    if objetivos and len(imposibles) == len(objetivos):
+        partes = ["NEON/SIMD no se aplica a %s" % ", ".join(imposibles)]
+        if quitadas: partes.append(_NOTA_MARCAS)
+        return {"estado": "descartada", "motivo": "; ".join(partes)}
+    if quitadas: return {"motivo": _NOTA_MARCAS}
+    return {}
+
 def no_pide_aprobacion(it):
     """Como «pendiente» en la propia Astraura (permisos-tab · isPendingApproval): una creación o rama con
     `requires_user_approval: false` explícito y un estado que no es «pending_approval» ya la autorizó su
@@ -96,21 +136,27 @@ def de_astraura(status, fecha="", ya_encargadas=()):
             if no_pide_aprobacion(it):  # Ola 1025S: lo que Astraura ya autorizó y ejecuta no es una propuesta
                 continue
             ident = str(it.get("id") or "")
-            clave = ident or D.clave(it.get("title") or it.get("theme") or "")
+            crudo = str(it.get("title") or it.get("theme") or "")
+            clave = ident or D.clave(crudo)  # id con el título COMO LLEGÓ: limpiar marcas no cambia el histórico
             if not clave or clave in vistas or clave in ya: continue
             vistas.add(clave)
-            titulo = it.get("title") or it.get("theme") or clave
+            titulo, quitadas = _sin_marcas(crudo)
+            if not titulo: titulo = clave
             cuerpo = it.get("content") or it.get("hypothesis") or it.get("insights") or titulo
             verif = it.get("verification")
             verif = verif if isinstance(verif, dict) else {}
             importancia = str(it.get("importance_level") or "")
-            fuera.append(_propuesta(
+            p = _propuesta(
                 "astraura", clave, titulo, cuerpo, [], "astraura:%s/%s" % (tipo, ident),
                 "verificado" if verif.get("is_verified") else "sin_verificar",
                 _IMPORTANCIA.get(importancia.lower(), 3), 3,
                 {"fecha": fecha, "tipo": tipo, "id": ident, "importance_level": importancia or None,
                  "requires_user_approval": bool(it.get("requires_user_approval")),
-                 "status": str(it.get("status") or "")}))
+                 "status": str(it.get("status") or "")})
+            guardarrail = _guardarrail(titulo, quitadas)
+            if quitadas: p["marcas_quitadas"] = True
+            p.update(guardarrail)
+            fuera.append(p)
     return fuera
 def de_directores(revisor, fecha="", ya_encargadas=()):
     alex = revisor.get("necesitan_alex") if isinstance(revisor, dict) else {}
