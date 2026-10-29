@@ -160,6 +160,7 @@ function esCadena(v: unknown): v is string {
 function leerEtiqueta(json: unknown, payload?: PayloadActualizacion): VersionLeida | null {
     if (!Array.isArray(json)) return null;
     const { patron } = validarPatronTag(payload?.patronTag);
+    const candidatas: string[] = [];
     for (const item of json) {
         const etiqueta = item as { name?: unknown };
         if (!esCadena(etiqueta?.name)) continue;
@@ -167,9 +168,27 @@ function leerEtiqueta(json: unknown, payload?: PayloadActualizacion): VersionLei
             patron.lastIndex = 0;
             if (!patron.test(etiqueta.name)) continue;
         }
-        return { version: etiqueta.name, fecha: null };
+        candidatas.push(etiqueta.name);
     }
-    return null;
+    if (candidatas.length === 0) return null;
+    // Si hay patrón (caso típico de repo-blender con muchas etiquetas), elegir la MÁS ALTA
+    if (patron && payload?.patronTag) {
+        let mejor = candidatas[0];
+        let mejorNums = extraerNumerosVersion(mejor);
+        for (let i = 1; i < candidatas.length; i++) {
+            const c = candidatas[i];
+            const cNums = extraerNumerosVersion(c);
+            const cmp = compararTuplasVersion(cNums, mejorNums);
+            if (cmp > 0) {
+                mejor = c;
+                mejorNums = cNums;
+            } else if (cmp === 0 && mejorNums) {
+                // Si numéricamente igual, preferir la más larga o mantener
+            }
+        }
+        return { version: mejor, fecha: null };
+    }
+    return { version: candidatas[0], fecha: null };
 }
 
 function leerRelease(json: unknown): VersionLeida | null {
@@ -286,6 +305,29 @@ function normalizarTag(tag: string): string {
     return tag.trim().replace(/^v/i, "");
 }
 
+function extraerNumerosVersion(tag: string): number[] | null {
+    const normalizado = normalizarTag(tag);
+    // Elimina sufijos como " LTS", "release-", separadores comunes
+    const sinSufijos = normalizado
+        .replace(/\b(lts|rc|beta|alpha|preview|dev)\b/gi, "")
+        .replace(/^release[-_.]?/i, "")
+        .replace(/[-_+].*$/, "");
+    const numeros = sinSufijos.match(/\d+/g);
+    if (!numeros || numeros.length === 0) return null;
+    return numeros.map((n) => parseInt(n, 10));
+}
+
+function compararTuplasVersion(a: number[] | null, b: number[] | null): number {
+    if (!a || !b) return 0;
+    const len = Math.max(a.length, b.length);
+    for (let i = 0; i < len; i++) {
+        const va = a[i] ?? 0;
+        const vb = b[i] ?? 0;
+        if (va !== vb) return va > vb ? 1 : -1;
+    }
+    return 0;
+}
+
 /** ¿Es una etiqueta de versión que se puede comparar textualmente? */
 function esTagComparable(tag: string): boolean {
     const normalizado = normalizarTag(tag);
@@ -300,9 +342,10 @@ function esTagComparable(tag: string): boolean {
 /**
  * Compara identificadores del mismo tipo:
  * · dos shas → comparación por prefijo (como siempre);
- * · dos tags → se normalizan (sin «v» inicial) y se comparan por igualdad
- *   textual: iguales → «igual», etiquetas de versión distintas →
- *   «hay-actualizacion»;
+ * · dos tags → se normalizan (sin «v» inicial) y se comparan por tupla numérica
+ *   si es posible; iguales → «igual», si la remota es mayor → «hay-actualizacion»,
+ *   si la instalada es mayor o no se puede comparar numéricamente → según corresponda
+ *   (para tags con números, comparamos por tupla);
  * · mezcla de sha y tag, o textos que no son etiquetas de versión →
  *   «desconocida» (no se inventa un cambio).
  */
@@ -321,9 +364,17 @@ export function compararVersiones(
             : "hay-actualizacion";
     }
     if (localEsSha || remotaEsSha) return "desconocida";
-    const local = normalizarTag(instalada);
-    const upstream = normalizarTag(remota);
-    if (local === upstream) return "igual";
+    const localNorm = normalizarTag(instalada);
+    const upstreamNorm = normalizarTag(remota);
+    if (localNorm === upstreamNorm) return "igual";
+    const localNums = extraerNumerosVersion(instalada);
+    const remotaNums = extraerNumerosVersion(remota);
+    if (localNums && remotaNums) {
+        const cmp = compararTuplasVersion(localNums, remotaNums);
+        if (cmp === 0) return "igual";
+        if (cmp < 0) return "hay-actualizacion";
+        return "igual"; // instalada es mayor
+    }
     return esTagComparable(instalada) && esTagComparable(remota)
         ? "hay-actualizacion"
         : "desconocida";

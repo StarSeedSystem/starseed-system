@@ -58,6 +58,46 @@ import { LISTA_REGISTRO_CON_PUERTA_MS, fundirVivas, latirNeuronaPorPuerta, vivas
 import { capacidadesParaRegistro, hierroDeCapacidades, type CapacidadesTaller } from "@/lib/avatares/adaptadores/reparto-taller";
 import { adoptarNeurona } from "@/lib/network/identidad-dispositivo";
 
+// Blender como medio 3D (BLD1025G): capacidades publicadas por la neurona local
+let blenderCapCache: Record<string, unknown> | null = null;
+let blenderCapUltimo = 0;
+
+const BLENDER_CAP_TTL_MS = 30 * 60_000;
+
+function esBlenderCapValida(c: unknown): c is Record<string, unknown> {
+  if (!c || typeof c !== "object") return false;
+  const o = c as Record<string, unknown>;
+  return o.instalado === true || typeof o.version === "string";
+}
+
+async function refrescarCapBlender(): Promise<Record<string, unknown> | null> {
+  if (typeof fetch === "undefined") return null;
+  if (blenderCapCache && Date.now() - blenderCapUltimo < BLENDER_CAP_TTL_MS) return blenderCapCache;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 1500);
+    const res = await fetch("/api/3d/trabajos?capacidades=1", { signal: ctrl.signal, cache: "no-store" });
+    clearTimeout(t);
+    if (!res.ok) return blenderCapCache;
+    const j = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!j) return blenderCapCache;
+    const bruto = (j.blender || j.capabilities?.blender || j) as Record<string, unknown>;
+    const limpio: Record<string, unknown> = {};
+    const claves = ["v", "instalado", "version", "hash", "serie", "perfil", "motores", "gpu", "hilos", "ramGB", "ramLibreGB", "formatos", "visto"];
+    for (const k of claves) {
+      if (bruto[k] !== undefined) limpio[k] = bruto[k];
+    }
+    if (esBlenderCapValida(limpio)) {
+      blenderCapCache = limpio;
+      blenderCapUltimo = Date.now();
+      return limpio;
+    }
+  } catch {
+    /* ignora */
+  }
+  return blenderCapCache;
+}
+
 export const NEURON_DEVICE_ID_KEY = "starseed.neuron.device-id";
 export const NEURON_PREFS_KEY = "starseed.neurons.prefs.v1";
 export const NEURON_EVENT = "starseed:neurons";
@@ -121,11 +161,13 @@ export interface NeuronCapabilities {
     bitnet?: boolean;
   };
   /**
-   * (G3D1011D · contrato §11) Bloque de capacidades del taller 3D: va dentro del JSON
+   * (G3D1011D · contrato avatares-3d §11) Bloque de capacidades del taller 3D: va dentro del JSON
    * `capabilities` que YA existe en `neuron_devices` (sin migración) y lo publica la neurona
    * UNA vez con cada ficha, igual que el resto del hierro medido (`capacidadesParaRegistro`).
    */
   taller3d?: CapacidadesTaller;
+  /** Blender como medio 3D (BLD1025G): capacidades publicadas por la neurona local. */
+  blender?: Record<string, unknown>;
   /** (2026-10-09) Pantalla «AxB@dpr» con los lados ordenados: la ven igual todos los medios del aparato. */
   pantalla?: string;
   /** (2026-10-09) Zona horaria IANA del aparato. */
@@ -577,6 +619,22 @@ async function construirNeuronaLocal(id: string): Promise<Neuron> {
   try {
     capabilities.taller3d = capacidadesParaRegistro(hierroDeCapacidades(capabilities));
   } catch { /* sin taller */ }
+  // Blender como medio 3D (BLD1025G): refresco al arrancar y cada LATIDOS_POR_FICHA latidos
+  if (latidosDesdeFicha % LATIDOS_POR_FICHA === 0) {
+    try {
+      void refrescarCapBlender().then((c) => {
+        if (c && neuronaLocal) {
+          const copia = { ...neuronaLocal.capabilities };
+          copia.blender = c;
+          neuronaLocal = { ...neuronaLocal, capabilities: copia };
+        }
+      });
+    } catch { /* sin blender */ }
+  }
+  try {
+    const bc = await refrescarCapBlender();
+    if (bc) capabilities.blender = bc;
+  } catch { /* sin blender */ }
   const prefs = readPrefs();
   const name = prefs.names[id] || defaultName(capabilities, kind);
   const perms = permissionsFor(id);
