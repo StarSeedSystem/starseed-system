@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "VZR1011D",
+   "ola": "Ola 1011I · Voces locales fluidas (Chatterbox, OpenVoice V2; F5/XTTS opcionales personales) y el pato Open Duck Mini como cuerpo de bots y agentes",
+   "titulo": "Plática fluida: latencia medida, voz por trozos, interrumpir y voces de la malla",
+   "archivos": [
+    "src/lib/aurora/tts-oss/conversacion-fluida.ts",
+    "src/lib/aurora/tts-oss/__tests__/conversacion-fluida.test.ts",
+    "src/lib/aurora/tts-oss/speak-router.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-voces-y-robots.md` (léelo ENTERO; el §1 tiene licencias y datos VERIFICADOS el 2026-10-11 — no inventes otros). Reutiliza lo que YA existe y no lo dupliques: `architecture/aurora-voz-motores.md` + `src/lib/aurora/tts-oss/engine-registry.ts` (cadena `buildVoiceChain`, `AUTO_ENDPOINT_ORDER`, OpenVoice V2 ya es el motor principal), `architecture/forja-voz-158.md` §4 (en producto solo MIT/Apache), `src/lib/aurora/voz-starseed/` (motor único por niveles, Supertonic: la voz F1 de Astraura que le gusta a Alex se mantiene), `src/lib/voces/` (clonación con consentimiento obligatorio, trocear, perfil neuronal), `src/lib/astraura/needle3-client.ts` y `decision-hibrida.ts` (capa Needle), `architecture/astraura-bots.md` y `src/lib/astraura-bots/` (cuerpos, acciones con META y riesgo). Reglas: «basta de ilusiones»; nunca descargas automáticas de pesos (solo con permiso y tras comprobar ≥ 3 veces el espacio); en la Mac de Alex (8 GB) los motores pesados ceden ante el enjambre (`scripts/puente/guardia-memoria.py`); clonar una voz exige consentimiento explícito de su dueño y jamás se imita a una persona real sin él; nada no comercial en uso comercial; nada de claves en código; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Toda repo o modelo que entre lleva su ficha en la Biblioteca (`src/lib/library/packages.ts`, `kind: \"ai-source\"` o `\"repo\"`) con comprobación de versión (regla de CLAUDE.md). Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto.\n\nTAREA: Para el contexto de conversación: elige el motor por la latencia MEDIDA en esta neurona (primer audio y factor de tiempo real guardados por motor; presupuesto ≤ 0,8 s hasta el primer sonido) y no por la teórica; empieza a hablar con la primera frase mientras el modelo de lenguaje sigue escribiendo (`src/lib/voces/trocear.ts`) y sintetiza la siguiente mientras suena la anterior; si la persona empieza a hablar, corta al instante (interrumpir) y escucha. Capas: aparato › otra neurona de la cuenta en la red local (sus servicios de voz publicados en el registro de neuronas que ya existe) › malla del grupo › Spaces › voz del sistema; lo que no llega al presupuesto pasa al siguiente sin silencios. En lectura o narración manda la calidad. Pruebas con relojes y motores simulados (ningún silencio > presupuesto, interrupción < 100 ms).",
+   "dependencias_ya_en_main": [
+    "VZR1011B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "VZR1011D"
+  ]
+ }
+}
