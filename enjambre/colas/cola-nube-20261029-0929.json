@@ -1,0 +1,80 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "revisor_quitadas": [
+    "DGM1018C"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40818077772",
+   "id": "DGM1018Fb-d2",
+   "titulo": "Astraura · herramienta `diagrama.crear` en chats, agentes y bots (parte 2 de 3)",
+   "archivos": [
+    "src/lib/protomolecula/accion-agente.ts"
+   ],
+   "depende": [],
+   "prompt": "`pedidoDiagrama({ peticion, tipo?, perfil, tamano, animado })` arma el contexto para el modelo (tipo elegido, guía del tipo desde references/type-*.md, perfil de marca) y `recibirDiagrama(respuesta)` extrae el HTML, lo pasa por fuentes-locales y aislar-diagrama y devuelve { ok, srcdoc, sandbox, tipo, motivos }. En accion-agente.ts añade la acción `diagrama.crear` con el patrón de las demás (solo añadir). Pruebas con respuestas de ejemplo. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40818077772`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40818077772:refs/remotes/origin/nube/40818077772\"` y `git cherry-pick --no-commit 866234540aaa 1885b87d28d6`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/aurora/actions.ts, src/lib/diagramas/__tests__/herramienta-diagrama.test.ts, src/lib/diagramas/herramienta-diagrama.ts, src/lib/protomolecula/accion-agente.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 3 (la dirección dividió DGM1018Fb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/protomolecula/accion-agente.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "DGM1018Fb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "DGM1018Fb-d1"
+   ]
+  },
+  {
+   "id": "DGM1018N",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · edición en grupo en tiempo real sobre la especificación",
+   "archivos": [
+    "src/lib/diagramas/sincronia-diagrama.ts",
+    "src/lib/diagramas/__tests__/sincronia-diagrama.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `elementosDeEspecificacion(espec, autor, t)` convierte cada nodo, arista y texto en `ElementoSala` (src/lib/salas/sincronia-sala.ts) y `especificacionDeEstado(estado)` lo recompone; usa `fusionarEstados`. Prueba: dos personas renombran nodos distintos a la vez y una borra una arista; las tres neuronas convergen. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DGM1018M"
+   ]
+  },
+  {
+   "id": "VPU1019W",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Claves en el DOM: ajustes",
+   "archivos": [
+    "src/components/variaciones/con-clave.tsx",
+    "src/lib/variaciones/claves-ajustes.ts",
+    "src/lib/variaciones/__tests__/claves-ajustes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`<ConClave clave>` envuelve cualquier bloque y pone `data-ss-elemento`; `clavesDeAjustes()` genera las claves `ajuste:` desde `SETTINGS_SEARCH_INDEX` y `SETTINGS_INDEX` para que cada panel de Ajustes las use. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019A"
+   ]
+  },
+  {
+   "id": "INV1025H",
+   "ola": "Ola 1025R · Investigación y alcance (Agent-Reach, ScrapeGraphAI, OpenRefine, Inbox Zero)",
+   "titulo": "OpenRefine: limpieza nativa de listas (sin JVM) y receta del alcance",
+   "archivos": [
+    "scripts/puente/limpieza_datos.py",
+    "config/recetas-limpieza/alcance-objetivos-v1.json",
+    "scripts/puente/test_limpieza_datos.py"
+   ],
+   "depende": [],
+   "prompt": "Versión nativa de las operaciones simples de una receta de OpenRefine (INV1025F define el formato; nada de Jython ni Clojure).\n(1) `limpieza_datos.py` (stdlib, determinista, sin red): `aplicar(filas, receta)` sobre listas de dict (CSV): recortar y colapsar espacios; mayúsculas, minúsculas, título; normalizar URL (https, sin `utm_*`, `fbclid`, ancla ni barra final, host en minúsculas); validar y normalizar un correo (marca los no válidos; jamás inventa ni completa direcciones); separar y unir columnas; quitar filas vacías; mapa de sustituciones (mass-edit); deduplicar por clave o por huella (minúsculas, sin acentos ni signos, palabras ordenadas = la «huella» de OpenRefine). Devuelve `{filas, cambios:[{fila,columna,antes,despues,op}], duplicados:[[índices]]}` sin tocar la entrada. Lee la receta en el formato JSON de OpenRefine y solo ejecuta las `op` que soporta; las demás se informan como «no soportada aquí: usa OpenRefine». CLI: `limpieza_datos.py --receta r.json entrada.csv > salida.csv`.\n(2) `config/recetas-limpieza/alcance-objetivos-v1.json`: la receta de las listas del alcance (nombre, enlaces, categoría; el correo solo si es el publicado por la entidad), válida según `validarReceta`.\n(3) `test_limpieza_datos.py`: cada operación, huella con acentos, duplicados, `op` no soportada, entrada sin cambios. La usa el agente de alcance antes de guardar cualquier lista nueva y los grupos para sus directorios.\n\nContrato: architecture/repos-libreria-1025.md (grupo investigación: reglas duras R1–R10 y el diseño del agente de alcance). Reglas de la casa: español con acentos en comentarios y textos; nada de `any`; módulos puros con red, disco y reloj inyectables; claves solo en variables de entorno; nada de `node:*` en código de cliente; ≤ 3 archivos y ≤ 120 líneas por archivo; pruebas reales (si una prueba vieja falla, se arregla el código, no la prueba). Antes de empezar comprueba si lo pedido ya está hecho; si ya está, NO APLICA.",
+   "dependencias_ya_en_main": [
+    "INV1025F-d3"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "INV1025H",
+   "DGM1018Fb-d2",
+   "DGM1018N",
+   "VPU1019W"
+  ]
+ }
+}
