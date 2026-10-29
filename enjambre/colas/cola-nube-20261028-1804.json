@@ -1,0 +1,111 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "ola": "Imaginación profunda 2026-09-29 · 2.ª tanda",
+   "aprobacion": false,
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40253286863",
+   "id": "SP092941d-d2",
+   "titulo": "Vincular labels e inputs en formularios de creación (parte 2 de 2)",
+   "archivos": [
+    "src/components/creation/pizarras-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta: la recomendación es de la imaginación profunda del 2026-09-29 y el código ha cambiado desde entonces; si ya está hecho o ya no aplica, responde «NO APLICA: <motivo>» y para. ORIGEN: sueño profundo SA092938 (creacion × ux-accesibilidad-diseno) del 2026-09-29, ajustado por claude-opus-5-5. Informe: `starseed_memory_root/dream/profundo/2026-09-29/creacion--ux-accesibilidad-diseno.md`.\n\nHALLAZGO: Asociar etiquetas a campos con htmlFor e id — Los <label> de URL y Etiqueta no tienen htmlFor ni los Input id; también el textarea de comentario y las opciones de votación carecen de label asociado. Los lectores de pantalla no anuncian el propósito de cada campo.\nCITA: src/components/creation/source-picker.tsx:292 · impacto 3 · esfuerzo 1 · confianza 1.00\nPROPUESTA: Añadir id único a cada Input/textarea y htmlFor en su label; donde no haya label visible, usar aria-label fijo.\nCONSEJO DE JEV: regla: alta\n\nANTES DE ESCRIBIR NADA: abre la cita y comprueba que sigue siendo cierto. Si ya está resuelto o no aplica, no inventes trabajo: responde `NO APLICA: <motivo>` y para.\n\nSi aplica: toca SOLO src/components/creation/source-picker.tsx, src/components/creation/pizarras-panel.tsx, máximo 120 líneas por archivo; si no cabe, haz el primer paso y dilo en el commit. Reglas de la casa en `memory/workflow-actual.md`: si una prueba falla se arregla el código, no la prueba; integrado no es aplicado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40253286863`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40253286863:refs/remotes/origin/nube/40253286863\"` y `git cherry-pick --no-commit abbc2e2d90c8`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/creation/__tests__/pizarras-panel-form.test.tsx, src/components/creation/__tests__/selector-fuente-form.test.tsx, src/components/creation/pizarras-panel.tsx, src/components/creation/source-picker.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió SP092941d: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/creation/pizarras-panel.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SP092941d",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "SP092941d-d1"
+   ]
+  },
+  {
+   "id": "GCA1019M",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Asistente «Conectar Genesis» (cuenta, grupo o página)",
+   "archivos": [
+    "src/components/genesis/conectores/asistente-conectores.tsx",
+    "src/components/genesis/conectores/__tests__/asistente-conectores.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Tres pasos: 1) lo local del contexto (neuronas, servidores del cerebro, capa de Astraura que cabe) con interruptores; 2) lo gratis sugerido, con botón «Vincular» que abre el `enlaceAlta`/`enlaceClave` oficial en pestaña nueva y un campo para pegar la clave (se envía a la API y se borra del campo); 3) resumen por papel con la cadena elegida y su motivo. Estética de Genesis (cristal, píldoras). Prueba con Testing Library y API simulada. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "GCA1019L"
+   ]
+  },
+  {
+   "id": "GCA1019N",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Panel de asignaciones por papel y por director",
+   "archivos": [
+    "src/components/genesis/conectores/asignaciones-panel.tsx",
+    "src/components/genesis/conectores/__tests__/asignaciones-panel.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Una fila por papel o director con su cadena (arrastrar para ordenar, añadir del catálogo, quitar), etiqueta del peldaño (local, malla, contenedor, gratis, pago) y motivo; botón «Restaurar sugeridas». En PoliGenesis democrático, guardar crea una propuesta en vez de aplicar. Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "GCA1019F",
+    "GCA1019L"
+   ]
+  },
+  {
+   "id": "GCA1019R",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Herramientas MCP de Genesis",
+   "archivos": [
+    "src/lib/genesis/mcp/herramientas.ts",
+    "src/lib/genesis/mcp/__tests__/herramientas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Definiciones (nombre, descripción en español, `inputSchema` JSON Schema) y manejadores inyectados para `estado`, `tareas_listar`, `tareas_crear`, `agentes_listar`, `medidores`, `proponer` (operaciones de `src/lib/genesis/operaciones.ts`), `biblioteca_buscar`, `opciones_sugerir` y `chat`. Cada una declara el permiso que necesita. Prueba: esquemas válidos y manejadores llamados con lo validado. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019Q",
+    "GCA1019K"
+   ]
+  },
+  {
+   "id": "CB1013S",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Ajustes del cerebro: diálogo y pestaña Medios (capacidades y almacenamiento)",
+   "archivos": [
+    "src/components/cerebro/ajustes-cerebro-dialog.tsx",
+    "src/components/cerebro/ajustes-medios.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §8 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Sustituye `ajustes-cerebro-dialog.tsx` manteniendo `AjustesCerebroDialogProps { open; onOpenChange; cerebro; cerebros; onHecho? }` y el default. Arriba el selector «Aplicar a»: cerebro completo, una memoria (nombres de `brain_memory_files` de este cerebro) o una carpeta (ids de `starseed.brain.<id>.memoryRoots`). Pestañas: Medios, Seguridad y privacidad, Vinculación y sincronización. Guardar con `saveBrain({ ...cerebro, config: conAjustes(...) })` y `onHecho()`. `ajustes-medios.tsx` (`export function AjustesMedios(...)`): por cada `CAPACIDADES`, un selector con 'auto' + `cerebro.servers` + neuronas de `listNeurons()` (src/lib/neurons/neurons.ts); almacenamiento con los destinos de `getMemoryDestinations(cerebro)` (src/lib/brains/memory-destinations.ts: local, StarSeed, externos y P2P) que, en el nivel cerebro, se guardan con `setMemoryDestinations` (se aplica de verdad) y una línea por destino explicando adónde va cada dato con `destinosDe()` de src/lib/malla/cristal/destinos-almacen.ts si encaja su firma. Junto a cada ajuste, la marca de `APLICACION` («se aplica ya» / «solo se guarda por ahora»).",
+   "revisor_quitadas": [
+    "CB1013R"
+   ],
+   "dependencias_ya_en_main": [
+    "CB1013T"
+   ]
+  },
+  {
+   "id": "DGM1018O",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Vigía · vigilar Diagram Design y renovar su copia",
+   "archivos": [
+    "config/vigia-areas.json",
+    "scripts/puente/test_vigia_areas.py"
+   ],
+   "depende": [],
+   "prompt": "Añade (sin borrar nada) en el área `habilidades` el repo cathrynlavery/diagram-design con su manifiesto `.claude-plugin/plugin.json` (campo version) como señal de versión y la carpeta de destino vendor/habilidades/diagram-design. Amplía la prueba. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VST1018M"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "GCA1019R",
+   "GCA1019M",
+   "GCA1019N",
+   "CB1013S",
+   "DGM1018O",
+   "SP092941d-d2"
+  ]
+ }
+}
