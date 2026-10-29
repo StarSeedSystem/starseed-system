@@ -109,6 +109,42 @@ describe("acción de agente de la Protomolécula", () => {
     expect(accion({ accion: "estado" }, ctx()).message).toContain("1 pendientes de confirmar");
   });
 });
+describe("diagrama.crear (DGM1018Fb): pedido y recepción del diagrama", () => {
+  const HTML = `<!doctype html><html><head><link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Xax"><style>b{fill:#222}</style></head><body><svg width="240" height="120"><g><rect x="4" y="4" width="64" height="28"/><text x="8" y="22">paso</text></g></svg></body></html>`;
+  it("sin «respuesta» arma el pedido: tipo, guía del tipo y reglas del sandbox, sin tocar la molécula", () => {
+    const r = accion({ accion: "diagrama.crear", peticion: "mapa de dependencias del backend", tipo: "dependency" });
+    expect(r.ok).toBe(true); expect(r.status).toContain("Pidiendo el diagrama");
+    expect(r.message).toContain("«dependency»"); expect(r.message).toMatch(/nodos de más de un padre/);
+    expect(r.message).toContain("iframe sandbox");
+    expect(r.datos).toMatchObject({ tipo: "dependency", tamano: "completa", animado: false });
+  });
+  it("el tipo lo adivina de la petición con aviso honesto, y el tipo desconocido se avisa", () => {
+    const r = accion({ accion: "diagrama.crear", peticion: "hazme una línea de tiempo de la ola" });
+    expect(r.datos).toMatchObject({ tipo: "timeline", tamano: "completa" }); expect(r.message).toContain("Tipo elegido a ojo");
+    const t = accion({ accion: "diagrama.crear", peticion: "resumen del sistema", tipo: "flujos raros" });
+    expect(t.message).toContain("No conozco el tipo");
+  });
+  it("con «respuesta» valida el HTML: iframe aislado sin red ni origen del OS", () => {
+    const r = accion({ accion: "diagrama.crear", respuesta: `\`\`\`html\n${HTML}\n\`\`\`` });
+    expect(r.ok).toBe(true); expect(r.status).toContain("Mostrando el diagrama");
+    const d = r.datos as Record<string, unknown>;
+    expect(d.sandbox).toBe(""); // estático: sin scripts y sin allow-same-origin
+    expect(String(d.srcdoc)).toContain("<svg"); expect(String(d.srcdoc)).toContain("Content-Security-Policy");
+    expect(String(d.srcdoc)).not.toContain("fonts.googleapis"); // la fuente de Google la quita el OS
+  });
+  it("animado: scripts permitidos dentro del sandbox y nada más", () => {
+    const r = accion({ accion: "diagrama.crear", animado: true, respuesta: `${HTML}<script>document.title="d"</script>` });
+    expect(r.ok).toBe(true);
+    const d = r.datos as Record<string, unknown>;
+    expect(d.sandbox).toBe("allow-scripts"); expect(String(d.srcdoc)).toContain("script-src 'unsafe-inline'");
+  });
+  it("lo que no pasa la validación no se muestra: devuelve el motivo", () => {
+    const r = accion({ accion: "diagrama.crear", respuesta: "solo texto, sin html por ninguna parte" });
+    expect(r.ok).toBe(false); expect(r.message).toContain("No mostré el diagrama");
+    const vacia = accion({ accion: "diagrama.crear", respuesta: "<p>sin svg</p>" });
+    expect(vacia.ok).toBe(false); expect(vacia.message).toContain("no trae HTML");
+  });
+});
 describe("integración con las acciones de Aurora", () => {
   it("actionsSystemPromptSection lista la acción y su handler delega en la Protomolécula", async () => {
     const { actionsSystemPromptSection, AURORA_ACTIONS } = await import("@/lib/aurora/actions");
