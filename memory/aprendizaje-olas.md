@@ -4662,3 +4662,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-29 12:06 · mg-oracle-1029-0348
+
+**Lo que se pidió.** Equipos por roles como datos (forma CrewAI) con validador: publicaciones, apps y ProtoGenesis
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — otra cosa (RTAGT1025Db, RTCVV1028Mbs, IMG1029A, ART1025H, CLB1027Gb-d3, RTCB1013K). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTAGT1025Db` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTCVV1028Mbs` — otra cosa: ningún proveedor respondió (todos caídos)
+- `IMG1029A` — otra cosa: ningún proveedor respondió (todos caídos)
+- `ART1025H` — otra cosa: ningún proveedor respondió (todos caídos)
+- `CLB1027Gb-d3` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTCB1013K` — otra cosa: ningún proveedor respondió (todos caídos)
