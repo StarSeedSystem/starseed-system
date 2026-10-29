@@ -21,6 +21,10 @@ import { mensajeErrorXR } from "@/components/vivo/espacial/use-sesion-xr";
 import type { ModoXR as ModoURL } from "@/lib/vivo/xr";
 import { BotonEntradaXR } from "./boton-entrada-xr";
 import { useCapacidadesXR } from "./use-capacidades-xr";
+import { rótulosTrinity } from "./contenido-trinity";
+
+/** Rig de la Trinity (XR1010J): los cardinales dispuestos por `disponerTrinity`; perezoso dentro de /xr/os. */
+const RigTrinityOS = nextDynamic(() => import("./rig-trinity"), { ssr: false });
 
 type ModoRuta = ModoURL | "pantalla" | null;
 type Props = { modo?: ModoRuta };
@@ -66,14 +70,31 @@ export function alturaOjosDe(metros: number): number {
     return Math.round(Math.min(2.2, Math.max(0.8, metros)) * 100) / 100;
 }
 
-function AlturaOjos({ refAltura }: { refAltura: { current: { metros: number } | null } }) {
+function AlturaOjos({ refAltura, alMedir }: { refAltura: { current: { metros: number } | null }; alMedir: (m: number) => void }) {
     const sesion = useXR((s) => s.session);
     const camara = useThree((s) => s.camera);
     useEffect(() => {
         if (!sesion) return;
-        const reloj = window.setTimeout(() => { refAltura.current = { metros: alturaOjosDe(camara.position.y) }; }, 600);
+        const reloj = window.setTimeout(() => {
+            const m = alturaOjosDe(camara.position.y);
+            refAltura.current = { metros: m };
+            alMedir(m);
+        }, 600);
         return () => window.clearTimeout(reloj);
-    }, [sesion, camara, refAltura]);
+    }, [sesion, camara, refAltura, alMedir]);
+    return null;
+}
+
+/** Sonda de la cabeza: escribe el yaw en la ref (0 = al frente); la lee el sondeo a 2 Hz de XR1010J. */
+function SondaCabeza({ yaw }: { yaw: { current: number } }) {
+    const camara = useThree((s) => s.camera);
+    useEffect(() => {
+        const reloj = window.setInterval(() => {
+            const m = (camara as { matrixWorld?: { elements: number[] } }).matrixWorld;
+            if (m) yaw.current = Math.atan2(m.elements[8], m.elements[10]);
+        }, 250);
+        return () => window.clearInterval(reloj);
+    }, [camara, yaw]);
     return null;
 }
 
@@ -83,6 +104,9 @@ export function EscenaOS({ modo = null }: Props) {
     const [almacen, setAlmacen] = useState<XRStore | null>(null);
     const [fallo, setFallo] = useState<string | null>(null);
     const [enSesion, setEnSesion] = useState(false);
+    const [modoSesion, setModoSesion] = useState<ModoSesion | null>(null);
+    const [alturaMedida, setAlturaMedida] = useState<number | null>(null);
+    const yawCabeza = useRef(0);
     const intentadoRef = useRef(false);
     const alturaOjosRef = useRef<{ metros: number } | null>(null);
     const { nivel: calidadNivel, cambio, aviso } = useCalidadDinamica();
@@ -103,7 +127,7 @@ export function EscenaOS({ modo = null }: Props) {
                 const destino = debeAutoEntrar({ modo: modoUrl, plan, yaIntentado: false });
                 if (destino === null) return;
                 await (destino === "vr-inmersivo" ? a.enterVR() : a.enterAR());
-                if (vivo) setEnSesion(true);
+                if (vivo) { setModoSesion(destino); setEnSesion(true); }
             } catch (e) {
                 if (vivo) setFallo(mensajeErrorXR(e));
             }
@@ -112,7 +136,7 @@ export function EscenaOS({ modo = null }: Props) {
     }, [estado, datos, modoUrl, plan, capacidades]);
     useEffect(() => {
         if (almacen === null) return;
-        const soltar = almacen.onSessionEnd(() => setEnSesion(false));
+        const soltar = almacen.onSessionEnd(() => { setEnSesion(false); setModoSesion(null); });
         return () => { soltar(); };
     }, [almacen]);
 
@@ -123,15 +147,24 @@ export function EscenaOS({ modo = null }: Props) {
                 <ambientLight intensity={0.7} />
                 <Suspense fallback={null}>
                 {almacen !== null && (
-                    <XR store={almacen}><XROrigin /><AlturaOjos refAltura={alturaOjosRef} /></XR>
+                    <XR store={almacen}><XROrigin /><AlturaOjos refAltura={alturaOjosRef} alMedir={setAlturaMedida} /></XR>
                 )}
+                <SondaCabeza yaw={yawCabeza} />
+                <RigTrinityOS
+                    nivel={calidadNivel}
+                    modo={modoSesion ?? "3d-pantalla"}
+                    enSesion={modoSesion !== null}
+                    alturaOjosMedida={alturaMedida ?? undefined}
+                    yawCabeza={yawCabeza}
+                    contenido={rótulosTrinity()}
+                />
                     <PanelOS nivel={calidadNivel} opacidadMinima={modoUrl === "ar" ? 0.82 : undefined} />
                     {!enSesion && <OrbitControls />}
                 </Suspense>
             </Canvas>
             <div className="absolute inset-x-0 top-0 z-10 flex flex-wrap items-center gap-3 p-4" data-testid="corte-xr">
                 {aviso && <p className="max-w-xs text-xs text-[#F5F7FF] bg-[#1E1E2E] px-3 py-1 rounded text-center" role="alert">{aviso}</p>}
-                <BotonEntradaXR variante="insertado" modo={modoBotonDe(modoUrl, capacidades.modos)} alEntrar={() => setEnSesion(true)} />
+                <BotonEntradaXR variante="insertado" modo={modoBotonDe(modoUrl, capacidades.modos)} alEntrar={(m) => { setModoSesion(m); setEnSesion(true); }} />
                 {fallo !== null && <p className="max-w-xs text-xs text-[#DC143C]" role="alert" data-testid="fallo-auto-entrar">{fallo}</p>}
                 <Link href="/dashboard" data-testid="salir-sistema" className="cursor-pointer ml-auto inline-flex min-h-11 items-center text-sm text-[#F5F7FF] underline decoration-white/30 underline-offset-4 hover:decoration-[#39FF14]">
                     Salir al sistema

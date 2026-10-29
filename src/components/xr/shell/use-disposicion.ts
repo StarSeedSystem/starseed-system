@@ -61,6 +61,8 @@ export interface ConfigDisposicion {
     modo?: ModoXR;
     alturaOjosMedida?: number;
     yawCabeza?: { current: number };
+    /** ¿Hay sesión inmersiva abierta? Al entrar, se recentra de una vez (contrato §3 a). */
+    enSesion?: boolean;
 }
 
 export interface ResultadoDisposicion {
@@ -80,12 +82,17 @@ export function useDisposicionTrinity({
     modo = "3d-pantalla",
     alturaOjosMedida,
     yawCabeza,
+    enSesion = false,
 }: ConfigDisposicion = {}): ResultadoDisposicion {
     const { confort } = usePrefsXR();
     const [estado, setEstado] = useState<EstadoBase>(() => ({ yawBase: 0, fueraDesde: null }));
     const recentrar = useCallback(() => {
         setEstado((prev) => siguienteBase(prev, { yaw: yawCabeza?.current ?? prev.yawBase }, Date.now() / 1000, "recentrar"));
     }, [yawCabeza]);
+    // Al entrar en la sesión (y solo entonces) la disposición se centra donde se mira (contrato §3 a).
+    useEffect(() => {
+        if (enSesion) recentrar();
+    }, [enSesion, recentrar]);
     useEffect(() => {
         const reloj = setInterval(() => {
             setEstado((prev) => siguienteBase(prev, { yaw: yawCabeza?.current ?? prev.yawBase }, Date.now() / 1000));

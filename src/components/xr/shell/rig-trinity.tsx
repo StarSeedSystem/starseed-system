@@ -15,14 +15,17 @@ import { Animado } from "./animado";
 import { PanelCristal } from "./panel-cristal";
 import { useDisposicionTrinity, type ConfigDisposicion } from "./use-disposicion";
 import type { NodoCardinal } from "../../../lib/xr/tokens-3d";
+import type { NivelCalidad } from "../../../lib/xr/tipos";
 
 const CARDINALES = ["zenith", "horizon", "logic", "anchor"] as const;
 
 export interface PropsRigTrinity extends ConfigDisposicion {
     contenido: Record<NodoCardinal, ReactNode>;
+    /** Nivel de calidad para el material del cristal; si falta, «media». */
+    nivel?: NivelCalidad;
 }
 
-export function RigTrinity({ contenido, ...config }: PropsRigTrinity): ReactNode {
+export function RigTrinity({ contenido, nivel, ...config }: PropsRigTrinity): ReactNode {
     const { disposicion } = useDisposicionTrinity(config);
     const enAR = config.modo === "ar-passthrough";
     const cuerpos = useMemo(() => {
@@ -53,6 +56,7 @@ export function RigTrinity({ contenido, ...config }: PropsRigTrinity): ReactNode
                         <Animado evento="entrada" hermano={{ i, n: CARDINALES.length }} distancia={nodo.distancia}>
                             <PanelCristal
                                 nodo={id}
+                                nivel={nivel}
                                 ancho={nodo.ancho}
                                 alto={nodo.alto}
                                 curvatura={nodo.curvatura ?? undefined}
