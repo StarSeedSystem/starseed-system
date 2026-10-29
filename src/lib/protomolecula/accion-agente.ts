@@ -11,15 +11,19 @@ import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memo
 import { etiquetaFormato, formatoDe } from "@/lib/conversion/formatos";
 import { componerVideo, DURACION_DEFECTO, type EntradaPedido } from "@/lib/video-html/herramienta-componer";
 import { contextoDisenoIA, type EntidadDiseno } from "@/lib/design/principios-referencia";
+import referenciasCatalogo from "../../../config/referencias-inspiracion.json";
+import { buscarReferencias, type AdnBusqueda, type DepsBuscarReferencias, type PersonalidadBusqueda, type PeticionBusqueda, type TipoContexto } from "@/lib/library/referencias/buscar-referencias";
+import type { Catalogo } from "@/lib/library/referencias/catalogo";
 /** Misma forma que `AuroraActionResult` de `src/lib/aurora/actions.ts`; `datos` lleva el resultado de herramientas como `video.componer`. */
 export interface ResultadoAccionProto { ok: boolean; message: string; status?: string; datos?: Record<string, unknown> }
 /** `avisarOrbe` devuelve `true` solo si la orbe atendió el aviso; `actor` por defecto: el agente personal. */
 export interface ContextoAccionProto { abrirRuta?: (ruta: string) => void; avisarOrbe?: (moleculaId?: string) => boolean;
-  actor?: ActorMemoria; ahora?: () => number; nuevoId?: () => string; fijarOrbe?: (activada: boolean) => boolean; cerrarOrbe?: () => void }
+  actor?: ActorMemoria; ahora?: () => number; nuevoId?: () => string; fijarOrbe?: (activada: boolean) => boolean; cerrarOrbe?: () => void;
+  referencias?: Partial<DepsBuscarReferencias> }
 export const TOPE_LINEAS_ESTADO = 40, TOPE_BYTES_ESTADO = 4096;
 export const MENSAJE_PROPONER_CODIGO = "próximamente: las propuestas de código llegan con la fase F7; hoy no se ejecuta ni se guarda nada.";
 const PENDIENTE = "queda pendiente de que la persona la confirme en el panel", SALUD = new Set<string>(METRICAS_SALUD);
-const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir", "pedir", "video.componer", "activar", "desactivar", "alternar", "cerrar"];
+const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir", "pedir", "video.componer", "referencias.buscar", "activar", "desactivar", "alternar", "cerrar"];
 const MODOS: ModoRelativo[] = ["delta", "porcentaje-valor", "porcentaje-rango", "pasos"];
 let secuencia = 0;
 const texto = (v: unknown): string => (typeof v === "string" ? v.trim() : ""), num = (n: number): string => String(n).replace(".", ",");
@@ -125,6 +129,7 @@ export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: C
   const autor: Autor = { tipo: "agente", id: texto(args.agente) || "astraura" }, herramienta = texto(args.herramienta);
   if (accion === "proponer-codigo") return no(MENSAJE_PROPONER_CODIGO);
   if (accion === "pedir") return no("«pedir» espera a la IA para planificar: usa manejarAccionProtomoleculaAsync.");
+  if (accion === "referencias.buscar") return no("«referencias.buscar» es asíncrona: usa manejarAccionProtomoleculaAsync.");
   if (!ACCIONES.includes(accion)) return no(`No conozco la acción «${accion}». Usa: ${ACCIONES.join(", ")}.`);
   if (accion === "convertir") return convertir(ctx, args);
   if (accion === "video.componer") return componer(args);
@@ -182,11 +187,44 @@ export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: C
   return no(r.pendiente ? `«${nom}» ${PENDIENTE} (${r.motivo})` : `No se movió «${nom}»: ${r.motivo}`);
 }
 
+const TIPOS_CONTEXTO = new Set<string>(["perfil", "pagina", "grupo", "mensaje", "publicacion", "pizarra", "escritorio"]);
+const objeto = (v: unknown): Record<string, unknown> | null => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null;
+function personalidadDe(v: unknown): PersonalidadBusqueda | undefined {
+  const o = objeto(v); if (!o) return undefined;
+  const r = objeto(o.rasgos);
+  const rasgos = r ? Object.fromEntries(Object.entries(r).filter(([, n]) => typeof n === "number")) as Record<string, number> : undefined;
+  const intereses = Array.isArray(o.intereses) ? o.intereses.filter((x): x is string => typeof x === "string") : undefined;
+  return rasgos || intereses ? { ...(rasgos ? { rasgos } : {}), ...(intereses ? { intereses } : {}) } : undefined;
+}
+function adnDe(v: unknown): AdnBusqueda | undefined {
+  const o = objeto(v); if (!o) return undefined;
+  const palabras = Array.isArray(o.palabras) ? o.palabras.filter((x): x is string => typeof x === "string") : undefined;
+  const adn: AdnBusqueda = { ...(texto(o.tema) ? { tema: texto(o.tema) } : {}), ...(texto(o.movimiento) ? { movimiento: texto(o.movimiento) } : {}) };
+  return palabras?.length ? { ...adn, palabras } : adn;
+}
+/** «referencias.buscar» (RFI1018F): tarjetas de inspiración por contexto; lo privado se queda como enlace. */
+async function buscarReferenciasComoAgente(args: Record<string, unknown>, ctx: ContextoAccionProto): Promise<ResultadoAccionProto> {
+  const consulta = texto(args.peticion) || texto(args.consulta) || texto(args.texto);
+  if (!consulta) return no("Falta «peticion»: dime qué referencias buscas.");
+  const tipo = texto(args.contexto);
+  const peticion: PeticionBusqueda = { peticion: consulta,
+    contexto: { tipo: TIPOS_CONTEXTO.has(tipo) ? tipo as TipoContexto : "mensaje", privado: args.privado === true },
+    personalidad: personalidadDe(args.personalidad), adnDiseno: adnDe(args.adnDiseno ?? args.adn) };
+  const base = ctx.referencias;
+  const conectados = base?.conectados ?? new Set(Array.isArray(args.conectados) ? args.conectados.filter((x): x is string => typeof x === "string") : []);
+  const deps: DepsBuscarReferencias = { catalogo: base?.catalogo ?? (referenciasCatalogo as unknown as Catalogo),
+    conectados, consultarCanal: base?.consultarCanal, ahora: base?.ahora };
+  const tarjetas = await buscarReferencias(peticion, deps);
+  if (!tarjetas.length) return no("No encontré referencias para eso; prueba con otro tema.");
+  const lineas = tarjetas.map((t) => `· ${t.entradaId} (${t.canalUsado}): ${t.porque} ${t.enlaces.map((e) => e.url).join(" ")}`);
+  return { ok: true, message: `Referencias para ${peticion.contexto.tipo}:\n${lineas.join("\n")}`, status: "Buscando referencias…", datos: { tarjetas } };
+}
 /**
  * Igual que `manejarAccionProtomolecula`, y además atiende `pedir` (Ola 1026P · P3): convierte una petición en un PLAN
  * y lo deja pendiente de que la persona lo confirme en la ventana. Un agente nunca ejecuta directamente.
  */
 export async function manejarAccionProtomoleculaAsync(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): Promise<ResultadoAccionProto> {
+  if (texto(args.accion) === "referencias.buscar") return buscarReferenciasComoAgente(args, ctx);
   if (texto(args.accion) !== "pedir") return manejarAccionProtomolecula(args, ctx);
   const { pedirComoAgente } = await import("./peticion/pedir");
   const r = await pedirComoAgente(args, { actor: ctx.actor });
