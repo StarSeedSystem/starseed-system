@@ -109,9 +109,35 @@ def disponible(ahora=None, correr=None):
     return (True, "listo") if ses.get("ok") else (False, "la CLI de Claude no tiene sesión iniciada")
 
 
+def _por_hermes():
+    try:
+        import motores_director
+        return motores_director.direccion_motor()
+    except Exception:
+        return {"motor": "claude"}
+
+
+def _consultar_hermes(pregunta, contexto, segundos, sesion, correr=None):
+    """(2026-10-29, DIR1029A) La misma pregunta por Hermes, con el autoenrutado de MetaGenesis."""
+    import motores_director
+    prompt = limpiar("%s\n\n---\n%s" % (pregunta, contexto))[:24000]
+    t0 = time.time()
+    try:
+        rc, salida = (correr or _correr_real)(motores_director.orden_hermes(prompt, None, None, sesion), segundos)
+    except Exception:
+        rc, salida = 1, ""
+    texto = (salida or "").strip()
+    if rc != 0 or not texto:
+        return None
+    return {"texto": texto, "modelo": "hermes/auto", "segundos": round(time.time() - t0, 1), "tokens": 0}
+
+
 def consultar(pregunta, contexto="", segundos=240, ahora=None, correr=None):
     """{'texto','modelo','segundos','tokens'} o None. Una sola vuelta, sin herramientas."""
     ahora = ahora or time.time()
+    via = _por_hermes()
+    if via.get("motor") == "hermes":
+        return _consultar_hermes(pregunta, contexto, segundos, via.get("sesion"), correr)
     ok, _ = disponible(ahora, correr)
     if not ok:
         return None

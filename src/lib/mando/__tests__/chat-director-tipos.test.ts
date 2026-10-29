@@ -76,7 +76,7 @@ describe("CANALES", () => {
         for (const motor of MOTORES_DIRECTOR) {
             expect(idsCanales.has(motor.canal)).toBe(true);
         }
-        expect(MODELO_DIRECTOR_DEFECTO).toBe("claude-cowork/claude-opus-5-5");
+        expect(MODELO_DIRECTOR_DEFECTO).toBe("hermes/predeterminado");
     });
 });
 

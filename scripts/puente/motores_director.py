@@ -72,8 +72,24 @@ def leer_claude(salida: str) -> dict:
     }
 
 
-def orden_hermes(prompt: str, modelo=None, archivo_uso=None) -> list:
-    orden = ["hermes", "-z", prompt]
+DIRECCION = os.path.expanduser("~/.starseed/direccion-motor.json")
+
+
+def direccion_motor(ruta=None) -> dict:
+    """(2026-10-29, DIR1029A) Por dónde va la dirección: {'motor': 'hermes'|'claude', 'sesion': id|None}.
+    STARSEED_DIRECCION_MOTOR manda sobre el archivo; sin nada, «claude» (lo de siempre)."""
+    try:
+        with open(ruta or DIRECCION, encoding="utf-8") as f:
+            d = json.load(f) or {}
+    except (OSError, ValueError):
+        d = {}
+    return {"motor": os.environ.get("STARSEED_DIRECCION_MOTOR") or d.get("motor") or "claude",
+            "sesion": d.get("sesion") or None}
+
+
+def orden_hermes(prompt: str, modelo=None, archivo_uso=None, sesion=None) -> list:
+    # Con `sesion`, la respuesta sigue el hilo de esa sesión de Hermes («Dirección MetaGenesis»).
+    orden = ["hermes"] + (["--resume", sesion] if sesion else []) + ["-z", prompt]
     if modelo and modelo != "predeterminado":
         orden += ["-m", modelo]
     if archivo_uso:

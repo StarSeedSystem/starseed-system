@@ -80,10 +80,19 @@ function plegadoInicial(): boolean {
 }
 
 /** Último modelo elegido por Alex en el compositor, si quedó guardado y no está vacío. */
+const CLAVE_MIGRACION_HERMES = "starseed.mando.director.hermes-1029";
+
 function modeloGuardado(): string {
     try {
         if (typeof window === "undefined") return "";
-        return window.localStorage.getItem(CLAVE_MODELO)?.trim() ?? "";
+        const guardado = window.localStorage.getItem(CLAVE_MODELO)?.trim() ?? "";
+        // (2026-10-29, DIR1029A) Una sola vez: quien tenía Claude guardado pasa a Hermes; después manda lo suyo.
+        if (guardado.startsWith("claude-") && !window.localStorage.getItem(CLAVE_MIGRACION_HERMES)) {
+            window.localStorage.setItem(CLAVE_MIGRACION_HERMES, "1");
+            window.localStorage.setItem(CLAVE_MODELO, MODELO_DIRECTOR_DEFECTO);
+            return MODELO_DIRECTOR_DEFECTO;
+        }
+        return guardado;
     } catch {
         return "";
     }

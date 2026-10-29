@@ -212,7 +212,8 @@ def _entregar_hermes(mensaje, modelo_pedido, raiz=None):
     try:
         rc, salida = motores_director.correr(
             motores_director.orden_hermes(
-                mensaje.get("texto", ""), modelo, archivo_uso
+                mensaje.get("texto", ""), modelo, archivo_uso,
+                motores_director.direccion_motor().get("sesion"),
             ),
             segundos=600,
         )
@@ -287,7 +288,10 @@ def _entregar_telegram(mensaje, raiz=None):
 
 def atender(mensaje, canal, estado, raiz=None):
     try:
-        if canal in ("claude-mac", "claude-cowork"):
+        if canal in ("claude-mac", "claude-cowork") and motores_director.direccion_motor()["motor"] == "hermes":
+            # (2026-10-29, DIR1029A) La dirección va por Hermes: contesta en su sesión de dirección.
+            _entregar_hermes(mensaje, "hermes/predeterminado", raiz=raiz)
+        elif canal in ("claude-mac", "claude-cowork"):
             _entregar_claude_mac(
                 mensaje,
                 estado,

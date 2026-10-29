@@ -79,7 +79,8 @@ export const CANALES: readonly CanalDirector[] = [
 ];
 
 /** Motor del Director por defecto. */
-export const MODELO_DIRECTOR_DEFECTO = "claude-cowork/claude-opus-5-5";
+// (2026-10-29, DIR1029A) La dirección va por Hermes con el autoenrutado de MetaGenesis (Claude, a mano).
+export const MODELO_DIRECTOR_DEFECTO = "hermes/predeterminado";
 
 /** Motores con canal propio; el resto del catálogo (`nim/…`, `xkiro/…`, `gemini/…`) va por la API. */
 export const MOTORES_DIRECTOR = [

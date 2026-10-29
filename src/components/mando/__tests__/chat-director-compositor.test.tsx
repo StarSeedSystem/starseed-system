@@ -19,7 +19,7 @@ describe("modeloInicial", () => {
   });
 
   it("usa el de defecto si no hay guardado válido ni último", () => {
-    expect(modeloInicial(null, "", disponibles)).toBe("claude-cowork/claude-opus-5-5");
+    expect(modeloInicial(null, "", disponibles)).toBe("hermes/predeterminado");
   });
 });
 
