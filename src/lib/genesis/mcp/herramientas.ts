@@ -382,4 +382,4 @@ export const HERRAMIENTAS_MCP: readonly FichaHerramientaMcp[] = [
   chat,
 ];
 
-export type { PermisoMcp, FichaHerramientaMcp };
+// // No export to avoid conflicts
