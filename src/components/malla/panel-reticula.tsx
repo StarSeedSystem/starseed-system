@@ -47,7 +47,7 @@ function filasPuente(e: EstadoReticula): FilaPuente[] {
     calidadPct: calidadDe(p.a, p.b, p.medio), coste: p.coste,
   })).sort((x, y) => x.coste - y.coste);
 }
-function filasCoord(e: EstadoReticula): Array<{ id: string; n: number; max: number }> {
+function filasCoord(e: EstadoReticula): Array<{ id: string; n: number; max: number; esTitanio: boolean; puentes: number }> {
   return Object.values(e.reticula.teselas).map((t) => ({
     id: t.neurona.id,
     n: e.cristal.coordinacion[t.neurona.id] ?? 0,
