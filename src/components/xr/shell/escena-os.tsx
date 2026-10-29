@@ -10,11 +10,12 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { XR, XROrigin, useXR, type XRStore } from "@react-three/xr";
 import { OrbitControls } from "@react-three/drei";
+import nextDynamic from "next/dynamic";
 import Link from "next/link";
 import { nivelInicial, perfilDeNivel } from "@/lib/xr/calidad";
 import { modeloQuest, type PlanEntrada } from "@/lib/xr/capacidades";
 import { useCalidadDinamica } from "./use-calidad-dinamica";
-import type { ModoXR } from "@/lib/xr/tipos";
+import type { ModoXR, NivelCalidad } from "@/lib/xr/tipos";
 import { CRISTAL } from "@/lib/xr/tokens-3d";
 import { mensajeErrorXR } from "@/components/vivo/espacial/use-sesion-xr";
 import type { ModoXR as ModoURL } from "@/lib/vivo/xr";
@@ -25,6 +26,25 @@ type ModoRuta = ModoURL | "pantalla" | null;
 type Props = { modo?: ModoRuta };
 
 export type ModoSesion = "vr-inmersivo" | "ar-passthrough" | "ar-mano";
+
+/** Panel de cristal del OS (XR1010H): uikit se carga solo al entrar en /xr/os, nunca en el layout raíz. */
+const PanelOS = nextDynamic(
+    () =>
+        import("./panel-cristal").then(({ NivelCalidadContext, PanelCristal, Texto3D }) =>
+            function PanelOS({ nivel, opacidadMinima }: { nivel: NivelCalidad; opacidadMinima?: number }) {
+                return (
+                    <NivelCalidadContext.Provider value={nivel}>
+                        <group position={[0, 1.45, -1.35]}>
+                            <PanelCristal nodo="logic" ancho={0.8} alto={0.3} curvatura={2.5} opacidadMinima={opacidadMinima}>
+                                <Texto3D distancia={1.35}>StarSeed OS</Texto3D>
+                            </PanelCristal>
+                        </group>
+                    </NivelCalidadContext.Provider>
+                );
+            },
+        ),
+    { ssr: false },
+);
 
 /** ¿Entrar solo al abrir la página? URL que pide modo + plan de PWA instalada en Quest + primera vez. */
 export function debeAutoEntrar(o: { modo: ModoURL | null; plan: PlanEntrada; yaIntentado: boolean }): ModoSesion | null {
@@ -105,6 +125,7 @@ export function EscenaOS({ modo = null }: Props) {
                 {almacen !== null && (
                     <XR store={almacen}><XROrigin /><AlturaOjos refAltura={alturaOjosRef} /></XR>
                 )}
+                    <PanelOS nivel={calidadNivel} opacidadMinima={modoUrl === "ar" ? 0.82 : undefined} />
                     {!enSesion && <OrbitControls />}
                 </Suspense>
             </Canvas>

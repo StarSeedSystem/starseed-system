@@ -11,13 +11,14 @@
 import { createContext, useContext, type ComponentProps, type ReactNode } from "react";
 import { Container, Text } from "@react-three/uikit";
 import * as THREE from "three";
-import { CRISTAL, COLORES_NODO, paramsMaterial, type NodoCardinal } from "../../../lib/xr/tokens-3d";
+import { CRISTAL, paramsMaterial, type NodoCardinal } from "../../../lib/xr/tokens-3d";
 import { PERFILES } from "../../../lib/xr/calidad-perfiles";
 import type { NivelCalidad } from "../../../lib/xr/tipos";
 import { TEXTO_MIN_DEG } from "../../../lib/xr/espacio-trinity";
 import { usePrefsXR } from "./use-prefs-xr";
 import {
     claseMaterialPanel,
+    colorAcento,
     colorConAlfa,
     curvaturaABorde,
     fontSizeTexto,
@@ -61,7 +62,7 @@ export function PanelCristal({ nodo, ancho, alto, curvatura, nivel, opacidadMini
             height={pixeles(alto)}
             flexDirection="column"
             backgroundColor={CRISTAL.borde.color}
-            borderColor={colorConAlfa(COLORES_NODO[nodo].vivo, params.borde.opacidad)}
+            borderColor={colorConAlfa(colorAcento(nodo), params.borde.opacidad)}
             borderTopWidth={pixeles(params.borde.ancho)}
             borderRightWidth={pixeles(params.borde.ancho)}
             borderBottomWidth={pixeles(params.borde.ancho)}
