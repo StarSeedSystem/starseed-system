@@ -15,6 +15,12 @@ function otroRol(base: RolEquipo): RolEquipo {
 }
 
 describe("equipos base", () => {
+  it("declara tres equipos con identificadores únicos", () => {
+    const ids = EQUIPOS_BASE.map((e) => e.id);
+    expect(ids).toEqual(["publicacion", "app-widget", "atomo-proto"]);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("los tres equipos son válidos en ámbito personal", () => {
     for (const e of EQUIPOS_BASE) {
       expect(validarEquipo(e)).toEqual([]);
@@ -48,6 +54,19 @@ describe("validarEquipo detecta cada regla rota", () => {
     const e = equipo("publicacion");
     e.tareas[0].depende = ["revisar"];
     expect(validarEquipo(e).some((p) => p.includes("ciclo entre tareas"))).toBe(true);
+  });
+
+  it("detecta que la última tarea no la ejecuta un rol que verifica", () => {
+    const e = equipo("publicacion");
+    const revisar = e.tareas[e.tareas.length - 1];
+    revisar.rol = "redactor";
+    expect(validarEquipo(e).some((p) => p.includes("última tarea") && p.includes("verifica"))).toBe(true);
+  });
+
+  it("detecta que no se declara ningún motor", () => {
+    const e = equipo("publicacion");
+    e.motoresValidos = [];
+    expect(validarEquipo(e).some((p) => p.includes("motoresValidos está vacío"))).toBe(true);
   });
 
   it("sin ningún rol que verifique", () => {
