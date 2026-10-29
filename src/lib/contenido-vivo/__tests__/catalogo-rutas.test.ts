@@ -82,6 +82,27 @@ describe("catálogo de rutas de contenido vivo", () => {
     ]);
   });
 
+  it("solo las rutas medidas llevan fecha y lo demás queda por-verificar", () => {
+    const fechadas = CATALOGO_RUTAS.filter((ruta) => ruta.verificado !== "por-verificar")
+      .map((ruta) => ruta.id)
+      .sort();
+    expect(fechadas).toEqual([
+      "higgsfield-nano-banana-2",
+      "higgsfield-seedance-2-1080",
+      "higgsfield-seedance-2-720",
+      "spline-mcp",
+    ]);
+    for (const ruta of CATALOGO_RUTAS) {
+      if (fechadas.includes(ruta.id)) {
+        expect(ruta.verificado, ruta.id).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      } else {
+        expect(ruta.verificado, ruta.id).toBe("por-verificar");
+      }
+    }
+    expect(fechadas).not.toContain("google-flow-imagen");
+    expect(fechadas).not.toContain("google-flow-video");
+  });
+
   it("recoge los créditos y cupos medidos del contrato", () => {
     const buscar = (id: string) => CATALOGO_RUTAS.find((ruta) => ruta.id === id);
     expect(buscar("higgsfield-nano-banana-2")?.creditosPorUnidad).toBe(2);
