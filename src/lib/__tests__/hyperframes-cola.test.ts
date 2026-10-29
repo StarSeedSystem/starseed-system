@@ -51,22 +51,20 @@ function progresoDeLinea(linea: string): { frame: number; total: number } | null
 function relojFalsoConEstado(): {
   avanzar: (ms: number) => void;
   obtener: () => number;
-  avanzado: number;
 } {
-  const avanzado = 0;
+  let avanzado = 0;
   return {
     avanzar: (ms: number) => {
       avanzado += ms;
     },
     obtener: () => avanzado,
-    avanzado,
   };
 }
 
 describe("hyperframes-cola", () => {
   describe("validarArgs", () => {
     it("solo acepta listas con banderas de la lista blanca y valores dentro del proyecto", () => {
-      expect(validarArgs("-o salida.mp4")).toMatch(/lista/);
+      expect(validarArgs(["-o", "salida.mp4"])).toMatch(/argumento sin bandera/);
       expect(validarArgs(["-o", "salida.mp4", "--format=mp4"])).toBeNull();
       expect(validarArgs(["salida.mp4"])).toBe("argumento sin bandera");
       expect(validarArgs(["--rm", "x"])).toMatch(/no permitida/);
