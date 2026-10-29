@@ -1,0 +1,53 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "APM1017V",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Medios · árbol de relevo: los que más suben en el centro y recolocación al irse uno",
+   "archivos": [
+    "src/lib/recursos/arbol-relevo.ts",
+    "src/lib/recursos/__tests__/arbol-relevo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO (§10): `armarArbol(origen, receptores: { nodoId, subidaKbps?, latenciaMs? }[], kbpsFlujo)` → padre de cada receptor; cada nodo sostiene como mucho `floor(subida / kbpsFlujo)` hijos (sin medida: 1), los de más subida más cerca del origen; determinista. `recolocar(arbol, seVa)` mueve solo la rama del que se fue. Pruebas con 1, 10 y 200 receptores y con una salida. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017A"
+   ]
+  },
+  {
+   "id": "INV1025I",
+   "ola": "Ola 1025R · Investigación y alcance (Agent-Reach, ScrapeGraphAI, OpenRefine, Inbox Zero)",
+   "titulo": "Correos inteligentes del OS: reglas en lenguaje natural como datos y seguimiento de respuestas",
+   "archivos": [
+    "src/lib/mail/reglas-correo.ts",
+    "src/lib/mail/seguimiento-respuestas.ts",
+    "src/lib/mail/__tests__/correos-inteligentes.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Patrón de producto de Inbox Zero (AGPL con términos adicionales: NO se copia código ni textos; se reescribe desde cero lo que describe su README público) aplicado al correo interno del OS (`src/lib/mail/os-mail.ts`: un correo es un hilo de `os_dm_threads` con `meta.mail = true`, `meta.subject`, `meta.creatorId` y `meta.flags[uid]`). Crea dos módulos puros y su prueba.\n(1) `reglas-correo.ts`: una regla es un DATO `{id, texto, cuando:{de?, dominio?, asuntoContiene?, tieneAdjunto?, etiqueta?, antiguedadHorasMin?}, hacer:\"etiquetar\"|\"mover\"|\"destacar\"|\"esperar-respuesta\"|\"sugerir-borrador\", parametro?}`. `validarRegla(x)` rechaza cualquier acción fuera de la lista (jamás enviar, responder solo, borrar ni reenviar), campos extra y textos largos. `aplicarReglas(reglas, hilo)` devuelve las acciones propuestas, en orden y sin repetir. Pasar de lenguaje natural a regla lo hará Astraura en otra tarea: aquí solo se valida su salida.\n(2) `seguimiento-respuestas.ts` («Reply Zero» propio): `clasificarHilo(hilo, yo, ahora, cfg)` → `por-responder` (el último mensaje es de otro y pasaron más de N horas sin respuesta mía), `esperando` (el último es mío y pasaron más de D días; 14 por defecto para el alcance) o `resuelto`; `resumenSeguimiento(hilos)`. Reloj inyectado y tipos mínimos locales (`HiloLite`) para no importar `os-mail.ts` (cliente con Supabase).\n(3) `__tests__/correos-inteligentes.test.ts`. Sirven al alcance (respuestas a lo enviado desde la dirección pública) y a Mensajes. R2: ninguna regla ni función puede enviar nada.\n\nContrato: architecture/repos-libreria-1025.md (grupo investigación: reglas duras R1–R10 y el diseño del agente de alcance). Reglas de la casa: español con acentos en comentarios y textos; nada de `any`; módulos puros con red, disco y reloj inyectables; claves solo en variables de entorno; nada de `node:*` en código de cliente; ≤ 3 archivos y ≤ 120 líneas por archivo; pruebas reales (si una prueba vieja falla, se arregla el código, no la prueba). Antes de empezar comprueba si lo pedido ya está hecho; si ya está, NO APLICA."
+  },
+  {
+   "id": "VZR1011C",
+   "ola": "Ola 1011I · Voces locales fluidas (Chatterbox, OpenVoice V2; F5/XTTS opcionales personales) y el pato Open Duck Mini como cuerpo de bots y agentes",
+   "titulo": "Licencias de voz: F5-TTS y XTTS-v2 como opcionales de uso personal; ChatTTS solo ficha",
+   "archivos": [
+    "src/lib/aurora/tts-oss/voces-no-comerciales.ts",
+    "src/lib/aurora/tts-oss/__tests__/voces-no-comerciales.test.ts",
+    "src/lib/library/packages.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-voces-y-robots.md` (léelo ENTERO; el §1 tiene licencias y datos VERIFICADOS el 2026-10-11 — no inventes otros). Reutiliza lo que YA existe y no lo dupliques: `architecture/aurora-voz-motores.md` + `src/lib/aurora/tts-oss/engine-registry.ts` (cadena `buildVoiceChain`, `AUTO_ENDPOINT_ORDER`, OpenVoice V2 ya es el motor principal), `architecture/forja-voz-158.md` §4 (en producto solo MIT/Apache), `src/lib/aurora/voz-starseed/` (motor único por niveles, Supertonic: la voz F1 de Astraura que le gusta a Alex se mantiene), `src/lib/voces/` (clonación con consentimiento obligatorio, trocear, perfil neuronal), `src/lib/astraura/needle3-client.ts` y `decision-hibrida.ts` (capa Needle), `architecture/astraura-bots.md` y `src/lib/astraura-bots/` (cuerpos, acciones con META y riesgo). Reglas: «basta de ilusiones»; nunca descargas automáticas de pesos (solo con permiso y tras comprobar ≥ 3 veces el espacio); en la Mac de Alex (8 GB) los motores pesados ceden ante el enjambre (`scripts/puente/guardia-memoria.py`); clonar una voz exige consentimiento explícito de su dueño y jamás se imita a una persona real sin él; nada no comercial en uso comercial; nada de claves en código; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Toda repo o modelo que entre lleva su ficha en la Biblioteca (`src/lib/library/packages.ts`, `kind: \"ai-source\"` o `\"repo\"`) con comprobación de versión (regla de CLAUDE.md). Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto.\n\nTAREA: F5-TTS (pesos CC-BY-NC) y XTTS-v2 (Coqui Public Model License) entran como motores OPCIONALES de uso personal no comercial: apagados por defecto, solo si la persona los instala y acepta su licencia en una casilla que la explica, nunca en contextos comerciales (páginas o grupos con fines comerciales) ni en la cadena AUTO por defecto; respetan la regla de la forja §4 para el producto. ChatTTS (modelo CC BY-NC 4.0 «solo académico», sin español) NO se integra: solo su ficha. Fichas en la Biblioteca para Chatterbox, OpenVoice V2, F5-TTS, XTTS-v2 y ChatTTS con licencia exacta del contrato y comprobación de versión. Pruebas del filtro comercial.",
+   "dependencias_ya_en_main": [
+    "VZR1011B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "APM1017V",
+   "VZR1011C",
+   "INV1025I"
+  ]
+ }
+}
