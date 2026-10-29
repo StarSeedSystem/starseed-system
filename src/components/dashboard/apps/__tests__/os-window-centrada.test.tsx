@@ -8,6 +8,7 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { createPortal } from "react-dom";
 import { Sparkles } from "lucide-react";
 import { OSWindow } from "../os-window";
+import { geometriaVentana } from "@/lib/design/composicion";
 
 vi.mock("@/context/appearance-context", () => ({
     useAppearance: () => ({ config: { themeStore: { activeMode: "primary" } } }),
@@ -48,5 +49,56 @@ describe("OSWindow · ventana centrada (ramas de la nube)", () => {
         fireEvent(window, new MouseEvent("pointermove", { clientX: 128, clientY: 60, bubbles: true }));
         fireEvent(window, new MouseEvent("pointerup", { bubbles: true }));
         expect(envoltorio.style.transform).toBe("translate(28px, -40px)");
+    });
+});
+
+/** Fija el viewport que lee OSWindow al montar (jsdom no lo cambia solo). */
+function verEn(ancho: number, alto: number) {
+    Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: ancho });
+    Object.defineProperty(window, "innerHeight", { configurable: true, writable: true, value: alto });
+}
+
+describe("OSWindow · composición por aparato", () => {
+    afterEach(() => {
+        cleanup();
+        verEn(1024, 768);
+    });
+
+    it("en teléfono abre como hoja: ancho de pantalla, sube desde abajo y deja el centro libre", () => {
+        const ancho = 390;
+        const alto = 844;
+        verEn(ancho, alto);
+        render(<Ventana />);
+
+        const dialogo = screen.getByRole("dialog");
+        expect(dialogo.getAttribute("data-composicion")).toBe("hoja");
+
+        const geo = geometriaVentana({ ancho, alto }, { tipo: "hoja" });
+        const marco = dialogo.querySelector(".rounded-2xl") as HTMLElement;
+        expect(marco.style.width).toBe(`${geo.ancho}px`);
+        expect(marco.style.height).toBe(`${geo.alto}px`);
+        // Entrada cardinal: nace 32 px por debajo de su sitio y sube.
+        expect(marco.style.transform).toContain("translateY(32px)");
+
+        const partidaY = geo.y - (alto - geo.alto) / 2;
+        const envoltorio = dialogo.querySelector("div.relative") as HTMLElement;
+        expect(envoltorio.style.transform).toBe(`translate(0px, ${partidaY}px)`);
+    });
+
+    it("en escritorio abre centrada y conserva la talla de siempre (sizeClass)", () => {
+        verEn(1280, 800);
+        render(<Ventana />);
+
+        const dialogo = screen.getByRole("dialog");
+        expect(dialogo.getAttribute("data-composicion")).toBe("ventana");
+
+        const marco = dialogo.querySelector(".rounded-2xl") as HTMLElement;
+        // Sin talla en línea: manda la clase por defecto (w-[min(94vw,1100px)]…).
+        expect(marco.style.width).toBe("");
+        expect(marco.style.height).toBe("");
+        expect(marco.style.transform).toContain("scale(0.96)");
+
+        const envoltorio = dialogo.querySelector("div.relative") as HTMLElement;
+        expect(envoltorio.style.transform).toBe("translate(0px, 0px)");
     });
 });

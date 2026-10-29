@@ -12,10 +12,11 @@
 // ════════════════════════════════════════════════════════════════
 
 import React, { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { geometriaVentana, type Viewport } from "@/lib/design/composicion";
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -81,6 +82,31 @@ export function OSWindow({
     const [offset, setOffset] = useState({ dx: 0, dy: 0 });
     const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
 
+    /* ── Composición por aparato (decisión de Alex, 2026-10-19) ──
+       Escritorio y tableta: la ventana nace centrada en la pantalla. Teléfono:
+       hoja centrada que sube desde el borde inferior (entrada cardinal). La
+       geometría es solo el punto de partida; el arrastre sigue mandando después. */
+    const [aparato, setAparato] = useState<Viewport>(() =>
+        typeof window === "undefined"
+            ? { ancho: 1440, alto: 900 }
+            : { ancho: window.innerWidth, alto: window.innerHeight },
+    );
+    const reducido = useReducedMotion();
+
+    useEffect(() => {
+        const medir = () => setAparato({ ancho: window.innerWidth, alto: window.innerHeight });
+        window.addEventListener("resize", medir);
+        return () => window.removeEventListener("resize", medir);
+    }, []);
+
+    const esHoja = aparato.ancho < 430;
+    const geometria = geometriaVentana(aparato, { tipo: esHoja ? "hoja" : "ventana" });
+    const centrado = {
+        x: (aparato.ancho - geometria.ancho) / 2,
+        y: (aparato.alto - geometria.alto) / 2,
+    };
+    const partida = { x: geometria.x - centrado.x, y: geometria.y - centrado.y };
+
     const raizRef = useRef<HTMLDivElement>(null);
     const cerrarRef = useRef(onClose);
     useEffect(() => { cerrarRef.current = onClose; }, [onClose]);
@@ -108,17 +134,34 @@ export function OSWindow({
     };
 
     return (
-        <div ref={raizRef} className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
+        <div ref={raizRef} className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title} data-composicion={esHoja ? "hoja" : "ventana"}>
             <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
 
             {/* Capa de arrastre centrada por el flex padre. El transform de arrastre va
                 aquí (div plano), NO en el hijo animado → la animación de Framer ya no pisa
                 el centrado y la ventana SIEMPRE abre centrada. */}
-            <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
+            <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx + partida.x}px, ${offset.dy + partida.y}px)` }}>
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ type: "spring", stiffness: 260, damping: 26 }}
+                    initial={{
+                        opacity: 0,
+                        scale: esHoja ? (reducido ? 1 : 0.98) : (reducido ? 1 : 0.96),
+                        y: esHoja && !reducido ? 32 : 0,
+                    }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={
+                        esHoja
+                            ? reducido
+                                ? { duration: 0.2 }
+                                : { duration: 0.42, ease: [0.16, 1, 0.3, 1] }
+                            : reducido
+                                ? { duration: 0.2 }
+                                : { type: "spring", stiffness: 260, damping: 26 }
+                    }
+                    style={
+                        esHoja
+                            ? { width: `${geometria.ancho}px`, height: `${geometria.alto}px` }
+                            : undefined
+                    }
                     className={cn(
                         "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
                         sizeClass,
