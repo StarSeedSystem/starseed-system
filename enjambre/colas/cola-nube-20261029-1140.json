@@ -1,0 +1,84 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "VPU1019D",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Adaptador de widgets y Dashboard",
+   "archivos": [
+    "src/lib/variaciones/adaptadores/widgets.ts",
+    "src/lib/variaciones/adaptadores/__tests__/widgets.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Familia widget: clave `widget:<WidgetType>` (de `src/components/dashboard/dashboard-types.ts`); capturar toma la configuración visual y de opciones del widget (no sus datos personales), aplicar la fusiona con la instancia elegida y devuelve deshacer; respeta `getSizeConstraints` de `src/components/dashboard/widget-manifest.ts`. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "DSN1019B",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Las ventanas del OS abren centradas y como hoja en teléfono",
+   "archivos": [
+    "src/components/dashboard/apps/os-window.tsx",
+    "src/components/dashboard/apps/__tests__/os-window-centrada.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Usa `geometriaVentana` para la posición inicial de `OSWindow` (centrada en la pantalla; en teléfono, hoja centrada que sube desde abajo con entrada cardinal) sin cambiar su API ni el arrastre. Solo añadir. Prueba con viewport de teléfono y de escritorio. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DSN1019A"
+   ]
+  },
+  {
+   "id": "DSN1019C",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Ventanas del Escritorio: abrir centradas",
+   "archivos": [
+    "src/components/desktop/desktop-store.ts",
+    "src/components/desktop/__tests__/ventana-centrada.test.ts"
+   ],
+   "depende": [],
+   "prompt": "En `openWindow` usa la geometría centrada de `composicion.ts` cuando la ventana no tiene posición guardada; si la tiene, la respeta (y la recoloca dentro de la pantalla si quedó fuera). Solo añadir. Prueba. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DSN1019A"
+   ]
+  },
+  {
+   "id": "IMG1029A",
+   "ola": "1029 · Imaginación sin atascos",
+   "depende": [],
+   "titulo": "Imaginación · «(libre, registro, pago)» no hace que una referencia sea «de Alex»",
+   "archivos": [
+    "scripts/puente/autodesarrollo_decidir.py",
+    "scripts/puente/agente_referencias_diseno.py",
+    "scripts/puente/test_autodesarrollo_decidir.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas (el detector de la autopublicación las frena). Textos de la interfaz en español, sin rayas largas.\n\nAlex (2026-10-28): «Imaginación tiene muchas por decidir, revisa por qué y soluciona cualquier falla de los procesos automáticos». Medido en `/api/mando/imaginacion?ambito=metagenesis`: 480 propuestas = 417 descartadas, 31 preguntas, 20 nuevas, 11 esperando aprobación.\n\n19 de las 31 preguntas son «Candidata al catálogo de referencias: <sitio>» (agente `referencias-diseno`) con motivo «no accionable por el enjambre (pago): es de Alex». Es un falso positivo: la plantilla del agente (`agente_referencias_diseno.py`, línea ~1138) dice «su acceso (libre, registro, pago)», y `es_de_alex` casa `\\bpago\\b`. Arreglo: (1) en `es_de_alex`, antes de mirar RESERVADOS, quita las enumeraciones de tipos de acceso (un paréntesis o una lista que nombra «libre», «gratis», «abierto» o «registro» junto a «pago»); «pagar», «comprar», «suscripción» y «pago de…» siguen siendo de Alex. (2) En la plantilla del agente, escribe el acceso sin esa palabra («abierto, con registro o con coste»). (3) Las preguntas que ya existen con ese motivo se vuelven a decidir en la siguiente pasada: busca cómo se fuerza la revisión de las pendientes (`auto_firma` en `director_autodesarrollo._decidir_lote`) y, sin tocar ese archivo, limpia el campo en la pasada de `es_de_alex` solo si la ruta lo permite; si no, explica en tu respuesta la línea exacta. Pruebas: la plantilla nueva no es de Alex; «hay que pagar la suscripción» sí."
+  },
+  {
+   "id": "INV1025B",
+   "ola": "Ola 1025R · Investigación y alcance (Agent-Reach, ScrapeGraphAI, OpenRefine, Inbox Zero)",
+   "titulo": "Agent-Reach 1.6: cliente, catálogo y registro dicen la verdad",
+   "archivos": [
+    "src/lib/integrations/clients/agent-reach.ts",
+    "src/ai/astraura/integration-catalog.ts",
+    "src/lib/integrations/registry.ts"
+   ],
+   "depende": [],
+   "prompt": "Depende de INV1025A (la ruta ya acepta los ids). (1) `clients/agent-reach.ts`: `callProxy` usa exactamente los ids de `agent-reach-comandos.ts` (impórtalos desde allí); `health` es GET a `/api/agent-reach/health`; devuelve `error.code` y `hint` tal cual vienen; `NEED_LOGIN_BLOQUEADO` es un fallo normal, no una excepción; el cliente de Reddit queda devolviendo ese motivo (R1).\n(2) `integration-catalog.ts`, entrada `agent-reach`: sustituye `pip install agent-reach` por la instalación real (uv + el zip de GitHub) y avisa de que el paquete de PyPI no es este; `repo` y `autoUpdate.github` con la forma canónica `Panniantong/Agent-Reach`.\n(3) `registry.ts`, entrada `agent-reach`: sustituye `npx agent-reach` por lo mismo; di en `capabilities` la verdad (la web usa Exa para buscar y Jina Reader para leer, que son terceros; GitHub; subtítulos de YouTube; V2EX y Bilibili; Reddit, X y LinkedIn necesitan sesión y quedan apagados); deja las `actions` con los mismos ids.\nPruebas: ejecuta las existentes de integraciones y catálogos (`src/lib/integrations/__tests__`, `src/ai/astraura/__tests__/local-158-context.test.ts`) y arregla lo que rompa el texto; en la prueba existente del catálogo añade una comprobación de que ningún texto de `agent-reach` contiene `pip install agent-reach` ni `npx agent-reach`.\n\nContrato: architecture/repos-libreria-1025.md (grupo investigación: reglas duras R1–R10 y el diseño del agente de alcance). Reglas de la casa: español con acentos en comentarios y textos; nada de `any`; módulos puros con red, disco y reloj inyectables; claves solo en variables de entorno; nada de `node:*` en código de cliente; ≤ 3 archivos y ≤ 120 líneas por archivo; pruebas reales (si una prueba vieja falla, se arregla el código, no la prueba). Antes de empezar comprueba si lo pedido ya está hecho; si ya está, NO APLICA.",
+   "dependencias_ya_en_main": [
+    "INV1025A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "INV1025B",
+   "DSN1019B",
+   "DSN1019C",
+   "VPU1019D",
+   "IMG1029A"
+  ]
+ }
+}
