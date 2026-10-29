@@ -6,20 +6,21 @@
  * `sale-zona`; los efectos (`silencio`, `audio-privado`…) se entregan a quien los consuma.
  */
 import { useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Vec3 } from "../../../lib/xr/tipos";
 import type { PortalMundo, ZonaMundo } from "../../../lib/xr/mundo-tipos";
 import { COLORES_NODO } from "../../../lib/xr/tokens-3d";
-import { ACENTO_SIN_DESTINO, acentoDeDestino, anuncioDeZona, cambiosDeZona, destinoDePortal, efectosActivos,
-    eventosDeZona, portalesAlcanzados, radioDeZona, requiereConfirmacion, type DestinoResuelto, type EfectosZona, type EventoZona } from "../../../lib/xr/zonas";
+import { ACENTO_SIN_DESTINO, HISTERESIS_M, acentoDeDestino, anuncioDeZona, cambiosDeZona, destinoDePortal,
+    efectosActivos, eventosDeZona, nodoDeDestino, portalesAlcanzados, privadoDePortal, radioDeZona,
+    requiereConfirmacion, type DestinoResuelto, type EfectosZona, type EventoZona } from "../../../lib/xr/zonas";
 import { Texto3D } from "./panel-cristal";
 type RutaDestino = Extract<DestinoResuelto, { tipo: "ruta" }>;
 export interface PropsZonasPortales {
     zonas: readonly ZonaMundo[];
     portales: readonly PortalMundo[];
-    /** Posición de la persona, actualizada por quien monta la escena (cabeza o jugador). */
-    posicion: { current: Vec3 };
+    /** Posición de la persona; si falta, se lee la cámara de la escena en cada fotograma. */
+    posicion?: { current: Vec3 };
     alIr(destino: DestinoResuelto): void;
     alEventoRegla?(evento: EventoZona): void;
     alEfectos?(efectos: EfectosZona): void;
@@ -30,9 +31,19 @@ export function ZonasPortales({ zonas, portales, posicion, alIr, alEventoRegla, 
     const previas = useRef<Set<string>>(new Set());
     const dentro = useRef<Set<string>>(new Set());
     const firma = useRef("");
+    const camara = useThree((estado) => estado.camera);
+    const punto = useRef<Vec3>([0, 0, 0]);
+    const auxiliar = useRef(new THREE.Vector3());
     const [pendiente, setPendiente] = useState<{ portal: PortalMundo; destino: RutaDestino } | null>(null);
     useFrame(() => {
-        const p = posicion.current;
+        let p = posicion?.current;
+        if (!p) {
+            camara.getWorldPosition(auxiliar.current);
+            punto.current[0] = auxiliar.current.x;
+            punto.current[1] = auxiliar.current.y;
+            punto.current[2] = auxiliar.current.z;
+            p = punto.current;
+        }
         const cambios = cambiosDeZona(zonas, previas.current, p);
         previas.current = cambios.ahora;
         if (cambios.entra.length || cambios.sale.length) {
@@ -78,20 +89,21 @@ export function ZonasPortales({ zonas, portales, posicion, alIr, alEventoRegla, 
 function AnilloPortal({ portal }: { portal: PortalMundo }) {
     const destino = destinoDePortal(portal);
     const acento = destino.tipo === "no-disponible" ? ACENTO_SIN_DESTINO : acentoDeDestino(portal.destino);
+    const etiqueta = privadoDePortal(portal) ? `${portal.nombre} · privado` : portal.nombre;
     return (
-        <group position={portal.pos} rotation={portal.rot}>
+        <group position={portal.pos} rotation={portal.rot} userData={{ nodo: nodoDeDestino(portal.destino) }}>
             <mesh>
                 <torusGeometry args={[portal.radio, 0.03, 12, 48]} />
                 <meshBasicMaterial color={acento} transparent opacity={0.9} />
             </mesh>
             <group position={[0, portal.radio + 0.12, 0]}>
-                <Texto3D distancia={1.4}>{portal.nombre}</Texto3D>
+                <Texto3D distancia={1.4}>{etiqueta}</Texto3D>
             </group>
         </group>
     );
 }
 function HaloSeguro({ zona }: { zona: ZonaMundo }) {
-    const radio = radioDeZona(zona);
+    const radio = radioDeZona(zona) + HISTERESIS_M;
     return (
         <mesh position={[zona.pos[0], zona.pos[1] + zona.tam[1] / 2, zona.pos[2]]}>
             <cylinderGeometry args={[radio, radio, 0.02, 40, 1, true]} />

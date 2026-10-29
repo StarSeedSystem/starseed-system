@@ -19,11 +19,13 @@ import type { ModoXR, NivelCalidad } from "@/lib/xr/tipos";
 import { CRISTAL } from "@/lib/xr/tokens-3d";
 import { mensajeErrorXR } from "@/components/vivo/espacial/use-sesion-xr";
 import type { ModoXR as ModoURL } from "@/lib/vivo/xr";
+import type { MundoSpec } from "@/lib/xr/mundo-tipos";
+import type { DestinoResuelto } from "@/lib/xr/zonas";
 import { BotonEntradaXR } from "./boton-entrada-xr";
 import { useCapacidadesXR } from "./use-capacidades-xr";
 
 type ModoRuta = ModoURL | "pantalla" | null;
-type Props = { modo?: ModoRuta };
+type Props = { modo?: ModoRuta; mundo?: Pick<MundoSpec, "zonas" | "portales"> };
 
 export type ModoSesion = "vr-inmersivo" | "ar-passthrough" | "ar-mano";
 
@@ -43,6 +45,12 @@ const PanelOS = nextDynamic(
                 );
             },
         ),
+    { ssr: false },
+);
+
+/** Zonas y portales: cascarón R3F perezoso, montado dentro del lienzo con el mundo que reciba EscenaOS. */
+const ZonasPortales = nextDynamic(
+    () => import("./zonas-portales").then(({ ZonasPortales: Z }) => Z),
     { ssr: false },
 );
 
@@ -77,7 +85,7 @@ function AlturaOjos({ refAltura }: { refAltura: { current: { metros: number } | 
     return null;
 }
 
-export function EscenaOS({ modo = null }: Props) {
+export function EscenaOS({ modo = null, mundo }: Props) {
     const modoUrl: ModoURL | null = modo === "vr" || modo === "ar" ? modo : null;
     const { estado, datos, capacidades, plan } = useCapacidadesXR({ modo: modoUrl === "vr" ? "vr-inmersivo" : modoUrl === "ar" ? "ar-passthrough" : "auto" });
     const [almacen, setAlmacen] = useState<XRStore | null>(null);
@@ -86,6 +94,11 @@ export function EscenaOS({ modo = null }: Props) {
     const intentadoRef = useRef(false);
     const alturaOjosRef = useRef<{ metros: number } | null>(null);
     const { nivel: calidadNivel, cambio, aviso } = useCalidadDinamica();
+    const [anuncioZona, setAnuncioZona] = useState<string | null>(null);
+    const alIr = (destino: DestinoResuelto) => {
+        if (destino.tipo === "ruta") { window.location.assign(destino.ruta); return; }
+        if (destino.tipo === "punto") setAnuncioZona(`Punto de entrada: ${destino.spawn}`);
+    };
 
     // Una sola pasada: conseguir el almacén (el botón comparte el singleton) y, si toca, entrar solo.
     useEffect(() => {
@@ -126,11 +139,18 @@ export function EscenaOS({ modo = null }: Props) {
                     <XR store={almacen}><XROrigin /><AlturaOjos refAltura={alturaOjosRef} /></XR>
                 )}
                     <PanelOS nivel={calidadNivel} opacidadMinima={modoUrl === "ar" ? 0.82 : undefined} />
+                    <ZonasPortales
+                        zonas={mundo?.zonas ?? []}
+                        portales={mundo?.portales ?? []}
+                        alIr={alIr}
+                        alAnunciar={setAnuncioZona}
+                    />
                     {!enSesion && <OrbitControls />}
                 </Suspense>
             </Canvas>
             <div className="absolute inset-x-0 top-0 z-10 flex flex-wrap items-center gap-3 p-4" data-testid="corte-xr">
                 {aviso && <p className="max-w-xs text-xs text-[#F5F7FF] bg-[#1E1E2E] px-3 py-1 rounded text-center" role="alert">{aviso}</p>}
+                {anuncioZona && <p className="max-w-xs text-xs text-[#F5F7FF] bg-[#1E1E2E] px-3 py-1 rounded text-center" role="status">{anuncioZona}</p>}
                 <BotonEntradaXR variante="insertado" modo={modoBotonDe(modoUrl, capacidades.modos)} alEntrar={() => setEnSesion(true)} />
                 {fallo !== null && <p className="max-w-xs text-xs text-[#DC143C]" role="alert" data-testid="fallo-auto-entrar">{fallo}</p>}
                 <Link href="/dashboard" data-testid="salir-sistema" className="cursor-pointer ml-auto inline-flex min-h-11 items-center text-sm text-[#F5F7FF] underline decoration-white/30 underline-offset-4 hover:decoration-[#39FF14]">
