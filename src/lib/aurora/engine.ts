@@ -49,6 +49,10 @@ import { ejecutarAccion } from "@/lib/astraura-bots/adaptadores/ejecutor-accione
 import { decidirAccion, NIVEL_POR_DEFECTO } from "@/lib/astraura-bots/permisos";
 import { avanzar, bucleInicial } from "@/lib/astraura-bots/bucle";
 import { botPredeterminado } from "@/lib/astraura-bots/predeterminado";
+// BOT1011S · El bot predeterminado (la orbe) pone su TONO adaptable en el prompt del chat.
+import { useBotPredeterminado } from "@/lib/astraura-bots/adaptadores/expresion-orbe";
+import { bloqueTono, situacionDesdeTexto } from "@/lib/astraura-bots/adaptadores/tono-chat";
+import type { Bot } from "@/lib/astraura-bots/tipos";
 // Puente de glow: el Orbe de Aurora late al ritmo del habla escuchando estos
 // eventos (el TTS del navegador no expone amplitud). Aditivo y defensivo.
 import { emitAuroraSpeak } from "@/lib/aurora/aurora-orb-bus";
@@ -828,6 +832,12 @@ export function useAuroraEngine(): AuroraEngine {
   const replyHistoryRef = useRef<string[]>([]);
   // Ruta/contexto actual, para que Aurora sepa dónde está el usuario.
   const pathnameRef = useRef<string>("");
+  // ── BOT1011S · bot predeterminado (la orbe del perfil) para el TONO del chat ──
+  // Ref habitada en cada render: el sistema de abajo se arma en un callback async
+  // y no puede depender de qué render cierra el último latido del bot.
+  const botOrbe = useBotPredeterminado();
+  const botOrbeRef = useRef<Bot | null>(botOrbe);
+  botOrbeRef.current = botOrbe;
   // Cerebro activo para resolver las HERRAMIENTAS DE INTEGRACIÓN (aditivo).
   // undefined ⇒ se usa la config global de integraciones (comportamiento neutro).
   const brainIdRef = useRef<string | undefined>(undefined);
@@ -1771,13 +1781,22 @@ export function useAuroraEngine(): AuroraEngine {
       try { knowledge = buildSystemKnowledge(routeContext()); } catch { knowledge = ""; }
       // EAR1023C: lo que suena AHORA alrededor de la orbe, en una línea corta.
       const notaOido = lineaContextoOidoParaPrompt();
+      // ── BOT1011S · TONO DEL BOT (personalidad adaptable + preferencias) ──
+      let tonoBot = "";
+      try {
+        const situacion = situacionDesdeTexto(text);
+        if (botOrbeRef.current && situacion) {
+          tonoBot = bloqueTono(botOrbeRef.current, activeRef.current, { situacion, sesion: botOrbeRef.current.dueno.tipo === "perfil" ? "privada" : "grupo" });
+        }
+      } catch { /* el tono nunca rompe el turno */ }
       const system =
         buildSystemPrompt(activeRef.current) + "\n\n" +
         actionsSystemPromptSection() +
         (toolsSection ? "\n\n" + toolsSection : "") +
         (knowledge ? "\n\n" + knowledge : "") + "\n\n" +
         contextNote +
-        (notaOido ? "\n\n" + notaOido : "");
+        (notaOido ? "\n\n" + notaOido : "") +
+        (tonoBot ? "\n\n" + tonoBot : "");
       // Se incluye el historial reciente (conversationRef) antes del mensaje actual.
       // Así mantenemos el contexto continuo en los comandos de voz.
       const historyMessages = conversationRef.current.map((msg): ChatMessage => ({
