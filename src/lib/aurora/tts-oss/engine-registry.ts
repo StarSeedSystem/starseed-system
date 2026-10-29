@@ -439,6 +439,10 @@ export const AUTO_ENDPOINT_ORDER: readonly NeuralVoiceEngine[] = [
   "voice158",
   // VibeVoice va después: único motor multi-locutor GPU-native (hasta 4 speakers).
   "vibevoice",
+  // xAI (grok-voice) por AUTO: acceso server-side (token efímero/proxy), sin
+  // endpoint del usuario necesario. Con realismo 5 entra en la cadena antes que
+  // VoxCPM para quien lo tenga configurado, y no detrás de Kokoro.
+  "xai",
   "voxcpm",
   "voicebox",
   "gpt-sovits",
