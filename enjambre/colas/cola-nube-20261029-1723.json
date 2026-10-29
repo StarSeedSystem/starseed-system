@@ -1,0 +1,48 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "CNV1023C",
+   "ola": "1023C",
+   "titulo": "Escritorio · «Convertir a…» en el clic derecho de los iconos de archivo",
+   "archivos": [
+    "src/components/desktop/desktop-icon-menu.tsx",
+    "src/components/desktop/desktop-store.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): Filee (KnifeLemon/Filee, MIT, 255 formatos sin conexión) «para todo el OS y la Biblioteca, usado desde cualquier medio con clic derecho a cada archivo, pidiéndoselo a Astraura o en la Protomolécula». Contrato: `architecture/conversion-archivos.md` (léelo entero). Ya existe: `src/lib/conversion/` (formatos puros, `filee-servidor.ts` solo servidor, `cliente.ts`), `/api/conversion`, `src/components/conversion/` (`useConversionMenu` + `SubmenuConvertir` para cualquier menú de Radix, página `/convertir`). Nada sale de las neuronas de la persona; argumentos siempre en lista, nunca por shell.\n\nBusca el menú contextual de los iconos del escritorio (si el archivo tiene otro nombre, usa el que exista y dilo). Para iconos que apuntan a un archivo con URL, añade `SubmenuConvertir` (`useConversionMenu`); el resultado se descarga. Si no hay menú contextual de iconos, responde NO APLICA."
+  },
+  {
+   "id": "APM1017F",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Recursos · servir capacidades: admisión con los topes de préstamo, cola, cancelación y registro",
+   "archivos": [
+    "src/lib/recursos/servir-capacidades.ts",
+    "src/lib/recursos/__tests__/servir-capacidades.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Lado anfitrión del relé `capacidad.*`: `crearServidor({ manejadores: Partial<Record<tipo, fn>>, oferta, sesiones, ahora })` con `atender(mensaje)` que comprueba la sesión (sesion-prestamo.ts) y los topes de `capacidadPrestable`, encola si está lleno (máx. 4 en cola), corre el manejador, trocea la respuesta y permite cancelar. `prestamos()` devuelve los préstamos vivos y hechos (quién, qué, ms, bytes) para Procesos activos. Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017D",
+    "APM1017E"
+   ]
+  },
+  {
+   "id": "HFR1018I",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Malla · `capacidad.video.render`: renderizar en la neurona con recursos",
+   "archivos": [
+    "src/lib/network/video-por-malla.ts",
+    "src/lib/network/__tests__/video-por-malla.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Manejador PURO para el relé `capacidad.*` (src/lib/network/capacidad-por-malla.ts): admite solo peticiones de la misma cuenta o de un grupo con permiso, comprueba que la composición no traiga GSAP editado por el OS (adaptadores.ts) ni recursos remotos privados ajenos, y devuelve { aceptado, trabajoId } o un rechazo legible. La elección de la neurona la hace la bolsa de recursos; aquí solo se valida y se encola. Sin red en las pruebas. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "HFR1018C"
+   ],
+   "dependencias_ya_en_main": [
+    "APM1017E"
+   ]
+  }
+ ]
+}
