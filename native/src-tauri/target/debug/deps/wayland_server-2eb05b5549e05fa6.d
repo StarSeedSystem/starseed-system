@@ -1,0 +1,10 @@
+/home/runner/work/_temp/starseed-wt/APR1019A/native/src-tauri/target/debug/deps/wayland_server-2eb05b5549e05fa6.d: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/client.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/dispatch.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/display.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/global.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/socket.rs
+
+/home/runner/work/_temp/starseed-wt/APR1019A/native/src-tauri/target/debug/deps/libwayland_server-2eb05b5549e05fa6.rmeta: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/client.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/dispatch.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/display.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/global.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/socket.rs
+
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/lib.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/client.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/dispatch.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/display.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/global.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wayland-server-0.31.14/src/socket.rs:
