@@ -309,3 +309,57 @@ class RachaDeCaida(unittest.TestCase):
         r = self.R.racha_de_caida(anterior, nueva, "2026-10-28 01:00")
         self.assertEqual(r["caidas_seguidas"], 1)
         self.assertEqual(r["caida_desde"], "2026-10-28 01:00")
+
+
+class TokenDeDespliegueA1(unittest.TestCase):
+    """(IND1029I) Un PAT de grano fino en la bóveda del A1 para que la autopublicación suba a
+    GitHub sin esta Mac. La acción sale SOLO si, comprobada la bóveda por NOMBRES (nunca el
+    valor), la variable no está; sin comprobación posible no se pide a ciegas."""
+
+    def test_si_el_a1_ya_lo_tiene_no_sale(self):
+        self.assertIsNone(A.accion_token_despliegue({A.VARIABLE_TOKEN}))
+
+    def test_sin_comprobacion_posible_no_se_pide_a_ciegas(self):
+        self.assertIsNone(A.accion_token_despliegue(None))
+
+    def test_si_el_a1_no_lo_tiene_sale_con_enlace_y_orden(self):
+        a = A.accion_token_despliegue(set())
+        self.assertEqual("token-despliegue-a1", a["id"])
+        self.assertEqual("media", a["urgencia"])
+        self.assertIn("github.com/settings/personal-access-tokens/new", a["enlace"])
+        self.assertIn("target_name=StarSeedSystem", a["enlace"])
+        self.assertIn("contents=write", a["enlace"])
+        self.assertIn("actions=read", a["enlace"])
+        self.assertIn("StarSeedSystem/starseed-system", a["detalle"])
+        self.assertIn("guardar-clave.sh %s --ambos" % A.VARIABLE_TOKEN, a["comando"])
+        self.assertTrue(a["enlace"] and a["comando"] and a["por_que_no_lo_hago_yo"], a["id"])
+
+    def test_solo_nombres_nunca_valores(self):
+        import json as _j
+        texto = _j.dumps(A.accion_token_despliegue(set()), ensure_ascii=False)
+        self.assertNotRegex(texto, r"github_pat_[A-Za-z0-9_-]{30,}")
+        self.assertNotRegex(texto, r"ghp_[A-Za-z0-9]{20,}")
+
+    def test_entra_en_la_lista_solo_con_la_boveda_comprobada(self):
+        dentro = [x["id"] for x in A.construir_acciones([], TODOS, CATALOGO,
+                                                        a1_nombres={"GEMINI_API_KEY"})]
+        fuera = [x["id"] for x in A.construir_acciones([], TODOS, CATALOGO,
+                                                       a1_nombres={A.VARIABLE_TOKEN})]
+        sin_dato = [x["id"] for x in A.construir_acciones([], TODOS, CATALOGO)]
+        self.assertIn("token-despliegue-a1", dentro)
+        self.assertNotIn("token-despliegue-a1", fuera)
+        self.assertNotIn("token-despliegue-a1", sin_dato)
+
+    def test_verificar_dice_hecha_cuando_el_a1_lo_tiene(self):
+        r = A.verificar("token-despliegue-a1", pasarelas=[], secretos_repo=TODOS,
+                        a1_nombres={A.VARIABLE_TOKEN})
+        self.assertTrue(r["hecha"])
+
+    def test_verificar_dice_pendiente_mientras_falta(self):
+        r = A.verificar("token-despliegue-a1", pasarelas=[], secretos_repo=TODOS, a1_nombres=set())
+        self.assertFalse(r["hecha"])
+
+    def test_verificar_sin_poder_comprobar_no_se_da_por_hecha(self):
+        r = A.verificar("token-despliegue-a1", pasarelas=[], secretos_repo=TODOS)
+        self.assertFalse(r["hecha"])
+        self.assertIn("no pude comprobar", r["detalle"])

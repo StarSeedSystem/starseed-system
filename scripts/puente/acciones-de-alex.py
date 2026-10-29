@@ -64,6 +64,48 @@ except Exception:
 #: Desde aqui todas llevan el `cd` delante, de una pieza, para pegar y ejecutar donde sea.
 PREFIJO = "cd %s && " % RAIZ
 
+#: (IND1029I) El token de despliegue que crea Alex UNA VEZ: PAT de grano fino de GitHub, con
+#: contents write y actions read, para que la autopublicación y el líder (también el A1) suban a
+#: `StarSeedSystem/starseed-system` sin esta Mac. El valor nunca pasa por código, chat ni informe:
+#: Alex lo teclea en `guardar-clave.sh`, que no lo enseña. Solo viajan NOMBRES.
+REPO_PUBLICACION = "StarSeedSystem/starseed-system"
+VARIABLE_TOKEN = "STARSEED_DEPLOY_TOKEN"
+#: Parámetros de consulta prefill de la creación de PAT de grano fino (changelog de GitHub 2025-08-26).
+#: Los permisos SÍ van marcados en la URL; los REPOS no se pueden elegir por URL (sin parámetro), y
+#: eso se le dice en `detalle`.
+ENLACE_TOKEN = (
+    "https://github.com/settings/personal-access-tokens/new"
+    "?name=StarSeed+despliegue&description=Publicacion+autonoma+de+StarSeed+OS"
+    "&target_name=StarSeedSystem&expires_in=365"
+    "&contents=write&actions=read&metadata=read"
+)
+
+
+def accion_token_despliegue(a1_nombres):
+    """PURA (IND1029I). La acción del token de despliegue sale SOLO si la bóveda del A1 aún no lo
+    tiene. `a1_nombres`: los NOMBRES de las variables que hay en la bóveda del A1 (nunca valores);
+    None si NO se pudo comprobar (sin A1 o SSH caído), y entonces no se pide: pedir lo que no se
+    puede comprobar es repetir el medidor que estuvo veinte horas pidiendo claves ya puestas."""
+    if a1_nombres is None or VARIABLE_TOKEN in set(a1_nombres or []):
+        return None
+    return {
+        "id": "token-despliegue-a1",
+        "titulo": "Token de despliegue para que MetaGenesis publique sin tu Mac",
+        "por_que": ("la autopublicación corre ya en el líder y, para subir a GitHub desde el A1 "
+                    "sin esta Mac, hace falta un token de grano fino en la bóveda del A1"),
+        "urgencia": "media",
+        "comando": PREFIJO + "bash scripts/puente/guardar-clave.sh %s --ambos" % VARIABLE_TOKEN,
+        "enlace": ENLACE_TOKEN,
+        "por_que_no_lo_hago_yo": "es un token que se crea desde tu sesión de GitHub; Claude no teclea tokens",
+        "detalle": ("permisos ya marcados en el enlace (contents write, actions read); en «Repository "
+                    "access» elige «Only select repositories» y añade %s — por URL no se puede. El "
+                    "comando lo pide sin mostrarlo y lo deja en tus bóvedas locales; para el último "
+                    "tramo falta la bandera --a1 en guardar-clave.sh (hoy solo escribe en "
+                    "~/.hermes/.env y ~/.starseed/env, y `oracle_nodo.py claves` solo copia su lista "
+                    "blanca CLAVES_A1, donde esta variable no está)" % REPO_PUBLICACION),
+        "variable": VARIABLE_TOKEN,
+    }
+
 
 #: Las que de verdad hacen escribir al enjambre. Si alguna de estas falta, la nube no
 #: trabaja y el aviso es urgente. Las demás (AIHUBMIX, TOKENROUTER) son pasarelas de
@@ -145,8 +187,11 @@ def accion_sin_canal(entorno):
     }
 
 
-def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None):
-    """Función PURA: la lista de acciones, ordenada por urgencia. Sin red, sin disco."""
+def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_nombres=None):
+    """Función PURA: la lista de acciones, ordenada por urgencia. Sin red, sin disco.
+
+    `a1_nombres` (IND1029I): los NOMBRES de las variables de la bóveda del A1, o None si no se
+    comprobó. Con None no se pide el token de despliegue: sin dato no hay petición."""
     catalogo = catalogo if catalogo is not None else _pas.CATALOGO
     acciones = []
 
@@ -191,6 +236,10 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None):
             "por_que_no_lo_hago_yo": "mueve valores de claves tuyas a un tercero: esa decisión es tuya",
             "detalle": "faltan %d: %s" % (len(faltan), ", ".join(faltan)),
         })
+
+    token = accion_token_despliegue(a1_nombres)
+    if token:
+        acciones.append(token)
 
     for p in pasarelas or []:
         estado = str(p.get("estado") or "")
@@ -265,6 +314,26 @@ def _secretos():
         return [l.strip() for l in (r.stdout or "").splitlines() if l.strip()]
     except Exception:
         return []
+
+
+def _a1_nombres():
+    """Los NOMBRES de las variables de la bóveda del A1 (/home/starseed/.starseed/env). Nunca
+    valores: `grep -o` trae solo el prefijo `NOMBRE=`. None si no se pudo comprobar (sin config
+    del A1 o SSH caído), y entonces el medidor NO pide el token: no se pide lo que no se midió."""
+    try:
+        spec_or = importlib.util.spec_from_file_location(
+            "oracle_nodo", os.path.join(os.path.dirname(os.path.abspath(__file__)), "oracle_nodo.py"))
+        on = importlib.util.module_from_spec(spec_or)
+        spec_or.loader.exec_module(on)
+        rc, salida = on.ssh(
+            "grep -h -o -E '^(export )?[A-Z][A-Z0-9_]*=' /home/starseed/.starseed/env 2>/dev/null "
+            "| tr -d ' =' | sed 's/^export//'; echo __fin__", timeout=40)
+    except Exception:
+        return None
+    if rc != 0 or "__fin__" not in str(salida or ""):
+        return None
+    return {l.strip() for l in str(salida).splitlines()
+            if l.strip() and l.strip() != "__fin__"}
 
 
 def clave_de_accion(id_accion):
@@ -347,7 +416,12 @@ def resondear(clave, segundos=20):
     return medida
 
 
-def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, medir=None):
+#: Centinela de `verificar`: «lo decido yo según sea real o inyectado», no lo que pasa quien llama.
+SIN_COMPROBAR = object()
+
+
+def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, medir=None,
+              a1_nombres=SIN_COMPROBAR):
     """¿Sigue haciendo falta esa accion? Vuelve a MEDIR, no consulta un archivo viejo.
 
     (2026-09-21, pedido por Alex) «en Genesis en su ventana debe haber un boton
@@ -376,6 +450,10 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
     if medida:
         pasarelas = actualizar_pasarela(pasarelas, clave, medida)
     secretos_repo = secretos_repo if secretos_repo is not None else _secretos()
+    # (IND1029I) Solo una comprobación real consulta la bóveda del A1 (NOMBRES, nunca valores); en
+    # la inyectada, `SIN_COMPROBAR` se resuelve a None y el token no se inventa.
+    if a1_nombres is SIN_COMPROBAR:
+        a1_nombres = _a1_nombres() if real else None
     # (2026-09-22) Sin el entorno, `canal-de-avisos-sin-configurar` no se reconstruía y el
     # botón «Ya lo hice» contestaba «ya no hace falta» para algo que seguía sin arreglar.
     # Un botón que dice que algo está hecho porque él mismo no sabe mirarlo es justo la
@@ -383,6 +461,7 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
     vivas = construir_acciones(
         pasarelas, secretos_repo,
         entorno=entorno if entorno is not None else _entorno_con_env(),
+        a1_nombres=a1_nombres,
     )
     por_id = {a["id"]: a for a in vivas}
     momento = __import__("time").strftime("%Y-%m-%d %H:%M:%S")
@@ -403,6 +482,17 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
         medido = "medido ahora: http %s con %s → %s" % (
             medida.get("http"), medida.get("modelo"), str(medida.get("estado")).replace("_", " "))
     if viva is None:
+        # (IND1029I) Si la acción del token desaparece porque NO se pudo mirar la bóveda del A1,
+        # NO es «hecha»: eso sería un botón que otra vez contesta lo que quiere, no lo que midió.
+        if id_accion == "token-despliegue-a1" and a1_nombres is None:
+            return {
+                "id": id_accion,
+                "hecha": False,
+                "titulo": "",
+                "detalle": "no pude comprobar la bóveda del A1; vuelve a comprobar",
+                "comprobado": momento,
+                "quedan": len(vivas),
+            }
         return {
             "id": id_accion,
             "hecha": True,
@@ -440,7 +530,8 @@ def main():
         cual = sys.argv[i + 1] if len(sys.argv) > i + 1 else None
         print(json.dumps(verificar(cual), ensure_ascii=False, indent=1))
         return 0
-    acciones = construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env())
+    acciones = construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env(),
+                                  a1_nombres=_a1_nombres())
     datos = {"generado": __import__("time").strftime("%Y-%m-%d %H:%M"), "acciones": acciones}
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
     json.dump(datos, open(SALIDA, "w"), ensure_ascii=False, indent=1)
