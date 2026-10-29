@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Cpu, Loader2, RefreshCw, X } from "lucide-react";
 import type { EstadoMedio, ResumenMedios } from "@/lib/mando/medios-computo";
+import { SeccionPlegable } from "@/components/mando/seccion-plegable";
 
 const TONES: Record<EstadoMedio, { bg: string; label: string }> = {
     listo: { bg: "border-emerald-500/40 bg-emerald-500/20 text-emerald-300", label: "Listo" },
@@ -44,6 +45,8 @@ export function BotonMedios() {
     }, [abierto]);
 
     const { listos = 0, usables = 0, porHacer = 0 } = resumen?.resumen ?? {};
+    const conteo = `${listos} listos · ${usables} usables · ${porHacer} por preparar`;
+    const total = resumen?.medios.length ?? 0;
 
     return (
         <div className="relative inline-block">
@@ -58,10 +61,7 @@ export function BotonMedios() {
                             <h4 className="flex items-center gap-2 text-sm font-semibold text-white">
                                 <Cpu className="h-4 w-4 text-cyan-300" aria-hidden /> Medios de cómputo
                             </h4>
-                            <p className="mt-0.5 text-xs text-white/70">
-                                {listos} listos · {usables} usables · {porHacer} por preparar
-                                {horaSondeo ? <span className="ml-2 text-white/40">· Sondeo {horaSondeo}</span> : null}
-                            </p>
+                            {horaSondeo ? <p className="mt-0.5 text-[11px] text-white/40">Sondeo {horaSondeo}</p> : null}
                         </div>
                         <div className="flex items-center gap-2">
                             <button type="button" onClick={() => void cargarMedios(true)} disabled={cargando} className="mc-alzar cursor-pointer inline-flex items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-white/80 hover:bg-white/10 disabled:opacity-50">
@@ -81,9 +81,17 @@ export function BotonMedios() {
                         <div className="my-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">
                             <p className="font-medium">{resumen.error}</p>
                         </div>
-                    ) : (
-                        <div className="mt-3 space-y-2.5 max-h-[28rem] overflow-y-auto pr-1">
-                            {resumen?.medios.map((m) => {
+                    ) : resumen ? (
+                        <div className="mt-3">
+                            <SeccionPlegable
+                                id="mando.medios-computo"
+                                titulo="Medios disponibles"
+                                contador={conteo}
+                                resumen={`${total} medios de cómputo`}
+                                abiertaPorDefecto={false}
+                            >
+                                <div className="space-y-2.5 max-h-[28rem] overflow-y-auto pr-1">
+                            {resumen.medios.map((m) => {
                                 const chip = TONES[m.estado] ?? TONES.no_disponible;
                                 return (
                                     <article key={m.id || m.nombre} className="rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
@@ -106,8 +114,10 @@ export function BotonMedios() {
                                     </article>
                                 );
                             })}
+                                </div>
+                            </SeccionPlegable>
                         </div>
-                    )}
+                    ) : null}
                 </section>
             )}
         </div>
