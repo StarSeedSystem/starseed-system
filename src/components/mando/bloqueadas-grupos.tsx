@@ -19,7 +19,7 @@
 import { useCallback, useState } from "react";
 
 import type { DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
-import { NOMBRE_ACCION, sujetoDeTransformada, type OpcionAlex, type ResumenBloqueadas, type TransformadaRevisor } from "@/lib/mando/bloqueadas";
+import { NOMBRE_ACCION, agruparPorCausa, sujetoDeTransformada, type OpcionAlex, type ResumenBloqueadas } from "@/lib/mando/bloqueadas";
 import { BloqueadasPanel, itemDesdeFilaMedidor } from "./bloqueadas-panel";
 import { SeccionPlegable } from "./seccion-plegable";
 
@@ -28,71 +28,9 @@ const TEXTO_OPCION: Record<OpcionAlex, string> = {
     descartar: "Descartar (rama guardada)",
 };
 
-export interface CausaBloqueada {
-    clave: string;
-    titulo: string;
-    filas: FilaMedidor[];
-    /** La acción automática que ya la está tratando, si la hay. */
-    accion?: string;
-}
-
 function hora(t?: string): string {
     const m = /(\d{2}:\d{2})/.exec(String(t ?? ""));
     return m ? m[1] : "";
-}
-
-/** La causa de una fila, agrupable aunque cambien ids o cifras. La clave sirve de id. */
-export function causaDeFila(f: Pick<FilaMedidor, "estado" | "porque">): { clave: string; titulo: string } {
-    const estado = String(f.estado ?? "").trim();
-    const bruto = String(f.porque ?? "").replace(/\s+/g, " ").trim();
-    const sinCausa = estado.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "sin-estado";
-    if (!bruto) return { clave: `sin-causa-${sinCausa}`, titulo: estado ? `${estado}: sin causa anotada` : "Causa sin anotar" };
-    const reglas: Array<[RegExp, string, string]> = [
-        [/^la rehace\b/i, "reparacion-en-marcha", "Ya con una reparación automática en marcha"],
-        [/^la escalera del director\b/i, "escalera-director", "La escalera del director la está reintentando"],
-        [/no existen?|NO EXISTE/i, "dependencia-fantasma", "Espera a tareas que no existen"],
-        [/no se van? a integrar/i, "dependencia-muerta", "Espera a tareas que no se van a integrar solas"],
-        [/necesita una persona/i, "necesita-persona", "Necesita una persona"],
-        [/no toc[oó]|sin cambios|no cambi[oó]/i, "sin-cambios", "El intento no tocó sus archivos"],
-    ];
-    for (const [patron, clave, titulo] of reglas) if (patron.test(bruto)) return { clave, titulo };
-    const titulo = bruto.split(/(?:\s·|\s—|:\s)/)[0]?.trim() || bruto;
-    return { clave: titulo.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "causa", titulo };
-}
-
-/** La reparación que ya trata una fila: sucesora, escalera o acción del revisor. */
-export function accionAutomaticaDeFila(
-    f: Pick<FilaMedidor, "id" | "porque" | "ficha">,
-    transformadas: readonly TransformadaRevisor[] = [],
-): string | null {
-    const porque = String(f.porque ?? "").trim();
-    const rehace = /^la rehace\s+([^\s(]+)(?:\s*\(([^)]+)\))?/i.exec(porque);
-    if (rehace) return `La rehace ${rehace[1]}${rehace[2] ? ` (${rehace[2]})` : ""}`;
-    const escalera = /^la escalera del director\b[^·—]*/i.exec(porque);
-    if (escalera) return escalera[0].trim();
-    const accion = transformadas.find((x) => x.tid === f.id && x.accion)?.accion;
-    if (accion) return `El revisor automático: ${NOMBRE_ACCION[accion] ?? accion}`;
-    return f.ficha?.find((d) => /repar|automátic|revisor|sucesor/i.test(d.etiqueta))?.valor?.trim() || null;
-}
-
-/** Agrupa las filas por causa, de la que más tareas tiene a la que menos. */
-export function agruparPorCausa(
-    filas: readonly FilaMedidor[],
-    transformadas: readonly TransformadaRevisor[] = [],
-): CausaBloqueada[] {
-    const mapa = new Map<string, CausaBloqueada>();
-    for (const fila of filas) {
-        const { clave, titulo } = causaDeFila(fila);
-        const grupo = mapa.get(clave);
-        if (grupo) grupo.filas.push(fila);
-        else mapa.set(clave, { clave, titulo, filas: [fila] });
-    }
-    const grupos = [...mapa.values()];
-    for (const grupo of grupos) {
-        const acciones = [...new Set(grupo.filas.map((f) => accionAutomaticaDeFila(f, transformadas)).filter((a): a is string => Boolean(a)))];
-        grupo.accion = acciones.length ? `${acciones.slice(0, 2).join(" · ")}${acciones.length > 2 ? ` · y ${acciones.length - 2} más` : ""}` : undefined;
-    }
-    return grupos.sort((a, b) => b.filas.length - a.filas.length || a.titulo.localeCompare(b.titulo));
 }
 
 function Cifra({ valor, texto, tono }: { valor: number; texto: string; tono: string }) {
