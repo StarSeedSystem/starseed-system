@@ -592,7 +592,7 @@ def render_informe(c, sesion, planificadas=None, cola_nombre=None, n_cola=0, top
     total = planificadas if planificadas is not None else k["informes"]
     verificados = k["verificados"] + k["ajustados"] + k["rechazados_informe"]
     lin = [
-        "# 🌌 Sueños profundos — INFORME (%s)" % sesion,
+        "# 🌌 Imaginación profunda — INFORME (%s)" % sesion,
         "",
         "> %d informes de %d planificados · %d revisados por un supervisor Claude (%d verificados, %d ajustados, "
         "%d rechazados) · %d hallazgos únicos (%d duplicados fundidos, %d rechazados) · generado %s"
@@ -739,7 +739,7 @@ def render_informe(c, sesion, planificadas=None, cola_nombre=None, n_cola=0, top
         "",
         "- Estado y verificación: `python3 scripts/puente/suenos.py estado` · `python3 scripts/puente/suenos.py por-verificar`.",
         '- Veredicto de un informe: `python3 scripts/puente/suenos.py veredicto <tarea> --estado verificado|ajustado|rechazado --nota "…" --por claude-<modelo>`.',
-        "- La cola propuesta se abre en Genesis (Procesos → Sueños profundos → «Abrir en Diseñador»); se lanza a mano y cada tarea espera tu visto bueno antes de integrarse.",
+        "- La cola propuesta se abre en Genesis (Procesos → Imaginación profunda → «Abrir en Diseñador»); se lanza a mano y cada tarea espera tu visto bueno antes de integrarse.",
         "",
     ]
     return "\n".join(lin)
@@ -814,7 +814,7 @@ def cola_propuesta(c, sesion, tope=TOPE_PROPUESTA, ocupados=()):
         )
         t = {
             "id": nuevo_id(),
-            "ola": "Sueños profundos %s · propuesta" % sesion,
+            "ola": "Imaginación profunda %s · propuesta" % sesion,
             "titulo": _celda(prop.get("titulo") or u["titulo"], 200),
             "archivos": archivos,
             "depende": [],
@@ -966,7 +966,7 @@ def anunciar(texto, telegram=False, decir=None, bus=None, datos_bus=None):
                         "-t",
                         DESTINO_TELEGRAM,
                         "-s",
-                        "Sueños profundos · StarSeed OS",
+                        "Imaginación profunda · StarSeed OS",
                         texto[:1200],
                     ],
                     timeout=40,

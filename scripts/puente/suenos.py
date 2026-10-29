@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""suenos · la terminal de los SUEÑOS PROFUNDOS de Genesis (localhost:9002).
+"""suenos · la terminal de la IMAGINACIÓN PROFUNDA de Genesis (localhost:9002).
 
-Una flota de analistas GRATUITOS (el enjambre, tareas `tipo: "analisis"`) sueña cada área de
+Una flota de analistas GRATUITOS (el enjambre, tareas `tipo: "analisis"`) imagina cada área de
 StarSeed OS con seis lentes; los supervisores CLAUDE (sesiones en la nube pagadas con el
 crédito de 250 $, o la sesión interactiva) dirigen, verifican y consolidan desde aquí, por la
 terminal y por localhost. Nada de esto escribe código en el repositorio.
@@ -528,7 +528,7 @@ def cmd_lanzar(a, raiz):
             pid = lanzar_directo(raiz, cola_rel, workers, a.tope_analisis, "claude" if os.environ.get("CLAUDECODE") else None)
             fuera.update(accion="directo", pid=pid, mensaje="Genesis no contestó: orquestador lanzado desde la terminal.")
     try:
-        director_suenos.anunciar("Sueños profundos %s: %d tareas en marcha (%s) · hasta %d a la vez · "
+        director_suenos.anunciar("Imaginación profunda %s: %d tareas en marcha (%s) · hasta %d a la vez · "
                                  "verificación por supervisores Claude." % (sesion, len(plan["tareas"]), fuera["accion"],
                                                                             a.tope_analisis))
     except Exception:
@@ -664,7 +664,7 @@ def pintar(orden, codigo, d):
             print("  cola: %s · sigue con: python3 scripts/puente/suenos.py estado" % d["cola"])
     elif orden == "estado":
         c = d["cuentas"]
-        print("Sueños profundos %s · %d tareas · %s · %s tokens estimados" % (
+        print("Imaginación profunda %s · %d tareas · %s · %s tokens estimados" % (
             d["sesion"], d["total"], " · ".join("%d %s" % (v, k) for k, v in sorted(c.items())) or "sin tareas",
             _miles(d["tokens"])))
         o = d.get("orquestador")
