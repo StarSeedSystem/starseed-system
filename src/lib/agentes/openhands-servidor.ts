@@ -8,6 +8,7 @@ export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 export const TIEMPO_MS = 20_000;
 export type PoliticaConfirmacion = "AlwaysConfirm" | "ConfirmRisky" | "NeverConfirm";
 export type FalloOpenHands = "red" | "tiempo" | "http" | "respuesta";
+
 export interface OpcionesOpenHands { baseUrl: string; fetch?: FetchLike; tiempoMs?: number }
 export interface HerramientaOpenHands { nombre: string; parametros?: Record<string, unknown> }
 export interface CfgConversacion extends OpcionesOpenHands {
@@ -18,6 +19,7 @@ export interface ConversacionCreada { id: string; execution_status?: string; tit
 export interface EventoOpenHands { kind?: string; id?: string; timestamp?: string; [clave: string]: unknown }
 export interface PaginaEventos { items: EventoOpenHands[]; next_page_id?: string | null }
 export interface RespuestaOk { ok: boolean }
+
 /** Error con su motivo humano. Nunca lleva la clave del modelo dentro. */
 export class ErrorOpenHands extends Error {
   constructor(public readonly fallo: FalloOpenHands, mensaje: string, public readonly estado?: number) {
@@ -25,6 +27,7 @@ export class ErrorOpenHands extends Error {
     this.name = "ErrorOpenHands";
   }
 }
+
 function rutaConv(id: string): string { return `/api/conversations/${encodeURIComponent(id)}`; }
 function tapar(texto: string, secreto?: string): string {
   const t = secreto ? texto.split(secreto).join("•••") : texto;

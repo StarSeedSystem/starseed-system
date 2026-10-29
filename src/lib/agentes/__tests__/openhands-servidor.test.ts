@@ -146,4 +146,3 @@ describe("cliente del Agent Server de OpenHands", () => {
     expect(roto).toMatchObject({ fallo: "respuesta" });
   });
 });
-
