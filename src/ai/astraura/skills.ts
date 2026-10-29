@@ -26,6 +26,11 @@ import {
 } from "./habilidades/diagramas";
 import { CAPACIDADES_REPOS_1026 } from "./habilidades/repos-1026";
 import { HABILIDADES_INGENIERIA_A, comoCapacidad as comoCapacidadIngenieria } from "./habilidades/ingenieria-a";
+import {
+  ATRIBUCION_DESIGN_MD,
+  ATRIBUCION_SLIDES,
+  HABILIDADES_DISENO_WEB,
+} from "./habilidades/diseno-web";
 
 /** Espejo local de capacidades activas (lo mantiene sincronizado library-sync
  *  con `user_settings.prefs.capabilities` de la cuenta soberana). */
@@ -96,9 +101,10 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     id: "taste",
     label: "Taste · calidad de UI y estética",
     systemPrompt:
-      "Cuando generes interfaz, contenido visual o texto, aplica criterio de diseño de alto nivel (jerarquía clara, espacio en blanco, contraste, coherencia con el sistema Crystal Liquid Glass). Prefiere lo elegante, legible y sobrio a lo recargado.",
+      "Cuando generes interfaz, contenido visual o texto, aplica criterio de diseño de alto nivel (jerarquía clara, espacio en blanco, contraste, coherencia con el sistema Crystal Liquid Glass). Prefiere lo elegante, legible y sobrio a lo recargado. " +
+      `${HABILIDADES_DISENO_WEB.taste.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.taste.rutaCompleta} — con la tarjeta basta para Needle y BitNet. En el OS manda el ADN del contexto sobre la estética propia de la skill.`,
     routing: { preferStrong: true },
-    skillIds: ["aurora-taste"],
+    skillIds: ["aurora-taste", "design-taste-frontend"],
     packageIds: ["iatool-taste-skill"],
   },
   {
@@ -675,6 +681,32 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     routing: { preferStrong: true },
     defaultOn: true,
     skillIds: ["diagram-design"],
+  },
+  /* ═══ DISEÑO WEB · Tres habilidades de diseño en tres tamaños (Ola 1025R · DSN1025A) ═══
+   * La tarjeta (≤ 60 palabras) va a Needle y BitNet, el resumen (≤ 120) a Bonsai
+   * pequeño y la guía completa (rutaCompleta) a las capas Razón, Profunda y Nube.
+   * Textos y atribuciones en src/ai/astraura/habilidades/diseno-web.ts. El ADN del
+   * contexto manda sobre la estética propia de cada skill (section 1 de
+   * architecture/repos-libreria-1025.md, apartado Diseño). */
+  {
+    id: "slides",
+    label: HABILIDADES_DISENO_WEB.slides.nombre,
+    systemPrompt:
+      `${HABILIDADES_DISENO_WEB.slides.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.slides.rutaCompleta} ` +
+      `${ATRIBUCION_SLIDES}`,
+    routing: { preferStrong: true },
+    defaultOn: true,
+    skillIds: ["frontend-slides"],
+  },
+  {
+    id: "design-md",
+    label: HABILIDADES_DISENO_WEB.designmd.nombre,
+    systemPrompt:
+      `${HABILIDADES_DISENO_WEB.designmd.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.designmd.rutaCompleta} ` +
+      `${ATRIBUCION_DESIGN_MD}`,
+    routing: { preferStrong: true },
+    defaultOn: true,
+    skillIds: ["awesome-design-md"],
   },
   /* ═══ REPOS 1026 · Grabar la pantalla (Cap) · conocimiento (WeKnora) · proyectos (OpenProject) ═══
    * Las tres se activan solas al instalar su ficha de la Biblioteca (la siembra las instala) y sus textos dicen
