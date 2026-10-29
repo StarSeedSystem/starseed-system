@@ -13,6 +13,22 @@
   "theme_color": "#0A0712",
   "background_color": "#0A0712",
   "categories": ["social", "education", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Entrar en VR",
+      "short_name": "VR",
+      "description": "Entrar en el modo de realidad virtual inmersiva",
+      "url": "/xr/os?modo=vr",
+      "icons": [{ "src": "/starseed-symbol-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Entrar en AR",
+      "short_name": "AR",
+      "description": "Entrar en el modo de realidad aumentada",
+      "url": "/xr/os?modo=ar",
+      "icons": [{ "src": "/starseed-symbol-192.png", "sizes": "192x192" }]
+    }
+  ],
   "icons": [
     {
       "src": "/starseed-symbol-192.png",
