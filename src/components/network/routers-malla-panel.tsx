@@ -16,6 +16,8 @@ import { compatibilidad, type EntradaTabla, type ResultadoCompatibilidad } from 
 import { planRadios, type RouterMalla, type TroncalResult } from "@/lib/network/routers-malla/plan-radios";
 import { guionAplicar, uciMalla, type BandaWifi, type CfgUciMalla } from "@/lib/network/routers-malla/uci-malla";
 import { PERFILES_WIFI, type CanalWifi } from "@/ai/astraura/mesh/camr/regulacion";
+import { teselaDeRouter } from "@/lib/malla/cristal/titanio";
+import type { Tesela } from "@/lib/malla/cristal/tipos";
 
 const LISTA = "starseed.routers-malla.v1";
 const BUSCAR = "https://openwrt.org/toh/start";
@@ -98,6 +100,25 @@ export function RoutersMallaPanel({ tabla }: { tabla?: EntradaTabla[] }) {
   }), [salida, ajustes, region]);
 
   const con = (k: string, cambio: Partial<TroncalResult>) => setAjustes((a) => ({ ...a, [k]: { ...a[k], ...cambio } }));
+
+  /**
+   * Tesela de cada router con OpenWrt, construida in situ con `teselaDeRouter`
+   * desde las troncales del plan (sin red ni firma: solo se construye y se
+   * enseña). El panel aún no conoce la cuenta ni la neurona adoptante.
+   */
+  const teselas = useMemo(() => {
+    const m = new Map<string, Tesela>();
+    for (const r of routers.filter((x) => x.openwrt)) {
+      m.set(r.id, teselaDeRouter({
+        routerId: r.id, cuenta: "local", adoptadoPor: "local",
+        troncales: troncales
+          .filter(([a, b]) => a === r.id || b === r.id)
+          .map(([a, b]) => ({ a, b })),
+        reloj: 1, ahora: Date.now(),
+      }));
+    }
+    return m;
+  }, [routers, troncales]);
 
   /** Solo se acepta lo legal: el canal existe en la banda y la potencia cabe en su PIRE. */
   const editar = (k: string, campo: Campo, bruto: string) => {
@@ -191,6 +212,7 @@ export function RoutersMallaPanel({ tabla }: { tabla?: EntradaTabla[] }) {
         {routers.length === 0 && <div className="text-[12px] text-white/40">Sin routers todavía.</div>}
         {routers.map((r) => {
           const res = resultados.get(r.id)!;
+          const tl = teselas.get(r.id);
           return (
             <div key={r.id} className="rounded-lg border border-white/10 bg-black/30 p-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -209,6 +231,16 @@ export function RoutersMallaPanel({ tabla }: { tabla?: EntradaTabla[] }) {
                 </label>
                 <button onClick={() => setRouters((rs) => rs.filter((x) => x.id !== r.id))} className="cursor-pointer text-[12px] text-white/40 hover:text-rose-300">Quitar</button>
               </div>
+              {r.openwrt && tl && (
+                <div className="mt-1.5">
+                  <p data-testid={`router-titanio-${r.id}`} className="text-[12px] text-amber-200">
+                    entra en la retícula como titanio
+                  </p>
+                  <p data-testid={`tesela-titanio-${r.id}`} className="break-all text-[11px] text-white/50">
+                    tesela (sin red): origen {tl.origen} · {tl.senales.length} {tl.senales.length === 1 ? "señal" : "señales"} por malla Wi‑Fi
+                  </p>
+                </div>
+              )}
             </div>
           );
         })}
