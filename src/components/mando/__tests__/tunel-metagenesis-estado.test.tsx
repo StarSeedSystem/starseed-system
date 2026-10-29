@@ -227,7 +227,7 @@ describe("TunelMetaGenesisEstado", () => {
      cleanup();
      render(<TunelMetaGenesisEstado />);
      await screen.findByText(/Túnel de MetaGenesis: parado/i);
-     // El encabezado no debe mostrarse
-     expect(screen.queryByText(/Últimas líneas:/i)).not.toBeInTheDocument();
-   });
- });
+    // El encabezado no debe mostrarse
+    expect(screen.queryByText(/Últimas líneas:/i)).not.toBeInTheDocument();
+  });
+});
