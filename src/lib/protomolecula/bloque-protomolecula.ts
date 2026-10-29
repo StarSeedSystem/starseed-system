@@ -4,6 +4,7 @@
 import { AMBITOS } from "./tipos";
 import type { Ambito, AtomoEnUso, Capa, Molecula } from "./tipos";
 import { referenciasRotas } from "./permisos";
+import type { DefinicionAtomo } from "./registro-atomos";
 
 /** Versión del sobre JSON del bloque. */
 export const VERSION_BLOQUE = 1;
@@ -15,6 +16,23 @@ const texto = (x: unknown): x is string => typeof x === "string" && x.length > 0
 const numero = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 
 const COMPUTO: readonly string[] = ["navegador", "app-nativa", "neurona-nas", "neurona-procesador", "oracle-a1", "nube"];
+
+/**
+ * Función pura para decidir qué vista del vídeo mostrar basado en el estado del servicio,
+ * el estado del render y los valores del átomo.
+ */
+export function elegirVista(
+  atomoId: string,
+  servicioVivo: boolean | null,
+  renderHecho: boolean,
+  valores: Record<string, unknown>
+): "poster" | "video" | "preview" | "loading" {
+  if (!servicioVivo && !renderHecho) return "loading";
+  const urlPoster = valores.urlPoster ? String(valores.urlPoster) : null;
+  if (!urlPoster) return "loading";
+  if (servicioVivo) return "preview";
+  return "video";
+}
 
 function esCapaValida(c: unknown): c is Capa {
     if (typeof c !== "object" || c === null) return false;
@@ -106,4 +124,25 @@ export function avisosDePublicacion(m: Molecula, ambitoPost: Ambito, ambitoDe: (
     }
     if (avisos.length > 0) avisos.push("El bloque es una instantánea: quien lo vea tendrá una copia, no la original.");
     return avisos;
+}
+
+/**
+ * Verifica si un servicio HyperFrames local está activo en la neurona (127.0.0.1:4490).
+ * Módulo PURO: sin red, sin disco. Solo verifica si el puerto responde con éxito.
+ */
+export function esServicioVivo(def: DefinicionAtomo): boolean {
+  if (def.integracion !== "servicio-local") return false;
+  const url = process.env.HYPFRAMES_HOST || "http://localhost:4490";
+  const controlador = new AbortController();
+  const timeoutId = setTimeout(() => controlador.abort(), 100);
+  try {
+    const req = new Request(url, { signal: controlador.signal, method: "HEAD" });
+    if (typeof window === "undefined") return false;
+    return window.fetch(req).then(
+      (resp) => resp.ok || resp.status === 404 || resp.status === 405,
+      () => false,
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
