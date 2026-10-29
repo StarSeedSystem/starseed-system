@@ -126,6 +126,15 @@ export interface NeuronCapabilities {
    * UNA vez con cada ficha, igual que el resto del hierro medido (`capacidadesParaRegistro`).
    */
   taller3d?: CapacidadesTaller;
+  /**
+   * (BLD1025G · contrato §2) Blender como MEDIO: la neurona local publica su versión y
+   * lo que puede hacer. Sin Blender llega `instalado: false`; sin ruta local, nada.
+   */
+  blender?: {
+    v: number; instalado: boolean; version: string | null; hash: string | null; serie: string | null;
+    perfil: string; motores: string[]; gpu: string[]; hilos: number; ramGB: number; ramLibreGB: number;
+    formatos?: { entrada?: string[]; salida?: string[] }; visto: string;
+  };
   /** (2026-10-09) Pantalla «AxB@dpr» con los lados ordenados: la ven igual todos los medios del aparato. */
   pantalla?: string;
   /** (2026-10-09) Zona horaria IANA del aparato. */
@@ -543,6 +552,22 @@ let neuronaLocalEn = 0;
 let neuronaLocalEnVuelo: Promise<Neuron | null> | null = null;
 let latido: BucleFondo | null = null;
 let latidosDesdeFicha = 0;
+/** Última capacidad de Blender leída de la ruta local (null si no hay Blender). */
+let capacidadesBlender: NeuronCapabilities["blender"] | null = null;
+const CLAVES_BLENDER = ["v", "instalado", "version", "hash", "serie", "perfil", "motores", "gpu", "hilos", "ramGB", "ramLibreGB", "formatos", "visto"] as const;
+
+/** Pide la capacidad a la ruta local; en otra neurona da 404 y se ignora. Nunca lanza. */
+async function refrescarCapacidadesBlender(): Promise<void> {
+  try {
+    const respuesta = await fetch("/api/3d/trabajos?capacidades=1", { cache: "no-store" });
+    if (!respuesta.ok) return;
+    const { capacidades } = (await respuesta.json()) as { capacidades?: unknown };
+    const c = capacidades as Record<string, unknown> | null;
+    if (!c || c.v !== 1 || typeof c.instalado !== "boolean") { capacidadesBlender = null; return; }
+    // Solo las claves del contrato §2: ninguna ruta ni dato de más.
+    capacidadesBlender = Object.fromEntries(CLAVES_BLENDER.filter((k) => k in c).map((k) => [k, c[k]])) as NeuronCapabilities["blender"];
+  } catch { /* sin ruta local o sin red: se conserva lo último leído */ }
+}
 
 /** Construye la ficha local de ESTE dispositivo (sondas locales, sin Supabase). */
 async function construirNeuronaLocal(id: string): Promise<Neuron> {
@@ -577,6 +602,10 @@ async function construirNeuronaLocal(id: string): Promise<Neuron> {
   try {
     capabilities.taller3d = capacidadesParaRegistro(hierroDeCapacidades(capabilities));
   } catch { /* sin taller */ }
+  // Blender (BLD1025G): mismo ritmo que el taller (arranque y cada `LATIDOS_POR_FICHA`
+  // latidos). El refresco va sin `await`: nunca frena ni tumba el latido.
+  void refrescarCapacidadesBlender();
+  if (capacidadesBlender) capabilities.blender = capacidadesBlender;
   const prefs = readPrefs();
   const name = prefs.names[id] || defaultName(capabilities, kind);
   const perms = permissionsFor(id);

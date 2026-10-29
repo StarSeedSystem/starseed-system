@@ -8,6 +8,7 @@ import {
     validarPatronTag,
     MAX_LONGITUD_PATRON_TAG,
 } from "../actualizaciones";
+import { FICHAS_REPOS_OS } from "../repos-os";
 
 describe("urlDeConsulta", () => {
     it("una URL de GitHub da la consulta de commits", () => {
@@ -248,5 +249,53 @@ describe("compararVersiones con tags", () => {
         expect(compararVersiones("a1b2c3d", "v1.0.0")).toBe("desconocida");
         expect(compararVersiones("v1.0.0", "a1b2c3d")).toBe("desconocida");
         expect(compararVersiones("main", "dev")).toBe("desconocida");
+    });
+});
+
+describe("versiones numéricas (BLD1025G)", () => {
+    it("5.2.10 es mayor que 5.2.9: compara por tupla, no por texto", () => {
+        expect(compararVersiones("5.2.9", "5.2.10")).toBe("hay-actualizacion");
+        expect(compararVersiones("v5.2.9", "v5.2.10")).toBe("hay-actualizacion");
+        expect(compararVersiones("5.2.10", "5.2.9")).toBe("igual");
+    });
+
+    it("normaliza «v», «LTS» y «release-» antes de comparar", () => {
+        expect(compararVersiones("5.2.0 LTS", "v5.2.3")).toBe("hay-actualizacion");
+        expect(compararVersiones("v5.2.3", "release-5.2.3")).toBe("igual");
+        expect(compararVersiones("5.2.0 LTS", "5.2.0")).toBe("igual");
+        expect(compararVersiones("v5.2.3", "5.2.3")).toBe("igual");
+    });
+
+    it("basura no lanza y no inventa una actualización", () => {
+        expect(() => compararVersiones("basura", "v5.2.3")).not.toThrow();
+        expect(compararVersiones("basura", "v5.2.3")).toBe("desconocida");
+        expect(compararVersiones("v5.2.3", "basura")).toBe("desconocida");
+    });
+});
+
+describe("etiqueta más alta con el patrón de la ficha repo-blender", () => {
+    const blender = FICHAS_REPOS_OS.find((p) => p.id === "repo-blender")!;
+    const upstream = String(blender.payload.upstream);
+    const tags = [
+        { name: "v5.2.9" },
+        { name: "v5.2.10" },
+        { name: "v5.1.0" },
+        { name: "v6.0.0-alpha" },
+    ];
+
+    it("pide cien etiquetas y elige v5.2.10 entre las que casan", () => {
+        expect(urlDeConsulta(upstream, blender.payload)).toBe(
+            "https://api.github.com/repos/blender/blender/tags?per_page=100",
+        );
+        expect(leerVersion(upstream, tags, blender.payload)).toEqual({
+            version: "v5.2.10",
+            fecha: null,
+        });
+    });
+
+    it("la ficha 5.2.3 ve la 5.2.10 como actualización", () => {
+        const remota = leerVersion(upstream, tags, blender.payload);
+        expect(remota).not.toBeNull();
+        expect(compararVersiones(blender.version, remota!.version)).toBe("hay-actualizacion");
     });
 });
