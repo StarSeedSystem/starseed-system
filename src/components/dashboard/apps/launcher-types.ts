@@ -9,6 +9,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import type { LucideIcon } from "lucide-react";
+import type { ModoEjecucion, RequisitosApp } from "@/lib/recursos/modos-app";
 
 /** Modos de apertura de una app. La complejidad vive en el sistema (asimetría funcional). */
 export type OpenMode =
@@ -51,6 +52,14 @@ export interface StarseedApp {
     category: AppCategory;
     open: AppOpenSpec;
     status?: AppStatus;
+    /**
+     * Modos de ejecución admitidos en la malla (§5 apps-en-la-malla.md).
+     * Sin campo = ["local"], como hasta hoy; `comoAbrir`
+     * (src/lib/recursos/modos-app.ts) elige con el plan de la bolsa.
+     */
+    ejecucion?: ModoEjecucion[];
+    /** Recursos que la app necesita en local (RAM, GPU, motores, volumen). */
+    requisitos?: RequisitosApp;
     /** Marca apps con modo inmersivo (VR/AR — Fase 3). */
     vrCapable?: boolean;
 }
