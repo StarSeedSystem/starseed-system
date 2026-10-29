@@ -1,7 +1,7 @@
 /**
- * Sueños profundos · tipos y lógica PURA (2026-09-29 · Genesis)
+ * Imaginación profunda · tipos y lógica PURA (2026-09-29 · Genesis)
  * ─────────────────────────────────────────────────────────────────────────────
- * Una flota de analistas gratuitos (tareas `tipo: "analisis"` del enjambre) sueña cada área
+ * Una flota de analistas gratuitos (tareas `tipo: "analisis"` del enjambre) imagina cada área
  * de StarSeed OS con seis lentes y deja un informe por área × lente en
  * `starseed_memory_root/dream/profundo/<fecha>/`; los supervisores Claude los verifican con
  * `scripts/puente/suenos.py veredicto` y `consolidar` los funde en `INFORME.md` y en una cola
@@ -9,7 +9,7 @@
  *
  * Este módulo no importa nada de Node: lo usan el panel (cliente) y `suenos.ts` (servidor).
  * La misma derivación de estados que `suenos.py estado`, para que la terminal y Genesis
- * digan lo mismo del mismo sueño.
+ * digan lo mismo de la misma imaginación.
  */
 
 import { AREAS_TRABAJO } from "@/lib/mando/areas";
@@ -36,7 +36,7 @@ export interface OpcionSueno {
     nombre: string;
 }
 
-/** Las áreas que se pueden soñar, en el orden del planificador. */
+/** Las áreas que se pueden imaginar, en el orden del planificador. */
 export function areasSuenos(): OpcionSueno[] {
     const base = AREAS_TRABAJO.map((a) => ({ id: a.id, nombre: a.nombre }));
     const vistas = new Set(base.map((a) => a.id));
@@ -170,7 +170,7 @@ export function leerVeredictos(contenido: string): Map<string, { estado: EstadoS
     return fuera;
 }
 
-/** El estado de UN sueño, con la misma precedencia que `suenos.py estado`. PURA. */
+/** El estado de UN análisis de imaginación, con la misma precedencia que `suenos.py estado`. PURA. */
 export function estadoDeSueno(e: {
     veredicto?: EstadoSueno | null;
     hayInforme: boolean;
