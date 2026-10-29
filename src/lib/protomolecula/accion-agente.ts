@@ -9,6 +9,7 @@ import { PROTO_ORB_ABRIR_EVENT, leerActivada } from "./orbe-bus";
 import { METRICAS_SALUD, type Accion, type Autor, type CandidatoParametro, type ModoRelativo, type Parametro } from "./tipos";
 import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memoria";
 import { etiquetaFormato, formatoDe } from "@/lib/conversion/formatos";
+import { contextoDisenoIA, type EntidadDisenoIA } from "@/lib/design/principios-referencia";
 import { componerVideo, DURACION_DEFECTO, type EntradaPedido } from "@/lib/video-html/herramienta-componer";
 /** Misma forma que `AuroraActionResult` de `src/lib/aurora/actions.ts`; `datos` lleva el resultado de herramientas como `video.componer`. */
 export interface ResultadoAccionProto { ok: boolean; message: string; status?: string; datos?: Record<string, unknown> }
@@ -97,16 +98,25 @@ function convertir(ctx: ContextoAccionProto, a: Record<string, unknown>): Result
   if (!url) return si(`Abrí el conversor${destino ? ` para pasar a ${etiquetaFormato(destino)}` : ""}: suelta ahí el archivo (o pídemelo con «convertir_archivo» y su nombre).`, "Abriendo el conversor…");
   return si(destino ? `Convirtiendo «${nombre || "el archivo"}» a ${etiquetaFormato(destino)} con Filee.` : `Abrí «${nombre || "el archivo"}» en el conversor.`, "Convirtiendo con Filee…");
 }
+/** Entidad de diseño del pedido: `entidad` (objeto o nombre) y atajos `registro`/`seccion`. */
+function entidadDeDiseno(args: Record<string, unknown>): EntidadDisenoIA {
+  const cruda = args.entidad;
+  const base: EntidadDisenoIA = cruda && typeof cruda === "object" && !Array.isArray(cruda)
+    ? (cruda as EntidadDisenoIA) : { nombre: texto(cruda) };
+  const registro = texto(args.registro) || texto(args.movimiento), seccion = texto(args.seccion);
+  return { ...base, tipo: base.tipo ?? "protomolecula", ...(registro ? { registroMovimiento: registro } : {}), ...(seccion ? { seccion } : {}) };
+}
 /** «video.componer» (HFR1018M): prepara la composición y devuelve el html y la petición de voz; no renderiza. */
 function componer(args: Record<string, unknown>): ResultadoAccionProto {
   const crudo = args.pedido;
   const pedido: EntradaPedido = typeof crudo === "string" ? crudo
     : crudo && typeof crudo === "object" ? (() => { const o = crudo as Record<string, unknown>; return { titulo: texto(o.titulo), texto: texto(o.texto), narracion: texto(o.narracion), guion: texto(o.guion) }; })()
     : texto(args.titulo) || texto(args.texto);
+  const diseno = contextoDisenoIA(entidadDeDiseno(args));
   const r = componerVideo({ pedido, duracion: numeroDe(args.duracion) ?? DURACION_DEFECTO, formato: texto(args.formato) || "mp4", voz: texto(args.voz) || undefined });
   const resumen = r.avisos.length ? `Composición lista con ${r.avisos.length} aviso(s): ${r.avisos.join(" ")}` : "Composición lista, sin avisos.";
   const voz = r.peticionVoz ? " La voz queda pedida a la puerta única." : "";
-  return { ok: true, message: `${resumen}${voz} Siguiente: ${r.siguiente}.\n${r.html}`, status: "Componiendo el vídeo…", datos: { ...r } };
+  return { ok: true, message: `${resumen}${voz} Siguiente: ${r.siguiente}.\nContexto de diseño para la creación: ${diseno}\n${r.html}`, status: "Componiendo el vídeo…", datos: { ...r, contextoDiseno: diseno } };
 }
 export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): ResultadoAccionProto {
   const accion = texto(args.accion), moleculaId = texto(args.molecula) || undefined, atomo = texto(args.atomo);

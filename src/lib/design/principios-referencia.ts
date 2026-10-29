@@ -2,6 +2,13 @@
 // Referencias: dont-make-me-think (usabilidad), asd-ste100 (redacción)
 // Módulo puro: sin efectos laterales, sin red, sin disco
 
+import {
+  movimientoDe,
+  type MovimientoRegistro,
+  type RegistroMovimiento,
+  type SeccionMovimiento,
+} from "@/lib/design/registros-movimiento"
+
 export type PrincipioUsabilidad = {
   id: string
   titulo: string
@@ -124,4 +131,61 @@ export function revisarTexto(texto: string): {
     posiblesPasivas: pasivas,
     usoJerga: jergaCandidata
   }
+}
+
+/* ─────────────── Contexto de diseño para la creación con IA ─────────────── */
+
+/** Entidad mínima para el contexto de diseño: cuenta, página, grupo o pieza en creación. */
+export interface EntidadDisenoIA {
+  tipo?: string
+  id?: string
+  nombre?: string
+  /** Registro de movimiento de DAN1024G: sobrio, expresivo o experimental. */
+  registroMovimiento?: string
+  /** Alias habitual del registro en el tema de la entidad. */
+  movimiento?: string
+  /** Alias corto del registro. */
+  registro?: string
+  /** Sección del OS que adopta el movimiento (trinity, astraura…). */
+  seccion?: string
+}
+
+const REGISTROS: readonly RegistroMovimiento[] = ["sobrio", "expresivo", "experimental"]
+const SECCIONES: readonly SeccionMovimiento[] = ["trinity", "astraura", "genesis", "malla", "biblioteca", "protomolecula"]
+
+function registroDe(entidad: EntidadDisenoIA): RegistroMovimiento {
+  const valor = entidad.registroMovimiento ?? entidad.movimiento ?? entidad.registro
+  return REGISTROS.find((r) => r === valor) ?? "sobrio"
+}
+
+function seccionDe(entidad: EntidadDisenoIA): SeccionMovimiento {
+  return SECCIONES.find((s) => s === entidad.seccion) ?? "trinity"
+}
+
+/** Solo letras, números y espacios: fuera rutas, claves, signos e identificadores. */
+function nombreLegible(valor: unknown): string {
+  return typeof valor === "string"
+    ? valor.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 ]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 60)
+    : ""
+}
+
+/**
+ * Contexto de diseño que recibe cualquier IA que cree o edite en el OS.
+ * Módulo PURO y determinista: mismo par entidad/registro, mismo texto. Cita el
+ * ADN de la marca, el registro de movimiento de DAN1024G y la regla del
+ * símbolo oficial; nunca incluye claves, rutas ni identificadores internos.
+ */
+export function contextoDisenoIA(entidad: EntidadDisenoIA | null = {}): string {
+  const e = entidad ?? {}
+  // El nombre no se imprime: puede traer rutas o claves; el tipo basta para situar la pieza.
+  const quien = nombreLegible(e.tipo) || "entidad"
+  const registro = registroDe(e)
+  const m: MovimientoRegistro = movimientoDe(registro, seccionDe(e))
+  return [
+    "Contexto de diseño StarSeed (ADN, movimiento y símbolo).",
+    `Entidad: ${quien}.`,
+    "ADN: composición centrada; en la Trinity, un color por papel; un solo brillo multicapa y solo en la pieza protagonista; se animan únicamente transform y opacity; la interfaz usa 140–350 ms con las curvas del ADN, nunca tiempos de vídeo.",
+    `Movimiento (registro de la entidad, DAN1024G): «${registro}»; entrada ${m.entrada.ms} ms, salida ${m.salida.ms} ms, cascada ${m.cascadaMs} ms; respiración ${m.respiracion.escala} a ${m.respiracion.periodoMs} ms. Con prefers-reduced-motion, el estado final se pinta quieto, sin transform.`,
+    "Símbolo oficial: vesica vertical de dos círculos; no se recolorea ni se deforma; se pinta desde su geometría, nunca se redibuja a ojo.",
+  ].join(" ")
 }
