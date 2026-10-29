@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleCheck, CircleX, Loader2, ShieldCheck, TriangleAlert, X } from "lucide-react";
+import { SeccionPlegable } from "@/components/mando/seccion-plegable";
 
 interface Punto {
     nombre: string;
@@ -155,25 +156,34 @@ export function VerificarProcesos() {
                             Cerrar
                         </button>
                     </div>
-                    <ul className="mt-2 max-h-[70vh] space-y-1.5 overflow-y-auto pr-1">
-                        {reporte.puntos.map((p) => {
-                            const Icono = ICONO[p.estado];
-                            return (
-                                <li key={p.nombre} className="flex gap-2 rounded-lg border border-white/10 bg-black/25 p-2">
-                                    <Icono className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${COLOR[p.estado]}`} aria-hidden />
-                                    <div className="min-w-0">
-                                        <p className="text-[11px] text-white/80">
-                                            {p.nombre}
-                                            <span className="ml-1.5 text-white/45">{p.dato}</span>
-                                        </p>
-                                        {/* El porqué es lo que hace útil el reporte: sin él es una
-                                            lista de luces de colores que no dice qué hacer. */}
-                                        <p className="mt-0.5 text-[10px] leading-relaxed text-white/45">{p.porque}</p>
-                                    </div>
-                                </li>
-                            );
-                        })}
-                    </ul>
+                    <div className="mt-2">
+                        <SeccionPlegable
+                            id="mando.verificar-procesos"
+                            titulo="Puntos verificados"
+                            contador={`${reporte.puntos.length} puntos`}
+                            resumen={reporte.veredicto}
+                        >
+                            <ul className="max-h-[70vh] space-y-1.5 overflow-y-auto pr-1">
+                                {reporte.puntos.map((p) => {
+                                    const Icono = ICONO[p.estado];
+                                    return (
+                                        <li key={p.nombre} className="flex gap-2 rounded-lg border border-white/10 bg-black/25 p-2">
+                                            <Icono className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${COLOR[p.estado]}`} aria-hidden />
+                                            <div className="min-w-0">
+                                                <p className="text-[11px] text-white/80">
+                                                    {p.nombre}
+                                                    <span className="ml-1.5 text-white/45">{p.dato}</span>
+                                                </p>
+                                                {/* El porqué es lo que hace útil el reporte: sin él es una
+                                                    lista de luces de colores que no dice qué hacer. */}
+                                                <p className="mt-0.5 text-[10px] leading-relaxed text-white/45">{p.porque}</p>
+                                            </div>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </SeccionPlegable>
+                    </div>
                     <p className="mc-centrado mt-2 text-[10px] text-white/30">
                         Guardado en starseed_memory_root/mando/verificaciones/ · Comprobado hace {segundosDesde(reporte.t, ahora)} s
                     </p>
