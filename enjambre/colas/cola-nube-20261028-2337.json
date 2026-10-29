@@ -1,0 +1,70 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "GUI1021M4",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · avisos de sesión de grupos, miembros y voto",
+   "archivos": [
+    "src/components/social/toolkits/shared/index.tsx",
+    "src/components/social/MemberAvatars.tsx",
+    "src/components/social/group-roster.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Sustituye SOLO los bloques visibles que dicen «Inicia sesión para…» (no los errores ni los toasts de «de nuevo») por `<AvisoSesion texto=\"…\" />` de `src/components/auth/aviso-sesion.tsx`, conservando el mismo texto de cada sitio. Nada más cambia. Si un archivo tiene prueba que comprobaba el texto exacto, sigue pasando porque el texto es el mismo. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.",
+   "dependencias_ya_en_main": [
+    "GUI1021L"
+   ]
+  },
+  {
+   "id": "SGO1024C",
+   "ola": "1024S",
+   "titulo": "Voz · xai en la prioridad de la cadena y VibeVoice respeta la ruta explícita de su endpoint",
+   "archivos": [
+    "src/lib/aurora/tts-oss/omnivoice-web-router.ts",
+    "src/lib/aurora/tts-oss/neural-tts.ts",
+    "src/lib/aurora/tts-oss/__tests__/speak-router-motores.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VOZ1024B (2026-10-24): (1) xai no está en DEFAULT_CHAIN_PRIORITY y, aunque una personalidad lo fije, acaba detrás de Kokoro: ponlo en el sitio que le da el registro de motores (engine-registry, AUTO_ENDPOINT_ORDER). (2) neuralSpeakVibeVoice siempre añade /api/vibevoice/synthesize aunque el endpoint configurado ya traiga una ruta explícita: respétala. Pruebas con motores simulados, sin red. Máximo 3 archivos y 120 líneas nuevas por archivo."
+  },
+  {
+   "id": "APM1017N",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Lanzador · modos de cada app y `comoAbrir` (local, por bandas, montada, transmitida, ramificada)",
+   "archivos": [
+    "src/components/dashboard/apps/launcher-types.ts",
+    "src/lib/recursos/modos-app.ts",
+    "src/lib/recursos/__tests__/modos-app.test.ts"
+   ],
+   "depende": [],
+   "prompt": "En `StarseedApp` añade opcionales `ejecucion?: ('local'|'por-bandas'|'montada'|'transmitida'|'ramificada')[]` (sin campo = ['local'], como hoy) y `requisitos?: { ramMb?, gpu?, motores?: string[], volumen?: string }`. En modos-app.ts, PURO: `comoAbrir(app, neurona: OfertaNeurona, plan)` → { modo, destino, motivo } con la regla del §5 (local si cabe; por-bandas si es web/WASM con volumen; transmitida si otra neurona la tiene prestada y la latencia sirve; ramificada si solo falta cálculo; suelo: local con aviso de lo que falta). No cambies el catálogo. Pruebas. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "APM1017B"
+   ]
+  },
+  {
+   "id": "DGM1018L",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Diagramas · 3D y XR: de la estructura del SVG a una escena que se gira y se recorre",
+   "archivos": [
+    "src/lib/diagramas/diagrama-3d.ts",
+    "src/components/vivo/espacial/diagrama-3d.tsx",
+    "src/lib/diagramas/__tests__/diagrama-3d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "diagrama-3d.ts PURO: `estructuraDeSvg(svg)` saca nodos (rect, círculo, texto agrupados), aristas (path/line con marcador) y capas (grupos `g` con id o clase de capa) y `escena3d(estructura, tipo)` coloca: tipos de capas, despiece y planta axonométrica apilados en Z con separación proporcional; tipos de grafo repartidos en 3D sin solaparse; textos siempre de cara a la cámara. El componente lo pinta con @react-three/fiber (ya en el OS) dentro de `escena-compartida` (solo el componente). Pruebas con example-layers.html y example-architecture.html de la skill. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DGM1018I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "APM1017N",
+   "GUI1021M4",
+   "DGM1018L",
+   "SGO1024C"
+  ]
+ }
+}
