@@ -26,6 +26,7 @@ import type {
     Via,
 } from "./tipos";
 import { VIA_REFERENCIA } from "./tipos";
+import { cuantizacionesPara, FUENTE_METODOS_HF, type DispositivoHF } from "./cuantizacion-hf";
 
 export interface ContextoCompat {
     /** Tamaño confirmado por la persona (GB) cuando el catálogo no lo sabe. */
@@ -287,6 +288,39 @@ export function viaDeCarga(p: Procesador, a: MedioAlmacen, ctx: ContextoCompat =
     if (p.via === "local") return a.via;
     if (a.via === "local") return p.via;
     return peorVia(p.via, a.via);
+}
+
+/* ───────────────────────────── cuantización transformers según dispositivo ───────────────────────────── */
+
+/** Dispositivo de la tabla de cuantización de transformers que mejor describe el procesador. */
+export function dispositivoHFde(p: Procesador): DispositivoHF {
+    const a = p.aceleradores;
+    if (a.includes("metal") || a.includes("metal4")) return "metal";
+    if (a.includes("cuda")) return "cuda";
+    if (a.includes("rocm")) return "rocm";
+    if (a.includes("avx2") || a.includes("avx512") || p.arquitectura === "x86_64") return "intel";
+    return "cpu";
+}
+
+/** La tabla no vale para ternarios ni binarios (BitNet, Ternary Bonsai) ni para modelos de 8 bits o menos. */
+function cuantizable(m: RequisitosModelo): boolean {
+    return m.bits >= 8 && !/bitnet|bonsai|ternar|1\.58/i.test(`${m.id} ${m.familia} ${m.nombre}`);
+}
+
+/**
+ * (cableado de la matriz de transformers, tarea CPZ1025G) Cuando por memoria «no cabe», el arreglo
+ * añade con qué método de la tabla se podría cuantizar a menos bits ESE dispositivo, con enlace.
+ */
+function arregloConCuantizacion(p: Procesador, m: RequisitosModelo, base: string): string {
+    if (!cuantizable(m)) return base;
+    const d = dispositivoHFde(p);
+    const metodos = cuantizacionesPara(d)
+        .filter((x) => x.bitsMin < m.bits)
+        .slice(0, 3)
+        .map((x) => `${x.nombre}${x.soporte[d] === "parcial" ? " (soporte parcial)" : ""} (${x.enlace})`);
+    return metodos.length
+        ? `${base} Quien use transformers puede cuantizarlo a menos bits con ${metodos.join(", ")}. Fuente: ${FUENTE_METODOS_HF}.`
+        : base;
 }
 
 /* ───────────────────────────── velocidad ───────────────────────────── */
@@ -644,7 +678,10 @@ export function verificar(
             clave: "ram",
             texto: `${m.nombre} pide al menos ${numeroEs(m.ramMinGb)} GB de memoria y ${p.nombre} tiene ${numeroEs(ram)} GB.`,
             bloquea: true,
-            arreglo: "Usa una neurona con más memoria (o un servidor propio) o un modelo más pequeño de 1.58-bit.",
+            arreglo: arregloConCuantizacion(
+                p, m,
+                "Usa una neurona con más memoria (o un servidor propio) o un modelo más pequeño de 1.58-bit.",
+            ),
         });
     } else {
         const r = m.ramMinGb > 0 ? ram / m.ramMinGb : 4;
@@ -674,7 +711,10 @@ export function verificar(
                     clave: "vram",
                     texto: `${m.nombre} pide ${numeroEs(m.vramMinGb)} GB de memoria de vídeo y ${p.nombre} tiene ${numeroEs(p.vramGb)} GB.`,
                     bloquea: true,
-                    arreglo: "Usa una GPU con más memoria o una versión más pequeña del modelo.",
+                    arreglo: arregloConCuantizacion(
+                        p, m,
+                        "Usa una GPU con más memoria o una versión más pequeña del modelo.",
+                    ),
                 });
             }
         } else if (p.tipo === "cpu") {

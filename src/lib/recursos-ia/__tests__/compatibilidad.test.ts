@@ -4,7 +4,7 @@
  * prueba (no el catálogo real, que lo escribe otro agente y puede cambiar).
  */
 import { describe, expect, it } from "vitest";
-import { cabeEn, chipDeTexto, estimarTokS, familiaSo, verificar } from "../compatibilidad";
+import { cabeEn, chipDeTexto, dispositivoHFde, estimarTokS, familiaSo, verificar } from "../compatibilidad";
 import type { MedioAlmacen, Procesador, RequisitosModelo, Via } from "../tipos";
 
 /* ───────── equipos ───────── */
@@ -563,5 +563,48 @@ describe("lectura de nombres", () => {
         expect(familiaSo("macOS 26.3.1")).toBe("macos");
         expect(familiaSo("Linux (Ubuntu 24.04)")).toBe("linux");
         expect(familiaSo("Android 15")).toBe("android");
+    });
+});
+
+/* ───────── cuantización transformers según dispositivo (CPZ1025G) ───────── */
+
+describe("cuantización según dispositivo", () => {
+    const grande = modelo({
+        id: "llm-bf16",
+        nombre: "LLM bf16",
+        bits: 16,
+        parametrosB: 7,
+        disco: { gb: 14, verificado: true },
+        ramMinGb: 16,
+    });
+
+    it("mapea el procesador a su dispositivo de la tabla", () => {
+        expect(dispositivoHFde(macGpu)).toBe("metal");
+        expect(dispositivoHFde(nvGpu)).toBe("cuda");
+        expect(dispositivoHFde(a1Cpu)).toBe("cpu");
+        expect(dispositivoHFde({ ...a1Cpu, arquitectura: "x86_64" })).toBe("intel");
+        expect(dispositivoHFde({ ...a1Cpu, aceleradores: ["rocm"] })).toBe("rocm");
+    });
+
+    it("cuando por memoria no cabe, sugiere métodos de la tabla para ese dispositivo", () => {
+        const c = verificar(grande, macGpu, macInterno);
+        const arreglo = c.motivos.find((x) => x.clave === "ram")?.arreglo ?? "";
+        expect(c.nivel).toBe("no-cabe");
+        expect(arreglo).toContain("cuantizarlo a menos bits");
+        expect(arreglo).toContain("https://"); // el enlace del método
+        expect(arreglo).toContain("transformers docs"); // la fuente declarada
+    });
+
+    it("BitNet y los ternarios se escapan de la tabla (NOTA_BITNET)", () => {
+        const c = verificar({ ...bitnet, ramMinGb: 16, disco: { gb: 2, verificado: true } }, macGpu, macInterno);
+        const arreglo = c.motivos.find((x) => x.clave === "ram")?.arreglo ?? "";
+        expect(arreglo).toContain("más memoria");
+        expect(arreglo).not.toContain("cuantizarlo");
+    });
+
+    it("un modelo ya de 4 bits no recibe sugerencia", () => {
+        const c = verificar({ ...grande, bits: 4, disco: { gb: 4, verificado: true } }, macGpu, macInterno);
+        const arreglo = c.motivos.find((x) => x.clave === "ram")?.arreglo ?? "";
+        expect(arreglo).not.toContain("cuantizarlo");
     });
 });
