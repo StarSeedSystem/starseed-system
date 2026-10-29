@@ -91,8 +91,10 @@ describe("crearTarea con fetch simulado", () => {
   });
   it("apagado no toca la red; errores honestos y sin la clave: 401, 402, código de Tripo y sin red", async () => {
     const apagado = simulado([]);
-    expect((await crearTarea("meshy", PNG, {}, apagado.buscar)).ok).toBe(false);
-    expect((await crearTarea("tripo", PNG, {}, apagado.buscar)).ok).toBe(false);
+    for (const r of [await crearTarea("meshy", PNG, {}, apagado.buscar), await crearTarea("tripo", PNG, {}, apagado.buscar)]) {
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.motivo).toMatch(/Apagado por defecto.*AVATARES_EXTERNOS_PERMITIDOS=1/);
+    }
     expect(apagado.llamadas).toHaveLength(0);
     const motivos = (await Promise.all([
       crearTarea("meshy", PNG, ENCENDIDO, simulado([{ status: 401, cuerpo: { message: "Missing or invalid API key" } }]).buscar),
@@ -122,7 +124,9 @@ describe("consultarTarea: una sola petición por llamada", () => {
     const r = await consultarTarea("tripo", "task_abc123", ENCENDIDO, buscar);
     expect(r.ok && r.valor).toMatchObject({ estado: "lista", progreso: 100, glb: "https://cdn.tripo3d.ai/o/m.glb" });
     expect(llamadas[0].url).toBe("https://openapi.tripo3d.ai/v3/tasks/task_abc123");
-    expect((await consulta("tripo", "task_x", { code: 0, data: { status: "dormido" } })).ok).toBe(false);
+    const dormido = await consulta("tripo", "task_x", { code: 0, data: { status: "dormido" } });
+    expect(dormido.ok).toBe(false);
+    if (!dormido.ok) expect(dormido.motivo).toMatch(/estado que no conozco.*dormido/);
     const vacio = simulado([]);
     expect((await consultarTarea("tripo", "../account/balance", ENCENDIDO, vacio.buscar)).ok).toBe(false);
     expect(vacio.llamadas).toHaveLength(0);
@@ -209,7 +213,9 @@ describe("lo que sale a la red", () => {
     for (const p of ["meshy", "tripo"] as const) {
       for (const img of malas) {
         const red = sinRed();
-        expect((await crearTarea(p, img, ENCENDIDO, red.buscar)).ok).toBe(false);
+        const r = await crearTarea(p, img, ENCENDIDO, red.buscar);
+        expect(r.ok).toBe(false);
+        expect(razon(r)).toBe(motivoImagen(img));
         expect(red.llamadas).toHaveLength(0);
       }
     }
