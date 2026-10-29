@@ -25,9 +25,8 @@ export function useCalidadDinamica() {
         const tick = (t: number) => {
             if (t - ultimo >= 500) {
                 const p95 = medidor.p95();
-                const presupuesto = medidor.presupuesto(60);
                 const base = estadoInicialCalidad(nivel);
-                const res = siguienteCalidad(base, { t, dt: p95 }, presupuesto, [60, 72, 90, 120]);
+                const res = siguienteCalidad(base, { t, dt: p95 }, 60, [60, 72, 90, 120]);
                 if (res.cambio) {
                     setCambio(res.cambio);
                     setAviso(res.cambio.motivo);
