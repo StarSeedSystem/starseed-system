@@ -219,5 +219,47 @@ class TestBriefRise(unittest.TestCase):
         self.assertNotIn("RISE", texto)
 
 
+class TestHerramientasBrief(unittest.TestCase):
+    """Pruebas para herramientas y skills del brief (§7)."""
+
+    def test_herramientas_presentacion(self):
+        tarea = {"titulo": "Presentación de diapositivas", "archivos": ["src/app/preso/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("frontend-slides", texto)
+        self.assertIn("taste-skill", texto)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+
+    def test_herramientas_design_md(self):
+        tarea = {"titulo": "Uso de design.md", "archivos": ["src/app/design/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("awesome-design-md", texto)
+        self.assertIn("taste-skill", texto)
+
+    def test_herramientas_documentacion_educacion(self):
+        tarea1 = {"titulo": "Documentación técnica", "archivos": ["src/app/docs/page.tsx"]}
+        texto1 = brief(tarea1, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Docusaurus", texto1)
+
+        tarea2 = {"titulo": "Plataforma de educación", "archivos": ["src/app/edu/page.tsx"]}
+        texto2 = brief(tarea2, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Docusaurus", texto2)
+
+    def test_herramientas_panel_datos(self):
+        tarea = {"titulo": "Panel de datos", "archivos": ["src/app/admin/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Refine", texto)
+        self.assertIn("taste-skill", texto)
+
+    def test_sin_duplicados_y_apartados_varias_claves(self):
+        tarea = {"titulo": "Presentación y documentación de educación y panel de datos", "archivos": ["src/app/multi/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+        sec6 = texto.split("## 6. Herramientas y skills")[1].split("## 7. Verificación")[0]
+        lineas_herramientas = [l.strip() for l in sec6.splitlines() if l.strip().startswith("-")]
+        self.assertEqual(len(lineas_herramientas), len(set(lineas_herramientas)))
+
+
 if __name__ == "__main__":
     unittest.main()
