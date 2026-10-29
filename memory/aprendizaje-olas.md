@@ -4662,3 +4662,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-29 04:12 · mg-oracle-1028-2142
+
+**Lo que se pidió.** para todo el OS y la Biblioteca, usado desde cualquier medio con clic derecho a cada archivo, pidiéndoselo a Astraura o en la Protomolécula
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — no escribió nada (OPS1024A, CNV1023C, RTAPM1017Ub, LYS1018L, IMN1021K7, RTCLB1027E). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `OPS1024A` — no escribió nada
+- `CNV1023C` — no escribió nada
+- `RTAPM1017Ub` — no escribió nada
+- `LYS1018L` — no escribió nada
+- `IMN1021K7` — no escribió nada
+- `RTCLB1027E` — no escribió nada
