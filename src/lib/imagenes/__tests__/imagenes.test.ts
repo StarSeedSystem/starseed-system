@@ -135,6 +135,19 @@ describe("Z-Image-Turbo y el paquete personal", () => {
     expect(rapido?.cuantizacion).toBe("nativa");
     expect(rapido?.porQue).toContain("Modelo libre (Apache-2.0).");
   });
+  it("Z-Image-Turbo es libre (Apache-2.0) y avisa del gate de Hugging Face", () => {
+    const s = paqueteBase(PC24, { comercial: false });
+    const rapido = s.instalar.find((x) => x.papel === "rapido");
+    expect(rapido?.modelo.id).toBe("z-image-turbo");
+    expect(rapido?.modelo.uso).toBe("libre");
+    expect(rapido?.porQue).toMatch(/Hugging Face/);
+  });
+  it("Z-Image-Turbo solo donde cabe: ni la Mac de 8 GB ni la A1 lo proponen", () => {
+    for (const h of [MAC8, A1]) {
+      const s = paqueteBase(h, { comercial: false });
+      expect(s.instalar.some((x) => x.modelo.id === "z-image-turbo")).toBe(false);
+    }
+  });
   it("sin permitirPersonal el Turbo no se propone aunque quepa", () => {
     for (const h of [MAC8, A1, PC24]) {
       const s = paqueteBase(h, { comercial: false });
@@ -155,6 +168,14 @@ describe("Z-Image-Turbo y el paquete personal", () => {
     const s = paqueteBase(A1, { comercial: false, permitirPersonal: true });
     const turbo = s.instalar.find((x) => x.modelo.id === "qwen-image-2.1-turbo");
     expect(turbo?.porQue).toMatch(/GGUF personal \(Q4_K_M 4,2 GB\):/);
+  });
+  it("A1 con modelos personales: el Turbo sustituye a la calidad y el resto del paquete no cambia", () => {
+    const s = paqueteBase(A1, { comercial: false, permitirPersonal: true });
+    expect(s.instalar.map((x) => [x.papel, x.modelo.id])).toEqual([
+      ["rapido", "flux1-schnell"],
+      ["calidad", "qwen-image-2.1-turbo"],
+      ["texto", "sd35-medium"],
+    ]);
   });
   it("el permiso personal no salta la regla: nada no comercial en uso comercial", () => {
     const s = paqueteBase(MAC8, { comercial: true, permitirPersonal: true });
