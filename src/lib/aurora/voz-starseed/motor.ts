@@ -24,7 +24,15 @@
 
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
-import { nivelPara, siguienteNivel, NIVELES, type NivelVoz } from "./niveles";
+import {
+    nivelPara,
+    nivelPorDefecto,
+    estudioDisponible,
+    siguienteNivel,
+    NIVELES,
+    type NivelVoz,
+    type SenalEstudio,
+} from "./niveles";
 import {
     soporteSupertonic,
     nivelParaVoz,
@@ -64,6 +72,7 @@ import { motorRecomendado, Plataforma } from "../catalogo-voces";
 import { motoresPermitidos, type ClaseLicenciaVoz, type ContextoLicenciaVoz } from "./licencia-voz";
 import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
 import { leerMedidas, type MedidaVoz } from "@/lib/aurora/medidas-voz";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 function detectarPlataforma(): Plataforma {
     if (typeof window === "undefined") return "web";
     const ua = navigator.userAgent;
@@ -237,10 +246,58 @@ export function nivelActual(): NivelVoz | null {
  */
 async function resolverNivel(explicito?: NivelVoz): Promise<NivelVoz> {
     const caps: Capacidades = await detectarCapacidades();
-    const auto = nivelPara(caps);
+    const auto = nivelPara(caps, await senalEstudioFresca());
     if (explicito) return explicito;
     const preferencia = nivelPreferido();
     return preferencia === "auto" ? auto : preferencia;
+}
+
+// ── (Ola 1018V · VST1018F) SEÑAL DEL NIVEL «ESTUDIO», YA APLICADA ────────────
+// La puerta del nivel está en `niveles.ts` (`nivelPorDefecto`/`estudioDisponible`),
+// pero la señal externa que la alimenta — «VoiceStudio dijo vivo» por `descubrir()`
+// de `voicestudio.ts` — nadie la resolvía: el nivel se decidía sin ella. Aquí se
+// resuelve UNA vez por minuto (sondeo con su propio tope de 800 ms) y entra en
+// TODA decisión de nivel de este motor. «Sirve otra neurona» llega por el relevo
+// de la malla (`voz-por-malla.ts`) y por ahora no se conoce aquí: señal vacía.
+
+const TTL_SENAL_ESTUDIO = 60_000;
+let senalEstudioCache: SenalEstudio | null = null;
+let senalEstudioPuesta = 0;
+let senalEstudioMidiendo: Promise<SenalEstudio> | null = null;
+
+/** Señal «vivo» de VoiceStudio según `descubrir()`; nada lanza si el sondeo falla. */
+function sondearVoiceStudio(): Promise<SenalEstudio> {
+    return (async (): Promise<SenalEstudio> => {
+        try {
+            const vs = await import("./voicestudio");
+            return { voicestudio: (await vs.descubrir()).vivo === true };
+        } catch {
+            return {};
+        }
+    })();
+}
+
+/** La señal resuelta, puesta al día en segundo plano. Comparte el vuelo en curso. */
+async function senalEstudioFresca(): Promise<SenalEstudio> {
+    if (senalEstudioCache && Date.now() - senalEstudioPuesta < TTL_SENAL_ESTUDIO) return senalEstudioCache;
+    if (!senalEstudioMidiendo) senalEstudioMidiendo = sondearVoiceStudio();
+    try {
+        const senal = await senalEstudioMidiendo;
+        senalEstudioCache = senal;
+        senalEstudioPuesta = Date.now();
+        return senal;
+    } finally {
+        senalEstudioMidiendo = null;
+    }
+}
+
+/** Aplica la regla del nivel «estudio» (niveles.ts) al nivel que trajo el catálogo. */
+async function nivelEstudioAutorizado(nivel: NivelVoz, caps: Capacidades): Promise<NivelVoz> {
+    if (nivel !== "estudio") return nivel;
+    // Con el demonio vivo y 8 GB la señal ya no hace falta: no se sondea.
+    const demonstrado = caps.daemonLocal === true && (caps.memoriaGB ?? 0) >= 8;
+    const senal = demonstrado ? {} : await senalEstudioFresca();
+    return estudioDisponible(caps, senal) ? nivel : nivelPorDefecto(caps);
 }
 
 // ── (Ola 1018V · VST1018F) REGLA INSTANTÁNEA EN EL MOTOR ÚNICO ──────────────
@@ -553,8 +610,8 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     const timbre = timbreConEmocion(opciones.timbre, resuelta.emocion, resuelta.intensidad);
 
     const plataforma = detectarPlataforma();
-    const { memoriaGB } = await detectarCapacidades();
-    const ramGB = memoriaGB ?? 8;
+    const caps = await detectarCapacidades();
+    const ramGB = caps.memoriaGB ?? 8;
     const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
     let nivel: NivelVoz;
     switch (motorCat.id) {
@@ -576,6 +633,12 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
             break;
     }
 
+    // ── (Ola 1018V · VST1018F) La regla del nivel «estudio» se APLICA aquí: el
+    // catálogo puede proponer un motor de estudio, pero el nivel solo se sostiene
+    // cuando hay señal viva que lo autorice (niveles.ts); si no, decide el nivel
+    // por defecto del equipo, con el mismo timbre.
+    nivel = await nivelEstudioAutorizado(nivel, caps);
+
     // ── (Ola 1018V · VST1018F) Regla instantánea: en conversación y avisos la
     // primera frase sale YA. El nivel «estudio» queda para lectura larga,
     // doblaje y audiolibros (baja a «alta», mismo recorrido y mismo timbre) y,
@@ -585,7 +648,8 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     // de degradación solo cambia de nivel si el elegido no llegó a sonar.
     if (opciones.contexto === "conversacion" || opciones.contexto === "aviso") {
         if (nivel === "estudio") nivel = "alta";
-        const medidas = leerMedidas();
+        // «Menor latencia MEDIDA en ESA neurona» (contrato §4): solo cuenta lo medido aquí.
+        const medidas = leerMedidas(neuronDeviceIdActual());
         if (medidas.length) {
             const electo = elegirMotorInstantaneo(
                 FLOTA_INSTANTANEA,
@@ -659,6 +723,6 @@ export async function precalentar(): Promise<void> {
 /** Etiqueta legible del nivel actual, para paneles («Estudio», «Ligera»…). */
 export function nombreNivelActual(): string {
     const caps = capacidadesEnCache();
-    const nivel = nivelEnUso ?? (caps ? nivelPara(caps) : null);
+    const nivel = nivelEnUso ?? (caps ? nivelPara(caps, senalEstudioCache ?? {}) : null);
     return nivel ? NIVELES[nivel].etiqueta : "Sin determinar";
 }
