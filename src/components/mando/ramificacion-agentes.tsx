@@ -23,6 +23,7 @@ import { Switch } from "@/components/ui/switch";
 import { escuchar as escucharAsistente, tomarTareaPendiente } from "@/lib/mando/asistente-cliente";
 import type { ConfigEnjambre } from "@/lib/mando/ajustes-tipos";
 import { BloqueadasGrupos } from "@/components/mando/bloqueadas-grupos";
+import { SeccionPlegable, usePlegarTodo } from "@/components/mando/seccion-plegable";
 import type { DetalleMedidor } from "@/lib/mando/medidores";
 
 import type { FotoEnjambre, LatidoTarea } from "@/lib/mando/tipos";
@@ -1197,7 +1198,14 @@ export function SeccionBloqueadasReintentos({
                     {resultado.texto}
                 </p>
             ) : null}
-            <BloqueadasGrupos detalle={detalle} alVer={onVer} alHecho={hecho} />
+            <SeccionPlegable
+                id="bloqueadas-ramif"
+                titulo="Grupos de bloqueadas y rechazadas"
+                contador={`${valor} en la lista`}
+                resumen="La lista completa está ahora cerrada: «Abrir lista» la enseña con el mismo dato del pulso."
+            >
+                <BloqueadasGrupos detalle={detalle} alVer={onVer} alHecho={hecho} />
+            </SeccionPlegable>
         </section>
     );
 }
@@ -1294,6 +1302,17 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
         .filter(([cola, tareas]) => !colasVivas.has(cola) && tareas.some((t) => t.estado === "pendiente" || t.estado === "en_curso" || t.estado === "interrumpida"))
         .map(([cola, tareas]) => ({ cola, tareas }));
 
+    // Resúmenes de una línea para cuando la lista está cerrada (SeccionPlegable).
+    const cuentaCerradas = (t: RamaTarea) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "informe"].includes(t.estado);
+    const enCursoOla = filaOla.filter((t) => t.vivo || t.estado === "en_curso").length;
+    const pendientesOla = filaOla.filter((t) => t.estado === "pendiente" || t.estado === "interrumpida").length;
+    const resumenOla = `${enCursoOla} en curso · ${pendientesOla} pendientes · ${filaOla.filter(cuentaCerradas).length} cerradas`;
+    const escribiendoAgentes = agentes.reduce((n, a) => n + a.vivas.length, 0);
+    const resumenAgentes =
+        agentes.length === 0 && sinAgente.length === 0
+            ? "Ningún orquestador vivo ni cola con tareas pendientes"
+            : `${escribiendoAgentes} escribiendo · ${sinAgente.length} cola${sinAgente.length === 1 ? "" : "s"} sin agente vivo`;
+
     const Fila = ({ tareas, marcarHechas }: { tareas: RamaTarea[]; marcarHechas: Set<string> }) => (
         <ol className="mt-2 space-y-1 text-xs">
             {tareas.map((t, i) => {
@@ -1324,15 +1343,21 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
 
     return (
         <div className="grid gap-3 lg:grid-cols-2" data-testid="filas-procesos">
-            <section className="rounded-xl border border-white/10 bg-black/30 p-3">
-                <h4 className="text-[11px] font-medium uppercase tracking-wide text-white/50">
-                    Fila de la ola · {olaSel.id} · {olaSel.tareas.length} tareas
-                </h4>
+            <SeccionPlegable
+                id="fila-ola"
+                titulo={`Fila de la ola · ${olaSel.id}`}
+                contador={`${olaSel.tareas.length} tareas`}
+                resumen={resumenOla}
+            >
                 <p className="mt-1 text-[11px] text-white/40">Turno real: primero lo que late, luego lo pendiente por nivel de dependencias, al final lo cerrado.</p>
                 <Fila tareas={filaOla} marcarHechas={hechas} />
-            </section>
-            <section className="rounded-xl border border-white/10 bg-black/30 p-3">
-                <h4 className="text-[11px] font-medium uppercase tracking-wide text-white/50">Fila por agente · {agentes.length} vivo{agentes.length === 1 ? "" : "s"}</h4>
+            </SeccionPlegable>
+            <SeccionPlegable
+                id="fila-agente"
+                titulo="Fila por agente"
+                contador={`${agentes.length} vivo${agentes.length === 1 ? "" : "s"}`}
+                resumen={resumenAgentes}
+            >
                 {agentes.length === 0 && sinAgente.length === 0 ? (
                     <p className="mt-2 text-xs text-white/40">Ningún orquestador vivo y ninguna cola con tareas pendientes.</p>
                 ) : null}
@@ -1367,7 +1392,7 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
                         </div>
                     );
                 })}
-            </section>
+            </SeccionPlegable>
         </div>
     );
 }
@@ -1386,6 +1411,9 @@ export function RamificacionAgentes() {
     const [pausado, setPausado] = useState(false);
     const [actualizado, setActualizado] = useState<string>("");
     const [disenando, setDisenando] = useState(false);
+    // (UIG1029A) Un solo mando para todas las listas de esta pestaña: las filas y las bloqueadas
+    // se pliegan o despliegan a la vez, y el propio botón alterna su etiqueta.
+    const plegarTodo = usePlegarTodo();
 
     const recargar = useCallback(async () => {
         try {
@@ -1516,6 +1544,19 @@ export function RamificacionAgentes() {
                     >
                         {pausado ? <Play className="h-3 w-3" aria-hidden /> : <Pause className="h-3 w-3" aria-hidden />}
                         {pausado ? "Reanudar" : "En vivo"}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={plegarTodo.alternar}
+                        aria-pressed={plegarTodo.plegado}
+                        className={`inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 ${
+                            plegarTodo.plegado
+                                ? "border-cyan-300/40 bg-cyan-400/10 text-cyan-100"
+                                : "border-white/10 text-white/70 hover:bg-white/5"
+                        }`}
+                        title={plegarTodo.plegado ? "Abrir de nuevo todas las listas de la pestaña" : "Cerrar todas las listas de la pestaña"}
+                    >
+                        {plegarTodo.etiqueta}
                     </button>
                     <button
                         type="button"
