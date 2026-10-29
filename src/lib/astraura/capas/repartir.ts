@@ -112,11 +112,21 @@ function jsonDeMeta(datos: ArrayBuffer): unknown {
   }
 }
 
+/** Índices numéricos de los trozos guardados de una capa, ordenados. */
+function indicesDeTrozos(claves: string[], id: string): number[] {
+  const prefijo = `capa/${id}/trozo/`;
+  return claves
+    .filter((c) => c.startsWith(prefijo))
+    .map((c) => Number(c.slice(prefijo.length)))
+    .filter((n) => Number.isInteger(n) && n >= 0)
+    .sort((a, b) => a - b);
+}
+
 /**
  * Verifica si una capa con el SHA dado ya está completa y verificada en el almacén (§6).
- * Cruza el SHA con la meta que AlmacenCapas guarda (`capa/<id>/meta`) y cuenta que estén
- * TODOS sus trozos: `guardarTrozo` solo escribe un trozo tras verificar su SHA-256 y
- * `guardarCapa` solo marca `completa` cuando el SHA-256 del archivo entero cuadra.
+ * Cruza el SHA con la meta que AlmacenCapas guarda (`capa/<id>/meta`) y comprueba que estén
+ * TODOS sus trozos, sin huecos: `guardarTrozo` solo escribe un trozo tras verificar su
+ * SHA-256 y `guardarCapa` solo marca `completa` cuando el SHA-256 del archivo entero cuadra.
  */
 export async function capaEnPropio(
   almacen: Almacenamiento,
@@ -125,7 +135,7 @@ export async function capaEnPropio(
   try {
     const claves = await almacen.claves();
     for (const clave of claves) {
-      if (!clave.endsWith("/meta")) continue;
+      if (!clave.startsWith("capa/") || !clave.endsWith("/meta")) continue;
       const datos = await almacen.leer(clave);
       if (datos === null) continue;
       const meta = metaDeAlmacen(jsonDeMeta(datos));
@@ -133,9 +143,10 @@ export async function capaEnPropio(
       if (!meta.completa || meta.sha256 !== sha256) continue;
       // `capa/<id>/meta` → id entre "capa/" y "/meta".
       const id = clave.slice("capa/".length, -"/meta".length);
-      const prefijo = `capa/${id}/trozo/`;
-      const presentes = claves.filter((c) => c.startsWith(prefijo));
-      if (presentes.length !== meta.totalTrozos) continue;
+      const indices = indicesDeTrozos(claves, id);
+      // Todos los trozos 0..totalTrozos-1 presentes y sin huecos ni sobrantes.
+      if (indices.length !== meta.totalTrozos) continue;
+      if (indices[indices.length - 1] !== meta.totalTrozos - 1) continue;
       return true;
     }
     return false;
