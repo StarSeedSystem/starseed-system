@@ -13,7 +13,7 @@ it("valida un parche de ajustes con sanitización y restricciones de tamaño", (
     };
     const resultado = validarParcheWidget(payload, tipo);
     expect(resultado.ok).toBe(false);
-    expect(resultado.motivos.some((m) => m.includes("privada"))).toBe(true);
+    expect((resultado as { ok: false; motivos: string[] }).motivos.some((m: string) => m.includes("privada"))).toBe(true);
   });
 
   it("rechaza ajustes con clave privada", () => {
@@ -23,7 +23,7 @@ it("valida un parche de ajustes con sanitización y restricciones de tamaño", (
     };
     const resultado = validarParcheWidget(payload, tipo);
     expect(resultado.ok).toBe(false);
-    expect(resultado.motivos.some((m) => m.includes("privada"))).toBe(true);
+    expect((resultado as { ok: false; motivos: string[] }).motivos.some((m: string) => m.includes("privada"))).toBe(true);
   });
 
   it("rechaza tamaño inválido", () => {
@@ -44,7 +44,7 @@ it("valida un parche de ajustes con sanitización y restricciones de tamaño", (
     };
     const resultado = validarParcheWidget(payload, tipo);
     expect(resultado.ok).toBe(true);
-    expect(resultado.parche.size).toBe("S");
+    expect((resultado as { ok: true; parche: { size: string } }).parche.size).toBe("S");
   });
 
   it("devuelve null para clave inválida", () => {
