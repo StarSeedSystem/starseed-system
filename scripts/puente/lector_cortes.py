@@ -26,6 +26,8 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+import urllib.robotparser
+from collections.abc import Callable
 from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse, urlsplit
@@ -189,7 +191,7 @@ def _tiene_noai(html_: str, headers: dict | None) -> bool | None:
 # ── ayuda: seguimiento de pausa por dominio ─────────────────────────────
 
 def _pausa_dominio(dominio: str, segundos_previos: float | None,
-                    dormir: callable) -> float:
+                    dormir: Callable) -> float:
     """Aplica la pausa de 10 s por dominio; devuelve el tiempo que sobró."""
     if segundos_previos is None:
         dormir(0.0)
@@ -203,8 +205,8 @@ def _pausa_dominio(dominio: str, segundos_previos: float | None,
 # ── función principal ──────────────────────────────────────────────────
 
 def leer(url: str, ctx: dict,
-         obtener_url: callable | None = None,
-         dormir: callable | None = None,
+         obtener_url: Callable | None = None,
+         dormir: Callable | None = None,
          ahora: datetime | None = None) -> Result:
     """Lee `url` y devuelve {ok, url_final, html, bytes, bloqueado_por}.
 
