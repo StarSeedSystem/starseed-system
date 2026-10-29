@@ -691,6 +691,28 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     routing: {},
     rutaCompleta: h.rutaCompleta,
   })),
+  /* ═══ HABILIDADES · Laya elige cuál aplica y el tamaño sale de la capa (Ola 1018L, LYS1018K) ═══
+   * Capacidad por defecto (desactivable): Laya arma la pregunta `choice` con el
+   * «cuándo» de cada habilidad de ingeniería + «ninguna»
+   * (`preguntaHabilidad`), decide con la calibrada `answer_confidence` y
+   * `bloqueHabilidad(respuesta, capa, umbral)` inyecta el tamaño de la capa:
+   * tarjeta para reflejo y palabra pequeña, resumen para palabra y razón con
+   * Bonsai, y la referencia al SKILL.md completo para profunda y nube.
+   * Contrato: architecture/laya-y-habilidades.md §4-§5. */
+  {
+    id: "habilidades-ingenieria",
+    label: "Habilidades de ingeniería elegidas por Laya",
+    defaultOn: true,
+    systemPrompt:
+      "Tienes habilidades de ingeniería de Matt Pocock. Laya elige CUÁL aplica a la petición " +
+      "(pregunta choice con el «cuándo» de cada una y «ninguna», con `preguntaHabilidad`) " +
+      "y el tamaño del texto es el de la capa que responde:" +
+      " tarjeta (≤ 60 palabras) para las capas reflejo y palabra pequeña, resumen (≤ 120) " +
+      "para palabra y razón con Bonsai, y la referencia al SKILL.md completo para profunda y nube.",
+    routing: {},
+    skillIds: [],
+    packageIds: [],
+  },
 ];
 
 function isClient(): boolean {
