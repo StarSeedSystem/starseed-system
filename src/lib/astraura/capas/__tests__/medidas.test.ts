@@ -71,6 +71,29 @@ describe("medidas", () => {
     expect(ordenarPorMedidas(candidatos, ajenas, "n1")).toEqual(candidatos);
   });
 
+  it("con la misma latencia, gana el que más acierta", () => {
+    const medidas: MedidaNeurona[] = [
+      { neurona: "n1", modelo: "a", capa: "palabra", latenciaMs: 120, acierto: 0.6, timestamp: 1 },
+      { neurona: "n1", modelo: "b", capa: "palabra", latenciaMs: 120, acierto: 0.95, timestamp: 1 },
+    ];
+    const candidatos = [
+      { modelo: "a", donde: "local" as const, puntos: 50 },
+      { modelo: "b", donde: "local" as const, puntos: 50 },
+    ];
+    const ordenados = ordenarPorMedidas(candidatos, medidas, "n1");
+    expect(ordenados.map((c) => c.modelo)).toEqual(["b", "a"]);
+  });
+
+  it("registrarMedida aísla las muestras de cada neurona", async () => {
+    const almacen = almacenamientoEnMemoriaMedidas();
+    await registrarMedida(almacen, base({ neurona: "n1", modelo: "m1" }));
+    await registrarMedida(almacen, base({ neurona: "n2", modelo: "m2" }));
+    const n1 = (await almacen.leer("medidas-neuronas-v1/n1")) ?? [];
+    const n2 = (await almacen.leer("medidas-neuronas-v1/n2")) ?? [];
+    expect(n1.map((m) => m.modelo)).toEqual(["m1"]);
+    expect(n2.map((m) => m.modelo)).toEqual(["m2"]);
+  });
+
   it("ordena solo con las medidas de la neurona pedida", () => {
     const medidas: MedidaNeurona[] = [
       { neurona: "n1", modelo: "a", capa: "palabra", latenciaMs: 100, timestamp: 1 },
