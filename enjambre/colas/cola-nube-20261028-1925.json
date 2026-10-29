@@ -1,0 +1,91 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "RTHFR1018Ed",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Vídeo HTML · operaciones de la Protomolécula → órdenes del SDK de HyperFrames",
+   "archivos": [
+    "src/lib/video-html/__tests__/operaciones-sdk.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea HFR1018E («Vídeo HTML · operaciones de la Protomolécula → órdenes del SDK de HyperFrames») se hizo en main por otro camino; su rama nube/a1-20261019-194917-HFR1018E queda archivada en `refs/archivo/nube/a1-20261019-194917-HFR1018E` y traía casos de prueba que main no tiene con ese nombre. Jev prefería «archivar» (p=0.51), pero Jev no puede llevar a perder: manda la regla\n\nTU TAREA (RTHFR1018E · solo estos archivos: src/lib/video-html/__tests__/operaciones-sdk.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/video-html/__tests__/operaciones-sdk.test.ts\n    it(\"texto exacta → setText\", () => {\n      const op = crearOp(\"e1\", \"innerText\", { tipo: \"exacta\", valor: \"Hola\" });\n      expect(operacionASdkOrders(op)).toEqual([{ type: \"setText\", target: \"e1\", value: \"Hola\" }]);\n    });\n\n# src/lib/video-html/__tests__/operaciones-sdk.test.ts\n    it(\"estilo exacta → setStyle\", () => {\n      const op = crearOp(\"e1\", \"color\", { tipo: \"exacta\", valor: \"#f00\" });\n      expect(operacionASdkOrders(op)).toEqual([{ type: \"setStyle\", target: \"e1\", styles: { color: \"#f00\" } }]);\n    });\n\n# src/lib/video-html/__tests__/operaciones-sdk.test.ts\n    it(\"atributo exacta → setAttribute\", () => {\n      const op = crearOp(\"e1\", \"src\", { tipo: \"exacta\", valor: \"https://ejemplo.com\" });\n      expect(operacionASdkOrders(op)).toEqual([{ type: \"setAttribute\", target: \"e1\", name: \"src\", value: \"https://ejemplo.com\" }]);\n    });\n\n# src/lib/video-html/__tests__/operaciones-sdk.test.ts\n    it(\"variable exacta → setVariableValue\", () => {\n      const op = crearOp(\"e1\", \"--var\", { tipo: \"exacta\", valor: \"42\" });\n      expect(operacionASdkOrders(op)).toEqual([{ type: \"setVariableValue\", target: \"e1\", id: \"--var\", value: \"42\" }]);\n    });\n\n# src/lib/video-html/__tests__/operaciones-sdk.test.ts\n    it(\"on* → null\", () => {\n      const op = crearOp(\"e1\", \"onclick\", { tipo: \"exacta\", valor: \"alert(1)\" });\n      expect(operacionASdkOrders(op)).toBeNull();\n    });\n\n# src/lib/video-html/__tests__/operaciones-sdk.test.ts\n    it(\"src javascript: → null\", () => {\n      const op = crearOp(\"e1\", \"src\", { tipo: \"exacta\", valor: \"javascript:alert(1)\" });\n      expect(operacionASdkOrders(op)).toBeNull();\n    });\n\n# src/lib/video-html/__tests__/operaciones-sdk.test.ts\n    it(\"propiedad GSAP → null\", () => {\n      const op = crearOp(\"e1\", \"x\", { tipo: \"exacta\", valor: 100 });\n      expect(operacionASdkOrders(op)).toBeNull();\n    });\n\n# src/lib/video-html/__tests__/operaciones-sdk.test.ts\n    it(\"relativa → null\", () => {\n      const op = crearOp(\"e1\", \"opacity\", { tipo: \"relativa\", cantidad: 1, modo: \"delta\" });\n      expect(operacionASdkOrders(op)).toBeNull();\n    });\n\n# src/lib/video-html/__tests__/operaciones-sdk.test.ts\n    it(\"alternar → null\", () => {\n      const op = crearOp(\"e1\", \"disabled\", { tipo: \"alternar\" });\n      expect(operacionASdkOrders(op)).toBeNull();\n    });\n\n# src/lib/video-html/__tests__/operaciones-sdk.test.ts\n    it(\"disparo → null\", () => {\n      const op = crearOp(\"e1\", \"play\", { tipo: \"disparo\" });\n      expect(operacionASdkOrders(op)).toBeNull();\n    });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40086409932`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40086409932:refs/remotes/origin/nube/40086409932\"` y `git cherry-pick --no-commit c7648bee98cf`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/video-html/__tests__/operaciones-sdk.test.ts.\nSi la rama no aporta nada que main no tenga ya (con ese nombre o con otro), responde `NO APLICA: <motivo>` y para: no inventes trabajo. ANTES de responderlo, deshaz todo lo que trajo el paso 1 con `git reset -q --hard main` (vuelve a main: borra los archivos preparados y también los commits de punto de control que el vigilante ya haya hecho con ese trabajo; `reset --hard HEAD` no basta) y comprueba DOS cosas: que `git status --porcelain` no imprime nada y que `git rev-list --count main..HEAD` da 0. El orquestador solo da la tarea por «sin cambios» con las dos; si queda algo preparado o la rama lleva commits por delante de main, la trata como una escritura, la pasa por las puertas y vuelve a pedir reparación.\nSi aporta algo, déjalo con tsc y las pruebas en verde y quédate solo con los archivos de esta tarea (src/lib/video-html/__tests__/operaciones-sdk.test.ts): el paso 1 puede traer los de otra tarea (el «Archivos que tocó» de arriba es de la rama, no de la tarea); devuélvelos a como estaban en main (`git rm -rqf --ignore-unmatch -- <ruta>` si eran nuevos, `git checkout main -- <ruta>` si ya existían; no `git checkout HEAD`: el punto de control ya puede llevar la versión de la nube).",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40086409932"
+  },
+  {
+   "id": "DAN1024D",
+   "ola": "Ola 1024D · Diseño animado en todo el OS (Claude Video 2.0 + ADN StarSeed)",
+   "titulo": "Astraura · la orbe de los bots usa los presets de animación",
+   "area": "diseno",
+   "archivos": [
+    "src/components/astraura-bots/orbes-bots.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contexto: Alex pidió (2026-10-24) animaciones gráficas profesionales en todo StarSeed OS (widgets, orbe de Astraura, menús de la Trinity, botones, menús y pestañas), con personalización por cuenta, página y grupo, coherentes con los fundamentos del diseño StarSeed. Lee antes: `.agent/skills/claude-video-studio/STARSEED.md` (§6: los números de vídeo NO se copian a la interfaz: interfaz 140–350 ms con las curvas del ADN), `design-system/starseed-system/MASTER.md` (tokens y Trinity) y `src/lib/design/movimiento.ts` (la ÚNICA fuente de duraciones y curvas: no inventes otras). Reglas: módulos PUROS sin red, disco ni reloj; nada de `node:*` en cliente; respeta prefers-reduced-motion (estado final sin moverse); solo transform y opacity se animan; español con acentos en comentarios y textos; ≤ 3 archivos y ≤ 120 líneas nuevas por archivo; pruebas vitest reales para lo nuevo. En `orbes-bots.tsx` sustituye las duraciones y escalas sueltas de la animación de la orbe por `presetOrbe(estado, registro)` de `src/lib/design/animaciones-orbe.ts` (registro por defecto «sobrio»; si el componente ya recibe un registro de tema, úsalo). Mapea el estado actual del bot (escuchando, pensando, hablando, en reposo) al `EstadoOrbe`. Cambio mínimo (≤ 40 líneas), sin romper props ni pruebas existentes; respeta prefers-reduced-motion con `aplicarMovimientoReducido`.",
+   "dependencias_ya_en_main": [
+    "DAN1024C"
+   ]
+  },
+  {
+   "id": "CVV1028E",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Contenido vivo · película de scroll en canvas con fundido de fotogramas",
+   "archivos": [
+    "src/lib/contenido-vivo/pelicula-scroll.ts",
+    "src/lib/contenido-vivo/__tests__/pelicula-scroll.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nCódigo propio. `crearPeliculaScroll({canvas, fotogramas: (i) => url, total, fundido: true, inercia: 0.09, dpr: 2, cubrir: true, seccion})`: precarga perezosa (IntersectionObserver con margen), el cabezal sigue al scroll de la sección con inercia en `requestAnimationFrame` (nunca un oyente de scroll crudo: `passive` y rAF), dibuja el fotograma actual y el siguiente encima con opacidad igual a la fracción (fundido), pausa fuera de pantalla, y con movimiento reducido o modo «apagado» muestra el último fotograma. Expón `parar()` y `jank()` (p95 y máximo de ms por fotograma). Pruebas de la fracción, del fundido y del modo apagado."
+  },
+  {
+   "id": "CVV1028J",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Conectores · Spline y Higgsfield para cada cuenta, página y grupo",
+   "archivos": [
+    "src/lib/connectors/registry.ts",
+    "src/lib/connectors/__tests__/registry-vivo.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nMira la forma de las entradas de `BUILTIN_CONNECTORS` y añade, si no existen: `spline` (MCP HTTP `https://mcp.spline.design/mcp`, inicio de sesión con su cuenta, para escenas 3D; nota: el plan Pro da 200 llamadas al día) y `higgsfield` (imagen y vídeo; la clave va a la bóveda, nunca al código; reutiliza lo de `src/lib/brains/adapters.ts` si encaja). Sin duplicar los adaptadores de cerebros. Pruebas: ids únicos y ninguna entrada con un valor de clave."
+  },
+  {
+   "id": "CVV1028M",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Contenido vivo · cortes y continuidad de la película",
+   "archivos": [
+    "scripts/contenido_vivo/cortes.py",
+    "scripts/contenido_vivo/test_cortes.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nCódigo propio. Con ffmpeg (filtro ssim): `cortes(clip)` busca cortes dentro de un clip (par vecino muy por debajo de la mediana del clip) y `continuidad(carpeta_fotogramas, paso=4)` juzga cada par contra su mediana LOCAL (ventana ±3): corte si < 45 % de la mediana local, congelado si > 0,995; falla con un corte o más de dos congelados, y nunca pasa con menos de 3 pares medidos. Las pruebas usan la función de puntuación pura con series inventadas (sin ffmpeg): movimiento rápido y suave pasa aunque la SSIM sea baja; un desplome local falla."
+  },
+  {
+   "id": "TRD1020F",
+   "ola": "1020U",
+   "titulo": "Agentes y Astraura · herramientas «traducir» y «editar_pdf» en el Taller del agente",
+   "archivos": [
+    "src/lib/agentes/taller.ts",
+    "src/lib/agentes/__tests__/taller-traducir-pdf.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4 y §2. Añade dos recursos de tipo herramienta al catálogo del Taller del agente, con el mismo formato que los demás: `traducir` (usa el motor por capas, con la regla de privacidad: lo privado solo en el aparato, la cuenta o el cerebro) y `editar_pdf` (usa el cliente de Stirling-PDF y solo ofrece las operaciones que la instancia tenga), con origen `os` y `astraura`, y la máquina «cualquiera». Pruebas: ids únicos, los dos recursos existen y declaran su privacidad. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).",
+   "revisor_quitadas": [
+    "PDF1020A"
+   ],
+   "dependencias_ya_en_main": [
+    "TRD1020B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "RTHFR1018Ed",
+   "TRD1020F",
+   "CVV1028E",
+   "CVV1028J",
+   "CVV1028M",
+   "DAN1024D"
+  ]
+ }
+}
