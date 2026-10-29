@@ -19,24 +19,23 @@ const CAJA_MENU = { ancho: 232, alto: 156 };
 const MARGEN_VISTA = 8;
 
 export interface MenuAbierto { clave: string; x: number; y: number }
-
-export function esCampoDeTexto(el: Element | null): boolean {
+function esCampoDeTexto(el: Element | null): boolean {
   return !!el?.closest(SEL_CAMPO);
 }
-export function tieneMenuPropio(el: Element | null): boolean {
+function tieneMenuPropio(el: Element | null): boolean {
   return !!el?.closest("[data-ss-menu-propio]");
 }
-export function esTeclaDeMenu(e: { key: string; shiftKey?: boolean }): boolean {
+function esTeclaDeMenu(e: { key: string; shiftKey?: boolean }): boolean {
   return e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey === true);
 }
-export function claveDelObjetivo(el: Element | null): string | null {
+function claveDelObjetivo(el: Element | null): string | null {
   const clave = claveDesdeElemento(el);
   return clave && leerClave(clave) ? clave : null;
 }
-export function enlaceElemento(clave: string, base: string): string {
+function enlaceElemento(clave: string, base: string): string {
   return `${base.split("#")[0].split("?")[0]}?elemento=${encodeURIComponent(clave)}`;
 }
-export function acotarPosicion(x: number, y: number, vista: { ancho: number; alto: number }, caja = CAJA_MENU) {
+function acotarPosicion(x: number, y: number, vista: { ancho: number; alto: number }, caja = CAJA_MENU) {
   return {
     x: Math.max(MARGEN_VISTA, Math.min(Math.round(x), vista.ancho - caja.ancho - MARGEN_VISTA)),
     y: Math.max(MARGEN_VISTA, Math.min(Math.round(y), vista.alto - caja.alto - MARGEN_VISTA)),
@@ -118,3 +117,4 @@ export function ClicDerechoGlobal() {
     document.body,
   );
 }
+export { acotarPosicion, claveDelObjetivo, enlaceElemento, esCampoDeTexto, esTeclaDeMenu, tieneMenuPropio };
