@@ -63,6 +63,19 @@ describe("catálogo de rutas de contenido vivo", () => {
     }
   });
 
+  it("lo medido por el contrato va fechado (2026-10-28) y lo demás es por-verificar", () => {
+    const fechadas = CATALOGO_RUTAS.filter((ruta) => ruta.verificado !== "por-verificar").map(
+      (ruta) => ruta.id,
+    );
+    expect(fechadas.sort()).toEqual([
+      "higgsfield-nano-banana-2",
+      "higgsfield-seedance-2-1080",
+      "higgsfield-seedance-2-720",
+      "spline-mcp",
+    ]);
+    expect(fechadas.some((id) => id.startsWith("google-flow"))).toBe(false);
+  });
+
   it("no cobra créditos en las rutas locales", () => {
     for (const ruta of CATALOGO_RUTAS.filter((candidata) => candidata.tipo === "local")) {
       expect(ruta.creditosPorUnidad, ruta.id).toBe(0);
