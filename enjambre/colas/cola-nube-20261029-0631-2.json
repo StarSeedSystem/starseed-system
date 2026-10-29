@@ -1,0 +1,52 @@
+{
+ "ola": "oracle-20261029",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "VPU1019S",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Entrada en los menús del Escritorio y de los mensajes",
+   "archivos": [
+    "src/components/desktop/desktop-context-menu.tsx",
+    "src/components/messages/marco/menu-hilo.tsx",
+    "src/components/variaciones/__tests__/menus-propios.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Añade «Variaciones públicas» con `accionVariaciones` en el menú de iconos y del lienzo del Escritorio y en el menú de hilo de mensajes, y marca su raíz con `data-ss-menu-propio`. Solo añadir. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019R"
+   ]
+  },
+  {
+   "id": "AV1011B",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Editor del avatar en tiempo real: deslizadores, colores, piezas, voz, Astraura y MIDI",
+   "archivos": [
+    "src/components/avatares/editor-avatar.tsx",
+    "src/lib/avatares/adaptadores/use-editor-avatar.ts",
+    "src/lib/avatares/adaptadores/__tests__/use-editor-avatar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Panel con: morfología (8 deslizadores), color por ranura, piezas por ranura (elementos de la Biblioteca de tipo pieza de avatar; si no hay, dilo y ofrece importar), expresiones, aura, carácter del movimiento y visibilidad. Hook `useEditorAvatar`: aplica con `aplicarCambio` al instante, deshacer/rehacer (pila de ADN, tope 50), emite con `encolar`/`lote` solo si hay otros presentes y guarda con `debeGuardar` en el almacén de AV1011D. Voz y texto: un campo y un botón de micrófono con el dictado que ya tenga el OS (búscalo en src/lib/aurora); lo dicho pasa por `cambiosDesdeFrase`; lo que queda en `sinEntender` va a Astraura con una instrucción que pide SOLO una lista JSON de `CambioAvatar` (se filtra con `sanearCambio`; si no hay modelo disponible, se dice). MIDI: si la Protomolécula ya tiene mapeo de controles, úsalo; si no, Web MIDI con permiso explícito, CC → deslizador elegido. Pruebas del hook con reloj falso: agrupación, deshacer, cuándo guarda y que sin nadie mirando no emite.",
+   "dependencias_ya_en_main": [
+    "AV1011A",
+    "AV1011D"
+   ]
+  },
+  {
+   "id": "AV1011C",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "La orbe del bot puede ser su avatar 3D: emoción, voz y movimiento",
+   "archivos": [
+    "src/lib/avatares/adaptadores/adn-de-bot.ts",
+    "src/components/avatares/cuerpo-3d-bot.tsx",
+    "src/lib/avatares/adaptadores/__tests__/adn-de-bot.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Cuando `bot.cuerpo.forma` es `avatar-3d` o `vrm`, `bot.cuerpo.avatarRef` apunta al ADN (`biblioteca:`). `adnDeBot(bot)` lo carga o crea `adnPorDefecto` con el tono de la orbe y dueño `{tipo:'bot'}`. La emoción del bot (valencia y activación de `src/lib/astraura-bots/tipos.ts`) mueve expresiones (happy/sad/angry/surprised/relaxed) y la intensidad del aura si `aura.ligadaEmocion`; al hablar, visemas por `sincronia-voz.ts` y gestos con `moverAvatar` respetando `adn.movimiento`. Punto de integración: la tarea BOT1011U de la cola de bots crea `src/components/astraura-bots/cuerpo-bot.tsx`; si ya existe, monta ahí `<Cuerpo3dBot>` para esas formas; si no existe, deja el componente exportado y dilo en el resumen (no lo crees tú). Tamaño de widget flotante, pausa al ocultarse, sin animación con prefers-reduced-motion. Pruebas de `adnDeBot` y del mapeo emoción→expresiones.",
+   "dependencias_ya_en_main": [
+    "AV1011A"
+   ]
+  }
+ ]
+}
