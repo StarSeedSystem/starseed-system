@@ -26,6 +26,27 @@ import {
 } from "./habilidades/diagramas";
 import { CAPACIDADES_REPOS_1026 } from "./habilidades/repos-1026";
 import { HABILIDADES_INGENIERIA_A, comoCapacidad as comoCapacidadIngenieria } from "./habilidades/ingenieria-a";
+// Bloque Habilidades (Ola 1018L · LYS1018K): la capacidad se arma con los datos
+// y funciones PUROS del módulo de elección por Laya (laya-y-habilidades.md §5):
+// su prompt lleva la MISMA pregunta choice que le hará Laya al punto
+// «habilidad.elegir», y el bloque a inyectar (`bloqueHabilidad`, con el tamaño
+// de la capa que responde) lo aplica `decidirHabilidad` en cada turno.
+import {
+  HABILIDADES_INGENIERIA,
+  preguntaHabilidad,
+  TAMANO_POR_CAPA,
+  type TamanoHabilidad,
+} from "./habilidades/elegir-habilidad";
+
+/** La pregunta real de Laya para elegir habilidad: los «cuándo» de las 12 + «ninguna». */
+const PREGUNTA_HABILIDAD_INGENIERIA = preguntaHabilidad(HABILIDADES_INGENIERIA);
+/** La misma elección, leída por el cerebro: un «· id: cuándo» por opción. */
+const CRITERIOS_HABILIDAD_INGENIERIA = Object.entries(PREGUNTA_HABILIDAD_INGENIERIA.criteria)
+  .map(([id, cuando]) => `· ${id}: ${cuando}`)
+  .join("\n");
+/** Las capas que piden cada tamaño, derivadas de `TAMANO_POR_CAPA` (nada a mano). */
+const capasDeTamano = (tamano: TamanoHabilidad): string =>
+  Object.entries(TAMANO_POR_CAPA).filter(([, t]) => t === tamano).map(([c]) => `"${c}"`).join(" y ");
 
 /** Espejo local de capacidades activas (lo mantiene sincronizado library-sync
  *  con `user_settings.prefs.capabilities` de la cuenta soberana). */
@@ -705,10 +726,13 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     defaultOn: true,
     systemPrompt:
       "Tienes habilidades de ingeniería de Matt Pocock. Laya elige CUÁL aplica a la petición " +
-      "(pregunta choice con el «cuándo» de cada una y «ninguna», con `preguntaHabilidad`) " +
-      "y el tamaño del texto es el de la capa que responde:" +
-      " tarjeta (≤ 60 palabras) para las capas reflejo y palabra pequeña, resumen (≤ 120) " +
-      "para palabra y razón con Bonsai, y la referencia al SKILL.md completo para profunda y nube.",
+      "(pregunta choice del punto «habilidad.elegir» con `preguntaHabilidad`) y el tamaño del " +
+      "texto lo pone la capa que responde: la tarjeta (≤ 60 palabras) para " +
+      `${capasDeTamano("tarjeta")}, el resumen (≤ 120) para ${capasDeTamano("resumen")} y la ` +
+      `referencia al SKILL.md completo para ${capasDeTamano("completa")}. La elección queda ` +
+      "en el prompt y Laya la decide en cada turno: estos son, palabra por palabra, " +
+      "los criterios de esa pregunta:\n" +
+      CRITERIOS_HABILIDAD_INGENIERIA,
     routing: {},
     skillIds: [],
     packageIds: [],

@@ -1,6 +1,16 @@
 import { UMBRAL_EJECUTAR as UMBRAL_NEEDLE_EJECUTAR, zonaDeConfianza,
   type DecisionNeedle, type LlamadaNeedle, type HerramientaNeedle } from "./needle3-client";
 import { preguntaTipo } from "@/ai/astraura/habilidades/diagramas";
+// Bloque Habilidades (Ola 1018L · LYS1018K): la pregunta choice y el texto a
+// inyectar salen del módulo PURO `elegir-habilidad` (laya-y-habilidades.md §4-§5).
+import {
+  HABILIDADES_INGENIERIA,
+  TAMANO_POR_CAPA,
+  bloqueHabilidad,
+  preguntaHabilidad,
+  type CapaHabilidad,
+  type TamanoHabilidad,
+} from "@/ai/astraura/habilidades/elegir-habilidad";
 // Cliente único de Laya (Ola 1018L · Tarea B): aquí es donde debía usarse `preguntarALaya`,
 // que era la única llamada a Laya del servidor TS, con plazos del catálogo y relé de malla.
 import { preguntarALaya, puntoDeLlamada, type RelojLaya, type Siesta } from "./laya/cliente-laya";
@@ -60,7 +70,8 @@ export function planDeDecision(
     "Sin respuesta de Jev en escalado de Needle 3, se escala a LLM");
 }
 
-interface DecisionLaya { choice?: unknown; confidence?: unknown; answer_confidence?: unknown; }
+interface DecisionLaya { choice?: unknown; confidence?: unknown; answer_confidence?: unknown;
+  probabilities?: unknown; }
 
 /** Siesta del reloj real: se cancela (el temporizador se retira) si el trabajo gana el plazo. */
 function siesta(ms: number): Siesta {
@@ -155,6 +166,60 @@ export async function decidirTipoDiagrama(
       : decision.confidence;
     if (typeof cruda !== "number" || !Number.isFinite(cruda)) return null;
     return { tipo: decision.choice, confianza: cruda, motor: "laya-local" };
+  } catch {
+    return null;
+  }
+}
+
+export interface RespuestaHabilidadLaya {
+  /** La cadena `choice` de Laya tal cual («ninguna», id de habilidad o null). */
+  habilidad: string | null;
+  /** La calibrada `answer_confidence`, o null si faltó. */
+  confianza: number | null;
+  /** El tamaño que le toca a la capa que responde (`TAMANO_POR_CAPA`). */
+  tamano: TamanoHabilidad | null;
+  /** El texto a inyectar de `bloqueHabilidad`: null si «ninguna», duda o forma rara. */
+  texto: string | null;
+  motor: "laya-local";
+}
+
+/** Bloque Habilidades (architecture/laya-y-habilidades.md §4-§5) · Laya elige CUÁL
+ *  habilidad de ingeniería aplica mediante el punto «habilidad.elegir» con la
+ *  pregunta de `preguntaHabilidad` (los «cuándo» de las 12 + «ninguna»), y
+ *  `bloqueHabilidad` convierte la respuesta en el texto a inyectar del tamaño de
+ *  `capa`. Decide SOLO con la calibrada `answer_confidence`; si duda, el
+ *  respaldo del punto es «ninguna habilidad». Nunca lanza (capa 2c: el mismo
+ *  Laya en CPU tarda segundos (contrato §2): quien llama no debe bloquear la
+ *  primera palabra de una conversación. */
+export async function decidirHabilidad(
+  consulta: string, capa: string, transporte?: typeof fetch
+): Promise<RespuestaHabilidadLaya | null> {
+  const punto = puntoDecision("habilidad.elegir");
+  if (!punto || !Object.prototype.hasOwnProperty.call(TAMANO_POR_CAPA, capa)) return null;
+  const pregunta = preguntaHabilidad(HABILIDADES_INGENIERIA);
+  try {
+    const salida = await preguntarALaya(
+      { punto: { ...punto, preguntas: { habilidad: pregunta } },
+        estado: consulta, medio: "a1" },
+      { ...RELOJ_REAL, fetch: transporte ?? fetch });
+    const decision = salida.respuestas?.habilidad as DecisionLaya | undefined;
+    if (!decision) return null;
+    // Solo pasa al módulo puro lo que tenga forma de respuesta de Laya.
+    const respuesta: { choice?: unknown; probabilities?: unknown; answer_confidence?: unknown } = {};
+    if (typeof decision.choice === "string") respuesta.choice = decision.choice;
+    if (decision.probabilities && typeof decision.probabilities === "object" && !Array.isArray(decision.probabilities)) {
+      respuesta.probabilities = decision.probabilities;
+    }
+    if (typeof decision.answer_confidence === "number" && Number.isFinite(decision.answer_confidence)) {
+      respuesta.answer_confidence = decision.answer_confidence;
+    }
+    return {
+      habilidad: typeof respuesta.choice === "string" ? respuesta.choice : null,
+      confianza: typeof respuesta.answer_confidence === "number" ? respuesta.answer_confidence : null,
+      tamano: TAMANO_POR_CAPA[capa as CapaHabilidad],
+      texto: bloqueHabilidad(respuesta, capa as CapaHabilidad, punto.umbral),
+      motor: "laya-local",
+    };
   } catch {
     return null;
   }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MODELO_JEV } from "@/lib/jev/decisiones";
 import {
   decidirConLaya,
+  decidirHabilidad,
   decidirTipoDiagrama,
   planDeDecision,
   UMBRAL_LAYA_EJECUTAR,
@@ -81,6 +82,55 @@ describe("decidirConLaya", () => {
     await expect(decidirConLaya("consulta", herramientas, fallo)).resolves.toBeNull();
     const ajena = async () => respuestaLaya("borrar", 0.95);
     await expect(decidirConLaya("consulta", herramientas, ajena)).resolves.toBeNull();
+  });
+});
+
+describe("decidirHabilidad · bloque Habilidades (LYS1018K)", () => {
+  it("envía la pregunta de `preguntaHabilidad` (12 «cuándo» + «ninguna») y devuelve el texto del tamaño de la capa", async () => {
+    let cuerpo: unknown;
+    const transporte = async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toBe("http://127.0.0.1:4470/v1/systemone");
+      cuerpo = JSON.parse(String(init?.body)) as unknown;
+      return new Response(JSON.stringify({
+        answers: { habilidad: { type: "choice", choice: "tdd",
+          probabilities: { tdd: 0.9, ninguna: 0.1 }, confidence: 0.5, answer_confidence: 0.83 } },
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    };
+    const r = await decidirHabilidad("escribe una prueba", "reflejo", transporte);
+    expect(r?.habilidad).toBe("tdd");
+    expect(r?.confianza).toBe(0.83);
+    expect(r?.motor).toBe("laya-local");
+    // La capa reflejo pide la TARJETA de TDD (TAMANO_POR_CAPA), nunca el resumen completo.
+    expect(r?.tamano).toBe("tarjeta");
+    expect(r?.texto).toContain("TDD · Desarrollo guiado por pruebas");
+    // Todos los criterios de la pregunta real, con «ninguna» al final.
+    const preguntas = (cuerpo as { questions?: { habilidad?: { criteria?: Record<string, string> } } }).questions?.habilidad;
+    expect(Object.keys(preguntas?.criteria ?? {})).toHaveLength(13);
+    expect(Object.keys(preguntas?.criteria ?? {}).pop()).toBe("ninguna");
+  });
+
+  it("«ninguna» o confianza bajo el umbral del punto no inyecta texto (y no lee `confidence`)", async () => {
+    const ninguna = async () => new Response(JSON.stringify({
+      answers: { habilidad: { type: "choice", choice: "ninguna", confidence: 0.99 } },
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+    await expect(decidirHabilidad("hola", "palabra", ninguna)).resolves.toMatchObject({
+      habilidad: "ninguna", confianza: null, texto: null, tamano: "resumen",
+    });
+    const dudas = async () => new Response(JSON.stringify({
+      answers: { habilidad: { type: "choice", choice: "tdd", answer_confidence: 0.5 } },
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+    await expect(decidirHabilidad("hola", "profunda", dudas)).resolves.toMatchObject({
+      habilidad: "tdd", confianza: 0.5, texto: null, tamano: "completa",
+    });
+  });
+
+  it("capa inválida o fallo HTTP devuelven null", async () => {
+    const vive = async () => new Response(JSON.stringify({
+      answers: { habilidad: { type: "choice", choice: "tdd", answer_confidence: 0.9 } },
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+    await expect(decidirHabilidad("hola", "voz", vive)).resolves.toBeNull();
+    const fallo = async () => new Response(null, { status: 503 });
+    await expect(decidirHabilidad("hola", "reflejo", fallo)).resolves.toBeNull();
   });
 });
 

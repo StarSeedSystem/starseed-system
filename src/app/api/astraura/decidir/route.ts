@@ -9,9 +9,11 @@ import {
   UMBRAL_LAYA_EJECUTAR,
   decidirConJev,
   decidirConLaya,
+  decidirHabilidad,
   decidirTipoDiagrama,
   esPeticionDeDiagrama,
   planDeDecision,
+  type RespuestaHabilidadLaya,
   type RespuestaJev,
   type RespuestaLaya,
   type RespuestaTipoDiagrama,
@@ -25,6 +27,8 @@ export async function POST(req: Request) {
       consulta?: string;
       herramientas?: HerramientaNeedle[];
       target?: Astraura158Target;
+      /** Capa que va a responder (elegir-habilidad.ts): con ella Laya también elige qué habilidad aplica. */
+      capa?: string;
     };
     if (!body.consulta || !Array.isArray(body.herramientas)) {
       return NextResponse.json(
@@ -80,6 +84,19 @@ export async function POST(req: Request) {
       msTipo = Date.now() - t3;
     }
 
+    // Capa 2c: habilidades de ingeniería (architecture/laya-y-habilidades.md
+    // §4-§5). Solo si quien llama declara la capa que va a responder: ahí es
+    // donde sabe el tamaño, y `bloqueHabilidad` hace el resto. Sin capa no se
+    // pregunta (y nunca bloquea la primera palabra de una conversación: este
+    // endpoint es de decisiones, no está en el camino del primer token).
+    let habilidadRes: RespuestaHabilidadLaya | null = null;
+    let msHabilidad: number | undefined = undefined;
+    if (body.capa) {
+      const t4 = Date.now();
+      habilidadRes = await decidirHabilidad(body.consulta, body.capa);
+      msHabilidad = Date.now() - t4;
+    }
+
     // Capa 3: Jev (solo si Laya no decidió y hay clave en el servidor)
     if (zona === "escalar" && (!layaRes || layaRes.confianza < UMBRAL_LAYA_EJECUTAR) && apiKey) {
       const t2 = Date.now();
@@ -115,6 +132,13 @@ export async function POST(req: Request) {
           tipo: tipoRes?.tipo ?? null,
           confianza: tipoRes?.confianza ?? null,
           ok: tipoRes !== null,
+        } : null,
+        habilidad: msHabilidad !== undefined ? {
+          ms: msHabilidad,
+          habilidad: habilidadRes?.habilidad ?? null,
+          tamano: habilidadRes?.tamano ?? null,
+          texto: habilidadRes?.texto ?? null,
+          ok: habilidadRes !== null,
         } : null,
       },
     });
