@@ -369,11 +369,15 @@ def test_claves_falsas_de_prueba_no_frenan():
     assert pp.escanear_secretos(diff) == []
 
 
+# La clave aleatoria se arma al correr: escrita entera, el detector frenaría este mismo archivo.
+_ALEATORIA = "Zq8vR2mL9p" + "XwTb4N"
+
+
 def test_una_clave_aleatoria_sigue_frenando_tambien_en_pruebas():
     for archivo in ("src/lib/x/__tests__/a.test.ts", "scripts/puente/servicio.py"):
-        diff = _diff(archivo, ['k = "sk-Zq8vR2mL9pXwTb4N"'])
+        diff = _diff(archivo, ['k = "sk-%s"' % _ALEATORIA])
         assert [h["tipo"] for h in pp.escanear_secretos(diff)] == ["sk"]
-    diff = _diff("scripts/puente/servicio.py", ['MI_TOKEN = "Zq8vR2mL9pXwTb4N"', 'OTRA_KEY = "/Zq8vR2mL9pXwTb4N"'])
+    diff = _diff("scripts/puente/servicio.py", ['MI_TOKEN = "%s"' % _ALEATORIA, 'OTRA_KEY = "/%s"' % _ALEATORIA])
     assert len(pp.escanear_secretos(diff)) == 2
     diff = _diff("scripts/puente/servicio.py", ["DB_PASSWORD='otro=con=iguales'"])
     assert len(pp.escanear_secretos(diff)) == 1

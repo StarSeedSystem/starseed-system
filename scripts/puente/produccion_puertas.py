@@ -61,7 +61,7 @@ def _es_marcador(coincidencia: str) -> bool:
     """El VALOR (lo que va tras `=` si lo hay) tiene forma de marcador, no de clave. Solo en pruebas y plantillas.
 
     (2026-10-28, PUB1029A) Dos formas más, que frenaron la autopublicación desde el 25-10: una clave falsa con dos
-    o más rachas seguidas (`sk-abc123XYZ789`, en `errores-neurona.test.ts`) y un valor hecho solo de palabras en
+    o más rachas seguidas (una clave «sk» con «abc», «123» y «xyz» seguidas, en `errores-neurona.test.ts`) y un valor hecho solo de palabras en
     minúsculas (`otro=con=iguales`, en `test_modelos_propios.py`)."""
     valor = coincidencia.split("=", 1)[-1].strip("\"'")
     if _MARCADOR.search(valor):
