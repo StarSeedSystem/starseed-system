@@ -4,13 +4,13 @@ import { CATALOGO_RUTAS } from "../catalogo-rutas";
 
 const BASE: ContextoVivo = {
   alcance: "publica",
-  conectados: ["higgsfield"],
-  cupoHoy: { higgsfield: 100 },
+  conectados: ["higgsfield", "spline"],
+  cupoHoy: { higgsfield: 100, spline: 100 },
   creditosDisponibles: 6000,
-  topeMes: 100,
+  topeMes: 2000,
   gastadoMes: 0,
   neurona: { gpu: true, capaz3d: true },
-  ajustes: { localPrimero: true, externosPermitidos: true },
+  ajustes: { localPrimero: false, externosPermitidos: true },
 };
 
 describe("compararRutas / elegirRuta", () => {
@@ -89,7 +89,11 @@ describe("compararRutas / elegirRuta", () => {
   });
 
   it("una local a 0,1 o menos de la mejor externa gana", () => {
-    const contexto: ContextoVivo = { ...BASE, neurona: { gpu: true, capaz3d: false } };
+    const contexto: ContextoVivo = {
+      ...BASE,
+      neurona: { gpu: true, capaz3d: false },
+      ajustes: { localPrimero: true, externosPermitidos: true },
+    };
     const elegida = elegirRuta("escena-3d", contexto);
     expect(elegida?.ruta.id).toBe("threejs-escena3d");
     expect(elegida?.razon).toContain("Local");
@@ -98,10 +102,13 @@ describe("compararRutas / elegirRuta", () => {
   it("sin `localPrimero` gana la mejor externa", () => {
     const contexto: ContextoVivo = {
       ...BASE,
-      neurona: { gpu: true, capaz3d: false },
+      neurona: { gpu: false, capaz3d: false },
       ajustes: { localPrimero: false, externosPermitidos: true },
     };
-    expect(elegirRuta("escena-3d", contexto)?.ruta.id).toBe("spline-mcp");
+    const disponibles = compararRutas("escena-3d", contexto).filter(c => c.disponible);
+    expect(disponibles[0].ruta.id).toBe("spline-mcp");
+    const elegida = elegirRuta("escena-3d", contexto);
+    expect(elegida?.ruta.id).toBe("spline-mcp");
   });
 
   it("no elige ninguna externa si los ajustes las prohíben", () => {
