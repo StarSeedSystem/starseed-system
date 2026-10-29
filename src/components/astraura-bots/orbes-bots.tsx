@@ -18,6 +18,8 @@ import { EVENTO_BUCLE_UI, type DetalleBucleUI } from "@/lib/astraura-bots/adapta
 import { avanzar, bucleInicial, indicadorVisible, type EstadoBucle, type EventoBucle } from "@/lib/astraura-bots/bucle";
 import type { Bot } from "@/lib/astraura-bots/tipos";
 import { DIAMETRO_ANILLO, IndicadorSentidos } from "./indicador-sentidos";
+import { TarjetaPropuesta } from "./tarjeta-propuesta";
+import { RegistroBot } from "./registro-bot";
 import {
   MAX_ORBES_VISIBLES,
   disposicionOrbes,
@@ -109,6 +111,8 @@ export function OrbesBots({ extra = SIN_EXTRA, principal, perfilId, cuentaId }: 
     return () => { quitar(); for (const [n, f] of oyentes) window.removeEventListener(n, f); };
   }, [ids]);
   const idPred = ids ? `astraura:${ids.perfil}` : "";
+  const cuenta = ids ? ids.cuenta : "local"; // quien confirma, rechaza o deshace: la de esta neurona
+
   const { xRatio: bx, yRatio: by } = principal ?? readOrbPosition();
   const otros = useMemo(() => {
     const propios = datos.bots.filter((b) => b.id !== idPred && datos.abiertos[b.id] === "1");
@@ -156,13 +160,25 @@ export function OrbesBots({ extra = SIN_EXTRA, principal, perfilId, cuentaId }: 
               style={{ left: p.xRatio * vista.ancho - D / 2, top: p.yRatio * vista.alto - D / 2, zIndex: 41 + capas.indexOf(id), transition: moviendo?.id === id ? "none" : transicion }}>
               <QuantumOrbAvatar personaId={b.id} size={D} />
             </button>
-            {est && indicadorVisible(est) ? (
+            {est && est.fase === "esperando" && est.pendiente ? (
+              <TarjetaPropuesta bot={b} estado={est} quien={cuenta} pos={p}
+                onConfirmar={(q) => moverBucle(id, { tipo: "confirmar", quien: q, at: Date.now() })}
+                onRechazar={(q) => moverBucle(id, { tipo: "rechazar", quien: q, at: Date.now() })}
+                onApagarSentido={(sentido) => moverBucle(id, { tipo: "soltar", sentido, at: Date.now() })}
+                onPausarBot={() => moverBucle(id, { tipo: "pausar", quien: "persona", at: Date.now() })} />
+            ) : est && indicadorVisible(est) ? (
               <div data-anillo-bot={id} className="pointer-events-none fixed" style={{ left: p.xRatio * vista.ancho - DIAMETRO_ANILLO / 2, top: p.yRatio * vista.alto - DIAMETRO_ANILLO / 2, width: DIAMETRO_ANILLO, height: DIAMETRO_ANILLO, zIndex: 41 + capas.indexOf(id) }}>
                 <IndicadorSentidos estado={est} nombreBot={b.nombre}
                   onApagarSentido={(sentido) => moverBucle(id, { tipo: "soltar", sentido, at: Date.now() })}
                   onPausarBot={() => moverBucle(id, { tipo: "pausar", quien: "persona", at: Date.now() })} />
               </div>
             ) : null}
+            {enfocado === id && est && est.registro.length > 0 && (
+              <div className="fixed bottom-6 right-6 z-50 w-72 max-h-64 overflow-y-auto">
+                <RegistroBot estado={est} nombreBot={b.nombre} quien={cuenta}
+                  onDeshacer={(q) => moverBucle(id, { tipo: "deshacer", quien: q, at: Date.now() })} />
+              </div>
+            )}
           </Fragment>
         ) : null;
       })}
