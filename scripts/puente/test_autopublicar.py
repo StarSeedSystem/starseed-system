@@ -20,6 +20,7 @@ class Falso(object):
                            pruebas=(True, "ok"), jev=False, runs=[], deploys=[], estados=[], http=200,
                            ancestro=True, push_rc=0), **o)
         self.pushes, self.avisos = [], []
+        self.colas = {}
 
     def interruptor(self):
         return self.o["encendido"]
@@ -58,7 +59,13 @@ class Falso(object):
         return None
 
     def log_fallido(self, _id):
-        return "Build de producción (next build): heap out of memory"
+        return self.o.get("log_fallido", "Build de producción (next build): heap out of memory")
+
+    def leer_cola(self, nombre):
+        return list(self.colas.get(nombre) or [])
+
+    def guardar_cola(self, nombre, tareas):
+        self.colas[nombre] = tareas
 
     def http(self, _url):
         return self.o["http"]
@@ -87,6 +94,34 @@ class Falso(object):
 def run(estado, conclusion="success"):
     return {"head_sha": SHA, "status": estado, "conclusion": conclusion, "html_url": "https://ci/1", "id": 1,
             "created_at": "2026-10-07T15:00:00Z"}
+
+
+# Log de ejemplo de `gh run view --log-failed` en un run de Vitest en rojo (sin red), con un
+# encabezado repetido al final (la sección de resumen repite los FAIL con idéntico contenido).
+LOG_VITEST = "\n".join([
+    "2026-10-29T08:01:01.2Z ##[group]Run npx vitest run",
+    " FAIL  src/lib/__tests__/medidores.test.ts > medicion > avanceCombinado suma las capas",
+    "AssertionError: expected 3 to be 4",
+    "",
+    " ❯ src/lib/__tests__/medidores.test.ts:82:35",
+    " FAIL  src/lib/__tests__/mension.test.ts > nivelLuego salta la pausa",
+    "Error: el nivel no saltó la pausa",
+    " ❯ src/lib/__tests__/mension.test.ts:31:9",
+    "Test Files  2 failed | 20 passed (22)",
+    "     Tests  6 failed | 17050 passed (17056)",
+    " FAIL  src/lib/__tests__/medidores.test.ts > medicion > avanceCombinado suma las capas",
+    "AssertionError: expected 3 to be 4"])
+
+# El mismo caso con unittest: el archivo sale del traceback (`File "…"`) y ERROR también cuenta.
+LOG_UNIT = "\n".join([
+    "======================================================================",
+    "FAIL: test_emitir_que_lanza (test_publ.C.test_emitir)",
+    "Traceback (most recent call last):",
+    '  File "scripts/puente/test_publ.py", line 12, in test_emitir',
+    "AssertionError: no frenó",
+    "======================================================================",
+    "ERROR: test_niveles (test_publ.C.test_niveles)",
+    "RuntimeError: se agotó el nivel sin prueba"])
 
 
 class Puertas(unittest.TestCase):
@@ -421,6 +456,67 @@ class FlujosWebhooks(unittest.TestCase):
         self.assertEqual(e["fase"], "publicado")
         self.assertFalse(e.get("aviso_flujos"))
         self.assertEqual(e.get("motivo"), "emisión falló")
+
+
+class CiRojoACola(unittest.TestCase):
+    """(PUB1029G) El CI en rojo no espera solo: se convierte en tareas `CIR<MMDD><n>` del enjambre."""
+
+    def test_fallos_de_log_agrupa_por_archivo_y_no_duplica_el_resumen(self):
+        fs = A.fallos_de_log(LOG_VITEST)
+        self.assertEqual({f["archivo"] for f in fs},
+                         {"src/lib/__tests__/medidores.test.ts", "src/lib/__tests__/mension.test.ts"})
+        medidores = [f for f in fs if f["archivo"].endswith("medidores.test.ts")]
+        self.assertTrue(any("avanceCombinado suma las capas" in f["nombre"] for f in medidores))
+        self.assertIn("AssertionError: expected 3 to be 4", medidores[0]["detalle"])
+        self.assertNotIn("Test Files", medidores[0]["detalle"])
+
+    def test_unittest_resuelve_el_archivo_por_el_traceback(self):
+        fs = A.fallos_de_log(LOG_UNIT)
+        self.assertEqual({f["archivo"] for f in fs}, {"scripts/puente/test_publ.py"})
+        self.assertEqual(len(fs), 2)
+        self.assertTrue(any("test_emitir_que_lanza" in f["nombre"] for f in fs))
+        self.assertTrue(any("test_niveles" in f["nombre"] for f in fs))
+        self.assertIn("AssertionError: no frenó", fs[0]["detalle"])
+
+    def test_cola_ci_rojo_una_tarea_por_archivo_con_reglas(self):
+        tareas = A.cola_ci_rojo(LOG_VITEST, "1029", [], "https://ci/1")
+        self.assertEqual([t["id"] for t in tareas], ["CIR10291", "CIR10292"])
+        medidores = [t for t in tareas if t["archivos"] == ["src/lib/__tests__/medidores.test.ts"]]
+        self.assertEqual(medidores[0]["titulo"], "Arreglar la prueba del CI: medidores.test.ts")
+        self.assertIn("avanceCombinado suma las capas", medidores[0]["prompt"])
+        self.assertIn("AssertionError: expected 3 to be 4", medidores[0]["prompt"])
+        self.assertIn("Reglas de la casa", medidores[0]["prompt"])
+        self.assertIn("https://ci/1", medidores[0]["prompt"])
+        self.assertNotIn("sk-", "".join(t["prompt"] for t in tareas))
+
+    def test_no_repite_un_archivo_que_ya_tiene_tarea_pendiente(self):
+        previa = [{"id": "CIR10291", "archivos": ["src/lib/__tests__/medidores.test.ts"], "prompt": "antes"}]
+        tareas = A.cola_ci_rojo(LOG_VITEST, "1029", previa, None)
+        self.assertEqual(len(tareas), 2)
+        self.assertEqual(tareas[0]["id"], "CIR10291")
+        self.assertEqual(tareas[0]["prompt"], "antes")
+        self.assertEqual([t["id"] for t in tareas[1:]], ["CIR10292"])
+        self.assertEqual(tareas[1]["archivos"], ["src/lib/__tests__/mension.test.ts"])
+
+    def test_log_sin_fallos_de_codigo_no_escribe_cola(self):
+        m = Falso(runs=[run("completed", "failure")])
+        e = A.pasada(m, {"fase": "ci", "sha": SHA, "desde": T0}, T0 + 600)
+        self.assertEqual(e["fase"], "bloqueado")
+        self.assertEqual(m.colas, {})
+        self.assertIn("CI en rojo", e["detalle"])
+
+    def test_pasa_de_ci_rojo_a_tareas_del_enjambre(self):
+        m = Falso(runs=[run("completed", "failure")], log_fallido=LOG_VITEST)
+        e = A.pasada(m, {"fase": "ci", "sha": SHA, "desde": T0}, T0 + 600)
+        self.assertEqual(e["fase"], "bloqueado")
+        mmdd = A.time.strftime("%m%d", A.time.localtime(T0 + 600))
+        nombre = "cola-ci-rojo-%s.json" % mmdd
+        self.assertEqual(sorted(m.colas), [nombre])
+        tareas = m.colas[nombre]
+        self.assertEqual(len(tareas), 2)
+        self.assertEqual([t["id"] for t in tareas], ["CIR%s1" % mmdd, "CIR%s2" % mmdd])
+        self.assertTrue(any("olas/%s" % nombre in a for a in m.avisos))
+        self.assertNotIn("heap out of memory", "".join(t["prompt"] for t in tareas))
 
 
 if __name__ == "__main__":

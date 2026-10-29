@@ -57,6 +57,8 @@ MAX_DIA = 24
 JEV_FRENA = 0.95
 JEV_DUDA = 0.8
 PETICION = os.path.join(CARPETA, "autopublicar-peticion.json")
+#: (PUB1029G) Las colas de tareas que lee el enjambre: ahí se escribe la cola del CI en rojo.
+RAIZ_OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 
 
 # ── puro ──────────────────────────────────────────────────────────────────────
@@ -205,9 +207,16 @@ class Medios(object):
             r = subprocess.run(["gh", "run", "view", str(run_id), "--repo", REPO, "--log-failed"],
                                cwd=self.raiz, capture_output=True, text=True, timeout=120)
             lineas = [l.split("\t")[-1] for l in (r.stdout or "").splitlines() if l.strip()]
-            return "\n".join(lineas[-25:])[-2500:]
+            # (PUB1029G) Suficiente para varios FAIL de Vitest y sus detalles sin desbordar el estado.
+            return "\n".join(lineas[-200:])[-6000:]
         except Exception:
             return ""
+
+    def leer_cola(self, nombre):
+        return _leer(os.path.join(RAIZ_OLAS, nombre), [])
+
+    def guardar_cola(self, nombre, tareas):
+        _escribir(os.path.join(RAIZ_OLAS, nombre), tareas)
 
     def http(self, url):
         try:
@@ -397,6 +406,97 @@ def _pct(x):
     return ("%.2f" % x).replace(".", ",")
 
 
+# (PUB1029G) Un CI en rojo no se queda en un aviso: la extracción de los fallos es PURA y va a una
+# cola del enjambre. Vitest: « FAIL  ruta.test.ts > grupo > prueba». unittest: «FAIL: p (mod.Cls.p)».
+_FALLO_VITEST = re.compile(r"^\s*FAIL\s+(?P<ruta>[\w./@-]+\.\w+)\s*(?P<nombre>.*)$")
+_FALLO_UNIT = re.compile(r"^(?:FAIL|ERROR): (?P<prueba>\S+) \((?P<ruta>\S+)\)\s*$")
+
+REGLAS_CIR = (
+    "Reglas de la casa: español con acentos en textos y comentarios; nada de `any`; arregla la CAUSA "
+    "en el código (solo si la prueba es la que quedó vieja, arréglala y dilo en tu respuesta); sin "
+    "claves ni cadenas con forma de clave en código ni pruebas; ≤ 3 archivos y ≤ 120 líneas por "
+    "archivo; no toques archivos ajenos ni hagas push; corrígete con la prueba del archivo cambiado.")
+
+
+def fallos_de_log(log):
+    """PURA. Los encabezados de fallo del log del run en rojo. Una fila por encabezado, con hasta
+    20 líneas siguientes como detalle; en unittest el archivo sale del `File "…" del traceback."""
+    salida = []
+    for _i, linea in enumerate((log or "").splitlines()):
+        mu, mv = _FALLO_UNIT.match(linea), _FALLO_VITEST.match(linea)
+        if mu:
+            salida.append({"archivo": None, "nombre": "%s (%s)" % (mu.group("prueba"), mu.group("ruta")), "lineas": []})
+        elif mv:
+            nombre = (mv.group("nombre") or "").strip(" >")
+            salida.append({"archivo": mv.group("ruta"), "nombre": nombre or mv.group("ruta"), "lineas": []})
+        elif salida and linea.strip() and len(salida[-1]["lineas"]) < 20:
+            salida[-1]["lineas"].append(linea.strip())
+    previa_modulo, archivo_previo = None, None
+    for h in salida:
+        if not h["archivo"]:
+            for l in h["lineas"]:
+                mf = re.search(r'File "([^"]+)", line', l)
+                if mf:
+                    h["archivo"] = mf.group(1)
+                    break
+        modulo = ((h.get("nombre") or "").rsplit("(", 1)[-1].split(".")[0]
+                  if "(" in (h.get("nombre") or "") else None)
+        if not h["archivo"] and modulo and modulo == previa_modulo:
+            h["archivo"] = archivo_previo  # unittest agrupa por módulo: hereda el archivo anterior
+        if h["archivo"]:
+            archivo_previo = h["archivo"]
+        previa_modulo = modulo
+        h["detalle"] = "\n".join(h.pop("lineas"))
+    return salida
+
+
+def _prompt_ci_rojo(nombres, archivo, detalle, url):
+    """PURA. El enunciado de la tarea: prueba, archivo, las 20 primeras líneas del error y las reglas."""
+    cuerpo = "\n".join((detalle or "").splitlines()[:20]) or "sin detalle en el log"
+    return "\n\n".join([
+        "El CI de GitHub del candidato de producción falló y la autopublicación está parada hasta que "
+        "esta prueba vuelva al verde.",
+        "Prueba: %s." % (" | ".join(nombres) if nombres else "sin nombre"),
+        "Archivo: %s." % archivo,
+        "Primeras líneas del fallo:\n%s" % cuerpo,
+        "Run en rojo: %s." % (url or "sin url"),
+        REGLAS_CIR])
+
+
+def cola_ci_rojo(log, mmdd, previa, url=None):
+    """PURA. La cola `cola-ci-rojo-<MMDD>.json`: UNA tarea por ARCHIVO de prueba que falla, id
+    `CIR<MMDD><n>` (numeración que sigue a `previa`, la cola de hoy), prompt con el nombre de la
+    prueba y las 20 primeras líneas del error, sin repetir un archivo que ya tenga tarea pendiente."""
+    grupos = {}
+    for h in fallos_de_log(log or ""):
+        arch = (h.get("archivo") or "").strip()
+        if not arch:
+            continue
+        g = grupos.setdefault(arch, {"nombres": [], "detalle": ""})
+        if h.get("nombre") and len(g["nombres"]) < 3 and h["nombre"] not in g["nombres"]:
+            g["nombres"].append(h["nombre"])
+        if not g["detalle"]:
+            g["detalle"] = h.get("detalle") or ""
+    previa = [t for t in (previa if isinstance(previa, list) else []) if isinstance(t, dict)]
+    ya = {a for t in previa for a in (t.get("archivos") or []) if isinstance(a, str)}
+    usados = {str(t.get("id") or "") for t in previa}
+    tareas = list(previa)
+    for arch in sorted(grupos):
+        if arch in ya:
+            continue
+        num = 1
+        while "CIR%s%d" % (mmdd, num) in usados:
+            num += 1
+        tid = "CIR%s%d" % (mmdd, num)
+        usados.add(tid)
+        g = grupos[arch]
+        tareas.append({"id": tid, "ola": "Ola CI-rojo %s · el CI del candidato falla" % mmdd,
+                       "titulo": "Arreglar la prueba del CI: %s" % os.path.basename(arch),
+                       "archivos": [arch], "depende": [],
+                       "prompt": _prompt_ci_rojo(g["nombres"], arch, g["detalle"], url)})
+    return tareas
+
+
 # ── la pasada ────────────────────────────────────────────────────────────────
 def pasada(m, est, ahora):
     est = dict(est or {})
@@ -535,6 +635,23 @@ def _divergido(m, est, head, pendientes, ahora):
     return con_fase(est, "bloqueado", motivo, ahora, sha=head, pendientes=pendientes)
 
 
+def _ci_rojo_a_cola(m, log, ahora, url, sha):
+    """(PUB1029G) Cuando el CI sale en rojo, el veto espera y TAMBIÉN escribe `olas/cola-ci-rojo-<MMDD>.json`
+    con una tarea por archivo de prueba fallido, para que el enjambre arregle la causa. Nunca toca main
+    ni el candidato de producción."""
+    mmdd = time.strftime("%m%d", time.localtime(ahora))
+    nombre_cola = "cola-ci-rojo-%s.json" % mmdd
+    previa = m.leer_cola(nombre_cola) if hasattr(m, "leer_cola") else []
+    previa = previa if isinstance(previa, list) else []
+    tareas = cola_ci_rojo(log, mmdd, previa, url)
+    nuevas = len(tareas) - len(previa)
+    if not nuevas or not hasattr(m, "guardar_cola"):
+        return
+    m.guardar_cola(nombre_cola, tareas)
+    m.avisar("Autopublicación (%s): CI en rojo; escribí %d tarea(s) nuevas en olas/%s para que el "
+             "enjambre arregle las pruebas." % (sha[:8], nuevas, nombre_cola), tipo="aviso")
+
+
 def _seguir_ci(m, est, ahora):
     sha = est.get("sha")
     datos = m.gh("repos/%s/actions/workflows/ci.yml/runs?head_sha=%s&per_page=5" % (REPO, sha)) or {}
@@ -547,6 +664,7 @@ def _seguir_ci(m, est, ahora):
         return con_fase(est, "ci", "CI en marcha (%d min)." % (espera // 60), ahora, url=url)
     if estado == "rojo":
         log = m.log_fallido(run_id) if run_id else ""
+        _ci_rojo_a_cola(m, log, ahora, url, sha)
         m.avisar("Autopublicación frenada (%s): el CI falló. %s\n%s" % (sha[:8], url or "", log[-1200:]), tipo="aviso")
         return vetar(est, sha, "CI en rojo", ahora, url=url, evidencia=log)
     # verde → publicar ESE commit, solo si es avance rápido
