@@ -49,6 +49,7 @@ import { ejecutarAccion } from "@/lib/astraura-bots/adaptadores/ejecutor-accione
 import { decidirAccion, NIVEL_POR_DEFECTO } from "@/lib/astraura-bots/permisos";
 import { avanzar, bucleInicial } from "@/lib/astraura-bots/bucle";
 import { botPredeterminado } from "@/lib/astraura-bots/predeterminado";
+import { bloqueTono, situacionDeTexto } from "@/lib/astraura-bots/adaptadores/tono-chat";
 // Puente de glow: el Orbe de Aurora late al ritmo del habla escuchando estos
 // eventos (el TTS del navegador no expone amplitud). Aditivo y defensivo.
 import { emitAuroraSpeak } from "@/lib/aurora/aurora-orb-bus";
@@ -1771,13 +1772,20 @@ export function useAuroraEngine(): AuroraEngine {
       try { knowledge = buildSystemKnowledge(routeContext()); } catch { knowledge = ""; }
       // EAR1023C: lo que suena AHORA alrededor de la orbe, en una línea corta.
       const notaOido = lineaContextoOidoParaPrompt();
+      // BOT1011S: el tono del bot predeterminado (personalidad + preferencias) y la
+      // situación del turno por palabras clave. Aditivo: si falla, el prompt sigue igual.
+      let bloqueTonoBot = "";
+      try {
+        bloqueTonoBot = bloqueTono(botPredeterminado("perfil", "local"), null, { situacion: situacionDeTexto(text) });
+      } catch { bloqueTonoBot = ""; }
       const system =
         buildSystemPrompt(activeRef.current) + "\n\n" +
         actionsSystemPromptSection() +
         (toolsSection ? "\n\n" + toolsSection : "") +
         (knowledge ? "\n\n" + knowledge : "") + "\n\n" +
         contextNote +
-        (notaOido ? "\n\n" + notaOido : "");
+        (notaOido ? "\n\n" + notaOido : "") +
+        (bloqueTonoBot ? "\n\n" + bloqueTonoBot : "");
       // Se incluye el historial reciente (conversationRef) antes del mensaje actual.
       // Así mantenemos el contexto continuo en los comandos de voz.
       const historyMessages = conversationRef.current.map((msg): ChatMessage => ({
