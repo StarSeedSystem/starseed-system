@@ -14,6 +14,7 @@ import type { Bot } from "@/lib/astraura-bots/tipos";
 import { NIVEL_POR_DEFECTO, type NivelBot } from "@/lib/astraura-bots/permisos";
 import { QuantumOrbAvatar } from "@/components/aurora/quantum-orb-avatar";
 import { EditorBot } from "./editor-bot";
+import { TareasBotPanel } from "./tareas-bot-panel";
 
 const CLAVE_NIVELES = "starseed.astraura.niveles-bots";
 const CLAVE_ABIERTOS = "starseed.astraura.orbes-abiertos";
@@ -152,6 +153,12 @@ export function PanelBots({ perfilId, cuentaId }: { perfilId: string; cuentaId: 
           </div>
         </div>
       )}
+      {bots.map((b) => (
+        <div key={`tareas-${b.id}`} className="rounded-lg border border-border p-3">
+          <p className="mb-2 text-sm font-medium">Tareas · {b.nombre}</p>
+          <TareasBotPanel bot={b} />
+        </div>
+      ))}
     </section>
   );
 }
