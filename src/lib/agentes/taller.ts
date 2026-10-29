@@ -31,6 +31,8 @@ export interface RecursoAgente {
   maquina?: MaquinaRecurso;
   ruta?: string;
   docs?: string;
+  /** Regla de privacidad que el recurso aplica; se declara solo cuando el recurso trata datos. */
+  privacidad?: string;
 }
 
 export interface ComprobacionRecurso {
@@ -120,6 +122,26 @@ export const RECURSOS_ASTRAURA: RecursoAgente[] = [
   { id: "astraura:cerebros", tipo: "memoria", origen: "astraura", nombre: "Cerebros y memorias 1.58",
     descripcion: "Memorias multidimensionales por personalidad: recuerdos, corpus de aprendizaje y adaptadores LoRA.", etiquetas: ["memoria", "cerebro", "aprendizaje", "lora"],
     requiere: [], ruta: "backend/app/memory" },
+];
+
+/* Herramientas de inteligencia para agentes y Astraura (Ola 1020U · TRD1020F).
+   Traducción: el motor por capas de `src/lib/traduccion/motor.ts` (TRD1020B).
+   PDF: el cliente de Stirling-PDF, que lee la descripción de API de la instancia
+   y ofrece solo lo que esa instancia tenga (PDF1020A). Ambas son del OS y las
+   usa también Astraura; por eso la máquina es «cualquiera». */
+export const RECURSOS_TRADUCCION_PDF: RecursoAgente[] = [
+  { id: "os:traducir", tipo: "herramienta", origen: "os", maquina: "cualquiera",
+    nombre: "Traducir",
+    descripcion: "Traduce una selección, un párrafo o una página entera con el motor por capas (traductor del navegador › LibreTranslate de la neurona › de la malla › Astraura) y dice qué motor hizo cada traducción.",
+    etiquetas: ["traducción", "idiomas", "texto", "libretranslate", "privacidad"],
+    requiere: [], ruta: "src/lib/traduccion/motor.ts",
+    privacidad: "Lo privado —mensajes, documentos y memorias personales— solo se traduce en el aparato, en neuronas de la misma cuenta o en servidores del cerebro; nunca en un servidor ajeno ni en la instancia pública de pago." },
+  { id: "astraura:editar-pdf", tipo: "herramienta", origen: "astraura", maquina: "cualquiera",
+    nombre: "Editar PDF (Stirling-PDF)",
+    descripcion: "Edita un PDF con el cliente de Stirling-PDF: lee la descripción de API de la instancia y ofrece solo las operaciones que esa instancia tenga (rotar, dividir, quitar y reordenar páginas, comprimir, OCR, marca de agua…), y guarda el resultado como versión nueva.",
+    etiquetas: ["pdf", "documentos", "stirling-pdf", "edición", "privacidad"],
+    requiere: [], ruta: "src/lib/integrations/clients/stirling-pdf.ts",
+    privacidad: "Un PDF privado solo va a una instancia de Stirling-PDF del aparato, de la cuenta o del cerebro; nunca a una instancia ajena ni a un servidor compartido." },
 ];
 
 /** Memorias del OS que un agente puede leer y escribir. */
@@ -284,5 +306,5 @@ export function consultarViasNavegador(
 
 /** Todo lo declarado en este módulo, en un solo catálogo. */
 export function catalogoDeclarado(): RecursoAgente[] {
-  return [...RECURSOS_NAVEGADOR, ...RECURSOS_ASTRAURA, ...RECURSOS_MEMORIA, ...PROMPTS_BASE];
+  return [...RECURSOS_NAVEGADOR, ...RECURSOS_ASTRAURA, ...RECURSOS_TRADUCCION_PDF, ...RECURSOS_MEMORIA, ...PROMPTS_BASE];
 }
