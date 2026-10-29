@@ -1,0 +1,33 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "revisor_quitadas": [
+    "DGM1018C"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40818077772",
+   "id": "DGM1018Fb-d3",
+   "titulo": "Astraura · herramienta `diagrama.crear` en chats, agentes y bots (parte 3 de 3)",
+   "archivos": [
+    "src/lib/diagramas/__tests__/herramienta-diagrama.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`pedidoDiagrama({ peticion, tipo?, perfil, tamano, animado })` arma el contexto para el modelo (tipo elegido, guía del tipo desde references/type-*.md, perfil de marca) y `recibirDiagrama(respuesta)` extrae el HTML, lo pasa por fuentes-locales y aislar-diagrama y devuelve { ok, srcdoc, sandbox, tipo, motivos }. En accion-agente.ts añade la acción `diagrama.crear` con el patrón de las demás (solo añadir). Pruebas con respuestas de ejemplo. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40818077772`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40818077772:refs/remotes/origin/nube/40818077772\"` y `git cherry-pick --no-commit 866234540aaa 1885b87d28d6`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/aurora/actions.ts, src/lib/diagramas/__tests__/herramienta-diagrama.test.ts, src/lib/diagramas/herramienta-diagrama.ts, src/lib/protomolecula/accion-agente.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 3 DE 3 (la dirección dividió DGM1018Fb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/diagramas/__tests__/herramienta-diagrama.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "DGM1018Fb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "DGM1018Fb-d2"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "DGM1018Fb-d3"
+  ]
+ }
+}
