@@ -1,0 +1,43 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "FSH1018F",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Fondos · capa de difuminado (transparente, borrosa, blanca, negra o de cualquier tono, con textura)",
+   "archivos": [
+    "src/components/backgrounds/capa-difusion.tsx",
+    "src/lib/appearance/difusion.ts",
+    "src/lib/appearance/__tests__/difusion.test.ts"
+   ],
+   "depende": [],
+   "prompt": "difusion.ts PURO: `estiloDifusion(d)` → objeto de estilo CSS (backdrop-filter blur, fondo con tono y opacidad, textura como data URL SVG de ruido determinista, sin red). capa-difusion.tsx lo aplica con su transform y máscara. Pruebas de cada modo. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "FSH1018B"
+   ]
+  },
+  {
+   "id": "LYS1018K",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Habilidades · Laya elige cuál aplica y el tamaño sale de la capa que responde",
+   "archivos": [
+    "src/ai/astraura/habilidades/elegir-habilidad.ts",
+    "src/ai/astraura/skills.ts",
+    "src/ai/astraura/habilidades/__tests__/elegir-habilidad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`preguntaHabilidad(habilidades)` arma la pregunta `choice` de Laya (criterio = `cuando` de cada una + \"ninguna\"); `bloqueHabilidad(respuesta, capa, umbral)` devuelve el texto a inyectar: tarjeta para reflejo/palabra pequeña, resumen para palabra/razón con Bonsai, y para profunda/nube la referencia a la completa; nada si \"ninguna\" o confianza < umbral. En skills.ts registra la capacidad `habilidades-ingenieria` con `defaultOn: true` (desactivable) que llama a esto (solo añadir). Pruebas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018I",
+    "LYS1018Ib",
+    "LYS1018J"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "FSH1018F",
+   "LYS1018K"
+  ]
+ }
+}
