@@ -22,6 +22,10 @@ describe("simbolo-geometria · el rombo oficial", () => {
         expect(SEMILLA).toMatchObject({ cx: 200, cy: 200 });
     });
 
+    it("los ápices del rombo caen en (200, 80) arriba y (200, 320) abajo", () => {
+        expect(APICES).toEqual({ arriba: { x: 200, y: 80 }, abajo: { x: 200, y: 320 } });
+    });
+
     it("son dos triángulos equiláteros: altura = base · √3 / 2 ± 0,5", () => {
         const base = ESQUINAS[1].x - ESQUINAS[0].x;
         const esperada = (base * Math.sqrt(3)) / 2;
