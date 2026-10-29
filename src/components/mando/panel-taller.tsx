@@ -31,6 +31,7 @@ import {
 import {
     catalogoDeclarado,
     filtrarRecursos,
+    RECURSOS_TRADUCCION_PDF,
     REGLAS_NAVEGADOR,
     type OrigenRecurso,
     type RecursoAgente,
@@ -250,6 +251,15 @@ export function PanelTaller() {
                     </li>
                 ) : null}
             </ul>
+
+            <div className={`${TARJETA} border-sky-400/20`}>
+                <h3 className="text-xs font-semibold text-sky-200">Privacidad al traducir y editar PDF</h3>
+                <ul className="mt-2 space-y-1 text-xs text-white/70">
+                    {RECURSOS_TRADUCCION_PDF.map((r) => (
+                        <li key={r.id}>· <span className="text-white/90">{r.nombre}:</span> {r.privacidad}</li>
+                    ))}
+                </ul>
+            </div>
 
             <div className={`${TARJETA} border-amber-400/20`}>
                 <h3 className="text-xs font-semibold text-amber-200">Reglas del navegador, para todos los agentes</h3>
