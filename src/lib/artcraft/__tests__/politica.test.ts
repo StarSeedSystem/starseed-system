@@ -1,7 +1,8 @@
 /** Pruebas de la política ArtCraft (`politica.ts`), contrato §3.2/§3.3. Solo funciones puras. */
 import { describe, expect, it } from "vitest";
-import { evaluarLlamada, hayTrusted, rutasEnParametros, rutaDentro } from "../politica";
+import { evaluarLlamada, hayTrusted, rutasEnParametros, rutaDentro, HERRAMIENTAS, PREFIJOS_VETADOS } from "../politica";
 import type { LlamadaArtcraft } from "../politica";
+import { APPS_ARTCRAFT, HERRAMIENTAS as TABLAS, PREFIJOS_VETADOS as PREFIJOS_TABLAS } from "../politica-tablas";
 
 const RAICES = { lectura: ["/datos/neurona/entrada"], escritura: ["/datos/neurona/salida"] };
 const BASE: LlamadaArtcraft = {
@@ -85,5 +86,21 @@ describe("evaluarLlamada · rutas", () => {
     const grupo = evaluarLlamada(llamada({ herramienta: "export", parametros: { out: "/datos/neurona/salida/d.svg" }, ambito: "grupo", rol: "editor" }));
     expect(grupo.decision).toBe("confirmar");
     expect(evaluarLlamada(llamada({ herramienta: "get_node", parametros: { id: "rm" } })).decision).toBe("permitir");
+  });
+});
+
+describe("politica-tablas · lista permitida exacta de §3.2", () => {
+  it("deja las tres apps en el orden del contrato", () =>
+    expect(APPS_ARTCRAFT).toEqual(["figcraft", "gridcraft", "deckcraft"]));
+  it("copia la tabla de §3.2 herramienta a herramienta", () => {
+    expect(TABLAS.figcraft).toEqual({ libre: ["list_commands", "inspect_document", "get_node", "screenshot", "inspect_ui", "undo", "redo"], trabajo: ["create_node", "set_properties", "batch", "run_command", "export", "open_file", "save_file"], vetadas: ["pointer", "key", "type_text", "select"] });
+    expect(TABLAS.gridcraft).toEqual({ libre: ["list_commands", "list_functions", "inspect_workbook", "read_range", "get_cell", "evaluate_formula", "screenshot"], trabajo: ["write_range", "set_cell", "format_range", "insert_chart", "create_table", "sort_range", "filter", "new_workbook", "open_workbook", "save_workbook", "execute_command", "undo", "redo"], vetadas: ["select"] });
+    expect(TABLAS.deckcraft).toEqual({ libre: ["list_commands", "inspect_document", "inspect_slide", "render_slide", "screenshot"], trabajo: ["new_presentation", "open_presentation", "save_presentation", "export", "add_slide", "add_shape", "add_text_box", "set_text", "insert_picture", "insert_table", "insert_chart", "batch", "run_command", "go_to_slide"], vetadas: ["call_app", "pointer", "key", "type_text", "select", "select_tool"] });
+  });
+  it("y los prefijos de comando vetados", () =>
+    expect(PREFIJOS_TABLAS).toEqual({ figcraft: ["collab.", "plugin.", "widget.insert"], gridcraft: ["automate."], deckcraft: [] }));
+  it("la lógica de politica.ts no se aparta de los datos de politica-tablas.ts", () => {
+    expect(HERRAMIENTAS).toEqual(TABLAS);
+    expect(PREFIJOS_VETADOS).toEqual(PREFIJOS_TABLAS);
   });
 });
