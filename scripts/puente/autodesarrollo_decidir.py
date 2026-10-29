@@ -7,7 +7,9 @@ solo o dejar en la lista manual). Sin red, sin disco y sin reloj: el mundo entra
 convierte un «no» de la regla en un «sí». La cita que ya no está vale 0 («ya no aplica»).
 Alta y crítica jamás se integran solas: ningún ajuste ni consejo lo cambia.
 Ola 1025S (IMG1025A): el automático decide también las creaciones de Astraura y lo que no es código
-(utilidad por sustancia, `utilidad_propuesta`), descarta duplicadas y reparte las reimaginaciones."""
+(utilidad por sustancia, `utilidad_propuesta`), descarta duplicadas y reparte las reimaginaciones.
+IMG1029A: la enumeración de accesos de un sitio («libre, registro o pago») ya no vuelve a Alex; su
+versión de las reglas (1029A) cambia la firma y las pendientes se vuelven a decidir."""
 from __future__ import annotations
 import json, re, unicodedata
 from typing import Callable, Dict, Optional, Tuple
@@ -43,11 +45,29 @@ def _vigente(p, existe):
     rutas = [cita] if isinstance(cita, str) else list(cita)
     ok = bool(rutas) and all(_existe(existe, r) for r in rutas)
     return (True, "") if ok else (False, "ya no aplica: la cita no sigue en el código")
+# (IMG1029A) La enumeración de accesos de un sitio externo («(libre, registro, pago)») no es de Alex:
+# nombrar «pago» como opción de acceso junto a «libre», «gratis», «abierto» o «registro» es descripción,
+# no una compra. Sí lo son «pagar», «comprar», «suscripción» y «pago de…»; y un «pago» a secas sin esa
+# lista. En el tramo (≤ 80 caracteres, entre paréntesis, punto y coma, salto) tiene que haber una opción
+# abierta y NO puede nombrar nada más reservado (así no se quita nunca un «pago de…» ni una suscripción).
+_ACCESO_ABIERTO = re.compile(r"\b(?:libres?|gratis|gratuit[oa]s?|abierto|abierta|abiertas|abiertos|registros?)\b")
+_PAGO_OPCION = re.compile(r"\bpagos?\b(?!\s+de\b)")
+_RESERVADO_VERDADERO = re.compile(r"\b(?:pagar|comprar|compras?|suscripcion|pagos?\s+de)\b")
+_TRAMO = re.compile(r"([();\n])")
+def _sin_enum_acceso(texto: str) -> str:
+    """El texto sin el «pago» que solo aparece como opción de una lista de acceso (IMG1029A). PURA."""
+    partes = _TRAMO.split(texto)
+    for i in range(0, len(partes), 2):
+        t = partes[i]
+        if len(t) <= 80 and _ACCESO_ABIERTO.search(t) and _PAGO_OPCION.search(t) and not _RESERVADO_VERDADERO.search(t):
+            partes[i] = _PAGO_OPCION.sub(" ", t)
+    return "".join(partes)
 def es_de_alex(p: Dict) -> str:
     """El motivo si toca algo que solo decide Alex (publicar, pagar, cuentas, claves…); "" si no."""
     texto = _texto(p)
     for tema in RESERVADOS:
-        if re.search(rf"\b{tema}\b", texto): return f"no accionable por el enjambre ({tema}): es de Alex → pregunta"
+        if tema != "pago" and re.search(rf"\b{tema}\b", texto): return f"no accionable por el enjambre ({tema}): es de Alex → pregunta"
+    if re.search(r"\bpago\b", _sin_enum_acceso(texto)): return "no accionable por el enjambre (pago): es de Alex → pregunta"
     if CUENTAS.search(texto): return "no accionable por el enjambre (cuentas): es de Alex → pregunta"
     if SECRETOS.search(texto): return "no accionable por el enjambre (credenciales): es de Alex → pregunta"
     return ""
@@ -177,7 +197,8 @@ VIAS = ("codigo", "astraura", "entregable")
 #: Lo que espera una decisión (para las duplicadas): nunca lo que ya decidió Alex ni lo que está en vuelo.
 PENDIENTES = ("nueva", "pregunta", "esperando-aprobacion", "autodesarrollo")
 #: Versión de las reglas: entra en la firma, así lo pendiente se vuelve a decidir cuando cambian.
-REGLAS = "1025S"
+#: IMG1029A: la enumeración de accesos ya no vuelve a Alex; con otra firma, lo pendiente se redecide.
+REGLAS = "1029A"
 #: Reimaginaciones nuevas del automático por ciclo (el director corre cada 15 min) y en vuelo a la vez:
 #: así 230 propuestas no salen de golpe hacia los modelos gratuitos. Lo de Alex no cuenta: se hace siempre.
 TOPE_POR_CICLO, MAX_EN_VUELO = 12, 24

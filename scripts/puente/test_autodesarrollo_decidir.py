@@ -494,5 +494,57 @@ class TokenSoloComoCredencial(unittest.TestCase):
             self.assertTrue(D.es_de_alex({"titulo": t, "cuerpo": ""}), t)
 
 
+class EnumAccesoNoEsDeAlex(unittest.TestCase):
+    """IMG1029A: «(libre, registro, pago)» en el acceso de un sitio NO es de Alex; «pagar», «comprar»,
+    «suscripción» y «pago de…» sí. La plantilla del agente de referencias ya no trae «pago»."""
+
+    def test_la_enumeracion_de_accesos_no_es_de_alex(self):
+        for t in (
+            "sitio citado; su acceso (libre, registro, pago); añadirlo al catálogo",
+            "su acceso libre, registro o pago; revisar sus términos",
+            "canales (abierto, registro, pagos) y clase de uso del sitio",
+            "entradas (pagos, libre o registro) que faltan en el catálogo",
+        ):
+            self.assertEqual(D.es_de_alex({"titulo": "Candidata al catálogo de referencias", "cuerpo": t}), "", t)
+
+    def test_lo_de_alex_se_mantiene(self):
+        self.assertIn("(pagar)", D.es_de_alex({"titulo": "Pagar la suscripción del servicio", "cuerpo": ""}))
+        self.assertIn("(pago)", D.es_de_alex(
+            {"titulo": "Candidata al catálogo", "cuerpo": "anotar el pago de la factura del dominio"}))
+        # la enumeración con una cosa de Alex dentro (suscripción, pago de…): no se quita nada
+        t = "revisar su acceso (libre, registro, pago de la suscripción del registro)"
+        self.assertIn("(suscripcion)", D.es_de_alex({"titulo": "Candidata al catálogo", "cuerpo": t}))
+        t = "revisar el registro de accesos del sitio y, si toca, el pago del servicio " + "palabra " * 6
+        self.assertIn("(pago)", D.es_de_alex({"titulo": "Candidata al catálogo", "cuerpo": t}))
+
+    def test_la_plantilla_del_agente_no_es_de_alex(self):
+        import agente_referencias_diseno as A
+        p = A.propuesta_candidata({"clave": "awwwards.com", "url": "https://www.awwwards.com/",
+                                   "titulo": "Awwwards", "fuente": "x"},
+                                  "agentes:referencias-diseno:2026-10-29-9-1")
+        self.assertEqual(D.es_de_alex(p), "")
+        self.assertIn("(abierto, con registro o con coste)", p["cuerpo"])
+        self.assertNotIn("pago", p["cuerpo"])
+
+    def test_lo_pendiente_con_la_firma_vieja_se_redescide(self):
+        """La firma lleva la versión de las reglas: con la 1029A, la «pregunta» del motivo falso
+        se reevalúa (director_autodesarrollo._decidir_lote, línea 270) y el motivo se reescribe."""
+        import agente_referencias_diseno as A
+        cand = {"clave": "awwwards.com", "url": "https://www.awwwards.com/",
+                "titulo": "Awwwards", "fuente": "x"}
+        p = A.propuesta_candidata(cand, "agentes:referencias-diseno:2026-10-29-4-1")
+        p.update(estado="pregunta", motivo="no accionable por el enjambre (pago): es de Alex → pregunta",
+                 auto_firma="1025S|1|1|1|0,75|2")
+        aj = ajustes(); firma = D.firma(aj)
+        self.assertNotEqual(firma, p["auto_firma"])  # la versión de las reglas cambió
+        previas = {p["id"]: p}
+        DIR._decidir_lote(previas, [], aj, lambda r: r == "config/referencias-inspiracion.json",
+                          None, "2026-10-29T12:00:00", firma)
+        self.assertNotIn("(pago)", p["motivo"])
+        self.assertNotEqual(p["auto_firma"], "1025S|1|1|1|0,75|2")
+        self.assertNotIn("es de Alex", p["motivo"])
+
+
 if __name__ == "__main__":
     unittest.main()
+
