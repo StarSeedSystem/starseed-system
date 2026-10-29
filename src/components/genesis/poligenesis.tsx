@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { CheckCircle2, ExternalLink, Landmark, Loader2, RefreshCw, Users2, Vote } from "lucide-react";
 import { toast } from "sonner";
@@ -21,6 +22,13 @@ import { misEntidades, modoDe, proponer, propuestaAprobada, propuestasDe, type E
 import { decidirAplicacion, type Ambito } from "@/lib/genesis/operaciones";
 import { PanelOperaciones } from "./panel-operaciones";
 import { BotsEntidad } from "@/components/astraura-bots/bots-entidad";
+
+// Asistente «Conectar Genesis» (GCA1019M · architecture/genesis-conectores-abiertos.md §3),
+// ámbito de la entidad elegida. Dinámico para no pesar en el arranque de PoliGenesis.
+const AsistenteConectoresGenesis = dynamic(
+    () => import("./conectores/asistente-conectores").then((m) => m.AsistenteConectores),
+    { ssr: false },
+);
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
 
@@ -180,6 +188,13 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
 
             {ambito?.tipo === "entidad" && entidad ? (
                 <BotsEntidad key={ambito.entidad.id} entidad={ambito.entidad} rol={entidad.dueña ? "dueno" : entidad.rango >= 3 ? "admin" : entidad.rango >= 2 ? "miembro" : "observador"} />
+            ) : null}
+
+            {ambito?.tipo === "entidad" ? (
+                <section aria-label="Conectar esta entidad">
+                    <h2 className="text-base font-semibold">Conectar esta entidad</h2>
+                    <AsistenteConectoresGenesis ambito={ambito.entidad.id} />
+                </section>
             ) : null}
 
             {enVotacion.length + aprobadas.length > 0 ? (

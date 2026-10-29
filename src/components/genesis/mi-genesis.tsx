@@ -17,13 +17,23 @@ import { PanelOperaciones } from "./panel-operaciones";
 import { AtajosGenesis } from "./atajos-genesis";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
+import { createClient } from "@/utils/supabase/client";
 
 const AMBITO: Ambito = { tipo: "persona" };
+// Ámbito de los conectores sin sesión: solo este dispositivo (igual que el de bots en Slack).
+const AMBITO_SIN_SESION = "cuenta-local";
 
 // Panel de bots (contrato astraaura-bots §13/§18 F1: vive en Genesis). Dinámico:
 // el layout raíz no carga nada pesado de forma estática.
 const SeccionBotsGenesis = dynamic(
     () => import("./seccion-bots").then((m) => m.SeccionBotsGenesis),
+    { ssr: false },
+);
+
+// Asistente «Conectar Genesis» (GCA1019M · architecture/genesis-conectores-abiertos.md §3):
+// lo local, lo gratis por vincular y el resumen por papel, del ámbito de ESTA cuenta.
+const AsistenteConectoresGenesis = dynamic(
+    () => import("./conectores/asistente-conectores").then((m) => m.AsistenteConectores),
     { ssr: false },
 );
 
@@ -56,6 +66,20 @@ export function MiGenesis() {
 
     const cargarContexto = useCallback(() => contextoDeMiCuenta(), []);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    // Ámbito de los conectores: el id del usuario con sesión; sin sesión, solo este dispositivo.
+    const [ambitoConectores, setAmbitoConectores] = useState<string | null>(null);
+    useEffect(() => {
+        let vivo = true;
+        void (async () => {
+            try {
+                const { data } = await createClient().auth.getUser();
+                if (vivo) setAmbitoConectores(data.user?.id ?? AMBITO_SIN_SESION);
+            } catch {
+                if (vivo) setAmbitoConectores(AMBITO_SIN_SESION);
+            }
+        })();
+        return () => { vivo = false; };
+    }, []);
 
     useEffect(() => {
         const almacen = almacenNavegador();
@@ -96,6 +120,14 @@ export function MiGenesis() {
                 sugerencias={SUGERENCIAS}
                 atajos={(anadir, ctx) => <AtajosGenesis anadir={anadir} ctx={ctx} />}
             />
+            <section id="conectar" aria-label="Conectar Genesis">
+                <h2 className="text-base font-semibold">Conectar Genesis</h2>
+                {ambitoConectores ? (
+                    <AsistenteConectoresGenesis ambito={ambitoConectores} />
+                ) : (
+                    <p className="text-[11px] text-white/50">Cargando opciones de conexión…</p>
+                )}
+            </section>
             <section id="bots" aria-label="Mis bots">
                 <h2 className="text-base font-semibold">Mis bots</h2>
                 <SeccionBotsGenesis />
