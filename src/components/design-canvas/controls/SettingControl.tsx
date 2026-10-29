@@ -9,6 +9,12 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
+// Variaciones públicas (Ola 1019V · W, contrato §2): el panel del lienzo lleva
+// su clave `ajuste:<id>` en el DOM (atributo `data-ss-elemento` vía ConClave)
+// para el clic derecho global; el id se normaliza a kebab-case y, si no es
+// canónico, el panel se pinta igual sin clave (degrada en silencio).
+import { ConClave } from "@/components/variaciones/con-clave";
+import { claveDeAjuste } from "@/lib/variaciones/claves-ajustes";
 
 export interface SettingControlProps {
     id: string; // The highlight ID
@@ -38,8 +44,11 @@ export function SettingControl({
         if (onHighlight) onHighlight(null);
     };
 
+    const clavePanel = claveDeAjuste(id);
+
     return (
-        <div
+        <ConClave
+            clave={clavePanel}
             className={cn("group/setting space-y-2", className)}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
@@ -72,6 +81,6 @@ export function SettingControl({
             <div>
                 {children}
             </div>
-        </div>
+        </ConClave>
     );
 }

@@ -50,6 +50,12 @@ import {
 // pestaña: ABREN la ventana «Sistemas de Astraura en esta neurona» por su
 // sección (el drawer global escucha este evento desde cualquier ruta).
 import { openAstrauraConfig } from "@/lib/astraura/config-ui";
+// Variaciones públicas (Ola 1019V · W, contrato §2): cada resultado del
+// buscador es un panel de Ajustes y lleva su clave `ajuste:<id>` en el DOM
+// (vía ConClave, atributo `data-ss-elemento`) para el clic derecho global.
+// Las claves se generan UNA sola vez desde el índice con `clavesDeAjustes()`.
+import { ConClave } from "@/components/variaciones/con-clave";
+import { clavesDeAjustes, FAMILIA_AJUSTES } from "@/lib/variaciones/claves-ajustes";
 
 export interface SettingsSearchEntry {
     id: string;
@@ -392,6 +398,13 @@ function normalize(s: string): string {
     return s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
 }
 
+/** Claves `ajuste:` del índice de búsqueda, consultables por id de entrada. */
+const CLAVES_BUSQUEDA: ReadonlyMap<string, string> = new Map(
+    clavesDeAjustes(SETTINGS_SEARCH_INDEX).map(
+        (clave) => [clave.slice(FAMILIA_AJUSTES.length + 1), clave] as const,
+    ),
+);
+
 export interface SettingsSearchProps {
     /** Navega a la pestaña indicada y hace scroll a #settings-secciones. */
     onNavigate: (tab: string) => void;
@@ -508,7 +521,11 @@ export function SettingsSearch({ onNavigate, className }: SettingsSearchProps) {
                             {results.map((entry) => {
                                 const Icon = entry.icon;
                                 return (
-                                    <li key={entry.id}>
+                                    <ConClave
+                                        como="li"
+                                        key={entry.id}
+                                        clave={CLAVES_BUSQUEDA.get(entry.id)}
+                                    >
                                         <button
                                             type="button"
                                             onClick={() => selectEntry(entry)}
@@ -527,7 +544,7 @@ export function SettingsSearch({ onNavigate, className }: SettingsSearchProps) {
                                                 <p className="text-[11px] text-muted-foreground truncate mt-0.5">{entry.description}</p>
                                             </div>
                                         </button>
-                                    </li>
+                                    </ConClave>
                                 );
                             })}
                         </ul>

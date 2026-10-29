@@ -66,6 +66,14 @@ import { NetworkSection } from "@/components/settings/accordion/network-section"
 // Vista global de vínculos externos de la cuenta (Ola 281 · E6A · 2026-09-08).
 import { ExternosCuenta } from "@/components/externos/externos-cuenta";
 
+// Variaciones públicas (Ola 1019V · W, contrato §2): cada panel de Ajustes de
+// /cuenta lleva su clave `ajuste:<ancla>` en el DOM —atributo `data-ss-elemento`
+// vía ConClave— para que el anfitrión del clic derecho lo localice y ofrezca
+// «Variaciones públicas». Un ancla no canónica va sin clave: el panel se pinta
+// igual (degrada en silencio, sin inventar claves).
+import { ConClave } from "@/components/variaciones/con-clave";
+import { claveDeAjuste } from "@/lib/variaciones/claves-ajustes";
+
 // ── Recolectores de datos reales (para las tarjetas-resumen; sin duplicar lógica) ──
 import { listThreads } from "@/lib/messages/dm";
 import { loadAllNotifications } from "@/lib/notifications/notifications";
@@ -700,7 +708,7 @@ function CuentaContent() {
       </div>
 
       {/* ═══════════════════════ 1) INFORMACIÓN PERSONAL ═══════════════════════ */}
-      <section id="info-personal" className="scroll-mt-6 pt-4">
+      <ConClave como="section" clave={claveDeAjuste("info-personal")} id="info-personal" className="scroll-mt-6 pt-4">
         {/* (Adenda 218) El @handle se edita aquí, no solo en el rito. */}
         <div className="mb-4">
           <EditarHandle actual={String(profile?.handle ?? profile?.username ?? "")} />
@@ -830,10 +838,10 @@ function CuentaContent() {
             <button style={{ ...btn, opacity: saving ? .6 : 1 }} disabled={saving} onClick={addEmail}>Adjuntar</button>
           </div>
         </section>
-      </section>
+      </ConClave>
 
       {/* ═══════════════════════ 2) DATOS Y PRIVACIDAD ═══════════════════════ */}
-      <section id="datos-privacidad" className="scroll-mt-6 pt-2 space-y-4">
+      <ConClave como="section" clave={claveDeAjuste("datos-privacidad")} id="datos-privacidad" className="scroll-mt-6 pt-2 space-y-4">
         <div>
           <h2 className="text-base font-semibold mb-1">Datos y privacidad</h2>
           <p className="text-xs text-muted-foreground">Qué se guarda, quién puede encontrarte y cómo exportar o borrar todo.</p>
@@ -876,15 +884,15 @@ function CuentaContent() {
 
         <ConfigExportPanel />
         <PrivacyPanel />
-      </section>
+      </ConClave>
 
       {/* ═══════════════════════ 2.5) ROLES Y CONEXIONES (RBAC) ═══════════════════════ */}
-      <section id="roles" className="scroll-mt-6 pt-2 space-y-4">
+      <ConClave como="section" clave={claveDeAjuste("roles")} id="roles" className="scroll-mt-6 pt-2 space-y-4">
         <EntityRolesPanel />
-      </section>
+      </ConClave>
 
       {/* ═══════════════════════ 3) SEGURIDAD ═══════════════════════ */}
-      <section id="seguridad" className="scroll-mt-6 pt-2 space-y-4">
+      <ConClave como="section" clave={claveDeAjuste("seguridad")} id="seguridad" className="scroll-mt-6 pt-2 space-y-4">
         <div>
           <h2 className="text-base font-semibold mb-1">Seguridad</h2>
           <p className="text-xs text-muted-foreground">Tu sesión, tus dispositivos (neuronas) y el cierre de sesión.</p>
@@ -926,10 +934,10 @@ function CuentaContent() {
         ) : null}
 
         <NeuronsPanel />
-      </section>
+      </ConClave>
 
       {/* ═══════════════════════ 4) SINCRONIZACIÓN ═══════════════════════ */}
-      <section id="sincronizacion" className="scroll-mt-6 pt-2 space-y-4">
+      <ConClave como="section" clave={claveDeAjuste("sincronizacion")} id="sincronizacion" className="scroll-mt-6 pt-2 space-y-4">
         <div>
           <h2 className="text-base font-semibold mb-1">Sincronización</h2>
           <p className="text-xs text-muted-foreground">Tu identidad soberana, igual en todos tus dispositivos y en Nexus/Café.</p>
@@ -944,11 +952,11 @@ function CuentaContent() {
           icon={Server}
           label={`Servidores de cerebros (${serversCount})`}
           description="Registro de servidores propios/StarSeed/VPS enlazados a tus cerebros"
-        />
-      </section>
+          />
+      </ConClave>
 
       {/* ═══════════════════════ RED MESH, SEÑALES Y VOZ DE BORDE ═══════════════════════ */}
-      <section id="red-mesh" className="scroll-mt-6 pt-2 space-y-3">
+      <ConClave como="section" clave={claveDeAjuste("red-mesh")} id="red-mesh" className="scroll-mt-6 pt-2 space-y-3">
         <div>
           <h2 className="text-base font-semibold mb-1 flex items-center gap-2">
             <RadioTower className="w-4 h-4 text-emerald-400" /> Red Mesh, Señales y Voz de Borde
@@ -958,10 +966,10 @@ function CuentaContent() {
           </p>
         </div>
         <NetworkSection />
-      </section>
+      </ConClave>
 
       {/* ═══════════════════════ 5) PERSONALIZACIÓN ═══════════════════════ */}
-      <section id="personalizacion" className="scroll-mt-6 pt-2 space-y-3">
+      <ConClave como="section" clave={claveDeAjuste("personalizacion")} id="personalizacion" className="scroll-mt-6 pt-2 space-y-3">
         <div>
           <h2 className="text-base font-semibold mb-1">Personalización</h2>
           <p className="text-xs text-muted-foreground">Apariencia, tus escritorios y la navegación Trinity.</p>
@@ -982,10 +990,10 @@ function CuentaContent() {
         <div style={card}>
           <DesignSettingsPanel />
         </div>
-      </section>
+      </ConClave>
 
       {/* ═══════════════════════ 6) NOTIFICACIONES Y RECORDATORIOS ═══════════════════════ */}
-      <section id="notificaciones" className="scroll-mt-6 pt-2 space-y-3">
+      <ConClave como="section" clave={claveDeAjuste("notificaciones")} id="notificaciones" className="scroll-mt-6 pt-2 space-y-3">
         <div>
           <h2 className="text-base font-semibold mb-1">Notificaciones y recordatorios</h2>
           <p className="text-xs text-muted-foreground">Avisos del sistema y de la red, más tus recordatorios y alarmas.</p>
@@ -1008,10 +1016,10 @@ function CuentaContent() {
         <AppNotificationsPanel />
         {/* Adenda 138 · Notificaciones push por dispositivo con ntfy (móvil/navegador). */}
         <NtfyPanel />
-      </section>
+      </ConClave>
 
       {/* ═══════════════════════ 7) AURORA E INTELIGENCIA ═══════════════════════ */}
-      <section id="aurora-ia" className="scroll-mt-6 pt-2 space-y-3">
+      <ConClave como="section" clave={claveDeAjuste("aurora-ia")} id="aurora-ia" className="scroll-mt-6 pt-2 space-y-3">
         <div>
           <h2 className="text-base font-semibold mb-1">Aurora e inteligencia</h2>
           <p className="text-xs text-muted-foreground">Tu Exocórtex: capacidades activas, cerebros y contexto que Aurora conoce.</p>
@@ -1144,10 +1152,10 @@ function CuentaContent() {
             <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-1"><Radio className="w-3 h-3" /> Neuronas</p>
           </div>
         </div>
-      </section>
+      </ConClave>
 
       {/* ═══════════════════════ 8) VOZ DE AURORA ═══════════════════════ */}
-      <section id="aurora-voz" className="scroll-mt-6 pt-2 space-y-3">
+      <ConClave como="section" clave={claveDeAjuste("aurora-voz")} id="aurora-voz" className="scroll-mt-6 pt-2 space-y-3">
         <div>
           <h2 className="text-base font-semibold mb-1 flex items-center gap-2">
             <Mic className="w-4 h-4 text-[#39FF14]" /> Voz de Aurora
@@ -1159,10 +1167,10 @@ function CuentaContent() {
         </div>
         <VoiceOssPanel />
         <XaiVoicePanel className="mt-3" />
-      </section>
+      </ConClave>
 
       {/* ═══════════════════════ 9) VISIÓN DE AURORA (SENTIDOS) ═══════════════════════ */}
-      <section id="aurora-sentidos" className="scroll-mt-6 pt-2 space-y-3">
+      <ConClave como="section" clave={claveDeAjuste("aurora-sentidos")} id="aurora-sentidos" className="scroll-mt-6 pt-2 space-y-3">
         <div>
           <h2 className="text-base font-semibold mb-1 flex items-center gap-2">
             <Eye className="w-4 h-4 text-violet-400" /> Visión de Aurora (sentidos)
@@ -1173,12 +1181,12 @@ function CuentaContent() {
           </p>
         </div>
         <VisionPanel />
-      </section>
+      </ConClave>
 
       {/* ═══════════════════════ 9B) AVATAR Y ACOMPAÑANTE POR PERSONALIDAD ═══════════════════════ */}
-      <section id="aurora-avatar" className="scroll-mt-6 pt-2 space-y-3">
+      <ConClave como="section" clave={claveDeAjuste("aurora-avatar")} id="aurora-avatar" className="scroll-mt-6 pt-2 space-y-3">
         <PanelAvatarPersonalidad />
-      </section>
+      </ConClave>
 
       {/* ═══════════════════════ 10) EXTERNOS Y APIS ═══════════════════════ */}
       <SeccionExternos />
@@ -1190,7 +1198,7 @@ function CuentaContent() {
 function SeccionExternos() {
   const [abierta, setAbierta] = useState(false);
   return (
-    <section id="externos" className="scroll-mt-6 pt-2 space-y-3">
+    <ConClave como="section" clave={claveDeAjuste("externos")} id="externos" className="scroll-mt-6 pt-2 space-y-3">
       <button
         type="button"
         onClick={() => setAbierta((v) => !v)}
@@ -1207,7 +1215,7 @@ function SeccionExternos() {
           <ExternosCuenta />
         </div>
       ) : null}
-    </section>
+    </ConClave>
   );
 }
 
