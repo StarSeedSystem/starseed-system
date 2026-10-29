@@ -1,0 +1,81 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "ola": "1021G",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40253173687",
+   "id": "GUI1021Gb-d3",
+   "titulo": "Guías · tarjetas de la Guía de la red con los temas nuevos y los textos corregidos (parte 3 de 3)",
+   "archivos": [
+    "src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§ indicado); los textos de §3 son la fuente de verdad: cópialos tal cual, sin inventar ni añadir funciones. §1 y §3. En `areas-explicadas.tsx`, las explicaciones de `/protomolecula`, `/network/politics`, `/network/education`, `/network/culture`, `/genesis` y `/cerebro` salen de `TODOS_LOS_TEMAS` (queEs = cuerpo, comoFunciona = puntos, empiezaPor = la pregunta a Aurora), y `/cerebros`, `/library` y `/red-mesh` pasan a usar los temas `neuronas-cerebro`, `libreria-biblioteca` y `malla`. En `onboarding-wizard.tsx` añade a `AREAS` las tarjetas que falten de esas rutas (con icono y tip corto) y cambia la de Cerebros a `/cerebro`. Pruebas: cada ruta nueva abre su explicación y ninguna tarjeta habla de «varios cerebros». Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; animaciones con framer-motion que respetan reduced-motion; dianas de 44 px y cursor pointer; honestidad radical (lo que no existe no se presenta como hecho).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40253173687`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40253173687:refs/remotes/origin/nube/40253173687\"` y `git cherry-pick --no-commit a5cc4606efbc`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx, src/components/onboarding/areas-explicadas.tsx, src/components/onboarding/onboarding-wizard.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 3 DE 3 (la dirección dividió GUI1021Gb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GUI1021Gb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "GUI1021Gb-d2"
+   ]
+  },
+  {
+   "ola": "1027C · Colibri en las capas de Astraura",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261028-135546-CLB1027G",
+   "id": "CLB1027Gb-d2",
+   "titulo": "Capas · automejora: lo medido en cada neurona reordena los candidatos (parte 2 de 3)",
+   "archivos": [
+    "src/lib/astraura/capas/planificador.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Colibri (JustVugg/colibri, Apache-2.0) «debe ser el nativo de las multicapas de conciencia automáticas de la IA Astraura usando todos los sistemas disponibles (1.58 bits, Cactus Needle, Bonsai, Jev, Laya…), según lo permitan almacenamientos y capacidades, automejorables y configurables». Contrato: `architecture/colibri-multicapas.md` (léelo entero) y `architecture/capas-autoadaptables.md`. Datos verificados de cada modelo: `config/capas-colibri-1027.json`. Colibri escucha en 127.0.0.1:4480 (el 8000 es de Astraura 1.58). Nada se descarga ni se instala sin el visto bueno.\n\n`medidas.ts` PURO: `registrarMedida(almacen, {neurona, modelo, capa, latenciaMs, tokPorS?, acierto?})` (media móvil de las últimas 20), `ordenarPorMedidas(candidatos, medidas, neurona)` (más rápido y más acertado primero; sin medida, el orden del catálogo). En `planificador.ts`, si recibe `medidas` en su entrada, ordena los candidatos de la capa con `ordenarPorMedidas` ANTES de elegir; sin medidas, nada cambia (la salida tiene que ser idéntica a hoy). Pruebas de las dos cosas.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261028-135546-CLB1027G`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261028-135546-CLB1027G:refs/remotes/origin/nube/a1-20261028-135546-CLB1027G\"` y `git cherry-pick --no-commit ee663d629cb9 7aeceb57efd2 b38ce5bb7264 1fde1f0630ca 7dd1493bb269 a5a18d57e193 6cbbbff1156f 175ab0613b76`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/astraura-bots/adaptadores/reparto-vivo.ts, src/lib/astraura/capas/__tests__/medidas.test.ts, src/lib/astraura/capas/__tests__/planificador.test.ts, src/lib/astraura/capas/medidas.ts, src/lib/astraura/capas/planificador.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 3 (la dirección dividió CLB1027Gb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/astraura/capas/planificador.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CLB1027Gb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "CLB1027Gb-d1"
+   ]
+  },
+  {
+   "id": "CVV1028B",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Contenido vivo · elegir la ruta de cada tarea (local o externo) con la razón escrita",
+   "archivos": [
+    "src/lib/contenido-vivo/rutas.ts",
+    "src/lib/contenido-vivo/__tests__/rutas.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nPURA: `compararRutas(tarea, contexto)` → [{ruta, puntuacion, disponible, motivoNoDisponible?, razon}] ordenada, y `elegirRuta(tarea, contexto)` → la primera disponible o null. `contexto`: {alcance (personal | perfil | grupo | publica), conectados: string[], cupoHoy: Record<string, number>, creditosDisponibles, topeMes, gastadoMes, neurona: {gpu: bool, capaz3d: bool}, ajustes: {localPrimero, externosPermitidos}}. Puntuación: calidad por tarea, menos coste relativo al tope, cero si no está disponible (no conectado, sin cupo, neurona incapaz, alcance personal con ruta que sale de la neurona sin permiso, externo no permitido). Con `localPrimero`, una local gana si queda a ≤ 0,1 de la mejor externa. `razon` en una frase en español («Local: Three.js basta para una escena interactiva y no gasta créditos»). Pruebas: alcance personal nunca elige externa; sin conectar sale `motivoNoDisponible` con el enlace; película fotorrealista con Higgsfield conectado y cupo elige Higgsfield; gráfico vivo siempre local.",
+   "dependencias_ya_en_main": [
+    "CVV1028A"
+   ]
+  },
+  {
+   "id": "CVV1028C",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Contenido vivo · ajustes por cuenta, página y grupo y libro de créditos",
+   "archivos": [
+    "src/lib/contenido-vivo/ajustes-ambito.ts",
+    "src/lib/contenido-vivo/__tests__/ajustes-ambito.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nPURO: `AjustesContenidoVivo` {localPrimero: true por defecto, externosPermitidos: [], topeCreditosMes: 0, aprobacion: \"yo\" | \"democratica\" | \"personas\", personas?: string[]}, `validarAjustes` (rellena lo que falta, recorta valores raros), `AsientoCreditos` {t, ambito, servicio, modelo, creditos, tarea, aprobadoPor} y `gastadoEnMes(asientos, ahora)`, y `puedeGastar(ajustes, gastado, cotizacion, quien)` → {si, motivo} (sin tope = no se gasta; en «democratica» devuelve que hace falta una propuesta, como `protomolecula/permisos.ts` y `architecture/protomolecula-gobierno.md`). La persistencia la decide quien llama (mira cómo guarda `protomolecula/permisos.ts` y sigue el mismo camino solo si cabe en estos 2 archivos; si no, déjalo puro). Pruebas de cada rama.",
+   "dependencias_ya_en_main": [
+    "CVV1028A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "CVV1028B",
+   "CVV1028C",
+   "CLB1027Gb-d2",
+   "GUI1021Gb-d3"
+  ]
+ }
+}
