@@ -80,8 +80,10 @@ class Actualizar(unittest.TestCase):
                 f.write("STARSEED_PASARELA_EXPLABS_MODELOS=viejo\n")
             r = E.actualizar(forzar=True, pedir=lambda k: DATOS)
             self.assertTrue(r["hecho"])
-            self.assertEqual(json.load(open(E.ESTADO))["decisiones_gratis"][0], "jev-latest")
-            self.assertIn("deepseek-v4.1-flash-uncensored", open(E.ENV).read())
+            with open(E.ESTADO, encoding="utf-8") as f_estado:
+                self.assertEqual(json.load(f_estado)["decisiones_gratis"][0], "jev-latest")
+            with open(E.ENV, encoding="utf-8") as f_env:
+                self.assertIn("deepseek-v4.1-flash-uncensored", f_env.read())
             self.assertEqual(oct(os.stat(E.ENV).st_mode & 0o777), "0o600")
             # Antes de 6 h no vuelve a pedir.
             r2 = E.actualizar(pedir=lambda k: (_ for _ in ()).throw(AssertionError("no debía pedir")))

@@ -14,6 +14,14 @@ La red, el reloj y la espera son inyectables, así que las pruebas son
 puras y sin conexión: `leer(url, ctx, obtener_url, dormir, ahora)`.
 """
 
+# (2026-10-29, PUB1029G) Anotaciones perezosas: con Python 3.12 se evalúan al
+# importar y `callable | None` reventaba con TypeError antes de que unittest
+# llegara a las pruebas. Con `__future__` son cadenas y no hay evaluación.
+from __future__ import annotations
+
+from collections.abc import Callable
+from contextlib import AbstractContextManager
+
 import http.client
 import html
 import html.parser
@@ -59,6 +67,8 @@ HEADERS_PROHIBIDOS = {"cookie", "authorization"}
 # ── tipos ──────────────────────────────────────────────────────────────
 
 Result = dict[str, str | bool | bytes | None]
+
+Sleeper = Callable[[float], None]
 
 
 # ── ayuda: parseo de dominio ───────────────────────────────────────────
@@ -128,6 +138,7 @@ def _robots_permiten(texto_robots: str | None, url: str, agente: str) -> bool:
     """True si robots.txt no prohíbe la URL a `agente`; puro (sin red)."""
     if not texto_robots:
         return True  # sin robots.txt se considera permitido
+    import urllib.robotparser  # (PUB1029G) el submódulo no viaja con urllib.request
     robot = urllib.robotparser.RobotFileParser()
     robot.parse(texto_robots.splitlines())
     try:
@@ -189,7 +200,7 @@ def _tiene_noai(html_: str, headers: dict | None) -> bool | None:
 # ── ayuda: seguimiento de pausa por dominio ─────────────────────────────
 
 def _pausa_dominio(dominio: str, segundos_previos: float | None,
-                    dormir: callable) -> float:
+                   dormir: Sleeper) -> float:
     """Aplica la pausa de 10 s por dominio; devuelve el tiempo que sobró."""
     if segundos_previos is None:
         dormir(0.0)
@@ -203,8 +214,8 @@ def _pausa_dominio(dominio: str, segundos_previos: float | None,
 # ── función principal ──────────────────────────────────────────────────
 
 def leer(url: str, ctx: dict,
-         obtener_url: callable | None = None,
-         dormir: callable | None = None,
+         obtener_url: Callable[..., AbstractContextManager] | None = None,
+         dormir: Sleeper | None = None,
          ahora: datetime | None = None) -> Result:
     """Lee `url` y devuelve {ok, url_final, html, bytes, bloqueado_por}.
 

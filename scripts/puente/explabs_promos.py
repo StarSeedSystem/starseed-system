@@ -192,7 +192,8 @@ def actualizar(forzar=False, ahora=None, pedir=_pedir):
     _escribir_atomico(ESTADO, json.dumps(foto, ensure_ascii=False, indent=1))
     modelos = modelos_pasarela(clasif)
     try:
-        texto = open(ENV, encoding="utf-8").read()
+        with open(ENV, encoding="utf-8") as f_env:
+            texto = f_env.read()
         nuevo = actualizar_env(texto, modelos)
         if nuevo != texto:
             _escribir_atomico(ENV, nuevo)
