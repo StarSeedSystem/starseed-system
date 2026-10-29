@@ -21,9 +21,13 @@ import {
     Image as ImageIcon, MonitorPlay, Settings2, ExternalLink, Pencil, Copy,
     Trash2, Magnet, FolderInput, Sparkles, Check, PictureInPicture2,
     Eye, Info, Grid2x2, Columns2, Rows2, Frame, Home, Share2, PenLine,
-    Scissors, ClipboardPaste, CopyPlus, Layers, Plus, MessageSquare, type LucideIcon,
+    Scissors, ClipboardPaste, CopyPlus, Layers, Plus, MessageSquare, Replace, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { Convertido } from "@/lib/conversion/cliente";
+import { descargarBlob } from "@/lib/conversion/cliente";
+import { archivoDeIcono } from "@/lib/conversion/iconos-escritorio";
+import { useConversionMenu } from "@/components/conversion/use-conversion-menu";
 import type { Desktop, DesktopIcon, DesktopSortMode, DesktopIconSize, TileMode } from "./desktop-store";
 import {
     addIcon, createNoteIcon, sortIcons, autoArrangeIcons, setSnap, updateIcon,
@@ -301,6 +305,15 @@ export function IconContextMenu({
     // Pegar DENTRO de este folder (destino natural del portapapeles).
     const canPasteHere = Boolean(clip) && icon.kind === "folder";
 
+    // CNV1023C · «Convertir a…» (Filee) para iconos que apuntan a un archivo con
+    // URL; el resultado se descarga (nada se guarda fuera de ese medio).
+    const archivoDelIcono = React.useMemo(() => archivoDeIcono(icon), [icon]);
+    const guardarConversion = React.useCallback(
+        async (c: Convertido): Promise<string | null> => { descargarBlob(c.blob, c.nombre); return null; },
+        [],
+    );
+    const conversion = useConversionMenu(archivoDelIcono, guardarConversion);
+
     return (
         <MenuShell x={x} y={y} canvasRef={canvasRef}>
             <MenuItem icon={ExternalLink} label="Abrir" onClick={() => run(() => onOpen(icon))} />
@@ -312,6 +325,29 @@ export function IconContextMenu({
             )}
             {editable && onEdit && (
                 <MenuItem icon={PenLine} label="Editar" onClick={() => run(() => { onEdit(icon) || onRename(icon.id); })} />
+            )}
+
+            {/* CNV1023C · Convertir con Filee: solo archivos con URL; el resultado se descarga. */}
+            {conversion && (
+                <>
+                    <MenuDivider />
+                    <SubMenu icon={Replace} label="Convertir a…">
+                        {conversion.estado === "cargando" && (
+                            <MenuItem label="Mirando formatos…" onClick={() => { /* nada todavía */ }} />
+                        )}
+                        {conversion.estado === "no-disponible" && (
+                            <MenuItem label={conversion.motivo ?? "Aquí no hay conversor."} onClick={() => { /* nada todavía */ }} />
+                        )}
+                        {conversion.estado === "listo" && conversion.principales.map((f) => (
+                            <MenuItem key={f} label={conversion.etiqueta(f)} onClick={() => run(() => conversion.onConvertir(f))} />
+                        ))}
+                        <MenuItem
+                            icon={Settings2}
+                            label={conversion.resto > 0 ? `Más formatos (${conversion.resto})…` : "Abrir el conversor…"}
+                            onClick={() => run(conversion.onMas)}
+                        />
+                    </SubMenu>
+                </>
             )}
 
             <MenuDivider />
