@@ -132,7 +132,7 @@ describe("construirEventoSeguridad", () => {
 
   it("el id es estable y cambia con el elemento y con el cubo de 60 s ¿determinista?", () => {
     const entrada = entradaConTrampas("limite-peticiones");
-    const a = construirEventoSeguridad({ ...entrada, detalle: { ...entrada.detalle } }, AHORA_MS) as EventoSeguridad;
+    const a = construirEventoSeguridad({ ...entrada, detalle: { ...(entrada.detalle as Record<string, unknown>) } }, AHORA_MS) as EventoSeguridad;
     const b = construirEventoSeguridad(entrada, AHORA_MS) as EventoSeguridad;
     expect(a.id).toBe(b.id);
     expect(a.id).toMatch(/^evs-[0-9a-f]{8}$/);
