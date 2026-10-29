@@ -8,6 +8,7 @@ import type { Brain } from "@/lib/brains/brains";
 import { saveBrain } from "@/lib/brains/brains";
 import { listMemoryFiles } from "@/lib/cerebro/memory-files";
 import { leerAjustes, conAjustes, APLICACION, type AjustesObjetivo } from "@/lib/cerebros/ajustes";
+import { getMemoryDestinations, setMemoryDestinations } from "@/lib/brains/memory-destinations";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AjustesSeguridad } from "@/components/cerebro/ajustes-seguridad";
@@ -69,6 +70,18 @@ export default function AjustesCerebroDialog({ open, onOpenChange, cerebro, cere
     };
     const nuevoConfig = conAjustes(cerebro.config, objetivo, parcial);
     const guardado = await saveBrain({ ...cerebro, config: nuevoConfig });
+    // En el nivel cerebro, los destinos de memoria se aplican de verdad con setMemoryDestinations.
+    if (aplicarA === "cerebro" && valorMedios.almacenamiento && valorMedios.almacenamiento.length > 0) {
+      try {
+        const actuales = getMemoryDestinations(cerebro);
+        await setMemoryDestinations(cerebro, {
+          starseed: { enabled: valorMedios.almacenamiento.includes("starseed") },
+          p2p: { ...actuales.p2p, enabled: valorMedios.almacenamiento.includes("p2p") },
+          external: actuales.external.filter((e) => valorMedios.almacenamiento.includes(e.id)),
+          local: { enabled: true },
+        });
+      } catch { /* sin medida */ }
+    }
     if (guardado) onHecho?.();
   }
 
