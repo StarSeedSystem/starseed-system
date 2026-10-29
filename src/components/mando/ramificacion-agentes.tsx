@@ -1198,14 +1198,9 @@ export function SeccionBloqueadasReintentos({
                     {resultado.texto}
                 </p>
             ) : null}
-            <SeccionPlegable
-                id="bloqueadas-ramif"
-                titulo="Grupos de bloqueadas y rechazadas"
-                contador={`${valor} en la lista`}
-                resumen="La lista completa está ahora cerrada: «Abrir lista» la enseña con el mismo dato del pulso."
-            >
-                <BloqueadasGrupos detalle={detalle} alVer={onVer} alHecho={hecho} />
-            </SeccionPlegable>
+            {/* (UIG1029C) La lista por causa trae su «Cerrar lista» arriba y una sección
+                plegable por causa: la misma vista que el medidor del pulso. */}
+            <BloqueadasGrupos detalle={detalle} alVer={onVer} alHecho={hecho} />
         </section>
     );
 }

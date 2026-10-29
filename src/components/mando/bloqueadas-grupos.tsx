@@ -21,6 +21,7 @@ import { useCallback, useState } from "react";
 import type { DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
 import { NOMBRE_ACCION, sujetoDeTransformada, type OpcionAlex, type ResumenBloqueadas } from "@/lib/mando/bloqueadas";
 import { BloqueadasPanel, itemDesdeFilaMedidor } from "./bloqueadas-panel";
+import { SeccionPlegable } from "./seccion-plegable";
 
 const TEXTO_OPCION: Record<OpcionAlex, string> = {
     rehacer: "Rehacer con otro enfoque",
@@ -30,6 +31,89 @@ const TEXTO_OPCION: Record<OpcionAlex, string> = {
 function hora(t?: string): string {
     const m = /(\d{2}:\d{2})/.exec(String(t ?? ""));
     return m ? m[1] : "";
+}
+
+/** Una causa legible y, si la hay, la acción automática que la está tratando (UIG1029C). */
+export interface CausaAgrupada {
+    causa: string;
+    automatica?: string;
+    filas: FilaMedidor[];
+}
+
+/** Quita el estado entre paréntesis del sucesor: «la rehace F1b (en_curso)» agrupa con F1b. */
+function causaDePorque(porque: string): { causa: string; automatica?: string } {
+    const primera = porque.split(/\s+·\s+/)[0]
+        .replace(/\s+\((?:pendiente|en[_ ]curso|escribiendo|commit|integrada)\)$/i, "")
+        .trim();
+    if (!primera) return { causa: "sin causa anotada" };
+    if (/^la rehace /i.test(primera)) return { causa: "en reparación por una sucesora", automatica: primera };
+    if (/^la escalera del director la reintenta/i.test(primera)) return { causa: "la escalera del director la reintenta", automatica: primera };
+    if (/^la escalera del director la pasa a un modelo capaz/i.test(primera)) return { causa: "escalada a un modelo capaz", automatica: primera };
+    return { causa: primera.length > 96 ? `${primera.slice(0, 95).trim()}…` : primera };
+}
+
+/** Reparte las filas por causa; la más numerosa va primero y es la única que arranca abierta. */
+export function agruparPorCausa(filas: FilaMedidor[]): CausaAgrupada[] {
+    const mapa = new Map<string, CausaAgrupada & { automaticas: Set<string> }>();
+    for (const f of filas) {
+        const { causa, automatica } = causaDePorque(String(f.porque ?? "").trim());
+        const g = mapa.get(causa) ?? { causa, filas: [], automaticas: new Set<string>() };
+        g.filas.push(f);
+        if (automatica) g.automaticas.add(automatica);
+        mapa.set(causa, g);
+    }
+    return [...mapa.values()]
+        .map(({ automaticas, ...g }) => ({
+            ...g,
+            automatica: automaticas.size === 1 ? [...automaticas][0] : automaticas.size ? `${automaticas.size} reparaciones automáticas en marcha` : undefined,
+        }))
+        .sort((a, b) => b.filas.length - a.filas.length || a.causa.localeCompare(b.causa));
+}
+
+/** Una sección plegable por causa (UIG1029C), con su número y la acción automática si la hay. */
+function ListaPorCausa({
+    filas,
+    abiertas,
+    prefijo,
+    idsConocidos,
+    alVer,
+    alHecho,
+}: {
+    filas: FilaMedidor[];
+    abiertas: Set<string>;
+    prefijo: string;
+    idsConocidos: string[];
+    alVer?: (id: string) => void;
+    alHecho?: () => void;
+}) {
+    return (
+        <div className="mt-1.5 grid gap-1.5">
+            {agruparPorCausa(filas).map((g, i) => {
+                const ids = g.filas.map((f) => f.id);
+                return (
+                    <SeccionPlegable
+                        key={g.causa}
+                        id={`${prefijo}-${i}`}
+                        titulo={g.causa}
+                        contador={`${g.filas.length}`}
+                        resumen={`${g.filas.length} ${g.filas.length === 1 ? "tarea" : "tareas"} · ${ids.slice(0, 6).join(" · ")}${ids.length > 6 ? " …" : ""}`}
+                        abiertaPorDefecto={abiertas.has(g.causa)}
+                        acciones={g.automatica ? (
+                            <span className="rounded-md border border-cyan-300/30 bg-cyan-400/10 px-1.5 py-0.5 text-[10px] text-cyan-100">
+                                auto: {g.automatica}
+                            </span>
+                        ) : undefined}
+                    >
+                        <BloqueadasPanel
+                            items={g.filas.map((f) => itemDesdeFilaMedidor(f, idsConocidos))}
+                            alVer={alVer}
+                            alHecho={alHecho}
+                        />
+                    </SeccionPlegable>
+                );
+            })}
+        </div>
+    );
 }
 
 function Cifra({ valor, texto, tono }: { valor: number; texto: string; tono: string }) {
@@ -85,9 +169,20 @@ export function BloqueadasGrupos({
     const atascadas: FilaMedidor[] = operativas.filter((f) => (f.grupo ?? "atascada") === "atascada");
     const sinResolver: FilaMedidor[] = operativas.filter((f) => f.grupo === "sin-resolver");
     const idsConocidos = detalle.filas.map((x) => x.id);
+    const porCausa = agruparPorCausa([...atascadas, ...sinResolver]);
+    const maximo = Math.max(0, ...porCausa.map((g) => g.filas.length));
+    const abiertas = new Set(porCausa.filter((g) => g.filas.length === maximo).map((g) => g.causa));
 
     return (
-        <section className="mt-2 grid gap-3 text-left" data-testid="bloqueadas-grupos">
+        <section className="mt-2 text-left" data-testid="bloqueadas-grupos">
+            <SeccionPlegable
+                id="bloqueadas-causas"
+                titulo="Lista por causa"
+                contador={`${operativas.length}`}
+                resumen={detalle.resumen}
+                abiertaPorDefecto
+            >
+                <div className="grid gap-3">
             {r ? (
                 <p className="flex flex-wrap items-center justify-center gap-1.5" data-testid="bloqueadas-cifras">
                     <Cifra valor={r.atascadas} texto="atascadas" tono="border-rose-400/30 bg-rose-500/10 text-rose-100" />
@@ -161,8 +256,11 @@ export function BloqueadasGrupos({
                     <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-rose-200/80">
                         Atascadas · aún sin transformar
                     </h4>
-                    <BloqueadasPanel
-                        items={atascadas.map((f) => itemDesdeFilaMedidor(f, idsConocidos))}
+                    <ListaPorCausa
+                        filas={atascadas}
+                        abiertas={abiertas}
+                        prefijo="bloqueadas-atascada"
+                        idsConocidos={idsConocidos}
                         alVer={alVer}
                         alHecho={alHecho}
                     />
@@ -174,8 +272,11 @@ export function BloqueadasGrupos({
                     <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-orange-200/80">
                         Fallidas o rechazadas sin resolver · últimos 3 días
                     </h4>
-                    <BloqueadasPanel
-                        items={sinResolver.map((f) => itemDesdeFilaMedidor(f, idsConocidos))}
+                    <ListaPorCausa
+                        filas={sinResolver}
+                        abiertas={abiertas}
+                        prefijo="bloqueadas-sin-resolver"
+                        idsConocidos={idsConocidos}
                         alVer={alVer}
                         alHecho={alHecho}
                     />
@@ -184,9 +285,12 @@ export function BloqueadasGrupos({
 
             {r && r.transformadas.length ? (
                 <div data-testid="bloqueadas-transformadas">
-                    <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-200/80">
-                        Transformadas hoy · qué se hizo y por qué
-                    </h4>
+                    <SeccionPlegable
+                        id="bloqueadas-transformadas"
+                        titulo="Transformadas hoy · qué se hizo y por qué"
+                        contador={`${r.transformadas.length}`}
+                        resumen={`${r.transformadas.length} transformadas por el revisor automático`}
+                    >
                     <ul className="grid gap-1">
                         {r.transformadas.slice(0, 40).map((x, i) => (
                             <li
@@ -203,8 +307,12 @@ export function BloqueadasGrupos({
                             </li>
                         ))}
                     </ul>
+                    </SeccionPlegable>
                 </div>
             ) : null}
+
+                </div>
+            </SeccionPlegable>
 
             {resultado ? (
                 <p
@@ -216,9 +324,6 @@ export function BloqueadasGrupos({
                 </p>
             ) : null}
 
-            {!r && operativas.length ? (
-                <BloqueadasPanel items={operativas.map((f) => itemDesdeFilaMedidor(f, idsConocidos))} alVer={alVer} alHecho={alHecho} />
-            ) : null}
         </section>
     );
 }
