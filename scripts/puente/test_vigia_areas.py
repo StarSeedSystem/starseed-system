@@ -13,13 +13,21 @@ import vigia_areas as V
 AREAS_DEL_CONTRATO = ["imagen", "video", "3d", "voz", "oido", "palabra", "reflejo", "vision", "incrustaciones", "audio", "motores", "habilidades"]
 MOTORES = {"ggml-org/llama.cpp", "leejet/stable-diffusion.cpp", "ggml-org/whisper.cpp", "Comfy-Org/ComfyUI",
            "fermionresearch/phonon", "microsoft/onnxruntime", "anomalyco/opencode"}
+HABILIDADES_REPOS = {"mattpocock/skills", "heygen-com/hyperframes", "cathrynlavery/diagram-design"}
 BASE = {"cuantizadores": ["unsloth", "city96", "QuantStack"],
         "licencias_conocidas": {"apache-2.0": "libre", "qwen-research": "personal"},
         "areas": [{"id": "imagen", "nombre": "Imagen", "pipeline_tags": ["text-to-image"], "autores": ["Qwen"],
                    "cuantizadores": ["unsloth"], "catalogo": "src/lib/imagenes/modelos.ts"},
                   {"id": "motores", "nombre": "Motores", "pipeline_tags": [], "autores": [],
                    "repos_github": ["ggml-org/llama.cpp"], "alias_github": {"ggerganov/llama.cpp": "ggml-org/llama.cpp"},
-                   "catalogo": "src/lib/library/packages.ts"}]}
+                   "catalogo": "src/lib/library/packages.ts"},
+                  {"id": "habilidades", "nombre": "Habilidades", "pipeline_tags": [], "autores": [],
+                   "cuantizadores": [],
+                   "repos_github": ["mattpocock/skills", "heygen-com/hyperframes", "cathrynlavery/diagram-design"],
+                   "alias_github": {"mattpocock/skills": "mattpocock/skills",
+                                    "heygen-com/hyperframes": "heygen-com/hyperframes",
+                                    "cathrynlavery/diagram-design": "cathrynlavery/diagram-design"},
+                   "catalogo": "src/ai/astraura/skills-ingenieria.ts"}]}
 
 
 def con(cambio):
@@ -48,14 +56,43 @@ class AreasDelVigia(unittest.TestCase):
         motores = next(a for a in areas if a["id"] == "motores")
         self.assertEqual(set(motores["repos_github"]), MOTORES)
         self.assertEqual(motores["alias_github"]["comfyanonymous/ComfyUI"], "Comfy-Org/ComfyUI")
+        habilidades = next(a for a in areas if a["id"] == "habilidades")
+        self.assertEqual(set(habilidades["repos_github"]), HABILIDADES_REPOS)
+        self.assertEqual(habilidades["alias_github"]["cathrynlavery/diagram-design"], "cathrynlavery/diagram-design")
+        # Diagram Design comparte el catálogo de ingeniería del área de habilidades.
+        self.assertEqual(habilidades["catalogo"], "src/ai/astraura/skills-ingenieria.ts")
         self.assertTrue({"Qwen", "Tongyi-MAI"} <= set(areas[0]["autores"]) and "text-to-image" in areas[0]["pipeline_tags"])
         self.assertTrue({"unsloth", "city96", "QuantStack"} <= set(areas[0]["cuantizadores"]))
 
+    def test_habilidades_diagram_design_y_su_manifiesto(self):
+        """Ola 1018D: el área habilidades nombra Diagram Design y su copia trae el manifiesto de versión (MIT)."""
+        areas = V.cargar_areas()
+        habilidades = next(a for a in areas if a["id"] == "habilidades")
+        self.assertIn("cathrynlavery/diagram-design", habilidades["repos_github"])
+        self.assertEqual(habilidades["alias_github"]["cathrynlavery/diagram-design"], "cathrynlavery/diagram-design")
+        self.assertIn("vendor/habilidades/diagram-design", habilidades["nota"])
+        self.assertIn(".claude-plugin/plugin.json", habilidades["nota"])
+        self.assertIn("MIT", habilidades["nota"])
+        destino = os.path.join(V.RAIZ_REPO, "vendor", "habilidades", "diagram-design")
+        self.assertTrue(os.path.isdir(destino), destino)
+        self.assertTrue(os.path.isfile(os.path.join(destino, "SKILL.md")))
+        self.assertTrue(os.path.isfile(os.path.join(destino, "LICENSE")))
+        self.assertGreaterEqual(len(os.listdir(os.path.join(destino, "references"))), 45)
+        manifiesto = os.path.join(destino, ".claude-plugin", "plugin.json")
+        self.assertTrue(os.path.isfile(manifiesto), manifiesto)
+        with open(manifiesto, encoding="utf-8") as f:
+            m = json.load(f)
+        self.assertEqual(m["name"], "diagram-design")
+        self.assertEqual(m["version"], "2.6.110")
+        self.assertEqual(m["license"], "MIT")
+
     def test_resuelve_herencias(self):
-        imagen, motores = V.validar_areas(con(lambda d: d["areas"][0].pop("cuantizadores")))
+        imagen, motores, habilidades = V.validar_areas(con(lambda d: d["areas"][0].pop("cuantizadores")))
         self.assertEqual(imagen["cuantizadores"], ["unsloth", "city96", "QuantStack"])  # hereda la lista común
         self.assertEqual((imagen["filtros"], imagen["repos_github"]), ({"etiquetas": []}, []))
         self.assertEqual(motores["licencias_conocidas"], BASE["licencias_conocidas"])
+        self.assertEqual(habilidades["cuantizadores"], [])  # su lista vacía no hereda la común
+        self.assertEqual(habilidades["alias_github"]["cathrynlavery/diagram-design"], "cathrynlavery/diagram-design")
 
     def test_campo_obligatorio_que_falta(self):
         self.assertIn("área «motores»: falta el campo «catalogo»", errores(con(lambda d: d["areas"][1].pop("catalogo"))))
@@ -75,7 +112,7 @@ class AreasDelVigia(unittest.TestCase):
             self.assertNotIn("alguien", texto)
         texto = errores(BASE, existe=lambda r: r != "src/lib/library/packages.ts")
         self.assertIn("el catálogo «src/lib/library/packages.ts» no existe en el repo", texto)
-        self.assertEqual(len(V.validar_areas(BASE, existe=None)), 2)  # sin `existe` no se mira el disco
+        self.assertEqual(len(V.validar_areas(BASE, existe=None)), 3)  # sin `existe` no se mira el disco
 
     def test_licencias(self):
         self.assertIn("«gratis» no existe", errores(con(lambda d: d["licencias_conocidas"].update(mit="gratis"))))
@@ -103,7 +140,8 @@ class AreasDelVigia(unittest.TestCase):
     def test_archivo_ausente_o_roto_con_nombre_relativo_y_valido(self):
         with tempfile.TemporaryDirectory() as raiz:
             ruta = os.path.join(raiz, "config", "vigia-areas.json")
-            for rel in ("config/x", "src/lib/imagenes/modelos.ts", "src/lib/library/packages.ts"):
+            for rel in ("config/x", "src/lib/imagenes/modelos.ts", "src/lib/library/packages.ts",
+                        "src/ai/astraura/skills-ingenieria.ts"):
                 os.makedirs(os.path.dirname(os.path.join(raiz, rel)), exist_ok=True)
                 open(os.path.join(raiz, rel), "w").close()
             with self.assertRaises(V.AreasInvalidas) as ctx:
@@ -117,4 +155,4 @@ class AreasDelVigia(unittest.TestCase):
             self.assertNotIn(raiz, str(ctx.exception))
             with open(ruta, "w", encoding="utf-8") as f:
                 json.dump(BASE, f)
-            self.assertEqual([a["id"] for a in V.cargar_areas(ruta, raiz)], ["imagen", "motores"])
+            self.assertEqual([a["id"] for a in V.cargar_areas(ruta, raiz)], ["imagen", "motores", "habilidades"])

@@ -113,12 +113,14 @@
         "pipeline_tags": [],
         "autores": [],
         "cuantizadores": [],
-        "repos_github": ["mattpocock/skills","heygen-com/hyperframes"],
+        "repos_github": ["mattpocock/skills","heygen-com/hyperframes","cathrynlavery/diagram-design"],
         "alias_github": {
             "mattpocock/skills": "mattpocock/skills",
-            "heygen-com/hyperframes": "heygen-com/hyperframes"
+            "heygen-com/hyperframes": "heygen-com/hyperframes",
+            "cathrynlavery/diagram-design": "cathrynlavery/diagram-design"
         },
-        "catalogo": "src/ai/astraura/skills-ingenieria.ts"
+        "catalogo": "src/ai/astraura/skills-ingenieria.ts",
+        "nota": "Diagram Design (cathrynlavery/diagram-design, MIT) se añadió en la Ola 1018D: su copia vive en vendor/habilidades/diagram-design/ y su manifiesto .claude-plugin/plugin.json (campo version, hoy 2.6.110) es la señal de versión que el vigía compara para renovarla entera (architecture/diagramas.md §2 y §3.7)."
     }
   ]
 }
