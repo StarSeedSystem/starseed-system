@@ -17,6 +17,7 @@ import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { accionVariaciones, ETIQUETA_VARIACIONES } from "@/components/variaciones/accion-variaciones";
 import { OPCIONES_SILENCIO } from "@/lib/mensajeria/ajustes";
 import { describirSilencio } from "./formato-tiempo";
 
@@ -44,6 +45,8 @@ export interface MenuHiloProps {
     onAjustes: () => void;
     onMarcarLeido?: () => void;
     etiquetaAjustes?: string;
+    /** (Ola 1019S) Clave de elemento para «Variaciones públicas»; la familia comparte la clave, nunca la instancia. */
+    claveVariaciones?: string;
     /** Acciones propias antes de las comunes (p. ej. «Destacar» en correos). */
     extrasAntes?: AccionExtraMenu[];
     /** Acciones propias después de «Archivar». */
@@ -69,6 +72,7 @@ export function MenuHilo({
     onAjustes,
     onMarcarLeido,
     etiquetaAjustes = "Ajustes del chat",
+    claveVariaciones = "mensaje:hilo",
     extrasAntes = [],
     extrasDespues = [],
     orientacion = "horizontal",
@@ -88,6 +92,16 @@ export function MenuHilo({
                 {a.detalle && <span className="text-[11px] text-white/50">{a.detalle}</span>}
             </DropdownMenuItem>
         );
+    };
+
+    // (Ola 1019S · contrato architecture/variaciones-publicas.md §3) La misma entrada de todo el
+    // OS, con el ayudante común: abre la ventana de variaciones públicas del TIPO de elemento.
+    const va = accionVariaciones(claveVariaciones);
+    const vaExtra: AccionExtraMenu = {
+        id: "variaciones-publicas",
+        etiqueta: ETIQUETA_VARIACIONES,
+        icono: va.icon,
+        onSelect: va.onClick,
     };
 
     return (
@@ -115,6 +129,7 @@ export function MenuHilo({
                 align="end"
                 sideOffset={6}
                 collisionPadding={12}
+                data-ss-menu-propio
                 className="z-[130] w-[min(88vw,260px)] rounded-2xl border-white/10 bg-[rgba(12,14,34,0.94)] p-1.5 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.8)] backdrop-blur-xl"
             >
                 {extrasAntes.map(extra)}
@@ -167,6 +182,8 @@ export function MenuHilo({
                     <span className="flex-1">{archivado ? "Desarchivar" : "Archivar"}</span>
                 </DropdownMenuItem>
                 {extrasDespues.map(extra)}
+                {/* (Ola 1019S) «Variaciones públicas»: misma etiqueta y puesto en todos los menús propios. */}
+                {extra(vaExtra)}
 
                 <DropdownMenuSeparator className="my-1 bg-white/10" />
                 <DropdownMenuItem className={CLASE_ITEM} onSelect={() => onAjustes()}>
