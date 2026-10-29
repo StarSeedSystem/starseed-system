@@ -19,6 +19,7 @@ import type { ModoXR, NivelCalidad } from "@/lib/xr/tipos";
 import { CRISTAL } from "@/lib/xr/tokens-3d";
 import { mensajeErrorXR } from "@/components/vivo/espacial/use-sesion-xr";
 import type { ModoXR as ModoURL } from "@/lib/vivo/xr";
+import type { PropsRigTrinity } from "./rig-trinity";
 import { BotonEntradaXR } from "./boton-entrada-xr";
 import { useCapacidadesXR } from "./use-capacidades-xr";
 
@@ -26,6 +27,9 @@ type ModoRuta = ModoURL | "pantalla" | null;
 type Props = { modo?: ModoRuta };
 
 export type ModoSesion = "vr-inmersivo" | "ar-passthrough" | "ar-mano";
+
+/** Rig de la Trinity (XR1010J): chunk perezoso, nunca en el layout raíz; los contenidos M–O entran como prop. */
+const RigOS = nextDynamic(() => import("./rig-trinity").then((m) => m.RigTrinity), { ssr: false });
 
 /** Panel de cristal del OS (XR1010H): uikit se carga solo al entrar en /xr/os, nunca en el layout raíz. */
 const PanelOS = nextDynamic(
@@ -125,6 +129,7 @@ export function EscenaOS({ modo = null }: Props) {
                 {almacen !== null && (
                     <XR store={almacen}><XROrigin /><AlturaOjos refAltura={alturaOjosRef} /></XR>
                 )}
+                    <RigOS alturaMedida={alturaOjosRef.current?.metros ?? null} />
                     <PanelOS nivel={calidadNivel} opacidadMinima={modoUrl === "ar" ? 0.82 : undefined} />
                     {!enSesion && <OrbitControls />}
                 </Suspense>
