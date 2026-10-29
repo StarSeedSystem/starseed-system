@@ -1141,72 +1141,68 @@ export function SeccionBloqueadasReintentos({
     if (valor === 0 && !r?.enCadena && !r?.transformadasHoy) return null;
 
     return (
-        <section
-            className="rounded-xl border border-amber-400/30 bg-amber-500/[0.05] p-3"
-            data-testid="seccion-bloqueadas-reintentos"
-        >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                    <h4 className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-amber-200">
-                        <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden />
-                        Bloqueadas y rechazadas · <span data-testid="bloqueadas-valor">{valor}</span>
-                    </h4>
-                    <p className="mt-0.5 text-[10px] text-amber-100/60" data-testid="desglose-bloqueadas">
-                        {detalle.resumen} — el mismo dato que el medidor «Bloqueadas» del pulso.
-                    </p>
-                </div>
-                {valor > 0 ? (
-                    <div>
-                        {!confirmando ? (
-                            <button
-                                type="button"
-                                disabled={enviando}
-                                onClick={() => setConfirmando(true)}
-                                className="cursor-pointer rounded-md border border-amber-400/40 bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-100 hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                Reintentar todas las que sirvan
-                            </button>
-                        ) : (
-                            <span className="flex items-center gap-2 text-xs">
-                                <span className="text-white/80">¿Reintentar todas las que sirvan?</span>
-                                <button
-                                    type="button"
-                                    disabled={enviando}
-                                    onClick={() => void reintentarTodas()}
-                                    className="cursor-pointer rounded-md bg-amber-500/40 px-2.5 py-1 font-medium text-white hover:bg-amber-500/60 disabled:opacity-50"
-                                >
-                                    {enviando ? "enviando…" : "sí"}
-                                </button>
-                                <button
-                                    type="button"
-                                    disabled={enviando}
-                                    onClick={() => setConfirmando(false)}
-                                    className="cursor-pointer rounded-md border border-white/10 px-2 py-1 text-white/70 hover:bg-white/5"
-                                >
-                                    no
-                                </button>
-                            </span>
-                        )}
-                    </div>
-                ) : null}
-            </div>
-            {resultado ? (
-                <p
-                    className={`mt-2 text-xs ${resultado.ok ? "text-emerald-300" : "text-rose-300"}`}
-                    data-testid="resultado-reintento-global"
-                >
-                    {resultado.texto}
-                </p>
-            ) : null}
+        <div data-testid="seccion-bloqueadas-reintentos">
             <SeccionPlegable
                 id="bloqueadas-ramif"
-                titulo="Grupos de bloqueadas y rechazadas"
-                contador={`${valor} en la lista`}
-                resumen="La lista completa está ahora cerrada: «Abrir lista» la enseña con el mismo dato del pulso."
+                titulo="Bloqueadas y rechazadas"
+                resumen={`${detalle.resumen} · el mismo dato que el medidor «Bloqueadas» del pulso.`}
+                acciones={
+                    <>
+                        <span
+                            className="rounded-md border border-amber-400/30 bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-amber-100"
+                            data-testid="bloqueadas-valor"
+                        >
+                            {valor}
+                        </span>
+                        {valor > 0 ? (
+                            !confirmando ? (
+                                <button
+                                    type="button"
+                                    disabled={enviando}
+                                    onClick={() => setConfirmando(true)}
+                                    className="cursor-pointer rounded-md border border-amber-400/40 bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-100 hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    Reintentar todas las que sirvan
+                                </button>
+                            ) : (
+                                <span className="flex flex-wrap items-center justify-center gap-2 text-xs">
+                                    <span className="text-white/80">¿Reintentar todas las que sirvan?</span>
+                                    <button
+                                        type="button"
+                                        disabled={enviando}
+                                        onClick={() => void reintentarTodas()}
+                                        className="cursor-pointer rounded-md bg-amber-500/40 px-2.5 py-1 font-medium text-white hover:bg-amber-500/60 disabled:opacity-50"
+                                    >
+                                        {enviando ? "enviando…" : "sí"}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={enviando}
+                                        onClick={() => setConfirmando(false)}
+                                        className="cursor-pointer rounded-md border border-white/10 px-2 py-1 text-white/70 hover:bg-white/5"
+                                    >
+                                        no
+                                    </button>
+                                </span>
+                            )
+                        ) : null}
+                    </>
+                }
             >
+                <p className="mc-centrado text-[10px] text-amber-100/60" data-testid="desglose-bloqueadas">
+                    {detalle.resumen} · el mismo dato que el medidor «Bloqueadas» del pulso.
+                </p>
+                {resultado ? (
+                    <p
+                        className={`mt-2 text-center text-xs ${resultado.ok ? "text-emerald-300" : "text-rose-300"}`}
+                        data-testid="resultado-reintento-global"
+                    >
+                        {resultado.texto}
+                    </p>
+                ) : null}
                 <BloqueadasGrupos detalle={detalle} alVer={onVer} alHecho={hecho} />
             </SeccionPlegable>
-        </section>
+        </div>
     );
 }
 

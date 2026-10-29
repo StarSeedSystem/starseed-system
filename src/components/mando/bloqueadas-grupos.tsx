@@ -105,11 +105,12 @@ export function causaDeFila(f: Pick<FilaMedidor, "estado" | "porque">): CausaDeB
 /** Qué hace ya el sistema con esta fila, leído de su porqué (rehacer, escalera, revisor). */
 export function accionQueLaTrata(f: Pick<FilaMedidor, "porque">): string | null {
     const p = String(f.porque ?? "");
+    // La escalera también cuenta como «en reparación»: se mira antes para no perder el matiz.
+    if (/escalera/i.test(p)) return "La lleva la escalera del director";
     if (enReparacion(f)) {
         const m = /^la rehace\s+([\w.-]+)/i.exec(p);
         return m ? `La rehace ${m[1]}` : "La rehace el director";
     }
-    if (/escalera/i.test(p)) return "La lleva la escalera del director";
     if (/puede desbloquearse/i.test(p)) return "El revisor la desbloqueará sola";
     return null;
 }
