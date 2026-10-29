@@ -24,6 +24,7 @@ import { PRODUCTIVITY_SKILLS } from "./habilidades/productividad";
 import {
   ATRIBUCION_DIAGRAMAS, HABILIDAD_DIAGRAMAS, comoCapacidad,
 } from "./habilidades/diagramas";
+import { HABILIDADES_DISENO_WEB, comoCapacidadDiseno } from "./habilidades/diseno-web";
 import { CAPACIDADES_REPOS_1026 } from "./habilidades/repos-1026";
 import { HABILIDADES_INGENIERIA_A, comoCapacidad as comoCapacidadIngenieria } from "./habilidades/ingenieria-a";
 
@@ -96,9 +97,11 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     id: "taste",
     label: "Taste · calidad de UI y estética",
     systemPrompt:
-      "Cuando generes interfaz, contenido visual o texto, aplica criterio de diseño de alto nivel (jerarquía clara, espacio en blanco, contraste, coherencia con el sistema Crystal Liquid Glass). Prefiere lo elegante, legible y sobrio a lo recargado.",
+      "Cuando generes interfaz, contenido visual o texto, aplica criterio de diseño de alto nivel (jerarquía clara, espacio en blanco, contraste, coherencia con el sistema Crystal Liquid Glass). Prefiere lo elegante, legible y sobrio a lo recargado. " +
+      `${HABILIDADES_DISENO_WEB.taste.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.taste.rutaCompleta} ` +
+      "— con la tarjeta basta para Needle y BitNet. En el OS manda el ADN del contexto sobre la estética propia de la skill. Taste Skill de Leonxlnx (github.com/Leonxlnx/taste-skill), licencia MIT.",
     routing: { preferStrong: true },
-    skillIds: ["aurora-taste"],
+    skillIds: ["aurora-taste", "design-taste-frontend"],
     packageIds: ["iatool-taste-skill"],
   },
   {
@@ -675,6 +678,31 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     routing: { preferStrong: true },
     defaultOn: true,
     skillIds: ["diagram-design"],
+  },
+  /* ═══ DISEÑO WEB · Taste · Frontend Slides · DESIGN.md (Ola 1025R · DSN1025A) ═══
+   * Tres habilidades de diseño en tres tamaños, como diagram-design: la tarjeta
+   * (≤ 60 palabras) va a Needle y BitNet, el resumen (≤ 120) a Bonsai pequeño y la
+   * guía completa (rutaCompleta) a las capas Razón, Profunda y Nube. Contrato:
+   * architecture/repos-libreria-1025.md §5. Textos en habilidades/diseno-web.ts. */
+  {
+    ...comoCapacidadDiseno(HABILIDADES_DISENO_WEB.slides, "resumen"),
+    id: "slides",
+    systemPrompt:
+      `${HABILIDADES_DISENO_WEB.slides.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.slides.rutaCompleta} ` +
+      `— con la tarjeta basta para Needle y BitNet. Frontend Slides de Zara Zhang (github.com/zarazhangrui/frontend-slides), licencia MIT.`,
+    routing: { preferStrong: true },
+    defaultOn: true,
+    skillIds: [HABILIDADES_DISENO_WEB.slides.id],
+  },
+  {
+    ...comoCapacidadDiseno(HABILIDADES_DISENO_WEB.designmd, "resumen"),
+    id: "design-md",
+    systemPrompt:
+      `${HABILIDADES_DISENO_WEB.designmd.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.designmd.rutaCompleta} ` +
+      `— con la tarjeta basta para Needle y BitNet. Skill escrita por StarSeed sobre el índice de VoltAgent/awesome-design-md (github.com/VoltAgent/awesome-design-md), licencia MIT.`,
+    routing: { preferStrong: true },
+    defaultOn: true,
+    skillIds: [HABILIDADES_DISENO_WEB.designmd.id],
   },
   /* ═══ REPOS 1026 · Grabar la pantalla (Cap) · conocimiento (WeKnora) · proyectos (OpenProject) ═══
    * Las tres se activan solas al instalar su ficha de la Biblioteca (la siembra las instala) y sus textos dicen
