@@ -31,6 +31,9 @@ export interface RecursoAgente {
   maquina?: MaquinaRecurso;
   ruta?: string;
   docs?: string;
+  /** Regla de privacidad del recurso, escrita para que el agente la lea antes
+      de usarlo. Sin declararla, el Taller no promete nada sobre dónde corre. */
+  privacidad?: string;
 }
 
 export interface ComprobacionRecurso {
@@ -175,6 +178,33 @@ export const PROMPTS_BASE: RecursoAgente[] = [
     etiquetas: ["navegador", "seguridad", "reglas", "consentimiento"], requiere: [] },
 ];
 
+/* 2026-10-20 · Ola 1020U · TRD1020F: las dos herramientas que pide
+   `architecture/repos-libreria-1020d.md` §4. El motor por capas ya existe
+   (`src/lib/traduccion/motor.ts`) y el cliente de Stirling-PDF también
+   (`src/lib/integrations/clients/stirling-pdf.ts`); aquí solo se declaran para
+   que cualquier agente las vea, con su privacidad ANTES de usarlas. No se
+   inventa un cliente nuevo ni se promete una operación que la instancia no tenga. */
+export const RECURSOS_TRADUCCION_PDF: RecursoAgente[] = [
+  {
+    id: "os:traducir", tipo: "herramienta", origen: "os", maquina: "cualquiera",
+    nombre: "Traducir",
+    descripcion: "Traduce textos con el motor por capas: el traductor del navegador (sin red), LibreTranslate de la neurona, de la malla o del cerebro y Astraura solo para lo que Argos no cubre. Cada traducción dice qué motor la hizo y la marca no se traduce.",
+    etiquetas: ["traduccion", "idiomas", "libretranslate", "astraura", "privacidad"],
+    requiere: [],
+    privacidad: "Lo privado (mensajes, documentos y memorias personales) solo se traduce en el aparato, en neuronas de la misma cuenta o en servidores del cerebro; nunca en un servidor ajeno ni en la instancia pública de pago. En modo privado el motor descarta la malla y los alcances públicos.",
+    ruta: "src/lib/traduccion/motor.ts",
+  },
+  {
+    id: "astraura:editar-pdf", tipo: "herramienta", origen: "astraura", maquina: "cualquiera",
+    nombre: "Editar PDF",
+    descripcion: "Edita PDF con el cliente de Stirling-PDF del OS (fusionar, imagen, texto, rotar, dividir, quitar y reordenar páginas, comprimir, OCR y marca de agua) y ofrece solo las operaciones que la instancia colocada por la bolsa tenga de verdad, leídas de su descripción de API.",
+    etiquetas: ["pdf", "stirling-pdf", "edicion", "archivos", "privacidad"],
+    requiere: [],
+    privacidad: "Un PDF privado solo va a una instancia de Stirling-PDF del aparato, de la cuenta o del cerebro; nunca a un servidor ajeno. El resultado se guarda como versión nueva, nunca encima del original.",
+    ruta: "src/lib/integrations/clients/stirling-pdf.ts",
+  },
+];
+
 function sinTildes(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
@@ -284,5 +314,8 @@ export function consultarViasNavegador(
 
 /** Todo lo declarado en este módulo, en un solo catálogo. */
 export function catalogoDeclarado(): RecursoAgente[] {
-  return [...RECURSOS_NAVEGADOR, ...RECURSOS_ASTRAURA, ...RECURSOS_MEMORIA, ...PROMPTS_BASE];
+  return [
+    ...RECURSOS_NAVEGADOR, ...RECURSOS_ASTRAURA, ...RECURSOS_MEMORIA,
+    ...PROMPTS_BASE, ...RECURSOS_TRADUCCION_PDF,
+  ];
 }
