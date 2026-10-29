@@ -89,7 +89,8 @@ describe('planSalida', () => {
     const barata = puerta('p-c', 'c', { medida: true, topeMensualMb: 100, usadoMesMb: 10 })
     const cara = puerta('p-cara', 'c', { medida: true, topeMensualMb: 100, usadoMesMb: 95, bajadaKbps: 9000 })
     const p = planSalida({
-      cristal: cristal(['a', 'b'], ['b', 'c']), reticula: reticula(señal('a', 'b'), señal('b', 'c')),
+      cristal: cristal(['a', 'b'], ['b', 'c']),
+      reticula: reticula(señal('a', 'b'), señal('b', 'c')),
       dato: dato({ destino: null }), ctx, puertas: [cara, barata], solicitante: sol,
     })
     expect(p.puerta?.id).toBe('p-c')
@@ -106,6 +107,16 @@ describe('planSalida', () => {
     })
     expect(p.puerta?.id).toBe('buena')
     expect(p.ruta?.saltos).toEqual(['a', 'gan'])
+  })
+
+  it('un dato interno entre neuronas tampoco usa puerta', () => {
+    const p = planSalida({
+      cristal: cristal(['a', 'b']), reticula: reticula(señal('a', 'b')),
+      dato: dato({ clase: 'interno' }), ctx, puertas: [puerta('p1', 'b')], solicitante: sol,
+    })
+    expect(p.puerta).toBeNull()
+    expect(p.ruta?.saltos).toEqual(['a', 'b'])
+    expect(p.motivo).toBe('va por la malla P2P')
   })
 
   it('sin puertas con ruta devuelve motivo claro y sin puerta', () => {

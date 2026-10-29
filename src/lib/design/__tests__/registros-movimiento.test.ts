@@ -87,6 +87,54 @@ describe("movimientoDe — 18 pares registro × sección", () => {
         expect(m.salida.ms).toBe(DURACION.normal);
         expect(m.salida.curva).toBe(CURVA.salida);
     });
+
+    it("el periodo de la respiración lo manda la sección, no el registro", () => {
+        const conTrinity = REGISTROS.map((r) => movimientoDe(r, "trinity").respiracion.periodoMs);
+        expect(new Set(conTrinity).size).toBe(1);
+        const conGenesis = REGISTROS.map((r) => movimientoDe(r, "genesis").respiracion.periodoMs);
+        expect(new Set(conGenesis).size).toBe(1);
+    });
+
+    it("la amplitud de la respiración la manda el registro, no la sección", () => {
+        expect(movimientoDe("sobrio", "trinity").respiracion.escala).toBe(1.01);
+        expect(movimientoDe("expresivo", "trinity").respiracion.escala).toBe(1.02);
+        expect(movimientoDe("experimental", "trinity").respiracion.escala).toBe(1.03);
+    });
+
+    it("el experimental retira a pausado con la curva de salida", () => {
+        for (const seccion of SECCIONES) {
+            const m = movimientoDe("experimental", seccion);
+            expect(m.salida).toEqual({ ms: DURACION.pausado, curva: CURVA.salida });
+        }
+    });
+
+    it("el sobrio nunca usa la curva elástica", () => {
+        for (const seccion of SECCIONES) {
+            const m = movimientoDe("sobrio", seccion);
+            expect(m.entrada.curva).not.toBe(CURVA.elastico);
+            expect(m.salida.curva).not.toBe(CURVA.elastico);
+        }
+    });
+
+    it("el periodo de la respiración lo manda la sección, no el registro", () => {
+        const conTrinity = REGISTROS.map((r) => movimientoDe(r, "trinity").respiracion.periodoMs);
+        expect(new Set(conTrinity).size).toBe(1);
+        const conGenesis = REGISTROS.map((r) => movimientoDe(r, "genesis").respiracion.periodoMs);
+        expect(new Set(conGenesis).size).toBe(1);
+    });
+
+    it("la amplitud de la respiración la manda el registro, no la sección", () => {
+        expect(movimientoDe("sobrio", "trinity").respiracion.escala).toBe(1.01);
+        expect(movimientoDe("expresivo", "trinity").respiracion.escala).toBe(1.02);
+        expect(movimientoDe("experimental", "trinity").respiracion.escala).toBe(1.03);
+    });
+
+    it("el experimental retira a pausado con la curva de salida", () => {
+        for (const seccion of SECCIONES) {
+            const m = movimientoDe("experimental", seccion);
+            expect(m.salida).toEqual({ ms: DURACION.pausado, curva: CURVA.salida });
+        }
+    });
 });
 
 describe("aplicarMovimientoReducido", () => {
