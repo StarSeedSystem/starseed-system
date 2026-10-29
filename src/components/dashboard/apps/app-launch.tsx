@@ -17,13 +17,27 @@ import { useRouter } from "next/navigation";
 import { ExternalLink, Loader2, Hammer } from "lucide-react";
 import { OSWindow } from "./os-window";
 import type { OpenMode, StarseedApp } from "./launcher-types";
+import { comoAbrir, type AperturaModo } from "@/lib/recursos/modos-app";
+import { ofertaDesdeAsignaciones } from "@/lib/recursos-ia/oferta-desde-asignaciones";
+import { useRecursosIa } from "@/lib/recursos-ia/use-recursos-ia";
+import { useInventarioRecursos } from "@/components/recursos-ia/piezas";
 
 const EMBED_TIMEOUT_MS = 6000;
 
 type ActiveWindow = { app: StarseedApp; soon: boolean };
 
+/**
+ * §5 apps-en-la-malla.md: la consulta a `comoAbrir` (modo, destino y motivo con la
+ * oferta de la neurona) solo hace falta si la app declara modos de malla más allá
+ * de local o requisitos de recursos. Las demás abren como siempre.
+ */
+function requiereConsulta(app: StarseedApp): boolean {
+    const malla = (app.ejecucion ?? ["local"]).some((m) => m !== "local");
+    return malla || app.requisitos !== undefined;
+}
+
 // ── AppWindow ────────────────────────────────────────────────────
-function AppWindow({ app, soon, onClose }: { app: StarseedApp; soon: boolean; onClose: () => void }) {
+function AppWindow({ app, soon, apertura, onClose }: { app: StarseedApp; soon: boolean; apertura?: AperturaModo; onClose: () => void }) {
     const [loaded, setLoaded] = useState(false);
     const [stuck, setStuck] = useState(false);
     const href = app.open.href;
@@ -41,7 +55,7 @@ function AppWindow({ app, soon, onClose }: { app: StarseedApp; soon: boolean; on
     return (
         <OSWindow
             title={app.name}
-            subtitle={soon ? "Módulo nativo · próximamente" : "Ventana StarSeed"}
+            subtitle={soon ? "Módulo nativo · próximamente" : apertura ? `${apertura.modo} · ${apertura.motivo}` : "Ventana StarSeed"}
             icon={app.icon}
             accent={app.accent}
             onClose={onClose}
@@ -130,8 +144,26 @@ export function useAppLauncher(): UseAppLauncher {
     const router = useRouter();
     const [mounted, setMounted] = useState(false);
     const [active, setActive] = useState<ActiveWindow | null>(null);
+    const [estado] = useRecursosIa();
+    const [aperturas, setAperturas] = useState<Record<string, AperturaModo>>({});
+    // El inventario de esta neurona solo se pide cuando una app abierta lo necesita (§5).
+    const { inv, detectar } = useInventarioRecursos(estado.almacenesDeclarados, false);
 
     useEffect(() => setMounted(true), []);
+
+    // Conexión de `comoAbrir` (§5): al abrir una app que declara modos de malla o
+    // requisitos, se consulta con la oferta de esta neurona. La ventana abre igual
+    // en el mientras: el suelo del §5 es «nunca nada», abrir en local y decir qué falta.
+    useEffect(() => {
+        if (!active || !requiereConsulta(active.app)) return;
+        if (!inv) { void detectar(); return; }
+        try {
+            const oferta = ofertaDesdeAsignaciones(inv, estado);
+            setAperturas((prev) => ({ ...prev, [active.app.id]: comoAbrir(active.app, oferta) }));
+        } catch {
+            /* sin oferta legible, se abre en local, como siempre */
+        }
+    }, [active, inv, detectar, estado]);
 
     const launch = useCallback((app: StarseedApp, modeOverride?: OpenMode) => {
         const { open, status } = app;
@@ -167,7 +199,7 @@ export function useAppLauncher(): UseAppLauncher {
 
     const windowEl = mounted && active
         ? createPortal(
-            <AppWindow app={active.app} soon={active.soon} onClose={() => setActive(null)} />,
+            <AppWindow app={active.app} soon={active.soon} apertura={aperturas[active.app.id]} onClose={() => setActive(null)} />,
             document.body
         )
         : null;
