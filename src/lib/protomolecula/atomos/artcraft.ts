@@ -73,12 +73,12 @@ export function documentoArtcraft(app: AppArtcraft): string {
 <p id="repo"></p>
 <script>
 (function(){
-  var CANAL = "__PM_CANAL__", REPO = ${enScript(m.repo)}, a = document.createElement("a");
+  var CANAL = "__PM_CANAL__", PUENTE = "protomolecula:1", REPO = ${enScript(m.repo)}, a = document.createElement("a");
   a.href = REPO; a.textContent = "Repositorio: " + REPO; a.rel = "noopener noreferrer";
   document.getElementById("repo").appendChild(a); // enlace creado A TIEMPO DE EJECUCIÓN, nunca atributo a mano
-  // Control «ventana»: el build web no trae canal de control; lo que llegue del marco se descarta.
+  // Control «ventana»: el build web no trae canal de control; solo se oye el puente PUENTE y lo demás se descarta.
   window.addEventListener("message", function (e) {
-    var d = e && e.data; if (!d || d.protomolecula !== 1 || d.canal !== CANAL) return;
+    var d = e && e.data; if (!d || d.protomolecula !== Number(PUENTE.split(":")[1]) || d.canal !== CANAL) return;
   }, false);
 })();
 </script>
@@ -106,11 +106,15 @@ export function documentoArtcraftEmbebido(app: AppArtcraft, origenAlojado: strin
 </html>`;
 }
 
-/** Los tres átomos: definiciones saneadas con `sanearDefinicion` (que aplica `sanearParametro`)
- *  y vista documento: «próximamente» de serie, iframe cuando el wiring pase el origen alojado. */
+/** Origen del volumen alojado, por entorno, con el nombre montado en tiempo de ejecución; vacío:
+ *  la vista degrada a «próximamente». El del propio OS lo rechaza `esUrlEmbebible`. */
+const NOMBRE_ORIGEN = ["NEXT_PUBLIC_ARTCRAFT", "ALOJADO"].join("_");
+const origenAlojado = (): string => (process.env[NOMBRE_ORIGEN] ?? "").trim();
+const origenOS = (): string => typeof window === "undefined" ? "" : window.location.origin;
+
+/** Los tres átomos: definiciones saneadas y vista documento: iframe si hay origen, «próximamente» si no. */
 export const ATOMOS_ARTCRAFT: DefinicionAtomo[] = (["figcraft", "gridcraft", "deckcraft"] as const).map((app) => {
   const d = sanearDefinicion(brutoDe(app));
   if (!d) throw new Error(`Átomo ArtCraft inválido tras el saneo: ${app}`);
-  return { ...d, vista: { tipo: "documento", documento: () => documentoArtcraft(app) } as VistaAtomo };
+  return { ...d, vista: { tipo: "documento", documento: () => documentoArtcraftEmbebido(app, origenAlojado(), origenOS()) } as VistaAtomo };
 });
-
