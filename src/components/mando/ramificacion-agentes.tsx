@@ -1198,14 +1198,9 @@ export function SeccionBloqueadasReintentos({
                     {resultado.texto}
                 </p>
             ) : null}
-            <SeccionPlegable
-                id="bloqueadas-ramif"
-                titulo="Grupos de bloqueadas y rechazadas"
-                contador={`${valor} en la lista`}
-                resumen="La lista completa está ahora cerrada: «Abrir lista» la enseña con el mismo dato del pulso."
-            >
-                <BloqueadasGrupos detalle={detalle} alVer={onVer} alHecho={hecho} />
-            </SeccionPlegable>
+            {/* (UIG1029C) La propia lista ya trae su «Cerrar lista» y una sección por causa:
+                el medidor y esta sección montan el MISMO componente, sin otra ventana encima. */}
+            <BloqueadasGrupos detalle={detalle} alVer={onVer} alHecho={hecho} />
         </section>
     );
 }

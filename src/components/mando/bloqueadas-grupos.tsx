@@ -19,17 +19,80 @@
 import { useCallback, useState } from "react";
 
 import type { DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
-import { NOMBRE_ACCION, sujetoDeTransformada, type OpcionAlex, type ResumenBloqueadas } from "@/lib/mando/bloqueadas";
+import { NOMBRE_ACCION, sujetoDeTransformada, type OpcionAlex, type ResumenBloqueadas, type TransformadaRevisor } from "@/lib/mando/bloqueadas";
 import { BloqueadasPanel, itemDesdeFilaMedidor } from "./bloqueadas-panel";
+import { SeccionPlegable } from "./seccion-plegable";
 
 const TEXTO_OPCION: Record<OpcionAlex, string> = {
     rehacer: "Rehacer con otro enfoque",
     descartar: "Descartar (rama guardada)",
 };
 
+export interface CausaBloqueada {
+    clave: string;
+    titulo: string;
+    filas: FilaMedidor[];
+    /** La acción automática que ya la está tratando, si la hay. */
+    accion?: string;
+}
+
 function hora(t?: string): string {
     const m = /(\d{2}:\d{2})/.exec(String(t ?? ""));
     return m ? m[1] : "";
+}
+
+/** La causa de una fila, agrupable aunque cambien ids o cifras. La clave sirve de id. */
+export function causaDeFila(f: Pick<FilaMedidor, "estado" | "porque">): { clave: string; titulo: string } {
+    const estado = String(f.estado ?? "").trim();
+    const bruto = String(f.porque ?? "").replace(/\s+/g, " ").trim();
+    const sinCausa = estado.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "sin-estado";
+    if (!bruto) return { clave: `sin-causa-${sinCausa}`, titulo: estado ? `${estado}: sin causa anotada` : "Causa sin anotar" };
+    const reglas: Array<[RegExp, string, string]> = [
+        [/^la rehace\b/i, "reparacion-en-marcha", "Ya con una reparación automática en marcha"],
+        [/^la escalera del director\b/i, "escalera-director", "La escalera del director la está reintentando"],
+        [/no existen?|NO EXISTE/i, "dependencia-fantasma", "Espera a tareas que no existen"],
+        [/no se van? a integrar/i, "dependencia-muerta", "Espera a tareas que no se van a integrar solas"],
+        [/necesita una persona/i, "necesita-persona", "Necesita una persona"],
+        [/no toc[oó]|sin cambios|no cambi[oó]/i, "sin-cambios", "El intento no tocó sus archivos"],
+    ];
+    for (const [patron, clave, titulo] of reglas) if (patron.test(bruto)) return { clave, titulo };
+    const titulo = bruto.split(/(?:\s·|\s—|:\s)/)[0]?.trim() || bruto;
+    return { clave: titulo.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "causa", titulo };
+}
+
+/** La reparación que ya trata una fila: sucesora, escalera o acción del revisor. */
+export function accionAutomaticaDeFila(
+    f: Pick<FilaMedidor, "id" | "porque" | "ficha">,
+    transformadas: readonly TransformadaRevisor[] = [],
+): string | null {
+    const porque = String(f.porque ?? "").trim();
+    const rehace = /^la rehace\s+([^\s(]+)(?:\s*\(([^)]+)\))?/i.exec(porque);
+    if (rehace) return `La rehace ${rehace[1]}${rehace[2] ? ` (${rehace[2]})` : ""}`;
+    const escalera = /^la escalera del director\b[^·—]*/i.exec(porque);
+    if (escalera) return escalera[0].trim();
+    const accion = transformadas.find((x) => x.tid === f.id && x.accion)?.accion;
+    if (accion) return `El revisor automático: ${NOMBRE_ACCION[accion] ?? accion}`;
+    return f.ficha?.find((d) => /repar|automátic|revisor|sucesor/i.test(d.etiqueta))?.valor?.trim() || null;
+}
+
+/** Agrupa las filas por causa, de la que más tareas tiene a la que menos. */
+export function agruparPorCausa(
+    filas: readonly FilaMedidor[],
+    transformadas: readonly TransformadaRevisor[] = [],
+): CausaBloqueada[] {
+    const mapa = new Map<string, CausaBloqueada>();
+    for (const fila of filas) {
+        const { clave, titulo } = causaDeFila(fila);
+        const grupo = mapa.get(clave);
+        if (grupo) grupo.filas.push(fila);
+        else mapa.set(clave, { clave, titulo, filas: [fila] });
+    }
+    const grupos = [...mapa.values()];
+    for (const grupo of grupos) {
+        const acciones = [...new Set(grupo.filas.map((f) => accionAutomaticaDeFila(f, transformadas)).filter((a): a is string => Boolean(a)))];
+        grupo.accion = acciones.length ? `${acciones.slice(0, 2).join(" · ")}${acciones.length > 2 ? ` · y ${acciones.length - 2} más` : ""}` : undefined;
+    }
+    return grupos.sort((a, b) => b.filas.length - a.filas.length || a.titulo.localeCompare(b.titulo));
 }
 
 function Cifra({ valor, texto, tono }: { valor: number; texto: string; tono: string }) {
@@ -85,9 +148,34 @@ export function BloqueadasGrupos({
     const atascadas: FilaMedidor[] = operativas.filter((f) => (f.grupo ?? "atascada") === "atascada");
     const sinResolver: FilaMedidor[] = operativas.filter((f) => f.grupo === "sin-resolver");
     const idsConocidos = detalle.filas.map((x) => x.id);
+    const transformadas = r?.transformadas ?? [];
+    const maximo = Math.max(0, ...agruparPorCausa([...atascadas, ...sinResolver], transformadas).map((c) => c.filas.length));
+    const pintarCausas = (grupo: "atascadas" | "sin-resolver", causas: FilaMedidor[]) => (
+        <div className="mt-1 grid gap-2" data-testid={`bloqueadas-causas-${grupo}`}>
+            {agruparPorCausa(causas, transformadas).map((causa) => (
+                <div key={causa.clave} data-testid={`bloqueadas-causa-${grupo}-${causa.clave}`}>
+                    <SeccionPlegable
+                        id={`bloqueadas-${grupo}-${causa.clave}`}
+                        titulo={causa.titulo}
+                        contador={`${causa.filas.length} ${causa.filas.length === 1 ? "tarea" : "tareas"}`}
+                        abiertaPorDefecto={causa.filas.length === maximo}
+                        acciones={causa.accion ? <span data-testid={`bloqueadas-accion-${grupo}-${causa.clave}`} className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-2 py-0.5 text-[10px] text-cyan-100">{causa.accion}</span> : null}
+                    >
+                        <BloqueadasPanel items={causa.filas.map((f) => itemDesdeFilaMedidor(f, idsConocidos))} alVer={alVer} alHecho={alHecho} />
+                    </SeccionPlegable>
+                </div>
+            ))}
+        </div>
+    );
 
     return (
         <section className="mt-2 grid gap-3 text-left" data-testid="bloqueadas-grupos">
+            <SeccionPlegable
+                id="bloqueadas-lista"
+                titulo="Bloqueadas y rechazadas"
+                contador={`${r?.valor ?? operativas.length}`}
+                resumen={r?.pastilla ?? "La lista está cerrada"}
+            >
             {r ? (
                 <p className="flex flex-wrap items-center justify-center gap-1.5" data-testid="bloqueadas-cifras">
                     <Cifra valor={r.atascadas} texto="atascadas" tono="border-rose-400/30 bg-rose-500/10 text-rose-100" />
@@ -161,11 +249,7 @@ export function BloqueadasGrupos({
                     <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-rose-200/80">
                         Atascadas · aún sin transformar
                     </h4>
-                    <BloqueadasPanel
-                        items={atascadas.map((f) => itemDesdeFilaMedidor(f, idsConocidos))}
-                        alVer={alVer}
-                        alHecho={alHecho}
-                    />
+                    {pintarCausas("atascadas", atascadas)}
                 </div>
             ) : null}
 
@@ -174,11 +258,7 @@ export function BloqueadasGrupos({
                     <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-orange-200/80">
                         Fallidas o rechazadas sin resolver · últimos 3 días
                     </h4>
-                    <BloqueadasPanel
-                        items={sinResolver.map((f) => itemDesdeFilaMedidor(f, idsConocidos))}
-                        alVer={alVer}
-                        alHecho={alHecho}
-                    />
+                    {pintarCausas("sin-resolver", sinResolver)}
                 </div>
             ) : null}
 
@@ -219,6 +299,7 @@ export function BloqueadasGrupos({
             {!r && operativas.length ? (
                 <BloqueadasPanel items={operativas.map((f) => itemDesdeFilaMedidor(f, idsConocidos))} alVer={alVer} alHecho={alHecho} />
             ) : null}
+            </SeccionPlegable>
         </section>
     );
 }
