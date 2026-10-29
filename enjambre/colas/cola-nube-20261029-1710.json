@@ -1,0 +1,51 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "MGP1029-55056D",
+   "ola": "MetaGenesis · que lo integrado llegue a producción",
+   "titulo": "Puerta de publicación en rojo: pruebas del puente en rojo",
+   "archivos": [
+    "scripts/puente/test_opus_director.py"
+   ],
+   "depende": [],
+   "origen": "metagenesis",
+   "sha_rojo": "6c5cfe389b3e",
+   "prompt": "NOTA DE METAGENESIS (2026-10-29 17:06): la autopublicación lleva más de 60 min frenada en 6c5cfe38 por «pruebas del puente en rojo» y ningún commit nuevo lo ha arreglado. Esta es la salida de la puerta (recortada):\n```\n\": \"x\"}, vistos=vistos)))\n    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {'texto': '{\"result\": \"x\"}', 'modelo': 'hermes/auto', 'segundos': 0.0, 'tokens': 0} is not None\n\n======================================================================\nFAIL: test_sin_saldo_pausa_seis_horas_y_lo_dice (test_opus_director.OpusDirector.test_sin_saldo_pausa_seis_horas_y_lo_dice)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/Users/alex/.starseed/produccion/arbol-pruebas/scripts/puente/test_opus_director.py\", line 61, in test_sin_saldo_pausa_seis_horas_y_lo_dice\n    self.assertFalse(ok)\n    ~~~~~~~~~~~~~~~~^^^^\nAssertionError: True is not false\n\n======================================================================\nFAIL: test_un_aviso_de_limite_pausa_tres_horas (test_opus_director.OpusDirector.test_un_aviso_de_limite_pausa_tres_horas)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/Users/alex/.starseed/produccion/arbol-pruebas/scripts/puente/test_opus_director.py\", line 53, in test_un_aviso_de_limite_pausa_tres_horas\n    self.assertFalse(ok)\n    ~~~~~~~~~~~~~~~~^^^^\nAssertionError: True is not false\n\n----------------------------------------------------------------------\nRan 4106 tests in 139.569s\n\nFAILED (failures=13, errors=1, skipped=5, expected failures=3)\n<sys>:0: ResourceWarning: unclosed <socket.socket fd=7, family=2, type=1, proto=0, laddr=('127.0.0.1', 57545)>\n<sys>:0: ResourceWarning: unclosed <socket.socket fd=8, family=2, type=1, proto=0, laddr=('127.0.0.1', 57553)>\n<sys>:0: ResourceWarning: unclosed <socket.socket fd=9, family=2, type=1, proto=0, laddr=('127.0.0.1', 57556)>\n\n```\nArregla la CAUSA en estos archivos: el código si la prueba describe bien lo que debe pasar, o la prueba si quedó desfasada respecto a un cambio intencionado (dilo en el mensaje del commit). No toques autopublicar.py, produccion_puertas.py ni el escáner de secretos; no relajes ni borres una prueba para que pase; nada de claves en el código. Comprueba con: `python3 -m unittest scripts/puente/test_opus_director.py`."
+  },
+  {
+   "id": "IND1029B",
+   "ola": "1029 · MetaGenesis autónoma (sin Claude y sin la Mac)",
+   "depende": [],
+   "titulo": "Dirección · un solo líder por cuenta (arriendo en la puerta de datos)",
+   "archivos": [
+    "scripts/puente/lider_direccion.py",
+    "scripts/puente/test_lider_direccion.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas; nunca rutas de un worktree (`starseed-wt/…`) en el código. Contrato: `architecture/metagenesis-autonoma.md` (léelo entero). Antes de escribir algo nuevo, mira lo que ya existe y úsalo: `scripts/puente/puerta_datos.py` y `puerta_datos_cliente.py` (la puerta de datos del A1), `espejo_puerta.py`, `deploy/oracle/nodo/systemd/` (ya hay `starseed-genesis` y `starseed-metagenesis`), `oracle_nodo.py`, `buscar_capacidad.py` y la colmena.\n\nMódulo con `soy_lider(neurona, ahora)` y `renovar()`: un arriendo `direccion/lider` en la puerta de datos del A1 (con `puerta_datos_cliente`), con dueño, caducidad de 180 s y prioridad (`a1` › `mac` › otras). Toma el arriendo con escritura condicional (si-coincide la versión), lo renueva cada 60 s y, si nadie lo renueva, lo toma la neurona siguiente. Sin puerta (o sin red): `soy_lider` devuelve True en local, como hoy, y lo dice en `motivo`. La lógica de decisión va en una función PURA (`decidir(arriendo, neurona, ahora)`), con pruebas de toma, renovación, caducidad, empate y sin puerta."
+  },
+  {
+   "id": "IND1029I",
+   "ola": "1029 · MetaGenesis autónoma (sin Claude y sin la Mac)",
+   "depende": [],
+   "titulo": "Publicación autónoma · «Te toca a ti» pide una vez el token de despliegue con permisos mínimos",
+   "archivos": [
+    "scripts/puente/acciones-de-alex.py",
+    "scripts/puente/test_acciones_de_alex.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas; nunca rutas de un worktree (`starseed-wt/…`) en el código. Contrato: `architecture/metagenesis-autonoma.md` (léelo entero). Antes de escribir algo nuevo, mira lo que ya existe y úsalo: `scripts/puente/puerta_datos.py` y `puerta_datos_cliente.py` (la puerta de datos del A1), `espejo_puerta.py`, `deploy/oracle/nodo/systemd/` (ya hay `starseed-genesis` y `starseed-metagenesis`), `oracle_nodo.py`, `buscar_capacidad.py` y la colmena.\n\nPara que el líder (también el A1) pueda publicar sin esta Mac, hace falta un token de GitHub de grano fino solo para `StarSeedSystem/starseed-system` (contents: write, actions: read) guardado en la bóveda del A1. Añade una acción «Token de despliegue para que MetaGenesis publique sin tu Mac», urgencia media, con el enlace directo a crear el token (permisos ya marcados en la URL si GitHub lo permite) y el comando que lo pide sin enseñarlo y lo sube al A1 (`guardar-clave.sh … --a1` si existe; si no, explica en tu respuesta qué falta). Sale solo si el A1 no lo tiene (comprobación sin leer el valor). Pruebas."
+  },
+  {
+   "id": "IND1029A",
+   "ola": "1029 · MetaGenesis autónoma (sin Claude y sin la Mac)",
+   "depende": [],
+   "titulo": "Builds sin la Mac · el CI sube el `.next` y el reconstructor lo descarga",
+   "archivos": [
+    ".github/workflows/ci.yml",
+    "scripts/puente/reconstruir_mando.py",
+    "scripts/puente/test_reconstruir_mando.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas; nunca rutas de un worktree (`starseed-wt/…`) en el código. Contrato: `architecture/metagenesis-autonoma.md` (léelo entero). Antes de escribir algo nuevo, mira lo que ya existe y úsalo: `scripts/puente/puerta_datos.py` y `puerta_datos_cliente.py` (la puerta de datos del A1), `espejo_puerta.py`, `deploy/oracle/nodo/systemd/` (ya hay `starseed-genesis` y `starseed-metagenesis`), `oracle_nodo.py`, `buscar_capacidad.py` y la colmena.\n\nEl 29-10 Genesis local se quedó sin build (`.next` sin BUILD_ID) y el reconstructor esperaba para compilar en una Mac de 8 GB. En `ci.yml` (job que hace `next build` en «CI · verificación web»), sube el `.next` sin la caché (`.next/cache` fuera) como artefacto `genesis-next-<sha>` (retención 3 días). En `reconstruir_mando.py`, antes de compilar en local: si hay un run verde de `produccion/candidato` o `main` cuyo `headSha` es el árbol que se quiere servir, descarga su artefacto con `gh run download` en `.next-build` y sigue el contrato que ya existe (`.listo`, BUILD_ID, `reiniciar_mando()`); compila en local solo si no hay artefacto. Prueba pura de la elección (artefacto del mismo árbol › compilar)."
+  }
+ ]
+}
