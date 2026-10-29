@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from "vitest";
 import { normalizeState, DESKTOP_TOP_INSET } from "../desktop-store";
+import { geometriaVentana } from "../../../lib/design/composicion";
 
 function docEscritorio(ventana: Record<string, unknown>) {
     return normalizeState({
@@ -34,5 +35,15 @@ describe("Ventana del escritorio · banda de la barra superior (B-1)", () => {
   it("no baja una ventana por debajo de la barra superior", () => {
     const v = ventanaDe(docEscritorio({ ...contenida, y: 0 }));
     expect(v.y).toBe(DESKTOP_TOP_INSET);
+  });
+});
+
+describe("Geometría centrada y composición adaptativa", () => {
+  it("centra la ventana en el viewport de escritorio", () => {
+    const geo = geometriaVentana({ ancho: 1280, alto: 800 }, { tipo: "ventana", ancho: 760, alto: 520 });
+    expect(geo.x).toBe((1280 - 760) / 2);
+    expect(geo.y).toBe((800 - 520) / 2);
+    expect(geo.ancho).toBe(760);
+    expect(geo.alto).toBe(520);
   });
 });

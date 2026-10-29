@@ -17,6 +17,7 @@
 import { useSyncExternalStore, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
+import { geometriaVentana, type Viewport, type TipoVentana } from "@/lib/design/composicion";
 
 // ── Tipos del modelo ─────────────────────────────────────────────
 export type DesktopIconKind = "app" | "file" | "folder" | "widget" | "link";
@@ -352,12 +353,40 @@ function clampWindowY(y: number): number {
     return Math.max(DESKTOP_TOP_INSET, y);
 }
 
-function normalizeWindow(raw: unknown): DesktopWindow | null {
+/**
+ * Recoloca una ventana dentro de los límites de la pantalla, respetando la
+ * posición guardada pero evitando que quede fuera de vista.
+ */
+function clampWindowToScreen(
+    { x, y, w, h }: { x: number; y: number; w: number; h: number },
+    viewport: { width: number; height: number },
+): { x: number; y: number } {
+    const clampedX = Math.max(8, Math.min(x, viewport.width - w - 8));
+    const clampedY = Math.min(
+        Math.max(clampWindowY(y), 8),
+        Math.max(DESKTOP_TOP_INSET, viewport.height - h - 8),
+    );
+    return { x: clampedX, y: clampedY };
+}
+
+function normalizeWindow(
+    raw: unknown,
+    viewport?: { width: number; height: number },
+): DesktopWindow | null {
     if (!raw || typeof raw !== "object") return null;
     const r = raw as Record<string, unknown>;
     const cr = r.contentRef as Record<string, unknown> | undefined;
     const type = cr?.type;
     if (type !== "app" && type !== "file" && type !== "widget" && type !== "browser" && type !== "folder") return null;
+    const w = Math.max(280, num(r.w, 760));
+    const h = Math.max(200, num(r.h, 520));
+    let x = num(r.x, 64);
+    let y = clampWindowY(num(r.y, DESKTOP_TOP_INSET));
+    if (viewport) {
+        const clamped = clampWindowToScreen({ x, y, w, h }, viewport);
+        x = clamped.x;
+        y = clamped.y;
+    }
     return {
         id: str(r.id, newId("win")),
         contentRef: {
@@ -366,10 +395,10 @@ function normalizeWindow(raw: unknown): DesktopWindow | null {
             name: typeof cr?.name === "string" ? cr.name : undefined,
             meta: cr?.meta && typeof cr.meta === "object" ? (cr.meta as Record<string, string | undefined>) : undefined,
         },
-        x: num(r.x, 64),
-        y: clampWindowY(num(r.y, DESKTOP_TOP_INSET)),
-        w: Math.max(280, num(r.w, 760)),
-        h: Math.max(200, num(r.h, 520)),
+        x,
+        y,
+        w,
+        h,
         z: Math.max(1, num(r.z, 1)),
         minimized: r.minimized === true,
         maximized: r.maximized === true,
@@ -447,8 +476,10 @@ function normalizeDesktop(raw: unknown): Desktop | null {
     if (!raw || typeof raw !== "object") return null;
     const r = raw as Record<string, unknown>;
     const wp = r.wallpaper as Record<string, unknown> | undefined;
+    const vw = isClient() ? window.innerWidth : 1280;
+    const vh = isClient() ? window.innerHeight : 800;
     const windows = Array.isArray(r.windows)
-        ? r.windows.map((w) => normalizeWindow(w)).filter((w): w is DesktopWindow => w !== null)
+        ? r.windows.map((w) => normalizeWindow(w, { width: vw, height: vh })).filter((w): w is DesktopWindow => w !== null)
         : [];
     const icons = Array.isArray(r.icons)
         ? r.icons.map((i) => normalizeIcon(i)).filter((i): i is DesktopIcon => i !== null)
@@ -1151,28 +1182,34 @@ export function openWindow(
             : undefined;
         if (existing) {
             resultId = existing.id;
+            const vw = isClient() ? window.innerWidth : 1280;
+            const vh = isClient() ? window.innerHeight : 800;
+            const { x, y } = clampWindowToScreen(existing, { width: vw, height: vh });
             const z = nextZ(d);
             return {
                 ...d,
                 windows: d.windows.map((w) =>
-                    w.id === existing.id ? { ...w, minimized: false, z } : w,
+                    w.id === existing.id ? { ...w, minimized: false, z, x, y } : w,
                 ),
             };
         }
         const vw = isClient() ? window.innerWidth : 1280;
         const vh = isClient() ? window.innerHeight : 800;
-        const w = Math.min(opts?.w ?? 760, Math.max(300, vw - 48));
-        const h = Math.min(opts?.h ?? 520, Math.max(220, vh - 150));
-        const idx = d.windows.length;
-        // Cascada que NUNCA invade la banda de la barra superior (B-1).
-        const maxY = Math.max(DESKTOP_TOP_INSET, vh - h - 120);
+        const wSize = Math.min(opts?.w ?? 760, Math.max(300, vw - 48));
+        const hSize = Math.min(opts?.h ?? 520, Math.max(220, vh - 150));
+        const viewport: Viewport = { ancho: vw, alto: vh };
+        const geo = geometriaVentana(viewport, {
+            tipo: "ventana" as TipoVentana,
+            ancho: wSize,
+            alto: hSize,
+        });
         const win: DesktopWindow = {
             id: resultId,
             contentRef,
-            x: Math.max(8, Math.min(48 + (idx % 6) * 36, vw - w - 16)),
-            y: Math.min(clampWindowY(DESKTOP_TOP_INSET + 6 + (idx % 6) * 30), maxY),
-            w,
-            h,
+            x: geo.x,
+            y: geo.y,
+            w: geo.ancho,
+            h: geo.alto,
             z: nextZ(d),
             minimized: false,
             maximized: false,
