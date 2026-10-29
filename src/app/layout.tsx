@@ -136,6 +136,7 @@ import { GlobalEditorHost } from "@/components/creation/global-editor-host";
 import { AlarmsEngine } from "@/components/alarms/alarms-engine";
 import { MontajeGlobalMensajeria } from "@/components/mensajeria/montaje-global";
 import { MontajeConsumo } from "@/components/consumo/montaje-consumo";
+import { FuentesMarca } from "@/components/theme/fuentes-marca";
 // Fondos animados del CATÁLOGO DE TEMAS (theme-engine.ts + theme-catalog.ts):
 // matrix-rain/estrellas/gradiente-aurora/weather-live. Sin efecto salvo que
 // un ThemePack del catálogo los active (data-ss-background en <html>).
@@ -279,6 +280,7 @@ export default function RootLayout({
         <A11yBoot />
         {/* Foco y anuncio de cambio de ruta (SPA) para teclado/lector. */}
         <RouteFocus />
+        <FuentesMarca />
         {/* Transición entre páginas: solo tras navegar en el cliente (nunca en la
             primera carga) y nunca en las rutas de consola. */}
         <TransicionRutas />
