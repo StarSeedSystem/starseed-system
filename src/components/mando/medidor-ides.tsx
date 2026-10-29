@@ -15,6 +15,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, Loader2, RefreshCw } from "lucide-react";
 
+import { agruparFilasPorEstado, slugEstado } from "@/components/mando/medidor-abrible";
+import { SeccionPlegable } from "@/components/mando/seccion-plegable";
+
 interface FilaIde {
     id: string;
     titulo: string;
@@ -297,25 +300,37 @@ export function PanelIdes({ alCerrar }: { alCerrar: () => void }) {
                     ) : datos && datos.filas.length === 0 ? (
                         <p className="mc-centrado mt-2 text-[11px] text-white/45">{datos.vacio}</p>
                     ) : datos ? (
-                        <ul className="mt-2 grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
-                            {datos.filas.map((f) => (
-                                <li key={f.id} className="rounded-lg border border-white/10 bg-black/25 p-2 text-left">
-                                    <p className="flex items-center gap-1.5">
-                                        <span
-                                            className={`h-2 w-2 shrink-0 rounded-full ${PUNTO[f.estado] ?? PUNTO.nunca}`}
-                                            aria-label={f.estado}
-                                            title={f.estado}
-                                        />
-                                        <span className="text-[12px] font-medium text-white/85">{f.titulo}</span>
-                                        <span className="rounded-full border border-white/10 px-1.5 text-[10px] text-white/45">
-                                            {f.estado}
-                                        </span>
-                                    </p>
-                                    <p className="mt-0.5 text-[11px] leading-snug text-white/70">{f.porque}</p>
-                                    <p className="mt-0.5 font-mono text-[10px] text-white/35">{f.puntero}</p>
-                                </li>
+                        <div className="mt-2 grid gap-3" data-testid="ides-grupos-estado">
+                            {agruparFilasPorEstado(datos.filas).map((grupo) => (
+                                <SeccionPlegable
+                                    key={grupo.estado}
+                                    id={`ides-${slugEstado(grupo.estado)}`}
+                                    titulo={grupo.titulo}
+                                    contador={`${grupo.filas.length}`}
+                                    resumen={grupo.resumen}
+                                >
+                                    <ul className="mt-1 grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
+                                        {grupo.filas.map((f) => (
+                                            <li key={f.id} className="rounded-lg border border-white/10 bg-black/25 p-2 text-left">
+                                                <p className="flex items-center gap-1.5">
+                                                    <span
+                                                        className={`h-2 w-2 shrink-0 rounded-full ${PUNTO[f.estado] ?? PUNTO.nunca}`}
+                                                        aria-label={f.estado}
+                                                        title={f.estado}
+                                                    />
+                                                    <span className="text-[12px] font-medium text-white/85">{f.titulo}</span>
+                                                    <span className="rounded-full border border-white/10 px-1.5 text-[10px] text-white/45">
+                                                        {f.estado}
+                                                    </span>
+                                                </p>
+                                                <p className="mt-0.5 text-[11px] leading-snug text-white/70">{f.porque}</p>
+                                                <p className="mt-0.5 font-mono text-[10px] text-white/35">{f.puntero}</p>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </SeccionPlegable>
                             ))}
-                        </ul>
+                        </div>
                     ) : null}
 
                     {aviso ? (
