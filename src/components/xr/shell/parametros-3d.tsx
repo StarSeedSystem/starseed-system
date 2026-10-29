@@ -1,11 +1,10 @@
 "use client";
 
 /**
- * StarSeed XR · PARÁMETROS DE LA PROTOMOLÉCULA EN 3D (XR1010AP).
- * Contrato: `architecture/starseed-xr.md` §3 (e)/(h); `architecture/protomolecula.md` §4/§11.1.
- * Cascarón fino de uikit: la lógica pura vive en `vinculos-protomolecula.ts`. Un control por
- * `Parametro` (deslizador/dial, interruptor, disparo), `Texto3D` ≥ 1° y valor exacto visible.
- * La frase de XR1010P entra por `frase`; el agente en grupo queda pendiente (tarjeta XR1010Q).
+ * StarSeed XR · PARÁMETROS DE LA PROTOMOLÉCULA EN 3D (XR1010AP). Cascarón fino de uikit: la lógica
+ * pura vive en `vinculos-protomolecula.ts`. Un control por `Parametro` (deslizador/dial, interruptor,
+ * disparo), `Texto3D` ≥ 1° y valor exacto visible. La frase de XR1010P entra por `frase`; el agente
+ * en grupo queda pendiente (tarjeta XR1010Q). Contrato: `architecture/starseed-xr.md` §3 (e)/(h).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Container } from "@react-three/uikit";
@@ -15,10 +14,11 @@ import { candidatosDe } from "@/lib/protomolecula/registro-atomos";
 import { claveDe, formatearValor, valorActual } from "@/lib/protomolecula/parametros";
 import type { Ambito, Autor, CandidatoParametro, Operacion, ParametroRef, Rol, ValorParametro } from "@/lib/protomolecula/tipos";
 import { CRISTAL, type NodoCardinal } from "@/lib/xr/tokens-3d";
+import { MAPAS_DEFECTO } from "@/lib/xr/vinculos-xr";
 import { useEstadoControl } from "@/components/protomolecula/use-molecula";
 import { PanelCristal, Texto3D } from "./panel-cristal";
 import { colorAcento, pixeles } from "./material-cristal";
-import { aplicarEnVisor, rangoAGesto } from "./vinculos-protomolecula";
+import { aplicarEnVisor, fuentesDeMapaXR, operacionDeGesto, rangoAGesto } from "./vinculos-protomolecula";
 
 const AUTOR_VISOR: Autor = { tipo: "persona", id: "visor" };
 const idSeguro = (): string => (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `op-xr-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -71,9 +71,10 @@ function Simple({ c, valor, distancia, alOperar }: { c: CandidatoParametro; valo
 
 export function Parametros3D({ controlador, autor = AUTOR_VISOR, ambito, rol = null, nodo = "horizon", distancia = 1.4, ancho = 0.7, alto = 0.5, frase, alPendiente, alDicho }: PropsParametros3D) {
   const estado = useEstadoControl(controlador);
-  const [borrador, setBorrador] = useState<Record<string, ValorParametro>>({});
+  const [borrador, setBorrador] = useState<Record<string, { valor: ValorParametro; x: number }>>({});
   const ultima = useRef<string | null>(null);
   const candidatos = useMemo(() => (estado ? candidatosDe(estado.molecula) : []), [estado]);
+  const fuentesMando = useMemo(() => fuentesDeMapaXR(MAPAS_DEFECTO.mandos), []);
   useEffect(() => {
     if (!frase) { ultima.current = null; return; }
     if (frase === ultima.current || !estado) return;
@@ -85,17 +86,17 @@ export function Parametros3D({ controlador, autor = AUTOR_VISOR, ambito, rol = n
   }, [frase, estado, controlador, autor, alPendiente, alDicho]);
   if (!estado) return null;
   const ambitoReal = ambito ?? estado.molecula.ambito;
-  const operar = (ref: ParametroRef, accion: Operacion["accion"]) => {
-    const op: Operacion = { id: idSeguro(), objetivo: ref, accion, autor, origen: "mano", t: Date.now() };
+  const aplicar = (ref: ParametroRef, op: Operacion) => {
     const r = aplicarEnVisor(controlador, ref, op, { ambito: ambitoReal, rol });
     if (!r.ok && r.pendiente) alPendiente?.(r.pendiente, r.motivo);
   };
-  const valorDe = (c: CandidatoParametro) => borrador[claveDe(c.ref)] ?? valorActual(estado.molecula.valores, c.ref, c.parametro);
-  const gesto = (c: CandidatoParametro, x: number) => setBorrador((b) => ({ ...b, [claveDe(c.ref)]: rangoAGesto(c.parametro, x) }));
+  const operar = (ref: ParametroRef, accion: Operacion["accion"]) => aplicar(ref, { id: idSeguro(), objetivo: ref, accion, autor, origen: "mano", t: Date.now() });
+  const valorDe = (c: CandidatoParametro) => borrador[claveDe(c.ref)]?.valor ?? valorActual(estado.molecula.valores, c.ref, c.parametro);
+  const gesto = (c: CandidatoParametro, x: number) => setBorrador((b) => ({ ...b, [claveDe(c.ref)]: { valor: rangoAGesto(c.parametro, x), x } }));
   const soltar = (c: CandidatoParametro) => {
     const v = borrador[claveDe(c.ref)];
     setBorrador((b) => { const n = { ...b }; delete n[claveDe(c.ref)]; return n; });
-    if (v !== undefined) operar(c.ref, { tipo: "exacta", valor: v });
+    if (v) aplicar(c.ref, operacionDeGesto(c.ref, c.parametro, v.x, { autor, ahora: Date.now(), nuevoId: idSeguro }));
   };
   return (
     <PanelCristal nodo={nodo} ancho={ancho} alto={alto} curvatura={2.5}>
