@@ -553,6 +553,13 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         expect(enviarOrden).not.toHaveBeenCalled();
     });
 
+    it("sin ningún medio que haya latido, dice cómo se arranca el trabajador", async () => {
+        estado.lectura = lectura([]);
+        pintar();
+        expect(await screen.findByText(/Aún no ha latido ningún medio/i)).toBeInTheDocument();
+        expect(screen.getByText("python3 scripts/puente/nodo_metagenesis.py instalar")).toBeInTheDocument();
+    });
+
     it("la línea de información no escribe «contenedor activo» mientras no haya reparto", async () => {
         estado.lectura = lectura([nodo({ contenedor: { activo: true, agentes: 2, apto: true, motivo: "" }, enCurso: [tarea("task-1", 5 * 60_000)] })]);
         pintar();
@@ -665,6 +672,19 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         expect(boton).toHaveTextContent("Dejar de usar como contenedor");
         expect(boton).not.toBeDisabled();
         expect(boton).toHaveAttribute("title", "Termina lo que lleva y no coge más.");
+    });
+
+    it("con el relevo activo, el contenedor activo y trabajo en curso: «Dejar de usar» pide confirmar y su razón se ve en la tarjeta", async () => {
+        estado.lectura = lectura([
+            nodo({ relevo: true, enCurso: [tarea("t1", 60_000)], contenedor: { activo: true, agentes: 2, apto: true, motivo: "" } }),
+        ]);
+        pintar();
+        const boton = await screen.findByTestId(id("contenedor"));
+        fireEvent.click(boton);
+        expect(boton).toHaveTextContent("¿Seguro? Pulsa otra vez");
+        // La razón se ve en la tarjeta, no solo en el title: en el móvil el title no se lee.
+        expect(screen.getByTestId(id("contenedor-explica"))).toHaveTextContent("Termina lo que lleva y no coge más.");
+        expect(enviarOrden).not.toHaveBeenCalled();
     });
 
     it("con el relevo activo: Desconectar con trabajo pide confirmar y manda la orden AL NODO (no a «lider»)", async () => {
