@@ -467,5 +467,28 @@ class TokenSoloComoCredencial(unittest.TestCase):
             self.assertTrue(D.es_de_alex({"titulo": t, "cuerpo": ""}), t)
 
 
+class Ola1029ATest(unittest.TestCase):
+    """Ola 1029A · IMG1029A: «acceso (libre, registro, pago)» describe el sitio, no es una decisión de Alex."""
+
+    def test_la_plantilla_nueva_del_agente_no_es_de_alex(self):
+        import agente_referencias_diseno as A
+        cand = {"clave": "sitio", "url": "https://sitio.example/", "titulo": "Sitio",
+                "fuente": "memory/diseno/referencias.md"}
+        p = A.propuesta_candidata(cand, "agentes:referencias-diseno:2026-10-29-1-1")
+        self.assertEqual(D.es_de_alex(p), "")
+        self.assertNotIn("pago", p["cuerpo"])
+
+    def test_las_enumeraciones_de_acceso_no_son_de_alex(self):
+        for t in ("Candidata al catálogo de referencias: sitio (libre, registro, pago)",
+                  "Su acceso es libre, registro o pago",
+                  "Acceso (abierto, con registro o con coste)"):
+            self.assertEqual(D.es_de_alex({"titulo": t, "cuerpo": ""}), "", t)
+
+    def test_pagar_comprar_y_suscripcion_siguen_siendo_de_alex(self):
+        for t in ("Hay que pagar la suscripción", "Comprar un dominio", "El pago de la cuota anual",
+                  "Acceso libre, pago de 20 euros al mes"):
+            self.assertTrue(D.es_de_alex({"titulo": t, "cuerpo": ""}), t)
+
+
 if __name__ == "__main__":
     unittest.main()

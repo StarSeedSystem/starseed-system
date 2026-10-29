@@ -16,6 +16,11 @@ VERIFICACION = {"verificado": 1.0, "ajustado": 0.8, "sin verificar": 0.4, "sin d
 VERBOS = ("anadir", "agregar", "crear", "implementar", "arreglar", "corregir", "migrar", "renombrar", "eliminar", "borrar", "quitar", "documentar", "actualizar", "cablear", "optimizar", "proteger", "validar", "sincronizar", "unificar", "ajustar", "mejorar", "integrar", "evitar", "exportar", "importar", "depurar", "medir", "cambiar", "aplicar", "normalizar", "programar", "revisar", "comprobar", "verificar", "probar")
 RESERVADOS = ("publicar", "publicacion", "desplegar", "deploy", "vercel", "comprar", "compra", "pagar", "pago", "suscripcion", "contrasena", "clave", "credencial", "decision de alex", "decide alex", "que alex decida", "preguntar a alex", "avisar a alex", "eleccion de alex")
 CUENTAS = re.compile(r"\b(crear|borrar|eliminar|gestionar|cerrar|abrir|cambiar)\s+(la\s+|las\s+)?cuentas?\b|\bcuentas?\s+(de\s+alex|de\s+usuario|bancarias?|de\s+pago)\b")
+#: Tipos de acceso abierto que, enumerados junto a «pago», describen un sitio y NO son una decisión de Alex
+#: (Ola 1029A · IMG1029A): «acceso (libre, registro, pago)» no es «hay que pagar».
+ACCESO_ABIERTO = ("libre", "gratis", "abierto", "registro")
+_ENUM_ACCESO = re.compile(r"\b(?:libre|gratis|abierto|registro)\b(?:\s*(?:,|/|\bo\b)\s*(?:con\s+)?"
+                          r"(?:libre|gratis|abierto|registro|coste|pago\b(?!\s+(?:de|del|por|para)\b)))+")
 #: Credenciales escritas de cualquier forma (también dentro de un nombre de archivo: «r2_credentials.json»).
 SECRETOS = re.compile(r"credencial|credential|password|passwd|contrasena|api[_-]?key|private[_-]?key"
                       # «token» solo como credencial (Ola 1025S): «quitar ese token del sandbox» o «tokens del modelo»
@@ -43,9 +48,19 @@ def _vigente(p, existe):
     rutas = [cita] if isinstance(cita, str) else list(cita)
     ok = bool(rutas) and all(_existe(existe, r) for r in rutas)
     return (True, "") if ok else (False, "ya no aplica: la cita no sigue en el código")
+def _sin_tipos_de_acceso(texto):
+    """Quita las enumeraciones de tipos de acceso («libre, registro, pago»): describen un sitio, no una tarea.
+    «pagar», «comprar», «suscripción» y «pago de…» se quedan: esos sí los decide Alex."""
+    def _fuera(m):
+        dentro = m.group(0)
+        if re.search(r"\bpago\s+(?:de|del|por|para)\b", dentro): return dentro
+        tiene_pago = re.search(r"\bpago\b", dentro)
+        tiene_abierto = any(re.search(rf"\b{t}\b", dentro) for t in ACCESO_ABIERTO)
+        return "" if tiene_pago and tiene_abierto else dentro
+    return _ENUM_ACCESO.sub(_fuera, re.sub(r"\([^()]*\)", _fuera, texto))
 def es_de_alex(p: Dict) -> str:
     """El motivo si toca algo que solo decide Alex (publicar, pagar, cuentas, claves…); "" si no."""
-    texto = _texto(p)
+    texto = _sin_tipos_de_acceso(_texto(p))
     for tema in RESERVADOS:
         if re.search(rf"\b{tema}\b", texto): return f"no accionable por el enjambre ({tema}): es de Alex → pregunta"
     if CUENTAS.search(texto): return "no accionable por el enjambre (cuentas): es de Alex → pregunta"
@@ -177,7 +192,9 @@ VIAS = ("codigo", "astraura", "entregable")
 #: Lo que espera una decisión (para las duplicadas): nunca lo que ya decidió Alex ni lo que está en vuelo.
 PENDIENTES = ("nueva", "pregunta", "esperando-aprobacion", "autodesarrollo")
 #: Versión de las reglas: entra en la firma, así lo pendiente se vuelve a decidir cuando cambian.
-REGLAS = "1025S"
+#: Ola 1029A · IMG1029A: sube para que las preguntas viejas por «(libre, registro, pago)» se decidan otra vez
+#: sin tocar `director_autodesarrollo.py` (allí `auto_firma != firma` las vuelve a evaluar).
+REGLAS = "1029A"
 #: Reimaginaciones nuevas del automático por ciclo (el director corre cada 15 min) y en vuelo a la vez:
 #: así 230 propuestas no salen de golpe hacia los modelos gratuitos. Lo de Alex no cuenta: se hace siempre.
 TOPE_POR_CICLO, MAX_EN_VUELO = 12, 24

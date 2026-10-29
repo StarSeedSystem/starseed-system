@@ -1135,7 +1135,7 @@ def propuesta_candidata(cand, pid, ahora=None):
         "Sitio citado en `%s` que aún no está en el catálogo de referencias de la Librería.\n\n"
         "Antes de añadirlo a `config/referencias-inspiracion.json` hay que verificar (con fecha y sin inventar):\n"
         "- sus términos (scraping, entrenar IA, uso comercial, atribución) y su `robots.txt`;\n"
-        "- sus canales oficiales (RSS, sitemap con lastmod, API, MCP, oEmbed) y su acceso (libre, registro, pago);\n"
+        "- sus canales oficiales (RSS, sitemap con lastmod, API, MCP, oEmbed) y su acceso (abierto, con registro o con coste);\n"
         "- su clase de uso (reutilizable, con condiciones, solo referencia o solo enlace) y su tema.\n\n"
         "Hasta entonces solo se cita como enlace para abrirlo en el navegador." % cand.get("fuente", "?"))
     return normalizar_propuesta({"tipo": "investigacion", "titulo": "Candidata al catálogo de referencias: %s" % cand["clave"],
