@@ -54,13 +54,10 @@ describe("prepararGeneracion", () => {
     expect(p.motivo).toMatch(/podría generar con Pixal3D.*no está instalado.*saldría de este aparato/);
   });
   it("sin el registro de neuronas no dice que no haya ninguna", () => expect(prepararGeneracion(ctx({ neuronas: null }), deps()).neurona).toMatch(/no se leyó el registro/));
-  it("Mac de 32 GB con taller: genera en local con TRELLIS.2 (no Pixal3D, que pide CUDA) y planifica las 5 etapas", () => {
-    const mac32: Hierro = { ...MAC8, ramGB: 32, permiteEspacioHf: false };
-    const p = prepararGeneracion(ctx({ hierro: mac32 }), deps({ taller: async () => ok() }));
-    expect(p.via).toBe("local");
-    expect(p.plan.pasos.map((x) => x.etapa)).toEqual(["generar", "remallar", "riggear", "detallar", "animar"]);
-    expect(p.plan.pasos.find((x) => x.etapa === "generar")?.motor?.id).toBe("trellis2");
-    expect(p.motivo).toBe("Se genera en esta neurona con TRELLIS.2 (Microsoft).");
+  it("sin permiso de la cuenta no ofrece el Space aunque exista el respaldo, y lo dice", () => {
+    const p = prepararGeneracion(ctx({ hierro: { ...MAC8, permiteEspacioHf: false } }), deps({ espacio: async () => ok() }));
+    expect(p.via).toBe("ninguna");
+    expect(p.motivo).toMatch(/versiones públicas .* apagadas/i);
   });
   it("bot en un aparato sin GPU: el Space es la única vía; el permiso del hierro por sí solo no abre la vía remota", () => {
     const cpu: Hierro = { gpu: "ninguna", ramGB: 0, vramGB: null, blender: false, permiteEspacioHf: true, claveExterna: false };
