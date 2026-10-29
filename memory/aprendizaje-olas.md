@@ -4662,3 +4662,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-29 03:02 · mg-oracle-1028-2015
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — no escribió nada (RTRTRTRTS1010-EV-ORACLE-1acbbbbb, VPU1019D, CLB1027Cb-d2, SP092941d-d2, FSH1018Q, RTBLD1025C-d3). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTRTRTS1010-EV-ORACLE-1acbbbbb` — no escribió nada
+- `VPU1019D` — no escribió nada
+- `CLB1027Cb-d2` — no escribió nada
+- `SP092941d-d2` — no escribió nada
+- `FSH1018Q` — no escribió nada
+- `RTBLD1025C-d3` — no escribió nada
