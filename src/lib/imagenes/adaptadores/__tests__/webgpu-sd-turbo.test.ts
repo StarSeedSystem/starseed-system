@@ -62,6 +62,11 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
     for (const p of PESOS_SD_TURBO) expect(p.bytes).toBeGreaterThan(0);
   });
 
+  it("cada peso trae su tamaño medido en BYTES EXACTOS, sin redondeos ni estimaciones", () => {
+    expect(PESOS_SD_TURBO.map((p) => p.bytes)).toEqual([1733430199, 681393168, 99094314]);
+    expect(BYTES_PESOS_SD_TURBO).toBe(1733430199 + 681393168 + 99094314);
+  });
+
   it("textoBytes: GB con coma y MB redondeados; no inventa tamaños inválidos", () => {
     expect(textoBytes(BYTES_PESOS_SD_TURBO)).toMatch(/^\d+,\d GB$/);
     expect(textoBytes(640 * 1024 ** 2)).toBe("640 MB");
