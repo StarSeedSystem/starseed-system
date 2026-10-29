@@ -84,7 +84,8 @@ describe("arbol-relevo", () => {
       expect(totalReceptores).toBe(200);
 
       for (const [id, nodo] of arbol.nodos) {
-        const capMax = nodo.subidaKbps > 0 ? Math.floor(nodo.subidaKbps / 1000) : 9999;
+        const subida = nodo.subidaKbps ?? 0;
+        const capMax = subida > 0 ? Math.floor(subida / 1000) : 9999;
         expect(nodo.hijos.length).toBeLessThanOrEqual(capMax);
       }
     });

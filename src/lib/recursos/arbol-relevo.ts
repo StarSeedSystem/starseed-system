@@ -28,7 +28,7 @@ export function armarArbol(
       (r2) => !asignados.has(r2.nodoId) && r2.nodoId !== r.nodoId
     );
     const hijos = disponibles.slice(0, capacidadMax).map((r2) => r2.nodoId);
-    asignados.add(...hijos);
+    hijos.forEach((id) => asignados.add(id));
     nodos.set(r.nodoId, { hijos, subidaKbps: r.subidaKbps });
   }
 
