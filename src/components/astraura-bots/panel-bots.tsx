@@ -14,6 +14,7 @@ import type { Bot } from "@/lib/astraura-bots/tipos";
 import { NIVEL_POR_DEFECTO, type NivelBot } from "@/lib/astraura-bots/permisos";
 import { QuantumOrbAvatar } from "@/components/aurora/quantum-orb-avatar";
 import { EditorBot } from "./editor-bot";
+import { TareasBotPanel } from "./tareas-bot-panel";
 
 const CLAVE_NIVELES = "starseed.astraura.niveles-bots";
 const CLAVE_ABIERTOS = "starseed.astraura.orbes-abiertos";
@@ -63,6 +64,7 @@ export function PanelBots({ perfilId, cuentaId }: { perfilId: string; cuentaId: 
   useEffect(() => { escribirMapa(CLAVE_ABIERTOS, abiertos); }, [abiertos]);
 
   const idPred = `astraura:${perfilId}`;
+  const botTareas = bots.find((b) => b.id === idPred) ?? bots[0];
   const alternarOrbe = (id: string) => {
     const abierto = !abiertos[id];
     setAbiertos((m) => ({ ...m, [id]: abierto ? "1" : "" }));
@@ -131,6 +133,9 @@ export function PanelBots({ perfilId, cuentaId }: { perfilId: string; cuentaId: 
           </li>
         ))}
       </ul>
+      {botTareas && (
+        <TareasBotPanel bot={botTareas} nivel={niveles[botTareas.id] ?? NIVEL_POR_DEFECTO} />
+      )}
       {editando && (
         <div role="dialog" aria-label="Editor de bot" className="rounded-lg border border-border p-4">
           <EditorBot bot={bots.find((b) => b.id === editando)!} nivel={niveles[editando] ?? NIVEL_POR_DEFECTO}

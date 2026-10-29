@@ -6,14 +6,14 @@
  * + `decidirAccion` antes de crear nada. El clic de la persona ES la confirmación cuando la
  * decisión pide confirmación; una votación o un consentimiento nunca se saltan.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Plus, ShieldCheck, X } from "lucide-react";
 import { validarAccion } from "@/lib/astraura-bots/acciones";
 import { decidirAccion, type NivelBot } from "@/lib/astraura-bots/permisos";
 import type { Bot, EstadoTarea, RolBot } from "@/lib/astraura-bots/tipos";
 import { crearTarea, estadoDe, marcarCriterio, verificacionInicial } from "@/lib/astraura-bots/tareas-bot";
 import type { Marca } from "@/lib/astraura-bots/tareas-bot";
-import { guardar, listar, type TareaGuardada } from "@/lib/astraura-bots/adaptadores/almacen-tareas";
+import { guardar, listar, suscribirTareas, type TareaGuardada } from "@/lib/astraura-bots/adaptadores/almacen-tareas";
 
 export interface PropsTareasBot {
   bot: Bot;
@@ -37,6 +37,8 @@ export function TareasBotPanel({
   const [tareas, setTareas] = useState<TareaGuardada[]>(() => listar(bot.id));
   const [titulo, setTitulo] = useState(""); const [criterios, setCriterios] = useState("");
   const [evidencias, setEvidencias] = useState<Record<string, string>>({}); const [aviso, setAviso] = useState("");
+
+  useEffect(() => suscribirTareas(() => setTareas(listar(bot.id))), [bot.id]);
 
   const refrescar = () => setTareas(listar(bot.id));
   const cosa = (g: TareaGuardada, c: string) => `${g.tarea.id}::${c}`;
