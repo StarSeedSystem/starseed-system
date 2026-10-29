@@ -1,0 +1,26 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "INV1025M",
+   "ola": "Ola 1025R · Investigación y alcance (Agent-Reach, ScrapeGraphAI, OpenRefine, Inbox Zero)",
+   "titulo": "Alcance: plan, encargo a la flota y recogida de borradores",
+   "archivos": [
+    "scripts/puente/alcance_plan.py",
+    "scripts/puente/agente_alcance.py",
+    "scripts/puente/test_agente_alcance.py"
+   ],
+   "depende": [],
+   "prompt": "Modelo: `agente_referencias_diseno.py` (`plan_investigacion`, `tarea_de`, el encargo por la flota con `suenos.fundir_tareas`, `recoger_salidas`, `normalizar_salida`, estado y límites). IMPORTA lo reutilizable en vez de copiarlo.\n(1) `alcance_plan.py`: `elegir_objetivos(objetivos, estado, ahora, tope=2, jev=None)` por regla (afinidad; sin investigar en 30 días; `puede_contactar`; nivel) y Jev con `decidir.consultar_lote(quien=\"agente-alcance\")` solo para ordenar o vetar con p ≥ 0,8 (si calla, manda la regla); `tarea_de(obj, ficha, carta, ahora, n)` → `{id:\"ALC<MMDD><n>\", tipo:\"analisis\", modo:\"libre\", rol:\"alcance\", capacidad:\"alta\", agente:\"alcance\", fuente:\"agentes\", ambito:\"metagenesis\", salida:\"starseed_memory_root/imaginacion/agentes/alcance-<fecha>-<n>.json\", prompt}`. El prompt (≤ 7000 caracteres) lleva la ficha (sin dirección), la «carta de StarSeed» (`memory/alcance/carta-starseed.md`, que mantiene Alex: quiénes somos, qué buscamos —desarrollo más profesional y seguro—, qué ofrecemos, enlaces vigentes), las reglas R1–R8 y la salida pedida: `{propuestas:[{titulo, cuerpo (Markdown: asunto + mensaje ≤ 220 palabras, tono amigable y casual que resuene con la persona y su medio), tipo:\"contenido\", importancia:\"alta\", referencias:[https], destino:{objetivo, medio, asunto}, afirmaciones:[{texto, fuente_url}]}]}` (0 a 3 variantes, una por medio). Si la carta no existe, no encarga nada y deja una propuesta de tipo `otro` «Falta la carta de StarSeed».\n(2) `agente_alcance.py`: `ciclo(raiz, ahora, encargar=…, jev=…, home=…)` como el del agente de diseño (cada 20 h, ≤ 2 objetivos por ciclo, funde en `olas/cola-suenos-alcance.json` —el prefijo `cola-suenos-` aparta a los orquestadores de código—, nunca lanza un orquestador) y `recoger_salidas`, que NORMALIZA y VALIDA: título ≤ 200; cuerpo ≤ 8000 y mensaje ≤ 220 palabras; referencias solo https y de dominios de la ficha o de StarSeed; cada afirmación sobre el destinatario con una `fuente_url` presente en la ficha (si no, se descarta la propuesta); sin adjuntos ni píxeles de seguimiento; `importancia` forzada a «alta» y `estado` a «esperando-aprobacion» (R2, R7, R8); SIN dirección de correo en la propuesta (R5). Estado en `starseed_memory_root/imaginacion/agente-alcance/estado.json` con ids y fechas, nunca contenido de terceros. CLI `plan | ciclo [--seco] | estado`.\n(3) `test_agente_alcance.py`, puras: plan acotado, Jev callado, tarea sin dirección, validación (afirmación sin fuente, dominio ajeno, mensaje largo), forzado de importancia y estado, cola con prefijo `cola-suenos-`, carta ausente.\n\nContrato: architecture/repos-libreria-1025.md (grupo investigación: reglas duras R1–R10 y el diseño del agente de alcance). Reglas de la casa: español con acentos en comentarios y textos; nada de `any`; módulos puros con red, disco y reloj inyectables; claves solo en variables de entorno; nada de `node:*` en código de cliente; ≤ 3 archivos y ≤ 120 líneas por archivo; pruebas reales (si una prueba vieja falla, se arregla el código, no la prueba). Antes de empezar comprueba si lo pedido ya está hecho; si ya está, NO APLICA.",
+   "dependencias_ya_en_main": [
+    "INV1025L",
+    "INV1025K"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "INV1025M"
+  ]
+ }
+}
