@@ -24,7 +24,8 @@ import autodesarrollo_reimaginar as AR, autodesarrollo_entregables as AE
 
 RAIZ = os.path.dirname(os.path.dirname(AQUI))
 ESTADOS_ALEX = ("aprobada", "rechazada", "pospuesta", "hecha", "descartada")
-#: Lo que el automático vuelve a mirar cuando cambian sus ajustes (nunca lo que decidió Alex).
+#: Lo que el automático vuelve a mirar cuando cambian sus ajustes; «nueva» lo es y además se mira en
+#: CADA ciclo aunque la firma no cambie (Ola 1029B). Nunca lo que decidió Alex.
 REVISABLES = ("nueva", "pregunta", "esperando-aprobacion", "autodesarrollo")
 MAX_ARCHIVOS_AGENTES, MAX_BYTES_AGENTE = 300, 1_000_000
 PROMPT = ("Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: {t}. {c} "
@@ -130,6 +131,22 @@ def _consejo_jev(p):
     return {"p": round(1 - float(d["p"]), 4), "veta": True} if d.get("respuesta") == "no" else {"p": float(d["p"])}
 
 
+def _consejo_con_memoria(consejo, firma):
+    """Jev con memoria (Ola 1029B): toda «nueva» se revisa cada ciclo, y si Jev ya respondió a esta
+    propuesta con la misma firma de reglas no se le vuelve a preguntar (se repite su respuesta, veta o
+    calla); con otra firma se vuelve a consultar. La respuesta queda en `p["jev"]` y sobrevive al ciclo."""
+    def consejero(p):
+        memo = p.get("jev")
+        if isinstance(memo, dict) and memo.get("firma") == firma: return memo.get("aviso")
+        try: aviso = consejo(p)
+        except Exception: aviso = None
+        # solo lo que la decisión lee (p, veta, prioridad, ajuste): JSON seguro por si el consejo mete algo raro
+        p["jev"] = {"firma": firma, "aviso": {k: aviso[k] for k in ("p", "prob", "veta", "veto", "acc", "accion", "prioridad", "ajuste")
+                                              if isinstance(aviso, dict) and k in aviso} if isinstance(aviso, dict) else None}
+        return aviso
+    return consejero
+
+
 TIPO_ASTRAURA = {"creacion": "creation", "rama": "branch", "creation": "creation", "branch": "branch"}  # director → backend 1.58
 
 
@@ -179,6 +196,15 @@ def _aplicar(p, dest, ahora_iso, firma=None):
     return p
 
 
+def _motivo_de_pregunta(p, d):
+    """Una «nueva» cuyo motivo ya dice «→ pregunta» (lo escribió otro proceso o una decisión anterior)
+    acaba en «pregunta»: el estado no contradice lo que ya se sabía, aunque el destino la siga haciendo
+    girar (con el automático entero apagado, por ejemplo). PURA."""
+    if d["destino"] == "pregunta" or p.get("estado") != "nueva" or "→ pregunta" not in str(p.get("motivo") or ""):
+        return d
+    return {"destino": "pregunta", "aprobacion_diff": False, "notas": "", "motivo": p["motivo"]}
+
+
 def _aplazar(p, motivo, ahora_iso):
     """Le toca reimaginarse sola pero no tiene turno: «nueva» y SIN firma, así se vuelve a mirar el próximo ciclo."""
     antes = p.get("estado")
@@ -221,9 +247,10 @@ def _agrupar_familias(propuestas, iso):
 
 
 def _decidir_lote(previas, nuevas, aj, existe, consejo, iso, firma):
-    """Decide lo nuevo y, con el botón encendido, lo pendiente con otra firma; antes, las duplicadas y
-    las variantes de una misma familia. Las reimaginaciones automáticas nuevas tienen tope por ciclo y
-    en vuelo (las de más importancia y más recientes primero); lo que no cabe se aplaza."""
+    """Decide lo nuevo y lo pendiente: toda «nueva», cada ciclo; lo demás, con el botón encendido y otra
+    firma; antes, las duplicadas y las variantes de una misma familia. Las reimaginaciones automáticas
+    nuevas tienen tope por ciclo y en vuelo (las de más importancia y más recientes primero); lo que no
+    cabe se aplaza."""
     reparto, candidatas = Counter(), []
     for p in nuevas:
         if p["id"] in previas: continue
@@ -241,7 +268,13 @@ def _decidir_lote(previas, nuevas, aj, existe, consejo, iso, firma):
         ya = {id(p) for p in candidatas}
         candidatas += [p for p in previas.values() if id(p) not in ya and p.get("estado") in REVISABLES
                        and p.get("fuente") in AD.FUENTES_AUTO and p.get("auto_firma") != firma]
-    evaluadas = [(p, _evaluar(p, aj, existe, consejo)) for p in candidatas if p.get("estado") not in ("descartada", "agrupada")]
+    # Ola 1029B: toda «nueva» entra a decidirse en cada ciclo, cambie o no la firma: lo que otro proceso
+    # escribió como «nueva» (o un aplazamiento) no se queda sin decisión más de un ciclo.
+    ya_n = {id(p) for p in candidatas}
+    candidatas += [p for p in previas.values() if id(p) not in ya_n and p.get("estado") == "nueva"
+                   and p.get("fuente") in AD.FUENTES_AUTO]
+    evaluadas = [(p, _motivo_de_pregunta(p, _evaluar(p, aj, existe, consejo)))
+                 for p in candidatas if p.get("estado") not in ("descartada", "agrupada")]
     cupo = max(0, min(AD.TOPE_POR_CICLO, AD.MAX_EN_VUELO - _en_vuelo_automatico(previas.values())))
     turno = {id(p) for p in AD.orden_reimaginar([p for p, d in evaluadas if d["destino"] == "reimaginando"])[:cupo]}
     for p, d in evaluadas:
@@ -348,7 +381,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         existe = existe_ruta or (lambda r: os.path.isfile(r if os.path.isabs(r) else os.path.join(raiz, r)))
         iso, au = ahora.isoformat(), aj["auto"]
         firma = AD.firma(aj) if au["aprobar"] or au["reimaginar"] else None
-        decisiones = _decidir_lote(previas, nuevas, aj, existe, consejo, iso, firma)
+        decisiones = _decidir_lote(previas, nuevas, aj, existe, _consejo_con_memoria(consejo, firma) if consejo else None, iso, firma)
         for p in AR.caducadas(previas.values(), ahora):
             AR.devolver(p, f"la reimaginación no llegó en {AR.CADUCA_H} h: queda en tu lista", iso)
         propuestas = list(previas.values())
