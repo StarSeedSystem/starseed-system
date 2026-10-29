@@ -200,6 +200,20 @@ class TestVigiaModelos(unittest.TestCase):
         self.assertIsNone(vacios[0]["motor"])
         self.assertEqual(len(vacios), 3)
 
+    def test_archivo_por_medio_elige_el_mayor_que_cabe(self):
+        """Por medio se elige el mayor que cabe: navegador ≤ 1 GB, Mac ≤ 4,5 GB y A1 ≤ 8 GB."""
+        archivos = [{"nombre": "q4-ligero.gguf", "bytes": 800000000, "sha256": SHA_GGUF},
+                    {"nombre": "q4_k_m.gguf", "bytes": 4200000000, "sha256": SHA_GGUF},
+                    {"nombre": "f16.gguf", "bytes": 14200000000, "sha256": SHA_GGUF}]
+        medios = {m["medio"]: m for m in VM._archivo_por_medio(archivos)}
+        self.assertEqual(set(medios), {"navegador", "mac", "a1"})
+        self.assertEqual(medios["navegador"]["archivo"], "q4-ligero.gguf")
+        self.assertTrue(medios["navegador"]["cabe"])  # ≤ 1 GB en el navegador
+        self.assertEqual(medios["mac"]["archivo"], "q4_k_m.gguf")  # ≤ 4,5 GB en la Mac de 8
+        self.assertEqual(medios["a1"]["archivo"], "q4_k_m.gguf")
+        self.assertEqual(medios["a1"]["sha256"], SHA_GGUF)
+        self.assertTrue(medios["a1"]["cabe"])  # 4,2 GB sí caben en la A1 de 8 GB
+
     def test_ids_en_catalogo(self):
         """Del catálogo se sacan los ids «autor/repo» citados; desaparecido → None."""
         texto = 'export const M = { "Qwen/Qwen-Image-2.1", "Tongyi-MAI/Z-Image-Turbo" }'

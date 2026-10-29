@@ -135,6 +135,11 @@ describe("Z-Image-Turbo y el paquete personal", () => {
     expect(rapido?.cuantizacion).toBe("nativa");
     expect(rapido?.porQue).toContain("Modelo libre (Apache-2.0).");
   });
+  it("Z-Image-Turbo solo donde cabe: ni la Mac de 8 GB ni la A1 lo proponen", () => {
+    for (const h of [MAC8, A1]) {
+      expect(paqueteBase(h, { comercial: false }).instalar.some((x) => x.modelo.id === "z-image-turbo")).toBe(false);
+    }
+  });
   it("sin permitirPersonal el Turbo no se propone aunque quepa", () => {
     for (const h of [MAC8, A1, PC24]) {
       const s = paqueteBase(h, { comercial: false });
