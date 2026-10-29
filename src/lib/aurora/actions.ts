@@ -1181,6 +1181,34 @@ export const AURORA_ACTIONS: AuroraActionDef[] = [
       })(args, ctx);
     },
   },
+  {
+    name: "render_3d",
+    describe: "Pide un render 3D a Blender como TRABAJO VALIDADO (nunca código). Args cortos {forma: cubo|esfera|icosfera|cilindro|cono|toro, color?: #rrggbb o nombre en español, material?: cristal|metal|mate|brillante, ancho?, alto?, salida?: png|glb|ambos, motor?} o un {trabajo} completo del vocabulario 3D. Elige una neurona de tu cuenta con Blender, pide tu confirmación si el trabajo es pesado y lo encola en la neurona local.",
+    example: '[[ACCION: render_3d {"forma":"esfera","material":"cristal","color":"#7aa2ff","salida":"png"}]]',
+    handler: async (args, ctx) => {
+      const { trabajoDeAccion, elegirNeurona } = await import("@/lib/blender3d/accion-render");
+      const { necesitaConfirmacion } = await import("@/lib/blender3d/trabajo");
+      const { listNeurons } = await import("@/lib/neurons/neurons");
+      const p = trabajoDeAccion(args);
+      if (!p.ok) return { ok: false, message: `No pude preparar el render 3D: ${p.motivo}` };
+      const neuronas = (await listNeurons()).map((n) => ({ nombre: n.name, capabilities: n.capabilities as unknown as Record<string, unknown> }));
+      const elegida = elegirNeurona(neuronas);
+      if (!elegida.ok) return { ok: false, message: elegida.motivo };
+      const perfil = ((neuronas.find((n) => n.nombre === elegida.neurona)?.capabilities?.blender as Record<string, unknown> | undefined)?.perfil ?? "ninguno") as "ninguno" | "ligero" | "estandar" | "estudio";
+      if (necesitaConfirmacion(p.trabajo, perfil) && (typeof window === "undefined" || !window.confirm(`El render 3D «${p.trabajo.titulo}» es pesado. ¿Encolarlo en ${elegida.neurona}?`))) return { ok: true, status: "Esperando tu confirmación…", message: "Dejé el render 3D pendiente de tu confirmación; no encolé nada." };
+      const confirmado = necesitaConfirmacion(p.trabajo, perfil);
+      try {
+        const r = await fetch("/api/3d/trabajos", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ trabajo: p.trabajo, confirmado }) });
+        const d = (await r.json()) as { ok?: boolean; id?: string; motivo?: string; motivos?: string[]; requiereConfirmacion?: boolean };
+        if (r.status === 409 || (r.ok && !d.ok && d.requiereConfirmacion)) return { ok: true, status: "Esperando tu confirmación…", message: "El trabajo 3D no se encoló: esta neurona pide confirmación o no tiene Blender todavía." };
+        if (!d.ok) return { ok: false, message: `No pude encolar el render 3D: ${d.motivo ?? d.motivos?.join("; ") ?? "motivo desconocido"}.` };
+        ctx.onStatus?.("Render 3D en cola…");
+        return { ok: true, status: "Render 3D en cola…", message: `Encolé el render 3D en ${elegida.neurona} con el id ${d.id}.` };
+      } catch {
+        return { ok: false, message: "No pude hablar con la cola local de render 3D." };
+      }
+    },
+  },
 ];
 
 // Índice por nombre para ejecución O(1).
