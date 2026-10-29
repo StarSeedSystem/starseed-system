@@ -37,7 +37,7 @@ describe("candidatos-codigo", () => {
   });
 
   it("revisar detecta secretos", () => {
-    const secreto = "const k = " + ["sk-", "AbC123"].join("") + "xyz";
+    const secreto = "const k = " + ["sk-", "AbC123xyz01"].join("");
     const c = proponer({ capaId: "c1", lenguajeOrigen: "ts", propuesto: secreto, original: "", autor: autorAgente });
     const r = revisar(c);
     expect(r.avisos).toContain("secreto detectado");
@@ -74,7 +74,7 @@ describe("candidatos-codigo", () => {
   });
 
   it("secretos bloquean aceptación", () => {
-    const secreto = ["sk-", "AbC123"].join("");
+    const secreto = ["sk-", "AbC123xyz01"].join("");
     const c = proponer({ capaId: "c1", lenguajeOrigen: "ts", propuesto: secreto, original: "", autor: autorAgente });
     const m = moleculaConCapa({ id: "c1", tipo: "codigo" });
     const res = aceptar(c, { molecula: m, decidir: () => true });

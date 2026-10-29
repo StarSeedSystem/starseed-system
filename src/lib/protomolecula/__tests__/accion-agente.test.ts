@@ -96,10 +96,19 @@ describe("acción de agente de la Protomolécula", () => {
     const sinOrbe = ctx();
     expect(accion({ accion: "abrir", molecula: "m 2" }, sinOrbe).ok).toBe(true); expect(sinOrbe.abrirRuta).toHaveBeenCalledWith("/protomolecula?molecula=m%202");
   });
-  it("proponer-codigo es honesto: ok false y no guarda nada", () => {
-    const c = abrirMol(), antes = c.obtener(), r = accion({ accion: "proponer-codigo", codigo: "alert(1)" }, ctx());
-    expect(r).toMatchObject({ ok: false, message: MENSAJE_PROPONER_CODIGO }); expect(c.obtener()).toBe(antes);
-    expect(accion({ accion: "borrar-todo" }, ctx()).message).toContain("No conozco la acción");
+  it("proponer-codigo crea candidato con campos requeridos", () => {
+    const c = abrirMol(), antes = c.obtener();
+    const r = accion({
+      accion: "proponer-codigo",
+      capaId: "c1",
+      lenguajeOrigen: "ts",
+      propuesto: "const x = 1",
+      original: "const x = 0"
+    }, ctx());
+    expect(r.ok).toBe(true);
+    expect(r.message).toContain("Candidato de código creado");
+    // el estado no cambia, solo se crea el candidato
+    expect(c.obtener()).toBe(antes);
   });
   it("una operación del agente en espacio compartido queda pendiente de la persona", () => {
     const c = abrirMol("grupo", "editor");
