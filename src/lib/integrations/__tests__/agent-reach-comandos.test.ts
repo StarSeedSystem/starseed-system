@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { CAPACIDADES, HINT_INSTALACION, leerSobre, resolverComando, validarEntrada } from "../agent-reach-comandos";
+import { getIntegration as getDesdeCatalogo } from "@/ai/astraura/integration-catalog";
+import { getIntegration as getDesdeRegistro } from "../registry";
 
 const argv = (cap: string, cuerpo: Record<string, unknown>, login = false) => {
   const r = resolverComando(cap, cuerpo, { login });
@@ -116,5 +118,32 @@ describe("leerSobre · JSON de la v1.6", () => {
   it("la pista de instalación avisa de PyPI y da la orden de uv", () => {
     expect(HINT_INSTALACION).toContain("uv tool install https://github.com/Panniantong/Agent-Reach/releases/latest/download/agent-reach.zip");
     expect(HINT_INSTALACION).toContain("PyPI");
+  });
+});
+
+describe("Agent-Reach · catálogo y registro honestos (INV1025B)", () => {
+  const enCatalogo = getDesdeCatalogo("agent-reach");
+  const enRegistro = getDesdeRegistro("agent-reach");
+  const textos = JSON.stringify([enCatalogo, enRegistro]);
+
+  it("existe en el catálogo de Astraura y en el registro", () => {
+    expect(enCatalogo).not.toBeNull();
+    expect(enRegistro).toBeDefined();
+  });
+
+  it("ningún texto de agent-reach manda a pip install ni a npx", () => {
+    expect(textos).not.toContain("pip install agent-reach");
+    expect(textos).not.toContain("npx agent-reach");
+  });
+
+  it("da la instalación real (uv + zip de GitHub) y avisa de PyPI", () => {
+    expect(textos).toContain("uv tool install");
+    expect(textos).toContain("https://github.com/Panniantong/Agent-Reach/releases/latest/download/agent-reach.zip");
+    expect(textos).toContain("PyPI");
+  });
+
+  it("repo y autoUpdate.github usan la forma canónica", () => {
+    expect(enCatalogo?.repo).toBe("Panniantong/Agent-Reach");
+    expect(enCatalogo?.autoUpdate.github).toBe("Panniantong/Agent-Reach");
   });
 });

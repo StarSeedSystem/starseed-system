@@ -1,29 +1,62 @@
 // ════════════════════════════════════════════════════════════════
-// Agent-Reach — sentidos web GRATIS para Aurora (CLI local + proxy)
-// -----------------------------------------------------------------
-// Capacidad "web-senses" ya mapeada en skills.ts → iatool-agent-reach
-// Este cliente invoca el proxy /api/agent-reach/[capability] que,
-// si el CLI agent-reach está instalado en la neurona, lo ejecuta;
-// en Vercel degrada limpio (ok:false).
+// Agent-Reach v1.6 — sentidos web GRATIS para Aurora (CLI local + proxy)
+// Los ids salen del catálogo único agent-reach-comandos.ts, así cliente y
+// ruta no pueden divergir (INV1025B). En Vercel el proxy degrada (ok:false).
 // ════════════════════════════════════════════════════════════════
 
 import type { IntegrationConfig, IntegrationResult } from "../types";
+import { CAPACIDADES, type ItemReach } from "../agent-reach-comandos";
 
-const ALLOWED_CAPABILITIES = [
-  "web-search",
-  "read-web",
-  "youtube-transcript",
-  "github-read",
-  "reddit-search",
-] as const;
+const IDS_CLIENTE = ["web-search", "read-web", "youtube-transcript", "github-read", "reddit-search"] as const;
+export type AgentReachCapability = (typeof IDS_CLIENTE)[number];
+const DEL_CATALOGO = new Set<string>(Object.keys(CAPACIDADES));
+const MOTIVO_REDDIT = "Canal con sesión apagado (R1): solo canales públicos sin iniciar sesión.";
 
-type AgentReachCapability = (typeof ALLOWED_CAPABILITIES)[number];
+export interface AgentReachResult extends IntegrationResult {
+  content?: string;
+  items?: ItemReach[];
+  meta?: Record<string, unknown>;
+  codigo?: string;
+  hint?: string;
+}
+
+const texto = (x: unknown): string | undefined => (typeof x === "string" && x.trim() ? x : undefined);
+const mensaje = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
+async function leerCuerpo(res: Response): Promise<Record<string, unknown>> {
+  try {
+    const b: unknown = await res.json();
+    return b && typeof b === "object" && !Array.isArray(b) ? (b as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Conserva error.code y hint tal cual llegan (objeto o campos planos). */
+function camposError(cuerpo: Record<string, unknown>): Pick<AgentReachResult, "error" | "codigo" | "hint"> {
+  const crudo = cuerpo.error;
+  const obj = crudo && typeof crudo === "object" && !Array.isArray(crudo) ? (crudo as Record<string, unknown>) : {};
+  const hint = texto(obj.hint) ?? texto(cuerpo.hint) ?? texto(crudo);
+  return { error: hint, codigo: texto(obj.code) ?? texto(cuerpo.codigo) ?? texto(cuerpo.motivo), hint };
+}
+
+function normalizar(cuerpo: Record<string, unknown>): AgentReachResult {
+  return {
+    ok: cuerpo.ok === true,
+    content: texto(cuerpo.content),
+    items: Array.isArray(cuerpo.items) ? (cuerpo.items as ItemReach[]) : undefined,
+    meta: cuerpo.meta && typeof cuerpo.meta === "object" ? (cuerpo.meta as Record<string, unknown>) : undefined,
+    data: cuerpo,
+    ...camposError(cuerpo),
+  };
+}
 
 async function callProxy(
   capability: AgentReachCapability,
   payload: Record<string, unknown>,
   signal?: AbortSignal
-): Promise<IntegrationResult> {
+): Promise<AgentReachResult> {
+  if (!DEL_CATALOGO.has(capability)) return { ok: false, error: `Capacidad no permitida: ${capability}` };
   try {
     const res = await fetch(`/api/agent-reach/${capability}`, {
       method: "POST",
@@ -31,92 +64,57 @@ async function callProxy(
       body: JSON.stringify(payload),
       signal,
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return { ok: false, error: err.error || `HTTP ${res.status}` };
-    }
-    return (await res.json()) as IntegrationResult;
-  } catch (e: any) {
-    return { ok: false, error: String(e?.message ?? e) };
+    const r = normalizar(await leerCuerpo(res));
+    return res.ok ? r : { ...r, ok: false };
+  } catch (e) {
+    return { ok: false, error: mensaje(e) };
   }
 }
 
-// ── Tool: web_search (buscar en la web multi-backend gratis) ─────────
+/** POST con una única URL; valida antes de salir a la red. */
+function conUrl(cap: AgentReachCapability, input: { url?: string }, falta: string, signal?: AbortSignal) {
+  const url = input?.url;
+  if (!url || typeof url !== "string") return Promise.resolve<AgentReachResult>({ ok: false, error: falta });
+  return callProxy(cap, { url }, signal);
+}
+// ── web_search: busca con Exa; la consulta sale hacia ese tercero ────
 export async function web_search(
-  cfg: IntegrationConfig,
+  _cfg: IntegrationConfig,
   input: { q?: string; query?: string; limit?: number },
   signal?: AbortSignal
-): Promise<IntegrationResult> {
+): Promise<AgentReachResult> {
   const q = input.q ?? input.query;
-  if (!q || typeof q !== "string") {
-    return { ok: false, error: "Indica el término de búsqueda (q)." };
-  }
+  if (!q || typeof q !== "string") return { ok: false, error: "Indica el término de búsqueda (q)." };
   return callProxy("web-search", { q, limit: input.limit ?? 5 }, signal);
 }
-
-// ── Tool: read_web (leer página web / X / Reddit / GitHub / genérico) ─
-export async function read_web(
-  cfg: IntegrationConfig,
-  input: { url: string },
-  signal?: AbortSignal
-): Promise<IntegrationResult> {
-  const url = input?.url;
-  if (!url || typeof url !== "string") {
-    return { ok: false, error: "Indica la URL a leer (url)." };
-  }
-  return callProxy("read-web", { url }, signal);
+// ── read_web: lee con Jina Reader; la URL sale hacia ese tercero ─────
+export function read_web(_cfg: IntegrationConfig, input: { url: string }, signal?: AbortSignal) {
+  return conUrl("read-web", input, "Indica la URL a leer (url).", signal);
 }
 
-// ── Tool: read_youtube (transcripción de YouTube) ────────────────────
-export async function read_youtube(
-  cfg: IntegrationConfig,
-  input: { url: string },
-  signal?: AbortSignal
-): Promise<IntegrationResult> {
-  const url = input?.url;
-  if (!url || typeof url !== "string") {
-    return { ok: false, error: "Indica la URL de YouTube (url)." };
-  }
-  return callProxy("youtube-transcript", { url }, signal);
+// ── read_youtube: subtítulos públicos, sin clave ─────────────────────
+export function read_youtube(_cfg: IntegrationConfig, input: { url: string }, signal?: AbortSignal) {
+  return conUrl("youtube-transcript", input, "Indica la URL de YouTube (url).", signal);
 }
 
-// ── Tool: read_github (leer archivo/repo de GitHub) ──────────────────
-export async function read_github(
-  cfg: IntegrationConfig,
-  input: { url: string },
-  signal?: AbortSignal
-): Promise<IntegrationResult> {
-  const url = input?.url;
-  if (!url || typeof url !== "string") {
-    return { ok: false, error: "Indica la URL de GitHub (url)." };
-  }
-  return callProxy("github-read", { url }, signal);
+// ── read_github: lee archivo o repo público ──────────────────────────
+export function read_github(_cfg: IntegrationConfig, input: { url: string }, signal?: AbortSignal) {
+  return conUrl("github-read", input, "Indica la URL de GitHub (url).", signal);
 }
 
-// ── Tool: read_reddit (leer post/comentarios de Reddit) ──────────────
-export async function read_reddit(
-  cfg: IntegrationConfig,
-  input: { url: string },
-  signal?: AbortSignal
-): Promise<IntegrationResult> {
+// ── read_reddit: R1, con sesión y apagado; fallo normal, no excepción ─
+export function read_reddit(_cfg: IntegrationConfig, input: { url: string }): Promise<AgentReachResult> {
   const url = input?.url;
-  if (!url || typeof url !== "string") {
-    return { ok: false, error: "Indica la URL de Reddit (url)." };
-  }
-  return callProxy("reddit-search", { url }, signal);
+  if (!url || typeof url !== "string") return Promise.resolve({ ok: false, error: "Indica la URL de Reddit (url)." });
+  return Promise.resolve({ ok: false, error: MOTIVO_REDDIT, codigo: "NEED_LOGIN_BLOQUEADO", hint: MOTIVO_REDDIT });
 }
-
-// ── Salud: ping al proxy (degrada si no hay CLI) ─────────────────────
-export async function health(
-  _cfg: IntegrationConfig,
-  _signal?: AbortSignal
-): Promise<IntegrationResult> {
+// ── Salud: GET /api/agent-reach/health (degrada si no hay CLI) ───────
+export async function health(_cfg: IntegrationConfig, signal?: AbortSignal): Promise<AgentReachResult> {
   try {
-    const res = await fetch("/api/agent-reach/health", { method: "GET", signal: _signal });
-    if (!res.ok) return { ok: false, error: `Proxy health ${res.status}` };
-    const data = await res.json().catch(() => ({}));
-    return { ok: true, data };
-  } catch (e: any) {
-    return { ok: false, error: String(e?.message ?? e) };
+    const res = await fetch("/api/agent-reach/health", { method: "GET", signal });
+    const r = normalizar(await leerCuerpo(res));
+    return res.ok ? r : { ...r, ok: false };
+  } catch (e) {
+    return { ok: false, error: mensaje(e) };
   }
 }

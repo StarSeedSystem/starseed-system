@@ -98,14 +98,14 @@ export const INTEGRATIONS: IntegrationEntry[] = [
     id: "agent-reach",
     label: "Agent Reach — acceso a la web externa para agentes",
     domain: "web",
-    repo: "https://github.com/Panniantong/Agent-Reach",
+    repo: "Panniantong/Agent-Reach",
     license: "MIT",
-    why: "Da a los agentes Astraura ojos en TODA la web (Twitter/X, Reddit, YouTube, GitHub, Bilibili, XiaoHongShu, búsqueda semántica, RSS) TODO GRATIS, multi-backend. Hoy los agentes del OS NO tienen acceso web nativo.",
+    why: "Da a los agentes Astraura lectura y búsqueda de fuentes públicas sin clave: la web con Exa (buscar) y Jina Reader (leer), ambas de terceros; GitHub; subtítulos de YouTube; V2EX y Bilibili. Reddit, X y LinkedIn piden sesión y quedan apagados (R1).",
     native: true,
     defaultOn: true, // valor alto, riesgo bajo → encendido por defecto
     adapter: "@/ai/astraura/integrations/agent-reach",
     autoUpdate: { enabled: true, github: "Panniantong/Agent-Reach", pollMinutes: 1440 },
-    reqs: { localCli: true, note: "Python 3.10+ en la neurona del usuario (pip install agent-reach). El OS lo invoca vía el backend de Astraura o proxy." },
+    reqs: { localCli: true, note: "Python 3.10+ y `uv` en la neurona del usuario. Instalar con `uv tool install https://github.com/Panniantong/Agent-Reach/releases/latest/download/agent-reach.zip` (queda en ~/.local/bin). ⚠ El paquete «agent-reach» de PyPI NO es este proyecto: no lo instales ni con pip ni con npx." },
     status: "registered",
   },
   {

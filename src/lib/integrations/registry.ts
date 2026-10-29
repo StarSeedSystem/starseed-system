@@ -621,16 +621,16 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
       label: "Agent-Reach (sentidos web)",
       category: "data-ingest",
       capabilities: [
-        "Búsqueda web multi-backend GRATIS (Google/DuckDuckGo/Brave/Reddit/YouTube/Bilibili/XHS/GitHub/RSS)",
-        "Lectura de páginas web / X (Twitter) / Reddit / GitHub / RSS / genérico → Markdown",
-        "Transcripción de YouTube (sin API key)",
-        "CLI local nativo (Node) + proxy HTTP del OS; sin claves, sin cuotas",
+        "Búsqueda web con Exa y lectura de páginas con Jina Reader (terceros: la consulta o la URL sale hacia ellos; solo fuentes públicas)",
+        "GitHub (leer repos y archivos públicos) y subtítulos públicos de YouTube",
+        "V2EX y Bilibili de serie; sin claves propias ni cuotas del OS",
+        "Reddit, X (Twitter) y LinkedIn necesitan sesión y quedan APAGADOS (R1): solo canales públicos sin iniciar sesión",
       ],
       defaultEndpoint: "http://localhost:0",
       needsKey: false,
       docsUrl: "https://github.com/Panniantong/Agent-Reach",
       freeHostingHint:
-        "CLI Node (npx agent-reach) instalado en la neurona (Mac/Linux/WSL) — el OS lo invoca por spawn seguro y expone /api/agent-reach/* como proxy. En Vercel no hay CLI; el proxy degrada limpio (ok:false) y Aurora usa alternativas configuradas (SearXNG, Crawl4AI).",
+        "CLI Python de la v1.6 instalado en la neurona (Mac/Linux/WSL) con `uv tool install https://github.com/Panniantong/Agent-Reach/releases/latest/download/agent-reach.zip` (queda en ~/.local/bin) — el OS lo invoca por spawn seguro y expone /api/agent-reach/* como proxy. ⚠ El paquete «agent-reach» de PyPI NO es este proyecto: no lo instales ni con pip ni con npx. En Vercel no hay CLI; el proxy degrada limpio (ok:false) y Aurora usa alternativas configuradas (SearXNG, Crawl4AI).",
       actions: [
         { id: "web-search", label: "Buscar web", description: "Búsqueda multi-backend gratis. Entrada: { q }." },
         { id: "read-web", label: "Leer página", description: "Lee web/X/Reddit/GitHub/RSS → Markdown. Entrada: { url }." },
