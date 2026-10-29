@@ -108,4 +108,33 @@ describe("FilasDeProcesos plegables", () => {
         const cuerpo = within(fila).getByTitle("cuerpo ta01");
         expect(cuerpo).toHaveClass("truncate");
     });
+
+    it("cerrada desmonta el contenido y al reabrir el resumen de una línea desaparece", () => {
+        montar();
+        const olaSeccion = screen.getByLabelText(/Fila de la ola/);
+        const contenido = () => olaSeccion.querySelector("div[id='fila-ola-contenido']");
+
+        expect(contenido()).not.toBeNull();
+        fireEvent.click(within(olaSeccion).getByRole("button", { name: /Cerrar lista/ }));
+        expect(contenido()).toBeNull();
+        expect(within(olaSeccion).getByText("1 en curso · 12 pendientes · 1 hecha")).toBeInTheDocument();
+
+        fireEvent.click(within(olaSeccion).getByRole("button", { name: /Abrir lista/ }));
+        expect(contenido()).not.toBeNull();
+        expect(within(olaSeccion).queryByText("1 en curso · 12 pendientes · 1 hecha")).not.toBeInTheDocument();
+    });
+
+    it("el plegado de cada agente anuncia su estado con aria-expanded", () => {
+        montar();
+        const vivo = screen.getByLabelText("cola-nio");
+        expect(within(vivo).getByRole("button", { name: /Cerrar lista/ })).toHaveAttribute("aria-expanded", "true");
+
+        const parado = screen.getByLabelText("cola-sil");
+        const abrir = within(parado).getByRole("button", { name: /Abrir lista/ });
+        expect(abrir).toHaveAttribute("aria-expanded", "false");
+        expect(abrir).toHaveAttribute("aria-controls", "agente-mac-sil-contenido");
+
+        fireEvent.click(abrir);
+        expect(within(parado).getByRole("button", { name: /Cerrar lista/ })).toHaveAttribute("aria-expanded", "true");
+    });
 });
