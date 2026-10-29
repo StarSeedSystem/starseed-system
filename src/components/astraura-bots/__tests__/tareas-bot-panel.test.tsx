@@ -98,7 +98,7 @@ describe("TareasBotPanel", () => {
     render(<TareasBotPanel bot={BOT} />);
     abrirNueva("Ordenar el escritorio", "Los iconos quedan por tipo");
     expect(screen.getByRole("alertdialog")).toBeTruthy();
-    expect(guardadas().porBot).toEqual({});
+    expect(guardadas().porBot).toBeUndefined();
     fireEvent.click(screen.getByRole("button", { name: "Confirmar tarea" }));
     expect(screen.getByText("Ordenar el escritorio")).toBeTruthy();
     expect(guardadas().porBot[BOT.id]).toHaveLength(1);
