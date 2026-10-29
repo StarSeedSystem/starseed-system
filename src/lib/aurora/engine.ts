@@ -86,6 +86,10 @@ import { emocionDesdeTexto, type EmocionVoz } from "@/lib/voces/emociones";
 import { emocionChatAVoz } from "@/lib/aurora/voz-starseed/motor";
 import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
+// Ola 1015V · voz fusionada §4: detección por energía para interrumpir a
+// Astraura con la voz (barge-in) mientras habla. Montada al empezar a hablar,
+// soltada al callar (el enganche vive en el efecto bajo `interrupt`).
+import { activarInterrupcionPorVoz } from "@/lib/aurora/interrumpir-por-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
 import {
@@ -1470,6 +1474,36 @@ export function useAuroraEngine(): AuroraEngine {
     // (medio-dúplex): el navegador puede no disparar utterance.onend al cancelar.
     finishTts();
   }, [finishTts]);
+
+  // ── INTERRUPCIÓN POR VOZ (Ola 1015V · voz-fusionada-astraura.md §4) ──
+  // ENGANCHE: mientras Aurora habla, un canal extra de micro con
+  // `echoCancellation`/`noiseSuppression` alimenta al detector puro por
+  // energía; si la persona habla ≥ 250 ms, se llama a `interrupt()` (barge-in).
+  // Al callar, se suelta. Micro no disponible o canal roto: Aurora sigue
+  // hablando igual (regla de la capa) y el toque en la orbe queda como siempre.
+  const interruptRef = useRef(interrupt);
+  const soltarInterrupcionRef = useRef<(() => void) | null>(null);
+  useEffect(() => { interruptRef.current = interrupt; }, [interrupt]);
+  useEffect(() => {
+    if (!speaking) {
+      soltarInterrupcionRef.current?.();
+      soltarInterrupcionRef.current = null;
+      return;
+    }
+    let vivo = true;
+    activarInterrupcionPorVoz({ alInterrumpir: () => interruptRef.current() })
+      .then((m) => {
+        if (!vivo) { void m.soltar(); return; }
+        soltarInterrupcionRef.current = () => { void m.soltar(); };
+      })
+      .catch(() => { /* la interrupción por voz es un extra, nunca una falta */ });
+    return () => {
+      vivo = false;
+      const soltarMontaje = soltarInterrupcionRef.current;
+      soltarInterrupcionRef.current = null;
+      if (soltarMontaje) soltarMontaje();
+    };
+  }, [speaking]);
 
   const toggleSpeech = useCallback(() => {
     // Si está hablando y no pausada → pausa; si está pausada → reanuda;
