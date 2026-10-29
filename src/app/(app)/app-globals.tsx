@@ -45,6 +45,10 @@ import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
 import { AcompanantePersonalidad } from "@/components/avatares/acompanante-personalidad";
 import { InstalacionesPendientes } from "@/components/library/instalaciones-pendientes";
 import { RegistroRecientesAccesos } from "@/components/widgets-libres/familias/accesos-registro";
+// (Ola 1019V) Clic derecho global «Variaciones públicas» y anfitrión de su ventana:
+// montados UNA vez aquí para que cualquier elemento del OS con clave canónica los use.
+import { ClicDerechoGlobal } from "@/components/variaciones/clic-derecho-global";
+import { VariacionesHost } from "@/components/variaciones/variaciones-host";
 
 // Entrada XR global (XR1010F · contrato starseed-xr §0.6 y §3 c): ligera y sin SSR.
 // El motor 3D no se carga aquí: el botón navega a `/xr/os?modo=…` (XR1010G).
@@ -87,6 +91,13 @@ export default function AppGlobals() {
           orbe, el Exocórtex y cualquier pestaña abren la MISMA ventana con
           `openAstraura158Window({kind, id})` sin acoplarse entre sí. */}
       <Astraura158WindowHost />
+      {/* (Ola 1019V · §3) Clic derecho global: menú con «Variaciones públicas»,
+          «Publicar mi variación» y «Copiar enlace al elemento» sobre la clave del
+          elemento; respeta los menús propios, los campos de texto y Mayúsculas. */}
+      <ClicDerechoGlobal />
+      {/* (Ola 1019V · §4) Anfitrión de la ventana «Variaciones públicas» (pila de
+          `OSWindow`, portada a `document.body`); escucha `starseed:variaciones-abrir`. */}
+      <VariacionesHost />
       {/* Acompañante flotante en pantalla por personalidad (Ola 235 · M4):
           capa 2,5D que acompaña al usuario al charlar si está activado en ajustes. */}
       <AcompanantePersonalidad />
