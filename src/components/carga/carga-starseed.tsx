@@ -22,6 +22,7 @@ import Image from "next/image";
 import { circulosDeLaFlor, radioCirculo } from "@/lib/carga/flor-de-la-vida";
 import { PALETAS } from "@/lib/protomolecula/orbe4d/coreografia";
 import type { MotorOrbe } from "@/lib/protomolecula/orbe4d/motor";
+import { respiracion } from "@/lib/design/movimiento-starseed";
 import { cn } from "@/lib/utils";
 
 /** Alto del símbolo respecto al lado de la escena (el símbolo es vertical, 2:3). */
@@ -86,6 +87,10 @@ export function CargaStarSeed({ texto = "Abriendo StarSeed…", etiqueta = "Abri
   const [fase, setFase] = useState<Fase>("respaldo");
   const escena = useRef<HTMLDivElement>(null);
   const lienzo = useRef<HTMLCanvasElement>(null);
+  /** El envoltorio del símbolo: ahí corre la respiración por WAAPI. */
+  const respiraRef = useRef<HTMLSpanElement>(null);
+  /** La respiración en curso, para poder apagarla al entrar el modo quieto. */
+  const animRespira = useRef<Animation | null>(null);
 
   useEffect(() => {
     const mq = typeof window.matchMedia === "function" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
@@ -138,6 +143,38 @@ export function CargaStarSeed({ texto = "Abriendo StarSeed…", etiqueta = "Abri
     };
   }, []);
 
+  // Respiración del símbolo tomada de la biblioteca de movimiento StarSeed
+  // (`respiracion()`: escala 1 → 1,03 en 5 s con la curva orgánica del ADN, ida
+  // y vuelta). La clase CSS `ss-respirar` se queda como respaldo al primer
+  // cuadro y para navegadores sin WAAPI; si la biblioteca puede correr, le cede
+  // el turno (la de CSS respiraba a 1,05: el ADN pide 1,03). Con movimiento
+  // reducido o modo eco la fase es «estático» y el símbolo se queda quieto.
+  useEffect(() => {
+    if (fase === "estatico") {
+      animRespira.current?.cancel();
+      animRespira.current = null;
+      return;
+    }
+    const span = respiraRef.current;
+    // Ya en marcha (cambio «respaldo» → «3d») o navegador sin WAAPI: nada.
+    if (!span || animRespira.current || typeof span.animate !== "function") return;
+    // El respaldo de CSS deja el turno: una sola respiración, la de la biblioteca.
+    span.getAnimations().forEach((a) => { a.cancel(); });
+    const r = respiracion();
+    animRespira.current = span.animate(r.keyframes as unknown as Keyframe[], {
+      duration: r.duracionMs,
+      easing: r.curva,
+      direction: r.direccion,
+      iterations: r.iteraciones,
+    });
+  }, [fase]);
+
+  // Al desmontar (el acceso se resolvió) se suelta la respiración.
+  useEffect(() => () => {
+    animRespira.current?.cancel();
+    animRespira.current = null;
+  }, []);
+
   return (
     <div role="status" aria-label={etiqueta} data-fase={fase} data-testid="carga-starseed" className={cn("flex flex-col items-center gap-2", className)}>
       <div
@@ -160,7 +197,7 @@ export function CargaStarSeed({ texto = "Abriendo StarSeed…", etiqueta = "Abri
         <RespaldoSVG quieto={fase === "estatico"} />
         {/* 3 · el símbolo oficial, centrado dentro de la esfera, respirando suave (la animación se apaga con movimiento reducido) */}
         <span data-testid="carga-simbolo" className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <span className="ss-respirar block" style={{ height: `${ALTO_SIMBOLO * 100}%`, ["--ss-dur" as string]: "5s" }}>
+          <span ref={respiraRef} className="ss-respirar block" style={{ height: `${ALTO_SIMBOLO * 100}%` }}>
             <Image
               src="/starseed-symbol.png"
               alt="StarSeed"
