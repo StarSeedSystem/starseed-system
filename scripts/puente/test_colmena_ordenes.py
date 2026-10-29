@@ -93,6 +93,8 @@ class TestColmenaOrders(unittest.TestCase):
         self.assertFalse(válido)
         self.assertIn("destino no válido: no se puede mandar a lider, todos o un medio genérico", motivo)
 
+    # --- Nodos de MetaGenesis: desconectar y contenedor ---
+
 
 if __name__ == "__main__":
     unittest.main()
