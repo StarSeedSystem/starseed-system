@@ -2,6 +2,8 @@
 // Referencias: dont-make-me-think (usabilidad), asd-ste100 (redacción)
 // Módulo puro: sin efectos laterales, sin red, sin disco
 
+import { movimientoDe, type RegistroMovimiento, type SeccionMovimiento } from "@/lib/design/registros-movimiento"
+
 export type PrincipioUsabilidad = {
   id: string
   titulo: string
@@ -124,4 +126,51 @@ export function revisarTexto(texto: string): {
     posiblesPasivas: pasivas,
     usoJerga: jergaCandidata
   }
+}
+
+/* ───────────────── ADN de diseño para la IA creativa (DAN1024H) ───────────────── */
+
+/** La entidad que recibe el contexto: cuenta, página o grupo (DAN1024G); lo
+ * que no declare vuelve al patrón común «sobrio» de la Protomolécula. */
+export interface EntidadDiseno {
+    /** Nombre con el que la entidad se presenta en el texto (opcional). */
+    nombre?: string;
+    /** Registro de movimiento efectivo: su herencia cuenta › página › grupo se resuelve antes de llamar. */
+    registro?: RegistroMovimiento;
+    /** Sección del OS donde vive la pieza. */
+    seccion?: SeccionMovimiento;
+}
+
+const REGISTROS: readonly RegistroMovimiento[] = ["sobrio", "expresivo", "experimental"];
+const SECCIONES: readonly SeccionMovimiento[] = ["trinity", "astraura", "genesis", "malla", "biblioteca", "protomolecula"];
+const REGISTRO_DEFECTO: RegistroMovimiento = "sobrio";
+const SECCION_DEFECTO: SeccionMovimiento = "protomolecula";
+
+/** Números y discursos decimales como los escribe el OS: coma, no punto. */
+const decimal = (n: number): string => String(n).replace(".", ",");
+
+/**
+ * Contexto de diseño del ADN StarSeed para un agente de creación con IA (DAN1024H): el texto
+ * breve que dice QUÉ puede inventar y QUÉ es ley de marca. Determinista: la misma entidad
+ * devuelve SIEMPRE el mismo texto — sin red, disco, reloj ni rutas de archivo. Los nombres
+ * de variables de entorno jamás aparecen (aquí no existen claves). Sale del lenguaje común:
+ * los principios del ADN, el movimiento de la entidad (Ola 1024D) y la regla del símbolo.
+ * Tope de 900 caracteres: lo que no cabe, no entra (se recorta con una elipsis honesta).
+ */
+export function contextoDisenoIA(entidad: EntidadDiseno = {}): string {
+    const registro = REGISTROS.includes(entidad.registro as RegistroMovimiento)
+        ? (entidad.registro as RegistroMovimiento) : REGISTRO_DEFECTO;
+    const seccion = SECCIONES.includes(entidad.seccion as SeccionMovimiento)
+        ? (entidad.seccion as SeccionMovimiento) : SECCION_DEFECTO;
+    const m = movimientoDe(registro, seccion);
+    const quien = entidad.nombre ? `la entidad «${entidad.nombre}»` : "la entidad";
+    const piezas = [
+        `Pieza para ${quien}. ADN StarSeed: composición centrada; los cuatro papeles de la Trinity —Zenith, Horizon, Logic y Anchor— llevan un color por papel; el brillo multicapa se reserva a la pieza protagonista y solo se animan transform y opacity.`,
+        `Movimiento (registro «${registro}», sección «${seccion}»): la pieza entra en ${m.entrada.ms} ms y sale en ${m.salida.ms} ms con las curvas del ADN — el mismo gesto en todos los equipos; los hijos en cascada entran a partir de ${m.cascadaMs} ms y la respiración sube la escala hasta ${decimal(m.respiracion.escala)} con un periodo de ${m.respiracion.periodoMs} ms.`,
+        "En la interfaz manda el reloj del OS: los números del vídeo no se copian a la interfaz, ni los de la interfaz al vídeo.",
+        "Con movimiento reducido el estado final se pinta quieto: la preferencia de accesibilidad manda sobre cualquier adorno que se proponga.",
+        "Símbolo oficial: la vesica vertical con los dos discos, el ojo y el rombo de doce facetas no se recolorea ni se deforma; sobre ella solo cabe tocar la escala y la posición, nunca la geometría ni los colores.",
+    ];
+    const texto = piezas.join(" ");
+    return texto.length > 900 ? texto.slice(0, 897) + "…" : texto;
 }
