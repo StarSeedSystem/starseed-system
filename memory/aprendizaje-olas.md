@@ -4662,3 +4662,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-29 22:15 · mg-oracle-1029-1519
+
+**Lo que se pidió.** Ajustes: «Versiones públicas
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — no escribió nada (RTESP1011Bb, LYS1018L, PUB1029C, PUB1029D). Es 67 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTESP1011Bb` — no escribió nada
+- `VZF1015M` — otra cosa: sin decisión en 0 h; rama ola/VZF1015M conservada
+- `LYS1018L` — no escribió nada
+- `PUB1029C` — no escribió nada
+- `PUB1029D` — no escribió nada
+- `VZF1015N` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VZF1015N conservada)
