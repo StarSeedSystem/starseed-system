@@ -14,6 +14,10 @@ import {
   Copy, ExternalLink, Headphones, KeyRound, Lock, Pause, Play, Radio, RotateCcw, Square,
   Timer, Volume2, VolumeX, Waves, Orbit, Wifi, WifiOff, Cable, Server,
 } from "lucide-react";
+import { PanelParametros } from "@/components/protomolecula/panel-parametros";
+import { ATOMO_ESTACION, parametrosDeSesion, sesionDeParametros } from "@/lib/protomolecula/adaptador-estaciones";
+import { claveDe } from "@/lib/protomolecula/parametros";
+import type { Operacion } from "@/lib/protomolecula/tipos";
 import { estacionGlobal, useEstacionGlobal } from "@/lib/estaciones/estacion-global";
 import { registroDe } from "@/lib/estaciones/llaves-locales";
 import {
@@ -108,6 +112,13 @@ export function PanelEnVivo({ href }: { href: string }) {
   const sesion = estacionGlobal().sesionActual();
   const ahora = sesion ? sesion.ahora() : 0;
   const pos = useMemo(() => (s ? posicionEn(s.estado, ahora) : null), [s, ahora, tic]); // eslint-disable-line react-hooks/exhaustive-deps
+  const params = pos?.params ?? null;
+  // La entonación se pinta con el MISMO modelo de parámetros que el panel de la Protomolécula.
+  const lienzo = useMemo(() => (params ? parametrosDeSesion(params) : null), [params]);
+  const controles = useMemo(
+    () => (lienzo ? lienzo.parametros.map((p) => ({ ref: { atomoId: ATOMO_ESTACION, parametroId: p.id }, parametro: p, atomo: "Estación" })) : []),
+    [lienzo],
+  );
 
   if (!s || !pos) {
     return (

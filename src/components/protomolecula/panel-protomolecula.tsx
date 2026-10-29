@@ -15,6 +15,7 @@ import { AVISO_SALUD } from "@/lib/protomolecula/permisos";
 import { candidatosDe, obtenerAtomo } from "@/lib/protomolecula/registro-atomos";
 import type { EstadoGuardado } from "@/lib/protomolecula/sesion-molecula";
 import type { Ambito, Autor, Operacion, ValorParametro } from "@/lib/protomolecula/tipos";
+import type { EnlaceSesion } from "@/lib/protomolecula/transporte-protomolecula";
 import { registrarAtomosPropios } from "@/lib/protomolecula/atomos";
 
 import { BarraDictado } from "./barra-dictado";
@@ -42,9 +43,11 @@ export interface PanelProtomoleculaProps {
   compacto?: boolean;
   /** Estado de guardado de la sesión que lo abrió; sin él no se enseña ninguno. */
   guardado?: EstadoGuardado;
+  /** Enlace P2P de la sesión: dice por dónde va y, sin enlace, «solo en este aparato». */
+  enlace?: EnlaceSesion | null;
 }
 
-export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, compacto = false, guardado }: PanelProtomoleculaProps) {
+export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, compacto = false, guardado, enlace }: PanelProtomoleculaProps) {
   const estado = useEstadoControl(ctl);
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -79,6 +82,11 @@ export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, comp
           <h2 className="text-base font-semibold">{estado.molecula.titulo}</h2>
           <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">{ETIQUETA_AMBITO[estado.molecula.ambito]}</span>
           {guardado && guardado.estado !== "error" && <span role="status" className="text-xs text-muted-foreground">{TEXTO_GUARDADO[guardado.estado]}</span>}
+          {enlace && (
+            <span className="text-xs text-muted-foreground" title={`${enlace.precisionReloj().texto} · ${enlace.latencia().texto}`}>
+              {enlace.enlace().descripcion}
+            </span>
+          )}
         </header>
       )}
       {guardado?.estado === "error" && <p role="alert" className="text-xs text-destructive">No se pudo guardar: {guardado.motivo}</p>}
@@ -143,14 +151,14 @@ export interface PanelProtomoleculaAutonomoProps {
 }
 
 export function PanelProtomoleculaAutonomo({ compacto = false, moleculaId }: PanelProtomoleculaAutonomoProps) {
-  const { error, controlador, guardado } = useMolecula({ moleculaId });
+  const { error, controlador, guardado, enlace } = useMolecula({ moleculaId });
   if (error) {
     return <p role="alert" className="p-2 text-sm text-destructive">{error}</p>;
   }
   if (!controlador) {
     return <p className="p-2 text-sm text-muted-foreground" role="status">Abriendo la protomolécula…</p>;
   }
-  return <PanelProtomolecula controlador={controlador} compacto={compacto} guardado={guardado} />;
+  return <PanelProtomolecula controlador={controlador} compacto={compacto} guardado={guardado} enlace={enlace} />;
 }
 
 export default PanelProtomoleculaAutonomo;
