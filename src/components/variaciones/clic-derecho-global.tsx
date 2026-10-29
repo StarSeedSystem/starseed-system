@@ -14,14 +14,14 @@ import { claveDesdeElemento, leerClave } from "@/lib/variaciones/clave-elemento"
 import { abrirVariaciones } from "./variaciones-bus";
 import { ETIQUETA_VARIACIONES } from "./accion-variaciones";
 
-export const ATRIBUTO_MENU_PROPIO = "data-ss-menu-propio";
-export const PULSACION_LARGA_MS = 500;
-export const TOLERANCIA_PULSACION_PX = 10;
+const ATRIBUTO_MENU_PROPIO = "data-ss-menu-propio";
+const PULSACION_LARGA_MS = 500;
+const TOLERANCIA_PULSACION_PX = 10;
 const TIPOS_DE_TEXTO = new Set(["text", "search", "email", "url", "tel", "password", "number"]);
 export type AccionClicDerecho = "navegador" | "propio" | "menu";
 export interface DecisionClicDerecho { accion: AccionClicDerecho; clave: string | null }
 /** Un input/textarea/select/contenteditable conserva su menú nativo (contrato §3). */
-export function esCampoDeTexto(el: Element | null): boolean {
+function esCampoDeTexto(el: Element | null): boolean {
   if (!el) return false;
   const etiqueta = el.tagName.toUpperCase();
   if (etiqueta === "TEXTAREA" || etiqueta === "SELECT") return true;
@@ -30,11 +30,11 @@ export function esCampoDeTexto(el: Element | null): boolean {
   return editable === "" || editable === "true" || editable === "plaintext-only" || el.getAttribute("role") === "textbox";
 }
 /** El elemento o cualquiera de sus ancestros declara menú propio: el anfitrión no actúa. */
-export function tieneMenuPropio(el: Element | null): boolean {
+function tieneMenuPropio(el: Element | null): boolean {
   return Boolean(el?.closest(`[${ATRIBUTO_MENU_PROPIO}]`));
 }
 /** Decide sin tocar el DOM del menú: Mayúsculas gana, luego menú propio, texto y clave. */
-export function decidirClicDerecho(objetivo: Element | null, mayusculas = false): DecisionClicDerecho {
+function decidirClicDerecho(objetivo: Element | null, mayusculas = false): DecisionClicDerecho {
   if (mayusculas) return { accion: "navegador", clave: null };
   if (tieneMenuPropio(objetivo)) return { accion: "propio", clave: null };
   if (esCampoDeTexto(objetivo)) return { accion: "navegador", clave: null };
@@ -42,30 +42,30 @@ export function decidirClicDerecho(objetivo: Element | null, mayusculas = false)
   return clave ? { accion: "menu", clave } : { accion: "navegador", clave: null };
 }
 /** Enlace compartible al elemento: limpia query/ancla previas y añade `#elemento=<clave>`. */
-export function enlaceElemento(clave: string, base: string): string | null {
+function enlaceElemento(clave: string, base: string): string | null {
   if (!leerClave(clave)) return null;
   const limpia = base.split("#")[0].split("?")[0] || "/";
   return `${limpia}#elemento=${encodeURIComponent(clave)}`;
 }
 /** Pulsación larga: sin desplazarse más allá del margen táctil. */
-export function dentroDeTolerancia(desde: { x: number; y: number }, hasta: { x: number; y: number }): boolean {
+function dentroDeTolerancia(desde: { x: number; y: number }, hasta: { x: number; y: number }): boolean {
   return Math.hypot(hasta.x - desde.x, hasta.y - desde.y) <= TOLERANCIA_PULSACION_PX;
 }
 /** Encaja el menú dentro de la ventana con un margen; nunca lo deja salir por los bordes. */
-export function limitarPosicion(x: number, y: number, anchoVista: number, altoVista: number, ancho = 260, alto = 132): { x: number; y: number } {
+function limitarPosicion(x: number, y: number, anchoVista: number, altoVista: number, ancho = 260, alto = 132): { x: number; y: number } {
   return {
     x: Math.min(Math.max(8, x), Math.max(8, anchoVista - ancho - 8)),
     y: Math.min(Math.max(8, y), Math.max(8, altoVista - alto - 8)),
   };
 }
 /** Coloca el menú bajo el elemento enfocado para teclado; si no cabe, encima. */
-export function posicionDeMenu(rect: { left: number; top: number; bottom: number }, anchoVista: number, altoVista: number, ancho = 260, alto = 132): { x: number; y: number } {
+function posicionDeMenu(rect: { left: number; top: number; bottom: number }, anchoVista: number, altoVista: number, ancho = 260, alto = 132): { x: number; y: number } {
   const abajo = rect.bottom + 6;
   const y = abajo + alto <= altoVista - 8 ? abajo : Math.max(8, rect.top - alto - 6);
   return limitarPosicion(rect.left, y, anchoVista, altoVista, ancho, alto);
 }
 interface MenuAbierto { x: number; y: number; clave: string }
-export function ClicDerechoGlobal() {
+function ClicDerechoGlobal() {
   const [menu, setMenu] = useState<MenuAbierto | null>(null);
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inicioToque = useRef<{ x: number; y: number; el: Element | null } | null>(null);
@@ -117,4 +117,4 @@ export function ClicDerechoGlobal() {
   );
 }
 
-export default ClicDerechoGlobal;
+export { ATRIBUTO_MENU_PROPIO, PULSACION_LARGA_MS, TOLERANCIA_PULSACION_PX, esCampoDeTexto, tieneMenuPropio, decidirClicDerecho, enlaceElemento, dentroDeTolerancia, limitarPosicion, posicionDeMenu, ClicDerechoGlobal, ClicDerechoGlobal as default };
