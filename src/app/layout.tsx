@@ -3,6 +3,7 @@ import { Inter, Space_Grotesk, Source_Code_Pro, Roboto, Outfit } from "next/font
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "sonner";
+import { FuentesMarca } from "@/components/theme/fuentes-marca";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppearanceProvider } from "@/context/appearance-context";
 // Adaptadores de variaciones públicas
@@ -441,6 +442,7 @@ export default function RootLayout({
             </ConfirmProvider>
           </AppearanceProvider>
         </ThemeProvider>
+        <FuentesMarca />
         </MotionConfig>
       </body>
     </html >

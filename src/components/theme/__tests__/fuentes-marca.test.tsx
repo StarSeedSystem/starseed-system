@@ -71,9 +71,9 @@ describe("fontes-utils", () => {
     });
 
     it("detects duplicate hrefs", () => {
-      const link1: HTMLLinkElement = { href: "https://example.com/font" };
-      const link2: HTMLLinkElement = { href: "https://example.com/font" };
-      const link3: HTMLLinkElement = { href: "https://example.com/other" };
+      const link1: HTMLLinkElement = { href: "https://example.com/font" } as HTMLLinkElement;
+      const link2: HTMLLinkElement = { href: "https://example.com/font" } as HTMLLinkElement;
+      const link3: HTMLLinkElement = { href: "https://example.com/other" } as HTMLLinkElement;
       const links: HTMLLinkElement[] = [link1, link2, link3];
       const result = validateNoDuplicateLinks(links);
       expect(result).toContain("https://example.com/font");

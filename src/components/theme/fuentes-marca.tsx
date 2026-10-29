@@ -46,4 +46,6 @@ export const FuentesMarca: React.FC = () => {
       root.style.setProperty(key, value);
     });
   }, []);
+
+  return null;
 };
