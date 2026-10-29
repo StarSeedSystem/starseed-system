@@ -211,4 +211,106 @@ describe("hook useTarjetaImagenes", () => {
     await act(async () => { await result.current.borradorPublicacion(opcionConUrl()); });
     expect(h.borrador.borradorPublicacion).toHaveBeenCalledTimes(1);
   });
+
+  it("de la malla a la planificación: las neuronas que llega de la malla son las que el plan ve (capa y motor honestos)", async () => {
+    h.malla.useMallaNeuronasEstado.mockReturnValueOnce({
+      misDispositivos: [{ neuronId: "n-aparato", esEsteDispositivo: true, instalados: ["pollinations"] }, { neuronId: "n-remota", esEsteDispositivo: false }],
+    });
+    h.planImagen.planImagen.mockReturnValueOnce({ opciones: [], descartes: [] });
+    const { result } = renderHook(() => useTarjetaImagenes());
+    await act(async () => { await result.current.generarOpciones({ ...PETICION_DEFECTO, prompt }); });
+    const [peticion, neuronas] = h.planImagen.planImagen.mock.calls[0] as unknown as [Record<string, unknown>, Array<Record<string, unknown>>];
+    expect(neuronas.map((n) => `${n.id}:${n.capa}`).sort()).toEqual(["n-aparato:dispositivo", "n-remota:neurona"]);
+    expect(peticion.opciones).toBe(PETICION_DEFECTO.opciones);
+  });
+});
+
+describe("caminos de error: cada aviso es honesto y nunca guarda a medias", () => {
+  beforeEach(() => {
+    h.planImagen.planImagen.mockReset();
+    h.generarImagen.generarImagen.mockReset();
+    h.guardarEnBiblioteca.guardarEnBiblioteca.mockReset();
+    h.referencia3d.usarComoReferencia3D.mockReset();
+    h.protomolecula.abrirEnProtomolecula.abrirProtomoleculaEditor.mockReset();
+    h.borrador.borradorPublicacion.mockReset();
+  });
+  afterEach(cleanup);
+
+  it("generarOpciones: si el plan falla, avisa y la tarjeta queda vacía, sin opciones fantasma", async () => {
+    h.planImagen.planImagen.mockImplementationOnce(() => { throw new Error("catálogo roto"); });
+    const { result } = renderHook(() => useTarjetaImagenes());
+    await act(async () => { await result.current.generarOpciones({ ...PETICION_DEFECTO, prompt }); });
+    expect(result.current.error).toContain("catálogo roto"); // el mensaje real hace troubleshooting, no el genérico
+    expect(result.current.opciones).toHaveLength(0);
+    expect(result.current.cargando).toBe(false);
+  });
+
+  it("elegirOpcion: motor caído → avisa, no marca la opción y no guarda en la Biblioteca", async () => {
+    h.planImagen.planImagen.mockReturnValueOnce({ opciones: [opcionDePlan], descartes: [] });
+    h.generarImagen.generarImagen.mockRejectedValueOnce(new Error("Pollinations saturado"));
+    const { result } = renderHook(() => useTarjetaImagenes());
+    await act(async () => { await result.current.generarOpciones({ ...PETICION_DEFECTO, prompt }); });
+    await act(async () => { await result.current.elegirOpcion(result.current.opciones[0]!); });
+    expect(result.current.error).toContain("Pollinations saturado"); // el motivo real, no un genérico
+    expect(result.current.opciones[0]).not.toHaveProperty("elegida", true);
+    expect(result.current.opciones[0]).not.toHaveProperty("url");
+    expect(h.guardarEnBiblioteca.guardarEnBiblioteca).not.toHaveBeenCalled();
+    expect(result.current.cargando).toBe(false);
+  });
+
+  it("elegirOpcion: opción sin prompt (no salió del plan) → aviso claro y ni una llamada al motor", async () => {
+    const { result } = renderHook(() => useTarjetaImagenes());
+    await act(async () => { await result.current.elegirOpcion({ ...opcionDePlan }); });
+    expect(result.current.error).toContain("no lleva prompt");
+    expect(h.generarImagen.generarImagen).not.toHaveBeenCalled();
+    expect(h.guardarEnBiblioteca.guardarEnBiblioteca).not.toHaveBeenCalled();
+  });
+
+  it("variarOpcion: opción sin modelo identificado → aviso constante: no hay plan y no hay semillas", async () => {
+    const { result } = renderHook(() => useTarjetaImagenes());
+    let variadas: OpcionTarjeta[] = [];
+    await act(async () => { variadas = result.current.variarOpcion({ ...opcionDePlan, modelo: null }); });
+    expect(variadas).toHaveLength(0);
+    expect(result.current.error).toContain("No sé qué modelo variar");
+    expect(h.planImagen.planImagen).not.toHaveBeenCalled();
+  });
+
+  it("editarProtomolecula: si el editor falla, el aviso es el del editor y no se traga", async () => {
+    h.protomolecula.abrirEnProtomolecula.abrirProtomoleculaEditor.mockRejectedValueOnce(new Error("lienzo ocupado"));
+    const { result } = renderHook(() => useTarjetaImagenes());
+    await act(async () => { await result.current.abrirEnProtomolecula.abrirProtomoleculaEditor(opcionConUrl()); });
+    expect(result.current.error).toContain("lienzo ocupado");
+  });
+
+  it("guardarEnBiblioteca: si la Biblioteca rechaza, devuelve null y avisa (nunca finge que guardó)", async () => {
+    h.guardarEnBiblioteca.guardarEnBiblioteca.mockRejectedValueOnce(new Error("cuota llena"));
+    const { result } = renderHook(() => useTarjetaImagenes());
+    let guardado: { id: string } | null = null;
+    await act(async () => { guardado = await result.current.guardarEnBiblioteca(opcionConUrl()) as { id: string } | null; });
+    expect(guardado).toBeNull();
+    expect(result.current.error).toContain("cuota llena");
+  });
+
+  it("usarComoReferencia3D y borradorPublicacion: su fallo sale como error y no como silencio", async () => {
+    h.referencia3d.usarComoReferencia3D.mockRejectedValueOnce(new Error("taller cerrado"));
+    const { result } = renderHook(() => useTarjetaImagenes());
+    await act(async () => { await result.current.usarComoReferencia3D(opcionConUrl()); });
+    expect(result.current.error).toContain("taller cerrado");
+
+    h.borrador.borradorPublicacion.mockRejectedValueOnce(new Error("sin canal de publicación"));
+    await act(async () => { await result.current.borradorPublicacion(opcionConUrl()); });
+    expect(result.current.error).toContain("sin canal de publicación");
+  });
+
+  it("un error viejo no vive para siempre: la operación nueva que sale bien lo limpia", async () => {
+    h.planImagen.planImagen.mockReturnValueOnce({ opciones: [opcionDePlan], descartes: [] });
+    const { result } = renderHook(() => useTarjetaImagenes());
+    await act(async () => { await result.current.generarOpciones({ ...PETICION_DEFECTO, prompt }); });
+    act(() => { result.current.ampliar({ ...opcionConUrl(), url: undefined }); });
+    expect(result.current.error).toContain("aún no tiene imagen");
+    h.planImagen.planImagen.mockReturnValueOnce({ opciones: [opcionDePlan, { ...opcionDePlan, semilla: 124 }], descartes: [] });
+    await act(async () => { result.current.variarOpcion(result.current.opciones[0]!); });
+    expect(result.current.error).toBeNull();
+    expect(result.current.opciones).toHaveLength(2);
+  });
 });
