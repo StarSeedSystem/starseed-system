@@ -10,6 +10,7 @@ import { METRICAS_SALUD, type Accion, type Autor, type CandidatoParametro, type 
 import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memoria";
 import { etiquetaFormato, formatoDe } from "@/lib/conversion/formatos";
 import { componerVideo, DURACION_DEFECTO, type EntradaPedido } from "@/lib/video-html/herramienta-componer";
+import { contextoDisenoIA } from "@/lib/design/principios-referencia";
 /** Misma forma que `AuroraActionResult` de `src/lib/aurora/actions.ts`; `datos` lleva el resultado de herramientas como `video.componer`. */
 export interface ResultadoAccionProto { ok: boolean; message: string; status?: string; datos?: Record<string, unknown> }
 /** `avisarOrbe` devuelve `true` solo si la orbe atendió el aviso; `actor` por defecto: el agente personal. */
@@ -49,16 +50,21 @@ function linea(e: EstadoControl, c: CandidatoParametro): string {
   return `${cabeza}: ${p.tipo === "disparo" ? "botón" : formatearValor(p, valorActual(e.molecula.valores, c.ref, p))}${rango}`;
 }
 const delAtomo = (cs: CandidatoParametro[], atomo: string): CandidatoParametro[] => atomo ? cs.filter((c) => c.ref.atomoId === atomo || normalizar(c.atomo ?? "") === normalizar(atomo)) : cs;
-/** Resumen COMPACTO para el prompt: una línea por control, como mucho 40 líneas y 4 KB. */
+/** Resumen COMPACTO para el prompt: una línea por control, como mucho 40 líneas y 4 KB.
+ * Encabeza el contexto con la ficha de diseño del ADN (DAN1024H): la creación con IA
+ * recibe los principios, el registro de movimiento y la regla del símbolo. */
 function estado(c: Controlador, atomo: string): string {
+  const fichaDiseno = contextoDisenoIA({ seccion: "protomolecula" }).split("\n");
+  const bytesDiseno = bytes(fichaDiseno.join("\n"));
+  const lineasUtiles = Math.max(TOPE_LINEAS_ESTADO - fichaDiseno.length, 2);
   const e = c.obtener(), m = e.molecula, cs = delAtomo(candidatosDe(m), atomo);
   const pend = e.pendientes.length ? `, ${e.pendientes.length} pendientes de confirmar` : "";
   const l = [`Molécula «${m.titulo.slice(0, 80)}» (${m.ambito}): ${cs.length} controles${pend}.`, ...cs.map((x) => linea(e, x))];
-  if (l.length <= TOPE_LINEAS_ESTADO && bytes(l.join("\n")) <= TOPE_BYTES_ESTADO) return l.join("\n");
+  if (l.length <= lineasUtiles && bytes(l.join("\n")) + bytesDiseno <= TOPE_BYTES_ESTADO) return [...fichaDiseno, ...l].join("\n");
   const corte = (n: number) => [...l.slice(0, n), `… y ${l.length - n} controles más: pide {"accion":"estado","atomo":"<átomo>"}.`].join("\n");
-  let n = TOPE_LINEAS_ESTADO - 1;
-  while (n > 1 && bytes(corte(n)) > TOPE_BYTES_ESTADO) n--;
-  return corte(n);
+  let n = lineasUtiles - 1;
+  while (n > 1 && bytes(corte(n)) + bytesDiseno > TOPE_BYTES_ESTADO) n--;
+  return [...fichaDiseno, corte(n)].join("\n");
 }
 /** Por nombre, id o sinónimo; con dos iguales NO adivina y dice cuáles son. */
 function resolver(cs: CandidatoParametro[], nombre: string, atomo: string): CandidatoParametro | string {

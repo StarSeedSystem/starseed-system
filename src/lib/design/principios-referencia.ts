@@ -1,6 +1,13 @@
-// principio-referencia.ts - 8 principios de usabilidad y 8 reglas de redacción
+// principio-referencia.ts - 8 principios de usabilidad, 8 reglas de redacción
+// y el contexto de diseño para la IA creadora (DAN1024H · Ola 1024D)
 // Referencias: dont-make-me-think (usabilidad), asd-ste100 (redacción)
-// Módulo puro: sin efectos laterales, sin red, sin disco
+// Módulo puro: sin efectos laterales, sin red, sin disco, sin reloj
+
+import {
+  movimientoDe,
+  type RegistroMovimiento,
+  type SeccionMovimiento,
+} from "@/lib/design/registros-movimiento";
 
 export type PrincipioUsabilidad = {
   id: string
@@ -99,6 +106,76 @@ export const REGLAS_REDACCION: readonly ReglaRedaccion[] = [
     descripcion: "Leer el texto final en contexto; recortar todo lo superfluo y asegurar claridad."
   }
 ] as const
+
+/* ═══════════ CONTEXTO DE DISEÑO PARA LA IA CREADORA (DAN1024H) ═══════════
+ * La creación con IA de la Protomolécula recibe, con lo que crea, los
+ * fundamentos del ADN StarSeed, el registro de movimiento de la entidad
+ * (Ola 1024D) y la regla del símbolo oficial. Texto breve, determinista
+ * y sin claves ni rutas: los números de interfaz salen SIEMPRE de
+ * `movimientoDe` (que a su vez manda `DURACION` y `CURVA`); ningún número
+ * de vídeo se copia a la interfaz (§6 de claude-video-studio).
+ */
+
+/** Tope de la ficha que se manda al modelo, en caracteres. */
+export const TOPE_CONTEXTO_DISENO_IA = 900;
+
+/** Entidad creadora: la sección donde va a nacer y su registro de movimiento. */
+export interface EntidadDisenoIA {
+  seccion?: SeccionMovimiento;
+  movimiento?: RegistroMovimiento;
+  /** Con movimiento reducido del sistema, el texto dice el estado quieto. */
+  movimientoReducido?: boolean;
+}
+
+function bloqueADN(): string {
+  return "Diseño StarSeed · ADN para la creación:\n" +
+    "· Composición centrada: la pieza protagonista vive en el centro; el resto la acompaña.\n" +
+    "· Trinity: un color por papel (Zenith azul, Horizon lima, Logic ámbar, Anchor carmesí).\n" +
+    "· Un único brillo multicapa, y solo en la pieza protagonista.\n" +
+    "· Solo se animan transform y opacity: ni sombras ni anchos en transición.";
+}
+
+function bloqueMovimiento(e: EntidadDisenoIA, registro: RegistroMovimiento, seccion: SeccionMovimiento): string {
+  const m = movimientoDe(registro, seccion);
+  const escala = m.respiracion.escala.toFixed(2).replace(".", ",");
+  if (e.movimientoReducido === true) {
+    return `Movimiento de esta entidad (registro ${registro} · sección ${seccion}):\n` +
+      `· Movimiento reducido del sistema: nada se mueve; el estado final se pinta quieto y legible.`;
+  }
+  return `Movimiento de esta entidad (registro ${registro} · sección ${seccion}):\n` +
+    `· Entrada: ${m.entrada.ms} ms con ${m.entrada.curva}.\n` +
+    `· Salida más corta que la entrada: ${m.salida.ms} ms con ${m.salida.curva}.\n` +
+    `· Cascada de los hijos: ${m.cascadaMs} ms. Respiración: escala ${escala}, periodo ${m.respiracion.periodoMs} ms.`;
+}
+
+export function contextoDisenoIA(entidad?: EntidadDisenoIA | null): string {
+  try {
+    const e = entidad ?? {};
+    const registro: RegistroMovimiento =
+      e.movimiento === "sobrio" || e.movimiento === "expresivo" || e.movimiento === "experimental"
+        ? e.movimiento
+        : "sobrio";
+    const seccion: SeccionMovimiento = (
+      ["trinity", "astraura", "genesis", "malla", "biblioteca", "protomolecula"] as const
+    ).includes(e.seccion as SeccionMovimiento)
+      ? (e.seccion as SeccionMovimiento)
+      : "protomolecula";
+    const texto = [
+      bloqueADN(),
+      bloqueMovimiento(e, registro, seccion),
+      REGLA_SIMBOLO,
+    ].join("\n\n");
+    return texto.slice(0, TOPE_CONTEXTO_DISENO_IA);
+  } catch {
+    return ADN_MINIMO;
+  }
+}
+
+const REGLA_SIMBOLO =
+  "Símbolo oficial de StarSeed: la vesica vertical (dos discos superpuestos en vertical que forman la lente del ojo). Va tal cual: sin recolorear y sin deformar; cambia solo de tamaño.";
+
+const ADN_MINIMO =
+  "Diseño StarSeed: composición centrada, Trinity con un color por papel, brillo multicapa solo en la pieza protagonista, solo transform y opacity, y símbolo oficial sin recolorear ni deformar.";
 
 export function revisarTexto(texto: string): {
   largoPromedioPalabras?: number
