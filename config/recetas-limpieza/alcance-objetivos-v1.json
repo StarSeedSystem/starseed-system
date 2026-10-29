@@ -1,0 +1,22 @@
+{
+  "datos": "publicos",
+  "titulo": "Limpieza de las listas de objetivos del alcance (INV1025H)",
+  "descripcion": "Receta de las listas del agente de alcance: nombre público, enlaces y categoría. El correo solo si lo publica la propia entidad: este native normaliza y marca los no válidos, jamás inventa ni completa direcciones (regla R1 del grupo investigación). Válida según validarReceta de INV1025F (src/lib/datos/receta-limpieza.ts) y ejecutable por la versión nativa sin JVM (scripts/puente/limpieza_datos.py).",
+  "columnas": ["nombre", "enlaces", "categoria", "correo"],
+  "operaciones": [
+    {"op": "core/text-transform", "columnName": "nombre", "expression": "grel:value.trim().collapse(' ')", "description": "Recorta y colapsa espacios del nombre"},
+    {"op": "core/text-transform", "columnName": "nombre", "expression": "grel:value.toTitleCase()", "description": "Cada palabra con inicial mayúscula"},
+    {"op": "core/text-transform", "columnName": "enlaces", "expression": "grel:value.limpiarUrl()", "description": "URL en https, sin utm_*/fbclid, sin ancla ni barra final, host en minúsculas"},
+    {"op": "core/text-transform", "columnName": "categoria", "expression": "grel:value.trim().collapse(' ')", "description": "Recorta y colapsa espacios de la categoría"},
+    {"op": "core/text-transform", "columnName": "categoria", "expression": "grel:value.toLowercase()", "description": "Categoría en minúsculas"},
+    {"op": "core/text-transform", "columnName": "correo", "expression": "grel:value.validarCorreo()", "description": "Normaliza el correo si es válido; marca los no válidos sin cambiarlos"},
+    {"op": "core/mass-edit", "columnName": "categoria", "edits": [
+      {"from": ["ONG", "ONGs"], "to": "ong"},
+      {"from": ["Educacion", "Educación"], "to": "educación"},
+      {"from": ["Medios", "Prensa"], "to": "medios"},
+      {"from": ["Proyectos", "Proyecto"], "to": "proyecto"}
+    ], "description": "Mapa de sustituciones de variantes de categoría (mass-edit)"},
+    {"op": "core/row-removal", "quitar": ["nombre", "enlaces", "categoria"], "description": "Quita filas sin nombre, sin enlaces y sin categoría (vacías)"}
+  ],
+  "deduplicar": {"columna": "nombre", "modo": "huella"}
+}
