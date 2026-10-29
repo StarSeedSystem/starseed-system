@@ -45,6 +45,10 @@ import { SoloFueraDeConsola } from "@/components/layout/solo-fuera-de-consola";
 import { AcompanantePersonalidad } from "@/components/avatares/acompanante-personalidad";
 import { InstalacionesPendientes } from "@/components/library/instalaciones-pendientes";
 import { RegistroRecientesAccesos } from "@/components/widgets-libres/familias/accesos-registro";
+// Variaciones públicas (Ola 1019V): el anfitrión de la ventana y el clic derecho
+// global escuchan por el bus (`variaciones-bus.ts`) sin acoplarse a nadie.
+import { VariacionesHost } from "@/components/variaciones/variaciones-host";
+import { ClicDerechoGlobal } from "@/components/variaciones/clic-derecho-global";
 
 // Entrada XR global (XR1010F · contrato starseed-xr §0.6 y §3 c): ligera y sin SSR.
 // El motor 3D no se carga aquí: el botón navega a `/xr/os?modo=…` (XR1010G).
@@ -94,6 +98,10 @@ export default function AppGlobals() {
           discreta «X pidió instalar Y aquí» con «Instalar aquí» / «Ahora no». Sin UI
           mientras no haya pedidos para este dispositivo. */}
       <InstalacionesPendientes />
+      {/* Ola 1019V: ventana «Variaciones públicas» (abre por bus) y su anfitrión
+          del clic derecho en todo el grupo (app). */}
+      <VariacionesHost />
+      <ClicDerechoGlobal />
     </SoloFueraDeConsola>
   );
 }
