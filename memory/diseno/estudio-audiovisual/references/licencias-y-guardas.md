@@ -21,6 +21,7 @@ sus términos.
 | Remotion | código fuente disponible, licencia de empresa según tamaño | no se usa |
 | OmniVoice (voz local del OS) y MusicGen | modelos CC-BY-NC | solo uso personal, nunca en canales con fines comerciales |
 | Galerías de inspiración (Mobbin, Savee, Refero, 60fps, Deck.Gallery…) | prohíben scraping y entrenar IA | solo por su MCP o API oficial con la cuenta de la persona, o abriéndolas en su navegador; crear siempre una versión propia |
+| onetake (feitangyuan) | PolyForm Noncommercial 1.0.0; el uso comercial exige su licencia de pago | solo enlace: ni se instala ni se copia; su idea está reescrita en ritmo-y-continuidad.md; Alex puede probarla a mano solo con piezas no comerciales |
 
 Personas reales: ni imagen ni voz sin permiso expreso. Música y efectos: solo con licencia que permita el
 uso previsto, anotada en el documento de la pieza.
