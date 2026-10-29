@@ -1,0 +1,26 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "VPU1019N",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Clic derecho global montado en toda la app",
+   "archivos": [
+    "src/components/variaciones/clic-derecho-global.tsx",
+    "src/app/(app)/app-globals.tsx",
+    "src/components/variaciones/__tests__/clic-derecho-global.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Componente que escucha `contextmenu` y la pulsación larga (patrón de `use-context-trigger.ts`) en el documento: si el objetivo tiene menú propio (marca `data-ss-menu-propio`) no hace nada; en campos de texto y con Mayúsculas deja el menú del navegador; si hay clave, muestra un menú con «Variaciones públicas», «Publicar mi variación» y «Copiar enlace al elemento». Teclado: tecla de menú y Mayúsculas+F10. En `app-globals.tsx` SOLO añade el montaje de este componente y de `variaciones-host`. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019A",
+    "VPU1019M"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "VPU1019N"
+  ]
+ }
+}
