@@ -24,6 +24,7 @@ import {
 } from "@/lib/library/actualizaciones";
 import { fichasProtomolecula, type VersionProto } from "@/lib/protomolecula/biblioteca-protomolecula";
 import { CATALOGO_PROTOMOLECULA } from "@/lib/protomolecula/catalogo-herramientas";
+import { fijarVersion, esActivoPermitido, parseSha256Sums, type AppHuellas } from "@/lib/artcraft/huellas";
 
 /* ── Fichas de la Protomolécula con repo: entran a la misma comprobación ── */
 
@@ -32,6 +33,40 @@ interface EntradaFuente {
     instalada: string;
     upstream: string;
     payload?: PayloadActualizacion;
+}
+
+const APPS_CRAFT: ReadonlyMap<string, AppHuellas> = new Map([
+    ["proto-figcraft", "figcraft"],
+    ["proto-gridcraft", "gridcraft"],
+    ["proto-deckcraft", "deckcraft"],
+]);
+
+/* ── Huellas SHA256 de las Craft Apps (artcraft-y-rare.md §6): una versión nueva de FigCraft,
+GridCraft y DeckCraft NO se fija ni se aloja sola: primero su `SHA256SUMS.txt` y la palabra de
+Alex. El `aviso` lo aplica el módulo puro `src/lib/artcraft/huellas.ts`. ── */
+async function fijarHuellasDeCraft(fuente: FuenteActualizacion, tope: AbortSignal) {
+    const app = APPS_CRAFT.get(fuente.id);
+    if (!app || !fuente.remota) return null;
+    try {
+        const r = await fetch(
+            `https://github.com/storytold/${app}/releases/download/${fuente.remota}/SHA256SUMS.txt`,
+            { headers: { "User-Agent": "starseed-os-biblioteca" }, signal: tope },
+        );
+        if (!r.ok) return null;
+        const fijada = fijarVersion(app, fuente.remota, parseSha256Sums(await r.text()));
+        if (!fijada || !esActivoPermitido(fijada.activo))
+            return {
+                ...fuente,
+                aviso: `versión nueva sin huella fijada: se para — ${fuente.remota} exige su SHA256SUMS.txt y la palabra de Alex (artcraft-y-rare.md §6)`,
+            };
+        return {
+            ...fuente,
+            huellaWeb: fijada.sha256,
+            aviso: `huella fijada — ${fijada.activo}: ${fijada.sha256.slice(0, 8)}… (artcraft-y-rare.md §6)`,
+        };
+    } catch {
+        return null;
+    }
 }
 
 function fuentesProtomolecula(): EntradaFuente[] {
@@ -68,6 +103,8 @@ export interface FuenteActualizacion {
     fecha: string | null;
     upstream: string;
     aviso: string | null;
+    /** Huella del zip web fijada contra el `SHA256SUMS.txt` de la release (solo Craft Apps). */
+    huellaWeb: string | null;
 }
 
 interface Respuesta {
@@ -163,6 +200,7 @@ export async function GET(): Promise<Response> {
                     estado: "desconocida",
                     fecha: null,
                     upstream,
+                    huellaWeb: null,
                     aviso:
                         patronTag === undefined || patronTag === null
                             ? null
@@ -175,12 +213,13 @@ export async function GET(): Promise<Response> {
                     tope.signal,
                 );
                 if (!remota) return base.aviso ? base : { ...base, aviso: error ?? null };
-                return {
+                const concordada: FuenteActualizacion = {
                     ...base,
                     remota,
                     fecha,
                     estado: compararVersiones(entrada.instalada, remota),
                 };
+                return (await fijarHuellasDeCraft(concordada, tope.signal)) ?? concordada;
             }),
         );
         const datos: Respuesta = { generado: new Date(ahora).toISOString(), fuentes };
