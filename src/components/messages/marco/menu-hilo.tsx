@@ -16,6 +16,7 @@ import {
 import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { accionVariaciones, ETIQUETA_VARIACIONES } from "@/components/variaciones/accion-variaciones";
 import { cn } from "@/lib/utils";
 import { OPCIONES_SILENCIO } from "@/lib/mensajeria/ajustes";
 import { describirSilencio } from "./formato-tiempo";
@@ -55,6 +56,11 @@ export interface MenuHiloProps {
 
 const CLASE_ITEM =
     "flex cursor-pointer items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] text-white/90 outline-none transition-colors duration-150 focus:bg-white/[0.08] data-[highlighted]:bg-white/[0.08]";
+
+/** Entrada «Variaciones públicas» del hilo (contrato: architecture/variaciones-publicas.md §3).
+ *  La clave nombra el TIPO de elemento (`mensaje:hilo`), nunca la instancia ni datos privados. */
+const VARIACIONES_HILO = accionVariaciones("mensaje:hilo", { nombre: "Hilo" });
+const IconoVariacionesHilo = VARIACIONES_HILO.icon;
 
 export function MenuHilo({
     etiqueta,
@@ -115,6 +121,7 @@ export function MenuHilo({
                 align="end"
                 sideOffset={6}
                 collisionPadding={12}
+                data-ss-menu-propio=""
                 className="z-[130] w-[min(88vw,260px)] rounded-2xl border-white/10 bg-[rgba(12,14,34,0.94)] p-1.5 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.8)] backdrop-blur-xl"
             >
                 {extrasAntes.map(extra)}
@@ -167,6 +174,11 @@ export function MenuHilo({
                     <span className="flex-1">{archivado ? "Desarchivar" : "Archivar"}</span>
                 </DropdownMenuItem>
                 {extrasDespues.map(extra)}
+
+                <DropdownMenuItem className={CLASE_ITEM} onSelect={() => VARIACIONES_HILO.onClick()}>
+                    <IconoVariacionesHilo className="h-4 w-4 shrink-0 text-[#7C5CFF]" />
+                    <span className="flex-1">{ETIQUETA_VARIACIONES}</span>
+                </DropdownMenuItem>
 
                 <DropdownMenuSeparator className="my-1 bg-white/10" />
                 <DropdownMenuItem className={CLASE_ITEM} onSelect={() => onAjustes()}>
