@@ -72,19 +72,19 @@ function Cielo({ cielo }: { cielo: { conCielo: boolean; abajo: string; niebla: s
 /** Un objeto del mundo: primitiva real; biblioteca/texto, marcador honesto (se carga en su tarea). */
 function ObjetoVisual({ o, nivel }: { o: ObjetoMundo; nivel: NivelCalidad }) {
     const material = materialObjeto(nivel);
-    const esPrimitiva = o.fuente.tipo === "primitiva";
-    const args = esPrimitiva ? ARGS_PRIMITIVA[o.fuente.forma] : [0.4, 0.4, 0.4];
+    const fuentePrimitiva = o.fuente.tipo === "primitiva" ? o.fuente : null;
+    const esPrimitiva = fuentePrimitiva !== null;
     return (
         <group position={o.pos} rotation={o.rot} scale={o.esc}>
             <mesh name={`${o.id}`}>
-                {esPrimitiva && o.fuente.forma === "caja" && <boxGeometry args={args} />}
-                {esPrimitiva && o.fuente.forma === "esfera" && <sphereGeometry args={args} />}
-                {esPrimitiva && o.fuente.forma === "cilindro" && <cylinderGeometry args={args} />}
-                {esPrimitiva && o.fuente.forma === "cono" && <coneGeometry args={args} />}
-                {esPrimitiva && o.fuente.forma === "toro" && <torusGeometry args={args} />}
-                {esPrimitiva && o.fuente.forma === "plano" && <planeGeometry args={args} />}
-                {esPrimitiva && o.fuente.forma === "capsula" && <capsuleGeometry args={args} />}
-                {!esPrimitiva && <boxGeometry args={args} />}
+                {fuentePrimitiva?.forma === "caja" && <boxGeometry args={ARGS_PRIMITIVA.caja} />}
+                {fuentePrimitiva?.forma === "esfera" && <sphereGeometry args={ARGS_PRIMITIVA.esfera} />}
+                {fuentePrimitiva?.forma === "cilindro" && <cylinderGeometry args={ARGS_PRIMITIVA.cilindro} />}
+                {fuentePrimitiva?.forma === "cono" && <coneGeometry args={ARGS_PRIMITIVA.cono} />}
+                {fuentePrimitiva?.forma === "toro" && <torusGeometry args={ARGS_PRIMITIVA.toro} />}
+                {fuentePrimitiva?.forma === "plano" && <planeGeometry args={ARGS_PRIMITIVA.plano} />}
+                {fuentePrimitiva?.forma === "capsula" && <capsuleGeometry args={ARGS_PRIMITIVA.capsula} />}
+                {!esPrimitiva && <boxGeometry args={[0.4, 0.4, 0.4] as const} />}
                 {material === "meshStandardMaterial"
                     ? <meshStandardMaterial color={o.color} transparent={!esPrimitiva} opacity={esPrimitiva ? 1 : 0.5} />
                     : <meshBasicMaterial color={o.color} />}

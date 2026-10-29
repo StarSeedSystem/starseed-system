@@ -7,7 +7,7 @@
  */
 import type { NivelCalidad } from "@/lib/xr/tipos";
 import { PERFILES } from "@/lib/xr/calidad-perfiles";
-import { FORMAS_PRIMITIVAS, LIMITES, type CieloMundo, type LuzMundo, type MundoSpec, type ObjetoMundo, type SpawnMundo, type Terrenos, type ZonaMundo } from "@/lib/xr/mundo-tipos";
+import { FORMAS_PRIMITIVAS, LIMITES, TERRENOS, type CieloMundo, type LuzMundo, type MundoSpec, type ObjetoMundo, type SpawnMundo, type ZonaMundo } from "@/lib/xr/mundo-tipos";
 import { adaptarANivel } from "@/lib/xr/mundo-spec";
 
 export const PAISAJE: Record<CieloMundo, { arriba: string; abajo: string; niebla: string; estrellas: boolean }> = {
@@ -49,6 +49,8 @@ const ruido = (x: number, z: number, semilla: number): number => {
     const c = dispera(ix, iz + 1, semilla), d = dispera(ix + 1, iz + 1, semilla);
     return a + (b - a) * fx + (c - a) * fz + (a - b - c + d) * fx * fz;
 };
+
+export type Terrenos = (typeof TERRENOS)[number];
 
 export interface EntradaTerreno { terreno: Terrenos; semilla: number; tamano: number; alturaMax: number }
 
@@ -114,7 +116,15 @@ export interface VisualMundo {
 export const altoPantalla = (ancho: number): number => (ancho * 9) / 16;
 
 /** Argumentos de la geometría base de cada primitiva (el objeto los escala con `esc`). */
-export const ARGS_PRIMITIVA: Record<(typeof FORMAS_PRIMITIVAS)[number], number[]> = {
+export const ARGS_PRIMITIVA: {
+    caja: readonly [number, number, number];
+    esfera: readonly [number, number, number];
+    cilindro: readonly [number, number, number, number];
+    cono: readonly [number, number, number];
+    toro: readonly [number, number, number, number];
+    plano: readonly [number, number];
+    capsula: readonly [number, number, number, number];
+} = {
     caja: [1, 1, 1], esfera: [1, 24, 16], cilindro: [0.5, 0.5, 1, 24], cono: [0.7, 1, 24], toro: [0.7, 0.25, 12, 32], plano: [1, 1], capsula: [0.25, 0.5, 8, 16],
 };
 

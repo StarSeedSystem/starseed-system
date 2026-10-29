@@ -6,7 +6,7 @@ import {
     type EntradaTerreno,
 } from "../mundo-render-puro";
 import type { NivelCalidad } from "@/lib/xr/tipos";
-import { LIMITES, type MundoSpec } from "@/lib/xr/mundo-tipos";
+import { LIMITES, type MundoSpec, type SpawnMundo } from "@/lib/xr/mundo-tipos";
 import { validarMundo } from "@/lib/xr/mundo-spec";
 
 const NIVELES = ["minima", "baja", "media", "alta", "maxima"] as const satisfies readonly NivelCalidad[];
@@ -131,7 +131,7 @@ describe("recortes de listas por límite del nivel", () => {
 
     it("spawns: la mínima admite 4 marcas", () => {
         expect(spawnsParaNivel(MUNDO.spawns, "minima").visibles.length).toBe(3);
-        const muchos = Array.from({ length: 9 }, (_, i) => ({ id: `s${i}`, pos: [0, 0, 0], yaw: 0 }));
+        const muchos: SpawnMundo[] = Array.from({ length: 9 }, (_, i) => ({ id: `s${i}`, pos: [0, 0, 0], yaw: 0 }));
         expect(spawnsParaNivel(muchos, "minima").quitadas).toBe(9 - LIMITES.minima.jugadores);
     });
 });
