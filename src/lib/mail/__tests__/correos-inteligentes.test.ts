@@ -46,7 +46,16 @@ describe("reglas de correo como datos", () => {
       "esperar-respuesta",
       "sugerir-borrador",
     ]);
-    const prohibidas = ["enviar", "responder", "responder-solo", "borrar", "reenviar", "auto-enviar"];
+    const prohibidas = [
+      "enviar",
+      "responder",
+      "responder-solo",
+      "borrar",
+      "reenviar",
+      "auto-enviar",
+      "", // vacía: también fuera de la lista
+      "etiquetar ", // sin recortar: solo pasa la acción exacta
+    ];
     for (const prohibida of prohibidas) {
       expect(validarRegla(regla({ id: "r", hacer: prohibida as ReglaCorreo["hacer"] }))).toBeNull();
     }
@@ -102,6 +111,9 @@ describe("aplicarReglas", () => {
     expect(aplicarReglas([regla({ id: "r", cuando: { asuntoContiene: "CARTA DE" } })], h)).not.toEqual([]);
     expect(aplicarReglas([regla({ id: "r", cuando: { tieneAdjunto: true } })], h)).not.toEqual([]);
     expect(aplicarReglas([regla({ id: "r", cuando: { etiqueta: "alcance" } })], h)).not.toEqual([]);
+    // y no encajan si lo que la regla pide no está (etiqueta distinta, asunto raro)
+    expect(aplicarReglas([regla({ id: "r", cuando: { etiqueta: "otra" } })], h)).toEqual([]);
+    expect(aplicarReglas([regla({ id: "r", cuando: { asuntoContiene: "factura" } })], h)).toEqual([]);
     expect(aplicarReglas([regla({ id: "r", cuando: { de: "nadie@otro.org" } })], h)).toEqual([]);
     expect(aplicarReglas([regla({ id: "r", cuando: { tieneAdjunto: false } })], h)).toEqual([]);
   });
@@ -147,6 +159,24 @@ describe("seguimiento de respuestas («Reply Zero»)", () => {
     expect(clasificarHilo(mío, YO, AHORA, { diasEsperando: 30 })).toBe("resuelto");
     const reciente = hilo({ id: "h2", ultimoDe: YO, ultimoEn: "2026-10-20T00:00:00Z" });
     expect(clasificarHilo(reciente, YO, AHORA)).toBe("resuelto");
+  });
+
+  it("el margen de horas se puede ajustar y el borde exacto sigue resuelto", () => {
+    const lenta = hilo({ id: "h48", ultimoEn: "2026-10-28T06:00:00Z" }); // 30 h
+    expect(clasificarHilo(lenta, YO, AHORA, { horasPorResponder: 48 })).toBe("resuelto");
+    const vieja = hilo({ id: "h50", ultimoEn: "2026-10-27T10:00:00Z" }); // 50 h
+    expect(clasificarHilo(vieja, YO, AHORA, { horasPorResponder: 48 })).toBe("por-responder");
+    const justo = hilo({ id: "h24", ultimoEn: "2026-10-28T12:00:00Z" }); // 24 h exactas
+    expect(clasificarHilo(justo, YO, AHORA)).toBe("resuelto");
+  });
+
+  it("una fecha inválida no rompe: se cuenta como mucho más antigua", () => {
+    expect(clasificarHilo(hilo({ id: "f1", ultimoEn: "no-es-fecha" }), YO, AHORA)).toBe(
+      "por-responder",
+    );
+    expect(
+      clasificarHilo(hilo({ id: "f2", ultimoDe: YO, ultimoEn: "no-es-fecha" }), YO, AHORA),
+    ).toBe("esperando");
   });
 
   it("un hilo sin mensajes queda resuelto", () => {
