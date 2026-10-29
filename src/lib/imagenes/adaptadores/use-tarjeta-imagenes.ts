@@ -80,7 +80,7 @@ export function useTarjetaImagenes(): EstadoTarjetaImagenes & FuncionesTarjetaIm
     dispatch({ tipo: 'SET_ERROR', payload: null });
     
     try {
-      const { opciones, descartes } = await planImagen(peticion);
+      const { opciones, descartes } = await planImagen(peticion, [], Date.now());
       dispatch({ tipo: 'SET_OPCIONES', payload: opciones });
     } catch (err) {
       const mensajeError = err instanceof Error ? err.message : "Error al generar opciones";
@@ -102,7 +102,7 @@ export function useTarjetaImagenes(): EstadoTarjetaImagenes & FuncionesTarjetaIm
         semilla: opcion.semilla,
       });
       
-      if (respuesta.ok) {
+      if (respuesta.ok && respuesta.url) {
         const guardada = await guardarEnBiblioteca({
           url: respuesta.url,
           prompt: "Una imagen de prueba",
@@ -112,7 +112,7 @@ export function useTarjetaImagenes(): EstadoTarjetaImagenes & FuncionesTarjetaIm
         
         dispatch({ 
           tipo: 'AGREGAR_GENERADA', 
-          payload: { url: respuesta.url, id: guardada.id, opcion } 
+          payload: { url: respuesta.url, id: guardada.id, opcion }
         });
       } else {
         dispatch({ tipo: 'SET_ERROR', payload: "Error al generar la imagen" });
