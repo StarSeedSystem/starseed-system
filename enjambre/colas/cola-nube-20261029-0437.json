@@ -1,0 +1,81 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "RFI1018F",
+   "ola": "Ola 1018R · Referencias e inspiración: categoría de la Biblioteca y conocimiento de Astraura en todos los contextos",
+   "titulo": "Astraura · herramienta `referencias.buscar` en chats, agentes, Protomolécula y pizarras",
+   "archivos": [
+    "src/lib/library/referencias/buscar-referencias.ts",
+    "src/lib/protomolecula/accion-agente.ts",
+    "src/lib/library/referencias/__tests__/buscar-referencias.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`buscarReferencias({ peticion, contexto: { tipo: \"perfil\"|\"pagina\"|\"grupo\"|\"mensaje\"|\"publicacion\"|\"pizarra\"|\"escritorio\", privado }, personalidad?, adnDiseno?, laya? }, deps)`: tema y subtema por Laya (`choice` con los temas del catálogo; sin Laya, por palabras), orden por la personalidad del agente y el ADN de diseño, y para cada referencia elegida consulta solo los canales que `canalPara` permite (MCP o API conectados; si no, la devuelve como enlace). Devuelve tarjetas { entradaId, porque, enlaces, canalUsado }. En accion-agente.ts añade la acción `referencias.buscar` (solo añadir). Pruebas con deps falsas. Contrato: architecture/referencias-inspiracion.md (léelo entero antes de empezar) y su catálogo config/referencias-inspiracion.json (datos verificados: no los cambies salvo que la tarea lo diga). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; respeta SIEMPRE `canales` y `prohibido` de cada entrada (nada de scraping, descarga masiva, caché más allá de lo permitido ni entrenar IA con contenido de terceros); nunca copies textos, marcas, logos, capturas ni assets de terceros: de una referencia sale un diseño propio con la referencia citada; módulos PUROS siempre que se pueda (red, reloj y MCP inyectables); pruebas sin red; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "DGM1018F",
+    "RFI1018A"
+   ],
+   "dependencias_ya_en_main": [
+    "RFI1018B"
+   ]
+  },
+  {
+   "id": "DGM1018H",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Protomolécula · átomo «diagrama»",
+   "archivos": [
+    "src/lib/protomolecula/atomos/diagrama.ts",
+    "src/lib/protomolecula/atomos/index.ts",
+    "src/lib/protomolecula/__tests__/atomo-diagrama.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Patrón `DefinicionAtomo`: herramientaId \"diagram-design\", parámetros (tipo entre los 45, tema claro/oscuro, animado, ancho, perfil de marca), entradas (texto, datos, draw.io, Mermaid, Excalidraw) y salidas (html, svg, png). Plan PURO; regístralo en index.ts (solo añadir la línea). Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "DGM1018F"
+   ],
+   "dependencias_ya_en_main": [
+    "FSH1018O"
+   ]
+  },
+  {
+   "id": "INV1025B",
+   "ola": "Ola 1025R · Investigación y alcance (Agent-Reach, ScrapeGraphAI, OpenRefine, Inbox Zero)",
+   "titulo": "Agent-Reach 1.6: cliente, catálogo y registro dicen la verdad",
+   "archivos": [
+    "src/lib/integrations/clients/agent-reach.ts",
+    "src/ai/astraura/integration-catalog.ts",
+    "src/lib/integrations/registry.ts"
+   ],
+   "depende": [],
+   "prompt": "Depende de INV1025A (la ruta ya acepta los ids). (1) `clients/agent-reach.ts`: `callProxy` usa exactamente los ids de `agent-reach-comandos.ts` (impórtalos desde allí); `health` es GET a `/api/agent-reach/health`; devuelve `error.code` y `hint` tal cual vienen; `NEED_LOGIN_BLOQUEADO` es un fallo normal, no una excepción; el cliente de Reddit queda devolviendo ese motivo (R1).\n(2) `integration-catalog.ts`, entrada `agent-reach`: sustituye `pip install agent-reach` por la instalación real (uv + el zip de GitHub) y avisa de que el paquete de PyPI no es este; `repo` y `autoUpdate.github` con la forma canónica `Panniantong/Agent-Reach`.\n(3) `registry.ts`, entrada `agent-reach`: sustituye `npx agent-reach` por lo mismo; di en `capabilities` la verdad (la web usa Exa para buscar y Jina Reader para leer, que son terceros; GitHub; subtítulos de YouTube; V2EX y Bilibili; Reddit, X y LinkedIn necesitan sesión y quedan apagados); deja las `actions` con los mismos ids.\nPruebas: ejecuta las existentes de integraciones y catálogos (`src/lib/integrations/__tests__`, `src/ai/astraura/__tests__/local-158-context.test.ts`) y arregla lo que rompa el texto; en la prueba existente del catálogo añade una comprobación de que ningún texto de `agent-reach` contiene `pip install agent-reach` ni `npx agent-reach`.\n\nContrato: architecture/repos-libreria-1025.md (grupo investigación: reglas duras R1–R10 y el diseño del agente de alcance). Reglas de la casa: español con acentos en comentarios y textos; nada de `any`; módulos puros con red, disco y reloj inyectables; claves solo en variables de entorno; nada de `node:*` en código de cliente; ≤ 3 archivos y ≤ 120 líneas por archivo; pruebas reales (si una prueba vieja falla, se arregla el código, no la prueba). Antes de empezar comprueba si lo pedido ya está hecho; si ya está, NO APLICA.",
+   "dependencias_ya_en_main": [
+    "INV1025A"
+   ]
+  },
+  {
+   "id": "AV1011E",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Sincronía del avatar en escenas compartidas y en XR",
+   "archivos": [
+    "src/lib/vivo/espacial/avatares.ts",
+    "src/lib/avatares/adaptadores/sincronia-adn.ts",
+    "src/lib/avatares/adaptadores/__tests__/sincronia-adn.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Añade a `MetaAvatar` campos opcionales `adnRef` y `adnRev` (sin romper a quien no los mande). Al entrar alguien, los presentes leen su ADN UNA vez (caché por ref+rev). Edición en vivo: los lotes de `lote()` viajan por el MISMO canal de la escena como evento `adn` con `{ref, rev, cambios}`; quien recibe filtra con `sanearCambio` y aplica solo si la revisión es más nueva. En XR, el nivel de avatar sale de la calidad actual (`src/lib/xr/`) y se dibuja con `adnParaCalidad`. Mantén las reglas de 10 Hz del archivo y que las pruebas existentes de espacial sigan en verde.",
+   "dependencias_ya_en_main": [
+    "AV1011A",
+    "AV1011D"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "INV1025B",
+   "RFI1018F",
+   "AV1011E",
+   "DGM1018H"
+  ]
+ }
+}
