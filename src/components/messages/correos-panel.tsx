@@ -24,6 +24,13 @@
 // fijados arriba, silenciados sin aviso, archivados fuera de Recibidos,
 // etiquetas propias como filtro, firma al redactar, confirmar antes de enviar,
 // vista conversación/lista e imágenes remotas bajo tu permiso.
+//
+// (INV1025I · Tarea I) Correos inteligentes de la Librería (patrón Inbox Zero
+// reescrito desde cero): la bandeja de Recibidos clasifica cada hilo con el
+// «Reply Zero» propio (@/lib/mail/seguimiento-respuestas.ts) — resumen «Por
+// responder» y «Esperando» como filtro, y píldora de estado por fila. Las
+// reglas (@/lib/mail/reglas-correo.ts) se aplican al hilo abierto como
+// SUGERENCIAS: nada actúa sin tu clic y jamás envían nada (R2).
 // -----------------------------------------------------------------------------
 
 import dynamic from "next/dynamic";
@@ -41,6 +48,7 @@ import {
     X, Search, MailOpen, Paperclip, Forward, Loader2, ExternalLink, Eye, Pencil,
     Image as ImageIcon, Music, Video as VideoIcon, File as FileIcon, Link as LinkIcon, Lock,
     Globe2 as Globe2Icon, Maximize2, Minimize2, Settings2, BellOff, Pin, Tag, ChevronDown, ImageOff,
+    Reply, Hourglass, Sparkles,
 } from "lucide-react";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
@@ -76,7 +84,10 @@ import {
 } from "@/lib/mail/os-mail";
 import { useAjustesMensajeria } from "@/lib/mensajeria/ajustes-store";
 import type { AjustesMensajeriaApi } from "@/lib/mensajeria/ajustes-tipos";
-import { useContactos } from "@/lib/contactos/store";
+// Correos inteligentes (INV1025I): «Reply Zero» propio y reglas como datos.
+// Módulos puros; aquí solo se les inyectan los datos del hilo y el reloj.
+import { ACCIONES_CORREO, LIMITES_REGLA, aplicarReglas, validarRegla, type AccionPropuesta, type HiloCorreosLite, type ReglaCorreo } from "@/lib/mail/reglas-correo";
+import { clasificarHilo, resumenSeguimiento, DEFECTO_SEGUIMIENTO, type EstadoSeguimiento, type HiloLite } from "@/lib/mail/seguimiento-respuestas";import { useContactos } from "@/lib/contactos/store";
 import { AvatarContacto } from "@/components/contactos/avatar-contacto";
 import { MarcoDosPaneles } from "@/components/messages/marco/marco-dos-paneles";
 import { MenuHilo } from "@/components/messages/marco/menu-hilo";
@@ -155,6 +166,57 @@ export function esImagenRemota(url: string | undefined | null, origen?: string):
 export function cuerpoConFirma(firma: string): string {
     const f = firma.trim();
     return f ? `\n\n-- \n${f}` : "";
+}
+
+// ── Correos inteligentes (INV1025I) ──────────────────────────────────────────
+
+/** Vista mínima para el «Reply Zero»: al clasificador solo le importa el último mensaje. */
+function hiloSeguimientoDe(t: MailThreadSummary): HiloLite {
+    const last = t.lastMessage && !t.lastMessage.deleted ? t.lastMessage : null;
+    return {
+        id: t.id,
+        mensajes: last ? [{ de: last.sender || "", fecha: last.createdAt }] : [],
+    };
+}
+
+/** Vista mínima de un hilo para las reglas (remitente, asunto, adjunto, etiquetas y antigüedad). */
+function hiloReglasDe(t: MailThreadSummary, etiquetas: string[]): HiloCorreosLite {
+    const last = t.lastMessage && !t.lastMessage.deleted ? t.lastMessage : null;
+    const horas = (Date.now() - new Date(t.lastMsgAt).getTime()) / 3_600_000;
+    return {
+        id: t.id,
+        remitente: last?.sender ?? "",
+        asunto: t.subject,
+        tieneAdjunto: !!last && last.attachments.length > 0,
+        etiquetas: [...etiquetas],
+        horasDesdeUltimoMensaje: Math.max(0, Number.isNaN(horas) ? 0 : horas),
+    };
+}
+
+/**
+ * Reglas base del panel, mientras Astraura no genera las suyas (otra tarea del
+ * contrato). Son DATOS: se validan al cargar con `validarRegla` (se descarta
+ * cualquier salida inválida) y SOLO proponen — nada se aplica sin clic, y
+ * jamás envían, responden, borran ni reenvían (R2).
+ */
+const REGLAS_DEFECTO: ReglaCorreo[] = [
+    { id: "base-adjunto", texto: "Constante con adjunto: destacar", cuando: { tieneAdjunto: true }, hacer: "destacar" },
+    { id: "base-24h", texto: "Más de 24 h sin responder: etiquetar «para-revisar»", cuando: { antiguedadHorasMin: 24 }, hacer: "etiquetar", parametro: "para-revisar" },
+    { id: "base-72h", texto: "Más de 72 h sin responder: mover a archivados", cuando: { antiguedadHorasMin: 72 }, hacer: "mover", parametro: "archivados" },
+];
+const REGLAS_BASE: ReglaCorreo[] = REGLAS_DEFECTO.flatMap((regla) => {
+    const v = validarRegla(regla);
+    return v.ok ? [v.regla] : [];
+});
+
+/** Etiqueta visible de una acción de regla propuesta (el icono manda en el propio clic). */
+function textoSugerencia(a: AccionPropuesta, yaDestacado: boolean, yaEtiqueta: boolean): string {
+    switch (a.hacer) {
+        case "destacar": return yaDestacado ? "Quitar destacado" : "Destacar";
+        case "etiquetar": return yaEtiqueta ? "" : `Etiquetar «${a.parametro ?? ""}»`;
+        case "mover": return `Mover a «${a.parametro || "archivados"}»`;
+        default: return a.hacer;
+    }
 }
 
 // ── Adjuntos ─────────────────────────────────────────────────────────────────
@@ -637,7 +699,7 @@ function estadoCorreo(aj: AjustesMensajeriaApi, t: MailThreadSummary): EstadoCor
 }
 
 function MailListItem({
-    thread, nombrePara, myUserId, isActive, onSelect, estado, avatarUrl, menu, onContextMenu,
+    thread, nombrePara, myUserId, isActive, onSelect, estado, avatarUrl, menu, onContextMenu, seguimiento,
 }: {
     thread: MailThreadSummary;
     nombrePara: NombrePara;
@@ -648,12 +710,15 @@ function MailListItem({
     avatarUrl?: string | null;
     menu: ReactNode;
     onContextMenu: (e: MouseEvent) => void;
+    /** Estado del «Reply Zero» solo en Recibidos (p. ej. «por responder»). */
+    seguimiento?: EstadoSeguimiento | null;
 }) {
     const counterpart = counterpartLabel(thread, nombrePara, myUserId);
     const otro = contraparteId(thread, myUserId);
     const nombreAvatar = thread.external ? thread.externalTo || "Externo" : otro ? nombrePara(otro) : "?";
     const preview = (thread.lastMessage?.body || "").replace(/\s+/g, " ").slice(0, 110);
     const fuerte = thread.unread && !estado.silenciado;
+    const estadoRespuesta = seguimiento === "por-responder" ? "por responder" : seguimiento === "esperando" ? "esperando" : null;
     return (
         <li onContextMenu={onContextMenu}>
             <div
@@ -684,6 +749,11 @@ function MailListItem({
                         </span>
                         <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-white/55">
                             <span className="min-w-0 truncate">{counterpart}</span>
+                            {estadoRespuesta && (
+                                <span className="ss-redondo shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white/85" style={pildoraFantasma(seguimiento === "por-responder" ? ACENTO.aurora : ACENTO.ambar)}>
+                                    {estadoRespuesta}
+                                </span>
+                            )}
                             {thread.flags.starred && <Star className="h-3 w-3 shrink-0 fill-[#FFBF00] text-[#FFBF00]" aria-label="Destacado" />}
                             {estado.fijado && <Pin className="h-3 w-3 shrink-0 rotate-45 text-white/55" aria-label="Fijado" />}
                             {estado.silenciado && <BellOff className="h-3 w-3 shrink-0 text-white/45" aria-label="Silenciado" />}
@@ -734,6 +804,7 @@ function MailReader({
 }) {
     const [messages, setMessages] = useState<DmMessage[]>([]);
     const [loading, setLoading] = useState(true);
+    const ajPanel = useAjustesMensajeria();
     const [replyBody, setReplyBody] = useState("");
     const [replyAttachments, setReplyAttachments] = useState<UniversalAttachment[]>([]);
     const [sending, setSending] = useState(false);
@@ -779,6 +850,43 @@ function MailReader({
     const counterpart = counterpartLabel(thread, nombrePara, myUserId);
     const permitirRemotas = cargarImagenesRemotas || verRemotas;
     const hayRemotas = !cargarImagenesRemotas && messages.some((m) => m.attachments.some((a) => a.kind === "image" && esImagenRemota(a.url)));
+
+    // (INV1025I) Reglas aplicadas al hilo abierto: proponen acciones y NADA se
+    // ejecuta sin clic (R2). Solo se enseñan las acciones con tratamiento en el
+    // panel y que aún no están hechas (destacado ya puesto, etiqueta ya puesta…).
+    const sugerencias = useMemo(() => {
+        return aplicarReglas(REGLAS_BASE, hiloReglasDe(thread, estado.etiquetas)).filter((a) => {
+            if (!ACCIONES_CORREO.includes(a.hacer)) return false;
+            if (a.hacer === "destacar") return !thread.flags.starred;
+            if (a.hacer === "etiquetar") return !!a.parametro && !estado.etiquetas.includes(a.parametro);
+            if (a.hacer === "mover") return !estado.archivado;
+            return true;
+        });
+    }, [thread, estado.etiquetas, estado.archivado]);
+
+    /** Aplica UNA sugerencia con los medios que ya existían en el panel. Nunca envía. */
+    const aplicarSugerencia = async (a: AccionPropuesta) => {
+        switch (a.hacer) {
+            case "destacar":
+                await setMailStarred(thread.id, !thread.flags.starred);
+                onChanged();
+                break;
+            case "mover":
+                onArchivar();
+                break;
+            case "etiquetar": {
+                const etiqueta = (a.parametro ?? "").trim().slice(0, LIMITES_REGLA.cadena);
+                if (!etiqueta || estado.etiquetas.includes(etiqueta)) return;
+                ajPanel.cambiarHilo(thread.id, { etiquetas: [...estado.etiquetas, etiqueta] });
+                toast.success(`Etiqueta «${etiqueta}» puesta al correo.`);
+                break;
+            }
+            default:
+                // «esperar-respuesta» y «sugerir-borrador» solo se proponen: aquí no hay
+                // código que recuerde o redacte a espaldas de quien lee.
+                return;
+        }
+    };
 
     const enviarRespuesta = useCallback(async () => {
         if (!replyBody.trim() && replyAttachments.length === 0) return;
@@ -874,6 +982,26 @@ function MailReader({
                     {thread.external && (
                         <div className="flex w-fit items-center gap-1.5 rounded-xl border border-amber-400/20 bg-amber-500/5 px-3 py-1.5 text-[12px] text-amber-200/90">
                             <ExternalLink className="size-3" /> Externo · enviado como mailto: a {thread.externalTo}
+                        </div>
+                    )}
+                    {sugerencias.length > 0 && !loading && (
+                        <div className="flex flex-wrap items-center gap-2 rounded-xl px-3 py-2 text-[12px] text-white/70" style={pildoraFantasma(ACENTO.contactos)}>
+                            <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            <span className="shrink-0 font-medium">Reglas:</span>
+                            {sugerencias.map((a, i) => {
+                                const rotulo = textoSugerencia(a, thread.flags.starred, !!a.parametro && estado.etiquetas.includes(a.parametro));
+                                if (!rotulo) return null;
+                                return (
+                                    <button
+                                        key={i}
+                                        type="button"
+                                        onClick={() => void aplicarSugerencia(a)}
+                                        className="cursor-pointer rounded-lg bg-white/[0.08] px-2.5 py-1 font-semibold text-white transition-colors hover:bg-white/[0.14]"
+                                    >
+                                        {rotulo}
+                                    </button>
+                                );
+                            })}
                         </div>
                     )}
                     {hayRemotas && !verRemotas && (
@@ -1044,6 +1172,7 @@ export function CorreosPanel({ userId, enfocado = false, onAlternarEnfoque, onAb
     const [forwardSeed, setForwardSeed] = useState<ForwardSeed | null>(null);
     const [search, setSearch] = useState("");
     const [etiqueta, setEtiqueta] = useState<string | null>(null);
+    const [filtroRespuesta, setFiltroRespuesta] = useState<EstadoSeguimiento | null>(null);
     const [menuAbierto, setMenuAbierto] = useState<string | null>(null);
     const [ajustesDe, setAjustesDe] = useState<{ id: string; titulo: string } | null>(null);
 
@@ -1095,6 +1224,7 @@ export function CorreosPanel({ userId, enfocado = false, onAlternarEnfoque, onAb
         setLoading(true);
         setSelectedId(null);
         setEtiqueta(null);
+        setFiltroRespuesta(null);
         void load(folder);
     }, [folder, load]);
 
@@ -1138,15 +1268,32 @@ export function CorreosPanel({ userId, enfocado = false, onAlternarEnfoque, onAb
         [enCarpeta, estados],
     );
 
+    // (INV1025I) «Reply Zero» en Recibidos: clasificación de cada hilo con el
+    // reloj inyectado (se recalcula en cada carga) y resumen para el filtro. El
+    // alcance lo usa aparte: sus respuestas externas entran por aquí también.
+    const seguimientos = useMemo(() => {
+        const m = new Map<string, EstadoSeguimiento>();
+        if (folder !== "inbox" || !userId) return m;
+        const ahora = new Date();
+        for (const t of enCarpeta) m.set(t.id, clasificarHilo(hiloSeguimientoDe(t), userId, ahora, DEFECTO_SEGUIMIENTO));
+        return m;
+    }, [enCarpeta, folder, userId]);
+
+    const resumenRespuestas = useMemo(() => {
+        if (folder !== "inbox" || !userId) return null;
+        return resumenSeguimiento(enCarpeta.map(hiloSeguimientoDe), userId, new Date(), DEFECTO_SEGUIMIENTO);
+    }, [enCarpeta, folder, userId]);
+
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
         return enCarpeta.filter((t) => {
+            if (folder === "inbox" && filtroRespuesta && (seguimientos.get(t.id) ?? "resuelto") !== filtroRespuesta) return false;
             if (etiqueta && !(estados.get(t.id)?.etiquetas ?? []).includes(etiqueta)) return false;
             if (!q) return true;
             const hay = [t.subject, t.lastMessage?.body, t.externalTo, counterpartLabel(t, nombrePara, userId)].filter(Boolean).join(" ").toLowerCase();
             return hay.includes(q);
         });
-    }, [enCarpeta, search, etiqueta, estados, nombrePara, userId]);
+    }, [enCarpeta, search, etiqueta, estados, nombrePara, userId, folder, filtroRespuesta, seguimientos]);
 
     const fijados = filtered.filter((t) => estados.get(t.id)?.fijado);
     const resto = filtered.filter((t) => !estados.get(t.id)?.fijado);
@@ -1193,6 +1340,7 @@ export function CorreosPanel({ userId, enfocado = false, onAlternarEnfoque, onAb
                 isActive={selectedId === t.id}
                 onSelect={() => setSelectedId(t.id)}
                 estado={estado}
+                seguimiento={seguimientos.get(t.id) ?? null}
                 avatarUrl={avatar}
                 onContextMenu={(e) => {
                     e.preventDefault();
@@ -1293,6 +1441,28 @@ export function CorreosPanel({ userId, enfocado = false, onAlternarEnfoque, onAb
                         );
                     })}
                 </div>
+
+                {(folder === "inbox") && resumenRespuestas && (resumenRespuestas["por-responder"] > 0 || resumenRespuestas.esperando > 0) && (
+                    <div role="group" aria-label="Respuestas" className="flex flex-wrap items-center gap-1.5">
+                        <Reply className="h-3.5 w-3.5 text-white/45" aria-hidden />
+                        {([["por-responder", resumenRespuestas["por-responder"]], ["esperando", resumenRespuestas.esperando], ["resuelto", resumenRespuestas.resuelto]] as Array<[EstadoSeguimiento, number]>)
+                            .filter(([estado, cuantos]) => estado !== "resuelto" || filtroRespuesta)
+                            .map(([estado, cuantos]) => (
+                                <button
+                                    key={estado}
+                                    type="button"
+                                    aria-pressed={filtroRespuesta === estado}
+                                    onClick={() => setFiltroRespuesta((cur) => (cur === estado ? null : estado))}
+                                    className={cn("ss-redondo inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors", filtroRespuesta === estado ? "text-white" : "text-white/60 hover:text-white")}
+                                    style={pildoraFantasma(estado === "por-responder" ? ACENTO.aurora : ACENTO.ambar, filtroRespuesta === estado)}
+                                >
+                                    {estado === "por-responder" ? <Hourglass className="h-3 w-3" /> : estado === "esperando" ? <Send className="h-3 w-3" /> : <MailOpen className="h-3 w-3" />}
+                                    {estado === "por-responder" ? "Por responder" : estado === "esperando" ? "Esperando respuesta" : "Resueltos"}
+                                    <span className="min-w-[14px] rounded-full bg-white/10 px-1 text-center text-[10px] font-bold leading-[14px] text-white/90">{cuantos}</span>
+                                </button>
+                            ))}
+                    </div>
+                )}
 
                 <div className="relative">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
