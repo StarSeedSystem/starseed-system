@@ -1,0 +1,122 @@
+{
+ "t": "2026-10-29 11:55:06",
+ "pasarelas": [
+  {
+   "modelo": "qwen2.5:0.5b",
+   "variable": null,
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 13.1,
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "nex-agi/nex-n2.5-pro:free",
+   "variable": "OPENROUTER_API_KEY",
+   "http": 404,
+   "estado": "modelo_fuera",
+   "segundos": 1.3,
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "nvidia/nemotron-3-super-120b-a12b",
+   "variable": "NVIDIA_API_KEY",
+   "http": 404,
+   "estado": "modelo_fuera",
+   "segundos": 1.0,
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "gemini-3.5-flash-lite",
+   "variable": "GEMINI_API_KEY",
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 7.6,
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "openai/gpt-oss-20b",
+   "variable": "GROQ_API_KEY",
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 0.4,
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "qwen/qwen3-coder-plus:free",
+   "variable": "XKIRO_API_KEY",
+   "http": 429,
+   "estado": "sin_cupo",
+   "segundos": 0.5,
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "z-ai/glm-5.3-free",
+   "variable": "TOKENROUTER_API_KEY",
+   "http": 503,
+   "estado": "sin_canal",
+   "segundos": 1.0,
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "gpt-4o-mini",
+   "variable": "AIHUBMIX_API_KEY",
+   "http": 403,
+   "estado": "sin_cupo",
+   "segundos": 0.4,
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "free/glm-5.3-flash",
+   "variable": "STARSEED_PASARELA_APINEX_KEY",
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 1.3,
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "deepseek-v4-pro",
+   "variable": "DEEPSEEK_API_KEY",
+   "http": 402,
+   "estado": "sin_cupo",
+   "segundos": 1.2,
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "grok-4.6",
+   "variable": "XAI_API_KEY",
+   "http": 403,
+   "estado": "sin_cupo",
+   "segundos": 0.4,
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "Qwen/Qwen2.5-72B-Instruct",
+   "variable": "HF_TOKEN",
+   "http": 402,
+   "estado": "sin_cupo",
+   "segundos": 0.4,
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  },
+  {
+   "modelo": "auto",
+   "variable": "FREELLMAPI_KEY",
+   "http": 200,
+   "estado": "escribe",
+   "segundos": 2.7,
+   "caidas_seguidas": 0,
+   "caida_desde": ""
+  }
+ ]
+}
