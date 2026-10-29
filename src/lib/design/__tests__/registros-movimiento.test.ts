@@ -87,6 +87,21 @@ describe("movimientoDe — 18 pares registro × sección", () => {
         expect(m.salida.ms).toBe(DURACION.normal);
         expect(m.salida.curva).toBe(CURVA.salida);
     });
+
+    it("el experimental retira a pausado con la curva de salida", () => {
+        for (const seccion of SECCIONES) {
+            const m = movimientoDe("experimental", seccion);
+            expect(m.salida).toEqual({ ms: DURACION.pausado, curva: CURVA.salida });
+        }
+    });
+
+    it("el sobrio nunca usa la curva elástica", () => {
+        for (const seccion of SECCIONES) {
+            const m = movimientoDe("sobrio", seccion);
+            expect(m.entrada.curva).not.toBe(CURVA.elastico);
+            expect(m.salida.curva).not.toBe(CURVA.elastico);
+        }
+    });
 });
 
 describe("aplicarMovimientoReducido", () => {
