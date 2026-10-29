@@ -62,7 +62,18 @@ import {
   type SyncDirection,
 } from "@/lib/brains/servers";
 import { listBackends, saveBackend, deleteBackend, type StorageBackend } from "@/lib/storage/backends";
-import { listMemoryFiles } from "@/lib/cerebro/memory-files";
+import { listMemoryFiles, type MemoryFile } from "@/lib/cerebro/memory-files";
+import { readMirror } from "@/lib/brains/memory-offline";
+import {
+  construirManifiesto,
+  divergencias,
+  huellaContenido,
+  proponerLimpieza,
+  resumenManifiesto,
+  type CopiaMemoria,
+  type DestinoMemoria,
+  type ManifiestoMemoria,
+} from "@/lib/storage/memoria-manifiesto";
 import { MemoryFolderConnect } from "@/components/exocortex/memory-folder-connect";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
 // (Ola 374) Google Drive como medio de este cerebro: OAuth con custodia en
@@ -90,6 +101,7 @@ export default function MemorySourcesPanel({
 }) {
   const [brain, setBrain] = useState<Brain | null>(null);
   const [loading, setLoading] = useState(true);
+  const [files, setFiles] = useState<MemoryFile[]>([]);
   const [counts, setCounts] = useState<{ files: number; memories: number }>({ files: 0, memories: 0 });
   const [obsidian, setObsidian] = useState<StorageBackend[]>([]);
   const [linked, setLinked] = useState<LinkedServer[]>([]);
@@ -100,6 +112,7 @@ export default function MemorySourcesPanel({
       const b = brainId ? await getBrain(brainId) : null;
       setBrain(b);
       const files = await listMemoryFiles(brainId);
+      setFiles(files);
       let mem = 0;
       try {
         const sb = createClient();
@@ -142,6 +155,7 @@ export default function MemorySourcesPanel({
   return (
     <div className="space-y-4">
       <OsSourceCard files={counts.files} memories={counts.memories} loading={loading} />
+      <ManifiestoMemoriasCard brainId={brainId} archivos={files} loading={loading} />
       <GoogleDriveMemoryCard brainId={brainId} brainName={brainName} />
       <ObsidianCard brainId={brainId} obsidian={obsidian} onChanged={reload} />
       <ExternalServerCard brainId={brainId} linked={linked} onChanged={reload} />
@@ -192,6 +206,151 @@ function OsSourceCard({ files, memories, loading }: { files: number; memories: n
         <Badge variant="outline" className="border-white/15 text-white/70 text-[10px]">{files} archivos .md</Badge>
         <Badge variant="outline" className="border-white/15 text-white/70 text-[10px]">{memories} memorias</Badge>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Manifiesto de copias (Ola 1025R · INF1025H)                         */
+/* ------------------------------------------------------------------ */
+
+const DESTINO_POR_FUENTE: Record<string, DestinoMemoria> = {
+  local: "local",
+  starseed: "starseed",
+  gdrive: "gdrive",
+  p2p: "p2p",
+  external: "externo",
+  externo: "externo",
+};
+
+function fechaMs(iso?: string): number | null {
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? null : ms;
+}
+
+function bytesDe(texto: string): number {
+  return new TextEncoder().encode(texto).length;
+}
+
+function ManifiestoMemoriasCard({
+  brainId,
+  archivos,
+  loading,
+}: {
+  brainId: string;
+  archivos: MemoryFile[];
+  loading: boolean;
+}) {
+  const [manifiesto, setManifiesto] = useState<ManifiestoMemoria | null>(null);
+  const [calculando, setCalculando] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    const calcular = async () => {
+      setCalculando(true);
+      try {
+        const espejo = readMirror(brainId);
+        const copias: CopiaMemoria[] = [];
+        for (const f of archivos) {
+          if (f.brain_id && f.brain_id !== brainId) continue;
+          const destino = DESTINO_POR_FUENTE[f.source] ?? "externo";
+          copias.push({
+            cerebroId: brainId,
+            memoriaId: f.id,
+            destino,
+            huella: await huellaContenido(f.content),
+            bytes: bytesDe(f.content),
+            actualizadoMs: fechaMs(f.updated_at),
+          });
+          if (destino === "local") continue;
+          const local = espejo.find((m) => m.id === f.id);
+          if (local) {
+            copias.push({
+              cerebroId: brainId,
+              memoriaId: f.id,
+              destino: "local",
+              huella: await huellaContenido(local.content),
+              bytes: bytesDe(local.content),
+              actualizadoMs: fechaMs(local.updated_at),
+            });
+          }
+        }
+        for (const local of espejo) {
+          if (local.brain_id && local.brain_id !== brainId) continue;
+          if (archivos.some((f) => f.id === local.id)) continue;
+          copias.push({
+            cerebroId: brainId,
+            memoriaId: local.id,
+            destino: "local",
+            huella: await huellaContenido(local.content),
+            bytes: bytesDe(local.content),
+            actualizadoMs: fechaMs(local.updated_at),
+          });
+        }
+        if (vivo) setManifiesto(construirManifiesto(copias));
+      } finally {
+        if (vivo) setCalculando(false);
+      }
+    };
+    void calcular();
+    return () => {
+      vivo = false;
+    };
+  }, [archivos, brainId]);
+
+  const nombres = useMemo(() => new Map(archivos.map((f) => [f.id, f.name])), [archivos]);
+  const listaDivergencias = manifiesto ? divergencias(manifiesto) : [];
+  const propuestas = manifiesto ? proponerLimpieza(manifiesto) : [];
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-2">
+      <div className="flex items-center gap-2">
+        <FolderSync className="w-4 h-4 text-sky-300" />
+        <span className="text-sm font-semibold text-sky-50">Copias de memoria · manifiesto</span>
+        {(loading || calculando) && <Loader2 className="w-3.5 h-3.5 animate-spin text-white/40 ml-auto" />}
+      </div>
+      <p className="text-[11px] text-white/50">
+        Agrupa por huella de contenido lo que hay en StarSeed y en el espejo local. Solo propone limpieza:
+        ninguna copia se quita sin tu confirmación y ningún borrado se propaga solo.
+      </p>
+      {!manifiesto ? (
+        <p className="text-[11px] text-white/40">Calculando copias…</p>
+      ) : (
+        <>
+          <p className="text-xs text-white/75">{resumenManifiesto(manifiesto)}</p>
+          {listaDivergencias.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[11px] font-medium text-amber-200/90">Versiones distintas</p>
+              <ul className="space-y-1">
+                {listaDivergencias.map((d) => (
+                  <li key={`${d.cerebroId}:${d.memoriaId}`} className="rounded-lg border border-amber-500/20 bg-amber-950/10 p-2 text-[11px] text-white/70">
+                    <span className="font-medium text-white/85">{nombres.get(d.memoriaId) ?? d.memoriaId}</span>
+                    {" · "}
+                    {d.masNueva ? `gana la más nueva (${d.masNueva.destino})` : "empate: no se escribe nada"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="space-y-1">
+            <p className="text-[11px] font-medium text-sky-200/90">Limpieza propuesta</p>
+            {propuestas.length === 0 ? (
+              <p className="text-[11px] text-white/40">Sin duplicados que sobren; ninguna memoria queda sin copia.</p>
+            ) : (
+              <ul className="space-y-1">
+                {propuestas.map((p) => (
+                  <li key={`${p.cerebroId}:${p.memoriaId}:${p.destino}:${p.huella}`} className="flex flex-wrap items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 p-2 text-[11px] text-white/70">
+                    <span className="font-medium text-white/85">{nombres.get(p.memoriaId) ?? p.memoriaId}</span>
+                    <Badge variant="outline" className="border-sky-500/30 text-sky-200/80 text-[9px]">{p.destino}</Badge>
+                    <span className="text-white/45">requiere confirmación</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
