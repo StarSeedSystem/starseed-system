@@ -91,8 +91,9 @@ describe("crearTarea con fetch simulado", () => {
   });
   it("apagado no toca la red; errores honestos y sin la clave: 401, 402, código de Tripo y sin red", async () => {
     const apagado = simulado([]);
-    expect((await crearTarea("meshy", PNG, {}, apagado.buscar)).ok).toBe(false);
-    expect((await crearTarea("tripo", PNG, {}, apagado.buscar)).ok).toBe(false);
+    const motivoApagado = async (p: "meshy" | "tripo"): Promise<string> => { const c = await crearTarea(p, PNG, {}, apagado.buscar); return c.ok ? "" : c.motivo; };
+    expect(await motivoApagado("meshy")).toMatch(/Apagado por defecto.*AVATARES_EXTERNOS_PERMITIDOS=1/);
+    expect(await motivoApagado("tripo")).toMatch(/Apagado por defecto.*AVATARES_EXTERNOS_PERMITIDOS=1/);
     expect(apagado.llamadas).toHaveLength(0);
     const motivos = (await Promise.all([
       crearTarea("meshy", PNG, ENCENDIDO, simulado([{ status: 401, cuerpo: { message: "Missing or invalid API key" } }]).buscar),
@@ -205,11 +206,16 @@ describe("crearTarea: respuestas incompletas y errores HTTP, siempre una sola pe
 
 describe("lo que sale a la red", () => {
   it("una imagen no admitida (webp, vacía, demasiado grande) no toca la red con ningún proveedor", async () => {
-    const malas: Imagen[] = [{ ...PNG, mime: "image/webp" }, { ...PNG, bytes: new Uint8Array(0) }, { ...PNG, bytes: new Uint8Array(9 << 20) }];
+    const malas: Array<[Imagen, RegExp]> = [
+      [{ ...PNG, mime: "image/webp" }, /Formato no admitido.*image\/webp/],
+      [{ ...PNG, bytes: new Uint8Array(0) }, /está vacía/], [{ ...PNG, bytes: new Uint8Array(9 << 20) }, /más de .* MB/],
+    ];
     for (const p of ["meshy", "tripo"] as const) {
-      for (const img of malas) {
+      for (const [img, re] of malas) {
         const red = sinRed();
-        expect((await crearTarea(p, img, ENCENDIDO, red.buscar)).ok).toBe(false);
+        const c = await crearTarea(p, img, ENCENDIDO, red.buscar);
+        expect(c.ok).toBe(false);
+        if (!c.ok) expect(c.motivo).toMatch(re);
         expect(red.llamadas).toHaveLength(0);
       }
     }
