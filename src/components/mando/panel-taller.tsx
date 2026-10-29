@@ -31,6 +31,7 @@ import {
 import {
     catalogoDeclarado,
     filtrarRecursos,
+    RECURSOS_ARTCRAFT,
     REGLAS_NAVEGADOR,
     type OrigenRecurso,
     type RecursoAgente,
@@ -149,7 +150,14 @@ export function PanelTaller() {
     const [tipo, setTipo] = useState<TipoRecurso | null>(null);
     const [origen, setOrigen] = useState<OrigenRecurso | null>(null);
 
-    const todos = useMemo(() => [...catalogoDeclarado(), ...conectoresComoRecursos()], []);
+    // La pasarela ArtCraft se consume aquí de forma explícita: sus tres MCP no
+    // pueden desaparecer del Taller aunque el catálogo crezca o se reorganice.
+    const todos = useMemo(() => {
+        const declarados = catalogoDeclarado();
+        const yaEstan = new Set(declarados.map((r) => r.id));
+        const pasarela = RECURSOS_ARTCRAFT.filter((r) => !yaEstan.has(r.id));
+        return [...declarados, ...pasarela, ...conectoresComoRecursos()];
+    }, []);
     const visibles = useMemo(
         () => filtrarRecursos(todos, { tipo: tipo ?? undefined, origen: origen ?? undefined, texto }),
         [todos, tipo, origen, texto],
