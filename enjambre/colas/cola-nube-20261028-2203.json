@@ -1,0 +1,36 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "DSN1019G",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Biblioteca de movimiento StarSeed (WAAPI, puro)",
+   "archivos": [
+    "src/lib/design/movimiento-starseed.ts",
+    "src/lib/design/__tests__/movimiento-starseed.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Keyframes y opciones para siembra, entrada cardinal (por punto de la Trinity), fundido con desenfoque, elemento compartido, barrido de horizonte, respiración, cristalización y alquimia, con las curvas reales (`cubic-bezier(0.22, 1, 0.36, 1)`, `cubic-bezier(0.16, 1, 0.3, 1)`, `cubic-bezier(0.22, 0.9, 0.3, 1)`) y duraciones de interfaz (140/220/240 ms) y de escena (600–900 ms); `opcionesReducidas()` para movimiento reducido. Copia el comportamiento de `memory/diseno/estudio-audiovisual/examples/transiciones.html` y `siembra.html`. Prueba: solo propiedades permitidas. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos."
+  },
+  {
+   "id": "FSH1018L",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Diseño · tres propuestas de rediseño adaptadas al fondo (tokens de tema), con Astraura",
+   "archivos": [
+    "src/lib/design/rediseno-desde-fondo.ts",
+    "src/lib/design/__tests__/rediseno-desde-fondo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `propuestasDesdeFondo({ paleta, temaActual: ThemeTokens, modo: \"claro\"|\"oscuro\", adn })` → 3 propuestas (sobria, armónica, atrevida) de ThemeTokens (theme-engine.ts) con superficies translúcidas que dejan ver el fondo, acentos de la paleta y la escala φ de armonia.ts, cada una con su motivo y con contraste AA verificado (texto/superficie ≥ 4,5; las que no pasan se ajustan o se descartan). `pedidoParaIA(...)` arma el pedido al Director de diseño (memoria de gustos: lo privado solo si corre en una neurona de la persona). Pruebas. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "FSH1018M"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "DSN1019G",
+   "FSH1018L"
+  ]
+ }
+}
