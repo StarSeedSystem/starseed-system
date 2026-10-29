@@ -13,7 +13,7 @@ const BOT = {
   personalidad: {
     calidez: 0.7,
     energia: 0.55,
-    formalidad: 0.4,
+    formalidad: 0.55,
     curiosidad: 0.7,
     humor: 0.4,
     concision: 0.5,
