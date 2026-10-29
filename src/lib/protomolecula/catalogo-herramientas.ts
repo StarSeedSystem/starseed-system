@@ -1762,13 +1762,13 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     medios: { web: "no", android: false, ios: false, macos: true, windows: true, linux: true, servidor: true },
     integracion: "app-nativa-puente",
     formatos: { entrada: ["blend", "glb", "gltf", "fbx", "obj", "usd", "stl", "ply", "abc", "dae", "svg", "png", "exr"], salida: ["blend", "glb", "gltf", "fbx", "obj", "usd", "stl", "ply", "abc", "png", "exr", "mp4"] },
-    control: { via: ["python", "cli"], notas: "`blender -b -P script.py` sin pantalla; módulo `bpy` en PyPI; complementos de terceros añaden servidores MCP." },
-    actualizacion: { fuente: "flathub", ref: "org.blender.Blender", ultimaVersion: "5.2", fechaVersion: "2026-07-14" },
+    control: { via: ["python", "cli"], notas: "`blender -b -P script.py` sin pantalla: el OS genera el guion solo desde el trabajo 3D como dato (architecture/blender-3d.md §4); nunca `bpy` importado fuera de Blender." },
+    actualizacion: { fuente: "github-tags", ref: "blender/blender", ultimaVersion: "5.2.3", fechaVersion: "2026-10-22" },
     ia: ["script-python", "mcp-terceros"],
-    estado: "integrable", motivo: "Programa de escritorio aparte: el OS lo controla desde una neurona de escritorio (línea de órdenes, MIDI/OSC, tubería o MCP).",
-    verificado: "2026-10-10",
+    estado: "integrable", motivo: "Hoy corre como paso «servicio» del grafo de conversores (obj, fbx, stl, ply, gltf y svg → glb) si la neurona tiene Blender (conv-blender.ts); el render de escenas por trabajos 3D en cola es «próximamente» hasta cablear /api/3d/trabajos (architecture/blender-3d.md §8).",
+    verificado: "2026-10-25",
     avisos: [
-      "GPL: solo como programa aparte, no enlazado en el paquete del OS.",
+      "GPL: solo como programa aparte, proceso hijo por lista de argumentos, sin binarios suyos en el paquete del OS (architecture/blender-3d.md §7).",
     ],
   },
   {
@@ -1782,9 +1782,10 @@ export const CATALOGO_PROTOMOLECULA: readonly HerramientaProto[] = [
     actualizacion: { fuente: "web", ref: "https://github.com/ahujasid/blender-mcp", ultimaVersion: null, fechaVersion: null },
     ia: ["mcp", "script-python"],
     estado: "integrable", motivo: "Servicio local en una neurona con recursos; el OS lo llama por HTTP o línea de órdenes y le pasa solo parámetros.",
-    verificado: "2026-10-10",
+    verificado: "2026-10-25",
     avisos: [
       "Ejecuta código Python en Blender: solo con confirmación humana, en una neurona de escritorio o servidor propio.",
+      "Fuera por defecto: solo en el escritorio de su dueño, con el puerto en 127.0.0.1, telemetría apagada y `execute_blender_code` no expuesta a ningún agente (architecture/blender-3d.md §1.6).",
     ],
   },
   {
