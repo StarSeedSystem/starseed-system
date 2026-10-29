@@ -142,7 +142,7 @@ function coloresDe(paleta: EntradaPaleta[], actual: ThemeTokens, modo: ModoRedis
     s: Math.min(semilla.s, 30),
     l: modo === "oscuro" ? Math.min(semilla.l, 20) : Math.max(semilla.l, 92),
   };
-  const acentos = orden.map((e) => e.c).filter((c) => contraste(aHex(c), aHex(base)) > 1.2).slice(0, 3);
+  const acentos = orden.map((e) => e.c).filter((c) => contraste(c, base) > 1.2).slice(0, 3);
   while (acentos.length < 3) {
     const ref = acentos[0] ?? semilla;
     acentos.push({
@@ -227,6 +227,51 @@ export function propuestasDesdeFondo(entrada: EntradaRediseno): PropuestaRedisen
   return PERFILES.map((p) => construir(p, entrada));
 }
 
-export function pedidoParaIA(_entrada: EntradaPedido): PedidoDiseno {
-  throw new Error("pendiente");
+const textoAdn = (adn?: AdnDiseno | null): string => {
+  if (!adn) return "sin ADN declarado";
+  const partes = [
+    adn.nombre,
+    adn.alma?.una_linea,
+    adn.alma?.adjetivos?.join(", "),
+    adn.firmas?.map((f) => (f.como ? `${f.jugada} (${f.como})` : f.jugada)).join("; "),
+    adn.prohibiciones?.length ? `Evitar: ${adn.prohibiciones.join(", ")}` : undefined,
+  ];
+  return partes.filter((p): p is string => Boolean(p && p.trim())).join(" · ") || "sin ADN declarado";
+};
+
+export function pedidoParaIA(entrada: EntradaPedido): PedidoDiseno {
+  const privado = entrada.ambito === "neurona-privada";
+  const gustos = [
+    ...(entrada.gustosCompartidos ?? []),
+    ...(privado ? entrada.gustosPrivados ?? [] : []),
+  ].filter((g, i, todos) => g.trim() && todos.indexOf(g) === i);
+  const colores = entrada.paleta.filter((e) => esHexColor(e.color)).map((e) => normalizarHex(e.color));
+  const propuestas = entrada.propuestas ?? propuestasDesdeFondo(entrada);
+  return {
+    rol: "director-diseno",
+    intencion: `Proponer un rediseño ${entrada.modo} que acompañe al fondo con superficies translúcidas, acentos de la paleta y escala φ, sin ocultar ni desactivar controles esenciales.`,
+    contexto: { modo: entrada.modo, colores, adn: textoAdn(entrada.adn) },
+    propuestas: propuestas.map(({ id, nombre, motivo, contraste, descartada }) => ({
+      id,
+      nombre,
+      motivo,
+      contraste,
+      descartada,
+    })),
+    memoriaGustos: {
+      gustos,
+      privacidad: privado ? "neurona-propia" : "solo-compartido",
+      nota: privado
+        ? "Corre en una neurona de la persona: puede usar su memoria privada de gustos."
+        : "Contexto compartido: solo los gustos que ese contexto ya comparte; lo privado no se envía.",
+    },
+    guardas: [
+      "Contraste AA ≥ 4.5:1 en texto sobre superficie; si no pasa, ajustar o descartar la propuesta.",
+      "Objetivos táctiles ≥ 44 px y comprobación en móvil, tablet, escritorio y TV.",
+      "Respetar prefers-reduced-motion y las variantes claro/oscuro.",
+      "Nunca ocultar ni desactivar controles esenciales; todo cambio se puede deshacer.",
+    ],
+    formatoSalida:
+      "JSON con las tres propuestas de ThemeTokens (vars, materialClass, fontFamily, motion) y el motivo de cada una.",
+  };
 }

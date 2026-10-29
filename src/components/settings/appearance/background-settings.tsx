@@ -25,6 +25,7 @@
  */
 
 import React from "react";
+import { useTheme } from "next-themes";
 import {
     Sparkles,
     Waves,
@@ -52,10 +53,23 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, applyAlpha } from "@/lib/utils";
-import { useAppearance } from "@/context/appearance-context";
+import { useAppearance, type AppearanceConfig } from "@/context/appearance-context";
 import { addLayer, normalizeLayers } from "@/lib/appearance/background-layers";
 import { BackgroundLayersPanel } from "./background-layers-panel";
 import { cargarCatalogo } from '@/lib/appearance/catalogo-shaders';
+import {
+    pedidoParaIA,
+    propuestasDesdeFondo,
+    type AdnDiseno,
+    type PropuestaRediseno,
+} from "@/lib/design/rediseno-desde-fondo";
+import { recogerColores, type EntradaPaleta } from "@/lib/design/paleta-fondo";
+import {
+    applyTheme as aplicarTema,
+    saveCustomTheme,
+    type ThemePack,
+    type ThemeTokens,
+} from "@/lib/design/theme-engine";
 
 /* ──────────────────────────────────────────────────────────────────────
  * Tipos y catálogos
@@ -227,6 +241,135 @@ const AUTO_CYCLE_OPTS: Array<{ value: number; label: string }> = [
 ];
 
 const DEFAULT_PALETTE = ["#E9C46A", "#9FE870", "#7FB8FF", "#C9A8FF"];
+
+/* ── Rediseño sugerido por Astraura (Ola 1018F · tarea L · §4) ─────────── */
+const ADN_REDISENO: AdnDiseno = {
+    nombre: "StarSeed OS",
+    alma: { una_linea: "Acompañar sin tapar la vida que hay detrás.", adjetivos: ["cálida", "precisa"] },
+    prohibiciones: ["ocultar o desactivar controles esenciales", "hex sueltos fuera de los tokens"],
+};
+
+/** Tokens aplicados AHORA: el documento es la fuente real, no una copia. */
+function tokensDelDocumento(): ThemeTokens {
+    if (typeof document === "undefined") return { vars: {} };
+    const estilo = getComputedStyle(document.documentElement);
+    const claves = ["background-hsl", "foreground-hsl", "card-hsl", "popover-hsl", "primary-hsl",
+        "primary-foreground-hsl", "secondary-hsl", "accent-hsl", "border-hsl", "ring-hsl"];
+    const vars: Record<string, string> = {};
+    for (const clave of claves) {
+        const valor = estilo.getPropertyValue(`--${clave}`).trim();
+        if (valor) vars[clave] = valor;
+    }
+    const fuente = estilo.getPropertyValue("--font-body").split(",")[0]?.trim();
+    return { vars, ...(fuente ? { fontFamily: fuente } : {}) };
+}
+
+/** Paleta del fondo: colores de las capas (incluidos presets shader) y del motor base. */
+function paletaDelFondo(background: AppearanceConfig["background"]): EntradaPaleta[] {
+    return [...new Set(recogerColores(background))].slice(0, 6).map((color, i) => ({ color, peso: 1 / (i + 1) }));
+}
+
+function RedisenoDesdeFondo() {
+    const { config } = useAppearance();
+    const { resolvedTheme } = useTheme();
+    const [propuestas, setPropuestas] = React.useState<PropuestaRediseno[] | null>(null);
+    const [pedido, setPedido] = React.useState<string | null>(null);
+    const modo = resolvedTheme === "light" ? "claro" : "oscuro";
+    const paleta = React.useMemo(() => paletaDelFondo(config.background), [config.background]);
+
+    const proponer = () => {
+        const lista = propuestasDesdeFondo({ paleta, temaActual: tokensDelDocumento(), modo, adn: ADN_REDISENO });
+        setPropuestas(lista);
+        setPedido(null);
+        if (!lista.some((p) => !p.descartada)) toast.message("Ninguna propuesta pasa AA con este fondo; ajusta la paleta.");
+    };
+
+    const aplicar = (p: PropuestaRediseno) => {
+        if (p.descartada) return;
+        const pack: ThemePack = {
+            id: `rediseno-fondo-${p.id}-${modo}`,
+            name: `${p.nombre} desde el fondo`,
+            description: p.motivo,
+            style: "rediseno-fondo",
+            modes: modo === "claro" ? { light: p.tokens } : { dark: p.tokens },
+        };
+        saveCustomTheme(pack);
+        if (aplicarTema(pack.id, modo === "claro" ? "light" : "dark")) {
+            toast.success(`Diseño «${p.nombre}» aplicado`, { description: p.motivo });
+        } else {
+            toast.error("No se pudo aplicar la propuesta.");
+        }
+    };
+
+    const pedir = (p: PropuestaRediseno) => {
+        const r = pedidoParaIA({
+            paleta, temaActual: tokensDelDocumento(), modo, adn: ADN_REDISENO,
+            ambito: "compartido", gustosCompartidos: [p.nombre, p.motivo], propuestas: propuestas ?? undefined,
+        });
+        setPedido(JSON.stringify(r, null, 2));
+    };
+
+    return (
+        <div className="rounded-2xl border border-border/50 bg-card/30 p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                        <Wand2 className="w-4 h-4 text-primary" /> Rediseño sugerido por Astraura
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground/70 mt-1 max-w-prose">
+                        El fondo actual sigue mandando. Astraura propone tres diseños con superficies translúcidas,
+                        los acentos de la paleta y contraste AA; nada se aplica sin que lo elijas.
+                    </p>
+                </div>
+                <button type="button" onClick={proponer}
+                    className="text-xs px-3 py-1.5 rounded-full border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" /> Proponer 3 diseños
+                </button>
+            </div>
+            {propuestas && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {propuestas.map((p) => (
+                        <div key={p.id} className={cn("rounded-xl border p-3 space-y-2",
+                            p.descartada ? "border-border/40 opacity-60" : "border-border/60 bg-card/40")}>
+                            <div className="flex h-7 overflow-hidden rounded-md" aria-hidden="true">
+                                {["primary-hsl", "secondary-hsl", "accent-hsl"].map((clave) => (
+                                    <span key={clave} className="flex-1" style={{ background: `hsl(${p.tokens.vars[clave]})` }} />
+                                ))}
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                                <p className="text-sm font-semibold">{p.nombre}</p>
+                                <span className="text-[10px] font-mono text-muted-foreground">{p.contraste.toFixed(2)}:1</span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground leading-relaxed">{p.motivo}</p>
+                            {p.descartada ? (
+                                <p className="text-[11px] text-amber-300/90">No pasa AA ({p.contraste.toFixed(2)}:1); se descarta.</p>
+                            ) : (
+                                <div className="flex flex-wrap gap-1.5">
+                                    <button type="button" onClick={() => aplicar(p)}
+                                        className="text-[11px] px-2 py-1 rounded-full bg-primary text-primary-foreground cursor-pointer">Aplicar</button>
+                                    <button type="button" onClick={() => pedir(p)}
+                                        className="text-[11px] px-2 py-1 rounded-full border border-border/60 text-muted-foreground hover:text-foreground cursor-pointer">Pedir al Director</button>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+            {pedido && (
+                <div className="rounded-xl border border-border/60 bg-background/40 p-3 space-y-2">
+                    <p className="text-[11px] text-muted-foreground">Pedido al Director de diseño (solo contexto compartido).</p>
+                    <pre className="whitespace-pre-wrap text-[11px] leading-relaxed text-foreground/80">{pedido}</pre>
+                    <div className="flex gap-1.5">
+                        <button type="button" onClick={() => void navigator.clipboard?.writeText(pedido)}
+                            className="text-[11px] px-2 py-1 rounded-full border border-border/60 text-muted-foreground hover:text-foreground cursor-pointer">Copiar pedido</button>
+                        <button type="button" onClick={() => setPedido(null)}
+                            className="text-[11px] px-2 py-1 rounded-full border border-border/60 text-muted-foreground hover:text-foreground cursor-pointer">Cerrar</button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
 
 /* ──────────────────────────────────────────────────────────────────────
  * Mini-preview en vivo para variantes "living" (mini-canvas).
@@ -715,6 +858,8 @@ export function BackgroundSettings() {
             {/* Capas de fondo: pila ordenada, opacidad, mezcla, ámbito. Va PRIMERO
                 porque es el modelo nuevo; el fondo base se elige debajo. */}
             <BackgroundLayersPanel />
+
+            <RedisenoDesdeFondo />
 
         <div className="rounded-2xl border border-border/50 bg-card/30 p-4 space-y-6">
             {/* Keyframes para previews fluidos */}
