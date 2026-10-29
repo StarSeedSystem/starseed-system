@@ -119,6 +119,7 @@ class DestinoTest(unittest.TestCase):
 # ─────────────── Ola 1024I · IMG1024C: el automático ───────────────
 import itertools
 import autodesarrollo_logica as L
+import director_autodesarrollo as DIR
 
 def ajustes(automatico=True, aprobar=True, reimaginar=True, umbral=0.75, maximo=2):
     return L.validar_ajustes({"automatico": automatico, "auto": {"aprobar": aprobar, "reimaginar": reimaginar,
@@ -441,6 +442,28 @@ class FamiliaYVariantesTest(unittest.TestCase):
         otra_familia = {"id": "d", "fuente": "astraura", "titulo": "Arreglar otra cosa", "estado": "nueva"}
         self.assertEqual([(p["id"], prim["id"]) for p, prim in D.agrupar([a, b, otra_fuente, otra_familia])],
                          [("b", "a")])
+
+    def test_el_tope_de_20_variantes_agrupa_pero_no_borra_ninguna(self):
+        """Ola 1028B: la cabeza anota como mucho 20 variantes; las demás se agrupan sin perder la decisión."""
+        props = [{"id": "a%d" % i, "fuente": "astraura", "ambito": "metagenesis",
+                  "estado": "esperando-aprobacion",
+                  "titulo": "Optimización ARM NEON para modulo_%d.sh" % i} for i in range(23)]
+        DIR._agrupar_familias(props, "2026-10-28T00:00:00")
+        cabeza = props[0]
+        self.assertEqual(len(props), 23)
+        self.assertEqual(len(cabeza["variantes"]), DIR.AD.MAX_VARIANTES)
+        self.assertEqual(cabeza["n_variantes"], DIR.AD.MAX_VARIANTES)
+        self.assertEqual(set(cabeza["variantes"][0]), {"id", "titulo", "archivos"})
+        self.assertEqual(sum(1 for p in props if p["estado"] == "agrupada"), 22)
+        self.assertEqual({p.get("agrupada_en") for p in props[1:]}, {"a0"})
+
+    def test_lo_que_ya_es_coherente_no_se_toca(self):
+        """Ola 1028B: el arreglo solo toca la contradicción estado/motivo, no lo demás."""
+        for p in ({}, {"estado": "nueva", "motivo": "… → pregunta"},
+                  {"estado": "descartada", "motivo": "duplicada de astraura:b"}):
+            self.assertEqual(D.arreglo_de_estado(p), {})
+        roto = {"estado": "descartada", "motivo": "… → pregunta", "motivo_destino": "… → pregunta"}
+        self.assertEqual(D.arreglo_de_estado(roto)["estado"], "pregunta")
 
     def test_una_descartada_nunca_lleva_un_motivo_de_pregunta(self):
         vieja = {"id": "x", "fuente": "astraura", "titulo": "X", "estado": "descartada",

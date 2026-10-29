@@ -44,6 +44,13 @@ class LimpiezaCaches(unittest.TestCase):  # plan (puro), aplicar, recortar, reco
         self.assertEqual((a0["accion"], a0["ruta"], "Chrome" in a0["por_que"]), ("borrar", C0324, True))
         self.assertEqual((a1["accion"], a1["ruta"]), ("borrar", C0521))
 
+    def test_el_margen_de_60_s_del_chrome_vivo_es_exacto(self):
+        """Ola 1028B: el clon que arrancó justo 60 s antes se conserva; a los 61 s ya es huérfano."""
+        t12 = 40_000.0
+        suyo, borde = CLON + "-suyo", CLON + "-borde"
+        self.assertEqual(L.clones_de_chrome_a_borrar([(suyo, t12 - 30), (borde, t12 - 60)], t12), [])
+        self.assertEqual(L.clones_de_chrome_a_borrar([(borde, t12 - 61)], t12), [borde])
+
     def test_ruta_vetada_nunca_se_borra_y_ps_sin_salida_no_borra_nada(self):
         self.assertEqual(L.clones_de_chrome_a_borrar([("/a/.env/cls", 0.0), ("rel/cls", 0.0)], None), [])
         self.assertEqual(L.inicio_chrome_de_ps(None), (None, True))  # ps no salió: no se sabe, no se borra
