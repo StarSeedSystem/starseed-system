@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   leerCatalogo,
@@ -127,6 +129,36 @@ describe("usable", () => {
     expect(usable({ ...entradaBase, sha256: "corta" })).toBe(false);
     expect(usable({ ...entradaBase, sha256: "A".repeat(64) })).toBe(false);
     expect(usable({ ...entradaBase, sha256: "g".repeat(64) })).toBe(false);
+  });
+});
+
+describe("catálogo real · Ternary Bonsai 2 en el banco (1025R)", () => {
+  const crudo: unknown = JSON.parse(
+    readFileSync(join(process.cwd(), "config/capas-astraura.json"), "utf8"),
+  );
+  const catalogo = leerCatalogo(crudo);
+  const crudas = (crudo as { capas: Record<string, unknown>[] }).capas;
+
+  it("las tres entradas existen en el banco, con SHA hexadecimal y tamaño", () => {
+    const ids = ["ternary-bonsai2-2b", "ternary-bonsai2-4b", "ternary-bonsai2-9b"];
+    for (const id of ids) {
+      const entrada = catalogo.capas.find((e) => e.id === id);
+      expect(entrada, `falta ${id}`).toBeDefined();
+      expect(entrada?.estado).toBe("en-banco");
+      expect(entrada?.sha256).toMatch(/^[0-9a-f]{64}$/);
+      const cruda = crudas.find((e) => e.id === id);
+      expect(typeof cruda?.tamano_bytes).toBe("number");
+      expect(cruda?.tamano_bytes as number).toBeGreaterThan(0);
+    }
+  });
+
+  it("el JSON sigue siendo válido y los ids siguen siendo únicos", () => {
+    const raiz = crudo as { esquema?: unknown; capas?: unknown };
+    expect(raiz.esquema).toBe(1);
+    expect(Array.isArray(raiz.capas)).toBe(true);
+    expect(catalogo.capas.length).toBeGreaterThan(0);
+    const ids = catalogo.capas.map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
 
