@@ -9,6 +9,7 @@ import {
   TOKENIZER_CLIP_SD_TURBO, VERSION_ONNXRUNTIME_WEB, detectaSDTurbo, generaEnPestana, planPesos, textoBytes,
   type ImagenSDTurbo, type MotorSDTurbo, type SondasWebGPU,
 } from "../webgpu-sd-turbo";
+import { crearMotorReal } from "../webgpu-sd-turbo.worker";
 import { modeloPorId } from "../../modelos";
 
 const BUENAS: SondasWebGPU = { hayWebGPU: true, hayAdaptador: true, f16: true };
@@ -60,6 +61,15 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
   it("solo los TRES archivos necesarios: ni encoder del VAE ni scheduler", () => {
     expect(PESOS_SD_TURBO.map((p) => p.ruta)).toEqual(["unet/model.onnx", "text_encoder/model.onnx", "vae_decoder/model.onnx"]);
     for (const p of PESOS_SD_TURBO) expect(p.bytes).toBeGreaterThan(0);
+  });
+
+  it("los bytes de los tres pesos son los MEDIDOS en el repo (2026-10-22), no estimaciones", () => {
+    expect(PESOS_SD_TURBO.map((p) => p.bytes)).toEqual([1733430199, 681393168, 99094314]);
+    expect(BYTES_PESOS_SD_TURBO).toBe(1733430199 + 681393168 + 99094314);
+  });
+
+  it("la ficha guarda la licencia de Stability AI, la misma que ampara los pesos", () => {
+    expect(modeloPorId(MODELO_SD_TURBO)!.licencia).toContain("Stability");
   });
 
   it("textoBytes: GB con coma y MB redondeados; no inventa tamaños inválidos", () => {
@@ -161,6 +171,62 @@ describe("generaEnPestana · flujo completo con el motor simulado", () => {
     expect(falloGenera.motivo).toContain("sin memoria en la GPU");
     expect(falloGenera.imagen).toBeUndefined();
     expect(llamadas).toEqual([]);
+  });
+});
+
+describe("crearMotorReal · sondear y cuotaLibre leen el navegador (inyectado, sin GPU real)", () => {
+  /** Pone un `self` que solo conoce el navegador indicado; devuelve cómo dejarlo como estaba. */
+  function conNavegador(navegador: unknown): () => void {
+    const previo = (globalThis as { self?: unknown }).self;
+    (globalThis as { self?: unknown }).self = { navigator: navegador };
+    return () => { (globalThis as { self?: unknown }).self = previo; };
+  }
+
+  const motorReal = () => crearMotorReal(() => {});
+
+  it("sin navigator.gpu no hay nada: ni WebGPU, ni adaptador, ni f16", async () => {
+    const quitar = conNavegador({});
+    try { expect(await motorReal().sondear()).toEqual({ hayWebGPU: false, hayAdaptador: false, f16: false }); }
+    finally { quitar(); }
+  });
+
+  it("hay gpu pero requestAdapter da null: WebGPU sí, adaptador y f16 no", async () => {
+    const quitar = conNavegador({ gpu: { requestAdapter: async () => null } });
+    try { expect(await motorReal().sondear()).toEqual({ hayWebGPU: true, hayAdaptador: false, f16: false }); }
+    finally { quitar(); }
+  });
+
+  it("adaptador con shader-f16: las tres sondas a true; sin él, solo f16 en false", async () => {
+    const con = conNavegador({ gpu: { requestAdapter: async () => ({ features: { has: (n: string) => n === "shader-f16" } }) } });
+    try { expect(await motorReal().sondear()).toEqual({ hayWebGPU: true, hayAdaptador: true, f16: true }); }
+    finally { con(); }
+    const sin = conNavegador({ gpu: { requestAdapter: async () => ({ features: { has: (): boolean => false } }) } });
+    try { expect(await motorReal().sondear()).toEqual({ hayWebGPU: true, hayAdaptador: true, f16: false }); }
+    finally { sin(); }
+  });
+
+  it("si requestAdapter rompe, se queda en sin adaptador y sin f16 (no se inventa)", async () => {
+    const quitar = conNavegador({ gpu: { requestAdapter: async () => { throw new Error("adaptador roto"); } } });
+    try { expect(await motorReal().sondear()).toEqual({ hayWebGPU: true, hayAdaptador: false, f16: false }); }
+    finally { quitar(); }
+  });
+
+  it("cuotaLibre resta lo usado del espacio y NUNCA sale negativo", async () => {
+    const invertida = conNavegador({ storage: { estimate: async () => ({ quota: 10, usage: 20 }) } });
+    try { expect(await motorReal().cuotaLibre()).toBe(0); }
+    finally { invertida(); }
+    const normal = conNavegador({ storage: { estimate: async () => ({ quota: 10, usage: 4 }) } });
+    try { expect(await motorReal().cuotaLibre()).toBe(6); }
+    finally { normal(); }
+  });
+
+  it("sin storage o con estimate que rompe, no se inventa espacio: null", async () => {
+    const sinStorage = conNavegador({});
+    try { expect(await motorReal().cuotaLibre()).toBeNull(); }
+    finally { sinStorage(); }
+    const rota = conNavegador({ storage: { estimate: async () => { throw new Error("no se puede saber"); } } });
+    try { expect(await motorReal().cuotaLibre()).toBeNull(); }
+    finally { rota(); }
   });
 });
 
