@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { modeloPorId } from "@/lib/imagenes/modelos";
 import {
   BYTES_PESOS_SD_TURBO,
+  CACHE_PESOS_SD_TURBO,
+  MODELO_SD_TURBO,
   PESOS_SD_TURBO,
+  VERSION_ONNXRUNTIME_WEB,
   detectaSDTurbo,
   generaEnPestana,
   planPesos,
@@ -37,6 +41,25 @@ describe("webgpu-sd-turbo · contrato público", () => {
 
   it("generaEnPestana devuelve una promesa", () => {
     expect(generaEnPestana(motor(), PETICION)).toBeInstanceOf(Promise);
+  });
+
+  it("el catálogo mantiene la licencia «sin comprobar del todo» y las constantes fijadas", () => {
+    const ficha = modeloPorId(MODELO_SD_TURBO);
+    expect(ficha).toBeDefined();
+    expect(ficha!.nota).toContain("sin comprobar del todo");
+    expect(ficha!.motores).toContain("onnx-web");
+    expect(VERSION_ONNXRUNTIME_WEB).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(CACHE_PESOS_SD_TURBO).not.toContain("/");
+  });
+
+  it("declara exactamente las tres rutas y un total que pasa de 2,5 GB", () => {
+    expect(PESOS_SD_TURBO.map((p) => p.ruta)).toEqual([
+      "unet/model.onnx",
+      "text_encoder/model.onnx",
+      "vae_decoder/model.onnx",
+    ]);
+    expect(PESOS_SD_TURBO.every((p) => p.bytes > 0)).toBe(true);
+    expect(BYTES_PESOS_SD_TURBO).toBeGreaterThan(Math.round(2.5e9));
   });
 });
 
