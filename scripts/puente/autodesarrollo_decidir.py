@@ -43,9 +43,17 @@ def _vigente(p, existe):
     rutas = [cita] if isinstance(cita, str) else list(cita)
     ok = bool(rutas) and all(_existe(existe, r) for r in rutas)
     return (True, "") if ok else (False, "ya no aplica: la cita no sigue en el código")
+#: Enumeraciones de tipos de acceso (Ola 1029A): «su acceso (libre, registro, pago)» o «libre, con
+#: registro o pago» describen el acceso de un sitio; no le piden a Alex que pague. Se quitan antes
+#: de mirar los reservados. «pagar», «comprar», «suscripción» y «pago de…» siguen siendo de Alex.
+ACCESO_ENUM = re.compile(
+    r"\((?=[^()]*\bpagos?\b)(?=[^()]*\b(?:libre|gratis|gratuito|abiert[ao]s?|registro)\b)[^()]*\)"
+    r"|\b(?:libre|gratis|gratuito|abiert[ao]s?|registro)"
+    r"(?:\s*(?:,|/|\b(?:o|y|e|con)\b)\s*(?:libre|gratis|gratuito|abiert[ao]s?|registro|pagos?))*"
+    r"(?:\s*(?:,|/|\b(?:o|y|e|con)\b)\s*pagos?)\b(?=\s*[,;:)?!.]|\s\Z|\Z)")
 def es_de_alex(p: Dict) -> str:
     """El motivo si toca algo que solo decide Alex (publicar, pagar, cuentas, claves…); "" si no."""
-    texto = _texto(p)
+    texto = ACCESO_ENUM.sub(" ", _texto(p))
     for tema in RESERVADOS:
         if re.search(rf"\b{tema}\b", texto): return f"no accionable por el enjambre ({tema}): es de Alex → pregunta"
     if CUENTAS.search(texto): return "no accionable por el enjambre (cuentas): es de Alex → pregunta"
@@ -177,7 +185,9 @@ VIAS = ("codigo", "astraura", "entregable")
 #: Lo que espera una decisión (para las duplicadas): nunca lo que ya decidió Alex ni lo que está en vuelo.
 PENDIENTES = ("nueva", "pregunta", "esperando-aprobacion", "autodesarrollo")
 #: Versión de las reglas: entra en la firma, así lo pendiente se vuelve a decidir cuando cambian.
-REGLAS = "1025S"
+#: 1029A: `es_de_alex` ya no marca «de Alex» por la enumeración del acceso (libre, registro, pago);
+#: las preguntas falsamente de Alex se vuelven a decidir porque la firma cambia con la versión.
+REGLAS = "1029A"
 #: Reimaginaciones nuevas del automático por ciclo (el director corre cada 15 min) y en vuelo a la vez:
 #: así 230 propuestas no salen de golpe hacia los modelos gratuitos. Lo de Alex no cuenta: se hace siempre.
 TOPE_POR_CICLO, MAX_EN_VUELO = 12, 24

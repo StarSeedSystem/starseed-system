@@ -494,5 +494,38 @@ class TokenSoloComoCredencial(unittest.TestCase):
             self.assertTrue(D.es_de_alex({"titulo": t, "cuerpo": ""}), t)
 
 
+class AccesoEnumeradoNoEsDeAlex(unittest.TestCase):
+    """Ola 1029A: «su acceso (libre, registro, pago)» de la plantilla del agente de referencias
+    marcaba «de Alex» cada candidata al catálogo. La enumeración de tipos de acceso se limpia antes
+    de mirar los reservados; lo que se pide de verdad pagando sigue siendo de Alex."""
+
+    def test_la_enumeracion_en_parentesis_no_es_de_alex(self):
+        cuerpo = ("Sitio citado en `memory/diseno/referencias.md`.\n\n"
+                  "- sus canales oficiales (RSS, sitemap con lastmod, API, MCP, oEmbed) y su acceso (libre, registro, pago);\n"
+                  "- su clase de uso (reutilizable, con condiciones, solo referencia o solo enlace).")
+        self.assertEqual(D.es_de_alex({"titulo": "Candidata al catálogo de referencias: siteinspire.com",
+                                       "cuerpo": cuerpo}), "")
+
+    def test_la_plantilla_nueva_tampoco_es_de_alex(self):
+        cuerpo = "- sus canales oficiales (RSS, sitemap con lastmod) y su acceso (abierto, con registro o con coste);"
+        self.assertEqual(D.es_de_alex({"titulo": "Candidata al catálogo de referencias: 21st.dev",
+                                       "cuerpo": cuerpo}), "")
+
+    def test_la_enumeracion_en_lista_sin_parentesis_no_es_de_alex(self):
+        self.assertEqual(D.es_de_alex({"titulo": "Candidata al catálogo de referencias: ejemplo.com",
+                                       "cuerpo": "Su acceso es libre con registro o pago."}), "")
+
+    def test_los_pagos_de_verdad_siguen_siendo_de_alex(self):
+        for t in ("Hay que pagar la suscripción del sitio", "Revisar el pago de la API",
+                  "Abrir el registro de pago del dominio", "Comprar la licencia del plugin"):
+            self.assertTrue(D.es_de_alex({"titulo": t, "cuerpo": ""}), t)
+
+    def test_la_firma_cambia_para_revisar_las_pendientes(self):
+        """La versión nueva de las reglas entra en la firma: lo pendiente (las 19 preguntas de
+        «candidata al catálogo» de la Ola 1029) se vuelve a decidir sin tocar el director."""
+        self.assertFalse(D.firma(ajustes()).startswith("1025S|"))
+        self.assertTrue(D.firma(ajustes()).startswith(D.REGLAS + "|"))
+
+
 if __name__ == "__main__":
     unittest.main()
