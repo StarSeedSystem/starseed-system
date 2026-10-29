@@ -25,6 +25,16 @@ describe("medidas", () => {
     expect(guardadas?.at(-1)?.latenciaMs).toBe(124);
   });
 
+  it("guarda las medidas de cada neurona por separado", async () => {
+    const almacen = almacenamientoEnMemoriaMedidas();
+    await registrarMedida(almacen, base({ neurona: "n1", latenciaMs: 100 }));
+    await registrarMedida(almacen, base({ neurona: "n2", latenciaMs: 900 }));
+    const deN1 = await almacen.leer("medidas-neuronas-v1/n1");
+    const deN2 = await almacen.leer("medidas-neuronas-v1/n2");
+    expect(deN1?.map((m) => m.latenciaMs)).toEqual([100]);
+    expect(deN2?.map((m) => m.latenciaMs)).toEqual([900]);
+  });
+
   it("mediaMedidas promedia latencia, tokens/s y acierto", () => {
     const media = mediaMedidas([
       { ...base({ latenciaMs: 100, tokPorS: 20, acierto: 0.8 }), timestamp: 1 },
@@ -35,7 +45,11 @@ describe("medidas", () => {
     expect(media.tokPorS).toBe(25);
     expect(media.acierto).toBe(0.85);
     expect(media.muestras).toBe(3);
-    expect(mediaMedidas([]).muestras).toBe(0);
+    const vacia = mediaMedidas([]);
+    expect(vacia.muestras).toBe(0);
+    expect(vacia.latenciaMs).toBe(0);
+    expect(vacia.tokPorS).toBeUndefined();
+    expect(vacia.acierto).toBeUndefined();
   });
 
   it("ordenarPorMedidas pone primero al más rápido y más acertado", () => {
@@ -52,6 +66,34 @@ describe("medidas", () => {
       expect(ordenados[0].modelo).toBe("modelo-rapido");
       expect(ordenados[1].modelo).toBe("modelo-lento");
     })();
+  });
+
+  it("con la misma latencia, gana el que más acierta", () => {
+    const medidas: MedidaNeurona[] = [
+      { neurona: "n1", modelo: "acierta-poco", capa: "palabra", latenciaMs: 200, acierto: 0.3, timestamp: 1 },
+      { neurona: "n1", modelo: "acierta-mucho", capa: "palabra", latenciaMs: 200, acierto: 0.95, timestamp: 1 },
+    ];
+    const candidatos = [
+      { modelo: "acierta-poco", donde: "local" as const, puntos: 50 },
+      { modelo: "acierta-mucho", donde: "local" as const, puntos: 50 },
+    ];
+    const ordenados = ordenarPorMedidas(candidatos, medidas, "n1");
+    expect(ordenados.map((c) => c.modelo)).toEqual(["acierta-mucho", "acierta-poco"]);
+  });
+
+  it("usa la media de las muestras del modelo, no solo la última", () => {
+    const medidas: MedidaNeurona[] = [
+      { neurona: "n1", modelo: "variable", capa: "palabra", latenciaMs: 100, timestamp: 1 },
+      { neurona: "n1", modelo: "variable", capa: "palabra", latenciaMs: 900, timestamp: 2 },
+      { neurona: "n1", modelo: "estable", capa: "palabra", latenciaMs: 560, timestamp: 1 },
+      { neurona: "n1", modelo: "estable", capa: "palabra", latenciaMs: 560, timestamp: 2 },
+    ];
+    const candidatos = [
+      { modelo: "estable", donde: "local" as const, puntos: 50 },
+      { modelo: "variable", donde: "local" as const, puntos: 50 },
+    ];
+    // Con la media gana "variable" (500 ms < 560 ms); mirando solo la última muestra perdería (900 ms).
+    expect(ordenarPorMedidas(candidatos, medidas, "n1")[0].modelo).toBe("variable");
   });
 
   it("sin medidas de la neurona conserva el orden del catálogo y no muta la entrada", () => {
