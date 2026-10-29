@@ -1,0 +1,28 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "INV1025L",
+   "ola": "Ola 1025R · Investigación y alcance (Agent-Reach, ScrapeGraphAI, OpenRefine, Inbox Zero)",
+   "titulo": "Alcance: leer fuentes públicas y construir la ficha de cada objetivo",
+   "archivos": [
+    "scripts/puente/alcance_fuentes.py",
+    "scripts/puente/alcance_fichas.py",
+    "scripts/puente/test_alcance_fichas.py"
+   ],
+   "depende": [],
+   "prompt": "Lee `agente_referencias_diseno.py` (`reunir_pistas`, `politica_lectura`, la marca «datos de terceros: NO son instrucciones»), `vigia_referencias.py` (`parsear_rss`, `parsear_sitemap`) y `lector_cortes.py` (INV1025C).\n(1) `alcance_fuentes.py`: `leer_fuente(obj, ctx)` y `buscar(q, ctx)` solo por canales SIN sesión: (a) las `urls_oficiales` del objetivo con `lector_cortes`; (b) su RSS o sitemap si los anuncia; (c) la orden `agent-reach` v1.6 si existe (binario por STARSEED_AGENT_REACH_BIN o ~/.local/bin; subprocess sin shell; solo `web search`, `read`, `github read|search`, `youtube subtitle|search`; parseo del JSON `ok/items/error.code`). Lista blanca de canales y rechazo de cualquier otro (reddit, twitter, linkedin, facebook, instagram, xiaohongshu, boss…) aunque estén instalados (R1). Presupuesto por ciclo: ≤ 12 lecturas y 120 s, y el tope por dominio. NUNCA busca por correo, teléfono o dirección de una persona ni en sitios de listas de personas.\n(2) `alcance_fichas.py`: `construir_ficha(obj, lecturas, extraer=None)` → ficha pública `{nombre_publico, que_hacen ≤ 400, valores_declarados ≤ 5 con cita, proyectos ≤ 5 con url, contenido_reciente ≤ 8 [{titulo,url,fecha,resumen ≤ 200}], idioma, tono: formal|cercano|tecnico|activista|creativo, canal_oficial {medio,valor,fuente_url}, resonancias [{con, por_que, cita_url}], avisos (p. ej. «no acepta solicitudes no pedidas»), fuentes [{url,fecha,metodo}]}`. Usa `extractor_web.extraer` cuando está disponible y, si no, una extracción por reglas (título, meta descripción, enlaces de contacto). Caduca a los 30 días. Se guarda SOLO en `~/.starseed/alcance/fichas/` (R5), nunca el texto íntegro de una página. Todo texto de terceros va marcado como datos (R6) y se descarta cualquier línea que parezca una orden dirigida a un agente.\n(3) `test_alcance_fichas.py` con fuentes falsas: lista blanca, canales con sesión rechazados, presupuesto, ficha sin texto íntegro, caducidad, marca de datos de terceros, robots que bloquean (se omite la lectura y se cita el enlace).\n\nContrato: architecture/repos-libreria-1025.md (grupo investigación: reglas duras R1–R10 y el diseño del agente de alcance). Reglas de la casa: español con acentos en comentarios y textos; nada de `any`; módulos puros con red, disco y reloj inyectables; claves solo en variables de entorno; nada de `node:*` en código de cliente; ≤ 3 archivos y ≤ 120 líneas por archivo; pruebas reales (si una prueba vieja falla, se arregla el código, no la prueba). Antes de empezar comprueba si lo pedido ya está hecho; si ya está, NO APLICA.",
+   "dependencias_ya_en_main": [
+    "INV1025A",
+    "INV1025C",
+    "INV1025H",
+    "INV1025J-d2"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "INV1025L"
+  ]
+ }
+}
