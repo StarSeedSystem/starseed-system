@@ -11,15 +11,17 @@ import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memo
 import { etiquetaFormato, formatoDe } from "@/lib/conversion/formatos";
 import { componerVideo, DURACION_DEFECTO, type EntradaPedido } from "@/lib/video-html/herramienta-componer";
 import { contextoDisenoIA, type EntidadDiseno } from "@/lib/design/principios-referencia";
+import { buscarReferencias, buscarReferenciasLocal, type DepsBuscarReferencias, type PeticionBuscarReferencias, type TarjetaReferencia, type TipoContexto } from "@/lib/library/referencias/buscar-referencias";
 /** Misma forma que `AuroraActionResult` de `src/lib/aurora/actions.ts`; `datos` lleva el resultado de herramientas como `video.componer`. */
 export interface ResultadoAccionProto { ok: boolean; message: string; status?: string; datos?: Record<string, unknown> }
 /** `avisarOrbe` devuelve `true` solo si la orbe atendió el aviso; `actor` por defecto: el agente personal. */
 export interface ContextoAccionProto { abrirRuta?: (ruta: string) => void; avisarOrbe?: (moleculaId?: string) => boolean;
-  actor?: ActorMemoria; ahora?: () => number; nuevoId?: () => string; fijarOrbe?: (activada: boolean) => boolean; cerrarOrbe?: () => void }
+  actor?: ActorMemoria; ahora?: () => number; nuevoId?: () => string; fijarOrbe?: (activada: boolean) => boolean; cerrarOrbe?: () => void;
+  referencias?: DepsBuscarReferencias }
 export const TOPE_LINEAS_ESTADO = 40, TOPE_BYTES_ESTADO = 4096;
 export const MENSAJE_PROPONER_CODIGO = "próximamente: las propuestas de código llegan con la fase F7; hoy no se ejecuta ni se guarda nada.";
 const PENDIENTE = "queda pendiente de que la persona la confirme en el panel", SALUD = new Set<string>(METRICAS_SALUD);
-const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir", "pedir", "video.componer", "activar", "desactivar", "alternar", "cerrar"];
+const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir", "pedir", "video.componer", "referencias.buscar", "activar", "desactivar", "alternar", "cerrar"];
 const MODOS: ModoRelativo[] = ["delta", "porcentaje-valor", "porcentaje-rango", "pasos"];
 let secuencia = 0;
 const texto = (v: unknown): string => (typeof v === "string" ? v.trim() : ""), num = (n: number): string => String(n).replace(".", ",");
@@ -120,6 +122,19 @@ function componer(args: Record<string, unknown>): ResultadoAccionProto {
   const voz = r.peticionVoz ? " La voz queda pedida a la puerta única." : "";
   return { ok: true, message: conContextoDiseno(`${resumen}${voz} Siguiente: ${r.siguiente}.\n${r.html}`, { nombre: tituloPedido(pedido), registroMovimiento: registroVivo() }), status: "Componiendo el vídeo…", datos: { ...r } };
 }
+const TIPOS_REFERENCIA: readonly TipoContexto[] = ["perfil", "pagina", "grupo", "mensaje", "publicacion", "pizarra", "escritorio"];
+/** Lee la petición de referencias del JSON de la acción; si el contexto no es válido, se queda en «mensaje». */
+function peticionDeReferencias(args: Record<string, unknown>): PeticionBuscarReferencias {
+  const c = args.contexto && typeof args.contexto === "object" ? args.contexto as Record<string, unknown> : {};
+  const tipo = typeof c.tipo === "string" && (TIPOS_REFERENCIA as readonly string[]).includes(c.tipo) ? c.tipo as TipoContexto : "mensaje";
+  return { peticion: texto(args.peticion) || texto(args.texto), contexto: { tipo, privado: c.privado === true || args.privado === true }, personalidad: args.personalidad, adnDiseno: args.adnDiseno };
+}
+/** Respuesta breve de la herramienta: qué se eligió, por qué canal y el primer enlace de cada tarjeta. */
+function respuestaReferencias(peticion: PeticionBuscarReferencias, tarjetas: TarjetaReferencia[]): ResultadoAccionProto {
+  if (!peticion.peticion) return no("Falta «peticion»: dime qué referencia buscas y para qué contexto.");
+  const lista = tarjetas.map((t) => `· ${t.entradaId} (${t.canalUsado}): ${t.enlaces[0] ?? "sin enlace"}`).join("\n");
+  return { ok: tarjetas.length > 0, message: `Referencias para tu ${peticion.contexto.tipo} (${tarjetas.length}):\n${lista}`, status: "Buscando referencias…", datos: { tarjetas } };
+}
 export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): ResultadoAccionProto {
   const accion = texto(args.accion), moleculaId = texto(args.molecula) || undefined, atomo = texto(args.atomo);
   const autor: Autor = { tipo: "agente", id: texto(args.agente) || "astraura" }, herramienta = texto(args.herramienta);
@@ -128,6 +143,7 @@ export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: C
   if (!ACCIONES.includes(accion)) return no(`No conozco la acción «${accion}». Usa: ${ACCIONES.join(", ")}.`);
   if (accion === "convertir") return convertir(ctx, args);
   if (accion === "video.componer") return componer(args);
+  if (accion === "referencias.buscar") { const p = peticionDeReferencias(args); return respuestaReferencias(p, p.peticion ? buscarReferenciasLocal(p) : []); }
   if (accion === "activar") {
     const fijar = ctx.fijarOrbe ?? ((a: boolean) => fijarOrbeActivada(a));
     fijar(true);
@@ -187,7 +203,12 @@ export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: C
  * y lo deja pendiente de que la persona lo confirme en la ventana. Un agente nunca ejecuta directamente.
  */
 export async function manejarAccionProtomoleculaAsync(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): Promise<ResultadoAccionProto> {
-  if (texto(args.accion) !== "pedir") return manejarAccionProtomolecula(args, ctx);
+  const accion = texto(args.accion);
+  if (accion === "referencias.buscar") {
+    const p = peticionDeReferencias(args);
+    return respuestaReferencias(p, p.peticion ? await buscarReferencias(p, ctx.referencias) : []);
+  }
+  if (accion !== "pedir") return manejarAccionProtomolecula(args, ctx);
   const { pedirComoAgente } = await import("./peticion/pedir");
   const r = await pedirComoAgente(args, { actor: ctx.actor });
   // La creación con IA viaja con el contexto de diseño del ADN: el agente lo recibe junto al plan, sin cambiar su contrato.
