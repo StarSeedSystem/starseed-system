@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "RIA1023C",
+   "ola": "1023R",
+   "titulo": "Recursos de IA · resolver a qué servidor de IA va cada capacidad según la topología (núcleo puro)",
+   "archivos": [
+    "src/lib/recursos-ia/enrutado.ts",
+    "src/lib/recursos-ia/__tests__/enrutado.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\nFunción PURA `destinoDeIA(plan, asignaciones, inventario, capacidad)` → `{via, neuronaId, baseUrl|null, motivo}`: con topología `servidor-propio` devuelve la URL del servidor de la neurona elegida (`http://<host>:4480/v1`, el host sale del inventario/oferta de esa neurona; si no se conoce, `baseUrl: null` y un motivo legible), con `cada-neurona` → `local`, con `fragmentada` → la neurona asignada a esa capacidad, y nunca `antena` para chat (solo decisiones, §3). Sin `node:*`, sin `fetch`. Reutiliza los tipos de `tipos.ts` (no inventes otros). Pruebas vitest de las cuatro topologías y del caso sin host. Corre `npx vitest run src/lib/recursos-ia` y lee el resumen entero."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "RIA1023C"
+  ]
+ }
+}
