@@ -41,8 +41,8 @@ function adnEsValido(payload: unknown): { ok: boolean; motivo?: string } {
   for (const proh of ADN_ASTRAURA.prohibiciones) {
     if (texto.includes(proh)) return { ok: false, motivo: `ADN: prohibido "${proh}"` };
   }
-  const hexes = (p.codigo ?? p.paleta ?? []).filter(
-    (c: unknown) => typeof c === "string" && /^#[0-9A-Fa-f]{6}$/.test(c)
+  const hexes = ((p.codigo ?? p.paleta ?? []) as unknown[]).filter(
+    (c: unknown): c is string => typeof c === "string" && /^#[0-9A-Fa-f]{6}$/.test(c)
   );
   const hexSet = new Set(hexes);
   const permitidos = new Set(ADN_ASTRAURA.paleta.map((c) => c.hex));
@@ -54,7 +54,7 @@ function adnEsValido(payload: unknown): { ok: boolean; motivo?: string } {
 
 /** Modelo falso: simula al router de Astraura devuelve 3 variaciones para la clave dada. */
 function modeloFalso(clave: string): DesignFile[] {
-  const base: DesignFile = {
+  const base = {
     tema: "predeterminado",
     paleta: ["#00F0FF", "#0B0F14", "#111827", "#E5E7EB"],
     fondo: "#0B0F14",
@@ -65,7 +65,7 @@ function modeloFalso(clave: string): DesignFile[] {
     { ...base, titulo: `Variación 1 de ${clave}`, descripcion: "Primera propuesta" },
     { ...base, titulo: `Variación 2 de ${clave}`, descripcion: "Segunda propuesta" },
     { ...base, titulo: `Variación 3 de ${clave}`, descripcion: "Tercera propuesta" },
-  ];
+  ] as unknown as DesignFile[];
 }
 
 /**
