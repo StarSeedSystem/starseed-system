@@ -33,7 +33,7 @@ function operacionEstaEnBlanca(op: string): op is OperacionBlanca {
   return OPERACIONES_BLANCAS.includes(op as OperacionBlanca);
 }
 
-function validarReceta(receta: unknown): { ok: boolean; error?: string } {
+export function validarReceta(receta: unknown): { ok: boolean; error?: string } {
   if (!receta || typeof receta !== "object") return { ok: false, error: "La receta debe ser un objeto." };
   const r = receta as Record<string, unknown>;
 
