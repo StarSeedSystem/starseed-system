@@ -41,16 +41,25 @@ export type BordeTrinity = Exclude<AcentoTrinity, "aurora">;
 
 /* ─────────────────────────────────── Demos ─────────────────────────────────── */
 
-/** Demostraciones del recorrido de Aurora (`aurora-guide-demos.tsx` → `StepDemo`). */
-export const CLAVES_DEMO_PASO = [
-  "orbe", "trinity-zenith", "trinity-horizon", "trinity-logic", "trinity-anchor",
-  "gestos-hibridos", "escritorio", "dashboard", "astraura", "perfil", "cerebros",
-] as const;
 /** Demostraciones del sistema (`demos-sistema.tsx` → `DEMOS_SISTEMA`). */
 export const CLAVES_DEMO_SISTEMA = ["protomolecula", "malla", "capas-conciencia", "neuronas-cerebro"] as const;
 /** Demostraciones de la red (`demos-red.tsx` → `DEMOS_RED`). */
 export const CLAVES_DEMO_RED = [
   "pilar-politica", "pilar-educacion", "pilar-cultura", "libreria-biblioteca", "genesis", "personalizacion-segura",
+] as const;
+
+/**
+ * Demostraciones del recorrido de Aurora (`aurora-guide-demos.tsx` → `StepDemo`): las propias del
+ * paso MÁS las diez de temas que sus parciales GUI1021Gb-d1b/-d2/-d3 montaron dentro de `StepDemo`
+ * a partir de `demos-sistema.tsx` y `demos-red.tsx`. La clave vieja `cerebros` despacha a la
+ * demo nueva «neuronas-cerebro» por compatibilidad. Debe cuadrar con los `case` de `StepDemo` y
+ * con `CLAVES_STEPDEMO` (`guia-completa-catalogo.test.ts`).
+ */
+export const CLAVES_DEMO_PASO = [
+  "orbe", "trinity-zenith", "trinity-horizon", "trinity-logic", "trinity-anchor",
+  "gestos-hibridos", "escritorio", "dashboard", "astraura", "perfil", "cerebros",
+  ...CLAVES_DEMO_SISTEMA,
+  ...CLAVES_DEMO_RED,
 ] as const;
 
 export type ClaveDemo =
