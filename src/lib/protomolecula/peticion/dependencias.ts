@@ -13,7 +13,10 @@ import { editarEntidad, insertarEn, textoReescritoValido, type Reescribir } from
 import { describirObjeto3d, FORMAS_3D_SOPORTADAS } from "./objeto3d";
 import { capasConFondo, elegirSetFondo, PREFIJO_CAPA_FONDO } from "./fondo";
 import { EVENTO_APLICAR_FONDO, type DetalleAplicarFondo } from "./fondo-evento";
-import { TOPE_PERSONA_POR_HORA, consumirTope } from "./tope";
+import { TOPE_PERSONA_POR_HORA, consumirTope, estadoTope } from "./tope";
+import { elegirControles, refDe, type ConsultarControles } from "../elegir-controles";
+import type { ResultadoImagen } from "../generacion-capas";
+import type { ReferenciaEntidad } from "../tipos";
 
 type De<T extends OperacionPedida["tipo"]> = Extract<OperacionPedida, { tipo: T }>;
 
@@ -91,33 +94,63 @@ export async function actorPorDefecto(contexto: ContextoProto, origen: ActorProt
 
 const DIMENSIONES: Record<string, [number, number]> = { "1:1": [1024, 1024], "4:5": [896, 1120], "9:16": [720, 1280], "16:9": [1280, 720] };
 
+type ImagenGuardable = ResultadoImagen & { blob?: Blob };
+
+/** Guarda el medio como Entidad Única y devuelve la referencia que citará la capa candidata. */
+async function guardarImagenEnBiblioteca(r: ImagenGuardable, descripcion: string): Promise<ReferenciaEntidad | null> {
+  try {
+    const { currentUserRef } = await import("@/lib/sync/entity-state");
+    const ref = await currentUserRef();
+    if (!ref) return null;
+    const nombre = `astraura-${Date.now().toString(36)}.png`;
+    const note = descripcion.slice(0, 300);
+    const tags = ["astraura", "imagen-generada"];
+    if (r.blob) {
+      const { saveMediaToLibrary } = await import("@/lib/library/media-library");
+      const saved = await saveMediaToLibrary(ref, { file: r.blob, name: nombre, origin: "Importadas", tags, note });
+      return saved.ok ? { tipo: "media", id: saved.itemId ?? nombre } : null;
+    }
+    if (!r.url || !/^https:\/\//i.test(r.url)) return null;
+    const { saveItem } = await import("@/lib/library/entity-library");
+    const saved = await saveItem(ref, { type: "file", url: r.url, title: nombre, mime: "image/png", tags, note });
+    return saved.ok ? { tipo: "media", id: saved.id } : null;
+  } catch { return null; }
+}
+
 async function generarImagen(op: De<"generar-imagen">): Promise<ResultadoPaso> {
   const m = await import("@/ai/astraura/media/media-gen");
   const [width, height] = DIMENSIONES[op.formato ?? "1:1"];
   // Gratis o local: lo que tengas puesto por defecto, salvo un servicio de pago, que aquí nunca se usa.
   const provider = m.resolveProvider("image") === "muapi" ? "pollinations" : undefined;
-  const r = await m.generateImage({ prompt: op.descripcion, width, height, ...(provider ? { provider } : {}) });
-  if (!r.ok || !r.url) return fallo(`No pude generar la imagen: ${r.error ?? "el generador no respondió"}.`);
-  const etiqueta = m.findMediaProvider(r.provider)?.label ?? r.provider;
-  const nombre = `astraura-${Date.now().toString(36)}.png`;
-  let guardada = false;
-  try {
-    const { currentUserRef } = await import("@/lib/sync/entity-state");
-    const ref = await currentUserRef();
-    if (ref && r.blob) {
-      const { saveMediaToLibrary } = await import("@/lib/library/media-library");
-      guardada = (await saveMediaToLibrary(ref, { file: r.blob, name: nombre, origin: "Importadas", tags: ["astraura", "imagen-generada"], note: op.descripcion.slice(0, 300) })).ok;
-    } else if (ref && /^https:\/\//i.test(r.url)) {
-      const { saveItem } = await import("@/lib/library/entity-library");
-      guardada = (await saveItem(ref, { type: "file", url: r.url, title: nombre, mime: "image/png", tags: ["astraura", "imagen-generada"], note: op.descripcion.slice(0, 300) })).ok;
-    }
-  } catch { guardada = false; }
-  return {
-    estado: "hecho",
-    texto: `Generé la imagen con ${etiqueta}${guardada ? " y la guardé en tu Biblioteca (Medios › Importadas)" : ""}.`,
-    imagenUrl: r.url,
-    ...(guardada ? { ruta: "/library" } : { pendiente: "La imagen no quedó guardada en tu Biblioteca (sin sesión o sin permiso para guardar): descárgala desde la vista previa." }),
-  };
+  const imagenes: ImagenGuardable[] = [];
+  const { pedirImagen } = await import("../generacion-capas");
+  const resultado = await pedirImagen(op.descripcion, {
+    generarImagen: async (prompt) => {
+      const imagen = await m.generateImage({ prompt, width, height, ...(provider ? { provider } : {}) });
+      imagenes.push(imagen);
+      return imagen;
+    },
+    guardarEntidad: (r, prompt) => guardarImagenEnBiblioteca(r, prompt),
+  });
+  const bruto = imagenes[0] ?? null;
+  const etiqueta = (p: string | undefined): string => (p ? m.findMediaProvider(p as Parameters<typeof m.findMediaProvider>[0])?.label ?? p : "el generador");
+  if (resultado.ok) {
+    return {
+      estado: "hecho",
+      texto: `Generé la imagen con ${etiqueta(bruto?.provider)} y quedó como capa candidata «${resultado.candidata.titulo}»: acéptala o descártala; no se ha insertado sola.`,
+      imagenUrl: bruto?.url,
+      ruta: "/library",
+    };
+  }
+  if (bruto?.ok && bruto.url) {
+    return {
+      estado: "hecho",
+      texto: `Generé la imagen con ${etiqueta(bruto.provider)}.`,
+      imagenUrl: bruto.url,
+      pendiente: "La imagen no quedó guardada en tu Biblioteca (sin sesión o sin permiso para guardar): descárgala desde la vista previa.",
+    };
+  }
+  return fallo(`No pude generar la imagen: ${resultado.motivo}`);
 }
 
 async function crearObjeto3d(op: De<"crear-objeto-3d">): Promise<ResultadoPaso> {
@@ -162,9 +195,38 @@ async function cambiarFondo(op: De<"fondo">): Promise<ResultadoPaso> {
     : pendiente("No pude cambiar el fondo: la apariencia del sistema no respondió. Prueba desde Ajustes › Apariencia › Fondo.");
 }
 
+/** Needle 3 elige los controles más probables; el tope por hora es el mismo de toda la IA de la petición. */
+const consultarControles: ConsultarControles = async (frase, candidatos, maximo) => {
+  if (!consumirTope("persona", TOPE_PERSONA_POR_HORA).ok) return null;
+  try {
+    const { decidirConNeedle } = await import("@/lib/astraura/needle3-client");
+    const porNombre = new Map<string, string>();
+    const herramientas = candidatos.map((c, i) => {
+      const name = `control_${i}`;
+      porNombre.set(name, refDe(c));
+      return { name, description: c.parametro.nombre.slice(0, 160), parameters: { type: "object" as const, properties: {} } };
+    });
+    const d = await decidirConNeedle("nube", frase, herramientas, { max_pasos: maximo });
+    const ids = (d.ok ? d.llamadas ?? [] : []).map((l) => porNombre.get(l.nombre)).filter((x): x is string => typeof x === "string");
+    return ids.length ? { ok: true, ids } : null;
+  } catch { return null; }
+};
+
 async function dictar(op: De<"dictar-molecula">, abrirRuta?: (r: string) => void): Promise<ResultadoPaso> {
-  const { manejarAccionProtomolecula } = await import("../accion-agente");
-  const r = manejarAccionProtomolecula({ accion: "dictar", frase: op.orden, agente: "astraura" }, { abrirRuta });
+  const [{ manejarAccionProtomolecula }, { controladorActivo }, { candidatosDe }] = await Promise.all([
+    import("../accion-agente"), import("../controlador-activo"), import("../registro-atomos"),
+  ]);
+  const c = controladorActivo();
+  const candidatos = c
+    ? await elegirControles(op.orden, candidatosDe(c.obtener().molecula), {
+        consultar: consultarControles,
+        hayCupo: () => estadoTope("persona", TOPE_PERSONA_POR_HORA).restantes > 0,
+      })
+    : undefined;
+  const r = manejarAccionProtomolecula(
+    { accion: "dictar", frase: op.orden, agente: "astraura" },
+    { abrirRuta, ...(candidatos ? { candidatos } : {}) },
+  );
   return r.ok ? { estado: "hecho", texto: `Dicté a la molécula: ${r.message}` } : pendiente(`No se aplicó el dictado: ${r.message}`);
 }
 

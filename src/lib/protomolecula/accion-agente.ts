@@ -14,7 +14,9 @@ import { componerVideo, DURACION_DEFECTO, type EntradaPedido } from "@/lib/video
 export interface ResultadoAccionProto { ok: boolean; message: string; status?: string; datos?: Record<string, unknown> }
 /** `avisarOrbe` devuelve `true` solo si la orbe atendió el aviso; `actor` por defecto: el agente personal. */
 export interface ContextoAccionProto { abrirRuta?: (ruta: string) => void; avisarOrbe?: (moleculaId?: string) => boolean;
-  actor?: ActorMemoria; ahora?: () => number; nuevoId?: () => string }
+  actor?: ActorMemoria; ahora?: () => number; nuevoId?: () => string;
+  /** Candidatos ya acotados (p. ej. por `elegirControles`); sin ellos, el dictado usa todos los abiertos. */
+  candidatos?: CandidatoParametro[] }
 export const TOPE_LINEAS_ESTADO = 40, TOPE_BYTES_ESTADO = 4096;
 export const MENSAJE_PROPONER_CODIGO = "próximamente: las propuestas de código llegan con la fase F7; hoy no se ejecuta ni se guarda nada.";
 const PENDIENTE = "queda pendiente de que la persona la confirme en el panel", SALUD = new Set<string>(METRICAS_SALUD);
@@ -77,9 +79,9 @@ function accionDe(p: Parametro, a: Record<string, unknown>): Accion | string {
   return typeof a.valor === "boolean" || typeof a.valor === "string" ? { tipo: "exacta", valor: a.valor } : "Falta «valor» (exacto) o «cambio» con su «modo».";
 }
 /** Cada frase de un dictado: aplicada, pendiente de la persona o no entendida (con la sugerencia del núcleo). */
-function dictar(c: Controlador, frase: string, autor: Autor): ResultadoAccionProto {
+function dictar(c: Controlador, frase: string, autor: Autor, candidatos?: CandidatoParametro[]): ResultadoAccionProto {
   if (!frase) return no("Falta «frase»: por ejemplo «sube el brillo un 10 %».");
-  const r = c.dictar(frase, autor, "agente"), pend = new Set(r.pendientes.map((p) => p.operacion.id));
+  const r = c.dictar(frase, autor, "agente", candidatos), pend = new Set(r.pendientes.map((p) => p.operacion.id));
   const hechos = new Set(c.obtener().historial.hechos.map((h) => h.operacion.id));
   const partes = r.resultados.map((x) => (!x.ok ? `No aplicado: ${x.razon} ${x.sugerencia}` : pend.has(x.operacion.id) ? `${x.resumen}: ${PENDIENTE}`
     : hechos.has(x.operacion.id) || (x.operacion.accion.tipo === "disparo" && r.aplicados > 0) ? `Aplicado: ${x.resumen}` : `No cambió: ${x.resumen} (ya tenía ese valor o tu rol no permite moverlo)`));
@@ -122,7 +124,7 @@ export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: C
   const m = c.obtener().molecula;
   if (!alcanceVisiblePara(ctx.actor ?? { tipo: "agente-personal" }).includes(m.ambito)) return no(`Esta molécula es de ámbito «${m.ambito}» y este agente no lo alcanza.`);
   if (accion === "estado") return si(estado(c, atomo));
-  if (accion === "dictar") return dictar(c, texto(args.frase), autor);
+  if (accion === "dictar") return dictar(c, texto(args.frase), autor, ctx.candidatos);
   if (accion === "abrir") {
     const abierto = abrir(ctx, moleculaId).texto, antes = c.obtener().pendientes.length;
     const r = c.anadirAtomo(herramienta, texto(args.titulo) || undefined, "agente");
