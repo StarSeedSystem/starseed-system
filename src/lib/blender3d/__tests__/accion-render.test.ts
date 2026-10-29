@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { parseDirectives } from "@/lib/aurora/actions";
 import { elegirNeurona, trabajoDeAccion } from "../accion-render";
 import { validarTrabajo, type Trabajo3D } from "../trabajo";
 
@@ -134,6 +135,18 @@ describe("elegirNeurona", () => {
       neurona("a1", { instalado: true, perfil: "ligero" }),
     ]);
     expect(r).toEqual({ ok: true, neurona: "mac" });
+  });
+});
+
+describe("render_3d · directiva de Astraura", () => {
+  it("el parser reconoce el nombre con dígito y el trabajo se compone", () => {
+    const texto = '[[ACCION: render_3d {"forma":"esfera","material":"cristal","color":"#7aa2ff","salida":"png"}]]';
+    const [directiva] = parseDirectives(texto);
+    expect(directiva?.name).toBe("render_3d");
+    const r = trabajoDeAccion(directiva.args);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(valido(r.trabajo).origen).toBe("astraura");
   });
 });
 

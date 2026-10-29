@@ -1218,7 +1218,9 @@ const ACTION_INDEX: Record<string, AuroraActionDef> = Object.fromEntries(
 
 // ── Parser de directivas [[ACCION: nombre {json}]] ───────────────────────────
 
-const DIRECTIVE_RE = /\[\[\s*ACCION\s*:\s*([a-zA-Z_]+)\s*(\{[\s\S]*?\})?\s*\]\]/gi;
+// El nombre puede llevar dígitos (`render_3d`, `sala_2`): antes `[a-zA-Z_]+` cortaba
+// en el primer dígito y la directiva entera dejaba de reconocerse.
+const DIRECTIVE_RE = /\[\[\s*ACCION\s*:\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*(\{[\s\S]*?\})?\s*\]\]/gi;
 
 /** Extrae todas las directivas de un texto del modelo. */
 export function parseDirectives(text: string): AuroraDirective[] {
