@@ -156,6 +156,17 @@ describe("Z-Image-Turbo y el paquete personal", () => {
     const turbo = s.instalar.find((x) => x.modelo.id === "qwen-image-2.1-turbo");
     expect(turbo?.porQue).toMatch(/GGUF personal \(Q4_K_M 4,2 GB\):/);
   });
+  it("A1 con permiso personal: el resto del paquete queda igual (el Turbo solo sustituye a la calidad)", () => {
+    const base = paqueteBase(A1, { comercial: false });
+    const s = paqueteBase(A1, { comercial: false, permitirPersonal: true });
+    expect(s.instalar.find((x) => x.papel === "rapido")?.modelo.id).toBe(
+      base.instalar.find((x) => x.papel === "rapido")?.modelo.id,
+    );
+    expect(s.instalar.find((x) => x.papel === "texto")?.modelo.id).toBe(
+      base.instalar.find((x) => x.papel === "texto")?.modelo.id,
+    );
+    expect(s.instalar.filter((x) => x.papel === "calidad")).toHaveLength(1);
+  });
   it("el permiso personal no salta la regla: nada no comercial en uso comercial", () => {
     const s = paqueteBase(MAC8, { comercial: true, permitirPersonal: true });
     expect(s.instalar.some((x) => x.modelo.id === "qwen-image-2.1-turbo")).toBe(false);
