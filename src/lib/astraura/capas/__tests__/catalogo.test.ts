@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   leerCatalogo,
   candidatosDe,
@@ -142,5 +144,65 @@ describe("profundidadNeedle", () => {
   it("sin presupuesto suficiente no hay reflejo local", () => {
     expect(profundidadNeedle(0)).toBe(0);
     expect(profundidadNeedle(7)).toBe(0);
+  });
+});
+
+// Alta en el banco (CPZ1025J): Ternary Bonsai 2 de 2B, 4B y 9B leen el JSON real
+// de config/capas-astraura.json; todo «en-banco» y sin promover al planificador.
+describe("catálogo real (config/capas-astraura.json)", () => {
+  interface CapaCruda {
+    id: string;
+    estado: string;
+    sha256: string;
+    archivo: string;
+    tamano_bytes: number;
+    ram_min_mb: number;
+    disco_mb: number;
+    familia: string;
+    capa: string;
+  }
+  const raiz = JSON.parse(
+    readFileSync(join(process.cwd(), "config/capas-astraura.json"), "utf8"),
+  ) as { esquema: number; capas: CapaCruda[] };
+  const catalogo = leerCatalogo(raiz);
+  const BONS2 = ["ternary-bonsai2-2b", "ternary-bonsai2-4b", "ternary-bonsai2-9b"] as const;
+  const cruda = (id: string): CapaCruda => raiz.capas.find((c) => c.id === id)!;
+  const entradas = (id: string) => catalogo.capas.find((c) => c.id === id)!;
+
+  it("las tres capas nuevas están de alta, en el banco y bajo el techo del banco", () => {
+    expect(raiz.capas.map((c) => c.id)).toContain("ternary-bonsai2-27b");
+    for (const id of BONS2) {
+      const e = entradas(id);
+      expect(catalogo.capas.find((c) => c.id === id), id).toBeDefined();
+      expect(e.estado, id).toBe("en-banco");
+      expect(e.familia, id).toBe("prism-ml/Ternary-Bonsai");
+      expect(usable(e), `«${id}» aún no es usable (en-banco, §6)`).toBe(false);
+      expect(e.medios, id).toEqual(expect.arrayContaining(["nativo", "servidor"]));
+    }
+  });
+
+  it("sus SHA-256 son hex de 64 en minúsculas y su archivo PTQ1_0 viene medido", () => {
+    for (const id of BONS2) {
+      const c = cruda(id);
+      expect(c.sha256, id).toMatch(/^[0-9a-f]{64}$/);
+      expect(c.archivo, id).toContain("PTQ1_0");
+      expect(c.tamano_bytes, id).toBeGreaterThan(0);
+      expect(c.ram_min_mb, id).toBeGreaterThan(0);
+      expect(c.disco_mb * 1000000, id).toBeLessThan(c.tamano_bytes);
+      if (id === "ternary-bonsai2-9b") expect(c.capa, id).toBe("razon");
+      else expect(c.capa, id).toBe("palabra");
+    }
+  });
+
+  it("el catálogo sigue siendo válido, con ids únicos y sin tocar la del 27B", () => {
+    expect(catalogo.esquema).toBe(1);
+    expect(catalogo.actualizado.length).toBeGreaterThan(0);
+    // Las 2 entradas «oído» (phonon-2, parakeet) caen del esquema por diseño.
+    expect(catalogo.capas.length).toBe(raiz.capas.filter((c) => c.capa !== "oído").length);
+    expect(new Set(raiz.capas.map((c) => c.id)).size).toBe(raiz.capas.length);
+    const veintisiete = cruda("ternary-bonsai2-27b");
+    expect(veintisiete.sha256).toBe("por-verificar");
+    expect(veintisiete.estado).toBe("recomendado");
+    expect(veintisiete.archivo).toBeUndefined();
   });
 });
