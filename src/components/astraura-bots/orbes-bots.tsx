@@ -17,6 +17,15 @@ import { leerBots, suscribirBots } from "@/lib/astraura-bots/adaptadores/almacen
 import { EVENTO_BUCLE_UI, type DetalleBucleUI } from "@/lib/astraura-bots/adaptadores/evento-bucle-ui";
 import { avanzar, bucleInicial, indicadorVisible, type EstadoBucle, type EventoBucle } from "@/lib/astraura-bots/bucle";
 import type { Bot } from "@/lib/astraura-bots/tipos";
+import { estadoOrbeDeBucle } from "@/lib/astraura-bots/estado-orbe";
+import { CURVA, DURACION } from "@/lib/design/movimiento";
+import {
+  DESTELLOS_MAX_POR_SEGUNDO,
+  cssKeyframesOrbe,
+  presetOrbe,
+  repeticionesDe,
+} from "@/lib/design/animaciones-orbe";
+import type { RegistroMovimiento } from "@/lib/design/registros-movimiento";
 import { DIAMETRO_ANILLO, IndicadorSentidos } from "./indicador-sentidos";
 import {
   MAX_ORBES_VISIBLES,
@@ -50,6 +59,8 @@ export function layoutOrbesBot(
 /** Posiciones por bot `{ version: 1, posiciones }`; abiertas = mapa y aviso del panel «Mis bots» (`"1"`). */
 export const CLAVE_ORBES = "starseed.astraura.bots.orbes.v1", EVENTO_ENFOCADO = "starseed:astraura-bot-enfocado";
 const CLAVE_ABIERTOS = "starseed.astraura.orbes-abiertos", EVENTO_ABRIR = "starseed:orbe-bot";
+/** Registro de la identidad dinámica (DAN1024B) mientras este anfitrión no reciba uno de tema. */
+const REGISTRO: RegistroMovimiento = "sobrio";
 const D = 48, UMBRAL = 6, SIN_EXTRA: readonly Bot[] = [], acotar01 = (n: number) => Math.min(1, Math.max(0, n));
 function leerMapa(clave: string): Record<string, unknown> {
   let v: unknown = null;
@@ -140,20 +151,32 @@ export function OrbesBots({ extra = SIN_EXTRA, principal, perfilId, cuentaId }: 
     if (a && !a.movido) enfocar(a.id);
     else if (a) { setDatos((s) => ({ ...s, pos: { ...s.pos, [a.id]: pos } })); guardarPosicion(a.id, pos); }
   };
-  const lado = (r: number) => (r > 0.5 ? -46 : 46), transicion = reducido ? "none" : "left 200ms ease-out, top 200ms ease-out, transform 200ms ease-out";
+  const lado = (r: number) => (r > 0.5 ? -46 : 46), transicion = reducido ? "none" : `left ${DURACION.normal}ms ${CURVA.suave}, top ${DURACION.normal}ms ${CURVA.suave}`;
   return (
     <>
       {visibles.map(({ id, pos }) => {
         const b = porId.get(id), p = moviendo?.id === id ? moviendo.pos : pos, est = bucle[id];
+        // Identidad dinámica (Ola 1024D): la orbe respira con el preset de su estado,
+        // derivado de `movimientoDe(REGISTRO, "astraura")` (sin números sueltos).
+        const estadoOrbe = estadoOrbeDeBucle(est);
+        const preset = presetOrbe(estadoOrbe, REGISTRO, reducido);
+        const repeticiones = repeticionesDe(estadoOrbe);
+        const periodoMs = Math.max(preset.periodoMs, Math.ceil(1000 / DESTELLOS_MAX_POR_SEGUNDO));
+        const nombre = `orbe-bot-${id.replace(/[^a-zA-Z0-9]+/g, "-")}-${estadoOrbe}`;
+        const keyframes = cssKeyframesOrbe(preset).replace(/@keyframes\s+[^\s{]+/, `@keyframes ${nombre}`);
+        const animacion = preset.periodoMs > 0
+          ? `${nombre} ${periodoMs}ms ${CURVA.suave} ${repeticiones === 1 ? "1" : "infinite"} both`
+          : "none";
         return b ? (
           <Fragment key={id}>
+            <style>{keyframes}</style>
             <button type="button" aria-label={`Orbe de ${b.nombre}`} aria-pressed={enfocado === id} data-bot-id={id}
               title={`${b.nombre} · toca para enfocarlo, arrastra para moverlo`}
               onPointerDown={(e) => { arrastre.current = { id, x0: e.clientX, y0: e.clientY, movido: false }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* sin captura */ } }}
               onPointerMove={alMover} onPointerUp={alSoltar} onPointerCancel={() => { arrastre.current = null; setMoviendo(null); }}
               onClick={(e) => { if (e.detail === 0) enfocar(id); }}
-              className={cn("fixed cursor-pointer touch-none select-none rounded-full", !reducido && "hover:scale-105", enfocado === id && "ring-2 ring-cyan-300/70")}
-              style={{ left: p.xRatio * vista.ancho - D / 2, top: p.yRatio * vista.alto - D / 2, zIndex: 41 + capas.indexOf(id), transition: moviendo?.id === id ? "none" : transicion }}>
+              className={cn("fixed cursor-pointer touch-none select-none rounded-full", enfocado === id && "ring-2 ring-cyan-300/70")}
+              style={{ left: p.xRatio * vista.ancho - D / 2, top: p.yRatio * vista.alto - D / 2, zIndex: 41 + capas.indexOf(id), transition: moviendo?.id === id ? "none" : transicion, animation: animacion }}>
               <QuantumOrbAvatar personaId={b.id} size={D} />
             </button>
             {est && indicadorVisible(est) ? (

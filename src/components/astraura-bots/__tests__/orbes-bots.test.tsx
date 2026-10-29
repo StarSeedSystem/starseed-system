@@ -113,6 +113,33 @@ describe("OrbesBots", () => {
     expect(recibidos).toEqual([{ id: "bot:4" }]);
   });
 
+  it("la orbe respira con el preset de su estado (Ola 1024D) y queda quieta con movimiento reducido", () => {
+    sembrar([PRED, bot("bot:a", "Luna")], { "bot:a": "1" });
+    render(<OrbesBots perfilId={PERFIL} principal={PRINCIPAL} />);
+    const orbe = screen.getByLabelText("Orbe de Luna");
+    expect(orbe.style.animation).toContain("orbe-bot-bot-a-reposo");
+    expect(orbe.style.animation).toContain("5320ms");
+    act(() => {
+      window.dispatchEvent(new CustomEvent(EVENTO_BUCLE_UI, {
+        detail: {
+          botId: "bot:a",
+          evento: {
+            tipo: "observar", sentido: "microfono", at: 1,
+            decision: { permitido: true, requiere: "nada", motivo: "Permitido.", indicador: true },
+          },
+        },
+      }));
+    });
+    expect(orbe.style.animation).toContain("orbe-bot-bot-a-escucha");
+    expect(orbe.style.animation).toContain("3800ms");
+    expect(orbe.style.animation).not.toContain("200ms");
+    reducido.valor = true;
+    render(<OrbesBots perfilId={PERFIL} principal={PRINCIPAL} extra={[bot("bot:r", "Réplica")]} />);
+    const quieta = screen.getByLabelText("Orbe de Réplica");
+    expect(quieta.style.animation).toBe("none");
+    expect(quieta.style.transition).toBe("none");
+  });
+
   it("el anillo de sentidos se monta sobre la orbe y se apaga con el bucle (BOT1011E2)", () => {
     sembrar([PRED, bot("bot:a", "Luna")], { "bot:a": "1" });
     render(<OrbesBots perfilId={PERFIL} principal={PRINCIPAL} />);
