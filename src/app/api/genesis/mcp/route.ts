@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { atenderMcp, type HerramientaMcp } from "@/lib/genesis/mcp/protocolo";
+import { variaciones_buscar } from "@/lib/genesis/mcp/herramientas";
+import { crearDatosVariaciones, type ClienteVariaciones, type OrdenVariaciones } from "@/lib/variaciones/datos";
+import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +25,22 @@ function herramientasPredeterminadas(): HerramientaMcp[] {
         contenido: [{ tipo: "texto", texto: `tareas con límite ${args.limite ?? 10}` }],
       }),
     },
+    // Tarea Y (variaciones-publicas.md §7): la clave y la capa de datos viajan en el contexto.
+    variaciones_buscar,
   ];
+}
+
+/** La capa de datos de las variaciones públicas, sobre el cliente de servidor; si falla, sin capa. */
+async function contextoConVariaciones(): Promise<{ listarVariaciones?: unknown }> {
+  try {
+    const datos = crearDatosVariaciones((await createClient()) as unknown as ClienteVariaciones);
+    return {
+      listarVariaciones: (clave: string, opciones?: { buscar?: string; orden?: OrdenVariaciones }) =>
+        datos.listarVariaciones(clave, opciones),
+    };
+  } catch {
+    return {};
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -48,7 +66,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const contexto = undefined;
+  const contexto = await contextoConVariaciones();
   const herramientas = herramientasPredeterminadas();
   const respuesta = await atenderMcp(peticion, { herramientas, contexto });
 
@@ -74,7 +92,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const contexto = undefined;
+  const contexto = await contextoConVariaciones();
   const herramientas = herramientasPredeterminadas();
   const respuesta = await atenderMcp(peticion, { herramientas, contexto });
 

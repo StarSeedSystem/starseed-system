@@ -4,7 +4,8 @@
  * Herramientas MCP inyectadas para Genesis abierto (architecture/genesis-conectores-abiertos.md §7):
  * `estado`, `tareas_listar`, `tareas_crear`, `agentes_listar`, `medidores`,
  * `proponer` (operaciones de src/lib/genesis/operaciones.ts), `biblioteca_buscar`,
- * `opciones_sugerir` y `chat`.
+ * `opciones_sugerir`, `chat` y `variaciones_buscar` (tarea Y de
+ * architecture/variaciones-publicas.md).
  *
  * Cada herramienta declara el permiso que necesita. Son módulos PUROS: sin
  * React, sin red, sin `node:*`. No lanzan procesos, no tocan disco.
@@ -13,6 +14,7 @@
  * Contrato: architecture/genesis-conectores-abiertos.md §7, §3.
  * SOP: architecture/genesis-personas-poligenesis.md
  */
+import { crearVariacionesBuscar, type ListarVariaciones } from "@/lib/genesis/mcp/herramienta-variaciones";
 
 /* ── Tipos de permiso ─────────────────────────────────────────────────────── */
 
@@ -25,7 +27,8 @@ export type PermisoMcp =
   | "operaciones:proponer"
   | "biblioteca:buscar"
   | "opciones:sugerir"
-  | "chat:enviar";
+  | "chat:enviar"
+  | "variaciones:leer";
 
 export interface FichaHerramientaMcp {
   nombre: string;
@@ -56,7 +59,7 @@ export const estado: FichaHerramientaMcp = {
     contenido: [
       { tipo: "texto", texto: "Sistema operativo: StarSeed OS" },
       { tipo: "texto", texto: "Versión: 1019G · Ola Genesis abierta" },
-      { tipo: "texto", texto: "MCP activo: 9 herramientas disponibles" },
+      { tipo: "texto", texto: "MCP activo: 10 herramientas disponibles" },
     ],
   }),
 };
@@ -368,6 +371,57 @@ export const chat: FichaHerramientaMcp = {
   },
 };
 
+/* ── Variaciones públicas (tarea Y de variaciones-publicas.md) ─────────────── */
+
+/** Listado vacío con el motivo de indisponibilidad, solo para dar forma a la ficha. */
+const listarNulo: ListarVariaciones = async () => ({
+  disponible: false,
+  variaciones: [],
+  total: 0,
+  pagina: 1,
+  porPagina: 24,
+});
+
+/**
+ * Saca `listarVariaciones` del contexto de la llamada (la capa de datos de
+ * `crearDatosVariaciones(...)` que el servidor MCP la pasa). Sin ella, null.
+ */
+function listarDelContexto(ctx: unknown): ListarVariaciones | null {
+  if (ctx && typeof ctx === "object") {
+    const buscado = (ctx as { listarVariaciones?: unknown }).listarVariaciones;
+    if (typeof buscado === "function") return buscado as ListarVariaciones;
+  }
+  return null;
+}
+
+/**
+ * `variaciones_buscar` cableada en el enjambre de herramientas: delega en
+ * `crearVariacionesBuscar` con la capa de datos que llegue por el contexto.
+ * Si no hay capa en el servidor, responde con el aviso de indisponibilidad,
+ * sin tocar red ni romper la llamada.
+ */
+export const variaciones_buscar: FichaHerramientaMcp = (() => {
+  const ficha = crearVariacionesBuscar(listarNulo);
+  return {
+    nombre: ficha.nombre,
+    descripcion: ficha.descripcion,
+    permiso: "variaciones:leer",
+    esquema: ficha.esquema,
+    ejecutar: async (args, ctx) => {
+      const listar = listarDelContexto(ctx);
+      if (!listar) {
+        return {
+          esError: true,
+          contenido: [
+            { tipo: "texto", texto: "Las variaciones públicas no están disponibles en este servidor." },
+          ],
+        };
+      }
+      return await crearVariacionesBuscar(listar).ejecutar(args);
+    },
+  };
+})();
+
 /* ── Exportación agrupada ─────────────────────────────────────────────────── */
 
 export const HERRAMIENTAS_MCP: readonly FichaHerramientaMcp[] = [
@@ -380,6 +434,7 @@ export const HERRAMIENTAS_MCP: readonly FichaHerramientaMcp[] = [
   biblioteca_buscar,
   opciones_sugerir,
   chat,
+  variaciones_buscar,
 ];
 
 // // No export to avoid conflicts
