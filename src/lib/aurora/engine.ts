@@ -49,7 +49,7 @@ import { ejecutarAccion } from "@/lib/astraura-bots/adaptadores/ejecutor-accione
 import { decidirAccion, NIVEL_POR_DEFECTO } from "@/lib/astraura-bots/permisos";
 import { avanzar, bucleInicial } from "@/lib/astraura-bots/bucle";
 import { botPredeterminado } from "@/lib/astraura-bots/predeterminado";
-import { bloqueTono, situacionDeTexto } from "@/lib/astraura-bots/adaptadores/tono-chat";
+import { bloqueTono, preferenciasPersona, situacionDeTexto } from "@/lib/astraura-bots/adaptadores/tono-chat";
 // Puente de glow: el Orbe de Aurora late al ritmo del habla escuchando estos
 // eventos (el TTS del navegador no expone amplitud). Aditivo y defensivo.
 import { emitAuroraSpeak } from "@/lib/aurora/aurora-orb-bus";
@@ -1776,7 +1776,10 @@ export function useAuroraEngine(): AuroraEngine {
       // situación del turno por palabras clave. Aditivo: si falla, el prompt sigue igual.
       let bloqueTonoBot = "";
       try {
-        bloqueTonoBot = bloqueTono(botPredeterminado("perfil", "local"), null, { situacion: situacionDeTexto(text) });
+        bloqueTonoBot = bloqueTono(botPredeterminado("perfil", "local"), activeRef.current, {
+          situacion: situacionDeTexto(text),
+          preferencias: preferenciasPersona(),
+        });
       } catch { bloqueTonoBot = ""; }
       const system =
         buildSystemPrompt(activeRef.current) + "\n\n" +
