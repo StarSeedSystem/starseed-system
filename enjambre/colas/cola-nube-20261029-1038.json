@@ -1,0 +1,65 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "RFI1018F",
+   "ola": "Ola 1018R · Referencias e inspiración: categoría de la Biblioteca y conocimiento de Astraura en todos los contextos",
+   "titulo": "Astraura · herramienta `referencias.buscar` en chats, agentes, Protomolécula y pizarras",
+   "archivos": [
+    "src/lib/library/referencias/buscar-referencias.ts",
+    "src/lib/protomolecula/accion-agente.ts",
+    "src/lib/library/referencias/__tests__/buscar-referencias.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`buscarReferencias({ peticion, contexto: { tipo: \"perfil\"|\"pagina\"|\"grupo\"|\"mensaje\"|\"publicacion\"|\"pizarra\"|\"escritorio\", privado }, personalidad?, adnDiseno?, laya? }, deps)`: tema y subtema por Laya (`choice` con los temas del catálogo; sin Laya, por palabras), orden por la personalidad del agente y el ADN de diseño, y para cada referencia elegida consulta solo los canales que `canalPara` permite (MCP o API conectados; si no, la devuelve como enlace). Devuelve tarjetas { entradaId, porque, enlaces, canalUsado }. En accion-agente.ts añade la acción `referencias.buscar` (solo añadir). Pruebas con deps falsas. Contrato: architecture/referencias-inspiracion.md (léelo entero antes de empezar) y su catálogo config/referencias-inspiracion.json (datos verificados: no los cambies salvo que la tarea lo diga). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; respeta SIEMPRE `canales` y `prohibido` de cada entrada (nada de scraping, descarga masiva, caché más allá de lo permitido ni entrenar IA con contenido de terceros); nunca copies textos, marcas, logos, capturas ni assets de terceros: de una referencia sale un diseño propio con la referencia citada; módulos PUROS siempre que se pueda (red, reloj y MCP inyectables); pruebas sin red; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "DGM1018F",
+    "RFI1018A"
+   ],
+   "dependencias_ya_en_main": [
+    "RFI1018B"
+   ]
+  },
+  {
+   "id": "DGM1018H",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Protomolécula · átomo «diagrama»",
+   "archivos": [
+    "src/lib/protomolecula/atomos/diagrama.ts",
+    "src/lib/protomolecula/atomos/index.ts",
+    "src/lib/protomolecula/__tests__/atomo-diagrama.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Patrón `DefinicionAtomo`: herramientaId \"diagram-design\", parámetros (tipo entre los 45, tema claro/oscuro, animado, ancho, perfil de marca), entradas (texto, datos, draw.io, Mermaid, Excalidraw) y salidas (html, svg, png). Plan PURO; regístralo en index.ts (solo añadir la línea). Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "DGM1018F"
+   ],
+   "dependencias_ya_en_main": [
+    "FSH1018O"
+   ]
+  },
+  {
+   "id": "ART1025H",
+   "ola": "Ola 1025C · ArtCraft y Rare",
+   "titulo": "Átomos de la Protomolécula para FigCraft, GridCraft y DeckCraft (build web aislado)",
+   "area": "artcraft",
+   "archivos": [
+    "src/lib/protomolecula/atomos/artcraft.ts",
+    "src/lib/protomolecula/atomos/index.ts",
+    "src/lib/protomolecula/atomos/__tests__/artcraft.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: `architecture/artcraft-y-rare.md` §4.2 y §4.5; `architecture/protomolecula.md` §11.1 (átomos propios) y §3.2 (iframe aislado). Lee `src/lib/protomolecula/registro-atomos.ts` (`DefinicionAtomo`, `VistaAtomo`, `sanearParametro`) y `src/lib/protomolecula/atomos/sintetizador.ts` como modelo y `src/lib/protomolecula/puente-herramientas.ts` (mensajes `hola`, `cambio`, `exportar`, `listo`, `error`; `esUrlEmbebible`).\n\n`artcraft.ts` define `ATOMOS_ARTCRAFT: DefinicionAtomo[]` con tres átomos web (`herramientaId` = `figcraft`, `gridcraft`, `deckcraft`, los ids del catálogo): integración `iframe-aislado`, control «ventana» (no hay canal de control en el build web: SOLO la ventana y el intercambio de archivos por `exportar`), categoría: la más cercana de `CategoriaAtomo` (no hay «documentos»: `imagen` para FigCraft y DeckCraft, `codigo` para GridCraft; deja el motivo en un comentario). La vista es un documento HTML mínimo con `<iframe sandbox=\"allow-scripts allow-same-origin\">` hacia el zip web alojado como ORIGEN APARTE: la URL NUNCA se escribe a mano; se construye con una función `urlBuildWeb(app, origenAlojado)` que exige `esUrlEmbebible` y devuelve `null` si el OS aún no aloja el zip (entonces la vista muestra «próximamente: el build web de <App> aún no está alojado» y un enlace a su repositorio, sin iframe). Los parámetros que declara cada átomo salen de una lista corta propia y saneada con `sanearParametro` (p. ej. FigCraft: zoom; GridCraft: hoja activa; DeckCraft: diapositiva actual), todos de tipo seguro; ninguno ejecuta código.\n\nEn `atomos/index.ts` suma `ATOMOS_ARTCRAFT` a `ATOMOS_PROPIOS` (una línea) sin romper `registrarAtomosPropios()`, que debe seguir siendo idempotente. Hay pruebas existentes de ese índice (`atomos.test.ts`, `__tests__/atomos.test.ts`): deben seguir en verde; si cuentan átomos, actualiza su número con una constante derivada, no a mano.\n\nPruebas nuevas (≥ 8): tres átomos con los ids del catálogo; ninguna vista lleva `allow-top-navigation` ni `allow-popups`; sin origen alojado la vista no contiene `<iframe`; con un origen válido sí y con uno inválido (`javascript:`, otro dominio sin https) no; registrar dos veces no duplica.\n\nREGLAS COMUNES: lee primero la sección que se cita de `architecture/artcraft-y-rare.md` (el contrato). Español con acentos en todo texto que lea una persona. TypeScript estricto, sin `any`. Los módulos de `src/lib/artcraft/` son PUROS (sin `node:*`, sin React, sin red), salvo `pasarela-servidor.ts`, que es solo de servidor y que ningún componente de cliente puede importar (`next build` falla con `node:*` en el cliente). Ni claves ni rutas del disco en el código ni en las pruebas; las cadenas con forma de clave se montan en tiempo de ejecución (`[\"a\", \"b\"].join(\"\")`). Como mucho 3 archivos y 120 líneas por archivo (estilo denso del repo, sin relleno). Pruebas vitest propias en `__tests__`; ejecuta solo las relacionadas, nunca `tsc` ni `next build`. No toques `src/lib/protomolecula/catalogo-herramientas.ts`.",
+   "dependencias_ya_en_main": [
+    "ART1025E"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "RFI1018F",
+   "DGM1018H",
+   "ART1025H"
+  ]
+ }
+}
