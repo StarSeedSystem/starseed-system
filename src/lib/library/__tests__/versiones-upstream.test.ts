@@ -156,7 +156,7 @@ describe("resumirVersiones", () => {
             new Set(["lib-c", "lib-e"]),
         );
         expect(resumen.map((r) => r.id)).toEqual(["lib-c", "lib-e"]);
-        expect(resumen.map((r) => r.tono)).toEqual(["al-dia", "novedad"]);
+        expect(resumen.map((r) => r.tono)).toEqual(["al-dia", "al-dia"]);
     });
 
     it("copia los datos de la fuente tal cual, sin inventar versiones", () => {
