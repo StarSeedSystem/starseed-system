@@ -98,6 +98,23 @@ describe("hook useTarjetaImagenes", () => {
     expect(result.current.error).toBeNull();
   });
 
+  it("generarOpciones: la petición a medias se completa con PETICION_DEFECTO (aplicado, no adorno)", async () => {
+    h.planImagen.planImagen.mockReturnValueOnce({ opciones: [opcionDePlan], descartes: [] });
+    const { result } = renderHook(() => useTarjetaImagenes());
+    await act(async () => { await result.current.generarOpciones({ prompt }); });
+    const pedida = h.planImagen.planImagen.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(pedida).toMatchObject(PETICION_DEFECTO);
+    expect(pedida.prompt).toBe(prompt);
+    expect(result.current.opciones).toHaveLength(1);
+    // y «variar» repite la petición completa guardada, con esa base de PETICION_DEFECTO
+    h.planImagen.planImagen.mockReturnValueOnce({ opciones: [opcionDePlan], descartes: [] });
+    await act(async () => {
+      result.current.variarOpcion(result.current.opciones[0]!);
+    });
+    const repetida = h.planImagen.planImagen.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(repetida).toMatchObject(PETICION_DEFECTO);
+  });
+
   it("elegirOpcion: genera, marca la opción con su URL y guarda en Biblioteca con la atribución", async () => {
     h.planImagen.planImagen.mockReturnValueOnce({ opciones: [opcionDePlan], descartes: [] });
     h.generarImagen.generarImagen.mockResolvedValueOnce({ ok: true, data: { url: "http://e.com/i.png" } });
