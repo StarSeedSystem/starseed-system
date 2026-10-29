@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import {
@@ -56,7 +56,10 @@ describe("MenuTexto", () => {
     document.body.append(campo);
     fireEvent.contextMenu(campo);
     fireEvent.contextMenu(destino(), { shiftKey: true });
-    fireEvent.contextMenu(destino(), { defaultPrevented: true });
+    // «Ya atendido» no se lleva en el init del evento: se simula con preventDefault real.
+    const atendido = createEvent.contextMenu(destino());
+    atendido.preventDefault();
+    fireEvent(destino(), atendido);
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 

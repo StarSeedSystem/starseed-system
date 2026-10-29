@@ -13,6 +13,7 @@
 
 import { useEffect } from "react";
 import { useAccount } from "@/context/account-context";
+import { establecerPaginaTraducida } from "@/components/traduccion/menu-texto";
 import { leer } from "@/lib/traduccion/preferencias";
 import { crearClienteLibreTranslate } from "@/lib/traduccion/libretranslate";
 import { crearPaginaViva, type PaginaViva } from "@/lib/traduccion/pagina-viva";
@@ -36,9 +37,15 @@ export function PaginaVivaMontaje() {
                         raiz: document.body,
                         idioma: prefs.idioma,
                     });
+                    // TRD1020E: el menú del clic derecho ve en su ctx que el motor de página
+                    // entera está activo (es la llamada que el contrato pide a TRD1020C).
+                    establecerPaginaTraducida(true);
                 }
             } else {
-                viva?.parar();
+                if (viva) {
+                    viva.parar();
+                    establecerPaginaTraducida(false);
+                }
                 viva = null;
             }
         };
@@ -46,7 +53,10 @@ export function PaginaVivaMontaje() {
         window.addEventListener("starseed:traduccion", decidir);
         return () => {
             window.removeEventListener("starseed:traduccion", decidir);
-            viva?.parar();
+            if (viva) {
+                viva.parar();
+                establecerPaginaTraducida(false);
+            }
             viva = null;
         };
     }, [user?.id]);
