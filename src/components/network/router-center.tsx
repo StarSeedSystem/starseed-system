@@ -20,6 +20,7 @@ import {
   type EntradaTabla,
   type ResultadoCompatibilidad,
 } from "@/lib/network/routers-malla/compatibilidad-openwrt";
+import { RoutersMallaPanel } from "@/components/network/routers-malla-panel";
 import {
   getNetworkConfig,
   setNetworkConfig,
@@ -317,6 +318,9 @@ export function RouterCenter({ neuronId }: { neuronId?: string }) {
 
       {/* Compatibilidad con OpenWrt (instalar firmware libre) */}
       <CompatibilidadOpenwrt />
+
+      {/* Routers de la malla (§8 del contrato SiO₂): añadir, compatibilidad, plan y guiones */}
+      <RoutersMallaPanel />
 
       {/* Controlador OpenWISP */}
       <div className="rounded-xl border border-white/10 bg-white/5 p-3">
