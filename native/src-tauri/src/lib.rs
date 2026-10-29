@@ -42,9 +42,12 @@ mod recursos_ia;
 mod segundo_plano;
 mod serie;
 mod sha256;
-// (2026-10-19) `ventana_remota` (APM1017P) queda FUERA de la compilación hasta que el enjambre lo
-// rehaga con las API reales de xcap 0.9, enigo 0.6 e image 0.25 (cola APR1019): rompía `cargo check`
-// del CI y frenaba la publicación de 45 commits. El archivo se conserva tal cual.
+// Ventanas prestables y captura remota (APR1019A), ya con las API reales de xcap 0.9 e image 0.25.
+// Solo escritorio: xcap no aplica en Android/iOS. La entrada remota (`entrada_ventana`) llega en
+// APR1019B con enigo 0.6; por eso aquí solo se registran los dos comandos de lista y captura.
+#[cfg(desktop)]
+mod ventana_remota;
+
 #[cfg(test)]
 mod android_parche;
 
@@ -570,6 +573,11 @@ pub fn run() {
             nativa::nas_listar,
             nativa::nas_leer,
             recursos_ia::recursos_ia_detectar,
+            // Ventanas prestables y captura: solo escritorio (en móvil el módulo ni compila).
+            #[cfg(desktop)]
+            ventana_remota::ventanas_prestables,
+            #[cfg(desktop)]
+            ventana_remota::capturar_ventana,
         ])
         .build(tauri::generate_context!())
         .expect("error irrecuperable arrancando la app nativa StarSeed")
