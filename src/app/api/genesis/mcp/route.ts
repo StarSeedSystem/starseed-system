@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { atenderMcp, type HerramientaMcp } from "@/lib/genesis/mcp/protocolo";
+import { crearHerramientaVariaciones } from "@/lib/genesis/mcp/herramienta-variaciones";
+import { crearDatosVariaciones, type ClienteVariaciones } from "@/lib/variaciones/datos";
+import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/**
+ * «Variaciones públicas» para el MCP de Genesis (Ola 1019V, tarea Y): la capa de
+ * datos llega inyectada desde el cliente de Supabase del servidor y la herramienta
+ * solo lee lo publicado (architecture/variaciones-publicas.md §6).
+ */
+async function herramientaVariaciones(): Promise<HerramientaMcp> {
+  const cliente = (await createClient()) as unknown as ClienteVariaciones;
+  const { listarVariaciones } = crearDatosVariaciones(cliente);
+  return crearHerramientaVariaciones(listarVariaciones);
+}
 
 function herramientasPredeterminadas(): HerramientaMcp[] {
   return [
@@ -49,7 +63,7 @@ export async function GET(req: NextRequest) {
   }
 
   const contexto = undefined;
-  const herramientas = herramientasPredeterminadas();
+  const herramientas = [...herramientasPredeterminadas(), await herramientaVariaciones()];
   const respuesta = await atenderMcp(peticion, { herramientas, contexto });
 
   return NextResponse.json(respuesta);
@@ -75,7 +89,7 @@ export async function POST(req: NextRequest) {
   }
 
   const contexto = undefined;
-  const herramientas = herramientasPredeterminadas();
+  const herramientas = [...herramientasPredeterminadas(), await herramientaVariaciones()];
   const respuesta = await atenderMcp(peticion, { herramientas, contexto });
 
   return NextResponse.json(respuesta);
