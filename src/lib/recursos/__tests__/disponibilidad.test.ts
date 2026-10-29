@@ -102,6 +102,11 @@ describe("disponibilidad.ts", () => {
       const bits = decodificar(piezas[0].bits);
       expect(vistosDe(piezas[0], bits)).toEqual([2, 9]);
     });
+
+    it("no emite anuncio cuando no tiene ningún índice válido", () => {
+      expect(anuncio("nodo", "e", 5, [], 0)).toEqual([]);
+      expect(anuncio("nodo", "e", 5, [7, -2], 0)).toEqual([]);
+    });
   });
 
   describe("fusionar y quienTiene", () => {
