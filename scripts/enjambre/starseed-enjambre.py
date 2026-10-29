@@ -5805,6 +5805,11 @@ def contexto_tarea(t, raiz=None):
         "y nunca rutas inventadas como `/workspace/...`: cualquier ruta fuera de la raiz se rechaza "
         "automaticamente y pierdes el intento.\n\n"
     ) % raiz
+    # (2026-10-29, Ola 1018L) Habilidad de Matt Pocock (tarjeta) al final del prompt del
+    # escritor, elegida por las palabras de la tarea; si un System One local (Laya/Colibri)
+    # respondió en ≤ 3 s con confianza, su elección prima (contrato laya-y-habilidades.md §5).
+    from habilidades_enjambre import con_habilidad_viva
+    _prompt_escritor = con_habilidad_viva(t["prompt"], t)
     return (
         regla_raiz
         + "Trabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). "
@@ -5846,7 +5851,7 @@ def contexto_tarea(t, raiz=None):
         t.get("ola", ""),
         t.get("titulo", ""),
         ", ".join(t.get("archivos", [])),
-        t["prompt"],
+        _prompt_escritor,
     )
 
 
