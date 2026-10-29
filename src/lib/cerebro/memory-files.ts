@@ -31,6 +31,7 @@ import {
   Plug,
   type LucideIcon,
 } from "lucide-react";
+import { validarSinCredencialesEpic } from "@/lib/artcraft/juegos-pc";
 
 /* ------------------------------------------------------------------ */
 /* Tipos                                                               */
@@ -365,6 +366,12 @@ export async function listMemoryFiles(brainId: string | null): Promise<MemoryFil
 
 export async function saveMemoryFile(file: Partial<MemoryFile>): Promise<MemoryFile | null> {
   try {
+    const guarda = validarSinCredencialesEpic(typeof file.content === "string" ? file.content : "");
+    if (!guarda.ok) {
+      // §5.3: la sesión de Epic es de la persona y jamás entra en una memoria.
+      console.warn("Memoria rechazada (§5.3):", guarda.hallazgos);
+      return null;
+    }
     const owner = await uid();
     if (!owner) return null;
     const sb = createClient();
@@ -398,6 +405,12 @@ export async function saveMemoryFile(file: Partial<MemoryFile>): Promise<MemoryF
 export async function updateMemoryContent(id: string, content: string): Promise<boolean> {
   // Sin cambios respecto a lo último leído/escrito → no sale ninguna petición.
   if (contenidoSinCambios(id, content)) return true;
+  const guarda = validarSinCredencialesEpic(content);
+  if (!guarda.ok) {
+    // §5.3: el autosave tampoco lleva credenciales de Epic a la memoria.
+    console.warn("Memoria rechazada (§5.3):", guarda.hallazgos);
+    return false;
+  }
   try {
     const owner = await uid();
     if (!owner) return false;

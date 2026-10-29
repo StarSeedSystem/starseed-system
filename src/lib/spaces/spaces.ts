@@ -38,6 +38,7 @@ import { uidActual } from "@/lib/consumo/usuario";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { deviceId } from "@/lib/sync/entity-state";
 import { syncManager, OS_TABLE } from "@/lib/sync/sync-manager";
+import { validarSinCredencialesEpic } from "@/lib/artcraft/juegos-pc";
 
 export type SpaceKind = "desktop" | "dashboard" | "board";
 export type SpaceAccess = "private" | "profiles" | "invite" | "public";
@@ -183,6 +184,12 @@ export async function updateSpaceMeta(id: string, patch: UpdateSpaceMetaInput): 
 
 /** Actualiza el doc colaborativo de un espacio (requiere space_can_edit). Marca device_id de este cliente. */
 export async function updateSpaceDoc(id: string, doc: Record<string, unknown>): Promise<Space | null> {
+    // §5.3: la sesión de Epic vive solo en la carpeta 0700 de la persona, nunca dentro de una sala.
+    const guarda = validarSinCredencialesEpic(JSON.stringify(doc ?? {}));
+    if (!guarda.ok) {
+        console.warn("Doc de sala rechazado (§5.3):", guarda.hallazgos);
+        return null;
+    }
     try {
         const supabase = createClient();
         const { data, error } = await supabase
