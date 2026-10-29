@@ -223,7 +223,9 @@ def reescribir(texto, primero, cad):
         bloque.append("  - provider: %s" % p)
         bloque.append("    model: %s" % con_prefijo(p, m))
     nuevo = "\n".join(bloque) + "\n"
-    patron = re.compile(r"(?ms)^fallback_providers:\s*\n(?:  .*\n|\n)*?(?=^\S)")
+    # (2026-10-29, DIR1029B) Sin DOTALL: con «s», `  .*\n` cruzaba líneas y el bloque se tragaba todo hasta la
+    # última clave de arriba (`_left_core_installed`, `display`, `mcp_servers`…), y Hermes perdía sus MCP.
+    patron = re.compile(r"(?m)^fallback_providers:[ \t]*\n(?:[ \t]+\S.*\n|[ \t]*\n)*")
     if patron.search(texto):
         texto = patron.sub(nuevo, texto, count=1)
     else:
