@@ -33,14 +33,22 @@ describe("planificarJuegoPc · rutas A, B y C (§5.1)", () => {
   it("ruta B: servidor propio con GPU, Wine o Proton y transmisión", () => {
     expect(plan(NEURONA_SERVIDOR, [SERVIDOR_PROPIO]).ruta).toBe("servidor-propio");
   });
+  it("ruta B: salta un servidor propio sin GPU (aunque tenga Wine) y elige el que la tiene", () => {
+    const sinGpu: EntradaPlan["servidores"][number] =
+      { id: "cpu", propio: true, compartido: false, gpu: false, wineOProton: true, transmision: "sunshine", libreDiscoGB: 40 };
+    expect(plan(NEURONA_SERVIDOR, [sinGpu, SERVIDOR_PROPIO]).ruta).toBe("servidor-propio");
+  });
   it("sin pantalla ni servidor viable: ninguna, sin pasos", () => {
     const r = plan(NEURONA_SERVIDOR, []);
     expect(r.ruta).toBe("ninguna");
     expect(r.pasos).toEqual([]);
   });
-  it("ruta C bloqueada mientras las condiciones de Epic no estén decididas", () => {
+  it("ruta C bloqueada mientras las condiciones de Epic no estén decididas, aunque la persona acepte", () => {
     expect(CONDICIONES_EPIC_DECIDIDAS).toBe(false);
-    expect(plan(NEURONA_SERVIDOR, [SERVIDOR_COMPARTIDO]).ruta).toBe("ninguna");
+    const r = plan(NEURONA_SERVIDOR, [SERVIDOR_COMPARTIDO]);
+    expect(r.ruta).toBe("ninguna");
+    expect(r.pasos).toEqual([]);
+    expect(r.avisos).toContain("no hay ruta disponible en las condiciones actuales");
   });
 });
 
@@ -83,6 +91,7 @@ describe("esUrlPermitidaRare · solo releases oficiales, descargas remotas bloqu
     for (const u of [
       "https://raredevs.github.io/wring/workarounds.json", "https://www.protondb.com/app/1",
       "http://github.com/RareDevs/Rare/releases/tag/1", "https://github.com/RareDevs/Otro/releases/1",
+      "https://github.com/RareDevs/Rare/releases",
     ]) expect(esUrlPermitidaRare(u), u).toBe(false);
   });
 });
