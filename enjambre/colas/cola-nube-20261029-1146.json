@@ -1,0 +1,56 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "RTS1010-MGR2",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Guardia sin node:* también para /metagenesis",
+   "archivos": [
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx",
+    "src/lib/metagenesis/__tests__/remoto-nodos.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea S1010-MGR2 («Guardia sin node:* también para /metagenesis») se hizo en main por otro camino; su rama nube/a1-20261014-071705 queda archivada en `refs/archivo/nube/a1-20261014-071705` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTS1010-MGR2 · solo estos archivos: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" } });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "S1010-MGR2",
+    "rama": "nube/a1-20261014-071705"
+   }
+  },
+  {
+   "id": "RTS1010-MGR2b",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Guardia sin node:* también para /metagenesis",
+   "archivos": [
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx",
+    "src/lib/metagenesis/__tests__/remoto-nodos.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea S1010-MGR2 («Guardia sin node:* también para /metagenesis») se hizo en main por otro camino; su rama nube/a1-20261014-071705-RTRTS1010-TU-LL1cobjc queda archivada en `refs/archivo/nube/a1-20261014-071705-RTRTS1010-TU-LL1cobjc` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTS1010-MGR2b · solo estos archivos: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" } });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "S1010-MGR2",
+    "rama": "nube/a1-20261014-071705-RTRTS1010-TU-LL1cobjc"
+   }
+  },
+  {
+   "id": "APR1019A",
+   "ola": "Ola 1019N · Apps en la malla, lado nativo: ventana_remota rehecha con las API reales (cargo check en verde)",
+   "titulo": "Ventanas prestables y captura con xcap 0.9 (compila)",
+   "archivos": [
+    "native/src-tauri/src/ventana_remota.rs",
+    "native/src-tauri/Cargo.toml",
+    "native/src-tauri/src/lib.rs"
+   ],
+   "depende": [],
+   "prompt": "Rehaz `ventanas_prestables` y `capturar_ventana` de `ventana_remota.rs` con la API real de xcap 0.9 (lista de `Window::all()`, sin duplicar por id; nombre de app con `app_name()`; captura con `capture_image()`, redimensiona con image 0.25 y devuelve PNG en base64 con el engine de base64 0.22). Quita el campo repetido de `VentanaInfo`. Deja `entrada_ventana` fuera por ahora (APR1019B). Vuelve a declarar `#[cfg(desktop)] mod ventana_remota;` y registra los dos comandos en `generate_handler!` separados por comas; si `generate_handler!` no admite `#[cfg]` dentro, registra la lista de escritorio en un bloque `#[cfg(desktop)]` aparte. Añade xcap = \"0.9\", image = \"0.25\" y base64 = \"0.22\". Contexto: `architecture/apps-en-la-malla.md` y el commit 4e8fac291, que sacó `ventana_remota` de la compilación porque no compilaba (features inexistentes, comandos sin comas en `generate_handler!`, campo repetido, API de xcap y base64 que ya no existen). Versiones REALES: xcap 0.9 (features: image, wgc; `xcap::Window::all()`, `app_name()`, `title()`, `id()` devuelven Result; `capture_image()` devuelve `image::RgbaImage` de image 0.25), enigo 0.6 (sin features keyboard/mouse; `Enigo::new(&Settings::default())`, traits `Keyboard` y `Mouse`, `Direction::Click`, `Coordinate::Abs`), image 0.25 y base64 0.22 (`base64::engine::general_purpose::STANDARD.encode`). Comprueba la API en docs.rs de esa versión antes de escribir. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; las dependencias van en la sección de escritorio de Cargo.toml; no quites el pin de rust-ini; comentarios en español; `cargo check --manifest-path native/src-tauri/Cargo.toml` debe pasar en Linux (es el job «Tauri · cargo check» del CI)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "APR1019A",
+   "RTS1010-MGR2b",
+   "RTS1010-MGR2"
+  ]
+ }
+}
