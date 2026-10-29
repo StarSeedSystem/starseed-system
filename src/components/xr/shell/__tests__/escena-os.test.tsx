@@ -16,6 +16,7 @@ vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams()
 vi.mock("@react-three/fiber", () => ({
     Canvas: ({ children }: { children?: React.ReactNode }) => <div data-testid="canvas-xr">{children}</div>,
     useThree: (sel: (s: { camera: { position: { y: number } } }) => unknown) => sel({ camera: { position: { y: 1.7 } } }),
+    useFrame: () => undefined,
 }));
 vi.mock("@react-three/xr", () => ({
     XR: ({ children }: { children?: React.ReactNode }) => <div data-testid="xr-store">{children}</div>,
