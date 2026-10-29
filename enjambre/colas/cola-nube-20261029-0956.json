@@ -1,0 +1,43 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "id": "GCA1019R-d1",
+   "titulo": "Herramientas MCP de Genesis (parte 1 de 2)",
+   "archivos": [
+    "src/lib/genesis/mcp/herramientas.ts"
+   ],
+   "depende": [],
+   "prompt": "Definiciones (nombre, descripción en español, `inputSchema` JSON Schema) y manejadores inyectados para `estado`, `tareas_listar`, `tareas_crear`, `agentes_listar`, `medidores`, `proponer` (operaciones de `src/lib/genesis/operaciones.ts`), `biblioteca_buscar`, `opciones_sugerir` y `chat`. Cada una declara el permiso que necesita. Prueba: esquemas válidos y manejadores llamados con lo validado. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.\n\n## PARTE 1 DE 2 (la dirección dividió GCA1019R: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/genesis/mcp/herramientas.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GCA1019R",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "GCA1019Q",
+    "GCA1019K"
+   ]
+  },
+  {
+   "id": "ART1025L",
+   "ola": "Ola 1025C · ArtCraft y Rare",
+   "titulo": "Rare: «Juegos de PC», lanzamiento confirmado y guarda de credenciales de Epic",
+   "area": "artcraft",
+   "archivos": [
+    "src/lib/protomolecula/servicio-local.ts",
+    "src/lib/artcraft/juegos-pc.ts",
+    "src/lib/artcraft/__tests__/juegos-pc.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: `architecture/artcraft-y-rare.md` §5 completo (rutas A, B y C, y §5.3 credenciales de Epic). Rare es GPL-3.0-or-later: SOLO como programa aparte, nunca enlazado. Las credenciales de Epic son SIEMPRE de la persona y nunca van a un repositorio, memoria, sala, grupo ni registro.\n\n1) En `src/lib/protomolecula/servicio-local.ts` añade `rare: \"Rare\"` a `BINARIOS_PERMITIDOS` (una línea; el objeto sigue congelado) sin tocar nada más: `pedirLanzamiento(\"rare\", …)` ya pide siempre la confirmación de una persona y una IA nunca lo abre sola. Añade en sus pruebas existentes (`src/lib/protomolecula/__tests__/servicio-local.test.ts`) SOLO si hace falta para que sigan en verde.\n\n2) `src/lib/artcraft/juegos-pc.ts` (PURO) exporta: `CONDICIONES_EPIC_DECIDIDAS = false` (constante; hasta que Alex decida, la ruta C no se ofrece); `planificarJuegoPc(e: { neurona: { sistema: \"macos\" | \"linux\" | \"windows\" | \"otro\"; tienePantalla: boolean; binarioRare: boolean; gpu: boolean; memoriaMB: number }; servidores: { id: string; propio: boolean; compartido: boolean; gpu: boolean; wineOProton: boolean; transmision: \"selkies\" | \"sunshine\" | null; libreDiscoGB: number }[]; persona: { id: string; aceptaCondicionesEpic: boolean } })` → `{ ruta: \"neurona-propia\" | \"servidor-propio\" | \"servidor-compartido\" | \"ninguna\"; motivo: string; pasos: string[]; avisos: string[] }`. Ruta A si hay pantalla y Rare instalado; B si hay un servidor propio con GPU, Wine o Proton y transmisión; C solo si `CONDICIONES_EPIC_DECIDIDAS` y la persona acepta (una sesión por persona, cada una con SU cuenta); si no, `ninguna` con el motivo. Los `pasos` son frases cortas («abre Rare», «inicia sesión en Epic tú mismo»…) y los `avisos` incluyen que el A1 de Oracle (sin GPU) no sirve para 3D cuando el servidor tiene `gpu: false`. `rutaConfigEpic(datos: string, personaId: string): { ruta: string; modo: number }` → `<datos>/juegos/<persona>/legendary` con modo `0o700` (persona solo `^[a-z0-9-]{1,64}$`, si no lanza). `validarSinCredencialesEpic(texto: string): { ok: boolean; hallazgos: string[] }` detecta en un texto los campos típicos de la sesión de Legendary (`access_token`, `refresh_token`, `account_id`, `exchange_code` con valor de más de 8 caracteres) y los tokens con prefijo `eg1~`; los hallazgos NO repiten el valor. `esUrlPermitidaRare(url: string): boolean` devuelve `false` para `raredevs.github.io`, `protondb.com` y cualquier descarga remota de Rare (se bloquean hasta que haya SHA fijado) y `true` solo para `https://github.com/RareDevs/Rare/releases/…`.\n\nPruebas (≥ 14) en `juegos-pc.test.ts`: las tres rutas; C bloqueada con la constante en `false`; Mac sin pantalla; A1 sin GPU; `rutaConfigEpic` con persona inválida; credenciales detectadas SIN que la prueba contenga una clave real (monta las cadenas con `[\"eg1\", \"~abc…\"].join(\"\")`); URL bloqueadas.\n\nREGLAS COMUNES: lee primero la sección que se cita de `architecture/artcraft-y-rare.md` (el contrato). Español con acentos en todo texto que lea una persona. TypeScript estricto, sin `any`. Los módulos de `src/lib/artcraft/` son PUROS (sin `node:*`, sin React, sin red), salvo `pasarela-servidor.ts`, que es solo de servidor y que ningún componente de cliente puede importar (`next build` falla con `node:*` en el cliente). Ni claves ni rutas del disco en el código ni en las pruebas; las cadenas con forma de clave se montan en tiempo de ejecución (`[\"a\", \"b\"].join(\"\")`). Como mucho 3 archivos y 120 líneas por archivo (estilo denso del repo, sin relleno). Pruebas vitest propias en `__tests__`; ejecuta solo las relacionadas, nunca `tsc` ni `next build`. No toques `src/lib/protomolecula/catalogo-herramientas.ts`."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "GCA1019R-d1",
+   "ART1025L"
+  ]
+ }
+}
