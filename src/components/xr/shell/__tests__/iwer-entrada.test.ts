@@ -65,6 +65,13 @@ describe("IWER · entrada emulada a WebXR", () => {
         expect(d.webgl2).toBe(false);
     });
 
+    it("(1b) sin entorno inyectado, el sondeo lee el navigator.xr real", async () => {
+        expect(navigator.xr).toBeDefined();
+        const d = await sondearNavegador();
+        expect(d).toMatchObject({ tieneXR: true, vr: true, ar: true });
+        expect(d.ua).toContain("Quest 3");
+    });
+
     it("(2) UA de jsdom = escritorio; UA de Quest = quest con VR recomendada", async () => {
         const jsdom = evaluarCapacidades(await sondearNavegador(entorno(JS_DOM_UA)));
         expect(["desconocida", "escritorio"]).toContain(jsdom.plataforma);
