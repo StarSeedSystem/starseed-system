@@ -13,6 +13,9 @@ sesión de claude.ai: eso es la suscripción, no créditos de API. Reglas:
 - El contexto se limpia de cualquier cosa con forma de clave antes de salir de la Mac.
 - Topes: STARSEED_OPUS_DIA (8) y STARSEED_OPUS_SEMANA (40) consultas; un aviso de límite
   pausa 3 h. El uso vive en ~/.starseed/opus-director-uso.json (sin texto de prompts).
+- Si la dirección va por Hermes (2026-10-29, DIR1029A), la misma pregunta sale por `hermes`
+  y llega como «hermes/auto»: los topes, las pausas por límite/saldo y la limpieza de
+  claves valen igual en las dos vías. (2026-10-29: antes el relevo se las saltaba.)
 """
 
 import json, os, re, shutil, subprocess, tempfile, time
@@ -82,6 +85,29 @@ def usadas(u, ahora):
     return por_dia.get(dia, 0), semana
 
 
+def _rebasado(u, ahora):
+    """Topes y pausa: valen por cualquier motor (claude o hermes). Motivo o None."""
+    if u.get("pausado_hasta", 0) > ahora:
+        return "%s: en pausa %d min" % (u.get("pausa_motivo") or "Claude avisó de límite",
+                                        (u["pausado_hasta"] - ahora) // 60)
+    hoy, semana = usadas(u, ahora)
+    if hoy >= TOPE_DIA or semana >= TOPE_SEMANA:
+        return "tope alcanzado (%d/%d hoy · %d/%d semana)" % (hoy, TOPE_DIA, semana, TOPE_SEMANA)
+    return None
+
+
+def _anotar_pausa(u, texto, ahora):
+    """Si la respuesta parece aviso de límite o de saldo, pausa la dirección.
+
+    (2026-09-25) «Credit balance is too low»: la cuenta no tiene saldo ahora mismo.
+    No cuesta nada, pero tampoco sirve reintentar cada pasada.
+    """
+    if re.search(r"credit|balance|billing", texto or "", re.I):
+        u["pausado_hasta"], u["pausa_motivo"] = ahora + PAUSA_SIN_SALDO_S, "la cuenta de Claude Code no tiene saldo"
+    elif re.search(r"limit|rate|429|quota", texto or "", re.I):
+        u["pausado_hasta"], u["pausa_motivo"] = ahora + PAUSA_LIMITE_S, "Claude avisó de límite"
+
+
 def disponible(ahora=None, correr=None):
     """(bool, motivo). Barato: la sesión se comprueba como mucho una vez por hora."""
     ahora = ahora or time.time()
@@ -91,12 +117,9 @@ def disponible(ahora=None, correr=None):
     if not cli:
         return False, "no está la CLI de Claude Code en esta máquina"
     u = _leer()
-    if u.get("pausado_hasta", 0) > ahora:
-        return False, "%s: en pausa %d min" % (u.get("pausa_motivo") or "Claude avisó de límite",
-                                                (u["pausado_hasta"] - ahora) // 60)
-    hoy, semana = usadas(u, ahora)
-    if hoy >= TOPE_DIA or semana >= TOPE_SEMANA:
-        return False, "tope alcanzado (%d/%d hoy · %d/%d semana)" % (hoy, TOPE_DIA, semana, TOPE_SEMANA)
+    tope = _rebasado(u, ahora)
+    if tope:
+        return False, tope
     ses = u.get("sesion") or {}
     if ahora - ses.get("t", 0) > 3600:
         try:
@@ -117,54 +140,53 @@ def _por_hermes():
         return {"motor": "claude"}
 
 
-def _consultar_hermes(pregunta, contexto, segundos, sesion, correr=None):
-    """(2026-10-29, DIR1029A) La misma pregunta por Hermes, con el autoenrutado de MetaGenesis."""
-    import motores_director
-    prompt = limpiar("%s\n\n---\n%s" % (pregunta, contexto))[:24000]
-    t0 = time.time()
+def _orden(via, prompt):
+    """La orden del director según por dónde vaya la dirección (2026-10-29, DIR1029A)."""
+    if (via or {}).get("motor") == "hermes":
+        import motores_director
+        return motores_director.orden_hermes(prompt, None, None, (via or {}).get("sesion"))
+    return [ejecutable(), "-p", prompt, "--model", MODELO, "--output-format", "json",
+            "--max-turns", "1", "--disallowedTools", SIN_HERRAMIENTAS]
+
+
+def _json_si_dict(texto):
+    """El JSON de `claude` (o el que devuelva el relevo) si es un objeto; si no, {}."""
     try:
-        rc, salida = (correr or _correr_real)(motores_director.orden_hermes(prompt, None, None, sesion), segundos)
-    except Exception:
-        rc, salida = 1, ""
-    texto = (salida or "").strip()
-    if rc != 0 or not texto:
-        return None
-    return {"texto": texto, "modelo": "hermes/auto", "segundos": round(time.time() - t0, 1), "tokens": 0}
+        d = json.loads(texto)
+        return d if isinstance(d, dict) else {}
+    except ValueError:
+        return {}
 
 
 def consultar(pregunta, contexto="", segundos=240, ahora=None, correr=None):
     """{'texto','modelo','segundos','tokens'} o None. Una sola vuelta, sin herramientas."""
     ahora = ahora or time.time()
     via = _por_hermes()
-    if via.get("motor") == "hermes":
-        return _consultar_hermes(pregunta, contexto, segundos, via.get("sesion"), correr)
-    ok, _ = disponible(ahora, correr)
-    if not ok:
+    if _rebasado(_leer(), ahora):
         return None
     prompt = limpiar("%s\n\n---\n%s" % (pregunta, contexto))[:24000]
-    args = [ejecutable(), "-p", prompt, "--model", MODELO, "--output-format", "json",
-            "--max-turns", "1", "--disallowedTools", SIN_HERRAMIENTAS]
+    if (via or {}).get("motor") != "hermes":
+        ok, _ = disponible(ahora, correr)
+        if not ok:
+            return None
     t0 = time.time()
     try:
-        rc, salida = (correr or _correr_real)(args, segundos)
-        d = json.loads(salida or "{}")
+        rc, salida = (correr or _correr_real)(_orden(via, prompt), segundos)
     except Exception:
-        rc, d = 1, {}
+        rc, salida = 1, ""
+    texto = (salida or "").strip()
+    datos = _json_si_dict(texto)
+    respuesta = str(datos.get("result") or "") if datos else texto
+    uso = datos.get("usage") or {}
+    tokens = int(uso.get("input_tokens") or 0) + int(uso.get("output_tokens") or 0)
+    hermes = (via or {}).get("motor") == "hermes"
+    modelo = next(iter(datos.get("modelUsage") or {}), "hermes/auto" if hermes else MODELO)
     u = _leer()
-    texto = str(d.get("result") or "")
-    if rc != 0 or d.get("is_error") or not texto:
-        if re.search(r"credit|balance|billing", texto, re.I):
-            # (2026-09-25) «Credit balance is too low»: la cuenta de Claude Code no tiene saldo
-            # ahora mismo. No cuesta nada, pero tampoco sirve reintentar cada pasada.
-            u["pausado_hasta"], u["pausa_motivo"] = ahora + PAUSA_SIN_SALDO_S, "la cuenta de Claude Code no tiene saldo"
-        elif re.search(r"limit|rate|429|quota", texto, re.I):
-            u["pausado_hasta"], u["pausa_motivo"] = ahora + PAUSA_LIMITE_S, "Claude avisó de límite"
+    if rc != 0 or (datos and datos.get("is_error")) or not respuesta:
         u["ultimo"] = {"t": ahora, "ok": False}
+        _anotar_pausa(u, respuesta or texto, ahora)
         _escribir(u)
         return None
-    uso = d.get("usage") or {}
-    tokens = int(uso.get("input_tokens") or 0) + int(uso.get("output_tokens") or 0)
-    modelo = next(iter(d.get("modelUsage") or {}), MODELO)
     dia = time.strftime("%Y-%m-%d", time.localtime(ahora))
     por_dia = u.setdefault("por_dia", {})
     por_dia[dia] = por_dia.get(dia, 0) + 1
@@ -172,7 +194,7 @@ def consultar(pregunta, contexto="", segundos=240, ahora=None, correr=None):
     u["tokens"] = u.get("tokens", 0) + tokens
     u["ultimo"] = {"t": ahora, "ok": True, "modelo": modelo, "segundos": round(time.time() - t0, 1)}
     _escribir(u)
-    return {"texto": limpiar(texto), "modelo": modelo, "segundos": u["ultimo"]["segundos"], "tokens": tokens}
+    return {"texto": limpiar(respuesta), "modelo": modelo, "segundos": u["ultimo"]["segundos"], "tokens": tokens}
 
 
 def resumen_uso(ahora=None):

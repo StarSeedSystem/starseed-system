@@ -26,10 +26,14 @@ class OpusDirector(unittest.TestCase):
         self.dir = tempfile.mkdtemp()
         od.USO = os.path.join(self.dir, "uso.json")
         self._ej = od.ejecutable
+        self._via = od._por_hermes
         od.ejecutable = lambda: "/usr/local/bin/claude"
+        # La dirección no depende del archivo de esta máquina: cada clase fija su vía.
+        od._por_hermes = lambda: {"motor": "claude", "sesion": None}
 
     def tearDown(self):
         od.ejecutable = self._ej
+        od._por_hermes = self._via
 
     def test_consulta_anota_uso_y_devuelve_el_modelo(self):
         r = od.consultar("¿?", "contexto", ahora=AHORA, correr=doble(
@@ -80,6 +84,74 @@ class OpusDirector(unittest.TestCase):
             self.assertNotIn("ANTHROPIC_API_KEY", od._entorno())
         finally:
             del os.environ["ANTHROPIC_API_KEY"]
+
+
+class OpusPorHermes(unittest.TestCase):
+    """(2026-10-29, DIR1029A) La vía hermes: mismos topes, pausas e higiene que la claude."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        od.USO = os.path.join(self.dir, "uso.json")
+        self._ej = od.ejecutable
+        self._via = od._por_hermes
+        od.ejecutable = lambda: "/usr/local/bin/claude"
+        od._por_hermes = lambda: {"motor": "hermes", "sesion": None}
+
+    def tearDown(self):
+        od.ejecutable = self._ej
+        od._por_hermes = self._via
+
+    def test_el_tope_del_dia_tambien_corta_sin_llamar(self):
+        with open(od.USO, "w") as f:
+            json.dump({"por_dia": {"2026-09-25": od.TOPE_DIA}}, f)
+        vistos = []
+        self.assertIsNone(od.consultar("¿?", ahora=AHORA, correr=doble({"result": "x"}, vistos=vistos)))
+        self.assertEqual(vistos, [])
+
+    def test_un_aviso_de_limite_pausa_tres_horas(self):
+        od.consultar("¿?", ahora=AHORA, correr=doble({"is_error": True, "result": "Claude usage limit reached"}))
+        ok, motivo = od.disponible(AHORA + 60, correr=doble({}))
+        self.assertFalse(ok)
+        self.assertIn("pausa", motivo)
+        self.assertTrue(od.disponible(AHORA + od.PAUSA_LIMITE_S + 1, correr=doble({}))[0])
+
+    def test_sin_saldo_pausa_seis_horas_y_lo_dice(self):
+        od.consultar("¿?", ahora=AHORA, correr=doble({"is_error": True, "result": "Credit balance is too low"}, rc=1))
+        ok, motivo = od.disponible(AHORA + 3 * 3600, correr=doble({}))
+        self.assertFalse(ok)
+        self.assertIn("no tiene saldo", motivo)
+        self.assertTrue(od.disponible(AHORA + od.PAUSA_SIN_SALDO_S + 1, correr=doble({}))[0])
+
+    def test_la_respuesta_plana_llega_como_hermes(self):
+        vistos = []
+
+        def correr(args, segundos):
+            vistos.append(args)
+            return 0, "Dile a Alex que lo miro esta tarde"
+
+        r = od.consultar("¿?", ahora=AHORA, correr=correr)
+        self.assertEqual(r["texto"], "Dile a Alex que lo miro esta tarde")
+        self.assertEqual(r["modelo"], "hermes/auto")
+        self.assertEqual(r["tokens"], 0)
+        self.assertEqual(vistos[0][0], "hermes")
+        self.assertIn("-z", vistos[0])
+
+    def test_si_hermes_da_json_se_usa_su_uso(self):
+        r = od.consultar("¿?", "contexto", ahora=AHORA, correr=doble(
+            {"result": "vale", "usage": {"input_tokens": 10, "output_tokens": 5},
+             "modelUsage": {"claude-opus-5-5": {}}}))
+        self.assertEqual(r["texto"], "vale")
+        self.assertEqual(r["modelo"], "claude-opus-5-5")
+        self.assertEqual(r["tokens"], 15)
+        self.assertIn("1 consultas", od.resumen_uso(AHORA))
+
+    def test_las_claves_tampoco_salen_por_hermes(self):
+        vistos = []
+        od.consultar("¿?", "clave sk-or-v1-abcdefghijklmnop y ghp_abcdefghijklmnopqrstu", ahora=AHORA,
+                     correr=doble({"ok": "sí"}, vistos=vistos))
+        prompt = vistos[-1][vistos[-1].index("-z") + 1]
+        self.assertNotIn("sk-or-v1-abcdefghijklmnop", prompt)
+        self.assertNotIn("ghp_abcdefghijklmnopqrstu", prompt)
 
 
 class VeredictosConOpus(unittest.TestCase):
