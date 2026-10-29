@@ -1,5 +1,6 @@
 // Bolsa pura (§4 apps-en-la-malla.md): empareja peticiones y ofertas.
 import { OfertaNeurona, capacidadPrestable, ofertaVisiblePara } from "./oferta";
+import { armarArbol } from "./arbol-relevo";
 
 export type ClaseParte = "computo" | "bytes" | "ventana" | "relevo";
 
@@ -40,7 +41,24 @@ export function planificar(peticion: PeticionBolsa, ofertas: OfertaNeurona[], re
     const conPriv = peticion.contexto.privado
       ? conCapParte.filter(({ oferta }) => (oferta.cuentaId === peticion.contexto.id && oferta.presta.cuenta === true) || (oferta.medio === "nube" && oferta.presta.cuenta === true && oferta.cuentaId === peticion.contexto.id))
       : conCapParte;
+    // §10: para el reparto, la bolsa arma el árbol de relevo. Los que más subida
+    // tienen quedan más cerca del origen y se eligen primero.
+    const arbolRelevo = parte.clase === "relevo" && conPriv.length > 0
+      ? armarArbol(
+          peticion.contexto.id,
+          conPriv.map(({ oferta, prestable }) => ({
+            nodoId: oferta.nodoId,
+            subidaKbps: prestable.enlaces.subidaKbps,
+            latenciaMs: Math.min(...Object.values(prestable.enlaces.latenciaMs ?? {})),
+          })),
+          parte.necesita.kbps ?? 1,
+        )
+      : null;
+    const nivelRelevo = (id: string) =>
+      arbolRelevo?.nodos.get(id)?.profundidad ?? Number.POSITIVE_INFINITY;
     const orden = conPriv.sort((a, b) => {
+      const nivelA = nivelRelevo(a.oferta.nodoId), nivelB = nivelRelevo(b.oferta.nodoId);
+      if (nivelA !== nivelB) return nivelA - nivelB;
       const propioA = a.oferta.cuentaId === peticion.contexto.id ? 0 : 1;
       const propioB = b.oferta.cuentaId === peticion.contexto.id ? 0 : 1;
       if (propioA !== propioB) return propioA - propioB;
