@@ -19,8 +19,15 @@
 import { useCallback, useState } from "react";
 
 import type { DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
-import { NOMBRE_ACCION, sujetoDeTransformada, type OpcionAlex, type ResumenBloqueadas } from "@/lib/mando/bloqueadas";
+import {
+    NOMBRE_ACCION,
+    enReparacion,
+    sujetoDeTransformada,
+    type OpcionAlex,
+    type ResumenBloqueadas,
+} from "@/lib/mando/bloqueadas";
 import { BloqueadasPanel, itemDesdeFilaMedidor } from "./bloqueadas-panel";
+import { SeccionPlegable } from "./seccion-plegable";
 
 const TEXTO_OPCION: Record<OpcionAlex, string> = {
     rehacer: "Rehacer con otro enfoque",
@@ -39,6 +46,93 @@ function Cifra({ valor, texto, tono }: { valor: number; texto: string; tono: str
             {texto}
         </span>
     );
+}
+
+/** Una causa de bloqueo o rechazo, ya dicha para una persona. */
+export interface CausaDeBloqueada {
+    clave: string;
+    titulo: string;
+    /** La acción automática que la trata, si el sistema hace algo solo con ella. */
+    accion?: string;
+}
+
+export interface GrupoPorCausa {
+    causa: CausaDeBloqueada;
+    filas: FilaMedidor[];
+}
+
+/**
+ * (UIG1029C) La causa de una fila, en castellano y agrupable. Mira primero el estado
+ * (rechazada, bloqueante, fallo…) y después el porqué, para que dos tareas con el mismo
+ * atasco caigan en la MISMA sección aunque sus ids no se parezcan.
+ */
+export function causaDeFila(f: Pick<FilaMedidor, "estado" | "porque">): CausaDeBloqueada {
+    const estado = String(f.estado ?? "").toLowerCase();
+    const p = String(f.porque ?? "").toLowerCase();
+
+    if (/rechazad/.test(estado)) return { clave: "rechazada", titulo: "Rechazadas por la revisión" };
+    if (/bloqueante/.test(estado) || /necesita una persona|agotó los reintentos/.test(p)) {
+        return { clave: "bloqueante", titulo: "Pegas bloqueantes de la revisión" };
+    }
+    if (/sin salida/.test(estado) || /sin salida/.test(p)) {
+        return { clave: "sin-salida", titulo: "Bloqueadas sin salida" };
+    }
+    if (/puede desbloquearse/.test(p)) {
+        return {
+            clave: "desbloqueable",
+            titulo: "Dependencia ya integrada: pueden desbloquearse",
+            accion: "El revisor las desbloqueará en su próxima pasada",
+        };
+    }
+    if (/^espera a|dependencia no integrada|siguen vivas|espera normal/.test(p)) {
+        return {
+            clave: "dependencia",
+            titulo: "Esperando una dependencia viva",
+            accion: "Se desbloquean solas cuando su dependencia llega a main",
+        };
+    }
+    if (/sin motivo|nadie sabe|sin dependencia anotada/.test(p)) {
+        return { clave: "sin-motivo", titulo: "Bloqueadas sin motivo anotado" };
+    }
+    if (/sin cambios/.test(estado)) return { clave: "sin-cambios", titulo: "Sin cambios al escribir" };
+    if (/conflicto/.test(estado)) return { clave: "conflicto", titulo: "Conflictos al integrar" };
+    if (/interrumpida/.test(estado)) return { clave: "interrumpida", titulo: "Interrumpidas al escribir" };
+    if (/faltan/.test(estado)) return { clave: "faltan", titulo: "Les faltan piezas" };
+    if (/fallo|falla/.test(estado)) return { clave: "fallo", titulo: "Fallos de ejecución" };
+    return { clave: "otras", titulo: "Otras causas" };
+}
+
+/** Qué hace ya el sistema con esta fila, leído de su porqué (rehacer, escalera, revisor). */
+export function accionQueLaTrata(f: Pick<FilaMedidor, "porque">): string | null {
+    const p = String(f.porque ?? "");
+    if (enReparacion(f)) {
+        const m = /^la rehace\s+([\w.-]+)/i.exec(p);
+        return m ? `La rehace ${m[1]}` : "La rehace el director";
+    }
+    if (/escalera/i.test(p)) return "La lleva la escalera del director";
+    if (/puede desbloquearse/i.test(p)) return "El revisor la desbloqueará sola";
+    return null;
+}
+
+/** Agrupa por causa; primero la que más tareas tiene (empate: orden alfabético estable). */
+export function agruparPorCausa(filas: readonly FilaMedidor[]): GrupoPorCausa[] {
+    const grupos = new Map<string, GrupoPorCausa>();
+    for (const f of filas) {
+        const causa = causaDeFila(f);
+        const g = grupos.get(causa.clave) ?? { causa, filas: [] };
+        g.filas.push(f);
+        grupos.set(causa.clave, g);
+    }
+    return [...grupos.values()].sort(
+        (a, b) => b.filas.length - a.filas.length || a.causa.titulo.localeCompare(b.causa.titulo, "es"),
+    );
+}
+
+/** La acción automática del grupo: la primera que ya trata alguna fila, o la de la causa. */
+export function accionDeGrupo(g: GrupoPorCausa): string | undefined {
+    const tratadas = g.filas.map((f) => accionQueLaTrata(f)).filter((x): x is string => Boolean(x));
+    if (tratadas.length === 0) return g.causa.accion;
+    return tratadas.length > 1 ? `${tratadas[0]} (+${tratadas.length - 1} más)` : tratadas[0];
 }
 
 export function BloqueadasGrupos({
@@ -82,9 +176,17 @@ export function BloqueadasGrupos({
     );
 
     const operativas = detalle.filas.filter((f) => !f.historica && f.grupo !== "cadena");
-    const atascadas: FilaMedidor[] = operativas.filter((f) => (f.grupo ?? "atascada") === "atascada");
-    const sinResolver: FilaMedidor[] = operativas.filter((f) => f.grupo === "sin-resolver");
     const idsConocidos = detalle.filas.map((x) => x.id);
+    // Las que ya tienen su pregunta a Alex no se repiten en las causas: se referencian arriba.
+    const idsAlex = new Set((r?.preguntas ?? []).map((p) => p.id));
+    const grupos = agruparPorCausa(operativas.filter((f) => !idsAlex.has(f.id)));
+    const mayor = grupos.reduce((n, g) => Math.max(n, g.filas.length), 0);
+    const testIdDeGrupo = (g: GrupoPorCausa) =>
+        g.filas.every((f) => f.grupo === "sin-resolver")
+            ? "bloqueadas-sin-resolver"
+            : g.filas.every((f) => (f.grupo ?? "atascada") === "atascada")
+              ? "bloqueadas-atascadas"
+              : undefined;
 
     return (
         <section className="mt-2 grid gap-3 text-left" data-testid="bloqueadas-grupos">
@@ -119,10 +221,14 @@ export function BloqueadasGrupos({
             ) : null}
 
             {r && r.preguntas.length ? (
-                <div data-testid="bloqueadas-alex">
-                    <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-amber-200/80">
-                        Necesitan a Alex · una decisión
-                    </h4>
+                <SeccionPlegable
+                    id="bloqueadas-alex"
+                    titulo="Necesitan a Alex · una decisión"
+                    contador={`${r.preguntas.length}`}
+                    resumen={`${r.preguntas.length} ${r.preguntas.length === 1 ? "tarea espera" : "tareas esperan"} tu decisión`}
+                    abiertaPorDefecto
+                >
+                    <div data-testid="bloqueadas-alex">
                     <ul className="grid gap-1.5 md:grid-cols-2">
                         {r.preguntas.map((p) => (
                             <li key={p.id} className="rounded-lg border border-amber-400/25 bg-amber-500/[0.06] p-2.5">
@@ -153,40 +259,58 @@ export function BloqueadasGrupos({
                             </li>
                         ))}
                     </ul>
-                </div>
+                    </div>
+                </SeccionPlegable>
             ) : null}
 
-            {atascadas.length ? (
-                <div data-testid="bloqueadas-atascadas">
-                    <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-rose-200/80">
-                        Atascadas · aún sin transformar
-                    </h4>
-                    <BloqueadasPanel
-                        items={atascadas.map((f) => itemDesdeFilaMedidor(f, idsConocidos))}
-                        alVer={alVer}
-                        alHecho={alHecho}
-                    />
-                </div>
-            ) : null}
-
-            {sinResolver.length ? (
-                <div data-testid="bloqueadas-sin-resolver">
-                    <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-orange-200/80">
-                        Fallidas o rechazadas sin resolver · últimos 3 días
-                    </h4>
-                    <BloqueadasPanel
-                        items={sinResolver.map((f) => itemDesdeFilaMedidor(f, idsConocidos))}
-                        alVer={alVer}
-                        alHecho={alHecho}
-                    />
+            {grupos.length ? (
+                <div className="grid gap-2" data-testid="bloqueadas-por-causa">
+                    {grupos.map((g) => {
+                        const accion = accionDeGrupo(g);
+                        return (
+                            <div key={g.causa.clave} data-testid={testIdDeGrupo(g)}>
+                                <SeccionPlegable
+                                    id={`bloqueadas-causa-${g.causa.clave}`}
+                                    titulo={g.causa.titulo}
+                                    contador={`${g.filas.length}`}
+                                    resumen={
+                                        accion
+                                            ? `${g.filas.length} en esta causa · ${accion}`
+                                            : `${g.filas.length} en esta causa`
+                                    }
+                                    abiertaPorDefecto={g.filas.length === mayor}
+                                    acciones={
+                                        accion ? (
+                                            <span
+                                                className="rounded-md border border-cyan-300/25 bg-cyan-400/10 px-1.5 py-0.5 text-[10px] text-cyan-100/80"
+                                                data-testid={`bloqueadas-accion-${g.causa.clave}`}
+                                            >
+                                                {accion}
+                                            </span>
+                                        ) : undefined
+                                    }
+                                >
+                                    <BloqueadasPanel
+                                        items={g.filas.map((f) => itemDesdeFilaMedidor(f, idsConocidos))}
+                                        alVer={alVer}
+                                        alHecho={alHecho}
+                                    />
+                                </SeccionPlegable>
+                            </div>
+                        );
+                    })}
                 </div>
             ) : null}
 
             {r && r.transformadas.length ? (
-                <div data-testid="bloqueadas-transformadas">
-                    <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-200/80">
-                        Transformadas hoy · qué se hizo y por qué
-                    </h4>
+                <SeccionPlegable
+                    id="bloqueadas-transformadas"
+                    titulo="Transformadas hoy · qué se hizo y por qué"
+                    contador={`${r.transformadas.length}`}
+                    resumen={`${r.transformadas.length} ${r.transformadas.length === 1 ? "transformada hoy" : "transformadas hoy"}`}
+                    abiertaPorDefecto
+                >
+                    <div data-testid="bloqueadas-transformadas">
                     <ul className="grid gap-1">
                         {r.transformadas.slice(0, 40).map((x, i) => (
                             <li
@@ -199,11 +323,12 @@ export function BloqueadasGrupos({
                                 {x.resultado && x.resultado !== "aplicada" ? (
                                     <span className="ml-1 text-amber-200/80">({x.resultado})</span>
                                 ) : null}
-                                <span className="text-white/50"> — {x.motivo}</span>
+                                <span className="text-white/50"> · {x.motivo}</span>
                             </li>
                         ))}
                     </ul>
-                </div>
+                    </div>
+                </SeccionPlegable>
             ) : null}
 
             {resultado ? (
@@ -216,9 +341,6 @@ export function BloqueadasGrupos({
                 </p>
             ) : null}
 
-            {!r && operativas.length ? (
-                <BloqueadasPanel items={operativas.map((f) => itemDesdeFilaMedidor(f, idsConocidos))} alVer={alVer} alHecho={alHecho} />
-            ) : null}
         </section>
     );
 }
