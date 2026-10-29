@@ -3,9 +3,24 @@
  *  (contrato `architecture/contenido-vivo.md` §3). */
 import type { Ruta, TareaViva } from "./tipos";
 import { CATALOGO_RUTAS } from "./catalogo-rutas";
+import {
+  gastadoEnMes,
+  puedeGastar,
+  validarAjustes,
+  type AjustesContenidoVivo,
+  type AsientoCreditos,
+} from "./ajustes-ambito";
 
 /** Alcance del contenido, según el contrato §1. */
 export type AlcanceVivo = "personal" | "perfil" | "grupo" | "publica";
+
+/** Libro de créditos del ámbito: si viene, la elección consulta el mes real. */
+export interface LibroCreditos {
+  asientos: readonly AsientoCreditos[];
+  ahora: number | Date;
+  quien: string;
+  ajustes?: Partial<AjustesContenidoVivo>;
+}
 
 /** Contexto del ámbito (cuenta, página o grupo) donde se crea el contenido. */
 export interface ContextoVivo {
@@ -17,6 +32,8 @@ export interface ContextoVivo {
   creditosDisponibles: number; topeMes: number; gastadoMes: number;
   neurona: { gpu: boolean; capaz3d: boolean };
   ajustes: { localPrimero: boolean; externosPermitidos: boolean };
+  /** Libro de créditos del ámbito (tarea C); sin él se usa `gastadoMes` y `topeMes`. */
+  libro?: LibroCreditos;
 }
 
 /** Un candidato del catálogo ya puntuado, con su disponibilidad y razón. */
@@ -101,6 +118,13 @@ function presupuestoInsuficiente(ruta: Ruta, contexto: ContextoVivo): string | n
   if (ruta.creditosPorUnidad === 0) return null;
   if (ruta.creditosPorUnidad > contexto.creditosDisponibles) {
     return `No quedan créditos suficientes: quedan ${contexto.creditosDisponibles} y se necesitan ${ruta.creditosPorUnidad}`;
+  }
+  const libro = contexto.libro;
+  if (libro) {
+    const ajustes = validarAjustes({ topeCreditosMes: contexto.topeMes, ...libro.ajustes });
+    const gastado = gastadoEnMes(libro.asientos, libro.ahora);
+    const decision = puedeGastar(ajustes, gastado, ruta.creditosPorUnidad, libro.quien);
+    return decision.si ? null : decision.motivo;
   }
   if (contexto.gastadoMes + ruta.creditosPorUnidad > contexto.topeMes) {
     return "El gasto del mes superaría el tope de créditos del ámbito";

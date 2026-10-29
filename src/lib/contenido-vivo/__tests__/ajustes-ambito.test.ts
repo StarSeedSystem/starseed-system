@@ -5,6 +5,7 @@ import {
   validarAjustes,
   type AsientoCreditos,
 } from "../ajustes-ambito";
+import { compararRutas, elegirRuta, type ContextoVivo } from "../rutas";
 
 const MARZO = Date.UTC(2026, 2, 15, 12, 0, 0);
 
@@ -116,5 +117,30 @@ describe("puedeGastar", () => {
   it("en modo yo hace falta saber quién aprueba", () => {
     expect(puedeGastar(ajustes(), 0, 5, "").si).toBe(false);
     expect(puedeGastar(ajustes(), 0, 5, "alex").si).toBe(true);
+  });
+});
+
+describe("elegir ruta con el libro de créditos", () => {
+  const contexto = (asientos: AsientoCreditos[]): ContextoVivo => ({
+    alcance: "publica",
+    conectados: ["higgsfield"],
+    cupoHoy: { higgsfield: 100 },
+    creditosDisponibles: 6000,
+    topeMes: 100,
+    gastadoMes: 0,
+    neurona: { gpu: true, capaz3d: true },
+    ajustes: { localPrimero: false, externosPermitidos: true },
+    libro: { asientos, ahora: MARZO, quien: "alex" },
+  });
+
+  it("cierra la ruta externa con el motivo del tope del mes", () => {
+    const externa = compararRutas("foto", contexto([asiento(MARZO, 99)]))
+      .find((candidata) => candidata.ruta.id === "higgsfield-nano-banana-2");
+    expect(externa?.disponible).toBe(false);
+    expect(externa?.motivoNoDisponible).toContain("tope mensual");
+  });
+
+  it("con el libro vacío elige la externa dentro del tope", () => {
+    expect(elegirRuta("foto", contexto([]))?.ruta.id).toBe("higgsfield-nano-banana-2");
   });
 });
