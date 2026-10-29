@@ -60,6 +60,8 @@ import * as QM from "./clients/qm";
 import * as AgentHarness from "./clients/agentharness";
 // ── Bonsai (Adenda 174) ──
 import * as Bonsai from "./clients/bonsai";
+// ── Cliente verificado del Agent Server de OpenHands (OHS1020A) ──
+import * as OpenHands from "./clients/openhands";
 
 /** Conectores respaldados por un servicio pesado instalado en el A1. */
 const SERVICIO_PESADO_DEL_CONECTOR: Readonly<Record<string, ServicioId>> = {
@@ -186,7 +188,9 @@ export async function runIntegration(
         if (a === "models") return await OpenAICompat.models(id, c);
         break;
       case "openhands":
-        if (a === "run-task") return await GenericTask.runTask(id, c, input);
+        // Cliente propio con la API verificada (OHS1020A, OpenAPI 1.7.1):
+        // siempre con política de confirmación AlwaysConfirm antes de acciones.
+        if (a === "run-task") return await OpenHands.runTask(c, input);
         break;
       case "browser-use":
         if (a === "browser-task") return await GenericTask.runTask(id, c, input);
@@ -405,6 +409,7 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
       case "localai":
         return await OpenAICompat.health(id, c);
       case "openhands":
+        return await OpenHands.health(c);
       case "browser-use":
         return await GenericTask.health(id, c);
       case "audiobookshelf":

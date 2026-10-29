@@ -192,7 +192,7 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
       "Experimental y ejecuta código: manténlo SIEMPRE aislado, nunca público ni on-by-default. Para pruebas gratis usa una VM Always Free de Oracle Cloud como sandbox dedicado (Docker).",
     docsUrl: "https://docs.all-hands.dev/",
     actions: [
-      { id: "run-task", label: "Lanzar tarea", description: "Envía una tarea de programación al servidor de OpenHands (experimental; configura extra.path)." },
+      { id: "run-task", label: "Lanzar tarea", description: "Crea una conversación en el Agent Server con la API verificada (OpenAPI 1.7.1), siempre con confirmación antes de acciones. Pasa modelo y directorioTrabajo en la entrada o en extra." },
     ],
   },
   {
