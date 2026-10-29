@@ -16,6 +16,9 @@ describe("catálogo JSON con la incrustación de LEANN (1028L)", () => {
     expect(incrustacion?.disco_mb).toBe(639);
     expect(incrustacion?.ram_min_mb).toBe(1024);
     expect(incrustacion?.medios).toEqual(["servidor"]);
+    expect(incrustacion?.fuente_oficial).toBe(
+      "https://ollama.com/library/qwen3-embedding",
+    );
   });
 
   it("no es usable sin SHA verificado (estado por-verificar, §6)", () => {

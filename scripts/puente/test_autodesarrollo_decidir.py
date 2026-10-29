@@ -119,6 +119,7 @@ class DestinoTest(unittest.TestCase):
 # ─────────────── Ola 1024I · IMG1024C: el automático ───────────────
 import itertools
 import autodesarrollo_logica as L
+import director_autodesarrollo as DIR
 
 def ajustes(automatico=True, aprobar=True, reimaginar=True, umbral=0.75, maximo=2):
     return L.validar_ajustes({"automatico": automatico, "auto": {"aprobar": aprobar, "reimaginar": reimaginar,
@@ -451,6 +452,32 @@ class FamiliaYVariantesTest(unittest.TestCase):
                          duplicada_de="astraura:b")
         duplicada.update(D.arreglo_de_estado(duplicada))
         self.assertEqual((duplicada["estado"], duplicada["motivo"]), ("descartada", "duplicada de astraura:b"))
+
+    def test_la_descartada_con_motivo_propio_ya_dicho_no_se_toca(self):
+        """Rescate de IMG1028B: lo que ya dice por qué, no se reescribe ni vuelve a «pregunta»."""
+        self.assertEqual(D.arreglo_de_estado({}), {})
+        self.assertEqual(D.arreglo_de_estado({"estado": "descartada", "motivo": "duplicada de x7"}), {})
+        con_destino = {"id": "x", "estado": "descartada",
+                       "motivo": "ninguno de los archivos citados existe hoy → pregunta",
+                       "motivo_destino": "sin verbo de acción: lo decide Alex"}
+        self.assertEqual(D.arreglo_de_estado(con_destino),
+                         {"motivo": "sin verbo de acción: lo decide Alex"})
+        self.assertEqual(con_destino["estado"], "descartada")  # el estado no se cambia, solo el motivo
+
+    def test_tope_de_20_variantes_y_nada_se_borra(self):
+        """Rescate de IMG1028B: 23 variantes de la misma familia; se anotan las MAX_VARIANTES primeras
+        y TODAS quedan «agrupada» (nada se borra ni se suelta, aunque no quepa la anotación)."""
+        iso = "2026-10-28T12:00:00"
+        ps = [{"id": "a%d" % i, "fuente": "astraura", "ambito": "metagenesis", "estado": "esperando-aprobacion",
+               "titulo": "Optimización ARM NEON para modulo_%d.sh" % i, "archivos": ["modulo_%d.sh" % i]}
+              for i in range(23)]
+        self.assertEqual(len(D.agrupar(ps)), 22)
+        self.assertEqual(DIR._agrupar_familias(ps, iso), 22)
+        prim = ps[0]  # la primera es la primaria (así lo definen hoy las reglas)
+        self.assertEqual(prim["n_variantes"], D.MAX_VARIANTES)
+        self.assertEqual({v["id"] for v in prim["variantes"]}, {"a%d" % i for i in range(1, 1 + D.MAX_VARIANTES)})
+        self.assertEqual(set(prim["variantes"][0]), {"id", "titulo", "archivos"})
+        self.assertTrue(all(p["estado"] == "agrupada" for p in ps[1:]), [p["id"] for p in ps[1:]])
 
 
 class TokenSoloComoCredencial(unittest.TestCase):

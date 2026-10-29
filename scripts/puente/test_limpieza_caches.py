@@ -44,6 +44,14 @@ class LimpiezaCaches(unittest.TestCase):  # plan (puro), aplicar, recortar, reco
         self.assertEqual((a0["accion"], a0["ruta"], "Chrome" in a0["por_que"]), ("borrar", C0324, True))
         self.assertEqual((a1["accion"], a1["ruta"]), ("borrar", C0521))
 
+    def test_el_margen_de_60_s_es_exacto_un_segundo_de_mas_se_va(self):
+        """Rescate de IMG1028B: el clon del propio Chrome (a menos de 60 s de su arranque) se conserva;
+        el que dista 61 s ya es un huérfano de una matanza nocturna y se va."""
+        t = 40_000.0
+        exacto, borde = CLON + "-1200-exacto", CLON + "-1200-borde"  # rutas absolutas: no vetadas
+        self.assertEqual(L.clones_de_chrome_a_borrar([(exacto, t - 60.0)], t), [])  # justo el margen
+        self.assertEqual(L.clones_de_chrome_a_borrar([(borde, t - 61.0)], t), [borde])
+
     def test_ruta_vetada_nunca_se_borra_y_ps_sin_salida_no_borra_nada(self):
         self.assertEqual(L.clones_de_chrome_a_borrar([("/a/.env/cls", 0.0), ("rel/cls", 0.0)], None), [])
         self.assertEqual(L.inicio_chrome_de_ps(None), (None, True))  # ps no salió: no se sabe, no se borra
@@ -58,6 +66,11 @@ class LimpiezaCaches(unittest.TestCase):  # plan (puro), aplicar, recortar, reco
         self.assertEqual(L.inicio_chrome_de_ps("  501 Tue Oct 28 09:00:00 2026 /usr/sbin/cfprefsd\n"),
                          (None, False))  # sin Chrome: se pueden borrar todos
         self.assertEqual(L._lstart_a_epoch("Tue Febrero 28 09:00:00 2026"), None)
+        varios = ("  501 Tue Oct 28 12:38:00 2026 %s\n" % L.EJECUTABLE_CHROME +
+                  "  502 Tue Oct 28 03:24:11 2026 %s\n" % L.EJECUTABLE_CHROME +  # este arrancó a las 3:24
+                  "  503 Tue Oct 28 03:24:12 2026 /Applications/Google Chrome.app/otro\n")
+        self.assertEqual(L.inicio_chrome_de_ps(varios),  # los ayudantes no cuentan: el principal más viejo
+                         (time.mktime((2026, 10, 28, 3, 24, 11, 0, 0, -1)), True))
 
     def test_recoger_con_chrome_vivo_recoge_solo_los_anteriores_a_su_arranque(self):
         t12 = time.mktime((2026, 10, 28, 12, 38, 0, 0, 0, -1))
