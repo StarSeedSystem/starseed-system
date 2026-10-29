@@ -153,6 +153,19 @@ describe("seguimiento de respuestas («Reply Zero»)", () => {
     expect(clasificarHilo(hilo({ id: "h", ultimoEn: "" }), YO, AHORA)).toBe("resuelto");
   });
 
+  it("acepta un margen de horasPorResponder propio", () => {
+    const h = hilo({ id: "h", ultimoEn: "2026-10-27T12:00:00Z" }); // 48 h antes
+    expect(clasificarHilo(h, YO, AHORA)).toBe("por-responder");
+    expect(clasificarHilo(h, YO, AHORA, { horasPorResponder: 48 })).toBe("resuelto");
+  });
+
+  it("una fecha inválida cuenta como transcurrida (por-responder o esperando)", () => {
+    expect(clasificarHilo(hilo({ id: "a", ultimoEn: "no-es-fecha" }), YO, AHORA)).toBe("por-responder");
+    expect(clasificarHilo(hilo({ id: "b", ultimoDe: YO, ultimoEn: "no-es-fecha" }), YO, AHORA)).toBe(
+      "esperando",
+    );
+  });
+
   it("resumenSeguimiento reparte los ids por estado", () => {
     const hilos: HiloLite[] = [
       hilo({ id: "a", ultimoEn: "2026-10-28T06:00:00Z" }), // por-responder
