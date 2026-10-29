@@ -118,6 +118,100 @@ def huella_llave(llave: str) -> str:
     return hashlib.sha256(llave.encode("utf-8")).hexdigest()
 
 
+# ─── al volver (COL1012H) ────────────────────────────────────────────────────────────────
+
+
+def debe_revisar_al_volver(ahora: float, ultimo_latido: Any, periodo_s: Any = None) -> bool:
+    """PURA. ¿Este es el primer latido tras un silencio que ya cuenta como pérdida?
+
+    `colmena_logica.silencio_max` es el mismo umbral con el que el líder da por perdido un
+    aparato; usar otro aquí haría que el que vuelve siguiera trabajo que otro ya relevó.
+    Sin latido anterior (arranque de verdad) también toca revisar: la memoria pudo sobrevivir
+    a un reinicio del servicio y las asignaciones del bus siguen vigentes."""
+    try:
+        ultimo = float(ultimo_latido or 0)
+    except (TypeError, ValueError):
+        ultimo = 0.0
+    if ultimo <= 0:
+        return True
+    return ahora - ultimo > C.silencio_max({"periodo_s": periodo_s})
+
+
+def _llamar_enviar_puntos(enviar: Callable[..., Any], raiz: str, ids: List[str], t: float) -> Any:
+    """Llama a `oracle_nodo.enviar_puntos` con la forma que tenga, sin inventarle argumentos.
+
+    La firma de esa pieza no es parte de este módulo; se adapta a la que exista para que el
+    nodo no dependa de un orden concreto y siga funcionando si mañana cambia."""
+    import inspect
+    try:
+        params = inspect.signature(enviar).parameters
+    except (TypeError, ValueError):
+        return enviar(raiz, ids, t)
+    if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return enviar(raiz=raiz, ids=ids, t=t)
+    kw = {k: v for k, v in (("raiz", raiz), ("ids", ids), ("t", t)) if k in params}
+    if kw:
+        return enviar(**kw)
+    if "puntos" in params:
+        return enviar(ids)
+    return enviar()
+
+
+def enviar_puntos_al_a1(raiz: str, ids: List[str], t: float, enviar: Optional[Callable[..., Any]] = None) -> bool:
+    """Fuerza el último punto de control de `ids` y lo deja fuera del aparato (el A1).
+
+    Best-effort a propósito: si COL1012E aún no está en este árbol (o el A1 no responde),
+    el nodo igualmente suelta la tarea; lo peor sería seguir escribiendo la misma tarea que
+    otro ya tiene, y el punto local sigue ahí para el siguiente intento."""
+    if not ids:
+        return False
+    if enviar is None:
+        try:
+            import oracle_nodo  # noqa: WPS433 — solo existe en la Mac/A1, no en la nube ligera
+        except Exception:  # noqa: BLE001
+            return False
+        enviar = getattr(oracle_nodo, "enviar_puntos", None)
+    if not callable(enviar):
+        return False
+    try:
+        return _llamar_enviar_puntos(enviar, raiz, list(ids), t) is not False
+    except Exception:  # noqa: BLE001 — un fallo al subir no puede tumbar la vuelta del nodo
+        return False
+
+
+def soltar_en_control(olas: str, cola: str, ids: List[str], t: float,
+                      cerrojos: Optional[str] = None) -> List[str]:
+    """Escribe la orden `soltar` en `olas/control-<cola>.json` con el MISMO flock del orquestador.
+
+    Se hace aquí y no con `repartir_nube.soltar_en_la_mac` porque el paquete del nodo del A1
+    solo lleva unos pocos módulos de `scripts/puente`; un import de más dejaría el relevo sin
+    efecto justo en el aparato que nunca se apaga. El formato es el de «Reasignar → otro
+    servidor», que el orquestador ya corta y marca `reasignada`."""
+    if not ids:
+        return []
+    import fcntl  # noqa: WPS433 — el flock es el mismo archivo que usa el orquestador
+    cerrojos = cerrojos or os.path.expanduser("~/.starseed/cerrojos")
+    nombre = cola if cola.endswith(".json") else cola + ".json"
+    ruta = os.path.join(olas, "control-" + nombre)
+    sello = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t))
+    nuevas = {str(tid): {"accion": "soltar", "donde": "colmena", "quien": "colmena", "t": sello}
+              for tid in ids}
+    try:
+        os.makedirs(cerrojos, exist_ok=True)
+        with open(os.path.join(cerrojos, "control-" + os.path.basename(ruta) + ".lock"), "a") as cer:
+            fcntl.flock(cer, fcntl.LOCK_EX)
+            try:
+                actuales = M.leer_json(ruta, {})
+                actuales = dict(actuales) if isinstance(actuales, dict) else {}
+                actuales.update(nuevas)
+                M.escribir_atomico(ruta, actuales)
+            finally:
+                fcntl.flock(cer, fcntl.LOCK_UN)
+        return list(nuevas)
+    except Exception:  # noqa: BLE001 — sin archivo de control se avisa, no se tumba la vuelta
+        return []
+
+
 # ─── préstamos de trabajo (CAP1020A) ─────────────────────────────────────────────────────
 
 #: (2026-10-20, CAP1020A) El estado del A1 que deja `oracle_nodo.estado()` en la Mac:
@@ -246,7 +340,8 @@ class Nodo:
                  tareas_locales: Optional[Callable[[str], List[Any]]] = None,
                  enlistar: Optional[Callable[..., Any]] = None,
                  existentes: Optional[Callable[[str, List[str]], List[str]]] = None,
-                 solo_leer: bool = False, puerta: Any = None):
+                 solo_leer: bool = False, puerta: Any = None,
+                 enviar_puntos: Optional[Callable[..., Any]] = None):
         self.modo = "seco" if seco or solo_leer else "real"
         #: (OPA1011b) Prueba seca EN un medio vivo: lee el bus como el servicio, no escribe nada y se
         #: puntúa como el medio real (si no, su propio latido seco le quitaría el mando en el cálculo).
@@ -276,6 +371,8 @@ class Nodo:
         #: (PDA1011) Puerta de datos del A1: inyectable en las pruebas; si no, del entorno (solo la URL:
         #: el nodo entra con SU llave, sin ficha). `STARSEED_NODO_PUERTA=apagada` → bus como antes.
         self._puerta = puerta
+        #: (COL1012H) Inyectable: en la máquina es `oracle_nodo.enviar_puntos`; sin él, best-effort.
+        self._enviar_puntos = enviar_puntos
 
     # ── enlace ──
     def _rest(self) -> Optional[B.Rest]:
@@ -362,6 +459,10 @@ class Nodo:
         self._medida_salud = salud
         castigo = -2000 if float(self.mem.get("no_liderar_hasta") or 0) > t else 0
         puntos = L.puntos_nodo(dict(cap, modo="real") if self.solo_leer else cap) + castigo
+        # (COL1012H) El silencio se mide con el último latido QUE SALIÓ, no con la vuelta actual:
+        # si el aparato estuvo fuera, otro pudo relevar su trabajo y ahora hay que soltarlo.
+        ultimo_previo = self.mem.get("ultimo_latido")
+        volviendo = debe_revisar_al_volver(t, ultimo_previo, salud.get("periodo_s"))
         self._relojes(salud, t)
         informe: Dict[str, Any] = {"nodo": self.yo, "medio": medio, "modo": self.modo, "ts": t, "puntos": puntos,
                                    "acciones": [], "ordenes": [], "avisos": []}
@@ -388,6 +489,7 @@ class Nodo:
                 enlace = self.enlace = B.EnlaceBus(enlace.rest, self.yo)  # relee su ventana entera
                 informe["enlace"] = "bus (la puerta no respondió)"
             else:
+                self.mem["ultimo_latido"] = t
                 arr = enlace.arriendo or {}
                 decision = {"lider": arr.get("lider"), "termino": int(arr.get("termino") or 0), "reclamar": False,
                             "motivo": "arriendo en la puerta de datos"}
@@ -422,6 +524,7 @@ class Nodo:
             estable = t - float(self.mem.get("desde") or t) >= L.ESTABLE_S
             res = enlace.latir(latido, puntos, estable)
             if res is not None:
+                self.mem["ultimo_latido"] = t
                 arr = enlace.arriendo or {}
                 decision = {"lider": arr.get("lider"), "termino": int(arr.get("termino") or 0), "reclamar": False,
                             "motivo": "arriendo en la base"}
@@ -434,6 +537,10 @@ class Nodo:
             vivos[self.yo] = latido
         self.mem.setdefault("desde", t)
         self._asignaciones = nov.get("asignaciones") or []
+        # (COL1012H) Al arrancar o al volver: lo que otro siguió mientras no estaba deja de ser
+        # mío. Se suelta DESPUÉS de mandar el último punto (la sucesora puede combinarlo).
+        if volviendo:
+            self._volver(medida["raiz"], salud, nov, informe, t, ultimo_previo)
         if enlace is not None and enlace.error:
             informe["avisos"].append(enlace.error)
 
@@ -556,6 +663,61 @@ class Nodo:
             if p:
                 pub["resultados"]["publicacion"]["detalle"] = L.motivo_publicacion(p.get("detalle"))[:120]
         return json.loads(L.tachar(json.dumps(pub, ensure_ascii=False)))
+
+    # ── al volver (COL1012H) ──
+    def _colas_de_su_orquestador(self, salud: Dict[str, Any]) -> List[str]:
+        """Las colas vivas de ESTE aparato, para saber a qué `control-<cola>.json` va cada soltar.
+
+        Se prefiere lo que ya midió el latido (una `ps` menos); si falta, se pregunta al medio."""
+        colas: List[str] = []
+        for o in salud.get("orquestadores") or []:
+            c = str(o.get("cola") if isinstance(o, dict) else o or "").strip()
+            if c:
+                colas.append(c if c.endswith(".json") else c + ".json")
+        if not colas:
+            try:
+                colas = [c if c.endswith(".json") else c + ".json" for c in M.colas_vivas()]
+            except Exception:  # noqa: BLE001 — sin `ps` no se inventa trabajo
+                colas = []
+        return list(dict.fromkeys(colas))
+
+    def _volver(self, raiz: str, salud: Dict[str, Any], nov: Dict[str, Any],
+                informe: Dict[str, Any], t: float, ultimo_latido: Any) -> None:
+        """Suelta las tareas que otro siguió mientras el aparato no latía (contrato §3).
+
+        Primero manda el último punto de control (la sucesora puede combinarlo) y solo después
+        escribe `soltar`: si se soltara antes, el orquestador podría cortar el agente antes de
+        que el punto saliera del aparato y la sucesora empezaría de cero."""
+        if self.modo != "real":
+            return
+        if isinstance(nov, dict) and ("asignaciones" in nov or "latidos" in nov):
+            asignadas = (entradas_de_relevo(nov, {}) or {}).get("asignadas") or {}
+        else:  # ya viene expandido por tarea: {tid: {a, t}}
+            asignadas = nov if isinstance(nov, dict) else {}
+        soltadas: List[str] = []
+        seguidas: List[str] = []
+        puntos_ok = False
+        olas = os.path.join(raiz, "starseed_memory_root", "olas")
+        for cola in self._colas_de_su_orquestador(salud):
+            try:
+                en_curso = M.en_curso_de(raiz, cola) or []
+            except Exception:  # noqa: BLE001 — un latidos- roto no puede tumbar la vuelta
+                continue
+            ids = [str(e.get("id")) for e in en_curso if isinstance(e, dict) and e.get("id")]
+            if not ids:
+                continue
+            soltar, seguir = C.al_volver(self.yo, ids, asignadas, ultimo_latido)
+            seguidas.extend(seguir)
+            if not soltar:
+                continue
+            enviado = enviar_puntos_al_a1(raiz, soltar, t, self._enviar_puntos)
+            puntos_ok = puntos_ok or enviado
+            hechos = soltar_en_control(olas, cola, soltar, t)
+            soltadas.extend(hechos)
+            if len(hechos) < len(soltar):
+                informe.setdefault("avisos", []).append(
+                    "al volver: no pude soltar %d tarea(s) en %s" % (len(soltar) - len(hechos), cola))
+        informe["al_volver"] = {"soltar": soltadas, "seguir": seguidas, "puntos": puntos_ok}
 
     # ── relevo sin pérdidas (COL1012G) ──
     def _tareas_para_relevo(self, raiz: str, t: float, necesarias: List[str]) -> Dict[str, Dict[str, Any]]:
