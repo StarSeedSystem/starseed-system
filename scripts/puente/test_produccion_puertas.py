@@ -351,3 +351,29 @@ def test_juzgar_lote_decidir_una_vez_por_ciclo():
     decidir2 = _DecidirFalso(todas)
     pp.juzgar_lote(muchas, decidir2, 0.7)
     assert decidir2.llamadas == 2
+
+
+# (2026-10-28, PUB1029A) Los tres falsos «posible secreto» que pararon la autopublicación desde el 25-10.
+def test_una_ruta_y_una_cabecera_no_son_secretos():
+    diff = _diff("scripts/puente/memvid_cliente.py", [
+        'RUTA_TOKEN = "~/.starseed/memvid.token"',
+        'GLOBO_TOKEN = "X-StarSeed-Token"',
+    ])
+    assert pp.escanear_secretos(diff) == []
+
+
+def test_claves_falsas_de_prueba_no_frenan():
+    diff = _diff("src/lib/mando/__tests__/errores-neurona.test.ts", ['clave sk-abc123XYZ789 y nada mas'])
+    assert pp.escanear_secretos(diff) == []
+    diff = _diff("scripts/agentes/test_modelos_propios.py", ["\"OPENROUTER_API_KEY='otro=con=iguales'\\n\""])
+    assert pp.escanear_secretos(diff) == []
+
+
+def test_una_clave_aleatoria_sigue_frenando_tambien_en_pruebas():
+    for archivo in ("src/lib/x/__tests__/a.test.ts", "scripts/puente/servicio.py"):
+        diff = _diff(archivo, ['k = "sk-Zq8vR2mL9pXwTb4N"'])
+        assert [h["tipo"] for h in pp.escanear_secretos(diff)] == ["sk"]
+    diff = _diff("scripts/puente/servicio.py", ['MI_TOKEN = "Zq8vR2mL9pXwTb4N"', 'OTRA_KEY = "/Zq8vR2mL9pXwTb4N"'])
+    assert len(pp.escanear_secretos(diff)) == 2
+    diff = _diff("scripts/puente/servicio.py", ["DB_PASSWORD='otro=con=iguales'"])
+    assert len(pp.escanear_secretos(diff)) == 1

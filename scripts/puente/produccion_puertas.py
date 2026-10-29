@@ -49,10 +49,27 @@ _MARCADOR = re.compile(
     r"tu[-_]?clave|aqu[ií]|here|abcdef|123456|456789|987654|654321|xxxx|0000|\.\.\.|…", re.I)
 
 
+def _rachas_seguidas(valor: str) -> int:
+    """Cuántas rachas de 3 caracteres seguidos («abc», «123», «xyz») tiene el valor. Una clave falsa escrita a
+    mano las tiene; una aleatoria casi nunca."""
+    v = valor.lower()
+    return sum(1 for i in range(len(v) - 2)
+               if v[i].isalnum() and ord(v[i + 1]) == ord(v[i]) + 1 and ord(v[i + 2]) == ord(v[i + 1]) + 1)
+
+
 def _es_marcador(coincidencia: str) -> bool:
-    """El VALOR (lo que va tras `=` si lo hay) tiene forma de marcador, no de clave."""
-    valor = coincidencia.split("=", 1)[-1]
-    return bool(_MARCADOR.search(valor))
+    """El VALOR (lo que va tras `=` si lo hay) tiene forma de marcador, no de clave. Solo en pruebas y plantillas.
+
+    (2026-10-28, PUB1029A) Dos formas más, que frenaron la autopublicación desde el 25-10: una clave falsa con dos
+    o más rachas seguidas (`sk-abc123XYZ789`, en `errores-neurona.test.ts`) y un valor hecho solo de palabras en
+    minúsculas (`otro=con=iguales`, en `test_modelos_propios.py`)."""
+    valor = coincidencia.split("=", 1)[-1].strip("\"'")
+    if _MARCADOR.search(valor):
+        return True
+    if _rachas_seguidas(re.sub(r"^(?:sk|ghp|github_pat|xox[baprs])[-_]", "", valor)) >= 2:
+        return True
+    palabras = [t for t in re.split(r"[=_.\-]+", valor) if t]
+    return len(palabras) >= 2 and all(re.fullmatch(r"[a-záéíóúñ]{2,}", t) for t in palabras)
 
 
 # (2026-10-10, DSB1010) `PROTO_ORB_POS_KEY = "starseed.protomolecula.orbe.pos.v1"` frenó la
@@ -186,6 +203,13 @@ def _no_es_secreto(tipo: str, coincidencia: str) -> bool:
         return True
     # 0b) Marcador evidente de documentación, en cualquier archivo (PRO1025A).
     if _marcador_de_documentacion(valor):
+        return True
+    # 0c) (2026-10-28, PUB1029A) Una RUTA (`RUTA_TOKEN = "~/.starseed/memvid.token"`): un secreto no empieza
+    #     por `~/`, `./` ni `../` (ni el base64 ni el hexadecimal llevan `~`).
+    if re.match(r"^(?:~|\.{1,2})/", valor) and re.fullmatch(r"[\w.~/\-]+", valor):
+        return True
+    # 0d) (2026-10-28, PUB1029A) El NOMBRE de una cabecera HTTP (`GLOBO_TOKEN = "X-StarSeed-Token"`).
+    if re.fullmatch(r"X(?:-[A-Z][A-Za-z]*){1,4}", valor) and re.search(r"-(?:Token|Key|Secret|Auth|Signature)$", valor):
         return True
     de_almacenamiento = nombre.endswith("_KEY") and not _NOMBRE_DE_CREDENCIAL.search(nombre)
     # 1) Clave de almacenamiento del OS bajo un nombre `…_KEY`: «starseed.<palabras>.v1»,
