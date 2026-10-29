@@ -19,10 +19,23 @@
 import { eventoDeLinea, type TurnoConversacion } from "@/lib/astraura/conversacion-rapida";
 import { createStreamingVoice } from "@/lib/aurora/streaming-voice";
 import { vozDePersona, vozRT } from "@/lib/aurora/voz-rt";
+import {
+    PRESUPUESTO_PRIMER_SONIDO_MS,
+    TROZO_CONVERSACION_MAX,
+    medidasPorMotor,
+    planificarCharla,
+    trozosDeConversacion,
+    type MedidaMotor,
+    type TrozoVoz,
+} from "@/lib/aurora/tts-oss/conversacion-fluida";
+import { leerMedidas } from "@/lib/aurora/medidas-voz";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 import { normalizar, registrarDicho, repeticionEnTexto } from "@/lib/aurora/anti-bucle-voz";
 
 const MULETILLA_TRAS_MS = 1200;
 const HISTORIAL_TURNOS = 12;
+/** Motor del servicio de voz en vivo: la voz F1 de Supertonic en esta neurona. */
+const MOTOR_VIVO = "supertonic";
 
 let historial: TurnoConversacion[] = [];
 let personaDelHistorial = "";
@@ -33,6 +46,10 @@ export interface ResultadoTurnoVivo {
     local: boolean;
     msPrimerToken: number | null;
     msTotal: number;
+    /** Audio estimado del turno (medido por carácter del propio motor). */
+    msAudioEstimado?: number;
+    /** ¿El plan medido cabe en el presupuesto de conversación (sin silencios)? */
+    dentroPresupuestoVoz?: boolean;
 }
 
 /** ¿Se puede conversar en vivo aquí? (servidor de voz en tiempo real listo). */
@@ -63,6 +80,23 @@ export async function turnoEnVivo(opts: {
     personaDelHistorial = opts.persona.id;
     voz.iniciarConversacion("orbe", vozId);
 
+    // Lo MEDIDO en esta neurona (primer sonido y factor de tiempo real) decide
+    // si el plan del turno cabe; nunca se inventa una latencia de ficha.
+    const medidasPorId = medidasPorMotor(
+        leerMedidas(neuronDeviceIdActual()).map((m) => ({ motor: m.motor, tipo: m.tipo, valor: m.valor })),
+    );
+    const diagnosticoVoz = voz.diagnostico().medidas;
+    const medidaGuardada = medidasPorId[MOTOR_VIVO];
+    // Si la medida guardada no trae factor de tiempo real, se usa el que el
+    // propio reproductor acaba de medir en esta neurona (nunca una ficha).
+    const medidaViva: MedidaMotor | null = medidaGuardada
+        ? { ...medidaGuardada, factorTiempoReal: medidaGuardada.factorTiempoReal ?? diagnosticoVoz.rtf }
+        : null;
+    // Duración real por carácter aprendida por el reproductor de esta neurona.
+    const segPorCaracter = diagnosticoVoz.segPorCaracter;
+    const trozosDelTurno: TrozoVoz[] = [];
+    let planDelTurno: ReturnType<typeof planificarCharla> | null = null;
+
     let empezo = false;
     const alHablar = () => {
         if (!empezo) {
@@ -75,16 +109,42 @@ export async function turnoEnVivo(opts: {
     const clausulasDichas = new Set<string>();
     const troceador = createStreamingVoice({
         speak: (clausula) => {
-            const clave = normalizar(clausula).join(" ");
-            if (clave && clausulasDichas.has(clave)) return;
-            if (clave) clausulasDichas.add(clave);
-            try {
-                registrarDicho(clausula, Date.now());
-            } catch {
-                /* */
+            // Troceado del OS (`voces/trocear.ts`): la frase se habla YA y, si es
+            // larga, sus trozos se encolan en orden mientras suena el anterior.
+            const trozos = clausula.length > TROZO_CONVERSACION_MAX
+                ? trozosDeConversacion(clausula)
+                : [clausula];
+            for (const trozo of trozos) {
+                const clave = normalizar(trozo).join(" ");
+                if (clave && clausulasDichas.has(clave)) continue;
+                if (clave) clausulasDichas.add(clave);
+                try {
+                    registrarDicho(trozo, Date.now());
+                } catch {
+                    /* */
+                }
+                alHablar();
+                voz.encolar(trozo, { voz: vozId });
+                trozosDelTurno.push({
+                    texto: trozo,
+                    duracionAudioMs: Math.max(1, Math.round(trozo.length * segPorCaracter * 1000)),
+                });
             }
-            alHablar();
-            voz.encolar(clausula, { voz: vozId });
+            // VZR1011D: se planifica el turno con lo medido para no fingir que
+            // no hay silencios cuando el motor no llega al presupuesto.
+            if (medidaViva && trozosDelTurno.length) {
+                planDelTurno = planificarCharla(trozosDelTurno, medidaViva, {
+                    presupuestoMs: PRESUPUESTO_PRIMER_SONIDO_MS,
+                });
+                if (!planDelTurno.dentroPresupuesto) {
+                    try {
+                        console.info(
+                            `[voz] ${MOTOR_VIVO}: silencio ${Math.round(planDelTurno.silencioMaximoMs)} ms ` +
+                            `(presupuesto ${PRESUPUESTO_PRIMER_SONIDO_MS} ms)`,
+                        );
+                    } catch { /* sin consola */ }
+                }
+            }
         },
         initialPersonaId: opts.persona.id,
     });
@@ -163,5 +223,10 @@ export async function turnoEnVivo(opts: {
     historial = [...historial, { rol: "usuario" as const, texto: opts.texto }, { rol: "astraura" as const, texto }].slice(
         -HISTORIAL_TURNOS,
     );
-    return fin ?? { texto, motor: "desconocido", local: false, msPrimerToken: null, msTotal: Date.now() - inicio };
+    const base = fin ?? { texto, motor: "desconocido", local: false, msPrimerToken: null, msTotal: Date.now() - inicio };
+    const msAudioEstimado = trozosDelTurno.reduce((suma, t) => suma + t.duracionAudioMs, 0);
+    const planFinal = planDelTurno as ReturnType<typeof planificarCharla> | null;
+    return planFinal
+        ? { ...base, msAudioEstimado, dentroPresupuestoVoz: planFinal.dentroPresupuesto }
+        : { ...base, msAudioEstimado };
 }

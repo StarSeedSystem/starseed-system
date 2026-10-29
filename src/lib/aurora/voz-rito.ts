@@ -188,6 +188,8 @@ function porElMotor(texto: string, miTurno: number): void {
             const router = await import("@/lib/aurora/tts-oss/speak-router");
             if (miTurno !== turno) return;
             const sono = await router.speakWithConfiguredEngine(texto, {
+                // El rito narra: manda la calidad, no la prisa de la conversación.
+                contexto: "narracion",
                 onStart: () => { if (miTurno === turno) avisar("motor"); },
             });
             if (miTurno !== turno) return;

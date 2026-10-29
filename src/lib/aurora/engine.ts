@@ -105,6 +105,7 @@ import {
 import { getActiveSenses } from "@/lib/senses/senses";
 import { medidasOido } from "@/lib/aurora/stt-oss/medidas-oido";
 import { cronometroHabla, cronometroOido, leerMedidas } from "@/lib/aurora/medidas-voz";
+import { INTERRUPCION_MAX_MS } from "@/lib/aurora/tts-oss/conversacion-fluida";
 import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 
 /** «es-MX» → «es»: la misma base para elegir el motor y para filtrar lo medido. */
@@ -1055,6 +1056,9 @@ export function useAuroraEngine(): AuroraEngine {
       try {
         const { speakWithConfiguredEngine } = await import("@/lib/aurora/tts-oss/speak-router");
         const spoke = await speakWithConfiguredEngine(cleanChain, {
+          // VZR1011D: la respuesta del chat es conversación; la cadena se elige
+          // por la latencia MEDIDA en esta neurona (≤ 0,8 s), no por la ficha.
+          contexto: "conversacion",
           onStart: () => {
             handedOff = true;
             // Corta cualquier voz nativa por si acaso (una sola voz a la vez).
@@ -1444,6 +1448,7 @@ export function useAuroraEngine(): AuroraEngine {
 
   const interrupt = useCallback(() => {
     if (typeof window === "undefined") return;
+    const corteDesde = Date.now();
     // Vacía la COLA de habla encolada (barge-in real: nada de lo que quedaba
     // pendiente debe sonar después de esto). La generación se incrementa
     // PRIMERO: una cláusula que sigue en vuelo puede disparar su
@@ -1462,6 +1467,12 @@ export function useAuroraEngine(): AuroraEngine {
       .then((m) => { m.abortarSintesisAnteriores(); m.pararLocal(); })
       .catch(() => { /* */ });
     vozRT().detener();
+    // VZR1011D: el corte de barge-in debe ser inmediato (≤ 100 ms). Lo de arriba
+    // es el corte SÍNCRONO de la voz; los motores externos se paran en paralelo.
+    const latenciaCorte = Date.now() - corteDesde;
+    if (latenciaCorte > INTERRUPCION_MAX_MS) {
+      try { console.info(`[voz] interrupción en ${latenciaCorte} ms (tope ${INTERRUPCION_MAX_MS} ms)`); } catch { /* sin consola */ }
+    }
     pausedRef.current = false;
     pendienteTrasPausaRef.current = null;
     setSpeaking(false);

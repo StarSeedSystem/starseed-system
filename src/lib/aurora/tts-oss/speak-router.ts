@@ -399,8 +399,9 @@ function ordenarCadenaPorMedida(
 ): VoiceChainLink[] {
   if (!contexto) return [...chain];
   try {
-    const medidas = medidasDeEstaNeurona();
-    const elegido = elegirMotor(candidatosDeCadena(chain), medidas, { contexto });
+    // La elección real del turno es la del elector puro (misma medida, mismas
+    // capas): aquí solo se sube al frente de la cadena de relevo.
+    const elegido = elegirMotorDeConversacion({ cadena: chain, contexto });
     if (!elegido) return [...chain];
     const primero = chain.find((link) => link === elegido.motor.id);
     if (!primero) return [...chain];

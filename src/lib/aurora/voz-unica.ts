@@ -9,6 +9,7 @@
  */
 import { auroraTransport } from "@/lib/aurora/open-aurora";
 import { decirRT, vozRT } from "@/lib/aurora/voz-rt";
+import type { ContextoVoz } from "@/lib/aurora/tts-oss/conversacion-fluida";
 
 export type ContextoVozUnica = "conversacion" | "aviso" | "ventana" | "guia" | "rito" | "lectura" | "mando" | "llamada";
 /** Empezó a sonar / terminó (o lo cortaron): para la orbe y el medio-dúplex de quien llama. */
@@ -28,6 +29,11 @@ export interface MotoresVoz {
 export const PRIORIDAD: Record<ContextoVozUnica, number> = { conversacion: 3, llamada: 3, ventana: 2, lectura: 2, mando: 2, aviso: 1, guia: 1, rito: 1 };
 export const ESPERA_AVISO_MS = 8_000, ESPERA_COLA_MS = 120_000;
 const CONVERSA = new Set<ContextoVozUnica>(["conversacion", "llamada"]), EN_COLA = new Set<ContextoVozUnica>(["guia", "rito"]);
+/** Contexto de la cadena de motores: en conversación manda la latencia MEDIDA. */
+const contextoDeCadena = (c: ContextoVozUnica): ContextoVoz =>
+    c === "conversacion" || c === "llamada" ? "conversacion"
+        : c === "lectura" || c === "ventana" || c === "mando" ? "lectura"
+            : "narracion";
 const intento = async (f: () => Promise<boolean> | boolean): Promise<boolean> => { try { return await f(); } catch { return false; } };
 export function crearPuertaVoz(m: MotoresVoz) {
     let gen = 0, ultimo = 0, callando = false, actual: { id: number; p: number; rt: boolean; hasta: number } | null = null;
@@ -93,7 +99,7 @@ function motoresReales(): MotoresVoz {
     return {
         rt: { disponible: () => vozRT().disponible(), hablando: () => vozRT().hablando(), detener: () => vozRT().detener(),
             decir: (t, persona, a) => decirRT(t, persona, { onInicio: a.alEmpezar, onFin: a.alTerminar }) },
-        cadena: async (t, _c, a) => (await router()).speakWithConfiguredEngine(t, { onStart: a.alEmpezar, onEnd: a.alTerminar }),
+        cadena: async (t, c, a) => (await router()).speakWithConfiguredEngine(t, { contexto: contextoDeCadena(c), onStart: a.alEmpezar, onEnd: a.alTerminar }),
         suelo: async (t, a) => {
             const s = synth(), u = s ? new SpeechSynthesisUtterance(t) : null;
             if (!s || !u) return false;
