@@ -97,6 +97,12 @@ import {
 import { VOICE_ENGINE_REGISTRY } from "@/lib/aurora/tts-oss/engine-registry";
 import { cn } from "@/lib/utils";
 import { AjusteBotsIA } from "@/components/agentes-red/ajuste-bots-ia";
+// Variaciones públicas (Ola 1019V · tarea W): cada panel de Ajustes lleva su
+// clave canónica `ajuste:<id>` (contrato: architecture/variaciones-publicas.md
+// §2). Las claves salen de los registros, no se inventan aquí: `claveDeAjuste`
+// devuelve null con un id fuera del índice y `ConClave` degrada en silencio.
+import { ConClave } from "@/components/variaciones/con-clave";
+import { claveDeAjuste } from "@/lib/variaciones/claves-ajustes";
 import { activeProfileId } from "@/lib/profiles/profiles";
 import { deviceId } from "@/lib/sync/entity-state";
 // Solo se carga al abrir Cuenta: pantalla inicial (INI5) + bloqueo del dispositivo (BLQ6).
@@ -710,7 +716,9 @@ function CuentaContent() {
 
         {/* Perfil (Panel de Identidad Soberana) */}
         <div className="mb-4">
-          <ProfileIdentityPanel />
+          <ConClave clave={claveDeAjuste("perfil-identidad")}>
+            <ProfileIdentityPanel />
+          </ConClave>
         </div>
 
         {/* Biblioteca pública del perfil (Adenda 66 §4): qué se muestra a las visitas */}
@@ -874,8 +882,14 @@ function CuentaContent() {
         {/* (Ola 1025U · U3) Qué bots de IA ves: regla general y bots bloqueados uno a uno */}
         <AjusteBotsIA />
 
-        <ConfigExportPanel />
-        <PrivacyPanel />
+        {/* Claves de variaciones públicas: export-import → ajuste:export-import,
+            privacidad → ajuste:privacidad (ids del índice del buscador). */}
+        <ConClave clave={claveDeAjuste("export-import")}>
+          <ConfigExportPanel />
+        </ConClave>
+        <ConClave clave={claveDeAjuste("privacidad")}>
+          <PrivacyPanel />
+        </ConClave>
       </section>
 
       {/* ═══════════════════════ 2.5) ROLES Y CONEXIONES (RBAC) ═══════════════════════ */}
@@ -925,7 +939,9 @@ function CuentaContent() {
           <CambiarContrasena email={user?.email} />
         ) : null}
 
-        <NeuronsPanel />
+        <ConClave clave={claveDeAjuste("neuronas")}>
+          <NeuronsPanel />
+        </ConClave>
       </section>
 
       {/* ═══════════════════════ 4) SINCRONIZACIÓN ═══════════════════════ */}
@@ -935,7 +951,9 @@ function CuentaContent() {
           <p className="text-xs text-muted-foreground">Tu identidad soberana, igual en todos tus dispositivos y en Nexus/Café.</p>
         </div>
 
-        <AccountSyncPanel />
+        <ConClave clave={claveDeAjuste("sincronizacion-cuenta")}>
+          <AccountSyncPanel />
+        </ConClave>
         <RealtimeSyncPanel />
         <ProfilesSyncPanel />
 
@@ -957,7 +975,9 @@ function CuentaContent() {
             Configuración del transporte soberano en la malla, autodetección LAN, inferencia compartida para la flota y síntesis de voz en borde.
           </p>
         </div>
-        <NetworkSection />
+        <ConClave clave={claveDeAjuste("red-mesh-settings")}>
+          <NetworkSection />
+        </ConClave>
       </section>
 
       {/* ═══════════════════════ 5) PERSONALIZACIÓN ═══════════════════════ */}
@@ -967,20 +987,28 @@ function CuentaContent() {
           <p className="text-xs text-muted-foreground">Apariencia, tus escritorios y la navegación Trinity.</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-          <QuickLink href="/estudio" icon={Palette} label="Editor de temas" description="Estudio de Diseño: tema, tipografía, fondo y vidrio" />
-          <QuickLink
-            href="/escritorios"
-            icon={LayoutGrid}
-            label={`Escritorios (${desktopsInfo.count})`}
-            description={desktopsInfo.active ? `Activo: ${desktopsInfo.active}` : "Organiza widgets e iconos"}
-          />
-          <QuickLink href="/settings?tab=trinity" icon={Compass} label="Trinity" description="Botón flotante y gestos de borde" />
+          <ConClave clave={claveDeAjuste("tema-apariencia")}>
+            <QuickLink href="/estudio" icon={Palette} label="Editor de temas" description="Estudio de Diseño: tema, tipografía, fondo y vidrio" />
+          </ConClave>
+          <ConClave clave={claveDeAjuste("escritorios")}>
+            <QuickLink
+              href="/escritorios"
+              icon={LayoutGrid}
+              label={`Escritorios (${desktopsInfo.count})`}
+              description={desktopsInfo.active ? `Activo: ${desktopsInfo.active}` : "Organiza widgets e iconos"}
+            />
+          </ConClave>
+          <ConClave clave={claveDeAjuste("trinity-dock")}>
+            <QuickLink href="/settings?tab=trinity" icon={Compass} label="Trinity" description="Botón flotante y gestos de borde" />
+          </ConClave>
         </div>
         {/* Interruptor del botón de guía flotante (default ON; se aplica en vivo). */}
         <GuideButtonToggle />
         {/* Estudio Universal de Diseño: importar / temas en carpetas / exportar (Adenda 72 C1) */}
         <div style={card}>
-          <DesignSettingsPanel />
+          <ConClave clave={claveDeAjuste("tema-apariencia")}>
+            <DesignSettingsPanel />
+          </ConClave>
         </div>
       </section>
 
@@ -1005,7 +1033,9 @@ function CuentaContent() {
           />
         </div>
         {/* Control por-app de notificaciones y popups (Adenda 69 · J-1). */}
-        <AppNotificationsPanel />
+        <ConClave clave={claveDeAjuste("notificaciones")}>
+          <AppNotificationsPanel />
+        </ConClave>
         {/* Adenda 138 · Notificaciones push por dispositivo con ntfy (móvil/navegador). */}
         <NtfyPanel />
       </section>
@@ -1042,6 +1072,7 @@ function CuentaContent() {
         {/* Sistemas de Astraura en esta neurona (Adenda 149): LLM, router de
             Astraura, OpenVoice, cerebro y SEÑALES por personalidad — el drawer
             global (`AstrauraConfigDrawer`) escucha `openAstrauraConfig()`. */}
+        <ConClave clave={claveDeAjuste("astraura-sistemas")}>
         <div className="rounded-xl border border-fuchsia-400/25 bg-fuchsia-500/[0.06] p-4 flex flex-wrap items-center gap-3">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fuchsia-500/15 ring-1 ring-fuchsia-400/40">
             <Bot className="h-4 w-4 text-fuchsia-200" />
@@ -1078,6 +1109,7 @@ function CuentaContent() {
             Abrir sistemas
           </button>
         </div>
+        </ConClave>
 
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
           <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -1122,7 +1154,9 @@ function CuentaContent() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <QuickLink href="/settings?tab=ai" icon={Sparkles} label="Inteligencia de Aurora" description="Proveedores, capacidades, contexto y voz" />
+          <ConClave clave={claveDeAjuste("ia-modelos")}>
+            <QuickLink href="/settings?tab=ai" icon={Sparkles} label="Inteligencia de Aurora" description="Proveedores, capacidades, contexto y voz" />
+          </ConClave>
           <QuickLink href="/aurora" icon={MessageSquare} label="Aurora / Astraura" description="Asistente, personalidad y palabra de activación" />
         </div>
 
@@ -1157,7 +1191,9 @@ function CuentaContent() {
             Todo gratis y con fallback: Aurora siempre habla.
           </p>
         </div>
-        <VoiceOssPanel />
+        <ConClave clave={claveDeAjuste("aurora-voz")}>
+          <VoiceOssPanel />
+        </ConClave>
         <XaiVoicePanel className="mt-3" />
       </section>
 
@@ -1172,7 +1208,9 @@ function CuentaContent() {
             privada y sin enviar nada a ningún servidor.
           </p>
         </div>
-        <VisionPanel />
+        <ConClave clave={claveDeAjuste("aurora-sentidos")}>
+          <VisionPanel />
+        </ConClave>
       </section>
 
       {/* ═══════════════════════ 9B) AVATAR Y ACOMPAÑANTE POR PERSONALIDAD ═══════════════════════ */}

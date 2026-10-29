@@ -10,6 +10,12 @@ import { Switch } from "@/components/ui/switch";
 import { FamilySection, SectionHeader } from "../controls/ControlGroups";
 import { SettingControl } from "../controls/SettingControl";
 import { OptionChips } from "../controls/OptionChips";
+// Variaciones públicas (Ola 1019V · tarea W): cada ajuste lleva su clave
+// canónica `ajuste:<id>` (contrato: architecture/variaciones-publicas.md §2).
+// Los ids coinciden con `SETTINGS_INDEX`; los que no viven en ningún índice
+// (animaciones) devuelven null y degradan en silencio, sin atributo.
+import { ConClave } from "@/components/variaciones/con-clave";
+import { claveDeAjuste } from "@/lib/variaciones/claves-ajustes";
 
 interface Props {
     state: CanvasState;
@@ -101,10 +107,18 @@ export function EffectsPhysicsTab({ state, dispatch }: Props) {
             <FamilySection id="visual-effects">
                 <SectionHeader icon={Sparkles} title="Propiedades Visuales" color="text-rose-400" />
                 <div className="bg-white/3 rounded-2xl p-5 border border-white/5 space-y-5">
+                    <ConClave clave={claveDeAjuste("backdropBlur")}>
                     <Slider label="Backdrop Blur" id="backdropBlur" value={state.effects.backdropBlur} min={0} max={40} unit="px" onChange={v => update({ backdropBlur: v })} onHighlight={handleHighlight} color="rose" />
+                    </ConClave>
+                    <ConClave clave={claveDeAjuste("glassSaturation")}>
                     <Slider label="Glass Saturation" id="glassSaturation" value={state.effects.glassSaturation} min={0.5} max={3} step={0.1} onChange={v => update({ glassSaturation: v })} onHighlight={handleHighlight} color="rose" />
+                    </ConClave>
+                    <ConClave clave={claveDeAjuste("chromaticAberration")}>
                     <Slider label="Chromatic Aberration" id="chromaticAberration" value={state.effects.chromaticAberration} min={0} max={20} unit="px" onChange={v => update({ chromaticAberration: v })} onHighlight={handleHighlight} color="rose" />
+                    </ConClave>
+                    <ConClave clave={claveDeAjuste("noiseOpacity")}>
                     <Slider label="Noise Opacity" id="noiseOpacity" value={state.effects.noiseOpacity} min={0} max={1} step={0.01} onChange={v => update({ noiseOpacity: v })} onHighlight={handleHighlight} color="rose" />
+                    </ConClave>
                 </div>
             </FamilySection>
 
@@ -200,9 +214,15 @@ export function EffectsPhysicsTab({ state, dispatch }: Props) {
             <FamilySection id="physics-materials">
                 <SectionHeader icon={Box} title="Física y Materiales" color="text-cyan-400" />
                 <div className="bg-white/3 rounded-2xl p-5 border border-white/5 space-y-5">
+                    <ConClave clave={claveDeAjuste("displacementScale")}>
                     <Slider label="Displacement Scale" id="displacementScale" value={state.effects.displacementScale} min={0} max={20} unit="x" onChange={v => update({ displacementScale: v })} onHighlight={handleHighlight} color="cyan" />
+                    </ConClave>
+                    <ConClave clave={claveDeAjuste("refractionIndex")}>
                     <Slider label="Refraction Index" id="refractionIndex" value={state.effects.refractionIndex} min={0} max={1} step={0.01} onChange={v => update({ refractionIndex: v })} onHighlight={handleHighlight} color="cyan" />
+                    </ConClave>
+                    <ConClave clave={claveDeAjuste("elasticity")}>
                     <Slider label="Elasticity" id="elasticity" value={state.effects.elasticity} min={0} max={1} step={0.01} onChange={v => update({ elasticity: v })} onHighlight={handleHighlight} color="cyan" />
+                    </ConClave>
                 </div>
             </FamilySection>
         </div>

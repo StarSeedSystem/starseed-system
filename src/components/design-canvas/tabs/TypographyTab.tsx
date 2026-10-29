@@ -6,6 +6,11 @@ import { cn } from "@/lib/utils";
 import type { CanvasState } from "../state-types";
 import { usePreviewSync } from "../hooks/usePreviewSync";
 import { SettingControl } from "../controls/SettingControl";
+// Variaciones públicas (Ola 1019V · tarea W): `fontMain` y `baseSize` viven en
+// `SETTINGS_INDEX`; los pesos y ratios que no están en el índice devuelven null
+// y degradan en silencio, sin atributo.
+import { ConClave } from "@/components/variaciones/con-clave";
+import { claveDeAjuste } from "@/lib/variaciones/claves-ajustes";
 
 interface TypographyTabProps {
     state: CanvasState;
@@ -124,6 +129,7 @@ export function TypographyTab({ state, dispatch }: TypographyTabProps) {
                 <h4 className="text-xs text-white/60 uppercase tracking-wider">Familias Tipográficas</h4>
 
                 {/* Main Font */}
+                <ConClave clave={claveDeAjuste("fontMain")}>
                 <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-3">
                     <label className="text-xs text-white/50">Cuerpo Principal</label>
                     <div className="grid grid-cols-2 gap-2">
@@ -144,11 +150,12 @@ export function TypographyTab({ state, dispatch }: TypographyTabProps) {
                                 >
                                     {f.label}
                                 </span>
-                                <span className="text-[10px] text-white/50">{f.style}</span>
+                                    <span className="text-[10px] text-white/50">{f.style}</span>
                             </button>
                         ))}
                     </div>
                 </div>
+                </ConClave>
 
                 {/* Headline Font */}
                 <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-3">
@@ -199,6 +206,7 @@ export function TypographyTab({ state, dispatch }: TypographyTabProps) {
             <div className="space-y-4">
                 <h4 className="text-xs text-white/60 uppercase tracking-wider">Escala & Tamaño</h4>
                 <div className="bg-white/3 rounded-2xl p-4 border border-white/5 space-y-5">
+                    <ConClave clave={claveDeAjuste("baseSize")}>
                     <SliderControl
                         label="Tamaño Base"
                         id="baseSize"
@@ -212,6 +220,7 @@ export function TypographyTab({ state, dispatch }: TypographyTabProps) {
                         color="emerald"
                         onHighlight={handleHighlight}
                     />
+                    </ConClave>
                     <SliderControl
                         label="Ratio de Escala"
                         id="scaleRatio"
