@@ -33,7 +33,7 @@ function conexión(cfg: IntegrationConfig, o: OpcionesCliente): Cuenta {
   try { u = new URL(base); } catch { return { ok: false, error: "El endpoint de OpenRefine no es una URL válida." }; }
   if (u.protocol !== "http:" && u.protocol !== "https:") return { ok: false, error: "El endpoint de OpenRefine debe ser http(s)." };
   if (!esLoopback(u.hostname) && !cfg.apiKey)
-    return { ok: false, error: "OpenRefine solo se habla en loopback («http://127.0.0.1:3333»); un host remoto exige el token de tu pasarela en la clave." };
+    return { ok: false, error: `OpenRefine solo se habla en loopback («${ENDPOINT_DEFECTO}»); un host remoto exige el token de tu pasarela en la clave.` };
   return { ok: true, con: { base, hacer: o.fetch ?? globalThis.fetch, tiempo: o.timeoutMs ?? TIEMPO_DEFECTO, pasarela: cfg.apiKey } };
 }
 /** Llamada con tiempo límite y, si hay pasarela, su Authorization. Nunca lanza por red. */
