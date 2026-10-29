@@ -48,6 +48,7 @@ import {
   Cloud,
   FolderOpen,
   Unplug,
+  Copy,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { getBrain, saveBrain, type Brain, type BrainPermission } from "@/lib/brains/brains";
@@ -62,7 +63,7 @@ import {
   type SyncDirection,
 } from "@/lib/brains/servers";
 import { listBackends, saveBackend, deleteBackend, type StorageBackend } from "@/lib/storage/backends";
-import { listMemoryFiles } from "@/lib/cerebro/memory-files";
+import { listMemoryFiles, type MemoryFile } from "@/lib/cerebro/memory-files";
 import { MemoryFolderConnect } from "@/components/exocortex/memory-folder-connect";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
 // (Ola 374) Google Drive como medio de este cerebro: OAuth con custodia en
@@ -78,6 +79,15 @@ import { tokenVigente } from "@/lib/storage/carpetas-remotas";
 import { elegirCarpetasDrive } from "@/lib/storage/google-picker";
 import { asegurarCarpeta } from "@/lib/storage/gdrive-driver";
 import { sincronizarCerebroConDrive, type ResultadoSyncDrive } from "@/lib/storage/gdrive-brain-sync";
+import {
+  construirManifiesto,
+  divergencias,
+  huellaContenido,
+  proponerLimpieza,
+  resumenManifiesto,
+  type CopiaMemoria,
+  type ManifiestoMemoria,
+} from "@/lib/storage/memoria-manifiesto";
 
 const PERM_LEVELS: BrainPermission["level"][] = ["lectura", "escritura", "admin"];
 
@@ -91,6 +101,7 @@ export default function MemorySourcesPanel({
   const [brain, setBrain] = useState<Brain | null>(null);
   const [loading, setLoading] = useState(true);
   const [counts, setCounts] = useState<{ files: number; memories: number }>({ files: 0, memories: 0 });
+  const [memFiles, setMemFiles] = useState<MemoryFile[]>([]);
   const [obsidian, setObsidian] = useState<StorageBackend[]>([]);
   const [linked, setLinked] = useState<LinkedServer[]>([]);
 
@@ -116,6 +127,7 @@ export default function MemorySourcesPanel({
         }
       } catch { /* opcional */ }
       setCounts({ files: files.length, memories: mem });
+      setMemFiles(brainId ? files : []);
       if (brainId) {
         const backs = await listBackends("brain", brainId);
         setObsidian(backs.filter((x) => x.kind === "obsidian"));
@@ -142,6 +154,7 @@ export default function MemorySourcesPanel({
   return (
     <div className="space-y-4">
       <OsSourceCard files={counts.files} memories={counts.memories} loading={loading} />
+      <CopyManifestCard brainId={brainId} files={memFiles} loading={loading} />
       <GoogleDriveMemoryCard brainId={brainId} brainName={brainName} />
       <ObsidianCard brainId={brainId} obsidian={obsidian} onChanged={reload} />
       <ExternalServerCard brainId={brainId} linked={linked} onChanged={reload} />
@@ -192,6 +205,90 @@ function OsSourceCard({ files, memories, loading }: { files: number; memories: n
         <Badge variant="outline" className="border-white/15 text-white/70 text-[10px]">{files} archivos .md</Badge>
         <Badge variant="outline" className="border-white/15 text-white/70 text-[10px]">{memories} memorias</Badge>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Manifiesto de copias (Ola 1025R · INF1025H)                         */
+/* ------------------------------------------------------------------ */
+
+const DESTINO_DE_FUENTE: Record<string, CopiaMemoria["destino"]> = {
+  starseed: "starseed",
+  gdrive: "gdrive",
+  local: "local",
+  external: "externo",
+  casaos: "externo",
+  raven: "externo",
+  skales: "externo",
+  tencentdb: "externo",
+  mempalace: "externo",
+};
+
+function CopyManifestCard({ brainId, files, loading }: { brainId: string; files: MemoryFile[]; loading: boolean }) {
+  const [manifiesto, setManifiesto] = useState<ManifiestoMemoria | null>(null);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    let vivo = true;
+    setCargando(true);
+    void (async () => {
+      const copias: CopiaMemoria[] = [];
+      for (const f of files) {
+        const huella = await huellaContenido(f.content);
+        const bytes = new TextEncoder().encode(f.content.replace(/\r\n/g, "\n")).length;
+        const ms = f.updated_at ? Date.parse(f.updated_at) : Number.NaN;
+        const base = {
+          cerebroId: brainId,
+          memoriaId: f.id,
+          huella,
+          bytes,
+          actualizadoMs: Number.isNaN(ms) ? null : ms,
+        };
+        copias.push({ ...base, destino: "starseed" });
+        const destino = DESTINO_DE_FUENTE[f.source];
+        if (destino && destino !== "starseed") copias.push({ ...base, destino });
+      }
+      if (vivo) {
+        setManifiesto(construirManifiesto(copias));
+        setCargando(false);
+      }
+    })();
+    return () => { vivo = false; };
+  }, [brainId, files]);
+
+  const div = manifiesto ? divergencias(manifiesto) : [];
+  const propuestas = manifiesto ? proponerLimpieza(manifiesto) : [];
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-2">
+      <div className="flex items-center gap-2">
+        <Copy className="w-4 h-4 text-sky-300" />
+        <span className="text-sm font-semibold text-sky-50">Copias de memoria · manifiesto</span>
+        {(loading || cargando) && <Loader2 className="w-3.5 h-3.5 animate-spin text-white/40 ml-auto" />}
+      </div>
+      <p className="text-[11px] text-white/50">
+        Huella SHA-256 del contenido normalizado (BLAKE3 no está en el navegador sin dependencias). Cuenta las copias reales por
+        destino; compara por fecha («el más nuevo gana») y nunca borra nada solo.
+      </p>
+      {manifiesto ? (
+        <div className="space-y-1">
+          <p className="text-xs text-white/75">{resumenManifiesto(manifiesto)}.</p>
+          {div.length > 0 && (
+            <p className="text-[11px] text-amber-200/80">
+              {div.length} memoria(s) con huellas distintas entre destinos
+              {div.every((d) => d.ganadora === null) ? " (empate: no se escribe nada)" : "; gana la copia más reciente"}.
+            </p>
+          )}
+          <p className="text-[11px] text-white/45">
+            {propuestas.length > 0
+              ? `${propuestas.length} propuesta(s) de limpieza; todas requieren tu confirmación y ninguna se aplica sola.`
+              : "Sin copias redundantes que proponer; ninguna copia única se toca."}
+          </p>
+        </div>
+      ) : (
+        <p className="text-[11px] text-white/40">Calculando el manifiesto de copias…</p>
+      )}
     </div>
   );
 }
