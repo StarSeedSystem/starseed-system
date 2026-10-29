@@ -68,7 +68,13 @@ import {
   applyVoiceChainPriority,
 } from "@/lib/aurora/tts-oss/omnivoice-web-router";
 import { BrainApiManager } from "@/lib/aurora/tts-oss/brain-api-manager";
-import { cronometroHabla } from "@/lib/aurora/medidas-voz";
+import { cronometroHabla, leerMedidas } from "@/lib/aurora/medidas-voz";
+// VZR1011D · Plática fluida: el orden de la cadena por LATENCIA MEDIDA (puro).
+import {
+  medidasPorMotor,
+  modoHablaDe,
+  reordenarPorLatenciaMedida,
+} from "@/lib/aurora/tts-oss/conversacion-fluida";
 import {
   getEngineSettings,
   getVoiceConfig,
@@ -578,7 +584,21 @@ export async function speakWithConfiguredEngine(
     if (!chain.length) return false; // suelo: navegador
     // Preferencias de jerarquización (Adenda 94): el usuario reordena la cadena
     // de motores en la ventana de voz; aquí la respetamos antes de hablar.
-    const orderedChain = applyVoiceChainPriority(chain);
+    let orderedChain = applyVoiceChainPriority(chain);
+    // PLÁTICA FLUIDA (VZR1011D · contrato §2): en modo CONVERSACIÓN (AUTO
+    // encendido y sin reorden manual del usuario) el orden lo manda la latencia
+    // MEDIDA en esta neurona —medidas de `medidas-voz.ts`: primer sonido y
+    // factor de tiempo real—, con el presupuesto de 0,8 s hasta el primer
+    // sonido; lo medido lento no se tira, queda al final como relevo. Si el
+    // usuario reordenó a mano o apagó AUTO, es LECTURA/narración: manda la
+    // calidad y el orden queda intacto. Defensivo, nunca lanza.
+    try {
+      if (modoHablaDe(cfg) === "conversacion" && orderedChain.every((id, i) => id === chain[i])) {
+        orderedChain = reordenarPorLatenciaMedida(orderedChain, medidasPorMotor(leerMedidas()));
+      }
+    } catch {
+      /* orden teórico intacto */
+    }
     // ACTIVACIÓN AUTOMÁTICA POR SESIÓN (Adenda 94): si la cadena incluye el
     // motor web OpenVoice, descubre los Spaces HF Running UNA vez por sesión de
     // chat (al iniciar/actualizar la sesión de la neurona activa) para que
