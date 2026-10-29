@@ -25,6 +25,11 @@ import { curatedPresets } from "@/lib/themes/curated-presets";
 import { registrarAdaptadoresApariencia } from "@/lib/variaciones/adaptadores/apariencia";
 // Petición a la Protomolécula (Ola 1026P · P3): solo la constante del aviso (módulo sin dependencias).
 import { EVENTO_APLICAR_FONDO } from "@/lib/protomolecula/peticion/fondo-evento";
+// Fuentes de la marca (DSN1019D): el componente fija las variables --ss-font-* y carga
+// bajo demanda la hoja de cada papel AL USARSE (Satoshi cuando el registro o la pieza
+// usa el display editorial; Quicksand con el tema Natural). Aquí, donde el OS decide
+// el tema activo y la tipografía del cuerpo, se decide QUÉ papel está en uso.
+import { FuentesMarca, type RolPapel } from "@/components/theme/fuentes-marca";
 
 export interface CustomFont {
     name: string;
@@ -926,6 +931,38 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         return { ...config, background };
     }, [config, profileId, pathname]);
 
+    // ── Fuentes de la marca (DSN1019D) ───────────────────────────────────
+    // ¿Qué papel tipográfico está EN USO ahora mismo? Se recalcula cuando cambia
+    // la tipografía del sistema (estados de next-themes/config) o el <html> de
+    // clase y estilo (los presets de tema y theme-engine escriben ahí). Solo con
+    // un papel en uso entra su hoja web: sin pedido, cero enlaces (bajo demanda).
+    const [papelesFuente, setPapelesFuente] = useState<RolPapel[]>([]);
+    useEffect(() => {
+        const recalcular = () => {
+            const raiz = document.documentElement;
+            const familia = resolvedConfig.typography?.fontFamily ?? "";
+            const cuerpo = raiz.style.getPropertyValue("--font-body");
+            const papeles: RolPapel[] = [];
+            // Tema Natural → papel orgánico (Quicksand).
+            if (raiz.classList.contains("natural") || familia === "Quicksand" || cuerpo.includes("Quicksand")) {
+                papeles.push("organico");
+            }
+            // Registro o pieza con Satoshi en el cuerpo → papel display editorial.
+            if (familia === "Satoshi" || cuerpo.includes("Satoshi")) {
+                papeles.push("display-editorial");
+            }
+            setPapelesFuente((prev) =>
+                prev.length === papeles.length && papeles.every((p) => prev.includes(p))
+                    ? prev
+                    : papeles,
+            );
+        };
+        recalcular();
+        const observador = new MutationObserver(recalcular);
+        observador.observe(document.documentElement, { attributeFilter: ["class", "style"] });
+        return () => observador.disconnect();
+    }, [resolvedConfig]);
+
     // Re-aplica el ThemePack del catálogo (theme-engine.ts) que el usuario
     // dejó activo la última vez, si lo hay — sin esto, un tema aplicado desde
     // ThemeCatalogGallery se perdería al recargar (applyThemeTokens solo toca
@@ -1476,6 +1513,12 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     };
 
     return (
+        <>
+        {/* Fuentes de la marca: fija --ss-font-display/titular/organica en el raíz
+            (una sola vez, con respaldos) y carga las hojas solo de los papeles que
+            alguna pieza del OS esté usando (Satoshi · display editorial, Quicksand ·
+            tema Natural). Sin papeles en uso, ninguna red extra. */}
+        <FuentesMarca papeles={papelesFuente} />
         <AppearanceContext.Provider value={{
             config: resolvedConfig,
             rawConfig: config,
@@ -1500,6 +1543,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         }}>
             {children}
         </AppearanceContext.Provider>
+        </>
     );
 }
 
