@@ -71,14 +71,19 @@ export function useTarjetaImagenes() {
     medidas: {},
   })), [misDispositivos]);
 
-  /** Generar las opciones: plan por capas con el catálogo completo, el prompt pegado a cada una. */
-  const generarOpciones = useCallback(async (peticion: PeticionImagen & { prompt?: string }) => {
+  /**
+   * Generar las opciones: plan por capas con el catálogo completo, el prompt pegado a cada una.
+   * La petición llega tal cual la escriba la capa de arriba; lo que falte lo completa
+   * PETICION_DEFECTO (comparar varios modelos, calidad primero, sin pago ni referencia).
+   */
+  const generarOpciones = useCallback(async (peticion: Partial<PeticionImagen> & { prompt?: string }) => {
     setCargando(true);
     setError(null);
     try {
       const prompt = peticion.prompt ?? "Una imagen de prueba";
-      peticionRef.current = peticion;
-      const plan = planImagen(peticion, neuronas, Date.now(), MODELOS_IMAGEN);
+      const completa: PeticionImagen = { ...PETICION_DEFECTO, ...peticion };
+      peticionRef.current = completa;
+      const plan = planImagen(completa, neuronas, Date.now(), MODELOS_IMAGEN);
       setOpciones(opcionesConPrompt(plan.opciones, prompt));
     } catch (err) {
       setError(err instanceof Error ? err.message : "No pude planificar las opciones de imagen");
