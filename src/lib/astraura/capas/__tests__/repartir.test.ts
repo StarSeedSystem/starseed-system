@@ -141,6 +141,18 @@ describe("capaEnPropio — verificación de capa en almacén local", () => {
     await almacen.escribir("capa/needle3-reflejo/trozo/99", aBuffer("desconocido"));
     expect(await capaEnPropio(almacen, entrada.sha256)).toBe(false);
   });
+
+  it("no cuenta como completa una capa con un hueco entre trozos", async () => {
+    const almacen = almacenamientoEnMemoria();
+    const sha256 = "a".repeat(64);
+    const meta = { sha256, completa: true, totalTrozos: 3 };
+    await almacen.escribir("capa/needle3-reflejo/meta", aBuffer(JSON.stringify(meta)));
+    // Están el 0, el 1 y el 3, pero falta el 2: hay tres trozos, no la capa entera.
+    for (const i of [0, 1, 3]) {
+      await almacen.escribir(`capa/needle3-reflejo/trozo/${i}`, aBuffer(`trozo-${i}`));
+    }
+    expect(await capaEnPropio(almacen, sha256)).toBe(false);
+  });
 });
 
 describe("pedirCapa — selección de fuente por orden §6", () => {
