@@ -1270,8 +1270,9 @@ function etiquetaCorta(t: RamaTarea): string {
  * Filas de procesos: la lista ORDENADA de la ola (qué va antes, qué espera a qué) y la fila
  * de cada agente vivo (qué está escribiendo y qué tiene detrás). Complementa el árbol: el
  * árbol enseña las dependencias; la fila enseña el turno.
+ * Exportada para las pruebas de UI (no monta red ni disco por sí sola).
  */
-function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
+export function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
     olas: RamaOla[];
     olaSel: RamaOla;
     latidos: LatidoTarea[];
@@ -1306,40 +1307,71 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
     const cuentaCerradas = (t: RamaTarea) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "informe"].includes(t.estado);
     const enCursoOla = filaOla.filter((t) => t.vivo || t.estado === "en_curso").length;
     const pendientesOla = filaOla.filter((t) => t.estado === "pendiente" || t.estado === "interrumpida").length;
-    const resumenOla = `${enCursoOla} en curso · ${pendientesOla} pendientes · ${filaOla.filter(cuentaCerradas).length} cerradas`;
+    const resumenOla = `${enCursoOla} en curso · ${pendientesOla} pendientes · ${filaOla.filter(cuentaCerradas).length} hechas`;
     const escribiendoAgentes = agentes.reduce((n, a) => n + a.vivas.length, 0);
     const resumenAgentes =
         agentes.length === 0 && sinAgente.length === 0
             ? "Ningún orquestador vivo ni cola con tareas pendientes"
             : `${escribiendoAgentes} escribiendo · ${sinAgente.length} cola${sinAgente.length === 1 ? "" : "s"} sin agente vivo`;
 
-    const Fila = ({ tareas, marcarHechas }: { tareas: RamaTarea[]; marcarHechas: Set<string> }) => (
-        <ol className="mt-2 space-y-1 text-xs">
-            {tareas.map((t, i) => {
-                const tono = tonoEstado(t.estado);
-                const espera = t.estado === "pendiente" || t.estado === "interrumpida" ? t.dependencias.filter((d) => !marcarHechas.has(d)) : [];
-                return (
-                    <li key={t.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <span className="w-5 text-right font-mono text-white/35">{i + 1}.</span>
-                        <button type="button" onClick={() => onVer(t.id)} className="cursor-pointer font-mono font-medium text-white hover:underline" title="Abrir la ficha">
-                            {t.id}
-                        </button>
-                        <span className={`h-1.5 w-1.5 rounded-full ${tono.punto}`} aria-hidden />
-                        <span className={tono.texto}>{etiquetaCorta(t)}</span>
-                        {t.vivo ? (
-                            <span className={tonoFase(t.vivo.fase)}>{t.vivo.fase} · {corto(t.vivo.modelo)}{t.vivo.minutos ? ` · ${t.vivo.minutos} min` : ""}</span>
-                        ) : t.modelo ? (
-                            <span className="text-white/45">{corto(t.modelo)}{t.proveedor ? ` · ${t.proveedor}` : ""}</span>
-                        ) : null}
-                        {t.donde ? <span className={t.donde === "nube" ? "text-sky-300/80" : "text-amber-300/80"}>{t.donde}{t.medio ? ` · ${t.medio}` : ""}</span> : null}
-                        {espera.length ? <span className="text-white/40">espera {espera.join(", ")}</span> : null}
-                        {t.sha ? <span className="font-mono text-white/35">{t.sha}</span> : null}
-                        <span className="truncate text-white/50" title={t.titulo}>· {t.titulo}</span>
-                    </li>
-                );
-            })}
-        </ol>
-    );
+    /** Cada fila larga muestra las primeras 8 tareas y un botón «Ver todas (N)» (UIG1029B). */
+    const CUPO_FILA = 8;
+
+    const Fila = ({ tareas, marcarHechas }: { tareas: RamaTarea[]; marcarHechas: Set<string> }) => {
+        const [todas, setTodas] = useState(false);
+        const visibles = todas ? tareas : tareas.slice(0, CUPO_FILA);
+        return (
+            <div>
+                <ol className="mt-2 space-y-1 text-xs">
+                    {visibles.map((t, i) => {
+                        const tono = tonoEstado(t.estado);
+                        const espera = t.estado === "pendiente" || t.estado === "interrumpida" ? t.dependencias.filter((d) => !marcarHechas.has(d)) : [];
+                        return (
+                            <li key={t.id}>
+                                <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                                    <span className="w-5 text-right font-mono text-white/35">{i + 1}.</span>
+                                    <button type="button" onClick={() => onVer(t.id)} className="cursor-pointer font-mono font-medium text-white hover:underline" title="Abrir la ficha">
+                                        {t.id}
+                                    </button>
+                                    <span className={`inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] ${tono.texto}`}>
+                                        <span className={`h-1.5 w-1.5 rounded-full ${tono.punto}`} aria-hidden />
+                                        {etiquetaCorta(t)}
+                                    </span>
+                                    {t.vivo ? (
+                                        <span className={`inline-flex items-center rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] ${tonoFase(t.vivo.fase)}`}>
+                                            {t.vivo.fase} · {corto(t.vivo.modelo)}{t.vivo.minutos ? ` · ${t.vivo.minutos} min` : ""}
+                                        </span>
+                                    ) : t.modelo ? (
+                                        <span className="inline-flex items-center rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/55" title={t.modelo}>
+                                            {corto(t.modelo)}{t.proveedor ? ` · ${t.proveedor}` : ""}
+                                        </span>
+                                    ) : null}
+                                    {t.donde ? (
+                                        <span className={`inline-flex items-center rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] ${t.donde === "nube" ? "text-sky-300/80" : "text-amber-300/80"}`}>
+                                            {t.donde}{t.medio ? ` · ${t.medio}` : ""}
+                                        </span>
+                                    ) : null}
+                                    {espera.length ? <span className="text-white/40">espera {espera.join(", ")}</span> : null}
+                                    {t.sha ? <span className="font-mono text-white/35">{t.sha}</span> : null}
+                                </div>
+                                <p className="mt-0.5 text-[11px] leading-snug text-white/55" title={t.titulo}>{t.titulo}</p>
+                            </li>
+                        );
+                    })}
+                </ol>
+                {!todas && tareas.length > CUPO_FILA ? (
+                    <button
+                        type="button"
+                        onClick={() => setTodas(true)}
+                        className="mt-1.5 cursor-pointer rounded-md border border-white/10 px-2 py-1 text-[11px] text-white/70 hover:bg-white/5"
+                        data-testid="fila-ver-todas"
+                    >
+                        {`Ver todas (${tareas.length})`}
+                    </button>
+                ) : null}
+            </div>
+        );
+    };
 
     return (
         <div className="grid gap-3 lg:grid-cols-2" data-testid="filas-procesos">
@@ -1366,30 +1398,35 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
                     const fila = [...a.tareas]
                         .filter((t) => t.vivo || t.estado === "en_curso" || t.estado === "pendiente" || t.estado === "interrumpida")
                         .sort((x, y) => pesoFila(x) - pesoFila(y) || x.nivel - y.nivel || x.id.localeCompare(y.id, undefined, { numeric: true }));
+                    const esperaCola = fila.filter((t) => t.estado === "pendiente" || t.estado === "interrumpida").length;
+                    const resumenCola = `${a.vivas.length} escribiendo · ${esperaCola} en fila · ${a.integradas} integradas`;
                     return (
-                        <div key={a.clave} className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
-                            <div className="flex flex-wrap items-center gap-2 text-xs">
-                                <span className={`font-medium ${a.donde === "nube" ? "text-sky-300" : "text-amber-300"}`}>{a.donde}</span>
-                                {a.medio ? <span className="text-violet-200">desde {a.medio}</span> : null}
-                                <span className="font-mono text-white/70">cola-{a.cola}</span>
-                                <span className="text-white/45">{a.vivas.length} escribiendo · {fila.filter((t) => t.estado === "pendiente" || t.estado === "interrumpida").length} en fila · {a.integradas} integradas</span>
-                            </div>
+                        <SeccionPlegable
+                            key={a.clave}
+                            id={`fila-agente-${a.donde}-${a.cola}`}
+                            titulo={`Agente en ${a.donde} · cola-${a.cola}${a.medio ? ` · desde ${a.medio}` : ""}`}
+                            contador={resumenCola}
+                            resumen={resumenCola}
+                            abiertaPorDefecto={a.vivas.length > 0}
+                        >
                             {fila.length ? <Fila tareas={fila} marcarHechas={hechasCola} /> : <p className="mt-1 text-[11px] text-white/40">Sin tareas en fila: está cerrando.</p>}
-                        </div>
+                        </SeccionPlegable>
                     );
                 })}
                 {sinAgente.map((c) => {
                     const hechasCola = new Set<string>(c.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "informe"].includes(t.estado)).map((t) => t.id));
                     const fila = c.tareas.filter((t) => t.estado === "pendiente" || t.estado === "en_curso" || t.estado === "interrumpida").sort((x, y) => x.nivel - y.nivel || x.id.localeCompare(y.id, undefined, { numeric: true }));
                     return (
-                        <div key={`sin-${c.cola}`} className="mt-2 rounded-lg border border-dashed border-white/10 p-2">
-                            <div className="flex flex-wrap items-center gap-2 text-xs">
-                                <span className="text-white/50">sin agente vivo</span>
-                                <span className="font-mono text-white/70">cola-{c.cola}</span>
-                                <span className="text-white/45">{fila.length} esperan un lanzamiento (Diseñar ola → importar)</span>
-                            </div>
+                        <SeccionPlegable
+                            key={`sin-${c.cola}`}
+                            id={`fila-espera-${c.cola}`}
+                            titulo={`Sin agente vivo · cola-${c.cola}`}
+                            contador={`${fila.length} esperan`}
+                            resumen={`${fila.length} esperan un lanzamiento (Diseñar ola → importar)`}
+                            abiertaPorDefecto={false}
+                        >
                             <Fila tareas={fila} marcarHechas={hechasCola} />
-                        </div>
+                        </SeccionPlegable>
                     );
                 })}
             </SeccionPlegable>
