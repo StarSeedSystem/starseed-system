@@ -237,6 +237,45 @@ describe("comfyuiImage · flujo real con fetch simulado", () => {
     expect(body.prompt["1"].inputs.ckpt_name).toBe("my-model.safetensors");
   });
 
+  it("sin checkpoint preferido: consulta /object_info y usa el primero que tenga el servidor", async () => {
+    fetchSpy
+      // 1. /object_info/CheckpointLoaderSimple devuelve dos checkpoints
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          CheckpointLoaderSimple: {
+            input: { required: { ckpt_name: [["primero.safetensors", "segundo.safetensors"]] } },
+          },
+        }),
+      } as Response)
+      // 2. /prompt
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ prompt_id: "pid-ck" }) } as Response)
+      // 3. /history/pid-ck
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          "pid-ck": { outputs: { "7": { images: [{ filename: "ck.png", subfolder: "", type: "output" }] } } },
+        }),
+      } as Response)
+      // 4. /view
+      .mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(["img-ck"], { type: "image/png" }),
+      } as Response);
+
+    const result = await comfyuiImage({ ...baseOpts });
+
+    expect(result.ok).toBe(true);
+    expect(result.provider).toBe("comfyui");
+    expect(
+      fetchSpy.mock.calls.find((c) => String(c[0]).includes("/object_info/CheckpointLoaderSimple")),
+    ).toBeDefined();
+    const promptCall = fetchSpy.mock.calls.find((c) => String(c[0]).includes("/prompt"));
+    expect(promptCall).toBeDefined();
+    const body = JSON.parse(promptCall![1]?.body as string);
+    expect(body.prompt["1"].inputs.ckpt_name).toBe("primero.safetensors");
+  });
+
   it("varias opciones (opciones > 1): usa variaciones con semillas distintas y devuelve galería", async () => {
     fetchSpy
       // Primera variación
@@ -267,7 +306,7 @@ describe("comfyuiImage · flujo real con fetch simulado", () => {
       } as Response)
       .mockResolvedValueOnce({ ok: true, blob: async () => new Blob(["img3"], { type: "image/png" }) } as Response);
 
-    const result = await comfyuiImage({ ...baseOpts, model: "model.safetensors", opciones: 3 });
+    const result = await comfyuiImage({ ...baseOpts, model: "model.safetensors", opciones: 3, seed: 40 });
 
     expect(result.ok).toBe(true);
     expect(result.provider).toBe("comfyui");
@@ -277,9 +316,15 @@ describe("comfyuiImage · flujo real con fetch simulado", () => {
     expect(result.galeria!.opciones[0].url).toBeDefined();
     expect(result.galeria!.opciones[1].url).toBeDefined();
     expect(result.galeria!.opciones[2].url).toBeDefined();
-    // Semillas distintas
+    // Semillas distintas y encadenadas desde la semilla pedida
     const semillas = result.galeria!.opciones.map((o) => o.semilla);
     expect(new Set(semillas).size).toBe(3);
+    expect(semillas).toEqual([40, 41, 42]);
+    // Cada variación enviada a /prompt lleva su propia semilla en el KSampler
+    const semillasEnviadas = fetchSpy.mock.calls
+      .filter((c) => String(c[0]).includes("/prompt"))
+      .map((c) => JSON.parse(c[1]?.body as string).prompt["5"].inputs.seed);
+    expect(semillasEnviadas).toEqual([40, 41, 42]);
   });
 
   it("sin checkpoint disponible: error honesto 'instala un checkpoint en tu ComfyUI'", async () => {
