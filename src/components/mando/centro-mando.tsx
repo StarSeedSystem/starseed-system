@@ -17,6 +17,7 @@
 
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { BrainCircuit, CircleDashed, CircleDollarSign, Clock3, Copy, ExternalLink, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,6 +25,9 @@ import { MenuListaMovil } from "@/components/ui/menu-lista-movil";
 import type { EstadoMando, ProveedorUso } from "@/lib/mando/tipos";
 import { flotaConocida } from "@/lib/mando/flota";
 import "@/components/mando/mando-cristal.css";
+// (2026-10-29 · UIG1029D) Ventanas plegables: cada panel de cada pestaña se pliega
+// (SeccionPlegable) y la barra de pestañas manda «Plegar todo / Desplegar todo».
+import { SeccionPlegable, usePlegarTodo } from "@/components/mando/seccion-plegable";
 import { PanelMedidor, PastillaMedidor, type TonoMedidor } from "@/components/mando/medidor-abrible";
 import { PanelIdes, PastillaIdes } from "@/components/mando/medidor-ides";
 import { VerificarProcesos } from "@/components/mando/verificar-procesos";
@@ -848,6 +852,27 @@ instalarGuardiaFetchMando();
 // basta, se recarga (con el servidor sano). Ver `autocuracion-pagina.ts`.
 instalarAutocuracionPagina();
 
+/**
+ * (2026-10-29 · UIG1029D) PURA: el id estable de la ventana plegable de un panel:
+ * `genesis.<pestana>.<panel>`. Lo usan `VentanaPestana` y las pruebas.
+ */
+export function idPlegable(pestana: string, panel: string): string {
+    return `genesis.${pestana}.${panel}`;
+}
+
+/**
+ * (2026-10-29 · UIG1029D) Cada panel de una pestaña vive en una ventana plegable:
+ * abierta la primera visita (y abierta la primera de cada pestaña), y a partir de
+ * ahí `SeccionPlegable` recuerda lo que eligió Alex por id, en todas las pantallas.
+ */
+function VentanaPestana({ pestana, panel, titulo, children }: { pestana: string; panel: string; titulo: string; children: ReactNode }) {
+    return (
+        <SeccionPlegable id={idPlegable(pestana, panel)} titulo={titulo}>
+            {children}
+        </SeccionPlegable>
+    );
+}
+
 export function CentroMando() {
     // La consola ocupa la pantalla entera y no necesita el cromo del OS: al declararse
     // «rito» se apagan dock, cortinas, bordes Trinity y paleta de comandos, que es
@@ -858,6 +883,11 @@ export function CentroMando() {
     }, []);
 
     const [pestana, setPestana] = useState<IdPestana>("procesos");
+    // (2026-10-29 · UIG1029D) La barra de pestañas da una sola orden a las ventanas
+    // de la pestaña visible: «Plegar todo» o «Desplegar todo». Solo las ventanas
+    // montadas responden (las pestañas ocultas están desmontadas), y SeccionPlegable
+    // guarda lo elegido antes de que el botón no lo obligue otra vez.
+    const { plegado: todoPlegado, etiqueta: etiquetaPliegue, alternar: alternarPliegue } = usePlegarTodo();
     const [estado, setEstado] = useState<EstadoMando | null>(null);
     // Salud de la neurona (memoria, voz, BitNet, Ollama) para los medidores de
     // la cabecera; si la sonda falla, se queda en null y la cabecera sigue igual.
@@ -2451,6 +2481,21 @@ export function CentroMando() {
                         className="w-full"
                     />
                 </div>
+                {/* (2026-10-29 · UIG1029D) Alex: «todas las demás ventanas deben poder desplegar o
+                    cerrar su información». Una orden para la pestaña visible, centrada y con el
+                    mismo trazo de la pila de Genesis; el estado de cada ventana lo sigue
+                    recordando SeccionPlegable tras la primera visita. */}
+                <div className="flex items-center justify-center py-2">
+                    <button
+                        type="button"
+                        onClick={alternarPliegue}
+                        aria-pressed={todoPlegado}
+                        data-testid="boton-plegar-todo"
+                        className="mc-alzar cursor-pointer rounded-md border border-cyan-300/40 bg-cyan-400/10 px-3 py-1.5 text-[11px] text-cyan-100"
+                    >
+                        {etiquetaPliegue}
+                    </button>
+                </div>
                 {/* (2026-10-09) Alex: «las posiciones y órdenes de los botones… y los nombres de cada
                     sección están feos». Las familias se nombraban DENTRO de la fila, entre pestañas
                     («salida», «fuera»…), la barra se partía en tres filas desiguales y «Ajustes» eran
@@ -2482,12 +2527,18 @@ export function CentroMando() {
                 </TabsList>
 
                 <TabsContent value="procesos">
-                    <PanelProcesos />
+                    <VentanaPestana pestana="procesos" panel="procesos" titulo="Procesos">
+                        <PanelProcesos />
+                    </VentanaPestana>
                     {/* 2026-09-29 · Sueños profundos: la flota de análisis y su verificación por Claude. */}
-                    <PanelSuenos />
+                    <VentanaPestana pestana="procesos" panel="suenos" titulo="Sueños profundos">
+                        <PanelSuenos />
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="director">
-                    <ControlDirectores />
+                    <VentanaPestana pestana="director" panel="director" titulo="Director de orquestación">
+                        <ControlDirectores />
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="oficina">
                     {/* Ola 272 · O3B: Three.js solo se carga al abrir la pestaña.
@@ -2495,99 +2546,153 @@ export function CentroMando() {
                         siquiera se pida antes de tiempo; al volver a la pestaña
                         la oficina se vuelve a montar limpia. Así `/genesis?pestana=oficina`
                         funciona igual si el usuario entra directo por URL. */}
-                    {pestana === "oficina" ? <OficinaMando alCambiarPestana={alCambiarPestana} /> : null}
+                    <VentanaPestana pestana="oficina" panel="oficina" titulo="Oficina 3D">
+                        {pestana === "oficina" ? <OficinaMando alCambiarPestana={alCambiarPestana} /> : null}
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="olas">
-                    <PanelOlas />
+                    <VentanaPestana pestana="olas" panel="olas" titulo="Olas e informes">
+                        <PanelOlas />
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="commits">
-                    <PanelPublicaciones pedidoPublicar={pedidoPublicar} alAtenderPedido={atenderPedidoPublicar} />
+                    <VentanaPestana pestana="commits" panel="commits" titulo="Commits pendientes">
+                        <PanelPublicaciones pedidoPublicar={pedidoPublicar} alAtenderPedido={atenderPedidoPublicar} />
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="publicar">
-                    <PanelPublicacion />
+                    <VentanaPestana pestana="publicar" panel="publicar" titulo="Publicar">
+                        <PanelPublicacion />
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="actualizaciones">
-                    {pestana === "actualizaciones" ? <ActualizacionesMetaGenesis /> : null}
-                    {pestana === "actualizaciones" ? (
-                        <div className="mt-4">
-                            <PanelMejorasNeurona informes={[]} generado={null} />
-                        </div>
-                    ) : null}
+                    <VentanaPestana pestana="actualizaciones" panel="actualizaciones" titulo="Actualizaciones por capas">
+                        {pestana === "actualizaciones" ? <ActualizacionesMetaGenesis /> : null}
+                    </VentanaPestana>
+                    <VentanaPestana pestana="actualizaciones" panel="mejoras" titulo="Mejoras por neurona">
+                        {pestana === "actualizaciones" ? (
+                            <div className="mt-4">
+                                <PanelMejorasNeurona informes={[]} generado={null} />
+                            </div>
+                        ) : null}
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="metageminis">
                     {/* Una lectura cada 10 min como mucho (contrato «consumo»): son 5 tablas. */}
-                    {pestana === "metageminis" ? <MetaGeminisPanel recargarCadaMs={10 * 60_000} /> : null}
+                    <VentanaPestana pestana="metageminis" panel="metageminis" titulo="MetaGeminis">
+                        {pestana === "metageminis" ? <MetaGeminisPanel recargarCadaMs={10 * 60_000} /> : null}
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="canales">
                     {/* Ola 285 · K3: el panel de canales solo se monta al abrir
                         la pestaña (chunk diferido + render condicional); Radix lo
                         desmonta al salir, como con las voces y la oficina. */}
-                    {pestana === "canales" ? <PanelCanales /> : null}
+                    <VentanaPestana pestana="canales" panel="canales" titulo="Canales StarSeed">
+                        {pestana === "canales" ? <PanelCanales /> : null}
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="astra">
                     {/* Ola 294 · AR4: mismo patrón que Canales — chunk diferido y
                         montaje condicional: el panel no cuesta nada hasta pedirlo. */}
-                    {pestana === "astra" ? <PanelAstra /> : null}
+                    <VentanaPestana pestana="astra" panel="astra" titulo="Astra">
+                        {pestana === "astra" ? <PanelAstra /> : null}
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="taller">
-                    {pestana === "taller" ? <PanelTaller /> : null}
+                    <VentanaPestana pestana="taller" panel="taller" titulo="Taller del agente">
+                        {pestana === "taller" ? <PanelTaller /> : null}
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="flota">
-                    <PanelFlota />
+                    <VentanaPestana pestana="flota" panel="flota" titulo="Flota">
+                        <PanelFlota />
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="novedades-modelos">
-                    <PanelNovedadesModelos />
+                    <VentanaPestana pestana="novedades-modelos" panel="novedades" titulo="Novedades de modelos">
+                        <PanelNovedadesModelos />
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="neurona">
-                    <PanelNeurona />
+                    <VentanaPestana pestana="neurona" panel="neurona" titulo="Neurona">
+                        <PanelNeurona />
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="servidor">
-                    {pestana === "servidor" ? <PanelServidor /> : null}
+                    <VentanaPestana pestana="servidor" panel="servidor" titulo="Servidor 1.58">
+                        {pestana === "servidor" ? <PanelServidor /> : null}
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="voces">
                     {/* El Estudio pesa (forja, motores, oído): solo se monta al abrir
                         la pestaña; Radix lo desmonta al salir (forceMount no se usa). */}
-                    {pestana === "voces" ? <PanelVoces /> : null}
+                    <VentanaPestana pestana="voces" panel="voces" titulo="Voces">
+                        {pestana === "voces" ? <PanelVoces /> : null}
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="aprendizaje">
-                    <PanelAprendizaje />
+                    <VentanaPestana pestana="aprendizaje" panel="aprendizaje" titulo="Aprendizaje">
+                        <PanelAprendizaje />
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="reportes">
                     {/* p323D: la bandeja curada se monta al abrirla; el conteo
                         de la insignia es ligero y va aparte, en la pestaña misma. */}
-                    {pestana === "reportes" ? <PanelReportes /> : null}
+                    <VentanaPestana pestana="reportes" panel="reportes" titulo="Reportes">
+                        {pestana === "reportes" ? <PanelReportes /> : null}
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="chat">
-                    <ChatOrquestacion />
+                    <VentanaPestana pestana="chat" panel="chat" titulo="Chat">
+                        <ChatOrquestacion />
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="areas">
-                    <PanelAreas />
+                    <VentanaPestana pestana="areas" panel="areas" titulo="Áreas">
+                        <PanelAreas />
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="contextos">
-                    <PanelContextos />
+                    <VentanaPestana pestana="contextos" panel="contextos" titulo="Contextos">
+                        <PanelContextos />
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="memorias">
                     {/* Ola de Memorias: mismo patrón que Canales/Astra — chunk diferido
                         y montaje condicional, porque recorre disco (repo + home) al abrirse. */}
-                    {pestana === "memorias" ? <PanelMemorias /> : null}
+                    <VentanaPestana pestana="memorias" panel="memorias" titulo="Memorias">
+                        {pestana === "memorias" ? <PanelMemorias /> : null}
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="entornos">
-                    <PanelEntornos />
+                    <VentanaPestana pestana="entornos" panel="entornos" titulo="Entornos">
+                        <PanelEntornos />
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="ajustes_director">
-                    <AjustesDirector />
+                    <VentanaPestana pestana="ajustes_director" panel="director" titulo="Ajustes del director">
+                        <AjustesDirector />
+                    </VentanaPestana>
                 </TabsContent>
                 <TabsContent value="ajustes">
-                    <PanelAjustes />
+                    <VentanaPestana pestana="ajustes" panel="ajustes" titulo="Ajustes">
+                        <PanelAjustes />
+                    </VentanaPestana>
                 </TabsContent>
                  <TabsContent value="accesos">
-                     <MetaGenesisAccesos />
+                    <VentanaPestana pestana="accesos" panel="accesos" titulo="Accesos de MetaGenesis">
+                         <MetaGenesisAccesos />
+                    </VentanaPestana>
                  </TabsContent>
                  <TabsContent value="tunel-metagenesis">
-                     <TunelMetaGenesisEstado />
+                    <VentanaPestana pestana="tunel-metagenesis" panel="tunel" titulo="Túnel MetaGenesis">
+                         <TunelMetaGenesisEstado />
+                    </VentanaPestana>
                  </TabsContent>
             <TabsContent value="capas-red">
-                <PanelCapasRed />
+                <VentanaPestana pestana="capas-red" panel="capas-red" titulo="Capas de red">
+                    <PanelCapasRed />
+                </VentanaPestana>
             </TabsContent>
             </Tabs>
             {/* Control de la voz junto a la orbe: activar/silenciar sin abrir la pestaña. */}
