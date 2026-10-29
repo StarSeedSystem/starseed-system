@@ -1,0 +1,69 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "DSN1019G",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Biblioteca de movimiento StarSeed (WAAPI, puro)",
+   "archivos": [
+    "src/lib/design/movimiento-starseed.ts",
+    "src/lib/design/__tests__/movimiento-starseed.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Keyframes y opciones para siembra, entrada cardinal (por punto de la Trinity), fundido con desenfoque, elemento compartido, barrido de horizonte, respiración, cristalización y alquimia, con las curvas reales (`cubic-bezier(0.22, 1, 0.36, 1)`, `cubic-bezier(0.16, 1, 0.3, 1)`, `cubic-bezier(0.22, 0.9, 0.3, 1)`) y duraciones de interfaz (140/220/240 ms) y de escena (600–900 ms); `opcionesReducidas()` para movimiento reducido. Copia el comportamiento de `memory/diseno/estudio-audiovisual/examples/transiciones.html` y `siembra.html`. Prueba: solo propiedades permitidas. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos."
+  },
+  {
+   "id": "VPU1019D",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Adaptador de widgets y Dashboard",
+   "archivos": [
+    "src/lib/variaciones/adaptadores/widgets.ts",
+    "src/lib/variaciones/adaptadores/__tests__/widgets.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Familia widget: clave `widget:<WidgetType>` (de `src/components/dashboard/dashboard-types.ts`); capturar toma la configuración visual y de opciones del widget (no sus datos personales), aplicar la fusiona con la instancia elegida y devuelve deshacer; respeta `getSizeConstraints` de `src/components/dashboard/widget-manifest.ts`. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "VPU1019H",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Adaptador de publicaciones y mensajes (estilos del editor)",
+   "archivos": [
+    "src/lib/variaciones/adaptadores/publicaciones.ts",
+    "src/lib/variaciones/adaptadores/__tests__/publicaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Familias post y mensaje con parte `#estilo`, `#plantilla` o `#decoracion`: captura estilos y plantillas del editor rico (`src/components/messages/rico/`) y del compositor de publicaciones, nunca el texto ni los destinatarios; aplicar sobre el borrador actual con deshacer. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "HFR1018L",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Lienzo y publicaciones · el átomo video-html se ve y se reproduce dentro del bloque protomolécula",
+   "archivos": [
+    "src/components/protomolecula/vista-video-html.tsx",
+    "src/lib/protomolecula/bloque-protomolecula.ts",
+    "src/lib/protomolecula/__tests__/vista-video-html.test.ts"
+   ],
+   "depende": [],
+   "prompt": "En bloque-protomolecula.ts añade (solo eso) la correspondencia átomo `video-html` → vista; vista-video-html.tsx muestra el póster o el vídeo ya renderizado y, si hay servicio local, la vista previa en vivo. Una función pura `elegirVista(atomo, servicioVivo, renderHecho)` decide qué mostrar y se prueba. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "HFR1018D"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "HFR1018L",
+   "DSN1019G",
+   "VPU1019H",
+   "VPU1019D"
+  ]
+ }
+}
