@@ -153,16 +153,34 @@ describe("seguimiento de respuestas («Reply Zero»)", () => {
     expect(clasificarHilo(hilo({ id: "h", ultimoEn: "" }), YO, AHORA)).toBe("resuelto");
   });
 
+  it("márgenes propios: horasPorResponder ajusta el umbral de por-responder", () => {
+    // 30 h con el margen por defecto ya habría pasado a «por-responder» (24 h).
+    const treinta = hilo({ id: "h", ultimoEn: "2026-10-28T06:00:00Z" });
+    expect(clasificarHilo(treinta, YO, AHORA, { horasPorResponder: 48 })).toBe("resuelto");
+    const cincuenta = hilo({ id: "h", ultimoEn: "2026-10-27T10:00:00Z" }); // 50 h antes
+    expect(clasificarHilo(cincuenta, YO, AHORA, { horasPorResponder: 48 })).toBe("por-responder");
+  });
+
+  it("una fecha rota se trata como ya caducada, no como fecha desconocida", () => {
+    // De otro: «hace más de N horas» (fecha imposible → infinitas horas).
+    expect(clasificarHilo(hilo({ id: "r", ultimoEn: "no-es-fecha" }), YO, AHORA)).toBe("por-responder");
+    // Mío: «hace más de D días» → también pasa el margen.
+    expect(clasificarHilo(hilo({ id: "m", ultimoDe: YO, ultimoEn: "no-es-fecha" }), YO, AHORA)).toBe(
+      "esperando",
+    );
+  });
+
   it("resumenSeguimiento reparte los ids por estado", () => {
     const hilos: HiloLite[] = [
       hilo({ id: "a", ultimoEn: "2026-10-28T06:00:00Z" }), // por-responder
       hilo({ id: "b", ultimoDe: YO, ultimoEn: "2026-10-01T00:00:00Z" }), // esperando
       hilo({ id: "c", ultimoEn: "2026-10-29T08:00:00Z" }), // resuelto
+      { ...hilo({ id: "z", ultimoEn: "" }), ultimoDe: "" }, // sin mensajes → resuelto
     ];
     expect(resumenSeguimiento(hilos, YO, AHORA)).toEqual({
       porResponder: ["a"],
       esperando: ["b"],
-      resuelto: ["c"],
+      resuelto: ["c", "z"],
     });
   });
 });
