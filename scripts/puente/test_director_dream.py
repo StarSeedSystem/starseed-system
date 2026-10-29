@@ -84,8 +84,9 @@ class TestTextosDeImaginacion(unittest.TestCase):
         self.assertNotIn("Dream", t)
 
     def test_el_resumen_vacio_tambien_dice_imaginacion_diaria(self):
+        # La frase completa importa: la lee una persona en el canal (Ola 1021I, §2).
         t = DC.resumen([])
-        self.assertTrue(t.startswith("Imaginación diaria leída: nada accionable"), t)
+        self.assertEqual(t, "Imaginación diaria leída: nada accionable nuevo que encargar.")
         self.assertNotIn("Dream", t)
 
 
