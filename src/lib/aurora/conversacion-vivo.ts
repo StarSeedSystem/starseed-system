@@ -7,8 +7,17 @@
  * con un motor 4 veces más lento que el tiempo real. Ahora, en el mismo turno:
  *
  *   texto del usuario → /api/astraura/conversacion (BitNet local primero, nube en carrera)
- *     → tokens en streaming → troceador de cláusulas (`streaming-voice.ts`)
- *     → cada cláusula a la voz en tiempo real (`voz-rt.ts`), que suena sin huecos.
+ *     → tokens en streaming → FRASES YA CERRADAS (`planificarTurno` sobre
+ *     `trocear.ts` del contrato VZR1011D)
+ *     → cada frase a la voz en tiempo real (`voz-rt.ts`), que suena sin huecos.
+ *
+ * Plática fluida (contrato §2): el motor se elige por lo MEDIDO y la primera
+ * frase suena mientras el modelo sigue escribiendo; la siguiente frase se
+ * sintetiza mientras suena la anterior (la cadena de `voz-rt`). Si la persona
+ * empieza a hablar, el corte se mide con el mismo reloj (`evaluarInterrupcion`,
+ * ≤ 100 ms) y el turno queda escuchando; si lo medido de ESTA neurona dice que
+ * la primera frase no llega al presupuesto de 0,8 s, una muletilla ya
+ * calculada cubre la espera.
  *
  * Si el primer token tarda, una muletilla ya calculada («Mmm, a ver…») llena el silencio
  * como lo haría una persona. El historial se guarda con el texto EXACTO de cada respuesta:
@@ -17,7 +26,18 @@
  */
 
 import { eventoDeLinea, type TurnoConversacion } from "@/lib/astraura/conversacion-rapida";
-import { createStreamingVoice } from "@/lib/aurora/streaming-voice";
+import {
+    LIMITE_INTERRUPCION_MS,
+    PRESUPUESTO_PRIMER_SONIDO_MS,
+    cronograma,
+    evaluarInterrupcion,
+    medidasPorMotor,
+    modoHablaDe,
+    planificarTurno,
+    type Interrupcion,
+} from "@/lib/aurora/tts-oss/conversacion-fluida";
+import { getVoiceConfig } from "@/lib/aurora/tts-oss/voice-config";
+import { leerMedidas } from "@/lib/aurora/medidas-voz";
 import { vozDePersona, vozRT } from "@/lib/aurora/voz-rt";
 import { normalizar, registrarDicho, repeticionEnTexto } from "@/lib/aurora/anti-bucle-voz";
 
@@ -27,6 +47,12 @@ const HISTORIAL_TURNOS = 12;
 let historial: TurnoConversacion[] = [];
 let personaDelHistorial = "";
 
+/** Corta en medido (con `performance.now`); sin reloj, 0 en ambos extremos. Pura. */
+function relojMs(): number {
+    try { return performance.now(); } catch { return 0; }
+}
+
+/** Un turno de conversación, tal y como se contó en la interfaz. */
 export interface ResultadoTurnoVivo {
     texto: string;
     motor: string;
@@ -50,6 +76,31 @@ export function reiniciarConversacionViva(): void {
     personaDelHistorial = "";
 }
 
+/**
+ * La persona empieza a hablar (barge-in): la voz se calla AL INSTANTE y queda
+ * escuchando (contrato §2.3). El corte se mide con el mismo reloj de la
+ * síntesis (detección → voz callada, `evaluarInterrupcion`); si se pasa del
+ * límite de 100 ms queda en el log, con su cifra, para arreglarla. También deja
+ * de alimentar el turno en curso (cambia la generación de la voz). NUNCA lanza.
+ */
+export function interrumpirConversacionViva(): Interrupcion {
+    const deteccion = relojMs();
+    try {
+        vozRT().detener();
+    } catch {
+        /* sin voz que callar */
+    }
+    const resultado = evaluarInterrupcion(deteccion, relojMs());
+    if (!resultado.rapida) {
+        try {
+            console.warn(`[conversacion-vivo] corte en ${resultado.msHastaCortar} ms (≥ ${LIMITE_INTERRUPCION_MS} ms)`);
+        } catch {
+            /* sin consola */
+        }
+    }
+    return resultado;
+}
+
 export async function turnoEnVivo(opts: {
     texto: string;
     persona: { id: string; nombre: string };
@@ -62,6 +113,15 @@ export async function turnoEnVivo(opts: {
     if (personaDelHistorial && personaDelHistorial !== opts.persona.id) historial = [];
     personaDelHistorial = opts.persona.id;
     voz.iniciarConversacion("orbe", vozId);
+    // Si alguien cortó la voz mientras este turno escribía, deja de alimentarlo
+    // (la generación de la voz cambió): el corte manda sobre el turno.
+    const genTurno = voz.generacion();
+
+    // Plática fluida (contrato §2): en CONVERSACIÓN la primera frase suena antes
+    // del presupuesto de 0,8 s con el motor elegido por lo MEDIDO; en LECTURA es
+    // el colchón de 'voz-rt' el que decide cuándo empezar (calidad antes que
+    // prisa) y aquí no se inventa ninguna espera extra.
+    const conversacion = modoHablaDe(getVoiceConfig()) === "conversacion";
 
     let empezo = false;
     const alHablar = () => {
@@ -70,30 +130,64 @@ export async function turnoEnVivo(opts: {
             opts.onInicioVoz?.();
         }
     };
-    // (2026-09-27) Una cláusula ya dicha en este turno no se repite: BitNet 2B
+    // (2026-09-27) Una frase ya dicha en este turno no se repite: BitNet 2B
     // sin penalización a veces encadena la misma frase y la voz la leía en bucle.
     const clausulasDichas = new Set<string>();
-    const troceador = createStreamingVoice({
-        speak: (clausula) => {
-            const clave = normalizar(clausula).join(" ");
-            if (clave && clausulasDichas.has(clave)) return;
-            if (clave) clausulasDichas.add(clave);
+    const decir = (frase: string) => {
+        const clave = normalizar(frase).join(" ");
+        if (!clave || clausulasDichas.has(clave)) return;
+        clausulasDichas.add(clave);
+        try {
+            registrarDicho(frase, Date.now());
+        } catch {
+            /* */
+        }
+        // Pronóstico con lo MEDIDO en ESTA neurona (contrato §2.4): si el primer
+        // sonido de la primera frase va a llegar al turno tarde (lo medido de
+        // "supertonic" lo dice), una muletilla ya calculada cubre la espera — el
+        // mismo cálculo puro del contrato, `cronograma`, con el presupuesto de
+        // 0,8 s. Solo CASO PRIMERO: si la voz todavía no suena nada.
+        const previo = typeof voz.hablando === "function" ? voz.hablando() : false;
+        if (conversacion && !previo) {
             try {
-                registrarDicho(clausula, Date.now());
+                const regla = medidasPorMotor(leerMedidas()).find((m) => m.motor === "supertonic" && typeof m.primerSonidoMs === "number");
+                if (regla?.primerSonidoMs != null) {
+                    const audioMs = (frase.length * Math.max(voz.diagnostico().medidas.segPorCaracter, 0.01)) * 1000;
+                    const espera = Math.max(0, regla.primerSonidoMs - PRESUPUESTO_PRIMER_SONIDO_MS);
+                    const plan = cronograma([Math.round(audioMs)], espera, PRESUPUESTO_PRIMER_SONIDO_MS);
+                    if (!plan.dentroDelPresupuesto) {
+                        clearTimeout(muletilla);
+                        if (voz.muletilla(vozId)) alHablar();
+                    }
+                }
             } catch {
-                /* */
+                /* sin medidas o sin pronóstico: la espera habitual */
             }
-            alHablar();
-            voz.encolar(clausula, { voz: vozId });
-        },
-        initialPersonaId: opts.persona.id,
-    });
+        }
+        alHablar();
+        voz.encolar(frase, { voz: vozId });
+    };
+    // Frases YA CERRADAS con `planificarTurno` (contrato VZR1011D: trocea por
+    // calma, no por prisa). Los criterios de trocea son prefijo-estables: solo
+    // el ÚLTIMO trozo puede crecer con los tokens siguientes — lo cerrado se
+    // dice YA, y el creciente solo cuando cierra la frase (§2.2: el orden se
+    // mantiene, no se parte una frase en pieces solo por prisa).
+    const TERMINA_FRASE = /[.!?;:…]\s*$/;
+    const decirPlan = (plan: { trozos: string[] }, todo: boolean) => {
+        const trozos = plan.trozos;
+        const cerrados = todo ? trozos.length : Math.max(trozos.length - 1, 0);
+        for (let i = 0; i < cerrados; i++) decir(trozos[i]);
+        if (!todo && trozos.length > 0) {
+            const ultimo = trozos[trozos.length - 1];
+            if (TERMINA_FRASE.test(ultimo.trim())) decir(ultimo);
+        }
+    };
 
-    let primerToken = false;
     const muletilla = setTimeout(() => {
         if (!primerToken && voz.muletilla(vozId)) alHablar();
     }, MULETILLA_TRAS_MS);
 
+    let primerToken = false;
     let texto = "";
     let degenerado = false;
     let fin: ResultadoTurnoVivo | null = null;
@@ -131,7 +225,8 @@ export async function turnoEnVivo(opts: {
                         degenerado = true;
                         break;
                     }
-                    troceador.feed(e.v);
+                    if (voz.generacion() !== genTurno) break; // alguien cortó la voz
+                    decirPlan(planificarTurno(texto), false);
                 } else if (e.t === "fin") {
                     fin = {
                         texto,
@@ -152,9 +247,8 @@ export async function turnoEnVivo(opts: {
                 /* */
             }
         }
-        troceador.flush();
+        decirPlan(planificarTurno(texto), true);
     } catch {
-        troceador.stop();
         return null;
     } finally {
         clearTimeout(muletilla);

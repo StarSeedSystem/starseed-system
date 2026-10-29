@@ -107,8 +107,11 @@ export function getWebVoiceDiscoveryInfo() {
 
 // ── Jerarquía de la cadena de voz (preferencias de orden) ────────────────────
 // Orden de PRIORIDAD de los MOTORES que el usuario puede reordenar en la ventana
-// de voz. OmniVoice lo respeta en tiempo de habla reordenando la cadena.
-const VOICE_CHAIN_PRIORITY_KEY = "starseed.aurora.voice.priority.v1";
+// de voz. OmniVoice lo respeta en tiempo de habla reordenando la cadena. La
+// CLAVE se exporta: `speak-router` la lee para distinguir el orden por defecto
+// de un reorden que la persona hizo A MANO (VZR1011D · plática fluida §2).
+export const CLAVE_PRIORIDAD_CADENA = "starseed.aurora.voice.priority.v1";
+const VOICE_CHAIN_PRIORITY_KEY = CLAVE_PRIORIDAD_CADENA;
 const DEFAULT_CHAIN_PRIORITY = [
   // (VOZ1024B) Voz 1.58-bit y VibeVoice en el sitio que les da el registro
   // (`AUTO_ENDPOINT_ORDER`: los dos primeros). Sin estar aquí iban al final,

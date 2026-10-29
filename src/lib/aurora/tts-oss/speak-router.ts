@@ -66,14 +66,20 @@ import {
   refreshWebVoiceDiscovery,
   hasWebVoiceDiscoveredThisSession,
   applyVoiceChainPriority,
+  CLAVE_PRIORIDAD_CADENA,
 } from "@/lib/aurora/tts-oss/omnivoice-web-router";
 import { BrainApiManager } from "@/lib/aurora/tts-oss/brain-api-manager";
 import { cronometroHabla, leerMedidas } from "@/lib/aurora/medidas-voz";
-// VZR1011D · Plática fluida: el orden de la cadena por LATENCIA MEDIDA (puro).
+// VZR1011D · Plática fluida: el orden de las CAPAS del contrato §2.4 por
+// LATENCIA MEDIDA en esta neurona (puro; `ordenarCapas` reordena cada capa con
+// `reordenarPorLatenciaMedida` por dentro).
 import {
   medidasPorMotor,
   modoHablaDe,
-  reordenarPorLatenciaMedida,
+  ordenarCapas,
+  type CapaPlaniada,
+  type CapaVoz,
+  type MedidaMotor,
 } from "@/lib/aurora/tts-oss/conversacion-fluida";
 import {
   getEngineSettings,
@@ -82,6 +88,58 @@ import {
   type AuroraVoiceConfig,
   type NeuralEngineSettings,
 } from "@/lib/aurora/tts-oss/voice-config";
+
+/**
+ * Capa del contrato §2.4 a la que pertenece cada eslabón de la cadena:
+ * aparato › otra neurona de la cuenta en la red local › malla del grupo ›
+ * Spaces › voz del sistema (el navegador es el SUELO, no un eslabón).
+ */
+function capaDeLink(link: VoiceChainLink): CapaVoz {
+  const id = (link || "").trim().toLowerCase();
+  if (id === "kokoro" || id === "kitten") return "aparato";
+  if (id === "voice158" || id === "voicebox" || id === "vibevoice") return "neurona-remota";
+  if (id === "omnivoice" || id === "openvoice2" || id === "voxcpm" || id === "bark" || id === "gpt-sovits") {
+    return "spaces";
+  }
+  return "malla";
+}
+
+/**
+ * Agrupa la cadena en CAPAS conservando el orden interno de cada una (lo que el
+ * registro de motores ya decidió) y con las medidas de ESTA neurona solo de los
+ * motores de esa capa. Pura.
+ */
+function capasDeLaCadena(tronco: VoiceChainLink[], medidas: readonly MedidaMotor[]): CapaPlaniada[] {
+  const porCapa = new Map<CapaVoz, { cadena: string[]; ids: Set<string> }>();
+  for (const id of tronco) {
+    const capa = capaDeLink(id);
+    const fila = porCapa.get(capa) ?? { cadena: [], ids: new Set<string>() };
+    if (!fila.ids.has(id)) {
+      fila.ids.add(id);
+      fila.cadena.push(id);
+    }
+    porCapa.set(capa, fila);
+  }
+  return [...porCapa.entries()].map(([capa, fila]) => ({
+    capa,
+    cadena: fila.cadena,
+    medidas: medidas.filter((m) => fila.ids.has(m.motor)),
+    dentroDelPresupuesto: true,
+  }));
+}
+
+/**
+ * ¿Reordenó el usuario la cadena A MANO (la ventana de voz)? Sin eso, el orden
+ * guardado es el recomendado y la plática fluida puede mandar. Nunca lanza.
+ */
+function ordenManualGuardado(): boolean {
+  try {
+    if (typeof window === "undefined") return false;
+    return !!window.localStorage.getItem(CLAVE_PRIORIDAD_CADENA);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Evento global de PROCESAMIENTO DE VOZ (Adenda V2-VOZ). Lo pinta el
@@ -586,18 +644,29 @@ export async function speakWithConfiguredEngine(
     // de motores en la ventana de voz; aquí la respetamos antes de hablar.
     let orderedChain = applyVoiceChainPriority(chain);
     // PLÁTICA FLUIDA (VZR1011D · contrato §2): en modo CONVERSACIÓN (AUTO
-    // encendido y sin reorden manual del usuario) el orden lo manda la latencia
-    // MEDIDA en esta neurona —medidas de `medidas-voz.ts`: primer sonido y
-    // factor de tiempo real—, con el presupuesto de 0,8 s hasta el primer
-    // sonido; lo medido lento no se tira, queda al final como relevo. Si el
-    // usuario reordenó a mano o apagó AUTO, es LECTURA/narración: manda la
-    // calidad y el orden queda intacto. Defensivo, nunca lanza.
-    try {
-      if (modoHablaDe(cfg) === "conversacion" && orderedChain.every((id, i) => id === chain[i])) {
-        orderedChain = reordenarPorLatenciaMedida(orderedChain, medidasPorMotor(leerMedidas()));
+    // encendido, sin orden manual guardado y sin pin de personalidad) el orden
+    // de las CAPAS lo manda la latencia MEDIDA en esta neurona (`medidas-voz.ts`:
+    // primer sonido y factor de tiempo real), con el presupuesto de 0,8 s hasta
+    // el primer sonido: la capa que NO llega pasa al FINAL sin tirarse ni
+    // silenciarse (§2.4), y dentro de cada capa manda el primer sonido medido.
+    // En LECTURA (AUTO apagado), con reorden manual de la persona o con pin de
+    // personalidad (§3: la voz pedida se mantiene) manda la calidad y el orden
+    // queda intacto. Kokoro/red de seguridad ya va siempre al final de la
+    // cadena (engine-registry) y conserva su sitio: releva si todo lo demás cae.
+    // Defensivo, nunca lanza.
+    const pinFijado = !!pin && pin !== "browser";
+    if (modoHablaDe(cfg) === "conversacion" && !pinFijado && !ordenManualGuardado()) {
+      try {
+        const rede = orderedChain.filter((id) => id === "kokoro" || id === "kitten");
+        const tronco = orderedChain.filter((id) => id !== "kokoro" && id !== "kitten");
+        const ordenadas = ordenarCapas(capasDeLaCadena(tronco, medidasPorMotor(leerMedidas())));
+        orderedChain = [
+          ...ordenadas.flatMap((c) => c.cadena),
+          ...rede,
+        ] as VoiceChainLink[];
+      } catch {
+        /* orden teórico intacto */
       }
-    } catch {
-      /* orden teórico intacto */
     }
     // ACTIVACIÓN AUTOMÁTICA POR SESIÓN (Adenda 94): si la cadena incluye el
     // motor web OpenVoice, descubre los Spaces HF Running UNA vez por sesión de

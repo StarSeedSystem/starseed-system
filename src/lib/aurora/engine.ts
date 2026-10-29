@@ -1462,6 +1462,14 @@ export function useAuroraEngine(): AuroraEngine {
       .then((m) => { m.abortarSintesisAnteriores(); m.pararLocal(); })
       .catch(() => { /* */ });
     vozRT().detener();
+    // PLÁTICA FLUIDA (contrato VZR1011D §2.3): el corte de la conversación en
+    // vivo se mide con el mismo reloj de la síntesis (detección → voz callada,
+    // límite 100 ms) y el turno deja de alimentar frases. Fire-and-forget, nunca
+    // rompe nada; `detener` ya va hecho arriba (esto solo MIDE y corta el
+    // suministro, llamarlo dos veces con `detener` es inofensivo).
+    void import("@/lib/aurora/conversacion-vivo")
+      .then((m) => m.interrumpirConversacionViva())
+      .catch(() => { /* */ });
     pausedRef.current = false;
     pendienteTrasPausaRef.current = null;
     setSpeaking(false);
