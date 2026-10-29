@@ -1,70 +1,72 @@
-/**
- * Asignaciones de conectores · casos rescatados de la rama de la nube (RTCB1013L).
- * La API de hoy vive en `src/lib/genesis/conectores/escalera.ts`: el peldaño
- * numérico (1–6) sustituye a la etiqueta que usaba el panel antiguo.
- */
+// Pruebas puras del panel de asignaciones (Ola 1019G · N): sin red, sin disco y sin claves.
 import { describe, expect, it } from "vitest";
-import type { OpcionCatalogo } from "@/lib/genesis/conectores/catalogo-opciones";
-import {
-  elegirCandidatos,
-  type OfertaContexto,
-  type Preferencias,
-  type Tarea,
-} from "@/lib/genesis/conectores/escalera";
+import type { OpcionCatalogo, Papel } from "@/lib/genesis/conectores/catalogo-opciones";
+import { cadenaSugerida, modoDeGuardado, moverEnCadena, PELDANOS, peldanoDe } from "../asignaciones-panel";
 
-const GRATIS = {
-  rpm: 10,
-  porDia: null,
-  horasMes: null,
-  almacenamientoGb: null,
-  nota: "10 peticiones/min",
-};
+const GRATIS = { rpm: 10, porDia: null, horasMes: null, almacenamientoGb: null, nota: "10 peticiones/min" };
 
-function opcion(overrides: Partial<OpcionCatalogo> = {}): OpcionCatalogo {
+function opcion(id: string, extra: Partial<OpcionCatalogo> = {}): OpcionCatalogo {
   return {
-    id: overrides.id ?? "opcion",
-    nombre: overrides.nombre ?? "Opción",
-    tipo: overrides.tipo ?? "proveedor",
-    papeles: overrides.papeles ?? ["escritor"],
-    gratis: overrides.gratis === undefined ? GRATIS : overrides.gratis,
-    requiereCuenta: overrides.requiereCuenta ?? false,
-    enlaceAlta: overrides.enlaceAlta ?? null,
-    enlaceClave: overrides.enlaceClave ?? null,
-    variables: overrides.variables ?? [],
-    privacidad: overrides.privacidad ?? "local",
-    licencia: overrides.licencia ?? null,
-    verificado: overrides.verificado ?? null,
-    fuente: overrides.fuente ?? "prueba",
+    id, nombre: id, tipo: "proveedor", papeles: ["escritor"] as Papel[], gratis: GRATIS,
+    requiereCuenta: true, enlaceAlta: null, enlaceClave: null, variables: [],
+    privacidad: "nube-sin-retencion", licencia: null, verificado: null, fuente: "prueba", ...extra,
   };
 }
 
-const TAREA: Tarea = { papel: "escritor", privado: false, tamano: 1000 };
-const CON_PAGO: Preferencias = { permitirPago: true, topeDiario: 5, prohibidos: [] };
+describe("peldanoDe · etiqueta del peldaño", () => {
+  it("distingue local, malla, contenedor, gratis y pago", () => {
+    expect(peldanoDe(opcion("local", { privacidad: "local" }))).toBe("local");
+    expect(peldanoDe(opcion("ofrecida"), { ofertas: new Set(["ofrecida"]) })).toBe("local");
+    expect(peldanoDe(opcion("malla"))).toBe("malla");
+    expect(peldanoDe(opcion("vinculada"), { vinculadas: new Set(["vinculada"]) })).toBe("gratis");
+    expect(peldanoDe(opcion("caja", { tipo: "contenedor" }))).toBe("contenedor");
+    expect(peldanoDe(opcion("caro", { gratis: null }))).toBe("pago");
+  });
 
-describe("elegirCandidatos · peldaño de cada opción", () => {
-  it("deduce el peldaño de cada opción del catálogo (local, malla, contenedor y pago)", () => {
-    const ofertas: OfertaContexto[] = [
-      { id: "astraura-local", nombre: "Astraura local", tipo: "modelo", papel: ["escritor"] },
-    ];
+  it("cada peldaño tiene etiqueta y motivo para la fila", () => {
+    for (const p of ["local", "malla", "contenedor", "gratis", "pago"] as const) {
+      expect(PELDANOS[p].etiqueta).toBe(p);
+      expect(PELDANOS[p].motivo.length).toBeGreaterThan(10);
+    }
+  });
+});
+
+describe("cadenaSugerida · restaurar sugeridas", () => {
+  it("pone lo local primero, no sugiere pago y respeta el papel", () => {
     const catalogo = [
-      opcion({ id: "astraura-local", tipo: "modelo" }),
-      opcion({ id: "pago", gratis: null }),
-      opcion({ id: "malla" }),
-      opcion({ id: "contenedor", tipo: "contenedor" }),
+      opcion("pago", { gratis: null }),
+      opcion("gratis-b", { privacidad: "nube-sin-retencion" }),
+      opcion("local-a", { privacidad: "local" }),
+      opcion("otro-papel", { papeles: ["voz"] }),
     ];
+    expect(cadenaSugerida("escritor", catalogo)).toEqual(["local-a", "gratis-b"]);
+  });
 
-    const candidatos = elegirCandidatos({
-      tarea: TAREA,
-      ofertas,
-      catalogo,
-      vinculadas: new Set<string>(),
-      preferencias: CON_PAGO,
-    });
+  it("un director puede recibir cualquiera del catálogo, también sin papeles", () => {
+    const catalogo = [opcion("gratis", { papeles: [] }), opcion("local", { privacidad: "local", papeles: ["voz"] })];
+    expect(cadenaSugerida("optimizador", catalogo)).toEqual(["local", "gratis"]);
+  });
+});
 
-    const peldano = Object.fromEntries(candidatos.map((c) => [c.candidatoId, c.peldano]));
-    expect(peldano["astraura-local"]).toBe(1);
-    expect(peldano["pago"]).toBe(6);
-    expect(peldano["malla"]).toBe(3);
-    expect(peldano["contenedor"]).toBe(4);
+describe("moverEnCadena · arrastrar para ordenar", () => {
+  it("mueve un candidato y no muta la cadena original", () => {
+    const original = ["a", "b", "c"];
+    expect(moverEnCadena(original, 0, 2)).toEqual(["b", "c", "a"]);
+    expect(moverEnCadena(original, 2, 0)).toEqual(["c", "a", "b"]);
+    expect(original).toEqual(["a", "b", "c"]);
+  });
+
+  it("un destino fuera de rango o igual devuelve una copia intacta", () => {
+    expect(moverEnCadena(["a", "b"], 1, 1)).toEqual(["a", "b"]);
+    expect(moverEnCadena(["a", "b"], -1, 0)).toEqual(["a", "b"]);
+    expect(moverEnCadena(["a", "b"], 0, 9)).toEqual(["a", "b"]);
+    expect(moverEnCadena([], 0, 1)).toEqual([]);
+  });
+});
+
+describe("modoDeGuardado · PoliGenesis democrático", () => {
+  it("en modo democrático guarda una propuesta y en el resto aplica", () => {
+    expect(modoDeGuardado(true)).toBe("propuesta");
+    expect(modoDeGuardado(false)).toBe("aplicar");
   });
 });
