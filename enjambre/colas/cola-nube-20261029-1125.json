@@ -1,0 +1,55 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "ART1025Lbs",
+   "ola": "Ola 1025C · ArtCraft y Rare",
+   "titulo": "Rare: «Juegos de PC», lanzamiento confirmado y guarda de credenciales de Epic · lo que faltó: src/lib/artcraft/__tests__/juegos-pc.test.ts",
+   "area": "artcraft",
+   "archivos": [
+    "src/lib/artcraft/__tests__/juegos-pc.test.ts"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de ART1025Lb, que ya está integrada (sha a7e92be58f21). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/lib/artcraft/__tests__/juegos-pc.test.ts.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Rare: «Juegos de PC», lanzamiento confirmado y guarda de credenciales de Epic\n\n--- encargo original, como contexto ---\nContrato: `architecture/artcraft-y-rare.md` §5 completo (rutas A, B y C, y §5.3 credenciales de Epic). Rare es GPL-3.0-or-later: SOLO como programa aparte, nunca enlazado. Las credenciales de Epic son SIEMPRE de la persona y nunca van a un repositorio, memoria, sala, grupo ni registro.\n\n1) En `src/lib/protomolecula/servicio-local.ts` añade `rare: \"Rare\"` a `BINARIOS_PERMITIDOS` (una línea; el objeto sigue congelado) sin tocar nada más: `pedirLanzamiento(\"rare\", …)` ya pide siempre la confirmación de una persona y una IA nunca lo abre sola. Añade en sus pruebas existentes (`src/lib/protomolecula/__tests__/servicio-local.test.ts`) SOLO si hace falta para que sigan en verde.\n\n2) `src/lib/artcraft/juegos-pc.ts` (PURO) exporta: `CONDICIONES_EPIC_DECIDIDAS = false` (constante; hasta que Alex decida, la ruta C no se ofrece); `planificarJuegoPc(e: { neurona: { sistema: \"macos\" | \"linux\" | \"windows\" | \"otro\"; tienePantalla: boolean; binarioRare: boolean; gpu: boolean; memoriaMB: number }; servidores: { id: string; propio: boolean; compartido: boolean; gpu: boolean; wineOProton: boolean; transmision: \"selkies\" | \"sunshine\" | null; libreDiscoGB: number }[]; persona: { id: string; aceptaCondicionesEpic: boolean } })` → `{ ruta: \"neurona-propia\" | \"servidor-propio\" | \"servidor-compartido\" | \"ninguna\"; motivo: string; pasos: string[]; avisos: string[] }`. Ruta A si hay pantalla y Rare instalado; B si hay un servidor propio con GPU, Wine o Proton y transmisión; C solo si `CONDICIONES_EPIC_DECIDIDAS` y la persona acepta (una sesión por persona, cada una con SU cuenta); si no, `ninguna` con el motivo. Los `pasos` son frases cortas («abre Rare», «inicia sesión en Epic tú mismo»…) y los `avisos` incluyen que el A1 de Oracle (sin GPU) no sirve para 3D cuando el servidor tiene `gpu: false`. `rutaConfigEpic(datos: string, personaId: string): { ruta: string; modo: number }` → `<datos>/juegos/<persona>/legendary` con modo `0o700` (persona solo `^[a-z0-9-]{1,64}$`, si no lanza). `validarSin",
+   "origen": "seguimiento de alcance parcial",
+   "rama_nube": "nube/40893171026",
+   "depende_de": []
+  },
+  {
+   "id": "VPU1019Y",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Herramienta MCP de Genesis: variaciones_buscar",
+   "archivos": [
+    "src/lib/genesis/mcp/herramienta-variaciones.ts",
+    "src/lib/genesis/mcp/__tests__/herramienta-variaciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Definición con `inputSchema` { clave, buscar?, orden? } y manejador que llama a `listarVariaciones` (inyectado) para que Claude, otros servicios y los artefactos con la capacidad `mcp` puedan ver variaciones públicas. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019J",
+    "GCA1019R-d2"
+   ]
+  },
+  {
+   "id": "GCA1019S",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Ruta MCP remota por ámbito con permisos",
+   "archivos": [
+    "src/app/api/mcp/genesis/route.ts",
+    "src/app/api/mcp/genesis/__tests__/route.test.ts"
+   ],
+   "depende": [],
+   "prompt": "POST con `Authorization: Bearer` (token externo del ámbito, `tokens-externos.ts`) o sesión; resuelve el ámbito, filtra `tools/list` por permisos y alcance, registra cada llamada en `genesis_llamadas` sin datos sensibles y aplica límite de uso. GET devuelve 405. Prueba con dependencias falsas. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019R-d2",
+    "GCA1019T"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "GCA1019S",
+   "VPU1019Y"
+  ]
+ }
+}
