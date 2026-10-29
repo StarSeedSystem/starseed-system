@@ -1,7 +1,7 @@
 'use client';
 // Panel «Retícula» de la pestaña Señales: estado vítreo, temperatura media, puentes por coste
 // y coordinación de cada neurona. Sin efectos: recibe el estado() del motor (MC1012Q).
-import { Flame, Droplets, Snowflake, Hexagon } from 'lucide-react';
+import { Flame, Droplets, Snowflake, Hexagon, Router } from 'lucide-react';
 import type { Cristal, EstadoVitreo, Medio, Reticula } from '@/lib/malla/cristal/tipos';
 import { coordinacionDe } from '@/lib/malla/cristal/tipos';
 import { esTitanio, coordinacionTitanio } from '@/lib/malla/cristal/titanio';
@@ -47,11 +47,12 @@ function filasPuente(e: EstadoReticula): FilaPuente[] {
     calidadPct: calidadDe(p.a, p.b, p.medio), coste: p.coste,
   })).sort((x, y) => x.coste - y.coste);
 }
-function filasCoord(e: EstadoReticula): Array<{ id: string; n: number; max: number }> {
+function filasCoord(e: EstadoReticula): Array<{ id: string; n: number; max: number; ti: boolean }> {
   return Object.values(e.reticula.teselas).map((t) => ({
     id: t.neurona.id,
     n: e.cristal.coordinacion[t.neurona.id] ?? 0,
     max: esTitanio(t.neurona) ? coordinacionTitanio(t.neurona) : coordinacionDe(t.neurona),
+    ti: esTitanio(t.neurona),
   }));
 }
 
@@ -63,6 +64,7 @@ export function PanelReticula({ estado }: { estado: EstadoReticula }) {
   const m = Object.keys(estado.reticula.teselas).length;
   const puentes = filasPuente(estado);
   const coords = filasCoord(estado);
+  const titanios = coords.filter((c) => c.ti).length;
   if (puentes.length === 0) {
     return (
       <section aria-label="Retícula" className="rounded-xl border border-border/40 bg-card/40 p-4 backdrop-blur-sm">
@@ -75,7 +77,13 @@ export function PanelReticula({ estado }: { estado: EstadoReticula }) {
     <section aria-label="Retícula" className="rounded-xl border border-border/40 bg-card/40 p-3 backdrop-blur-sm sm:p-4">
       <header className="flex items-center gap-2">
         <Hexagon className="h-4 w-4 text-primary" aria-hidden="true" />
-        <h3 className="text-sm font-semibold">Sólido amorfo en tiempo real</h3></header>
+        <h3 className="text-sm font-semibold">Sólido amorfo en tiempo real</h3>
+        {titanios > 0 && (
+          <span data-testid="reticula-titanios" className="ml-auto inline-flex cursor-default items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[11px] text-sky-300">
+            <Router className="h-3 w-3" aria-hidden="true" />
+            {titanios === 1 ? '1 titanio' : `${titanios} titanios`}
+          </span>
+        )}</header>
       <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
         <Icono className={`h-3.5 w-3.5 shrink-0 ${color.texto}`} aria-hidden="true" />
         {TEXTO_ESTADO[estado.cristal.estado]}</p>
@@ -109,7 +117,15 @@ export function PanelReticula({ estado }: { estado: EstadoReticula }) {
         <ul className="mt-1 space-y-1 text-[11px] sm:text-xs">
           {coords.map((c) => (
             <li key={c.id} data-testid={`reticula-coord-${c.id}`} className="break-all text-muted-foreground">
-              <span className="font-medium text-foreground">{c.id}</span>: {c.n}/{c.max} puentes
+              <span className="font-medium text-foreground">{c.id}</span>
+              {c.ti && (
+                <span data-testid={`reticula-ti-${c.id}`} className="ml-1.5 inline-flex cursor-default items-center gap-1 rounded border border-sky-500/30 bg-sky-500/10 px-1 align-[1px] text-[10px] text-sky-300">
+                  <Router className="h-2.5 w-2.5" aria-hidden="true" />
+                  Ti · router
+                </span>
+              )}
+              : {c.n}/{c.max} puentes
+              {c.ti && <span className="block text-[10px] text-sky-300/80">fija la red: 6 puentes, no se dilata</span>}
             </li>
           ))}
         </ul>

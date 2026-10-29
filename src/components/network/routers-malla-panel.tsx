@@ -15,6 +15,8 @@ import { useEffect, useMemo, useState } from "react";
 import { compatibilidad, type EntradaTabla, type ResultadoCompatibilidad } from "@/lib/network/routers-malla/compatibilidad-openwrt";
 import { planRadios, type RouterMalla, type TroncalResult } from "@/lib/network/routers-malla/plan-radios";
 import { guionAplicar, uciMalla, type BandaWifi, type CfgUciMalla } from "@/lib/network/routers-malla/uci-malla";
+import { teselaDeRouter } from "@/lib/malla/cristal/titanio";
+import type { Tesela } from "@/lib/malla/cristal/tipos";
 import { PERFILES_WIFI, type CanalWifi } from "@/ai/astraura/mesh/camr/regulacion";
 
 const LISTA = "starseed.routers-malla.v1";
@@ -42,6 +44,29 @@ function listaCanales(region: string, banda: BandaWifi): CanalWifi[] {
 
 function canalLegal(region: string, banda: BandaWifi, canal: number): CanalWifi | null {
   return listaCanales(region, banda).find((c) => c.canal === canal) ?? null;
+}
+
+/** Quien firma la tesela del panel local, sin red: nada de claves ni identidad real. */
+const BASE_TELA = { cuenta: "cuenta-local", adoptadoPor: "neurona-local", reloj: 0, ahora: 0 } as const;
+
+/**
+ * Tesela del titanio adoptado (§1), construida SIN RED con `teselaDeRouter`
+ * desde las troncales del plan: una señal por troncal, con su canal legal
+ * (frecuencia) y su ancho. La firma la pone la neurona que lo adopte.
+ */
+export function teselaRouterMalla(r: RouterGuardado, troncalesPlan: TroncalResult[], region: string): Tesela {
+  return teselaDeRouter({
+    ...BASE_TELA,
+    routerId: r.id,
+    troncales: troncalesPlan
+      .filter((t) => t.a === r.id || t.b === r.id)
+      .map((t) => ({
+        a: t.a,
+        b: t.b,
+        frecuenciaMhz: canalLegal(region, t.banda, t.canal)?.frecMhz,
+        anchoCanalMhz: t.anchoMhz,
+      })),
+  });
 }
 
 export function RoutersMallaPanel({ tabla }: { tabla?: EntradaTabla[] }) {
@@ -191,6 +216,7 @@ export function RoutersMallaPanel({ tabla }: { tabla?: EntradaTabla[] }) {
         {routers.length === 0 && <div className="text-[12px] text-white/40">Sin routers todavía.</div>}
         {routers.map((r) => {
           const res = resultados.get(r.id)!;
+          const tesela = r.openwrt ? teselaRouterMalla(r, salida.troncales, region) : null;
           return (
             <div key={r.id} className="rounded-lg border border-white/10 bg-black/30 p-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -202,6 +228,14 @@ export function RoutersMallaPanel({ tabla }: { tabla?: EntradaTabla[] }) {
               </div>
               <ol className="list-decimal space-y-0.5 pl-5 text-[12px] text-white/60">{res.pasos.map((p) => <li key={p}>{p}</li>)}</ol>
               <p className="text-[12px] text-rose-300/90">{res.aviso}</p>
+              {r.openwrt && tesela && (
+                <p data-testid={`titanio-entrada-${r.id}`} className="mt-1 text-[12px] text-emerald-300/90" title={JSON.stringify(tesela.neurona)}>
+                  entra en la retícula como titanio
+                  {tesela.senales.length > 0
+                    ? ` · tesela: ${tesela.senales.length === 1 ? "1 señal" : `${tesela.senales.length} señales`} de troncal`
+                    : " · tesela aún sin troncales del plan"}
+                </p>
+              )}
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <label className="flex cursor-pointer items-center gap-2 text-[12px] text-white/60">
                   <input type="checkbox" className="cursor-pointer" checked={r.openwrt} onChange={(e) => setRouters((rs) => rs.map((x) => (x.id === r.id ? { ...x, openwrt: e.target.checked } : x)))} />
