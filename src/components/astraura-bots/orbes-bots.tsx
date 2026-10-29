@@ -16,6 +16,7 @@ import { uidActual } from "@/lib/consumo/usuario";
 import { leerBots, suscribirBots } from "@/lib/astraura-bots/adaptadores/almacen-bots";
 import { EVENTO_BUCLE_UI, type DetalleBucleUI } from "@/lib/astraura-bots/adaptadores/evento-bucle-ui";
 import { avanzar, bucleInicial, indicadorVisible, type EstadoBucle, type EventoBucle } from "@/lib/astraura-bots/bucle";
+import { REGISTRO_ORBE_BOT, movimientoOrbeBot } from "@/lib/astraura-bots/orbe-movimiento";
 import type { Bot } from "@/lib/astraura-bots/tipos";
 import { DIAMETRO_ANILLO, IndicadorSentidos } from "./indicador-sentidos";
 import {
@@ -140,21 +141,23 @@ export function OrbesBots({ extra = SIN_EXTRA, principal, perfilId, cuentaId }: 
     if (a && !a.movido) enfocar(a.id);
     else if (a) { setDatos((s) => ({ ...s, pos: { ...s.pos, [a.id]: pos } })); guardarPosicion(a.id, pos); }
   };
-  const lado = (r: number) => (r > 0.5 ? -46 : 46), transicion = reducido ? "none" : "left 200ms ease-out, top 200ms ease-out, transform 200ms ease-out";
+  const lado = (r: number) => (r > 0.5 ? -46 : 46);
   return (
     <>
       {visibles.map(({ id, pos }) => {
         const b = porId.get(id), p = moviendo?.id === id ? moviendo.pos : pos, est = bucle[id];
+        const mov = movimientoOrbeBot(est?.fase, REGISTRO_ORBE_BOT, reducido);
         return b ? (
           <Fragment key={id}>
+            <style>{mov.keyframes}</style>
             <button type="button" aria-label={`Orbe de ${b.nombre}`} aria-pressed={enfocado === id} data-bot-id={id}
               title={`${b.nombre} · toca para enfocarlo, arrastra para moverlo`}
               onPointerDown={(e) => { arrastre.current = { id, x0: e.clientX, y0: e.clientY, movido: false }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* sin captura */ } }}
               onPointerMove={alMover} onPointerUp={alSoltar} onPointerCancel={() => { arrastre.current = null; setMoviendo(null); }}
               onClick={(e) => { if (e.detail === 0) enfocar(id); }}
-              className={cn("fixed cursor-pointer touch-none select-none rounded-full", !reducido && "hover:scale-105", enfocado === id && "ring-2 ring-cyan-300/70")}
-              style={{ left: p.xRatio * vista.ancho - D / 2, top: p.yRatio * vista.alto - D / 2, zIndex: 41 + capas.indexOf(id), transition: moviendo?.id === id ? "none" : transicion }}>
-              <QuantumOrbAvatar personaId={b.id} size={D} />
+              className={cn("fixed cursor-pointer touch-none select-none rounded-full", enfocado === id && "ring-2 ring-cyan-300/70")}
+              style={{ left: p.xRatio * vista.ancho - D / 2, top: p.yRatio * vista.alto - D / 2, zIndex: 41 + capas.indexOf(id), transition: moviendo?.id === id ? "none" : mov.transicion, animation: moviendo?.id === id ? "none" : mov.animacion }}>
+              <QuantumOrbAvatar personaId={b.id} size={D} state={mov.estadoAvatar} />
             </button>
             {est && indicadorVisible(est) ? (
               <div data-anillo-bot={id} className="pointer-events-none fixed" style={{ left: p.xRatio * vista.ancho - DIAMETRO_ANILLO / 2, top: p.yRatio * vista.alto - DIAMETRO_ANILLO / 2, width: DIAMETRO_ANILLO, height: DIAMETRO_ANILLO, zIndex: 41 + capas.indexOf(id) }}>
