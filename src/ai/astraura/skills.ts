@@ -25,7 +25,7 @@ import {
   ATRIBUCION_DIAGRAMAS, HABILIDAD_DIAGRAMAS, comoCapacidad,
 } from "./habilidades/diagramas";
 import {
-  ATRIBUCION_DESIGN_MD, ATRIBUCION_SLIDES, HABILIDADES_DISENO_WEB, comoCapacidadDiseno,
+  ATRIBUCION_DESIGN_MD, ATRIBUCION_SLIDES, ATRIBUCION_TASTE, HABILIDADES_DISENO_WEB, comoCapacidadDiseno,
 } from "./habilidades/diseno-web";
 import { CAPACIDADES_REPOS_1026 } from "./habilidades/repos-1026";
 import { HABILIDADES_INGENIERIA_A, comoCapacidad as comoCapacidadIngenieria } from "./habilidades/ingenieria-a";
@@ -100,7 +100,7 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     label: "Taste · calidad de UI y estética",
     systemPrompt:
       "Cuando generes interfaz, contenido visual o texto, aplica criterio de diseño de alto nivel (jerarquía clara, espacio en blanco, contraste, coherencia con el sistema Crystal Liquid Glass). Prefiere lo elegante, legible y sobrio a lo recargado. " +
-      `${HABILIDADES_DISENO_WEB.taste.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.taste.rutaCompleta} — con la tarjeta basta para Needle y BitNet. En el OS manda el ADN del contexto sobre la estética propia de la skill.`,
+      `${HABILIDADES_DISENO_WEB.taste.resumen} Guía completa en ${HABILIDADES_DISENO_WEB.taste.rutaCompleta} — con la tarjeta basta para Needle y BitNet. En el OS manda el ADN del contexto sobre la estética propia de la skill. ${ATRIBUCION_TASTE}`,
     routing: { preferStrong: true },
     skillIds: ["aurora-taste", "design-taste-frontend"],
     packageIds: ["iatool-taste-skill"],
