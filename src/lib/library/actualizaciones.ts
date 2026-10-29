@@ -157,19 +157,40 @@ function esCadena(v: unknown): v is string {
     return typeof v === "string" && v.length > 0;
 }
 
+/** La etiqueta de versión numérica más alta; null si ninguna se puede comparar. */
+function etiquetaMasAlta(nombres: string[]): string | null {
+    let mejor: string | null = null;
+    let mejorTupla: number[] | null = null;
+    for (const nombre of nombres) {
+        const tupla = tuplaDeVersion(nombre);
+        if (!tupla) continue;
+        if (!mejorTupla || compararTuplas(tupla, mejorTupla) > 0) {
+            mejor = nombre;
+            mejorTupla = tupla;
+        }
+    }
+    return mejor;
+}
+
 function leerEtiqueta(json: unknown, payload?: PayloadActualizacion): VersionLeida | null {
     if (!Array.isArray(json)) return null;
     const { patron } = validarPatronTag(payload?.patronTag);
+    const queCasan: string[] = [];
     for (const item of json) {
         const etiqueta = item as { name?: unknown };
         if (!esCadena(etiqueta?.name)) continue;
         if (patron) {
             patron.lastIndex = 0;
             if (!patron.test(etiqueta.name)) continue;
+        } else {
+            return { version: etiqueta.name, fecha: null };
         }
-        return { version: etiqueta.name, fecha: null };
+        queCasan.push(etiqueta.name);
     }
-    return null;
+    // La API de etiquetas ordena por texto (5.2.9 antes que 5.2.10): con patrón
+    // se elige la MÁS ALTA de las que casan, no la primera.
+    const elegida = etiquetaMasAlta(queCasan) ?? queCasan[0] ?? null;
+    return elegida ? { version: elegida, fecha: null } : null;
 }
 
 function leerRelease(json: unknown): VersionLeida | null {
@@ -184,10 +205,10 @@ function leerRelease(json: unknown): VersionLeida | null {
 /**
  * Saca `{version, fecha}` del JSON de la consulta según el canal (suelto o
  * dentro del `payload`): releases → `tag_name`/`published_at`; tags → la
- * primera etiqueta (filtrada por `patronTag` si lo hay, sin fecha); commits →
- * sha corto y fecha del commit (como siempre); Hugging Face → sha corto y
- * `lastModified` del modelo (el canal se ignora). Sin nada legible devuelve
- * null: no se inventa una versión.
+ * primera etiqueta (o, con `patronTag`, la MÁS ALTA de las que casan; sin
+ * fecha); commits → sha corto y fecha del commit (como siempre); Hugging
+ * Face → sha corto y `lastModified` del modelo (el canal se ignora). Sin
+ * nada legible devuelve null: no se inventa una versión.
  */
 export function leerVersion(
     upstream: string,
@@ -298,11 +319,37 @@ function esTagComparable(tag: string): boolean {
 }
 
 /**
+ * Versión numérica → tupla de enteros. Acepta `v5.2.3`, `5.2.3`, `5.2.0 LTS`
+ * y `release-5.2.3`: quita el prefijo y se queda con los números iniciales
+ * separados por puntos. Sin al menos dos partes numéricas (una etiqueta como
+ * `ruview-harness-2026-10-20`) devuelve null y se usa la comparación textual.
+ */
+function tuplaDeVersion(texto: string): number[] | null {
+    const m = /^(?:release[-_/])?v?(\d+(?:\.\d+)+)/i.exec(texto.trim());
+    if (!m) return null;
+    const tupla = m[1].split(".").map((n) => Number.parseInt(n, 10));
+    return tupla.every((n) => Number.isFinite(n)) ? tupla : null;
+}
+
+/** Compara dos tuplas rellenando con ceros por la derecha (5.2 == 5.2.0). */
+function compararTuplas(a: number[], b: number[]): number {
+    const largo = Math.max(a.length, b.length);
+    for (let i = 0; i < largo; i += 1) {
+        const x = a[i] ?? 0;
+        const y = b[i] ?? 0;
+        if (x !== y) return x < y ? -1 : 1;
+    }
+    return 0;
+}
+
+/**
  * Compara identificadores del mismo tipo:
  * · dos shas → comparación por prefijo (como siempre);
- * · dos tags → se normalizan (sin «v» inicial) y se comparan por igualdad
- *   textual: iguales → «igual», etiquetas de versión distintas →
- *   «hay-actualizacion»;
+ * · dos versiones numéricas (`v5.2.3`, `5.2.0 LTS`, `release-5.2.3`) → por
+ *   tupla de enteros, así 5.2.10 es mayor que 5.2.9; remota mayor →
+ *   «hay-actualizacion», igual o local más nueva → «igual»;
+ * · dos tags sin forma numérica → se normalizan (sin «v» inicial) y se
+ *   comparan por igualdad textual: distintas → «hay-actualizacion»;
  * · mezcla de sha y tag, o textos que no son etiquetas de versión →
  *   «desconocida» (no se inventa un cambio).
  */
@@ -321,6 +368,12 @@ export function compararVersiones(
             : "hay-actualizacion";
     }
     if (localEsSha || remotaEsSha) return "desconocida";
+    const localTupla = tuplaDeVersion(instalada);
+    const remotaTupla = tuplaDeVersion(remota);
+    if (localTupla && remotaTupla) {
+        const orden = compararTuplas(localTupla, remotaTupla);
+        return orden < 0 ? "hay-actualizacion" : "igual";
+    }
     const local = normalizarTag(instalada);
     const upstream = normalizarTag(remota);
     if (local === upstream) return "igual";
