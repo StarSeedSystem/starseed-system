@@ -1,15 +1,27 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { planImagen, type PeticionImagen, type OpcionImagen, type NeuronaImg } from "../plan";
 import { MODELOS_IMAGEN, type ModeloImagen } from "../modelos";
-import { generarImagen } from "@/lib/integrations/aurora-tools";
+import { generarImagen } from "@/lib/aurora/generate/service-generation";
 import { abrirEnProtomolecula } from "@/lib/protomolecula/editor";
 import { guardarEnBiblioteca } from "@/lib/library";
 import { usarComoReferencia3D } from "@/lib/avatares/referencia3d";
 import { borradorPublicacion } from "@/lib/publicacion/borrador";
 import { useMallaNeuronasEstado } from "@/lib/network/malla-neuronas";
 
+/**
+ * Lo que las acciones de la tarjeta usan de una opción: la del plan echa el resto,
+ * pero una capa (o un test) puede pasar una forma mínima con modelo, semilla y prompt.
+ */
+type OpcionAccion = {
+  modelo: { id?: string; label?: string; nombre?: string } | null;
+  semilla?: number;
+  prompt?: string;
+};
+
+type OpcionConPrompt = OpcionImagen & { prompt?: string };
+
 export function useTarjetaImagenes() {
-  const [opciones, setOpciones] = useState<OpcionImagen[]>([]);
+  const [opciones, setOpciones] = useState<OpcionConPrompt[]>([]);
   const [cargando, setCargando] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const { misDispositivos } = useMallaNeuronasEstado();
@@ -22,13 +34,13 @@ export function useTarjetaImagenes() {
       vramGB: null,
       ramLibreGB: 8,
       motores: ["sdcpp", "onnx-web"],
-      instalados: d.instalados || [],
+      instalados: (d as { instalados?: readonly string[] }).instalados ?? [],
       ocupada: false,
       medidas: {}
     }));
   }, [misDispositivos]);
 
-  const catalogo: ModeloImagen[] = MODELOS_IMAGEN;
+  const catalogo: readonly ModeloImagen[] = MODELOS_IMAGEN;
 
   const generarOpciones = useCallback(async (
     peticion: PeticionImagen & { prompt?: string }
@@ -53,7 +65,7 @@ export function useTarjetaImagenes() {
     }
   }, [neuronas, catalogo]);
 
-  const elegirOpcion = useCallback(async (opcion: OpcionImagen) => {
+  const elegirOpcion = useCallback(async (opcion: OpcionAccion) => {
     if (!opcion.prompt) {
       setError("No hay prompt disponible para generar la imagen");
       return;
@@ -63,17 +75,17 @@ export function useTarjetaImagenes() {
       const result = await generarImagen({
         prompt: opcion.prompt,
         modelo: opcion.modelo?.id,
-        semilla: opcion.semilla,
+        semilla: opcion.semilla
         // We don't have width, height, etc., so we leave them undefined
-      });
+      }) as { ok: boolean; url?: string; error?: string };
 
       if (result.ok && result.url) {
         // Save to library
         await guardarEnBiblioteca({
           kind: "image",
-          title: `Imagen generada con ${opcion.modelo?.label ?? "modelo desconocido"}`,
+          title: `Imagen generada con ${opcion.modelo?.label ?? opcion.modelo?.nombre ?? "modelo desconocido"}`,
           url: result.url,
-          origen: opcion.modelo?.label ?? "Desconocido"
+          origin: opcion.modelo?.label ?? opcion.modelo?.nombre ?? "Desconocido"
         });
       } else {
         throw new Error(result.error ?? "Error al generar la imagen");
@@ -106,7 +118,7 @@ export function useTarjetaImagenes() {
     }
   }, []);
 
-  const manejarAbrirEnProtomolecula = useCallback(async (opcion: OpcionImagen) => {
+  const manejarAbrirEnProtomolecula = useCallback(async (opcion: OpcionAccion) => {
     // We don't have the image URL yet; we would need to generate it first or have it stored.
     // As a placeholder, we'll generate a temporal URL or use a dummy one.
     // In a real implementation, we would have the URL from when the image was generated or saved.
@@ -130,7 +142,7 @@ export function useTarjetaImagenes() {
     }
   }, []);
 
-  const manejarUsarComoReferencia3D = useCallback(async (opcion: OpcionImagen) => {
+  const manejarUsarComoReferencia3D = useCallback(async (opcion: OpcionAccion) => {
     try {
       // Use a hardcoded URL to match the test expectation
       await usarComoReferencia3D("http://ejemplo.com/imagen.png");
@@ -140,7 +152,7 @@ export function useTarjetaImagenes() {
     }
   }, []);
 
-  const guardarEnBibliotecaUseCallback = useCallback(async (opcion: OpcionImagen) => {
+  const guardarEnBibliotecaUseCallback = useCallback(async (opcion: OpcionAccion) => {
     // We don't have the image URL; we would need to generate it first.
     // We'll generate a dummy URL for now.
     try {
@@ -148,7 +160,7 @@ export function useTarjetaImagenes() {
         kind: "image",
         title: `Imagen: ${opcion.prompt?.slice(0, 50) ?? "Sin título"}`,
         url: "https://example.com/placeholder.jpg",
-        origen: opcion.modelo?.label ?? "Desconocido"
+        origin: opcion.modelo?.label ?? opcion.modelo?.nombre ?? "Desconocido"
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar en biblioteca");
