@@ -98,6 +98,18 @@ describe("FilasDeProcesos plegables", () => {
         expect(within(fila).queryByRole("button", { name: /Ver todas/ })).not.toBeInTheDocument();
     });
 
+    it("sin orquestadores ni colas pendientes, la Fila por agente no inventa filas", () => {
+        const cerrada: RamaOla = { ...ola, tareas: [tarea("TH9", { estado: "commit" })] };
+        render(<FilasDeProcesos olas={[cerrada]} olaSel={cerrada} latidos={[]} enjambres={[]} onVer={() => {}} />);
+        const parada = screen.getByLabelText("Fila por agente");
+        expect(within(parada).queryAllByTitle("Abrir la ficha")).toHaveLength(0);
+        expect(within(parada).getByText("Ningún orquestador vivo y ninguna cola con tareas pendientes.")).toBeInTheDocument();
+        fireEvent.click(within(parada).getByRole("button", { name: /Cerrar lista/ }));
+        expect(within(parada).getByText("Ningún orquestador vivo ni cola con tareas pendientes")).toBeInTheDocument();
+        fireEvent.click(within(parada).getByRole("button", { name: /Abrir lista/ }));
+        expect(within(parada).queryByText("Ningún orquestador vivo ni cola con tareas pendientes")).not.toBeInTheDocument();
+    });
+
     it("fase, modelo y dónde van en pastillas y el título no se corta (va debajo en móvil)", () => {
         montar();
         const vivo = screen.getByLabelText("cola-nio");
