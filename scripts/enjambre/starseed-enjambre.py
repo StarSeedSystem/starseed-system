@@ -5805,6 +5805,11 @@ def contexto_tarea(t, raiz=None):
         "y nunca rutas inventadas como `/workspace/...`: cualquier ruta fuera de la raiz se rechaza "
         "automaticamente y pierdes el intento.\n\n"
     ) % raiz
+    try:  # (Ola 1018L · L) tarjeta de habilidad (MIT, Matt Pocock) al FINAL del prompt
+        from habilidades_enjambre import con_habilidad
+        tarjeta = con_habilidad("", t) or ""
+    except Exception:  # el enjambre no depende de que la tarjeta exista
+        tarjeta = ""
     return (
         regla_raiz
         + "Trabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). "
@@ -5846,7 +5851,7 @@ def contexto_tarea(t, raiz=None):
         t.get("ola", ""),
         t.get("titulo", ""),
         ", ".join(t.get("archivos", [])),
-        t["prompt"],
+        t["prompt"] + tarjeta,
     )
 
 
