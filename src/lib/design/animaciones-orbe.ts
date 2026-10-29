@@ -89,6 +89,83 @@ export function repeticionesDe(estado: EstadoOrbe): number {
     return estado === "siembra" ? 1 : Infinity;
 }
 
+/** Registro por defecto para bots Orbe. */
+export const REGISTRO_ORBE_BOT: RegistroMovimiento = "sobrio";
+
+/** Mapea un estado de orbe a una fase (para la UI/voz). */
+export function estadoOrbeDeFase(estado: EstadoOrbe | undefined): string {
+    if (estado === undefined) return "reposo";
+    switch (estado) {
+        case "reposo": return "reposo";
+        case "escucha": return "observando";
+        case "piensa": return "pensando";
+        case "habla": return "actuando";
+        case "siembra": return "siembra";
+        default: return "reposo";
+    }
+}
+
+/** Mapea una fase del voz a un estado de avatar. */
+export function estadoAvatarDeFase(etapa: string | undefined): string {
+    if (etapa === undefined) return "idle";
+    switch (etapa) {
+        case "observando": return "listening";
+        case "esperando": return "thinking";
+        case "actuando": return "speaking";
+        default: return "idle";
+    }
+}
+
+/** Output de la función movimientoOrbeBot. */
+export interface MovimientoOrbeBotOutput {
+    estado: string;
+    animacion: string;
+    transicion: string;
+    keyframes: string;
+}
+
+/** Mapeo de fases a estados de orbe. */
+const estadoPorFase: Record<string, string> = {
+    observando: "escucha",
+    esperando: "pensando",
+    actuando: "habla",
+    reposo: "reposo",
+};
+
+/** Genera la configuración de movimiento para un orbe bot. */
+export function movimientoOrbeBot(
+    fase: string,
+    registro: RegistroMovimiento = REGISTRO_ORBE_BOT,
+    reducido = false,
+): MovimientoOrbeBotOutput {
+    const estado = estadoPorFase[fase] || "reposo";
+    const configuracionAnim: Record<RegistroMovimiento, string> = {
+        sobrio: "orbebot-escucha",
+        expresivo: "orbebot-expresivo",
+        experimental: "orbebot-experimental",
+    };
+    const prefix = configuracionAnim[registro] || "orbebot-escucha";
+
+    if (reducido) {
+        return {
+            estado,
+            animacion: "none",
+            transicion: "none",
+            keyframes: `@keyframes orbebot-reposo { 0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.7; } }`,
+        };
+    }
+
+    const { entrada } = movimientoDe(registro, "astraura");
+    const transicion = `left ${entrada.ms}ms ${entrada.curva}, top ${entrada.ms}ms ${entrada.curva}`;
+
+    return {
+        estado,
+        animacion: `${prefix} `,
+        transicion,
+        keyframes: `@keyframes orbebot-${fase} { 0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.7; } }`,
+    };
+}
+
 /** Texto `@keyframes` del preset: solo `transform` y `opacity`. */
 export function cssKeyframesOrbe(preset: PresetOrbe): string {
     const [sMin, sMax] = preset.escala;

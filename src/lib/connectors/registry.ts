@@ -18,7 +18,7 @@
  * hablen el mismo idioma. No importa de otros módulos para no acoplarse.
  */
 
-import type { Connector } from "./model";
+import type { Connector, ConnectorCategory } from "./model";
 
 /**
  * Lista semilla de conectores. Ampliable por el usuario (custom) y por futuras
@@ -653,6 +653,33 @@ export const BUILTIN_CONNECTORS: Connector[] = [
     docsUrl: "https://docs.archivebox.io",
     configHint: "URL de tu instancia (envío a archive.org apagado)",
   },
+
+  // ── Conectores de la nube (P4-8) ──
+{
+    id: "spline",
+    name: "Spline (MCP)",
+    category: "design" as ConnectorCategory,
+    kind: "free",
+    authType: "oauth",
+    status: "needs-auth",
+    free: true,
+    description:
+      "Genera y gestiona escenas 3D por MCP HTTP. Plan gratuito: 200 llamadas al día, 00:00 UTC.",
+    configHint: "https://mcp.spline.design/mcp",
+    repo: "https://github.com/spline-design",
+},
+{
+    id: "higgsfield",
+    name: "Higgsfield",
+    category: "api" as ConnectorCategory,
+    kind: "paid",
+    authType: "apiKey",
+    status: "needs-auth",
+    free: false,
+    description:
+      "Modelos de generación de video e imágenes en la nube. Nunca al código. Integración con bóveda de claves.",
+    configHint: "https://cloud.higgsfield.ai",
+},
 ];
 
 /** Lookup rápido por id (para no recorrer el array en cada acceso). */
