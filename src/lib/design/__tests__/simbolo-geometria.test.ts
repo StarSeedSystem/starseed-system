@@ -34,6 +34,17 @@ describe("simbolo-geometria · el rombo oficial", () => {
     });
 });
 
+describe("simbolo-geometria · el rombo completo", () => {
+    it("los ápices exactos: arriba (200, 80) y abajo (200, 320), centrados en x = 200", () => {
+        expect(APICES.arriba).toEqual({ x: 200, y: 80 });
+        expect(APICES.abajo).toEqual({ x: 200, y: 320 });
+    });
+
+    it("la altura total del rombo es 240 (del ápice arriba al abajo)", () => {
+        expect(APICES.abajo.y - APICES.arriba.y).toBe(240);
+    });
+});
+
 describe("simbolo-geometria · la lente del ojo", () => {
     it("cae en y = 200 y sus esquinas están a 200 ± 69,28", () => {
         expect(ESQUINAS[0]).toEqual({ x: 200 - 69.28, y: 200 });
