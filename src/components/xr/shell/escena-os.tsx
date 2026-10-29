@@ -19,7 +19,6 @@ import type { ModoXR, NivelCalidad } from "@/lib/xr/tipos";
 import { CRISTAL } from "@/lib/xr/tokens-3d";
 import { mensajeErrorXR } from "@/components/vivo/espacial/use-sesion-xr";
 import type { ModoXR as ModoURL } from "@/lib/vivo/xr";
-import type { PropsRigTrinity } from "./rig-trinity";
 import { BotonEntradaXR } from "./boton-entrada-xr";
 import { useCapacidadesXR } from "./use-capacidades-xr";
 
