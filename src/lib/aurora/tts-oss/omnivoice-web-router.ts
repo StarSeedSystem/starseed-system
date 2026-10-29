@@ -116,6 +116,12 @@ const DEFAULT_CHAIN_PRIORITY = [
   // si no responde, el router los salta sin coste (salud previa).
   "voice158",
   "vibevoice",
+  // (VOZ1024C) xAI es realism 5 en el registro, pero SOLO entra en la cadena por
+  // pin de personalidad o elección explícita (nunca por AUTO). Sin estar aquí,
+  // `applyVoiceChainPriority` lo mandaba al final, DETRÁS de Kokoro, así que un
+  // pin a xAI sonaba con la red de seguridad local. Su sitio es el clúster de
+  // realism 5 (vibevoice) y por delante de Kokoro.
+  "xai",
   "voicebox",
   "omnivoice",
   "openvoice2",

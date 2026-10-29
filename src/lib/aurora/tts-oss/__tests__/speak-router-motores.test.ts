@@ -160,8 +160,76 @@ describe("su sitio en la cadena respeta el registro", () => {
   it("un orden guardado de antes conserva lo de la persona y los suma en su sitio", () => {
     const viejo = ["omnivoice", "openvoice2", "chatterbox", "kokoro", "voicebox", "voxcpm", "bark", "gpt-sovits", "kitten", "browser"];
     const nuevo = completarPrioridad(viejo);
-    expect(nuevo.slice(0, 2)).toEqual(["voice158", "vibevoice"]);
-    expect(nuevo.slice(2)).toEqual(viejo);
+    expect(nuevo.slice(0, 3)).toEqual(["voice158", "vibevoice", "xai"]);
+    expect(nuevo.slice(3)).toEqual(viejo);
+  });
+});
+
+describe("xAI: su sitio en la jerarquía, nunca detrás de Kokoro", () => {
+  it("está en la prioridad recomendada, en el clúster de realism 5 y antes de Kokoro", () => {
+    const pri = getVoiceChainPriority();
+    expect(pri).toContain("xai");
+    expect(pri.indexOf("xai")).toBeLessThan(pri.indexOf("kokoro"));
+    expect(pri.indexOf("xai")).toBeLessThan(pri.indexOf("voxcpm"));
+    expect(pri.indexOf("xai")).toBeLessThan(pri.indexOf("chatterbox"));
+    // Quien lo fija (pin de personalidad o elección) no acaba oyendo Kokoro.
+    const ordenada = applyVoiceChainPriority(["kokoro", "xai"]);
+    expect(ordenada).toEqual(["xai", "kokoro"]);
+  });
+});
+
+describe("VibeVoice: respeta la ruta explícita del endpoint", () => {
+  type Real = typeof import("@/lib/aurora/tts-oss/neural-tts");
+  const real = () => vi.importActual<Real>("@/lib/aurora/tts-oss/neural-tts");
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      "Audio",
+      class {
+        onended: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        constructor(public src: string) {}
+        play() {
+          Promise.resolve().then(() => this.onended?.());
+          return Promise.resolve();
+        }
+      },
+    );
+    URL.createObjectURL = vi.fn(() => "blob:vibevoice");
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  const respuestaAudio = () => ({
+    ok: true,
+    status: 200,
+    headers: { get: () => "audio/wav" },
+    arrayBuffer: async () => new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0]).buffer,
+    text: async () => "",
+    json: async () => null,
+  });
+
+  it("un endpoint con ruta propia se usa TAL CUAL (sin pegarle /api/vibevoice/synthesize)", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      urls.push(url);
+      return respuestaAudio();
+    }));
+    setEngineSettings("vibevoice", { endpoint: "https://gpu.example/voz/vibevoice" });
+    const { neuralSpeak } = await real();
+    expect(await neuralSpeak("vibevoice", TEXTO)).not.toBeNull();
+    expect(urls).toEqual(["https://gpu.example/voz/vibevoice"]);
+  });
+
+  it("un endpoint que es solo origen recibe la ruta del servidor Astraura", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      urls.push(url);
+      return respuestaAudio();
+    }));
+    setEngineSettings("vibevoice", { endpoint: "http://gpu.local:7860" });
+    const { neuralSpeak } = await real();
+    expect(await neuralSpeak("vibevoice", TEXTO)).not.toBeNull();
+    expect(urls).toEqual(["http://gpu.local:7860/api/vibevoice/synthesize"]);
   });
 });
 
