@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { candidatos, sugerirPlan, topologiaSugerida } from "../sugerencias";
+import { NOTA_BITNET } from "../cuantizacion-hf";
 import type { Alcance, InventarioRecursos, MedioAlmacen, NeuronaRecursos, Procesador, RequisitosModelo, Via } from "../tipos";
 
 /* ───────── equipos ───────── */
@@ -475,5 +476,54 @@ describe("sugerirPlan", () => {
         const b = sugerirPlan(inventario(alReves, { estaNeuronaId: MAC, almacenesSueltos: [biblioteca] }), [...CATALOGO].reverse(), { ...opciones, capacidades: [...opciones.capacidades] });
         expect(JSON.stringify(b)).toBe(JSON.stringify(a));
         expect(a.topologia.topologia).toBe("fragmentada");
+    });
+});
+
+/* ───────── cuantización según el dispositivo (tabla de cuantizacion-hf) ───────── */
+
+describe("sugerirPlan · cuantiza según el dispositivo", () => {
+    const pytorch32 = modelo({
+        id: "voz-fp32",
+        nombre: "Voz FP32",
+        bits: 32,
+        formato: "pytorch",
+        runtime: "pytorch",
+        parametrosB: 0.5,
+        disco: { gb: 2.2, verificado: true },
+        ramMinGb: 3,
+    });
+
+    it("un modelo de 32/16 bits en la Apple GPU (metal) se sugiere cuantizar al vuelo con métodos de la tabla", () => {
+        const plan = sugerirPlan(inventario([neuronaMac()]), [pytorch32], { capacidades: ["texto"], alcance: PRIVADO });
+        const s = plan.sugerencias[0];
+        const frase = s.porQue.find((x) => x.includes("cuantizable al vuelo"));
+        expect(frase).toBeTruthy();
+        expect(frase).toContain("32 bits");
+        expect(frase).toContain("optimum-quanto"); // ok en metal
+        expect(frase).toContain("50e35cc"); // FUENTE_METODOS_HF citada en la frase
+        // La tabla no le dice a un modelo sin cuantizar que es BitNet: la nota no va aquí.
+        expect(s.porQue.some((x) => x.includes("BitNet"))).toBe(false);
+    });
+
+    it("cuantizable al vuelo con los métodos de CUDA cuando procesa la torre NVIDIA", () => {
+        const plan = sugerirPlan(inventario([neuronaNvidia(200, "local")]), [pytorch32], { capacidades: ["texto"], alcance: PRIVADO });
+        const s = plan.sugerencias[0];
+        const frase = s.porQue.find((x) => x.includes("cuantizable al vuelo"));
+        expect(frase).toBeTruthy();
+        expect(frase).toContain("bitsandbytes"); // ok en cuda, el primero de la tabla
+    });
+
+    it("WebGPU y NPU no están en la tabla: no se sugiere cuantización", () => {
+        const web = modelo({ id: "web-fp16", nombre: "Web FP16", bits: 16, formato: "onnx", runtime: "webgpu-onnx", ramMinGb: 2, medios: ["web"] });
+        const plan = sugerirPlan(inventario([neuronaMovil()]), [web], { capacidades: ["texto"], alcance: PRIVADO });
+        expect(plan.sugerencias[0].porQue.some((x) => x.includes("cuantizable al vuelo"))).toBe(false);
+    });
+
+    it("a los ternarios (BitNet, Bonsai) se les avisa que la tabla no se les aplica; un 4-bit GGUF no lleva frases", () => {
+        const plan = sugerirPlan(inventario([neuronaMac()]), [bitnet], { capacidades: ["texto"], alcance: PRIVADO });
+        expect(plan.sugerencias[0].porQue).toContain(NOTA_BITNET);
+        const gguf = sugerirPlan(inventario([neuronaMac()]), [qwen4b], { capacidades: ["texto"], alcance: PRIVADO });
+        expect(gguf.sugerencias[0].porQue.some((x) => x.includes("cuantizable al vuelo"))).toBe(false);
+        expect(gguf.sugerencias[0].porQue.some((x) => x.includes("BitNet"))).toBe(false);
     });
 });
