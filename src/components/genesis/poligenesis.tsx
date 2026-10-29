@@ -21,6 +21,8 @@ import { misEntidades, modoDe, proponer, propuestaAprobada, propuestasDe, type E
 import { decidirAplicacion, type Ambito } from "@/lib/genesis/operaciones";
 import { PanelOperaciones } from "./panel-operaciones";
 import { BotsEntidad } from "@/components/astraura-bots/bots-entidad";
+import { PanelProtoGenesis } from "@/components/protogenesis/panel-protogenesis";
+import { GobiernoProtoResumen } from "@/components/protomolecula/gobierno";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
 
@@ -37,6 +39,9 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
     const puertos = useMemo(() => puertosDelOs(), []);
 
+    // El encargo cuyo panel ProtoGenesis está abierto (PG1013I): uno a la vez.
+    const [panelAbierto, setPanelAbierto] = useState<string | null>(null);
+
     useEffect(() => {
         void misEntidades().then((r) => {
             if (!r.ok) return setError(r.motivo);
@@ -48,6 +53,21 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
 
     const entidad = lista?.find((e) => e.id === elegida) ?? null;
     const ambito: Ambito | null = useMemo(() => (entidad ? { tipo: "entidad", entidad: { tipo: entidad.tipo, id: entidad.id, slug: entidad.slug, nombre: entidad.nombre } } : null), [entidad]);
+
+    // El contexto del gobierno de la Protomolécula de esta entidad (Ola 1026P · nota de Claude):
+    // el resumen muestra las reglas del grupo; nunca se duplican reglas, permisos ni decisiones aquí.
+    const contextoProto = useMemo(
+        () =>
+            entidad
+                ? {
+                      ruta: `/${entidad.tipo === "pagina" ? "pagina" : "grupo"}/${entidad.slug}`,
+                      entidad: { tipo: entidad.tipo, id: entidad.id, ...(entidad.nombre ? { nombre: entidad.nombre } : {}) },
+                      ambito: "grupo" as const,
+                      gobernadaPor: { tipo: entidad.tipo, id: entidad.id, ...(entidad.nombre ? { nombre: entidad.nombre } : {}) },
+                  }
+                : null,
+        [entidad],
+    );
 
     // La decisión del resultado de cada encargo (§2.7): en entidad manda su gobierno,
     // y lo que toca fuera de la molécula se convierte en borrador para MetaGenesis (§4).
@@ -219,6 +239,16 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
             {encargos !== null && (
                 <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis para esta entidad">
                     <h2 className="text-base font-semibold">ProtoGenesis de esta entidad</h2>
+                    <p className="text-[11px] text-white/55" data-testid="protogenesis-explicacion">
+                        La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.
+                    </p>
+                    {/* El gobierno de la Protomolécula del grupo vive en su componente (Ola 1026P): se monta con su
+                        contexto, sin repetir reglas ni decisiones. Las reglas se cambian en los ajustes de la entidad. */}
+                    {contextoProto && (
+                        <div className="mt-2" data-testid="gobierno-proto-poligenesis">
+                            <GobiernoProtoResumen contexto={contextoProto} servicios={{ cargar: async () => null }} />
+                        </div>
+                    )}
                     {encargos.length === 0 ? (
                         <p className="text-[11px] text-white/60">
                             Aún no hay encargos para esta entidad.
@@ -228,25 +258,51 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     {encargos.map((registro) => {
                         const decision = decisionPara(registro);
                         return (
-                            <li key={registro.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
-                                <div className="flex-1">
-                                    <span className="block truncate">{registro.encargo.intencion}</span>
-                                    {registro.plan ? (
-                                        <span className="text-[10px] text-white/45">Con plan: {registro.plan.pasos.length} pasos</span>
-                                    ) : (
-                                        <span className="text-[10px] text-white/45">Sin plan</span>
-                                    )}
-                                    {/* Quién decide el resultado aquí: el gobierno de la entidad (§2.7). */}
-                                    <span className="block truncate text-[10px] text-cyan-200/70">{decision.motivo}</span>
-                                    {decision.modo === "proponer-metagenesis" && decision.borrador ? (
-                                        <span className="block truncate text-[10px] text-amber-200/80">
-                                            Borrador para MetaGenesis: {decision.borrador.id} — {decision.borrador.titulo}
-                                        </span>
-                                    ) : null}
+                            <li key={registro.encargo.id} className="w-full rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-xs text-white/80">
+                                <div className="flex items-center gap-2">
+                                    <div className="flex-1">
+                                        <span className="block truncate">{registro.encargo.intencion}</span>
+                                        {registro.plan ? (
+                                            <span className="text-[10px] text-white/45">Con plan: {registro.plan.pasos.length} pasos</span>
+                                        ) : (
+                                            <span className="text-[10px] text-white/45">Sin plan</span>
+                                        )}
+                                        {/* Quién decide el resultado aquí: el gobierno de la entidad (§2.7). */}
+                                        <span className="block truncate text-[10px] text-cyan-200/70">{decision.motivo}</span>
+                                        {decision.modo === "proponer-metagenesis" && decision.borrador ? (
+                                            <span className="block truncate text-[10px] text-amber-200/80">
+                                                Borrador para MetaGenesis: {decision.borrador.id} — {decision.borrador.titulo}
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        data-testid={`abrir-protogenesis-${registro.encargo.id}`}
+                                        aria-expanded={panelAbierto === registro.encargo.id}
+                                        onClick={() => setPanelAbierto(panelAbierto === registro.encargo.id ? null : registro.encargo.id)}
+                                        className="cursor-pointer shrink-0 rounded-lg border border-white/15 px-2 py-1 text-[10px] text-cyan-200 transition-colors duration-200 hover:bg-white/10"
+                                    >
+                                        {panelAbierto === registro.encargo.id ? "Cerrar panel" : "Abrir panel ProtoGenesis"}
+                                    </button>
+                                    <span className="text-[10px] text-white/45">
+                                        {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
+                                    </span>
                                 </div>
-                                <span className="text-[10px] text-white/45">
-                                    {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
-                                </span>
+                                {panelAbierto === registro.encargo.id ? (
+                                    <div className="mt-2">
+                                        {/* El nivel manda: el rol y el modo de gobierno que PoliGenesis ya conoce (§2.7). */}
+                                        <PanelProtoGenesis
+                                            moleculaId={registro.encargo.moleculaId}
+                                            ambito={registro.encargo.ambito}
+                                            rol={entidad?.dueña ? "owner" : entidad?.rol ?? null}
+                                            democratico={modo?.democratico ?? false}
+                                            esDueno={entidad?.dueña ?? false}
+                                            plan={registro.plan}
+                                            estados={registro.estados}
+                                            asignaciones={registro.asignaciones}
+                                        />
+                                    </div>
+                                ) : null}
                             </li>
                         );
                     })}
