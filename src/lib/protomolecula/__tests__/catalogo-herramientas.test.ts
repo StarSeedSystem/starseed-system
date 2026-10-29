@@ -236,6 +236,29 @@ describe("las apps de ArtCraft (getartcraft.com)", () => {
     expect(r.actualizacion).toMatchObject({ fuente: "github-tags", ref: "RareDevs/Rare" });
     expect(new RegExp(r.actualizacion.filtro as string).test(r.actualizacion.ultimaVersion as string)).toBe(true);
     expect((r.avisos ?? []).join(" ")).toMatch(/credenciales de Epic/i);
+    // Notas de control: programa aparte por CLI, sin servidor MCP ni canal, ni modo sin pantalla.
+    expect(r.control.via).toEqual(["cli"]);
+    for (const t of ["rare launch", "rare login", "--offline"]) expect(r.control.notas).toContain(t);
+    expect(r.control.notas).toMatch(/no tiene servidor MCP ni canal de control/);
+    expect(r.control.notas).toContain("no tiene modo sin pantalla");
+    // Credenciales de Epic: LEGENDARY_CONFIG_PATH 0700 por persona, fuera de repo, memoria y sala.
+    expect(r.control.notas).toContain("LEGENDARY_CONFIG_PATH");
+    expect(r.control.notas).toContain("0700");
+    expect(r.control.notas).toMatch(/por persona/);
+    expect(r.control.notas).toMatch(/nunca la lleva a un repositorio, una memoria ni una sala/);
+    expect(JSON.stringify(r)).not.toMatch(/access_token|refresh_token|account_id|exchange_code/);
+    // Licencia y rutas de servidores sin cablear; descargas remotas bloqueadas hasta fijar SHA.
+    expect(r.motivo).toMatch(/SOLO como programa aparte/);
+    expect(r.motivo).toMatch(/nunca enlazado ni en un Worker/);
+    expect(r.motivo).toMatch(/una neurona con pantalla/);
+    expect(r.motivo).toMatch(/sin cablear/);
+    const avisos = (r.avisos ?? []).join(" ");
+    expect(avisos).toContain("raredevs.github.io/wring");
+    expect(avisos).toContain("ProtonDB");
+    expect(avisos).toMatch(/bloquea o se aloja con SHA fijado/);
+    expect(avisos).toContain("una cuenta por persona");
+    expect(avisos).toMatch(/las decide Alex/);
+    expect(r.codigo).toBe("https://github.com/RareDevs/Rare");
   });
 
   it("lo que ArtCraft ofrece sin licencia abierta o sin control queda marcado", () => {
