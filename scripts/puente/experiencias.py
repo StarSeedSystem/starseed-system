@@ -39,9 +39,15 @@ def _recortar(x, n=MAX_ENTRADA):
 
 
 def nueva(
-    capa, tipo, entrada, salida, confianza=None, ms=None, opciones=None, dominio=""
+    capa, tipo, entrada, salida, confianza=None, ms=None, opciones=None, dominio="",
+    directiva=None,
 ):
-    """Construye una experiencia (dict) sin escribirla. `tipo`: intencion | eleccion | si_no | puntuacion | texto."""
+    """Construye una experiencia (dict) sin escribirla. `tipo`: intencion | eleccion | si_no | puntuacion | texto.
+
+    `directiva` (2026-10-29, 1027N) anota la versión de la pauta activa de la
+    capa (Meta^n) que viajaba con la decisión: {texto, version}, con el texto
+    recortado como la entrada. Cada directiva activa debe llevar su versión
+    en cada experiencia que la usa (contrato de automejora, §3.5)."""
     if capa not in CAPAS:
         raise ValueError("capa desconocida: %s" % capa)
     e = {
@@ -61,6 +67,10 @@ def nueva(
     }
     if opciones:
         e["opciones"] = list(opciones)
+    if directiva is not None:
+        d = dict(directiva) if isinstance(directiva, dict) else {"texto": str(directiva)}
+        d["texto"] = _recortar(str(d.get("texto") or ""))
+        e["directiva"] = d
     return e
 
 
