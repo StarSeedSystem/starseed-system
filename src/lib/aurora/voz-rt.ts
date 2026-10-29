@@ -37,6 +37,7 @@ import {
 } from "@/lib/aurora/colchon-voz";
 import { pedirLimiteFondo } from "@/lib/perf/fondo-vivo";
 import { anotarMedida } from "@/lib/aurora/medidas-voz";
+import { esVozRtValida, identidadVoz } from "@/lib/aurora/identidad-voz";
 
 const BASE = "/api/voz-rt";
 /** (2026-09-24) Lo medido en este equipo: RTF del motor, ritmo del texto, duración típica. */
@@ -78,16 +79,19 @@ interface Pendiente {
     promesa: Promise<AudioBuffer | null>;
 }
 
-/** La voz elegida para una personalidad (preferencia guardada > mapa > F1). PURA salvo localStorage. */
+/** La voz elegida para una personalidad (preferencia guardada > resolutor > F1).
+ * (VZF1015M) El mapa clásico alimenta la capa «personalidad» del RESOLUTOR
+ * ÚNICO de identidad de voz (`identidad-voz.ts`), que devuelve la vozRT
+ * efectiva con los defectos (F1, la de Alex) ya dentro. PURA salvo localStorage. */
 export function vozDePersona(personaId?: string): string {
     try {
         const elegida = typeof window !== "undefined" ? window.localStorage.getItem(CLAVE_VOZ) : null;
-        if (elegida && /^[FM][1-5]$/.test(elegida)) return elegida;
+        if (esVozRtValida(elegida)) return elegida;
     } catch {
         /* sin almacenamiento */
     }
     const id = (personaId || "").toLowerCase().replace(/\s+/g, "_");
-    return VOZ_POR_PERSONA[id] ?? "F1";
+    return identidadVoz({ personalidad: { vozRT: VOZ_POR_PERSONA[id] ?? null } }).vozRT;
 }
 
 class VozRT {
