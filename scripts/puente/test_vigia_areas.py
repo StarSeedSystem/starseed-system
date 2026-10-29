@@ -13,6 +13,7 @@ import vigia_areas as V
 AREAS_DEL_CONTRATO = ["imagen", "video", "3d", "voz", "oido", "palabra", "reflejo", "vision", "incrustaciones", "audio", "motores", "habilidades"]
 MOTORES = {"ggml-org/llama.cpp", "leejet/stable-diffusion.cpp", "ggml-org/whisper.cpp", "Comfy-Org/ComfyUI",
            "fermionresearch/phonon", "microsoft/onnxruntime", "anomalyco/opencode"}
+HABILIDADES = {"mattpocock/skills", "heygen-com/hyperframes", "cathrynlavery/diagram-design"}
 BASE = {"cuantizadores": ["unsloth", "city96", "QuantStack"],
         "licencias_conocidas": {"apache-2.0": "libre", "qwen-research": "personal"},
         "areas": [{"id": "imagen", "nombre": "Imagen", "pipeline_tags": ["text-to-image"], "autores": ["Qwen"],
@@ -48,8 +49,23 @@ class AreasDelVigia(unittest.TestCase):
         motores = next(a for a in areas if a["id"] == "motores")
         self.assertEqual(set(motores["repos_github"]), MOTORES)
         self.assertEqual(motores["alias_github"]["comfyanonymous/ComfyUI"], "Comfy-Org/ComfyUI")
+        habilidades = next(a for a in areas if a["id"] == "habilidades")
+        self.assertEqual(set(habilidades["repos_github"]), HABILIDADES)
         self.assertTrue({"Qwen", "Tongyi-MAI"} <= set(areas[0]["autores"]) and "text-to-image" in areas[0]["pipeline_tags"])
         self.assertTrue({"unsloth", "city96", "QuantStack"} <= set(areas[0]["cuantizadores"]))
+
+    def test_diagram_design_vigila_el_manifiesto_y_renueva_su_copia(self):
+        """DGM1018O · O: el vigía ve cathrynlavery/diagram-design (MIT) y sabe cuál es su señal de versión."""
+        habilidades = next(a for a in V.cargar_areas() if a["id"] == "habilidades")
+        self.assertIn("cathrynlavery/diagram-design", habilidades["repos_github"])
+        self.assertIn("cathrynlavery/diagram-design", habilidades["alias_github"])  # alias a sí mismo, como mattpocock
+        nota = habilidades["nota"]
+        self.assertIn(".claude-plugin/plugin.json", nota)
+        self.assertIn("version", nota)
+        self.assertIn("vendor/habilidades/diagram-design", nota)
+        self.assertIn("MIT", nota)
+        copia = os.path.join(V.RAIZ_REPO, "vendor", "habilidades", "diagram-design")
+        self.assertTrue(os.path.isfile(os.path.join(copia, "SKILL.md")), "hace falta la copia vendor (§2)")
 
     def test_resuelve_herencias(self):
         imagen, motores = V.validar_areas(con(lambda d: d["areas"][0].pop("cuantizadores")))
