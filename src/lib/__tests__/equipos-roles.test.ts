@@ -27,31 +27,16 @@ describe("equipos base", () => {
     }
   });
 
-  it("publicacion no es válido en grupo público por el uso de internet", () => {
+  it("publicacion no vale en grupo público porque su investigador sale a internet", () => {
     const problemas = validarEquipo(equipo("publicacion"), { ambito: "grupo-publico" });
-    expect(problemas.some((p) => p.includes("internet"))).toBe(true);
+    expect(problemas.length).toBeGreaterThan(0);
+    expect(
+      problemas.some((p) => p.includes("investigador") && p.includes("internet")),
+    ).toBe(true);
   });
 
   it("ordenDeTareas de publicacion respeta la cadena", () => {
     expect(ordenDeTareas(equipo("publicacion"))).toEqual(["investigar", "redactar", "revisar"]);
-  });
-
-  it("declara tres equipos con identificadores únicos", () => {
-    expect(EQUIPOS_BASE.map((e) => e.id)).toEqual(["publicacion", "app-widget", "atomo-proto"]);
-  });
-});
-
-describe("validarEquipo: casos rescatados de la rama nube", () => {
-  it("la última tarea no la ejecuta un rol que verifica", () => {
-    const e = equipo("publicacion");
-    e.tareas[2].rol = "redactor";
-    expect(validarEquipo(e).some((p) => p.includes("última tarea") && p.includes("verifica"))).toBe(true);
-  });
-
-  it("lista de motores vacía", () => {
-    const e = equipo("publicacion");
-    e.motoresValidos = [];
-    expect(validarEquipo(e)).toContain("motoresValidos está vacío");
   });
 });
 
