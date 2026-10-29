@@ -15,6 +15,10 @@ function otroRol(base: RolEquipo): RolEquipo {
 }
 
 describe("equipos base", () => {
+  it("declara tres equipos con identificadores únicos", () => {
+    expect(EQUIPOS_BASE.map((e) => e.id)).toEqual(["publicacion", "app-widget", "atomo-proto"]);
+  });
+
   it("los tres equipos son válidos en ámbito personal", () => {
     for (const e of EQUIPOS_BASE) {
       expect(validarEquipo(e)).toEqual([]);
@@ -56,6 +60,20 @@ describe("validarEquipo detecta cada regla rota", () => {
     expect(validarEquipo(e)).toContain("ningún rol verifica");
   });
 
+  it("la última tarea no la ejecuta un rol que verifica", () => {
+    const e: EquipoRoles = {
+      id: "ultimo-sin-verificar", nombre: "Último sin verificar", contexto: "protogenesis",
+      proceso: "secuencial",
+      roles: [otroRol(EQUIPOS_BASE[2].roles[0]), otroRol(EQUIPOS_BASE[0].roles[2])],
+      tareas: [
+        { id: "previa", descripcion: "Previa", rol: "director", depende: [], salidaEsperada: "P" },
+        { id: "final", descripcion: "Final", rol: "director", depende: ["previa"], salidaEsperada: "F" },
+      ],
+      motoresValidos: ["nativo"], revisionHumana: false,
+    };
+    expect(validarEquipo(e).some((p) => p.includes("última tarea") && p.includes("verifica"))).toBe(true);
+  });
+
   it("herramienta inventada", () => {
     const e = equipo("publicacion");
     e.roles[0].herramientas.push("herramienta:inventada");
@@ -78,6 +96,12 @@ describe("validarEquipo detecta cada regla rota", () => {
     const e = equipo("publicacion");
     e.motoresValidos = ["motor-que-no-existe"];
     expect(validarEquipo(e).some((p) => p.includes("inexistente"))).toBe(true);
+  });
+
+  it("lista de motores vacía", () => {
+    const e = equipo("publicacion");
+    e.motoresValidos = [];
+    expect(validarEquipo(e).some((p) => p.includes("motoresValidos está vacío"))).toBe(true);
   });
 
   it("texto con forma de clave montado en tiempo de ejecución", () => {
