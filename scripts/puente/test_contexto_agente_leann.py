@@ -63,6 +63,37 @@ class SobreBuscar(unittest.TestCase):
         self.assertEqual(Falso.peticiones, [])
         self.assertIsNone(LC.buscar("repo-starseed", "x", 3, puerto=1, token="t"))
 
+    def test_filtros_y_k_viajan_en_el_cuerpo_de_la_peticion(self):
+        cuerpos = []
+        for kwargs in ({"filtros": {"alcance": {"in": ["publica"]}}, "token": "tok"},
+                       {"token": "tok"}):
+            peticion = LC.peticion(LC.INDICE_REPO, "salas", 5, puerto=1, **kwargs)
+            datos = peticion.data or b""
+            cuerpo = json.loads(datos if isinstance(datos, (bytes, bytearray)) else b"")
+            self.assertEqual(cuerpo.get("consulta"), "salas")
+            self.assertEqual(cuerpo.get("k"), 5)
+            cuerpos.append(cuerpo)
+        self.assertEqual(cuerpos[0].get("filtros"), {"alcance": {"in": ["publica"]}})
+        self.assertNotIn("filtros", cuerpos[1])
+
+    def test_puerto_del_entorno_si_no_dan_ninguno(self):
+        os.environ["STARSEED_LEANN_PUERTO"] = str(self.puerto)
+        try:
+            self.assertIsNotNone(LC.buscar(LC.INDICE_REPO, "salas", 3, token="tok"))
+            self.assertEqual(Falso.peticiones, [{"ruta": "/indices/repo-starseed/buscar", "token": "tok"}])
+        finally:
+            os.environ.pop("STARSEED_LEANN_PUERTO", None)
+        self.assertIsNone(LC.buscar(LC.INDICE_REPO, "salas", 3, puerto=1, token="t"))
+
+    def test_cadena_completa_cliente_a_seccion(self):
+        existe = lambda r: r.startswith("src/lib/")  # noqa: E731
+        archivos = lambda consulta: LC.buscar(LC.INDICE_REPO, consulta, 8, puerto=self.puerto, token="tok")
+        d = C.construir("escritor", tarea="Contrato de salas\nImplementar búsqueda", leer=lambda r: "x",
+                        existe=existe, extras=[], raices={}, archivos=archivos)
+        self.assertIn("archivos", d["secciones"])
+        self.assertIn("`src/lib/a.ts` (líneas 1–50)", d["texto"])
+        self.assertEqual(Falso.peticiones, [{"ruta": "/indices/repo-starseed/buscar", "token": "tok"}])
+
 
 class Rutas(unittest.TestCase):
     """rutas_de_aciertos: únicas, con rango, como mucho 8 y solo las que existen."""
@@ -113,6 +144,26 @@ class Seccion(unittest.TestCase):
         self.assertTrue(all("archivos" in C.ORDEN[rol] for rol in C.ROLES))
         t = C.construir("escritor", tarea="Arregla src/lib/leann")["texto"]
         self.assertNotIn("Archivos que probablemente importan", t)
+
+    def test_aciertos_sin_rango_o_parcial_se_muestran(self):
+        sin_rango = dict(ACIERTO, id="t9", metadatos={"ruta": "src/lib/a.ts"})
+        parcial = dict(ACIERTO, id="t10", metadatos={"ruta": "src/lib/b.ts", "desde": 5})
+        d = C.construir("escritor", tarea="Contrato de salas", leer=lambda r: "x",
+                        existe=lambda r: r in ("src/lib/a.ts", "src/lib/b.ts"),
+                        extras=[], raices={}, archivos=lambda consulta: [sin_rango, parcial])
+        self.assertIn("- `src/lib/a.ts`", d["texto"])
+        self.assertIn("- `src/lib/b.ts` (líneas 5)", d["texto"])
+
+    def test_sin_aciertos_o_buscar_roto_no_sale_seccion(self):
+        vacio = C.construir("escritor", tarea="algo", leer=lambda r: "x", existe=lambda r: True,
+                            extras=[], raices={}, archivos=lambda consulta: [])
+        roto = C.construir("escritor", tarea="algo", leer=lambda r: "x", existe=lambda r: True,
+                           extras=[], raices={}, archivos=self.explota)
+        self.assertNotIn("archivos", vacio["secciones"] + roto["secciones"])
+
+    @staticmethod
+    def explota(consulta):
+        raise RuntimeError("bomba")
 
 
 if __name__ == "__main__":
