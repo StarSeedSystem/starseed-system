@@ -35,6 +35,7 @@ import { useDesktopClipboard, copyIcon, cutIcon, pasteClipboard } from "./deskto
 import { canEditIcon } from "./desktop-open";
 import { hasRichThumb } from "./desktop-thumbs";
 import type { QuickLookTab } from "./desktop-quick-look";
+import { accionVariaciones } from "@/components/variaciones/accion-variaciones";
 
 const MENU_W = 210;
 
@@ -127,6 +128,7 @@ function MenuShell({
     return (
         <div
             role="menu"
+            data-ss-menu-propio=""
             style={{ left, top, width: MENU_W, maxHeight: maxH - top - 10 }}
             className="absolute z-[62] overflow-y-auto rounded-2xl border border-white/12 bg-card/95 p-1.5 shadow-2xl backdrop-blur-2xl"
         >
@@ -168,6 +170,9 @@ export function CanvasContextMenu({
     const clip = useDesktopClipboard();
     const aurora = useAurora();
     const speak = aurora?.speak;
+
+    // (Ola 1019S) Variaciones públicas compartidas por el tipo, no por la instancia.
+    const lienzoVa = accionVariaciones("escritorio:lienzo");
 
     const pages = desktopPageCount(desktop);
     const run = (fn: () => void) => { fn(); onClose(); };
@@ -250,6 +255,9 @@ export function CanvasContextMenu({
             <MenuDivider />
             <MenuItem icon={ImageIcon} label="Cambiar fondo…" onClick={() => run(onChangeBackground)} />
             <MenuItem icon={Settings2} label="Ajustes del escritorio…" onClick={() => run(onOpenSettings)} />
+            {/* (Ola 1019S · contrato architecture/variaciones-publicas.md §3) Variaciones públicas del lienzo: la misma clave para todos los escritorios. */}
+            <MenuDivider />
+            <MenuItem icon={lienzoVa.icon} label={lienzoVa.label} onClick={() => run(lienzoVa.onClick)} />
         </MenuShell>
     );
 }
@@ -279,6 +287,8 @@ export function IconContextMenu({
     const aurora = useAurora();
     const speak = aurora?.speak;
     const run = (fn: () => void) => { fn(); onClose(); };
+    // (Ola 1019S) Variaciones públicas del TIPO de icono — la clave no deja la instancia ni datos privados.
+    const iconoVa = accionVariaciones("escritorio:icono", { nombre: icon.name });
     const canLivePreview =
         icon.kind === "widget" || (icon.kind === "file" && hasRichThumb(icon));
     // Folders raíz destino (no la propia si es folder).
@@ -388,6 +398,10 @@ export function IconContextMenu({
                     )}
                 </SubMenu>
             )}
+
+            {/* (Ola 1019S · contrato architecture/variaciones-publicas.md §3) Variaciones públicas del tipo de icono. */}
+            <MenuDivider />
+            <MenuItem icon={iconoVa.icon} label={iconoVa.label} onClick={() => run(iconoVa.onClick)} />
 
             <MenuDivider />
             <MenuItem icon={Trash2} label="Eliminar" danger onClick={() => run(() => removeIcon(desktop.id, icon.id))} />
