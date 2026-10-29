@@ -20,6 +20,7 @@ import os
 import shutil
 import sys
 import tempfile
+import types
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
@@ -366,6 +367,84 @@ class TestVigiaModelos(unittest.TestCase):
         self.assertNotIn(REGLA_PERSONAL, libre["prompt"])  # cada clase su regla
         self.assertIn("SHA256 del archivo elegido", libre["prompt"])
         self.assertIn(SHA_TURBO, json.dumps(tareas))  # el SHA viene en los datos de la ficha
+
+    def test_refinar_licencia_toma_el_tag_y_gasta_poder(self):
+        """El detalle de HF aporta el tag «license:…» y cada llamada gasta una."""
+        nivel = {"poder": 2}
+        pedidos = []
+
+        def http_get(url, headers=None, timeout=30):
+            pedidos.append(url)
+            return json.dumps({"tags": ["area:imagen", "license:cc-by-4.0"]})
+
+        lic = VM._refinar_licencia({"id": "tercero/Sin-Tag"}, nivel, http_get, lambda _s: None)
+        self.assertEqual(lic, "cc-by-4.0")
+        self.assertEqual(nivel["poder"], 1)
+        self.assertEqual(len(pedidos), 1)
+        self.assertIn("tercero/Sin-Tag", pedidos[0])
+
+    def test_refinar_licencia_red_caida_nada(self):
+        """Con la red caída no hay licencia, pero el intento ya contó (cero poder)."""
+        nivel = {"poder": 1}
+
+        def http_get(_url, headers=None, timeout=30):
+            raise OSError("sin red")
+
+        lic = VM._refinar_licencia({"id": "tercero/Sin-Tag"}, nivel, http_get, lambda _s: None)
+        self.assertIsNone(lic)
+        self.assertEqual(nivel["poder"], 0)
+
+    def test_ids_en_colas_lee_olas_y_enjambre(self):
+        """Los ids que ya viajan vienen de las dos carpetas: olas y enjambre/colas."""
+        carpeta_olas = os.path.join(self.tmp, "starseed_memory_root", "olas")
+        os.makedirs(carpeta_olas, exist_ok=True)
+        os.makedirs(os.path.join(self.tmp, "enjambre", "colas"))
+        with open(os.path.join(carpeta_olas, "cola-a.json"), "w", encoding="utf-8") as f:
+            f.write("A: `Qwen/Qwen-Image-2.1`.\n")
+        with open(os.path.join(self.tmp, "enjambre", "colas", "cola-b.json"), "w",
+                  encoding="utf-8") as f:
+            f.write("B: `Tongyi-MAI/Z-Image-Turbo`.\n")
+        ids = VM._ids_en_colas(self.tmp)
+        self.assertIn("Qwen/Qwen-Image-2.1", ids)
+        self.assertIn("Tongyi-MAI/Z-Image-Turbo", ids)
+
+    def test_resumen_una_linea_por_area_con_novedad(self):
+        """Una línea por área CON novedad; el área sin nada no sale."""
+        por_area = [
+            {"area": "imagen", "nombre": "Imagen", "catalogo": "r/cat.ts",
+             "aceptados": [{"id": "a/b"}, {"id": "c/d"}], "descartados": [{"id": "e/f"}]},
+            {"area": "video", "nombre": "Vídeo", "catalogo": "r/v.ts",
+             "aceptados": [], "descartados": []},
+        ]
+        resumen = VM._resumen(por_area, [("imagen", {"id": "a/b"})], FECHA)
+        self.assertIn(f"*Vigía de modelos · {FECHA}*", resumen)
+        self.assertIn("· Imagen: aceptados `a/b`, `c/d`; descartados 1", resumen)
+        self.assertNotIn("· Vídeo", resumen)  # el área sin nada no sale
+        self.assertIn("Fichas a cola (1/5 máx.): `a/b`", resumen)
+
+    def test_escritura_atomica_reemplaza_y_no_deja_tmp(self):
+        """Reescribir la misma ruta reemplaza el contenido y deja cero tmp a medias."""
+        ruta = os.path.join(self.tmp, "starseed_memory_root", "escrituras", "alvo.json")
+        VM._escribir_atomico(ruta, {"a": 1})
+        VM._escribir_atomico(ruta, {"a": 2})
+        with open(ruta, encoding="utf-8") as f:
+            self.assertEqual(json.load(f), {"a": 2})
+        self.assertEqual([n for n in os.listdir(os.path.dirname(ruta))
+                          if n.endswith(".tmp")], [])
+
+    def test_publicador_manda_al_chat_director_como_vigia(self):
+        """El publicador perezoso llama a director_chat.publicar como vigia-modelos."""
+        llamadas = []
+        modulo = types.ModuleType("director_chat_prueba")
+
+        def publicar(texto, de, rol, tipo):
+            llamadas.append((texto, de, rol, tipo))
+
+        setattr(modulo, "publicar", publicar)
+        sys.modules["director_chat_prueba"] = modulo
+        self.addCleanup(lambda: sys.modules.pop("director_chat_prueba", None))
+        VM._publicador("director_chat_prueba")("hola vigía")
+        self.assertEqual(llamadas, [("hola vigía", "vigia-modelos", "director", "informe")])
 
     def test_toca_pasada(self):
         """Sin estado previo o > 20 h toca; más reciente, no; fecha rota, sí (§6)."""
