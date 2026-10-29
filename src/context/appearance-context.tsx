@@ -25,6 +25,11 @@ import { curatedPresets } from "@/lib/themes/curated-presets";
 import { registrarAdaptadoresApariencia } from "@/lib/variaciones/adaptadores/apariencia";
 // Petición a la Protomolécula (Ola 1026P · P3): solo la constante del aviso (módulo sin dependencias).
 import { EVENTO_APLICAR_FONDO } from "@/lib/protomolecula/peticion/fondo-evento";
+// Fuentes de la marca (DSN1019D): el proveedor es el sitio global donde se
+// decide la tipografía y el tema, así que aquí se piden las hojas que hagan
+// falta (Satoshi si el registro o la pieza es editorial; Quicksand con el tema
+// Natural) y se publican las variables --ss-font-* con sus respaldos.
+import { FuentesMarca } from "@/components/theme/fuentes-marca";
 
 export interface CustomFont {
     name: string;
@@ -785,6 +790,7 @@ interface AppearanceContextType {
 const AppearanceContext = createContext<AppearanceContextType | undefined>(undefined);
 
 export function AppearanceProvider({ children }: { children: React.ReactNode }) {
+    const { theme, resolvedTheme } = useTheme();
     const [config, setConfig] = useState<AppearanceConfig>(defaultConfig);
     const [mounted, setMounted] = useState(false);
 
@@ -925,6 +931,30 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         background = { ...background, layers: normalizeLayers(background.layers) };
         return { ...config, background };
     }, [config, profileId, pathname]);
+
+    // ── Fuentes de la marca (DSN1019D) ───────────────────────────────────
+    // Un registro o una pieza piden el papel «display editorial» cuando la
+    // tipografía activa es Satoshi (elegida en Apariencia o puesta por un
+    // ThemePack del catálogo, que escribe --font-body en el raíz). Se observa
+    // el <html> para no perder ese segundo caso; el valor viaja al componente,
+    // que carga la hoja una sola vez y deja sus respaldos si no hay red.
+    const [usaDisplayEditorial, setUsaDisplayEditorial] = useState(false);
+    useEffect(() => {
+        const recalcular = () => {
+            const familia = resolvedConfig.typography?.fontFamily ?? "";
+            const cuerpo = document.documentElement.style.getPropertyValue("--font-body");
+            setUsaDisplayEditorial(familia === "Satoshi" || cuerpo.includes("Satoshi"));
+        };
+        recalcular();
+        const observador = new MutationObserver(recalcular);
+        observador.observe(document.documentElement, { attributeFilter: ["class", "style"] });
+        return () => observador.disconnect();
+    }, [resolvedConfig]);
+
+    // La ruta identifica la pieza cuando su nombre es uno de los papeles con
+    // display editorial (por ejemplo /presentacion); el tema Natural pide
+    // Quicksand. El resto de páginas no añade ninguna hoja.
+    const piezaActual = pathname.split("/").filter(Boolean)[0] ?? "";
 
     // Re-aplica el ThemePack del catálogo (theme-engine.ts) que el usuario
     // dejó activo la última vez, si lo hay — sin esto, un tema aplicado desde
@@ -1498,6 +1528,14 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
             undo,
             canUndo
         }}>
+            {/* Fuentes de la marca: fija --ss-font-display/titular/organica en el
+                raíz (con respaldos) y carga bajo demanda solo la hoja del papel en
+                uso: Satoshi para el display editorial, Quicksand para Natural. */}
+            <FuentesMarca
+                registro={usaDisplayEditorial ? "editorial" : undefined}
+                pieza={piezaActual}
+                tema={resolvedTheme ?? theme}
+            />
             {children}
         </AppearanceContext.Provider>
     );
