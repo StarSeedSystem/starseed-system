@@ -61,6 +61,23 @@ def posiciones_corte(pares: Sequence[float]) -> List[Tuple[int, float]]:
     techo = PORCENTAJE_CORTE * statistics.median(pares)
     return [(i, s) for i, s in enumerate(pares) if s < techo]
 
+def juzgar_pares(serie, local: bool = True) -> dict:
+    """Juzga una serie de valores SSIM y retorna un informe con 'pasa', 'congelados', 'cortes'."""
+    if local:
+        rótulos = etiquetas(serie)
+        medidos = len(serie)
+        aprobado, _ = veredicto(rótulos, medidos)
+        cortes = [i for i, rótulo in enumerate(rótulos) if rótulo == "corte"]
+        congelados = [i for i, rótulo in enumerate(rótulos) if rótulo == "congelado"]
+        return {"pasa": aprobado, "congelados": congelados, "cortes": cortes}
+    else:
+        corte_vals = posiciones_corte(serie)
+        congelados = [i for i, s in enumerate(serie) if s > 0.995]
+        cortes = [i for i, _ in corte_vals]
+        aprobado = len(corte_vals) == 0 and len(congelados) <= 2 and len(serie) >= 3
+        return {"pasa": aprobado, "congelados": congelados, "cortes": cortes}
+
+
 def _ffmpeg(args: List[str]) -> str:
     # Arranca ffmpeg y devuelve su salida de error.
     hecho = subprocess.run(
