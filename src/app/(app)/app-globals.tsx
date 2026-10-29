@@ -53,6 +53,12 @@ const EntradaGlobalXR = dynamic(
   { ssr: false },
 );
 
+// Menú del clic derecho sobre textos (TRD1020E): se monta UNA vez aquí para que
+// el MISMO menú sirva a Traducir y a «Variaciones públicas», que solo registran entradas.
+const MenuTexto = dynamic(() => import("@/components/traduccion/menu-texto").then((m) => m.MenuTexto), {
+  ssr: false,
+});
+
 /** (Ola 3 · Adenda 155) Sondeo del puente de eventos Astraura 1.58 → centro de
  * notificaciones del OS + siembra de personalidades/agentes 1.58. Singleton. */
 function Astraura158FeedMount() {
@@ -94,6 +100,8 @@ export default function AppGlobals() {
           discreta «X pidió instalar Y aquí» con «Instalar aquí» / «Ahora no». Sin UI
           mientras no haya pedidos para este dispositivo. */}
       <InstalacionesPendientes />
+      {/* TRD1020E: menú global del clic derecho sobre textos. */}
+      <MenuTexto />
     </SoloFueraDeConsola>
   );
 }
