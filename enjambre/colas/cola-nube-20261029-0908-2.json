@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "VZF1015N",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Plática · interrupción por voz: si la persona habla > 250 ms, Astraura calla al momento",
+   "archivos": [
+    "src/lib/aurora/interrumpir-por-voz.ts",
+    "src/lib/aurora/__tests__/interrumpir-por-voz.test.ts",
+    "src/lib/aurora/engine.ts"
+   ],
+   "depende": [],
+   "prompt": "Hoy solo se interrumpe tocando la orbe. Crea un detector PURO por energía con histéresis (`decidirInterrupcion(muestras, estado, { umbralDb, minimoMs: 250 })`) y un montaje que lee el micrófono con `echoCancellation: true` y `noiseSuppression: true` mientras Astraura habla y llama a `interrupt()` del motor. No puede cortarse con su propio eco: respeta `esEcoPropio`/`ventanaEcoMs` de `anti-bucle-voz.ts`. En `engine.ts` solo el enganche (activar al hablar, soltar al callar). Pruebas del detector con muestras sintéticas. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "VZF1015N"
+  ]
+ }
+}
