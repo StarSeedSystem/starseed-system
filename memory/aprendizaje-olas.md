@@ -4662,3 +4662,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-29 02:15 · mg-oracle-1028-1607
+
+**Lo que se pidió.** Recursos de IA por neurona · los modelos de Colibri (decisión, texto, razón y streaming del disco) (parte 1 de 2)
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — los tipos no compilan (RTCLB1027Cb-d1, PMO1020A, RIA1023Ed, RTESP1011Bd-d2b). Es 67 % de la ola.
+- 2 tareas se fueron por lo mismo — otra cosa (RTRTRTRTRTCOL1012Bdsbbbbb-d3, VPU1019S). Es 33 % de la ola.
+- openrouter/cohere/north-mini-code:free no integró ninguna de sus 3 tareas.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTCLB1027Cb-d1` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTCLB1027Cb-d1 conservada)
+- `PMO1020A` — los tipos no compilan: 1 errores tsc (rama ola/PMO1020A conservada)
+- `RIA1023Ed` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RIA1023Ed conservada)
+- `RTESP1011Bd-d2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTESP1011Bd-d2b conservada)
+- `RTRTRTRTRTCOL1012Bdsbbbbb-d3` — otra cosa: ningún proveedor respondió (todos caídos)
+- `VPU1019S` — otra cosa: ningún proveedor respondió (todos caídos)
