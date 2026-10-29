@@ -86,8 +86,12 @@ import { emocionDesdeTexto, type EmocionVoz } from "@/lib/voces/emociones";
 import { emocionChatAVoz } from "@/lib/aurora/voz-starseed/motor";
 import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
-import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
+import { MOTORES_OIDO, elegirOido, type MotorOidoId } from "@/lib/aurora/stt-oss";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
+import { escucharFusionado, type EscuchaFusionada } from "@/lib/aurora/stt-oss/escucha-fusionada";
+import { transcribirOpenAI, urlOidoLocal } from "@/lib/aurora/stt-oss/oido-openai";
+import { transcribirLocal } from "@/lib/aurora/stt-oss/vibeasr-local";
+import { glosarioBase } from "@/lib/aurora/stt-oss/glosario-oido";
 import {
   decidirEnvioAlOido,
   INTERVALO_MINIMO_MS_POR_DEFECTO,
@@ -122,6 +126,29 @@ function medidasOidoDeEstaNeurona(lang: string | undefined): Record<string, numb
     return medidasOido(leerMedidas(neuronDeviceIdActual()), { idioma: idiomaBaseDeVoz(lang) });
   } catch {
     return {};
+  }
+}
+
+/**
+ * (Ola 1015V · G) Motor local/endpoint MEDIDO mejor que el navegador para la
+ * fase «final» en esta neurona. Solo datos MEDIDOS (`medidas-voz.ts`), nunca
+ * supuestos: si el navegador o el motor no tienen medida, no hay sustitución.
+ * Devuelve `null` salvo que el elector de fase «final» prefiera un motor que
+ * no sea el navegador ni el flujo de Phonon-2 y su retraso medido sea menor.
+ */
+function motorFinalMedidoMejor(lang: string | undefined, disponibles: MotorOidoId[]): MotorOidoId | null {
+  try {
+    const medidas = medidasOidoDeEstaNeurona(lang);
+    const delNavegador = medidas["navegador"];
+    if (typeof delNavegador !== "number") return null;
+    const eleccionFinal = elegirOido({ idioma: idiomaBaseDeVoz(lang), disponibles, fase: "final", medidas });
+    if (eleccionFinal.motor === "navegador" || eleccionFinal.motor === "phonon-2") return null;
+    const delMotor = medidas[eleccionFinal.motor];
+    return typeof delMotor === "number" && delMotor < delNavegador
+      ? (eleccionFinal.motor as MotorOidoId)
+      : null;
+  } catch {
+    return null;
   }
 }
 
@@ -2052,6 +2079,19 @@ export function useAuroraEngine(): AuroraEngine {
     });
     if (eleccionOido.motor === "phonon-2") return buildFlujoOido();
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    // (Ola 1015V · G) Camino de TRAMOS (escucharFusionado, «Aurora escucha por
+    // el elector»): lo usa el oído cuando el navegador NO tiene reconocimiento
+    // o hay un motor local/endpoint MEDIDO mejor en esta neurona. El elector
+    // manda; el cerrojo de dueño único (`claimStt`/`releaseStt`) y `esEcoPropio`
+    // siguen mandando sin tocarlos.
+    // El elector por tramos JAMÁS elige el flujo: este camino es el de tramos;
+    // si Phonon-2 volviera a caer, el flujo ya se ocupó arriba (o se reengancha).
+    const disponiblesTramo = MOTORES_OIDO.filter((m) => m.id !== "phonon-2").map((m) => m.id);
+    const motorMedido = motorFinalMedidoMejor(langVoz, disponiblesTramo);
+    if (!SR || motorMedido) {
+      const recTramos = buildOidoTramos(motorMedido, disponiblesTramo);
+      if (recTramos) return recTramos;
+    }
     if (!SR) return null;
     const rec = new SR();
     // Esta reconocimiento toma la GENERACIÓN vigente. Su onend solo reinicia si
@@ -2514,6 +2554,248 @@ export function useAuroraEngine(): AuroraEngine {
     return rec;
   }, []);
 
+  // ── OÍDO POR TRAMOS (Ola 1015V · G · escucharFusionado) ──────────────────
+  // Imita el mismo ciclo de vida que el oído en FLUJO, pero el texto viene de
+  // TRAMOS con el detector de energía (`escucharFusionado`): silencio 800 ms,
+  // tramo ≤ 30 s; el motor de la fase «final» lo elige el ELECTOR por tramo y
+  // lo transcribe `transcribirOpenAI` (Phonon/Parakeet) o el demonio (VibeASR).
+  // El parcial visible sigue viniendo del navegador cuando existe («…» aquí).
+  const buildOidoTramos = useCallback(
+    (motorFijado: MotorOidoId | null, disponiblesTramo: MotorOidoId[]) => {
+      const gen = ++recGenRef.current;
+      const isMobile = isMobileDevice();
+      const langVoz = activeRef.current.voice?.lang;
+      const pista = idiomaBaseDeVoz(langVoz);
+      const hotwords = glosarioBase(); // palabras propias: la conciencia LAS DA §6
+      let stopped = false;
+      let startedAt = 0;
+      let sawResult = false;
+      let lastErr = "";
+      let audioCtx: AudioContext | null = null;
+      let mediaStream: MediaStream | null = null;
+      let procesador: ScriptProcessorNode | null = null;
+      let oidoTramos: EscuchaFusionada | null = null;
+
+      /** Suelta micrófono, contexto de audio y escucha por tramos. */
+      const soltar = () => {
+        try { oidoTramos?.detener(); } catch { /* */ }
+        oidoTramos = null;
+        if (procesador) { try { procesador.disconnect(); } catch { /* */ } procesador = null; }
+        if (audioCtx) { try { void audioCtx.close(); } catch { /* */ } audioCtx = null; }
+        if (mediaStream) {
+          try { mediaStream.getTracks().forEach((t) => t.stop()); } catch { /* */ }
+          mediaStream = null;
+        }
+      };
+
+      /** Reparte el texto captado como haría el `onresult` de Web Speech. */
+      const procesar = (finalText: string, interimText: string) => {
+        if (stopped || gen !== recGenRef.current) return; // oído obsoleto: ignora
+        if (ttsGuardActive()) return; // ANTI-ECO GLOBAL: su propia voz no es mandato
+        if (finalText || interimText) { sawResult = true; sttRestartsRef.current = 0; }
+        if (!engagedRef.current) {
+          // PASIVO: solo "aurora" enciende el modo activo (y ejecuta lo que traiga).
+          const heard = finalText || interimText;
+          if (containsWake(heard)) {
+            engageNowRef.current();
+            if (finalText) {
+              const rest = stripWake(finalText);
+              if (rest && rest.trim().length > 1) {
+                setInterim("");
+                void runCommandRef.current(rest);
+              }
+            }
+          }
+          return;
+        }
+        // ACTIVO: conversación normal (mismas guardas que el oído en flujo).
+        touchEngagedRef.current();
+        if (interimText) setInterim(interimText);
+        if (finalText) {
+          setInterim("");
+          if (esEcoPropio(finalText, Date.now())) return; // ANTI-ECO TARDÍO
+          turnoVozPendiente = {
+            origen: "voz",
+            msDesdeQueCalló: ultimoFinHablaGlobal ? Date.now() - ultimoFinHablaGlobal : null,
+          };
+          let corrected = finalText;
+          try { corrected = normalizeStarseedTerms(finalText); } catch { corrected = finalText; }
+          try { rec.stop(); } catch { /* */ } // medio-dúplex: suelta el micro YA
+          void runCommandRef.current(corrected);
+        }
+      };
+
+      // Transcripción del tramo: servidores compatibles con la API de Whisper
+      // (`transcribirOpenAI`) o el demonio local (/asr) para VibeASR 1.58.
+      const transcribirTramo = async (tramo: Blob, motor: string, idioma?: string) => {
+        try {
+          if (motor === "vibeasr-158") {
+            const r = await transcribirLocal(tramo);
+            return { texto: r.texto, idioma };
+          }
+          const r = await transcribirOpenAI(tramo, {
+            base: urlOidoLocal(motor),
+            modelo: motor,
+            idioma,
+            hotwords,
+          });
+          return r.ok ? { texto: r.texto, idioma: r.idioma ?? idioma } : null;
+        } catch {
+          return null;
+        }
+      };
+
+      /** Reenganche con la CONTABILIDAD DE SALUD (la del §Android, arriba). */
+      const rearmar = () => {
+        const ranMs = startedAt ? Date.now() - startedAt : 0;
+        const sana = sawResult || ranMs >= 900 || lastErr === "" || lastErr === "no-speech" || lastErr === "aborted";
+        if (sana) sttRestartsRef.current = 0;
+        else sttRestartsRef.current += 1; // murió al nacer: firma del bucle real
+        if (sttRestartsRef.current > 8) {
+          keepAliveRef.current = false;
+          sttRestartsRef.current = 0;
+          setSttFatal("failed");
+          setListening(false);
+          return;
+        }
+        const delay = sttRestartsRef.current === 0
+          ? (isMobile ? 320 : 260)
+          : Math.min((isMobile ? 700 : 500) + sttRestartsRef.current * 300, 2500);
+        try {
+          const next = buildRecognition();
+          if (next) {
+            recognitionRef.current = next;
+            const nextGen = recGenRef.current;
+            sttRestartTimerRef.current = setTimeout(() => {
+              sttRestartTimerRef.current = null;
+              if (nextGen !== recGenRef.current) return; // obsoleto: no arranques
+              if (!keepAliveRef.current) return;         // parada deliberada
+              if (pausedForTtsRef.current || ttsGuardActive()) return; // medio-dúplex
+              startRecognitionExclusive(next);
+            }, delay);
+            return;
+          }
+        } catch { /* */ }
+        setListening(false);
+      };
+
+      const rec: SpeechRecognitionLike = {
+        lang: langVoz || "es-MX",
+        interimResults: true,
+        continuous: !isMobile,
+        maxAlternatives: 1,
+        onstart: null,
+        onerror: null,
+        onend: null,
+        onresult: null,
+        start: () => {
+          if (stopped || gen !== recGenRef.current) return;
+          startedAt = Date.now();
+          setListening(true);
+          setInterim("");
+          const md = typeof navigator !== "undefined" ? navigator.mediaDevices : null;
+          if (!md?.getUserMedia) {
+            lastErr = "audio-capture";
+            keepAliveRef.current = false;
+            setSttFatal("audio-capture");
+            setListening(false);
+            return;
+          }
+          md.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          }).then((stream) => {
+            if (stopped || gen !== recGenRef.current) {
+              try { stream.getTracks().forEach((t) => t.stop()); } catch { /* */ }
+              return;
+            }
+            mediaStream = stream;
+            const Ctx =
+              window.AudioContext ||
+              (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+            if (!Ctx) throw new Error("AudioContext no disponible");
+            audioCtx = new Ctx();
+            const fuente = audioCtx.createMediaStreamSource(stream);
+            const BUFFER = 4096;
+            procesador = audioCtx.createScriptProcessor
+              ? audioCtx.createScriptProcessor(BUFFER, 1, 1)
+              : null;
+            if (!procesador) throw new Error("ScriptProcessor no disponible");
+            fuente.connect(procesador);
+            // Sumidero MUDO: Chrome corta el procesador sin destino conectado.
+            const mudo = audioCtx.createGain();
+            mudo.gain.value = 0;
+            procesador.connect(mudo);
+            mudo.connect(audioCtx.destination);
+            // (Ola 1015V · G) La escucha FUSIONADA por tramos: corta tramos con
+            // el detector de energía, elige motor final por tramo y transcribe.
+            // El pin medido por ESTA neurona (`motorFijado`) se respeta electoralmente.
+            oidoTramos = escucharFusionado({
+              obtenerAudio: (alBloque) => {
+                if (!procesador) return () => {};
+                procesador.onaudioprocess = (ev: AudioProcessingEvent) => {
+                  if (!stopped) {
+                    try { alBloque(ev.inputBuffer.getChannelData(0)); } catch { /* */ }
+                  }
+                };
+                return () => {
+                  if (procesador) procesador.onaudioprocess = null as unknown as (ev: AudioProcessingEvent) => void;
+                  void audioCtx;
+                };
+              },
+              elegir: (o) => elegirOido({
+                ...o,
+                preferido: motorFijado ?? undefined,
+                // (VOZ1024A) Lo MEDIDO en esta neurona, no la ficha del motor.
+                medidas: medidasOidoDeEstaNeurona(langVoz),
+              }),
+              transcribir: (tramo, motor, idioma) => transcribirTramo(tramo, motor, idioma),
+              alParcial: (texto) => procesar("", texto),
+              alFinal: (texto) => procesar(texto, ""),
+              idiomaPista: pista,
+              hotwords,
+              disponibles: disponiblesTramo,
+            });
+          }).catch((err: unknown) => {
+            if (!stopped) soltar();
+            const nombre = typeof err === "object" && err !== null
+              ? String((err as { name?: string }).name || "unknown")
+              : "unknown";
+            lastErr = nombre === "NotAllowedError" || nombre === "SecurityError" ? "not-allowed"
+              : nombre === "NotReadableError" || nombre === "NotFoundError" ? "audio-capture"
+              : nombre;
+            if (lastErr === "not-allowed" || lastErr === "audio-capture") {
+              // Fatal: no se reintentan a ciegas (pide el permiso desde la UI).
+              keepAliveRef.current = false;
+              sttRestartsRef.current = 0;
+              setSttFatal(lastErr as SttFatal);
+              setListening(false);
+              return;
+            }
+            rearmar(); // transitorio: reenganche con su backoff
+          });
+        },
+        stop: () => {
+          if (stopped) return;
+          stopped = true;
+          soltar();
+          releaseRecognition(rec);
+          if (!keepAliveRef.current) { setListening(false); return; } // parada deliberada
+          if (pausedForTtsRef.current || ttsGuardActive()) { setListening(false); return; } // medio-dúplex
+          if (lastErr === "not-allowed" || lastErr === "service-not-allowed" || lastErr === "audio-capture") {
+            setListening(false);
+            return;
+          }
+          rearmar();
+        },
+        abort: () => {
+          rec.stop();
+        },
+      };
+      return rec;
+    },
+    [],
+  );
+
   // ── Control del modo ACTIVA (engaged) ──
   // touchEngaged: reinicia el temporizador de inactividad; tras ENGAGED_IDLE_MS
   // sin habla, Aurora vuelve al fondo pasivo (silencioso) automáticamente.
@@ -2583,10 +2865,10 @@ export function useAuroraEngine(): AuroraEngine {
       // lo usa (o al revés) y la elección no se cumpliría.
       medidas: medidasOidoDeEstaNeurona(langVoz),
     });
-    if (eleccionOido.motor !== "phonon-2") {
-      const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SR) { toast.error("Tu navegador no soporta reconocimiento de voz."); return; }
-    }
+    // (Ola 1015V · G) Ya NO se exige Web Speech para arrancar: cuando el
+    // navegador no lo tiene, `buildRecognition` monta el oído por TRAMOS
+    // (escucharFusionado) con el elector; con Web Speech disponible, el
+    // elector decide como siempre ( Phonon-2 → flujo, navegador → Web Speech).
     // Guard singleton TEMPORAL: si otra instancia VIVA posee el testigo del STT,
     // esta cede (no arranca un segundo reconocimiento → no se duplican acciones).
     // Si el testigo está CADUCADO (dueño fantasma), lo retomamos: nunca dejamos a
