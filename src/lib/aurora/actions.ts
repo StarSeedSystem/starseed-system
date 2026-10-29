@@ -1181,6 +1181,37 @@ export const AURORA_ACTIONS: AuroraActionDef[] = [
       })(args, ctx);
     },
   },
+  {
+    name: "render_3d",
+    describe:
+      "Renderiza una escena 3D con Blender en una neurona de la cuenta que lo tenga (propón un DATO, nunca código). Args {forma} (cubo|esfera|icosfera|cilindro|cono|toro) y opcional {color} («#rrggbb» o nombre en español), {material} (cristal|metal|mate|brillante), {ancho}, {alto} (16-4096; por defecto 1280×720), {salida} (png|glb|ambos) y {motor}. También acepta {trabajo} completo ya validado. La cola puede pedir confirmación humana para lo pesado.",
+    example: '[[ACCION: render_3d {"forma":"esfera","material":"cristal","color":"#7aa2ff","salida":"png"}]]',
+    handler: async (args, ctx) => {
+      const { trabajoDeAccion, elegirNeurona } = await import("@/lib/blender3d/accion-render");
+      const dado = trabajoDeAccion(args);
+      if (!dado.ok) return { ok: false, message: dado.motivo };
+      const status = "Preparando el render 3D…";
+      ctx.onStatus?.(status);
+      const { listNeurons } = await import("@/lib/neurons/neurons");
+      const neuronas = (await listNeurons()).map((n) => ({ nombre: n.name, capabilities: n.capabilities as unknown as Record<string, unknown> }));
+      const donde = elegirNeurona(neuronas);
+      if (!donde.ok) return { ok: false, message: donde.motivo, status };
+      const mandar = (confirmado: boolean) =>
+        fetch("/api/3d/trabajos", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ trabajo: dado.trabajo, confirmado }) })
+          .then((r) => r.json() as Promise<{ ok?: boolean; id?: string; motivos?: string[]; motivo?: string; requiereConfirmacion?: boolean }>);
+      let r = await mandar(false);
+      if (r.requiereConfirmacion) {
+        const aceptado = isClient() && window.confirm(`El trabajo 3D «${dado.trabajo.titulo}» necesita tu visto bueno antes de encolarse (${r.motivo ?? "trabajo pesado"}). ¿Confirmas?`);
+        if (!aceptado) return { ok: false, message: `No encolé nada: el trabajo 3D queda pendiente de tu confirmación.`, status };
+        r = await mandar(true);
+      }
+      if (r.ok && typeof r.id === "string") {
+        return { ok: true, message: `Encolé el render 3D «${dado.trabajo.titulo}» en la neurona ${donde.neurona} (id ${r.id.slice(0, 8)}). La neurona lo renderiza en un rato.`, status };
+      }
+      const porque = r.motivos?.length ? r.motivos.join("; ") : r.motivo || "la cola de 3D no respondió.";
+      return { ok: false, message: `No pude encolar el render 3D: ${porque}`, status };
+    },
+  },
 ];
 
 // Índice por nombre para ejecución O(1).
