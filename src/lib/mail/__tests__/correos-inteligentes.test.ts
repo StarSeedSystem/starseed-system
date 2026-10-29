@@ -106,6 +106,15 @@ describe("aplicarReglas", () => {
     expect(aplicarReglas([regla({ id: "r", cuando: { tieneAdjunto: false } })], h)).toEqual([]);
   });
 
+  it("una etiqueta que el hilo no tiene no dispara la regla", () => {
+    expect(
+      aplicarReglas([regla({ id: "g", cuando: { etiqueta: "alcance" } })], hilo({ id: "h1", etiquetas: ["otra"] })),
+    ).toEqual([]);
+    expect(
+      aplicarReglas([regla({ id: "g", cuando: { etiqueta: "alcance" } })], hilo({ id: "h1", etiquetas: ["Alcance"] })),
+    ).toEqual([{ reglaId: "g", hacer: "destacar" }]);
+  });
+
   it("exige la antigüedad mínima (regla para hilos viejos)", () => {
     const h = hilo({ id: "h1", ultimoEn: "2026-10-27T00:00:00Z" }); // 60 h antes de AHORA
     expect(aplicarReglas([regla({ id: "r", cuando: { antiguedadHorasMin: 48 } })], h)).not.toEqual([]);
