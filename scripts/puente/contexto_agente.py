@@ -264,13 +264,13 @@ PROTOCOLO_COMPACTO = (
 )
 
 ORDEN = {
-    "escritor": ("reglas", "protocolo", "herramientas", "area", "relevo", "recuerdos"),
-    "revisor": ("reglas", "area", "protocolo", "herramientas", "recuerdos"),
-    "analista": ("reglas", "area", "protocolo", "herramientas", "recuerdos"),
-    "supervisor": ("reglas", "protocolo", "herramientas", "nube", "area", "relevo", "recuerdos"),
-    "subagente": ("reglas", "protocolo", "herramientas", "nube", "relevo", "area", "recuerdos"),
-    "investigador-diseno": ("reglas", "salida", "protocolo", "herramientas", "area", "recuerdos"),
-    "investigador-alcance": ("reglas", "salida", "protocolo", "herramientas", "area", "recuerdos"),
+    "escritor": ("reglas", "protocolo", "herramientas", "area", "archivos", "recuerdos"),
+    "revisor": ("reglas", "area", "protocolo", "herramientas", "archivos", "recuerdos"),
+    "analista": ("reglas", "area", "protocolo", "herramientas", "archivos", "recuerdos"),
+    "supervisor": ("reglas", "protocolo", "herramientas", "nube", "area", "relevo", "archivos", "recuerdos"),
+    "subagente": ("reglas", "protocolo", "herramientas", "nube", "relevo", "area", "archivos", "recuerdos"),
+    "investigador-diseno": ("reglas", "salida", "protocolo", "herramientas", "area", "archivos", "recuerdos"),
+    "investigador-alcance": ("reglas", "salida", "protocolo", "herramientas", "area", "archivos", "recuerdos"),
 }
 
 #: Lo que cada rol debe devolver, cuando su salida tiene forma fija (solo los roles que la tienen).
@@ -516,6 +516,46 @@ def seccion_recuerdos(agente, consulta, buscar=None):
     return "\n".join(lineas)
 
 
+# (LNN1028G) «Archivos que probablemente importan»: LEANN sobre el índice `repo-starseed`.
+ARCHIVOS_INDICE = "repo-starseed"
+ARCHIVOS_TOPE = 8
+
+
+def _archivos_reales(consulta):
+    """La búsqueda real en el índice del repo (A1 o túnel, 2 s); None sin servidor."""
+    try:
+        import leann_cliente as lc
+        return lc.buscar(lc.INDICE_REPO, consulta, k=ARCHIVOS_TOPE)
+    except Exception:
+        return None
+
+
+def seccion_archivos(tarea, existe, buscar=None):
+    """«Archivos que probablemente importan»: rutas únicas, con su rango de líneas, como mucho 8
+    y solo las que existen en el árbol de trabajo. Con el título del encargo + las primeras
+    líneas como consulta. Opcional a propósito: sin tarea o sin servidor, no sale nada."""
+    if not existe or not (tarea or "").strip():
+        return ""
+    lineas = str(tarea).splitlines()
+    consulta = "\n".join(lineas[:8]).strip()[:600]
+    try:
+        aciertos = (buscar or _archivos_reales)(consulta) or []
+        if not isinstance(aciertos, list):
+            return ""
+        import leann_cliente as lc
+        rutas = lc.rutas_de_aciertos(aciertos, existe, limite=ARCHIVOS_TOPE)
+    except Exception:
+        return ""
+    if not rutas:
+        return ""
+    salida = ["## Archivos que probablemente importan"]
+    for r in rutas:
+        rango = ("%d–%d" % (r["desde"], r["hasta"])) if r.get("desde") and r.get("hasta") \
+            else (str(r["desde"]) if r.get("desde") else "")
+        salida.append("- `%s`%s" % (r["ruta"], (" (líneas %s)" % rango) if rango else ""))
+    return "\n".join(salida)
+
+
 def _recortar(texto, n):
     if len(texto) <= n:
         return texto
@@ -524,13 +564,14 @@ def _recortar(texto, n):
 
 
 def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, existe=None, excluir=(),
-              extras=None, raices=None, oracle=None, agente=None, recuerdos=None):
+              extras=None, raices=None, oracle=None, agente=None, recuerdos=None, archivos=None):
     """El contexto común de un agente (markdown) y sus metadatos. PURA con `leer`/`existe`.
 
     Devuelve {texto, rol, area, secciones, recortadas, caracteres}. `area` puede inferirse de
     la tarea (si nombra una ruta de código de un área). Con `agente` (o el entorno
     `STARSEED_AGENTE`) intenta añadir «Recuerdos de este agente» desde las cápsulas Memvid
-    (`recuerdos` es una función sustituta para las pruebas)."""
+    (`recuerdos` es una función sustituta para las pruebas). Con tarea añade «Archivos que
+    probablemente importan» desde el índice LEANN del repo (o `archivos`, sustituta para pruebas)."""
     if rol not in ROLES:
         raise ValueError("rol desconocido: %s (%s)" % (rol, " | ".join(ROLES)))
     leer = leer or (lambda ruta: None)
@@ -557,6 +598,7 @@ def construir(rol, area=None, tarea="", max_chars=MAX_POR_DEFECTO, leer=None, ex
         "nube": lambda: seccion_nube(oracle),
         "salida": lambda: seccion_salida(rol),
         "recuerdos": lambda: seccion_recuerdos(agente, tarea, recuerdos),
+        "archivos": lambda: seccion_archivos(tarea, existe, buscar=archivos),
     }
     partes, puestas, recortadas = [cabecera], [], []
     usado = len(cabecera)
