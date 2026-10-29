@@ -1,184 +1,274 @@
 // @vitest-environment jsdom
 /**
- * useTarjetaImagenes: hook para manejar la tarjeta de opciones de imagen
+ * useTarjetaImagenes (IMG1011C, parte 2): planificación por capas y acciones reales de la tarjeta.
+ * Sin red, sin disco y sin GPU: media-gen, la Biblioteca, la Protomolécula y el taller 3D van mockeados.
+ * También se prueban las funciones puras del módulo (proveedor por capa y título para la Biblioteca).
  */
-import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PeticionImagen } from "../../plan";
+import { MODELOS_IMAGEN } from "../../modelos";
 
 const h = vi.hoisted(() => ({
-    planImagen: {
-        planImagen: vi.fn()
-    },
-    generarImagen: {
-        generarImagen: vi.fn()
-    },
-    guardarEnBiblioteca: {
-        guardarEnBiblioteca: vi.fn()
-    },
-    usarComoReferencia3D: {
-        usarComoReferencia3D: vi.fn()
-    },
-    abrirEnProtomolecula: {
-        abrirEnProtomolecula: {
-            abrirProtomoleculaEditor: vi.fn()
-        }
-    }
+  planImagen: vi.fn(),
+  generateImage: vi.fn(),
+  guardarEnBiblioteca: vi.fn(),
+  usarComoReferencia3D: vi.fn(),
+  abrirProtomoleculaEditor: vi.fn(),
+  borradorPublicacion: vi.fn(),
+  malla: { misDispositivos: [], cercanas: [], loading: false }
 }));
 
-vi.mock("../../plan", () => h.planImagen);
-vi.mock("@/lib/aurora/generate/service-generation", () => h.generarImagen);
-vi.mock("@/lib/library", () => h.guardarEnBiblioteca);
-vi.mock("@/lib/avatares/referencia3d", () => h.usarComoReferencia3D);
-vi.mock("@/lib/protomolecula/editor", () => h.abrirEnProtomolecula);
+vi.mock("../../plan", () => ({ planImagen: h.planImagen }));
+vi.mock("@/ai/astraura/media/media-gen", () => ({ generateImage: h.generateImage }));
+vi.mock("@/lib/library", () => ({ guardarEnBiblioteca: h.guardarEnBiblioteca }));
+vi.mock("@/lib/avatares/referencia3d", () => ({ usarComoReferencia3D: h.usarComoReferencia3D }));
+vi.mock("@/lib/protomolecula/editor", () => ({
+  abrirEnProtomolecula: { abrirProtomoleculaEditor: h.abrirProtomoleculaEditor }
+}));
+vi.mock("@/lib/publicacion/borrador", () => ({ borradorPublicacion: h.borradorPublicacion }));
+vi.mock("@/lib/network/malla-neuronas", () => ({ useMallaNeuronasEstado: () => h.malla }));
 
-// Importamos el hook que estamos probando
-import { useTarjetaImagenes } from "../use-tarjeta-imagenes";
+import {
+  proveedorParaOpcion,
+  tituloDeOpcion,
+  useTarjetaImagenes,
+  type OpcionTarjetaImagen,
+  type PeticionConPrompt
+} from "../use-tarjeta-imagenes";
 
-const peticionMock: PeticionImagen = {
-    opciones: 4,
-    prioridad: "calidad",
-    comercial: false,
-    necesita: ["texto-a-imagen"],
-    conReferencia: false,
-    permisoRemoto: false,
-    permitirDePago: false
+const SD = MODELOS_IMAGEN.find((m) => m.id === "sd-turbo") ?? MODELOS_IMAGEN[0];
+const OPCION: OpcionTarjetaImagen = {
+  capa: "dispositivo",
+  neuronaId: "neurona-1",
+  modelo: SD,
+  motor: "sdcpp",
+  cuantizacion: "q4",
+  semilla: 123,
+  motivo: "Cabe en tu aparato a 4 bits.",
+  prompt: "Un faro al atardecer"
+};
+const PETICION: PeticionConPrompt = {
+  opciones: 2,
+  prioridad: "rapidez",
+  comercial: false,
+  necesita: ["texto-a-imagen"],
+  conReferencia: false,
+  permisoRemoto: true,
+  permitirDePago: false,
+  prompt: "Un faro al atardecer"
 };
 
-const opcionesMock = [
-    {
-      id: 1,
-      capa: "dispositivo",
-      modelo: { id: "sd-turbo", label: "SD Turbo" },
-      semilla: 123,
-      prompt: "Una imagen de prueba",
-      uso: "libre"
-    },
-    {
-      id: 2,
-      capa: "malla",
-      modelo: { id: "sdxl", label: "SDXL" },
-      semilla: 124,
-      prompt: "Una imagen de prueba",
-      uso: "libre"
-    }
-  ];
-
-describe("useTarjetaImagenes", () => {
-  beforeEach(() => {
-    h.planImagen.planImagen.mockReset();
-    h.generarImagen.generarImagen.mockReset();
-    h.guardarEnBiblioteca.guardarEnBiblioteca.mockReset();
-    h.usarComoReferencia3D.usarComoReferencia3D.mockReset();
-    h.abrirEnProtomolecula.abrirEnProtomolecula.abrirProtomoleculaEditor.mockReset();
+async function montarConPlan(opcion: OpcionTarjetaImagen = OPCION) {
+  h.planImagen.mockReturnValueOnce({ opciones: [opcion], descartes: ["Una neurona ocupada."] });
+  const { result } = renderHook(() => useTarjetaImagenes());
+  await act(async () => {
+    await result.current.generarOpciones(PETICION);
   });
-  afterEach(() => {
-    cleanup();
-    vi.useRealTimers();
+  return result;
+}
+
+beforeEach(() => {
+  h.planImagen.mockReset();
+  h.generateImage.mockReset();
+  h.guardarEnBiblioteca.mockReset();
+  h.usarComoReferencia3D.mockReset();
+  h.abrirProtomoleculaEditor.mockReset();
+  h.borradorPublicacion.mockReset();
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+});
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+describe("funciones puras de la tarjeta", () => {
+  it("manda la web gratis a Pollinations y el resto a las neuronas", () => {
+    expect(proveedorParaOpcion({ capa: "web-gratis", motor: "pollinations" })).toBe("pollinations");
+    expect(proveedorParaOpcion({ capa: "dispositivo", motor: "sdcpp" })).toBe("neuronas");
+    expect(proveedorParaOpcion({ capa: "espacio", motor: "espacio-hf" })).toBe("neuronas");
+    expect(proveedorParaOpcion({ capa: "neurona", motor: "comfyui" })).toBe("comfyui");
   });
 
-  it("debe generar opciones al llamar a generarOpciones", async () => {
-    const { result } = renderHook(() => useTarjetaImagenes());
-    
-    // Configurar el mock de planImagen para devolver un valor resuelto
-    h.planImagen.planImagen.mockResolvedValueOnce({ opciones: opcionesMock });
+  it("compone un título legible para la Biblioteca", () => {
+    expect(tituloDeOpcion(OPCION)).toBe(`${SD.nombre} · Un faro al atardecer`);
+    expect(tituloDeOpcion({ prompt: "   ", modelo: null })).toBe("Imagen generada con Astraura");
+  });
+});
 
-    // Llamar a la función
+describe("useTarjetaImagenes · elegir y variar", () => {
+  it("genera SOLO la opción elegida, con su semilla, modelo y proveedor", async () => {
+    h.generateImage.mockResolvedValueOnce({ ok: true, url: "https://img.ejemplo/uno.png", provider: "neuronas" });
+    const result = await montarConPlan();
     await act(async () => {
-      result.current.generarOpciones(peticionMock);
+      await result.current.elegirOpcion(result.current.opciones[0]);
     });
-
-    // Esperar a que se resuelva la promesa y actualice el estado
-    await act(async () => {
-      // En un entorno real, necesitaríamos esperar a que se actualice el estado
-      // Pero como estamos mockeando, asumimos que se actualiza inmediatamente
+    expect(h.generateImage).toHaveBeenCalledTimes(1);
+    expect(h.generateImage).toHaveBeenCalledWith({
+      prompt: "Un faro al atardecer",
+      seed: 123,
+      provider: "neuronas",
+      model: SD.id
     });
-
-    // Verificar que las opciones se actualizaron
-    expect(result.current.opciones).toEqual(opcionesMock);
-    expect(result.current.cargando).toBe(false);
+    expect(result.current.opciones[0]).toMatchObject({ url: "https://img.ejemplo/uno.png", elegida: true });
     expect(result.current.error).toBeNull();
   });
 
-  it("debe manejar errores en generarOpciones", async () => {
+  it("la web gratis elegida se pide a Pollinations y no manda modelo local", async () => {
+    const web: OpcionTarjetaImagen = {
+      capa: "web-gratis",
+      modelo: null,
+      motor: "pollinations",
+      cuantizacion: "nativa",
+      semilla: 7,
+      motivo: "Sale gratis por la web.",
+      prompt: "Un faro al atardecer"
+    };
+    h.generateImage.mockResolvedValueOnce({ ok: true, url: "https://img.ejemplo/web.png", provider: "pollinations" });
+    const result = await montarConPlan(web);
+    await act(async () => {
+      await result.current.elegirOpcion(result.current.opciones[0]);
+    });
+    expect(h.generateImage).toHaveBeenCalledWith({
+      prompt: "Un faro al atardecer",
+      seed: 7,
+      provider: "pollinations"
+    });
+  });
+
+  it("sin prompt no llama al motor y lo dice", async () => {
+    h.planImagen.mockReturnValueOnce({ opciones: [{ ...OPCION, prompt: undefined }], descartes: [] });
     const { result } = renderHook(() => useTarjetaImagenes());
-    
-    // Configurar el mock de planImagen para rechazar
-    h.planImagen.planImagen.mockRejectedValueOnce(new Error("Error de prueba"));
-
-    // Llamar a la función
     await act(async () => {
-      result.current.generarOpciones(peticionMock);
+      await result.current.generarOpciones({ ...PETICION, prompt: undefined });
     });
-
-    // Esperar a que se resuelva la promesa y actualice el estado
     await act(async () => {
-      // Esperar a que se actualice el estado
+      await result.current.elegirOpcion(result.current.opciones[0]);
     });
+    expect(h.generateImage).not.toHaveBeenCalled();
+    expect(result.current.error).toMatch(/Describe qué imagen/);
+  });
 
-    // Verificar que se estableció el error
-    expect(result.current.error).toBe("Error de prueba");
+  it("variar pide más semillas del mismo modelo y las añade a la rejilla", async () => {
+    h.generateImage.mockImplementation(({ seed }: { seed: number }) =>
+      Promise.resolve({ ok: true, url: `https://img.ejemplo/${seed}.png`, provider: "neuronas" }));
+    const result = await montarConPlan();
+    let nuevas: OpcionTarjetaImagen[] = [];
+    await act(async () => {
+      nuevas = await result.current.variarOpcion(result.current.opciones[0], 3);
+    });
+    expect(h.generateImage).toHaveBeenCalledTimes(3);
+    expect(h.generateImage.mock.calls.map((c) => (c[0] as { seed: number }).seed)).toEqual([124, 125, 126]);
+    expect(nuevas).toHaveLength(3);
+    expect(result.current.opciones).toHaveLength(4);
+    expect(result.current.opciones.every((o) => o.modelo?.id === SD.id)).toBe(true);
+    expect(result.current.opciones.slice(1).map((o) => o.semilla)).toEqual([124, 125, 126]);
+  });
+
+  it("variar conserva las variaciones que sí salieron aunque otra semilla falle", async () => {
+    h.generateImage
+      .mockResolvedValueOnce({ ok: true, url: "https://img.ejemplo/124.png", provider: "neuronas" })
+      .mockRejectedValueOnce(new Error("Se cayó el motor"))
+      .mockResolvedValueOnce({ ok: true, url: "https://img.ejemplo/126.png", provider: "neuronas" });
+    const result = await montarConPlan();
+    await act(async () => {
+      await result.current.variarOpcion(result.current.opciones[0], 3);
+    });
+    expect(result.current.opciones).toHaveLength(3);
+    expect(result.current.error).toBeNull();
+  });
+});
+
+describe("useTarjetaImagenes · archivo real en las acciones", () => {
+  it("no guarda en la Biblioteca sin archivo y lo explica", async () => {
+    const { result } = renderHook(() => useTarjetaImagenes());
+    await act(async () => {
+      await result.current.guardarEnBiblioteca(OPCION);
+    });
+    expect(h.guardarEnBiblioteca).not.toHaveBeenCalled();
+    expect(result.current.error).toMatch(/antes de guardarla/);
+  });
+
+  it("guarda en la Biblioteca con título, URL y origen", async () => {
+    h.guardarEnBiblioteca.mockResolvedValueOnce({ id: "recurso-1" });
+    const { result } = renderHook(() => useTarjetaImagenes());
+    const conArchivo = { ...OPCION, url: "https://img.ejemplo/uno.png" };
+    let guardado: { id: string } | null = null;
+    await act(async () => {
+      guardado = await result.current.guardarEnBiblioteca(conArchivo);
+    });
+    expect(h.guardarEnBiblioteca).toHaveBeenCalledWith({
+      kind: "image",
+      title: `${SD.nombre} · Un faro al atardecer`,
+      url: "https://img.ejemplo/uno.png",
+      origin: SD.nombre
+    });
+    expect(guardado).toEqual({ id: "recurso-1" });
+    expect(result.current.error).toBeNull();
+  });
+
+  it("usa la URL real como referencia 3D y no llama al taller sin archivo", async () => {
+    const { result } = renderHook(() => useTarjetaImagenes());
+    await act(async () => {
+      await result.current.usarComoReferencia3D(OPCION);
+    });
+    expect(h.usarComoReferencia3D).not.toHaveBeenCalled();
+    expect(result.current.error).toMatch(/referencia para 3D/);
+
+    await act(async () => {
+      await result.current.usarComoReferencia3D({ ...OPCION, url: "https://img.ejemplo/uno.png" });
+    });
+    expect(h.usarComoReferencia3D).toHaveBeenCalledWith("https://img.ejemplo/uno.png");
+  });
+
+  it("prepara el borrador solo si hay archivo y ampliar devuelve la URL existente", async () => {
+    h.borradorPublicacion.mockResolvedValueOnce(undefined);
+    const { result } = renderHook(() => useTarjetaImagenes());
+    await act(async () => {
+      await result.current.borradorPublicacion(OPCION);
+    });
+    expect(h.borradorPublicacion).not.toHaveBeenCalled();
+    expect(result.current.error).toMatch(/borrador de publicación/);
+
+    await act(async () => {
+      await result.current.borradorPublicacion({ ...OPCION, url: "https://img.ejemplo/uno.png" });
+    });
+    expect(h.borradorPublicacion).toHaveBeenCalledTimes(1);
+
+    let ampliada: string | null = null;
+    await act(async () => {
+      ampliada = await result.current.ampliar({ ...OPCION, url: "https://img.ejemplo/uno.png" });
+    });
+    expect(ampliada).toBe("https://img.ejemplo/uno.png");
+  });
+
+  it("expone el editor de la Protomolécula tal cual (lo abre la tarjeta con la URL)", () => {
+    const { result } = renderHook(() => useTarjetaImagenes());
+    expect(result.current.abrirEnProtomolecula.abrirProtomoleculaEditor).toBe(h.abrirProtomoleculaEditor);
+  });
+});
+
+describe("useTarjetaImagenes · planificar", () => {
+  it("planifica, guarda el prompt y expone los descartes", async () => {
+    const result = await montarConPlan();
+    expect(h.planImagen).toHaveBeenCalledTimes(1);
+    expect(result.current.opciones).toHaveLength(1);
+    expect(result.current.opciones[0]).toMatchObject({ semilla: 123, prompt: PETICION.prompt, elegida: false });
+    expect(result.current.descartes).toEqual(["Una neurona ocupada."]);
+    expect(result.current.error).toBeNull();
     expect(result.current.cargando).toBe(false);
   });
 
-  it("debe llamar a generarImagen al elegir una opción", async () => {
+  it("si el plan falla deja un error en español y no inventa opciones", async () => {
+    h.planImagen.mockImplementationOnce(() => {
+      throw new Error("No hay neuronas disponibles.");
+    });
     const { result } = renderHook(() => useTarjetaImagenes());
-    
-    // Configurar el mock de generarImagen
-    h.generarImagen.generarImagen.mockResolvedValueOnce({ ok: true, url: "http://ejemplo.com/imagen.png" });
-
-    // También necesitamos mockear guardarEnBiblioteca
-    h.guardarEnBiblioteca.guardarEnBiblioteca.mockResolvedValueOnce({ id: 1 });
-
-    // Llamar a la función
     await act(async () => {
-      result.current.elegirOpcion(opcionesMock[0]);
+      await result.current.generarOpciones(PETICION);
     });
-
-    // Esperar a que se resuelva la promesa
-    await act(async () => {
-      // Esperar a que se actualice el estado
-    });
-
-    // Verificar que se llamó a generarImagen con los parámetros correctos
-    expect(h.generarImagen.generarImagen).toHaveBeenCalledWith({
-      prompt: "Una imagen de prueba",
-      modelo: "sd-turbo",
-      semilla: 123
-      // Otros parámetros que puedan ser necesarios
-    });
-    
-    // Verificar que se llamó a guardarEnBiblioteca
-    expect(h.guardarEnBiblioteca.guardarEnBiblioteca).toHaveBeenCalled();
-  });
-
-  it("debe llamar a usarComoReferencia3D al usar como referencia 3D", async () => {
-    const { result } = renderHook(() => useTarjetaImagenes());
-    
-    // Configurar el mock
-    h.usarComoReferencia3D.usarComoReferencia3D.mockResolvedValueOnce(undefined);
-
-    // Llamar a la función
-    await act(async () => {
-      result.current.usarComoReferencia3D(opcionesMock[0]);
-    });
-
-    // Verificar que se llamó
-    expect(h.usarComoReferencia3D.usarComoReferencia3D).toHaveBeenCalledWith("http://ejemplo.com/imagen.png");
-  });
-
-  it("debe llamar a abrirEnProtomolecula al editar en Protomolécula", async () => {
-    const { result } = renderHook(() => useTarjetaImagenes());
-    
-    // Configurar el mock
-    h.abrirEnProtomolecula.abrirEnProtomolecula.abrirProtomoleculaEditor.mockResolvedValueOnce(undefined);
-    
-    // Llamar a la función
-    await act(async () => {
-      await result.current.abrirEnProtomolecula.abrirProtomoleculaEditor("http://ejemplo.com/imagen.png");
-    });
-    
-    // Verificar que se llamó
-    expect(h.abrirEnProtomolecula.abrirEnProtomolecula.abrirProtomoleculaEditor).toHaveBeenCalledWith("http://ejemplo.com/imagen.png");
+    expect(result.current.opciones).toEqual([]);
+    expect(result.current.error).toBe("No hay neuronas disponibles.");
+    expect(result.current.cargando).toBe(false);
   });
 });

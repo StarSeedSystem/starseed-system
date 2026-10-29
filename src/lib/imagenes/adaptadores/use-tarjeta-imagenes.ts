@@ -1,29 +1,59 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
-import { planImagen, type PeticionImagen, type OpcionImagen, type NeuronaImg } from "../plan";
-import { MODELOS_IMAGEN, type ModeloImagen } from "../modelos";
-import { generarImagen } from "@/lib/aurora/generate/service-generation";
-import { abrirEnProtomolecula } from "@/lib/protomolecula/editor";
-import { guardarEnBiblioteca } from "@/lib/library";
-import { usarComoReferencia3D } from "@/lib/avatares/referencia3d";
-import { borradorPublicacion } from "@/lib/publicacion/borrador";
-import { useMallaNeuronasEstado } from "@/lib/network/malla-neuronas";
+"use client";
 
 /**
- * Lo que las acciones de la tarjeta usan de una opción: la del plan echa el resto,
- * pero una capa (o un test) puede pasar una forma mínima con modelo, semilla y prompt.
+ * Tarjeta de opciones de imagen · HOOK (IMG1011C, parte 2). Contrato: architecture/astraura-imagenes.md §4 y §6.
+ *
+ * Planifica las opciones con el núcleo puro (`planImagen`) y ejecuta SOLO la que la persona elige
+ * (o nuevas semillas al variar) con el motor de media-gen. No duplica generación: la regla de oro
+ * —Pollinations como suelo gratis y el proveedor «neuronas» repartiendo por capas— sigue viviendo
+ * en `src/ai/astraura/media/media-gen.ts`.
+ *
+ * Honestidad («basta de ilusiones»): si una acción necesita un archivo y la opción todavía no lo
+ * tiene, se dice con claridad; nunca se llama a la Biblioteca, a la Protomolécula ni al taller 3D
+ * con una URL inventada.
  */
-type OpcionAccion = {
-  modelo: { id?: string; label?: string; nombre?: string } | null;
-  semilla?: number;
-  prompt?: string;
-};
+import { useState, useCallback, useMemo, useRef } from "react";
+import { planImagen, type PeticionImagen, type OpcionImagen, type NeuronaImg } from "../plan";
+import { MODELOS_IMAGEN, type ModeloImagen } from "../modelos";
+import { generateImage, type MediaProviderId } from "@/ai/astraura/media/media-gen";
+import { abrirEnProtomolecula } from "@/lib/protomolecula/editor";
+import { guardarEnBiblioteca as guardarEnBibliotecaFn } from "@/lib/library";
+import { usarComoReferencia3D as usarComoReferencia3DFn } from "@/lib/avatares/referencia3d";
+import { borradorPublicacion as borradorPublicacionFn } from "@/lib/publicacion/borrador";
+import { useMallaNeuronasEstado } from "@/lib/network/malla-neuronas";
 
-type OpcionConPrompt = OpcionImagen & { prompt?: string };
+export type PeticionConPrompt = PeticionImagen & { prompt?: string };
+export type OpcionTarjetaImagen = OpcionImagen & { prompt?: string; url?: string; elegida?: boolean };
+
+/** Qué proveedor de media-gen ejecuta una opción del plan. Puro. */
+export function proveedorParaOpcion(opcion: Pick<OpcionImagen, "capa" | "motor">): MediaProviderId {
+  if (opcion.capa === "web-gratis" || opcion.motor === "pollinations") return "pollinations";
+  if (opcion.motor === "comfyui") return "comfyui";
+  return "neuronas";
+}
+
+/** Título legible de una opción para la Biblioteca. Puro. */
+export function tituloDeOpcion(opcion: Pick<OpcionTarjetaImagen, "prompt" | "modelo">): string {
+  const modelo = opcion.modelo?.nombre ?? "Astraura";
+  const texto = (opcion.prompt ?? "").trim().slice(0, 60);
+  return texto ? `${modelo} · ${texto}` : `Imagen generada con ${modelo}`;
+}
+
+/** ¿Son la misma casilla de la rejilla? (semilla, modelo y capa, sin depender de la identidad del objeto). */
+function mismoDestino(a: OpcionTarjetaImagen, b: OpcionTarjetaImagen): boolean {
+  return a.semilla === b.semilla && (a.modelo?.id ?? "") === (b.modelo?.id ?? "") && a.capa === b.capa;
+}
+
+function mensajeDeError(error: unknown, porDefecto: string): string {
+  return error instanceof Error && error.message ? error.message : porDefecto;
+}
 
 export function useTarjetaImagenes() {
-  const [opciones, setOpciones] = useState<OpcionConPrompt[]>([]);
+  const [opciones, setOpciones] = useState<OpcionTarjetaImagen[]>([]);
+  const [descartes, setDescartes] = useState<string[]>([]);
   const [cargando, setCargando] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const peticionRef = useRef<PeticionConPrompt | null>(null);
   const { misDispositivos } = useMallaNeuronasEstado();
 
   const neuronas: NeuronaImg[] = useMemo(() => {
@@ -42,153 +72,168 @@ export function useTarjetaImagenes() {
 
   const catalogo: readonly ModeloImagen[] = MODELOS_IMAGEN;
 
-  const generarOpciones = useCallback(async (
-    peticion: PeticionImagen & { prompt?: string }
-  ) => {
+  const generarOpciones = useCallback(async (peticion: PeticionConPrompt) => {
     setCargando(true);
     setError(null);
+    peticionRef.current = peticion;
     try {
-      const prompt = peticion.prompt ?? "Una imagen de prueba";
-      const semillaBase = Date.now();
-      const resultado = await planImagen(peticion, neuronas, semillaBase, catalogo);
-      // Add prompt to each option
-      const opcionesConPrompt = resultado.opciones.map(opcion => ({
+      const resultado = await planImagen(peticion, neuronas, Date.now(), catalogo);
+      setDescartes(resultado.descartes);
+      const planificadas: OpcionTarjetaImagen[] = resultado.opciones.map(opcion => ({
         ...opcion,
-        prompt
+        prompt: peticion.prompt,
+        elegida: false
       }));
-      setOpciones(opcionesConPrompt);
+      setOpciones(planificadas);
+      return planificadas;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(mensajeDeError(err, "No se pudieron planificar las opciones de imagen."));
       console.error(err);
+      return [];
     } finally {
       setCargando(false);
     }
   }, [neuronas, catalogo]);
 
-  const elegirOpcion = useCallback(async (opcion: OpcionAccion) => {
-    if (!opcion.prompt) {
-      setError("No hay prompt disponible para generar la imagen");
+  const promptDe = useCallback((opcion: OpcionTarjetaImagen): string => {
+    return (opcion.prompt ?? peticionRef.current?.prompt ?? "").trim();
+  }, []);
+
+  /** Ejecuta UNA opción con su motor real (media-gen decide el suelo gratis y el reparto por capas). */
+  const generarUna = useCallback(async (opcion: OpcionTarjetaImagen, semilla: number): Promise<string> => {
+    const prompt = promptDe(opcion);
+    if (!prompt) throw new Error("Describe qué imagen quieres generar antes de usar esta opción.");
+    const resultado = await generateImage({
+      prompt,
+      seed: semilla,
+      provider: proveedorParaOpcion(opcion),
+      ...(opcion.modelo?.id ? { model: opcion.modelo.id } : {})
+    });
+    if (!resultado.ok || !resultado.url) {
+      throw new Error(resultado.error ?? "El motor no devolvió ninguna imagen.");
+    }
+    return resultado.url;
+  }, [promptDe]);
+
+  const elegirOpcion = useCallback(async (opcion: OpcionTarjetaImagen): Promise<string | null> => {
+    setCargando(true);
+    setError(null);
+    try {
+      const url = await generarUna(opcion, opcion.semilla);
+      setOpciones(prev => prev.some(o => mismoDestino(o, opcion))
+        ? prev.map(o => mismoDestino(o, opcion) ? { ...o, url, elegida: true, prompt: promptDe(o) } : { ...o, elegida: false })
+        : [...prev, { ...opcion, url, elegida: true, prompt: promptDe(opcion) }]);
+      return url;
+    } catch (err) {
+      setError(mensajeDeError(err, "No se pudo generar la imagen elegida."));
+      console.error(err);
+      return null;
+    } finally {
+      setCargando(false);
+    }
+  }, [generarUna, promptDe]);
+
+  /** Más semillas del MISMO modelo: genera de verdad, no solo propone otra ficha. */
+  const variarOpcion = useCallback(async (opcion: OpcionTarjetaImagen, cuantas = 2): Promise<OpcionTarjetaImagen[]> => {
+    if (!promptDe(opcion)) {
+      setError("Describe qué imagen quieres generar antes de variar.");
+      return [];
+    }
+    const total = Math.max(1, Math.min(4, Math.floor(cuantas) || 2));
+    setCargando(true);
+    setError(null);
+    try {
+      const semillas = Array.from({ length: total }, (_, i) => opcion.semilla + i + 1);
+      const intentos = await Promise.allSettled(semillas.map(semilla => generarUna(opcion, semilla)));
+      const nuevas: OpcionTarjetaImagen[] = [];
+      intentos.forEach((intento, i) => {
+        if (intento.status === "fulfilled" && intento.value) {
+          nuevas.push({ ...opcion, semilla: semillas[i], url: intento.value, elegida: false, prompt: promptDe(opcion) });
+        }
+      });
+      if (!nuevas.length) throw new Error("El motor no devolvió ninguna variación.");
+      setOpciones(prev => [...prev, ...nuevas]);
+      return nuevas;
+    } catch (err) {
+      setError(mensajeDeError(err, "No se pudieron generar variaciones."));
+      console.error(err);
+      return [];
+    } finally {
+      setCargando(false);
+    }
+  }, [generarUna, promptDe]);
+
+  /** Ampliar solo tiene sentido si la opción ya tiene archivo; la tarjeta abre su diálogo. */
+  const ampliar = useCallback(async (opcion: OpcionTarjetaImagen): Promise<string | null> => {
+    if (!opcion.url) {
+      setError("Esta opción todavía no tiene una imagen que ampliar.");
+      return null;
+    }
+    setError(null);
+    return opcion.url;
+  }, []);
+
+  /** Usar como referencia para 3D: el taller recibe SIEMPRE el archivo real, nunca un modelo. */
+  const usarComoReferencia3D = useCallback(async (opcion: OpcionTarjetaImagen): Promise<void> => {
+    if (!opcion.url) {
+      setError("Elige o genera la imagen antes de usarla como referencia para 3D.");
       return;
     }
+    setError(null);
     try {
-      setCargando(true);
-      const result = await generarImagen({
-        prompt: opcion.prompt,
-        modelo: opcion.modelo?.id,
-        semilla: opcion.semilla
-        // We don't have width, height, etc., so we leave them undefined
-      }) as { ok: boolean; url?: string; error?: string };
-
-      if (result.ok && result.url) {
-        // Save to library
-        await guardarEnBiblioteca({
-          kind: "image",
-          title: `Imagen generada con ${opcion.modelo?.label ?? opcion.modelo?.nombre ?? "modelo desconocido"}`,
-          url: result.url,
-          origin: opcion.modelo?.label ?? opcion.modelo?.nombre ?? "Desconocido"
-        });
-      } else {
-        throw new Error(result.error ?? "Error al generar la imagen");
-      }
+      await usarComoReferencia3DFn(opcion.url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al generar imagen");
-      console.error(err);
-    } finally {
-      setCargando(false);
-    }
-  }, []);
-
-  const variarOpcion = useCallback(async (opcion: OpcionImagen) => {
-    // For variar, we want to generate more options with the same model but different seeds
-    // We need to create a new petición based on the original, but we don't have the original peticion.
-    // We'll create a new petición with the same parameters but increasing the number of options.
-    // We don't have access to the original peticion, so we cannot do this accurately.
-    // We'll leave this as a placeholder that does nothing for now.
-    try {
-      setCargando(true);
-      // We'll just call generarOpciones con un peticion ficticio que pide 4 opciones del mismo modelo
-      // Pero no tenemos los parámetros de the peticion original.
-      // Vamos a saltarnos esto por ahora y establecer un error.
-      setError("Funcionalidad de variar no implementada completamente");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al variar");
-      console.error(err);
-    } finally {
-      setCargando(false);
-    }
-  }, []);
-
-  const manejarAbrirEnProtomolecula = useCallback(async (opcion: OpcionAccion) => {
-    // We don't have the image URL yet; we would need to generate it first or have it stored.
-    // As a placeholder, we'll generate a temporal URL or use a dummy one.
-    // In a real implementation, we would have the URL from when the image was generated or saved.
-    // We'll skip this for now.
-    try {
-      // We'll just call the function with a placeholder URL
-      await abrirEnProtomolecula.abrirProtomoleculaEditor("https://example.com/placeholder.jpg");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al abrir en Protomolécula");
+      setError(mensajeDeError(err, "No se pudo abrir el taller 3D con esta referencia."));
       console.error(err);
     }
   }, []);
 
-  const ampliar = useCallback(async (opcion: OpcionImagen) => {
-    // Placeholder for ampliar
-    try {
-      // We don't have the image to amplify
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al ampliar");
-      console.error(err);
+  const guardarEnBiblioteca = useCallback(async (opcion: OpcionTarjetaImagen) => {
+    if (!opcion.url) {
+      setError("Elige o genera la imagen antes de guardarla en la Biblioteca.");
+      return null;
     }
-  }, []);
-
-  const manejarUsarComoReferencia3D = useCallback(async (opcion: OpcionAccion) => {
+    setError(null);
     try {
-      // Use a hardcoded URL to match the test expectation
-      await usarComoReferencia3D("http://ejemplo.com/imagen.png");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al usar como referencia 3D");
-      console.error(err);
-    }
-  }, []);
-
-  const guardarEnBibliotecaUseCallback = useCallback(async (opcion: OpcionAccion) => {
-    // We don't have the image URL; we would need to generate it first.
-    // We'll generate a dummy URL for now.
-    try {
-      await guardarEnBiblioteca({
+      return await guardarEnBibliotecaFn({
         kind: "image",
-        title: `Imagen: ${opcion.prompt?.slice(0, 50) ?? "Sin título"}`,
-        url: "https://example.com/placeholder.jpg",
-        origin: opcion.modelo?.label ?? opcion.modelo?.nombre ?? "Desconocido"
+        title: tituloDeOpcion(opcion),
+        url: opcion.url,
+        origin: opcion.modelo?.nombre ?? "Astraura"
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar en biblioteca");
+      setError(mensajeDeError(err, "No se pudo guardar en la Biblioteca."));
       console.error(err);
+      return null;
     }
   }, []);
 
-  const borradorPublicacionUseCallback = useCallback(async (opcion: OpcionImagen) => {
-    // Placeholder for borrador de publicación
+  const borradorPublicacion = useCallback(async (opcion?: OpcionTarjetaImagen): Promise<void> => {
+    if (opcion && !opcion.url) {
+      setError("Elige o genera la imagen antes de preparar el borrador de publicación.");
+      return;
+    }
+    setError(null);
     try {
-      // We don't have a real implementation, so we just call the placeholder function
-      await borradorPublicacion();
+      await borradorPublicacionFn();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al crear borrador de publicación");
+      setError(mensajeDeError(err, "No se pudo preparar el borrador de publicación."));
       console.error(err);
     }
   }, []);
 
   return {
     opciones,
+    descartes,
     cargando,
     error,
     generarOpciones,
     elegirOpcion,
     variarOpcion,
-    abrirEnProtomolecula: abrirEnProtomolecula,
     ampliar,
-    usarComoReferencia3D: manejarUsarComoReferencia3D,
-    guardarEnBiblioteca: guardarEnBibliotecaUseCallback
+    abrirEnProtomolecula,
+    usarComoReferencia3D,
+    guardarEnBiblioteca,
+    borradorPublicacion
   };
 }
