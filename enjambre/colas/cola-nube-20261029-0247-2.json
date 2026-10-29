@@ -1,0 +1,72 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "AV1011E",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Sincronía del avatar en escenas compartidas y en XR",
+   "archivos": [
+    "src/lib/vivo/espacial/avatares.ts",
+    "src/lib/avatares/adaptadores/sincronia-adn.ts",
+    "src/lib/avatares/adaptadores/__tests__/sincronia-adn.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Añade a `MetaAvatar` campos opcionales `adnRef` y `adnRev` (sin romper a quien no los mande). Al entrar alguien, los presentes leen su ADN UNA vez (caché por ref+rev). Edición en vivo: los lotes de `lote()` viajan por el MISMO canal de la escena como evento `adn` con `{ref, rev, cambios}`; quien recibe filtra con `sanearCambio` y aplica solo si la revisión es más nueva. En XR, el nivel de avatar sale de la calidad actual (`src/lib/xr/`) y se dibuja con `adnParaCalidad`. Mantén las reglas de 10 Hz del archivo y que las pruebas existentes de espacial sigan en verde.",
+   "dependencias_ya_en_main": [
+    "AV1011A",
+    "AV1011D"
+   ]
+  },
+  {
+   "id": "VZF1015G",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Aurora escucha por el elector: tramos con detector de voz hacia el mejor motor (el navegador queda de suelo)",
+   "archivos": [
+    "src/lib/aurora/stt-oss/escucha-fusionada.ts",
+    "src/lib/aurora/stt-oss/__tests__/escucha-fusionada.test.ts",
+    "src/lib/aurora/engine.ts"
+   ],
+   "depende": [],
+   "prompt": "Crea `escucharFusionado({ obtenerAudio, elegir, transcribir, alParcial, alFinal, idiomaPista, hotwords })`: corta el audio del micrófono en tramos con el detector de energía de `oss-stt.ts` (silencio 800 ms, tramo ≤ 30 s), pide a `elegirOido` el motor de la fase «final» por tramo y transcribe con `transcribirOpenAI` o el demonio; el parcial lo sigue dando el navegador si está (regla 1 del §3). En `engine.ts` (alrededor de `buildRecognition`, l. ~1925) usa este camino cuando el navegador no tiene reconocimiento o la neurona tiene un motor local medido mejor, SIN tocar el cerrojo de dueño único (`claimStt/releaseStt`) ni `esEcoPropio`. Pruebas con audio y motores falsos. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015A",
+    "VZF1015B"
+   ]
+  },
+  {
+   "id": "VZF1015M",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Un solo resolutor de identidad de voz por persona (agente › personalidad › cerebro › neurona › cuenta)",
+   "archivos": [
+    "src/lib/aurora/identidad-voz.ts",
+    "src/lib/aurora/__tests__/identidad-voz.test.ts",
+    "src/lib/aurora/voz-rt.ts"
+   ],
+   "depende": [],
+   "prompt": "Hay seis mapas de «qué voz tiene esta persona» sin coordinar (VOZ_POR_PERSONA de voz-rt, pines del registro, timbres/voz-inicial/voz-rito, INSTRUCT del demonio, seedKindFor de openvoice2, xai-persona-voices). Crea `identidadVoz({ agente?, personalidad, cerebro?, neurona?, cuenta? })` → `{ timbre, motor, vozRT, origen }` con esa precedencia, leyendo los mapas existentes (no los borres) y que `vozDePersona` de `voz-rt.ts` la use. Pruebas de la precedencia y de que la voz F1 de Alex se conserva por defecto. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables."
+  },
+  {
+   "id": "VZF1015N",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Plática · interrupción por voz: si la persona habla > 250 ms, Astraura calla al momento",
+   "archivos": [
+    "src/lib/aurora/interrumpir-por-voz.ts",
+    "src/lib/aurora/__tests__/interrumpir-por-voz.test.ts",
+    "src/lib/aurora/engine.ts"
+   ],
+   "depende": [],
+   "prompt": "Hoy solo se interrumpe tocando la orbe. Crea un detector PURO por energía con histéresis (`decidirInterrupcion(muestras, estado, { umbralDb, minimoMs: 250 })`) y un montaje que lee el micrófono con `echoCancellation: true` y `noiseSuppression: true` mientras Astraura habla y llama a `interrupt()` del motor. No puede cortarse con su propio eco: respeta `esEcoPropio`/`ventanaEcoMs` de `anti-bucle-voz.ts`. En `engine.ts` solo el enganche (activar al hablar, soltar al callar). Pruebas del detector con muestras sintéticas. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "AV1011E",
+   "VZF1015G",
+   "VZF1015M",
+   "VZF1015N"
+  ]
+ }
+}
