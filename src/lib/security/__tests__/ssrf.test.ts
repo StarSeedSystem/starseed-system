@@ -14,6 +14,7 @@ import {
   classifyIp,
   classifyIpv4,
   classifyIpv6,
+  esDescargaRareBloqueada,
   expandIpv6,
 } from "@/lib/security/ssrf";
 
@@ -133,6 +134,23 @@ describe("allowPrivate", () => {
     expect(allowPrivate()).toBe(false);
     process.env[KEY] = "false";
     expect(allowPrivate()).toBe(false);
+  });
+});
+
+describe("esDescargaRareBloqueada · descargas de Rare y ProtonDB sin SHA (artcraft-y-rare.md §5.3)", () => {
+  const url = (u: string) => new URL(u);
+
+  it("bloquea raredevs.github.io y sus subdominios, y ProtonDB", () => {
+    expect(esDescargaRareBloqueada(url("https://raredevs.github.io/wring/workarounds.json"))).toBe(true);
+    expect(esDescargaRareBloqueada(url("https://cdn.raredevs.github.io/x/steam_appids.json.xz"))).toBe(true);
+    expect(esDescargaRareBloqueada(url("https://protondb.com/api/v1/x"))).toBe(true);
+    expect(esDescargaRareBloqueada(url("https://www.protondb.com/api/v1/x"))).toBe(true);
+  });
+
+  it("deja pasar las releases de Rare en GitHub y todo lo que no es descarga de Rare", () => {
+    expect(esDescargaRareBloqueada(url("https://github.com/RareDevs/Rare/releases/latest"))).toBe(false);
+    expect(esDescargaRareBloqueada(url("https://example.com/RareDevs/Rare.zip"))).toBe(false);
+    expect(esDescargaRareBloqueada(url("https://github.com/otro/repo"))).toBe(false);
   });
 });
 

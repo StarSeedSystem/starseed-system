@@ -612,16 +612,31 @@ export async function ensureSeedFiles(brainId: string | null): Promise<MemoryFil
  * con opción explícita `allowCritical` ("compartir igualmente"). Nunca
  * bloquea en silencio: la UI recibe los findings y confirma. */
 
-import { redactText, scanDeep, scanText, summarize, type Finding } from "@/lib/security/scanner";
+import { validarSinCredencialesEpic } from "@/lib/artcraft/juegos-pc";
+import { redactText, scanDeep, scanText, summarize, type Finding, type Severity } from "@/lib/security/scanner";
+
+/** Hallazgos de la guarda de Epic (artcraft-y-rare.md §5.3) en forma de `Finding`: nunca repiten el valor. */
+function hallazgosEpic(texto: string, severidad: Severity): Finding[] {
+  try {
+    return validarSinCredencialesEpic(texto).hallazgos.map((h) => ({
+      type: "sesion_epic", label: h, severity: severidad, match: "", index: 0,
+    }));
+  } catch {
+    return [];
+  }
+}
 
 /** Escanea un fichero de memoria completo (nombre + contenido + config del servidor). */
 export function scanMemoryFile(file: Pick<MemoryFile, "name" | "content" | "server_config">): Finding[] {
   try {
-    return scanDeep({
+    const completo = scanDeep({
       name: file?.name ?? "",
       content: file?.content ?? "",
       server_config: file?.server_config ?? {},
     });
+    const texto = `${file?.name ?? ""}\n${file?.content ?? ""}\n${JSON.stringify(file?.server_config ?? {})}`;
+    // La sesión de Epic es SIEMPRE de la persona: no entra a una memoria (contrato artcraft-y-rare.md §5.3).
+    return [...completo, ...hallazgosEpic(texto, "high")];
   } catch {
     return [];
   }
@@ -654,7 +669,7 @@ export function exportMemoryFileSecure(
   const original = file?.content ?? "";
   try {
     if (opts?.allowCritical) {
-      const findings = scanText(original);
+      const findings = [...scanText(original), ...hallazgosEpic(original, "high")];
       const s = summarize(findings);
       return {
         name,

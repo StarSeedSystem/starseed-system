@@ -55,6 +55,7 @@ import { logAccess, quickChecksum, recordVersion } from "@/lib/versions/versions
 // Seguridad integrada (Adenda 63 §13): escaneo de secretos/PII al guardar/
 // compartir e instalar/importar ítems — ver saveItemSecure/importItemSecure.
 import { redactText, scanDeep, summarize, type Finding } from "@/lib/security/scanner";
+import { esUrlPermitidaRare, validarSinCredencialesEpic } from "@/lib/artcraft/juegos-pc";
 // Señal en vivo SIN DDL (Adenda 63 §4 · "Sync sin DDL: broadcast primero"):
 // `postgres_changes` exige que `entity_state` esté en la publicación
 // `supabase_realtime` (migración que puede no estar aplicada). El broadcast no
@@ -1169,13 +1170,30 @@ export async function saveItem(
  */
 export function scanItemInput(item: Partial<SaveItemInput> | Partial<SavedItem>): Finding[] {
     try {
-        return scanDeep({
+        const base = scanDeep({
             title: item?.title ?? "",
             note: item?.note ?? "",
             content: item?.content ?? "",
             url: item?.url ?? "",
             description: item?.description ?? "",
         });
+        const texto = [item?.title, item?.note, item?.content, item?.description].filter((t) => typeof t === "string").join("\n");
+        // Contrato artcraft-y-rare.md §5.3: la sesión de Epic NUNCA se publica; las descargas
+        // remotas de Rare (raredevs.github.io, ProtonDB) quedan bloqueadas hasta fijar SHA.
+        const epic = validarSinCredencialesEpic(texto).hallazgos.map((h) => ({
+            type: "sesion_epic" as const, label: h, severity: "high" as const, match: "", index: 0,
+        }));
+        let rare: Finding[] = [];
+        const url: unknown = item?.url;
+        if (typeof url === "string" && url.trim()) {
+            try {
+                const destino = new URL(url.trim()).hostname.toLowerCase();
+                const remoto = (destino === "raredevs.github.io" || destino.endsWith(".raredevs.github.io") || destino === "protondb.com" || destino.endsWith(".protondb.com"));
+                if (remoto && !esUrlPermitidaRare(url.trim()))
+                    rare = [{ type: "descarga_rare", label: "Descarga remota de Rare o ProtonDB: bloqueada hasta fijar el SHA (artcraft-y-rare.md §5.3).", severity: "high", match: destino, index: 0 }];
+            } catch { /* no es una URL: nada que comprobar */ }
+        }
+        return [...base, ...epic, ...rare];
     } catch {
         return [];
     }

@@ -56,6 +56,7 @@
 import { promises as dns } from "node:dns";
 import type { LookupOptions, LookupAddress } from "node:dns";
 import { isIP } from "node:net";
+import { esUrlPermitidaRare } from "@/lib/artcraft/juegos-pc";
 
 /** Hostnames de metadatos cloud que NUNCA deben ser alcanzables (anti-SSRF). */
 export const BLOCKED_HOSTNAMES = new Set([
@@ -63,6 +64,21 @@ export const BLOCKED_HOSTNAMES = new Set([
   "metadata.goog",
   "metadata",
 ]);
+
+/**
+ * Descargas remotas de Rare y ProtonDB (artcraft-y-rare.md §5.3): sin su SHA
+ * fijado, el OS no las alcanza por aquí. Lo que SÍ queda permitido de Rare lo
+ * decide UNA sola fuente: `esUrlPermitidaRare` de `src/lib/artcraft/juegos-pc`
+ * (hoy: solo las páginas de releases de RareDevs/Rare en GitHub).
+ */
+const DESCARGAS_RARE_SIN_SHA = new Set(["raredevs.github.io", "protondb.com", "www.protondb.com"]);
+const esSubdominioDe = (host: string, dominio: string): boolean => host === dominio || host.endsWith("." + dominio);
+
+/** ¿Es una URL de descarga de Rare o ProtonDB que sigue bloqueada hasta fijar SHA (contrato artcraft-y-rare.md §5.3)? */
+export function esDescargaRareBloqueada(url: URL): boolean {
+  const host = url.hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  return Array.from(DESCARGAS_RARE_SIN_SHA).some((d) => esSubdominioDe(host, d)) && !esUrlPermitidaRare(url.href);
+}
 
 /** Máximo de redirecciones que seguimos manualmente (cada una re-validada). */
 export const MAX_REDIRECTS = 5;
@@ -314,6 +330,7 @@ export async function resolveAndPin(url: URL): Promise<PinResult> {
   const host = url.hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
   if (!host) return { blocked: true };
 
+  if (esDescargaRareBloqueada(url)) return { blocked: true };
   if (BLOCKED_HOSTNAMES.has(host)) return { blocked: true };
 
   const allowPriv = allowPrivate();

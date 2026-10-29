@@ -29,6 +29,8 @@ import {
   _reiniciarEscriturasMemoria,
   contenidoSinCambios,
   escribirAgrupado,
+  exportMemoryFileSecure,
+  scanMemoryFile,
   updateMemoryContent,
   vaciarEscriturasAgrupadas,
 } from "../memory-files";
@@ -85,5 +87,35 @@ describe("escribirAgrupado", () => {
     vaciarEscriturasAgrupadas();
     expect(escribir).toHaveBeenCalledTimes(2);
     expect(escribir).toHaveBeenLastCalledWith("xy");
+  });
+});
+
+describe("guarda de Epic en memorias (artcraft-y-rare.md §5.3)", () => {
+  const VALOR = ["Abc123de", "f9Xy8Zq7", "0203"].join("");
+  const TOKEN = ["eg1", "~", "TkAb12-9_kk"].join("");
+
+  it("una memoria limpia no añade hallazgos de sesión de Epic", () => {
+    const hallazgos = scanMemoryFile({ name: "notas.md", content: "hoy planificamos el lanzador", server_config: {} });
+    expect(hallazgos.some((h) => h.type === "sesion_epic")).toBe(false);
+  });
+
+  it("access_token en el contenido: hallazgo de Epic sin repetir el valor", () => {
+    const contenido = ["{\"access_token\":\"", VALOR, "\"}"].join("");
+    const hallazgos = scanMemoryFile({ name: "user.json", content: contenido, server_config: {} });
+    expect(hallazgos.some((h) => h.type === "sesion_epic")).toBe(true);
+    expect(JSON.stringify(hallazgos)).not.toContain(VALOR.slice(0, 10));
+  });
+
+  it("un token eg1~ en la config del servidor: hallazgo de Epic", () => {
+    const hallazgos = scanMemoryFile({ name: "memoria.md", content: "hola", server_config: { nota: TOKEN } });
+    expect(hallazgos.some((h) => h.type === "sesion_epic")).toBe(true);
+    expect(JSON.stringify(hallazgos)).not.toContain("TkAb12");
+  });
+
+  it("exportMemoryFileSecure también detecta la sesión de Epic al compartir sin redactar", () => {
+    const contenido = ["refresh_token: ", VALOR].join("");
+    const r = exportMemoryFileSecure({ name: "memoria.md", content: contenido, server_config: {} }, { allowCritical: true });
+    expect(r.findings.some((f) => f.type === "sesion_epic")).toBe(true);
+    expect(r.aviso).toBeDefined();
   });
 });
