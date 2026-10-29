@@ -42,9 +42,12 @@ mod recursos_ia;
 mod segundo_plano;
 mod serie;
 mod sha256;
-// (2026-10-19) `ventana_remota` (APM1017P) queda FUERA de la compilación hasta que el enjambre lo
-// rehaga con las API reales de xcap 0.9, enigo 0.6 e image 0.25 (cola APR1019): rompía `cargo check`
-// del CI y frenaba la publicación de 45 commits. El archivo se conserva tal cual.
+// (2026-10-19 · APR1019A) `ventana_remota` vuelve a la compilación, rehecha
+// con las API reales de xcap 0.9 / image 0.25 / base64 0.22 (la de APM1017P
+// rompía `cargo check` y el commit 4e8fac291 la sacó). Solo escritorio: xcap
+// no tiene lado móvil.
+#[cfg(desktop)]
+mod ventana_remota;
 #[cfg(test)]
 mod android_parche;
 
@@ -496,7 +499,7 @@ pub fn run() {
         builder = builder.on_window_event(|ventana, evento| segundo_plano::al_evento_de_ventana(ventana, evento));
     }
 
-    builder
+    builder = builder
         // Terminal / procesos → control profundo para Aurora.
         .plugin(tauri_plugin_shell::init())
         // Notificaciones nativas.
@@ -538,9 +541,15 @@ pub fn run() {
                 }
             }
             Ok(())
-        })
-        // Comandos que la web (Aurora) puede invocar vía window.__TAURI__.
-        .invoke_handler(tauri::generate_handler![
+        });
+
+    // Comandos que la web (Aurora) puede invocar vía window.__TAURI__. La lista de
+    // escritorio va en un bloque #[cfg(desktop)] aparte: `generate_handler!`
+    // no admite atributos #[cfg] dentro, y los comandos de `ventana_remota` no
+    // existen en móvil (xcap solo compila en escritorio).
+    #[cfg(desktop)]
+    {
+        builder = builder.invoke_handler(tauri::generate_handler![
             run_terminal,
             check_update,
             reiniciar_para_actualizar,
@@ -569,8 +578,45 @@ pub fn run() {
             nativa::capas_borrar,
             nativa::nas_listar,
             nativa::nas_leer,
+            ventana_remota::ventanas_prestables,
+            ventana_remota::capturar_ventana,
+        ]);
+    }
+    #[cfg(not(desktop))]
+    {
+        builder = builder.invoke_handler(tauri::generate_handler![
+            run_terminal,
+            check_update,
+            reiniciar_para_actualizar,
+            estado_actualizacion,
+            device_info,
             recursos_ia::recursos_ia_detectar,
-        ])
+            nativa::antenas_estado,
+            nativa::antenas_medir,
+            nativa::antenas_config,
+            nativa::antenas_configurar,
+            nativa::fondo_estado,
+            nativa::fondo_fijar,
+            nativa::fondo_arranque,
+            nativa::fondo_pedir_bateria,
+            nativa::carpetas_listar,
+            nativa::carpetas_conceder,
+            nativa::carpetas_revocar,
+            nativa::carpetas_nas,
+            nativa::serie_puertos,
+            nativa::serie_abrir,
+            nativa::serie_escribir,
+            nativa::serie_cerrar,
+            nativa::capas_estado,
+            nativa::capas_descargar,
+            nativa::capas_verificar,
+            nativa::capas_borrar,
+            nativa::nas_listar,
+            nativa::nas_leer,
+        ]);
+    }
+
+    builder
         .build(tauri::generate_context!())
         .expect("error irrecuperable arrancando la app nativa StarSeed")
         .run(|_app, _evento| {

@@ -78,9 +78,20 @@ thiserror = "2"
 tauri-plugin-updater = "2"
 # Arranque automático con el sistema (el compañero se levanta solo).
 tauri-plugin-autostart = "2"
-# (2026-10-19) Las dependencias de `ventana_remota` (APM1017P: xcap, enigo, image, base64) vuelven
-# cuando el enjambre lo rehaga (cola APR1019). Pedían features que no existen («rt» en xcap 0.9;
-# «keyboard» y «mouse» en enigo 0.6) y el CI no resolvía ninguna dependencia.
+# (2026-10-19 · APR1019A) Dependencias de `ventana_remota` devueltas a la
+# compilación con las API reales. (APM1017P pedían features que no existen y
+# el CI no resolvía nada; el lado de teclado/ratón, enigo 0.6, volverá en
+# APR1019B.)
+# Captura de ventanas con la API de xcap 0.9: `Window::all()`, `app_name()`,
+# `id()`, `title()` (todos Result) y `capture_image()` → RgbaImage de image
+# 0.25. Feature `image` activa image/default; `wgc` la captura por Windows
+# Graphics Capture (solo surte efecto en Windows).
+xcap = { version = "0.9", features = ["image", "wgc"] }
+# Redimensionado y codificación PNG: la misma 0.25 que usa xcap. Sin features
+# extra: el códec PNG ya entra por la dependencia de xcap.
+image = { version = "0.25", default-features = false, features = ["png"] }
+# PNG → base64 para llevar el fotograma por el canal hacia la web.
+base64 = "0.22"
 
 # (2026-10-19) tauri-plugin-deep-link 2.6.2 construye `ini::ParseOption` con 2 campos y rust-ini
 # 0.21.3 añadió dos más: en Linux (el CI) no compila. Se fija 0.21.1 hasta que deep-link lo arregle.
