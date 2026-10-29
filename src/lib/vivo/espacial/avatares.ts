@@ -17,6 +17,7 @@
  */
 
 import { textoLimpio, type Vec3 } from "./modelo";
+import { esRefInterna } from "@/lib/avatares/adn/adn";
 
 export type Quat = [number, number, number, number];
 
@@ -38,6 +39,10 @@ export interface MetaAvatar {
     editor: boolean;
     /** ms de entrada. */
     desde: number;
+    /** Ref del ADN del avatar en la Biblioteca (solo referencias internas; null si no eligió uno). */
+    adnRef?: string | null;
+    /** Revisión del ADN anunciada (gana la más nueva). */
+    adnRev?: number | null;
 }
 
 export const PALETA_AVATARES = ["#7C5CFF", "#007FFF", "#10B981", "#FFBF00", "#DC143C", "#14B8A6", "#F97316", "#EC4899", "#39FF14"] as const;
@@ -83,6 +88,8 @@ export function sanearMetaAvatar(v: unknown, clave: string): MetaAvatar | null {
         modo,
         editor: o.editor === true,
         desde: typeof o.desde === "number" && Number.isFinite(o.desde) ? o.desde : 0,
+        adnRef: esRefInterna(o.adnRef) ? o.adnRef : null,
+        adnRev: typeof o.adnRev === "number" && Number.isFinite(o.adnRev) ? Math.max(0, Math.floor(o.adnRev)) : null,
     };
 }
 
@@ -107,7 +114,7 @@ export function mismosAvatares(a: readonly MetaAvatar[], b: readonly MetaAvatar[
     for (let i = 0; i < a.length; i++) {
         const x = a[i];
         const y = b[i];
-        if (x.clave !== y.clave || x.nombre !== y.nombre || x.color !== y.color || x.modo !== y.modo || x.editor !== y.editor || x.uid !== y.uid) {
+        if (x.clave !== y.clave || x.nombre !== y.nombre || x.color !== y.color || x.modo !== y.modo || x.editor !== y.editor || x.uid !== y.uid || x.adnRef !== y.adnRef || x.adnRev !== y.adnRev) {
             return false;
         }
     }
