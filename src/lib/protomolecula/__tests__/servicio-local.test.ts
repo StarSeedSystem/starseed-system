@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { BINARIOS_PERMITIDOS, SERVICIOS_CONOCIDOS, llamarServicio, pedirLanzamiento, sondearServicio, validarDefinicion } from "../servicio-local";
+import { BINARIOS_PERMITIDOS, MAX_BYTES, SERVICIOS_CONOCIDOS, TIEMPO_MS, llamarServicio, pedirLanzamiento, sondearServicio, validarDefinicion } from "../servicio-local";
 import type { ContextoLanzamiento, DefinicionServicio, FetchLocal, PeticionLocal, Reloj, RespuestaLocal } from "../servicio-local";
 
 // El valor se monta en tiempo de ejecución: ninguna cadena con forma de clave vive en el repositorio.
@@ -97,6 +97,30 @@ describe("servicio-local · llamadas a 127.0.0.1", () => {
     expect(f.mock.calls[0]?.[1].headers.authorization).toBeUndefined();
     const caido = await sondearServicio(DEF, async () => { throw new Error("ECONNREFUSED"); });
     expect(caido).toMatchObject({ vivo: false, motivo: expect.stringMatching(/no contesta/) });
+  });
+  it("hyperframes: la definición valida y su tiempo propio puede exceder el defecto", () => {
+    const hf = SERVICIOS_CONOCIDOS.find((d) => d.id === "hyperframes");
+    expect(hf).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900_000 });
+    expect(validarDefinicion(hf!)).toBeNull();
+    expect(hf!.tiempoMs!).toBeGreaterThan(TIEMPO_MS);
+    expect(hf!.tiempoMs!).toBeLessThanOrEqual(2_147_483_647);
+    expect(MAX_BYTES).toBe(8 * 1024 * 1024);
+  });
+  it("hyperframes: la salud se consulta solo en 127.0.0.1:4490, por GET en /salud y sin token", async () => {
+    const hf = SERVICIOS_CONOCIDOS.find((d) => d.id === "hyperframes")!;
+    const f = vi.fn<FetchLocal>(async () => resp(200, '{"vivo":true}'));
+    const r = await sondearServicio(hf, f, { leerVariable: () => undefined });
+    expect(r.vivo).toBe(true);
+    const [url, init] = f.mock.calls[0] as [string, PeticionLocal];
+    expect(url).toBe("http://127.0.0.1:4490/salud");
+    const u = new URL(url);
+    expect(u.hostname).toBe("127.0.0.1");
+    expect(Number(u.port)).toBe(4490);
+    expect(init.method).toBe("GET");
+    expect(init.headers.authorization).toBeUndefined();
+    const llamada = await llamarServicio(hf, "/render", undefined, f, { leerVariable: () => undefined });
+    expect(llamada.ok).toBe(true);
+    expect((f.mock.calls[1] as unknown as [string])[0]).toBe("http://127.0.0.1:4490/render");
   });
 });
 
