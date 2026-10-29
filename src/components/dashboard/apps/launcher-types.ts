@@ -24,6 +24,27 @@ export type AppCategory = "starseed" | "sistema" | "media" | "utilidad" | "creac
 /** 'live' = destino real · 'native' = módulo nativo del OS · 'soon' = en construcción. */
 export type AppStatus = "live" | "native" | "soon";
 
+// ── Apps en la malla (§5 architecture/apps-en-la-malla.md) ───────
+/** Cómo puede ejecutarse una app en la malla. Sin campo declarado = ['local'], como hoy. */
+export type ModoEjecucion =
+    | "local"       // módulo web/PWA del OS, corre en la neurona
+    | "por-bandas"  // la app es un volumen por bandas: solo se baja lo que se usa
+    | "montada"     // app nativa (.app/.exe/AppImage) que vive fuera del disco
+    | "transmitida" // corre en otra neurona; la ventana llega en vídeo
+    | "ramificada"; // interfaz en local, cálculo y datos en la red
+
+/** Lo que una app necesita (requisitos). Sin campo = sin requisitos especiales. */
+export type RequisitosApp = {
+    /** RAM que la app necesita para correr en la neurona (MB). */
+    ramMb?: number;
+    /** Si la app necesita GPU. */
+    gpu?: boolean;
+    /** Motores locales que la app necesita (imagen, voz, oído, palabra…). */
+    motores?: string[];
+    /** Volumen por bandas donde vive la app (WASM/nativa), si lo hay. */
+    volumen?: string;
+};
+
 export interface AppOpenSpec {
     /** Modo por defecto al tocar la app. */
     primary: OpenMode;
@@ -53,6 +74,10 @@ export interface StarseedApp {
     status?: AppStatus;
     /** Marca apps con modo inmersivo (VR/AR — Fase 3). */
     vrCapable?: boolean;
+    /** Modos de ejecución admitidos en la malla (§5 apps-en-la-malla.md). Sin campo = ['local']. */
+    ejecucion?: ModoEjecucion[];
+    /** Recursos que la app necesita (§5 apps-en-la-malla.md). Sin campo = sin requisitos. */
+    requisitos?: RequisitosApp;
 }
 
 // ── Presets de personalización ───────────────────────────────────
