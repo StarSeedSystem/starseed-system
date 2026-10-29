@@ -8,23 +8,18 @@
 // ════════════════════════════════════════════════════════════════
 
 import type { IntegrationConfig, IntegrationResult } from "../types";
-
-const ALLOWED_CAPABILITIES = [
-  "web-search",
-  "read-web",
-  "youtube-transcript",
-  "github-read",
-  "reddit-search",
-] as const;
-
-type AgentReachCapability = (typeof ALLOWED_CAPABILITIES)[number];
+import { CAPACIDADES } from "../agent-reach-comandos";
 
 async function callProxy(
-  capability: AgentReachCapability,
+  capability: keyof typeof CAPACIDADES,
   payload: Record<string, unknown>,
   signal?: AbortSignal
 ): Promise<IntegrationResult> {
   try {
+    const cap = CAPACIDADES[capability];
+    if (!cap) {
+      return { ok: false, error: `Capacidad no permitida: ${capability}` };
+    }
     const res = await fetch(`/api/agent-reach/${capability}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
