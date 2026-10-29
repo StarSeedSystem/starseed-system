@@ -94,6 +94,7 @@ describe("IWER · entrada emulada a WebXR", () => {
         expect(todas).not.toContain("camera-access");
         const sesion = await abrir("immersive-vr", { requiredFeatures: pedidas.requeridas, optionalFeatures: pedidas.opcionales });
         expect(sesion.enabledFeatures).not.toContain("camera-access");
+        expect(sesion.enabledFeatures).toContain("local-floor");
     });
 
     it("(5) LÍMITE de la emulación: sin gesto real IWER abre la sesión igual", async () => {
@@ -108,5 +109,6 @@ describe("IWER · entrada emulada a WebXR", () => {
         const refinadas = refinarFunciones(c, sesion.enabledFeatures);
         expect(refinadas.funciones).toEqual(["local-floor", "hand-tracking"]);
         expect(refinadas.funciones).not.toContain("plane-detection");
+        expect(refinadas.plataforma).toBe(c.plataforma);
     });
 });
