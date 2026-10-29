@@ -10,6 +10,8 @@ import { METRICAS_SALUD, type Accion, type Autor, type CandidatoParametro, type 
 import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memoria";
 import { etiquetaFormato, formatoDe } from "@/lib/conversion/formatos";
 import { componerVideo, DURACION_DEFECTO, type EntradaPedido } from "@/lib/video-html/herramienta-componer";
+import { pedidoDiagrama, recibirDiagrama, type TamanoDiagrama } from "@/lib/diagramas/herramienta-diagrama";
+import type { PerfilDiagrama } from "@/lib/diagramas/perfil-marca";
 import { contextoDisenoIA, type EntidadDiseno } from "@/lib/design/principios-referencia";
 /** Misma forma que `AuroraActionResult` de `src/lib/aurora/actions.ts`; `datos` lleva el resultado de herramientas como `video.componer`. */
 export interface ResultadoAccionProto { ok: boolean; message: string; status?: string; datos?: Record<string, unknown> }
@@ -19,7 +21,7 @@ export interface ContextoAccionProto { abrirRuta?: (ruta: string) => void; avisa
 export const TOPE_LINEAS_ESTADO = 40, TOPE_BYTES_ESTADO = 4096;
 export const MENSAJE_PROPONER_CODIGO = "próximamente: las propuestas de código llegan con la fase F7; hoy no se ejecuta ni se guarda nada.";
 const PENDIENTE = "queda pendiente de que la persona la confirme en el panel", SALUD = new Set<string>(METRICAS_SALUD);
-const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir", "pedir", "video.componer", "activar", "desactivar", "alternar", "cerrar"];
+const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir", "pedir", "video.componer", "diagrama.crear", "activar", "desactivar", "alternar", "cerrar"];
 const MODOS: ModoRelativo[] = ["delta", "porcentaje-valor", "porcentaje-rango", "pasos"];
 let secuencia = 0;
 const texto = (v: unknown): string => (typeof v === "string" ? v.trim() : ""), num = (n: number): string => String(n).replace(".", ",");
@@ -120,6 +122,31 @@ function componer(args: Record<string, unknown>): ResultadoAccionProto {
   const voz = r.peticionVoz ? " La voz queda pedida a la puerta única." : "";
   return { ok: true, message: conContextoDiseno(`${resumen}${voz} Siguiente: ${r.siguiente}.\n${r.html}`, { nombre: tituloPedido(pedido), registroMovimiento: registroVivo() }), status: "Componiendo el vídeo…", datos: { ...r } };
 }
+/** Perfil de marca que puede venir en el pedido; si no encaja en la forma, se ignora y se usa la piel por defecto. */
+function perfilDe(args: Record<string, unknown>): PerfilDiagrama | undefined {
+  const p = args.perfil;
+  if (!p || typeof p !== "object") return undefined;
+  const o = p as Partial<PerfilDiagrama>, objeto = (v: unknown) => !!v && typeof v === "object";
+  return (o.modo === "light" || o.modo === "dark") && objeto(o.colores) && objeto(o.fuentes) && objeto(o.trazos) && objeto(o.radios)
+    ? (o as PerfilDiagrama) : undefined;
+}
+/** «diagrama.crear» (DGM1018F): sin «respuesta» arma el contexto y pide el HTML; con él lo valida y devuelve los datos del iframe aislado. */
+function diagramaCrear(args: Record<string, unknown>): ResultadoAccionProto {
+  const animado = args.animado === true, tipo = texto(args.tipo) || undefined;
+  if (typeof args.respuesta === "string" && args.respuesta.trim()) {
+    const r = recibirDiagrama(args.respuesta, { animado, tipo });
+    if (!r.ok) return no(`No mostré el diagrama: ${r.motivos.join("; ") || "no pasó la validación"}. Corrige el HTML y repite con «respuesta».`);
+    return { ok: true, message: `Diagrama «${r.tipo}» listo dentro de su iframe aislado: sin red ni acceso al origen del OS.`, status: "Mostrando el diagrama…", datos: { ...r } };
+  }
+  const tamano = texto(args.tamano) as TamanoDiagrama, c = pedidoDiagrama({
+    peticion: texto(args.peticion), tipo, animado, perfil: perfilDe(args),
+    tamano: tamano === "tarjeta" || tamano === "resumen" || tamano === "completa" ? tamano : undefined,
+  });
+  const avisos = c.avisos.length ? ` ${c.avisos.join(" ")}` : "";
+  return { ok: true, status: "Pidiendo el diagrama…",
+    message: `Pedido del diagrama listo: tipo «${c.tipo}», tamaño ${c.tamano}.${avisos}\n${c.instruccion}`,
+    datos: { tipo: c.tipo, tamano: c.tamano, animado: c.animado, avisos: c.avisos, instruccion: c.instruccion } };
+}
 export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): ResultadoAccionProto {
   const accion = texto(args.accion), moleculaId = texto(args.molecula) || undefined, atomo = texto(args.atomo);
   const autor: Autor = { tipo: "agente", id: texto(args.agente) || "astraura" }, herramienta = texto(args.herramienta);
@@ -128,6 +155,7 @@ export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: C
   if (!ACCIONES.includes(accion)) return no(`No conozco la acción «${accion}». Usa: ${ACCIONES.join(", ")}.`);
   if (accion === "convertir") return convertir(ctx, args);
   if (accion === "video.componer") return componer(args);
+  if (accion === "diagrama.crear") return diagramaCrear(args);
   if (accion === "activar") {
     const fijar = ctx.fijarOrbe ?? ((a: boolean) => fijarOrbeActivada(a));
     fijar(true);
