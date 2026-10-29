@@ -33,6 +33,12 @@ describe("disponibilidad.ts", () => {
     it("falla con un carácter fuera del alfabeto", () => {
       expect(() => decodificar("A#==")).toThrow(/base64/);
     });
+
+    // Caso de la rama nube/a1-20261023-184106-APM1017U («retorna arreglo vacío para base64 nulo»),
+    // adaptado a la API de hoy: la firma es `string`, así que solo la cadena vacía entra en contrato.
+    it("una cadena vacía decodifica a un arreglo vacío", () => {
+      expect([...decodificar("")]).toEqual([]);
+    });
   });
 
   describe("mapa de bits", () => {
@@ -160,6 +166,13 @@ describe("disponibilidad.ts", () => {
       expect(almacenado?.recibidoEn).toBe(AHORA - 10_000);
       expect(almacenado?.t).toBe(200);
       expect([...reg.get("t4")!.orden.get("solo")!.bits.slice(0, 2)]).toEqual([3, 3]);
+    });
+
+    // Caso de la rama nube/a1-20261023-184106-APM1017U: sin anuncios, registro vacío (main no lo probaba).
+    it("sin anuncios retorna un registro vacío", () => {
+      const registro = fusionar([]);
+      expect(registro.size).toBe(0);
+      expect(quienTiene(registro, "t1", 0, AHORA)).toEqual([]);
     });
   });
 });
