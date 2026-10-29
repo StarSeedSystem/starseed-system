@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleCheck, CircleX, Loader2, ShieldCheck, TriangleAlert, X } from "lucide-react";
+import { SeccionPlegable } from "@/components/mando/seccion-plegable";
 
 interface Punto {
     nombre: string;
@@ -155,7 +156,15 @@ export function VerificarProcesos() {
                             Cerrar
                         </button>
                     </div>
-                    <ul className="mt-2 max-h-[70vh] space-y-1.5 overflow-y-auto pr-1">
+                    <div className="mt-2">
+                        <SeccionPlegable
+                            id="mando.verificar-procesos"
+                            titulo="Puntos verificados"
+                            contador={`${reporte.puntos.length} puntos`}
+                            resumen={reporte.veredicto}
+                            abiertaPorDefecto
+                        >
+                    <ul className="max-h-[70vh] space-y-1.5 overflow-y-auto pr-1">
                         {reporte.puntos.map((p) => {
                             const Icono = ICONO[p.estado];
                             return (
@@ -174,6 +183,8 @@ export function VerificarProcesos() {
                             );
                         })}
                     </ul>
+                        </SeccionPlegable>
+                    </div>
                     <p className="mc-centrado mt-2 text-[10px] text-white/30">
                         Guardado en starseed_memory_root/mando/verificaciones/ · Comprobado hace {segundosDesde(reporte.t, ahora)} s
                     </p>
