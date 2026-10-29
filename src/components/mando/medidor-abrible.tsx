@@ -27,6 +27,7 @@ import { BloqueadasGrupos, CadenasBloqueadas } from "@/components/mando/bloquead
 import { InterruptorAutopublicacion } from "@/components/mando/interruptor-autopublicacion";
 import { PanelImaginacion } from "@/components/mando/panel-imaginacion";
 import { BotonReparar, ResultadoReparacion, useReparacion } from "@/components/mando/reparar-medidor";
+import { SeccionPlegable } from "@/components/mando/seccion-plegable";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
 import type { AmbitoPropuesta } from "@/lib/mando/imaginacion-tipos";
 
@@ -236,6 +237,57 @@ function claseDeEstado(estado: string): string {
     if (/sin proceso|fallo|rechaz|conflicto|caíd|muert|sin salida/i.test(estado)) return "border-rose-300/35 bg-rose-400/10 text-rose-200";
     if (ESTADO_PROBLEMA.test(estado)) return "border-amber-300/35 bg-amber-400/10 text-amber-200";
     return "border-white/10 text-white/50";
+}
+
+/** Un grupo de filas del panel por estado (UIG1029E). */
+export interface GrupoDeFilas {
+    estado: string;
+    titulo: string;
+    resumen: string;
+    filas: FilaMedidor[];
+}
+
+/** «en curso» → «En curso»: el estado tal y como lo lee una persona. */
+function capitalizar(texto: string): string {
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+/** Id estable para `aria-controls` y `localStorage`: sin espacios ni acentos. */
+function slugEstado(estado: string): string {
+    return estado
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "sin-estado";
+}
+
+/**
+ * Agrupa las filas por su estado, que es lo que las separa de verdad: en una
+ * misma ventana conviven lo que escribe, lo que espera y lo que falló. Primero
+ * lo que pide atención; después, lo más numeroso. El orden dentro del grupo no
+ * se toca: viene del servidor con el turno real.
+ */
+export function agruparFilasPorEstado(filas: readonly FilaMedidor[]): GrupoDeFilas[] {
+    const porEstado = new Map<string, FilaMedidor[]>();
+    for (const fila of filas) {
+        const estado = (fila.estado ?? "").trim() || "sin estado";
+        const lista = porEstado.get(estado) ?? [];
+        lista.push(fila);
+        porEstado.set(estado, lista);
+    }
+    return [...porEstado.entries()]
+        .map(([estado, grupo]) => ({
+            estado,
+            titulo: capitalizar(estado),
+            resumen: `${grupo.length} ${grupo.length === 1 ? "fila" : "filas"} en ${estado}`,
+            filas: grupo,
+        }))
+        .sort((a, b) => {
+            const problema =
+                Number(ESTADO_PROBLEMA.test(b.estado)) - Number(ESTADO_PROBLEMA.test(a.estado));
+            return problema || b.filas.length - a.filas.length || a.estado.localeCompare(b.estado, "es");
+        });
 }
 
 function FichaFila({
@@ -808,26 +860,43 @@ export function PanelMedidor({
                 return (
                     <>
                         {operativas.length > 0 ? (
-                            <ul className="mt-2 grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
-                                {operativas.map((f) => (
-                                    <FichaFila key={f.id} f={f} ejecutar={ejecutar} />
+                            <div className="mt-2 grid gap-3" data-testid="medidor-grupos-estado">
+                                {agruparFilasPorEstado(operativas).map((grupo) => (
+                                    <SeccionPlegable
+                                        key={grupo.estado}
+                                        id={`medidor-${clave}-${slugEstado(grupo.estado)}`}
+                                        titulo={grupo.titulo}
+                                        contador={`${grupo.filas.length}`}
+                                        resumen={grupo.resumen}
+                                    >
+                                        <ul className="mt-1 grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
+                                            {grupo.filas.map((f) => (
+                                                <FichaFila key={f.id} f={f} ejecutar={ejecutar} />
+                                            ))}
+                                        </ul>
+                                    </SeccionPlegable>
                                 ))}
-                            </ul>
+                            </div>
                         ) : (
                             <p className="mc-centrado mt-2 text-[11px] leading-relaxed text-white/45">{datos.vacio}</p>
                         )}
 
                         {historicas.length > 0 ? (
-                            <details className="mt-3 border-t border-white/10 pt-2.5 text-left">
-                                <summary className="cursor-pointer text-[11px] font-medium text-white/50 hover:text-white/80 select-none">
-                                    de olas cerradas ({historicas.length})
-                                </summary>
-                                <ul className="mt-2 grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
-                                    {historicas.map((f) => (
-                                        <FichaFila key={f.id} f={f} ejecutar={ejecutar} />
-                                    ))}
-                                </ul>
-                            </details>
+                            <div className="mt-3">
+                                <SeccionPlegable
+                                    id={`medidor-${clave}-cerradas`}
+                                    titulo="De olas cerradas"
+                                    contador={`${historicas.length}`}
+                                    resumen={`${historicas.length} ${historicas.length === 1 ? "fila" : "filas"} de olas cerradas`}
+                                    abiertaPorDefecto={false}
+                                >
+                                    <ul className="mt-1 grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
+                                        {historicas.map((f) => (
+                                            <FichaFila key={f.id} f={f} ejecutar={ejecutar} />
+                                        ))}
+                                    </ul>
+                                </SeccionPlegable>
+                            </div>
                         ) : null}
                     </>
                 );
