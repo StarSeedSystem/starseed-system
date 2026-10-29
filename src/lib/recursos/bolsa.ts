@@ -1,5 +1,6 @@
 // Bolsa pura (§4 apps-en-la-malla.md): empareja peticiones y ofertas.
 import { OfertaNeurona, capacidadPrestable, ofertaVisiblePara } from "./oferta";
+import { armarArbol, recolocar, ReceptorRelevo } from "./arbol-relevo";
 
 export type ClaseParte = "computo" | "bytes" | "ventana" | "relevo";
 
@@ -28,12 +29,23 @@ export function planificar(peticion: PeticionBolsa, ofertas: OfertaNeurona[], re
       ? conCap.filter(({ prestable }) => prestable.enlaces.latenciaMs !== undefined && Object.values(prestable.enlaces.latenciaMs).some(l => l <= latMax))
       : conCap;
     const conEnergia = conLat.filter(({ prestable }) => prestable.computo.nucleos > 0 || prestable.almacen.prestaMb > 0);
-    const conCapParte = conEnergia.filter(({ prestable }) => {
+    const conCapParte: { oferta: OfertaNeurona; prestable: OfertaNeurona }[] = conEnergia.filter(({ prestable }) => {
       switch (parte.clase) {
         case "computo": return prestable.computo.ramLibreMb >= (parte.necesita.ramMb ?? 0) && (parte.necesita.gpu ? prestable.computo.gpu === true : true) && prestable.computo.nucleos >= Math.ceil((parte.necesita.ramMb ?? 0) / 1024);
         case "bytes": return prestable.almacen.prestaMb >= (parte.necesita.volumen ?? 0);
         case "ventana": return prestable.computo.ramLibreMb >= (parte.necesita.ramMb ?? 512);
-        case "relevo": return prestable.enlaces.subidaKbps !== undefined && prestable.enlaces.subidaKbps >= (parte.necesita.kbps ?? 1);
+        case "relevo": {
+          const candidatosRelevo: { oferta: OfertaNeurona; prestable: OfertaNeurona }[] = conEnergia.filter(({ prestable }: { prestable: OfertaNeurona }) => prestable.enlaces.subidaKbps !== undefined && prestable.enlaces.subidaKbps >= (parte.necesita.kbps ?? 1));
+          const receptores: ReceptorRelevo[] = candidatosRelevo.map(({ oferta, prestable }: { oferta: OfertaNeurona; prestable: OfertaNeurona }) => ({ nodoId: oferta.nodoId, subidaKbps: prestable.enlaces.subidaKbps ?? undefined }));
+          const arbol = armarArbol(peticion.contexto.id, receptores, parte.necesita.kbps ?? 1);
+          // Si algún nodo del árbol se va, recoloca solo su rama (§10 apps-en-la-malla.md).
+          for (const [id, nodo] of arbol.nodos as Map<string, { id: string; padre?: string; hijos: string[]; subidaKbps?: number }>) {
+            if (id !== peticion.contexto.id && id !== arbol.raiz && !receptores.some(r => r.nodoId === id)) {
+              recolocar(arbol, id);
+            }
+          }
+          return candidatosRelevo.length > 0;
+        }
         default: return true;
       }
     });
