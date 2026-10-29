@@ -10,6 +10,7 @@ import { METRICAS_SALUD, type Accion, type Autor, type CandidatoParametro, type 
 import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memoria";
 import { etiquetaFormato, formatoDe } from "@/lib/conversion/formatos";
 import { componerVideo, DURACION_DEFECTO, type EntradaPedido } from "@/lib/video-html/herramienta-componer";
+import { contextoDisenoIA, type EntidadDiseno } from "@/lib/design/principios-referencia";
 /** Misma forma que `AuroraActionResult` de `src/lib/aurora/actions.ts`; `datos` lleva el resultado de herramientas como `video.componer`. */
 export interface ResultadoAccionProto { ok: boolean; message: string; status?: string; datos?: Record<string, unknown> }
 /** `avisarOrbe` devuelve `true` solo si la orbe atendió el aviso; `actor` por defecto: el agente personal. */
@@ -24,6 +25,16 @@ let secuencia = 0;
 const texto = (v: unknown): string => (typeof v === "string" ? v.trim() : ""), num = (n: number): string => String(n).replace(".", ",");
 const bytes = (s: string): number => new TextEncoder().encode(s).length;
 const no = (message: string): ResultadoAccionProto => ({ ok: false, message, status: "Protomolécula" }), si = (message: string, status = "Protomolécula"): ResultadoAccionProto => ({ ok: true, message, status });
+/** Registro en vivo de la entidad (DAN1024G): `data-ss-movimiento` en el documento; sin DOM o valor raro, `contextoDisenoIA` cae a «sobrio». */
+const registroVivo = (): unknown => {
+  try { return document.documentElement.dataset.ssMovimiento; } catch { return undefined; }
+};
+/** Título de la pieza pedida (para el contexto de diseño); vacío si el pedido no lo trae. */
+const tituloPedido = (p: EntradaPedido): string =>
+  typeof p === "string" ? p.trim().slice(0, 80)
+  : (texto(p.titulo) || texto(p.texto) || texto(p.narracion) || texto(p.guion)).slice(0, 80);
+/** El contexto de diseño (ADN, movimiento y símbolo) que acompaña a una CREACIÓN con IA; el agente lo recibe en el propio resultado. */
+const conContextoDiseno = (m: string, entidad: EntidadDiseno): string => `${m.trimEnd()}\n\n${contextoDisenoIA(entidad)}`;
 const numeroDe = (v: unknown): number | null => { const x = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v.trim().replace(",", ".")) : NaN; return Number.isFinite(x) ? x : null; };
 /** Orbe encendida → se le avisa y ella lo atiende con `preventDefault()`; si nadie lo atiende, la página. */
 const avisarEnNavegador = (id?: string): boolean => {
@@ -106,7 +117,7 @@ function componer(args: Record<string, unknown>): ResultadoAccionProto {
   const r = componerVideo({ pedido, duracion: numeroDe(args.duracion) ?? DURACION_DEFECTO, formato: texto(args.formato) || "mp4", voz: texto(args.voz) || undefined });
   const resumen = r.avisos.length ? `Composición lista con ${r.avisos.length} aviso(s): ${r.avisos.join(" ")}` : "Composición lista, sin avisos.";
   const voz = r.peticionVoz ? " La voz queda pedida a la puerta única." : "";
-  return { ok: true, message: `${resumen}${voz} Siguiente: ${r.siguiente}.\n${r.html}`, status: "Componiendo el vídeo…", datos: { ...r } };
+  return { ok: true, message: conContextoDiseno(`${resumen}${voz} Siguiente: ${r.siguiente}.\n${r.html}`, { nombre: tituloPedido(pedido), registroMovimiento: registroVivo() }), status: "Componiendo el vídeo…", datos: { ...r } };
 }
 export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): ResultadoAccionProto {
   const accion = texto(args.accion), moleculaId = texto(args.molecula) || undefined, atomo = texto(args.atomo);
@@ -154,5 +165,7 @@ export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: C
 export async function manejarAccionProtomoleculaAsync(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): Promise<ResultadoAccionProto> {
   if (texto(args.accion) !== "pedir") return manejarAccionProtomolecula(args, ctx);
   const { pedirComoAgente } = await import("./peticion/pedir");
-  return pedirComoAgente(args, { actor: ctx.actor });
+  const r = await pedirComoAgente(args, { actor: ctx.actor });
+  // La creación con IA viaja con el contexto de diseño del ADN: el agente lo recibe junto al plan, sin cambiar su contrato.
+  return r.ok ? { ...r, message: conContextoDiseno(r.message, { registroMovimiento: registroVivo() }) } : r;
 }

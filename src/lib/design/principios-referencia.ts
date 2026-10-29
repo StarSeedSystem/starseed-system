@@ -1,6 +1,7 @@
 // principio-referencia.ts - 8 principios de usabilidad y 8 reglas de redacción
 // Referencias: dont-make-me-think (usabilidad), asd-ste100 (redacción)
 // Módulo puro: sin efectos laterales, sin red, sin disco
+import type { RegistroMovimiento } from "@/lib/design/registros-movimiento";
 
 export type PrincipioUsabilidad = {
   id: string
@@ -99,6 +100,42 @@ export const REGLAS_REDACCION: readonly ReglaRedaccion[] = [
     descripcion: "Leer el texto final en contexto; recortar todo lo superfluo y asegurar claridad."
   }
 ] as const
+
+/* ───────────── Contexto de diseño para la creación con IA (DAN1024H) ───────────── */
+
+/** La entidad de la que se pide el contexto de diseño (cuenta, página, grupo, pieza…). */
+export interface EntidadDiseno {
+  /** Nombre visible de la entidad, si lo hay; el contexto la nombra si llega. */
+  nombre?: string;
+  /** Registro de movimiento de la entidad (DAN1024G): sobrio, expresivo o experimental. Ausente o desconocido → «sobrio». */
+  registroMovimiento?: unknown;
+}
+
+/** Valida un registro de movimiento: cualquier valor que no sea uno de los tres vuelve a «sobrio». */
+function registroDe(entidad: EntidadDiseno | null | undefined): RegistroMovimiento {
+  return entidad?.registroMovimiento === "sobrio" ||
+    entidad?.registroMovimiento === "expresivo" ||
+    entidad?.registroMovimiento === "experimental"
+    ? entidad.registroMovimiento
+    : "sobrio";
+}
+
+/** El texto del contexto de diseño que se da a un agente de creación: ADN, movimiento y símbolo. */
+export function contextoDisenoIA(entidad: EntidadDiseno | null | undefined): string {
+  const nombre = typeof entidad?.nombre === "string" ? entidad.nombre.trim().slice(0, 60) : "";
+  const cabecera = nombre ? `Contexto de diseño StarSeed (ADN) para «${nombre}».` : "Contexto de diseño StarSeed (ADN).";
+  const cuerpo = [
+    "· Composición centrada: el centro queda libre y los controles llegan desde los bordes.",
+    "· Trinity, un color por papel y nunca mezclados: cénit #007FFF (guía), horizonte #10B981 (creación), lógica #FFBF00 (control), ancla #DC143C (escaso).",
+    "· El brillo multicapa va solo en la pieza protagonista; jamás en el texto del cuerpo.",
+    "· Solo se animan transform y opacity: nada de anchos, altos ni márgenes.",
+    "· Interfaz: entre 140 y 350 ms con las curvas del ADN; los números de vídeo no se copian a la interfaz.",
+    `· Registro de movimiento: «${registroDe(entidad)}» (hereda de cuenta, página y grupo).`,
+    "· Con prefers-reduced-motion el estado final se pinta quieto, sin moverse.",
+    "· El símbolo oficial se siembra como vesica vertical y no se recolorea ni se deforma.",
+  ].join("\n");
+  return `${cabecera}\n${cuerpo}`.slice(0, 900);
+}
 
 export function revisarTexto(texto: string): {
   largoPromedioPalabras?: number
