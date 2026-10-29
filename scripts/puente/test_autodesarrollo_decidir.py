@@ -453,6 +453,36 @@ class FamiliaYVariantesTest(unittest.TestCase):
         self.assertEqual((duplicada["estado"], duplicada["motivo"]), ("descartada", "duplicada de astraura:b"))
 
 
+class PagoSoloEnElAccesoTest(unittest.TestCase):
+    """Ola 1029A · IMG1029A: «(libre, registro, pago)» describe el acceso del sitio, no una decisión de
+    Alex. La plantilla del agente de referencias marcaba todas sus candidatas como «de Alex»."""
+
+    PLANTILLA = ("Antes de añadirlo hay que verificar sus canales oficiales y su acceso "
+                 "(libre, registro, pago); y su clase de uso.")
+
+    def test_la_plantilla_vieja_no_es_de_alex(self):
+        p = {"titulo": "Candidata al catálogo de referencias: sitio.org", "cuerpo": self.PLANTILLA}
+        self.assertEqual(D.es_de_alex(p), "")
+
+    def test_la_plantilla_nueva_tampoco(self):
+        p = {"titulo": "Candidata al catálogo de referencias: sitio.org",
+             "cuerpo": "su acceso (abierto, con registro o con coste)"}
+        self.assertEqual(D.es_de_alex(p), "")
+
+    def test_la_lista_sin_parentesis_tambien_se_quita(self):
+        self.assertEqual(D.es_de_alex({"titulo": "Acceso libre, registro o pago", "cuerpo": ""}), "")
+
+    def test_pagar_comprar_y_la_suscripcion_siguen_siendo_de_alex(self):
+        for t in ("Hay que pagar la suscripción", "Comprar el dominio", "Pago de la cuota mensual"):
+            self.assertTrue(D.es_de_alex({"titulo": t, "cuerpo": ""}), t)
+
+    def test_una_pregunta_vieja_recupera_su_revision(self):
+        p = {"estado": "pregunta", "titulo": "Candidata al catálogo de referencias: sitio.org",
+             "cuerpo": self.PLANTILLA, "auto_firma": "1025S|x",
+             "motivo": "no accionable por el enjambre (pago): es de Alex → pregunta"}
+        self.assertEqual(D.arreglo_de_estado(p), {"auto_firma": None})
+
+
 class TokenSoloComoCredencial(unittest.TestCase):
     """Ola 1025S: «token» a secas marcaba «de Alex» una tarea de seguridad del sueño diario («quitar ese
     token» del sandbox del iframe). Solo cuenta como credencial con su contexto."""

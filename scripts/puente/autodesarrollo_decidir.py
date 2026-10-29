@@ -43,9 +43,29 @@ def _vigente(p, existe):
     rutas = [cita] if isinstance(cita, str) else list(cita)
     ok = bool(rutas) and all(_existe(existe, r) for r in rutas)
     return (True, "") if ok else (False, "ya no aplica: la cita no sigue en el código")
+#: Formas de acceso que van juntas en una enumeración («libre, registro, pago»): describen el sitio, no
+#: una decisión de Alex. «Pagar», «comprar», «suscripción» y «pago de…» fuera de la lista sí lo son.
+_MARCA_ACCESO = re.compile(r"\b(?:libre|gratis|gratuit[oa]|abiert[oa]|registro)\b")
+_TIPO_ACCESO = r"(?:libre|gratis|gratuit[oa]|abiert[oa]|registro|pago)"
+_PAREN_ACCESO = re.compile(r"\([^()]{0,80}\)")
+_LISTA_ACCESO = re.compile(
+    rf"\b{_TIPO_ACCESO}\b(?:\s*(?:,|/|\bo\b|\by\b)\s*(?:(?:de|con|sin)\s+)?{_TIPO_ACCESO}\b)+")
+def _sin_tipos_de_acceso(texto: str) -> str:
+    """Quita las enumeraciones de acceso (entre paréntesis o en lista) que mezclan «pago» con «libre»,
+    «gratis», «abierto» o «registro». Lo demás con «pago» se queda y sigue siendo de Alex."""
+    def quita(m):
+        dentro = m.group(0)
+        return " " if re.search(r"\bpago\b", dentro) and _MARCA_ACCESO.search(dentro) else dentro
+    return _LISTA_ACCESO.sub(quita, _PAREN_ACCESO.sub(quita, texto))
+def _pago_solo_en_el_acceso(p: Dict) -> bool:
+    """True si «pago» aparece solo dentro de una enumeración de formas de acceso (no es de Alex)."""
+    crudo = _texto(p)
+    if not re.search(r"\bpago\b", crudo): return False
+    limpio = _sin_tipos_de_acceso(crudo)
+    return limpio != crudo and not re.search(r"\bpago\b", limpio)
 def es_de_alex(p: Dict) -> str:
     """El motivo si toca algo que solo decide Alex (publicar, pagar, cuentas, claves…); "" si no."""
-    texto = _texto(p)
+    texto = _sin_tipos_de_acceso(_texto(p))
     for tema in RESERVADOS:
         if re.search(rf"\b{tema}\b", texto): return f"no accionable por el enjambre ({tema}): es de Alex → pregunta"
     if CUENTAS.search(texto): return "no accionable por el enjambre (cuentas): es de Alex → pregunta"
@@ -338,7 +358,11 @@ def agrupar(propuestas):
     return fuera
 def arreglo_de_estado(p):
     """El cambio para que el estado y el motivo no se contradigan. Una «descartada» con un motivo de
-    «pregunta» no es descartada por duplicada ni por Astraura: se devuelve a «pregunta». PURA."""
+    «pregunta» no es descartada por duplicada ni por Astraura: se devuelve a «pregunta». Una pregunta
+    vieja que solo era de Alex por una enumeración de acceso pierde `auto_firma` para que la pasada
+    siguiente la vuelva a decidir con la regla nueva. PURA."""
+    if p.get("estado") in PENDIENTES and "pago" in _norm(p.get("motivo")) and _pago_solo_en_el_acceso(p):
+        return {"auto_firma": None}
     if p.get("estado") != "descartada" or "pregunta" not in _norm(p.get("motivo")): return {}
     if p.get("duplicada_de"):
         razon = f"duplicada de {p['duplicada_de']}"
