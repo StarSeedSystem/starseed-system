@@ -48,8 +48,8 @@ function adaptadoresDeUnaBase(c: Candidato[]): PlanFusion | null {
     estrategia: "adaptadores-ponderados", herramienta: "peft", metodo: dos ? "linear" : "ties",
     motivo: "Adaptadores de la misma base: los pondera `add_weighted_adapter` de PEFT (Apache-2.0).",
     pasos: ["Cargar la base común con sus adaptadores aplicados.",
-      dos ? "combination_type `linear` con pesos por candidato."
-        : "combination_type `ties` con densidad 0,5.", PASO_BANCO],
+      dos ? "Llamar a `add_weighted_adapter` con combination_type `linear` y pesos por candidato."
+        : "Llamar a `add_weighted_adapter` con combination_type `ties` y densidad 0,5.", PASO_BANCO],
     bloqueos: [],
   };
 }
