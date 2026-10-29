@@ -4,7 +4,7 @@
  * StarSeed XR · ESCENA OS (XR1010G, §3 a y c): el OS en 3D en `/xr/os` con lienzo R3F, almacén XR (XR1010D),
  * `<XROrigin>`, fondo y luz de `tokens-3d.ts`; encima, siempre en 2D, el botón universal y «Salir al sistema».
  * Entrada automática UNA vez si el plan la permite (un rechazo no se reintenta); altura de ojos en `alturaOjosRef`.
- * Para el recentrado (XR1010J); sin WebXR, misma escena con OrbitControls; `onSessionEnd` vuelve sin perder estado; `offerSession` lo lleva el almacén.
+ * El rig de la Trinity (XR1010J) monta aquí sus cuatro nodos cardinales; sin WebXR, misma escena con OrbitControls; `onSessionEnd` vuelve sin perder estado; `offerSession` lo lleva el almacén.
  */
 import { Suspense, useEffect, useRef, useState } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
@@ -15,7 +15,7 @@ import Link from "next/link";
 import { nivelInicial, perfilDeNivel } from "@/lib/xr/calidad";
 import { modeloQuest, type PlanEntrada } from "@/lib/xr/capacidades";
 import { useCalidadDinamica } from "./use-calidad-dinamica";
-import type { ModoXR, NivelCalidad } from "@/lib/xr/tipos";
+import type { ModoXR } from "@/lib/xr/tipos";
 import { CRISTAL } from "@/lib/xr/tokens-3d";
 import { mensajeErrorXR } from "@/components/vivo/espacial/use-sesion-xr";
 import type { ModoXR as ModoURL } from "@/lib/vivo/xr";
@@ -27,24 +27,15 @@ type Props = { modo?: ModoRuta };
 
 export type ModoSesion = "vr-inmersivo" | "ar-passthrough" | "ar-mano";
 
-/** Panel de cristal del OS (XR1010H): uikit se carga solo al entrar en /xr/os, nunca en el layout raíz. */
-const PanelOS = nextDynamic(
-    () =>
-        import("./panel-cristal").then(({ NivelCalidadContext, PanelCristal, Texto3D }) =>
-            function PanelOS({ nivel, opacidadMinima }: { nivel: NivelCalidad; opacidadMinima?: number }) {
-                return (
-                    <NivelCalidadContext.Provider value={nivel}>
-                        <group position={[0, 1.45, -1.35]}>
-                            <PanelCristal nodo="logic" ancho={0.8} alto={0.3} curvatura={2.5} opacidadMinima={opacidadMinima}>
-                                <Texto3D distancia={1.35}>StarSeed OS</Texto3D>
-                            </PanelCristal>
-                        </group>
-                    </NivelCalidadContext.Provider>
-                );
-            },
-        ),
-    { ssr: false },
-);
+/** El rig de la Trinity (XR1010J): uikit y three se cargan solo al entrar en /xr/os, nunca en el layout raíz. */
+const RigTrinityDinamico = nextDynamic(() => import("./rig-trinity").then((m) => m.RigTrinity), { ssr: false });
+
+/** El modo con que `disponerTrinity` coloca la Trinity según lo pedido por la URL. */
+export function modoTrinity(modoUrl: ModoURL | null, plan: PlanEntrada): ModoXR {
+    if (modoUrl === "vr") return "vr-inmersivo";
+    if (modoUrl === "ar") return plan.modo === "ar-mano" ? "ar-mano" : "ar-passthrough";
+    return "3d-pantalla";
+}
 
 /** ¿Entrar solo al abrir la página? URL que pide modo + plan de PWA instalada en Quest + primera vez. */
 export function debeAutoEntrar(o: { modo: ModoURL | null; plan: PlanEntrada; yaIntentado: boolean }): ModoSesion | null {
@@ -66,14 +57,18 @@ export function alturaOjosDe(metros: number): number {
     return Math.round(Math.min(2.2, Math.max(0.8, metros)) * 100) / 100;
 }
 
-function AlturaOjos({ refAltura }: { refAltura: { current: { metros: number } | null } }) {
+function AlturaOjos({ refAltura, alMedir }: { refAltura: { current: { metros: number } | null }; alMedir: (m: number) => void }) {
     const sesion = useXR((s) => s.session);
     const camara = useThree((s) => s.camera);
     useEffect(() => {
         if (!sesion) return;
-        const reloj = window.setTimeout(() => { refAltura.current = { metros: alturaOjosDe(camara.position.y) }; }, 600);
+        const reloj = window.setTimeout(() => {
+            const metros = alturaOjosDe(camara.position.y);
+            refAltura.current = { metros };
+            alMedir(metros);
+        }, 600);
         return () => window.clearTimeout(reloj);
-    }, [sesion, camara, refAltura]);
+    }, [sesion, camara, refAltura, alMedir]);
     return null;
 }
 
@@ -83,6 +78,7 @@ export function EscenaOS({ modo = null }: Props) {
     const [almacen, setAlmacen] = useState<XRStore | null>(null);
     const [fallo, setFallo] = useState<string | null>(null);
     const [enSesion, setEnSesion] = useState(false);
+    const [alturaOjosMedida, setAlturaOjosMedida] = useState<number | null>(null);
     const intentadoRef = useRef(false);
     const alturaOjosRef = useRef<{ metros: number } | null>(null);
     const { nivel: calidadNivel, cambio, aviso } = useCalidadDinamica();
@@ -123,9 +119,15 @@ export function EscenaOS({ modo = null }: Props) {
                 <ambientLight intensity={0.7} />
                 <Suspense fallback={null}>
                 {almacen !== null && (
-                    <XR store={almacen}><XROrigin /><AlturaOjos refAltura={alturaOjosRef} /></XR>
+                    <XR store={almacen}><XROrigin /><AlturaOjos refAltura={alturaOjosRef} alMedir={setAlturaOjosMedida} /></XR>
                 )}
-                    <PanelOS nivel={calidadNivel} opacidadMinima={modoUrl === "ar" ? 0.82 : undefined} />
+                    {/* Rig de la Trinity (XR1010J): reemplaza al panel provisional de XR1010G. */}
+                    <RigTrinityDinamico
+                        modo={modoTrinity(modoUrl, plan)}
+                        nivel={calidadNivel}
+                        alturaOjosMedida={alturaOjosMedida}
+                        contenido={{}}
+                    />
                     {!enSesion && <OrbitControls />}
                 </Suspense>
             </Canvas>
