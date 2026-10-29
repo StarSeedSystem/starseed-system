@@ -118,3 +118,37 @@ class AreasDelVigia(unittest.TestCase):
             with open(ruta, "w", encoding="utf-8") as f:
                 json.dump(BASE, f)
             self.assertEqual([a["id"] for a in V.cargar_areas(ruta, raiz)], ["imagen", "motores"])
+
+    def test_habilidades_vigila_diagram_design_con_su_manifiesto_y_destino(self):
+        """Diagram Design (MIT) entra en «habilidades»: la versión sale de su manifiesto y la
+        copia se renueva en vendor/, sin red y citando el origen (architecture/diagramas.md §3.7)."""
+        with open(V.RUTA_AREAS, encoding="utf-8") as f:
+            datos = json.load(f)
+        habilidades = next(a for a in datos["areas"] if a["id"] == "habilidades")
+        repo = "cathrynlavery/diagram-design"
+        self.assertIn(repo, habilidades["repos_github"])
+        duenos = [a["id"] for a in datos["areas"] if repo in a.get("repos_github", [])]
+        self.assertEqual(duenos, ["habilidades"])  # un repo, un solo especialista
+        ficha = datos["repos_versionados"][repo]
+        self.assertEqual(ficha["manifiesto"], ".claude-plugin/plugin.json")
+        self.assertEqual(ficha["campo_version"], "version")  # la señal de versión del plugin
+        self.assertEqual(ficha["destino"], "vendor/habilidades/diagram-design")
+        self.assertEqual(ficha["licencia"], "MIT")
+        for ruta in (ficha["manifiesto"], ficha["destino"]):
+            self.assertFalse(ruta.startswith(("/", "~", "../")) or "\\" in ruta or ".." in ruta.split("/"), ruta)
+        self.assertTrue(ficha["destino"].startswith("vendor/habilidades/"))
+        for dato in (ficha["manifiesto"], ficha["campo_version"], ficha["destino"]):
+            self.assertIn(dato, habilidades["nota"])  # también legible en el área, sin campos nuevos
+
+    def test_la_copia_de_diagram_design_existe_y_cita_su_origen(self):
+        with open(V.RUTA_AREAS, encoding="utf-8") as f:
+            ficha = json.load(f)["repos_versionados"]["cathrynlavery/diagram-design"]
+        copia = os.path.join(V.RAIZ_REPO, ficha["destino"])
+        self.assertTrue(os.path.isdir(copia), copia)
+        with open(os.path.join(copia, "LICENSE"), encoding="utf-8") as f:
+            self.assertIn("MIT License", f.read())
+        with open(os.path.join(copia, "ORIGEN.md"), encoding="utf-8") as f:
+            origen = f.read()
+        self.assertIn("https://github.com/cathrynlavery/diagram-design", origen)
+        self.assertIn("MIT", origen)
+        self.assertIn("2.6.110", origen)  # versión de la copia, la que el manifiesto señalará al subir
