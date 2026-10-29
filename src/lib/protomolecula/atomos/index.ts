@@ -20,6 +20,7 @@ import { MAUSBOT } from "./mausbot";
 import { ESCENA3D } from "./escena3d";
 import { VIDEO_HTML } from "./video-html";
 import { FONDO_SHADER } from "./fondo-shader";
+import { registrarAppsEmbebidas } from "../apps-embebidas";
 
 /** Los átomos que el OS trae de serie. Las tareas siguientes añaden los suyos aquí. */
 export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURAS, ANIMACION_MANIMGX, MAUSBOT, ESCENA3D, VIDEO_HTML, FONDO_SHADER];
@@ -30,6 +31,7 @@ export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURA
  */
 export function registrarAtomosPropios(): void {
   registrarConvertidoresBase();
+  registrarAppsEmbebidas();
   for (const def of ATOMOS_PROPIOS) {
     if (obtenerAtomo(def.herramientaId)) continue;
     registrarAtomo(def);
