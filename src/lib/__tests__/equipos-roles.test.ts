@@ -27,9 +27,11 @@ describe("equipos base", () => {
     }
   });
 
-  it("publicacion no es válido en grupo público por el uso de internet", () => {
+  it("publicacion no es válido en grupo público: su investigador sale a internet", () => {
     const problemas = validarEquipo(equipo("publicacion"), { ambito: "grupo-publico" });
+    expect(problemas.length).toBeGreaterThan(0);
     expect(problemas.some((p) => p.includes("internet"))).toBe(true);
+    expect(problemas.some((p) => p.includes("investigador") && p.includes("internet"))).toBe(true);
   });
 
   it("ordenDeTareas de publicacion respeta la cadena", () => {
