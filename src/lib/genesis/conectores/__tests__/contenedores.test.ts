@@ -47,8 +47,9 @@ describe('contenedoresPara', () => {
 
     // Extract the paid
     const paid = result.filter((c) => !c.aptoPrivado && c.requierePago);
-    // De pago, en su orden: google-cloud (pide facturación) y huggingface-spaces (Docker pide PRO)
-    expect(paid.map((c) => c.id)).toEqual(['google-cloud', 'huggingface-spaces']);
+    // De pago, en su orden: google-cloud (pide facturación), huggingface-spaces (Docker pide PRO)
+    // y cloudflare-computer (Dynamic Workers piden Workers Paid), que entra al final.
+    expect(paid.map((c) => c.id)).toEqual(['google-cloud', 'huggingface-spaces', 'cloudflare-computer']);
   });
 });
 
@@ -109,6 +110,21 @@ describe('CONTENEDORES_OPCIONES', () => {
     expect(hf?.requiereCuenta).toBe(true);
     expect(hf?.requierePago).toBe(true);
     expect(hf?.aptoPrivado).toBe(false);
+  });
+
+  // CFC1025A · El sugeridor solo la ofrece cuando el ámbito permite pago: pide cuenta y plan
+  // Workers Paid, no es apto privado y su verificación queda pendiente en la ficha de la Librería.
+  it('Cloudflare Computer pide cuenta y pago, declara sus requisitos y no tiene cupo gratuito', () => {
+    const cf = CONTENEDORES_OPCIONES.find((c) => c.id === 'cloudflare-computer');
+    expect(cf).toBeDefined();
+    expect(cf?.requiereCuenta).toBe(true);
+    expect(cf?.requierePago).toBe(true);
+    expect(cf?.aptoPrivado).toBe(false);
+    expect(cf?.verificado).toBeNull();
+    const requisitos = cf?.requisitos?.join(' ') ?? '';
+    expect(requisitos).toContain('Workers Paid');
+    expect(requisitos).toContain('wrangler');
+    expect(cf?.cupo).toContain('Sin cupo gratuito');
   });
 
   it('declara el cupo y los requisitos de Cloudroom sin marcarlo como de pago', () => {
