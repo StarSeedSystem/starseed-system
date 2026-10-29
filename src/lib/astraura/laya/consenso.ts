@@ -14,6 +14,13 @@ export interface PequenoConsenso {
   readonly motor?: string;
 }
 
+export interface LayaConsenso {
+  readonly respuesta: string;
+  /** La calibrada: la única con la que se decide con umbral, nunca `confidence`. */
+  readonly answer_confidence?: number;
+  readonly probabilities?: readonly number[];
+}
+
 export interface EntradaConsenso {
   readonly pequeno: PequenoConsenso;
   readonly laya: LayaConsenso | null;
@@ -61,7 +68,8 @@ export function consensuar(e: EntradaConsenso): ResultadoConsenso {
           `(${cp.toFixed(2)} ≥ ${umbral.toFixed(2)}).` };
   }
   const cl = e.laya?.answer_confidence;
-  if (respuestaLaya && decideCon(cl) && cl >= umbral)
+  // Si el pequeño no dio respuesta no admite mando: ni con Laya segura se decide, se escala.
+  if (respuestaPequeno && respuestaLaya && decideCon(cl) && cl >= umbral)
     return { decision: respuestaLaya, quien: "laya", accion: "aceptar",
       motivo: `Criterios distintos: manda Laya con answer_confidence calibrada ` +
         `(${cl.toFixed(2)} ≥ ${umbral.toFixed(2)}).` };

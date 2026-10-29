@@ -17,6 +17,7 @@ import {
   type RespuestaTipoDiagrama,
 } from "@/lib/astraura/decision-hibrida";
 import { esConsultaDePato, decidirConNeedlePato } from "@/lib/astraura/needle-pato";
+import { consensuar, type ResultadoConsenso } from "@/lib/astraura/laya/consenso";
 import { type Astraura158Target } from "@/lib/astraura/astraura-158-client";
 
 export async function POST(req: Request) {
@@ -63,8 +64,11 @@ export async function POST(req: Request) {
     let jevRes: RespuestaJev | null = null;
     let msJev: number | undefined = undefined;
 
-    // Capa 2: Laya local (solo si Needle escaló)
-    if (zona === "escalar") {
+    // Capa 2: Laya responde la MISMA pregunta tipada (punto «reflejo.herramienta»: choice
+    // entre herramientas) cuando la decisión puede esperar: Needle pasó a «confirmar» o escaló.
+    // En «ejecutar» Needle es el reflejo instantáneo y Laya no la estorba (nunca bloquea la
+    // primera palabra: Laya en CPU tarda segundos, contrato §2).
+    if (zona !== "ejecutar") {
       const t1 = Date.now();
       layaRes = await decidirConLaya(body.consulta, body.herramientas);
       msLaya = Date.now() - t1;
@@ -87,12 +91,36 @@ export async function POST(req: Request) {
       msJev = Date.now() - t2;
     }
 
-    // Plan híbrido final
-    const plan = planDeDecision(needleRes, layaRes, jevRes);
+    // Plan híbrido final; la heurística de capas queda como regla determinista de respaldo.
+    let plan = planDeDecision(needleRes, layaRes, jevRes);
+
+    // Capa 2·consenso (punto «basico.consenso», Ola 1018L · tarea C): la MISMA respuesta tipada
+    // de Needle 3 y de Laya se consensúan con `answer_confidence` calibrada. Si coinciden vale;
+    // si no, manda Laya solo con confianza ≥ umbral; si Laya no llegó, lo pequeño solo con
+    // confianza ≥ umbral; si no, se queda la regla determinista (lo que decida planDeDecision).
+    let consenso: ResultadoConsenso | null = null;
+    if (zona !== "ejecutar") {
+      const respuestaNeedle = needleRes.ok ? needleRes.llamadas?.[0]?.nombre ?? "" : "";
+      consenso = consensuar({
+        pequeno: { respuesta: respuestaNeedle, confianza: needleRes.confianza ?? undefined, motor: "needle-3" },
+        laya: layaRes ? { respuesta: layaRes.herramienta, answer_confidence: layaRes.confianza } : null,
+      });
+      if (consenso.accion === "aceptar") {
+        const llamadaNeedle = needleRes.llamadas?.[0];
+        if (consenso.quien === "laya" && layaRes
+          && body.herramientas.some((h) => h.name === layaRes.herramienta)) {
+          plan = { capa: "laya", accion: "ejecutar",
+            llamada: { nombre: layaRes.herramienta, argumentos: {} }, motivo: consenso.motivo };
+        } else if ((consenso.quien === "ambos" || consenso.quien === "pequeno") && llamadaNeedle) {
+          plan = { capa: "needle", accion: "ejecutar", llamada: llamadaNeedle, motivo: consenso.motivo };
+        }
+      }
+    }
 
     return NextResponse.json({
       ok: true,
       plan,
+      consenso: consenso ? { quien: consenso.quien, accion: consenso.accion, motivo: consenso.motivo } : null,
       capas: {
         needle: {
           ms: msNeedle,
