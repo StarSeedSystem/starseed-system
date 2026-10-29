@@ -44,6 +44,12 @@ class LimpiezaCaches(unittest.TestCase):  # plan (puro), aplicar, recortar, reco
         self.assertEqual((a0["accion"], a0["ruta"], "Chrome" in a0["por_que"]), ("borrar", C0324, True))
         self.assertEqual((a1["accion"], a1["ruta"]), ("borrar", C0521))
 
+    def test_el_margen_de_60_s_del_chrome_vivo_conserva_su_clon(self):
+        t12 = time.mktime((2026, 10, 28, 12, 38, 0, 0, 0, -1))
+        self.assertEqual(L.clones_de_chrome_a_borrar([("/c/suyo", t12 - 30)], t12), [])
+        self.assertEqual(L.clones_de_chrome_a_borrar([("/c/borde", t12 - 60)], t12), [])
+        self.assertEqual(L.clones_de_chrome_a_borrar([("/c/borde", t12 - 61)], t12), ["/c/borde"])
+
     def test_ruta_vetada_nunca_se_borra_y_ps_sin_salida_no_borra_nada(self):
         self.assertEqual(L.clones_de_chrome_a_borrar([("/a/.env/cls", 0.0), ("rel/cls", 0.0)], None), [])
         self.assertEqual(L.inicio_chrome_de_ps(None), (None, True))  # ps no salió: no se sabe, no se borra
@@ -58,6 +64,15 @@ class LimpiezaCaches(unittest.TestCase):  # plan (puro), aplicar, recortar, reco
         self.assertEqual(L.inicio_chrome_de_ps("  501 Tue Oct 28 09:00:00 2026 /usr/sbin/cfprefsd\n"),
                          (None, False))  # sin Chrome: se pueden borrar todos
         self.assertEqual(L._lstart_a_epoch("Tue Febrero 28 09:00:00 2026"), None)
+
+    def test_ps_elige_el_arranque_mas_viejo_entre_dos_chrome_principales(self):
+        maquina = L.EJECUTABLE_CHROME
+        ps = ("   742 Sun Oct 25 12:38:00 2026 %s\n" % maquina
+              + "   900 Sat Oct 25 03:24:11 2026 %s\n" % maquina
+              + "   901 Sat Oct 25 03:24:12 2026 %s Helper (Renderer)-x86_64\n" % maquina
+              + "   902 Sat Oct 25 03:24:13 2026 /opt/homebrew/bin/claude\n")
+        self.assertEqual(L.inicio_chrome_de_ps(ps),
+                         (time.mktime((2026, 10, 25, 3, 24, 11, 0, 0, -1)), True))
 
     def test_recoger_con_chrome_vivo_recoge_solo_los_anteriores_a_su_arranque(self):
         t12 = time.mktime((2026, 10, 28, 12, 38, 0, 0, 0, -1))

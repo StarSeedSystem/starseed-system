@@ -452,6 +452,27 @@ class FamiliaYVariantesTest(unittest.TestCase):
         duplicada.update(D.arreglo_de_estado(duplicada))
         self.assertEqual((duplicada["estado"], duplicada["motivo"]), ("descartada", "duplicada de astraura:b"))
 
+    def test_lo_ya_decidido_no_se_agrupa_otra_vez(self):
+        base = {"id": "a", "fuente": "astraura", "ambito": "metagenesis",
+                "titulo": self.TITULOS[0], "estado": "nueva"}
+        for estado in ("aprobada", "descartada", "agrupada", "reimaginando"):
+            otra = dict(base, id="b", titulo=self.TITULOS[1], estado=estado)
+            self.assertEqual(D.agrupar([base, otra]), [], estado)
+
+    def test_la_familia_no_pierde_variantes_ni_con_el_tope(self):
+        ps = [{"id": "a%d" % i, "fuente": "astraura", "ambito": "metagenesis",
+               "estado": "esperando-aprobacion",
+               "titulo": "Optimización ARM NEON para modulo_%d.sh" % i} for i in range(23)]
+        pares = D.agrupar(ps)
+        self.assertEqual(len(pares), 22)  # se agrupan todas: nada se borra
+        self.assertEqual({prim["id"] for _, prim in pares}, {"a0"})
+        self.assertEqual(D.MAX_VARIANTES, 20)  # el tope solo limita lo que se anota
+
+    def test_un_estado_que_ya_se_explica_no_se_toca(self):
+        for p in ({"estado": "descartada", "motivo": "duplicada de x7"},
+                  {"estado": "nueva", "motivo": "… → pregunta"}, {}):
+            self.assertEqual(D.arreglo_de_estado(p), {}, p)
+
 
 class TokenSoloComoCredencial(unittest.TestCase):
     """Ola 1025S: «token» a secas marcaba «de Alex» una tarea de seguridad del sueño diario («quitar ese
