@@ -5,7 +5,8 @@
  * cambiar la identidad de la voz: el timbre es el mismo, lo que varía es la
  * precisión del motor que lo sintetiza.
  *
- *  · estudio — OmniVoice GGUF Q8_0 por el demonio local (~1000 MB)
+ *  · estudio — OmniVoice GGUF Q8_0 por el demonio local (~1000 MB) o VoiceStudio
+ *    vivo en su puerta local (Ola 1018V); también puede servirlo otra neurona
  *  · alta    — OmniVoice GGUF Q4_K_M por el demonio local (~600 MB)
  *  · nube    — Gemini TTS o Pollinations por el servidor del OS (0 MB, red)
  *  · ligera  — Kokoro ONNX/WASM en el navegador (~120 MB)
@@ -47,7 +48,7 @@ export const NIVELES: Record<NivelVoz, InfoNivel> = {
     estudio: {
         etiqueta: "Estudio",
         motorInterno: "OmniVoice GGUF Q8_0 (demonio local)",
-        requisitos: "Demonio local de voz y 8 GB de RAM o más",
+        requisitos: "Demonio local o VoiceStudio vivo, y 8 GB de RAM libres (o servido desde otra neurona)",
         ramMB: 1000,
         latencia: "Baja (local)",
         calidad: "Máxima, grado de estudio",
@@ -90,14 +91,46 @@ export const NIVELES: Record<NivelVoz, InfoNivel> = {
 const ORDEN: NivelVoz[] = ["estudio", "alta", "nube", "ligera", "minima"];
 
 /**
+ * Señales que el hardware no mide por sí mismo y que habilitan «estudio»
+ * (Ola 1018V · VST1018F): resultan de `descubrir()` de `voicestudio.ts`
+ * (red, se pasa ya resuelta) y del relevo de capacidades de la malla
+ * (`apps-en-la-malla.md`). El módulo sigue puro: recibe todo por parámetro.
+ */
+export interface SenalEstudio {
+    /** VoiceStudio dijo vivo en su puerta local. */
+    voicestudio?: boolean;
+    /** Otra neurona de la cuenta sirve la voz de estudio (relevo `capacidad.*`). */
+    sirveOtraNeurona?: boolean;
+}
+
+/**
+ * estudioDisponible — puede «estudio» sostenerse (Ola 1018V · VST1018F).
+ *
+ * Solo si:
+ *   · se dijo vivo un motor de estudio local (demonio de voz o VoiceStudio)
+ *     Y la neurona tiene 8 GB o más de memoria; o
+ *   · la voz de estudio la sirve otra neurona de la malla (no ocupa RAM local).
+ *
+ * Pura: nada de red, disco ni reloj.
+ */
+export function estudioDisponible(c: Capacidades, senal: SenalEstudio = {}): boolean {
+    if (senal.sirveOtraNeurona === true) return true;
+    if ((c.memoriaGB ?? 0) < 8) return false;
+    return c.daemonLocal === true || senal.voicestudio === true;
+}
+
+/**
  * Nivel por defecto (decisión automática). A los cuatro niveles por hardware
  * se une el «nube» (2026-09-07, Ola 279 · V6): si no hay demonio local PERO hay
  * conexión, la síntesis por el servidor del OS suena bien sin descargar nada,
  * y queda ANTES que «ligera»/«mínima». Es el nivel que Alex pidió para que la
  * voz «funcione y suene bien» aunque el demonio esté apagado.
+ *
+ * (Ola 1018V · VST1018F) El nivel «estudio» exige señales externas además del
+ * demonio: VoiceStudio vivo por `descubrir()` o servido desde otra neurona.
  */
-export function nivelPorDefecto(c: Capacidades): NivelVoz {
-    if (c.daemonLocal && (c.memoriaGB ?? 0) >= 8) return "estudio";
+export function nivelPorDefecto(c: Capacidades, senal: SenalEstudio = {}): NivelVoz {
+    if (estudioDisponible(c, senal)) return "estudio";
     if (c.daemonLocal) return "alta";
     // `navigator.onLine` solo existe en el navegador; el servidor cae a ligera/mínima.
     if (typeof navigator !== "undefined" && navigator.onLine) return "nube";
@@ -107,14 +140,15 @@ export function nivelPorDefecto(c: Capacidades): NivelVoz {
 
 /**
  * Elige el nivel más alto que el equipo puede sostener:
- *  · demonio local + 8 GB de RAM o más        → estudio
- *  · demonio local                             → alta
- *  · en línea y sin demonio                    → nube (Gemini/Pollinations)
- *  · escritorio con WebGPU o WASM SIMD         → ligera
- *  · cualquier otro caso                       → minima
+ *  · demo­nio local o VoiceStudio vivo + 8 GB de RAM o más   → estudio
+ *  · servido por otra neurona de la malla                    → estudio
+ *  · demonio local                                            → alta
+ *  · en línea y sin demonio                                   → nube (Gemini/Pollinations)
+ *  · escritorio con WebGPU o WASM SIMD                        → ligera
+ *  · cualquier otro caso                                      → minima
  */
-export function nivelPara(c: Capacidades): NivelVoz {
-    return nivelPorDefecto(c);
+export function nivelPara(c: Capacidades, senal: SenalEstudio = {}): NivelVoz {
+    return nivelPorDefecto(c, senal);
 }
 
 /**

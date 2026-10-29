@@ -58,6 +58,12 @@ import {
 // (2026-09-06, Ola 264 · J1b) Normalización en español del texto hablado.
 import { normalizarParaVoz } from "@/lib/voces/normalizar-es";
 import { motorRecomendado, Plataforma } from "../catalogo-voces";
+// (Ola 1018V · VST1018F) Licencia por contexto y medidas por neurona: la regla
+// instantánea elige entre motores PERMITIDOS por su latencia MEDIDA, y el nivel
+// «estudio» queda reservado a la lectura larga, el doblaje y los audiolibros.
+import { motoresPermitidos, type ClaseLicenciaVoz, type ContextoLicenciaVoz } from "./licencia-voz";
+import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
+import { leerMedidas, type MedidaVoz } from "@/lib/aurora/medidas-voz";
 function detectarPlataforma(): Plataforma {
     if (typeof window === "undefined") return "web";
     const ua = navigator.userAgent;
@@ -237,6 +243,99 @@ async function resolverNivel(explicito?: NivelVoz): Promise<NivelVoz> {
     return preferencia === "auto" ? auto : preferencia;
 }
 
+// ── (Ola 1018V · VST1018F) REGLA INSTANTÁNEA EN EL MOTOR ÚNICO ──────────────
+
+/**
+ * Candidato a la primera frase: un motor de voz y el nivel del motor único por
+ * el que sonaría. El timbre no decide motor: viaja por parámetro.
+ */
+export interface CandidatoInstantaneo {
+    /** Id del motor de voz (el de `catalogo-voces` y la clave `motor` de las medidas). */
+    motor: string;
+    /** Nivel del motor único por el que sintetiza. */
+    nivel: NivelVoz;
+    /** Clase de licencia de los pesos del motor. */
+    claseLicencia: ClaseLicenciaVoz;
+    /** Solo mira en las «condicionada»; ausente o falso = no cumplida. */
+    condicionCumplida?: boolean;
+    /** La voz de esa persona está en este motor (falso = sin su identidad). */
+    suena?: boolean;
+}
+
+/** Opciones de la elección instantánea. */
+export interface OpcionesEleccion {
+    /** Sitio donde sonará: personal, grupo, comunidad, público o comercial. */
+    contexto: ContextoLicenciaVoz;
+    /** Capas de conciencia; por omisión solo entran los motores libres. */
+    capas?: CapasPrefs;
+    /** false en conversación y avisos: «estudio» solo para lectura, doblaje y audiolibros. */
+    permitirEstudio?: boolean;
+}
+
+/** Latencia MÍNIMA de «primer-sonido» medida para un motor; infinita si no hay medidas. */
+function latenciaMedida(motor: string, medidas: readonly MedidaVoz[]): number {
+    let mejor = Infinity;
+    for (const m of medidas) {
+        if (m.motor === motor && m.tipo === "primer-sonido" && m.valor < mejor) mejor = m.valor;
+    }
+    return mejor;
+}
+
+/**
+ * elegirMotorInstantaneo (Ola 1018V · VST1018F) — el motor PERMITIDO por
+ * licencia (licencia-voz) de menor latencia MEDIDA (medidas-voz) que tenga la
+ * voz de esa persona. Determinista y PURA: misma entrada, mismo motor; el
+ * empate lo rompe el orden de llegada y sin medidas gana el primero en
+ * entrar. Devuelve UN solo motor para TODA la frase: nunca se parte un
+ * mensaje entre dos motores (la degradación por niveles solo ocurre si el
+ * elegido no llegó a sonar).
+ */
+export function elegirMotorInstantaneo(
+    candidatos: readonly CandidatoInstantaneo[],
+    medidas: readonly MedidaVoz[],
+    opciones: OpcionesEleccion,
+): CandidatoInstantaneo | null {
+    const enCarrera = candidatos.filter(
+        (c) => c.suena !== false && (opciones.permitirEstudio !== false || c.nivel !== "estudio"),
+    );
+    const { permitidos } = motoresPermitidos(
+        enCarrera.map((c) => ({
+            id: c.motor,
+            claseLicencia: c.claseLicencia,
+            condicionCumplida: c.condicionCumplida,
+        })),
+        opciones.contexto,
+        opciones.capas ?? {},
+    );
+    const admitidos = new Set(permitidos.map((m) => m.id));
+    let electo: CandidatoInstantaneo | null = null;
+    let mejor = Infinity;
+    for (const c of enCarrera) {
+        if (!admitidos.has(c.motor)) continue;
+        if (!electo) {
+            electo = c;
+            mejor = latenciaMedida(c.motor, medidas);
+            continue;
+        }
+        const latencia = latenciaMedida(c.motor, medidas);
+        if (latencia < mejor) {
+            mejor = latencia;
+            electo = c;
+        }
+    }
+    return electo;
+}
+
+/** Los motores fríos por los que puede salir la primera frase de una conversación. */
+export const FLOTA_INSTANTANEA: readonly CandidatoInstantaneo[] = [
+    { motor: "supertonic", nivel: "ligera", claseLicencia: "condicionada", condicionCumplida: true },
+    { motor: "kokoro", nivel: "ligera", claseLicencia: "libre" },
+    { motor: "kittentts", nivel: "ligera", claseLicencia: "libre" },
+    { motor: "moss-tts-nano", nivel: "ligera", claseLicencia: "libre" },
+    { motor: "omnivoice", nivel: "alta", claseLicencia: "personal" },
+    { motor: "sistema", nivel: "minima", claseLicencia: "libre" },
+];
+
 /**
  * Traduce el timbre a los parámetros que entiende cada backend. LA IDENTIDAD
  * ES LA MISMA EN TODOS LOS NIVELES: manda el timbre; lo único que cambia es
@@ -312,6 +411,12 @@ export interface OpcionesHablar {
      * esta opción solo es para vías que ya entregan el texto normalizado.
      */
     sinNormalizar?: boolean;
+    /**
+     * (Ola 1018V · VST1018F) Capas de licencia del uso de esta frase. Si
+     * faltan, la regla instantánea solo admite motores libres (y los
+     * condicionados con su condición cumplida): nada «personal» por defecto.
+     */
+    capasLicencia?: CapasPrefs;
 }
 
 /**
@@ -469,6 +574,26 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
             // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
             nivel = "nube";
             break;
+    }
+
+    // ── (Ola 1018V · VST1018F) Regla instantánea: en conversación y avisos la
+    // primera frase sale YA. El nivel «estudio» queda para lectura larga,
+    // doblaje y audiolibros (baja a «alta», mismo recorrido y mismo timbre) y,
+    // con medidas MEDIDAS de esta neurona, el turno arranca por el motor
+    // PERMITIDO de menor latencia. Sin medidas se queda lo que decidió el
+    // hardware, como hasta hoy. El mensaje entero va por UN motor: la cadena
+    // de degradación solo cambia de nivel si el elegido no llegó a sonar.
+    if (opciones.contexto === "conversacion" || opciones.contexto === "aviso") {
+        if (nivel === "estudio") nivel = "alta";
+        const medidas = leerMedidas();
+        if (medidas.length) {
+            const electo = elegirMotorInstantaneo(
+                FLOTA_INSTANTANEA,
+                medidas,
+                { contexto: "personal", capas: opciones.capasLicencia, permitirEstudio: false },
+            );
+            if (electo) nivel = electo.nivel;
+        }
     }
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
