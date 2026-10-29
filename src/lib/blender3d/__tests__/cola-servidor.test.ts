@@ -60,6 +60,15 @@ describe("encolarTrabajo", () => {
     const todos = JSON.stringify(await listarRecientes());
     for (const texto of [uno, todos]) { expect(texto).not.toContain(raiz); expect(texto).not.toContain(tmpdir()); }
   });
+  it("listarRecientes nunca devuelve más de 20 aunque se pidan 25", async () => {
+    mkdirSync(path.join(raiz, "estado"), { recursive: true });
+    for (let i = 0; i < 25; i++) {
+      const id = i.toString(16).padStart(32, "0");
+      writeFileSync(path.join(raiz, "estado", `${id}.json`), JSON.stringify({ id, estado: "en_cola", salidas: [] }));
+    }
+    const lista = await listarRecientes(25);
+    expect(lista.length).toBe(20);
+  });
   it("no arranca otro ejecutor si el cerrojo está vivo", async () => {
     mkdirSync(raiz, { recursive: true });
     writeFileSync(path.join(raiz, "ejecutor.lock"), String(process.pid));
