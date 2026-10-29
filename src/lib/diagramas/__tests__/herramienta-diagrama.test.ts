@@ -56,6 +56,19 @@ describe("pedidoDiagrama", () => {
     expect(c.animado).toBe(true);
     expect(c.instruccion).toContain("JavaScript embebido");
   });
+
+  it("respeta el tamaño pedido y usa «completa» por defecto", () => {
+    const tarjeta = pedidoDiagrama({ peticion: "flujo de alta", tamano: "tarjeta" });
+    expect(tarjeta.tamano).toBe("tarjeta");
+    expect(tarjeta.instruccion).toContain("Tamaño: tarjeta");
+    expect(pedidoDiagrama({ peticion: "flujo de alta" }).tamano).toBe("completa");
+  });
+
+  it("con petición vacía avisa y deja un tema genérico", () => {
+    const c = pedidoDiagrama({ peticion: "   " });
+    expect(c.avisos.some((a) => a.includes("Petición vacía"))).toBe(true);
+    expect(c.instruccion).toContain("un diagrama del tema que venimos hablando");
+  });
 });
 
 describe("recibirDiagrama", () => {
@@ -98,5 +111,10 @@ describe("recibirDiagrama", () => {
     expect(r.sandbox).toBe("allow-scripts");
     expect(r.srcdoc).toContain("script-src 'unsafe-inline'");
     expect(r.srcdoc).not.toContain("allow-same-origin");
+  });
+
+  it("un tipo desconocido en la respuesta cae en flowchart sin romper", () => {
+    const r = recibirDiagrama(RESPUESTA, { tipo: "collage" });
+    expect(r.ok).toBe(true); expect(r.tipo).toBe("flowchart");
   });
 });
