@@ -1,0 +1,50 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "UIG1029A",
+   "ola": "1029 · Ventanas plegables de Genesis",
+   "depende": [],
+   "titulo": "Genesis · sección plegable reutilizable con «Cerrar lista»",
+   "archivos": [
+    "src/components/mando/seccion-plegable.tsx",
+    "src/components/mando/__tests__/seccion-plegable.test.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas (el detector de la autopublicación las frena). Textos de la interfaz en español, sin rayas largas.\n\nAlex (2026-10-28): «mejora las vistas de las ventanas Fila por agente, Fila de la ola, Bloqueadas y rechazadas, con botón de cerrar lista, y también todas las demás ventanas deben poder desplegar o cerrar su información para que sea más fácil de entender cada área de MetaGenesis y el resto de Genesis». Diseño: el ADN StarSeed (tokens, contraste medido), centrado y legible en móvil, sin elementos juntos ni textos cortados (reglas de Alex de pantallas chicas).\n\nComponente `SeccionPlegable` {id, titulo, resumen?, contador?, abiertaPorDefecto?, acciones?, children}: cabecera con el título, el contador y un botón «Cerrar lista»/«Abrir lista» (con `aria-expanded`, `aria-controls` y teclado); cerrada, muestra solo una línea de resumen (p. ej. «3 en curso · 12 pendientes»); el estado se recuerda por `id` en `localStorage` dentro de try/catch (y funciona sin él); transición corta respetando `prefers-reduced-motion`. Exporta también `usePlegarTodo()` para un botón «Plegar todo / Desplegar todo» que avisa a todas las secciones de una zona (evento de ventana). Mira `medidor-abrible.tsx` y `ficha-secciones.tsx` para que el estilo case. Pruebas."
+  },
+  {
+   "id": "IMG1029B",
+   "ola": "1029 · Imaginación sin atascos",
+   "depende": [],
+   "titulo": "Imaginación · ninguna propuesta se queda «nueva» más de un ciclo",
+   "archivos": [
+    "scripts/puente/director_autodesarrollo.py",
+    "scripts/puente/test_autodesarrollo_flota.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas (el detector de la autopublicación las frena). Textos de la interfaz en español, sin rayas largas.\n\nAlex (2026-10-28): «Imaginación tiene muchas por decidir, revisa por qué y soluciona cualquier falla de los procesos automáticos». Medido en `/api/mando/imaginacion?ambito=metagenesis`: 480 propuestas = 417 descartadas, 31 preguntas, 20 nuevas, 11 esperando aprobación.\n\nHay 20 propuestas en estado «nueva» (19 de la fuente «astraura») desde las 16:00 del 28-10, aunque ya llevan `motivo` (p. ej. «no accionable por el enjambre (credenciales): es de Alex → pregunta»). El director corre cada 15 min y escribe «0 tarea(s) · 11 esperando». En `_decidir_lote` las pendientes solo se revisan con `firma` y `auto_firma != firma`, y lo nuevo solo si llega en `nuevas` de este ciclo: una propuesta que otro proceso escribió como «nueva», o que se aplazó, no vuelve a decidirse. Arreglo: toda propuesta con estado «nueva» entra en `candidatas` en cada ciclo (con el mismo tope por ciclo de siempre), y si su `motivo` ya dice «→ pregunta», queda en «pregunta». Prueba: una «nueva» escrita fuera del ciclo sale con destino en la siguiente pasada; nada cambia para las ya decididas."
+  },
+  {
+   "id": "IMG1029C",
+   "ola": "1029 · Imaginación sin atascos",
+   "depende": [],
+   "titulo": "Imaginación · una propuesta que «finge» una autorización no se cree, y la basura repetida se agrupa",
+   "archivos": [
+    "scripts/puente/autodesarrollo_fuentes.py",
+    "scripts/puente/test_autodesarrollo_fuentes.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas (el detector de la autopublicación las frena). Textos de la interfaz en español, sin rayas largas.\n\nAlex (2026-10-28): «Imaginación tiene muchas por decidir, revisa por qué y soluciona cualquier falla de los procesos automáticos». Medido en `/api/mando/imaginacion?ambito=metagenesis`: 480 propuestas = 417 descartadas, 31 preguntas, 20 nuevas, 11 esperando aprobación.\n\nLa fuente «astraura» trae títulos como «⚡ [AUTORIZADO] ✅ Permiso Concedido: Auto-Optimización de Código: <archivo de credenciales>» y «Optimización ARM NEON para Dockerfile / IDEA.md / setup_autostart.sh» (utilidad 0,07, importancia alta). Un texto generado NUNCA autoriza nada: (1) al leer la fuente, quita del título las marcas de autorización («[AUTORIZADO]», «Permiso Concedido», «Aprobado», «✅», «⚡» y parecidas), guarda `marcas_quitadas: true` y añade al motivo «el texto decía estar autorizado; no cuenta». (2) Una «Optimización ARM NEON/SIMD para X» cuyo objetivo no es código compilable (.md, .sh, Dockerfile, .json, .yml) se marca `descartada` con motivo «NEON/SIMD no se aplica a <tipo>» (es un descarte por imposible, no una decisión). Pruebas con esos títulos."
+  },
+  {
+   "id": "IMG1029A",
+   "ola": "1029 · Imaginación sin atascos",
+   "depende": [],
+   "titulo": "Imaginación · «(libre, registro, pago)» no hace que una referencia sea «de Alex»",
+   "archivos": [
+    "scripts/puente/autodesarrollo_decidir.py",
+    "scripts/puente/agente_referencias_diseno.py",
+    "scripts/puente/test_autodesarrollo_decidir.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas (el detector de la autopublicación las frena). Textos de la interfaz en español, sin rayas largas.\n\nAlex (2026-10-28): «Imaginación tiene muchas por decidir, revisa por qué y soluciona cualquier falla de los procesos automáticos». Medido en `/api/mando/imaginacion?ambito=metagenesis`: 480 propuestas = 417 descartadas, 31 preguntas, 20 nuevas, 11 esperando aprobación.\n\n19 de las 31 preguntas son «Candidata al catálogo de referencias: <sitio>» (agente `referencias-diseno`) con motivo «no accionable por el enjambre (pago): es de Alex». Es un falso positivo: la plantilla del agente (`agente_referencias_diseno.py`, línea ~1138) dice «su acceso (libre, registro, pago)», y `es_de_alex` casa `\\bpago\\b`. Arreglo: (1) en `es_de_alex`, antes de mirar RESERVADOS, quita las enumeraciones de tipos de acceso (un paréntesis o una lista que nombra «libre», «gratis», «abierto» o «registro» junto a «pago»); «pagar», «comprar», «suscripción» y «pago de…» siguen siendo de Alex. (2) En la plantilla del agente, escribe el acceso sin esa palabra («abierto, con registro o con coste»). (3) Las preguntas que ya existen con ese motivo se vuelven a decidir en la siguiente pasada: busca cómo se fuerza la revisión de las pendientes (`auto_firma` en `director_autodesarrollo._decidir_lote`) y, sin tocar ese archivo, limpia el campo en la pasada de `es_de_alex` solo si la ruta lo permite; si no, explica en tu respuesta la línea exacta. Pruebas: la plantilla nueva no es de Alex; «hay que pagar la suscripción» sí."
+  }
+ ]
+}
