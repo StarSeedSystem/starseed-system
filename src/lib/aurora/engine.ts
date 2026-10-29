@@ -89,7 +89,7 @@ import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/
 // Ola 1015V · voz fusionada §4: detección por energía para interrumpir a
 // Astraura con la voz (barge-in) mientras habla. Montada al empezar a hablar,
 // soltada al callar (el enganche vive en el efecto bajo `interrupt`).
-import { activarInterrupcionPorVoz } from "@/lib/aurora/interrumpir-por-voz";
+import { activarInterrupcionPorVoz, type MontajeInterrupcion } from "@/lib/aurora/interrumpir-por-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
 import {
@@ -1482,26 +1482,25 @@ export function useAuroraEngine(): AuroraEngine {
   // Al callar, se suelta. Micro no disponible o canal roto: Aurora sigue
   // hablando igual (regla de la capa) y el toque en la orbe queda como siempre.
   const interruptRef = useRef(interrupt);
-  const soltarInterrupcionRef = useRef<(() => void) | null>(null);
+  const montajeInterrupcionRef = useRef<MontajeInterrupcion | null>(null);
   useEffect(() => { interruptRef.current = interrupt; }, [interrupt]);
   useEffect(() => {
     if (!speaking) {
-      soltarInterrupcionRef.current?.();
-      soltarInterrupcionRef.current = null;
+      void montajeInterrupcionRef.current?.soltar();
+      montajeInterrupcionRef.current = null;
       return;
     }
     let vivo = true;
     activarInterrupcionPorVoz({ alInterrumpir: () => interruptRef.current() })
       .then((m) => {
         if (!vivo) { void m.soltar(); return; }
-        soltarInterrupcionRef.current = () => { void m.soltar(); };
+        montajeInterrupcionRef.current = m;
       })
       .catch(() => { /* la interrupción por voz es un extra, nunca una falta */ });
     return () => {
       vivo = false;
-      const soltarMontaje = soltarInterrupcionRef.current;
-      soltarInterrupcionRef.current = null;
-      if (soltarMontaje) soltarMontaje();
+      void montajeInterrupcionRef.current?.soltar();
+      montajeInterrupcionRef.current = null;
     };
   }, [speaking]);
 
@@ -2252,6 +2251,10 @@ export function useAuroraEngine(): AuroraEngine {
       if (interimText) setInterim(interimText);
       if (finalText) {
         setInterim("");
+        // Anti-eco del montaje de interrupción: si lo captado ES la propia voz
+        // de Astraura, `anotarEco` renueva su ventana (`ventanaEcoMs`) y calma
+        // el registro; si no lo es, no toca nada.
+        try { montajeInterrupcionRef.current?.anotarEco(finalText); } catch { /* */ }
         // ANTI-ECO TARDÍO (2026-09-27): la cola de su propia voz puede llegar
         // después de la ventana del guard (altavoz de tablet, Bluetooth). Si lo
         // captado repite lo que ella acaba de decir, se descarta sin responder.
@@ -2377,6 +2380,8 @@ export function useAuroraEngine(): AuroraEngine {
       if (interimText) setInterim(interimText);
       if (finalText) {
         setInterim("");
+        // Anti-eco del montaje de interrupción (mismo pacto que en el oído clásico).
+        try { montajeInterrupcionRef.current?.anotarEco(finalText); } catch { /* */ }
         if (esEcoPropio(finalText, Date.now())) return; // ANTI-ECO TARDÍO
         turnoVozPendiente = {
           origen: "voz",
