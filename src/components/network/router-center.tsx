@@ -319,8 +319,9 @@ export function RouterCenter({ neuronId }: { neuronId?: string }) {
       {/* Compatibilidad con OpenWrt (instalar firmware libre) */}
       <CompatibilidadOpenwrt />
 
-      {/* Routers de la malla (§8 del contrato SiO₂): añadir, compatibilidad, plan y guiones */}
-      <RoutersMallaPanel />
+      {/* Routers de la malla (§8 del contrato SiO₂): añadir, compatibilidad, plan y guiones.
+          Se pasa la tabla de hardware: si llega vacía, el panel responde «desconocido» + enlace. */}
+      <RoutersMallaPanel tabla={TABLA_HARDWARE} />
 
       {/* Controlador OpenWISP */}
       <div className="rounded-xl border border-white/10 bg-white/5 p-3">
