@@ -295,6 +295,36 @@ describe('crearSalas', () => {
       expect(salas.entrar(t2, a).ok).toBe(true);
       expect(salas.presencia(t1)).toBe(0);
       expect(salas.presencia(t2)).toBe(1);
+      });
     });
-  });
+
+    describe('casos adicionales', () => {
+      it('mínimo longitud 8', () => {
+        const salas = crearSalas();
+        const tema = 'estacion-vivo:ABCDEFGH';
+        const conn = {};
+        const res = salas.entrar(tema, conn);
+        expect(res.ok).toBe(true);
+      });
+      it('tema con espacio invalido', () => {
+        const salas = crearSalas();
+        const tema = 'estacion-vivo:ABC DEF';
+        const conn = {};
+        const res = salas.entrar(tema, conn);
+        expect(res.ok).toBe(false);
+        expect(res.motivo).toBe('Tema inválido');
+      });
+      it('maxSalas alcanzado pero libera al salir', () => {
+        const salas = crearSalas({ maxSalas: 1, maxPorSala: 2 });
+        const conn1 = {};
+        const conn2 = {};
+        const tema1 = 'estacion-vivo:SalaUno12';
+        const tema2 = 'estacion-vivo:SalaDos12';
+        expect(salas.entrar(tema1, conn1).ok).toBe(true);
+        expect(salas.entrar(tema2, conn2).ok).toBe(false);
+        salas.salir(conn1);
+        expect(salas.entrar(tema2, conn2).ok).toBe(true);
+      });
+    });
+
 });
