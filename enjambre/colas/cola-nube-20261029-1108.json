@@ -1,0 +1,69 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "RTCVV1028Mbs",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Contenido vivo · cortes y continuidad de la película · lo que faltó: src/lib/astraura-bots/__tests__/orbe-movimiento.test.ts",
+   "archivos": [
+    "src/lib/astraura-bots/__tests__/orbe-movimiento.test.ts"
+   ],
+   "prompt": "SEGUIMIENTO de RTCVV1028Mb, que ya está integrada (sha 7d35e9b31343). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/lib/astraura-bots/__tests__/orbe-movimiento.test.ts.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Rescate de pruebas · Contenido vivo · cortes y continuidad de la película\n\n--- encargo original, como contexto ---\nORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea CVV1028M («Contenido vivo · cortes y continuidad de la película») se hizo en main por otro camino; su rama nube/40800324768 queda archivada en `refs/archivo/nube/40800324768` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTCVV1028M · solo estos archivos: scripts/contenido_vivo/test_cortes.py, src/lib/astraura-bots/__tests__/orbe-movimiento.test.ts, src/lib/connectors/__tests__/registry-vivo.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# scripts/contenido_vivo/test_cortes.py\n    def test_movimiento_rapido_y_suave_pasa(self):\n        # SSIM baja pero estable: el movimiento es rápido, no hay cortes.\n        serie = [0.42, 0.39, 0.41, 0.38, 0.40, 0.37, 0.41, 0.39]\n        informe = juzgar_pares(serie)\n        self.assertTrue(informe[\"pasa\"], msg=informe)\n        self.assertEqual(informe[\"cortes\"], [])\n\n# scripts/contenido_vivo/test_cortes.py\n    def test_mas_de_dos_congelados_falla(self):\n        informe = juzgar_pares([0.999] * 6)\n        self.assertFalse(informe[\"pasa\"])\n        self.assertGreater(len(informe[\"congelados\"]), 2)\n\n# scripts/contenido_vivo/test_cortes.py\n    def test_corte_contra_mediana_del_clip(self):\n        informe = juzgar_pares([0.90, ",
+   "origen": "seguimiento de alcance parcial",
+   "rama_nube": "nube/40809969549",
+   "depende_de": []
+  },
+  {
+   "id": "PUB1029D",
+   "ola": "1029 · CI de producción en verde",
+   "depende": [],
+   "titulo": "Capas · el catálogo tiene 23 entradas desde LNN1028H (modelo de incrustaciones)",
+   "archivos": [
+    "src/lib/astraura/capas/__tests__/catalogo-colibri-json.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta (corre la prueba citada: si ya pasa, responde NO APLICA y no toques nada).\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de cadenas con forma de clave en código ni pruebas.\n\nContexto (2026-10-29): la autopublicación, parada desde el 25-10, ya pasa el detector de secretos y las 3.627 pruebas del puente, pero el CI de GitHub (run 40821862697, candidato c339920f7) falla en Vitest con 6 de 17.056 pruebas. Mientras haya una en rojo, nada se publica. Arregla la causa, no la prueba, salvo que la prueba sea la que quedó vieja (dilo en tu respuesta).\n\nFalla `catalogo-colibri-json.test.ts` («leerCatalogo lee las 9 y todas pasan el esquema»): espera 22 entradas en `config/capas-astraura.json` y hay 23. LNN1028Hb añadió a propósito la entrada «por-verificar» de `qwen3-embedding:0.6b` (contrato `architecture/leann-recuerdo-semantico.md` §2). Comprueba que la entrada nueva pasa el esquema de `EntradaCapa`; si lo pasa, la prueba es la que quedó vieja: pon 23 con un comentario fechado. Si no lo pasa, arregla la entrada (y añade este archivo de datos a la tarea)."
+  },
+  {
+   "id": "PUB1029E",
+   "ola": "1029 · CI de producción en verde",
+   "depende": [],
+   "titulo": "Guía de la red · las claves de demostración del catálogo vuelven a cuadrar con los pasos",
+   "archivos": [
+    "src/lib/onboarding/__tests__/guia-completa-catalogo.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta (corre la prueba citada: si ya pasa, responde NO APLICA y no toques nada).\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de cadenas con forma de clave en código ni pruebas.\n\nContexto (2026-10-29): la autopublicación, parada desde el 25-10, ya pasa el detector de secretos y las 3.627 pruebas del puente, pero el CI de GitHub (run 40821862697, candidato c339920f7) falla en Vitest con 6 de 17.056 pruebas. Mientras haya una en rojo, nada se publica. Arregla la causa, no la prueba, salvo que la prueba sea la que quedó vieja (dilo en tu respuesta).\n\nFalla `guia-completa-catalogo.test.ts` («guardia de huérfanas · ninguna demostración sin paso»): `CLAVES_DEMO_PASO` tiene 11 claves y los pasos tienen 21 (faltan, entre otras, «capas-conciencia», «genesis», «libreria-biblioteca», «malla», «neuronas-cerebro», «personalizacion-segura», «pilar-cultura», «pilar-educacion», «pilar-politica», «protomolecula»). Las partes GUI1021Gb-d1b, -d2 y -d3 del 28-10 tocaron la guía. Busca dónde se declaran `CLAVES_DEMO_PASO` y los componentes de demostración: cada paso con demo debe tener su clave y su componente (añade esos archivos a la tarea, como mucho 3 en total). Si una demo falta de verdad, que el paso no la pida; nunca una demostración sin paso."
+  },
+  {
+   "id": "PUB1029C",
+   "ola": "1029 · CI de producción en verde",
+   "depende": [],
+   "titulo": "Diseñador de olas · una dependencia en una parte «-dN» de una tarea de la cola es válida",
+   "archivos": [
+    "src/lib/mando/colas.ts",
+    "src/lib/mando/__tests__/colas-1025.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta (corre la prueba citada: si ya pasa, responde NO APLICA y no toques nada).\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de cadenas con forma de clave en código ni pruebas.\n\nContexto (2026-10-29): la autopublicación, parada desde el 25-10, ya pasa el detector de secretos y las 3.627 pruebas del puente, pero el CI de GitHub (run 40821862697, candidato c339920f7) falla en Vitest con 6 de 17.056 pruebas. Mientras haya una en rojo, nada se publica. Arregla la causa, no la prueba, salvo que la prueba sea la que quedó vieja (dilo en tu respuesta).\n\nFallan 3 de `src/lib/mando/__tests__/colas-1025.test.ts` («artcraft», «blender» e «investigacion» pasan el validador): «ART1025D: depende de «ART1025B-d3», que no está en la cola», «INV1025K: depende de «INV1025J-d2»…». El revisor de Bloqueadas divide una tarea en partes (`<ID>-d1`, `-d2`, `-d3`, `-d2b`…) y re-apunta las dependencias a la última parte; las partes viven en `progreso.json`, no en la cola. El validador del Diseñador de olas (`validarCola` en `src/lib/mando/colas.ts`; si la lógica vive en otro módulo que importa, usa ese validación que llama esta prueba) debe aceptar una dependencia `<ID>-d<n>[letra]` cuando `<ID>` está en la cola. Una dependencia a algo que no existe sigue siendo error. Prueba nueva para las dos cosas."
+  },
+  {
+   "id": "CNV1023C",
+   "ola": "1023C",
+   "titulo": "Escritorio · «Convertir a…» en el clic derecho de los iconos de archivo",
+   "archivos": [
+    "src/components/desktop/desktop-icon-menu.tsx",
+    "src/components/desktop/desktop-store.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): Filee (KnifeLemon/Filee, MIT, 255 formatos sin conexión) «para todo el OS y la Biblioteca, usado desde cualquier medio con clic derecho a cada archivo, pidiéndoselo a Astraura o en la Protomolécula». Contrato: `architecture/conversion-archivos.md` (léelo entero). Ya existe: `src/lib/conversion/` (formatos puros, `filee-servidor.ts` solo servidor, `cliente.ts`), `/api/conversion`, `src/components/conversion/` (`useConversionMenu` + `SubmenuConvertir` para cualquier menú de Radix, página `/convertir`). Nada sale de las neuronas de la persona; argumentos siempre en lista, nunca por shell.\n\nBusca el menú contextual de los iconos del escritorio (si el archivo tiene otro nombre, usa el que exista y dilo). Para iconos que apuntan a un archivo con URL, añade `SubmenuConvertir` (`useConversionMenu`); el resultado se descarga. Si no hay menú contextual de iconos, responde NO APLICA."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "PUB1029E",
+   "CNV1023C",
+   "RTCVV1028Mbs",
+   "PUB1029D",
+   "PUB1029C"
+  ]
+ }
+}
