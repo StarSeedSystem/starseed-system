@@ -66,6 +66,7 @@ import {
 } from "@/lib/imagenes/flujos-comfyui";
 import type { GaleriaImagenes, OpcionGaleria } from "./proveedor-neuronas";
 import type { CapaImg } from "@/lib/imagenes/plan";
+import type { CapacidadImg } from "@/lib/imagenes/modelos";
 import type { UsoLicencia } from "@/lib/avatares/adn/adn";
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -723,6 +724,8 @@ export interface GenerateImageOptions {
   comercial?: boolean;
   conReferencia?: boolean;
   permisoRemoto?: boolean;
+  /** Qué capacidades pide la petición (texto legible, edición, transparencia…) para el plan del proveedor «neuronas». */
+  necesita?: readonly CapacidadImg[];
   /** ComfyUI (imagen a imagen): nombre del archivo de entrada YA subido a /input del servidor (subirlo lo hace el cliente de flujos, IMG1020B). Con él, el flujo usa `imagenAImagen` en vez de `textoAImagen`. */
   imagenEntrada?: string;
   /** ComfyUI (imagen a imagen): cuánto reescribe el KSampler, de 0 a 1 (0,75 si no llega: revisa sin olvidar lo pedido). */
@@ -1222,6 +1225,7 @@ export async function generateImage(opts: GenerateImageOptions): Promise<MediaGe
         comercial: opts.comercial === true,
         conReferencia: opts.conReferencia === true,
         permisoRemoto: opts.permisoRemoto === true,
+        ...(opts.necesita?.length ? { necesita: opts.necesita } : {}),
         semillaBase:
           typeof opts.seed === "number" && Number.isFinite(opts.seed) ? Math.floor(opts.seed) : 1,
         viaWebGratis: async (semilla) => {

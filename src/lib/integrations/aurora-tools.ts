@@ -32,6 +32,8 @@ import { getIntegration, loadIntegrationConfig } from "./registry";
 import { runIntegration } from "./run";
 import { TOPE_CONTENIDO } from "../conectores-propios/trilium";
 import { resolveProvider, modeForCategory, type ProviderCategory } from "../../ai/astraura/provider-resolution";
+// Montura única de imágenes (IMG1011J): la entrada de la tool `generar_imagen` se vuelve petición.
+import { peticionDesdeHerramienta } from "@/components/imagenes";
 
 export interface AuroraIntegrationTool {
   /** Nombre que el modelo usa para invocar (snake_case, estable). */
@@ -1038,12 +1040,16 @@ export const AURORA_GENERATE_TOOLS: AuroraScreenTool[] = [
      integrationId: SCREEN_TOOL_INTEGRATION_ID,
      actionId: "generar_imagen",
      kind: "screen",
-     run: (input) =>
-       runServiceGeneration((m) =>
-         m.generarImagen(
-           pickInput(input, "prompt", "descripcion", "descripción", "texto", "text", "idea", "imagen"),
-         ),
-       ),
+      run: (input) =>
+        runServiceGeneration((m) =>
+          m.generarImagen(
+            // La montura única de imágenes (IMG1011J) convierte la entrada de la tool en petición
+            // (con opciones, necesidades y comercial para la galería «neuronas»); sin prompt válido,
+            // se cae al texto crudo como siempre.
+            peticionDesdeHerramienta(input) ??
+              pickInput(input, "prompt", "descripcion", "descripción", "texto", "text", "idea", "imagen"),
+          ),
+        ),
    },
   {
     name: "lanzar_workflow",

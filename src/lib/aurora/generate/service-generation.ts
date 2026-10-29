@@ -36,6 +36,9 @@ import type { ContentOutcome } from "@/lib/aurora/generate/content-actions";
 // failover). Ver src/ai/astraura/media/media-gen.ts + SOP
 // architecture/generacion-audiovisual-astraura.md.
 import { generateImage as generateImageFree } from "@/ai/astraura/media/media-gen";
+// La petición de la herramienta `generar_imagen` llega convertida por la montura única de imágenes
+// (IMG1011J); aquí solo se CONSUME (solo tipo: sin ciclo de módulos).
+import type { PeticionImagen } from "@/lib/imagenes/plan";
 
 // Re-exportamos el tipo para conveniencia de quien importe sólo este módulo.
 export type { ContentOutcome };
@@ -266,6 +269,11 @@ function extractImageFromResponse(data: unknown, rawText?: string): string | nul
  * generarImagen — resuelve la función de IMAGEN configurada y genera una imagen
  * a partir de un prompt, guardándola en la Biblioteca.
  *
+ * Acepta el texto del prompt O la petición de la herramienta `generar_imagen`
+ * convertida por `peticionDesdeHerramienta` (montura única de imágenes,
+ * IMG1011J): con ella, el número de opciones viaja a media-gen y activa la
+ * galería del proveedor «neuronas» (IMG1011B) para VARIAS opciones.
+ *
  * Enrutado (resolveServiceFor('image', scope)):
  *   • Fooocus-API (id `fooocus-api`): POST {endpoint}/v1/generation/text-to-image
  *     con { prompt, ... } (formato Fooocus-API, async_process:false).
@@ -284,7 +292,12 @@ export async function generarImagen(
   if (!isClient()) {
     return { ok: false, message: "La generación de imágenes se hace desde el navegador." };
   }
-  const p = toText(prompt).trim();
+  // La petición de la herramienta ({ prompt, opciones?, necesita?, referencia?, comercial? }) llega
+  // YA convertida por la montura única; un prompt crudo (string) la usa igual con sus defectos.
+  const peticion = prompt && typeof prompt === "object" && typeof (prompt as { prompt?: unknown }).prompt === "string"
+    ? (prompt as PeticionImagen & { prompt: string })
+    : null;
+  const p = (peticion ? peticion.prompt : toText(prompt)).trim();
   if (!p) {
     return { ok: false, message: "¿Qué imagen quieres que genere? Descríbemela." };
   }
@@ -305,16 +318,43 @@ export async function generarImagen(
   // Sin servicio propio conectado ⇒ GRATIS-PRIMERO: generamos con el motor
   // audiovisual gratis-primero (Pollinations por defecto), que funciona desde
   // la web SIN instalar nada, para cualquier cuenta. Ver media-gen.ts.
+  // Con la petición de la herramienta, varias opciones activan la galería por
+  // capas/neuronas (IMG1011B); la galería viaja en `data` por si la pantalla
+  // la monta con la tarjeta de opciones (montura única, IMG1011J).
   if (!hasUserConn || !endpoint) {
-    const free = await generateImageFree({ prompt: p });
+    const free = await generateImageFree({
+      prompt: p,
+      ...(peticion
+        ? {
+            opciones: peticion.opciones,
+            prioridad: peticion.prioridad,
+            comercial: peticion.comercial,
+            conReferencia: peticion.conReferencia,
+            necesita: peticion.necesita,
+          }
+        : {}),
+    });
+    const galeria = free.galeria ?? null;
+    const cuantas = galeria && galeria.ok ? galeria.opciones.filter((o) => o.url).length : 0;
     if (free.ok && free.url) {
       const saved = saveToLibrary({ kind: "image", title, url: free.url, origin: `Astraura · ${free.provider}` });
+      const prologo = cuantas > 1
+        ? `Generé ${cuantas} opciones con la malla de neuronas y, donde no respondió, la web gratis. La primera quedó guardada en tu Biblioteca.`
+        : saved.ok
+          ? `Generé la imagen con el motor gratis de la red (${free.provider}) y la guardé en tu Biblioteca.`
+          : `Generé la imagen (${free.provider}), pero no pude guardarla en la Biblioteca de este equipo.`;
       return {
         ok: true,
-        message: saved.ok
-          ? `Generé la imagen con el motor gratis de la red (${free.provider}) y la guardé en tu Biblioteca. Dime «abre la biblioteca» para verla. Para más calidad puedes conectar Stable Diffusion o Fooocus en /servicios, o elegir otro servicio en Habilidades → Generación audiovisual.`
-          : `Generé la imagen (${free.provider}), pero no pude guardarla en la Biblioteca de este equipo.`,
-        data: { id: saved.id || undefined, serviceId: free.provider, kind: "image", url: free.url },
+        message:
+          prologo +
+          ` Dime «abre la biblioteca» para verla. Para más calidad puedes conectar Stable Diffusion o Fooocus en /servicios, o elegir otro servicio en Habilidades → Generación audiovisual.`,
+        data: {
+          id: saved.id || undefined,
+          serviceId: free.provider,
+          kind: "image",
+          url: free.url,
+          ...(galeria ? { galeria, prompt: p } : {}),
+        },
       };
     }
     return {
