@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "TRD1020E",
+   "ola": "1020U",
+   "titulo": "Traducción · menú del clic derecho sobre textos, con registro de entradas compartido (Variaciones públicas)",
+   "archivos": [
+    "src/components/traduccion/menu-texto.tsx",
+    "src/components/traduccion/__tests__/menu-texto.test.tsx",
+    "src/app/(app)/app-globals.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Componente global (montado en `AppGlobals`, dentro de `SoloFueraDeConsola`): escucha `contextmenu`; si el evento ya viene atendido (`defaultPrevented`), si se pulsa Mayúsculas o si el objetivo es editable, no hace nada (manda el menú del navegador); sobre texto, abre un menú propio en el puntero. Exporta `registrarEntradaMenuTexto({id, etiqueta, visible(ctx), ejecutar(ctx)})` para que otras funciones (Traducir, Variaciones públicas) añadan entradas al MISMO menú; `ctx` lleva la selección, el bloque bajo el puntero y si la página está traducida. Accesible: `role=menu` y `menuitem`, flechas, Escape y clic fuera cierran, dianas de 44 px, cursor pointer, cristal líquido de la marca (como `src/components/protomolecula/panel-orbe.tsx`). Pruebas: abre sobre texto, no abre en campos ni con Mayúsculas, entradas registradas visibles, teclado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).",
+   "revisor_quitadas": [
+    "TRD1020D"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "TRD1020E"
+  ]
+ }
+}
