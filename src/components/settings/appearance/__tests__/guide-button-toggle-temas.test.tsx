@@ -62,6 +62,16 @@ describe("lista de temas", () => {
     });
   });
 
+  it("no abre la guía sola al montarse: solo al pulsar un tema (nunca un bucle)", () => {
+    const { peticiones, dejar } = escucharPeticiones();
+    try {
+      render(<ListaTemasGuia />);
+      expect(peticiones).toEqual([]);
+    } finally {
+      dejar();
+    }
+  });
+
   it("cada tema abre la guía en ese tema con desde ajustes", () => {
     const { peticiones, dejar } = escucharPeticiones();
     try {
