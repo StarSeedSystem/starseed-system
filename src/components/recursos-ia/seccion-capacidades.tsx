@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { BTN, BTN_PRIMARY, Empty, INPUT, LABEL, MONO, SUB } from "@/components/astraura/s158/shared";
 import { cn } from "@/lib/utils";
 import { cabeEn } from "@/lib/recursos-ia/compatibilidad";
+import { cuantizacionesPara, FUENTE_METODOS_HF, NOTA_BITNET, type DispositivoHF } from "@/lib/recursos-ia/cuantizacion-hf";
 import {
     CAPACIDADES,
     NOMBRE_CAPACIDAD,
@@ -66,6 +67,21 @@ function Eslabon({ etiqueta, valor, sub, icono: Icono }: { etiqueta: string; val
 
 function Flecha() {
     return <ArrowRight className="mx-auto h-3.5 w-3.5 shrink-0 rotate-90 text-white/35 sm:mx-0 sm:mt-3 sm:rotate-0" aria-hidden="true" />;
+}
+
+/** El procesador del inventario, traducido a las columnas de la tabla de cuantización de transformers. */
+function dispositivoDe(p: Procesador): DispositivoHF {
+    const a = p.aceleradores;
+    if (a.includes("cuda")) return "cuda";
+    if (a.includes("rocm")) return "rocm";
+    if (a.includes("metal") || a.includes("metal4")) return "metal";
+    if (/intel/i.test(p.nombre)) return "intel";
+    return "cpu";
+}
+
+/** Los métodos con soporte en ese procesador, ya ordenados (antes «ok» que «parcial»). */
+function metodosPara(p: Procesador) {
+    return cuantizacionesPara(dispositivoDe(p));
 }
 
 export function ListaMotivos({ motivos }: { motivos: Motivo[] }) {
@@ -176,6 +192,9 @@ function FilaCapacidad({
     const IconoA = ICONO_ALMACEN[s.almacen.tipo];
     const esFijada = !!fijada?.modeloId && fijada.modeloId === s.modelo.id && fijada.procesaEn === s.procesador.id && fijada.almacenEn === s.almacen.id;
     const tokS = s.compat.tokSEstimado;
+    // BitNet y Ternary Bonsai (1.58-bit) ya vienen cuantizados de fábrica: la tabla no les aplica.
+    const esTernario = s.modelo.bits === 1.58;
+    const metodos = esTernario ? [] : metodosPara(s.procesador).slice(0, 3);
     return (
         <li data-testid={`fila-capacidad-${s.capacidad}`} className={cn(SUB, "flex flex-col gap-2 p-3")}>
             <div className="flex flex-wrap items-center gap-2">
@@ -218,6 +237,23 @@ function FilaCapacidad({
                 <Flecha />
                 <Eslabon etiqueta="Almacén" valor={s.almacen.etiqueta} sub={`${fmtLibre(s.almacen)} · ${nombreVia(s.via)}`} icono={IconoA} />
             </div>
+
+            {esTernario ? (
+                <p className="text-[11px] leading-snug text-white/70" data-testid={`cuantizacion-${s.capacidad}`}>
+                    {NOTA_BITNET}
+                </p>
+            ) : (
+                metodos.length > 0 && (
+                    <p
+                        className="text-[11px] leading-snug text-white/70"
+                        title={FUENTE_METODOS_HF}
+                        data-testid={`cuantizacion-${s.capacidad}`}
+                    >
+                        Cuantización sugerida para {s.procesador.nombre}:{" "}
+                        <span className={MONO}>{metodos.map((m) => m.nombre).join(" · ")}</span>
+                    </p>
+                )
+            )}
 
             {s.porQue.length > 0 && (
                 <ul className="grid gap-x-6 gap-y-0.5 text-[11px] leading-snug text-white/70 lg:grid-cols-2">
