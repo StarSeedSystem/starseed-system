@@ -1,7 +1,7 @@
 'use client';
 // Panel «Retícula» de la pestaña Señales: estado vítreo, temperatura media, puentes por coste
 // y coordinación de cada neurona. Sin efectos: recibe el estado() del motor (MC1012Q).
-import { Flame, Droplets, Snowflake, Hexagon } from 'lucide-react';
+import { Flame, Droplets, Snowflake, Hexagon, Router } from 'lucide-react';
 import type { Cristal, EstadoVitreo, Medio, Reticula } from '@/lib/malla/cristal/tipos';
 import { coordinacionDe } from '@/lib/malla/cristal/tipos';
 import { esTitanio, coordinacionTitanio } from '@/lib/malla/cristal/titanio';
@@ -47,12 +47,16 @@ function filasPuente(e: EstadoReticula): FilaPuente[] {
     calidadPct: calidadDe(p.a, p.b, p.medio), coste: p.coste,
   })).sort((x, y) => x.coste - y.coste);
 }
-function filasCoord(e: EstadoReticula): Array<{ id: string; n: number; max: number }> {
+function filasCoord(e: EstadoReticula): Array<{ id: string; n: number; max: number; esTi: boolean }> {
   return Object.values(e.reticula.teselas).map((t) => ({
     id: t.neurona.id,
     n: e.cristal.coordinacion[t.neurona.id] ?? 0,
     max: esTitanio(t.neurona) ? coordinacionTitanio(t.neurona) : coordinacionDe(t.neurona),
+    esTi: esTitanio(t.neurona),
   }));
+}
+function textoCuentaTitanios(n: number): string {
+  return n === 1 ? '1 titanio' : `${n} titanios`;
 }
 
 export function PanelReticula({ estado }: { estado: EstadoReticula }) {
