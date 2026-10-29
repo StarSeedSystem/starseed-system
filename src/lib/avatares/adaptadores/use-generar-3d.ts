@@ -59,13 +59,15 @@ export function prepararGeneracion(c: Contexto3D, deps: Pick<Dependencias3D, "ta
   const base = { partida: "imagen" as const, esqueleto, region: c.region, comercial: c.comercial, permitirDePago: false, prioridad: optimizacion.prioridad, cerrada: optimizacion.cerrada };
   const local = planificar({ ...base, capacidades: caps }), ml = motorGenerar(local);
   // Sin taller no corre un generador local: el plan remoto genera solo con lo remoto (si no, lo local va primero y tapa al Space).
-  const remoto = planificar({ ...base, capacidades: [...caps, "espacio-hf"] }, ml && !deps.taller ? MOTORES_3D.filter((m) => m.etapa !== "generar" || m.remoto) : MOTORES_3D), mr = motorGenerar(remoto);
+  const tienePermiso = c.hierro?.permiteEspacioHf ?? true;
+  const remoto = planificar({ ...base, capacidades: tienePermiso ? [...caps, "espacio-hf"] : caps }, ml && !deps.taller ? MOTORES_3D.filter((m) => m.etapa !== "generar" || m.remoto) : MOTORES_3D), mr = motorGenerar(remoto);
   // A las demás se les pregunta por GENERAR (sin esqueleto): animar ocurre en el navegador de quien mira, y el reparto planifica sin «navegador».
   const neurona = c.neuronas ? `Para generar la malla: ${elegirNeurona({ destino: c.destino, partida: "imagen", esqueleto: "ninguno", region: c.region, comercial: c.comercial, cuenta: c.cuenta, grupos: c.grupos }, c.neuronas).motivo}`
     : "Qué otra neurona podría generarla: aquí no se leyó el registro de neuronas de MetaGenesis, así que no se puede decir.";
   if (ml && deps.taller) return { optimizacion, plan: local, via: "local", motivo: `Se genera en esta neurona con ${ml.nombre}.`, neurona };
   const porQue = ml ? `Esta neurona podría generar con ${ml.nombre}, pero su taller local (servicios/taller-3d) aún no está instalado aquí.` : "Esta neurona no puede generar en local (ver los motivos de la etapa «generar»).";
-  if (mr?.remoto && deps.espacio) return { optimizacion, plan: remoto, via: "remota", motivo: `${porQue} Solo queda ${mr.nombre}: tu imagen saldría de este aparato.`, neurona };
+  if (mr?.remoto && deps.espacio && tienePermiso) return { optimizacion, plan: remoto, via: "remota", motivo: `${porQue} Solo queda ${mr.nombre}: tu imagen saldría de este aparato.`, neurona };
+  if (!tienePermiso && mr?.remoto && deps.espacio) return { optimizacion, plan: local, via: "ninguna", motivo: "Las versiones públicas (Spaces de Hugging Face) están apagadas en los ajustes.", neurona };
   return { optimizacion, plan: local, via: "ninguna", motivo: `${porQue} Tampoco hay respaldo remoto disponible.`, neurona };
 }
 
