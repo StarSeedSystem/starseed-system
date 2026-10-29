@@ -49,3 +49,82 @@ describe("servicio hyperframes · peticiones de vídeo (ramas de la nube)", () =
     expect((r.cuerpo as { error: string }).error).toContain("cola llena");
   });
 });
+
+/* ── HFR1018I · manejador PURO de `capacidad.video.render` (video-por-malla.ts) ── */
+
+import {
+  esRecursoPrivado,
+  extraerUrls,
+  videoRenderPorMalla,
+  type ContextoNeuronaVideo,
+} from "@/lib/network/video-por-malla";
+
+const SIN_GSAP = '<div><style>@keyframes a{0%{opacity:0}}</style><img src="https://cdn.example.org/f.png"></img></div>';
+const CON_GSAP_EDITABLE = "<div><script>import { gsap } from 'gsap'; gsap.to('.a', { x: 1 });</script></div>";
+
+const ctx = (sobre: Partial<ContextoNeuronaVideo> = {}): ContextoNeuronaVideo => ({
+  cuentaLocal: "cuenta-local",
+  grupoCompartido: "sala-7",
+  encolar: () => "t-1",
+  ...sobre,
+});
+const pide = (sobre: Partial<Parameters<typeof videoRenderPorMalla>[0]> = {}) =>
+  ({ cuenta: "cuenta-local", composicion: SIN_GSAP, ...sobre });
+
+describe("manejador capacidad.video.render (HFR1018I)", () => {
+  it("misma cuenta: se valida y se encola con id de trabajo", () => {
+    const encolados: unknown[] = [];
+    const r = videoRenderPorMalla(pide({ formato: "webm" }), ctx({ encolar: (t) => (encolados.push(t), "htr-9") }));
+    expect(r).toMatchObject({ aceptado: true, trabajoId: "htr-9" });
+    expect(encolados[0]).toMatchObject({ formato: "webm", editar: false });
+  });
+
+  it("cuenta ajena sin grupo ⇒ rechazo legible; grupo compartido ⇒ admitida", () => {
+    const fuera = videoRenderPorMalla(pide({ cuenta: "otra" }), ctx());
+    expect(fuera).toMatchObject({ aceptado: false });
+    expect(fuera.motivo).toContain("grupo con permiso");
+    const conGrupo = videoRenderPorMalla(pide({ cuenta: "otra", grupo: "sala-7" }), ctx());
+    expect(conGrupo.aceptado).toBe(true);
+    const grupoAjeno = videoRenderPorMalla(pide({ cuenta: "otra", grupo: "sala-99" }), ctx());
+    expect(grupoAjeno).toMatchObject({ aceptado: false, motivo: expect.stringContaining("grupo con permiso") });
+  });
+
+  it("sin composición ⇒ rechazo legible sin encolar", () => {
+    const encolar = vi.fn(() => "t");
+    const r = videoRenderPorMalla(pide({ composicion: "" }), ctx({ encolar }));
+    expect(r).toMatchObject({ aceptado: false, motivo: expect.stringContaining("composición") });
+    expect(encolar).not.toHaveBeenCalled();
+  });
+
+  it("GSAP: render (sin editar) pasa; editar por el OS se rechaza por licencia", () => {
+    const sinEditar = videoRenderPorMalla(pide({ composicion: CON_GSAP_EDITABLE }), ctx());
+    expect(sinEditar).toMatchObject({ aceptado: true, trabajoId: "t-1" });
+    const r = videoRenderPorMalla(pide({ composicion: CON_GSAP_EDITABLE, editar: true }), ctx());
+    expect(r).toMatchObject({ aceptado: false });
+    expect(r.motivo).toContain("GSAP");
+  });
+
+  it("recurso remoto privado ajeno ⇒ rechazo y sin su valor en el mensaje; el propio pasa", () => {
+    expect(esRecursoPrivado("http://localhost:4490/x")).toBe(true);
+    expect(esRecursoPrivado("http://10.0.0.3/v.png")).toBe(true);
+    expect(esRecursoPrivado("https://cdn.example.org/f.png")).toBe(false);
+    expect(extraerUrls(SIN_GSAP)).toEqual(["https://cdn.example.org/f.png"]);
+    const ajeno = videoRenderPorMalla(
+      pide({ composicion: '<img src="http://192.168.1.7:4490/toma.mp4">' }), ctx());
+    expect(ajeno).toMatchObject({ aceptado: false });
+    expect(ajeno.motivo).not.toContain("192.168");
+    const propio = videoRenderPorMalla(
+      pide({ composicion: '<img src="http://10.0.0.2:4490/v.mp4">' }),
+      ctx({ recursosPrivadosPropios: ["10.0.0.2"] }),
+    );
+    expect(propio).toMatchObject({ aceptado: true, trabajoId: "t-1" });
+  });
+
+  it("formato desconocido ⇒ «mp4»; cola que falla ⇒ rechazo legible sin lanzar", () => {
+    const r = videoRenderPorMalla(pide({ formato: "avi" }), ctx());
+    expect(r.aceptado).toBe(true);
+    const fallo = videoRenderPorMalla(pide(), ctx({ encolar: () => { throw new Error("cola llena"); } }));
+    expect(fallo).toMatchObject({ aceptado: false });
+    expect((fallo as { aceptado: false; motivo: string }).motivo).toContain("cola llena");
+  });
+});
