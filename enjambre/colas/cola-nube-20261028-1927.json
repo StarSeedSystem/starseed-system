@@ -1,0 +1,81 @@
+{
+ "ola": "nube-20261028",
+ "tareas": [
+  {
+   "id": "PG1013I",
+   "ola": "Ola 1013P · ProtoGenesis: la génesis multiagéntica de cada molécula (Genesis · PoliGenesis · MetaGenesis)",
+   "titulo": "ProtoGenesis: que se encuentre en Mi Genesis y en PoliGenesis",
+   "archivos": [
+    "src/components/genesis/mi-genesis.tsx",
+    "src/components/genesis/poligenesis.tsx",
+    "src/components/genesis/__tests__/protogenesis-seccion.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "NOTA (Ola 1026P, 2026-10-26 · revisión de Claude): el gobierno de la Protomolécula de grupos, comunidades y páginas YA existe como componentes: `SeccionGobiernoProto` y `GobiernoProtoResumen` (`src/components/protomolecula/gobierno/index.ts`), montado en `/grupo/[slug]` → «Gobernanza». En PoliGenesis, la sección de ProtoGenesis ENLAZA o MONTA `GobiernoProtoResumen` del grupo (con su `contexto`), sin duplicar reglas, permisos ni decisiones.\n\nReglas: como mucho 120 líneas nuevas por archivo; módulos puros sin `node:*`, Supabase ni `window` salvo que la tarea diga lo contrario; nada de `any`; comentarios en español; pruebas vitest (NODE_ENV=test); no toques archivos fuera de la lista; si necesitas un tipo que no existe en el módulo que se cita, PARA y dilo (no inventes un archivo con el mismo nombre). Contrato: architecture/protogenesis.md (léelo entero) y architecture/protomolecula.md §3, §7 y §8. Tipos de la Protomolécula SIEMPRE de src/lib/protomolecula/tipos.ts (Molecula, Ambito, Operacion, Cambio, EstadoValores, Computo, ReferenciaEntidad). Cambios mínimos: en Mi Genesis una sección «ProtoGenesis de mis moléculas» con los encargos guardados (cargarEncargos) y un acceso a abrir `PanelProtoGenesis` de cada uno (ámbito personal, esDueno true); en PoliGenesis la misma sección para las moléculas de la entidad (ámbito 'grupo', con el rol y el modo de gobierno que ese archivo ya conoce). Explica en una línea qué es: «La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final». Prueba jsdom de que las dos secciones aparecen.",
+   "dependencias_ya_en_main": [
+    "PG1013H",
+    "PG1013G"
+   ]
+  },
+  {
+   "id": "IMN1021K3",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar textos en colas, director y entornos de Genesis",
+   "archivos": [
+    "src/lib/mando/colas.ts",
+    "src/lib/mando/director-datos.ts",
+    "src/lib/mando/entornos.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Cambia SOLO textos y comentarios: «Los sueños profundos corren en la Mac» → «La imaginación profunda corre en la Mac», «Sueño profundo» → «Imaginación profunda», «Dream diario 07:00» → «Imaginación diaria (07:00 o según su horario)». Nada de identificadores (`suenos.py`, `tipo: \"analisis\"`). Si una prueba comprobaba el texto viejo, cámbiala solo en eso (añade su archivo de prueba solo si hace falta y no pasa de 3 archivos en total). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa)."
+  },
+  {
+   "id": "IMN1021K4",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar comentarios en ramificación, tipos y grafo",
+   "archivos": [
+    "src/lib/mando/ramificacion.ts",
+    "src/lib/mando/tipos.ts",
+    "src/lib/mando/grafo-disposicion.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Solo comentarios: «sueño(s) profundo(s)» → «imaginación profunda». Nada de código. tsc y las pruebas de estos módulos en verde. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa)."
+  },
+  {
+   "id": "IMN1021K7",
+   "ola": "1021I",
+   "titulo": "Imaginación · los mensajes de la imaginación profunda dicen «Imaginación»",
+   "archivos": [
+    "scripts/puente/director_suenos.py",
+    "scripts/puente/test_director_suenos.py",
+    "scripts/puente/suenos.py"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Cambia SOLO los textos que leen personas (resumen, informe, canal, Telegram, ayuda): «Sueños profundos» → «Imaginación profunda», «sueño» → «sesión de imaginación». Los nombres de archivos, comandos, carpetas (`dream/profundo`) y el prefijo `cola-suenos-` NO cambian. Ajusta las pruebas solo en esos textos. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa)."
+  },
+  {
+   "id": "GUI1021M2",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · avisos de sesión del hub XR, la red y el estudio de diseño",
+   "archivos": [
+    "src/components/xr/xr-network-hub.tsx",
+    "src/components/mesh/network-feed.tsx",
+    "src/components/estudio/DesignStudio.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Sustituye SOLO los bloques visibles que dicen «Inicia sesión para…» (no los errores ni los toasts de «de nuevo») por `<AvisoSesion texto=\"…\" />` de `src/components/auth/aviso-sesion.tsx`, conservando el mismo texto de cada sitio. Nada más cambia. Si un archivo tiene prueba que comprobaba el texto exacto, sigue pasando porque el texto es el mismo. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.",
+   "dependencias_ya_en_main": [
+    "GUI1021L"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "GUI1021M2",
+   "IMN1021K4",
+   "IMN1021K3",
+   "PG1013I",
+   "IMN1021K7"
+  ]
+ }
+}
