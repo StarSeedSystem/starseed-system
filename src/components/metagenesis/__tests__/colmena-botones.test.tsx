@@ -121,6 +121,46 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         expect(android.instalar.explica).toBe("En Android, dentro de Termux (experimental, 1 agente).");
     });
 
+    it("sin trabajador: macOS y Windows también ofrecen instalarlo, cada uno con su explicación", () => {
+        const macos = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        expect(macos.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "Un comando en la terminal de este aparato.",
+        });
+        const windows = botonesNeurona({ nodo: null, vivo: true, so: "windows", enCurso: 0 });
+        expect(windows.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "En Windows se instala dentro de WSL2.",
+        });
+    });
+
+    it("sin trabajador: iOS y un sistema desconocido no ofrecen instalar nada", () => {
+        for (const so of ["ios", "otro"] as const) {
+            const b = botonesNeurona({ nodo: null, vivo: true, so, enCurso: 0 });
+            expect(b.instalar).toMatchObject({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+        }
+    });
+
+    it("sin nodo (solo navegador) no hay botones de desconectar ni de contenedor", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        expect(b.desconectar).toMatchObject({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+        expect(b.contenedor).toMatchObject({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+    });
+
+    it("con el relevo activo y el nodo desconectándose, muestra el estado y no deja volver a pulsar", () => {
+        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1, desconectando: true, relevoActivo: true });
+        expect(b.desconectar).toMatchObject({
+            visible: true,
+            habilitado: false,
+            etiqueta: "Desconectando…",
+            explica: "Guarda el trabajo a medias y lo pasa a otro contenedor.",
+        });
+    });
+
     it("con trabajo en curso y contenedor activo, ambos botones requieren confirmación", () => {
         const b = botonesNeurona({ 
             nodo: "mac-a1b2c3", 
