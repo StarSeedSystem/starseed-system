@@ -52,6 +52,12 @@ describe("reglas de correo como datos", () => {
     }
   });
 
+  it("la acción es un identificador exacto: vacía o con espacios no vale", () => {
+    for (const mala of ["", "etiquetar ", " etiquetar", "etiquetar\t"]) {
+      expect(validarRegla(regla({ id: "r", hacer: mala as ReglaCorreo["hacer"] })), JSON.stringify(mala)).toBeNull();
+    }
+  });
+
   it("acepta una regla bien formada", () => {
     const r = regla({ id: "r1", hacer: "etiquetar", parametro: "alcance" });
     expect(validarRegla(r)).toEqual(r);
