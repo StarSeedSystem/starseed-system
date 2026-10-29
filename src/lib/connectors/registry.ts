@@ -653,6 +653,41 @@ export const BUILTIN_CONNECTORS: Connector[] = [
     docsUrl: "https://docs.archivebox.io",
     configHint: "URL de tu instancia (envío a archive.org apagado)",
   },
+
+  /* ═════════════ Adenda CVV1028 · J · contenido vivo (2026-10-29) ════════════
+   * Dos conectores externos OPCIONALES para las escenas 3D y la imagen/vídeo
+   * del contenido vivo. Ninguno se activa solo y ninguno guarda claves aquí:
+   * el id `higgsfield` reutiliza el preset de src/lib/brains/adapters.ts. */
+  {
+    id: "spline",
+    name: "Spline (escenas 3D)",
+    category: "dev",
+    kind: "free",
+    authType: "oauth",
+    status: "needs-auth",
+    free: true,
+    recommended: false,
+    icon: "Boxes",
+    description:
+      "Opcional: conecta tu cuenta de Spline para crear y remezclar escenas 3D desde el OS por su MCP HTTP. El plan Pro da 200 llamadas al día (se reinician a las 00:00 UTC) y una escena propia gasta unas 6 a 10. Las escenas ajenas no se editan: solo se embeben o remezclan con crédito al autor.",
+    docsUrl: "https://spline.design",
+    configHint: "https://mcp.spline.design/mcp · inicio de sesión con tu cuenta Spline",
+  },
+  {
+    id: "higgsfield",
+    name: "Higgsfield (imagen y vídeo)",
+    category: "custom",
+    kind: "paid",
+    authType: "apiKey",
+    status: "needs-auth",
+    free: false,
+    recommended: false,
+    icon: "Clapperboard",
+    description:
+      "Opcional: genera fotos y clips fotorrealistas con tu cuenta de Higgsfield. La clave va SOLO a la bóveda, nunca al código ni a esta ficha. Reutiliza el adaptador del cerebro «higgsfield» (preset de src/lib/brains/adapters.ts) en vez de duplicarlo. Nunca gasta créditos sin cotización y sin un sí.",
+    docsUrl: "https://higgsfield.ai",
+    configHint: "Clave en la bóveda · preset «higgsfield» de src/lib/brains/adapters.ts",
+  },
 ];
 
 /** Lookup rápido por id (para no recorrer el array en cada acceso). */
