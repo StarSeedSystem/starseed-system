@@ -5,7 +5,7 @@ import type { Controlador, EstadoControl } from "./controlador";
 import { candidatosDe } from "./registro-atomos";
 import { claveDe, describirCambio, formatearValor, normalizar, valorActual } from "./parametros";
 import { metricaDeFuente } from "./permisos";
-import { PROTO_ORB_ABRIR_EVENT, leerActivada } from "./orbe-bus";
+import { PROTO_ORB_ABRIR_EVENT, leerActivada, fijarOrbeActivada, alternarOrbe, PROTO_ORB_CERRAR_EVENT } from "./orbe-bus";
 import { METRICAS_SALUD, type Accion, type Autor, type CandidatoParametro, type ModoRelativo, type Parametro } from "./tipos";
 import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memoria";
 import { etiquetaFormato, formatoDe } from "@/lib/conversion/formatos";
@@ -14,11 +14,12 @@ import { componerVideo, DURACION_DEFECTO, type EntradaPedido } from "@/lib/video
 export interface ResultadoAccionProto { ok: boolean; message: string; status?: string; datos?: Record<string, unknown> }
 /** `avisarOrbe` devuelve `true` solo si la orbe atendió el aviso; `actor` por defecto: el agente personal. */
 export interface ContextoAccionProto { abrirRuta?: (ruta: string) => void; avisarOrbe?: (moleculaId?: string) => boolean;
-  actor?: ActorMemoria; ahora?: () => number; nuevoId?: () => string }
+  actor?: ActorMemoria; ahora?: () => number; nuevoId?: () => string; fijarOrbe?: (activada: boolean) => boolean;
+  alternarOrbe?: () => boolean; cerrarOrbe?: () => void }
 export const TOPE_LINEAS_ESTADO = 40, TOPE_BYTES_ESTADO = 4096;
 export const MENSAJE_PROPONER_CODIGO = "próximamente: las propuestas de código llegan con la fase F7; hoy no se ejecuta ni se guarda nada.";
 const PENDIENTE = "queda pendiente de que la persona la confirme en el panel", SALUD = new Set<string>(METRICAS_SALUD);
-const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir", "pedir", "video.componer"];
+const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir", "pedir", "video.componer", "activar", "desactivar", "alternar", "cerrar"];
 const MODOS: ModoRelativo[] = ["delta", "porcentaje-valor", "porcentaje-rango", "pasos"];
 let secuencia = 0;
 const texto = (v: unknown): string => (typeof v === "string" ? v.trim() : ""), num = (n: number): string => String(n).replace(".", ",");
@@ -116,8 +117,46 @@ export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: C
   if (!ACCIONES.includes(accion)) return no(`No conozco la acción «${accion}». Usa: ${ACCIONES.join(", ")}.`);
   if (accion === "convertir") return convertir(ctx, args);
   if (accion === "video.componer") return componer(args);
+  if (accion === "activar") {
+    const fijar = ctx.fijarOrbe ?? fijarOrbeActivada;
+    try { fijar(true); } catch { /* defensivo */ }
+    return si("Activé la orbe de la Protomolécula en todas tus neuronas.");
+  }
+  if (accion === "desactivar") {
+    const fijar = ctx.fijarOrbe ?? fijarOrbeActivada;
+    try { fijar(false); } catch { /* defensivo */ }
+    return si("Desactivé la orbe de la Protomolécula en todas tus neuronas.");
+  }
+  if (accion === "alternar") {
+    const alternar = ctx.alternarOrbe ?? alternarOrbe;
+    try { alternar(); } catch { /* defensivo */ }
+    return si("Cambié el estado de la orbe de la Protomolécula.");
+  }
+  if (accion === "cerrar") {
+    const cerrar = ctx.cerrarOrbe;
+    if (cerrar) {
+      try { cerrar(); } catch { /* defensivo */ }
+    } else {
+      try {
+        if (typeof window !== "undefined" && typeof CustomEvent !== "undefined") {
+          window.dispatchEvent(new CustomEvent(PROTO_ORB_CERRAR_EVENT));
+        }
+      } catch { /* defensivo */ }
+    }
+    return si("Cerré el panel de la Protomolécula.");
+  }
   const c = controladorActivo(moleculaId);
-  if (accion === "abrir" && !herramienta) { const a = abrir(ctx, moleculaId); return { ok: a.ok, message: a.texto, status: "Abriendo la Protomolécula…" }; }
+  if (accion === "abrir" && !herramienta) {
+    try {
+      const fijar = ctx.fijarOrbe ?? fijarOrbeActivada;
+      const leida = leerActivada(typeof window !== "undefined" ? window.localStorage : ({ getItem: () => null } as any));
+      if (!leida) {
+        try { fijar(true); } catch { /* defensivo */ }
+      }
+    } catch { /* defensivo */ }
+    const a = abrir(ctx, moleculaId);
+    return { ok: a.ok, message: a.texto, status: "Abriendo la Protomolécula…" };
+  }
   if (!c) return no(`Abre una molécula primero. ${abrir(ctx, moleculaId).texto}`);
   const m = c.obtener().molecula;
   if (!alcanceVisiblePara(ctx.actor ?? { tipo: "agente-personal" }).includes(m.ambito)) return no(`Esta molécula es de ámbito «${m.ambito}» y este agente no lo alcanza.`);
