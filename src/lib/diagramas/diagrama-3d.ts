@@ -38,7 +38,7 @@ function textosDeSvg(svg: string): Texto[] {
 export function estructuraDeSvg(svg: string): EstructuraSvg {
   const vb = atributos((svg.match(/<svg\b([^>]*)>/i) || [])[1] || "")["viewbox"] || "";
   const numsVb = vb.split(/[\s,]+/).map(Number), ancho = numsVb[2] || 1000, alto = numsVb[3] || 600;
-  const nodos: NodoSvg[] = [], aristas: AristaSvg[] = [], pila: (string | null)[] = [], ordenCapas: string[] = [];
+  const nodos: NodoSvg[] = [], tramos: { id: string; inicio: [number, number]; fin: [number, number] }[] = [], pila: (string | null)[] = [], ordenCapas: string[] = [];
   const capaActual = () => { for (let i = pila.length - 1; i >= 0; i--) if (pila[i]) return pila[i]; return null; };
   const re = /<(\/?)(g|rect|circle|path|line)\b([^>]*?)(\/?)>/gi; let m: RegExpExecArray | null;
   while ((m = re.exec(svg)) !== null) {
@@ -63,10 +63,11 @@ export function estructuraDeSvg(svg: string): EstructuraSvg {
       ? { inicio: [numero(attrs.x1), numero(attrs.y1)] as [number, number], fin: [numero(attrs.x2), numero(attrs.y2)] as [number, number] }
       : extremosPath(attrs.d || "");
     if (!extremos) continue;
-    const buscar = (p: [number, number]) => nodos.find((n) => p[0] >= n.x - 8 && p[0] <= n.x + n.ancho + 8 && p[1] >= n.y - 8 && p[1] <= n.y + n.alto + 8)?.id ?? null;
-    aristas.push({ id: attrs.id || `arista-${aristas.length + 1}`, desde: buscar(extremos.inicio), hasta: buscar(extremos.fin), etiqueta: "" });
+    tramos.push({ id: attrs.id || `arista-${tramos.length + 1}`, inicio: extremos.inicio, fin: extremos.fin });
   }
   agruparTextos(nodos, textosDeSvg(svg));
+  const buscar = (p: [number, number]) => nodos.find((n) => p[0] >= n.x - 8 && p[0] <= n.x + n.ancho + 8 && p[1] >= n.y - 8 && p[1] <= n.y + n.alto + 8)?.id ?? null;
+  const aristas: AristaSvg[] = tramos.map((t) => ({ id: t.id, desde: buscar(t.inicio), hasta: buscar(t.fin), etiqueta: "" }));
   return { nodos, aristas, capas: deducirCapas(nodos, ordenCapas, ancho), ancho, alto };
 }
 function agruparTextos(nodos: NodoSvg[], textos: Texto[]): void {

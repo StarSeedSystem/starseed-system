@@ -2,13 +2,16 @@
 
 /**
  * Diagrama 3D y XR: pinta la escena pura de `diagrama-3d.ts` con React-Three-Fiber.
- * Vive dentro de `escena-compartida` (no abre un canvas propio) y se ve igual en
- * pantalla, VR y AR. Basado en la skill MIT diagram-design.
+ * Abre su propio lienzo para la vista de diagrama (3D/XR) y comparte la escena con
+ * `escena-compartida`; se ve igual en pantalla, VR y AR. Basado en la skill MIT
+ * diagram-design (vendor/habilidades/diagram-design/), citada en architecture/diagramas.md §3-4.
  */
 
 import { useEffect, useMemo } from "react";
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import type { Arista3d, Nodo3d, TipoDiagrama3d } from "@/lib/diagramas/diagrama-3d";
+import type { Arista3d, Escena3d, Nodo3d, TipoDiagrama3d } from "@/lib/diagramas/diagrama-3d";
 import { escena3d, estructuraDeSvg } from "@/lib/diagramas/diagrama-3d";
 import { crearTexturaTexto } from "./texturas";
 
@@ -18,6 +21,10 @@ export interface PropsDiagrama3D {
   /** Escala global de la pieza dentro de la escena. */
   escala?: number;
   onSeleccionar?: (id: string) => void;
+  /** Alto de la vista cuando el componente abre su propio lienzo. */
+  alto?: number;
+  /** Nombre accesible de la figura. */
+  etiqueta?: string;
 }
 
 function Etiqueta({ nodo }: { nodo: Nodo3d }) {
@@ -75,8 +82,7 @@ function Caja({ nodo, onSeleccionar }: { nodo: Nodo3d; onSeleccionar?: (id: stri
   );
 }
 
-export function Diagrama3D({ svg, tipo = "capas", escala = 1, onSeleccionar }: PropsDiagrama3D) {
-  const escena = useMemo(() => escena3d(estructuraDeSvg(svg), tipo), [svg, tipo]);
+function Contenido({ escena, escala, onSeleccionar }: { escena: Escena3d; escala: number; onSeleccionar?: (id: string) => void }) {
   return (
     <group scale={escala}>
       <Aristas aristas={escena.aristas} />
@@ -95,3 +101,31 @@ export function Diagrama3D({ svg, tipo = "capas", escala = 1, onSeleccionar }: P
     </group>
   );
 }
+
+export function Diagrama3D({ svg, tipo = "capas", escala = 1, onSeleccionar, alto = 420, etiqueta = "Diagrama en 3D" }: PropsDiagrama3D) {
+  const escena = useMemo(() => escena3d(estructuraDeSvg(svg), tipo), [svg, tipo]);
+  if (!escena.nodos.length) {
+    return (
+      <div role="status" style={{ height: alto }} className="grid place-items-center rounded-2xl border border-white/10 bg-[#0b0d18] px-6 text-center text-[12.5px] text-white/60">
+        Este diagrama no tiene nodos que llevar al espacio.
+      </div>
+    );
+  }
+  return (
+    <figure aria-label={etiqueta} className="relative m-0 overflow-hidden rounded-2xl border border-white/10" style={{ height: alto }}>
+      <Canvas dpr={[1, 2]} camera={{ position: escena.camara, fov: 45 }}>
+        <color attach="background" args={["#0b0d18"]} />
+        <ambientLight intensity={0.85} />
+        <directionalLight position={[8, 12, 6]} intensity={1.5} />
+        <pointLight position={[-8, -4, -6]} intensity={0.45} color="#00F0FF" />
+        <Contenido escena={escena} escala={escala} onSeleccionar={onSeleccionar} />
+        <OrbitControls makeDefault enableDamping dampingFactor={0.08} />
+      </Canvas>
+      <figcaption className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-[11px] text-white/65">
+        Arrastra para girar · rueda o pellizca para recorrer · {escena.tipo}
+      </figcaption>
+    </figure>
+  );
+}
+
+export default Diagrama3D;
