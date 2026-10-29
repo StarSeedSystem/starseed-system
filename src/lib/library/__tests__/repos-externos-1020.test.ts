@@ -88,6 +88,30 @@ describe("REPO_EXTERNOS_1020 · repo builtin externo de la Ola 1020", () => {
     }
   });
 
+  it("asigna el icono según el kind de cada entrada", () => {
+    const icono = (id: string) => paquetes.find((p) => p.id === id)?.icon;
+    expect(icono("lib-wordcraft")).toBe("AppWindow");
+    expect(icono("lib-artemis")).toBe("BrainCircuit");
+    expect(icono("lib-anatomy")).toBe("Boxes");
+  });
+
+  it("respeta la descripción: que_es y, si existe, el aviso tras un guion", () => {
+    const wordcraft = paquetes.find((p) => p.id === "lib-wordcraft");
+    expect(wordcraft?.description).toContain("Procesador de textos");
+    expect(wordcraft?.description).toContain(" — ");
+    const artemis = paquetes.find((p) => p.id === "lib-artemis");
+    expect(artemis?.description).toBe("Automatiza teléfonos Android reales desde lenguaje natural; trae servidor MCP.");
+  });
+
+  it("las tags reúnen área, canal y marca de licencia", () => {
+    const tags = payloadDe("lib-gods-eye");
+    const pkg = paquetes.find((p) => p.id === "lib-gods-eye");
+    expect(pkg?.tags).toContain("mapas");
+    expect(pkg?.tags).toContain("releases");
+    expect(pkg?.tags).toContain("lic");
+    expect(Array.isArray(tags.area)).toBe(true);
+  });
+
   it("el repo builtin está en listRepos()", () => {
     expect(listRepos().some((r) => r.id === "starseed-biblioteca-externa")).toBe(true);
   });
