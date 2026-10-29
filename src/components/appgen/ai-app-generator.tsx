@@ -45,6 +45,7 @@ import {
   Link2,
   BrainCircuit,
   Server,
+  LayoutTemplate,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -79,6 +80,7 @@ import {
   runOnBrain,
   appShareRef,
 } from "@/lib/appgen/appgen";
+import { plantillaRefine, type RecursoRefine } from "@/lib/appgen/plantilla-refine";
 
 import { createClient } from "@/utils/supabase/client";
 import { listBrains, type Brain, type BrainServer } from "@/lib/brains/brains";
@@ -606,6 +608,53 @@ export default function AiAppGenerator() {
     setPreviewKey((k) => k + 1);
   }, []);
 
+  // Plantilla «panel de datos» (DSN1025H): proyecto vite + react + Refine con
+  // telemetría apagada, generado aquí en el Estudio para EXPORTARLO fuera del OS.
+  const onPanelDatos = useCallback(async () => {
+    const nombre = await prompt({
+      title: "Panel de datos con Refine",
+      label: "Nombre del proyecto:",
+      placeholder: "p. ej. Panel de Ventas",
+      defaultValue: "Panel de datos",
+    });
+    if (nombre === null) return;
+    const linea = await prompt({
+      title: "Panel de datos con Refine",
+      label: "Recursos, p. ej. «clientes:nombre,email; pedidos:total»:",
+      placeholder: "clientes:nombre,email",
+      defaultValue: "clientes:nombre,email",
+    });
+    if (linea === null) return;
+    const nombreProyecto = nombre.trim() || "Panel de datos";
+    const recursos: RecursoRefine[] = linea
+      .split(";")
+      .map((bloque) => bloque.trim())
+      .filter(Boolean)
+      .map((bloque) => {
+        const [nombreRecurso, restoCampos] = bloque.split(":", 2);
+        return {
+          nombre: (nombreRecurso ?? "").trim(),
+          campos: (restoCampos ?? "")
+            .split(",")
+            .map((c) => c.trim())
+            .filter(Boolean),
+        };
+      });
+    try {
+      const files = plantillaRefine({ nombre: nombreProyecto, recursos });
+      const fresh: GeneratedApp = { ...newApp(nombreProyecto), files: [...files] };
+      setApp(fresh);
+      setActivePath(fresh.files[0]?.path ?? "");
+      setSpec("");
+      setPreviewKey((k) => k + 1);
+      toast.success("Panel de datos creado ✦", {
+        description: `${files.length} archivos · Refine con telemetría apagada · se ejecuta fuera del OS: exporta y corre «npm install && npm run dev» (Node 20+).`,
+      });
+    } catch (err) {
+      toast.error("No se pudo crear el panel de datos", { description: (err as Error)?.message });
+    }
+  }, [prompt]);
+
   // ──────────────────────────────────────────────────────────────────────────
   // Render del árbol
   // ──────────────────────────────────────────────────────────────────────────
@@ -694,6 +743,15 @@ export default function AiAppGenerator() {
             />
             <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={newProject}>
               <Plus className="h-3.5 w-3.5" /> Nuevo
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 gap-1 text-xs"
+              onClick={onPanelDatos}
+              title="Crear proyecto desde la plantilla «panel de datos» (vite + react + Refine, telemetría apagada)"
+            >
+              <LayoutTemplate className="h-3.5 w-3.5" /> Panel de datos
             </Button>
             <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={openList}>
               <FolderTree className="h-3.5 w-3.5" /> Mis apps
