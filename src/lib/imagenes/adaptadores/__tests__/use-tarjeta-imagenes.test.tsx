@@ -4,6 +4,7 @@
  */
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PeticionImagen } from "../../plan";
 
 const h = vi.hoisted(() => ({
     planImagen: {
@@ -19,20 +20,22 @@ const h = vi.hoisted(() => ({
         usarComoReferencia3D: vi.fn()
     },
     abrirEnProtomolecula: {
-        abrirEnProtomolecula: vi.fn()
+        abrirEnProtomolecula: {
+            abrirProtomoleculaEditor: vi.fn()
+        }
     }
 }));
 
 vi.mock("../../plan", () => h.planImagen);
-vi.mock("@/lib/integrations/aurora-tools", () => h.generarImagen);
+vi.mock("@/lib/aurora/generate/service-generation", () => h.generarImagen);
 vi.mock("@/lib/library", () => h.guardarEnBiblioteca);
 vi.mock("@/lib/avatares/referencia3d", () => h.usarComoReferencia3D);
 vi.mock("@/lib/protomolecula/editor", () => h.abrirEnProtomolecula);
 
 // Importamos el hook que estamos probando
-import { useTarjetaImagenes } from "../use-tarjeta-imagenes.ts";
+import { useTarjetaImagenes } from "../use-tarjeta-imagenes";
 
-const peticionMock = {
+const peticionMock: PeticionImagen = {
     opciones: 4,
     prioridad: "calidad",
     comercial: false,
@@ -67,7 +70,7 @@ describe("useTarjetaImagenes", () => {
     h.generarImagen.generarImagen.mockReset();
     h.guardarEnBiblioteca.guardarEnBiblioteca.mockReset();
     h.usarComoReferencia3D.usarComoReferencia3D.mockReset();
-    h.abrirEnProtomolecula.abrirEnProtomolecula.mockReset();
+    h.abrirEnProtomolecula.abrirEnProtomolecula.abrirProtomoleculaEditor.mockReset();
   });
   afterEach(() => {
     cleanup();
@@ -168,14 +171,14 @@ describe("useTarjetaImagenes", () => {
     const { result } = renderHook(() => useTarjetaImagenes());
     
     // Configurar el mock
-    h.abrirEnProtomolecula.abrirProtomoleculaEditor.mockResolvedValueOnce(undefined);
+    h.abrirEnProtomolecula.abrirEnProtomolecula.abrirProtomoleculaEditor.mockResolvedValueOnce(undefined);
     
     // Llamar a la función
     await act(async () => {
-      result.current.abrirEnProtomolecula(opcionesMock[0]);
+      await result.current.abrirEnProtomolecula.abrirProtomoleculaEditor("http://ejemplo.com/imagen.png");
     });
     
     // Verificar que se llamó
-    expect(h.abrirEnProtomolecula.abrirProtomoleculaEditor).toHaveBeenCalledWith("http://ejemplo.com/imagen.png");
+    expect(h.abrirEnProtomolecula.abrirEnProtomolecula.abrirProtomoleculaEditor).toHaveBeenCalledWith("http://ejemplo.com/imagen.png");
   });
 });
