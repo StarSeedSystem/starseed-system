@@ -8,6 +8,7 @@
  */
 import { useMemo, useState, type CSSProperties } from "react";
 
+import { CapaDifusion } from "@/components/backgrounds/capa-difusion";
 import { CapaShader } from "@/components/backgrounds/capa-shader";
 import {
   ALCANCES_FONDO, EFECTOS_FONDO, alcanceDe, planFondo, propsDeEfecto, type AlcanceFondo, type EfectoFondoId,
@@ -34,15 +35,6 @@ function estiloDe(capa: BackgroundLayer): CSSProperties {
     position: "absolute", left: `${t.x * 100}%`, top: `${t.y * 100}%`, width: `${t.ancho * 100}%`, height: `${t.alto * 100}%`,
     transform: `scale(${t.escala}) rotate(${t.rotacion}deg)`, opacity: capa.opacity, mixBlendMode: capa.blend,
   };
-}
-
-function Difusion({ capa }: { capa: BackgroundLayer }) {
-  const d = capa.difusion;
-  const color = d?.modo === "blanco" ? "#ffffff" : d?.modo === "negro" ? "#000000" : d?.modo === "tono" ? d.tono : "transparent";
-  return (
-    <div aria-hidden style={{ ...estiloDe(capa), background: d?.modo === "desenfoque" ? "rgba(255,255,255,0.06)" : color,
-      backdropFilter: d?.modo === "desenfoque" ? `blur(${d.desenfoquePx}px)` : undefined }} />
-  );
 }
 
 export default function VistaFondoShader({ atomoId, valores, alCambiar }: VistaProps) {
@@ -83,9 +75,13 @@ export default function VistaFondoShader({ atomoId, valores, alCambiar }: VistaP
         className="relative h-64 w-full overflow-hidden rounded-md border bg-black"
         style={paleta.length ? { background: `linear-gradient(135deg, ${paleta.join(", ")})` } : undefined}>
         {set.capas.map((capa) => (
-          <div key={capa.id} style={estiloDe(capa)}>
-            {capa.kind === "shader" ? <CapaShader capa={capa} /> : <Difusion capa={capa} />}
-          </div>
+          capa.kind === "shader" ? (
+            <div key={capa.id} style={estiloDe(capa)}>
+              <CapaShader capa={capa} />
+            </div>
+          ) : (
+            <CapaDifusion key={capa.id} capa={capa} />
+          )
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

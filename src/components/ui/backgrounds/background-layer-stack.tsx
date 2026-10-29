@@ -41,6 +41,7 @@ import {
     type BackgroundLayer,
 } from "@/lib/appearance/background-layers";
 import type { VisualizerParams } from "@/lib/audiomorphic/types";
+import { CapaDifusion } from "@/components/backgrounds/capa-difusion";
 
 // El motor nativo se carga en diferido: una capa apagada no cuesta NADA.
 const AudiomorphicCanvas = dynamic(
@@ -79,6 +80,10 @@ function LayerBody({ layer }: { layer: BackgroundLayer }) {
                     playsInline
                 />
             ) : null;
+        case "difusion":
+            // La pila ya aplica la opacidad y la mezcla de la capa en su envoltorio; aquí solo
+            // se pide el velo, la transformación y la máscara, sin duplicarlas.
+            return <CapaDifusion capa={{ ...layer, opacity: 1, blend: "normal" }} />;
         default:
             return null;
     }
