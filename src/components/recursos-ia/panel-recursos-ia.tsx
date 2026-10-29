@@ -231,7 +231,7 @@ export function PanelRecursosIa({ alcance: alcanceInicial }: { alcance?: Alcance
 
                     {/* c) Topología */}
                     <Bloque id="ria-topologia" icon={Layers} titulo="Topología de tu IA" pista="Cómo se reparte la IA de este alcance entre tus neuronas, tus servidores y los de tu comunidad.">
-                        <SeccionTopologia inv={inv} actual={actual} sugerida={sugerida} guardada={!!guardada} alGuardar={guardarTopologia} />
+                        <SeccionTopologia inv={inv} actual={actual} asignaciones={estado.asignaciones} sugerida={sugerida} guardada={!!guardada} alGuardar={guardarTopologia} />
                     </Bloque>
 
                     {/* d) Por capacidad */}
