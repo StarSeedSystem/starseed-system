@@ -1261,9 +1261,78 @@ function pesoFila(t: RamaTarea): number {
     return 3;
 }
 
+/** Las filas largas enseñan las primeras 8; el resto sale con «Ver todas (N)» (UIG1029B). */
+const LIMITE_FILA = 8;
+/** Pastilla de una fila (UIG1029B): fase, modelo o dónde, en una línea alineada sin cortes. */
+const PASTILLA =
+    "inline-flex max-w-full cursor-default items-center gap-0.5 rounded-full border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] leading-none whitespace-nowrap";
+
+/** Último tramo de una fila larga: «Ver todas (N)» despliega el resto. */
+function VerTodas({ cuantas, alVer }: { cuantas: number; alVer: () => void }) {
+    return (
+        <li>
+            <button
+                type="button"
+                onClick={alVer}
+                className="cursor-pointer rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[11px] text-white/70 hover:bg-white/10"
+            >
+                Ver todas ({cuantas})
+            </button>
+        </li>
+    );
+}
+
+/** Etiqueta corta del estado (la misma que usa la ficha). */
 function etiquetaCorta(t: RamaTarea): string {
-    const tono = tonoEstado(t.estado);
-    return tono.etiqueta;
+    return tonoEstado(t.estado).etiqueta;
+}
+
+/**
+ * Fila ORDENADA de tareas (el turno real) con pastillas alineadas para fase, modelo y dónde
+ * (UIG1029B); si supera el límite, enseña las primeras 8 y «Ver todas (N)» despliega el
+ * resto. El título va debajo para no cortarse en móvil.
+ */
+function Fila({ tareas, marcarHechas, onVer }: { tareas: RamaTarea[]; marcarHechas: Set<string>; onVer: (id: string) => void }) {
+    const [verTodas, setVerTodas] = useState(false);
+    const visibles = verTodas ? tareas : tareas.slice(0, LIMITE_FILA);
+    return (
+        <ol className="mt-2 space-y-1.5 text-xs" data-testid="fila-ordenada">
+            {visibles.map((t, i) => {
+                const tono = tonoEstado(t.estado);
+                const espera = t.estado === "pendiente" || t.estado === "interrumpida" ? t.dependencias.filter((d) => !marcarHechas.has(d)) : [];
+                return (
+                    <li key={t.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="w-5 text-right font-mono text-white/35">{i + 1}.</span>
+                        <button type="button" onClick={() => onVer(t.id)} className="cursor-pointer font-mono font-medium text-white hover:underline" title="Abrir la ficha">
+                            {t.id}
+                        </button>
+                        <span className={`h-1.5 w-1.5 rounded-full ${tono.punto}`} aria-hidden />
+                        <span className={tono.texto}>{etiquetaCorta(t)}</span>
+                        {espera.length ? <span className="text-white/40">espera {espera.join(", ")}</span> : null}
+                        {t.sha ? <span className="font-mono text-white/35">{t.sha}</span> : null}
+                        {t.vivo ? (
+                            <span className={`${PASTILLA} ${tonoFase(t.vivo.fase)}`} data-pastilla={t.vivo.fase}>
+                                {t.vivo.fase} · {corto(t.vivo.modelo)}{t.vivo.minutos ? ` · ${t.vivo.minutos} min` : ""}
+                            </span>
+                        ) : t.modelo ? (
+                            <span className={`${PASTILLA} text-white/45`} data-pastilla="modelo">
+                                {corto(t.modelo)}{t.proveedor ? ` · ${t.proveedor}` : ""}
+                            </span>
+                        ) : null}
+                        {t.donde ? (
+                            <span className={`${PASTILLA} ${t.donde === "nube" ? "text-sky-300/80" : "text-amber-300/80"}`} data-pastilla="dónde">
+                                {t.donde}{t.medio ? ` · ${t.medio}` : ""}
+                            </span>
+                        ) : null}
+                        <span className="min-w-0 flex-[1_0_100%] truncate text-[11px] text-white/50 sm:flex-[0_1_auto]" title={t.titulo}>
+                            · {t.titulo}
+                        </span>
+                    </li>
+                );
+            })}
+            {!verTodas && tareas.length > LIMITE_FILA ? <VerTodas cuantas={tareas.length} alVer={() => setVerTodas(true)} /> : null}
+        </ol>
+    );
 }
 
 /**
@@ -1271,7 +1340,7 @@ function etiquetaCorta(t: RamaTarea): string {
  * de cada agente vivo (qué está escribiendo y qué tiene detrás). Complementa el árbol: el
  * árbol enseña las dependencias; la fila enseña el turno.
  */
-function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
+export function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
     olas: RamaOla[];
     olaSel: RamaOla;
     latidos: LatidoTarea[];
@@ -1306,40 +1375,12 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
     const cuentaCerradas = (t: RamaTarea) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "informe"].includes(t.estado);
     const enCursoOla = filaOla.filter((t) => t.vivo || t.estado === "en_curso").length;
     const pendientesOla = filaOla.filter((t) => t.estado === "pendiente" || t.estado === "interrumpida").length;
-    const resumenOla = `${enCursoOla} en curso · ${pendientesOla} pendientes · ${filaOla.filter(cuentaCerradas).length} cerradas`;
+    const resumenOla = `${enCursoOla} en curso · ${pendientesOla} pendientes · ${filaOla.filter(cuentaCerradas).length} hecha${filaOla.filter(cuentaCerradas).length === 1 ? "" : "s"}`;
     const escribiendoAgentes = agentes.reduce((n, a) => n + a.vivas.length, 0);
     const resumenAgentes =
         agentes.length === 0 && sinAgente.length === 0
             ? "Ningún orquestador vivo ni cola con tareas pendientes"
             : `${escribiendoAgentes} escribiendo · ${sinAgente.length} cola${sinAgente.length === 1 ? "" : "s"} sin agente vivo`;
-
-    const Fila = ({ tareas, marcarHechas }: { tareas: RamaTarea[]; marcarHechas: Set<string> }) => (
-        <ol className="mt-2 space-y-1 text-xs">
-            {tareas.map((t, i) => {
-                const tono = tonoEstado(t.estado);
-                const espera = t.estado === "pendiente" || t.estado === "interrumpida" ? t.dependencias.filter((d) => !marcarHechas.has(d)) : [];
-                return (
-                    <li key={t.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <span className="w-5 text-right font-mono text-white/35">{i + 1}.</span>
-                        <button type="button" onClick={() => onVer(t.id)} className="cursor-pointer font-mono font-medium text-white hover:underline" title="Abrir la ficha">
-                            {t.id}
-                        </button>
-                        <span className={`h-1.5 w-1.5 rounded-full ${tono.punto}`} aria-hidden />
-                        <span className={tono.texto}>{etiquetaCorta(t)}</span>
-                        {t.vivo ? (
-                            <span className={tonoFase(t.vivo.fase)}>{t.vivo.fase} · {corto(t.vivo.modelo)}{t.vivo.minutos ? ` · ${t.vivo.minutos} min` : ""}</span>
-                        ) : t.modelo ? (
-                            <span className="text-white/45">{corto(t.modelo)}{t.proveedor ? ` · ${t.proveedor}` : ""}</span>
-                        ) : null}
-                        {t.donde ? <span className={t.donde === "nube" ? "text-sky-300/80" : "text-amber-300/80"}>{t.donde}{t.medio ? ` · ${t.medio}` : ""}</span> : null}
-                        {espera.length ? <span className="text-white/40">espera {espera.join(", ")}</span> : null}
-                        {t.sha ? <span className="font-mono text-white/35">{t.sha}</span> : null}
-                        <span className="truncate text-white/50" title={t.titulo}>· {t.titulo}</span>
-                    </li>
-                );
-            })}
-        </ol>
-    );
 
     return (
         <div className="grid gap-3 lg:grid-cols-2" data-testid="filas-procesos">
@@ -1350,7 +1391,7 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
                 resumen={resumenOla}
             >
                 <p className="mt-1 text-[11px] text-white/40">Turno real: primero lo que late, luego lo pendiente por nivel de dependencias, al final lo cerrado.</p>
-                <Fila tareas={filaOla} marcarHechas={hechas} />
+                <Fila tareas={filaOla} marcarHechas={hechas} onVer={onVer} />
             </SeccionPlegable>
             <SeccionPlegable
                 id="fila-agente"
@@ -1366,30 +1407,40 @@ function FilasDeProcesos({ olas, olaSel, latidos, enjambres, onVer }: {
                     const fila = [...a.tareas]
                         .filter((t) => t.vivo || t.estado === "en_curso" || t.estado === "pendiente" || t.estado === "interrumpida")
                         .sort((x, y) => pesoFila(x) - pesoFila(y) || x.nivel - y.nivel || x.id.localeCompare(y.id, undefined, { numeric: true }));
+                    // (UIG1029B) Cada agente es su propia sección plegable: abierta si tiene algo
+                    // vivo; el resumen de una línea enseña el turno sin desplegar la fila.
+                    const resumenAgente = `${a.vivas.length} escribiendo · ${fila.filter((t) => t.estado === "pendiente" || t.estado === "interrumpida").length} en fila · ${a.integradas} integradas`;
                     return (
-                        <div key={a.clave} className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
-                            <div className="flex flex-wrap items-center gap-2 text-xs">
-                                <span className={`font-medium ${a.donde === "nube" ? "text-sky-300" : "text-amber-300"}`}>{a.donde}</span>
-                                {a.medio ? <span className="text-violet-200">desde {a.medio}</span> : null}
-                                <span className="font-mono text-white/70">cola-{a.cola}</span>
-                                <span className="text-white/45">{a.vivas.length} escribiendo · {fila.filter((t) => t.estado === "pendiente" || t.estado === "interrumpida").length} en fila · {a.integradas} integradas</span>
-                            </div>
-                            {fila.length ? <Fila tareas={fila} marcarHechas={hechasCola} /> : <p className="mt-1 text-[11px] text-white/40">Sin tareas en fila: está cerrando.</p>}
-                        </div>
+                        <SeccionPlegable
+                            key={a.clave}
+                            id={`agente-${a.donde}-${a.cola}`}
+                            titulo={`cola-${a.cola}`}
+                            contador={a.medio ? `desde ${a.medio}` : "sin medio"}
+                            resumen={resumenAgente}
+                            abiertaPorDefecto={a.vivas.length > 0}
+                        >
+                            <p className={`mt-1 flex flex-wrap items-center gap-2 text-[11px] ${a.donde === "nube" ? "text-sky-300" : "text-amber-300"}`}>
+                                {a.donde}
+                                <span className="text-white/45">{resumenAgente}</span>
+                            </p>
+                            {fila.length ? <Fila tareas={fila} marcarHechas={hechasCola} onVer={onVer} /> : <p className="mt-1 text-[11px] text-white/40">Sin tareas en fila: está cerrando.</p>}
+                        </SeccionPlegable>
                     );
                 })}
                 {sinAgente.map((c) => {
                     const hechasCola = new Set<string>(c.tareas.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "informe"].includes(t.estado)).map((t) => t.id));
                     const fila = c.tareas.filter((t) => t.estado === "pendiente" || t.estado === "en_curso" || t.estado === "interrumpida").sort((x, y) => x.nivel - y.nivel || x.id.localeCompare(y.id, undefined, { numeric: true }));
                     return (
-                        <div key={`sin-${c.cola}`} className="mt-2 rounded-lg border border-dashed border-white/10 p-2">
-                            <div className="flex flex-wrap items-center gap-2 text-xs">
-                                <span className="text-white/50">sin agente vivo</span>
-                                <span className="font-mono text-white/70">cola-{c.cola}</span>
-                                <span className="text-white/45">{fila.length} esperan un lanzamiento (Diseñar ola → importar)</span>
-                            </div>
-                            <Fila tareas={fila} marcarHechas={hechasCola} />
-                        </div>
+                        <SeccionPlegable
+                            key={`sin-${c.cola}`}
+                            id={`cola-${c.cola}`}
+                            titulo={`cola-${c.cola} · sin agente`}
+                            resumen={`${fila.length} esperan un lanzamiento (Diseñar ola → importar)`}
+                            abiertaPorDefecto={false}
+                        >
+                            <p className="mt-1 text-[11px] text-white/45">sin agente vivo</p>
+                            <Fila tareas={fila} marcarHechas={hechasCola} onVer={onVer} />
+                        </SeccionPlegable>
                     );
                 })}
             </SeccionPlegable>
