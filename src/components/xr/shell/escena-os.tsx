@@ -21,6 +21,7 @@ import { mensajeErrorXR } from "@/components/vivo/espacial/use-sesion-xr";
 import type { ModoXR as ModoURL } from "@/lib/vivo/xr";
 import type { MundoSpec } from "@/lib/xr/mundo-tipos";
 import type { DestinoResuelto } from "@/lib/xr/zonas";
+import { UiSpec3D } from "./uispec-uikit";
 import { BotonEntradaXR } from "./boton-entrada-xr";
 import { useCapacidadesXR } from "./use-capacidades-xr";
 
