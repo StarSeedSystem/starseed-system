@@ -240,11 +240,11 @@ function claseDeEstado(estado: string): string {
 }
 
 /** Un grupo de filas del panel por estado (UIG1029E). */
-export interface GrupoDeFilas {
+export interface GrupoDeFilas<T extends { estado?: string } = FilaMedidor> {
     estado: string;
     titulo: string;
     resumen: string;
-    filas: FilaMedidor[];
+    filas: T[];
 }
 
 /** «en curso» → «En curso»: el estado tal y como lo lee una persona. */
@@ -253,7 +253,7 @@ function capitalizar(texto: string): string {
 }
 
 /** Id estable para `aria-controls` y `localStorage`: sin espacios ni acentos. */
-function slugEstado(estado: string): string {
+export function slugEstado(estado: string): string {
     return estado
         .toLowerCase()
         .normalize("NFD")
@@ -268,8 +268,10 @@ function slugEstado(estado: string): string {
  * lo que pide atención; después, lo más numeroso. El orden dentro del grupo no
  * se toca: viene del servidor con el turno real.
  */
-export function agruparFilasPorEstado(filas: readonly FilaMedidor[]): GrupoDeFilas[] {
-    const porEstado = new Map<string, FilaMedidor[]>();
+export function agruparFilasPorEstado<T extends { estado?: string } = FilaMedidor>(
+    filas: readonly T[],
+): GrupoDeFilas<T>[] {
+    const porEstado = new Map<string, T[]>();
     for (const fila of filas) {
         const estado = (fila.estado ?? "").trim() || "sin estado";
         const lista = porEstado.get(estado) ?? [];
