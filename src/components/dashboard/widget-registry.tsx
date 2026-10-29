@@ -183,6 +183,13 @@ const PanelProtomoleculaAutonomo = dynamic(
     { ssr: false, loading: dashboardWidgetLoading }
 );
 
+// (Ola 1018H) Estudio de vídeo (HyperFrames): ventana usada por dashboard,
+// escritorio y pizarra. Carga perezosa por el mismo motivo de arriba.
+const EstudioVideoVentana = dynamic(
+    () => import("@/components/video/estudio-video-ventana").then((mod) => mod.EstudioVideoVentana),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
+
 interface WidgetProps {
     widget: DashboardWidget;
     /** Persiste un patch en `widget.settings` (fusionado por el llamador — ver
@@ -247,6 +254,12 @@ function WidgetRegistryInner({ widget, onUpdateSettings }: WidgetProps) {
     }
 
     let cuerpo = cuerpoClasico(widget, config.widgets?.weatherVariant, onUpdateSettings);
+    // (Ola 1018H) Estudio de vídeo: se compara por cadena porque el tipo
+    // «estudio-video» todavía no entra en la unión WidgetType; la entrada se
+    // comparte tal cual por dashboard, escritorio y pizarra.
+    if (String(widget.widget_type) === "estudio-video") {
+        cuerpo = <EstudioVideoVentana />;
+    }
     if (!ubicacion && NECESITAN_UBICACION.has(widget.widget_type)) {
         cuerpo = <WeatherLocationProvider>{cuerpo}</WeatherLocationProvider>;
     }
