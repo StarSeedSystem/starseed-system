@@ -7,9 +7,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
-import { BloqueadasGrupos, accionAutomaticaDeFila, agruparPorCausa, causaDeFila } from "@/components/mando/bloqueadas-grupos";
+import { BloqueadasGrupos } from "@/components/mando/bloqueadas-grupos";
 import { SeccionBloqueadasReintentos } from "@/components/mando/ramificacion-agentes";
-import type { ResumenBloqueadas } from "@/lib/mando/bloqueadas";
+import { accionAutomaticaDeFila, agruparPorCausa, causaDeFila, type ResumenBloqueadas } from "@/lib/mando/bloqueadas";
 import type { DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
 
 afterEach(() => {
