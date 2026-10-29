@@ -182,6 +182,9 @@ const PanelProtomoleculaAutonomo = dynamic(
     () => import("@/components/protomolecula/panel-protomolecula").then((mod) => mod.PanelProtomoleculaAutonomo),
     { ssr: false, loading: dashboardWidgetLoading }
 );
+// Vídeo (ola 1018H): el estudio de vídeo sobre HyperFrames (contrato architecture/video-hyperframes.md §4)
+import { EstudioVideoVentana } from "@/components/video/estudio-video-ventana";
+import type { WidgetType as TipoDeWidget } from "./dashboard-types";
 
 interface WidgetProps {
     widget: DashboardWidget;
@@ -522,6 +525,13 @@ function cuerpoClasico(
         // ── Protomolécula (ola 1010P) ──
         case 'PROTOMOLECULA':
             return <PanelProtomoleculaAutonomo compacto />;
+
+        // ── Vídeo (ola 1018H): widget «estudio-video» (dashboard, escritorio y pizarra) ──
+        // El id aún no está en la unión WidgetType (dashboard-types.ts queda fuera de la
+        // lista de archivos de esta tarea): se acota el literal para que tsc acepte la
+        // comparación sin ampliar el tipo global desde aquí.
+        case "estudio-video" as unknown as TipoDeWidget:
+            return <EstudioVideoVentana />;
 
         default:
             return (
