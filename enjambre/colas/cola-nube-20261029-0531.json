@@ -1,0 +1,44 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "LYS1018K",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Habilidades · Laya elige cuál aplica y el tamaño sale de la capa que responde",
+   "archivos": [
+    "src/ai/astraura/habilidades/elegir-habilidad.ts",
+    "src/ai/astraura/skills.ts",
+    "src/ai/astraura/habilidades/__tests__/elegir-habilidad.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`preguntaHabilidad(habilidades)` arma la pregunta `choice` de Laya (criterio = `cuando` de cada una + \"ninguna\"); `bloqueHabilidad(respuesta, capa, umbral)` devuelve el texto a inyectar: tarjeta para reflejo/palabra pequeña, resumen para palabra/razón con Bonsai, y para profunda/nube la referencia a la completa; nada si \"ninguna\" o confianza < umbral. En skills.ts registra la capacidad `habilidades-ingenieria` con `defaultOn: true` (desactivable) que llama a esto (solo añadir). Pruebas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018I",
+    "LYS1018Ib",
+    "LYS1018J"
+   ]
+  },
+  {
+   "id": "VZF1015G",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Aurora escucha por el elector: tramos con detector de voz hacia el mejor motor (el navegador queda de suelo)",
+   "archivos": [
+    "src/lib/aurora/stt-oss/escucha-fusionada.ts",
+    "src/lib/aurora/stt-oss/__tests__/escucha-fusionada.test.ts",
+    "src/lib/aurora/engine.ts"
+   ],
+   "depende": [],
+   "prompt": "Crea `escucharFusionado({ obtenerAudio, elegir, transcribir, alParcial, alFinal, idiomaPista, hotwords })`: corta el audio del micrófono en tramos con el detector de energía de `oss-stt.ts` (silencio 800 ms, tramo ≤ 30 s), pide a `elegirOido` el motor de la fase «final» por tramo y transcribe con `transcribirOpenAI` o el demonio; el parcial lo sigue dando el navegador si está (regla 1 del §3). En `engine.ts` (alrededor de `buildRecognition`, l. ~1925) usa este camino cuando el navegador no tiene reconocimiento o la neurona tiene un motor local medido mejor, SIN tocar el cerrojo de dueño único (`claimStt/releaseStt`) ni `esEcoPropio`. Pruebas con audio y motores falsos. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015A",
+    "VZF1015B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "LYS1018K",
+   "VZF1015G"
+  ]
+ }
+}
