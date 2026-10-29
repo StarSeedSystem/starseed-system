@@ -47,14 +47,7 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
     });
 
     it("con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado", () => {
-        const b = botonesNeurona({
-            nodo: "mac-a1b2c3",
-            vivo: true,
-            so: "macos",
-            enCurso: 0,
-            contenedor: { activo: true, agentes: 3, apto: true, motivo: "" },
-            relevoActivo: true,
-        } as NeuronaColmena);
+        const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" }, relevoActivo: true } as NeuronaColmena);
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Desconectar" });
         expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: "Dejar de usar como contenedor" });
     });
