@@ -317,6 +317,82 @@ describe("comfyuiImage · flujo real con fetch simulado", () => {
     expect(result.error).toContain("no devolvió imágenes");
   });
 
+  it("sin model en las opciones: pregunta los checkpoints disponibles y usa el primero", async () => {
+    fetchSpy
+      // 1. /object_info para conocer los checkpoints del servidor
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          CheckpointLoaderSimple: {
+            input: { required: { ckpt_name: [["primero.safetensors", "segundo.safetensors"]] } },
+          },
+        }),
+      } as Response)
+      // 2. /prompt con el grafo
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ prompt_id: "pid-auto" }) } as Response)
+      // 3. /history del prompt
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          "pid-auto": {
+            outputs: {
+              "7": { images: [{ filename: "auto.png", subfolder: "", type: "output" }] },
+            },
+          },
+        }),
+      } as Response)
+      // 4. /view
+      .mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(["img-auto"], { type: "image/png" }),
+      } as Response);
+
+    const result = await comfyuiImage({ ...baseOpts });
+
+    expect(result.ok).toBe(true);
+    expect(result.provider).toBe("comfyui");
+    // Se preguntó por los checkpoints del servidor
+    expect(fetchSpy.mock.calls.some((c) => String(c[0]).includes("/object_info/CheckpointLoaderSimple"))).toBe(true);
+    // El grafo enviado lleva el PRIMER checkpoint disponible
+    const promptCall = fetchSpy.mock.calls.find((c) => String(c[0]).includes("/prompt"));
+    expect(promptCall).toBeDefined();
+    const body = JSON.parse(promptCall![1]?.body as string);
+    expect(body.prompt["1"].inputs.ckpt_name).toBe("primero.safetensors");
+  });
+
+  it("varias opciones con seed: las semillas del grafo son distintas y consecutivas (seed, seed + 1, …)", async () => {
+    for (const i of [1, 2, 3]) {
+      fetchSpy
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ prompt_id: `pid-s${i}` }) } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            [`pid-s${i}`]: {
+              outputs: { "7": { images: [{ filename: `s${i}.png`, subfolder: "", type: "output" }] } },
+            },
+          }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          blob: async () => new Blob([`img-${i}`], { type: "image/png" }),
+        } as Response);
+    }
+
+    const result = await comfyuiImage({ ...baseOpts, model: "model.safetensors", seed: 42, opciones: 3 });
+
+    expect(result.ok).toBe(true);
+    // La galería lleva las tres semillas en orden
+    expect(result.galeria!.opciones.map((o) => o.semilla)).toEqual([42, 43, 44]);
+    // Y el grafo de cada variación llevó su propia semilla en el KSampler
+    const prompts = fetchSpy.mock.calls.filter((c) => String(c[0]).includes("/prompt"));
+    const semillasGrafo = prompts.map((c) => {
+      const body = JSON.parse(c[1]?.body as string) as { prompt: GrafoComfyUI };
+      const ksampler = Object.values(body.prompt).find((n) => n.class_type === "KSampler");
+      return ksampler?.inputs.seed;
+    });
+    expect(semillasGrafo).toEqual([42, 43, 44]);
+  });
+
   it("sin endpoint configurado: conserva el mensaje actual con formato y megapíxeles", async () => {
     // Sobrescribir el mock para que no haya endpoint
     mockLocalStorage.getItem.mockImplementation((key) => {
