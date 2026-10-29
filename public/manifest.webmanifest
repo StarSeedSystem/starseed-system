@@ -13,6 +13,34 @@
   "theme_color": "#0A0712",
   "background_color": "#0A0712",
   "categories": ["social", "education", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Entrar en VR",
+      "short_name": "VR",
+      "description": "Abre StarSeed OS directamente en modo inmersivo de realidad virtual.",
+      "url": "/xr/os?modo=vr",
+      "icons": [
+        {
+          "src": "/starseed-symbol-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Entrar en AR",
+      "short_name": "AR",
+      "description": "Abre StarSeed OS directamente en modo de realidad aumentada.",
+      "url": "/xr/os?modo=ar",
+      "icons": [
+        {
+          "src": "/starseed-symbol-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
   "icons": [
     {
       "src": "/starseed-symbol-192.png",
