@@ -49,6 +49,8 @@ import { ejecutarAccion } from "@/lib/astraura-bots/adaptadores/ejecutor-accione
 import { decidirAccion, NIVEL_POR_DEFECTO } from "@/lib/astraura-bots/permisos";
 import { avanzar, bucleInicial } from "@/lib/astraura-bots/bucle";
 import { botPredeterminado } from "@/lib/astraura-bots/predeterminado";
+// BOT1011S · tono del bot en el system prompt (bloque «TONO DEL BOT:», ≤ 6 líneas).
+import { bloqueTono, situacionDeTexto } from "@/lib/astraura-bots/adaptadores/tono-chat";
 // Puente de glow: el Orbe de Aurora late al ritmo del habla escuchando estos
 // eventos (el TTS del navegador no expone amplitud). Aditivo y defensivo.
 import { emitAuroraSpeak } from "@/lib/aurora/aurora-orb-bus";
@@ -1771,13 +1773,23 @@ export function useAuroraEngine(): AuroraEngine {
       try { knowledge = buildSystemKnowledge(routeContext()); } catch { knowledge = ""; }
       // EAR1023C: lo que suena AHORA alrededor de la orbe, en una línea corta.
       const notaOido = lineaContextoOidoParaPrompt();
+      // BOT1011S · la orbe es el bot: tono del bot predeterminado en el mensaje de
+      // sistema (personalidad del bot + personalidad activa + situacion del turno).
+      let notaTono = "";
+      try {
+        notaTono = bloqueTono(botPredeterminado("perfil", "local"), activeRef.current, {
+          sesion: "privada",
+          situacion: situacionDeTexto(text),
+        });
+      } catch { /* el tono nunca rompe la conversacion de Aurora */ }
       const system =
         buildSystemPrompt(activeRef.current) + "\n\n" +
         actionsSystemPromptSection() +
         (toolsSection ? "\n\n" + toolsSection : "") +
         (knowledge ? "\n\n" + knowledge : "") + "\n\n" +
         contextNote +
-        (notaOido ? "\n\n" + notaOido : "");
+        (notaOido ? "\n\n" + notaOido : "") +
+        (notaTono ? "\n\n" + notaTono : "");
       // Se incluye el historial reciente (conversationRef) antes del mensaje actual.
       // Así mantenemos el contexto continuo en los comandos de voz.
       const historyMessages = conversationRef.current.map((msg): ChatMessage => ({
