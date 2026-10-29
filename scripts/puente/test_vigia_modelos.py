@@ -200,6 +200,21 @@ class TestVigiaModelos(unittest.TestCase):
         self.assertIsNone(vacios[0]["motor"])
         self.assertEqual(len(vacios), 3)
 
+    def test_archivo_por_medio_elige_el_mayor_que_cabe(self):
+        """En cada medio manda el mayor que cabe; el navegador no cae al mínimo si hay uno ≤ 1 GB."""
+        archivos = [{"nombre": "q2-minimo.gguf", "bytes": 500000000, "sha256": SHA_GGUF},
+                    {"nombre": "q4-ligero.gguf", "bytes": 800000000, "sha256": SHA_GGUF},
+                    {"nombre": "q4_k_m.gguf", "bytes": 4200000000, "sha256": SHA_GGUF},
+                    {"nombre": "f16.gguf", "bytes": 14200000000, "sha256": SHA_GGUF}]
+        medios = {m["medio"]: m for m in VM._archivo_por_medio(archivos)}
+        self.assertEqual([m["medio"] for m in VM._archivo_por_medio(archivos)],
+                         ["navegador", "mac", "a1"])
+        self.assertEqual(medios["navegador"]["archivo"], "q4-ligero.gguf")  # ≤ 1 GB
+        self.assertEqual(medios["navegador"]["bytes"], 800000000)
+        self.assertEqual(medios["mac"]["archivo"], "q4_k_m.gguf")  # ≤ 4,5 GB
+        self.assertEqual(medios["a1"]["archivo"], "q4_k_m.gguf")  # 14,2 GB no cabe en 8
+        self.assertEqual(medios["a1"]["bytes"], 4200000000)
+
     def test_ids_en_catalogo(self):
         """Del catálogo se sacan los ids «autor/repo» citados; desaparecido → None."""
         texto = 'export const M = { "Qwen/Qwen-Image-2.1", "Tongyi-MAI/Z-Image-Turbo" }'
@@ -272,6 +287,23 @@ class TestVigiaModelos(unittest.TestCase):
         self.assertEqual([d["id"] for d in datos["areas"][0]["aceptados"]],
                          ["Tongyi-MAI/Z-Image-Turbo"])
         self.assertEqual(res["fichas"], 1)  # solo la ficha de Z-Image-Turbo libera
+
+    def test_pasada_no_repite_ids_vistos(self):
+        """La segunda pasada descarta con su motivo lo ya visto y no lo vuelve a aceptar."""
+        sim = Simulador()
+        self.pasar(sim)
+        segunda = self.pasar(sim)
+        self.assertEqual(segunda["fichas"], 0)
+        ruta_nov = os.path.join(self.tmp, "starseed_memory_root", "vigia", f"novedades-{FECHA}.json")
+        with open(ruta_nov, encoding="utf-8") as f:
+            datos = json.load(f)
+        area = datos["areas"][0]
+        self.assertEqual(area["aceptados"], [])
+        motivos = {d["id"]: d["motivo"] for d in area["descartados"]}
+        self.assertIn("lo vimos antes", motivos[QWEN_TURBO])
+        self.assertIn("lo vimos antes", motivos["Tongyi-MAI/Z-Image-Turbo"])
+        self.assertEqual([d["id"] for d in area["descartados"] if d["id"] == QWEN_TURBO],
+                         [QWEN_TURBO])
 
     def test_pasada_tope_de_cinco_y_libres_primero(self):
         """≤ 5 fichas al día y los libres por delante de los personales (§4)."""
