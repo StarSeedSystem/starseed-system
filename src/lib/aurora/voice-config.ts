@@ -76,9 +76,14 @@ export interface PersonalityVoiceShape {
 /** Config de voz persistida (solo lo que decide el motor). */
 export type VoiceConfigShape = Pick<AuroraVoiceConfig, "engine" | "autoDownload">;
 
-/** Normaliza un id de motor: solo devuelve motores conocidos. */
+/**
+ * Normaliza un id de motor: solo devuelve motores conocidos y descarta
+ * «browser», que NO es un pin sino el suelo garantizado (igual que
+ * `buildVoiceChain`: un pin al navegador se ignora y decide la cadena AUTO).
+ */
 function motorDe(v: unknown): AuroraVoiceEngine | null {
-  return isVoiceEngineId(v) ? v : null;
+  if (!isVoiceEngineId(v) || v === "browser") return null;
+  return v;
 }
 
 /** Elige en un mapa por id (agente/personalidad/cerebro/neurona). */
@@ -139,7 +144,7 @@ export function voiceChoiceFromOverride(
 export function voiceChoiceFromConfig(
   cfg: VoiceConfigShape | null | undefined,
 ): AuroraVoiceEngine | null {
-  return cfg?.engine === "browser" ? null : motorDe(cfg?.engine);
+  return motorDe(cfg?.engine);
 }
 
 /**
