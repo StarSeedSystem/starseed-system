@@ -24,7 +24,22 @@
 
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
-import { nivelPara, siguienteNivel, NIVELES, type NivelVoz } from "./niveles";
+import {
+    nivelPara,
+    siguienteNivel,
+    NIVELES,
+    acotarNivel,
+    estudioDisponible,
+    nivelTopeSegunUso,
+    type NivelVoz,
+    type EstadoEstudio,
+    type UsoVoz,
+} from "./niveles";
+// (Ola 1018F) Estado de VoiceStudio medido con el descubrimiento local del cliente de la tarea D.
+import { descubrir } from "./voicestudio";
+// (Ola 1018F) Latencias del «primer-sonido» medidas por neurona y motor; solo el TIPO viaja aquí.
+import type { MedidaVoz } from "@/lib/aurora/medidas-voz";
+
 import {
     soporteSupertonic,
     nivelParaVoz,
@@ -237,6 +252,92 @@ async function resolverNivel(explicito?: NivelVoz): Promise<NivelVoz> {
     return preferencia === "auto" ? auto : preferencia;
 }
 
+// ── Ola 1018F · Nivel «estudio» y PRIMERA FRASE INSTANTÁNEA ────────────────
+// Contrato `architecture/voz-voicestudio.md` §4: la primera frase sale del
+// motor PERMITIDO de MENOR latencia MEDIDA que tenga la voz; «estudio» solo
+// para lectura larga, doblaje y audiolibros; NUNCA se parte un mensaje entre
+// dos motores: elegida una vía, cubre todo el turno.
+
+/** Motor candidato para la primera frase, ya PERMITIDO por `licencia-voz.ts`. */
+export interface MotorInstantaneo {
+    id: string;
+    /** Latencia del «primer-sonido» medida en ESTA neurona (ms); sin medida → `undefined`. */
+    latenciaMs?: number;
+    /** El motor tiene la voz DE ESA PERSONA (perfil, paquete o voz base cargada). */
+    tieneVoz: boolean;
+}
+
+/**
+ * elegirPrimeraFrase — el motor PERMITIDO de menor latencia MEDIDA con la voz
+ * de esa persona (contrato §4). Sin medida va al final; empate → id alfabético.
+ * Pura: ni red, ni disco, ni reloj, ni audio.
+ */
+export function elegirPrimeraFrase(motores: readonly MotorInstantaneo[]): MotorInstantaneo | undefined {
+    const conVoz = motores.filter((m) => m.tieneVoz);
+    if (!conVoz.length) return undefined;
+    return [...conVoz].sort(
+        (a, b) => (a.latenciaMs ?? Infinity) - (b.latenciaMs ?? Infinity) || a.id.localeCompare(b.id),
+    )[0];
+}
+
+/** Latencia por motor: la más RECIENTE medida en esa neurona, solo del tipo «primer-sonido». Pura. */
+export function latenciasMedidas(medidas: readonly MedidaVoz[], neurona: string): Record<string, number> {
+    const mejor: Record<string, { valor: number; en: number }> = {};
+    for (const m of medidas) {
+        if (m.neurona !== neurona || m.tipo !== "primer-sonido") continue;
+        const actual = mejor[m.motor];
+        if (!actual || m.timestamp > actual.en) mejor[m.motor] = { valor: m.valor, en: m.timestamp };
+    }
+    const salida: Record<string, number> = {};
+    for (const motor of Object.keys(mejor)) salida[motor] = mejor[motor].valor;
+    return salida;
+}
+
+/** Contexto del llamador → uso del turno; la palabra de quien llama manda si la da. */
+export function usoDelTurno(contexto: ContextoVoz, uso?: UsoVoz): UsoVoz {
+    if (uso) return uso;
+    if (contexto === "lectura") return "lectura";
+    if (contexto === "conversacion" || contexto === "imaginacion") return "conversacion";
+    return "aviso";
+}
+
+/** Duración de la medida del estado de VoiceStudio, igual que la de capacidades. */
+const ESTUDIO_CACHE_MS = 5 * 60 * 1000;
+let estadoEstudioEnCache: { valor: EstadoEstudio; en: number } | null = null;
+
+/** Deja MEDIDO el estado de VoiceStudio (lo aporta Ajustes → Voz o la malla). */
+export function anotarEstadoEstudio(valor: EstadoEstudio): void {
+    estadoEstudioEnCache = { valor, en: Date.now() };
+}
+
+/** El último estado medido si sigue vigente (5 min); `null` en otro caso. */
+export function estadoEstudioCacheado(): EstadoEstudio | null {
+    if (!estadoEstudioEnCache || Date.now() - estadoEstudioEnCache.en >= ESTUDIO_CACHE_MS) return null;
+    return estadoEstudioEnCache.valor;
+}
+
+/**
+ * Mide el estado de VoiceStudio con `descubrir()` (límite 800 ms, caché 5 min).
+ * El navegador no sabe la memoria LIBRE: se toma la TOTAL de la neurona y queda
+ * a `anotarEstadoEstudio` afinarla (o a la malla marcar `servidaPorOtraNeurona`).
+ */
+export async function medirEstadoEstudio(): Promise<EstadoEstudio> {
+    const cache = estadoEstudioCacheado();
+    if (cache) return cache;
+    try {
+        const d = await descubrir();
+        const estado: EstadoEstudio = {
+            voicestudioVivo: "vivo" in d && d.vivo === true,
+            memoriaLibreGB: (await detectarCapacidades()).memoriaGB,
+            servidaPorOtraNeurona: false,
+        };
+        estadoEstudioEnCache = { valor: estado, en: Date.now() };
+        return estado;
+    } catch {
+        return { voicestudioVivo: false, memoriaLibreGB: null, servidaPorOtraNeurona: false };
+    }
+}
+
 /**
  * Traduce el timbre a los parámetros que entiende cada backend. LA IDENTIDAD
  * ES LA MISMA EN TODOS LOS NIVELES: manda el timbre; lo único que cambia es
@@ -312,6 +413,12 @@ export interface OpcionesHablar {
      * esta opción solo es para vías que ya entregan el texto normalizado.
      */
     sinNormalizar?: boolean;
+    /**
+     * (Ola 1018F) Uso del turno: doblaje y audiolibro lo declaran aquí; en su
+     * falta se deduce del `contexto`. Lleva el turno a «estudio» solo si
+     * VoiceStudio está vivo con carga suficiente (o lo sirve otra neurona).
+     */
+    uso?: UsoVoz;
 }
 
 /**
@@ -469,6 +576,19 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
             // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
             nivel = "nube";
             break;
+    }
+
+    // ── Ola 1018F · «estudio» solo en lectura larga, doblaje y audiolibros ──
+    // En conversación, avisos y rito el tope es «alta» (ni medición: nadie
+    // espera a un descubrimiento para un aviso). En los usos que admiten
+    // estudio se mide una vez cada 5 min: vivo con 8 GB libres o servida por
+    // otra neurona → se conserva la vía del catálogo; si no, el demonio con
+    // Q8_0 queda como «alta». Elegida una vía, cubre TODO el mensaje.
+    const tope = nivelTopeSegunUso(usoDelTurno(opciones.contexto, opciones.uso));
+    if (tope === null) {
+        if (!estudioDisponible(await medirEstadoEstudio())) nivel = acotarNivel(nivel, "alta");
+    } else {
+        nivel = acotarNivel(nivel, tope);
     }
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────

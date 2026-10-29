@@ -89,15 +89,69 @@ export const NIVELES: Record<NivelVoz, InfoNivel> = {
 /** Cadena de descenso: cada nivel puede pasar al siguiente. */
 const ORDEN: NivelVoz[] = ["estudio", "alta", "nube", "ligera", "minima"];
 
+// ── Ola 1018F · Nivel «estudio» con VoiceStudio y regla instantánea ────────
+
+/**
+ * Estado MEDIDO de VoiceStudio en ESTA neurona: lo trae `descubrir()` de
+ * `voicestudio.ts` (el `/­.well-known/voicestudio-speech`) y la malla.
+ */
+export interface EstadoEstudio {
+    /** El descubrimiento dijo vivo. */
+    voicestudioVivo: boolean;
+    /** GB de memoria LIBRES en esta neurona; `null` si se desconoce (se toma 0). */
+    memoriaLibreGB: number | null;
+    /** Otra neurona de la malla sirve VoiceStudio a esta (la memoria la lleva quien sirve). */
+    servidaPorOtraNeurona: boolean;
+}
+
+/**
+ * El nivel «estudio» SOLO está disponible si VoiceStudio está vivo y la neurona
+ * tiene 8 GB de memoria libres o más, o si otra neurona de la malla se lo sirve
+ * (contrato `architecture/voz-voicestudio.md` §3-§4). Pura.
+ */
+export function estudioDisponible(e?: EstadoEstudio): boolean {
+    if (!e || !e.voicestudioVivo) return false;
+    return (e.memoriaLibreGB ?? 0) >= 8 || e.servidaPorOtraNeurona;
+}
+
+/** Uso del turno: dónde va a sonar lo que se pide. */
+export type UsoVoz = "conversacion" | "aviso" | "lectura" | "doblaje" | "audiolibro";
+
+/** «estudio» solo para lectura larga, doblaje y audiolibros (contrato §4). */
+export function estudioSegunUso(uso: UsoVoz): boolean {
+    return uso === "lectura" || uso === "doblaje" || uso === "audiolibro";
+}
+
+/** Nivel más alto que este uso puede pedir; `null` = sin tope (llega a «estudio»). */
+export function nivelTopeSegunUso(uso: UsoVoz): NivelVoz | null {
+    return estudioSegunUso(uso) ? null : "alta";
+}
+
+/** Baja `n` al `tope` solo si lo supera: nunca SUBE un nivel que ya cayó. Pura. */
+export function acotarNivel(n: NivelVoz, tope: NivelVoz): NivelVoz {
+    return ORDEN.indexOf(n) < ORDEN.indexOf(tope) ? tope : n;
+}
+
 /**
  * Nivel por defecto (decisión automática). A los cuatro niveles por hardware
  * se une el «nube» (2026-09-07, Ola 279 · V6): si no hay demonio local PERO hay
  * conexión, la síntesis por el servidor del OS suena bien sin descargar nada,
  * y queda ANTES que «ligera»/«mínima». Es el nivel que Alex pidió para que la
  * voz «funcione y suene bien» aunque el demonio esté apagado.
+ *
+ * (Ola 1018F) Con el estado de VoiceStudio MEDIDO (`estudio`), el nivel
+ * «estudio» solo sale de `estudioDisponible` — Vivo con 8 GB libres o servida
+ * por otra neurona, demonio local no hace falta; sin esas condiciones el
+ * demonio queda como «alta». Sin datos de VoiceStudio (llamadores antiguos)
+ * manda la regla histórica del demonio con 8 GB de RAM.
  */
-export function nivelPorDefecto(c: Capacidades): NivelVoz {
-    if (c.daemonLocal && (c.memoriaGB ?? 0) >= 8) return "estudio";
+export function nivelPorDefecto(c: Capacidades, estudio?: EstadoEstudio): NivelVoz {
+    if (estudio !== undefined) {
+        if (estudioDisponible(estudio)) return "estudio";
+        if (c.daemonLocal) return "alta";
+    } else if (c.daemonLocal && (c.memoriaGB ?? 0) >= 8) {
+        return "estudio";
+    }
     if (c.daemonLocal) return "alta";
     // `navigator.onLine` solo existe en el navegador; el servidor cae a ligera/mínima.
     if (typeof navigator !== "undefined" && navigator.onLine) return "nube";
@@ -106,23 +160,25 @@ export function nivelPorDefecto(c: Capacidades): NivelVoz {
 }
 
 /**
- * Elige el nivel más alto que el equipo puede sostener:
- *  · demonio local + 8 GB de RAM o más        → estudio
- *  · demonio local                             → alta
- *  · en línea y sin demonio                    → nube (Gemini/Pollinations)
- *  · escritorio con WebGPU o WASM SIMD         → ligera
- *  · cualquier otro caso                       → minima
+ * Elige el nivel más alto que el equipo puede sostener, con el estado de
+ * VoiceStudio medido si lo hay:
+ *  · VoiceStudio vivo + 8 GB libres (o servida por otra neurona)  → estudio
+ *  · demonio local + 8 GB de RAM o más (regla histórica sin datos) → estudio
+ *  · demonio local                                                → alta
+ *  · en línea y sin demonio                                       → nube
+ *  · escritorio con WebGPU o WASM SIMD                            → ligera
+ *  · cualquier otro caso                                          → minima
  */
-export function nivelPara(c: Capacidades): NivelVoz {
-    return nivelPorDefecto(c);
+export function nivelPara(c: Capacidades, estudio?: EstadoEstudio): NivelVoz {
+    return nivelPorDefecto(c, estudio);
 }
 
 /**
  * Niveles que puede ofrecer este equipo, del mejor al peor.
  * Siempre incluye «minima», la red de seguridad que nunca falla.
  */
-export function nivelesDisponibles(c: Capacidades): NivelVoz[] {
-    const mejor = nivelPara(c);
+export function nivelesDisponibles(c: Capacidades, estudio?: EstadoEstudio): NivelVoz[] {
+    const mejor = nivelPara(c, estudio);
     return ORDEN.slice(ORDEN.indexOf(mejor));
 }
 
