@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleCheck, CircleX, Loader2, ShieldCheck, TriangleAlert, X } from "lucide-react";
+import { SeccionPlegable } from "@/components/mando/seccion-plegable";
 
 interface Punto {
     nombre: string;
@@ -138,45 +139,52 @@ export function VerificarProcesos() {
                     aria-label="Reporte de procesos"
                     className="mc-cristal mc-desplegar absolute right-0 top-full z-30 mt-2 w-[min(34rem,92vw)] max-sm:w-[calc(100vw-2rem)] border border-white/15 p-3 shadow-[0_18px_60px_-18px_rgba(0,0,0,0.8)]"
                 >
-                    <div className="mc-centrado flex items-start justify-between gap-2">
-                        <p className="text-[11px] font-medium text-white/75">
+                    <SeccionPlegable
+                        id="mando.verificar-procesos"
+                        titulo="Puntos verificados"
+                        contador={`${reporte.puntos.length}`}
+                        resumen={reporte.veredicto}
+                        acciones={
+                            <button
+                                type="button"
+                                aria-label="Cerrar reporte"
+                                onClick={() => setAbierto(false)}
+                                className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-white/60 transition hover:bg-white/10 hover:text-white"
+                            >
+                                <X className="h-3 w-3" aria-hidden />
+                                Cerrar
+                            </button>
+                        }
+                    >
+                        <p className="mc-centrado text-[11px] font-medium text-white/75">
                             {reporte.veredicto}
                             <span className="ml-1 text-white/35">
                                 {new Date(reporte.t).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
                             </span>
                         </p>
-                        <button
-                            type="button"
-                            aria-label="Cerrar reporte"
-                            onClick={() => setAbierto(false)}
-                            className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-white/60 transition hover:bg-white/10 hover:text-white"
-                        >
-                            <X className="h-3 w-3" aria-hidden />
-                            Cerrar
-                        </button>
-                    </div>
-                    <ul className="mt-2 max-h-[70vh] space-y-1.5 overflow-y-auto pr-1">
-                        {reporte.puntos.map((p) => {
-                            const Icono = ICONO[p.estado];
-                            return (
-                                <li key={p.nombre} className="flex gap-2 rounded-lg border border-white/10 bg-black/25 p-2">
-                                    <Icono className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${COLOR[p.estado]}`} aria-hidden />
-                                    <div className="min-w-0">
-                                        <p className="text-[11px] text-white/80">
-                                            {p.nombre}
-                                            <span className="ml-1.5 text-white/45">{p.dato}</span>
-                                        </p>
-                                        {/* El porqué es lo que hace útil el reporte: sin él es una
-                                            lista de luces de colores que no dice qué hacer. */}
-                                        <p className="mt-0.5 text-[10px] leading-relaxed text-white/45">{p.porque}</p>
-                                    </div>
-                                </li>
-                            );
-                        })}
-                    </ul>
-                    <p className="mc-centrado mt-2 text-[10px] text-white/30">
-                        Guardado en starseed_memory_root/mando/verificaciones/ · Comprobado hace {segundosDesde(reporte.t, ahora)} s
-                    </p>
+                        <ul className="mt-2 max-h-[70vh] space-y-1.5 overflow-y-auto pr-1">
+                            {reporte.puntos.map((p) => {
+                                const Icono = ICONO[p.estado];
+                                return (
+                                    <li key={p.nombre} className="flex gap-2 rounded-lg border border-white/10 bg-black/25 p-2">
+                                        <Icono className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${COLOR[p.estado]}`} aria-hidden />
+                                        <div className="min-w-0">
+                                            <p className="text-[11px] text-white/80">
+                                                {p.nombre}
+                                                <span className="ml-1.5 text-white/45">{p.dato}</span>
+                                            </p>
+                                            {/* El porqué es lo que hace útil el reporte: sin él es una
+                                                lista de luces de colores que no dice qué hacer. */}
+                                            <p className="mt-0.5 text-[10px] leading-relaxed text-white/45">{p.porque}</p>
+                                        </div>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                        <p className="mc-centrado mt-2 text-[10px] text-white/30">
+                            Guardado en starseed_memory_root/mando/verificaciones/ · Comprobado hace {segundosDesde(reporte.t, ahora)} s
+                        </p>
+                    </SeccionPlegable>
                 </div>
             ) : null}
         </div>

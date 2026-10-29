@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Cpu, Loader2, RefreshCw, X } from "lucide-react";
 import type { EstadoMedio, ResumenMedios } from "@/lib/mando/medios-computo";
+import { SeccionPlegable } from "@/components/mando/seccion-plegable";
 
 const TONES: Record<EstadoMedio, { bg: string; label: string }> = {
     listo: { bg: "border-emerald-500/40 bg-emerald-500/20 text-emerald-300", label: "Listo" },
@@ -82,31 +83,39 @@ export function BotonMedios() {
                             <p className="font-medium">{resumen.error}</p>
                         </div>
                     ) : (
-                        <div className="mt-3 space-y-2.5 max-h-[28rem] overflow-y-auto pr-1">
-                            {resumen?.medios.map((m) => {
-                                const chip = TONES[m.estado] ?? TONES.no_disponible;
-                                return (
-                                    <article key={m.id || m.nombre} className="rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
-                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-semibold text-white">{m.nombre}</span>
-                                                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${chip.bg}`}>{chip.label}</span>
+                        <SeccionPlegable
+                            id="mando.medios-computo"
+                            titulo="Medios disponibles"
+                            contador={`${resumen?.medios.length ?? 0}`}
+                            resumen={`${listos} listos · ${usables} usables · ${porHacer} por preparar`}
+                            abiertaPorDefecto={false}
+                        >
+                            <div className="space-y-2.5 max-h-[28rem] overflow-y-auto pr-1">
+                                {resumen?.medios.map((m) => {
+                                    const chip = TONES[m.estado] ?? TONES.no_disponible;
+                                    return (
+                                        <article key={m.id || m.nombre} className="rounded-lg border border-white/10 bg-black/30 p-3 text-xs">
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-semibold text-white">{m.nombre}</span>
+                                                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${chip.bg}`}>{chip.label}</span>
+                                                </div>
+                                                {m.capacidad && <span className="font-mono text-white/70">{m.capacidad}</span>}
                                             </div>
-                                            {m.capacidad && <span className="font-mono text-white/70">{m.capacidad}</span>}
-                                        </div>
-                                        {m.detalle && <p className="mt-1 text-white/60 text-[11px]">{m.detalle}</p>}
-                                        {m.siguiente_paso && (
-                                            <div className="mt-2 rounded bg-black/50 border border-white/10 p-2 font-mono text-[11px] text-cyan-200">
-                                                <span className="text-[10px] uppercase text-white/40 block mb-0.5 font-sans">
-                                                    Siguiente paso (copia y pega en la terminal):
-                                                </span>
-                                                <code className="select-all block break-all text-emerald-300 font-mono">{m.siguiente_paso}</code>
-                                            </div>
-                                        )}
-                                    </article>
-                                );
-                            })}
-                        </div>
+                                            {m.detalle && <p className="mt-1 text-white/60 text-[11px]">{m.detalle}</p>}
+                                            {m.siguiente_paso && (
+                                                <div className="mt-2 rounded bg-black/50 border border-white/10 p-2 font-mono text-[11px] text-cyan-200">
+                                                    <span className="text-[10px] uppercase text-white/40 block mb-0.5 font-sans">
+                                                        Siguiente paso (copia y pega en la terminal):
+                                                    </span>
+                                                    <code className="select-all block break-all text-emerald-300 font-mono">{m.siguiente_paso}</code>
+                                                </div>
+                                            )}
+                                        </article>
+                                    );
+                                })}
+                            </div>
+                        </SeccionPlegable>
                     )}
                 </section>
             )}
