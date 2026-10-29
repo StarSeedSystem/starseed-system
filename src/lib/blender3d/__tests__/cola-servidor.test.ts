@@ -47,7 +47,12 @@ describe("encolarTrabajo", () => {
   it("rechaza ids con .. o de largo equivocado", async () => {
     expect(await estadoDe(`../${"0".repeat(32)}`)).toBeNull();
     expect(await estadoDe("0".repeat(31))).toBeNull();
+    expect(await estadoDe("..")).toBeNull();
     expect((await leerSalida("0".repeat(32), "../secreto")).ok).toBe(false);
+  });
+  it("rechaza ids con caracteres que no son hex aunque el largo cuadre", async () => {
+    expect(await estadoDe("z".repeat(32))).toBeNull();
+    expect(await estadoDe("Z".repeat(32))).toBeNull();
   });
   it("encola y no filtra rutas absolutas en el estado ni en el listado", async () => {
     _ponerProcesos(fichaLigera, () => undefined);
@@ -68,6 +73,19 @@ describe("encolarTrabajo", () => {
     const r = await encolarTrabajo(base());
     expect(r.ok).toBe(true);
     expect(lanzados).toBe(0);
+  });
+});
+
+describe("listarRecientes", () => {
+  it("topa la lista a 20 aunque haya más estados y se pidan más", async () => {
+    mkdirSync(path.join(raiz, "estado"), { recursive: true });
+    for (let i = 0; i < 22; i++) {
+      const id = i.toString(16).padStart(32, "0");
+      writeFileSync(path.join(raiz, "estado", `${id}.json`), JSON.stringify({ id, estado: "hecho", salidas: [] }));
+    }
+    const lista = await listarRecientes(25);
+    expect(lista.length).toBe(20);
+    expect(lista.every((e) => /^[0-9a-f]{32}$/.test(e.id))).toBe(true);
   });
 });
 
