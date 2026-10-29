@@ -691,6 +691,20 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     routing: {},
     rutaCompleta: h.rutaCompleta,
   })),
+  /* ═══ LYS1018K · Habilidades de ingeniería por Laya (ENCENDIDA por defecto) ═══
+   * Laya elige cuál aplica y el tamaño sale de la capa que responde (contrato
+   * architecture/laya-y-habilidades.md §4-§5): `preguntaHabilidad` arma la
+   * choice del punto «habilidad.elegir» y `bloqueHabilidad` inyecta la tarjeta,
+   * el resumen o la referencia a la guía completa. Desactivable en Ajustes. */
+  {
+    id: "habilidades-ingenieria",
+    label: "Habilidades de ingeniería por Laya",
+    defaultOn: true,
+    systemPrompt:
+      "Tienes 12 habilidades de ingeniería de Matt Pocock (TDD, diagnóstico de fallos, diseño de módulos profundos, modelo de dominio, revisión de código, especificación, tickets, triage, prototipos, investigación, arquitectura e implementación), cada una con su «cuándo» en el registro de habilidades. Antes de responder trabajo de ingeniería, mira si encaja alguna: la capa que responde recibe solo el tamaño que le cabe — la TARJETA (≤ 60 palabras) en reflejo y en los modelos pequeños, el RESUMEN (≤ 120 palabras) en palabra y razón, y la REFERENCIA a la guía completa en las capas profunda y de nube. La elige Laya en la línea «habilidad.elegir» con su confianza calibrada: si duda o elige «ninguna», respondes sin aplicar ninguna. Nunca apliques pasos de una habilidad que no se te hayan inyectado en este turno.",
+    routing: {},
+    skillIds: ["habilidades-ingenieria"],
+  },
 ];
 
 function isClient(): boolean {
