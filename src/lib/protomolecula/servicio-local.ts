@@ -109,7 +109,7 @@ export const llamarServicio = (def: DefinicionServicio, ruta: string, cuerpo: un
   pedir(def, ruta, cuerpo, f, o, def.tiempoMs ?? TIEMPO_MS, false);
 
 /* ── Lanzador nativo: lista blanca CERRADA; el id lo traduce a ejecutable la app nativa, nunca una ruta de aquí ── */
-export const BINARIOS_PERMITIDOS: Readonly<Record<string, string>> = Object.freeze({ blender: "Blender", krita: "Krita", gimp: "GIMP", inkscape: "Inkscape",
+export const BINARIOS_PERMITIDOS: Readonly<Record<string, string>> = Object.freeze({ blender: "Blender", rare: "Rare", krita: "Krita", gimp: "GIMP", inkscape: "Inkscape",
   kdenlive: "Kdenlive", audacity: "Audacity", ardour: "Ardour", "obs-studio": "OBS Studio", freecad: "FreeCAD", ffmpeg: "FFmpeg", comfyui: "ComfyUI", ollama: "Ollama" });
 export interface ContextoLanzamiento { rol: Rol | null; origen: Origen; ambito: Ambito; appNativa: boolean; confirmado?: boolean; ahora: number }
 export interface SolicitudLanzamiento { tipo: "lanzar-externo"; binarioId: string; nombre: string; origen: Origen; confirmadoEn: number }
