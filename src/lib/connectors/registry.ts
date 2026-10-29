@@ -653,6 +653,36 @@ export const BUILTIN_CONNECTORS: Connector[] = [
     docsUrl: "https://docs.archivebox.io",
     configHint: "URL de tu instancia (envío a archive.org apagado)",
   },
+
+  // ── Contenido vivo (CVV1028J) · servicios externos Spline y Higgsfield ──
+  {
+    id: "spline",
+    name: "Spline (escenas 3D)",
+    category: "dev",
+    kind: "free",
+    authType: "oauth",
+    status: "needs-auth",
+    free: true,
+    icon: "Boxes",
+    description:
+      "Opcional: escenas 3D del contenido vivo por su MCP HTTP. Inicia sesión con tu cuenta de Spline. El plan Pro da 200 llamadas al día y una escena propia gasta de 6 a 10; haz primero las variantes locales (Three.js en la neurona) y gasta llamadas solo cuando el externo gana con claridad. Antes de gastar, siempre cotización y tu sí.",
+    docsUrl: "https://mcp.spline.design/mcp",
+    configHint: "Se conecta con tu cuenta de Spline (MCP https://mcp.spline.design/mcp)",
+  },
+  {
+    id: "higgsfield",
+    name: "Higgsfield (imagen y vídeo)",
+    category: "custom",
+    kind: "paid",
+    authType: "apiKey",
+    status: "needs-auth",
+    free: false,
+    icon: "Clapperboard",
+    description:
+      "Opcional: imagen y vídeo para el contenido vivo (Nano Banana 2, Seedance 2.0, cada uno con su coste en créditos). La clave va a la bóveda, nunca al código; la invocación reutiliza el adaptador del subsistema de cerebros en vez de duplicarlo. Nunca se gastan créditos sin cotización y sin tu sí.",
+    docsUrl: "https://higgsfield.ai",
+    configHint: "Nombre de tu clave en la bóveda (jamás el valor de la clave)",
+  },
 ];
 
 /** Lookup rápido por id (para no recorrer el array en cada acceso). */
