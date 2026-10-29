@@ -719,6 +719,82 @@ def _intenta_openrouter(estado, preguntas, t0, quien=None):
     return respuestas, r
 
 
+# ── Meta^n: la pauta activa de la capa juicio entra en el estado ─────────────
+# (2026-10-29, 1027N) La automejora (Meta^n) aprende pautas de texto por capa;
+# el contrato (architecture/automejora-meta-n.md §4) dice que Jev añade la
+# directiva activa al estado como `pautas_astraura`. Se lee
+# starseed_memory_root/aprendizaje/directivas/juicio.json con caché de 5 min:
+# si falta, no hay entrada `activa` o su texto no pasa `sanear_pauta`, aquí
+# no llega nada y todo sigue igual que siempre.
+RAIZ = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+)
+DIRECTIVA_RUTA = os.path.join(
+    RAIZ, "starseed_memory_root", "aprendizaje", "directivas", "juicio.json"
+)
+DIRECTIVA_TTL_S = 5 * 60
+_cache_pauta = {"t": 0.0, "valor": None}
+
+
+def _sanear_pauta(texto):
+    """Automejora_logica.sanear_pauta con importación perezosa: sin el módulo, no hay pauta."""
+    try:
+        import automejora_logica
+
+        r = automejora_logica.sanear_pauta(texto)
+        return r if isinstance(r, dict) else {"ok": False}
+    except Exception:
+        return {"ok": False}
+
+
+def pauta_activa(ahora=None):
+    """{texto, version} de la directiva activa de la capa juicio, o None.
+
+    Lee `DIRECTIVA_RUTA` (juicio.json) como mucho cada 5 min (caché de módulo,
+    también del «no hay nada»): la última entrada con estado `activa` es la
+    candidata, y solo sobrevive si su texto pasa `sanear_pauta`. Nunca lanza.
+    """
+    ahora = ahora or time.time()
+    if _cache_pauta["t"] and ahora - _cache_pauta["t"] < DIRECTIVA_TTL_S:
+        return _cache_pauta["valor"]
+    d = _leer(DIRECTIVA_RUTA, {})
+    valor = None
+    for entrada in reversed((d or {}).get("historial") or []):
+        if not isinstance(entrada, dict) or entrada.get("estado") != "activa":
+            continue
+        texto = entrada.get("texto")
+        r = _sanear_pauta(texto if isinstance(texto, str) else "")
+        if r.get("ok") and r.get("texto"):
+            try:
+                ver = int(entrada.get("version") or 0)
+            except (ValueError, TypeError):
+                ver = 0
+            valor = {"texto": r["texto"], "version": ver}
+        break
+    _cache_pauta["t"] = ahora
+    _cache_pauta["valor"] = valor
+    return valor
+
+
+def estado_con_pauta(estado, pauta=None):
+    """El estado con la pauta activa añadida: dict → clave `pautas_astraura`;
+    texto → bloque al final (cabecera fija del contrato §4). Sin pauta, tal cual.
+    Si el estado ya lleva `pautas_astraura`, se respeta la del que llama."""
+    if not isinstance(pauta, dict) or not pauta.get("texto"):
+        return estado
+    texto = str(pauta["texto"])
+    if isinstance(estado, dict):
+        estado = dict(estado)
+        estado.setdefault("pautas_astraura", texto)
+        return estado
+    version = pauta.get("version")
+    cabecera = "[Pautas aprendidas por la automejora de Astraura"
+    if version:
+        cabecera += " (versión %d)" % int(version)
+    cabecera += ". No cambian permisos ni reglas.]"
+    return "%s\n\n%s\n%s" % (estado, cabecera, texto)
+
+
 def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
     """{nombre: respuesta, 'medio', 'ms'} de Jev, o None si ningún medio responde.
 
@@ -731,6 +807,7 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
     """
     if not preguntas:
         return None
+    estado = estado_con_pauta(estado, pauta_activa())
     quien = (str(quien)[:40] if quien else None) or _quien()
     tipos = [(q or {}).get("type") for q in preguntas.values() if isinstance(q, dict)]
     h = _huella(estado, preguntas)
