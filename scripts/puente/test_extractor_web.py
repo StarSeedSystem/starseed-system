@@ -7,8 +7,11 @@ import sys
 import time  # added for test_pausa_dominio
 
 # Asegurar que se puede importar el puente poniendo scripts/puente en sys.path
-if "/Users/alex/Documents/starseed-wt/INV1025C/scripts/puente" not in sys.path:
-    sys.path.insert(0, "/Users/alex/Documents/starseed-wt/INV1025C/scripts/puente")
+# (2026-10-29, PUB1029H) Su propia carpeta, nunca la de un worktree: con la ruta de INV1025C,
+# `unittest discover` importaba los módulos del worktree y rompía todas las pruebas del puente.
+_AQUI = os.path.dirname(os.path.abspath(__file__))
+if _AQUI not in sys.path:
+    sys.path.insert(0, _AQUI)
 
 import pytest
 
