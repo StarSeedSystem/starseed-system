@@ -40,6 +40,11 @@ export function registrarEntradaMenuTexto(entrada: EntradaMenuTexto): () => void
   };
 }
 
+/** Resetea las entradas para tests. */
+export function resetearEntradas(): void {
+  entradas = [];
+}
+
 /** Solo entradas que quieren verse en este contexto. */
 export function entradasVisibles(
   lista: readonly EntradaMenuTexto[],
