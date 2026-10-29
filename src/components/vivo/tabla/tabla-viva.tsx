@@ -4,13 +4,14 @@
  * escritorio o tarjetas de móvil + paneles (columna, compartir, fila). Aquí solo se conectan
  * las piezas; la lógica de datos vive en `@/lib/vivo/tabla/*` y se prueba sin React.
  */
-import { Download, FileSpreadsheet, Loader2, Plus, Settings2, TriangleAlert, Upload, Users } from "lucide-react";
+import { Download, FileSpreadsheet, Loader2, Plus, Send, Settings2, TriangleAlert, Upload, Users } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/use-toast";
 import { updateSpaceMeta, listSpaceEditors } from "@/lib/spaces/spaces";
 import { crearMotorTabla, rutaTabla } from "@/lib/vivo/tabla";
 import { csvDesdeTabla, importarCsv, type ResultadoImportar } from "@/lib/vivo/tabla/csv";
+import { csvParaGridcraft, planGridcraftDesdeTabla } from "@/lib/artcraft/tabla-gridcraft";
 import { crearCalculadora } from "@/lib/vivo/tabla/formulas";
 import {
     ETIQUETA_TIPO,
@@ -314,6 +315,34 @@ export function TablaViva({ id }: { id: string }) {
         [tabla, filaIds, calc, perfil, snap.titulo],
     );
 
+    // Copia de trabajo en GridCraft: la tabla sigue siendo la entidad; el plan del módulo puro
+    // (`planGridcraftDesdeTabla`) lo ejecuta la pasarela (`/api/artcraft/gridcraft`, §3.2). Si la
+    // neurona no la tiene aún, queda una copia local en CSV con comas, el formato que GridCraft
+    // abre de fábrica (`csvParaGridcraft`).
+    const enviarAGridcraft = useCallback(async () => {
+        if (!tabla) return;
+        const plan = planGridcraftDesdeTabla(tabla, { archivo: snap.titulo || "tabla" });
+        if (!plan.llamadas.length) {
+            toast({ title: "Nada que enviar", description: plan.avisos.join(" ") });
+            return;
+        }
+        for (const l of plan.llamadas) {
+            try {
+                const r = await fetch("/api/artcraft/gridcraft", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(l),
+                });
+                if (!r.ok) throw new Error(`${r.status}`);
+            } catch {
+                descargarTexto(nombreArchivo(snap.titulo || "tabla", "csv"), csvParaGridcraft(tabla), "text/csv", false);
+                toast({ title: "Pasarela de GridCraft no disponible", description: `Dejamos una copia en CSV con comas para abrir en GridCraft. ${plan.avisos.join(" ")}`.trim() });
+                return;
+            }
+        }
+        toast({ title: "Copia enviada a GridCraft", description: plan.avisos.join(" ") || "El libro se guardó en «salida/» de la neurona." });
+    }, [tabla, snap.titulo]);
+
     const alElegirArchivo = useCallback(
         async (archivo: File | undefined) => {
             if (!archivo) return;
@@ -348,6 +377,7 @@ export function TablaViva({ id }: { id: string }) {
         { id: "importar", etiqueta: "Importar un archivo CSV", icono: Upload, alElegir: () => selector.current?.click(), deshabilitado: !puedeEditar },
         { id: "exportar", etiqueta: vistaVacia(vistaEfectiva) ? "Exportar como CSV" : "Exportar como CSV (solo lo que ves)", icono: Download, alElegir: () => exportar(false), separadorAntes: true },
         { id: "excel", etiqueta: "Exportar como CSV para Excel", icono: FileSpreadsheet, alElegir: () => exportar(true) },
+        { id: "gridcraft", etiqueta: "Enviar una copia a GridCraft", icono: Send, alElegir: () => enviarAGridcraft() },
         { id: "columnas", etiqueta: "Ver y editar las columnas", icono: Settings2, alElegir: () => setListaColumnas(true), separadorAntes: true },
     ];
 
