@@ -53,6 +53,34 @@ import { prepararDiagrama } from "@/lib/diagramas/aislar-diagrama";
 import { VistaDiagrama } from "@/components/diagramas/vista-diagrama";
 import type { MainRatio } from "@/lib/publish/publish";
 import { SANDBOX_CODIGO } from "@/lib/variaciones/validar";
+import { ATRIBUTO_ESCUDO, ponerEscudo } from "@/lib/contenido-vivo/escudo-3d";
+
+const RUTA_ESCENA_3D = /^\/(?:escena|sala-xr|red-3d|memorias-3d|mundo-avatares)(?:\/|$)/;
+const HOSTS_ESCENA_3D = new Set(["my.spline.design", "prod.spline.design"]);
+
+/** ¿El iframe muestra una escena 3D (el visor del OS o una escena de Spline)? */
+function esEscena3d(url: string): boolean {
+    if (!url) return false;
+    try {
+        const base = typeof window === "undefined" ? "https://starseed.invalid/" : window.location.origin;
+        const destino = new URL(url, base);
+        if (HOSTS_ESCENA_3D.has(destino.hostname) || destino.pathname.endsWith(".splinecode")) return true;
+        return destino.origin === new URL(base).origin && RUTA_ESCENA_3D.test(destino.pathname);
+    } catch {
+        return false;
+    }
+}
+
+/** Coloca el escudo de contenido vivo sobre la escena y lo retira al desmontar. */
+function useEscudoEscena(url: string) {
+    const ref = useRef<HTMLIFrameElement>(null);
+    useEffect(() => {
+        const iframe = ref.current;
+        if (!iframe || !esEscena3d(url) || iframe.hasAttribute(ATRIBUTO_ESCUDO)) return;
+        return ponerEscudo(iframe);
+    }, [url]);
+    return ref;
+}
 
 // ───────────────────────────── Tipos públicos ───────────────────────────────
 
@@ -330,9 +358,12 @@ function PdfBody({ item, boxed, context }: { item: EmbeddedItem; boxed: boolean;
 }
 
 function TrustedIframeBody({ item, boxed, context }: { item: EmbeddedItem; boxed: boolean; context: EmbedContext }) {
+    const src = item.url || "";
+    const escudo = useEscudoEscena(src);
     return (
         <iframe
-            src={item.url || ""}
+            ref={escudo}
+            src={src}
             className={cn("border-0 bg-white/[0.03]", fillClass(boxed, context))}
             title={titleOf(item)}
         />
@@ -343,6 +374,7 @@ function SandboxedIframeBody({ item, boxed, context }: { item: EmbeddedItem; box
     const [loaded, setLoaded] = useState(false);
     const [slow, setSlow] = useState(false);
     const src = item.url || "";
+    const escudo = useEscudoEscena(src);
 
     useEffect(() => {
         setLoaded(false);
@@ -354,6 +386,7 @@ function SandboxedIframeBody({ item, boxed, context }: { item: EmbeddedItem; box
     return (
         <div className={cn("relative", fillClass(boxed, context))}>
             <iframe
+                ref={escudo}
                 src={src}
                 onLoad={() => setLoaded(true)}
                 sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
@@ -361,7 +394,7 @@ function SandboxedIframeBody({ item, boxed, context }: { item: EmbeddedItem; box
                 title={titleOf(item)}
             />
             {!loaded && slow && (
-                <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
+                <div className="pointer-events-none absolute inset-0 z-[3] grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
                     <div className="pointer-events-auto flex flex-col items-center gap-2 rounded-xl border border-white/10 bg-black/80 p-4 text-center">
                         <AlertTriangle className="size-5 text-amber-300" />
                         <p className="text-xs text-white/70">Este sitio puede bloquear la vista incrustada.</p>
@@ -380,7 +413,7 @@ function SandboxedIframeBody({ item, boxed, context }: { item: EmbeddedItem; box
                 href={src}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="absolute bottom-1.5 right-1.5 inline-flex items-center gap-1 rounded-md border border-white/10 bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white/60 backdrop-blur-sm transition-colors hover:text-white"
+                className="absolute bottom-1.5 right-1.5 z-[3] inline-flex items-center gap-1 rounded-md border border-white/10 bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white/60 backdrop-blur-sm transition-colors hover:text-white"
             >
                 <ExternalLink className="size-2.5" /> ¿No carga? Ábrelo en pestaña
             </a>
