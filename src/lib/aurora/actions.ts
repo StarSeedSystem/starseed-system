@@ -1170,18 +1170,46 @@ export const AURORA_ACTIONS: AuroraActionDef[] = [
     example: '[[ACCION: animar_escena {"descripcion":"un cubo girando con la flor de la vida","calidad":"720p"}]]',
     handler: async (args, ctx) => {
       const { crearAccionAnimarEscena, pedirEscenaAlModelo } = await import("@/lib/aurora/animar-escena");
-      return crearAccionAnimarEscena({
-        pedirEscena: pedirEscenaAlModelo,
-        abrirConAtomo: async (atomArgs, atomCtx) => {
-          const { manejarAccionProtomoleculaAsync } = await import("@/lib/protomolecula/accion-agente");
-          const r = await manejarAccionProtomoleculaAsync(atomArgs, { abrirRuta: (ruta) => atomCtx.router.push(ruta) });
-          if (r.status) atomCtx.onStatus?.(r.status);
-          return r;
-        },
-      })(args, ctx);
+        return crearAccionAnimarEscena({
+          pedirEscena: pedirEscenaAlModelo,
+          abrirConAtomo: async (atomArgs, atomCtx) => {
+            const { manejarAccionProtomoleculaAsync } = await import("@/lib/protomolecula/accion-agente");
+            const r = await manejarAccionProtomoleculaAsync(atomArgs, { abrirRuta: (ruta) => atomCtx.router.push(ruta) });
+            if (r.status) atomCtx.onStatus?.(r.status);
+            return r;
+          },
+        })(args, ctx);
+      },
+    },
+  {
+    name: "render_3d",
+    describe:
+      "Crea un TRABAJO 3D como DATO y lo manda a la cola de render de la neurona que tenga Blender (jamás escribe código). Args: {forma} (cubo|esfera|icosfera|cilindro|cono|toro), {color} (nombre en español o #rrggbb), {material} (cristal|metal|mate|brillante), {ancho}, {alto}, {salida} (png|glb|ambos), {motor}; o {trabajo} completo ya válido. El validador decide; lo pesado pide tu visto bueno: si te lo da la persona, repite la orden con {confirmado}: true.",
+    example: '[[ACCION: render_3d {"forma":"esfera","material":"cristal","color":"#7aa2ff","salida":"png"}]]',
+    handler: async (args, ctx) => {
+      const { trabajoDeAccion, elegirNeurona } = await import("@/lib/blender3d/accion-render");
+      const propuesta = trabajoDeAccion(args);
+      if (!propuesta.ok) return { ok: false, message: propuesta.motivo };
+      const { listNeurons } = await import("@/lib/neurons/neurons");
+      const lista = await listNeurons();
+      const elegida = elegirNeurona(lista.map((n) => ({ nombre: n.name, capabilities: n.capabilities as unknown as Record<string, unknown> })));
+      if (!elegida.ok) return { ok: false, message: elegida.motivo };
+      const status = `Enviando el trabajo 3D a ${elegida.neurona}…`;
+      ctx.onStatus?.(status);
+      try {
+        const confirmado = String(args["confirmado"] ?? "").trim().toLowerCase() === "true";
+        const res = await fetch("/api/3d/trabajos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ trabajo: propuesta.trabajo, confirmado }) });
+        const datos = (await res.json().catch(() => null)) as { ok?: boolean; id?: string; motivo?: string; motivos?: string[]; requiereConfirmacion?: boolean } | null;
+        if (res.ok && datos?.ok) return { ok: true, status, message: `Encolé el trabajo 3D en ${elegida.neurona} con el id ${datos.id}: Blender lo renderizará en su turno.` };
+        if (datos?.requiereConfirmacion) return { ok: false, status, message: `Ese trabajo 3D necesita tu visto bueno antes de encolarse (es pesado o va por ámbitos compartidos). Cuando la persona lo autorice, repite la orden con confirmado: true.` };
+        return { ok: false, status, message: `La cola 3D no aceptó el trabajo: ${datos?.motivo ?? datos?.motivos?.join(" · ") ?? "sin respuesta de la cola"}.` };
+      } catch {
+        return { ok: false, message: `No pude llegar a la cola 3D de ${elegida.neurona}: ábrela para que reciba trabajos.` };
+      }
     },
   },
 ];
+
 
 // Índice por nombre para ejecución O(1).
 const ACTION_INDEX: Record<string, AuroraActionDef> = Object.fromEntries(
