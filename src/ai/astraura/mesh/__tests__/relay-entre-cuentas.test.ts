@@ -114,4 +114,24 @@ describe('motivoNoSubida', () => {
   it('destino otra cuenta and payload valido -> null', () => {
     expect(motivoNoSubida(miCuenta, otraCuenta, validoPayload)).toBeNull();
   });
+
+describe('esUuid edge cases', () => {
+  it('null returns false', () => expect(esUuid(null as any)).toBe(false));
+  it('number returns false', () => expect(esUuid(123 as any)).toBe(false));
+});
+
+describe('cuentaDestino edge', () => {
+  const emptyMap: Record<string, string> = {};
+  it('empty recipient string returns null', () => expect(cuentaDestino('', emptyMap)).toBeNull());
+});
+
+describe('filaParaMi edge owner mismatch', () => {
+  const me = 'device-me';
+  const miCuenta = '123e4567-e89b-12d3-a456-426614174000';
+  it('owner_id other and recipient_owner null -> false', () => {
+    const fila = { recipient: null, recipient_owner: null, device_id: null, owner_id: 'other-account' };
+    expect(filaParaMi(fila, me, miCuenta)).toBe(false);
+  });
+});
+
 })
