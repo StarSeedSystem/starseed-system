@@ -107,14 +107,14 @@ export interface TareaCola {
     /** Modelo preferido para empezar (opcional; si no, la rotación). */
     modelo?: string;
     /**
-     * (2026-09-29) `analisis` = un SUEÑO PROFUNDO: lee los archivos y escribe un informe
+     * (2026-09-29) `analisis` = una IMAGINACIÓN PROFUNDA: lee los archivos y escribe un informe
      * (scripts/enjambre/analista.py), sin worktree, sin puertas y sin integrar. Sin `tipo`,
      * una tarea de código de siempre.
      */
     tipo?: "analisis";
-    /** Área del OS que sueña (ids de `areas.ts` + mando, dashboards, gobernanza). */
+    /** Área del OS que imagina (ids de `areas.ts` + mando, dashboards, gobernanza). */
     area?: string;
-    /** Lente del sueño (arquitectura-deuda, ux-accesibilidad-diseno, …). */
+    /** Lente de la imaginación (arquitectura-deuda, ux-accesibilidad-diseno, …). */
     lente?: string;
     /** Nodo de aprobación humana por tarea: se queda en su rama hasta tu visto bueno. */
     aprobacion?: boolean;
@@ -122,14 +122,14 @@ export interface TareaCola {
     privado?: boolean;
 }
 
-/** Patrón de área y lente de un sueño: palabras en minúscula con guiones. */
+/** Patrón de área y lente de una imaginación: palabras en minúscula con guiones. */
 const PATRON_ETIQUETA = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-/** Techos de una cola: los sueños llegan a 14 áreas × 6 lentes y leen más archivos. */
+/** Techos de una cola: las imaginaciones llegan a 14 áreas × 6 lentes y leen más archivos. */
 export const TOPE_TAREAS_COLA = 40;
 export const TOPE_TAREAS_COLA_ANALISIS = 120;
 export const TOPE_ARCHIVOS_TAREA = 20;
 export const TOPE_ARCHIVOS_ANALISIS = 60;
-/** La regla de la casa para las tareas de código (un sueño la tiene exenta: solo lee). */
+/** La regla de la casa para las tareas de código (una imaginación la tiene exenta: solo lee). */
 export const ARCHIVOS_RECOMENDADOS = 3;
 
 /** Los campos opcionales de una tarea, leídos de un objeto crudo (colas de disco o del bus). */
@@ -242,7 +242,7 @@ async function colasDelBus(): Promise<ColaCompleta[]> {
                     ...extrasDeTarea(t),
                 };
             }).filter((t) => t.id);
-            // Sin prompt (arranques anteriores al 2026-09-05) no sirve para relanzar. Los sueños
+            // Sin prompt (arranques anteriores al 2026-09-05) no sirve para relanzar. Las imaginaciones
             // viajan sin prompt a propósito (se rehacen con suenos.py): tampoco se relanzan de aquí.
             if (tareas.some((t) => !t.prompt)) continue;
             vistas.set(nombre, { nombre, archivo: `cola-${nombre}.json`, tareas, modificada: f.t, origen: "bus" });
@@ -258,8 +258,8 @@ async function colasDelBus(): Promise<ColaCompleta[]> {
  * avisos que no impiden guardarla.
  *
  * (2026-09-29) Acepta los campos opcionales `tipo` («analisis»), `area`, `lente`, `aprobacion`
- * y `privado`. Un sueño (tipo analisis) solo LEE: queda exento de la regla de ≤3 archivos
- * (lee hasta 60) y una cola de sueños puede llevar hasta 120 tareas (14 áreas × 6 lentes);
+ * y `privado`. Una imaginación (tipo analisis) solo LEE: queda exenta de la regla de ≤3 archivos
+ * (lee hasta 60) y una cola de imaginación puede llevar hasta 120 tareas (14 áreas × 6 lentes);
  * a cambio necesita área y lente. A las tareas de código con más de 3 archivos se les avisa:
  * las de 6 o 9 archivos son las que fallan tarde (memory/orquestacion-economica.md §12.2).
  */
@@ -271,7 +271,7 @@ export function validarCola(nombre: string, bruto: unknown): { errores: string[]
     const todasAnalisis = entradas.length > 0 && entradas.every((e) => objeto(e).tipo === "analisis");
     const topeTareas = todasAnalisis ? TOPE_TAREAS_COLA_ANALISIS : TOPE_TAREAS_COLA;
     if (entradas.length === 0) errores.push("La cola no tiene tareas.");
-    if (entradas.length > topeTareas) errores.push(`Demasiadas tareas (máximo ${topeTareas} por cola${todasAnalisis ? " de sueños" : ""}).`);
+    if (entradas.length > topeTareas) errores.push(`Demasiadas tareas (máximo ${topeTareas} por cola${todasAnalisis ? " de imaginación" : ""}).`);
     const tareas: TareaCola[] = [];
     const ids = new Set<string>();
     for (const e of entradas) {
@@ -290,13 +290,13 @@ export function validarCola(nombre: string, bruto: unknown): { errores: string[]
         if (prompt.length > 12000) errores.push(`${id}: el prompt es demasiado largo (máximo 12000).`);
         const archivos = lista(d.archivos).map((a) => a.trim()).filter(Boolean);
         for (const a of archivos) {
-            // Un sueño no puede leer nada ahí donde podría haber un secreto.
+            // Una imaginación no puede leer nada ahí donde podría haber un secreto.
             if (a.includes("..") || a.startsWith("/") || /\s/.test(a) || (esAnalisis && /(^|\/)\.env/.test(a))) errores.push(`${id}: ruta de archivo no permitida «${a}».`);
         }
         const topeArchivos = esAnalisis ? TOPE_ARCHIVOS_ANALISIS : TOPE_ARCHIVOS_TAREA;
         if (esAnalisis) {
-            if (!extras.area || !extras.lente) errores.push(`${id}: un sueño (tipo analisis) necesita área y lente.`);
-            if (archivos.length === 0) errores.push(`${id}: un sueño sin archivos que leer no puede soñar nada.`);
+            if (!extras.area || !extras.lente) errores.push(`${id}: una imaginación (tipo analisis) necesita área y lente.`);
+            if (archivos.length === 0) errores.push(`${id}: una imaginación sin archivos que leer no puede imaginar nada.`);
         } else if (archivos.length > ARCHIVOS_RECOMENDADOS) {
             avisos.push(`${id}: declara ${archivos.length} archivos; la regla es ≤${ARCHIVOS_RECOMENDADOS} por tarea (las grandes fallan tarde: pártela).`);
         }
@@ -336,12 +336,12 @@ export function validarCola(nombre: string, bruto: unknown): { errores: string[]
 }
 
 /**
- * ¿Puede esta cola ir a la NUBE? Los sueños no (corren en la Mac, donde están las claves de la
+ * ¿Puede esta cola ir a la NUBE? Las imaginaciones no (corren en la Mac, donde están las claves de la
  * flota gratuita) y lo privado tampoco (la lente de seguridad no sale de la Mac). PURA.
  */
 export function motivoNoNube(tareas: TareaCola[]): string | null {
     if (tareas.some((t) => t.privado)) return "La cola lleva tareas privadas (lente de seguridad): solo pueden correr en esta Mac.";
-    if (tareas.some((t) => t.tipo === "analisis")) return "Los sueños profundos corren en la Mac (python3 scripts/puente/suenos.py lanzar), no en la nube.";
+    if (tareas.some((t) => t.tipo === "analisis")) return "La imaginación profunda corre en la Mac (python3 scripts/puente/suenos.py lanzar), no en la nube.";
     return null;
 }
 
