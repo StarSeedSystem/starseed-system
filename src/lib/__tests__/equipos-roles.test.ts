@@ -35,6 +35,24 @@ describe("equipos base", () => {
   it("ordenDeTareas de publicacion respeta la cadena", () => {
     expect(ordenDeTareas(equipo("publicacion"))).toEqual(["investigar", "redactar", "revisar"]);
   });
+
+  it("declara tres equipos con identificadores únicos", () => {
+    expect(EQUIPOS_BASE.map((e) => e.id)).toEqual(["publicacion", "app-widget", "atomo-proto"]);
+  });
+});
+
+describe("validarEquipo: casos rescatados de la rama nube", () => {
+  it("la última tarea no la ejecuta un rol que verifica", () => {
+    const e = equipo("publicacion");
+    e.tareas[2].rol = "redactor";
+    expect(validarEquipo(e).some((p) => p.includes("última tarea") && p.includes("verifica"))).toBe(true);
+  });
+
+  it("lista de motores vacía", () => {
+    const e = equipo("publicacion");
+    e.motoresValidos = [];
+    expect(validarEquipo(e)).toContain("motoresValidos está vacío");
+  });
 });
 
 describe("validarEquipo detecta cada regla rota", () => {
