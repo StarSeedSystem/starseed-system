@@ -160,7 +160,11 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: "" } });
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
         expect(b.desconectar.explica).toContain("Dejar de usar como contenedor");
+<<<<<<< HEAD
         // El relevo no está activo: ni promete apagar sin más (contradice el repecho) ni pide confirmar nada.
+=======
+        // El relevo no está activo: ni promete apagar sin más (eso solo vale sin contenedor) ni pide confirmar nada.
+>>>>>>> 42869b364 (salvavidas · RTRTCOL1012Bdsbbbbbbbcbbbbbbbbbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
         expect(b.desconectar.explica).not.toContain("puedes apagarlo sin más");
         expect(b.desconectar.confirmar).toBeFalsy();
         expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: "Dejar de usar como contenedor" });
