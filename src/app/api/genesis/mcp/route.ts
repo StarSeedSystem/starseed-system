@@ -1,11 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 import { atenderMcp, type HerramientaMcp } from "@/lib/genesis/mcp/protocolo";
+import {
+  crearHerramientaVariaciones,
+  type OrdenVariaciones,
+  type VariacionPublica,
+} from "@/lib/genesis/mcp/herramienta-variaciones";
+import { crearDatosVariaciones, type ClienteVariaciones, type FilaVariacion } from "@/lib/variaciones/datos";
+import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** Conexión Genesis ↔ capa de datos. */
+function aVariacionPublica(f: FilaVariacion): VariacionPublica {
+  return {
+    id: f.id, clave: f.clave, tipo: f.tipo, titulo: f.titulo, licencia: f.licencia,
+    ...(f.descripcion ? { descripcion: f.descripcion } : {}),
+    ...(f.etiquetas.length ? { etiquetas: f.etiquetas } : {}),
+    valoracionMedia: f.valoracion_media, usos: f.usos,
+  };
+}
+
+/** Listador de `variaciones_buscar` sobre la capa real de variaciones públicas. */
+const listarVariaciones = async ({
+  clave,
+  buscar,
+  orden,
+}: {
+  clave: string; buscar?: string; orden?: OrdenVariaciones;
+}) => {
+  const cliente = createClient() as unknown as PromiseLike<ClienteVariaciones>;
+  const datos = crearDatosVariaciones(await cliente);
+  const listado = await datos.listarVariaciones(clave, { buscar, orden });
+  if (listado.error) throw new Error(listado.error);
+  return listado.variaciones.map(aVariacionPublica);
+};
+
 function herramientasPredeterminadas(): HerramientaMcp[] {
   return [
+    crearHerramientaVariaciones(listarVariaciones),
     {
       nombre: "estado",
       descripcion: "Obtiene el estado del sistema",
