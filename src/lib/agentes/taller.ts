@@ -122,6 +122,40 @@ export const RECURSOS_ASTRAURA: RecursoAgente[] = [
     requiere: [], ruta: "backend/app/memory" },
 ];
 
+/* ── ArtCraft: tres MCP del OS por la pasarela, con directorio de trabajo ──
+   El agente no recibe rutas absolutas ni red: pide por `/api/artcraft/<app>` y
+   la pasarela resuelve nombres dentro de su directorio de trabajo. `requiere`
+   lleva SOLO nombres de condiciones, nunca valores de claves (contrato §4.1). */
+export const RECURSOS_ARTCRAFT: RecursoAgente[] = [
+  {
+    id: "os:artcraft-figcraft", tipo: "mcp", origen: "os", maquina: "cualquiera",
+    nombre: "FigCraft por la pasarela ArtCraft",
+    descripcion: "Diseño de interfaces y widgets por la pasarela ArtCraft, con directorio de trabajo y sin red.",
+    etiquetas: ["diseño", "interfaz", "widgets"],
+    requiere: ["NEURONA_CON_PASARELA_ARTCRAFT"],
+    ruta: "/api/artcraft/figcraft",
+    docs: "architecture/artcraft-y-rare.md",
+  },
+  {
+    id: "os:artcraft-gridcraft", tipo: "mcp", origen: "os", maquina: "cualquiera",
+    nombre: "GridCraft por la pasarela ArtCraft",
+    descripcion: "Hojas de cálculo y tablas por la pasarela ArtCraft, con directorio de trabajo y sin red.",
+    etiquetas: ["hoja de cálculo", "datos", "tabla"],
+    requiere: ["NEURONA_CON_PASARELA_ARTCRAFT"],
+    ruta: "/api/artcraft/gridcraft",
+    docs: "architecture/artcraft-y-rare.md",
+  },
+  {
+    id: "os:artcraft-deckcraft", tipo: "mcp", origen: "os", maquina: "cualquiera",
+    nombre: "DeckCraft por la pasarela ArtCraft",
+    descripcion: "Presentaciones y exportación a pptx o pdf por la pasarela ArtCraft, con directorio de trabajo y sin red.",
+    etiquetas: ["presentación", "diapositivas", "pptx", "pdf"],
+    requiere: ["NEURONA_CON_PASARELA_ARTCRAFT"],
+    ruta: "/api/artcraft/deckcraft",
+    docs: "architecture/artcraft-y-rare.md",
+  },
+];
+
 /** Memorias del OS que un agente puede leer y escribir. */
 export const RECURSOS_MEMORIA: RecursoAgente[] = [
   { id: "os:memory-root", tipo: "memoria", origen: "os", nombre: "Memory root de StarSeed",
@@ -284,5 +318,8 @@ export function consultarViasNavegador(
 
 /** Todo lo declarado en este módulo, en un solo catálogo. */
 export function catalogoDeclarado(): RecursoAgente[] {
-  return [...RECURSOS_NAVEGADOR, ...RECURSOS_ASTRAURA, ...RECURSOS_MEMORIA, ...PROMPTS_BASE];
+  return [
+    ...RECURSOS_NAVEGADOR, ...RECURSOS_ASTRAURA, ...RECURSOS_ARTCRAFT,
+    ...RECURSOS_MEMORIA, ...PROMPTS_BASE,
+  ];
 }
