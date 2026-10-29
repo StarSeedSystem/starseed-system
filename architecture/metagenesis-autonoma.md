@@ -1,238 +1,70 @@
-# MetaGenesis autónoma · el nodo que dirige desde cualquier medio (OPA1011 · 2026-10-10)
+# MetaGenesis autónoma · sin Claude y sin esta Mac (IND1029)
 
-> Alex: «no está funcionando MetaGenesis por sí misma: aún no ha sido capaz de continuar con las
-> tareas sin tener que decírtelo aquí. Soluciónalo para que realmente sea MetaGenesis
-> superinteligente, autoadaptable, autónoma, profesionalmente funcionando desde cualquier medio
-> donde lo abra en cualquier neurona, no solo esta Mac … sin necesidad de esta Mac ni de
-> pedírtelo a ti; desde cualquier medio se autorrepara y funciona autónomamente».
+**Alex (2026-10-29), con el 3 % del crédito semanal de Claude:** «enruta los procesos activos de dirección que usen
+Claude a Hermes… usaremos el chat principal como canal del chat del director de toda la dirección general de
+MetaGenesis, completamente vinculado con todas las herramientas, conectores, memorias y contextos, incluyendo los
+accesos y permisos de dirección… y mejora la independencia de MetaGenesis con o sin esta computadora… Hermes lo
+usemos como la herramienta para conectar, sincronizar y vincularlo con el Puente de Mando, pero que no sea
+dependiente. El autodesarrollo y las tareas de MetaGenesis y sus contenedores activos, con los accesos y permisos
+de publicación, deben ser independientes, autogestionados en los servidores disponibles inteligentemente, con los
+mismos datos de los medidores desde cualquier neurona de la cuenta y desde cualquier dispositivo (automeshrouting).»
 
-## 1. Qué faltaba (medido el 2026-10-10)
+## 1. Hecho el 29-10 (DIR1029A, `6c5cfe389`)
 
-| Pieza | Antes | Por qué no bastaba |
-|---|---|---|
-| Directores (vigilante, vigía, autocuración, revisor) | launchd en la Mac | Con la Mac apagada no hay nadie. Y nadie cura a los que curan. |
-| Estado del trabajo (colas, progreso, latidos) | disco de la Mac (`starseed_memory_root/olas/`) | Otra neurona no lo ve; el A1 no sabe qué seguir. |
-| MetaGenesis desde otra neurona | `/api/mando/*` de la Mac por su túnel | Mac apagada o túnel caído = pantalla vacía y ninguna orden posible. |
-| Colas vacías | el vigilante «espera sin inventar tareas» | Lo archivado en `colas-fuente/` sin cerrar se quedaba ahí para siempre. |
-| Supabase | 81 % del presupuesto diario a las 11:33 UTC (20.303 de 25.000) | Cualquier pieza nueva tiene que ser frugal. |
+- **La dirección va por Hermes:**
+  - interruptor `~/.starseed/direccion-motor.json` (`{"motor": "hermes", "sesion": <id>}`) o `STARSEED_DIRECCION_MOTOR`;
+  - el cartero contesta por Hermes lo que va a `claude-mac` o `claude-cowork`, en la sesión «Dirección MetaGenesis»;
+  - `opus_director.consultar` pregunta a Hermes;
+  - el chat del director arranca en `hermes/predeterminado`.
+- **Hermes:**
+  - modelo `freellmapi/auto` con las 10 pasarelas de respaldo de `enrutar-hermes.py`: el mismo autoenrutado y las
+    mismas APIs que MetaGenesis;
+  - MCP `starseed-director` (chat del director y producción), más Vercel y Supabase.
+- **Reparado:** la app de Hermes se quedó en la página de recuperación tras actualizarse sola. Corría el paquete
+  viejo mientras se reemplazaba el nuevo; se reinició.
 
-## 2. El nodo (un solo programa, cualquier medio)
+## 2. La regla
 
-`scripts/puente/nodo_metagenesis.py` + `nodo_metagenesis_logica.py` (decisiones puras) +
-`nodo_metagenesis_bus.py` (Supabase) + `nodo_metagenesis_medio.py` (la máquina). Solo biblioteca
-estándar: corre en la Mac (python3 de Homebrew), en el A1 (servicio `starseed-metagenesis` de
-OPO1011, que copia `nodo_metagenesis*.py` a `/opt/starseed/nodo/metagenesis/`), en el contenedor
-de la nube o en cualquier Linux con el repo.
+- Ningún proceso de dirección necesita Claude, ni la Mac, ni Hermes para seguir.
+- Hermes es el puente (chat, Telegram, herramientas), no el motor.
+- La dirección (orquestador, autocuración, autopublicación, autodesarrollo, cartero y reconstructor) corre donde
+  haya un **líder** de la cuenta:
+  - el A1 siempre encendido;
+  - la Mac cuando está;
+  - cualquier neurona capaz.
+- Todos leen y escriben el **mismo estado**.
 
-Cada vuelta (líder cada 120 s, los demás cada 300 s):
+## 3. Piezas
 
-1. **Mide su medio** sin nada privado: servicios (`launchctl` + la regla de «Reactivar
-   directores» en la Mac; `systemctl` `starseed-*` en Linux), orquestadores (`ps -axo pid=,args=`,
-   misma expresión que `higiene_colas.RE`), disco, RAM y, si tiene las colas en su disco
-   (`autoritativo`: la Mac), las cifras del **vigía de medidores** —las mismas que ve Alex en
-   Genesis— solo si tienen menos de 15 min, la pausa de Genesis (Ajustes › Directores) y cuándo
-   pasó el revisor de bloqueadas.
-2. **Late y decide quién dirige** (§3). Un nodo solo puede publicar el líder que alguien
-   reclamó: las opiniones no suben el término.
-3. **Se cura a sí mismo**, dirija o no: servicios caídos (kickstart / restart, cada 10 min como
-   mucho) y, fuera de la Mac, disco por debajo de 2,5 GB (en la Mac limpia la autocuración).
-4. **Si dirige** (`planificar`), con enfriamientos para no repetir:
-   - guardianes de la Mac caídos (`vigia`, `vigilante`, `mando`) → `reactivar_mando.py` (30 min);
-   - trabajo listo y ningún orquestador desde hace 10 min → `reactivar_mando.py` (relanza el
-     vigilante, que arranca el orquestador) — nunca con la pausa de Genesis puesta;
-   - bloqueadas y el revisor automático de OPB1011 sin pasar desde hace 15 min →
-     `revisor_bloqueadas.py` (una pasada);
-   - nada listo, nada en curso y nadie trabajando desde hace 15 min → **buscar trabajo**:
-     rescata de `colas-fuente/` lo que nadie cerró (≤ 21 días, con archivos y prompt, sin visto
-     bueno humano, ni cerrado en el progreso, ni en main, ni con sucesora integrada, ni en
-     ninguna cola viva; gana la definición más nueva; las falladas son del revisor), Jev solo
-     **veta** (p ≥ 0,8) y se enlista en `olas/cola-rescate-<MMDD-HHMM>.json`, que el vigilante
-     recoge (cada 3 h como mucho, 12 tareas);
-   - **relevo de medio**: si el medio con las colas en disco calla 20 min, las tareas
-     portables que publicó (`mg_colas`, como mucho 8, ≤ 3 archivos) siguen en el mejor medio
-     real libre, con constancia (`mg_asignacion`) para que la Mac no las repita al volver.
-   - publica la **foto** (nodos, quién dirige, cifras, últimas decisiones) solo si cambió o
-     cada 30 min.
-5. **Atiende las órdenes** para él (`lider`, su medio o su id) — §4.
+| Pieza | Qué hace |
+|---|---|
+| **Líder de dirección** | Un arriendo con caducidad (3 min) en la puerta de datos del A1. Solo el líder lanza, publica y decide; los demás miran. Si nadie lo renueva, lo toma la neurona siguiente por prioridad (A1 › Mac › otras). Sin puerta, cada uno sigue en local como hoy |
+| **Estado compartido** | `progreso.json`, las colas, el chat del director y una foto de los medidores, cada minuto en la puerta (los escribe el líder). Genesis, en cualquier dispositivo, lee de la puerta cuando lo local es viejo o no existe |
+| **Dirección en el A1** | `oracle_nodo direccion --aplicar` instala en el A1 (systemd, `# requiere:`) el orquestador, la autocuración, la autopublicación, el cartero y el gateway de Hermes. Las claves vienen de la bóveda del A1, nunca del repo |
+| **Builds sin la Mac** | El CI sube el `.next` como artefacto, y el reconstructor de la Mac lo descarga en vez de compilar (hoy Genesis se quedó sin build: la Mac no puede compilar) |
+| **Publicación autónoma** | La autopublicación corre en el líder, con un token de despliegue con permisos mínimos que crea Alex (paso único suyo, con enlace y comando) |
+| **Genesis desde cualquier dispositivo** | La Genesis publicada lee los medidores de la cuenta desde la puerta, con la sesión de la cuenta y solo para su dueño (o quien la cuenta autorice) |
+| **Automeshrouting** | Cada neurona anuncia lo que puede (CPU, RAM, GPU, red), y el líder reparte trabajadores y servicios entre neuronas, contenedores y nube por capacidad y coste (con `buscar_capacidad` y la colmena) |
 
-Todo lo que se lanza va por los caminos que ya existían (el vigilante, `reactivar_mando`,
-`revisor_bloqueadas`, `buscar_capacidad`): el nodo **no** es un segundo orquestador. En el A1,
-una cola llega a la bandeja `~/.starseed/nodo-metagenesis/entrantes/` del medio de OPO1011.
+## 4. Lo que NO se hace
 
-**Modo seco** (`--seco`): decide, late y publica la foto, pero no lanza nada; un nodo seco nunca
-le gana el mando a uno real (+1000 puntos al real).
+- Mover claves a terceros o al repo: cada servidor usa su bóveda.
+- Dos líderes a la vez: la escritura con el arriendo es atómica.
+- Publicar sin las puertas de siempre (detector, pruebas del puente, CI y verificación).
+- Abrir la Genesis publicada a quien no sea el dueño de la cuenta.
 
-## 3. Un solo líder y relevo automático
+## 5. Ola IND1029 (≤ 3 archivos y ≤ 120 líneas por archivo y tarea)
 
-Puntos: Mac 300 · A1 250 · otra neurona 120 · nube 80 · GitHub 10; +200 si tiene las colas en su
-disco; +1000 si trabaja de verdad; −60 sin repo, −40 sin orquestador, −80 con < 2 GB de disco;
-hasta +40 por RAM libre. Quien cede (orden `ceder`) va 30 min en negativo y ni toma ni renueva.
+Cola: `starseed_memory_root/olas/cola-metagenesis-autonoma-1029.json`.
 
-- **Modo bus (hoy)**: eventos `mg_latido` (cada 5 min), `mg_lider` (reclamo con término + 1),
-  `mg_baja` (al parar). El líder vigente sigue mientras late (TTL 15 min); si calla o se despide,
-  el mejor vivo reclama término + 1. **Relevo ordenado**: un nodo estable (racha actual ≥ 10 min,
-  sin contar latidos de antes de un apagón) con +100 puntos lo reclama él mismo (la Mac real que
-  vuelve frente al A1). Dos reclamos del mismo término: gana más puntos y luego el id menor — el
-  mismo orden total en todos los nodos, Python y TypeScript.
-- **Modo tablas** (migración aplicada): UNA llamada por vuelta,
-  `metagenesis_nodo_latir(nodo, llave, …)`, que late, toma o renueva el arriendo de forma atómica
-  en Postgres con las mismas reglas y devuelve los nodos vivos y las órdenes para ese nodo
-  (marcadas «tomada» con `FOR UPDATE SKIP LOCKED`: nadie las ejecuta dos veces).
-
-Medido en la Mac (seco): primera vuelta 5 peticiones (lectura, reclamo, latido, foto, colas),
-luego 1–2 por vuelta. Por nodo ≈ 300 escrituras/día; dos nodos ≈ 1.700 peticiones/día (~7 % del
-tope propio de 25.000).
-
-## 4. Órdenes desde cualquier neurona
-
-Lista blanca (Python, TypeScript y CHECK de la tabla): `continuar`, `revisar_bloqueadas`,
-`buscar_capacidad`, `reactivar`, `buscar_trabajo`, `lanzar_cola`, `detener_cola`, `pausar`,
-`reanudar`, `ceder`; argumentos solo `cola`, `trabajadores` (1–4) y `tareas_sha`.
-
-- **Bus**: `relevo_eventos` lo puede escribir cualquiera con la clave anónima, así que el nodo
-  solo ejecuta órdenes con **firma HMAC-SHA256** (`STARSEED_LANZADOR_SECRETO`) sobre
-  `accion|para|t|nonce|args canónicos` (vector compartido en las pruebas de ambos lados),
-  caducidad 15 min, fecha en UTC y antirepetición por `nonce` (24 h). Las tareas que viajan con
-  un `lanzar_cola` llevan su huella **dentro** de lo firmado. Desde el navegador firma el
-  servidor: `POST /api/metagenesis/orden` (Bearer de la sesión, nunca cookie → nada de CSRF;
-  `es_metagenesis()`; 20/hora/cuenta; en el bus la cuenta va como `cuenta:<10 hex>`). Sin el
-  secreto en ese servidor responde 503 y lo explica. Desde una terminal con el secreto:
-  `python3 scripts/puente/nodo_metagenesis.py orden revisar_bloqueadas --esperar`.
-- **Tablas**: la persona inserta la orden y la RLS garantiza que es miembro y que va a su
-  nombre (`por = auth.uid()`), 30/hora; el nodo escribe el resultado
-  (`metagenesis_nodo_orden_resultado`). No hace falta ningún secreto en Vercel.
-
-## 5. Vista desde cualquier neurona
-
-`/metagenesis` monta `MetaGenesisAutonoma` (`src/components/metagenesis/metagenesis-autonoma.tsx`)
-encima de la consola: quién dirige, cada medio con su latido, el trabajo (las cifras del vigía),
-lo último que decidió el líder y los botones de órdenes (pausar y cambiar de líder piden dos
-pulsaciones). Lee de Supabase con la sesión (`remoto-nodos-cliente.ts`: tablas si existen; si
-no, dos lecturas pequeñas del bus por vuelta y la foto solo cuando cambia), cada 90 s con la
-pestaña visible y al momento cuando el bus avisa (Realtime, `tipo=in.(mg_foto,mg_orden_hecha,
-mg_lider,mg_baja)`). Solo miembros de MetaGenesis. Funciona con la Mac apagada.
-Los latidos y fotos de los nodos no ensucian el chat del bus (`TIPOS_SILENCIOSOS_BUS`).
-
-## 6. Estado compartido · migración `20261011100000_metagenesis_nodos.sql` (escrita, probada, NO aplicada)
-
-Tablas: `metagenesis_nodos` (huella de la llave invisible incluso para miembros),
-`metagenesis_arriendo` (fila única + foto), `metagenesis_colas` (portables), `metagenesis_ordenes`,
-`metagenesis_bitacora`. RLS: leen solo miembros (`es_metagenesis()`); escriben los nodos por
-funciones `SECURITY DEFINER` que comprueban **nodo + llave** (cada nodo tiene su secreto propio;
-en la base solo su sha256; revocar = un clic de un dueño). Realtime en arriendo y órdenes.
-Probada en Postgres 16 con los roles de Supabase (`test_nodo_metagenesis_migracion.py`): dos
-aplicaciones seguidas, RLS impersonando roles, arriendo (toma, caducidad, relevo ordenado,
-ceder), órdenes (solo miembros, a su nombre, lista blanca, tope), foto solo del líder, revocar, y
-el **nodo de Python de verdad** hablando con esas funciones (contrato Python ↔ SQL).
-
-Para activarla (Alex):
-1. Aplicar la migración en el proyecto del OS (SQL editor o Management API).
-2. En cada medio: `python3 scripts/puente/nodo_metagenesis.py llave` (enseña SOLO la huella).
-3. En la Mac: `python3 scripts/puente/nodo_metagenesis.py registrar --nodo <id> --huella <h> --medio <medio>`.
-   Sin esto, el nodo sigue en modo bus y lo dice (`tablas_motivo` en su estado).
-
-## 7. Servicio
-
-- Mac: `python3 scripts/puente/nodo_metagenesis.py instalar [--seco]` → launchd
-  `com.starseed.nodo-metagenesis` (python3 de Homebrew directo: tiene el permiso de disco),
-  registro `/tmp/starseed-nodo-metagenesis.log`, estado `~/.starseed/nodo-metagenesis/estado.json`.
-- A1: el `starseed-metagenesis.service` de OPO1011 (`nodo_metagenesis.py servir`).
-- Linux cualquiera: el mismo `instalar` (systemd --user).
-- Una vuelta a mano: `python3 scripts/puente/nodo_metagenesis.py ciclo --seco`.
-
-## 8. Coordinación con OPO1011 (A1) y OPB1011 (bloqueadas)
-
-- **OPO1011**: el A1 recibe `NEXT_PUBLIC_SUPABASE_*` (`CLAVES_A1`) → late y puede dirigir. Para
-  que además ejecute órdenes del bus hace falta `STARSEED_LANZADOR_SECRETO` en su entorno (o la
-  migración de tablas + su llave). Para el relevo de medio, `oracle_a1.py` debería tomar las colas
-  de `~/.starseed/nodo-metagenesis/entrantes/*.json` como toma las ramas `colas/oracle-*`.
-- **OPB1011**: el nodo no decide sobre bloqueadas: si el revisor automático no pasa en 15 min,
-  lo lanza (`revisor_bloqueadas.py`) y nada más. Las falladas nunca entran en el rescate.
-
-## 9. Lo que NO hace (a propósito)
-
-No publica ni empuja nada (eso sigue con su autopublicación y sus puertas), no borra datos, no
-aplica migraciones, no usa la clave de servicio fuera de la Mac, no imprime claves ni IPs ni el
-nombre de la máquina (id = `<medio>-<6 hex>` de una huella del aparato), no lanza un segundo
-orquestador donde ya hay uno y no inventa tareas: rescata las que existían.
-
-## 10. Siguiente (para el enjambre)
-
-- Convertir las peticiones de Alex del Chat Director/Telegram en colas sin Claude
-  (`dream_a_cola.py` + Diseñador de olas) cuando el líder no tenga trabajo.
-- Pestaña propia en Genesis local con el mismo panel y la bitácora de tablas.
-
-## 11. Vigía de RESULTADOS: que el líder mire si el trabajo avanza (OPA1011b · tarde del 10-10)
-
-> Alex (14:40): «de nuevo hay muchas bloqueadas, fallidas y sin publicar que no se procesaron
-> automáticamente. Solucionalo y haz que ya funcione automáticamente».
-
-### 11.1 Qué se midió (14:40–15:10, hora de la Mac)
-
-- El líder (la Mac) llevaba desde las 10:44 escribiendo «nada que hacer en esta vuelta» en
-  `/tmp/starseed-nodo-metagenesis.log`. Sus reglas solo preguntaban si los directores estaban
-  **vivos** (lo estaban todos), nunca si el trabajo **avanzaba**.
-- **Capacidad parada**: 33-34 listas y 75 bloqueadas esperando a raíces, para 3 trabajadores en
-  una Mac con 736 MB libres y carga 14; mientras, el A1 de Oracle (2 OCPU, 9,8 GB libres, carga
-  0) estaba «espera» sin cola. `oracle_nodo.lanzar` y el reparto a la nube excluyen todo lo que
-  está en la tanda viva de la Mac (para no hacer nada dos veces), y la tanda viva lo tenía todo.
-- **Publicación**: la autopublicación estuvo 2 h frenada por el mismo motivo (un falso positivo
-  del escáner en `orbe-bus.ts`, que arregló DSB1010) esperando «un commit nuevo»; y a las 14:28
-  vetó 17cf6a67 por «pruebas del puente en rojo» que **no eran del commit**: `test_oracle_nodo`
-  estaba a medio editar por otro agente en el árbol vivo de la Mac (sin commit). Las pruebas se
-  corrían sobre ese árbol, no sobre el commit.
-- **Fallidas**: 0 sin resolver en 3 días (el medidor de Genesis dice lo mismo). **Visto bueno**:
-  5 «pendientes» de las que solo 2 lo eran de verdad (CNS1010Mb tenía a CNS1010Mc en la tanda,
-  S1010-TU-AST1 a su «b» y S1010-TU-LL1c ya estaba en main).
-
-### 11.2 Qué hace ahora el líder (reglas 6-9 de `planificar_resultados`, puras y probadas)
-
-| # | Mide | Si… | Hace |
-|---|---|---|---|
-| 6 | listas de la Mac y medios ocioso (`medio_ocioso`) | ≥ 6 listas y un medio real con repo, orquestador, secreto, sin cola (el A1 en «espera» o «guardian», que cede la máquina a una cola) | **Presta** 4 tareas a ese medio (orden firmada `lanzar_cola` → bandeja del A1). Cada 30 min como mucho. |
-| 7 | autopublicación (`estado_publicacion`) | encendida, con commits, «bloqueado» ≥ 1 h por el MISMO motivo | Puerta en rojo con salida que nombra archivos («pruebas del puente en rojo», «CI en rojo») → **tarea de reparación** `MGP<mmdd>-<hex>` con la salida exacta (al medio ocioso, o la primera de la tanda de la Mac). Otro motivo (Jev, análisis, red) → **un aviso** con QUÉ/POR QUÉ/CÓMO. Un veto de Alex («Vetado desde Genesis») no se toca. |
-| 8 | fallidas que nadie retoma (`fallidas_sin_resolver`: sin sucesora viva, ni en main, ni sustituidas) | la más vieja ≥ 2 h | Un aviso con la lista y cómo relanzarlas. Si el revisor no pasa, lo lanza (regla 3, ahora también con fallidas). |
-| 9 | visto bueno real (`esperando_visto_bueno`: sin las ya en main ni las que continúa otra de su cadena) | ≥ 3 h | Un aviso (lo decide el aprobador automático o Alex). |
-
-Los avisos se repiten como mucho cada 6 h por motivo. En la foto de MetaGenesis (cualquier
-neurona) salen como pastillas: `fallidas`, `visto-bueno`, `sin-publicar`, `integradas` (últimas
-2 h) y `prestadas` (qué tiene cada medio).
-
-### 11.3 Prestar sin duplicar (por qué es seguro)
-
-- Se prestan las del **final del orden real de la tanda viva** (y antes que nada las que ni están en
-  ella): la Mac las cogería las últimas, horas después. Una sola tarea por cadena (la más reciente:
-  RTOPO1011T1 y T1b eran el mismo rescate). Solo «prestables»: 1-3 archivos, con prompt, sin visto
-  bueno humano ni nada que solo tiene la Mac (navegador, launchd, localhost:9002).
-- La Mac **no suelta** nada: si el A1 integra primero, `oracle_nodo traer` sube su rama
-  `nube/a1-*`, `traer_nube` la pasa por las puertas de main y el progreso queda en «commit»: el
-  orquestador de la Mac la salta (`cerradas_en_disco`). Si el A1 falla, la tarea sigue en la tanda
-  de la Mac como siempre. Nada se pierde y nada se pisa (el «soltar» del orquestador no sabe
-  devolver una tarea a su tanda, por eso no se usa).
-- Constancia: evento `mg_asignacion` en el bus y `prestamos` en la memoria del nodo (6 h).
-
-### 11.4 Autopublicación: pruebas sobre ESE commit
-
-`autopublicar.pruebas_python` crea un árbol limpio del sha (`git worktree add --detach` en
-`~/.starseed/produccion/arbol-pruebas`, con el `node_modules` de la Mac enlazado y
-`STARSEED_ROOT` apuntando a él), corre unittest + pytest ahí y lo quita. El trabajo a medias de
-otros agentes ya no veta commits buenos. Cuando veta, guarda la salida en `evidencia` del estado,
-que es lo que la regla 7 convierte en tarea. 61 MB y unos segundos de más por lote.
-
-### 11.5 Cómo comprobarlo
-
-- Qué decidiría AHORA el líder, sin escribir nada en el bus ni tocar su memoria:
-  `python3 scripts/puente/nodo_metagenesis.py ciclo --solo-leer` (lee el bus como el servicio y se
-  puntúa como el medio real; lo que habría escrito queda contado, no enviado).
-- Lo que hace de verdad, cada 2 min (10 si Supabase va al tope): `tail -f /tmp/starseed-nodo-metagenesis.log`.
-- Lo que recibe el A1: su latido en el bus (`a1.fase` pasa a «cola») y sus ramas `nube/a1-*`.
-- En cualquier neurona: `/metagenesis` → pastillas y «Lo último que decidió» («Prestar o lanzar cola»).
-
-### 11.6 Lo que sigue sin hacer (a propósito)
-
-- No aprueba tareas ni levanta vetos: eso es del aprobador automático (DSB1010), de las puertas
-  y de Alex. No toca el escáner de secretos.
-- No reparte a GitHub Actions dentro de la tanda viva (sus jobs no son un nodo que lata).
-- El A1 corre su propia copia del nodo: para que también pueda **pedir** un préstamo cuando
-  dirija él (orden `repartir`), hay que reinstalarle el nodo (`oracle_nodo.py instalar`). Para
-  RECIBIR préstamos le basta la versión que ya tiene.
+| Tarea | Qué |
+|---|---|
+| A | artefacto `.next` en el CI y el reconstructor lo descarga |
+| B | líder de dirección (arriendo en la puerta) |
+| C | los servicios de dirección solo actúan si son líderes |
+| D | dirección en el A1 (unidades systemd y `oracle_nodo direccion`) |
+| E | estado compartido en la puerta |
+| F | la API de medidores lee de la puerta cuando lo local falta |
+| G | Hermes y Telegram en el líder |
+| H | chat del director compartido entre neuronas |
+| I | token de despliegue: acción «Te toca a ti» con enlace y comando |
