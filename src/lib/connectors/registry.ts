@@ -653,6 +653,48 @@ export const BUILTIN_CONNECTORS: Connector[] = [
     docsUrl: "https://docs.archivebox.io",
     configHint: "URL de tu instancia (envío a archive.org apagado)",
   },
+
+  /* ═════════════ Ola CVV1028 · tarea J (contenido vivo) ════════════════════
+   * Conectores para los niveles de contenido vivo (architecture/contenido-vivo.md):
+   * escenas 3D (nivel 1) y película/imágenes (nivel 2). Son de terceros, con
+   * cuenta o clave, y quedan DETRÁS de lo local: Three.js y los modelos de la
+   * neurona siguen siendo la primera opción del OS. Solo descriptores: sin
+   * adaptadores (el de generación de Higgsfield ya existe en los cerebros) y
+   * sin claves, que van a la bóveda local de credenciales. */
+
+  // ── Spline (escenas 3D por MCP) ──
+  {
+    id: "spline",
+    name: "Spline (escenas 3D)",
+    category: "dev",
+    kind: "free",
+    authType: "oauth",
+    status: "needs-auth",
+    free: true,
+    recommended: false,
+    icon: "Boxes",
+    description:
+      "Opcional: escenas 3D para el nivel 1 del contenido vivo, por MCP HTTP (https://mcp.spline.design/mcp). Inicia sesión con tu cuenta; el plan Pro da 200 llamadas al día, que se reinician a las 00:00 UTC, y una escena propia suele gastar de 6 a 10. Compáralo con la ruta local Three.js: solo si el externo gana con claridad. Las escenas ajenas no se editan: solo se embeben o se remezclan, con crédito al autor.",
+    docsUrl: "https://spline.design",
+    configHint: "Inicia sesión con tu cuenta Spline (MCP: https://mcp.spline.design/mcp)",
+  },
+
+  // ── Higgsfield (imagen y vídeo; la clave va a la bóveda, nunca al código) ──
+  {
+    id: "higgsfield",
+    name: "Higgsfield (imagen y vídeo)",
+    category: "custom",
+    kind: "paid",
+    authType: "apiKey",
+    status: "needs-auth",
+    free: false,
+    recommended: false,
+    icon: "Clapperboard",
+    description:
+      "Opcional: imagen (Nano Banana 2) y vídeo (Seedance 2.0) para el nivel 2 del contenido vivo, por crédito. Reaprovecha la clave que ya guardaste en el adaptador de generación de los cerebros: no se duplica nada; si aún no la tienes, pégala aquí y va a la bóveda local de credenciales, nunca al código ni a la ficha. Compáralo con los modelos de imagen locales de tu neurona y cotiza los créditos antes de gastar: nunca se gastan sin cotización y sin un sí.",
+    docsUrl: "https://higgsfield.ai",
+    configHint: "Clave de higgsfield.ai a la bóveda (endpoint https://api.higgsfield.ai)",
+  },
 ];
 
 /** Lookup rápido por id (para no recorrer el array en cada acceso). */
