@@ -1,3 +1,5 @@
+// GUI1021O · Ajustes → «Ver la guía de introducción» con la lista de sus diez temas.
+// Lo puro: el mapa de tema a icono. Lo visible: cada uno abre la guía en SU tema y en ninguno más.
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { HelpCircle } from "lucide-react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -31,6 +33,7 @@ describe("temas con icono", () => {
     expect(filas).toHaveLength(10);
     expect(filas.map((f) => f.tema.key)).toEqual(TODOS_LOS_TEMAS.map((t) => t.key));
     expect(new Set(filas.map((f) => f.Icono)).size).toBe(10);
+    expect(new Set(filas.map((f) => f.tema.titulo)).size).toBe(10);
     for (const fila of filas) {
       expect(fila.tema.titulo.trim().length).toBeGreaterThan(0);
       expect(fila.Icono).toBeTruthy();
@@ -44,6 +47,16 @@ describe("temas con icono", () => {
 });
 
 describe("lista de temas", () => {
+  it("no abre la guía sola al montarse: solo al pulsar un tema (nunca un bucle)", () => {
+    const { peticiones, dejar } = escucharPeticiones();
+    try {
+      render(<ListaTemasGuia />);
+      expect(peticiones).toEqual([]);
+    } finally {
+      dejar();
+    }
+  });
+
   it("muestra los diez títulos con su icono, en botones de 44 px y cursor pointer", () => {
     render(<ListaTemasGuia />);
     const lista = screen.getByRole("list", { name: "Temas de la guía de introducción" });
@@ -51,8 +64,11 @@ describe("lista de temas", () => {
     const botones = screen.getAllByRole("button");
     expect(botones).toHaveLength(TODOS_LOS_TEMAS.length);
     botones.forEach((boton, i) => {
-      expect(boton.textContent).toContain(TODOS_LOS_TEMAS[i].titulo);
-      expect(boton.querySelector("svg")).not.toBeNull();
+      expect(boton.textContent?.trim()).toBe(TODOS_LOS_TEMAS[i].titulo);
+      const icono = boton.querySelector("svg");
+      expect(icono).not.toBeNull();
+      // El icono es decorativo: el nombre accesible lo da el título, no el dibujo.
+      expect(icono?.getAttribute("aria-hidden")).toBe("true");
       expect(boton.className).toContain("min-h-[44px]");
       expect(boton.className).toContain("cursor-pointer");
       expect(boton.getAttribute("type")).toBe("button");
