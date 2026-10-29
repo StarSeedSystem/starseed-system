@@ -115,6 +115,15 @@ describe("hook useTarjetaImagenes", () => {
     expect(repetida).toMatchObject(PETICION_DEFECTO);
   });
 
+  it("generarOpciones: maneja errores del planificador", async () => {
+    h.planImagen.planImagen.mockImplementationOnce(() => { throw new Error("Error de prueba"); });
+    const { result } = renderHook(() => useTarjetaImagenes());
+    await act(async () => { await result.current.generarOpciones({ ...PETICION_DEFECTO, prompt }); });
+    expect(result.current.cargando).toBe(false);
+    expect(result.current.error).toBe("Error de prueba");
+    expect(result.current.opciones).toHaveLength(0);
+  });
+
   it("elegirOpcion: genera, marca la opción con su URL y guarda en Biblioteca con la atribución", async () => {
     h.planImagen.planImagen.mockReturnValueOnce({ opciones: [opcionDePlan], descartes: [] });
     h.generarImagen.generarImagen.mockResolvedValueOnce({ ok: true, data: { url: "http://e.com/i.png" } });
