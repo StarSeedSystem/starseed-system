@@ -11,15 +11,18 @@ import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memo
 import { etiquetaFormato, formatoDe } from "@/lib/conversion/formatos";
 import { componerVideo, DURACION_DEFECTO, type EntradaPedido } from "@/lib/video-html/herramienta-componer";
 import { contextoDisenoIA, type EntidadDiseno } from "@/lib/design/principios-referencia";
+import type { DepsBuscarReferencias, EntradaBuscarReferencias } from "@/lib/library/referencias/buscar-referencias";
 /** Misma forma que `AuroraActionResult` de `src/lib/aurora/actions.ts`; `datos` lleva el resultado de herramientas como `video.componer`. */
 export interface ResultadoAccionProto { ok: boolean; message: string; status?: string; datos?: Record<string, unknown> }
 /** `avisarOrbe` devuelve `true` solo si la orbe atendió el aviso; `actor` por defecto: el agente personal. */
 export interface ContextoAccionProto { abrirRuta?: (ruta: string) => void; avisarOrbe?: (moleculaId?: string) => boolean;
-  actor?: ActorMemoria; ahora?: () => number; nuevoId?: () => string; fijarOrbe?: (activada: boolean) => boolean; cerrarOrbe?: () => void }
+  actor?: ActorMemoria; ahora?: () => number; nuevoId?: () => string; fijarOrbe?: (activada: boolean) => boolean; cerrarOrbe?: () => void;
+  /** Canales MCP/API conectados y consulta inyectable para `referencias.buscar` (RFI1018F). */
+  referencias?: DepsBuscarReferencias }
 export const TOPE_LINEAS_ESTADO = 40, TOPE_BYTES_ESTADO = 4096;
 export const MENSAJE_PROPONER_CODIGO = "próximamente: las propuestas de código llegan con la fase F7; hoy no se ejecuta ni se guarda nada.";
 const PENDIENTE = "queda pendiente de que la persona la confirme en el panel", SALUD = new Set<string>(METRICAS_SALUD);
-const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir", "pedir", "video.componer", "activar", "desactivar", "alternar", "cerrar"];
+const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir", "pedir", "referencias.buscar", "video.componer", "activar", "desactivar", "alternar", "cerrar"];
 const MODOS: ModoRelativo[] = ["delta", "porcentaje-valor", "porcentaje-rango", "pasos"];
 let secuencia = 0;
 const texto = (v: unknown): string => (typeof v === "string" ? v.trim() : ""), num = (n: number): string => String(n).replace(".", ",");
@@ -120,11 +123,31 @@ function componer(args: Record<string, unknown>): ResultadoAccionProto {
   const voz = r.peticionVoz ? " La voz queda pedida a la puerta única." : "";
   return { ok: true, message: conContextoDiseno(`${resumen}${voz} Siguiente: ${r.siguiente}.\n${r.html}`, { nombre: tituloPedido(pedido), registroMovimiento: registroVivo() }), status: "Componiendo el vídeo…", datos: { ...r } };
 }
+/** «referencias.buscar» (RFI1018F): tarjetas del catálogo para el contexto; lo privado solo enlaza. */
+const objeto = <T>(v: unknown): T | undefined => typeof v === "object" && v !== null && !Array.isArray(v) ? v as T : undefined;
+async function referencias(ctx: ContextoAccionProto, a: Record<string, unknown>): Promise<ResultadoAccionProto> {
+  const peticion = texto(a.peticion);
+  if (!peticion) return no("Falta «peticion»: dime qué referencia buscas y para qué contexto.");
+  const { buscarReferencias, CATALOGO_REFERENCIAS, CONTEXTOS } = await import("@/lib/library/referencias/buscar-referencias");
+  const c = objeto<{ tipo?: unknown; privado?: unknown }>(a.contexto);
+  const tipo = texto(c?.tipo ?? a.contexto) as (typeof CONTEXTOS)[number];
+  const privado = a.privado === true || texto(a.privado) === "true" || c?.privado === true;
+  const contexto = { tipo: CONTEXTOS.includes(tipo) ? tipo : "perfil" as const, privado };
+  const tarjetas = await buscarReferencias({ peticion, contexto, personalidad: objeto<EntradaBuscarReferencias["personalidad"]>(a.personalidad),
+    adnDiseno: objeto<EntradaBuscarReferencias["adnDiseno"]>(a.adnDiseno), laya: objeto<EntradaBuscarReferencias["laya"]>(a.laya) },
+    ctx.referencias ?? { conectados: new Set<string>(), ahora: ctx.ahora ?? (() => Date.now()) });
+  if (!tarjetas.length) return no(`No encontré referencias para «${peticion}» en el catálogo.`);
+  const nombres = new Map(CATALOGO_REFERENCIAS.entradas.map((e) => [e.id, e.nombre]));
+  const lineas = tarjetas.map((t, i) => `${i + 1}) ${nombres.get(t.entradaId) ?? t.entradaId}: ${t.porque} ${t.enlaces[0] ?? ""}`.trim());
+  return { ok: true, message: `Referencias para «${peticion}» (${contexto.tipo}${contexto.privado ? ", privado" : ""}):\n${lineas.join("\n")}`,
+    status: "Buscando referencias…", datos: { tarjetas } };
+}
 export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): ResultadoAccionProto {
   const accion = texto(args.accion), moleculaId = texto(args.molecula) || undefined, atomo = texto(args.atomo);
   const autor: Autor = { tipo: "agente", id: texto(args.agente) || "astraura" }, herramienta = texto(args.herramienta);
   if (accion === "proponer-codigo") return no(MENSAJE_PROPONER_CODIGO);
   if (accion === "pedir") return no("«pedir» espera a la IA para planificar: usa manejarAccionProtomoleculaAsync.");
+  if (accion === "referencias.buscar") return no("«referencias.buscar» espera al catálogo: usa manejarAccionProtomoleculaAsync.");
   if (!ACCIONES.includes(accion)) return no(`No conozco la acción «${accion}». Usa: ${ACCIONES.join(", ")}.`);
   if (accion === "convertir") return convertir(ctx, args);
   if (accion === "video.componer") return componer(args);
@@ -187,6 +210,7 @@ export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: C
  * y lo deja pendiente de que la persona lo confirme en la ventana. Un agente nunca ejecuta directamente.
  */
 export async function manejarAccionProtomoleculaAsync(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): Promise<ResultadoAccionProto> {
+  if (texto(args.accion) === "referencias.buscar") return referencias(ctx, args);
   if (texto(args.accion) !== "pedir") return manejarAccionProtomolecula(args, ctx);
   const { pedirComoAgente } = await import("./peticion/pedir");
   const r = await pedirComoAgente(args, { actor: ctx.actor });
