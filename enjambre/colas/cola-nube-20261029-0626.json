@@ -1,0 +1,106 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "RTS1010-MGR2",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Guardia sin node:* también para /metagenesis",
+   "archivos": [
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx",
+    "src/lib/metagenesis/__tests__/remoto-nodos.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea S1010-MGR2 («Guardia sin node:* también para /metagenesis») se hizo en main por otro camino; su rama nube/a1-20261014-071705 queda archivada en `refs/archivo/nube/a1-20261014-071705` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTS1010-MGR2 · solo estos archivos: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" } });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "S1010-MGR2",
+    "rama": "nube/a1-20261014-071705"
+   }
+  },
+  {
+   "id": "RTS1010-MGR2b",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Guardia sin node:* también para /metagenesis",
+   "archivos": [
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx",
+    "src/lib/metagenesis/__tests__/remoto-nodos.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea S1010-MGR2 («Guardia sin node:* también para /metagenesis») se hizo en main por otro camino; su rama nube/a1-20261014-071705-RTRTS1010-TU-LL1cobjc queda archivada en `refs/archivo/nube/a1-20261014-071705-RTRTS1010-TU-LL1cobjc` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTS1010-MGR2b · solo estos archivos: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" } });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "S1010-MGR2",
+    "rama": "nube/a1-20261014-071705-RTRTS1010-TU-LL1cobjc"
+   }
+  },
+  {
+   "id": "DSN1025F",
+   "ola": "Ola 1025R · Diseño (Taste Skill, Frontend Slides, Awesome DESIGN.md, onetake, Docusaurus, Refine)",
+   "titulo": "Docusaurus · exportar guías, grupos y educación como carpeta docs/ en Markdown puro",
+   "archivos": [
+    "src/lib/publish/docusaurus-export.ts",
+    "src/lib/publish/__tests__/docusaurus-export.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1025.md (apartado «Diseño») y la ficha del paquete que se nombra aquí en el catálogo verificado `config/repos-libreria-1025*.json` (datos reales: NO los cambies). Ficha: lib-docusaurus (MIT el código, CC-BY-4.0 la documentación; la línea estable es 3.10.2 y pide Node 20+). El OS NO ejecuta Docusaurus: solo escribe la carpeta `docs/` en Markdown que Docusaurus lee, para llevar a un sitio creado a mano con `npm create docusaurus`. Crea `src/lib/publish/docusaurus-export.ts`, módulo PURO (sin `node:*`, sin red, sin reloj): `export interface ArchivoDocs { path: string; content: string }`, `export interface EntradaDoc { id: string; titulo: string; cuerpo: string; grupo?: string; orden?: number; descripcion?: string }`, `escaparMd(texto: string): string`, `slugDoc(texto: string): string`, `docusaurusDesdeEntradas(entradas: EntradaDoc[], opciones?: { raiz?: string }): ArchivoDocs[]`, `docusaurusDesdeGuia(temas: readonly TemaGuia[], titulo: string): ArchivoDocs[]` (tipo de `@/lib/onboarding/guia-temas-sistema`: cuerpo, luego los `puntos` como lista y una línea «Dónde: <ruta>» y «Pregunta a Astraura: <preguntaAurora>») y `docusaurusDesdeEdu(nodos: EduNode[]): ArchivoDocs[]` (tipo de `@/lib/education/curriculum`: cada categoría o tema con hijos es una carpeta con su `_category_.json`; cada nodo es un `.md` con su `blurb`). Formato: solo `.md` (NUNCA `.mdx`, `.js`, `.ts` ni `sidebars.*` ni `docusaurus.config.*`), en `docs/<grupo-slug>/<slug>.md` (o `docs/<slug>.md` sin grupo); front matter YAML con valores entre comillas dobles vía `JSON.stringify` (`id`, `title`, `sidebar_position`, y `description` si hay); `_category_.json` = `{ \"label\": …, \"position\": …, \"collapsed\": false }`; la barra lateral se autogenera con el `sidebars.js` por defecto de Docusaurus, así que no se exporta ninguna. `escaparMd` convierte `{`, `}`, `<` y `>` en entidades (`&#123;`, `&#125;`, `&lt;`, `&gt;`) y la primera letra de una línea que empiece por «import » o «export » en `&#105;`/`&#101;`, para que el texto no sea código ni en MDX. Slugs en minúsculas ASCII, con sufijo «-2», «-3» si chocan; máximo 500 documentos y 200 KB por documento (más de eso se recorta y se avisa en el LEEME). Añade además `LEEME-DOCUSAURUS.md` en la raíz de la salida, en español, con los pasos MANUALES: `npm create docusaurus@latest sitio classic`, copiar `docs/`, poner `markdown: { format: 'detect' }` en la configuración del sitio, `NO_UPDATE_NOTIFIER=1` si no se quiere el aviso de versiones de su CLI, y que nada se despliega sin la palabra de Alex. Pruebas (`src/lib/publish/__tests__/docusaurus-export.test.ts`): el front matter lleva el título entre comillas aunque tenga «:» o comillas; `{x}`, `<script>` e `import x from 'y'` salen escapados; dos entradas con el mismo título dan `-2`; la guía de ejemplo da un archivo por tema, en orden, con sus puntos y «Dónde:»; un árbol de educación de 3 niveles da carpetas con `_category_.json`; ninguna ruta termina en `.mdx` ni `.js`; el LEEME nombra `format: 'detect'`; el resultado es idéntico en dos llamadas. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; claves solo en variables de entorno (nunca valores); textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "DSN1025H",
+   "ola": "Ola 1025R · Diseño (Taste Skill, Frontend Slides, Awesome DESIGN.md, onetake, Docusaurus, Refine)",
+   "titulo": "Estudio de Apps · plantilla de panel de datos con Refine y la telemetría apagada",
+   "archivos": [
+    "src/lib/appgen/plantilla-refine.ts",
+    "src/lib/appgen/__tests__/plantilla-refine.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1025.md (apartado «Diseño») y la ficha del paquete que se nombra aquí en el catálogo verificado `config/repos-libreria-1025*.json` (datos reales: NO los cambies). Ficha: lib-refine (MIT; `@refinedev/core` 5.0.12 en npm). Refine envía TELEMETRÍA por defecto (a telemetry.refine.dev: proveedores usados, versión, número de recursos, IP, host, navegador y sistema), y su CLI otra a /cli: la plantilla la apaga. Añade al Estudio de Apps (`src/lib/appgen/appgen.ts` define `AppFile { path, content, language }` y `languageForPath`) una plantilla de proyecto «panel de datos»: `src/lib/appgen/plantilla-refine.ts`, PURA (sin `node:*`): `plantillaRefine(op: { nombre: string; recursos: { nombre: string; campos: string[] }[] }): AppFile[]` (importa solo el TIPO `AppFile` y `languageForPath`). Valida con `^[a-z][a-z0-9-]{0,40}$` los nombres de recurso y con `^[A-Za-z_][A-Za-z0-9_]{0,40}$` los campos y lanza un `Error` en español si no casan (los datos del usuario nunca entran crudos en el código generado); el nombre del proyecto se reduce a un slug ASCII. Archivos (vite + react, sin nada más): `package.json` con EXACTAMENTE estas versiones, verificadas en npm el 2026-10-25: `@refinedev/core` 5.0.12, `@refinedev/react-router` 2.0.4, `@refinedev/simple-rest` 6.0.1, `react` y `react-dom` ^19.3.1, `react-router` ^7.0.2, `vite` ^8.3.5, `@vitejs/plugin-react` ^6.1.2, `typescript` ^5.6.0 (no añadas otras ni inventes versiones); `index.html`, `vite.config.ts`, `tsconfig.json`, `.gitignore`, `.env.example` con `VITE_API_URL=` vacío y `REFINE_NO_TELEMETRY=true` (sin ningún valor secreto), `src/main.tsx`, `src/App.tsx` y `src/paginas/listado.tsx` (una por recurso, con `useList` de `@refinedev/core`: en Refine 5 devuelve `{ query, result: { data, total } }` y la carga está en `query.isLoading`; verificado en la rama main). `App.tsx` monta `<Refine dataProvider={dataProvider(import.meta.env.VITE_API_URL)} routerProvider={routerProvider} resources={…} options={{ disableTelemetry: true }}>` (`dataProvider` de `@refinedev/simple-rest`, `routerProvider` de `@refinedev/react-router`). Sin claves en el código: si la API necesita clave, el `LEEME.md` dice que va en un proxy propio, nunca en el navegador. `LEEME.md` en español: activación MANUAL (`npm install`, `npm run dev`, Node 20+ que pide el núcleo), «versiones fijadas el 2026-10-25: revisar con npm outdated», telemetría apagada de las dos formas, y que nada se despliega sin la palabra de Alex; incluye una línea que diga que el proveedor de datos habla con una API REST y que los contratos independientes de la fuente de `src/lib/widget-data/` se conectan en esa API, no dentro del proyecto. Pruebas (`src/lib/appgen/__tests__/plantilla-refine.test.ts`): el `package.json` se parsea y lleva `@refinedev/core` exactamente «5.0.12»; `App.tsx` contiene `disableTelemetry: true`; `.env.example` contiene `REFINE_NO_TELEMETRY=true` y ninguna clave; un recurso «Mal Nombre» o un campo con comillas lanzan; ningún archivo contiene `http://`; hay una página por recurso; dos llamadas dan lo mismo; cada `language` sale de `languageForPath`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; claves solo en variables de entorno (nunca valores); textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa)."
+  },
+  {
+   "id": "MC1013TC",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): routers mesh como titanio (Ti⁴⁺) que fija la red",
+   "titulo": "Titanio: verlo en el panel de la retícula y al adoptar un router",
+   "archivos": [
+    "src/components/malla/panel-reticula.tsx",
+    "src/components/network/routers-malla-panel.tsx",
+    "src/components/malla/__tests__/panel-titanio.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/malla-cristalina-sio2.md §1, fila «Titanio (Ti⁴⁺) en la sílice» (léela) y §8. Reglas: como mucho 120 líneas nuevas por archivo; módulos puros sin `node:*`, Supabase ni `window`; nada de `any`; comentarios en español; pruebas vitest; no toques archivos fuera de la lista. En panel-reticula.tsx: las neuronas titanio llevan la etiqueta «Ti · router» (icono Router de lucide) y una línea que explica qué hacen («fija la red: 6 puentes, no se dilata»); la cabecera dice cuántos titanio hay. En routers-malla-panel.tsx: al marcar «ya tiene OpenWrt», el router dice «entra en la retícula como titanio» y su tesela se genera con `teselaDeRouter` desde los troncales del plan (sin red: solo construirla y mostrarla). Cambios mínimos y diseño del OS. Pruebas jsdom de las dos etiquetas.",
+   "dependencias_ya_en_main": [
+    "MC1013TA",
+    "MC1012W-d2",
+    "MR1012E"
+   ]
+  },
+  {
+   "id": "TIP1013D",
+   "ola": "Ola 1012Q · Malla de sílice: routers portátiles como titanio móvil, con SIM o sin ella, y puertas a internet opcionales",
+   "titulo": "Titanio portátil en el panel de routers: SIM opcional y puerta compartida a elección",
+   "archivos": [
+    "src/components/network/titanio-portatil-panel.tsx",
+    "src/components/network/routers-malla-panel.tsx",
+    "src/components/network/__tests__/titanio-portatil-panel.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Reglas: como mucho 120 líneas nuevas por archivo; módulos puros sin `node:*`, Supabase ni `window` salvo que la tarea diga lo contrario; nada de `any`; comentarios en español; pruebas vitest (NODE_ENV=test); no toques archivos fuera de la lista; si necesitas un tipo que no existe en el módulo que se cita, PARA y dilo (no inventes un archivo con el mismo nombre). Contrato: architecture/malla-cristalina-sio2.md §8 y §8.1 (léela entera). Panel 'use client' `TitanioPortatilPanel` (diseño del OS, legible en móvil, iconos de lucide, cursor pointer): tipo de router portátil, batería y «está cargando», ¿tiene módem? ¿lleva SIM?; enseña `compatibilidadPortatil`, la coordinación que tendrá y `resumenSinSim`. Sección «Puerta a internet (opcional)»: tipo, con quién se comparte (por defecto «nadie»), tope mensual y reserva del dueño (20 %); aviso fijo «Algunas operadoras no permiten compartir los datos de tu línea: revisa tu contrato antes de compartir fuera de tu cuenta» y «StarSeed no pide ni guarda el PIN de tu SIM». Botones «Copiar guion de la puerta» (uciPuerta + guionGuardianTope) y «Copiar guion de cliente» (uciClientePuerta). En routers-malla-panel.tsx: cambio mínimo para montarlo cuando el router es portátil. Prueba jsdom: un MiFi de operador muestra la alternativa y el selector de compartir arranca en «nadie».",
+   "revisor_quitadas": [
+    "TIP1013B"
+   ],
+   "dependencias_ya_en_main": [
+    "TIP1013A",
+    "TIP1013C",
+    "MR1012E"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1028-004255.json": [
+   "DSN1025F",
+   "RTS1010-MGR2b",
+   "RTS1010-MGR2",
+   "DSN1025H",
+   "MC1013TC",
+   "TIP1013D"
+  ]
+ }
+}
