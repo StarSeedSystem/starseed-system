@@ -4662,3 +4662,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-29 14:11 · mg-oracle-1029-0610
+
+**Lo que se pidió.** el botón de la Protomolécula de su orbe debe poder ser ejecutable desde el lienzo de creación del menú de Trinidad izquierdo con un botón de activar o desactivar la orbe Protomolécula, o pidiéndoselo a Astraura desde cualquier medio, con control total en tiempo real
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — otra cosa (PMO1020A, ART1025L, DSN1025I, CPZ1025F, LYS1018L, VZF1015N). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `PMO1020A` — otra cosa: ningún proveedor respondió (todos caídos)
+- `ART1025L` — otra cosa: ningún proveedor respondió (todos caídos)
+- `DSN1025I` — otra cosa: ningún proveedor respondió (todos caídos)
+- `CPZ1025F` — otra cosa: ningún proveedor respondió (todos caídos)
+- `LYS1018L` — otra cosa: ningún proveedor respondió (todos caídos)
+- `VZF1015N` — otra cosa: ningún proveedor respondió (todos caídos)
