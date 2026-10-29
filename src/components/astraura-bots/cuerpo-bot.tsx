@@ -3,7 +3,9 @@
 import * as React from 'react';
 import { planCuerpo } from '@/lib/astraura-bots/cuerpo';
 import { resolverRefBiblioteca } from '@/lib/avatares/adaptadores/resolver-ref-biblioteca';
+import { Cuerpo3dBot } from '@/components/avatares/cuerpo-3d-bot';
 import { QuantumOrbAvatar } from '@/components/aurora/quantum-orb-avatar';
+import type { Bot, EstadoEmocional } from '@/lib/astraura-bots/tipos';
 
 // We'll also need to import a component for the ser genesis avatar if it exists.
 // For now, we'll use a placeholder.
@@ -13,9 +15,15 @@ export interface CuerpoBotProps {
   medio: import('@/lib/astraura-bots/tipos').Medio;
   xrDisponible: boolean;
   vrmDisponible: boolean;
+  /** Bot completo: con forma «avatar-3d» o «vrm» se dibuja su ADN 3D en vez de la orbe. */
+  bot?: Bot;
+  emocion?: EstadoEmocional;
+  texto?: string | null;
+  hablando?: boolean;
+  tamano?: number;
 }
 
-export const CuerpoBot: React.FC<CuerpoBotProps> = ({ cuerpo, medio, xrDisponible, vrmDisponible }) => {
+export const CuerpoBot: React.FC<CuerpoBotProps> = ({ cuerpo, medio, xrDisponible, vrmDisponible, bot, emocion, texto, hablando, tamano }) => {
   const { render, ref, motivo } = React.useMemo(() => planCuerpo(cuerpo, medio, { xrDisponible, vrmDisponible }), [cuerpo, medio, xrDisponible, vrmDisponible]);
 
   // State for the resolved URL when we need to display an image
@@ -40,6 +48,11 @@ export const CuerpoBot: React.FC<CuerpoBotProps> = ({ cuerpo, medio, xrDisponibl
       });
     }
   }, [render, ref]);
+
+  // La orbe del bot ES su avatar 3D cuando el cuerpo lo pide y quien monta conoce al bot.
+  if (bot && (cuerpo.forma === 'avatar-3d' || cuerpo.forma === 'vrm')) {
+    return <Cuerpo3dBot bot={bot} emocion={emocion} texto={texto} hablando={hablando} tamano={tamano} />;
+  }
 
   // Now, render based on the render type
   switch (render) {
