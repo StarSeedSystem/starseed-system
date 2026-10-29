@@ -2,6 +2,7 @@
 """Pruebas de las decisiones puras del lado de la neurona (oracle_nodo.py, OPO1011)."""
 import os
 import sys
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -146,6 +147,30 @@ class Prestamo(unittest.TestCase):
                    "nota": "movida a oracle (colas/oracle-20261018-231246) desde Genesis"},
              "X": "basura"}
         self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 3 * 3600 + 60), [])
+
+    @unittest.expectedFailure
+    def test_la_gracia_mira_cuando_se_movio_la_tarea(self):
+        """«Sin moverse» es la tarea: si su último cambio es reciente, no vuelve aunque la rama
+        que cita sea vieja; y al revés, la tarea quieta desde hace días vuelve sin esperar a que
+        la rama cumpla la gracia.
+
+        FALLO REAL en main (el código no es de esta tarea): `devolver_de_oracle` mide la gracia
+        desde que NACIÓ la rama (`calendar.timegm(...)` del nombre), no desde el último cambio de
+        la tarea (`entrada["t"]`, escrito en hora local por `progreso.json`). Así devuelve una
+        tarea movida hace diez minutos a una rama vieja, y deja prestada para siempre una tarea
+        quieta apuntada a una rama recién creada. Arreglo: interpretar `t` como hora local (como
+        `mktime`, no `timegm`) y, si falta o no casa, caer a la fecha de la rama también local."""
+        rama = "colas/oracle-20261018-231246"
+        nacida = time.mktime(time.strptime(rama[len(N.PREFIJO_COLA):], "%Y%m%d-%H%M%S"))
+        nota = "movida a oracle (%s) desde Genesis" % rama
+        reciente = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(nacida + 30 * 24 * 3600))
+        movido = time.mktime(time.strptime(reciente, "%Y-%m-%d %H:%M:%S"))
+        p = {"T": {"estado": "reasignada", "medio": "oracle", "nota": nota, "t": reciente}}
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, movido + 600), [])
+        viejo = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(nacida - 4 * 3600))
+        p["T"]["t"] = viejo
+        # La rama nació hace un minuto (dentro de la gracia), pero la tarea lleva 4 h quieta.
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 60), ["T"])
 
 
 class Resumen(unittest.TestCase):
