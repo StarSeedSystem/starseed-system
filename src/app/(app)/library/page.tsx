@@ -122,6 +122,11 @@ import { ReferenciasPanel } from '@/components/library/referencias/referencias-p
 
 // ── Interconexión aditiva (Módulo 8) ──
 import { useSavedLibrary, type SavedResource } from "@/lib/library-store";
+import {
+  ACCION_ABRIR_EN_CLAUDE,
+  esEnlaceArtefacto,
+  paqueteDeArtefacto,
+} from "@/lib/integrations/claude-artefactos";
 // Solo URLs http(s)/internas en aperturas: bloquea javascript: y data:
 import { safeHttpUrl } from "@/lib/library/url-utils";
 import { emitAttach, openComposer } from "@/lib/share/bridge";
@@ -501,6 +506,7 @@ const SAVED_KIND_LABEL: Record<string, string> = {
   layout: "Layout",
   widget: "Widget",
   servicio: "Servicio / Integración",
+  "artefacto-claude": "Artefacto de Claude",
 };
 
 function savedKindLabel(kind: string): string {
@@ -600,7 +606,8 @@ function SavedResourceCard({
         {url && (
           <Button size="sm" variant="ghost" className="gap-1.5 text-xs text-muted-foreground hover:text-white cursor-pointer" asChild>
             <Link href={url}>
-              <ExternalLink className="w-3.5 h-3.5" /> Abrir
+              <ExternalLink className="w-3.5 h-3.5" />
+              {resource.kind === "artefacto-claude" ? ACCION_ABRIR_EN_CLAUDE : "Abrir"}
             </Link>
           </Button>
         )}
@@ -609,8 +616,83 @@ function SavedResourceCard({
   );
 }
 
+type EntradaGuardada = {
+  id?: string;
+  kind: string;
+  title: string;
+  url?: string;
+  origin?: string;
+};
+
+function ClaudeArtifactForm({ onSave }: { onSave: (r: EntradaGuardada) => void }) {
+  const [url, setUrl] = useState("");
+  const [titulo, setTitulo] = useState("");
+  const [aviso, setAviso] = useState<string | null>(null);
+  const listo = esEnlaceArtefacto(url);
+
+  const guardar = () => {
+    const pkg = paqueteDeArtefacto(url, titulo);
+    if (!pkg) {
+      setAviso("Pega un enlace https://claude.ai/artifact/<id> o https://claude.ai/code/artifact/<uuid>.");
+      return;
+    }
+    const externalUrl = typeof pkg.payload.externalUrl === "string" ? pkg.payload.externalUrl : "";
+    onSave({ id: pkg.id, kind: "artefacto-claude", title: pkg.name, url: externalUrl, origin: "claude.ai" });
+    setUrl("");
+    setTitulo("");
+    setAviso(`«${pkg.name}» guardado. ${ACCION_ABRIR_EN_CLAUDE} desde su tarjeta.`);
+  };
+
+  return (
+    <section className="rounded-2xl border border-cyan-400/20 bg-cyan-500/[0.04] p-3">
+      <div className="flex items-start gap-2">
+        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold text-cyan-100">Artefactos de Claude</h3>
+          <p className="text-[11px] text-muted-foreground">
+            Guarda un enlace de claude.ai como paquete de Biblioteca: queda el enlace y se abre con
+            «{ACCION_ABRIR_EN_CLAUDE}»; no se ejecuta aquí.
+          </p>
+        </div>
+      </div>
+      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+        <Input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://claude.ai/artifact/…"
+          aria-label="URL del artefacto de Claude"
+          className="flex-1 border-white/10 bg-black/30 text-xs focus-visible:ring-cyan-500/40"
+        />
+        <Input
+          value={titulo}
+          onChange={(e) => setTitulo(e.target.value)}
+          placeholder="Título (opcional)"
+          aria-label="Título del artefacto de Claude"
+          className="border-white/10 bg-black/30 text-xs focus-visible:ring-cyan-500/40"
+        />
+        <Button
+          type="button"
+          onClick={guardar}
+          disabled={!url.trim()}
+          className="cursor-pointer gap-2 bg-cyan-600 font-semibold text-white hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Plus className="h-4 w-4" /> Guardar
+        </Button>
+      </div>
+      {url.trim() && !listo ? (
+        <p className="mt-1 text-[11px] text-amber-200">Solo enlaces de artefacto de claude.ai.</p>
+      ) : null}
+      {aviso ? (
+        <p role="status" className="mt-1 text-[11px] text-emerald-200">
+          {aviso}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function SavedResourcesPanel({ onGoExplore }: { onGoExplore: () => void }) {
-  const { items, remove } = useSavedLibrary();
+  const { items, remove, save } = useSavedLibrary();
 
   return (
     <section className="flex flex-col gap-4 w-full">
@@ -631,6 +713,8 @@ function SavedResourcesPanel({ onGoExplore }: { onGoExplore: () => void }) {
           <Compass className="w-4 h-4" /> Explorar la Librería
         </Button>
       </div>
+
+      <ClaudeArtifactForm onSave={(r) => save(r)} />
 
       {items.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-12 text-center text-muted-foreground border border-dashed border-white/10 rounded-3xl bg-white/5">
