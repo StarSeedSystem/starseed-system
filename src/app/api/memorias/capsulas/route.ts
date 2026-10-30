@@ -3,6 +3,7 @@
 // `memvid-cliente.ts` (contrato: architecture/memvid-capsulas.md §4).
 import { NextRequest, NextResponse } from "next/server";
 import { sujetoDeParametro, estado, poner, buscar } from "@/lib/memorias/memvid-cliente";
+import { nombreIndiceLeann, ponerLeann } from "@/lib/memorias/leann-cliente";
 import { alcanceDe, capsulaDe } from "@/lib/memorias/capsulas";
 import {
   alcanceVisiblePara, puedeEscribirEn, type ActorMemoria,
@@ -65,7 +66,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return error("Falta el texto", 400);
     const escrito = await poner(sujeto, cuerpo.texto);
     if (!escrito) return error("Servidor de cápsulas no disponible", 503);
-    return NextResponse.json({ ok: true, ...escrito });
+    // Escritura doble (LNN1028D2): el mismo texto entra en el índice LEANN del sujeto con
+    // metadatos de alcance; si el A1 no está, nada se rompe y queda pendiente para la
+    // pasada nocturna (architecture/leann-recuerdo-semantico.md §4).
+    const uri = `mv2://${escrito.nombre}#${escrito.frame}`;
+    const metadatos = {
+      alcance, sujeto: `${sujeto.tipo}:${sujeto.id}`, uri, ts: Math.floor(Date.now() / 1000),
+    };
+    const enLeann = await ponerLeann(nombreIndiceLeann(sujeto), [{ texto: cuerpo.texto, metadatos }]);
+    return NextResponse.json({ ok: true, ...escrito, leann: enLeann ? "listo" : "pendiente" });
   }
   if (cuerpo.accion === "buscar") {
     if (!visible) return error("Esta cápsula no es visible para tu sesión", 403);
