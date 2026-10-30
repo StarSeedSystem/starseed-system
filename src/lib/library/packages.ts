@@ -1005,6 +1005,34 @@ const LABS_PACKAGES: LibraryPackage[] = [
       author: "cathrynlavery", sourceRepoId: "starseed-labs", free: true, featured: true,
       payload: { skillId: "diagram-design" }
     },
+    /* ── Motores opcionales de uso personal no comercial (VZR1011C · §1) ── */
+    // F5-TTS: código MIT · pesos CC-BY-NC (solo uso personal, sin comercio). Nunca AUTO.
+    {
+      id: "voz-f5-tts", kind: "repo", name: "F5-TTS · SWivid (opcional personal)",
+      description:
+        "TTS generativo de SWivid: código MIT, pesos CC-BY-NC-4.0. OPCIONAL de uso PERSONAL NO COMERCIAL: requiere instalación manual y aceptación de licencia (casilla explícita que la explica). Apagado por defecto; nunca entra en la cadena AUTO ni se usa en páginas o grupos comerciales. Sin español oficial (zh/en). Verificado 2026-10-11.",
+      icon: "Mic", tags: ["voces", "voz", "tts", "personal", "no-comercial", "opcional"], version: "1.0.0",
+      author: "SWivid", sourceRepoId: "starseed-labs", free: true,
+      payload: { externalUrl: "https://github.com/SWivid/F5-TTS", githubRepo: "SWivid/F5-TTS", categoria: "voces", motorId: "f5-tts", licencia: "MIT (código) · CC-BY-NC-4.0 (pesos)", claseLicencia: "personal-no-comercial", note: "Uso opcional personal: instalación manual + casilla de licencia; nunca en AUTO ni contextos comerciales." },
+    },
+    // XTTS-v2: código MPL-2.0 · modelo Coqui Public Model License (no comercial). Opcional personal.
+    {
+      id: "voz-xtts-v2", kind: "repo", name: "XTTS-v2 · Coqui (opcional personal)",
+      description:
+        "TTS multilingüe (16 idiomas, es incluido) de Coqui: código MPL-2.0, modelo con Coqui Public Model License (NO comercial). OPCIONAL de uso PERSONAL NO COMERCIAL: requiere instalación manual y aceptación de licencia. Apagado por defecto; nunca en AUTO ni en uso comercial. Verificado 2026-10-11.",
+      icon: "Mic", tags: ["voces", "voz", "tts", "personal", "no-comercial", "opcional", "espanol"], version: "2.0.0",
+      author: "Coqui", sourceRepoId: "starseed-labs", free: true,
+      payload: { externalUrl: "https://github.com/coqui-ai/TTS", githubRepo: "coqui-ai/TTS", categoria: "voces", motorId: "xtts-v2", licencia: "MPL-2.0 (código) · Coqui Public Model License (modelo no comercial)", claseLicencia: "personal-no-comercial", note: "Uso opcional personal: instalación manual + casilla de licencia; nunca en AUTO ni contextos comerciales." },
+    },
+    // ChatTTS: código AGPLv3+ · modelo CC BY-NC 4.0 “solo académico”, sin español. Solo ficha, sin integración.
+    {
+      id: "voz-chatt-ts", kind: "repo", name: "ChatTTS · 2noise (solo ficha)",
+      description:
+        "TTS de 2noise: código AGPLv3+, modelo CC BY-NC 4.0 con restricción “solo académico”; sin soporte de español (solo en/zho). NO SE INTEGRA como motor: solo ficha de referencia en la Biblioteca con licencia exacta verificada (2026-10-11). Nunca en AUTO ni en ningún contexto de uso.",
+      icon: "BookOpen", tags: ["voces", "referencia", "licencia", "academico", "sin-espanol"], version: "0.1.0",
+      author: "2noise", sourceRepoId: "starseed-labs", free: true, comingSoon: true,
+      payload: { externalUrl: "https://github.com/2noise/ChatTTS", githubRepo: "2noise/ChatTTS", categoria: "voces", motorId: "chatt-ts", licencia: "AGPLv3+ (código) · CC BY-NC 4.0 solo académico (modelo)", claseLicencia: "solo-ficha", note: "Sin integración: modelo sin español, licencia académica no comercial. Solo referencia de licencia verificada." },
+    },
     /* ── Modelos locales que se descargan tras comprobar dónde caben (Recursos de IA) ── */
     ...FICHAS_IA_LOCALES,
     /* ── Repos que Alex trajo para el OS (Hono, React Native Zalo Kit) ── */
