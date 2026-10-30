@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { ATOMOS_ARTCRAFT, crearAtomosArtcraft, documentoArtcraft, urlBuildWeb } from "../artcraft";
 import { ATOMOS_PROPIOS, registrarAtomosPropios } from "../index";
+import { APPS_EMBEBIDAS } from "../../apps-embebidas";
 import { limpiarRegistro, listarAtomos, registrarAtomo, type DefinicionAtomo } from "../../registro-atomos";
 
 const ORIGEN = "https://artcraft.example.com";
@@ -102,7 +103,8 @@ describe("átomos web de ArtCraft", () => {
     for (const a of ATOMOS_ARTCRAFT) expect(registrarAtomo(a)).toEqual({ ok: true });
     registrarAtomosPropios();
     registrarAtomosPropios();
-    expect(listarAtomos()).toHaveLength(ATOMOS_PROPIOS.length);
+    // El registro también trae las apps ajenas embebidas (PM1010F1F); solo cuentan las con vista.
+    expect(listarAtomos()).toHaveLength(ATOMOS_PROPIOS.length + APPS_EMBEBIDAS.filter((a) => a.vista).length);
     const artcraft = listarAtomos().filter((a) => ATOMOS_ARTCRAFT.some((x) => x.herramientaId === a.herramientaId));
     expect(artcraft.map((a) => a.herramientaId)).toEqual(["figcraft", "gridcraft", "deckcraft"]);
   });

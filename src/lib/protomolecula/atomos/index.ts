@@ -10,6 +10,7 @@
  */
 import type { ComponentType } from "react";
 import { registrarConvertidoresBase } from "../convertidores-base";
+import { registrarAppsEmbebidas } from "../apps-embebidas";
 import type { DefinicionAtomo, VistaProps } from "../registro-atomos";
 import { obtenerAtomo, registrarAtomo } from "../registro-atomos";
 import { SINTETIZADOR } from "./sintetizador";
@@ -31,6 +32,7 @@ export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURA
  */
 export function registrarAtomosPropios(): void {
   registrarConvertidoresBase();
+  registrarAppsEmbebidas(); // tercer grado (PM1010F1F): apps ajenas completas embebidas tal cual
   for (const def of ATOMOS_PROPIOS) {
     if (obtenerAtomo(def.herramientaId)) continue;
     registrarAtomo(def);
