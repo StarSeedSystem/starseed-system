@@ -1,8 +1,9 @@
 /**
  * XR1010J · parte pura de la disposición de la Trinity (`use-disposicion.ts`): la base no salta por
  * un giro menor al umbral, se recentra a los ~3 s fuera, el contenido NO se recalcula sin recentrar,
- * las distancias por postura (1,8 / 1,6 / 1,2 m), los paneles miran a los ojos, un zurdo no espeja
- * Horizon y Logic y la altura de ojos manual manda. Pruebas de node: sin red, sin WebGL.
+ * las distancias por postura (1,8 / 1,6 / 1,2 m), los paneles miran a los ojos, el dock al pecho
+ * (muelle al 85 %), un zurdo no espeja Horizon y Logic, la altura de ojos manual manda y el modo y
+ * la escala se pasan al núcleo (opacidad y anclaje por modo). Pruebas de node: sin red, sin WebGL.
  */
 import { describe, expect, it } from "vitest";
 import { normalDePanel } from "@/lib/xr/espacio-trinity";
@@ -57,6 +58,17 @@ describe("siguienteBase", () => {
     it("el orden reciente manda siempre: la base apunta donde mira la cabeza", () => {
         expect(siguienteBase(estado(0, 80), { yaw: 1.5 }, 90, "recentrar")).toEqual(estado(1.5, null));
     });
+
+    it("la orden «recentrar» manda también dentro del cono (sin orden ahí no movería nada)", () => {
+        expect(siguienteBase(estado(0), { yaw: 0.2 }, 100)).toEqual(estado(0));
+        expect(siguienteBase(estado(0), { yaw: 0.2 }, 100, "recentrar")).toEqual(estado(0.2));
+    });
+
+    it("volver al cono limpia la cuenta de tiempo fuera", () => {
+        const fuera = siguienteBase(estado(0), { yaw: 2 }, 100);
+        expect(fuera).toEqual(estado(0, 100));
+        expect(siguienteBase(fuera, { yaw: 0.1 }, 100 + 500)).toEqual(estado(0));
+    });
 });
 
 describe("postura y nodos del núcleo vía calculaDisposicion", () => {
@@ -90,6 +102,18 @@ describe("postura y nodos del núcleo vía calculaDisposicion", () => {
         }
     });
 
+    it("el dock (Anchor) mira al pecho: hacia arriba y a la persona, pero menos cabeceo que los ojos (muelle al 85 %)", () => {
+        const d = calculaDisposicion(entradas({ alturaOjos: 1.62 }));
+        const a = d.nodos.anchor;
+        const hacia = [0 - a.posicion[0], 1.62 - a.posicion[1], 0 - a.posicion[2]] as const;
+        const modulo = Math.hypot(hacia[0], hacia[1], hacia[2]);
+        const m = normalDePanel(a.rotacion);
+        const cos = Math.abs((m[0] * hacia[0] + m[1] * hacia[1] + m[2] * hacia[2]) / modulo);
+        expect(cos).toBeGreaterThan(0.99);
+        expect(cos).toBeLessThan(0.999);
+        expect(Math.atan2(m[1], Math.hypot(m[0], m[2]))).toBeLessThan(Math.atan2(hacia[1], Math.abs(hacia[2])));
+    });
+
     it("un usuario zurdo NO espeja la Trinity: Horizon sigue al oeste y Logic al este", () => {
         const der = calculaDisposicion(entradas());
         const izq = calculaDisposicion(entradas({ manoDominante: "izquierda" }));
@@ -116,5 +140,18 @@ describe("alturaOjosEfectiva", () => {
         const corto = calculaDisposicion(entradas({ alturaOjos: 0.9 }));
         const alto = calculaDisposicion(entradas({ alturaOjos: 2.0 }));
         expect(alto.nodos.zenith.posicion[1]).toBeGreaterThan(corto.nodos.zenith.posicion[1]);
+    });
+});
+
+describe("modo y escala entran al núcleo vía calculaDisposicion", () => {
+    it("en AR la opacidad mínima sube a 0,82 y el anclaje es el mundo; en VR queda 0,6 sobre el cuerpo", () => {
+        const ar = calculaDisposicion(entradas({ modo: "ar-passthrough" }));
+        const vr = calculaDisposicion(entradas());
+        expect([ar.opacidadMinima, ar.nodos.zenith.anclaje, vr.opacidadMinima, vr.nodos.zenith.anclaje]).toEqual([0.82, "mundo", 0.6, "cuerpo"]);
+    });
+
+    it("la escala entra al núcleo: más escala, paneles más grandes (accesibilidad)", () => {
+        const grande = calculaDisposicion(entradas({ escala: 1.2 }));
+        expect(grande.nodos.zenith.ancho).toBeGreaterThan(calculaDisposicion(entradas()).nodos.zenith.ancho);
     });
 });
