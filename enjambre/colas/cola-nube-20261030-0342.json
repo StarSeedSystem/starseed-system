@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "GCA1019X",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Artefactos de Claude: enlaces en la Biblioteca y «Añadir mi Genesis a Claude»",
+   "archivos": [
+    "src/lib/integrations/claude-artefactos.ts",
+    "src/components/genesis/conectores/claude-conector.tsx",
+    "src/lib/integrations/__tests__/claude-artefactos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO en el .ts: `esEnlaceArtefacto(url)` (solo `https://claude.ai/artifact/<id>` y `https://claude.ai/code/artifact/<uuid>`), `paqueteDeArtefacto(url, titulo)` (paquete de Biblioteca con `externalUrl` y acción «Abrir en Claude») y `pasosConectorClaude(urlMcp)` (pasos para añadir la URL MCP del ámbito como conector personalizado en claude.ai y usarla en chats, Cowork y artefactos con la capacidad `mcp`). El componente muestra esos pasos con botón de copiar la URL (nunca el token). Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019S"
+   ]
+  }
+ ]
+}
