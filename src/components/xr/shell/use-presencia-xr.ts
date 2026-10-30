@@ -4,7 +4,7 @@
  * Delegado de `ConexionEscena` (Supabase/P2P). Privacidad estricta con `evaluarSalida`.
  */
 import { useEffect, useRef, useState, useCallback } from "react";
-import { empaquetarPose, limitarFrecuencia, jugadoresVisibles } from "@/lib/xr/presencia";
+import { empaquetarPose, limitarFrecuencia, jugadoresVisibles, elegirAnfitrion } from "@/lib/xr/presencia";
 import { evaluarSalida } from "@/lib/xr/privacidad";
 import { PERFILES } from "@/lib/xr/calidad-perfiles";
 import type { PoseCabeza, PoseManos, MensajePresencia } from "@/lib/xr/presencia";
@@ -53,7 +53,7 @@ export function usePresenciaXR(
     return {
         publicar,
         conectados,
-        esAnfitrion: conectados.length > 0 && conectados[0].id === userId,
+        esAnfitrion: elegirAnfitrion(conectados) === userId,
         jugadoresVisibles: jugadoresVisibles(
             conectados.map((c) => ({ id: c.id, pos: miPos })),
             miPos,
