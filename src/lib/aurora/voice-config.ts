@@ -117,15 +117,15 @@ function elegirDeStore(
  * Motor fijado por la JERARQUÍA, o `null` si ningún ámbito elige (⇒ AUTO).
  * Precedencia: agente > personalidad > cerebro > neurona > cuenta.
  *
- * Pasa SIEMPRE por `voiceHierarchyStoreFrom`: es el único camino que completa
- * el store a partir de las fuentes crudas, así que no queda una segunda
+ * Pasa SIEMPRE por `resolveVoiceChoice` (y este por `voiceHierarchyStoreFrom`):
+ * es el único camino que completa el store, así que no queda una segunda
  * precedencia que se pueda desincronizar de la cadena de voz.
  */
 export function resolveVoiceChoiceFrom(
   store: VoiceHierarchyStore,
   ctx: VoiceHierarchyContext = {},
 ): ResolvedVoiceChoice | null {
-  return elegirDeStore(voiceHierarchyStoreFrom({ store, ctx }), ctx);
+  return resolveVoiceChoice({ store, ctx });
 }
 
 /**
@@ -198,7 +198,7 @@ function conMotor(
  * lo guardado en `store` manda; lo que falte se deriva de la personalidad, del
  * override neurona×personalidad y de la cuenta. Función pura; nunca lanza.
  */
-export function voiceHierarchyStoreFrom(
+function voiceHierarchyStoreFrom(
   sources: VoiceHierarchySources = {},
 ): VoiceHierarchyStore {
   const store = sources.store ?? {};
