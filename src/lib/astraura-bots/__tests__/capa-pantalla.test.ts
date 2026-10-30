@@ -68,6 +68,31 @@ describe("normalizarCapa · rechazos", () => {
     expect(problemasDe(normalizarCapa({ forma: "resaltar" }))[0]).toMatch(/necesita un objetivo/);
     expect(problemasDe(normalizarCapa({ forma: "flecha", objetivo: "div > a[href]" }))[0]).toMatch(/identificador/);
   });
+  it("una ruta absoluta del disco tampoco cabe en el texto (no solo las claves)", () => {
+    expect(problemasDe(normalizarCapa({ forma: "nota", texto: "mira /Users/alex/privado" }))[0]).toMatch(/ruta del disco/);
+    expect(problemasDe(normalizarCapa({ forma: "nota", texto: "está en /home/alex/notas" }))[0]).toMatch(/ruta del disco/);
+  });
+  it("el objetivo respeta el patrón de identificador: ni empieza por guion ni pasa de 120", () => {
+    expect(problemasDe(normalizarCapa({ forma: "resaltar", objetivo: "-boton" }))[0]).toMatch(/identificador/);
+    expect(problemasDe(normalizarCapa({ forma: "resaltar", objetivo: "a".repeat(121) }))[0]).toMatch(/identificador/);
+    expect(esCapaValida(normalizarCapa({ forma: "resaltar", objetivo: "a".repeat(120) }))).toBe(true);
+  });
+  it("un texto que no es cadena se rechaza con el mismo aviso que el vacío", () => {
+    expect(problemasDe(normalizarCapa({ forma: "nota", texto: 5 }))).toEqual(["El texto debe ser una frase no vacía."]);
+    expect(problemasDe(normalizarCapa({ forma: "nota", texto: null }))).toEqual(["El texto debe ser una frase no vacía."]);
+  });
+});
+
+describe("normalizarCapa · capas en detalle", () => {
+  it("una nota puede llevar un objetivo válido y lo conserva", () => {
+    expect(normalizarCapa({ forma: "nota", texto: "Te señalo aquí abajo", objetivo: "boton-enviar" })).toEqual({
+      forma: "nota", texto: "Te señalo aquí abajo", objetivo: "boton-enviar",
+    });
+  });
+  it("los campos que no son de la capa se descartan, también fuera del widget (una nota ignora lo suelto)", () => {
+    expect(normalizarCapa({ forma: "nota", texto: "Hola", peligro: "ejecuta", objetivo: "boton-ok", url: "https://de-fuera.example" }))
+      .toEqual({ forma: "nota", objetivo: "boton-ok", texto: "Hola" });
+  });
 });
 
 describe("apilar y retirar", () => {
@@ -112,6 +137,20 @@ describe("apilar y retirar", () => {
   });
   it("retirarDeBot quita solo lo de ese bot (al pausarlo nada suyo queda en pantalla)", () => {
     expect(retirarDeBot([capa("a1"), capa("b1", "bot-b"), capa("a2")], "bot-a").map((c) => c.id)).toEqual(["b1"]);
+  });
+  it("retirarDeBot de un bot sin capas no toca nada y no muta la lista", () => {
+    const antes = [capa("a1"), capa("b1", "bot-b")];
+    const despues = retirarDeBot(antes, "bot-no-existe");
+    expect(despues.map((c) => c.id)).toEqual(["a1", "b1"]);
+    expect(antes).toHaveLength(2);
+  });
+  it(`en el tope, sustituir por el mismo id no expulsa a otra capa del bot`, () => {
+    let capas: CapaActiva[] = [capa("ajena", "bot-b")];
+    for (let i = 1; i <= MAX_CAPAS_POR_BOT; i++) capas = apilar(capas, capa(`c${i}`));
+    const cambiadas = apilar(capas, { ...capa("c1"), texto: "cambiada" });
+    expect(cambiadas.map((c) => c.id)).toEqual(["ajena", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"]);
+    expect(cambiadas.find((c) => c.id === "c1")?.texto).toBe("cambiada");
+    expect(cambiadas.some((c) => c.id === "c8")).toBe(true);
   });
 
   it("apilar cuando hay menos de 8", () => {
