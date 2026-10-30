@@ -81,6 +81,18 @@ describe("variaciones_buscar · manejador", () => {
     expect(texto(r)).toContain("Variaciones públicas de «widget:clima»");
   });
 
+  it("rechaza un orden desconocido sin tocar la capa inyectada", async () => {
+    let llamadas = 0;
+    const listar = async () => {
+      llamadas += 1;
+      return listado();
+    };
+    const salida = await ejecutarVariacionesBuscar(listar, { clave: "widget:clima", orden: "monedas" });
+    expect(salida.esError).toBe(true);
+    expect(texto(salida)).toContain("no es un orden");
+    expect(llamadas).toBe(0);
+  });
+
   it("no ejecuta nada sin clave válida y convierte fallos de la base o de la red en error", async () => {
     let llamadas = 0;
     const listar = async () => (llamadas += 1, listado());

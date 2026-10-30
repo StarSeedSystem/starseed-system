@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { crearAlmacenMemoria, crearToken, revocarToken } from "@/lib/genesis/mcp/tokens-externos";
-import { HERRAMIENTAS_MCP } from "@/lib/genesis/mcp/herramientas";
+import { HERRAMIENTAS_MCP, type FichaHerramientaMcp } from "@/lib/genesis/mcp/herramientas";
 import {
   atenderMcpConPermisos,
   extraerBearer,
@@ -159,5 +159,42 @@ describe("ruta MCP con permisos (tarea S)", () => {
     expect(agotada.status).toBe(429);
     expect(registros.length).toBe(1);
     expect(registros[0]).toMatchObject({ tipo: "initialize", statusCode: 429, via: "token", ambito: "ambito-tres" });
+  });
+
+  it("una llamada con permiso se registra como tools/call sin guardar el token", async () => {
+    const { deps, registros } = depsFalsas();
+    const r = await crearToken("ambito-llamada", ["ver-resumen"], undefined, deps.almacen);
+    const respuesta = await atenderMcpConPermisos(
+      { jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "estado", arguments: {} } },
+      HERRAMIENTAS_MCP, deps, r.valor, null, "/api/mcp/genesis",
+    );
+    expect(respuesta.status).toBe(200);
+    expect((respuesta.salida as { result: { contenido: Array<{ texto: string }> } }).result.contenido[0]?.texto)
+      .toContain("StarSeed OS");
+    expect(registros).toEqual([{
+      via: "token", ambito: "ambito-llamada", metodo: "POST", endpoint: "/api/mcp/genesis", tipo: "tools/call", statusCode: 200,
+    }]);
+    expect(JSON.stringify(registros)).not.toContain(r.valor);
+  });
+
+  it("alcanzar el límite no ejecuta la herramienta y anota el 429", async () => {
+    const { deps, registros } = depsFalsas(1);
+    let ejecuciones = 0;
+    const herramienta: FichaHerramientaMcp = {
+      nombre: "contar", descripcion: "Cuenta sus ejecuciones", permiso: "estado:leer", esquema: { type: "object", properties: {} },
+      ejecutar: async () => {
+        ejecuciones += 1;
+        return { contenido: [{ tipo: "texto", texto: "contada" }] };
+      },
+    };
+    const r = await crearToken("ambito-limite", ["ver-resumen"], undefined, deps.almacen);
+    const peticion = { jsonrpc: "2.0", id: 6, method: "tools/call", params: { name: "contar", arguments: {} } };
+    const primera = await atenderMcpConPermisos(peticion, [herramienta], deps, r.valor, null, "/api/mcp/genesis");
+    expect(primera.status).toBe(200);
+    const segunda = await atenderMcpConPermisos(peticion, [herramienta], deps, r.valor, null, "/api/mcp/genesis");
+    expect(segunda).toMatchObject({ status: 429, salida: { error: expect.stringContaining("límite") } });
+    expect(ejecuciones).toBe(1);
+    expect(registros.map((l) => l.statusCode)).toEqual([200, 429]);
+    expect(registros[1]).toMatchObject({ via: "token", ambito: "ambito-limite", tipo: "tools/call", statusCode: 429 });
   });
 });
