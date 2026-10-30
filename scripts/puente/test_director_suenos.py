@@ -131,7 +131,7 @@ class Consolidar(unittest.TestCase):
         c = S.consolidar(self.informes, self.veredictos)
         r = S.resumen_corto(c, "2026-09-29", 3)
         self.assertNotIn("claves", r)
-        self.assertIn("Sueños profundos 2026-09-29", r)
+        self.assertIn("Imaginación profunda 2026-09-29", r)
 
     def test_render_no_rompe_vacio_ni_lleno(self):
         vacio = S.render_informe(S.consolidar([], {}), "2026-09-29", planificadas=84)
@@ -151,7 +151,7 @@ class EnDisco(unittest.TestCase):
         json.dump(informe("SA09291", "voz", "arquitectura-deuda", [hallazgo("Unificar el cliente de voz")]),
                   open(os.path.join(self.sesion, "voz--arquitectura-deuda.json"), "w"))
         with open(os.path.join(self.sesion, "social--pruebas-fiabilidad.md"), "w", encoding="utf-8") as f:
-            f.write("# 🌙 Sueño profundo\n\n> Tarea SA092911 · …\n\n## Riesgos\n\n"
+            f.write("# 🌙 Sesión de imaginación profunda\n\n> Tarea SA092911 · …\n\n## Riesgos\n\n"
                     "1. **Añadir tiempo límite al fetch** — `src/lib/feed/a.ts:40` · impacto 4 · esfuerzo 1 · confianza 0.70 · sin timeout\n")
         with open(os.path.join(self.sesion, "verificaciones.jsonl"), "w") as f:
             f.write(json.dumps({"tarea": "SA09291", "estado": "verificado", "por": "claude-opus-5.5", "nota": "ok"}) + "\n")
