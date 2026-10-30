@@ -112,6 +112,18 @@ import {
   emitVoiceStyle,
   resolveVoiceParams,
 } from "@/lib/aurora/tts-oss/voice-style";
+// (VZR1011C) Voces OPCIONALES de uso personal no comercial: fichas verificadas
+// del contrato §1 y veredicto del filtro puro (F5-TTS / XTTS-v2 con casilla).
+import {
+  comprobarVersion,
+  fichaMotor,
+  motoresOpcionalesPersonales,
+  veredictoVoz,
+} from "@/lib/aurora/tts-oss/voces-no-comerciales";
+import {
+  aceptarLicenciaMotor,
+  licenciaMotorAceptada,
+} from "@/lib/aurora/tts-oss/omnivoice-web-router";
 import {
   NEURAL_ENGINE_META,
   pingNeuralEngine,
@@ -161,6 +173,78 @@ interface EngineOption {
 
 /** Máximo de voces del navegador listadas en el selector (mejores primero). */
 const MAX_BROWSER_VOICES = 60;
+
+// ── Voces OPCIONALES · uso personal no comercial (VZR1011C) ──────────────────
+// F5-TTS y XTTS-v2: apagadas por defecto. Solo entran en el router web de
+// OmniVoice si la persona acepta aquí su licencia exacta (contrato
+// `architecture/astraura-voces-y-robots.md` §1); jamás en contextos comerciales
+// ni en el orden AUTO. Nada se descarga por sí solo: el servidor lo pone quien
+// acepta; los Spaces públicos usan la cuota del navegador de cada quien.
+function VocesOpcionalesPersonales() {
+  const ids = useMemo(() => motoresOpcionalesPersonales(), []);
+  const [aceptadas, setAceptadas] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try {
+      const estado: Record<string, boolean> = {};
+      for (const id of ids) estado[id] = licenciaMotorAceptada(id);
+      setAceptadas(estado);
+    } catch {
+      /* estado por defecto: sin aceptación */
+    }
+  }, [ids]);
+  const fichas = ids
+    .map((id) => fichaMotor(id))
+    .filter((f): f is NonNullable<typeof f> => f !== undefined);
+  if (!fichas.length) return null;
+  return (
+    <div className="space-y-2 rounded-lg border border-amber-400/25 bg-amber-400/[0.04] p-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <AlertTriangle className="w-4 h-4 text-amber-300" />
+        <span className="text-sm font-medium text-foreground/90">
+          Voces opcionales · uso personal no comercial
+        </span>
+        <span className="ml-auto rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200">
+          apagadas por defecto
+        </span>
+      </div>
+      <p className="text-[11px] leading-snug text-muted-foreground">
+        Pesos con licencia que limita su uso a lo <b className="text-foreground/80">personal y no
+        comercial</b>. Solo suenan si tú aceptas su licencia aquí en la casilla; nunca entran en
+        páginas o grupos con fines comerciales ni en el orden automático (regla de la forja §4).
+      </p>
+      <div className="space-y-2">
+        {fichas.map((f) => {
+          const v = veredictoVoz(f.id, "personal-local");
+          const comprobacion = comprobarVersion(f.id, f.versionVerificada);
+          return (
+            <label
+              key={f.id}
+              className="flex items-start gap-2.5 rounded-lg border border-white/10 bg-black/20 p-2.5 cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5 accent-amber-400"
+                checked={aceptadas[f.id] === true}
+                onChange={(e) => {
+                  aceptarLicenciaMotor(f.id, e.target.checked);
+                  setAceptadas((prev) => ({ ...prev, [f.id]: e.target.checked }));
+                }}
+              />
+              <span className="space-y-0.5">
+                <span className="block text-[11.5px] font-medium text-foreground/90">{f.nombre}</span>
+                <span className="block text-[10.5px] text-muted-foreground">
+                  {f.licenciaCodigo} · {f.licenciaPesos}
+                </span>
+                <span className="block text-[10.5px] text-foreground/60">{v.motivo}</span>
+                <span className="block text-[10px] text-muted-foreground/70">{comprobacion}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function VoiceOssPanel({ className }: { className?: string }) {
   const [engine, setEngine] = useState<AuroraVoiceEngine>("browser");
@@ -916,6 +1000,11 @@ export function VoiceOssPanel({ className }: { className?: string }) {
         </div>
         {omniStatus && <p className="text-[11px] text-foreground/60">{omniStatus}</p>}
       </div>
+
+      {/* (VZR1011C) Casilla de licencia de las voces opcionales de uso personal
+          (F5-TTS, XTTS-v2): apagadas por defecto; la aceptación es lo que
+          habilita su sondeo y su uso como respaldo del router web. */}
+      <VocesOpcionalesPersonales />
 
       {/* ── OpenVoice 2 · MOTOR de nube del sistema OmniVoice (sin instalar) ──── */}
       <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.02] p-3">

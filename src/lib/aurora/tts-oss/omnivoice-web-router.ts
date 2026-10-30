@@ -43,6 +43,9 @@ import {
   type OpenVoiceEndpoint,
 } from "@/lib/aurora/tts-oss/openvoice2";
 import { callGradioSpace } from "@/lib/aurora/tts-oss/omnivoice-hybrid";
+// (VZR1011C) Filtro puro de licencias de las voces no comerciales: F5-TTS y
+// XTTS-v2 son OPCIONALES de uso personal (con casilla); ChatTTS NO se integra.
+import { veredictoVoz, type ContextoVoz } from "@/lib/aurora/tts-oss/voces-no-comerciales";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -78,6 +81,85 @@ const DISCOVERY_TTL_MS = 10 * 60_000;
 const LS_WEB_VOICE = "starseed.aurora.webvoice.v1";
 const BAD_ENDPOINT_MS = 15 * 60_000; // un fallo de red/timeout → 15 min fuera
 const BAD_ENDPOINT_HARD_MS = 6 * 60 * 60_000; // inferencia rota → 6 h fuera
+
+// ── Voces OPCIONALES de uso personal no comercial (VZR1011C) ──────────────────
+// Contrato `architecture/astraura-voces-y-robots.md` §1 + filtro puro de
+// `voces-no-comerciales.ts`. F5-TTS y XTTS-v2 entran como motores OPCIONALES:
+// APAGADOS por defecto, el router solo sondea/usa sus Spaces si la persona
+// aceptó su licencia en la casilla de Ajustes → Voz. ChatTTS NO se integra:
+// su ficha («chatt-ts») lo RECHAZA en todo contexto y aquí deja de sondearse y
+// de usarse. Nunca descargas de pesos: quien instala su servidor es la persona;
+// los Spaces públicos usan la cuota del navegador de cada quien.
+
+/** Ficha de la Biblioteca (`FICHAS_MOTORES`) según la familia descubierta. */
+const FICHA_DE_FAMILIA: Partial<Record<WebVoiceKind, string>> = {
+  "f5-tts": "f5-tts",
+  xtts: "xtts-v2",
+  chattts: "chatt-ts",
+};
+
+const LS_LICENCIAS_NO_COMERCIALES = "starseed.aurora.licencias-no-comerciales.v1";
+
+/** Registro de casillas de licencia aceptadas por ficha. Nunca lanza. */
+function registroLicencias(): Record<string, unknown> {
+  const ls = safeLS();
+  if (!ls) return {};
+  try {
+    const raw = ls.getItem(LS_LICENCIAS_NO_COMERCIALES);
+    if (!raw) return {};
+    const j = JSON.parse(raw) as unknown;
+    return j && typeof j === "object" && !Array.isArray(j) ? (j as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** ¿La persona aceptó la licencia de esta ficha en la casilla? Nunca lanza. */
+export function licenciaMotorAceptada(idFicha: string): boolean {
+  try {
+    return registroLicencias()[idFicha] === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Guarda (o retira) la aceptación de licencia de una ficha. Nunca lanza. */
+export function aceptarLicenciaMotor(idFicha: string, aceptada: boolean): void {
+  const ls = safeLS();
+  if (!ls) return;
+  try {
+    const registro = registroLicencias();
+    if (aceptada) registro[idFicha] = true;
+    else delete registro[idFicha];
+    ls.setItem(LS_LICENCIAS_NO_COMERCIALES, JSON.stringify(registro));
+  } catch {
+    /* */
+  }
+}
+
+/**
+ * ¿Puede esta familia EXTRA (F5-TTS/XTTS/ChatTTS/Fish) entrar en el router web?
+ * Aplica el filtro puro de `voces-no-comerciales.ts`:
+ *   · ChatTTS — NUNCA (solo ficha: «solo académico», sin español).
+ *   · F5-TTS / XTTS-v2 — solo si la casilla de licencia está aceptada (apagados
+ *     por defecto) y el contexto NO es comercial (forja §4).
+ *   · Familias sin ficha (openvoice-v2, fish-speech) — esta regla no las mira.
+ * Defensivo: ante cualquier problema DENIEGA, nunca habilita por accidente.
+ */
+export function familiaExtraPermitida(
+  kind: WebVoiceKind,
+  contexto: ContextoVoz = "personal-local",
+): boolean {
+  try {
+    const idFicha = FICHA_DE_FAMILIA[kind];
+    if (!idFicha) return true; // openvoice-v2 / fish-speech: fuera del alcance
+    const v = veredictoVoz(idFicha, contexto);
+    if (!v.permitido) return false; // ChatTTS en todo contexto; F5/XTTS en comercial
+    return v.esOpcionalPersonal ? licenciaMotorAceptada(idFicha) : true;
+  } catch {
+    return false;
+  }
+}
 
 // ── Estado de sesión ─────────────────────────────────────────────────────────
 
@@ -351,12 +433,14 @@ export async function refreshWebVoiceDiscovery(
     //    los que descubra openvoice-discovery) — reutiliza su lógica probada.
     await discoverOpenVoiceEndpoints({ force: true, signal }).catch(() => null);
 
-    // 2) Escanea las familias EXTRA que pidió el dueño (F5/XTTS/ChatTTS/Fish)
-    //    en paralelo. Solo nos interesan las Running (includeNonRunning=false).
+    // 2) Escanea las familias EXTRA (F5/XTTS/ChatTTS/Fish) en paralelo, pero
+    //    SÓLO las que pasan el filtro de licencia (VZR1011C): ChatTTS jamás y
+    //    F5/XTTS solo si su casilla está aceptada — apagadas por defecto, ni un
+    //    sondeo a Hugging Face si la persona no las ha aceptado.
     const extras = (
       await Promise.all(
-        HF_FAMILIES.filter((f) => f.family !== "openvoice-v2").map((f) =>
-          scanFamily(f.family, f.q, signal),
+        HF_FAMILIES.filter((f) => f.family !== "openvoice-v2" && familiaExtraPermitida(f.family)).map(
+          (f) => scanFamily(f.family, f.q, signal),
         ),
       ).catch(() => [] as WebVoiceEndpoint[][])
     ).flat();
@@ -535,9 +619,15 @@ export async function omnivoiceWebSynthesize(
     //    timbre de la semilla. Solo se permite cuando el mensaje aún no ha
     //    empezado a sonar; a mitad de locución preferimos cerrar con dignidad
     //    antes que cambiar de persona entre dos frases.
+    //    LICENCIA (VZR1011C): el pool se filtra también aquí — una caché vieja
+    //    o entradas descubiertas por otro camino no libran el filtro (ChatTTS
+    //    nunca; F5/XTTS solo con su casilla aceptada).
     if (opts.allowFamilyFailover === false) return null;
     const extras = (readCache()?.eps || []).filter(
-      (e) => e.kind !== "openvoice-v2" && !isOpenVoiceEndpointBad(e.id),
+      (e) =>
+        e.kind !== "openvoice-v2" &&
+        !isOpenVoiceEndpointBad(e.id) &&
+        familiaExtraPermitida(e.kind),
     );
     for (const ep of extras) {
       const fb = await callGradioSpace(ep.base, String(ep.fnIndex), [text], {
