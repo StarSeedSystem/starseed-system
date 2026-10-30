@@ -40,6 +40,14 @@ VERIFICACION_RESUMEN = """La verificación (§4) capturará las rutas en toda la
 - Dianas táctiles ≥ 44 px en móvil.
 - Errores de consola y elementos fuera del viewport."""
 
+LINEA_SLIDES = "frontend-slides — https://github.com/zarazhangrui/frontend-slides (presentaciones en un HTML; 16:9)"
+
+LINEA_DESIGN_MD = "awesome-design-md — https://github.com/VoltAgent/awesome-design-md (formato DESIGN.md; no la identidad)"
+
+LINEA_DOCUSAURUS = "Docusaurus — https://github.com/facebook/docusaurus (documentación Markdown; exporta e importa texto)"
+
+LINEA_REFINE = "Refine — https://github.com/refinedev/refine (plantilla de panel de datos; telemetría apagada)"
+
 HERRAMIENTAS = [
     ("chat", "assistant-ui — https://github.com/assistant-ui/assistant-ui (chats e hilos)"),
     ("mensaj", "assistant-ui — https://github.com/assistant-ui/assistant-ui (chats e hilos)"),
@@ -48,10 +56,19 @@ HERRAMIENTAS = [
     ("grafo", "LangGraph.js — https://github.com/langchain-ai/langgraphjs (grafos con estado)"),
     ("cartel", "OpenDesign — https://github.com/nexu-io/open-design (piezas gráficas)"),
     ("generativ", "Tambo — https://github.com/tambo-ai/tambo (interfaz generativa)"),
+    ("diapositiv", LINEA_SLIDES),
+    ("presentaci", LINEA_SLIDES),
+    ("conferencia", LINEA_SLIDES),
+    ("design.md", LINEA_DESIGN_MD),
+    ("sistema de diseño", LINEA_DESIGN_MD),
+    ("documentaci", LINEA_DOCUSAURUS),
+    ("educaci", LINEA_DOCUSAURUS),
+    ("panel de datos", LINEA_REFINE),
+    ("panel de administraci", LINEA_REFINE),
 ]
 
 HERRAMIENTAS_BASE = [
-    "taste-skill — https://github.com/Leonxlnx/taste-skill (criterio estético, en la Biblioteca)",
+    "taste-skill — https://github.com/Leonxlnx/taste-skill (método: inventario, argumento, capturas a 3 anchos y crítica; el ADN manda; en la Biblioteca)",
     "UI-TARS — https://github.com/bytedance/UI-TARS (verificación visual de §4)",
 ]
 
@@ -87,6 +104,11 @@ RISE_TEXTO = (
 
 # Tope duro del PROMPT.md de un ADN (adn-diseno.md): 2 KB.
 TOPE_PROMPT_ADN = 2048
+
+# Apartados del brief que nunca salen cortados y textos del propio brief.
+FIJAS_BRIEF = ("3. Matriz de pantallas", "7. Verificación")
+CABECERA_BRIEF = "# Brief de diseño — director-diseno"
+AVISO_SIN_MEMORIA = "Aviso: sin memoria de diseño (memory/diseno/ vacía o ausente)."
 
 
 def _texto_tarea(tarea: Dict) -> str:
@@ -261,13 +283,13 @@ def _elegir_lineas(texto_fuente: str, texto_tarea: str, maximo: int) -> List[str
 
 
 def _herramientas_para(tarea: Dict) -> List[str]:
-    """Herramientas y skills de §7 que casan con la tarea, más las de base."""
+    """Herramientas y skills de §7: primero las de base y luego las que casan."""
     texto = _texto_tarea(tarea).lower()
     elegidas: List[str] = []
     for clave, linea in HERRAMIENTAS:
         if clave in texto and linea not in elegidas:
             elegidas.append(linea)
-    return elegidas + HERRAMIENTAS_BASE
+    return HERRAMIENTAS_BASE + elegidas
 
 
 def _bloque_adn(nombre: str, memoria_adn: Dict[str, Dict[str, str]]) -> Optional[str]:
@@ -365,16 +387,18 @@ def _secciones_brief(tarea: Dict, memoria: Dict[str, Any]) -> List[Tuple[str, st
     return secciones
 
 
-def brief(tarea: Dict, memoria: Dict[str, Any], max_chars: int = 2500) -> str:
-    """Devuelve el Brief de diseño de la tarea (los 7 apartados, recortado a
-    `max_chars` sin cortar ninguna línea por la mitad)."""
-    lineas: List[str] = ["# Brief de diseño — director-diseno"]
-    if not any((memoria or {}).values()):
-        lineas.append("Aviso: sin memoria de diseño (memory/diseno/ vacía o ausente).")
-    for titulo_sec, cuerpo in _secciones_brief(tarea, memoria or {}):
+def _coste_bloque(lineas: List[str]) -> int:
+    return sum(len(l) + 1 for l in lineas)
+
+
+def _brief_recortado(secciones: List[Tuple[str, str]], aviso: str, max_chars: int) -> str:
+    """Reparto por el final, de emergencia cuando ni §3 ni §7 caben en `max_chars`."""
+    lineas: List[str] = [CABECERA_BRIEF]
+    if aviso:
+        lineas.append(aviso)
+    for titulo_sec, cuerpo in secciones:
         lineas.append("\n## " + titulo_sec)
         lineas.extend(cuerpo.splitlines())
-
     total = 0
     recortadas: List[str] = []
     for linea in lineas:
@@ -384,3 +408,88 @@ def brief(tarea: Dict, memoria: Dict[str, Any], max_chars: int = 2500) -> str:
         recortadas.append(linea)
         total += suma
     return "\n".join(recortadas).strip()
+
+
+def brief(tarea: Dict, memoria: Dict[str, Any], max_chars: int = 2500) -> str:
+    """Brief de diseño de la tarea, recortado a `max_chars` sin partir líneas.
+    §3 y §7 se reservan enteras; el resto entra mientras quepa; ADN y RISE
+    van enteros o fuera, y la ficha solo entra si el ADN de esa identidad no entró."""
+    secciones = _secciones_brief(tarea, memoria or {})
+    cuerpos = {t: c.splitlines() for t, c in secciones}
+    presupuesto = max_chars - (len(CABECERA_BRIEF) + 1)
+    aviso = AVISO_SIN_MEMORIA if not any((memoria or {}).values()) else ""
+    if aviso:
+        presupuesto -= len(aviso) + 1
+
+    incluir: Dict[str, List[int]] = {t: [] for t, _ in secciones}
+
+    def mete(t: str, desde: int, hasta: int, entera: bool = False) -> None:
+        nonlocal presupuesto
+        lineas = cuerpos[t]
+        if entera:
+            coste = _coste_bloque(lineas[desde:hasta])
+            if not incluir[t]:
+                coste += len("\n## " + t) + 1
+            if desde >= hasta or coste > presupuesto:
+                return
+            presupuesto -= coste
+            incluir[t].extend(range(desde, hasta))
+            return
+        for i in range(desde, hasta):
+            c = len(lineas[i]) + 1
+            extra = 0 if incluir[t] else len("\n## " + t) + 1
+            if c + extra > presupuesto:
+                continue
+            presupuesto -= c + extra
+            incluir[t].append(i)
+
+    fija_ok = True
+    for t, _ in secciones:
+        if t in FIJAS_BRIEF:
+            coste = len("\n## " + t) + 1 + _coste_bloque(cuerpos[t])
+            if coste > presupuesto:
+                fija_ok = False
+            else:
+                mete(t, 0, len(cuerpos[t]), entera=True)
+    if not fija_ok:
+        return _brief_recortado(secciones, aviso, max_chars)
+
+    t_proposito = [t for t, _ in secciones if t == "1. Propósito y objetivo"]
+    if t_proposito:
+        mete(t_proposito[0], 0, len(cuerpos[t_proposito[0]]))
+    t_identidad = [t for t, _ in secciones if t == "2. Identidad"]
+    if t_identidad and cuerpos[t_identidad[0]]:
+        mete(t_identidad[0], 0, 1)
+    for t, _ in secciones:
+        if t.startswith("ADN"):
+            mete(t, 0, len(cuerpos[t]), entera=True)
+    t_rise = [t for t, _ in secciones if t.startswith("8. Movimiento")]
+    if t_rise:
+        mete(t_rise[0], 0, len(cuerpos[t_rise[0]]), entera=True)
+    t_herra = [t for t, _ in secciones if t == "6. Herramientas y skills"]
+    if t_herra:
+        mete(t_herra[0], 0, len(cuerpos[t_herra[0]]))
+    if t_identidad:
+        # §9: la ficha vale solo si el ADN de esa identidad no entró.
+        encabezado = cuerpos[t_identidad[0]][0]
+        nombre = encabezado[len("Contexto: "):].rstrip(".")
+        con_adn = any(
+            t[len("ADN — "):] == nombre
+            for t, _ in secciones
+            if t.startswith("ADN") and incluir[t]
+        )
+        if not con_adn:
+            mete(t_identidad[0], 1, len(cuerpos[t_identidad[0]]))
+    for t, _ in secciones:
+        if t.startswith(("4. Armonía", "5. Referencias")):
+            mete(t, 0, len(cuerpos[t]))
+
+    partes: List[str] = [CABECERA_BRIEF]
+    if aviso:
+        partes.append(aviso)
+    for t, _ in secciones:
+        if not incluir[t]:
+            continue
+        partes.append("\n## " + t)
+        partes.extend(cuerpos[t][i] for i in sorted(incluir[t]))
+    return "\n".join(partes).strip()

@@ -8,6 +8,11 @@ import tempfile
 import unittest
 
 from scripts.puente.diseno_brief import (
+    HERRAMIENTAS_BASE,
+    LINEA_DESIGN_MD,
+    LINEA_DOCUSAURUS,
+    LINEA_REFINE,
+    LINEA_SLIDES,
     LINEA_E_RISE,
     TOPE_PROMPT_ADN,
     brief,
@@ -217,6 +222,118 @@ class TestBriefRise(unittest.TestCase):
         tarea = {"titulo": "Vista del Café", "archivos": ["src/app/cafe/page.tsx"]}
         texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
         self.assertNotIn("RISE", texto)
+
+
+class TestBriefHerramientas1025(unittest.TestCase):
+    """Ola 1025R: slides, DESIGN.md, Docusaurus y Refine entran en el apartado 6."""
+
+    def test_lineas_nuevas_cortas_y_con_titulo(self):
+        for linea in (
+            LINEA_SLIDES,
+            LINEA_DESIGN_MD,
+            LINEA_DOCUSAURUS,
+            LINEA_REFINE,
+            HERRAMIENTAS_BASE[0],
+        ):
+            self.assertLessEqual(len(linea), 150)
+        self.assertIn("UI-TARS", HERRAMIENTAS_BASE[1])
+
+    def _texto_con(self, titulo: str, prompt: str = "", max_chars: int = 9000) -> str:
+        return brief(
+            {"titulo": titulo, "prompt": prompt, "archivos": []},
+            MEMORIA_PRUEBA,
+            max_chars=max_chars,
+        )
+
+    def test_presentacion_trae_frontend_slides(self):
+        texto = self._texto_con("Presentación de resultados", "diapositivas del informe")
+        self.assertIn("zarazhangrui/frontend-slides", texto)
+        self.assertIn("(presentaciones en un HTML; 16:9)", texto)
+
+    def test_conferencia_trae_frontend_slides(self):
+        texto = self._texto_con("Página de conferencia del Café", "charla y material")
+        self.assertIn("zarazhangrui/frontend-slides", texto)
+
+    def test_design_md_trae_awesome_design_md(self):
+        texto = self._texto_con("Referencias del contexto", "escribe el DESIGN.md del área")
+        self.assertIn("VoltAgent/awesome-design-md", texto)
+        self.assertIn("(formato DESIGN.md; no la identidad)", texto)
+
+    def test_sistema_de_diseno_trae_awesome_design_md(self):
+        texto = self._texto_con("Unificar el sistema de diseño de la red")
+        self.assertIn("VoltAgent/awesome-design-md", texto)
+
+    def test_documentacion_trae_docusaurus(self):
+        texto = self._texto_con("Guía de introducción", "documentación de los temas")
+        self.assertIn("facebook/docusaurus", texto)
+        self.assertIn("(documentación Markdown; exporta e importa texto)", texto)
+
+    def test_educacion_trae_docusaurus(self):
+        texto = self._texto_con("Arbol de la sección de educación", "cursos del bosque")
+        self.assertIn("facebook/docusaurus", texto)
+
+    def test_panel_de_datos_trae_refine(self):
+        texto = self._texto_con("Panel de datos del grupo", "tabla del presupuesto")
+        self.assertIn("refinedev/refine", texto)
+        self.assertIn("(plantilla de panel de datos; telemetría apagada)", texto)
+
+    def test_panel_de_administracion_trae_refine(self):
+        texto = self._texto_con("Panel de administración de la campaña")
+        self.assertIn("refinedev/refine", texto)
+
+    def test_taste_skill_sigue_en_toda_tarea(self):
+        for tarea in (
+            {"titulo": "Panel de datos", "archivos": []},
+            {"titulo": "Presentación de resultados", "archivos": []},
+            {"titulo": "Chat del Café", "archivos": ["src/app/cafe/page.tsx"]},
+            {"titulo": "Widget de la red", "archivos": []},
+        ):
+            texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+            self.assertIn(
+                "taste-skill — https://github.com/Leonxlnx/taste-skill (método: inventario, "
+                "argumento, capturas a 3 anchos y crítica; el ADN manda; en la Biblioteca)",
+                texto,
+            )
+
+    def test_ninguna_linea_repite_aun_con_dos_claves(self):
+        texto = self._texto_con("Presentación y diapositivas para la conferencia")
+        self.assertEqual(texto.count("zarazhangrui/frontend-slides"), 1)
+        texto = self._texto_con("Documentación y educación del bosque")
+        self.assertEqual(texto.count("facebook/docusaurus"), 1)
+        texto = self._texto_con("Panel de datos y panel de administración")
+        self.assertEqual(texto.count("refinedev/refine"), 1)
+        texto = self._texto_con("DESIGN.md y sistema de diseño del área")
+        self.assertEqual(texto.count("VoltAgent/awesome-design-md"), 1)
+
+    def test_cuatro_herramientas_nuevas_cada_url_una_vez(self):
+        texto = self._texto_con(
+            "Presentación con su documentación, DESIGN.md y panel de datos", max_chars=9000
+        )
+        self.assertEqual(texto.count("zarazhangrui/frontend-slides"), 1)
+        self.assertEqual(texto.count("facebook/docusaurus"), 1)
+        self.assertEqual(texto.count("VoltAgent/awesome-design-md"), 1)
+        self.assertEqual(texto.count("refinedev/refine"), 1)
+
+    def test_apartados_6_y_7_se_conservan_con_tres_claves(self):
+        texto = self._texto_con(
+            "Presentación de resultados con su documentación y panel de datos",
+            max_chars=2500,
+        )
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+        self.assertIn("zarazhangrui/frontend-slides", texto)
+        self.assertIn("facebook/docusaurus", texto)
+        self.assertIn("refinedev/refine", texto)
+
+    def test_tres_claves_del_mismo_grupo_conservan_6_y_7(self):
+        texto = brief(
+            {"titulo": "Presentación con diapositivas para la conferencia", "archivos": []},
+            MEMORIA_PRUEBA,
+            max_chars=2500,
+        )
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+        self.assertEqual(texto.count("zarazhangrui/frontend-slides"), 1)
 
 
 if __name__ == "__main__":
