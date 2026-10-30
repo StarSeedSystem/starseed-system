@@ -36,6 +36,9 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
   colibri [--aplicar]    prepara Colibri con Laya en el A1 (CLB1027): sin `--aplicar` solo enseña
                          el plan de `colibri_nodo.plan_instalacion`; con él lo corre por SSH.
                          Instalar (GB de descarga) SIEMPRE necesita el visto bueno de Alex.
+  direccion [--aplicar]  deja en el A1 `starseed-direccion.service` y su arranque: orquestador,
+                         autocuración, autopublicación y cartero solo con el arriendo de líder.
+                         Sin `--aplicar` solo enseña el plan; no arranca nada que ya esté vivo.
 
 Reglas: Oracle SOLO Always Free (esto no crea nada en Oracle); nada se publica (main no se toca:
 solo ramas `colas/oracle-*` y `nube/a1-*`, como la nube de GitHub); ninguna IP, clave ni OCID se
@@ -491,6 +494,121 @@ def _avisar(texto):
 #: (OPS1024E, 2026-10-24) `vigia_runs_nube.py`: `traer_nube` lo importa al arrancar para leer
 #: la reasignación igual que el vigía; sin él, reinstalar el nodo moriría en el primer import.
 MODULOS_DEL_NODO = ("puerta_datos_cliente.py", "colmena_logica.py", "traer_nube.py", "vigia_runs_nube.py")
+
+#: (IND1029D) Dirección en el A1: unidad del repo, arranque generado allí y repo de las piezas; sin claves.
+UNIDAD_DIRECCION = os.path.join(os.path.dirname(os.path.dirname(DIRECTORIO)), "deploy", "oracle",
+                                "nodo", "systemd", "starseed-direccion.service")
+ARRANQUE_DIRECCION_A1 = "/opt/starseed/nodo/direccion_arranque.py"
+SERVICIO_DIRECCION_A1 = "/etc/systemd/system/starseed-direccion.service"
+RAIZ_DIRECCION_A1 = "/home/starseed/starseed-system"
+
+
+def piezas_direccion(raiz=RAIZ_DIRECCION_A1):
+    """PURA. Las cuatro piezas de la dirección en el A1: (nombre, script, argumentos, marca)."""
+    p = os.path.join(raiz, "scripts", "puente")
+    return (
+        ("orquestador", os.path.join(p, "vigilante-enjambre.py"), (), "vigilante-enjambre.py"),
+        ("autocuracion", os.path.join(p, "vigia_medidores.py"), (), "vigia_medidores.py"),
+        ("autopublicacion", os.path.join(p, "autopublicar.py"), ("--bucle",), "autopublicar.py"),
+        ("cartero", os.path.join(p, "cartero_director.py"), (), "cartero_director.py"),
+    )
+
+
+#: El arranque que `direccion --aplicar` deja en el A1. Se genera aquí (y no viaja en el paquete)
+#: porque preparar-a1.sh instalaría la unidad sin él: su línea `# requiere:` la deja fuera. Solo
+#: lanza con el arriendo de líder y comprueba /proc antes de arrancar: nada se duplica.
+_GUION_DIRECCION = '''import os, subprocess, sys, time
+RAIZ = __RAIZ__
+P = os.path.join(RAIZ, "scripts", "puente")
+sys.path.insert(0, P)
+LOG = os.path.join(os.path.expanduser("~"), "registros")
+HIJOS = (("orquestador", "vigilante-enjambre.py", []), ("autocuracion", "vigia_medidores.py", []),
+         ("autopublicacion", "autopublicar.py", ["--bucle"]), ("cartero", "cartero_director.py", []))
+def vivos():
+    v = []
+    for pid in os.listdir("/proc"):
+        if pid.isdigit():
+            try: v.append(open("/proc/%s/cmdline" % pid, "rb").read().replace(b"\\0", b" ").decode("utf-8", "replace"))
+            except OSError: pass
+    return v
+def arrancar(nombre, guion, args, procesos):
+    ruta = os.path.join(P, guion)
+    if any(ruta in linea or guion in linea for linea in procesos):
+        return
+    os.makedirs(LOG, exist_ok=True)
+    with open(os.path.join(LOG, "direccion-%s.log" % nombre), "ab") as salida:
+        subprocess.Popen([sys.executable, "-u", ruta] + args, cwd=RAIZ, stdout=salida,
+                         stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
+    print("direccion: arrancado %s" % nombre, flush=True)
+def soy_lider():
+    try:
+        import lider_direccion
+        return bool(lider_direccion.renovar().get("soy"))
+    except Exception as e:  # noqa: BLE001 — una puerta caída no para la dirección local
+        print("direccion: sin arriendo (%s): sigo en local" % type(e).__name__, flush=True)
+        return True
+ultimo, lider = 0.0, False
+while True:
+    if time.time() - ultimo >= 60:
+        lider, ultimo = soy_lider(), time.time()
+    if lider:
+        procesos = vivos()
+        for nombre, guion, args in HIJOS:
+            arrancar(nombre, guion, args, procesos)
+    time.sleep(30)
+'''
+
+
+def guion_direccion(raiz=RAIZ_DIRECCION_A1):
+    """PURA. El texto del arranque que corre en el A1 (sin claves ni rutas de worktree)."""
+    return _GUION_DIRECCION.replace("__RAIZ__", repr(raiz))
+
+
+def plan_direccion(activo=False, raiz=RAIZ_DIRECCION_A1):
+    """PURA. El plan de órdenes de `direccion`; con la unidad ya viva no arranca ni reinicia nada."""
+    pasos = [
+        {"que": "escribir", "ruta": ARRANQUE_DIRECCION_A1, "porque": "arranque con arriendo y las piezas %s"
+                                                                     % ", ".join(p[0] for p in piezas_direccion(raiz))},
+        {"que": "instalar", "ruta": SERVICIO_DIRECCION_A1, "porque": "unidad systemd con EnvironmentFile y MemoryMax"},
+        {"que": "recargar", "orden": "sudo systemctl daemon-reload", "porque": "systemd lee la unidad nueva"},
+    ]
+    pasos.append({"que": "nada", "porque": "starseed-direccion ya está vivo: no arranco ni reinicio nada"}
+                 if activo else {"que": "arrancar", "orden": "sudo systemctl enable --now starseed-direccion",
+                                 "porque": "solo si no estaba vivo"})
+    return pasos
+
+
+def _poner_en_a1(contenido, destino, modo=0o644):
+    orden = ('tmp=$(mktemp /tmp/starseed-direccion.XXXXXX); cat > "$tmp" && '
+             'sudo install -d -o root -g root -m 755 %s && '
+             'sudo install -o root -g root -m %04o "$tmp" %s; r=$?; rm -f "$tmp"; exit $r'
+             % (os.path.dirname(destino), modo, destino))
+    return ssh(orden, entrada=contenido, timeout=120)
+
+
+def direccion(aplicar=False):
+    """`direccion [--aplicar]`: arma la unidad y el arranque en el A1. En seco solo enseña el plan."""
+    try:
+        with open(UNIDAD_DIRECCION, encoding="utf-8") as f: unidad = f.read()
+    except OSError:
+        return {"ok": False, "motivo": "falta %s en el repo" % os.path.basename(UNIDAD_DIRECCION)}
+    if not aplicar:
+        return {"ok": True, "aplicado": False, "pasos": plan_direccion(False)}
+    rc, salida = ssh("systemctl is-active starseed-direccion 2>/dev/null || true", timeout=40)
+    activo = rc == 0 and salida.strip() == "active"
+    res = {"ok": True, "aplicado": True, "activo_antes": activo, "hecho": [], "pasos": plan_direccion(activo),
+           "nota": "starseed-direccion ya estaba vivo: no lo arranco ni lo reinicio" if activo else ""}
+    for contenido, destino in ((guion_direccion(), ARRANQUE_DIRECCION_A1), (unidad, SERVICIO_DIRECCION_A1)):
+        rc, salida = _poner_en_a1(contenido, destino)
+        res["hecho"].append({"ruta": destino, "ok": rc == 0, "detalle": "" if rc == 0 else salida.strip()[-160:]})
+        res["ok"] = res["ok"] and rc == 0
+    if not res["ok"]:
+        return res
+    for orden in (["sudo systemctl daemon-reload"] + ([] if activo else ["sudo systemctl enable --now starseed-direccion"])):
+        rc, salida = ssh(orden, timeout=120)
+        res["hecho"].append({"orden": orden, "ok": rc == 0, "detalle": "" if rc == 0 else salida.strip()[-160:]})
+        res["ok"] = res["ok"] and rc == 0
+    return res
 
 
 def _paquete(destino):
@@ -1267,6 +1385,8 @@ def main(argv):
             return subprocess.run([sys.executable, _ruta_puente("traer_nube.py"), "revisar", "--aplicar"],
                                   cwd=RAIZ).returncode
         return 0
+    elif orden == "direccion":
+        r = direccion(aplicar="--aplicar" in argv)
     elif orden == "colibri":
         i = argv.index("--carpeta") if "--carpeta" in argv else -1
         carpeta = argv[i + 1] if 0 <= i < len(argv) - 1 else COLIBRI_MODELOS_A1
