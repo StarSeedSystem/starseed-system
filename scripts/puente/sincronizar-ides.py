@@ -208,7 +208,8 @@ def repartir(texto):
                  os.path.join(RAIZ, ".cursor", "rules", "puente-de-mando.mdc")):
         try:
             os.makedirs(os.path.dirname(ruta), exist_ok=True)
-            open(ruta, "w", encoding="utf-8").write(puntero)
+            with open(ruta, "w", encoding="utf-8") as f:
+                f.write(puntero)
             destinos.append(ruta)
         except Exception as e:
             destinos.append("%s  (FALLÓ: %s)" % (ruta, e))

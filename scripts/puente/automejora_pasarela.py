@@ -85,7 +85,8 @@ class Pasarela:
             except OSError:
                 conn.close()
                 continue  # caído: se prueba el siguiente de la lista
-            conn.close()
+            finally:
+                conn.close()
             tipo = respuesta.getheader("Content-Type") or "application/json"
             return {"codigo": respuesta.status, "tipo": tipo,
                     "texto": texto, "tokens": tokens_de(texto)}
