@@ -27,10 +27,10 @@ const IDS_TERCERA_TANDA = [
 ];
 
 describe("REPO_EXTERNOS_1020 · 3.ª tanda (config/repos-libreria-1020c.json)", () => {
-  it("los ids de las tres tandas son únicos", () => {
+  it("los ids de las cuatro tandas son únicos", () => {
     const ids = paquetes.map((p) => p.id);
-    expect(ids).toHaveLength(41);
-    expect(new Set(ids).size).toBe(41);
+    expect(ids).toHaveLength(48);
+    expect(new Set(ids).size).toBe(48);
   });
 
   it("no queda ningún repo excluido de la 3.ª tanda", () => {

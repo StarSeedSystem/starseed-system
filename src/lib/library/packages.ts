@@ -1433,7 +1433,9 @@ const IA_TOOLS_PACKAGES: LibraryPackage[] = [
       "Plataforma de agentes de desarrollo autónomos: escriben código, lo ejecutan y navegan por su cuenta. Qué reemplaza: asistentes de programación autónomos de pago. Es un servicio que corre aislado (nunca público): instalar registra la skill «Agente de desarrollo» para que Aurora sepa cuándo recomendar este patrón y abre su repo de referencia.",
     icon: "Bot", tags: ["skill", "aurora", "agente", "codigo", "desarrollo", "oss"], version: "1.0.0",
     author: "All-Hands-AI", sourceRepoId: "starseed-ia-tools", free: true,
-    payload: { skillId: "dev-agent", externalUrl: "https://github.com/All-Hands-AI/OpenHands", note: "Plataforma de agentes de desarrollo autónomos (escriben código, ejecutan, navegan)." },
+    // Ola 1020D: el repo se mudó a la organización canónica OpenHands (la redirección de GitHub cambia, pero el
+    // canal de versiones debe leer la canónica). Solo toco la URL; autor y skill quedan como estaban.
+    payload: { skillId: "dev-agent", externalUrl: "https://github.com/OpenHands/OpenHands", note: "Plataforma de agentes de desarrollo autónomos (escriben código, ejecutan, navegan)." },
   },
   /* ── Maxun · extracción de datos web no-code ── */
   {
