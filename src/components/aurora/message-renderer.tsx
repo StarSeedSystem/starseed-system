@@ -41,6 +41,8 @@ import { PanelProtomolecula } from "@/components/protomolecula/panel-protomolecu
 import { almacenNavegador, guardarMolecula } from "@/lib/protomolecula/almacen-moleculas";
 import { crearControlador } from "@/lib/protomolecula/controlador";
 import { moleculaDeFence } from "@/lib/protomolecula/fence-mensaje";
+import { TarjetaImagenes, opcionesDesdeGaleria, peticionDesdeHerramienta, type OpcionTarjeta } from "@/components/imagenes";
+import type { GaleriaImagenes } from "@/ai/astraura/media/proveedor-neuronas";
 
 
 /* ═══════════════════════════ Sanitización HTML/SVG ═══════════════════════════
@@ -305,11 +307,36 @@ function PanelProtoMensaje({ code }: { code: string }) {
   );
 }
 
+/* ═══════════ Bloque ```imagenes · la tarjeta de opciones en el chat ═══════════ */
+/**
+ * El chat de Astraura puede emitir un bloque ```imagenes con la petición o con las opciones ya
+ * generadas (misma forma que la galería del proveedor «neuronas»). Aquí se monta la tarjeta de la
+ * Protomolécula (IMG1011C/J) sin inventar nada: si el bloque no trae una petición ni opciones
+ * presentables, se pinta como código normal.
+ */
+function TarjetaImagenesFence({ code }: { code: string }) {
+  const datos = useMemo(() => tryParseJson(code), [code]);
+  if (!datos || typeof datos !== "object") return <PlainCodeBlock lang="imagenes" code={code} />;
+  const d = datos as { prompt?: unknown; opciones?: unknown; galeria?: unknown };
+  if (Array.isArray(d.opciones) && d.opciones.length > 0) {
+    return <TarjetaImagenes opciones={d.opciones as OpcionTarjeta[]} />;
+  }
+  if (d.galeria && typeof d.galeria === "object") {
+    const prompt = typeof d.prompt === "string" ? d.prompt : "";
+    const opciones = opcionesDesdeGaleria(d.galeria as GaleriaImagenes, prompt);
+    if (opciones.length > 0) return <TarjetaImagenes opciones={opciones} />;
+  }
+  const peticion = peticionDesdeHerramienta(d);
+  if (peticion) return <TarjetaImagenes peticion={peticion} />;
+  return <PlainCodeBlock lang="imagenes" code={code} />;
+}
+
 /* ═══════════════════════════ Bloque de código ═══════════════════════════ */
 
 function CodeBlock({ lang, code, info }: { lang: string; code: string; info?: string }) {
   const json = useMemo(() => (lang === "protomolecula" ? undefined : tryParseJson(code)), [lang, code]);
   if (lang === "protomolecula") return <PanelProtoMensaje code={code} />;
+  if (lang === "imagenes" || lang === "imagen-astraura") return <TarjetaImagenesFence code={code} />;
   if (json !== undefined) return <JsonBlock value={json} raw={code} />;
   // (Ola 4 · Adenda 156) Todo bloque ejecutable se entrega como PROGRAMA VIVO en
   // el propio chat (ejecutar/cerrar, ventana o pestaña nueva, tamaño, modo de uso,

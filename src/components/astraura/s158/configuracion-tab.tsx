@@ -30,6 +30,7 @@ import { Switch } from "@/components/ui/switch";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PrimaryChoiceEditor } from "@/components/astraura/primary-choice-editor";
 import { Astraura158NeuronCard } from "@/components/neurons/astraura-158-neuron-card";
+import { SugerenciasInstalacion } from "@/components/imagenes";
 import { safeSet } from "@/lib/safe-storage";
 import { getAstraura158NotifyMode, setAstraura158NotifyMode, type Astraura158NotifyMode } from "@/lib/astraura/astraura-158-notify";
 import { ASTRAURA_158_SEEN_KEY } from "@/lib/astraura/astraura-158-feed";
@@ -203,6 +204,13 @@ export function ConfiguracionTab({ target }: S158TabProps) {
         <p className="mt-1.5 text-[10px] text-white/45">
           El Studio lee de «{target}» en el resto de pestañas; esta tarjeta gobierna el backend 1.58 propio de ESTA neurona en concreto (endpoint, motor, activarlo/desactivarlo como fuente local).
         </p>
+      </div>
+
+      {/* Imágenes locales de esta neurona — IMG1011 (contrato §5): qué instalar según el hierro real;
+          se pinta solo si hay servicio local o algo que decir (sin datos, no inventa). */}
+      <div>
+        <p className={cn(LABEL, "mb-1.5")}>Imágenes locales</p>
+        <SugerenciasInstalacion />
       </div>
 
       {/* Sistema soberano ─ Ola 6 · Adenda 158: estado/versión, actualizaciones (con changelog)
