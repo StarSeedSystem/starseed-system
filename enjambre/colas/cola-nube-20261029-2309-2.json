@@ -1,0 +1,36 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "VPU1019N",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Clic derecho global montado en toda la app",
+   "archivos": [
+    "src/components/variaciones/clic-derecho-global.tsx",
+    "src/app/(app)/app-globals.tsx",
+    "src/components/variaciones/__tests__/clic-derecho-global.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Componente que escucha `contextmenu` y la pulsación larga (patrón de `use-context-trigger.ts`) en el documento: si el objetivo tiene menú propio (marca `data-ss-menu-propio`) no hace nada; en campos de texto y con Mayúsculas deja el menú del navegador; si hay clave, muestra un menú con «Variaciones públicas», «Publicar mi variación» y «Copiar enlace al elemento». Teclado: tecla de menú y Mayúsculas+F10. En `app-globals.tsx` SOLO añade el montaje de este componente y de `variaciones-host`. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019A",
+    "VPU1019M"
+   ]
+  },
+  {
+   "id": "RIA1023D",
+   "ola": "1023R",
+   "titulo": "Astraura · registrar el servidor propio de IA como modelo propio cuando la topología es «servidor propio»",
+   "archivos": [
+    "src/lib/recursos-ia/use-recursos-ia.ts",
+    "src/ai/astraura/custom-models.ts",
+    "src/lib/recursos-ia/__tests__/servidor-propio-modelo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\nCuando la persona elige la topología `servidor-propio` en Recursos de IA, registra (o actualiza) con `addCustomModel`/`updateCustomModel` un modelo propio `access: \"local\"`, `kind: \"llm\"`, `endpoint` = `destinoDeIA(...).baseUrl` (de RIA1023C), `name: \"Servidor propio de IA · <neurona>\"`, marcado con `notes: \"recursos-ia:servidor-propio\"` para reconocerlo; al cambiar a otra topología se quita ese registro (solo el marcado). Si `baseUrl` es null no registres nada. No toques el router: los modelos propios ya entran por su camino. Prueba vitest con localStorage de jsdom.",
+   "dependencias_ya_en_main": [
+    "RIA1023C"
+   ]
+  }
+ ]
+}
