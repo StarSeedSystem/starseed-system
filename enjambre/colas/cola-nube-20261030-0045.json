@@ -1,0 +1,68 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "ola": "Ola 1025R · Capas de conciencia (PowerInfer, LlamaFactory, Transformers, billion-context)",
+   "id": "CPZ1025D-d2",
+   "titulo": "LlamaFactory: convertir valoraciones y correcciones de Astraura en datasets SFT y KTO por ámbito (con la regla de privacidad) (parte 2 de 2)",
+   "archivos": [
+    "src/lib/astraura/aprendizaje/__tests__/dataset-llamafactory.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contexto. LlamaFactory (hiyouga/LlamaFactory, Apache-2.0, v0.9.5) afina modelos con una receta YAML y con datasets descritos en `data/dataset_info.json`. Usaremos el formato «sharegpt» con la columna `messages` (lista de `{role, content}` con roles `user`/`assistant`) y, para KTO (aprendizaje con aprobado/suspenso por respuesta, justo la valoración de pulgar arriba o abajo de Astraura), una columna booleana `label` declarada como `kto_tag`. Entrada de `dataset_info.json` SFT: `{ \"<nombre>\": { \"file_name\": \"<archivo>.json\", \"formatting\": \"sharegpt\", \"columns\": { \"messages\": \"messages\" }, \"tags\": { \"role_tag\": \"role\", \"content_tag\": \"content\", \"user_tag\": \"user\", \"assistant_tag\": \"assistant\" } } }`; la de KTO añade `\"kto_tag\": \"label\"` dentro de `columns`.\nLo que ya existe en el OS: `src/lib/astraura/experiencias.ts` (tipo `Experiencia`: `tipo` «valoracion» o «correccion», `entrada` = lo que preguntó la persona, `salida` = respuesta de la IA como string, `valoracion` «positiva» o «negativa», `correccion?`, `ambito?`, `dominio`, `modelo?`) y `src/lib/astraura/experiencias-aprendizaje.ts` (`paraNeedle(exps)` es el patrón a imitar; `AjustesAprendizaje`, `PrivacidadAmbito` = «privada»|«ambito»|«publica», `servidorDe`, `puedeCompartirse`). Regla dura de Astraura: lo privado jamás sale de los dispositivos de la persona ni de los servidores propios.\n\nHaz `src/lib/astraura/aprendizaje/dataset-llamafactory.ts` (PURO: sin red, sin node:*; ≤120 líneas) exportando:\n- `type DestinoModelo = \"privado\" | \"ambito\" | \"publico\"`.\n- `permitido(destino, ambito: string, ajustes: AjustesAprendizaje): { ok: boolean; motivo?: string }`: «privado» ⇒ siempre ok (el corpus de un modelo privado se queda en las máquinas de la persona); «ambito» ⇒ exige `ajustes.aprendizajeColectivo`, `porAmbito[ambito].permite` y privacidad distinta de «privada»; «publico» ⇒ además privacidad «publica».\n- `paraLlamaFactory(exps: Experiencia[], ajustes: AjustesAprendizaje, op: { ambito: string; destino: DestinoModelo; nombre: string })` ⇒ `{ sft: FilaSft[]; kto: FilaKto[]; partes: { train: number; val: number; test: number }; descartadas: Record<string, number>; info: Record<string, object> }`. Reglas: solo tipos valoracion/correccion del ámbito pedido (`e.ambito ?? e.dominio`); SFT = valoración positiva (respuesta = `salida`) y correcciones (respuesta = `correccion`); KTO = positiva ⇒ `label: true`, negativa ⇒ `label: false`, y una corrección produce además una fila `label: true` con el texto corregido. Descarta y cuenta en `descartadas`, con su motivo como clave: entrada o texto vacíos, `salida` que no es string, duplicados exactos y cualquier texto con pinta de secreto (regex `sk-[A-Za-z0-9]{16,}`, `AIza[0-9A-Za-z_-]{20,}`, `Bearer\\s+[A-Za-z0-9._-]{20,}`, `-----BEGIN [A-Z ]*PRIVATE KEY-----`). Si `permitido` falla, devuelve todo vacío con `descartadas: { bloqueado: n }`. `info` contiene las dos entradas de `dataset_info.json` (`<nombre>_sft`, `<nombre>_kto`). Reparto 80/10/10 determinista por el hash FNV-1a del `id` de la experiencia; cada fila lleva `\"parte\": \"train\" | \"val\" | \"test\"` y `partes` cuenta cada tramo.\nPrueba `src/lib/astraura/aprendizaje/__tests__/dataset-llamafactory.test.ts`: positiva ⇒ fila SFT + KTO true; negativa ⇒ solo KTO false; corrección ⇒ SFT con el texto corregido + KTO false (original) + KTO true (corregido); ámbito «privada» con destino «publico» ⇒ bloqueado y vacío; secreto descartado; duplicado descartado; reparto estable (misma experiencia ⇒ misma parte) y la suma de `partes` = filas SFT.\nAbre SOLO los archivos que se nombran en esta tarea: NO explores el repositorio entero. Contrato final de la ola: `architecture/repos-libreria-1025.md` (si aún no existe, esta tarea es autosuficiente). TypeScript estricto, sin `any`, sin `node:*` en código de cliente, ≤120 líneas por archivo nuevo, comentarios en español con acentos, sin emojis. Termina con las pruebas indicadas en verde (`npx vitest run <ruta>`) y `npx tsc --noEmit` limpio.\n\n## PARTE 2 DE 2 (la dirección dividió CPZ1025D: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: src/lib/astraura/aprendizaje/__tests__/dataset-llamafactory.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CPZ1025D",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   },
+   "dependencias_ya_en_main": [
+    "CPZ1025D-d1"
+   ]
+  },
+  {
+   "id": "GEN1030B",
+   "titulo": "Reconstructor · sin BUILD_ID es «Genesis caído» y, si la Mac no puede, compila el A1",
+   "archivos": [
+    "scripts/puente/reconstruir_mando.py",
+    "scripts/puente/test_reconstruir_mando.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas; nunca rutas de un worktree (`starseed-wt/…`); nunca imprimas la IP del A1 (usa `oracle_nodo.ssh`, `_ssh_base` y `tachar`).\n\nEl 29-10 Genesis se cayó toda la tarde: `.next` sin BUILD_ID, la build de la Mac de las 18:23 murió a los 814 s y después el freno de swap (6 GB en uso, tope 4) la bloqueó. Hermes lanzó `next build` a mano en `.next` dos veces (las dos murieron) y un visor propio en /tmp en el 9010. El 30-10 Claude compiló en el A1 con `~/.starseed/genesis-a1/construir.py` (Alex autorizó mandar el código al A1 para compilar): léelo, es la base.\n\nEn `reconstruir_mando.py`: si `.next` no tiene un build entero (`build_terminado(dist=.next)` falso), el estado es «caido-sin-build» y el log dice «Genesis está caído: no hay build servido», nunca «la pantalla está al día». En ese caso no se espera a Astraura. Si además el freno de la máquina (swap o enjambre) lo impide, o la build de la Mac falla por memoria, llama a `compilar_en_a1` (todas sus etapas, con sus esperas) en vez de esperar. Funciones de decisión PURAS con pruebas para: sin build + swap alto → A1; con build + swap alto → espera como hoy. Además: el reconstructor de la Mac compila SIN STARSEED_BUILD_LIGERO, con la caché de webpack en disco que serializa todo el grafo en memoria; el 30-10 el A1 murió por OOM con 4096 y con 6144 sin ella. Pon STARSEED_BUILD_LIGERO=1 en el entorno de la build (Mac y A1), como Vercel.",
+   "ola": "1030 · Genesis se compila fuera cuando la Mac no puede",
+   "importancia": "capacidad",
+   "dependencias_ya_en_main": [
+    "GEN1030A"
+   ]
+  },
+  {
+   "id": "IND1029H",
+   "ola": "1029 · MetaGenesis autónoma (sin Claude y sin la Mac)",
+   "depende": [],
+   "titulo": "Chat del director compartido · lo que se escribe en una neurona llega a la dirección del líder",
+   "archivos": [
+    "scripts/puente/director_chat.py",
+    "scripts/puente/test_director_chat_puerta.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas; nunca rutas de un worktree (`starseed-wt/…`) en el código. Contrato: `architecture/metagenesis-autonoma.md` (léelo entero). Antes de escribir algo nuevo, mira lo que ya existe y úsalo: `scripts/puente/puerta_datos.py` y `puerta_datos_cliente.py` (la puerta de datos del A1), `espejo_puerta.py`, `deploy/oracle/nodo/systemd/` (ya hay `starseed-genesis` y `starseed-metagenesis`), `oracle_nodo.py`, `buscar_capacidad.py` y la colmena.\n\nEl feed del chat del director vive hoy en un archivo local. Que `publicarMensaje`/`publicar_mensaje` también lo deje en la puerta (IND1029E) y que el cartero del líder recoja de la puerta los mensajes pendientes de otras neuronas, sin duplicar (id de mensaje). Pruebas puras.",
+   "importancia": "capacidad",
+   "dependencias_ya_en_main": [
+    "IND1029E"
+   ]
+  },
+  {
+   "id": "RIA1023D",
+   "ola": "1023R",
+   "titulo": "Astraura · registrar el servidor propio de IA como modelo propio cuando la topología es «servidor propio»",
+   "archivos": [
+    "src/lib/recursos-ia/use-recursos-ia.ts",
+    "src/ai/astraura/custom-models.ts",
+    "src/lib/recursos-ia/__tests__/servidor-propio-modelo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\nCuando la persona elige la topología `servidor-propio` en Recursos de IA, registra (o actualiza) con `addCustomModel`/`updateCustomModel` un modelo propio `access: \"local\"`, `kind: \"llm\"`, `endpoint` = `destinoDeIA(...).baseUrl` (de RIA1023C), `name: \"Servidor propio de IA · <neurona>\"`, marcado con `notes: \"recursos-ia:servidor-propio\"` para reconocerlo; al cambiar a otra topología se quita ese registro (solo el marcado). Si `baseUrl` es null no registres nada. No toques el router: los modelos propios ya entran por su camino. Prueba vitest con localStorage de jsdom.",
+   "dependencias_ya_en_main": [
+    "RIA1023C"
+   ]
+  }
+ ]
+}
