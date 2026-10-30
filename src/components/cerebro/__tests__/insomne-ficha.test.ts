@@ -6,6 +6,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { capacidadInsomne } from "@/lib/neurons/insomne";
+import { plataformaInsomne } from "@/components/cerebro/insomne-ficha";
 
 describe("capacidadInsomne · ficha", () => {
   it("un servidor no depende de la plataforma que declare", () => {
@@ -19,5 +20,10 @@ describe("capacidadInsomne · ficha", () => {
     expect(d.proveedor).toBe("no");
     expect(d.disponible).toBe(false);
     expect(d.motivo).toContain("no reconocida");
+  });
+
+  it("traduce también Android al contrato «android» sin importar mayúsculas", () => {
+    expect(plataformaInsomne({ platform: "Android" })).toBe("android");
+    expect(capacidadInsomne(plataformaInsomne({ platform: "Android" })).proveedor).toBe("no");
   });
 });
