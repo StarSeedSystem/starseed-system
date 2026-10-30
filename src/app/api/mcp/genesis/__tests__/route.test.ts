@@ -50,8 +50,11 @@ describe("ruta MCP con permisos (tarea S)", () => {
   });
 
   it("recurso405 es la respuesta del método no permitido (GET → 405)", () => {
-    expect(recurso405().error.code).toBe(-32600);
-    expect(recurso405().error.message).toContain("solo acepta POST");
+    const respuesta = recurso405();
+    expect("error" in respuesta).toBe(true);
+    if (!("error" in respuesta)) return;
+    expect(respuesta.error.code).toBe(-32600);
+    expect(respuesta.error.message).toContain("solo acepta POST");
   });
 
   it("filtrarHerramientas deja solo las herramientas del alcance", () => {
