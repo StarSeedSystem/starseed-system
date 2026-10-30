@@ -446,6 +446,8 @@ describe('elegirPuerta', () => {
     });
 
     expect(resultado.puerta?.id).toBe('zeta');
+    // Rescate nube/40659574880: el motivo también es el de menor coste.
+    expect(resultado.motivo).toBe('Puerta de menor coste seleccionada');
   });
 
   it('devuelve null cuando ninguna puerta está permitida', () => {

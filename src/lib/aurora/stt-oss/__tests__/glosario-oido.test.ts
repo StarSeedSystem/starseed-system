@@ -140,7 +140,10 @@ describe("corregirConGlosario", () => {
   it("corrige los nombres propios del usuario, sus bots y su grupo vía glosarioBase", () => {
     const propio = glosarioBase(["Jev", "Madrina Orbita"]);
     expect(corregirConGlosario("hola jev", propio, "es").texto).toBe("hola Jev");
-    expect(corregirConGlosario("Madrina Orbit", propio, "es").texto).toBe("Madrina Orbita");
+    expect(corregirConGlosario("Madrina Orbit", propio, "es")).toEqual({
+      texto: "Madrina Orbita",
+      cambios: ["Madrina Orbit → Madrina Orbita"],
+    });
   });
 
   it("devuelve la forma del glosario aunque la entrada vaya en minúscula", () => {
