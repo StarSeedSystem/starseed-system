@@ -3,9 +3,10 @@
 // lo pone OSWindow. Datos y fuentes se INYECTAN (nada de Supabase, disco ni red aquí). Cuatro
 // pestañas, buscador, filtros, orden de `orden.ts`, vacío honesto y aviso si la tabla no existe.
 import { useMemo, useState } from "react";
-import { ExternalLink, Search, Star } from "lucide-react";
+import { Search } from "lucide-react";
 import { PESTANAS_VARIACIONES, type PestanaVariaciones } from "./variaciones-bus";
 import { ordenarVariaciones, type SortMode, type Variacion } from "@/lib/variaciones/orden";
+import { TarjetaVariacion } from "./tarjeta-variacion";
 export interface VariacionVentana extends Variacion { tema?: string; enlaceExterno?: string }
 export interface DatosVentanaVariaciones { disponible: boolean; error?: string; listas: Partial<Record<PestanaVariaciones, VariacionVentana[]>> }
 export interface FiltrosVentana { buscar?: string; licencia?: string; tema?: string; etiqueta?: string }
