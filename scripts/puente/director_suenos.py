@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""director_suenos · funde los informes de una sesión de sueños profundos en recomendaciones.
+"""director_suenos · funde los informes de una sesión de imaginación profunda en recomendaciones.
 
     (se usa desde `python3 scripts/puente/suenos.py consolidar [--fecha …] [--tope 15] [--seco]`)
 
-POR QUÉ EXISTE (2026-09-29). Una sesión de sueños deja hasta 84 informes (14 áreas × 6
+POR QUÉ EXISTE (2026-09-29). Una sesión de imaginación profunda deja hasta 84 informes (14 áreas × 6
 lentes), cada uno con ≤ 10 hallazgos. Nadie lee 800 hallazgos. Este director hace lo que
 haría un jefe de redacción:
 
