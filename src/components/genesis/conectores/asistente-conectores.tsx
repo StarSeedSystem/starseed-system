@@ -1,37 +1,25 @@
 "use client";
-
 /** GENESIS · ASISTENTE «CONECTAR GENESIS» (Ola 1019G · GCA1019M · architecture/genesis-conectores-abiertos.md §3).
- * Tres pasos para una cuenta, un grupo o una página: 1) lo local (neuronas, servidores del cerebro y capa de
- * Astraura que cabe) con interruptores; 2) lo gratis sugerido, con enlace oficial en pestaña nueva y un campo
- * de clave que se envía a la bóveda por la API y se borra; 3) resumen por papel con la cadena y su motivo.
- * Red inyectable: pruebas sin red. Jamás se guarda ni se devuelve una clave: se envía y desaparece. */
-
+ * Tres pasos: local con interruptores, gratis con enlace oficial y clave que se envía y se borra, resumen por
+ * papel con su motivo. Red inyectable: pruebas sin red; ninguna clave se guarda ni se devuelve. */
 import { useEffect, useMemo, useState } from "react";
 import type { Asignacion } from "@/lib/genesis/conectores/asignaciones";
 import type { GrupoSugerencias } from "@/lib/genesis/conectores/sugerir";
 import type { Papel } from "@/lib/genesis/conectores/catalogo-opciones";
-
 export interface VistaOpcionesAmbito { sugerencias: GrupoSugerencias[]; asignaciones: readonly Asignacion<Papel>[] }
 export type ResultadoVincular = { ok: boolean; error?: string };
 export type Cargar = (ambito: string) => Promise<VistaOpcionesAmbito>;
 export type VincularClave = (ambito: string, proveedor: string, valor: string) => Promise<ResultadoVincular>;
 export type ResumenPapel = { papel: Papel; elegido: string | null; cadena: string[]; motivo: string };
 export const GRUPOS = { local: "local-por-activar", gratis: "gratis-por-vincular" } as const;
-
 async function cargarPorApi(ambito: string): Promise<VistaOpcionesAmbito> {
   const r = await fetch(`/api/genesis/conectores?ambito=${encodeURIComponent(ambito)}`, { cache: "no-store" });
-  if (!r.ok) throw new Error(`La API respondió con estado ${r.status}.`);
-  return (await r.json()) as VistaOpcionesAmbito;
+  if (!r.ok) throw new Error(`La API respondió con estado ${r.status}.`); return (await r.json()) as VistaOpcionesAmbito;
 }
-
 async function vincularPorApi(ambito: string, proveedor: string, valor: string): Promise<ResultadoVincular> {
-  const r = await fetch(`/api/genesis/conectores?ambito=${encodeURIComponent(ambito)}`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ accion: "vincular", proveedor, valor }),
-  });
+  const r = await fetch(`/api/genesis/conectores?ambito=${encodeURIComponent(ambito)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "vincular", proveedor, valor }) });
   return r.ok ? { ok: true } : { ok: false, error: `La API respondió con estado ${r.status}.` };
 }
-
 /** Motivo por papel: local primero, gratis vinculada después; de pago solo con permiso del ámbito. */
 export function resumenPorPapel(asignaciones: readonly Asignacion<Papel>[], pistas: { locales: ReadonlySet<string>; vinculadas: ReadonlySet<string> }): ResumenPapel[] {
   return asignaciones.map((a) => {
@@ -44,42 +32,29 @@ export function resumenPorPapel(asignaciones: readonly Asignacion<Papel>[], pist
     return { papel: a.clave, elegido, cadena: [...a.cadena, ...a.respaldo], motivo };
   });
 }
-
 const PASOS = ["Local del contexto", "Gratis por vincular", "Resumen por papel"] as const,
   PILDORA = "cursor-pointer rounded-full border px-3 py-1.5 text-xs transition-colors duration-200",
   CRISTAL = "rounded-xl border border-white/10 bg-white/5 p-2 backdrop-blur";
-
-export function AsistenteConectarGenesis({ ambito, opciones = null, cargar, vincular }: {
-  ambito: string; opciones?: VistaOpcionesAmbito | null; cargar?: Cargar; vincular?: VincularClave;
-}) {
+export function AsistenteConectarGenesis({ ambito, opciones = null, cargar, vincular }: { ambito: string; opciones?: VistaOpcionesAmbito | null; cargar?: Cargar; vincular?: VincularClave }) {
   const [vista, setVista] = useState<VistaOpcionesAmbito | null>(opciones), [errorCarga, setErrorCarga] = useState<string | null>(null),
-    [paso, setPaso] = useState(1), [locales, setLocales] = useState<Set<string>>(new Set()),
-    [vinculadasOk, setVinculadasOk] = useState<Set<string>>(new Set()), [claves, setClaves] = useState<Record<string, string>>({}),
-    [avisoVincular, setAvisoVincular] = useState<string | null>(null);
-
+    [paso, setPaso] = useState(1), [locales, setLocales] = useState<Set<string>>(new Set()), [claves, setClaves] = useState<Record<string, string>>({}),
+    [vinculadasOk, setVinculadasOk] = useState<Set<string>>(new Set()), [avisoVincular, setAvisoVincular] = useState<string | null>(null);
   useEffect(() => {
     if (opciones) { setVista(opciones); setErrorCarga(null); return; }
     let vivo = true;
-    (cargar ?? cargarPorApi)(ambito)
-      .then((v) => { if (vivo) setVista(v); })
+    (cargar ?? cargarPorApi)(ambito).then((v) => { if (vivo) setVista(v); })
       .catch((e: unknown) => { if (vivo) setErrorCarga(e instanceof Error ? e.message : "No se pudo cargar."); });
     return () => { vivo = false; };
   }, [ambito, opciones, cargar]);
-
   const local = useMemo(() => vista?.sugerencias.find((g) => g.clave === GRUPOS.local)?.opciones ?? [], [vista]);
   const gratis = useMemo(() => vista?.sugerencias.find((g) => g.clave === GRUPOS.gratis)?.opciones ?? [], [vista]);
   const resumen = useMemo(() => resumenPorPapel(vista?.asignaciones ?? [], { locales, vinculadas: vinculadasOk }), [vista, locales, vinculadasOk]);
   const alternar = (id: string) => setLocales((p) => { const s = new Set(p); if (s.has(id)) s.delete(id); else s.add(id); return s; });
-
   const enviarClave = async (id: string) => {
-    const valor = (claves[id] ?? "").trim();
-    if (!valor) return;
-    setAvisoVincular(null);
-    const r = await (vincular ?? vincularPorApi)(ambito, id, valor);
-    setClaves((p) => ({ ...p, [id]: "" }));
+    const valor = (claves[id] ?? "").trim(); if (!valor) return; setAvisoVincular(null);
+    const r = await (vincular ?? vincularPorApi)(ambito, id, valor); setClaves((p) => ({ ...p, [id]: "" }));
     if (r.ok) setVinculadasOk((p) => new Set(p).add(id)); else setAvisoVincular(r.error ?? "No se pudo vincular esa clave.");
   };
-
   return (
     <section className="space-y-4">
       <h2 className="text-xl font-semibold">Conectar Genesis</h2>
@@ -87,9 +62,7 @@ export function AsistenteConectarGenesis({ ambito, opciones = null, cargar, vinc
       <div role="tablist" aria-label="Pasos del asistente" className="flex flex-wrap gap-2">
         {PASOS.map((nombre, i) => (
           <button key={nombre} type="button" role="tab" aria-selected={paso === i + 1} onClick={() => setPaso(i + 1)}
-            className={`${PILDORA} ${paso === i + 1 ? "border-emerald-300/60 bg-emerald-500/15 text-white" : "border-white/15 text-white/70"}`}>
-            {i + 1}. {nombre}
-          </button>
+            className={`${PILDORA} ${paso === i + 1 ? "border-emerald-300/60 bg-emerald-500/15 text-white" : "border-white/15 text-white/70"}`}>{i + 1}. {nombre}</button>
         ))}
       </div>
       {errorCarga ? <p className={`${CRISTAL} border-amber-400/25 bg-amber-500/10 text-xs text-amber-100`}>{errorCarga}</p> : null}
@@ -103,7 +76,6 @@ export function AsistenteConectarGenesis({ ambito, opciones = null, cargar, vinc
                 className={`${PILDORA} ${locales.has(o.id) ? "border-emerald-300/70 bg-emerald-500/20 text-white" : "border-white/15 text-white/60"}`}>{locales.has(o.id) ? "Encendido" : "Apagado"}</button>
             </div>
           ))}
-          {local.length === 0 ? <p className="text-xs text-white/50">No hay capacidad local pendiente de activar en este ámbito.</p> : null}
         </div>
       ) : null}
       {paso === 2 ? (
@@ -123,7 +95,6 @@ export function AsistenteConectarGenesis({ ambito, opciones = null, cargar, vinc
               {vinculadasOk.has(o.id) ? <p className="text-xs text-emerald-200">Clave enviada a la bóveda del ámbito.</p> : null}
             </div>
           ))}
-          {gratis.length === 0 ? <p className="text-xs text-white/50">No hay servicios gratis pendientes de vincular.</p> : null}
           {avisoVincular ? <p className={`${CRISTAL} border-amber-400/25 bg-amber-500/10 text-xs text-amber-100`}>{avisoVincular}</p> : null}
         </div>
       ) : null}
