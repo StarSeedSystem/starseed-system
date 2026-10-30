@@ -109,6 +109,12 @@ describe("esActivoPermitido", () => {
       expect(esActivoPermitido(nombre)).toBe(false);
     }
   });
+
+  it("acepta los nombres que generan las tres funciones", () => {
+    expect(esActivoPermitido(nombreActivoWeb("deckcraft", "0.10.0"))).toBe(true);
+    expect(esActivoPermitido(nombreActivoCli("figcraft", "0.10.0"))).toBe(true);
+    expect(esActivoPermitido(nombreActivoRare("1.12.0.237", "x86_64.dmg"))).toBe(true);
+  });
 });
 
 describe("sha256Hex", () => {
