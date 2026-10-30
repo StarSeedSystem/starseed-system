@@ -105,9 +105,14 @@ def orden_marcar_lock(huella, raiz=RAIZ_A1):
 
 
 def orden_compilar(raiz=RAIZ_A1, dist=DIST_BUILD, heap=4096):
-    """PURA: build con `nice` y 4096 de heap, en dist aparte, igual que la Mac."""
+    """PURA: build con `nice`, 4096 de heap, dist aparte y SIN caché de webpack en disco,
+    igual que la Mac.
+
+    (2026-10-30, GEN1030B) La caché de webpack guarda y serializa en memoria TODO el
+    grafo: el A1 murió por OOM con 4096 de heap y también con 6144. `STARSEED_BUILD_LIGERO=1`
+    quita esa caché (la receta de Vercel que ya usa `next.config.ts`)."""
     return ("sudo -u starseed -H sh -c 'cd %s && rm -rf %s && "
-            "STARSEED_DIST=%s NODE_OPTIONS=--max-old-space-size=%d nice -n 10 npx next build'"
+            "STARSEED_BUILD_LIGERO=1 STARSEED_DIST=%s NODE_OPTIONS=--max-old-space-size=%d nice -n 10 npx next build'"
             % (shlex.quote(raiz), shlex.quote(dist), shlex.quote(dist), heap))
 
 

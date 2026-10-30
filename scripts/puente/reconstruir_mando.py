@@ -524,8 +524,12 @@ def reconstruir(huella_actual) -> dict:
     # (ENOENT: required-server-files.json). Aquí se construye en `.next-build` y el
     # servidor sigue con el `.next` de siempre hasta el cambio. (2026-09-22)
     entorno["STARSEED_DIST"] = DIST_BUILD
+    # (2026-10-30, GEN1030B) SIN caché de webpack en disco: serializa TODO el grafo en
+    # memoria y éso mató a la Mac (814 s) y al A1 por OOM. La receta de Vercel.
+    entorno["STARSEED_BUILD_LIGERO"] = "1"
     preparar_dist_de_build()
     por_disco = False
+    rc = None
     try:
         rc, salida, por_disco = compilar_vigilando_disco(
             [sys.executable, os.path.join(RAIZ, "scripts", "puente", "con-turno.py"),
@@ -563,6 +567,8 @@ def reconstruir(huella_actual) -> dict:
         "huella_construida": huella_actual if ok else _leer_estado().get("huella_construida"),
         "error": None if ok else primera_linea_de_error(salida),
         "por_disco": bool(por_disco) and not ok,
+        # (GEN1030B) Para distinguir «murió por memoria» de «falló el código» al día entero.
+        "rc": rc,
     }
     # (2026-09-25) Se FUNDE con lo guardado: reescribirlo entero perdía `build_servido`, y
     # la pasada siguiente, al no encontrarlo, reiniciaba Genesis «porque hay un build más
@@ -932,6 +938,63 @@ def freno_de_maquina(forzar=False, raiz=RAIZ):
     return None
 
 
+#: (2026-10-30, GEN1030B) `.next` sin BUILD_ID entero es «Genesis CAÍDO»: `next start` no
+#: levanta nada. El 29-10 se cayó toda la tarde así y este servicio, mirando huellas,
+#: llevaba horas sin saberlo. Sin build servido «la pantalla está al día» NO existe y
+#: tampoco se espera a Astraura: si la Mac está frenada (swap, enjambre, dependencias) o la
+#: build muere por memoria, se compila en el A1 con `compilar_en_a1` (todas sus etapas).
+
+
+def esta_caido(raiz=RAIZ) -> bool:
+    """¿No hay un build ENTERO servido en `.next`? Genesis no tiene nada que servir."""
+    return not build_terminado(raiz, dist=DIST_SERVIDO)
+
+
+def donde_compilar(build_servido, freno):
+    """PURA: («mac»|«a1»|«esperar», motivo). (2026-10-30, GEN1030B)
+
+    Con build servido y la Mac frenada se sigue como hoy: esperar. Con Genesis CAÍDO y
+    la Mac frenada, esperar era quedarse sin pantalla: la build admisible es el A1."""
+    if freno:
+        if build_servido:
+            return "esperar", freno
+        return "a1", "Genesis está caído (%s)" % freno
+    return "mac", "la Mac puede compilar"
+
+
+def fallo_por_memoria(rc, salida) -> bool:
+    """PURA: ¿esa build murió por memoria (SIGKILL del SO = rc 137, o heap muerto)?"""
+    if rc == 137:
+        return True
+    texto = str(salida or "").lower()
+    return "heap out of memory" in texto or "mark-compacts" in texto
+
+
+def compilar_en_el_a1():
+    """(2026-10-30, GEN1030B) Envía, compila FUERA, trae y cambia de sitio el build.
+
+    Envuelve `compilar_en_a1.compilar()` —sus etapas y esperas completas—; la
+    importación es perezosa porque ese módulo importa este."""
+    import compilar_en_a1
+    return compilar_en_a1.compilar()
+
+
+def mandar_al_a1(motivo):
+    """(2026-10-30, GEN1030B) La build completa fuera: se ve y se anota.
+
+    Solo se llama con Genesis CAÍDO: el estado queda «caido-sin-build» mientras
+    compila en el A1 y, si el A1 tampoco pudo, sigue siendo ese."""
+    print("[%s] GENESIS CAÍDO: %s → compilo en el A1" % (time.strftime("%H:%M"), motivo), flush=True)
+    _guardar(dict(_leer_estado(), estado="caido-sin-build", freno=motivo,
+                  visto=time.strftime("%Y-%m-%d %H:%M:%S")))
+    ok, detalle = compilar_en_el_a1()
+    print("[%s] A1: %s" % (time.strftime("%H:%M"), detalle), flush=True)
+    if not ok:
+        _guardar(dict(_leer_estado(), estado="caido-sin-build", freno="el A1 tampoco pudo",
+                      visto=time.strftime("%Y-%m-%d %H:%M:%S")))
+    return ok
+
+
 def conversando(ruta=os.path.expanduser("~/.starseed/conversacion.json")) -> bool:
     """¿Hay una conversación en curso con Astraura (concesión de `voz_rt.py`)?"""
     try:
@@ -1017,24 +1080,46 @@ def una_pasada(forzar: bool = False) -> bool:
     entradas = list(_entradas())
     actual = huella_de(entradas)
     estado = _leer_estado()
+    # (2026-10-30, GEN1030B) Primera pregunta de verdad: ¿hay un build entero que servir?
+    # Sin él, «la pantalla está al día» es mentira sea cual sea la contabilidad de huellas.
+    caido = esta_caido()
+
+    def cerrar(extra):
+        base = dict(_leer_estado(), **extra)
+        if caido:
+            base["estado"] = "caido-sin-build"
+        _guardar(base)
+        return base
+
     hazlo, motivo = decidir(actual, estado, time.time(),
                             mas_nuevas=cuantas_mas_nuevas(mtime_del_build(), entradas))
     if forzar:
         hazlo, motivo = True, "compilación pedida a mano"
+    elif caido:
+        # (GEN1030B) Sin build servido la cuenta de huellas manda por el suelo.
+        if build_terminado() and id_del_build(dist=DIST_BUILD):
+            hazlo, motivo = False, "Genesis está caído: no hay build servido, pero hay uno entero por poner"
+        else:
+            hazlo, motivo = True, "Genesis está caído: no hay build servido"
     if hazlo:
         freno = freno_de_maquina(forzar=forzar)
+        destino, porque = donde_compilar(not caido, freno)
+        if destino == "a1":
+            # (2026-10-30, GEN1030B) Genesis CAÍDO y Mac frenada: cero esperas.
+            return mandar_al_a1(porque)
         if freno:
             print("[%s] espero: %s, pero %s" % (time.strftime("%H:%M"), motivo, freno), flush=True)
-            _guardar(dict(_leer_estado(), estado="esperando-maquina", freno=freno,
-                          visto=time.strftime("%Y-%m-%d %H:%M:%S")))
+            cerrar({"estado": "esperando-maquina", "freno": freno,
+                    "visto": time.strftime("%Y-%m-%d %H:%M:%S")})
             return False
-    if hazlo and not forzar and conversando():
+    if hazlo and not forzar and not caido and conversando():
         # (2026-09-22) Una build se come 3-4 GB de RAM en esta Mac: en plena conversación
         # con Astraura dejaría a la voz y a BitNet sin memoria. Se espera a que acabe.
+        # (2026-10-30, GEN1030B) Con Genesis CAÍDO no se espera: compilar es lo primero.
         print("[%s] espero: %s, pero Alex está hablando con Astraura" % (time.strftime("%H:%M"), motivo),
               flush=True)
         return False
-    uso = uso_de_astraura() if (hazlo and not forzar) else "libre"
+    uso = uso_de_astraura() if (hazlo and not forzar and not caido) else "libre"
     if hazlo and uso == "uso":
         ahora = time.time()
         desde = _leer_estado().get("uso_desde")
@@ -1075,19 +1160,29 @@ def una_pasada(forzar: bool = False) -> bool:
         aviso = ("no compilo: quedan %.1f GB libres y hacen falta %.1f (ya tiré lo mío; "
                  "esto es disco del Mac, no de Genesis)" % (libre, MINIMO_LIBRE_GB))
         print("[%s] %s" % (time.strftime("%H:%M"), aviso), flush=True)
-        _guardar(dict(_leer_estado(), estado="sin-sitio", ok=False, error=aviso,
-                      visto=time.strftime("%Y-%m-%d %H:%M:%S")))
+        cerrar({"estado": "sin-sitio", "ok": False, "error": aviso,
+                "visto": time.strftime("%Y-%m-%d %H:%M:%S")})
         return False
     if hazlo:
         print("[%s] RECONSTRUYO: %s" % (time.strftime("%H:%M"), motivo), flush=True)
-        _guardar(dict(_leer_estado(), silencio_desde=None, uso_desde=None))
-        reconstruir(actual)
+        cerrar({"silencio_desde": None, "uso_desde": None})
+        datos = reconstruir(actual)
+        # (2026-10-30, GEN1030B) La Mac no puede por memoria y hay caído: el A1.
+        if caido and not datos.get("ok") and fallo_por_memoria(datos.get("rc"), datos.get("error")):
+            return mandar_al_a1("la build de la Mac murió por memoria")
         return True
 
     # Compilar no es servir: si otro compiló (publicar.py), basta con reiniciar.
     pendiente = id_del_build(dist=DIST_BUILD) if build_terminado() else None
-    reinicia, porque = decidir_reinicio(pendiente or id_del_build(),
-                                        estado.get("build_servido"))
+    servido_real = id_del_build()
+    if caido and pendiente and pendiente != servido_real:
+        # (GEN1030B) Cae el mismo caso que «más nuevo»: el `.next` roto lleva el id viejo
+        # que él mismo sirvió; aquí manda el disco, no la contabilidad de enviado.
+        reinicia, porque = (True, "Genesis está caído: no hay build servido, "
+                                  "pero hay otro entero por poner")
+    else:
+        reinicia, porque = decidir_reinicio(pendiente or servido_real,
+                                            estado.get("build_servido"))
     if reinicia:
         print("[%s] REINICIO: %s" % (time.strftime("%H:%M"), porque), flush=True)
         reiniciar_mando()
@@ -1095,7 +1190,8 @@ def una_pasada(forzar: bool = False) -> bool:
 
     print("[%s] espero: %s" % (time.strftime("%H:%M"), motivo), flush=True)
     # Se anota igual: así Genesis puede decir «al día» con fecha, no de memoria.
-    _guardar(dict(estado, visto=time.strftime("%Y-%m-%d %H:%M:%S"), huella_vista=actual, silencio_desde=None))
+    cerrar({"visto": time.strftime("%Y-%m-%d %H:%M:%S"), "huella_vista": actual,
+            "silencio_desde": None})
     return False
 
 
