@@ -67,6 +67,19 @@ describe("validarSinCredencialesEpic · nada con forma de sesión de Epic", () =
     expect(r.hallazgos.join(" ")).toContain("access_token");
     expect(r.hallazgos.join(" ")).toContain("exchange_code");
   });
+  it("los hallazgos no repiten el valor del secreto detectado (rescate RTART1025Ld)", () => {
+    const r = validarSinCredencialesEpic(`{"access_token":"${VALOR}","exchange_code":"código1234"}`);
+    expect(r.ok).toBe(false);
+    expect(JSON.stringify(r)).not.toContain(VALOR.slice(0, 10));
+  });
+  it("refresh_token y account_id también se detectan, sin repetir el valor", () => {
+    const r = validarSinCredencialesEpic(`refresh_token: ${VALOR} y account_id: abcdef123456`);
+    expect(r.ok).toBe(false);
+    expect(r.hallazgos).toHaveLength(2);
+    expect(r.hallazgos.join(" ")).toContain("refresh_token");
+    expect(r.hallazgos.join(" ")).toContain("account_id");
+    expect(JSON.stringify(r)).not.toContain(VALOR.slice(0, 10));
+  });
   it("detecta tokens con prefijo eg1~", () => {
     const token = ["eg1", "~", "TkAb12-9_kk"].join("");
     expect(validarSinCredencialesEpic(`el texto contiene ${token} y ya`).ok).toBe(false);
