@@ -1,21 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Oracle Always Free: entrega de claves por SSH a cada máquina."""
+"""Oracle Always Free: entrega de claves por SSH sin pisar el resto del entorno.
+
+Manda solo las variables pedidas de `~/.starseed/env` con la MISMA llave y el MISMO usuario
+que `oracle_nodo.ssh` (la IP sale de `~/.starseed/oracle.json`). En el A1 quita únicamente las
+líneas de esas variables y añade las nuevas, con archivo temporal e `install -m 600 -o root`:
+nunca sustituye el archivo entero. No imprime valores: devuelve, por variable, si quedó y una
+huella de 8 caracteres (sha256) para poder comprobarla sin enseñarla.
+"""
 from __future__ import annotations
 
 import argparse
-import json
-import os
+import hashlib
 import re
-import subprocess
+import shlex
 import sys
 from pathlib import Path
 
 # Regla del contrato: nombres solo [A-Z][A-Z0-9_]+
 _NOMBRE_VALIDO = re.compile(r"^[A-Z][A-Z0-9_]*$")
 ENV_LOCAL = Path.home() / ".starseed/env"
-ORACLE_JSON = Path.home() / ".starseed/oracle.json"
-SSH_KEY_PATH = Path.home() / ".ssh/starseed_oracle_ed25519"
+DESTINO_DEFECTO = "/etc/starseed/direccion.env"
+
 
 def _leer_env_local() -> dict[str, str]:
     resultado: dict[str, str] = {}
@@ -27,73 +33,85 @@ def _leer_env_local() -> dict[str, str]:
             if not linea or linea.startswith("#") or "=" not in linea:
                 continue
             clave, valor = linea.split("=", 1)
-            clave = clave.strip()
-            valor = valor.strip()
+            clave, valor = clave.strip(), valor.strip()
             if (valor.startswith('"') and valor.endswith('"')) or \
                (valor.startswith("'") and valor.endswith("'")):
                 valor = valor[1:-1]
-            resultado[clave] = valor
+            if _NOMBRE_VALIDO.match(clave):
+                resultado[clave] = valor
     return resultado
-
-def _leer_oracle_ip() -> str | None:
-    if not ORACLE_JSON.exists():
-        return None
-    try:
-        with ORACLE_JSON.open(encoding="utf-8") as f:
-            datos = json.load(f)
-        instancias = datos.get("instancias", []) if isinstance(datos, dict) else []
-        for i in instancias:
-            if isinstance(i, dict) and i.get("nombre") == "starseed-a1":
-                ip = i.get("ip_publica")
-                if ip:
-                    return str(ip)
-        for i in instancias:
-            if isinstance(i, dict) and i.get("ip_publica"):
-                return str(i["ip_publica"])
-    except (OSError, json.JSONDecodeError):
-        pass
 
 
 def validar_nombres(vars_solicitadas: list[str]) -> list[str]:
-    errores = []
-    for v in vars_solicitadas:
-        if not _NOMBRE_VALIDO.match(v):
-            errores.append(f"{v} (no coincide con [A-Z][A-Z0-9_]+)")
-    return errores
+    return [f"{v} (no coincide con [A-Z][A-Z0-9_]+)" for v in vars_solicitadas
+            if not _NOMBRE_VALIDO.match(v)]
 
 
-def construir_contenido(env_local: dict[str, str], vars_solicitadas: list[str]) -> str:
-    lineas = []
-    for v in vars_solicitadas:
-        if v in env_local:
-            lineas.append(f"{v}={env_local[v]}")
-    return "\n".join(lineas) + ("\n" if lineas else "")
+def huella(valor: str) -> str:
+    """PURA. Huella de 8 caracteres del valor: lo justo para comprobarlo sin enseñarlo."""
+    return hashlib.sha256(str(valor).encode("utf-8")).hexdigest()[:8]
 
 
-def entregas_por_ssh(maquina: str, contenido: str, simular: bool = False, usuario: str = "starseed") -> int:
+def orden_remota(destino: str, nombres: list[str]) -> str:
+    """PURA. Orden que fusiona SOLO `nombres` en `destino`: quita sus líneas viejas, añade las
+    nuevas que llegan por la entrada, instala con 600 root e imprime «OK <NOMBRE>» por cada una
+    que quedó. Nunca imprime valores. `destino` va citado y los nombres se validan aquí mismo."""
+    validos = [n for n in nombres if _NOMBRE_VALIDO.match(n)]
+    if not validos:
+        return "true"
+    destino_q = shlex.quote(destino)
+    patron = "|".join(validos)
+    lista = " ".join(validos)
+    return (
+        "set -u; umask 077\n"
+        "nuevo=$(mktemp); fus=$(mktemp)\n"
+        "trap 'rm -f \"$nuevo\" \"$fus\"' EXIT\n"
+        "cat > \"$nuevo\"\n"
+        f"if [ -f {destino_q} ]; then grep -vE '^(export )?({patron})=' {destino_q} > \"$fus\" || true; fi\n"
+        "cat \"$nuevo\" >> \"$fus\"\n"
+        f"sudo install -m 600 -o root -g root \"$fus\" {destino_q} || exit 1\n"
+        f"for v in {lista}; do grep -qE \"^(export )?$v=\" {destino_q} && echo \"OK $v\"; done\n"
+    )
+
+
+def _importar_nodo():
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import oracle_nodo  # noqa: PLC0415 — mismo usuario, misma llave y misma IP
+
+    return oracle_nodo
+
+
+def entregar(env_local: dict[str, str], nombres: list[str], destino: str = DESTINO_DEFECTO,
+             simular: bool = False) -> tuple[int, dict[str, dict[str, object]]]:
+    """Manda `nombres` presentes en `env_local` con `oracle_nodo.ssh` y devuelve, por variable,
+    `quedo` y `huella` (nunca el valor)."""
+    resultado = {v: {"quedo": False, "huella": huella(env_local[v]) if v in env_local else ""}
+                 for v in nombres}
+    presentes = [v for v in nombres if v in env_local]
     if simular:
-        print(f"[simular] ssh {usuario}@{maquina} 'sudo install -m 600 -o root /etc/starseed/env < stdin'")
-        for linea in contenido.splitlines():
-            if "=" in linea:
-                k = linea.split("=", 1)[0]
-                print(f"  {k}=***")
-        return 0
-    orden_ssh = [
-        "ssh", "-i", str(SSH_KEY_PATH), "-o", "StrictHostKeyChecking=accept-new",
-        f"{usuario}@{maquina}",
-        "sudo install -m 600 -o root /etc/starseed/env /dev/stdin"
-    ]
-    proc = subprocess.run(orden_ssh, input=contenido, text=True, capture_output=True)
-    if proc.returncode != 0:
-        print(f"Error ssh: {proc.stderr}", file=sys.stderr)
-        return 1
-    return 0
+        for v in nombres:
+            resultado[v]["quedo"] = v in env_local
+        return 0, resultado
+    if not presentes:
+        return 0, resultado
+    contenido = "".join(f"{v}={env_local[v]}\n" for v in presentes)
+    nodo = _importar_nodo()
+    rc, salida = nodo.ssh(orden_remota(destino, presentes), entrada=contenido, timeout=120)
+    if rc != 0:
+        print("Error ssh: %s" % salida.strip()[-200:], file=sys.stderr)
+        return 1, resultado
+    quedaron = set(re.findall(r"^OK ([A-Z][A-Z0-9_]*)$", salida, re.MULTILINE))
+    for v in presentes:
+        resultado[v]["quedo"] = v in quedaron
+    return 0, resultado
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("maquina", help="Nombre de la máquina destino")
     parser.add_argument("variables", nargs="+", help="Variables [A-Z][A-Z0-9_]*")
+    parser.add_argument("--archivo", default=DESTINO_DEFECTO,
+                        help=f"Archivo remoto (por defecto {DESTINO_DEFECTO})")
     parser.add_argument("--simular", action="store_true", help="Describe lo que haría sin ejecutar")
     args = parser.parse_args(argv)
 
@@ -103,21 +121,16 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Rechazado: {e}")
         return 2
 
-    env_local = _leer_env_local()
-    resultados: list[str] = []
-    contenido_lineas: list[str] = []
+    rc, resultado = entregar(_leer_env_local(), args.variables, destino=args.archivo,
+                              simular=args.simular)
     for v in args.variables:
-        if v in env_local:
-            resultados.append(f"{v} ✓")
-            contenido_lineas.append(f"{v}={env_local[v]}")
+        r = resultado[v]
+        if not r["huella"]:
+            print(f"{v} (no está en tu env)")
         else:
-            resultados.append(f"{v} (no está en tu env)")
-    for r in resultados:
-        print(r)
+            print(f"{v} {'✓' if r['quedo'] else '✗'} {r['huella']}")
+    return rc
 
-    contenido = "\n".join(contenido_lineas) + ("\n" if contenido_lineas else "")
-    destino = _leer_oracle_ip() or args.maquina
-    return entregas_por_ssh(destino, contenido, simular=args.simular)
 
 if __name__ == "__main__":
     raise SystemExit(main())
