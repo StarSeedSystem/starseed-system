@@ -45,6 +45,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 
 import {
     type EduNode,
@@ -711,7 +712,9 @@ export function TopicGraph() {
                     creados += 1;
                 }
                 if (creados === 0) {
-                    toast.error("Inicia sesión para importar documentos a tu mapa de conocimiento.");
+                    toast.error("Inicia sesión para importar documentos a tu mapa de conocimiento.", {
+                        action: { label: "Conoce StarSeed", onClick: () => abrirGuia({ desde: "aviso" }) },
+                    });
                     return;
                 }
                 if (creados < nodos.length) {

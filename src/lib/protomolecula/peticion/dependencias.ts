@@ -14,6 +14,8 @@ import { describirObjeto3d, FORMAS_3D_SOPORTADAS } from "./objeto3d";
 import { capasConFondo, elegirSetFondo, PREFIJO_CAPA_FONDO } from "./fondo";
 import { EVENTO_APLICAR_FONDO, type DetalleAplicarFondo } from "./fondo-evento";
 import { TOPE_PERSONA_POR_HORA, consumirTope } from "./tope";
+import { CANDIDATOS_ELEGIDOS, MAX_CONTROLES_SIN_IA, claveDe, elegirControles, type ElegirConIA } from "../elegir-controles";
+import { PROXIMAMENTE_MEDIOS, pedirImagen } from "../generacion-capas";
 
 type De<T extends OperacionPedida["tipo"]> = Extract<OperacionPedida, { tipo: T }>;
 
@@ -96,34 +98,59 @@ async function generarImagen(op: De<"generar-imagen">): Promise<ResultadoPaso> {
   const [width, height] = DIMENSIONES[op.formato ?? "1:1"];
   // Gratis o local: lo que tengas puesto por defecto, salvo un servicio de pago, que aquí nunca se usa.
   const provider = m.resolveProvider("image") === "muapi" ? "pollinations" : undefined;
-  const r = await m.generateImage({ prompt: op.descripcion, width, height, ...(provider ? { provider } : {}) });
-  if (!r.ok || !r.url) return fallo(`No pude generar la imagen: ${r.error ?? "el generador no respondió"}.`);
-  const etiqueta = m.findMediaProvider(r.provider)?.label ?? r.provider;
-  const nombre = `astraura-${Date.now().toString(36)}.png`;
-  let guardada = false;
-  try {
-    const { currentUserRef } = await import("@/lib/sync/entity-state");
-    const ref = await currentUserRef();
-    if (ref && r.blob) {
-      const { saveMediaToLibrary } = await import("@/lib/library/media-library");
-      guardada = (await saveMediaToLibrary(ref, { file: r.blob, name: nombre, origin: "Importadas", tags: ["astraura", "imagen-generada"], note: op.descripcion.slice(0, 300) })).ok;
-    } else if (ref && /^https:\/\//i.test(r.url)) {
-      const { saveItem } = await import("@/lib/library/entity-library");
-      guardada = (await saveItem(ref, { type: "file", url: r.url, title: nombre, mime: "image/png", tags: ["astraura", "imagen-generada"], note: op.descripcion.slice(0, 300) })).ok;
+  const medios: Array<{ ok?: boolean; url?: string; blob?: Blob; provider?: string }> = [];
+  const resultado = await pedirImagen(op.descripcion, {
+    ancho: width,
+    alto: height,
+    generarImagen: async (o) => {
+      const r = await m.generateImage({ prompt: o.prompt, width: o.width ?? width, height: o.height ?? height, ...(provider ? { provider } : {}) });
+      medios.push(r);
+      return r;
+    },
+    guardarEntidad: async ({ prompt, url }) => {
+      try {
+        const { currentUserRef } = await import("@/lib/sync/entity-state");
+        const ref = await currentUserRef();
+        if (!ref) return null;
+        const nombre = `astraura-${Date.now().toString(36)}.png`;
+        const tags = ["astraura", "imagen-generada"], note = prompt.slice(0, 300);
+        if (medios[0]?.blob) {
+          const { saveMediaToLibrary } = await import("@/lib/library/media-library");
+          const saved = await saveMediaToLibrary(ref, { file: medios[0].blob, name: nombre, origin: "Importadas", tags, note });
+          return saved.ok ? { id: saved.itemId ?? nombre, tipo: "imagen" } : null;
+        }
+        if (!/^https:\/\//i.test(url)) return null;
+        const { saveItem } = await import("@/lib/library/entity-library");
+        const saved = await saveItem(ref, { type: "file", url, title: nombre, mime: "image/png", tags, note });
+        return saved.ok ? { id: saved.id || nombre, tipo: "imagen" } : null;
+      } catch { return null; }
+    },
+  });
+  const etiqueta = (p?: string): string => (p ? m.findMediaProvider(p as Parameters<typeof m.findMediaProvider>[0])?.label ?? p : "el generador");
+  if (!resultado.ok) {
+    const bruto = medios[0];
+    if (bruto?.ok && bruto.url) {
+      return {
+        estado: "hecho",
+        texto: `Generé la imagen con ${etiqueta(bruto.provider)}.`,
+        imagenUrl: bruto.url,
+        pendiente: "La imagen no quedó guardada en tu Biblioteca (sin sesión o sin permiso para guardar): descárgala desde la vista previa.",
+      };
     }
-  } catch { guardada = false; }
+    return fallo(resultado.motivo);
+  }
   return {
     estado: "hecho",
-    texto: `Generé la imagen con ${etiqueta}${guardada ? " y la guardé en tu Biblioteca (Medios › Importadas)" : ""}.`,
-    imagenUrl: r.url,
-    ...(guardada ? { ruta: "/library" } : { pendiente: "La imagen no quedó guardada en tu Biblioteca (sin sesión o sin permiso para guardar): descárgala desde la vista previa." }),
+    texto: `Generé la imagen con ${etiqueta(resultado.candidata.proveedor)} y quedó como capa candidata «${resultado.candidata.capa.titulo}»: acéptala o descártala; no se ha insertado sola.`,
+    imagenUrl: medios[0]?.url,
+    ruta: "/library",
   };
 }
 
 async function crearObjeto3d(op: De<"crear-objeto-3d">): Promise<ResultadoPaso> {
   const d = describirObjeto3d(op.descripcion);
   if (!d) {
-    return pendiente(`No creé el objeto 3D: la escena solo sabe hacer ${FORMAS_3D_SOPORTADAS}, y «${op.descripcion.slice(0, 60)}» es una forma libre. Modelar mallas libres necesita un servicio de generación 3D con GPU que aún no está conectado; por ahora, importa un modelo GLB desde la propia escena.`);
+    return pendiente(`No creé el objeto 3D: la escena solo sabe hacer ${FORMAS_3D_SOPORTADAS}, y «${op.descripcion.slice(0, 60)}» es una forma libre. ${PROXIMAMENTE_MEDIOS["3d"]} Por ahora, importa un modelo GLB desde la propia escena.`);
   }
   const { crearObjeto, docVacio, sanearObjeto, nuevoIdObjeto } = await import("@/lib/vivo/espacial/modelo");
   const { crearFilaEscena, MENSAJES_ERROR } = await import("@/lib/vivo/espacial/persistencia");
@@ -162,9 +189,33 @@ async function cambiarFondo(op: De<"fondo">): Promise<ResultadoPaso> {
     : pendiente("No pude cambiar el fondo: la apariencia del sistema no respondió. Prueba desde Ajustes › Apariencia › Fondo.");
 }
 
+/** Needle 3 elige los controles más probables; gasta la misma ficha por hora que el resto de la IA. */
+const elegirConNeedle: ElegirConIA = async ({ frase, candidatos, max }) => {
+  if (!consumirTope("persona", TOPE_PERSONA_POR_HORA).ok) return null;
+  try {
+    const { decidirConNeedle } = await import("@/lib/astraura/needle3-client");
+    const porNombre = new Map<string, string>();
+    const herramientas = candidatos.map((c, i) => {
+      const name = `control_${i}`;
+      porNombre.set(name, claveDe(c));
+      return { name, description: `${c.parametro.nombre}${c.atomo ? ` (${c.atomo})` : ""}`.slice(0, 160), parameters: { type: "object" as const, properties: {} } };
+    });
+    const d = await decidirConNeedle("nube", frase, herramientas, { max_pasos: max });
+    const ids = (d.ok ? d.llamadas ?? [] : []).map((l) => porNombre.get(l.nombre)).filter((x): x is string => typeof x === "string");
+    return ids.length ? { ids, motor: "needle" } : null;
+  } catch { return null; }
+};
+
 async function dictar(op: De<"dictar-molecula">, abrirRuta?: (r: string) => void): Promise<ResultadoPaso> {
-  const { manejarAccionProtomolecula } = await import("../accion-agente");
-  const r = manejarAccionProtomolecula({ accion: "dictar", frase: op.orden, agente: "astraura" }, { abrirRuta });
+  const [{ manejarAccionProtomolecula }, { controladorActivo }, { candidatosDe }] = await Promise.all([
+    import("../accion-agente"), import("../controlador-activo"), import("../registro-atomos"),
+  ]);
+  const c = controladorActivo();
+  const elegidos = c
+    ? await elegirControles(op.orden, candidatosDe(c.obtener().molecula), { elegirConIA: elegirConNeedle, maxElegidos: CANDIDATOS_ELEGIDOS, limiteSinIA: MAX_CONTROLES_SIN_IA })
+    : null;
+  const candidatos = elegidos?.candidatos.length ? elegidos.candidatos : undefined;
+  const r = manejarAccionProtomolecula({ accion: "dictar", frase: op.orden, agente: "astraura" }, { abrirRuta, ...(candidatos ? { candidatos } : {}) });
   return r.ok ? { estado: "hecho", texto: `Dicté a la molécula: ${r.message}` } : pendiente(`No se aplicó el dictado: ${r.message}`);
 }
 
