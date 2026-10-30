@@ -11,11 +11,13 @@
 // SOP: architecture/dashboard-launcher-apps-y-archivos.md
 // ════════════════════════════════════════════════════════════════
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { geometriaVentana } from "@/lib/design/composicion";
+import type { GeometriaVentanaReturn, Viewport } from "@/lib/design/composicion";
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -57,6 +59,32 @@ function apuntarVentana(v: VentanaApilada): () => void {
     };
 }
 
+/* ── Posición inicial por geometría centrada (DSN1019B) ──
+   En escritorio la ventana sigue abriendo centrada por el flex del padre, como siempre.
+   En teléfono (< 430 px, el umbral de composicion.ts) la ventana es una HOJA centrada:
+   `geometriaVentana` fija su posición inicial (ancho completo menos márgenes de 16 px,
+   anclada abajo) y su entrada es cardinal sur: sube desde el borde inferior.
+   El arrastre no cambia: la capa de arrastre añade su translate sobre esa base. */
+const UMBRAL_HOJA_TELEFONO = 430;
+
+function viewportActual(): Viewport {
+    return { ancho: window.innerWidth, alto: window.innerHeight };
+}
+
+function esTelefono(v: Viewport): boolean {
+    return v.ancho < UMBRAL_HOJA_TELEFONO;
+}
+
+/** Hoja de teléfono: el alto mantiene el espíritu del sizeClass por defecto
+    (86 % de la pantalla, tope 760 px); el ancho y la posición los da geometríaVentana. */
+function geometriaHojaTelefono(v: Viewport): GeometriaVentanaReturn {
+    return geometriaVentana(v, { tipo: "hoja", alto: Math.min(v.alto * 0.86, 760) });
+}
+
+function movimientoReducido(): boolean {
+    return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+}
+
 export interface OSWindowProps {
     title: string;
     subtitle?: string;
@@ -80,6 +108,24 @@ export function OSWindow({
 }: OSWindowProps) {
     const [offset, setOffset] = useState({ dx: 0, dy: 0 });
     const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+    const [hojaTelefono, setHojaTelefono] = useState(false);
+    const [reduceMovimiento, setReduceMovimiento] = useState(false);
+    const [geoHoja, setGeoHoja] = useState<GeometriaVentanaReturn | null>(null);
+
+    useLayoutEffect(() => {
+        // Se resuelve con useLayoutEffect para fijar la hoja ANTES del primer
+        // pintado: sin destello de la ventana de escritorio en el teléfono.
+        const resolver = () => {
+            const vp = viewportActual();
+            const telefono = esTelefono(vp);
+            setHojaTelefono(telefono);
+            setReduceMovimiento(movimientoReducido());
+            setGeoHoja(telefono ? geometriaHojaTelefono(vp) : null);
+        };
+        resolver();
+        window.addEventListener("resize", resolver);
+        return () => window.removeEventListener("resize", resolver);
+    }, []);
 
     const raizRef = useRef<HTMLDivElement>(null);
     const cerrarRef = useRef(onClose);
@@ -114,10 +160,29 @@ export function OSWindow({
             {/* Capa de arrastre centrada por el flex padre. El transform de arrastre va
                 aquí (div plano), NO en el hijo animado → la animación de Framer ya no pisa
                 el centrado y la ventana SIEMPRE abre centrada. */}
-            <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
+            <div
+                data-hoja={hojaTelefono ? "true" : undefined}
+                className="relative max-w-full max-h-full"
+                style={
+                    hojaTelefono && geoHoja
+                        ? {
+                              position: "absolute",
+                              left: geoHoja.x,
+                              top: geoHoja.y,
+                              width: geoHoja.ancho,
+                              height: geoHoja.alto,
+                              transform: `translate(${offset.dx}px, ${offset.dy}px)`,
+                          }
+                        : { transform: `translate(${offset.dx}px, ${offset.dy}px)` }
+                }
+            >
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={hojaTelefono
+                        ? (reduceMovimiento ? { opacity: 0 } : { opacity: 0, y: "100%" })
+                        : { opacity: 0, scale: 0.96 }}
+                    animate={hojaTelefono
+                        ? (reduceMovimiento ? { opacity: 1 } : { opacity: 1, y: 0 })
+                        : { opacity: 1, scale: 1 }}
                     transition={{ type: "spring", stiffness: 260, damping: 26 }}
                     className={cn(
                         "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",

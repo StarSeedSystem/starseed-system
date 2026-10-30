@@ -50,3 +50,70 @@ describe("OSWindow · ventana centrada (ramas de la nube)", () => {
         expect(envoltorio.style.transform).toBe("translate(28px, -40px)");
     });
 });
+
+// ── DSN1019B · la ventana abre centrada por aparato ──
+// En escritorio sigue centrada por el flex del padre (sin anclaje).
+// En teléfono abre como HOJA centrada: su posición la fija geometriaVentana
+// (src/lib/design/composicion.ts) y sube desde abajo con entrada cardinal sur.
+// jsdom arranca a 1024 × 768 (escritorio); cada caso fija su viewport y lo restaura.
+describe("OSWindow · hoja de teléfono centrada (DSN1019B)", () => {
+    afterEach(() => {
+        cleanup();
+        window.innerWidth = 1024;
+        window.innerHeight = 768;
+    });
+
+    it("en escritorio no hay hoja: centrada por flex, sin posición absoluta", () => {
+        window.innerWidth = 1280;
+        window.innerHeight = 800;
+        render(<Ventana />);
+        const dialogo = screen.getByRole("dialog");
+        expect(dialogo.getAttribute("data-hoja")).toBeNull();
+        const envoltorio = dialogo.querySelector("div.relative") as HTMLElement;
+        expect(envoltorio.style.position).toBe("");
+        expect(envoltorio.style.left).toBe("");
+        expect(envoltorio.style.transform).toBe("translate(0px, 0px)");
+    });
+
+    it("en teléfono abre como hoja: ancho con margen de 16 px y anclada abajo por geometriaVentana", () => {
+        // 390 × 800 → hoja de 358 px (390 − 2·16), alto 86 % de 800 = 688, abajo del todo.
+        window.innerWidth = 390;
+        window.innerHeight = 800;
+        render(<Ventana />);
+        const dialogo = screen.getByRole("dialog");
+        expect(dialogo.getAttribute("data-hoja")).toBe("true");
+        const envoltorio = dialogo.querySelector("div.relative") as HTMLElement;
+        expect(envoltorio.style.position).toBe("absolute");
+        expect(envoltorio.style.left).toBe("16px");
+        expect(envoltorio.style.top).toBe("112px"); // 800 − 688
+        expect(envoltorio.style.width).toBe("358px");
+        expect(envoltorio.style.height).toBe("688px");
+        // La capa de arrastre nace sin desplazamiento: la geometría es la base.
+        expect(envoltorio.style.transform).toBe("translate(0px, 0px)");
+    });
+
+    it("la hoja sube desde abajo: entrada cardinal sur (solo transform y opacity)", () => {
+        window.innerWidth = 390;
+        window.innerHeight = 800;
+        render(<Ventana />);
+        const marco = screen.getByRole("dialog").querySelector(".rounded-2xl") as HTMLElement;
+        expect(marco.style.opacity).toBe("0");
+        expect(marco.style.transform).toContain("translateY(100%)");
+        // La escala del fundido de escritorio no interviene en la hoja.
+        expect(marco.style.transform).not.toContain("scale");
+    });
+
+    it("cambiando a escritorio en caliente, la hoja vuelve a ventana centrada", () => {
+        window.innerWidth = 390;
+        window.innerHeight = 800;
+        render(<Ventana />);
+        expect(screen.getByRole("dialog").getAttribute("data-hoja")).toBe("true");
+        window.innerWidth = 1280;
+        fireEvent(window, new Event("resize"));
+        const dialogo = screen.getByRole("dialog");
+        expect(dialogo.getAttribute("data-hoja")).toBeNull();
+        const envoltorio = dialogo.querySelector("div.relative") as HTMLElement;
+        expect(envoltorio.style.position).toBe("");
+        expect(envoltorio.style.transform).toBe("translate(0px, 0px)");
+    });
+});
