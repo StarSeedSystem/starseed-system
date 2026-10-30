@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "TIP1013D",
+   "ola": "Ola 1012Q · Malla de sílice: routers portátiles como titanio móvil, con SIM o sin ella, y puertas a internet opcionales",
+   "titulo": "Titanio portátil en el panel de routers: SIM opcional y puerta compartida a elección",
+   "archivos": [
+    "src/components/network/titanio-portatil-panel.tsx",
+    "src/components/network/routers-malla-panel.tsx",
+    "src/components/network/__tests__/titanio-portatil-panel.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Reglas: como mucho 120 líneas nuevas por archivo; módulos puros sin `node:*`, Supabase ni `window` salvo que la tarea diga lo contrario; nada de `any`; comentarios en español; pruebas vitest (NODE_ENV=test); no toques archivos fuera de la lista; si necesitas un tipo que no existe en el módulo que se cita, PARA y dilo (no inventes un archivo con el mismo nombre). Contrato: architecture/malla-cristalina-sio2.md §8 y §8.1 (léela entera). Panel 'use client' `TitanioPortatilPanel` (diseño del OS, legible en móvil, iconos de lucide, cursor pointer): tipo de router portátil, batería y «está cargando», ¿tiene módem? ¿lleva SIM?; enseña `compatibilidadPortatil`, la coordinación que tendrá y `resumenSinSim`. Sección «Puerta a internet (opcional)»: tipo, con quién se comparte (por defecto «nadie»), tope mensual y reserva del dueño (20 %); aviso fijo «Algunas operadoras no permiten compartir los datos de tu línea: revisa tu contrato antes de compartir fuera de tu cuenta» y «StarSeed no pide ni guarda el PIN de tu SIM». Botones «Copiar guion de la puerta» (uciPuerta + guionGuardianTope) y «Copiar guion de cliente» (uciClientePuerta). En routers-malla-panel.tsx: cambio mínimo para montarlo cuando el router es portátil. Prueba jsdom: un MiFi de operador muestra la alternativa y el selector de compartir arranca en «nadie».",
+   "revisor_quitadas": [
+    "TIP1013B"
+   ],
+   "dependencias_ya_en_main": [
+    "TIP1013A",
+    "TIP1013C",
+    "MR1012E"
+   ]
+  }
+ ]
+}
