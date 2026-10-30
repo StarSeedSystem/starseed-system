@@ -17,7 +17,7 @@ import { objetosVivos, PRESETS_CIELO, type DocEscena, type Vec3 } from "@/lib/vi
 import type { MetaAvatar } from "@/lib/vivo/espacial/avatares";
 import type { SesionEscena } from "@/lib/vivo/espacial/sesion";
 import { Objeto3D } from "./objeto-3d";
-import { AvatarRemoto } from "./avatar-remoto";
+import { AvatarRemotoXR, nivelDeEscena, rangoCercania } from "./avatar-remoto-xr";
 import { AgarreXR, transformacionDe, type TransformacionXR } from "./agarre-xr";
 import { useSesionXR, type EstadoXR } from "./use-sesion-xr";
 import { PantallaVideoHTML } from "./pantalla-video-html";
@@ -151,6 +151,13 @@ function Contenido(p: PropsLienzoEscena & { xrModo: "immersive-vr" | "immersive-
     const [versionRegistro, setVersionRegistro] = useState(0);
     const vivos = useMemo(() => objetosVivos(doc), [doc]);
     const enXR = xrModo !== null;
+    // Avatares por nivel (contrato §3 d y h): la forma la decide `elegirAvatar` y el rango por
+    // cercanía reparte el cupo de VRM (el más cercano gana). La preferencia de VRM aún no existe.
+    const nivel = useMemo(() => nivelDeEscena(eco), [eco]);
+    const rangos = useMemo(
+        () => rangoCercania(p.camaraRef.current, otros, (a) => sesion.poses.get(a.clave)?.pose.p ?? null),
+        [otros, p.camaraRef, sesion.poses],
+    );
 
     const registrar = useCallback((id: string, o: THREE.Object3D | null) => {
         if (o) registro.current.set(id, o);
@@ -209,7 +216,14 @@ function Contenido(p: PropsLienzoEscena & { xrModo: "immersive-vr" | "immersive-
                     />
                 ))}
                 {otros.map((a) => (
-                    <AvatarRemoto key={a.clave} meta={a} poses={sesion.poses} reducido={reducido} eco={eco} />
+                    <AvatarRemotoXR
+                        key={a.clave}
+                        meta={a}
+                        poses={sesion.poses}
+                        nivel={nivel}
+                        jugadoresVisibles={rangos.get(a.clave) ?? 0}
+                        reducido={reducido}
+                    />
                 ))}
 </group>
             <PantallaVideoHTML ancho={1920} alto={1080} distanciaM={2} calidadXR={"media" as NivelCalidad} />
