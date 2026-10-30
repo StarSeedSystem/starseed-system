@@ -771,16 +771,36 @@ def _relevo_claude() -> dict:
     return relevo_carril_claude.revisar()
 
 
+def _quien_dirige(lider):
+    """PURA. La neurona que tiene el arriendo de dirección, para decirlo tal cual."""
+    a = lider.get("arriendo") if isinstance(lider, dict) else None
+    return str((a or {}).get("dueno") or "").strip() or "otra neurona"
+
+
+def _soy_lider():
+    """El arriendo de dirección (IND1029B). Sin puerta, sin red o sin el módulo: líder en local."""
+    try:
+        import lider_direccion
+        return lider_direccion.soy_lider()
+    except Exception:  # noqa: BLE001 — como hoy: sin puerta se sigue en local
+        return {"soy": True, "motivo": "sin líder de dirección: sigo en local", "arriendo": None}
+
+
 def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=limpiar,
             libre_fn=espacio_libre_gb, avisar_fn=_avisar, dormir=time.sleep, asignar_fn=_asignar,
             buscar_fn=_buscar, traer_fn=_traer_en_fondo, forzar=False, curar_fn=None,
             servicios_fn=_servicios, medidores_fn=_levantar_por_medidores, worktrees_fn=None,
-            reparar_fn=None, explabs_fn=None, relevo_fn=None, a1_fn=None):
+            reparar_fn=None, explabs_fn=None, relevo_fn=None, a1_fn=None, lider_fn=None):
     """Una pasada completa. Devuelve lo que vio y lo que hizo (también queda en ESTADO).
     `forzar` (el botón «Reactivar directores»): todo ya, sin los tiempos mínimos."""
     ahora = ahora if ahora is not None else time.time()
     estado = _leer_json(ESTADO, {}) if ESTADO else {}
     hechos = []
+    # (IND1029C) Si otra neurona dirige, solo se cuida esta máquina: ni nube, ni enjambre, ni A1.
+    lider = (lider_fn or _soy_lider)()
+    dirijo = bool(isinstance(lider, dict) and lider.get("soy"))
+    if not dirijo:
+        hechos.append("espera: dirige %s (solo cuido esta máquina)" % _quien_dirige(lider))
 
     sondas = []
     for i in range(SONDAS):
@@ -842,7 +862,7 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
             hechos.append("no pude limpiar las cachés fuera de la lista blanca: %s: %s" % (type(e).__name__, e))
 
     # Trabajadores parados con trabajo que se puede desatascar: se llenan solos.
-    if any(sondas):
+    if any(sondas) and dirijo:
         try:
             decision, aplicar = asignar_fn()
             llenar, porque_ll = decidir_llenado(decision, ahora,
@@ -856,7 +876,7 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
             hechos.append("no pude llenar los huecos: %s: %s" % (type(e).__name__, e))
 
     # Más capacidad fuera de la Mac (la nube), como el botón de Genesis, cada 30 min.
-    if any(sondas):
+    if any(sondas) and dirijo:
         toca, _porque_b = decidir_busqueda(ahora, None if forzar else estado.get("ultima_busqueda"))
         if toca:
             estado["ultima_busqueda"] = ahora
@@ -868,7 +888,7 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
                 hechos.append("no pude buscar capacidad: %s: %s" % (type(e).__name__, e))
 
     # Traer a main lo que hizo la nube y reparar lo que dejó a medias (en segundo plano).
-    if any(sondas):
+    if any(sondas) and dirijo:
         toca, _porque_t = decidir_busqueda(ahora, None if forzar else estado.get("ultimo_traer"),
                                            TRAER_MINIMO_S)
         if toca:
@@ -902,13 +922,14 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
         hechos.append("no pude leer los medidores de crédito: %s: %s" % (type(e).__name__, e))
 
     # Enjambre atascado esperando proveedores que ya volvieron (punto 6).
-    try:
-        linea = (curar_fn(estado, ahora, forzar) if curar_fn
-                 else curar_enjambre(estado, ahora, forzar, medidores_fn=_aptos_medidores))
-        if linea:
-            hechos.append(linea)
-    except Exception as e:
-        hechos.append("no pude revisar el enjambre: %s: %s" % (type(e).__name__, e))
+    if dirijo:
+        try:
+            linea = (curar_fn(estado, ahora, forzar) if curar_fn
+                     else curar_enjambre(estado, ahora, forzar, medidores_fn=_aptos_medidores))
+            if linea:
+                hechos.append(linea)
+        except Exception as e:
+            hechos.append("no pude revisar el enjambre: %s: %s" % (type(e).__name__, e))
 
     # 7 · Medidores en rojo (2026-10-23). Alex: «debería funcionar automáticamente por la
     # supervisión de los directores… actualmente no se repara solo». La comprobación de cada
@@ -917,7 +938,7 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
     # cada medidor y repara lo que tenga reparación conocida (el mismo camino que el botón
     # «Reparar» de Genesis), con su propio cerrojo y sus tiempos mínimos por medidor.
     rep_fn = reparar_fn or (_reparar_medidores_en_fondo if limpiar_fn is limpiar else None)
-    if rep_fn and any(sondas) and (forzar or ahora - float(estado.get("ultima_reparacion_medidores") or 0)
+    if rep_fn and dirijo and any(sondas) and (forzar or ahora - float(estado.get("ultima_reparacion_medidores") or 0)
                                    >= REPARAR_MEDIDORES_MINIMO_S):
         estado["ultima_reparacion_medidores"] = ahora
         try:
@@ -940,7 +961,7 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
     # reparte a sus agentes queda anotado en el carril; si Claude calla o se agota su límite, aquí (cero créditos)
     # pasa a una cola de MetaGenesis que el enjambre gratuito toma solo. Cada pasada; no hace nada si no toca.
     rel_fn = relevo_fn or (_relevo_claude if limpiar_fn is limpiar else None)
-    if rel_fn:
+    if rel_fn and dirijo:
         try:
             r = rel_fn() or {}
             if r.get("relevado"):
@@ -957,7 +978,7 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
     # día: ~6,6 h colgado (Oracle «RUNNING», SSH sin saludo) sin que nadie lo viera. `a1_autocuracion.py` lo sondea,
     # reinicia sus servicios caídos y, si la máquina está colgada o parada, la reinicia o la arranca por Oracle.
     a1 = a1_fn or (_a1_en_fondo if limpiar_fn is limpiar else None)
-    if a1:
+    if a1 and dirijo:
         try:
             a1()
         except Exception as e:

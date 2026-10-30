@@ -66,6 +66,12 @@ def encendido(datos):
     return isinstance(datos, dict) and datos.get("activo") is True
 
 
+def quien_dirige(lider):
+    """PURA. La neurona que tiene el arriendo de dirección, para decirlo tal cual."""
+    a = lider.get("arriendo") if isinstance(lider, dict) else None
+    return str((a or {}).get("dueno") or "").strip() or "otra neurona"
+
+
 # Lo idempotente y lo que solo NOMBRA un borrado no borra nada: recrear una política o un trigger
 # (`drop … if exists` + `create`), `on delete cascade` de una clave foránea, `for delete` de una
 # política, `grant … delete` o el evento de un trigger. Sin esto, TODAS nuestras migraciones (estilo os_canales) parecían
@@ -232,6 +238,14 @@ class Medios(object):
         # El botón «Pausar» de la tarjeta Producción también frena la autopublicación.
         pausada = (_leer(os.path.expanduser("~/.starseed/produccion-pausada.json"), {}) or {}).get("pausada") is True
         return encendido(_leer(INTERRUPTOR, {})) and not pausada
+
+    def soy_lider(self):
+        """El arriendo de dirección (IND1029B). Sin puerta, sin red o sin el módulo: líder en local."""
+        try:
+            import lider_direccion
+            return lider_direccion.soy_lider()
+        except Exception:  # noqa: BLE001 — como hoy: sin puerta se sigue en local
+            return {"soy": True, "motivo": "sin líder de dirección: sigo en local", "arriendo": None}
 
     def vetos_externos(self):
         """Vetos de Genesis o de otros directores (`~/.starseed/produccion/vetos.json`, por sha)."""
@@ -504,6 +518,11 @@ def pasada(m, est, ahora):
         return con_fase(est, "apagado", "Autopublicación apagada (Genesis · Ajustes).", ahora)
     if m.publicando_a_mano():
         return con_fase(est, "esperando", "Hay una publicación manual en curso; espero a que termine.", ahora)
+    # (IND1029C) Solo publica y sube candidatos el líder de dirección; las demás neuronas miran.
+    lf = getattr(m, "soy_lider", None)
+    lider = lf() if callable(lf) else {"soy": True}
+    if not (isinstance(lider, dict) and lider.get("soy")):
+        return con_fase(est, "esperando", "espera: dirige %s." % quien_dirige(lider), ahora)
     m.git(["fetch", "-q", "origin", "main"], timeout=120)
     if est.get("fase") == "ci":
         return _seguir_ci(m, est, ahora)
