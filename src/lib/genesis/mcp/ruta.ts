@@ -22,6 +22,7 @@ export const CAPACIDAD_POR_PERMISO: Record<PermisoMcp, CapacidadAmbito> = {
   "biblioteca:buscar": "ver-detalle",
   "opciones:sugerir": "ver-resumen",
   "chat:enviar": "chatear",
+  "variaciones:buscar": "ver-resumen",
 };
 
 /** Sesión que la ruta HTTP ya resolvió con Supabase. */
