@@ -6,6 +6,7 @@ import {
     type Preferencias,
     type Tarea,
 } from "../escalera";
+import { aplicarEscalera } from "../aplicar-escalera";
 
 function opcion(overrides: Partial<OpcionCatalogo> = {}): OpcionCatalogo {
     return {
@@ -64,5 +65,29 @@ describe("elegirCandidatos · casos rescatados de la rama nube", () => {
         });
         expect(candidatos.find((c) => c.candidatoId === "llm7")).toBeUndefined();
         expect(candidatos.map((c) => c.candidatoId)).toEqual(["astraura-158-local"]);
+    });
+});
+
+describe("aplicarEscalera · adaptador puro a enrutador", () => {
+    it("la candidata local del peldaño 1 queda primera", () => {
+        const candidatos = [
+            { candidatoId: "astraura-158-local", peldano: 1 as const, motivo: "Astraura local disponible" },
+            { candidatoId: "llm7", peldano: 3 as const, motivo: "Disponible en la bolsa de la malla" },
+        ];
+        const resultado = aplicarEscalera(candidatos, "escritor");
+        expect(resultado.candidatos.length).toBe(2);
+        expect(resultado.candidatos[0].source.id).toBe("astraura-158-local");
+        expect(resultado.candidatos[0].score).toBeGreaterThan(resultado.candidatos[1].score);
+        expect(resultado.papel).toBe("escritor");
+    });
+
+    it("una candidata prohibida no aparece", () => {
+        const candidatos = [
+            { candidatoId: "astraura-158-local", peldano: 1 as const, motivo: "Astraura local disponible" },
+            { candidatoId: "llm7", peldano: 3 as const, motivo: "Disponible en la bolsa de la malla" },
+        ];
+        const resultado = aplicarEscalera(candidatos, "revisor", undefined, ["llm7"]);
+        expect(resultado.candidatos.find((c) => c.source.id === "llm7")).toBeUndefined();
+        expect(resultado.candidatos.map((c) => c.source.id)).toEqual(["astraura-158-local"]);
     });
 });
