@@ -11,6 +11,9 @@ import {
   fijarVersion 
 } from "../huellas";
 
+const SHA_ABC = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+const SHA_VACIO = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
 describe("parseSha256Sums", () => {
   it("parsea un SUMS con un solo espacio", () => {
     const texto = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  abc.zip";
@@ -35,6 +38,14 @@ describe("parseSha256Sums", () => {
     const texto = "basura\nba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  abc.zip";
     const mapa = parseSha256Sums(texto);
     expect(mapa.size).toBe(1);
+  });
+
+  it("normaliza a minúsculas la huella en mayúsculas con uno o dos espacios", () => {
+    const texto = `${SHA_ABC.toUpperCase()}  figcraft-web-0.10.0.zip\n${SHA_VACIO} gridcraft-web-0.10.0.zip`;
+    const mapa = parseSha256Sums(texto);
+    expect(mapa.size).toBe(2);
+    expect(mapa.get("figcraft-web-0.10.0.zip")).toBe(SHA_ABC);
+    expect(mapa.get("gridcraft-web-0.10.0.zip")).toBe(SHA_VACIO);
   });
 });
 
@@ -92,6 +103,11 @@ describe("esActivoPermitido", () => {
   it("rechaza nombre con barra", () => {
     expect(esActivoPermitido("some/path.zip")).toBe(false);
   });
+
+  it("rechaza el nombre vacío y los ajenos a las tres apps", () => {
+    expect(esActivoPermitido("")).toBe(false);
+    expect(esActivoPermitido("OtraCosa.zip")).toBe(false);
+  });
 });
 
 describe("sha256Hex", () => {
@@ -142,6 +158,18 @@ describe("verificarActivo", () => {
     expect(result.ok).toBe(false);
     expect(result.motivo).toContain("nombre no permitido");
   });
+
+  it("la huella distinta no filtra el hash completo", async () => {
+    const bytes = new TextEncoder().encode("abc");
+    const publicada = "0".repeat(64);
+    const sumas = new Map<string, string>([["figcraft-web-1.0.0.zip", publicada]]);
+    const result = await verificarActivo("figcraft-web-1.0.0.zip", bytes, sumas);
+    expect(result.ok).toBe(false);
+    expect(result.motivo).toContain("huella distinta");
+    expect(result.motivo).toContain("ba7816bf");
+    expect(result.motivo).not.toContain(SHA_ABC);
+    expect(result.motivo).not.toContain(publicada);
+  });
 });
 
 describe("fijarVersion", () => {
@@ -153,6 +181,13 @@ describe("fijarVersion", () => {
     expect(result?.version).toBe("0.10.0");
     expect(result?.activo).toBe("figcraft-web-0.10.0.zip");
     expect(result?.sha256).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  });
+
+  it("encuentra el activo web aunque la versión venga con «v»", () => {
+    const sumas = new Map<string, string>([["deckcraft-web-0.10.0.zip", SHA_ABC]]);
+    const result = fijarVersion("deckcraft", "v0.10.0", sumas);
+    expect(result?.activo).toBe("deckcraft-web-0.10.0.zip");
+    expect(result?.sha256).toBe(SHA_ABC);
   });
 
   it("devuelve null cuando la versión no está", () => {
