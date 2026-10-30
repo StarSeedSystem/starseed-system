@@ -39,17 +39,17 @@ export interface MallaSplat {
 export function urlSplatSegura(url: string | URL): boolean {
     if (typeof url === "string") {
         if (!url) return false;
-        if (!url.startsWith("https://")) return false;
-        if (url.includes(":")) return false; // descarta usuario:password@host
         try {
-            new URL(url);
+            const parsed = new URL(url);
+            if (parsed.protocol !== "https:") return false;
+            if (parsed.username) return false; // descarta usuario:password@host
+            return true;
         } catch {
             return false;
         }
-        return true;
     }
     if (url instanceof URL) {
-        return url.protocol === "https:" && !url.username && url.pathname.includes(".spz");
+        return url.protocol === "https:" && !url.username;
     }
     return false;
 }
@@ -79,26 +79,37 @@ export async function cargarSplat(
         nivel?: NivelCalidad;
     } = {},
 ): Promise<{ ok: boolean; motivo?: string }> {
-    const { bytes, SplatMesh, nivel } = opciones;
-
     // Validar URL
     if (!urlSplatSegura(url)) {
         return { ok: false, motivo: "URL debe ser https segura" };
     }
 
-    // Validar nivel y presupuesto
-    const nivelCalibrado = nivel ? nivel : "minima";
-    if (!puedeUsarSplat(nivelCalibrado)) {
-        return { ok: false, motivo: `Nivel ${nivelCalibrado} no admitido` };
-    }
-    const presupuesto = PRESUPUESTO_SPLAT[nivelCalibrado];
-    if (bytes && bytes > presupuesto) {
-        return { ok: false, motivo: `Excede el presupuesto de ${presupuesto} bytes para nivel ${nivelCalibrado}` };
+    const { bytes, SplatMesh, nivel } = opciones;
+
+    // Determinar el nivel y presupuesto a usar
+    let presupuesto: number | undefined;
+    let maxSplatsParaOpciones: number | undefined;
+
+    if (nivel) {
+        if (!puedeUsarSplat(nivel)) {
+            return { ok: false, motivo: `Nivel ${nivel} no admitido` };
+        }
+        presupuesto = PRESUPUESTO_SPLAT[nivel];
+        maxSplatsParaOpciones = presupuesto;
+    } else {
+        // Sin nivel: límite duro contra máxima
+        if (bytes && bytes > PRESUPUESTO_SPLAT.maxima) {
+            return { ok: false, motivo: `Excede el límite de ${PRESUPUESTO_SPLAT.maxima} bytes` };
+        }
     }
 
     // Intentar instanciar la malla
     try {
-        const malla = new SplatMesh({ url, maxSplats: presupuesto } as SplatMeshOptions);
+        const opcionesMalla: SplatMeshOptions = { url: String(url) };
+        if (maxSplatsParaOpciones !== undefined) {
+            opcionesMalla.maxSplats = maxSplatsParaOpciones;
+        }
+        const malla = new SplatMesh(opcionesMalla);
         if (typeof malla.initialized !== "undefined" && malla.initialized instanceof Promise) {
             await malla.initialized;
         }
