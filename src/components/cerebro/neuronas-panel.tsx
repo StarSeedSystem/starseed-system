@@ -64,6 +64,7 @@ import { sendAccountBroadcast } from "@/lib/sync/realtime-sync";
 import { deviceId as syncDeviceId } from "@/lib/sync/entity-state";
 import { saveServer, linkServer } from "@/lib/brains/servers";
 import { ConnectivityConfigPanel } from "@/components/connectivity/connectivity-config-panel";
+import InsomneFicha from "@/components/cerebro/insomne-ficha";
 import { normalizeConnectivityConfig } from "@/ai/astraura/mesh";
 import {
    Monitor,
@@ -595,6 +596,9 @@ function NeuronCard({
           </div>
         </div>
       )}
+
+      {/* ── Siempre disponible (pantalla cerrada) · neurona insomne (INS1027D) ── */}
+      <InsomneFicha neurona={n} />
 
       {/* ── Ajustes por neurona ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
