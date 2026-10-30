@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "LNN1028D2",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "Memorias · escribir en una cápsula también pone el texto en su índice LEANN",
+   "archivos": [
+    "src/lib/memorias/leann-cliente.ts",
+    "src/app/api/memorias/capsulas/route.ts",
+    "src/lib/memorias/__tests__/leann-cliente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\n`leann-cliente.ts` SOLO servidor (lee el token con `node:fs`; URL `STARSEED_LEANN_URL`, por defecto `http://127.0.0.1:4495`): `buscarLeann(indice, consulta, {k, filtros, pesoVector})` y `ponerLeann(indice, textos)`, 1,5 s de tope, `null` sin servidor. Nombre del índice = el de la cápsula sin parte ni extensión (`<tipo>-<id>-<alcance>`). En la ruta de cápsulas, tras un `poner` correcto en Memvid, `ponerLeann` con `metadatos {alcance, sujeto, uri, ts}`; si falla, nada se rompe (y lo dice en la respuesta como `leann: \"pendiente\"`). Pruebas con `fetch` falso.",
+   "dependencias_ya_en_main": [
+    "MVD1027D",
+    "LNN1028B"
+   ]
+  }
+ ]
+}
