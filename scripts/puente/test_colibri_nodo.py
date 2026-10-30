@@ -7,6 +7,9 @@ no; la Mac (8 GB con presión) no deja a ninguno. Sin red, sin descargas, sin to
 CLB1028H añade el plan que ya sirve con el despliegue hecho: no se vuelve a clonar, el `hf` va
 en su venv propio (PEP 668) y los pesos no se vuelven a bajar si ya están.
 """
+import contextlib
+import io
+import json
 import os
 import sys
 import unittest
@@ -71,6 +74,42 @@ class PruebaCaben(unittest.TestCase):
         filas = {f["id"]: f for f in C.caben(self.entradas, 60, 100, margen_gb=0)}
         self.assertEqual(filas["colibri-deepseek-v4-flash-reap"]["veredicto"], "cabe")
         self.assertEqual(filas["colibri-clef"]["veredicto"], "cabe")
+
+    def test_sin_presion_manda_la_ram_minima(self):
+        """(Rama nube, adaptado) Con disco de sobra (500 GB) compite la RAM mínima: Clef se
+        queda fuera por sus 19 GB de RAM mínima con 18 GB de medio, y Laya sigue cabiendo."""
+        filas = {f["id"]: f for f in C.caben(self.entradas, 18, 500)}
+        self.assertEqual(filas["colibri-clef"]["veredicto"], "no cabe")
+        self.assertIn("RAM insuficiente", filas["colibri-clef"]["porque"])
+        self.assertEqual(filas["colibri-laya"]["veredicto"], "cabe")
+
+    def test_streaming_cuando_hay_disco_pero_falta_ram_recomendada(self):
+        """(Rama nube, adaptado) GLM-5.2 pide 24 GB recomendados: con 20 GB y disco de sobra
+        (900 GB) cabe LEYENDO los expertos del disco, no con menos de la RAM mínima."""
+        filas = {f["id"]: f for f in C.caben(self.entradas, 20, 900)}
+        glm = filas["colibri-glm-5.2"]
+        self.assertEqual(glm["veredicto"], "cabe en streaming (disco rápido)")
+        self.assertIn("disco", glm["porque"])
+
+    def test_usa_la_descarga_si_es_mayor_que_el_modelo(self):
+        """(Rama nube, adaptado) OLMoE ocupa 7 GB en disco pero PESA 14 GB al descargar
+        (int8 tras convertir): si el disco libre queda por debajo de la descarga, el porqué
+        avisa de los 14 GB temporales aunque el modelo convertido cabría."""
+        olmoe = next(e for e in self.entradas if e["id"] == "colibri-olmoe-7b")
+        self.assertGreater(olmoe["descarga_gb"], olmoe["disco_gb"])
+        filas = {f["id"]: f for f in C.caben(self.entradas, 60, 5)}
+        self.assertEqual(filas["colibri-olmoe-7b"]["veredicto"], "no cabe")
+        self.assertIn("14", filas["colibri-olmoe-7b"]["porque"])
+
+    def test_no_muta_las_entradas_y_da_id_veredicto_porque(self):
+        """(Rama nube, adaptado) `caben` es puro: no toca las entradas y cada fila lleva su
+        id, su capa, su veredicto y su porqué — nada más."""
+        antes = json.loads(json.dumps(self.entradas))
+        filas = C.caben(self.entradas, 12, 18.5)
+        self.assertEqual(self.entradas, antes)
+        for fila in filas:
+            self.assertEqual(set(fila), {"id", "capa", "veredicto", "porque"})
+            self.assertIn(fila["veredicto"], {"cabe", "cabe en streaming (disco rápido)", "no cabe"})
 
 
 class PruebaPlan(unittest.TestCase):
@@ -197,6 +236,20 @@ class PruebaPlan(unittest.TestCase):
     def test_id_desconocido(self):
         with self.assertRaises(ValueError):
             C.plan_instalacion("colibri-no-existe", "/srv")
+
+    def test_main_plan_imprime_y_no_ejecuta(self):
+        """(Rama nube, adaptado) El CLI `--plan` imprime los planes de lo que cabe — con la
+        máquina medida aquí (12 GB, 18,5 GB libres) — y AVISA de que nada se descarga ni se
+        ejecuta; ningún plan deja nada sirviendo al 127.0.0.1 (lo hace la unidad)."""
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida), \
+                unittest.mock.patch.object(C, "medir_maquina",
+                                           return_value=(12, 18.5, False)):
+            self.assertEqual(C.main(["--plan"]), 0)
+        texto = salida.getvalue()
+        self.assertIn("Plan de instalación de colibri-laya", texto)
+        self.assertIn("Plan de instalación de colibri-gliner-decide", texto)
+        self.assertIn("Nada de esto se descarga ni se ejecuta", texto)
 
 
 if __name__ == "__main__":
