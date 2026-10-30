@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { VentanaVariaciones, type DatosVentanaVariaciones, type VariacionVentana } from "../ventana-variaciones";
 import type { PestanaVariaciones } from "../variaciones-bus";
+import { SANDBOX_CODIGO } from "@/lib/variaciones/validar";
 import { AppearanceProvider } from "@/context/appearance-context";
 import type { ReactElement } from "react";
 
@@ -97,5 +98,32 @@ describe("VentanaVariaciones", () => {
     expect(enlaces[0].getAttribute("href")).toBe("https://github.com/a/b");
     expect(enlaces[0].getAttribute("rel")).toBe("noopener noreferrer");
     expect(screen.getByText("Repo inseguro")).toBeTruthy();
+  });
+
+  it("pasa el payload a la tarjeta: vista previa, Biblioteca y Compartir", () => {
+    renderWithProvider(<VentanaVariaciones clave="widget:clima" datos={datos({ variaciones: [v("1", "Cristal", { payload: { brillo: 2 } })] })} />);
+    expect(screen.getByLabelText("Vista previa de la variación").textContent).toContain("brillo");
+    expect(screen.getByRole("button", { name: /guardar en la biblioteca/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /compartir/i })).toBeTruthy();
+  });
+
+  it("una variación de código desde la ventana confirma y solo se abre aislada", () => {
+    const codigo = v("2", "Script", { payload: { html: "<p>hola</p>" }, codigo: true });
+    renderWithProvider(<VentanaVariaciones clave="widget:clima" datos={datos({ variaciones: [codigo] })} />);
+    fireEvent.click(screen.getByRole("button", { name: /probar/i }));
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /abrir aislada/i }));
+    const marco = screen.getByTitle(/vista aislada/i);
+    expect(marco.getAttribute("sandbox")).toBe(SANDBOX_CODIGO);
+    expect(marco.getAttribute("srcdoc")).toContain("<p>hola</p>");
+  });
+
+  it("la valoración y «Ver origen» de la tarjeta llegan a quien monta la ventana", () => {
+    const onValorar = vi.fn(), onVerOrigen = vi.fn();
+    renderWithProvider(<VentanaVariaciones clave="widget:clima" datos={datos({ variaciones: [v("1", "Cristal", { deVariacion: "abc" })] })} onValorar={onValorar} onVerOrigen={onVerOrigen} />);
+    fireEvent.click(screen.getByRole("button", { name: "Valorar con 4 estrellas" }));
+    expect(onValorar).toHaveBeenCalledWith("1", 4);
+    fireEvent.click(screen.getByRole("button", { name: /ver origen/i }));
+    expect(onVerOrigen).toHaveBeenCalledWith("1");
   });
 });

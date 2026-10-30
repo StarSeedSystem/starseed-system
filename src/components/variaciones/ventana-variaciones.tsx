@@ -13,6 +13,8 @@ export interface FiltrosVentana { buscar?: string; licencia?: string; tema?: str
 export interface VentanaVariacionesProps {
   clave: string; datos: DatosVentanaVariaciones; nombre?: string;
   pestanaInicial?: PestanaVariaciones; busquedaInicial?: string;
+  /** Se inyectan desde fuera (la ventana no habla con Supabase): valorar y ver el origen de una variación. */
+  onValorar?: (id: string, valor: number) => void; onVerOrigen?: (id: string) => void;
 }
 const NOMBRES: Record<PestanaVariaciones, string> = { variaciones: "Variaciones", notas: "Notas", repos: "Repos externos", fuentes: "Fuentes y versiones" };
 const VACIOS: Record<PestanaVariaciones, string> = {
@@ -29,7 +31,7 @@ export function filtrarVariaciones(lista: readonly VariacionVentana[], f: Filtro
 }
 const enlaceSeguro = (url?: string): string | null => (url && /^https:\/\/\S+$/.test(url) ? url : null);
 const familiaDe = (clave: string): string => clave.split(":")[0] ?? "";
-export function VentanaVariaciones({ clave, datos, nombre, pestanaInicial = "variaciones", busquedaInicial = "" }: VentanaVariacionesProps) {
+export function VentanaVariaciones({ clave, datos, nombre, pestanaInicial = "variaciones", busquedaInicial = "", onValorar, onVerOrigen }: VentanaVariacionesProps) {
   const [pestana, setPestana] = useState<PestanaVariaciones>(pestanaInicial);
   const [buscar, setBuscar] = useState(busquedaInicial);
   const [orden, setOrden] = useState<SortMode>("aurora");
@@ -97,6 +99,8 @@ export function VentanaVariaciones({ clave, datos, nombre, pestanaInicial = "var
               <TarjetaVariacion
                 key={v.id}
                 clave={clave}
+                onValorar={onValorar}
+                onVerOrigen={onVerOrigen}
                 biblioteca={v.payload === undefined ? null : itemBibliotecaDeVariacion(clave, v)}
                 variacion={{
                   id: v.id,
