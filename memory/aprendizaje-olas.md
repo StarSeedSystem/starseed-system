@@ -4662,3 +4662,22 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-30 20:30 · mg-oracle-1030-1233
+
+**Lo que se pidió.** Rescate de pruebas · Canal de señalización de llamadas sobre un enlace local · objeción del revisor
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (RTRTS1010-TU-LL1cobjbbb-d2, RTRTCOL1012Bdsbbbbbbbbbbcb-d3, RTAV1011Dc, PUB1029D). Es 67 % de la ola.
+- 2 tareas se fueron por lo mismo — no escribió nada (RTRTRTRTCOL1012Bdsbbbbbbbbbbbbb-d1, RTMGP1011-1ECCC4dobjbbbbbbbb-d2). Es 33 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTS1010-TU-LL1cobjbbb-d2` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTRTRTRTCOL1012Bdsbbbbbbbbbbbbb-d1` — no escribió nada
+- `RTRTCOL1012Bdsbbbbbbbbbbcb-d3` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTMGP1011-1ECCC4dobjbbbbbbbb-d2` — no escribió nada
+- `RTAV1011Dc` — otra cosa: ningún proveedor respondió (todos caídos)
+- `PUB1029D` — otra cosa: ningún proveedor respondió (todos caídos)
