@@ -52,7 +52,9 @@ import {
     BATERIA_MINIMA,
     MINUTOS_AVISO_FIN,
     POLITICA_INSOMNE_DEFECTO,
+    type EstadoInsomne,
 } from "@/lib/neurons/insomne";
+import { FICHA_INSOMNIA_URL, lineaEstadoInsomne } from "@/lib/neurons/insomne-linea";
 import { resumenOracle } from "@/lib/mando/oracle-tipos";
 import OracleConsumoResumen from "./oracle-consumo-resumen";
 
@@ -183,6 +185,55 @@ function SeccionInsomne({ insomne }: { insomne?: InsomneServidor }) {
     );
 }
 
+/**
+ * Línea del estado insomne de ESTA neurona (INS1027G), junto a «Mantener
+ * encendida»: la lee `GET /api/neuronas/insomne` (solo lectura, como el resto
+ * de /api/mando), cada 15 s. SOLO LEE: el interruptor de `caffeinate` no se
+ * toca y las sesiones las empieza la persona en Insomnia. Si la ruta no está
+ * (404 en producción) o falta Insomnia, la línea enlaza a la ficha del
+ * proyecto, nunca finge que la pantalla cerrada aguanta.
+ */
+function LineaInsomne() {
+    const [estado, setEstado] = useState<EstadoInsomne | null>(null);
+
+    useEffect(() => {
+        let vivo = true;
+        const cargar = async () => {
+            try {
+                const r = await fetch("/api/neuronas/insomne", { cache: "no-store" });
+                if (!vivo) return;
+                setEstado(r.ok ? ((await r.json()) as EstadoInsomne) : null);
+            } catch {
+                if (vivo) setEstado(null);
+            }
+        };
+        void cargar();
+        const cada = window.setInterval(() => void cargar(), 15_000);
+        return () => {
+            vivo = false;
+            window.clearInterval(cada);
+        };
+    }, []);
+
+    if (!estado) return null;
+    const linea = lineaEstadoInsomne(estado);
+    return (
+        <p className="flex flex-wrap items-center gap-1 text-xs text-white/60">
+            <span>Siempre disponible: {linea.texto}.</span>
+            {linea.ficha && (
+                <a
+                    href={FICHA_INSOMNIA_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex cursor-pointer items-center gap-1 text-sky-300 underline-offset-2 hover:underline"
+                >
+                    Ver la ficha de Insomnia <ExternalLink className="h-3 w-3" aria-hidden />
+                </a>
+            )}
+        </p>
+    );
+}
+
 function SeccionEnergia({ estado, alCambiar }: { estado: EstadoServidorAstraura; alCambiar: () => void }) {
     const energia = estado.energia;
     const [cambiando, setCambiando] = useState(false);
@@ -272,6 +323,8 @@ function SeccionEnergia({ estado, alCambiar }: { estado: EstadoServidorAstraura;
                     className="mt-0.5 shrink-0"
                 />
             </div>
+
+            <LineaInsomne />
 
             <div className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-white/70 sm:grid-cols-2">
                 <p>{estadoTexto}</p>
