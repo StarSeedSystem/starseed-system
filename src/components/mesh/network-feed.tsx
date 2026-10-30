@@ -14,6 +14,7 @@ import Link from "next/link";
 import { Radio, Trash2, Inbox, FileText, MessageSquare, Signal, ShieldAlert, ShieldCheck, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNetworkInbox, clearNetworkInbox } from "@/ai/astraura/mesh";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 
 const TYPE_META: Record<string, { label: string; icon: typeof FileText; cls: string }> = {
   post: { label: "Publicación", icon: FileText, cls: "text-emerald-300 bg-emerald-500/15" },
@@ -105,13 +106,16 @@ export function NetworkFeed({ embedded = false }: { embedded?: boolean }) {
       </div>
 
       {items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-12 text-center">
+        <div className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-12 text-center">
           <Inbox className="h-8 w-8 text-white/25" />
           <p className="text-[13px] font-medium text-white/70">Aún no ha llegado nada</p>
-          <p className="max-w-md text-[11px] leading-snug text-white/45">
-            Cuando otra neurona de la red publique o te envíe algo, aparecerá aquí. Inicia sesión y ten el
-            internet público encendido en Señales para participar en el feed.
-          </p>
+          <div className="mt-1 w-full max-w-md">
+            <AvisoSesion
+              compacto
+              texto="Inicia sesión y ten el internet público encendido en Señales para participar en el feed."
+              detalle="Cuando otra neurona de la red publique o te envíe algo, aparecerá aquí."
+            />
+          </div>
         </div>
       ) : (
         <div className="space-y-2">
