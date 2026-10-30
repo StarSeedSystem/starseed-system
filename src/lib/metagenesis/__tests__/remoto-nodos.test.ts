@@ -228,7 +228,10 @@ describe("textoEstadoOrden", () => {
             nada: "no hacía falta",
             rechazada: "rechazada",
             fallo: "falló",
+<<<<<<< HEAD
             caducada: "nadie la recogió a tiempo",
+=======
+>>>>>>> 88d5fb5c4 (salvavidas · RTRTRTCOL1012Bdsbbbbbbbbbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
         };
         Object.entries(estados).forEach(([estado, esperado]) => {
             expect(textoEstadoOrden(estado)).toBe(esperado);
