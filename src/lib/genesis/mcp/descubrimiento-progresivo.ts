@@ -163,10 +163,12 @@ export function envolverProgresivo(
   herramientas: HerramientaMcp[],
   opciones: OpcionesProgresivo = {},
 ): HerramientaMcp[] {
-  const permitida = opciones.permitida ?? (() => true);
-  const visibles = herramientas.filter((h) => permitida(h));
+  const permitida = opciones.permitida;
+  const visibles = permitida ? herramientas.filter((h) => permitida(h)) : herramientas;
   const umbral = Number.isFinite(opciones.umbral) ? (opciones.umbral as number) : UMBRAL_PROGRESIVO;
-  if (visibles.length <= umbral) return visibles;
+  if (visibles.length <= umbral) {
+    return visibles.length === herramientas.length ? herramientas : visibles;
+  }
 
   const perfil = PERFILES_MEDIO[opciones.medio ?? "modelo-mediano"];
   const indice = crearIndiceBm25(
