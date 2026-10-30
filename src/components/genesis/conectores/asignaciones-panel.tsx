@@ -6,7 +6,7 @@
  * exportan para probarlas sin red, sin disco y sin reloj; los textos van en español con acentos. */
 
 import { useState } from "react";
-import { GripVertical, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
+import { GripVertical, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { Director } from "@/lib/genesis/conectores/asignaciones";
 import type { OpcionCatalogo, Papel } from "@/lib/genesis/conectores/catalogo-opciones";
 
@@ -55,10 +55,11 @@ export function motivoDe(opcion: OpcionCatalogo): string {
     local: "Corre en esta cuenta: nada sale del aparato.",
     malla: "Modelo de la malla: solo si no cabe en local.",
     contenedor: "Contenedor para los procesos del agente.",
-    gratis: "Gratis con la cuenta vinculada del ámbito.",
+    gratis: "Gratis con la cuenta del ámbito o vinculándola en el enlace oficial.",
     pago: "De pago: solo con el permiso y el tope del ámbito.",
   };
-  return `${base[peldanoDe(opcion)]} ${opcion.gratis?.nota ? `Límite: ${opcion.gratis.nota}.` : "Límite no verificado."}`;
+  const nota = opcion.gratis?.nota ? `Límite según catálogo: ${opcion.gratis.nota}${opcion.verificado ? "" : " (sin verificar)"}.` : "Límite no verificado.";
+  return `${base[peldanoDe(opcion)]} ${nota}`;
 }
 
 export function entradasDeFila(fila: FilaPanel, catalogo: readonly OpcionCatalogo[]): EntradaFila[] {
@@ -111,8 +112,8 @@ export function etiquetaFila(fila: FilaPanel): string {
   return `${fila.tipo === "papel" ? "Papel" : "Director"} · ${NOMBRES[fila.clave] ?? fila.clave}`;
 }
 
-const BOTON = "cursor-pointer rounded-lg border border-white/15 p-1.5 text-white/60 transition-colors duration-150 hover:text-white disabled:cursor-not-allowed disabled:opacity-40";
-const ACCION = "inline-flex cursor-pointer items-center gap-1 rounded-full border border-white/15 px-3 py-1.5 text-[11px] text-white/75 transition-colors duration-150 hover:border-emerald-300/50 hover:text-white disabled:cursor-not-allowed disabled:opacity-40";
+const BOTON = "min-h-11 min-w-11 cursor-pointer rounded-lg border border-white/15 p-1.5 text-white/60 transition-colors duration-150 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-9 sm:min-w-9";
+const ACCION = "min-h-11 cursor-pointer rounded-full border border-white/15 px-3 py-1.5 text-[11px] text-white/75 transition-colors duration-150 hover:border-emerald-300/50 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-9 inline-flex items-center gap-1";
 
 export function AsignacionesPanel({ catalogo, modo = "aplicar", filasIniciales, onGuardar }: PropsPanel) {
   const [filas, setFilas] = useState<FilaPanel[]>(() => (filasIniciales ? filasIniciales.map((f) => ({ ...f, cadena: [...f.cadena] })) : filasSugeridas(catalogo)));
@@ -153,7 +154,7 @@ export function AsignacionesPanel({ catalogo, modo = "aplicar", filasIniciales, 
             <li key={`${fila.tipo}:${fila.clave}`} className="rounded-xl border border-white/10 bg-black/20 p-3">
               <div className="flex items-center gap-2">
                 <h4 className="min-w-0 flex-1 truncate text-xs font-semibold text-white/80">{etiquetaFila(fila)}</h4>
-                <select aria-label={`Añadir a ${etiquetaFila(fila)}`} className="max-w-[45%] cursor-pointer truncate rounded-lg border border-white/15 bg-black/30 p-1 text-[11px] text-white/75 disabled:cursor-not-allowed disabled:opacity-40" disabled={soloLectura || !opciones.length} value=""
+                <select aria-label={`Añadir a ${etiquetaFila(fila)}`} className="min-h-11 max-w-[45%] cursor-pointer truncate rounded-lg border border-white/15 bg-black/30 p-1 text-[11px] text-white/75 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-9" disabled={soloLectura || !opciones.length} value=""
                   onChange={(e) => { if (e.target.value) cambiar(i, (f) => ({ ...f, cadena: agregarACadena(f.cadena, e.target.value) })); }}>
                   <option value="">{opciones.length ? "Añadir del catálogo…" : "Sin opciones"}</option>
                   {opciones.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}

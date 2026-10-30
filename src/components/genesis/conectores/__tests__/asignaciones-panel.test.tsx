@@ -11,6 +11,20 @@ import {
   type Preferencias,
   type Tarea,
 } from "@/lib/genesis/conectores/escalera";
+import {
+  DIRECTORES,
+  PAPELES,
+  accionGuardar,
+  agregarACadena,
+  disponiblesParaFila,
+  entradasDeFila,
+  etiquetaFila,
+  filasSugeridas,
+  moverEnCadena,
+  peldanoDe,
+  quitarDeCadena,
+  type FilaPanel,
+} from "../asignaciones-panel";
 
 const GRATIS = {
   rpm: 10,
@@ -66,5 +80,57 @@ describe("elegirCandidatos · peldaño de cada opción", () => {
     expect(peldano["pago"]).toBe(6);
     expect(peldano["malla"]).toBe(3);
     expect(peldano["contenedor"]).toBe(4);
+  });
+});
+
+describe("AsignacionesPanel · filas por papel y director", () => {
+  it("deduce el peldaño y no inventa límites gratis", () => {
+    expect(peldanoDe(opcion({ id: "local" }))).toBe("local");
+    expect(peldanoDe(opcion({ id: "cont", tipo: "contenedor", privacidad: "nube-sin-retencion" }))).toBe("contenedor");
+    expect(peldanoDe(opcion({ id: "malla", tipo: "modelo", privacidad: "nube-sin-retencion" }))).toBe("malla");
+    expect(peldanoDe(opcion({ id: "gratis", privacidad: "nube-sin-retencion" }))).toBe("gratis");
+    expect(peldanoDe(opcion({ id: "pago", privacidad: "nube-con-retencion", gratis: null }))).toBe("pago");
+    const sinLimite = opcion({ id: "sin-limite", gratis: { rpm: null, porDia: null, horasMes: null, almacenamientoGb: null, nota: "" } });
+    const entradas = entradasDeFila({ tipo: "papel", clave: "escritor", cadena: ["sin-limite", "falta"] }, [sinLimite]);
+    expect(entradas).toHaveLength(1);
+    expect(entradas[0].peldano).toBe("local");
+    expect(entradas[0].motivo).toContain("Límite no verificado");
+  });
+
+  it("crea una fila por cada papel y cada director, con lo local primero", () => {
+    const catalogo = [
+      opcion({ id: "pago", privacidad: "nube-con-retencion", gratis: null, nombre: "Pago" }),
+      opcion({ id: "local", nombre: "Local" }),
+      opcion({ id: "gratis", privacidad: "nube-sin-retencion", nombre: "Gratis" }),
+    ];
+    const filas = filasSugeridas(catalogo, 2);
+    expect(filas).toHaveLength(PAPELES.length + DIRECTORES.length);
+    expect(filas.filter((f) => f.tipo === "papel")).toHaveLength(7);
+    expect(filas.filter((f) => f.tipo === "director")).toHaveLength(7);
+    expect(filas[0]).toMatchObject({ tipo: "papel", clave: "escritor", cadena: ["local", "gratis"] });
+    expect(etiquetaFila({ tipo: "director", clave: "diseno", cadena: [] })).toBe("Director · Diseño");
+  });
+
+  it("ordena, añade y quita sin mutar la cadena original", () => {
+    const original = ["a", "b", "c"];
+    expect(moverEnCadena(original, 0, 2)).toEqual(["b", "c", "a"]);
+    expect(moverEnCadena(original, -1, 2)).toEqual(["a", "b", "c"]);
+    expect(agregarACadena(original, "d")).toEqual(["a", "b", "c", "d"]);
+    expect(agregarACadena(original, "b")).toEqual(["a", "b", "c"]);
+    expect(quitarDeCadena(original, "b")).toEqual(["a", "c"]);
+    expect(original).toEqual(["a", "b", "c"]);
+  });
+
+  it("solo ofrece opciones del papel y que no estén ya en la cadena", () => {
+    const fila: FilaPanel = { tipo: "papel", clave: "escritor", cadena: ["uno"] };
+    const catalogo = [opcion({ id: "uno" }), opcion({ id: "dos" }), opcion({ id: "revisor", papeles: ["revisor"] })];
+    expect(disponiblesParaFila(fila, catalogo).map((o) => o.id)).toEqual(["dos"]);
+    expect(disponiblesParaFila({ ...fila, tipo: "director" }, catalogo).map((o) => o.id)).toEqual(["dos", "revisor"]);
+  });
+
+  it("en PoliGenesis democrático guardar propone en vez de aplicar", () => {
+    expect(accionGuardar("aplicar")).toBe("aplicar");
+    expect(accionGuardar("proponer")).toBe("proponer");
+    expect(accionGuardar("sin-permiso")).toBe("nada");
   });
 });
