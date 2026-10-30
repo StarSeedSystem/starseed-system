@@ -1,0 +1,100 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "GEN1030B",
+   "titulo": "Reconstructor · sin BUILD_ID es «Genesis caído» y, si la Mac no puede, compila el A1",
+   "archivos": [
+    "scripts/puente/reconstruir_mando.py",
+    "scripts/puente/test_reconstruir_mando.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas; nunca rutas de un worktree (`starseed-wt/…`); nunca imprimas la IP del A1 (usa `oracle_nodo.ssh`, `_ssh_base` y `tachar`).\n\nEl 29-10 Genesis se cayó toda la tarde: `.next` sin BUILD_ID, la build de la Mac de las 18:23 murió a los 814 s y después el freno de swap (6 GB en uso, tope 4) la bloqueó. Hermes lanzó `next build` a mano en `.next` dos veces (las dos murieron) y un visor propio en /tmp en el 9010. El 30-10 Claude compiló en el A1 con `~/.starseed/genesis-a1/construir.py` (Alex autorizó mandar el código al A1 para compilar): léelo, es la base.\n\nEn `reconstruir_mando.py`: si `.next` no tiene un build entero (`build_terminado(dist=.next)` falso), el estado es «caido-sin-build» y el log dice «Genesis está caído: no hay build servido», nunca «la pantalla está al día». En ese caso no se espera a Astraura. Si además el freno de la máquina (swap o enjambre) lo impide, o la build de la Mac falla por memoria, llama a `compilar_en_a1` (todas sus etapas, con sus esperas) en vez de esperar. Funciones de decisión PURAS con pruebas para: sin build + swap alto → A1; con build + swap alto → espera como hoy. Además: el reconstructor de la Mac compila SIN STARSEED_BUILD_LIGERO, con la caché de webpack en disco que serializa todo el grafo en memoria; el 30-10 el A1 murió por OOM con 4096 y con 6144 sin ella. Pon STARSEED_BUILD_LIGERO=1 en el entorno de la build (Mac y A1), como Vercel.",
+   "ola": "1030 · Genesis se compila fuera cuando la Mac no puede",
+   "importancia": "capacidad",
+   "dependencias_ya_en_main": [
+    "GEN1030A"
+   ]
+  },
+  {
+   "id": "LYS1018M",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya · aprende de cada decisión y recalibra su umbral por punto y ámbito",
+   "archivos": [
+    "src/lib/astraura/laya/aprendizaje-laya.ts",
+    "src/lib/astraura/laya/__tests__/aprendizaje-laya.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `anotar(registro, { punto, ambito, p, donde, ms, resultado: \"aceptada\"|\"corregida\"|\"escalada\", privado, estado })` guarda el estado SOLO como huella si es privado; `umbralRecalibrado(registro, punto, ambito)` devuelve el umbral que minimiza correcciones con ≥ 30 casos (si hay menos: el del catálogo); `exportarJSONL` saca los casos no privados en el formato del cuaderno de afinado de Laya. Pruebas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018A"
+   ]
+  },
+  {
+   "id": "AV1011H",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Protomolécula: fichas verificadas de las herramientas de avatares 3D",
+   "archivos": [
+    "src/lib/protomolecula/catalogo-herramientas.ts",
+    "src/lib/protomolecula/__tests__/catalogo-avatares-3d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Añade fichas `HerramientaProto` con ESTOS datos verificados el 2026-10-11 (no inventes nada; lo no comprobado va en `sinComprobar`): unimate (proximamente; código MIT anunciado, inferencia no publicada; pesos en Hugging Face Linzhan/UniMate sin licencia declarada; texto → movimiento para cualquier esqueleto; https://github.com/Friedrich-M/UniMate); image-to-3dlab (integrable, servicio-local, solo macOS Apple Silicon, 32 GB recomendados; salida GLB con PBR + provenance.json; motores Hunyuan3D-MLX [MIT código, pesos Tencent sin licencia en UE, Reino Unido y Corea del Sur], TRELLIS.2 [MIT + DINOv3, comercial condicionado], Stable Fast 3D [Stability Community]); unirig (integrable, MIT, GPU NVIDIA ≥ 8 GB, entrada obj/fbx/glb/vrm, salida fbx/glb; https://github.com/VAST-AI-Research/UniRig); instant-meshes (BSD-3-Clause; https://github.com/wjakob/instant-meshes); smart-remesh (solo-enlace: complemento de Blender 4.2–5.2, GPL, 17 USD, de 3DRedbox Studio; https://superhivemarket.com/products/smart-remesh); three-vrm (MIT, pixiv; https://github.com/pixiv/three-vrm); characterstudio (MIT, M3-org; https://github.com/M3-org/CharacterStudio); filigree3d (proximamente, solo artículo https://arxiv.org/abs/2609.34900); btc3d (proximamente, solo artículo https://arxiv.org/abs/2609.39709); meshy (solo-enlace, servicio: plan gratis 100 créditos/mes con salida CC BY 4.0; https://www.meshy.ai); tripo (solo-enlace, servicio; precios y licencia sin comprobar; https://www.tripo3d.ai); 3daistudio (solo-enlace, https://www.3daistudio.com); hi3d (solo-enlace, https://www.hi3d.ai); hitem3d (solo-enlace, web null y en sinComprobar: el enlace recibido apuntaba a 3daistudio); meta-horizon (solo-enlace, plataforma cerrada de Meta sin API pública ni pesos; https://developers.meta.com/horizon). NUNCA guardes parámetros de afiliado (`?aff=`, `?via=`, `utm_`). Antes de añadir, mira si ya existen (trellis, triposr, hunyuan3d): no dupliques; a hunyuan3d añádele el aviso de región si le falta. Respeta los tipos y categorías existentes y deja en verde las pruebas de la Protomolécula."
+  },
+  {
+   "id": "IMG1011J",
+   "ola": "Ola 1011E · Imágenes locales de Astraura por capas y malla (Qwen-Image, Krea 2, FLUX, SD, PixArt, Sana) con varias opciones en la Protomolécula",
+   "titulo": "Integración, verificación y estado real de las imágenes locales",
+   "archivos": [
+    "src/components/imagenes/index.ts",
+    "architecture/astraura-imagenes.md"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-imagenes.md` (léelo ENTERO; el §1 tiene las licencias y motores VERIFICADOS el 2026-10-11 — no inventes otros datos). Se apoya en `architecture/generacion-audiovisual-astraura.md` y `src/ai/astraura/media/media-gen.ts` (Pollinations como suelo gratis, proveedores por neurona): su regla de oro sigue intacta y NO se duplica nada de lo que ya hace. El núcleo puro YA está escrito y probado (19 pruebas) y NO se modifica: `src/lib/imagenes/{modelos,plan,sugerencias}.ts` (MODELOS_IMAGEN, MOTORES, cabe, planImagen, paqueteBase, motoresPosibles). Para la malla reutiliza lo que hagan G3D1011D (`src/lib/avatares/adaptadores/reparto-taller.ts`) y el registro de neuronas existente; para referencias 3D, G3D1011E. Reglas: «basta de ilusiones» (si algo no corre aquí, se dice por qué); NUNCA descargas automáticas de pesos (los repos pesan de 6 a 100 GB): solo con permiso, solo los archivos necesarios y tras comprobar ≥ 3 veces su tamaño libre; modelos «gated» necesitan que la persona acepte sus términos en Hugging Face y un token suyo en el entorno (explícale qué es y dónde se consigue, con enlace); nada de claves en código ni registros; nada no comercial en uso comercial; con imagen de referencia nada sale de sus neuronas sin permiso; en la Mac de Alex (8 GB) las imágenes ceden ante el enjambre; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto de qué funciona y qué no.\n\nTAREA: Monta la tarjeta y las sugerencias donde la gente las encuentra (chat de Astraura, ajustes de la neurona, Protomolécula). Pasa tsc y vitest de `src/lib/imagenes`, `src/ai/astraura/media`, `src/lib/astraura-bots` y `src/lib/protomolecula`, y pytest de `servicios/imagenes-local` y `scripts/imagenes`; arregla lo que falle. NO ejecutes `next build` en la Mac. Actualiza el §9 del contrato con el estado REAL de cada tarea.",
+   "revisor_quitadas": [
+    "IMG1011C",
+    "IMG1011F"
+   ],
+   "dependencias_ya_en_main": [
+    "IMG1011A",
+    "IMG1011B",
+    "IMG1011D",
+    "IMG1011E",
+    "IMG1011G",
+    "IMG1011H-d3",
+    "IMG1011I"
+   ]
+  },
+  {
+   "id": "RIA1023D",
+   "ola": "1023R",
+   "titulo": "Astraura · registrar el servidor propio de IA como modelo propio cuando la topología es «servidor propio»",
+   "archivos": [
+    "src/lib/recursos-ia/use-recursos-ia.ts",
+    "src/ai/astraura/custom-models.ts",
+    "src/lib/recursos-ia/__tests__/servidor-propio-modelo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): «cada neurona debe poder seleccionar el medio de almacenamiento … y de igual manera para los procesadores; todo debe autodetectarse para sugerir las mejores opciones … verificando que todo sea compatible», con topologías: un servidor-neurona propio que sirva la IA de toda la cuenta por la malla local, la red de StarSeed o antenas; modelos en almacenes externos; fragmentada; comunal. Contrato: `architecture/recursos-ia-neurona.md` (léelo entero, §3 son reglas duras). Módulos: `src/lib/recursos-ia/*`, servidor propio de IA con Hono en `servicios/servidor-ia/` (§7). Nada de claves en el repo; sin token el servidor solo escucha en 127.0.0.1.\n\nCuando la persona elige la topología `servidor-propio` en Recursos de IA, registra (o actualiza) con `addCustomModel`/`updateCustomModel` un modelo propio `access: \"local\"`, `kind: \"llm\"`, `endpoint` = `destinoDeIA(...).baseUrl` (de RIA1023C), `name: \"Servidor propio de IA · <neurona>\"`, marcado con `notes: \"recursos-ia:servidor-propio\"` para reconocerlo; al cambiar a otra topología se quita ese registro (solo el marcado). Si `baseUrl` es null no registres nada. No toques el router: los modelos propios ya entran por su camino. Prueba vitest con localStorage de jsdom.",
+   "dependencias_ya_en_main": [
+    "RIA1023C"
+   ]
+  },
+  {
+   "id": "AV1011B",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Editor del avatar en tiempo real: deslizadores, colores, piezas, voz, Astraura y MIDI",
+   "archivos": [
+    "src/components/avatares/editor-avatar.tsx",
+    "src/lib/avatares/adaptadores/use-editor-avatar.ts",
+    "src/lib/avatares/adaptadores/__tests__/use-editor-avatar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Panel con: morfología (8 deslizadores), color por ranura, piezas por ranura (elementos de la Biblioteca de tipo pieza de avatar; si no hay, dilo y ofrece importar), expresiones, aura, carácter del movimiento y visibilidad. Hook `useEditorAvatar`: aplica con `aplicarCambio` al instante, deshacer/rehacer (pila de ADN, tope 50), emite con `encolar`/`lote` solo si hay otros presentes y guarda con `debeGuardar` en el almacén de AV1011D. Voz y texto: un campo y un botón de micrófono con el dictado que ya tenga el OS (búscalo en src/lib/aurora); lo dicho pasa por `cambiosDesdeFrase`; lo que queda en `sinEntender` va a Astraura con una instrucción que pide SOLO una lista JSON de `CambioAvatar` (se filtra con `sanearCambio`; si no hay modelo disponible, se dice). MIDI: si la Protomolécula ya tiene mapeo de controles, úsalo; si no, Web MIDI con permiso explícito, CC → deslizador elegido. Pruebas del hook con reloj falso: agrupación, deshacer, cuándo guarda y que sin nadie mirando no emite.",
+   "dependencias_ya_en_main": [
+    "AV1011A",
+    "AV1011D"
+   ]
+  }
+ ]
+}
