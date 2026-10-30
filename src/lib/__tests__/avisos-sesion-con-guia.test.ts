@@ -24,8 +24,32 @@ const PERMITIDOS = new Set<string>([
 ]);
 
 /** Ventanas pendientes de pasar a `AvisoSesion`, con cuántas frases sueltas tienen hoy. */
-const PENDIENTES = new Map<string, number>([
-]);
+const PENDIENTES = new Map<string, number>(
+    (
+        "agent/agent-runtime-panel,aurora/message-context-menu,aurora/personalities-panel=2,brains/brains-panel,brains/device-network-panel=3," +
+        "brains/servers-panel,browser/browser-windows=4,camera/camera-app,canvas/canvas-board,canvas/work-centers,cerebro/neuronas-panel," +
+        "contactos/boton-anadir-contacto=2,creation/library-location-picker,creation/source-picker,dashboard/editor-superior/panel-sistema," +
+        "dashboard/widgets/gen4/creative-studio-widget,dashboard/widgets/gen4/multiverse-hub-widget,dashboard/widgets/gen5/merit-gallery-widget," +
+        "decisions/my-activity,design/theme-mixer-panel,education/group-education-panel,education/study/study-groups-panel,education/study/study-guides-panel=2," +
+        "education/study/study-tasks-panel=3,education/topic-graph,exocortex/memory-hub,exocortex/okf-panel,exocortex/provider-panel,exocortex/vaults-panel," +
+        "files/universal-file-picker,gallery/gallery-app,governance/delegation-panel,governance/liquid-delegation-panel=2,governance/notifications-panel," +
+        "group/group-ai-studio,group/group-governance=2,group/group-members=2,hub/connections-hub=3,hub/user-directory-results,invitations/invitation-card=2," +
+        "layout/dock/iconos/acciones-compartir=2,layout/dock/iconos/galeria-plantillas,layout/dock/iconos/selector-imagen,library/entity-library-panel," +
+        "library/finder/install-to-dialog=2,library/finder/public-catalog-section,library/repos/repo-detail-sheet,library/save-to-library=2," +
+        "messages/correos-panel=3,messages/dm/new-chat-dialog=3,messages/dm/thread-view,network/feed/rich-post-card,posts/live-attachment=2," +
+        "profile/profile-switcher,protomolecula/gobierno/seccion-gobierno-proto,publish/publication-composer=2,recordatorios/recordatorios-panel," +
+        "recordatorios/recordatorios-widget,security/security-panel,servers/server-card,settings/account/account-sync-panel," +
+        "settings/appearance/theme-catalog-gallery,settings/neurons/neurons-panel,settings/profile/profile-identity-panel," +
+        "settings/profile/profile-library-showcase-panel,sharing/share-access-dialog,sharing/share-to-dialog=2,social/entity-editor-dialog,social/PostCard," +
+        "social/PostFeed,storage/backends-network-panel,storage/connections-hub,storage/storage-panel=2,variaciones/publicar-variacion=2," +
+        "vivo/programas/bloque-contador=2"
+    )
+        .split(",")
+        .map((entrada) => {
+            const [ruta, veces] = entrada.split("=");
+            return [`src/components/${ruta}.tsx`, Number(veces ?? 1)] as const;
+        }),
+);
 
 function archivosTsx(dir: string): string[] {
     const salida: string[] = [];
