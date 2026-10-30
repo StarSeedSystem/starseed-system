@@ -1,9 +1,12 @@
-// Pruebas del cliente único de Laya por medio (LYS1018B). Sin red y sin reloj real: fetch, malla y
-// reloj inyectados; las respuestas de Laya son de ejemplo con la forma real de system_one.
+// Pruebas del cliente único de Laya por medio (LYS1018B). Sin red y sin reloj real: fetch, malla,
+// motor del navegador y reloj INYECTADOS; las respuestas de Laya son de ejemplo con la forma real
+// de system_one (choice/probabilities/answer_confidence) y el plan del medio es el puro de H.
 import { describe, expect, it } from "vitest";
 import { construirPeticion } from "@/lib/jev/decisiones";
+import { perfilDelMedio, type EntornoMedio } from "@/lib/astraura/capas/perfil-medio";
 import { puntoDecision, type MedioLaya, type PuntoDecision } from "../puntos-decision";
 import { preguntarALaya, puntoDeLlamada, leerAnswers, URL_LAYA_LOCAL, type DepsLaya } from "../cliente-laya";
+import { planLayaLocalEnMedio, type PlanLayaLocal } from "../laya-navegador";
 
 const PUNTO: PuntoDecision = puntoDecision("reflejo.herramienta") as PuntoDecision;
 const RESPUESTA_LOCAL = {
@@ -15,11 +18,52 @@ const RESPUESTA_MALLA = {
 const ok = (json: unknown, estado = 200): Response =>
   new Response(JSON.stringify(json), { status: estado, headers: { "Content-Type": "application/json" } });
 
+/** La PWA de referencia del enunciado de H: instalada, WebGPU, 2 GB persistentes y 4 GB de RAM. */
+const ENTORNO_PWA: EntornoMedio = {
+  userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X) AppleWebKit",
+  esTauri: false,
+  esPWA: true,
+  hardwareConcurrency: 8,
+  deviceMemory: 8,
+  webgpuMaxBufferBytes: 256 * 1024 * 1024,
+  wasmDisponible: true,
+  wasmSimd: true,
+  crossOriginIsolated: true,
+  cuotaBytes: 8 * 1024 * 1024 * 1024,
+  usoBytes: 100 * 1024 * 1024,
+  persistente: true,
+  discoLibreBytes: null,
+  visible: true,
+  bateriaNivel: 0.9,
+  cargando: false,
+  effectiveType: "4g",
+};
+const perfil = (cambios: Partial<EntornoMedio> = {}): ReturnType<typeof perfilDelMedio> =>
+  perfilDelMedio({ ...ENTORNO_PWA, ...cambios });
+
+/** Visita web: la plataforma que NUNCA carga la capa local (va por la malla). */
+const ENTORNO_WEB: EntornoMedio = { ...ENTORNO_PWA, esPWA: false, persistente: false };
+
+const planQueCarga: PlanLayaLocal = { cargar: true, modelo: "multilingual-int8", motivo: "prueba: cabe" };
+
 function falsoDeps(opciones: {
   local?: { responde?: unknown; estado?: number; nunca?: boolean };
   malla?: { trae?: unknown; a1Propio?: boolean; roto?: boolean };
-}): { deps: DepsLaya; g: { t: number; dormidos: number[]; locales: { url: string; init?: RequestInit }[]; reles: string[] } } {
-  const g = { t: 0, dormidos: [] as number[], locales: [] as { url: string; init?: RequestInit }[], reles: [] as string[] };
+  navegador?: {
+    /** Entorno medido (si falta, no se consulta el plan: el cliente no puede puro-planear). */
+    entorno?: EntornoMedio;
+    /** Plan del medio inyectado; si falta, entra el DEFECTO de producción (`planLayaLocal`). */
+    planLaya?: (p: ReturnType<typeof perfilDelMedio>) => PlanLayaLocal;
+    /** Respuesta del motor laya-ts; `undefined` = responde null; `roto` = lanza. */
+    responde?: unknown;
+    roto?: boolean;
+  };
+}): {
+  deps: DepsLaya;
+  g: { t: number; dormidos: number[]; locales: { url: string; init?: RequestInit }[]; reles: string[]; motor: string[] };
+} {
+  const g = { t: 0, dormidos: [] as number[], locales: [] as { url: string; init?: RequestInit }[], reles: [] as string[], motor: [] as string[] };
+  const nav = opciones.navegador;
   const deps: DepsLaya = {
     ahora: () => g.t,
     dormir: (ms) => {
@@ -45,6 +89,15 @@ function falsoDeps(opciones: {
           if (opciones.malla?.roto || opciones.malla?.trae === undefined) return null;
           return opciones.malla.trae;
         },
+    ...(nav?.entorno ? { perfil: perfilDelMedio(nav.entorno) } : {}),
+    ...(nav
+      ? { layaNavegador: async (cuerpo: string) => {
+          g.motor.push(cuerpo);
+          if (nav.roto) throw new Error("el motor falló");
+          return nav.responde ?? null;
+        } }
+      : {}),
+    ...(nav?.planLaya ? { planLaya: nav.planLaya } : {}),
   };
   return { deps, g };
 }
@@ -110,6 +163,84 @@ describe("preguntarALaya · A1 por la malla", () => {
     expect(() => puntoDeLlamada(idAjeno)).toThrow(/punto de decisión desconocido/);
   });
 });
+describe("preguntarALaya · motor laya-ts en el navegador (tarea H)", () => {
+  const pNav = (plazos = 20): PuntoDecision =>
+    pCorto({ a1: plazos, mac: plazos, navegador: plazos, malla: plazos });
+  const RESPUESTA_MOTOR = {
+    herramienta: { choice: "recordar", probabilities: { recordar: 0.8, ninguna: 0.2 }, confidence: 0.74, answer_confidence: 0.88 },
+  };
+
+  it("con el gate de la cadena cerrado (defecto de producción) el motor no se consulta: sigue local", async () => {
+    const { deps, g } = falsoDeps({
+      navegador: { entorno: ENTORNO_PWA }, // PWA capaz: solo el gate la detiene
+      local: { responde: { answers: RESPUESTA_LOCAL } },
+    });
+    const salida = await preguntarALaya({ punto: pNav(), estado: "x", medio: "navegador" }, deps);
+    expect(g.motor).toEqual([]); // laya-ts (tarea O) aún no existe: planLayaLocal por defecto no carga
+    expect(salida).toEqual({ respuestas: RESPUESTA_LOCAL, donde: "local", ms: 0 });
+    expect(g.dormidos).toEqual([20]);
+  });
+
+  it("con un plan que carga (tras la tarea O) el motor recibe el cuerpo nativo ANTES que el servidor local", async () => {
+    const planListo = (): PlanLayaLocal => planQueCarga;
+    const { deps, g } = falsoDeps({
+      navegador: { entorno: ENTORNO_PWA, planLaya: planListo, responde: { answers: RESPUESTA_MOTOR } },
+    });
+    const salida = await preguntarALaya(
+      { punto: pNav(30), estado: "¿guardas esto?", medio: "navegador" },
+      deps,
+    );
+    const cuerpoMotor = JSON.parse(g.motor[0] ?? "") as unknown;
+    expect(cuerpoMotor).toEqual(construirPeticion("¿guardas esto?", { ...pNav(30).preguntas }));
+    expect(g.locales).toEqual([]); // se resolvió EN el medio: ni el servidor local ni la malla
+    expect(salida).toEqual({ respuestas: RESPUESTA_MOTOR, donde: "navegador", ms: 0 });
+    expect(g.dormidos).toEqual([30]); // con el plazo del medio «navegador» del catálogo
+  });
+
+  it("el plan del medio MANDA: una visita web con motor cargado no lo consulta y va por la malla", async () => {
+    const { deps, g } = falsoDeps({
+      navegador: { entorno: ENTORNO_WEB, planLaya: planLayaLocalEnMedio, responde: { answers: RESPUESTA_MOTOR } },
+      local: { estado: 503 },
+      malla: { trae: { answers: RESPUESTA_MALLA } },
+    });
+    const salida = await preguntarALaya(
+      { punto: pNav(10), estado: "x", medio: "navegador" },
+      deps,
+    );
+    expect(g.motor).toEqual([]); // el plan dice NO cargar (visita web): el motor no se ejecuta
+    expect(g.locales).toHaveLength(1); // el local sí se intenta (cayó 503)
+    expect(salida).toMatchObject({ respuestas: RESPUESTA_MALLA, donde: "malla" });
+  });
+
+  it("plan que carga pero motor de la pestaña roto: cae al servidor local y a la malla", async () => {
+    const planListo = (): PlanLayaLocal => planQueCarga;
+    const { deps, g } = falsoDeps({
+      navegador: { entorno: ENTORNO_PWA, planLaya: planListo, roto: true },
+      local: { estado: 503 },
+      malla: { roto: true },
+    });
+    const salida = await preguntarALaya({ punto: pNav(10), estado: "x", medio: "navegador" }, deps);
+    expect(g.motor).toHaveLength(1);
+    expect(g.locales).toHaveLength(1);
+    expect(salida).toMatchObject({
+      respuestas: null,
+      donde: null,
+      motivo: /no llegó ni local ni por la malla/,
+    });
+  });
+
+  it("plan que NO carga (gate por defecto) y sin local ni malla: el fallo dice POR QUÉ el medio no la carga", async () => {
+    const { deps, g } = falsoDeps({ navegador: { entorno: ENTORNO_PWA }, malla: { roto: true } });
+    const salida = await preguntarALaya({ punto: pNav(10), estado: "x", medio: "navegador" }, deps);
+    expect(g.motor).toEqual([]);
+    expect(salida).toMatchObject({
+      respuestas: null,
+      donde: null,
+      motivo: /sin Laya local ni relé de malla[\s\S]*laya-ts \(tarea O\) aún no está/,
+    });
+  });
+});
+
 describe("lectura del formato nativo", () => {
   it("leerAnswers: answers reales sí, cuerpos sin answers no", () => {
     expect(leerAnswers({ answers: RESPUESTA_LOCAL })).toEqual(RESPUESTA_LOCAL);
