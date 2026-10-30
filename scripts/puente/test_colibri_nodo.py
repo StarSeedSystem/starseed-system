@@ -7,10 +7,14 @@ no; la Mac (8 GB con presión) no deja a ninguno. Sin red, sin descargas, sin to
 CLB1028H añade el plan que ya sirve con el despliegue hecho: no se vuelve a clonar, el `hf` va
 en su venv propio (PEP 668) y los pesos no se vuelven a bajar si ya están.
 """
+import io
+import json
 import os
 import sys
 import unittest
 import unittest.mock
+from contextlib import redirect_stdout
+
 DIR = os.path.dirname(os.path.abspath(__file__))
 if DIR not in sys.path:
     sys.path.insert(0, DIR)
@@ -71,6 +75,33 @@ class PruebaCaben(unittest.TestCase):
         filas = {f["id"]: f for f in C.caben(self.entradas, 60, 100, margen_gb=0)}
         self.assertEqual(filas["colibri-deepseek-v4-flash-reap"]["veredicto"], "cabe")
         self.assertEqual(filas["colibri-clef"]["veredicto"], "cabe")
+
+    # (Rescate rama nube/40611446903) glm-5.2 no lo probaba main: mismo ramil de streaming que REAP.
+    def test_streaming_de_glm_5_2_con_disco_de_sobra(self):
+        filas = {f["id"]: f for f in C.caben(self.entradas, 20, 900)}
+        self.assertEqual(filas["colibri-glm-5.2"]["veredicto"], "cabe en streaming (disco rápido)")
+        self.assertIn("disco", filas["colibri-glm-5.2"]["porque"])
+        self.assertEqual(filas["colibri-deepseek-v4-flash-reap"]["veredicto"],
+                         "cabe en streaming (disco rápido)")
+        self.assertEqual(filas["colibri-qwen38-flash-next"]["veredicto"], "no cabe")
+        self.assertIn("RAM insuficiente", filas["colibri-qwen38-flash-next"]["porque"])
+
+    # (Rescate rama nube/40611446903) La descarga temporal solo la anotaba la rama: main la tiene
+    # en _veredicto pero sin prueba.
+    def test_disco_que_solo_cubre_el_modelo_avisa_de_la_descarga(self):
+        filas = {f["id"]: f for f in C.caben(self.entradas, 12, 4)}
+        olmoe = filas["colibri-olmoe-7b"]
+        self.assertEqual(olmoe["veredicto"], "no cabe")
+        self.assertIn("descarga temporal", olmoe["porque"])
+        self.assertIn("14", olmoe["porque"])
+
+    # (Rescate rama nube/40611446903) Pureza y forma de las filas: sin mutación del catálogo vivo.
+    def test_caben_no_muta_y_filas_con_cuatro_claves(self):
+        antes = json.loads(json.dumps(self.entradas))
+        filas = C.caben(self.entradas, 12, 18.5)
+        self.assertEqual(self.entradas, antes)
+        for fila in filas:
+            self.assertEqual(set(fila), {"id", "capa", "veredicto", "porque"})
 
 
 class PruebaPlan(unittest.TestCase):
@@ -197,6 +228,22 @@ class PruebaPlan(unittest.TestCase):
     def test_id_desconocido(self):
         with self.assertRaises(ValueError):
             C.plan_instalacion("colibri-no-existe", "/srv")
+
+
+class PruebaMain(unittest.TestCase):
+    """(Rescate rama nube/40611446903) El CLI `--plan` no lo probaba main: imprime planes y el
+    aviso de que no ejecuta nada, sin tocar el disco."""
+
+    def test_main_plan_imprime_y_no_ejecuta(self):
+        salida = io.StringIO()
+        with unittest.mock.patch.object(C, "medir_maquina", return_value=(12.0, 18.5, False)), \
+                redirect_stdout(salida):
+            codigo = C.main(["--plan", "--carpeta", "/srv/colibri"])
+        texto = salida.getvalue()
+        self.assertEqual(codigo, 0)
+        self.assertIn("Plan de instalación de colibri-laya", texto)
+        self.assertIn("127.0.0.1", texto)
+        self.assertIn("Nada de esto se descarga ni se ejecuta", texto)
 
 
 if __name__ == "__main__":
