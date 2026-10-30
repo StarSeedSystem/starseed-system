@@ -122,4 +122,22 @@ describe("cargarSplat", () => {
         expect(opciones).toMatchObject({ url: URL, maxSplats: 3_000_000 });
         expect(opciones?.fileBytes).toBeInstanceOf(ArrayBuffer);
     });
+
+    it("sin tope explícito usa los 60 MB reales: un archivo mayor se rechaza y lo explica", async () => {
+        const resultado = await cargarSplat(URL, {
+            SplatMesh: MallaFalsa,
+            pedirBytes: async () => new ArrayBuffer(MAX_BYTES_SPLAT + 1),
+        });
+        expect(resultado).toEqual({ ok: false, motivo: MOTIVO_SPLAT_GRANDE });
+    });
+
+    it("sin maxSplats explícito aplica el presupuesto de alta (1,5 M) a la malla", async () => {
+        MallaFalsa.ultima = null;
+        const resultado = await cargarSplat(URL, {
+            SplatMesh: MallaFalsa,
+            pedirBytes: async () => new ArrayBuffer(64),
+        });
+        expect(resultado.ok).toBe(true);
+        expect(MallaFalsa.ultima).toMatchObject({ url: URL, maxSplats: presupuestoSplat("alta") });
+    });
 });
