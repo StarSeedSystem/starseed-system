@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "MTN1027H2",
+   "ola": "1027N · Automejora recursiva (Meta^n)",
+   "titulo": "Automejora · la Mac manda las experiencias y trae lo que salió",
+   "archivos": [
+    "scripts/puente/automejora_mac.py",
+    "scripts/puente/test_automejora_mac.py",
+    "scripts/puente/oracle_nodo.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Meta^n (minnesotanlp/meta-n, MIT) «para todo el automejoramiento de cada capa de conciencia mesh automejorable de toda Astraura, con Colibri y los demás sistemas locales y mesh autoadaptables». Contrato: `architecture/automejora-meta-n.md` (léelo entero, sobre todo §3: Meta^n PROPONE dentro de una caja Docker sin red ni claves; el juez de StarSeed decide fuera de la caja sin ejecutar nada suyo; las funciones de ayuda nunca se cargan en caliente). Lo que hace falta de Meta^n está en `integraciones-de-codigo/meta-n/README-starseed.md`.\n\n`automejora_mac.py`: `enviar()` junta `~/.starseed/experiencias.jsonl` y las de `starseed_memory_root/aprendizaje/experiencias/*.jsonl` de las neuronas con «aportar» (de `~/.starseed/automejora.json`; por defecto todas las de la cuenta) y manda ese archivo y la config al A1 con `oracle_nodo._ssh_bytes` a `/var/lib/starseed/automejora/entrada/`. `traer()` lee la salida más nueva, guarda las directivas con `automejora_logica.nueva_version` en `starseed_memory_root/aprendizaje/directivas/<capa>.json`, las propuestas en `starseed_memory_root/olas/propuestas-automejora/<fecha>.json` (NO en olas/) y el resumen en `starseed_memory_root/aprendizaje/automejora/ultima-noche.json`. En `oracle_nodo.py` orden `automejora` (`enviar` | `traer`) y, dentro de `ciclo`, una vez al día: `enviar` después de las 02:00 UTC y `traer` después de las 06:00 UTC (marca de la última vez en `~/.starseed/automejora-estado.json`). Pruebas sin ssh.",
+   "dependencias_ya_en_main": [
+    "MTN1027H"
+   ]
+  }
+ ]
+}
