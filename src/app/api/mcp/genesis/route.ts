@@ -17,6 +17,7 @@ import {
   type RegistroLlamada,
   type SesionResuelta,
 } from "@/lib/genesis/mcp/ruta";
+import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,8 +45,7 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     cuerpo = null;
   }
-  const acceso = await abrirSesion();
-  const { sesion, registrar } = acceso;
+  const { sesion, registrar } = await abrirSesion();
   const resultado = await atenderMcpConPermisos(
     cuerpo,
     HERRAMIENTAS_MCP,
@@ -58,10 +58,10 @@ export async function POST(req: Request): Promise<Response> {
 }
 
 /**
- * Resuelve la sesión del navegador con el cliente de servidor y deja
- * preparada la escritura del registro en `genesis_llamadas`. Sin sesión,
- * el registro queda igualmente disponible para llamadas con token (mejor
- * esfuerzo: la insert puede chocar con RLS y devuelve false, sin fallar).
+ * Resuelve la sesión del navegador con el cliente de servidor y prepara la
+ * escritura del registro en `genesis_llamadas`: método y estado, nunca el
+ * cuerpo ni el token. La insert es mejor esfuerzo (RLS o una tabla sin
+ * aplicar devuelven false, y la llamada no falla por eso).
  */
 async function abrirSesion(): Promise<{
   sesion: SesionResuelta | null;
@@ -73,6 +73,17 @@ async function abrirSesion(): Promise<{
   } catch {
     supabase = null;
   }
+  let creador: string | null = null;
+  let sesion: SesionResuelta | null = null;
+  if (supabase) {
+    const { data } = await supabase.auth.getUser();
+    if (data?.user) {
+      creador = data.user.id;
+      // Sesión = el Genesis propio de la cuenta: el usuario es dueño y su
+      // alcance son las 12 capacidades del ámbito.
+      sesion = { ambito: `cuenta:${data.user.id}`, alcance: [...CAPACIDADES_AMBITO], creador: data.user.id };
+    }
+  }
   const registrar = async (llamada: RegistroLlamada): Promise<boolean> => {
     if (!supabase) return false;
     try {
@@ -82,35 +93,12 @@ async function abrirSesion(): Promise<{
         endpoint: llamada.endpoint,
         metodo: llamada.metodo,
         status_code: llamada.statusCode,
+        creado_por: creador,
       });
       return !error;
     } catch {
       return false;
     }
   };
-  let sesion: SesionResuelta | null = null;
-  if (supabase) {
-    const { data } = await supabase.auth.getUser();
-    const usuario = data?.user;
-    if (usuario) {
-      sesion = { ambito: `cuenta:${usuario.id}`, alcance: [...CAPACIDADES_AMBITO], creador: usuario.id };
-      const { error } = await supabase
-        .from("genesis_llamadas")
-        .insert({ metodo: "ping" } as never); // sondeo best-effort, siempre silencioso
-      void error;
-      const registradorBase = registrar;
-      const registrarConCreador = async (llamada: RegistroLlamada): Promise<boolean> =>
-        regirConCreador(registradorBase, llamada, sesion!.creador);
-      return { sesion, registrar: registrarConCreador };
-    }
-  }
   return { sesion, registrar };
-}
-
-function regirConCreador(
-  base: (llamada: RegistroLlamada) => Promise<boolean>,
-  llamada: RegistroLlamada,
-  creador: string,
-): Promise<boolean> {
-  return base({ ...llamada, creador });
 }
