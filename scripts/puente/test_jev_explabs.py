@@ -62,19 +62,29 @@ def _falso_decisions(respuestas, recibido=None, falla=False):
     return f
 
 
+def _falso_transporte_locales(*a):
+    """Los extremos /v1/systemone de la Mac (Laya 4470, Colibri 4480) no existen aquí."""
+    raise OSError("conexión rechazada (falso)")
+
+
 class ExplabsAntesQueOpenrouter(unittest.TestCase):
     def setUp(self):
         self.d = tempfile.mkdtemp()
-        self.antes = (jev.CACHE, jev.USO, jev.EXPLABS_PROMOS, jev.TRANSPORTE, jev.TRANSPORTE_EXPLABS, jev.TRANSPORTE_EXPLABS_DECISIONS)
+        self.antes = (jev.CACHE, jev.USO, jev.EXPLABS_PROMOS, jev.TRANSPORTE, jev.TRANSPORTE_EXPLABS, jev.TRANSPORTE_EXPLABS_DECISIONS, jev.TRANSPORTE_LOCALES)
         jev.CACHE = os.path.join(self.d, "cache.json")
         jev.USO = os.path.join(self.d, "uso.json")
         jev.EXPLABS_PROMOS = os.path.join(self.d, "promos.json")
         os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"
         os.environ["STARSEED_JEV"] = "1"
         os.environ["OPENROUTER_API_KEY"] = "clave-de-prueba"
+        # Sin el BitNet real de la Mac: la cadena empieza en el local y estas pruebas
+        # no lo describen (ver test_jev_laya.py y test_jev_locales.py, misma nota).
+        sys.modules["jev_local"] = None
+        self.addCleanup(lambda: sys.modules.pop("jev_local", None))
+        jev.TRANSPORTE_LOCALES = _falso_transporte_locales
 
     def tearDown(self):
-        jev.CACHE, jev.USO, jev.EXPLABS_PROMOS, jev.TRANSPORTE, jev.TRANSPORTE_EXPLABS, jev.TRANSPORTE_EXPLABS_DECISIONS = self.antes
+        jev.CACHE, jev.USO, jev.EXPLABS_PROMOS, jev.TRANSPORTE, jev.TRANSPORTE_EXPLABS, jev.TRANSPORTE_EXPLABS_DECISIONS, jev.TRANSPORTE_LOCALES = self.antes
         for k in ("STARSEED_LAYA_URL", "STARSEED_JEV", "OPENROUTER_API_KEY", "STARSEED_JEV_EXPLABS"):
             os.environ.pop(k, None)
 
@@ -139,16 +149,21 @@ class ExplabsDecisionsAPI(unittest.TestCase):
 
     def setUp(self):
         self.d = tempfile.mkdtemp()
-        self.antes = (jev.CACHE, jev.USO, jev.EXPLABS_PROMOS, jev.TRANSPORTE, jev.TRANSPORTE_EXPLABS, jev.TRANSPORTE_EXPLABS_DECISIONS)
+        self.antes = (jev.CACHE, jev.USO, jev.EXPLABS_PROMOS, jev.TRANSPORTE, jev.TRANSPORTE_EXPLABS, jev.TRANSPORTE_EXPLABS_DECISIONS, jev.TRANSPORTE_LOCALES)
         jev.CACHE = os.path.join(self.d, "cache.json")
         jev.USO = os.path.join(self.d, "uso.json")
         jev.EXPLABS_PROMOS = os.path.join(self.d, "promos.json")
         os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"
         os.environ["STARSEED_JEV"] = "1"
         os.environ["OPENROUTER_API_KEY"] = "clave-de-prueba"
+        # Sin el BitNet real de la Mac ni Laya real: el medio sería «local» y aquí
+        # solo se describe la cadena gratis de Experiential (nota de test_jev_laya.py).
+        sys.modules["jev_local"] = None
+        self.addCleanup(lambda: sys.modules.pop("jev_local", None))
+        jev.TRANSPORTE_LOCALES = _falso_transporte_locales
 
     def tearDown(self):
-        jev.CACHE, jev.USO, jev.EXPLABS_PROMOS, jev.TRANSPORTE, jev.TRANSPORTE_EXPLABS, jev.TRANSPORTE_EXPLABS_DECISIONS = self.antes
+        jev.CACHE, jev.USO, jev.EXPLABS_PROMOS, jev.TRANSPORTE, jev.TRANSPORTE_EXPLABS, jev.TRANSPORTE_EXPLABS_DECISIONS, jev.TRANSPORTE_LOCALES = self.antes
         for k in ("STARSEED_LAYA_URL", "STARSEED_JEV", "OPENROUTER_API_KEY", "STARSEED_JEV_EXPLABS"):
             os.environ.pop(k, None)
 
