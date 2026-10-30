@@ -9,10 +9,15 @@
  * recurso remoto ajeno sale a buscar: los recursos viajan con la petición o los
  * trae la bolsa. El resultado se REFERENCIA por su `trabajoId`, nunca se duplica
  * (contenido = entidad única). Todo inyectado: sin red, disco ni reloj aquí.
- * Contrato: architecture/video-hyperframes.md §2 y §4.
+ * Contrato: architecture/video-hyperframes.md §2 y §4. El rol SERVIDOR que lo
+ * conecta al canal real (`capacidad.pedir` tipo `render` sobre el mesh
+ * compartido) vive en la sección final de este mismo módulo, con el mismo
+ * patrón que `ia-por-malla.ts` y `astraura-por-malla.ts`.
  */
 
-import { bytesUtf8, crearIdPeticion } from "./capacidad-por-malla";
+import { bytesUtf8, crearIdPeticion, parseCapacidadMallaMensaje, type MsgError, type MsgFin } from "./capacidad-por-malla";
+import { getSharedMesh } from "./lan-sync";
+import type { MeshHandle, PeerEvents } from "./webrtc-mesh";
 import { detectarAdaptadores } from "@/lib/video-html/adaptadores";
 
 export const FORMATOS_VIDEO = ["mp4", "webm", "mov", "gif", "png-sequence", "hls"] as const;
@@ -128,5 +133,100 @@ export function manejarRenderVideo(x: unknown, ctx: ContextoRenderVideo): PlanRe
     aceptado: true,
     trabajoId: encolado,
     motivo: `${puerta.motivo} · render «${formato}» en la neurona que elija la bolsa de recursos; el resultado se referencia por su trabajoId`,
+  };
+}
+
+/* ══════════ Rol SERVIDOR del relé `capacidad.video.render` sobre el mesh compartido ══════════ */
+
+/** Porción del mesh que este rol necesita (un `MeshHandle` real la cumple). */
+export type MeshServidorRender = Pick<MeshHandle, "userId" | "sendToPeer" | "onPeer">;
+
+/** Piezas de la neurona que sirve, todas inyectables (pruebas sin mesh real). */
+export interface DepsServidorRenderMalla {
+  /** Cuenta de esta neurona; por defecto la cuenta del mesh compartido (`userId`). */
+  cuentaLocal?: () => string | null;
+  /** Sesión de grupo que esta neurona comparte aquí (por defecto, ninguna). */
+  sesionGrupo?: () => string | null;
+  /** La cola de render de esta neurona; sin una real, el rechazo es honesto (503). */
+  encolar?: (p: PeticionEnCola) => string | null;
+}
+
+/** Código HTTP del rechazo según su motivo legible (el texto ya lo conoce el cliente). */
+function estadoDeRechazo(motivo: string): number {
+  if (motivo.includes("mal formada")) return 400;
+  if (motivo.includes("demasiado grande")) return 413;
+  if (motivo.includes("llena")) return 503;
+  return 403;
+}
+
+/** Envia al peer sin lanzar: un peer que se va no puede romper la neurona que servía. */
+function responder(mesh: Pick<MeshServidorRender, "sendToPeer">, peerId: string, msg: MsgFin | MsgError): void {
+  try { mesh.sendToPeer(peerId, JSON.stringify(msg)); } catch { /* el peer ya no escucha */ }
+}
+
+/**
+ * atenderPedidoRenderMalla — entrega UN `capacidad.pedir` tipo `render` al
+ * manejador PURO y contesta con la REFERENCIA (`capacidad.fin` + `trabajoId`)
+ * o un `capacidad.error` legible. Aquí no hay lógica: solo la malla entregando.
+ */
+export function atenderPedidoRenderMalla(
+  mesh: Pick<MeshServidorRender, "userId" | "sendToPeer">,
+  peerId: string,
+  msg: { id: string; cuerpo: Record<string, unknown> },
+  deps: DepsServidorRenderMalla,
+): void {
+  const cuentaLocal = deps.cuentaLocal?.() ?? mesh.userId;
+  if (!cuentaLocal) {
+    responder(mesh, peerId, { t: "capacidad.error", id: msg.id, estado: 503, mensaje: "Esta neurona no atiende render ahora mismo: sin cuenta en el canal." });
+    return;
+  }
+  if (typeof deps.encolar !== "function") {
+    responder(mesh, peerId, { t: "capacidad.error", id: msg.id, estado: 503, mensaje: "Esta neurona no tiene cola de render ahora mismo: lo privado no se arriesga." });
+    return;
+  }
+  const ctx: ContextoRenderVideo = { cuentaLocal, sesionGrupo: deps.sesionGrupo?.() ?? null, encolar: deps.encolar };
+  const plan = manejarRenderVideo(msg.cuerpo, ctx);
+  if (plan.aceptado) {
+    responder(mesh, peerId, { t: "capacidad.fin", id: msg.id, resultado: { trabajoId: plan.trabajoId, motivo: plan.motivo } });
+    return;
+  }
+  responder(mesh, peerId, { t: "capacidad.error", id: msg.id, estado: estadoDeRechazo(plan.motivo), mensaje: plan.motivo });
+}
+
+/**
+ * adjuntarServidorRenderMalla — escucha en el mesh compartido los `capacidad.pedir`
+ * tipo `render` y los entrega a `atenderPedidoRenderMalla`. Devuelve unsubscribe.
+ */
+export function adjuntarServidorRenderMalla(mesh: MeshServidorRender, deps: DepsServidorRenderMalla): () => void {
+  const onMessage: PeerEvents["onMessage"] = (peerId, data) => {
+    const msg = parseCapacidadMallaMensaje(data);
+    if (!msg || msg.t !== "capacidad.pedir" || msg.tipo !== "render") return;
+    atenderPedidoRenderMalla(mesh, peerId, msg, deps);
+  };
+  return mesh.onPeer({ onMessage });
+}
+
+let servidorRenderTimer: ReturnType<typeof setInterval> | null = null;
+let servidorRenderUnsub: (() => void) | null = null;
+
+/**
+ * iniciarServidorRenderPorMalla — arranca (o reintenta hasta que exista) el rol
+ * servidor sobre el mesh COMPARTIDO (`getSharedMesh()`; nunca abre uno segundo,
+ * mismo patrón que `iniciarServidorIaPorMalla`). Idempotente. Devuelve parada.
+ */
+export function iniciarServidorRenderPorMalla(deps: DepsServidorRenderMalla = {}): () => void {
+  let cancelado = false;
+  const intentar = () => {
+    if (cancelado || servidorRenderUnsub) return;
+    const mesh = getSharedMesh();
+    if (mesh) servidorRenderUnsub = adjuntarServidorRenderMalla(mesh, deps);
+  };
+  intentar();
+  if (!servidorRenderUnsub) servidorRenderTimer = setInterval(intentar, 2000);
+  return () => {
+    cancelado = true;
+    if (servidorRenderTimer) { clearInterval(servidorRenderTimer); servidorRenderTimer = null; }
+    servidorRenderUnsub?.();
+    servidorRenderUnsub = null;
   };
 }

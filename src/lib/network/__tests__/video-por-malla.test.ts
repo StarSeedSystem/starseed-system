@@ -143,3 +143,93 @@ describe("servicio hyperframes · peticiones de vídeo (ramas de la nube)", () =
     expect((r.cuerpo as { error: string }).error).toContain("cola llena");
   });
 });
+
+// ── Rol SERVIDOR del relé `capacidad.video.render` (conexión real con la malla) ──
+
+import type { MeshServidorRender, DepsServidorRenderMalla } from "../video-por-malla";
+import { adjuntarServidorRenderMalla } from "../video-por-malla";
+import { esMensajeCapacidadMalla } from "../capacidad-por-malla";
+
+/** Mesh de mentira: guarda lo enviado y entrega los mensajes entrantes, sin ni red ni navegador. */
+const mallaFalsa = (userId = "c-local") => {
+  const enviados: { peerId: string; msg: { t: string; id?: string; estado?: number; mensaje?: string; resultado?: unknown } }[] = [];
+  let recibir: ((peerId: string, data: string) => void) | null = null;
+  const mesh: MeshServidorRender = {
+    userId,
+    sendToPeer: (deviceId, data) => { enviados.push({ peerId: deviceId, msg: JSON.parse(data) }); return true; },
+    onPeer: (ev) => { recibir = ev.onMessage ?? null; return () => { recibir = null; }; },
+  };
+  const entregar = (x: unknown, peerId = "peer-1") => recibir?.(peerId, JSON.stringify(x));
+  return { mesh, enviados, entregar };
+};
+
+/** Cola observable conectada al servidor: lo que el manejador puro encola de verdad. */
+const colaFalsa = () => {
+  const encoladas: PeticionEnCola[] = [];
+  return { encolar: (p: PeticionEnCola) => { encoladas.push(p); return p.trabajoId; }, encoladas };
+};
+
+const pedirRender = (cuenta: string, grupo?: string) => ({ t: "capacidad.pedir", id: "p7", tipo: "render", cuerpo: { cuenta, grupo, composicion: HTML } });
+
+describe("capacidad.video.render · rol SERVIDOR del relé", () => {
+  it("atiende un `capacidad.pedir` tipo render de la misma cuenta y contesta la referencia por trabajoId", () => {
+    const m = mallaFalsa();
+    const cola = colaFalsa();
+    adjuntarServidorRenderMalla(m.mesh, { encolar: cola.encolar });
+    m.entregar(pedirRender("c-local"));
+    expect(cola.encoladas).toHaveLength(1);
+    expect(m.enviados).toHaveLength(1);
+    const r = JSON.parse(JSON.stringify(m.enviados[0]?.msg));
+    expect(esMensajeCapacidadMalla(r)).toBe(true);
+    expect(r).toMatchObject({ t: "capacidad.fin", id: "p7", resultado: { trabajoId: expect.stringMatching(/^vr-/) } });
+  });
+
+  it("cuenta ajena sin grupo: `capacidad.error` 403 con el motivo del manejador y sin encolar", () => {
+    const m = mallaFalsa();
+    const cola = colaFalsa();
+    adjuntarServidorRenderMalla(m.mesh, { encolar: cola.encolar });
+    m.entregar(pedirRender("otra"));
+    expect(cola.encoladas).toHaveLength(0);
+    expect(m.enviados[0]?.msg).toMatchObject({ t: "capacidad.error", estado: 403, mensaje: expect.stringContaining("misma cuenta o de un grupo") });
+  });
+
+  it("grupo compartido por esta neurona: entra; recurso prohibido: sigue sin enqueue (mismo manejador puro)", () => {
+    const m = mallaFalsa();
+    const cola = colaFalsa();
+    adjuntarServidorRenderMalla(m.mesh, { sesionGrupo: () => "g1", encolar: cola.encolar });
+    m.entregar(pedirRender("otra", "g1"));
+    expect(cola.encoladas).toHaveLength(1);
+    m.entregar({ t: "capacidad.pedir", id: "p8", tipo: "render", cuerpo: { cuenta: "c-local", composicion: "<img src=\"https://x.org/a.png\">" } });
+    expect(m.enviados[1]?.msg).toMatchObject({ t: "capacidad.error", estado: 403 });
+    expect(m.enviados[1]?.msg.mensaje).toContain("recurso remoto");
+    expect(cola.encoladas).toHaveLength(1);
+  });
+
+  it("la misma petición desde otra cuenta a una neurona con grupo: rechazada si el grupo no es el compartido", () => {
+    const m = mallaFalsa();
+    const cola = colaFalsa();
+    adjuntarServidorRenderMalla(m.mesh, { sesionGrupo: () => "g1", encolar: cola.encolar });
+    m.entregar(pedirRender("otra", "g2"));
+    expect(cola.encoladas).toHaveLength(0);
+    expect(m.enviados[0]?.msg.estado).toBe(403);
+  });
+
+  it("sin cola de render en esta neurona: rechazo honesto 503, nunca pánico", () => {
+    const m = mallaFalsa();
+    const vacío: DepsServidorRenderMalla = {};
+    adjuntarServidorRenderMalla(m.mesh, vacío);
+    m.entregar(pedirRender("c-local"));
+    expect(m.enviados[0]?.msg).toMatchObject({ t: "capacidad.error", estado: 503, mensaje: expect.stringContaining("cola de render") });
+  });
+
+  it("solo contesta `capacidad.pedir` tipo render: otros tipos y basura se ignoran en silencio", () => {
+    const m = mallaFalsa();
+    const cola = colaFalsa();
+    adjuntarServidorRenderMalla(m.mesh, { encolar: cola.encolar });
+    m.entregar({ t: "capacidad.pedir", id: "p9", tipo: "voz", cuerpo: {} });
+    m.entregar("basura");
+    m.entregar({ t: "capacidad.trozo", id: "p9", texto: "x" });
+    expect(m.enviados).toHaveLength(0);
+    expect(cola.encoladas).toHaveLength(0);
+  });
+});
