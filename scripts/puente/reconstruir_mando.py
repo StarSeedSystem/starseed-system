@@ -417,13 +417,17 @@ def publicacion_va_a_compilar(publicacion) -> bool:
 
 
 def decidir(huella_actual, estado, ahora, espera_tras_fallo_s=ESPERA_TRAS_FALLO_S,
-            mas_nuevas=None):
+            mas_nuevas=None, servido_entero=True):
     """PURA: (reconstruir: bool, motivo: str).
 
     `estado` es lo guardado del build anterior: `huella_construida`, `ok`, `t` (epoch).
     `mas_nuevas` es cuántas fuentes son más nuevas que el build servido; si se pasa, MANDA
     sobre la huella (mide el disco, no la contabilidad).
+    (GEN1030B) `servido_entero`=False: `.next` no tiene un build entero — Genesis está
+    caído y NO hay una pantalla que esté «al día»: se reconstruye sí o sí.
     """
+    if not servido_entero:
+        return True, "Genesis está caído: no hay build servido"
     estado = estado if isinstance(estado, dict) else {}
     construida = estado.get("huella_construida")
     if fallo_por_disco(estado):
@@ -524,6 +528,10 @@ def reconstruir(huella_actual) -> dict:
     # (ENOENT: required-server-files.json). Aquí se construye en `.next-build` y el
     # servidor sigue con el `.next` de siempre hasta el cambio. (2026-09-22)
     entorno["STARSEED_DIST"] = DIST_BUILD
+    # (2026-10-30, GEN1030B) LIGERO como Vercel: la caché de webpack en disco guarda y
+    # serializa en memoria TODO el grafo — el 29-10 la build de la Mac murió a los 814 s
+    # y el 30-10 el A1 murió por OOM con 4096 y con 6144 de heap con esa caché.
+    entorno["STARSEED_BUILD_LIGERO"] = "1"
     preparar_dist_de_build()
     por_disco = False
     try:
@@ -932,6 +940,56 @@ def freno_de_maquina(forzar=False, raiz=RAIZ):
     return None
 
 
+# ── Genesis caído: relevo al A1 (2026-10-30, GEN1030B) ───────────────────────────────────
+def destino_de_compilacion(servido_entero, freno):
+    """PURA: ('mac'|'a1'|'esperar', motivo) cuando hace falta una build.
+
+    (2026-10-30) El 29-10 Genesis pasó la tarde entera caída: `.next` sin BUILD_ID, la
+    build de la Mac muerta a los 814 s y el freno de swap bloqueando. La regla nueva:
+    con un build servido hay una pantalla que proteger y el freno de máquina llega solo
+    a ESPERAR, como toda la vida; SIN build servido ya no hay nada que proteger, así
+    que el mismo freno manda compilar al A1 en vez de esperar.
+    """
+    if not servido_entero and freno:
+        return "a1", "la Mac no puede (%s) y no hay build servido que proteger" % freno
+    if freno:
+        return "esperar", str(freno)
+    return "mac", "la máquina no está frenada"
+
+
+#: Lo que del error de una build muerta delata falta de MEMORIA (no de disco ni de código):
+#: el OOM del heap de Node, el SIGKILL del sistema y la cara que puso el 29-10 con el swap alto.
+MARCA_DE_MEMORIA = ("out of memory", "heap", "oom", "se quedó sin memoria", "sigkill", "swap")
+
+
+def fallo_por_memoria(error) -> bool:
+    """PURA: ¿la build de la Mac murió por memoria (heap/sistema)? El disco no.
+    Si murió por memoria no va a salir en el reintento: eso manda al A1."""
+    l = str(error or "").lower()
+    return any(m in l for m in MARCA_DE_MEMORIA)
+
+
+def relevo_al_a1() -> bool:
+    """(GEN1030B) Compilar en el A1 de Oracle: TODAS sus etapas (envío, env de
+    NEXT_PUBLIC, `npm ci`, `next build`, traer y cambiar) con sus esperas. Debe
+    usarse cuando la Mac no puede — caída sin build o build muerta por memoria—,
+    llamándolo en vez de esperar al freno de la máquina. Un fallo remoto NO toca
+    `reconstruccion.json`: la pasada siguiente lo vuelve a intentar."""
+    try:
+        import compilar_en_a1
+    except Exception as e:  # noqa: BLE001
+        print("el camino del A1 no está disponible (%s): se queda a la espera"
+              % type(e).__name__, flush=True)
+        return False
+    try:
+        ok, detalle = compilar_en_a1.compilar()
+    except Exception as e:  # noqa: BLE001
+        ok, detalle = False, "%s: %s" % (type(e).__name__, e)
+    print("[%s] relevo al A1 %s: %s" % (time.strftime("%H:%M"),
+                                        "LISTO" if ok else "falló", detalle), flush=True)
+    return bool(ok)
+
+
 def conversando(ruta=os.path.expanduser("~/.starseed/conversacion.json")) -> bool:
     """¿Hay una conversación en curso con Astraura (concesión de `voz_rt.py`)?"""
     try:
@@ -1017,24 +1075,37 @@ def una_pasada(forzar: bool = False) -> bool:
     entradas = list(_entradas())
     actual = huella_de(entradas)
     estado = _leer_estado()
-    hazlo, motivo = decidir(actual, estado, time.time(),
+    # (2026-10-30, GEN1030B) ¿Hay un build ENTERO servido? Un `.next` a medias no es
+    # «pantalla al día»: es Genesis caído, y entonces Astraura deja de mandar.
+    servido = build_terminado(raiz=RAIZ, dist=DIST_SERVIDO)
+    hazlo, motivo = decidir(actual, estado, time.time(), servido_entero=servido,
                             mas_nuevas=cuantas_mas_nuevas(mtime_del_build(), entradas))
     if forzar:
         hazlo, motivo = True, "compilación pedida a mano"
     if hazlo:
         freno = freno_de_maquina(forzar=forzar)
-        if freno:
+        destino, _por_que = destino_de_compilacion(servido, freno)
+        if destino == "a1":
+            # (GEN1030B) Caído y sin máquina: no hay pantalla que proteger, así que el
+            # freno se resuelve COMPILANDO en el A1, no esperando.
+            print("[%s] Genesis está caído: no hay build servido (%s): compilo en el A1"
+                  % (time.strftime("%H:%M"), _por_que), flush=True)
+            _guardar(dict(_leer_estado(), estado="caido-sin-build", freno=freno,
+                          visto=time.strftime("%Y-%m-%d %H:%M:%S")))
+            relevo_al_a1()
+            return True
+        if destino == "esperar":
             print("[%s] espero: %s, pero %s" % (time.strftime("%H:%M"), motivo, freno), flush=True)
             _guardar(dict(_leer_estado(), estado="esperando-maquina", freno=freno,
                           visto=time.strftime("%Y-%m-%d %H:%M:%S")))
             return False
-    if hazlo and not forzar and conversando():
+    if hazlo and servido and not forzar and conversando():
         # (2026-09-22) Una build se come 3-4 GB de RAM en esta Mac: en plena conversación
         # con Astraura dejaría a la voz y a BitNet sin memoria. Se espera a que acabe.
         print("[%s] espero: %s, pero Alex está hablando con Astraura" % (time.strftime("%H:%M"), motivo),
               flush=True)
         return False
-    uso = uso_de_astraura() if (hazlo and not forzar) else "libre"
+    uso = uso_de_astraura() if (hazlo and servido and not forzar) else "libre"
     if hazlo and uso == "uso":
         ahora = time.time()
         desde = _leer_estado().get("uso_desde")
@@ -1060,6 +1131,9 @@ def una_pasada(forzar: bool = False) -> bool:
         print("[%s] Astraura lleva %d min sin contestar: compilo igual (el turno le pide la RAM)"
               % (time.strftime("%H:%M"), (ahora - desde) // 60), flush=True)
     if hazlo and publicacion_va_a_compilar(_leer_estado(PUBLICACION)):
+        if not servido:  # (GEN1030B) caído mientras compila la publicación: el estado lo dice
+            _guardar(dict(_leer_estado(), estado="caido-sin-build",
+                          visto=time.strftime("%Y-%m-%d %H:%M:%S")))
         print("[%s] espero: %s, pero la publicación en marcha va a compilar: su build sirve"
               % (time.strftime("%H:%M"), motivo), flush=True)
         return False
@@ -1074,14 +1148,22 @@ def una_pasada(forzar: bool = False) -> bool:
     if hazlo and not hay_sitio_para_compilar(libre):
         aviso = ("no compilo: quedan %.1f GB libres y hacen falta %.1f (ya tiré lo mío; "
                  "esto es disco del Mac, no de Genesis)" % (libre, MINIMO_LIBRE_GB))
+        if not servido:  # (GEN1030B) el estado dice lo que de verdad pasa: caído
+            aviso += "; encima no hay build servido: Genesis está caído"
         print("[%s] %s" % (time.strftime("%H:%M"), aviso), flush=True)
-        _guardar(dict(_leer_estado(), estado="sin-sitio", ok=False, error=aviso,
-                      visto=time.strftime("%Y-%m-%d %H:%M:%S")))
+        _guardar(dict(_leer_estado(), estado="caido-sin-build" if not servido else "sin-sitio",
+                      ok=False, error=aviso, visto=time.strftime("%Y-%m-%d %H:%M:%S")))
         return False
     if hazlo:
         print("[%s] RECONSTRUYO: %s" % (time.strftime("%H:%M"), motivo), flush=True)
         _guardar(dict(_leer_estado(), silencio_desde=None, uso_desde=None))
-        reconstruir(actual)
+        datos = reconstruir(actual)
+        # (2026-10-30, GEN1030B) Una build muerta por MEMORIA no va a salir en el reintento:
+        # se repite exacta. En vez de esperar, el A1 la hace con todas sus etapas.
+        if datos.get("ok") is False and fallo_por_memoria(datos.get("error")):
+            print("[%s] la build de la Mac murió por memoria (%s): compilo en el A1"
+                  % (time.strftime("%H:%M"), datos.get("error")), flush=True)
+            relevo_al_a1()
         return True
 
     # Compilar no es servir: si otro compiló (publicar.py), basta con reiniciar.
