@@ -13,6 +13,10 @@ import cupo_codex as C
 REAL = ("ERROR: You've hit your usage limit. Upgrade to Pro "
         "(https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage")
 
+#: Literal del 28/10/2026: 206 sesiones, todas así desde el día 23.
+REAL_SIN_MODELO = ('{"status":400, "message":"The \'gpt-5.6-sol\' model is not supported '
+                   'when using Codex with a ChatGPT account.","code":"model_not_found"}')
+
 AHORA = 1_700_000_000.0
 
 
@@ -33,6 +37,36 @@ class TestDeteccion(unittest.TestCase):
     def test_da_igual_como_lo_escriban(self):
         for t in ("Usage limit reached for your plan", "QUOTA EXCEEDED", "Upgrade to Pro"):
             self.assertTrue(C.agotado_en(t), t)
+
+
+class TestDeteccionSinModelo(unittest.TestCase):
+    """(DEC1028C) El modelo no admitido con la cuenta de ChatGPT: distinto de cuota."""
+
+    def test_la_salida_real_del_28_10(self):
+        self.assertTrue(C.sin_modelo_en(REAL_SIN_MODELO))
+
+    def test_no_confunde_cuota_con_modelo(self):
+        # Son reacciones opuestas: la cuota se espera 3 h y el modelo, 24 h.
+        self.assertFalse(C.sin_modelo_en(REAL))
+        self.assertFalse(C.agotado_en(REAL_SIN_MODELO))
+
+    def test_no_confunde_modelo_inexistente_normal(self):
+        # «model 'gpt-9' does not exist» no lleva model_not_found ni la frase de ChatGPT.
+        self.assertFalse(C.sin_modelo_en("ERROR: model 'gpt-9' does not exist"))
+
+    def test_vacio_no_es_sin_modelo(self):
+        self.assertFalse(C.sin_modelo_en(""))
+        self.assertFalse(C.sin_modelo_en(None))
+
+    def test_dos_pistas_atrapan_variaciones(self):
+        for t in ("MODEL_NOT_FOUND: goal", "is not supported when using Codex with a ChatGPT account"):
+            self.assertTrue(C.sin_modelo_en(t), t)
+
+    def test_ventana_de_veinticuatro_horas(self):
+        marca = {"hasta": C.hasta_cuando(AHORA, horas=C.HORAS_SIN_MODELO)}
+        self.assertAlmostEqual(
+            marca["hasta"] - AHORA, 24 * 3600, places=3,
+        )
 
 
 class TestVigencia(unittest.TestCase):
