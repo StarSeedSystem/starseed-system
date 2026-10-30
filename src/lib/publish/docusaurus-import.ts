@@ -49,6 +49,19 @@ const limpiarCuerpo = (texto: string): string => texto
 const sinMarcas = (texto: string): string => texto
   .replace(/!\[[^\]]*\]\([^)]*\)/g, " ").replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
   .replace(/[`*_>#~]/g, "").replace(/\s+/g, " ").trim();
+/**
+ * Convierte la ruta relativa que entrega el selector de carpeta del navegador
+ * («mi-sitio/docs/teoria/x.md») en la ruta que espera `leerDocusaurus`
+ * («docs/teoria/x.md»): corta todo lo anterior al segmento `docs` y, si no lo
+ * hay, se queda con la ruta tal cual. Solo mueve texto de ruta: nunca toca el
+ * contenido del archivo ni ejecuta nada de él (el truco: el importador ya
+ * descarta por su motivo todo lo que no sea `.md`).
+ */
+export function rutaDesdeCarpeta(ruta: string): string {
+  const partes = ruta.replace(/\\/g, "/").split("/").filter(Boolean);
+  const i = partes.indexOf("docs");
+  return (i >= 0 ? partes.slice(i) : partes).join("/");
+}
 const tituloDe = (fm: FrontMatter, cuerpo: string, ruta: string): string => {
   if (fm.title || fm.sidebar_label) return fm.title || fm.sidebar_label;
   const h1 = cuerpo.match(/^#\s+(.+)$/m);

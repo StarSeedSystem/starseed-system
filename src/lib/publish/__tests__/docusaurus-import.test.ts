@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { aNodosEdu, leerDocusaurus } from "../docusaurus-import";
+import { aNodosEdu, leerDocusaurus, rutaDesdeCarpeta } from "../docusaurus-import";
 import { docusaurusDesdeEntradas } from "../docusaurus-export";
 import type { EntradaDoc } from "../docusaurus-export";
 
 const archivo = (path: string, content: string) => ({ path, content });
+
+describe("rutaDesdeCarpeta", () => {
+  it("deja la carpeta docs/ seleccionada como raíz y corta lo anterior a docs", () => {
+    expect(rutaDesdeCarpeta("docs/teoria/medida.md")).toBe("docs/teoria/medida.md");
+    expect(rutaDesdeCarpeta("mi-sitio/docs/teoria/medida.md")).toBe("docs/teoria/medida.md");
+    expect(rutaDesdeCarpeta("mis-sitios\\sitio1\\docs\\teoria\\medida.md")).toBe("docs/teoria/medida.md");
+    expect(rutaDesdeCarpeta("carpeta/teoria/medida.md")).toBe("carpeta/teoria/medida.md");
+  });
+});
 
 describe("leerDocusaurus · reglas de seguridad", () => {
   it("rechaza .mdx, código, configuración y tipos no admitidos con su motivo", () => {
