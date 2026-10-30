@@ -35,6 +35,28 @@ const CLEF: Entrada = {
     medios: ["servidor"],
 };
 
+/** Entrada 3: capa «juicio» (decide con probabilidad), sin visión. */
+const LAYA: Entrada = {
+    id: "colibri-laya",
+    capa: "juicio",
+    modelo: "Laya",
+    runtime: "colibri",
+    tamano_bytes: 870_000_000,
+    estado: "por-verificar",
+    medios: ["servidor"],
+};
+
+/** Entrada 4: capa «palabra» (habla), int8 declarado en el nombre del modelo. */
+const OLMOE: Entrada = {
+    id: "colibri-olmoe",
+    capa: "palabra",
+    modelo: "OLMoE 7B (int8 tras convertir)",
+    runtime: "colibri",
+    tamano_bytes: 7_168_000_000,
+    estado: "por-verificar",
+    medios: ["servidor"],
+};
+
 const colibri = capasDe([CODER, CLEF]);
 const porId = (id: string) => colibri.find((m) => m.id === id);
 
@@ -80,6 +102,15 @@ describe("modelosDeCapas · runtime colibri", () => {
         expect(porId("colibri-qwen-coder")?.disco).toEqual({ gb: 19.4, verificado: false });
         expect(porId("colibri-qwen-coder")?.ramMinGb).toBe(8);
         expect(porId("colibri-clef")?.disco).toEqual({ gb: 52, verificado: false });
+    });
+
+    it("juicio → decision y palabra → texto; ninguna hereda visión", () => {
+        const [laya] = capasDe([LAYA]);
+        expect(laya.capacidades).toEqual(["decision"]);
+        expect(laya.bits).toBe(4);
+        const [olmoe] = capasDe([OLMOE]);
+        expect(olmoe.capacidades).toEqual(["texto"]);
+        expect(olmoe.bits).toBe(8);
     });
 
     it("ignora las entradas sin capa conocida o sin id", () => {

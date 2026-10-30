@@ -21,6 +21,25 @@ describe("validarTrabajo", () => {
     expect(t.v).toBe(VERSION_VOCABULARIO);
     expect(t.escena.map((o) => o.op)).toEqual(["primitiva", "camara", "luz"]);
   });
+  it("aplica los valores por defecto de cámara, transformación, luz y salida", () => {
+    const t = valido(base());
+    expect(t.titulo).toBe("Escena mínima");
+    expect(t.escena[1].lente_mm).toBe(50);
+    expect(t.escena[1].ortografica).toBe(false);
+    expect(t.escena[2].color).toEqual([1, 1, 1, 1]);
+    expect(t.salidas[0].fondo_transparente).toBe(false);
+    expect(t.limites).toBeUndefined();
+    const conTransform = valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "transformar", objeto: "c" }]));
+    expect(conTransform.escena[1]).toMatchObject({ ubicacion: [0, 0, 0], rotacion: [0, 0, 0], escala: [1, 1, 1] });
+  });
+  it("comprueba la versión, el título y los límites", () => {
+    expect(VERSION_VOCABULARIO).toBe(1);
+    expect(VERSION_VOCABULARIO).toBe(vocabulario.version);
+    expect(motivos({ ...base(), v: 2 }).join(" ")).toContain("v debe ser 1");
+    for (const titulo of ["   ", "x".repeat(81), 12]) expect(motivos({ ...base(), titulo }).join(" ")).toContain("titulo");
+    expect(valido({ ...base(), limites: { segundos: 300, memoriaMB: 2048 } }).limites).toEqual({ segundos: 300, memoriaMB: 2048 });
+    for (const limites of [{ segundos: 2000 }, { segundos: -1 }, { memoriaMB: 0 }]) expect(motivos({ ...base(), limites }).join(" ")).toContain("limites");
+  });
   it("rechaza campos desconocidos del trabajo y de una operación", () => {
     expect(motivos({ ...base(), extra: 1 }).join(" ")).toContain("campo desconocido en el trabajo: extra");
     expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1, peligro: true }])).join(" ")).toContain("campo desconocido: peligro");
@@ -28,6 +47,18 @@ describe("validarTrabajo", () => {
   it("rechaza NaN, Infinity, números fuera de rango y vectores de longitud distinta", () => {
     for (const tam of [Number.NaN, Number.POSITIVE_INFINITY, 0]) expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam }])).join(" ")).toContain("número");
     expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "transformar", objeto: "c", ubicacion: [1, 2] }])).join(" ")).toContain("vector de 3 números");
+  });
+  it("exige enteros en píxeles y rechaza rgba y alfa fuera de rango", () => {
+    expect(motivos({ ...base(), salidas: [{ tipo: "render_png", ancho: 512.5, alto: 256, muestras: 8, motor: "workbench" }] }).join(" ")).toContain("entero");
+    expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "material", objeto: "c", color: [1, Number.NaN, 0.5, 1] }])).join(" ")).toContain("rgba");
+    expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "material", objeto: "c", alfa: 2 }])).join(" ")).toContain("número");
+  });
+  it("exige entre 1 y 4 salidas y rechaza operaciones y salidas desconocidas", () => {
+    const png = { tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" };
+    expect(motivos({ ...base(), salidas: [] }).join(" ")).toContain("entre 1 y 4");
+    expect(motivos({ ...base(), salidas: [png, png, png, png, png] }).join(" ")).toContain("entre 1 y 4");
+    expect(motivos(conEscena([{ op: "teleportar", nombre: "n" }])).join(" ")).toContain("operacion desconocida");
+    expect(motivos({ ...base(), salidas: [{ ...png, tipo: "render_gif" }] }).join(" ")).toContain("salida desconocida");
   });
   it("rechaza más de 256 operaciones", () => {
     const escena = Array.from({ length: 257 }, (_, i) => ({ op: "primitiva", tipo: "cubo", nombre: `c${i}`, tam: 1 }));
@@ -41,6 +72,11 @@ describe("validarTrabajo", () => {
     for (const archivo of ["a/../b.glb", "/tmp/a.glb", "modelo.blend", "script.py"])
       expect(motivos(conEscena([{ op: "importar", archivo, nombre: "imp" }])).join(" ")).toContain("ruta relativa inválida");
   });
+  it("acepta rutas relativas con subcarpetas y extensiones de la lista", () => {
+    expect(valido(conEscena([{ op: "importar", archivo: "piezas/modelo.glb", nombre: "modelo" }])).escena).toHaveLength(1);
+    const conMundo = valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "mundo", hdri: "fondos/amanecer.hdr", fuerza: 1 }]));
+    expect(conMundo.escena).toHaveLength(2);
+  });
   it("rechaza remallar con su motivo de próximamente", () => {
     const m = motivos(conEscena([{ op: "remallar", objeto: "cubo" }])).join(" ");
     expect(m).toContain("próximamente");
@@ -50,6 +86,25 @@ describe("validarTrabajo", () => {
     expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "\"); import os", tam: 1 }])).join(" ")).toContain("nombre inválido");
     for (const texto of ["hola\nimport os", "emoji 😈"]) expect(motivos(conEscena([{ op: "texto3d", nombre: "t", texto, extrusion: 0.1, tam: 1 }])).join(" ")).toContain("texto con caracteres no permitidos");
     expect(valido(conEscena([{ op: "texto3d", nombre: "t", texto: "'); import os", extrusion: 0.1, tam: 1 }])).escena[0].texto).toBe("'); import os");
+  });
+  it("rechaza nombres con saltos de línea, unicode ajeno y longitudes fuera de rango", () => {
+    for (const nombre of ["cubo\ncubo", "Cuboño", "立立方方", "a".repeat(33), "2empieza"])
+      expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre, tam: 1 }])).join(" ")).toContain("nombre");
+  });
+  it("rechaza textos 3D fuera de la lista cerrada y conserva uno válido como dato", () => {
+    const texto3d = (texto: string) => motivos(conEscena([{ op: "texto3d", nombre: "t", texto, extrusion: 0.1, tam: 1 }])).join(" ");
+    for (const texto of ['"); import os', "Cubo\u2028 业", "x".repeat(65)]) expect(texto3d(texto)).toContain("texto");
+    expect(texto3d("x".repeat(65))).toContain("más largo de 64");
+    const textoValido = "¿Versión con ñ? ¡Sí! (n.1) 'cosas'";
+    expect(valido(conEscena([{ op: "texto3d", nombre: "t", texto: textoValido, extrusion: 0.1, tam: 1 }])).escena[0].texto).toBe(textoValido);
+  });
+  it("recorre todas las opciones cerradas de primitiva, modificador y luz", () => {
+    for (const [i, tipo] of ["cubo", "esfera", "icosfera", "cilindro", "cono", "toro", "plano", "circulo"].entries())
+      expect(valido(conEscena([{ op: "primitiva", tipo, nombre: `Obj${i}`, tam: 1 }])).escena).toHaveLength(1);
+    for (const tipo of ["subdivision", "bisel", "solidificar", "espejo", "matriz", "decimar", "malla_alambre"])
+      expect(valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "modificador", objeto: "c", tipo }])).escena).toHaveLength(2);
+    for (const [i, tipo] of ["sol", "punto", "foco", "area"].entries())
+      expect(valido(conEscena([{ op: "luz", nombre: `L${i}`, tipo, energia: 10 }])).escena).toHaveLength(1);
   });
   it("acepta una escena con todas las operaciones del vocabulario", () => {
     const escena = [
@@ -83,6 +138,17 @@ describe("estimarCoste y necesitaConfirmacion", () => {
     const c = estimarCoste(t);
     expect(c.vertices).toBe(8 + 8 * 15);
     expect(c.segundos).toBeCloseTo((1000 * 1000 * 100) / 120000, 2);
+  });
+  it("suma los vértices de cada primitiva de la base", () => {
+    const c = estimarCoste(valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "primitiva", tipo: "plano", nombre: "suelo", tam: 10 }])));
+    expect(c.vertices).toBe(12);
+  });
+  it("cuenta los fotogramas del mp4 y no suma coste en el GLB", () => {
+    const mp4 = estimarCoste(valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }], [{ tipo: "render_mp4", ancho: 320, alto: 240, fps: 12, desde: 0, hasta: 60, muestras: 16, motor: "workbench" }])));
+    expect(mp4.segundos).toBeCloseTo(214.162, 2);
+    const soloGlb = estimarCoste(valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }], [{ tipo: "exportar_glb" }])));
+    expect(soloGlb.segundos).toBe(0);
+    expect(soloGlb.vertices).toBe(8);
   });
   it("pide confirmación por ámbito, importar, final y coste sobre el perfil ligero", () => {
     expect(necesitaConfirmacion(valido(base()), "ligero")).toBe(false);
