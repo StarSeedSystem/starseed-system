@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""suenos · la terminal de los SUEÑOS PROFUNDOS de Genesis (localhost:9002).
+"""suenos · la terminal de los IMAGINACIÓN PROFUNDA de Genesis (localhost:9002).
 
 Una flota de analistas GRATUITOS (el enjambre, tareas `tipo: "analisis"`) sueña cada área de
 StarSeed OS con seis lentes; los supervisores CLAUDE (sesiones en la nube pagadas con el
