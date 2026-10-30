@@ -200,6 +200,9 @@ def publicar(
             }
         )
     _anadir(_chat(raiz), [mensaje] + entregas)
+    if toca_la_puerta(raiz):
+        # (IND1029H) Copia del feed al chat compartido; el archivo local manda y nunca lanza.
+        publicar_en_puerta(mensaje)
     return mensaje
 
 
@@ -296,6 +299,120 @@ def bandeja(canal, solo_pendientes=True, raiz=None):
         return mensajes
     ultimas = _ultimas_entregas(raiz)
     return [m for m in mensajes if ultimas.get((m.get("id"), canal)) != "respondido"]
+
+
+# ── Chat compartido por la puerta de datos (IND1029H) ──────────────────────────
+# El feed vive en el archivo local, que sigue siendo la verdad. En producción, cada
+# `publicar` deja (sin lanzar) una copia del mensaje en la puerta de datos del A1
+# como latido de clase `metagenesis` con id `chat.<id del mensaje>`: la puerta guarda
+# un latido por id, así que lo repetido no se duplica. El cartero del líder de
+# dirección recoge con `recoger_puerta` los mensajes de OTRAS neuronas que aquí aún
+# no están y los `incorpora` a este chat CON SU MISMO id (por eso no vuelven ni se
+# vuelven a publicar a la puerta). Sin puerta no cambia nada.
+
+CLASE_PUERTA = "metagenesis"
+CHAT_TTL_S = 7200
+_PREFIJO_CHAT_PUERTA = "chat."
+_campos_puerta = ("id", "t", "de", "rol", "tipo", "texto", "canal", "canales", "modelo", "respondeA", "tarea")
+
+_la_puerta_instancia = None
+
+
+def toca_la_puerta(raiz=None, pruebas=None):
+    """PURA. ¿Un mensaje recién publicado debe dejar copia en la puerta? Solo en producción."""
+    pruebas = en_pruebas() if pruebas is None else pruebas
+    return raiz is None and not pruebas
+
+
+def paquete_puerta(mensaje):
+    """PURA. Copia de un mensaje del chat, lista para la puerta (sin entregas ni uso)."""
+    return {c: mensaje[c] for c in _campos_puerta if c in mensaje}
+
+
+def _la_puerta():
+    """La `Puerta` del entorno; una instancia por proceso guarda su tasa de fallos."""
+    global _la_puerta_instancia
+    if _la_puerta_instancia is None:
+        from puerta_datos_cliente import Puerta  # noqa: PLC0415 — mismo directorio
+        _la_puerta_instancia = Puerta.desde_entorno(rol="enjambre")
+    return _la_puerta_instancia
+
+
+def publicar_en_puerta(mensaje, puerta=None):
+    """Deja una copia del mensaje en la puerta si responde: «puerta»|«sin-puerta»|«fallo». Nunca lanza."""
+    try:
+        p = puerta if puerta is not None else _la_puerta()
+        if not (p.configurada() and p.disponible()):
+            return "sin-puerta"
+        r = p.latido(
+            CLASE_PUERTA,
+            _PREFIJO_CHAT_PUERTA + str(mensaje["id"]),
+            paquete_puerta(mensaje),
+            respaldo=lambda _c: None,
+        )
+        ok = isinstance(r, dict) and r.get("via") == "puerta" and not r.get("error")
+        return "puerta" if ok else "fallo"
+    except Exception:  # noqa: BLE001
+        return "fallo"
+
+
+def mensajes_puerta(latidos):
+    """PURA. Mensajes de chat desde los latidos de la puerta: únicos por id, del más viejo al más nuevo."""
+    unicos = {}
+    for l in latidos or []:
+        if not (isinstance(l, dict) and str(l.get("id") or "").startswith(_PREFIJO_CHAT_PUERTA)):
+            continue
+        m = l.get("datos")
+        if not (isinstance(m, dict) and m.get("id") and "texto" in m):
+            continue
+        m = dict(m)
+        m["id"] = str(m["id"])
+        previo = unicos.get(m["id"])
+        if previo is None or _epoch_de(m) >= _epoch_de(previo):
+            unicos[m["id"]] = m
+    return sorted(unicos.values(), key=_epoch_de)
+
+
+def mensajes_pendientes(mensajes, ids_locales):
+    """PURA. Los cuyo id aún no está en el chat local (sin duplicar lo ya integrado)."""
+    ids = set(ids_locales or ())
+    return [m for m in mensajes if m.get("id") not in ids]
+
+
+def _ids_locales(raiz=None, tope=1000):
+    ids = [r["id"] for r in _leer_lineas(_chat(raiz)) if isinstance(r, dict) and r.get("id")]
+    return set(ids[-tope:])
+
+
+def recoger_puerta(puerta=None, raiz=None, pedir=None):
+    """Para el cartero del líder: mensajes de otras neuronas pendientes aquí, o [].
+
+    `pedir()` sustituye la lectura de la puerta (pruebas). Nunca lanza.
+    """
+    try:
+        if pedir is not None:
+            latidos = pedir()
+        else:
+            p = puerta if puerta is not None else _la_puerta()
+            if not (p.configurada() and p.disponible()):
+                return []
+            estado, j = p._pedir(
+                "GET", "/v1/latidos?clase=%s&vivos_s=%d" % (CLASE_PUERTA, CHAT_TTL_S)
+            )
+            if estado != 200:
+                return []
+            latidos = (j or {}).get("latidos")
+        return mensajes_pendientes(mensajes_puerta(latidos), _ids_locales(raiz))
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def incorporar(mensajes, raiz=None):
+    """Añade mensajes llegados por la puerta al chat local CON su id (para no re-recogerlos)."""
+    if not mensajes:
+        return []
+    _anadir(_chat(raiz), [dict(m) for m in mensajes])
+    return list(mensajes)
 
 
 def _formatear(registro):
