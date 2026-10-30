@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "MC1012Z",
+   "titulo": "Montar Recibos y Permisos de antenas en sus pantallas",
+   "archivos": [
+    "src/components/mesh/signals-center.tsx",
+    "src/components/mesh/delivery-receipts-panel.tsx",
+    "src/components/malla/__tests__/montajes-malla.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato que manda: architecture/malla-cristalina-sio2.md (léelo entero antes de escribir). Reglas: como mucho 120 líneas por archivo; módulos puros SIN `node:*` ni Supabase ni `window` (se importan desde el navegador); comentarios en español; nada de `any`; exporta solo lo que se pide más los tipos que necesites; pruebas con vitest en la carpeta `__tests__` indicada (NODE_ENV=test). No toques archivos fuera de la lista. En signals-center.tsx añade la sección «Permisos de antenas» con `<PermisosAntenas/>` junto al panel de la retícula. Crea delivery-receipts-panel.tsx ('use client'): usa `useDeliveryReceipts` (src/ai/astraura/mesh/) y `desdeEntregaMesh` para pintar los últimos recibos con `<RecibosChips/>` (dato, hora, estado, medio, ruta) y móntalo también en Señales. Cambios mínimos en signals-center.tsx. Prueba jsdom: con dos recibos falsos se pintan dos filas.",
+   "ola": "Ola 1012Q · Malla de sílice amorfa (SiO₂): retícula P2P común en tiempo real, vía por dato, cifrado y antivirus propios, recibos y routers como nodos",
+   "dependencias_ya_en_main": [
+    "MC1012V",
+    "MC1012Y",
+    "MC1012W2"
+   ]
+  }
+ ]
+}
