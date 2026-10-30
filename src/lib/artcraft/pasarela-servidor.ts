@@ -1,5 +1,9 @@
 import { parseSha256Sums, verificarActivo, nombreActivoWeb, esActivoPermitido } from './huellas';
 
+declare const Deno: {
+  readFile(path: string): Promise<Uint8Array>;
+};
+
 export interface ContextoVerifica {
   zipPath: string;
   shaSumas: string;
