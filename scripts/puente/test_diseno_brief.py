@@ -182,6 +182,57 @@ class TestBriefAdn(unittest.TestCase):
         self.assertNotIn("Synthwave Horizon", fichas)
 
 
+def _lineas_de_herramientas(texto: str, subcadena: str) -> list:
+    """Líneas del apartado 6 (Herramientas y skills) que contienen la subcadena."""
+    en_herramientas = False
+    salida = []
+    for linea in texto.splitlines():
+        if linea.strip() == "## 6. Herramientas y skills":
+            en_herramientas = True
+            continue
+        if en_herramientas and linea.strip().startswith("## "):
+            break
+        if en_herramientas and subcadena in linea:
+            salida.append(linea)
+    return salida
+
+
+class TestBriefHerramientas(unittest.TestCase):
+    """§6-§7: deduplicación por línea y herramientas de base en toda tarea de interfaz."""
+
+    def test_taste_skill_y_ui_tars_en_toda_tarea(self):
+        """taste-skill (HERRAMIENTAS_BASE) y UI-TARS salen en toda tarea de interfaz."""
+        for titulo in ["Presentación de resultados", "Vista simple", "Panel de Genesis"]:
+            tarea = {"titulo": titulo, "archivos": ["src/app/x/page.tsx"]}
+            texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+            self.assertIn("taste-skill", texto, "Falta taste-skill en: " + titulo)
+            self.assertIn("Leonxlnx/taste-skill", texto, "Falta repo taste-skill en: " + titulo)
+            self.assertIn("UI-TARS", texto, "Falta UI-TARS en: " + titulo)
+
+    def test_sin_lineas_duplicadas_con_dos_claves(self):
+        """Dos claves cuyo destino es la misma línea no la duplican en el apartado 6."""
+        # «chat» y «mensaj» casan ambas con la línea de assistant-ui
+        tarea = {"titulo": "Chat de mensajería", "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertEqual(len(_lineas_de_herramientas(texto, "assistant-ui")), 1,
+                         "assistant-ui aparece duplicado")
+        # HERRAMIENTAS_BASE tampoco se repite ni a medias
+        self.assertEqual(len(_lineas_de_herramientas(texto, "taste-skill")), 1,
+                         "taste-skill aparece duplicado")
+
+    def test_apartados_6_y_7_con_varias_claves(self):
+        """Los apartados 6 (Herramientas) y 7 (Verificación) se conservan con varias claves."""
+        tarea = {"titulo": "Chat de agente con grafo", "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+        self.assertIn("assistant-ui", texto)
+        self.assertIn("Mastra", texto)
+        self.assertIn("LangGraph.js", texto)
+        self.assertIn("taste-skill", texto)
+        self.assertIn("UI-TARS", texto)
+
+
 class TestBriefRise(unittest.TestCase):
     """§10: sección RISE solo si la tarea toca movimiento."""
 
