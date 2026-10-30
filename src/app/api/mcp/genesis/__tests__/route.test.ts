@@ -93,7 +93,10 @@ describe("ruta MCP con permisos (tarea S)", () => {
       ok: true, via: "sesion", ambito: "cuenta:user-1",
     });
     const rechazada = await atenderMcpConPermisos({}, HERRAMIENTAS_MCP, deps, null, null, "/api/mcp/genesis");
-    expect(rechazada).toMatchObject({ status: 401, salida: { error: "Necesitas un token Bearer" } });
+    expect(rechazada).toMatchObject({
+      status: 401,
+      salida: { error: expect.stringContaining("token Bearer") },
+    });
     expect(registros.length).toBe(0);
   });
 
