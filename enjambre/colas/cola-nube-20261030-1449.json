@@ -1,0 +1,98 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "VPU1019Db",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Adaptador de widgets y Dashboard",
+   "archivos": [
+    "src/lib/variaciones/adaptadores/widgets.ts",
+    "src/lib/variaciones/adaptadores/__tests__/widgets.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Familia widget: clave `widget:<WidgetType>` (de `src/components/dashboard/dashboard-types.ts`); capturar toma la configuración visual y de opciones del widget (no sus datos personales), aplicar la fusiona con la instancia elegida y devuelve deshacer; respeta `getSizeConstraints` de `src/components/dashboard/widget-manifest.ts`. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261030-103734-VPU1019D`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261030-103734-VPU1019D:refs/remotes/origin/nube/a1-20261030-103734-VPU1019D\"` y `git cherry-pick --no-commit 44f129735214 27f84ff0514f`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/variaciones/adaptadores/__tests__/widgets.test.ts, src/lib/variaciones/adaptadores/widgets.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261030-103734-VPU1019D",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "VPU1019U",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Sugerencias de variaciones con Astraura (local primero)",
+   "archivos": [
+    "src/lib/variaciones/sugerir-astraura.ts",
+    "src/lib/variaciones/__tests__/sugerir-astraura.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`sugerirVariaciones(clave, contexto, deps)` pide al enrutador de Astraura (inyectado; escalera local primero de `genesis-conectores-abiertos.md`) 3 variaciones del payload capturado, las valida con `validar.ts` y con las pruebas del ADN del contexto (`memory/diseno/adn/*/dna.json`, inyectado) y devuelve solo las que pasan, con su motivo. Prueba con modelo falso. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VPU1019B",
+    "VPU1019V"
+   ]
+  },
+  {
+   "id": "BLD1025K",
+   "ola": "Ola 1025B · Blender como medio 3D del OS (detección por neurona, trabajo 3D como dato, guion seguro, cola de render, ruta local, Biblioteca, Protomolécula, Astraura, Estudio)",
+   "titulo": "Puente MCP opcional de Blender con tres seguros (solo con el visto bueno de Alex; no se activa nada)",
+   "archivos": [
+    "servicios/blender-3d/puente_mcp.py",
+    "servicios/blender-3d/test_puente_mcp.py"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/blender-3d.md` — léelo ENTERO antes de empezar: es la fuente de verdad y manda sobre este texto si discrepan. Blender 5.2.0 LTS está instalado donde se escribió esta cola (`blender` en el PATH); si no está donde tú corres, las pruebas contra Blender de verdad se saltan con `unittest.skipUnless(shutil.which(\"blender\"))` / `describe.skipIf` y lo dices en el resumen; no lo instales ni descargues nada. REGLAS DEL REPO: todo en español con acentos (comentarios, mensajes, textos); ≤3 archivos y ≤120 líneas por archivo (si no cabe, simplifica el diseño; no añadas archivos); Blender es GPL y es un PROGRAMA APARTE: se lanza como proceso hijo con lista de argumentos y SIN shell (`execFile` / `subprocess`), nunca `import bpy` fuera del módulo que corre DENTRO de Blender, nunca un binario de Blender en el repo ni en el paquete de Vercel; nada de `node:*` en código de cliente (lo puro va en archivos sin Node; el disco y los procesos, en archivos solo de servidor); claves solo por NOMBRE de variable, ninguna clave de ejemplo con forma real en pruebas; el trabajo 3D es un DATO con lista blanca (contrato §4): jamás construyas código de Blender concatenando textos libres de una persona o una IA; nunca `git push`; nunca `next build` en la Mac. Pruebas de lo que escribas y las existentes en verde; borra todo lo que las pruebas generen. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué. TAREA (SOLO CON EL VISTO BUENO DE ALEX: esta tarea lleva `aprobacion`; no instales nada ni abras ningún puerto): el puente MCP opcional del contrato §1.6. NO es el camino por defecto del OS (lo normal es el trabajo 3D como dato, §4); esto solo prepara, con tres seguros obligatorios, lo que una persona decidirá activar en su escritorio.\n1) `servicios/blender-3d/puente_mcp.py` (≤120 líneas, Python estándar; `Sistema` inyectable como en `servicios/taller-3d/taller.py`): `seguros_de(entorno)` devuelve el entorno que DEBE llevar el servidor MCP (`DISABLE_TELEMETRY=true`, `BLENDER_MCP_SAFE_MODE=1`, host `127.0.0.1`); `herramientas_para_agentes(lista)` deja pasar SOLO las de lectura (`get_scene_info`, `look`, `get_addon_status`) y quita `execute_blender_code` (Python arbitrario), `generate_3d`, `search_assets`, `import_asset` (servicios de terceros), `disable_telemetry`, `record_trajectory_feedback` y todo lo desconocido; `puerto_solo_local(s, puerto=9876)` mira con `lsof -nP -iTCP:<puerto> -sTCP:LISTEN` (macOS) o `ss -ltn` (Linux) que el socket del complemento escucha SOLO en 127.0.0.1 y devuelve `(ok, motivo)`; `plan_puente(s)` devuelve el plan para la persona, explicado (qué es, por qué y cómo, en español claro): pasos manuales (instalar el complemento desde su repositorio, activarlo en Blender, arrancar el servidor con `uvx` y esas variables), la configuración candidata para el cliente MCP, y los avisos de licencia (MIT; Hunyuan3D excluye la UE: no usarlo) y de telemetría; `escribir_candidato(plan, raiz)` guarda el plan en `~/.starseed/blender-3d/puente-mcp.candidato.json` (permisos 600) y NUNCA toca la configuración real de ningún cliente MCP: una persona la acepta con la mano.\n2) `servicios/blender-3d/test_puente_mcp.py` (`python3 -m unittest servicios/blender-3d/test_puente_mcp.py`): `seguros_de` no se puede dejar con la telemetría encendida; `herramientas_para_agentes` quita `execute_blender_code` y todo lo que no esté en la lista blanca; `puerto_solo_local` con salidas simuladas de `lsof` y `ss` (127.0.0.1 → ok; `*:9876` → no; `0.0.0.0` → no; sin escucha → no); el candidato se escribe con permisos 600 y no contiene claves ni rutas absolutas; ninguna función ejecuta `uvx`, `pip` ni `curl`.\nTerminado cuando: `python3 -m unittest servicios/blender-3d/test_puente_mcp.py` pasa.",
+   "aprobacion": true,
+   "dependencias_ya_en_main": [
+    "BLD1025B-d3"
+   ]
+  },
+  {
+   "id": "DSN1019B",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Las ventanas del OS abren centradas y como hoja en teléfono",
+   "archivos": [
+    "src/components/dashboard/apps/os-window.tsx",
+    "src/components/dashboard/apps/__tests__/os-window-centrada.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Usa `geometriaVentana` para la posición inicial de `OSWindow` (centrada en la pantalla; en teléfono, hoja centrada que sube desde abajo con entrada cardinal) sin cambiar su API ni el arrastre. Solo añadir. Prueba con viewport de teléfono y de escritorio. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DSN1019A"
+   ]
+  },
+  {
+   "id": "DSN1019C",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Ventanas del Escritorio: abrir centradas",
+   "archivos": [
+    "src/components/desktop/desktop-store.ts",
+    "src/components/desktop/__tests__/ventana-centrada.test.ts"
+   ],
+   "depende": [],
+   "prompt": "En `openWindow` usa la geometría centrada de `composicion.ts` cuando la ventana no tiene posición guardada; si la tiene, la respeta (y la recoloca dentro de la pantalla si quedó fuera). Solo añadir. Prueba. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DSN1019A"
+   ]
+  },
+  {
+   "id": "PM1010F1Fb",
+   "ola": "Ola 1010P · Protomolécula: función universal de creación y edición (átomos con parámetros, dictado en tiempo real, convergencia, sincronía P2P)",
+   "titulo": "Apps ajenas embebidas (solo ventana): Excalidraw, editor de three.js y las que admitan incrustarse",
+   "archivos": [
+    "src/lib/protomolecula/apps-embebidas.ts",
+    "src/lib/protomolecula/__tests__/apps-embebidas.test.ts",
+    "src/lib/protomolecula/atomos/index.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/protomolecula.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §1 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica. §11.1 fija los nombres de las interfaces del runtime. El núcleo puro YA está escrito y probado (120 pruebas) y NO se modifica: `src/lib/protomolecula/{tipos,parametros,dictado,vinculos-control,permisos}.ts` (ábrelos y usa sus nombres reales). `src/lib/protomolecula/catalogo-herramientas.ts` lo escribe OTRA sesión: no lo crees ni lo edites; las herramientas se citan por id (string). Petición de Alex (2026-10-10): «Protomolécula» = función universal de creación y edición (imagen, audio, vídeo, sonido, síntesis, 3D con texturas programables, arquitectura, físicas, videojuegos, VR/AR) que se controla a mano o por la IA de Astraura con dictado en tiempo real de cada parámetro (valor exacto o relativo), presente en el lienzo universal, la biblioteca, pizarras, dashboards, widgets, escritorios, estaciones, llamadas mesh y mensajes de agentes, privada o pública, y sincronizada por la malla P2P primero.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/protomolecula.md` y `src/lib/protomolecula/{tipos,parametros,dictado,vinculos-control,permisos}.ts`. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos versiones del núcleo: ya pasó con una rama que se inventó `tipos.ts` y `parametros.ts`). Escribe SOLO tus archivos, con los nombres y firmas que te da este prompt y el §11.1 del contrato, no edites ningún archivo del núcleo para que un import resuelva y, si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo de la Protomolécula en main» para que el director la reencole cuando llegue.\nReglas de la casa (`memory/workflow-actual.md` y CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea qué tarea posterior la cablea); si una prueba falla se arregla el código, no la prueba. Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; lo de terceros solo en iframe con sandbox y postMessage de origen verificado, WASM en un Worker, app nativa o servicio aparte. Nada de `node:*` en código que llegue al navegador. Claves solo por NOMBRE de variable. Sin dependencias npm nuevas. Pruebas sin red ni hardware (lo del navegador se inyecta). Español claro en toda cadena visible; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (PM1010F1F): Tercer grado de integración (§3.2): la app completa se muestra TAL CUAL y Protomolécula solo controla su ventana y sus archivos. `apps-embebidas.ts` exporta `APPS_EMBEBIDAS: DefinicionAtomo[]` con `control: \"ventana\"`, `parametros: []`, `integracion: \"iframe-aislado\"`, `vista: {tipo: \"externa\", url}` y `ficha`. Candidatas: Excalidraw (https://excalidraw.com, repo excalidraw/excalidraw, MIT), el editor de three.js (https://threejs.org/editor/, mrdoob/three.js, MIT), Hydra (https://hydra.ojack.xyz, repo hydra-synth/hydra) y Strudel (https://strudel.cc, repo tidalcycles/strudel). HONESTIDAD OBLIGATORIA: para CADA una (1) comprueba la licencia en el `LICENSE` del repo upstream (con red: `curl -s https://raw.githubusercontent.com/<repo>/HEAD/LICENSE | head`; sin red, escribe `licencia: \"sin verificar\"` y `proximamente: \"licencia sin verificar\"`); (2) comprueba que el sitio se deja incrustar: `curl -sI <url>` y mira `x-frame-options` y `content-security-policy: frame-ancestors`; si lo prohíben (DENY, SAMEORIGIN o una lista que no nos incluya), NO uses vista `externa`: deja la ficha con `vista` ausente y `proximamente: \"el sitio no permite incrustarse; ábrelo en su pestaña\"`. Apunta en un comentario la fecha (2026-10-10) y lo que midió cada comprobación. Una app solo lleva vista `externa` si la medición la permite. Exporta también `registrarAppsEmbebidas()` (idempotente) y llámala desde `registrarAtomosPropios()` de `index.ts` (edición de ≤ 5 líneas). Pruebas (≥ 6, sin red): todas las URL son `https` y pasan `esUrlEmbebible` de `../puente-herramientas`; ninguna con vista `externa` tiene `proximamente`; todas con `proximamente` carecen de vista; `control` es `ventana` y `parametros` vacío; ids únicos; cada ficha trae `repo` y `licencia`. Integración: F1B las muestra; la Biblioteca las listará en F2K. Di en tu última línea qué apps quedaron embebibles y cuáles «próximamente» y POR QUÉ.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41098127671`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 41111839601) falla «tsc»: ﻿2026-10-30T19:03:20.4373030Z ##[group]Run npx tsc --noEmit --skipLibCheck\n2026-10-30T19:03:20.4373466Z \u001b[36;1mnpx tsc --noEmit --skipLibCheck\u001b[0m\n2026-10-30T19:03:20.4395243Z shell: /usr/bin/bash -e {0}\n2026-10-30T19:03:20.4395941Z env:\n2026-10-30T19:03:20.4396198Z   NODE_OPTIONS: --max-old-space-size=8192\n2026-10-30T19:03:20.4396486Z ##[endgroup]\n2026-10-30T19:06:04.9757270Z ##[error]src/components/education/topic-graph.tsx(37,10): error TS2300: Duplicate identifier 'abrirGuia'.\n2026-10-30T19:06:04.9765893Z ##[error]src/components/education/topic-graph.tsx(71,10): error TS2300: Duplicate identifier 'abrirGuia'.\n2026-10-30T19:06:05.5131107Z ##[error]Process completed with exit code 2.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41098127671:refs/remotes/origin/nube/41098127671\"` y `git cherry-pick --no-commit 3b5b3d473c69 4fd303d37d7d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/education/topic-graph.tsx, src/lib/protomolecula/__tests__/apps-embebidas.test.ts, src/lib/protomolecula/apps-embebidas.ts, src/lib/protomolecula/atomos/__tests__/artcraft.test.ts, src/lib/protomolecula/atomos/__tests__/atomos.test.ts, src/lib/protomolecula/atomos/index.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41098127671",
+   "dependencias_ya_en_main": [
+    "PM1010F1E",
+    "PM1010F1B-d3"
+   ]
+  }
+ ]
+}
