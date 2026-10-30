@@ -1,0 +1,30 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "IND1029I",
+   "ola": "1029 · MetaGenesis autónoma (sin Claude y sin la Mac)",
+   "depende": [],
+   "titulo": "Publicación autónoma · «Te toca a ti» pide una vez el token de despliegue con permisos mínimos",
+   "archivos": [
+    "scripts/puente/acciones-de-alex.py",
+    "scripts/puente/test_acciones_de_alex.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas; nunca rutas de un worktree (`starseed-wt/…`) en el código. Contrato: `architecture/metagenesis-autonoma.md` (léelo entero). Antes de escribir algo nuevo, mira lo que ya existe y úsalo: `scripts/puente/puerta_datos.py` y `puerta_datos_cliente.py` (la puerta de datos del A1), `espejo_puerta.py`, `deploy/oracle/nodo/systemd/` (ya hay `starseed-genesis` y `starseed-metagenesis`), `oracle_nodo.py`, `buscar_capacidad.py` y la colmena.\n\nPara que el líder (también el A1) pueda publicar sin esta Mac, hace falta un token de GitHub de grano fino solo para `StarSeedSystem/starseed-system` (contents: write, actions: read) guardado en la bóveda del A1. Añade una acción «Token de despliegue para que MetaGenesis publique sin tu Mac», urgencia media, con el enlace directo a crear el token (permisos ya marcados en la URL si GitHub lo permite) y el comando que lo pide sin enseñarlo y lo sube al A1 (`guardar-clave.sh … --a1` si existe; si no, explica en tu respuesta qué falta). Sale solo si el A1 no lo tiene (comprobación sin leer el valor). Pruebas. Nombre fijado el 29-10 por la dirección: `STARSEED_DESPLIEGUE_GH_TOKEN`. Comando para Alex: `cd ~/Documents/starseed-os-main && bash scripts/puente/guardar-clave.sh STARSEED_DESPLIEGUE_GH_TOKEN --ambos && python3 scripts/puente/oracle_claves.py starseed-a1 STARSEED_DESPLIEGUE_GH_TOKEN`. La autopublicación del A1 usa ese token (con `GH_TOKEN` solo en su proceso) cuando no hay sesión de gh.",
+   "importancia": "capacidad"
+  },
+  {
+   "id": "IND1029A",
+   "ola": "1029 · MetaGenesis autónoma (sin Claude y sin la Mac)",
+   "depende": [],
+   "titulo": "Builds sin la Mac · el CI sube el `.next` y el reconstructor lo descarga",
+   "archivos": [
+    ".github/workflows/ci.yml",
+    "scripts/puente/reconstruir_mando.py",
+    "scripts/puente/test_reconstruir_mando.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas; nunca rutas de un worktree (`starseed-wt/…`) en el código. Contrato: `architecture/metagenesis-autonoma.md` (léelo entero). Antes de escribir algo nuevo, mira lo que ya existe y úsalo: `scripts/puente/puerta_datos.py` y `puerta_datos_cliente.py` (la puerta de datos del A1), `espejo_puerta.py`, `deploy/oracle/nodo/systemd/` (ya hay `starseed-genesis` y `starseed-metagenesis`), `oracle_nodo.py`, `buscar_capacidad.py` y la colmena.\n\nEl 29-10 Genesis local se quedó sin build (`.next` sin BUILD_ID) y el reconstructor esperaba para compilar en una Mac de 8 GB. En `ci.yml` (job que hace `next build` en «CI · verificación web»), sube el `.next` sin la caché (`.next/cache` fuera) como artefacto `genesis-next-<sha>` (retención 3 días). En `reconstruir_mando.py`, antes de compilar en local: si hay un run verde de `produccion/candidato` o `main` cuyo `headSha` es el árbol que se quiere servir, descarga su artefacto con `gh run download` en `.next-build` y sigue el contrato que ya existe (`.listo`, BUILD_ID, `reiniciar_mando()`); compila en local solo si no hay artefacto. Prueba pura de la elección (artefacto del mismo árbol › compilar). OJO (medido el 29-10): el build del CI usa NEXT_PUBLIC_SUPABASE_URL/ANON_KEY de relleno (`placeholder`), y esos valores se incrustan en el cliente: un artefacto así rompe el inicio de sesión de la Genesis local. Usa `${{ vars.NEXT_PUBLIC_… || 'https://placeholder…' }}` (variables del repo, no secretos: son públicas por diseño) y que la acción «Te toca a ti» pida a Alex subirlas una vez con `gh variable set` si faltan. El contenedor de Claude (8 GB) ya no puede compilar Genesis: murió por memoria con 3, 4 y 5 GB de heap.",
+   "importancia": "capacidad"
+  }
+ ]
+}
