@@ -81,7 +81,7 @@ const colibri = capasDe([CODER, CLEF]);
 const porId = (id: string) => colibri.find((m) => m.id === id);
 
 describe("modelosDeCapas · runtime colibri", () => {
-	it("ambas entradas salen con runtime, arquitecturas y origen de capas", () => {
+	it("ambas entradas salen con runtime,arquitecturas y origen de capas", () => {
 		expect(colibri).toHaveLength(2);
 		for (const m of colibri) {
 			expect(m.runtime).toBe("colibri");
@@ -139,11 +139,11 @@ describe("modelosDeCapas · runtime colibri", () => {
 		expect(deepseek?.medios).toEqual(["servidor"]);
 	});
 
-	it("formato: 'colibri-streaming' para los de streaming, 'gguf' para el resto", () => {
+	it("formato: 'safetensors' para los de streaming, 'gguf' para el resto", () => {
 		const coder = capasDe([CODER])[0];
 		expect(coder?.formato).toBe("gguf");
 		const deepseek = capasDe([DEEPSEEK_FLASH])[0];
-		expect(deepseek?.formato).toBe("colibri-streaming");
+		expect(deepseek?.formato).toBe("safetensors");
 	});
 
 	it("ordena el catálogo por prioridad (1.58-bit primero, recomendado > respaldo > en-pruebas > experimental)", () => {
@@ -157,4 +157,4 @@ describe("modelosDeCapas · runtime colibri", () => {
 		const ids = new Set(todas.map((m) => m.id));
 		expect(ids.size).toBe(todas.length);
 	});
-}
+});
