@@ -119,6 +119,19 @@ class Prestamo(unittest.TestCase):
                    "nota": "movida a oracle (colas/oracle-20261018-231246) desde Genesis"}}
         self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 3 * 3600 + 60), ["T"])
 
+    def test_lo_que_no_es_prestamo_de_oracle_ni_con_nota_citada_y_rama_cumplida(self):
+        """(Rescate rama nube/40131365064) Lo que no es «reasignada · oracle» no vuelve ni con la
+        nota citando una rama de oracle ya pasada la gracia; y una entrada que no es un diccionario
+        tampoco tumba el devolvedor."""
+        import calendar
+        import time
+        rama = "colas/oracle-20261018-231246"
+        nacida = calendar.timegm(time.strptime(rama[len(N.PREFIJO_COLA):], "%Y%m%d-%H%M%S"))
+        nota = "movida a oracle (%s) desde Genesis" % rama
+        p = {"W": {"estado": "reasignada", "medio": "nube", "nota": nota},
+             "X": "basura"}
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 3 * 3600 + 60), [])
+
     def test_movida_desde_genesis_no_vuelve_si_la_cola_vive_o_dentro_de_gracia(self):
         import calendar
         nacida = calendar.timegm((2026, 10, 18, 23, 12, 46, 0, 0, 0))
