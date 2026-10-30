@@ -26,6 +26,17 @@ describe("cuerpos del Mausbot", () => {
     }
   });
 
+  it("cada body lleva la marca {{GRADIENT}} y su id coincide con la clave", () => {
+    for (const id of IDS_CUERPO_MAUSBOT) {
+      const cuerpo = CUERPOS_MAUSBOT[id];
+      expect(cuerpo.id).toBe(id);
+      expect(cuerpo.body).toContain("{{GRADIENT}}");
+      expect(cuerpo.clip).not.toBe("");
+      expect(cuerpo.nombre).not.toBe("");
+      expect(cuerpo.anchor.scale).toBeGreaterThan(0);
+    }
+  });
+
   it("un valor desconocido cae al cuerpo cursor", () => {
     expect(cuerpoMausbot("x")).toBe("cursor");
     expect(cuerpoMausbot("cursor")).toBe("cursor");
@@ -36,9 +47,25 @@ describe("cuerpos del Mausbot", () => {
     expect(CUERPO_MAUSBOT_POR_DEFECTO).toBe("cursor");
   });
 
+  it("devuelve «cursor» para un valor desconocido", () => {
+    expect(cuerpoMausbot("x")).toBe("cursor");
+  });
+
   it("acepta cualquier id conocido tal cual", () => {
     for (const id of IDS_CUERPO_MAUSBOT) {
       expect(cuerpoMausbot(id)).toBe(id);
+    }
+  });
+
+  it("acepta cada id válido tal cual", () => {
+    for (const id of IDS_CUERPO_MAUSBOT) {
+      expect(cuerpoMausbot(id)).toBe(id);
+    }
+  });
+
+  it("devuelve el cuerpo por defecto para valores que no son cadena", () => {
+    for (const valor of [null, undefined, 7, true, {}, []]) {
+      expect(cuerpoMausbot(valor)).toBe(CUERPO_MAUSBOT_POR_DEFECTO);
     }
   });
 });
