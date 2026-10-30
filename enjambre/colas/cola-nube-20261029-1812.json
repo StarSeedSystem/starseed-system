@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "ola": "1023C",
+   "id": "CNV1023C-d1",
+   "titulo": "Escritorio · «Convertir a…» en el clic derecho de los iconos de archivo (parte 1 de 2)",
+   "archivos": [
+    "src/components/desktop/desktop-icon-menu.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nContexto (Alex, 2026-10-23): Filee (KnifeLemon/Filee, MIT, 255 formatos sin conexión) «para todo el OS y la Biblioteca, usado desde cualquier medio con clic derecho a cada archivo, pidiéndoselo a Astraura o en la Protomolécula». Contrato: `architecture/conversion-archivos.md` (léelo entero). Ya existe: `src/lib/conversion/` (formatos puros, `filee-servidor.ts` solo servidor, `cliente.ts`), `/api/conversion`, `src/components/conversion/` (`useConversionMenu` + `SubmenuConvertir` para cualquier menú de Radix, página `/convertir`). Nada sale de las neuronas de la persona; argumentos siempre en lista, nunca por shell.\n\nBusca el menú contextual de los iconos del escritorio (si el archivo tiene otro nombre, usa el que exista y dilo). Para iconos que apuntan a un archivo con URL, añade `SubmenuConvertir` (`useConversionMenu`); el resultado se descarga. Si no hay menú contextual de iconos, responde NO APLICA.\n\n## PARTE 1 DE 2 (la dirección dividió CNV1023C: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/desktop/desktop-icon-menu.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CNV1023C",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   }
+  }
+ ]
+}
