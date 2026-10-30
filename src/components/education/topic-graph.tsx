@@ -45,6 +45,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 
 import {
     type EduNode,
@@ -66,7 +67,6 @@ import {
     rutaDesdeCarpeta,
 } from "@/lib/publish/docusaurus-import";
 import type { ArchivoDocs } from "@/lib/publish/docusaurus-export";
-import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 import { LearningPathPanel } from "@/components/education/learning-path";
 import { ViewErrorBoundary } from "@/components/education/view-error-boundary";
 import type { Graph3DNode, Graph3DEdge } from "@/components/education/topic-graph-3d";
