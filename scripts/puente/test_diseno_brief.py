@@ -182,6 +182,109 @@ class TestBriefAdn(unittest.TestCase):
         self.assertNotIn("Synthwave Horizon", fichas)
 
 
+class TestBriefHerramientas1025R(unittest.TestCase):
+    """Rescate de la rama nube/a1-20261030-064449-DSN1025B: los cinco repos
+    nuevos de la Ola 1025R (architecture/director-diseno.md §7) salen en el
+    apartado 6 del brief cuando el título de la tarea los pide, sin líneas
+    duplicadas y con taste-skill y UI-TARS siempre presentes."""
+
+    def _lineas_con_en_herramientas(self, texto: str, subcadena: str) -> int:
+        """Líneas de la sección 6 que contienen la subcadena."""
+        en_herramientas = False
+        count = 0
+        for linea in texto.splitlines():
+            if linea.strip() == "## 6. Herramientas y skills":
+                en_herramientas = True
+                continue
+            if en_herramientas and linea.strip().startswith("## "):
+                break
+            if en_herramientas and subcadena in linea:
+                count += 1
+        return count
+
+    def test_presentacion_trae_frontend_slides(self):
+        tarea = {"titulo": "Presentación de resultados", "archivos": ["src/app/presentacion/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("frontend-slides", texto)
+        self.assertIn("zarazhangrui/frontend-slides", texto)
+
+    def test_design_md_trae_awesome_design_md(self):
+        tarea = {"titulo": "Actualizar design.md", "archivos": ["design.md"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("awesome-design-md", texto)
+        self.assertIn("VoltAgent/awesome-design-md", texto)
+
+    def test_documentacion_trae_docusaurus(self):
+        tarea = {"titulo": "Documentación de la API", "archivos": ["docs/api.md"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Docusaurus", texto)
+        self.assertIn("facebook/docusaurus", texto)
+
+    def test_educacion_trae_docusaurus(self):
+        tarea = {"titulo": "Guía de educación", "archivos": ["docs/guia.md"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Docusaurus", texto)
+        self.assertIn("facebook/docusaurus", texto)
+
+    def test_panel_de_datos_trae_refine(self):
+        tarea = {"titulo": "Panel de datos de usuarios", "archivos": ["src/app/panel/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Refine", texto)
+        self.assertIn("refinedev/refine", texto)
+
+    def test_taste_skill_en_toda_tarea(self):
+        """taste-skill (HERRAMIENTAS_BASE) aparece en toda tarea de interfaz."""
+        for titulo in [
+            "Presentación de resultados",
+            "Actualizar design.md",
+            "Documentación de la API",
+            "Panel de datos de usuarios",
+            "Vista simple",
+        ]:
+            tarea = {"titulo": titulo, "archivos": ["src/app/x/page.tsx"]}
+            texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+            self.assertIn("taste-skill", texto, "Falta taste-skill en: " + titulo)
+            self.assertIn("Leonxlnx/taste-skill", texto, "Falta repo taste-skill en: " + titulo)
+            self.assertIn("método: inventario", texto, "Falta descripción nueva en: " + titulo)
+
+    def test_sin_lineas_duplicadas_con_dos_claves(self):
+        """Ninguna línea sale dos veces aunque casen dos claves de la misma herramienta."""
+        tarea = {"titulo": "Presentación en conferencia", "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        count = self._lineas_con_en_herramientas(texto, "frontend-slides")
+        self.assertEqual(count, 1, "frontend-slides aparece duplicado")
+
+        tarea = {"titulo": "design.md del sistema de diseño", "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        count = self._lineas_con_en_herramientas(texto, "awesome-design-md")
+        self.assertEqual(count, 1, "awesome-design-md aparece duplicado")
+
+        tarea = {"titulo": "Documentación para educación", "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        count = self._lineas_con_en_herramientas(texto, "Docusaurus")
+        self.assertEqual(count, 1, "Docusaurus aparece duplicado")
+
+        tarea = {
+            "titulo": "Panel de datos y panel de administración",
+            "archivos": ["src/app/x/page.tsx"],
+        }
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        count = self._lineas_con_en_herramientas(texto, "Refine")
+        self.assertEqual(count, 1, "Refine aparece duplicado")
+
+    def test_apartados_6_y_7_con_varias_claves(self):
+        """Los apartados 6 (Herramientas) y 7 (Verificación) se conservan con varias claves."""
+        tarea = {"titulo": "Presentación design.md panel de datos", "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+        self.assertIn("frontend-slides", texto)
+        self.assertIn("awesome-design-md", texto)
+        self.assertIn("Refine", texto)
+        self.assertIn("taste-skill", texto)
+        self.assertIn("UI-TARS", texto)
+
+
 class TestBriefRise(unittest.TestCase):
     """§10: sección RISE solo si la tarea toca movimiento."""
 
