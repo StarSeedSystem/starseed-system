@@ -10,12 +10,22 @@
 import { useMemo } from "react";
 import { Stars } from "@react-three/drei";
 import { PlaneGeometry, DoubleSide } from "three";
-import type { NivelCalidad } from "@/lib/xr/tipos";
+import type { NivelCalidad, Vec3 } from "@/lib/xr/tipos";
 import type { MundoSpec, ObjetoMundo, LuzMundo } from "@/lib/xr/mundo-tipos";
 import { COLORES_NODO, CRISTAL } from "@/lib/xr/tokens-3d";
-import { visualDe, PAISAJE, COLOR_ZONA, ARGS_PRIMITIVA, alturaTerreno, segmentosTerreno, materialObjeto, estrellasActivas, altoPantalla, type VisualMundo } from "./mundo-render-puro";
+import type { DestinoRegistrado, EfectosZona, ResultadoPortal } from "@/lib/xr/zonas";
+import { visualDe, PAISAJE, ARGS_PRIMITIVA, alturaTerreno, segmentosTerreno, materialObjeto, estrellasActivas, altoPantalla, type VisualMundo } from "./mundo-render-puro";
+import { ZonasPortales, type EventoReglasZona } from "./zonas-portales";
 
-type Props = { mundo: MundoSpec; nivel: NivelCalidad };
+type Props = {
+    mundo: MundoSpec;
+    nivel: NivelCalidad;
+    posicion?: Vec3;
+    conocidos?: readonly DestinoRegistrado[];
+    alIr?: (destino: ResultadoPortal) => void;
+    alEvento?: (evento: EventoReglasZona) => void;
+    alEfectos?: (efectos: EfectosZona) => void;
+};
 
 /** Geometría del suelo: cuadrícula del nivel, alturas de `alturaTerreno` (misma semilla en todos los equipos). */
 function useGeometriaTerreno(mundo: MundoSpec, nivel: NivelCalidad) {
@@ -118,32 +128,6 @@ function MarcasSpawn({ puntos }: { puntos: MundoSpec["spawns"] }) {
     ));
 }
 
-/** Portal: anillo en pie con disco translúcido (el destino lo elige el motor de reglas, no el render). */
-function PortalesDe({ portales }: { portales: MundoSpec["portales"] }) {
-    return portales.map((p) => (
-        <group key={p.id} position={p.pos} rotation={p.rot}>
-            <mesh rotation={[0, 0, 0]}>
-                <torusGeometry args={[p.radio, 0.06, 12, 32]} />
-                <meshBasicMaterial color={COLORES_NODO.horizon.vivo} />
-            </mesh>
-            <mesh position={[0, 0, 0]}>
-                <circleGeometry args={[p.radio, 24]} />
-                <meshBasicMaterial color={COLORES_NODO.horizon.base} transparent opacity={0.25} side={DoubleSide} />
-            </mesh>
-        </group>
-    ));
-}
-
-/** Zonas: contorno guía en hilo con el color del efecto (no es un DataSet: no bloquea el paso). */
-function ZonasDe({ zonas }: { zonas: MundoSpec["zonas"] }) {
-    return zonas.map((z) => (
-        <mesh key={z.id} position={z.pos}>
-            {z.forma === "esfera" ? <sphereGeometry args={[Math.max(...z.tam) / 2, 12, 8]} /> : <boxGeometry args={z.tam} />}
-            <meshBasicMaterial color={COLOR_ZONA[z.efecto]} wireframe transparent opacity={0.3} />
-        </mesh>
-    ));
-}
-
 /** Pantallas (vídeo/estación/llamada) y pizarras: paneles; el contenido lo da la tarea de pantallas. */
 function Muebles({ visual }: { visual: VisualMundo }) {
     return visual.pantallas.visibles.map((p) => (
@@ -159,10 +143,11 @@ function Muebles({ visual }: { visual: VisualMundo }) {
     )));
 }
 
-export default function MundoRender({ mundo, nivel }: Props) {
+export default function MundoRender({ mundo, nivel, posicion, conocidos, alIr, alEvento, alEfectos }: Props) {
     const visual = useMemo(() => visualDe(mundo, nivel), [mundo, nivel]);
     const paisaje = PAISAJE[visual.mundo.entorno.cielo];
     const nieblaSegura = { cerca: visual.mundo.entorno.tamano * 0.35, lejos: visual.mundo.entorno.tamano * 0.95 };
+    const posicionPersona: Vec3 = posicion ?? visual.mundo.spawns[0]?.pos ?? [0, 0, 0];
     return (
         <group>
             <Cielo cielo={{
@@ -176,8 +161,15 @@ export default function MundoRender({ mundo, nivel }: Props) {
             <Terreno mundo={visual.mundo} nivel={nivel} />
             {visual.mundo.objetos.map((o) => (o.oculto ? null : <ObjetoVisual key={o.id} o={o} nivel={nivel} />))}
             <MarcasSpawn puntos={visual.spawns.visibles} />
-            <PortalesDe portales={visual.portales.visibles} />
-            <ZonasDe zonas={visual.zonas.visibles} />
+            <ZonasPortales
+                posicion={posicionPersona}
+                zonas={visual.zonas.visibles}
+                portales={visual.portales.visibles}
+                conocidos={conocidos}
+                alIr={alIr}
+                alEvento={alEvento}
+                alEfectos={alEfectos}
+            />
             <Muebles visual={visual} />
         </group>
     );
