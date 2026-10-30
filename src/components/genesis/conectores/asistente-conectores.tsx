@@ -23,23 +23,25 @@ async function cargarPorApi(ambito: string): Promise<VistaOpcionesAmbito> {
   if (!r.ok) throw new Error(`La API respondió con estado ${r.status}.`);
   return (await r.json()) as VistaOpcionesAmbito;
 }
+
 async function vincularPorApi(ambito: string, proveedor: string, valor: string): Promise<ResultadoVincular> {
-  const r = await fetch(`/api/genesis/conectores?ambito=${encodeURIComponent(ambito)}`,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "vincular", proveedor, valor }) });
-  return { ok: r.ok };
+  const r = await fetch(`/api/genesis/conectores?ambito=${encodeURIComponent(ambito)}`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accion: "vincular", proveedor, valor }),
+  });
+  return r.ok ? { ok: true } : { ok: false, error: `La API respondió con estado ${r.status}.` };
 }
 
 /** Motivo por papel: local primero, gratis vinculada después; de pago solo con permiso del ámbito. */
 export function resumenPorPapel(asignaciones: readonly Asignacion<Papel>[], pistas: { locales: ReadonlySet<string>; vinculadas: ReadonlySet<string> }): ResumenPapel[] {
   return asignaciones.map((a) => {
     const elegido = a.cadena[0] ?? a.respaldo[0] ?? null;
-    return {
-      papel: a.clave, elegido, cadena: [...a.cadena, ...a.respaldo],
-      motivo: pistas.locales.has(elegido) ? "Local primero: lo más potente que cabe, y lo privado no sale de la cuenta."
-        : pistas.vinculadas.has(elegido) ? "Gratis vinculada por una cuenta del ámbito: gratis primero."
-        : (a.preferencias.presupuesto ?? 0) > 0 ? "De pago con el permiso y el tope del ámbito."
-        : "Decidida por el ámbito, sin pista de elección en este asistente.",
-    };
+    const motivo = !elegido ? "Sin opción elegida todavía en este ámbito."
+      : pistas.locales.has(elegido) ? "Local primero: lo más potente que cabe, y lo privado no sale de la cuenta."
+      : pistas.vinculadas.has(elegido) ? "Gratis vinculada por una cuenta del ámbito: gratis primero."
+      : (a.preferencias.presupuesto ?? 0) > 0 ? "De pago con el permiso y el tope del ámbito."
+      : "Decidida por el ámbito, sin pista de elección en este asistente.";
+    return { papel: a.clave, elegido, cadena: [...a.cadena, ...a.respaldo], motivo };
   });
 }
 
@@ -52,7 +54,8 @@ export function AsistenteConectarGenesis({ ambito, opciones = null, cargar, vinc
 }) {
   const [vista, setVista] = useState<VistaOpcionesAmbito | null>(opciones), [errorCarga, setErrorCarga] = useState<string | null>(null),
     [paso, setPaso] = useState(1), [locales, setLocales] = useState<Set<string>>(new Set()),
-    [vinculadasOk, setVinculadasOk] = useState<Set<string>>(new Set()), [claves, setClaves] = useState<Record<string, string>>({});
+    [vinculadasOk, setVinculadasOk] = useState<Set<string>>(new Set()), [claves, setClaves] = useState<Record<string, string>>({}),
+    [avisoVincular, setAvisoVincular] = useState<string | null>(null);
 
   useEffect(() => {
     if (opciones) { setVista(opciones); setErrorCarga(null); return; }
@@ -100,6 +103,7 @@ export function AsistenteConectarGenesis({ ambito, opciones = null, cargar, vinc
                 className={`${PILDORA} ${locales.has(o.id) ? "border-emerald-300/70 bg-emerald-500/20 text-white" : "border-white/15 text-white/60"}`}>{locales.has(o.id) ? "Encendido" : "Apagado"}</button>
             </div>
           ))}
+          {local.length === 0 ? <p className="text-xs text-white/50">No hay capacidad local pendiente de activar en este ámbito.</p> : null}
         </div>
       ) : null}
       {paso === 2 ? (
@@ -108,7 +112,7 @@ export function AsistenteConectarGenesis({ ambito, opciones = null, cargar, vinc
           {gratis.map((o) => (
             <div key={o.id} className={CRISTAL}>
               <p className="text-sm">{o.nombre}</p>
-              {o.enlaceAlta || o.enlaceClave ? <a href={o.enlaceAlta ?? o.enlaceClave ?? "#"} target="_blank" rel="noreferrer" className={`${PILDORA} py-1`}>Vincular</a> : null}
+              {o.enlaceAlta || o.enlaceClave ? <a href={o.enlaceAlta ?? o.enlaceClave ?? "#"} target="_blank" rel="noreferrer" className={`${PILDORA} inline-block py-1`}>Vincular</a> : null}
               <p className="text-xs text-white/50">{o.limite ? `Gratis: ${o.limite.nota}` : "Límite gratis sin verificar: no se promete."}</p>
               <div className="flex gap-2">
                 <input type="password" value={claves[o.id] ?? ""} aria-label={`Clave de ${o.nombre}`} onChange={(e) => setClaves((p) => ({ ...p, [o.id]: e.target.value }))}
@@ -119,6 +123,7 @@ export function AsistenteConectarGenesis({ ambito, opciones = null, cargar, vinc
               {vinculadasOk.has(o.id) ? <p className="text-xs text-emerald-200">Clave enviada a la bóveda del ámbito.</p> : null}
             </div>
           ))}
+          {gratis.length === 0 ? <p className="text-xs text-white/50">No hay servicios gratis pendientes de vincular.</p> : null}
           {avisoVincular ? <p className={`${CRISTAL} border-amber-400/25 bg-amber-500/10 text-xs text-amber-100`}>{avisoVincular}</p> : null}
         </div>
       ) : null}
