@@ -132,6 +132,12 @@ describe("usable", () => {
   });
 });
 
+type EntradaBanco = EntradaCapa & {
+  archivo: string;
+  tamano_bytes: number;
+  verificado: string;
+};
+
 describe("catálogo JSON · Ternary Bonsai 2 en el banco (1025R)", () => {
   const crudo = readFileSync(join(process.cwd(), "config/capas-astraura.json"), "utf8");
   const catalogo = leerCatalogo(JSON.parse(crudo));
@@ -139,7 +145,7 @@ describe("catálogo JSON · Ternary Bonsai 2 en el banco (1025R)", () => {
 
   it("las tres entradas del banco existen y no se promueven", () => {
     for (const id of ids) {
-      const entrada = catalogo.capas.find((e) => e.id === id);
+      const entrada = catalogo.capas.find((e) => e.id === id) as EntradaBanco | undefined;
       expect(entrada, id).toBeDefined();
       expect(entrada?.estado).toBe("en-banco");
       expect(entrada?.familia).toBe("prism-ml/Ternary-Bonsai");
@@ -154,7 +160,7 @@ describe("catálogo JSON · Ternary Bonsai 2 en el banco (1025R)", () => {
 
   it("cada una trae SHA de 64 hex en minúsculas y tamaño medido", () => {
     for (const id of ids) {
-      const entrada = catalogo.capas.find((e) => e.id === id)!;
+      const entrada = catalogo.capas.find((e) => e.id === id) as EntradaBanco;
       expect(entrada.sha256).toMatch(/^[0-9a-f]{64}$/);
       expect(entrada.sha256).toBe(entrada.sha256.toLowerCase());
       expect(entrada.tamano_bytes).toBeGreaterThan(0);
