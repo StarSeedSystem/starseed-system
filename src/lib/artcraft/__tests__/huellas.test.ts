@@ -36,6 +36,14 @@ describe("parseSha256Sums", () => {
     const mapa = parseSha256Sums(texto);
     expect(mapa.size).toBe(1);
   });
+
+  it("normaliza la huella a minúsculas y admite uno o dos espacios", () => {
+    const mayusculas = "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD";
+    const texto = `${mayusculas} abc.zip\n${mayusculas}  def.zip`;
+    const mapa = parseSha256Sums(texto);
+    expect(mapa.get("abc.zip")).toBe(mayusculas.toLowerCase());
+    expect(mapa.get("def.zip")).toBe(mayusculas.toLowerCase());
+  });
 });
 
 describe("nombreActivoWeb", () => {
@@ -66,6 +74,10 @@ describe("nombreActivoRare", () => {
   it("genera nombre con AppImage x86_64", () => {
     expect(nombreActivoRare("1.12.0.237", "x86_64.AppImage")).toBe("Rare-1.12.0.237-x86_64.AppImage");
   });
+
+  it("genera nombre con dmg x86_64", () => {
+    expect(nombreActivoRare("1.12.0.237", "x86_64.dmg")).toBe("Rare-1.12.0.237-x86_64.dmg");
+  });
 });
 
 describe("esActivoPermitido", () => {
@@ -91,6 +103,11 @@ describe("esActivoPermitido", () => {
 
   it("rechaza nombre con barra", () => {
     expect(esActivoPermitido("some/path.zip")).toBe(false);
+  });
+
+  it("rechaza nombres ajenos y el vacío", () => {
+    expect(esActivoPermitido("OtraCosa.zip")).toBe(false);
+    expect(esActivoPermitido("")).toBe(false);
   });
 });
 
@@ -125,6 +142,16 @@ describe("verificarActivo", () => {
     const result = await verificarActivo("figcraft-web-1.0.0.zip", bytes, sumas);
     expect(result.ok).toBe(false);
     expect(result.motivo).toMatch(/ba7816bf/);
+  });
+
+  it("al fallar la huella solo enseña los 8 primeros caracteres", async () => {
+    const bytes = new TextEncoder().encode("abc");
+    const completa = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    const sumas = new Map<string, string>([["figcraft-web-1.0.0.zip", "0".repeat(64)]]);
+    const result = await verificarActivo("figcraft-web-1.0.0.zip", bytes, sumas);
+    expect(result.ok).toBe(false);
+    expect(result.motivo).toContain("ba7816bf");
+    expect(result.motivo).not.toContain(completa);
   });
 
   it("sin huella publicada", async () => {
