@@ -153,6 +153,29 @@ describe("capaEnPropio — verificación de capa en almacén local", () => {
     }
     expect(await capaEnPropio(almacen, sha256)).toBe(false);
   });
+
+  it("devuelve true con la meta escrita a mano y todos los trozos presentes", async () => {
+    const almacen = almacenamientoEnMemoria();
+    const sha256 = "a".repeat(64);
+    const meta = { sha256, completa: true, totalTrozos: 3 };
+    await almacen.escribir("capa/needle3-reflejo/meta", aBuffer(JSON.stringify(meta)));
+    // Trozos de relleno: capaEnPropio confía en la meta y no re-verifica el SHA de cada trozo.
+    for (const i of [0, 1, 2]) {
+      await almacen.escribir(`capa/needle3-reflejo/trozo/${i}`, new ArrayBuffer(10));
+    }
+    expect(await capaEnPropio(almacen, sha256)).toBe(true);
+  });
+
+  it("devuelve false si la meta se declara completa pero falta el último trozo", async () => {
+    const almacen = almacenamientoEnMemoria();
+    const sha256 = "a".repeat(64);
+    const meta = { sha256, completa: true, totalTrozos: 3 };
+    await almacen.escribir("capa/needle3-reflejo/meta", aBuffer(JSON.stringify(meta)));
+    for (const i of [0, 1]) {
+      await almacen.escribir(`capa/needle3-reflejo/trozo/${i}`, new ArrayBuffer(10));
+    }
+    expect(await capaEnPropio(almacen, sha256)).toBe(false);
+  });
 });
 
 describe("pedirCapa — selección de fuente por orden §6", () => {
