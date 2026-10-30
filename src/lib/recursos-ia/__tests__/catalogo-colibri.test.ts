@@ -35,6 +35,30 @@ const CLEF: Entrada = {
     medios: ["servidor"],
 };
 
+/** Entrada 3: capa «juicio» (Laya) sin int8 en el nombre → int4. */
+const LAYA: Entrada = {
+    id: "colibri-laya",
+    capa: "juicio",
+    modelo: "Laya",
+    runtime: "colibri",
+    formato: "safetensors",
+    tamano_bytes: 870_000_000,
+    estado: "por-verificar",
+    medios: ["servidor"],
+};
+
+/** Entrada 4: capa «palabra» (OLMoE) que sí declara int8. */
+const OLMOE: Entrada = {
+    id: "colibri-olmoe-7b",
+    capa: "palabra",
+    modelo: "OLMoE 7B (int8)",
+    runtime: "colibri",
+    formato: "safetensors",
+    tamano_bytes: 7_168_000_000,
+    estado: "por-verificar",
+    medios: ["servidor"],
+};
+
 const colibri = capasDe([CODER, CLEF]);
 const porId = (id: string) => colibri.find((m) => m.id === id);
 
@@ -85,5 +109,31 @@ describe("modelosDeCapas · runtime colibri", () => {
     it("ignora las entradas sin capa conocida o sin id", () => {
         expect(capasDe([{ id: "sin-capa", capa: "desconocida", runtime: "colibri", modelo: "X" }])).toHaveLength(0);
         expect(capasDe([{ capa: "razon", runtime: "colibri", modelo: "X" }])).toHaveLength(0);
+    });
+
+    it("juicio → decision y palabra → texto (los extremos de §2 del contrato)", () => {
+        const [laya, olmoe] = capasDe([LAYA, OLMOE]);
+        expect(laya?.capacidades).toEqual(["decision"]);
+        expect(olmoe?.capacidades).toEqual(["texto"]);
+        expect(laya?.bits).toBe(4);
+        expect(olmoe?.bits).toBe(8);
+        for (const m of [laya, olmoe]) {
+            expect(m?.runtime).toBe("colibri");
+            expect(m?.arquitecturas).toEqual(["arm64", "x86_64"]);
+        }
+    });
+
+    it("medios y formato del JSON pasan al catálogo tal cual", () => {
+        const [coder, laya] = capasDe([CODER, LAYA]);
+        expect(coder?.medios).toEqual(["servidor"]);
+        expect(laya?.medios).toEqual(["servidor"]);
+        expect(coder?.formato).toBe("gguf");
+        expect(laya?.formato).toBe("safetensors");
+    });
+
+    it("mantiene el orden de entrada y no duplica ids", () => {
+        const ids = capasDe([CODER, CLEF, LAYA, OLMOE]).map((m) => m.id);
+        expect(ids).toEqual(["colibri-qwen-coder", "colibri-clef", "colibri-laya", "colibri-olmoe-7b"]);
+        expect(new Set(ids).size).toBe(ids.length);
     });
 });
