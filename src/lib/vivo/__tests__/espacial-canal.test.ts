@@ -76,7 +76,7 @@ describe("canal de escena", () => {
         const pg = c.on.filter((o) => o.tipo === "postgres_changes");
         expect(pg).toHaveLength(1);
         expect(pg[0].filtro).toMatchObject({ table: "os_spaces", filter: "id=eq.esc-1", event: "UPDATE" });
-        expect(c.on.filter((o) => o.tipo === "broadcast").map((o) => o.filtro.event)).toEqual(["pose", "cambios", "arrastre", "pedir-estado", "estado"]);
+        expect(c.on.filter((o) => o.tipo === "broadcast").map((o) => o.filtro.event)).toEqual(["pose", "cambios", "arrastre", "pedir-estado", "estado", "adn"]);
 
         // Antes de suscribirse: las poses se descartan, los cambios se encolan.
         con.enviar("pose", { de: "yo:tab" });

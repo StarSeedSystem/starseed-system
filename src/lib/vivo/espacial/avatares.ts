@@ -16,6 +16,7 @@
  * Módulo PURO (el reloj y los temporizadores se inyectan).
  */
 
+import { esRefInterna } from "@/lib/avatares/adn/adn";
 import { textoLimpio, type Vec3 } from "./modelo";
 
 export type Quat = [number, number, number, number];
@@ -38,6 +39,14 @@ export interface MetaAvatar {
     editor: boolean;
     /** ms de entrada. */
     desde: number;
+    /**
+     * ADN de su avatar 3D (AV1011E, contrato `architecture/astraura-avatares-3d.md` §3): solo una
+     * referencia interna (`biblioteca:` / `genesis:`), nunca una URL. Opcional: quien no lo manda
+     * se ve como hasta ahora (cápsula/orbe de color).
+     */
+    adnRef?: string;
+    /** Revisión GUARDADA de ese ADN (los presentes lo leen una vez por ref+rev). */
+    adnRev?: number;
 }
 
 export const PALETA_AVATARES = ["#7C5CFF", "#007FFF", "#10B981", "#FFBF00", "#DC143C", "#14B8A6", "#F97316", "#EC4899", "#39FF14"] as const;
@@ -75,7 +84,7 @@ export function sanearMetaAvatar(v: unknown, clave: string): MetaAvatar | null {
     const o = v as Record<string, unknown>;
     const modo: ModoAvatar = o.modo === "vr" || o.modo === "ar" ? o.modo : "3d";
     const color = typeof o.color === "string" && /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : colorDeClave(clave);
-    return {
+    const meta: MetaAvatar = {
         clave,
         uid: typeof o.uid === "string" && /^[0-9a-f-]{36}$/i.test(o.uid) ? o.uid : null,
         nombre: textoLimpio(o.nombre, 40) || "Persona",
@@ -84,6 +93,11 @@ export function sanearMetaAvatar(v: unknown, clave: string): MetaAvatar | null {
         editor: o.editor === true,
         desde: typeof o.desde === "number" && Number.isFinite(o.desde) ? o.desde : 0,
     };
+    if (esRefInterna(o.adnRef)) {
+        meta.adnRef = o.adnRef;
+        meta.adnRev = typeof o.adnRev === "number" && Number.isFinite(o.adnRev) ? Math.max(0, Math.floor(o.adnRev)) : 0;
+    }
+    return meta;
 }
 
 /**
@@ -107,7 +121,8 @@ export function mismosAvatares(a: readonly MetaAvatar[], b: readonly MetaAvatar[
     for (let i = 0; i < a.length; i++) {
         const x = a[i];
         const y = b[i];
-        if (x.clave !== y.clave || x.nombre !== y.nombre || x.color !== y.color || x.modo !== y.modo || x.editor !== y.editor || x.uid !== y.uid) {
+        if (x.clave !== y.clave || x.nombre !== y.nombre || x.color !== y.color || x.modo !== y.modo || x.editor !== y.editor || x.uid !== y.uid ||
+            x.adnRef !== y.adnRef || x.adnRev !== y.adnRev) {
             return false;
         }
     }
