@@ -46,7 +46,16 @@ describe("reglas de correo como datos", () => {
       "esperar-respuesta",
       "sugerir-borrador",
     ]);
-    const prohibidas = ["enviar", "responder", "responder-solo", "borrar", "reenviar", "auto-enviar"];
+    const prohibidas = [
+      "enviar",
+      "responder",
+      "responder-solo",
+      "borrar",
+      "reenviar",
+      "auto-enviar",
+      "",
+      "etiquetar ",
+    ];
     for (const prohibida of prohibidas) {
       expect(validarRegla(regla({ id: "r", hacer: prohibida as ReglaCorreo["hacer"] }))).toBeNull();
     }
@@ -107,7 +116,10 @@ describe("aplicarReglas", () => {
   });
 
   it("exige la antigüedad mínima (regla para hilos viejos)", () => {
-    const h = hilo({ id: "h1", ultimoEn: "2026-10-27T00:00:00Z" }); // 60 h antes de AHORA
+    const h = hilo({
+      id: "h1",
+      ultimoEn: new Date(Date.now() - 60 * 3_600_000).toISOString(), // 60 h antes de ahora
+    });
     expect(aplicarReglas([regla({ id: "r", cuando: { antiguedadHorasMin: 48 } })], h)).not.toEqual([]);
     expect(aplicarReglas([regla({ id: "r", cuando: { antiguedadHorasMin: 72 } })], h)).toEqual([]);
   });
@@ -139,6 +151,14 @@ describe("seguimiento de respuestas («Reply Zero»)", () => {
   it("resuelto: respuesta de otro recién llegada dentro del margen", () => {
     const h = hilo({ id: "h", ultimoEn: "2026-10-29T08:00:00Z" }); // 4 h antes
     expect(clasificarHilo(h, YO, AHORA)).toBe("resuelto");
+  });
+
+  it("respeta un umbral propio de horasPorResponder", () => {
+    const treinta = hilo({ id: "h", ultimoEn: "2026-10-28T06:00:00Z" }); // 30 h antes
+    expect(clasificarHilo(treinta, YO, AHORA)).toBe("por-responder");
+    expect(clasificarHilo(treinta, YO, AHORA, { horasPorResponder: 48 })).toBe("resuelto");
+    const cincuenta = hilo({ id: "h2", ultimoEn: "2026-10-27T10:00:00Z" }); // 50 h antes
+    expect(clasificarHilo(cincuenta, YO, AHORA, { horasPorResponder: 48 })).toBe("por-responder");
   });
 
   it("esperando: el último es mío y ya pasaron más de 14 días (por defecto)", () => {
