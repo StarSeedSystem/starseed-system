@@ -77,10 +77,21 @@ export async function cargarSplat(
         bytes?: number;
         SplatMesh: ClaseSplat;
         nivel?: NivelCalidad;
+        pedir?: typeof fetch;
     } = {},
 ): Promise<{ ok: boolean; motivo?: string }> {
-    // Validar URL
-    if (!urlSplatSegura(url)) {
+    // Usar fetch personalizado si se proporciona (pruebas de HEAD, etc.)
+    if (opciones.pedir) {
+        const targetUrl = typeof url === "string" ? url : String(url);
+        const respuesta = await opciones.pedir(targetUrl);
+        if (!respuesta.ok) {
+            return { ok: false, motivo: "URL no accesible" };
+        }
+        const contentLength = respuesta.headers.get("Content-Length");
+        if (contentLength && parseInt(contentLength) > PRESUPUESTO_SPLAT.maxima) {
+            return { ok: false, motivo: `Excede el límite de ${PRESUPUESTO_SPLAT.maxima} bytes` };
+        }
+    } else if (!urlSplatSegura(url)) {
         return { ok: false, motivo: "URL debe ser https segura" };
     }
 
@@ -99,7 +110,7 @@ export async function cargarSplat(
     } else {
         // Sin nivel: límite duro contra máxima
         if (bytes && bytes > PRESUPUESTO_SPLAT.maxima) {
-            return { ok: false, motivo: `Excede el límite de ${PRESUPUESTO_SPLAT.maxima} bytes` };
+            return { ok: false, motivo: `Excede el límite de 60 MB` };
         }
     }
 

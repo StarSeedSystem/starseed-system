@@ -3,8 +3,9 @@ import { URL_OK, puedeUsarSplat, PRESUPUESTO_SPLAT, urlSplatSegura, marcadorSpla
 
 const claseFalsa = (impl: () => Promise<unknown> | unknown) => {
     class Falsa {
+        initialized: Promise<unknown>;
         constructor() {
-            return impl();
+            this.initialized = impl();
         }
     }
     return Falsa;
@@ -74,7 +75,7 @@ describe("cargarSplat", () => {
 
     it("HEAD que responde Content-Length enorme también se rechaza", async () => {
         const pedir: typeof fetch = async () =>
-            new Response(null, { headers: { "Content-Length": String(PRESUPUESTO_SPLAT.alta + 1) } });
+            new Response(null, { headers: { "Content-Length": String(PRESUPUESTO_SPLAT.maxima + 1) } });
         const r = await cargarSplat(URL_OK, { pedir, SplatMesh: claseFalsa(() => Promise.resolve()) });
         expect(r.ok).toBe(false);
     });
