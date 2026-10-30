@@ -233,6 +233,24 @@ export function iconsOfPage(d: Desktop, page: number): DesktopIcon[] {
     return d.icons.filter((i) => iconPage(i) === page);
 }
 
+/**
+ * «Convertir a…» (Filee) de un icono del escritorio.
+ *
+ * Solo un ARCHIVO con URL real se puede convertir: la conversión va por esa
+ * referencia. Las notas sin URL, apps, widgets, folders y enlaces web devuelven
+ * `null` y el menú no enseña el submenú. Se descartan los esquemas que el
+ * navegador no puede leer (`javascript:`, `vbscript:`, `file:`). Puro: sin DOM,
+ * sin red, sin disco. Contrato: `architecture/conversion-archivos.md`.
+ */
+export function archivoConvertibleDeIcono(
+    icon: Pick<DesktopIcon, "kind" | "name" | "url"> | null | undefined,
+): { nombre: string; url: string } | null {
+    if (!icon || icon.kind !== "file") return null;
+    const url = (icon.url ?? "").trim();
+    if (!url || /^(?:javascript|vbscript|file):/i.test(url)) return null;
+    return { nombre: (icon.name ?? "").trim() || "archivo", url };
+}
+
 export interface DesktopsState {
     desktops: Desktop[];
     activeId: string;
