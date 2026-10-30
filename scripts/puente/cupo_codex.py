@@ -50,6 +50,19 @@ PISTAS = (
 #: Cuánto se aparta tras un agotamiento.
 HORAS = 3.0
 
+#: Lo que dice la CLI cuando la cuenta de ChatGPT NO admite ese modelo.
+#: (DEC1028C, 2026-10-28) Desde el 23/10 a las 20:55 TODAS las llamadas de
+#: Codex devuelven 400 · «The 'gpt-5.6-sol' model is not supported when using
+#: Codex with a ChatGPT account». No es cuota: esperar no lo arregla, y cada
+#: reintento quema el primer intento de la tarea. Se aparta un día entero.
+PISTAS_SIN_MODELO = (
+    "is not supported when using codex with a chatgpt account",
+    "model_not_found",
+)
+
+#: Cuánto se aparta cuando el problema es el modelo, no la cuota.
+HORAS_SIN_MODELO = 24
+
 
 def agotado_en(salida):
     """¿Esta salida es un agotamiento de cuota de Codex?
@@ -60,6 +73,17 @@ def agotado_en(salida):
     """
     b = (salida or "").lower()
     return any(p in b for p in PISTAS)
+
+
+def sin_modelo_en(salida):
+    """¿Esta salida dice que la cuenta de ChatGPT no admite ese modelo?
+
+    Es la reacción opuesta a la cuota: la cuota se repone sola en horas y lo
+    que toca es esperar; esto no se arregla esperando, hay que apartar a Codex
+    de la rotación (24 h) y reenrutar la tarea SIN gastar su intento.
+    """
+    b = (salida or "").lower()
+    return any(p in b for p in PISTAS_SIN_MODELO)
 
 
 def hasta_cuando(ahora, horas=HORAS):

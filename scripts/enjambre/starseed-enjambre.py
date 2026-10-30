@@ -319,8 +319,14 @@ except Exception:  # sin el módulo, se comporta como antes
             return False
 
         @staticmethod
-        def anotar(motivo=""):
+        def sin_modelo_en(salida):
+            return False
+
+        @staticmethod
+        def anotar(motivo="", horas=24):
             return 0
+
+        HORAS_SIN_MODELO = 24
 
 
 MODELOS_CODEX = ["codex/gpt-5.6-sol"]
@@ -7738,6 +7744,31 @@ def ejecutar(t, intento=1):
                 "Codex sin cuota de ChatGPT: fuera de la rotación %d min "
                 "(las demás tareas ya no lo intentan)" % minutos,
             )
+        # (DEC1028C, 2026-10-28) «The 'gpt-5.6-sol' model is not supported when
+        # using Codex with a ChatGPT account»: la cuenta ya no puede usar ese
+        # modelo. NO es cuota (no se repone esperando) ni cuelgue: si se
+        # reintenta, repite el 400 y la tarea sale `sin_cambios` gastando su
+        # primer intento (DEC1028A lo hizo 8 veces). Se aparta 24 h, sale de la
+        # rotación entera y se sigue con el siguiente modelo SIN contar intento
+        # (como una pasarela caída).
+        if modelo in MODELOS_CODEX and _cupo_codex.sin_modelo_en(out):
+            try:
+                _cupo_codex.anotar(
+                    "cuenta de ChatGPT sin Codex para %s" % modelo,
+                    horas=_cupo_codex.HORAS_SIN_MODELO,
+                )
+            except Exception:
+                pass
+            for _m in list(MODELOS_CODEX):
+                if _m in MODELOS:
+                    MODELOS.remove(_m)
+            evento(
+                "proveedor_caido",
+                tid,
+                "Codex: «%s no se admite con la cuenta de ChatGPT» → fuera de la "
+                "rotación 24 h; la tarea reenruta sin gastar intento" % modelo,
+            )
+            continue
         if apartar_si_pide_pago(tid, modelo, out):
             continue
         pista = fallo_de_proveedor(out)

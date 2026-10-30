@@ -13,6 +13,13 @@ import cupo_codex as C
 REAL = ("ERROR: You've hit your usage limit. Upgrade to Pro "
         "(https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage")
 
+#: Literal del log del 2026-10-28 (DEC1028C): la cuenta de ChatGPT ya no puede
+#: usar ese modelo. 206 sesiones seguidas fallando igual desde el 23/10 20:55;
+#: con «-m gpt-5.5» pasa lo mismo.
+REAL_SIN_MODELO = ("{\"status\":400, ... \"message\":\"The 'gpt-5.6-sol' model is "
+                   "not supported when using Codex with a ChatGPT account.\","
+                   "\"code\":\"model_not_found\"}")
+
 AHORA = 1_700_000_000.0
 
 
@@ -33,6 +40,47 @@ class TestDeteccion(unittest.TestCase):
     def test_da_igual_como_lo_escriban(self):
         for t in ("Usage limit reached for your plan", "QUOTA EXCEEDED", "Upgrade to Pro"):
             self.assertTrue(C.agotado_en(t), t)
+
+
+class TestSinModelo(unittest.TestCase):
+    def test_la_salida_real_del_28(self):
+        self.assertTrue(C.sin_modelo_en(REAL_SIN_MODELO))
+
+    def test_no_confunde_la_cuota_agotada(self):
+        # Reacciones opuestas: la cuota se repone esperando, el modelo no.
+        self.assertFalse(C.sin_modelo_en(REAL))
+        self.assertFalse(C.agotado_en(REAL_SIN_MODELO))
+        self.assertFalse(C.sin_modelo_en("ERROR: model 'gpt-9' does not exist"))
+
+    def test_vacio_no_es_sin_modelo(self):
+        self.assertFalse(C.sin_modelo_en(""))
+        self.assertFalse(C.sin_modelo_en(None))
+
+    def test_da_igual_como_lo_escriban(self):
+        for t in ("The 'gpt-5.6-sol' model Is Not Supported When Using Codex "
+                  "With A ChatGPT Account.",
+                  "CODE \"MODEL_NOT_FOUND\""):
+            self.assertTrue(C.sin_modelo_en(t), t)
+
+    def test_veinticuatro_horas(self):
+        self.assertEqual(C.HORAS_SIN_MODELO, 24)
+        self.assertAlmostEqual(
+            C.hasta_cuando(AHORA, horas=C.HORAS_SIN_MODELO) - AHORA, 24 * 3600, places=3
+        )
+
+    def test_anotar_un_dia(self):
+        import tempfile
+        ruta = os.path.join(tempfile.mkdtemp(), "codex-cupo.json")
+        minutos = C.anotar(
+            "cuenta de ChatGPT sin Codex para codex/gpt-5.6-sol",
+            ruta=ruta,
+            ahora=AHORA,
+            horas=C.HORAS_SIN_MODELO,
+        )
+        self.assertGreater(minutos, 1000)
+        self.assertFalse(C.puede_escribir(ruta, ahora=AHORA))
+        # Pasado el día entero, se vuelve a intentar.
+        self.assertTrue(C.puede_escribir(ruta, ahora=AHORA + 24 * 3600 + 1))
 
 
 class TestVigencia(unittest.TestCase):
