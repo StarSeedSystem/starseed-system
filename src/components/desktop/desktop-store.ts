@@ -17,6 +17,7 @@
 import { useSyncExternalStore, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
+import { geometriaVentana } from "@/lib/design/composicion";
 
 // ── Tipos del modelo ─────────────────────────────────────────────
 export type DesktopIconKind = "app" | "file" | "folder" | "widget" | "link";
@@ -1155,12 +1156,76 @@ export interface OpenWindowOptions {
     allowDuplicate?: boolean;
 }
 
+// ── Composición centrada por aparato (decisión de Alex, 2026-10-19) ──
+// «Cada ventana centrada en la pantalla, usando el espacio de forma
+// inteligente para cada aparato» (identidades.md §Decisiones; §7b de
+// adn-y-tokens.md). Geometría pura delegada en composicion.ts.
+
+/**
+ * Geometría de una ventana nueva SIN posición guardada: centrada en el
+ * aparato. Delega el reparto del espacio (márgenes de teléfono, ancho
+ * máximo, acotes) en `geometriaVentana` y añade SOLO las reglas del
+ * escritorio: la banda de la barra superior (B-1) y una reserva vertical
+ * para que el aire de trabajo siga visible bajo la ventana. Puro.
+ */
+export function posicionCentrada(vw: number, vh: number, w?: number, h?: number): DesktopWindowRect {
+    const alto = Math.min(Math.max(220, h ?? 520), Math.max(220, vh - 150));
+    const g = geometriaVentana(
+        { ancho: vw, alto: vh },
+        { tipo: "ventana", ancho: Math.max(0, w ?? 760), alto },
+    );
+    return {
+        // B-1: la capa de ventanas empieza bajo la barra superior; el centro
+        // óptico se respeta desde ahí y nunca se invade su banda.
+        x: g.x,
+        y: Math.max(DESKTOP_TOP_INSET, g.y),
+        w: Math.max(280, Math.min(g.ancho, Math.max(300, vw - 48))),
+        h: Math.max(200, g.alto),
+    };
+}
+
+/** Límite derecho posible para una ventana de ancho `w` (margen de la cascada). */
+function margenLateral(vw: number, w: number): number {
+    return Math.max(8, vw - w - 16);
+}
+
+/**
+ * ¿La ventana (con posición guardada) quedó FUERA del aparato actual?
+ * Pasa en dos casos: se cerró en otra pantalla/ventana más grande o viene de
+ * un restaurado de otra neurona. Puro.
+ */
+export function quedoFuera(rect: DesktopWindowRect, vw: number, vh: number): boolean {
+    return (
+        rect.x < 8 ||
+        rect.x + rect.w > margenLateral(vw, rect.w) + rect.w ||
+        rect.y < DESKTOP_TOP_INSET ||
+        rect.y + rect.h > vh - 24
+    );
+}
+
+/**
+ * Recoloca una ventana con posición guardada dentro del aparato actual sin
+ * cambiar su tamaño: si ya cabe, se queda EXACTAMENTE igual (la posición
+ * guardada manda); si quedó fuera, se trae de vuelta. Puro.
+ */
+export function recolocarDentro(rect: DesktopWindowRect, vw: number, vh: number): DesktopWindowRect {
+    const w = Math.min(rect.w, Math.max(280, vw - 48));
+    const x = Math.max(8, Math.min(rect.x, margenLateral(vw, w)));
+    const y = Math.max(
+        DESKTOP_TOP_INSET,
+        Math.min(rect.y, Math.max(DESKTOP_TOP_INSET, vh - rect.h - 24)),
+    );
+    return { x, y, w, h: rect.h };
+}
+
 /** Abre una ventana (o enfoca la existente con el mismo contenido). Devuelve su id. */
 export function openWindow(
     desktopId: string,
     contentRef: DesktopWindowContentRef,
     opts?: OpenWindowOptions,
 ): string {
+    const vw = isClient() ? window.innerWidth : 1280;
+    const vh = isClient() ? window.innerHeight : 800;
     let resultId = newId("win");
     mutateDesktop(desktopId, (d) => {
         const dedupe = !opts?.allowDuplicate && contentRef.type !== "browser";
@@ -1170,27 +1235,26 @@ export function openWindow(
         if (existing) {
             resultId = existing.id;
             const z = nextZ(d);
+            // Posición guardada: se respeta; si el aparato cambió y quedó fuera,
+            // se recoloca dentro sin cambiarle el tamaño.
+            const fija = quedoFuera(existing, vw, vh) ? recolocarDentro(existing, vw, vh) : null;
             return {
                 ...d,
                 windows: d.windows.map((w) =>
-                    w.id === existing.id ? { ...w, minimized: false, z } : w,
+                    w.id === existing.id
+                        ? { ...w, minimized: false, z, ...(fija ? { x: fija.x, y: fija.y } : {}) }
+                        : w,
                 ),
             };
         }
-        const vw = isClient() ? window.innerWidth : 1280;
-        const vh = isClient() ? window.innerHeight : 800;
-        const w = Math.min(opts?.w ?? 760, Math.max(300, vw - 48));
-        const h = Math.min(opts?.h ?? 520, Math.max(220, vh - 150));
-        const idx = d.windows.length;
-        // Cascada que NUNCA invade la banda de la barra superior (B-1).
-        const maxY = Math.max(DESKTOP_TOP_INSET, vh - h - 120);
+        const centro = posicionCentrada(vw, vh, opts?.w, opts?.h);
         const win: DesktopWindow = {
             id: resultId,
             contentRef,
-            x: Math.max(8, Math.min(48 + (idx % 6) * 36, vw - w - 16)),
-            y: Math.min(clampWindowY(DESKTOP_TOP_INSET + 6 + (idx % 6) * 30), maxY),
-            w,
-            h,
+            x: centro.x,
+            y: centro.y,
+            w: centro.w,
+            h: centro.h,
             z: nextZ(d),
             minimized: false,
             maximized: false,
