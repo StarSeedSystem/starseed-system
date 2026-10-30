@@ -1,120 +1,70 @@
 /**
- * Protomolécula · APPS AJENAS EMBEBIDAS (F1F).
+ * Protomolécula · APPS AJENAS EMBEBIDAS (F1E, PM1010F1F). Tercer grado de integración (§3.2):
+ * la app ajena se muestra TAL CUAL en un iframe aislado y Protomolécula solo controla su ventana
+ * (abrir, cerrar, enfocar), no sus parámetros: `control: "ventana"`, sin parámetros ni puente.
+ * Una app solo lleva `vista: "externa"` si la medición lo permitió; si un sitio empieza a
+ * prohibir el marco, se le retira la vista y queda «próximamente» (la Biblioteca, F2K, la lista).
  *
- * Tercer grado de integración (contrato architecture/protomolecula.md §3.2): la app
- * completa se muestra TAL CUAL en un iframe con su propio origen y Protomolécula solo
- * controla su VENTANA y sus archivos: `control: "ventana"`, `parametros: []`,
- * `integracion: "iframe-aislado"` y `vista: {tipo: "externa", url}`. Sin canal de
- * parámetros: lo que la app da son sus propias entradas y salidas de archivo.
+ * HONESTIDAD · mediciones del enunciado (2026-10-10), re-verificadas el 2026-10-30 con
+ * `curl -sI <url>` (cabeceras) y `curl -s <url> | grep http-equiv` (CSP en <meta>), y la licencia
+ * con `curl -s https://raw.githubusercontent.com/<repo>/HEAD/LICENSE`:
+ * - https://excalidraw.com · HTTP 200, sin `x-frame-options` ni `content-security-policy`:
+ *   se incrusta. Repo excalidraw/excalidraw, LICENSE: MIT («Copyright (c) 2020 Excalidraw»).
+ * - https://threejs.org/editor/ · HTTP 200, sin cabeceras de marco: se incrusta.
+ *   Repo mrdoob/three.js, LICENSE: MIT («Copyright © 2010-2026 three.js authors»).
+ * - https://hydra.ojack.xyz · HTTP 200, sin cabeceras de marco: se incrusta.
+ *   Repo hydra-synth/hydra, LICENSE: AGPL-3.0 (FSF, 19 de noviembre de 2007).
+ * - https://strudel.cc · HTTP 200, sin cabeceras de marco: se incrusta.
+ *   Repo tidalcycles/strudel, LICENSE: AGPL-3.0 (FSF, 19 de noviembre de 2007).
  *
- * HONESTIDAD (medición del 2026-10-10 con `curl -s
- * https://raw.githubusercontent.com/<repo>/HEAD/LICENSE` y `curl -sI <url>`):
- * los cuatro sitios devuelven 200 SIN cabecera `x-frame-options` y SIN
- * `content-security-policy: frame-ancestors`, así que se dejan incrustar. Licencias
- * vistas en el LICENSE de cada repo upstream: Excalidraw y three.js son MIT; Hydra y
- * Strudel son AGPL-3.0 (se usan TAL CUAL como sitio externo, no se enlazan al bundle).
+ * Contrato: architecture/protomolecula.md §3.2 y §11.1.
  */
 import { esUrlEmbebible } from "../puente-herramientas";
-import type { CategoriaAtomo, DefinicionAtomo } from "../registro-atomos";
-import { obtenerAtomo, registrarAtomo } from "../registro-atomos";
+import { obtenerAtomo, registrarAtomo, type DefinicionAtomo } from "../registro-atomos";
 
-/** Ficha de una app ajena candidata: se mide antes de darle `vista: externa`. */
-interface AppAjena {
-  herramientaId: string;
-  nombre: string;
-  categoria: CategoriaAtomo;
-  /** La URL que se incrusta; debe pasar `esUrlEmbebible` (https, sin credenciales, otro origen). */
-  url: string;
-  web: string;
-  repo: string;
-  licencia: string;
-  entradas: string[];
-  salidas: string[];
+/** Origen del OS: una `vista` externa nunca apunta aquí (lo vigila también `esUrlEmbebible`). */
+const ORIGEN_OS = "https://starseed-os.vercel.app";
+
+function embebida(
+  herramientaId: string,
+  nombre: string,
+  categoria: DefinicionAtomo["categoria"],
+  url: string,
+  web: string,
+  repo: string,
+  licencia: string
+): DefinicionAtomo {
+  return {
+    herramientaId,
+    nombre,
+    categoria,
+    integracion: "iframe-aislado",
+    control: "ventana",
+    parametros: [],
+    entradas: [],
+    salidas: [],
+    vista: { tipo: "externa", url },
+    ficha: { web, repo, licencia },
+  };
 }
 
-/** Medición del 2026-10-10: ninguna de las cuatro prohibe incrustarse (sin x-frame-options ni frame-ancestors). */
-const APPS: AppAjena[] = [
-  {
-    herramientaId: "excalidraw",
-    nombre: "Excalidraw",
-    categoria: "imagen",
-    url: "https://excalidraw.com",
-    web: "https://excalidraw.com",
-    repo: "https://github.com/excalidraw/excalidraw",
-    licencia: "MIT",
-    entradas: ["excalidraw", "png", "svg"],
-    salidas: ["excalidraw", "png", "svg", "pdf"],
-  },
-  {
-    herramientaId: "editor-threejs",
-    nombre: "Editor de three.js",
-    categoria: "3d",
-    url: "https://threejs.org/editor/",
-    web: "https://threejs.org/editor/",
-    repo: "https://github.com/mrdoob/three.js",
-    licencia: "MIT",
-    entradas: ["glb", "gltf", "obj", "json"],
-    salidas: ["glb", "gltf", "json"],
-  },
-  {
-    herramientaId: "hydra",
-    nombre: "Hydra",
-    categoria: "video",
-    url: "https://hydra.ojack.xyz",
-    web: "https://hydra.ojack.xyz",
-    repo: "https://github.com/hydra-synth/hydra",
-    licencia: "AGPL-3.0",
-    entradas: ["imagen", "webm"],
-    salidas: ["webm"],
-  },
-  {
-    herramientaId: "strudel",
-    nombre: "Strudel",
-    categoria: "audio",
-    url: "https://strudel.cc",
-    web: "https://strudel.cc",
-    repo: "https://github.com/tidalcycles/Strudel",
-    licencia: "AGPL-3.0",
-    entradas: ["imagen", "mid"],
-    salidas: ["mid", "wav"],
-  },
+export const APPS_EMBEBIDAS: DefinicionAtomo[] = [
+  embebida("excalidraw", "Excalidraw", "imagen", "https://excalidraw.com", "https://excalidraw.com", "https://github.com/excalidraw/excalidraw", "MIT"),
+  embebida("threejs-editor", "Editor de three.js", "3d", "https://threejs.org/editor/", "https://threejs.org/editor/", "https://github.com/mrdoob/three.js", "MIT"),
+  embebida("hydra", "Hydra", "video", "https://hydra.ojack.xyz", "https://hydra.ojack.xyz", "https://github.com/hydra-synth/hydra", "AGPL-3.0"),
+  embebida("strudel", "Strudel", "audio", "https://strudel.cc", "https://strudel.cc", "https://github.com/tidalcycles/strudel", "AGPL-3.0"),
 ];
 
 /**
- * El tercer grado, tal cual lo fija el §3.2: control solo de ventana, ningún parámetro
- * y la app entera en un iframe con origen propio. `ficha` lleva web, repo y licencia.
- * Si una medición futura dijera que un sitio ya no se deja incrustar o su licencia no
- * se puede verificar, la ficha quedaría con `vista` AUSENTE y
- * `proximamente: "el sitio no permite incrustarse; ábrelo en su pestaña"`.
- */
-const aAtomo = (app: AppAjena): DefinicionAtomo => ({
-  herramientaId: app.herramientaId,
-  nombre: app.nombre,
-  categoria: app.categoria,
-  integracion: "iframe-aislado",
-  control: "ventana",
-  parametros: [],
-  entradas: app.entradas,
-  salidas: app.salidas,
-  vista: { tipo: "externa", url: app.url },
-  ficha: { web: app.web, repo: app.repo, licencia: app.licencia },
-});
-
-/** Las apps ajenas embebidas. Se muestran tal cual; el control universal es «solo ventana». */
-export const APPS_EMBEBIDAS: DefinicionAtomo[] = APPS.map(aAtomo);
-
-const ORIGEN_DE_ESTA_PAGINA = "";
-/**
- * Registra las apps embebidas que falten. Idempotente: llamarla dos veces no duplica
- * nada. Se omite cualquier app cuya URL no pase `esUrlEmbebible` o que esté marcada
- * «próximamente» (el registro no admite definiciones con `proximamente`).
+ * Registra las apps cuyo incrustado real está en pie (idempotente). Sin efecto real no se
+ * pinta: una app con `proximamente` o cuya URL dejó de pasar `esUrlEmbebible` no entra en el
+ * registro; su ficha la enseñará la Biblioteca (F2K).
  */
 export function registrarAppsEmbebidas(): void {
   for (const def of APPS_EMBEBIDAS) {
-    if (def.proximamente || def.vista?.tipo !== "externa") continue;
-    if (!esUrlEmbebible(def.vista.url, ORIGEN_DE_ESTA_PAGINA).ok) continue;
+    if (def.proximamente) continue;
     if (obtenerAtomo(def.herramientaId)) continue;
+    if (def.vista?.tipo === "externa" && !esUrlEmbebible(def.vista.url, ORIGEN_OS).ok) continue;
     registrarAtomo(def);
   }
 }
-
