@@ -88,4 +88,21 @@ describe("tabla estado → expresión", () => {
     expect(estadoDesdeOrbe("error")).toBe("confused");
     for (const voz of estadosOrbe) expect(estadoDesdeOrbe(voz)).toBe(tabla[voz]);
   });
+
+  it("cubre exactamente los 18 estados del Mausbot, sin estados de más", () => {
+    const claves = Object.keys(POSESIONES);
+    expect(claves).toHaveLength(18);
+    expect(new Set(claves).size).toBe(18);
+    for (const clave of claves) {
+      expect(ESTADOS).toContain(clave as EstadoMausbot);
+    }
+  });
+});
+
+describe("constantes del port OpenMausBot", () => {
+  it("publica la caja, el centro de la cara y el recorrido de la mirada con los números del origen", () => {
+    expect(CAJA_CARA).toBeGreaterThan(0);
+    expect(CENTRO_CARA).toEqual([120, 122.5]);
+    expect(RECORRIDO_MIRADA).toEqual({ x: 13.2, y: 8.4 });
+  });
 });
