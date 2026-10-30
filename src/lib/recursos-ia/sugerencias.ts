@@ -5,6 +5,7 @@
  * el orden en que llegaron los datos ni por `localeCompare`, que depende del ICU del entorno).
  */
 import { bonoBits, duracionEs, espacioNecesarioGb, numeroEs, potenciaB, tamanoEs, verificar } from "./compatibilidad";
+import { cuantizacionesPara, FUENTE_METODOS_HF, NOTA_BITNET, type DispositivoHF } from "./cuantizacion-hf";
 import type {
     Alcance,
     Alternativa,
@@ -338,11 +339,44 @@ function alternativasDe(viables: Opcion[], mejor: Opcion): Alternativa[] {
     return fuera.map((o) => ({ modeloId: o.m.id, procesadorId: o.p.id, almacenId: o.a.id, via: o.p.via, compat: o.compat }));
 }
 
+/**
+ * Dispositivo de la tabla de cuantización de transformers equivalente a un procesador del OS:
+ * NVIDIA → cuda, AMD → rocm, Apple Silicon → metal y el resto de CPU → cpu. WebGPU, NPU y las
+ * GPU sin acelerador conocido no aparecen en la tabla: ahí no se sugiere ningún método.
+ */
+function dispositivoHF(p: Procesador): DispositivoHF | null {
+    const a = p.aceleradores;
+    if (a.includes("cuda")) return "cuda";
+    if (a.includes("rocm")) return "rocm";
+    if (a.includes("metal") || a.includes("metal4")) return "metal";
+    if (p.tipo === "cpu") return "cpu";
+    return null;
+}
+
 function porQueDe(cap: Capacidad, o: Opcion, viables: Opcion[], preferir158: boolean, confirmado: number | undefined, instalado: boolean): string[] {
     const { m, p, a, compat } = o;
     const f: string[] = [];
     if (m.bits === 1.58) f.push("1.58-bit: el doble de rápido y la mitad de memoria");
     else if (m.bits === 1) f.push("1-bit: lo más ligero que hay");
+    // La tabla de cuantización de transformers se aplica según el dispositivo del procesador y
+    // solo a modelos que no vienen ya cuantizados (16/32 bits). BitNet y Bonsai ternarios se
+    // entrenan en ternario por QAT: no se cuantizan al vuelo, así que se avisa en vez de sugerir.
+    if (m.bits === 1.58 || m.bits === 1 || m.runtime.toLowerCase().includes("bitnet")) {
+        f.push(NOTA_BITNET);
+    } else if (m.bits >= 16) {
+        const dispositivo = dispositivoHF(p);
+        if (dispositivo) {
+            const metodos = cuantizacionesPara(dispositivo, { alaVuelta: true });
+            if (metodos.length) {
+                const opciones = metodos
+                    .map((x) => (x.bitsMin === x.bitsMax ? `${x.nombre} a ${x.bitsMin} bits` : `${x.nombre} a ${x.bitsMin}/${x.bitsMax} bits`))
+                    .join(", ");
+                f.push(
+                    `viene en ${m.bits === 32 ? "32" : "16"} bits sin cuantizar: cuantizable al vuelo en este procesador con ${opciones} (tabla: ${FUENTE_METODOS_HF})`,
+                );
+            }
+        }
+    }
     if (instalado) f.push("ya está instalado: no hay que descargar nada");
     if (typeof p.ramGb === "number") {
         const h = p.ramGb - m.ramMinGb;
