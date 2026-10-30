@@ -23,6 +23,7 @@ import {
     type ProcesoActivo,
     type TipoProceso,
 } from "@/lib/cerebros/procesos";
+import { resumenPrestamos } from "@/lib/cerebros/procesos-prestados";
 import { agruparPorTipo } from "@/lib/cerebros/procesos-normalizar";
 import { leerProcesos } from "@/lib/cerebros/procesos-fuentes";
 import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
@@ -166,6 +167,38 @@ export default function ProcesosPanel(_props: ProcesosPanelProps) {
                         );
                     })
                 )}
+            </section>
+
+            <section aria-label="Préstamos" className="space-y-3">
+                <h3 className="text-sm font-semibold text-white">Préstamos</h3>
+                {(() => {
+                    const resumen = resumenPrestamos([], [], Date.now());
+                    const renderBloque = (titulo: string, datos: typeof resumen.dados) => (
+                        <div className="space-y-2">
+                            <h4 className="text-xs font-semibold uppercase tracking-wide text-white/50">{titulo} · {datos.totales.sesiones}</h4>
+                            {datos.filas.length === 0 ? (
+                                <p className="text-sm text-white/60">Sin préstamos activos.</p>
+                            ) : (
+                                <ul className="space-y-2">
+                                    {datos.filas.map((f) => (
+                                        <li key={f.id} className="rounded-lg border border-white/10 bg-black/20 p-3">
+                                            <p className="text-sm font-medium text-white/85">{f.quien} · {f.que}</p>
+                                            <p className="mt-1 text-xs text-white/60">Desde hace {f.desdeCuando} · Consumo {f.consumo}</p>
+                                            <button className="mt-2 cursor-pointer rounded-md bg-white/10 px-2 py-1 text-xs text-white/80 hover:bg-white/20">Cortar</button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                            <p className="text-[11px] text-white/45">Consumo total: {datos.totales.consumoTotal}</p>
+                        </div>
+                    );
+                    return (
+                        <>
+                            {renderBloque("Dados", resumen.dados)}
+                            {renderBloque("Tomados", resumen.tomados)}
+                        </>
+                    );
+                })()}
             </section>
         </div>
     );
