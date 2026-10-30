@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "COL1012H",
+   "titulo": "Al volver, el aparato suelta lo que otro siguió mientras estaba fuera",
+   "archivos": [
+    "scripts/puente/nodo_metagenesis.py",
+    "scripts/puente/test_colmena_volver.py"
+   ],
+   "depende": [],
+   "prompt": "Al arrancar o al recuperar la conexión (primer latido tras más de `colmena_logica.silencio_max`), el nodo calcula `colmena_logica.al_volver(yo, ids en curso de su orquestador, asignadas del bus, su último latido)` y, para cada tarea a soltar, escribe la orden `soltar` en `olas/control-<cola>.json` (el orquestador ya la entiende: corta y marca `reasignada`) después de forzar un último punto de control y enviarlo (`oracle_nodo.enviar_puntos`): la sucesora puede combinarlo. Lo demás lo sigue él. Pruebas con disco y bus falsos.\n\nContrato: architecture/colmena-relevo-contenedores.md (léelo entero antes de escribir). Núcleo PURO ya hecho y probado por Claude: scripts/puente/colmena_logica.py (Python, 30 pruebas) y src/lib/metagenesis/colmena.ts (11 pruebas): ÚSALOS, no copies su lógica. Reglas: comentarios en español con el porqué; nada de claves, IPs, nombres de máquina ni URLs de túnel en código, registros o pruebas; no toques autopublicar.py; cada función nueva con su prueba; si una prueba existente se rompe por tu cambio, arregla el código, no la prueba. Para tipos usa `bash scripts/enjambre/tsc-turno.sh` (nunca `npx tsc`).",
+   "ola": "Ola 1012C · Colmena: Genesis siempre en línea, relevo sin pérdidas y cualquier neurona como contenedor",
+   "dependencias_ya_en_main": [
+    "COL1012G"
+   ]
+  }
+ ]
+}
