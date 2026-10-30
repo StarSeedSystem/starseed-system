@@ -113,6 +113,18 @@ describe("validarTrabajo", () => {
     ];
     expect(valido(conEscena(escena)).escena).toHaveLength(10);
   });
+  it("imputa los valores por defecto de material y animar (la lista cerrada manda)", () => {
+    const ops = valido(conEscena([
+      CUBO,
+      { op: "material", objeto: "cubo" },
+      { op: "animar", objeto: "cubo", propiedad: "escala", claves: [{ fotograma: 0, valor: [1, 1, 1] }] },
+    ] as unknown[])).escena;
+    expect(ops[1].color).toEqual([0.8, 0.8, 0.8, 1]);
+    expect(ops[1].metalico).toBe(0);
+    expect(ops[1].rugosidad).toBe(0.5);
+    expect(ops[1].alfa).toBe(1);
+    expect(ops[2].interpolacion).toBe("lineal");
+  });
   it("acepta las cuatro salidas del vocabulario", () => {
     const salidas = [
       { tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench", fondo_transparente: true },
@@ -153,6 +165,7 @@ describe("estimarCoste y necesitaConfirmacion", () => {
   });
   it("pide confirmación por ámbito, importar, final y coste sobre el perfil ligero", () => {
     expect(necesitaConfirmacion(valido(base()), "ligero")).toBe(false);
+    expect(necesitaConfirmacion(valido(base()), "estandar")).toBe(false);
     expect(necesitaConfirmacion({ ...valido(base()), ambito: "grupo" }, "estudio")).toBe(true);
     expect(necesitaConfirmacion({ ...valido(base()), ambito: "publica" }, "estudio")).toBe(true);
     expect(necesitaConfirmacion({ ...valido(base()), calidad: "final" }, "estudio")).toBe(true);
