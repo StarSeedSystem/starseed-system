@@ -20,6 +20,12 @@ import { promisify } from "node:util";
 
 import { guardianMando } from "@/lib/mando/guardian";
 import { lanzarPublicacion, leerDiario } from "@/lib/mando/publicador";
+import { createClient as clienteSupabase } from "@/utils/supabase/server";
+import {
+    detalleRemotoDe,
+    fotoLiderDeRespuesta,
+    type LecturaLider,
+} from "@/lib/mando/medidores-remotos";
 import { POST as reintentarTareas } from "@/app/api/mando/reintentar/route";
 import { leerCreditosPago } from "@/lib/mando/creditos-pago";
 import { agentesDeClaudeNube } from "@/lib/mando/agentes-claude-nube";
@@ -923,6 +929,47 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
 // lleva su edad (`datosDe`) y solo se marca «obsoleta» pasados 90 s.
 const reunion = crearReunionCompartida(reunir, { esperaMs: 1_500, obsoletoTrasMs: 90_000 });
 
+/**
+ * (IND1029F) El JWT de la sesión con que la petición ya fue admitida: el Bearer de otra neurona, o la
+ * cookie de la web que restaura el cliente de servidor (sin petición extra). Solo sirve para pedir a
+ * la puerta la foto del líder CON la misma sesión; sin JWT no se pregunta a anonimos.
+ */
+async function tokenMando(peticion: Request): Promise<string | null> {
+    const m = (peticion.headers.get("authorization") ?? "").match(/^Bearer\s+([A-Za-z0-9._~+/=-]{20,})$/);
+    if (m) return m[1];
+    try {
+        const { data } = await (await clienteSupabase()).auth.getSession();
+        return data.session?.access_token ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * (IND1029F) La última foto del líder en la puerta de datos del A1 (`GET /v1/metagenesis/arriendo`):
+ * la deja el nodo líder cada vuelta (`scripts/puente/nodo_metagenesis.py`). Nunca lanza; sin URL de
+ * puerta o sin sesión devuelve `null` y el medidor dice «sin foto». Tope de 4 s: un refresco del panel
+ * no se queda colgado por una puerta lenta.
+ */
+let cacheFotoPuerta: { lectura: LecturaLider | null; t: number } | null = null;
+
+async function fotoDelLider(jwt: string | null): Promise<LecturaLider | null> {
+    if (!jwt) return null;
+    if (cacheFotoPuerta && Date.now() - cacheFotoPuerta.t < 60_000) return cacheFotoPuerta.lectura;
+    const base = process.env.NEXT_PUBLIC_PUERTA_DATOS_URL;
+    if (!base) return null;
+    const lectura = await fetch(`${base.replace(/\/$/, "")}/v1/metagenesis/arriendo`, {
+        headers: { accept: "application/json", authorization: `Bearer ${jwt}` },
+        cache: "no-store",
+        signal: AbortSignal.timeout(4_000),
+    })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => fotoLiderDeRespuesta(j))
+        .catch(() => null);
+    cacheFotoPuerta = { lectura, t: Date.now() };
+    return lectura;
+}
+
 export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
@@ -963,6 +1010,22 @@ export async function GET(peticion: Request): Promise<Response> {
     }
     // Un fallo leyendo git o el bus no puede tumbar el panel: se devuelve lo que sí haya.
     const turno = await reunion.obtener();
+    // (IND1029F) «Cuando lo local falta»: la reunión salió a vacío (nunca hubo datos). Genesis en una
+    // neurona sin disco sigue mostrando la ÚLTIMA FOTO del líder en la puerta, con su marca «desde
+    // <neurona>, hace N min». Sin foto, también se dice: ningún número se inventa.
+    if (!turno.datos) {
+        const lectura = await fotoDelLider(await tokenMando(peticion));
+        return Response.json(
+            {
+                detalle: detalleRemotoDe(clave, lectura),
+                generadoEn: new Date().toISOString(),
+                remoto: lectura && lectura.fresca
+                    ? { desde: lectura.desde, haceMin: lectura.haceMin, fresca: true }
+                    : null,
+            },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
     // Copia: `integradas` se añade abajo y no puede quedarse pegada al resultado compartido.
     const datos: Partial<DatosMedidores> = { ...(turno.datos ?? {}) };
     // De CUÁNDO es la cifra y si está obsoleta: el panel la enseña con su edad en vez de 0.
