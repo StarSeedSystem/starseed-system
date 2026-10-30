@@ -102,11 +102,8 @@ describe("PanelServidor", () => {
 
     it("la tarjeta «Oracle Always Free» aparece cuando no hay ningún Oracle guardado todavía", async () => {
         render(<PanelServidor />);
-        await screen.findByText(/Oracle Always Free/i);
-        expect(screen.getByRole("link", { name: /crear cuenta en oracle cloud/i })).toHaveAttribute(
-            "href",
-            "https://www.oracle.com/cloud/free/",
-        );
+        const enlace = await screen.findByRole("link", { name: /crear cuenta en oracle cloud/i });
+        expect(enlace).toHaveAttribute("href", "https://www.oracle.com/cloud/free/");
     });
 
     it("el interruptor «Mantener encendida» hace POST {accion:'despierto', activar:true}", async () => {
@@ -241,5 +238,34 @@ describe("PanelServidor", () => {
         render(<PanelServidor />);
         expect(await screen.findByText(/No puede seguir con la pantalla cerrada/i)).toBeInTheDocument();
         expect(screen.getAllByText(/Insomnia no está instalada/i).length).toBeGreaterThan(0);
+    });
+
+    it("la línea insomne lee /api/neuronas/insomne y dice hasta qué hora sigue disponible", async () => {
+        const hasta = new Date(Date.now() + 90 * 60_000).toISOString();
+        global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url === "/api/mando/servidor") return new Response(JSON.stringify(estado), { status: 200 });
+            if (url === "/api/neuronas/insomne") {
+                return new Response(JSON.stringify({ activo: true, hasta, proveedor: "insomnia", motivo: "sesión de Insomnia activa" }), { status: 200 });
+            }
+            return new Response("", { status: 404 });
+        });
+        render(<PanelServidor />);
+        expect(await screen.findByText(/Siempre disponible: sesión activa de Insomnia/i)).toBeInTheDocument();
+        expect(screen.queryByRole("link", { name: /ficha de insomnia/i })).not.toBeInTheDocument();
+    });
+
+    it("sin Insomnia, la línea enlaza a su ficha (solo lectura, nunca finge)", async () => {
+        global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url === "/api/mando/servidor") return new Response(JSON.stringify(estado), { status: 200 });
+            if (url === "/api/neuronas/insomne") {
+                return new Response(JSON.stringify({ activo: false, hasta: null, proveedor: "no", motivo: "Insomnia no está instalada o no tiene sesión" }), { status: 200 });
+            }
+            return new Response("", { status: 404 });
+        });
+        render(<PanelServidor />);
+        const enlace = await screen.findByRole("link", { name: /ver la ficha de insomnia/i });
+        expect(enlace).toHaveAttribute("href", "https://github.com/krishhgg/Insomnia");
     });
 });
