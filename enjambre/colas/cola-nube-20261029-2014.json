@@ -1,0 +1,17 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "IMN1021K4",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar comentarios en ramificación, tipos y grafo",
+   "archivos": [
+    "src/lib/mando/ramificacion.ts",
+    "src/lib/mando/tipos.ts",
+    "src/lib/mando/grafo-disposicion.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Solo comentarios: «sueño(s) profundo(s)» → «imaginación profunda». Nada de código. tsc y las pruebas de estos módulos en verde. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa)."
+  }
+ ]
+}
