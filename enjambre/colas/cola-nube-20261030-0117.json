@@ -1,0 +1,48 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "INS1027G",
+   "ola": "1027I · Neurona insomne",
+   "titulo": "Genesis · Servidor 1.58 enseña el estado insomne de la Mac",
+   "archivos": [
+    "src/components/mando/panel-servidor.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «funcionamiento nativo para las neuronas compatibles de sus capacidades siempre disponibles aun con las pantallas cerradas, incluyendo agentes y procesos programados en segundo plano y la actividad de la red mesh P2P compartida inteligentemente por la red StarSeed, para potenciarlas como servidores completos» (krishhgg/Insomnia, MIT). Contrato: `architecture/neurona-insomne.md` (léelo entero). El OS LEE el estado de Insomnia; nunca ejecuta `pmset` ni usa su regla de sudoers.\n\nJunto a «Mantener encendida», una línea con el estado de `GET /api/neuronas/insomne` (activa hasta HH:MM con Insomnia / sin sesión / Insomnia no instalada → enlace a su ficha). Solo lectura; no toques el interruptor de caffeinate.",
+   "dependencias_ya_en_main": [
+    "INS1027B"
+   ]
+  },
+  {
+   "id": "INS1027D",
+   "ola": "1027I · Neurona insomne",
+   "titulo": "Neuronas · ficha «Siempre disponible (pantalla cerrada)»",
+   "archivos": [
+    "src/components/cerebro/insomne-ficha.tsx",
+    "src/components/cerebro/neuronas-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «funcionamiento nativo para las neuronas compatibles de sus capacidades siempre disponibles aun con las pantallas cerradas, incluyendo agentes y procesos programados en segundo plano y la actividad de la red mesh P2P compartida inteligentemente por la red StarSeed, para potenciarlas como servidores completos» (krishhgg/Insomnia, MIT). Contrato: `architecture/neurona-insomne.md` (léelo entero). El OS LEE el estado de Insomnia; nunca ejecuta `pmset` ni usa su regla de sudoers.\n\n`InsomneFicha({ neurona })`: proveedor según `capacidadInsomne`, estado (hasta cuándo, o por qué no es compatible), qué sigue funcionando (`politicaInsomne`) y, en una Mac compatible sin Insomnia, cómo instalarla (enlace a la ficha `lib-insomnia` de la Biblioteca) con el aviso de ventilación de Apple y el de la regla de sudoers. Insértala en la ficha de cada neurona de `neuronas-panel.tsx`, sin tocar lo demás.",
+   "dependencias_ya_en_main": [
+    "INS1027A",
+    "INS1027B"
+   ]
+  },
+  {
+   "id": "MBT1027O",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Biblioteca · registrar la tanda 1027 en el catálogo, la siembra y las actualizaciones",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/defaults-seed.ts",
+    "src/app/api/library/actualizaciones/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nRegistra `FICHAS_REPOS_1027` donde `packages.ts` registra las de 1026, sus ids en la siembra (`defaults-seed.ts`, sube `SEED_VERSION` en 1 como se hizo con 1026) y en `fichasIaConUpstreamGitHub([...])` de la ruta de actualizaciones, igual que `FICHAS_REPOS_1026`. Corre las pruebas de la Biblioteca (`src/lib/library/__tests__/`).",
+   "dependencias_ya_en_main": [
+    "MBT1027N"
+   ]
+  }
+ ]
+}
