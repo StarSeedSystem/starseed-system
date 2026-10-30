@@ -6,6 +6,7 @@
 // entra solo si su confianza ≥ umbral; si no, se escala.
 // PURA: sin red, sin disco, sin reloj, sin modelos. Lo privado nunca sale de las neuronas propias.
 import { puntoDecision, UMBRAL_POR_DEFECTO } from "./puntos-decision";
+import { umbralRecalibrado, type CasoAprendizaje } from "./aprendizaje-laya";
 
 /** Respuesta del modelo pequeño de 1,58 bits a la misma pregunta tipada de Laya. */
 export interface RespuestaPequeno {
@@ -26,7 +27,10 @@ export interface RespuestaLayaBasicos {
 export interface EntradaConsenso {
   readonly pequeno: RespuestaPequeno;
   readonly laya: RespuestaLayaBasicos | null;
-  readonly umbral: number;
+  readonly umbral?: number;
+  /** Registro de aprendizaje del punto y ámbito: si llega, su umbral recalibrado manda. */
+  readonly registro?: readonly CasoAprendizaje[];
+  readonly ambito?: string;
 }
 
 export type QuienConsenso = "ambos" | "laya" | "pequeno" | "ninguno";
@@ -53,30 +57,34 @@ const segura = (c: unknown): number | null => (typeof c === "number" && Number.i
  */
 export function consensuar(e: EntradaConsenso): VeredictoConsenso {
   const L = e.laya, P = e.pequeno;
+  // El umbral sale del registro aprendido cuando lo hay; si no, del catálogo (o del que pase quien llama).
+  const umbral = e.registro
+    ? umbralRecalibrado(e.registro, "basico.consenso", e.ambito ?? "")
+    : e.umbral ?? UMBRAL_CONSENSO;
   const la = limpia(L?.respuesta), pe = limpia(P.respuesta);
   if (L && la !== "") {
     if (la === pe)
       return { decision: pe, quien: "ambos", accion: "aceptar", motivo: `Coinciden ${P.motor} y Laya en «${pe}»: vale.` };
     // Discrepan: manda Laya solo con su `answer_confidence` (calibrada) por encima del umbral.
     const c = segura(L.answer_confidence);
-    if (c !== null && c >= e.umbral)
-      return { decision: la, quien: "laya", accion: "aceptar", motivo: `Discrepan (${P.motor} «${pe}», Laya «${la}»): manda Laya con ${c.toFixed(2)} ≥ ${e.umbral.toFixed(2)}.` };
+    if (c !== null && c >= umbral)
+      return { decision: la, quien: "laya", accion: "aceptar", motivo: `Discrepan (${P.motor} «${pe}», Laya «${la}»): manda Laya con ${c.toFixed(2)} ≥ ${umbral.toFixed(2)}.` };
     return {
       decision: null, quien: "ninguno", accion: "escalar",
       motivo: c === null
         ? `Discrepan (${P.motor} «${pe}», Laya «${la}») y Laya no dio answer_confidence: se escala.`
-        : `Discrepan (${P.motor} «${pe}», Laya «${la}») y Laya duda (${c.toFixed(2)} < ${e.umbral.toFixed(2)}): se escala.`,
+        : `Discrepan (${P.motor} «${pe}», Laya «${la}») y Laya duda (${c.toFixed(2)} < ${umbral.toFixed(2)}): se escala.`,
     };
   }
   // Laya no llegó a tiempo (null o sin respuesta): lo pequeño entra solo con confianza ≥ umbral.
   const cP = segura(P?.confianza);
-  if (P && cP !== null && cP >= e.umbral)
-    return { decision: pe, quien: "pequeno", accion: "aceptar", motivo: `Laya no llegó a tiempo; manda ${P.motor} con ${cP.toFixed(2)} ≥ ${e.umbral.toFixed(2)}.` };
+  if (P && cP !== null && cP >= umbral)
+    return { decision: pe, quien: "pequeno", accion: "aceptar", motivo: `Laya no llegó a tiempo; manda ${P.motor} con ${cP.toFixed(2)} ≥ ${umbral.toFixed(2)}.` };
   return {
     decision: null, quien: "ninguno", accion: "escalar",
     motivo: cP === null
       ? `Laya no llegó a tiempo y ${P?.motor ?? "el pequeño"} no dio confianza: se escala.`
-      : `Laya no llegó a tiempo y ${P?.motor ?? "el pequeño"} duda (${cP.toFixed(2)} < ${e.umbral.toFixed(2)}): se escala.`,
+      : `Laya no llegó a tiempo y ${P?.motor ?? "el pequeño"} duda (${cP.toFixed(2)} < ${umbral.toFixed(2)}): se escala.`,
   };
 }
 

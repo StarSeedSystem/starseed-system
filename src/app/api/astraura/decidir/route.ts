@@ -17,8 +17,30 @@ import {
   type RespuestaTipoDiagrama,
 } from "@/lib/astraura/decision-hibrida";
 import { esConsultaDePato, decidirConNeedlePato } from "@/lib/astraura/needle-pato";
-import { consensuar, UMBRAL_CONSENSO, type VeredictoConsenso } from "@/lib/astraura/laya/consenso";
+import { consensuar, type VeredictoConsenso } from "@/lib/astraura/laya/consenso";
+import {
+  anotar,
+  exportarJSONL,
+  MIN_CASOS_RECALIBRAR,
+  type CasoAprendizaje,
+} from "@/lib/astraura/laya/aprendizaje-laya";
 import { type Astraura158Target } from "@/lib/astraura/astraura-158-client";
+
+// Registro del proceso para el punto «basico.consenso»: cada decisión deja su caso y el
+// umbral se recalibra con ≥ 30 casos por punto y ámbito (architecture/laya-y-habilidades.md §6).
+let registroLaya: CasoAprendizaje[] = [];
+
+/** Cuaderno de afinado de Laya en JSONL: solo los casos no privados. */
+export async function GET(): Promise<Response> {
+  return new Response(exportarJSONL(registroLaya), {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Laya-Casos": String(registroLaya.length),
+      "X-Laya-Minimo-Recalibrar": String(MIN_CASOS_RECALIBRAR),
+    },
+  });
+}
 
 export async function POST(req: Request) {
   try {
@@ -26,6 +48,8 @@ export async function POST(req: Request) {
       consulta?: string;
       herramientas?: HerramientaNeedle[];
       target?: Astraura158Target;
+      ambito?: string;
+      privado?: boolean;
     };
     if (!body.consulta || !Array.isArray(body.herramientas)) {
       return NextResponse.json(
@@ -35,6 +59,8 @@ export async function POST(req: Request) {
     }
 
     const target = body.target ?? "nube";
+    const ambito = typeof body.ambito === "string" && body.ambito.trim() ? body.ambito.trim() : "general";
+    const privado = body.privado === true;
     const apiKey = process.env.OPENROUTER_API_KEY;
 
     // Capa 1: Needle 3 local / nube
@@ -112,7 +138,8 @@ export async function POST(req: Request) {
         laya: layaRes
           ? { respuesta: layaRes.herramienta, answer_confidence: layaRes.confianza }
           : null,
-        umbral: UMBRAL_CONSENSO,
+        registro: registroLaya,
+        ambito,
       });
       if (consenso.accion === "aceptar") {
         if (consenso.quien === "laya" && layaRes
@@ -122,6 +149,20 @@ export async function POST(req: Request) {
         } else if ((consenso.quien === "ambos" || consenso.quien === "pequeno") && llamadaNeedle) {
           plan = { capa: "needle", accion: "ejecutar", llamada: llamadaNeedle, motivo: consenso.motivo };
         }
+      }
+      // Cada decisión deja su caso: el resultado es «aceptada» si el consenso cerró y
+      // «escalada» si no. Si el estado es privado, `anotar` guarda SOLO su huella.
+      if (layaRes && consenso) {
+        registroLaya = anotar(registroLaya, {
+          punto: "basico.consenso",
+          ambito,
+          p: layaRes.confianza,
+          donde: "a1",
+          ms: msLaya ?? 0,
+          resultado: consenso.accion === "aceptar" ? "aceptada" : "escalada",
+          privado,
+          estado: body.consulta,
+        });
       }
     }
 
