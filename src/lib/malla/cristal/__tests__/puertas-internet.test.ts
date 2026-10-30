@@ -446,6 +446,8 @@ describe('elegirPuerta', () => {
     });
 
     expect(resultado.puerta?.id).toBe('zeta');
+    // La rama pedía fijar también el motivo del desempate de menor coste.
+    expect(resultado.motivo).toBe('Puerta de menor coste seleccionada');
   });
 
   it('devuelve null cuando ninguna puerta está permitida', () => {
