@@ -1,38 +1,38 @@
 "use client";
 
 /**
- * Pilar «Procesos activos» (CB1013J–Q, §7). Esta parte muestra el hardware de
- * cada servidor vinculado aplicando el módulo puro `cerebros/procesos`:
- * esta Mac (`/api/mando/hardware` → hardwareDesdeMac, tope de 4 s), los nodos de
- * MetaGenesis (leerEstadoAutonomo → hardwareDesdeNodo) y las neuronas de la
- * cuenta (`neuron_devices` → hardwareDesdeNeurona). Lo que no se mide dice
- * «sin medida», nunca un 0. Los avisos salen de avisosHardware con
- * UMBRALES_POR_DEFECTO; el intervalo y umbrales ajustables llegan con CB1013P.
+ * Pilar «Procesos activos» (CB1013J–Q, §7). Lee `leerProcesos()` al montarse y
+ * cada `intervaloSeg` de las preferencias (CB1013P), solo con la pestaña
+ * visible. Arriba, cuentas reales por tipo como filtros; debajo, la lista
+ * agrupada por tipo con las acciones que ya existen (abrir /genesis y
+ * restaurar una ventana); después el hardware (CB1013O) y los ajustes
+ * plegables (CB1013P). Al pie, las fuentes consultadas con su resultado.
+ * Lo que no se mide dice «sin medida», nunca un 0.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import {
-    avisosHardware,
     ETIQUETA_TIPO,
-    hardwareDesdeMac,
-    hardwareDesdeNeurona,
-    hardwareDesdeNodo,
-    porcentaje,
-    UMBRALES_POR_DEFECTO,
     type HardwareServidor,
     type ProcesoActivo,
     type TipoProceso,
 } from "@/lib/cerebros/procesos";
 import { agruparPorTipo } from "@/lib/cerebros/procesos-normalizar";
 import { leerProcesos } from "@/lib/cerebros/procesos-fuentes";
+import {
+    accionProceso,
+    contarPorTipos,
+    filtrarPorTipos,
+    tiposVisibles,
+} from "@/lib/cerebros/procesos-panel-logica";
+import { usarPreferenciasProcesos } from "@/lib/cerebros/procesos-preferencias";
+import { setWindowMinimized } from "@/components/desktop/desktop-store";
 import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
 import { useEstadoActualizaciones } from "@/components/actualizaciones/use-estado-actualizaciones";
-import { leerEstadoAutonomo } from "@/lib/metagenesis/remoto-nodos-cliente";
-import { listNeurons } from "@/lib/neurons/neurons";
 import { textoHace } from "@/lib/metagenesis/remoto";
 import { ProcesosHardware } from "./procesos-hardware";
+import { ProcesosAjustes } from "./procesos-ajustes";
 
-const ETIQUETA_MEDIDA = { cpu: "CPU", ram: "RAM", disco: "Disco", bateria: "Batería" } as const;
 const ETIQUETA_ESTADO = {
     "en-marcha": "en marcha",
     esperando: "esperando",
@@ -40,33 +40,21 @@ const ETIQUETA_ESTADO = {
     fallando: "fallando",
 } as const;
 
-function textoPct(v: number | null): string {
-    return v == null ? "sin medida" : `${v} %`;
+interface Lectura {
+    procesos: ProcesoActivo[];
+    hardware: HardwareServidor[];
+    fuentes: Array<{ nombre: string; ok: boolean; ms: number; motivo?: string }>;
+    cuando: number;
 }
 
-function FilaHardware({ h }: { h: HardwareServidor }) {
-    const discoPct = porcentaje(
-        h.discoLibreGb != null && h.discoTotalGb != null ? h.discoTotalGb - h.discoLibreGb : null,
-        h.discoTotalGb,
-    );
-    return (
-        <li className="rounded-lg border border-white/10 bg-black/20 p-3">
-            <p className="text-sm font-medium text-white/85">
-                {h.nombre}
-                <span className="ml-2 text-xs font-normal text-white/50">
-                    {h.tipo === "mac" ? "Esta Mac" : h.tipo === "a1" ? "A1" : h.tipo === "neurona" ? "Neurona" : "Servidor"}
-                    {h.medidoEn != null ? ` · medido ${textoHace(Date.now() - h.medidoEn)}` : ""}
-                </span>
-            </p>
-            <p className="mt-1 text-xs text-white/60">
-                CPU {textoPct(h.cpuPct)} · RAM {textoPct(porcentaje(h.ramUsadaMb, h.ramTotalMb))} · Disco {textoPct(discoPct)} · Batería {textoPct(h.bateriaPct)}
-            </p>
-        </li>
-    );
+export interface ProcesosPanelProps {
+    brainId: string | null;
+    brainName?: string;
 }
 
 function FilaProceso({ p }: { p: ProcesoActivo }) {
-    const desde = p.desde == null ? null : new Date(p.desde);
+    const accion = accionProceso(p);
+    const desde = p.desde == null ? null : textoHace(Date.now() - p.desde);
     return (
         <li className="rounded-lg border border-white/10 bg-black/20 p-3">
             <p className="text-sm font-medium text-white/85">{p.nombre}</p>
@@ -75,81 +63,115 @@ function FilaProceso({ p }: { p: ProcesoActivo }) {
                 {p.detalle ? ` · ${p.detalle}` : ""}
             </p>
             <p className="mt-1 text-[11px] text-white/45">
-                Fuente: {p.fuente}
-                {p.progreso == null ? " · progreso sin medida" : ` · ${Math.round(p.progreso * 100)} %`}
-                {desde ? ` · desde las ${desde.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : ""}
+                {desde ? `desde ${desde}` : "desde: sin medida"}
+                {p.progreso != null ? ` · ${Math.round(p.progreso * 100)} %` : ""}
             </p>
+            {p.progreso != null && (
+                <div className="mt-2 h-1.5 w-full rounded bg-white/10" role="progressbar" aria-valuenow={Math.round(p.progreso * 100)} aria-valuemin={0} aria-valuemax={100}>
+                    <div className="h-1.5 rounded bg-cyan-500" style={{ width: `${Math.min(100, Math.max(0, p.progreso * 100))}%` }} />
+                </div>
+            )}
+            {accion.clase === "genesis" && (
+                <a
+                    href="/genesis"
+                    className="mt-2 inline-flex cursor-pointer items-center rounded px-2 py-1 text-xs text-cyan-300 transition-colors hover:bg-cyan-500/10 whitespace-normal h-auto"
+                >
+                    Abrir Genesis
+                </a>
+            )}
+            {accion.clase === "ventana" && accion.desktopId && accion.winId && (
+                <button
+                    type="button"
+                    onClick={() => setWindowMinimized(accion.desktopId!, accion.winId!, false)}
+                    className="mt-2 inline-flex cursor-pointer items-center rounded px-2 py-1 text-xs text-white/70 transition-colors hover:bg-white/10 whitespace-normal h-auto"
+                >
+                    Restaurar ventana
+                </button>
+            )}
         </li>
     );
 }
 
-async function leerHardware(ahora: number): Promise<HardwareServidor[]> {
-    const out: HardwareServidor[] = [];
-    const control = new AbortController();
-    const tope = setTimeout(() => control.abort(), 4000);
-    try {
-        const r = await fetch("/api/mando/hardware", { cache: "no-store", signal: control.signal });
-        const h = hardwareDesdeMac(await r.json().catch(() => null), ahora);
-        if (h) out.push(h);
-    } catch { /* la API solo responde en la Mac: se sigue con el resto */ } finally { clearTimeout(tope); }
-    const estado = await leerEstadoAutonomo(ahora).catch(() => null);
-    if (estado?.ok) for (const nodo of estado.estado.nodos) {
-        const h = hardwareDesdeNodo(nodo, ahora);
-        if (h) out.push(h);
-    }
-    for (const neurona of await listNeurons().catch(() => [])) {
-        const h = hardwareDesdeNeurona(neurona, ahora);
-        if (h) out.push(h);
-    }
-    return out;
-}
-
-export interface ProcesosPanelProps {
-    brainId: string | null;
-    brainName?: string;
-}
-
-export default function ProcesosPanel(_props: ProcesosPanelProps) {
-    const [lista, setLista] = useState<HardwareServidor[] | null>(null);
-    const [procesos, setProcesos] = useState<ProcesoActivo[] | null>(null);
+export default function ProcesosPanel({ brainId }: ProcesosPanelProps) {
+    const idPlegable = useId();
+    const { prefs } = usarPreferenciasProcesos();
     const presencia = usePresenciaNeuronas();
     const actualizaciones = useEstadoActualizaciones();
+    const [lectura, setLectura] = useState<Lectura | null>(null);
+    const [leyendo, setLeyendo] = useState(false);
+    const [tipoActivo, setTipoActivo] = useState<TipoProceso | null>(null);
+    const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
 
-    useEffect(() => {
-        let vivo = true;
-        void leerHardware(Date.now()).then((h) => { if (vivo) setLista(h); });
-        return () => { vivo = false; };
-    }, []);
-
-    useEffect(() => {
-        let vivo = true;
-        void leerProcesos({ atrasos: actualizaciones.atrasos, presencia }).then((p) => {
-            if (vivo) setProcesos(p.procesos);
-        });
-        return () => { vivo = false; };
+    const leer = useCallback(() => {
+        setLeyendo(true);
+        void leerProcesos({ atrasos: actualizaciones.atrasos, presencia })
+            .catch(() => null)
+            .then((r) => {
+                if (r) setLectura({ ...r, cuando: Date.now() });
+                setLeyendo(false);
+            });
     }, [actualizaciones.atrasos, presencia]);
 
-    const grupos = procesos ? agruparPorTipo(procesos) : {};
-    const tipos = Object.keys(ETIQUETA_TIPO) as TipoProceso[];
+    useEffect(() => { leer(); }, [leer]);
+
+    // Cada intervaloSeg, y solo con la pestaña visible («document.visibilityState»).
+    useEffect(() => {
+        const ms = Math.max(5, prefs.intervaloSeg) * 1000;
+        const temporizador = window.setInterval(() => {
+            if (document.visibilityState === "visible") leer();
+        }, ms);
+        const alVolver = () => { if (document.visibilityState === "visible") leer(); };
+        document.addEventListener("visibilitychange", alVolver);
+        return () => {
+            window.clearInterval(temporizador);
+            document.removeEventListener("visibilitychange", alVolver);
+        };
+    }, [prefs.intervaloSeg, leer]);
+
+    const tipos = tiposVisibles(prefs.tipos);
+    const procesos = lectura ? filtrarPorTipos(lectura.procesos, tipos) : [];
+    const visibles = tipoActivo ? filtrarPorTipos(procesos, [tipoActivo]) : procesos;
+    const cuentas = contarPorTipos(procesos, tipos);
+    const grupos = agruparPorTipo(visibles);
 
     return (
         <div className="space-y-4">
-            <section aria-label="Hardware de los servidores vinculados" className="space-y-2">
-                {lista === null ? (
-                    <p className="text-sm text-white/60">Midiendo el hardware de los servidores vinculados…</p>
-                ) : lista.length === 0 ? (
-                    <p className="text-sm text-white/60">Sin medida: ningún servidor o neurona vinculado respondió. La medida de esta Mac solo está disponible en la propia Mac o con sesión de MetaGenesis.</p>
-                ) : (
-                    <ProcesosHardware hardware={lista} umbrales={UMBRALES_POR_DEFECTO} />
-                )}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-white/50">
+                    Última lectura: {lectura ? new Date(lectura.cuando).toLocaleTimeString("es-ES") : "sin lectura aún"}
+                </p>
+                <button
+                    type="button"
+                    onClick={leer}
+                    className="inline-flex cursor-pointer items-center rounded px-3 py-1.5 text-xs font-medium text-cyan-300 transition-colors hover:bg-cyan-500/10 whitespace-normal h-auto"
+                >
+                    {leyendo ? "Actualizando…" : "Actualizar"}
+                </button>
+            </div>
+
+            <section aria-label="Cuentas por tipo" className="flex flex-wrap gap-2">
+                {cuentas.map((c) => {
+                    const activo = tipoActivo === c.tipo;
+                    return (
+                        <button
+                            key={c.tipo}
+                            type="button"
+                            onClick={() => setTipoActivo(activo ? null : c.tipo)}
+                            className={`cursor-pointer rounded-full border px-3 py-1 text-xs transition-colors whitespace-normal h-auto ${
+                                activo ? "border-cyan-400/60 bg-cyan-500/15 text-cyan-200" : "border-white/10 bg-black/20 text-white/60 hover:bg-white/5"
+                            }`}
+                        >
+                            {c.etiqueta} · {c.cuenta}
+                        </button>
+                    );
+                })}
             </section>
 
             <section aria-label="Procesos activos" className="space-y-3">
-                <h3 className="text-sm font-semibold text-white">Procesos activos</h3>
-                {procesos === null ? (
+                {!lectura ? (
                     <p className="text-sm text-white/60">Leyendo los procesos activos de todas las fuentes…</p>
-                ) : procesos.length === 0 ? (
-                    <p className="text-sm text-white/60">Ninguna fuente informó de procesos activos ahora mismo.</p>
+                ) : visibles.length === 0 ? (
+                    <p className="text-sm text-white/60">Ningún proceso activo del tipo o los tipos visibles ahora mismo.</p>
                 ) : (
                     tipos.map((tipo) => {
                         const delTipo = grupos[tipo];
@@ -167,6 +189,39 @@ export default function ProcesosPanel(_props: ProcesosPanelProps) {
                     })
                 )}
             </section>
+            <section aria-label="Hardware de los servidores vinculados">
+                <ProcesosHardware hardware={lectura?.hardware ?? []} umbrales={prefs.umbrales} ocultos={prefs.ocultos} />
+            </section>
+            <section aria-label="Ajustes de procesos" className="space-y-2">
+                <button
+                    type="button"
+                    aria-expanded={ajustesAbiertos}
+                    aria-controls={idPlegable}
+                    onClick={() => setAjustesAbiertos((v) => !v)}
+                    className="inline-flex cursor-pointer items-center rounded px-2 py-1 text-xs font-medium text-white/70 transition-colors hover:bg-white/5 whitespace-normal h-auto"
+                >
+                    {ajustesAbiertos ? "Ocultar ajustes" : "Mostrar ajustes"}
+                </button>
+                {ajustesAbiertos && (
+                    <div id={idPlegable}>
+                        <ProcesosAjustes brainId={brainId} />
+                    </div>
+                )}
+            </section>
+            <section aria-label="Fuentes consultadas" className="space-y-1">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-white/50">Fuentes consultadas</h3>
+                <ul className="space-y-1">
+                    {(lectura?.fuentes ?? []).map((f) => (
+                        <li key={f.nombre} className="text-[11px] text-white/50">
+                            {f.ok ? "✓" : "✗"} {f.nombre} · {f.ok ? `${f.ms} ms` : `sin respuesta${f.motivo ?? ""}`}
+                        </li>
+                    ))}
+                    {lectura === null && <li className="text-[11px] text-white/50">Sin lectura aún.</li>}
+                </ul>
+                <p className="text-[11px] text-white/40">«No disponible aquí» significa que la fuente solo responde en la propia Mac o con sesión de MetaGenesis.</p>
+            </section>
         </div>
     );
 }
+
+
