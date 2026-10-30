@@ -140,4 +140,16 @@ describe("cargarSplat", () => {
         expect(opciones).toMatchObject({ url: URL, maxSplats: 3_000_000 });
         expect(opciones?.fileBytes).toBeInstanceOf(ArrayBuffer);
     });
+
+    it("sin presupuesto explícito la malla recibe el del nivel alta (1,5 M) por defecto", async () => {
+        MallaFalsa.ultima = null;
+        const resultado = await cargarSplat(URL, {
+            SplatMesh: MallaFalsa,
+            pedirBytes: async () => new ArrayBuffer(128),
+        });
+        expect(resultado.ok).toBe(true);
+        const opciones = MallaFalsa.ultima as OpcionesSplatMesh | null;
+        expect(opciones?.url).toBe(URL);
+        expect(opciones?.maxSplats).toBe(presupuestoSplat("alta"));
+    });
 });
