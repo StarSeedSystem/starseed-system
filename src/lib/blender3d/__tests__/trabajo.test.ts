@@ -128,7 +128,7 @@ it("imputa los topes duros de operaciones y salidas, y lo desconocido", () => {
   });
 it("neutraliza textos de inyección en nombre y texto3d", () => {
     expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "\"; import os", tam: 1 }])).join(" ")).toContain("nombre inválido");
-    for (const texto of ["hola\nimport os", "emoji 😈"]) expect(motivos(conEscena([{ op: "texto3d", nombre: "t", texto, extrusion: 0.1, tam: 1 }])).join(" ")).toContain("texto con caracteres no permitidos");
+    for (const texto of ["hola\nimport os", "emoji 😈", `"); import os`, "línea uno\nlínea dos", "Cubo\u2028 业", "x".repeat(65)]) expect(motivos(conEscena([{ op: "texto3d", nombre: "t", texto, extrusion: 0.1, tam: 1 }])).join(" ")).toContain("texto con caracteres no permitidos");
     expect(motivos(conEscena([{ ...CUBO, nombre: "Cuboño" }])).join(" ")).toContain("nombre");
     expect(motivos(conEscena([{ ...CUBO, nombre: "立立方方" }])).join(" ")).toContain("nombre");
     expect(motivos(conEscena([{ ...CUBO, nombre: "a".repeat(33) }])).join(" ")).toContain("nombre");
@@ -157,8 +157,48 @@ it("neutraliza textos de inyección en nombre y texto3d", () => {
       { tipo: "render_exr", ancho: 256, alto: 256, muestras: 8, motor: "eevee" },
       { tipo: "exportar_glb", objetos: ["cubo", "cam"], y_arriba: true, aplicar_modificadores: true, draco: false, meshopt: false },
     ];
-    expect(valido(conEscena(base().escena as unknown[], salidas)).salidas).toHaveLength(4);
+expect(valido(conEscena(base().escena as unknown[], salidas)).salidas).toHaveLength(4);
   });
+
+  describe("enums y modificadores", () => {
+    it("primitivas cubren sus opciones de la lista cerrada", () => {
+      const tipos: string[] = ["cubo", "esfera", "icosfera", "cilindro", "cono", "toro", "plano", "circulo"];
+      for (const [i, tipo] of tipos.entries()) {
+        const r = validarTrabajo(base({ escena: [{ op: "primitiva", tipo, nombre: `Obj${i}`, tam: 1 }] }));
+        expect(r.ok).toBe(true);
+        expect(r.trabajo.escena).toHaveLength(1);
+      }
+    });
+    it("modificadores cubren sus opciones de la lista cerrada", () => {
+      const modificadores: string[] = ["subdivision", "bisel", "solidificar", "espejo", "matriz", "decimar", "malla_alambre"];
+      for (const tipo of modificadores) {
+        const r = validarTrabajo(base({ escena: [CUBO, { op: "modificador", objeto: "Cubo", tipo }] }));
+        expect(r.ok).toBe(true);
+        expect(r.trabajo.escena).toHaveLength(2);
+      }
+    });
+    it("luces cubren sus opciones de la lista cerrada", () => {
+      const luces: string[] = ["sol", "punto", "foco", "area"];
+      for (const [i, tipo] of luces.entries()) {
+        const r = validarTrabajo(base({ escena: [{ op: "luz", nombre: `L${i}`, tipo, energia: 10 }] }));
+        expect(r.ok).toBe(true);
+        expect(r.trabajo.escena).toHaveLength(1);
+      }
+it("un texto 3D válido queda como DATO (tildes, ñ y signos), nunca como código", () => {
+    const texto = "¿Versión con ñ? ¡Sí! (n.1) 'cosas'";
+    const r = validarTrabajo(base({ escena: [CUBO, { op: "texto3d", nombre: "Texto", texto, extrusion: 0.2, tam: 1.2 }] }));
+    expect(r.ok).toBe(true);
+    expect(r.trabajo.escena[1]).toMatchObject({ op: "texto3d", texto });
+  });
+});
+
+  it("un texto 3D válido queda como DATO (tildes, ñ y signos), nunca como código", () => {
+    const texto = "¿Versión con ñ? ¡Sí! (n.1) 'cosas'";
+    const r = validarTrabajo(base({ escena: [CUBO, { op: "texto3d", nombre: "Texto", texto, extrusion: 0.2, tam: 1.2 }] }));
+    expect(r.ok).toBe(true);
+    expect(r.trabajo.escena[1]).toMatchObject({ op: "texto3d", texto });
+  });
+});
 });
 
 describe("estimarCoste y necesitaConfirmacion", () => {
