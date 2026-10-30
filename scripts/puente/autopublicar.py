@@ -498,8 +498,30 @@ def cola_ci_rojo(log, mmdd, previa, url=None):
 
 
 # ── la pasada ────────────────────────────────────────────────────────────────
-def pasada(m, est, ahora):
+def liderazgo():
+    """El arriendo de dirección (`lider_direccion.soy_lider`). Sin puerta o sin red: líder en
+    local, como hoy; un fallo al leerlo no deja a la autopublicación sin director."""
+    try:
+        import lider_direccion as LD
+        return LD.soy_lider()
+    except Exception as e:  # noqa: BLE001 — sin líder de dirección, sigue en local
+        return {"soy": True, "motivo": "sin líder de dirección: %s" % type(e).__name__}
+
+
+def quien_dirige(r):
+    """PURA. El dueño del arriendo (o el motivo) para «espera: dirige <neurona>»."""
+    a = (r or {}).get("arriendo") or {}
+    return a.get("dueno") or (r or {}).get("motivo") or "otra neurona"
+
+
+def pasada(m, est, ahora, lider_fn=None):
     est = dict(est or {})
+    # IND1029C: solo el líder publica y sube candidatos; los demás miran y lo dicen.
+    if lider_fn is not None:
+        r = lider_fn() or {}
+        if not r.get("soy", True):
+            return con_fase(est, "esperando", "espera: dirige %s" % quien_dirige(r), ahora,
+                            es_lider=False)
     if not m.interruptor():
         return con_fase(est, "apagado", "Autopublicación apagada (Genesis · Ajustes).", ahora)
     if m.publicando_a_mano():
@@ -733,7 +755,7 @@ def una_pasada(como_json=False):
         except BlockingIOError:
             print("otra pasada de la autopublicación sigue en marcha")
             return None
-        est = pasada(Medios(), _leer(ESTADO, {}), time.time())
+        est = pasada(Medios(), _leer(ESTADO, {}), time.time(), lider_fn=liderazgo)
         _escribir(ESTADO, est)
     print(json.dumps(est, ensure_ascii=False) if como_json else
           "[%s] %s · %s" % (time.strftime("%H:%M"), est.get("fase"), est.get("detalle")), flush=True)
