@@ -51,6 +51,7 @@ import {
     type DatosMedidores,
     type RunDeLaNube,
 } from "@/lib/mando/medidores";
+import { elegirFuente, faltaLocal, leerPuerta, resumenDePuerta } from "@/lib/mando/medidores-remotos";
 import {
     parsearCommits,
     tareasIntegradasEnMain,
@@ -972,12 +973,32 @@ export async function GET(peticion: Request): Promise<Response> {
         const conocidas = new Set([...Object.keys(datos.progreso ?? {}), ...Object.keys(datos.titulos ?? {})]);
         datos.integradas = await leerIntegradas(conocidas).catch(() => null);
     }
+    // (2026-10-29, IND1029F · architecture/metagenesis-autonoma.md) Cuando ESTA instancia no tiene
+    // los archivos del líder (la Genesis publicada, otra neurona) o su reunión es vieja, la puerta
+    // de datos del A1 trae la última foto que él dejó (IND1029E, cada minuto), marcada «desde
+    // <neurona>, hace N min». guardianMando pidió sesión arriba: a la puerta no entra nadie anónimo.
+    const puerta = await leerPuerta().catch(() => null);
+    const usarPuerta = puerta?.foto
+        ? elegirFuente({
+              faltaLocal: faltaLocal(datos),
+              localMs: turno.t > 0 ? turno.t : 0,
+              fotoMs: puerta.tFoto,
+              ahora: Date.now(),
+          }) === "puerta"
+        : false;
+    if (usarPuerta && puerta?.foto) {
+        // Lo que la foto puede decir en forma propia de `DatosMedidores` sin inventar nada más.
+        datos.enjambreVivo = puerta.foto.enjambreVivo;
+        datos.enjambrePausado = puerta.foto.enjambrePausado;
+    }
     return Response.json(
         {
             detalle: detalleDeMedidor(clave, datos),
             generadoEn: new Date().toISOString(),
             datosDe,
             obsoleto: turno.obsoleto,
+            // La foto del líder, con su marca «desde <neurona>, hace N min»; `hayFoto: false` si no la hay.
+            puerta: resumenDePuerta(puerta, usarPuerta, Date.now()),
         },
         { headers: { "Cache-Control": "no-store" } },
     );
