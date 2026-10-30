@@ -107,3 +107,36 @@ export function avisosDePublicacion(m: Molecula, ambitoPost: Ambito, ambitoDe: (
     if (avisos.length > 0) avisos.push("El bloque es una instantánea: quien lo vea tendrá una copia, no la original.");
     return avisos;
 }
+
+// ── Correspondencia átomo «video-html» → vista ──────────────────────────────
+// Contrato: architecture/video-hyperframes.md §4.1 y §4.5. La ficha de la
+// biblioteca se registra como `hyperframes` (`atomos/video-html.ts`) y el
+// controlador la nombra `video-html`: ambas formas nombran el MISMO átomo.
+
+/** Ids de herramienta que son un átomo de vídeo HyperFrames. */
+export const IDS_VIDEO_HTML = ["video-html", "hyperframes"] as const;
+
+export function esAtomoVideoHtml(herramientaId: string): boolean {
+    return (IDS_VIDEO_HTML as readonly string[]).includes(herramientaId);
+}
+
+/** Qué mostrar del átomo dentro del bloque; `null` si no es un átomo de vídeo. */
+export type VistaAtomoVideoHtml =
+    | { tipo: "vivo"; motivo: string }
+    | { tipo: "renderizado"; motivo: string }
+    | { tipo: "poster"; motivo: string }
+    | { tipo: "suspendido"; motivo: string };
+
+/**
+ * Decide la vista del átomo en el bloque, en este orden de prioridad: la vista
+ * previa en vivo si hay servicio local de HyperFrames; si no, el vídeo ya
+ * renderizado (por la malla); si no, el póster estático. Un átomo suspendido
+ * no se reproduce. Módulo puro: nunca lanza y no toca red ni disco.
+ */
+export function elegirVista(atomo: AtomoEnUso, servicioVivo: boolean, renderHecho: boolean): VistaAtomoVideoHtml | null {
+    if (!esAtomoVideoHtml(atomo.herramientaId)) return null;
+    if (atomo.estado === "suspendido") return { tipo: "suspendido", motivo: "El átomo está suspendido: no se reproduce." };
+    if (servicioVivo) return { tipo: "vivo", motivo: "Vista previa en vivo con el servicio local de HyperFrames." };
+    if (renderHecho) return { tipo: "renderizado", motivo: "Vídeo ya renderizado por la malla." };
+    return { tipo: "poster", motivo: "Sin servicio local ni vídeo renderizado: se muestra el póster." };
+}
