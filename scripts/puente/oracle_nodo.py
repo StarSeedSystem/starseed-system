@@ -633,6 +633,21 @@ def _paquete(destino):
         for a in archivos:
             o = os.path.join(base, a)
             poner(o, os.path.relpath(o, nodo))
+    # (MTN1027H) La automejora: su lógica, pasarela y nodo viajan a `automejora/`, junto al
+    # Dockerfile y `dentro.py` que ya van con `deploy/oracle/nodo` (su camino: /opt/starseed/nodo/
+    # automejora). Otro módulo propio que la pasarela importe al arrancar viaja también (hoy no
+    # importa ninguno: la clave va por el entorno) — si faltara, el nodo moriría al Reinstalar,
+    # como le pasó al nodo de MetaGenesis.
+    for rel in ("scripts/puente/automejora_logica.py", "scripts/puente/automejora_pasarela.py",
+                "scripts/puente/automejora_nodo.py"):
+        poner(fuente(rel), os.path.join("automejora", os.path.basename(rel)))
+    try:
+        with open(fuente("scripts/puente/automejora_pasarela.py"), encoding="utf-8") as f:
+            texto_pasarela = f.read()
+    except OSError:
+        texto_pasarela = ""
+    if re.search(r"^\s*(?:import|from)\s+freellmapi_clave\b", texto_pasarela, re.M):
+        poner(fuente("scripts/puente/freellmapi_clave.py"), "automejora/freellmapi_clave.py")
     poner(fuente("deploy/nube/opencode.json"), "opencode.json")
     poner(fuente("scripts/puente/oracle_a1.py"), "oracle_a1.py")
     enj = os.path.join(RAIZ, "scripts", "enjambre")
