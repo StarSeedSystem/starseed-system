@@ -36,6 +36,17 @@ describe("parseSha256Sums", () => {
     const mapa = parseSha256Sums(texto);
     expect(mapa.size).toBe(1);
   });
+
+  it("lee uno y dos espacios y normaliza la huella a minúsculas", () => {
+    const texto = [
+      "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD figcraft-web-0.10.0.zip",
+      "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855  gridcraft-cli-0.11.1-macos-universal.zip",
+    ].join("\n");
+    const mapa = parseSha256Sums(texto);
+    expect(mapa.size).toBe(2);
+    expect(mapa.get("figcraft-web-0.10.0.zip")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    expect(mapa.get("gridcraft-cli-0.11.1-macos-universal.zip")).toBe("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+  });
 });
 
 describe("nombreActivoWeb", () => {
@@ -92,6 +103,12 @@ describe("esActivoPermitido", () => {
   it("rechaza nombre con barra", () => {
     expect(esActivoPermitido("some/path.zip")).toBe(false);
   });
+
+  it("rechaza vacío, nombres ajenos y travesías con prefijo válido", () => {
+    for (const nombre of ["", "OtraCosa.zip", "figcraft/../web.zip"]) {
+      expect(esActivoPermitido(nombre)).toBe(false);
+    }
+  });
 });
 
 describe("sha256Hex", () => {
@@ -142,6 +159,16 @@ describe("verificarActivo", () => {
     expect(result.ok).toBe(false);
     expect(result.motivo).toContain("nombre no permitido");
   });
+
+  it("el motivo de huella distinta no repite la huella completa", async () => {
+    const bytes = new TextEncoder().encode("abc");
+    const nombre = "figcraft-web-1.0.0.zip";
+    const publicada = "0".repeat(64);
+    const result = await verificarActivo(nombre, bytes, new Map([[nombre, publicada]]));
+    expect(result.ok).toBe(false);
+    expect(result.motivo).toContain("ba7816bf");
+    expect(result.motivo).not.toContain("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  });
 });
 
 describe("fijarVersion", () => {
@@ -159,5 +186,11 @@ describe("fijarVersion", () => {
     const sumas = new Map<string, string>([]);
     const result = fijarVersion("figcraft", "1.0.0", sumas);
     expect(result).toBeNull();
+  });
+
+  it("quita la «v» al construir el activo", () => {
+    const sumas = new Map<string, string>([["deckcraft-web-0.10.0.zip", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"]]);
+    const result = fijarVersion("deckcraft", "v0.10.0", sumas);
+    expect(result?.activo).toBe("deckcraft-web-0.10.0.zip");
   });
 });
