@@ -89,4 +89,22 @@ describe("VentanaVariaciones", () => {
     expect(enlaces[0].getAttribute("rel")).toBe("noopener noreferrer");
     expect(screen.getByText("Repo inseguro")).toBeTruthy();
   });
+
+  it("pide las sugerencias a Astraura con el modelo inyectado y pinta solo las que pasan el ADN", async () => {
+    const deps = {
+      enrutador: async () => [{ titulo: "Cristal cian", payload: { radio: 12 }, metricas: { contraste: 5 } }],
+      adn: {
+        meta: { slug: "astraura", nombre: "Astraura" },
+        pruebas: [{ id: "p7", comprobacion: "contraste >=4.5:1", auto: true }],
+      },
+    };
+    render(
+      <VentanaVariaciones clave="widget:clima" datos={datos({ variaciones: [] })}
+        sugerencias={{ contexto: { payload: { radio: 12 } }, deps }} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Sugerir variaciones" }));
+    expect(await screen.findByText("Cristal cian")).toBeTruthy();
+    expect(screen.getByText("ADN p7")).toBeTruthy();
+    expect(screen.getByText(/Pasa el validador/)).toBeTruthy();
+  });
 });
