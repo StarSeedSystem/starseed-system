@@ -35,6 +35,14 @@ import { listarDispositivos, obtenerMedios, obtenerPantalla, obtenerPista, parar
 import { AVISO_SIN_TURN, contieneTurn, servidoresIce } from "@/lib/llamadas/ice";
 import { clavePestana, type Identidad } from "@/lib/llamadas/identidad";
 import {
+    elegirServidorVoz,
+    engancharBot,
+    type BotEnLlamada,
+    type CandidatoVoz,
+    type FrasePersona,
+    type OpcionesBot,
+} from "@/lib/llamadas/bot-en-llamada";
+import {
     MAX_PARTICIPANTES,
     type CalidadConexion,
     type EstadoConexionPar,
@@ -66,6 +74,10 @@ export interface OpcionesMotor {
     canalesDirectos?: () => ConexionCanal[];
     /** Llamadas 1:1: al irse la otra persona, cuelga solo. */
     colgarAlQuedarSolo?: boolean;
+    /** Bot invitado de la llamada (cerebro, síntesis y ganancia, TODO inyectable; sin él no hay bot). */
+    bot?: OpcionesBot;
+    /** Candidatas a servidor de voz de la sesión (datos MEDIDOS; se eligen con `servidorVozVigente`). */
+    candidatosVoz?: () => CandidatoVoz[];
     intervaloStatsMs?: number;
     intervaloNivelMs?: number;
 }
@@ -191,6 +203,9 @@ export class MotorLlamada {
     private temporizadorNivel: ReturnType<typeof setInterval> | null = null;
     private temporizadorStats: ReturnType<typeof setInterval> | null = null;
     private alCambiarDispositivos: (() => void) | null = null;
+    private readonly bot: BotEnLlamada | null = null;
+    private alTextoBot: ((f: FrasePersona) => void) | null = null;
+    private servidorVozActual: CandidatoVoz | null = null;
 
     constructor(opciones: OpcionesMotor) {
         this.opc = opciones;
@@ -199,6 +214,8 @@ export class MotorLlamada {
         this.iceServers = opciones.iceServers ?? servidoresIce();
         this.conTurn = opciones.hayTurn ?? contieneTurn(this.iceServers);
         this.temaActual = opciones.tema ?? null;
+        // El bot entra al TEXTO compartido y su respuesta suena como pista del OmniVoice Mixer.
+        if (opciones.bot) this.bot = engancharBot({ onTexto: (cb) => { this.alTextoBot = cb; } }, opciones.bot);
     }
 
     /* ───────────────────────────── Suscripción ───────────────────────────── */
@@ -518,6 +535,45 @@ export class MotorLlamada {
         this.set({ seleccion: { ...this.e.seleccion, altavozId: id } });
     }
 
+    /* ───────────────────────────── Bot en la llamada ───────────────────────────── */
+
+    /**
+     * Comparte el TEXTO de lo que digo (transcripción hecha en mi neurona; el audio no viaja) y
+     * lo pasa al enlace del bot de esta llamada. NUNCA lanza.
+     */
+    decirTexto(texto: string) {
+        const limpio = texto.trim();
+        if (this.cerrado || !limpio) return;
+        this.enviar({ tipo: "texto", de: this.miId, texto: limpio });
+        this.textoEnBot({ de: this.miId, texto: limpio, t: Date.now() });
+    }
+
+    /**
+     * Servidor de voz de la SESIÓN (el de menor latencia medida, con histéresis) según los
+     * datos que entre `candidatosVoz`. Sin candidatas, no cambia y devuelve null.
+     */
+    servidorVozVigente(p: { ramMinimaMB?: number; margenHist?: number } = {}): CandidatoVoz | null {
+        if (this.cerrado) return null;
+        let candidatos: CandidatoVoz[] = [];
+        try {
+            const r = this.opc.candidatosVoz?.();
+            if (Array.isArray(r)) candidatos = r;
+        } catch {
+            return this.servidorVozActual;
+        }
+        this.servidorVozActual = elegirServidorVoz(candidatos, this.servidorVozActual, p);
+        return this.servidorVozActual;
+    }
+
+    private textoEnBot(f: FrasePersona) {
+        if (!this.bot) return;
+        try {
+            this.alTextoBot?.(f);
+        } catch {
+            /* un tropiezo del bot no derriba la llamada */
+        }
+    }
+
     async actualizarDispositivos() {
         const d = await listarDispositivos();
         if (!this.cerrado) this.set({ dispositivos: d });
@@ -812,6 +868,10 @@ export class MotorLlamada {
 
     private alRecibirSenal(s: SenalLlamada, c?: CanalMotor) {
         if (this.cerrado || s.de === this.miId) return;
+        if (s.tipo === "texto") {
+            this.textoEnBot({ de: s.de, texto: s.texto, t: Date.now() });
+            return;
+        }
         if (c && this.canales.includes(c)) this.rutaPar.set(s.de, c);
         if (s.tipo === "mudanza") {
             void this.revisarCanal(false);
@@ -1232,6 +1292,8 @@ export class MotorLlamada {
 
     private limpiar() {
         this.cerrado = true;
+        if (this.bot) this.bot.cerrar();
+        this.alTextoBot = null;
         if (this.temporizadorNivel) clearInterval(this.temporizadorNivel);
         if (this.temporizadorStats) clearInterval(this.temporizadorStats);
         this.temporizadorNivel = null;

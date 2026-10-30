@@ -50,7 +50,9 @@ export type SenalLlamada =
      * «La sesión cambió de canal» (se creó o revocó el enlace público a mitad de llamada). No
      * lleva el tema ni el token: quien lo recibe vuelve a preguntar al servidor qué le toca.
      */
-    | { tipo: "mudanza"; de: string };
+    | { tipo: "mudanza"; de: string }
+    /** TEXTO de lo que dice una persona (transcripción hecha en su neurona: el audio no viaja). */
+    | { tipo: "texto"; de: string; texto: string };
 
 export type FaseLlamada =
     | "inactiva"

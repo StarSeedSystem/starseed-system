@@ -33,6 +33,11 @@ export function sanearSenal(v: unknown): SenalLlamada | null {
     if (!idPar(o.de)) return null;
     if (o.tipo === "colgar") return { tipo: "colgar", de: o.de };
     if (o.tipo === "mudanza") return { tipo: "mudanza", de: o.de };
+    if (o.tipo === "texto") {
+        if (typeof o.texto !== "string") return null;
+        const texto = o.texto.trim();
+        return texto && texto.length <= 2000 ? { tipo: "texto", de: o.de, texto } : null;
+    }
     if (o.tipo === "rechazo") {
         return { tipo: "rechazo", de: o.de, uid: typeof o.uid === "string" ? o.uid : null, nombre: sanearNombre(o.nombre) };
     }
