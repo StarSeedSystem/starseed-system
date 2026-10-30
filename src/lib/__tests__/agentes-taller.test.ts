@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  RECURSOS_MCP,
   RECURSOS_NAVEGADOR,
   REGLAS_NAVEGADOR,
   catalogoDeclarado,
@@ -204,5 +205,35 @@ describe("consultarViasNavegador", () => {
     expect(consulta.disponibles).toEqual([]);
     expect(consulta.vias.find((via) => via.recurso.id === "astraura:browser-tool")
       ?.requisitosFaltantes).toEqual(["ASTRAURA_158_BROWSER_TOOL_SANO"]);
+  });
+});
+
+describe("RECURSOS_MCP", () => {
+  it("declara el recurso nuevo en el catálogo y ningún id del catálogo se repite", () => {
+    const catalogo = catalogoDeclarado();
+    const ids = catalogo.map((r) => r.id);
+    expect(ids).toContain("os:genesis-mcp-progresivo");
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("no exige ninguna variable de entorno ni condición", () => {
+    for (const r of RECURSOS_MCP) expect(r.requiere).toEqual([]);
+  });
+
+  it("no lleva dentro nada que parezca una clave ni una ruta personal", () => {
+    // La forma de clave se monta en tiempo de ejecución: el push no la lleva en claro.
+    const formaClave = ["sk", "-", "a", "b", "c"].join("") + "x".repeat(20);
+    const texto = JSON.stringify(RECURSOS_MCP);
+    expect(texto).not.toContain(formaClave);
+    expect(texto).not.toContain("Bearer");
+    expect(texto).not.toContain("/Users/");
+  });
+
+  it("se recomienda para descubrir herramientas MCP con poco contexto", () => {
+    const salida = recomendarPara(
+      catalogoDeclarado(),
+      "descubrir herramientas mcp con poco contexto para un modelo pequeño",
+    );
+    expect(salida.map((r) => r.id)).toContain("os:genesis-mcp-progresivo");
   });
 });

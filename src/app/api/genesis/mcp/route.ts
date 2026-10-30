@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { atenderMcp, type HerramientaMcp } from "@/lib/genesis/mcp/protocolo";
 import { crearHerramientaVariaciones, type ListarVariaciones } from "@/lib/genesis/mcp/herramienta-variaciones";
+import {
+  envolverProgresivo,
+  PERFILES_MEDIO,
+  type MedioIa,
+} from "@/lib/genesis/mcp/descubrimiento-progresivo";
 import { crearDatosVariaciones, type ClienteVariaciones } from "@/lib/variaciones/datos";
 import { createClient } from "@/utils/supabase/server";
 
@@ -47,6 +52,26 @@ function herramientasPredeterminadas(): HerramientaMcp[] {
   ];
 }
 
+/* Modo opcional (AGT1025C): con `modo === "progresivo"` las herramientas se
+   envuelven en el patrón progresivo de descubrimiento (tres metaherramientas).
+   El medio solo rige si es una clave de PERFILES_MEDIO; si no, el defecto.
+   Para quien no lo pide, nada cambia. */
+function medioValido(medio: unknown): MedioIa | undefined {
+  return typeof medio === "string" && medio in PERFILES_MEDIO
+    ? (medio as MedioIa)
+    : undefined;
+}
+
+function aplicarModo(
+  herramientas: HerramientaMcp[],
+  modo: unknown,
+  medio: unknown,
+): HerramientaMcp[] {
+  if (modo !== "progresivo") return herramientas;
+  const elMedio = medioValido(medio);
+  return envolverProgresivo(herramientas, elMedio ? { medio: elMedio } : {});
+}
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const method = url.searchParams.get("method");
@@ -71,7 +96,9 @@ export async function GET(req: NextRequest) {
   }
 
   const contexto = undefined;
-  const herramientas = await herramientasDelServidor();
+  const modo = url.searchParams.get("modo");
+  const medio = url.searchParams.get("medio");
+  const herramientas = aplicarModo(await herramientasDelServidor(), modo, medio);
   const respuesta = await atenderMcp(peticion, { herramientas, contexto });
 
   return NextResponse.json(respuesta);
@@ -79,7 +106,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { method, id, params } = body;
+  const { method, id, params, modo, medio } = body;
 
   let peticion: unknown;
 
@@ -97,7 +124,7 @@ export async function POST(req: NextRequest) {
   }
 
   const contexto = undefined;
-  const herramientas = await herramientasDelServidor();
+  const herramientas = aplicarModo(await herramientasDelServidor(), modo, medio);
   const respuesta = await atenderMcp(peticion, { herramientas, contexto });
 
   return NextResponse.json(respuesta);

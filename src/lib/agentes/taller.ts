@@ -159,6 +159,26 @@ export const RECURSOS_ARTCRAFT: RecursoAgente[] = [
   },
 ];
 
+/* ── Genesis MCP: descubrimiento progresivo (2026-10-30 · AGT1025C) ─────
+   El patrón Strata ya vive en `src/lib/genesis/mcp/descubrimiento-progresivo.ts`;
+   aquí solo se declara para que los agentes lo encuentren. Es modo OPCIONAL:
+   sin pedirlo, el servidor MCP de Genesis sigue mostrando todo como siempre. */
+export const RECURSOS_MCP: RecursoAgente[] = [
+  {
+    id: "os:genesis-mcp-progresivo",
+    tipo: "mcp",
+    origen: "os",
+    maquina: "cualquiera",
+    nombre: "Descubrimiento progresivo de herramientas MCP",
+    descripcion:
+      "El servidor MCP de Genesis con «?modo=progresivo» enseña tres metaherramientas (descubrir, detalle y ejecutar) en lugar de listar todas, y las demás se encuentran por palabras clave adaptando el presupuesto de contexto al medio de IA del modelo.",
+    etiquetas: ["mcp", "herramientas", "descubrimiento", "contexto", "modelo pequeño"],
+    requiere: [],
+    ruta: "src/lib/genesis/mcp/descubrimiento-progresivo.ts",
+    docs: "architecture/repos-libreria-1025.md",
+  },
+];
+
 /** Memorias del OS que un agente puede leer y escribir. */
 export const RECURSOS_MEMORIA: RecursoAgente[] = [
   { id: "os:memory-root", tipo: "memoria", origen: "os", nombre: "Memory root de StarSeed",
@@ -349,7 +369,7 @@ export function consultarViasNavegador(
 /** Todo lo declarado en este módulo, en un solo catálogo. */
 export function catalogoDeclarado(): RecursoAgente[] {
   return [
-    ...RECURSOS_NAVEGADOR, ...RECURSOS_ASTRAURA, ...RECURSOS_ARTCRAFT,
-    ...RECURSOS_MEMORIA, ...PROMPTS_BASE, ...RECURSOS_TRADUCCION_PDF,
+    ...RECURSOS_NAVEGADOR, ...RECURSOS_ASTRAURA, ...RECURSOS_MCP,
+    ...RECURSOS_ARTCRAFT, ...RECURSOS_MEMORIA, ...PROMPTS_BASE, ...RECURSOS_TRADUCCION_PDF,
   ];
 }
