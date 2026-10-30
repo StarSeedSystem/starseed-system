@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "DGM1018O",
+   "ola": "Ola 1018D · Diagramas con Diagram Design en Astraura: chats, lienzo, pizarra, escritorio, capas flotantes, 3D y XR",
+   "titulo": "Vigía · vigilar Diagram Design y renovar su copia",
+   "archivos": [
+    "config/vigia-areas.json",
+    "scripts/puente/test_vigia_areas.py"
+   ],
+   "depende": [],
+   "prompt": "Añade (sin borrar nada) en el área `habilidades` el repo cathrynlavery/diagram-design con su manifiesto `.claude-plugin/plugin.json` (campo version) como señal de versión y la carpeta de destino vendor/habilidades/diagram-design. Amplía la prueba. Contrato: architecture/diagramas.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, laya-y-habilidades.md, fondos-shaders.md, video-hyperframes.md, starseed-xr.md). La skill está en vendor/habilidades/diagram-design/ (MIT; cítala). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; todo HTML de diagrama se muestra SOLO en iframe `sandbox` sin `allow-same-origin` y sin red ni recursos externos (fuentes del OS, nunca Google Fonts en tiempo de uso); módulos PUROS siempre que se pueda; pruebas sin red y sin navegador real salvo Testing Library; nada de `any`; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "VST1018M"
+   ]
+  }
+ ]
+}
