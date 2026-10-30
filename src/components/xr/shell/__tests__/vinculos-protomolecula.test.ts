@@ -58,6 +58,25 @@ describe("fuentesDeMapaXR", () => {
     };
     expect(fuentesDeMapaXR(mapa)).toHaveLength(1);
   });
+  it("ni gestos, ni teclas, ni frases: solo el mando da fuentes", () => {
+    const mapa: MapaEntrada = {
+      seleccionar: [{ tipo: "gesto", gesto: "pellizco", mano: "cualquiera" }],
+      salir: [{ tipo: "tecla", codigo: "Escape" }, { tipo: "frase", texto: "salir" }],
+    };
+    expect(fuentesDeMapaXR(mapa)).toEqual([]);
+  });
+  it("respeta izquierda (0) y derecha (1) y no repite la misma fuente", () => {
+    const mapa: MapaEntrada = {
+      seleccionar: [{ tipo: "boton", indice: 0, mano: "derecha" }, { tipo: "boton", indice: 0, mano: "izquierda" }],
+      agarrar: [{ tipo: "boton", indice: 0, mano: "derecha" }],
+      teletransporte: [{ tipo: "eje", indice: 3, direccion: "-", mano: "derecha" }],
+    };
+    const f = fuentesDeMapaXR(mapa);
+    expect(f).toContainEqual({ tipo: "gamepad", control: "boton", numero: 0, indice: 1 });
+    expect(f).toContainEqual({ tipo: "gamepad", control: "boton", numero: 0, indice: 0 });
+    expect(f).toContainEqual({ tipo: "gamepad", control: "eje", numero: 3, indice: 1 });
+    expect(f.filter((x) => x.tipo === "gamepad" && x.control === "boton" && x.numero === 0 && x.indice === 1)).toHaveLength(1);
+  });
 });
 
 describe("rangoAGesto", () => {
@@ -76,6 +95,15 @@ describe("rangoAGesto", () => {
   });
   it("un parámetro desconocido no rompe", () => {
     expect(rangoAGesto({ id: "x", nombre: "X", tipo: "numero" }, 0.5)).toBe(0.5);
+  });
+  it("acota gestos fuera de 0..1 y respeta el tipo entero", () => {
+    expect(rangoAGesto({ ...VOLUMEN, paso: 25 }, 0.5)).toBe(50);
+    expect(rangoAGesto({ ...VOLUMEN, tipo: "entero" }, 0.333)).toBe(33);
+    expect(rangoAGesto(VOLUMEN, -3)).toBe(0);
+    expect(rangoAGesto(VOLUMEN, 9)).toBe(100);
+  });
+  it("la curva log responde antes que la lineal", () => {
+    expect(rangoAGesto(VOLUMEN, 0.5, { ...CURVA_LINEAL, forma: "log" })).toBeGreaterThan(50);
   });
 });
 
@@ -111,5 +139,11 @@ describe("aplicarEnVisor", () => {
     expect(aplicarEnVisor(controladorFalso({ ambito: "grupo", mover: okMover() }), REF, op({ tipo: "exacta", valor: 50 })).ok).toBe(true);
     const rechazo = controladorFalso({ mover: () => ({ ok: false, motivo: "Parámetro desconocido: fantasma" }) });
     expect(aplicarEnVisor(rechazo, { atomoId: "x", parametroId: "fantasma" }, op({ tipo: "exacta", valor: 1 }))).toEqual({ ok: false, motivo: "Parámetro desconocido: fantasma" });
+  });
+  it("la misma operación de agente en un espacio personal sí se aplica", () => {
+    const mover = okMover();
+    const r = aplicarEnVisor(controladorFalso({ mover }), REF, op({ tipo: "exacta", valor: 50 }, AGENTE, "agente"), "personal");
+    expect(r.ok).toBe(true);
+    expect(mover).toHaveBeenCalledTimes(1);
   });
 });
