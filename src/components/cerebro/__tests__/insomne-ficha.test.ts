@@ -5,9 +5,18 @@
  * parte de la ficha que registra la capacidad por plataforma.
  */
 import { describe, it, expect } from "vitest";
+import { plataformaInsomne } from "@/components/cerebro/insomne-ficha";
 import { capacidadInsomne } from "@/lib/neurons/insomne";
 
 describe("capacidadInsomne · ficha", () => {
+  // Rescate de la rama nube/40659574880 (parte 3/3): el mapeo de Android del
+  // navegador a la plataforma del contrato no lo cubría ninguna prueba.
+  it("traduce la plataforma del navegador Android a la del contrato", () => {
+    const p = plataformaInsomne({ platform: "Android" });
+    expect(p).toBe("android");
+    expect(capacidadInsomne(p).disponible).toBe(false);
+  });
+
   it("un servidor no depende de la plataforma que declare", () => {
     expect(capacidadInsomne("server").proveedor).toBe("siempre");
     expect(capacidadInsomne("vps").proveedor).toBe("siempre");
