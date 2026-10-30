@@ -17,6 +17,7 @@ DIR = os.path.dirname(os.path.abspath(__file__))
 if DIR not in sys.path:
     sys.path.insert(0, DIR)
 
+import colmena_logica as C  # noqa: E402
 import nodo_metagenesis as N  # noqa: E402
 
 AHORA = 1_800_000_000.0
@@ -74,6 +75,14 @@ class TestTocaAlVolver(unittest.TestCase):
         self.assertTrue(N.toca_al_volver(AHORA - 1801, AHORA, 600))
         # Sin latido guardado (arranque con memoria perdida) cuenta como vuelta.
         self.assertTrue(N.toca_al_volver(0, AHORA, 300))
+
+
+class TestSilencioMax(unittest.TestCase):
+    def test_depende_del_periodo_con_un_minimo_de_nueve_minutos(self):
+        # El umbral exacto, no solo los bordes de `toca_al_volver`: 3 × periodo, nunca menos de 900 s.
+        self.assertEqual(C.silencio_max({"periodo_s": 300}), 900)
+        self.assertEqual(C.silencio_max({"periodo_s": 600}), 1800)
+        self.assertEqual(C.silencio_max({}), 900)
 
 
 class TestTareasEnCursoPorCola(unittest.TestCase):
