@@ -41,7 +41,8 @@ export type AccionOrden =
     | "reanudar"
     | "ceder"
     | "desconectar"
-    | "contenedor";
+    | "contenedor"
+    | "instalar_trabajador";
 
 export interface FichaAccion {
     etiqueta: string;
@@ -73,6 +74,7 @@ export const ACCIONES: Record<AccionOrden, FichaAccion> = {
     reanudar: { etiqueta: "Reanudar autonomía", explica: "El líder vuelve a decidir solo.", args: [] },
     ceder: { etiqueta: "Cambiar de líder", explica: "El líder cede el mando 30 min y lo toma el siguiente medio.", confirmar: true, args: [] },
     // Colmena (COL1012): van a un ID de nodo concreto, nunca a «lider»/«todos» (igual que el nodo Python).
+<<<<<<< HEAD
     desconectar: {
         etiqueta: "Desconectar",
         explica: "Deja de ofrecer este aparato como contenedor y avisa de que se desconecta. El traspaso del trabajo a otro contenedor aún no está activo.",
@@ -84,6 +86,15 @@ export const ACCIONES: Record<AccionOrden, FichaAccion> = {
         explica: "Apunta si este aparato se ofrece como contenedor de agentes (con cuántos). El nodo lo guarda y lo publica en su latido.",
         args: ["activo", "trabajadores"],
     },
+=======
+    desconectar: { etiqueta: "Desconectar", explica: "Quita al nodo del enjambre de MetaGenesis.", confirmar: true, args: [] },
+    contenedor: { etiqueta: "Usar como contenedor", explica: "El nodo actúa como contenedor para otros mediadores.", args: ["activo", "trabajadores"] },
+    instalar_trabajador: {
+        etiqueta: "Instalar trabajador",
+        explica: "Instala un trabajador (agente) en este contenedor.",
+        args: [],
+    },
+>>>>>>> f9dad3392 (salvavidas · RTRTS1010-TU-LL1cobjbb: trabajo del agente antes de las puertas (tsc / vitest))
 };
 
 /** Las acciones del nodo NO se ofrecen en «Pedir algo al que dirige»: van en la tarjeta de cada neurona. */
@@ -98,6 +109,7 @@ export const ACCIONES_DEL_LIDER: Record<Exclude<AccionOrden, "desconectar" | "co
     pausar: ACCIONES.pausar,
     reanudar: ACCIONES.reanudar,
     ceder: ACCIONES.ceder,
+    instalar_trabajador: ACCIONES.instalar_trabajador,
 };
 
 /** PURA. true si `para` puede recibir esta acción: desconectar/contenedor solo a un id de nodo concreto. */
