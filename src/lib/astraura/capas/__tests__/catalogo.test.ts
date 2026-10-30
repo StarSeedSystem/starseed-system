@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   leerCatalogo,
@@ -127,6 +129,43 @@ describe("usable", () => {
     expect(usable({ ...entradaBase, sha256: "corta" })).toBe(false);
     expect(usable({ ...entradaBase, sha256: "A".repeat(64) })).toBe(false);
     expect(usable({ ...entradaBase, sha256: "g".repeat(64) })).toBe(false);
+  });
+});
+
+describe("catálogo JSON · Ternary Bonsai 2 en el banco (1025R)", () => {
+  const crudo = readFileSync(join(process.cwd(), "config/capas-astraura.json"), "utf8");
+  const catalogo = leerCatalogo(JSON.parse(crudo));
+  const ids = ["ternary-bonsai2-2b", "ternary-bonsai2-4b", "ternary-bonsai2-9b"];
+
+  it("las tres entradas del banco existen y no se promueven", () => {
+    for (const id of ids) {
+      const entrada = catalogo.capas.find((e) => e.id === id);
+      expect(entrada, id).toBeDefined();
+      expect(entrada?.estado).toBe("en-banco");
+      expect(entrada?.familia).toBe("prism-ml/Ternary-Bonsai");
+      expect(entrada?.formato).toBe("gguf");
+      expect(entrada?.runtime).toBe("llama-cpp");
+      expect(entrada?.medios).toEqual(["nativo", "servidor"]);
+      expect(entrada?.espejos).toEqual([]);
+      expect(entrada?.verificado).toBe("2026-10-25");
+      expect(usable(entrada!)).toBe(false);
+    }
+  });
+
+  it("cada una trae SHA de 64 hex en minúsculas y tamaño medido", () => {
+    for (const id of ids) {
+      const entrada = catalogo.capas.find((e) => e.id === id)!;
+      expect(entrada.sha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(entrada.sha256).toBe(entrada.sha256.toLowerCase());
+      expect(entrada.tamano_bytes).toBeGreaterThan(0);
+      expect(entrada.archivo).toMatch(/^Ternary-Bonsai-2-(2|4|9)B-PTQ1_0\.gguf$/);
+    }
+  });
+
+  it("el JSON sigue siendo válido y los ids siguen siendo únicos", () => {
+    const crudoJson = JSON.parse(crudo) as { capas: { id: string }[] };
+    const todos = crudoJson.capas.map((e) => e.id);
+    expect(new Set(todos).size).toBe(todos.length);
   });
 });
 

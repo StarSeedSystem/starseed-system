@@ -25,7 +25,8 @@ describe("catálogo JSON con las 9 capas de Colibri", () => {
     expect(colibri.map((e) => e.id)).toEqual(IDS_COLIBRI);
     // 22 y no 24: las 2 entradas «oído» de antes ya quedaban fuera del esquema.
     // (2026-10-29, PUB1029D) 23: LNN1028H añadió a propósito `ollama-qwen3-embedding-0.6b` (LEANN).
-    expect(catalogo.capas).toHaveLength(23);
+    // (2026-10-30, CPZ1025J) 26: entraron al banco Ternary Bonsai 2 de 2B, 4B y 9B.
+    expect(catalogo.capas).toHaveLength(26);
   });
 
   it("ninguna capa de Colibri es usable todavía", () => {
