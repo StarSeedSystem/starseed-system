@@ -7,10 +7,13 @@ no; la Mac (8 GB con presión) no deja a ninguno. Sin red, sin descargas, sin to
 CLB1028H añade el plan que ya sirve con el despliegue hecho: no se vuelve a clonar, el `hf` va
 en su venv propio (PEP 668) y los pesos no se vuelven a bajar si ya están.
 """
+import io
+import json
 import os
 import sys
 import unittest
 import unittest.mock
+from contextlib import redirect_stdout
 DIR = os.path.dirname(os.path.abspath(__file__))
 if DIR not in sys.path:
     sys.path.insert(0, DIR)
@@ -71,6 +74,26 @@ class PruebaCaben(unittest.TestCase):
         filas = {f["id"]: f for f in C.caben(self.entradas, 60, 100, margen_gb=0)}
         self.assertEqual(filas["colibri-deepseek-v4-flash-reap"]["veredicto"], "cabe")
         self.assertEqual(filas["colibri-clef"]["veredicto"], "cabe")
+
+    def test_streaming_para_glm_con_disco_enorme(self):
+        """(Rama nube 28-10, adaptado a main) Con disco de sobra y RAM entre la mínima y la
+        recomendada, GLM-5.2 cabe en streaming: el disco sostiene a los expertos, no la RAM;
+        Qwen3.8-Flash-Next sigue sin caber (le falta la RAM mínima, no el margen)."""
+        filas = {f["id"]: f for f in C.caben(self.entradas, 20, 900)}
+        glm = filas["colibri-glm-5.2"]
+        self.assertEqual(glm["veredicto"], "cabe en streaming (disco rápido)")
+        self.assertIn("del disco", glm["porque"])
+
+    def test_caben_no_muta_las_entradas(self):
+        """(Rama nube 28-10, adaptado) `caben` es puro: no toca las entradas y cada fila lleva
+        lo mínimo que consume el guion del A1: id, veredicto y porqué."""
+        antes = json.loads(json.dumps(self.entradas))
+        filas = C.caben(self.entradas, 12, 18.5)
+        self.assertEqual(self.entradas, antes)
+        for fila in filas:
+            self.assertIn("id", fila)
+            self.assertIn("veredicto", fila)
+            self.assertIn("porque", fila)
 
 
 class PruebaPlan(unittest.TestCase):
@@ -197,6 +220,19 @@ class PruebaPlan(unittest.TestCase):
     def test_id_desconocido(self):
         with self.assertRaises(ValueError):
             C.plan_instalacion("colibri-no-existe", "/srv")
+
+    def test_main_plan_imprime_y_no_ejecuta(self):
+        """(Rama nube 28-10, adaptado a CLB128H) `main --plan` imprime el plan con su aviso y
+        nada más: no ejecuta, no descarga. La máquina se fija aquí (12 GB, 18,5 GB) para no
+        depender del equipo que corre la prueba."""
+        salida = io.StringIO()
+        with unittest.mock.patch.object(C, "medir_maquina", return_value=(12.0, 18.5, False)), \
+                redirect_stdout(salida):
+            self.assertEqual(C.main(["--plan", "--carpeta", "/srv/colibri"]), 0)
+        texto = salida.getvalue()
+        self.assertIn("Plan de instalación de colibri-laya", texto)
+        self.assertIn("127.0.0.1", texto)
+        self.assertIn("Nada de esto se descarga ni se ejecuta", texto)
 
 
 if __name__ == "__main__":
