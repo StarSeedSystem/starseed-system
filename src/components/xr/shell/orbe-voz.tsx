@@ -3,14 +3,31 @@
  * StarSeed XR · ORBE CON VOZ (tarea XR1010P · contrato `architecture/starseed-xr.md` §3 a y f).
  * Conecta lo que YA existía: `useVozXR` (máquina pura probada en `voz-xr.ts`) con `OrbeAstraura`
  * (XR1010O), que dejó el puente `pipeline` a la espera de esta tarea. Escucha, parcial, capa
- * entendida y avisos entran a Zenith por ahí; la tarjeta de confirmación y los ejecutores, que
- * actúan sobre `resultado`, los cablean XR1010Q y XR1010T. Cascarón fino de R3F.
+ * entendida y avisos entran a Zenith por ahí; el ejecutor del mundo ya se aplica aquí sobre
+ * `resultado` (crear/editar/navegar), y la tarjeta de confirmación la cablea XR1010Q. Cascarón fino de R3F.
  */
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { astrauraChat } from "@/ai/astraura/router";
+import { leerMundo } from "@/lib/vivo/xr-mundo";
+import type { Intencion } from "@/lib/xr/intenciones-tipos";
+import { ejecutarMundo, type MundoEnContexto } from "./ejecutor-mundo";
+import { NivelCalidadContext } from "./panel-cristal";
 import { OrbeAstraura, type EmisorOrbe } from "./orbe-astraura";
 import type { EventoOrbe } from "./estado-orbe";
 import { useVozXR } from "./use-voz-xr";
 import type { EstadoVoz, Reparto } from "./voz-xr";
+
+/** Las intenciones que ejecuta el mundo; las que salen de la cuenta las cablea XR1010T. */
+const EN_EL_MUNDO = new Set<Intencion["tipo"]>(["crear-mundo", "editar-mundo", "ir-a", "abrir"]);
+
+/** Sala XR que la URL nombra (`?mundo=<id>` o `/sala-xr/<id>`), para editar el mundo abierto. */
+function refDeLaUrl(): string | null {
+    if (typeof window === "undefined") return null;
+    const deConsulta = new URLSearchParams(window.location.search).get("mundo");
+    if (deConsulta) return deConsulta;
+    const enRuta = window.location.pathname.match(/^\/sala-xr\/([^/?#]+)/);
+    return enRuta ? decodeURIComponent(enRuta[1]) : null;
+}
 
 /** Traducción PURA (probable) de un cambio de voz a eventos del orbe: el orbe nunca queda en bucle,
  *  todo desemboca en `reposo` con el texto de la pregunta, la duda o el dictado en el panel. */
@@ -37,7 +54,12 @@ export function eventosDeCambio(estado: EstadoVoz, parcial: string, resultado: R
  *  de `RigTrinity` (XR1010J) en `escena-os.tsx`; así uikit/vive solo en la ruta `/xr/os`. */
 export function OrbeVoz() {
     const { estado, parcial, resultado, hablar } = useVozXR();
+    const nivel = useContext(NivelCalidadContext);
     const emisor = useRef<EmisorOrbe | null>(null);
+    const creado = useRef<MundoEnContexto | null>(null);
+    const ejecutado = useRef<Reparto | null>(null);
+    const [actual, setActual] = useState<MundoEnContexto | null>(null);
+    const refUrl = useMemo(refDeLaUrl, []);
     const pipeline = useCallback((enviar: EmisorOrbe) => {
         emisor.current = enviar;
         return () => { emisor.current = null; };
@@ -47,6 +69,47 @@ export function OrbeVoz() {
         if (!enviar) return;
         for (const ev of eventosDeCambio(estado, parcial, resultado)) enviar(ev);
     }, [estado, parcial, resultado]);
+
+    // El mundo abierto se lee de la MISMA fila de la sala; sin fila, «mundo-actual» lo dirá.
+    useEffect(() => {
+        if (!refUrl) return;
+        let vivo = true;
+        void leerMundo(refUrl).then((mundo) => { if (vivo && mundo) setActual({ refId: refUrl, mundo }); });
+        return () => { vivo = false; };
+    }, [refUrl]);
+
+    const razonar = useCallback(async (prompt: string) => {
+        const r = await astrauraChat({ messages: [{ role: "user", content: prompt }], taskHint: "reasoning", temperature: 0.2 });
+        return r.text;
+    }, []);
+
+    // La voz ya entendida se APLICA aquí: crea/edita el mundo, guarda y navega al destino.
+    useEffect(() => {
+        if (!resultado || resultado.via !== "intencion" || !resultado.resultado.ok) return;
+        if (ejecutado.current === resultado) return;
+        ejecutado.current = resultado;
+        const pasos = resultado.resultado.pasos.filter((p) => EN_EL_MUNDO.has(p.intencion.tipo));
+        if (pasos.length === 0) return;
+        void (async () => {
+            let destino: string | null = null;
+            for (const paso of pasos) {
+                const r = await ejecutarMundo(paso, { nivel, razonar, creado: creado.current, mundoActual: actual });
+                const enviar = emisor.current;
+                if (!r.ok) { enviar?.({ tipo: "error", texto: r.motivo }); continue; }
+                if (paso.intencion.tipo === "crear-mundo") {
+                    const mundo = await leerMundo(r.refId);
+                    if (mundo) creado.current = { refId: r.refId, mundo };
+                    destino = r.ruta;
+                } else if (paso.intencion.tipo === "ir-a" || paso.intencion.tipo === "abrir") {
+                    destino = r.ruta;
+                }
+                enviar?.({ tipo: "habla-inicio", texto: r.resumen });
+                enviar?.({ tipo: "habla-fin" });
+            }
+            if (destino) window.location.assign(destino);
+        })();
+    }, [resultado, nivel, razonar, actual]);
+
     return <OrbeAstraura pipeline={pipeline} hablar={hablar} />;
 }
 
