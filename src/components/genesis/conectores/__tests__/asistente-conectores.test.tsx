@@ -49,7 +49,8 @@ describe("resumenPorPapel · motivo de la cadena elegida", () => {
     expect(resumen[1].motivo).toMatch(/^Sin opción/);
     const gratis = resumenPorPapel([asignacion({ cadena: ["gratis-nube"] })], { locales: new Set(), vinculadas: new Set(["gratis-nube"]) });
     expect(gratis[0].motivo).toMatch(/^Gratis vinculada/);
-    const pago = resumenPorPapel([asignacion({ cadena: ["pago"] })], { locales: new Set(), vinculadas: new Set() });
+    const pago = resumenPorPapel([asignacion({ cadena: ["pago"], preferencias: { localPrimero: false, privacidad: "nube-con-retencion", presupuesto: 3 } })],
+      { locales: new Set(), vinculadas: new Set() });
     expect(pago[0].motivo).toMatch(/^De pago/);
     const sinPista = resumenPorPapel([asignacion({ cadena: ["otro"] })], { locales: new Set(), vinculadas: new Set() });
     expect(sinPista[0].motivo).toMatch(/^Decidida por el ámbito/);
@@ -79,7 +80,7 @@ describe("AsistenteConectarGenesis · pasos, enlace oficial y clave efímera", (
     expect(campo).toHaveValue("");
     fireEvent.click(screen.getByRole("tab", { name: /3\. Resumen por papel/ }));
     expect(screen.getByText("Cadena elegida: neurona-local")).toBeInTheDocument();
-    expect(screen.getByText(/^Local primero/)).toBeInTheDocument();
+    expect(screen.getByText(/^Local primero:/)).toBeInTheDocument();
   });
 
   it("muestra el error de la bóveda sin dejar la clave en el campo", async () => {
