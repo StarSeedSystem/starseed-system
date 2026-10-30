@@ -70,6 +70,15 @@ class PruebaCaben(unittest.TestCase):
         self.assertEqual(qwen38["veredicto"], "no cabe")
         self.assertIn("RAM insuficiente", qwen38["porque"])
 
+    def test_sin_presion_manda_la_ram_minima(self):
+        """(Rescate rama nube/40611446903) Sin presión y con disco de sobra manda la RAM
+        mínima: Clef pide 19 GB de RAM mínima y no los hay, aunque sobre el disco; Laya,
+        que pide 1,7 GB, cabe igualmente."""
+        filas = {f["id"]: f for f in C.caben(self.entradas, 18, 500)}
+        self.assertEqual(filas["colibri-clef"]["veredicto"], "no cabe")
+        self.assertIn("RAM insuficiente", filas["colibri-clef"]["porque"])
+        self.assertEqual(filas["colibri-laya"]["veredicto"], "cabe")
+
     def test_neurona_dedicada_sin_margen(self):
         filas = {f["id"]: f for f in C.caben(self.entradas, 60, 100, margen_gb=0)}
         self.assertEqual(filas["colibri-deepseek-v4-flash-reap"]["veredicto"], "cabe")
@@ -235,6 +244,32 @@ class PruebaPlan(unittest.TestCase):
             for paso in C.plan_instalacion(id_modelo, "/srv"):
                 self.assertIsInstance(paso["args"], list)
                 self.assertTrue(all(isinstance(a, str) for a in paso["args"]))
+
+    def test_exige_id_y_carpeta(self):
+        """(Rescate rama nube/40611446903) Ni el id vacío ni la carpeta vacía se aceptan en
+        silencio: el plan con una carpeta «» produciría órdenes sin destino (`--dir»`,
+        `local` = /laya). El id vacío cae en el mismo ValueError que un id desconocido."""
+        with self.assertRaises(ValueError):
+            C.plan_instalacion("", "/srv")
+        with self.assertRaises(ValueError):
+            C.plan_instalacion("colibri-laya", "")
+
+    def test_main_plan_imprime_y_no_ejecuta(self):
+        """(Rescate rama nube/40611446903, adaptado a CLB1028H) Con --plan main imprime la
+        máquina, los veredictos, el plan de lo que cabe (el `serve` en 127.0.0.1:4480 lo hace
+        la unidad, no el plan) y remata con que nada se descarga ni se ejecuta. La máquina se
+        inyecta fija para no depender del disco del corredor."""
+        with unittest.mock.patch.object(C, "medir_maquina", return_value=(12.0, 18.5, False)):
+            salida = io.StringIO()
+            with redirect_stdout(salida):
+                codigo = C.main(["--plan"])
+        texto = salida.getvalue()
+        self.assertEqual(codigo, 0)
+        self.assertIn("Plan de instalación de colibri-laya", texto)
+        self.assertIn("Plan de instalación de colibri-gliner-decide", texto)
+        self.assertIn("127.0.0.1:4480", texto)
+        self.assertNotIn("start-here.sh", texto)  # decisiones: hf + make, no setup
+        self.assertIn("Nada de esto se descarga ni se ejecuta", texto)
 
     def test_main_sin_plan_imprime_uso_y_nada_ejecuta(self):
         """(Rescate rama, adaptado) Sin `--plan` el CLI enseña el uso y termina con código 2;

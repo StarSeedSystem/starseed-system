@@ -108,6 +108,8 @@ def plan_instalacion(id_modelo: str, carpeta: str) -> list[dict[str, Any]]:
     ids = {e["id"] for e in entradas()}
     if id_modelo not in ids:
         raise ValueError(f"id desconocido «{id_modelo}»: no está en config/capas-colibri-1027.json")
+    if not carpeta:
+        raise ValueError("carpeta vacía: el plan produciría órdenes sin destino («--dir», `local` = /laya)")
     if id_modelo == "colibri-clef":
         raise ValueError(f"{id_modelo} no cabe en esta neurona: 52 GB de disco y 19 GB de RAM mínima")
     desplegado = REPO_CLONE_RUTA + "/.git"
