@@ -66,6 +66,7 @@ import {
     rutaDesdeCarpeta,
 } from "@/lib/publish/docusaurus-import";
 import type { ArchivoDocs } from "@/lib/publish/docusaurus-export";
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 import { LearningPathPanel } from "@/components/education/learning-path";
 import { ViewErrorBoundary } from "@/components/education/view-error-boundary";
 import type { Graph3DNode, Graph3DEdge } from "@/components/education/topic-graph-3d";
@@ -711,7 +712,9 @@ export function TopicGraph() {
                     creados += 1;
                 }
                 if (creados === 0) {
-                    toast.error("Inicia sesión para importar documentos a tu mapa de conocimiento.");
+                    toast.error("Inicia sesión para importar documentos a tu mapa de conocimiento.", {
+                        action: { label: "Conoce StarSeed", onClick: () => abrirGuia({ desde: "aviso" }) },
+                    });
                     return;
                 }
                 if (creados < nodos.length) {
