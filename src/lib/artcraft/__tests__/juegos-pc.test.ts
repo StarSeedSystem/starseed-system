@@ -30,8 +30,20 @@ describe("planificarJuegoPc · rutas A, B y C (§5.1)", () => {
     expect(r.pasos.join(" ")).toContain("abre Rare");
     expect(r.pasos.join(" ")).toContain("inicia sesión en Epic tú mismo");
   });
+  it("ruta A manda sobre los servidores compartidos y da los pasos exactos", () => {
+    const r = plan(NEURONA_A, [SERVIDOR_COMPARTIDO]);
+    expect(r.ruta).toBe("neurona-propia");
+    expect(r.pasos).toEqual(["abre Rare", "inicia sesión en Epic tú mismo"]);
+  });
   it("ruta B: servidor propio con GPU, Wine o Proton y transmisión", () => {
     expect(plan(NEURONA_SERVIDOR, [SERVIDOR_PROPIO]).ruta).toBe("servidor-propio");
+  });
+  it("ruta B salta el servidor propio sin GPU y elige el que la tiene", () => {
+    const r = plan(NEURONA_SERVIDOR, [
+      { id: "sin-gpu", propio: true, compartido: false, gpu: false, wineOProton: true, transmision: null, libreDiscoGB: 40 },
+      { id: "con-gpu", propio: true, compartido: false, gpu: true, wineOProton: true, transmision: "sunshine", libreDiscoGB: 40 },
+    ]);
+    expect(r.ruta).toBe("servidor-propio");
   });
   it("sin pantalla ni servidor viable: ninguna, sin pasos", () => {
     const r = plan(NEURONA_SERVIDOR, []);
@@ -41,6 +53,12 @@ describe("planificarJuegoPc · rutas A, B y C (§5.1)", () => {
   it("ruta C bloqueada mientras las condiciones de Epic no estén decididas", () => {
     expect(CONDICIONES_EPIC_DECIDIDAS).toBe(false);
     expect(plan(NEURONA_SERVIDOR, [SERVIDOR_COMPARTIDO]).ruta).toBe("ninguna");
+  });
+  it("sin condiciones de Epic, aceptar no abre la ruta C y se avisa", () => {
+    const r = plan(NEURONA_SERVIDOR, [SERVIDOR_COMPARTIDO], true);
+    expect(r.ruta).toBe("ninguna");
+    expect(r.pasos).toEqual([]);
+    expect(r.avisos).toContain("no hay ruta disponible en las condiciones actuales");
   });
 });
 
@@ -84,6 +102,10 @@ describe("esUrlPermitidaRare · solo releases oficiales, descargas remotas bloqu
       "https://raredevs.github.io/wring/workarounds.json", "https://www.protondb.com/app/1",
       "http://github.com/RareDevs/Rare/releases/tag/1", "https://github.com/RareDevs/Otro/releases/1",
     ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
+  it("acepta el binario de una release oficial y rechaza la raíz de releases sin barra", () => {
+    expect(esUrlPermitidaRare("https://github.com/RareDevs/Rare/releases/download/1.12.0.237/Rare.dmg")).toBe(true);
+    expect(esUrlPermitidaRare("https://github.com/RareDevs/Rare/releases")).toBe(false);
   });
 });
 
