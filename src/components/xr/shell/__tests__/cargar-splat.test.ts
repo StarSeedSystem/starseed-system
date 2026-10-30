@@ -45,6 +45,7 @@ describe("presupuestoSplat", () => {
         expect(presupuestoSplat("alta")).toBe(1_500_000);
         expect(presupuestoSplat("maxima")).toBe(3_000_000);
         expect(presupuestoSplat("media")).toBe(0);
+        expect(presupuestoSplat("baja")).toBe(0);
         expect(presupuestoSplat("minima")).toBe(0);
     });
 });
@@ -64,6 +65,7 @@ describe("urlSplatDeObjeto", () => {
         expect(urlSplatDeObjeto(objeto({ tipo: "biblioteca", id: URL, formato: "splat" }))).toBe(URL);
         expect(urlSplatDeObjeto(objeto({ tipo: "biblioteca", id: URL, formato: "glb" }))).toBeNull();
         expect(urlSplatDeObjeto(objeto({ tipo: "primitiva", forma: "caja" }))).toBeNull();
+        expect(urlSplatDeObjeto(objeto({ tipo: "texto", contenido: "hola" }))).toBeNull();
     });
 });
 
@@ -121,5 +123,29 @@ describe("cargarSplat", () => {
         const opciones = MallaFalsa.ultima as OpcionesSplatMesh | null;
         expect(opciones).toMatchObject({ url: URL, maxSplats: 3_000_000 });
         expect(opciones?.fileBytes).toBeInstanceOf(ArrayBuffer);
+    });
+
+    it("sin maxBytes propio aplica el tope de 60 MB y dice el motivo", async () => {
+        const grande = { byteLength: MAX_BYTES_SPLAT + 1 } as unknown as ArrayBuffer;
+        const resultado = await cargarSplat(URL, {
+            SplatMesh: MallaFalsa,
+            pedirBytes: async () => grande,
+        });
+        expect(resultado).toEqual({ ok: false, motivo: MOTIVO_SPLAT_GRANDE });
+        if (!resultado.ok) expect(resultado.motivo).toContain("60 MB");
+    });
+
+    it("sin maxSplats propio usa el presupuesto de alta", async () => {
+        const bytes = new ArrayBuffer(64);
+        MallaFalsa.ultima = null;
+        const resultado = await cargarSplat(URL, {
+            SplatMesh: MallaFalsa,
+            pedirBytes: async () => bytes,
+        });
+        expect(resultado.ok).toBe(true);
+        if (resultado.ok) expect(resultado.bytes).toBe(64);
+        const opciones = MallaFalsa.ultima as OpcionesSplatMesh | null;
+        expect(opciones).toMatchObject({ url: URL, maxSplats: 1_500_000 });
+        expect(opciones?.fileBytes).toBe(bytes);
     });
 });
