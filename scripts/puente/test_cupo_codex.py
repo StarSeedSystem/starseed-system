@@ -13,6 +13,13 @@ import cupo_codex as C
 REAL = ("ERROR: You've hit your usage limit. Upgrade to Pro "
         "(https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage")
 
+#: Literal del 2026-10-23 20:55, medido por Claude el 28: TODAS las llamadas de
+#: Codex en la Mac fallan con esto (206 sesiones; con -m gpt-5.5 pasa igual).
+SIN_MODELO = (
+    '{"status":400,"message":"The \'gpt-5.6-sol\' model is not supported when '
+    'using Codex with a ChatGPT account.","code":"model_not_found"}'
+)
+
 AHORA = 1_700_000_000.0
 
 
@@ -33,6 +40,33 @@ class TestDeteccion(unittest.TestCase):
     def test_da_igual_como_lo_escriban(self):
         for t in ("Usage limit reached for your plan", "QUOTA EXCEEDED", "Upgrade to Pro"):
             self.assertTrue(C.agotado_en(t), t)
+
+
+class TestSinModelo(unittest.TestCase):
+    def test_la_salida_real_de_octubre(self):
+        self.assertTrue(C.sin_modelo_en(SIN_MODELO))
+
+    def test_tambien_con_otro_modelo(self):
+        # Con -m gpt-5.5 la Mac contesta lo mismo: sirve la misma pista.
+        self.assertTrue(C.sin_modelo_en(
+            "The 'gpt-5.5' model is not supported when using Codex with a "
+            "ChatGPT account. (code: model_not_found)"
+        ))
+
+    def test_no_es_cuota(self):
+        # Reacciones opuestas: la cuota se repone en horas; esto aparta un día.
+        self.assertFalse(C.agotado_en(SIN_MODELO))
+
+    def test_la_cuota_sigue_siendolo(self):
+        self.assertTrue(C.agotado_en(REAL))
+        self.assertFalse(C.sin_modelo_en(REAL))
+
+    def test_no_confunde_un_modelo_que_no_existe(self):
+        self.assertFalse(C.sin_modelo_en("ERROR: model 'gpt-9' does not exist"))
+
+    def test_vacio_no_es_sin_modelo(self):
+        self.assertFalse(C.sin_modelo_en(""))
+        self.assertFalse(C.sin_modelo_en(None))
 
 
 class TestVigencia(unittest.TestCase):
@@ -59,6 +93,11 @@ class TestVigencia(unittest.TestCase):
 class TestVentana(unittest.TestCase):
     def test_tres_horas_por_defecto(self):
         self.assertAlmostEqual(C.hasta_cuando(AHORA) - AHORA, 3 * 3600, places=3)
+
+    def test_sin_modelo_aparta_un_dia(self):
+        marca = {"hasta": C.hasta_cuando(AHORA, horas=C.HORAS_SIN_MODELO)}
+        self.assertAlmostEqual(marca["hasta"] - AHORA, 24 * 3600, places=3)
+        self.assertEqual(C.minutos_restantes(marca, AHORA), 24 * 60)
 
     def test_se_puede_ajustar(self):
         self.assertAlmostEqual(C.hasta_cuando(AHORA, horas=0.5) - AHORA, 1800, places=3)

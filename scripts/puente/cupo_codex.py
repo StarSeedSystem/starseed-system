@@ -50,6 +50,22 @@ PISTAS = (
 #: Cuánto se aparta tras un agotamiento.
 HORAS = 3.0
 
+#: (2026-10-28, DEC1028C) Otra cosa distinta: la cuenta de ChatGPT mira a la CLI
+#: y le dice que el modelo que pide NO está admitido («The 'gpt-5.6-sol' model
+#: is not supported when using Codex with a ChatGPT account», code
+#: model_not_found). No es cuota: la suscripción está viva y se repone. Es que
+#: Codex no puede escribir NADA con esa cuenta mientras la cosa dure. Medido por
+#: Claude el 2026-10-28: 206 sesiones caídas así desde el 23 por la tarde y la
+#: rotación seguía dándole cada tarea (DEC1028A gastó 8 intentos en él).
+PISTAS_SIN_MODELO = (
+    "is not supported when using codex with a chatgpt account",
+    "model_not_found",
+)
+
+#: Cuánto se aparta tras un «modelo no admitido»: lo que Alex apartó a mano el
+#: 28 a la espera, un día. Si al volver sigue sin admitir, se anota otra vez.
+HORAS_SIN_MODELO = 24.0
+
 
 def agotado_en(salida):
     """¿Esta salida es un agotamiento de cuota de Codex?
@@ -60,6 +76,19 @@ def agotado_en(salida):
     """
     b = (salida or "").lower()
     return any(p in b for p in PISTAS)
+
+
+def sin_modelo_en(salida):
+    """¿Esta salida es un «modelo no admitido con la cuenta de ChatGPT»?
+
+    La reacción NO es la misma que la cuota (agotado_en): ahí se espera a la
+    reposición en horas; aquí la cuenta entera no sirve para escribir, así que
+    se aparta por HORAS_SIN_MODELO. Igual que agotado_en, mira el texto en
+    minúsculas y no el código de salida: la CLI devuelve el mismo código para
+    varias cosas distintas.
+    """
+    b = (salida or "").lower()
+    return any(p in b for p in PISTAS_SIN_MODELO)
 
 
 def hasta_cuando(ahora, horas=HORAS):

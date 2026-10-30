@@ -7738,6 +7738,30 @@ def ejecutar(t, intento=1):
                 "Codex sin cuota de ChatGPT: fuera de la rotación %d min "
                 "(las demás tareas ya no lo intentan)" % minutos,
             )
+        # (2026-10-28, DEC1028C) Distinto de la cuota: la cuenta de ChatGPT NO
+        # admite el modelo que pide («model_not_found», 206 sesiones caídas desde
+        # el 23). La suscripción está viva, así que la cuota no lo ve y la tarea
+        # gastaba su primer intento con Codex para salir vacía. Se aparta un día
+        # y la tarea SIGUE SIN GASTAR INTENTO, como una pasarela caída.
+        if modelo in MODELOS_CODEX and _cupo_codex.sin_modelo_en(out):
+            try:
+                minutos = _cupo_codex.anotar(
+                    "cuenta de ChatGPT sin Codex para %s" % modelo,
+                    horas=_cupo_codex.HORAS_SIN_MODELO,
+                )
+            except Exception:
+                minutos = 0
+            for _m in list(MODELOS_CODEX):
+                if _m in MODELOS:
+                    MODELOS.remove(_m)
+            pendientes[:] = [m for m in pendientes if m not in MODELOS_CODEX]
+            evento(
+                "proveedor_caido",
+                tid,
+                "Codex apartado %d min: la cuenta de ChatGPT no admite el "
+                "modelo (no es cuota) → siguiente sin gastar intento" % minutos,
+            )
+            continue
         if apartar_si_pide_pago(tid, modelo, out):
             continue
         pista = fallo_de_proveedor(out)
