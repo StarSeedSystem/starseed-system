@@ -24,6 +24,19 @@ describe("parseSha256Sums", () => {
     expect(mapa.get("abc.zip")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
   });
 
+  it("lee uno y dos espacios y normaliza la huella a minúsculas", () => {
+    const shaAbc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    const shaVacio = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    const texto = [
+      `${shaAbc.toUpperCase()} figcraft-web-0.10.0.zip`,
+      `${shaVacio}  gridcraft-cli-0.11.1-macos-universal.zip`,
+    ].join("\n");
+    const sumas = parseSha256Sums(texto);
+    expect(sumas.size).toBe(2);
+    expect(sumas.get("figcraft-web-0.10.0.zip")).toBe(shaAbc);
+    expect(sumas.get("gridcraft-cli-0.11.1-macos-universal.zip")).toBe(shaVacio);
+  });
+
   it("ignora líneas vacías y comentarios", () => {
     const texto = "\n# comentario\nba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  abc.zip\n\n";
     const mapa = parseSha256Sums(texto);
@@ -125,6 +138,16 @@ describe("verificarActivo", () => {
     const result = await verificarActivo("figcraft-web-1.0.0.zip", bytes, sumas);
     expect(result.ok).toBe(false);
     expect(result.motivo).toMatch(/ba7816bf/);
+  });
+
+  it("en una huella distinta solo enseña los 8 primeros caracteres", async () => {
+    const bytes = new TextEncoder().encode("abc");
+    const shaAbc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    const sumas = new Map<string, string>([["figcraft-web-1.0.0.zip", "0".repeat(64)]]);
+    const result = await verificarActivo("figcraft-web-1.0.0.zip", bytes, sumas);
+    expect(result.ok).toBe(false);
+    expect(result.motivo).toContain("ba7816bf");
+    expect(result.motivo).not.toContain(shaAbc);
   });
 
   it("sin huella publicada", async () => {
