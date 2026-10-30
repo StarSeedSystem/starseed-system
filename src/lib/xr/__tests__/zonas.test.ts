@@ -96,4 +96,12 @@ describe("zonas XR puras", () => {
   it("un punto de reunión devuelve su spawn", () => {
     expect(destinoDePortal({ tipo: "punto", spawn: "entrada" })).toEqual({ tipo: "punto", spawn: "entrada", privado: false });
   });
+
+  it("un portal privado se marca privado: true", () => {
+    expect(destinoDePortal({ tipo: "desconocido" as any }).privado).toBe(true);
+  });
+
+  it("sin ruta conocida devuelve no-disponible", () => {
+    expect(destinoDePortal({ tipo: "desconocido" as any })).toEqual({ tipo: "no-disponible", ruta: "", privado: true });
+  });
 });

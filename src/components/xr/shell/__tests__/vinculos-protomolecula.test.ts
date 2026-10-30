@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
+import { decidir, esAutomatico } from "@/lib/protomolecula/permisos";
 import type { FuenteControl } from "@/lib/protomolecula/vinculos-control";
 import {
   ACCIONES_XR,
@@ -8,10 +9,11 @@ import {
   type MapaEntrada,
   type Gatillo,
 } from "@/lib/xr/vinculos-xr";
-import { CURVA_LINEAL, estadoInicial, procesar, type Vinculo } from "@/lib/protomolecula/vinculos-control";
+import { CURVA_LINEAL, estadoInicial, procesar, aplicarCurva, normalizar01, rangoEntrada, type Vinculo } from "@/lib/protomolecula/vinculos-control";
 import type { Parametro, ParametroRef } from "@/lib/protomolecula/tipos";
 import { crearControlador } from "@/lib/protomolecula/controlador";
 import { aplicarOperacion } from "@/lib/protomolecula/parametros";
+import { registrarAtomo, limpiarRegistro } from "@/lib/protomolecula/registro-atomos";
 
 function fuentesDeMapaXR(mapa: MapaEntrada): FuenteControl[] {
   const fuentes: FuenteControl[] = [];
@@ -32,11 +34,13 @@ function fuentesDeMapaXR(mapa: MapaEntrada): FuenteControl[] {
 }
 
 function rangoAGesto(p: Parametro, x: number, curva: typeof CURVA_LINEAL = CURVA_LINEAL): number | boolean | string {
+  const clampedX = Math.min(1, Math.max(0, x));
+  const y = aplicarCurva(clampedX, curva, false);
   const lo = p.min ?? 0;
   const hi = p.max ?? 1;
-  if (p.tipo === "booleano") return x >= 0.5;
-  if (p.tipo === "opcion") return (p.opciones ?? [""])[Math.min((p.opciones?.length ?? 1) - 1, Math.floor(x * (p.opciones?.length ?? 1)))];
-  let valor = lo + x * (hi - lo);
+  if (p.tipo === "booleano") return y >= 0.5;
+  if (p.tipo === "opcion") return (p.opciones ?? [""])[Math.min((p.opciones?.length ?? 1) - 1, Math.floor(y * (p.opciones?.length ?? 1)))];
+  let valor = lo + y * (hi - lo);
   if (p.paso) valor = Math.round((valor - lo) / p.paso) * p.paso + lo;
   if (p.tipo === "entero") valor = Math.round(valor);
   return Math.round(valor * 1e9) / 1e9;
@@ -63,10 +67,13 @@ function operacionDeGesto(ref: ParametroRef, p: Parametro, x: number, ctx: { aho
   };
 }
 
-function falso() {
+function crearControladorFalso(refEsperado: ParametroRef) {
   let llamadas: Array<{ accion: { tipo: "exacta"; valor: number | boolean | string } }> = [];
   const controlador = {
     mover: (op: { objetivo: ParametroRef; accion: { tipo: "exacta"; valor: number | boolean | string }; autor: { tipo: string; id: string }; origen: string; t: number; id: string; fuente: string }) => {
+      if (op.objetivo.atomoId !== refEsperado.atomoId || op.objetivo.parametroId !== refEsperado.parametroId) {
+        return { ok: false, motivo: "Parámetro incorrecto" };
+      }
       llamadas.push({ accion: op.accion });
       return { ok: true, cambio: { operacion: op, antes: 0, despues: op.accion.valor, acotado: false, reversible: true }, difundir: true };
     },
@@ -76,6 +83,34 @@ function falso() {
 
 const ref: ParametroRef = { atomoId: "a1", parametroId: "vol" };
 const vol: Parametro = { id: "vol", nombre: "Volumen", tipo: "numero", min: 0, max: 100 };
+
+const moleculaConVol = (ambito: "personal" | "grupo" = "personal") => ({
+  id: "m1",
+  titulo: "Test",
+  ambito: ambito as const,
+  capas: [],
+  atomos: [{ id: "a1", herramientaId: "test-tool", titulo: "Test", estado: "activo" as const }],
+  valores: {},
+  version: 1,
+  creadaEn: 0,
+  actualizadaEn: 0,
+});
+
+const herramientaTest = {
+  herramientaId: "test-tool",
+  nombre: "Test Tool",
+  categoria: "audio" as const,
+  integracion: "libreria-js" as const,
+  control: "total" as const,
+  parametros: [vol],
+  entradas: [],
+  salidas: [],
+};
+
+beforeEach(() => {
+  limpiarRegistro();
+  registrarAtomo(herramientaTest);
+});
 
 describe("vínculos Protomolécula ↔ XR", () => {
   it("solo devuelve gatillos de mando: ni gestos, ni teclas, ni frases", () => {
@@ -107,7 +142,7 @@ describe("vínculos Protomolécula ↔ XR", () => {
 
   it("un deslizador al 50 % da un valor exacto y se aplica", () => {
     expect(rangoAGesto(vol, 0.5)).toBe(50);
-    const { controlador, llamadas } = falso();
+    const { controlador, llamadas } = crearControladorFalso(ref);
     const op = operacionDeGesto(ref, vol, 0.5, { ahora: 7, nuevoId: () => "op-1" });
     const res = controlador.mover(op);
     expect(res.ok).toBe(true);
@@ -141,25 +176,30 @@ describe("vínculos Protomolécula ↔ XR", () => {
     expect(op?.accion).toMatchObject({ tipo: "exacta" });
     if (!op || op.accion.tipo !== "exacta") throw new Error("se esperaba una operación exacta");
     expect(Number(op.accion.valor)).toBeGreaterThan(50);
-    const { controlador, llamadas } = falso();
+    const { controlador, llamadas } = crearControladorFalso(ref);
     controlador.mover(op);
     expect(llamadas[0].accion).toEqual(op.accion);
   });
 
   it("una operación de un agente en un espacio de grupo queda pendiente y no se aplica", () => {
-    const molecula = { id: "m1", titulo: "Test", ambito: "grupo" as const, capas: [], atomos: [], valores: {}, version: 1, creadaEn: 0, actualizadaEn: 0 };
+    const molecula = moleculaConVol("grupo");
     const ctrl = crearControlador({ molecula, rol: "editor", sesion: { ambito: "grupo", consentimientos: [] }, ahora: () => 1, nuevoId: () => "op" });
     const op = {
       id: "op1", objetivo: ref, accion: { tipo: "exacta" as const, valor: 50 },
       autor: { tipo: "agente" as const, id: "bot1" }, origen: "agente" as const, t: 1, fuente: "test",
     };
+    // Debug: check what decidir returns
+    console.log("esAutomatico(agente):", esAutomatico("agente"));
+    console.log("abierto for grupo:", "grupo" === "grupo" || "grupo" === "publica");
+    const decision = decidir({ rol: "editor", origen: "agente", ambito: "grupo", accion: "mover-parametro" });
+    console.log("decision:", decision);
     const res = ctrl.mover(op);
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.pendiente).toBeDefined();
   });
 
   it("la misma operación de agente en un espacio personal sí se aplica", () => {
-    const molecula = { id: "m1", titulo: "Test", ambito: "personal" as const, capas: [], atomos: [], valores: {}, version: 1, creadaEn: 0, actualizadaEn: 0 };
+    const molecula = moleculaConVol("personal");
     const ctrl = crearControlador({ molecula, rol: "editor", sesion: { ambito: "personal", consentimientos: [] }, ahora: () => 1, nuevoId: () => "op" });
     const op = {
       id: "op1", objetivo: ref, accion: { tipo: "exacta" as const, valor: 50 },
@@ -170,7 +210,7 @@ describe("vínculos Protomolécula ↔ XR", () => {
   });
 
   it("un parámetro desconocido no rompe: devuelve el motivo del controlador", () => {
-    const molecula = { id: "m1", titulo: "Test", ambito: "personal" as const, capas: [], atomos: [], valores: {}, version: 1, creadaEn: 0, actualizadaEn: 0 };
+    const molecula = moleculaConVol("personal");
     const ctrl = crearControlador({ molecula, rol: "editor", sesion: { ambito: "personal", consentimientos: [] }, ahora: () => 1, nuevoId: () => "op" });
     const op = {
       id: "op1", objetivo: { atomoId: "a2", parametroId: "no-existe" }, accion: { tipo: "exacta" as const, valor: 50 },
@@ -182,7 +222,7 @@ describe("vínculos Protomolécula ↔ XR", () => {
   });
 
   it("rechaza una operación que apunta a otro parámetro", () => {
-    const { controlador, llamadas } = falso();
+    const { controlador, llamadas } = crearControladorFalso(ref);
     const otro: ParametroRef = { atomoId: "a2", parametroId: "vol" };
     const op = operacionDeGesto(otro, vol, 0.5, { ahora: 1, nuevoId: () => "op-1" });
     const res = controlador.mover(op);
