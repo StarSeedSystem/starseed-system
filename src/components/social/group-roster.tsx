@@ -53,6 +53,7 @@ import {
 } from "@/lib/profiles/profiles";
 import { fetchProfilesByIds } from "@/lib/social/os-profiles";
 import { GlassCard } from "@/components/ui/glass-card";
+import { AvisoSesion } from "@/components/auth/aviso-sesion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -240,15 +241,18 @@ export function GroupRoster({
     // ── Estado: vacío (o no legible) → EmptyState ──
     if (rows.length === 0) {
         const hasKnownCensus = (total ?? 0) > 0;
+        if (hasKnownCensus) {
+            return (
+                <AvisoSesion
+                    texto={`Este grupo tiene ${(total ?? 0).toLocaleString("es-ES")} miembros. Inicia sesión para ver el directorio.`}
+                />
+            );
+        }
         return (
             <EmptyState
                 icon={Users}
-                title={hasKnownCensus ? "Directorio no disponible" : "Aún no hay miembros"}
-                description={
-                    hasKnownCensus
-                        ? `Este grupo tiene ${(total ?? 0).toLocaleString("es-ES")} miembros. Inicia sesión para ver el directorio.`
-                        : "Sé la primera persona en unirte a este grupo."
-                }
+                title="Aún no hay miembros"
+                description="Sé la primera persona en unirte a este grupo."
             />
         );
     }
