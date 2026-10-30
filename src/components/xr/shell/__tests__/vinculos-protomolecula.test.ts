@@ -58,6 +58,22 @@ describe("fuentesDeMapaXR", () => {
     };
     expect(fuentesDeMapaXR(mapa)).toHaveLength(1);
   });
+  it("solo devuelve gatillos de mando: ni gestos, ni teclas, ni frases", () => {
+    const mapa: MapaEntrada = {
+      seleccionar: [{ tipo: "gesto", gesto: "pellizco", mano: "cualquiera" }],
+      salir: [{ tipo: "tecla", codigo: "Escape" }, { tipo: "frase", texto: "salir" }],
+    };
+    expect(fuentesDeMapaXR(mapa)).toEqual([]);
+  });
+  it("traduce botones y ejes a gamepad con el índice de la mano", () => {
+    const f = fuentesDeMapaXR({
+      seleccionar: [{ tipo: "boton", indice: 0, mano: "derecha" }, { tipo: "boton", indice: 0, mano: "izquierda" }],
+      teletransporte: [{ tipo: "eje", indice: 3, direccion: "-", mano: "derecha" }],
+    });
+    expect(f).toContainEqual({ tipo: "gamepad", control: "boton", numero: 0, indice: 1 });
+    expect(f).toContainEqual({ tipo: "gamepad", control: "boton", numero: 0, indice: 0 });
+    expect(f).toContainEqual({ tipo: "gamepad", control: "eje", numero: 3, indice: 1 });
+  });
 });
 
 describe("rangoAGesto", () => {
@@ -67,6 +83,14 @@ describe("rangoAGesto", () => {
   it("respeta el paso y la curva invertida", () => {
     expect(rangoAGesto({ ...VOLUMEN, paso: 10 }, 0.53)).toBe(50);
     expect(rangoAGesto(VOLUMEN, 0.2, { ...CURVA_LINEAL, invertir: true })).toBe(80);
+  });
+  it("respeta el entero y acota fuera de 0..1", () => {
+    expect(rangoAGesto({ ...VOLUMEN, tipo: "entero" }, 0.333)).toBe(33);
+    expect(rangoAGesto(VOLUMEN, -3)).toBe(0);
+    expect(rangoAGesto(VOLUMEN, 9)).toBe(100);
+  });
+  it("la curva log responde antes que la lineal", () => {
+    expect(rangoAGesto(VOLUMEN, 0.5, { ...CURVA_LINEAL, forma: "log" })).toBeGreaterThan(50);
   });
   it("interruptores y opciones se resuelven con la misma curva", () => {
     expect(rangoAGesto({ id: "eco", nombre: "Eco", tipo: "booleano" }, 0.7)).toBe(true);
@@ -87,6 +111,15 @@ describe("mando → parámetro", () => {
     const r = procesar(vinculo, VOLUMEN, estadoInicial(), 1, { autor: PERSONA, ahora: 100, id: "op-1" });
     expect(r.operacion?.accion).toEqual({ tipo: "exacta", valor: 100 });
   });
+  it("con curva log el mismo botón responde por encima del 50 %", () => {
+    const fuente = fuentesDeMapaXR(MAPAS_DEFECTO.mandos).find((f) => f.tipo === "gamepad" && f.control === "boton");
+    expect(fuente).toBeDefined();
+    const vinculo: Vinculo = { id: "v", fuente: fuente!, objetivo: REF, modo: "absoluto", curva: { ...CURVA_LINEAL, forma: "log" }, activo: true, creadoPor: "test" };
+    const r = procesar(vinculo, VOLUMEN, estadoInicial(), 0.5, { autor: PERSONA, ahora: 100, id: "op-1" });
+    expect(r.operacion?.accion).toMatchObject({ tipo: "exacta" });
+    if (r.operacion?.accion.tipo !== "exacta") throw new Error("se esperaba una operación exacta");
+    expect(Number(r.operacion.accion.valor)).toBeGreaterThan(50);
+  });
 });
 
 describe("aplicarEnVisor", () => {
@@ -106,6 +139,12 @@ describe("aplicarEnVisor", () => {
     expect(r.ok).toBe(false);
     expect(!r.ok && r.pendiente?.motivo).toMatch(/pendiente de tu confirmación/);
     expect(mover).not.toHaveBeenCalled();
+  });
+  it("la misma operación de un agente en un espacio personal sí se aplica", () => {
+    const mover = okMover();
+    const r = aplicarEnVisor(controladorFalso({ ambito: "personal", mover }), REF, op({ tipo: "exacta", valor: 50 }, AGENTE, "agente"));
+    expect(r.ok).toBe(true);
+    expect(mover).toHaveBeenCalledTimes(1);
   });
   it("una persona en grupo sí aplica y un parámetro desconocido devuelve el motivo", () => {
     expect(aplicarEnVisor(controladorFalso({ ambito: "grupo", mover: okMover() }), REF, op({ tipo: "exacta", valor: 50 })).ok).toBe(true);
