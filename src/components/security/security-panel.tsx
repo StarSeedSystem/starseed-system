@@ -50,6 +50,7 @@ import {
   type DnsProviderId,
   type SecurityScopeDef,
 } from "@/lib/security/security";
+import TracecatPanel from "@/components/security/tracecat-panel";
 
 type Msg = { kind: "ok" | "err" | "info"; text: string } | null;
 type ScopeTarget = { id: string; name: string };
@@ -656,6 +657,9 @@ Propón en español, breve y accionable (máx. 6 líneas), la configuración de 
           </label>
         </div>
       </section>
+
+      {/* Respuesta a incidentes · Tracecat (honesto: todavía no se envía nada) */}
+      <TracecatPanel />
 
       {/* Astraura */}
       <section className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-950/15 p-4">
