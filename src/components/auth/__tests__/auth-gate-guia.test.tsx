@@ -130,4 +130,20 @@ describe("AuthGate · «Conoce StarSeed» sin cuenta (GUI1021K1b)", () => {
 
         expect(guia.recibidos).toEqual([{ desde: "login" }, { desde: "login" }]);
     });
+
+    it("se alcanza con el teclado y es una diana de 44 px con cursor pointer", async () => {
+        const usuario = userEvent.setup();
+        const guia = escucharGuia();
+        render(<AuthGate />);
+        const boton = await screen.findByRole("button", { name: NOMBRE });
+
+        expect(boton.className).toContain("min-h-[44px]");
+        expect(boton.className).toContain("cursor-pointer");
+        boton.focus();
+        expect(boton).toHaveFocus();
+        await usuario.keyboard("{Enter}");
+        guia.parar();
+
+        expect(guia.recibidos).toEqual([{ desde: "login" }]);
+    });
 });
