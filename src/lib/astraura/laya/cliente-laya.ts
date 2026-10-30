@@ -2,11 +2,13 @@
 // Módulo PURO: fetch, reloj y relé de malla VAN INYECTADOS; sin red, sin disco y sin reloj propio.
 // Los plazos salen del catálogo de A (puntos-decision.ts) según el medio; decide con `answer_confidence`.
 import { construirPeticion } from "@/lib/jev/decisiones";
+import type { PerfilMedio } from "@/lib/astraura/capas/perfil-medio";
 import { PLAZO_MAX_MS, puntoDecision, type IdPuntoDecision, type MedioLaya, type PuntoDecision }
   from "./puntos-decision";
+import { planLayaLocal, type PlanLayaLocal } from "./laya-navegador";
 
 export const URL_LAYA_LOCAL = "http://127.0.0.1:4470/v1/systemone";
-export type DondeLaya = "local" | "malla";
+export type DondeLaya = "navegador" | "local" | "malla";
 
 /** Lo que devuelve `preguntarALaya`: respuestas de Laya (answers) o null con el motivo del fallo. */
 export interface SalidaLaya {
@@ -29,6 +31,12 @@ export interface DepsLaya extends RelojLaya {
   relevoMalla?: (cuerpo: string) => Promise<unknown>;
   /** true cuando el A1 es un servidor propio de la cuenta: lo privado podría viajar a él. */
   a1Propio?: boolean;
+  /** Perfil del medio medido por quien llama, `perfilDelMedio(entornoDelNavegador())`; solo se consulta en el medio «navegador». */
+  perfil?: PerfilMedio;
+  /** Motor `laya-ts` ya cargado en esta pestaña (tarea H): responde con el formato nativo o null si falló. */
+  layaNavegador?: (cuerpo: string) => Promise<unknown>;
+  /** El plan del medio; por defecto, el puro de `laya-navegador.ts` (`planLayaLocal`). */
+  planLaya?: (p: PerfilMedio) => PlanLayaLocal;
 }
 
 export interface PeticionClienteLaya {
@@ -72,13 +80,36 @@ export async function preguntarALaya(p: PeticionClienteLaya, deps: DepsLaya): Pr
   const msDe = (): number => Math.max(0, deps.ahora() - inicio);
   const falla = (motivo: string): SalidaLaya => ({ respuestas: null, donde: null, ms: msDe(), motivo });
 
+  // 0. laya-ts en el navegador (tarea H): el plan PURO del medio decide si la capa de Laya se
+  // carga AQUÍ (WebGPU → WASM) o se pregunta fuera, por la malla al A1 (laya-y-habilidades §4).
+  // En visitas web y servidores no hay plan que consulte (no se pasa `perfil`); mientras
+  // `vendor/laya-ts` y el checkpoint exportado (tarea O) no lleguen, el gate devuelve
+  // «no cargar» y se sigue abajo con el servidor local y la malla.
+  const plazoBase = punto.plazoMsPorMedio[p.medio] ?? PLAZO_MAX_MS;
+  let planNavegador: PlanLayaLocal | null = null;
+  if (p.medio === "navegador" && deps.perfil) {
+    planNavegador = (deps.planLaya ?? planLayaLocal)(deps.perfil);
+    if (planNavegador.cargar && deps.layaNavegador) {
+      try {
+        const r = await conPlazo(deps.layaNavegador(cuerpo), plazoBase, deps);
+        const answers = leerAnswers(r);
+        if (answers) return { respuestas: answers, donde: "navegador", ms: msDe() };
+      } catch { /* el motor de la pestaña no sirvió: abajo el servidor local y la malla */ }
+    }
+  }
+
+  /** Si el medio decidió NO cargar la capa local, el fallo final lo dice (honestidad del §4). */
+  const conMotivoDelPlan = (base: string): string =>
+    planNavegador !== null && !planNavegador.cargar
+      ? `${base} (el medio no carga la capa aquí: ${planNavegador.motivo})`
+      : base;
+
   // 1. Servidor local del aparato: formato nativo; X-Prioridad solo si hay conversación en curso.
   const cabeceras: Record<string, string> = { "Content-Type": "application/json" };
   if (p.conversacion) cabeceras["X-Prioridad"] = "conversacion";
-  const plazoPorMedio = punto.plazoMsPorMedio[p.medio] ?? PLAZO_MAX_MS;
   try {
     const r = await conPlazo(deps.fetch(URL_LAYA_LOCAL, { method: "POST", headers: cabeceras, body: cuerpo }),
-      plazoPorMedio, deps) as (Response & { status?: number }) | null;
+      plazoBase, deps) as (Response & { status?: number }) | null;
     if (!r || typeof r.ok !== "boolean") throw new Error("sin respuesta del servidor local");
     if (!r.ok) throw new Error(`HTTP ${(r as Response).status ?? "sin estado"}`);
     const answers = leerAnswers(await (r as Response).json());
@@ -89,13 +120,13 @@ export async function preguntarALaya(p: PeticionClienteLaya, deps: DepsLaya): Pr
   // 2. A1 por la malla: solo si no es privado o el A1 es servidor propio de la cuenta.
   const privado = p.privado ?? false;
   if (privado && !deps.a1Propio) return falla("lo privado no sale de la malla: solo en neuronas y servidores propios");
-  if (!deps.relevoMalla) return falla(`sin Laya local ni relé de malla: ${punto.respaldo}`);
+  if (!deps.relevoMalla) return falla(conMotivoDelPlan(`sin Laya local ni relé de malla: ${punto.respaldo}`));
   try {
-    const r = await conPlazo(Promise.resolve(deps.relevoMalla(cuerpo)), plazoPorMedio, deps);
+    const r = await conPlazo(Promise.resolve(deps.relevoMalla(cuerpo)), plazoBase, deps);
     const answers = leerAnswers(r);
     if (!answers) throw new Error("la malla no trajo answers");
     return { respuestas: answers, donde: "malla", ms: msDe() };
   } catch {
-    return falla(`Laya no llegó ni local ni por la malla: ${punto.respaldo}`);
+    return falla(conMotivoDelPlan(`Laya no llegó ni local ni por la malla: ${punto.respaldo}`));
   }
 }
