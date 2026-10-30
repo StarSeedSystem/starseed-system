@@ -17,6 +17,13 @@ import { safeGet, safeSet } from "@/lib/safe-storage";
 export const CUSTOM_MODELS_KEY = "starseed.astraura.custom-models.v1";
 export const CUSTOM_MODELS_EVENT = "starseed:astraura-custom-models";
 
+/**
+ * Marca en `notes` de los modelos propios que «Recursos de IA» registra y retira SÓLOS:
+ * el servidor propio de IA con la topología «servidor-propio» (RIA1023D). Un modelo con esta
+ * marca no es del usuario a mano: se va y viene cuando cambia la topología.
+ */
+export const NOTAS_SERVIDOR_PROPIO = "recursos-ia:servidor-propio";
+
 export type CustomModelAccess = "local" | "api" | "mcp";
 export type CustomModelKind = "llm" | "voice";
 
