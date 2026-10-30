@@ -78,6 +78,28 @@ describe("cargarSplat", () => {
         expect(MAX_BYTES_SPLAT).toBe(60 * 1024 * 1024);
     });
 
+    it("si el descargador real anuncia una Content-Length por encima del tope, se frena antes de bajar el archivo", async () => {
+        let leidos = false;
+        const respuesta = new Response(null, {
+            status: 200,
+            headers: { "content-length": String(MAX_BYTES_SPLAT + 1) },
+        });
+        respuesta.arrayBuffer = async () => {
+            leidos = true;
+            return new ArrayBuffer(0);
+        };
+        const fetchOriginal = globalThis.fetch;
+        globalThis.fetch = (async () => respuesta) as typeof fetch;
+        try {
+            const resultado = await cargarSplat(URL, { SplatMesh: MallaFalsa });
+            expect(resultado.ok).toBe(false);
+            if (!resultado.ok) expect(resultado.motivo).toContain(MOTIVO_SPLAT_GRANDE);
+            expect(leidos).toBe(false);
+        } finally {
+            globalThis.fetch = fetchOriginal;
+        }
+    });
+
     it("si el descargador lanza, devuelve motivo en vez de propagar la excepción", async () => {
         const resultado = await cargarSplat(URL, {
             SplatMesh: MallaFalsa,
