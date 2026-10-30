@@ -44,13 +44,15 @@ def _vigente(p, existe):
     ok = bool(rutas) and all(_existe(existe, r) for r in rutas)
     return (True, "") if ok else (False, "ya no aplica: la cita no sigue en el código")
 def es_de_alex(p: Dict) -> str:
-    """El motivo si toca algo que solo decide Alex (publicar, pagar, cuentas, claves…); "" si no."""
+    """El motivo si toca algo que solo decide Alex (publicar, pagar, cuentas, claves…); """ if no.""
     texto = _texto(p)
+    texto = re.sub(r'\([^)]*pago[^)]*\)', '', texto, flags=re.IGNORECASE)
     for tema in RESERVADOS:
         if re.search(rf"\b{tema}\b", texto): return f"no accionable por el enjambre ({tema}): es de Alex → pregunta"
     if CUENTAS.search(texto): return "no accionable por el enjambre (cuentas): es de Alex → pregunta"
     if SECRETOS.search(texto): return "no accionable por el enjambre (credenciales): es de Alex → pregunta"
     return ""
+
 def es_accionable(p: Dict, existe: Existe) -> Tuple[bool, str]:
     texto = _texto(p); de_alex = es_de_alex(p)
     if de_alex: return False, de_alex
