@@ -1,0 +1,17 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "IND1029J",
+   "ola": "1029 · MetaGenesis autónoma (sin Claude y sin la Mac)",
+   "depende": [],
+   "importancia": "capacidad",
+   "titulo": "Claves al A1 · oracle_claves.py añade o sustituye una variable, nunca pisa el archivo entero",
+   "archivos": [
+    "scripts/puente/oracle_claves.py",
+    "scripts/puente/test_oracle_claves.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas; nunca rutas de un worktree (`starseed-wt/…`) en el código. Contrato: `architecture/metagenesis-autonoma.md` (léelo entero). Antes de escribir algo nuevo, mira lo que ya existe y úsalo: `scripts/puente/puerta_datos.py` y `puerta_datos_cliente.py` (la puerta de datos del A1), `espejo_puerta.py`, `deploy/oracle/nodo/systemd/` (ya hay `starseed-genesis` y `starseed-metagenesis`), `oracle_nodo.py`, `buscar_capacidad.py` y la colmena.\n\nEl 29-10 `oracle_claves.py starseed-a1 STARSEED_DESPLIEGUE_GH_TOKEN` falló por SSH (no usaba el usuario ni la llave de `oracle_nodo`), y por suerte: su orden remota habría sustituido `/etc/starseed/env` ENTERO por solo esa variable (y con los argumentos de `install` al revés). Arréglalo: usa `oracle_nodo.ssh` (mismo usuario y llave), destino `/etc/starseed/direccion.env` por defecto (o `--archivo`), y en el A1 quita solo las líneas de las variables que mandas y añade las nuevas (archivo temporal e `install -m 600 -o root`). Devuelve, por variable, si quedó y una huella (sha256 de 8 caracteres del valor), nunca el valor. La orden remota se construye en una función PURA probada."
+  }
+ ]
+}
