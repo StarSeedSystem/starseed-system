@@ -1,5 +1,4 @@
 /** Módulo puro de huellas SHA256 para activos ArtCraft y Rare (art §6). */
-import type { Map } from "";
 
 export function parseSha256Sums(texto: string): Map<string, string> {
   const mapa = new Map<string, string>();
@@ -46,7 +45,7 @@ export function esActivoPermitido(nombre: string): boolean {
 }
 
 export async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const buffer = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  const buffer = await globalThis.crypto.subtle.digest("SHA-256", bytes as unknown as BufferSource);
   const arr = Array.from(new Uint8Array(buffer));
   return arr.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
