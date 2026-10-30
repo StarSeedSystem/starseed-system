@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import type { Desktop, DesktopIcon, DesktopIconSize } from "./desktop-store";
 import type { QuickLookTab } from "./desktop-quick-look";
 import type { ArchivoConvertible } from "@/components/conversion/use-conversion-menu";
+import { accionVariaciones } from "@/components/variaciones/accion-variaciones";
+import { ETIQUETA_VARIACIONES } from "@/components/variaciones/accion-variaciones";
 
 // ════════════════════════════════════════════════════════════
 // Primitivas de menú (repetidas aquí por consistencia) ─────────────────
@@ -66,6 +68,7 @@ function MenuShell({
     return (
         <div
             role="menu"
+            data-ss-menu-propio=""
             style={{ left, top, width: 260, maxHeight: maxH - top - 10 }}
             className="absolute z-[62] overflow-y-auto rounded-2xl border border-white/12 bg-card/95 p-1.5 shadow-2xl backdrop-blur-2xl"
         >
@@ -115,6 +118,8 @@ export function DesktopIconMenu({
             )}
 
             <MenuDivider />
+            <MenuItem icon={accionVariaciones("escritorio:icono", { nombre: icon.name }).icon} label={ETIQUETA_VARIACIONES} onClick={() => accionVariaciones("escritorio:icono", { nombre: icon.name }).onClick()} />
+            <MenuDivider />
 
             {/* Convertir a… – Se añade aquí cuando el ícono tiene una URL */}
             {tieneUrl && (
@@ -127,6 +132,8 @@ export function DesktopIconMenu({
                     </div>
                 </>
             )}
+            <MenuDivider />
+            <MenuItem icon={Replace} label="Eliminar" danger onClick={() => run(() => {})} />
         </MenuShell>
     );
 }

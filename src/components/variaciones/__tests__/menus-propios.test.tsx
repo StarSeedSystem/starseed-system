@@ -1,7 +1,8 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { useRef } from "react";
-import { CanvasContextMenu, IconContextMenu } from "@/components/desktop/desktop-context-menu";
+import { CanvasContextMenu } from "@/components/desktop/desktop-context-menu";
+import DesktopIconMenu from "@/components/desktop/desktop-icon-menu";
 import { MenuHilo } from "@/components/messages/marco/menu-hilo";
 import { accionVariaciones, ETIQUETA_VARIACIONES } from "../accion-variaciones";
 import { VARIACIONES_ABRIR_EVENTO, type DetalleVariaciones } from "../variaciones-bus";
@@ -54,7 +55,7 @@ function IconoConMenu(props: { desktop: Desktop; icon: DesktopIcon }) {
     const ref = useRef<HTMLDivElement>(null);
     return (
         <div data-testid="lienzo-icono" ref={ref}>
-            <IconContextMenu
+            <DesktopIconMenu
                 x={40} y={40} desktop={props.desktop} icon={props.icon} canvasRef={ref}
                 onClose={() => {}} onOpen={() => {}} onRename={() => {}}
             />

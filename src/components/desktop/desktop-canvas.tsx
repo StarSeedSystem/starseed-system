@@ -45,7 +45,8 @@ import { DesktopWindowContent, resolveWindowChrome } from "./desktop-window-cont
 import { DesktopAddPanel, type AddPanelTab } from "./desktop-add-panel";
 import { CursorSettingsPanel } from "./cursor-fx";
 import { EmptyDesktopState } from "./desktop-empty";
-import { CanvasContextMenu, IconContextMenu } from "./desktop-context-menu";
+import { CanvasContextMenu } from "./desktop-context-menu";
+import DesktopIconMenu from "./desktop-icon-menu";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -1532,7 +1533,7 @@ export function DesktopCanvas({ spaceId = null }: { spaceId?: string | null } = 
                 <>
                     <div className="absolute inset-0 z-[58]" onPointerDown={() => setCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }} aria-hidden />
                     {ctxMenu.icon ? (
-                        <IconContextMenu
+                        <DesktopIconMenu
                             x={ctxMenu.x}
                             y={ctxMenu.y}
                             desktop={desktop}
