@@ -59,6 +59,7 @@ import nodo_metagenesis_logica as L  # noqa: E402
 import nodo_metagenesis_medio as M  # noqa: E402
 import colmena_logica as C  # noqa: E402
 import traer_nube as T  # noqa: E402
+import repartir_nube as RN  # noqa: E402
 
 CARPETA = os.path.expanduser(os.environ.get("STARSEED_NODO_DIR") or "~/.starseed/nodo-metagenesis")
 MEMORIA = os.path.join(CARPETA, "memoria.json")
@@ -170,6 +171,35 @@ def _segundos(x: Any) -> float:
     return float(x) if isinstance(x, (int, float)) and not isinstance(x, bool) else 0.0
 
 
+def toca_al_volver(ultimo_latido_t: Any, ahora: float, periodo_s: Any = None) -> bool:
+    """PURA. ¿Esta vuelta es el primer latido tras más de `colmena_logica.silencio_max`?
+
+    Se mide contra el ÚLTIMO latido guardado antes de arrancar o de recuperar la conexión, no
+    contra el que se acaba de enviar: si no, nunca se detectaría una vuelta tras un corte."""
+    periodo = _segundos(periodo_s) or float(L.LATIDO_S)
+    return ahora - _segundos(ultimo_latido_t) > C.silencio_max({"periodo_s": periodo})
+
+
+def tareas_en_curso_por_cola(raiz: str, colas: List[str]) -> Dict[str, str]:
+    """{id: cola} de las tareas vivas de cada orquestador de este aparato.
+
+    `en_curso_de` junta las tareas de varias colas sin decir de cuál salió cada una; para soltar
+    hace falta la cola exacta (`olas/control-<cola>.json`), así que se pregunta cola a cola y se
+    usa la MISMA regla de tarea viva del orquestador."""
+    salida: Dict[str, str] = {}
+    for cola in colas or ():
+        if not cola:
+            continue
+        try:
+            en_curso = M.en_curso_de(raiz, cola)
+        except Exception:  # noqa: BLE001 — una cola ilegible no tumba el resto
+            continue
+        for e in en_curso or ():
+            if isinstance(e, dict) and e.get("id"):
+                salida.setdefault(str(e["id"]), str(cola))
+    return salida
+
+
 def entradas_de_relevo(nov: Dict[str, Any], vivos: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     """Traduce lo que el líder YA lee del bus a las entradas de `colmena_logica.plan_relevo`.
 
@@ -246,7 +276,10 @@ class Nodo:
                  tareas_locales: Optional[Callable[[str], List[Any]]] = None,
                  enlistar: Optional[Callable[..., Any]] = None,
                  existentes: Optional[Callable[[str, List[str]], List[str]]] = None,
-                 solo_leer: bool = False, puerta: Any = None):
+                 solo_leer: bool = False, puerta: Any = None,
+                 colas: Optional[Callable[[], List[str]]] = None,
+                 enviar_puntos: Optional[Callable[..., Any]] = None,
+                 cerrojos: Optional[str] = None):
         self.modo = "seco" if seco or solo_leer else "real"
         #: (OPA1011b) Prueba seca EN un medio vivo: lee el bus como el servicio, no escribe nada y se
         #: puntúa como el medio real (si no, su propio latido seco le quitaría el mando en el cálculo).
@@ -276,6 +309,11 @@ class Nodo:
         #: (PDA1011) Puerta de datos del A1: inyectable en las pruebas; si no, del entorno (solo la URL:
         #: el nodo entra con SU llave, sin ficha). `STARSEED_NODO_PUERTA=apagada` → bus como antes.
         self._puerta = puerta
+        # (COL1012H) Al volver hay que saber qué colas lleva ESTE aparato y poder sacar el último
+        # punto de control antes de soltar. Inyectables: las pruebas usan disco y bus falsos.
+        self._colas = colas or M.colas_vivas
+        self._enviar_puntos = enviar_puntos
+        self._cerrojos = cerrojos or os.path.expanduser("~/.starseed/cerrojos")
 
     # ── enlace ──
     def _rest(self) -> Optional[B.Rest]:
@@ -352,6 +390,9 @@ class Nodo:
     # ── una vuelta ──
     def vuelta(self) -> Dict[str, Any]:
         t = self.reloj()
+        # Antes de tocar nada: el último latido GUARDADO. Si esta vuelta llega tras más de
+        # `silencio_max`, es «al volver» y hay que mirar qué siguió otro mientras no estábamos.
+        ultimo_latido_antes = _segundos(self.mem.get("ultimo_latido"))
         medida = self._medir(self.modo, t)
         medio = medida["medio"]
         salud = medida["salud"]
@@ -399,6 +440,7 @@ class Nodo:
                     latido.update(lider_visto=arr.get("lider"), termino_visto=int(arr.get("termino") or 0),
                                   puntos_lider=int(arr.get("puntos") or 0))
                 enlace.espejo(latido, t)
+                self.mem["ultimo_latido"] = t
                 ordenes = enlace.ordenes_de_puerta() + enlace.ordenes_del_bus(t)
                 nov["asignaciones"] = list(enlace.asignaciones)
         if enlace is not None and enlace.modo == "bus":
@@ -422,6 +464,7 @@ class Nodo:
             estable = t - float(self.mem.get("desde") or t) >= L.ESTABLE_S
             res = enlace.latir(latido, puntos, estable)
             if res is not None:
+                self.mem["ultimo_latido"] = t
                 arr = enlace.arriendo or {}
                 decision = {"lider": arr.get("lider"), "termino": int(arr.get("termino") or 0), "reclamar": False,
                             "motivo": "arriendo en la base"}
@@ -434,6 +477,10 @@ class Nodo:
             vivos[self.yo] = latido
         self.mem.setdefault("desde", t)
         self._asignaciones = nov.get("asignaciones") or []
+        # COL1012H · al volver: lo que otro siguió mientras este aparato estaba fuera deja de ser
+        # suyo. Se suelta DESPUÉS de subir el último punto, para que la sucesora pueda combinarlo.
+        if toca_al_volver(ultimo_latido_antes, t, salud.get("periodo_s")):
+            self._al_volver(nov, medida["raiz"], informe, t, ultimo_latido_antes)
         if enlace is not None and enlace.error:
             informe["avisos"].append(enlace.error)
 
@@ -556,6 +603,91 @@ class Nodo:
             if p:
                 pub["resultados"]["publicacion"]["detalle"] = L.motivo_publicacion(p.get("detalle"))[:120]
         return json.loads(L.tachar(json.dumps(pub, ensure_ascii=False)))
+
+    # ── al volver (COL1012H) ──
+    def _al_volver(self, nov: Dict[str, Any], raiz: str, informe: Dict[str, Any], t: float,
+                   ultimo_latido_t: float) -> None:
+        """Suelta lo que otro siguió mientras este aparato estaba fuera (contrato §3).
+
+        La decisión es la del núcleo puro (`colmena_logica.al_volver`): si la asignación del bus
+        es de OTRO nodo y es posterior a mi último latido, esa tarea ya no es mía. Antes de soltarla
+        se fuerza y se envía su último punto de control, para que la sucesora pueda combinarlo;
+        si el envío no sale, NO se suelta: seguir aquí es mejor que perder el trabajo."""
+        if self.modo != "real":
+            return  # una prueba seca lee y decide, pero no escribe órdenes ni manda puntos
+        asignadas = entradas_de_relevo(nov, {}).get("asignadas") or {}
+        if not asignadas:
+            return
+        colas = [c for c in (self._colas() or []) if c]
+        if not colas:
+            return
+        en_curso = tareas_en_curso_por_cola(raiz, colas)
+        if not en_curso:
+            return
+        soltar, seguir = C.al_volver(self.yo, sorted(en_curso), asignadas, ultimo_latido_t)
+        informe["al_volver"] = {"soltar": [], "seguir": len(seguir)}
+        if not soltar:
+            return
+        ok, motivo = self._forzar_y_enviar_puntos(soltar, raiz)
+        if not ok:
+            informe["al_volver"].update(pendiente=list(soltar), motivo=motivo)
+            informe.setdefault("avisos", []).append("al volver: %s" % motivo)
+            return
+        por_cola: Dict[str, List[str]] = {}
+        for tid in soltar:
+            cola = en_curso.get(tid)
+            if cola:
+                por_cola.setdefault(cola, []).append(tid)
+        if not por_cola:
+            informe["al_volver"]["motivo"] = "sin cola conocida para lo que hay que soltar"
+            return
+        olas = os.path.join(raiz, "starseed_memory_root", "olas")
+        if not os.path.isdir(olas):
+            informe["al_volver"]["motivo"] = "no hay carpeta de colas en este aparato"
+            return
+        ordenes = RN.ordenes_soltar(soltar, sorted(por_cola.items()), "otro contenedor", "colmena",
+                                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t)))
+        try:
+            escritos = RN.soltar_en_la_mac(ordenes, olas, self._cerrojos)
+        except Exception as e:  # noqa: BLE001 — una orden que no se escribe se reintenta a la vuelta
+            informe["al_volver"]["motivo"] = "no pude escribir soltar: %s" % type(e).__name__
+            return
+        informe["al_volver"].update(soltar=escritos, donde="otro contenedor")
+
+    def _forzar_y_enviar_puntos(self, tids: List[str], raiz: str) -> tuple[bool, str]:
+        """Fuerza el último punto de control de esas tareas y lo saca del aparato.
+
+        Preferencia: `oracle_nodo.enviar_puntos` (COL1012E), que fuerza el commit salvavidas y lo
+        sube al A1. Si esa pieza aún no está instalada, se sube al menos el espejo con el último
+        punto conocido (`enviar_estado`), que ya incluye `olas/puntos-control.json`; nunca se
+        inventa un punto ni se promete uno que no existe."""
+        if self._enviar_puntos is not None:
+            try:
+                res = self._enviar_puntos(list(tids), raiz)
+            except Exception as e:  # noqa: BLE001 — sin punto no se suelta
+                return False, "no pude forzar/enviar el punto: %s" % type(e).__name__
+            return (res is not False), ("" if res is not False else "el envío del punto no salió")
+        try:
+            import oracle_nodo as O
+        except Exception as e:  # noqa: BLE001
+            return False, "no pude cargar oracle_nodo: %s" % type(e).__name__
+        enviar = getattr(O, "enviar_puntos", None)
+        if enviar is not None:
+            try:
+                res = enviar()
+            except Exception as e:  # noqa: BLE001
+                return False, "enviar_puntos falló: %s" % type(e).__name__
+            return (res is not False), ("" if res is not False else "enviar_puntos no salió")
+        espejo = getattr(O, "enviar_estado", None)
+        if espejo is None:
+            return False, "falta oracle_nodo.enviar_puntos (COL1012E)"
+        try:
+            res = espejo()
+        except Exception as e:  # noqa: BLE001
+            return False, "enviar_estado falló: %s" % type(e).__name__
+        if isinstance(res, dict) and res.get("ok") is False:
+            return False, "el espejo no salió: %s" % str(res.get("motivo") or "")[:120]
+        return True, ""
 
     # ── relevo sin pérdidas (COL1012G) ──
     def _tareas_para_relevo(self, raiz: str, t: float, necesarias: List[str]) -> Dict[str, Dict[str, Any]]:
