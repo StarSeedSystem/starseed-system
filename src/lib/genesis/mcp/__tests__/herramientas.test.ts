@@ -18,6 +18,8 @@ import {
   HERRAMIENTAS_MCP,
   type FichaHerramientaMcp,
 } from "../herramientas";
+import { CAPACIDAD_POR_PERMISO } from "../ruta";
+import { CAPACIDADES_AMBITO } from "@/lib/mando/ambito";
 
 type Bloque = { tipo: "texto"; texto: string };
 type ResultadoHerramienta = { contenido: Bloque[]; esError?: boolean };
@@ -251,5 +253,20 @@ describe("herramientas MCP · manejadores", () => {
     const resultado = resultadoDe(respuesta);
     expect(resultado.contenido.some((b) => b.texto.includes("persona"))).toBe(true);
     expect(resultado.contenido.some((b) => b.texto.includes("Hola mundo"))).toBe(true);
+  });
+});
+
+describe("CAPACIDAD_POR_PERMISO · mapa de rutas exhaustivo", () => {
+  it("cada permiso de herramienta tiene capacidad y todas son del mando", () => {
+    const capacidades = new Set(CAPACIDADES_AMBITO);
+    for (const herramienta of HERRAMIENTAS_MCP) {
+      const capacidad = CAPACIDAD_POR_PERMISO[herramienta.permiso];
+      expect(capacidad, `falta la capacidad para «${herramienta.permiso}»`).toBeTruthy();
+      expect(capacidades.has(capacidad)).toBe(true);
+    }
+  });
+
+  it("las variaciones públicas se consultan con al menos «ver-detalle»", () => {
+    expect(CAPACIDAD_POR_PERMISO["variaciones:buscar"]).toBe("ver-detalle");
   });
 });
