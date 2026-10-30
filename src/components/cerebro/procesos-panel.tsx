@@ -24,6 +24,12 @@ import {
     type TipoProceso,
 } from "@/lib/cerebros/procesos";
 import { agruparPorTipo } from "@/lib/cerebros/procesos-normalizar";
+import {
+    consumoLegible,
+    resumenPrestamos,
+    type FilaPrestamo,
+    type SesionPrestamo,
+} from "@/lib/cerebros/procesos-prestados";
 import { leerProcesos } from "@/lib/cerebros/procesos-fuentes";
 import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
 import { useEstadoActualizaciones } from "@/components/actualizaciones/use-estado-actualizaciones";
@@ -31,6 +37,34 @@ import { leerEstadoAutonomo } from "@/lib/metagenesis/remoto-nodos-cliente";
 import { listNeurons } from "@/lib/neurons/neurons";
 import { textoHace } from "@/lib/metagenesis/remoto";
 import { ProcesosHardware } from "./procesos-hardware";
+
+function FilaPrestamoLinea({ f, alCortar }: { f: FilaPrestamo; alCortar: (id: string) => void }) {
+    const desde = f.desde == null ? null : new Date(f.desde);
+    return (
+        <li className="rounded-lg border border-white/10 bg-black/20 p-3">
+            <p className="text-sm font-medium text-white/85">
+                {f.direccion === "da" ? `Presta a ${f.quien}` : `Toma de ${f.quien}`}
+                {f.activa ? "" : " · cortada"}
+            </p>
+            <p className="mt-1 text-xs text-white/60">
+                {f.que} · Consumo {f.consumoTexto}
+                {desde
+                    ? ` · desde las ${desde.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`
+                    : " · desde sin medida"}
+            </p>
+            {f.activa && (
+                <button
+                    type="button"
+                    aria-label={`Cortar el préstamo ${f.que} con ${f.quien}`}
+                    onClick={() => alCortar(f.id)}
+                    className="mt-2 inline-flex cursor-pointer rounded-md border border-white/15 px-2 py-1 text-xs text-white/80 transition-colors duration-200 hover:bg-white/10"
+                >
+                    Cortar
+                </button>
+            )}
+        </li>
+    );
+}
 
 const ETIQUETA_MEDIDA = { cpu: "CPU", ram: "RAM", disco: "Disco", bateria: "Batería" } as const;
 const ETIQUETA_ESTADO = {
@@ -112,8 +146,22 @@ export interface ProcesosPanelProps {
 export default function ProcesosPanel(_props: ProcesosPanelProps) {
     const [lista, setLista] = useState<HardwareServidor[] | null>(null);
     const [procesos, setProcesos] = useState<ProcesoActivo[] | null>(null);
+    const [prestamosDados, setPrestamosDados] = useState<SesionPrestamo[]>([]);
+    const [prestamosTomados, setPrestamosTomados] = useState<SesionPrestamo[]>([]);
+    const [cortados, setCortados] = useState<ReadonlySet<string>>(new Set());
     const presencia = usePresenciaNeuronas();
     const actualizaciones = useEstadoActualizaciones();
+
+    // El lector de sesiones de préstamo llega con el cableado de la Ola 1017A:
+    // mientras tanto ambas listas empiezan vacías y la sección enseña su texto vacío.
+    useEffect(() => {
+        setPrestamosDados([]);
+        setPrestamosTomados([]);
+    }, []);
+    const aplicarCortes = (s: SesionPrestamo): SesionPrestamo =>
+        cortados.has(s.id) ? { ...s, revocada: true } : s;
+    const cortarPrestamo = (id: string) =>
+        setCortados((prev) => new Set(prev).add(id));
 
     useEffect(() => {
         let vivo = true;
@@ -166,6 +214,37 @@ export default function ProcesosPanel(_props: ProcesosPanelProps) {
                         );
                     })
                 )}
+            </section>
+
+            <section aria-label="Préstamos" className="space-y-3">
+                <h3 className="text-sm font-semibold text-white">Préstamos</h3>
+                {(() => {
+                    const resumen = resumenPrestamos(
+                        prestamosDados.map(aplicarCortes),
+                        prestamosTomados.map(aplicarCortes),
+                        Date.now(),
+                    );
+                    const t = resumen.totales;
+                    return (
+                        <>
+                            <p className="text-xs text-white/50">
+                                Esta neurona {t.dadosActivos} sesión(es) prestando · {t.tomadosActivos} tomando ·
+                                consumo dado {consumoLegible(t.consumoDadosMb)} · tomado {consumoLegible(t.consumoTomadosMb)}
+                            </p>
+                            {resumen.filas.length === 0 ? (
+                                <p className="text-sm text-white/60">
+                                    Ninguna sesión de préstamo viva. Las neuronas que prestan capacidad, apps o volúmenes anotan aquí cada sesión con su consumo medido.
+                                </p>
+                            ) : (
+                                <ul className="space-y-2">
+                                    {resumen.filas.map((f) => (
+                                        <FilaPrestamoLinea key={f.id} f={f} alCortar={cortarPrestamo} />
+                                    ))}
+                                </ul>
+                            )}
+                        </>
+                    );
+                })()}
             </section>
         </div>
     );
