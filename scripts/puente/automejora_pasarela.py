@@ -131,6 +131,7 @@ def _manejador(pasarela: Pasarela) -> type:
 
         def do_POST(self):
             ruta = self.path.split("?", 1)[0]
+            bruto = self.rfile.read(int(self.headers.get("Content-Length") or 0))
             if ruta != "/v1/chat/completions":
                 return self._error(403, "ruta no permitida: %s" % ruta)
             c = pasarela.cuenta
@@ -138,8 +139,7 @@ def _manejador(pasarela: Pasarela) -> type:
                              pasarela.tope_llamadas, pasarela.tope_tokens):
                 return self._error(429, "tope de la noche: %d llamadas · %d tokens"
                                    % (c["llamadas"], c["tokens"]))
-            pedido = limpiar_cuerpo(self.rfile.read(
-                int(self.headers.get("Content-Length") or 0)))
+            pedido = limpiar_cuerpo(bruto)
             if not pedido["ok"]:
                 return self._error(400, pedido["motivo"])
             salido = pasarela.reenvia(pedido["cuerpo"])
