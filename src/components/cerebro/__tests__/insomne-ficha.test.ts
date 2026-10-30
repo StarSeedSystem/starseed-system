@@ -6,6 +6,21 @@
  */
 import { describe, it, expect } from "vitest";
 import { capacidadInsomne } from "@/lib/neurons/insomne";
+import { plataformaInsomne } from "@/components/cerebro/insomne-ficha";
+
+describe("plataformaInsomne · rescate rama nube/40659574880", () => {
+  it("traduce Android a la plataforma del contrato", () => {
+    expect(plataformaInsomne({ platform: "Android" })).toBe("android");
+  });
+
+  it("lo que no reconoce no se inventa: cae en navegador (contrato de hoy)", () => {
+    // La rama esperaba «freebsd», pero main normaliza a propósito cualquier
+    // plataforma no listada a «navegador»: se pina ese comportamiento. Si
+    // sobra distinguir FreeBSD, el arreglo va en insomne-ficha.tsx.
+    expect(plataformaInsomne({ platform: "FreeBSD" })).toBe("navegador");
+    expect(plataformaInsomne({ platform: "" })).toBe("navegador");
+  });
+});
 
 describe("capacidadInsomne · ficha", () => {
   it("un servidor no depende de la plataforma que declare", () => {
