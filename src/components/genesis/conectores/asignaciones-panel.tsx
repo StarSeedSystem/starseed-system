@@ -95,6 +95,14 @@ export function quitarDeCadena(cadena: readonly string[], id: string): string[] 
 
 const PESO: readonly Peldano[] = ["local", "malla", "contenedor", "gratis", "pago"];
 
+const ETIQUETA_PELDANO: Record<Peldano, string> = {
+  local: "Local", malla: "Malla", contenedor: "Contenedor", gratis: "Gratis", pago: "Pago",
+};
+
+export function etiquetaPeldano(peldano: Peldano): string {
+  return ETIQUETA_PELDANO[peldano] ?? peldano;
+}
+
 export function filasSugeridas(catalogo: readonly OpcionCatalogo[], max = 3): FilaPanel[] {
   const orden = [...catalogo].sort((a, b) => PESO.indexOf(peldanoDe(a)) - PESO.indexOf(peldanoDe(b)) || a.nombre.localeCompare(b.nombre));
   const fila = (tipo: FilaPanel["tipo"], clave: ClavePanel): FilaPanel => ({
@@ -164,13 +172,18 @@ export function AsignacionesPanel({ catalogo, modo = "aplicar", filasIniciales, 
                 {entradas.length === 0 ? (
                   <li className="rounded-lg border border-amber-400/25 bg-amber-500/10 p-2 text-[11px] text-amber-100">Sin candidatos. Añade uno del catálogo.</li>
                 ) : entradas.map((entrada, j) => (
-                  <li key={entrada.id} draggable={!soloLectura} onDragStart={(e) => e.dataTransfer.setData("text/plain", String(j))} onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => { e.preventDefault(); const desde = Number(e.dataTransfer.getData("text/plain")); if (Number.isInteger(desde)) cambiar(i, (f) => ({ ...f, cadena: moverEnCadena(f.cadena, desde, j) })); }}
+                  <li key={entrada.id} draggable={!soloLectura} onDragStart={(e) => e.dataTransfer.setData("text/plain", `${fila.tipo}:${fila.clave}:${j}`)} onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const [tipo, clave, desdeTexto] = e.dataTransfer.getData("text/plain").split(":");
+                      const desde = Number(desdeTexto);
+                      if (tipo === fila.tipo && clave === fila.clave && Number.isInteger(desde)) cambiar(i, (f) => ({ ...f, cadena: moverEnCadena(f.cadena, desde, j) }));
+                    }}
                     className="flex cursor-grab items-start gap-2 rounded-lg border border-white/5 bg-white/[0.03] p-2">
                     <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-white/30" aria-hidden />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="shrink-0 text-[10px] uppercase tracking-wide text-emerald-300">{entrada.peldano}</span>
+                        <span className="shrink-0 text-[10px] uppercase tracking-wide text-emerald-300">{etiquetaPeldano(entrada.peldano)}</span>
                         <span className="truncate text-xs text-white/85">{j + 1}. {entrada.nombre}</span>
                       </div>
                       <p className="text-[11px] text-white/50">{entrada.motivo}</p>
