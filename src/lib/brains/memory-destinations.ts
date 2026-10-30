@@ -79,7 +79,8 @@ export interface P2pMemoryDestination {
 
 /**
  * Destino «cápsula» (MVD1027E, contrato memvid-capsulas.md §5): la cápsula
- * Memvid del sujeto cerebro:<id>. Default OFF en todas las cuentas.
+ * Memvid del sujeto cerebro:<id> en el servidor propio (127.0.0.1:4490;
+ * architecture/memvid-capsulas.md). Default OFF en todas las cuentas.
  */
 export interface CapsulaMemoryDestination {
   enabled: boolean;
@@ -153,9 +154,11 @@ function normalizeExternal(raw: unknown): ExternalMemoryDestination[] {
 function normalizeCapsula(raw: unknown): CapsulaMemoryDestination {
   if (!raw || typeof raw !== "object") return { enabled: false };
   const r = raw as Partial<CapsulaMemoryDestination>;
-  const huellas = r.huellas && typeof r.huellas === "object" ? { ...r.huellas } : undefined;
+  const huellas = r.huellas && typeof r.huellas === "object" ? (r.huellas as Record<string, string>) : undefined;
   const ultima = typeof r.ultimaSincronia === "string" && r.ultimaSincronia ? r.ultimaSincronia : undefined;
-  return huellas ? { enabled: r.enabled === true, huellas, ultimaSincronia: ultima } : { enabled: r.enabled === true, ultimaSincronia: ultima };
+  return huellas
+    ? { enabled: r.enabled === true, huellas, ultimaSincronia: ultima }
+    : { enabled: r.enabled === true, ultimaSincronia: ultima };
 }
 
 /** Normaliza cualquier valor de `Brain.config.memoryDestinations`. Nunca lanza. */
@@ -411,8 +414,9 @@ export async function huellaCapsula(texto: string): Promise<string> {
 /** Un archivo de memoria pendiente de entrar en la cápsula del cerebro. */
 type CapsulaPorEnviar = { archivo: string; contenido: string; huella: string; uri: string };
 
-/** Plan de la cápsula del cerebro (PURO y asincrónico: solo calcula huellas): archivos
- * NUEVOS o CAMBIADOS frente a la huella guardada; vacíos y sin nombre quedan fuera. */
+/** Plan de la cápsula del cerebro (PURO y asincrónico: solo calcula huellas): los
+ * archivos de memoria nuevos o cambiados frente a la huella guardada; los vacíos
+ * y sin nombre quedan fuera, y un archivo sin huella espera a la próxima ronda. */
 export async function planCapsulaCerebro(
   brainId: string,
   archivos: { name: string; content: string }[] | null | undefined,
@@ -532,8 +536,9 @@ export async function syncBrainMemoryNow(brain: Brain): Promise<MemoryDestinatio
       steps.push({ kind: "external", ok: false, detail: "Sin red disponible para sincronizar destinos externos." });
     }
 
-    // Cápsula Memvid del cerebro (MVD1027E) — destino «capsula»: solo archivos
-    // NUEVOS o CAMBIADOS frente a la huella guardada; sin servidor, se dice y sigue.
+    // Cápsula Memvid del cerebro (MVD1027E) — destino «capsula». Solo archivos
+    // NUEVOS o CAMBIADOS frente a la huella guardada en el estado del cerebro; sin
+    // servidor de cápsulas el paso lo dice y los demás destinos siguen igual.
     if (dest.capsula.enabled && !soloLocal) {
       if (!canFetch()) {
         steps.push({ kind: "capsula", ok: false, detail: "Sin red disponible para la cápsula Memvid." });
