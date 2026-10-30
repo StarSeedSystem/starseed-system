@@ -60,6 +60,12 @@ import {
     subtreeActivity,
     searchNodes,
 } from "@/lib/education/curriculum";
+import {
+    aNodosEdu,
+    leerDocusaurus,
+    rutaDesdeCarpeta,
+} from "@/lib/publish/docusaurus-import";
+import type { ArchivoDocs } from "@/lib/publish/docusaurus-export";
 import { LearningPathPanel } from "@/components/education/learning-path";
 import { ViewErrorBoundary } from "@/components/education/view-error-boundary";
 import type { Graph3DNode, Graph3DEdge } from "@/components/education/topic-graph-3d";
@@ -554,6 +560,8 @@ export function TopicGraph() {
     });
     const [newName, setNewName] = useState("");
     const [newBlurb, setNewBlurb] = useState("");
+    const entradaCarpetas = useRef<HTMLInputElement>(null);
+    const [importando, setImportando] = useState(false);
 
     const reload = useCallback(async () => {
         const d = await loadCurriculum();
@@ -661,6 +669,64 @@ export function TopicGraph() {
 
     const selectedNode = selectedId ? byId.get(selectedId) ?? null : null;
 
+    // Importar Docusaurus (DSN1025G): la carpeta `docs/` se lee AQUÍ como texto
+    // (Files ya cargados en memoria) y se procesa con el módulo puro
+    // leerDocusaurus → aNodosEdu, que NUNCA ejecuta nada y descarta por su
+    // motivo .mdx, código y configuración. Cada nodo nuevo entra por el mismo
+    // addUserNode del botón «Tema propio»: nada se sube ni se publica. aNodosEdu
+    // devuelve primero cada carpeta y después sus hijos, así que pasar cada
+    // parentId ya resuelto por el mapa basta para guardar en orden.
+    const importarDocusaurus = useCallback(
+        async (lista: FileList | null) => {
+            if (!lista || lista.length === 0) return;
+            setImportando(true);
+            try {
+                const archivos: ArchivoDocs[] = [];
+                for (const archivo of Array.from(lista)) {
+                    archivos.push({
+                        path: rutaDesdeCarpeta(archivo.webkitRelativePath || archivo.name),
+                        content: await archivo.text(),
+                    });
+                }
+                const resultado = leerDocusaurus(archivos);
+                const nodos = aNodosEdu(resultado);
+                const descartados = resultado.rechazados.length;
+                if (nodos.length === 0) {
+                    toast.error(descartados > 0
+                        ? `Nada importado: ${descartados} archivo${descartados === 1 ? "" : "s"} descartado${descartados === 1 ? "" : "s"} (solo se admite .md).`
+                        : "La carpeta no contiene documentos admitidos.");
+                    return;
+                }
+                const ids: Map<string, string> = new Map();
+                let creados = 0;
+                for (const nodo of nodos) {
+                    const creado = await addUserNode({
+                        kind: nodo.kind,
+                        name: nodo.name,
+                        blurb: nodo.blurb,
+                        parentId: nodo.parentId ? ids.get(nodo.parentId) ?? null : null,
+                    });
+                    if (!creado) break;
+                    ids.set(nodo.id, creado.id);
+                    creados += 1;
+                }
+                if (creados === 0) {
+                    toast.error("Inicia sesión para importar documentos a tu mapa de conocimiento.");
+                    return;
+                }
+                if (creados < nodos.length) {
+                    toast.error(`Importados ${creados} de ${nodos.length} nodos: algo se ha interrumpido. Reintenta más tarde.`);
+                } else {
+                    toast.success(`Importados ${creados} nodos de Docusaurus a tu mapa.${descartados > 0 ? ` Descartados (código o configuración): ${descartados}.` : ""}`);
+                }
+                await reload();
+            } finally {
+                setImportando(false);
+            }
+        },
+        [reload],
+    );
+
     return (
         <div className="flex flex-col gap-3">
             {/* Header */}
@@ -692,6 +758,29 @@ export function TopicGraph() {
                 <Button size="sm" variant="outline" onClick={() => openAdd(null)} title="Añadir categoría propia">
                     <Plus className="h-4 w-4" /> Tema propio
                 </Button>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    className="cursor-pointer"
+                    disabled={importando}
+                    onClick={() => entradaCarpetas.current?.click()}
+                    title="Importar una carpeta docs/ de Docusaurus a tu mapa (solo se lee Markdown; .mdx, código y configuración se descartan)"
+                >
+                    {importando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderTree className="h-4 w-4" />} Importar Docusaurus
+                </Button>
+                {/* Selector de carpeta: los archivos llegan como texto ya leído;
+                    el módulo importador es puro y nunca ejecuta nada lo cargado. */}
+                <input
+                    ref={entradaCarpetas}
+                    type="file"
+                    multiple
+                    {...({ webkitdirectory: "true" } as React.InputHTMLAttributes<HTMLInputElement>)}
+                    className="hidden"
+                    onChange={(e) => {
+                        void importarDocusaurus(e.target.files);
+                        e.target.value = "";
+                    }}
+                />
             </div>
 
             {/* Resultados de búsqueda */}
