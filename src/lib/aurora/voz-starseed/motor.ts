@@ -24,7 +24,9 @@
 
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
-import { nivelPara, siguienteNivel, NIVELES, type NivelVoz } from "./niveles";
+import { nivelPara, siguienteNivel, NIVELES, acotarNivel, nivelTopeSegunUso, estudioSegunUso, type NivelVoz, type UsoVoz } from "./niveles";
+import { motoresPermitidos, type CapasPrefs, type ClaseLicenciaVoz, type ContextoLicenciaVoz } from "./licencia-voz";
+import { leerMedidas, type MedidaVoz } from "@/lib/aurora/medidas-voz";
 import {
     soporteSupertonic,
     nivelParaVoz,
@@ -279,6 +281,111 @@ export function parametrosPorNivel(
     return { via: "sistema", pitch: timbre.sistema.pitch, rate: timbre.sistema.rate };
 }
 
+// ── (Ola 1018V · F) PRIMERA FRASE INSTANTÁNEA Y «ESTUDIO» POR USO ────────────
+// Primera frase de una conversación = motor PERMITIDO con la menor latencia
+// medida que tenga la voz de esa persona; un mensaje entero, UN solo motor;
+// «estudio» solo lectura, doblaje y audiolibros (voz-voicestudio.md §4).
+const MEDIDA_VIGENCIA_MS = 7 * 24 * 60 * 60 * 1000; // plazo de una medida de «primer-sonido»
+
+/** Uso del turno según el contexto en que suena. */
+const USO_POR_CONTEXTO: Record<ContextoVoz, UsoVoz> = {
+    rito: "conversacion", conversacion: "conversacion", aviso: "aviso",
+    lectura: "lectura", imaginacion: "conversacion",
+};
+/** Motor tal como se mide y clase de licencia de cada nivel (contrato §2). */
+const MOTOR_Y_CLASE: Partial<Record<NivelVoz, { motor: string; clase: ClaseLicenciaVoz }>> = {
+    estudio: { motor: "demonio", clase: "personal" },
+    alta: { motor: "demonio", clase: "personal" },
+    ligera: { motor: "kokoro", clase: "libre" },
+    minima: { motor: "sistema", clase: "libre" },
+};
+
+export interface ViaPrimeraFrase {
+    motor: string;
+    nivel: NivelVoz;
+    claseLicencia: ClaseLicenciaVoz;
+    condicionCumplida?: boolean;
+    tieneLaVoz: boolean;
+}
+
+export interface EleccionPrimeraFrase {
+    nivel: NivelVoz | null; motor: string | null; latenciaMs: number | null; motivo: string;
+}
+
+export interface OpcionesPrimeraFrase {
+    contexto?: ContextoLicenciaVoz;
+    capas?: CapasPrefs;
+    uso?: UsoVoz;
+    neurona?: string;
+    ahora?: number;
+}
+
+const mediana = (valores: number[]): number => {
+    const o = [...valores].sort((a, b) => a - b);
+    return o.length % 2 ? o[(o.length - 1) / 2] : (o[o.length / 2 - 1] + o[o.length / 2]) / 2;
+};
+/** Mediana del «primer-sonido» por motor, entre las medidas vigentes. */
+function latenciasPrimerSonido(medidas: readonly MedidaVoz[], o: OpcionesPrimeraFrase): Record<string, number> {
+    const ahora = o.ahora ?? Date.now();
+    const grupos = new Map<string, number[]>();
+    for (const m of medidas ?? []) {
+        const deNeurona = o.neurona === undefined || m?.neurona === o.neurona;
+        const vigente = m && m.timestamp <= ahora && ahora - m.timestamp <= MEDIDA_VIGENCIA_MS;
+        if (!deNeurona || !vigente || m.tipo !== "primer-sonido" || !Number.isFinite(m.valor) || m.motor.trim() === "") continue;
+        grupos.set(m.motor, [...(grupos.get(m.motor) ?? []), m.valor]);
+    }
+    const salida: Record<string, number> = {};
+    for (const [motor, valores] of grupos) salida[motor] = mediana(valores);
+    return salida;
+}
+
+/**
+ * ELIGE el motor de la primera frase de una conversación (contrato §4): el
+ * permitido con la menor latencia MEDIDA entre los que tienen la voz de esa
+ * persona; vale para el mensaje entero y sin medidas gana el primero. Pura.
+ */
+export function elegirMotorPrimeraFrase(
+    vias: readonly ViaPrimeraFrase[], medidas: readonly MedidaVoz[] | null | undefined,
+    opciones: OpcionesPrimeraFrase = {},
+): EleccionPrimeraFrase {
+    const latencias = latenciasPrimerSonido(medidas ?? [], opciones);
+    const uso = opciones.uso ?? "conversacion";
+    const { permitidos } = motoresPermitidos(
+        vias.map((v) => ({ id: v.motor, claseLicencia: v.claseLicencia, condicionCumplida: v.condicionCumplida })),
+        opciones.contexto ?? "personal",
+        opciones.capas ?? {},
+    );
+    const ids = new Set(permitidos.map((m) => m.id));
+    const elegibles = vias.filter((v) => ids.has(v.motor) && v.tieneLaVoz && (v.nivel !== "estudio" || estudioSegunUso(uso)));
+    const conMedida = elegibles.filter((v) => latencias[v.motor] !== undefined);
+    const mejor = conMedida.length
+        ? conMedida.reduce((a, b) => (latencias[b.motor] < latencias[a.motor] ? b : a))
+        : elegibles[0];
+    if (mejor) return {
+        nivel: mejor.nivel, motor: mejor.motor, latenciaMs: latencias[mejor.motor] ?? null,
+        motivo: conMedida.length ? "menor latencia medida" : "sin medida: primero permitido con la voz",
+    };
+    return {
+        nivel: null, motor: null, latenciaMs: null,
+        motivo: permitidos.length ? "ningún permitido con la voz de esa persona en este uso" : "ningún motor permitido en este contexto",
+    };
+}
+
+/** Elige con las medidas del almacén; sin nada medido queda como estaba. */
+function primeraFraseSugerida(nivelActual: NivelVoz, contextoLic: ContextoLicenciaVoz): NivelVoz {
+    const vias: ViaPrimeraFrase[] = [];
+    let n: NivelVoz | null = nivelActual;
+    while (n) {
+        const mc = MOTOR_Y_CLASE[n];
+        if (mc) vias.push({ motor: mc.motor, nivel: n, claseLicencia: mc.clase, tieneLaVoz: n !== "minima" });
+        n = siguienteNivel(n);
+    }
+    const mejor = elegirMotorPrimeraFrase(vias, leerMedidas(), {
+        contexto: contextoLic, uso: USO_POR_CONTEXTO.conversacion, ahora: Date.now(),
+    });
+    return mejor.nivel ?? nivelActual;
+}
+
 export interface OpcionesHablar {
     /** Identidad de la voz: LA MISMA en todos los niveles. */
     timbre: Timbre;
@@ -450,7 +557,8 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     const plataforma = detectarPlataforma();
     const { memoriaGB } = await detectarCapacidades();
     const ramGB = memoriaGB ?? 8;
-    const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
+    const sitioLic = opciones.contexto === undefined ? "personal" : "grupo";
+    const motorCat = motorRecomendado(plataforma, ramGB, sitioLic);
     let nivel: NivelVoz;
     switch (motorCat.id) {
         case "voicemorphic":
@@ -469,6 +577,15 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
             // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
             nivel = "nube";
             break;
+    }
+    // (Ola 1018V · F) «Estudio» solo en lectura, doblaje y audiolibros; en
+    // conversación y avisos el tope es «alta». Y la PRIMERA frase de una
+    // conversación sale del motor permitido con menor latencia medida (§4).
+    const uso: UsoVoz = opciones.contexto ? USO_POR_CONTEXTO[opciones.contexto] : "conversacion";
+    const topeUso = nivelTopeSegunUso(uso);
+    if (topeUso && !opciones.nivel) nivel = acotarNivel(nivel, topeUso);
+    if (nivelEnUso === null && opciones.contexto === "conversacion" && !opciones.nivel) {
+        nivel = primeraFraseSugerida(nivel, sitioLic);
     }
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
