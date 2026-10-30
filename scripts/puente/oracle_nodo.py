@@ -39,6 +39,9 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
   direccion [--aplicar]  deja en el A1 `starseed-direccion.service` y su arranque: orquestador,
                          autocuración, autopublicación y cartero solo con el arriendo de líder.
                          Sin `--aplicar` solo enseña el plan; no arranca nada que ya esté vivo.
+  automejora enviar|traer
+                         la Mac manda sus experiencias al A1 o trae lo que propuso la noche
+                         (MTN1027H2); el ciclo lo hace solo una vez al día tras 02:00/06:00 UTC.
 
 Reglas: Oracle SOLO Always Free (esto no crea nada en Oracle); nada se publica (main no se toca:
 solo ramas `colas/oracle-*` y `nube/a1-*`, como la nube de GitHub); ninguna IP, clave ni OCID se
@@ -75,6 +78,9 @@ HOME = os.path.expanduser("~")
 ORACLE_JSON = os.path.join(HOME, ".starseed", "oracle.json")
 CONSUMO_JSON = os.path.join(HOME, ".starseed", "oracle-consumo.json")
 ESTADO = os.path.join(HOME, ".starseed", "oracle-nodo.json")
+#: (MTN1027H2) La automejora de la Mac: manda experiencias al A1 tras las 02:00 UTC y trae la
+#: noche tras las 06:00 UTC, una vez al día cada una; las marcas viven en este archivo.
+AUTOMEJORA_ESTADO = os.path.join(HOME, ".starseed", "automejora-estado.json")
 ENV_STARSEED = os.path.join(HOME, ".starseed", "env")
 LLAVE = os.path.join(HOME, ".ssh", "starseed_oracle_ed25519")
 CERROJOS = os.path.join(HOME, ".starseed", "cerrojos")
@@ -1193,6 +1199,47 @@ def medir_oracle(modulo=None):
         return {"error": tachar("%s: %s" % (type(e).__name__, e), _ip())[:200]}
 
 
+def automejora(orden, ahora=None):
+    """Automejora Meta^n (MTN1027H2): `enviar` las experiencias al A1 o `traer` la noche.
+
+    El trabajo vive en `automejora_mac.py`; aquí solo la orden y la importación perezosa,
+    para que el nodo siga funcionando aunque ese módulo falte."""
+    try:
+        import automejora_mac as AM
+    except ImportError as error:
+        return {"ok": False, "motivo": "sin automejora_mac: %s" % error}
+
+    if orden == "enviar":
+        return AM.enviar(ahora=ahora)
+    if orden == "traer":
+        return AM.traer(ahora=ahora)
+    return {"ok": False, "motivo": "orden de automejora desconocida: %s" % orden}
+
+
+def automejora_del_dia(ahora=None):
+    """PURA + IO. `enviar` y `traer`, cada uno una vez al día y solo tras su hora UTC.
+
+    La marca (`enviado`/`traido`, fecha UTC) solo se apunta si la pasada TERMINÓ de verdad:
+    un «sin salida todavía» deja que la siguiente pasada del ciclo lo reintente."""
+    import automejora_mac as AM
+
+    ahora = time.time() if ahora is None else ahora
+    estado = _leer(AUTOMEJORA_ESTADO, {}) or {}
+    hecho = {}
+    for orden, clave in (("enviar", "enviado"), ("traer", "traido")):
+        if not AM.toca(orden, ahora, estado):
+            continue
+        try:
+            r = automejora(orden, ahora=ahora)
+        except Exception as e:  # noqa: BLE001 — la automejora nunca frena el ciclo
+            r = {"ok": False, "motivo": tachar("%s: %s" % (type(e).__name__, e), _ip())}
+        hecho[orden] = r
+        if r.get("ok") and not r.get("no"):
+            estado[clave] = AM.fecha_utc(ahora)
+            _escribir(AUTOMEJORA_ESTADO, estado)
+    return hecho
+
+
 def ciclo(lanzar_si_libre=True, tope=TOPE_DEFECTO):
     try:
         with _Cerrojo("oracle-nodo", 0):
@@ -1214,6 +1261,10 @@ def ciclo(lanzar_si_libre=True, tope=TOPE_DEFECTO):
                     res["espejo"] = enviar_estado()
                 except Exception as e:  # noqa: BLE001 — el espejo nunca frena el ciclo
                     res["espejo"] = {"ok": False, "motivo": tachar("%s: %s" % (type(e).__name__, e), _ip())}
+            try:
+                res["automejora"] = automejora_del_dia()
+            except Exception as e:  # noqa: BLE001 — la automejora nunca frena el ciclo
+                res["automejora"] = {"ok": False, "motivo": tachar("%s: %s" % (type(e).__name__, e), _ip())}
             if lanzar_si_libre:
                 sin_tomar, _, _ = colas_sin_tomar(estado_a1)
                 datos = _leer(ESTADO, {}) or {}
@@ -1412,6 +1463,8 @@ def main(argv):
         r = probar_bitnet()
     elif orden == "bitnet-pesos":
         r = bitnet_pesos()
+    elif orden == "automejora":
+        r = automejora(argv[2] if len(argv) > 2 else "enviar")
     else:
         print(__doc__)
         return 2
