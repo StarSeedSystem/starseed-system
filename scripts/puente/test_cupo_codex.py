@@ -13,6 +13,13 @@ import cupo_codex as C
 REAL = ("ERROR: You've hit your usage limit. Upgrade to Pro "
         "(https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage")
 
+#: Literal de las 206 sesiones de Codex en la Mac desde el 2026-10-23 20:55.
+SIN_MODELO = (
+    '{"status":400,"error":{"message":"The \'gpt-5.6-sol\' model is not supported '
+    'when using Codex with a ChatGPT account.","type":"invalid_request_error",'
+    '"code":"model_not_found"}}'
+)
+
 AHORA = 1_700_000_000.0
 
 
@@ -33,6 +40,25 @@ class TestDeteccion(unittest.TestCase):
     def test_da_igual_como_lo_escriban(self):
         for t in ("Usage limit reached for your plan", "QUOTA EXCEEDED", "Upgrade to Pro"):
             self.assertTrue(C.agotado_en(t), t)
+
+
+class TestSinModelo(unittest.TestCase):
+    def test_la_salida_real_del_400(self):
+        self.assertTrue(C.sin_modelo_en(SIN_MODELO))
+
+    def test_cuota_y_modelo_no_se_confunden(self):
+        # Reacciones opuestas: la cuota se repone en horas; esto no vuelve solo.
+        self.assertFalse(C.agotado_en(SIN_MODELO))
+        self.assertFalse(C.sin_modelo_en(REAL))
+        self.assertTrue(C.agotado_en(REAL))
+
+    def test_no_confunde_otros_errores(self):
+        for t in ("ERROR: model 'gpt-9' does not exist", "", None):
+            self.assertFalse(C.sin_modelo_en(t), t)
+
+    def test_se_aparta_un_dia(self):
+        self.assertEqual(C.HORAS_SIN_MODELO, 24)
+        self.assertGreater(C.HORAS_SIN_MODELO, C.HORAS)
 
 
 class TestVigencia(unittest.TestCase):

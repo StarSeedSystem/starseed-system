@@ -47,8 +47,24 @@ PISTAS = (
     "upgrade to pro",
 )
 
+#: Lo que dice la CLI cuando la cuenta de ChatGPT no admite el modelo pedido.
+#: (2026-10-23) El 400 real era:
+#:   {"status":400,…"message":"The 'gpt-5.6-sol' model is not supported when using
+#:    Codex with a ChatGPT account.","code":"model_not_found"}
+#: Ojo: no es cuota. La cuota se repone en horas; esto no vuelve solo, así que las
+#: dos reacciones son opuestas y no pueden compartir pista.
+PISTAS_SIN_MODELO = (
+    "is not supported when using codex with a chatgpt account",
+    "model_not_found",
+)
+
 #: Cuánto se aparta tras un agotamiento.
 HORAS = 3.0
+
+#: Cuánto se aparta cuando la cuenta no admite el modelo: un día, y si al volver
+#: sigue igual se anota otra vez. Equivocarse por abajo cuesta un turno; por
+#: arriba, dejar a Codex ocho tareas seguidas «sin cambios» como DEC1028A.
+HORAS_SIN_MODELO = 24.0
 
 
 def agotado_en(salida):
@@ -60,6 +76,17 @@ def agotado_en(salida):
     """
     b = (salida or "").lower()
     return any(p in b for p in PISTAS)
+
+
+def sin_modelo_en(salida):
+    """¿Esta salida dice que la cuenta de ChatGPT no admite el modelo?
+
+    Distinto de `agotado_en`: ahí se espera a que se reponga la cuota; aquí hay
+    que dejar de mandarle modelos de Codex. Se mira en minúsculas, igual que el
+    agotamiento, porque la CLI cambia mayúsculas y comillas entre versiones.
+    """
+    b = (salida or "").lower()
+    return any(p in b for p in PISTAS_SIN_MODELO)
 
 
 def hasta_cuando(ahora, horas=HORAS):

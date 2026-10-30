@@ -314,8 +314,14 @@ except Exception:  # sin el módulo, se comporta como antes
         def puede_escribir():
             return True
 
+        HORAS_SIN_MODELO = 24.0
+
         @staticmethod
         def agotado_en(salida):
+            return False
+
+        @staticmethod
+        def sin_modelo_en(salida):
             return False
 
         @staticmethod
@@ -7721,6 +7727,29 @@ def ejecutar(t, intento=1):
         if reaccion == "red":
             return
         if reaccion in ("pasarela", "cuota"):
+            continue
+        # (2026-10-28, DEC1028C) La cuenta de ChatGPT dejó de admitir el modelo de Codex:
+        # no es cuota que se reponga en 3 h, es una capacidad que ya no está. Se aparta un
+        # día y Codex sale de la rotación SIN gastar intento, como una pasarela caída. Sin
+        # esto, DEC1028A gastó ocho primeros intentos seguidos en un 400 que ya se sabía.
+        if modelo in MODELOS_CODEX and _cupo_codex.sin_modelo_en(out):
+            try:
+                minutos = _cupo_codex.anotar(
+                    "cuenta de ChatGPT sin Codex para %s" % modelo,
+                    horas=_cupo_codex.HORAS_SIN_MODELO,
+                )
+            except Exception:
+                minutos = 0
+            for _m in list(MODELOS_CODEX):
+                if _m in MODELOS:
+                    MODELOS.remove(_m)
+            pendientes[:] = [m for m in pendientes if m not in MODELOS_CODEX]
+            evento(
+                "proveedor_caido",
+                tid,
+                "Codex sin modelo para esta cuenta de ChatGPT (%s): fuera de la "
+                "rotación %d min, sin gastar intento" % (modelo, minutos),
+            )
             continue
         # Agotamiento de la suscripción de ChatGPT: se anota para que las tareas
         # siguientes no repitan la espera, y Codex sale de la rotación de esta ola.
