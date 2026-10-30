@@ -1,5 +1,6 @@
 // Bolsa pura (§4 apps-en-la-malla.md): empareja peticiones y ofertas.
 import { OfertaNeurona, capacidadPrestable, ofertaVisiblePara } from "./oferta";
+import { capacidadDeSubida } from "./arbol-relevo";
 
 export type ClaseParte = "computo" | "bytes" | "ventana" | "relevo";
 
@@ -41,6 +42,14 @@ export function planificar(peticion: PeticionBolsa, ofertas: OfertaNeurona[], re
       ? conCapParte.filter(({ oferta }) => (oferta.cuentaId === peticion.contexto.id && oferta.presta.cuenta === true) || (oferta.medio === "nube" && oferta.presta.cuenta === true && oferta.cuentaId === peticion.contexto.id))
       : conCapParte;
     const orden = conPriv.sort((a, b) => {
+      // §10: en el relevo manda la capacidad de hijos; los que más suben van primero,
+      // igual que quedan más cerca del origen en el árbol.
+      if (parte.clase === "relevo") {
+        const kbps = parte.necesita.kbps ?? 1;
+        const capA = capacidadDeSubida(a.prestable.enlaces.subidaKbps, kbps);
+        const capB = capacidadDeSubida(b.prestable.enlaces.subidaKbps, kbps);
+        if (capA !== capB) return capB - capA;
+      }
       const propioA = a.oferta.cuentaId === peticion.contexto.id ? 0 : 1;
       const propioB = b.oferta.cuentaId === peticion.contexto.id ? 0 : 1;
       if (propioA !== propioB) return propioA - propioB;
