@@ -1,0 +1,26 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "MVD1027C2",
+   "ola": "1027V · Cápsulas de memoria (Memvid)",
+   "titulo": "Comprobación en la nube · `cargo test` del servidor de cápsulas",
+   "archivos": [
+    ".github/workflows/comprobar-nube.yml"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Memvid (memvid/memvid, Apache-2.0) «en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda». Contrato: `architecture/memvid-capsulas.md` (léelo entero). Firmas del núcleo Rust en `integraciones-de-codigo/memvid/README-starseed.md`. Reglas: núcleo en Rust en un servidor propio (127.0.0.1:4490, token en `~/.starseed/memvid.token`), nunca el SDK de Node, nunca cuenta ni tickets de memvid.com, 50 MB por cápsula y se reparte, alcance de `src/lib/nucleo/alcance-memoria.ts`, personal y perfil cifradas.\n\nAñade un paso que solo corre si el cambio que se comprueba toca `native/memvid-servidor/` (compara con su base, como los demás pasos condicionales del workflow): instala Rust estable con `dtolnay/rust-toolchain@stable` (fijado por SHA como el resto de acciones del archivo), `cargo test --manifest-path native/memvid-servidor/Cargo.toml --locked` si hay `Cargo.lock`, si no sin `--locked`. Su resultado cuenta como los demás pasos del veredicto. Sin secretos."
+  },
+  {
+   "id": "MTN1027E",
+   "ola": "1027N · Automejora recursiva (Meta^n)",
+   "titulo": "Automejora · la pasarela de la caja (socket UNIX con tope)",
+   "archivos": [
+    "scripts/puente/automejora_pasarela.py",
+    "scripts/puente/test_automejora_pasarela.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Meta^n (minnesotanlp/meta-n, MIT) «para todo el automejoramiento de cada capa de conciencia mesh automejorable de toda Astraura, con Colibri y los demás sistemas locales y mesh autoadaptables». Contrato: `architecture/automejora-meta-n.md` (léelo entero, sobre todo §3: Meta^n PROPONE dentro de una caja Docker sin red ni claves; el juez de StarSeed decide fuera de la caja sin ejecutar nada suyo; las funciones de ayuda nunca se cargan en caliente). Lo que hace falta de Meta^n está en `integraciones-de-codigo/meta-n/README-starseed.md`.\n\nSolo stdlib. `Pasarela(ruta_socket, destinos, modelos_permitidos, tope_llamadas, tope_tokens)`: un `ThreadingUnixStreamServer` con `http.server` que SOLO acepta `POST /v1/chat/completions` (y `GET /v1/models`, que lista los permitidos). Reenvía al primer destino que responda: Colibri `http://127.0.0.1:4480/v1` si está, y FreeLLMAPI `http://127.0.0.1:3001/v1` del A1 con su clave leída del entorno del proceso (la misma que usa `scripts/puente/freellmapi_clave.py`; nunca la escribe ni la imprime). Quita del cuerpo `provider`, `transforms`, `usage` y cualquier campo que no sea de OpenAI; cambia un `model` no permitido por el primero permitido. Lleva la cuenta (`llamadas`, `tokens`) y al pasar un tope responde 429 sin reenviar. El socket se crea con permisos 0666 DENTRO de una carpeta 0700 de root (en la caja solo se monta el socket, y su usuario 65534 tiene que poder abrirlo). Cualquier otra ruta o método: 403. `resumen()` para el informe de la noche. Pruebas con un destino falso local y un socket en un directorio temporal."
+  }
+ ]
+}
