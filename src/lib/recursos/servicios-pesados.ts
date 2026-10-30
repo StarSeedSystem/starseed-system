@@ -1,3 +1,4 @@
+import { REQUISITOS_1020D, type RequisitosParciales } from "../library/repos-externos-1020";
 import { planificar, type OfertaNeurona, type Peticion } from "./oferta";
 
 export type TipoDestino = "aparato" | "cuenta" | "cerebro" | "malla" | "capa-publica" | "web-gratis" | "ninguno";
@@ -9,14 +10,30 @@ export type RequisitosServicio = { id: ServicioId; nombre: string; ram_gb: numbe
 export type Contexto = { cuentaId: string; grupos?: string[]; aparatoId?: string; servidoresCerebro?: string[]; privado?: boolean; enjambreEscribiendo?: boolean; presionMemoria?: "ok" | "aviso"; arquitecturas?: Record<string, string>; ofertasMedidas?: string[]; permisoEspaciosHf?: boolean; t?: number };
 export type CapaPublica = { id: string; nombre: string; estado: "activa" | "inactiva" | "con-permiso"; ocpu: number | null; ramMb: number | null; arquitectura: string; gpu: boolean; motivo: string };
 export type ServicioInstalado = { servicio: ServicioId; host: "127.0.0.1"; puerto: number; bajoDemanda: true; enciendeAlPrimerUso: true; apagaSinUsoMin: 15; cabeSiMb: number };
-const r = (id: ServicioId, nombre: string, extra: Partial<RequisitosServicio>): RequisitosServicio => ({ id, nombre, ram_gb: null, ramMedidaMb: null, vram_gb: null, gpu: "no", docker: "opcional", arquitecturas: ["amd64", "arm64"], so: ["linux"], fuente: "catálogo config/repos-libreria-1020d.json", medido: null, ...extra });
+const QUE_1020D: Record<ServicioId, string> = {
+  comfyui: "lib-comfyui", libretranslate: "lib-libretranslate", "stirling-pdf": "lib-stirling-pdf",
+  archivebox: "lib-archivebox", "openhands-agent-server": "lib-openhands", coolify: "lib-coolify",
+};
+const GPUS_VALIDAS: Gpu[] = ["no", "opcional", "recomendada", "necesaria"];
+const SIN_REQUISITO: RequisitosParciales = {};
+const r = (id: ServicioId, nombre: string, extra?: Partial<RequisitosServicio>): RequisitosServicio => {
+  const cat = REQUISITOS_1020D[QUE_1020D[id]] ?? SIN_REQUISITO;
+  return {
+    id, nombre, ramMedidaMb: null, medido: null,
+    ram_gb: cat.ram_gb ?? null, vram_gb: cat.vram_gb ?? null,
+    gpu: GPUS_VALIDAS.find((g) => g === cat.gpu) ?? "no",
+    docker: cat.docker ?? "opcional", arquitecturas: cat.arquitecturas ?? ["amd64", "arm64"],
+    so: cat.so ?? ["linux"], fuente: cat.fuente ?? "catálogo config/repos-libreria-1020d.json",
+    ...extra,
+  };
+};
 export const REQUISITOS_SERVICIO: Record<ServicioId, RequisitosServicio> = {
-  comfyui: r("comfyui", "ComfyUI", { ram_gb: 8, ramMedidaMb: 4096, vram_gb: 4, gpu: "recomendada", so: ["linux", "macos", "windows"], fuente: "medido en el A1 (CPU arm64, sin GPU): ComfyUI 0.42.1 + SD 1.5 en fp32 ocupa 4,1 GB y una imagen de 512 px con 12 pasos tarda más de 10 min: solo cola sin prisa", medido: "4,1 GB en uso y más de 10 min por imagen en CPU (A1, 2026-10-20)" }),
-  libretranslate: r("libretranslate", "LibreTranslate", { ramMedidaMb: 711, gpu: "opcional", so: ["linux", "macos", "windows"], fuente: "imagen Docker libretranslate/libretranslate multiarquitectura (amd64 y arm64, comprobado el 2026-10-20); medido en el A1: v1.9.6, 711 MiB con es, en, pt, fr, de e it", medido: "711 MiB con seis idiomas (A1, 2026-10-20)" }),
-  "stirling-pdf": r("stirling-pdf", "Stirling-PDF", { ramMedidaMb: 1434, docker: "recomendada", so: ["linux", "macos", "windows"], fuente: "imagen Docker stirlingtools/stirling-pdf multiarquitectura (comprobado el 2026-10-20); medido en el A1: v3.2.0, 1,4 GiB y arranque en frío de 109 s", medido: "1,4 GiB y arranque en frío de 109 s (A1, 2026-10-20)" }),
-  archivebox: r("archivebox", "ArchiveBox", { docker: "recomendada (Compose trae todo)", so: ["linux", "macos"], fuente: "README: Ubuntu, macOS o Docker; amd64 o arm64; medido en el A1: v0.9.73, una página en 1 min 16 s (RAM en uso por medir)", medido: "tiempo por página: 1 min 16 s; RAM sin medir (A1, 2026-10-20)" }),
-  "openhands-agent-server": r("openhands-agent-server", "OpenHands Agent Server", { docker: "necesaria", so: ["linux", "macos"], fuente: "imagen ghcr.io/openhands/agent-server:1.7.1-python con arm64 (comprobado el 2026-10-20; 4,4 GB de disco); RAM en uso por medir" }),
-  coolify: r("coolify", "Coolify", { docker: "la instala", fuente: "la portada no da cifras de RAM (sin medir); cita Raspberry Pi como servidor válido" }),
+  comfyui: r("comfyui", "ComfyUI", { ramMedidaMb: 4096, medido: "4,1 GB en uso y más de 10 min por imagen en CPU (A1, 2026-10-20)" }),
+  libretranslate: r("libretranslate", "LibreTranslate", { ramMedidaMb: 711, medido: "711 MiB con seis idiomas (A1, 2026-10-20)" }),
+  "stirling-pdf": r("stirling-pdf", "Stirling-PDF", { ramMedidaMb: 1434, medido: "1,4 GiB y arranque en frío de 109 s (A1, 2026-10-20)" }),
+  archivebox: r("archivebox", "ArchiveBox", { medido: "tiempo por página: 1 min 16 s; RAM sin medir (A1, 2026-10-20)" }),
+  "openhands-agent-server": r("openhands-agent-server", "OpenHands Agent Server"),
+  coolify: r("coolify", "Coolify"),
 };
 export const CAPAS_PUBLICAS_CONOCIDAS: CapaPublica[] = [
   { id: "oracle-a1", nombre: "el A1", estado: "activa", ocpu: 2, ramMb: 12288, arquitectura: "arm64", gpu: false, motivo: "encendida 24/7, sin GPU" },
