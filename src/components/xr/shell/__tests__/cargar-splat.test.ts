@@ -3,7 +3,7 @@
  * Todo puro: el descargador y el constructor de Spark se inyectan, así que no hay red,
  * ni disco, ni WebGL. Los motivos se comprueban tal como los lee la persona.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ObjetoMundo } from "../../../../lib/xr/mundo-tipos";
 import {
     cargarSplat,
@@ -25,6 +25,10 @@ class MallaFalsa {
 }
 
 const URL = "https://cdn.ejemplo.org/mundos/bosque.spz";
+
+afterEach(() => {
+    vi.unstubAllGlobals();
+});
 
 function objeto(fuente: ObjetoMundo["fuente"]): ObjetoMundo {
     return { id: "obj", nombre: "Bosque", fuente, pos: [0, 0, 0], rot: [0, 0, 0], esc: [1, 1, 1], color: "#10B981", prioridad: 1 };
@@ -129,6 +133,15 @@ describe("cargarSplat", () => {
             pedirBytes: async () => new ArrayBuffer(MAX_BYTES_SPLAT + 1),
         });
         expect(resultado).toEqual({ ok: false, motivo: MOTIVO_SPLAT_GRANDE });
+    });
+
+    it("un Content-Length anunciado por encima del tope se rechaza con motivo", async () => {
+        vi.stubGlobal("fetch", async () =>
+            new Response(null, { headers: { "Content-Length": String(MAX_BYTES_SPLAT + 1) } }),
+        );
+        const resultado = await cargarSplat(URL, { SplatMesh: MallaFalsa });
+        expect(resultado.ok).toBe(false);
+        if (!resultado.ok) expect(resultado.motivo).toContain("60 MB");
     });
 
     it("sin maxSplats explícito aplica el presupuesto de alta (1,5 M) a la malla", async () => {
