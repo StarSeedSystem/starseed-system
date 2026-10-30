@@ -331,6 +331,46 @@ def resumen_modelos_ollama(tags):
     return ", ".join(partes) if partes else "sin modelos"
 
 
+#: (DEC1028B) Capa de juicio de Colibri (`architecture/colibri-multicapas.md`, ~3,6 GB) y la franja
+#: nocturna de Meta^n (`architecture/automejora-meta-n.md`, `starseed-automejora.timer` a las 03:40 UTC,
+#: ≥ 1,5 GB libres). Con cualquiera encendida, una cola con menos trabajadores deja sitio en el A1.
+UNIDAD_COLIBRI = "starseed-colibri.service"
+AUTOMEJORA_CONFIG = "/var/lib/starseed/automejora/entrada/config.json"
+#: La franja nocturna arranca en 00:40 y acaba en 05:40 UTC: la cola (MINUTOS_COLA, 180 min) que
+#: empieza dentro de ella pisará el temporizador de las 03:40.
+FRANJA_NOCTURNA_INI = 0 * 60 + 40
+FRANJA_NOCTURNA_FIN = 5 * 60 + 40
+
+
+def en_franja_nocturna(ahora_utc, inicio=FRANJA_NOCTURNA_INI, fin=FRANJA_NOCTURNA_FIN):
+    """PURA (DEC1028B). ¿La hora UTC de `ahora_utc` cae en [inicio, fin) del día, en minutos?"""
+    t = time.gmtime(float(ahora_utc))
+    minuto = t.tm_hour * 60 + t.tm_min
+    return inicio <= minuto < fin
+
+
+def capas_encendidas_entrada(config):
+    """PURA (DEC1028B). ¿El config.json de la automejora tiene alguna capa encendida? Admite
+    `{"capas": {x: true}}` y `{x: {"encendida": true}}` (igual que `automejora_nodo.capas_encendidas`)."""
+    capas = (config or {}).get("capas", config or {})
+    if isinstance(capas, dict):
+        return any(v is True or (isinstance(v, dict) and v.get("encendida")) for v in capas.values())
+    return any(isinstance(c, str) for c in capas or [])
+
+
+def trabajadores_para(base, ahora_utc, colibri_activo, automejora_encendida):
+    """PURA (DEC1028B). Los trabajadores del enjambre en el A1 para una cola que empieza en
+    `ahora_utc` ( época, UTC): resta 1 si la capa de juicio de Colibri está activa y 1 más si la
+    automejora de Meta^n cae en la franja nocturna (00:40–05:40 UTC: la cola, de MINUTOS_COLA,
+    pisaría su temporizador de las 03:40), sin bajar nunca de 1."""
+    n = int(base or 0)
+    if colibri_activo:
+        n -= 1
+    if automejora_encendida and en_franja_nocturna(ahora_utc):
+        n -= 1
+    return max(1, n)
+
+
 def sin_secretos(texto):
     """PURA. Quita de un texto lo que nunca debe salir del A1: IPs, ids de Oracle y valores con
     forma de clave. Para los resúmenes que viajan en el estado."""
@@ -592,7 +632,8 @@ class Nodo:
             "cola": self.vivo.get("cola"),
             "servicios": self.servicios(),
             "orquestador": {"vivo": self.vivo.get("fase") == "cola", "cola": self.vivo.get("cola"),
-                            "trabajadores": TRABAJADORES},
+                            "trabajadores": self.vivo.get("trabajadores") or TRABAJADORES,
+                            "trabajadores_motivo": self.vivo.get("trabajadores_motivo") or ""},
             "colas": {"procesadas": len(colas.get("procesadas") or {}), "ultima": ultima},
             "entregas": colas.get("entregas") or [],
             "guardian": guardian.get("ultimo"),
@@ -784,6 +825,37 @@ class Nodo:
                     subprocess.run(["cp", os.path.join(estado_dir, n), os.path.join(HOME, ".starseed", n)], check=False)
         self._correr_cola(rama, sha, cola)
 
+    # ── trabajadores según lo que corre en el A1 (DEC1028B) ──
+    @staticmethod
+    def _colibri_activo():
+        """¿La capa de juicio de Colibri está activa? `systemctl is-active --quiet` con rc 0."""
+        try:
+            return subprocess.run(["systemctl", "is-active", "--quiet", UNIDAD_COLIBRI],
+                                  capture_output=True, timeout=10).returncode == 0
+        except Exception:  # noqa: BLE001 — no saberlo no da un trabajador más
+            return False
+
+    @staticmethod
+    def _automejora_encendida(ruta=None):
+        """¿Hay config de automejora con alguna capa encendida (Meta^n corre su noche)?"""
+        try:
+            return capas_encendidas_entrada(_leer(ruta or AUTOMEJORA_CONFIG, {}))
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _trabajadores_cola(self, ahora):
+        """(n, motivo) para una cola que empieza en `ahora`; como mucho TRABAJADORES cuando la
+        máquina está sola, uno menos por Colibri y otro por Meta^n dentro de su franja nocturna."""
+        colibri = self._colibri_activo()
+        automejora = self._automejora_encendida()
+        n = trabajadores_para(TRABAJADORES, ahora, colibri, automejora and en_franja_nocturna(ahora))
+        motivos = ["base %d" % TRABAJADORES]
+        if colibri:
+            motivos.append("Colibri -1")
+        if n < TRABAJADORES - int(colibri):
+            motivos.append("Meta^n -1 (franja 00:40-05:40 UTC)")
+        return n, " + ".join(motivos)
+
     def _correr_cola(self, clave, sha, cola):
         """Corre el orquestador sobre `cola` (ruta relativa a RAIZ) con `main` ya en su sitio y
         entrega lo hecho. `clave`/`sha` identifican la cola en `colas.json` (rama o bandeja)."""
@@ -791,16 +863,21 @@ class Nodo:
         base = base.strip()
         os.makedirs(os.path.join(RAIZ, "starseed_memory_root", "olas"), exist_ok=True)
         inicio = time.time()
-        _escribir(os.path.join(ESTADO_DIR, "en-curso.json"), {"rama": clave, "sha": sha, "base": base, "cola": cola, "inicio": inicio})
-        self.vivo = {"fase": "cola", "desde": inicio, "cola": os.path.basename(cola)}
+        trabajadores, motivo = self._trabajadores_cola(inicio)
+        _escribir(os.path.join(ESTADO_DIR, "en-curso.json"), {"rama": clave, "sha": sha, "base": base, "cola": cola,
+                                                              "inicio": inicio, "trabajadores": trabajadores,
+                                                              "trabajadores_motivo": motivo})
+        self.vivo = {"fase": "cola", "desde": inicio, "cola": os.path.basename(cola),
+                     "trabajadores": trabajadores, "trabajadores_motivo": motivo}
         self.escribir_estado(forzar=True)
         log = os.path.join(LOGS, "cola-%s.log" % clave.replace("/", "_"))
         rc, dur = self.correr(["timeout", "-k", "60", "%dm" % MINUTOS_COLA, "python3", "-u", orquestador_para(RAIZ), cola,
-                               "--workers", str(TRABAJADORES)], log, MINUTOS_COLA * 60 + 180)
+                               "--workers", str(trabajadores)], log, MINUTOS_COLA * 60 + 180)
         ts = time.strftime("%Y%m%d-%H%M%S")
         creadas = self.entregar(base, ts)
         self._anotar_cola(clave, sha, {"inicio": inicio, "fin": time.time(), "rc": rc, "minutos": round(dur / 60, 1),
-                                       "entregas": creadas, "cola": os.path.basename(cola)})
+                                       "entregas": creadas, "cola": os.path.basename(cola),
+                                       "trabajadores": trabajadores, "trabajadores_motivo": motivo})
         self.limpiar_tras_cola()
         try:
             os.remove(os.path.join(ESTADO_DIR, "en-curso.json"))
