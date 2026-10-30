@@ -6,10 +6,11 @@
 // y abre `/protomolecula?molecula=<idNuevo>`. Contrato: `architecture/protomolecula.md`.
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { leerBloque } from "@/lib/protomolecula/bloque-protomolecula";
+import { esAtomoVideoHtml, leerBloque } from "@/lib/protomolecula/bloque-protomolecula";
 import { almacenNavegador, guardarMolecula, type AlmacenLocal } from "@/lib/protomolecula/almacen-moleculas";
 import { claveDe, formatearValor } from "@/lib/protomolecula/parametros";
 import { obtenerAtomo, type DefinicionAtomo } from "@/lib/protomolecula/registro-atomos";
+import { VistaVideoHtml } from "./vista-video-html";
 import type { Molecula } from "@/lib/protomolecula/tipos";
 
 const NOMBRE_AMBITO: Record<string, string> = {
@@ -44,9 +45,19 @@ export interface VistaBloqueProps {
     navegar?: (ruta: string) => void;
     nuevoId?: () => string;
     buscarAtomo?: (herramientaId: string) => DefinicionAtomo | undefined;
+    /** Estado del servicio local de HyperFrames (127.0.0.1) y del render en la malla: lo sabe el padre,
+     *  no el bloque (una instantánea no sondea por su cuenta). Por defecto: sin servicio y sin render. */
+    servicioVivo?: boolean;
+    renderHecho?: boolean;
+    urlVideo?: string;
+    urlPoster?: string;
+    urlServicio?: string;
 }
 
-export function VistaBloqueProtomolecula({ texto, almacen, navegar, nuevoId = idAleatorio, buscarAtomo = obtenerAtomo }: VistaBloqueProps) {
+export function VistaBloqueProtomolecula({
+    texto, almacen, navegar, nuevoId = idAleatorio, buscarAtomo = obtenerAtomo,
+    servicioVivo = false, renderHecho = false, urlVideo, urlPoster, urlServicio,
+}: VistaBloqueProps) {
     const router = useRouter();
     const [error, setError] = useState<string | null>(null);
     const resultado = leerBloque(texto);
@@ -92,6 +103,21 @@ export function VistaBloqueProtomolecula({ texto, almacen, navegar, nuevoId = id
                 {m.atomos.length === 0 && <p className="text-xs text-muted-foreground">Sin herramientas.</p>}
                 {m.atomos.map((a) => {
                     const def = buscarAtomo(a.herramientaId);
+                    if (esAtomoVideoHtml(a.herramientaId)) {
+                        return (
+                            <div key={a.id} className="mb-2 rounded border border-border/40 p-2 text-sm">
+                                <p className="mb-1 font-medium">{a.titulo ?? def?.nombre ?? a.herramientaId}</p>
+                                <VistaVideoHtml
+                                    atomo={a}
+                                    servicioVivo={servicioVivo}
+                                    renderHecho={renderHecho}
+                                    urlVideo={urlVideo}
+                                    urlPoster={urlPoster}
+                                    urlServicio={urlServicio}
+                                />
+                            </div>
+                        );
+                    }
                     const parametros = (def?.parametros ?? []).filter((p) => m.valores[claveDe({ atomoId: a.id, parametroId: p.id })] !== undefined);
                     return (
                         <div key={a.id} className="mb-2 rounded border border-border/40 p-2 text-sm">
