@@ -18,6 +18,21 @@ OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 DOC = os.path.join(RAIZ, "PUENTE-DE-MANDO.md")
 
 
+def regla_reconstruir():
+    """La regla que impide que un IDE levante su propio Genesis (2026-10-30).
+
+    El 29-10 se cayó toda la tarde: `.next` sin BUILD_ID y dos `next build` a mano
+    murieron. Genesis se compila fuera; aquí solo se dice cómo pedirlo.
+    """
+    return [
+        "- **Genesis se compila fuera: nadie lanza `next build` ni `next dev` a mano.**",
+        "  Ni en la Mac ni en el 9002, ni servidores propios en otro puerto. Si Genesis",
+        "  no abre, mira `/tmp/starseed-reconstruir.log` y el estado con el MCP",
+        "  `starseed-director`, y pide `reconstruir_mando.py --una-vez --ya` o la",
+        "  compilación en el A1.",
+    ]
+
+
 def api(ruta):
     try:
         with urllib.request.urlopen("%s/api/mando/%s" % (MANDO, ruta), timeout=8) as r:
@@ -124,6 +139,7 @@ def documento():
     A("  vez = tres `tsc` simultáneos = la Mac de rodillas. Los AGENTES sí se multiplican: cuantos")
     A("  más, mejor, mientras cada uno trabaje en su propio worktree.")
     A("- **Nunca `next build` con el enjambre vivo.** La Mac es de 8 GB.")
+    L.extend(regla_reconstruir())
     A("- Tres puertas antes de publicar: `tsc --noEmit`, `vitest run`, `next build` completo.")
     A("- **Nada está hecho hasta que se ve en Genesis de la Mac.**")
     A("- Claves solo en archivos de entorno (`~/.hermes/.env`, `~/.starseed/env`). En el repo,")
@@ -177,6 +193,9 @@ def repartir(texto):
                "    starseed-puente estado\n"
                "    starseed-puente agentes\n"
                "    starseed-puente aprobar <id>\n" % (DOC, RAIZ))
+    # La misma regla en el puntero para que ningún IDE tenga que abrir el documento
+    # antes de lanzar un build a mano: el 29-10 lo hicieron dos veces y las dos murió.
+    puntero += "\n## Regla de compilación\n\n" + "\n".join(regla_reconstruir()) + "\n"
     # (2026-09-16) Alex pidió que TODOS los IDE lleven el mismo workflow, no solo estos
     # tres: Cursor y VS Code/Copilot leen sus propios archivos, y si no se los dejamos
     # aquí trabajan a ciegas sobre el mismo repo. El puntero es el mismo para todos:
