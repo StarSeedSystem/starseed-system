@@ -7,10 +7,13 @@ no; la Mac (8 GB con presión) no deja a ninguno. Sin red, sin descargas, sin to
 CLB1028H añade el plan que ya sirve con el despliegue hecho: no se vuelve a clonar, el `hf` va
 en su venv propio (PEP 668) y los pesos no se vuelven a bajar si ya están.
 """
+import io
+import json
 import os
 import sys
 import unittest
 import unittest.mock
+from contextlib import redirect_stdout
 DIR = os.path.dirname(os.path.abspath(__file__))
 if DIR not in sys.path:
     sys.path.insert(0, DIR)
@@ -71,6 +74,33 @@ class PruebaCaben(unittest.TestCase):
         filas = {f["id"]: f for f in C.caben(self.entradas, 60, 100, margen_gb=0)}
         self.assertEqual(filas["colibri-deepseek-v4-flash-reap"]["veredicto"], "cabe")
         self.assertEqual(filas["colibri-clef"]["veredicto"], "cabe")
+
+    def test_streaming_con_disco_sobrado_laya_grande(self):
+        """(Rescate rama nube/40611446903) Con disco de sobra y RAM entre la mínima y la
+        recomendada, los expert-activation entran en streaming: el GLM-5.2 también, no solo
+        DeepSeek-REAP."""
+        filas = {f["id"]: f for f in C.caben(self.entradas, 20, 900)}
+        for pid in ("colibri-deepseek-v4-flash-reap", "colibri-glm-5.2"):
+            self.assertEqual(filas[pid]["veredicto"], "cabe en streaming (disco rápido)")
+            self.assertIn("expertos del disco", filas[pid]["porque"])
+
+    def test_olmoe_la_descarga_temporal_aparece_en_el_porque(self):
+        """(Rescate rama) La descarga de OLMoE pesa el doble que el modelo instalado: si el
+        disco libre solo cubre lo instalado pero no la descarga, el porqué lo dice."""
+        olmoe = next(e for e in self.entradas if e["id"] == "colibri-olmoe-7b")
+        self.assertGreater(olmoe["descarga_gb"], olmoe["disco_gb"])
+        filas = {f["id"]: f for f in C.caben(self.entradas, 60, 5, margen_gb=0)}
+        self.assertEqual(filas["colibri-olmoe-7b"]["veredicto"], "no cabe")
+        self.assertIn("14", filas["colibri-olmoe-7b"]["porque"])
+
+    def test_caben_no_muta_las_entradas_y_da_filas_completas(self):
+        """(Rescate rama) caben es puro: no toca el catálogo y cada fila trae id, capa,
+        veredicto y porqué, nada más."""
+        antes = json.loads(json.dumps(self.entradas))
+        filas = C.caben(self.entradas, 12, 18.5)
+        self.assertEqual(self.entradas, antes)
+        for fila in filas:
+            self.assertEqual(set(fila), {"id", "capa", "veredicto", "porque"})
 
 
 class PruebaPlan(unittest.TestCase):
@@ -197,6 +227,25 @@ class PruebaPlan(unittest.TestCase):
     def test_id_desconocido(self):
         with self.assertRaises(ValueError):
             C.plan_instalacion("colibri-no-existe", "/srv")
+
+    def test_toda_orden_es_lista_de_argumentos(self):
+        """(Rescate rama) Cada paso del plan, en los tres tipos de modelo, lleva su orden como
+        LISTA de argumentos de texto: nunca strings de shell."""
+        for id_modelo in ("colibri-laya", "colibri-gliner-decide", "colibri-qwen3-coder-30b"):
+            for paso in C.plan_instalacion(id_modelo, "/srv"):
+                self.assertIsInstance(paso["args"], list)
+                self.assertTrue(all(isinstance(a, str) for a in paso["args"]))
+
+    def test_main_sin_plan_imprime_uso_y_nada_ejecuta(self):
+        """(Rescate rama, adaptado) Sin `--plan` el CLI enseña el uso y termina con código 2;
+        nunca llega a medir ni a ejecutar nada."""
+        salida = io.StringIO()
+        with redirect_stdout(salida):
+            codigo = C.main([])
+        texto = salida.getvalue()
+        self.assertEqual(codigo, 2)
+        self.assertIn("uso:", texto)
+        self.assertIn("sin ejecutar", texto)
 
 
 if __name__ == "__main__":
