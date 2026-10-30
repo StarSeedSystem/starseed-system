@@ -44,7 +44,7 @@ def _vigente(p, existe):
     ok = bool(rutas) and all(_existe(existe, r) for r in rutas)
     return (True, "") if ok else (False, "ya no aplica: la cita no sigue en el código")
 def es_de_alex(p: Dict) -> str:
-    """El motivo si toca algo que solo decide Alex (publicar, pagar, cuentas, claves…); """ if no.""
+    """El motivo si toca algo que solo decide Alex (publicar, pagar, cuentas, claves…); cadena vacía si no."""
     texto = _texto(p)
     # Remove enumeration of access types such as "libre, registro, pago" or "libre, registro, pagar"
     texto = re.sub(r'\b(?:libre|gratis|abierto|registro)(?:\s*,\s*(?:libre|gratis|abierto|registro))*\s*(?:pago|pagar)\b', '', texto, flags=re.IGNORECASE)
