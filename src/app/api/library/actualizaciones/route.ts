@@ -9,7 +9,7 @@ import { FICHAS_IA_LOCALES, fichasIaConUpstreamGitHub } from "@/lib/library/fuen
 import { FICHAS_REPOS_OS } from "@/lib/library/repos-os";
 import { FICHAS_REPOS_1025, FICHAS_VIEJAS_SEGUIMIENTO_1025 } from "@/lib/library/repos-1025";
 import { FICHAS_REPOS_1026, FICHAS_VIEJAS_SEGUIMIENTO_1026 } from "@/lib/library/repos-1026";
-import { FICHAS_REPOS_1027 } from "@/lib/library/repos-1027";
+import { FICHAS_REPOS_1027, FICHAS_REPOS_MBT1027 } from "@/lib/library/repos-1027";
 import { FICHAS_REPOS_1027B } from "@/lib/library/repos-1027b";
 import { FICHAS_REPOS_1028 } from "@/lib/library/repos-1028";
 import {
@@ -139,6 +139,7 @@ export async function GET(): Promise<Response> {
                 ...FICHAS_REPOS_1026,
                 ...FICHAS_VIEJAS_SEGUIMIENTO_1026,
                 ...FICHAS_REPOS_1027,
+                ...FICHAS_REPOS_MBT1027,
                 ...FICHAS_REPOS_1027B,
                 ...FICHAS_REPOS_1028,
             ]).filter((p) => !idsDecisiones.has(p.id)),

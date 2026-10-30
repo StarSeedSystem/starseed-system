@@ -60,7 +60,7 @@ import {
 import { DOWNLOADABLE_SOURCES } from "@/ai/astraura/installed-models";
 import { IDS_SIEMBRA_1025 } from "./repos-1025";
 import { IDS_SIEMBRA_1026 } from "./repos-1026";
-import { IDS_SIEMBRA_1027 } from "./repos-1027";
+import { IDS_SIEMBRA_1027, IDS_SIEMBRA_MBT1027 } from "./repos-1027";
 import { IDS_SIEMBRA_1027B } from "./repos-1027b";
 import { IDS_SIEMBRA_1028 } from "./repos-1028";
 
@@ -371,11 +371,15 @@ const IDS_SIEMBRA_1020C: string[] = [
  * `config/repos-libreria-1026.json` (módulo puro `repos-1026.ts`). Mismo contrato: instalar SOLO registra el enlace,
  * y que ninguno corra hoy en estas máquinas se dice en la ficha (`corre_aqui: false`), no se esconde.
  *
- * (SEED_VERSION 19 · Ola MBT1027 · N) LOS TRES REPOS DEL 2026-10-27: OpenMausBot, Insomnia y Colibri, los tres con
- * `preinstalar: "siempre"` en `config/repos-libreria-1027.json` (módulo puro `repos-1027.ts`). Instalar SOLO registra
- * el enlace; la activación (permisos, contraseña o descarga de modelos) la decide la persona y está en `aviso`.
- *
- * (SEED_VERSION 20 · Ola 1027b) META^N Y MEMVID, DEL 2026-10-27: los dos con `preinstalar: "siempre"` en
+  * (SEED_VERSION 19 · Ola MBT1027 · N) LOS TRES REPOS DEL 2026-10-27: OpenMausBot, Insomnia y Colibri, los tres con
+  * `preinstalar: "siempre"` en `config/repos-libreria-1027.json` (módulo puro `repos-1027.ts`). Instalar SOLO registra
+  * el enlace; la activación (permisos, contraseña o descarga de modelos) la decide la persona y está en `aviso`.
+  *
+  * (SEED_VERSION 20 · Ola MBT1027 · N2): MBT1027 (Mausbot de Astraura) con `preinstalar: "siempre"` en
+  * `config/repos-libreria-1027.json` (módulo puro `repos-mbt1027.ts`). Instalar SOLO registra el enlace; la activación
+  * la decide la persona y está explicada en `aviso`.
+  *
+  * (SEED_VERSION 21 · Ola 1027b) META^N Y MEMVID, DEL 2026-10-27: los dos con `preinstalar: "siempre"` en
  * `config/repos-libreria-1027b.json` (módulo puro `repos-1027b.ts`). Instalar SOLO registra el enlace; Meta^n
  * propone dentro de una caja Docker sin red y el juez de StarSeed decide fuera, y Memvid corre en un servidor
  * propio sin telemetría. La activación la decide la persona y está explicada en `aviso`.
@@ -391,7 +395,7 @@ const IDS_SIEMBRA_1020C: string[] = [
  * o conector con servidor puesto por Alex (ver IDS_SIEMBRA_1020C, más abajo).
  */
 export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
-  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...IDS_SIEMBRA_1020C]),
+  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_MBT1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...IDS_SIEMBRA_1020C]),
 );
 
 /**

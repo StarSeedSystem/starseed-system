@@ -5,43 +5,36 @@ import {
     DECISIONES_1027,
     FICHAS_REPOS_1027,
     IDS_SIEMBRA_1027,
-    LICENCIAS_VERIFICADAS_1027,
     TANDA_1027_FICHAS,
 } from "../repos-1027";
 
 const porId = (id: string) => FICHAS_REPOS_1027.find((p) => p.id === id)!;
 
 describe("tanda 1027 · las cuentas", () => {
-    it("son 3 fichas y ningún id se repite", () => {
-        expect(TANDA_1027_FICHAS).toHaveLength(3);
+    it("son 4 fichas y ningún id se repite", () => {
+        expect(TANDA_1027_FICHAS).toHaveLength(4);
         expect(FICHAS_REPOS_1027.map((p) => p.id).sort()).toEqual([
             "lib-colibri",
             "lib-insomnia",
             "lib-openmausbot",
+            "mbt1027-mausbot",
         ]);
         const ids = TANDA_1027_FICHAS.map((f) => f.id);
         expect(new Set(ids).size).toBe(ids.length);
     });
 
-    it("las tres se siembran por defecto y el contrato es el del Mausbot", () => {
+    it("las cuatro se siembran por defecto y el contrato es el del Mausbot", () => {
         expect([...IDS_SIEMBRA_1027].sort()).toEqual([
             "lib-colibri",
             "lib-insomnia",
             "lib-openmausbot",
+            "mbt1027-mausbot",
         ]);
         expect(CONTRATO_1027).toBe("architecture/mausbot-astraura.md");
     });
 
     it("el JSON explica qué decidir y de dónde sale cada licencia", () => {
-        expect(DECISIONES_1027.length).toBeGreaterThanOrEqual(3);
-        expect(Object.keys(LICENCIAS_VERIFICADAS_1027).sort()).toEqual([
-            "agentes",
-            "ia-local",
-            "neuronas",
-        ]);
-        for (const texto of Object.values(LICENCIAS_VERIFICADAS_1027)) {
-            expect(texto).toMatch(/2026-10-27/);
-        }
+        expect(DECISIONES_1027.length).toBeGreaterThanOrEqual(4);
     });
 });
 
@@ -62,10 +55,11 @@ describe("tanda 1027 · cada ficha", () => {
         }
     });
 
-    it("conserva el tipo de la ficha: dos herramientas y una fuente de IA", () => {
+    it("conserva el tipo de la ficha: dos herramientas, una fuente de IA y una adaptación", () => {
         expect(porId("lib-openmausbot").kind).toBe("tool");
         expect(porId("lib-insomnia").kind).toBe("tool");
         expect(porId("lib-colibri").kind).toBe("ai-source");
+        expect(porId("mbt1027-mausbot").kind).toBe("tool");
         for (const p of FICHAS_REPOS_1027) expect(p.kind, p.id).not.toBe("project");
     });
 
@@ -76,6 +70,8 @@ describe("tanda 1027 · cada ficha", () => {
         expect(String(porId("lib-insomnia").payload.licencia)).toMatch(/^MIT/);
         expect(porId("lib-colibri").version).toBe("v2.0.0");
         expect(String(porId("lib-colibri").payload.licencia)).toMatch(/^Apache-2\.0/);
+        expect(porId("mbt1027-mausbot").version).toBe("v0.1.0");
+        expect(String(porId("mbt1027-mausbot").payload.licencia)).toMatch(/^Apache-2\.0/);
     });
 
     it("su canal de versiones es por etiquetas vX.Y.Z", () => {

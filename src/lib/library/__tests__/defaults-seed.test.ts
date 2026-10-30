@@ -7,7 +7,7 @@ import {
 } from "../defaults-seed";
 import { FICHAS_REPOS_1025, IDS_SIEMBRA_1025, TANDA_1025_FICHAS } from "../repos-1025";
 import { FICHAS_REPOS_1026, IDS_SIEMBRA_1026, TANDA_1026_FICHAS } from "../repos-1026";
-import { IDS_SIEMBRA_1027 } from "../repos-1027";
+import { FICHAS_REPOS_1027, IDS_SIEMBRA_1027, IDS_SIEMBRA_MBT1027 } from "../repos-1027";
 import { IDS_SIEMBRA_1027B } from "../repos-1027b";
 import { IDS_SIEMBRA_1028 } from "../repos-1028";
 
@@ -54,7 +54,7 @@ describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
     }
     // Los `lib-` sembrados son los de la 2.ª tanda más los de las tandas 1025, 1026, 1027, 1027b y 1028 (que llegan de su JSON) y las 8 «siempre» de la 3.ª tanda.
     const deLasTandas = RECOMMENDED_PACKAGE_IDS.filter((id) => id.startsWith("lib-"));
-    const esperados = [...SIEMPRE_2A, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...SIEMPRE_3A].filter((id) => id.startsWith("lib-"));
+    const esperados = [...SIEMPRE_2A, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_MBT1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...SIEMPRE_3A].filter((id) => id.startsWith("lib-"));
     expect(deLasTandas.sort()).toEqual(Array.from(new Set(esperados)).sort());
   });
 

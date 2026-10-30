@@ -19,9 +19,6 @@ import datos from "../../../config/repos-libreria-1027.json";
 import type { FichaTanda1026 } from "./repos-1026";
 import { autorDe, resumenRequisitos, versionCorta } from "./repos-1025";
 
-/** Una ficha tal y como la deja `config/repos-libreria-1027.json`: la de la tanda 1026, sin cambios de forma. */
-export type FichaTanda1027 = FichaTanda1026;
-
 interface Tanda1027 {
     fecha: string;
     fusionadas: Record<string, string>;
@@ -110,3 +107,6 @@ export const FICHAS_REPOS_1027: LibraryPackage[] = TANDA.paquetes.map(paqueteDe)
 export const IDS_SIEMBRA_1027: string[] = TANDA.paquetes
     .filter((f) => f.preinstalar === "siempre")
     .map((f) => f.id);
+
+export const FICHAS_REPOS_MBT1027: LibraryPackage[] = FICHAS_REPOS_1027.filter(p => p.id === "mbt1027-mausbot");
+export const IDS_SIEMBRA_MBT1027: string[] = FICHAS_REPOS_MBT1027.map(p => p.id);

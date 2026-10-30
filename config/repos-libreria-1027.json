@@ -109,16 +109,53 @@
         "so": ["macos", "windows", "linux"],
         "fuente": "README y docs/quickstart.md del repo (2026-10-27): 8 GB de RAM como mínimo (16+ mejor), 22 GB de disco para el modelo más pequeño del instalador; compila en ARM64 sin opciones especiales"
       }
+    },
+    {
+      "id": "mbt1027-mausbot",
+      "repo": "mawih/Mausbot-Astraura",
+      "nombre": "MBT1027",
+      "titulo": "cursor con cara que actúa (Mausbot de Astraura)",
+      "kind": "tool",
+      "icono": "MousePointer2",
+      "grupo": "agentes",
+      "canal": "tags",
+      "patron_tag": "^v\\d+\\.\\d+\\.\\d+$",
+      "licencia": "Apache-2.0 (Copyright 2026 Milind Soni y colaboradores) con atribución: mawih/Mausbot-Astraura.md",
+      "version_actual": "v0.1.0",
+      "fecha_version": "2026-10-27",
+      "estado": "activo",
+      "actividad": "16 etiquetas (v0.1.0 del 2026-10-27); las rutas del OS se protan a src/lib/mausbot/ y src/components/mausbot/ para que el cursor actúe como la personalidad activa de Astraura con switch de encendido/apagado y switch por voz/chat.",
+      "area": ["agentes", "cursor", "astraura", "exocortex", "protomolecula", "personalidades", "cursor-actuar", "orbe", "ajustes"],
+      "efecto": "ADAPTACIÓN-ABRIEGA",
+      "preinstalar": "siempre",
+      "claude": "skill",
+      "gratis": true,
+      "gratis_motivo": "El código del OS es libre; los modelos con los que el Mausbot actuarían (Astraura) son gratuitos-primero.",
+      "corre_aqui": false,
+      "que_es": "El Mausbot de Astraura adapta el cursor con cara de OpenMausBot (Apache-2.0) como el puntero del OS: switch de encendido/apagado en Exocórtex, personalidades, modos (cursor, acompáñame, cursor del agente), switch por voz/chat («apaga el mausbot»), unido a Protomolécula y a todos los medios de Astraura (orbe, Exocórtex, bots). En el Exocórtex se ve el interruptor «Mausbot»; en Ajustes de cursor el panel se expande; se muestra en el orbe en tiempo real; cada perfil o neurona decide si actúa en el OS con los permisos de screenVoice del bot y las decisiones de actuar del bot (src/lib/astraura-bots/permisos.ts). El cursor del agente actúa donde Astraura actúe en la pantalla, con expresiones de «trabajando» y confirmación por acción de riesgo.",
+      "nota": "Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): mawih/Mausbot-Astraura.md. El motor de escritura original de OpenMausBot (Electron) NO se instala. La parte del código se porta a src/lib/mausbot/ y src/components/mausbot/ para integrar en el OS: el 10 cuerpos portados, asignación de expresiones, switch, UI en Exocórtex y ajustes, Montaje de host, cursor de agente y permisos de bot. La gestión real de permisos (screenVoice, actuar) está en el OS. Para la app electrónica dedicada, el usuario instala desde el repo del origen.",
+      "aviso": "Solo guarda el enlace. Activar el Mausbot lo habilita para mover el cursor/captura de teclado cuando Astraura tenga permiso de actuar por screenVoice y por la decisión de actuar (nivel aplicar). El switch y el modo se persisten en config.ts (`starseed.mausbot.v1`) que viaja con la cuenta, neurona y perfil. El cursor del agente aparece en la pantalla con sus expresiones de estado: puede entrar en conflicto con el cursor de otra app. Mostrar el cursor del agente en la pantalla del equipo solo funciona en la app nativa (Tauri) del OS; el navegador no. El Mausbot pertenece al núcleo intocable y NO puede salir del OS o restaurar la identidad/permisos/deshacer. La personalidad activa determina su diseño y su modo de actuar.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": ["arm64", "amd64"],
+        "so": ["macos", "windows", "linux"],
+        "fuente": "architecture/mausbot-astraura.md (este módulo)"
+      }
     }
   ],
   "decisiones": [
     "Insomnia: su instalador pide tu contraseña y deja una regla de sudoers que cualquier programa de tu usuario puede usar para impedir que la Mac duerma. ¿La instalas en la Mac? (orden en la ficha y en el informe de esta ola).",
     "Colibri en el A1: caben Laya y GLiNER2.5-Decide (2,8 GB de disco y 3,6 GB de RAM). Un modelo de razón (Qwen3-Coder-30B, 19 GB de disco, 8-18 GB de RAM) pide dedicar el A1 a Colibri o ampliar su volumen de bloque (Always Free admite 200 GB en total). ¿Qué prefieres?",
-    "OpenMausBot como app aparte: en la Mac de 8 GB compite con el enjambre. El Mausbot de Astraura ya trae su mascota y su cursor de agente dentro del OS; ¿quieres además la app?"
+    "OpenMausBot como app aparte: en la Mac de 8 GB compite con el enjambre. El Mausbot de Astraura ya trae su mascota y su cursor de agente dentro del OS; ¿quieres además la app?",
+    "MBT1027 (Mausbot de Astraura): adaptó el cursor con cara de OpenMausBot como el puntero del OS con caras configurable por personalidad, modos, diseños propios y switch en Exocórtex. Adapta el modelo de mascota-cursor, asignación de expresiones por estado de Astraura, switch de encendido/apagado y switch por voz/chat. Enlace con Protomolécula para el cuerpo, orbe y Exocórtex, y todos los medios de Astraura. ¿Lo instalas para actuar con el cursor en el OS?"
   ],
   "licencias_verificadas": {
     "agentes": "2026-10-27: LICENSE y NOTICE de milind-soni/OpenMausBot (Apache-2.0, relicenciado desde MIT con el consentimiento de todos los colaboradores; enterprise/ con licencia propia); third_party/cua-driver/LICENSE.md = MIT (Cua AI, Inc.); package.json 0.1.130; etiqueta v0.1.130 del 2026-10-27. Nada se ejecutó.",
     "neuronas": "2026-10-27: LICENSE de krishhgg/Insomnia (MIT, Krish Garg); README, docs/install.md y Sources/Insomnia/Model/Session.swift leídos (estado en ~/Library/Application Support/Insomnia/session.json); etiqueta v0.1.0 del 2026-10-10 y nocturnas. Nada se instaló.",
-    "ia-local": "2026-10-27: LICENSE y NOTICE de JustVugg/colibri (Apache-2.0, Vincenzo Fornaro); THIRD_PARTY_NOTICES.md (MIT); c/setup_catalog.py, docs/laya.md, docs/gliner_decide.md (ambos modelos Apache-2.0), docs/cluster.md y docs/systemone.md leídos; etiqueta v2.0.0 del 2026-10-06. Nada se ejecutó ni se descargó."
+    "ia-local": "2026-10-27: LICENSE y NOTICE de JustVugg/colibri (Apache-2.0, Vincenzo Fornaro); THIRD_PARTY_NOTICES.md (MIT); c/setup_catalog.py, docs/laya.md, docs/gliner_decide.md (ambos modelos Apache-2.0), docs/cluster.md y docs/systemone.md leídos; etiqueta v2.0.0 del 2026-10-06. Nada se ejecutó ni se descargó.",
+    "cursor-bot": "2026-10-27: Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): mawih/Mausbot-Astraura.md. Mismo efecto que OpenMausBot pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex hay un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona. No se instala el motor de escritura de OpenMausBot: la parte del código se porta a src/lib/mausbot/ y src/components/mausbot/ para que el cursor del OS lo use. Instalación = guarda el enlace; activación manual por voz o chat y switch en Exocórtex."
   }
 }
