@@ -28,8 +28,8 @@ import { createClient } from "@/utils/supabase/client";
 import { elegirTransporte, type Alcanzabilidad, type Sala } from "@/lib/salas/sala";
 import { abrirCanalEscenaP2P, type OpcionesCanalP2P } from "./canal-p2p";
 
-export type EventoEscena = "pose" | "cambios" | "arrastre" | "pedir-estado" | "estado";
-export const EVENTOS_ESCENA: readonly EventoEscena[] = ["pose", "cambios", "arrastre", "pedir-estado", "estado"];
+export type EventoEscena = "pose" | "cambios" | "arrastre" | "adn" | "pedir-estado" | "estado";
+export const EVENTOS_ESCENA: readonly EventoEscena[] = ["pose", "cambios", "arrastre", "adn", "pedir-estado", "estado"];
 
 export interface FilaCambiada {
     rev: number;
@@ -182,8 +182,8 @@ export function abrirCanalEscena(tema: string, clave: string, filaId: string | n
         enviar(evento, payload) {
             if (cerrado) return;
             if (enviarAhora(evento, payload)) return;
-            // Solo se encolan los mensajes que importan (cambios y estado); una pose vieja no sirve.
-            if (evento === "cambios" || evento === "estado" || evento === "pedir-estado") {
+            // Solo se encolan los mensajes que importan (cambios, ADN y estado); una pose vieja no sirve.
+            if (evento === "cambios" || evento === "adn" || evento === "estado" || evento === "pedir-estado") {
                 cola.push({ evento, payload });
                 if (cola.length > 50) cola.shift();
             }
