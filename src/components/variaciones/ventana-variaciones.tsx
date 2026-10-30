@@ -6,7 +6,8 @@ import { useMemo, useState } from "react";
 import { ExternalLink, Search, Star } from "lucide-react";
 import { PESTANAS_VARIACIONES, type PestanaVariaciones } from "./variaciones-bus";
 import { ordenarVariaciones, type SortMode, type Variacion } from "@/lib/variaciones/orden";
-export interface VariacionVentana extends Variacion { tema?: string; enlaceExterno?: string }
+import { TarjetaVariacion, itemBibliotecaDeVariacion } from "./tarjeta-variacion";
+export interface VariacionVentana extends Variacion { tema?: string; enlaceExterno?: string; payload?: unknown; codigo?: boolean; deVariacion?: string | null; autor?: string }
 export interface DatosVentanaVariaciones { disponible: boolean; error?: string; listas: Partial<Record<PestanaVariaciones, VariacionVentana[]>> }
 export interface FiltrosVentana { buscar?: string; licencia?: string; tema?: string; etiqueta?: string }
 export interface VentanaVariacionesProps {
@@ -90,6 +91,32 @@ export function VentanaVariaciones({ clave, datos, nombre, pestanaInicial = "var
           </div>
         ) : visibles.length === 0 ? (
           <p role="status" className="rounded-2xl border border-dashed border-border/50 bg-card/40 p-6 text-center text-sm text-muted-foreground">{VACIOS[pestana]}</p>
+        ) : pestana === "variaciones" ? (
+          <div className="space-y-2">
+            {visibles.map((v) => (
+              <TarjetaVariacion
+                key={v.id}
+                clave={clave}
+                biblioteca={v.payload === undefined ? null : itemBibliotecaDeVariacion(clave, v)}
+                variacion={{
+                  id: v.id,
+                  titulo: v.titulo,
+                  descripcion: v.descripcion,
+                  version: v.version,
+                  familia: v.familia,
+                  licencia: v.licencia,
+                  etiquetas: v.etiquetas,
+                  valoracionMedia: v.valoracionMedia,
+                  valoracionCount: v.valoracionCount,
+                  payload: v.payload,
+                  codigo: v.codigo,
+                  deVariacion: v.deVariacion,
+                  autor: v.autor,
+                  enlaceExterno: v.enlaceExterno,
+                }}
+              />
+            ))}
+          </div>
         ) : (
           <ul className="space-y-2">
             {visibles.map((v) => {
