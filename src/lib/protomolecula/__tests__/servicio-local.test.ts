@@ -98,6 +98,18 @@ describe("servicio-local · llamadas a 127.0.0.1", () => {
     const caido = await sondearServicio(DEF, async () => { throw new Error("ECONNREFUSED"); });
     expect(caido).toMatchObject({ vivo: false, motivo: expect.stringMatching(/no contesta/) });
   });
+  it("hyperframes: la definición valida y la salud se consulta solo en 127.0.0.1:4490, con su tiempo largo para renders", async () => {
+    const hyper = SERVICIOS_CONOCIDOS.find((d) => d.id === "hyperframes");
+    expect(hyper).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900_000 });
+    expect(validarDefinicion(hyper as DefinicionServicio)).toBeNull();
+    const f = vi.fn<FetchLocal>(async () => resp(200, '{"vivo":true}'));
+    const r = await sondearServicio(hyper as DefinicionServicio, f, { leerVariable: () => undefined });
+    expect(r).toMatchObject({ vivo: true });
+    const [url, init] = f.mock.calls[0] as [string, PeticionLocal];
+    expect(url).toBe("http://127.0.0.1:4490/salud");
+    expect(init).toMatchObject({ method: "GET", headers: { accept: "application/json" } });
+    expect(init.redirect).toBe("manual");
+  });
 });
 
 describe("servicio-local · lanzador nativo (lista blanca y confirmación siempre)", () => {
