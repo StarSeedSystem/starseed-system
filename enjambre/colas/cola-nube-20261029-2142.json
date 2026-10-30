@@ -1,0 +1,29 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "GEN1030A",
+   "titulo": "Compilar Genesis en el A1 · scripts/puente/compilar_en_a1.py con lo de construir.py",
+   "archivos": [
+    "scripts/puente/compilar_en_a1.py",
+    "scripts/puente/test_compilar_en_a1.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas; nunca rutas de un worktree (`starseed-wt/…`); nunca imprimas la IP del A1 (usa `oracle_nodo.ssh`, `_ssh_base` y `tachar`).\n\nEl 29-10 Genesis se cayó toda la tarde: `.next` sin BUILD_ID, la build de la Mac de las 18:23 murió a los 814 s y después el freno de swap (6 GB en uso, tope 4) la bloqueó. Hermes lanzó `next build` a mano en `.next` dos veces (las dos murieron) y un visor propio en /tmp en el 9010. El 30-10 Claude compiló en el A1 con `~/.starseed/genesis-a1/construir.py` (Alex autorizó mandar el código al A1 para compilar): léelo, es la base.\n\nPasa `construir.py` al repo como módulo probado: enviar (rsync sin .git, .next*, starseed_memory_root, .codegraph, .transfer ni ningún .env*; del .env.local solo las líneas NEXT_PUBLIC_*, a `.env.production.local` con umask 077), instalar (`npm ci --ignore-scripts` solo si cambió package-lock.json), compilar en `.next-build` con 4096 de heap y nice, estado, traer (sin cache ni standalone; borra después `.env.production.local` del A1) y cambiar (marcar_listo con la hora del envío, estado al-dia con la huella del envío y `reiniciar_mando`). Misma ruta que en la Mac. Las órdenes remotas y los argumentos de rsync, en funciones PURAS probadas; una prueba comprueba que ningún .env entero viaja.",
+   "ola": "1030 · Genesis se compila fuera cuando la Mac no puede",
+   "importancia": "capacidad"
+  },
+  {
+   "id": "GEN1030C",
+   "titulo": "Hermes y los IDE · nunca `next build` ni `next dev` a mano: los builds son del reconstructor",
+   "archivos": [
+    "scripts/puente/sincronizar-ides.py",
+    "scripts/puente/test_sincronizar_ides.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas; nunca rutas de un worktree (`starseed-wt/…`); nunca imprimas la IP del A1 (usa `oracle_nodo.ssh`, `_ssh_base` y `tachar`).\n\nEl 29-10 Genesis se cayó toda la tarde: `.next` sin BUILD_ID, la build de la Mac de las 18:23 murió a los 814 s y después el freno de swap (6 GB en uso, tope 4) la bloqueó. Hermes lanzó `next build` a mano en `.next` dos veces (las dos murieron) y un visor propio en /tmp en el 9010. El 30-10 Claude compiló en el A1 con `~/.starseed/genesis-a1/construir.py` (Alex autorizó mandar el código al A1 para compilar): léelo, es la base.\n\nEn lo que `sincronizar-ides.py` escribe para Hermes, Codex, Antigravity y Claude (PUENTE-DE-MANDO.md y punteros) añade una regla corta: no lanzar `next build`, `next dev` ni servidores propios en la Mac ni en el 9002; si Genesis no abre, mirar `/tmp/starseed-reconstruir.log` y el estado con el MCP `starseed-director`, y pedir `reconstruir_mando.py --una-vez --ya` o la compilación en el A1. Prueba que la regla sale en los cuatro.",
+   "ola": "1030 · Genesis se compila fuera cuando la Mac no puede",
+   "importancia": "capacidad"
+  }
+ ]
+}
