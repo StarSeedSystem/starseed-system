@@ -23,7 +23,7 @@ terminal y por localhost. Nada de esto escribe código en el repositorio.
 
 Dónde queda todo (nada se versiona: starseed_memory_root/ está en .gitignore):
   · starseed_memory_root/dream/profundo/<fecha>/plan.json         el plan de la sesión
-  · starseed_memory_root/dream/profundo/<fecha>/<área>--<lente>.md/.json   un informe por sueño
+  · starseed_memory_root/dream/profundo/<fecha>/<área>--<lente>.md/.json   un informe por sesión de imaginación
   · starseed_memory_root/dream/profundo/<fecha>/verificaciones.jsonl       veredictos (solo se añade)
   · starseed_memory_root/dream/profundo/<fecha>/INFORME.md                 la consolidación
   · starseed_memory_root/olas/cola-suenos-<fecha>.json                     la cola que corre el orquestador
@@ -469,7 +469,7 @@ def cmd_plan(a, raiz):
 
 def cmd_lanzar(a, raiz):
     if a.donde != "mac":
-        return 2, {"ok": False, "error": "Los sueños corren en la Mac: allí están las claves de la flota gratuita y la lente "
+        return 2, {"ok": False, "error": "Las sesiones de imaginación corren en la Mac: allí están las claves de la flota gratuita y la lente "
                                          "de seguridad no puede salir de ella. Usa --donde mac."}
     plan = construir(raiz, a)
     if not plan["tareas"]:
@@ -509,7 +509,7 @@ def cmd_lanzar(a, raiz):
             _escribir_json(viva, fundir_tareas(lista, plan["tareas"], a.rehacer) if isinstance(previas, list)
                            else dict(previas, tareas=fundir_tareas(lista, plan["tareas"], a.rehacer)))
             fuera.update(accion="tanda_viva", pid=o["pid"], cola_viva=o["cola"], mensaje=(
-                "Un solo orquestador: añadidas a su cola viva (%s); los sueños van con su propio tope y no "
+                "Un solo orquestador: añadidas a su cola viva (%s); las sesiones de imaginación van con su propio tope y no "
                 "quitan huecos a los agentes de código." % o["cola"]))
         else:
             fuera.update(ok=False, accion="esperar", pid=o["pid"], cola_viva=o["cola"], error=(
@@ -528,7 +528,7 @@ def cmd_lanzar(a, raiz):
             pid = lanzar_directo(raiz, cola_rel, workers, a.tope_analisis, "claude" if os.environ.get("CLAUDECODE") else None)
             fuera.update(accion="directo", pid=pid, mensaje="Genesis no contestó: orquestador lanzado desde la terminal.")
     try:
-        director_suenos.anunciar("Sueños profundos %s: %d tareas en marcha (%s) · hasta %d a la vez · "
+        director_suenos.anunciar("Imaginación profunda %s: %d tareas en marcha (%s) · hasta %d a la vez · "
                                  "verificación por supervisores Claude." % (sesion, len(plan["tareas"]), fuera["accion"],
                                                                             a.tope_analisis))
     except Exception:
@@ -664,7 +664,7 @@ def pintar(orden, codigo, d):
             print("  cola: %s · sigue con: python3 scripts/puente/suenos.py estado" % d["cola"])
     elif orden == "estado":
         c = d["cuentas"]
-        print("Sueños profundos %s · %d tareas · %s · %s tokens estimados" % (
+        print("Imaginación profunda %s · %d tareas · %s · %s tokens estimados" % (
             d["sesion"], d["total"], " · ".join("%d %s" % (v, k) for k, v in sorted(c.items())) or "sin tareas",
             _miles(d["tokens"])))
         o = d.get("orquestador")
