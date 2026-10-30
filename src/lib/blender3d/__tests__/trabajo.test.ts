@@ -11,6 +11,10 @@ const base = (): Bruto => ({
   escena: [{ op: "primitiva", tipo: "cubo", nombre: "cubo", tam: 1 }, { op: "camara", nombre: "cam", ubicacion: [0, -5, 2], mira_a: [0, 0, 0] }, { op: "luz", nombre: "sol", tipo: "sol", energia: 3 }],
   salidas: [{ tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" }],
 });
+
+const CUBO = { op: "primitiva", tipo: "cubo", nombre: "Cubo", tam: 1 };
+const CAMARA = { op: "camara", nombre: "cam", ubicacion: [0, -5, 2], mira_a: [0, 0, 0] };
+const PNG = { tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" };
 const valido = (b: unknown): Trabajo3D => { const r = validarTrabajo(b); expect(r.ok).toBe(true); return (r as { ok: true; trabajo: Trabajo3D }).trabajo; };
 const motivos = (b: unknown): string[] => { const r = validarTrabajo(b); expect(r.ok).toBe(false); return (r as { ok: false; motivos: string[] }).motivos; };
 const conEscena = (escena: unknown[], salidas: unknown[] = base().salidas as unknown[]): Bruto => ({ ...base(), escena, salidas });
@@ -27,7 +31,7 @@ describe("validarTrabajo", () => {
     expect(t.v).toBe(VERSION_VOCABULARIO);
     expect(t.escena.map((o) => o.op)).toEqual(["primitiva", "camara", "luz"]);
   });
-  it("aplica defaults de cámara y salida al trabajo válido", () => {
+it("aplica defaults de cámara y salida al trabajo válido", () => {
     const r = validarTrabajo(base());
     expect(r.ok).toBe(true);
     const t = r.trabajo;
@@ -37,6 +41,35 @@ describe("validarTrabajo", () => {
     expect(t.escena[1].ortografica).toBe(false);
     expect(t.salidas[0].fondo_transparente).toBe(false);
     expect(t.limites).toBeUndefined();
+  });
+  it("comprueba la versión, el título y los límites", () => {
+    expect(VERSION_VOCABULARIO).toBe(1);
+    expect(VERSION_VOCABULARIO).toBe(vocabulario.version);
+    const r1 = motivos({ v: 2, titulo: "Escena mínima", calidad: "borrador", ambito: "personal", origen: "estudio", quien: "persona", escena: [{ op: "primitiva", tipo: "cubo", nombre: "cubo", tam: 1 }, { op: "camara", nombre: "cam", ubicacion: [0, -5, 2], mira_a: [0, 0, 0] }, { op: "luz", nombre: "sol", tipo: "sol", energia: 3 }], salidas: [{ tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" }] });
+    expect(r1.join(" ")).toContain("v debe ser 1");
+    const r2 = motivos({ titulo: "   ", calidad: "borrador", ambito: "personal", origen: "estudio", quien: "persona", escena: [{ op: "primitiva", tipo: "cubo", nombre: "cubo", tam: 1 }], salidas: [{ tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" }] });
+    expect(r2.join(" ")).toContain("titulo");
+    const r3 = motivos({ titulo: "x".repeat(81), calidad: "borrador", ambito: "personal", origen: "estudio", quien: "persona", escena: [{ op: "primitiva", tipo: "cubo", nombre: "cubo", tam: 1 }], salidas: [{ tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" }] });
+    expect(r3.join(" ")).toContain("titulo");
+    const r4 = motivos({ titulo: 12, calidad: "borrador", ambito: "personal", origen: "estudio", quien: "persona", escena: [{ op: "primitiva", tipo: "cubo", nombre: "cubo", tam: 1 }], salidas: [{ tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" }] });
+    expect(r4.join(" ")).toContain("titulo");
+    const conLimites = validarTrabajo({ v: 1, titulo: "Escena mínima", calidad: "borrador", ambito: "personal", origen: "estudio", quien: "persona", escena: [{ op: "primitiva", tipo: "cubo", nombre: "cubo", tam: 1 }], salidas: [{ tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" }], limites: { segundos: 300, memoriaMB: 2048 } });
+    expect(conLimites.ok).toBe(true);
+    expect(conLimites.trabajo.limites).toEqual({ segundos: 300, memoriaMB: 2048 });
+    const r5 = motivos({ v: 1, titulo: "Escena mínima", calidad: "borrador", ambito: "personal", origen: "estudio", quien: "persona", escena: [{ op: "primitiva", tipo: "cubo", nombre: "cubo", tam: 1 }], salidas: [{ tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" }], limites: { segundos: 2000 } });
+    expect(r5.join(" ")).toContain("limites");
+    const r6 = motivos({ v: 1, titulo: "Escena mínima", calidad: "borrador", ambito: "personal", origen: "estudio", quien: "persona", escena: [{ op: "primitiva", tipo: "cubo", nombre: "cubo", tam: 1 }], salidas: [{ tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" }], limites: { segundos: -1 } });
+    expect(r6.join(" ")).toContain("limites");
+  });
+it("rechaza NaN, Infinity, valores fuera de rango y enteros donde toca", () => {
+    expect(motivos({ ...base(), escena: [{ op: "primitiva", tipo: "cubo", nombre: "cubo", tam: Number.NaN }] }).join(" ")).toContain("número");
+    expect(motivos({ ...base(), escena: [{ op: "primitiva", tipo: "cubo", nombre: "cubo", tam: Number.POSITIVE_INFINITY }] }).join(" ")).toContain("número");
+    expect(motivos({ ...base(), escena: [{ op: "primitiva", tipo: "cubo", nombre: "cubo", tam: 0 }] }).join(" ")).toContain("número");
+    expect(motivos({ ...base(), escena: [CUBO, { op: "transformar", objeto: "c", ubicacion: [1, 2] }] }).join(" ")).toContain("vector de 3 números");
+    // Nota: current code valida 'ref' (objeto) antes que 'rgba' en material, por eso el orden cambia
+    expect(motivos({ ...base(), escena: [{ op: "material", objeto: "Cubo", color: [1, Number.NaN, 0.5, 1] }] }).join(" ")).toContain("referencia");
+    expect(motivos({ ...base(), escena: [{ op: "material", objeto: "Cubo", alfa: 2 }] }).join(" ").toContain("número"));
+    expect(motivos({ ...base(), salidas: [{ tipo: "render_png", ancho: 512.5, alto: 256, muestras: 8, motor: "workbench" }] }).join(" ")).toContain("entero");
   });
   it("rechaza campos desconocidos del trabajo y de una operación", () => {
     expect(motivos({ ...base(), extra: 1 }).join(" ")).toContain("campo desconocido en el trabajo: extra");
