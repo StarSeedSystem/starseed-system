@@ -46,6 +46,9 @@ def _vigente(p, existe):
 def es_de_alex(p: Dict) -> str:
     """El motivo si toca algo que solo decide Alex (publicar, pagar, cuentas, claves…); """ if no.""
     texto = _texto(p)
+    # Remove enumeration of access types such as "libre, registro, pago" or "libre, registro, pagar"
+    texto = re.sub(r'\b(?:libre|gratis|abierto|registro)(?:\s*,\s*(?:libre|gratis|abierto|registro))*\s*(?:pago|pagar)\b', '', texto, flags=re.IGNORECASE)
+    # Remove parentheses that contain the word "pago"
     texto = re.sub(r'\([^)]*pago[^)]*\)', '', texto, flags=re.IGNORECASE)
     for tema in RESERVADOS:
         if re.search(rf"\b{tema}\b", texto): return f"no accionable por el enjambre ({tema}): es de Alex → pregunta"
