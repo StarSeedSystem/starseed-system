@@ -180,6 +180,28 @@ class TestAlVolver(unittest.TestCase):
         self.assertNotIn("al_volver", informe)
 
 
+class TestOrdenSoltarEnControl(unittest.TestCase):
+    """Las unidades directas de `repartir_nube` (`ordenes_soltar` + `soltar_en_la_mac`), sin
+    atravesar `_al_volver`: la orden llega al `control-<cola>.json` que lee el orquestador."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="soltar-control-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.olas = sembrar_latidos(self.tmp, "cola-prueba.json", {"T1": {"fase": "escribiendo"}})
+
+    def test_orden_soltar_se_escribe_en_control(self):
+        import repartir_nube as RN  # noqa: WPS433 — la misma regla del reparto a la nube
+
+        ordenes = RN.ordenes_soltar(["T1"], [("cola-prueba.json", ["T1", "T2"])], "relevo")
+        hechos = RN.soltar_en_la_mac(ordenes, self.olas, cerrojos=os.path.join(self.tmp, "cerrojos"))
+        # Solo se escribe lo cedido: T2 sigue en la cola sin orden ninguna.
+        self.assertEqual(hechos, ["T1"])
+        with open(os.path.join(self.olas, "control-cola-prueba.json"), encoding="utf-8") as f:
+            control = json.load(f)
+        self.assertEqual(control["T1"]["accion"], "soltar")
+        self.assertEqual(control["T1"]["donde"], "relevo")
+
+
 class TestForzarYEnviarPuntos(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="volver-puntos-")
