@@ -4662,3 +4662,22 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-30 18:27 · mg-oracle-1030-1112
+
+**Lo que se pidió.** Aurora SIEMPRE habla
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (APM1017V, VZF1015N, RTRTRC1013Cb). Es 50 % de la ola.
+- 3 tareas se fueron por lo mismo — otra cosa (RTS1010-MGR2b, PUB1029C, INF1025J). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `APM1017V` — no escribió nada
+- `VZF1015N` — no escribió nada
+- `RTRTRC1013Cb` — no escribió nada
+- `RTS1010-MGR2b` — otra cosa: ningún proveedor respondió (todos caídos)
+- `PUB1029C` — otra cosa: ningún proveedor respondió (todos caídos)
+- `INF1025J` — otra cosa: ningún proveedor respondió (todos caídos)
