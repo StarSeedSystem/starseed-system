@@ -710,6 +710,8 @@ class NoSeCompilaConAstrauraEnUso(unittest.TestCase):
                 mock.patch.object(R, "conversando", return_value=False), \
                 mock.patch.object(R, "uso_de_astraura", return_value="uso"), \
                 mock.patch.object(R, "freno_de_maquina", return_value=None), \
+                mock.patch.object(R, "id_del_build", return_value="SERVIDO123"), \
+                mock.patch.object(R, "build_terminado", return_value=False), \
                 mock.patch.object(R, "_guardar"), \
                 mock.patch.object(R, "reconstruir") as rec:
             self.assertFalse(R.una_pasada())
@@ -735,6 +737,8 @@ class ElSilencioDeAstrauraNoBloqueaParaSiempre(unittest.TestCase):
                 mock.patch.object(R, "publicacion_va_a_compilar", return_value=False), \
                 mock.patch.object(R, "espacio_libre_gb", return_value=50.0), \
                 mock.patch.object(R, "freno_de_maquina", return_value=None), \
+                mock.patch.object(R, "id_del_build", return_value="SERVIDO123"), \
+                mock.patch.object(R, "build_terminado", return_value=False), \
                 mock.patch.object(R, "_guardar", side_effect=guardados.append), \
                 mock.patch.object(R, "reconstruir") as rec:
             hecho = R.una_pasada()
@@ -848,9 +852,121 @@ class FrenosDeMaquina(unittest.TestCase):
              mock.patch.object(R, "_leer_estado", return_value={}), \
              mock.patch.object(R, "cuantas_mas_nuevas", return_value=3), \
              mock.patch.object(R, "mtime_del_build", return_value=None), \
+             mock.patch.object(R, "id_del_build", return_value="SERVIDO123"), \
+             mock.patch.object(R, "build_terminado", return_value=False), \
              mock.patch.object(R, "freno_de_maquina", return_value="el enjambre está vivo"), \
              mock.patch.object(R, "_guardar") as guardar, \
              mock.patch.object(R, "reconstruir") as reconstruir:
             self.assertFalse(R.una_pasada(forzar=True))
         reconstruir.assert_not_called()
         self.assertEqual(guardar.call_args[0][0]["estado"], "esperando-maquina")
+
+
+class ElCaminoDelBuild(unittest.TestCase):
+    """(GEN1030B) Caído no espera: freno o muerte por memoria → el build va al A1."""
+
+    def test_sin_build_y_swap_alto_al_a1(self):
+        camino, motivo = R.decidir_camino(False, "hay 6.1 GB de swap en uso (tope 4.0)")
+        self.assertEqual(camino, "compilar-a1")
+        self.assertIn("está caído", motivo)
+        self.assertNotIn("al día", motivo)
+
+    def test_con_build_y_swap_alto_espera_como_hoy(self):
+        freno = "hay 6.1 GB de swap en uso (tope 4.0)"
+        self.assertEqual(R.decidir_camino(True, freno), ("espera", freno))
+
+    def test_sin_build_y_muerte_por_memoria_al_a1(self):
+        camino, motivo = R.decidir_camino(False, None, fallo_memoria=True)
+        self.assertEqual(camino, "compilar-a1")
+        self.assertIn("memoria", motivo)
+
+    def test_sin_freno_compila_en_la_mac(self):
+        self.assertEqual(R.decidir_camino(False, None)[0], "compilar-mac")
+
+
+class MuertePorMemoria(unittest.TestCase):
+    """La build de la Mac murió a los 814 s por el heap de Node: se sabe y no se repite."""
+
+    def test_oom_del_heap_se_reconoce(self):
+        self.assertTrue(R.fallo_por_memoria(
+            {"ok": False, "error": "FATAL ERROR: Reached heap limit - out of memory"}))
+
+    def test_error_de_codigo_no_es_memoria(self):
+        self.assertFalse(R.fallo_por_memoria({"ok": False, "error": "Type error: no existe"}))
+
+    def test_un_build_bueno_o_sin_estado_no_cuenta(self):
+        self.assertFalse(R.fallo_por_memoria({"ok": True, "error": "heap out of memory"}))
+        self.assertFalse(R.fallo_por_memoria("roto"))
+
+
+class CaidoSinBuild(unittest.TestCase):
+    """Una pasada con `.next` caído: A1 o Mac, y nunca esperar a Astraura."""
+
+    def _pasada(self, estado=None, freno=None, tras_mac=None):
+        guardados = []
+        with mock.patch.object(R, "_entradas", return_value=[]), \
+             mock.patch.object(R, "huella_de", return_value="bbb"), \
+             mock.patch.object(R, "_leer_estado", return_value=dict(estado or {})), \
+             mock.patch.object(R, "cuantas_mas_nuevas", return_value=3), \
+             mock.patch.object(R, "mtime_del_build", return_value=None), \
+             mock.patch.object(R, "id_del_build", return_value=None), \
+             mock.patch.object(R, "build_terminado", return_value=False), \
+             mock.patch.object(R, "freno_de_maquina", return_value=freno), \
+             mock.patch.object(R, "conversando", return_value=False), \
+             mock.patch.object(R, "uso_de_astraura", return_value="libre") as uso, \
+             mock.patch.object(R, "espacio_libre_gb", return_value=50.0), \
+             mock.patch.object(R, "publicacion_va_a_compilar", return_value=False), \
+             mock.patch.object(R, "_guardar", side_effect=guardados.append), \
+             mock.patch.object(R, "reconstruir", return_value=tras_mac) as mac, \
+             mock.patch.object(R, "compilar_a1", return_value=True) as a1:
+            hecho = R.una_pasada()
+        return hecho, mac, a1, uso, guardados
+
+    def test_freno_alto_y_sin_build_al_a1(self):
+        hecho, mac, a1, uso, guardados = self._pasada(freno="hay 6.1 GB de swap en uso")
+        self.assertTrue(hecho)
+        a1.assert_called_once()
+        mac.assert_not_called()
+        uso.assert_not_called()
+        self.assertEqual(guardados[-1]["estado"], "caido-sin-build")
+        self.assertEqual(guardados[-1]["freno"], "hay 6.1 GB de swap en uso")
+
+    def test_sin_freno_compila_en_la_mac(self):
+        hecho, mac, a1, uso, _ = self._pasada()
+        self.assertTrue(hecho)
+        mac.assert_called_once()
+        a1.assert_not_called()
+
+    def test_la_mac_murio_por_memoria_va_al_a1_en_la_misma_pasada(self):
+        muerte = {"ok": False, "error": "FATAL ERROR: Reached heap limit - out of memory"}
+        hecho, mac, a1, _, _ = self._pasada(tras_mac=muerte)
+        self.assertTrue(hecho)
+        mac.assert_called_once()
+        a1.assert_called_once()
+
+    def test_un_fallo_de_memoria_anterior_tambien_va_al_a1(self):
+        estado = {"ok": False, "huella_intentada": "bbb", "t": R.time.time(), "error": "FATAL ERROR: Reached heap limit"}
+        hecho, mac, a1, _, guardados = self._pasada(estado=estado)
+        self.assertTrue(hecho)
+        a1.assert_called_once()
+        mac.assert_not_called()
+        self.assertEqual(guardados[-1]["estado"], "caido-sin-build")
+
+
+class LigeroComoVercel(unittest.TestCase):
+    def test_la_build_de_la_mac_va_ligera(self):
+        with mock.patch.object(R, "_leer_estado", return_value={}), \
+             mock.patch.object(R, "_guardar"), \
+             mock.patch.object(R, "preparar_dist_de_build"), \
+             mock.patch.object(R, "liberar_lo_propio", return_value=[]), \
+             mock.patch.object(R, "compilar_vigilando_disco", return_value=(0, "hecho", False)) as cv, \
+             mock.patch.object(R, "marcar_listo"), \
+             mock.patch.object(R, "reiniciar_mando"):
+            R.reconstruir("bbb")
+        env = cv.call_args[1]["env"]
+        self.assertEqual(env.get("STARSEED_BUILD_LIGERO"), "1")
+        self.assertEqual(env.get("STARSEED_DIST"), R.DIST_BUILD)
+
+    def test_el_a1_tambien_compila_ligero(self):
+        import compilar_en_a1 as C
+        self.assertIn("STARSEED_BUILD_LIGERO=1", C.orden_compilar(raiz="/n", dist=".next-build", heap=4096))
