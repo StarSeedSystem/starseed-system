@@ -29,6 +29,8 @@ import {
   _reiniciarEscriturasMemoria,
   contenidoSinCambios,
   escribirAgrupado,
+  exportMemoryFileSecure,
+  scanMemoryFile,
   updateMemoryContent,
   vaciarEscriturasAgrupadas,
 } from "../memory-files";
@@ -85,5 +87,33 @@ describe("escribirAgrupado", () => {
     vaciarEscriturasAgrupadas();
     expect(escribir).toHaveBeenCalledTimes(2);
     expect(escribir).toHaveBeenLastCalledWith("xy");
+  });
+});
+
+/* Rescate RTART1025Ld (rama nube/40908516823), adaptado a la API de hoy: el
+ * escaneo de memorias usa los patrones generales del escáner de seguridad
+ * (no hay un tipo `sesion_epic` propio), pero el contrato es el mismo: nada
+ * con forma de credencial sale sin hallazgo ni sin redacción. */
+const VALOR = ["Abc123de", "f9Xy8Zq7", "0203"].join("");
+
+describe("scanMemoryFile y exportMemoryFileSecure · nada con forma de sesión sale limpio", () => {
+  it("una memoria limpia no añade hallazgos", () => {
+    expect(scanMemoryFile({ name: "notas.md", content: "hoy planificamos el lanzador", server_config: {} })).toEqual([]);
+  });
+
+  it("un token en la config del servidor: hallazgo de credencial sin repetir el valor", () => {
+    const hallazgos = scanMemoryFile({ name: "memoria.md", content: "hola", server_config: { token: ["eg1", "~", "TkAb12-9_kk"].join("") } });
+    expect(hallazgos.some((h) => h.type === "credencial_por_campo")).toBe(true);
+    expect(hallazgos.some((h) => h.path === "server_config.token")).toBe(true);
+    expect(JSON.stringify(hallazgos)).not.toContain("TkAb12");
+  });
+
+  it("una credencial en el contenido se detecta al compartir SIN redactar, con aviso", () => {
+    const contenido = ["token: ", VALOR].join("");
+    const r = exportMemoryFileSecure({ name: "memoria.md", content: contenido, server_config: {} }, { allowCritical: true });
+    expect(r.findings.some((f) => f.type === "asignacion_credencial")).toBe(true);
+    expect(r.content).toBe(contenido);
+    expect(r.redactedCount).toBe(0);
+    expect(r.aviso).toBeDefined();
   });
 });

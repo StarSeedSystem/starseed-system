@@ -42,6 +42,11 @@ describe("planificarJuegoPc · rutas A, B y C (§5.1)", () => {
     expect(CONDICIONES_EPIC_DECIDIDAS).toBe(false);
     expect(plan(NEURONA_SERVIDOR, [SERVIDOR_COMPARTIDO]).ruta).toBe("ninguna");
   });
+  // Rescate RTART1025Ld: sin capa de compatibilidad Y sin transmisión, un
+  // servidor propio con GPU no vale para la ruta B (ni para ninguna otra).
+  it("servidor propio con GPU, sin Wine ni Proton y sin transmisión: ninguna", () => {
+    expect(plan(NEURONA_SERVIDOR, [{ ...SERVIDOR_PROPIO, wineOProton: false, transmision: null }]).ruta).toBe("ninguna");
+  });
 });
 
 describe("rutaConfigEpic · carpeta de Legendary por persona (§5.3)", () => {
@@ -96,6 +101,7 @@ describe("esUrlPermitidaRare · solo releases oficiales, descargas remotas bloqu
     for (const u of [
       "https://raredevs.github.io/wring/workarounds.json", "https://www.protondb.com/app/1",
       "http://github.com/RareDevs/Rare/releases/tag/1", "https://github.com/RareDevs/Otro/releases/1",
+      "https://protondb.com/", "https://example.com/RareDevs/Rare.zip", "sin url",
     ]) expect(esUrlPermitidaRare(u), u).toBe(false);
   });
 });
