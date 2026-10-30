@@ -1,11 +1,16 @@
 // Ruta de la API de las cápsulas de memoria Memvid (MVD1027D): comprueba el actor de la
 // sesión y su alcance ANTES de tocar nada, y solo entonces llama al cliente de
-// `memvid-cliente.ts` (contrato: architecture/memvid-capsulas.md §4).
+// `memvid-cliente.ts` (contrato: architecture/memvid-capsulas.md §4). Al escribir, además
+// pone el mismo texto en el índice LEANN del sujeto (LNN1028D2):
+// architecture/leann-recuerdo-semantico.md §4.
 import { NextRequest, NextResponse } from "next/server";
-import { sujetoDeParametro, estado, poner, buscar } from "@/lib/memorias/memvid-cliente";
-import { alcanceDe, capsulaDe } from "@/lib/memorias/capsulas";
 import {
-  alcanceVisiblePara, puedeEscribirEn, type ActorMemoria,
+  sujetoDeParametro, estado, poner, buscar, type ResultadoPoner,
+} from "@/lib/memorias/memvid-cliente";
+import { nombreIndiceDe, ponerLeann } from "@/lib/memorias/leann-cliente";
+import { alcanceDe, capsulaDe, type SujetoMemoria } from "@/lib/memorias/capsulas";
+import {
+  alcanceVisiblePara, puedeEscribirEn, type ActorMemoria, type AlcanceMemoria,
 } from "@/lib/nucleo/alcance-memoria";
 
 const K_DEFECTO = 5;
@@ -13,6 +18,24 @@ const K_MAXIMO = 20;
 
 function error(msg: string, status: number): NextResponse {
   return NextResponse.json({ ok: false, error: msg }, { status });
+}
+
+/** Escritura doble (LNN1028D2): el mismo texto ya guardado en Memvid va también al índice
+ * LEANN del sujeto y alcance. Sin servidor LEANN nada se rompe: la respuesta lo apunta
+ * como «pendiente» para la pasada nocturna del contrato §4. */
+async function ponerEnLeann(
+  sujeto: SujetoMemoria, alcance: AlcanceMemoria, texto: string, escrito: ResultadoPoner,
+): Promise<"listo" | "pendiente"> {
+  const indice = nombreIndiceDe(sujeto);
+  if (!indice) return "pendiente";
+  const puesto = await ponerLeann(indice, [{
+    texto,
+    metadatos: {
+      alcance, sujeto: `${sujeto.tipo}:${sujeto.id}`,
+      uri: `mv2://${escrito.nombre}#${escrito.frame}`, ts: Date.now(),
+    },
+  }]);
+  return puesto ? "listo" : "pendiente";
 }
 
 /** Actor de la sesión: el usuario dueño ve y escribe en toda su memoria; null sin sesión. */
@@ -65,7 +88,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return error("Falta el texto", 400);
     const escrito = await poner(sujeto, cuerpo.texto);
     if (!escrito) return error("Servidor de cápsulas no disponible", 503);
-    return NextResponse.json({ ok: true, ...escrito });
+    const leann = await ponerEnLeann(sujeto, alcance, cuerpo.texto, escrito);
+    return NextResponse.json({ ok: true, ...escrito, leann });
   }
   if (cuerpo.accion === "buscar") {
     if (!visible) return error("Esta cápsula no es visible para tu sesión", 403);
