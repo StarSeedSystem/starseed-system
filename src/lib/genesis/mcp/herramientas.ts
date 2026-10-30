@@ -4,7 +4,7 @@
  * Herramientas MCP inyectadas para Genesis abierto (architecture/genesis-conectores-abiertos.md §7):
  * `estado`, `tareas_listar`, `tareas_crear`, `agentes_listar`, `medidores`,
  * `proponer` (operaciones de src/lib/genesis/operaciones.ts), `biblioteca_buscar`,
- * `opciones_sugerir` y `chat`.
+ * `opciones_sugerir`, `chat` y `variaciones_buscar` (architecture/variaciones-publicas.md §7).
  *
  * Cada herramienta declara el permiso que necesita. Son módulos PUROS: sin
  * React, sin red, sin `node:*`. No lanzan procesos, no tocan disco.
@@ -13,6 +13,32 @@
  * Contrato: architecture/genesis-conectores-abiertos.md §7, §3.
  * SOP: architecture/genesis-personas-poligenesis.md
  */
+import {
+  NOMBRE_HERRAMIENTA_VARIACIONES,
+  ORDENES_VARIACIONES,
+  ESQUEMA_VARIACIONES_BUSCAR,
+  leerArgumentosVariaciones,
+  resumenVariacion,
+  formatearListado,
+  ejecutarVariacionesBuscar,
+  variaciones_buscar,
+  crearHerramientaVariaciones,
+  type ContextoVariaciones,
+} from "@/lib/genesis/mcp/herramienta-variaciones";
+
+/* La herramienta de variaciones y sus piezas se exponen desde el registro MCP para
+ * que Claude, otros servicios y los artefactos con capacidad `mcp` las alcancen. */
+export {
+  NOMBRE_HERRAMIENTA_VARIACIONES,
+  ORDENES_VARIACIONES,
+  ESQUEMA_VARIACIONES_BUSCAR,
+  leerArgumentosVariaciones,
+  resumenVariacion,
+  formatearListado,
+  ejecutarVariacionesBuscar,
+  variaciones_buscar,
+  crearHerramientaVariaciones,
+};
 
 /* ── Tipos de permiso ─────────────────────────────────────────────────────── */
 
@@ -25,7 +51,8 @@ export type PermisoMcp =
   | "operaciones:proponer"
   | "biblioteca:buscar"
   | "opciones:sugerir"
-  | "chat:enviar";
+  | "chat:enviar"
+  | "variaciones:buscar";
 
 export interface FichaHerramientaMcp {
   nombre: string;
@@ -56,7 +83,7 @@ export const estado: FichaHerramientaMcp = {
     contenido: [
       { tipo: "texto", texto: "Sistema operativo: StarSeed OS" },
       { tipo: "texto", texto: "Versión: 1019G · Ola Genesis abierta" },
-      { tipo: "texto", texto: "MCP activo: 9 herramientas disponibles" },
+      { tipo: "texto", texto: "MCP activo: 10 herramientas disponibles" },
     ],
   }),
 };
@@ -368,6 +395,23 @@ export const chat: FichaHerramientaMcp = {
   },
 };
 
+/**
+ * `variaciones_buscar` en el registro de Genesis: la capa de datos llega inyectada
+ * por el contexto del servidor MCP; sin ella, la ficha avisa en vez de tocar la red.
+ */
+const variacionesBuscarMcp: FichaHerramientaMcp = {
+  nombre: NOMBRE_HERRAMIENTA_VARIACIONES,
+  descripcion: `${variaciones_buscar.descripcion} · orden: ${ORDENES_VARIACIONES.join(", ")}`,
+  permiso: "variaciones:buscar",
+  esquema: ESQUEMA_VARIACIONES_BUSCAR,
+  ejecutar: async (args, ctx) => {
+    const listar = (ctx as ContextoVariaciones | undefined)?.listarVariaciones;
+    return typeof listar === "function"
+      ? ejecutarVariacionesBuscar(listar, args)
+      : variaciones_buscar.ejecutar(args, ctx);
+  },
+};
+
 /* ── Exportación agrupada ─────────────────────────────────────────────────── */
 
 export const HERRAMIENTAS_MCP: readonly FichaHerramientaMcp[] = [
@@ -380,6 +424,7 @@ export const HERRAMIENTAS_MCP: readonly FichaHerramientaMcp[] = [
   biblioteca_buscar,
   opciones_sugerir,
   chat,
+  variacionesBuscarMcp,
 ];
 
 // // No export to avoid conflicts
