@@ -19,7 +19,7 @@ import { asignar, claveAlcance, claveElemento, confirmarTamano, declararAlmacen,
 import { catalogoRecursos } from "@/lib/recursos-ia/catalogo";
 import { sugerirPlan, topologiaSugerida } from "@/lib/recursos-ia/sugerencias";
 import { CAPACIDADES, NOMBRE_TOPOLOGIA, type Alcance, type ConfigTopologia, type MedioAlmacen } from "@/lib/recursos-ia/tipos";
-import { useRecursosIa } from "@/lib/recursos-ia/use-recursos-ia";
+import { useRecursosIa, useServidorPropioModelo } from "@/lib/recursos-ia/use-recursos-ia";
 import { ConstelacionRecursos } from "./constelacion-recursos";
 import { ALCANCE_PROPIO, FOCO, fmtGb, seguro, todosLosAlmacenes, todosLosProcesadores, useInventarioRecursos } from "./piezas";
 import { SeccionCapacidades, SeccionPreguntas, type ConfirmacionDescarga } from "./seccion-capacidades";
@@ -90,6 +90,8 @@ export function PanelRecursosIa({ alcance: alcanceInicial }: { alcance?: Alcance
     const [alcance, setAlcance] = useState<Alcance>(alcanceInicial ?? ALCANCE_PROPIO);
     const { inv, detectando, error, detectar } = useInventarioRecursos(estado.almacenesDeclarados);
     const catalogo = useMemo(() => seguro(() => catalogoRecursos(), []), []);
+    // RIA1023D: con «servidor-propio», Astraura ve el servidor de IA como modelo propio local.
+    useServidorPropioModelo(estado, inv);
 
     const clave = claveAlcance(alcance);
     const guardada = estado.topologias[clave];

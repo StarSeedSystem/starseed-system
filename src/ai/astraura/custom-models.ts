@@ -17,6 +17,9 @@ import { safeGet, safeSet } from "@/lib/safe-storage";
 export const CUSTOM_MODELS_KEY = "starseed.astraura.custom-models.v1";
 export const CUSTOM_MODELS_EVENT = "starseed:astraura-custom-models";
 
+/** Marca del modelo propio que representa al servidor de IA de la topología «servidor-propio». */
+export const NOTES_SERVIDOR_PROPIO = "recursos-ia:servidor-propio";
+
 export type CustomModelAccess = "local" | "api" | "mcp";
 export type CustomModelKind = "llm" | "voice";
 
@@ -118,6 +121,47 @@ export function updateCustomModel(id: string, patch: Partial<Omit<CustomModel, "
 
 export function removeCustomModel(id: string): void {
   write(read().filter((m) => m.id !== id));
+}
+
+/** Todos los modelos marcados como servidor propio (normalmente uno). */
+function servidoresPropios(): CustomModel[] {
+  return read().filter((m) => m.notes === NOTES_SERVIDOR_PROPIO);
+}
+
+/**
+ * Registra o actualiza el modelo propio que representa al servidor de IA de la topología
+ * «servidor-propio» (RIA1023D). Idempotente: si ya existe el marcado, solo cambia lo que
+ * difiere para no reescribir ni duplicar. Sin endpoint no registra nada.
+ */
+export function registrarServidorPropioModelo(entrada: { nombre: string; endpoint: string }): CustomModel | null {
+  const endpoint = entrada.endpoint.trim();
+  if (!endpoint) return null;
+  const nombre = entrada.nombre.trim() || "Servidor propio de IA";
+  const marcados = servidoresPropios();
+  const primero = marcados[0];
+  for (const sobrante of marcados.slice(1)) removeCustomModel(sobrante.id);
+  if (!primero) {
+    return addCustomModel({
+      name: nombre,
+      kind: "llm",
+      access: "local",
+      endpoint,
+      notes: NOTES_SERVIDOR_PROPIO,
+    });
+  }
+  const patch: Partial<Omit<CustomModel, "id" | "at">> = {};
+  if (primero.name !== nombre) patch.name = nombre;
+  if (primero.kind !== "llm") patch.kind = "llm";
+  if (primero.access !== "local") patch.access = "local";
+  if (primero.endpoint !== endpoint) patch.endpoint = endpoint;
+  if (primero.notes !== NOTES_SERVIDOR_PROPIO) patch.notes = NOTES_SERVIDOR_PROPIO;
+  if (Object.keys(patch).length) updateCustomModel(primero.id, patch);
+  return { ...primero, ...patch };
+}
+
+/** Quita SOLO el modelo marcado como servidor propio; los modelos del usuario no se tocan. */
+export function quitarServidorPropioModelo(): void {
+  for (const m of servidoresPropios()) removeCustomModel(m.id);
 }
 
 export function subscribeCustomModels(cb: () => void): () => void {
