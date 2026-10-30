@@ -24,7 +24,7 @@
 
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
-import { nivelPara, siguienteNivel, NIVELES, type NivelVoz } from "./niveles";
+import { estudioSegunUso, nivelPara, siguienteNivel, NIVELES, type NivelVoz, type UsoVoz } from "./niveles";
 import {
     soporteSupertonic,
     nivelParaVoz,
@@ -47,6 +47,12 @@ export {
     type OpcionesNivelVoz,
 };
 import { perfilNeuronal } from "@/lib/voces/perfil-neuronal";
+// (Ola 1018F · VST1018F) Licencia por contexto (licencia-voz) y medidas de latencia
+// (medidas-voz): la primera frase sale del motor PERMITIDO más rápido medido que
+// disponga de la voz de esa persona. Solo tipos y funciones puras: nada de red.
+import { motoresPermitidos, type ContextoLicenciaVoz, type MotorInfo } from "./licencia-voz";
+import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
+import type { MedidaVoz } from "@/lib/aurora/medidas-voz";
 // (2026-09-06, Ola 264 · G2) Emoción e intensidad: etiquetas `[emocion]` del
 // texto, capa `aplicarEmocion` sobre el perfil neuronal y catálogo `EmocionVoz`.
 import {
@@ -277,6 +283,118 @@ export function parametrosPorNivel(
         return { via: "kokoro", voice: timbre.local.voz, speed: timbre.local.speed };
     }
     return { via: "sistema", pitch: timbre.sistema.pitch, rate: timbre.sistema.rate };
+}
+
+// ── (Ola 1018F · VST1018F) PRIMERA FRASE INSTANTÁNEA (contrato §4) ───────────
+// Sale del motor PERMITIDO con menor latencia MEDIDA que tenga la voz de esa
+// persona; «estudio» solo para lectura, doblaje y audiolibros; un mensaje no
+// se parte entre dos motores. Pura: candidatos, medidas y reloj inyectables.
+
+export interface CandidatoPrimeraFrase extends MotorInfo {
+    /** El motor dispone (o puede servir) de la voz de esta persona. */
+    conVoz: boolean;
+    /** Motor de estudio: fuera de lectura, doblaje y audiolibros no compite. */
+    esEstudio?: boolean;
+}
+
+export interface OpcionesEleccionPrimeraFrase {
+    candidatos: CandidatoPrimeraFrase[];
+    /** Sitio donde suena: personal, grupo, comunidad, público o comercial. */
+    contexto: ContextoLicenciaVoz;
+    /** Capas de conciencia (sistema › comunidad › grupo › persona › neurona). */
+    capas: CapasPrefs;
+    /** Medidas de latencia anotadas por `anotarMedida` (medidas-voz). */
+    medidas: readonly MedidaVoz[];
+    /** Uso del turno; sin él manda la regla de «conversacion». */
+    uso?: UsoVoz;
+    /** Solo cuentan las medidas de esta neurona; ausente, todas las que lleguen. */
+    neurona?: string;
+    /** Reloj inyectable (ms); por omisión, el de pared. */
+    ahora?: number;
+}
+
+export interface ResultadoPrimeraFrase {
+    /** Id del motor elegido. */
+    id: string;
+    /** Mediana de «primer-sonido» en ms; `0` si no hay medidas del motor. */
+    latenciaMs: number;
+    /** true si la latencia salió de medidas de verdad, no de llegar sin datos. */
+    medido: boolean;
+}
+
+/** Una medida más vieja que esto ya no describe al motor de hoy. */
+export const VIGENCIA_LATENCIA_MS = 7 * 24 * 60 * 60 * 1000;
+/** Las más recientes que cuentan en la mediana de cada motor. */
+export const MEDIDAS_POR_MOTOR = 20;
+
+/** Mediana de los valores (par de números, media de los dos centrales). */
+function mediana(valores: number[]): number {
+    const orden = [...valores].sort((a, b) => a - b);
+    const m = Math.floor(orden.length / 2);
+    return orden.length % 2 ? orden[m] : (orden[m - 1] + orden[m]) / 2;
+}
+
+/** latenciasMedidas: mediana de «primer-sonido» reciente por motor (pura). */
+export function latenciasMedidas(
+    medidas: readonly MedidaVoz[],
+    opciones?: { neurona?: string; ahora?: number },
+): Record<string, number> {
+    try {
+        const ahora = opciones?.ahora ?? Date.now();
+        const grupos = new Map<string, Array<{ ts: number; valor: number }>>();
+        for (const m of Array.isArray(medidas) ? medidas : []) {
+            if (!m || m.tipo !== "primer-sonido") continue;
+            if (!(m.valor > 0) || !Number.isFinite(m.timestamp)) continue;
+            if (opciones?.neurona !== undefined && m.neurona !== opciones.neurona) continue;
+            if (m.timestamp > ahora || ahora - m.timestamp > VIGENCIA_LATENCIA_MS) continue;
+            const motor = m.motor.trim();
+            if (!motor) continue;
+            grupos.set(motor, [...(grupos.get(motor) ?? []), { ts: m.timestamp, valor: m.valor }]);
+        }
+        const salida: Record<string, number> = {};
+        for (const [motor, lista] of grupos) {
+            const recientes = [...lista].sort((a, b) => a.ts - b.ts).slice(-MEDIDAS_POR_MOTOR);
+            salida[motor] = mediana(recientes.map((x) => x.valor));
+        }
+        return salida;
+    } catch {
+        return {};
+    }
+}
+
+/** El mensaje completo sale del MISMO motor: no se parte entre dos. Pura. */
+export function motorDeMensaje(elegido: string | null, motorEnCurso: string | null): string | null {
+    return motorEnCurso ?? elegido;
+}
+
+/**
+ * elegirMotorPrimeraFrase: permitido por licencia, con la voz de la persona y
+ * — salvo lectura/doblaje/audiolibros — sin motores de estudio; gana la menor
+ * latencia medida (lo medido va delante de lo no medido; a igualdad, el orden
+ * del catálogo). `null` si no hay a nadie. Pura.
+ */
+export function elegirMotorPrimeraFrase(o: OpcionesEleccionPrimeraFrase): ResultadoPrimeraFrase | null {
+    const estudioPermitido = estudioSegunUso(o.uso ?? "conversacion");
+    const { permitidos } = motoresPermitidos(o.candidatos, o.contexto, o.capas);
+    const conVoz = permitidos.filter(
+        (m) => (m as CandidatoPrimeraFrase).conVoz === true &&
+            (estudioPermitido || !(m as CandidatoPrimeraFrase).esEstudio),
+    );
+    if (!conVoz.length) return null;
+    const latencias = latenciasMedidas(o.medidas, { neurona: o.neurona, ahora: o.ahora });
+    let mejor: ResultadoPrimeraFrase | null = null;
+    for (const c of conVoz) {
+        const lat = latencias[c.id];
+        const cand: ResultadoPrimeraFrase = lat !== undefined && lat > 0
+            ? { id: c.id, latenciaMs: lat, medido: true }
+            : { id: c.id, latenciaMs: 0, medido: false };
+        const gana =
+            !mejor ||
+            (cand.medido && !mejor.medido) ||
+            (cand.medido === mejor.medido && cand.medido && cand.latenciaMs < mejor.latenciaMs);
+        if (gana) mejor = cand;
+    }
+    return mejor;
 }
 
 export interface OpcionesHablar {
