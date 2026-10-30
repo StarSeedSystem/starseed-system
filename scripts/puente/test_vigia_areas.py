@@ -48,8 +48,35 @@ class AreasDelVigia(unittest.TestCase):
         motores = next(a for a in areas if a["id"] == "motores")
         self.assertEqual(set(motores["repos_github"]), MOTORES)
         self.assertEqual(motores["alias_github"]["comfyanonymous/ComfyUI"], "Comfy-Org/ComfyUI")
+        habilidades = next(a for a in areas if a["id"] == "habilidades")
+        self.assertIn("cathrynlavery/diagram-design", habilidades["repos_github"])
+        self.assertEqual(habilidades["alias_github"]["cathrynlavery/diagram-design"], "cathrynlavery/diagram-design")
         self.assertTrue({"Qwen", "Tongyi-MAI"} <= set(areas[0]["autores"]) and "text-to-image" in areas[0]["pipeline_tags"])
         self.assertTrue({"unsloth", "city96", "QuantStack"} <= set(areas[0]["cuantizadores"]))
+
+    def test_manifiesto_de_diagram_design(self):
+        """La señal de versión es el manifiesto del plugin y la copia vive en vendor/habilidades/."""
+        with open(V.RUTA_AREAS, encoding="utf-8") as f:
+            datos = json.load(f)
+        areas = V.cargar_areas()
+        repos = {r for a in areas for r in a["repos_github"]}
+        for repo in datos["manifiestos_github"]:  # un manifiesto, un repo que alguna área vigila
+            self.assertIn(repo, repos)
+        meta = datos["manifiestos_github"]["cathrynlavery/diagram-design"]
+        self.assertEqual(meta["manifiesto"], ".claude-plugin/plugin.json")
+        self.assertEqual(meta["campo_version"], "version")
+        self.assertEqual(meta["destino"], "vendor/habilidades/diagram-design")
+        self.assertEqual(meta["licencia"], "MIT")
+        self.assertNotIn("\\", meta["manifiesto"])  # relativa y con separador de URL
+        self.assertFalse(meta["destino"].startswith(("/", "~")))
+        destino = os.path.join(V.RAIZ_REPO, meta["destino"])
+        self.assertTrue(os.path.isfile(os.path.join(destino, "SKILL.md")))
+        with open(os.path.join(destino, "LICENSE"), encoding="utf-8") as f:
+            licencia = f.read()
+        self.assertIn("MIT License", licencia)
+        self.assertIn(meta["autor"], licencia)
+        habilidades = next(a for a in datos["areas"] if a["id"] == "habilidades")
+        self.assertIn("cathrynlavery/diagram-design", habilidades["nota"])
 
     def test_resuelve_herencias(self):
         imagen, motores = V.validar_areas(con(lambda d: d["areas"][0].pop("cuantizadores")))
