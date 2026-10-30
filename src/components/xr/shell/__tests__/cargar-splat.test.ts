@@ -56,6 +56,7 @@ describe("urlSplatSegura", () => {
         expect(urlSplatSegura("https://ana:secreto@cdn.ejemplo.org/bosque.spz")).toBe(false);
         expect(urlSplatSegura("/mundos/bosque.spz")).toBe(false);
         expect(urlSplatSegura("")).toBe(false);
+        expect(urlSplatSegura("no es una url")).toBe(false);
     });
 });
 
@@ -76,6 +77,28 @@ describe("cargarSplat", () => {
         });
         expect(resultado).toEqual({ ok: false, motivo: MOTIVO_SPLAT_GRANDE });
         expect(MAX_BYTES_SPLAT).toBe(60 * 1024 * 1024);
+    });
+
+    it("sin fijar otro tope, el de por defecto también corta en 60 MB", async () => {
+        const resultado = await cargarSplat(URL, {
+            SplatMesh: MallaFalsa,
+            pedirBytes: async () => new ArrayBuffer(MAX_BYTES_SPLAT + 1),
+        });
+        expect(resultado).toEqual({ ok: false, motivo: MOTIVO_SPLAT_GRANDE });
+        expect(MOTIVO_SPLAT_GRANDE).toContain("60 MB");
+    });
+
+    it("si el servidor anuncia un Content-Length enorme, no se descarga", async () => {
+        const fetchOriginal = globalThis.fetch;
+        globalThis.fetch = async () =>
+            new Response(null, { headers: { "Content-Length": String(MAX_BYTES_SPLAT + 1) } });
+        try {
+            const resultado = await cargarSplat(URL, { SplatMesh: MallaFalsa });
+            expect(resultado.ok).toBe(false);
+            if (!resultado.ok) expect(resultado.motivo).toContain("60 MB");
+        } finally {
+            globalThis.fetch = fetchOriginal;
+        }
     });
 
     it("si el descargador lanza, devuelve motivo en vez de propagar la excepción", async () => {
