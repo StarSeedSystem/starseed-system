@@ -72,7 +72,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 22;
+export const SEED_VERSION = 23;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -357,6 +357,25 @@ const IDS_SIEMBRA_1020C: string[] = [
 ];
 
 /**
+ * (SEED_VERSION 23 · Ola 1020U) LA 4.ª TANDA, SOLO SUS «SIEMPRE» QUE CREA EL CARGADOR.
+ * De las 10 fichas de config/repos-libreria-1020d.json, el cargador (repos-externos-1020.ts)
+ * descarta Coolify, OpenHands y Stirling-PDF porque ya existen como iatool-coolify,
+ * iatool-openhands e iatool-stirling-pdf (se quedan como están). De las 7 que crea, se
+ * siembran las 5 con `preinstalar: "siempre"`: instalar cada una SOLO registra su ficha,
+ * su enlace o deja listo su conector (el servidor lo levanta Alex y el endpoint se pega a
+ * mano en el Hub). Cero descarga, cero ejecución de código, cero ruta abierta y cero clave
+ * durante la siembra. Las «manual» gallery-dl y OpenRig NO entran: usan credenciales y
+ * cookies o tocan la configuración de Claude/Codex, y las decide la persona.
+ */
+const IDS_SIEMBRA_1020D: string[] = [
+  "lib-comfyui",
+  "lib-harness2",
+  "lib-libretranslate",
+  "lib-archivebox",
+  "lib-localsend",
+];
+
+/**
  * (SEED_VERSION 17 · Ola 1025R) LA TANDA DEL 2026-10-25: «absolutamente todas las repos y habilidades deben ser
  * integradas en la librería preinstaladas y autoactualizadas» (Alex). Los ids salen de
  * `config/repos-libreria-1025.json` (módulo puro `repos-1025.ts`): las 26 fichas nuevas con
@@ -389,9 +408,15 @@ const IDS_SIEMBRA_1020C: string[] = [
  * que ya lee config/repos-libreria-1020c.json) mantiene 13 fichas —lib-penpot no se duplica sobre
  * iatool-penpot— y aquí siembran las 8 con `preinstalar: "siempre"` cuyo efecto es solo ficha/enlace
  * o conector con servidor puesto por Alex (ver IDS_SIEMBRA_1020C, más abajo).
+ *
+ * (SEED_VERSION 23 · Ola 1020U) LA 4.ª TANDA, SOLO SUS «SIEMPRE» QUE CREA EL CARGADOR: el
+ * cargador ya lee config/repos-libreria-1020d.json y no duplica Coolify, OpenHands ni
+ * Stirling-PDF (iatool-*). Aquí siembran las 5 «siempre» restantes cuyo efecto es solo
+ * ficha/enlace o conector (ver IDS_SIEMBRA_1020D, más abajo); gallery-dl y OpenRig son
+ * «manual» y no se siembran.
  */
 export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
-  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...IDS_SIEMBRA_1020C]),
+  new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...IDS_SIEMBRA_1020C, ...IDS_SIEMBRA_1020D]),
 );
 
 /**

@@ -39,8 +39,9 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 }
 
 describe("defaults-seed · 3.ª tanda (Ola 1020T, solo sus «siempre» sembrables)", () => {
-  it("sube la versión a 22 (una más que la 21 de LNN1028)", () => {
-    expect(SEED_VERSION).toBe(22);
+  it("mantiene la versión en 23, sin bajar de la 22 que trajo la 3.ª tanda", () => {
+    expect(SEED_VERSION).toBe(23);
+    expect(SEED_VERSION).toBeGreaterThanOrEqual(22);
   });
 
   it("sembradas una sola vez: la primera version da las 8 y la repetición no da nada", () => {
