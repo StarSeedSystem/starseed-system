@@ -297,4 +297,36 @@ describe('crearSalas', () => {
       expect(salas.presencia(t2)).toBe(1);
     });
   });
+
+  it('acepta un tema de exactamente 8 caracteres tras el prefijo', () => {
+    const salas = crearSalas();
+    const tema = 'estacion-vivo:ABCDEFGH';
+    const conexion = {};
+    const res = salas.entrar(tema, conexion);
+    expect(res.ok).toBe(true);
+    expect(salas.presencia(tema)).toBe(1);
+  });
+
+  it('rechaza un tema con espacios en el identificador', () => {
+    const salas = crearSalas();
+    const tema = 'estacion-vivo:ABC DEF';
+    const conexion = {};
+    const res = salas.entrar(tema, conexion);
+    expect(res.ok).toBe(false);
+    expect(res.motivo).toBe('Tema inválido');
+  });
+
+  it('al salir de la única sala se libera un hueco para otra sala', () => {
+    const salas = crearSalas({ maxSalas: 1, maxPorSala: 2 });
+    const conexion1 = {};
+    const conexion2 = {};
+    const tema1 = 'estacion-vivo:SalaUno12';
+    const tema2 = 'estacion-vivo:SalaDos12';
+    expect(salas.entrar(tema1, conexion1).ok).toBe(true);
+    expect(salas.entrar(tema2, conexion2).ok).toBe(false);
+    salas.salir(conexion1);
+    expect(salas.entrar(tema2, conexion2).ok).toBe(true);
+    expect(salas.presencia(tema1)).toBe(0);
+    expect(salas.presencia(tema2)).toBe(1);
+  });
 });
