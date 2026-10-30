@@ -15,6 +15,7 @@ import type {
   Autor,
   Ambito,
   Computo,
+  CandidatoParametro,
 } from "./tipos";
 import { elegirComputo, Candidato } from "./planificador-computo";
 import { decidir, decidirOperacion } from "./permisos";
@@ -45,7 +46,7 @@ export interface Controlador {
   obtener(): EstadoControl;
   suscribir(f: (estado: EstadoControl) => void): () => void;
   mover(op: Operacion): ResultadoMover;
-  dictar(frase: string, autor: Autor, origen?: Origen): {
+  dictar(frase: string, autor: Autor, origen?: Origen, candidatos?: CandidatoParametro[]): {
     resultados: Array<{ ok: true; operacion: Operacion; resumen: string } | { ok: false; razon: string; sugerencia: string; candidatos?: string[] }>;
     aplicados: number;
     pendientes: Pendiente[];
@@ -148,8 +149,8 @@ export function crearControlador(o: {
     return { ok: true, cambio: res.cambio, difundir: decision.difundir };
   }
 
-  function dictar(frase: string, autor: Autor, origen: Origen = "dictado") {
-    const cs = candidatosDe(estado.molecula);
+  function dictar(frase: string, autor: Autor, origen: Origen = "dictado", candidatos?: CandidatoParametro[]) {
+    const cs = candidatos?.length ? candidatos : candidatosDe(estado.molecula);
     const ctx = { autor, ahora: ahora(), origen, id: nuevoId };
     const resultados = entenderVarias(frase, cs, ctx);
     const pendientesNuevos: Pendiente[] = [];
