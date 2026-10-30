@@ -6,6 +6,8 @@ import { Rect } from "../protomolecula/orbe4d/eventos";
 
 export const HISTERESIS_M = 5;
 
+export type Vec3 = [number, number, number];
+
 /** Una zona XR con efecto asociado. */
 export function zona(nombre: string, { pos, efecto, radio, tam }: { pos: Vec3; efecto?: string; radio?: number; tam?: Vec3 }): {
   nombre: string;
@@ -31,7 +33,7 @@ export interface Portal {
 }
 
 export function destinoDePortal(p: Portal): { tipo: string; ruta: string; privado: boolean } {
-  const privado = p.tipo === "privado" || false;
+  let privado = false;
   switch (p.tipo) {
     case "mundo":
       return { tipo: "ruta", ruta: `/sala-xr/${p.id}`, privado: false };
@@ -71,30 +73,35 @@ export function efectosActivos(zonas: readonly ReturnType<typeof zona>[], activa
 
 export type Cambios = { entra: string[]; sale: string[]; ahora: Set<string> };
 
-function dentroDeZonaPunto(x: number, y: number, z: Rect): boolean {
-  return x >= z.x && x <= z.x + z.ancho && y >= z.y && y <= z.y + z.alto;
+/** Determina si un punto está dentro de una zona esférica (mayor lado como diámetro). */
+export function dentroDeZona(shape: { pos: Vec3; radio: number }, punto: Vec3): boolean {
+  const [px, py, pz] = punto;
+  const [sx, sy, sz] = shape.pos;
+  const dx = px - sx;
+  const dy = py - sy;
+  const radio = shape.radio;
+  return dx * dx + dy * dy <= radio * radio;
 }
 
 /** Controla entrada y salida de zonas dado un nuevo posición y el estado anterior. */
 export function cambiosDeZona(
   zonas: readonly ReturnType<typeof zona>[],
   anterior: Set<string>,
-  ahora: [number, number, number],
+  ahora: Vec3,
 ): Cambios {
-  entra: string[]; sale: string[]; ahora: Set<string>;
-  const ahoraSet = new Set<string>();
   const entra: string[] = [];
   const sale: string[] = [];
+  const ahoraSet = new Set<string>();
 
   for (const z of zonas) {
     if (!z.pos) continue;
-    const [px, py, pz] = ahora;
-    const adentro = dentroDeZonaPunto(px, py, z.pos);
+    const adentro = dentroDeZona({ pos: z.pos, radio: z.radio ?? 1 }, ahora);
+    const nombre = z.nombre;
     if (adentro) {
-      ahoraSet.add(z.nombre);
-      if (!anterior.has(z.nombre)) entra.push(z.nombre);
+      ahoraSet.add(nombre);
+      if (!anterior.has(nombre)) entra.push(nombre);
     } else {
-      if (anterior.has(z.nombre)) sale.push(z.nombre);
+      if (anterior.has(nombre)) sale.push(nombre);
     }
   }
 
