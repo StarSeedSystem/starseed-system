@@ -31,6 +31,7 @@ import { leerEstadoAutonomo } from "@/lib/metagenesis/remoto-nodos-cliente";
 import { listNeurons } from "@/lib/neurons/neurons";
 import { textoHace } from "@/lib/metagenesis/remoto";
 import { ProcesosHardware } from "./procesos-hardware";
+import { resumenPrestamos, type PrestamoRecurso } from "@/lib/cerebros/procesos-prestados";
 
 const ETIQUETA_MEDIDA = { cpu: "CPU", ram: "RAM", disco: "Disco", bateria: "Batería" } as const;
 const ETIQUETA_ESTADO = {
@@ -42,6 +43,21 @@ const ETIQUETA_ESTADO = {
 
 function textoPct(v: number | null): string {
     return v == null ? "sin medida" : `${v} %`;
+}
+
+function FilaPrestamo({ p }: { p: PrestamoRecurso }) {
+    return (
+        <li className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 p-3 text-sm">
+            <div>
+                <p className="font-medium text-white/85">{p.quien}</p>
+                <p className="text-xs text-white/50">{p.que}</p>
+            </div>
+            <div className="text-right">
+                <p className="text-white/85">{p.consumo ?? "–"}</p>
+                <button className="text-[10px] text-red-400 hover:text-red-300 cursor-pointer">Cortar</button>
+            </div>
+        </li>
+    );
 }
 
 function FilaHardware({ h }: { h: HardwareServidor }) {
@@ -112,6 +128,7 @@ export interface ProcesosPanelProps {
 export default function ProcesosPanel(_props: ProcesosPanelProps) {
     const [lista, setLista] = useState<HardwareServidor[] | null>(null);
     const [procesos, setProcesos] = useState<ProcesoActivo[] | null>(null);
+    const [prestamos, setPrestamos] = useState<PrestamoRecurso[]>([]); // TODO: fuentes reales
     const presencia = usePresenciaNeuronas();
     const actualizaciones = useEstadoActualizaciones();
 
@@ -131,6 +148,7 @@ export default function ProcesosPanel(_props: ProcesosPanelProps) {
 
     const grupos = procesos ? agruparPorTipo(procesos) : {};
     const tipos = Object.keys(ETIQUETA_TIPO) as TipoProceso[];
+    const { filas, totalConsumo, totalSesiones } = resumenPrestamos(prestamos, [], Date.now());
 
     return (
         <div className="space-y-4">
@@ -165,6 +183,20 @@ export default function ProcesosPanel(_props: ProcesosPanelProps) {
                             </div>
                         );
                     })
+                )}
+            </section>
+
+            <section aria-label="Préstamos de recursos" className="space-y-3">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-white">Préstamos</h3>
+                    <p className="text-xs text-white/50">{totalSesiones} sesiones · {totalConsumo} consumo total</p>
+                </div>
+                {filas.length === 0 ? (
+                    <p className="text-sm text-white/60">Sin préstamos activos.</p>
+                ) : (
+                    <ul className="space-y-2">
+                        {filas.map((p) => <FilaPrestamo key={p.quien + p.desde} p={p} />)}
+                    </ul>
                 )}
             </section>
         </div>
