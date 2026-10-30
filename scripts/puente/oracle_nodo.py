@@ -33,6 +33,12 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
   probar-bitnet          una pregunta al BitNet del A1 por HTTPS y con clave, desde aquí.
   bitnet-pesos           le pone al A1 los pesos BitNet en layout ARM (los oficiales vienen para
                          x86 y en ARM responden basura); el ciclo lo hace solo si el A1 lo detecta.
+  automejora [enviar|traer]   lo que el ciclo hace solo una vez al día (MTN1027H2): `enviar` (tras
+                         las 02:00 UTC) deja al A1 las experiencias de las neuronas que aportan y
+                         la config es ~/.starseed/automejora.json; `traer` (tras las 06:00) trae
+                         la salida de la noche y guarda directivas, propuestas y resumen. La
+                         marca va en ~/.starseed/automejora-estado.json (`scripts/puente/
+                         automejora_mac.py`).
   colibri [--aplicar]    prepara Colibri con Laya en el A1 (CLB1027): sin `--aplicar` solo enseña
                          el plan de `colibri_nodo.plan_instalacion`; con él lo corre por SSH.
                          Instalar (GB de descarga) SIEMPRE necesita el visto bueno de Alex.
@@ -1214,6 +1220,13 @@ def ciclo(lanzar_si_libre=True, tope=TOPE_DEFECTO):
                     res["espejo"] = enviar_estado()
                 except Exception as e:  # noqa: BLE001 — el espejo nunca frena el ciclo
                     res["espejo"] = {"ok": False, "motivo": tachar("%s: %s" % (type(e).__name__, e), _ip())}
+            # (MTN1027H2) La automejora: una vez al día manda experiencias y trae lo que salió.
+            try:
+                import automejora_mac as AM
+
+                res["automejora"] = AM.autopiloto()
+            except Exception as e:  # noqa: BLE001 — la automejora nunca frena el ciclo
+                res["automejora"] = {"ok": False, "motivo": tachar("%s: %s" % (type(e).__name__, e), _ip())}
             if lanzar_si_libre:
                 sin_tomar, _, _ = colas_sin_tomar(estado_a1)
                 datos = _leer(ESTADO, {}) or {}
@@ -1412,6 +1425,11 @@ def main(argv):
         r = probar_bitnet()
     elif orden == "bitnet-pesos":
         r = bitnet_pesos()
+    elif orden == "automejora":
+        sub = argv[2] if len(argv) > 2 else ""
+        import automejora_mac as AM
+
+        r = {"enviar": AM.enviar, "traer": AM.traer}.get(sub, AM.autopiloto)()
     else:
         print(__doc__)
         return 2
