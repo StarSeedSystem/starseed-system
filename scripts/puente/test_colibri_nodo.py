@@ -43,6 +43,17 @@ class PruebaCaben(unittest.TestCase):
         self.assertEqual(qwen["veredicto"], "no cabe")
         self.assertIn("disco", qwen["porque"])
 
+    def test_a1_olmoe_la_descarga_temporal_sale_en_el_porque(self):
+        """(Rama nube 406, adaptado a main) OLMoE ocupa 7 GB en disco pero su descarga pide 14:
+        con menos de 7 GB libres el porqué menciona el hueco temporal de la descarga (14 GB),
+        no solo los GB del modelo ya instalado."""
+        olmoe = next(e for e in self.entradas if e["id"] == "colibri-olmoe-7b")
+        self.assertGreater(olmoe["descarga_gb"], olmoe["disco_gb"])
+        filas = {f["id"]: f for f in C.caben(self.entradas, 12, 5)}
+        self.assertEqual(filas["colibri-olmoe-7b"]["veredicto"], "no cabe")
+        self.assertIn("disco", filas["colibri-olmoe-7b"]["porque"])
+        self.assertIn("14", filas["colibri-olmoe-7b"]["porque"])
+
     def test_a1_olmoe_no_por_margen(self):
         filas = {f["id"]: f for f in C.caben(self.entradas, 12, 18.5)}
         self.assertEqual(filas["colibri-olmoe-7b"]["veredicto"], "no cabe")
