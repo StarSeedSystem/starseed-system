@@ -98,3 +98,51 @@ describe("registro", () => {
     expect(adaptadorDe(CLAVE)?.nombre).toBe("Widgets del Dashboard");
   });
 });
+describe("cableado con el arranque del OS", () => {
+  it("registra el adaptador real y aplica sobre el widget guardado", async () => {
+    __resetRegistros();
+    const datos = new Map<string, string>();
+    const ventanaFalsa = {
+      localStorage: {
+        getItem: (clave: string) => datos.get(clave) ?? null,
+        setItem: (clave: string, valor: string) => { datos.set(clave, valor); },
+        removeItem: (clave: string) => { datos.delete(clave); },
+      },
+    };
+    (globalThis as { window?: unknown }).window = ventanaFalsa;
+    try {
+      datos.set("starseed_widgets", JSON.stringify({
+        d1: [{
+          id: "w1", dashboard_id: "d1", widget_type: TIPO,
+          layout: { x: 0, y: 0, w: 3, h: 3 },
+          settings: { clockMode: "digital", clockZones: ["UTC"] },
+          size: "M", created_at: "2026-10-30T00:00:00.000Z",
+        }],
+      }));
+      await import("../../adaptadores");
+      const adaptador = adaptadorDe(CLAVE);
+      expect(adaptador?.nombre).toBe("Widgets del Dashboard");
+      expect(adaptador?.capturar(CLAVE)).toEqual({
+        tipo: TIPO, ajustes: { clockMode: "digital" }, anclaje: { w: 3, h: 3 }, tamano: "M",
+      });
+      const { deshacer } = adaptador!.aplicar(CLAVE, payload({ styleVariant: "trinity", trinityNode: "zenith" }, { w: 4, h: 3 }, "L"));
+      const guardado = JSON.parse(datos.get("starseed_widgets") ?? "{}") as Record<string, Array<{
+        settings: Record<string, unknown>; layout: { w: number; h: number }; size?: string;
+      }>>;
+      expect(guardado.d1[0].settings).toEqual({
+        clockMode: "digital", clockZones: ["UTC"], styleVariant: "trinity", trinityNode: "zenith",
+      });
+      expect(guardado.d1[0].layout).toMatchObject({ w: 4, h: 3 });
+      expect(guardado.d1[0].size).toBe("L");
+      deshacer();
+      const deshecho = JSON.parse(datos.get("starseed_widgets") ?? "{}") as Record<string, Array<{
+        settings: Record<string, unknown>; layout: { w: number; h: number }; size?: string;
+      }>>;
+      expect(deshecho.d1[0].settings).toEqual({ clockMode: "digital", clockZones: ["UTC"] });
+      expect(deshecho.d1[0].layout).toMatchObject({ w: 3, h: 3 });
+      expect(deshecho.d1[0].size).toBe("M");
+    } finally {
+      delete (globalThis as { window?: unknown }).window;
+    }
+  });
+});
