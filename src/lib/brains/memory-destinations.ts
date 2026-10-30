@@ -411,6 +411,14 @@ export async function huellaCapsula(texto: string): Promise<string> {
   }
 }
 
+/** Un archivo de memoria pendiente de entrar en la cápsula del cerebro. */
+interface CapsulaPorEnviar {
+  archivo: string;
+  contenido: string;
+  huella: string;
+  uri: string;
+}
+
 /** Plan de la cápsula del cerebro (PURO y asincrónico: solo calcula huellas): los
  * archivos de memoria nuevos o cambiados frente a la huella guardada; los vacíos
  * y sin nombre quedan fuera, y un archivo sin huella espera a la próxima ronda. */
