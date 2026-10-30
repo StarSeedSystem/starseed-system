@@ -6,6 +6,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { capacidadInsomne } from "@/lib/neurons/insomne";
+import { plataformaInsomne } from "@/components/cerebro/insomne-ficha";
 
 describe("capacidadInsomne · ficha", () => {
   it("un servidor no depende de la plataforma que declare", () => {
@@ -19,5 +20,11 @@ describe("capacidadInsomne · ficha", () => {
     expect(d.proveedor).toBe("no");
     expect(d.disponible).toBe(false);
     expect(d.motivo).toContain("no reconocida");
+  });
+
+  it("traduce Android a la plataforma del contrato", () => {
+    // Rescate rama nube/40659574880: el resto del mapeo (macOS/Linux/Windows/
+    // iPadOS) ya está pinado en insomne-ficha-pura.test.ts; Android no.
+    expect(plataformaInsomne({ platform: "Android" })).toBe("android");
   });
 });
