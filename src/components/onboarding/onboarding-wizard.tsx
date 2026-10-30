@@ -55,6 +55,10 @@ import { PasoEscena } from "@/components/onboarding/paso-escena";
 import { AreasExplicadas } from "@/components/onboarding/areas-explicadas";
 import { StarSeedLoader } from "@/components/ui/starseed-loader";
 import SelectorVozInicial from "@/components/onboarding/selector-voz-inicial";
+import ElegirFondoInicial, { CATALOGO_FONDOS, FONDOS_OFICIALES } from "@/components/onboarding/elegir-fondo-inicial";
+import {
+  DIAS_APLAZAMIENTO_FONDO, VERSION_CATALOGO_FONDOS, catalogoFondoAlDia, debeMostrarElegirFondo,
+} from "@/lib/onboarding/fondo-inicial";
 import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 import {
   getOnboarding,
@@ -226,6 +230,10 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
   const [progresoVoz, setProgresoVoz] = useState(0);
   const [thinking, setThinking] = useState(false);
   const [busy, setBusy] = useState(false);
+  // (FSH1018J) El paso «Elige tu fondo» solo sale si toca: perfil nuevo, una vez
+  // para cuentas existentes o cuando el catálogo trae novedades. Nunca bloquea.
+  const [mostrarFondo, setMostrarFondo] = useState(false);
+  const [versionFondoVista, setVersionFondoVista] = useState<number | null>(null);
 
   const handleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const emailTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -235,6 +243,20 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     (async () => {
       const ob = await getOnboarding();
       setVoiceStarted(!!ob.voice_started);
+      // (FSH1018J) Estado guardado del paso «Elige tu fondo»: versión vista,
+      // si ya eligió y el aplazamiento de «Ahora no». Las cuentas antiguas no
+      // tienen estas claves (migración implícita: se tratan como «nunca lo vio»).
+      const pasos = (ob.steps ?? {}) as Record<string, unknown>;
+      const vistaFondo = typeof pasos.fondoVersionVista === "number" ? pasos.fondoVersionVista : null;
+      setVersionFondoVista(vistaFondo);
+      setMostrarFondo(debeMostrarElegirFondo({
+        esPerfilNuevo: !ob.completed,
+        yaEligio: pasos.fondoYaElegio === true,
+        versionCatalogoVista: vistaFondo,
+        versionCatalogoActual: VERSION_CATALOGO_FONDOS,
+        aplazadoHasta: typeof pasos.fondoAplazadoHasta === "string" ? pasos.fondoAplazadoHasta : null,
+        ahora: new Date(),
+      }));
       // (Adenda 190) REANUDACIÓN: si el rito quedó a medias (sesión reiniciada,
       // pestaña cerrada…), se retoma EXACTAMENTE en el paso donde se quedó.
       try {
@@ -374,6 +396,20 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
     setOpen(false);
     onClose?.();
   }, [onClose]);
+
+  // (FSH1018J) Elegir o aplazar el fondo deja rastro EN LA CUENTA: así el paso
+  // aparece una sola vez y, cuando suba `VERSION_CATALOGO_FONDOS`, vuelve con
+  // las novedades. Guardar nunca bloquea el rito.
+  const guardarFondo = useCallback(async () => {
+    setMostrarFondo(false);
+    setVersionFondoVista(VERSION_CATALOGO_FONDOS);
+    await saveOnboarding({ steps: { fondoYaElegio: true, fondoVersionVista: VERSION_CATALOGO_FONDOS } });
+  }, []);
+
+  const aplazarFondo = useCallback(async (hasta: string) => {
+    setMostrarFondo(false);
+    await saveOnboarding({ steps: { fondoAplazadoHasta: hasta } });
+  }, []);
 
   // (Ola 227) «Ir a <área>» desde la guía: cierra el rito y navega al área.
   const irA = useCallback((path: string) => {
@@ -909,6 +945,35 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
                   <span aria-hidden className="pointer-events-none absolute -left-12 -top-12 h-40 w-40 rounded-full bg-fuchsia-500/12 blur-3xl" />
                   <div className="relative">
                     <SelectorVozInicial onElegir={() => startVoice()} />
+                  </div>
+                </div>
+              )}
+
+              {/* (FSH1018J) Paso «Elige tu fondo»: el fondo actual sigue primero
+                  y debajo; sets oficiales y catálogo se pueden combinar para el
+                  perfil y las apps. Se puede aplazar sin bloquear el rito. */}
+              {mostrarFondo && (
+                <div className="animate-in fade-in-0 slide-in-from-top-2 relative overflow-hidden rounded-2xl border border-cyan-400/25 bg-gradient-to-br from-cyan-500/[0.07] to-transparent p-4 duration-300 sm:p-5">
+                  <span aria-hidden className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-cyan-500/12 blur-3xl" />
+                  <div className="relative space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[12px] font-semibold text-white/90">Elige tu fondo</span>
+                      <span className="text-[10px] uppercase tracking-wider text-white/45">
+                        {catalogoFondoAlDia(versionFondoVista, VERSION_CATALOGO_FONDOS)
+                          ? "Catálogo al día"
+                          : "Novedades del catálogo"}
+                      </span>
+                    </div>
+                    <ElegirFondoInicial
+                      oficiales={FONDOS_OFICIALES}
+                      catalogo={CATALOGO_FONDOS}
+                      perfilId={handle || "perfil"}
+                      onGuardar={guardarFondo}
+                      onAplazar={aplazarFondo}
+                    />
+                    <p className="text-center text-[10px] leading-snug text-white/45">
+                      «Ahora no» lo aplaza {DIAS_APLAZAMIENTO_FONDO} días; puedes seguir con la guía sin elegir nada.
+                    </p>
                   </div>
                 </div>
               )}
