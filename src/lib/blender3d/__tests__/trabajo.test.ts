@@ -42,6 +42,18 @@ it("aplica defaults de cámara y salida al trabajo válido", () => {
     expect(t.salidas[0].fondo_transparente).toBe(false);
     expect(t.limites).toBeUndefined();
   });
+
+  it("acepta cubo + cámara + luz + render_png y aplica los valores por defecto", () => {
+    const trabajo = valido(base());
+    expect(trabajo.v).toBe(1);
+    expect(trabajo.titulo).toBe("Cubo de prueba");
+    expect(trabajo.escena).toHaveLength(3);
+    expect(trabajo.salidas).toHaveLength(1);
+    expect(trabajo.escena[1].lente_mm).toBe(50);
+    expect(trabajo.escena[1].ortografica).toBe(false);
+    expect(trabajo.salidas[0].fondo_transparente).toBe(false);
+    expect(trabajo.limites).toBeUndefined();
+  });
   it("comprueba la versión, el título y los límites", () => {
     expect(VERSION_VOCABULARIO).toBe(1);
     expect(VERSION_VOCABULARIO).toBe(vocabulario.version);
@@ -80,6 +92,7 @@ it("imputa los topes duros de operaciones y salidas, y lo desconocido", () => {
     expect(motivos({ ...base(), escena: base().escena, salidas: salidas5 }).join(" ")).toContain("salidas debe tener entre 1 y 4 elementos");
     expect(motivos({ ...base(), escena: base().escena, salidas: [] }).join(" ")).toContain("salidas debe tener entre 1 y 4 elementos");
     expect(motivos(conEscena([{ op: "teleportar", nombre: "N" }])).join(" ")).toContain("operacion desconocida");
+    expect(motivos(base({ salidas: [{ ...PNG, tipo: "render_gif" }] }))).toContain("salida desconocida");
   });
   it("rechaza campos desconocidos del trabajo y de una operación", () => {
     expect(motivos({ ...base(), extra: 1 }).join(" ")).toContain("campo desconocido en el trabajo: extra");
@@ -101,15 +114,26 @@ it("imputa los topes duros de operaciones y salidas, y lo desconocido", () => {
     for (const archivo of ["a/../b.glb", "/tmp/a.glb", "modelo.blend", "script.py"])
       expect(motivos(conEscena([{ op: "importar", archivo, nombre: "imp" }])).join(" ")).toContain("ruta relativa inválida");
   });
+
+  it("acepta rutas relativas con subcarpetas y extensiones de la lista", () => {
+    const trabajo = valido(base({ escena: [{ op: "importar", archivo: "piezas/modelo.glb", nombre: "Modelo" }] }));
+    expect(trabajo.escena).toHaveLength(1);
+    const trabajo2 = valido(base({ escena: [CUBO, { op: "mundo", hdri: "fondos/amanecer.hdr", fuerza: 1 }] }));
+    expect(trabajo2.escena).toHaveLength(2);
+  });
   it("rechaza remallar con su motivo de próximamente", () => {
     const m = motivos(conEscena([{ op: "remallar", objeto: "cubo" }])).join(" ");
     expect(m).toContain("próximamente");
     expect(m).toContain("servicios/taller-3d");
   });
-  it("neutraliza textos de inyección en nombre y texto3d", () => {
-    expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "\"); import os", tam: 1 }])).join(" ")).toContain("nombre inválido");
+it("neutraliza textos de inyección en nombre y texto3d", () => {
+    expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "\"; import os", tam: 1 }])).join(" ")).toContain("nombre inválido");
     for (const texto of ["hola\nimport os", "emoji 😈"]) expect(motivos(conEscena([{ op: "texto3d", nombre: "t", texto, extrusion: 0.1, tam: 1 }])).join(" ")).toContain("texto con caracteres no permitidos");
-    expect(valido(conEscena([{ op: "texto3d", nombre: "t", texto: "'); import os", extrusion: 0.1, tam: 1 }])).escena[0].texto).toBe("'); import os");
+    expect(motivos(conEscena([{ ...CUBO, nombre: "Cuboño" }])).join(" ")).toContain("nombre");
+    expect(motivos(conEscena([{ ...CUBO, nombre: "立立方方" }])).join(" ")).toContain("nombre");
+    expect(motivos(conEscena([{ ...CUBO, nombre: "a".repeat(33) }])).join(" ")).toContain("nombre");
+    expect(motivos(conEscena([{ ...CUBO, nombre: "2empieza" }])).join(" ")).toContain("nombre");
+    expect(valido(conEscena([{ op: "texto3d", nombre: "t", texto: "'"; import os", extrusion: 0.1, tam: 1 }])).escena[0].texto).toBe("'; import os");
   });
   it("acepta una escena con todas las operaciones del vocabulario", () => {
     const escena = [
