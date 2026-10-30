@@ -47,6 +47,14 @@ class PruebaCaben(unittest.TestCase):
         self.assertEqual(filas["colibri-olmoe-7b"]["veredicto"], "no cabe")
         self.assertIn("sin margen", filas["colibri-olmoe-7b"]["porque"])
 
+    def test_usa_la_descarga_si_es_mayor_que_el_modelo(self):
+        """OLMoE ocupa 7 GB, pero su descarga temporal pide 14: con 5 GB libres no cabe y el porqué lo dice."""
+        olmoe = next(e for e in self.entradas if e["id"] == "colibri-olmoe-7b")
+        self.assertGreater(olmoe["descarga_gb"], olmoe["disco_gb"])
+        filas = {f["id"]: f for f in C.caben(self.entradas, 12, 5)}
+        self.assertEqual(filas["colibri-olmoe-7b"]["veredicto"], "no cabe")
+        self.assertIn("14", filas["colibri-olmoe-7b"]["porque"])
+
     def test_mac_con_presion_ninguno(self):
         filas = C.caben(self.entradas, 8, 5, presion_alta=True)
         self.assertEqual({f["veredicto"] for f in filas}, {"no cabe"})
