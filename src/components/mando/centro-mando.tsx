@@ -62,6 +62,7 @@ import { PanelPublicacion } from "@/components/mando/panel-publicacion";
 // localStorage para avisar de críticos/altos sin abrirla.
 import { PanelReportes } from "@/components/mando/panel-reportes";
 import { PanelCapasRed } from "@/components/mando/panel-capas-red";
+import { PanelRecursosRed } from "@/components/mando/panel-recursos-red";
 import type { Reporte } from "@/lib/mando/reportes";
 import { ControlDirectores } from "@/components/mando/control-directores";
 import { AjustesDirector } from "@/components/mando/ajustes-director";
@@ -336,6 +337,8 @@ const PESTANAS = [
     { id: "metageminis", etiqueta: "MetaGeminis", grupo: "Comunidad" },
     { id: "oficina", etiqueta: "Oficina 3D", grupo: "Comunidad" },
       { id: "capas-red", etiqueta: "Capas", grupo: "Infraestructura" },
+      // (2026-10-30 · APM1017Zb) Apps en la malla §12: ofertas, préstamos vivos y réplicas.
+      { id: "recursos-red", etiqueta: "Recursos de la red", grupo: "Infraestructura" },
       // Configuración.
      { id: "ajustes_director", etiqueta: "Directores", grupo: "Ajustes" },
      { id: "ajustes", etiqueta: "General", grupo: "Ajustes" },
@@ -2692,6 +2695,11 @@ export function CentroMando() {
             <TabsContent value="capas-red">
                 <VentanaPestana pestana="capas-red" panel="capas-red" titulo="Capas de red">
                     <PanelCapasRed />
+                </VentanaPestana>
+            </TabsContent>
+            <TabsContent value="recursos-red">
+                <VentanaPestana pestana="recursos-red" panel="recursos-red" titulo="Recursos de la red">
+                    <PanelRecursosRed />
                 </VentanaPestana>
             </TabsContent>
             </Tabs>
