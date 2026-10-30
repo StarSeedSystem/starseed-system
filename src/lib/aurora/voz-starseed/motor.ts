@@ -50,9 +50,10 @@ import { perfilNeuronal } from "@/lib/voces/perfil-neuronal";
 // (Ola 1018F · VST1018F) Licencia por contexto (licencia-voz) y medidas de latencia
 // (medidas-voz): la primera frase sale del motor PERMITIDO más rápido medido que
 // disponga de la voz de esa persona. Solo tipos y funciones puras: nada de red.
-import { motoresPermitidos, type ContextoLicenciaVoz, type MotorInfo } from "./licencia-voz";
+import { motoresPermitidos, type ClaseLicenciaVoz, type ContextoLicenciaVoz, type MotorInfo } from "./licencia-voz";
 import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
 import type { MedidaVoz } from "@/lib/aurora/medidas-voz";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 // (2026-09-06, Ola 264 · G2) Emoción e intensidad: etiquetas `[emocion]` del
 // texto, capa `aplicarEmocion` sobre el perfil neuronal y catálogo `EmocionVoz`.
 import {
@@ -63,7 +64,7 @@ import {
 } from "@/lib/voces/emociones";
 // (2026-09-06, Ola 264 · J1b) Normalización en español del texto hablado.
 import { normalizarParaVoz } from "@/lib/voces/normalizar-es";
-import { motorRecomendado, Plataforma } from "../catalogo-voces";
+import { motorRecomendado, MOTORES_VOZ, Plataforma } from "../catalogo-voces";
 function detectarPlataforma(): Plataforma {
     if (typeof window === "undefined") return "web";
     const ua = navigator.userAgent;
@@ -397,6 +398,82 @@ export function elegirMotorPrimeraFrase(o: OpcionesEleccionPrimeraFrase): Result
     return mejor;
 }
 
+// ── (Ola 1018F · VST1018F) APLICACIÓN DE LA ELECCIÓN ────────────────────────
+// La elección pura de arriba se APLICA en `hablarStarSeed` (la puerta única):
+// pregunta por el motor de la primera frase y MIDE cada vía que habla.
+
+/** Silencio que abre otra primera frase: al retomar tras pausas largas se vuelve a elegir. */
+const PAUSA_NUEVA_FRASE_MS = 30_000;
+
+/** Motor que MIDE cada nivel (misma identidad de motor que la elección). */
+const MEDICION_POR_NIVEL: Record<NivelVoz, string> = {
+    estudio: "voicemorphic", alta: "voicemorphic", nube: "nube", ligera: "kokoro", minima: "sistema",
+};
+
+/** Motor elegido para el mensaje en curso: mientras siga sonando, no se parte entre dos. */
+let motorMensajeEnCurso: string | null = null;
+/** Instante del último hablar: separa primera frase de cláusulas siguientes. */
+let ultimoHablaMs = 0;
+
+/** Nivel por el que suena el motor elegido («estudio» solo con lectura, doblaje o audiolibro). */
+function nivelDeElegido(id: string, uso: UsoVoz): NivelVoz {
+    if (id === "voicemorphic") return estudioSegunUso(uso) ? "estudio" : "alta";
+    if (id === "kokoro") return "ligera";
+    if (id === "sistema") return "minima";
+    return "nube";
+}
+
+/**
+ * Primera frase de una conversación (contrato §4): entre las vías que puede
+ * hablar este equipo AHORA, gana el motor PERMITIDO con menor latencia MEDIDA
+ * que tenga la voz de esa persona. Sin candidatas disponibles devuelve `null`
+ * y manda la decisión por hardware de siempre. Medidas y reloj: `medidas-voz`.
+ */
+async function elegirPrimeraFrase(
+    caps: Capacidades, uso: UsoVoz, contextoUso: ContextoLicenciaVoz, capas: CapasPrefs,
+): Promise<string | null> {
+    if (typeof window === "undefined") return null;
+    try {
+        const medidas = (await import("@/lib/aurora/medidas-voz")).leerMedidas();
+        // Kokoro solo compite con su modelo ya listo y la plataforma suficiente:
+        // una vía que tenga que cargar peso no es «primera frase instantánea».
+        let kokoroLista = false;
+        try {
+            const kok = await import("@/lib/aurora/tts-oss/kokoro");
+            kokoroLista = (caps.webgpu || caps.wasmSimd) && kok.kokoroAvailable() && kok.kokoroModelReady();
+        } catch { /* sin Kokoro: no compite */ }
+        const delCatalogo = (id: string): ClaseLicenciaVoz =>
+            MOTORES_VOZ.find((m) => m.id === id)?.claseLicencia ?? "libre";
+        // Orden del catálogo: demonio local primero, Kokoro después; sin medidas
+        // manda ese orden. El demonio marca «estudio» solo con uso de estudio.
+        const esEstudioLocal = estudioSegunUso(uso);
+        const candidatos: CandidatoPrimeraFrase[] = [];
+        if (caps.daemonLocal) {
+            candidatos.push({
+                id: "voicemorphic",
+                claseLicencia: delCatalogo("voicemorphic"),
+                conVoz: true,
+                ...(esEstudioLocal ? { esEstudio: true as const } : {}),
+            });
+        }
+        if (kokoroLista) candidatos.push({ id: "kokoro", claseLicencia: delCatalogo("kokoro"), conVoz: true });
+        if (!candidatos.length) return null;
+        const idNeurona = neuronDeviceIdActual();
+        const eleccion = elegirMotorPrimeraFrase({
+            candidatos,
+            contexto: contextoUso,
+            capas,
+            medidas,
+            uso,
+            neurona: idNeurona || undefined,
+            ahora: Date.now(),
+        });
+        return eleccion?.id ?? null;
+    } catch {
+        return null; // sin medidas legibles: manda el hardware
+    }
+}
+
 export interface OpcionesHablar {
     /** Identidad de la voz: LA MISMA en todos los niveles. */
     timbre: Timbre;
@@ -430,6 +507,12 @@ export interface OpcionesHablar {
      * esta opción solo es para vías que ya entregan el texto normalizado.
      */
     sinNormalizar?: boolean;
+    /** (Ola 1018F) Uso del turno; «conversación» por omisión: sin lectura/doblaje/audiolibro no hay «estudio». */
+    uso?: UsoVoz;
+    /** (Ola 1018F) Contexto de licencia del sitio donde suena; «personal» por omisión. */
+    contextoUso?: ContextoLicenciaVoz;
+    /** (Ola 1018F) Capas de conciencia para la licencia; por omisión, la del dueño del equipo. */
+    capas?: CapasPrefs;
 }
 
 /**
@@ -533,6 +616,20 @@ async function hablarPorSistema(texto: string, timbre: Timbre, alEmpezar?: () =>
 
 /** Sintetiza por la vía existente en el OS para ese nivel. Nunca lanza. */
 async function sintetizar(nivel: NivelVoz, texto: string, timbre: Timbre, opciones: OpcionesHablar): Promise<boolean> {
+    // (Ola 1018F) Mide «primer-sonido» de la vía que habla: con el tiempo la primera
+    // frase sale del motor más rápido de VERDAD aquí, no del que se declara rápido.
+    try {
+        const mv = await import("@/lib/aurora/medidas-voz");
+        const crono = mv.cronometroHabla({ motor: MEDICION_POR_NIVEL[nivel] ?? nivel, idioma: "es-ES" });
+        const previa = opciones.alEmpezar;
+        opciones = {
+            ...opciones,
+            alEmpezar: () => {
+                try { crono.sono(); } catch { /* la medida no puede romper */ }
+                try { previa?.(); } catch { /* el aviso no puede romper */ }
+            },
+        };
+    } catch { /* sin medidas la voz sigue igual */ }
     if (nivel === "estudio" || nivel === "alta") return hablarPorLocal(texto, timbre, opciones.alEmpezar);
     if (nivel === "nube") return hablarPorNube(texto, timbre, opciones.alEmpezar);
     if (nivel === "ligera") return hablarPorKokoro(texto, timbre, opciones.alEmpezar);
@@ -566,28 +663,42 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     const timbre = timbreConEmocion(opciones.timbre, resuelta.emocion, resuelta.intensidad);
 
     const plataforma = detectarPlataforma();
-    const { memoriaGB } = await detectarCapacidades();
-    const ramGB = memoriaGB ?? 8;
+    const caps = await detectarCapacidades();
+    const ramGB = caps.memoriaGB ?? 8;
     const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
-    let nivel: NivelVoz;
+    let nivelHardware: NivelVoz;
     switch (motorCat.id) {
         case "voicemorphic":
         case "voicestudio":
-            nivel = "estudio";
+            nivelHardware = "estudio";
             break;
         case "kokoro":
         case "kittentts":
         case "moss-tts-nano":
-            nivel = "ligera";
+            nivelHardware = "ligera";
             break;
         case "sistema":
-            nivel = "minima";
+            nivelHardware = "minima";
             break;
         default:
             // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
-            nivel = "nube";
+            nivelHardware = "nube";
             break;
     }
+
+    // ── (Ola 1018F · VST1018F) PRIMERA FRASE POR LATENCIA MEDIDA (contrato §4) ──
+    // El mensaje sale de UN motor: se elige al empezar (tras pausa larga) y
+    // mantiene hasta la última cláusula; `motorDeMensaje` garantiza no partirlo.
+    const uso = opciones.uso ?? "conversacion";
+    const contextoUso = opciones.contextoUso ?? "personal";
+    const capas = opciones.capas ?? { persona: "personal" };
+    const ahora = Date.now();
+    if (ahora - ultimoHablaMs > PAUSA_NUEVA_FRASE_MS) {
+        motorMensajeEnCurso = await elegirPrimeraFrase(caps, uso, contextoUso, capas);
+    }
+    const motorMensaje = motorDeMensaje(null, motorMensajeEnCurso);
+    ultimoHablaMs = ahora;
+    const nivel: NivelVoz = motorMensaje ? nivelDeElegido(motorMensaje, uso) : nivelHardware;
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
     // Al empezar a hablar se deriva el gesto del texto y se emite `starseed:gesto`
