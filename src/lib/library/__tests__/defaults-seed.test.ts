@@ -32,6 +32,14 @@ const SIEMPRE_3A = [
   "lib-supra-tex",
 ] as const;
 
+const SIEMPRE_4A = [
+  "lib-comfyui",
+  "lib-harness2",
+  "lib-libretranslate",
+  "lib-archivebox",
+  "lib-localsend",
+] as const;
+
 const MANUAL_2A = [
   "lib-ruview",
   "lib-tirreno",
@@ -47,14 +55,14 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 }
 
 describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
-  it("sube la versión (22) y mantiene las siete «siempre» de la 2.ª tanda", () => {
-    expect(SEED_VERSION).toBe(22);
+  it("sube la versión (23) y mantiene las siete «siempre» de la 2.ª tanda", () => {
+    expect(SEED_VERSION).toBe(23);
     for (const id of SIEMPRE_2A) {
       expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
     }
-    // Los `lib-` sembrados son los de la 2.ª tanda más los de las tandas 1025, 1026, 1027, 1027b y 1028 (que llegan de su JSON) y las 8 «siempre» de la 3.ª tanda.
+    // Los `lib-` sembrados son los de la 2.ª tanda más los de las tandas 1025, 1026, 1027, 1027b y 1028 (que llegan de su JSON) y las «siempre» de la 3.ª y 4.ª tanda.
     const deLasTandas = RECOMMENDED_PACKAGE_IDS.filter((id) => id.startsWith("lib-"));
-    const esperados = [...SIEMPRE_2A, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...SIEMPRE_3A].filter((id) => id.startsWith("lib-"));
+    const esperados = [...SIEMPRE_2A, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...SIEMPRE_3A, ...SIEMPRE_4A].filter((id) => id.startsWith("lib-"));
     expect(deLasTandas.sort()).toEqual(Array.from(new Set(esperados)).sort());
   });
 
