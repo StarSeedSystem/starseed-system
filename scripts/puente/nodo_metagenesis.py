@@ -59,7 +59,6 @@ import nodo_metagenesis_logica as L  # noqa: E402
 import nodo_metagenesis_medio as M  # noqa: E402
 import colmena_logica as C  # noqa: E402
 import traer_nube as T  # noqa: E402
-import repartir_nube as RN  # noqa: E402
 
 CARPETA = os.path.expanduser(os.environ.get("STARSEED_NODO_DIR") or "~/.starseed/nodo-metagenesis")
 MEMORIA = os.path.join(CARPETA, "memoria.json")
@@ -613,6 +612,8 @@ class Nodo:
         es de OTRO nodo y es posterior a mi último latido, esa tarea ya no es mía. Antes de soltarla
         se fuerza y se envía su último punto de control, para que la sucesora pueda combinarlo;
         si el envío no sale, NO se suelta: seguir aquí es mejor que perder el trabajo."""
+        import repartir_nube as RN  # noqa: WPS433 — la misma regla del reparto a la nube
+
         if self.modo != "real":
             return  # una prueba seca lee y decide, pero no escribe órdenes ni manda puntos
         asignadas = entradas_de_relevo(nov, {}).get("asignadas") or {}
