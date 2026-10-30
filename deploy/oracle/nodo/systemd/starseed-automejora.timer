@@ -1,0 +1,13 @@
+[Unit]
+Description=StarSeed · la noche de automejora Meta^n cada madrugada a las 03:40 (MTN1027H)
+# requiere: /opt/starseed/nodo/automejora/automejora_nodo.py
+
+[Timer]
+# Por calendario y no «24 h después de la última vez»: al reinstalar la unidad se pierde esa marca
+# y el temporizador se quedaba sin próxima vuelta (medido con MetaGeminis el 2026-10-10).
+OnCalendar=*-*-* 03:40:00
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

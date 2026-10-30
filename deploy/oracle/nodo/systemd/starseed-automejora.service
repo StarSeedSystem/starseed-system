@@ -1,0 +1,22 @@
+[Unit]
+Description=StarSeed · la noche de automejora Meta^n en el A1: la caja Docker PROPONE (sin red ni claves); el juez de StarSeed decide FUERA (MTN1027H)
+After=network-online.target
+# requiere: /usr/bin/docker
+# requiere: /opt/starseed/nodo/automejora/automejora_nodo.py
+# temporizado
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+# Docker borra y crea archivos fuera de su caja (imágenes, capas): por eso root.
+WorkingDirectory=/var/lib/starseed/automejora
+Environment=PYTHONUNBUFFERED=1
+# La pasarela toma su clave de destino del entorno (jamás entra en la caja). Si el
+# archivo aún no existe, arranca igual (el guion lo apunta con `-`).
+EnvironmentFile=-/home/starseed/.starseed/env
+ExecStart=/usr/bin/python3 /opt/starseed/nodo/automejora/automejora_nodo.py noche
+# La caja se construye la primera noche (docker build): además del trabajo, hasta 100 min.
+TimeoutStartSec=6000
+MemoryMax=1500M
+Nice=15
