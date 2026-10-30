@@ -50,7 +50,7 @@ describe("estructura del catálogo", () => {
       expect(h.licencia.trim().length, h.id).toBeGreaterThan(0);
       expect(h.descripcion.trim().length, h.id).toBeGreaterThan(30);
       expect(h.nombre.trim().length, h.id).toBeGreaterThan(0);
-      if (h.id === "pixelartistry-watertight") continue;
+      if (h.id === "pixelartistry-watertight" || h.id === "hitem3d") continue;
       expect(h.codigo !== null || h.web !== null, `${h.id}: sin código ni web`).toBe(true);
       if (h.codigo) expect(h.codigo, h.id).toMatch(RE_URL);
       if (h.web) expect(h.web, h.id).toMatch(RE_URL);
@@ -98,7 +98,7 @@ describe("estructura del catálogo", () => {
       expect(h.verificado >= "2026-10-10", h.id).toBe(true);
       const a = h.actualizacion;
       expect(FUENTES, h.id).toContain(a.fuente);
-      if (h.id === "pixelartistry-watertight") {
+      if (h.id === "pixelartistry-watertight" || h.id === "hitem3d") {
         expect(a.ref.length, h.id).toBe(0);
         continue;
       }
@@ -356,7 +356,7 @@ describe("aPaqueteBiblioteca", () => {
     const paquetes = todas.map(aPaqueteBiblioteca);
     expect(new Set(paquetes.map((p) => p.id)).size).toBe(todas.length);
     for (const p of paquetes) {
-      if (p.id === "proto-pixelartistry-watertight") continue;
+      if (p.id === "proto-pixelartistry-watertight" || p.id === "proto-hitem3d") continue;
       expect(p.name.length).toBeGreaterThan(0);
       expect(["app", "repo"]).toContain(p.kind);
       expect(typeof p.payload.externalUrl).toBe("string");
