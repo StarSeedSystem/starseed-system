@@ -34,6 +34,7 @@ import urllib.request
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, DIRECTORIO)
+import lider_direccion as LD  # noqa: E402
 import produccion_puertas as PP  # noqa: E402
 
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECTORIO))
@@ -498,12 +499,19 @@ def cola_ci_rojo(log, mmdd, previa, url=None):
 
 
 # ── la pasada ────────────────────────────────────────────────────────────────
-def pasada(m, est, ahora):
+def pasada(m, est, ahora, lider_fn=None):
     est = dict(est or {})
     if not m.interruptor():
         return con_fase(est, "apagado", "Autopublicación apagada (Genesis · Ajustes).", ahora)
     if m.publicando_a_mano():
         return con_fase(est, "esperando", "Hay una publicación manual en curso; espero a que termine.", ahora)
+    # IND1029C: publicar es dirigir. Sin el arriendo `direccion.lider` solo se mira, no se sube nada.
+    lider: dict = (lider_fn or LD.soy_lider)()
+    if not isinstance(lider, dict):
+        lider = {"soy": bool(lider)}
+    if not lider.get("soy"):
+        quien = str((lider.get("arriendo") or {}).get("dueno") or lider.get("motivo") or "otra neurona")
+        return con_fase(est, "esperando", "espera: dirige %s" % quien, ahora)
     m.git(["fetch", "-q", "origin", "main"], timeout=120)
     if est.get("fase") == "ci":
         return _seguir_ci(m, est, ahora)

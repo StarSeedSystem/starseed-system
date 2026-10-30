@@ -60,6 +60,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import lider_direccion as LD
 import limpieza_worktrees
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
@@ -775,12 +776,21 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
             libre_fn=espacio_libre_gb, avisar_fn=_avisar, dormir=time.sleep, asignar_fn=_asignar,
             buscar_fn=_buscar, traer_fn=_traer_en_fondo, forzar=False, curar_fn=None,
             servicios_fn=_servicios, medidores_fn=_levantar_por_medidores, worktrees_fn=None,
-            reparar_fn=None, explabs_fn=None, relevo_fn=None, a1_fn=None):
+            reparar_fn=None, explabs_fn=None, relevo_fn=None, a1_fn=None, lider_fn=None):
     """Una pasada completa. Devuelve lo que vio y lo que hizo (también queda en ESTADO).
     `forzar` (el botón «Reactivar directores»): todo ya, sin los tiempos mínimos."""
     ahora = ahora if ahora is not None else time.time()
     estado = _leer_json(ESTADO, {}) if ESTADO else {}
     hechos = []
+    # IND1029C: lo que toca otra máquina (hoy el A1) solo lo hace el líder del arriendo. Lo de esta
+    # máquina (Genesis, disco, worktrees, orquestador) se sigue curando en local, como siempre.
+    lider: dict = (lider_fn or LD.soy_lider)()
+    if not isinstance(lider, dict):
+        lider = {"soy": bool(lider)}
+    soy_lider = bool(lider.get("soy"))
+    quien_dirige = str((lider.get("arriendo") or {}).get("dueno") or lider.get("motivo") or "otra neurona")
+    if not soy_lider:
+        hechos.append("espera: dirige %s" % quien_dirige)
 
     sondas = []
     for i in range(SONDAS):
@@ -957,11 +967,13 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
     # día: ~6,6 h colgado (Oracle «RUNNING», SSH sin saludo) sin que nadie lo viera. `a1_autocuracion.py` lo sondea,
     # reinicia sus servicios caídos y, si la máquina está colgada o parada, la reinicia o la arranca por Oracle.
     a1 = a1_fn or (_a1_en_fondo if limpiar_fn is limpiar else None)
-    if a1:
+    if a1 and soy_lider:
         try:
             a1()
         except Exception as e:
             hechos.append("no pude lanzar la autocuración del A1: %s" % type(e).__name__)
+    elif a1:
+        hechos.append("A1: no lo toco, espera: dirige %s" % quien_dirige)
 
     estado.update({"visto": time.strftime("%Y-%m-%d %H:%M:%S"), "responde": any(sondas),
                    "por_que": porque, "libre_gb": None if libre is None else round(libre, 1),
