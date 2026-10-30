@@ -65,6 +65,8 @@ import { hablar } from "@/lib/aurora/voz-unica";
 // ── Retícula SiO₂ (Ola 1012W): el motor único vive en `motor-cristal-mount` ──
 import { PanelReticula } from "@/components/malla/panel-reticula";
 import { MotorCristalMount, useMotorCristal } from "@/components/malla/motor-cristal-mount";
+import { PermisosAntenas } from "@/components/malla/permisos-antenas";
+import { DeliveryReceiptsPanel } from "./delivery-receipts-panel";
 
 const ICON: Record<SignalKind, LucideIcon> = {
   mesh: RadioTower, wifi: Wifi, cellular: Signal, bluetooth: Bluetooth,
@@ -394,6 +396,13 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
           comparten todas las neuronas de la cuenta, en tiempo real — estado
           vítreo, temperatura, puentes y «misma retícula en N de M». */}
       <PanelReticula estado={estadoReticula} />
+
+      {/* Permisos de antenas: inventario por medio con explicación, estado
+          real y flujo único de petición (invariante "permisos visibles"). */}
+      <PermisosAntenas />
+
+      {/* Recibos de entrega recientes: dato, hora, estado, medio, ruta. */}
+      <DeliveryReceiptsPanel />
 
       {/* Inventario completo de señales detectadas, por familia de antena, con
           acciones reales de interconexión/sincronización y estados vacíos. */}
