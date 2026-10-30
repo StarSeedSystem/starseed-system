@@ -389,15 +389,22 @@ export function WelcomeWindow({ onContinue, className }: WelcomeWindowProps) {
             </button>
           ) : null}
 
-          {/* (GUI1021K2) La guía completa sin cuenta, por la puerta común */}
+          {/* (GUI1021K2) La guía completa sin cuenta, por la puerta común.
+              `abrirGuia` lanza `starseed:open-guide`; la guía sube por encima (z 240) y al
+              cerrarla se vuelve a esta misma ventana sin perder lo escrito (§5). */}
           <button
             type="button"
             className="ss-wel-soft"
+            aria-haspopup="dialog"
+            aria-describedby="ss-wel-guia-ayuda"
             onClick={() => abrirGuia({ desde: "bienvenida" })}
             style={{ width: "100%", border: "1px solid rgba(255,255,255,.16)", borderRadius: 13, padding: "10px 0", minHeight: 44, color: "rgba(255,255,255,.85)", fontWeight: 600, fontSize: 13, cursor: "pointer", background: "rgba(255,255,255,.04)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}
           >
             <Compass size={14} aria-hidden /> Conoce StarSeed (sin cuenta)
           </button>
+          <p id="ss-wel-guia-ayuda" style={{ textAlign: "center", fontSize: 10.5, opacity: 0.55, margin: 0, lineHeight: 1.45 }}>
+            Se abre por encima de esta ventana; al cerrarla sigues aquí, sin crear cuenta.
+          </p>
 
           <button
             type="button"
