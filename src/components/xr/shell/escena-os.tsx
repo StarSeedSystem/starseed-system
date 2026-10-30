@@ -30,6 +30,9 @@ export type ModoSesion = "vr-inmersivo" | "ar-passthrough" | "ar-mano";
 /** El rig de la Trinity (XR1010J): uikit y three se cargan solo al entrar en /xr/os, nunca en el layout raíz. */
 const RigTrinityDinamico = nextDynamic(() => import("./rig-trinity").then((m) => m.RigTrinity), { ssr: false });
 
+/** Zenith (XR1010O) con la voz de XR1010P enganchada por su puente `pipeline`; carga perezosa también. */
+const OrbeVozDinamico = nextDynamic(() => import("./orbe-voz").then((m) => m.OrbeVoz), { ssr: false });
+
 /** El modo con que `disponerTrinity` coloca la Trinity según lo pedido por la URL. */
 export function modoTrinity(modoUrl: ModoURL | null, plan: PlanEntrada): ModoXR {
     if (modoUrl === "vr") return "vr-inmersivo";
@@ -126,7 +129,7 @@ export function EscenaOS({ modo = null }: Props) {
                         modo={modoTrinity(modoUrl, plan)}
                         nivel={calidadNivel}
                         alturaOjosMedida={alturaOjosMedida}
-                        contenido={{}}
+                        contenido={{ zenith: <OrbeVozDinamico /> }}
                     />
                     {!enSesion && <OrbitControls />}
                 </Suspense>
