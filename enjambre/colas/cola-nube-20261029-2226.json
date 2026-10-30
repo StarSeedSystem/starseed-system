@@ -1,0 +1,88 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "ola": "1024S",
+   "capacidad": "alta",
+   "id": "SGO1024D-d1",
+   "titulo": "Voz · resolveActiveVoiceEngine aplica la jerarquía (y VibeVoice recibe su guion multi-locutor) (parte 1 de 3)",
+   "archivos": [
+    "src/lib/aurora/voice-config.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VOZ1024B (2026-10-24): resolveActiveVoiceEngine no aplica la jerarquía agente › personalidad › cerebro › neurona › cuenta y casi siempre devuelve el pin por defecto openvoice2, por eso src/ai/astraura/router.ts (~1981) casi nunca prepara el guion multi-locutor de VibeVoice y VibeVoice habla todo como Speaker 0. Haz que resuelva con la misma jerarquía que la cadena de voz (busca con grep cómo la resuelve speakWithConfiguredEngine / la capa neurona×personalidad) y que el router prepare el guion cuando el motor resuelto sea vibevoice. Pruebas con configuraciones simuladas. Máximo 3 archivos y 120 líneas nuevas por archivo.\n\n## PARTE 1 DE 3 (la dirección dividió SGO1024D: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/aurora/voice-config.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SGO1024D",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  },
+  {
+   "id": "CB1013N",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Procesos activos: panel del pilar",
+   "archivos": [
+    "src/components/cerebro/procesos-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §7 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Sustituye el componente de partida manteniendo `ProcesosPanelProps { brainId; brainName? }` y el default. Lee con `leerProcesos()` al montarse y luego cada `intervaloSeg` de las preferencias (`usarPreferenciasProcesos()` de CB1013P) SOLO con la pestaña visible (`document.visibilityState`). Arriba, cuentas reales por tipo (`ETIQUETA_TIPO`) como filtros pulsables (respetando los tipos visibles de las preferencias); debajo, la lista de procesos agrupada por tipo: nombre, estado en palabras, dónde corre, desde cuándo (relativo) y barra de progreso SOLO si `progreso` no es null; acciones existentes únicamente (abrir Genesis `/genesis` para agentes; restaurar una ventana en segundo plano si desktop-store lo permite). Luego `<ProcesosHardware />` (CB1013O) con el hardware y los avisos, y `<ProcesosAjustes />` (CB1013P) plegable. Al pie, las fuentes consultadas con ✓/✗ y su motivo («no disponible aquí» en un aparato que no es la Mac). Hora de la última lectura y botón «Actualizar».",
+   "revisor_quitadas": [
+    "CB1013P"
+   ],
+   "dependencias_ya_en_main": [
+    "CB1013L",
+    "CB1013O"
+   ]
+  },
+  {
+   "id": "FSH1018L",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Diseño · tres propuestas de rediseño adaptadas al fondo (tokens de tema), con Astraura",
+   "archivos": [
+    "src/lib/design/rediseno-desde-fondo.ts",
+    "src/lib/design/__tests__/rediseno-desde-fondo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `propuestasDesdeFondo({ paleta, temaActual: ThemeTokens, modo: \"claro\"|\"oscuro\", adn })` → 3 propuestas (sobria, armónica, atrevida) de ThemeTokens (theme-engine.ts) con superficies translúcidas que dejan ver el fondo, acentos de la paleta y la escala φ de armonia.ts, cada una con su motivo y con contraste AA verificado (texto/superficie ≥ 4,5; las que no pasan se ajustan o se descartan). `pedidoParaIA(...)` arma el pedido al Director de diseño (memoria de gustos: lo privado solo si corre en una neurona de la persona). Pruebas. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "FSH1018M"
+   ]
+  },
+  {
+   "id": "LYS1018H",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya en navegador y apps (laya-ts con WebGPU → WASM): cuándo se carga y cuándo se pregunta fuera",
+   "archivos": [
+    "src/lib/astraura/laya/laya-navegador.ts",
+    "src/lib/astraura/laya/__tests__/laya-navegador.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `planLayaLocal(perfilMedio)` → { cargar: boolean, modelo: \"multilingual-int8\"|\"multilingual\"|null, motivo } según capas-autoadaptables §4: visita web nunca (va por la malla); PWA con WebGPU y ≥ 2 GB de almacenamiento persistente y ≥ 4 GB de memoria; app nativa si cabe en su presupuesto; batería < 20 % o pestaña oculta → no. Mientras `vendor/laya-ts` y el modelo exportado (tarea O) no existan, devuelve cargar:false con ese motivo. Pruebas por medio. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos."
+  },
+  {
+   "id": "LYS1018M",
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "titulo": "Laya · aprende de cada decisión y recalibra su umbral por punto y ámbito",
+   "archivos": [
+    "src/lib/astraura/laya/aprendizaje-laya.ts",
+    "src/lib/astraura/laya/__tests__/aprendizaje-laya.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `anotar(registro, { punto, ambito, p, donde, ms, resultado: \"aceptada\"|\"corregida\"|\"escalada\", privado, estado })` guarda el estado SOLO como huella si es privado; `umbralRecalibrado(registro, punto, ambito)` devuelve el umbral que minimiza correcciones con ≥ 30 casos (si hay menos: el del catálogo); `exportarJSONL` saca los casos no privados en el formato del cuaderno de afinado de Laya. Pruebas. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "LYS1018A"
+   ]
+  },
+  {
+   "id": "AV1011H",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Protomolécula: fichas verificadas de las herramientas de avatares 3D",
+   "archivos": [
+    "src/lib/protomolecula/catalogo-herramientas.ts",
+    "src/lib/protomolecula/__tests__/catalogo-avatares-3d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Añade fichas `HerramientaProto` con ESTOS datos verificados el 2026-10-11 (no inventes nada; lo no comprobado va en `sinComprobar`): unimate (proximamente; código MIT anunciado, inferencia no publicada; pesos en Hugging Face Linzhan/UniMate sin licencia declarada; texto → movimiento para cualquier esqueleto; https://github.com/Friedrich-M/UniMate); image-to-3dlab (integrable, servicio-local, solo macOS Apple Silicon, 32 GB recomendados; salida GLB con PBR + provenance.json; motores Hunyuan3D-MLX [MIT código, pesos Tencent sin licencia en UE, Reino Unido y Corea del Sur], TRELLIS.2 [MIT + DINOv3, comercial condicionado], Stable Fast 3D [Stability Community]); unirig (integrable, MIT, GPU NVIDIA ≥ 8 GB, entrada obj/fbx/glb/vrm, salida fbx/glb; https://github.com/VAST-AI-Research/UniRig); instant-meshes (BSD-3-Clause; https://github.com/wjakob/instant-meshes); smart-remesh (solo-enlace: complemento de Blender 4.2–5.2, GPL, 17 USD, de 3DRedbox Studio; https://superhivemarket.com/products/smart-remesh); three-vrm (MIT, pixiv; https://github.com/pixiv/three-vrm); characterstudio (MIT, M3-org; https://github.com/M3-org/CharacterStudio); filigree3d (proximamente, solo artículo https://arxiv.org/abs/2609.34900); btc3d (proximamente, solo artículo https://arxiv.org/abs/2609.39709); meshy (solo-enlace, servicio: plan gratis 100 créditos/mes con salida CC BY 4.0; https://www.meshy.ai); tripo (solo-enlace, servicio; precios y licencia sin comprobar; https://www.tripo3d.ai); 3daistudio (solo-enlace, https://www.3daistudio.com); hi3d (solo-enlace, https://www.hi3d.ai); hitem3d (solo-enlace, web null y en sinComprobar: el enlace recibido apuntaba a 3daistudio); meta-horizon (solo-enlace, plataforma cerrada de Meta sin API pública ni pesos; https://developers.meta.com/horizon). NUNCA guardes parámetros de afiliado (`?aff=`, `?via=`, `utm_`). Antes de añadir, mira si ya existen (trellis, triposr, hunyuan3d): no dupliques; a hunyuan3d añádele el aviso de región si le falta. Respeta los tipos y categorías existentes y deja en verde las pruebas de la Protomolécula."
+  }
+ ]
+}
