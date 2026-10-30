@@ -177,6 +177,21 @@ describe("planificarAdaptador · colectivo (público): jamás memoria personal",
         expect(p.avisos.join(" ")).not.toMatch(/memoria personal/);
     });
 
+    it("el plan incluye las recetas YAML de LlamaFactory con el ámbito saneado", () => {
+        const p = planificarAdaptador(publico({
+            fuentes: [fuente("publica")],
+            plantilla: "qwen",
+        }));
+        if (!p.ok) throw new Error(p.errores.join(" | "));
+        expect(p.recetas).toBeDefined();
+        if (!p.recetas) return;
+        expect(p.recetas.modo).toBe("qlora4");
+        expect(p.recetas.dondeEjecutar).toBe("gpu-gratuita-permitida");
+        expect(p.recetas.entrenamiento).toContain("trust_remote_code: false");
+        expect(p.recetas.entrenamiento).toContain("saves/guia-publica/sft-lora");
+        expect(p.recetas.fusion).toContain("export_dir: exports/guia-publica");
+    });
+
     it("la memoria de grupo exige la aprobación de la entidad; sin ella se deja fuera", () => {
         const sin = planificarAdaptador(publico({ sujeto: botDeGrupo, fuentes: [fuente("grupo"), fuente("publica")] }));
         if (!sin.ok) throw new Error(sin.errores.join(" | "));

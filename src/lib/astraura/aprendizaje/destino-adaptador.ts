@@ -38,6 +38,16 @@ import {
     type MotorFabrica,
     type NecesidadFabrica,
 } from "./fabricas";
+import type { DestinoModelo } from "./dataset-llamafactory";
+import {
+    elegirAfinado,
+    recetaEntrenamiento,
+    recetaFusion,
+    sanearAmbito,
+    type DondeEjecutar,
+    type Etapa,
+    type ModoAfinado,
+} from "./receta-llamafactory";
 import { rutaRelativaSegura, slugSujeto, type TipoSujeto } from "./soup";
 
 export type AmbitoAdaptador = "privado" | "colectivo";
@@ -72,7 +82,19 @@ export interface PeticionAdaptador {
     base: string;
     /** Consentimiento explícito para que el archivo de entrenamiento salga a un medio que no es de la persona. */
     autorizaNube?: boolean;
+    /** Plantilla de chat (template) de LlamaFactory; sin ella no se genera la receta YAML. */
+    plantilla?: string;
     ahora?: Date;
+}
+
+/** Recetas YAML de LlamaFactory que acompañan al plan, listas para `llamafactory-cli`. */
+export interface RecetasAdaptador {
+    modo: ModoAfinado;
+    etapa: Etapa;
+    entrenamiento: string;
+    fusion?: string;
+    dondeEjecutar: DondeEjecutar;
+    avisos: string[];
 }
 
 /** Entrada del registro `starseed_memory_root/aprendizaje/adaptadores.json`: compatible con la que ya lee Genesis. */
@@ -106,6 +128,8 @@ export type PlanAdaptador =
         registro: RegistroAdaptador;
         explicacion: string;
         avisos: string[];
+        /** Recetas de LlamaFactory generadas con las salvaguardas de `receta-llamafactory`. */
+        recetas?: RecetasAdaptador;
     }
     | { ok: false; errores: string[] };
 
@@ -269,6 +293,45 @@ export function planificarAdaptador(p: PeticionAdaptador): PlanAdaptador {
         requiereEvaluacion: true,
     };
     if (excluidas.length > 0) avisos.push(`Se dejaron fuera ${excluidas.length} archivo(s) sin consentimiento o sin aprobación.`);
+
+    // 6) Recetas YAML de LlamaFactory para este mismo sujeto y corpus. Solo con el tamaño
+    //    del modelo y la plantilla de chat conocidos; en BitNet/Needle la receta se rechaza.
+    let recetas: RecetasAdaptador | undefined;
+    if (p.plantilla?.trim() && p.necesidad.parametros_b !== undefined) {
+        const etapa: Etapa = p.necesidad.tarea === "preferencias" ? "kto" : "sft";
+        const destino: DestinoModelo =
+            ambito === "privado" ? "privado" : alcance === "publica" ? "publico" : "ambito";
+        const carpeta = sanearAmbito(s.id);
+        const vramGb = p.medio.vram_gb ?? p.medio.ram_gb;
+        const afinado = elegirAfinado(p.necesidad.parametros_b, vramGb);
+        const entrenamiento = recetaEntrenamiento({
+            ambito: carpeta,
+            destino,
+            baseHf: p.base,
+            parametrosB: p.necesidad.parametros_b,
+            vramGb,
+            etapa,
+            dataset: `${carpeta}_${etapa}`,
+            plantilla: p.plantilla,
+        });
+        if (entrenamiento.ok) {
+            const fusion = recetaFusion({
+                ambito: carpeta,
+                baseHf: p.base,
+                adaptadorDir: `saves/${carpeta}/${etapa}-lora`,
+                plantilla: p.plantilla,
+            });
+            recetas = {
+                modo: afinado.modo,
+                etapa,
+                entrenamiento: entrenamiento.yaml,
+                dondeEjecutar: entrenamiento.dondeEjecutar,
+                avisos: entrenamiento.avisos,
+                ...(fusion.ok ? { fusion: fusion.yaml } : {}),
+            };
+        }
+    }
+
     return {
         ok: true,
         ambito,
@@ -279,5 +342,6 @@ export function planificarAdaptador(p: PeticionAdaptador): PlanAdaptador {
         registro,
         explicacion: `${explicarAmbito(ambito, alcance)} Lo fabrica ${MOTORES[motor].nombre}.`,
         avisos,
+        recetas,
     };
 }
