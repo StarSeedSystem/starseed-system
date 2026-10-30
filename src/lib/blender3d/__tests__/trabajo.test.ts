@@ -15,11 +15,28 @@ const valido = (b: unknown): Trabajo3D => { const r = validarTrabajo(b); expect(
 const motivos = (b: unknown): string[] => { const r = validarTrabajo(b); expect(r.ok).toBe(false); return (r as { ok: false; motivos: string[] }).motivos; };
 const conEscena = (escena: unknown[], salidas: unknown[] = base().salidas as unknown[]): Bruto => ({ ...base(), escena, salidas });
 
+function trabajoDe(b: Bruto): Trabajo3D {
+  const r = validarTrabajo(b);
+  expect(r.ok).toBe(true);
+  return r.trabajo;
+}
+
 describe("validarTrabajo", () => {
   it("acepta el trabajo mínimo (cubo + cámara + luz + render_png)", () => {
     const t = valido(base());
     expect(t.v).toBe(VERSION_VOCABULARIO);
     expect(t.escena.map((o) => o.op)).toEqual(["primitiva", "camara", "luz"]);
+  });
+  it("aplica defaults de cámara y salida al trabajo válido", () => {
+    const r = validarTrabajo(base());
+    expect(r.ok).toBe(true);
+    const t = r.trabajo;
+    expect(t.escena).toHaveLength(3);
+    expect(t.salidas).toHaveLength(1);
+    expect(t.escena[1].lente_mm).toBe(50);
+    expect(t.escena[1].ortografica).toBe(false);
+    expect(t.salidas[0].fondo_transparente).toBe(false);
+    expect(t.limites).toBeUndefined();
   });
   it("rechaza campos desconocidos del trabajo y de una operación", () => {
     expect(motivos({ ...base(), extra: 1 }).join(" ")).toContain("campo desconocido en el trabajo: extra");
