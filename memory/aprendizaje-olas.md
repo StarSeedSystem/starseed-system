@@ -4662,3 +4662,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-30 08:57 · mg-oracle-1030-0050
+
+**Lo que se pidió.** Cómo trabajar (habilidad de Matt Pocock, MIT)
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — otra cosa (PG1013I, GCA1019X, VPU1019U). Es 50 % de la ola.
+- 2 tareas se fueron por lo mismo — los tipos no compilan (LYS1018L, RTBLD1025C-d3). Es 33 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `LYS1018L` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/LYS1018L conservada)
+- `TIP1013D` — no escribió nada
+- `RTBLD1025C-d3` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTBLD1025C-d3 conservada)
+- `PG1013I` — otra cosa: ningún proveedor respondió (todos caídos)
+- `GCA1019X` — otra cosa: ningún proveedor respondió (todos caídos)
+- `VPU1019U` — otra cosa: ningún proveedor respondió (todos caídos)
