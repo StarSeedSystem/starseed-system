@@ -41,6 +41,8 @@ import { PanelProtomolecula } from "@/components/protomolecula/panel-protomolecu
 import { almacenNavegador, guardarMolecula } from "@/lib/protomolecula/almacen-moleculas";
 import { crearControlador } from "@/lib/protomolecula/controlador";
 import { moleculaDeFence } from "@/lib/protomolecula/fence-mensaje";
+import { TarjetaImagenes, opcionesDesdeGaleria, peticionDesdeHerramienta, type OpcionTarjeta } from "@/components/imagenes";
+import type { GaleriaImagenes } from "@/ai/astraura/media/proveedor-neuronas";
 
 
 /* ═══════════════════════════ Sanitización HTML/SVG ═══════════════════════════
