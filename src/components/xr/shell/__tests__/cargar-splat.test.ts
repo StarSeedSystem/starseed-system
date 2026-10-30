@@ -3,7 +3,7 @@
  * Todo puro: el descargador y el constructor de Spark se inyectan, así que no hay red,
  * ni disco, ni WebGL. Los motivos se comprueban tal como los lee la persona.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ObjetoMundo } from "../../../../lib/xr/mundo-tipos";
 import {
     cargarSplat,
@@ -107,6 +107,24 @@ describe("cargarSplat", () => {
         });
         expect(pedidos).toBe(0);
         expect(resultado).toEqual({ ok: false, motivo: MOTIVO_URL_INSEGURA });
+    });
+
+    it("el aviso de Content-Length del servidor también respeta el tope de 60 MB", async () => {
+        vi.stubGlobal(
+            "fetch",
+            async () =>
+                new Response(null, {
+                    status: 200,
+                    headers: { "content-length": String(MAX_BYTES_SPLAT + 1) },
+                }),
+        );
+        try {
+            const resultado = await cargarSplat(URL, { SplatMesh: MallaFalsa });
+            expect(resultado.ok).toBe(false);
+            if (!resultado.ok) expect(resultado.motivo).toContain("60 MB");
+        } finally {
+            vi.unstubAllGlobals();
+        }
     });
 
     it("con url y bytes válidos crea la malla con el presupuesto del nivel", async () => {
