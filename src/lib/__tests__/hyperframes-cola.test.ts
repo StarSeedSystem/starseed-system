@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { crearCola, ESTADOS, ENTORNO, validarArgs, progresoDeLinea } from "../hyperframes-cola";
+import {
+  crearCola as crearColaServicio, ENTORNO as ENTORNO_HF, ESTADOS as ESTADOS_SERVICIO,
+  progresoDeLinea as progresoLineaServicio, validarArgs as validarArgsServicio,
+} from "../../../servicios/hyperframes/src/cola-render.mjs";
 import type { Trabajo, Opciones } from "../hyperframes-cola";
 
 function relojFalso(): { avanzar: (ms: number) => void; obtener: () => number } {
@@ -115,5 +119,77 @@ describe("hyperframes-cola", () => {
     expect(cola.listar().map((t: { id: string }) => t.id)).toEqual(["a"]);
     await esperar();
     expect(cola.estado("a")!.estado).toBe(ESTADOS.HECHO);
+  });
+});
+
+describe("cola de render del servicio (cola-render.mjs)", () => {
+  it("enciende HYPERFRAMES_NO_TELEMETRY=1 y argusa solo banderas blancas por lista", () => {
+    expect(ENTORNO_HF).toEqual({ HYPERFRAMES_NO_TELEMETRY: "1" });
+    expect(validarArgsServicio("-o salida.mp4")).toMatch(/lista/);
+    expect(validarArgsServicio(["--composition", "c", "-f", "mp4", "-q=alta"])).toBeNull();
+    expect(validarArgsServicio(["--rm", "x"])).toMatch(/no permitida/);
+    expect(validarArgsServicio(["-o", "/run/x"])).toMatch(/fuera/);
+    expect(validarArgsServicio(["-o", "a\tb"])).toMatch(/control/);
+    expect(progresoLineaServicio('clip @hf-progress {"frame":3,"total":9}')).toEqual({ frame: 3, total: 9 });
+    expect(progresoLineaServicio("@hf-progress {roto")).toBeNull();
+  });
+
+  it("con tope 2 lanza dos a la vez, el tercero espera; telemetría apagada en el trabajo", async () => {
+    const d = diferido<{ codigo: number; salida: string }>();
+    const trabajos: Trabajo[] = [];
+    const de = (): Promise<void> => new Promise((f) => setTimeout(f, 0));
+    const cola = crearColaServicio({ ejecutar: (t: Trabajo) => { trabajos.push(t); return d.promesa; }, reloj: relojFalso(), maxSimultaneos: 2 });
+    cola.encolar({ id: "a", proyecto: "p", args: ["--format", "webm"] });
+    cola.encolar({ id: "b", proyecto: "p", args: [] });
+    cola.encolar({ id: "c", proyecto: "p", args: [] });
+    await de();
+    expect(trabajos.map((t) => t.id)).toEqual(["a", "b"]);
+    expect(trabajos[0].env).toEqual({ HYPERFRAMES_NO_TELEMETRY: "1" });
+    expect(trabajos[0].proyecto).toBe("p");
+    expect(cola.estado("c")!.estado).toBe(ESTADOS_SERVICIO.EN_COLA);
+    d.resolver({ codigo: 0, salida: "a.webm" });
+    await de();
+    expect(cola.estado("a")!.estado).toBe(ESTADOS_SERVICIO.HECHO);
+    expect(trabajos.map((t) => t.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("progreso leído, fallo sin rutas absolutas y cancelación en cola y en curso", async () => {
+    const d = diferido<{ codigo: number; error: string }>();
+    let opciones: Opciones | undefined;
+    const de = (): Promise<void> => new Promise((f) => setTimeout(f, 0));
+    const cola = crearColaServicio({ ejecutar: (_t: Trabajo, o: Opciones) => { opciones = o; return d.promesa; }, reloj: relojFalso() });
+    cola.encolar({ id: "a", proyecto: "p", args: [] });
+    cola.encolar({ id: "b", proyecto: "p", args: [] });
+    await de();
+    expect(cola.estado("b")!.estado).toBe(ESTADOS_SERVICIO.EN_COLA);
+    opciones!.alProgreso("@hf-progress {\"frame\":7,\"total\":21}");
+    expect(cola.estado("a")!.progreso).toEqual({ frame: 7, total: 21 });
+    expect(cola.cancelar("b")).toBe(true);
+    expect(cola.estado("b")!.estado).toBe(ESTADOS_SERVICIO.CANCELADO);
+    cola.cancelar("a");
+    expect(cola.cancelar("a")).toBe(false);
+    d.resolver({ codigo: 2, error: "fallo /home/n/x.mp4" });
+    await de();
+    expect(cola.estado("a")!.estado).toBe(ESTADOS_SERVICIO.CANCELADO);
+    expect(cola.estado("a")!.motivo).toBeUndefined();
+    expect(JSON.stringify(cola.estado("a"))).not.toContain("/home/");
+    const cola2 = crearColaServicio({ ejecutar: async () => ({ codigo: 3, error: "tres /var/y.mp4" }), reloj: relojFalso() });
+    cola2.encolar({ id: "z", proyecto: "p", args: [] });
+    await de();
+    expect(cola2.estado("z")!).toMatchObject({ estado: ESTADOS_SERVICIO.FALLO, error: expect.stringContaining("<ruta>") });
+  });
+
+  it("el tiempo máximo cancela en el límite y rechaza id repetido, proyecto y args", () => {
+    const reloj = relojFalso();
+    const cola = crearColaServicio({ ejecutar: () => diferido<{ codigo: number }>().promesa, reloj, maxSegundos: 3 });
+    cola.encolar({ id: "a", proyecto: "p", args: [] });
+    reloj.avanzar(2999);
+    expect(cola.estado("a")!.estado).toBe(ESTADOS_SERVICIO.RENDERIZANDO);
+    reloj.avanzar(1);
+    expect(cola.estado("a")!).toMatchObject({ estado: ESTADOS_SERVICIO.CANCELADO, motivo: "tiempo máximo" });
+    cola.encolar({ id: "b", proyecto: "p", args: [] });
+    expect(() => cola.encolar({ id: "b", proyecto: "p", args: [] })).toThrow(/id/);
+    expect(() => cola.encolar({ id: "c", proyecto: "/etc", args: [] })).toThrow(/proyecto/);
+    expect(() => cola.encolar({ id: "d", proyecto: "p", args: ["-o", "salida", "extra"] })).toThrow(/sin bandera/);
   });
 });
