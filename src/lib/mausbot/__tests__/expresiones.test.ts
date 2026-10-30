@@ -40,6 +40,11 @@ describe("expresiones del Mausbot (port de OpenMausBot)", () => {
     }
   });
 
+  it("conserva los números del origen: centro de la cara y recorrido de la mirada", () => {
+    expect(CENTRO_CARA).toEqual([120, 122.5]);
+    expect(RECORRIDO_MIRADA).toEqual({ x: 13.2, y: 8.4 });
+  });
+
   it("empareja 25 bocas con las 25 expresiones y las ancla dentro de la caja", () => {
     expect(BOCAS).toHaveLength(EXPRESIONES.length);
     for (const espec of BOCAS) {
@@ -63,6 +68,13 @@ describe("expresiones del Mausbot (port de OpenMausBot)", () => {
 });
 
 describe("tabla estado → expresión", () => {
+  it("POSESIONES cubre exactamente los 18 estados del Mausbot, sin repetidos", () => {
+    const claves = Object.keys(POSESIONES);
+    expect(claves).toHaveLength(18);
+    expect(new Set(claves).size).toBe(18);
+    for (const estado of ESTADOS) expect(claves).toContain(estado);
+  });
+
   it("expresionDe devuelve índices válidos para los 18 estados", () => {
     expect(ESTADOS.map(e => POSESIONES[e]).every(Boolean)).toBe(true);
     for (const estado of ESTADOS) {
