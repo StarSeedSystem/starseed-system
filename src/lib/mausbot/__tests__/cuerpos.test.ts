@@ -32,7 +32,10 @@ describe("cuerpos del Mausbot", () => {
     expect(cuerpoMausbot(undefined)).toBe("cursor");
     expect(cuerpoMausbot(null)).toBe("cursor");
     expect(cuerpoMausbot(42)).toBe("cursor");
+    expect(cuerpoMausbot(true)).toBe("cursor");
     expect(cuerpoMausbot({ id: "star" })).toBe("cursor");
+    expect(cuerpoMausbot({})).toBe("cursor");
+    expect(cuerpoMausbot([])).toBe("cursor");
     expect(CUERPO_MAUSBOT_POR_DEFECTO).toBe("cursor");
   });
 
