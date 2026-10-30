@@ -106,6 +106,7 @@ import { getActiveSenses } from "@/lib/senses/senses";
 import { medidasOido } from "@/lib/aurora/stt-oss/medidas-oido";
 import { cronometroHabla, cronometroOido, leerMedidas } from "@/lib/aurora/medidas-voz";
 import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
+import { decidirInterrupcion, type EstadoInterrupcion, type MuestraVoz } from "./interrumpir-por-voz";
 
 /** «es-MX» → «es»: la misma base para elegir el motor y para filtrar lo medido. */
 function idiomaBaseDeVoz(lang: string | undefined): string {
