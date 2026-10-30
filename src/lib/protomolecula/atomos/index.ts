@@ -20,9 +20,10 @@ import { MAUSBOT } from "./mausbot";
 import { ESCENA3D } from "./escena3d";
 import { VIDEO_HTML } from "./video-html";
 import { FONDO_SHADER } from "./fondo-shader";
+import { ATOMOS_ARTCRAFT } from "./artcraft";
 
 /** Los átomos que el OS trae de serie. Las tareas siguientes añaden los suyos aquí. */
-export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURAS, ANIMACION_MANIMGX, MAUSBOT, ESCENA3D, VIDEO_HTML, FONDO_SHADER];
+export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURAS, ANIMACION_MANIMGX, MAUSBOT, ESCENA3D, VIDEO_HTML, FONDO_SHADER, ...ATOMOS_ARTCRAFT];
 
 /**
  * Registra los átomos propios que falten en el registro. Es idempotente: llamarla dos
