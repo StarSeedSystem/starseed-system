@@ -1,0 +1,90 @@
+{
+ "ola": "oracle-20261029",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "GCA1019M",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Asistente «Conectar Genesis» (cuenta, grupo o página)",
+   "archivos": [
+    "src/components/genesis/conectores/asistente-conectores.tsx",
+    "src/components/genesis/conectores/__tests__/asistente-conectores.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Tres pasos: 1) lo local del contexto (neuronas, servidores del cerebro, capa de Astraura que cabe) con interruptores; 2) lo gratis sugerido, con botón «Vincular» que abre el `enlaceAlta`/`enlaceClave` oficial en pestaña nueva y un campo para pegar la clave (se envía a la API y se borra del campo); 3) resumen por papel con la cadena elegida y su motivo. Estética de Genesis (cristal, píldoras). Prueba con Testing Library y API simulada. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "GCA1019L"
+   ]
+  },
+  {
+   "id": "GCA1019N",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Panel de asignaciones por papel y por director",
+   "archivos": [
+    "src/components/genesis/conectores/asignaciones-panel.tsx",
+    "src/components/genesis/conectores/__tests__/asignaciones-panel.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Una fila por papel o director con su cadena (arrastrar para ordenar, añadir del catálogo, quitar), etiqueta del peldaño (local, malla, contenedor, gratis, pago) y motivo; botón «Restaurar sugeridas». En PoliGenesis democrático, guardar crea una propuesta en vez de aplicar. Prueba. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "GCA1019F",
+    "GCA1019L"
+   ]
+  },
+  {
+   "id": "GCA1019S",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Ruta MCP remota por ámbito con permisos",
+   "archivos": [
+    "src/app/api/mcp/genesis/route.ts",
+    "src/app/api/mcp/genesis/__tests__/route.test.ts"
+   ],
+   "depende": [],
+   "prompt": "POST con `Authorization: Bearer` (token externo del ámbito, `tokens-externos.ts`) o sesión; resuelve el ámbito, filtra `tools/list` por permisos y alcance, registra cada llamada en `genesis_llamadas` sin datos sensibles y aplica límite de uso. GET devuelve 405. Prueba con dependencias falsas. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "GCA1019R-d2",
+    "GCA1019T"
+   ]
+  },
+  {
+   "id": "TRD1020G",
+   "ola": "1020U",
+   "titulo": "Traducción · traducir selección, párrafo y página entera con «Ver original» y el motor a la vista",
+   "archivos": [
+    "src/components/traduccion/traducir-texto.tsx",
+    "src/components/traduccion/__tests__/traducir-texto.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Registra en el menú de TRD1020E las entradas «Traducir selección», «Traducir este párrafo», «Traducir toda la página» y «Ver original» (esta solo con la página traducida). Usa el motor de TRD1020B (en la web: el traductor del navegador y Astraura; LibreTranslate de la neurona solo en localhost o la app nativa, porque una página https no puede llamar a 127.0.0.1) y `src/lib/traduccion/pagina.ts`. La selección y el párrafo se enseñan en una ventanita con la traducción, el motor que la hizo y «Copiar»; la página entera se traduce por lotes con un aviso discreto de progreso y «Ver original». Idioma destino: el del perfil (TRD1020D). Pruebas con un motor simulado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).",
+   "dependencias_ya_en_main": [
+    "TRD1020B",
+    "TRD1020C",
+    "TRD1020E"
+   ]
+  },
+  {
+   "id": "ART1025C",
+   "ola": "Ola 1025C · ArtCraft y Rare",
+   "titulo": "Cliente MCP por stdio con límites (puro, transporte inyectado)",
+   "area": "artcraft",
+   "archivos": [
+    "src/lib/artcraft/mcp-stdio.ts",
+    "src/lib/artcraft/__tests__/mcp-stdio.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: `architecture/artcraft-y-rare.md` §3.1 (puntos 1 y 7) y §2.1 (MCP por stdio, líneas de hasta 32 MiB). Crea un cliente JSON-RPC 2.0 de MCP por líneas, PURO: no abre procesos; recibe un transporte inyectado `{ escribir(linea: string): void; alRecibir(cb: (texto: string) => void): void; cerrar(): void }` y un reloj inyectado `{ tras(ms: number, cb: () => void): () => void }` para los tiempos.\n\nExporta: `LIMITE_LINEA = 32 * 1024 * 1024`; `trocearLineas(pendiente: string, trozo: string): { lineas: string[]; resto: string }` (separa por `\\n`, ignora `\\r` final y líneas vacías); `class ClienteMcpStdio` con `iniciar()` (envía `initialize` con `protocolVersion: \"2025-06-18\"`, `clientInfo: { name: \"starseed-os\", version: \"1\" }`, espera la respuesta y manda la notificación `notifications/initialized`), `listar(tiempoMs)` (`tools/list`), `llamar(herramienta, argumentos, tiempoMs)` (`tools/call`) y `cerrar()`. Los ids son enteros secuenciales; las respuestas pueden llegar desordenadas; las notificaciones del servidor y las líneas sin `id` se ignoran; una línea que no es JSON no tumba el cliente (se cuenta en `ilegibles`). Errores tipados `ErrorMcp { tipo: \"tiempo\" | \"enorme\" | \"rpc\" | \"cerrado\" | \"protocolo\"; mensaje: string }`: si el resto sin salto de línea supera `LIMITE_LINEA` se corta (`enorme`) y NO se despachan más peticiones; al `cerrar()` las pendientes fallan con `cerrado`; un `result.isError === true` de una herramienta se devuelve como `{ ok: false, texto }` y no como excepción. El texto de `result.content` (tipo `text`) se concatena; las imágenes se devuelven como `{ tipo: \"imagen\", mime, bytes }` con base64 decodificado.\n\nPruebas (≥ 12): handshake completo con transporte falso; respuestas desordenadas; notificación ignorada; línea ilegible; línea enorme cortada y sin más despachos; tiempo agotado; `isError`; cierre con pendientes; trozos partidos a mitad de línea; imagen base64.\n\nREGLAS COMUNES: lee primero la sección que se cita de `architecture/artcraft-y-rare.md` (el contrato). Español con acentos en todo texto que lea una persona. TypeScript estricto, sin `any`. Los módulos de `src/lib/artcraft/` son PUROS (sin `node:*`, sin React, sin red), salvo `pasarela-servidor.ts`, que es solo de servidor y que ningún componente de cliente puede importar (`next build` falla con `node:*` en el cliente). Ni claves ni rutas del disco en el código ni en las pruebas; las cadenas con forma de clave se montan en tiempo de ejecución (`[\"a\", \"b\"].join(\"\")`). Como mucho 3 archivos y 120 líneas por archivo (estilo denso del repo, sin relleno). Pruebas vitest propias en `__tests__`; ejecuta solo las relacionadas, nunca `tsc` ni `next build`. No toques `src/lib/protomolecula/catalogo-herramientas.ts`."
+  },
+  {
+   "id": "ART1025M",
+   "ola": "Ola 1025C · ArtCraft y Rare",
+   "titulo": "Huellas SHA256 de los activos de ArtCraft y Rare (pura)",
+   "area": "artcraft",
+   "archivos": [
+    "src/lib/artcraft/huellas.ts",
+    "src/lib/artcraft/__tests__/huellas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: `architecture/artcraft-y-rare.md` §6. Ningún zip web ni binario se aloja ni se sirve como origen aparte sin comprobar su huella contra el `SHA256SUMS.txt` de su release. Módulo PURO (usa `globalThis.crypto.subtle`, que existe en navegador, Node 20 y vitest).\n\nExporta: `parseSha256Sums(texto: string): Map<string, string>` (líneas `<64 hex> [*]<nombre>` con uno o dos espacios; ignora líneas vacías, comentarios `#` y huellas mal formadas; nombres en minúsculas no se tocan, pero la huella se normaliza a minúsculas); `nombreActivoWeb(app: \"figcraft\" | \"gridcraft\" | \"deckcraft\", version: string): string` → `<app>-web-<version sin v>.zip`; `nombreActivoCli(app, version)` → `<app>-cli-<version>-macos-universal.zip`; `nombreActivoRare(version, formato: \"arm64.dmg\" | \"x86_64.dmg\" | \"arm64.AppImage\" | \"x86_64.AppImage\")` → `Rare-<version>-<formato>`; `esActivoPermitido(nombre: string): boolean` (solo esos nombres, nada con `/`, `..` ni espacios); `async sha256Hex(bytes: Uint8Array): Promise<string>`; `async verificarActivo(nombre: string, bytes: Uint8Array, sumas: Map<string, string>): Promise<{ ok: boolean; motivo: string }>` (rechaza nombre no permitido, sin huella publicada o distinta; el motivo nunca repite la huella completa, solo los 8 primeros caracteres); `fijarVersion(app, version, sumas)` que devuelve `{ app, version, activo, sha256 } | null` para el activo web. Tamaño máximo 64 MB por activo (más = rechazar).\n\nPruebas (≥ 12): `sha256Hex` del texto «abc» (`ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`) y del vacío; parseo de un SUMS de ejemplo con dos formatos de espacio; nombres válidos e inválidos (`../x.zip`, `a b.zip`); verificación correcta, huella distinta, sin huella, activo no permitido, bytes que superan el tope.\n\nREGLAS COMUNES: lee primero la sección que se cita de `architecture/artcraft-y-rare.md` (el contrato). Español con acentos en todo texto que lea una persona. TypeScript estricto, sin `any`. Los módulos de `src/lib/artcraft/` son PUROS (sin `node:*`, sin React, sin red), salvo `pasarela-servidor.ts`, que es solo de servidor y que ningún componente de cliente puede importar (`next build` falla con `node:*` en el cliente). Ni claves ni rutas del disco en el código ni en las pruebas; las cadenas con forma de clave se montan en tiempo de ejecución (`[\"a\", \"b\"].join(\"\")`). Como mucho 3 archivos y 120 líneas por archivo (estilo denso del repo, sin relleno). Pruebas vitest propias en `__tests__`; ejecuta solo las relacionadas, nunca `tsc` ni `next build`. No toques `src/lib/protomolecula/catalogo-herramientas.ts`."
+  }
+ ]
+}
