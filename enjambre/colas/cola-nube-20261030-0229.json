@@ -1,0 +1,41 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "ola": "Ola 1025R · Diseño (Taste Skill, Frontend Slides, Awesome DESIGN.md, onetake, Docusaurus, Refine)",
+   "id": "DSN1025H-d2",
+   "titulo": "Estudio de Apps · plantilla de panel de datos con Refine y la telemetría apagada (parte 2 de 2)",
+   "archivos": [
+    "src/lib/appgen/__tests__/plantilla-refine.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1025.md (apartado «Diseño») y la ficha del paquete que se nombra aquí en el catálogo verificado `config/repos-libreria-1025*.json` (datos reales: NO los cambies). Ficha: lib-refine (MIT; `@refinedev/core` 5.0.12 en npm). Refine envía TELEMETRÍA por defecto (a telemetry.refine.dev: proveedores usados, versión, número de recursos, IP, host, navegador y sistema), y su CLI otra a /cli: la plantilla la apaga. Añade al Estudio de Apps (`src/lib/appgen/appgen.ts` define `AppFile { path, content, language }` y `languageForPath`) una plantilla de proyecto «panel de datos»: `src/lib/appgen/plantilla-refine.ts`, PURA (sin `node:*`): `plantillaRefine(op: { nombre: string; recursos: { nombre: string; campos: string[] }[] }): AppFile[]` (importa solo el TIPO `AppFile` y `languageForPath`). Valida con `^[a-z][a-z0-9-]{0,40}$` los nombres de recurso y con `^[A-Za-z_][A-Za-z0-9_]{0,40}$` los campos y lanza un `Error` en español si no casan (los datos del usuario nunca entran crudos en el código generado); el nombre del proyecto se reduce a un slug ASCII. Archivos (vite + react, sin nada más): `package.json` con EXACTAMENTE estas versiones, verificadas en npm el 2026-10-25: `@refinedev/core` 5.0.12, `@refinedev/react-router` 2.0.4, `@refinedev/simple-rest` 6.0.1, `react` y `react-dom` ^19.3.1, `react-router` ^7.0.2, `vite` ^8.3.5, `@vitejs/plugin-react` ^6.1.2, `typescript` ^5.6.0 (no añadas otras ni inventes versiones); `index.html`, `vite.config.ts`, `tsconfig.json`, `.gitignore`, `.env.example` con `VITE_API_URL=` vacío y `REFINE_NO_TELEMETRY=true` (sin ningún valor secreto), `src/main.tsx`, `src/App.tsx` y `src/paginas/listado.tsx` (una por recurso, con `useList` de `@refinedev/core`: en Refine 5 devuelve `{ query, result: { data, total } }` y la carga está en `query.isLoading`; verificado en la rama main). `App.tsx` monta `<Refine dataProvider={dataProvider(import.meta.env.VITE_API_URL)} routerProvider={routerProvider} resources={…} options={{ disableTelemetry: true }}>` (`dataProvider` de `@refinedev/simple-rest`, `routerProvider` de `@refinedev/react-router`). Sin claves en el código: si la API necesita clave, el `LEEME.md` dice que va en un proxy propio, nunca en el navegador. `LEEME.md` en español: activación MANUAL (`npm install`, `npm run dev`, Node 20+ que pide el núcleo), «versiones fijadas el 2026-10-25: revisar con npm outdated», telemetría apagada de las dos formas, y que nada se despliega sin la palabra de Alex; incluye una línea que diga que el proveedor de datos habla con una API REST y que los contratos independientes de la fuente de `src/lib/widget-data/` se conectan en esa API, no dentro del proyecto. Pruebas (`src/lib/appgen/__tests__/plantilla-refine.test.ts`): el `package.json` se parsea y lleva `@refinedev/core` exactamente «5.0.12»; `App.tsx` contiene `disableTelemetry: true`; `.env.example` contiene `REFINE_NO_TELEMETRY=true` y ninguna clave; un recurso «Mal Nombre» o un campo con comillas lanzan; ningún archivo contiene `http://`; hay una página por recurso; dos llamadas dan lo mismo; cada `language` sale de `languageForPath`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; claves solo en variables de entorno (nunca valores); textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).\n\n## PARTE 2 DE 2 (la dirección dividió DSN1025H: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: src/lib/appgen/__tests__/plantilla-refine.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "DSN1025H",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   },
+   "revisor_quitadas": [
+    "DSN1025H-d1"
+   ]
+  },
+  {
+   "ola": "Ola 1018L · Laya en todas las capas de Astraura y habilidades de ingeniería para su IA",
+   "id": "LYS1018H-d2",
+   "titulo": "Laya en navegador y apps (laya-ts con WebGPU → WASM): cuándo se carga y cuándo se pregunta fuera (parte 2 de 2)",
+   "archivos": [
+    "src/lib/astraura/laya/__tests__/laya-navegador.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `planLayaLocal(perfilMedio)` → { cargar: boolean, modelo: \"multilingual-int8\"|\"multilingual\"|null, motivo } según capas-autoadaptables §4: visita web nunca (va por la malla); PWA con WebGPU y ≥ 2 GB de almacenamiento persistente y ≥ 4 GB de memoria; app nativa si cabe en su presupuesto; batería < 20 % o pestaña oculta → no. Mientras `vendor/laya-ts` y el modelo exportado (tarea O) no existan, devuelve cargar:false con ese motivo. Pruebas por medio. Contrato: architecture/laya-y-habilidades.md (léelo entero antes de empezar) y los que amplía (capas-autoadaptables.md, astraura-capabilities.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y modelo inyectables); pruebas sin red y sin cargar modelos (respuestas de Laya de ejemplo dentro de la prueba, con la forma real: choice/probabilities/answer_confidence, score, noul); nada de `any`; para decidir con umbral usa `answer_confidence` (calibrada), no `confidence`; Laya en CPU tarda segundos (contrato §2): nunca bloquea la primera palabra de una conversación; lo privado nunca sale de las neuronas de la persona ni de sus servidores propios; Laya solo puede SUBIR la privacidad, nunca bajarla; nunca valores de claves, IPs ni rutas absolutas en mensajes; comentarios y textos en español con acentos.\n\n## PARTE 2 DE 2 (la dirección dividió LYS1018H: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/astraura/laya/__tests__/laya-navegador.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "LYS1018H",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "revisor_quitadas": [
+    "LYS1018H-d1"
+   ]
+  }
+ ]
+}
