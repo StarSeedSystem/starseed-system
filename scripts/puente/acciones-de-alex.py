@@ -22,6 +22,7 @@ orden lista para pegar, nunca con una descripción de lo que tendría que hacer.
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -72,6 +73,101 @@ ESENCIALES_DEL_ENJAMBRE = {
     "OPENROUTER_API_KEY", "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY",
     "NVIDIA_API_KEY", "GROQ_API_KEY", "STARSEED_PASARELA_GROQ_KEY", "XKIRO_API_KEY",
 }
+
+#: (IND1029I, 2026-10-30) El token de grano fino con el que la autopublicación del líder
+#: publica sin esta Mac y sin sesión de `gh`. Lo crea Alex UNA vez; el A1 lo guarda en su
+#: bóveda. Este medidor solo comprueba si ESTÁ: nunca lee ni imprime su valor.
+TOKEN_DESPLIEGUE = "STARSEED_DESPLIEGUE_GH_TOKEN"
+#: Enlace directo a crear el token, con nombre y permisos ya puestos en la URL (GitHub los
+#: rellena cuando la versión de su web los admite; si no, se marcan a mano en la misma página).
+ENLACE_TOKEN_DESPLIEGUE = (
+    "https://github.com/settings/personal-access-tokens/new"
+    "?name=starseed-despliegue&description=MetaGenesis+publica+sin+la+Mac"
+    "&target_name=StarSeedSystem&expires_in=90&contents=write&actions=read"
+)
+#: El guion pide el valor sin enseñarlo (no pasa por la línea de órdenes ni por el historial)
+#: y después lo sube a la bóveda del A1. Es la misma orden que Alex pega en su terminal.
+COMANDO_TOKEN_DESPLIEGUE = (
+    PREFIJO + "bash scripts/puente/guardar-clave.sh %s --ambos && "
+    "python3 scripts/puente/oracle_claves.py starseed-a1 %s" % (TOKEN_DESPLIEGUE, TOKEN_DESPLIEGUE)
+)
+
+
+def _nombre_valido(nombre):
+    """PURA: solo NOMBRES de variable ([A-Z][A-Z0-9_]*), nunca un valor ni una cadena rara."""
+    return bool(re.match(r"^[A-Z][A-Z0-9_]*$", str(nombre or "")))
+
+
+def dice_que_esta(salida):
+    """PURA: interpreta la marca SI/NO de la comprobación remota. None si no se pudo mirar."""
+    lineas = [l.strip() for l in str(salida or "").splitlines() if l.strip()]
+    ultima = lineas[-1] if lineas else ""
+    if ultima == "SI":
+        return True
+    if ultima == "NO":
+        return False
+    return None
+
+
+def a1_tiene_clave(nombre=TOKEN_DESPLIEGUE, ssh=None):
+    """¿La bóveda del A1 tiene esa variable? Solo sí/no: el valor no se lee ni se imprime.
+
+    La comprobación remota es un `grep -q` (mira si la línea existe y calla el contenido) y
+    contesta con la marca `SI` o `NO`. Se miran las dos bóvedas del A1: la del nodo
+    (`~/.starseed/env`) y la de la raíz (`/etc/starseed/env`). Si el A1 no responde, None:
+    no se le pide a Alex un token que quizá ya está, pero tampoco se inventa que falta.
+    """
+    if not _nombre_valido(nombre):
+        return None
+    if ssh is None:
+        try:
+            spec = importlib.util.spec_from_file_location(
+                "oracle_nodo", os.path.join(os.path.dirname(os.path.abspath(__file__)), "oracle_nodo.py"))
+            on = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(on)
+            ssh = on.ssh
+        except Exception:  # noqa: BLE001 — sin A1 no hay comprobación
+            return None
+    patron = "^(export )?%s=" % nombre
+    orden = (
+        "for f in \"$HOME/.starseed/env\" /etc/starseed/env; do "
+        "if grep -qE '%s' \"$f\" 2>/dev/null; then echo SI; exit 0; fi; "
+        "if [ -e \"$f\" ] && sudo -n grep -qE '%s' \"$f\" 2>/dev/null; then echo SI; exit 0; fi; "
+        "done; echo NO" % (patron, patron)
+    )
+    try:
+        _codigo, salida = ssh(orden, timeout=6)
+    except TypeError:
+        try:
+            _codigo, salida = ssh(orden)
+        except Exception:  # noqa: BLE001
+            return None
+    except Exception:  # noqa: BLE001
+        return None
+    return dice_que_esta(salida)
+
+
+def accion_token_despliegue(a1_lo_tiene):
+    """PURA: la acción del token de despliegue, solo si el A1 NO lo tiene.
+
+    `a1_lo_tiene` es True (ya está), False (falta) o None (no se pudo comprobar). Con None
+    no se pide: una lista que pide cosas que quizá ya están deja de leerse.
+    """
+    if a1_lo_tiene is not False:
+        return None
+    return {
+        "id": "token-despliegue-a1",
+        "titulo": "Token de despliegue para que MetaGenesis publique sin tu Mac",
+        "por_que": ("la autopublicación del líder necesita publicar en GitHub sin sesión de "
+                    "`gh` y sin esta Mac; con este token, el A1 empuja sus propios commits"),
+        "urgencia": "media",
+        "comando": COMANDO_TOKEN_DESPLIEGUE,
+        "enlace": ENLACE_TOKEN_DESPLIEGUE,
+        "por_que_no_lo_hago_yo": ("es un permiso de tu cuenta de GitHub: solo tú puedes "
+                                  "crearlo, y el guion lo pide sin que se vea"),
+        "detalle": "grano fino, solo StarSeedSystem/starseed-system · contents:write · actions:read",
+        "variable": TOKEN_DESPLIEGUE,
+    }
 
 #: Qué estados de pasarela necesitan a un humano, y con qué urgencia. `sin_cupo` NO está:
 #: una cuota se repone sola y mandarle a hacer algo por eso es hacerle perder el tiempo.
@@ -145,10 +241,18 @@ def accion_sin_canal(entorno):
     }
 
 
-def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None):
-    """Función PURA: la lista de acciones, ordenada por urgencia. Sin red, sin disco."""
+def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_tiene_token=None):
+    """Función PURA: la lista de acciones, ordenada por urgencia. Sin red, sin disco.
+
+    `a1_tiene_token` llega ya medido (True/False/None): aquí no se sale a la red. Con None
+    la acción del token no aparece, porque no hay prueba de que falte.
+    """
     catalogo = catalogo if catalogo is not None else _pas.CATALOGO
     acciones = []
+
+    token = accion_token_despliegue(a1_tiene_token)
+    if token:
+        acciones.append(token)
 
     # El canal de avisos es una preocupación aparte de la lista de tareas: solo se mira
     # cuando quien llama pasa un entorno. Así esta función sigue siendo pura y quien solo
@@ -347,7 +451,8 @@ def resondear(clave, segundos=20):
     return medida
 
 
-def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, medir=None):
+def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, medir=None,
+              a1_tiene_token=None):
     """¿Sigue haciendo falta esa accion? Vuelve a MEDIR, no consulta un archivo viejo.
 
     (2026-09-21, pedido por Alex) «en Genesis en su ventana debe haber un boton
@@ -376,6 +481,10 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
     if medida:
         pasarelas = actualizar_pasarela(pasarelas, clave, medida)
     secretos_repo = secretos_repo if secretos_repo is not None else _secretos()
+    # El token de despliegue también se vuelve a comprobar en la bóveda del A1: si Alex pulse
+    # «Ya lo hice», la tarjeta desaparece solo cuando el token está de verdad allí.
+    if a1_tiene_token is None and real:
+        a1_tiene_token = a1_tiene_clave()
     # (2026-09-22) Sin el entorno, `canal-de-avisos-sin-configurar` no se reconstruía y el
     # botón «Ya lo hice» contestaba «ya no hace falta» para algo que seguía sin arreglar.
     # Un botón que dice que algo está hecho porque él mismo no sabe mirarlo es justo la
@@ -383,6 +492,7 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
     vivas = construir_acciones(
         pasarelas, secretos_repo,
         entorno=entorno if entorno is not None else _entorno_con_env(),
+        a1_tiene_token=a1_tiene_token,
     )
     por_id = {a["id"]: a for a in vivas}
     momento = __import__("time").strftime("%Y-%m-%d %H:%M:%S")
@@ -440,7 +550,8 @@ def main():
         cual = sys.argv[i + 1] if len(sys.argv) > i + 1 else None
         print(json.dumps(verificar(cual), ensure_ascii=False, indent=1))
         return 0
-    acciones = construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env())
+    acciones = construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env(),
+                                  a1_tiene_token=a1_tiene_clave())
     datos = {"generado": __import__("time").strftime("%Y-%m-%d %H:%M"), "acciones": acciones}
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
     json.dump(datos, open(SALIDA, "w"), ensure_ascii=False, indent=1)

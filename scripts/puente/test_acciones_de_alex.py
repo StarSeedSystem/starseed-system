@@ -309,3 +309,82 @@ class RachaDeCaida(unittest.TestCase):
         r = self.R.racha_de_caida(anterior, nueva, "2026-10-28 01:00")
         self.assertEqual(r["caidas_seguidas"], 1)
         self.assertEqual(r["caida_desde"], "2026-10-28 01:00")
+
+
+class TokenDeDespliegueDelA1(unittest.TestCase):
+    """(IND1029I, 2026-10-30) Publicar sin la Mac: el líder del A1 empuja sus commits con un
+    token de grano fino. Alex lo crea UNA vez; la acción sale solo si la bóveda del A1 no lo
+    tiene, y la comprobación nunca lee ni imprime el valor."""
+
+    def test_no_se_pide_si_el_a1_ya_lo_tiene(self):
+        self.assertIsNone(A.accion_token_despliegue(True))
+
+    def test_no_se_pide_a_ciegas_si_no_se_pudo_comprobar(self):
+        self.assertIsNone(A.accion_token_despliegue(None))
+
+    def test_sale_con_enlace_orden_y_permisos_si_falta(self):
+        a = A.accion_token_despliegue(False)
+        self.assertEqual("token-despliegue-a1", a["id"])
+        self.assertEqual("media", a["urgencia"])
+        self.assertEqual("STARSEED_DESPLIEGUE_GH_TOKEN", a["variable"])
+        self.assertIn("personal-access-tokens/new", a["enlace"])
+        self.assertIn("StarSeedSystem", a["enlace"])
+        self.assertIn("contents=write", a["enlace"])
+        self.assertIn("actions=read", a["enlace"])
+        self.assertTrue(a["comando"].startswith("cd /"))
+        self.assertIn("guardar-clave.sh STARSEED_DESPLIEGUE_GH_TOKEN --ambos", a["comando"])
+        self.assertIn("oracle_claves.py starseed-a1 STARSEED_DESPLIEGUE_GH_TOKEN", a["comando"])
+        self.assertTrue(a["por_que_no_lo_hago_yo"])
+
+    def test_entra_en_la_lista_solo_si_falta(self):
+        faltando = A.construir_acciones([], TODOS, CATALOGO, a1_tiene_token=False)
+        self.assertIn("token-despliegue-a1", [x["id"] for x in faltando])
+        self.assertNotIn("token-despliegue-a1",
+                         [x["id"] for x in A.construir_acciones([], TODOS, CATALOGO, a1_tiene_token=True)])
+
+    def test_lo_media_va_despues_de_lo_urgente(self):
+        acciones = A.construir_acciones([], [], CATALOGO, entorno={}, a1_tiene_token=False)
+        ids = [x["id"] for x in acciones]
+        self.assertLess(ids.index("canal-de-avisos-sin-configurar"), ids.index("token-despliegue-a1"))
+
+    def test_dice_que_esta_interpreta_la_marca(self):
+        self.assertTrue(A.dice_que_esta("SI"))
+        self.assertFalse(A.dice_que_esta("NO"))
+        self.assertIsNone(A.dice_que_esta(""))
+        self.assertIsNone(A.dice_que_esta("bash: sudo: no permitido"))
+        self.assertTrue(A.dice_que_esta("aviso\nSI\n"))
+
+    def test_comprueba_sin_leer_el_valor(self):
+        visto = {}
+
+        def ssh(orden, timeout=8):
+            visto["orden"] = orden
+            return 0, "SI"
+
+        self.assertTrue(A.a1_tiene_clave("STARSEED_DESPLIEGUE_GH_TOKEN", ssh=ssh))
+        self.assertIn("grep -qE", visto["orden"])
+        self.assertNotIn("cat ", visto["orden"])
+        self.assertNotIn("sudo cat", visto["orden"])
+
+    def test_si_el_a1_no_responde_no_se_inventa_nada(self):
+        def revienta(orden, timeout=8):
+            raise OSError("sin A1")
+
+        self.assertIsNone(A.a1_tiene_clave("STARSEED_DESPLIEGUE_GH_TOKEN", ssh=revienta))
+
+    def test_nombre_raro_no_sale_al_shell(self):
+        def no_llamar(orden, timeout=8):
+            raise AssertionError("no debería llamar al A1")
+
+        self.assertIsNone(A.a1_tiene_clave("NO; rm -rf /", ssh=no_llamar))
+
+    def test_verificar_recomprueba_la_boveda(self):
+        hecho = A.verificar("token-despliegue-a1", pasarelas=[], secretos_repo=TODOS,
+                            entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"},
+                            a1_tiene_token=True)
+        self.assertTrue(hecho["hecha"])
+        falta = A.verificar("token-despliegue-a1", pasarelas=[], secretos_repo=TODOS,
+                            entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"},
+                            a1_tiene_token=False)
+        self.assertFalse(falta["hecha"])
+        self.assertIn("Token de despliegue", falta["titulo"])
