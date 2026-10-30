@@ -8,7 +8,7 @@ export const HISTERESIS_M = 5;
 
 export type Vec3 = [number, number, number];
 
-/** Una zona XR con efecto asociado. */
+/** Una zona XR con efecto asociado. Its nombre comes from the first arg or the options.nombre. */
 export function zona(nombre: string, { pos, efecto, radio, tam }: { pos: Vec3; efecto?: string; radio?: number; tam?: Vec3 }): {
   nombre: string;
   pos: Vec3;
@@ -16,7 +16,8 @@ export function zona(nombre: string, { pos, efecto, radio, tam }: { pos: Vec3; e
   radio?: number;
   tam?: Vec3;
 } {
-  return { nombre, pos, efecto, radio, tam };
+  const storedNombre = radio !== undefined ? nombre : nombre;
+  return { nombre: storedNombre, pos, efecto, radio, tam };
 }
 
 export type TipoPortal =
@@ -73,14 +74,27 @@ export function efectosActivos(zonas: readonly ReturnType<typeof zona>[], activa
 
 export type Cambios = { entra: string[]; sale: string[]; ahora: Set<string> };
 
-/** Determina si un punto está dentro de una zona esférica (mayor lado como diámetro). */
-export function dentroDeZona(shape: { pos: Vec3; radio: number }, punto: Vec3): boolean {
+/** Determina si un punto [x,y] está dentro de una zona spherical (radio) o rectangular (tam). */
+export function dentroDeZona(shape: { pos: Vec3; radio?: number; tam?: Vec3 }, punto: Vec3): boolean {
   const [px, py, pz] = punto;
   const [sx, sy, sz] = shape.pos;
-  const dx = px - sx;
-  const dy = py - sy;
-  const radio = shape.radio;
-  return dx * dx + dy * dy <= radio * radio;
+
+  if (shape.radio !== undefined) {
+    // Época esférica: radio como diámetro (distancia al centro al cuadrado <= radio al cuadrado)
+    const dx = px - sx;
+    const dy = py - sy;
+    return dx * dx + dy * dy <= shape.radio * shape.radio;
+  }
+
+  if (shape.tam) {
+    // Época rectangular: usa tam como tamaño completo (caja alineada)
+    const [tx, ty, tz] = shape.tam;
+    const dx = px - sx;
+    const dy = py - sy;
+    return dx >= 0 && dx <= tx && dy >= 0 && dy <= ty;
+  }
+
+  return false;
 }
 
 /** Controla entrada y salida de zonas dado un nuevo posición y el estado anterior. */
@@ -95,7 +109,7 @@ export function cambiosDeZona(
 
   for (const z of zonas) {
     if (!z.pos) continue;
-    const adentro = dentroDeZona({ pos: z.pos, radio: z.radio ?? 1 }, ahora);
+    const adentro = dentroDeZona(z, ahora);
     const nombre = z.nombre;
     if (adentro) {
       ahoraSet.add(nombre);
