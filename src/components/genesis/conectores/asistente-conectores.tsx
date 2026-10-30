@@ -12,9 +12,10 @@ import type { GrupoSugerencias } from "@/lib/genesis/conectores/sugerir";
 import type { Papel } from "@/lib/genesis/conectores/catalogo-opciones";
 
 export interface VistaOpcionesAmbito { sugerencias: GrupoSugerencias[]; asignaciones: readonly Asignacion<Papel>[] }
-export type ResultadoVincular = { ok: boolean; error?: string }, Cargar = (ambito: string) => Promise<VistaOpcionesAmbito>,
-  VincularClave = (ambito: string, proveedor: string, valor: string) => Promise<ResultadoVincular>,
-  ResumenPapel = { papel: Papel; elegido: string | null; cadena: string[]; motivo: string };
+export type ResultadoVincular = { ok: boolean; error?: string };
+export type Cargar = (ambito: string) => Promise<VistaOpcionesAmbito>;
+export type VincularClave = (ambito: string, proveedor: string, valor: string) => Promise<ResultadoVincular>;
+export type ResumenPapel = { papel: Papel; elegido: string | null; cadena: string[]; motivo: string };
 export const GRUPOS = { local: "local-por-activar", gratis: "gratis-por-vincular" } as const;
 
 async function cargarPorApi(ambito: string): Promise<VistaOpcionesAmbito> {
@@ -92,7 +93,7 @@ export function AsistenteConectarGenesis({ ambito, opciones = null, cargar, vinc
       {paso === 1 ? (
         <div className="space-y-2" data-testid="paso-local">
           <p className="text-xs text-white/60">Neuronas, servidores del cerebro y capa de Astraura que ya corre en tu contexto.</p>
-          {local.map((o: (typeof local)[number]) => (
+          {local.map((o) => (
             <div key={o.id} className={`flex items-center justify-between gap-3 ${CRISTAL}`}>
               <div><p className="text-sm">{o.nombre}</p><p className="text-xs text-white/50">{o.motivo}</p></div>
               <button type="button" role="switch" aria-checked={locales.has(o.id)} aria-label={`Interruptor de ${o.nombre}`} onClick={() => alternar(o.id)}
@@ -104,7 +105,7 @@ export function AsistenteConectarGenesis({ ambito, opciones = null, cargar, vinc
       {paso === 2 ? (
         <div className="space-y-2" data-testid="paso-gratis">
           <p className="text-xs text-white/60">Crea tu cuenta en el enlace oficial, pega la clave y se envía a la bóveda del servidor.</p>
-          {gratis.map((o: (typeof gratis)[number]) => (
+          {gratis.map((o) => (
             <div key={o.id} className={CRISTAL}>
               <p className="text-sm">{o.nombre}</p>
               {o.enlaceAlta || o.enlaceClave ? <a href={o.enlaceAlta ?? o.enlaceClave ?? "#"} target="_blank" rel="noreferrer" className={`${PILDORA} py-1`}>Vincular</a> : null}
