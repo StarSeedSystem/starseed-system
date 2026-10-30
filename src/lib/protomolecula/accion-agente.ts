@@ -6,6 +6,7 @@ import { candidatosDe } from "./registro-atomos";
 import { claveDe, describirCambio, formatearValor, normalizar, valorActual } from "./parametros";
 import { metricaDeFuente } from "./permisos";
 import { PROTO_ORB_ABRIR_EVENT, PROTO_ORB_CERRAR_EVENT, leerActivada, fijarOrbeActivada, alternarOrbe } from "./orbe-bus";
+import { proponer as guardarCandidato, revisar as revisarCandidato, diff as diffCandidato } from "./candidatos-codigo";
 import { METRICAS_SALUD, type Accion, type Autor, type CandidatoParametro, type ModoRelativo, type Parametro } from "./tipos";
 import { alcanceVisiblePara, type ActorMemoria } from "@/lib/nucleo/alcance-memoria";
 import { etiquetaFormato, formatoDe } from "@/lib/conversion/formatos";
@@ -22,14 +23,14 @@ export interface ContextoAccionProto { abrirRuta?: (ruta: string) => void; avisa
   actor?: ActorMemoria; ahora?: () => number; nuevoId?: () => string; fijarOrbe?: (activada: boolean) => boolean; cerrarOrbe?: () => void;
   referencias?: Pick<DepsBuscarReferencias, "conectado" | "consultar" | "laya"> }
 export const TOPE_LINEAS_ESTADO = 40, TOPE_BYTES_ESTADO = 4096;
-export const MENSAJE_PROPONER_CODIGO = "próximamente: las propuestas de código llegan con la fase F7; hoy no se ejecuta ni se guarda nada.";
+export const MENSAJE_PROPONER_CODIGO = "Un candidato NUNCA se ejecuta: la persona lo revisa con su diff y lo acepta o lo descarta con la mano.";
 const PENDIENTE = "queda pendiente de que la persona la confirme en el panel", SALUD = new Set<string>(METRICAS_SALUD);
 const ACCIONES = ["abrir", "estado", "mover", "dictar", "deshacer", "proponer-codigo", "convertir", "pedir", "video.componer", "diagrama.crear", "referencias.buscar", "activar", "desactivar", "alternar", "cerrar"];
 const MODOS: ModoRelativo[] = ["delta", "porcentaje-valor", "porcentaje-rango", "pasos"];
 let secuencia = 0;
 const texto = (v: unknown): string => (typeof v === "string" ? v.trim() : ""), num = (n: number): string => String(n).replace(".", ",");
 const bytes = (s: string): number => new TextEncoder().encode(s).length;
-const no = (message: string): ResultadoAccionProto => ({ ok: false, message, status: "Protomolécula" }), si = (message: string, status = "Protomolécula"): ResultadoAccionProto => ({ ok: true, message, status });
+const no = (message: string): ResultadoAccionProto => ({ ok: false, message, status: "Protomolécula" }), si = (message: string, status = "Protomolécula", datos?: Record<string, unknown>): ResultadoAccionProto => ({ ok: true, message, status, datos });
 /** Registro en vivo de la entidad (DAN1024G): `data-ss-movimiento` en el documento; sin DOM o valor raro, `contextoDisenoIA` cae a «sobrio». */
 const registroVivo = (): unknown => {
   try { return document.documentElement.dataset.ssMovimiento; } catch { return undefined; }
@@ -160,10 +161,22 @@ async function referenciasBuscar(args: Record<string, unknown>, ctx: ContextoAcc
   return { ok: true, status: "Buscando referencias…", datos: { tarjetas },
     message: `Referencias para ${tipo}${privado ? " (privado: solo en tus neuronas)" : ""}:\n${lista || "ninguna encaja"}` };
 }
+/** «proponer-codigo» (PM1010F7A, §8.2): guarda el CANDIDATO revisado en la cola hermana (sin ejecutar nada). */
+function proponerCodigo(args: Record<string, unknown>, autor: Autor): ResultadoAccionProto {
+  const propuesto = texto(args.propuesto) || texto(args.codigo) || texto(args.descripcion);
+  if (!propuesto) return no("Falta «propuesto» (o «codigo»): el TEXTO NUEVO tal como saldría; no se ejecuta.");
+  const hacia = texto(args.destino) || texto(args.capa);
+  if (/(?:^|\/)(?:nucleo|invariantes|paquete-sistema)(?:\/|$)/.test(hacia)) return no(`El destino «${hacia}» es del núcleo intocable: un candidato jamás lo toca.`);
+  const c = guardarCandidato({ capaId: hacia || "capa-codigo", lenguajeOrigen: texto(args.lenguaje) || texto(args.de) || "texto",
+    lenguajeDestino: texto(args.convertirA) || undefined, propuesto, original: texto(args.original) || "", autor });
+  const avisos = revisarCandidato(c).avisos, cambios = diffCandidato(c.original, propuesto).filter((l) => l.tipo !== "igual").length;
+  return si(`Candidato «${c.id}» guardado (sin ejecutarse). Diff: ${cambios} línea(s) en juego.${avisos.length ? ` Avisos: ${avisos.join(" ")}` : ""} ${MENSAJE_PROPONER_CODIGO}`,
+    "Candidato de código propuesto…", { id: c.id, avisos, cambios });
+}
 export function manejarAccionProtomolecula(args: Record<string, unknown>, ctx: ContextoAccionProto = {}): ResultadoAccionProto {
   const accion = texto(args.accion), moleculaId = texto(args.molecula) || undefined, atomo = texto(args.atomo);
   const autor: Autor = { tipo: "agente", id: texto(args.agente) || "astraura" }, herramienta = texto(args.herramienta);
-  if (accion === "proponer-codigo") return no(MENSAJE_PROPONER_CODIGO);
+  if (accion === "proponer-codigo") return proponerCodigo(args, autor);
   if (accion === "pedir") return no("«pedir» espera a la IA para planificar: usa manejarAccionProtomoleculaAsync.");
   if (accion === "referencias.buscar") return no("«referencias.buscar» consulta canales: usa manejarAccionProtomoleculaAsync.");
   if (!ACCIONES.includes(accion)) return no(`No conozco la acción «${accion}». Usa: ${ACCIONES.join(", ")}.`);
