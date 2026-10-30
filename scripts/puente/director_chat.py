@@ -12,6 +12,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 CANALES = (
     "mando",
@@ -200,6 +201,7 @@ def publicar(
             }
         )
     _anadir(_chat(raiz), [mensaje] + entregas)
+    publicar_puerta(mensaje)
     return mensaje
 
 
@@ -271,9 +273,127 @@ def _leer_lineas(ruta, solo_cola=False):
     return registros
 
 
+# ── Chat del director entre neuronas (IND1029H) ────────────────────────────────
+# La puerta de datos del A1 como estado común: `publicar` deja ahí el mensaje (latido
+# `servicio`, id `chat.<id de mensaje>`) y `leer` mezcla una vez los nuevos, sin duplicar por id.
+
+CLASE_CHAT_PUERTA = "servicio"
+PREFIJO_ID_CHAT = "chat."
+TOPE_TEXTO_PUERTA = 6000
+CHAT_PUERTA_VIVOS_S = 24 * 3600
+CHAT_PUERTA_CADA_S = 60
+CHAT_PUERTA_MAX = 100
+
+_PUERTA_FABRICA = None  # pruebas: callable () → cliente de la puerta (o None)
+_puerta_instancia: Any = None  # cliente de la puerta rodeado de None, o False si no hay
+_puerta_chat_ultimo = 0.0
+_puerta_chat_lista = []
+_puerta_vistos = set()
+
+
+def _puerta():
+    """Cliente de la puerta de datos (None si no está configurada o falla al construir)."""
+    global _puerta_instancia
+    if _puerta_instancia is None:
+        try:
+            if _PUERTA_FABRICA is not None:
+                _puerta_instancia = _PUERTA_FABRICA() or False
+            else:
+                from puerta_datos_cliente import Puerta  # noqa: PLC0415 — mismo directorio
+
+                cliente = Puerta.desde_entorno(rol="enjambre")
+                _puerta_instancia = cliente if cliente.configurada() else False
+        except Exception:  # noqa: BLE001
+            _puerta_instancia = False
+    return _puerta_instancia or None
+
+
+def id_puerta_del_mensaje(id_mensaje):
+    """PURA. Id del latido en la puerta para un mensaje: `chat.<id del mensaje>`."""
+    return PREFIJO_ID_CHAT + str(id_mensaje)
+
+
+def a_puerta(mensaje, tope_texto=TOPE_TEXTO_PUERTA):
+    """PURA. Lo que viaja del mensaje a la puerta, con el texto capado (latidos ≤ 8 KB)."""
+    fuera = dict(mensaje) if isinstance(mensaje, dict) else {}
+    fuera["texto"] = str(fuera.get("texto") or "")[: max(0, int(tope_texto))]
+    return fuera
+
+
+def de_puerta(latido, prefijo=PREFIJO_ID_CHAT):
+    """PURA. Mensaje reconstruido de un latido `chat.*` (None si no es un mensaje de chat)."""
+    idl = latido.get("id") if isinstance(latido, dict) else None
+    datos = latido.get("datos") if isinstance(latido, dict) else None
+    if not (isinstance(idl, str) and idl.startswith(prefijo) and isinstance(datos, dict)):
+        return None
+    mensaje = dict(datos)
+    mensaje.setdefault("id", idl[len(prefijo):])
+    mensaje["via_puerta"] = True
+    return mensaje
+
+
+def mensajes_de_puerta(latidos, maximo=CHAT_PUERTA_MAX):
+    """PURA. Mensajes de chat sacados de latidos de la puerta, lo más nuevo primero, sin duplicar."""
+    fuera = {}
+    for l in latidos or []:
+        m = de_puerta(l)
+        if m and m.get("id") and m["id"] not in fuera:
+            fuera[m["id"]] = m
+    return sorted(fuera.values(), key=_epoch_de, reverse=True)[: max(0, int(maximo))]
+
+
+def _nuevos_de_puerta(registros, latidos):
+    """PURA. Mensajes de la puerta que esta neurona aún no tiene ni sacó antes (por id de mensaje)."""
+    ids = {r.get("id") for r in registros if isinstance(r, dict) and r.get("id")}
+    ids |= _puerta_vistos
+    return [m for m in mensajes_de_puerta(latidos) if m.get("id") and m["id"] not in ids]
+
+
+def publicar_puerta(mensaje):
+    """Deja el mensaje en la puerta (latido `chat.<id>`). True si entró. Nunca lanza ni encola."""
+    try:
+        if en_pruebas() and _PUERTA_FABRICA is None:
+            return False
+        valido = isinstance(mensaje, dict) and bool(mensaje.get("id"))
+        cliente = _puerta() if valido else None
+        r = (cliente.latido(CLASE_CHAT_PUERTA, id_puerta_del_mensaje(mensaje["id"]),
+                            a_puerta(mensaje), respaldo=lambda _c: None) if cliente else None)
+        return bool(isinstance(r, dict) and r.get("via") == "puerta" and not r.get("error"))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _traer_chat_puerta():
+    """Latidos `chat.*` que hay en la puerta (una petición cada CHAT_PUERTA_CADA_S). Sin lanzar."""
+    global _puerta_chat_ultimo, _puerta_chat_lista
+    ahora = time.time()
+    if _puerta_chat_ultimo and ahora - _puerta_chat_ultimo < CHAT_PUERTA_CADA_S:
+        return _puerta_chat_lista
+    _puerta_chat_ultimo = ahora
+    try:
+        cliente = _puerta()
+        estado, j = cliente._pedir("GET", "/v1/latidos?clase=%s&vivos_s=%d"
+                                   % (CLASE_CHAT_PUERTA, CHAT_PUERTA_VIVOS_S)) if cliente else (None, None)
+        latidos = (j or {}).get("latidos")
+        if estado == 200 and isinstance(latidos, list):
+            _puerta_chat_lista = latidos
+    except Exception:  # noqa: BLE001
+        pass
+    return _puerta_chat_lista
+
+
+def _anadir_puerta(registros):
+    """Añade a `leer` los mensajes nuevos de la puerta, sin duplicar por id, y los anota."""
+    ids = {r.get("id") for r in registros if isinstance(r, dict) and r.get("id")} | _puerta_vistos
+    nuevos = [m for m in mensajes_de_puerta(_traer_chat_puerta())
+              if m.get("id") and m["id"] not in ids]
+    _puerta_vistos.update(m["id"] for m in nuevos)
+    return registros + nuevos
+
+
 def leer(desde=None, limite=200, raiz=None):
-    """Lee los últimos 256 KB del chat y devuelve lo posterior a `desde`."""
-    registros = _leer_lineas(_chat(raiz), solo_cola=True)
+    """Última cola del chat posterior a `desde`, más los mensajes nuevos de la puerta (IND1029H)."""
+    registros = _anadir_puerta(_leer_lineas(_chat(raiz), solo_cola=True))
     corte = _epoch_desde(desde)
     if corte is not None:
         registros = [r for r in registros if _epoch_de(r) > corte]
