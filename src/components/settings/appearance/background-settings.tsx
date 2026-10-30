@@ -55,6 +55,7 @@ import { cn, applyAlpha } from "@/lib/utils";
 import { useAppearance } from "@/context/appearance-context";
 import { addLayer, normalizeLayers } from "@/lib/appearance/background-layers";
 import { BackgroundLayersPanel } from "./background-layers-panel";
+import { FondosSetsPanel } from "./fondos-sets-panel";
 import { cargarCatalogo } from '@/lib/appearance/catalogo-shaders';
 
 /* ──────────────────────────────────────────────────────────────────────
@@ -715,6 +716,7 @@ export function BackgroundSettings() {
             {/* Capas de fondo: pila ordenada, opacidad, mezcla, ámbito. Va PRIMERO
                 porque es el modelo nuevo; el fondo base se elige debajo. */}
             <BackgroundLayersPanel />
+          <FondosSetsPanel />
 
         <div className="rounded-2xl border border-border/50 bg-card/30 p-4 space-y-6">
             {/* Keyframes para previews fluidos */}
