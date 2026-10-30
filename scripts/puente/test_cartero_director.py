@@ -194,7 +194,14 @@ class TestTextoInformeUso(unittest.TestCase):
 
 
 class TestClaudeCoworkAlMomento(unittest.TestCase):
-    """claude-cowork contesta con el mismo motor que claude-mac y firma como claude-cowork."""
+    """claude-cowork contesta al momento por la vía de la dirección.
+
+    (2026-10-30) Alineado con DIR1029A: si la dirección va por Claude
+    (sin ~/.starseed/direccion-motor.json), lo contesta Claude Code de
+    la Mac, misma firma que antes; si la dirección va por Hermes, lo
+    contesta Hermes en la sesión «Dirección MetaGenesis». La vía se
+    fija con mock: nada depende del disco de la Mac.
+    """
 
     def setUp(self):
         from unittest import mock
@@ -203,14 +210,18 @@ class TestClaudeCoworkAlMomento(unittest.TestCase):
         self.p1 = mock.patch.object(C.director_chat, "publicar", side_effect=lambda *a, **k: self.publicados.append((a, k)))
         self.p2 = mock.patch.object(C.director_chat, "entrega", side_effect=lambda *a, **k: self.entregas.append((a, k)))
         self.p3 = mock.patch.object(C.director_chat, "leer", return_value=[])
-        for p in (self.p1, self.p2, self.p3):
+        self.p4 = mock.patch.object(
+            C.motores_director, "direccion_motor",
+            return_value={"motor": "claude", "sesion": None},
+        )
+        for p in (self.p1, self.p2, self.p3, self.p4):
             p.start()
         self.estado = {"atendidos": [], "sesion_claude": None, "opus_fecha": "", "opus_hoy": 0}
         self.msg = _msg("md-9-cccc", ["claude-cowork"])
         self.msg["modelo"] = "claude-cowork/claude-opus-5-5"
 
     def tearDown(self):
-        for p in (self.p1, self.p2, self.p3):
+        for p in (self.p1, self.p2, self.p3, self.p4):
             p.stop()
 
     def test_responde_como_claude_cowork(self):
@@ -233,6 +244,31 @@ class TestClaudeCoworkAlMomento(unittest.TestCase):
         with self.mock.patch.object(C.motores_director, "correr", return_value=(1, "Credit balance is too low")):
             C.atender(self.msg, "claude-cowork", self.estado)
         self.assertEqual(("md-9-cccc", "claude-cowork", "fallo"), self.entregas[-1][0])
+
+    def test_direccion_hermes_contesta_por_hermes(self):
+        # (2026-10-29, DIR1029A) Con la dirección en Hermes, lo que va a
+        # claude-cowork lo contesta Hermes en la sesión «Dirección MetaGenesis».
+        self.p4.stop()
+        self.p4 = self.mock.patch.object(
+            C.motores_director, "direccion_motor",
+            return_value={"motor": "hermes", "sesion": "s-dir"},
+        )
+        self.p4.start()
+        with self.mock.patch.object(
+            C.motores_director, "correr", return_value=(0, "hola por hermes")
+        ) as correr:
+            C.atender(self.msg, "claude-cowork", self.estado)
+        orden = correr.call_args[0][0]
+        self.assertEqual("hermes", orden[0])
+        self.assertEqual("s-dir", orden[orden.index("--resume") + 1])
+        self.assertIn("-z", orden)
+        (texto,), k = self.publicados[-1]
+        self.assertEqual("hola por hermes", texto)
+        self.assertEqual("hermes", k["de"])
+        self.assertEqual("hermes/predeterminado", k["modelo"])
+        self.assertEqual(("md-9-cccc", "hermes", "respondido"), self.entregas[-1][0])
+        self.assertIn("md-9-cccc|claude-cowork", self.estado["atendidos"])
+        self.assertEqual(0, self.estado["opus_hoy"])
 
     def test_claude_mac_sigue_igual(self):
         salida = '{"result": "hola", "usage": {}}'
