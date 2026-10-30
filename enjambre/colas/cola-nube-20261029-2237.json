@@ -1,0 +1,35 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "DEC1028B",
+   "ola": "1028 · Decisiones de Alex aprobadas",
+   "depende": [],
+   "titulo": "A1 · un trabajador menos cuando corren Colibri o la automejora nocturna",
+   "archivos": [
+    "scripts/puente/oracle_a1.py",
+    "scripts/puente/test_oracle_a1_trabajadores.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en el código, en las pruebas ni en lo que imprimas.\n\nContexto (Alex, 2026-10-28, aprobó: «las decisiones mías se aprueba todo»): Colibri con la capa juicio en el A1 (`architecture/colibri-multicapas.md`, ~3,6 GB de RAM, unidad `starseed-colibri.service`) y una franja nocturna para Meta^n (`architecture/automejora-meta-n.md`, temporizador `starseed-automejora.timer` a las 03:40 UTC, necesita ≥ 1,5 GB libres) «con un agente menos». Medido: el A1 tiene 11 GB y con 3 trabajadores (`STARSEED_A1_TRABAJADORES=3` en `starseed-medio.service`) le queda ~1 GB.\n\nEn `oracle_a1.py`, función PURA `trabajadores_para(base, ahora_utc, colibri_activo, automejora_encendida)`: resta 1 si `colibri_activo` y 1 si `automejora_encendida` y la cola empezaría entre las 00:40 y las 05:40 UTC (una cola dura hasta `MINUTOS_COLA`), nunca menos de 1. `_correr_cola` la usa en lugar de `TRABAJADORES` fijo: `colibri_activo` = `systemctl is-active --quiet starseed-colibri` con rc 0; `automejora_encendida` = existe `/var/lib/starseed/automejora/entrada/config.json` con alguna capa encendida. Anota en el estado (`trabajadores`) los que usó y por qué. Pruebas de la función pura (a las 02:00 y a las 12:00 UTC, con y sin Colibri; mínimo 1).",
+   "dependencias_ya_en_main": [
+    "MTN1027G"
+   ]
+  },
+  {
+   "id": "MTN1027H",
+   "ola": "1027N · Automejora recursiva (Meta^n)",
+   "titulo": "Automejora · servicio y temporizador del A1, y viaje en el paquete",
+   "archivos": [
+    "deploy/oracle/nodo/systemd/starseed-automejora.service",
+    "deploy/oracle/nodo/systemd/starseed-automejora.timer",
+    "scripts/puente/oracle_nodo.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Meta^n (minnesotanlp/meta-n, MIT) «para todo el automejoramiento de cada capa de conciencia mesh automejorable de toda Astraura, con Colibri y los demás sistemas locales y mesh autoadaptables». Contrato: `architecture/automejora-meta-n.md` (léelo entero, sobre todo §3: Meta^n PROPONE dentro de una caja Docker sin red ni claves; el juez de StarSeed decide fuera de la caja sin ejecutar nada suyo; las funciones de ayuda nunca se cargan en caliente). Lo que hace falta de Meta^n está en `integraciones-de-codigo/meta-n/README-starseed.md`.\n\nUnidad oneshot como `starseed-metageminis.service` (léela): `User=root` (Docker), `Nice=15`, `MemoryMax=1500M`, `TimeoutStartSec=6000`, `ExecStart=/usr/bin/python3 /opt/starseed/nodo/automejora/automejora_nodo.py noche`, líneas `# requiere: /usr/bin/docker` y `# requiere: /opt/starseed/nodo/automejora/automejora_nodo.py` y `# temporizado`. Temporizador `OnCalendar=*-*-* 03:40:00`, `RandomizedDelaySec=15min`, `Persistent=true`. En `oracle_nodo.py`, `_paquete` copia `scripts/puente/automejora_logica.py`, `automejora_pasarela.py` y `automejora_nodo.py` (y `freellmapi_clave.py` si la pasarela lo importa) a `automejora/` (junto al Dockerfile y `dentro.py`, que ya viajan con `deploy/oracle/nodo`). Prueba de que el paquete los lleva.",
+   "dependencias_ya_en_main": [
+    "MTN1027G",
+    "CLB1027F"
+   ]
+  }
+ ]
+}
