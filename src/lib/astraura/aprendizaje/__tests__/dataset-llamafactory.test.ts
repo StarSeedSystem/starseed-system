@@ -119,6 +119,17 @@ describe("paraLlamaFactory", () => {
     expect(r.descartadas).toEqual({ secreto: 1 });
   });
 
+  it("también se descarta el secreto que va en la entrada, no solo en la salida", () => {
+    const r = paraLlamaFactory(
+      [exp({ id: "s2", tipo: "valoracion", valoracion: "positiva", entrada: "token Bearer abcdefghijklmnopqrstuvwxyz123" })],
+      AJUSTES,
+      OP_AMBITO,
+    );
+    expect(r.sft).toHaveLength(0);
+    expect(r.kto).toHaveLength(0);
+    expect(r.descartadas).toEqual({ secreto: 1 });
+  });
+
   it("el duplicado exacto se descarta con el motivo «duplicado»", () => {
     const a = paraLlamaFactory(
       [exp({ id: "d1" }), exp({ id: "d2" })],
@@ -126,6 +137,7 @@ describe("paraLlamaFactory", () => {
       OP_AMBITO,
     );
     expect(a.sft).toHaveLength(1);
+    expect(a.kto).toHaveLength(1);
     expect(a.descartadas).toEqual({ duplicado: 1 });
   });
 
