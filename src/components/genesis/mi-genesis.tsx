@@ -15,6 +15,7 @@ import { puertosDelOs, contextoDeMiCuenta } from "@/lib/genesis/puertos-os";
 import type { Ambito } from "@/lib/genesis/operaciones";
 import { PanelOperaciones } from "./panel-operaciones";
 import { AtajosGenesis } from "./atajos-genesis";
+import { SeccionAsignacionesGenesis, guardarAsignaciones } from "./conectores/seccion-asignaciones";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
 
@@ -95,6 +96,11 @@ export function MiGenesis() {
                 cargarContexto={cargarContexto}
                 sugerencias={SUGERENCIAS}
                 atajos={(anadir, ctx) => <AtajosGenesis anadir={anadir} ctx={ctx} />}
+            />
+            <SeccionAsignacionesGenesis
+                ambito="mi-cuenta"
+                titulo="Conectar · asignaciones"
+                onGuardar={(filas) => guardarAsignaciones("mi-cuenta", filas)}
             />
             <section id="bots" aria-label="Mis bots">
                 <h2 className="text-base font-semibold">Mis bots</h2>
