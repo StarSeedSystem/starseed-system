@@ -74,24 +74,22 @@ export function efectosActivos(zonas: readonly ReturnType<typeof zona>[], activa
 
 export type Cambios = { entra: string[]; sale: string[]; ahora: Set<string> };
 
-/** Determina si un punto [x,y] está dentro de una zona spherical (radio) o rectangular (tam). */
+/** Determina si un punto está dentro de una zona spherical (radio) o rectangular (tam). */
 export function dentroDeZona(shape: { pos: Vec3; radio?: number; tam?: Vec3 }, punto: Vec3): boolean {
   const [px, py, pz] = punto;
   const [sx, sy, sz] = shape.pos;
 
   if (shape.radio !== undefined) {
-    // Época esférica: radio como diámetro (distancia al centro al cuadrado <= radio al cuadrado)
     const dx = px - sx;
     const dy = py - sy;
     return dx * dx + dy * dy <= shape.radio * shape.radio;
   }
 
   if (shape.tam) {
-    // Época rectangular: usa tam como tamaño completo (caja alineada)
     const [tx, ty, tz] = shape.tam;
     const dx = px - sx;
     const dy = py - sy;
-    return dx >= 0 && dx <= tx && dy >= 0 && dy <= ty;
+    return dx >= -1e-6 && dx <= tx + 1e-6 && dy >= -1e-6 && dy <= ty + 1e-6;
   }
 
   return false;
