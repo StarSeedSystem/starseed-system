@@ -20,6 +20,7 @@ export const CAPACIDAD_POR_PERMISO: Record<PermisoMcp, CapacidadAmbito> = {
   "medidores:leer": "ver-resumen",
   "operaciones:proponer": "encolar",
   "biblioteca:buscar": "ver-detalle",
+  "variaciones:buscar": "ver-detalle",
   "opciones:sugerir": "ver-resumen",
   "chat:enviar": "chatear",
 };
