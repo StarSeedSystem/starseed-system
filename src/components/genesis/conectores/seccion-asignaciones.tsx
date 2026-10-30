@@ -18,6 +18,8 @@ import { PROVEEDORES_CATALOGO } from "@/lib/mando/proveedores-catalogo";
 import { FREE_CATALOG } from "@/ai/astraura/free-catalog";
 import { almacenNavegador } from "@/lib/protogenesis/almacen-encargos";
 
+export type { FilaPanel };
+
 function contenedorAOpcion(c: ContenedorOpcion): OpcionCatalogo {
   const gratis = c.requierePago
     ? null
@@ -36,7 +38,7 @@ function contenedorAOpcion(c: ContenedorOpcion): OpcionCatalogo {
     variables: [],
     privacidad: c.aptoPrivado ? "local" : "nube-con-retencion",
     licencia: null,
-    verificado: c.verificado,
+    verificado: null,
     fuente: "contenedores",
   };
 }
