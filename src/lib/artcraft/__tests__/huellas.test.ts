@@ -49,6 +49,10 @@ describe("parseSha256Sums", () => {
     const mapa = parseSha256Sums(texto);
     expect(mapa.size).toBe(1);
   });
+
+  it("ignora vacías, comentarios y huellas mal formadas", () => {
+    expect(parseSha256Sums("\n# solo comentario\nzz  loquesea.zip\n").size).toBe(0);
+  });
 });
 
 describe("nombreActivoWeb", () => {
@@ -104,6 +108,18 @@ describe("esActivoPermitido", () => {
 
   it("rechaza nombre con barra", () => {
     expect(esActivoPermitido("some/path.zip")).toBe(false);
+  });
+
+  it("acepta los nombres que generan las tres funciones", () => {
+    expect(esActivoPermitido(nombreActivoWeb("deckcraft", "0.10.0"))).toBe(true);
+    expect(esActivoPermitido(nombreActivoCli("figcraft", "0.10.0"))).toBe(true);
+    expect(esActivoPermitido(nombreActivoRare("1.12.0.237", "x86_64.dmg"))).toBe(true);
+  });
+
+  it("rechaza rutas, espacios, «..» y nombres ajenos", () => {
+    for (const nombre of ["../x.zip", "a b.zip", "figcraft/../web.zip", "OtraCosa.zip", ""]) {
+      expect(esActivoPermitido(nombre)).toBe(false);
+    }
   });
 });
 
