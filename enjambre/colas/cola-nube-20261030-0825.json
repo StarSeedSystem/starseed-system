@@ -1,0 +1,35 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "MVD1027E",
+   "ola": "1027V · Cápsulas de memoria (Memvid)",
+   "titulo": "Cerebros · la cápsula Memvid como destino de sincronía",
+   "archivos": [
+    "src/lib/brains/memory-destinations.ts",
+    "src/lib/brains/__tests__/memory-destinations-capsula.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Memvid (memvid/memvid, Apache-2.0) «en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda». Contrato: `architecture/memvid-capsulas.md` (léelo entero). Firmas del núcleo Rust en `integraciones-de-codigo/memvid/README-starseed.md`. Reglas: núcleo en Rust en un servidor propio (127.0.0.1:4490, token en `~/.starseed/memvid.token`), nunca el SDK de Node, nunca cuenta ni tickets de memvid.com, 50 MB por cápsula y se reparte, alcance de `src/lib/nucleo/alcance-memoria.ts`, personal y perfil cifradas.\n\n`MemoryDestinationsConfig` gana `capsula: { enabled: boolean }` (por defecto false; `normalizeMemoryDestinations` lo acepta sin romper lo guardado). En `syncBrainMemoryNow`, si está encendido, manda a `/api/memorias/capsulas` (accion poner, sujeto `cerebro:<id>`) solo los archivos de memoria nuevos o cambiados desde la última vez (huella SHA-256 guardada en el estado del cerebro), con `uri` `mv2://cerebro/<id>/<archivo>`; añade su paso a `MemoryDestinationSyncResult`. Sin servidor de cápsulas, el paso dice «sin servidor de cápsulas» y los demás destinos siguen igual. Pruebas.",
+   "dependencias_ya_en_main": [
+    "MVD1027D"
+   ]
+  },
+  {
+   "id": "LNN1028D2",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "Memorias · escribir en una cápsula también pone el texto en su índice LEANN",
+   "archivos": [
+    "src/lib/memorias/leann-cliente.ts",
+    "src/app/api/memorias/capsulas/route.ts",
+    "src/lib/memorias/__tests__/leann-cliente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\n`leann-cliente.ts` SOLO servidor (lee el token con `node:fs`; URL `STARSEED_LEANN_URL`, por defecto `http://127.0.0.1:4495`): `buscarLeann(indice, consulta, {k, filtros, pesoVector})` y `ponerLeann(indice, textos)`, 1,5 s de tope, `null` sin servidor. Nombre del índice = el de la cápsula sin parte ni extensión (`<tipo>-<id>-<alcance>`). En la ruta de cápsulas, tras un `poner` correcto en Memvid, `ponerLeann` con `metadatos {alcance, sujeto, uri, ts}`; si falla, nada se rompe (y lo dice en la respuesta como `leann: \"pendiente\"`). Pruebas con `fetch` falso.",
+   "dependencias_ya_en_main": [
+    "MVD1027D",
+    "LNN1028B"
+   ]
+  }
+ ]
+}
