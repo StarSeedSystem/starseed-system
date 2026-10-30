@@ -24,6 +24,13 @@ describe("parseSha256Sums", () => {
     expect(mapa.get("abc.zip")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
   });
 
+  it("acepta un solo espacio y normaliza la huella a minúsculas", () => {
+    const texto = "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD abc.zip";
+    const mapa = parseSha256Sums(texto);
+    expect(mapa.size).toBe(1);
+    expect(mapa.get("abc.zip")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  });
+
   it("ignora líneas vacías y comentarios", () => {
     const texto = "\n# comentario\nba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  abc.zip\n\n";
     const mapa = parseSha256Sums(texto);
@@ -91,6 +98,17 @@ describe("esActivoPermitido", () => {
 
   it("rechaza nombre con barra", () => {
     expect(esActivoPermitido("some/path.zip")).toBe(false);
+  });
+
+  it("acepta los nombres que generan las tres funciones", () => {
+    expect(esActivoPermitido(nombreActivoWeb("deckcraft", "0.10.0"))).toBe(true);
+    expect(esActivoPermitido(nombreActivoCli("figcraft", "0.10.0"))).toBe(true);
+    expect(esActivoPermitido(nombreActivoRare("1.12.0.237", "x86_64.dmg"))).toBe(true);
+  });
+
+  it("rechaza nombres ajenos y el vacío", () => {
+    expect(esActivoPermitido("OtraCosa.zip")).toBe(false);
+    expect(esActivoPermitido("")).toBe(false);
   });
 });
 
