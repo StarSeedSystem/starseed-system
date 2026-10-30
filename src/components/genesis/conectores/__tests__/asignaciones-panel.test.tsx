@@ -129,6 +129,14 @@ describe("AsignacionesPanel · filas por papel y director", () => {
     expect(disponiblesParaFila({ ...fila, tipo: "director" }, catalogo).map((o) => o.id)).toEqual(["dos", "revisor"]);
   });
 
+  it("escribe la etiqueta del peldaño en español, con inicial mayúscula", () => {
+    expect(etiquetaPeldano("local")).toBe("Local");
+    expect(etiquetaPeldano("malla")).toBe("Malla");
+    expect(etiquetaPeldano("contenedor")).toBe("Contenedor");
+    expect(etiquetaPeldano("gratis")).toBe("Gratis");
+    expect(etiquetaPeldano("pago")).toBe("Pago");
+  });
+
   it("en PoliGenesis democrático guardar propone en vez de aplicar", () => {
     expect(accionGuardar("aplicar")).toBe("aplicar");
     expect(accionGuardar("proponer")).toBe("proponer");
