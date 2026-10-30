@@ -664,7 +664,12 @@ async function neuralSpeakVibeVoice(
 
   let blob: Blob | null = null;
   try {
-    const url = endpoint.replace(/\/$/, "") + "/api/vibevoice/synthesize";
+    // Ruta respetada (VOZ1024C): si el endpoint ya trae una ruta explícita
+    // (p. ej. http://gpu:7860/api/vibevoice/synthesize o un túnel con su propia
+    // ruta), se usa TAL CUAL — antes se le añadía /api/vibevoice/synthesize
+    // SIEMPRE y un endpoint con ruta propia gritaba 404. Si es solo origen,
+    // se usa la ruta primaria del registro (ENGINE_PATHS.vibevoice[0]).
+    const url = candidateUrls(engine, endpoint)[0] ?? `${endpoint}/api/vibevoice/synthesize`;
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
