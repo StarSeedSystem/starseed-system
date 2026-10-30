@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "VZF1015T",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Llamadas grupales con bots: cada uno se transcribe en su neurona, el bot contesta con voz en la llamada",
+   "archivos": [
+    "src/lib/llamadas/bot-en-llamada.ts",
+    "src/lib/llamadas/__tests__/bot-en-llamada.test.ts"
+   ],
+   "depende": [],
+   "prompt": "La llamada (`src/lib/llamadas/motor.ts`, malla WebRTC de hasta 8) no tiene oído ni voz de Astraura. Crea la lógica de turnos PURA: cada participante comparte el TEXTO de lo que dice (no el audio) por el canal de datos; un bot invitado lee ese texto, contesta cuando hay silencio (≥ 700 ms) y nadie más habla; un solo bot a la vez; una persona que habla lo corta; y la función que decide quién sintetiza la respuesta (el servidor de voz de la sesión, `elegirServidorVoz`). Más el enganche mínimo con `MotorLlamada` (pista de audio del bot por `omnivoice-mixer` con `setNeuronMixGain`), con todo inyectable. Pruebas de los turnos. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "revisor_quitadas": [
+    "VZF1015S"
+   ],
+   "dependencias_ya_en_main": [
+    "VZF1015R"
+   ]
+  }
+ ]
+}
