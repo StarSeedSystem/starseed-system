@@ -4662,3 +4662,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-30 23:17 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** espera: dirige <neurona>
+
+**Resultado.** 0 de 8 integradas. 8 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 8 tareas se fueron por lo mismo — otra cosa (IND1029Cb, GEN1030B, AGT1025B-d2d, CB1013Nb, DSN1025H-d1c, IMN1021K3-d2d). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 8 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `IND1029Cb` — otra cosa: ningún proveedor respondió (todos caídos)
+- `GEN1030B` — otra cosa: ningún proveedor respondió (todos caídos)
+- `AGT1025B-d2d` — otra cosa: ningún proveedor respondió (todos caídos)
+- `CB1013Nb` — otra cosa: ningún proveedor respondió (todos caídos)
+- `DSN1025H-d1c` — otra cosa: ningún proveedor respondió (todos caídos)
+- `IMN1021K3-d2d` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTCOL1012Md-d3-d2b` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTRTRTCOL1012Bdsbbbbbbbbbbbbbbb-d1b` — otra cosa: ningún proveedor respondió (todos caídos)
