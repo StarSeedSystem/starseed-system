@@ -12,6 +12,7 @@ import type { ComponentType } from "react";
 import { registrarConvertidoresBase } from "../convertidores-base";
 import type { DefinicionAtomo, VistaProps } from "../registro-atomos";
 import { obtenerAtomo, registrarAtomo } from "../registro-atomos";
+import { registrarAppsEmbebidas } from "./apps-embebidas";
 import { SINTETIZADOR } from "./sintetizador";
 import { DOBLAJE } from "./doblaje";
 import { TEXTURAS } from "./texturas-webgl";
@@ -31,6 +32,7 @@ export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURA
  */
 export function registrarAtomosPropios(): void {
   registrarConvertidoresBase();
+  registrarAppsEmbebidas();
   for (const def of ATOMOS_PROPIOS) {
     if (obtenerAtomo(def.herramientaId)) continue;
     registrarAtomo(def);
