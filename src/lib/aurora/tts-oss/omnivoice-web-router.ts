@@ -122,6 +122,12 @@ const DEFAULT_CHAIN_PRIORITY = [
   // Chatterbox (VZR1011B): detrás de OmniVoice/OpenVoice y antes de Kokoro. Sin
   // estar aquí, `applyVoiceChainPriority` lo mandaba al final, DETRÁS de Kokoro.
   "chatterbox",
+  // xAI Voice Agent (Adenda 97 · xaiSpeakOnce): entra por PIN de personalidad o
+  // elección explícita, nunca por AUTO (gratis-primero manda). Su sitio en el
+  // registro es detrás de los motores neurales gratuitos y DELANTE de Kokoro:
+  // sin estar aquí, `applyVoiceChainPriority` lo mandaba al final y el pin de una
+  // personalidad acababa oyéndose con Kokoro.
+  "xai",
   "kokoro",
   "voxcpm",
   "bark",
@@ -157,6 +163,24 @@ export function motorVivoDeEstaNeurona(): string | null {
 }
 
 /**
+ * (SGO1024C) Motores que `completarPrioridad` NO imputa a un orden guardado que
+ * no los traía: xAI nunca pasó por AUTO (gratis-primero manda), así que añadirlo
+ * de oficio a una lista vieja reescribiría la jerarquía de esa persona. El orden
+ * EFECTIVO sí lo coloca en su sitio (`completarOrdenCompleto`), para que un pin
+ * de personalidad nunca acabe detrás de Kokoro.
+ */
+const NO_SE_IMPUTAN_AL_COMPLETAR = new Set<string>(["xai"]);
+
+/** Posición donde insertar `m` en `out`: detrás del último motor previo presente. */
+function sitioTrasElPrevio(out: string[], i: number): number {
+  for (let j = i - 1; j >= 0; j--) {
+    const at = out.indexOf(DEFAULT_CHAIN_PRIORITY[j]);
+    if (at >= 0) return at + 1;
+  }
+  return 0;
+}
+
+/**
  * (VZR1011B) Completa un orden guardado con los motores que llegaron después:
  * cada uno entra justo detrás del que le precede en el orden recomendado, sin
  * tocar lo que la persona ordenó. Antes, un motor nuevo hacía que el orden
@@ -170,9 +194,24 @@ export function completarPrioridad(guardada: unknown): string[] {
   }
   if (!out.length) return [];
   DEFAULT_CHAIN_PRIORITY.forEach((m, i) => {
-    if (out.includes(m)) return;
-    const previo = i > 0 ? out.indexOf(DEFAULT_CHAIN_PRIORITY[i - 1]) : -1;
-    out.splice(previo + 1, 0, m);
+    if (out.includes(m) || NO_SE_IMPUTAN_AL_COMPLETAR.has(m)) return;
+    out.splice(sitioTrasElPrevio(out, i), 0, m);
+  });
+  return out;
+}
+
+/**
+ * Como `completarPrioridad`, pero deja el orden TAL COMO lo leería la cadena: el
+ * orden recomendado incluye también los motores de elección explícita (xAI) en
+ * su sitio, aunque un orden guardado de antes no los trajera. Así un pin de xAI
+ * nunca se queda detrás de Kokoro. Devuelve [] si no queda nada.
+ */
+function completarOrdenCompleto(guardada: unknown): string[] {
+  const out = completarPrioridad(guardada);
+  if (!out.length) return [];
+  DEFAULT_CHAIN_PRIORITY.forEach((m, i) => {
+    if (out.includes(m) || !NO_SE_IMPUTAN_AL_COMPLETAR.has(m)) return;
+    out.splice(sitioTrasElPrevio(out, i), 0, m);
   });
   return out;
 }
@@ -184,7 +223,7 @@ export function getVoiceChainPriority(): string[] {
   try {
     const raw = ls.getItem(VOICE_CHAIN_PRIORITY_KEY);
     if (!raw) return conMotorVivoDelante([...DEFAULT_CHAIN_PRIORITY], ls);
-    const valid = completarPrioridad(JSON.parse(raw));
+    const valid = completarOrdenCompleto(JSON.parse(raw));
     if (valid.length === DEFAULT_CHAIN_PRIORITY.length) return valid;
     return conMotorVivoDelante([...DEFAULT_CHAIN_PRIORITY], ls);
   } catch {
@@ -197,7 +236,7 @@ export function setVoiceChainPriority(order: string[]): void {
   const ls = safeLS();
   if (!ls) return;
   try {
-    const valid = completarPrioridad(order);
+    const valid = completarOrdenCompleto(order);
     if (valid.length === DEFAULT_CHAIN_PRIORITY.length) {
       ls.setItem(VOICE_CHAIN_PRIORITY_KEY, JSON.stringify(valid));
     }
