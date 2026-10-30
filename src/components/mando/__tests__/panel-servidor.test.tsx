@@ -102,11 +102,8 @@ describe("PanelServidor", () => {
 
     it("la tarjeta «Oracle Always Free» aparece cuando no hay ningún Oracle guardado todavía", async () => {
         render(<PanelServidor />);
-        await screen.findByText(/Oracle Always Free/i);
-        expect(screen.getByRole("link", { name: /crear cuenta en oracle cloud/i })).toHaveAttribute(
-            "href",
-            "https://www.oracle.com/cloud/free/",
-        );
+        const enlace = await screen.findByRole("link", { name: /crear cuenta en oracle cloud/i });
+        expect(enlace).toHaveAttribute("href", "https://www.oracle.com/cloud/free/");
     });
 
     it("el interruptor «Mantener encendida» hace POST {accion:'despierto', activar:true}", async () => {
