@@ -1,0 +1,19 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "MBT1027C2",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Mausbot · su configuración viaja con la cuenta",
+   "archivos": [
+    "src/lib/settings-sync.ts",
+    "src/lib/sync/realtime-sync.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nAñade `starseed.mausbot.v1` a `SYNCED_KEYS` (`src/lib/settings-sync.ts`) y su evento `starseed:mausbot` a `EVENT_BY_KEY` (`src/lib/sync/realtime-sync.ts`), igual que `starseed.aurora.always-on`. Nada más. Corre las pruebas existentes de esos módulos.",
+   "dependencias_ya_en_main": [
+    "MBT1027C-d2c"
+   ]
+  }
+ ]
+}
