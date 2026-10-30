@@ -129,6 +129,41 @@ describe("paraLlamaFactory", () => {
     expect(a.descartadas).toEqual({ duplicado: 1 });
   });
 
+  it("descarta entradas vacías, textos vacíos y salidas que no son string", () => {
+    const r = paraLlamaFactory(
+      [
+        exp({ id: "v1", entrada: "   " }),
+        exp({ id: "v2", salida: "" }),
+        exp({ id: "v3", salida: 42 }),
+      ],
+      AJUSTES,
+      OP_AMBITO,
+    );
+    expect(r.sft).toHaveLength(0);
+    expect(r.kto).toHaveLength(0);
+    expect(r.descartadas).toEqual({ "entrada-vacia": 1, "texto-vacio": 1, "salida-no-string": 1 });
+  });
+
+  it("descarta tipos no aprendibles y experiencias de otro ámbito", () => {
+    const r = paraLlamaFactory(
+      [
+        exp({ id: "x1", tipo: "texto" }),
+        exp({ id: "x2", dominio: "otro", ambito: "otro" }),
+      ],
+      AJUSTES,
+      OP_AMBITO,
+    );
+    expect(r.sft).toHaveLength(0);
+    expect(r.descartadas).toEqual({ "tipo-no-aprendible": 1, "otro-ambito": 1 });
+  });
+
+  it("sin aprendizaje colectivo no se genera nada para un destino de ámbito", () => {
+    const r = paraLlamaFactory([exp({ id: "n0" })], { ...AJUSTES, aprendizajeColectivo: false }, OP_AMBITO);
+    expect(r.sft).toHaveLength(0);
+    expect(r.kto).toHaveLength(0);
+    expect(r.descartadas).toEqual({ bloqueado: 1 });
+  });
+
   it("las filas van a info con las entrada de dataset_info.json", () => {
     const r = paraLlamaFactory([], AJUSTES, OP_AMBITO);
     const s = r.info["salas-1025_sft"] as { formatting?: string; columns?: Record<string, string>; tags?: Record<string, string> };
