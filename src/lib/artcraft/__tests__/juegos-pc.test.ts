@@ -33,6 +33,11 @@ describe("planificarJuegoPc · rutas A, B y C (§5.1)", () => {
   it("ruta B: servidor propio con GPU, Wine o Proton y transmisión", () => {
     expect(plan(NEURONA_SERVIDOR, [SERVIDOR_PROPIO]).ruta).toBe("servidor-propio");
   });
+  it("ruta B: salta un servidor propio sin GPU y usa el que la tiene", () => {
+    const sinGpu: EntradaPlan["servidores"][number] =
+      { id: "vacio", propio: true, compartido: false, gpu: false, wineOProton: true, transmision: null, libreDiscoGB: 40 };
+    expect(plan(NEURONA_SERVIDOR, [sinGpu, SERVIDOR_PROPIO]).ruta).toBe("servidor-propio");
+  });
   it("sin pantalla ni servidor viable: ninguna, sin pasos", () => {
     const r = plan(NEURONA_SERVIDOR, []);
     expect(r.ruta).toBe("ninguna");
@@ -40,7 +45,10 @@ describe("planificarJuegoPc · rutas A, B y C (§5.1)", () => {
   });
   it("ruta C bloqueada mientras las condiciones de Epic no estén decididas", () => {
     expect(CONDICIONES_EPIC_DECIDIDAS).toBe(false);
-    expect(plan(NEURONA_SERVIDOR, [SERVIDOR_COMPARTIDO]).ruta).toBe("ninguna");
+    const r = plan(NEURONA_SERVIDOR, [SERVIDOR_COMPARTIDO]);
+    expect(r.ruta).toBe("ninguna");
+    expect(r.pasos).toEqual([]);
+    expect(r.avisos).toContain("no hay ruta disponible en las condiciones actuales");
   });
 });
 
@@ -69,7 +77,9 @@ describe("validarSinCredencialesEpic · nada con forma de sesión de Epic", () =
   });
   it("detecta tokens con prefijo eg1~", () => {
     const token = ["eg1", "~", "TkAb12-9_kk"].join("");
-    expect(validarSinCredencialesEpic(`el texto contiene ${token} y ya`).ok).toBe(false);
+    const r = validarSinCredencialesEpic(`el texto contiene ${token} y ya`);
+    expect(r.ok).toBe(false);
+    expect(r.hallazgos.some((h) => h.startsWith("eg1~"))).toBe(true);
   });
 });
 
@@ -79,10 +89,11 @@ describe("esUrlPermitidaRare · solo releases oficiales, descargas remotas bloqu
       expect(esUrlPermitidaRare(u), u).toBe(true);
     }
   });
-  it("dominios remotos, http y otros repos quedan fuera", () => {
+  it("dominios remotos, http, otros repos y la página sin barra quedan fuera", () => {
     for (const u of [
       "https://raredevs.github.io/wring/workarounds.json", "https://www.protondb.com/app/1",
       "http://github.com/RareDevs/Rare/releases/tag/1", "https://github.com/RareDevs/Otro/releases/1",
+      "https://github.com/RareDevs/Rare/releases",
     ]) expect(esUrlPermitidaRare(u), u).toBe(false);
   });
 });
