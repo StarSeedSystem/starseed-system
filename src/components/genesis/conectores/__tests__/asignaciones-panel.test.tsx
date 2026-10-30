@@ -19,6 +19,7 @@ import {
   disponiblesParaFila,
   entradasDeFila,
   etiquetaFila,
+  etiquetaPeldano,
   filasSugeridas,
   moverEnCadena,
   peldanoDe,
