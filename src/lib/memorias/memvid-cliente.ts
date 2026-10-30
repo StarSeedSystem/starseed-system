@@ -10,7 +10,7 @@ import { capsulaDe, type SujetoMemoria, type TipoSujeto } from "./capsulas";
 
 export const BASE_MEMVID = "http://127.0.0.1:4490";
 export const TOPE_PETICION_MS = 1500;
-export const RE_NOMBRE_CAPSULA = /^[a-z0-9-]+\.mv2e?$/; // como el servidor: sin `/` ni `..`
+export const RE_NOMBRE_CAPSULA = /^[a-z0-9-]+-20[0-9]{2}T[1-4][a-z]?\.(mv2e?|mv2)$/; // sin `/` ni `..`; la T del trimestre es mayúscula al igual que en `capsulas.ts`
 export const TIPOS_SUJETO: readonly TipoSujeto[] = ["perfil", "personalidad", "agente", "bot", "pagina", "grupo", "comunidad", "cerebro", "capa"];
 export interface AciertoMemvid { titulo: string; texto: string; uri?: string; ts?: number }
 export interface EstadoCapsula { fotogramas: number; bytes: number; topeBytes: number; quedaBytes: number }
