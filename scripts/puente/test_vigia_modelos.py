@@ -200,6 +200,17 @@ class TestVigiaModelos(unittest.TestCase):
         self.assertIsNone(vacios[0]["motor"])
         self.assertEqual(len(vacios), 3)
 
+    def test_archivo_por_medio_elige_el_mayor_que_cabe_en_cada_medio(self):
+        """Si algo cabe en el navegador, se elige lo mayor ≤ 1 GB; la Mac y la A1, lo mayor que quepa."""
+        archivos = [{"nombre": "q4-ligero.gguf", "bytes": 800000000, "sha256": SHA_GGUF},
+                    {"nombre": "q4_k_m.gguf", "bytes": 4200000000, "sha256": SHA_GGUF},
+                    {"nombre": "f16.gguf", "bytes": 14200000000, "sha256": SHA_GGUF}]
+        medios = {m["medio"]: m for m in VM._archivo_por_medio(archivos)}
+        self.assertTrue(medios["navegador"]["cabe"])  # 0,8 GB sí cabe en el navegador
+        self.assertEqual(medios["navegador"]["archivo"], "q4-ligero.gguf")
+        self.assertEqual(medios["mac"]["archivo"], "q4_k_m.gguf")  # ≤ 4,5 GB en la Mac de 8
+        self.assertEqual(medios["a1"]["archivo"], "q4_k_m.gguf")  # ≤ 8 GB en la A1
+
     def test_ids_en_catalogo(self):
         """Del catálogo se sacan los ids «autor/repo» citados; desaparecido → None."""
         texto = 'export const M = { "Qwen/Qwen-Image-2.1", "Tongyi-MAI/Z-Image-Turbo" }'
