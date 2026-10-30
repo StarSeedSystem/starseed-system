@@ -33,6 +33,18 @@ describe("planificarJuegoPc · rutas A, B y C (§5.1)", () => {
   it("ruta B: servidor propio con GPU, Wine o Proton y transmisión", () => {
     expect(plan(NEURONA_SERVIDOR, [SERVIDOR_PROPIO]).ruta).toBe("servidor-propio");
   });
+  it("un servidor propio con Wine o Proton pero sin GPU no sostiene la ruta B", () => {
+    const sinGpu: EntradaPlan["servidores"][number] =
+      { id: "cpu", propio: true, compartido: false, gpu: false, wineOProton: true, transmision: null, libreDiscoGB: 40 };
+    expect(plan(NEURONA_SERVIDOR, [sinGpu]).ruta).toBe("ninguna");
+  });
+  it("entre servidores propios, la ruta B exige el que tenga GPU con compatibilidad", () => {
+    const sinGpu: EntradaPlan["servidores"][number] =
+      { id: "cpu", propio: true, compartido: false, gpu: false, wineOProton: true, transmision: null, libreDiscoGB: 40 };
+    const conGpu: EntradaPlan["servidores"][number] =
+      { id: "gaming", propio: true, compartido: false, gpu: true, wineOProton: true, transmision: "sunshine", libreDiscoGB: 40 };
+    expect(plan(NEURONA_SERVIDOR, [sinGpu, conGpu]).ruta).toBe("servidor-propio");
+  });
   it("sin pantalla ni servidor viable: ninguna, sin pasos", () => {
     const r = plan(NEURONA_SERVIDOR, []);
     expect(r.ruta).toBe("ninguna");
@@ -78,6 +90,10 @@ describe("esUrlPermitidaRare · solo releases oficiales, descargas remotas bloqu
     for (const u of ["https://github.com/RareDevs/Rare/releases/tag/1.12.0.237", "https://github.com/RareDevs/Rare/releases/latest"]) {
       expect(esUrlPermitidaRare(u), u).toBe(true);
     }
+  });
+  it("una descarga del repo oficial vale, pero la raíz de releases sin barra final no", () => {
+    expect(esUrlPermitidaRare("https://github.com/RareDevs/Rare/releases/download/1.12.0.237/Rare.dmg")).toBe(true);
+    expect(esUrlPermitidaRare("https://github.com/RareDevs/Rare/releases")).toBe(false);
   });
   it("dominios remotos, http y otros repos quedan fuera", () => {
     for (const u of [
