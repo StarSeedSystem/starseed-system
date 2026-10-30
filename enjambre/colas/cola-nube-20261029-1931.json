@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261029",
+ "tareas": [
+  {
+   "id": "GUI1021M2",
+   "ola": "1021G",
+   "titulo": "Guía sin cuenta · avisos de sesión del hub XR, la red y el estudio de diseño",
+   "archivos": [
+    "src/components/xr/xr-network-hub.tsx",
+    "src/components/mesh/network-feed.tsx",
+    "src/components/estudio/DesignStudio.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Sustituye SOLO los bloques visibles que dicen «Inicia sesión para…» (no los errores ni los toasts de «de nuevo») por `<AvisoSesion texto=\"…\" />` de `src/components/auth/aviso-sesion.tsx`, conservando el mismo texto de cada sitio. Nada más cambia. Si un archivo tiene prueba que comprobaba el texto exacto, sigue pasando porque el texto es el mismo. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.",
+   "dependencias_ya_en_main": [
+    "GUI1021L"
+   ]
+  }
+ ]
+}
