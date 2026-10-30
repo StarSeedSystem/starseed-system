@@ -7,10 +7,12 @@ no; la Mac (8 GB con presión) no deja a ninguno. Sin red, sin descargas, sin to
 CLB1028H añade el plan que ya sirve con el despliegue hecho: no se vuelve a clonar, el `hf` va
 en su venv propio (PEP 668) y los pesos no se vuelven a bajar si ya están.
 """
+import io
 import os
 import sys
 import unittest
 import unittest.mock
+from contextlib import redirect_stdout
 DIR = os.path.dirname(os.path.abspath(__file__))
 if DIR not in sys.path:
     sys.path.insert(0, DIR)
@@ -66,6 +68,29 @@ class PruebaCaben(unittest.TestCase):
         qwen38 = filas["colibri-qwen38-flash-next"]
         self.assertEqual(qwen38["veredicto"], "no cabe")
         self.assertIn("RAM insuficiente", qwen38["porque"])
+
+    def test_ram_minima_decide_con_disco_sobrado(self):
+        """Con disco de sobra manda el mínimo de RAM: Clef (19 GB) no cabe en 18 y Laya sí."""
+        filas = {f["id"]: f for f in C.caben(self.entradas, 18, 500)}
+        self.assertEqual(filas["colibri-clef"]["veredicto"], "no cabe")
+        self.assertIn("RAM", filas["colibri-clef"]["porque"])
+        self.assertEqual(filas["colibri-laya"]["veredicto"], "cabe")
+
+    def test_streaming_glm_con_disco_sobrado(self):
+        """GLM-5.2 (429 GB) cabe en streaming con 900 GB de disco y 20 de RAM; Qwen3.8 no por RAM mínima."""
+        filas = {f["id"]: f for f in C.caben(self.entradas, 20, 900)}
+        glm = filas["colibri-glm-5.2"]
+        self.assertEqual(glm["veredicto"], "cabe en streaming (disco rápido)")
+        self.assertIn("expertos del disco", glm["porque"])
+        self.assertEqual(filas["colibri-qwen38-flash-next"]["veredicto"], "no cabe")
+
+    def test_no_muta_las_entradas_y_da_id_capa_veredicto_porque(self):
+        """caben() es puro: no toca las entradas y cada fila trae id, capa, veredicto y porque."""
+        antes = [dict(e) for e in self.entradas]
+        filas = C.caben(self.entradas, 12, 18.5)
+        self.assertEqual(self.entradas, antes)
+        for fila in filas:
+            self.assertEqual(set(fila), {"id", "capa", "veredicto", "porque"})
 
     def test_neurona_dedicada_sin_margen(self):
         filas = {f["id"]: f for f in C.caben(self.entradas, 60, 100, margen_gb=0)}
@@ -189,6 +214,14 @@ class PruebaPlan(unittest.TestCase):
             self.assertIn(bandera, prepara)
         self.assertFalse([p for p in plan if "huggingface_hub" in " ".join(p["args"])])
 
+    def test_todos_los_pasos_llevan_listas_de_argumentos(self):
+        """Cada orden del plan es una lista de cadenas, nunca un string de shell."""
+        plan = C.plan_instalacion("colibri-laya", "/tmp/colibri")
+        self.assertGreaterEqual(len(plan), 3)
+        for paso in plan:
+            self.assertIsInstance(paso["args"], list)
+            self.assertTrue(all(isinstance(a, str) for a in paso["args"]))
+
     def test_plan_clef_dice_que_no_cabe(self):
         with self.assertRaises(ValueError) as ctx:
             C.plan_instalacion("colibri-clef", "/srv")
@@ -197,6 +230,19 @@ class PruebaPlan(unittest.TestCase):
     def test_id_desconocido(self):
         with self.assertRaises(ValueError):
             C.plan_instalacion("colibri-no-existe", "/srv")
+
+
+class PruebaMain(unittest.TestCase):
+    def test_plan_imprime_y_no_ejecuta(self):
+        """La CLI enseña los planes y lo deja claro: nada se descarga ni se ejecuta."""
+        salida = io.StringIO()
+        with unittest.mock.patch.object(C, "medir_maquina", return_value=(12, 18.5, False)):
+            with redirect_stdout(salida):
+                codigo = C.main(["--plan"])
+        texto = salida.getvalue()
+        self.assertEqual(codigo, 0)
+        self.assertIn("Plan de instalación de colibri-laya", texto)
+        self.assertIn("Nada de esto se descarga ni se ejecuta", texto)
 
 
 if __name__ == "__main__":
