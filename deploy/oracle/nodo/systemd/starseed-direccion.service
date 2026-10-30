@@ -1,0 +1,56 @@
+[Unit]
+Description=StarSeed · dirección de MetaGenesis en el A1 (IND1029): orquesta, cura, publica y correo
+After=network-online.target starseed-medio.service
+Wants=network-online.target
+# requiere: /opt/starseed/nodo/direccion_arranque.py
+# requiere: /home/starseed/starseed-system/scripts/puente/lider_direccion.py
+# requiere: /home/starseed/starseed-system/scripts/puente/vigilante-enjambre.py
+# requiere: /home/starseed/starseed-system/scripts/puente/vigia_medidores.py
+# requiere: /home/starseed/starseed-system/scripts/puente/autopublicar.py
+# requiere: /home/starseed/starseed-system/scripts/puente/cartero_director.py
+# requiere: /usr/bin/python3
+#
+# (IND1029D) Dirección en el A1: un solo proceso que, cuando el arriendo
+# `direccion.lider` es del A1, mantiene vivas las cuatro piezas de la dirección
+# con el mismo reparto que la Mac (instalar-servicios.py):
+#   · orquestador      → vigilante-enjambre.py (relanza el enjambre si no hay uno vivo)
+#   · autocuración     → vigia_medidores.py (llama a autocuracion_mando.revisar)
+#   · autopublicación  → autopublicar.py --bucle
+#   · cartero          → cartero_director.py
+# El arranque NO duplica: comprueba /proc y solo lanza lo que no está vivo. Sin
+# puerta o sin red, `lider_direccion` devuelve líder en local y se sigue como hoy.
+# Se instala con `oracle_nodo.py direccion --aplicar` (en seco por defecto); el
+# paquete del nodo no la activa sola porque su arranque se genera en el A1.
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed/starseed-system
+Environment=STARSEED_MEDIO=oracle STARSEED_DONDE=oracle STARSEED_ROOT=/home/starseed/starseed-system
+Environment=PYTHONUNBUFFERED=1 NEEDLE_TELEMETRY=0
+# La bóveda del A1 (root 600). Solo NOMBRES de variable en el repo y en la unidad:
+# los valores los deja `oracle_claves.py` en direccion.env; el guion tolera que el
+# archivo no esté (sin token, la puerta cae y la dirección sigue en local).
+EnvironmentFile=-/etc/starseed/direccion.env
+ExecStart=/usr/bin/python3 -u /opt/starseed/nodo/direccion_arranque.py
+Restart=on-failure
+RestartSec=30
+# Al parar la unidad se para el grupo entero: no quedan orquestadores ni carteros
+# huérfanos de una dirección que ya no existe.
+KillMode=control-group
+TimeoutStopSec=120
+# Trabajo de fondo: el A1 comparte CPU y RAM con BitNet, Genesis y el medio. El
+# orquestador ya vivo del medio no se duplica (el arranque lo detecta), así que
+# este techo cubre las cuatro piezas ligeras y, si el medio cae, un orquestador.
+MemoryHigh=2G
+MemoryMax=3G
+CPUWeight=50
+IOWeight=50
+Nice=10
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
