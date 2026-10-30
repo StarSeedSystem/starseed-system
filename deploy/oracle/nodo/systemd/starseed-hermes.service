@@ -1,0 +1,53 @@
+[Unit]
+Description=StarSeed · Hermes (gateway y Telegram) en el A1, solo con el arriendo de líder (IND1029G)
+After=network-online.target starseed-direccion.service starseed-medio.service
+Wants=network-online.target
+# requiere: /opt/starseed/nodo/hermes_arranque.py
+# requiere: /usr/bin/python3
+#
+# (IND1029G) Hermes es el puente, no el motor (architecture/metagenesis-autonoma.md §2). Este
+# servicio mantiene el gateway de Hermes en el A1 para que el chat y Telegram sigan a quien
+# dirige: su arranque (`hermes_arranque.py`, generado por `oracle_nodo.py hermes --aplicar`)
+# solo lo abre con el arriendo `direccion.lider` de `lider_direccion.renovar()`. Si otra neurona
+# tiene el arriendo, aquí no se abre: dos encuestas del mismo bot se pisan (Telegram solo admite
+# un lector; el log de Hermes llegó a registrar 22 «polling conflict» en una hora) y se pierden
+# mensajes a ambos lados. Al perder el arriendo, el arranque para el gateway.
+#
+# `preparar-a1.sh` solo instala esta unidad si existe el arranque generado (`# requiere:`); así
+# `oracle_nodo.py instalar` no deja un servicio roto cuando aún no se ha corrido `hermes`.
+# La configuración vive en HERMES_HOME/config.yaml, sin claves: el modelo es `freellmapi/auto`
+# contra el FreeLLMAPI local del A1 (127.0.0.1:3001) y el MCP es `starseed-director`. Las claves
+# (FREELLMAPI_KEY, TELEGRAM_BOT_TOKEN…) las pone el EnvironmentFile de la bóveda del A1; en el
+# repo solo hay NOMBRES de variable. Sin bóveda, el gateway no escucha y la dirección sigue igual.
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed/starseed-system
+Environment=STARSEED_MEDIO=oracle STARSEED_DONDE=oracle STARSEED_ROOT=/home/starseed/starseed-system
+Environment=HERMES_HOME=/var/lib/starseed-hermes PYTHONUNBUFFERED=1 NEEDLE_TELEMETRY=0
+# El instalador deja `hermes` en ~/.local/bin o ~/.hermes/bin; el arranque usa el PATH.
+Environment=PATH=/home/starseed/.local/bin:/home/starseed/.hermes/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=-/etc/starseed/direccion.env
+ExecStart=/usr/bin/python3 -u /opt/starseed/nodo/hermes_arranque.py
+Restart=on-failure
+RestartSec=30
+# El estado de Hermes (sesiones, registros, caché) queda en una carpeta propia del servicio.
+StateDirectory=starseed-hermes
+StateDirectoryMode=0750
+# Al parar la unidad se para también el gateway hijo: no queda un lector de Telegram huérfano.
+KillMode=control-group
+TimeoutStopSec=120
+# Trabajo de fondo: el A1 comparte CPU y RAM con BitNet, Genesis y el medio.
+MemoryHigh=768M
+MemoryMax=1G
+CPUWeight=40
+IOWeight=50
+Nice=10
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
