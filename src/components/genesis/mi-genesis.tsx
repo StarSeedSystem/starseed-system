@@ -18,6 +18,7 @@ import { AtajosGenesis } from "./atajos-genesis";
 import { SeccionAsignacionesGenesis, guardarAsignaciones } from "./conectores/seccion-asignaciones";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
+import { PanelProtoGenesis } from "@/components/protogenesis/panel-protogenesis";
 
 const AMBITO: Ambito = { tipo: "persona" };
 
@@ -57,6 +58,8 @@ export function MiGenesis() {
 
     const cargarContexto = useCallback(() => contextoDeMiCuenta(), []);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    // Id del encargo cuyo panel ProtoGenesis está abierto (PG1013I): uno a la vez.
+    const [panelAbierto, setPanelAbierto] = useState<string | null>(null);
 
     useEffect(() => {
         const almacen = almacenNavegador();
@@ -108,6 +111,9 @@ export function MiGenesis() {
             </section>
             <section id="protoGenesis-encargos" aria-label="Encargos de ProtoGenesis">
                 <h2 className="text-base font-semibold">ProtoGenesis de mis moléculas</h2>
+                <p className="mt-0.5 text-[11px] text-white/55">
+                    La génesis de cada creación: un director, varios agentes a la vez y tu decisión al final.
+                </p>
                 {encargos === null ? (
                     <p className="text-[11px] text-white/50">Cargando encargos…</p>
                 ) : encargos.length === 0 ? (
@@ -119,25 +125,47 @@ export function MiGenesis() {
                     {encargos.map((registro) => {
                         const decision = decisionPara(registro);
                         return (
-                            <li key={registro.encargo.id} className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-left text-xs text-white/80 transition-colors duration-200 hover:bg-black/30">
-                                <div className="flex-1">
-                                    <span className="block truncate">{registro.encargo.intencion}</span>
-                                    {registro.plan ? (
-                                        <span className="text-[10px] text-white/45">Con plan: {registro.plan.pasos.length} pasos</span>
-                                    ) : (
-                                        <span className="text-[10px] text-white/45">Sin plan</span>
-                                    )}
-                                    {/* La decisión del resultado (§2.7 del contrato): quién acepta y por qué. */}
-                                    <span className="block truncate text-[10px] text-emerald-200/70">{decision.motivo}</span>
-                                    {decision.modo === "proponer-metagenesis" && decision.borrador ? (
-                                        <span className="block truncate text-[10px] text-amber-200/80">
-                                            Borrador para MetaGenesis: {decision.borrador.id} — {decision.borrador.titulo}
-                                        </span>
-                                    ) : null}
+                            <li key={registro.encargo.id} className="w-full rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-xs text-white/80">
+                                <div className="flex items-center gap-2">
+                                    <div className="min-w-0 flex-1">
+                                        <span className="block truncate">{registro.encargo.intencion}</span>
+                                        {registro.plan ? (
+                                            <span className="text-[10px] text-white/45">Con plan: {registro.plan.pasos.length} pasos</span>
+                                        ) : (
+                                            <span className="text-[10px] text-white/45">Sin plan</span>
+                                        )}
+                                        {/* La decisión del resultado (§2.7 del contrato): quién acepta y por qué. */}
+                                        <span className="block truncate text-[10px] text-emerald-200/70">{decision.motivo}</span>
+                                        {decision.modo === "proponer-metagenesis" && decision.borrador ? (
+                                            <span className="block truncate text-[10px] text-amber-200/80">
+                                                Borrador para MetaGenesis: {decision.borrador.id} — {decision.borrador.titulo}
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                    <span className="shrink-0 text-[10px] text-white/45">
+                                        {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
+                                    </span>
+                                    {/* Acceso al panel de ProtoGenesis de este encargo (PG1013I): en tu ámbito, tú mandas. */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setPanelAbierto(panelAbierto === registro.encargo.id ? null : registro.encargo.id)}
+                                        className="shrink-0 cursor-pointer rounded-lg border border-emerald-300/30 px-2 py-1 text-[10px] text-emerald-200 transition-colors duration-200 hover:bg-emerald-500/10"
+                                    >
+                                        {panelAbierto === registro.encargo.id ? "Cerrar panel" : "Abrir panel"}
+                                    </button>
                                 </div>
-                                <span className="text-[10px] text-white/45">
-                                    {registro.actualizadoEn ? new Date(registro.actualizadoEn).toLocaleString() : ""}
-                                </span>
+                                {panelAbierto === registro.encargo.id ? (
+                                    <div className="mt-2 border-t border-white/10 pt-2">
+                                        <PanelProtoGenesis
+                                            moleculaId={registro.encargo.moleculaId}
+                                            ambito={registro.encargo.ambito}
+                                            esDueno
+                                            plan={registro.plan}
+                                            estados={registro.estados}
+                                            asignaciones={registro.asignaciones}
+                                        />
+                                    </div>
+                                ) : null}
                             </li>
                         );
                     })}
