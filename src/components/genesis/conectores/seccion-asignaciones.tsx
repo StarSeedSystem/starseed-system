@@ -17,8 +17,15 @@ import { CONTENEDORES_OPCIONES, type ContenedorOpcion } from "@/lib/genesis/cone
 import { PROVEEDORES_CATALOGO } from "@/lib/mando/proveedores-catalogo";
 import { FREE_CATALOG } from "@/ai/astraura/free-catalog";
 import { almacenNavegador } from "@/lib/protogenesis/almacen-encargos";
+import { ClaudeConector } from "./claude-conector";
 
 export type { FilaPanel };
+
+/** URL pública del MCP de Genesis del ámbito; el token va aparte, nunca en la URL. */
+function urlMcpDelGenesis(): string {
+  const base = process.env.NEXT_PUBLIC_SITE_URL || "https://starseed-os.vercel.app";
+  return `${base.replace(/\/+$/, "")}/api/mcp/genesis`;
+}
 
 function contenedorAOpcion(c: ContenedorOpcion): OpcionCatalogo {
   const gratis = c.requierePago
@@ -100,6 +107,9 @@ export function SeccionAsignacionesGenesis({
           : "Guarda la cadena por defecto de cada papel y director de este ámbito; lo local va primero y de pago solo con permiso."}
       </p>
       <AsignacionesPanel catalogo={CATALOGO_GENESIS} modo={modo} filasIniciales={iniciales} onGuardar={onGuardar} />
+      <div className="mt-4">
+        <ClaudeConector urlMcp={urlMcpDelGenesis()} />
+      </div>
     </section>
   );
 }
