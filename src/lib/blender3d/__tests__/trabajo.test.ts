@@ -129,11 +129,12 @@ it("imputa los topes duros de operaciones y salidas, y lo desconocido", () => {
 it("neutraliza textos de inyección en nombre y texto3d", () => {
     expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "\"; import os", tam: 1 }])).join(" ")).toContain("nombre inválido");
     for (const texto of ["hola\nimport os", "emoji 😈", `"); import os`, "línea uno\nlínea dos", "Cubo\u2028 业", "x".repeat(65)]) expect(motivos(conEscena([{ op: "texto3d", nombre: "t", texto, extrusion: 0.1, tam: 1 }])).join(" ")).toContain("texto con caracteres no permitidos");
+    const textoInject = "'; import os";
+    expect(valido(conEscena([{ op: "texto3d", nombre: "t", texto: textoInject }])).escena[0].texto).toBe(textoInject);
     expect(motivos(conEscena([{ ...CUBO, nombre: "Cuboño" }])).join(" ")).toContain("nombre");
     expect(motivos(conEscena([{ ...CUBO, nombre: "立立方方" }])).join(" ")).toContain("nombre");
     expect(motivos(conEscena([{ ...CUBO, nombre: "a".repeat(33) }])).join(" ")).toContain("nombre");
     expect(motivos(conEscena([{ ...CUBO, nombre: "2empieza" }])).join(" ")).toContain("nombre");
-    expect(valido(conEscena([{ op: "texto3d", nombre: "t", texto: "'"; import os", extrusion: 0.1, tam: 1 }])).escena[0].texto).toBe("'; import os");
   });
   it("acepta una escena con todas las operaciones del vocabulario", () => {
     const escena = [
