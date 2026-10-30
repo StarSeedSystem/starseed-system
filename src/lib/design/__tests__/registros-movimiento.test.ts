@@ -54,6 +54,21 @@ describe("movimientoDe — 18 pares registro × sección", () => {
         }
     });
 
+    it("el periodo de la respiración lo manda la sección, no el registro", () => {
+        for (const seccion of SECCIONES) {
+            const periodos = REGISTROS.map((r) => movimientoDe(r, seccion).respiracion.periodoMs);
+            expect(new Set(periodos).size).toBe(1);
+        }
+    });
+
+    it("la amplitud de la respiración la manda el registro, no la sección", () => {
+        const esperadas: Record<RegistroMovimiento, number> = { sobrio: 1.01, expresivo: 1.02, experimental: 1.03 };
+        for (const registro of REGISTROS) {
+            const escalas = SECCIONES.map((s) => movimientoDe(registro, s).respiracion.escala);
+            expect(new Set(escalas)).toEqual(new Set([esperadas[registro]]));
+        }
+    });
+
     it("el sobrio entra en normal/suave y sale en rápido/suave, sin elástico", () => {
         for (const seccion of SECCIONES) {
             const m = movimientoDe("sobrio", seccion);
@@ -69,6 +84,7 @@ describe("movimientoDe — 18 pares registro × sección", () => {
         expect(escalas[0]).toBeLessThan(escalas[1]);
         expect(escalas[1]).toBeLessThan(escalas[2]);
         expect(escalas[2]).toBeLessThanOrEqual(1.03);
+        expect(escalas).toEqual([1.01, 1.02, 1.03]);
     });
 
     it("el experimental lleva el elástico SOLO en la entrada", () => {
@@ -76,7 +92,7 @@ describe("movimientoDe — 18 pares registro × sección", () => {
             const m = movimientoDe("experimental", seccion);
             expect(m.entrada.curva).toBe(CURVA.elastico);
             expect(m.entrada.ms).toBe(DURACION.escena);
-            expect(m.salida.curva).not.toBe(CURVA.elastico);
+            expect(m.salida).toEqual({ ms: DURACION.pausado, curva: CURVA.salida });
         }
     });
 
