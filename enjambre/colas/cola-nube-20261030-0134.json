@@ -1,0 +1,40 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "APM1017Zb",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Genesis · «Recursos de la red»: ofertas, préstamos vivos y salud de las réplicas (solo local)",
+   "archivos": [
+    "src/app/api/mando/recursos-red/route.ts",
+    "src/components/mando/panel-recursos-red.tsx",
+    "src/lib/mando/__tests__/recursos-red.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Ruta con el guardián común `guardianMando` (como src/app/api/mando/hardware/route.ts: 404 fuera de local) que devuelve un resumen: ofertas visibles por medio, préstamos vivos y volúmenes con réplicas por debajo de lo deseado (`replicasDeseadas`). Panel con esas tres listas y números medidos (lo no medido como «sin medir»). Lógica de resumen en una función pura probada; nada de `node:*` en el componente. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "APM1017B"
+   ],
+   "dependencias_ya_en_main": [
+    "APM1017F",
+    "APM1017H"
+   ]
+  },
+  {
+   "id": "FSH1018J",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Bienvenida · paso «Elige tu fondo» al crear el perfil y su reaparición",
+   "archivos": [
+    "src/components/onboarding/elegir-fondo-inicial.tsx",
+    "src/lib/onboarding/fondo-inicial.ts",
+    "src/lib/onboarding/__tests__/fondo-inicial.test.ts"
+   ],
+   "depende": [],
+   "prompt": "fondo-inicial.ts PURO: `debeMostrarElegirFondo({ esPerfilNuevo, yaEligio, versionCatalogoVista, versionCatalogoActual, aplazadoHasta, ahora })` → sale al crear el perfil; a los ya registrados una vez; y otra cuando sube la versión del catálogo (novedades); nunca bloquea y «Ahora no» lo aplaza 7 días. El componente (mismo estilo que selector-voz-inicial.tsx) muestra el fondo actual como primera opción, los sets oficiales y el catálogo, varias selecciones posibles (perfil, apps), y guarda con alcance-fondos/fondos-biblioteca. Pruebas de la función. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "FSH1018H",
+    "FSH1018I"
+   ]
+  }
+ ]
+}
