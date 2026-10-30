@@ -45,6 +45,7 @@ import {
   Link2,
   BrainCircuit,
   Server,
+  Database,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -79,6 +80,7 @@ import {
   runOnBrain,
   appShareRef,
 } from "@/lib/appgen/appgen";
+import { plantillaRefine, type RecursoPlantilla } from "@/lib/appgen/plantilla-refine";
 
 import { createClient } from "@/utils/supabase/client";
 import { listBrains, type Brain, type BrainServer } from "@/lib/brains/brains";
@@ -125,6 +127,23 @@ function buildTree(files: AppFile[]): TreeNode {
 // ────────────────────────────────────────────────────────────────────────────
 // Componente principal
 // ────────────────────────────────────────────────────────────────────────────
+
+/** Parsea «clientes:nombre,email; pedidos:total» en recursos (la PLANTILLA valida nombres y campos). */
+function parsearRecursos(entrada: string): RecursoPlantilla[] {
+  return entrada
+    .split(";")
+    .map((parte) => parte.trim())
+    .filter(Boolean)
+    .map((parte) => {
+      const dosPuntos = parte.indexOf(":");
+      const nombre = (dosPuntos === -1 ? parte : parte.slice(0, dosPuntos)).trim();
+      const campos = (dosPuntos === -1 ? "" : parte.slice(dosPuntos + 1))
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean);
+      return { nombre, campos };
+    });
+}
 
 export default function AiAppGenerator() {
   const confirm = useConfirm();
@@ -606,6 +625,50 @@ export default function AiAppGenerator() {
     setPreviewKey((k) => k + 1);
   }, []);
 
+  // Plantilla «panel de datos» (Refine): proyecto Vite + React generado SIN IA,
+  // con la telemetría de Refine apagada de serie. Cambia los archivos del proyecto.
+  const onPlantillaRefine = useCallback(async () => {
+    const nombre = await prompt({
+      title: "Plantilla «panel de datos» (Refine)",
+      label: "Nombre del proyecto (se reduce a slug ASCII):",
+      placeholder: "panel-de-datos",
+      defaultValue: app.name === "Nueva app" ? "panel-de-datos" : app.name,
+      confirmText: "Siguiente",
+    });
+    if (nombre === null) return;
+    const rawRecursos = await prompt({
+      title: "Recursos del panel",
+      label: "Recursos y campos («clientes:nombre,email; pedidos:total»):",
+      placeholder: "clientes:nombre,email",
+      confirmText: "Crear proyecto",
+    });
+    if (rawRecursos === null) return;
+    const recursos = parsearRecursos(rawRecursos);
+    if (recursos.length === 0) {
+      toast.error("Escribe al menos un recurso, p.ej. «clientes:nombre,email».");
+      return;
+    }
+    try {
+      const archivos = plantillaRefine({ nombre: nombre.trim() || "Panel de datos", recursos });
+      setApp((prev) => ({
+        ...prev,
+        name: nombre.trim() || prev.name,
+        files: archivos,
+        meta: {
+          ...prev.meta,
+          spec: "Plantilla «panel de datos» con Refine: proyecto Vite generado sin IA, activación manual (ver LEEME.md).",
+        },
+      }));
+      setActivePath(archivos[0]?.path ?? "");
+      setPreviewKey((k) => k + 1);
+      toast.success("Proyecto «panel de datos» creado ✦", {
+        description: `${archivos.length} archivos. Activación manual: ver LEEME.md (telemetría de Refine apagada).`,
+      });
+    } catch (err) {
+      toast.error("La plantilla rechazó los datos", { description: (err as Error)?.message });
+    }
+  }, [app.name, prompt]);
+
   // ──────────────────────────────────────────────────────────────────────────
   // Render del árbol
   // ──────────────────────────────────────────────────────────────────────────
@@ -694,6 +757,15 @@ export default function AiAppGenerator() {
             />
             <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={newProject}>
               <Plus className="h-3.5 w-3.5" /> Nuevo
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 gap-1 text-xs"
+              onClick={onPlantillaRefine}
+              title="Crear proyecto «panel de datos» (plantilla de Refine: Vite + React, telemetría apagada)"
+            >
+              <Database className="h-3.5 w-3.5" /> Panel de datos
             </Button>
             <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={openList}>
               <FolderTree className="h-3.5 w-3.5" /> Mis apps
