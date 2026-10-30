@@ -76,6 +76,37 @@ describe("buildAstraura158Prompt", () => {
     expect(out.prompt).toBe("final");
   });
 
+  it("con plegar activo resume los turnos descartados sin ampliar el techo", () => {
+    const big = "x".repeat(6000);
+    const out = buildAstraura158Prompt(
+      [
+        { role: "user", content: `viejo ${big}` },
+        { role: "assistant", content: `respuesta ${big}` },
+        { role: "user", content: "reciente" },
+        { role: "assistant", content: "ok" },
+        { role: "user", content: "final" },
+      ],
+      { plegar: true },
+    );
+    expect(out.system_prompt).toContain("[RESUMEN DE LO ANTERIOR");
+    expect(out.system_prompt).toContain("viejo");
+    expect(out.system_prompt).toContain("Usuario: reciente");
+    expect(out.system_prompt).toContain("Astraura: ok");
+    expect(out.system_prompt.length).toBeLessThan(9000);
+    expect(out.prompt).toBe("final");
+  });
+
+  it("con historial corto, plegar activo o apagado dan la misma salida", () => {
+    const msgs: ChatMessage[] = [
+      { role: "user", content: "hola" },
+      { role: "assistant", content: "buenas" },
+      { role: "user", content: "final" },
+    ];
+    expect(buildAstraura158Prompt(msgs, { plegar: true })).toEqual(
+      buildAstraura158Prompt(msgs, { plegar: false }),
+    );
+  });
+
   it("sin mensajes de usuario ⇒ prompt vacío", () => {
     expect(buildAstraura158Prompt([{ role: "system", content: "solo sistema" }]).prompt).toBe("");
   });
