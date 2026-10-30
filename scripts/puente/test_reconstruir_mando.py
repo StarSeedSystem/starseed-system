@@ -707,6 +707,7 @@ class NoSeCompilaConAstrauraEnUso(unittest.TestCase):
                 mock.patch.object(R, "_leer_estado", return_value={"huella_construida": "aaa", "ok": True}), \
                 mock.patch.object(R, "cuantas_mas_nuevas", return_value=3), \
                 mock.patch.object(R, "mtime_del_build", return_value=0), \
+                mock.patch.object(R, "build_terminado", return_value=True), \
                 mock.patch.object(R, "conversando", return_value=False), \
                 mock.patch.object(R, "uso_de_astraura", return_value="uso"), \
                 mock.patch.object(R, "freno_de_maquina", return_value=None), \
@@ -730,6 +731,7 @@ class ElSilencioDeAstrauraNoBloqueaParaSiempre(unittest.TestCase):
                 mock.patch.object(R, "_leer_estado", return_value=dict(estado)), \
                 mock.patch.object(R, "cuantas_mas_nuevas", return_value=3), \
                 mock.patch.object(R, "mtime_del_build", return_value=0), \
+                mock.patch.object(R, "build_terminado", return_value=True), \
                 mock.patch.object(R, "conversando", return_value=False), \
                 mock.patch.object(R, "uso_de_astraura", return_value=uso), \
                 mock.patch.object(R, "publicacion_va_a_compilar", return_value=False), \
@@ -848,9 +850,127 @@ class FrenosDeMaquina(unittest.TestCase):
              mock.patch.object(R, "_leer_estado", return_value={}), \
              mock.patch.object(R, "cuantas_mas_nuevas", return_value=3), \
              mock.patch.object(R, "mtime_del_build", return_value=None), \
+             mock.patch.object(R, "build_terminado", return_value=True), \
              mock.patch.object(R, "freno_de_maquina", return_value="el enjambre está vivo"), \
              mock.patch.object(R, "_guardar") as guardar, \
              mock.patch.object(R, "reconstruir") as reconstruir:
             self.assertFalse(R.una_pasada(forzar=True))
         reconstruir.assert_not_called()
         self.assertEqual(guardar.call_args[0][0]["estado"], "esperando-maquina")
+
+
+class MemoriaMatóLaBuild(unittest.TestCase):
+
+    def test_es_memoria_eso_y_no_otra_cosa(self):
+        self.assertTrue(R.fallo_por_memoria(
+            "FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory"))
+        for pista in ("siguiendo el build... OOMKilled", "Killed: 9", "OUT OF MEMORY en el worker"):
+            self.assertTrue(R.fallo_por_memoria(pista), pista)
+        for no in ("Type error: no existe 'foo'", "PARADA: el disco bajó de 1.5 GB libres", "", None):
+            self.assertFalse(R.fallo_por_memoria(no), repr(no))
+
+
+class DondeCompilaCuandoLaMaquinaFrena(unittest.TestCase):
+
+    SWAP = "hay 6.1 GB de swap en uso (tope 4.0): la build lo llevaría al disco"
+
+    def test_caído_y_freno_va_al_a1(self):
+        for freno, marca in ((self.SWAP, "swap"), ("el enjambre está vivo (1 orquestador)", "enjambre")):
+            camino, motivo = R.camino_de_compilacion(freno, caido=True)
+            self.assertEqual(camino, "a1", freno)
+            self.assertIn("caído", motivo)
+            self.assertIn(marca, motivo)
+
+    def test_los_otros_caminos(self):
+        self.assertEqual(R.camino_de_compilacion(self.SWAP, caido=False), ("espera", self.SWAP))
+        self.assertEqual(R.camino_de_compilacion(None, caido=True), ("mac", ""))
+        self.assertEqual(R.camino_de_compilacion(None, caido=False), ("mac", ""))
+
+
+def pasada_caido(haces, estado, freno):
+    def falso_build(raiz=None, dist=None):
+        return bool(haces.get(dist if dist is not None else R.DIST_BUILD))
+    guardados = []
+    with mock.patch.object(R, "build_terminado", side_effect=falso_build), \
+            mock.patch.object(R, "_entradas", return_value=[]), \
+            mock.patch.object(R, "huella_de", return_value="bbb"), \
+            mock.patch.object(R, "_leer_estado", return_value=dict(estado)), \
+            mock.patch.object(R, "freno_de_maquina", return_value=freno), \
+            mock.patch.object(R, "publicacion_va_a_compilar", return_value=False), \
+            mock.patch.object(R, "espacio_libre_gb", return_value=50.0), \
+            mock.patch.object(R, "conversando", return_value=True), \
+            mock.patch.object(R, "uso_de_astraura", return_value="uso"), \
+            mock.patch.object(R, "_guardar", side_effect=guardados.append), \
+            mock.patch.object(R, "reconstruir", return_value={"ok": True}), \
+            mock.patch.object(R, "relevo_a1", return_value=True) as a1:
+        hecho = R.una_pasada()
+    return hecho, a1, guardados
+
+
+class GenesisCaidoSinBuild(unittest.TestCase):
+
+    def _pasada(self, estado, freno, haces=None):
+        return pasada_caido(haces or {R.DIST_SERVIDO: False, R.DIST_BUILD: False}, estado, freno)
+
+    def test_caido_y_swap_alto_compila_en_el_a1(self):
+        freno = "hay 6.9 GB de swap en uso (tope 4.0)"
+        hecho, a1, _ = self._pasada({}, freno=freno)
+        self.assertTrue(hecho)
+        a1.assert_called_once_with("Genesis está caído: no hay build servido y %s: compilo en el A1" % freno)
+
+    def test_caido_no_espera_a_astraura_y_anota_el_estado(self):
+        hecho, a1, guardados = self._pasada({}, freno=None)
+        self.assertTrue(hecho)
+        a1.assert_not_called()
+        self.assertEqual(guardados[-1].get("estado"), "caido-sin-build")
+
+    def test_caido_con_muerte_anterior_por_memoria_no_reintenta_la_mac(self):
+        estado = {"ok": False, "huella_intentada": "bbb", "error": "fatal error: JavaScript heap out of memory"}
+        hecho, a1, _ = self._pasada(estado, freno=None)
+        self.assertTrue(hecho)
+        a1.assert_called_once_with("la build de la Mac murió por memoria; compilo en el A1")
+
+    def test_caido_con_error_de_codigo_espera_aun_asi(self):
+        estado = {"ok": False, "huella_intentada": "bbb", "t": R.time.time() - 60, "error": "Type error: no existe 'foo'"}
+        hecho, a1, guardados = self._pasada(estado, freno=None)
+        self.assertFalse(hecho)
+        a1.assert_not_called()
+        self.assertEqual(guardados[-1].get("estado"), "caido-sin-build")
+
+    def test_caido_con_build_de_trabajo_entero_solo_reinicia(self):
+        with mock.patch.object(R, "reiniciar_mando") as reinicio:
+            hecho, a1, _ = self._pasada({}, freno=None,
+                                        haces={R.DIST_SERVIDO: False, R.DIST_BUILD: True})
+        self.assertTrue(hecho)
+        reinicio.assert_called_once()
+        a1.assert_not_called()
+
+
+class LaBuildVaLigera(unittest.TestCase):
+
+    def test_la_build_de_la_mac_lleva_ligero_y_dist(self):
+        envs = []
+
+        def falso_compilar(_orden, env=None, **_k):
+            envs.append(env)
+            return 0, "", False
+
+        with mock.patch.object(R, "_leer_estado", return_value={}), \
+                mock.patch.object(R, "_guardar"), \
+                mock.patch.object(R, "preparar_dist_de_build"), \
+                mock.patch.object(R, "marcar_listo"), \
+                mock.patch.object(R, "reiniciar_mando"), \
+                mock.patch.object(R, "compilar_vigilando_disco", side_effect=falso_compilar) as compila:
+            datos = R.reconstruir("bbb")
+        self.assertEqual(envs[-1].get("STARSEED_BUILD_LIGERO"), "1")
+        self.assertEqual(envs[-1].get("STARSEED_DIST"), R.DIST_BUILD)
+        import compilar_en_a1 as A1C
+        self.assertIn("STARSEED_BUILD_LIGERO=1", A1C.orden_compilar(raiz="/n", dist=".x"))
+        self.assertTrue(datos.get("ok"))
+        compila.assert_called_once()
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
