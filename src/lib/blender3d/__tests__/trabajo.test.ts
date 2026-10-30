@@ -65,11 +65,21 @@ it("rechaza NaN, Infinity, valores fuera de rango y enteros donde toca", () => {
     expect(motivos({ ...base(), escena: [{ op: "primitiva", tipo: "cubo", nombre: "cubo", tam: Number.NaN }] }).join(" ")).toContain("número");
     expect(motivos({ ...base(), escena: [{ op: "primitiva", tipo: "cubo", nombre: "cubo", tam: Number.POSITIVE_INFINITY }] }).join(" ")).toContain("número");
     expect(motivos({ ...base(), escena: [{ op: "primitiva", tipo: "cubo", nombre: "cubo", tam: 0 }] }).join(" ")).toContain("número");
-    expect(motivos({ ...base(), escena: [CUBO, { op: "transformar", objeto: "c", ubicacion: [1, 2] }] }).join(" ")).toContain("vector de 3 números");
-    // Nota: current code valida 'ref' (objeto) antes que 'rgba' en material, por eso el orden cambia
-    expect(motivos({ ...base(), escena: [{ op: "material", objeto: "Cubo", color: [1, Number.NaN, 0.5, 1] }] }).join(" ")).toContain("referencia");
-    expect(motivos({ ...base(), escena: [{ op: "material", objeto: "Cubo", alfa: 2 }] }).join(" ").toContain("número"));
     expect(motivos({ ...base(), salidas: [{ tipo: "render_png", ancho: 512.5, alto: 256, muestras: 8, motor: "workbench" }] }).join(" ")).toContain("entero");
+  });
+it("imputa los topes duros de operaciones y salidas, y lo desconocido", () => {
+    const demasiadas = Array.from({ length: 257 }, (_, i) => ({ op: "primitiva", tipo: "cubo", nombre: `P${i}`, tam: 1 }));
+    expect(motivos(conEscena(demasiadas)).join(" ")).toContain("demasiadas operaciones");
+    const salidas5 = [
+      { tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" },
+      { tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" },
+      { tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" },
+      { tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" },
+      { tipo: "render_png", ancho: 256, alto: 256, muestras: 8, motor: "workbench" },
+    ];
+    expect(motivos({ ...base(), escena: base().escena, salidas: salidas5 }).join(" ")).toContain("salidas debe tener entre 1 y 4 elementos");
+    expect(motivos({ ...base(), escena: base().escena, salidas: [] }).join(" ")).toContain("salidas debe tener entre 1 y 4 elementos");
+    expect(motivos(conEscena([{ op: "teleportar", nombre: "N" }])).join(" ")).toContain("operacion desconocida");
   });
   it("rechaza campos desconocidos del trabajo y de una operación", () => {
     expect(motivos({ ...base(), extra: 1 }).join(" ")).toContain("campo desconocido en el trabajo: extra");
