@@ -1,0 +1,49 @@
+[Unit]
+Description=StarSeed · gateway de Hermes y Telegram en el A1, solo con el arriendo de líder (IND1029G)
+After=network-online.target starseed-direccion.service starseed-medio.service
+Wants=network-online.target
+# requiere: /opt/starseed/nodo/hermes_arranque.py
+# requiere: /usr/bin/python3
+#
+# (IND1029G) Hermes es el puente, no el motor (architecture/metagenesis-autonoma.md §2). Este
+# servicio mantiene el gateway de Hermes en el A1 para que el chat y Telegram sigan a quien
+# dirige: su arranque (`hermes_arranque.py`, que `oracle_nodo.py hermes --aplicar` genera allí)
+# solo lo abre con el arriendo `direccion.lider` de `lider_direccion.renovar()`, y lo PARA si el
+# arriendo se pierde o cae: dos encuestas (getUpdates) del mismo bot se pisan y se pierden
+# mensajes a ambos lados (medido: 22 «polling conflict» del telegram-puente en una hora).
+#
+# `preparar-a1.sh` solo instala esta unidad si ya existe el arranque generado (su línea
+# `# requiere:` la deja fuera del paquete): Reinstalar el nodo no deja un servicio roto antes
+# de correr `oracle_nodo.py hermes --aplicar`. La config (config.yaml, la escribe `hermes`)
+# no lleva claves: `freellmapi/auto` contra el FreeLLMAPI del A1 (127.0.0.1:3001) y el MCP
+# `starseed-director`. Los valores (FREELLMAPI_KEY, TELEGRAM_BOT_TOKEN…) los pone la bóveda
+# del A1 en el EnvironmentFile; aquí SOLO NOMBRES de variable.
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed/starseed-system
+Environment=STARSEED_MEDIO=oracle STARSEED_DONDE=oracle STARSEED_ROOT=/home/starseed/starseed-system
+Environment=PYTHONUNBUFFERED=1 NEEDLE_TELEMETRY=0
+# El instalador oficial deja `hermes` en ~/.local/bin (o el PATH del usuario); el arranque lo
+# resuelve al lanzar el gateway.
+Environment=PATH=/home/starseed/.local/bin:/home/starseed/.hermes/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=-/etc/starseed/direccion.env
+ExecStart=/usr/bin/python3 -u /opt/starseed/nodo/hermes_arranque.py
+Restart=on-failure
+RestartSec=30
+KillMode=control-group
+TimeoutStopSec=120
+# Trabajo de fondo: el A1 comparte CPU y RAM con BitNet, Genesis, el medio y la dirección.
+MemoryHigh=768M
+MemoryMax=1G
+CPUWeight=40
+IOWeight=50
+Nice=10
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

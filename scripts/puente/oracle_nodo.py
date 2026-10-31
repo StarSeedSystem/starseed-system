@@ -41,6 +41,9 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
                           Sin `--aplicar` solo enseña el plan; no arranca nada que ya esté vivo.
                           (OPS1031B) Si otra neurona tiene el arriendo vigente, para las piezas
                           (systemctl stop de las unidades de dirección y solo de ellas) y no arranca.
+  hermes [--aplicar]     gateway de Hermes en el A1 (instalador oficial para Linux, config.yaml
+                         sin claves con `freellmapi/auto` su FreeLLMAPI y MCP `starseed-director`,
+                         unidad; Telegram SOLO encuesta en el líder). En seco, plan.
   automejora enviar|traer
                          la Mac manda sus experiencias al A1 o trae lo que propuso la noche
                          (MTN1027H2); el ciclo lo hace solo una vez al día tras 02:00/06:00 UTC.
@@ -584,6 +587,121 @@ def plan_direccion(activo=False, raiz=RAIZ_DIRECCION_A1):
                  if activo else {"que": "arrancar", "orden": "sudo systemctl enable --now starseed-direccion",
                                  "porque": "solo si no estaba vivo"})
     return pasos
+
+
+#: (IND1029G) Hermes en el A1: gateway y Telegram solo con el arriendo de líder; config SIN claves.
+UNIDAD_HERMES = os.path.join(os.path.dirname(os.path.dirname(DIRECTORIO)), "deploy", "oracle", "nodo",
+                             "systemd", "starseed-hermes.service")
+ARRANQUE_HERMES_A1, CONFIG_HERMES_A1 = "/opt/starseed/nodo/hermes_arranque.py", "/home/starseed/.hermes/config.yaml"
+SERVICIO_HERMES_A1 = "/etc/systemd/system/starseed-hermes.service"; URL_FREELLMAPI_A1 = "http://127.0.0.1:3001/v1"
+INSTALADOR_HERMES = ("sudo -u starseed -H bash -lc "
+                     "'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --non-interactive'")
+
+
+def debe_escuchar_telegram(soy_lider):
+    """PURA. Telegram en modo encuesta (getUpdates) solo en el líder: dos encuestas del mismo bot se pisan."""
+    return bool(soy_lider)
+
+
+def config_hermes(api=URL_FREELLMAPI_A1, raiz=RAIZ_DIRECCION_A1, python="/usr/bin/python3"):
+    """PURA. config.yaml del A1 SIN claves: `freellmapi/auto` contra su FreeLLMAPI y el MCP
+    `starseed-director`; el token lo pone el EnvironmentFile y la regla del líder el arranque."""
+    return (
+        "# StarSeed · Hermes en el A1 (IND1029G): la encuesta de Telegram la lleva el gateway del líder.\n"
+        "model:\n  default: auto\n  provider: freellmapi\n"
+        "providers:\n  freellmapi:\n    api: %s\n    key_env: FREELLMAPI_KEY\n"
+        "    default_model: auto\n    models:\n      auto:\n        context_length: 131072\n"
+        "fallback_providers:\n  - provider: freellmapi\n    model: auto\n"
+        "mcp_servers:\n  starseed-director:\n    command: %s\n    args:\n      - %s\n"
+    ) % (api, python, os.path.join(raiz, "scripts", "puente", "mcp_director.py"))
+
+
+#: El arranque deja `hermes --aplicar` en el A1: gateway SOLO con arriendo de líder (preparar-a1.sh no lo dejaría).
+_GUION_HERMES = '''import os, subprocess, sys, time
+RAIZ = __RAIZ__
+sys.path.insert(0, os.path.join(RAIZ, "scripts", "puente"))
+LOG = os.path.join(os.path.expanduser("~"), "registros")
+def soy_lider():
+    try:
+        import lider_direccion; return bool(lider_direccion.renovar().get("soy"))
+    except Exception as e:  # noqa: BLE001 — sin arriendo no se escucha: no se pisan dos lectores
+        print("hermes: sin arriendo (%s)" % type(e).__name__, flush=True); return False
+def arrancar():
+    os.makedirs(LOG, exist_ok=True); salida = open(os.path.join(LOG, "hermes-gateway.log"), "ab")
+    return subprocess.Popen(["hermes", "gateway"], cwd=RAIZ, stdout=salida,
+                            stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
+hijo, ultimo, lider = None, 0.0, False
+while True:
+    if time.time() - ultimo >= 60:
+        lider, ultimo = soy_lider(), time.time()
+    if not lider:
+        if hijo is not None and hijo.poll() is None:
+            hijo.terminate()
+            print("hermes: gateway parado (ya no soy líder): Telegram no se pisa", flush=True); hijo = None
+    elif hijo is None or hijo.poll() is not None:
+        hijo = arrancar()
+    time.sleep(30)
+'''
+
+
+def guion_hermes(raiz=RAIZ_DIRECCION_A1):
+    """PURA. El texto del arranque del gateway en el A1 (sin claves ni rutas de worktree)."""
+    return _GUION_HERMES.replace("__RAIZ__", repr(raiz))
+
+
+def plan_hermes(activo=False):
+    """PURA. El plan de `hermes`; con la unidad ya viva no arranca ni reinicia nada."""
+    pasos = [
+        {"que": "instalar", "orden": INSTALADOR_HERMES, "porque": "instalador oficial de Hermes para Linux"},
+        {"que": "escribir", "ruta": CONFIG_HERMES_A1, "porque": "freellmapi/auto y el MCP starseed-director"},
+        {"que": "escribir", "ruta": ARRANQUE_HERMES_A1, "porque": "gateway abierto y parado con el arriendo de líder"},
+        {"que": "instalar", "ruta": SERVICIO_HERMES_A1, "porque": "unidad systemd con EnvironmentFile y MemoryMax"},
+        {"que": "recargar", "orden": "sudo systemctl daemon-reload", "porque": "systemd lee la unidad nueva"},
+    ]
+    pasos.append({"que": "nada", "porque": "starseed-hermes ya está vivo: no arranco ni reinicio nada"} if activo
+                 else {"que": "arrancar", "orden": "sudo systemctl enable --now starseed-hermes",
+                       "porque": "solo si no estaba vivo"})
+    return pasos
+
+
+def _poner_config_hermes(contenido, destino=CONFIG_HERMES_A1):
+    """La config vive en ~/.hermes del usuario del servicio: la lee él y puede escribirla; sin claves."""
+    orden = ('tmp=$(mktemp /tmp/starseed-hermes.XXXXXX); cat > "$tmp" && '
+             'sudo install -d -o starseed -g starseed -m 700 %s && '
+             'sudo install -o starseed -g starseed -m 600 "$tmp" %s; r=$?; rm -f "$tmp"; exit $r'
+             % (os.path.dirname(destino), destino))
+    return ssh(orden, entrada=contenido, timeout=120)
+
+
+def hermes(aplicar=False):
+    """`hermes [--aplicar]`: gateway de Hermes y Telegram en el A1, solo con el arriendo de líder; seco → plan."""
+    try:
+        with open(UNIDAD_HERMES, encoding="utf-8") as f: unidad = f.read()
+    except OSError:
+        return {"ok": False, "motivo": "falta %s en el repo" % os.path.basename(UNIDAD_HERMES)}
+    if not aplicar:
+        return {"ok": True, "aplicado": False, "pasos": plan_hermes(False)}
+    res = {"ok": True, "aplicado": True, "hecho": [], "pasos": plan_hermes(False), "nota": ""}
+    rc, salida = ssh("sudo -u starseed -H bash -lc 'command -v hermes || test -x \"$HOME/.local/bin/hermes\"'"
+                     " >/dev/null 2>&1 && echo SI || echo NO", timeout=120)
+    if "SI" not in salida:
+        rc, salida = ssh(INSTALADOR_HERMES, timeout=900)
+        res["hecho"].append({"orden": "instalador oficial de Hermes", "ok": rc == 0, "detalle": salida.strip()[-160:]})
+        if rc != 0:
+            return dict(res, ok=False)
+    for contenido, destino, poner in ((config_hermes(), CONFIG_HERMES_A1, _poner_config_hermes),
+                                      (guion_hermes(), ARRANQUE_HERMES_A1, _poner_en_a1),
+                                      (unidad, SERVICIO_HERMES_A1, _poner_en_a1)):
+        rc, salida = poner(contenido, destino)
+        res["hecho"].append({"ruta": destino, "ok": rc == 0, "detalle": "" if rc == 0 else salida.strip()[-160:]})
+        res["ok"] = res["ok"] and rc == 0
+    if not res["ok"]:
+        return res
+    for orden in ("sudo systemctl daemon-reload", "sudo systemctl enable --now starseed-hermes"):
+        rc, salida = ssh(orden, timeout=120)
+        res["hecho"].append({"orden": orden, "ok": rc == 0, "detalle": "" if rc == 0 else salida.strip()[-160:]})
+        res["ok"] = res["ok"] and rc == 0
+    return res
 
 
 #: (OPS1031B) Unidades del A1 que la dirección JAMÁS para: servicios de otros medios, que se
@@ -1537,6 +1655,8 @@ def main(argv):
         return 0
     elif orden == "direccion":
         r = direccion(aplicar="--aplicar" in argv)
+    elif orden == "hermes":
+        r = hermes(aplicar="--aplicar" in argv)
     elif orden == "colibri":
         i = argv.index("--carpeta") if "--carpeta" in argv else -1
         carpeta = argv[i + 1] if 0 <= i < len(argv) - 1 else COLIBRI_MODELOS_A1
