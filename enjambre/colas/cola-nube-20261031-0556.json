@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "ART1025D",
+   "ola": "Ola 1025C · ArtCraft y Rare",
+   "titulo": "Pasarela en servidor: <app>-cli mcp sin shell, sin red y con raíces por neurona",
+   "area": "artcraft",
+   "archivos": [
+    "src/lib/artcraft/pasarela-servidor.ts",
+    "src/app/api/artcraft/[app]/route.ts",
+    "src/lib/artcraft/__tests__/pasarela-servidor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: `architecture/artcraft-y-rare.md` §3 completo. Modelo directo a copiar: `src/lib/conversion/filee-servidor.ts` (`execFile` con lista de argumentos, ejecutor INYECTABLE, topes de tamaño, tiempo y simultaneidad) y `src/app/api/conversion/route.ts` (puerta `guardianMando`). SOLO SERVIDOR: ningún componente de cliente puede importar `pasarela-servidor.ts`.\n\n`pasarela-servidor.ts` exporta: `estadoArtcraft(app)`: busca `<app>-cli` recorriendo `process.env.PATH` sin shell, ejecuta `<app>-cli --version` (5 s) y devuelve `{ instalado, version: string | null, donde: string | null }` donde `donde` es solo el nombre del sitio («~/.local/bin»), nunca el home real; caché 60 s. `directorioTrabajo(app, contexto)`: `<STARSEED_DATOS_DIR o ~/.starseed>/artcraft/<contexto>/` con `entrada/` y `salida/` creados con modo `0o700`; `contexto` solo `^[a-z0-9-]{1,40}$`. `llamarArtcraft({ app, herramienta, parametros, origen, ambito, rol, contexto })`: 1) `evaluarLlamada` de `./politica` ANTES de lanzar nada (denegar → `{ ok: false, status: 403, motivo }`; confirmar → `{ ok: false, status: 409, confirmar: true, motivo }`); 2) arranca `<app>-cli mcp` con `spawn` SIN shell (jamás `shell: true`), `env` mínimo (`PATH`, `HOME` = directorio de trabajo, `LANG`; ninguna variable de claves) y, para figcraft y deckcraft, `--automation-read-root <entrada> --automation-read-root <salida> --automation-write-root <salida>`; GridCraft va SIN banderas (no las tiene: la política ya inspecciona sus rutas); en Linux, si existe `unshare`, antepone `unshare -n --`, y si no hay aislamiento de red el resultado lleva `sinRed: false`; 3) usa `ClienteMcpStdio` de `./mcp-stdio` con el stdin/stdout del hijo, hace `iniciar()`, UNA `llamar()` (120 s) y mata el proceso al acabar; 4) devuelve `{ ok, resultado, ms }`. Registro: una línea por llamada con app, herramienta, huella sha256 (12 hex) de los parámetros y estado; nunca los parámetros. Como mucho 2 llamadas a la vez (429). El ejecutor (`spawn`) se inyecta para las pruebas.\n\n`route.ts` (`/api/artcraft/[app]`): `runtime = \"nodejs\"`, `dynamic = \"force-dynamic\"`; `guardianMando(request)` primero; `app` solo del conjunto `APPS_ARTCRAFT` (404 si no); `GET` devuelve el estado; `POST { herramienta, parametros, contexto }` ≤ 1 MB llama a `llamarArtcraft` con `origen: \"agente\"` salvo que la petición lleve `origen: \"mano\"` y sesión de persona.\n\nPruebas con `spawn` falso: con `collab.share` NO se lanza ningún proceso; banderas de raíces presentes en figcraft y deckcraft y ausentes en gridcraft; el entorno del hijo no lleva `*_KEY`, `*_TOKEN` ni `*_SECRET`; contexto con `../` rechazado; línea enorme corta; tiempo agotado mata el proceso; tercera llamada simultánea = 429.\n\nREGLAS COMUNES: lee primero la sección que se cita de `architecture/artcraft-y-rare.md` (el contrato). Español con acentos en todo texto que lea una persona. TypeScript estricto, sin `any`. Los módulos de `src/lib/artcraft/` son PUROS (sin `node:*`, sin React, sin red), salvo `pasarela-servidor.ts`, que es solo de servidor y que ningún componente de cliente puede importar (`next build` falla con `node:*` en el cliente). Ni claves ni rutas del disco en el código ni en las pruebas; las cadenas con forma de clave se montan en tiempo de ejecución (`[\"a\", \"b\"].join(\"\")`). Como mucho 3 archivos y 120 líneas por archivo (estilo denso del repo, sin relleno). Pruebas vitest propias en `__tests__`; ejecuta solo las relacionadas, nunca `tsc` ni `next build`. No toques `src/lib/protomolecula/catalogo-herramientas.ts`.",
+   "revisor_quitadas": [
+    "ART1025C"
+   ],
+   "dependencias_ya_en_main": [
+    "ART1025B-d3"
+   ]
+  }
+ ]
+}
