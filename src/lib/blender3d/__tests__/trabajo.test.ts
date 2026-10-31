@@ -26,7 +26,7 @@ describe("validarTrabajo", () => {
     expect(t.v).toBe(VERSION_VOCABULARIO);
     expect(t.escena.map((o) => o.op)).toEqual(["primitiva", "camara", "luz"]);
   });
-  it("aplica los valores por defecto de material, cámara y render_png", () => {
+  it("aplica los valores por defecto de material, cámara, transformar y render_png", () => {
     const t = valido(base({ escena: [CUBO, { op: "material", objeto: "Cubo" }, { op: "camara", nombre: "cam", ubicacion: [0, -5, 2], mira_a: [0, 0, 0] }, { op: "luz", nombre: "sol", tipo: "sol", energia: 3 }] }));
     expect(t.escena).toHaveLength(4);
     expect(t.escena[1].color).toEqual([0.8, 0.8, 0.8, 1]);
@@ -35,6 +35,7 @@ describe("validarTrabajo", () => {
     expect(t.salidas).toHaveLength(1);
     expect(t.salidas[0].fondo_transparente).toBe(false);
     expect(t.limites).toBeUndefined();
+    expect(valido(conEscena([CUBO, { op: "transformar", objeto: "Cubo" }])).escena[1].escala).toEqual([1, 1, 1]);
   });
   it("comprueba la versión, el título y los límites", () => {
     expect(VERSION_VOCABULARIO).toBe(1);
@@ -166,6 +167,14 @@ describe("estimarCoste y necesitaConfirmacion", () => {
     expect(necesitaConfirmacion(valido(conEscena([{ op: "importar", archivo: "a.glb", nombre: "i" }])), "estudio")).toBe(true);
     expect(necesitaConfirmacion(valido(base()), "ninguno")).toBe(true);
     const pesado = valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }], [{ tipo: "render_png", ancho: 1600, alto: 900, muestras: 64, motor: "workbench" }]));
+    expect(necesitaConfirmacion(pesado, "ligero")).toBe(true);
+    expect(necesitaConfirmacion(pesado, "estandar")).toBe(false);
+    expect(necesitaConfirmacion(valido(base()), "estandar")).toBe(false);
+  });
+  it("el perfil ligero pide confirmación cuando el coste en vértices pesa", () => {
+    const pesado = valido(conEscena(Array.from({ length: 121 }, (_, i) => ({ op: "primitiva", tipo: "esfera", nombre: `E${i}`, tam: 1 })), [{ tipo: "exportar_glb" }]));
+    expect(estimarCoste(pesado).vertices).toBe(121 * 482);
+    expect(estimarCoste(pesado).segundos).toBe(0);
     expect(necesitaConfirmacion(pesado, "ligero")).toBe(true);
     expect(necesitaConfirmacion(pesado, "estandar")).toBe(false);
   });

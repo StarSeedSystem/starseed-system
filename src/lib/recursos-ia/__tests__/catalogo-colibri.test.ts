@@ -129,5 +129,17 @@ describe("modelosDeCapas · runtime colibri", () => {
         expect(hablante?.capacidades).toEqual(["texto"]);
         expect(lisa?.capacidades).toEqual(["texto", "razon", "codigo"]);
         expect(lisa?.capacidades.includes("vision")).toBe(false);
+        expect(decisor?.medios).toEqual(["servidor"]);
+        expect(hablante?.medios).toEqual(["servidor"]);
+        expect(lisa?.medios).toEqual(["servidor"]);
+    });
+
+    it("los medios de la entrada salen tal cual, filtrados a los del contrato", () => {
+        const [valida, vacia] = capasDe([
+            { id: "colibri-lados", capa: "juicio", modelo: "Lados int4", runtime: "colibri", formato: "gguf", tamano_bytes: 100_000_000, estado: "por-verificar", medios: ["nativo", "servidor", "no-valido"] },
+            { id: "colibri-nada", capa: "juicio", modelo: "Nada int4", runtime: "colibri", formato: "gguf", tamano_bytes: 100_000_000, estado: "por-verificar", medios: ["cualquiera"] },
+        ]);
+        expect(valida?.medios).toEqual(["nativo", "servidor"]);
+        expect(vacia?.medios).toEqual([]);
     });
 });
