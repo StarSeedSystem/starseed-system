@@ -25,6 +25,10 @@ import { curatedPresets } from "@/lib/themes/curated-presets";
 import { registrarAdaptadoresApariencia } from "@/lib/variaciones/adaptadores/apariencia";
 // Petición a la Protomolécula (Ola 1026P · P3): solo la constante del aviso (módulo sin dependencias).
 import { EVENTO_APLICAR_FONDO } from "@/lib/protomolecula/peticion/fondo-evento";
+// Fuentes de la marca (DSN1019D): aquí se decide el tema y la tipografía del
+// OS, así que aquí se pide la hoja del papel en uso. Satoshi solo si el
+// registro o la pieza es display editorial; Quicksand con el tema Natural.
+import { FuentesMarca } from "@/components/theme/fuentes-marca";
 
 export interface CustomFont {
     name: string;
@@ -785,6 +789,7 @@ interface AppearanceContextType {
 const AppearanceContext = createContext<AppearanceContextType | undefined>(undefined);
 
 export function AppearanceProvider({ children }: { children: React.ReactNode }) {
+    const { theme, resolvedTheme } = useTheme();
     const [config, setConfig] = useState<AppearanceConfig>(defaultConfig);
     const [mounted, setMounted] = useState(false);
 
@@ -948,6 +953,24 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         if (!mounted) return;
         applyStyles(resolvedConfig);
     }, [resolvedConfig, mounted]);
+
+    // ── Papel tipográfico en uso (DSN1019D) ────────────────────────────────
+    // El registro (tema) o la pieza piden «display editorial» cuando su
+    // tipografía es Satoshi; los ThemePacks la escriben directamente en
+    // --font-body, así que se observa el <html> para no perder ese caso. La
+    // hoja se carga una sola vez desde FuentesMarca; sin papel, cero enlaces.
+    const [usaDisplayEditorial, setUsaDisplayEditorial] = useState(false);
+    useEffect(() => {
+        const recalcular = () => {
+            const familia = resolvedConfig.typography?.fontFamily ?? "";
+            const cuerpo = document.documentElement.style.getPropertyValue("--font-body");
+            setUsaDisplayEditorial(familia === "Satoshi" || cuerpo.includes("Satoshi"));
+        };
+        recalcular();
+        const observador = new MutationObserver(recalcular);
+        observador.observe(document.documentElement, { attributeFilter: ["class", "style"] });
+        return () => observador.disconnect();
+    }, [resolvedConfig]);
 
     const applyStyles = (currentConfig: AppearanceConfig) => {
         if (!currentConfig) return; // Safety check
@@ -1498,6 +1521,13 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
             undo,
             canUndo
         }}>
+            {/* Fija --ss-font-display/titular/organica con respaldos y carga la
+                hoja del papel solo cuando de verdad se usa: Satoshi para el
+                display editorial, Quicksand cuando el tema es Natural. */}
+            <FuentesMarca
+                papel={usaDisplayEditorial ? "display-editorial" : "cuerpo"}
+                tema={resolvedTheme ?? theme}
+            />
             {children}
         </AppearanceContext.Provider>
     );
