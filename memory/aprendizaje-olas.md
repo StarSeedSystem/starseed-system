@@ -4662,3 +4662,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-31 09:41 · mg-oracle-1031-0155
+
+**Lo que se pidió.** Local: Three.js basta para una escena interactiva y no gasta créditos
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — los tipos no compilan (LYS1018N, FSH1018G, ART1025C, INF1025Db, DSN1025Db). Es 83 % de la ola.
+- freellmapi/auto no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `LYS1018N` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/LYS1018N conservada)
+- `FSH1018G` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/FSH1018G conservada)
+- `ART1025C` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/ART1025C conservada)
+- `CVV1028B` — no escribió nada
+- `INF1025Db` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/INF1025Db conservada)
+- `DSN1025Db` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/DSN1025Db conservada)
