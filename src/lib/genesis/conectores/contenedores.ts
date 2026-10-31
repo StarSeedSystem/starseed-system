@@ -91,6 +91,25 @@ export const CONTENEDORES_OPCIONES: ContenedorOpcion[] = [
     aptoPrivado: false,
     verificado: true,
   },
+  // Cloudflare Computer (github.com/cloudflare/computer) es una opción de pago: los Dynamic Workers
+  // piden el plan Workers Paid (desde 5 USD/mes), así que el sugeridor solo la ofrece si el ámbito permite pago. Alternativa gratis a vigilar: denoland/celld (ya en la Librería).
+  {
+    id: 'cloudflare-computer',
+    nombre: 'Cloudflare Computer',
+    enlaceAlta: 'https://dash.cloudflare.com/sign-up',
+    guia: null,
+    requiereCuenta: true,
+    requierePago: true,
+    aptoPrivado: false,
+    verificado: null,
+    cupo: 'Sin cupo gratuito comprobado: los Dynamic Workers (shell y JavaScript aislados) piden el plan Workers Paid.',
+    requisitos: [
+      'Cuenta de Cloudflare propia (el OS no abre cuentas)',
+      'Plan Workers Paid (desde 5 USD al mes) para los Dynamic Workers y los contenedores',
+      'Token de wrangler solo en variables de entorno',
+      'Alfa: ContainerBackend, WorkerShellBackend y computerd no son aptos para producción',
+    ],
+  },
 ];
 
 /**
