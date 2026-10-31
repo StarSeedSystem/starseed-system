@@ -49,6 +49,7 @@ import { ejecutarAccion } from "@/lib/astraura-bots/adaptadores/ejecutor-accione
 import { decidirAccion, NIVEL_POR_DEFECTO } from "@/lib/astraura-bots/permisos";
 import { avanzar, bucleInicial } from "@/lib/astraura-bots/bucle";
 import { botPredeterminado } from "@/lib/astraura-bots/predeterminado";
+import { bloqueTono } from "@/lib/astraura-bots/adaptadores/tono-chat";
 // Puente de glow: el Orbe de Aurora late al ritmo del habla escuchando estos
 // eventos (el TTS del navegador no expone amplitud). Aditivo y defensivo.
 import { emitAuroraSpeak } from "@/lib/aurora/aurora-orb-bus";
@@ -1771,11 +1772,34 @@ export function useAuroraEngine(): AuroraEngine {
       try { knowledge = buildSystemKnowledge(routeContext()); } catch { knowledge = ""; }
       // EAR1023C: lo que suena AHORA alrededor de la orbe, en una línea corta.
       const notaOido = lineaContextoOidoParaPrompt();
+      // ⚡ BLOQUE DE TONO DEL BOT (BOT1011 · tono-chat): detecta la situación
+      // por palabras clave (trabajo, aprendizaje, juego, duelo/crisis) y añade el tono
+      // del bot predeterminado al prompt del sistema si está habilitado.
+      let tono = "";
+      try {
+        const esAgente = activeRef.current?.params?.agente ? {
+          personalidadAurora: activeRef.current.params,
+        } : undefined;
+        const situacion = (() => {
+          const t = text.toLowerCase();
+          if (/trabajo|labor|oficina|reunión|sprint|proyecto/.test(t)) return "trabajo";
+          if (/aprendizaje|estudiar|curso|lección|estudiar/.test(t)) return "aprendizaje";
+          if (/juego|jugar|videojuego|partida|jueg.*/.test(t)) return "juego";
+          if (/duelo|crisis|emergencia|urgente|catástrofe|calamidad/.test(t)) return "crisis";
+          if (/duelo|muerto|fallar|guerra|batalla/.test(t)) return "duelo";
+          return undefined;
+        })();
+        const senales = { situacion, sesion: "privada" } as { situacion?: "trabajo" | "aprendizaje" | "juego" | "crisis" | "duelo"; sesion: "privada" };
+        const botDef = botPredeterminado("local", "local");
+        tono = await bloqueTono(botDef, esAgente, senales);
+      } catch { /* Ninguna situación, sin bot, o error: silencio. */ }
+
       const system =
         buildSystemPrompt(activeRef.current) + "\n\n" +
         actionsSystemPromptSection() +
         (toolsSection ? "\n\n" + toolsSection : "") +
         (knowledge ? "\n\n" + knowledge : "") + "\n\n" +
+        (tono ? tono + "\n\n" : "") +
         contextNote +
         (notaOido ? "\n\n" + notaOido : "");
       // Se incluye el historial reciente (conversationRef) antes del mensaje actual.

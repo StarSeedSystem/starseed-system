@@ -65,6 +65,11 @@ export interface ParamMap {
   _notes?: string;
 }
 
+export type ParamMapCompatible = {
+  params?: Record<string, number> | undefined;
+  emotions?: Record<string, number> | undefined;
+};
+
 export interface Personality {
   id?: string;
   owner?: string;
