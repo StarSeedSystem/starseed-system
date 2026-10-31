@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "IMN1021K5b",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar textos en el lector de la imaginación y en los medidores",
+   "archivos": [
+    "src/lib/mando/suenos.ts",
+    "src/lib/mando/suenos-tipos.ts",
+    "src/lib/mando/medidores.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Cambia SOLO textos y comentarios: «Sueños profundos» → «Imaginación profunda», «sueño profundo: leyendo y analizando (no escribe código)» → «imaginación profunda: leyendo y analizando (no escribe código)», etc. «Ola Dream …» es el NOMBRE histórico de olas viejas (dato): se queda. Nada de identificadores. Si una prueba comprobaba el texto viejo, ajústala solo en eso. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41002945208`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 41014626101) falla «tsc»: 6:33:07.3672054Z env:\n2026-10-30T06:33:07.3672321Z   NODE_OPTIONS: --max-old-space-size=8192\n2026-10-30T06:33:07.3672628Z ##[endgroup]\n2026-10-30T06:35:49.5790150Z ##[error]src/lib/genesis/mcp/ruta.ts(15,14): error TS2741: Property '\"variaciones:buscar\"' is missing in type '{ \"estado:leer\": \"ver-resumen\"; \"tareas:listar\": \"ver-resumen\"; \"tareas:crear\": \"encolar\"; \"agentes:listar\": \"ver-resumen\"; \"medidores:leer\": \"ver-resumen\"; \"operaciones:proponer\": \"encolar\"; \"biblioteca:buscar\": \"ver-detalle\"; \"opciones:sugerir\": \"ver-resumen\"; \"chat:enviar\": \"chatear\"; }' but required in type 'Record<PermisoMcp, CapacidadAmbito>'.\n2026-10-30T06:35:50.1092379Z ##[error]Process completed with exit code 2.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41002945208:refs/remotes/origin/nube/41002945208\"` y `git cherry-pick --no-commit 395ce235c572`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/mando/medidores.ts, src/lib/mando/suenos-tipos.ts, src/lib/mando/suenos.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "IMN1021H"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41002945208"
+  }
+ ]
+}
