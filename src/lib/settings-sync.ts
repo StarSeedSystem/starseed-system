@@ -86,6 +86,7 @@ export const SYNCED_KEYS = [
     //    otro y un escritorio viejo pisaba al que se estaba moviendo: Alex, «se traba y a veces
     //    se reinicia constantemente aunque intente modificar algo».
     "starseed.cursorfx.v1",              // cursor personalizado + animaciones de clic — cursor-fx.tsx
+    "starseed.mausbot.v1",               // (Ola MBT1027) config del Mausbot — src/lib/mausbot/config.ts
     CLAVE_MAUSBOT,                       // (Ola MBT1027) config del Mausbot — src/lib/mausbot/config.ts
     CLAVE_DISENOS,                       // (Ola MBT1027) diseños propios del Mausbot — src/lib/mausbot/disenos.ts
     "starseed.aurora.chatlog.v1",        // registro de conversación con Aurora — aurora-chat-log.ts

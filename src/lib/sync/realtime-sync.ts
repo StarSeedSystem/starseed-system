@@ -210,6 +210,7 @@ const EVENT_BY_KEY: Record<string, string[]> = {
     "starseed.aurora.oss-stt.model": ["starseed:aurora-oss-stt"],
     "starseed.aurora.oss-stt.lang": ["starseed:aurora-oss-stt"],
     "starseed.aurora.always-on": ["starseed:aurora-always-on"],
+    "starseed.mausbot.v1": [EVENTO_MAUSBOT],
     "starseed.aurora.wake.acoustic": ["starseed:aurora-wake-acoustic"],
 
     // Orbe, avatar, intro, canales
