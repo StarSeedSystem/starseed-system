@@ -146,6 +146,7 @@ export function InteligenciaSection({ compact = false }: { compact?: boolean }) 
         { id: "voz", label: "Entonación", icon: Mic2 },
         { id: "fuentes", label: "Motores y claves", icon: Cpu },
         { id: "conexiones", label: "Conexiones", icon: Link2 },
+        { id: "laya", label: "Decisiones de Laya", icon: Sparkles },
     ];
 
     return (
@@ -330,6 +331,13 @@ export function InteligenciaSection({ compact = false }: { compact?: boolean }) 
                         </div>
                     )}
                     <IntelligencePanel />
+                </div>
+            )}
+
+            {/* ── Decisiones de Laya y habilidades ──────────────────────────── */}
+            {vista === "laya" && (
+                <div className="space-y-2">
+                    <LayaDecisionesPanel compacto={compact} />
                 </div>
             )}
 
