@@ -78,6 +78,19 @@ describe("capacidades", () => {
   });
 });
 
+describe("listarRecientes", () => {
+  it("nunca devuelve más de 20 estados aunque se pidan 25", async () => {
+    const estadoDir = path.join(raiz, "estado");
+    mkdirSync(estadoDir, { recursive: true });
+    for (let i = 0; i < 25; i++) {
+      const id = (i + 1).toString(16).padStart(32, "0");
+      writeFileSync(path.join(estadoDir, `${id}.json`), JSON.stringify({ id, estado: "en_cola", salidas: [] }));
+    }
+    const lista = await listarRecientes(25);
+    expect(lista.length).toBe(20);
+  });
+});
+
 describe("ruta /api/3d/trabajos", () => {
   it("devuelve el veto del guardián sin tocar el disco", async () => {
     guardianMando.mockResolvedValue(new Response("no", { status: 404 }));
