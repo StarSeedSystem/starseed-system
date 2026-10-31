@@ -1,0 +1,18 @@
+{
+  "name": "starseed-estaciones-rele",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Relé de salas de las estaciones en vivo de StarSeed OS (WebSocket, para el Oracle A1 gratuito)",
+  "type": "module",
+  "main": "servidor.mjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node servidor.mjs",
+    "check": "node --check servidor.mjs && node --check salas.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.19.0"
+  }
+}
