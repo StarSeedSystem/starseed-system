@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "ola": "Ola 1025R · Diseño (Taste Skill, Frontend Slides, Awesome DESIGN.md, onetake, Docusaurus, Refine)",
+   "id": "DSN1025B-d2",
+   "titulo": "Director de diseño · taste-skill, presentaciones, DESIGN.md, documentación y paneles de datos en el brief (parte 2 de 2)",
+   "archivos": [
+    "scripts/puente/test_diseno_brief.py"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1025.md (apartado «Diseño») y la ficha del paquete que se nombra aquí en el catálogo verificado `config/repos-libreria-1025*.json` (datos reales: NO los cambies). Fichas: lib-taste-skill, lib-frontend-slides, lib-awesome-design-md, lib-docusaurus y lib-refine. En `scripts/puente/diseno_brief.py` amplía la lista `HERRAMIENTAS` (pares clave en minúsculas → línea; la clave se busca en el texto de la tarea y la misma línea nunca se repite) con: (\"diapositiv\", \"frontend-slides — https://github.com/zarazhangrui/frontend-slides (presentaciones HTML de un archivo, escenario 16:9 fijo)\"), (\"presentaci\", la misma línea), (\"conferencia\", la misma línea); (\"design.md\", \"awesome-design-md — https://github.com/VoltAgent/awesome-design-md (patrones de referencia y formato DESIGN.md; nunca la identidad de una marca)\"), (\"sistema de diseño\", la misma línea); (\"documentaci\", \"Docusaurus — https://github.com/facebook/docusaurus (documentación en Markdown; el OS solo exporta e importa texto)\"), (\"educaci\", la misma línea); (\"panel de datos\", \"Refine — https://github.com/refinedev/refine (plantilla de panel de datos para apps exportadas; telemetría apagada)\"), (\"panel de administraci\", la misma línea). Y sustituye la primera línea de `HERRAMIENTAS_BASE` por \"taste-skill — https://github.com/Leonxlnx/taste-skill (método: inventario, argumento, capturas a 3 anchos y crítica; el ADN manda; en la Biblioteca)\" (la de UI-TARS se queda). Cada línea nueva ≤ 150 caracteres. El brief se recorta a 2500 caracteres: comprueba que, con una tarea de interfaz que case 3 de las claves nuevas, siguen apareciendo «## 6. Herramientas y skills» y «## 7. Verificación»; si no cabe, acorta las líneas nuevas (no subas el tope). Pruebas en `scripts/puente/test_diseno_brief.py` (estilo del archivo, sin red): una tarea con «presentación» trae la línea de frontend-slides; con «design.md», la de awesome-design-md; con «documentación» o «educación», la de Docusaurus; con «panel de datos», la de Refine; la línea de taste-skill sigue en toda tarea; ninguna línea sale dos veces aunque casen dos claves; y los apartados 6 y 7 se conservan en el caso de varias claves. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; claves solo en variables de entorno (nunca valores); textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).\n\n## PARTE 2 DE 2 (la dirección dividió DSN1025B: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/test_diseno_brief.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "DSN1025B",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   },
+   "dependencias_ya_en_main": [
+    "DSN1025B-d1"
+   ]
+  }
+ ]
+}
