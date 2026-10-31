@@ -41,6 +41,7 @@ import {
     type BackgroundLayer,
 } from "@/lib/appearance/background-layers";
 import type { VisualizerParams } from "@/lib/audiomorphic/types";
+import type { DifusionConfig, MascaraKind, Transform } from "@/lib/appearance/background-layers";
 
 // El motor nativo se carga en diferido: una capa apagada no cuesta NADA.
 const AudiomorphicCanvas = dynamic(
@@ -51,8 +52,43 @@ const AudiomorphicCanvas = dynamic(
 const IFRAME_ALLOW =
     "microphone; camera; autoplay; fullscreen; gyroscope; accelerometer; magnetometer; xr-spatial-tracking";
 
+// CAPAS NUEVAS (Ola 1018F · FSH1018G) — `shader` y `difusion`:
+// la pila las pinta como cualquier otra capa (orden, z-index, opacidad, mezcla,
+// visibilidad) y AÑADE transform y máscara a nivel de envoltura; los cuerpos de
+// abajo solo piden el contenido: posición y recorte los pone la pila.
+const CapaShader = dynamic(
+    () => import("@/components/backgrounds/capa-shader").then((m) => m.CapaShader),
+    { ssr: false, loading: () => null },
+);
+
 /** Primera capa de la pila (índice 0) → z-index -9; van subiendo. */
 const BASE_Z = -9;
+
+/** Posición, tamaño, escala y rotación relativas (0-1) de una capa nueva. */
+export function estiloTransform(t?: Transform): React.CSSProperties {
+    if (!t) return {};
+    const ancho = typeof t.ancho === "number" ? t.ancho : 1;
+    const alto = typeof t.alto === "number" ? t.alto : 1;
+    const estilo: React.CSSProperties = {
+        transform: `translate(${t.x * 100}%, ${t.y * 100}%) scale(${t.escala}) rotate(${t.rotacion}deg)`,
+    };
+    if (ancho !== 1) estilo.width = `${ancho * 100}%`;
+    if (alto !== 1) estilo.height = `${alto * 100}%`;
+    return estilo;
+}
+
+/** Máscara opcional: recorte radial (círculo) o lineal (se desvanece hacia abajo). */
+export function estiloMascara(m?: MascaraKind): React.CSSProperties {
+    if (m === "radial") {
+        const radial = "radial-gradient(circle, black 40%, transparent 100%)";
+        return { maskImage: radial, WebkitMaskImage: radial };
+    }
+    if (m === "lineal") {
+        const lineal = "linear-gradient(to bottom, black 60%, transparent 100%)";
+        return { maskImage: lineal, WebkitMaskImage: lineal };
+    }
+    return {};
+}
 
 function LayerBody({ layer }: { layer: BackgroundLayer }) {
     switch (layer.kind) {
@@ -82,6 +118,37 @@ function LayerBody({ layer }: { layer: BackgroundLayer }) {
         default:
             return null;
     }
+}
+
+/** Textura del difuminado como SVG inline determinista: sin red y sin ficheros. */
+const TEXTURAS_DIFUSION: Record<DifusionConfig["textura"], string> = {
+    ninguna: "",
+    grano: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><filter id="t"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(#t)" opacity="0.35"/></svg>`,
+    papel: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><filter id="t"><feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="4" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(#t)" opacity="0.15"/></svg>`,
+    escarcha: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><filter id="t"><feTurbulence type="turbulence" baseFrequency="0.5" numOctaves="2" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(#t)" opacity="0.25"/></svg>`,
+};
+
+function fondoTexturaSvg(textura: DifusionConfig["textura"]): string {
+    const svg = TEXTURAS_DIFUSION[textura] ?? "";
+    return svg ? `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")` : "";
+}
+
+/** Estilos de una capa `difusion`: tono (blanco/negro/color), desenfoque y textura. */
+export function estiloDifusionCapa(d?: DifusionConfig): React.CSSProperties {
+    if (!d) return {};
+    const estilo: React.CSSProperties = {};
+    if (d.modo === "blanco") estilo.background = `rgba(255, 255, 255, ${d.opacidad})`;
+    else if (d.modo === "negro") estilo.background = `rgba(0, 0, 0, ${d.opacidad})`;
+    else if (d.modo === "tono") estilo.background = d.tono || "#ffffff";
+    // «transparente» y «desenfoque» no pintan fondo; solo puede haber desenfoque.
+    if (d.desenfoquePx > 0) {
+        const blur = `blur(${d.desenfoquePx}px)`;
+        estilo.backdropFilter = blur;
+        estilo.WebkitBackdropFilter = blur;
+    }
+    const textura = fondoTexturaSvg(d.textura);
+    if (textura) estilo.backgroundImage = textura;
+    return estilo;
 }
 
 /** MOTOR NATIVO — transparencia real, cero iframe. */
@@ -177,19 +244,26 @@ export function BackgroundLayerStack() {
             {layers.map((layer, i) => {
                 if (!layer.visible) return null;
                 const am = layer.kind === "audiomorphic" ? layer.audiomorphic : undefined;
+                const esShader = layer.kind === "shader";
+                const esDifusion = layer.kind === "difusion";
                 // El modo interacción SOLO existe en el respaldo por iframe.
                 const interactive = am?.engine === "iframe" && am.interactive === true;
+                const estilo: React.CSSProperties = {
+                    zIndex: interactive ? 60 : BASE_Z + i,
+                    opacity: interactive ? 1 : layer.opacity,
+                    mixBlendMode: interactive ? "normal" : (layer.blend as React.CSSProperties["mixBlendMode"]),
+                    pointerEvents: interactive ? "auto" : "none",
+                };
+                if (esShader || esDifusion) {
+                    Object.assign(estilo, estiloTransform(layer.transform), estiloMascara(layer.mascara));
+                }
                 return (
                     <div
                         key={layer.id}
                         aria-hidden={!interactive}
+                        data-kind={layer.kind}
                         className="fixed inset-0 h-full w-full overflow-hidden transition-opacity duration-700"
-                        style={{
-                            zIndex: interactive ? 60 : BASE_Z + i,
-                            opacity: interactive ? 1 : layer.opacity,
-                            mixBlendMode: interactive ? "normal" : (layer.blend as React.CSSProperties["mixBlendMode"]),
-                            pointerEvents: interactive ? "auto" : "none",
-                        }}
+                        style={estilo}
                     >
                         {am ? (
                             am.engine === "iframe" ? (
@@ -197,6 +271,13 @@ export function BackgroundLayerStack() {
                             ) : (
                                 <AudiomorphicNativeLayer layer={layer} />
                             )
+                        ) : esShader ? (
+                            // La capa shader: la envoltura carga la opacidad y la mezcla
+                            // (el cuerpo pinta a 1/normal para NO aplicarse dos veces).
+                            <CapaShader capa={{ ...layer, opacity: 1, blend: "normal" }} />
+                        ) : esDifusion ? (
+                            // La capa de difuminado: tono, desenfoque y textura sobre lo de abajo.
+                            <div className="absolute inset-0" style={estiloDifusionCapa(layer.difusion)} />
                         ) : (
                             <LayerBody layer={layer} />
                         )}
