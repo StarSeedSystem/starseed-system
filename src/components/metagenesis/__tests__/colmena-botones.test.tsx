@@ -210,6 +210,51 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         const android = botonesNeurona({ nodo: null, vivo: true, so: "android", enCurso: 0 });
         expect(android.instalar.explica).toBe("En Android, dentro de Termux (experimental, 1 agente).");
     });
+
+    it("sin trabajador en macOS: «Instalar el trabajador» visible y habilitado (Terminal)", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        expect(b.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "Un comando en la terminal de este aparato.",
+        });
+    });
+
+    it("sin trabajador en Windows: explica que se instala dentro de WSL2", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "windows", enCurso: 0 });
+        expect(b.instalar).toMatchObject({ visible: true, habilitado: true, etiqueta: "Instalar el trabajador" });
+        expect(b.instalar.explica).toBe("En Windows se instala dentro de WSL2.");
+    });
+
+    it("sin trabajador en iOS u otro SO: «Instalar» queda oculto, no se ofrece algo imposible", () => {
+        for (const so of ["ios", "otro"] as const) {
+            const b = botonesNeurona({ nodo: null, vivo: true, so, enCurso: 0 });
+            expect(b.instalar).toEqual({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+        }
+    });
+
+    it("sin nodo (solo navegador) no hay «Desconectar» ni «Usar como contenedor»: no hay nada que apagar", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        expect(b.desconectar).toEqual({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+        expect(b.contenedor).toEqual({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+    });
+
+    it("no apto y sin apuntar: el botón de contenedor se ve deshabilitado con su motivo", () => {
+        const b = botonesNeurona({
+            nodo: "mac-a1b2c3",
+            vivo: true,
+            so: "macos",
+            enCurso: 0,
+            contenedor: { activo: false, agentes: 0, apto: false, motivo: "No tiene suficiente memoria" },
+        });
+        expect(b.contenedor).toMatchObject({
+            visible: true,
+            habilitado: false,
+            etiqueta: "Usar como contenedor",
+            explica: "No tiene suficiente memoria",
+        });
+    });
 });
 // ─── el traductor latido → tarjeta (puro) ──────────────────────────────────────────────────────────────
 
