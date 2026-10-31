@@ -18,10 +18,15 @@ CV, CX = H + "/.local/share/claude/versions/", H + "/.codex/packages/standalone/
 HERMES, BITNET = H + "/.hermes/logs/gateway.error.log", H + "/Documents/IA 1.58 bit/backend/bitnet-server.log"
 CLAUDE, CURRENT = "~/.local/bin/claude", "~/.codex/packages/standalone/current"
 C0324, C0521, C1238 = CLON + "-0324", CLON + "-0521", CLON + "-1238"  # la madrugada del 28 y el Chrome de mediodía
+# RAM1031B: los respaldos de emergencia viejos de Hermes pasan al Drive; el reciente y el vivo, nunca
+BAK = H + "/.hermes/state.db.pre-update-emergency-2026-10-20.bak"
+BAK_NUEVO = H + "/.hermes/state.db.pre-update-emergency-2026-10-30.bak"
+DRIVE = "/fake/drive/StarSeed-respaldos-mac/hermes"
 rutas = lambda e: [a["ruta"] for a in (L.plan(**e) if isinstance(e, dict) else e)]  # noqa: E731
 
 
-def entorno(rutas, mb=None, vivos=(), enlaces=None, libre=4.0, clones=None, inicio=None):
+def entorno(rutas, mb=None, vivos=(), enlaces=None, libre: "float | None" = 4.0, clones=None, inicio=None,
+            respaldos=None, drive_vivo=None):
     def existe(patron):  # una máquina de mentira (`*` no cruza «/»)
         p = patron.replace("~", H, 1)
         return sorted(r for r in rutas if r.count("/") == p.count("/") and fnmatch.fnmatchcase(r, p))
@@ -29,6 +34,8 @@ def entorno(rutas, mb=None, vivos=(), enlaces=None, libre=4.0, clones=None, inic
          "proceso_vivo": lambda t: any(t in v for v in vivos), "enlace_destino": (enlaces or {}).get}
     if clones is not None:
         e["clones"], e["inicio_chrome_mas_viejo"] = clones, inicio
+    if drive_vivo is not None or respaldos is not None:
+        e["respaldos"], e["drive_vivo"] = respaldos, drive_vivo
     return e
 
 
@@ -169,6 +176,95 @@ class LimpiezaCaches(unittest.TestCase):  # plan (puro), aplicar, recortar, reco
                       correr=lambda o, ok=(0,): "", es_enlace=lambda e: e == lg + "b.log",
                       ruta_real=lambda e: "/Volumes/otro/.gradle/caches" if e == g + "caches" else e)
         self.assertEqual([r["existe"](p) for p in (L.LOGS[0], *L.GRADLE[::2])], [[lg + "a.log"], [], [g + "daemon"]])
+
+    # RAM1031B: los respaldos viejos pasan al Drive con copia verificada; lo demás, en la lista negra de siempre
+    def test_al_drive_sale_solo_el_mas_viejo_y_solo_con_el_drive_respondiendo(self):
+        tam = {BAK: 2252.0, BAK_NUEVO: 2252.0}  # dos de 2,2 GB
+        e = entorno([BAK, BAK_NUEVO], mb=tam, respaldos=[(BAK, 10.0), (BAK_NUEVO, 60.0)], drive_vivo=True)
+        self.assertEqual([(a["accion"], a["ruta"]) for a in L.plan(**e)], [("al_drive", BAK)])  # el viejo
+        self.assertEqual(rutas(entorno([BAK, BAK_NUEVO], mb=tam, respaldos=[(BAK, 10.0), (BAK_NUEVO, 60.0)],
+                                       drive_vivo=False)), [])  # Drive dormido: nada
+        self.assertEqual(rutas(entorno([BAK], mb=tam, respaldos=[(BAK, 10.0)], drive_vivo=True)), [])  # ¿el único?
+        self.assertEqual(rutas(entorno([BAK], mb=tam)), [])  # sin datos nuevos: como siempre
+
+    def test_el_state_db_vivo_y_el_reci_n_nunca_y_la_lista_negra_del_borrar_sigue(self):
+        self.assertEqual(L.mas_viejo([(BAK_NUEVO, 60.0), (BAK, 10.0)]), BAK)
+        self.assertIsNone(L.mas_viejo([(BAK, 10.0)]))  # con uno solo es, a la vez, «el más reciente»: nada
+        self.assertIsNone(L.mas_viejo([]))
+        self.assertTrue(all(L.vetada(r) for r in (BAK, BAK_NUEVO)))  # el BORRAR sigue vetándolos siempre
+        tocadas = [{"accion": "borrar", "ruta": BAK, "mb": 2252.0}]  # y aplicar lo deja pasar ni por un lado
+        self.assertEqual((L.aplicar(tocadas, tocadas.append, tocadas.append), tocadas),
+                         ([], [{"accion": "borrar", "ruta": BAK, "mb": 2252.0}]))
+
+    def test_solo_un_bak_de_emergencia_absoluto_cuadra_para_llevarse(self):
+        cuadran = [(BAK, True), (H + "/.hermes/state.db", False), (H + "/.hermes/state.db-wal", False),
+                   ("../" + os.path.basename(BAK), False), ("state.db.pre-update-emergency-x.bak", False),
+                   (H + "/.hermes/state.db.pre-update-emergency-.bak", False), (BAK + "_copia", False)]
+        self.assertEqual([L.respaldo_llevable(r) for r, _ in cuadran], [c for _, c in cuadran])
+
+    def test_copia_verificada_exige_peso_exacto_y_sha_igual_y_no_cero(self):
+        sha = {"o": "igual", "b": "igual", "c": "otra"}
+        peso = {"o": 10, "b": 10, "c": 10}
+        self.assertTrue(L.copia_verificada("o", "b", peso.__getitem__, sha.__getitem__))
+        self.assertFalse(L.copia_verificada("o", "c", peso.__getitem__, sha.__getitem__))  # hablilla distinta
+        tam = lambda r: 10 if r == "o" else 9  # noqa: E731
+        self.assertFalse(L.copia_verificada("o", "b", tam, sha.__getitem__))  # se cortó a medias
+        self.assertFalse(L.copia_verificada("o", "b", lambda r: 0, sha.__getitem__))  # un par de vacíos no es copia
+        roto = lambda r: (_ for _ in ()).throw(OSError("fts_read: Operation timed out"))  # noqa: E731
+        self.assertFalse(L.copia_verificada("o", "b", roto, sha.__getitem__))  # Drive medio dormido
+
+    def test_recoger_junta_respaldos_y_el_drive_vivo_al_plan(self):
+        glob_fn = lambda p: [BAK, BAK_NUEVO] if "emergency" in p else []  # noqa: E731
+        mt = {BAK: 10.0, BAK_NUEVO: 20.0}.get
+        # du pesa los respaldos (2,3 GB y pico ⇒ «2252xxx»), ps dice «otro»: no hay nada vivo ahí
+        correr = lambda o, ok=(0,): "2252416\t%s" % o[-1] if o[0] == "du" else "otro"  # noqa: E731
+        r = L.recoger(4.0, home=H, glob_fn=glob_fn, correr=correr,
+                      es_enlace=lambda e: False, ruta_real=str, mtime_fn=mt, drive_fn=lambda: DRIVE)
+        self.assertEqual((r["respaldos"], r["drive_vivo"]), ([(BAK, 10.0), (BAK_NUEVO, 20.0)], True))
+        self.assertEqual([a["ruta"] for a in L.plan(**r)], [BAK])  # y el plan ya sale con el paso
+        r2 = L.recoger(4.0, home=H, glob_fn=glob_fn, correr=correr,
+                       es_enlace=lambda e: False, ruta_real=str, mtime_fn=mt, drive_fn=lambda: None)
+        self.assertEqual((r2["respaldos"], r2["drive_vivo"], rutas(L.plan(**r2))),
+                         ([(BAK, 10.0), (BAK_NUEVO, 20.0)], False, []))
+        r3 = L.recoger(4.0, home=H, glob_fn=lambda p: [BAK + "_medio"], correr=correr,
+                       es_enlace=lambda e: False, ruta_real=str, mtime_fn=lambda n: None)  # fecha ilegible: nada
+        self.assertEqual((r3["respaldos"], rutas(L.plan(**{**r3, "drive_vivo": True}))), ([], []))
+
+    def test_aplicar_lleva_al_drive_solo_verificado_y_resumen_lo_cuenta(self):
+        hecha = [{"accion": "al_drive", "ruta": BAK, "mb": 2252.0}]
+        lleva, otro = [], []
+        self.assertEqual((L.aplicar(hecha, otro.append, otro.append, llevar_fn=lleva.append), lleva, otro),
+                         (hecha, [BAK], []))
+        self.assertEqual(L.aplicar(hecha, otro.append, otro.append), [])  # sin llevar_fn (copiado no inyectado): nada
+        raro = [{"accion": "al_drive", "ruta": "/x/archivo.tar", "mb": 1}]  # un .bak de emergencia O NADA
+        self.assertEqual((L.aplicar(raro, otro.append, otro.append, llevar_fn=lleva.append), lleva),
+                         ([], [BAK]))
+        self.assertIn("llevé al Drive", L.resumen(hecha))  # y queda anotado lo que viajó
+
+    def test_llevar_al_drive_copia_verifica_y_solo_entonces_suelta(self):
+        peso = 2_359_296_000  # 2,2 GB concretamente
+        destino = DRIVE + "/" + os.path.basename(BAK)
+        buen_sha = lambda r: "mismo"  # noqa: E731
+        sueltas, copiadas = [], []
+        copiar = lambda o, d: copiadas.append(d)  # noqa: E731
+        llevar = lambda **k: L.llevar_al_drive(BAK, quitar=sueltas.append, copiar=copiar, **k)  # noqa: E731
+        self.assertEqual(llevar(raiz=DRIVE, tamano_fn=lambda r: peso, sha_fn=buen_sha), destino)
+        self.assertEqual((copiadas, sueltas), ([destino], [BAK]))  # copió y soltó
+        corto = lambda r: peso if r == BAK else peso - 1  # noqa: E731  # la copia llegó a medias
+        self.assertEqual((llevar(raiz=DRIVE, tamano_fn=corto, sha_fn=buen_sha), sueltas), (None, [BAK]))  # sin soltar
+        distinta = lambda r: "mismo" if r == BAK else "otra"  # noqa: E731
+        self.assertEqual((llevar(raiz=DRIVE, tamano_fn=lambda r: peso, sha_fn=distinta), sueltas), (None, [BAK]))
+        sin_drive = L.llevar_al_drive(BAK, raiz=None, copiar=copiar, tamano_fn=lambda r: peso, sha_fn=buen_sha,
+                                      quitar=sueltas.append)
+        self.assertEqual((sin_drive, sueltas, copiadas), (None, [BAK], [destino] * 3))  # Drive sin responder: ni una más
+        self.assertEqual(L.llevar_al_drive("/x/otra.db", raiz=DRIVE, copiar=copiar, tamano_fn=lambda r: peso,
+                                           sha_fn=buen_sha, quitar=sueltas.append), None)  # no es un .bak: nunca
+
+    def test_drive_responde_con_tope_y_sin_raiz_no_responde_nada(self):
+        # el runner real (_correr) recibe el tope de 10 s; aquí, un `ls` que responde y otro cogido
+        self.assertEqual(L.drive_responde(lambda o, ok=(0,), tope_s=10: "x", raices=["/r"]), "/r")  # la primera
+        self.assertEqual(L.drive_responde(lambda o, ok=(0,), tope_s=10: None, raices=["/r"]), None)
+        self.assertIsNone(L.drive_responde(lambda o, ok=(0,), tope_s=10: None))  # el Drive real no está aquí
 
     def test_autocuracion_solo_con_la_limpieza_real_libera_lo_que_no_ve_y_lo_dice(self):
         sim = lambda ids: {"ok": True, "limpiados": list(ids)}  # noqa: E731
