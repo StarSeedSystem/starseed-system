@@ -17,6 +17,7 @@
 import { useSyncExternalStore, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { mergeUserPrefs } from "@/lib/sync/user-prefs";
+import { geometriaVentana } from "@/lib/design/composicion";
 
 // ── Tipos del modelo ─────────────────────────────────────────────
 export type DesktopIconKind = "app" | "file" | "folder" | "widget" | "link";
@@ -1179,18 +1180,18 @@ export function openWindow(
         }
         const vw = isClient() ? window.innerWidth : 1280;
         const vh = isClient() ? window.innerHeight : 800;
+        // Ancho y alto base (respetando opciones y límites de viewport)
         const w = Math.min(opts?.w ?? 760, Math.max(300, vw - 48));
         const h = Math.min(opts?.h ?? 520, Math.max(220, vh - 150));
-        const idx = d.windows.length;
-        // Cascada que NUNCA invade la banda de la barra superior (B-1).
-        const maxY = Math.max(DESKTOP_TOP_INSET, vh - h - 120);
+        // Geometría centrada usando la composición por aparato (sin posición guardada)
+        const geo = geometriaVentana({ ancho: vw, alto: vh }, { tipo: "ventana", ancho: w, alto: h });
         const win: DesktopWindow = {
             id: resultId,
             contentRef,
-            x: Math.max(8, Math.min(48 + (idx % 6) * 36, vw - w - 16)),
-            y: Math.min(clampWindowY(DESKTOP_TOP_INSET + 6 + (idx % 6) * 30), maxY),
-            w,
-            h,
+            x: geo.x,
+            y: geo.y,
+            w: geo.ancho,
+            h: geo.alto,
             z: nextZ(d),
             minimized: false,
             maximized: false,
