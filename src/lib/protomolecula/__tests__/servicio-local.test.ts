@@ -118,3 +118,33 @@ describe("servicio-local · lanzador nativo (lista blanca y confirmación siempr
     expect(pedirLanzamiento("krita", { ...ctx, appNativa: false, confirmado: true })).toEqual({ estado: "proximamente", motivo: "próximamente: no hay app nativa conectada" });
   });
 });
+
+describe("servicio-local · servicio hyperframes (vídeo, Ola 1018H)", () => {
+  const HF: DefinicionServicio = SERVICIOS_CONOCIDOS.find((d) => d.id === "hyperframes") as DefinicionServicio;
+  it("la definición es la del contrato: puerto 4490, salud en /salud y plazo propio de 15 min", () => {
+    expect(HF).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900_000 });
+    expect(validarDefinicion(HF)).toBeNull();
+    expect(SERVICIOS_CONOCIDOS).toHaveLength(3); // nada más cambió
+  });
+  it("la salud se consulta SOLO en 127.0.0.1:4490/salud, con GET y sin exigir el token", async () => {
+    const f = vi.fn<FetchLocal>(async () => resp(200, '{"ok":true}'));
+    expect((await sondearServicio(HF, f, { leerVariable: () => undefined })).vivo).toBe(true);
+    expect(f.mock.calls[0]?.[0]).toBe("http://127.0.0.1:4490/salud");
+    expect(f.mock.calls[0]?.[1]).toMatchObject({ method: "GET", redirect: "manual", headers: { accept: "application/json" } });
+    expect(f.mock.calls[0]?.[1].headers.authorization).toBeUndefined();
+  });
+  it("el plazo propio (tiempoMs: 900000) manda en las llamadas: 30 s no corta, 15 min sí", async () => {
+    const { reloj, avanzar } = relojFalso();
+    let senal: AbortSignal | undefined;
+    const colgado: FetchLocal = (_u, i) => {
+      senal = i.signal;
+      return new Promise((_, rej) => i.signal.addEventListener("abort", () => rej(new Error("abortado"))));
+    };
+    const p = llamarServicio(HF, "/render", {}, colgado, { reloj });
+    avanzar(30_000); // el plazo por defecto pasaría: aún no corta
+    expect(senal?.aborted).toBe(false);
+    avanzar(870_000); // total 900.000 ms
+    expect(await p).toMatchObject({ ok: false, fallo: "tiempo", ms: 900_000 });
+    expect(senal?.aborted).toBe(true);
+  });
+});

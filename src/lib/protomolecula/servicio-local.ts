@@ -22,7 +22,7 @@ export const MAX_BYTES = 8 * 1024 * 1024, MAX_CUERPO = 1024 * 1024, TIEMPO_MS = 
 export const SERVICIOS_CONOCIDOS: readonly DefinicionServicio[] = [
   { id: "comfyui", nombre: "ComfyUI", puerto: 8188, rutaSalud: "/system_stats" },
   { id: "ollama", nombre: "Ollama", puerto: 11434, rutaSalud: "/api/version" },
-  { id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/health" },
+  { id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900_000 },
 ];
 const NOMBRE_VARIABLE = /^[A-Z][A-Z0-9_]{1,63}$/;
 const RUTA = /^\/(?![/\\])[A-Za-z0-9\-._~/%?=&+,:]*$/;
