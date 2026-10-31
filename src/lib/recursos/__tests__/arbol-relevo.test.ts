@@ -112,6 +112,29 @@ describe("arbol-relevo", () => {
       expect(totalHijos).toBeGreaterThan(0);
     });
 
+    it("si el que se va no está, devuelve el árbol entero sin cambios", () => {
+      const antes = armarArbol("raiz", [{ nodoId: "a" }], 100);
+      expect(recolocar(antes, "fantasma")).toEqual(antes);
+    });
+
+    it("al irse uno quita solo a ese nodo y no toca a los demás", () => {
+      const arbol = armarArbol(
+        "origen",
+        [
+          { nodoId: "n1", subidaKbps: 5000 },
+          { nodoId: "n2", subidaKbps: 3000 },
+          { nodoId: "n3", subidaKbps: 2000 },
+        ],
+        1000,
+      );
+      const recolocado = recolocar(arbol, "n1");
+      const hijosOrigen = recolocado.nodos.get("origen")?.hijos ?? [];
+      expect(hijosOrigen).not.toContain("n1");
+      expect(hijosOrigen).toEqual(expect.arrayContaining(["n2", "n3"]));
+      expect(recolocado.nodos.get("n2")?.subidaKbps).toBe(3000);
+      expect(recolocado.nodos.get("n3")?.subidaKbps).toBe(2000);
+    });
+
     it("mantiene determinismo", () => {
       const origen = "origen";
       const receptores = [
