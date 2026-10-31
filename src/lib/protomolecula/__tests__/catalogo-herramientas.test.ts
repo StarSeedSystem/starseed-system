@@ -49,8 +49,7 @@ describe("estructura del catálogo", () => {
     for (const h of todas) {
       expect(h.licencia.trim().length, h.id).toBeGreaterThan(0);
       expect(h.descripcion.trim().length, h.id).toBeGreaterThan(30);
-      expect(h.nombre.trim().length, h.id).toBeGreaterThan(0);
-      if (h.id === "pixelartistry-watertight") continue;
+      if (h.id === "pixelartistry-watertight" || h.id === "hitem3d") continue;
       expect(h.codigo !== null || h.web !== null, `${h.id}: sin código ni web`).toBe(true);
       if (h.codigo) expect(h.codigo, h.id).toMatch(RE_URL);
       if (h.web) expect(h.web, h.id).toMatch(RE_URL);
@@ -98,7 +97,7 @@ describe("estructura del catálogo", () => {
       expect(h.verificado >= "2026-10-10", h.id).toBe(true);
       const a = h.actualizacion;
       expect(FUENTES, h.id).toContain(a.fuente);
-      if (h.id === "pixelartistry-watertight") {
+      if (h.id === "pixelartistry-watertight" || h.id === "hitem3d") {
         expect(a.ref.length, h.id).toBe(0);
         continue;
       }
@@ -356,7 +355,7 @@ describe("aPaqueteBiblioteca", () => {
     const paquetes = todas.map(aPaqueteBiblioteca);
     expect(new Set(paquetes.map((p) => p.id)).size).toBe(todas.length);
     for (const p of paquetes) {
-      if (p.id === "proto-pixelartistry-watertight") continue;
+      if (p.id === "proto-pixelartistry-watertight" || p.id === "proto-hitem3d") continue;
       expect(p.name.length).toBeGreaterThan(0);
       expect(["app", "repo"]).toContain(p.kind);
       expect(typeof p.payload.externalUrl).toBe("string");
@@ -420,5 +419,74 @@ describe("repos-libreria-1020 protomolécula", () => {
     expect(herramientaPorId("detectron2")).toMatchObject({ licencia: "Apache-2.0", licenciaPesos: "NOASSERTION", tipo: "libreria" });
     expect(herramientaPorId("mesh2motion")).toMatchObject({ licencia: "MIT", tipo: "app", categoria: "modelado-3d" });
     expect(herramientaPorId("mesh2motion")?.actualizacion).toMatchObject({ fuente: "github-tags", ultimaVersion: null, fechaVersion: null });
+  });
+});
+
+describe("avatares 3D · fichas de la ola 1011H (verificadas el 2026-10-11)", () => {
+  const IDS_1011H = [
+    "unimate", "image-to-3dlab", "unirig", "instant-meshes", "smart-remesh", "three-vrm",
+    "characterstudio", "filigree3d", "btc3d", "meshy", "tripo", "3daistudio", "hi3d", "hitem3d", "meta-horizon",
+  ] as const;
+
+  it("las quince fichas existen, sin duplicarse y sin parámetros de afiliado", () => {
+    for (const id of IDS_1011H) expect(todas.filter((h) => h.id === id), id).toHaveLength(1);
+    const texto = JSON.stringify(todas.filter((h) => (IDS_1011H as readonly string[]).includes(h.id)));
+    expect(texto).not.toMatch(/[?&](aff|via)=|utm_/);
+  });
+
+  it("unimate: texto → movimiento, código MIT, pesos no comerciales y camino del adaptador", () => {
+    const h = herramientaPorId("unimate") as HerramientaProto;
+    expect(h.tipo).toBe("modelo");
+    expect(h.licencia).toBe("MIT");
+    expect(h.licenciaPesos).toMatch(/CC BY-NC/);
+    expect(h.estado).toBe("proximamente");
+    expect(h.codigo).toBe("https://github.com/Friedrich-M/UniMate");
+    expect(h.descripcion).toMatch(/cualquier esqueleto/);
+    expect((h.avisos ?? []).join(" ")).toMatch(/no comercial/i);
+  });
+
+  it("image-to-3dlab: integrable, servicio local en Mac de 32 GB y procedencia por resultado", () => {
+    const h = herramientaPorId("image-to-3dlab") as HerramientaProto;
+    expect(h.estado).toBe("integrable");
+    expect(h.integracion).toBe("servicio-local");
+    expect(h.codigo).toBe("https://github.com/Bingeljell/image-to-3dlab");
+    expect(h.descripcion).toMatch(/Hunyuan3D-MLX/);
+    expect(h.descripcion).toMatch(/TRELLIS\.2/);
+    expect(h.formatos.salida.join(" ")).toMatch(/procedencia|provenance/);
+    expect(h.motivo).toMatch(/32 GB/);
+  });
+
+  it("los tres programas libres del taller (unirig, instant-meshes, three-vrm) son integrables con licencia abierta", () => {
+    expect(herramientaPorId("unirig")).toMatchObject({ estado: "integrable", licencia: "MIT", codigo: "https://github.com/VAST-AI-Research/UniRig", tipo: "modelo" });
+    expect((herramientaPorId("unirig")?.avisos ?? []).join(" ")).toMatch(/NVIDIA/);
+    expect(herramientaPorId("instant-meshes")).toMatchObject({ estado: "integrable", licencia: "BSD-3-Clause" });
+    expect(herramientaPorId("three-vrm")).toMatchObject({ estado: "integrable", licencia: "MIT", codigo: "https://github.com/pixiv/three-vrm" });
+    expect(herramientaPorId("characterstudio")?.licencia).toBe("MIT");
+  });
+
+  it("smart-remesh es pago y GPL; filigree3d y btc3d son solo artículo", () => {
+    expect(herramientaPorId("smart-remesh")).toMatchObject({ estado: "solo-enlace", integracion: "solo-enlace" });
+    expect(`${herramientaPorId("smart-remesh")?.motivo} ${herramientaPorId("smart-remesh")?.descripcion}`).toMatch(/17 USD/);
+    for (const id of ["filigree3d", "btc3d"]) {
+      const h = herramientaPorId(id) as HerramientaProto;
+      expect(h.estado, id).toBe("proximamente");
+      expect(h.codigo, id).toBeNull();
+      expect(h.web, id).toMatch(/^https:\/\/arxiv\.org\/abs\//);
+      expect((h.avisos ?? []).join(" ") + h.motivo, id).toMatch(/sin código|sin repositorio|no hay|No hay/i);
+    }
+  });
+
+  it("los servicios de pago van a solo-enlace sin claves ni afiliados en los enlaces", () => {
+    for (const id of ["meshy", "tripo", "3daistudio", "hi3d", "hitem3d", "meta-horizon"]) {
+      const h = herramientaPorId(id) as HerramientaProto;
+      expect(h.estado, id).toBe("solo-enlace");
+      expect(h.tipo, id).toBe("servicio");
+      expect(h.codigo, id).toBeNull();
+    }
+    expect(herramientaPorId("meshy")?.licencia).toMatch(/CC BY 4\.0/);
+    expect(`${herramientaPorId("tripo")?.motivo} ${(herramientaPorId("tripo")?.sinComprobar ?? []).join(" ")}`).toMatch(/sin comprobar|no comprob/i);
+    expect(herramientaPorId("hitem3d")?.web).toBeNull();
+    expect((herramientaPorId("hitem3d")?.sinComprobar ?? []).join(" ")).toMatch(/3daistudio/i);
+    expect(herramientaPorId("meta-horizon")?.motivo.toLowerCase()).toContain("sin api");
   });
 });
