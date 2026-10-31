@@ -1,5 +1,28 @@
 import { beforeEach, vi, describe, expect, it } from "vitest";
-import { componerProcesos, type FuentesProcesos, leerProcesos } from "../procesos-fuentes";
+import { componerProcesos, type FuentesProcesos, leerProcesos, type ProcesoActivo } from "../procesos-fuentes";
+
+vi.mock("@/lib/metagenesis/remoto-nodos-cliente", () => ({
+    leerEstadoAutonomo: () => Promise.resolve({ ok: true, estado: { nodos: [] } }),
+}));
+vi.mock("@/lib/genesis/historial", () => ({
+    leerHistorial: () => Promise.resolve({ atrasos: [] }),
+}));
+vi.mock("@/lib/astraura/astraura-158-client", () => ({
+    fetchAstraura158DreamStatus: () => Promise.resolve({ data: { is_dreaming: false } }),
+    fetchAstraura158ImaginationStatus: () => Promise.resolve({ data: { is_dreaming: false, data: { active_processes_count: 0 } } }),
+}));
+vi.mock("@/lib/aurora/imagine", () => ({
+    listRuns: () => Promise.resolve([]),
+}));
+vi.mock("@/lib/instalaciones/instalaciones-store", () => ({
+    leerInstalaciones: () => [],
+}));
+vi.mock("@/components/desktop/desktop-store", () => ({
+    readDesktopsSnapshot: () => ({ desktops: [] }),
+}));
+vi.mock("@/lib/neurons/neurons", () => ({
+    listNeurons: () => Promise.resolve([]),
+}));
 
 const FuentesProcesosMock: FuentesProcesos = {
     agentes: {
@@ -91,5 +114,18 @@ describe("leerProcesos - firmas y comportamiento básico", () => {
         const hwEntry = result.fuentes.find((f: any) => f.nombre.includes("hardware"));
         expect(hwEntry).toBeDefined();
         expect(hwEntry!.nombre).toContain("solo Mac");
+    });
+
+    it("procesa poligenesis: entradas y propuestas incluidas", async () => {
+        const mockPoligenesis = {
+            entradas: [{ id: "e1", estado: "propuesta", titulo: "Cambio", at: 5, ambito: { tipo: "persona" } }],
+            propuestas: [{ id: "p1", titulo: "Votación", estado: "open", creada: "2026-10-20T00:00:00Z" }],
+        };
+        const result = await leerProcesos({ poligenesis: mockPoligenesis });
+        const procesos = result.procesos;
+        const tienePropuesta = procesos.some((p: ProcesoActivo) => p.tipo === "poligenesis" && p.nombre.includes("Cambio"));
+        const tieneVotacion = procesos.some((p: ProcesoActivo) => p.tipo === "poligenesis" && p.nombre.includes("Votación"));
+        expect(tienePropuesta).toBe(true);
+        expect(tieneVotacion).toBe(true);
     });
 });
