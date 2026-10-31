@@ -44,6 +44,7 @@ describe("presupuestoSplat", () => {
     it("reserva 1,5 M de puntos en alta, 3 M en máxima y nada en los niveles bajos", () => {
         expect(presupuestoSplat("alta")).toBe(1_500_000);
         expect(presupuestoSplat("maxima")).toBe(3_000_000);
+        expect(presupuestoSplat("baja")).toBe(0);
         expect(presupuestoSplat("media")).toBe(0);
         expect(presupuestoSplat("minima")).toBe(0);
     });
@@ -64,6 +65,7 @@ describe("urlSplatDeObjeto", () => {
         expect(urlSplatDeObjeto(objeto({ tipo: "biblioteca", id: URL, formato: "splat" }))).toBe(URL);
         expect(urlSplatDeObjeto(objeto({ tipo: "biblioteca", id: URL, formato: "glb" }))).toBeNull();
         expect(urlSplatDeObjeto(objeto({ tipo: "primitiva", forma: "caja" }))).toBeNull();
+        expect(urlSplatDeObjeto(objeto({ tipo: "texto", contenido: "hola" }))).toBeNull();
     });
 });
 
