@@ -1191,6 +1191,29 @@ export const AURORA_ACTIONS: AuroraActionDef[] = [
     },
   },
   {
+    name: "artcraft",
+    describe:
+      "Usa una CRAFT APP de esta neurona por su pasarela segura: {app: \"figcraft\"|\"gridcraft\"|\"deckcraft\", accion: \"estado\"|\"inspeccionar\"|\"ejecutar\"|\"exportar\", herramienta?, parametros?, contexto?}. «estado» dice si la CLI está instalada y su versión; «inspeccionar» solo admite herramientas de lectura (inspect_document, get_node, inspect_workbook, read_range, inspect_slide, list_commands…); «ejecutar» y «exportar» pasan por la pasarela y pueden quedar pendientes de confirmación en el panel. Nunca tocas las herramientas de ventana ni archivos fuera del directorio de trabajo, y el mensaje no lleva rutas absolutas: solo nombres de archivo.",
+    example: '[[ACCION: artcraft {"app":"figcraft","accion":"inspeccionar","herramienta":"list_commands"}]]',
+    handler: async (args, ctx) => {
+      const { ejecutarAccionArtcraft } = await import("@/lib/artcraft/accion-agente");
+      const contexto = (str(args, "contexto") || "agente").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "agente";
+      const llamar = async (p: { app: "figcraft" | "gridcraft" | "deckcraft"; herramienta: string; parametros: Record<string, unknown>; contexto: string }) => {
+        const res = await fetch(`/api/artcraft/${p.app}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ herramienta: p.herramienta, parametros: p.parametros, contexto: p.contexto, origen: "agente", ambito: "personal" }) }).catch(() => null);
+        const d = (await res?.json().catch(() => null)) as { ok?: boolean; resultado?: unknown; confirmar?: boolean; motivo?: string } | null;
+        return { ok: !!d?.ok, resultado: d?.resultado, status: res?.status, confirmar: d?.confirmar === true, motivo: d?.motivo };
+      };
+      const estado = async (app: "figcraft" | "gridcraft" | "deckcraft") => {
+        const res = await fetch(`/api/artcraft/${app}`).catch(() => null);
+        const d = (await res?.json().catch(() => null)) as { instalado?: boolean; version?: string | null } | null;
+        return { instalado: d?.instalado === true, version: typeof d?.version === "string" ? d.version : null };
+      };
+      const r = await ejecutarAccionArtcraft(args, { llamar, estado, contexto });
+      if (r.status) ctx.onStatus?.(r.status);
+      return r;
+    },
+  },
+  {
     name: "animar_escena",
     describe:
       "Crea una ANIMACIÓN 3D con ManimGX a partir de una descripción en lenguaje natural. Args {descripcion} y opcional {calidad} (480p|720p|1080p). Un modelo escribe la escena (API de Manim CE), se VALIDA con un contrato puro (sin open, exec, red ni procesos: el código nunca se ejecuta fuera del Worker) y se abre la Protomolécula con el átomo Animación 3D cargado para renderizar el MP4.",
