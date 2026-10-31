@@ -1,0 +1,53 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "ola": "1021G",
+   "revisor_quitadas": [
+    "GUI1021I",
+    "GUI1021K2-d2"
+   ],
+   "id": "GUI1021K2-d3",
+   "titulo": "Guía sin cuenta · el mismo acceso en la bienvenida y en retomar sesión (parte 3 de 3)",
+   "archivos": [
+    "src/components/welcome/__tests__/bienvenida-guia.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Añade «Conoce StarSeed» (bienvenida: `desde: 'bienvenida'`; retomar sesión: `desde: 'login'`) con `abrirGuia`, sin tocar nada más. Pruebas de los dos botones. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## PARTE 3 DE 3 (la dirección dividió GUI1021K2: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/welcome/__tests__/bienvenida-guia.test.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GUI1021K2",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   }
+  },
+  {
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "id": "VZF1015M-d1",
+   "titulo": "Un solo resolutor de identidad de voz por persona (agente › personalidad › cerebro › neurona › cuenta) (parte 1 de 3)",
+   "archivos": [
+    "src/lib/aurora/identidad-voz.ts"
+   ],
+   "depende": [],
+   "prompt": "Hay seis mapas de «qué voz tiene esta persona» sin coordinar (VOZ_POR_PERSONA de voz-rt, pines del registro, timbres/voz-inicial/voz-rito, INSTRUCT del demonio, seedKindFor de openvoice2, xai-persona-voices). Crea `identidadVoz({ agente?, personalidad, cerebro?, neurona?, cuenta? })` → `{ timbre, motor, vozRT, origen }` con esa precedencia, leyendo los mapas existentes (no los borres) y que `vozDePersona` de `voz-rt.ts` la use. Pruebas de la precedencia y de que la voz F1 de Alex se conserva por defecto. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.\n\n## PARTE 1 DE 3 (la dirección dividió VZF1015M: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/aurora/identidad-voz.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "VZF1015M",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  },
+  {
+   "id": "CVV1028B",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Contenido vivo · elegir la ruta de cada tarea (local o externo) con la razón escrita",
+   "archivos": [
+    "src/lib/contenido-vivo/rutas.ts",
+    "src/lib/contenido-vivo/__tests__/rutas.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nPURA: `compararRutas(tarea, contexto)` → [{ruta, puntuacion, disponible, motivoNoDisponible?, razon}] ordenada, y `elegirRuta(tarea, contexto)` → la primera disponible o null. `contexto`: {alcance (personal | perfil | grupo | publica), conectados: string[], cupoHoy: Record<string, number>, creditosDisponibles, topeMes, gastadoMes, neurona: {gpu: bool, capaz3d: bool}, ajustes: {localPrimero, externosPermitidos}}. Puntuación: calidad por tarea, menos coste relativo al tope, cero si no está disponible (no conectado, sin cupo, neurona incapaz, alcance personal con ruta que sale de la neurona sin permiso, externo no permitido). Con `localPrimero`, una local gana si queda a ≤ 0,1 de la mejor externa. `razon` en una frase en español («Local: Three.js basta para una escena interactiva y no gasta créditos»). Pruebas: alcance personal nunca elige externa; sin conectar sale `motivoNoDisponible` con el enlace; película fotorrealista con Higgsfield conectado y cupo elige Higgsfield; gráfico vivo siempre local.",
+   "dependencias_ya_en_main": [
+    "CVV1028A"
+   ]
+  }
+ ]
+}
