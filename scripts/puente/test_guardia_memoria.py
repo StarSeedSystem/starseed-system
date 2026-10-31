@@ -172,3 +172,15 @@ class ConAlexHablandoLosMotoresNoSeCongelan(unittest.TestCase):
     def test_sin_conversacion_la_regla_de_siempre(self):
         self.assertEqual(G.decidir(True, 10, set(), ["llama-server"], conversando=False),
                          [("llama-server", "congelar")])
+
+
+# (2026-10-31) Sin enjambre, un motor congelado no se queda en «T» para siempre.
+def test_sin_enjambre_reanuda_tras_minutos_aunque_falte_memoria():
+    import importlib.util as _u, os as _o
+    _s = _u.spec_from_file_location("gm31", _o.path.join(_o.path.dirname(__file__), "guardia-memoria.py"))
+    gm = _u.module_from_spec(_s); _s.loader.exec_module(gm)
+    m = gm.MOTORES[0]
+    assert gm.decidir(False, 900, {m}, [m], minutos={m: 16}) == [(m, "descongelar")]
+    assert gm.decidir(False, 900, {m}, [m], minutos={m: 5}) == []
+    assert gm.decidir(False, 900, {m}, [m]) == []  # sin minutos: como antes
+    assert gm.decidir(True, 900, {m}, [m], minutos={m: 99}) == [(m, "reevaluar")]  # con enjambre: igual que antes

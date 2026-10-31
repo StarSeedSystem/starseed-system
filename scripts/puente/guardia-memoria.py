@@ -30,6 +30,9 @@ INTERVALO_S = int(os.environ.get("STARSEED_GUARDIA_S", "45"))
 # y solo devolvemos el motor cuando hay holgura de verdad, para no ir y venir.
 CONGELAR_BAJO_MB = int(os.environ.get("STARSEED_CONGELAR_MB", "1600"))
 REANUDAR_SOBRE_MB = int(os.environ.get("STARSEED_REANUDAR_MB", "2600"))
+#: (2026-10-31) Sin enjambre, un motor congelado más de esto se reanuda aunque falte memoria:
+#: congelado no suelta su RAM (mlock/wired) y nadie la está usando. BitNet pasó horas en «T».
+REANUDAR_SIN_ENJAMBRE_MIN = float(os.environ.get("STARSEED_REANUDAR_SIN_ENJAMBRE_MIN", "15"))
 MARCA = "/tmp/starseed-%s-congelado-por-el-guardia"  # un marcador por motor
 # Se compara el EJECUTABLE (`comm`), no la linea de ordenes. Un patron sobre los
 # argumentos detecta como motor el propio shell que lo busca, porque su orden menciona
@@ -250,7 +253,8 @@ def accion_para(motor, congelado_min, swap_pct):
     return "nada"
 
 
-def decidir(orquestador_vivo, libre_mb, congelados, motores, conversando=False, presion=None):
+def decidir(orquestador_vivo, libre_mb, congelados, motores, conversando=False, presion=None,
+            minutos=None):
     """Que hacer, pura: lista de (motor, 'congelar'|'descongelar').
 
     `congelados` son los motores que el guardia tiene marcados Y verificados como
@@ -281,6 +285,9 @@ def decidir(orquestador_vivo, libre_mb, congelados, motores, conversando=False, 
             if orquestador_vivo and libre_mb < CONGELAR_BAJO_MB:
                 acciones.append((motor, "congelar"))
         elif not orquestador_vivo and libre_mb > REANUDAR_SOBRE_MB:
+            acciones.append((motor, "descongelar"))
+        elif not orquestador_vivo and (minutos or {}).get(motor, 0) > REANUDAR_SIN_ENJAMBRE_MIN:
+            # (2026-10-31) Sin enjambre no hay a quién darle la RAM, y congelado no la suelta.
             acciones.append((motor, "descongelar"))
         elif orquestador_vivo and libre_mb < CONGELAR_BAJO_MB:
             # (2026-10-11) Ya congelado y sigue faltando memoria: se REEVALÚA con
@@ -331,7 +338,8 @@ def main():
             congelados = obtener_congelados(motores) if ps_ok else set()
 
             conversando = _conv.activa(_conv.leer_concesion())
-            acciones = decidir(orq, libres_mb(), congelados, vivos, conversando, presion_nucleo())
+            acciones = decidir(orq, libres_mb(), congelados, vivos, conversando, presion_nucleo(),
+                               {m: congelado_min(m) for m in congelados})
             # El enjambre cede la RAM mientras dura la conversación y vuelve al acabar.
             if conversando or _conv.leer_marca():
                 print("conversación: %s" % _conv.aplicar(), flush=True)
