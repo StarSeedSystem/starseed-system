@@ -54,6 +54,7 @@ from __future__ import annotations
 
 import calendar
 import fcntl
+import hashlib
 import importlib.util
 import json
 import os
@@ -169,6 +170,18 @@ def tachar(texto, ip=""):
     t = re.sub(r"\b\d{1,3}(?:-\d{1,3}){3}\.sslip\.io\b", "<host>", t)
     t = re.sub(r"ocid1\.[A-Za-z0-9._-]+", "<ocid>", t)
     return t
+
+
+def huella_lock(contenido):
+    """PURA. Hash sha256 cortado a 16 caracteres de `package-lock.json` o su texto.
+    
+    Formato unificado: primeras 16 posiciones del hash hex. Equivalente a:
+    - `sha256sum file | cut -c1-16` en shell
+    - `hashlib.sha256(data).hexdigest()[:16]` en Python
+    
+    Se usa para comparar si el A1 necesita `npm ci`.
+    """
+    return hashlib.sha256(str(contenido).encode("utf-8")).hexdigest()[:16]
 
 
 def leer_env(texto):

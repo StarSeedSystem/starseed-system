@@ -80,8 +80,13 @@ def huella_envio(cabeza, porcelana=""):
 
 
 def huella_lock(texto):
-    """PURA: sha256 de `package-lock.json`, para saber si hay que instalar."""
-    return hashlib.sha256(str(texto or "").encode("utf-8")).hexdigest()
+    """PURA: sha256 de `package-lock.json` (o su texto), cortado a 16 chars.
+    
+    El formato unificado: primeras 16 posiciones del hash hex. Este mismo formato
+    usa `sha256sum package-lock.json | cut -c1-16` en shell y hashlib.sha256(...).hexdigest()[:16]
+    en Python. Se usa para comparar si el A1 necesita `npm ci`.
+    """
+    return hashlib.sha256(str(texto or "").encode("utf-8")).hexdigest()[:16]
 
 
 def pide_instalacion(instalada, actual, existe=True):
