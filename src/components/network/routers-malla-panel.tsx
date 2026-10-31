@@ -17,6 +17,9 @@ import { planRadios, type RouterMalla, type TroncalResult } from "@/lib/network/
 import { guionAplicar, uciMalla, type BandaWifi, type CfgUciMalla } from "@/lib/network/routers-malla/uci-malla";
 import { PERFILES_WIFI, type CanalWifi } from "@/ai/astraura/mesh/camr/regulacion";
 import { TitanioPortatilPanel } from "@/components/network/titanio-portatil-panel";
+import { teselaDeRouter, type TroncalesRouter } from "@/lib/malla/cristal/titanio";
+import type { Tesela } from "@/lib/malla/cristal/tipos";
+import { Router as LucideRouter } from "lucide-react";
 
 const LISTA = "starseed.routers-malla.v1";
 const BUSCAR = "https://openwrt.org/toh/start";
@@ -173,6 +176,31 @@ export function RoutersMallaPanel({ tabla }: { tabla?: EntradaTabla[] }) {
     const r = routers.find((x) => x.id === id);
     return r ? `${r.fabricante} ${r.modelo}` : id;
   };
+
+  /**
+   * Tesela del router adoptado (§1 «Titanio»): se CONSTRUYE con teselaDeRouter
+   * desde los troncales del plan y se muestra aquí; sin red, sin firma (la
+   * firma la pondrá la neurona que lo adopte de verdad).
+   */
+  const teselaDe = (r: RouterGuardado): Tesela | null => {
+    if (!r.openwrt) return null;
+    const delRouter = filas
+      .filter((f) => f.a === r.id || f.b === r.id)
+      .map((f) => ({
+        a: f.a, b: f.b,
+        /* Solo lo que dice el plan: frecuencia de la banda y ancho de canal.
+           Sin medidas falsas: la señal real la pondrá el router. */
+        frecuenciaMhz: f.banda === "5g" ? 5180 : f.banda === "6g" ? 5825 : 2412,
+        anchoCanalMhz: f.anchoMhz,
+      }));
+    if (delRouter.length === 0) return null;
+    const entrada: TroncalesRouter = {
+      routerId: r.id, cuenta: "local", adoptadoPor: "local",
+      troncales: delRouter, reloj: Date.now(), ahora: Date.now(),
+    };
+    return teselaDeRouter(entrada);
+  };
+
   const añadirTroncal = () => {
     if (!par[0] || !par[1] || par[0] === par[1] || troncales.some(([x, y]) => x === par[0] ? y === par[1] : x === par[1] && y === par[0])) return;
     setTroncales((t) => [...t, par]); setPar(["", ""]);
@@ -215,10 +243,25 @@ export function RoutersMallaPanel({ tabla }: { tabla?: EntradaTabla[] }) {
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <label className="flex cursor-pointer items-center gap-2 text-[12px] text-white/60">
                   <input type="checkbox" className="cursor-pointer" checked={r.openwrt} onChange={(e) => setRouters((rs) => rs.map((x) => (x.id === r.id ? { ...x, openwrt: e.target.checked } : x)))} />
-                  Ya tiene OpenWrt
+                  {r.openwrt ? "entra en la retícula como titanio" : "Ya tiene OpenWrt"}
                 </label>
                 <button onClick={() => setRouters((rs) => rs.filter((x) => x.id !== r.id))} className="cursor-pointer text-[12px] text-white/40 hover:text-rose-300">Quitar</button>
               </div>
+              {r.openwrt && (
+                <div className="mt-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-2" data-testid="tesela-titanio">
+                  <div className="flex items-center gap-2 text-[11px] text-amber-200">
+                    <LucideRouter className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Tesela de titanio generada desde los troncales del plan</span>
+                  </div>
+                  {(() => { const t = teselaDe(r); return (
+                    <p className="mt-1 text-[10px] text-amber-100">
+                      {t
+                        ? `Ti⁴⁺ ${r.id}: ${t.senales.length} ${t.senales.length === 1 ? "troncal" : "troncales"} en la tesela, coordinación 6`
+                        : "Sin troncales definidos"}
+                    </p>
+                  ); })()}
+                </div>
+              )}
             </div>
           );
         })}

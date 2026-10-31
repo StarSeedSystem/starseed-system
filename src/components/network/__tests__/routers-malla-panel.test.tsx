@@ -49,4 +49,47 @@ describe("RoutersMallaPanel", () => {
     expect(lista[0]).toMatchObject({ fabricante: "TP-Link", modelo: "Archer C7", deOperador: false, openwrt: false });
     expect(Object.keys(lista[0]).some((k) => k.toLowerCase().includes("clave") || k.toLowerCase().includes("key"))).toBe(false);
   });
+
+  test("al marcar Ya tiene OpenWrt, muestra 'entra en la retícula como titanio'", () => {
+    render(<RoutersMallaPanel />);
+    fireEvent.change(screen.getByPlaceholderText("fabricante (p. ej. TP-Link)"), { target: { value: "TP-Link" } });
+    fireEvent.change(screen.getByPlaceholderText("modelo (p. ej. Archer C7)"), { target: { value: "Archer C7" } });
+    fireEvent.click(screen.getByText("Añadir", { exact: true }));
+    expect(screen.getByText("Ya tiene OpenWrt")).toBeTruthy();
+
+    const checkbox = screen.getByLabelText("Ya tiene OpenWrt");
+    fireEvent.click(checkbox);
+
+    expect(screen.getByText("entra en la retícula como titanio")).toBeTruthy();
+  });
+
+  test("al marcar OpenWrt, muestra tesela de titanio con mensaje de troncales", () => {
+    render(<RoutersMallaPanel />);
+    fireEvent.change(screen.getByPlaceholderText("fabricante (p. ej. TP-Link)"), { target: { value: "TP-Link" } });
+    fireEvent.change(screen.getByPlaceholderText("modelo (p. ej. Archer C7)"), { target: { value: "Archer C7" } });
+    fireEvent.click(screen.getByText("Añadir", { exact: true }));
+
+    fireEvent.click(screen.getByLabelText("Ya tiene OpenWrt"));
+
+    expect(screen.getByText("Tesela de titanio generada desde los troncales del plan")).toBeTruthy();
+    expect(screen.getByText("Sin troncales definidos")).toBeTruthy();
+  });
+
+  test("la tesela del titanio se construye con teselaDeRouter desde los troncales del plan", () => {
+    localStorage.setItem("starseed.routers-malla.v1", JSON.stringify([
+      { id: "rta", fabricante: "TP-Link", modelo: "Archer C7", deOperador: false, openwrt: true },
+      { id: "rtb", fabricante: "TP-Link", modelo: "AC1200", deOperador: false, openwrt: true },
+    ]));
+    render(<RoutersMallaPanel />);
+    expect(screen.getAllByText("Sin troncales definidos")).toHaveLength(2);
+
+    const [cbA, cbB] = screen.getAllByRole("combobox");
+    fireEvent.change(cbA, { target: { value: "rta" } });
+    fireEvent.change(cbB, { target: { value: "rtb" } });
+    fireEvent.click(screen.getByText("Añadir troncal"));
+
+    expect(screen.getAllByTestId("tesela-titanio")).toHaveLength(2);
+    expect(screen.getAllByText(/1 troncal en la tesela/)).toHaveLength(2);
+    expect(screen.queryByText("Sin troncales definidos")).toBeNull();
+  });
 });
