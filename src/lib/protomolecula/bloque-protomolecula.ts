@@ -4,6 +4,7 @@
 import { AMBITOS } from "./tipos";
 import type { Ambito, AtomoEnUso, Capa, Molecula } from "./tipos";
 import { referenciasRotas } from "./permisos";
+import { prepararDiagrama } from "@/lib/diagramas/aislar-diagrama";
 
 /** Versión del sobre JSON del bloque. */
 export const VERSION_BLOQUE = 1;
@@ -141,4 +142,49 @@ const ID_COMPOSICION = /^[A-Za-z0-9_-]{1,64}$/;
 /** URL del reproductor en vivo del servicio local (127.0.0.1:4490); `null` si el id de composición no sirve. */
 export function urlVistaViva(idComposicion: string): string | null {
     return ID_COMPOSICION.test(idComposicion) ? `http://127.0.0.1:4490/vista/${idComposicion}` : null;
+}
+
+/* ── Átomo «diagrama» → vista (architecture/diagramas.md §3.4 y §4) ── */
+
+/** Herramienta del átomo diagrama: la skill MIT «diagram-design» (vendor/habilidades/diagram-design/). */
+export const ATOMO_DIAGRAMA = "diagram-design";
+/** Id de la vista componente (la pinta `vista-diagrama-atomo.tsx`, que usa `vista-diagrama.tsx`). */
+export const ID_VISTA_DIAGRAMA = "diagrama";
+
+/** Correspondencia átomo «diagrama» → vista componente; `null` para los demás átomos. */
+export function vistaDeDiagrama(herramientaId: string): string | null {
+    return herramientaId === ATOMO_DIAGRAMA ? ID_VISTA_DIAGRAMA : null;
+}
+
+/** Qué se muestra del diagrama dentro del bloque. */
+export type VistaDiagramaAtomo = "listo" | "pendiente" | "error";
+
+/** Decisión sobre la vista del átomo diagrama. */
+export interface DecisionDiagrama {
+    vista: VistaDiagramaAtomo;
+    /** Motivo en español: presente en «pendiente» y «error», `null` en «listo». */
+    motivo: string | null;
+}
+
+/**
+ * Qué se muestra del átomo diagrama: si el estado no es activo o Astraura todavía
+ * no escribió el HTML, «pendiente»; si hay HTML y no pasa la validación estricta
+ * de aislamiento (`prepararDiagrama`), «error» con su motivo; si pasa, «listo» y
+ * la vista lo pinta SOLO en iframe `sandbox` sin `allow-same-origin` ni red.
+ * `null` si el átomo no es de diagrama. Nunca lanza.
+ */
+export function elegirVistaDiagrama(
+    atomo: Pick<AtomoEnUso, "herramientaId" | "estado">,
+    html: string | null | undefined,
+): DecisionDiagrama | null {
+    if (atomo.herramientaId !== ATOMO_DIAGRAMA) return null;
+    if (atomo.estado !== "activo") {
+        return { vista: "pendiente", motivo: "El átomo está suspendido: reanúdalo para ver el diagrama." };
+    }
+    if (typeof html !== "string" || html.trim().length === 0) {
+        return { vista: "pendiente", motivo: "El diagrama aún no está listo: Astraura lo escribirá con la marca del contexto." };
+    }
+    const aislado = prepararDiagrama(html);
+    if (!aislado.ok) return { vista: "error", motivo: aislado.motivos.join(" ") };
+    return { vista: "listo", motivo: null };
 }
