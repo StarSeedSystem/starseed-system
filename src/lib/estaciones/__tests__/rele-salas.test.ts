@@ -316,4 +316,67 @@ describe('crearSalas', () => {
       expect(res.motivo).toBe('Tema inválido');
     });
   });
+
+  // S1010-EV-ORACLE-1b: el servidor avisa de la presencia a TODA la sala con `miembros`.
+  describe('miembros (aviso de presencia del servidor)', () => {
+    const t1 = 'estacion-vivo:SalaUno12345';
+    const t2 = 'estacion-p:SalaDos12345';
+
+    it('da todos los de la sala, el que pregunta incluido, y nadie de otra sala', () => {
+      const salas = crearSalas();
+      const a = { id: 'a' };
+      const b = { id: 'b' };
+      const c = { id: 'c' };
+      salas.entrar(t1, a);
+      salas.entrar(t1, b);
+      salas.entrar(t2, c);
+      expect(salas.miembros(t1)).toEqual([a, b]);
+      expect(salas.miembros(t1)[0]).toBe(a);
+      expect(salas.miembros(t2)).toEqual([c]);
+      expect(salas.miembros(t1).length).toBe(salas.presencia(t1));
+    });
+
+    it('sala vacía, desconocida o recién vaciada: lista vacía', () => {
+      const salas = crearSalas();
+      expect(salas.miembros(t1)).toEqual([]);
+      const a = {};
+      salas.entrar(t1, a);
+      salas.salir(a);
+      expect(salas.miembros(t1)).toEqual([]);
+    });
+
+    it('es una foto: tocar la lista o la sala después no cambia la otra', () => {
+      const salas = crearSalas();
+      const gente = [{ id: 1 }, { id: 2 }, { id: 3 }];
+      for (const g of gente) salas.entrar(t1, g);
+      const foto = salas.miembros(t1);
+      expect(Array.isArray(foto)).toBe(true);
+      salas.entrar(t1, { id: 4 });
+      expect(foto).toHaveLength(3);
+      foto.length = 0;
+      expect(salas.presencia(t1)).toBe(4);
+    });
+
+    it('sacar a todos mientras se recorre no se salta a nadie', () => {
+      const salas = crearSalas();
+      const gente = [{ id: 1 }, { id: 2 }, { id: 3 }];
+      for (const g of gente) salas.entrar(t1, g);
+      const vistos: object[] = [];
+      for (const g of salas.miembros(t1)) {
+        vistos.push(g);
+        salas.salir(g);
+      }
+      expect(vistos).toEqual(gente);
+      expect(salas.presencia(t1)).toBe(0);
+    });
+
+    it('tras cambiar de sala solo figura en la nueva', () => {
+      const salas = crearSalas();
+      const a = { id: 'a' };
+      salas.entrar(t1, a);
+      salas.entrar(t2, a);
+      expect(salas.miembros(t1)).toEqual([]);
+      expect(salas.miembros(t2)).toEqual([a]);
+    });
+  });
 });

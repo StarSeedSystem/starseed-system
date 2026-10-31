@@ -85,6 +85,13 @@ export function crearSalas({ maxSalas = 200, maxPorSala = 500, maxBytes = 40000 
       const conexiones = salas.get(tema);
       return conexiones ? conexiones.size : 0;
     },
+    // Todos los de la sala, el que pregunta incluido: el servidor les manda la presencia
+    // `{"t":"rele","n":N}` cada vez que alguien entra o sale. Es una COPIA: quien la recorre
+    // puede cerrar conexiones (y sacarlas de la sala) sin romper el recorrido.
+    miembros(tema) {
+      const conexiones = salas.get(tema);
+      return conexiones ? [...conexiones] : [];
+    },
     temaDe(conexion) {
       return connectionToTema.get(conexion);
     }
