@@ -93,6 +93,10 @@ import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/
 // turno (voice-fusionada-astraura.md §4).
 import { montarInterrupcionPorVoz, type MontajeInterrupcion } from "@/lib/aurora/interrumpir-por-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
+// (VZF1015G) OÍDO FUSIONADO por tramos con elector (voz-fusionada-astraura.md §3)
+// y su glosario de nombres propios («Stars Seed» → StarSeed) como hotwords.
+import { escucharFusionado, tramoAWav, type FragmentoOido } from "@/lib/aurora/stt-oss/escucha-fusionada";
+import { glosarioBase } from "@/lib/aurora/stt-oss/glosario-oido";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
 import {
   decidirEnvioAlOido,
@@ -2113,7 +2117,26 @@ export function useAuroraEngine(): AuroraEngine {
     });
     if (eleccionOido.motor === "phonon-2") return buildFlujoOido();
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return null;
+    // (VZF1015G) FUSIÓN DEL OÍDO (§3): el camino por tramos con elector entra
+    // cuando NO hay reconocimiento en el navegador, o cuando un motor local/
+    // endpoint MEDIDO aquí gana al navegador (pareja de medidas: solo supo-
+    // nestos mandan). El navegador queda DE SUELO: parcial si está, final del
+    // más preciso. Sin tocar el cerrojo de dueño único ni `esEcoPropio`.
+    const medidasNeurona = medidasOidoDeEstaNeurona(langVoz);
+    const motorFinal = elegirOido({
+      idioma: idiomaBaseDeVoz(langVoz),
+      disponibles: MOTORES_OIDO.filter(
+        (m) => m.id !== "navegador" && !(m.id === "phonon-2" && phononCaidoRef.current),
+      ).map((m) => m.id),
+      fase: "final",
+      medidas: medidasNeurona,
+    }).motor;
+    const msFinal = medidasNeurona[motorFinal];
+    const msNavegador = medidasNeurona["navegador"];
+    const motorLocalMedidoMejor =
+      typeof msFinal === "number" &&
+      (typeof msNavegador !== "number" || msFinal < msNavegador);
+    if (!SR || motorLocalMedidoMejor) return buildEscuchaFusionado(motorFinal);
     const rec = new SR();
     // Esta reconocimiento toma la GENERACIÓN vigente. Su onend solo reinicia si
     // sigue siendo la más reciente (evita reinicios en paralelo competitivos).
@@ -2575,6 +2598,204 @@ export function useAuroraEngine(): AuroraEngine {
     return rec;
   }, []);
 
+  // ── OÍDO FUSIONADO POR TRAMOS (VZF1015G · voz-fusionada-astraura.md §3) ──
+  // Emula el MISMO ciclo de vida del Web Speech (recGen, salud §Android,
+  // startRecognitionExclusive, releaseRecognition) pero el micrófono carga la
+  // fuente del tramador de `escucha-fusionada.ts` (silencio 800 ms, tramo
+  // ≤ 30 s) y CADA tramo lo transcribe el motor de la fase «final» del
+  // elector: `transcribirOpenAI` (Phonon-2/Parakeet vía proxy del OS) o el
+  // oído 1.58 del demonio. El parcial que Aurora muestra SIGUE siendo el del
+  // navegador cuando está; sin él, solo la pista «…». No toca el cerrojo de
+  // dueño único (claimStt/releaseStt) ni `esEcoPropio`.
+  const buildEscuchaFusionado = useCallback((motorId: string): SpeechRecognitionLike | null => {
+    const gen = ++recGenRef.current;
+    const langVoz = activeRef.current.voice?.lang;
+    let stopped = false;
+    let startedAt = 0;
+    let sawResult = false;
+    let lastErr = "";
+    let relevo: ((f: FragmentoOido | null) => void) | null = null; // entrega el marco al tramador
+    let mediaStream: MediaStream | null = null;
+    let audioCtx: AudioContext | null = null;
+    let procesador: ScriptProcessorNode | null = null;
+    // (VOZ1024A) Retraso del oído POR TRAMOS de ESTA neurona, para el elector.
+    const oidoMedido = cronometroOido({ motor: motorId, idioma: langVoz || "es-MX", flujo: false });
+
+    /** Suelta micro, contexto de audio y sesión, sin tedio. */
+    const soltarAudio = () => {
+      if (procesador) { try { procesador.disconnect(); } catch { /* */ } procesador = null; }
+      if (audioCtx) { try { void audioCtx.close(); } catch { /* */ } audioCtx = null; }
+      if (mediaStream) { try { mediaStream.getTracks().forEach((t) => t.stop()); } catch { /* */ } mediaStream = null; }
+    };
+
+    /** Reenganche con la CONTABILIDAD DE SALUD del §Android (ver buildFlujoOido). */
+    const reenganchar = () => {
+      const sana = sawResult || (startedAt ? Date.now() - startedAt : 0) >= 900;
+      sttRestartsRef.current = sana ? 0 : sttRestartsRef.current + 1;
+      if (sttRestartsRef.current > 8) { // nos rendimos, pero SIN silencio: la UI avisa
+        keepAliveRef.current = false;
+        sttRestartsRef.current = 0;
+        setSttFatal("failed");
+        setListening(false);
+        return;
+      }
+      try {
+        const next = buildRecognition();
+        if (!next) { setListening(false); return; }
+        recognitionRef.current = next;
+        const nextGen = recGenRef.current;
+        if (sttRestartTimerRef.current) clearTimeout(sttRestartTimerRef.current);
+        sttRestartTimerRef.current = setTimeout(() => {
+          sttRestartTimerRef.current = null;
+          if (nextGen !== recGenRef.current || !keepAliveRef.current) return; // obsoleto/parada
+          if (pausedForTtsRef.current || ttsGuardActive()) return; // medio-dúplex
+          startRecognitionExclusive(next);
+        }, 500 + sttRestartsRef.current * 300);
+      } catch { setListening(false); }
+    };
+
+    /** Misma entrega que haría `onresult`: pasivo solo con "aurora", activo normal. */
+    const entregar = (textoFinal: string, pista: string) => {
+      if (gen !== recGenRef.current || ttsGuardActive()) return; // ANTI-ECO GLOBAL
+      if (textoFinal) { sawResult = true; sttRestartsRef.current = 0; oidoMedido.final(); }
+      if (pista) { oidoMedido.oyendo(); if (engagedRef.current) setInterim(pista); return; }
+      if (!engagedRef.current) { // PASIVO: solo "aurora" enciende (y ejecuta lo que traiga)
+        if (containsWake(textoFinal)) {
+          engageNowRef.current();
+          const resto = stripWake(textoFinal);
+          if (resto && resto.trim().length > 1) { setInterim(""); void runCommandRef.current(resto); }
+        }
+        return;
+      }
+      touchEngagedRef.current();
+      if (esEcoPropio(textoFinal, Date.now())) return; // ANTI-ECO TARDÍO (no se toca)
+      turnoVozPendiente = {
+        origen: "voz",
+        msDesdeQueCalló: ultimoFinHablaGlobal ? Date.now() - ultimoFinHablaGlobal : null,
+      };
+      let corregido = textoFinal;
+      try { corregido = normalizeStarseedTerms(textoFinal); } catch { corregido = textoFinal; }
+      try { rec.stop(); } catch { /* */ } // medio-dúplex: suelta el micro YA
+      void runCommandRef.current(corregido);
+    };
+
+    const rec: SpeechRecognitionLike = {
+      lang: langVoz || "es-MX",
+      interimResults: true,
+      continuous: true,
+      maxAlternatives: 1,
+      onstart: null,
+      onerror: null,
+      onend: null,
+      onresult: null,
+      start: () => {
+        if (stopped || gen !== recGenRef.current) return;
+        startedAt = Date.now();
+        setListening(true);
+        setInterim("");
+        const md = typeof navigator !== "undefined" ? navigator.mediaDevices : null;
+        if (!md?.getUserMedia) {
+          lastErr = "audio-capture";
+          keepAliveRef.current = false;
+          sttRestartsRef.current = 0;
+          setSttFatal("audio-capture");
+          setListening(false);
+          return;
+        }
+        md.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        }).then((stream) => {
+          if (stopped || gen !== recGenRef.current) {
+            try { stream.getTracks().forEach((t) => t.stop()); } catch { /* */ }
+            return;
+          }
+          mediaStream = stream;
+          const Ctx =
+            window.AudioContext ||
+            (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+          if (!Ctx) throw new Error("AudioContext no disponible");
+          audioCtx = new Ctx();
+          const fuente = audioCtx.createMediaStreamSource(stream);
+          procesador = audioCtx.createScriptProcessor
+            ? audioCtx.createScriptProcessor(4096, 1, 1)
+            : null;
+          if (!procesador) throw new Error("ScriptProcessor no disponible");
+          fuente.connect(procesador);
+          const mudo = audioCtx.createGain(); // sumidero MUDO: Chrome corta sin destino
+          mudo.gain.value = 0;
+          procesador.connect(mudo);
+          mudo.connect(audioCtx.destination);
+          void escucharFusionado({
+            obtenerAudio: () => new Promise<FragmentoOido | null>((resolver) => { relevo = resolver; }),
+            elegir: (idioma) => elegirOido({
+              idioma: idioma || idiomaBaseDeVoz(langVoz),
+              disponibles: MOTORES_OIDO.filter(
+                (m) => m.id !== "navegador" && !(m.id === "phonon-2" && phononCaidoRef.current),
+              ).map((m) => m.id),
+              fase: "final",
+              medidas: medidasOidoDeEstaNeurona(langVoz),
+            }),
+            transcribir: async (tramo, peticion) => {
+              const blob = new Blob([tramoAWav(tramo.pcm, tramo.rate)], { type: "audio/wav" });
+              if (peticion.motor === "vibeasr-158") { // el oído 1.58 del demonio
+                const { transcribirLocal } = await import("@/lib/aurora/stt-oss/vibeasr-local");
+                return (await transcribirLocal(blob)).texto;
+              }
+              const { transcribirOpenAI, urlOidoLocal } = await import("@/lib/aurora/stt-oss/oido-openai");
+              const respuesta = await transcribirOpenAI(blob, {
+                base: urlOidoLocal(peticion.motor),
+                modelo: peticion.motor,
+                idioma: peticion.idioma,
+                hotwords: peticion.hotwords,
+              });
+              return respuesta.ok ? respuesta.texto : null;
+            },
+            alParcial: (pista) => entregar("", pista),
+            alFinal: (texto) => entregar(texto, ""),
+            idiomaPista: idiomaBaseDeVoz(langVoz),
+            hotwords: glosarioBase(),
+          });
+          procesador.onaudioprocess = (ev: AudioProcessingEvent) => {
+            if (stopped) return;
+            const pedir = relevo;
+            relevo = null;
+            pedir?.({ pcm: ev.inputBuffer.getChannelData(0), rate: audioCtx ? audioCtx.sampleRate : 16000 });
+          };
+        }).catch((err: unknown) => {
+          if (!stopped) soltarAudio();
+          const nombre = typeof err === "object" && err !== null
+            ? String((err as { name?: string }).name || "unknown")
+            : "unknown";
+          lastErr = nombre === "NotAllowedError" || nombre === "SecurityError" ? "not-allowed"
+            : nombre === "NotReadableError" || nombre === "NotFoundError" ? "audio-capture"
+            : nombre;
+          if (lastErr === "not-allowed" || lastErr === "audio-capture") {
+            keepAliveRef.current = false;
+            sttRestartsRef.current = 0;
+            setSttFatal(lastErr as SttFatal);
+            setListening(false);
+            return;
+          }
+          reenganchar(); // transitorio: reenganche con su backoff
+        });
+      },
+      stop: () => {
+        if (stopped) return;
+        stopped = true;
+        try { relevo?.(null); } catch { /* desbloquea el bucle del tramador */ }
+        soltarAudio();
+        releaseRecognition(rec);
+        if (!keepAliveRef.current || pausedForTtsRef.current || ttsGuardActive()) { setListening(false); return; }
+        if (lastErr === "not-allowed" || lastErr === "service-not-allowed" || lastErr === "audio-capture") { setListening(false); return; }
+        reenganchar();
+      },
+      abort: () => {
+        rec.stop();
+      },
+    };
+    return rec;
+  }, []);
+
   // ── Control del modo ACTIVA (engaged) ──
   // touchEngaged: reinicia el temporizador de inactividad; tras ENGAGED_IDLE_MS
   // sin habla, Aurora vuelve al fondo pasivo (silencioso) automáticamente.
@@ -2644,10 +2865,10 @@ export function useAuroraEngine(): AuroraEngine {
       // lo usa (o al revés) y la elección no se cumpliría.
       medidas: medidasOidoDeEstaNeurona(langVoz),
     });
-    if (eleccionOido.motor !== "phonon-2") {
-      const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SR) { toast.error("Tu navegador no soporta reconocimiento de voz."); return; }
-    }
+    // (VZF1015G) Ya NO se exige Web Speech: sin reconocimiento del navegador
+    // la escucha sigue viva por tramos con elector (`buildEscuchaFusionado`,
+    // en el mismo `buildRecognition`); el aviso antiguo dejaba a Aurora sorda
+    // pudiendo oír con el daemon.
     // Guard singleton TEMPORAL: si otra instancia VIVA posee el testigo del STT,
     // esta cede (no arranca un segundo reconocimiento → no se duplican acciones).
     // Si el testigo está CADUCADO (dueño fantasma), lo retomamos: nunca dejamos a
