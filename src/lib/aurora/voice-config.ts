@@ -246,6 +246,38 @@ export function resolveVoiceChoice(
 }
 
 /**
+ * (SGO1031B) Store del ROUTER con los ámbitos que de verdad fijan el PIN de la
+ * cadena que suena (`refreshPersonalityVoicePin` → `buildVoiceChain`): el
+ * override neurona×personalidad y la personalidad activa. Dos reglas que ya
+ * desincronizaron el guion multi-locutor de VibeVoice:
+ *
+ *  · La CUENTA no entra: `buildVoiceChain` la mete como eslabón con `cfg.engine`
+ *    (paso 2), nunca como pin. Si el router la contara, con cuenta=VibeVoice y
+ *    el pin por defecto (openvoice2/omnivoice) disponible prepararía el guion
+ *    mientras suena OpenVoice.
+ *  · El override solo se aplica CON personalidad activa y deviceId: en la
+ *    cadena real `neuronPersonaVoice` devuelve null sin ella, así que la clave
+ *    comodín «*» del store no existe ahí.
+ *
+ * Pura: no lee disco ni red; el llamador pasa lo que ya tiene en mano.
+ */
+export function storeDelPinQueSuena(
+  persona: (PersonalityVoiceShape & { id?: string }) | null | undefined,
+  deviceId: string | null | undefined,
+  override: { voz?: { motor?: string } } | null | undefined,
+): VoiceHierarchyStore {
+  const personaId = persona?.id || null;
+  return {
+    personalidad: conMotor(undefined, personaId, voiceChoiceFromPersonality(persona)),
+    neurona: conMotor(
+      undefined,
+      deviceId && personaId ? deviceId : null,
+      voiceChoiceFromOverride(override),
+    ),
+  };
+}
+
+/**
  * Primer eslabón que DE VERDAD puede hablar en esta cadena, con el mismo
  * filtro que `resolveActiveVoiceEngine`: Kokoro solo cuenta si su modelo está
  * listo o el usuario autorizó la descarga, y Kitten sigue siendo un stub.

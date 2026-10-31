@@ -2018,12 +2018,18 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
             // habla el `text` normal (voz única).
             let vibeVoiceScript: string | null | undefined;
             try {
-              // (SGO1024D) El motor activo se resuelve con la JERARQUÍA real
-              // (agente > personalidad > cerebro > neurona > cuenta), no con el
-              // pin cacheado: sin refrescarlo casi siempre salía openvoice2 y
-              // VibeVoice nunca recibía su guion multi-locutor. Si ningún
-              // ámbito fija motor, se conserva el pin por defecto de la neurona
-              // y, si tampoco hay, manda la cadena AUTO.
+              // (SGO1024D) El motor activo se resuelve con la JERARQUÍA real,
+              // no con el pin cacheado: sin refrescarlo casi siempre salía
+              // openvoice2 y VibeVoice nunca recibía su guion multi-locutor.
+              // (SGO1031B) Manda lo que suena: el PIN del router lo fijan SOLO
+              // el override neurona×personalidad y la personalidad
+              // (`storeDelPinQueSuena`). La CUENTA entra como eslabón de
+              // `buildVoiceChain` (cfg.engine), nunca como pin — con
+              // cuenta=VibeVoice y openvoice2 disponible sonaba OpenVoice y el
+              // router, tomando la cuenta por pin, preparaba el guion para nada.
+              // Y sin personalidad activa la cadena real NO aplica override
+              // (neuronPersonaVoice exige personaId): la clave comodín «*» leía
+              // una elección que después no sonaba nadie.
               const { buildVoiceChain, refreshPersonalityVoicePin } = await import(
                 "@/lib/aurora/tts-oss/engine-registry"
               );
@@ -2032,9 +2038,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
               const {
                 activeEngineFromChain,
                 resolveVoiceChoiceFrom,
-                voiceChoiceFromConfig,
-                voiceChoiceFromOverride,
-                voiceChoiceFromPersonality,
+                storeDelPinQueSuena,
               } = await import("@/lib/aurora/voice-config");
               const cfg = getVoiceConfig();
               let deviceId: string | undefined;
@@ -2044,16 +2048,8 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
                 if (deviceId) override = getOverrides(deviceId, persona?.id ?? "*");
               } catch { override = null; }
               const elegido = resolveVoiceChoiceFrom(
-                {
-                  personalidad: persona?.id
-                    ? { [persona.id]: { motor: voiceChoiceFromPersonality(persona) } }
-                    : undefined,
-                  neurona: deviceId
-                    ? { [deviceId]: { motor: voiceChoiceFromOverride(override) } }
-                    : undefined,
-                  cuenta: { motor: voiceChoiceFromConfig(cfg) },
-                },
-                { personaId: persona?.id, deviceId, agentId: req.agentId, brainId: req.brainId },
+                storeDelPinQueSuena(persona, deviceId ?? null, override),
+                { personaId: persona?.id, deviceId },
               );
               const pin = elegido?.motor ?? (await refreshPersonalityVoicePin().catch(() => null));
               if (activeEngineFromChain(buildVoiceChain(cfg, pin), cfg) === "vibevoice") {
