@@ -90,7 +90,13 @@ import { ClonarVoz } from "@/components/voces/clonar-voz";
 // (Ola 279 · V7B) Diagnóstico de voz visible: se monta junto a «Probar» para
 // responder al «la voz no funciona» sin depurar a ciegas.
 import { DiagnosticoVoz } from "@/components/voces/diagnostico-voz";
-
+// (VZR1011I) Chatterbox (MIT, en producto) y los opcionales personales
+// (F5-TTS y XTTS-v2) con su licencia verificada; ChatTTS solo ficha.
+import {
+    FICHAS_MOTORES,
+    motoresOpcionalesPersonales,
+    veredictoVoz,
+} from "@/lib/aurora/tts-oss/voces-no-comerciales";
 type FiltroGenero = "todas" | VozEditable["genero"];
 
 const FRASE_MUESTRA =
@@ -739,6 +745,7 @@ export function EstudioVoces() {
                             <TabsTrigger value="pruebas" className="cursor-pointer">Pruebas A/B</TabsTrigger>
                             <TabsTrigger value="fusion" className="cursor-pointer">Fusión</TabsTrigger>
                             <TabsTrigger value="motores" className="cursor-pointer">Motores</TabsTrigger>
+                            <TabsTrigger value="opcionales" className="cursor-pointer">Opcionales</TabsTrigger>
                             <TabsTrigger value="vincular" className="cursor-pointer">Vincular</TabsTrigger>
                         </TabsList>
 
@@ -778,6 +785,10 @@ export function EstudioVoces() {
 
                         <TabsContent value="motores" className="pt-4">
                             <PanelMotores />
+                        </TabsContent>
+
+                        <TabsContent value="opcionales" className="pt-4">
+                            <PanelVocesOpcionales />
                         </TabsContent>
 
                         <TabsContent value="vincular" className="pt-4">
@@ -1307,5 +1318,60 @@ export function EstudioVoces() {
                 </CardContent>
             </Card>
         </div>
+    );
+}
+
+/**
+ * Chatterbox y los opcionales (VZR1011I · contrato §1 y §5): en el producto solo
+ * entran motores MIT/Apache; F5-TTS y XTTS-v2 son opcionales de uso personal no
+ * comercial que la persona instala a mano, y ChatTTS queda solo como ficha.
+ */
+const MOTORES_CATALOGO: readonly string[] = [
+    "chatterbox",
+    ...motoresOpcionalesPersonales(),
+    "chatt-ts",
+];
+
+function PanelVocesOpcionales() {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="text-base">Chatterbox y los opcionales</CardTitle>
+                <CardDescription>
+                    Chatterbox (MIT) suena en producto con marca de agua Perth. F5-TTS y XTTS-v2 son
+                    opcionales de uso personal no comercial: se instalan a mano y nunca entran en AUTO.
+                    ChatTTS queda solo como ficha, sin integración.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <ul className="space-y-3">
+                    {MOTORES_CATALOGO.map((id) => {
+                        const ficha = FICHAS_MOTORES[id];
+                        const veredicto = veredictoVoz(id, "personal-local");
+                        return (
+                            <li key={id} className="rounded-lg border border-border px-3 py-2 text-sm">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-medium">{ficha?.nombre ?? id}</span>
+                                    <Badge variant={veredicto.permitido ? "secondary" : "outline"}>
+                                        {veredicto.permitido ? "Disponible" : "Solo ficha"}
+                                    </Badge>
+                                    {ficha?.marcaAgua && (
+                                        <span className="text-xs text-muted-foreground">
+                                            marca de agua: {ficha.marcaAgua}
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="mt-1 text-xs text-muted-foreground">{veredicto.licenciaExacta}</p>
+                                <p className="mt-1 text-xs">{veredicto.motivo}</p>
+                            </li>
+                        );
+                    })}
+                </ul>
+                <p className="mt-3 text-xs text-muted-foreground">
+                    Ningún modelo descarga pesos solo: hace falta permiso, espacio comprobado y memoria libre.
+                    Clonar la voz de una persona exige su consentimiento explícito.
+                </p>
+            </CardContent>
+        </Card>
     );
 }

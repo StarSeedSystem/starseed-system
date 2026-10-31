@@ -96,4 +96,10 @@ describe("migrarBots", () => {
     const bots = migrarBots([b], PERFIL, CUENTA);
     expect(bots.find((x) => x.id === "s:1")?.sentidosHabilitados).toEqual(["pantalla"]);
   });
+
+  it("conserva el cuerpo de pato (robot) al migrar", () => {
+    const b: Bot = { ...botValido("pato:1"), cuerpo: { forma: "robot", tono: 40, escala: 1 } };
+    const bots = migrarBots([b], PERFIL, CUENTA);
+    expect(bots.find((x) => x.id === "pato:1")?.cuerpo.forma).toBe("robot");
+  });
 });

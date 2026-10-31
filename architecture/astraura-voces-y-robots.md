@@ -64,7 +64,20 @@ generado lleva siempre su marca de agua.
 
 ## §5 · Cola `cola-voces-robots-1011.json`
 
-VZR1011A motor Chatterbox local · B Chatterbox en Spaces públicos · C registro y licencias (OpenVoice MIT,
-F5/XTTS opcionales personales, ChatTTS solo ficha) · D plática fluida (latencia medida, trozos, interrumpir,
-malla) · E voz propia de cada bot · F robot real · G pato simulado en navegador y XR · H Needle con las
-herramientas del pato · I integración y verificación.
+Estado real a 2026-10-31 (no lo que se pretendía, sino lo que hay montado y probado):
+
+| | Tarea | Estado real | Dónde y con qué se comprobó |
+|---|---|---|---|
+| A | Motor Chatterbox local | **Hecho.** Servidor HTTP local en 4505, cede memoria y no descarga nada solo; el cliente prefiere local y cae a Spaces. En AUTO va detrás de OmniVoice/OpenVoice y antes de Kokoro. | `native/astraura-voice/chatterbox/servidor.py`, `src/lib/aurora/tts-oss/chatterbox.ts`, `engine-registry.ts` (`AUTO_ENDPOINT_ORDER`). `pytest`: 24/24; `chatterbox.test.ts`: 25/25. |
+| B | Chatterbox en Spaces públicos | **Hecho.** Respaldo al Space público cuando el backend local no responde; probado sin red con dobles. | `chatterbox.ts` + `chatterbox.test.ts` (25 tests). |
+| C | Registro y licencias | **Hecho.** Fichas MIT/Apache en producto (Chatterbox, OpenVoice V2, Kokoro) y F5/XTTS solo personales; ChatTTS solo ficha. Verdad de licencia en panel de inteligencia y ahora también en el Estudio de Voces. | `voces-no-comerciales.ts`, `voz-licencias.tsx`, pestaña «Opcionales» de `estudio-voces.tsx`. `voces-no-comerciales.test.ts`: 21; `-integrado`: 4. |
+| D | Plática fluida | **Parcial.** El presupuesto del primer sonido y el reordenamiento por latencia MEDIDA ya deciden en `speak-router`; el troceo por cláusulas y el crossfade existen. El planificador puro (trozos + relevo + interrupción) está probado pero **aún no sustituye** el troceo de `streaming-voice.ts`. | `conversacion-fluida.ts` (14 tests), `speak-router.ts` (`reordenarCadenaPorLatenciaMedida`), `streaming-voice.ts`, `omnivoice-mixer.ts`. |
+| E | Voz propia de cada bot | **Hecho.** El editor guarda motor/origen/timbre, se sincroniza entre dispositivos y los invitados conservan su voz; un motor sin licencia para ese contexto no se aplica. | `voz-bot.ts`, `editor-voz-bot.tsx`, `sincronia-bots*`, `voz-bot.test.ts` (11). |
+| F | Robot real (Open Duck Mini) | **Parcial y honesto.** Acciones y `META` con riesgo medio listos, pero **no hay transporte al pato físico**: el ejecutor aún responde «próximamente» y el simulador es el único camino real disponible. | `robot-pato.ts` (10 tests), `acciones.ts`, `ejecutor-acciones.ts`. |
+| G | Pato simulado en navegador y XR | **Hecho para el cuerpo del bot.** El cuerpo `robot` ya no se pierde al recargar y `CuerpoBot` monta el pato simulado; avisa si el navegador no puede y no descarga recursos solo. En el panel personal el orbe sigue siendo el avatar por defecto hasta elegir `robot`. | `pato-simulado.ts` (38 tests), `cuerpo-bot.tsx`, `predeterminado.ts` + test de migración (10). |
+| H | Needle con las herramientas del pato | **Hecho.** La capa Needle propone caminar/girar/emoción/bailar/negar desde el texto; si duda, decide la híbrida de siempre. El modelo afinado se busca en disco y, si no está, se usa la base sin inventar. | `needle-pato.ts` (12 tests), cableado en `src/app/api/astraura/decidir/route.ts` y `needle3-client`. |
+| I | Integración y verificación | **Hecho.** Barrel único del panel, pato en el cuerpo, cuerpo `robot` persistente y pestaña de opcionales en el Estudio. `tsc` en verde; 120 archivos / 1586 tests de vitest; 24 de pytest. | `src/components/astraura-bots/index.ts`, `cuerpo-bot.tsx`, `predeterminado.ts`, `estudio-voces.tsx`; `bash scripts/enjambre/tsc-turno.sh`; `npx vitest run …`; `python3 -m pytest native/astraura-voice/chatterbox -q`. |
+
+Lo que **no** está hecho y no se debe contar como tal: transporte al pato físico (F), cableado del
+planificador de diálogo al streaming real (D) y descarga/uso de pesos afinados de pato por defecto (H).
+
