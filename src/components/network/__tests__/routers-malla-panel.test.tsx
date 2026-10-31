@@ -49,4 +49,29 @@ describe("RoutersMallaPanel", () => {
     expect(lista[0]).toMatchObject({ fabricante: "TP-Link", modelo: "Archer C7", deOperador: false, openwrt: false });
     expect(Object.keys(lista[0]).some((k) => k.toLowerCase().includes("clave") || k.toLowerCase().includes("key"))).toBe(false);
   });
+
+  test("al marcar Ya tiene OpenWrt, muestra 'entra en la retícula como titanio'", () => {
+    render(<RoutersMallaPanel />);
+    fireEvent.change(screen.getByPlaceholderText("fabricante (p. ej. TP-Link)"), { target: { value: "TP-Link" } });
+    fireEvent.change(screen.getByPlaceholderText("modelo (p. ej. Archer C7)"), { target: { value: "Archer C7" } });
+    fireEvent.click(screen.getByText("Añadir", { exact: true }));
+    expect(screen.getByText("Ya tiene OpenWrt")).toBeTruthy();
+
+    const checkbox = screen.getByLabelText("Ya tiene OpenWrt");
+    fireEvent.click(checkbox);
+
+    expect(screen.getByText("entra en la retícula como titanio")).toBeTruthy();
+  });
+
+  test("al marcar OpenWrt, muestra tesela de titanio con mensaje de troncales", () => {
+    render(<RoutersMallaPanel />);
+    fireEvent.change(screen.getByPlaceholderText("fabricante (p. ej. TP-Link)"), { target: { value: "TP-Link" } });
+    fireEvent.change(screen.getByPlaceholderText("modelo (p. ej. Archer C7)"), { target: { value: "Archer C7" } });
+    fireEvent.click(screen.getByText("Añadir", { exact: true }));
+
+    fireEvent.click(screen.getByLabelText("Ya tiene OpenWrt"));
+
+    expect(screen.getByText("Tesela de titanio generada desde los troncales del plan")).toBeTruthy();
+    expect(screen.getByText("Sin troncales definidos")).toBeTruthy();
+  });
 });
