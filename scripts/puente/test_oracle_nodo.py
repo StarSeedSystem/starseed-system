@@ -136,6 +136,9 @@ class Prestamo(unittest.TestCase):
               "V": {"estado": "commit", "medio": "oracle",
                     "nota": "movida a oracle (colas/oracle-20261018-231246) desde Genesis"}}
         self.assertEqual(N.devolver_de_oracle(p2, [], {}, True, nacida + 3 * 3600 + 60), [])
+        # Basura que no es dict (notas mojadas de Oracle): no rompe ni cuenta como tarea.
+        self.assertEqual(N.devolver_de_oracle(p2 | {"W": "basura", "X": None}, [], {}, True,
+                                              nacida + 4 * 24 * 3600), [])
 
 
 class Resumen(unittest.TestCase):

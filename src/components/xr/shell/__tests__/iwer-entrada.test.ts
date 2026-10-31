@@ -91,6 +91,8 @@ describe("IWER · entrada emulada a WebXR", () => {
 
     it("(5) LÍMITE de la emulación: sin gesto real IWER abre la sesión igual", async () => {
         // En un navegador de verdad `requestSession` exige activación del usuario; IWER no la comprueba.
+        type ConActivacion = Navigator & { userActivation?: { isActive: boolean } };
+        expect((navigator as ConActivacion).userActivation?.isActive ?? false).toBe(false);
         const sesion = await abrir("immersive-vr", { optionalFeatures: ["local-floor"] });
         expect(sesion.enabledFeatures).toContain("local-floor");
     });
@@ -101,5 +103,7 @@ describe("IWER · entrada emulada a WebXR", () => {
         const refinadas = refinarFunciones(c, sesion.enabledFeatures);
         expect(refinadas.funciones).toEqual(["local-floor", "hand-tracking"]);
         expect(refinadas.funciones).not.toContain("plane-detection");
+        // El parcheo no toca lo demás: la plataforma sigue siendo la misma.
+        expect(refinadas.plataforma).toBe(c.plataforma);
     });
 });
