@@ -40,6 +40,11 @@ export interface IntegrationDescriptorExt extends IntegrationDescriptor {
    * debe tratar `undefined` como `false`.
    */
   onByDefault?: boolean;
+  /**
+   * Notas adicionales (ES) para el operador: limitaciones, canales con
+   * sesión apagados, dependencias de terceros. No cambia el runner.
+   */
+  notes?: string;
 }
 
 // ── Catálogo de integraciones ────────────────────────────────────
@@ -615,31 +620,36 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
     ],
   },
   // ── Agent-Reach — sentidos web GRATIS multi-backend (CLI local + proxy) ──
-    {
-      id: "agent-reach",
-      ossId: "agent-reach",
-      label: "Agent-Reach (sentidos web)",
-      category: "data-ingest",
-      capabilities: [
-        "Búsqueda web multi-backend GRATIS (Google/DuckDuckGo/Brave/Reddit/YouTube/Bilibili/XHS/GitHub/RSS)",
-        "Lectura de páginas web / X (Twitter) / Reddit / GitHub / RSS / genérico → Markdown",
-        "Transcripción de YouTube (sin API key)",
-        "CLI local nativo (Node) + proxy HTTP del OS; sin claves, sin cuotas",
-      ],
-      defaultEndpoint: "http://localhost:0",
-      needsKey: false,
-      docsUrl: "https://github.com/Panniantong/Agent-Reach",
-      freeHostingHint:
-        "CLI Node (npx agent-reach) instalado en la neurona (Mac/Linux/WSL) — el OS lo invoca por spawn seguro y expone /api/agent-reach/* como proxy. En Vercel no hay CLI; el proxy degrada limpio (ok:false) y Aurora usa alternativas configuradas (SearXNG, Crawl4AI).",
-      actions: [
-        { id: "web-search", label: "Buscar web", description: "Búsqueda multi-backend gratis. Entrada: { q }." },
-        { id: "read-web", label: "Leer página", description: "Lee web/X/Reddit/GitHub/RSS → Markdown. Entrada: { url }." },
-        { id: "youtube-transcript", label: "Transcribir YouTube", description: "Extrae transcripción de YouTube. Entrada: { url }." },
-        { id: "github-read", label: "Leer GitHub", description: "Lee archivo/repo de GitHub. Entrada: { url }." },
-        { id: "reddit-search", label: "Buscar Reddit", description: "Busca/lee posts de Reddit. Entrada: { url } o { q }." },
-        { id: "health", label: "Comprobar CLI", description: "Verifica si agent-reach CLI está instalado y responde." },
-      ],
-          },
+  {
+    id: "agent-reach",
+    ossId: "agent-reach",
+    label: "Agent-Reach (sentidos web)",
+    category: "data-ingest",
+    capabilities: [
+      "Búsqueda y lectura web GRATIS vía Exa (buscar) y Jina Reader (leer): la consulta o URL sale hacia esos terceros",
+      "GitHub: lee archivos y repos",
+      "YouTube: títulos y transcripciones por subtítulos (sin API key)",
+      "V2EX y Bilibili: lectura y búsqueda de posts",
+      "RSS: lectura de feeds públicos",
+      "Reddit, X y LinkedIn piden iniciar sesión (navegador anti-detección): quedan apagados (R1) y devuelven NEED_LOGIN_BLOQUEADO",
+      "CLI local (Python, vía uv) + proxy HTTP del OS; sin claves, sin cuotas",
+    ],
+    defaultEndpoint: "http://localhost:0",
+    needsKey: false,
+    docsUrl: "https://github.com/Panniantong/Agent-Reach",
+    freeHostingHint:
+      "Instalar con: uv tool install https://github.com/Panniantong/Agent-Reach/releases/latest/download/agent-reach.zip (queda en ~/.local/bin). ADVERTENCIA: el paquete «agent-reach» de PyPI NO es este proyecto; no uses pip ni npx. En Vercel no hay CLI; el proxy degrada limpio (ok:false) y Aurora usa alternativas configuradas (SearXNG, Crawl4AI).",
+    notes:
+      "La búsqueda pasa por Exa y la lectura por Jina Reader (terceros): solo fuentes públicas. Reddit, X y LinkedIn requieren sesión activa y están apagados por defecto (R1 → NEED_LOGIN_BLOQUEADO).",
+    actions: [
+      { id: "web-search", label: "Buscar web", description: "Búsqueda multi-backend gratis. Entrada: { q }." },
+      { id: "read-web", label: "Leer página", description: "Lee web/GitHub/RSS → Markdown. Entrada: { url }." },
+      { id: "youtube-transcript", label: "Transcribir YouTube", description: "Extrae transcripción por subtítulos. Entrada: { url }." },
+      { id: "github-read", label: "Leer GitHub", description: "Lee archivo/repo de GitHub. Entrada: { url } o { repo }." },
+      { id: "reddit-search", label: "Buscar Reddit", description: "Apagado (R1, requiere sesión): devuelve NEED_LOGIN_BLOQUEADO. Entrada: { url } o { q }." },
+      { id: "health", label: "Comprobar CLI", description: "Verifica si agent-reach CLI está instalado y responde." },
+    ],
+  },
         // ── OpenViking — base de datos de contexto para agentes (memoria L0/L1/L2) ──
           {
             id: "openviking",

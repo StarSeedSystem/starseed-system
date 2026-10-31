@@ -2,42 +2,67 @@
 // Agent-Reach — sentidos web GRATIS para Aurora (CLI local + proxy)
 // -----------------------------------------------------------------
 // Capacidad "web-senses" ya mapeada en skills.ts → iatool-agent-reach
-// Este cliente invoca el proxy /api/agent-reach/[capability] que,
-// si el CLI agent-reach está instalado en la neurona, lo ejecuta;
-// en Vercel degrada limpio (ok:false).
+// Este cliente invoca el proxy /api/agent-reach/<capacidad> con los ids
+// EXACTOS de agent-reach-comandos.ts (fuente única, no copiados). El
+// proxy ejecuta el CLI si está en la neurona o degrada limpio (Vercel).
+// El error del CLI ({error:{code,hint}}) llega TAL CUAL y
+// NEED_LOGIN_BLOQUEADO (R1, canales con sesión) es un fallo normal.
 // ════════════════════════════════════════════════════════════════
 
 import type { IntegrationConfig, IntegrationResult } from "../types";
+import type { CapacidadId } from "../agent-reach-comandos";
 
-const ALLOWED_CAPABILITIES = [
-  "web-search",
-  "read-web",
-  "youtube-transcript",
-  "github-read",
-  "reddit-search",
-] as const;
+interface RespuestaProxy {
+  ok?: boolean;
+  error?: string;
+  hint?: string;
+  codigo?: string;
+  motivo?: string;
+  content?: unknown;
+  items?: unknown;
+  service?: string;
+  version?: unknown;
+}
 
-type AgentReachCapability = (typeof ALLOWED_CAPABILITIES)[number];
+const objeto = (v: unknown): RespuestaProxy | null =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as RespuestaProxy) : null;
+
+/**
+ * Traduce la respuesta del proxy a IntegrationResult (puro, sin red).
+ * code y hint pasan tal cual vienen; el fallo es normal, nunca lanza.
+ */
+export function interpretarRespuestaProxy(
+  status: number,
+  cuerpo: unknown,
+): IntegrationResult {
+  const body = objeto(cuerpo);
+  if (!body) return { ok: false, error: `Respuesta inválida del proxy (HTTP ${status}).` };
+  if (body.ok === true) {
+    return { ok: true, data: { content: body.content, items: body.items } };
+  }
+  return {
+    ok: false,
+    error: body.error || `HTTP ${status}`,
+    data: { code: body.codigo, hint: body.hint, motivo: body.motivo },
+  };
+}
 
 async function callProxy(
-  capability: AgentReachCapability,
+  capacidad: CapacidadId,
   payload: Record<string, unknown>,
   signal?: AbortSignal
 ): Promise<IntegrationResult> {
   try {
-    const res = await fetch(`/api/agent-reach/${capability}`, {
+    const res = await fetch(`/api/agent-reach/${capacidad}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       signal,
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return { ok: false, error: err.error || `HTTP ${res.status}` };
-    }
-    return (await res.json()) as IntegrationResult;
-  } catch (e: any) {
-    return { ok: false, error: String(e?.message ?? e) };
+    const cuerpo: unknown = await res.json().catch(() => null);
+    return interpretarRespuestaProxy(res.status, cuerpo);
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
 
@@ -106,17 +131,24 @@ export async function read_reddit(
   return callProxy("reddit-search", { url }, signal);
 }
 
-// ── Salud: ping al proxy (degrada si no hay CLI) ─────────────────────
+// ── Salud: GET al proxy; respeta el ok que el proxy devuelve ─────────
+export function interpretarSalud(cuerpo: unknown): IntegrationResult {
+  const body = objeto(cuerpo);
+  if (!body || body.ok !== true) {
+    return { ok: false, error: body?.error || "agent-reach no está disponible en esta neurona." };
+  }
+  return { ok: true, data: { service: body.service, version: body.version } };
+}
+
 export async function health(
   _cfg: IntegrationConfig,
-  _signal?: AbortSignal
+  signal?: AbortSignal
 ): Promise<IntegrationResult> {
   try {
-    const res = await fetch("/api/agent-reach/health", { method: "GET", signal: _signal });
-    if (!res.ok) return { ok: false, error: `Proxy health ${res.status}` };
-    const data = await res.json().catch(() => ({}));
-    return { ok: true, data };
-  } catch (e: any) {
-    return { ok: false, error: String(e?.message ?? e) };
+    const res = await fetch("/api/agent-reach/health", { method: "GET", signal });
+    const cuerpo: unknown = await res.json().catch(() => null);
+    return interpretarSalud(cuerpo);
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }

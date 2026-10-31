@@ -18,15 +18,20 @@ const youtube: Capacidad = { entrada: "url", argv: (u) => ["youtube", "subtitle"
 const github: Capacidad = { entrada: "ref", argv: (x) => ["github", "read", x] };
 const conSesion: Capacidad = { entrada: "url", argv: (u) => ["read", u], conSesion: true };
 
-export const CAPACIDADES: Readonly<Record<string, Capacidad>> = {
+const TABLA_CAPACIDADES = {
   "web-search": buscar, search: buscar,
   "read-web": leer, web: leer, rss: leer,
   "youtube-transcript": youtube, youtube,
   "github-read": github, github,
-  bilibili: { entrada: "q", argv: (q) => ["bilibili", "search", q] },
+  bilibili: { entrada: "q", argv: (q: string) => ["bilibili", "search", q] },
   health: { entrada: "nada", argv: () => ["version"] },
   reddit: conSesion, "reddit-search": conSesion, twitter: conSesion,
-};
+} satisfies Record<string, Capacidad>;
+
+/** Ids EXACTOS que el proxy acepta: fuente única para el cliente y la ruta. */
+export const IDS_CAPACIDADES: readonly string[] = Object.keys(TABLA_CAPACIDADES);
+export type CapacidadId = keyof typeof TABLA_CAPACIDADES;
+export const CAPACIDADES: Readonly<Record<CapacidadId, Capacidad>> = TABLA_CAPACIDADES;
 
 export type Resolucion =
   | { ok: true; argv: string[] }
@@ -71,7 +76,9 @@ export function validarEntrada(tipo: Entrada, valor: string): string | null {
 export function resolverComando(
   capacidad: string, cuerpo: Record<string, unknown>, opciones: { login?: boolean } = {},
 ): Resolucion {
-  const cap = Object.prototype.hasOwnProperty.call(CAPACIDADES, capacidad) ? CAPACIDADES[capacidad] : undefined;
+  const cap = Object.prototype.hasOwnProperty.call(CAPACIDADES, capacidad)
+    ? CAPACIDADES[capacidad as CapacidadId]
+    : undefined;
   if (!cap) return { ok: false, motivo: "DESCONOCIDA", error: `Capacidad no permitida: ${capacidad}` };
   if (cap.conSesion && !opciones.login) {
     return { ok: false, motivo: "NEED_LOGIN_BLOQUEADO", error: "Canal con sesión apagado (R1): solo canales públicos sin iniciar sesión." };

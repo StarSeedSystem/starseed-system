@@ -37,7 +37,7 @@ describe("Agent-Reach v1.6 · mapa de capacidades (INV1025A)", () => {
 
   it("los canales con sesión se rechazan salvo con login encendido (R1)", () => {
     for (const c of ["reddit", "reddit-search", "twitter"]) {
-      expect(CAPACIDADES[c]?.conSesion).toBe(true);
+      expect((CAPACIDADES as Record<string, { conSesion?: boolean }>)[c]?.conSesion).toBe(true);
       const r = resolverComando(c, { url: "https://www.reddit.com/r/x" });
       expect(r.ok).toBe(false);
       if (!r.ok) expect(r.motivo).toBe("NEED_LOGIN_BLOQUEADO");
@@ -116,5 +116,10 @@ describe("leerSobre · JSON de la v1.6", () => {
   it("la pista de instalación avisa de PyPI y da la orden de uv", () => {
     expect(HINT_INSTALACION).toContain("uv tool install https://github.com/Panniantong/Agent-Reach/releases/latest/download/agent-reach.zip");
     expect(HINT_INSTALACION).toContain("PyPI");
+  });
+
+  it("la pista de instalación NO menciona pip ni npx como métodos válidos", () => {
+    expect(HINT_INSTALACION).not.toContain("pip install agent-reach");
+    expect(HINT_INSTALACION).not.toContain("npx agent-reach");
   });
 });
