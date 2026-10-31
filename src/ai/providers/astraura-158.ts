@@ -58,6 +58,7 @@ import type {
 import { ASTRAURA_158_WS_READY_TIMEOUT_MS, getAstraura158Ws, type Astraura158Ws } from "./astraura-158-ws";
 import { preferenciaCapasGuardada } from "@/lib/astraura/capas-conciencia";
 import { paginaEsLocal } from "@/lib/astraura/destino-local";
+import { plegarHistorial, type Turno } from "@/lib/astraura/contexto/pliegue";
 
 /* ───────────────────── Personalidades 1.58 (modelos de la fuente) ───────────────────── */
 
@@ -191,14 +192,21 @@ export interface Astraura158Prompt {
 
 /** Presupuesto de caracteres del historial (contexto 4096 tokens del backend). */
 const HISTORY_BUDGET_CHARS = 9000;
+/** Sitio reservado dentro del presupuesto para el resumen plegado (Ola 1025R). */
+const RESUMEN_CHARS = 1500;
 
 /**
  * Convierte `messages[]` (system/user/assistant) en `{system_prompt, prompt}`.
  * El backend es single-turn: el historial viaja como transcripción acotada
  * (se recortan los turnos MÁS ANTIGUOS) y el último mensaje del usuario se
  * marca explícitamente. Sin historial, `prompt` es el texto tal cual.
+ * Ola 1025R: con `opciones.plegar` (por defecto `NEXT_PUBLIC_ASTRAURA_PLEGAR_
+ * HISTORIAL === "1"`, APAGADO hasta el A/B del banco), los turnos descartados
+ * viajan además como resumen plegado (`plegarHistorial`) ANTES de las líneas
+ * «Usuario:/Astraura:», SIN ampliar el techo total del historial.
  */
-export function buildAstraura158Prompt(messages: ChatMessage[]): Astraura158Prompt {
+export function buildAstraura158Prompt(messages: ChatMessage[], opciones?: { plegar?: boolean }): Astraura158Prompt {
+  const plegar = opciones?.plegar ?? process.env.NEXT_PUBLIC_ASTRAURA_PLEGAR_HISTORIAL === "1";
   const system = messages.filter((m) => m.role === "system").map((m) => m.content.trim()).filter(Boolean).join("\n\n");
   const turns = messages.filter((m) => m.role !== "system");
   if (!turns.length) return { system_prompt: system, prompt: "" };
@@ -207,17 +215,33 @@ export function buildAstraura158Prompt(messages: ChatMessage[]): Astraura158Prom
   const history = last.role === "user" ? turns.slice(0, -1) : turns;
   if (!history.length) return { system_prompt: system, prompt: lastUser.trim() };
 
-  const lines: string[] = [];
-  let used = 0;
-  for (let i = history.length - 1; i >= 0; i--) {
-    const m = history[i];
-    const who = m.role === "user" ? "Usuario" : "Astraura";
-    const line = `${who}: ${m.content.trim()}`;
-    if (used + line.length > HISTORY_BUDGET_CHARS) break;
-    lines.unshift(line);
-    used += line.length + 1;
+  const linea = (m: ChatMessage): string => `${m.role === "user" ? "Usuario" : "Astraura"}: ${m.content.trim()}`;
+  // Recientes a partir de `desde`, con su presupuesto (el mismo bucle de hoy).
+  const transcribir = (budget: number): { lineas: string[]; descartadosDesde: number } => {
+    let used = 0;
+    let desde = history.length;
+    for (let i = history.length - 1; i >= 0; i--) {
+      const l = linea(history[i]);
+      if (used + l.length > budget) break;
+      desde = i;
+      used += l.length + 1;
+    }
+    return { descartadosDesde: desde, lineas: history.slice(desde).map(linea) };
+  };
+  const base = transcribir(HISTORY_BUDGET_CHARS);
+  let lineas = base.lineas;
+  let resumen = "";
+  if (plegar && base.descartadosDesde > 0) {
+    // Segundo pase con el techo reducido: lo que siga fuera se pliega.
+    const reducido = transcribir(HISTORY_BUDGET_CHARS - RESUMEN_CHARS);
+    const descartados = history.slice(0, reducido.descartadosDesde).map((m): Turno => ({
+      rol: m.role === "user" ? "user" : "assistant",
+      texto: m.content.trim(),
+    }));
+    resumen = plegarHistorial(descartados, { presupuestoChars: RESUMEN_CHARS }).texto;
+    lineas = reducido.lineas;
   }
-  const transcript = lines.join("\n");
+  const transcript = [resumen, lineas.join("\n")].filter(Boolean).join("\n");
 
   // ── Adenda 159 · POR QUÉ el historial va en `system_prompt` y NO en `prompt` ──
   // El backend soberano decide con COINCIDENCIA DE SUBCADENA sobre `prompt` si
