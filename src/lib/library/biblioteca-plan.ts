@@ -33,7 +33,7 @@ export function planificar(
   instantaneas: Record<string, EntityLibraryDoc>,
   permisos: { puedeVer(ref: EntityRef, item?: string): boolean; puedeEditar(ref: EntityRef, item?: string): boolean }
 ): PlanBiblioteca {
-  const errors: string[] = [];
+  const errores: string[] = [];
   const avisos: string[] = [];
   const crea: string[] = [];
   const modifica: string[] = [];
@@ -49,22 +49,22 @@ export function planificar(
   }
 
   if (!permisos.puedeVer(op.origen)) {
-    errors.push(`Sin permiso de ver en origen ${op.origen.kind}:${op.origen.id}`);
+    errores.push(`Sin permiso de ver en origen ${op.origen.kind}:${op.origen.id}`);
   }
   if (op.destino && !permisos.puedeVer(op.destino)) {
-    errors.push(`Sin permiso de ver en destino ${op.destino.kind}:${op.destino.id}`);
+    errores.push(`Sin permiso de ver en destino ${op.destino.kind}:${op.destino.id}`);
   }
   if (!permisos.puedeEditar(op.origen)) {
-    errors.push(`Sin permiso de editar en origen ${op.origen.kind}:${op.origen.id}`);
+    errores.push(`Sin permiso de editar en origen ${op.origen.kind}:${op.origen.id}`);
   }
   if (op.destino && !permisos.puedeEditar(op.destino)) {
-    errors.push(`Sin permiso de editar en destino ${op.destino.kind}:${op.destino.id}`);
+    errores.push(`Sin permiso de editar en destino ${op.destino.kind}:${op.destino.id}`);
   }
 
   for (const id of op.itemIds) {
     const item = origenDoc?.items?.find(it => it.id === id);
     if (!item) {
-      errors.push(`Elemento ${id} no encontrado en origen`);
+      errores.push(`Elemento ${id} no encontrado en origen`);
       continue;
     }
 
@@ -80,7 +80,7 @@ export function planificar(
         break;
       }
       case 'mover': {
-        if (!op.destino) { errors.push('Mover requiere destino'); break; }
+        if (!op.destino) { errores.push('Mover requiere destino'); break; }
         const destDoc = instantaneas[`${op.destino.kind}:${op.destino.id}`];
         const destHas = destDoc?.items?.some(it => it.id === id);
         if (destHas) {
@@ -120,7 +120,7 @@ export function planificar(
     }
   }
 
-  const validacion: Validacion = { ok: errors.length === 0, errores, avisos };
+  const validacion: Validacion = { ok: errores.length === 0, errores, avisos };
   const vistaPrevia: VistaPrevia = { crea, modifica, omite, quitaReversible, ultimaCopia };
   return { operacion: op, validacion, vistaPrevia, deshacer };
 }
