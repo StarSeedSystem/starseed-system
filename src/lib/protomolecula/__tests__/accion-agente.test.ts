@@ -107,6 +107,20 @@ describe("acción de agente de la Protomolécula", () => {
     expect(candidatosPendientes()).toHaveLength(1);
     expect(c.obtener().molecula).toBe(antes);
   });
+  it("proponer-codigo relega en la cola hermana con los datos de la petición, sin tocar la molécula", () => {
+    const c = abrirMol(), antes = c.obtener().molecula;
+    const r = accion({ accion: "proponer-codigo", capa: "capa-uno", lenguaje: "ts", propuesto: "const x = 1", original: "const x = 0" }, ctx());
+    expect(r.ok).toBe(true);
+    const guardado = candidatosPendientes();
+    expect(guardado).toHaveLength(1);
+    expect(guardado[0]).toMatchObject({
+      capaId: "capa-uno", lenguajeOrigen: "ts",
+      propuesto: "const x = 1", original: "const x = 0",
+      estado: "propuesto", autor: { tipo: "agente", id: "astraura" },
+    });
+    expect(typeof guardado[0]?.id).toBe("string");
+    expect(c.obtener().molecula).toBe(antes);
+  });
   it("proponer-codigo: sin texto no guarda; un destino del núcleo intocable lo dice y no toca nada", () => {
     expect(accion({ accion: "proponer-codigo" }, ctx()).ok).toBe(false);
     expect(candidatosPendientes()).toHaveLength(0);

@@ -69,17 +69,18 @@ describe("catálogo de rutas de contenido vivo", () => {
     }
   });
 
-  it("marca como medido solo lo que el contrato da como medido", () => {
+  it("marca como medido solo lo que el contrato da como medido; lo demás es por-verificar", () => {
     const medidas = CATALOGO_RUTAS
-      .filter((ruta) => ruta.verificado === "2026-10-28")
-      .map((ruta) => ruta.id)
-      .sort();
-    expect(medidas).toEqual([
+      .filter((ruta) => ruta.verificado !== "por-verificar")
+      .map((ruta) => ({ id: ruta.id, fecha: ruta.verificado }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    expect(medidas.map((m) => m.id)).toEqual([
       "higgsfield-nano-banana-2",
       "higgsfield-seedance-2-1080",
       "higgsfield-seedance-2-720",
       "spline-mcp",
     ]);
+    for (const m of medidas) expect(m.fecha, m.id).toBe("2026-10-28");
   });
 
   it("recoge los créditos y cupos medidos del contrato", () => {
