@@ -51,6 +51,8 @@ import limite_proveedor as _limite_proveedor
 
 # Mensajes de Alex a un agente en marcha (2026-09-20): ver mensajes_agente.py.
 import mensajes_agente as _mensajes
+# (Ola 1018L · L) Tarjeta de habilidad de Matt Pocock al final del prompt del escritor.
+import habilidades_enjambre as _habilidades_enjambre
 from clasificar_fallo_motor import clasificar
 from puerta_degenerados import archivos_degenerados
 from proveedor_anthropic import cabeceras_api as cabeceras_anthropic
@@ -5805,7 +5807,7 @@ def contexto_tarea(t, raiz=None):
         "y nunca rutas inventadas como `/workspace/...`: cualquier ruta fuera de la raiz se rechaza "
         "automaticamente y pierdes el intento.\n\n"
     ) % raiz
-    return (
+    salida = (
         regla_raiz
         + "Trabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). "
         "Lee primero CLAUDE.md (secciones 8, 11 y 💠) y los archivos implicados. Reglas: sin `any`; cursor-pointer en lo clicable; "
@@ -5848,6 +5850,11 @@ def contexto_tarea(t, raiz=None):
         ", ".join(t.get("archivos", [])),
         t["prompt"],
     )
+    # (Ola 1018L · L) La tarjeta de habilidad (Matt Pocock, MIT) va al FINAL del prompt;
+    # Laya (≤ 3 s) decide, si no, palabras. Nunca impide escribir.
+    try: salida = _habilidades_enjambre.con_habilidad(salida, t)
+    except Exception: pass
+    return salida
 
 
 # ── latidos: qué está haciendo AHORA cada tarea ─────────────────────────────
