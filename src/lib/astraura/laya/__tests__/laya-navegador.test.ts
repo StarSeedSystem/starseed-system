@@ -87,6 +87,15 @@ describe("2.º plano: pestaña oculta y batería baja", () => {
     const s = plan({ bateriaNivel: 0.15, cargando: true });
     expect(s.cargar).toBe(true);
   });
+
+  it("con saveData la PWA capaz ya no carga: el medio queda en 2.º plano (§4)", () => {
+    const s = plan({ saveData: true });
+    expect(s.cargar).toBe(false);
+    expect(s.modelo).toBeNull();
+    // El presupuesto del medio se vacía: sin RAM el checkpoint no cabe.
+    expect(s.motivo).toMatch(/no cabe/);
+    expect(s.motivo).toContain("0 MB de RAM");
+  });
 });
 
 describe("PWA: WebGPU, 2 GB persistentes y 4 GB de memoria", () => {
@@ -164,6 +173,18 @@ describe("app nativa: carga si el checkpoint cabe en su presupuesto", () => {
     const s = planLayaLocalEnMedio(perfilDelMedio(android));
     expect(s.cargar).toBe(true);
     expect(s.modelo).toBe("multilingual");
+  });
+
+  it("iOS se trata como app nativa: decide su disco, no la malla (§4)", () => {
+    // Sin disco para el int8 (15 % de 2 GB < 400 MB): no carga pero por presupuesto.
+    const justo = plan({ esPWA: false, deviceMemory: 3, discoLibreBytes: 2 * 1024 * MB, userAgent: "Mozilla/5.0 (iPhone)" });
+    expect(justo.cargar).toBe(false);
+    expect(justo.modelo).toBeNull();
+    expect(justo.motivo).toMatch(/no cabe|presupuesto/);
+    // Con disco de sobra toma el checkpoint completo, igual que Tauri y Android.
+    const generoso = plan({ esPWA: false, deviceMemory: 6, discoLibreBytes: 20 * 1024 * MB, userAgent: "Mozilla/5.0 (iPhone)" });
+    expect(generoso.cargar).toBe(true);
+    expect(generoso.modelo).toBe("multilingual");
   });
 });
 

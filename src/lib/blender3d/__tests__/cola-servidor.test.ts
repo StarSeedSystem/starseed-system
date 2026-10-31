@@ -44,6 +44,12 @@ describe("encolarTrabajo", () => {
     expect(r).toMatchObject({ ok: false, requiereConfirmacion: true });
     expect(existsSync(path.join(raiz, "cola"))).toBe(false);
   });
+  it("pide confirmación por calidad «final» aunque el ámbito sea personal", async () => {
+    _ponerProcesos(fichaLigera, () => undefined);
+    const r = await encolarTrabajo(base({ calidad: "final" }));
+    expect(r).toMatchObject({ ok: false, requiereConfirmacion: true });
+    expect(existsSync(path.join(raiz, "cola"))).toBe(false);
+  });
   it("rechaza ids con .. o de largo equivocado", async () => {
     expect(await estadoDe(`../${"0".repeat(32)}`)).toBeNull();
     expect(await estadoDe("0".repeat(31))).toBeNull();
@@ -75,6 +81,18 @@ describe("capacidades", () => {
   it("devuelve null sin Blender", async () => {
     _ponerProcesos(async () => ({ stdout: '{"instalado":false}', stderr: "", code: 0 }), null);
     expect(await capacidades(true)).toBeNull();
+  });
+});
+
+describe("listarRecientes", () => {
+  it("limita a 20 aunque pidan más", async () => {
+    mkdirSync(path.join(raiz, "estado"), { recursive: true });
+    for (let i = 0; i < 22; i++) {
+      const id = i.toString(16).padStart(32, "0");
+      writeFileSync(path.join(raiz, "estado", `${id}.json`), JSON.stringify({ id, estado: "hecho", salidas: [] }));
+    }
+    const lista = await listarRecientes(25);
+    expect(lista.length).toBe(20);
   });
 });
 
