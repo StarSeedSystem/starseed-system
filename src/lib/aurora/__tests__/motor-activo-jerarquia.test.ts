@@ -24,6 +24,9 @@ import {
  * configuraciones simuladas, sin red ni disco.
  * Antes el router leía el pin cacheado y casi siempre veía openvoice2, así que
  * VibeVoice no recibía su guion multi-locutor.
+ * (SGO1031B) La cuenta YA NO fija pin (es `cfg.engine`, paso 2 de la cadena
+ * real, detrás del pin por defecto) y el override neurona×personalidad solo
+ * aplica con personalidad activa — el router decide igual que la cadena.
  */
 const CTX = {
   agentId: "ag-1",
@@ -69,10 +72,11 @@ describe("resolveVoiceChoiceFrom · precedencia de ámbitos", () => {
     expect(resolveVoiceChoiceFrom(store, CTX)?.provenance).toBe("cerebro");
 
     delete store.cerebro;
-    expect(resolveVoiceChoiceFrom(store, CTX)).toEqual({
-      motor: "bark",
-      provenance: "cuenta",
-    });
+    // (SGO1031B) La cuenta NO es un pin: es `cfg.engine`, paso 2 de la cadena
+    // real, detrás del pin por defecto de `refreshPersonalityVoicePin`. Que
+    // nadie fije motor en los ámbitos anteriores ⇒ null (el llamador pregunta
+    // al pin por defecto real, igual que suena).
+    expect(resolveVoiceChoiceFrom(store, CTX)).toBeNull();
   });
 
   it("un motor desconocido no fija nada: hereda del ámbito siguiente", () => {
@@ -167,18 +171,34 @@ describe("resolveVoiceChoice · fuentes crudas del turno", () => {
   it("el override de la neurona entra si la personalidad no fija motor", () => {
     expect(
       resolveVoiceChoice({
-        ctx: { deviceId: "neurona-1" },
+        ctx: { personaId: "aurora", deviceId: "neurona-1" },
         override: { voz: { motor: "omnivoice" } },
         config: { engine: "bark", autoDownload: false },
       }),
     ).toEqual({ motor: "omnivoice", provenance: "neurona", scopeId: "neurona-1" });
   });
 
-  it("la cuenta cierra la jerarquía cuando nadie más elige", () => {
-    expect(resolveVoiceChoice({ config: { engine: "voxcpm", autoDownload: false } })).toEqual({
-      motor: "voxcpm",
-      provenance: "cuenta",
-    });
+  it("SGO1031B · sin personalidad activa el override de la neurona no fija pin", () => {
+    // La cadena real no lee override sin personalidad (`neuronPersonaVoice(null)`
+    // → null): el router con `persona?.id ?? "*"` debe decidir lo mismo.
+    expect(
+      resolveVoiceChoice({
+        ctx: { deviceId: "neurona-1" },
+        override: { voz: { motor: "vibevoice" } },
+      }),
+    ).toBeNull();
+    // Tampoco si la elección llega ya integrada en `store.neurona` (el camino
+    // exacto del router vía `resolveVoiceChoiceFrom`).
+    expect(
+      resolveVoiceChoiceFrom({ neurona: { "neurona-1": { motor: "vibevoice" } } }, { deviceId: "neurona-1" }),
+    ).toBeNull();
+  });
+
+  it("SGO1031B · la cuenta no fija pin: debido al pin por defecto de la cadena suena primero que cfg.engine", () => {
+    // La elección de la cuenta viva en `cfg.engine` (paso 2 de buildVoiceChain,
+    // detrás del pin por defecto): que nadie fije motor ⇒ null y el llamador
+    // pregunta el pin real `refreshPersonalityVoicePin`.
+    expect(resolveVoiceChoice({ config: { engine: "voxcpm", autoDownload: false } })).toBeNull();
     expect(
       resolveVoiceChoice({ config: { engine: "browser", autoDownload: false } }),
     ).toBeNull();
@@ -205,7 +225,7 @@ describe("resolveVoiceChoice · fuentes crudas del turno", () => {
       resolveVoiceChoice({ ctx: { agentId: "ag-1" }, store: { agente: { "ag-1": { motor: " VibeVoice " } } } }),
     ).toEqual({ motor: "vibevoice", provenance: "agente", scopeId: "ag-1" });
     expect(
-      resolveVoiceChoice({ ctx: { deviceId: "n" }, override: { voz: { motor: "VIBEVOICE" } } }),
+      resolveVoiceChoice({ ctx: { deviceId: "n", personaId: "p" }, override: { voz: { motor: "VIBEVOICE" } } }),
     ).toEqual({ motor: "vibevoice", provenance: "neurona", scopeId: "n" });
   });
 
@@ -291,11 +311,13 @@ describe("router · VibeVoice recibe su guion multi-locutor (cadena real)", () =
     expect(preparaGuion(cfg, pin)).toBe(true);
   });
 
-  it("el motor de la neurona y el de la cuenta también llevan el guion a VibeVoice", () => {
+  it("el motor de la neurona lleva el guion a VibeVoice; la cuenta ya no (el pin por defecto suena primero)", () => {
     const cfg = cfgVoz();
     const sinPin: PersonalityVoiceShape = { intelligence: { modo: "auto" } };
     expect(preparaGuion(cfg, pinDelRouter({ personality: sinPin, override: { voz: { motor: "vibevoice" } } }))).toBe(true);
-    expect(preparaGuion(cfg, pinDelRouter({ personality: sinPin, config: { engine: "vibevoice", autoDownload: false } }))).toBe(true);
+    // (SGO1031B) Cuenta=vibevoice: la cuenta no es pin; el pin por defecto
+    // (OpenVoice, siempre configurado) suena primero, igual que en la cadena.
+    expect(preparaGuion(cfg, pinDelRouter({ personality: sinPin, config: { engine: "vibevoice", autoDownload: false } }))).toBe(false);
   });
 
   it("VibeVoice fijado sin servidor: la cadena lo salta y no se promete guion", () => {
