@@ -2029,33 +2029,28 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
               );
               const { getVoiceConfig } = await import("@/lib/aurora/tts-oss/voice-config");
               const { getOverrides } = await import("@/lib/astraura/neuron-persona-store");
-              const {
-                activeEngineFromChain,
-                resolveVoiceChoiceFrom,
-                voiceChoiceFromConfig,
-                voiceChoiceFromOverride,
-                voiceChoiceFromPersonality,
-              } = await import("@/lib/aurora/voice-config");
+              const { activeEngineFromChain, resolveVoicePinFrom } = await import(
+                "@/lib/aurora/voice-config"
+              );
               const cfg = getVoiceConfig();
               let deviceId: string | undefined;
               try { deviceId = thisDeviceId() || undefined; } catch { deviceId = undefined; }
+              // (SGO1031B) Manda lo que suena: el override neurona×personalidad
+              // solo existe con personalidad activa (la cadena real no lo
+              // consulta sin ella) y la elección de la CUENTA no es un pin.
               let override: { voz?: { motor?: string } } | null = null;
               try {
-                if (deviceId) override = getOverrides(deviceId, persona?.id ?? "*");
+                if (deviceId && persona?.id) override = getOverrides(deviceId, persona.id);
               } catch { override = null; }
-              const elegido = resolveVoiceChoiceFrom(
+              const pinPorDefecto = await refreshPersonalityVoicePin().catch(() => null);
+              const pin = resolveVoicePinFrom(
                 {
-                  personalidad: persona?.id
-                    ? { [persona.id]: { motor: voiceChoiceFromPersonality(persona) } }
-                    : undefined,
-                  neurona: deviceId
-                    ? { [deviceId]: { motor: voiceChoiceFromOverride(override) } }
-                    : undefined,
-                  cuenta: { motor: voiceChoiceFromConfig(cfg) },
+                  personality: persona,
+                  override,
+                  ctx: { personaId: persona?.id, deviceId, agentId: req.agentId, brainId: req.brainId },
                 },
-                { personaId: persona?.id, deviceId, agentId: req.agentId, brainId: req.brainId },
+                pinPorDefecto,
               );
-              const pin = elegido?.motor ?? (await refreshPersonalityVoicePin().catch(() => null));
               if (activeEngineFromChain(buildVoiceChain(cfg, pin), cfg) === "vibevoice") {
                 vibeVoiceScript = enriched.dialogue;
               }

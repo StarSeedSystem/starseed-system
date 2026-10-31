@@ -246,6 +246,44 @@ export function resolveVoiceChoice(
 }
 
 /**
+ * Pin EFECTIVO que encabeza la cadena que suena (`buildVoiceChain`), con la
+ * MISMA regla que `refreshPersonalityVoicePin`:
+ *
+ *  - el override neurona×personalidad SOLO aplica con personalidad activa
+ *    (sin personalidad, `refreshPersonalityVoicePin` ni lo consulta);
+ *  - la elección de la CUENTA no es un pin: en la cadena real va detrás del
+ *    pin por defecto de la neurona (`cfg.engine`), nunca por delante;
+ *  - si ningún ámbito fija motor, se devuelve `pinPorDefecto` (lo que ya
+ *    resolvió el llamador con `refreshPersonalityVoicePin`).
+ *
+ * (SGO1031B) Antes el router pasaba la cuenta como pin y leía el override con
+ * `"*"` sin personalidad: preparaba el guion de VibeVoice mientras sonaba
+ * OpenVoice. Es pura; nunca lanza.
+ */
+export function resolveVoicePinFrom(
+  sources: VoiceHierarchySources = {},
+  pinPorDefecto: AuroraVoiceEngine | null = null,
+): AuroraVoiceEngine | null {
+  const ctx = sources.ctx ?? {};
+  const store = sources.store
+    ? {
+        agente: sources.store.agente,
+        personalidad: sources.store.personalidad,
+        cerebro: sources.store.cerebro,
+        neurona: sources.store.neurona,
+      }
+    : undefined;
+  const elegido = resolveVoiceChoice({
+    store,
+    ctx,
+    personality: sources.personality,
+    override: ctx.personaId ? sources.override : null,
+    config: null,
+  });
+  return elegido?.motor ?? pinPorDefecto;
+}
+
+/**
  * Primer eslabón que DE VERDAD puede hablar en esta cadena, con el mismo
  * filtro que `resolveActiveVoiceEngine`: Kokoro solo cuenta si su modelo está
  * listo o el usuario autorizó la descarga, y Kitten sigue siendo un stub.
