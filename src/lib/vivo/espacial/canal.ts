@@ -6,8 +6,9 @@
  * UN canal de Supabase Realtime por escena abierta (`escena3d:<id>`, o
  * `escena3d:llamada:<sesionId>` para la sala de una llamada), que lleva las tres cosas:
  *
- *   · Presencia — quién está dentro (nombre, color, modo 3D/VR/AR).
- *   · Broadcast — poses de avatares (≤ 10 Hz), cambios de objetos, vista previa de arrastres
+ *   · Presencia — quién está dentro (nombre, color, modo 3D/VR/AR, su ADN «biblioteca:»/«genesis:»).
+ *   · Broadcast — poses de avatares (≤ 10 Hz), cambios de objetos, vista previa de arrastres,
+ *     la edición en vivo del ADN de un avatar (evento «adn», lotes de `cambios.ts` a ≤ 10 Hz)
  *     y el intercambio de estado de las salas efímeras.
  *   · postgres_changes — SOLO la fila de esta escena en `os_spaces` (filtro por id), para
  *     confirmar lo que otras personas guardaron de verdad.
@@ -28,8 +29,8 @@ import { createClient } from "@/utils/supabase/client";
 import { elegirTransporte, type Alcanzabilidad, type Sala } from "@/lib/salas/sala";
 import { abrirCanalEscenaP2P, type OpcionesCanalP2P } from "./canal-p2p";
 
-export type EventoEscena = "pose" | "cambios" | "arrastre" | "pedir-estado" | "estado";
-export const EVENTOS_ESCENA: readonly EventoEscena[] = ["pose", "cambios", "arrastre", "pedir-estado", "estado"];
+export type EventoEscena = "pose" | "cambios" | "arrastre" | "pedir-estado" | "estado" | "adn";
+export const EVENTOS_ESCENA: readonly EventoEscena[] = ["pose", "cambios", "arrastre", "pedir-estado", "estado", "adn"];
 
 export interface FilaCambiada {
     rev: number;
@@ -182,8 +183,9 @@ export function abrirCanalEscena(tema: string, clave: string, filaId: string | n
         enviar(evento, payload) {
             if (cerrado) return;
             if (enviarAhora(evento, payload)) return;
-            // Solo se encolan los mensajes que importan (cambios y estado); una pose vieja no sirve.
-            if (evento === "cambios" || evento === "estado" || evento === "pedir-estado") {
+            // Solo se encolan los mensajes que importan (cambios, estado y ADN: quien recibe decide con
+            // la revisión); una pose o un arrastre viejo no sirve.
+            if (evento === "cambios" || evento === "estado" || evento === "pedir-estado" || evento === "adn") {
                 cola.push({ evento, payload });
                 if (cola.length > 50) cola.shift();
             }

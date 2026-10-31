@@ -6,9 +6,12 @@
  * El VRM se carga perezosamente (dos veces: aquí y en `cargar-vrm`) y si falla o tarda, la persona
  * se ve como cabeza + manos: la sala no se rompe jamás por un avatar.
  */
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import type { Object3D } from "three";
 import type { NivelCalidad } from "@/lib/xr/tipos";
+import type { AdnAvatar } from "@/lib/avatares/adn/adn";
+import { adnParaNivelXr } from "@/lib/avatares/adaptadores/sincronia-adn";
+import { resolverRefBiblioteca } from "@/lib/avatares/adaptadores/resolver-ref-biblioteca";
 import { cargarVrm, elegirAvatar, urlVrmSegura, type FormaAvatarXR } from "./cargar-vrm";
 
 export interface PoseMiembroXR { p: readonly [number, number, number]; q: readonly [number, number, number, number] }
@@ -25,6 +28,10 @@ interface AvatarXRProps {
     nivel: NivelCalidad;
     /** VRM de la Biblioteca elegido por la persona; sin él se ve cabeza + manos. */
     preferencia: { vrmUrl?: string } | null;
+    /** ADN del avatar de esta persona (sincronía esceña, AV1011E): su nivel de detalle sale de la
+     *  calidad en curso (`adnParaNivelXr` → `adnParaCalidad`) y su base VRM se resuelve de la
+     *  Biblioteca. Sin ADN, manda la preferencia de siempre. */
+    adn?: AdnAvatar | null;
     color: string;
     /** Cuántas personas visibles están más cerca (0 = el más cercano): decide el cupo de VRM. */
     jugadoresVisibles?: number;
@@ -41,19 +48,40 @@ function ManoXR({ pose, color }: { pose: PoseMiembroXR; color: string }) {
     );
 }
 
-function AvatarXRBase({ pose, nivel, preferencia, color, jugadoresVisibles = 0 }: AvatarXRProps) {
-    const forma: FormaAvatarXR = elegirAvatar(nivel, preferencia, jugadoresVisibles);
-    const [vrm, setVrm] = useState<Object3D | null>(null);
-    const quiereVrm = forma === "vrm" && !!preferencia?.vrmUrl && urlVrmSegura(preferencia.vrmUrl);
+function AvatarXRBase({ pose, nivel, preferencia, adn = null, color, jugadoresVisibles = 0 }: AvatarXRProps) {
+    // El ADN tal como se dibuja con la calidad de ESTE aparato (misma persona, misma forma según nivel).
+    const visto = useMemo(() => adnParaNivelXr(adn, nivel), [adn, nivel]);
+    const refVrm = useMemo(
+        () => (visto && visto.adn.base.tipo === "vrm" ? visto.adn.base.ref ?? null : null),
+        [visto],
+    );
+    const [urlAdn, setUrlAdn] = useState<string | null>(null);
     useEffect(() => {
-        const url = preferencia?.vrmUrl;
+        setUrlAdn(null);
+        if (!refVrm) return;
+        let vivo = true; // una resolución por (persona, ref): el resolutor ya cachea por carpeta
+        void resolverRefBiblioteca(refVrm).then((r) => {
+            if (vivo && r.ok) setUrlAdn(r.url);
+        });
+        return () => {
+            vivo = false;
+        };
+    }, [refVrm]);
+
+    const vrmUrl = urlAdn ?? preferencia?.vrmUrl ?? undefined;
+    const preferenciaEfectiva = vrmUrl ? { vrmUrl } : preferencia;
+    const forma: FormaAvatarXR = elegirAvatar(nivel, preferenciaEfectiva, jugadoresVisibles);
+    const [vrm, setVrm] = useState<Object3D | null>(null);
+    const quiereVrm = forma === "vrm" && !!vrmUrl && urlVrmSegura(vrmUrl);
+    useEffect(() => {
+        const url = vrmUrl;
         if (!quiereVrm || !url) return;
         let vivo = true;
         cargarVrm(url, undefined, nivel)
             .then((r) => { if (vivo) setVrm(r.ok ? r.raiz : null); })
             .catch(() => { if (vivo) setVrm(null); });
         return () => { vivo = false; };
-    }, [quiereVrm, preferencia?.vrmUrl, nivel]);
+    }, [quiereVrm, vrmUrl, nivel]);
     if (!pose) return null; // sin pose no se pintan personas en sitios inventados
     const sitio = [pose.cabeza.p[0], pose.cabeza.p[1], pose.cabeza.p[2]] as [number, number, number];
     const rumbo = [pose.cabeza.q[0], pose.cabeza.q[1], pose.cabeza.q[2], pose.cabeza.q[3]] as [number, number, number, number];

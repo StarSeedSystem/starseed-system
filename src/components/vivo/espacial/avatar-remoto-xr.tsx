@@ -18,6 +18,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { MetaAvatar, Pose } from "@/lib/vivo/espacial/avatares";
 import type { NivelCalidad } from "@/lib/xr/tipos";
+import type { AdnAvatar } from "@/lib/avatares/adn/adn";
 import { AvatarXR, type PoseAvatarXR } from "@/components/xr/shell/avatar-xr";
 import { crearTexturaTexto } from "./texturas";
 import type { Vec3 } from "@/lib/vivo/espacial/modelo";
@@ -69,9 +70,11 @@ interface PropsAvatarRemotoXR {
     /** Cuántas personas visibles están más cerca de esta (rango por cercanía). */
     jugadoresVisibles: number;
     reducido: boolean;
+    /** El ADN que esta pestaña leyó de ella (ref = `meta.adnRef`); `null` = sin ADN o aún no leído. */
+    adn?: AdnAvatar | null;
 }
 
-function AvatarRemotoXRBase({ meta, poses, nivel, jugadoresVisibles, reducido }: PropsAvatarRemotoXR) {
+function AvatarRemotoXRBase({ meta, poses, nivel, jugadoresVisibles, reducido, adn = null }: PropsAvatarRemotoXR) {
     const raiz = useRef<THREE.Group>(null);
     const primera = useRef(true);
     const etiqueta = useMemo(
@@ -110,7 +113,7 @@ function AvatarRemotoXRBase({ meta, poses, nivel, jugadoresVisibles, reducido }:
                     <spriteMaterial map={etiqueta.textura} transparent depthWrite={false} toneMapped={false} />
                 </sprite>
             )}
-            <AvatarXR pose={POSE_INTERNA} nivel={nivel} preferencia={null} color={meta.color} jugadoresVisibles={jugadoresVisibles} />
+            <AvatarXR pose={POSE_INTERNA} nivel={nivel} preferencia={null} adn={adn} color={meta.color} jugadoresVisibles={jugadoresVisibles} />
         </group>
     );
 }
