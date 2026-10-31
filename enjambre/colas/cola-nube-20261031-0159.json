@@ -1,0 +1,49 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "PUB1029E",
+   "ola": "1029 · CI de producción en verde",
+   "depende": [],
+   "titulo": "Guía de la red · las claves de demostración del catálogo vuelven a cuadrar con los pasos",
+   "archivos": [
+    "src/lib/onboarding/__tests__/guia-completa-catalogo.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta (corre la prueba citada: si ya pasa, responde NO APLICA y no toques nada).\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de cadenas con forma de clave en código ni pruebas.\n\nContexto (2026-10-29): la autopublicación, parada desde el 25-10, ya pasa el detector de secretos y las 3.627 pruebas del puente, pero el CI de GitHub (run 40821862697, candidato c339920f7) falla en Vitest con 6 de 17.056 pruebas. Mientras haya una en rojo, nada se publica. Arregla la causa, no la prueba, salvo que la prueba sea la que quedó vieja (dilo en tu respuesta).\n\nFalla `guia-completa-catalogo.test.ts` («guardia de huérfanas · ninguna demostración sin paso»): `CLAVES_DEMO_PASO` tiene 11 claves y los pasos tienen 21 (faltan, entre otras, «capas-conciencia», «genesis», «libreria-biblioteca», «malla», «neuronas-cerebro», «personalizacion-segura», «pilar-cultura», «pilar-educacion», «pilar-politica», «protomolecula»). Las partes GUI1021Gb-d1b, -d2 y -d3 del 28-10 tocaron la guía. Busca dónde se declaran `CLAVES_DEMO_PASO` y los componentes de demostración: cada paso con demo debe tener su clave y su componente (añade esos archivos a la tarea, como mucho 3 en total). Si una demo falta de verdad, que el paso no la pida; nunca una demostración sin paso."
+  },
+  {
+   "id": "INV1025E",
+   "ola": "Ola 1025R · Investigación y alcance (Agent-Reach, ScrapeGraphAI, OpenRefine, Inbox Zero)",
+   "titulo": "ScrapeGraphAI: registro, ejecución y herramienta «extraer_web» de Aurora",
+   "archivos": [
+    "src/lib/integrations/registry.ts",
+    "src/lib/integrations/run.ts",
+    "src/lib/integrations/aurora-tools.ts"
+   ],
+   "depende": [],
+   "prompt": "Depende de INV1025D (cliente) y de INV1025B (misma entrada de registro tocada antes). (1) `registry.ts`: entrada `scrapegraph` (category `data-ingest`, defaultEndpoint `http://127.0.0.1:8793`, needsKey true —es un token local—, docsUrl del repo, freeHostingHint: corre en la Mac o en el A1 con el servidor de IA del OS, sin telemetría ni API en la nube; acción `extraer`). (2) `run.ts`: `case \"scrapegraph\"` para `extraer` y para la prueba de salud. (3) `aurora-tools.ts`: herramienta `extraer_web` (`integrationId: \"scrapegraph\"`, `actionId: \"extraer\"`) cuya descripción en español dice: «Lee una página pública (respeta robots.txt y las señales noai) y devuelve datos estructurados según el esquema y la instrucción. Entrada: { url, prompt, esquema? }». Sin `category` (es una herramienta nueva, no el default de ninguna categoría). Ejecuta las pruebas de integraciones y de herramientas de Aurora y arregla lo que rompa.\n\nContrato: architecture/repos-libreria-1025.md (grupo investigación: reglas duras R1–R10 y el diseño del agente de alcance). Reglas de la casa: español con acentos en comentarios y textos; nada de `any`; módulos puros con red, disco y reloj inyectables; claves solo en variables de entorno; nada de `node:*` en código de cliente; ≤ 3 archivos y ≤ 120 líneas por archivo; pruebas reales (si una prueba vieja falla, se arregla el código, no la prueba). Antes de empezar comprueba si lo pedido ya está hecho; si ya está, NO APLICA.",
+   "revisor_quitadas": [
+    "INV1025B"
+   ],
+   "dependencias_ya_en_main": [
+    "INV1025D"
+   ]
+  },
+  {
+   "id": "HFR1018P",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Neuronas · servidor del servicio hyperframes y arranque donde haya Node 22, FFmpeg y navegador",
+   "archivos": [
+    "servicios/hyperframes/src/servidor.mjs",
+    "scripts/puente/instalar-servicios.py",
+    "scripts/puente/test_instalar_hyperframes.py"
+   ],
+   "depende": [],
+   "prompt": "servidor.mjs: `node:http` escuchando SOLO en 127.0.0.1:4490 que pasa cada petición a `manejar()` de rutas.mjs con la cola de cola-render.mjs (ejecutar = `child_process.spawn` de `npx hyperframes` con la lista de argumentos, nunca shell) y lee el archivo `entorno` del servicio. Añade la entrada \"hyperframes\" a instalar-servicios.py con el mismo patrón que \"laya\": lanza `node servicios/hyperframes/src/servidor.mjs` solo si `node -v` ≥ 22, hay ffmpeg y el archivo `entorno` del servicio trae HYPERFRAMES_BROWSER_PATH; log en /tmp/starseed-hyperframes.log; nunca en la Mac si quedan menos de 2 GB de disco libres (vista previa sí, render no). Prueba con funciones puras de comprobación. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "HFR1018F",
+    "HFR1018G"
+   ]
+  }
+ ]
+}
