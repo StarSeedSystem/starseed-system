@@ -17,7 +17,7 @@ import { planRadios, type RouterMalla, type TroncalResult } from "@/lib/network/
 import { guionAplicar, uciMalla, type BandaWifi, type CfgUciMalla } from "@/lib/network/routers-malla/uci-malla";
 import { PERFILES_WIFI, type CanalWifi } from "@/ai/astraura/mesh/camr/regulacion";
 import { TitanioPortatilPanel } from "@/components/network/titanio-portatil-panel";
-import { teselaDeRouter, type TroncalesRouter } from "@/lib/malla/cristal/titanio";
+import { type TroncalesRouter } from "@/lib/malla/cristal/titanio";
 import { Router as LucideRouter } from "lucide-react";
 
 const LISTA = "starseed.routers-malla.v1";
