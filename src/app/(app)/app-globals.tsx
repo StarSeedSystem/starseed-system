@@ -59,6 +59,13 @@ const MenuTexto = dynamic(() => import("@/components/traduccion/menu-texto").the
   ssr: false,
 });
 
+// Traducir por clic derecho (TRD1020G): registra en el menú de arriba «Traducir
+// selección», «Traducir este párrafo», «Traducir toda la página» y «Ver original»,
+// y enseña la ventanita de traducción y el aviso de progreso.
+const TraducirTexto = dynamic(() => import("@/components/traduccion/traducir-texto").then((m) => m.TraducirTexto), {
+  ssr: false,
+});
+
 // Variaciones públicas (Ola 1019V · architecture/variaciones-publicas.md): se montan UNA vez
 // aquí para que el clic derecho de TODO el OS abra el menú propio si nadie más lo pide, y
 // cualquier superficie abra la ventana de variaciones con `abrirVariaciones(clave)`.
@@ -113,6 +120,8 @@ export default function AppGlobals() {
       <InstalacionesPendientes />
       {/* TRD1020E: menú global del clic derecho sobre textos. */}
       <MenuTexto />
+      {/* TRD1020G: las cuatro entradas «Traducir…» del menú + ventanita y aviso de progreso. */}
+      <TraducirTexto />
       {/* Ola 1019V: clic derecho global de variaciones + anfitrión de la ventana «Variaciones públicas». */}
       <ClicDerechoGlobal />
       <VariacionesHost />

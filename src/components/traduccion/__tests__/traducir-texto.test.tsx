@@ -10,7 +10,7 @@ import {
   traducirConAstraura,
   type PaginaActual,
 } from "../traducir-texto";
-import type { ContextoMenuTexto } from "../menu-texto";
+import { entradasVisibles, type ContextoMenuTexto } from "../menu-texto";
 
 /** Translator API simulada: disponible y traduce devolviendo el texto con una marca. */
 const translatorSimulado = {
@@ -123,13 +123,14 @@ describe("entradasTraduccion · las cuatro entradas del menú de TRD1020E", () =
       "Traducir toda la página",
       "Ver original",
     ]);
-    expect(porId["traducir-seleccion"].visible?.(ctx({ seleccion: "hola" }))).toBe(true);
-    expect(porId["traducir-seleccion"].visible?.(ctx({}))).toBe(false);
-    expect(porId["traducir-parrafo"].visible?.(ctx({}))).toBe(true);
-    expect(porId["traducir-pagina"].visible?.(ctx({}))).toBe(true);
+    // Visibilidad juzgada por entradasVisibles, el filtro que usa de verdad el menú.
+    expect(entradasVisibles([porId["traducir-seleccion"]], ctx({ seleccion: "hola" }))).toHaveLength(1);
+    expect(entradasVisibles([porId["traducir-seleccion"]], ctx({}))).toHaveLength(0);
+    // Sin predicado declarado la entrada se ve siempre (contrato del menú de TRD1020E).
+    expect(entradasVisibles([porId["traducir-parrafo"], porId["traducir-pagina"]], ctx({}))).toHaveLength(2);
     // «Ver original» solo con la página ya traducida (se marca al aplicar la página entera).
-    expect(porId["ver-original"].visible?.(ctx({ paginaTraducida: true }))).toBe(true);
-    expect(porId["ver-original"].visible?.(ctx({}))).toBe(false);
+    expect(entradasVisibles([porId["ver-original"]], ctx({ paginaTraducida: true }))).toHaveLength(1);
+    expect(entradasVisibles([porId["ver-original"]], ctx({}))).toHaveLength(0);
   });
 
   it("ejecutan con el ctx del menú", () => {
