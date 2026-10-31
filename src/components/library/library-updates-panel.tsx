@@ -46,6 +46,7 @@ import {
 import { toast } from "sonner";
 
 import { listBrains, type Brain } from "@/lib/brains/brains";
+import { VersionesUpstream } from "@/components/library/versiones-upstream";
 import {
   checkForUpdates,
   getRecommendations,
@@ -242,6 +243,11 @@ export function LibraryUpdatesPanel() {
           </p>
         )}
       </GlassCard>
+
+      {/* ── VERSIONES UPSTREAM de lo instalado (tarea LIB1025B) ── */}
+      <section>
+        <VersionesUpstream />
+      </section>
 
       {/* ── NOVEDADES (checkForUpdates) ── */}
       <section className="space-y-3">
