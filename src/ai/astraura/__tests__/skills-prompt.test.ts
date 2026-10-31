@@ -6,6 +6,7 @@ import {
   SKILL_CAPABILITIES,
   skillsSystemPrompt,
 } from "@/ai/astraura/skills";
+import { CLAVE_HABILIDADES } from "@/ai/astraura/skills-ingenieria";
 
 /**
  * El espejo de la cuenta es la única fuente que activa capacidades aquí: sin
@@ -68,6 +69,21 @@ describe("skillsSystemPrompt · capa completa y filtro por chat", () => {
     expect(etiquetas.some((l) => l.startsWith("PM"))).toBe(true);
     expect(etiquetas.some((l) => l.startsWith("Sentidos web"))).toBe(true);
     expect(etiquetas.some((l) => l.startsWith("Generación audiovisual"))).toBe(false);
+  });
+
+  it ("una habilidad de ingeniería apagada en el panel de Laya NO se aplica", () => {
+    // La activa el espejo de la cuenta y la apaga el interruptor del panel
+    // «Decisiones de Laya» (Ajustes · Inteligencia, Ola 1018L).
+    expect(SKILL_CAPABILITIES.some((c) => c.id === "tdd")).toBe(true);
+    espejo(["tdd", "pm"]);
+    localStorage.setItem(CLAVE_HABILIDADES, JSON.stringify({ tdd: false }));
+    let etiquetas = idsDe(skillsSystemPrompt());
+    expect(etiquetas.some((l) => l.startsWith("PM"))).toBe(true);
+    expect(etiquetas.some((l) => l.startsWith("TDD"))).toBe(false);
+    // Volver a encender la devuelve al bloque; el guardado solo añade los apagados.
+    localStorage.setItem(CLAVE_HABILIDADES, JSON.stringify({ tdd: true, pm: false }));
+    etiquetas = idsDe(skillsSystemPrompt());
+    expect(etiquetas.some((l) => l.startsWith("TDD"))).toBe(true);
   });
 
   it("sin capacidades activas el bloque es vacío y no deja texto suelto", () => {

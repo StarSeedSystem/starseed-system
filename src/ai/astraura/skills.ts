@@ -26,6 +26,7 @@ import {
 } from "./habilidades/diagramas";
 import { CAPACIDADES_REPOS_1026 } from "./habilidades/repos-1026";
 import { HABILIDADES_INGENIERIA_A, comoCapacidad as comoCapacidadIngenieria } from "./habilidades/ingenieria-a";
+import { CLAVE_HABILIDADES, leerInterruptores } from "./skills-ingenieria";
 
 /** Espejo local de capacidades activas (lo mantiene sincronizado library-sync
  *  con `user_settings.prefs.capabilities` de la cuenta soberana). */
@@ -712,6 +713,21 @@ function readDisabledDefaults(): Set<string> {
   }
 }
 
+/** Ola 1018L · panel «Decisiones de Laya» (Ajustes · Inteligencia): de las
+ *  habilidades de ingeniería (las de A son las que entran como capacidad), las
+ *  que la persona APAGÓ en su interruptor. Con Laya todas van encendidas por
+ *  defecto; el guardado solo apaga (§5). Solo los ids de A filtran aquí, para
+ *  no tocar capacidades de la Biblioteca que comparten id con B («research»). */
+function readApagadasIngenieria(): Set<string> {
+  if (!isClient()) return new Set();
+  try {
+    const activos = leerInterruptores(window.localStorage.getItem(CLAVE_HABILIDADES));
+    return new Set(HABILIDADES_INGENIERIA_A.filter((h) => !activos[h.id]).map((h) => h.id));
+  } catch {
+    return new Set();
+  }
+}
+
 /** ¿La capacidad default-ON `id` está desactivada por el usuario? */
 export function isCapabilityDisabled(id: string): boolean {
   return readDisabledDefaults().has(id);
@@ -749,8 +765,10 @@ export function activeCapabilityIds(): string[] {
   const pkgs = new Set(isClient() ? getInstalledPackageIds() : []);
   const mirror = new Set(readCapMirror());
   const disabled = readDisabledDefaults();
+  const apagadasIngenieria = readApagadasIngenieria();
   const out: string[] = [];
   for (const c of SKILL_CAPABILITIES) {
+    if (apagadasIngenieria.has(c.id)) continue;
     const bySkill = (c.skillIds ?? []).some((s) => fns.has(s));
     const byPkg = (c.packageIds ?? []).some((p) => pkgs.has(p));
     // Adenda 138: las capacidades `defaultOn` están activas para todos salvo

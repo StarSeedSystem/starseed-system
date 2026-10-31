@@ -8,8 +8,11 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { MIN_CASOS_UMBRAL, casosDe, umbralRecalibrado, type CasoLaya, type RegistroAprendizaje, type ResultadoLaya } from "@/lib/astraura/laya/aprendizaje-laya";
 import { PUNTOS_DECISION, type MedioLaya } from "@/lib/astraura/laya/puntos-decision";
-import { HABILIDADES_INGENIERIA } from "@/ai/astraura/skills-ingenieria";
-export const CLAVE_HABILIDADES = "starseed.laya.habilidades.v1", CLAVE_REGISTRO = "starseed.laya.registro.v1";
+import { HABILIDADES_INGENIERIA, CLAVE_HABILIDADES, leerInterruptores } from "@/ai/astraura/skills-ingenieria";
+export const CLAVE_REGISTRO = "starseed.laya.registro.v1";
+/** Los interruptores viven en el catálogo (`skills-ingenieria.ts`) para que el
+ *  motor de habilidades los LEA al aplicarlas; aquí se reexportan. */
+export { CLAVE_HABILIDADES, leerInterruptores };
 /** Dónde está Laya ahora, en las palabras del panel. */
 export type MedioPanel = "local" | "A1" | "ninguno";
 /** Fila de una decisión visible: lo privado entra SOLO con su huella, sin texto. */
@@ -34,16 +37,6 @@ export function umbralesEfectivos(registro: RegistroAprendizaje): UmbralPunto[] 
         const dominante = Object.keys(ambitos).sort((a, b) => ambitos[b] - ambitos[a])[0] ?? "os";
         return { id, umbral: umbralRecalibrado(registro, id, dominante), recalibrado: casosDe(registro, id, dominante).length >= MIN_CASOS_UMBRAL };
     });
-}
-/** Interruptores de habilidades: todas ENCENDIDAS por defecto; el guardado solo las apaga. */
-export function leerInterruptores(bruto: string | null): Record<string, boolean> {
-    const activos: Record<string, boolean> = {};
-    for (const h of HABILIDADES_INGENIERIA) activos[h.id] = true;
-    try {
-        const v = JSON.parse(bruto ?? "null") as Partial<Record<string, unknown>> | null;
-        if (v) for (const h of HABILIDADES_INGENIERIA) if (typeof v[h.id] === "boolean") activos[h.id] = v[h.id] === true;
-    } catch { /* guardado a medias: quedan los de fábrica */ }
-    return activos;
 }
 /** Registro del aparato: lo escribe la tarea M con el mismo formato; sin datos, panel vacío y honesto. */
 function registroDelAparato(): RegistroAprendizaje {
