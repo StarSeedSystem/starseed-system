@@ -107,6 +107,44 @@ const puertoEscritorio: PuertoEscritorio = {
 
 registrarAdaptadoresEscritorio({ dock: puertoDock, apps: puertoApps, escritorio: puertoEscritorio });
 
+// Variaciones públicas · familias «animacion», «transicion» y «elemento-3d»
+// (tarea DSN1019I · adaptadores de movimiento, Ola 1019D): se registran aquí,
+// en el Registro de familias que ve el navegador, con la misma pauta que
+// «ajuste» y «escritorio». La ficha vigente de cada familia (§3 de
+// variaciones-de-identidad.md) vive en localStorage bajo
+// `starseed:variacion-movimiento:<familia>`; sin ficha propia, el adaptador
+// captura la base del vocabulario (`fichaBase`). Deshacer es del adaptador
+// (restaura lo previo); el evento avisa a la interfaz de que la ficha cambió.
+import {
+    registrarAdaptadoresMovimiento,
+    type DepsMovimiento,
+    type FamiliaMovimiento,
+    type FichaMovimiento,
+} from "@/lib/variaciones/adaptadores/movimiento";
+
+const RUTA_FICHA_MOVIMIENTO = "starseed:variacion-movimiento";
+
+const depsMovimiento: DepsMovimiento = {
+    leer: (familia: FamiliaMovimiento) => {
+        try {
+            if (typeof window === "undefined") return null;
+            const bruto = window.localStorage.getItem(`${RUTA_FICHA_MOVIMIENTO}:${familia}`);
+            return bruto === null ? null : JSON.parse(bruto) as FichaMovimiento;
+        } catch { return null; } // sin almacenamiento o valor sin JSON: nada vigente
+    },
+    escribir: (familia: FamiliaMovimiento, ficha: FichaMovimiento | null) => {
+        try {
+            if (typeof window === "undefined") return;
+            const ruta = `${RUTA_FICHA_MOVIMIENTO}:${familia}`;
+            if (ficha === null) window.localStorage.removeItem(ruta);
+            else window.localStorage.setItem(ruta, JSON.stringify(ficha));
+            window.dispatchEvent(new Event("starseed:variaciones-movimiento"));
+        } catch { /* sin almacenamiento: no se persiste, nada rompe */ }
+    },
+};
+
+registrarAdaptadoresMovimiento(depsMovimiento);
+
 export function SovereignSyncMount() {
     useLibrarySync();
     useDashboardsBackup();
