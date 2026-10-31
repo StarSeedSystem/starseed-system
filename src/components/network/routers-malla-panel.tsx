@@ -17,6 +17,8 @@ import { planRadios, type RouterMalla, type TroncalResult } from "@/lib/network/
 import { guionAplicar, uciMalla, type BandaWifi, type CfgUciMalla } from "@/lib/network/routers-malla/uci-malla";
 import { PERFILES_WIFI, type CanalWifi } from "@/ai/astraura/mesh/camr/regulacion";
 import { TitanioPortatilPanel } from "@/components/network/titanio-portatil-panel";
+import { teselaDeRouter, type TroncalesRouter } from "@/lib/malla/cristal/titanio";
+import { Router } from "lucide-react";
 
 const LISTA = "starseed.routers-malla.v1";
 const BUSCAR = "https://openwrt.org/toh/start";
@@ -173,6 +175,24 @@ export function RoutersMallaPanel({ tabla }: { tabla?: EntradaTabla[] }) {
     const r = routers.find((x) => x.id === id);
     return r ? `${r.fabricante} ${r.modelo}` : id;
   };
+
+  /** Entrada de teselaDeRouter para un router con OpenWrt: sus troncales del plan,
+   *  con la frecuencia estimada por banda (2,4/5/6 GHz). Sin troncales, null. */
+  const entradaTesela = (r: RouterGuardado): TroncalesRouter | null => {
+    if (!r.openwrt) return null;
+    const ahora = Date.now();
+    const troncales = filas
+      .filter((f) => f.a === r.id || f.b === r.id)
+      .map((f) => ({
+        a: f.a, b: f.b,
+        anchoBandaKbps: f.anchoMhz * 1000,
+        frecuenciaMhz: f.banda === "5g" ? 5180 : f.banda === "6g" ? 5825 : 2412,
+        anchoCanalMhz: f.anchoMhz,
+      }));
+    if (troncales.length === 0) return null;
+    return { routerId: r.id, cuenta: "reticula", adoptadoPor: `neurona-adopta-${r.id}`, troncales, reloj: ahora, ahora };
+  };
+
   const añadirTroncal = () => {
     if (!par[0] || !par[1] || par[0] === par[1] || troncales.some(([x, y]) => x === par[0] ? y === par[1] : x === par[1] && y === par[0])) return;
     setTroncales((t) => [...t, par]); setPar(["", ""]);
@@ -201,6 +221,8 @@ export function RoutersMallaPanel({ tabla }: { tabla?: EntradaTabla[] }) {
         {routers.length === 0 && <div className="text-[12px] text-white/40">Sin routers todavía.</div>}
         {routers.map((r) => {
           const res = resultados.get(r.id)!;
+          const entrada = entradaTesela(r);
+          const tesela = entrada ? teselaDeRouter(entrada) : null;
           return (
             <div key={r.id} className="rounded-lg border border-white/10 bg-black/30 p-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -219,6 +241,22 @@ export function RoutersMallaPanel({ tabla }: { tabla?: EntradaTabla[] }) {
                 </label>
                 <button onClick={() => setRouters((rs) => rs.filter((x) => x.id !== r.id))} className="cursor-pointer text-[12px] text-white/40 hover:text-rose-300">Quitar</button>
               </div>
+              {r.openwrt && (
+                <p className="text-[12px] text-amber-200">Este router <span>entra en la retícula como titanio</span> (Ti⁴⁺).</p>
+              )}
+              {r.openwrt && (
+                <div className="mt-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-2">
+                  <div className="flex items-center gap-2 text-[11px] text-amber-200">
+                    <Router className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Tesela de titanio generada desde los troncales del plan</span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-amber-100">
+                    {tesela
+                      ? `${tesela.neurona.id} como Ti⁴⁺: ${tesela.senales.length} señales wifi-mesh en la tesela.`
+                      : "Sin troncales definidos para este router."}
+                  </p>
+                </div>
+              )}
             </div>
           );
         })}
