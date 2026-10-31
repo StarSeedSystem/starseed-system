@@ -241,6 +241,16 @@ class Medios(object):
     def publicando_a_mano(self):
         return (_leer(DIARIO_MANUAL, {}) or {}).get("estado") == "corriendo"
 
+    def lider(self, ahora=None):
+        """(IND1029Cb) (¿publico yo?, por qué), con el arriendo de dirección (IND1029B) solo leído y la
+        regla pura de la autocuración. Sin el módulo, sin puerta o sin arriendo vigente: como hoy."""
+        try:
+            import autocuracion_mando as AC
+            import lider_direccion
+            return AC.decidir_lider(lider_direccion.soy_lider(), time.time() if ahora is None else ahora)
+        except Exception as e:  # noqa: BLE001 — una puerta caída no para la publicación local
+            return True, "sin líder de dirección (%s): sigo en local" % type(e).__name__
+
     def unir_origen(self, head, espera_s=120):
         """(ok, detalle). Une origin/main a main con la estrategia «ours» (el árbol NO cambia) bajo el
         cerrojo `integrar` del orquestador y de commit-seguro.py, y solo si main sigue en `head`.
@@ -504,6 +514,12 @@ def pasada(m, est, ahora):
         return con_fase(est, "apagado", "Autopublicación apagada (Genesis · Ajustes).", ahora)
     if m.publicando_a_mano():
         return con_fase(est, "esperando", "Hay una publicación manual en curso; espero a que termine.", ahora)
+    # (IND1029Cb) La Mac y el A1 corren esta misma autopublicación: solo el líder de dirección publica y sube
+    # candidatos; las demás neuronas no tocan git ni el CI y lo dicen («espera: dirige <neurona>»). Lo que esta
+    # neurona ya empujó a main sí lo termina de verificar en Vercel (solo mira), para no dejarlo a medias.
+    dirijo, porque = m.lider(ahora) if callable(getattr(m, "lider", None)) else (True, "")
+    if not dirijo and est.get("fase") != "verificando":
+        return con_fase(est, "esperando", "%s." % porque, ahora)
     m.git(["fetch", "-q", "origin", "main"], timeout=120)
     if est.get("fase") == "ci":
         return _seguir_ci(m, est, ahora)
