@@ -33,6 +33,9 @@ const RigTrinityDinamico = nextDynamic(() => import("./rig-trinity").then((m) =>
 /** Zenith (XR1010O) con la voz de XR1010P enganchada por su puente `pipeline`; carga perezosa también. */
 const OrbeVozDinamico = nextDynamic(() => import("./orbe-voz").then((m) => m.OrbeVoz), { ssr: false });
 
+/** Horizon (XR1010AO): crear, destinos y Biblioteca conectados a la cuenta real; carga perezosa. */
+const HorizonDinamico = nextDynamic(() => import("./horizon-montado").then((m) => m.HorizonMontado), { ssr: false });
+
 /** El modo con que `disponerTrinity` coloca la Trinity según lo pedido por la URL. */
 export function modoTrinity(modoUrl: ModoURL | null, plan: PlanEntrada): ModoXR {
     if (modoUrl === "vr") return "vr-inmersivo";
@@ -129,7 +132,7 @@ export function EscenaOS({ modo = null }: Props) {
                         modo={modoTrinity(modoUrl, plan)}
                         nivel={calidadNivel}
                         alturaOjosMedida={alturaOjosMedida}
-                        contenido={{ zenith: <OrbeVozDinamico /> }}
+                        contenido={{ zenith: <OrbeVozDinamico />, horizon: <HorizonDinamico /> }}
                     />
                     {!enSesion && <OrbitControls />}
                 </Suspense>
