@@ -4662,3 +4662,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-31 05:16 · mg-oracle-1030-2224
+
+**Lo que se pidió.** Decisiones de Alex 2026-10-19
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — no escribió nada (RTRTRTRTS1010-EV-ORACLE-1abbbbbbbb-d2, RTAV1011Dc, PUB1029D, MBT1027O). Es 67 % de la ola.
+- 2 tareas se fueron por lo mismo — los tipos no compilan (DSN1019B, APR1019A). Es 33 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `DSN1019B` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/DSN1019B conservada)
+- `RTRTRTRTS1010-EV-ORACLE-1abbbbbbbb-d2` — no escribió nada
+- `RTAV1011Dc` — no escribió nada
+- `PUB1029D` — no escribió nada
+- `APR1019A` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/APR1019A conservada)
+- `MBT1027O` — no escribió nada
