@@ -201,6 +201,16 @@ const DiagramaVentana = dynamic(
  *  de las superficies lo registra por su lado y aquí solo se acepta el tipo. */
 const TIPO_DIAGRAMA = "diagrama" as WidgetType;
 
+// Referencias e inspiración (ola 1018R): widget «Inspiración» en dashboard,
+// escritorio, pizarra y capa flotante
+const WidgetReferencias = dynamic(
+    () => import("@/components/library/referencias/widget-referencias").then((mod) => mod.WidgetReferencias),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
+/** Mismo patrón que el estudio y el diagrama: id propio fuera del manifiesto,
+ *  registrado aquí para no caer a «desconocido». */
+const TIPO_INSPIRACION = "inspiracion" as WidgetType;
+
 interface WidgetProps {
     widget: DashboardWidget;
     /** Persiste un patch en `widget.settings` (fusionado por el llamador — ver
@@ -548,6 +558,10 @@ function cuerpoClasico(
         // ── Diagramas (ola 1018D): ventana en dashboard, escritorio, pizarra y flotante ──
         case TIPO_DIAGRAMA:
             return <DiagramaVentana />;
+
+        // ── Referencias e inspiración (ola 1018R): widget «Inspiración» ──
+        case TIPO_INSPIRACION:
+            return <WidgetReferencias />;
 
         default:
             return (
