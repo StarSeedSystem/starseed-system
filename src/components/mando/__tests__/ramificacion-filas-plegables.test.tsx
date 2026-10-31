@@ -100,7 +100,7 @@ describe("FilasDeProcesos plegables", () => {
 
     it("cierra y abre la lista, y cerrada enseña el resumen correcto", () => {
         const tasks = [
-            tarea("A1", { estado: "en_curso", vivo: { tarea: "A1", cola: "mac", donde: "mac", fase: "escribiendo", modelo: "openrouter/glm-4", minutos: 2, quietoSegundos: 0, donde: "nube", medio: "opencode" } }),
+            tarea("A1", { estado: "en_curso", vivo: { tarea: "A1", cola: "mac", donde: "mac", fase: "escribiendo", modelo: "openrouter/glm-4", minutos: 2, quietoSegundos: 0, medio: "opencode" } }),
             tarea("A2", { estado: "pendiente", titulo: "La que espera turno" }),
         ];
         const olaConTasks = {
@@ -152,7 +152,7 @@ describe("FilasDeProcesos plegables", () => {
 
     it("cada agente es su propia sección: abierto con algo vivo, cerrado sin latido", () => {
         const tasks = [
-            tarea("A1", { estado: "en_curso", vivo: { tarea: "A1", cola: "mac", donde: "mac", fase: "escribiendo", modelo: "openrouter/glm-4", minutos: 2, quietoSegundos: 0, donde: "nube", medio: "opencode" } }),
+            tarea("A1", { estado: "en_curso", vivo: { tarea: "A1", cola: "mac", donde: "mac", fase: "escribiendo", modelo: "openrouter/glm-4", minutos: 2, quietoSegundos: 0, medio: "opencode" } }),
             tarea("A2", "commit", { cola: "otras", titulo: "La integrada de la otra cola" }),
         ];
         const olaConTasks = {
