@@ -34,6 +34,7 @@ import { MOTORES_VOZ } from "@/lib/aurora/catalogo-voces";
 import { VozLicencias, type EstadoVoicestudioNeurona } from "@/components/astraura/voz-licencias";
 import { descubrir } from "@/lib/aurora/voz-starseed/voicestudio";
 import { PanelCapas } from "@/components/astraura/capas/panel-capas";
+import { PanelDecisionesLaya } from "@/components/astraura/laya-decisiones-panel";
 
 /* ── Uso por fuente/modelo (tokens, contexto) ─────────────────────────────── */
 
@@ -156,6 +157,11 @@ export function InteligenciaSection({ compact = false }: { compact?: boolean }) 
                 <p className="mt-2 text-[10.5px] text-white/50">
                     Se sincroniza con tu cuenta y se aplica a todos los chats de Astraura IA.
                 </p>
+            </section>
+
+            {/* ── Decisiones de Laya y habilidades de ingeniería (Ola 1018L · N) ── */}
+            <section aria-label="Decisiones de Laya" className="ss-crystal ss-crystal--sutil ss-tone--zenith rounded-xl border border-emerald-400/25 p-3">
+                <PanelDecisionesLaya />
             </section>
 
             {/* Resumen honesto en una línea */}
