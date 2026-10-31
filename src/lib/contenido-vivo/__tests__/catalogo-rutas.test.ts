@@ -82,6 +82,19 @@ describe("catálogo de rutas de contenido vivo", () => {
     ]);
   });
 
+  it("lo medido por el contrato va fechado y lo demás es por-verificar", () => {
+    const fechadas = CATALOGO_RUTAS.filter((ruta) => ruta.verificado !== "por-verificar").map(
+      (ruta) => ruta.id,
+    );
+    expect(fechadas).toEqual([
+      "spline-mcp",
+      "higgsfield-nano-banana-2",
+      "higgsfield-seedance-2-720",
+      "higgsfield-seedance-2-1080",
+    ]);
+    expect(fechadas.some((id) => id.startsWith("google-flow"))).toBe(false);
+  });
+
   it("recoge los créditos y cupos medidos del contrato", () => {
     const buscar = (id: string) => CATALOGO_RUTAS.find((ruta) => ruta.id === id);
     expect(buscar("higgsfield-nano-banana-2")?.creditosPorUnidad).toBe(2);
