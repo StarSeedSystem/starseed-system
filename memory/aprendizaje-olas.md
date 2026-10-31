@@ -4662,3 +4662,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-31 13:30 · mg-oracle-1031-0701
+
+**Lo que se pidió.** agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — no escribió nada (MBT1027C2b, RTVGM1016Cc, RTRTRTCOL1012Bdsbbbbbbbbbbbbbbb-d1b, RTHFR1018Lc, RTCLB1027Cb-d1b-d2c, AGT1025B-d2d). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `MBT1027C2b` — no escribió nada
+- `RTVGM1016Cc` — no escribió nada
+- `RTRTRTCOL1012Bdsbbbbbbbbbbbbbbb-d1b` — no escribió nada
+- `RTHFR1018Lc` — no escribió nada
+- `RTCLB1027Cb-d1b-d2c` — no escribió nada
+- `AGT1025B-d2d` — no escribió nada
