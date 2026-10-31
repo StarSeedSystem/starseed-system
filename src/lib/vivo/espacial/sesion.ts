@@ -54,6 +54,9 @@ import {
     type Pose,
 } from "./avatares";
 import { crearTienda, igualSuperficial, type Tienda } from "./tienda";
+import { crearCacheAdn, mensajeDeLote, type CacheAdn } from "@/lib/avatares/adaptadores/sincronia-adn";
+import { crearColaEnvio, encolar, intervaloEnvioMs, lote, type CambioAvatar } from "@/lib/avatares/adn/cambios";
+import { esRefInterna, type AdnAvatar } from "@/lib/avatares/adn/adn";
 import type { ConexionEscena, EventoEscena, FilaCambiada } from "./canal";
 import { MENSAJES_ERROR, type ErrorEscena, type FilaEscena, type ResultadoGuardado } from "./persistencia";
 
@@ -81,6 +84,10 @@ export interface EstadoAvatares {
     otros: MetaAvatar[];
 }
 
+/** ADN conocidos de la sesión, por su referencia («biblioteca:…»/«genesis:…»). */
+export type AdnsAvatares = Record<string, AdnAvatar>;
+export const ADNS_INICIAL: AdnsAvatares = {};
+
 export interface AlmacenEscena {
     leer(id: string): Promise<{ fila: FilaEscena; error?: undefined } | { fila?: undefined; error: ErrorEscena }>;
     guardar(id: string, rev: number, doc: DocEscena): Promise<ResultadoGuardado>;
@@ -99,6 +106,9 @@ export interface DependenciasSesion extends Partial<Temporizadores> {
     almacen: AlmacenEscena;
     abrirCanal: (tema: string, clave: string, filaId: string | null) => ConexionEscena | null;
     aleatorio?: () => number;
+    /** Lee el ADN de un presente UNA vez por (ref, rev) — Biblioteca local u otra fuente real.
+     *  Sin ella, los avatares anunciados se quedan en su orbe. Devuelve crudo; decide `cacheAdn`. */
+    leerAdn?: (ref: string, rev: number) => Promise<unknown>;
 }
 
 export interface IdentidadEscena {
@@ -125,6 +135,8 @@ export interface VistaPreviaArrastre {
 export interface SesionEscena {
     readonly tienda: Tienda<EstadoSesionEscena>;
     readonly avatares: Tienda<EstadoAvatares>;
+    /** ADN de quien está dentro, por referencia (una lectura por (ref, rev) y por sesión). */
+    readonly adns: Tienda<AdnsAvatares>;
     /** Poses recibidas (se leen en cada fotograma, fuera de React). */
     readonly poses: Map<string, { pose: Pose; recibida: number }>;
     /** Vista previa de objetos que otra persona está arrastrando ahora mismo. */
@@ -139,6 +151,12 @@ export interface SesionEscena {
     /** Llamar en cada fotograma con la pose de la cámara. */
     emitirPose(pose: Pose): void;
     cambiarModo(modo: ModoAvatar): void;
+    /** Anuncia mi ADN (ref + revisión): quien entre lo leerá una vez y verá mi avatar. */
+    fijarMiAdn(ref: string, rev: number): boolean;
+    /** Edición en vivo de MI ADN: los cambios salen por el canal como evento «adn» (lotes de
+     *  `lote()` a ≤ 10 Hz, solo con alguien dentro). El editor sube la revisión de su ADN con
+     *  `aplicarCambio` y llama a `fijarMiAdn` con la revisión nueva antes de emitir. */
+    emitirCambiosAdn(cambios: readonly CambioAvatar[]): boolean;
     /** Pestaña visible/oculta (pausa las poses y guarda lo pendiente al ocultarse). */
     visibilidad(visible: boolean): void;
     /** Guarda ya lo pendiente. */
@@ -226,8 +244,51 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
         desde: ahora(),
     };
     const avatares = crearTienda<EstadoAvatares>({ yo, otros: [] });
+    const adns = crearTienda<AdnsAvatares>(ADNS_INICIAL, igualSuperficial);
     const poses = new Map<string, { pose: Pose; recibida: number }>();
     const arrastres = new Map<string, VistaPreviaArrastre>();
+
+    // ── ADN de los presentes (AV1011E) ──
+    // Los presentes leen el ADN anunciado UNA vez por (ref, rev); después la edición en vivo
+    // viaja como evento «adn» y la revisión manda (gana la más alta, nunca un sondeo).
+    const cacheAdn: CacheAdn = crearCacheAdn();
+    let miAdnRef: string | null = null;
+    let miAdnRev: number | null = null;
+    let timbreAdn: unknown = null;
+    const leyendoAdn = new Set<string>();
+    const colaAdn = crearColaEnvio();
+
+    const fijarAdn = (ref: string, adn: AdnAvatar | null) => {
+        if (!adn || adns.obtener()[ref] === adn) return;
+        adns.fijar({ ...adns.obtener(), [ref]: adn });
+    };
+
+    const leerAdnDe = (ref: string, rev: number) => {
+        if (!deps.leerAdn || leyendoAdn.has(ref)) return;
+        leyendoAdn.add(ref);
+        void deps
+            .leerAdn(ref, rev)
+            .then((crudo) => {
+                if (cerrada) return;
+                fijarAdn(ref, cacheAdn.guardar(ref, crudo));
+            })
+            .catch(() => undefined) // sin ADN esa vez: queda su orbe, sin reintentos (no sondeo)
+            .finally(() => leyendoAdn.delete(ref));
+    };
+
+    // ── Emisor del evento «adn»: lotes de `lote()` a la velocidad de las poses (§3) ──
+    const sonarAdn = () => {
+        timbreAdn = null;
+        if (cerrada) return;
+        const lista = lote(colaAdn, ahora(), otros);
+        if (lista && miAdnRef && miAdnRev !== null) {
+            const m = mensajeDeLote(miAdnRef, miAdnRev, lista);
+            if (m) enviar("adn", m as unknown as Record<string, unknown>);
+        }
+        if (colaAdn.pendientes.size === 0) return;
+        const espera = Math.max(1, intervaloEnvioMs(otros) - (ahora() - colaAdn.ultimoEnvio));
+        timbreAdn = programar(sonarAdn, espera);
+    };
 
     const fijar = (patch: Partial<EstadoSesionEscena>) => tienda.fijar({ ...tienda.obtener(), ...patch });
 
@@ -269,9 +330,27 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
 
     const publicarYo = () => {
         const actual = avatares.obtener();
-        const nuevoYo: MetaAvatar = { ...yo, modo, editor: puedeEditar };
-        if (!actual.yo || actual.yo.modo !== modo || actual.yo.editor !== puedeEditar) avatares.fijar({ ...actual, yo: nuevoYo });
-        canal?.publicarPresencia({ uid: yo.uid, nombre: yo.nombre, color: yo.color, modo, editor: puedeEditar, desde: yo.desde });
+        const nuevoYo: MetaAvatar = {
+            ...yo,
+            modo,
+            editor: puedeEditar,
+            ...(miAdnRef && miAdnRev !== null ? { adnRef: miAdnRef, adnRev: miAdnRev } : {}),
+        };
+        const igualYo = !actual.yo
+            || actual.yo.modo !== modo
+            || actual.yo.editor !== puedeEditar
+            || actual.yo.adnRef !== nuevoYo.adnRef
+            || actual.yo.adnRev !== nuevoYo.adnRev;
+        if (igualYo) avatares.fijar({ ...actual, yo: nuevoYo });
+        canal?.publicarPresencia({
+            uid: yo.uid,
+            nombre: yo.nombre,
+            color: yo.color,
+            modo,
+            editor: puedeEditar,
+            desde: yo.desde,
+            ...(miAdnRef && miAdnRev !== null ? { adnRef: miAdnRef, adnRev: miAdnRev } : {}),
+        });
     };
 
     // ── Guardado (solo escenas guardadas) ──
@@ -478,6 +557,14 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
                 programarCaducidad();
                 return;
             }
+            case "adn": {
+                // Solo pasa si es de alguien con ADN ya leído y con revisión más nueva:
+                // la sanea y la aplica `cacheAdn` (con `sanearCambio` dentro).
+                const adn = cacheAdn.aplicar(p);
+                const ref = typeof p.ref === "string" ? p.ref : "";
+                if (adn && esRefInterna(ref)) fijarAdn(ref, adn);
+                return;
+            }
             case "pedir-estado": {
                 if (persistente) return; // la escena guardada se lee de la base
                 const rid = typeof p.rid === "string" ? p.rid.slice(0, 40) : "";
@@ -516,6 +603,12 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
         for (const k of Array.from(poses.keys())) if (!claves.has(k)) poses.delete(k);
         otros = lista.length;
         emisor.fijarOtros(otros);
+        // ¿Hay un ADN anunciado que no tengamos? Se lee UNA vez por (ref, rev): ni sondeo ni repeticiones.
+        for (const a of lista) {
+            if (!a.adnRef || typeof a.adnRev !== "number") continue;
+            if (!cacheAdn.para(a.adnRef, a.adnRev).pedir) continue;
+            leerAdnDe(a.adnRef, a.adnRev);
+        }
     };
 
     const alFila = (f: FilaCambiada) => {
@@ -592,6 +685,7 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
     const sesion: SesionEscena = {
         tienda,
         avatares,
+        adns,
         poses,
         arrastres,
         anadir(tipo, opciones = {}) {
@@ -670,6 +764,22 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
             modo = m;
             publicarYo();
         },
+        fijarMiAdn(ref, rev) {
+            if (cerrada || !esRefInterna(ref) || !Number.isInteger(rev) || rev < 0) return false;
+            if (miAdnRef === ref && miAdnRev !== null && rev <= miAdnRev) return false;
+            miAdnRef = ref;
+            miAdnRev = rev;
+            // Nosotros mismos: el ADN propio entra por la misma caché que el de los demás.
+            if (cacheAdn.para(ref, rev).adn === null) leerAdnDe(ref, rev);
+            publicarYo();
+            return true;
+        },
+        emitirCambiosAdn(cambios) {
+            if (cerrada || !miAdnRef || miAdnRev === null || cambios.length === 0) return false;
+            for (const c of cambios) encolar(colaAdn, c);
+            if (otros > 0 && timbreAdn === null) sonarAdn();
+            return true;
+        },
         visibilidad(v) {
             if (v === visible) return;
             visible = v;
@@ -712,6 +822,7 @@ export function abrirSesionEscena(o: OpcionesSesion): SesionEscena {
             estranguladorArrastre.cancelar();
             if (timerGuardado !== null) cancelar(timerGuardado);
             if (timerCaducidad !== null) cancelar(timerCaducidad);
+            if (timbreAdn !== null) cancelar(timbreAdn);
             for (const id of respuestasPendientes.values()) cancelar(id);
             respuestasPendientes.clear();
             for (const d of desuscribir) d();

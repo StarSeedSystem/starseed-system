@@ -10,8 +10,10 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
     abrirSesionEscena,
+    ADNS_INICIAL,
     AVATARES_INICIAL,
     ESTADO_SESION_INICIAL,
+    type AdnsAvatares,
     type EstadoAvatares,
     type EstadoSesionEscena,
     type FuenteEscena,
@@ -59,10 +61,20 @@ function alcanzabilidadDeEscena(): Alcanzabilidad {
 
 const nada = () => () => {};
 
+/**
+ * La lectura real del ADN anunciado (Biblioteca local de avatares, `almacen-adn`): una por
+ * (ref, rev) la pide la sesión; aquí no hay sondeo ni repetición.
+ */
+async function leerAdnReal(ref: string, rev: number): Promise<unknown> {
+    const { loadAdnEntry, parseAdnEntry } = await import("@/lib/avatares/adaptadores/almacen-adn");
+    const entrada = await loadAdnEntry(ref, rev);
+    return entrada ? parseAdnEntry(entrada) : null;
+}
+
 export function useSesionEscena(
     fuente: FuenteEscena | null,
     modoInicial: ModoAvatar = "3d",
-): { sesion: SesionEscena | null; estado: EstadoSesionEscena; avatares: EstadoAvatares } {
+): { sesion: SesionEscena | null; estado: EstadoSesionEscena; avatares: EstadoAvatares; adns: AdnsAvatares } {
     const [sesion, setSesion] = useState<SesionEscena | null>(null);
     const clave = claveDe(fuente);
 
@@ -98,6 +110,7 @@ export function useSesionEscena(
                             abrirCanal: (t, k, f) => depsBase.abrirCanal?.(t, k, f) ?? null,
                         }),
                     ),
+                leerAdn: leerAdnReal,
             };
             abierta = abrirSesionEscena({ fuente, identidad, modo: modoInicial, deps: depsConGuardia });
             setSesion(abierta);
@@ -129,8 +142,11 @@ export function useSesionEscena(
     const leerEstado = useCallback(() => (sesion ? sesion.tienda.obtener() : ESTADO_SESION_INICIAL), [sesion]);
     const suscribirAvatares = useCallback((cb: () => void) => (sesion ? sesion.avatares.suscribir(cb) : nada()), [sesion]);
     const leerAvatares = useCallback(() => (sesion ? sesion.avatares.obtener() : AVATARES_INICIAL), [sesion]);
+    const suscribirAdns = useCallback((cb: () => void) => (sesion ? sesion.adns.suscribir(cb) : nada()), [sesion]);
+    const leerAdns = useCallback(() => (sesion ? sesion.adns.obtener() : ADNS_INICIAL), [sesion]);
 
     const estado = useSyncExternalStore(suscribirEstado, leerEstado, leerEstado);
     const avatares = useSyncExternalStore(suscribirAvatares, leerAvatares, leerAvatares);
-    return { sesion, estado, avatares };
+    const adns = useSyncExternalStore(suscribirAdns, leerAdns, leerAdns);
+    return { sesion, estado, avatares, adns };
 }

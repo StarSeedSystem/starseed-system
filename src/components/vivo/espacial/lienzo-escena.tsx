@@ -15,7 +15,7 @@ import { Grid, OrbitControls, Sky, Stars, TransformControls } from "@react-three
 import * as THREE from "three";
 import { objetosVivos, PRESETS_CIELO, type DocEscena, type Vec3 } from "@/lib/vivo/espacial/modelo";
 import type { MetaAvatar } from "@/lib/vivo/espacial/avatares";
-import type { SesionEscena } from "@/lib/vivo/espacial/sesion";
+import { ADNS_INICIAL, type AdnsAvatares, type SesionEscena } from "@/lib/vivo/espacial/sesion";
 import { Objeto3D } from "./objeto-3d";
 import { AvatarRemotoXR, nivelDeEscena, rangoCercania } from "./avatar-remoto-xr";
 import { AgarreXR, transformacionDe, type TransformacionXR } from "./agarre-xr";
@@ -152,8 +152,15 @@ function Contenido(p: PropsLienzoEscena & { xrModo: "immersive-vr" | "immersive-
     const vivos = useMemo(() => objetosVivos(doc), [doc]);
     const enXR = xrModo !== null;
     // Avatares por nivel (contrato §3 d y h): la forma la decide `elegirAvatar` y el rango por
-    // cercanía reparte el cupo de VRM (el más cercano gana). La preferencia de VRM aún no existe.
+    // cercanía reparte el cupo de VRM (el más cercano gana). El ADN de quien está dentro llega
+    // por el evento «adn» / la lectura única del presente (sesion.adns).
     const nivel = useMemo(() => nivelDeEscena(eco), [eco]);
+    const [adns, setAdns] = useState<AdnsAvatares>(ADNS_INICIAL);
+    useEffect(() => {
+        const t = sesion.adns;
+        setAdns(t.obtener());
+        return t.suscribir(() => setAdns(t.obtener()));
+    }, [sesion]);
     const rangos = useMemo(
         () => rangoCercania(p.camaraRef.current, otros, (a) => sesion.poses.get(a.clave)?.pose.p ?? null),
         [otros, p.camaraRef, sesion.poses],
@@ -223,6 +230,7 @@ function Contenido(p: PropsLienzoEscena & { xrModo: "immersive-vr" | "immersive-
                         nivel={nivel}
                         jugadoresVisibles={rangos.get(a.clave) ?? 0}
                         reducido={reducido}
+                        adn={a.adnRef ? adns[a.adnRef] ?? null : null}
                     />
                 ))}
 </group>
