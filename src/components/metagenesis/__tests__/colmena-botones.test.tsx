@@ -121,6 +121,37 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         expect(android.instalar.explica).toBe("En Android, dentro de Termux (experimental, 1 agente).");
     });
 
+    it("sin trabajador: «Instalar el trabajador» en macOS y Windows (WSL2), oculto en iOS y «otro»", () => {
+        const mac = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        expect(mac.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "Un comando en la terminal de este aparato.",
+        });
+        const windows = botonesNeurona({ nodo: null, vivo: true, so: "windows", enCurso: 0 });
+        expect(windows.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "En Windows se instala dentro de WSL2.",
+        });
+        for (const so of ["ios", "otro"] as const) {
+            expect(botonesNeurona({ nodo: null, vivo: true, so, enCurso: 0 }).instalar).toEqual({
+                visible: false,
+                habilitado: false,
+                etiqueta: "",
+                explica: "",
+            });
+        }
+    });
+
+    it("sin nodo (solo navegador): los botones de desconectar y contenedor no se ofrecen", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        expect(b.desconectar).toEqual({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+        expect(b.contenedor).toEqual({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+    });
+
     it("con trabajo en curso y contenedor activo, ambos botones requieren confirmación", () => {
         const b = botonesNeurona({ 
             nodo: "mac-a1b2c3", 
