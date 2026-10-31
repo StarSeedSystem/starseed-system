@@ -49,6 +49,17 @@ describe("MenuTexto", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
+  it("registrar dos veces con el mismo id deja una sola entrada (idempotente por id)", () => {
+    registrar({ id: "traducir", etiqueta: "Traducir selección", ejecutar: () => {} });
+    registrar({ id: "traducir", etiqueta: "Traducir selección", ejecutar: () => {} });
+    render(<MenuTexto />);
+    fireEvent.contextMenu(destino());
+    const items = screen.getAllByRole("menuitem", { name: "Traducir selección" });
+    expect(items).toHaveLength(1);
+    fireEvent.click(items[0]);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
   it("no abre en campos editables, con Mayúsculas ni si el navegador ya atendió", () => {
     registrar({ id: "traducir", etiqueta: "Traducir selección", ejecutar: () => {} });
     render(<MenuTexto />);
