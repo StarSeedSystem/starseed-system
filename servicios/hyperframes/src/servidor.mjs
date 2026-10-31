@@ -15,8 +15,8 @@ export const HOST = "127.0.0.1";
 export const PUERTO = Number(process.env.STARSEED_HYPERFRAMES_PUERTO || 4490);
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 export const SERVICIO = path.resolve(AQUI, "..");
-export const RUTA_ENTORNO = process.env.STARSEED_HYPERFRAMES_ENTORNO || path.join(SERVICIO, "entorno");
-export const RUTA_VERSION = path.join(SERVICIO, "package.json");
+const RUTA_ENTORNO = process.env.STARSEED_HYPERFRAMES_ENTORNO || path.join(SERVICIO, "entorno");
+const RUTA_VERSION = path.join(SERVICIO, "package.json");
 const TELEMETRIA = "1";
 process.env.HYPERFRAMES_NO_TELEMETRY = TELEMETRIA;
 const FORMATOS = new Set(["mp4", "webm", "mov", "gif", "png-sequence", "hls"]);
@@ -35,14 +35,14 @@ export function leerEntorno(texto) {
 }
 
 /** Entorno del hijo: el del servicio, lo del archivo `entorno` y la telemetría apagada. */
-export function entornoHijo(base, texto) {
+function entornoHijo(base, texto) {
   const env = { ...base, ...leerEntorno(texto), HYPERFRAMES_NO_TELEMETRY: TELEMETRIA };
   if (env.HYPERFRAMES_BROWSER_PATH) env.PRODUCER_HEADLESS_SHELL_PATH ||= env.HYPERFRAMES_BROWSER_PATH;
   return env;
 }
 
 /** `ejecutar` de la cola: `npx hyperframes render <proyecto> …`, sin shell. */
-export function crearEjecutor({ raiz, entorno }) {
+function crearEjecutor({ raiz, entorno }) {
   return (trabajo, { senal, alProgreso } = {}) => new Promise((resolver) => {
     const hijo = spawn("npx", ["hyperframes", "render", trabajo.proyecto, ...trabajo.args], {
       cwd: raiz, shell: false, env: { ...entorno, ...trabajo.env }, stdio: ["ignore", "pipe", "pipe"],
@@ -57,7 +57,7 @@ export function crearEjecutor({ raiz, entorno }) {
 }
 
 /** Cola de render con su adaptador HTTP: composición → proyecto temporal → trabajo. */
-export function crearColaDeRender({ ejecutar, reloj, raizTrabajos }) {
+function crearColaDeRender({ ejecutar, reloj, raizTrabajos }) {
   const cola = crearCola({ ejecutar, reloj, maxSimultaneos: 1, maxSegundos: 900 });
   return {
     encolar({ composicion, formato = "mp4" }) {
@@ -76,7 +76,7 @@ export function crearColaDeRender({ ejecutar, reloj, raizTrabajos }) {
 }
 
 /** Dependencias que espera `manejar()` en rutas.mjs. */
-export function crearDependencias({ entorno = process.env, raiz = SERVICIO } = {}) {
+function crearDependencias({ entorno = process.env, raiz = SERVICIO } = {}) {
   let archivo = "";
   try { archivo = fs.readFileSync(RUTA_ENTORNO, "utf8"); } catch { /* sin archivo entorno */ }
   const env = entornoHijo(entorno, archivo);
@@ -90,7 +90,7 @@ export function crearDependencias({ entorno = process.env, raiz = SERVICIO } = {
 }
 
 /** Manejador HTTP: cuerpo JSON acotado → `manejar()` → respuesta JSON. */
-export function crearManejador(deps) {
+function crearManejador(deps) {
   return async (req, res) => {
     const trozos = [];
     let total = 0;
@@ -112,7 +112,7 @@ export function arrancar({ puerto = PUERTO, host = HOST, deps = crearDependencia
 
 const esPrincipal = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (esPrincipal && process.env.NODE_ENV !== "test") {
-  const servidor = arrancar();
+  const servidor = arrancar({ deps: crearDependencias() });
   const apagar = () => servidor.close(() => process.exit(0));
   process.on("SIGTERM", apagar);
   process.on("SIGINT", apagar);
