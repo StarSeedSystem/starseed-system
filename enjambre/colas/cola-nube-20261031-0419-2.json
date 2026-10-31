@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "INV1025G",
+   "ola": "Ola 1025R · Investigación y alcance (Agent-Reach, ScrapeGraphAI, OpenRefine, Inbox Zero)",
+   "titulo": "OpenRefine: registro, ejecución y herramienta «limpiar_datos» de Aurora",
+   "archivos": [
+    "src/lib/integrations/registry.ts",
+    "src/lib/integrations/run.ts",
+    "src/lib/integrations/aurora-tools.ts"
+   ],
+   "depende": [],
+   "prompt": "Depende de INV1025F (cliente y recetas) y de INV1025E (mismos archivos tocados antes). (1) `registry.ts`: entrada `openrefine` (category `data-ingest`, defaultEndpoint `http://127.0.0.1:3333`, needsKey false, docsUrl `https://openrefine.org/docs`, freeHostingHint: corre en tu equipo con Java; en el A1 solo detrás de la malla o un túnel con clave, porque no tiene autenticación; acciones `ping` y `limpiar`). (2) `run.ts`: `case \"openrefine\"` para `limpiar` y para la salud. (3) `aurora-tools.ts`: herramienta `limpiar_datos` (`openrefine` / `limpiar`) con entrada `{ csv, receta }`, descripción en español y el aviso «solo datos públicos si la receta reconcilia». Sin `category`. Ejecuta las pruebas de integraciones y herramientas de Aurora y arregla lo que rompa.\n\nContrato: architecture/repos-libreria-1025.md (grupo investigación: reglas duras R1–R10 y el diseño del agente de alcance). Reglas de la casa: español con acentos en comentarios y textos; nada de `any`; módulos puros con red, disco y reloj inyectables; claves solo en variables de entorno; nada de `node:*` en código de cliente; ≤ 3 archivos y ≤ 120 líneas por archivo; pruebas reales (si una prueba vieja falla, se arregla el código, no la prueba). Antes de empezar comprueba si lo pedido ya está hecho; si ya está, NO APLICA.",
+   "dependencias_ya_en_main": [
+    "INV1025F-d3",
+    "INV1025E"
+   ]
+  }
+ ]
+}
