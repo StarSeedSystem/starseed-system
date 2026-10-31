@@ -148,7 +148,9 @@ describe("Pasarela ArtCraft en servidor", () => {
     it("figcraft y deckcraft llevan las raíces de automación; gridcraft no", async () => {
         const dir = (await directorioTrabajo("figcraft", "prueba-artcraft"))!;
         await llamarArtcraft(llamada());
-        expect(hijos[0].escrito.find((l) => l.includes("initialize"))).toBeTruthy();
+        const handshake = hijos[0].escrito.find((l) => l.includes("initialize"));
+        expect(handshake).toBeTruthy();
+        expect(JSON.parse(handshake!)).toMatchObject({ method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "starseed-os" } } });
         expect(hijos[0].args).toContain("mcp");
         expect(raicesDe(hijos[0].args)).toHaveLength(3);
         expect(hijos[0].args).toEqual(expect.arrayContaining(["--automation-read-root", dir.lectura, "--automation-write-root", dir.escritura]));
@@ -198,10 +200,11 @@ describe("Pasarela ArtCraft en servidor", () => {
         expect(hijos).toHaveLength(0);
     });
 
-    it("una línea enorme del stdio se corta y la llamada sigue", async () => {
+    it("una línea enorme corta el cliente, no despacha más y la llamada falla", async () => {
         modo = "enorme";
         const r = await llamarArtcraft(llamada({ parametros: { nota: "cualquiera" } }));
-        expect(r.ok).toBe(true);
+        expect(r).toMatchObject({ ok: false, status: 500 });
+        expect(r.motivo).toContain("32 MiB");
         expect(hijos[0].muerto).toBe(true);
     });
 

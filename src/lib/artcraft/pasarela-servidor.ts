@@ -16,6 +16,7 @@ import { promises as fs, constants as fsc } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { ClienteMcpStdio, ErrorMcp, type RelojMcp, type TransporteMcp } from "./mcp-stdio";
 import { evaluarLlamada } from "./politica";
 import type { AppArtcraft } from "./politica-tablas";
 import type { Ambito, Origen, Rol } from "@/lib/protomolecula/tipos";
@@ -25,7 +26,7 @@ export const TIEMPO_LLAMADA_MS = 120_000;
 /** Como mucho estas llamadas a ArtCraft a la vez en esta neurona (más → 429). */
 export const MAX_EN_CURSO = 2;
 /** Una línea del stdio de más de 32 MiB se corta (FigCraft limita cada línea a 32 MiB). */
-export const LIMITE_LINEA = 32 * 1024 * 1024;
+export { LIMITE_LINEA } from "./mcp-stdio";
 /** Contexto de trabajo: carpeta de ESTA neurona para la sesión (sin «..», sin espacios). */
 export const CONTEXTO_VALIDO = /^[a-z0-9-]{1,40}$/;
 
@@ -71,7 +72,6 @@ export interface HijoMcp {
     terminar(): void;
 }
 export type Lanzador = (bin: string, args: string[], opciones: { cwd: string; env: Record<string, string> }) => HijoMcp;
-type Pendiente = { resolver: (v: unknown) => void; fallar: (e: Error) => void; temporizador: ReturnType<typeof setTimeout> };
 type Ejecutor = (bin: string, args: string[], timeout: number) => Promise<{ stdout: string; stderr: string; code: number }>;
 type Registrar = (linea: string) => void;
 
@@ -178,77 +178,40 @@ function envMinimo(hogar: string): Record<string, string> {
     };
 }
 
-/** Cliente MCP por stdio: JSON-RPC 2.0, una línea por mensaje; el transporte se inyecta. */
-export class ClienteMcpStdio {
-    private fuera = new Map<number, Pendiente>();
-    private resto = "";
-    private siguienteId = 1;
+/** Adapta el hijo MCP al transporte puro `{ escribir, alRecibir, cerrar }`. Solo servidor. */
+function transporteDeHijo(hijo: HijoMcp): { transporte: TransporteMcp; alCerrarProceso: (cb: () => void) => void } {
+    const receptores: ((texto: string) => void)[] = [];
+    const cierres: (() => void)[] = [];
+    let cerrado = false;
+    hijo.aLaSalida((t) => {
+        if (!cerrado) for (const cb of receptores) cb(t);
+    });
+    hijo.alFinal(() => {
+        if (cerrado) return;
+        cerrado = true;
+        for (const cb of cierres) cb();
+    });
+    return {
+        transporte: {
+            escribir: (linea) => hijo.escribir(linea),
+            alRecibir: (cb) => {
+                receptores.push(cb);
+            },
+            cerrar: () => {
+                if (cerrado) return;
+                cerrado = true;
+                hijo.terminar();
+            },
+        },
+        alCerrarProceso: (cb) => {
+            cierres.push(cb);
+        },
+    };
+}
 
-    constructor(private readonly hijo: HijoMcp, private readonly tope: number) {
-        hijo.aLaSalida((t) => this.llego(t));
-        hijo.alFinal(() => this.quedar(new Error("El proceso MCP terminó antes de contestar.")));
-    }
-
-    private llego(t: string): void {
-        this.resto += t;
-        for (let i = this.resto.indexOf("\n"); i >= 0; i = this.resto.indexOf("\n")) {
-            const linea = this.resto.slice(0, i);
-            this.resto = this.resto.slice(i + 1);
-            if (linea.length <= LIMITE_LINEA) this.leerLinea(linea);
-        }
-        if (this.resto.length > LIMITE_LINEA) this.resto = "";
-    }
-
-    private leerLinea(linea: string): void {
-        let msg: { id?: unknown; result?: unknown; error?: unknown } | null = null;
-        try {
-            msg = JSON.parse(linea) as { id?: unknown; result?: unknown; error?: unknown };
-        } catch {
-            return;
-        }
-        const id = typeof msg.id === "number" ? msg.id : null;
-        if (id === null) return;
-        const p = this.fuera.get(id);
-        if (!p) return;
-        this.fuera.delete(id);
-        clearTimeout(p.temporizador);
-        if (msg.error) p.fallar(new Error(String(JSON.stringify(msg.error)).slice(0, 300)));
-        else p.resolver(msg.result);
-    }
-
-    private enviar(method: string, params: Record<string, unknown>): Promise<unknown> {
-        const id = this.siguienteId++;
-        return new Promise((resolver, fallar) => {
-            const temporizador = setTimeout(() => this.quedar(new Error("Tiempo agotado esperando al MCP.")), this.tope);
-            this.fuera.set(id, { resolver, fallar, temporizador });
-            try {
-                this.hijo.escribir(JSON.stringify({ jsonrpc: "2.0", id, method, params }));
-            } catch {
-                clearTimeout(temporizador);
-                this.fuera.delete(id);
-                fallar(new Error("No se pudo escribir al proceso MCP."));
-            }
-        });
-    }
-
-    private quedar(e: Error): void {
-        for (const [, p] of [...this.fuera]) {
-            clearTimeout(p.temporizador);
-            p.fallar(e);
-        }
-        this.fuera.clear();
-    }
-
-    /** `initialize` y después la notificación `initialized` del protocolo MCP. */
-    async iniciar(): Promise<void> {
-        await this.enviar("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "starseed-artcraft", version: "1" } });
-        this.hijo.escribir(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }));
-    }
-
-    /** UNA llamada a una herramienta MCP dentro del tope de tiempo del constructor. */
-    llamar(herramienta: string, parametros: Record<string, unknown>): Promise<unknown> {
-        return this.enviar("tools/call", { name: herramienta, arguments: parametros });
-    }
+/** Reloj real, pero ningún plazo supera el tope de la llamada (también el handshake). */
+function relojAcotado(tope: number): RelojMcp {
+    return { tras: (ms, cb) => { const t = setTimeout(cb, Math.min(ms, tope)); return () => clearTimeout(t); } };
 }
 
 let enCurso = 0;
@@ -306,21 +269,28 @@ export async function llamarArtcraft(e: LlamadaPasarela): Promise<ResultadoArtcr
             ...(e.app === "gridcraft" ? [] : ["--automation-read-root", dir.lectura, "--automation-read-root", dir.escritura, "--automation-write-root", dir.escritura]),
         ];
         hijo = lanzador(cli[0], cli.slice(1), { cwd: dir.raiz, env: envMinimo(dir.raiz) });
-        const cliente = new ClienteMcpStdio(hijo, topeLlamada);
+        const { transporte, alCerrarProceso } = transporteDeHijo(hijo);
+        const cliente = new ClienteMcpStdio(transporte, relojAcotado(topeLlamada));
+        alCerrarProceso(() => cliente.cerrar());
         await cliente.iniciar();
-        const resultado = await cliente.llamar(e.herramienta, e.parametros);
+        const resultado = await cliente.llamar(e.herramienta, e.parametros, topeLlamada);
         hijo.terminar();
         anotar(e, "hecho");
         return { ok: true, resultado, ms: Date.now() - t0, sinRed };
     } catch (err) {
         hijo?.terminar();
         const mensaje = err instanceof Error ? err.message : "Error en la llamada al MCP de ArtCraft.";
-        const tarde = mensaje.startsWith("Tiempo agotado");
+        const tarde = err instanceof ErrorMcp && err.tipo === "tiempo";
+        const enorme = err instanceof ErrorMcp && err.tipo === "enorme";
         anotar(e, tarde ? "tiempo-agotado" : "error");
         return {
             ok: false,
             status: tarde ? 504 : 500,
-            motivo: tarde ? "La herramienta tardó demasiado (más de 120 s)." : mensaje.slice(0, 200),
+            motivo: tarde
+                ? "La herramienta tardó demasiado (más de 120 s)."
+                : enorme
+                    ? "El MCP devolvió una línea mayor de 32 MiB."
+                    : mensaje.slice(0, 200),
             ms: Date.now() - t0,
             sinRed,
         };
