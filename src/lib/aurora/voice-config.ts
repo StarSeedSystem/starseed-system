@@ -9,10 +9,16 @@
  * El router preguntaba ahí si el motor era VibeVoice y por eso casi nunca
  * preparaba el guion multi-locutor (todo sonaba como Speaker 0).
  *
- * Esta capa resuelve el motor EFECTIVO con la misma precedencia que el resto
- * del OS (Adenda 153) y que la cadena de voz:
+ * Esta capa resuelve el motor EFECTIVO con el MISMO orden que la cadena que
+ * suena de verdad (`refreshPersonalityVoicePin`, Adenda 149):
  *
- *   agente > personalidad > cerebro > neurona > cuenta > cadena AUTO
+ *   agente > neurona > personalidad > cerebro > cuenta > cadena AUTO
+ *
+ * (SGO1031A) Manda lo que suena: el override neurona×personalidad describe el
+ * hardware de ESTE dispositivo y la cadena real lo pone por delante del pin de
+ * la personalidad. Aquí mandaba la personalidad (orden genérico de la Adenda
+ * 153) y, con personalidad=omnivoice y neurona=vibevoice, sonaba VibeVoice sin
+ * que el router preparase su guion multi-locutor.
  *
  * Es PURA (entrada → salida): no toca red ni disco y nunca lanza. El llamador
  * le pasa las elecciones que ya conoce; si ningún ámbito fija motor, devuelve
@@ -26,12 +32,12 @@ import {
 } from "@/lib/aurora/tts-oss/voice-config";
 import type { VoiceChainLink } from "@/lib/aurora/tts-oss/engine-registry";
 
-/** Ámbito que puede fijar el motor de voz (de más específico a más general). */
+/** Ámbito que puede fijar el motor de voz (en orden de precedencia). */
 export type VoiceHierarchyScope =
   | "agente"
+  | "neurona"
   | "personalidad"
   | "cerebro"
-  | "neurona"
   | "cuenta";
 
 /** Elección de motor de un ámbito. `motor` ausente = hereda del siguiente. */
@@ -98,7 +104,12 @@ function deMapa(
   return motor ? { motor, provenance, scopeId: id } : null;
 }
 
-/** Precedencia sobre un store ya completo: agente > personalidad > cerebro > neurona > cuenta. */
+/**
+ * Precedencia sobre un store ya completo: agente > neurona > personalidad >
+ * cerebro > cuenta. La neurona va delante de la personalidad como en
+ * `refreshPersonalityVoicePin` (paso 0); agente y cerebro no existen en la
+ * cadena real y conservan su sitio relativo.
+ */
 function elegirDeStore(
   store: VoiceHierarchyStore,
   ctx: VoiceHierarchyContext,
@@ -106,16 +117,16 @@ function elegirDeStore(
   const cuenta = motorDe(store.cuenta?.motor);
   return (
     deMapa(store.agente, ctx.agentId, "agente") ??
+    deMapa(store.neurona, ctx.deviceId, "neurona") ??
     deMapa(store.personalidad, ctx.personaId, "personalidad") ??
     deMapa(store.cerebro, ctx.brainId, "cerebro") ??
-    deMapa(store.neurona, ctx.deviceId, "neurona") ??
     (cuenta ? { motor: cuenta, provenance: "cuenta" } : null)
   );
 }
 
 /**
  * Motor fijado por la JERARQUÍA, o `null` si ningún ámbito elige (⇒ AUTO).
- * Precedencia: agente > personalidad > cerebro > neurona > cuenta.
+ * Precedencia: agente > neurona > personalidad > cerebro > cuenta.
  *
  * Pasa SIEMPRE por `resolveVoiceChoice` (y este por `voiceHierarchyStoreFrom`):
  * es el único camino que completa el store, así que no queda una segunda

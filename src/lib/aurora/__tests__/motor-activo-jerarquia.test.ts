@@ -19,8 +19,9 @@ import {
 } from "@/lib/aurora/tts-oss/voice-config";
 
 /**
- * SGO1024D — La jerarquía de voz (agente > personalidad > cerebro > neurona >
- * cuenta) se resuelve sobre configuraciones simuladas, sin red ni disco.
+ * SGO1024D — La jerarquía de voz (agente > neurona > personalidad > cerebro >
+ * cuenta; SGO1031A: el mismo orden que la cadena que suena) se resuelve sobre
+ * configuraciones simuladas, sin red ni disco.
  * Antes el router leía el pin cacheado y casi siempre veía openvoice2, así que
  * VibeVoice no recibía su guion multi-locutor.
  */
@@ -42,7 +43,7 @@ function almacenCompleto(): VoiceHierarchyStore {
 }
 
 describe("resolveVoiceChoiceFrom · precedencia de ámbitos", () => {
-  it("gana el ámbito más específico: agente > personalidad > cerebro > neurona > cuenta", () => {
+  it("orden de la cadena real: agente > neurona > personalidad > cerebro > cuenta", () => {
     const store = almacenCompleto();
     expect(resolveVoiceChoiceFrom(store, CTX)).toEqual({
       motor: "vibevoice",
@@ -51,6 +52,13 @@ describe("resolveVoiceChoiceFrom · precedencia de ámbitos", () => {
     });
 
     delete store.agente;
+    expect(resolveVoiceChoiceFrom(store, CTX)).toEqual({
+      motor: "omnivoice",
+      provenance: "neurona",
+      scopeId: "neurona-1",
+    });
+
+    delete store.neurona;
     expect(resolveVoiceChoiceFrom(store, CTX)).toEqual({
       motor: "voice158",
       provenance: "personalidad",
@@ -61,9 +69,6 @@ describe("resolveVoiceChoiceFrom · precedencia de ámbitos", () => {
     expect(resolveVoiceChoiceFrom(store, CTX)?.provenance).toBe("cerebro");
 
     delete store.cerebro;
-    expect(resolveVoiceChoiceFrom(store, CTX)?.provenance).toBe("neurona");
-
-    delete store.neurona;
     expect(resolveVoiceChoiceFrom(store, CTX)).toEqual({
       motor: "bark",
       provenance: "cuenta",
@@ -137,12 +142,23 @@ describe("voiceChoiceFromOverride y voiceChoiceFromConfig", () => {
 });
 
 describe("resolveVoiceChoice · fuentes crudas del turno", () => {
-  it("deriva el pin de cada ámbito y respeta la misma precedencia", () => {
+  it("deriva el pin de cada ámbito: la neurona gana a la personalidad, como en la cadena real", () => {
     expect(
       resolveVoiceChoice({
         ctx: { personaId: "aurora", deviceId: "neurona-1" },
         personality: { intelligence: { modo: "fija", motorVoz: "vibevoice" } },
         override: { voz: { motor: "omnivoice" } },
+        config: { engine: "bark", autoDownload: false },
+      }),
+    ).toEqual({ motor: "omnivoice", provenance: "neurona", scopeId: "neurona-1" });
+  });
+
+  it("la personalidad entra si la neurona no fija motor", () => {
+    expect(
+      resolveVoiceChoice({
+        ctx: { personaId: "aurora", deviceId: "neurona-1" },
+        personality: { intelligence: { modo: "fija", motorVoz: "vibevoice" } },
+        override: { voz: {} },
         config: { engine: "bark", autoDownload: false },
       }),
     ).toEqual({ motor: "vibevoice", provenance: "personalidad", scopeId: "aurora" });
@@ -168,15 +184,20 @@ describe("resolveVoiceChoice · fuentes crudas del turno", () => {
     ).toBeNull();
   });
 
-  it("lo ya guardado en el store manda sobre lo derivado", () => {
+  it("lo ya guardado en el store manda sobre lo derivado del mismo ámbito", () => {
+    const ctx = { personaId: "aurora", deviceId: "neurona-1" };
+    const personality: PersonalityVoiceShape = { intelligence: { modo: "fija", motorVoz: "vibevoice" } };
+    expect(
+      resolveVoiceChoice({ ctx, store: { personalidad: { aurora: { motor: "voice158" } } }, personality }),
+    ).toEqual({ motor: "voice158", provenance: "personalidad", scopeId: "aurora" });
     expect(
       resolveVoiceChoice({
-        ctx: { personaId: "aurora", deviceId: "neurona-1" },
-        store: { personalidad: { aurora: { motor: "voice158" } } },
-        personality: { intelligence: { modo: "fija", motorVoz: "vibevoice" } },
+        ctx,
+        store: { neurona: { "neurona-1": { motor: "voxcpm" } } },
+        personality,
         override: { voz: { motor: "omnivoice" } },
       }),
-    ).toEqual({ motor: "voice158", provenance: "personalidad", scopeId: "aurora" });
+    ).toEqual({ motor: "voxcpm", provenance: "neurona", scopeId: "neurona-1" });
   });
 
   it("tolera espacios y mayúsculas de valores guardados a mano", () => {
@@ -289,6 +310,31 @@ describe("router · VibeVoice recibe su guion multi-locutor (cadena real)", () =
     expect(preparaGuion(cfgVoz(), pinDelRouter({ personality: fijaOmni }))).toBe(false);
   });
 
+  it("SGO1031A · personalidad omnivoice y neurona vibevoice: suena VibeVoice y el router manda el guion", () => {
+    const fuentes: FuentesDelRouter = {
+      personality: { intelligence: { modo: "fija", motorVoz: "omnivoice" } },
+      override: { voz: { motor: "vibevoice" } },
+    };
+    expect(resolveVoiceChoice({ ctx: TURNO, ...fuentes })).toEqual({
+      motor: "vibevoice",
+      provenance: "neurona",
+      scopeId: "neurona-1",
+    });
+    const pin = pinDelRouter(fuentes);
+    expect(pin).toBe("vibevoice");
+    expect(buildVoiceChain(cfgVoz(), pin)[0]).toBe("vibevoice");
+    expect(preparaGuion(cfgVoz(), pin)).toBe(true);
+  });
+
+  it("SGO1031A · al revés (personalidad vibevoice, neurona omnivoice): suena OmniVoice y no hay guion", () => {
+    const pin = pinDelRouter({
+      personality: FIJA_VIBEVOICE,
+      override: { voz: { motor: "omnivoice" } },
+    });
+    expect(pin).toBe("omnivoice");
+    expect(preparaGuion(cfgVoz(), pin)).toBe(false);
+  });
+
   it("sin elección en ningún ámbito el router conserva el pin de la neurona", () => {
     const nadie: FuentesDelRouter = { personality: { intelligence: { modo: "auto" } }, override: null, config: { engine: "browser", autoDownload: false } };
     expect(resolveVoiceChoiceFrom(storeDelRouter(nadie), TURNO)).toBeNull();
@@ -300,6 +346,7 @@ describe("router · VibeVoice recibe su guion multi-locutor (cadena real)", () =
 describe("router · su store decide igual que resolveVoiceChoice", () => {
   const casos: Array<[string, FuentesDelRouter, VoiceHierarchyContext]> = [
     ["todos los ámbitos", { personality: FIJA_VIBEVOICE, override: { voz: { motor: "omnivoice" } }, config: { engine: "bark", autoDownload: false } }, TURNO],
+    ["personalidad omnivoice, neurona vibevoice", { personality: { intelligence: { modo: "fija", motorVoz: "omnivoice" } }, override: { voz: { motor: "vibevoice" } } }, TURNO],
     ["solo voiceStyle", { personality: { intelligence: { modo: "auto" }, voiceStyle: { engine: "omnivoice" } } }, TURNO],
     ["solo la neurona", { override: { voz: { motor: " VibeVoice " } } }, TURNO],
     ["solo la cuenta", { config: { engine: "voxcpm", autoDownload: false } }, TURNO],
