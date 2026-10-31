@@ -88,6 +88,10 @@ import { emocionDesdeTexto, type EmocionVoz } from "@/lib/voces/emociones";
 import { emocionChatAVoz } from "@/lib/aurora/voz-starseed/motor";
 import { decirRT, decirRTYa, vozRT } from "@/lib/aurora/voz-rt";
 import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/aurora/anti-bucle-voz";
+// (Ola 1015V · Plática) Interrupción por voz: detector puro por energía y el
+// montaje del micro que se abre SOLO mientras Astraura habla y suelta con el
+// turno (voice-fusionada-astraura.md §4).
+import { montarInterrupcionPorVoz, type MontajeInterrupcion } from "@/lib/aurora/interrumpir-por-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
 import {
@@ -529,6 +533,45 @@ function markTtsSpeaking(on: boolean): void {
     try { movil = isMobileDevice(); } catch { /* */ }
     ttsGuardUntilGlobal = Date.now() + ventanaEcoMs({ movil });
   }
+  // (Ola 1015V) Interrupción por voz: el micro se abre solo mientras dura el
+  // habla, con la ventana anti-eco ya cubierta por el detector.
+  if (on) activarInterrupcionPorVoz();
+  else soltarInterrupcionPorVoz();
+}
+
+// ── Interrupción por voz (Ola 1015V · voz-fusionada-astraura.md §4) ──────────
+// Mientras Astraura habla, un micro con `echoCancellation` + `noiseSuppression`
+// mide la voz de la persona; si pasa 250 ms seguidos hablando, Astraura calla
+// (barge-in vocal). Se abre en `markTtsSpeaking(true)` y se suelta en
+// `markTtsSpeaking(false)` (fin del turno o `interrupt()`), la misma puerta
+// global de TODAS las rutas de habla. Sin micro o sin permiso, no pasa nada:
+// se interrumpe como siempre, tocando la orbe.
+let montajeInterrupcion: MontajeInterrupcion | null = null;
+/** Lo conecta el motor del orbe con su `interrupt()` (un solo tablero). */
+let cortarPorVoz: (() => void) | null = null;
+
+/** Abre el micro de interrupción (a diferencia del oído, sin texto: solo energía). */
+function activarInterrupcionPorVoz(): void {
+  if (montajeInterrupcion || typeof window === "undefined") return;
+  try {
+    let movil = false;
+    try { movil = isMobileDevice(); } catch { /* */ }
+    void montarInterrupcionPorVoz({
+      alInterrumpir: () => { try { cortarPorVoz?.(); } catch { /* */ } },
+      movil,
+      inicioHabla: Date.now(),
+    }).then((montaje) => {
+      if (montaje && ttsSpeakingGlobal) montajeInterrupcion = montaje;
+      else montaje?.soltar(); // calló mientras se abría: no queda micro suelto
+    }).catch(() => { /* */ });
+  } catch { /* la voz manda; sin micro la interrupción será tocando la orbe */ }
+}
+
+/** Suelta el micro de interrupción (idempotente, para fin de turno o corte). */
+function soltarInterrupcionPorVoz(): void {
+  const montaje = montajeInterrupcion;
+  montajeInterrupcion = null;
+  try { montaje?.soltar(); } catch { /* */ }
 }
 
 /**
@@ -1472,6 +1515,13 @@ export function useAuroraEngine(): AuroraEngine {
     // (medio-dúplex): el navegador puede no disparar utterance.onend al cancelar.
     finishTts();
   }, [finishTts]);
+
+  // (Ola 1015V · Plática) El detector de interrupción por voz corta por aquí:
+  // es el MISMO barge-in del toque de la orbe. Un solo tablero para todos.
+  useEffect(() => {
+    cortarPorVoz = interrupt;
+    return () => { cortarPorVoz = null; };
+  }, [interrupt]);
 
   const toggleSpeech = useCallback(() => {
     // Si está hablando y no pausada → pausa; si está pausada → reanuda;
