@@ -20,7 +20,7 @@ import { ANIMACION_MANIMGX } from "./animacion-manimgx";
 import { MAUSBOT } from "./mausbot";
 import { ESCENA3D } from "./escena3d";
 import { VIDEO_HTML } from "./video-html";
-import { ID_VISTA_VIDEO_HTML } from "../bloque-protomolecula";
+import { ID_VISTA_VIDEO_HTML, ID_VISTA_DIAGRAMA } from "../bloque-protomolecula";
 import { FONDO_SHADER } from "./fondo-shader";
 import { ATOMOS_ARTCRAFT } from "./artcraft";
 import { DIAGRAMA } from "./diagrama";
@@ -50,4 +50,5 @@ export const VISTAS_COMPONENTE: Record<string, () => Promise<{ default: Componen
   escena3d: () => import("@/components/protomolecula/atomo-escena3d"),
   "fondo-shader": () => import("@/components/protomolecula/atomo-fondo-shader"),
   [ID_VISTA_VIDEO_HTML]: () => import("@/components/protomolecula/vista-video-html"),
+  [ID_VISTA_DIAGRAMA]: () => import("@/components/protomolecula/vista-diagrama-atomo"),
 };

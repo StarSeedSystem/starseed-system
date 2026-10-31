@@ -7,6 +7,7 @@
  */
 import type { DefinicionAtomo } from "@/lib/protomolecula/registro-atomos";
 import type { ValorParametro } from "@/lib/protomolecula/tipos";
+import { ATOMO_DIAGRAMA, ID_VISTA_DIAGRAMA, vistaDeDiagrama } from "@/lib/protomolecula/bloque-protomolecula";
 
 export type TipoDiagrama = "architecture" | "architecture-delta" | "it-state" | "deployment" | "dependency" | "flowchart" | "sequence" | "state" | "swimlane" | "data-flow"
   | "process" | "loop" | "er" | "db-schema" | "high-level" | "medallion" | "dp-integration" | "dp-security-matrix" | "uml-class" | "tree" | "org-chart"
@@ -36,10 +37,8 @@ const ALIAS: Record<string, TipoDiagrama> = {
   ciclo: "loop", anidado: "nested", arbol: "tree", organigrama: "org-chart", piramide: "pyramid", embudo: "pyramid",
   barras: "bar", cascada: "waterfall", "mapa-de-calor": "heatmap", dispersion: "scatter", espina: "fishbone", "espina-de-pescado": "fishbone", viaje: "journey", uml: "uml-class", esquema: "db-schema",
 };
-const TEMAS = ["claro", "oscuro"] as const;
-export const MARCAS = ["os", "neutro", "heredado", "personal"] as const;
-export type TemaDiagrama = (typeof TEMAS)[number];
-export type MarcaDiagrama = (typeof MARCAS)[number];
+const TEMAS = ["claro", "oscuro"] as const; export const MARCAS = ["os", "neutro", "heredado", "personal"] as const;
+export type TemaDiagrama = (typeof TEMAS)[number]; export type MarcaDiagrama = (typeof MARCAS)[number];
 
 export function familiaDe(tipo: TipoDiagrama): FamiliaDiagrama { return FAMILIA_DE_TIPO[tipo]; }
 export function tiposDeFamilia(familia: FamiliaDiagrama): TipoDiagrama[] { return GRUPOS.find(([f]) => f === familia)?.[1].slice() ?? []; }
@@ -53,8 +52,7 @@ export function normalizarTemaDiagrama(valor: string | undefined): TemaDiagrama 
   return valor === "oscuro" ? "oscuro" : "claro";
 }
 /** Límites editoriales de la skill (SKILL.md §7): máx. 9 nodos, 12 aristas y 2 acentos. */
-export const LIMITES_DIAGRAMA = { nodos: 9, aristas: 12, acentos: 2 } as const;
-export type LimitesDiagrama = typeof LIMITES_DIAGRAMA;
+export const LIMITES_DIAGRAMA = { nodos: 9, aristas: 12, acentos: 2 } as const; export type LimitesDiagrama = typeof LIMITES_DIAGRAMA;
 /** Devuelve el motivo del exceso, o null si lo pedido cabe en el editorial de la skill. */
 export function validarLimites(nodos?: number, aristas?: number, acentos?: number): string | null {
   const pedido: [string, number, number][] = [["nodos", nodos ?? 0, LIMITES_DIAGRAMA.nodos], ["aristas", aristas ?? 0, LIMITES_DIAGRAMA.aristas], ["acentos", acentos ?? 0, LIMITES_DIAGRAMA.acentos]];
@@ -100,9 +98,11 @@ export function planDiagrama(entrada: EntradaDiagrama): PlanDiagrama {
   };
 }
 
+/** La correspondencia del bloque decide qué vista pinta este átomo (diagramas.md §4). */
 export const DIAGRAMA: DefinicionAtomo = {
-  herramientaId: "diagram-design", nombre: "Diagrama", categoria: "arquitectura",
+  herramientaId: ATOMO_DIAGRAMA, nombre: "Diagrama", categoria: "arquitectura",
   integracion: "iframe-aislado", control: "total",
+  vista: vistaDeDiagrama(ATOMO_DIAGRAMA) ? { tipo: "componente", id: ID_VISTA_DIAGRAMA } : undefined,
   parametros: [
     { id: "tipo", nombre: "Familia del diagrama", tipo: "opcion", opciones: [...FAMILIAS_DIAGRAMA], defecto: "estructura", sinonimos: ["tipo", "diagrama", "forma"] },
     { id: "tema", nombre: "Tema", tipo: "opcion", opciones: [...TEMAS], defecto: "claro", sinonimos: ["modo", "apariencia"] },
