@@ -1,0 +1,33 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "IMN1021K4b",
+   "ola": "1021I",
+   "titulo": "Imaginación · renombrar comentarios en ramificación, tipos y grafo",
+   "archivos": [
+    "src/lib/mando/ramificacion.ts",
+    "src/lib/mando/tipos.ts",
+    "src/lib/mando/grafo-disposicion.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Solo comentarios: «sueño(s) profundo(s)» → «imaginación profunda». Nada de código. tsc y las pruebas de estos módulos en verde. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/40990490992`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 41010884765) falla «tsc»: 5:53:55.2273346Z env:\n2026-10-30T05:53:55.2273514Z   NODE_OPTIONS: --max-old-space-size=8192\n2026-10-30T05:53:55.2273686Z ##[endgroup]\n2026-10-30T05:56:05.4860492Z ##[error]src/lib/genesis/mcp/ruta.ts(15,14): error TS2741: Property '\"variaciones:buscar\"' is missing in type '{ \"estado:leer\": \"ver-resumen\"; \"tareas:listar\": \"ver-resumen\"; \"tareas:crear\": \"encolar\"; \"agentes:listar\": \"ver-resumen\"; \"medidores:leer\": \"ver-resumen\"; \"operaciones:proponer\": \"encolar\"; \"biblioteca:buscar\": \"ver-detalle\"; \"opciones:sugerir\": \"ver-resumen\"; \"chat:enviar\": \"chatear\"; }' but required in type 'Record<PermisoMcp, CapacidadAmbito>'.\n2026-10-30T05:56:05.9873851Z ##[error]Process completed with exit code 2.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/40990490992:refs/remotes/origin/nube/40990490992\"` y `git cherry-pick --no-commit dff10dec5190`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/mando/grafo-disposicion.ts, src/lib/mando/ramificacion.ts, src/lib/mando/tipos.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/40990490992"
+  },
+  {
+   "id": "IMN1021K7b",
+   "ola": "1021I",
+   "titulo": "Imaginación · los mensajes de la imaginación profunda dicen «Imaginación»",
+   "archivos": [
+    "scripts/puente/director_suenos.py",
+    "scripts/puente/test_director_suenos.py",
+    "scripts/puente/suenos.py"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/imaginacion-autodesarrollo.md (§ indicado). §2. Cambia SOLO los textos que leen personas (resumen, informe, canal, Telegram, ayuda): «Sueños profundos» → «Imaginación profunda», «sueño» → «sesión de imaginación». Los nombres de archivos, comandos, carpetas (`dream/profundo`) y el prefijo `cola-suenos-` NO cambian. Ajusta las pruebas solo en esos textos. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; lo puro sin red, sin disco y con el reloj por parámetro; en TypeScript, módulos que importe el cliente sin `node:*` y nada de `any`; en Python, pruebas con unittest/pytest sin red; textos en español con acentos; honestidad radical (lo no verificado se dice como tal, nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261030-041257-IMN1021K7`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261030-041257-IMN1021K7:refs/remotes/origin/nube/a1-20261030-041257-IMN1021K7\"` y `git cherry-pick --no-commit 7d4e1b8dc5f5 4b8d65b1628b e04d1de2beba 24b22f74bc25`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/puente/director_suenos.py, scripts/puente/suenos.py, scripts/puente/test_director_suenos.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261030-041257-IMN1021K7"
+  }
+ ]
+}
