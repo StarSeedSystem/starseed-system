@@ -6,8 +6,17 @@ import {
   voiceChoiceFromConfig,
   voiceChoiceFromOverride,
   voiceChoiceFromPersonality,
+  type PersonalityVoiceShape,
+  type VoiceConfigShape,
+  type VoiceHierarchyContext,
   type VoiceHierarchyStore,
 } from "@/lib/aurora/voice-config";
+import { buildVoiceChain } from "@/lib/aurora/tts-oss/engine-registry";
+import {
+  DEFAULT_VOICE_CONFIG,
+  type AuroraVoiceConfig,
+  type AuroraVoiceEngine,
+} from "@/lib/aurora/tts-oss/voice-config";
 
 /**
  * SGO1024D — La jerarquía de voz (agente > personalidad > cerebro > neurona >
@@ -205,5 +214,101 @@ describe("activeEngineFromChain · qué motor hablaría de verdad", () => {
   it("Kitten (stub) se salta y la cadena vacía cae al navegador", () => {
     expect(activeEngineFromChain(["kitten", "omnivoice"], { autoDownload: false })).toBe("omnivoice");
     expect(activeEngineFromChain([])).toBe("browser");
+  });
+});
+
+/**
+ * SGO1024D-d3 — ¿Prepara el router el guion multi-locutor de VibeVoice?
+ * Se recorre la MISMA decisión que src/ai/astraura/router.ts: el store por
+ * ámbitos con los motores derivados (o null) → pin → cadena REAL
+ * (`buildVoiceChain`) → `activeEngineFromChain` === "vibevoice".
+ * Configs simuladas pasadas a mano: sin red ni disco.
+ */
+interface FuentesDelRouter {
+  personality?: PersonalityVoiceShape | null;
+  override?: { voz?: { motor?: string } } | null;
+  config?: VoiceConfigShape | null;
+}
+
+const TURNO: VoiceHierarchyContext = { personaId: "aurora", deviceId: "neurona-1", agentId: "ag-1", brainId: "cerebro-1" };
+const FIJA_VIBEVOICE: PersonalityVoiceShape = { intelligence: { modo: "fija", motorVoz: "vibevoice" } };
+
+/** Config de voz simulada; por defecto VibeVoice tiene servidor. */
+function cfgVoz(conVibeVoice = true, extra: Partial<AuroraVoiceConfig> = {}): AuroraVoiceConfig {
+  return {
+    ...DEFAULT_VOICE_CONFIG,
+    engines: conVibeVoice ? { vibevoice: { endpoint: "http://gpu.local:7860" } } : {},
+    ...extra,
+  };
+}
+
+/** El store tal como lo arma el router: un hueco por ámbito, con motor o null. */
+function storeDelRouter(f: FuentesDelRouter, ctx: VoiceHierarchyContext = TURNO): VoiceHierarchyStore {
+  return {
+    personalidad: ctx.personaId ? { [ctx.personaId]: { motor: voiceChoiceFromPersonality(f.personality) } } : undefined,
+    neurona: ctx.deviceId ? { [ctx.deviceId]: { motor: voiceChoiceFromOverride(f.override) } } : undefined,
+    cuenta: { motor: voiceChoiceFromConfig(f.config) },
+  };
+}
+
+/** Pin que el router pasa a la cadena (el de la neurona si nadie fija motor). */
+function pinDelRouter(f: FuentesDelRouter, pinNeurona: AuroraVoiceEngine | null = "openvoice2"): AuroraVoiceEngine | null {
+  return resolveVoiceChoiceFrom(storeDelRouter(f), TURNO)?.motor ?? pinNeurona;
+}
+
+function preparaGuion(cfg: AuroraVoiceConfig, pin: AuroraVoiceEngine | null): boolean {
+  return activeEngineFromChain(buildVoiceChain(cfg, pin), cfg) === "vibevoice";
+}
+
+describe("router · VibeVoice recibe su guion multi-locutor (cadena real)", () => {
+  it("el fallo original: con el pin cacheado openvoice2 no había guion; con la jerarquía, sí", () => {
+    const cfg = cfgVoz();
+    expect(preparaGuion(cfg, "openvoice2")).toBe(false);
+    const pin = pinDelRouter({ personality: FIJA_VIBEVOICE });
+    expect(pin).toBe("vibevoice");
+    expect(buildVoiceChain(cfg, pin)[0]).toBe("vibevoice");
+    expect(preparaGuion(cfg, pin)).toBe(true);
+  });
+
+  it("el motor de la neurona y el de la cuenta también llevan el guion a VibeVoice", () => {
+    const cfg = cfgVoz();
+    const sinPin: PersonalityVoiceShape = { intelligence: { modo: "auto" } };
+    expect(preparaGuion(cfg, pinDelRouter({ personality: sinPin, override: { voz: { motor: "vibevoice" } } }))).toBe(true);
+    expect(preparaGuion(cfg, pinDelRouter({ personality: sinPin, config: { engine: "vibevoice", autoDownload: false } }))).toBe(true);
+  });
+
+  it("VibeVoice fijado sin servidor: la cadena lo salta y no se promete guion", () => {
+    const cfg = cfgVoz(false);
+    const pin = pinDelRouter({ personality: FIJA_VIBEVOICE });
+    expect(buildVoiceChain(cfg, pin)).not.toContain("vibevoice");
+    expect(preparaGuion(cfg, pin)).toBe(false);
+  });
+
+  it("si la jerarquía elige otro motor, VibeVoice no recibe guion aunque tenga servidor", () => {
+    const fijaOmni: PersonalityVoiceShape = { intelligence: { modo: "fija", motorVoz: "omnivoice" } };
+    expect(preparaGuion(cfgVoz(), pinDelRouter({ personality: fijaOmni }))).toBe(false);
+  });
+
+  it("sin elección en ningún ámbito el router conserva el pin de la neurona", () => {
+    const nadie: FuentesDelRouter = { personality: { intelligence: { modo: "auto" } }, override: null, config: { engine: "browser", autoDownload: false } };
+    expect(resolveVoiceChoiceFrom(storeDelRouter(nadie), TURNO)).toBeNull();
+    expect(pinDelRouter(nadie, "omnivoice")).toBe("omnivoice");
+    expect(pinDelRouter(nadie, null)).toBeNull();
+  });
+});
+
+describe("router · su store decide igual que resolveVoiceChoice", () => {
+  const casos: Array<[string, FuentesDelRouter, VoiceHierarchyContext]> = [
+    ["todos los ámbitos", { personality: FIJA_VIBEVOICE, override: { voz: { motor: "omnivoice" } }, config: { engine: "bark", autoDownload: false } }, TURNO],
+    ["solo voiceStyle", { personality: { intelligence: { modo: "auto" }, voiceStyle: { engine: "omnivoice" } } }, TURNO],
+    ["solo la neurona", { override: { voz: { motor: " VibeVoice " } } }, TURNO],
+    ["solo la cuenta", { config: { engine: "voxcpm", autoDownload: false } }, TURNO],
+    ["cuenta en navegador", { config: { engine: "browser", autoDownload: false } }, TURNO],
+    ["nada", {}, TURNO],
+    ["sin personalidad ni neurona en el turno", { personality: FIJA_VIBEVOICE, override: { voz: { motor: "omnivoice" } } }, {}],
+  ];
+
+  it.each(casos)("%s", (_nombre, f, ctx) => {
+    expect(resolveVoiceChoiceFrom(storeDelRouter(f, ctx), ctx)).toEqual(resolveVoiceChoice({ ctx, ...f }));
   });
 });
