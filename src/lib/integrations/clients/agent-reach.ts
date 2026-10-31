@@ -19,6 +19,14 @@ const ALLOWED_CAPABILITIES = [
 
 type AgentReachCapability = (typeof ALLOWED_CAPABILITIES)[number];
 
+interface AgentReachError {
+  ok: false;
+  error: string;
+  motivo?: string;
+  hint?: string;
+  codigo?: string;
+}
+
 async function callProxy(
   capability: AgentReachCapability,
   payload: Record<string, unknown>,
@@ -31,11 +39,18 @@ async function callProxy(
       body: JSON.stringify(payload),
       signal,
     });
+    const data = await res.json();
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return { ok: false, error: err.error || `HTTP ${res.status}` };
+      const err: AgentReachError = data;
+      if (err.motivo === "NEED_LOGIN_BLOQUEADO") {
+        return { ok: false, error: err.error || "Canal con sesión apagado (R1)", data: { code: err.codigo || "NEED_LOGIN", hint: err.hint } };
+      }
+      if (err.motivo === "DESCONOCIDA") {
+        return { ok: false, error: err.error || "Capacidad no permitida", data: { code: err.codigo || "CAPACITY_UNKNOWN" } };
+      }
+      return { ok: false, error: err.error || `HTTP ${res.status}`, data: { code: err.codigo, hint: err.hint } };
     }
-    return (await res.json()) as IntegrationResult;
+    return { ok: true, data: data.data || data.content || data };
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e) };
   }
@@ -115,7 +130,7 @@ export async function health(
     const res = await fetch("/api/agent-reach/health", { method: "GET", signal: _signal });
     if (!res.ok) return { ok: false, error: `Proxy health ${res.status}` };
     const data = await res.json().catch(() => ({}));
-    return { ok: true, data };
+    return { ok: true, data: { service: data.service, version: data.version } };
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e) };
   }
