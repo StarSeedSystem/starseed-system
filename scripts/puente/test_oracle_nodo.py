@@ -131,9 +131,12 @@ class Prestamo(unittest.TestCase):
         self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 3600), [])
         # Si el A1 la terminó, vuelve aunque la gracia no pase.
         self.assertEqual(N.devolver_de_oracle(p, [], {"colas/oracle-20261018-231246": {}}, True, nacida + 60), ["T"])
-        # Nota sin rama citada, y lo que no es «reasignada · oracle»: nada.
+        # Nota sin rama citada, y lo que no es «reasignada · oracle»: nada. Aunque la nota cite
+        # una rama de oracle válida, con `medio nube` es otro préstamo y no vuelve por aquí.
         p2 = {"U": {"estado": "reasignada", "medio": "oracle", "nota": "sin rama"},
               "V": {"estado": "commit", "medio": "oracle",
+                    "nota": "movida a oracle (colas/oracle-20261018-231246) desde Genesis"},
+              "Z": {"estado": "reasignada", "medio": "nube",
                     "nota": "movida a oracle (colas/oracle-20261018-231246) desde Genesis"}}
         self.assertEqual(N.devolver_de_oracle(p2, [], {}, True, nacida + 3 * 3600 + 60), [])
         # Basura que no es dict (notas mojadas de Oracle): no rompe ni cuenta como tarea.
