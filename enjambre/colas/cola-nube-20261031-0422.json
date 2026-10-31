@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "FSH1018K",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Ajustes → Apariencia · editor de capas con shaders y difuminado, sets y alcance",
+   "archivos": [
+    "src/components/settings/appearance/fondos-shaders-panel.tsx",
+    "src/components/settings/appearance/background-settings.tsx",
+    "src/components/settings/appearance/__tests__/fondos-shaders-panel.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Panel: añadir capa shader (buscador del catálogo por categoría) o difusión; reordenar, opacidad, mezcla, posición/tamaño/rotación, máscara y props del efecto; guardar como set (carpeta a elegir) o aplicar al alcance (cuenta, perfil, app, página, sección) y a qué neuronas. En background-settings.tsx solo añade el montaje. Prueba con Testing Library. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "FSH1018G"
+   ],
+   "dependencias_ya_en_main": [
+    "FSH1018D",
+    "FSH1018H",
+    "FSH1018I"
+   ]
+  }
+ ]
+}
