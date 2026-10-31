@@ -463,6 +463,8 @@ def _espera_por_fallo(huella_actual, estado, ahora, espera_s):
     """PURA: el motivo para esperar si estas mismas fuentes fallaron hace poco; si no, None."""
     if estado.get("ok") is not False or estado.get("huella_intentada") != huella_actual:
         return None
+    if estado.get("por_memoria"):
+        return None  # (2026-10-31) la memoria no es culpa de las fuentes: va al A1 (camino_de_build)
     try:
         desde = float(ahora) - float(estado.get("t") or 0)
     except (TypeError, ValueError):
@@ -519,13 +521,16 @@ def reconstruir(huella_actual) -> dict:
     # demás se fue al swap, el swap se comió el disco y el vigilante de disco paró la build
     # a los 454 s (1,4 GB libres). Un giga menos de techo es un giga menos de swap.
     entorno.setdefault("NODE_OPTIONS", "--max-old-space-size=4096")
+    # (2026-10-31) Caché de webpack en memoria y no en disco (`next.config.ts`), como en
+    # Vercel: el 30-10 el A1 compiló bien así y sin ella el A1 y la Mac murieron por OOM.
+    entorno.setdefault("STARSEED_BUILD_LIGERO", "1")
     # SE COMPILA APARTE. `next start` lee de `.next` en caliente, así que compilar encima
     # del directorio servido daba «Internal Server Error» durante toda la compilación
     # (ENOENT: required-server-files.json). Aquí se construye en `.next-build` y el
     # servidor sigue con el `.next` de siempre hasta el cambio. (2026-09-22)
     entorno["STARSEED_DIST"] = DIST_BUILD
     preparar_dist_de_build()
-    por_disco = False
+    por_disco, rc = False, None
     try:
         rc, salida, por_disco = compilar_vigilando_disco(
             [sys.executable, os.path.join(RAIZ, "scripts", "puente", "con-turno.py"),
@@ -563,6 +568,7 @@ def reconstruir(huella_actual) -> dict:
         "huella_construida": huella_actual if ok else _leer_estado().get("huella_construida"),
         "error": None if ok else primera_linea_de_error(salida),
         "por_disco": bool(por_disco) and not ok,
+        "por_memoria": not ok and not por_disco and fallo_por_memoria(rc, salida),
     }
     # (2026-09-25) Se FUNDE con lo guardado: reescribirlo entero perdía `build_servido`, y
     # la pasada siguiente, al no encontrarlo, reiniciaba Genesis «porque hay un build más
@@ -932,6 +938,84 @@ def freno_de_maquina(forzar=False, raiz=RAIZ):
     return None
 
 
+# ── (GEN1030B, 2026-10-31) Si la Mac no puede, compila el A1 ─────────────────────────────
+#: El 29-10 Genesis pasó horas caído (`.next` sin BUILD_ID) con «al día» en el registro, y el 31-10
+#: repetía «181 archivo(s)… pero hay 7 GB de swap: espero»: pantalla vieja para siempre. Solo el swap
+#: o una muerte por memoria van al A1; el enjambre vivo y la mezcla de dependencias se esperan igual.
+CAIDO = "Genesis está caído: no hay build servido"
+#: Las esperas de `compilar_en_a1` (envío 1 h, npm ci 1 h, build 2 h, traer 1 h) y margen.
+A1_TOPE_S = int(os.environ.get("STARSEED_RECONSTRUIR_A1_TOPE_S", str(3600 + 3600 + 7200 + 3600 + 900)))
+ESPERA_TRAS_FALLO_A1_S = int(os.environ.get("STARSEED_RECONSTRUIR_ESPERA_A1_S", "1800"))
+_OOM = re.compile(r"heap out of memory|out of memory|reached heap limit|\bOOM\b", re.I)
+
+
+def genesis_caido(raiz=RAIZ) -> bool:
+    return not build_terminado(raiz=raiz, dist=DIST_SERVIDO)
+
+
+def decidir_caido(huella_actual, estado, ahora, espera_s=ESPERA_TRAS_FALLO_S):
+    """PURA: sin build servido nunca hay «al día» ni se espera a Astraura; solo si estas mismas
+    fuentes acaban de fallar (un bucle de builds rojos tumba la Mac)."""
+    estado = estado if isinstance(estado, dict) else {}
+    espera = _espera_por_fallo(huella_actual, estado, ahora,
+                               min(espera_s, ESPERA_TRAS_DISCO_S) if fallo_por_disco(estado) else espera_s)
+    return (False, "%s; %s" % (CAIDO, espera)) if espera else (True, CAIDO)
+
+
+def fallo_por_memoria(rc, salida) -> bool:
+    """PURA: ¿la build murió por memoria? (OOM, «heap out of memory», rc 134/137)."""
+    return rc in (134, 137, -6, -9) or bool(_OOM.search(str(salida or "")))
+
+
+def camino_de_build(freno, estado, ahora, huella=None, espera_a1_s=ESPERA_TRAS_FALLO_A1_S):
+    """PURA: ("mac" | "a1" | "espera", motivo). `freno_de_maquina` mira el swap el último."""
+    e = estado if isinstance(estado, dict) else {}
+    num = lambda x: float(x) if isinstance(x, (int, float)) and not isinstance(x, bool) else None  # noqa: E731
+    desde, fin = num(e.get("a1_desde")), num(e.get("a1_t"))
+    if desde is not None and ahora - desde < A1_TOPE_S:
+        return "espera", "el A1 ya está compilando (hace %d min): no lanzo otra" % ((ahora - desde) // 60)
+    if freno and not re.match(r"hay [\d.]+ GB de swap en uso", str(freno)):
+        return "espera", freno
+    oom = e.get("ok") is False and bool(e.get("por_memoria")) and e.get("huella_intentada") == huella
+    if not freno and not oom:
+        return "mac", "la Mac puede compilar"
+    porque = freno or "la build de la Mac murió por memoria con estas fuentes"
+    if e.get("a1_ok") is False and fin is not None and ahora - fin < espera_a1_s and e.get("a1_huella") == huella:
+        return "espera", "%s, y el A1 falló hace %d min (%s): reintento a los %d" % (
+            porque, (ahora - fin) // 60, e.get("a1_error") or "?", espera_a1_s // 60)
+    return "a1", porque
+
+
+def orden_ligera(orden) -> str:
+    """PURA: la build del A1 con STARSEED_BUILD_LIGERO=1 (el 30-10 sin ella murió por OOM);
+    `compilar_en_a1.orden_compilar` aún no la lleva. Si un día la lleva, no hace nada."""
+    orden = str(orden or "")
+    return orden if "STARSEED_BUILD_LIGERO=" in orden else orden.replace(
+        "STARSEED_DIST=", "STARSEED_BUILD_LIGERO=1 STARSEED_DIST=", 1)
+
+
+def compilar_en_el_a1(huella, de_espera="esperando-maquina") -> bool:
+    """Todas las etapas de `compilar_en_a1` con sus esperas; al traer y cambiar, su `marcar_listo`
+    con la hora del envío y `reiniciar_mando`. El estado dice que está en curso."""
+    import compilar_en_a1 as CA  # aquí y no arriba: él importa este módulo
+    _guardar(dict(_leer_estado(), estado="compilando-a1", a1_desde=time.time(), a1_huella=huella))
+    devolver_cache()  # `traer_y_cambiar` vacía .next-build: la caché de webpack vuelve antes a .next
+    orden = CA.orden_compilar
+    CA.orden_compilar = lambda *a, **k: orden_ligera(orden(*a, **k))
+    try:
+        ok, detalle = CA.compilar()
+    except Exception as ex:  # noqa: BLE001
+        ok, detalle = False, CA.oracle_nodo.tachar("%s: %s" % (type(ex).__name__, ex))
+    finally:
+        CA.orden_compilar = orden
+    datos = dict(_leer_estado(), a1_desde=None, a1_t=time.time(), a1_ok=ok, a1_error=None if ok else detalle)
+    datos.update(dict(huella_construida=huella, huella_intentada=huella, por_memoria=False) if ok
+                 else dict(estado=de_espera, freno="el A1 no pudo: %s" % detalle))
+    _guardar(datos)
+    print("[%s] A1: %s" % (time.strftime("%H:%M"), detalle), flush=True)
+    return bool(ok)
+
+
 def conversando(ruta=os.path.expanduser("~/.starseed/conversacion.json")) -> bool:
     """¿Hay una conversación en curso con Astraura (concesión de `voz_rt.py`)?"""
     try:
@@ -1017,24 +1101,34 @@ def una_pasada(forzar: bool = False) -> bool:
     entradas = list(_entradas())
     actual = huella_de(entradas)
     estado = _leer_estado()
-    hazlo, motivo = decidir(actual, estado, time.time(),
-                            mas_nuevas=cuantas_mas_nuevas(mtime_del_build(), entradas))
+    caido = genesis_caido()
+    if caido and build_terminado():
+        print("[%s] %s, pero hay uno entero en %s: lo pongo" % (time.strftime("%H:%M"), CAIDO, DIST_BUILD))
+        reiniciar_mando()
+        return True
+    hazlo, motivo = decidir_caido(actual, estado, time.time()) if caido else decidir(
+        actual, estado, time.time(), mas_nuevas=cuantas_mas_nuevas(mtime_del_build(), entradas))
     if forzar:
         hazlo, motivo = True, "compilación pedida a mano"
+    de_espera = "caido-sin-build" if caido else "esperando-maquina"
     if hazlo:
         freno = freno_de_maquina(forzar=forzar)
-        if freno:
-            print("[%s] espero: %s, pero %s" % (time.strftime("%H:%M"), motivo, freno), flush=True)
-            _guardar(dict(_leer_estado(), estado="esperando-maquina", freno=freno,
+        via, porque = camino_de_build(freno, _leer_estado(), time.time(), actual)
+        if via == "a1":
+            print("[%s] COMPILO EN EL A1: %s, y %s" % (time.strftime("%H:%M"), motivo, porque), flush=True)
+            return compilar_en_el_a1(actual, de_espera)
+        if via == "espera":
+            print("[%s] espero: %s, pero %s" % (time.strftime("%H:%M"), motivo, porque), flush=True)
+            _guardar(dict(_leer_estado(), estado=de_espera, freno=porque,
                           visto=time.strftime("%Y-%m-%d %H:%M:%S")))
             return False
-    if hazlo and not forzar and conversando():
+    if hazlo and not forzar and not caido and conversando():
         # (2026-09-22) Una build se come 3-4 GB de RAM en esta Mac: en plena conversación
         # con Astraura dejaría a la voz y a BitNet sin memoria. Se espera a que acabe.
         print("[%s] espero: %s, pero Alex está hablando con Astraura" % (time.strftime("%H:%M"), motivo),
               flush=True)
         return False
-    uso = uso_de_astraura() if (hazlo and not forzar) else "libre"
+    uso = uso_de_astraura() if (hazlo and not forzar and not caido) else "libre"
     if hazlo and uso == "uso":
         ahora = time.time()
         desde = _leer_estado().get("uso_desde")
@@ -1081,7 +1175,12 @@ def una_pasada(forzar: bool = False) -> bool:
     if hazlo:
         print("[%s] RECONSTRUYO: %s" % (time.strftime("%H:%M"), motivo), flush=True)
         _guardar(dict(_leer_estado(), silencio_desde=None, uso_desde=None))
-        reconstruir(actual)
+        datos = reconstruir(actual) or {}
+        if datos.get("por_memoria") and camino_de_build(None, _leer_estado(), time.time(), actual)[0] == "a1":
+            print("[%s] la build de la Mac murió por memoria: COMPILO EN EL A1" % time.strftime("%H:%M"), flush=True)
+            compilar_en_el_a1(actual, de_espera)
+        elif caido and datos.get("estado") != "al-dia":
+            _guardar(dict(_leer_estado(), estado="caido-sin-build"))
         return True
 
     # Compilar no es servir: si otro compiló (publicar.py), basta con reiniciar.
@@ -1095,7 +1194,8 @@ def una_pasada(forzar: bool = False) -> bool:
 
     print("[%s] espero: %s" % (time.strftime("%H:%M"), motivo), flush=True)
     # Se anota igual: así Genesis puede decir «al día» con fecha, no de memoria.
-    _guardar(dict(estado, visto=time.strftime("%Y-%m-%d %H:%M:%S"), huella_vista=actual, silencio_desde=None))
+    _guardar(dict(estado, visto=time.strftime("%Y-%m-%d %H:%M:%S"), huella_vista=actual, silencio_desde=None,
+                  **({"estado": "caido-sin-build"} if caido else {})))
     return False
 
 
