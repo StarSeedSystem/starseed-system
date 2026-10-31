@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /**
  * Pruebas de COL1012B: órdenes «desconectar»/«contenedor» y campos nuevos del latido (`en_curso`,
  * `contenedor`) en el módulo puro de la pantalla. Mismas reglas que el nodo Python (COL1012A).
@@ -34,11 +35,23 @@ describe("acciones colmena: desconectar y contenedor", () => {
     });
 });
 
+<<<<<<< HEAD
+=======
+=======
+import { describe, expect, it } from "vitest";
+import { validarArgs } from "../remoto-nodos";
+
+// Rescate de la rama nube a1-20261013-130438-RTS1010-EV-ORACLE-1acb: el único caso que
+// refleja el contrato VIGENTE de `validarArgs` en main (los de «contenedor» prueban el
+// contrato del lado Python, que el TypeScript todavía no replica).
+>>>>>>> 3b1111b8 (salvavidas · RTRTRTRTS1010-EV-ORACLE-1abbbb: trabajo del agente antes de las puertas (tsc / vitest))
+>>>>>>> 37fd97ecb (salvavidas · RTRTRTRTS1010-EV-ORACLE-1abbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
 describe("validarArgs: órdenes de la colmena", () => {
     it("desconectar no quiere argumentos", () => {
         expect(validarArgs("desconectar", {})).toBeNull();
         expect(validarArgs("desconectar", { motivo: "x" })).toContain("argumento no admitido");
     });
+<<<<<<< HEAD
 
     it("contenedor exige activo booleano", () => {
         expect(validarArgs("contenedor", {})).toBe("falta argumento: activo");
@@ -128,6 +141,7 @@ describe("latido: en_curso y contenedor (§3)", () => {
         expect(e.nodos[0].enCurso.every((t) => t.id.length > 0)).toBe(true);
     });
 });
+<<<<<<< HEAD
 
 describe("latido tal como lo publica el nodo Python: la colmena va DENTRO de `salud`", () => {
     const latido = (datos: Record<string, unknown>): FilaBus => ({ id: 1, t: new Date(AHORA - 60_000).toISOString(), tipo: "mg_latido", datos });
@@ -187,4 +201,13 @@ describe("latido tal como lo publica el nodo Python: la colmena va DENTRO de `sa
         const h = hardwareDesdeNodo(e.nodos[0], AHORA);
         expect(h).toMatchObject({ id: "nodo-a1", ramTotalMb: 8192, ramUsadaMb: 8192 - 4000, nucleos: 8, carga: 1.5 });
     });
+<<<<<<< HEAD
 });
+=======
+});
+=======
+=======
+});
+>>>>>>> 3b1111b8 (salvavidas · RTRTRTRTS1010-EV-ORACLE-1abbbb: trabajo del agente antes de las puertas (tsc / vitest))
+>>>>>>> a8f15ed95 (salvavidas · RTRTRTRTS1010-EV-ORACLE-1abbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
+>>>>>>> 37fd97ecb (salvavidas · RTRTRTRTS1010-EV-ORACLE-1abbbbbbb: trabajo del agente antes de las puertas (tsc / vitest))
