@@ -1152,6 +1152,33 @@ export const AURORA_ACTIONS: AuroraActionDef[] = [
     },
   },
   {
+    name: "render_3d",
+    describe:
+      "Propone un RENDER 3D para Blender como TRABAJO 3D DATO validado (jamás código). Args opcionales {forma: cubo|esfera|icosfera|cilindro|cono|toro, color: \"#rrggbb\" o nombre en español (azul, marrón…), material: cristal|metal|mate|brillante, ancho, alto, salida: png|glb|ambos, motor, confirmado}. Encola en una neurona de tu cuenta con Blender vía /api/3d/trabajos; lo pesado espera tu palabra antes de renderizar.",
+    example: '[[ACCION: render_3d {"forma":"esfera","material":"cristal","color":"#7aa2ff","salida":"png"}]]',
+    handler: async (args, ctx) => {
+      const { trabajoDeAccion, elegirNeurona } = await import("@/lib/blender3d/accion-render");
+      const r = trabajoDeAccion(args);
+      if (!r.ok) return { ok: false, message: r.motivo };
+      const { listNeurons } = await import("@/lib/neurons/neurons");
+      const lista = await listNeurons();
+      const sel = elegirNeurona(lista.map((n) => ({ nombre: n.name, capabilities: n.capabilities as unknown as Record<string, unknown> })));
+      if (!sel.ok) return { ok: false, message: sel.motivo };
+      ctx.onStatus?.(`Encolando el render 3D en ${sel.neurona}…`);
+      const blender = (lista.find((n) => n.name === sel.neurona)?.capabilities?.blender ?? {}) as Record<string, unknown>;
+      const p = typeof blender.perfil === "string" ? blender.perfil : "ligero";
+      const perfil = (p === "estandar" || p === "estudio" ? p : "ligero") as "ligero" | "estandar" | "estudio";
+      const { necesitaConfirmacion } = await import("@/lib/blender3d/trabajo");
+      if (necesitaConfirmacion(r.trabajo, perfil) && args.confirmado !== true) {
+        return { ok: true, message: `Preparé el render 3D «${r.trabajo.titulo}» para ${sel.neurona}. Este trabajo necesita tu confirmación antes de renderizar: confírmamelo y lo encolo.`, status: "Render 3D preparado…" };
+      }
+      const res = await fetch("/api/3d/trabajos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ trabajo: r.trabajo, confirmado: args.confirmado === true }) }).catch(() => null);
+      const datos = (await res?.json().catch(() => null)) as { ok?: boolean; id?: string; motivo?: string } | null;
+      if (!datos?.ok) return { ok: false, message: `El trabajo 3D no se pudo encolar: ${datos?.motivo ?? "la cola de render de esta neurona no respondió (¿estás en la neurona con Blender?)"}.` };
+      return { ok: true, message: `Encolé el render 3D «${r.trabajo.titulo}» en ${sel.neurona} (id ${datos.id}). Lo verás cuando termine en la cola 3D de esta neurona.`, status: "Render 3D encolado…" };
+    },
+  },
+  {
     name: "protomolecula",
     describe:
       "Controla la PROTOMOLÉCULA (creación y edición universal) por la misma puerta que la mano: cada cambio lleva tu nombre y se puede deshacer. Args {accion, molecula?}: «abrir» (orbe o página; con {herramienta} añade un átomo), «estado» (controles con valor, unidad y rango; {atomo} filtra), «mover» ({parametro, valor} exacto o {parametro, cambio, modo: delta|porcentaje-valor|porcentaje-rango|pasos}; {atomo} si hay dos iguales), «dictar» ({frase}), «deshacer» (solo lo tuyo), «convertir» ({url} o {archivo} y {a}: pasa un archivo a otro formato con Filee), «pedir» ({texto, modo?: rama|directo}: la persona pide algo en lenguaje natural —un objeto 3D, una imagen, cambiar el fondo, editar un archivo o una publicación, abrirlo en una pizarra— y se prepara un PLAN que NO se ejecuta hasta que ella lo confirme en la ventana de la Protomolécula), «proponer-codigo» (próximamente, fase F7), «activar», «desactivar», «alternar» y «cerrar» (control de la orbe de la Protomolécula en todas las neuronas). Lo que pida confirmación queda pendiente en el panel.",
