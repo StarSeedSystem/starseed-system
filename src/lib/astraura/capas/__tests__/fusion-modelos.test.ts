@@ -18,6 +18,8 @@ describe("planFusion", () => {
     const plan = planFusion([CON_AJUSTES({})]);
     expect(plan.estrategia).toBe("ninguna");
     expect(plan.herramienta).toBeNull();
+    // Caso rescatado de la rama nube/40848921665: la negativa dice su motivo (texto de hoy).
+    expect(plan.motivo).toContain("al menos dos");
   });
 
   it("regla 2: dueños distintos no se mezclan", () => {

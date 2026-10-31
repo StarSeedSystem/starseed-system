@@ -64,6 +64,9 @@ describe("FilasDeProcesos plegables", () => {
         expect(within(olaSeccion).getByText("1 en curso · 12 pendientes · 1 hecha")).toBeInTheDocument();
         fireEvent.click(within(olaSeccion).getByRole("button", { name: /Abrir lista/ }));
         expect(within(olaSeccion).getByText("TA00")).toBeInTheDocument();
+        // Al abrir de nuevo el resumen desaparece: solo se enseña cerrada (caso rescatado
+        // de la rama nube/40848921665, adaptado a la API de hoy).
+        expect(within(olaSeccion).queryByText("1 en curso · 12 pendientes · 1 hecha")).not.toBeInTheDocument();
     });
 
     it("cada agente es su propia sección plegable y solo arranca abierta el que tiene algo vivo", () => {
@@ -74,8 +77,13 @@ describe("FilasDeProcesos plegables", () => {
 
         const parado = screen.getByLabelText("cola-sil");
         expect(within(parado).queryByTestId("fila-ordenada")).not.toBeInTheDocument();
-        fireEvent.click(within(parado).getByRole("button", { name: /Abrir lista/ }));
+        // Contrato accesible rescatado de la rama nube/40848921665: el botón declara
+        // aria-expanded antes y después de alternar (adaptado a la API de hoy).
+        const abrir = within(parado).getByRole("button", { name: /Abrir lista/ });
+        expect(abrir).toHaveAttribute("aria-expanded", "false");
+        fireEvent.click(abrir);
         expect(within(parado).getByText("Sin tareas en fila: está cerrando.")).toBeInTheDocument();
+        expect(within(parado).getByRole("button", { name: /Cerrar lista/ })).toHaveAttribute("aria-expanded", "true");
 
         const sinAgente = screen.getByLabelText("cola-qui · sin agente");
         expect(within(sinAgente).queryByText("TAQ1")).not.toBeInTheDocument();
