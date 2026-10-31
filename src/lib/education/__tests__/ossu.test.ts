@@ -81,7 +81,8 @@ describe("itinerarioOssu", () => {
 // Se comprueba por fuente, igual que el patrón «aplicado, no sólo integrado»
 // de src/lib/__tests__/educacion-ossu.test.ts.
 describe("la ruta OSSU está aplicada en la página de Educación", () => {
-    const RAIZ = path.resolve(__dirname, "../../..");
+    // `__dirname` = src/lib/education/__tests__ → cuatro niveles arriba = raíz del repo.
+    const RAIZ = path.resolve(__dirname, "../../../..");
     const carpeta = path.join(RAIZ, "src", "app", "(app)", "network", "education");
 
     it("page.tsx monta RutaOssuCard debajo de ConocimientoCard", () => {
