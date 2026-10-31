@@ -36,6 +36,20 @@ const OrbeVozDinamico = nextDynamic(() => import("./orbe-voz").then((m) => m.Orb
 /** Horizon (XR1010AO): crear, destinos y Biblioteca conectados a la cuenta real; carga perezosa. */
 const HorizonDinamico = nextDynamic(() => import("./horizon-montado").then((m) => m.HorizonMontado), { ssr: false });
 
+/** Página declarativa (UiSpec, §3 b escalón 2): la pinta `uispec-uikit`; carga perezosa como el resto. */
+const UiSpec3DDinamico = nextDynamic(() => import("./uispec-uikit").then((m) => m.UiSpec3D), { ssr: false });
+
+export interface CapaUiSpec { forma?: string; uiSpec?: unknown }
+
+/** El UiSpec del ÚLTIMO widget de capa (lo publica Astraura): la página declarativa que toca pintar. */
+export function uiSpecDeCapas(capas: readonly CapaUiSpec[]): unknown | null {
+    for (let i = capas.length - 1; i >= 0; i -= 1) {
+        const capa = capas[i];
+        if (capa?.forma === "widget" && capa.uiSpec != null) return capa.uiSpec;
+    }
+    return null;
+}
+
 /** El modo con que `disponerTrinity` coloca la Trinity según lo pedido por la URL. */
 export function modoTrinity(modoUrl: ModoURL | null, plan: PlanEntrada): ModoXR {
     if (modoUrl === "vr") return "vr-inmersivo";
@@ -85,9 +99,24 @@ export function EscenaOS({ modo = null }: Props) {
     const [fallo, setFallo] = useState<string | null>(null);
     const [enSesion, setEnSesion] = useState(false);
     const [alturaOjosMedida, setAlturaOjosMedida] = useState<number | null>(null);
+    const [pagina, setPagina] = useState<unknown | null>(null);
     const intentadoRef = useRef(false);
     const alturaOjosRef = useRef<{ metros: number } | null>(null);
     const { nivel: calidadNivel, cambio, aviso } = useCalidadDinamica();
+
+    // Página declarativa del OS: el widget UiSpec que publica Astraura se pinta en 3D (nunca código).
+    useEffect(() => {
+        let vivo = true; let soltar: (() => void) | null = null;
+        void import("@/lib/astraura-bots/adaptadores/ejecutor-acciones").then((m) => {
+            if (!vivo) return;
+            const aplicar = (capas: readonly CapaUiSpec[]) => setPagina(uiSpecDeCapas(capas));
+            aplicar(m.capasPanelAhora());
+            const oyente = (e: Event) => { const c = (e as CustomEvent<{ capas?: readonly CapaUiSpec[] }>).detail?.capas; if (Array.isArray(c)) aplicar(c); };
+            window.addEventListener(m.EVENTO_CAPA_BOT, oyente);
+            soltar = () => window.removeEventListener(m.EVENTO_CAPA_BOT, oyente);
+        }).catch(() => undefined);
+        return () => { vivo = false; soltar?.(); };
+    }, []);
 
     // Una sola pasada: conseguir el almacén (el botón comparte el singleton) y, si toca, entrar solo.
     useEffect(() => {
@@ -132,7 +161,7 @@ export function EscenaOS({ modo = null }: Props) {
                         modo={modoTrinity(modoUrl, plan)}
                         nivel={calidadNivel}
                         alturaOjosMedida={alturaOjosMedida}
-                        contenido={{ zenith: <OrbeVozDinamico />, horizon: <HorizonDinamico /> }}
+                        contenido={{ zenith: <OrbeVozDinamico />, horizon: <HorizonDinamico />, logic: pagina !== null ? <UiSpec3DDinamico spec={pagina} /> : null }}
                     />
                     {!enSesion && <OrbitControls />}
                 </Suspense>
