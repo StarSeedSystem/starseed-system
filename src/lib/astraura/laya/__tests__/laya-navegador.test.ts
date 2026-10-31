@@ -87,6 +87,12 @@ describe("2.º plano: pestaña oculta y batería baja", () => {
     const s = plan({ bateriaNivel: 0.15, cargando: true });
     expect(s.cargar).toBe(true);
   });
+
+  it("con saveData activo tampoco se despierta, aunque la PWA sea capaz (2.º plano §4)", () => {
+    const s = plan({ saveData: true });
+    expect(s.cargar).toBe(false);
+    expect(s.modelo).toBeNull();
+  });
 });
 
 describe("PWA: WebGPU, 2 GB persistentes y 4 GB de memoria", () => {
@@ -164,6 +170,18 @@ describe("app nativa: carga si el checkpoint cabe en su presupuesto", () => {
     const s = planLayaLocalEnMedio(perfilDelMedio(android));
     expect(s.cargar).toBe(true);
     expect(s.modelo).toBe("multilingual");
+  });
+
+  it("iOS también compite como app nativa: con disco justo (15 % de 2 GB < 400 MB) no cabe", () => {
+    const ios = plan({
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)",
+      esPWA: false,
+      deviceMemory: 3,
+      discoLibreBytes: 2 * 1024 * MB,
+    });
+    expect(ios.cargar).toBe(false);
+    expect(ios.modelo).toBeNull();
+    expect(ios.motivo).toMatch(/no cabe|presupuesto/);
   });
 });
 

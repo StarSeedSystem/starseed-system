@@ -71,6 +71,19 @@ describe("encolarTrabajo", () => {
   });
 });
 
+describe("listarRecientes", () => {
+  it("limita al tope de 20 aunque se pidan más", async () => {
+    const dir = path.join(raiz, "estado");
+    mkdirSync(dir, { recursive: true });
+    for (let i = 0; i < 22; i++) {
+      const id = i.toString(16).padStart(32, "0");
+      writeFileSync(path.join(dir, `${id}.json`), JSON.stringify({ id, estado: "en_cola", motivo: "prueba", salidas: [] }));
+    }
+    const lista = await listarRecientes(25);
+    expect(lista.length).toBe(20);
+  });
+});
+
 describe("capacidades", () => {
   it("devuelve null sin Blender", async () => {
     _ponerProcesos(async () => ({ stdout: '{"instalado":false}', stderr: "", code: 0 }), null);
