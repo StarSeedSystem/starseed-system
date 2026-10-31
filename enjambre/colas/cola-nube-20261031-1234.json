@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "ola": "1029 · CI de producción en verde",
+   "id": "PUB1029C-d1",
+   "titulo": "Diseñador de olas · una dependencia en una parte «-dN» de una tarea de la cola es válida (parte 1 de 2)",
+   "archivos": [
+    "src/lib/mando/colas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta (corre la prueba citada: si ya pasa, responde NO APLICA y no toques nada).\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de cadenas con forma de clave en código ni pruebas.\n\nContexto (2026-10-29): la autopublicación, parada desde el 25-10, ya pasa el detector de secretos y las 3.627 pruebas del puente, pero el CI de GitHub (run 40821862697, candidato c339920f7) falla en Vitest con 6 de 17.056 pruebas. Mientras haya una en rojo, nada se publica. Arregla la causa, no la prueba, salvo que la prueba sea la que quedó vieja (dilo en tu respuesta).\n\nFallan 3 de `src/lib/mando/__tests__/colas-1025.test.ts` («artcraft», «blender» e «investigacion» pasan el validador): «ART1025D: depende de «ART1025B-d3», que no está en la cola», «INV1025K: depende de «INV1025J-d2»…». El revisor de Bloqueadas divide una tarea en partes (`<ID>-d1`, `-d2`, `-d3`, `-d2b`…) y re-apunta las dependencias a la última parte; las partes viven en `progreso.json`, no en la cola. El validador del Diseñador de olas (`validarCola` en `src/lib/mando/colas.ts`; si la lógica vive en otro módulo que importa, usa ese validación que llama esta prueba) debe aceptar una dependencia `<ID>-d<n>[letra]` cuando `<ID>` está en la cola. Una dependencia a algo que no existe sigue siendo error. Prueba nueva para las dos cosas.\n\n## PARTE 1 DE 2 (la dirección dividió PUB1029C: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/mando/colas.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "PUB1029C",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   }
+  }
+ ]
+}
