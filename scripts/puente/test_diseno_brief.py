@@ -233,6 +233,86 @@ class TestBriefHerramientas(unittest.TestCase):
         self.assertIn("UI-TARS", texto)
 
 
+class TestBriefHerramientasDiseno1025(unittest.TestCase):
+    """DSN1025B: brief con las líneas nuevas de slides, DESIGN.md, Docusaurus y Refine."""
+
+    def _texto_brief(self, titulo: str) -> str:
+        tarea = {"titulo": titulo, "archivos": ["src/app/x/page.tsx"]}
+        return brief(tarea, MEMORIA_PRUEBA)
+
+    def test_presentacion_trae_frontend_slides(self):
+        texto = self._texto_brief("Presentación de resultados de la ola")
+        lineas = _lineas_de_herramientas(texto, "frontend-slides")
+        self.assertEqual(len(lineas), 1)
+        self.assertIn("zarazhangrui/frontend-slides", lineas[0])
+        self.assertIn("16:9", lineas[0])
+
+    def test_diapositiva_y_conferencia_casan_igual(self):
+        for titulo in ["Diapositiva de cierre del Café", "Conferencia de la red"]:
+            texto = self._texto_brief(titulo)
+            self.assertEqual(len(_lineas_de_herramientas(texto, "frontend-slides")), 1,
+                             "Sin línea de frontend-slides en: " + titulo)
+
+    def test_design_md_trae_awesome_design_md(self):
+        texto = self._texto_brief("DESIGN.md del Café")
+        lineas = _lineas_de_herramientas(texto, "awesome-design-md")
+        self.assertEqual(len(lineas), 1)
+        self.assertIn("VoltAgent/awesome-design-md", lineas[0])
+        self.assertIn("nunca la identidad", lineas[0])
+
+    def test_sistema_de_diseno_trae_awesome_design_md(self):
+        texto = self._texto_brief("Sistema de diseño de Nexus")
+        self.assertEqual(len(_lineas_de_herramientas(texto, "awesome-design-md")), 1)
+
+    def test_documentacion_trae_docusaurus(self):
+        texto = self._texto_brief("Documentación de la guía de introducción")
+        lineas = _lineas_de_herramientas(texto, "Docusaurus")
+        self.assertEqual(len(lineas), 1)
+        self.assertIn("facebook/docusaurus", lineas[0])
+        self.assertIn("exporta e importa", lineas[0])
+
+    def test_educacion_trae_docusaurus(self):
+        texto = self._texto_brief("Sección de educación con temas de guía")
+        self.assertEqual(len(_lineas_de_herramientas(texto, "Docusaurus")), 1)
+
+    def test_panel_de_datos_trae_refine(self):
+        for titulo in ["Panel de datos del Estudio de Apps", "Panel de administración de widgets"]:
+            texto = self._texto_brief(titulo)
+            lineas = _lineas_de_herramientas(texto, "Refine")
+            self.assertEqual(len(lineas), 1, "Sin línea de Refine en: " + titulo)
+            self.assertIn("refinedev/refine", lineas[0])
+            self.assertIn("telemetría apagada", lineas[0])
+
+    def test_dos_claves_nuevas_no_duplican_linea(self):
+        for titulo, subcadena in [
+            ("Diapositiva de presentación para la conferencia", "frontend-slides"),
+            ("Panel de datos en el panel de administración", "Refine"),
+            ("Educación y documentación juntas", "Docusaurus"),
+            ("design.md del sistema de diseño", "awesome-design-md"),
+        ]:
+            texto = self._texto_brief(titulo)
+            self.assertEqual(len(_lineas_de_herramientas(texto, subcadena)), 1,
+                             subcadena + " sale dos veces: " + titulo)
+
+    def test_apartados_6_y_7_con_tres_claves_y_tope_2500(self):
+        """Con el tope por defecto de 2500 y tres claves nuevas, siguen los apartados 6 y 7."""
+        tarea = {"titulo": "Presentación para el panel de administración de la documentación",
+                 "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA)
+        self.assertLessEqual(len(texto), 2500)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+
+    def test_taste_skill_con_metodo_en_toda_tarea(self):
+        """La línea nueva de taste-skill (con el método) sale en toda tarea de interfaz."""
+        for titulo in ["Simple vista", "Panel de Genesis", "Presentación con panel de datos"]:
+            texto = self._texto_brief(titulo)
+            lineas = _lineas_de_herramientas(texto, "taste-skill")
+            self.assertEqual(len(lineas), 1, "taste-skill en: " + titulo)
+            self.assertIn("inventario, argumento, capturas a 3 anchos", lineas[0])
+            self.assertIn("el ADN manda", lineas[0])
+
+
 class TestBriefRise(unittest.TestCase):
     """§10: sección RISE solo si la tarea toca movimiento."""
 
