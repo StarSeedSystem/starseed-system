@@ -1,0 +1,72 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "RTC1031A",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Rescates · RTCOL1012Ic lleva la rama de otra tarea (GN1010A-d2): revisar y cerrar o rehacer",
+   "archivos": [
+    "src/components/genesis/__tests__/colmena-botones.test.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; nunca la IP del A1; funciones PURAS con pruebas.\n\nEl carril Opus vio que `revisar_ramas_nube.py` asignó a RTCOL1012Ic la rama de GN1010A-d2 (toca enlace-poligenesis y colmena-botones). Mira la tarea original COL1012I, lo que ya está en main (`git log --grep=COL1012I`) y decide: si ya está, responde NO APLICA explicando qué IDs cerrar; si falta algo de colmena-botones, hazlo. Ojo: si una prueba importa de `servicios/`, la puerta necesita esa carpeta en el worktree."
+  },
+  {
+   "id": "ART1025Cb",
+   "ola": "Ola 1025C · ArtCraft y Rare",
+   "titulo": "Cliente MCP por stdio con límites (puro, transporte inyectado)",
+   "area": "artcraft",
+   "archivos": [
+    "src/lib/artcraft/mcp-stdio.ts",
+    "src/lib/artcraft/__tests__/mcp-stdio.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: `architecture/artcraft-y-rare.md` §3.1 (puntos 1 y 7) y §2.1 (MCP por stdio, líneas de hasta 32 MiB). Crea un cliente JSON-RPC 2.0 de MCP por líneas, PURO: no abre procesos; recibe un transporte inyectado `{ escribir(linea: string): void; alRecibir(cb: (texto: string) => void): void; cerrar(): void }` y un reloj inyectado `{ tras(ms: number, cb: () => void): () => void }` para los tiempos.\n\nExporta: `LIMITE_LINEA = 32 * 1024 * 1024`; `trocearLineas(pendiente: string, trozo: string): { lineas: string[]; resto: string }` (separa por `\\n`, ignora `\\r` final y líneas vacías); `class ClienteMcpStdio` con `iniciar()` (envía `initialize` con `protocolVersion: \"2025-06-18\"`, `clientInfo: { name: \"starseed-os\", version: \"1\" }`, espera la respuesta y manda la notificación `notifications/initialized`), `listar(tiempoMs)` (`tools/list`), `llamar(herramienta, argumentos, tiempoMs)` (`tools/call`) y `cerrar()`. Los ids son enteros secuenciales; las respuestas pueden llegar desordenadas; las notificaciones del servidor y las líneas sin `id` se ignoran; una línea que no es JSON no tumba el cliente (se cuenta en `ilegibles`). Errores tipados `ErrorMcp { tipo: \"tiempo\" | \"enorme\" | \"rpc\" | \"cerrado\" | \"protocolo\"; mensaje: string }`: si el resto sin salto de línea supera `LIMITE_LINEA` se corta (`enorme`) y NO se despachan más peticiones; al `cerrar()` las pendientes fallan con `cerrado`; un `result.isError === true` de una herramienta se devuelve como `{ ok: false, texto }` y no como excepción. El texto de `result.content` (tipo `text`) se concatena; las imágenes se devuelven como `{ tipo: \"imagen\", mime, bytes }` con base64 decodificado.\n\nPruebas (≥ 12): handshake completo con transporte falso; respuestas desordenadas; notificación ignorada; línea ilegible; línea enorme cortada y sin más despachos; tiempo agotado; `isError`; cierre con pendientes; trozos partidos a mitad de línea; imagen base64.\n\nREGLAS COMUNES: lee primero la sección que se cita de `architecture/artcraft-y-rare.md` (el contrato). Español con acentos en todo texto que lea una persona. TypeScript estricto, sin `any`. Los módulos de `src/lib/artcraft/` son PUROS (sin `node:*`, sin React, sin red), salvo `pasarela-servidor.ts`, que es solo de servidor y que ningún componente de cliente puede importar (`next build` falla con `node:*` en el cliente). Ni claves ni rutas del disco en el código ni en las pruebas; las cadenas con forma de clave se montan en tiempo de ejecución (`[\"a\", \"b\"].join(\"\")`). Como mucho 3 archivos y 120 líneas por archivo (estilo denso del repo, sin relleno). Pruebas vitest propias en `__tests__`; ejecuta solo las relacionadas, nunca `tsc` ni `next build`. No toques `src/lib/protomolecula/catalogo-herramientas.ts`.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261031-094115-ART1025C`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261031-094115-ART1025C:refs/remotes/origin/nube/a1-20261031-094115-ART1025C\"` y `git cherry-pick --no-commit 9bc5c3ddaf1c 3c73682a0742`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/artcraft/__tests__/mcp-stdio.test.ts, src/lib/artcraft/mcp-stdio.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261031-094115-ART1025C"
+  },
+  {
+   "id": "OPS1031C",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "A1 · la huella de node_modules del guardián y la de compilar_en_a1 hablan el mismo formato",
+   "archivos": [
+    "scripts/puente/compilar_en_a1.py",
+    "scripts/puente/test_compilar_en_a1.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; nunca la IP del A1; funciones PURAS con pruebas.\n\nGEN1031A vio que el guardián del A1 escribe `node_modules/.huella-lock` en otro formato que `compilar_en_a1`, y en el checkout del medio se repite `npm ci` en bucle. Unifica el formato (lee el que escribe el guardián: búscalo en `oracle_nodo.py`, `deploy/oracle/` y `scripts/enjambre/`) para que ninguno de los dos reinstale sin necesidad."
+  },
+  {
+   "id": "ART1025F",
+   "ola": "Ola 1025C · ArtCraft y Rare",
+   "titulo": "Acción de agente [[ACCION: artcraft …]] en Aurora",
+   "area": "artcraft",
+   "archivos": [
+    "src/lib/artcraft/accion-agente.ts",
+    "src/lib/aurora/actions.ts",
+    "src/lib/artcraft/__tests__/accion-agente.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: `architecture/artcraft-y-rare.md` §4.1. Patrón a copiar: `src/lib/protomolecula/accion-agente.ts` (acción `protomolecula`, `ResultadoAccionProto { ok, message, status }`, todo inyectado, sin React ni `node:*`) y cómo `src/lib/aurora/actions.ts` registra esa acción en `AURORA_ACTIONS` (búscala por `protomolecula`).\n\n`accion-agente.ts` (PURO) exporta `ejecutarAccionArtcraft(bruto: unknown, ctx: ContextoAccionArtcraft): Promise<ResultadoAccionArtcraft>` con `ctx = { llamar: (p: { app; herramienta; parametros; contexto: string }) => Promise<{ ok: boolean; resultado?: unknown; status?: number; confirmar?: boolean; motivo?: string }>; contexto: string; estado: (app) => Promise<{ instalado: boolean; version: string | null }> }` y `ResultadoAccionArtcraft = { ok: boolean; message: string; status?: string }` (misma forma que `AuroraActionResult`). El JSON del agente es `{ app: \"figcraft\" | \"gridcraft\" | \"deckcraft\", accion: \"estado\" | \"inspeccionar\" | \"ejecutar\" | \"exportar\", herramienta?, parametros? }`. `estado` → dice si está instalada y su versión; `inspeccionar` → solo herramientas de lectura (`inspect_document`, `get_node`, `inspect_workbook`, `read_range`, `inspect_slide`, `list_commands`…); `ejecutar` y `exportar` → pasan por `ctx.llamar`. Si la pasarela responde `confirmar: true` el mensaje es «queda pendiente de que la persona la confirme en el panel»; 403 → el motivo tal cual; 429 → «la neurona está ocupada, vuelve a intentarlo». El mensaje al agente no pasa de 4 KB, no lleva rutas absolutas (solo nombres de archivo), recorta los resultados largos con «…» y nunca devuelve bytes de archivos. Entrada desconocida o mal formada → `{ ok: false }` con el motivo. Ninguna acción usa las herramientas de ventana.\n\nEn `src/lib/aurora/actions.ts` añade (≤ 25 líneas) la definición `artcraft` a `AURORA_ACTIONS` siguiendo el patrón de `protomolecula`: la acción llama a `POST /api/artcraft/<app>` con el contexto de la sesión (o a `GET` para `estado`). No cambies nada más de ese archivo.\n\nPruebas (≥ 12): estado instalada/no instalada; inspeccionar rechaza una herramienta de escritura; ejecutar con confirmación pendiente; 403; 429; mensaje largo recortado; ruta absoluta no sale; JSON mal formado.\n\nREGLAS COMUNES: lee primero la sección que se cita de `architecture/artcraft-y-rare.md` (el contrato). Español con acentos en todo texto que lea una persona. TypeScript estricto, sin `any`. Los módulos de `src/lib/artcraft/` son PUROS (sin `node:*`, sin React, sin red), salvo `pasarela-servidor.ts`, que es solo de servidor y que ningún componente de cliente puede importar (`next build` falla con `node:*` en el cliente). Ni claves ni rutas del disco en el código ni en las pruebas; las cadenas con forma de clave se montan en tiempo de ejecución (`[\"a\", \"b\"].join(\"\")`). Como mucho 3 archivos y 120 líneas por archivo (estilo denso del repo, sin relleno). Pruebas vitest propias en `__tests__`; ejecuta solo las relacionadas, nunca `tsc` ni `next build`. No toques `src/lib/protomolecula/catalogo-herramientas.ts`.\n\nCOORDINACIÓN ENTRE COLAS (ola 1025R): `src/lib/aurora/actions.ts` también lo edita la tarea BLD1025I (cola «blender»), que puede correr a la vez o antes. Añade SOLO tu bloque (tu entrada, tu import, tu función): no reformatees, no reordenes ni borres nada ajeno. Antes de escribir, lee el archivo tal como está en main; si ya trae lo de BLD1025I, conserva las dos cosas y que sus pruebas sigan pasando.",
+   "dependencias_ya_en_main": [
+    "ART1025B-d3",
+    "ART1025D"
+   ]
+  },
+  {
+   "id": "SGO1031B",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Voz · el router y la cadena real coinciden también con la elección de la cuenta y sin personalidad",
+   "archivos": [
+    "src/lib/aurora/voice-config.ts",
+    "src/app/api/aurora/router.ts",
+    "src/lib/aurora/__tests__/voz-orden-cadena-real.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; nunca la IP del A1; funciones PURAS con pruebas.\n\nLo dejó abierto SGO1031A (c408156ce). (1) Cuando nadie fija motor, `refreshPersonalityVoicePin` da un pin por defecto (openvoice2/omnivoice/fastweb) que `buildVoiceChain` pone delante de `cfg.engine`, pero el router toma la elección de la cuenta como pin: cuenta=vibevoice con openvoice2 disponible ⇒ el router prepara guion y suena OpenVoice. (2) Sin personalidad activa el router lee el override con `persona?.id ?? \"*\"` y la cadena real no aplica override. Manda lo que suena: que el router decida igual que la cadena real en esos dos casos (busca la ruta real de router.ts con grep). Amplía la tabla de equivalencia de `voz-orden-cadena-real.test.ts`. Solo vitest de lo tocado."
+  }
+ ]
+}
