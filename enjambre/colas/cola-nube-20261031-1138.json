@@ -1,0 +1,41 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "RTC1031A",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Rescates · RTCOL1012Ic lleva la rama de otra tarea (GN1010A-d2): revisar y cerrar o rehacer",
+   "archivos": [
+    "src/components/genesis/__tests__/colmena-botones.test.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; nunca la IP del A1; funciones PURAS con pruebas.\n\nEl carril Opus vio que `revisar_ramas_nube.py` asignó a RTCOL1012Ic la rama de GN1010A-d2 (toca enlace-poligenesis y colmena-botones). Mira la tarea original COL1012I, lo que ya está en main (`git log --grep=COL1012I`) y decide: si ya está, responde NO APLICA explicando qué IDs cerrar; si falta algo de colmena-botones, hazlo. Ojo: si una prueba importa de `servicios/`, la puerta necesita esa carpeta en el worktree."
+  },
+  {
+   "id": "OPS1031C",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "A1 · la huella de node_modules del guardián y la de compilar_en_a1 hablan el mismo formato",
+   "archivos": [
+    "scripts/puente/compilar_en_a1.py",
+    "scripts/puente/test_compilar_en_a1.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; nunca la IP del A1; funciones PURAS con pruebas.\n\nGEN1031A vio que el guardián del A1 escribe `node_modules/.huella-lock` en otro formato que `compilar_en_a1`, y en el checkout del medio se repite `npm ci` en bucle. Unifica el formato (lee el que escribe el guardián: búscalo en `oracle_nodo.py`, `deploy/oracle/` y `scripts/enjambre/`) para que ninguno de los dos reinstale sin necesidad."
+  },
+  {
+   "id": "SGO1031B",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Voz · el router y la cadena real coinciden también con la elección de la cuenta y sin personalidad",
+   "archivos": [
+    "src/lib/aurora/voice-config.ts",
+    "src/app/api/aurora/router.ts",
+    "src/lib/aurora/__tests__/voz-orden-cadena-real.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; nunca la IP del A1; funciones PURAS con pruebas.\n\nLo dejó abierto SGO1031A (c408156ce). (1) Cuando nadie fija motor, `refreshPersonalityVoicePin` da un pin por defecto (openvoice2/omnivoice/fastweb) que `buildVoiceChain` pone delante de `cfg.engine`, pero el router toma la elección de la cuenta como pin: cuenta=vibevoice con openvoice2 disponible ⇒ el router prepara guion y suena OpenVoice. (2) Sin personalidad activa el router lee el override con `persona?.id ?? \"*\"` y la cadena real no aplica override. Manda lo que suena: que el router decida igual que la cadena real en esos dos casos (busca la ruta real de router.ts con grep). Amplía la tabla de equivalencia de `voz-orden-cadena-real.test.ts`. Solo vitest de lo tocado."
+  }
+ ]
+}
