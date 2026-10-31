@@ -1,0 +1,118 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "RTC1031A",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Rescates · RTCOL1012Ic lleva la rama de otra tarea (GN1010A-d2): revisar y cerrar o rehacer",
+   "archivos": [
+    "src/components/genesis/__tests__/colmena-botones.test.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; nunca la IP del A1; funciones PURAS con pruebas.\n\nEl carril Opus vio que `revisar_ramas_nube.py` asignó a RTCOL1012Ic la rama de GN1010A-d2 (toca enlace-poligenesis y colmena-botones). Mira la tarea original COL1012I, lo que ya está en main (`git log --grep=COL1012I`) y decide: si ya está, responde NO APLICA explicando qué IDs cerrar; si falta algo de colmena-botones, hazlo. Ojo: si una prueba importa de `servicios/`, la puerta necesita esa carpeta en el worktree."
+  },
+  {
+   "id": "ART1025Cb",
+   "ola": "Ola 1025C · ArtCraft y Rare",
+   "titulo": "Cliente MCP por stdio con límites (puro, transporte inyectado)",
+   "area": "artcraft",
+   "archivos": [
+    "src/lib/artcraft/mcp-stdio.ts",
+    "src/lib/artcraft/__tests__/mcp-stdio.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Contrato: `architecture/artcraft-y-rare.md` §3.1 (puntos 1 y 7) y §2.1 (MCP por stdio, líneas de hasta 32 MiB). Crea un cliente JSON-RPC 2.0 de MCP por líneas, PURO: no abre procesos; recibe un transporte inyectado `{ escribir(linea: string): void; alRecibir(cb: (texto: string) => void): void; cerrar(): void }` y un reloj inyectado `{ tras(ms: number, cb: () => void): () => void }` para los tiempos.\n\nExporta: `LIMITE_LINEA = 32 * 1024 * 1024`; `trocearLineas(pendiente: string, trozo: string): { lineas: string[]; resto: string }` (separa por `\\n`, ignora `\\r` final y líneas vacías); `class ClienteMcpStdio` con `iniciar()` (envía `initialize` con `protocolVersion: \"2025-06-18\"`, `clientInfo: { name: \"starseed-os\", version: \"1\" }`, espera la respuesta y manda la notificación `notifications/initialized`), `listar(tiempoMs)` (`tools/list`), `llamar(herramienta, argumentos, tiempoMs)` (`tools/call`) y `cerrar()`. Los ids son enteros secuenciales; las respuestas pueden llegar desordenadas; las notificaciones del servidor y las líneas sin `id` se ignoran; una línea que no es JSON no tumba el cliente (se cuenta en `ilegibles`). Errores tipados `ErrorMcp { tipo: \"tiempo\" | \"enorme\" | \"rpc\" | \"cerrado\" | \"protocolo\"; mensaje: string }`: si el resto sin salto de línea supera `LIMITE_LINEA` se corta (`enorme`) y NO se despachan más peticiones; al `cerrar()` las pendientes fallan con `cerrado`; un `result.isError === true` de una herramienta se devuelve como `{ ok: false, texto }` y no como excepción. El texto de `result.content` (tipo `text`) se concatena; las imágenes se devuelven como `{ tipo: \"imagen\", mime, bytes }` con base64 decodificado.\n\nPruebas (≥ 12): handshake completo con transporte falso; respuestas desordenadas; notificación ignorada; línea ilegible; línea enorme cortada y sin más despachos; tiempo agotado; `isError`; cierre con pendientes; trozos partidos a mitad de línea; imagen base64.\n\nREGLAS COMUNES: lee primero la sección que se cita de `architecture/artcraft-y-rare.md` (el contrato). Español con acentos en todo texto que lea una persona. TypeScript estricto, sin `any`. Los módulos de `src/lib/artcraft/` son PUROS (sin `node:*`, sin React, sin red), salvo `pasarela-servidor.ts`, que es solo de servidor y que ningún componente de cliente puede importar (`next build` falla con `node:*` en el cliente). Ni claves ni rutas del disco en el código ni en las pruebas; las cadenas con forma de clave se montan en tiempo de ejecución (`[\"a\", \"b\"].join(\"\")`). Como mucho 3 archivos y 120 líneas por archivo (estilo denso del repo, sin relleno). Pruebas vitest propias en `__tests__`; ejecuta solo las relacionadas, nunca `tsc` ni `next build`. No toques `src/lib/protomolecula/catalogo-herramientas.ts`.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261031-094115-ART1025C`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261031-094115-ART1025C:refs/remotes/origin/nube/a1-20261031-094115-ART1025C\"` y `git cherry-pick --no-commit 9bc5c3ddaf1c 3c73682a0742`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/artcraft/__tests__/mcp-stdio.test.ts, src/lib/artcraft/mcp-stdio.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261031-094115-ART1025C"
+  },
+  {
+   "id": "RTS1010-MGR2",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Guardia sin node:* también para /metagenesis",
+   "archivos": [
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx",
+    "src/lib/metagenesis/__tests__/remoto-nodos.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea S1010-MGR2 («Guardia sin node:* también para /metagenesis») se hizo en main por otro camino; su rama nube/a1-20261014-071705 queda archivada en `refs/archivo/nube/a1-20261014-071705` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTS1010-MGR2 · solo estos archivos: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" } });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "S1010-MGR2",
+    "rama": "nube/a1-20261014-071705"
+   }
+  },
+  {
+   "id": "RTS1010-MGR2b",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Guardia sin node:* también para /metagenesis",
+   "archivos": [
+    "src/components/metagenesis/__tests__/colmena-botones.test.tsx",
+    "src/lib/metagenesis/__tests__/remoto-nodos.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea S1010-MGR2 («Guardia sin node:* también para /metagenesis») se hizo en main por otro camino; su rama nube/a1-20261014-071705-RTRTS1010-TU-LL1cobjc queda archivada en `refs/archivo/nube/a1-20261014-071705-RTRTS1010-TU-LL1cobjc` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.95)\n\nTU TAREA (RTS1010-MGR2b · solo estos archivos: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" } });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "S1010-MGR2",
+    "rama": "nube/a1-20261014-071705-RTRTS1010-TU-LL1cobjc"
+   }
+  },
+  {
+   "id": "OPS1031C",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "A1 · la huella de node_modules del guardián y la de compilar_en_a1 hablan el mismo formato",
+   "archivos": [
+    "scripts/puente/compilar_en_a1.py",
+    "scripts/puente/test_compilar_en_a1.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; nunca la IP del A1; funciones PURAS con pruebas.\n\nGEN1031A vio que el guardián del A1 escribe `node_modules/.huella-lock` en otro formato que `compilar_en_a1`, y en el checkout del medio se repite `npm ci` en bucle. Unifica el formato (lee el que escribe el guardián: búscalo en `oracle_nodo.py`, `deploy/oracle/` y `scripts/enjambre/`) para que ninguno de los dos reinstale sin necesidad."
+  },
+  {
+   "id": "SGO1031B",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Voz · el router y la cadena real coinciden también con la elección de la cuenta y sin personalidad",
+   "archivos": [
+    "src/lib/aurora/voice-config.ts",
+    "src/app/api/aurora/router.ts",
+    "src/lib/aurora/__tests__/voz-orden-cadena-real.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; nunca la IP del A1; funciones PURAS con pruebas.\n\nLo dejó abierto SGO1031A (c408156ce). (1) Cuando nadie fija motor, `refreshPersonalityVoicePin` da un pin por defecto (openvoice2/omnivoice/fastweb) que `buildVoiceChain` pone delante de `cfg.engine`, pero el router toma la elección de la cuenta como pin: cuenta=vibevoice con openvoice2 disponible ⇒ el router prepara guion y suena OpenVoice. (2) Sin personalidad activa el router lee el override con `persona?.id ?? \"*\"` y la cadena real no aplica override. Manda lo que suena: que el router decida igual que la cadena real en esos dos casos (busca la ruta real de router.ts con grep). Amplía la tabla de equivalencia de `voz-orden-cadena-real.test.ts`. Solo vitest de lo tocado."
+  },
+  {
+   "id": "AV1011B",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Editor del avatar en tiempo real: deslizadores, colores, piezas, voz, Astraura y MIDI",
+   "archivos": [
+    "src/components/avatares/editor-avatar.tsx",
+    "src/lib/avatares/adaptadores/use-editor-avatar.ts",
+    "src/lib/avatares/adaptadores/__tests__/use-editor-avatar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Panel con: morfología (8 deslizadores), color por ranura, piezas por ranura (elementos de la Biblioteca de tipo pieza de avatar; si no hay, dilo y ofrece importar), expresiones, aura, carácter del movimiento y visibilidad. Hook `useEditorAvatar`: aplica con `aplicarCambio` al instante, deshacer/rehacer (pila de ADN, tope 50), emite con `encolar`/`lote` solo si hay otros presentes y guarda con `debeGuardar` en el almacén de AV1011D. Voz y texto: un campo y un botón de micrófono con el dictado que ya tenga el OS (búscalo en src/lib/aurora); lo dicho pasa por `cambiosDesdeFrase`; lo que queda en `sinEntender` va a Astraura con una instrucción que pide SOLO una lista JSON de `CambioAvatar` (se filtra con `sanearCambio`; si no hay modelo disponible, se dice). MIDI: si la Protomolécula ya tiene mapeo de controles, úsalo; si no, Web MIDI con permiso explícito, CC → deslizador elegido. Pruebas del hook con reloj falso: agrupación, deshacer, cuándo guarda y que sin nadie mirando no emite.",
+   "dependencias_ya_en_main": [
+    "AV1011A",
+    "AV1011D"
+   ]
+  },
+  {
+   "id": "AV1011C",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "La orbe del bot puede ser su avatar 3D: emoción, voz y movimiento",
+   "archivos": [
+    "src/lib/avatares/adaptadores/adn-de-bot.ts",
+    "src/components/avatares/cuerpo-3d-bot.tsx",
+    "src/lib/avatares/adaptadores/__tests__/adn-de-bot.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Cuando `bot.cuerpo.forma` es `avatar-3d` o `vrm`, `bot.cuerpo.avatarRef` apunta al ADN (`biblioteca:`). `adnDeBot(bot)` lo carga o crea `adnPorDefecto` con el tono de la orbe y dueño `{tipo:'bot'}`. La emoción del bot (valencia y activación de `src/lib/astraura-bots/tipos.ts`) mueve expresiones (happy/sad/angry/surprised/relaxed) y la intensidad del aura si `aura.ligadaEmocion`; al hablar, visemas por `sincronia-voz.ts` y gestos con `moverAvatar` respetando `adn.movimiento`. Punto de integración: la tarea BOT1011U de la cola de bots crea `src/components/astraura-bots/cuerpo-bot.tsx`; si ya existe, monta ahí `<Cuerpo3dBot>` para esas formas; si no existe, deja el componente exportado y dilo en el resumen (no lo crees tú). Tamaño de widget flotante, pausa al ocultarse, sin animación con prefers-reduced-motion. Pruebas de `adnDeBot` y del mapeo emoción→expresiones.",
+   "dependencias_ya_en_main": [
+    "AV1011A"
+   ]
+  }
+ ]
+}
