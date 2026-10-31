@@ -17,6 +17,8 @@ import type { EstadoGuardado } from "@/lib/protomolecula/sesion-molecula";
 import type { Ambito, Autor, Operacion, ValorParametro } from "@/lib/protomolecula/tipos";
 import { registrarAtomosPropios } from "@/lib/protomolecula/atomos";
 
+import { PanelImagenes } from "@/components/imagenes";
+
 import { BarraDictado } from "./barra-dictado";
 import { PanelActividad, hayLecturaSalud } from "./panel-actividad";
 import { AnadirHerramienta, ListaPendientes } from "./panel-estructura";
@@ -85,6 +87,12 @@ export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, comp
       <AnadirHerramienta controlador={ctl} estado={estado} />
       <ListaPendientes controlador={ctl} estado={estado} />
       {!compacto && <BarraDictado alDictar={(frase) => ctl.dictar(frase, autor).resultados} />}
+      {!compacto && (
+        <PanelImagenes
+          titulo="Imágenes de la molécula"
+          descripcion="Pide una imagen y elige entre las capas de Astraura; la elegida se puede guardar en la Biblioteca y usar como referencia en 3D."
+        />
+      )}
       <PanelMausbot molecula={estado.molecula} candidatos={candidatosDe(estado.molecula)} />
       {estado.molecula.atomos.map((atomo) => {
         const def = obtenerAtomo(atomo.herramientaId);
