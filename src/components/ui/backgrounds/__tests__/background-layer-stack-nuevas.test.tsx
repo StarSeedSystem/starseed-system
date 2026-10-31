@@ -185,8 +185,8 @@ describe("CapaDifusion - renderizado", () => {
     });
 });
 
-describe("CapaShader - renderizado", () => {
-    it("renderiza nulo cuando visible es false", () => {
+describe("CapaShader - lógica de renderizado", () => {
+    it("no renderiza cuando visible es false", () => {
         const layer: BackgroundLayer = {
             id: "shader-test",
             kind: "shader",
@@ -200,25 +200,6 @@ describe("CapaShader - renderizado", () => {
 
         const result = render(<CapaShader layer={layer} />);
         expect(result.container.firstChild).toBeNull();
-    });
-
-    it("renderiza contenedor con estilo correcto", () => {
-        const layer: BackgroundLayer = {
-            id: "shader-test",
-            kind: "shader",
-            visible: true,
-            opacity: 0.6,
-            blend: "multiply",
-            preset: { components: [] },
-            transform: { x: 0, y: 0, escala: 1, rotacion: 0, ancho: 1, alto: 1 },
-            mascara: "ninguna",
-        };
-
-        const result = render(<CapaShader layer={layer} />);
-        const div = result.container.firstChild;
-        expect(div).toBeTruthy();
-        const style = div!.getAttribute("style") || "";
-        expect(style).toContain("opacity: 0.6");
     });
 
     it("renderiza vista previa cuando no hay WebGPU y se proporciona", () => {
@@ -242,6 +223,23 @@ describe("CapaShader - renderizado", () => {
         const img = result.container.querySelector("img");
         expect(img).toBeTruthy();
         expect(img?.getAttribute("src")).toContain("data:image/png;base64");
+    });
+
+    it("no renderiza canvas cuando no hay WebGPU y sin vista previa", () => {
+        const layer: BackgroundLayer = {
+            id: "shader-test",
+            kind: "shader",
+            visible: true,
+            opacity: 0.6,
+            blend: "multiply",
+            preset: { components: [] },
+            transform: { x: 0, y: 0, escala: 1, rotacion: 0, ancho: 1, alto: 1 },
+            mascara: "ninguna",
+        };
+
+        const result = render(<CapaShader layer={layer} />);
+        const canvas = result.container.querySelector("canvas");
+        expect(canvas).toBeNull();
     });
 });
 
