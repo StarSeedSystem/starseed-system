@@ -61,7 +61,7 @@ export function CapaShader({ layer, vistaPrevia, className }: CapaShaderProps) {
         if (typeof window === "undefined") return;
 
         const medirEntorno = () => {
-            const mq = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)");
+            const mq = typeof window !== "undefined" ? window.matchMedia?.("(prefers-reduced-motion: reduce)") : undefined;
             setEntorno({
                 webgpu: esWebGPUDisponible(),
                 reducirMovimiento: !!(mq?.matches),

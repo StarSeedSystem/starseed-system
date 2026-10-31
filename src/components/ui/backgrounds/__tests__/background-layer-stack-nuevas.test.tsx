@@ -32,7 +32,7 @@ describe("CapaDifusion - renderizado", () => {
         });
 
         const result = render(<CapaDifusion layer={layer} />);
-        const div = result.container.firstChild;
+        const div = result.container.firstElementChild;
         expect(div).toBeTruthy();
         const style = div!.getAttribute("style") || "";
         expect(style).toContain("opacity: 0.5");
@@ -71,7 +71,7 @@ describe("CapaDifusion - renderizado", () => {
         });
 
         const result = render(<CapaDifusion layer={layer} />);
-        const div = result.container.firstChild;
+        const div = result.container.firstElementChild;
         const style = div!.getAttribute("style") || "";
         expect(style).toContain("translate(10%, 15%)");
         expect(style).toContain("scale(0.8)");

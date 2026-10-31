@@ -9,7 +9,7 @@ interface CapaDifusionProps {
 
 const TEXTURE_STYLES: Record<string, React.CSSProperties> = {
     grano: { filter: "blur(8px)" },
-    papel: { brightness: "110%" },
+    papel: { brightness: "110%" } as React.CSSProperties,
     escarcha: { filter: "invert" },
 };
 
