@@ -1,6 +1,11 @@
 import { UMBRAL_EJECUTAR as UMBRAL_NEEDLE_EJECUTAR, zonaDeConfianza,
   type DecisionNeedle, type LlamadaNeedle, type HerramientaNeedle } from "./needle3-client";
 import { preguntaTipo } from "@/ai/astraura/habilidades/diagramas";
+// Ola 1018L · LYS1018K: la capa reflejo pregunta la habilidad con `preguntaHabilidad`
+// (choice entre habilidades + «ninguna») y la capa que responde recibe
+// `bloqueHabilidad` (architecture/laya-y-habilidades.md §5).
+import { preguntaHabilidad, type RespuestaLayaChoice } from "@/ai/astraura/habilidades/elegir-habilidad";
+export type { RespuestaLayaChoice };
 // Cliente único de Laya (Ola 1018L · Tarea B): aquí es donde debía usarse `preguntarALaya`,
 // que era la única llamada a Laya del servidor TS, con plazos del catálogo y relé de malla.
 import { preguntarALaya, puntoDeLlamada, type RelojLaya, type Siesta } from "./laya/cliente-laya";
@@ -155,6 +160,33 @@ export async function decidirTipoDiagrama(
       : decision.confidence;
     if (typeof cruda !== "number" || !Number.isFinite(cruda)) return null;
     return { tipo: decision.choice, confianza: cruda, motor: "laya-local" };
+  } catch {
+    return null;
+  }
+}
+
+/** Capa 2c · Laya elige la habilidad de ingeniería que aplica a la tarea
+ *  (architecture/laya-y-habilidades.md §5, punto `habilidad.elegir` del catálogo).
+ *  Pasa por el cliente único, así que hereda los plazos por medio y el formato
+ *  nativo. Decidir solo con `answer_confidence` (calibrada): sin ella no hay
+ *  decisión — el umbral y el texto a inyectar los aplica `bloqueHabilidad` según
+ *  la capa que responde (tarjeta · resumen · completa; «» si «ninguna» o duda). */
+export async function decidirHabilidad(
+  consulta: string, transporte?: typeof fetch
+): Promise<RespuestaLayaChoice | null> {
+  const pregunta = preguntaHabilidad();
+  const opciones = pregunta.criteria;
+  try {
+    const salida = await preguntarALaya(
+      { punto: { ...puntoDeLlamada("habilidad.elegir"), preguntas: { habilidad: pregunta } },
+        estado: consulta, medio: "a1" },
+      { ...RELOJ_REAL, fetch: transporte ?? fetch });
+    const decision = salida.respuestas?.habilidad as DecisionLaya | undefined;
+    if (typeof decision?.choice !== "string"
+      || !Object.prototype.hasOwnProperty.call(opciones, decision.choice)) return null;
+    const calibrada = decision.answer_confidence;
+    if (typeof calibrada !== "number" || !Number.isFinite(calibrada)) return null;
+    return { choice: decision.choice, answer_confidence: calibrada };
   } catch {
     return null;
   }
