@@ -5,6 +5,7 @@
 es decir, un `.env` entero NUNCA va al A1."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shlex
@@ -107,6 +108,17 @@ class Decisiones(unittest.TestCase):
         a = C.huella_envio("sha1", "")
         self.assertNotEqual(a, C.huella_envio("sha2", ""))
         self.assertNotEqual(a, C.huella_envio("sha1", "src/x.ts"))
+
+    def test_huella_lock_habla_el_formato_del_guardian(self):
+        # El guardián del A1 (`oracle_a1.guardian`, `preparar-a1.sh`) marca con
+        # `sha256sum package-lock.json | cut -c1-16`: 16 hex, no los 64 del sha256 entero.
+        texto = '{"name": "starseed-os"}\n'
+        esperada = hashlib.sha256(texto.encode("utf-8")).hexdigest()[:16]
+        self.assertEqual(C.huella_lock(texto), esperada)
+        self.assertEqual(len(C.huella_lock(texto)), 16)
+        # La marca que escribe el guardián ya no dispara `npm ci`; y la que escribe
+        # `compilar_en_a1` la entiende el guardián (mismo texto, mismo tamaño).
+        self.assertFalse(C.pide_instalacion(esperada, C.huella_lock(texto), existe=True))
 
     def test_huella_lock_y_pide_instalacion(self):
         self.assertEqual(C.huella_lock("x")[:10], C.huella_lock("x")[:10])

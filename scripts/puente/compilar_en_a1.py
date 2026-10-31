@@ -79,9 +79,16 @@ def huella_envio(cabeza, porcelana=""):
     return hashlib.sha256(("%s|%s" % (cabeza, porcelana)).encode("utf-8")).hexdigest()
 
 
+#: (OPS1031C) Los 16 primeros hex del sha256 son el formato que escribe el guardián del A1
+#: (`oracle_a1.guardian`, `preparar-a1.sh`: `sha256sum package-lock.json | cut -c1-16`) y el
+#: que ya lee `comprobar_a1_remoto`. Con los 64 de antes cada uno invalidaba la marca del otro
+#: y el checkout del medio repetía `npm ci` en bucle.
+LARGO_HUELLA_LOCK = 16
+
+
 def huella_lock(texto):
-    """PURA: sha256 de `package-lock.json`, para saber si hay que instalar."""
-    return hashlib.sha256(str(texto or "").encode("utf-8")).hexdigest()
+    """PURA: huella de `package-lock.json`, en el MISMO formato que el guardián del A1."""
+    return hashlib.sha256(str(texto or "").encode("utf-8")).hexdigest()[:LARGO_HUELLA_LOCK]
 
 
 def pide_instalacion(instalada, actual, existe=True):
