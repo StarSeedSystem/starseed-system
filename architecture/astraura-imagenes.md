@@ -88,8 +88,29 @@ el enjambre (guardia de memoria); en la A1, hilos limitados para no ahogar sus s
 Supabase (las capacidades se publican al arrancar y al cambiar); el token de Hugging Face, si hace falta, va en
 el entorno y nunca en el código.
 
-## §9 · Cola `cola-imagenes-1011.json`
+## §9 · Cola `cola-imagenes-1011.json` — estado REAL (verificado 2026-10-31, IMG1011J)
 
-IMG1011A servicio local de imágenes por neurona · B proveedor «neuronas» en media-gen · C tarjeta de opciones
-de la Protomolécula · D chats, agentes y bots · E sugerencias e instalador en las apps · F malla · G explorador
-y autoactualización · H SD-Turbo en la pestaña · I fichas del catálogo · J integración y verificación.
+Verificación del 2026-10-31 en este worktree (enjambre · Ola 1011E): `tsc` en verde,
+**208 pruebas de vitest** en `src/lib/imagenes` + `src/components/imagenes` (12 archivos, 0 fallos),
+**1.847 pruebas** en `src/ai/astraura/media` + `src/lib/astraura-bots` + `src/lib/protomolecula`
+(118 archivos, 0 fallos), **7 pruebas** del servicio local (`servicios/imagenes-local`) y **11**
+del explorador (`scripts/imagenes`) en los dos OK. Sin `next build` (prohibido con enjambre vivo).
+
+| Tarea | Estado real | Dónde se ve |
+|---|---|---|
+| **A** servicio local por neurona | **HECHA** | `servicios/imagenes-local/servicio.py` (solo 127.0.0.1, cede ante el enjambre, `capabilities.imagenes`) + `README.md`. 7 pruebas OK |
+| **B** proveedor «neuronas» en media-gen | **HECHA** | `src/ai/astraura/media/proveedor-neuronas.ts` registrado en `listMediaProvidersFor` (`id: "neuronas"`) y cableado en `media-gen.ts` (opciones > 1 → galería por capas). 22 pruebas OK |
+| **C** tarjeta de opciones de la Protomolécula | **HECHA** | `src/components/imagenes/tarjeta-imagenes.tsx` + hook `src/lib/imagenes/adaptadores/use-tarjeta-imagenes.ts` (elegir, variar, editar en la Protomolécula, ampliar con licencia y atribución, guardar, borrador, referencia 3D). Barrel `src/components/imagenes/index.ts` añadido hoy. 26 pruebas OK |
+| **D** chats, agentes y bots | **HECHA la capa de acciones** | herramienta `generar_imagen` en `src/lib/integrations/aurora-tools.ts:1049` (entrada {prompt, opciones, necesita, referencia, comercial}, respaldo Pollinations) y acción `imagen.generar` en `src/lib/astraura-bots/acciones.ts:70`. La tarjeta de opciones se ENCAJA cuando la superficie recibe las opciones (por props) o la `peticion` (planifica sola con el hook) — todavía **no hay import de `@/components/imagenes` desde el render del chat**: pendiente de cablear en esa superficie |
+| **E** sugerencias e instalador en las apps | **HECHA, un asentamiento** | `src/components/imagenes/sugerencias-instalacion.tsx` montada en la app Habilidades (`src/app/(app)/habilidades/page.tsx:44`). Falta el segundo asentamiento en la ventana de ajustes de sistemas de la neurona (`src/components/astraura/persona-system-sections.tsx`) — pendiente, tarea sucesora |
+| **F** malla | **HECHA** | `src/lib/imagenes/adaptadores/malla-imagenes.ts` (converts el registro de `malla-neuronas.ts` a `NeuronaImg`; lo que ya sirve otra neurona tuya se usa desde la malla) reutilizada en el proveedor «neuronas». 21 pruebas OK |
+| **G** explorador y autoactualización | **HECHA** | `scripts/imagenes/explorador_modelos.py` (tendencias de Hugging Face + versiones de sd.cpp y ComfyUI → `propuestas-imagenes.json`; nada se instala solo). 11 pruebas OK |
+| **H** SD-Turbo en la pestaña | **HECHA** | `src/lib/imagenes/adaptadores/webgpu-sd-turbo.ts`, su worker y su cliente · capa ONNX Runtime Web + WebGPU. 43 pruebas OK |
+| **I** fichas del catálogo | **HECHA** | `src/lib/imagenes/modelos.ts`: catálogo con las licencias y «gated» del §1 (Qwen-Image 2.1 no comercial, Krea 2 solo con licencia de pago, FLUX.1 dev no comercial…), `FECHA_VERIFICACION_IMAGENES` soldada a las sugerencias. 32 pruebas OK (núcleo modelos/plan/sugerencias) |
+| **J** integración y verificación | **HECHA** | esta verificación + barrel `src/components/imagenes/index.ts`. Pendientes honestos: import de la tarjeta en el render del chat (D) y montaje de `SugerenciasInstalacion` en los ajustes de la neurona (E), ambos en archivos que no son de esta tarea |
+
+**Advertencias reales que no son fallos de código:** el explorador consultó Hugging Face en su prueba
+(una red real, única excepción por diseño del explorador — sus pruebas de opciones usan respuestas
+fijas); el servicio local nunca se ha corrido contra sd.cpp instalado en una neurona (pesos: solo con
+permiso de Alex); los modelos «gated» (Krea 2, FLUX.1, SD 3.5) exigen aceptar sus términos en
+Hugging Face y un token propio en el entorno (`HUGGING_FACE_TOKEN`, solo su nombre, jamás el valor).
