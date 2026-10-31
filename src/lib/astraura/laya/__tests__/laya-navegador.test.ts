@@ -288,4 +288,11 @@ describe("planLayaLocalEnMedio con perfil puro (parte 2): reglas del medio sobre
     expect(r.modelo).toBeNull();
     expect(r.motivo).toMatch(/pestaña oculta/);
   });
+
+  it("saveData manda a la malla una PWA capaz: 2.º plano deja la RAM a 0 y la capa no cabe", () => {
+    const r = planLayaLocalEnMedio(medioPuro({ saveData: true }));
+    expect(r.cargar).toBe(false);
+    expect(r.modelo).toBeNull();
+    expect(r.motivo).toMatch(/no cabe/);
+  });
 });
