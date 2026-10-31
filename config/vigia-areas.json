@@ -113,12 +113,14 @@
         "pipeline_tags": [],
         "autores": [],
         "cuantizadores": [],
-        "repos_github": ["mattpocock/skills","heygen-com/hyperframes"],
+        "repos_github": ["mattpocock/skills","heygen-com/hyperframes","cathrynlavery/diagram-design"],
         "alias_github": {
             "mattpocock/skills": "mattpocock/skills",
-            "heygen-com/hyperframes": "heygen-com/hyperframes"
+            "heygen-com/hyperframes": "heygen-com/hyperframes",
+            "cathrynlavery/diagram-design": "cathrynlavery/diagram-design"
         },
-        "catalogo": "src/ai/astraura/skills-ingenieria.ts"
+        "catalogo": "src/ai/astraura/skills-ingenieria.ts",
+        "nota": "Diagram Design (cathrynlavery/diagram-design, MIT): copia en vendor/habilidades/diagram-design; señal de versión, su manifiesto .claude-plugin/plugin.json y el campo version (2.6.110 al copiar). Se renueva entera cuando cambia esa versión."
     }
   ]
 }
