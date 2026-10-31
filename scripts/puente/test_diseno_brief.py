@@ -220,6 +220,41 @@ class TestBriefHerramientas(unittest.TestCase):
         self.assertEqual(len(_lineas_de_herramientas(texto, "taste-skill")), 1,
                          "taste-skill aparece duplicado")
 
+    def test_presentacion_trae_frontend_slides(self):
+        tarea = {"titulo": "Presentación de interfaz", "archivos": ["src/app/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("frontend-slides — https://github.com/zarazhangrui/frontend-slides", texto)
+
+    def test_design_md_trae_awesome_design_md(self):
+        tarea = {"titulo": "Guía design.md", "archivos": ["src/app/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("awesome-design-md — https://github.com/VoltAgent/awesome-design-md", texto)
+
+    def test_documentacion_trae_docusaurus(self):
+        tarea = {"titulo": "Documentación educativa", "archivos": ["src/app/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Docusaurus — https://github.com/facebook/docusaurus", texto)
+
+    def test_educacion_trae_docusaurus(self):
+        tarea = {"titulo": "Módulo de educación", "archivos": ["src/app/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Docusaurus — https://github.com/facebook/docusaurus", texto)
+
+    def test_panel_datos_trae_refine(self):
+        tarea = {"titulo": "Panel de datos", "archivos": ["src/app/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Refine — https://github.com/refinedev/refine", texto)
+
+    def test_no_duplica_linea_con_claves_multiples(self):
+        """Tres claves («diapositiv», «presentaci», «conferencia») que casa con la
+        misma línea de frontend-slides no la triplican en el apartado 6."""
+        tarea = {"titulo": "Presentación diapositiva conferencia",
+                 "archivos": ["src/app/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        linea = ("frontend-slides — https://github.com/zarazhangrui/frontend-slides "
+                 "(presentaciones HTML de un archivo, escenario 16:9 fijo)")
+        self.assertEqual(texto.count(linea), 1)
+
     def test_apartados_6_y_7_con_varias_claves(self):
         """Los apartados 6 (Herramientas) y 7 (Verificación) se conservan con varias claves."""
         tarea = {"titulo": "Chat de agente con grafo", "archivos": ["src/app/x/page.tsx"]}
