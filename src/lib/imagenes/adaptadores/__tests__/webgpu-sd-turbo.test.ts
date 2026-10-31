@@ -69,6 +69,12 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
     expect(BYTES_PESOS_SD_TURBO).toBeGreaterThan(Math.round(2.5e9));
   });
 
+  it("la ficha declara la licencia de Stability AI y su uso condicionado", () => {
+    const ficha = modeloPorId(MODELO_SD_TURBO);
+    expect(ficha!.licencia).toContain("Stability");
+    expect(ficha!.licencia).toContain("sin etiqueta en Hugging Face");
+  });
+
   it("el total de pesos cuadra con los 2,51 GB documentados y en claro son «2,3 GB»", () => {
     expect(BYTES_PESOS_SD_TURBO).toBeGreaterThan(Math.round(2.5e9));
     expect(textoBytes(BYTES_PESOS_SD_TURBO)).toBe("2,3 GB");
@@ -77,6 +83,11 @@ describe("webgpu-sd-turbo · catálogo del módulo", () => {
   it("solo los TRES archivos necesarios: ni encoder del VAE ni scheduler", () => {
     expect(PESOS_SD_TURBO.map((p) => p.ruta)).toEqual(["unet/model.onnx", "text_encoder/model.onnx", "vae_decoder/model.onnx"]);
     for (const p of PESOS_SD_TURBO) expect(p.bytes).toBeGreaterThan(0);
+  });
+
+  it("mide cada peso del ejemplo oficial y el total es la suma EXACTA de los tres", () => {
+    expect(PESOS_SD_TURBO.map((p) => p.bytes)).toEqual([1733430199, 681393168, 99094314]);
+    expect(BYTES_PESOS_SD_TURBO).toBe(1733430199 + 681393168 + 99094314);
   });
 
   it("textoBytes: GB con coma y MB redondeados; no inventa tamaños inválidos", () => {
@@ -115,6 +126,12 @@ describe("detectaSDTurbo · las tres sondas de WebGPU", () => {
     const motivos = FALTAS.map((falta) => detectaSDTurbo({ ...BUENAS, [falta]: false } as SondasWebGPU).motivo);
     expect(new Set(motivos).size).toBe(3);
   });
+
+  it("cada motivo nombra su causa concreta: WebGPU, GPU o f16", () => {
+    expect(detectaSDTurbo({ hayWebGPU: false, hayAdaptador: false, f16: false }).motivo).toContain("no tiene WebGPU");
+    expect(detectaSDTurbo({ ...BUENAS, hayAdaptador: false }).motivo).toContain("GPU disponible");
+    expect(detectaSDTurbo({ ...BUENAS, f16: false }).motivo).toContain("f16");
+  });
 });
 
 describe("planPesos · reglas de la descarga (contrato §8)", () => {
@@ -132,6 +149,10 @@ describe("planPesos · reglas de la descarga (contrato §8)", () => {
     expect(planPesos({ enCache: false, permiso: true, cuotaLibreBytes: BYTES_PESOS_SD_TURBO * 3 }).accion).toBe("descargar");
     expect(planPesos({ enCache: false, permiso: true, cuotaLibreBytes: BYTES_PESOS_SD_TURBO * 3 - 1 }).motivo).toContain(textoBytes(BYTES_PESOS_SD_TURBO * 3));
     expect(planPesos({ enCache: false, permiso: true, cuotaLibreBytes: BYTES_PESOS_SD_TURBO * 4 }).motivo).toContain("caché del navegador");
+  });
+
+  it("un espacio libre negativo nunca se lee como hueco: no se descarga", () => {
+    expect(planPesos({ enCache: false, permiso: true, cuotaLibreBytes: -1 }).accion).toBe("sin-espacio");
   });
 });
 
