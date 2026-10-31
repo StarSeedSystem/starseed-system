@@ -5,6 +5,7 @@
 es decir, un `.env` entero NUNCA va al A1."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shlex
@@ -132,6 +133,31 @@ class Decisiones(unittest.TestCase):
             ok, _ = C.se_puede_compilar({}, 999)
             self.assertFalse(ok)
             nv.assert_called_once()
+
+
+class HuellaCompartidaConElGuardian(unittest.TestCase):
+    """OPS1031C: el guardián del A1 (`oracle_a1.py` y `deploy/oracle/nodo/preparar-a1.sh`)
+    marca `node_modules/.huella-lock` con `sha256sum package-lock.json | cut -c1-16`.
+    Si `compilar_en_a1` habla otro idioma, cada uno ve «cambió» y repite `npm ci` en bucle
+    en el checkout del medio: los dos tienen que usar la MISMA forma."""
+
+    TEXTO = '{"lockfileVersion": 3}'
+
+    def _sha(self):
+        return hashlib.sha256(self.TEXTO.encode("utf-8")).hexdigest()
+
+    def test_la_huella_tiene_la_forma_del_guardian(self):
+        self.assertEqual(C.huella_lock(self.TEXTO), self._sha()[:16])
+        self.assertEqual(len(C.huella_lock(self.TEXTO)), 16)
+
+    def test_la_marca_del_guardian_no_reinstala(self):
+        self.assertFalse(C.pide_instalacion(self._sha()[:16], C.huella_lock(self.TEXTO), existe=True))
+
+    def test_una_marca_vieja_de_64_hex_tampoco_reinstala(self):
+        self.assertFalse(C.pide_instalacion(self._sha(), C.huella_lock(self.TEXTO), existe=True))
+
+    def test_un_lock_distinto_si_reinstala(self):
+        self.assertTrue(C.pide_instalacion(self._sha()[:16], C.huella_lock("{}"), existe=True))
 
 
 class Cola(unittest.TestCase):

@@ -79,15 +79,28 @@ def huella_envio(cabeza, porcelana=""):
     return hashlib.sha256(("%s|%s" % (cabeza, porcelana)).encode("utf-8")).hexdigest()
 
 
+#: (OPS1031C) El guardián del A1 escribe `node_modules/.huella-lock` con
+#: `sha256sum package-lock.json | cut -c1-16` (`oracle_a1.py`, `preparar-a1.sh`).
+#: Aquí se habla el MISMO idioma: si no, cada uno ve «cambió» y repite `npm ci` en bucle.
+LARGO_HUELLA_LOCK = 16
+
+
 def huella_lock(texto):
-    """PURA: sha256 de `package-lock.json`, para saber si hay que instalar."""
-    return hashlib.sha256(str(texto or "").encode("utf-8")).hexdigest()
+    """PURA: sha256 de `package-lock.json` en el formato del guardián (16 hex)."""
+    return hashlib.sha256(str(texto or "").encode("utf-8")).hexdigest()[:LARGO_HUELLA_LOCK]
+
+
+def huella_lock_comun(valor):
+    """PURA: normaliza una marca leída (incluida una vieja de 64 hex) al formato del guardián."""
+    return str(valor or "").strip()[:LARGO_HUELLA_LOCK]
 
 
 def pide_instalacion(instalada, actual, existe=True):
-    """PURA: ¿el A1 necesita `npm ci`? Solo si cambia el lock (o nunca se marcó)."""
+    """PURA: ¿el A1 necesita `npm ci`? Solo si cambia el lock (o nunca se marcó).
+    Compara en el formato común para que una marca legada de 64 hex no reinstale."""
     if not existe:
         return True
+    instalada, actual = huella_lock_comun(instalada), huella_lock_comun(actual)
     return bool(instalada) != bool(actual) or instalada != actual
 
 
