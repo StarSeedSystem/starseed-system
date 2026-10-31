@@ -7,13 +7,13 @@
  */
 
 import { getOverrides } from "@/lib/astraura/neuron-persona-store";
-import { TIMBRE_AUTONOMO_BASE, TIMBRE_PREDETERMINADO, buscarTimbre } from "@/lib/aurora/timbres";
+import { TIMBRE_AUTONOMO_BASE, TIMBRE_FIJO_KEY, TIMBRE_PREDETERMINADO, buscarTimbre } from "@/lib/aurora/timbres";
 import { seedKindFor } from "@/lib/aurora/tts-oss/openvoice2";
 import { XAI_PERSONA_VOICES, isXaiPersonaId } from "@/lib/aurora/tts-oss/xai-persona-voices";
 import { generoEfectivo, getModoVoz, type ModoVoz } from "@/lib/aurora/voz-inicial";
 import { safeGet } from "@/lib/safe-storage";
 export const VOZ_RT_FIJA_KEY = "starseed.voz-rt.voz";
-export const TIMBRE_FIJO_KEY = "starseed.voz.timbre.v1";
+export { TIMBRE_FIJO_KEY };
 export type OrigenIdentidadVoz = "agente" | "personalidad" | "cerebro" | "neurona" | "cuenta" | "defecto";
 /** Lo que puede fijar cualquier ámbito; lo ausente hereda del siguiente. */
 export interface EleccionIdentidadVoz { timbre?: string; motor?: string; vozRT?: string; instruct?: string; semilla?: string; xai?: string }
