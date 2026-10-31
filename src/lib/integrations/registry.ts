@@ -109,6 +109,29 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
     ],
   },
 
+  {
+    id: "openrefine",
+    ossId: "openrefine",
+    label: "OpenRefine (limpieza de datos)",
+    category: "data-ingest",
+    capabilities: [
+      "Limpiar y deduplicar CSV con recetas de operaciones (lista JSON exportada)",
+      "Agrupar variantes de nombres y unificar sin repetir filas",
+      "Transformaciones GREL de lista blanca: nunca Jython/Clojure ni URLs remotas",
+    ],
+    defaultEndpoint: "http://127.0.0.1:3333",
+    needsKey: false, // no tiene autenticación: solo loopback, o tras pasarela/túnel con clave
+    docsUrl: "https://openrefine.org/docs",
+    freeHostingHint:
+      "Corre en tu equipo con Java (11–21 para la 3.10.1): arranca ./refine y atiende en 127.0.0.1:3333. No tiene autenticación: en el A1 solo detrás de la malla o de un túnel con clave, nunca expuesto a internet; no hay instancia pública fiable que sirva como default.",
+    notes:
+      "Las recetas van validadas por el cliente (INV1025F): solo operaciones de lista blanca y expresiones grel:. La reconciliación envía valores a servicios externos: solo datos públicos (R5, R9).",
+    actions: [
+      { id: "ping", label: "Comprobar instancia", description: "Comprueba que tu OpenRefine local responde (get-version)." },
+      { id: "limpiar", label: "Limpiar CSV con receta", description: "Crea un proyecto temporal, aplica la receta (solo GREL) y devuelve el CSV limpio; el proyecto se borra al terminar." },
+    ],
+  },
+
   // ── Apps y plataformas IA ─────────────────────────────────────
   {
     id: "dify",
