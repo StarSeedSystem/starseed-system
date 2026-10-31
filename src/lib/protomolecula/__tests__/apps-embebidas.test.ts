@@ -4,7 +4,8 @@
  */
 import { describe, expect, it } from "vitest";
 import { APPS_EMBEBIDAS, registrarAppsEmbebidas } from "../apps-embebidas";
-import { obtenerAtomo, listarAtomos, type VistaAtomo } from "../registro-atomos";
+import { registrarAtomosPropios } from "../atomos";
+import { limpiarRegistro, obtenerAtomo, listarAtomos, type VistaAtomo } from "../registro-atomos";
 import { esUrlEmbebible } from "../puente-herramientas";
 
 /** Origen del OS publicado: ninguna app embebida puede apuntar al propio origen. */
@@ -53,6 +54,16 @@ describe("apps ajenas embebidas", () => {
       expect(def.ficha).toBeDefined();
       expect(def.ficha?.repo?.startsWith("https://github.com/")).toBe(true);
       expect(def.ficha?.licencia).toBeTruthy();
+    }
+  });
+
+  it("registrarAtomosPropios cablea las apps embebidas fuera de este módulo (F1B las muestra)", () => {
+    limpiarRegistro();
+    registrarAtomosPropios();
+    const embebibles = APPS_EMBEBIDAS.filter((def) => urlDe(def));
+    expect(embebibles.length).toBeGreaterThan(0);
+    for (const def of embebibles) {
+      expect(obtenerAtomo(def.herramientaId), def.herramientaId).toEqual(def);
     }
   });
 
