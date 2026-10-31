@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   activeEngineFromChain,
+  resolveVoiceChoice,
   resolveVoiceChoiceFrom,
   voiceChoiceFromConfig,
   voiceChoiceFromOverride,
@@ -123,6 +124,71 @@ describe("voiceChoiceFromOverride y voiceChoiceFromConfig", () => {
   it("la cuenta elige motor, salvo «navegador» (que no fija nada)", () => {
     expect(voiceChoiceFromConfig({ engine: "vibevoice", autoDownload: false })).toBe("vibevoice");
     expect(voiceChoiceFromConfig({ engine: "browser", autoDownload: false })).toBeNull();
+  });
+});
+
+describe("resolveVoiceChoice · fuentes crudas del turno", () => {
+  it("deriva el pin de cada ámbito y respeta la misma precedencia", () => {
+    expect(
+      resolveVoiceChoice({
+        ctx: { personaId: "aurora", deviceId: "neurona-1" },
+        personality: { intelligence: { modo: "fija", motorVoz: "vibevoice" } },
+        override: { voz: { motor: "omnivoice" } },
+        config: { engine: "bark", autoDownload: false },
+      }),
+    ).toEqual({ motor: "vibevoice", provenance: "personalidad", scopeId: "aurora" });
+  });
+
+  it("el override de la neurona entra si la personalidad no fija motor", () => {
+    expect(
+      resolveVoiceChoice({
+        ctx: { deviceId: "neurona-1" },
+        override: { voz: { motor: "omnivoice" } },
+        config: { engine: "bark", autoDownload: false },
+      }),
+    ).toEqual({ motor: "omnivoice", provenance: "neurona", scopeId: "neurona-1" });
+  });
+
+  it("la cuenta cierra la jerarquía cuando nadie más elige", () => {
+    expect(resolveVoiceChoice({ config: { engine: "voxcpm", autoDownload: false } })).toEqual({
+      motor: "voxcpm",
+      provenance: "cuenta",
+    });
+    expect(
+      resolveVoiceChoice({ config: { engine: "browser", autoDownload: false } }),
+    ).toBeNull();
+  });
+
+  it("lo ya guardado en el store manda sobre lo derivado", () => {
+    expect(
+      resolveVoiceChoice({
+        ctx: { personaId: "aurora", deviceId: "neurona-1" },
+        store: { personalidad: { aurora: { motor: "voice158" } } },
+        personality: { intelligence: { modo: "fija", motorVoz: "vibevoice" } },
+        override: { voz: { motor: "omnivoice" } },
+      }),
+    ).toEqual({ motor: "voice158", provenance: "personalidad", scopeId: "aurora" });
+  });
+
+  it("tolera espacios y mayúsculas de valores guardados a mano", () => {
+    expect(
+      resolveVoiceChoice({ ctx: { agentId: "ag-1" }, store: { agente: { "ag-1": { motor: " VibeVoice " } } } }),
+    ).toEqual({ motor: "vibevoice", provenance: "agente", scopeId: "ag-1" });
+    expect(
+      resolveVoiceChoice({ ctx: { deviceId: "n" }, override: { voz: { motor: "VIBEVOICE" } } }),
+    ).toEqual({ motor: "vibevoice", provenance: "neurona", scopeId: "n" });
+  });
+
+  it("sin fuentes ni fuentes inválidas devuelve null sin lanzar", () => {
+    expect(resolveVoiceChoice()).toBeNull();
+    expect(
+      resolveVoiceChoice({
+        ctx: { personaId: "aurora" },
+        personality: null,
+        override: { voz: { motor: 42 } } as unknown as { voz?: { motor?: string } },
+        config: null,
+      }),
+    ).toBeNull();
   });
 });
 
