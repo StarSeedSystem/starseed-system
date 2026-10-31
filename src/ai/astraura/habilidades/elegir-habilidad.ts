@@ -40,7 +40,9 @@ export interface RespuestaLayaChoice {
 
 /** El tamaño del texto según la capa que responde; capa sin entrada no inyecta nada. */
 export type TamanoInyeccion = "tarjeta" | "resumen" | "completa";
-export const TAMANO_POR_CAPA: Readonly<Record<string, TamanoInyeccion>> = Object.freeze({
+/** Solo lo lee `bloqueHabilidad`: la tabla es la interna de aplicar el tamaño por capa,
+ *  y su efecto se prueba en las pruebas de bloqueHabilidad, capa a capa. */
+const TAMANO_POR_CAPA: Readonly<Record<string, TamanoInyeccion>> = Object.freeze({
   reflejo: "tarjeta",
   "palabra-pequena": "tarjeta",
   palabra: "resumen",
