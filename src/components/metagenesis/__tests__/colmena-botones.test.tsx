@@ -121,6 +121,30 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         expect(android.instalar.explica).toBe("En Android, dentro de Termux (experimental, 1 agente).");
     });
 
+    // Rescate de la rama nube, adaptado al contrato de hoy: el texto del traspaso solo es verdad con el relevo
+    // activo; sin él, el estado «Desconectando…» no promete un traspaso que aún no existe.
+    it("en modo desconectando, el botón está deshabilitado y explica lo que hace (con y sin relevo)", () => {
+        const conRelevo = botonesNeurona({
+            nodo: "mac-a1b2c3",
+            vivo: true,
+            so: "macos",
+            enCurso: 1,
+            desconectando: true,
+            relevoActivo: true,
+        });
+        expect(conRelevo.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectando…" });
+        expect(conRelevo.desconectar.explica).toBe("Guarda el trabajo a medias y lo pasa a otro contenedor.");
+        const sinRelevo = botonesNeurona({
+            nodo: "mac-a1b2c3",
+            vivo: true,
+            so: "macos",
+            enCurso: 1,
+            desconectando: true,
+        });
+        expect(sinRelevo.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectando…" });
+        expect(sinRelevo.desconectar.explica).toBe("Ya no se ofrece como contenedor. El traspaso del trabajo a otro contenedor aún no está activo.");
+    });
+
     it("con trabajo en curso y contenedor activo, ambos botones requieren confirmación", () => {
         const b = botonesNeurona({ 
             nodo: "mac-a1b2c3", 
