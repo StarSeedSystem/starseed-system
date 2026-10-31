@@ -1,0 +1,17 @@
+/home/runner/work/_temp/starseed-wt/APR1019A-d1/native/src-tauri/target/debug/deps/jsonptr-b564cc137e162d6f.d: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/assign.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/delete.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/resolve.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/diagnostic.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/pointer.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/pointer/slice.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/token.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/index.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/component.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/../README.md
+
+/home/runner/work/_temp/starseed-wt/APR1019A-d1/native/src-tauri/target/debug/deps/libjsonptr-b564cc137e162d6f.rmeta: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/assign.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/delete.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/resolve.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/diagnostic.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/pointer.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/pointer/slice.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/token.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/index.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/component.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/../README.md
+
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/lib.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/assign.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/delete.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/resolve.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/diagnostic.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/pointer.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/pointer/slice.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/token.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/index.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/component.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.7.1/src/../README.md:
+
+# env-dep:CARGO_PKG_VERSION=0.7.1

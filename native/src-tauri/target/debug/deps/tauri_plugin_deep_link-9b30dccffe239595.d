@@ -1,0 +1,9 @@
+/home/runner/work/_temp/starseed-wt/APR1019A-d1/native/src-tauri/target/debug/deps/tauri_plugin_deep_link-9b30dccffe239595.d: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.6.3/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.6.3/src/commands.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.6.3/src/config.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.6.3/src/error.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.6.3/src/template.desktop
+
+/home/runner/work/_temp/starseed-wt/APR1019A-d1/native/src-tauri/target/debug/deps/libtauri_plugin_deep_link-9b30dccffe239595.rmeta: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.6.3/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.6.3/src/commands.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.6.3/src/config.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.6.3/src/error.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.6.3/src/template.desktop
+
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.6.3/src/lib.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.6.3/src/commands.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.6.3/src/config.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.6.3/src/error.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-deep-link-2.6.3/src/template.desktop:
