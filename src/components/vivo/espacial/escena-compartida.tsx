@@ -236,6 +236,7 @@ export function EscenaCompartida({ fuente, enfoqueXR = false, modoPedido = null,
                         raizOverlay={raizOverlay}
                         onXR={alXR}
                         onErrorObjeto={alErrorObjeto}
+                        salaId={fuente.tipo === "espacio" ? fuente.id : fuente.sesionId}
                     />
                 )}
             </div>

@@ -22,6 +22,7 @@ import { AgarreXR, transformacionDe, type TransformacionXR } from "./agarre-xr";
 import { useSesionXR, type EstadoXR } from "./use-sesion-xr";
 import { PantallaVideoHTML } from "./pantalla-video-html";
 import type { NivelCalidad } from "@/lib/xr/tipos";
+import { useAudioEspacial } from "@/components/xr/shell/use-audio-espacial";
 
 export type ModoGizmo = "translate" | "rotate" | "scale";
 
@@ -44,6 +45,8 @@ export interface PropsLienzoEscena {
     raizOverlay: HTMLElement | null;
     onXR: (e: EstadoXR) => void;
     onErrorObjeto: (id: string, mensaje: string) => void;
+    /** Sala de la escena: el audio de voz solo viaja entre quienes están en ella (XR1010AB). */
+    salaId?: string;
 }
 
 const CAMARA_INICIAL: Vec3 = [4.5, 3.2, 6.5];
@@ -165,6 +168,16 @@ function Contenido(p: PropsLienzoEscena & { xrModo: "immersive-vr" | "immersive-
         () => rangoCercania(p.camaraRef.current, otros, (a) => sesion.poses.get(a.clave)?.pose.p ?? null),
         [otros, p.camaraRef, sesion.poses],
     );
+    // Audio espacial (XR1010AB · §3 d y h): el oyente va en la cabeza y cada voz se mueve con su avatar.
+    const audio = useAudioEspacial({ nivel, salaId: p.salaId ?? "escena" });
+    useFrame(() => {
+        const motor = audio.motor;
+        if (!motor) return;
+        for (const a of otros) {
+            const pos = sesion.poses.get(a.clave)?.pose.p;
+            if (pos) motor.moverFuente(a.clave, pos);
+        }
+    });
 
     const registrar = useCallback((id: string, o: THREE.Object3D | null) => {
         if (o) registro.current.set(id, o);
