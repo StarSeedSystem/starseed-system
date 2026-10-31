@@ -28,6 +28,25 @@ describe("VentanaVariaciones", () => {
     expect(filas().map((f) => f.textContent)).toEqual([expect.stringContaining("Cristal suave")]);
   });
 
+  it("muestra título, descripción, valoración, licencia, versión y etiquetas", () => {
+    const variacion = v("1", "Cristal suave", {
+      descripcion: "Una variación con efecto cristal",
+      version: "1.0.0",
+      licencia: "MIT",
+      etiquetas: ["cristal"],
+      valoracionMedia: 4.5,
+      valoracionCount: 3,
+    });
+    render(<VentanaVariaciones clave="widget:clima" datos={datos({ variaciones: [variacion] })} />);
+    const fila = within(filas()[0]);
+    expect(fila.getByText("Cristal suave")).toBeTruthy();
+    expect(fila.getByText("Una variación con efecto cristal")).toBeTruthy();
+    expect(fila.getByText("4.5 (3)")).toBeTruthy();
+    expect(fila.getByText("MIT")).toBeTruthy();
+    expect(fila.getByText("v1.0.0")).toBeTruthy();
+    expect(fila.getByText("cristal")).toBeTruthy();
+  });
+
   it("cambia de pestaña, usa la lista inyectada y da un vacío honesto por pestaña", () => {
     render(<VentanaVariaciones clave="widget:clima" datos={datos({ notas: [v("n1", "Nota pública")] })} />);
     expect(screen.getByText("Aún nadie ha publicado una variación de este elemento")).toBeTruthy();
