@@ -106,7 +106,7 @@ export function InteligenciaSection({ compact = false }: { compact?: boolean }) 
     const [entonacion, setEntonacion] = useState(() => { try { return estadoEntonacion(); } catch { return null; } });
     const [ultimaDecision, setUltimaDecision] = useState<DecisionEntonacion | null>(null);
     const [reflexionando, setReflexionando] = useState(false);
-    const [vista, setVista] = useState<"uso" | "rutas" | "fondo" | "voz" | "fuentes" | "conexiones">("uso");
+    const [vista, setVista] = useState<"uso" | "rutas" | "fondo" | "voz" | "fuentes" | "conexiones" | "laya">("uso");
     const [estadoVoicestudio, setEstadoVoicestudio] = useState<EstadoVoicestudioNeurona>("sin-comprobar");
 
     const refrescar = useCallback(() => {
