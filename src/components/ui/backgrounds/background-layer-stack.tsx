@@ -32,6 +32,7 @@
 import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Check, Mic, Sparkles } from "lucide-react";
+import { CapaDifusion } from "@/components/backgrounds/capa-difusion";
 import { useAppearance } from "@/context/appearance-context";
 import {
     audiomorphicFilter,
@@ -176,6 +177,25 @@ export function BackgroundLayerStack() {
         <>
             {layers.map((layer, i) => {
                 if (!layer.visible) return null;
+                // Difusión (FSH1018F · tarea F): CapaDifusion ya lleva su transformación,
+                // su máscara, su opacidad y su mezcla dentro de la capa; aquí solo le damos
+                // el z-index en la pila y el envoltorio fijo de pantalla. La opacidad NO
+                // se repite en el envoltorio: se aplicaría dos veces (0,5 → 0,25).
+                if (layer.kind === "difusion") {
+                    return (
+                        <div
+                            key={layer.id}
+                            aria-hidden
+                            className="fixed inset-0 h-full w-full overflow-hidden pointer-events-none"
+                            style={{
+                                zIndex: BASE_Z + i,
+                                mixBlendMode: layer.blend as React.CSSProperties["mixBlendMode"],
+                            }}
+                        >
+                            <CapaDifusion capa={layer} />
+                        </div>
+                    );
+                }
                 const am = layer.kind === "audiomorphic" ? layer.audiomorphic : undefined;
                 // El modo interacción SOLO existe en el respaldo por iframe.
                 const interactive = am?.engine === "iframe" && am.interactive === true;
