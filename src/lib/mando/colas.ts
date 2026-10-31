@@ -333,12 +333,21 @@ export function validarCola(nombre: string, bruto: unknown): { errores: string[]
     // ciclos
     const estado = new Map<string, number>();
     const porId = new Map(tareas.map((t) => [t.id, t]));
-    const visita = (id: string): boolean => {
+    const visita = (id: string, enParte: boolean = false): boolean => {
+        if (enParte) {
+            const baseId = baseDeParte(id);
+            return visita(baseId, false);
+        }
         const s = estado.get(id) ?? 0;
         if (s === 1) return true;
         if (s === 2) return false;
         estado.set(id, 1);
-        for (const dep of porId.get(id)?.depende ?? []) if (porId.has(dep) && visita(dep)) return true;
+        const tarea = porId.get(id);
+        if (!tarea) return false;
+        for (const dep of tarea.depende) {
+            if (ids.has(dep) && visita(dep, false)) return true;
+            if (ids.has(baseDeParte(dep)) && !ids.has(dep) && visita(dep, true)) return true;
+        }
         estado.set(id, 2);
         return false;
     };
