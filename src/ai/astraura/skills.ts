@@ -24,6 +24,9 @@ import { PRODUCTIVITY_SKILLS } from "./habilidades/productividad";
 import {
   ATRIBUCION_DIAGRAMAS, HABILIDAD_DIAGRAMAS, comoCapacidad,
 } from "./habilidades/diagramas";
+import {
+  ATRIBUCION_EDUCACION_INFORMATICA, HABILIDAD_EDUCACION_INFORMATICA, comoCapacidadEducacion,
+} from "./habilidades/educacion-informatica";
 import { CAPACIDADES_REPOS_1026 } from "./habilidades/repos-1026";
 import { HABILIDADES_INGENIERIA_A, comoCapacidad as comoCapacidadIngenieria } from "./habilidades/ingenieria-a";
 
@@ -675,6 +678,20 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     routing: { preferStrong: true },
     defaultOn: true,
     skillIds: ["diagram-design"],
+  },
+  /* ═══ EDUCACIÓN INFORMÁTICA · Ruta OSSU (Ola 1025R · INF1025F) ═══
+   * La tarjeta (≤ 60 palabras) va a Needle y BitNet, el resumen (≤ 120) a Bonsai
+   * pequeño y el dato completo (rutaCompleta) a las capas Razón, Profunda y Nube.
+   * Contrato: architecture/repos-libreria-1025.md §4. La habilidad ofrece la ruta
+   * en orden, enlaza al anfitrión original y avisa de la licencia de cada curso. */
+  {
+    ...comoCapacidadEducacion(HABILIDAD_EDUCACION_INFORMATICA, "resumen"),
+    systemPrompt:
+      `${HABILIDAD_EDUCACION_INFORMATICA.resumen} Guía completa en ${HABILIDAD_EDUCACION_INFORMATICA.rutaCompleta} ` +
+      `— con la tarjeta basta para Needle y BitNet. ${ATRIBUCION_EDUCACION_INFORMATICA}`,
+    routing: {},
+    defaultOn: true,
+    skillIds: ["educacion-informatica"],
   },
   /* ═══ REPOS 1026 · Grabar la pantalla (Cap) · conocimiento (WeKnora) · proyectos (OpenProject) ═══
    * Las tres se activan solas al instalar su ficha de la Biblioteca (la siembra las instala) y sus textos dicen

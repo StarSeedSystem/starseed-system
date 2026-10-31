@@ -72,9 +72,9 @@ describe("skillsSystemPrompt · capa completa y filtro por chat", () => {
 
   it("sin capacidades activas el bloque es vacío y no deja texto suelto", () => {
     // Sin espejo quedan las defaultOn: hoy «av-gen» (Adenda 138),
-    // «diagram-design» (Ola 1018D) y «habilidades-ingenieria» (Ola 1018L · LYS1018K).
-    // El bloque se vacía al apagarlas en Ajustes.
-    desactivar(["av-gen", "diagram-design", "habilidades-ingenieria"]);
+    // «diagram-design» (Ola 1018D), «habilidades-ingenieria» (Ola 1018L · LYS1018K)
+    // y «educacion-informatica» (Ola 1025R · INF1025F). El bloque se vacía al apagarlas.
+    desactivar(["av-gen", "diagram-design", "habilidades-ingenieria", "educacion-informatica"]);
     expect(skillsSystemPrompt()).toBe("");
   });
 });
