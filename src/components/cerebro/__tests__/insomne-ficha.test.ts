@@ -6,6 +6,13 @@
  */
 import { describe, it, expect } from "vitest";
 import { capacidadInsomne } from "@/lib/neurons/insomne";
+import { plataformaInsomne } from "@/components/cerebro/insomne-ficha";
+
+describe("plataformaInsomne · navegador", () => {
+  it("traduce la plataforma Android del navegador a la del contrato", () => {
+    expect(plataformaInsomne({ platform: "Android" })).toBe("android");
+  });
+});
 
 describe("capacidadInsomne · ficha", () => {
   it("un servidor no depende de la plataforma que declare", () => {
