@@ -79,6 +79,35 @@ describe("buildAstraura158Prompt", () => {
   it("sin mensajes de usuario ⇒ prompt vacío", () => {
     expect(buildAstraura158Prompt([{ role: "system", content: "solo sistema" }]).prompt).toBe("");
   });
+
+  /* Ola 1025R · pliegue del historial (apagado de fábrica hasta el A/B del banco). */
+  it("con plegar ⇒ los turnos descartados viajan como resumen dentro del mismo techo", () => {
+    const big = "y".repeat(6000);
+    const msgs: ChatMessage[] = [
+      { role: "user", content: `viejo ${big}` },
+      { role: "assistant", content: `respuesta ${big}` },
+      { role: "user", content: "reciente" },
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "final" },
+    ];
+    const out = buildAstraura158Prompt(msgs, { plegar: true });
+    expect(out.system_prompt).toContain("[RESUMEN DE LO ANTERIOR");
+    expect(out.system_prompt).toContain("U: viejo");
+    expect(out.system_prompt).toContain("Usuario: reciente");
+    expect(out.system_prompt).toContain("Astraura: ok");
+    expect(out.system_prompt.length).toBeLessThan(9000);
+    expect(out.prompt).toBe("final");
+  });
+
+  it("con plegar y SIN turnos descartados ⇒ salida idéntica a la de sin plegar", () => {
+    const msgs: ChatMessage[] = [
+      { role: "system", content: "S1" },
+      { role: "user", content: "¿Qué es BitNet?" },
+      { role: "assistant", content: "Un modelo ternario." },
+      { role: "user", content: "¿Y por qué 1.58?" },
+    ];
+    expect(buildAstraura158Prompt(msgs, { plegar: true })).toEqual(buildAstraura158Prompt(msgs, { plegar: false }));
+  });
 });
 
 describe("parseAstrauraSseLine", () => {
