@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "VZF1015G",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Aurora escucha por el elector: tramos con detector de voz hacia el mejor motor (el navegador queda de suelo)",
+   "archivos": [
+    "src/lib/aurora/stt-oss/escucha-fusionada.ts",
+    "src/lib/aurora/stt-oss/__tests__/escucha-fusionada.test.ts",
+    "src/lib/aurora/engine.ts"
+   ],
+   "depende": [],
+   "prompt": "Crea `escucharFusionado({ obtenerAudio, elegir, transcribir, alParcial, alFinal, idiomaPista, hotwords })`: corta el audio del micrófono en tramos con el detector de energía de `oss-stt.ts` (silencio 800 ms, tramo ≤ 30 s), pide a `elegirOido` el motor de la fase «final» por tramo y transcribe con `transcribirOpenAI` o el demonio; el parcial lo sigue dando el navegador si está (regla 1 del §3). En `engine.ts` (alrededor de `buildRecognition`, l. ~1925) usa este camino cuando el navegador no tiene reconocimiento o la neurona tiene un motor local medido mejor, SIN tocar el cerrojo de dueño único (`claimStt/releaseStt`) ni `esEcoPropio`. Pruebas con audio y motores falsos. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "dependencias_ya_en_main": [
+    "VZF1015A",
+    "VZF1015B"
+   ]
+  }
+ ]
+}
