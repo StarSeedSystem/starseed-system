@@ -1,6 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { crearCola, ESTADOS, ENTORNO, validarArgs, progresoDeLinea } from "../hyperframes-cola";
-import type { Trabajo, Opciones } from "../hyperframes-cola";
+import { crearCola, ESTADOS, ENTORNO, validarArgs, progresoDeLinea } from "../../../servicios/hyperframes/src/cola-render.mjs";
+
+type Progreso = { frame: number; total: number };
+type Trabajo = { id: string; proyecto: string; args: string[]; env: Record<string, string> };
+type Opciones = { senal: AbortSignal; alProgreso: (linea: string) => void };
+type Estado = { estado: string; progreso?: Progreso; resultado?: { codigo: number; salida?: string; error?: string };
+  error?: string; motivo?: string };
+type Cola = {
+  encolar: (t: { id: string; proyecto: string; args: string[] }) => string;
+  estado: (id: string) => Estado | null;
+  cancelar: (id: string) => boolean;
+  listar: () => { id: string; estado: string; progreso: Progreso | null }[];
+};
+type Crear = (o: { ejecutar: (t: Trabajo, o: Opciones) => unknown; reloj: { obtener: () => number };
+  maxSimultaneos?: number; maxSegundos?: number }) => Cola;
+const crear = crearCola as unknown as Crear;
 
 function relojFalso(): { avanzar: (ms: number) => void; obtener: () => number } {
   let avanzado = 0;
@@ -19,6 +33,7 @@ describe("hyperframes-cola", () => {
   it("solo acepta listas con banderas de la lista blanca y valores dentro del proyecto", () => {
     expect(validarArgs("-o salida.mp4")).toMatch(/lista|bandera/);
     expect(validarArgs(["-o", "salida.mp4", "--format=mp4"])).toBeNull();
+    expect(validarArgs(["-q", "-w", "4"])).toBeNull();
     expect(validarArgs(["salida.mp4"])).toBe("argumento sin bandera");
     expect(validarArgs(["--rm", "x"])).toMatch(/no permitida/);
     expect(validarArgs(["-o", "/etc/passwd"])).toMatch(/fuera/);
@@ -37,13 +52,14 @@ describe("hyperframes-cola", () => {
     const d = diferido<{ codigo: number; salida: string }>();
     const llamadas: { trabajo: Trabajo; opciones: Opciones }[] = [];
     const ejecutar = (trabajo: Trabajo, opciones: Opciones) => { llamadas.push({ trabajo, opciones }); return d.promesa; };
-    const cola = crearCola({ ejecutar, reloj: relojFalso() });
+    const cola = crear({ ejecutar, reloj: relojFalso() });
     const id = cola.encolar({ id: "a", proyecto: "comp", args: ["--format", "mp4", "-o", "a.mp4"] });
     await esperar();
     expect(cola.estado(id)!.estado).toBe(ESTADOS.RENDERIZANDO);
     expect(llamadas[0].trabajo).toEqual({
       id: "a", proyecto: "comp", args: ["--format", "mp4", "-o", "a.mp4"], env: { ...ENTORNO },
     });
+    expect(llamadas[0].trabajo.env).toEqual({ HYPERFRAMES_NO_TELEMETRY: "1" });
     expect(llamadas[0].opciones.senal).toBeInstanceOf(AbortSignal);
     llamadas[0].opciones.alProgreso('@hf-progress {"frame":5,"total":10}');
     expect(cola.estado(id)!.progreso).toEqual({ frame: 5, total: 10 });
@@ -55,7 +71,7 @@ describe("hyperframes-cola", () => {
     const a = diferido<{ codigo: number }>(), b = diferido<{ codigo: number }>();
     const lanzados: string[] = [];
     const ejecutar = (t: Trabajo) => { lanzados.push(t.id); return t.id === "a" ? a.promesa : b.promesa; };
-    const cola = crearCola({ ejecutar, reloj: relojFalso() });
+    const cola = crear({ ejecutar, reloj: relojFalso() });
     cola.encolar({ id: "a", proyecto: "p", args: [] });
     cola.encolar({ id: "b", proyecto: "p", args: [] });
     await esperar();
@@ -67,8 +83,22 @@ describe("hyperframes-cola", () => {
     expect(cola.estado("a")!.estado).toBe(ESTADOS.HECHO);
   });
 
+  it("con maxSimultaneos 2 lanza dos a la vez y deja el tercero en cola", async () => {
+    const a = diferido<{ codigo: number }>(), b = diferido<{ codigo: number }>(), c = diferido<{ codigo: number }>();
+    const lanzados: string[] = [];
+    const ejecutar = (t: Trabajo) => { lanzados.push(t.id); return t.id === "a" ? a.promesa : t.id === "b" ? b.promesa : c.promesa; };
+    const cola = crear({ ejecutar, reloj: relojFalso(), maxSimultaneos: 2 });
+    for (const id of ["a", "b", "c"]) cola.encolar({ id, proyecto: "p", args: [] });
+    await esperar();
+    expect(lanzados).toEqual(["a", "b"]);
+    expect(cola.estado("c")!.estado).toBe(ESTADOS.EN_COLA);
+    b.resolver({ codigo: 0 });
+    await esperar();
+    expect(lanzados).toEqual(["a", "b", "c"]);
+  });
+
   it("un código distinto de cero es fallo y no filtra rutas absolutas", async () => {
-    const cola = crearCola({ ejecutar: async () => ({ codigo: 2, error: "no pudo /home/a/x.mp4" }), reloj: relojFalso() });
+    const cola = crear({ ejecutar: async () => ({ codigo: 2, error: "no pudo /home/a/x.mp4" }), reloj: relojFalso() });
     cola.encolar({ id: "x", proyecto: "p", args: [] });
     await esperar();
     expect(cola.estado("x")!).toMatchObject({ estado: ESTADOS.FALLO, resultado: { codigo: 2 } });
@@ -80,7 +110,7 @@ describe("hyperframes-cola", () => {
     const d = diferido<{ codigo: number }>();
     let senal: AbortSignal | undefined;
     const ejecutar = (_t: Trabajo, o: Opciones) => { senal = o.senal; return d.promesa; };
-    const cola = crearCola({ ejecutar, reloj: relojFalso() });
+    const cola = crear({ ejecutar, reloj: relojFalso() });
     cola.encolar({ id: "a", proyecto: "p", args: [] });
     cola.encolar({ id: "b", proyecto: "p", args: [] });
     await esperar();
@@ -95,19 +125,19 @@ describe("hyperframes-cola", () => {
     expect(cola.estado("a")!.estado).toBe(ESTADOS.CANCELADO);
   });
 
-  it("el tiempo máximo cancela el render en curso", async () => {
+  it("el tiempo máximo (900 s por defecto) cancela el render en curso", async () => {
     const reloj = relojFalso();
-    const cola = crearCola({ ejecutar: () => diferido<{ codigo: number }>().promesa, reloj, maxSegundos: 2 });
+    const cola = crear({ ejecutar: () => diferido<{ codigo: number }>().promesa, reloj });
     cola.encolar({ id: "a", proyecto: "p", args: [] });
     await esperar();
-    reloj.avanzar(1999);
+    reloj.avanzar(899999);
     expect(cola.estado("a")!.estado).toBe(ESTADOS.RENDERIZANDO);
     reloj.avanzar(1);
     expect(cola.estado("a")!).toMatchObject({ estado: ESTADOS.CANCELADO, motivo: "tiempo máximo" });
   });
 
   it("rechaza id repetido, proyecto fuera y args inseguros; lista en orden", async () => {
-    const cola = crearCola({ ejecutar: async () => 0, reloj: relojFalso() });
+    const cola = crear({ ejecutar: async () => 0, reloj: relojFalso() });
     cola.encolar({ id: "a", proyecto: "p", args: [] });
     expect(() => cola.encolar({ id: "a", proyecto: "p", args: [] })).toThrow(/id/);
     expect(() => cola.encolar({ id: "b", proyecto: "/etc", args: [] })).toThrow(/proyecto/);
