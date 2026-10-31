@@ -31,6 +31,7 @@ import {
     RotateCcw,
     Loader2,
     Sparkles,
+    ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -66,6 +67,7 @@ import {
     leerDocusaurus,
     rutaDesdeCarpeta,
 } from "@/lib/publish/docusaurus-import";
+import { buscarEnOssu } from "@/lib/education/ossu";
 import type { ArchivoDocs } from "@/lib/publish/docusaurus-export";
 import { LearningPathPanel } from "@/components/education/learning-path";
 import { ViewErrorBoundary } from "@/components/education/view-error-boundary";
@@ -609,6 +611,9 @@ export function TopicGraph() {
     );
 
     const results = useMemo(() => (query.trim() ? searchNodes(query, data?.nodes ?? []) : null), [query, data]);
+    // La búsqueda de Educación también mira dentro del currículo OSSU
+    // (nombre del curso + temas de su sección, sin acentos ni mayúsculas).
+    const hitsOssu = useMemo(() => (query.trim() ? buscarEnOssu(query, 5) : []), [query]);
 
     const toggle = useCallback((id: string) => {
         setExpanded((prev) => {
@@ -787,24 +792,49 @@ export function TopicGraph() {
             </div>
 
             {/* Resultados de búsqueda */}
-            {results && results.length > 0 && (
+            {(results !== null || hitsOssu.length > 0) && (
                 <div className="rounded-xl border border-white/10 bg-black/30 p-3 text-sm">
-                    <div className="mb-2 text-xs uppercase tracking-wide text-white/40">Resultados</div>
-                    <div className="flex flex-wrap gap-1.5">
-                        {results.slice(0, 24).map((r) => (
-                            <button
-                                key={r.id}
-                                onClick={() => {
-                                    selectNode(r.id);
-                                    setQuery("");
-                                }}
-                                className="flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.05] px-2.5 py-1 text-xs text-white/80 hover:bg-white/10"
-                                style={{ borderColor: `${colorForRoot(rootIdOf(r.id, byId))}55` }}
-                            >
-                                {nodePath(r.id, byId).map((p) => p.name).join(" › ")}
-                            </button>
-                        ))}
-                    </div>
+                    {results !== null && results.length > 0 && (
+                        <>
+                            <div className="mb-2 text-xs uppercase tracking-wide text-white/40">Resultados</div>
+                            <div className="flex flex-wrap gap-1.5">
+                                {results.slice(0, 24).map((r) => (
+                                    <button
+                                        key={r.id}
+                                        onClick={() => {
+                                            selectNode(r.id);
+                                            setQuery("");
+                                        }}
+                                        className="flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.05] px-2.5 py-1 text-xs text-white/80 hover:bg-white/10"
+                                        style={{ borderColor: `${colorForRoot(rootIdOf(r.id, byId))}55` }}
+                                    >
+                                        {nodePath(r.id, byId).map((p) => p.name).join(" › ")}
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                    {hitsOssu.length > 0 && (
+                        <>
+                            <div className={cn("text-xs uppercase tracking-wide text-white/40", results !== null && results.length > 0 && "mt-3", "mb-2")}>
+                                Cursos OSSU que encajan
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                                {hitsOssu.map((c) => (
+                                    <a
+                                        key={c.orden}
+                                        href={c.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex max-w-[260px] items-center gap-1 rounded-full border border-violet-400/30 bg-violet-500/10 px-2.5 py-1 text-xs text-violet-200 hover:bg-violet-500/20"
+                                    >
+                                        <ExternalLink className="h-3 w-3 shrink-0" />
+                                        <span className="truncate">{c.nombre}</span>
+                                    </a>
+                                ))}
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
 

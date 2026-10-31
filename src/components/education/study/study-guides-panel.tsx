@@ -40,6 +40,7 @@ import {
     createStudyEvent,
 } from "@/lib/education/study";
 import { generateStudyGuide } from "@/lib/education/study-ai";
+import { itinerarioOssu } from "@/lib/education/ossu";
 
 export function StudyGuidesPanel() {
     const [guides, setGuides] = useState<StudyGuide[]>([]);
@@ -49,6 +50,7 @@ export function StudyGuidesPanel() {
     const [topic, setTopic] = useState("");
     const [kind, setKind] = useState<"guia" | "itinerario">("guia");
     const [generating, setGenerating] = useState(false);
+    const [creandoOssu, setCreandoOssu] = useState(false);
 
     const reload = useCallback(async () => {
         const gs = await listGuides();
@@ -82,12 +84,29 @@ export function StudyGuidesPanel() {
         setSelected(saved);
     };
 
+    // Plantilla OSSU (currículo de informática como datos, config/educacion-ossu.json):
+    // siembra un itinerario completo y editable en tus guías — sin Aurora ni red.
+    const doOssu = async () => {
+        setCreandoOssu(true);
+        const saved = await createGuide(itinerarioOssu());
+        setCreandoOssu(false);
+        if (!saved) {
+            toast.error("No se pudo crear el itinerario. ¿Has iniciado sesión?");
+            return;
+        }
+        toast.success(`Itinerario "${saved.title}" creado — ya lo puedes editar`);
+        await reload();
+        setSelected(saved);
+    };
+
     if (selected) {
         return <GuideDetail guide={selected} onBack={() => setSelected(null)} onChanged={reload} />;
     }
 
     const templates = guides.filter((g) => g.is_template);
     const mine = guides.filter((g) => !g.is_template);
+    const itinOssu = itinerarioOssu();
+    const propiedadOssu = mine.find((g) => g.title === itinOssu.title) ?? null;
 
     return (
         <div className="space-y-4">
@@ -144,6 +163,31 @@ export function StudyGuidesPanel() {
                     <section className="space-y-2">
                         <h4 className="text-xs uppercase tracking-wide text-white/40">Ejemplos de la red</h4>
                         <div className="grid gap-2 sm:grid-cols-2">
+                            {/* Plantilla OSSU (config/educacion-ossu.json): 63 cursos de
+                                informática en un itinerario editable — el OS enlaza su
+                                material, nunca lo copia; MIT del repositorio, licencias
+                                propias de cada anfitrión (p.ej. OpenCourseWare). */}
+                            {!propiedadOssu ? (
+                                <button
+                                    onClick={doOssu}
+                                    disabled={creandoOssu}
+                                    className="flex cursor-pointer flex-col items-start gap-1 rounded-2xl border border-white/10 bg-black/20 p-3 text-left transition hover:border-violet-400/40 hover:bg-white/[0.04] disabled:opacity-60"
+                                >
+                                    <div className="flex w-full items-center gap-2">
+                                        <Route className="h-4 w-4 shrink-0 text-violet-300" />
+                                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white/90">{itinOssu.title}</span>
+                                        <Badge variant="secondary" className="text-[10px]">OSSU</Badge>
+                                    </div>
+                                    <p className="line-clamp-2 text-xs text-muted-foreground">
+                                        El currículo completo de informática de OSSU como itinerario, con enlace a cada curso.
+                                    </p>
+                                    <span className="text-[10px] text-white/40">
+                                        {creandoOssu ? "Creando…" : `Pulsa para crear tu copia (${itinOssu.sections.length} secciones)`}
+                                    </span>
+                                </button>
+                            ) : (
+                                <GuideCard key={propiedadOssu.id} guide={propiedadOssu} onOpen={() => setSelected(propiedadOssu)} />
+                            )}
                             {templates.map((g) => (
                                 <GuideCard key={g.id} guide={g} onOpen={() => setSelected(g)} template />
                             ))}
