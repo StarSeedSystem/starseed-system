@@ -5,6 +5,7 @@
  * Un agente = una clave, en el aparato (nunca sale solo):
  *   · `starseed.mundo.agente.<id>.v1`            → `ConfigAgente`
  *   · `starseed.mundo.agente.<id>.recuerdos.v1`  → `RecuerdoBot[]`
+ *   · `starseed.mundo.agente.<id>.diario.jsonl`  → `EntradaDiario[]` (append-only)
  * Toda lectura sanea y nunca lanza; toda escritura pasa por `safeSet`, que degrada a memoria si el disco está lleno.
  *
  * Qué se APLICA hoy (lo lee ya un motor del OS) y qué queda «guardado en la ficha»:
@@ -19,7 +20,12 @@ import type { RecuerdoBot } from "@/lib/astraura-bots/memoria-bot";
 import { fijarCapaGuardada } from "@/lib/astraura/use-capas-entidad";
 import { setPrimaryChoice } from "@/lib/astraura/primary-system";
 import { safeGet, safeRemove, safeSet } from "@/lib/safe-storage";
+import type { AlcanceMemoria } from "@/lib/nucleo/alcance-memoria";
 import type { AgenteMundoRef } from "@/lib/avatares/mundo/agente-mundo";
+import {
+  PLAN_ESTADO, carpetaDeEstado, lineaDiario,
+  type EntradaDiario,
+} from "@/lib/agentes/ordenador-agente";
 import {
   ajustesCapasBase, configPorDefecto, eleccionPrimaria, sanearConfig,
   type CampoCapaBase, type ConfigAgente,
@@ -32,6 +38,57 @@ export const EVENTO_AGENTE = "starseed:mundo-agente";
 
 export const claveConfigAgente = (id: string) => `${PREFIJO_AGENTE}${id}.v1`;
 export const claveRecuerdosAgente = (id: string) => `${PREFIJO_AGENTE}${id}.recuerdos.v1`;
+export const claveDiarioAgente = (id: string) => `${PREFIJO_AGENTE}${id}.${PLAN_ESTADO.diario}`;
+
+/** El ámbito de la carpeta de estado: lo de una página es público; lo de un grupo, del grupo. */
+function alcanceDelAgente(agente: AgenteMundoRef): AlcanceMemoria {
+  switch (agente.dueno.tipo) {
+    case "grupo":
+    case "comunidad":
+      return "grupo";
+    case "pagina":
+      return "publica";
+    default:
+      return "personal";
+  }
+}
+
+const MAX_DIARIO = 200;
+
+/**
+ * Apunta una operación en el diario append-only del agente. La ruta va siempre
+ * dentro de su carpeta de estado; si el disco falla, la ficha se guarda igual.
+ */
+function apuntarDiario(
+  agente: AgenteMundoRef, op: EntradaDiario["op"], ruta: string, bytes: number, ahora: number,
+): void {
+  try {
+    const carpeta = carpetaDeEstado(agente.id, alcanceDelAgente(agente));
+    const clave = claveDiarioAgente(agente.id);
+    const anterior = safeGet(clave) ?? "";
+    const linea = lineaDiario({ t: ahora, op, ruta: `${carpeta}${ruta}`, bytes });
+    const lineas = `${anterior}${anterior && !anterior.endsWith("\n") ? "\n" : ""}${linea}\n`
+      .split("\n")
+      .filter(Boolean)
+      .slice(-MAX_DIARIO);
+    safeSet(clave, `${lineas.join("\n")}\n`);
+  } catch {
+    // El diario nunca impide guardar la ficha del agente.
+  }
+}
+
+/** Lee el diario reconstruible del agente; las líneas rotas se ignoran. */
+export function leerDiarioAgente(agente: AgenteMundoRef): EntradaDiario[] {
+  const crudo = safeGet(claveDiarioAgente(agente.id)) ?? "";
+  return crudo.split("\n").flatMap((linea) => {
+    if (!linea) return [];
+    try {
+      return [JSON.parse(linea) as EntradaDiario];
+    } catch {
+      return [];
+    }
+  });
+}
 
 function leerJSON(clave: string): unknown {
   try {
@@ -58,7 +115,9 @@ export function leerConfigAgente(agente: AgenteMundoRef): ConfigAgente {
 /** Guarda y avisa. Sella `actualizado` con el reloj que le pasen. Devuelve lo guardado (ya saneado). */
 export function guardarConfigAgente(agente: AgenteMundoRef, config: ConfigAgente, ahora: number = Date.now()): ConfigAgente {
   const limpio = sanearConfig({ ...config, actualizado: ahora }, agente);
-  safeSet(claveConfigAgente(agente.id), JSON.stringify(limpio));
+  const cuerpo = JSON.stringify(limpio);
+  safeSet(claveConfigAgente(agente.id), cuerpo);
+  apuntarDiario(agente, "escribir", PLAN_ESTADO.memoria, cuerpo.length, ahora);
   avisar(agente.id);
   return limpio;
 }
@@ -67,9 +126,11 @@ export function leerRecuerdosAgente(agente: AgenteMundoRef): RecuerdoBot[] {
   return sanearRecuerdos(leerJSON(claveRecuerdosAgente(agente.id)), agente);
 }
 
-export function guardarRecuerdosAgente(agente: AgenteMundoRef, recuerdos: RecuerdoBot[]): RecuerdoBot[] {
+export function guardarRecuerdosAgente(agente: AgenteMundoRef, recuerdos: RecuerdoBot[], ahora: number = Date.now()): RecuerdoBot[] {
   const limpios = sanearRecuerdos(recuerdos, agente);
-  safeSet(claveRecuerdosAgente(agente.id), JSON.stringify(limpios));
+  const cuerpo = JSON.stringify(limpios);
+  safeSet(claveRecuerdosAgente(agente.id), cuerpo);
+  apuntarDiario(agente, "escribir", PLAN_ESTADO.notas, cuerpo.length, ahora);
   avisar(agente.id);
   return limpios;
 }
@@ -98,6 +159,7 @@ export function restablecerAgente(agente: AgenteMundoRef): ConfigAgente {
   for (const campo of CAMPOS_CAPA) fijarCapaGuardada("agente", agente.id, campo, null);
   setPrimaryChoice("agente", agente.id, null);
   safeRemove(claveConfigAgente(agente.id));
+  safeRemove(claveDiarioAgente(agente.id));
   avisar(agente.id);
   return configPorDefecto(agente);
 }
@@ -107,7 +169,7 @@ export function restablecerAgente(agente: AgenteMundoRef): ConfigAgente {
 /** Un recuerdo nuevo del agente, con las reglas de alcance y de cuota. No hace nada si no está permitido. */
 export function registrarRecuerdo(agente: AgenteMundoRef, nuevo: NuevoRecuerdo, ahora: number = Date.now()) {
   const r = agregarRecuerdo(leerRecuerdosAgente(agente), agente, nuevo, ahora);
-  if (r.ok) guardarRecuerdosAgente(agente, r.recuerdos);
+  if (r.ok) guardarRecuerdosAgente(agente, r.recuerdos, ahora);
   return r;
 }
 

@@ -6,7 +6,7 @@ import { getPrimaryChoice } from "@/lib/astraura/primary-system";
 import { crearAgenteMundoRef } from "@/lib/avatares/mundo/agente-mundo";
 import {
   PREFIJO_AGENTE, aplicarEfectos, claveConfigAgente, claveRecuerdosAgente, deshacerPasoEvolucion, guardarConfigAgente,
-  leerConfigAgente, leerRecuerdosAgente, registrarExperiencia, registrarRecuerdo, restablecerAgente,
+  leerConfigAgente, leerDiarioAgente, leerRecuerdosAgente, registrarExperiencia, registrarRecuerdo, restablecerAgente,
 } from "../almacen-agente";
 import { conectarCapa, configPorDefecto, elegirMotor, quitarCapa, type ConfigAgente } from "../config-agente";
 
@@ -43,6 +43,17 @@ describe("leer y guardar", () => {
     expect(leerConfigAgente(agente)).toEqual(configPorDefecto(agente));
     window.localStorage.setItem(claveConfigAgente(agente.id), JSON.stringify({ motores: { roles: { palabra: { motor: "externo", fuente: "openai-paid" } } } }));
     expect(leerConfigAgente(agente).motores.roles.palabra).toEqual({ motor: "heredar" });
+  });
+
+  it("cada escritura deja una línea en el diario, dentro de la carpeta de estado", () => {
+    const c = configPorDefecto(agente);
+    guardarConfigAgente(agente, c, T0);
+    expect(leerDiarioAgente(agente)).toEqual([{
+      t: T0, op: "escribir", ruta: "agentes/personalidad-aurora/personal/memoria.md", bytes: expect.any(Number),
+    }]);
+    expect(registrarRecuerdo(otro, { texto: "dato público", alcance: "publica" }, T0).ok).toBe(true);
+    expect(leerDiarioAgente(otro)).toHaveLength(1);
+    expect(leerDiarioAgente(otro)[0].ruta).toBe("agentes/bot-b9/publica/notas/");
   });
 
   it("los recuerdos guardados se saneán al leer", () => {
