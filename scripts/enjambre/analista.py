@@ -1997,9 +1997,12 @@ def _analisis_libre(t, llamar_llm, evento=None, set_estado=None, latir=None, dis
         return None
     t0 = reloj()
     leer = leer or (lambda r: _leer_del_repo(raiz, r))
-    diseno = str(t.get("rol") or "").strip().lower() == "diseno"
+    rol = str(t.get("rol") or "").strip().lower()
+    diseno, alcance = rol == "diseno", rol == "alcance"
     notas = (cargar_notas_diseno() if notas_diseno is None else notas_diseno) if diseno else {}
-    pares, motivo, por_notas = flota_libre(t, flota, notas)
+    # El alcance redacta siempre con la capacidad alta y SIN las notas de modelos de diseño.
+    vista = dict(t, capacidad="alta") if alcance else t
+    pares, motivo, por_notas = flota_libre(vista, flota, notas)
     # Con un orden de diseño sacado de las notas, se respeta (la salud sigue apartando lo caído o
     # saturado y el cupo lleno va al final); sin él, el reparto por turnos de siempre.
     llamador = Llamador(t, llamar_llm, disponible, latir, log, dormir, reloj, es_aviso_de_cuota,
@@ -2009,7 +2012,7 @@ def _analisis_libre(t, llamar_llm, evento=None, set_estado=None, latir=None, dis
         set_estado(tid, estado="en_curso", modelo="", segundos=0, tipo="analisis",
                    nota="análisis %s · %s" % (modo, _corta(t.get("titulo") or tid, 120)))
         evento("inicio", tid, t.get("titulo") or tid, {"tipo": "analisis", "modo": modo, "agente": t.get("agente") or ""})
-        rol_ctx = "investigador-diseno" if diseno else "analista"
+        rol_ctx = "investigador-alcance" if alcance else ("investigador-diseno" if diseno else "analista")
         ctx = ""
         if contexto is not None and ("Contexto común · rol %s" % rol_ctx) not in str(t.get("prompt") or ""):
             pedir = dict(rol=rol_ctx, area=t.get("area") or None, tarea=t.get("titulo") or "",
@@ -2030,7 +2033,7 @@ def _analisis_libre(t, llamar_llm, evento=None, set_estado=None, latir=None, dis
             modo, len(prompt), motivo, ", ".join("%s/%s" % par for par in pares[:4]) or "flota vacía"))
         ahora_iso = _iso(reloj)
         propuestas, modelo = llamador.llamar(
-            "síntesis libre", lambda: flota_libre(t, flota, notas)[0], prompt,  # se relee: la flota viva
+            "síntesis libre", lambda: flota_libre(vista, flota, notas)[0], prompt,  # se relee: la flota viva
             lambda txt: validar_salida_libre(txt, t, rel, ahora_iso),
             max_tokens=8000, timeout=300, max_malas_formas=max_malas_formas)
         if modo == "reimaginar":

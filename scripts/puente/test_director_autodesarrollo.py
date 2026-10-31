@@ -30,6 +30,7 @@ class DirectorTest(unittest.TestCase):
                     lanzador_diario=lambda: self.llamadas.append("diaria") or True,
                     lanzador_profundo=lambda *a: self.llamadas.append(a) or True,
                     agente_referencias=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
+                    agente_alcance=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
                     datos={"diaria": MD, "profunda": {}, "astraura": {}, "directores": {}})
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
@@ -141,6 +142,7 @@ class Imaginacion1024Test(unittest.TestCase):
         args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: r in self.EXISTEN,
                     lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True,
                     agente_referencias=lambda raiz, ahora: self.referencias.append((raiz, ahora)) or {"ok": True},
+                    agente_alcance=lambda raiz, ahora: None,
                     datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}})
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
@@ -317,7 +319,8 @@ class Ola1025STest(unittest.TestCase):
     def correr(self, **kw):
         args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: False,
                     lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True, agente_referencias=lambda raiz, ahora: None,
-                    aplicar_astraura=self.aplicar, datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
+                    agente_alcance=lambda raiz, ahora: None, aplicar_astraura=self.aplicar,
+                    datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
 
@@ -481,6 +484,35 @@ class Ola1025STest(unittest.TestCase):
         r = self.correr()
         self.assertEqual({p["estado"] for p in self.props().values()}, {"pregunta"})
         self.assertEqual(r["decisiones"], {})
+
+    def test_una_aprobada_de_alcance_no_genera_tarea(self):
+        """INV1025N · R2: aprobar un borrador de alcance lo deja listo para el panel, nunca en la cola."""
+        self.sembrar([self.libre("borrador", agente="alcance", estado="aprobada", decidida="2026-10-23T10:00:00")])
+        r = self.correr()
+        p = self.props()["agentes:a--borrador"]
+        self.assertEqual((p["estado"], p["envio"]), ("aprobada", "pendiente"))
+        self.assertEqual((r["autodesarrolladas"], r["entregables_encargados"]), (0, 0))
+        self.assertIsNone(r["cola"]); self.assertIsNone(r["cola_entregables"])
+        self.assertFalse(os.path.isdir(os.path.join(self.mem, "olas")))
+
+    def test_un_borrador_de_alcance_no_se_mueve_solo_ni_con_auto_ni_con_jev(self):
+        """INV1025N · R8: alta y crítica nunca solas; el alcance lo dice explícito y Jev ni se consulta."""
+        preguntas = []
+        self.sembrar([self.libre("borrador", agente="alcance")])
+        r = self.correr(consejo=lambda p: preguntas.append(p["id"]) or {"p": 0.99})
+        p = self.props()["agentes:a--borrador"]
+        self.assertEqual((p["estado"], p["importancia"]), ("esperando-aprobacion", "alta"))
+        self.assertEqual((r["autodesarrolladas"], r["esperando_aprobacion"]), (0, 1))
+        self.assertNotEqual(p.get("aprobada_por"), "automatica")
+        self.assertEqual(preguntas, [])
+
+    def test_el_director_llama_al_agente_de_alcance_si_existe(self):
+        llamadas = []
+        r = self.correr(agente_alcance=lambda raiz, ahora: llamadas.append((raiz, ahora)) or {"ok": True})
+        self.assertEqual(llamadas, [(self.raiz, NOCHE)])
+        self.assertIn("alcance", r["lanzado"])
+        self.correr(seco=True, capacidad=None)
+        self.assertEqual(len(llamadas), 1)
 
     def test_item_astraura(self):
         self.assertEqual(D.item_astraura(self.astraura("c1")), {"item_id": "c1", "item_type": "creation"})
