@@ -112,7 +112,7 @@ const MODELO_21B: RequisitosModelo = {
         NOTAS_COMUNES +
         "En modo limitado guarda en RAM solo una caché LRU de expertos y lee el resto del disco con " +
         "libaio/io_uring (solo Linux y Android): pide ≥ 8 GB de RAM libre y un SSD rápido. " +
-        "Caché: `maxNCached(8)` ⇒ 6144 expertos. " +
+        `Caché: \`maxNCached(8)\` ⇒ ${maxNCached(8)} expertos. ` +
         notasArchivo("SmallThinker-21B-A3B-Instruct.Q4_0.powerinfer.gguf", 12144740608,
             "9bb2ad80adf5f64cb953570690cf1aee13de87661eef65f073224c9a3afe4ccb"),
 };
