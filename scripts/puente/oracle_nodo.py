@@ -36,9 +36,11 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
   colibri [--aplicar]    prepara Colibri con Laya en el A1 (CLB1027): sin `--aplicar` solo enseña
                          el plan de `colibri_nodo.plan_instalacion`; con él lo corre por SSH.
                          Instalar (GB de descarga) SIEMPRE necesita el visto bueno de Alex.
-  direccion [--aplicar]  deja en el A1 `starseed-direccion.service` y su arranque: orquestador,
-                         autocuración, autopublicación y cartero solo con el arriendo de líder.
-                         Sin `--aplicar` solo enseña el plan; no arranca nada que ya esté vivo.
+    direccion [--aplicar]  deja en el A1 `starseed-direccion.service` y su arranque: orquestador,
+                          autocuración, autopublicación y cartero solo con el arriendo de líder.
+                          Sin `--aplicar` solo enseña el plan; no arranca nada que ya esté vivo.
+                          (OPS1031B) Si otra neurona tiene el arriendo vigente, para las piezas
+                          (systemctl stop de las unidades de dirección y solo de ellas) y no arranca.
   automejora enviar|traer
                          la Mac manda sus experiencias al A1 o trae lo que propuso la noche
                          (MTN1027H2); el ciclo lo hace solo una vez al día tras 02:00/06:00 UTC.
@@ -584,6 +586,68 @@ def plan_direccion(activo=False, raiz=RAIZ_DIRECCION_A1):
     return pasos
 
 
+#: (OPS1031B) Unidades del A1 que la dirección JAMÁS para: servicios de otros medios, que se
+#: abstienen solos (IND1029Cb) y no dependen del arriendo de dirección.
+UNIDADES_AJENAS_DIRECCION = (
+    "starseed-bitnet", "starseed-colibri", "a1-freellmapi", "starseed-puerta-datos",
+    "starseed-metagenesis", "starseed-medio", "starseed-genesis", "starseed-metageminis",
+    "starseed-automejora", "starseed-vigia-modelos",
+)
+UNIDAD_DIRECCION_SERVICIO = "starseed-direccion.service"
+
+
+def direccion_ajena(arriendo, ahora):
+    """PURA. (ajena, motivo): ¿el arriendo de dirección VIGENTE lo tiene una neurona que no es una
+    a1? Libre, caducado o sin dueño legible: no (los servicios se abstienen solos)."""
+    a = arriendo if isinstance(arriendo, dict) else {}
+    dueno = str(a.get("dueno") or "")
+    try:
+        vence = float(a.get("caduca") or 0)
+    except (TypeError, ValueError):
+        vence = 0.0
+    if not dueno or vence <= ahora:
+        return False, "arriendo libre o caducado: los servicios se abstienen solos"
+    try:
+        import lider_direccion as LD  # noqa: PLC0415
+
+        si_a1 = LD.prioridad(dueno) == 0
+    except Exception:  # noqa: BLE001
+        si_a1 = dueno.startswith(("a1", "oracle-a1"))
+    if si_a1:
+        return False, "lo dirige una neurona a1 (%s)" % dueno
+    return True, "arriendo vigente de %s" % dueno
+
+
+def unidades_direccion_a_parar(arriendo, ahora, activas):
+    """PURA. Las órdenes `sudo systemctl stop <unidad>` de las unidades de DIRECCIÓN (solo las que
+    reconoce por nombre) cuando otra neurona tiene el arriendo vigente; ([], motivo) si no toca."""
+    ajena, porque = direccion_ajena(arriendo, ahora)
+    if not ajena:
+        return [], porque
+    parar = [u for u in (activas or ())
+             if "direccion" in str(u).lower() and not any(x in str(u).lower() for x in UNIDADES_AJENAS_DIRECCION)]
+    return ["sudo systemctl stop %s" % u for u in sorted(set(parar))], porque
+
+
+def _arriendo_direccion():
+    """El arriendo `direccion.lider` leído desde la puerta de esta neurona (None si no se puede:
+    sin puerta o sin red, la limpieza no para nada — se abstienen solos)."""
+    try:
+        import lider_direccion as LD  # noqa: PLC0415
+
+        p = LD._puerta()
+    except Exception as e:  # noqa: BLE001
+        return None, "sin lider_direccion: %s" % type(e).__name__
+    if p is None or not p.configurada():
+        return None, "sin puerta de datos configurada"
+    if not p.disponible():
+        return None, "la puerta no responde"
+    try:
+        return LD._leer_arriendo(p), ""
+    except Exception as e:  # noqa: BLE001
+        return None, "no pude leer el arriendo: %s" % tachar("%s: %s" % (type(e).__name__, e), _ip())[:160]
+
+
 def _poner_en_a1(contenido, destino, modo=0o644):
     orden = ('tmp=$(mktemp /tmp/starseed-direccion.XXXXXX); cat > "$tmp" && '
              'sudo install -d -o root -g root -m 755 %s && '
@@ -593,7 +657,11 @@ def _poner_en_a1(contenido, destino, modo=0o644):
 
 
 def direccion(aplicar=False):
-    """`direccion [--aplicar]`: arma la unidad y el arranque en el A1. En seco solo enseña el plan."""
+    """`direccion [--aplicar]`: arma la unidad y el arranque en el A1. En seco solo enseña el plan.
+    (OPS1031B) Si otra neurona tiene el arriendo de dirección vigente, en vez de arrancar PARA las
+    piezas de dirección (systemctl stop de las unidades de dirección, nunca las ajenas); si la
+    unidad está muerta, no la arranca — la limpieza es del A1, que las restituye al recuperar el
+    arriendo con `direccion --aplicar` de nuevo."""
     try:
         with open(UNIDAD_DIRECCION, encoding="utf-8") as f: unidad = f.read()
     except OSError:
@@ -602,6 +670,22 @@ def direccion(aplicar=False):
         return {"ok": True, "aplicado": False, "pasos": plan_direccion(False)}
     rc, salida = ssh("systemctl is-active starseed-direccion 2>/dev/null || true", timeout=40)
     activo = rc == 0 and salida.strip() == "active"
+    arriendo, _ = _arriendo_direccion()
+    ajena, porque = direccion_ajena(arriendo, time.time())
+    parar, porque_parar = unidades_direccion_a_parar(
+        arriendo, time.time(), (UNIDAD_DIRECCION_SERVICIO,) if activo else ())
+    if parar:
+        res = {"ok": True, "aplicado": True, "activo_antes": activo, "hecho": [], "pasos": [],
+               "parado": porque_parar,
+               "nota": "otra neurona tiene el arriendo de dirección: paro las piezas y no arranco nada"}
+        for orden in parar:
+            rc, salida = ssh(orden, timeout=120)
+            res["hecho"].append({"orden": orden, "ok": rc == 0, "detalle": "" if rc == 0 else salida.strip()[-160:]})
+            res["ok"] = res["ok"] and rc == 0
+        return res
+    if ajena and not activo:
+        return {"ok": True, "aplicado": True, "activo_antes": False, "hecho": [], "pasos": [], "parado": "",
+                "nota": "otra neurona dirige (%s): no arranco la dirección" % porque}
     res = {"ok": True, "aplicado": True, "activo_antes": activo, "hecho": [], "pasos": plan_direccion(activo),
            "nota": "starseed-direccion ya estaba vivo: no lo arranco ni lo reinicio" if activo else ""}
     for contenido, destino in ((guion_direccion(), ARRANQUE_DIRECCION_A1), (unidad, SERVICIO_DIRECCION_A1)):
