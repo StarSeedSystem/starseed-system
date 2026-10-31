@@ -113,4 +113,50 @@ describe('PanelReticula', () => {
     expect(screen.getByText(/aún no llegó ninguna señal/)).not.toBeNull();
     expect(screen.queryByText(/Misma retícula/)).toBeNull();
   });
+
+  it('etiqueta Ti · router con icono para neuronas titanio', () => {
+    const ret = reticulaDe(
+      tesela('neurona-a', [senal()]),
+      tesela('neurona-b', [senal()], { esRouter: true })
+    );
+    render(<PanelReticula estado={estadoFabricado({ reticula: ret, cristal: cristal({ coordinacion: {} }) })} />);
+    expect(screen.getByText('Ti · router')).not.toBeNull();
+    const svgIcon = document.querySelector('svg.h-3.w-3.text-amber-500');
+    expect(svgIcon).not.toBeNull();
+  });
+
+  it('línea explicativa «fija la red: 6 puentes, no se dilata» para titanio', () => {
+    const ret = reticulaDe(
+      tesela('neurona-a', [senal()]),
+      tesela('neurona-b', [senal()], { esRouter: true })
+    );
+    render(<PanelReticula estado={estadoFabricado({ reticula: ret, cristal: cristal({ coordinacion: {} }) })} />);
+    expect(screen.getByText('fija la red: 6 puentes, no se dilata')).not.toBeNull();
+  });
+
+  it('cabecera muestra contador de titanios', () => {
+    const ret = reticulaDe(
+      tesela('neurona-a', [senal()]),
+      tesela('neurona-b', [senal()], { esRouter: true }),
+      tesela('neurona-c', [senal()], { esRouter: true })
+    );
+    render(<PanelReticula estado={estadoFabricado({ reticula: ret, cristal: cristal({ coordinacion: {} }) })} />);
+    const sections = document.querySelectorAll('section[aria-label="Retícula"]');
+    const headerText = sections[0]?.querySelector('header')?.textContent;
+    expect(headerText).toContain('2 titanios');
+  });
+
+  it('icono Router en cabecera cuando hay titanios', () => {
+    const ret = reticulaDe(tesela('neurona-a', [senal()]), tesela('neurona-b', [senal()], { esRouter: true }));
+    render(<PanelReticula estado={estadoFabricado({ reticula: ret, cristal: cristal({ coordinacion: {} }) })} />);
+    const header = document.querySelector('section[aria-label="Retícula"] header');
+    // Selector de atributo: el nombre de clase «h-3.5» lleva puntos y no vale como clase CSS.
+    expect(header?.querySelector('svg[class~="h-3.5"]')).not.toBeNull();
+  });
+
+  it('sin titanios no muestra etiqueta ni contador', () => {
+    render(<PanelReticula estado={estadoFabricado()} />);
+    expect(screen.queryByText('Ti · router')).toBeNull();
+    expect(screen.queryByText('titanio')).toBeNull();
+  });
 });

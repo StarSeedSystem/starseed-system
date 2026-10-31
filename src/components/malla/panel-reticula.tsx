@@ -1,8 +1,8 @@
 'use client';
 // Panel «Retícula» de la pestaña Señales: estado vítreo, temperatura media, puentes por coste
 // y coordinación de cada neurona. Sin efectos: recibe el estado() del motor (MC1012Q).
-import { Flame, Droplets, Snowflake, Hexagon } from 'lucide-react';
-import type { Cristal, EstadoVitreo, Medio, Reticula } from '@/lib/malla/cristal/tipos';
+import { Flame, Droplets, Snowflake, Hexagon, Router } from 'lucide-react';
+import type { Cristal, EstadoVitreo, Medio, NeuronaReticula, Reticula } from '@/lib/malla/cristal/tipos';
 import { coordinacionDe } from '@/lib/malla/cristal/tipos';
 import { esTitanio, coordinacionTitanio } from '@/lib/malla/cristal/titanio';
 import { calidadSenal } from '@/lib/malla/cristal/coste';
@@ -47,9 +47,10 @@ function filasPuente(e: EstadoReticula): FilaPuente[] {
     calidadPct: calidadDe(p.a, p.b, p.medio), coste: p.coste,
   })).sort((x, y) => x.coste - y.coste);
 }
-function filasCoord(e: EstadoReticula): Array<{ id: string; n: number; max: number }> {
+function filasCoord(e: EstadoReticula): Array<{ id: string; n: number; max: number; esTitanio: boolean }> {
   return Object.values(e.reticula.teselas).map((t) => ({
     id: t.neurona.id,
+    esTitanio: esTitanio(t.neurona),
     n: e.cristal.coordinacion[t.neurona.id] ?? 0,
     max: esTitanio(t.neurona) ? coordinacionTitanio(t.neurona) : coordinacionDe(t.neurona),
   }));
@@ -63,6 +64,7 @@ export function PanelReticula({ estado }: { estado: EstadoReticula }) {
   const m = Object.keys(estado.reticula.teselas).length;
   const puentes = filasPuente(estado);
   const coords = filasCoord(estado);
+  const titanios = coords.filter((c) => c.esTitanio).length;
   if (puentes.length === 0) {
     return (
       <section aria-label="Retícula" className="rounded-xl border border-border/40 bg-card/40 p-4 backdrop-blur-sm">
@@ -75,7 +77,14 @@ export function PanelReticula({ estado }: { estado: EstadoReticula }) {
     <section aria-label="Retícula" className="rounded-xl border border-border/40 bg-card/40 p-3 backdrop-blur-sm sm:p-4">
       <header className="flex items-center gap-2">
         <Hexagon className="h-4 w-4 text-primary" aria-hidden="true" />
-        <h3 className="text-sm font-semibold">Sólido amorfo en tiempo real</h3></header>
+        <h3 className="text-sm font-semibold">Sólido amorfo en tiempo real</h3>
+        {titanios > 0 && (
+          <span className="ml-auto text-xs font-medium text-amber-500">
+            <Router className="h-3.5 w-3.5 inline mr-1" aria-hidden="true" />
+            {titanios} titanio{titanios > 1 ? 's' : ''}
+          </span>
+        )}
+      </header>
       <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
         <Icono className={`h-3.5 w-3.5 shrink-0 ${color.texto}`} aria-hidden="true" />
         {TEXTO_ESTADO[estado.cristal.estado]}</p>
@@ -90,7 +99,7 @@ export function PanelReticula({ estado }: { estado: EstadoReticula }) {
         <p className="mt-1.5 text-[11px] text-muted-foreground">Fría y estable al 0 %; caliente, con puentes recolocándose, al 100 %.</p>
       </div>
       <div className="mt-2 rounded-lg border border-border/30 p-2.5 text-xs">
-        <p className="font-medium">Misma retícula en {n} de {m} neuronas</p>
+        <p className="mt-1 text-muted-foreground">Misma retícula en {n} de {m} neuronas</p>
         <p className="mt-1 text-muted-foreground">huella <code data-testid="reticula-huella">{huellaCorta(estado.huella)}</code></p>
       </div>
       <div className="mt-2">
@@ -108,8 +117,18 @@ export function PanelReticula({ estado }: { estado: EstadoReticula }) {
         <p className="text-xs font-medium">Coordinación de cada neurona frente a su máximo</p>
         <ul className="mt-1 space-y-1 text-[11px] sm:text-xs">
           {coords.map((c) => (
-            <li key={c.id} data-testid={`reticula-coord-${c.id}`} className="break-all text-muted-foreground">
-              <span className="font-medium text-foreground">{c.id}</span>: {c.n}/{c.max} puentes
+            <li key={c.id} data-testid={`reticula-coord-${c.id}`} className="flex items-center gap-2 break-all text-muted-foreground">
+              <span className="font-medium text-foreground">{c.id}</span>
+              {c.esTitanio && (
+                <>
+                  <Router className="h-3 w-3 text-amber-500" aria-hidden="true" />
+                  <span className="text-amber-400">Ti · router</span>
+                </>
+              )}
+              <span>: {c.n}/{c.max} puentes</span>
+              {c.esTitanio && (
+                <span className="text-[11px] text-muted-foreground">fija la red: 6 puentes, no se dilata</span>
+              )}
             </li>
           ))}
         </ul>
