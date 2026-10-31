@@ -1,0 +1,17 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "LIB1031A",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Biblioteca · las pruebas de repos-1025 y repos-1026 no cargan («default.resolve is not a function»)",
+   "archivos": [
+    "src/lib/library/__tests__/repos-1025.test.ts",
+    "src/lib/library/__tests__/repos-1026.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; solo vitest de lo tocado.\n\nEl 31-10, al arreglar la Biblioteca (b13fcf6d7: las fichas 1027 traían kind «tool» y tumbaban /library y /store), `npx vitest run src/lib/library/__tests__/repos-1025.test.ts` daba «Failed Suites 1 · TypeError: default.resolve is not a function» (0 pruebas) en main limpio; lo mismo repos-1026. Encuentra la causa (probablemente un import por defecto de `path` o de un módulo de Node en la prueba o en el módulo) y haz que carguen y pasen."
+  }
+ ]
+}
