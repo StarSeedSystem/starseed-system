@@ -121,6 +121,72 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         expect(android.instalar.explica).toBe("En Android, dentro de Termux (experimental, 1 agente).");
     });
 
+    it("sin trabajador: instalable en macOS y Windows; iOS y otros sistemas no lo ofrecen", () => {
+        const mac = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        expect(mac.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "Un comando en la terminal de este aparato.",
+        });
+        const windows = botonesNeurona({ nodo: null, vivo: true, so: "windows", enCurso: 0 });
+        expect(windows.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "En Windows se instala dentro de WSL2.",
+        });
+        for (const so of ["ios", "otro"] as const) {
+            expect(botonesNeurona({ nodo: null, vivo: true, so, enCurso: 0 }).instalar).toMatchObject({
+                visible: false,
+                habilitado: false,
+                etiqueta: "",
+                explica: "",
+            });
+        }
+    });
+
+    it("mientras desconecta, el botón lo dice y no se puede volver a pulsar", () => {
+        const b = botonesNeurona({
+            nodo: "mac-a1b2c3",
+            vivo: true,
+            so: "macos",
+            enCurso: 1,
+            desconectando: true,
+            relevoActivo: true,
+        });
+        expect(b.desconectar).toMatchObject({
+            visible: true,
+            habilitado: false,
+            etiqueta: "Desconectando…",
+            explica: "Guarda el trabajo a medias y lo pasa a otro contenedor.",
+        });
+    });
+
+    it("contenedor inactivo y no apto: deshabilitado, con el motivo a la vista", () => {
+        const b = botonesNeurona({
+            nodo: "mac-a1b2c3",
+            vivo: true,
+            so: "macos",
+            enCurso: 0,
+            contenedor: { activo: false, agentes: 0, apto: false, motivo: "No tiene suficiente memoria" },
+        });
+        expect(b.contenedor).toMatchObject({
+            visible: true,
+            habilitado: false,
+            etiqueta: "Usar como contenedor",
+            explica: "No tiene suficiente memoria",
+        });
+    });
+
+    it("sin nodo no se ofrecen los botones de nodo: solo queda instalar el trabajador", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        for (const boton of [b.desconectar, b.contenedor]) {
+            expect(boton).toMatchObject({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+        }
+        expect(b.instalar).toMatchObject({ visible: true, habilitado: true });
+    });
+
     it("con trabajo en curso y contenedor activo, ambos botones requieren confirmación", () => {
         const b = botonesNeurona({ 
             nodo: "mac-a1b2c3", 
