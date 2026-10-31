@@ -631,7 +631,7 @@ function PackageCard({
   actions: StoreActions;
   onOpenDetail: (pkg: LibraryPackage) => void;
 }) {
-  const meta = KIND_META[pkg.kind];
+  const meta = KIND_META[pkg.kind] ?? KIND_META.app;
   const route = typeof pkg.payload.route === "string" ? pkg.payload.route : "";
   const needsKey = pkg.kind === "ai-source" && aiReady === false && !installed;
   const busy = actions.busyId === pkg.id;
@@ -885,7 +885,7 @@ function PackageDetailSheet({
 }) {
   if (!pkg) return <Sheet open={false} onOpenChange={onOpenChange}><SheetContent side="right" className="hidden" /></Sheet>;
 
-  const meta = KIND_META[pkg.kind];
+  const meta = KIND_META[pkg.kind] ?? KIND_META.app;
   const installed = pkg.id in data.installed;
   const entry = data.installed[pkg.id];
   const route = typeof pkg.payload.route === "string" ? pkg.payload.route : "";
@@ -1163,7 +1163,7 @@ function PackageDetailSheet({
               </p>
               <div className="ss-hscroll ss-hscroll-fade flex gap-3 pb-1">
                 {related.map((rel) => {
-                  const relMeta = KIND_META[rel.kind];
+                  const relMeta = KIND_META[rel.kind] ?? KIND_META.app;
                   return (
                     <button
                       key={rel.id}
@@ -1461,7 +1461,7 @@ function InstalledSection({
             }
             // El paquete ya no está en ningún repo (repo externo quitado):
             // mostramos la entrada cruda y permitimos desinstalar igualmente.
-            const meta = KIND_META[entry.kind];
+            const meta = KIND_META[entry.kind] ?? KIND_META.app;
             return (
               <GlassCard key={id} intensity="low" className="flex h-full flex-col gap-3 border-white/5 p-4">
                 <div className="flex items-start gap-3">
@@ -1573,7 +1573,7 @@ export function PackageStore({ section, query = "" }: { section: StoreSection; q
   const searchResults = useMemo(() => {
     if (!q) return [];
     return data.packages.filter((p) => {
-      const meta = KIND_META[p.kind];
+      const meta = KIND_META[p.kind] ?? KIND_META.app;
       return (
         p.name.toLowerCase().includes(q) ||
         p.description.toLowerCase().includes(q) ||

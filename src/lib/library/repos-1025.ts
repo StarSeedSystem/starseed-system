@@ -223,3 +223,13 @@ export const IDS_SIEMBRA_1025: string[] = [
     ...TANDA.paquetes.filter((f) => esFichaNueva1025(f) && f.preinstalar === "siempre").map((f) => f.id),
     ...TANDA.paquetes.filter((f) => f.fusionar_en !== undefined && f.preinstalar === "siempre").map((f) => f.fusionar_en as string),
 ];
+
+/** Tipos que la Biblioteca sabe pintar (PackageKind). Copia local: este módulo no puede importar
+ *  `packages.ts` (ciclo). Un tipo nuevo en una ficha («tool») tumbaba la Biblioteca entera
+ *  (31-10: «reading 'chip'»); lo desconocido se muestra como `app`. */
+const TIPOS_BIBLIOTECA = ["agent", "ai-source", "animation", "app", "board", "design", "function", "page",
+    "project", "publication", "repo", "research", "widget"] as const;
+export function tipoDeFicha(kind: unknown): (typeof TIPOS_BIBLIOTECA)[number] {
+    const k = typeof kind === "string" ? kind.trim() : "";
+    return (TIPOS_BIBLIOTECA as readonly string[]).includes(k) ? (k as (typeof TIPOS_BIBLIOTECA)[number]) : "app";
+}

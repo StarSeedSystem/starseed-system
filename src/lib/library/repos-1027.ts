@@ -17,7 +17,7 @@
 import type { LibraryPackage } from "./packages";
 import datos from "../../../config/repos-libreria-1027.json";
 import type { FichaTanda1026 } from "./repos-1026";
-import { autorDe, resumenRequisitos, versionCorta } from "./repos-1025";
+import { autorDe, resumenRequisitos, tipoDeFicha, versionCorta } from "./repos-1025";
 
 /** Una ficha tal y como la deja `config/repos-libreria-1027.json`: la de la tanda 1026, sin cambios de forma. */
 export type FichaTanda1027 = FichaTanda1026;
@@ -84,7 +84,7 @@ function paqueteDe(f: FichaTanda1027): LibraryPackage {
     return {
         id: f.id,
         // El tipo lo declara la ficha: `tool` (OpenMausBot, Insomnia) o `ai-source` (Colibri).
-        kind: f.kind as LibraryPackage["kind"],
+        kind: tipoDeFicha(f.kind),
         name: nombreDe(f),
         description: descripcionDe(f),
         icon: f.icono,

@@ -15,7 +15,7 @@
 import type { LibraryPackage } from "./packages";
 import datos from "../../../config/repos-libreria-1028.json";
 import type { FichaTanda1026 } from "./repos-1026";
-import { autorDe, resumenRequisitos, versionCorta } from "./repos-1025";
+import { autorDe, resumenRequisitos, tipoDeFicha, versionCorta } from "./repos-1025";
 
 /** Una ficha tal y como la deja `config/repos-libreria-1028.json`: la de la tanda 1026, sin cambios de forma. */
 export type FichaTanda1028 = FichaTanda1026;
@@ -90,7 +90,7 @@ function paqueteDe(f: FichaTanda1028): LibraryPackage {
     return {
         id: f.id,
         // El tipo lo declara la ficha: LEANN es `ai-source` (motor de IA).
-        kind: f.kind as LibraryPackage["kind"],
+        kind: tipoDeFicha(f.kind),
         name: `${f.nombre} · ${f.titulo}`,
         description: `${f.que_es} En StarSeed OS: ${f.nota}`,
         icon: iconoDeLaBiblioteca1028(f.icono),
