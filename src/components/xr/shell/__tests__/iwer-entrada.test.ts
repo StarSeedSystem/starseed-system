@@ -63,6 +63,8 @@ describe("IWER · entrada emulada a WebXR", () => {
         expect(d.tieneXR).toBe(true);
         expect([d.vr, d.ar]).toEqual([true, true]);
         expect(d.webgl2).toBe(false);
+        // (RTVAR1021Cd) El sondeo también conserva la UA que leyó: de ahí saldrá la plataforma.
+        expect(d.ua).toContain("Quest 3");
     });
 
     it("(2) UA de jsdom = escritorio; UA de Quest = quest con VR recomendada", async () => {
@@ -100,6 +102,8 @@ describe("IWER · entrada emulada a WebXR", () => {
         const sesion = await abrir("immersive-vr", { requiredFeatures: ["local-floor"], optionalFeatures: ["hand-tracking"] });
         const refinadas = refinarFunciones(c, sesion.enabledFeatures);
         expect(refinadas.funciones).toEqual(["local-floor", "hand-tracking"]);
+        // (RTVAR1021Cd) refinarFunciones sólo cambia `funciones`: el diagnóstico sigue intacto.
+        expect(refinadas.plataforma).toBe(c.plataforma);
         expect(refinadas.funciones).not.toContain("plane-detection");
     });
 });
