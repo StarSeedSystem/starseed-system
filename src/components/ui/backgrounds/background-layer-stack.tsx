@@ -33,6 +33,7 @@ import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Check, Mic, Sparkles } from "lucide-react";
 import { CapaDifusion } from "@/components/backgrounds/capa-difusion";
+import { CapaShader } from "@/components/backgrounds/capa-shader";
 import { useAppearance } from "@/context/appearance-context";
 import {
     audiomorphicFilter,
@@ -42,6 +43,11 @@ import {
     type BackgroundLayer,
 } from "@/lib/appearance/background-layers";
 import type { VisualizerParams } from "@/lib/audiomorphic/types";
+import { estiloTransformDifusion, mascaraDifusion } from "@/lib/appearance/difusion";
+import type { Transform } from "@/lib/appearance/background-layers";
+
+/** Transformación neutra cuando la capa llegó sin una (normalizeLayers ya la repara). */
+const TRANSFORM_NEUTRO: Transform = { x: 0, y: 0, escala: 1, rotacion: 0, ancho: 1, alto: 1 };
 
 // El motor nativo se carga en diferido: una capa apagada no cuesta NADA.
 const AudiomorphicCanvas = dynamic(
@@ -80,6 +86,22 @@ function LayerBody({ layer }: { layer: BackgroundLayer }) {
                     playsInline
                 />
             ) : null;
+        case "shader":
+            // La opacidad y la mezcla las pone el envoltorio común de la pila; aquí se piden
+            // neutras para no aplicarse dos veces. La posición, el tamaño, la escala, la
+            // rotación y la máscara de la capa se aplican en el envoltorio interior (mismo
+            // criterio que CapaDifusion usa dentro de la suya).
+            return (
+                <div
+                    className="absolute overflow-hidden"
+                    style={{
+                        ...estiloTransformDifusion(layer.transform ?? TRANSFORM_NEUTRO),
+                        ...mascaraDifusion(layer.mascara ?? "ninguna"),
+                    }}
+                >
+                    <CapaShader capa={{ ...layer, opacity: 1, blend: "normal" }} />
+                </div>
+            );
         case "difusion":
             // La opacidad y la mezcla de la capa ya las pone el envoltorio común de la pila;
             // aquí se piden neutras para no aplicarlas dos veces (0,5 → 0,25). CapaDifusion
