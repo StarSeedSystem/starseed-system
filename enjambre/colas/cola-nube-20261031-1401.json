@@ -1,0 +1,41 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "LIB1031B",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Biblioteca · prueba de guardia: todo paquete de allPackages() tiene un tipo que la tienda sabe pintar",
+   "archivos": [
+    "src/lib/library/__tests__/tipos-validos.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; solo vitest de lo tocado.\n\nEl 31-10 una ficha con kind «tool» tumbó la Biblioteca entera. Ya hay respaldo (`KIND_META[...] ?? KIND_META.app` y `tipoDeFicha` en repos-1025.ts), pero añade una prueba que recorra `allPackages()` y compruebe que cada `kind` está en `VALID_KINDS`, para que una ficha nueva con tipo raro salga en rojo en el CI y no en producción."
+  },
+  {
+   "id": "RAM1031B",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Disco · los respaldos viejos de Hermes pasan al Google Drive con copia verificada",
+   "archivos": [
+    "scripts/puente/limpieza_caches.py",
+    "scripts/puente/test_limpieza_caches.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; nunca la IP del A1; funciones PURAS con pruebas; nunca borrar datos sin copia verificada.\n\nEl 31-10 la Mac (8 GB) estaba con <1 GB libre y la swap al 95 %: BitNet congelado horas (estado T) y Astraura «vivo:false», el enjambre de la Mac parado por memoria, Google Drive sin responder (fts_read: Operation timed out). Alex cerró el `next dev` que Hermes dejó en :3000 y su visor de :9010), reanudó BitNet y arregló el guardia (7192b966e: sin enjambre, un motor congelado > 15 min se reanuda). En ~/.hermes hay 15 GB: state.db.pre-update-emergency-*.bak (dos, 2,2 GB) y state-snapshots (1 GB). `limpieza_caches.py` los tiene en LISTA_NEGRA (bien: nunca se borran). Añade un paso «al Drive»: solo si el Drive montado responde (ls con tope de 10 s), copia el respaldo más viejo a `My Drive/StarSeed-respaldos-mac/hermes/`, compara tamaño y sha256, y solo entonces lo quita de la Mac; el más reciente y el state.db vivo nunca se tocan. Planificación PURA probada; el copiado, inyectado."
+  },
+  {
+   "id": "RAM1031A",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Astraura · con la Mac sin memoria, el motor local usa el BitNet del A1 y el BitNet de la Mac duerme",
+   "archivos": [
+    "scripts/puente/guardia-memoria.py",
+    "scripts/puente/test_guardia_memoria.py",
+    "architecture/metagenesis-autonoma.md"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; nunca la IP del A1; funciones PURAS con pruebas; nunca borrar datos sin copia verificada.\n\nEl 31-10 la Mac (8 GB) estaba con <1 GB libre y la swap al 95 %: BitNet congelado horas (estado T) y Astraura «vivo:false», el enjambre de la Mac parado por memoria, Google Drive sin responder (fts_read: Operation timed out). Alex cerró el `next dev` que Hermes dejó en :3000 y su visor de :9010), reanudó BitNet y arregló el guardia (7192b966e: sin enjambre, un motor congelado > 15 min se reanuda). BitNet en la Mac corre con mlock (ASTRAURA_BITNET_MLOCK=1 por defecto): congelado retiene 1,1 GB de RAM fija. Propón e implementa lo mínimo para que, con poca memoria y sin conversación en curso, el guardia pida a Astraura dormir su BitNet local (el gestor ya tiene «sueño»: busca `sueno_min`/`dormido` en el backend de Astraura de la Mac, fuera del repo: solo léelo) y que el router de capas use el nodo del A1 (`starseed-bitnet.service`, clave STARSEED_ORACLE_BITNET_KEY por nombre, nunca su valor). Si el cambio de backend queda fuera del repo, deja el contrato escrito en architecture/metagenesis-autonoma.md y la parte del guardia hecha."
+  }
+ ]
+}
