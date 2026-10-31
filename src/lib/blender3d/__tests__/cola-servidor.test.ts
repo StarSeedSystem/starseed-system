@@ -38,15 +38,16 @@ describe("encolarTrabajo", () => {
     if (!r.ok) expect(r.motivos?.length ?? 0).toBeGreaterThan(0);
     expect(existsSync(raiz)).toBe(false);
   });
-  it("pide confirmación para un trabajo pesado sin confirmar", async () => {
+  it("pide confirmación para un trabajo pesado o de calidad final sin confirmar", async () => {
     _ponerProcesos(fichaLigera, () => undefined);
-    const r = await encolarTrabajo(base({ ambito: "grupo" }));
-    expect(r).toMatchObject({ ok: false, requiereConfirmacion: true });
+    for (const extra of [{ ambito: "grupo" }, { calidad: "final" }]) {
+      expect(await encolarTrabajo(base(extra))).toMatchObject({ ok: false, requiereConfirmacion: true });
+    }
     expect(existsSync(path.join(raiz, "cola"))).toBe(false);
   });
-  it("rechaza ids con .. o de largo equivocado", async () => {
+  it("rechaza ids con .. , de largo equivocado o que no son hex", async () => {
     expect(await estadoDe(`../${"0".repeat(32)}`)).toBeNull();
-    expect(await estadoDe("0".repeat(31))).toBeNull();
+    expect(await estadoDe("0".repeat(31))).toBeNull(); expect(await estadoDe("z".repeat(32))).toBeNull();
     expect((await leerSalida("0".repeat(32), "../secreto")).ok).toBe(false);
   });
   it("encola y no filtra rutas absolutas en el estado ni en el listado", async () => {
@@ -56,9 +57,13 @@ describe("encolarTrabajo", () => {
     if (!r.ok) return;
     const ficha = JSON.parse(readFileSync(path.join(raiz, "estado", `${r.id}.json`), "utf8")) as Record<string, unknown>;
     writeFileSync(path.join(raiz, "estado", `${r.id}.json`), JSON.stringify({ ...ficha, motivo: `falló en ${raiz}` }));
-    const uno = JSON.stringify(await estadoDe(r.id));
-    const todos = JSON.stringify(await listarRecientes());
+    const [uno, todos] = [JSON.stringify(await estadoDe(r.id)), JSON.stringify(await listarRecientes())];
     for (const texto of [uno, todos]) { expect(texto).not.toContain(raiz); expect(texto).not.toContain(tmpdir()); }
+  });
+  it("listarRecientes nunca devuelve más de 20", async () => {
+    mkdirSync(path.join(raiz, "estado"), { recursive: true });
+    for (let i = 0; i < 25; i++) writeFileSync(path.join(raiz, "estado", `${i.toString(16).padStart(32, "0")}.json`), "{}");
+    expect((await listarRecientes(25)).length).toBe(20);
   });
   it("no arranca otro ejecutor si el cerrojo está vivo", async () => {
     mkdirSync(raiz, { recursive: true });
