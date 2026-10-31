@@ -1,5 +1,8 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { DifusionConfig, Transform } from "../background-layers";
+import { CapaDifusion } from "@/components/backgrounds/capa-difusion";
+import type { BackgroundLayer, DifusionConfig, Transform } from "../background-layers";
 import {
   MAX_DESENFOQUE_PX,
   estiloDifusion,
@@ -114,5 +117,44 @@ describe("mascaraDifusion", () => {
     const l = mascaraDifusion("lineal");
     expect(l?.maskImage).toContain("linear-gradient");
     expect(l?.maskImage).toBe(l?.WebkitMaskImage);
+  });
+});
+
+describe("CapaDifusion", () => {
+  const capa = (cambios: Partial<BackgroundLayer>): BackgroundLayer => ({
+    id: "d1",
+    kind: "difusion",
+    visible: true,
+    opacity: 1,
+    blend: "normal",
+    difusion: d({}),
+    transform: { x: 0, y: 0, escala: 1, rotacion: 0, ancho: 1, alto: 1 },
+    mascara: "ninguna",
+    ...cambios,
+  });
+
+  it("aplica el estilo puro, la transformación y la máscara de la capa", () => {
+    const html = renderToStaticMarkup(createElement(CapaDifusion, {
+      capa: capa({
+        opacity: 0.5,
+        difusion: d({ modo: "desenfoque", desenfoquePx: 24, textura: "grano" }),
+        transform: { x: 0.25, y: 0, escala: 2, rotacion: 13, ancho: 0.5, alto: 1 },
+        mascara: "radial",
+      }),
+    }));
+    expect(html).toContain("backdrop-filter:blur(24px)");
+    expect(html).toContain("-webkit-backdrop-filter:blur(24px)");
+    expect(html).toContain("data:image/svg+xml");
+    expect(html).toContain("background-size:144px 144px");
+    expect(html).toContain("left:25%");
+    expect(html).toContain("width:50%");
+    expect(html).toContain("transform:scale(2) rotate(13deg)");
+    expect(html).toContain("mask-image:radial-gradient");
+    expect(html).toContain("opacity:0.5");
+  });
+
+  it("capa invisible o sin configuración no se pinta", () => {
+    expect(renderToStaticMarkup(createElement(CapaDifusion, { capa: capa({ visible: false }) }))).toBe("");
+    expect(renderToStaticMarkup(createElement(CapaDifusion, { capa: capa({ difusion: undefined }) }))).toBe("");
   });
 });
