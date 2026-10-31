@@ -8,13 +8,14 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { PantallaMundo, PizarraMundo } from "@/lib/xr/mundo-tipos";
 import type { Sala } from "@/lib/salas/sala";
+import type { Propiedades } from "@/lib/salas/propiedad-sala";
 vi.mock("@react-three/uikit", () => ({
     Container: ({ children, onClick }: { children?: ReactNode; onClick?: () => void }) => <div onClick={onClick}>{children}</div>,
     Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
 }));
 vi.mock("@react-three/xr", () => ({ XRLayer: () => <div data-testid="xr-layer" /> }));
 import { clasificarPantalla, Pantalla3D, puedeUsarCapas, suenaEnPantalla, tipoVisualDeContentType, tipoVisualDeUrl } from "../pantalla-3d";
-import { agregarTrazo, crearEstadoPizarra, decidirPizarra, fusionarPizarra, Pizarra3D, trazosDeEstado } from "../pizarra-3d";
+import { agregarTrazo, cederTrazo, crearEstadoPizarra, decidirPizarra, fusionarPizarra, Pizarra3D, retirarTrazo, trazosDeEstado } from "../pizarra-3d";
 
 const URL_WEB = "https://ejemplo.org/una/noticia";
 function pantalla(fuente: PantallaMundo["fuente"]): PantallaMundo {
@@ -116,5 +117,56 @@ describe("Pizarra3D · rol y fusión con lápidas", () => {
         render(<Pizarra3D pizarra={pizarraMundo("sala-1")} sala={salaCompartida()} usuarioId="ana" />);
         expect(screen.getByText("Solo lectura")).toBeInTheDocument();
         expect(screen.getByText(/miras la pizarra, no dibujas/)).toBeInTheDocument();
+    });
+});
+
+describe("Pizarra3D · propiedad por épocas conectada", () => {
+    it("dibujar reclama el trazo; tocar el trazo ajeno se rechaza y se explica sin tecnicismos", () => {
+        const deLuis = agregarTrazo(crearEstadoPizarra("sala-1"), { id: "t-1", puntos: [[0, 0, 0], [1, 1, 1]], color: "#fff", grosor: 0.01 }, { dispositivo: "luis", ahora: 10, dueno: "luis", propiedades: {} });
+        expect(deLuis.ok).toBe(true);
+        expect(deLuis.propiedades?.["t-1"]).toEqual({ dueno: "luis", epoca: 1 });
+        const deAna = agregarTrazo(crearEstadoPizarra("sala-1"), { id: "t-1", puntos: [[0, 0, 0], [9, 9, 9]], color: "#0ff", grosor: 0.01 }, { dispositivo: "ana", ahora: 12, dueno: "ana", propiedades: deLuis.propiedades });
+        expect(deAna.ok).toBe(false);
+        expect(deAna.motivo).toContain("pídesela");
+        expect(deAna.motivo?.toLowerCase()).not.toContain("época");
+        // El estado queda como estaba: nada de ana pisa el trazo de luis.
+        expect(trazosDeEstado(deAna.estado).filter((t) => t.id === "t-1")).toHaveLength(0);
+    });
+
+    it("la decisión por elemento manda: el dueño retoca lo suyo y el otro recibe la explicación", () => {
+        const sala = salaCompartida();
+        const props: Propiedades = { "t-1": { dueno: "luis", epoca: 2 } };
+        expect(decidirPizarra(pizarraMundo("sala-1"), sala, "luis", props, "t-1").puedeDibujar).toBe(true);
+        const deniega = decidirPizarra(pizarraMundo("sala-1"), sala, "ana", props, "t-1");
+        expect(deniega.puedeDibujar).toBe(false);
+        expect(deniega.motivo).toContain("Esa pieza la tiene luis");
+    });
+
+    it("fusionar lleva también el mapa de propiedad: gana la época mayor en los dos órdenes", () => {
+        const mio = agregarTrazo(crearEstadoPizarra("sala-1"), { id: "mio", puntos: [[0, 0, 0], [1, 1, 1]], color: "#fff", grosor: 0.01 }, { dispositivo: "luis", ahora: 10, dueno: "luis", propiedades: {} });
+        const suyo = agregarTrazo(crearEstadoPizarra("sala-1"), { id: "suyo", puntos: [[0, 0, 0], [2, 2, 2]], color: "#0ff", grosor: 0.01 }, { dispositivo: "ana", ahora: 11, dueno: "ana", propiedades: {} });
+        const propsMias: Propiedades = { "t-1": { dueno: "luis", epoca: 3 } };
+        const propsSuyas: Propiedades = { "t-1": { dueno: "ana", epoca: 1 } };
+        const ab = fusionarPizarra(mio.estado, suyo.estado, "luis", propsMias, propsSuyas);
+        const ba = fusionarPizarra(suyo.estado, mio.estado, "ana", propsSuyas, propsMias);
+        expect(ab.propiedades?.["t-1"].epoca).toBe(3);
+        expect(ba.propiedades?.["t-1"].epoca).toBe(3);
+        expect(ab.disputas).toEqual(["t-1"]);
+        expect(ba.disputas).toEqual(["t-1"]);
+    });
+
+    it("ceder sube la época; retirar lo hace solo el dueño de la sala y queda registrado", () => {
+        const props: Propiedades = { "t-1": { dueno: "luis", epoca: 1 } };
+        const cedido = cederTrazo(props, "t-1", "luis", "ana");
+        expect(cedido["t-1"]).toEqual({ dueno: "ana", epoca: 2 });
+        const salaConDueno: Sala = { ...salaCompartida(), miembros: { luis: "editor", ana: "editor", pato: "dueno" } };
+        const negado = retirarTrazo(salaConDueno, "luis", cedido, "t-1", "pato");
+        expect(negado.ok).toBe(false);
+        const forzado = retirarTrazo(salaConDueno, "pato", cedido, "t-1", "pato");
+        expect(forzado.ok).toBe(true);
+        if (!forzado.ok) throw new Error("el dueño de la sala debería poder");
+        expect(forzado.propiedades["t-1"]).toEqual({ dueno: "pato", epoca: 3 });
+        expect(forzado.porQuien).toBe("pato");
+        expect(forzado.aQuien).toBe("pato");
     });
 });
