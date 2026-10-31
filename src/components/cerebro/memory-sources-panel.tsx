@@ -48,6 +48,7 @@ import {
   Cloud,
   FolderOpen,
   Unplug,
+  Copy,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { getBrain, saveBrain, type Brain, type BrainPermission } from "@/lib/brains/brains";
@@ -62,7 +63,17 @@ import {
   type SyncDirection,
 } from "@/lib/brains/servers";
 import { listBackends, saveBackend, deleteBackend, type StorageBackend } from "@/lib/storage/backends";
-import { listMemoryFiles } from "@/lib/cerebro/memory-files";
+import { listMemoryFiles, type MemoryFile } from "@/lib/cerebro/memory-files";
+import { readMirror } from "@/lib/brains/memory-offline";
+import {
+  construirManifiesto,
+  divergencias,
+  huellaContenido,
+  proponerLimpieza,
+  resumenManifiesto,
+  type CopiaMemoria,
+  type ManifiestoMemoria,
+} from "@/lib/storage/memoria-manifiesto";
 import { MemoryFolderConnect } from "@/components/exocortex/memory-folder-connect";
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
 // (Ola 374) Google Drive como medio de este cerebro: OAuth con custodia en
