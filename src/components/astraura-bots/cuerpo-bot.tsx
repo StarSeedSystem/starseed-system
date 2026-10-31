@@ -4,6 +4,7 @@ import * as React from 'react';
 import { planCuerpo } from '@/lib/astraura-bots/cuerpo';
 import { resolverRefBiblioteca } from '@/lib/avatares/adaptadores/resolver-ref-biblioteca';
 import { QuantumOrbAvatar } from '@/components/aurora/quantum-orb-avatar';
+import { PatoSimuladoComponent } from '@/components/robots/pato-simulado';
 
 // We'll also need to import a component for the ser genesis avatar if it exists.
 // For now, we'll use a placeholder.
@@ -44,6 +45,9 @@ export const CuerpoBot: React.FC<CuerpoBotProps> = ({ cuerpo, medio, xrDisponibl
   // Now, render based on the render type
   switch (render) {
     case 'orbe':
+      // Un bot con forma «robot» usa el Open Duck Mini de §4: el pato simulado
+      // del navegador (sin hardware y con sus recursos pesados bajo demanda).
+      if (cuerpo.forma === 'robot') return <PatoSimuladoComponent />;
       // We use a fixed size for the orbe avatar; ideally we would use the tono and escala from the cuerpo.
       // However, the QuantumOrbAvatar component does not expose tone and scale as props.
       // We hope that the renderer uses the tono and escala from the cuerpo via some other means (e.g., context).

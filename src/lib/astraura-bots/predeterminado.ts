@@ -6,7 +6,7 @@
  * Los bots guardados son solo de PERFIL; los de entidad viven en su tabla.
  */
 import type { Bot, Personalidad } from "./tipos";
-import { acotar, esOrigen, esSentido, esTipoDueno } from "./tipos";
+import { FORMAS_CUERPO, acotar, esOrigen, esSentido, esTipoDueno } from "./tipos";
 import { deserializarVozBot, normalizarVozBot } from "./voz-bot";
 
 /** Versión del formato persistido en el almacén de bots. */
@@ -67,7 +67,7 @@ function sanearBot(bruto: unknown, cuentaId: string): Bot | null {
 
   const c = esRegistro(bruto.cuerpo) ? bruto.cuerpo : null;
   if (!c) return null;
-  if (!["orbe", "avatar-2d", "avatar-3d", "vrm", "ser-genesis"].includes(String(c.forma))) return null;
+  if (!(FORMAS_CUERPO as readonly string[]).includes(String(c.forma))) return null;
 
   const sentidos = Array.isArray(bruto.sentidosHabilitados)
     ? bruto.sentidosHabilitados.filter(esSentido)
