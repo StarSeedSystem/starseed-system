@@ -125,6 +125,23 @@ export const RECURSOS_ASTRAURA: RecursoAgente[] = [
     requiere: [], ruta: "backend/app/memory" },
 ];
 
+/* ── Descubrimiento progresivo del servidor MCP de Genesis (2026-10-31) ─────
+   AGT1025C: el módulo ya existe (`descubrimiento-progresivo.ts`); aquí se
+   declara para que el Taller lo enseñe como recurso real. Con `?modo=progresivo`
+   el servidor ofrece tres metaherramientas en vez de todas y descubre el resto
+   por palabras clave según el contexto del modelo. Sin pedirlo, nada cambia. */
+export const RECURSOS_MCP: RecursoAgente[] = [
+  {
+    id: "os:genesis-mcp-progresivo", tipo: "mcp", origen: "os", maquina: "cualquiera",
+    nombre: "Descubrimiento progresivo de herramientas MCP",
+    descripcion: "El servidor MCP de Genesis, con `?modo=progresivo`, enseña tres metaherramientas en vez de todas y descubre las demás por palabras clave según el contexto del modelo, para no gastar la ventana de un modelo pequeño.",
+    etiquetas: ["mcp", "herramientas", "descubrimiento", "contexto", "modelo pequeño"],
+    requiere: [],
+    ruta: "src/lib/genesis/mcp/descubrimiento-progresivo.ts",
+    docs: "architecture/repos-libreria-1025.md",
+  },
+];
+
 /* ── ArtCraft: tres MCP del OS por la pasarela, con directorio de trabajo ──
    El agente no recibe rutas absolutas ni red: pide por `/api/artcraft/<app>` y
    la pasarela resuelve nombres dentro de su directorio de trabajo. `requiere`
@@ -349,7 +366,7 @@ export function consultarViasNavegador(
 /** Todo lo declarado en este módulo, en un solo catálogo. */
 export function catalogoDeclarado(): RecursoAgente[] {
   return [
-    ...RECURSOS_NAVEGADOR, ...RECURSOS_ASTRAURA, ...RECURSOS_ARTCRAFT,
+    ...RECURSOS_NAVEGADOR, ...RECURSOS_ASTRAURA, ...RECURSOS_MCP, ...RECURSOS_ARTCRAFT,
     ...RECURSOS_MEMORIA, ...PROMPTS_BASE, ...RECURSOS_TRADUCCION_PDF,
   ];
 }
