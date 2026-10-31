@@ -9,6 +9,7 @@ import { useState } from "react";
 import {
   AsignacionesPanel,
   filasSugeridas,
+  type AvisosContenedores,
   type FilaPanel,
   type ModoPanel,
 } from "./asignaciones-panel";
@@ -91,13 +92,28 @@ export function SeccionAsignacionesGenesis({
   titulo,
   modo = "aplicar",
   onGuardar,
+  ofertas,
+  cupoCloudroom,
+  relevanteCloudroom,
 }: {
   ambito: string;
   titulo: string;
   modo?: ModoPanel;
   onGuardar: (filas: FilaPanel[]) => void | Promise<void>;
+  /** Ofertas medidas del ámbito; sin ellas Cloudroom se pinta «sin verificar», a la honesta. */
+  ofertas?: AvisosContenedores["ofertas"];
+  /** Datos del cupo Cloudroom declarados por la cuenta, si la página los trae. */
+  cupoCloudroom?: AvisosContenedores["cupoCloudroom"];
+  /** True solo en capas de tareas de código larga que pueden seguir con el aparato apagado. */
+  relevanteCloudroom?: boolean;
 }) {
   const [iniciales] = useState<FilaPanel[]>(() => cargarAsignaciones(ambito) ?? filasSugeridas(CATALOGO_GENESIS));
+  // Avisos con honestidad por defecto: sin ofertas medidas, Cloudroom sale «sin verificar en
+  // esta neurona» y sin cupo; solo se marca «Sugerida» cuando `sugerirParaAmbito` la devuelve.
+  const avisos: AvisosContenedores = { contenedores: CONTENEDORES_OPCIONES };
+  if (ofertas) avisos.ofertas = ofertas;
+  if (cupoCloudroom) avisos.cupoCloudroom = cupoCloudroom;
+  if (relevanteCloudroom) avisos.relevanteCloudroom = true;
   return (
     <section aria-label="Asignaciones por papel y director">
       <h2 className="text-base font-semibold">{titulo}</h2>
@@ -106,7 +122,7 @@ export function SeccionAsignacionesGenesis({
           ? "En democracia, guardar convierte tus cadenas en una propuesta que la entidad vota; nada se aplica hasta que se apruebe."
           : "Guarda la cadena por defecto de cada papel y director de este ámbito; lo local va primero y de pago solo con permiso."}
       </p>
-      <AsignacionesPanel catalogo={CATALOGO_GENESIS} modo={modo} filasIniciales={iniciales} onGuardar={onGuardar} />
+      <AsignacionesPanel catalogo={CATALOGO_GENESIS} modo={modo} filasIniciales={iniciales} onGuardar={onGuardar} avisos={avisos} />
       <div className="mt-4">
         <ClaudeConector urlMcp={urlMcpDelGenesis()} />
       </div>
