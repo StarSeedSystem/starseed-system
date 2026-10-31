@@ -17,6 +17,7 @@
  */
 
 import { textoLimpio, type Vec3 } from "./modelo";
+import { esRefInterna } from "@/lib/avatares/adn/adn";
 
 export type Quat = [number, number, number, number];
 
@@ -38,7 +39,16 @@ export interface MetaAvatar {
     editor: boolean;
     /** ms de entrada. */
     desde: number;
+    /** Referencia al ADN del avatar de quien está dentro («biblioteca:…»/«genesis:…»), con su revisión.
+     *  Opcionales: quien no eligió avatar (orbe por defecto) no lleva nada y nadie se rompe.
+     *  Los presentes lo leen UNA vez por (ref, rev); después los cambios en vivo van como evento «adn». */
+    adnRef?: string;
+    adnRev?: number;
 }
+
+/** Una revisión entera y no negativa (sin ella no hay sincronía: gana la más nueva). */
+const esRevAdn = (v: unknown): v is number =>
+    typeof v === "number" && Number.isFinite(v) && Number.isInteger(v) && v >= 0;
 
 export const PALETA_AVATARES = ["#7C5CFF", "#007FFF", "#10B981", "#FFBF00", "#DC143C", "#14B8A6", "#F97316", "#EC4899", "#39FF14"] as const;
 
@@ -75,7 +85,7 @@ export function sanearMetaAvatar(v: unknown, clave: string): MetaAvatar | null {
     const o = v as Record<string, unknown>;
     const modo: ModoAvatar = o.modo === "vr" || o.modo === "ar" ? o.modo : "3d";
     const color = typeof o.color === "string" && /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : colorDeClave(clave);
-    return {
+    const meta: MetaAvatar = {
         clave,
         uid: typeof o.uid === "string" && /^[0-9a-f-]{36}$/i.test(o.uid) ? o.uid : null,
         nombre: textoLimpio(o.nombre, 40) || "Persona",
@@ -84,6 +94,12 @@ export function sanearMetaAvatar(v: unknown, clave: string): MetaAvatar | null {
         editor: o.editor === true,
         desde: typeof o.desde === "number" && Number.isFinite(o.desde) ? o.desde : 0,
     };
+    // Solo referencias internas: si alguien mete una URL externa, no viaja (y sin revisión el par no sirve).
+    if (esRefInterna(o.adnRef)) {
+        meta.adnRef = o.adnRef;
+        if (esRevAdn(o.adnRev)) meta.adnRev = o.adnRev;
+    }
+    return meta;
 }
 
 /**
@@ -108,6 +124,9 @@ export function mismosAvatares(a: readonly MetaAvatar[], b: readonly MetaAvatar[
         const x = a[i];
         const y = b[i];
         if (x.clave !== y.clave || x.nombre !== y.nombre || x.color !== y.color || x.modo !== y.modo || x.editor !== y.editor || x.uid !== y.uid) {
+            return false;
+        }
+        if (x.adnRef !== y.adnRef || x.adnRev !== y.adnRev) {
             return false;
         }
     }

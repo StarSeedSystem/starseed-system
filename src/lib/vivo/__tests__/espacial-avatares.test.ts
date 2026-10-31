@@ -6,7 +6,9 @@ import {
     crearEstrangulador,
     intervaloPara,
     mismosAvatares,
+    sanearMetaAvatar,
     sanearPose,
+    type MetaAvatar,
     type Pose,
 } from "@/lib/vivo/espacial/avatares";
 
@@ -166,5 +168,29 @@ describe("avatares · saneado y presencia", () => {
         expect(lista[1].modo).toBe("vr");
         expect(lista[0].color).toBe(colorDeClave("leo:3"));
         expect(mismosAvatares(lista, avataresDePresencia(estado, "yo:1"))).toBe(true);
+    });
+
+    it("la referencia y la revisión del ADN viajan limpias a la meta (y sin ADN no molestan)", () => {
+        const limpia = sanearMetaAvatar({ nombre: "Ana", adnRef: "biblioteca:adn-1", adnRev: 4 }, "ana:2");
+        expect(limpia?.adnRef).toBe("biblioteca:adn-1");
+        expect(limpia?.adnRev).toBe(4);
+        const vieja: MetaAvatar = { clave: "x", uid: null, nombre: "X", color: "#7C5CFF", modo: "3d", editor: false, desde: 0 };
+        expect(sanearMetaAvatar(vieja, "x")?.adnRef).toBeUndefined();
+        // Una URL externa no entra: en un avatar solo «biblioteca:»/«genesis:».
+        const externa = sanearMetaAvatar({ nombre: "Ana", adnRef: "https://malo.com/a", adnRev: 4 }, "ana:2");
+        expect(externa?.adnRef).toBeUndefined();
+        expect(externa?.adnRev).toBeUndefined();
+        expect(sanearMetaAvatar({ nombre: "Ana", adnRef: "biblioteca:adn-1", adnRev: -3 }, "ana:2")?.adnRev).toBeUndefined();
+        expect(sanearMetaAvatar({ nombre: "Ana", adnRef: "biblioteca:adn-1", adnRev: 1.5 }, "ana:2")?.adnRev).toBeUndefined();
+    });
+
+    it("cambiar el ADN de un presente cuenta como un cambio (y no rompe a quien no lo lleva)", () => {
+        const a: MetaAvatar = { clave: "ana:2", uid: null, nombre: "Ana", color: "#7C5CFF", modo: "3d", editor: false, desde: 0, adnRef: "biblioteca:adn-1", adnRev: 3 };
+        const b = { ...a };
+        expect(mismosAvatares([a], [b])).toBe(true);
+        expect(mismosAvatares([a], [{ ...a, adnRev: 5 }])).toBe(false);
+        expect(mismosAvatares([a], [{ ...a, adnRef: "genesis:otro" }])).toBe(false);
+        const sinAdn: MetaAvatar = { clave: "an", uid: null, nombre: "An", color: "#7C5CFF", modo: "3d", editor: false, desde: 0 };
+        expect(mismosAvatares([a], [sinAdn])).toBe(false);
     });
 });
