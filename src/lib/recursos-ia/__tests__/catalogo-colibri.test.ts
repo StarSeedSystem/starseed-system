@@ -38,6 +38,42 @@ const CLEF: Entrada = {
 const colibri = capasDe([CODER, CLEF]);
 const porId = (id: string) => colibri.find((m) => m.id === id);
 
+/** Capa «juicio» sin razonamiento ni visión: solo decide (Architecture/colibri-multicapas.md §2). */
+const JUICIO: Entrada = {
+    id: "colibri-needle-juicio",
+    capa: "juicio",
+    modelo: "Needle 3 int8",
+    runtime: "colibri",
+    formato: "gguf",
+    tamano_bytes: 220_000_000,
+    estado: "por-verificar",
+    medios: ["servidor"],
+};
+
+/** Capa «palabra» de voz/escritura: solo texto. */
+const PALABRA: Entrada = {
+    id: "colibri-kokoro-palabra",
+    capa: "palabra",
+    modelo: "Kokoro int4",
+    runtime: "colibri",
+    formato: "gguf",
+    tamano_bytes: 330_000_000,
+    estado: "por-verificar",
+    medios: ["servidor"],
+};
+
+/** Capa «profunda» cuyo nombre NO menciona visión: no la inventa. */
+const PROFUNDA_LISA: Entrada = {
+    id: "colibri-tau-pro",
+    capa: "profunda",
+    modelo: "Tau Pro int4",
+    runtime: "colibri",
+    formato: "gguf",
+    tamano_bytes: 21_000_000_000,
+    estado: "por-verificar",
+    medios: ["servidor"],
+};
+
 describe("modelosDeCapas · runtime colibri", () => {
     it("ambas entradas salen con runtime, arquitecturas y origen de capas", () => {
         expect(colibri).toHaveLength(2);
@@ -85,5 +121,13 @@ describe("modelosDeCapas · runtime colibri", () => {
     it("ignora las entradas sin capa conocida o sin id", () => {
         expect(capasDe([{ id: "sin-capa", capa: "desconocida", runtime: "colibri", modelo: "X" }])).toHaveLength(0);
         expect(capasDe([{ capa: "razon", runtime: "colibri", modelo: "X" }])).toHaveLength(0);
+    });
+
+    it("juicio solo decide, palabra solo escribe texto y profunda sin visión no la inventa", () => {
+        const [decisor, hablante, lisa] = capasDe([JUICIO, PALABRA, PROFUNDA_LISA]);
+        expect(decisor?.capacidades).toEqual(["decision"]);
+        expect(hablante?.capacidades).toEqual(["texto"]);
+        expect(lisa?.capacidades).toEqual(["texto", "razon", "codigo"]);
+        expect(lisa?.capacidades.includes("vision")).toBe(false);
     });
 });
