@@ -149,4 +149,49 @@ describe("FilasDeProcesos plegables", () => {
         const cuerpo = within(fila).getByTitle("cuerpo ta01");
         expect(cuerpo).toHaveClass("truncate");
     });
+
+    it("cada agente es su propia sección: abierto con algo vivo, cerrado sin latido", () => {
+        const tasks = [
+            tarea("A1", { estado: "en_curso", vivo: { tarea: "A1", cola: "mac", donde: "mac", fase: "escribiendo", modelo: "openrouter/glm-4", minutos: 2, quietoSegundos: 0, donde: "nube", medio: "opencode" } }),
+            tarea("A2", "commit", { cola: "otras", titulo: "La integrada de la otra cola" }),
+        ];
+        const olaConTasks = {
+            ...ola,
+            tareas,
+            total: tasks.length,
+            hechas: tasks.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "informe"].includes(t.estado)).length,
+            enCurso: tasks.filter((t) => t.vivo || t.estado === "en_curso").length,
+            fallidas: 0,
+            sinCambios: 0,
+            pendientes: tasks.filter((t) => t.estado === "pendiente" || t.estado === "interrumpida").length,
+            esperandoAprobacion: 0,
+            bloqueadas: 0,
+            viva: true,
+        };
+        const enjambresConMock = [
+            { donde: "mac", cola: "cola-pruebas", agentesActivos: 1, memoriaMb: null, integradas: 3, proveedores: {}, t: "2026-10-29T04:00:00", medio: "opencode" },
+            { donde: "nube", cola: "cola-otras", agentesActivos: 0, memoriaMb: null, integradas: 0, proveedores: {}, t: "2026-10-29T04:00:00", medio: "claude" },
+        ];
+        render(
+            <FilasDeProcesos
+                olas={[olaConTasks]}
+                olaSel={olaConTasks}
+                latidos={[tasks[0].vivo]}
+                enjambres={enjambresConMock}
+                onVer={() => {}}
+            />,
+        );
+        const vivo = screen.getByLabelText("Agente en mac · cola-pruebas · desde mando");
+        expect(vivo.querySelector("[role='button'], button")).not.toBeNull();
+        expect(within(vivo).getByText("A1")).toBeInTheDocument();
+        expect(within(vivo).getAllByText(/1 escribiendo · 0 en fila · 2 integradas/).length).toBeGreaterThan(0);
+
+        const parado = screen.getByLabelText("Agente en nube · cola-otras · desde mando");
+        expect(screen.queryByText("Sin tareas en fila: está cerrando.")).not.toBeInTheDocument();
+        const abrir = parado.querySelector<HTMLButtonElement>("button[aria-controls]");
+        expect(abrir).toHaveAttribute("aria-expanded", "false");
+        fireEvent.click(abrir!);
+        expect(screen.getByText("Sin tareas en fila: está cerrando.")).toBeInTheDocument();
+        expect(abrir).toHaveAttribute("aria-expanded", "true");
+    });
 });
