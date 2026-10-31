@@ -52,6 +52,7 @@ describe("apps ajenas embebidas", () => {
   it("cada ficha trae web, repo y licencia (honestidad obligatoria)", () => {
     for (const def of APPS_EMBEBIDAS) {
       expect(def.ficha).toBeDefined();
+      expect(def.ficha?.web?.startsWith("https://")).toBe(true);
       expect(def.ficha?.repo?.startsWith("https://github.com/")).toBe(true);
       expect(def.ficha?.licencia).toBeTruthy();
     }
