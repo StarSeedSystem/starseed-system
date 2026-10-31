@@ -115,4 +115,63 @@ describe("biblioteca-plan", () => {
     );
     expect(plan.vistaPrevia.quitaReversible.length).toBe(0);
   });
+
+  it("quitar con otro documento comparte refId no entra en ultimaCopia", () => {
+    const iss: Record<string, EntityLibraryDoc> = {
+      "user:a": baseDoc([{ id: "q1", type: "post", title: "Q", refId: "r_shared", url: "", tags: [], addedAt: "", addedBy: "" }]),
+      "user:b": baseDoc([{ id: "q2", type: "post", title: "Q Copy", refId: "r_shared", url: "", tags: [], addedAt: "", addedBy: "" }]),
+    };
+    const plan = planificar(
+      { tipo: "quitar", origen: docA, itemIds: ["q1"] },
+      iss,
+      permisos
+    );
+    expect(plan.vistaPrevia.ultimaCopia).not.toContain("q1");
+  });
+
+  it("destino igual origen genera error", () => {
+    const plan = planificar(
+      { tipo: "copiar", origen: docA, destino: docA, itemIds: ["i1"] },
+      instantaneas,
+      permisos
+    );
+    expect(plan.validacion.errores.some(e => e.includes("igual al origen"))).toBe(true);
+  });
+
+  it("item sin permiso se omite", () => {
+    const conPermisos = {
+      puedeVer: () => true,
+      puedeEditar: (ref: EntityRef, itemId?: string) => itemId !== "i1",
+    };
+    const plan = planificar(
+      { tipo: "copiar", origen: docA, destino: docB, itemIds: ["i1", "i2"] },
+      instantaneas,
+      conPermisos
+    );
+    expect(plan.vistaPrevia.omite.find(o => o.id === "i1")).toBeDefined();
+    expect(plan.vistaPrevia.crea).toEqual(["i2"]);
+  });
+
+  it("quitar sin destino coloca en ultimaCopia si no hay refId compartida", () => {
+    const iss = { "user:a": baseDoc([{ id: "ul1", type: "post", title: "U", refId: "unique123", url: "", tags: [], addedAt: "", addedBy: "" }]) };
+    const plan = planificar(
+      { tipo: "quitar", origen: docA, itemIds: ["ul1"] },
+      iss,
+      permisos
+    );
+    expect(plan.vistaPrevia.ultimaCopia).toContain("ul1");
+  });
+
+  it("quitar con destino verifica item en destino", () => {
+    const iss: Record<string, EntityLibraryDoc> = {
+      "user:a": baseDoc([{ id: "qd1", type: "post", title: "Q", refId: "r_qd", url: "", tags: [], addedAt: "", addedBy: "" }]),
+      "user:b": baseDoc([{ id: "qd1", type: "post", title: "Q Dup", refId: "r_qd", url: "", tags: [], addedAt: "", addedBy: "" }]),
+    };
+    const plan = planificar(
+      { tipo: "quitar", origen: docA, destino: docB, itemIds: ["qd1"] },
+      iss,
+      permisos
+    );
+    expect(plan.vistaPrevia.quitaReversible).toHaveLength(0);
+  });
 });

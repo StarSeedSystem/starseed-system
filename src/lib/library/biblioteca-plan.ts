@@ -51,14 +51,16 @@ export function planificar(
   if (!permisos.puedeVer(op.origen)) {
     errores.push(`Sin permiso de ver en origen ${op.origen.kind}:${op.origen.id}`);
   }
-  if (op.destino && !permisos.puedeVer(op.destino)) {
-    errores.push(`Sin permiso de ver en destino ${op.destino.kind}:${op.destino.id}`);
+  if (op.destino) {
+    if (!permisos.puedeVer(op.destino)) {
+      errores.push(`Sin permiso de ver en destino ${op.destino.kind}:${op.destino.id}`);
+    }
+    if (!permisos.puedeEditar(op.destino)) {
+      errores.push(`Sin permiso de editar en destino ${op.destino.kind}:${op.destino.id}`);
+    }
   }
-  if (!permisos.puedeEditar(op.origen)) {
-    errores.push(`Sin permiso de editar en origen ${op.origen.kind}:${op.origen.id}`);
-  }
-  if (op.destino && !permisos.puedeEditar(op.destino)) {
-    errores.push(`Sin permiso de editar en destino ${op.destino.kind}:${op.destino.id}`);
+  if (op.destino && op.origen.kind === op.destino.kind && op.origen.id === op.destino.id) {
+    errores.push('El destino no puede ser igual al origen');
   }
 
   for (const id of op.itemIds) {
@@ -68,9 +70,24 @@ export function planificar(
       continue;
     }
 
+    const puedeEditarOrigen = permisos.puedeEditar(op.origen, id);
+    if (!puedeEditarOrigen) {
+      omite.push({ id, motivo: 'sin permiso para la acción' });
+      continue;
+    }
+
+    const destinoKey = op.destino ? `${op.destino.kind}:${op.destino.id}` : undefined;
+    if (destinoKey) {
+      const puedeEditarDestino = permisos.puedeEditar(op.destino!, id);
+      if (!puedeEditarDestino) {
+        omite.push({ id, motivo: 'sin permiso en destino' });
+        continue;
+      }
+    }
+
     switch (op.tipo) {
       case 'copiar': {
-        const destDoc = op.destino ? instantaneas[`${op.destino.kind}:${op.destino.id}`] : undefined;
+        const destDoc = destinoKey ? instantaneas[destinoKey] : undefined;
         const sameId = destDoc?.items?.some(it => it.id === id || it.refId === item.refId);
         if (sameId) {
           omite.push({ id, motivo: 'ya existe en destino con mismo id o refId' });
@@ -81,7 +98,7 @@ export function planificar(
       }
       case 'mover': {
         if (!op.destino) { errores.push('Mover requiere destino'); break; }
-        const destDoc = instantaneas[`${op.destino.kind}:${op.destino.id}`];
+        const destDoc = instantaneas[destinoKey];
         const destHas = destDoc?.items?.some(it => it.id === id);
         if (destHas) {
           omite.push({ id, motivo: 'ya en destino' });
@@ -102,10 +119,22 @@ export function planificar(
         break;
       }
       case 'quitar': {
-        const destDoc = op.destino ? instantaneas[`${op.destino.kind}:${op.destino.id}`] : undefined;
-        const sameDoc = destDoc?.items?.some(it => it.id === id);
-        if (!sameDoc) {
+        if (!op.destino) {
+          const others = Object.values(instantaneas)
+            .filter(d => d !== origenDoc)
+            .flatMap(d => d.items ?? []);
+          const sameRef = others.some(it => it.refId === item.refId || it.url === item.url);
+          if (!sameRef) {
+            ultimaCopia.push(id);
+            avisos.push(`es la última copia: haz una antes de quitarla`);
+          }
           quitaReversible.push(id);
+        } else {
+          const destDoc = instantaneas[destinoKey];
+          const sameDoc = destDoc?.items?.some(it => it.id === id);
+          if (!sameDoc) {
+            quitaReversible.push(id);
+          }
         }
         deshacer.push({ op: 'quitar', ref: op.origen, itemId: id, haciaCarpeta: null });
         break;
