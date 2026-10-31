@@ -4662,3 +4662,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-31 20:46 · mg-oracle-1031-1339
+
+**Lo que se pidió.** Ajustes: «Versiones públicas
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — los tipos no compilan (RTESP1011Bd-d2d, RTXR1010AMb, MBT1027C2b). Es 50 % de la ola.
+- 3 tareas se fueron por lo mismo — no escribió nada (RTBLD1025C-d3b, RTXR1010APb, RTVGM1016Cc). Es 50 % de la ola.
+- freellmapi/auto no integró ninguna de sus 3 tareas.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTESP1011Bd-d2d` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTESP1011Bd-d2d conservada)
+- `RTBLD1025C-d3b` — no escribió nada
+- `RTXR1010APb` — no escribió nada
+- `RTXR1010AMb` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTXR1010AMb conservada)
+- `MBT1027C2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/MBT1027C2b conservada)
+- `RTVGM1016Cc` — no escribió nada
