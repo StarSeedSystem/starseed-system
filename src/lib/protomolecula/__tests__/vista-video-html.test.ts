@@ -16,6 +16,10 @@ describe("átomo video-html → vista", () => {
         expect(ID_VISTA_VIDEO_HTML).toBe("video-html");
     });
 
+    it("la ficha registra la vista componente que pinta el bloque", () => {
+        expect(VIDEO_HTML.vista).toEqual({ tipo: "componente", id: ID_VISTA_VIDEO_HTML });
+    });
+
     it("los demás átomos no entran en esta correspondencia", () => {
         expect(vistaVideoHtmlDe("escena3d")).toBeNull();
         expect(vistaVideoHtmlDe("")).toBeNull();
