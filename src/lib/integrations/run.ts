@@ -56,6 +56,8 @@ import * as Databasement from "./clients/databasement";
 import * as Instance from "./clients/instance";
 import * as AgentReach from "./clients/agent-reach";
 import * as ScrapeGraph from "./clients/scrapegraph";
+// ── OpenRefine (Ola 1025 · investigación) ──
+import * as OpenRefine from "./clients/openrefine";
 // ── qm + AgentHarness (Adenda 172) ──
 import * as QM from "./clients/qm";
 import * as AgentHarness from "./clients/agentharness";
@@ -154,6 +156,12 @@ export async function runIntegration(
       case "scrapegraph":
         // ScrapeGraphAI — extrae de HTML ya leído con cortesía (R4/R6).
         if (a === "extraer") return await ScrapeGraph.extraer(c, input);
+        break;
+      case "openrefine":
+        // OpenRefine — limpieza local en 127.0.0.1:3333 (solo loopback; sin
+        // autenticación: nunca se expone fuera del equipo sin pasarela).
+        if (a === "ping") return await OpenRefine.health(c);
+        if (a === "limpiar") return await OpenRefine.limpiar(c, input);
         break;
       case "searxng":
         if (a === "search") return await SearXNG.search(c, input);
@@ -399,6 +407,7 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
       case "crawl4ai": return await Crawl4AI.health(c);
       case "firecrawl": return await Firecrawl.health(c);
       case "scrapegraph": return await ScrapeGraph.salud(c);
+      case "openrefine": return await OpenRefine.health(c);
       case "searxng": return await SearXNG.health(c);
       case "n8n": return await N8N.health(c);
       case "dify": return await Dify.health(c);

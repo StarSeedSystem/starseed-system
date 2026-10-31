@@ -83,6 +83,13 @@ export const AURORA_INTEGRATION_TOOLS: AuroraIntegrationTool[] = [
     integrationId: "scrapegraph",
     actionId: "extraer",
   },
+  // ── OpenRefine — limpieza de tabulares con recetas (solo local) ──
+  {
+    name: "limpiar_datos",
+    description: "Limpia un CSV aplicando una receta de OpenRefine (lista de operaciones, solo expresiones grel:) y devuelve el CSV resultante. Entrada: { csv, receta }. Aviso: usa solo datos públicos si la receta reconcilia.",
+    integrationId: "openrefine",
+    actionId: "limpiar",
+  },
   {
     name: "web_search",
     description: "Busca en la web con un metabuscador privado (SearXNG). Entrada: { q } o texto.",

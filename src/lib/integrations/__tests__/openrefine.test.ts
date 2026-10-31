@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { validarReceta } from '../clients/openrefine'
+import { getIntegration } from '../registry'
+import { getAuroraTool } from '../aurora-tools'
+import { runIntegration } from '../run'
 
 describe('validarReceta', () => {
   it('rejects non-object receta', () => {
@@ -53,5 +56,44 @@ describe('validarReceta', () => {
     const res = validarReceta({ operations: [{ op: 'text-transform', expression: 'grel:a' }], datos: 'publicos' } as any)
     expect(res.ok).toBe(true)
     expect(res.error).toBeUndefined()
+  })
+})
+
+describe('registro de openrefine (INV1025G)', () => {
+  it('declara la integración openrefine con ping y limpiar', () => {
+    const d = getIntegration('openrefine')
+    expect(d).toBeDefined()
+    expect(d?.category).toBe('data-ingest')
+    expect(d?.defaultEndpoint).toBe('http://127.0.0.1:3333')
+    expect(d?.needsKey).toBe(false)
+    const ids = (d?.actions ?? []).map((a) => a.id)
+    expect(ids).toContain('ping')
+    expect(ids).toContain('limpiar')
+  })
+
+  it('la tool limpiar_datos apunta a openrefine/limpiar y avisa de datos públicos', () => {
+    const t = getAuroraTool('limpiar_datos')
+    expect(t).toBeDefined()
+    expect(t?.integrationId).toBe('openrefine')
+    expect(t?.actionId).toBe('limpiar')
+    expect(t?.category).toBeUndefined()
+    expect(t?.description).toContain('reconcilia')
+  })
+
+  it('runIntegration openrefine/limpiar rechaza una receta inválida sin red', async () => {
+    const res = await runIntegration('openrefine', 'limpiar', { csv: 'a,b\n1,2', receta: null })
+    expect(res.ok).toBe(false)
+    expect(res.error).toContain('objeto')
+  })
+
+  it('runIntegration openrefine/limpiar salta a error si falta el csv', async () => {
+    const res = await runIntegration('openrefine', 'limpiar', { csv: '', receta: null })
+    expect(res.ok).toBe(false)
+  })
+
+  it('runIntegration openrefine/ping degrada en SSR sin red', async () => {
+    const res = await runIntegration('openrefine', 'ping', {})
+    expect(res.ok).toBe(false)
+    expect(res.error).toContain('navegador')
   })
 })
