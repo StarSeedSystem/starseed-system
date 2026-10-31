@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""suenos · la terminal de los SUEÑOS PROFUNDOS de Genesis (localhost:9002).
+"""suenos · la terminal de la IMAGINACIÓN PROFUNDA de Genesis (localhost:9002).
 
-Una flota de analistas GRATUITOS (el enjambre, tareas `tipo: "analisis"`) sueña cada área de
+Una flota de analistas GRATUITOS (el enjambre, tareas `tipo: "analisis"`) mantiene una sesión
+de imaginación de cada área de
 StarSeed OS con seis lentes; los supervisores CLAUDE (sesiones en la nube pagadas con el
 crédito de 250 $, o la sesión interactiva) dirigen, verifican y consolidan desde aquí, por la
 terminal y por localhost. Nada de esto escribe código en el repositorio.
@@ -23,7 +24,7 @@ terminal y por localhost. Nada de esto escribe código en el repositorio.
 
 Dónde queda todo (nada se versiona: starseed_memory_root/ está en .gitignore):
   · starseed_memory_root/dream/profundo/<fecha>/plan.json         el plan de la sesión
-  · starseed_memory_root/dream/profundo/<fecha>/<área>--<lente>.md/.json   un informe por sueño
+  · starseed_memory_root/dream/profundo/<fecha>/<área>--<lente>.md/.json   un informe por sesión de imaginación
   · starseed_memory_root/dream/profundo/<fecha>/verificaciones.jsonl       veredictos (solo se añade)
   · starseed_memory_root/dream/profundo/<fecha>/INFORME.md                 la consolidación
   · starseed_memory_root/olas/cola-suenos-<fecha>.json                     la cola que corre el orquestador
@@ -469,7 +470,7 @@ def cmd_plan(a, raiz):
 
 def cmd_lanzar(a, raiz):
     if a.donde != "mac":
-        return 2, {"ok": False, "error": "Los sueños corren en la Mac: allí están las claves de la flota gratuita y la lente "
+        return 2, {"ok": False, "error": "Las sesiones de imaginación corren en la Mac: allí están las claves de la flota gratuita y la lente "
                                          "de seguridad no puede salir de ella. Usa --donde mac."}
     plan = construir(raiz, a)
     if not plan["tareas"]:
@@ -509,7 +510,7 @@ def cmd_lanzar(a, raiz):
             _escribir_json(viva, fundir_tareas(lista, plan["tareas"], a.rehacer) if isinstance(previas, list)
                            else dict(previas, tareas=fundir_tareas(lista, plan["tareas"], a.rehacer)))
             fuera.update(accion="tanda_viva", pid=o["pid"], cola_viva=o["cola"], mensaje=(
-                "Un solo orquestador: añadidas a su cola viva (%s); los sueños van con su propio tope y no "
+                "Un solo orquestador: añadidas a su cola viva (%s); las sesiones de imaginación van con su propio tope y no "
                 "quitan huecos a los agentes de código." % o["cola"]))
         else:
             fuera.update(ok=False, accion="esperar", pid=o["pid"], cola_viva=o["cola"], error=(
@@ -528,7 +529,7 @@ def cmd_lanzar(a, raiz):
             pid = lanzar_directo(raiz, cola_rel, workers, a.tope_analisis, "claude" if os.environ.get("CLAUDECODE") else None)
             fuera.update(accion="directo", pid=pid, mensaje="Genesis no contestó: orquestador lanzado desde la terminal.")
     try:
-        director_suenos.anunciar("Sueños profundos %s: %d tareas en marcha (%s) · hasta %d a la vez · "
+        director_suenos.anunciar("Imaginación profunda %s: %d tareas en marcha (%s) · hasta %d a la vez · "
                                  "verificación por supervisores Claude." % (sesion, len(plan["tareas"]), fuera["accion"],
                                                                             a.tope_analisis))
     except Exception:
@@ -537,7 +538,7 @@ def cmd_lanzar(a, raiz):
 
 
 def cmd_detener(a, raiz):
-    """Para con seguridad el orquestador de UNA sesión de sueños (solo el de su cola): SIGTERM
+    """Para con seguridad el orquestador de UNA sesión de imaginación (solo el de su cola): SIGTERM
     con el flock del progreso tomado. Lo escrito se conserva: al relanzar con la misma
     --fecha, los informes hechos se saltan, la lectura compartida (.mapa/) se reutiliza y los
     reclamos del proceso muerto se rompen solos."""
@@ -624,7 +625,7 @@ def cmd_consolidar(a, raiz):
 def cmd_latido(a, raiz):
     import latido_externo as L  # noqa: E402
     agente = "suenos"
-    ns = argparse.Namespace(id=a.agente, titulo=a.titulo or ("Supervisor Claude de los sueños · " + a.agente),
+    ns = argparse.Namespace(id=a.agente, titulo=a.titulo or ("Supervisor Claude de la imaginación · " + a.agente),
                             modelo=a.modelo, proveedor="anthropic", donde=a.donde, medio="claude",
                             fase=a.fase, minutos=a.minutos, agente=agente)
     if a.terminar:
@@ -664,7 +665,7 @@ def pintar(orden, codigo, d):
             print("  cola: %s · sigue con: python3 scripts/puente/suenos.py estado" % d["cola"])
     elif orden == "estado":
         c = d["cuentas"]
-        print("Sueños profundos %s · %d tareas · %s · %s tokens estimados" % (
+        print("Imaginación profunda %s · %d tareas · %s · %s tokens estimados" % (
             d["sesion"], d["total"], " · ".join("%d %s" % (v, k) for k, v in sorted(c.items())) or "sin tareas",
             _miles(d["tokens"])))
         o = d.get("orquestador")
