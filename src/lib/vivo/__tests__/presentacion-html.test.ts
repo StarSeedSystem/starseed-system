@@ -14,6 +14,7 @@ const fecha = "2026-10-30";
 function diapo(parte: Partial<LienzoMensaje> = {}, notas?: string): Diapositiva {
     return { lienzo: { ancho: 960, alto: 540, elementos: [], ...parte }, ...(notas ? { notas } : {}) };
 }
+
 function texto(contenido: string): ElementoLienzo {
     const doc: DocRico = { bloques: [{ tipo: "parrafo", tramos: [{ texto: contenido }] }] };
     return { id: "t", tipo: "texto", x: 10, y: 10, w: 400, h: 100, z: 1, texto: doc };
@@ -21,8 +22,9 @@ function texto(contenido: string): ElementoLienzo {
 
 describe("presentacion-html · piezas", () => {
     it("escapa los cinco caracteres peligrosos", () => {
-        expect(escaparHtml(`<script>alert("x") & 'y'</script>`))
-            .toBe("&lt;script&gt;alert(&quot;x&quot;) &amp; &#39;y&#39;&lt;/script&gt;");
+        expect(escaparHtml(`<script>alert("x") & 'y'</script>`)).toBe(
+            "&lt;script&gt;alert(&quot;x&quot;) &amp; &#39;y&#39;&lt;/script&gt;",
+        );
     });
     it("solo acepta hex", () => {
         expect(hexValido("#abc")).toBe("#abc");
@@ -73,7 +75,9 @@ describe("presentacion-html · documento", () => {
         expect((html.match(/<script/g) ?? []).length).toBe(1);
     });
     it("un enlace javascript: queda como texto", () => {
-        const doc: DocRico = { bloques: [{ tipo: "parrafo", tramos: [{ texto: "malo", enlace: "javascript:alert(1)" }] }] };
+        const doc: DocRico = {
+            bloques: [{ tipo: "parrafo", tramos: [{ texto: "malo", enlace: "javascript:alert(1)" }] }],
+        };
         const html = docRicoAHtml(doc, 1);
         expect(html).not.toContain("<a ");
         expect(html).toContain("malo");

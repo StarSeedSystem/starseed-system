@@ -15,7 +15,6 @@ export interface OpcionesHtmlPresentacion {
     incluirNotas?: boolean;
 }
 
-/** Fondo del lienzo: hex válido, css de FONDOS_BURBUJA por id, o el del tema. */
 function cssFondo(fondo: string | undefined, meta: MetaPresentacion): string {
     const hex = hexValido(fondo);
     if (hex) return hex;
@@ -27,7 +26,6 @@ function cssFondo(fondo: string | undefined, meta: MetaPresentacion): string {
     return FONDOS_BURBUJA.find((p) => p.id === tema)?.css ?? "#0b0d1a";
 }
 
-/** Nombre de archivo: minúsculas, sin acentos ni símbolos, con `.html`. */
 export function nombreArchivoPresentacion(meta: string | Pick<MetaPresentacion, "titulo">): string {
     const titulo = typeof meta === "string" ? meta : meta.titulo;
     const limpio = String(titulo ?? "")
@@ -87,13 +85,21 @@ export function presentacionAHtml(
     const ancho = Math.round(alto * (dims.ancho / dims.alto));
     const fecha = opciones.fecha ?? new Date().toISOString().slice(0, 10);
     const conNotas = opciones.incluirNotas === true;
-    const secciones = diapositivas.map((d, i) => {
-        const lienzo = lienzoEfectivo(d, meta);
-        const factor = alto / (lienzo.alto > 0 ? lienzo.alto : alto);
-        const elementos = [...lienzo.elementos].sort((a, b) => a.z - b.z).map((el) => elementoAHtml(el, factor)).join("");
-        const notas = conNotas && d.notas?.trim() ? `<aside class="aside-notas" hidden>${escaparHtml(d.notas)}</aside>` : "";
-        return `<section class="slide${i === 0 ? " active" : ""}" style="background:${cssFondo(lienzo.fondo, meta)};width:${ancho}px;height:${alto}px">${elementos}${notas}</section>`;
-    }).join("\n");
+    const secciones = diapositivas
+        .map((d, i) => {
+            const lienzo = lienzoEfectivo(d, meta);
+            const factor = alto / (lienzo.alto > 0 ? lienzo.alto : alto);
+            const elementos = [...lienzo.elementos]
+                .sort((a, b) => a.z - b.z)
+                .map((el) => elementoAHtml(el, factor))
+                .join("");
+            const notas =
+                conNotas && d.notas?.trim()
+                    ? `<aside class="aside-notas" hidden>${escaparHtml(d.notas)}</aside>`
+                    : "";
+            return `<section class="slide${i === 0 ? " active" : ""}" style="background:${cssFondo(lienzo.fondo, meta)};width:${ancho}px;height:${alto}px">${elementos}${notas}</section>`;
+        })
+        .join("\n");
     const titulo = escaparHtml(meta.titulo?.trim() || "Presentación");
     const csp = "default-src 'none'; img-src data: https:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'";
     return `<!doctype html>
