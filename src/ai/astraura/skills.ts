@@ -27,6 +27,9 @@ import {
 import {
   ATRIBUCIONES_DISENO_WEB, HABILIDADES_DISENO_WEB, comoCapacidadDiseno,
 } from "./habilidades/diseno-web";
+import {
+  ATRIBUCION_EDUCACION_INFORMATICA, HABILIDAD_EDUCACION_INFORMATICA, comoCapacidadEducacion,
+} from "./habilidades/educacion-informatica";
 import { CAPACIDADES_REPOS_1026 } from "./habilidades/repos-1026";
 import { HABILIDADES_INGENIERIA_A, comoCapacidad as comoCapacidadIngenieria } from "./habilidades/ingenieria-a";
 
@@ -681,6 +684,20 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     routing: { preferStrong: true },
     defaultOn: true,
     skillIds: ["diagram-design"],
+  },
+  /* ═══ EDUCACIÓN INFORMÁTICA · Ruta OSSU (Ola 1025R · INF1025Fb) ═══
+   * La tarjeta (≤ 60 palabras) va a Needle y BitNet, el resumen (≤ 120) a Bonsai
+   * pequeño y el dato completo (rutaCompleta) a las capas Razón, Profunda y Nube.
+   * Contrato: architecture/repos-libreria-1025.md §4. La habilidad ofrece la ruta
+   * en orden, enlaza al anfitrión original y avisa de la licencia de cada curso. */
+  {
+    ...comoCapacidadEducacion(HABILIDAD_EDUCACION_INFORMATICA, "resumen"),
+    systemPrompt:
+      `${HABILIDAD_EDUCACION_INFORMATICA.resumen} Ruta completa en ${HABILIDAD_EDUCACION_INFORMATICA.rutaCompleta} ` +
+      `— con la tarjeta basta para Needle y BitNet. ${ATRIBUCION_EDUCACION_INFORMATICA}`,
+    routing: {},
+    defaultOn: true,
+    skillIds: ["educacion-informatica"],
   },
   /* ═══ DISEÑO WEB · Presentaciones (Frontend Slides) y sistema de diseño (Awesome DESIGN.md) ═══
    * Ola 1025R · DSN1025A. Los tres tamaños (tarjeta, resumen, ruta completa) y
