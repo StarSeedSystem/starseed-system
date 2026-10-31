@@ -6,20 +6,20 @@ import { HABILIDADES_INGENIERIA } from "@/ai/astraura/skills-ingenieria";
 import { PUNTOS_DECISION, type MedioLaya } from "@/lib/astraura/laya/puntos-decision";
 import { umbralRecalibrado, type RegistroAprendizaje } from "@/lib/astraura/laya/aprendizaje-laya";
 export type DondeEsta = "local" | "a1" | "ninguno";
-/** Decisión ya medida; la confianza es `answer_confidence` (calibrada), nunca `confidence`. */
-export interface DecisionLaya {
-    readonly id: string; readonly punto: string; readonly respuesta: string;
-    readonly answerConfidence: number | null; readonly donde: MedioLaya; readonly ms: number;
-    /** Lo privado se guarda solo como huella y nunca enseña su texto (§6). */
-    readonly privado?: boolean;
-}
-export interface EstadoLaya { readonly donde: DondeEsta; readonly ultimaLatenciaMs: number | null }
-export interface UmbralEfectivo { readonly punto: string; readonly umbral: number; readonly recalibrado: boolean }
 /** Respuesta nativa de Laya: choice, score o noul, con `probabilities` y `answer_confidence`. */
 export interface RespuestaLaya {
     readonly type?: "choice" | "score" | "noul"; readonly choice?: string; readonly score?: string | number;
     readonly noul?: number; readonly probabilities?: Readonly<Record<string, number>>; readonly answer_confidence?: number;
 }
+/** Decisión ya medida; la respuesta es la nativa de Laya y la confianza sale de `answer_confidence` (calibrada). */
+export interface DecisionLaya {
+    readonly id: string; readonly punto: string; readonly respuesta: RespuestaLaya;
+    readonly donde: MedioLaya; readonly ms: number;
+    /** Lo privado se guarda solo como huella y nunca enseña su texto (§6). */
+    readonly privado?: boolean;
+}
+export interface EstadoLaya { readonly donde: DondeEsta; readonly ultimaLatenciaMs: number | null }
+export interface UmbralEfectivo { readonly punto: string; readonly umbral: number; readonly recalibrado: boolean }
 const primeraClave = (p?: Readonly<Record<string, number>>): string | null => (p ? (Object.keys(p)[0] ?? null) : null);
 /** Texto legible de una respuesta de Laya; en noul, «sí»/«no» con el corte en 0,5. */
 export function textoDeRespuesta(r: RespuestaLaya): string {
@@ -69,18 +69,21 @@ export function LayaDecisionesPanel({
             <div className="space-y-2">
                 <h4 className="text-xs font-semibold text-white">Últimas decisiones</h4>
                 {decisiones.length === 0 ? <p className="text-xs text-white/40">Todavía no hay decisiones medidas.</p>
-                    : decisiones.map((d) => (
+                    : decisiones.map((d) => {
+                    const confianza = confianzaCalibrada(d.respuesta);
+                    return (
                     <div key={d.id} className={cn("flex items-center justify-between", MARCO)}>
                         <div>
                             <p className="font-medium text-white">{d.punto}</p>
-                            <p className="text-white/60">{d.privado ? "Privada · sin texto" : d.respuesta}
-                                {" "}(confianza: {d.answerConfidence === null ? "—" : d.answerConfidence.toFixed(2)})</p>
+                            <p className="text-white/60">{d.privado ? "Privada · sin texto" : textoDeRespuesta(d.respuesta)}
+                                {" "}(confianza: {confianza === null ? "—" : confianza.toFixed(2)})</p>
                         </div>
                         <div className="text-right text-[10px] text-white/40">
                             <p>{MEDIO[d.donde]}</p><p>{Math.round(d.ms)} ms</p>
                         </div>
                     </div>
-                ))}
+                    );
+                })}
             </div>
             <div className="border-t border-white/10 pt-4">
                 <h4 className="mb-2 flex items-center gap-2 text-xs font-semibold text-white">

@@ -10,7 +10,11 @@ import { PUNTOS_DECISION } from "@/lib/astraura/laya/puntos-decision";
 afterEach(cleanup);
 
 const decision = (extra: Partial<DecisionLaya> = {}): DecisionLaya => ({
-    id: "d1", punto: "ejemplo.manual", respuesta: "publicar", answerConfidence: 0.91,
+    id: "d1", punto: "ejemplo.manual",
+    respuesta: {
+        type: "choice", choice: "publicar",
+        probabilities: { publicar: 0.91, revisar: 0.09 }, answer_confidence: 0.91,
+    },
     donde: "a1", ms: 1900, ...extra,
 });
 
@@ -81,8 +85,36 @@ describe("LayaDecisionesPanel", () => {
         expect(screen.getByText("1900 ms")).toBeTruthy();
     });
 
+    it("muestra la respuesta nativa y solo la confianza calibrada, nunca `confidence`", () => {
+        const bruto = {
+            type: "choice", choice: "publicar",
+            probabilities: { publicar: 0.4, revisar: 0.6 },
+            confidence: 0.99, answer_confidence: 0.4,
+        } satisfies RespuestaLaya & { confidence: number };
+        render(<LayaDecisionesPanel decisiones={[decision({ respuesta: bruto })]} />);
+        expect(screen.getByText(/publicar \(confianza: 0\.40\)/)).toBeTruthy();
+        expect(screen.queryByText(/0\.99/)).toBeNull();
+    });
+
+    it("enseña las respuestas noul y score de Laya", () => {
+        const noul = { type: "noul", noul: 0.72, probabilities: { true: 0.72 }, answer_confidence: 0.72 } satisfies RespuestaLaya;
+        const score = { type: "score", score: "alta", probabilities: { alta: 0.8 }, answer_confidence: 0.8 } satisfies RespuestaLaya;
+        render(<LayaDecisionesPanel decisiones={[
+            decision({ id: "d-noul", punto: "respuesta.basta", respuesta: noul }),
+            decision({ id: "d-score", punto: "plan.dificultad", respuesta: score }),
+        ]} />);
+        expect(screen.getByText(/sí \(confianza: 0\.72\)/)).toBeTruthy();
+        expect(screen.getByText(/alta \(confianza: 0\.80\)/)).toBeTruthy();
+    });
+
     it("oculta el texto de una decisión privada", () => {
-        render(<LayaDecisionesPanel decisiones={[decision({ privado: true, respuesta: "teléfono 555 123 4567" })]} />);
+        render(<LayaDecisionesPanel decisiones={[decision({
+            privado: true,
+            respuesta: {
+                type: "choice", choice: "teléfono 555 123 4567",
+                probabilities: { "teléfono 555 123 4567": 0.8 }, answer_confidence: 0.8,
+            },
+        })]} />);
         expect(screen.getByText(/Privada · sin texto/)).toBeTruthy();
         expect(screen.queryByText(/555/)).toBeNull();
     });
