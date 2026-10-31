@@ -40,12 +40,16 @@ vi.mock("@/components/ui/confirm-dialog", () => ({ useConfirm: () => vi.fn(async
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { message: vi.fn(), success: vi.fn(), error: vi.fn(), info: vi.fn() }) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock("next/dynamic", () => ({ default: () => () => null }));
-vi.mock("@/components/vivo/documento/comun-colab", async (orig) => ({
-    ...(await orig<typeof import("@/components/vivo/documento/comun-colab")>()),
-    descargarArchivo: (nombre: string, contenido: string, mime: string) => {
-        descargas.html.push({ nombre, contenido, mime });
-    },
-}));
+vi.mock("@/components/vivo/presentacion/exportar-html", async (orig) => {
+    const real = await orig<typeof import("@/components/vivo/presentacion/exportar-html")>();
+    return {
+        ...real,
+        exportarPresentacionHtml: (meta: MetaPresentacion, diapositivas: Diapositiva[]) =>
+            real.exportarPresentacionHtml(meta, diapositivas, (nombre, contenido, mime) => {
+                descargas.html.push({ nombre, contenido, mime });
+            }),
+    };
+});
 vi.mock("@/context/appearance-context", () => ({
     useAppearance: () => ({ config: { themeStore: { activeMode: "secondary" } } }),
 }));
@@ -199,7 +203,7 @@ describe("PaginaPresentacion", () => {
         fireEvent.click(await screen.findByRole("menuitem", { name: /Exportar a HTML/ }));
         expect(descargas.html).toHaveLength(1);
         expect(descargas.html[0].nombre).toBe("asamblea-de-otono.html");
-        expect(descargas.html[0].mime).toBe("text/html");
+        expect(descargas.html[0].mime).toBe("text/html;charset=utf-8");
         expect(descargas.html[0].contenido).toContain('<section class="slide');
         expect(descargas.html[0].contenido).toContain("Bienvenida");
     });
