@@ -1,0 +1,51 @@
+[Unit]
+Description=StarSeed · Hermes (puente de Telegram y herramientas) en el A1, solo en el líder (IND1029G)
+After=network-online.target starseed-medio.service a1-freellmapi.service
+Wants=network-online.target
+# requiere: /home/starseed/.local/bin/hermes
+# requiere: /home/starseed/starseed-system/scripts/puente/lider_direccion.py
+# requiere: /opt/starseed/nodo/hermes_arranque.py
+# requiere: /usr/bin/python3
+#
+# Hermes es el puente, no el motor (architecture/metagenesis-autonoma.md §2): esta unidad solo
+# mantiene vivo su gateway cuando el arriendo `direccion.lider` es de esta neurona. Dos gateways
+# con el mismo token de Telegram se pisan (Telegram rechaza dos `getUpdates` del mismo bot), así
+# que la encuesta va con quien dirige y nadie más.
+#
+# QUIÉN LO INSTALA: `oracle_nodo.py hermes --aplicar`. Corre el instalador oficial
+# (https://hermes-agent.nousresearch.com/install.sh) como usuario `starseed`, nunca como root:
+# el código, el lanzador y el `~/.hermes` deben ser suyos. Después deja el `config.yaml` (modelo
+# `freellmapi/auto` contra el FreeLLMAPI del A1 en 127.0.0.1:3001, MCP `starseed-director`) y este
+# arranque, que renueva el arriendo cada 60 s y enciende o apaga el gateway según toque.
+#
+# CLAVES: solo NOMBRES de variable. El token del bot y las claves de proveedores viven en
+# `/etc/starseed/hermes.env` (root:root 600, lo crea Alex en el A1); la unidad tolera que falte
+# y el gateway arranca sin Telegram en vez de morir en bucle.
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed/starseed-system
+Environment=HERMES_HOME=/home/starseed/.hermes
+Environment=PATH=/home/starseed/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/starseed/hermes.env
+ExecStart=/usr/bin/python3 -u /opt/starseed/nodo/hermes_arranque.py
+# El gateway se apaga solo cuando el arriendo pasa a otra neurona; si el arranque muere, se
+# relanza. Al parar la unidad se para el grupo entero: no queda un gateway huérfano encuestando
+# el bot desde una neurona que ya no dirige.
+Restart=on-failure
+RestartSec=30
+KillMode=control-group
+TimeoutStopSec=60
+MemoryHigh=1G
+MemoryMax=1536M
+CPUWeight=50
+Nice=5
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
