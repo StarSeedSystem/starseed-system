@@ -73,7 +73,7 @@ export interface TareaOla {
     archivos?: string[];
     /** El encargo en una o dos frases: el primer párrafo útil del prompt. */
     descripcion?: string;
-    /** (2026-09-29) `analisis` = sueño profundo (lee y escribe un informe; no integra código). */
+    /** (2026-09-29) `analisis` = imaginación profunda (lee y escribe un informe; no integra código). */
     tipo?: "analisis";
 }
 
@@ -102,7 +102,7 @@ export interface LatidoTarea {
     /** (2026-09-25) Título de la tarea cuando no sale de ninguna cola (agentes externos:
      *  Claude en Cowork y sus subagentes, Hermes…). */
     titulo?: string;
-    /** (2026-09-29) Sueños profundos: qué hace el analista dentro de «analizando»
+    /** (2026-09-29) Imaginación profunda: qué hace el analista dentro de «analizando»
      *  («lectura 3/9 · llm7/gpt-oss», «pausa · ritmo del plan»…). */
     subfase?: string;
     /** (PDA1012) Segundos desde que el orquestador de otro medio publicó este latido en el bus. */
