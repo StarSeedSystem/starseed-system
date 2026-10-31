@@ -8,17 +8,12 @@ const createShader = dynamic(
     { ssr: false, loading: () => null },
 );
 
-const useShaderRegistry = dynamic(
-    () => import("shaders/registry").then((m) => m.useShaderRegistry),
-    { ssr: false },
-);
-
 interface ShaderLayerProps {
     layer: import("@/lib/appearance/background-layers").BackgroundLayer;
 }
 
 function ShaderLayer({ layer }: ShaderLayerProps) {
-    const { preset, opacity, blend, transform, mascara, visible } = layer;
+    const { preset, opacity, blend, transform, visible } = layer;
 
     if (!visible) return null;
 
@@ -26,7 +21,7 @@ function ShaderLayer({ layer }: ShaderLayerProps) {
 
     return (
         <div
-            className="fixed inset-0 h-full w-full overflow-hidden"
+            className="absolute inset-0 h-full w-full overflow-hidden"
             style={{
                 opacity,
                 mixBlendMode: blend,
@@ -40,6 +35,10 @@ function ShaderLayer({ layer }: ShaderLayerProps) {
     );
 }
 
-export function CapaShader({ layer }: { layer: import("@/lib/appearance/background-layers").BackgroundLayer }) {
+export function CapaShader({
+    layer,
+}: {
+    layer: import("@/lib/appearance/background-layers").BackgroundLayer;
+}) {
     return <ShaderLayer layer={layer} />;
 }
