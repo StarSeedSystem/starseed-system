@@ -2533,8 +2533,8 @@ export function CentroMando() {
                     <VentanaPestana pestana="procesos" panel="procesos" titulo="Procesos">
                         <PanelProcesos />
                     </VentanaPestana>
-                    {/* 2026-09-29 · Sueños profundos: la flota de análisis y su verificación por Claude. */}
-                    <VentanaPestana pestana="procesos" panel="suenos" titulo="Sueños profundos">
+                    {/* 2026-09-29 · Imaginación profunda: la flota de análisis y su verificación por Claude (nombre renovado, Ola 1021I §2). */}
+                    <VentanaPestana pestana="procesos" panel="suenos" titulo="Imaginación profunda">
                         <PanelSuenos />
                     </VentanaPestana>
                 </TabsContent>
