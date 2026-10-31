@@ -4662,3 +4662,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-31 07:50 · mg-oracle-1031-0023
+
+**Lo que se pidió.** agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — los tipos no compilan (MBT1027C2, RTIMG1020Cb-d2b, RTBLD1025C-d3b, MC1013TCb). Es 67 % de la ola.
+- 2 tareas se fueron por lo mismo — no escribió nada (RTRTRTS1010-EV-ORACLE-1accbbbbbbbbb, RTRTRTRTCOL1012Bdsbbbbbc-d2d). Es 33 % de la ola.
+- freellmapi/auto no integró ninguna de sus 4 tareas.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `MBT1027C2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/MBT1027C2 conservada)
+- `RTRTRTS1010-EV-ORACLE-1accbbbbbbbbb` — no escribió nada
+- `RTRTRTRTCOL1012Bdsbbbbbc-d2d` — no escribió nada
+- `RTIMG1020Cb-d2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTIMG1020Cb-d2b conservada)
+- `RTBLD1025C-d3b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTBLD1025C-d3b conservada)
+- `MC1013TCb` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/MC1013TCb conservada)
