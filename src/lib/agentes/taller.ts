@@ -11,6 +11,8 @@
 // producción (lección del 2026-09-08 con `node:crypto`).
 // ══════════════════════════════════════════════════════════════
 
+import { PLAN_ESTADO, carpetaDeEstado, elegirBackend, lineaDiario, type FormaTrabajo } from "@/lib/agentes/ordenador-agente";
+
 export type TipoRecurso =
   | "habilidad" | "conexion" | "mcp" | "prompt" | "plugin" | "herramienta" | "memoria";
 
@@ -256,6 +258,39 @@ export const RECURSOS_TRADUCCION_PDF: RecursoAgente[] = [
   },
 ];
 
+/* ── Ordenador del agente: carpeta de estado, diario y backend ─────────────
+   El patrón vive en `ordenador-agente.ts`; aquí se declara para que el Taller
+   enseñe la carpeta real, el formato del diario y qué backend pide cada forma
+   de trabajo. No se promete ninguna ejecución que el OS no tenga ya. */
+const FORMAS_ORDENADOR: { forma: FormaTrabajo; etiqueta: string }[] = [
+  { forma: "archivos-y-datos", etiqueta: "archivos y datos" },
+  { forma: "codigo-js", etiqueta: "código JavaScript" },
+  { forma: "linux-completo", etiqueta: "Linux completo" },
+];
+
+/** Una línea de ejemplo, serializada por la misma función que usa el almacén. */
+const EJEMPLO_DIARIO = lineaDiario({ t: 0, op: "listar", ruta: PLAN_ESTADO.memoria });
+const CARPETA_ESTADO_EJEMPLO = carpetaDeEstado("aurora", "personal");
+
+/** Backend que pide cada forma cuando el ámbito permite pago y ya tiene cuenta. */
+function backendPorForma(): string {
+  return FORMAS_ORDENADOR.map(({ forma, etiqueta }) => {
+    const { backend } = elegirBackend(forma, { privado: false, permitePago: true, cuentaCloudflare: true });
+    return `${etiqueta}: ${backend ?? "neurona"}`;
+  }).join("; ");
+}
+
+export const RECURSOS_ORDENADOR: RecursoAgente[] = [
+  {
+    id: "os:ordenador-agente", tipo: "herramienta", origen: "os", maquina: "cualquiera",
+    nombre: "Carpeta de estado y ordenador del agente",
+    descripcion: `Cada agente vive en una carpeta por ámbito (${CARPETA_ESTADO_EJEMPLO}${PLAN_ESTADO.memoria}), con notas en ${PLAN_ESTADO.notas}, resultados en ${PLAN_ESTADO.resultados} y un diario append-only en ${PLAN_ESTADO.diario}; una línea del diario es ${EJEMPLO_DIARIO}. Backend por forma del trabajo: ${backendPorForma()}.`,
+    etiquetas: ["ordenador", "estado", "diario", "memoria", "backend", "cloudflare", "linux"],
+    requiere: [], ruta: "src/lib/agentes/ordenador-agente.ts", docs: "architecture/repos-libreria-1025.md",
+    privacidad: `La red de todo backend es «${PLAN_ESTADO.red}»: lo privado se queda en la neurona y el ordenador de fuera solo se usa si el ámbito permite pago y la persona ya tiene su cuenta.`,
+  },
+];
+
 function sinTildes(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
@@ -367,6 +402,6 @@ export function consultarViasNavegador(
 export function catalogoDeclarado(): RecursoAgente[] {
   return [
     ...RECURSOS_NAVEGADOR, ...RECURSOS_ASTRAURA, ...RECURSOS_MCP, ...RECURSOS_ARTCRAFT,
-    ...RECURSOS_MEMORIA, ...PROMPTS_BASE, ...RECURSOS_TRADUCCION_PDF,
+    ...RECURSOS_MEMORIA, ...PROMPTS_BASE, ...RECURSOS_TRADUCCION_PDF, ...RECURSOS_ORDENADOR,
   ];
 }

@@ -77,13 +77,15 @@ describe("elección del backend por la forma del trabajo", () => {
   });
 });
 
+const NOMBRE_VIEJO = "Man" + "do";
+
 describe("el módulo es puro y habla en Genesis", () => {
   it("no importa nada de node:", () => {
     expect(fuenteDelModulo()).not.toMatch(/(?:from|require\()\s*["']node:/);
   });
 
-  it("no menciona «Mando»", () => {
-    expect(fuenteDelModulo()).not.toContain("Mando");
+  it(`no menciona «${NOMBRE_VIEJO}»`, () => {
+    expect(fuenteDelModulo()).not.toContain(NOMBRE_VIEJO);
   });
 });
 
