@@ -1,6 +1,7 @@
 """Cachés y restos que la lista blanca de Genesis no ve (CNS1010C: 1,1 GB libres y «nada regenerable»).
 `plan` decide (PURA), `aplicar` ejecuta lo inyectado y `recoger` mira la máquina. Ante la duda no se borra."""
 import glob
+import hashlib
 import os
 import shutil
 import subprocess
@@ -12,6 +13,12 @@ CHROME, NPM = "/private/var/folders/*/*/X/com.google.Chrome.code_sign_clone/*", 
 NPM_NUNCA, NPM_VIVOS = ("_npx", "_logs"), ("npm install", "npm ci", "npm i ")  # _npx: Desktop Commander
 NPM_MINIMO_MB, GRADLE_LIBRE_GB, LOG_MAXIMO_MB, CONSERVA_BYTES = 500, 6.0, 50, 3_000_000
 GRADLE = ("~/.gradle/caches", "~/.gradle/wrapper/dists", "~/.gradle/daemon")
+# RAM1031B: los respaldos viejos de emergencia de Hermes viajan al Drive y SÓLO tras copia verificada
+# (tamaño + sha256) se sueltan de la Mac; el más reciente y el state.db vivo jamás se tocan.
+RESPALDO = "~/.hermes/state.db.pre-update-emergency-*.bak"
+RESPALDO_PREFIJO, RESPALDO_SUFIXO = "state.db.pre-update-emergency-", ".bak"
+DRIVE_RAIZ = "/Volumes/GoogleDrive/My Drive/StarSeed-respaldos-mac/hermes"
+DRIVE_TOPE_S = 10  # el Drive a veces se cuelga («fts_read: Operation timed out»): ls con tope de 10 s
 LOGS = ("~/.hermes/logs/*.log", "~/Documents/IA 1.58 bit/backend/bitnet-server.log")
 VERSIONES = (("~/.local/share/claude/versions/*", "~/.local/bin/claude"),  # (versiones, enlace a la de uso)
              ("~/.codex/packages/standalone/releases/*", "~/.codex/packages/standalone/current"))
@@ -67,8 +74,8 @@ def clones_de_chrome_a_borrar(clones, inicio_chrome_mas_viejo):  # PURA
     return [r for r, m in limpios if m < inicio_chrome_mas_viejo - 60]
 
 
-def _clones_con_fecha(rutas, mtime_fn):
-    """[(ruta, mtime)]; un clon cuya fecha no se pueda leer se omite (ante la duda no se borra)."""
+def _con_fecha(rutas, mtime_fn):
+    """[(ruta, mtime)]; una cosa cuya fecha no se pueda leer se omite (ante la duda no se borra)."""
     salida = []
     for r in rutas:
         try:
@@ -80,12 +87,43 @@ def _clones_con_fecha(rutas, mtime_fn):
     return salida
 
 
+def mas_viejo(respaldos):  # PURA
+    """[(ruta, mtime)] de los respaldos de emergencia → la ruta del MÁS VIEJO (esa viaja al Drive).
+    Con uno solo no hay viaje: ese es, a la vez, «el más reciente», y el reciente nunca se toca."""
+    if len(respaldos) < 2:
+        return None
+    return min(respaldos, key=lambda rm: rm[1])[0]
+
+
+def respaldo_llevable(ruta):  # PURA: un .bak de emergencia ABSOLUTO SÍ puede viajar; nada más
+    """El state.db vivo, sus -wal y cualquier otra cosa no cuadran. La LISTA_NEGRA sigue ganando
+    para BORRAR (mirar `aplicar`); llevar al Drive es la única excepción, acotada a este patrón."""
+    r = str(ruta)
+    n = os.path.basename(r)
+    return (r.startswith("/") and ".." not in r.split("/")
+            and n.startswith(RESPALDO_PREFIJO) and n.endswith(RESPALDO_SUFIXO)
+            and len(n) > len(RESPALDO_PREFIJO) + len(RESPALDO_SUFIXO))
+
+
+def copia_verificada(origen, destino, tamano_fn, sha_fn):  # PURA con tamaño y sha inyectados
+    """La copia del Drive vale solo si pesa EXACTO y huele (sha256) igual que el origen, y nada de 0
+    bytes. Ante cualquier fallo (Drive dormido, lectura corta): False, y de la Mac no baja nada."""
+    try:
+        peso = tamano_fn(origen)
+        return bool(peso) and peso == tamano_fn(destino) and str(sha_fn(origen)) == str(sha_fn(destino))
+    except OSError:
+        return False
+
+
 def plan(libre_gb, existe, tamano_mb, proceso_vivo, enlace_destino,
-         clones=None, inicio_chrome_mas_viejo=None):
-    """PURA. [{accion: "borrar"|"recortar", ruta, mb, por_que}]. `existe(patron)` → rutas; `proceso_vivo(texto)`
-    → ¿algún proceso lo nombra o tiene algo abierto bajo esa ruta?; `enlace_destino(e)` → ruta real o None.
-    `clones` = [(ruta, mtime)] de los clones de firma de Chrome y `inicio_chrome_mas_viejo` = epoch (o None);
-    con `clones` None no se sabe nada de ellos y no se toca ninguno."""
+         clones=None, inicio_chrome_mas_viejo=None, respaldos=None, drive_vivo=None):
+    """PURA. [{accion: "borrar"|"recortar"|"al_drive", ruta, mb, por_que}]. `existe(patron)` → rutas;
+    `proceso_vivo(texto)` → ¿algún proceso lo nombra o tiene algo abierto bajo esa ruta?;
+    `enlace_destino(e)` → ruta real o None. `clones` = [(ruta, mtime)] de los clones de firma de
+    Chrome y `inicio_chrome_mas_viejo` = epoch (o None); con `clones` None no se sabe nada de ellos
+    y no se toca ninguno. `respaldos` = [(ruta, mtime)] de los .bak de emergencia de Hermes; SOLO si
+    además el Drive responde (`drive_vivo`) sale el paso «al_drive» con el MÁS VIEJO (la copia se
+    verifica con tamaño y sha256 antes de soltar; ver `llevar_al_drive`); con `respaldos` None, nada."""
     acciones = []
 
     def poner(accion, ruta, mb, por_que):
@@ -110,13 +148,33 @@ def plan(libre_gb, existe, tamano_mb, proceso_vivo, enlace_destino,
         for r in rs if uso else []:  # sin saber cuál de ESTAS está en uso no se toca ninguna
             if r not in uso and not proceso_vivo(r):
                 poner("borrar", r, tamano_mb(r), "versión vieja sin procesos (en uso: %s)" % os.path.basename(destino))
+    # el paso «al Drive»: borrarlos JAMÁS (lista negra), pero el viejo viaja con copia verificada;
+    # por eso este paso no pasa por `poner` ni por `vetada` (el patrón se acota en respaldo_llevable)
+    if respaldos is not None and drive_vivo:
+        viejo = mas_viejo(respaldos)
+        if respaldo_llevable(viejo or ""):
+            mb = tamano_mb(viejo)
+            if mb > 0 and all(a["ruta"] != viejo for a in acciones):
+                acciones.append({"accion": "al_drive", "ruta": viejo, "mb": round(mb, 1),
+                                 "por_que": "respaldo de emergencia viejo (2,2 GB): al Drive con copia "
+                                            "verificada por tamaño y sha256 antes de soltar; el más reciente "
+                                            "y el state.db vivo, nunca"})
     return acciones
 
 
-def aplicar(acciones, borrar_fn, recortar_fn):
-    """Ejecuta el plan con las funciones dadas; una ruta que falla no para las demás. Devuelve SOLO lo hecho."""
-    fns, hecho = {"borrar": borrar_fn, "recortar": recortar_fn}, []
-    for a in (a for a in acciones if a.get("accion") in fns and not vetada(a.get("ruta", ""))):
+def aplicar(acciones, borrar_fn, recortar_fn, llevar_fn=None):
+    """Ejecuta el plan con las funciones dadas; una ruta que falla no para las demás. Devuelve SOLO lo hecho.
+    «al_drive» sólo con `llevar_fn` (el copiado, inyectado) y solo sobre un .bak de emergencia absoluto;
+    el resto de la lista negra sigue vetado con más motivo: BORRAR un respaldo no pasa nunca."""
+    fns = {"borrar": borrar_fn, "recortar": recortar_fn, "al_drive": llevar_fn}
+
+    def cabe(a):  # borrar/recortar fuera de la lista negra; «al_drive» SOLO sobre un .bak de emergencia
+        accion, ruta = a.get("accion"), a.get("ruta", "")
+        return (accion in fns and fns[accion] is not None
+                and (respaldo_llevable(ruta) if accion == "al_drive" else not vetada(ruta)))
+
+    hecho = []
+    for a in (a for a in acciones if cabe(a)):
         try:
             fns[a["accion"]](a["ruta"])
             hecho.append(a)
@@ -127,7 +185,9 @@ def aplicar(acciones, borrar_fn, recortar_fn):
 
 def resumen(hecho):
     """PURA. Una línea con los MB liberados y, para que quede anotado, cada ruta tocada."""
-    cada = "; ".join("%s %s ≈%d MB" % ("borré" if a["accion"] == "borrar" else "recorté", a["ruta"], a["mb"]) for a in hecho)
+    def verbo(accion):
+        return {"borrar": "borré", "al_drive": "llevé al Drive"}.get(accion, "recorté")
+    cada = "; ".join("%s %s ≈%d MB" % (verbo(a["accion"]), a["ruta"], a["mb"]) for a in hecho)
     return "liberados ≈%d MB según du, fuera de la lista blanca de Genesis: %s" % (sum(a["mb"] for a in hecho), cada)
 
 
@@ -159,8 +219,45 @@ def _correr(orden, ok=(0,), tope_s=60):
         return None
 
 
+def drive_responde(correr=_correr, raices=(DRIVE_RAIZ,)):  # PURA con `correr` inyectado
+    """La raíz del Drive montada que se sabe LISTAR (ls con tope de 10 s en el real), o None: ante un
+    Drive cogido («fts_read: Operation timed out») no viaja ningún respaldo ni se suelta ninguno."""
+    for r in raices:
+        if correr(["ls", r], ok=(0,), tope_s=DRIVE_TOPE_S) is not None:
+            return r
+    return None
+
+
+def _sha256(ruta, abrir=open):  # REAL, por trozos de 1 MB: un respaldo de 2,2 GB no cabe en memoria
+    h = hashlib.sha256()
+    with abrir(ruta, "rb") as f:
+        for trozo in iter(lambda: f.read(1 << 20), b""):
+            h.update(trozo)
+    return h.hexdigest()
+
+
+def llevar_al_drive(ruta, raiz=None, copiar=shutil.copy2, tamano_fn=os.path.getsize, sha_fn=_sha256,
+                    quitar=os.remove):
+    """REAL (el copiado, inyectado en las pruebas). Copia `ruta` a «My Drive/StarSeed-respaldos-mac/
+    hermes/», verifica tamaño y sha256 y SÓLO entonces la quita de la Mac. Devuelve el destino, o
+    None si nada viaja (no es un .bak de emergencia, el Drive no responde o la copia no verificó)."""
+    if not (respaldo_llevable(ruta) and (raiz := raiz or drive_responde())):
+        return None
+    destino = None
+    try:
+        destino = raiz + "/" + os.path.basename(ruta)
+        copiar(ruta, destino)
+        if copia_verificada(ruta, destino, tamano_fn, sha_fn):
+            quitar(ruta)
+            return destino
+    except OSError:  # copia cortada o Drive que se duerme a mitad: nada sale de la Mac
+        pass
+    return None
+
+
 def recoger(libre_gb, home=None, glob_fn=glob.glob, correr=_correr, es_enlace=os.path.islink,
-            ruta_real=os.path.realpath, mtime_fn=os.path.getmtime):  # lo que `plan` necesita, mirado aquí: plan(**recoger(libre))
+            ruta_real=os.path.realpath, mtime_fn=os.path.getmtime, drive_fn=drive_responde):
+    # lo que `plan` necesita, mirado aquí: plan(**recoger(libre))
     home = home or os.path.expanduser("~")
     ruta = lambda p: home + p[1:] if p.startswith("~") else p  # noqa: E731
     ps = correr(["ps", "axww", "-o", "command="]) or None
@@ -184,7 +281,10 @@ def recoger(libre_gb, home=None, glob_fn=glob.glob, correr=_correr, es_enlace=os
     # vive y no se sabe cuándo empezó, NO se recoge ninguno, que es «ante la duda no se borra».
     # (nunca `pgrep -l/-fl` ni `ps -E`: en macOS imprimen el entorno)
     clones = ([] if vivo_ch and inicio_ch is None
-              else _clones_con_fecha(existe(CHROME), mtime_fn))
+              else _con_fecha(existe(CHROME), mtime_fn))
+    # los respaldos de emergencia de Hermes y si el Drive responde («persona a la vista» antes de viajar a la nube)
+    respaldos = _con_fecha(existe(RESPALDO), mtime_fn)  # con fecha ilegible, ese respaldo no viaja
     return {"libre_gb": libre_gb, "existe": existe, "tamano_mb": tamano_mb, "proceso_vivo": proceso_vivo,
             "enlace_destino": lambda e: ruta_real(ruta(e)) if es_enlace(ruta(e)) else None,
-            "clones": clones, "inicio_chrome_mas_viejo": inicio_ch}
+            "clones": clones, "inicio_chrome_mas_viejo": inicio_ch,
+            "respaldos": respaldos, "drive_vivo": bool(drive_fn())}
