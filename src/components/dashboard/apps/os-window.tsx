@@ -12,10 +12,11 @@
 // ════════════════════════════════════════════════════════════════
 
 import React, { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion, type TargetAndTransition } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { geometriaVentana, type Viewport } from "@/lib/design/composicion";
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -57,6 +58,52 @@ function apuntarVentana(v: VentanaApilada): () => void {
     };
 }
 
+/* ── Geometría inicial: composición centrada por aparato (DSN1019B) ──
+   Decisión de Alex 2026-10-19 («identidades.md» · «Decisiones de Alex») y adn-y-tokens.md §7b:
+   la ventana abre CENTRADA en la pantalla en escritorio y tableta; en teléfono abre como
+   HOJA centrada horizontalmente anclada abajo, que sube desde abajo (entrada cardinal:
+   desde el perímetro hacia su punto). La fuente de la geometría es `geometriaVentana`
+   (`src/lib/design/composicion.ts`, la misma que usa `openWindow` del Escritorio), de modo
+   que OSWindow y las ventanas del Escritorio abren con las MISMAS reglas marginales. */
+export type ModoOSWindow = "centrada" | "hoja";
+
+export interface ArranqueOSWindow {
+    modo: ModoOSWindow;
+    x: number;
+    y: number;
+    ancho: number;
+    alto: number;
+    origen: string;
+}
+
+/** Pura: posición inicial de OSWindow según el viewport, con geometriaVentana.
+ *  Escritorio/tableta → tipo «ventana» (centrada). Teléfono (<430 px) → tipo «hoja»
+ *  (anclada abajo y centrada horizontal). Sin `window`: se le pasa el viewport medido. */
+export function arranqueOSWindow(viewport: Viewport): ArranqueOSWindow {
+    const enTelefono = viewport.ancho < 430;
+    const geo = geometriaVentana(viewport, enTelefono ? { tipo: "hoja" } : { tipo: "ventana" });
+    return { modo: enTelefono ? "hoja" : "centrada", ...geo };
+}
+
+/** Pura: entrada de la ventana según el modo y el movimiento reducido (AMS-023:
+    solo se animan transform y opacity, y siempre hay versión con movimiento mínimo). */
+export function entradaOSWindow(
+    modo: ModoOSWindow,
+    movReducido: boolean,
+): { initial: TargetAndTransition; animate: TargetAndTransition } {
+    if (modo === "hoja") {
+        // Hoja: entrada cardinal desde abajo (la hoja sube desde el borde inferior).
+        // Con movimiento reducido nace ya en su sitio y solo hace el fundido.
+        return movReducido
+            ? { initial: { opacity: 0 }, animate: { opacity: 1 } }
+            : { initial: { y: "100%" }, animate: { y: 0 } };
+    }
+    // Ventana centrada: fundido de escala, la entrada de siempre.
+    return movReducido
+        ? { initial: { opacity: 0 }, animate: { opacity: 1 } }
+        : { initial: { opacity: 0, scale: 0.96 }, animate: { opacity: 1, scale: 1 } };
+}
+
 export interface OSWindowProps {
     title: string;
     subtitle?: string;
@@ -80,6 +127,24 @@ export function OSWindow({
 }: OSWindowProps) {
     const [offset, setOffset] = useState({ dx: 0, dy: 0 });
     const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+
+    /* Viewport medido (primera medición perezosa, luego `resize`): alimenta
+       `arranqueOSWindow`. El valor de repliegue es el de un escritorio común. */
+    const [viewport, setViewport] = useState<Viewport>(() => ({
+        ancho: typeof window === "undefined" ? 1024 : window.innerWidth,
+        alto: typeof window === "undefined" ? 768 : window.innerHeight,
+    }));
+    useEffect(() => {
+        const medir = () => setViewport({ ancho: window.innerWidth, alto: window.innerHeight });
+        medir();
+        window.addEventListener("resize", medir);
+        return () => window.removeEventListener("resize", medir);
+    }, []);
+
+    const movimientoReducido = useReducedMotion() ?? false;
+    const arranque = arranqueOSWindow(viewport);
+    const enHoja = arranque.modo === "hoja";
+    const entrada = entradaOSWindow(arranque.modo, movimientoReducido);
 
     const raizRef = useRef<HTMLDivElement>(null);
     const cerrarRef = useRef(onClose);
@@ -108,16 +173,25 @@ export function OSWindow({
     };
 
     return (
-        <div ref={raizRef} className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
+        <div ref={raizRef}
+            data-modo={arranque.modo}
+            className={cn(
+                "fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4",
+                // Hoja de teléfono: anclada abajo y centrada horizontalmente
+                // (geometriaVentana, tipo «hoja»); el arrastre vertical no cambió.
+                enHoja && "items-end",
+            )}
+            role="dialog" aria-modal="true" aria-label={title}>
             <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
 
             {/* Capa de arrastre centrada por el flex padre. El transform de arrastre va
                 aquí (div plano), NO en el hijo animado → la animación de Framer ya no pisa
-                el centrado y la ventana SIEMPRE abre centrada. */}
+                el centrado y la ventana SIEMPRE abre centrada; en teléfono abre como hoja
+                anclada abajo (DSN1019B) y sube desde el borde inferior al animar. */}
             <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={entrada.initial}
+                    animate={entrada.animate}
                     transition={{ type: "spring", stiffness: 260, damping: 26 }}
                     className={cn(
                         "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
