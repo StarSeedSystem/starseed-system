@@ -297,4 +297,23 @@ describe('crearSalas', () => {
       expect(salas.presencia(t2)).toBe(1);
     });
   });
+
+  // Rescatado de la rama nube (RTRTRTRTS1010-EV-ORACLE-1abcb-d3b): dos bordes de la
+  // validación de tema que main no cubría con ningún nombre.
+  describe('bordes de validación de tema', () => {
+    it('acepta justo el límite mínimo de 8 caracteres', () => {
+      const salas = crearSalas();
+      const tema = 'estacion-vivo:ABCDEFGH';
+      const res = salas.entrar(tema, {});
+      expect(res.ok).toBe(true);
+      expect(salas.presencia(tema)).toBe(1);
+    });
+
+    it('rechaza el tema con un espacio', () => {
+      const salas = crearSalas();
+      const res = salas.entrar('estacion-vivo:ABC DEF', {});
+      expect(res.ok).toBe(false);
+      expect(res.motivo).toBe('Tema inválido');
+    });
+  });
 });
