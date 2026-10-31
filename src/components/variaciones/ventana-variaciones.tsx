@@ -2,16 +2,21 @@
 // Ventana «Variaciones públicas» (Ola 1019V · contrato §4). Es el CUERPO de la ventana: el marco
 // lo pone OSWindow. Datos y fuentes se INYECTAN (nada de Supabase, disco ni red aquí). Cuatro
 // pestañas, buscador, filtros, orden de `orden.ts`, vacío honesto y aviso si la tabla no existe.
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { ExternalLink, Search, Star } from "lucide-react";
 import { PESTANAS_VARIACIONES, type PestanaVariaciones } from "./variaciones-bus";
 import { ordenarVariaciones, type SortMode, type Variacion } from "@/lib/variaciones/orden";
-export interface VariacionVentana extends Variacion { tema?: string; enlaceExterno?: string }
+import { TarjetaVariacion } from "./tarjeta-variacion";
+export interface VariacionVentana extends Variacion {
+  tema?: string; enlaceExterno?: string; payload?: unknown; deVariacion?: string | null; esCodigo?: boolean;
+}
 export interface DatosVentanaVariaciones { disponible: boolean; error?: string; listas: Partial<Record<PestanaVariaciones, VariacionVentana[]>> }
 export interface FiltrosVentana { buscar?: string; licencia?: string; tema?: string; etiqueta?: string }
 export interface VentanaVariacionesProps {
   clave: string; datos: DatosVentanaVariaciones; nombre?: string;
   pestanaInicial?: PestanaVariaciones; busquedaInicial?: string;
+  /** Inyección para pruebas: sustituye las acciones que tocan red (Biblioteca y Compartir). */
+  guardarSlot?: ReactNode; compartirSlot?: ReactNode;
 }
 const NOMBRES: Record<PestanaVariaciones, string> = { variaciones: "Variaciones", notas: "Notas", repos: "Repos externos", fuentes: "Fuentes y versiones" };
 const VACIOS: Record<PestanaVariaciones, string> = {
@@ -28,7 +33,7 @@ export function filtrarVariaciones(lista: readonly VariacionVentana[], f: Filtro
 }
 const enlaceSeguro = (url?: string): string | null => (url && /^https:\/\/\S+$/.test(url) ? url : null);
 const familiaDe = (clave: string): string => clave.split(":")[0] ?? "";
-export function VentanaVariaciones({ clave, datos, nombre, pestanaInicial = "variaciones", busquedaInicial = "" }: VentanaVariacionesProps) {
+export function VentanaVariaciones({ clave, datos, nombre, pestanaInicial = "variaciones", busquedaInicial = "", guardarSlot, compartirSlot }: VentanaVariacionesProps) {
   const [pestana, setPestana] = useState<PestanaVariaciones>(pestanaInicial);
   const [buscar, setBuscar] = useState(busquedaInicial);
   const [orden, setOrden] = useState<SortMode>("aurora");
@@ -90,6 +95,33 @@ export function VentanaVariaciones({ clave, datos, nombre, pestanaInicial = "var
           </div>
         ) : visibles.length === 0 ? (
           <p role="status" className="rounded-2xl border border-dashed border-border/50 bg-card/40 p-6 text-center text-sm text-muted-foreground">{VACIOS[pestana]}</p>
+        ) : pestana === "variaciones" ? (
+          <ul className="space-y-2">
+            {visibles.map((v) => (
+              <li key={v.id}>
+                <TarjetaVariacion
+                  clave={clave}
+                  guardarSlot={guardarSlot}
+                  compartirSlot={compartirSlot}
+                  variacion={{
+                    id: v.id,
+                    titulo: v.titulo,
+                    descripcion: v.descripcion,
+                    version: v.version,
+                    familia: v.familia,
+                    licencia: v.licencia,
+                    etiquetas: v.etiquetas,
+                    valoracionMedia: v.valoracionMedia,
+                    valoracionCount: v.valoracionCount,
+                    payload: v.payload,
+                    deVariacion: v.deVariacion,
+                    enlaceExterno: v.enlaceExterno,
+                    esCodigo: v.esCodigo,
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
         ) : (
           <ul className="space-y-2">
             {visibles.map((v) => {
