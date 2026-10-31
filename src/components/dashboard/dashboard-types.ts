@@ -115,7 +115,9 @@ export type WidgetType =
     | 'BADGES'                // Perfil — insignias obtenidas (Módulo 7)
     | 'NETWORK_FEED_MINI'     // Social — mini-previsualizaciones del feed real de la Red
     // ── Protomolécula (ola 1010P) ──
-    | 'PROTOMOLECULA';        // Creatividad — función universal de creación y edición (átomos con parámetros, dictado en tiempo real)
+    | 'PROTOMOLECULA'         // Creatividad — función universal de creación y edición (átomos con parámetros, dictado en tiempo real)
+    // ── Vídeo con HyperFrames (ola 1018H) ──
+    | 'ESTUDIO_VIDEO';        // Creatividad — estudio de vídeo (capas, línea de tiempo y vista previa con el servicio local)
 
 /**
  * Tipo de dispositivo objetivo de un tablero (pantalla principal adaptativa).
