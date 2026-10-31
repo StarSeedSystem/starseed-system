@@ -68,7 +68,11 @@ import {
   applyVoiceChainPriority,
 } from "@/lib/aurora/tts-oss/omnivoice-web-router";
 import { BrainApiManager } from "@/lib/aurora/tts-oss/brain-api-manager";
-import { cronometroHabla } from "@/lib/aurora/medidas-voz";
+import { cronometroHabla, leerMedidas } from "@/lib/aurora/medidas-voz";
+import {
+  PRESUPUESTO_PRIMER_SONIDO_MS,
+  type ContextoDialogo,
+} from "@/lib/aurora/tts-oss/conversacion-fluida";
 import {
   getEngineSettings,
   getVoiceConfig,
@@ -111,6 +115,46 @@ export interface ConfiguredSpeakOptions {
    * en UNA sola síntesis. Si no aplica, se ignora.
    */
   multiSpeakerScript?: string;
+  /**
+   * Contexto del turno. En conversación la cadena se ordena por la latencia
+   * MEDIDA en esta neurona (no la teórica); en lectura/narración se respeta el
+   * orden de calidad del registro.
+   */
+  contexto?: ContextoDialogo;
+}
+
+/**
+ * Ordena la cadena por la latencia MEDIDA en esta neurona (media del «primer
+ * sonido» por motor, `medidas-voz`). Solo adelanta los motores MEDIDOS que
+ * llegan al presupuesto de conversación, de más rápido a más lento; el resto
+ * conserva su orden del registro (lo comprobado manda, pero lo que no llega no
+ * bloquea a los siguientes). Sin medidas o si el almacén falla, no cambia nada.
+ */
+export function reordenarCadenaPorLatenciaMedida(
+  chain: readonly VoiceChainLink[],
+): VoiceChainLink[] {
+  try {
+    const suma = new Map<string, { total: number; n: number }>();
+    for (const m of leerMedidas()) {
+      if (m.tipo !== "primer-sonido" || !Number.isFinite(m.valor)) continue;
+      const prev = suma.get(m.motor) ?? { total: 0, n: 0 };
+      suma.set(m.motor, { total: prev.total + m.valor, n: prev.n + 1 });
+    }
+    if (!suma.size) return [...chain];
+    const media = new Map<VoiceChainLink, number>();
+    for (const link of chain) {
+      const s = suma.get(link);
+      const ms = s ? s.total / s.n : Number.POSITIVE_INFINITY;
+      if (ms <= PRESUPUESTO_PRIMER_SONIDO_MS) media.set(link, ms);
+    }
+    if (!media.size) return [...chain];
+    const dentro = chain
+      .filter((link) => media.has(link))
+      .sort((a, b) => (media.get(a) ?? 0) - (media.get(b) ?? 0));
+    return [...dentro, ...chain.filter((link) => !media.has(link))];
+  } catch {
+    return [...chain];
+  }
 }
 
 // ── Auto-detección de idioma HABLADO (sin dependencias) ─────────────────────
@@ -578,7 +622,11 @@ export async function speakWithConfiguredEngine(
     if (!chain.length) return false; // suelo: navegador
     // Preferencias de jerarquización (Adenda 94): el usuario reordena la cadena
     // de motores en la ventana de voz; aquí la respetamos antes de hablar.
-    const orderedChain = applyVoiceChainPriority(chain);
+    // En conversación manda la latencia MEDIDA en esta neurona; en lectura se
+    // conserva el orden por calidad del registro.
+    const conPrioridad = applyVoiceChainPriority(chain);
+    const orderedChain =
+      opts.contexto === "conversacion" ? reordenarCadenaPorLatenciaMedida(conPrioridad) : conPrioridad;
     // ACTIVACIÓN AUTOMÁTICA POR SESIÓN (Adenda 94): si la cadena incluye el
     // motor web OpenVoice, descubre los Spaces HF Running UNA vez por sesión de
     // chat (al iniciar/actualizar la sesión de la neurona activa) para que
