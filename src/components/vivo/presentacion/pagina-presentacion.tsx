@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Cast, CloudOff, History, Link2, Loader2, Play, Plus, Presentation, Redo2, SearchX, StickyNote, Undo2 } from "lucide-react";
+import { Cast, CloudOff, Download, History, Link2, Loader2, Play, Plus, Presentation, Redo2, SearchX, StickyNote, Undo2 } from "lucide-react";
 import type { OpcionesCambio } from "@/components/messages/rico/historial";
 import { updateSpaceMeta } from "@/lib/spaces/spaces";
 import type { ElementoLienzo, LienzoMensaje } from "@/lib/mensajeria/formato-tipos";
@@ -62,6 +62,7 @@ import docStyles from "@/components/vivo/documento/documento.module.css";
 import { AnadirDiapositiva } from "./anadir-diapositiva";
 import { Clasificador, MenuNuevaDiapositiva } from "./clasificador";
 import { EditorDiapositiva } from "./editor-diapositiva";
+import { exportarPresentacionHtml } from "./exportar-html";
 import { ModoPresentador, type PunteroLaser } from "./modo-presentador";
 import { PanelDiapositiva } from "./panel-diapositiva";
 import { VistaDiapositiva } from "./vista-diapositiva";
@@ -452,6 +453,18 @@ export function PaginaPresentacion({ espacioId }: { espacioId: string }) {
                             />
                         )}
                         <FilaMenu icono={History} etiqueta="Historial de versiones" ayuda="Las 20 últimas, restaurables" onClick={() => setVersiones(true)} />
+                        <FilaMenu
+                            icono={Download}
+                            etiqueta="Exportar a HTML"
+                            ayuda="Un archivo que abre cualquier navegador, sin internet"
+                            onClick={() =>
+                                void exportarPresentacionHtml(
+                                    { ...meta, titulo },
+                                    unidades.flatMap((u) => (u.datos ? [u.datos] : [])),
+                                )
+                            }
+                            disabled={!unidades.length}
+                        />
                         <FilaMenu icono={Link2} etiqueta="Copiar enlace" ayuda="Lo abre quien tenga acceso" color="#007FFF" onClick={() => void copiarEnlace(rutaPresentacion(espacioId))} />
                     </MenuAcciones>
                 </div>
