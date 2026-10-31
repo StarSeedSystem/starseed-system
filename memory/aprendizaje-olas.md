@@ -4662,3 +4662,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-31 06:22 · mg-oracle-1030-2320
+
+**Lo que se pidió.** Vigía · evaluar: clase de licencia, seguridad, tamaño por medio, motor y mejora real
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — los tipos no compilan (RTVGM1016Cb, PUB1029E, INV1025B). Es 50 % de la ola.
+- 3 tareas se fueron por lo mismo — no escribió nada (RTMGP1011-1ECCC4dobjbbbbbbbb-d2, RTRTRC1013Cd-d1, RTRTCOL1012Bdsbbbbbbbbbcb-d2). Es 50 % de la ola.
+- freellmapi/auto no integró ninguna de sus 3 tareas.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTVGM1016Cb` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTVGM1016Cb conservada)
+- `RTMGP1011-1ECCC4dobjbbbbbbbb-d2` — no escribió nada
+- `RTRTRC1013Cd-d1` — no escribió nada
+- `RTRTCOL1012Bdsbbbbbbbbbcb-d2` — no escribió nada
+- `PUB1029E` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/PUB1029E conservada)
+- `INV1025B` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/INV1025B conservada)
