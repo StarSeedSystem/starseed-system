@@ -63,6 +63,7 @@ if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
 import vigia_runs_nube as VR  # noqa: E402 — la misma lectura de la reasignación que el vigía
+import revisor_bloqueadas_logica as RBL  # noqa: E402 — el tope de las cadenas de rescate (RESC1031A)
 
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 PROGRESO = os.path.join(OLAS, "progreso.json")
@@ -963,6 +964,12 @@ def _revisar(aplicar, espera_integrar_s):
 
     traidas, reparadas, esperando, superadas_nuevas = [], [], [], []
     if aplicar:
+        # (RESC1031A) Las cadenas de rescate de más de 2 niveles (RT×3…RT×7, nacidas antes del 19-10)
+        # salen del enjambre gratuito: «bloqueada» para el carril de alta capacidad.
+        agotadas = RBL.rescates_agotados(_progreso(), "traer_nube")
+        if agotadas:
+            ahora_txt = time.strftime("%Y-%m-%d %H:%M:%S")
+            _actualizar_progreso({k: dict(v, t=ahora_txt) for k, v in agotadas.items()})
         # (2026-10-12) Sin el cerrojo `integrar` mientras se comprueba: cada tarea se comprueba en su
         # carpeta y `_traer` solo lo toma para el avance rápido de main. Antes se tenía durante TODA la
         # pasada (tsc de hasta 30 min en la Mac) y el orquestador no podía integrar nada mientras.
@@ -981,6 +988,15 @@ def _revisar(aplicar, espera_integrar_s):
                 e["accion"], e["motivo"] = "reparar", detalle
         progreso = _progreso()
         for e in [x for x in entradas if x["accion"] == "reparar"]:
+            if RBL.rescate_agotado(e["tid"]):
+                # (RESC1031A) Su sucesora sería otro rescate de más de 2 niveles: no nace.
+                if not RBL.en_alta_capacidad(progreso.get(e["tid"])):
+                    cierre = RBL.cierre_rescate_agotado(e["tid"], "su rama %s no se repara" % e["rama"])
+                    _actualizar_progreso({e["tid"]: dict(cierre, t=time.strftime("%Y-%m-%d %H:%M:%S"))})
+                    progreso = _progreso()
+                hechas_antes[e["clave"]] = {"accion": "tope", "t": time.strftime("%Y-%m-%d %H:%M:%S")}
+                esperando.append({"tid": e["tid"], "motivo": RBL.MOTIVO_RESCATE_AGOTADO})
+                continue
             sucesores = sucesores_en_cadena(e["tid"], progreso)
             if len(sucesores) >= REPARACIONES_MAX:
                 # (2026-10-06) Tope de la cadena: RSC1006Q pasó por Qb, Qc, Qd y Qe en doce horas,

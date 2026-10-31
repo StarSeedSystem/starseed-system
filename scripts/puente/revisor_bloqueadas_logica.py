@@ -359,6 +359,63 @@ def hermana_cerrada(tid: str, tareas: Dict[str, Any], progreso: Dict[str, Any]
     return None
 
 
+# ── tope de las cadenas de rescate (RESC1031A) ─────────────────────────────────────────────
+#: (2026-10-31, medido en progreso.json y en aprendizaje-ramas-nube.jsonl) Solo
+#: `revisar_ramas_nube.id_rescate` pone «RT» delante, y desde el 19-10 (`TOPE_RESCATE`) no rescata un
+#: rescate: el último RT×3+ nació ese día. Las cadenas viejas (hasta RT×7) seguían vivas porque cada
+#: fallo les da una sucesora con el MISMO prefijo: `traer_nube` repara desde la rama (`…bbbb`) y este
+#: revisor divide (`…-d1`) o reasigna (72 «te necesitan» de RT×3+ solo el 31-10). Pasado el tope no
+#: se reparan, ni se dividen, ni se reabren: «bloqueada» para el carril de alta capacidad.
+TOPE_PROFUNDIDAD_RESCATE = 2
+MOTIVO_RESCATE_AGOTADO = "cadena de rescates agotada: carril de alta capacidad"
+_NO_SE_MARCAN = CERRADOS | DECIDIDOS | TRABAJANDO | EN_APROBACION | frozenset({"duplicada", "obsoleta"})
+
+
+def profundidad_rescate(tid: Any) -> int:
+    """PURA. Los «RT» que lleva delante (`X1` → 0, `RTX1` → 1, `RTRTX1b-d1` → 2), como
+    `revisar_ramas_nube.profundidad_rescate`."""
+    t, n = str(tid or ""), 0
+    while t.startswith("RT" * (n + 1)):
+        n += 1
+    return n
+
+
+def rescate_agotado(tid: Any, tope: int = TOPE_PROFUNDIDAD_RESCATE) -> bool:
+    """PURA. ¿Pasa el tope? Entonces ninguna vía le crea sucesora: su sucesora sería otro rescate de
+    más de `tope` niveles (reparación `…b`, división `…-d1` o rescate `RT…`)."""
+    return profundidad_rescate(tid) > tope
+
+
+def en_alta_capacidad(entrada: Any) -> bool:
+    """PURA. ¿Ya la lleva el carril de alta capacidad (la marcó la escalera o este tope)?"""
+    e = entrada if isinstance(entrada, dict) else {}
+    return e.get("alta_capacidad") is True or MOTIVO_RESCATE_AGOTADO in str(e.get("nota") or "")
+
+
+def cierre_rescate_agotado(tid: Any, donde: str = "", tope: int = TOPE_PROFUNDIDAD_RESCATE) -> Dict[str, Any]:
+    """PURA. Los campos de progreso que la dejan «bloqueada» para `alta-capacidad.py`: su
+    `alta_capacidad_logica.necesita_alta` la recoge por `bloqueante` + `alta_capacidad`, la misma
+    marca que pone la escalera cuando se agota."""
+    nota = ("%s · %s lleva %d niveles de rescate (tope %d): no se repara, no se divide ni vuelve al "
+            "enjambre gratuito" % (MOTIVO_RESCATE_AGOTADO, tid, profundidad_rescate(tid), tope))
+    if donde:
+        nota += " (%s)" % donde
+    return {"estado": "bloqueada", "bloqueante": True, "alta_capacidad": True, "nota": nota[:400]}
+
+
+def rescates_agotados(progreso: Dict[str, Any], donde: str = "") -> Dict[str, Dict[str, Any]]:
+    """PURA. {id: campos} de las tareas ABIERTAS que pasan el tope y aún no están en el carril. Las
+    cerradas, en curso o esperando visto bueno no se tocan."""
+    salida: Dict[str, Dict[str, Any]] = {}
+    for tid, e in sorted((progreso or {}).items()):
+        if not rescate_agotado(tid) or en_alta_capacidad(e):
+            continue
+        if (e.get("estado") if isinstance(e, dict) else e) in _NO_SE_MARCAN:
+            continue
+        salida[str(tid)] = cierre_rescate_agotado(tid, donde)
+    return salida
+
+
 def sucesora(tid: str, progreso: Dict[str, Any], tareas: Dict[str, Any]) -> Tuple[Optional[str], str]:
     """(id, 'integrada'|'viva'|None) de la última sucesora de la cadena de `tid` (Xb, Xc, X-d1…).
 
@@ -744,6 +801,12 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
                                                 estado="sustituida", por=gemela))
                         tocadas.add(tid)
                         continue
+
+        # (RESC1031A) Pasado el tope de rescates no se divide (`…-d1` sería otro rescate de más de 2
+        # niveles), ni se reasigna, ni se reabre, ni se pregunta a Alex: la lleva el carril de alta
+        # capacidad (`traer_nube` la marca con `rescates_agotados`). Los cierres de arriba sí valen.
+        if rescate_agotado(tid):
+            continue
 
         deps = _deps(t)
         # 1) ESPERA: no ha empezado y depende de algo

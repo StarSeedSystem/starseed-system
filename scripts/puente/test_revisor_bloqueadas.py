@@ -590,5 +590,65 @@ class OrdenIdealAdelantar(unittest.TestCase):
                     "CAP": {"estado": "pendiente"}, "NOR": {"estado": "pendiente"}}
         self.assertEqual(["ALX", "CAP", "REP", "NOR"], L.orden_ideal(ids, tareas, progreso, {}))
 
+
+class TopeDeRescates(unittest.TestCase):
+    """(RESC1031A) Un rescate de más de 2 niveles no tiene sucesora: pasa al carril de alta capacidad."""
+
+    HONDO = "RTRTRTRTS1010-EV-ORACLE-1acbbbbb"
+
+    def test_profundidad_y_tope(self):
+        self.assertEqual(L.profundidad_rescate("COL1012B"), 0)
+        self.assertEqual(L.profundidad_rescate("RTRTX1b-d1"), 2)
+        self.assertEqual(L.profundidad_rescate(self.HONDO), 4)
+        self.assertEqual(L.profundidad_rescate("RTRTRTRTRTRTCOL1012Bdsbbbbbbbbbbb-d1"), 6)
+        self.assertEqual(L.profundidad_rescate(None), 0)
+        self.assertFalse(L.rescate_agotado("RTRTCOL1012Bdsbbbbbbbcb-d2"))
+        self.assertTrue(L.rescate_agotado("RTRTRTS1010-EV-ORACLE-1acbbb"))
+
+    def test_el_cierre_lo_recoge_alta_capacidad(self):
+        import alta_capacidad_logica as A
+        cierre = L.cierre_rescate_agotado(self.HONDO, "prueba")
+        self.assertEqual(cierre["estado"], "bloqueada")
+        self.assertIn("cadena de rescates agotada: carril de alta capacidad", cierre["nota"])
+        self.assertIn("4 niveles", cierre["nota"])
+        self.assertTrue(A.necesita_alta({"id": self.HONDO}, cierre))
+        self.assertTrue(L.en_alta_capacidad(cierre))
+
+    def test_solo_se_marcan_las_abiertas_sin_carril(self):
+        prog = {
+            "RTRTRTA1": {"estado": "pendiente"},
+            "RTRTRTB1-d1": {"estado": "fallo", "nota": "tsc"},
+            "RTRTRTC1": {"estado": "commit"},
+            "RTRTRTD1": {"estado": "en_curso"},
+            "RTRTRTE1": {"estado": "esperando_aprobacion"},
+            "RTRTRTF1": {"estado": "bloqueante", "alta_capacidad": True, "nota": "director: escalada agotada"},
+            "RTRTG1": {"estado": "fallo"},
+            "H1": {"estado": "fallo"},
+        }
+        marcas = L.rescates_agotados(prog, "traer_nube")
+        self.assertEqual(sorted(marcas), ["RTRTRTA1", "RTRTRTB1-d1"])
+        self.assertIn("(traer_nube)", marcas["RTRTRTA1"]["nota"])
+        self.assertEqual(L.rescates_agotados({k: dict(v, **marcas.get(k, {})) for k, v in prog.items()}), {})
+
+    def test_el_revisor_no_la_divide_ni_la_reabre(self):
+        archivos = ["a.py", "b.py", "c.py", "d.py", "e.py"]
+        nota = "director: escalada agotada tras 10 intentos: requiere una persona"
+        for tid, esperado in ((self.HONDO, False), ("RTRTK1", True)):
+            prog = {tid: {"estado": "bloqueante", "nota": nota, "t": _t(60)}}
+            dec = L.decidir(foto([T(tid, archivos=archivos)], prog))
+            self.assertEqual(bool(acciones_de(dec, tid)), esperado, tid)  # RT×2 aún se divide
+        prog = {self.HONDO: {"estado": "bloqueada", "t": _t(60)}, "D1": {"estado": "commit"}}
+        dec = L.decidir(foto([T(self.HONDO, ["D1"]), T("D1")], prog))
+        self.assertFalse(acciones_de(dec, self.HONDO))  # sin «trasladar» de vuelta a la cola
+        prog = {self.HONDO: {"estado": "sin_cambios", "nota": "ningún modelo tocó archivos", "t": _t(60),
+                             "intentos_auto": 3, "modelo": "freellmapi/auto"}}
+        self.assertFalse(acciones_de(L.decidir(foto([T(self.HONDO)], prog, codex_ok=True)), self.HONDO))
+
+    def test_el_revisor_aun_la_cierra_si_ya_esta_en_main(self):
+        prog = {self.HONDO: {"estado": "bloqueada", "t": _t(10)}}
+        dec = L.decidir(foto([T(self.HONDO)], prog, asuntos=["Rescate · %s: casos" % self.HONDO]))
+        self.assertEqual(acciones_de(dec, self.HONDO)[0]["accion"], "ya_hecha")
+
+
 if __name__ == "__main__":
     unittest.main()
