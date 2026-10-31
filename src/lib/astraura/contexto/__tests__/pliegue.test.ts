@@ -1,24 +1,31 @@
-import { describe, it, expect } from "vitest";
+/**
+ * pliegue.test.ts — pruebas del pliegue de historial por niveles (Ola 1025R · CPZ1025H).
+ * Solo funciones puras: sin red, sin disco, sin `vi.mock` ni rutas de Next.
+ */
+import { describe, expect, it } from "vitest";
 import {
+  buscarEnBloques,
   plegarHistorial,
   resumenExtractivo,
   restaurarBloque,
-  buscarEnBloques,
   type Turno,
 } from "../pliegue";
 
-const LARGO_TURNO = 60;
-
-function largos(n: number): Turno[] {
-  return Array.from({ length: n }, (_, i) => ({
+// Turno determinista de `tam` caracteres, con el índice en el prefijo: si el
+// corte se moviese, los bloques ya hechos cambiarían y la prueba fallaría.
+const largo = (i: number, tam = 300): string => {
+  const base = `turno ${i} `;
+  return base.length >= tam ? base : base + "x".repeat(tam - base.length);
+};
+const largos = (n: number, tam = 300): Turno[] =>
+  Array.from({ length: n }, (_, i) => ({
     rol: i % 2 ? "assistant" : "user",
-    texto: "t".repeat(LARGO_TURNO),
+    texto: largo(i, tam),
   }));
-}
 
-const OP = { presupuestoChars: 5000, recientesChars: 600 };
+const OP = { presupuestoChars: 4000, recientesChars: 1200 };
 
-describe("pliegue · plegarHistorial", () => {
+describe("pliegue de historial", () => {
   it("si todo cabe no hay bloques y el texto es vacío", () => {
     const r = plegarHistorial(largos(3), { presupuestoChars: 5000, recientesChars: 2000 });
     expect(r.bloques).toEqual([]);
@@ -56,8 +63,8 @@ describe("pliegue · plegarHistorial", () => {
   it("estabilidad: turnos nuevos no rehacen los bloques de nivel 1", () => {
     const r1 = plegarHistorial(largos(40), OP);
     const r2 = plegarHistorial(largos(43), OP);
-    expect(r1.bloques).toHaveLength(5);
-    expect(r2.bloques).toHaveLength(6);
+    expect(r1.bloques).toHaveLength(6);
+    expect(r2.bloques).toHaveLength(7);
     expect(r2.bloques.slice(0, r1.bloques.length)).toEqual(r1.bloques);
     expect(r2.bloques.every((b) => b.nivel === 1)).toBe(true);
     expect(r2.descartadosChars).toBe(0);
@@ -87,9 +94,7 @@ describe("pliegue · plegarHistorial", () => {
     expect(buscarEnBloques(h, r.bloques, "murciélago")).toEqual([]);
     expect(buscarEnBloques(h, r.bloques, "zz")).toEqual([]);
   });
-});
 
-describe("pliegue · resumidor y determinismo", () => {
   it("usa el resumidor inyectado cuando existe", () => {
     const r = plegarHistorial(largos(12), {
       presupuestoChars: 4000,
@@ -107,7 +112,7 @@ describe("pliegue · resumidor y determinismo", () => {
   });
 });
 
-describe("pliegue · resumenExtractivo", () => {
+describe("resumenExtractivo", () => {
   it("une una primera frase por turno con « | »", () => {
     const t: Turno[] = [
       { rol: "user", texto: "Hola mundo. ¿Qué tal?" },
