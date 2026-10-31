@@ -36,7 +36,7 @@ vi.mock("@/components/ui/card", () => ({
 }));
 
 import type { Bot } from "@/lib/astraura-bots/tipos";
-import { indicadorVisible } from "@/lib/astraura-bots/bucle";
+import { indicadorVisible, type EstadoBucle } from "@/lib/astraura-bots/bucle";
 import { TarjetaPropuesta } from "../tarjeta-propuesta";
 
 const PERFIL = "local";
@@ -59,13 +59,13 @@ const propuestaPrueba = {
     motivo: "El bot quiere navegar a la biblioteca",
   },
 };
-const buclePrueba = {
+const buclePrueba: EstadoBucle = {
   botId: "bot:test",
   fase: "esperando" as const,
   sentidosActivos: ["pantalla"],
   pendiente: {
-    accion: { tipo: "navegar", args: { ruta: "/library" } },
-    decision: { permitido: true, requiere: "nada", motivo: "Permiso concedido", indicador: false },
+    accion: { tipo: "navegar" as const, args: { ruta: "/library" } },
+    decision: { permitido: true, requiere: "nada" as const, motivo: "Permiso concedido", indicador: false },
   },
   registro: [
     { at: Date.now() - 30000, botId: "bot:test", quien: "bot", tipo: "propuesta", accion: "navegar", motivo: "El bot quiere navegar", deshacer: undefined },
@@ -79,11 +79,23 @@ describe("TarjetaPropuesta", () => {
   afterEach(() => cleanup());
 
   it("muestra la propuesta del bot cuando está en espera", () => {
+    const bucleConTipo: EstadoBucle = {
+      botId: "bot:test",
+      fase: "esperando" as const,
+      sentidosActivos: ["pantalla"],
+      pendiente: {
+        accion: { tipo: "navegar" as const, args: { ruta: "/library" } },
+        decision: { permitido: true, requiere: "nada" as const, motivo: "Permiso concedido", indicador: false },
+      },
+      registro: [
+        { at: Date.now() - 30000, botId: "bot:test", quien: "bot", tipo: "propuesta", accion: "navegar", motivo: "El bot quiere navegar", deshacer: undefined },
+      ],
+    };
     render(
       <TarjetaPropuesta
         bot={botPrueba}
         propuesta={propuestaPrueba}
-        bucle={buclePrueba}
+        bucle={bucleConTipo}
         onConfirm={() => {}}
         onReject={() => {}}
         onVote={() => {}}
@@ -101,11 +113,23 @@ describe("TarjetaPropuesta", () => {
 
   it("llama a onConfirm cuando se confirma sin requisitos", () => {
     const onConfirmMock = vi.fn();
+    const bucleConTipo: EstadoBucle = {
+      botId: "bot:test",
+      fase: "esperando" as const,
+      sentidosActivos: ["pantalla"],
+      pendiente: {
+        accion: { tipo: "navegar" as const, args: { ruta: "/library" } },
+        decision: { permitido: true, requiere: "nada" as const, motivo: "Permiso concedido", indicador: false },
+      },
+      registro: [
+        { at: Date.now() - 30000, botId: "bot:test", quien: "bot", tipo: "propuesta", accion: "navegar", motivo: "El bot quiere navegar", deshacer: undefined },
+      ],
+    };
     render(
       <TarjetaPropuesta
         bot={botPrueba}
         propuesta={propuestaPrueba}
-        bucle={buclePrueba}
+        bucle={bucleConTipo}
         onConfirm={onConfirmMock}
         onReject={() => {}}
         onVote={() => {}}
@@ -124,12 +148,24 @@ describe("TarjetaPropuesta", () => {
       ...propuestaPrueba,
       requiere: "confirmacion" as const,
     };
+    const bucleConTipo: EstadoBucle = {
+      botId: "bot:test",
+      fase: "esperando" as const,
+      sentidosActivos: ["pantalla"],
+      pendiente: {
+        accion: { tipo: "navegar" as const, args: { ruta: "/library" } },
+        decision: { permitido: true, requiere: "nada" as const, motivo: "Permiso concedido", indicador: false },
+      },
+      registro: [
+        { at: Date.now() - 30000, botId: "bot:test", quien: "bot", tipo: "propuesta", accion: "navegar", motivo: "El bot quiere navegar", deshacer: undefined },
+      ],
+    };
 
     render(
       <TarjetaPropuesta
         bot={botPrueba}
         propuesta={propuestaConConfirmacion}
-        bucle={buclePrueba}
+        bucle={bucleConTipo}
         onConfirm={() => {}}
         onReject={() => {}}
         onVote={() => {}}
@@ -148,12 +184,24 @@ describe("TarjetaPropuesta", () => {
       requiere: "confirmacion" as const,
     };
     const onRejectMock = vi.fn();
+    const bucleConTipo: EstadoBucle = {
+      botId: "bot:test",
+      fase: "esperando" as const,
+      sentidosActivos: ["pantalla"],
+      pendiente: {
+        accion: { tipo: "navegar" as const, args: { ruta: "/library" } },
+        decision: { permitido: true, requiere: "nada" as const, motivo: "Permiso concedido", indicador: false },
+      },
+      registro: [
+        { at: Date.now() - 30000, botId: "bot:test", quien: "bot", tipo: "propuesta", accion: "navegar", motivo: "El bot quiere navegar", deshacer: undefined },
+      ],
+    };
 
     render(
       <TarjetaPropuesta
         bot={botPrueba}
         propuesta={propuestaConConfirmacion}
-        bucle={buclePrueba}
+        bucle={bucleConTipo}
         onConfirm={() => {}}
         onReject={onRejectMock}
         onVote={() => {}}
@@ -168,11 +216,23 @@ describe("TarjetaPropuesta", () => {
   });
 
   it("muestra el indicador de sentidos cuando el bot tiene sentidos activos", () => {
+    const bucleConTipo: EstadoBucle = {
+      botId: "bot:test",
+      fase: "esperando" as const,
+      sentidosActivos: ["pantalla"],
+      pendiente: {
+        accion: { tipo: "navegar" as const, args: { ruta: "/library" } },
+        decision: { permitido: true, requiere: "nada" as const, motivo: "Permiso concedido", indicador: false },
+      },
+      registro: [
+        { at: Date.now() - 30000, botId: "bot:test", quien: "bot", tipo: "propuesta", accion: "navegar", motivo: "El bot quiere navegar", deshacer: undefined },
+      ],
+    };
     render(
       <TarjetaPropuesta
         bot={botPrueba}
         propuesta={propuestaPrueba}
-        bucle={buclePrueba}
+        bucle={bucleConTipo}
         onConfirm={() => {}}
         onReject={() => {}}
         onVote={() => {}}
@@ -189,12 +249,24 @@ describe("TarjetaPropuesta", () => {
       requiere: "votacion" as const,
     };
     const onVoteMock = vi.fn();
+    const bucleConTipo: EstadoBucle = {
+      botId: "bot:test",
+      fase: "esperando" as const,
+      sentidosActivos: ["pantalla"],
+      pendiente: {
+        accion: { tipo: "navegar" as const, args: { ruta: "/library" } },
+        decision: { permitido: true, requiere: "nada" as const, motivo: "Permiso concedido", indicador: false },
+      },
+      registro: [
+        { at: Date.now() - 30000, botId: "bot:test", quien: "bot", tipo: "propuesta", accion: "navegar", motivo: "El bot quiere navegar", deshacer: undefined },
+      ],
+    };
 
     render(
       <TarjetaPropuesta
         bot={botPrueba}
         propuesta={propuestaConVotacion}
-        bucle={buclePrueba}
+        bucle={bucleConTipo}
         onConfirm={() => {}}
         onReject={() => {}}
         onVote={onVoteMock}
@@ -215,12 +287,24 @@ describe("TarjetaPropuesta", () => {
       consentimiento: { sentido: "microfono" },
     };
     const onConsentMock = vi.fn();
+    const bucleConTipo: EstadoBucle = {
+      botId: "bot:test",
+      fase: "esperando" as const,
+      sentidosActivos: ["pantalla"],
+      pendiente: {
+        accion: { tipo: "navegar" as const, args: { ruta: "/library" } },
+        decision: { permitido: true, requiere: "nada" as const, motivo: "Permiso concedido", indicador: false },
+      },
+      registro: [
+        { at: Date.now() - 30000, botId: "bot:test", quien: "bot", tipo: "propuesta", accion: "navegar", motivo: "El bot quiere navegar", deshacer: undefined },
+      ],
+    };
 
     render(
       <TarjetaPropuesta
         bot={botPrueba}
         propuesta={propuestaConConsentimiento}
-        bucle={buclePrueba}
+        bucle={bucleConTipo}
         onConfirm={() => {}}
         onReject={() => {}}
         onVote={() => {}}
@@ -241,12 +325,24 @@ describe("TarjetaPropuesta", () => {
       consentimiento: { sentido: "microfono" },
     };
     const onConsentMock = vi.fn();
+    const bucleConTipo: EstadoBucle = {
+      botId: "bot:test",
+      fase: "esperando" as const,
+      sentidosActivos: ["pantalla"],
+      pendiente: {
+        accion: { tipo: "navegar" as const, args: { ruta: "/library" } },
+        decision: { permitido: true, requiere: "nada" as const, motivo: "Permiso concedido", indicador: false },
+      },
+      registro: [
+        { at: Date.now() - 30000, botId: "bot:test", quien: "bot", tipo: "propuesta", accion: "navegar", motivo: "El bot quiere navegar", deshacer: undefined },
+      ],
+    };
 
     render(
       <TarjetaPropuesta
         bot={botPrueba}
         propuesta={propuestaConExpreso}
-        bucle={buclePrueba}
+        bucle={bucleConTipo}
         onConfirm={() => {}}
         onReject={() => {}}
         onVote={() => {}}
