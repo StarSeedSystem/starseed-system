@@ -49,6 +49,8 @@ import { ejecutarAccion } from "@/lib/astraura-bots/adaptadores/ejecutor-accione
 import { decidirAccion, NIVEL_POR_DEFECTO } from "@/lib/astraura-bots/permisos";
 import { avanzar, bucleInicial } from "@/lib/astraura-bots/bucle";
 import { botPredeterminado } from "@/lib/astraura-bots/predeterminado";
+// BOT1011S · Tono del bot en el chat: personalidad adaptable + preferencias + situación.
+import { bloqueTono, situacionDeTexto } from "@/lib/astraura-bots/adaptadores/tono-chat";
 // Puente de glow: el Orbe de Aurora late al ritmo del habla escuchando estos
 // eventos (el TTS del navegador no expone amplitud). Aditivo y defensivo.
 import { emitAuroraSpeak } from "@/lib/aurora/aurora-orb-bus";
@@ -1771,13 +1773,22 @@ export function useAuroraEngine(): AuroraEngine {
       try { knowledge = buildSystemKnowledge(routeContext()); } catch { knowledge = ""; }
       // EAR1023C: lo que suena AHORA alrededor de la orbe, en una línea corta.
       const notaOido = lineaContextoOidoParaPrompt();
+      // BOT1011S · TONO DEL BOT (la orbe es el bot, contr. astraura-bots §4): personalidad
+      // del bot + la del agente activa (rasgosDesdePersonalidad, D1), preferencias de la
+      // persona y situación detectada en el turno. Aditivo: si sale vacío, prompt intacto.
+      const tonoBot = bloqueTono(
+        botPredeterminado("perfil", "local"),
+        { params: activeRef.current.params, emotions: activeRef.current.emotions, tags: [] },
+        { sesion: "privada", situacion: situacionDeTexto(text) },
+      );
       const system =
         buildSystemPrompt(activeRef.current) + "\n\n" +
         actionsSystemPromptSection() +
         (toolsSection ? "\n\n" + toolsSection : "") +
         (knowledge ? "\n\n" + knowledge : "") + "\n\n" +
         contextNote +
-        (notaOido ? "\n\n" + notaOido : "");
+        (notaOido ? "\n\n" + notaOido : "") +
+        (tonoBot ? "\n\n" + tonoBot : "");
       // Se incluye el historial reciente (conversationRef) antes del mensaje actual.
       // Así mantenemos el contexto continuo en los comandos de voz.
       const historyMessages = conversationRef.current.map((msg): ChatMessage => ({
