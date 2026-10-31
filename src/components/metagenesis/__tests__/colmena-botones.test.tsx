@@ -210,6 +210,56 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         const android = botonesNeurona({ nodo: null, vivo: true, so: "android", enCurso: 0 });
         expect(android.instalar.explica).toBe("En Android, dentro de Termux (experimental, 1 agente).");
     });
+
+    it("sin trabajador: macOS y Windows también ofrecen «Instalar el trabajador», cada uno con su explicación", () => {
+        const mac = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        expect(mac.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "Un comando en la terminal de este aparato.",
+        });
+        const windows = botonesNeurona({ nodo: null, vivo: true, so: "windows", enCurso: 0 });
+        expect(windows.instalar).toMatchObject({
+            visible: true,
+            habilitado: true,
+            etiqueta: "Instalar el trabajador",
+            explica: "En Windows se instala dentro de WSL2.",
+        });
+    });
+
+    it("sin trabajador: iOS y un SO desconocido no ofrecen instalar nada", () => {
+        const ios = botonesNeurona({ nodo: null, vivo: true, so: "ios", enCurso: 0 });
+        expect(ios.instalar).toMatchObject({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+        const otro = botonesNeurona({ nodo: null, vivo: true, so: "otro", enCurso: 0 });
+        expect(otro.instalar).toMatchObject({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+    });
+
+    it("sin nodo (solo navegador): desconectar y contenedor no se muestran aunque no haya trabajo", () => {
+        const b = botonesNeurona({ nodo: null, vivo: true, so: "macos", enCurso: 0 });
+        expect(b.desconectar).toMatchObject({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+        expect(b.contenedor).toMatchObject({ visible: false, habilitado: false, etiqueta: "", explica: "" });
+    });
+
+    it("con el traspaso activo, «Desconectando…» se ve desactivado y explica qué está pasando", () => {
+        const b = botonesNeurona({
+            nodo: "mac-a1b2c3",
+            vivo: true,
+            so: "macos",
+            enCurso: 1,
+            desconectando: true,
+            relevoActivo: true,
+        });
+        expect(b.desconectar).toMatchObject({
+            visible: true,
+            habilitado: false,
+            etiqueta: "Desconectando…",
+            explica: "Guarda el trabajo a medias y lo pasa a otro contenedor.",
+        });
+        // Sin el traspaso declarado no promete un traspaso que aún no existe.
+        const sin = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 1, desconectando: true });
+        expect(sin.desconectar.explica).toContain("traspaso del trabajo a otro contenedor aún no está activo");
+    });
 });
 // ─── el traductor latido → tarjeta (puro) ──────────────────────────────────────────────────────────────
 
