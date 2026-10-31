@@ -565,3 +565,46 @@ describe("lectura de nombres", () => {
         expect(familiaSo("Android 15")).toBe("android");
     });
 });
+
+/* ───────── conexión de PowerInfer (CPZ1025A): núcleo a compilar por neurona ───────── */
+
+const cpuX86: Procesador = {
+    ...nvGpu,
+    id: "nv:cpu",
+    tipo: "cpu",
+    nombre: "Intel i9-14900",
+    aceleradores: ["avx512", "avx2"],
+    runtimes: ["powerinfer"],
+};
+
+const powerinfer = modelo({
+    id: "smallthinker-4b-a06b-powerinfer",
+    nombre: "SmallThinker 4B-A0.6B (PowerInfer)",
+    runtime: "powerinfer",
+    aceleradoresRequeridos: ["neon", "avx2", "avx512"],
+});
+
+describe("núcleo de PowerInfer en `verificar`", () => {
+    it("con AVX-512 el motivo anuncia el núcleo que se compila (aviso, no bloqueo)", () => {
+        const r = verificar(powerinfer, cpuX86, nvDisco);
+        const nucleo = r.motivos.find((x) => x.clave === "nucleo");
+        expect(nucleo?.texto).toContain("núcleo avx512");
+        expect(nucleo?.bloquea).toBe(false);
+    });
+
+    it("con solo AVX2 anuncia el núcleo de 256 bits", () => {
+        const sin512: Procesador = { ...cpuX86, aceleradores: ["avx2"] };
+        const r = verificar(powerinfer, sin512, nvDisco);
+        expect(r.motivos.find((x) => x.clave === "nucleo")?.texto).toContain("núcleo avx2");
+    });
+
+    it("en ARM sin dotprod medido no anuncia núcleo (sería genérico)", () => {
+        const r = verificar(powerinfer, macCpu, macInterno);
+        expect(r.motivos.some((x) => x.clave === "nucleo")).toBe(false);
+    });
+
+    it("los modelos de otros runtimes no reciben motivo de núcleo", () => {
+        const r = verificar(bitnet, cpuX86, nvDisco);
+        expect(r.motivos.some((x) => x.clave === "nucleo")).toBe(false);
+    });
+});

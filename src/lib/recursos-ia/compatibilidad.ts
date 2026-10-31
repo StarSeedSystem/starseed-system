@@ -26,6 +26,7 @@ import type {
     Via,
 } from "./tipos";
 import { VIA_REFERENCIA } from "./tipos";
+import { elegirNucleoPowerInfer, type IsaProcesador } from "./extras-powerinfer";
 
 export interface ContextoCompat {
     /** Tamaño confirmado por la persona (GB) cuando el catálogo no lo sabe. */
@@ -572,6 +573,28 @@ export function verificar(
                 ? "Metal 4 llega con macOS 26 en los Mac con chip M1 o posterior: actualiza macOS."
                 : `Usa una neurona con ${lista(acel.map((x) => NOMBRE_ACELERADOR[x]))}.`,
         });
+    }
+
+    // 3bis. Núcleo de PowerInfer que se compilaría en esta neurona (aviso, no bloquea). La maqueta
+    // `IsaProcesador` sale de los aceleradores que la detección midió; separar dotprod/i8mm en
+    // `simdCpu` queda como seguimiento (SOP `repos-libreria-1025.md` §PowerInfer).
+    if (m.runtime === "powerinfer" && p.arquitectura) {
+        const isa: IsaProcesador = {
+            neon: p.aceleradores.includes("neon"),
+            // No medido hoy: en ARM sin dotprod de verdad el núcleo sería «generico».
+            dotprod: false,
+            i8mm: false,
+            avx2: p.aceleradores.includes("avx2"),
+            avx512: p.aceleradores.includes("avx512"),
+        };
+        const nucleo = elegirNucleoPowerInfer(isa, p.arquitectura);
+        if (nucleo.nucleo !== "generico") {
+            motivos.push({
+                clave: "nucleo",
+                texto: `En ${p.nombre} PowerInfer compilaría el núcleo ${nucleo.nucleo}: ${nucleo.motivo}.`,
+                bloquea: false,
+            });
+        }
     }
 
     // 4. Medio: un WebGPU de navegador solo corre modelos web/pwa; un nativo no corre en la pestaña.
