@@ -121,6 +121,8 @@ describe('PanelReticula', () => {
     );
     render(<PanelReticula estado={estadoFabricado({ reticula: ret, cristal: cristal({ coordinacion: {} }) })} />);
     expect(screen.getByText('Ti · router')).not.toBeNull();
+    const svgIcon = document.querySelector('svg.h-3.w-3.text-amber-500');
+    expect(svgIcon).not.toBeNull();
   });
 
   it('línea explicativa «fija la red: 6 puentes, no se dilata» para titanio', () => {
@@ -142,6 +144,13 @@ describe('PanelReticula', () => {
     const sections = document.querySelectorAll('section[aria-label="Retícula"]');
     const headerText = sections[0]?.querySelector('header')?.textContent;
     expect(headerText).toContain('2 titanios');
+  });
+
+  it('icono Router en cabecera cuando hay titanios', () => {
+    const ret = reticulaDe(tesela('neurona-a', [senal()]), tesela('neurona-b', [senal()], { esRouter: true }));
+    render(<PanelReticula estado={estadoFabricado({ reticula: ret, cristal: cristal({ coordinacion: {} }) })} />);
+    const header = document.querySelector('section[aria-label="Retícula"] header');
+    expect(header?.querySelector('svg.h-3.5.w-3.5')).not.toBeNull();
   });
 
   it('sin titanios no muestra etiqueta ni contador', () => {
