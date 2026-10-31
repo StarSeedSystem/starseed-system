@@ -8,6 +8,9 @@
  *
  * Sin red ni audio: los motores se simulan (salud y síntesis inyectadas por
  * `vi.mock`); la config de voz, el registro y la jerarquía son los reales.
+ *
+ * (SGO1024C) Además: xAI no entra por AUTO pero su pin nunca queda detrás de
+ * Kokoro, y VibeVoice usa TAL CUAL la ruta explícita de su endpoint.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -163,6 +166,24 @@ describe("su sitio en la cadena respeta el registro", () => {
     expect(nuevo.slice(0, 2)).toEqual(["voice158", "vibevoice"]);
     expect(nuevo.slice(2)).toEqual(viejo);
   });
+
+  it("xAI no entra nunca por AUTO, y fijado por una personalidad va delante de Kokoro", () => {
+    const auto = buildVoiceChain(getVoiceConfig(), null);
+    expect(auto).not.toContain("xai");
+    const fijada = buildVoiceChain(getVoiceConfig(), "xai");
+    expect(fijada[0]).toBe("xai");
+    const ordenada = applyVoiceChainPriority(fijada);
+    expect(ordenada.indexOf("xai")).toBeLessThan(ordenada.indexOf("kokoro"));
+  });
+
+  it("un orden guardado sin xAI no se reescribe, pero el orden efectivo lo sube delante de Kokoro", () => {
+    const viejo = ["voice158", "vibevoice", "voicebox", "omnivoice", "openvoice2", "chatterbox", "kokoro", "voxcpm", "bark", "gpt-sovits", "kitten", "browser"];
+    window.localStorage.setItem("starseed.aurora.voice.priority.v1", JSON.stringify(viejo));
+    expect(completarPrioridad(viejo)).not.toContain("xai");
+    const efectivo = getVoiceChainPriority();
+    expect(efectivo.filter((m) => m !== "xai")).toEqual(viejo);
+    expect(efectivo.indexOf("xai")).toBeLessThan(efectivo.indexOf("kokoro"));
+  });
 });
 
 describe("speak-router: los intenta en su sitio cuando su servidor responde", () => {
@@ -222,7 +243,7 @@ describe("speak-router: los intenta en su sitio cuando su servidor responde", ()
   });
 });
 
-describe("voz 1.58-bit: habla con el servidor cuya salud se comprobó", () => {
+describe("rutas dedicadas: hablan con el servidor cuya salud se comprobó", () => {
   type Real = typeof import("@/lib/aurora/tts-oss/neural-tts");
   const real = () => vi.importActual<Real>("@/lib/aurora/tts-oss/neural-tts");
 
@@ -254,6 +275,33 @@ describe("voz 1.58-bit: habla con el servidor cuya salud se comprobó", () => {
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(await neuralSpeak("voice158", TEXTO, { settings: { endpoint: "http://10.0.0.5:9000/voz/tts" } })).not.toBeNull();
     expect(urls).toEqual(["https://mi-tunel.example/api/voice/synthesize", "http://10.0.0.5:9000/voz/tts"]);
+  });
+
+  it("VibeVoice respeta la ruta explícita del endpoint (no le añade la suya)", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal("Audio", class {
+      onended: (() => void) | null = null;
+      constructor(public src: string) {}
+      play() { this.onended?.(); return Promise.resolve(); }
+    });
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      urls.push(url);
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => "audio/wav" },
+        arrayBuffer: async () => new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00]),
+      };
+    }));
+    const { neuralSpeak } = await real();
+    conServidor("vibevoice", "http://gpu.local:7860/vibe");
+    expect(await neuralSpeak("vibevoice", TEXTO)).not.toBeNull();
+    conServidor("vibevoice", "http://127.0.0.1:5195");
+    expect(await neuralSpeak("vibevoice", TEXTO)).not.toBeNull();
+    expect(urls).toEqual([
+      "http://gpu.local:7860/vibe",
+      "http://127.0.0.1:5195/api/vibevoice/synthesize",
+    ]);
   });
 
   it("un backend colgado no se queda con el turno: se corta a su presupuesto", async () => {
