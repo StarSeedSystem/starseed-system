@@ -1,7 +1,12 @@
 // Servicio «hyperframes» de una neurona (127.0.0.1:4490) · rutas PURAS (HFR1018Fb).
-// Contrato: architecture/video-hyperframes.md §3. Nada de red, disco, procesos ni reloj aquí: el servidor
-// inyecta `deps` (versión, presencia de navegador y FFmpeg, lint, editar, vista y la cola de render).
+// Contrato: architecture/video-hyperframes.md §3 y §4.7. Nada de red, disco, procesos ni reloj aquí:
+// el servidor inyecta `deps` (versión, presencia de navegador y FFmpeg, lint, editar, vista, la cola
+// de render y el `actualizador` con instalar/lint/renderPrueba/huellasReferencia/cambiarEnlace).
+// La actualización va por `planActualizacion` + `aplicar` de actualizar.mjs: plan no viable no ejecuta
+//  nada, y si algo falla se queda la versión anterior y sale el motivo sin rutas.
 // La telemetría de HyperFrames va siempre apagada (HYPERFRAMES_NO_TELEMETRY=1 lo pone el servidor).
+
+import { aplicar, planActualizacion } from "./actualizar.mjs";
 
 export const LIMITE_CUERPO_BYTES = 8 * 1024 * 1024;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -102,6 +107,17 @@ export async function manejar({ metodo, ruta, cuerpo } = {}, deps = {}) {
     if (!ID.test(trabajo[1])) return fallo(400, "id no válido");
     if (!deps.cola || typeof deps.cola.estado !== "function") return fallo(503, "sin cola de render en esta neurona");
     return seguro(async () => { const e = await deps.cola.estado(trabajo[1]); return e ? r(200, e) : fallo(404, "trabajo no encontrado"); });
+  }
+  if (m === "POST" && camino === "/actualizar") {
+    if (!cuerpo || typeof cuerpo.disponible !== "string") return fallo(400, "falta la versión disponible");
+    if (!deps.actualizador || deps.actualizador === null) return fallo(503, "actualización no disponible en esta neurona");
+    return seguro(async () => {
+      const plan = planActualizacion({ actual: deps.version, disponible: cuerpo.disponible });
+      const resultado = await aplicar(plan, deps.actualizador);
+      const cuerpo2 = { pasos: resultado.pasos, version: resultado.version };
+      if (resultado.motivo) cuerpo2.motivo = sinRutas(resultado.motivo);
+      return r(resultado.ok ? 200 : 409, { ok: resultado.ok, ...cuerpo2 });
+    });
   }
   return fallo(404, "ruta desconocida");
 }
