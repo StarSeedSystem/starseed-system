@@ -81,6 +81,14 @@ describe("MenuTexto", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
+  it("registrarEntradaMenuTexto es idempotente por id: una sola entrada en el menú", () => {
+    registrar({ id: "unico", etiqueta: "Variaciones públicas", ejecutar: () => {} });
+    registrar({ id: "unico", etiqueta: "Variaciones públicas", ejecutar: () => {} });
+    render(<MenuTexto />);
+    fireEvent.contextMenu(destino());
+    expect(screen.getAllByRole("menuitem", { name: "Variaciones públicas" })).toHaveLength(1);
+  });
+
   it("el ctx dice si la página está traducida y las entradas se filtran", () => {
     const vistas: ContextoMenuTexto[] = [];
     registrar({
@@ -102,6 +110,8 @@ describe("MenuTexto", () => {
   it("las piezas puras deciden el disparo, el campo editable y la esquina", () => {
     const p = destino();
     expect(abreMenuTexto({ shiftKey: true }, p, true)).toBe(false);
+    expect(abreMenuTexto({ defaultPrevented: true }, p, true)).toBe(false);
+    expect(abreMenuTexto({}, document.createElement("input"), true)).toBe(false);
     expect(abreMenuTexto({}, p, true)).toBe(true);
     expect(abreMenuTexto({}, p, false)).toBe(false);
     expect(abreMenuTexto({}, null, true)).toBe(false);
