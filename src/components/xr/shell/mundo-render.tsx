@@ -8,14 +8,16 @@
  * (XR1010AM, XR1010Z, XR1010X): aquí tocan un marcador honesto de «todavía no se carga», nunca una máscara.
  */
 import { useMemo } from "react";
-import { Stars } from "@react-three/drei";
+import { Html, Stars } from "@react-three/drei";
 import { PlaneGeometry, DoubleSide } from "three";
 import type { NivelCalidad } from "@/lib/xr/tipos";
 import type { MundoSpec, ObjetoMundo, LuzMundo } from "@/lib/xr/mundo-tipos";
 import { COLORES_NODO, CRISTAL } from "@/lib/xr/tokens-3d";
 import { visualDe, PAISAJE, COLOR_ZONA, ARGS_PRIMITIVA, alturaTerreno, segmentosTerreno, materialObjeto, estrellasActivas, altoPantalla, type VisualMundo } from "./mundo-render-puro";
+import { useFisica, type CanalPoses } from "./use-fisica";
+import type { PoseCuerpo } from "./fisica-rapier";
 
-type Props = { mundo: MundoSpec; nivel: NivelCalidad };
+type Props = { mundo: MundoSpec; nivel: NivelCalidad; esAnfitrion?: boolean; canal?: CanalPoses | null };
 
 /** Geometría del suelo: cuadrícula del nivel, alturas de `alturaTerreno` (misma semilla en todos los equipos). */
 function useGeometriaTerreno(mundo: MundoSpec, nivel: NivelCalidad) {
@@ -70,12 +72,14 @@ function Cielo({ cielo }: { cielo: { conCielo: boolean; abajo: string; niebla: s
 }
 
 /** Un objeto del mundo: primitiva real; biblioteca/texto, marcador honesto (se carga en su tarea). */
-function ObjetoVisual({ o, nivel }: { o: ObjetoMundo; nivel: NivelCalidad }) {
+function ObjetoVisual({ o, nivel, pose }: { o: ObjetoMundo; nivel: NivelCalidad; pose?: PoseCuerpo }) {
     const material = materialObjeto(nivel);
     const fuentePrimitiva = o.fuente.tipo === "primitiva" ? o.fuente : null;
     const esPrimitiva = fuentePrimitiva !== null;
+    // La física manda solo sobre los dinámicos (XR1010W); fijos y cinemáticos conservan su sitio del spec.
+    const movido = pose !== undefined && o.cuerpo?.tipo === "dinamico";
     return (
-        <group position={o.pos} rotation={o.rot} scale={o.esc}>
+        <group position={movido ? pose.pos : o.pos} rotation={movido ? undefined : o.rot} quaternion={movido ? pose.rot : undefined} scale={o.esc}>
             <mesh name={`${o.id}`}>
                 {fuentePrimitiva?.forma === "caja" && <boxGeometry args={ARGS_PRIMITIVA.caja} />}
                 {fuentePrimitiva?.forma === "esfera" && <sphereGeometry args={ARGS_PRIMITIVA.esfera} />}
@@ -159,8 +163,10 @@ function Muebles({ visual }: { visual: VisualMundo }) {
     )));
 }
 
-export default function MundoRender({ mundo, nivel }: Props) {
+export default function MundoRender({ mundo, nivel, esAnfitrion = true, canal = null }: Props) {
     const visual = useMemo(() => visualDe(mundo, nivel), [mundo, nivel]);
+    // XR1010W · §3 g: el anfitrión simula con Rapier y publica; los demás interpolan sus poses.
+    const { poses, aviso } = useFisica({ mundo: visual.mundo, nivel, esAnfitrion, canal });
     const paisaje = PAISAJE[visual.mundo.entorno.cielo];
     const nieblaSegura = { cerca: visual.mundo.entorno.tamano * 0.35, lejos: visual.mundo.entorno.tamano * 0.95 };
     return (
@@ -174,7 +180,12 @@ export default function MundoRender({ mundo, nivel }: Props) {
                 ? <LucesDe luces={visual.luces.visibles} />
                 : <LucesDe luces={[{ id: "base", clase: "ambiente", pos: [0, 5, 0], color: "#F5F7FF", intensidad: 0.7, alcance: 0 }]} />}
             <Terreno mundo={visual.mundo} nivel={nivel} />
-            {visual.mundo.objetos.map((o) => (o.oculto ? null : <ObjetoVisual key={o.id} o={o} nivel={nivel} />))}
+            {visual.mundo.objetos.map((o) => (o.oculto ? null : <ObjetoVisual key={o.id} o={o} nivel={nivel} pose={poses.get(o.id)} />))}
+            {aviso !== null && (
+                <Html center position={[0, 2.2, -2]} distanceFactor={8}>
+                    <p role="alert" style={{ maxWidth: 280, padding: "6px 10px", borderRadius: 8, background: "#1E1E2E", color: "#F5F7FF", fontSize: 12, textAlign: "center" }}>{aviso}</p>
+                </Html>
+            )}
             <MarcasSpawn puntos={visual.spawns.visibles} />
             <PortalesDe portales={visual.portales.visibles} />
             <ZonasDe zonas={visual.zonas.visibles} />
