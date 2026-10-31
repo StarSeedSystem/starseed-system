@@ -12,7 +12,9 @@
  * Esta capa resuelve el motor EFECTIVO con el MISMO orden que la cadena que
  * suena de verdad (`refreshPersonalityVoicePin`, Adenda 149):
  *
- *   agente > neurona > personalidad > cerebro > cuenta > cadena AUTO
+ *   agente > neurona > personalidad > cerebro → si nadie fija nada: el pin por
+ *   defecto de `refreshPersonalityVoicePin`, con la cadena AUTO detrás
+ *   (`buildVoiceChain` pone `cfg.engine` — la CUENTA — DETRÁS de ese pin).
  *
  * (SGO1031A) Manda lo que suena: el override neurona×personalidad describe el
  * hardware de ESTE dispositivo y la cadena real lo pone por delante del pin de
@@ -20,9 +22,18 @@
  * 153) y, con personalidad=omnivoice y neurona=vibevoice, sonaba VibeVoice sin
  * que el router preparase su guion multi-locutor.
  *
+ * (SGO1031B) Dos reglas de la cadena real que aquí se desviaban:
+ *   1. La ELECCIÓN DE LA CUENTA no es un pin: `buildVoiceChain` coloca el pin
+ *      por defecto (openvoice2/omnivoice/fastweb) POR DELANTE de `cfg.engine`,
+ *      así que la cuenta nunca encabeza la cadena y no prepara guion.
+ *   2. Sin personalidad activa NO hay override: `neuronPersonaVoice(null)` no
+ *      lee nada, aunque el llamador (router con `persona?.id ?? "*"`) traiga
+ *      una elección para el comodín. El pin lo fija el defecto de la neurona.
+ *
  * Es PURA (entrada → salida): no toca red ni disco y nunca lanza. El llamador
  * le pasa las elecciones que ya conoce; si ningún ámbito fija motor, devuelve
- * `null` y manda la selección automática de `buildVoiceChain`.
+ * `null` y manda el pin por defecto de la cadena real, exactamente lo que
+ * suena.
  */
 
 import {
@@ -45,7 +56,11 @@ export interface VoiceScopeChoice {
   motor?: string | null;
 }
 
-/** Elecciones guardadas por ámbito. */
+/**
+ * Elecciones guardadas por ámbito. (SGO1031B) `cuenta` ya NO fija pin: la
+ * elección de la cuenta es `cfg.engine`, paso 2 de la cadena real (detrás del
+ * pin por defecto); se conserva en el tipo por compatibilidad.
+ */
 export interface VoiceHierarchyStore {
   agente?: Record<string, VoiceScopeChoice>;
   personalidad?: Record<string, VoiceScopeChoice>;
@@ -106,27 +121,37 @@ function deMapa(
 
 /**
  * Precedencia sobre un store ya completo: agente > neurona > personalidad >
- * cerebro > cuenta. La neurona va delante de la personalidad como en
+ * cerebro. La neurona va delante de la personalidad como en
  * `refreshPersonalityVoicePin` (paso 0); agente y cerebro no existen en la
  * cadena real y conservan su sitio relativo.
+ *
+ * (SGO1031B) Dos reglas de la cadena real:
+ *   · La CUENTA se queda FUERA del pin: su elección es `cfg.engine` y
+ *     `buildVoiceChain` la coloca detrás del pin (que nadie fije motor ⇒ el
+ *     pin por defecto de `refreshPersonalityVoicePin`). Así el router no le
+ *     promete a la cuenta la cabecera de la cadena que no suena.
+ *   · El override NEURONA×PERSONALIDAD solo entra con personalidad activa:
+ *     sin persona la cadena real no lo lee (`neuronPersonaVoice(null)` →
+ *     null), aunque el llamador traiga la elección leída con
+ *     `persona?.id ?? "*"` — llega ya integrada en `store.neurona`.
  */
 function elegirDeStore(
   store: VoiceHierarchyStore,
   ctx: VoiceHierarchyContext,
 ): ResolvedVoiceChoice | null {
-  const cuenta = motorDe(store.cuenta?.motor);
   return (
     deMapa(store.agente, ctx.agentId, "agente") ??
-    deMapa(store.neurona, ctx.deviceId, "neurona") ??
+    deMapa(store.neurona, ctx.personaId ? ctx.deviceId : null, "neurona") ??
     deMapa(store.personalidad, ctx.personaId, "personalidad") ??
-    deMapa(store.cerebro, ctx.brainId, "cerebro") ??
-    (cuenta ? { motor: cuenta, provenance: "cuenta" } : null)
+    deMapa(store.cerebro, ctx.brainId, "cerebro")
   );
 }
 
 /**
- * Motor fijado por la JERARQUÍA, o `null` si ningún ámbito elige (⇒ AUTO).
- * Precedencia: agente > neurona > personalidad > cerebro > cuenta.
+ * Motor fijado por la JERARQUÍA, o `null` si ningún ámbito elige (⇒ el pin
+ * por defecto de `refreshPersonalityVoicePin` encabeza la cadena y la CUENTA
+ * queda detrás, como en `buildVoiceChain`).
+ * Precedencia: agente > neurona > personalidad > cerebro.
  *
  * Pasa SIEMPRE por `resolveVoiceChoice` (y este por `voiceHierarchyStoreFrom`):
  * es el único camino que completa el store, así que no queda una segunda
@@ -185,7 +210,11 @@ export interface VoiceHierarchySources {
   personality?: PersonalityVoiceShape | null;
   /** Override neurona×personalidad de esta neurona (Adenda 149). */
   override?: { voz?: { motor?: string } } | null;
-  /** Config de la cuenta (Ajustes → Voz). */
+  /**
+   * Config de la cuenta (Ajustes → Voz). (SGO1031B) NO fija pin: vive en la
+   * cadena como `cfg.engine`, detrás del pin por defecto. Se conserva por
+   * compatibilidad con los llamadores que la pasen.
+   */
   config?: VoiceConfigShape | null;
 }
 
@@ -206,15 +235,20 @@ function conMotor(
 
 /**
  * Construye el store de la jerarquía a partir de las fuentes crudas del turno:
- * lo guardado en `store` manda; lo que falte se deriva de la personalidad, del
- * override neurona×personalidad y de la cuenta. Función pura; nunca lanza.
+ * lo guardado en `store` manda; lo que falte se deriva de la personalidad y del
+ * override neurona×personalidad. Función pura; nunca lanza.
+ *
+ * (SGO1031B) El override SOLO entra con personalidad activa: la cadena real no
+ * lo lee sin persona (`neuronPersonaVoice(null)` → null), aunque el llamador
+ * traiga una elección leída con `persona?.id ?? "*"`. La cuenta se guarda tal
+ * cual en el store, pero no fija pin (ver `elegirDeStore`).
  */
 function voiceHierarchyStoreFrom(
   sources: VoiceHierarchySources = {},
 ): VoiceHierarchyStore {
   const store = sources.store ?? {};
   const ctx = sources.ctx ?? {};
-  const cuentaMotor = motorDe(store.cuenta?.motor) ?? voiceChoiceFromConfig(sources.config);
+  const conPersona = !!ctx.personaId;
   return {
     agente: store.agente,
     personalidad: conMotor(
@@ -226,17 +260,19 @@ function voiceHierarchyStoreFrom(
     neurona: conMotor(
       store.neurona,
       ctx.deviceId,
-      voiceChoiceFromOverride(sources.override),
+      conPersona ? voiceChoiceFromOverride(sources.override) : null,
     ),
-    cuenta: cuentaMotor ? { ...(store.cuenta ?? {}), motor: cuentaMotor } : store.cuenta,
+    cuenta: store.cuenta,
   };
 }
 
 /**
  * Motor elegido por la JERARQUÍA a partir de las fuentes crudas del turno, o
- * `null` si ningún ámbito fija motor (⇒ manda la cadena AUTO). Es el mismo
- * camino que recorre `speakWithConfiguredEngine`, expuesto en una sola llamada
- * para que el router no recomponga la precedencia a mano.
+ * `null` si ningún ámbito fija motor (⇒ el pin por defecto de
+ * `refreshPersonalityVoicePin` encabeza la cadena y la cuenta queda detrás, la
+ * misma cadena que suena). Es el mismo camino que recorre
+ * `speakWithConfiguredEngine`, expuesto en una sola llamada para que el router
+ * no recomponga la precedencia a mano.
  */
 export function resolveVoiceChoice(
   sources: VoiceHierarchySources = {},
