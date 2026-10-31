@@ -99,13 +99,14 @@ describe("FilasDeProcesos plegables", () => {
     });
 
     it("cierra y abre la lista, y cerrada enseña el resumen correcto", () => {
+        const latidoA1: LatidoTarea = { tarea: "A1", cola: "mac", fase: "escribiendo", modelo: "openrouter/glm-4", minutos: 2, quietoSegundos: 0, donde: "mac", medio: "opencode" };
         const tasks = [
-            tarea("A1", { estado: "en_curso", vivo: { tarea: "A1", cola: "mac", donde: "mac", fase: "escribiendo", modelo: "openrouter/glm-4", minutos: 2, quietoSegundos: 0, medio: "opencode" } }),
+            tarea("A1", { estado: "en_curso", vivo: latidoA1, titulo: "La viva" }),
             tarea("A2", { estado: "pendiente", titulo: "La que espera turno" }),
         ];
         const olaConTasks = {
             ...ola,
-            tareas,
+            tareas: tasks,
             total: tasks.length,
             hechas: tasks.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "informe"].includes(t.estado)).length,
             enCurso: tasks.filter((t) => t.vivo || t.estado === "en_curso").length,
@@ -114,29 +115,33 @@ describe("FilasDeProcesos plegables", () => {
             pendientes: tasks.filter((t) => t.estado === "pendiente").length,
             esperandoAprobacion: 0,
             viva: true,
+            numero: 300,
         };
+        const enjambresParaTest = [
+            { donde: "mac", cola: "cola-mac.json", agentesActivos: 1, memoriaMb: null, integradas: 0, proveedores: {}, t: "2026-10-29T04:00:00", medio: "opencode" },
+        ];
         render(
             <FilasDeProcesos
                 olas={[olaConTasks]}
                 olaSel={olaConTasks}
-                latidos={[latido]}
-                enjambres={enjambres}
+                latidos={[latidoA1]}
+                enjambres={enjambresParaTest}
                 onVer={() => {}}
             />,
         );
-        const ola = screen.getByLabelText("Fila de la ola · 300");
-        expect(within(ola).getAllByTitle("Abrir la ficha")).toHaveLength(2);
-        expect(within(ola).getByText("A1")).toBeInTheDocument();
-        expect(within(ola).getByText("A2")).toBeInTheDocument();
+        const olaSeccion = screen.getByLabelText("Fila de la ola · 300");
+        expect(within(olaSeccion).getAllByTitle("Abrir la ficha")).toHaveLength(2);
+        expect(within(olaSeccion).getByText("A1")).toBeInTheDocument();
+        expect(within(olaSeccion).getByText("A2")).toBeInTheDocument();
 
-        fireEvent.click(within(ola).getByRole("button", { name: /Cerrar lista/ }));
-        expect(ola.querySelector("div[id$='-contenido']")).toBeNull();
-        expect(within(ola).queryByText("La viva")).not.toBeInTheDocument();
-        expect(within(ola).getByText("1 en curso · 1 pendientes · 0 hechas")).toBeInTheDocument();
+        fireEvent.click(within(olaSeccion).getByRole("button", { name: /Cerrar lista/ }));
+        expect(olaSeccion.querySelector("div[id$='-contenido']")).toBeNull();
+        expect(within(olaSeccion).queryByText("La viva")).not.toBeInTheDocument();
+        expect(within(olaSeccion).getByText("1 en curso · 1 pendientes · 0 hechas")).toBeInTheDocument();
 
-        fireEvent.click(within(ola).getByRole("button", { name: /Abrir lista/ }));
-        expect(within(ola).getByText("La viva")).toBeInTheDocument();
-        expect(within(ola).queryByText("1 en curso · 1 pendientes · 0 hechas")).not.toBeInTheDocument();
+        fireEvent.click(within(olaSeccion).getByRole("button", { name: /Abrir lista/ }));
+        expect(within(olaSeccion).getByText("La viva")).toBeInTheDocument();
+        expect(within(olaSeccion).queryByText("1 en curso · 1 pendientes · 0 hechas")).not.toBeInTheDocument();
     });
 
     it("fase, modelo y dónde van en pastillas y el título no se corta (va debajo en móvil)", () => {
@@ -151,13 +156,14 @@ describe("FilasDeProcesos plegables", () => {
     });
 
     it("cada agente es su propia sección: abierto con algo vivo, cerrado sin latido", () => {
+        const latidoA1: LatidoTarea = { tarea: "A1", cola: "cola-pruebas", fase: "escribiendo", modelo: "openrouter/glm-4", minutos: 2, quietoSegundos: 0, donde: "mac", medio: "opencode" };
         const tasks = [
-            tarea("A1", { estado: "en_curso", vivo: { tarea: "A1", cola: "mac", donde: "mac", fase: "escribiendo", modelo: "openrouter/glm-4", minutos: 2, quietoSegundos: 0, medio: "opencode" } }),
-            tarea("A2", "commit", { cola: "otras", titulo: "La integrada de la otra cola" }),
+            tarea("A1", { estado: "en_curso", vivo: latidoA1 }),
+            tarea("A2", { estado: "pendiente", titulo: "Pendiente en otra cola" }),
         ];
         const olaConTasks = {
             ...ola,
-            tareas,
+            tareas: tasks,
             total: tasks.length,
             hechas: tasks.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "informe"].includes(t.estado)).length,
             enCurso: tasks.filter((t) => t.vivo || t.estado === "en_curso").length,
@@ -167,31 +173,30 @@ describe("FilasDeProcesos plegables", () => {
             esperandoAprobacion: 0,
             bloqueadas: 0,
             viva: true,
+            numero: 300,
         };
         const enjambresConMock = [
-            { donde: "mac", cola: "cola-pruebas", agentesActivos: 1, memoriaMb: null, integradas: 3, proveedores: {}, t: "2026-10-29T04:00:00", medio: "opencode" },
-            { donde: "nube", cola: "cola-otras", agentesActivos: 0, memoriaMb: null, integradas: 0, proveedores: {}, t: "2026-10-29T04:00:00", medio: "claude" },
+            { donde: "mac", cola: "cola-pruebas.json", agentesActivos: 1, memoriaMb: null, integradas: 3, proveedores: {}, t: "2026-10-29T04:00:00", medio: "opencode" },
+            { donde: "nube", cola: "cola-otras.json", agentesActivos: 0, memoriaMb: null, integradas: 0, proveedores: {}, t: "2026-10-29T04:00:00", medio: "claude" },
         ];
         render(
             <FilasDeProcesos
                 olas={[olaConTasks]}
                 olaSel={olaConTasks}
-                latidos={[tasks[0].vivo]}
+                latidos={[latidoA1]}
                 enjambres={enjambresConMock}
                 onVer={() => {}}
             />,
         );
-        const vivo = screen.getByLabelText("Agente en mac · cola-pruebas · desde mando");
-        expect(vivo.querySelector("[role='button'], button")).not.toBeNull();
-        expect(within(vivo).getByText("A1")).toBeInTheDocument();
-        expect(within(vivo).getAllByText(/1 escribiendo · 0 en fila · 2 integradas/).length).toBeGreaterThan(0);
+        const agenteVivo = screen.getByLabelText("cola-pruebas");
+        expect(within(agenteVivo).getByText("1 escribiendo · 0 en fila · 3 integradas")).toBeInTheDocument();
 
-        const parado = screen.getByLabelText("Agente en nube · cola-otras · desde mando");
-        expect(screen.queryByText("Sin tareas en fila: está cerrando.")).not.toBeInTheDocument();
-        const abrir = parado.querySelector<HTMLButtonElement>("button[aria-controls]");
+        // Agente sin latido: cerrado por defecto (no tiene nada vivo)
+        const agenteParado = screen.getByLabelText("cola-otras");
+        const abrir = agenteParado.querySelector<HTMLButtonElement>("button[aria-controls]");
         expect(abrir).toHaveAttribute("aria-expanded", "false");
         fireEvent.click(abrir!);
-        expect(screen.getByText("Sin tareas en fila: está cerrando.")).toBeInTheDocument();
+        expect(within(agenteParado).getByText("Pendiente en otra cola")).toBeInTheDocument();
         expect(abrir).toHaveAttribute("aria-expanded", "true");
     });
 });
