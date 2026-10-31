@@ -77,7 +77,8 @@ describe('Etiqueta titanio al adoptar un router (routers-malla-panel)', () => {
 
   it('al marcar «ya tiene OpenWrt», el router dice «entra en la retícula como titanio»', () => {
     render(<RoutersMallaPanel />);
-    expect(screen.getByText('Ya tiene OpenWrt')).not.toBeNull();
+    añadirRouter('Archer C7', false);
+    expect(screen.getAllByLabelText('Ya tiene OpenWrt')[0]).not.toBeNull();
     expect(screen.queryByText('entra en la retícula como titanio')).toBeNull();
     fireEvent.click(screen.getAllByLabelText('Ya tiene OpenWrt')[0]);
     expect(screen.getByText('entra en la retícula como titanio')).not.toBeNull();
