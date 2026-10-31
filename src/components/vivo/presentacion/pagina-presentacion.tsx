@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Cast, CloudOff, History, Link2, Loader2, Play, Plus, Presentation, Redo2, SearchX, StickyNote, Undo2 } from "lucide-react";
+import { Cast, CloudOff, FileDown, History, Link2, Loader2, Play, Plus, Presentation, Redo2, SearchX, StickyNote, Undo2 } from "lucide-react";
 import type { OpcionesCambio } from "@/components/messages/rico/historial";
 import { updateSpaceMeta } from "@/lib/spaces/spaces";
 import type { ElementoLienzo, LienzoMensaje } from "@/lib/mensajeria/formato-tipos";
@@ -42,6 +42,7 @@ import {
     type DisenoDiapositiva,
     type MetaPresentacion,
 } from "@/lib/vivo/presentacion";
+import { nombreArchivoPresentacion, presentacionAHtml } from "@/lib/vivo/presentacion-html";
 import {
     AvataresPresencia,
     AvisoError,
@@ -54,6 +55,7 @@ import {
     MenuAcciones,
     PantallaEstado,
     copiarEnlace,
+    descargarArchivo,
     useAvisosConflicto,
     useVersionesAutomaticas,
 } from "@/components/vivo/documento/comun-colab";
@@ -357,6 +359,10 @@ export function PaginaPresentacion({ espacioId }: { espacioId: string }) {
         setSiguiendo(false);
         setPresentando(indiceSel);
     };
+    const exportarHtml = () => {
+        const diapositivas = unidades.flatMap((u) => (u.datos ? [u.datos] : []));
+        descargarArchivo(nombreArchivoPresentacion(meta), presentacionAHtml(meta, diapositivas, { incluirNotas: true }), "text/html");
+    };
     const salirDePresentar = () => {
         if (difundiendo) dejarDeDifundir();
         setPresentando(null);
@@ -452,6 +458,7 @@ export function PaginaPresentacion({ espacioId }: { espacioId: string }) {
                             />
                         )}
                         <FilaMenu icono={History} etiqueta="Historial de versiones" ayuda="Las 20 últimas, restaurables" onClick={() => setVersiones(true)} />
+                        <FilaMenu icono={FileDown} etiqueta="Exportar a HTML" ayuda="Un solo archivo que se abre sin conexión" color="#10B981" onClick={exportarHtml} />
                         <FilaMenu icono={Link2} etiqueta="Copiar enlace" ayuda="Lo abre quien tenga acceso" color="#007FFF" onClick={() => void copiarEnlace(rutaPresentacion(espacioId))} />
                     </MenuAcciones>
                 </div>

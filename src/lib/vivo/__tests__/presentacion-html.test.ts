@@ -30,6 +30,7 @@ describe("presentacion-html · piezas", () => {
         expect(hexValido("#abc")).toBe("#abc");
         expect(hexValido("#AABBCCDD")).toBe("#aabbccdd");
         expect(hexValido("red")).toBeNull();
+        expect(hexValido(" #abc ")).toBeNull();
         expect(hexValido(12)).toBeNull();
     });
 });
