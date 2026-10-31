@@ -73,4 +73,31 @@ describe("servicio hyperframes · rutas puras", () => {
     expect(sinRutas("en /home/a/b")).toBe("en <ruta>");
     expect(tamanoCuerpo(null)).toBe(0);
   });
+
+  it("actualizar: pasa por planActualizacion y aplicar con el actualizador inyectado", async () => {
+    const orden: string[] = [];
+    const d2 = { ...deps(), version: "0.8.172", actualizador: {
+      instalar: async (v: string) => orden.push(`instalar ${v}`),
+      lint: async () => null,
+      renderPrueba: async () => [10, 20, 30],
+      huellasReferencia: async () => [9, 19, 30],
+      cambiarEnlace: (a: string, n: string) => orden.push(`enlace ${a}→${n}`),
+    } };
+    const r = await manejar({ metodo: "POST", ruta: "/actualizar", cuerpo: { disponible: "0.8.173" } }, d2);
+    expect(r).toEqual({ estado: 200, cuerpo: { ok: true, pasos: ["instalar", "lint", "render-prueba", "comparar-huellas", "cambiar-enlace"], version: "0.8.173" } });
+    expect(orden).toEqual(["instalar 0.8.173", "enlace 0.8.172→0.8.173"]);
+  });
+
+  it("actualizar: plan no viable (rebajarse o no semver) no ejecuta nada; sin falla queda la anterior", async () => {
+    const d2 = { ...deps(), version: "0.8.173", actualizador: { instalar: async () => { throw new Error("petó"); } } };
+    const abajo = await manejar({ metodo: "POST", ruta: "/actualizar", cuerpo: { disponible: "0.8.172" } }, d2);
+    expect(abajo).toEqual({ estado: 409, cuerpo: { ok: false, pasos: [], version: null, motivo: "no se baja de versión sola" } });
+    const raro = await manejar({ metodo: "POST", ruta: "/actualizar", cuerpo: { disponible: "rc.1" } }, d2);
+    expect(raro.estado).toBe(409);
+    const d3 = { ...deps(), version: "0.8.172", actualizador: { instalar: async () => undefined, lint: async () => "2 errores", huellasReferencia: async () => [1, 2, 3] } };
+    const petado = await manejar({ metodo: "POST", ruta: "/actualizar", cuerpo: { disponible: "0.8.173" } }, d3);
+    expect(petado).toEqual({ estado: 409, cuerpo: { ok: false, pasos: ["instalar"], version: "0.8.172", motivo: "lint con fallos: 2 errores" } });
+    expect((await manejar({ metodo: "POST", ruta: "/actualizar", cuerpo: {} }, deps())).estado).toBe(400);
+    expect((await manejar({ metodo: "POST", ruta: "/actualizar", cuerpo: { disponible: "0.8.173" } }, deps())).estado).toBe(503);
+  });
 });
