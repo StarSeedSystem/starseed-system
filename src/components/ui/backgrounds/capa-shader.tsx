@@ -1,23 +1,58 @@
 "use client";
 
-import React from "react";
-import dynamic from "next/dynamic";
+import React, { useEffect, useState } from "react";
+import type { BackgroundLayer, ShaderPreset } from "@/lib/appearance/background-layers";
 
-const createShader = dynamic(
-    () => import("shaders/js").then((m) => m.createShader),
-    { ssr: false, loading: () => null },
-);
+type ShaderComponentProps = { preset: ShaderPreset };
 
-interface ShaderLayerProps {
-    layer: import("@/lib/appearance/background-layers").BackgroundLayer;
+function ShaderCanvas({ preset, onLoad }: { preset: ShaderPreset; onLoad: () => void }) {
+    const canvasRef = React.useRef<HTMLCanvasElement>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!canvasRef.current || !preset?.components?.length) return;
+        const run = async () => {
+            try {
+                const { createShader } = await import("shaders/js");
+                const shader = createShader();
+                const ctx = shader(canvasRef.current!, {
+                    preset,
+                    disableTelemetry: true,
+                });
+                onLoad();
+            } catch (e) {
+                setError(String(e));
+            }
+        };
+        run();
+    }, [preset, onLoad]);
+
+    if (error) return <div className="absolute inset-0 flex items-center justify-center text-xs text-red-400">Error shader: {error}</div>;
+
+    return <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />;
 }
 
-function ShaderLayer({ layer }: ShaderLayerProps) {
-    const { preset, opacity, blend, transform, visible } = layer;
+interface CapaShaderProps {
+    layer: BackgroundLayer;
+}
 
-    if (!visible) return null;
+export function CapaShader({ layer }: CapaShaderProps) {
+    const { opacity, blend, transform, visible, preset } = layer;
 
-    const ShaderComponent = createShader();
+    if (!visible || !preset?.components?.length) {
+        return (
+            <div
+                className="absolute inset-0 h-full w-full overflow-hidden"
+                style={{
+                    opacity,
+                    mixBlendMode: blend,
+                    ...transform && {
+                        transform: `translate(${transform.x}%, ${transform.y}%) scale(${transform.escala}) rotate(${transform.rotacion}deg)`,
+                    },
+                }}
+            />
+        );
+    }
 
     return (
         <div
@@ -26,19 +61,11 @@ function ShaderLayer({ layer }: ShaderLayerProps) {
                 opacity,
                 mixBlendMode: blend,
                 ...transform && {
-                    transform: `translate(${transform.x}%, ${transform.y}%) scale(${transform.escala}) rotate(${transform.rotacion}deg) scale(${transform.ancho}, ${transform.alto})`,
+                    transform: `translate(${transform.x}%, ${transform.y}%) scale(${transform.escala}) rotate(${transform.rotacion}deg)`,
                 },
             }}
         >
-            {visible && <ShaderComponent preset={preset} />}
+            <ShaderCanvas preset={preset} onLoad={() => {}} />
         </div>
     );
-}
-
-export function CapaShader({
-    layer,
-}: {
-    layer: import("@/lib/appearance/background-layers").BackgroundLayer;
-}) {
-    return <ShaderLayer layer={layer} />;
 }
