@@ -50,8 +50,11 @@ describe("encolarTrabajo", () => {
     expect(r).toMatchObject({ ok: false, requiereConfirmacion: true });
     expect(existsSync(path.join(raiz, "cola"))).toBe(false);
   });
-  it("rechaza ids con .. o de largo equivocado", async () => {
+  it("rechaza ids con .., hex no válido o de largo equivocado", async () => {
     expect(await estadoDe(`../${"0".repeat(32)}`)).toBeNull();
+    // Verdad de la rama nube/40785524609 (RTDAN1024F): también rechaza un id
+    // del largo correcto que no sea hex minúsculas (RE_ID), sin mirar el disco.
+    expect(await estadoDe("z".repeat(32))).toBeNull();
     expect(await estadoDe("0".repeat(31))).toBeNull();
     expect((await leerSalida("0".repeat(32), "../secreto")).ok).toBe(false);
   });
