@@ -10,7 +10,7 @@
 import type { ReactNode } from "react";
 import { Container, Image } from "@react-three/uikit";
 import { PanelCristal, Texto3D } from "./panel-cristal";
-import { escenaSegura, type Nodo3D } from "./uispec-mapa";
+import { escenaSegura, MOTIVO_SIN_VISTA, type Nodo3D } from "./uispec-mapa";
 
 export interface PropsUiSpec3D {
     spec: unknown;
@@ -85,11 +85,12 @@ function pintar(nodo: Nodo3D, clave: string, onAccion?: (id: string) => void): R
         case "boton": {
             const id = texto(nodo.props.id) || nodo.bloqueId || "";
             const etiqueta = texto(nodo.props.etiqueta) || id;
-            const handle = onAccion ? () => onAccion(id) : undefined;
+            if (!onAccion) return <Texto3D key={clave} distancia={2} tono="textoSecundario">{`${etiqueta} · próximamente: esta página aún no tiene acciones en el visor`}</Texto3D>;
+            const handle = () => onAccion(id);
             return (
                 <Container
                     key={clave}
-                    cursor={handle ? "pointer" : undefined}
+                    cursor="pointer"
                     onClick={handle}
                     paddingTop={8}
                     paddingBottom={8}
@@ -111,7 +112,7 @@ function pintar(nodo: Nodo3D, clave: string, onAccion?: (id: string) => void): R
         default:
             return (
                 <Texto3D key={clave} distancia={2} tono="textoSecundario">
-                    {nodo.motivo ?? "Este bloque aún no tiene vista 3D"}
+                    {nodo.motivo ?? MOTIVO_SIN_VISTA}
                 </Texto3D>
             );
     }

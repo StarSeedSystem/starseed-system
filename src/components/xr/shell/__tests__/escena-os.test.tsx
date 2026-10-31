@@ -25,9 +25,10 @@ vi.mock("@react-three/xr", () => ({
 vi.mock("@react-three/drei", () => ({ OrbitControls: () => null }));
 vi.mock("../use-capacidades-xr", () => ({ useCapacidadesXR: vi.fn() }));
 vi.mock("../almacen-xr", () => ({ obtenerAlmacenXR: vi.fn() }));
+vi.mock("@/lib/astraura-bots/adaptadores/ejecutor-acciones", () => ({ EVENTO_CAPA_BOT: "starseed:astraura-bot-capa", capasPanelAhora: () => [] }));
 
 import * as pagina from "@/app/(app)/xr/os/page";
-import { EscenaOS, alturaOjosDe, debeAutoEntrar, modoBotonDe } from "../escena-os";
+import { EscenaOS, alturaOjosDe, debeAutoEntrar, modoBotonDe, uiSpecDeCapas } from "../escena-os";
 import { useCapacidadesXR } from "../use-capacidades-xr";
 
 const UA_QUEST = "Mozilla/5.0 (X11; Linux x86_64) OculusBrowser/38.0 Chrome/134.0 VR Safari/537.36 Quest 3";
@@ -95,6 +96,16 @@ describe("alturaOjosDe / modoBotonDe", () => {
         expect(modoBotonDe("ar", ["ar-mano"])).toBe("ar-mano");
         expect(modoBotonDe("ar", ["vr-inmersivo"])).toBe("auto");
         expect(modoBotonDe(null, [])).toBe("auto");
+    });
+});
+
+describe("uiSpecDeCapas", () => {
+    it("elige el último widget con UiSpec y dice que no cuando no hay ninguno", () => {
+        const uno = { version: 1, superficie: "os:uno", bloques: [] };
+        const dos = { version: 1, superficie: "os:dos", bloques: [] };
+        expect(uiSpecDeCapas([{ forma: "nota", uiSpec: uno }, { forma: "widget", uiSpec: uno }, { forma: "widget", uiSpec: dos }])).toBe(dos);
+        expect(uiSpecDeCapas([{ forma: "nota", uiSpec: uno }, { forma: "widget" }])).toBeNull();
+        expect(uiSpecDeCapas([])).toBeNull();
     });
 });
 
