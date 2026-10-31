@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "VPU1019Nb",
+   "ola": "Ola 1019V · Variaciones públicas en el clic derecho de absolutamente todo el OS",
+   "titulo": "Clic derecho global montado en toda la app",
+   "archivos": [
+    "src/components/variaciones/clic-derecho-global.tsx",
+    "src/app/(app)/app-globals.tsx",
+    "src/components/variaciones/__tests__/clic-derecho-global.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Componente que escucha `contextmenu` y la pulsación larga (patrón de `use-context-trigger.ts`) en el documento: si el objetivo tiene menú propio (marca `data-ss-menu-propio`) no hace nada; en campos de texto y con Mayúsculas deja el menú del navegador; si hay clave, muestra un menú con «Variaciones públicas», «Publicar mi variación» y «Copiar enlace al elemento». Teclado: tecla de menú y Mayúsculas+F10. En `app-globals.tsx` SOLO añade el montaje de este componente y de `variaciones-host`. Prueba. Contrato: architecture/variaciones-publicas.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen, SOLO añadir (no reescribas lo que hay); módulos PUROS siempre que se pueda (Supabase, almacenamiento, reloj y DOM inyectables); pruebas sin red; nada de `any`; una variación nunca lleva datos privados ni secretos; nada se ejecuta sin validar y el código solo corre aislado; estética del OS (cristal, píldoras, tokens; nada de hexadecimales sueltos); comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41006860126`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 41015290365) falla «tsc»: 6:39:57.8404928Z env:\n2026-10-30T06:39:57.8405187Z   NODE_OPTIONS: --max-old-space-size=8192\n2026-10-30T06:39:57.8405485Z ##[endgroup]\n2026-10-30T06:42:42.4932434Z ##[error]src/lib/genesis/mcp/ruta.ts(15,14): error TS2741: Property '\"variaciones:buscar\"' is missing in type '{ \"estado:leer\": \"ver-resumen\"; \"tareas:listar\": \"ver-resumen\"; \"tareas:crear\": \"encolar\"; \"agentes:listar\": \"ver-resumen\"; \"medidores:leer\": \"ver-resumen\"; \"operaciones:proponer\": \"encolar\"; \"biblioteca:buscar\": \"ver-detalle\"; \"opciones:sugerir\": \"ver-resumen\"; \"chat:enviar\": \"chatear\"; }' but required in type 'Record<PermisoMcp, CapacidadAmbito>'.\n2026-10-30T06:42:43.0253586Z ##[error]Process completed with exit code 2.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41006860126:refs/remotes/origin/nube/41006860126\"` y `git cherry-pick --no-commit 9ca53d92d86c`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/app/(app)/app-globals.tsx, src/components/variaciones/__tests__/clic-derecho-global.test.tsx, src/components/variaciones/clic-derecho-global.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41006860126",
+   "dependencias_ya_en_main": [
+    "VPU1019A",
+    "VPU1019M"
+   ]
+  }
+ ]
+}
