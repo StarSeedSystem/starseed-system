@@ -95,9 +95,18 @@ describe("validarTrabajo", () => {
   it("neutraliza textos de inyección en nombre y texto3d", () => {
     expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "\"); import os", tam: 1 }])).join(" ")).toContain("nombre inválido");
     expect(motivos(conEscena([{ ...CUBO, nombre: "Cubo\nrm -rf /" }])).join(" ")).toContain("nombre inválido");
+    // La lista cerrada ^[A-Za-z][A-Za-z0-9_-]{0,31}$ deja fuera el unicode, el largo y los dígito (nombre).
+    expect(motivos(conEscena([{ ...CUBO, nombre: "Cuboño" }])).join(" ")).toContain("nombre inválido");
+    expect(motivos(conEscena([{ ...CUBO, nombre: "立立方方" }])).join(" ")).toContain("nombre inválido");
+    expect(motivos(conEscena([{ ...CUBO, nombre: "a".repeat(33) }])).join(" ")).toContain("nombre inválido");
+    expect(motivos(conEscena([{ ...CUBO, nombre: "2empieza" }])).join(" ")).toContain("nombre inválido");
     for (const texto of ["hola\nimport os", "emoji 😈", "línea uno\nlínea dos", "Cubo\u2028 业"]) expect(motivos(conEscena([{ op: "texto3d", nombre: "t", texto, extrusion: 0.1, tam: 1 }])).join(" ")).toContain("texto con caracteres no permitidos");
     expect(motivos(conEscena([{ op: "texto3d", nombre: "t", texto: "x".repeat(65), extrusion: 0.1, tam: 1 }])).join(" ")).toContain("texto más largo de 64");
     expect(valido(conEscena([{ op: "texto3d", nombre: "t", texto: "'); import os", extrusion: 0.1, tam: 1 }])).escena[0].texto).toBe("'); import os");
+    // El texto rico (tildes, ñ, signos de apertura y paréntesis) se queda tal cual:
+    // llega como DATO, nunca como código, aunque contenga apóstrofes y paréntesis.
+    const rico = "¿Versión con ñ? ¡Sí! (n.1) 'cosas'";
+    expect(valido(conEscena([{ op: "texto3d", nombre: "t", texto: rico, extrusion: 0.2, tam: 1.2 }])).escena[0].texto).toBe(rico);
   });
   it("acepta una escena con todas las operaciones del vocabulario", () => {
     const escena = [
