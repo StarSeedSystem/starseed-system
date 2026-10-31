@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "INV1025N",
+   "ola": "Ola 1025R · Investigación y alcance (Agent-Reach, ScrapeGraphAI, OpenRefine, Inbox Zero)",
+   "titulo": "Alcance: rol en el analista de la flota y enganche en el director de autodesarrollo",
+   "archivos": [
+    "scripts/enjambre/analista.py",
+    "scripts/puente/director_autodesarrollo.py",
+    "scripts/puente/test_director_autodesarrollo.py"
+   ],
+   "depende": [],
+   "prompt": "(1) `analista.py`, `_analisis_libre`: con `rol == \"alcance\"` el contexto común es el del rol `investigador-alcance` (como hoy `investigador-diseno` para `diseno`), con `capacidad: \"alta\"` y sin las notas de modelos de diseño.\n(2) `director_autodesarrollo.py`: llama a `agente_alcance.ciclo` con import protegido, como `_agente_referencias`; y una propuesta con `agente == \"alcance\"` NUNCA entra en `aprobadas → cola de código` (hoy toda `aprobada` sin `tarea` se encola como tarea de código `IMG-…`: un borrador de mensaje aprobado NO es una tarea) ni en la aprobación automática (`FUENTES_AUTO`, `automatica`): su destino es siempre `esperando-aprobacion` y, al aprobarla, pasa a `aprobada` con `envio: \"pendiente\"` para el panel de alcance (R2). La regla fija «alta y crítica nunca se aprueban solas» ya la cubre; esto la hace explícita para el alcance.\n(3) `test_director_autodesarrollo.py`: una aprobada de alcance no genera tarea; con `auto.aprobar` encendido tampoco se mueve sola; Jev no la mueve.\n\nContrato: architecture/repos-libreria-1025.md (grupo investigación: reglas duras R1–R10 y el diseño del agente de alcance). Reglas de la casa: español con acentos en comentarios y textos; nada de `any`; módulos puros con red, disco y reloj inyectables; claves solo en variables de entorno; nada de `node:*` en código de cliente; ≤ 3 archivos y ≤ 120 líneas por archivo; pruebas reales (si una prueba vieja falla, se arregla el código, no la prueba). Antes de empezar comprueba si lo pedido ya está hecho; si ya está, NO APLICA.",
+   "dependencias_ya_en_main": [
+    "INV1025M"
+   ]
+  }
+ ]
+}
