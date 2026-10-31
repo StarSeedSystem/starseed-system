@@ -213,6 +213,22 @@ class AltaCapacidadCLI(unittest.TestCase):
         self.assertFalse(d["cupo"]["ok"])
         self.assertIn("lectura vieja", d["cupo"]["motivo"])
 
+    def test_sin_progreso_vacio(self):
+        # Rescate de la rama de la nube (RTIMG1020Ab): sin archivo de progreso el CLI
+        # no se cae — el progreso ausente equivale a {} y lista por lo que dice la cola.
+        cola, progreso, limites = self._preparar()
+        os.remove(progreso)
+        r = self._correr("--olas", os.path.dirname(cola), "--progreso", progreso,
+                         "--limites", limites, "--json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        datos = json.loads(r.stdout)
+        self.assertEqual(set(datos), {"cupo", "candidatas", "elegidas"})
+        self.assertTrue(datos["cupo"]["ok"])
+        # Sin progreso no hay entrada bloqueante: T2 queda fuera y T3 vuelve a ser
+        # reintenable; T5 sigue sin elegible porque T9 no está integrado.
+        self.assertEqual(sorted(c["id"] for c in datos["candidatas"]), ["T1", "T3", "T5"])
+        self.assertEqual(datos["elegidas"], ["T1", "T3"])
+
     def test_olas_por_entorno_sin_raiz(self):
         cola, progreso, limites = self._preparar()
         olas = os.path.dirname(cola)
