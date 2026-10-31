@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { VersionesUpstream } from "@/components/library/versiones-upstream";
 
 import { listBrains, type Brain } from "@/lib/brains/brains";
 import {
@@ -242,6 +243,11 @@ export function LibraryUpdatesPanel() {
           </p>
         )}
       </GlassCard>
+
+      {/* ── VERSIONES UPSTREAM de lo instalado (Ola 1025R) ── */}
+      <section aria-label="Versiones de lo que tienes instalado">
+        <VersionesUpstream />
+      </section>
 
       {/* ── NOVEDADES (checkForUpdates) ── */}
       <section className="space-y-3">
