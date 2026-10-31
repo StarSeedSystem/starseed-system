@@ -1238,6 +1238,12 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                     open
                     onOpenChange={(o) => !o && setMoveDialog(null)}
                     folders={doc.folders}
+                    items={moveDialog.kind === "item"
+                        ? moveDialog.ids.map((id) => itemsById.get(id)).filter(Boolean) as SavedItem[]
+                        : []}
+                    entityRef={entityRef}
+                    doc={doc}
+                    canWrite={currentWriteAllowed || ctx.isOwner}
                     excludeIds={
                         moveDialog.kind === "folder" ? folderSubtreeIds(doc.folders, moveDialog.ids[0]) : undefined
                     }
