@@ -76,6 +76,13 @@ export const AURORA_INTEGRATION_TOOLS: AuroraIntegrationTool[] = [
     category: "web-fetch",
     ownServiceId: "firecrawl", // esta tool ES la cuenta de marca de "web-fetch"
   },
+  // ── ScrapeGraphAI — extracción estructurada de una página pública ──
+  {
+    name: "extraer_web",
+    description: "Lee una página pública (respeta robots.txt y las señales noai) y devuelve datos estructurados según el esquema y la instrucción. Entrada: { url, prompt, esquema? }.",
+    integrationId: "scrapegraph",
+    actionId: "extraer",
+  },
   {
     name: "web_search",
     description: "Busca en la web con un metabuscador privado (SearXNG). Entrada: { q } o texto.",

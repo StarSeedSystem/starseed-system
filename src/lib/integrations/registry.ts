@@ -89,6 +89,26 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
     ],
   },
 
+  {
+    id: "scrapegraph",
+    ossId: "scrapegraph-ai",
+    label: "ScrapeGraphAI",
+    category: "data-ingest",
+    capabilities: [
+      "Extraer datos estructurados de una página ya leída",
+      "Esquema JSON e instrucción en lenguaje natural",
+      "Respeta robots.txt y las señales noai / noindex",
+    ],
+    defaultEndpoint: "http://127.0.0.1:8793",
+    needsKey: true, // token local del servicio (no es una clave de nube)
+    docsUrl: "https://github.com/ScrapeGraphAI/Scrapegraph-ai",
+    freeHostingHint:
+      "Corre en la Mac o en el A1 con el servidor de IA del OS: sin telemetría ni API en la nube. El HTML se lee antes con cortesía y el extractor nunca toca la red; el token es solo el del servicio local.",
+    actions: [
+      { id: "extraer", label: "Extraer datos", description: "Extrae datos estructurados de una URL pública o de un HTML ya leído según una instrucción y un esquema opcional." },
+    ],
+  },
+
   // ── Apps y plataformas IA ─────────────────────────────────────
   {
     id: "dify",
