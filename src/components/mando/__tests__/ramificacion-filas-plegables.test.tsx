@@ -98,6 +98,47 @@ describe("FilasDeProcesos plegables", () => {
         expect(within(fila).queryByRole("button", { name: /Ver todas/ })).not.toBeInTheDocument();
     });
 
+    it("cierra y abre la lista, y cerrada enseña el resumen correcto", () => {
+        const tasks = [
+            tarea("A1", { estado: "en_curso", vivo: { tarea: "A1", cola: "mac", donde: "mac", fase: "escribiendo", modelo: "openrouter/glm-4", minutos: 2, quietoSegundos: 0, donde: "nube", medio: "opencode" } }),
+            tarea("A2", { estado: "pendiente", titulo: "La que espera turno" }),
+        ];
+        const olaConTasks = {
+            ...ola,
+            tareas,
+            total: tasks.length,
+            hechas: tasks.filter((t) => ["commit", "bloqueante", "sin_cambios", "sustituida", "reasignada", "informe"].includes(t.estado)).length,
+            enCurso: tasks.filter((t) => t.vivo || t.estado === "en_curso").length,
+            fallidas: 0,
+            sinCambios: 0,
+            pendientes: tasks.filter((t) => t.estado === "pendiente").length,
+            esperandoAprobacion: 0,
+            viva: true,
+        };
+        render(
+            <FilasDeProcesos
+                olas={[olaConTasks]}
+                olaSel={olaConTasks}
+                latidos={[latido]}
+                enjambres={enjambres}
+                onVer={() => {}}
+            />,
+        );
+        const ola = screen.getByLabelText("Fila de la ola · 300");
+        expect(within(ola).getAllByTitle("Abrir la ficha")).toHaveLength(2);
+        expect(within(ola).getByText("A1")).toBeInTheDocument();
+        expect(within(ola).getByText("A2")).toBeInTheDocument();
+
+        fireEvent.click(within(ola).getByRole("button", { name: /Cerrar lista/ }));
+        expect(ola.querySelector("div[id$='-contenido']")).toBeNull();
+        expect(within(ola).queryByText("La viva")).not.toBeInTheDocument();
+        expect(within(ola).getByText("1 en curso · 1 pendientes · 0 hechas")).toBeInTheDocument();
+
+        fireEvent.click(within(ola).getByRole("button", { name: /Abrir lista/ }));
+        expect(within(ola).getByText("La viva")).toBeInTheDocument();
+        expect(within(ola).queryByText("1 en curso · 1 pendientes · 0 hechas")).not.toBeInTheDocument();
+    });
+
     it("fase, modelo y dónde van en pastillas y el título no se corta (va debajo en móvil)", () => {
         montar();
         const vivo = screen.getByLabelText("cola-nio");
