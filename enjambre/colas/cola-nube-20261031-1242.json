@@ -1,0 +1,23 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "TRD1020Gb",
+   "ola": "1020U",
+   "titulo": "Traducción · traducir selección, párrafo y página entera con «Ver original» y el motor a la vista",
+   "archivos": [
+    "src/components/traduccion/traducir-texto.tsx",
+    "src/components/traduccion/__tests__/traducir-texto.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/repos-libreria-1020d.md y el catálogo verificado config/repos-libreria-1020d.json (datos reales: NO los cambies). §4. Registra en el menú de TRD1020E las entradas «Traducir selección», «Traducir este párrafo», «Traducir toda la página» y «Ver original» (esta solo con la página traducida). Usa el motor de TRD1020B (en la web: el traductor del navegador y Astraura; LibreTranslate de la neurona solo en localhost o la app nativa, porque una página https no puede llamar a 127.0.0.1) y `src/lib/traduccion/pagina.ts`. La selección y el párrafo se enseñan en una ventanita con la traducción, el motor que la hizo y «Copiar»; la página entera se traduce por lotes con un aviso discreto de progreso y «Ver original». Idioma destino: el del perfil (TRD1020D). Pruebas con un motor simulado. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; pruebas sin red; nada de `any`; textos en español con acentos; honestidad radical (lo no verificado se dice como tal y nada se inventa).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261030-034003-TRD1020G`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261030-034003-TRD1020G:refs/remotes/origin/nube/a1-20261030-034003-TRD1020G\"` y `git cherry-pick --no-commit a637e256f64e fd538db68eee`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/traduccion/__tests__/traducir-texto.test.tsx, src/components/traduccion/traducir-texto.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261030-034003-TRD1020G",
+   "dependencias_ya_en_main": [
+    "TRD1020B",
+    "TRD1020C",
+    "TRD1020E"
+   ]
+  }
+ ]
+}
