@@ -16,7 +16,7 @@ Dos reglas que costaron caras y por eso están aquí y no en la memoria de nadie
   STARSEED_SOLO=voz-rt python3 instalar-servicios.py   # solo esos (coma), sin tocar el resto
 """
 
-import os, subprocess, sys
+import os, re, shutil, subprocess, sys
 
 # Los argumentos de línea solo cuentan al ejecutarlo como guion: las pruebas
 # importan el módulo (se instala al importarse) y su sys.argv no es de aquí.
@@ -27,6 +27,16 @@ HOME = os.path.expanduser("~")
 AG = os.path.join(HOME, "Library", "LaunchAgents")
 P = lambda n: os.path.join(RAIZ, "scripts", "puente", n)
 LANZ = [PY3, P("lanzador-tcc.py")]
+
+# (2026-10-31, Ola 1018H · HFR1018P) Servicio de vídeo de la neurona (127.0.0.1:4490). Solo se
+# arranca donde haya Node 22, FFmpeg y un navegador headless declarado en el `entorno` del
+# servicio; en la Mac, además, nunca con menos de 2 GB de disco libre (vista previa sí, render no).
+NODE = os.environ.get("STARSEED_NODE") or "/opt/homebrew/bin/node"
+SERVIDOR_HYPERFRAMES = os.path.join(RAIZ, "servicios", "hyperframes", "src", "servidor.mjs")
+ENTORNO_HYPERFRAMES = os.path.join(RAIZ, "servicios", "hyperframes", "entorno")
+NODE_MINIMO = 22
+DISCO_MINIMO_GB = 2
+ES_MAC = sys.platform == "darwin"
 
 # (2026-10-28, Ola 1016M · VGM1016E) El vigía de modelos es de UN disparo al día y nunca
 # debe repetir la pasada. `vigia_modelos.py` guarda la última en ~/.starseed/vigia-modelos.json;
@@ -187,6 +197,11 @@ SERVICIOS = {
             os.path.join(RAIZ, "native", "laya", "servidor-laya.mjs"),
         ],
         "/tmp/starseed-laya.log",
+        True,
+    ),
+    "hyperframes": (
+        LANZ + ["--", NODE, SERVIDOR_HYPERFRAMES],
+        "/tmp/starseed-hyperframes.log",
         True,
     ),
     "flujos": (
@@ -492,12 +507,103 @@ def instalar_chatterbox():
     )
 
 
+# (2026-10-31) Comprobaciones PURAS del arranque de HyperFrames: la versión de Node, la
+# presencia de FFmpeg, la variable del navegador y el disco se reciben ya leídos, para poder
+# probarlas sin procesos, sin red y sin tocar el disco de verdad.
+def version_node(salida):
+    """(mayor, menor, parche) de «v22.23.3», o None si no se entiende."""
+    m = re.match(r"\s*v?(\d+)\.(\d+)\.(\d+)", str(salida or ""))
+    return tuple(int(x) for x in m.groups()) if m else None
+
+
+def node_suficiente(salida, minimo=NODE_MINIMO):
+    v = version_node(salida)
+    return bool(v and v[0] >= minimo)
+
+
+def variable_entorno(texto, nombre):
+    """Valor de CLAVE=valor en un archivo `entorno`; ignora comentarios y quita comillas."""
+    for linea in str(texto or "").splitlines():
+        limpia = linea.strip()
+        if not limpia or limpia.startswith("#") or "=" not in limpia:
+            continue
+        clave, valor = limpia.split("=", 1)
+        if clave.strip().replace("export ", "", 1).strip() != nombre:
+            continue
+        valor = valor.strip()
+        if len(valor) >= 2 and valor[0] == valor[-1] and valor[0] in "\"'":
+            valor = valor[1:-1]
+        if valor:
+            return valor
+    return None
+
+
+def motivo_sin_hyperframes(salida_node, hay_ffmpeg, texto_entorno, disco_gb=None, es_mac=False):
+    """Motivo para NO arrancar el servicio, o None si puede arrancar."""
+    if not node_suficiente(salida_node):
+        return "hace falta Node 22 o superior"
+    if not hay_ffmpeg:
+        return "falta ffmpeg en el PATH"
+    if not variable_entorno(texto_entorno, "HYPERFRAMES_BROWSER_PATH"):
+        return "el archivo entorno no trae HYPERFRAMES_BROWSER_PATH (navegador headless)"
+    if es_mac and disco_gb is not None and disco_gb < DISCO_MINIMO_GB:
+        return "quedan menos de 2 GB libres en disco: la vista previa sí, el render no"
+    return None
+
+
+def _salida_node(node=None):
+    try:
+        r = subprocess.run([node or NODE, "-v"], capture_output=True, text=True, timeout=15)
+        return r.stdout if r.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def _hay_ffmpeg():
+    return shutil.which("ffmpeg") is not None
+
+
+def _texto_entorno(ruta=None):
+    try:
+        with open(ruta or ENTORNO_HYPERFRAMES, encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
+def _disco_libre_gb(ruta=None):
+    try:
+        return shutil.disk_usage(ruta or RAIZ).free / (1024 ** 3)
+    except OSError:
+        return None
+
+
+def instalar_hyperframes():
+    """Instala el servicio si esta neurona puede; si no, lo dice y no deja nada cargado."""
+    texto = _texto_entorno()
+    if not variable_entorno(texto, "HYPERFRAMES_BROWSER_PATH"):
+        print("  hyperframes  OMITIDO · el archivo entorno no trae HYPERFRAMES_BROWSER_PATH (navegador headless)")
+        return False
+    motivo = motivo_sin_hyperframes(
+        _salida_node(), _hay_ffmpeg(), texto, _disco_libre_gb(), ES_MAC
+    )
+    if motivo:
+        print("  hyperframes  OMITIDO · %s" % motivo)
+        return False
+    orden, log, siempre = SERVICIOS["hyperframes"]
+    instalar("com.starseed.hyperframes", orden, log, siempre)
+    return True
+
+
 # Reinstalar TODOS reinicia Genesis y los directores; con STARSEED_SOLO se toca solo lo nombrado.
 SOLO = {n.strip() for n in os.environ.get("STARSEED_SOLO", "").split(",") if n.strip()}
 if "chatterbox" in SOLO:
     instalar_chatterbox()
 for nombre, (orden, log, siempre) in SERVICIOS.items():
     if SOLO and nombre not in SOLO:
+        continue
+    if nombre == "hyperframes":
+        instalar_hyperframes()
         continue
     if nombre in CALENDARIO:
         instalar_calendario("com.starseed." + nombre, orden, log, CALENDARIO[nombre])
