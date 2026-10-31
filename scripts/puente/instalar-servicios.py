@@ -16,7 +16,7 @@ Dos reglas que costaron caras y por eso están aquí y no en la memoria de nadie
   STARSEED_SOLO=voz-rt python3 instalar-servicios.py   # solo esos (coma), sin tocar el resto
 """
 
-import os, subprocess, sys
+import os, re, shutil, subprocess, sys
 
 # Los argumentos de línea solo cuentan al ejecutarlo como guion: las pruebas
 # importan el módulo (se instala al importarse) y su sys.argv no es de aquí.
@@ -27,6 +27,94 @@ HOME = os.path.expanduser("~")
 AG = os.path.join(HOME, "Library", "LaunchAgents")
 P = lambda n: os.path.join(RAIZ, "scripts", "puente", n)
 LANZ = [PY3, P("lanzador-tcc.py")]
+
+# (2026-10-31, Ola 1018H · HFR1018P) Servicio «hyperframes» (vídeo, 127.0.0.1:4490). Solo se instala
+# donde de verdad pueda renderizar: Node 22 o mayor, FFmpeg y el navegador headless que declara su
+# archivo `entorno`. En la Mac de 8 GB, con menos de 2 GB libres, no: se queda la vista previa y el
+# render viaja por la malla a una neurona con disco (architecture/video-hyperframes.md §4).
+RUTA_HYPERFRAMES = os.path.join(RAIZ, "servicios", "hyperframes")
+ENTORNO_HYPERFRAMES = os.environ.get("STARSEED_HYPERFRAMES_ENTORNO") or os.path.join(RUTA_HYPERFRAMES, "entorno")
+NODO_HYPERFRAMES = os.environ.get("STARSEED_NODE") or shutil.which("node") or "/opt/homebrew/bin/node"
+DISCO_MINIMO_HYPERFRAMES_GB = 2.0
+
+
+def version_node_ok(salida):
+    """PURA. ¿`node -v` (v22.23.3) declara Node 22 o mayor?"""
+    m = re.match(r"^v?(\d+)", str(salida or "").strip())
+    return bool(m and int(m.group(1)) >= 22)
+
+
+def entorno_tiene_navegador(texto):
+    """PURA. ¿El archivo `entorno` declara HYPERFRAMES_BROWSER_PATH con valor?"""
+    for linea in str(texto or "").splitlines():
+        limpia = linea.strip()
+        if not limpia or limpia.startswith("#") or "=" not in limpia:
+            continue
+        clave, valor = limpia.split("=", 1)
+        if clave.strip() == "HYPERFRAMES_BROWSER_PATH" and valor.strip().strip("\"'"):
+            return True
+    return False
+
+
+def motivo_no_instalar_hyperframes(version_node, hay_ffmpeg, texto_entorno, disco_libre_gb, es_mac):
+    """PURA. Motivo por el que NO se instala hyperframes; None si esta neurona puede renderizar."""
+    if not version_node_ok(version_node):
+        return "hace falta Node 22 o mayor (hay %s)" % (str(version_node).strip() or "nada")
+    if not hay_ffmpeg:
+        return "hace falta FFmpeg"
+    if not entorno_tiene_navegador(texto_entorno):
+        return "el archivo entorno no declara HYPERFRAMES_BROWSER_PATH"
+    if es_mac and disco_libre_gb is not None and disco_libre_gb < DISCO_MINIMO_HYPERFRAMES_GB:
+        return ("quedan %.1f GB de disco y la Mac necesita 2 GB para el render "
+                "(vista previa sí, render no)" % disco_libre_gb)
+    return None
+
+
+def _probar_version_node():
+    try:
+        return subprocess.run([NODO_HYPERFRAMES, "-v"], capture_output=True, text=True).stdout.strip()
+    except OSError:
+        return ""
+
+
+def _hay_ffmpeg():
+    try:
+        return subprocess.run(["ffmpeg", "-version"], capture_output=True).returncode == 0
+    except OSError:
+        return False
+
+
+def _leer_entorno_hyperframes():
+    try:
+        with open(ENTORNO_HYPERFRAMES, encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
+def _disco_libre_gb(ruta):
+    try:
+        return shutil.disk_usage(ruta).free / (1024 ** 3)
+    except OSError:
+        return None
+
+
+def instalar_hyperframes():
+    """Instala com.starseed.hyperframes si esta neurona puede renderizar; si no, lo dice."""
+    texto = _leer_entorno_hyperframes()
+    if not entorno_tiene_navegador(texto):
+        print("  hyperframes  OMITIDO · el archivo entorno no declara HYPERFRAMES_BROWSER_PATH")
+        return
+    motivo = motivo_no_instalar_hyperframes(
+        _probar_version_node(), _hay_ffmpeg(), texto,
+        _disco_libre_gb(RAIZ), sys.platform == "darwin",
+    )
+    if motivo:
+        print("  hyperframes  OMITIDO · %s" % motivo)
+        return
+    orden, log, siempre = SERVICIOS["hyperframes"]
+    instalar("com.starseed.hyperframes", orden, log, siempre)
+
 
 # (2026-10-28, Ola 1016M · VGM1016E) El vigía de modelos es de UN disparo al día y nunca
 # debe repetir la pasada. `vigia_modelos.py` guarda la última en ~/.starseed/vigia-modelos.json;
@@ -187,6 +275,13 @@ SERVICIOS = {
             os.path.join(RAIZ, "native", "laya", "servidor-laya.mjs"),
         ],
         "/tmp/starseed-laya.log",
+        True,
+    ),
+    # (2026-10-31, Ola 1018H · HFR1018P) Vídeo HyperFrames. No se instala a ciegas: la rama del
+    # bucle llama a `instalar_hyperframes()`, que exige Node 22, FFmpeg, navegador y disco.
+    "hyperframes": (
+        LANZ + ["--", NODO_HYPERFRAMES, os.path.join(RUTA_HYPERFRAMES, "src", "servidor.mjs")],
+        "/tmp/starseed-hyperframes.log",
         True,
     ),
     "flujos": (
@@ -498,6 +593,9 @@ if "chatterbox" in SOLO:
     instalar_chatterbox()
 for nombre, (orden, log, siempre) in SERVICIOS.items():
     if SOLO and nombre not in SOLO:
+        continue
+    if nombre == "hyperframes":
+        instalar_hyperframes()
         continue
     if nombre in CALENDARIO:
         instalar_calendario("com.starseed." + nombre, orden, log, CALENDARIO[nombre])
