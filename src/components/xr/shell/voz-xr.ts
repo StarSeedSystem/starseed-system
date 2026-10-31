@@ -76,6 +76,8 @@ export type EstadoVoz = { estado: "cerrado" } | { estado: "escuchando" } | { est
 export interface OpcionesSesion {
     /** Contexto CONGELADO al soltar: listas + enfoque + molécula con foco. */
     preguntar: () => { ctx: ContextoVoz; molecula: boolean }; alEstado: (e: EstadoVoz) => void; alParcial: (t: string) => void; alReparto: (r: Reparto) => void;
+    /** La frase final, para reintentarla si en la tarjeta se elige un candidato (XR1010Q). Opcional. */
+    alFrase?: (t: string) => void;
 }
 export interface SesionVoz {
     /** `true` = pulsar «hablar» (abre el mic); `false` = soltar (lo cierra y reparte). */
