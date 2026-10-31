@@ -24,6 +24,26 @@ export type AppCategory = "starseed" | "sistema" | "media" | "utilidad" | "creac
 /** 'live' = destino real · 'native' = módulo nativo del OS · 'soon' = en construcción. */
 export type AppStatus = "live" | "native" | "soon";
 
+/**
+ * Formas de ejecutar una app en la malla (§5 de apps-en-la-malla.md).
+ * El catálogo dice cuáles admite cada app; `comoAbrir` elige la más apta.
+ */
+export type ModoEjecucion =
+    | "local"        // módulo web/PWA del OS, corre en el navegador o la app
+    | "por-bandas"   // web/WASM con volumen pesado: solo se baja lo que se usa
+    | "montada"      // nativa fuera del disco, por la pasarela local (WebDAV)
+    | "transmitida"  // corre en otra neurona; la ventana llega por WebRTC
+    | "ramificada";  // interfaz en local, cálculo en otras neuronas
+
+/** Lo que una app necesita para correr bien (todo es medido, nunca inventado). */
+export interface RequisitosApp {
+    ramMb?: number;
+    gpu?: boolean;
+    motores?: string[];
+    /** Id del volumen por bandas (§7) que la app necesita. */
+    volumen?: string;
+}
+
 export interface AppOpenSpec {
     /** Modo por defecto al tocar la app. */
     primary: OpenMode;
@@ -53,6 +73,10 @@ export interface StarseedApp {
     status?: AppStatus;
     /** Marca apps con modo inmersivo (VR/AR — Fase 3). */
     vrCapable?: boolean;
+    /** Formas de ejecutarla en la malla. Sin campo = ["local"], como hoy. */
+    ejecucion?: ModoEjecucion[];
+    /** Lo que necesita para correr; lo usa comoAbrir (modos-app.ts). */
+    requisitos?: RequisitosApp;
 }
 
 // ── Presets de personalización ───────────────────────────────────
