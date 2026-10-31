@@ -105,7 +105,7 @@ export const INTEGRATIONS: IntegrationEntry[] = [
     defaultOn: true, // valor alto, riesgo bajo → encendido por defecto
     adapter: "@/ai/astraura/integrations/agent-reach",
     autoUpdate: { enabled: true, github: "Panniantong/Agent-Reach", pollMinutes: 1440 },
-    reqs: { localCli: true, note: "Python 3.10+ en la neurona del usuario (pip install agent-reach). El OS lo invoca vía el backend de Astraura o proxy." },
+    reqs: { localCli: true, note: "Instalar con: uv tool install https://github.com/Panniantong/Agent-Reach/releases/latest/download/agent-reach.zip (queda en ~/.local/bin). ADVERTENCIA: el paquete 'agent-reach' de PyPI NO es este proyecto; no uses pip ni npx." },
     status: "registered",
   },
   {
