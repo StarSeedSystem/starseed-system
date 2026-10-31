@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   ESQUEMA_VARIACIONES_BUSCAR,
+  type ListarVariaciones,
   crearHerramientaVariaciones,
   ejecutarVariacionesBuscar,
   formatearListado,
@@ -93,6 +94,19 @@ describe("variaciones_buscar · manejador", () => {
     const rota = await ejecutarVariacionesBuscar(async () => { throw new Error("fetch failed"); }, { clave: "widget:clima" });
     expect(texto(rota)).toContain("fetch failed");
     expect(rota.esError).toBe(true);
+  });
+
+  it("la fábrica recorta la clave y la búsqueda antes de llamar a la capa inyectada", async () => {
+    const llamadas: Array<[string, OpcionesListar | undefined]> = [];
+    const listar: ListarVariaciones = async (clave, op) => (llamadas.push([clave, op]), listado());
+    await crearHerramientaVariaciones(listar).ejecutar({ clave: "  widget:clima  ", buscar: "  cristal  " });
+    expect(llamadas).toEqual([["widget:clima", { buscar: "cristal" }]]);
+  });
+
+  it("si la capa inyectada lanza algo que no es un Error, avisa de sin conexión", async () => {
+    const rota = await ejecutarVariacionesBuscar(async () => { throw "sin conexión"; }, { clave: "widget:clima" });
+    expect(rota.esError).toBe(true);
+    expect(texto(rota)).toBe("Error: Variaciones: sin conexión");
   });
 
   it("la ficha sin contexto avisa; con contexto o fábrica consulta la capa inyectada", async () => {
