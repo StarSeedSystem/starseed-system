@@ -60,7 +60,11 @@ export class ClienteMcpStdio {
       const timeout = this.reloj.tras(ms, () => {
         if (this.esperando.delete(id)) reject(new ErrorMcp("tiempo", `Agotado tras ${ms}ms`));
       });
-      this.esperando.set(id, (res) => { timeout(); resolve(res); });
+      this.esperando.set(id, (res) => { 
+        timeout(); 
+        if (res && (res.tipo === "tiempo" || res.tipo === "enorme" || res.tipo === "rpc" || res.tipo === "cerrado" || res.tipo === "protocolo")) reject(res);
+        else resolve(res); 
+      });
       this.trans.escribir(JSON.stringify({ jsonrpc: "2.0", id, method: metodo, params }));
     });
   }
@@ -108,8 +112,9 @@ export class ClienteMcpStdio {
 
   cerrar(): void {
     this.cerrado = true;
-    this.esperando.forEach(cb => cb({ error: { message: "Cliente cerrado" } }));
+    const errores = Array.from(this.esperando.values());
     this.esperando.clear();
+    errores.forEach(cb => cb(new ErrorMcp("cerrado", "Cliente cerrado")));
     this.trans.cerrar();
   }
 
