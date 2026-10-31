@@ -1,7 +1,7 @@
 'use client';
 // Panel «Retícula» de la pestaña Señales: estado vítreo, temperatura media, puentes por coste
 // y coordinación de cada neurona. Sin efectos: recibe el estado() del motor (MC1012Q).
-import { Flame, Droplets, Snowflake, Hexagon } from 'lucide-react';
+import { Flame, Droplets, Snowflake, Hexagon, Router } from 'lucide-react';
 import type { Cristal, EstadoVitreo, Medio, Reticula } from '@/lib/malla/cristal/tipos';
 import { coordinacionDe } from '@/lib/malla/cristal/tipos';
 import { esTitanio, coordinacionTitanio } from '@/lib/malla/cristal/titanio';
