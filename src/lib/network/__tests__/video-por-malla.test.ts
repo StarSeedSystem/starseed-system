@@ -9,8 +9,8 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { manejar } from "../../../../servicios/hyperframes/src/rutas.mjs";
-import { manejarRenderVideoMalla, VIDEO_RENDER_TIPO, type DepsVideoMalla, type ResolucionVideoMalla } from "@/lib/network/video-por-malla";
-import { CAPACIDAD_MALLA_MAX_BYTES, bytesUtf8 } from "@/lib/network/capacidad-por-malla";
+import { manejarRenderVideoMalla, adjuntarServidorRenderMalla, VIDEO_RENDER_TIPO, type DepsVideoMalla, type MeshServidorRender, type ResolucionVideoMalla } from "@/lib/network/video-por-malla";
+import { esMensajeCapacidadMalla, CAPACIDAD_MALLA_MAX_BYTES, bytesUtf8 } from "@/lib/network/capacidad-por-malla";
 
 /** Narra el rechazo legible: {estado, motivo} de una resolución (0/«» si se aceptó). */
 function rech(r: ResolucionVideoMalla): { estado: number; motivo: string } {
@@ -156,5 +156,65 @@ describe("manejarRenderVideoMalla · capacidad.video.render", () => {
 
   it("el tipo de capacidad del relé es 'render' (cuerpo de capacidad.pedir)", () => {
     expect(VIDEO_RENDER_TIPO).toBe("render");
+  });
+});
+
+/* ══════════════ HFR1018I · rol SERVIDOR: el relé atiende `capacidad.pedir` tipo `render` ══════════════ */
+
+/** Mesh de mentira: captura lo que el servidor envía y deja entregar mensajes. */
+const meshFalso = () => {
+  let recibir: ((peerId: string, data: string) => void) | null = null;
+  const enviados: unknown[] = [];
+  const mesh: MeshServidorRender = {
+    userId: "c-local",
+    sendToPeer: (_id, data) => { enviados.push(JSON.parse(data)); return true; },
+    onPeer: (ev) => { recibir = ev.onMessage ?? null; return () => { recibir = null; }; },
+  };
+  return { mesh, enviados, entregar: (x: unknown) => recibir?.("peer-1", JSON.stringify(x)) };
+};
+const pedirRender = (cuerpo: unknown) => ({ t: "capacidad.pedir", id: "p7", tipo: "render", cuerpo });
+
+describe("adjuntarServidorRenderMalla · rol SERVIDOR del relé", () => {
+  it("misma cuenta: encola vía el manejador puro y contesta la REFERENCIA por trabajoId", () => {
+    const { mesh, enviados, entregar } = meshFalso();
+    const encolar = vi.fn(() => "tr-1");
+    adjuntarServidorRenderMalla(mesh, { encolar });
+    entregar(pedirRender({ cuentaId: "c-local", composicionRef: "e" }));
+    expect(encolar).toHaveBeenCalledWith(expect.objectContaining({ composicionRef: "e", formato: "mp4" }));
+    expect(enviados).toHaveLength(1);
+    expect(esMensajeCapacidadMalla(enviados[0])).toBe(true);
+    expect(enviados[0]).toEqual({ t: "capacidad.fin", id: "p7", resultado: { trabajoId: "tr-1" } });
+  });
+
+  it("grupo compartido por esta neurona entra por el permiso de préstamo", () => {
+    const { mesh, enviados, entregar } = meshFalso();
+    adjuntarServidorRenderMalla(mesh, { sesionGrupo: () => "g1", encolar: vi.fn(() => "t") });
+    entregar(pedirRender({ cuentaId: "otra", grupoId: "g1", composicionRef: "e" }));
+    expect(enviados[0]).toMatchObject({ t: "capacidad.fin", resultado: { trabajoId: "t" } });
+  });
+
+  it("cuenta ajena con un grupo que NO es el compartido: `capacidad.error` 403 y sin encolar", () => {
+    const { mesh, enviados, entregar } = meshFalso();
+    const encolar = vi.fn(() => "t");
+    adjuntarServidorRenderMalla(mesh, { sesionGrupo: () => "g1", encolar });
+    entregar(pedirRender({ cuentaId: "otra", grupoId: "g2", composicionRef: "e" }));
+    expect(encolar).not.toHaveBeenCalled();
+    expect(enviados[0]).toMatchObject({ t: "capacidad.error", estado: 403 });
+  });
+
+  it("sin cola de render en esta neurona: rechazo honesto 503, nunca pánico", () => {
+    const { mesh, enviados, entregar } = meshFalso();
+    adjuntarServidorRenderMalla(mesh, {});
+    entregar(pedirRender({ cuentaId: "c-local", composicionRef: "e" }));
+    expect(enviados[0]).toMatchObject({ t: "capacidad.error", estado: 503, mensaje: expect.stringContaining("cola de render") });
+  });
+
+  it("solo contesta `capacidad.pedir` tipo render: otros tipos y basura se ignoran en silencio", () => {
+    const { mesh, enviados, entregar } = meshFalso();
+    adjuntarServidorRenderMalla(mesh, { encolar: vi.fn(() => "t") });
+    entregar({ t: "capacidad.pedir", id: "p9", tipo: "voz", cuerpo: {} });
+    entregar("basura");
+    entregar({ t: "capacidad.trozo", id: "p9", texto: "x" });
+    expect(enviados).toHaveLength(0);
   });
 });
