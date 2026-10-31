@@ -1,6 +1,7 @@
 'use client';
 
 import type * as React from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DashboardWidget } from "./dashboard-types";
 import type { WidgetType } from "./dashboard-types";
 import dynamic from "next/dynamic";
@@ -12,6 +13,12 @@ import { MarcoUnificado, type VarianteMarco } from "@/components/widgets-libres/
 import { acentoDeTipo } from "@/components/widgets-libres/acentos-categoria";
 import { getManifest } from "./widget-manifest";
 import { WeatherLocationProvider, useWeatherLocationOpcional } from "@/modules/weather/context/weather-location-context";
+import catalogoReferencias from "@/../config/referencias-inspiracion.json";
+import type { Catalogo } from "@/lib/library/referencias/catalogo";
+import { buscarReferencias, type TarjetaReferencia, type TipoContexto } from "@/lib/library/referencias/buscar-referencias";
+import { briefDesdeReferencias, type ObjetivoDiseno } from "@/lib/design/inspiracion-a-diseno";
+import type { TarjetaInspiracion } from "@/components/library/referencias/widget-referencias";
+import { useToast } from "@/components/ui/use-toast";
 import { ClockDateWidget } from "@/components/dashboard/widgets/clock-date-widget";
 import { TasksQuickWidget } from "@/components/dashboard/widgets/tasks-quick-widget";
 import { QuickNotesWidget } from "@/components/dashboard/widgets/quick-notes-widget";
@@ -210,6 +217,56 @@ const WidgetReferencias = dynamic(
 /** Mismo patrón que el estudio y el diagrama: id propio fuera del manifiesto,
  *  registrado aquí para no caer a «desconocido». */
 const TIPO_INSPIRACION = "inspiracion" as WidgetType;
+
+// Aplicación del widget (RFI1018K): la caja montada sin props solo enseñaba las
+// novedades del catálogo; aquí las tarjetas salen de `referencias.buscar`
+// (RFI1018F) para el contexto de la superficie y «Usar como inspiración»
+// genera el brief de RFI1018G (diseño propio, referencia citada) y lo copia.
+
+/** Contexto de la herramienta `referencias.buscar` según la superficie que lo monta. */
+function contextoDeInspiracion(dashboard_id: string): TipoContexto {
+    if (dashboard_id === "desktop") return "escritorio";
+    if (dashboard_id.startsWith("board")) return "pizarra";
+    return "pagina";
+}
+
+/** Widget «Inspiración» conectado: pide a `referencias.buscar` las tarjetas de este
+ *  contexto (Laya y canal oficial inyectables — aquí, sin conexión y sin red, los
+ *  enlaces son los del catálogo) y si el buscador falla el propio widget cae a las
+ *  novedades del catálogo. Solo entra lo no privado. */
+const WidgetInspiracionConectado = ({ widget }: { widget: DashboardWidget }) => {
+    const { toast } = useToast();
+    const contexto = useMemo(
+        () => contextoDeInspiracion((widget.dashboard_id || "").toLowerCase()),
+        [widget.dashboard_id],
+    );
+    const [tarjetas, ponerTarjetas] = useState<ReadonlyArray<TarjetaReferencia> | undefined>(undefined);
+    useEffect(() => {
+        let vivo = true;
+        buscarReferencias(
+            { peticion: "referencias e inspiración para este contexto", contexto: { tipo: contexto, privado: true } },
+            { catalogo: catalogoReferencias as unknown as Catalogo },
+        ).then((encontradas) => { if (vivo) ponerTarjetas(encontradas); })
+            .catch(() => { /* sin buscador: el widget enseña las novedades del catálogo */ });
+        return () => { vivo = false; };
+    }, [contexto]);
+    /** «Usar como inspiración»: brief de diseño propio con la referencia citada (G). */
+    const usar = (t: TarjetaInspiracion) => {
+        const objetivo: ObjetivoDiseno = contexto === "pizarra" ? "animacion"
+            : contexto === "escritorio" ? "menu" : "seccion";
+        const brief = briefDesdeReferencias({
+            referencias: [{ id: t.id, nombre: t.nombre, url: t.url, porque: t.porque }],
+            objetivo,
+            contexto: { tipo: contexto },
+        });
+        try { void navigator.clipboard?.writeText(brief.texto); } catch { /* sin portapapeles, silencioso */ }
+        toast({
+            title: `Inspiración de ${t.nombre} lista`,
+            description: "Brief de diseño propio con la referencia citada, copiado al portapapeles.",
+        });
+    };
+    return <WidgetReferencias tarjetas={tarjetas} onUsar={usar} />;
+};
 
 interface WidgetProps {
     widget: DashboardWidget;
@@ -561,7 +618,7 @@ function cuerpoClasico(
 
         // ── Referencias e inspiración (ola 1018R): widget «Inspiración» ──
         case TIPO_INSPIRACION:
-            return <WidgetReferencias />;
+            return <WidgetInspiracionConectado widget={widget} />;
 
         default:
             return (
