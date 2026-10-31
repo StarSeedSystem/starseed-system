@@ -59,6 +59,18 @@ describe("umbrales efectivos", () => {
         expect(umbrales[0]?.umbral).toBe(PUNTOS_DECISION[0]?.umbral);
     });
 
+    it("sin 30 casos por punto manda el catálogo, punto a punto", () => {
+        const pocos = Array.from({ length: 7 }, (_, i) => ({
+            punto: "publicar.moderar", ambito: "personal", p: 0.9, donde: "a1" as const, ms: 10,
+            resultado: "aceptada" as const, estado: "ok", privado: false, ts: i,
+        }));
+        const u = umbralesEfectivos(pocos);
+        expect(u.find((x) => x.punto === "privacidad.subir")?.umbral).toBe(0.5);
+        expect(u.find((x) => x.punto === "habilidad.elegir")?.umbral).toBe(0.6);
+        expect(u.find((x) => x.punto === "publicar.moderar")?.umbral).toBe(0.6);
+        expect(u.every((x) => !x.recalibrado)).toBe(true);
+    });
+
     it("recalibra con al menos 30 casos del punto y ámbito", () => {
         const casos = Array.from({ length: 30 }, (_, i) => ({
             punto: "publicar.moderar", ambito: "personal", p: 0.9, donde: "a1" as const, ms: 100,
