@@ -40,6 +40,15 @@ import {
 } from "../apps/launcher-types";
 import { resolveApps, APP_CATALOG, APP_COLLECTIONS } from "../apps/app-catalog";
 import { useAppLauncher } from "../apps/app-launch";
+// «Abrir en…» del contrato architecture/apps-en-la-malla.md §12: qué opciones hay
+// para abrir cada app en la red y por qué. La ficha de ESTA neurona sale del
+// inventario de Recursos de IA (`ofertaDesdeAsignaciones`); las ofertas de otras
+// neuronas llegarán por la bolsa cuando exista su cableado (tarea C).
+import { AbrirEnMenu } from "../apps/abrir-en-menu";
+import type { AppAbrir } from "@/lib/recursos/opciones-abrir";
+import { ofertaDesdeAsignaciones } from "@/lib/recursos-ia/oferta-desde-asignaciones";
+import { useRecursosIa } from "@/lib/recursos-ia/use-recursos-ia";
+import { seguro, useInventarioRecursos } from "@/components/recursos-ia/piezas";
 import { useLienzoE, px, type LienzoE } from "./paquete-e/lienzo";
 import { BotonE, MenuE, PestanasE, RaizE, VacioE, tintaE, type OpcionMenuE } from "./paquete-e/piezas";
 import { buscarApps, moverEnRejilla, nombreCategoria, ordenarParaLanzador, rejillaPara, useLanzadorLocal } from "./paquete-e/lanzador";
@@ -466,12 +475,26 @@ function PanelAjustes({ ajustes, cambiar, onCerrar, acento }: { ajustes: AppLaun
 
 type Vista = "inicio" | "fijadas" | "recientes" | string;
 
+/** Los pocos datos que el catálogo cuenta a `opcionesAbrir` (§5): id y nombre. */
+const aAppAbrir = (a: StarseedApp): AppAbrir => ({ id: a.id, nombre: a.name });
+
 export function AppLauncherWidget({ widget }: { widget: DashboardWidget }) {
     const { ref, lienzo } = useLienzoE();
     const [edits, setEdits] = useState<Partial<AppLauncherSettings>>({});
     const ajustes = useMemo(() => resolveLauncherSettings({ ...(widget.settings as Partial<AppLauncherSettings>), ...edits }), [widget.settings, edits]);
     const coleccion = useMemo(() => resolveApps(ajustes.appIds, ajustes.collection), [ajustes.appIds, ajustes.collection]);
     const { launch, windowEl } = useAppLauncher();
+    // «Abrir en…»: solo las variantes de una app detectan (la detección es por instancia;
+    // cero peticiones si no hace falta, el `activo` de `useInventarioRecursos` la corta).
+    const [recursosIa] = useRecursosIa();
+    const { inv } = useInventarioRecursos(recursosIa.almacenesDeclarados, ajustes.variant === "single");
+    const ofertaPropia = useMemo(
+        () => (inv ? seguro(() => ofertaDesdeAsignaciones(inv, recursosIa), null) : null),
+        [inv, recursosIa],
+    );
+    const propia = ofertaPropia
+        ? { nodoId: ofertaPropia.nodoId, nucleos: ofertaPropia.computo.nucleos, ramLibreMb: ofertaPropia.computo.ramLibreMb }
+        : null;
     const local = useLanzadorLocal();
     const [q, setQ] = useState("");
     const [vista, setVista] = useState<Vista>("inicio");
@@ -596,6 +619,14 @@ export function AppLauncherWidget({ widget }: { widget: DashboardWidget }) {
                     </button>
                     {base !== "micro" && <span className="max-w-full truncate text-[13px] font-semibold text-white/90">{app.name}</span>}
                     {(base === "l" || base === "xl") && <span className="line-clamp-2 max-w-[34ch] text-center text-[12px] text-white/60">{app.description}</span>}
+                    {propia && base !== "micro" && (
+                        <AbrirEnMenu
+                            app={aAppAbrir(app)}
+                            ofertas={[]}
+                            neuronaPropia={propia}
+                            onElegir={(opcion) => { if (opcion.destino === propia.nodoId) abrir(app); }}
+                        />
+                    )}
                     {abriendo === app.id && <Loader2 aria-label="Abriendo" className="size-4 animate-spin text-white/60" />}
                 </div>
                 {extras}
