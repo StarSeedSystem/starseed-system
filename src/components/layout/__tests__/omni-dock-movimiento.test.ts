@@ -28,6 +28,18 @@ describe("estiloIcono — micro-interacciones del OmniDock", () => {
         expect(l.transition).toBe(`${DURACION.instantaneo}ms ${CURVA.elastico}`);
     });
 
+    it("pulsado y lanzando no dependen del registro: viven de tokensDe «press»", () => {
+        // La pulsación y el lanzamiento salen de la respuesta mínima del OS,
+        // no del carácter del registro: idénticos en los tres registros.
+        for (const registro of ["sobrio", "expresivo", "experimental"] as const) {
+            expect(estiloIcono("pulsado", registroDe(registro))).toEqual(estiloIcono("pulsado", registroDe("sobrio")));
+            expect(estiloIcono("lanzando", registroDe(registro))).toEqual(estiloIcono("lanzando", registroDe("sobrio")));
+        }
+        expect(estiloIcono("lanzando", registroDe("expresivo")).transition).toBe(
+            `${DURACION.instantaneo}ms ${CURVA.elastico}`,
+        );
+    });
+
     it("reposo vuelve con la salida del registro, más corta que su entrada", () => {
         const r = estiloIcono("reposo", registroDe("expresivo"));
         expect(r.transform).toBe("none");
