@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  RECURSOS_MCP,
   RECURSOS_NAVEGADOR,
   REGLAS_NAVEGADOR,
   catalogoDeclarado,
@@ -204,5 +205,37 @@ describe("consultarViasNavegador", () => {
     expect(consulta.disponibles).toEqual([]);
     expect(consulta.vias.find((via) => via.recurso.id === "astraura:browser-tool")
       ?.requisitosFaltantes).toEqual(["ASTRAURA_158_BROWSER_TOOL_SANO"]);
+  });
+});
+
+// 2026-10-31 · Ola 1025R · AGT1025C: el descubrimiento progresivo ya existe como
+// módulo; aquí se vigila que el Taller lo declare como recurso real y que no
+// cuele claves ni rutas personales. Sin pedirlo, el catálogo no cambia para nadie.
+describe("RECURSOS_MCP", () => {
+  const ID_RECURSO = "os:genesis-mcp-progresivo";
+
+  it("entra en el catálogo declarado sin repetir ningún id", () => {
+    const ids = catalogoDeclarado().map((r) => r.id);
+    expect(ids).toContain(ID_RECURSO);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("no exige ninguna variable ni condición para usarse", () => {
+    for (const recurso of RECURSOS_MCP) expect(recurso.requiere).toEqual([]);
+  });
+
+  it("no lleva dentro nada que parezca una clave ni una ruta personal", () => {
+    const texto = JSON.stringify(RECURSOS_MCP);
+    expect(texto).not.toContain("sk-");
+    expect(texto).not.toContain("Bearer");
+    expect(texto).not.toContain("/Users/");
+  });
+
+  it("se recomienda para descubrir herramientas con poco contexto", () => {
+    const salida = recomendarPara(
+      catalogoDeclarado(),
+      "descubrir herramientas mcp con poco contexto para un modelo pequeño",
+    );
+    expect(salida.map((r) => r.id)).toContain(ID_RECURSO);
   });
 });
