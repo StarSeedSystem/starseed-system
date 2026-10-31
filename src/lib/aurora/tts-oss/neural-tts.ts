@@ -340,8 +340,13 @@ function hasExplicitPath(endpoint: string): boolean {
   }
 }
 
-/** URLs candidatas a las que POSTear para este motor. */
-function candidateUrls(engine: NeuralVoiceEngine, endpoint: string): string[] {
+/**
+ * URLs candidatas a las que POSTear para este motor. PURA y exportada (costura
+ * testeable, VOZ1024C): ruta explícita del endpoint TAL CUAL; solo origen →
+ * las rutas típicas del motor. La usan `neuralSynthesize` y las rutas dedicadas
+ * (`neuralSpeakVibeVoice` / `neuralSpeakVoice158`).
+ */
+export function candidateUrls(engine: NeuralVoiceEngine, endpoint: string): string[] {
   if (hasExplicitPath(endpoint)) return [endpoint];
   const base = endpoint.replace(/\/+$/, "");
   return ENGINE_PATHS[engine].map((p) => (p === "/" ? `${base}/` : `${base}${p}`));
@@ -664,7 +669,13 @@ async function neuralSpeakVibeVoice(
 
   let blob: Blob | null = null;
   try {
-    const url = endpoint.replace(/\/$/, "") + "/api/vibevoice/synthesize";
+    // (VOZ1024C) Las URLs salen de la MISMA costura que el resto del cliente
+  // (candidateUrls): si el endpoint configurado ya trae una ruta explícita se
+  // usa TAL CUAL — antes se le añadía SIEMPRE /api/vibevoice/synthesize y un
+  // servidor servido en otra ruta (p.ej. http://host:5195/vts) recibía una URL
+  // muerta. Si es solo origen, candidateUrls empieza por /api/vibevoice/
+  // synthesize (lo de siempre) y reserva /api/predict y /tts como siguientes.
+  const url = candidateUrls(engine, endpoint)[0];
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
