@@ -31,6 +31,20 @@ describe("parseSha256Sums", () => {
     expect(mapa.has("abc.zip")).toBe(true);
   });
 
+  it("lee uno y dos espacios y normaliza las huellas a minúsculas", () => {
+    const MAYUS = "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD";
+    const VACIO_MAYUS = "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855";
+    const texto = `${MAYUS} figcraft-web-0.10.0.zip\n${VACIO_MAYUS}  gridcraft-cli-0.11.1-macos-universal.zip`;
+    const mapa = parseSha256Sums(texto);
+    expect(mapa.size).toBe(2);
+    expect(mapa.get("figcraft-web-0.10.0.zip")).toBe(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    );
+    expect(mapa.get("gridcraft-cli-0.11.1-macos-universal.zip")).toBe(
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    );
+  });
+
   it("ignora líneas mal formadas", () => {
     const texto = "basura\nba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  abc.zip";
     const mapa = parseSha256Sums(texto);
@@ -92,6 +106,11 @@ describe("esActivoPermitido", () => {
   it("rechaza nombre con barra", () => {
     expect(esActivoPermitido("some/path.zip")).toBe(false);
   });
+
+  it("rechaza nombres ajenos y el vacío", () => {
+    expect(esActivoPermitido("OtraCosa.zip")).toBe(false);
+    expect(esActivoPermitido("")).toBe(false);
+  });
 });
 
 describe("sha256Hex", () => {
@@ -152,6 +171,14 @@ describe("fijarVersion", () => {
     expect(result?.app).toBe("figcraft");
     expect(result?.version).toBe("0.10.0");
     expect(result?.activo).toBe("figcraft-web-0.10.0.zip");
+    expect(result?.sha256).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  });
+
+  it("busca el activo aunque la versión traiga «v» al inicio", () => {
+    const sumas = new Map<string, string>([["deckcraft-web-0.10.0.zip", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"]]);
+    const result = fijarVersion("deckcraft", "v0.10.0", sumas);
+    expect(result).not.toBeNull();
+    expect(result?.activo).toBe("deckcraft-web-0.10.0.zip");
     expect(result?.sha256).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
   });
 
