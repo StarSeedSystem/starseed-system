@@ -69,6 +69,7 @@ function quitarAcentos(s: string): string {
 }
 
 /**
+<<<<<<< HEAD
  * El currículo de OSSU está en inglés (es su texto); para que la búsqueda del
  * OS funcione en español, cada palabra de la consulta se compara también con
  * su equivalente en inglés (o raíz común: "system" está dentro de "systems").
@@ -98,6 +99,13 @@ export function buscarEnOssu(consulta: string, max = 5): CursoOssu[] {
         .split(/\s+/)
         .filter(Boolean)
         .map((p) => [p, ...(ESPAÑOL_A_INGLÉS[quitarAcentos(p)] ?? [])]);
+=======
+ * Búsqueda por palabras en el nombre del curso y en los temas de su sección
+ * (sin acentos ni mayúsculas). Devuelve hasta `max` cursos en su orden.
+ */
+export function buscarEnOssu(consulta: string, max = 5): CursoOssu[] {
+    const palabras = quitarAcentos(consulta).split(/\s+/).filter(Boolean);
+>>>>>>> 3181b20cb (salvavidas · INF1025D: trabajo del agente antes de las puertas (tsc / vitest))
     if (!palabras.length) return [];
     const textoSeccion = new Map(
         OSSU.secciones.map((s) => [s.seccion, `${s.seccion} ${s.temas.join(" ")}`] as const),
@@ -105,7 +113,11 @@ export function buscarEnOssu(consulta: string, max = 5): CursoOssu[] {
     const out: CursoOssu[] = [];
     for (const c of OSSU.cursos) {
         const paja = quitarAcentos(`${c.nombre} ${textoSeccion.get(c.seccion) ?? ""}`);
+<<<<<<< HEAD
         if (palabras.every((formas) => formas.some((f) => paja.includes(f)))) {
+=======
+        if (palabras.every((p) => paja.includes(p))) {
+>>>>>>> 3181b20cb (salvavidas · INF1025D: trabajo del agente antes de las puertas (tsc / vitest))
             out.push(c);
             if (out.length >= max) return out;
         }
