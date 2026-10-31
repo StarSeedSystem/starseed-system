@@ -69,6 +69,15 @@ describe("encolarTrabajo", () => {
     expect(r.ok).toBe(true);
     expect(lanzados).toBe(0);
   });
+  it("no arranca el ejecutor si el cerrojo no trae un pid pero acaba de escribirse (respaldo por mtime)", async () => {
+    mkdirSync(raiz, { recursive: true });
+    writeFileSync(path.join(raiz, "ejecutor.lock"), "x");
+    let lanzados = 0;
+    _ponerProcesos(fichaLigera, () => { lanzados++; });
+    const r = await encolarTrabajo(base());
+    expect(r.ok).toBe(true);
+    expect(lanzados).toBe(0);
+  });
 });
 
 describe("capacidades", () => {
