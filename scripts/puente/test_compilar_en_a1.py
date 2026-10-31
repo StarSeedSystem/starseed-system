@@ -5,6 +5,7 @@
 es decir, un `.env` entero NUNCA va al A1."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shlex
@@ -109,11 +110,34 @@ class Decisiones(unittest.TestCase):
         self.assertNotEqual(a, C.huella_envio("sha1", "src/x.ts"))
 
     def test_huella_lock_y_pide_instalacion(self):
-        self.assertEqual(C.huella_lock("x")[:10], C.huella_lock("x")[:10])
+        self.assertEqual(C.huella_lock("x"), C.huella_lock("x"))
         self.assertTrue(C.pide_instalacion("", "huevo", existe=True))
         self.assertTrue(C.pide_instalacion("", "huevo", existe=False))
         self.assertTrue(C.pide_instalacion("vieja", "nueva", existe=True))
         self.assertFalse(C.pide_instalacion("igual", "igual", existe=True))
+        # La huella legada de 64 (formato viejo de compilar_en_a1) ya no se confunde con la nueva.
+        self.assertTrue(C.pide_instalacion("a" * 64, "a" * 16, existe=True))
+
+    def test_huella_lock_es_el_formato_del_guardian_del_a1(self):
+        """El guardián (oracle_a1.py y deploy/oracle/nodo/preparar-a1.sh) escribe los
+        16 primeros hex de `sha256sum package-lock.json`; compilar_en_a1 debe hablar
+        el MISMO formato, o el checkout del medio repite `npm ci` en bucle."""
+        datos = '{"lockfileVersion": 3, "paquete": "gesi"}'.encode("utf-8")
+        self.assertEqual(C.huella_lock(datos), hashlib.sha256(datos).hexdigest()[:16])
+        self.assertEqual(len(C.huella_lock(b"")), 16)
+
+    def test_huella_lock_coincide_con_sha256sum_sobre_los_bytes(self):
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "package-lock.json")
+            contenido = '{"salt": "ñandú-candado"}\n'.encode("utf-8")
+            with open(ruta, "wb") as f:
+                f.write(contenido)
+            guardia = subprocess.run(["sh", "-c", "sha256sum %s | cut -c1-16" % shlex.quote(ruta)],
+                                     capture_output=True, text=True).stdout.strip()
+            with open(ruta, "rb") as f:
+                nuestra = C.huella_lock(f.read())
+        self.assertEqual(nuestra, guardia)
+        self.assertTrue(not C.pide_instalacion(guardia, nuestra, existe=True))
 
     def test_se_puede_compilar(self):
         ok, motivo = C.se_puede_compilar({}, 0, vivo=False)
@@ -215,6 +239,23 @@ class Flujo(unittest.TestCase):
         traer = self.rsync.call_args_list[-1][0][0]
         self.assertIn("--exclude=standalone", traer)
         self.assertIn("--exclude=cache", traer)
+
+    def test_la_huella_del_guardian_evita_el_npm_ci(self):
+        """OPS1031C: si el A1 ya tiene el formato del guardián (sha256[:16]) y coincide,
+        compilar_en_a1 NO repite `npm ci` (el bucle del checkout del medio)."""
+        mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
+        self.rsync.side_effect = self._con_build_traido
+        with open(os.path.join(self.raiz, "package-lock.json"), "rb") as f:
+            huella = hashlib.sha256(f.read()).hexdigest()[:16]
+        ssh = mock.patch.object(C.oracle_nodo, "ssh", return_value=(0, huella + "\n")).start()
+        try:
+            ok, detalle = C.compilar(raiz=self.raiz)
+            self.assertTrue(ok, detalle)
+            ordenes = [c[0][0] for c in ssh.call_args_list if c[0]]
+            self.assertFalse(any("npm ci" in o for o in ordenes), ordenes)
+            self.assertFalse(any("echo" in o and ".huella-lock" in o for o in ordenes), ordenes)
+        finally:
+            ssh.stop()
 
     def test_build_muerto_no_cambia_nada(self):
         mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()

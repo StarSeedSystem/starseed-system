@@ -14,7 +14,10 @@ Lo que hace (el mismo camino que la Mac, pero compilando fuera):
 2. ENV     · del `.env.local` SOLO las líneas NEXT_PUBLIC_* van al A1 como
    `.env.production.local` (umask 077): Next las incrusta en el paquete del
    navegador al compilar y sin ellas la pantalla llamaría al proyecto viejo.
-3. INSTALAR · `npm ci --ignore-scripts` SOLO si cambió `package-lock.json`.
+3. INSTALAR · `npm ci --ignore-scripts` SOLO si cambió `package-lock.json`,
+   con la huella del lock en el MISMO formato de 16 que escribe el guardián
+   del A1 (OPS1031C: antes cada uno repetía `npm ci` en bucle por no
+   entender la huella del otro).
 4. COMPILAR · `next build` en `.next-build` igual que la Mac (`STARSEED_DIST`),
    4096 de heap y `nice`, corriendo como starseed via `--rsync-path`/sudo.
 5. TRAER   · el build vuelve a la Mac sin `cache` ni `standalone`; después se
@@ -79,9 +82,14 @@ def huella_envio(cabeza, porcelana=""):
     return hashlib.sha256(("%s|%s" % (cabeza, porcelana)).encode("utf-8")).hexdigest()
 
 
-def huella_lock(texto):
-    """PURA: sha256 de `package-lock.json`, para saber si hay que instalar."""
-    return hashlib.sha256(str(texto or "").encode("utf-8")).hexdigest()
+def huella_lock(datos):
+    """PURA: los 16 primeros hex del sha256 del lock — el MISMO formato que el
+    guardián del A1 (`sha256sum package-lock.json | cut -c1-16`, ver
+    `oracle_a1.py` y `deploy/oracle/nodo/preparar-a1.sh`), para que ninguno de
+    los dos repita `npm ci` sin necesidad. `datos`: bytes del archivo (o texto utf-8)."""
+    if isinstance(datos, str):
+        datos = datos.encode("utf-8")
+    return hashlib.sha256(bytes(datos or b"")).hexdigest()[:16]
 
 
 def pide_instalacion(instalada, actual, existe=True):
@@ -296,7 +304,7 @@ def _enviar_y_compilar(ip, raiz, tope, raiz_a1=RAIZ_A1, espera_turno=None):
     if rc != 0:
         return False, "env del A1: %s" % cola(salida)
     try:
-        with open(os.path.join(raiz, "package-lock.json"), encoding="utf-8") as f:
+        with open(os.path.join(raiz, "package-lock.json"), "rb") as f:
             actual = huella_lock(f.read())
     except OSError:
         return False, "sin package-lock.json"
