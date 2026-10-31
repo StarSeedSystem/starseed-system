@@ -1,10 +1,11 @@
 /**
  * GUI1021K2 · «Conoce StarSeed (sin cuenta)» en la bienvenida y en el aviso de retomar sesión.
  *
- * §5 de `architecture/guias-introduccion.md`: la guía entera se abre sin cuenta, por la puerta
- * común (`abrirGuia`), desde leer bienvenida (`desde: "bienvenida"`) y desde leer detección de
- * sesión (`desde: "login"`). Se comprueba el evento real que escucha `aurora-guide.tsx`, la
- * activación con ratón y con teclado, y las dianas de 44 px con cursor pointer.
+ * §5 de `architecture/guias-introduccion.md`: la guía entera se abre sin cuenta por la puerta
+ * común (`abrirGuia`), desde la bienvenida (`desde: "bienvenida"`) y desde el aviso de sesión
+ * detectada (`desde: "login"`). Se comprueba el evento REAL que escucha `aurora-guide.tsx`, que
+ * ambos botones son nativos y accesibles (44 px, cursor pointer, foco visible), que responden a
+ * ratón y teclado, y que abrir la guía no entra, no navega ni avanza el acceso por su cuenta.
  */
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -13,11 +14,16 @@ import userEvent from "@testing-library/user-event";
 import { WelcomeWindow } from "@/components/welcome/welcome-window";
 import { SessionResumePrompt } from "@/components/sso/session-resume-prompt";
 import { EVENTO_ABRIR_GUIA, type PeticionGuia } from "@/lib/onboarding/guia-acceso";
-/** El router de Next no existe fuera de la app: se da un falso inofensivo. */
+
+const NOMBRE = "Conoce StarSeed (sin cuenta)";
+
+const sim = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
+
+/** El router de Next no existe fuera de la app: se da un falso inofensivo y espiable. */
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
-    push: () => undefined,
-    replace: () => undefined,
+    push: sim.push,
+    replace: sim.replace,
     back: () => undefined,
     prefetch: () => undefined,
     refresh: () => undefined,
@@ -56,15 +62,16 @@ function escucharGuia() {
   return { recibidos, parar: () => window.removeEventListener(EVENTO_ABRIR_GUIA, oir) };
 }
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
-describe("WelcomeWindow (GUI1021K2)", () => {
-  it("«Conoce StarSeed (sin cuenta)» abre la guía desde «bienvenida», con ratón y con teclado", async () => {
-    render(<WelcomeWindow onContinue={() => undefined} />);
-    const boton = screen.getByRole("button", { name: "Conoce StarSeed (sin cuenta)" });
-    expect(boton.style.cursor).toBe("pointer");
-    expect(boton.style.minHeight).toBe("44px");
-    expect(boton.className).toMatch(/ss-wel-soft/); // su :focus-visible está en el <style>
+describe("WelcomeWindow · «Conoce StarSeed (sin cuenta)» (GUI1021K2)", () => {
+  it("abre la guía desde «bienvenida» con ratón, Enter y Espacio", async () => {
+    const onContinue = vi.fn();
+    render(<WelcomeWindow onContinue={onContinue} />);
+    const boton = screen.getByRole("button", { name: NOMBRE });
 
     const guia = escucharGuia();
     fireEvent.click(boton);
@@ -72,17 +79,35 @@ describe("WelcomeWindow (GUI1021K2)", () => {
     const teclado = userEvent.setup();
     boton.focus();
     await teclado.keyboard("{Enter}");
+    await teclado.keyboard(" ");
     guia.parar();
-    expect(guia.recibidos).toEqual([{ desde: "bienvenida" }, { desde: "bienvenida" }]);
+
+    expect(guia.recibidos).toEqual([
+      { desde: "bienvenida" },
+      { desde: "bienvenida" },
+      { desde: "bienvenida" },
+    ]);
+    // Honestidad: ver la guía no avanza el acceso ni continúa el flujo.
+    expect(onContinue).not.toHaveBeenCalled();
+  });
+
+  it("es un botón nativo con diana de 44 px, cursor pointer y foco visible", () => {
+    render(<WelcomeWindow onContinue={() => undefined} />);
+    const boton = screen.getByRole("button", { name: NOMBRE });
+    expect(boton).toHaveAttribute("type", "button");
+    expect(boton.style.cursor).toBe("pointer");
+    expect(boton.style.minHeight).toBe("44px");
+    expect(boton.className).toMatch(/ss-wel-soft/); // su :focus-visible vive en el <style>
   });
 });
 
-describe("SessionResumePrompt (GUI1021K2)", () => {
-  it("el aviso de retomar sesión abre la guía desde «login», con ratón y con teclado", async () => {
+describe("SessionResumePrompt · «Conoce StarSeed (sin cuenta)» (GUI1021K2)", () => {
+  it("abre la guía desde «login» con ratón, Enter y Espacio, sin entrar ni navegar", async () => {
     render(<SessionResumePrompt />);
-    const guia = escucharGuia();
+    const region = await screen.findByRole("region", { name: "Sesión StarSeed detectada" });
+    const boton = within(region).getByRole("button", { name: NOMBRE });
 
-    const boton = await screen.findByRole("button", { name: "Conoce StarSeed (sin cuenta)" });
+    const guia = escucharGuia();
     expect(guia.recibidos).toEqual([]); // aún nada sin gesto
 
     fireEvent.click(boton);
@@ -90,18 +115,26 @@ describe("SessionResumePrompt (GUI1021K2)", () => {
     const teclado = userEvent.setup();
     boton.focus();
     await teclado.keyboard("{Enter}");
+    await teclado.keyboard(" ");
     guia.parar();
-    expect(guia.recibidos).toEqual([{ desde: "login" }, { desde: "login" }]);
-  });
-});
 
-describe("accesibilidad del botón en el retomar sesión (GUI1021K2)", () => {
-  it("diana de 44 px con cursor pointer y foco visible por teclado", async () => {
+    expect(guia.recibidos).toEqual([
+      { desde: "login" },
+      { desde: "login" },
+      { desde: "login" },
+    ]);
+    // Abrir la guía no adopta la sesión ni navega: solo se ve lo que hay.
+    expect(sim.push).not.toHaveBeenCalled();
+    expect(sim.replace).not.toHaveBeenCalled();
+  });
+
+  it("es un botón nativo con diana de 44 px, cursor pointer y foco visible", async () => {
     render(<SessionResumePrompt />);
     const region = await screen.findByRole("region", { name: "Sesión StarSeed detectada" });
-    const boton = within(region).getByRole("button", { name: "Conoce StarSeed (sin cuenta)" });
+    const boton = within(region).getByRole("button", { name: NOMBRE });
+    expect(boton).toHaveAttribute("type", "button");
     expect(boton.style.cursor).toBe("pointer");
     expect(boton.style.minHeight).toBe("44px");
-    expect(boton.className).toMatch(/ss-sso-guia/); // su :focus-visible está en el <style>
+    expect(boton.className).toMatch(/ss-sso-guia/); // su :focus-visible vive en el <style>
   });
 });
