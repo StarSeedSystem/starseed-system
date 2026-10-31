@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "APM1017O",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Lanzador · menú «Abrir en…»: dónde se abrirá, por qué y las otras opciones",
+   "archivos": [
+    "src/components/dashboard/apps/abrir-en-menu.tsx",
+    "src/lib/recursos/opciones-abrir.ts",
+    "src/lib/recursos/__tests__/opciones-abrir.test.ts"
+   ],
+   "depende": [],
+   "prompt": "`opcionesAbrir(app, ofertasVisibles, neuronaPropia)` PURA → lista ordenada { etiqueta legible («Aquí», «En la Mac de Alex», «En el servidor del grupo», «Transmitida desde…»), modo, destino, motivo, disponible } usando `comoAbrir`. Componente pequeño (menú desplegable accesible, textos sin cortar, una línea con «…» y el resto al pasar el cursor) que lo muestra y llama a `onElegir(opcion)`. Sin `node:*`. Pruebas de la función. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "APM1017N"
+   ]
+  }
+ ]
+}
