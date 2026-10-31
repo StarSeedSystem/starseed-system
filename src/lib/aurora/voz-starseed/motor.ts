@@ -24,7 +24,15 @@
 
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
-import { nivelPara, siguienteNivel, NIVELES, type NivelVoz } from "./niveles";
+import {
+    acotarNivel, estudioDisponible, estudioSegunUso, nivelPara, siguienteNivel, NIVELES,
+    nivelTopeSegunUso, RAM_MIN_ESTUDIO_GB, type EstadoEstudio, type NivelVoz, type UsoVoz,
+} from "./niveles";
+// (Ola 1018V · VST1018F, parte 2) Licencia por contexto y medidas de latencia.
+import { motoresPermitidos, type ClaseLicenciaVoz, type ContextoLicenciaVoz } from "./licencia-voz";
+import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
+import { leerMedidas, type MedidaVoz } from "@/lib/aurora/medidas-voz";
+import { MOTORES_VOZ } from "../catalogo-voces";
 import {
     soporteSupertonic,
     nivelParaVoz,
@@ -72,8 +80,8 @@ function detectarPlataforma(): Plataforma {
 /** Identificador público del motor único, para registros y paneles. */
 export const VOZ_STARSEED_ID = "starseed.voz-unica.v1";
 
-/** Contexto en el que suena la voz (lo usa el agente de entonación aguas arriba). */
-export type ContextoVoz = "rito" | "conversacion" | "aviso" | "lectura" | "imaginacion";
+/** Contexto en el que suena la voz (lo usa el agente de entonación aguas arriba); «doblaje» y «audiolibro» son lectura larga. */
+export type ContextoVoz = "rito" | "conversacion" | "aviso" | "lectura" | "imaginacion" | "doblaje" | "audiolibro";
 
 /** Clave donde se guarda el nivel elegido por el usuario; "auto" = decidir por hardware. */
 const CLAVE_NIVEL = "starseed.voz.nivel";
@@ -279,6 +287,46 @@ export function parametrosPorNivel(
     return { via: "sistema", pitch: timbre.sistema.pitch, rate: timbre.sistema.rate };
 }
 
+// ── (VST1018F, parte 2) PRIMERA FRASE INSTANTÁNEA Y USO ──────────────────────
+/** Uso del turno según el contexto en el que suena (contrato voz-voicestudio §4). */
+export function usoDelContexto(c: ContextoVoz): UsoVoz {
+    if (c === "lectura") return "lectura";
+    if (c === "doblaje" || c === "audiolibro") return c;
+    if (c === "aviso") return "aviso";
+    return "conversacion";
+}
+
+/** Nivel del motor único en el que suena cada motor del catálogo de voces. Pura. */
+export function nivelDeMotorUnico(id: string): NivelVoz {
+    if (id === "voicemorphic" || id === "voicestudio") return "estudio";
+    if (id === "kokoro" || id === "kittentts" || id === "moss-tts-nano") return "ligera";
+    if (id === "sistema") return "minima";
+    return "nube"; // chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts, openvoice2…
+}
+
+/** Motores que comprenden la receta del timbre (voz `local.voz`) o la clonan por referencia. */
+const CON_VOZ_DE_PERSONA: ReadonlySet<string> = new Set(["kokoro", "moss-tts-nano", "chatterbox", "voxcpm", "cosyvoice3", "qwen3-tts", "dots-tts", "openvoice2"]);
+
+/** Candidato a la primera frase de una conversación (para `elegirPrimeraFrase`). */
+export interface MotorMomento {
+    motor: string;
+    claseLicencia: ClaseLicenciaVoz;
+    /** Solo para licencias «condicionada»: la condición se cumple o no. */
+    condicionCumplida?: boolean;
+    /** Nivel del motor único por el que sonaría (la cadena arranca ahí). */
+    nivel: NivelVoz;
+    /** true si este motor puede salir con la voz de la persona del turno. */
+    conVozDeLaPersona?: boolean;
+}
+
+/** Elección resultante: UN motor, para la frase ENTERA (nunca se reparte). */
+export interface EleccionPrimeraFrase {
+    motor: string;
+    nivel: NivelVoz;
+    /** Latencia de primer sonido medida (ms); `null` si no hay constancia. */
+    medidaMs: number | null;
+}
+
 export interface OpcionesHablar {
     /** Identidad de la voz: LA MISMA en todos los niveles. */
     timbre: Timbre;
@@ -312,6 +360,62 @@ export interface OpcionesHablar {
      * esta opción solo es para vías que ya entregan el texto normalizado.
      */
     sinNormalizar?: boolean;
+    /** (VST1018F, parte 2) Ámbito de licencia («personal» si falta) y capas del llamador. */
+    ambito?: ContextoLicenciaVoz;
+    capasLicencia?: CapasPrefs;
+    /** (VST1018F, parte 2) Estado MEDIDO de VoiceStudio si el llamador lo trae. */
+    estadoEstudio?: EstadoEstudio;
+}
+
+/** Entrada de la elección instantánea: uso, licencia del sitio, capas y medidas. */
+export interface OpcionesEleccion {
+    uso: UsoVoz;
+    /** Sitio donde suena: personal, grupo, comunidad, público o comercial. */
+    contexto: ContextoLicenciaVoz;
+    capas: CapasPrefs;
+    /** Medidas de `medidas-voz.ts`; `neurona` filtra por neurona si se pide. */
+    medidas?: readonly MedidaVoz[];
+    neurona?: string;
+}
+
+/**
+ * PRIMERA FRASE DE UNA CONVERSACIÓN (contrato voz-voicestudio §4): el motor
+ * PERMITIDO de MENOR latencia MEDIDA que tenga la voz de esa persona; «estudio»
+ * nunca es instantáneo; sin medida manda el orden de llegada. La frase Entera
+ * sale por ese motor: no se parte entre dos. Pura.
+ */
+export function elegirPrimeraFrase(
+    candidatos: MotorMomento[],
+    opciones: OpcionesEleccion,
+): EleccionPrimeraFrase | null {
+    const enUso = candidatos.filter((m) => estudioSegunUso(opciones.uso) || m.nivel !== "estudio");
+    const { permitidos } = motoresPermitidos(
+        enUso.map((m) => ({ id: m.motor, claseLicencia: m.claseLicencia, condicionCumplida: m.condicionCumplida })),
+        opciones.contexto,
+        opciones.capas,
+    );
+    const idsPermitidos = new Set(permitidos.map((m) => m.id));
+    const conVoz = enUso.filter((m) => idsPermitidos.has(m.motor) && m.conVozDeLaPersona === true);
+    const media = (motorDe: string): number | null => {
+        const valores = (opciones.medidas ?? [])
+            .filter((m) => m.tipo === "primer-sonido" && m.motor === motorDe
+                && (!opciones.neurona || m.neurona === opciones.neurona)
+                && typeof m.valor === "number" && Number.isFinite(m.valor) && m.valor >= 0)
+            .map((m) => m.valor);
+        return valores.length ? Math.round(valores.reduce((a, b) => a + b, 0) / valores.length) : null;
+    };
+    let elegido: MotorMomento | null = null;
+    let medidaElegida: number | null = null;
+    for (const m of conVoz) {
+        const medida = media(m.motor);
+        if (!elegido || (medida ?? Infinity) < (medidaElegida ?? Infinity)) {
+            elegido = m;
+            medidaElegida = medida;
+        }
+    }
+    return elegido
+        ? { motor: elegido.motor, nivel: elegido.nivel, medidaMs: medidaElegida }
+        : null;
 }
 
 /**
@@ -448,27 +552,23 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     const timbre = timbreConEmocion(opciones.timbre, resuelta.emocion, resuelta.intensidad);
 
     const plataforma = detectarPlataforma();
-    const { memoriaGB } = await detectarCapacidades();
-    const ramGB = memoriaGB ?? 8;
+    const caps = await detectarCapacidades();
+    const ramGB = caps.memoriaGB ?? 8;
     const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
-    let nivel: NivelVoz;
-    switch (motorCat.id) {
-        case "voicemorphic":
-        case "voicestudio":
-            nivel = "estudio";
-            break;
-        case "kokoro":
-        case "kittentts":
-        case "moss-tts-nano":
-            nivel = "ligera";
-            break;
-        case "sistema":
-            nivel = "minima";
-            break;
-        default:
-            // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
-            nivel = "nube";
-            break;
+    let nivel: NivelVoz = nivelDeMotorUnico(motorCat.id);
+
+    // ── (VST1018F, parte 2) ESTUDIO SOLO EN LECTURA LARGA (contrato §4) ──────
+    // El uso pone el tope (conversación, avisos, rito e imaginación nunca pasan
+    // de «alta») y «estudio» exige la neurona a la altura: el estado MEDIDO de
+    // VoiceStudio si el llamador lo aporta; si no, la memoria de esta (8 GB+).
+    const uso = usoDelContexto(opciones.contexto);
+    const tope = nivelTopeSegunUso(uso);
+    if (tope) nivel = acotarNivel(nivel, tope);
+    if (nivel === "estudio") {
+        const cabeEstudio = opciones.estadoEstudio !== undefined
+            ? estudioDisponible(opciones.estadoEstudio)
+            : (caps.memoriaGB ?? 8) >= RAM_MIN_ESTUDIO_GB;
+        if (!cabeEstudio) nivel = "alta";
     }
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
@@ -491,19 +591,39 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
         });
     } catch { /* sin gesto la voz no se detiene */ }
 
-    // Cadena de degradación: mismo timbre, niveles cada vez más ligeros.
-    let actual: NivelVoz | null = nivel;
-    while (actual) {
+    // ── (VST1018F, parte 2) PRIMERA FRASE INSTANTÁNEA (contrato §4) ──────────
+    // Empieza por el motor PERMITIDO de menor latencia MEDIDA que tenga la voz
+    // de esa persona; sin elección posible, la cadena natural sigue igual.
+    let instantaneo: NivelVoz | null = null;
+    if (uso === "conversacion") {
         try {
-            if (await sintetizar(actual, limpio, timbre, opciones)) {
-                nivelEnUso = actual;
+            const elect = elegirPrimeraFrase(
+                MOTORES_VOZ.map((m): MotorMomento => ({
+                    motor: m.id, claseLicencia: m.claseLicencia, nivel: nivelDeMotorUnico(m.id),
+                    conVozDeLaPersona: CON_VOZ_DE_PERSONA.has(m.id),
+                })),
+                { uso, contexto: opciones.ambito ?? "personal", capas: opciones.capasLicencia ?? {}, medidas: leerMedidas() },
+            );
+            instantaneo = elect ? elect.nivel : null;
+        } catch { /* la elección instantánea no puede romper el turno */ }
+    }
+
+    // Cadena: instantáneo PRIMERO (si lo hay) y después la natural, sin
+    // duplicados. Cada paso toma el mensaje ENTERO: nunca se parte entre dos.
+    const cadena: NivelVoz[] = [];
+    if (instantaneo) cadena.push(instantaneo);
+    for (let p: NivelVoz | null = nivel; p; p = siguienteNivel(p)) {
+        if (!cadena.includes(p)) cadena.push(p);
+    }
+    for (let i = 0; i < cadena.length; i++) {
+        try {
+            if (await sintetizar(cadena[i], limpio, timbre, opciones)) {
+                nivelEnUso = cadena[i];
                 return true;
             }
-        } catch { /* esta vía falló: se baja de nivel */ }
-        const siguiente: NivelVoz | null = siguienteNivel(actual);
-        if (!siguiente) break;
-        try { opciones.alDegradar?.(actual, siguiente); } catch { /* el aviso no puede romper */ }
-        actual = siguiente;
+        } catch { /* esta vía falló: la frase entera sale por el siguiente motor */ }
+        const siguiente = cadena[i + 1];
+        if (siguiente) try { opciones.alDegradar?.(cadena[i], siguiente); } catch { /* el aviso no puede romper */ }
     }
     return false;
 }
