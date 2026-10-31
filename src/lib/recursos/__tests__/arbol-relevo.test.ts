@@ -1,155 +1,117 @@
 import { describe, it, expect } from "vitest";
-import { armarArbol, recolocar } from "../arbol-relevo";
+import { armarArbol, capacidadRelevo, recolocar, type ArbolRelevo } from "../arbol-relevo";
+
+function padres(arbol: ArbolRelevo): Map<string, string[]> {
+  const mapa = new Map<string, string[]>();
+  for (const [id, nodo] of arbol.nodos) {
+    for (const hijo of nodo.hijos) mapa.set(hijo, [...(mapa.get(hijo) ?? []), id]);
+  }
+  return mapa;
+}
+
+function profundidades(arbol: ArbolRelevo): Map<string, number> {
+  const mapa = new Map<string, number>([[arbol.origen, 0]]);
+  const cola = [arbol.origen];
+  while (cola.length > 0) {
+    const id = cola.shift()!;
+    for (const hijo of arbol.nodos.get(id)?.hijos ?? []) {
+      if (mapa.has(hijo)) continue;
+      mapa.set(hijo, (mapa.get(id) ?? 0) + 1);
+      cola.push(hijo);
+    }
+  }
+  return mapa;
+}
+
+const receptor = (nodoId: string, subidaKbps?: number) => ({ nodoId, subidaKbps });
+const tope = (id: string, subidaKbps: number | undefined) =>
+  id === "origen" ? 1 : capacidadRelevo(subidaKbps, 1000);
 
 describe("arbol-relevo", () => {
-  describe("armarArbol", () => {
-    it("con 1 receptor", () => {
-      const origen = "origen";
-      const receptores = [{ nodoId: "n1", subidaKbps: 1000 }];
-      const arbol = armarArbol(origen, receptores, 500);
+  it("con 1 receptor cuelga del origen", () => {
+    const arbol = armarArbol("origen", [receptor("n1", 1000)], 500);
+    expect(arbol.nodos.get("origen")?.hijos).toEqual(["n1"]);
+    expect(arbol.nodos.get("n1")?.hijos).toEqual([]);
+    expect(padres(arbol).get("n1")).toEqual(["origen"]);
+  });
 
-      expect(arbol.origen).toBe(origen);
-      expect(arbol.nodos.get(origen)?.hijos).toContain("n1");
-    });
+  it("con 10 receptores pone a los de más subida más cerca", () => {
+    const receptores = Array.from({ length: 10 }, (_, i) => receptor(`n${i}`, (10 - i) * 1000));
+    const arbol = armarArbol("origen", receptores, 1000);
+    const hondo = profundidades(arbol);
+    expect(hondo.size).toBe(11);
+    expect(hondo.get("n0")).toBe(1);
+    expect(hondo.get("n0")).toBeLessThan(hondo.get("n9")!);
+    const p = padres(arbol);
+    for (const { nodoId } of receptores) {
+      expect(p.get(nodoId), nodoId).toHaveLength(1);
+      expect(hondo.get(nodoId), nodoId).toBeGreaterThanOrEqual(hondo.get("n0")!);
+    }
+  });
 
-    it("con 10 receptores ordenados por subida", () => {
-      const origen = "origen";
-      const receptores = Array.from({ length: 10 }, (_, i) => ({
-        nodoId: `n${i}`,
-        subidaKbps: (10 - i) * 1000
-      }));
+  it("respeta la capacidad de cada nodo (sin medida: 1)", () => {
+    const arbol = armarArbol(
+      "origen",
+      [receptor("a", 5000), receptor("b", 1000), receptor("c"), receptor("d", 0)],
+      1000,
+    );
+    for (const [id, nodo] of arbol.nodos) {
+      expect(nodo.hijos.length, id).toBeLessThanOrEqual(tope(id, nodo.subidaKbps));
+    }
+  });
 
-      const arbol = armarArbol(origen, receptores, 1000);
+  it("con 200 receptores forma un árbol completo y determinista", () => {
+    const receptores = Array.from({ length: 200 }, (_, i) =>
+      receptor(`n${i}`, (200 - i) * 500),
+    );
+    const uno = armarArbol("origen", receptores, 1000);
+    const dos = armarArbol("origen", receptores, 1000);
+    expect(uno).toEqual(dos);
+    expect(uno.nodos.size).toBe(201);
+    const p = padres(uno);
+    const hondo = profundidades(uno);
+    for (const { nodoId } of receptores) {
+      expect(p.get(nodoId), nodoId).toHaveLength(1);
+      expect(hondo.has(nodoId), nodoId).toBe(true);
+    }
+    for (const [id, nodo] of uno.nodos) {
+      expect(nodo.hijos.length, id).toBeLessThanOrEqual(tope(id, nodo.subidaKbps));
+    }
+  });
 
-      const hijosOrigen = arbol.nodos.get(origen)?.hijos || [];
-      expect(hijosOrigen.length).toBeGreaterThan(0);
+  it("sin medida cada nodo sostiene como mucho un hijo", () => {
+    const arbol = armarArbol("origen", [receptor("n1"), receptor("n2"), receptor("n3")], 1000);
+    expect(arbol.nodos.get("origen")?.hijos).toEqual(["n1"]);
+    expect(arbol.nodos.get("n1")?.hijos).toEqual(["n2"]);
+    expect(arbol.nodos.get("n2")?.hijos).toEqual(["n3"]);
+  });
 
-      const primerosHijos = hijosOrigen.slice(0, 3);
-      const subidas = primerosHijos.map((id) => arbol.nodos.get(id)?.subidaKbps ?? 0);
-      if (subidas.length >= 3) {
-        expect(subidas[0]).toBeGreaterThanOrEqual(subidas[1]);
-        expect(subidas[1]).toBeGreaterThanOrEqual(subidas[2]);
-      }
-    });
+  it("al irse uno mueve solo su rama y recoloca a sus hijos", () => {
+    const arbol = armarArbol(
+      "origen",
+      [receptor("n0", 1500), receptor("n1", 1500), receptor("n2", 1500),
+        receptor("n3", 1000), receptor("n4", 1000)],
+      1000,
+    );
+    expect(arbol.nodos.get("origen")?.hijos).toEqual(["n0"]);
+    expect(arbol.nodos.get("n1")?.hijos).toEqual(["n2"]);
+    const despues = recolocar(arbol, "n1");
+    const p = padres(despues);
+    expect(despues.nodos.get("n1")?.hijos).toEqual([]);
+    expect(p.get("n1")).toBeUndefined();
+    expect(p.get("n0")).toEqual(["origen"]);
+    expect(p.get("n2")).toEqual(["n0"]);
+    expect(p.get("n3")).toEqual(["n2"]);
+    expect(p.get("n4")).toEqual(["n3"]);
+    expect(despues.nodos.get("n0")?.hijos).toEqual(["n2"]);
+    expect(arbol.nodos.get("n1")?.hijos).toEqual(["n2"]);
+    for (const [id, nodo] of despues.nodos) {
+      expect(nodo.hijos.length, id).toBeLessThanOrEqual(tope(id, nodo.subidaKbps));
+    }
+  });
 
-    it("respeta capacidad máxima por nodo", () => {
-      const origen = "origen";
-      const receptores = [
-        { nodoId: "n1", subidaKbps: 5000 },
-        { nodoId: "n2", subidaKbps: 1000 },
-        { nodoId: "n3", subidaKbps: 1000 },
-        { nodoId: "n4", subidaKbps: 1000 },
-        { nodoId: "n5", subidaKbps: 1000 }
-      ];
-
-      const kbpsFlujo = 1000;
-      const arbol = armarArbol(origen, receptores, kbpsFlujo);
-
-      const nodo1 = arbol.nodos.get("n1");
-      if (nodo1) {
-        const capacidadMax = Math.floor(5000 / kbpsFlujo);
-        expect(nodo1.hijos.length).toBeLessThanOrEqual(capacidadMax);
-      }
-    });
-
-    it("con subida sin medir usa capacidad mínima", () => {
-      const origen = "origen";
-      const receptores = [
-        { nodoId: "n1" },
-        { nodoId: "n2" },
-        { nodoId: "n3" }
-      ];
-
-      const arbol = armarArbol(origen, receptores, 1000);
-
-      const n1 = arbol.nodos.get("n1");
-      expect(n1?.subidaKbps).toBe(0);
-      expect(arbol.nodos.get(origen)?.hijos.length).toBeGreaterThan(0);
-    });
-
-    it("200 receptores", () => {
-      const origen = "origen";
-      const receptores = Array.from({ length: 200 }, (_, i) => ({
-        nodoId: `n${i}`,
-        subidaKbps: (200 - i) * 500
-      }));
-
-      const arbol = armarArbol(origen, receptores, 1000);
-
-      let totalReceptores = 0;
-      for (const [id, nodo] of arbol.nodos) {
-        if (id !== origen) totalReceptores++;
-      }
-
-      expect(totalReceptores).toBe(200);
-
-      for (const [id, nodo] of arbol.nodos) {
-        const subida = nodo.subidaKbps ?? 0;
-        const capMax = subida > 0 ? Math.floor(subida / 1000) : 9999;
-        expect(nodo.hijos.length).toBeLessThanOrEqual(capMax);
-      }
-    });
-
-    it("mueve la rama cuando un nodo se va", () => {
-      const origen = "origen";
-      const receptores = [
-        { nodoId: "n1", subidaKbps: 5000 },
-        { nodoId: "n2", subidaKbps: 3000 },
-        { nodoId: "n3", subidaKbps: 2000 },
-        { nodoId: "n4", subidaKbps: 1000 }
-      ];
-
-      const arbol = armarArbol(origen, receptores, 1000);
-      const hijosAntes = arbol.nodos.get("n1")?.hijos.length || 0;
-
-      const arbolRecolocado = recolocar(arbol, "n1");
-
-      expect(arbolRecolocado.nodos.get("n1")?.hijos.length).toBe(0);
-      expect(arbolRecolocado.nodos.get(origen)?.hijos).not.toContain("n1");
-
-      const totalHijos = Array.from(arbolRecolocado.nodos.values())
-        .reduce((sum, nodo) => sum + nodo.hijos.length, 0);
-      expect(totalHijos).toBeGreaterThan(0);
-    });
-
-    it("si el que se va no está, devuelve el árbol entero sin cambios", () => {
-      const antes = armarArbol("raiz", [{ nodoId: "a" }], 100);
-      expect(recolocar(antes, "fantasma")).toEqual(antes);
-    });
-
-    it("al irse uno quita solo a ese nodo y no toca a los demás", () => {
-      const arbol = armarArbol(
-        "origen",
-        [
-          { nodoId: "n1", subidaKbps: 5000 },
-          { nodoId: "n2", subidaKbps: 3000 },
-          { nodoId: "n3", subidaKbps: 2000 },
-        ],
-        1000,
-      );
-      const recolocado = recolocar(arbol, "n1");
-      const hijosOrigen = recolocado.nodos.get("origen")?.hijos ?? [];
-      expect(hijosOrigen).not.toContain("n1");
-      expect(hijosOrigen).toEqual(expect.arrayContaining(["n2", "n3"]));
-      expect(recolocado.nodos.get("n2")?.subidaKbps).toBe(3000);
-      expect(recolocado.nodos.get("n3")?.subidaKbps).toBe(2000);
-    });
-
-    it("mantiene determinismo", () => {
-      const origen = "origen";
-      const receptores = [
-        { nodoId: "n1", subidaKbps: 5000 },
-        { nodoId: "n2", subidaKbps: 3000 },
-        { nodoId: "n3", subidaKbps: 2000 }
-      ];
-
-      const arbol1 = armarArbol(origen, receptores, 1000);
-      const arbol2 = armarArbol(origen, receptores, 1000);
-
-      for (const [id, nodo1] of arbol1.nodos) {
-        const nodo2 = arbol2.nodos.get(id);
-        expect(nodo2?.hijos).toEqual(nodo1.hijos);
-      }
-    });
+  it("si el que se va no está, devuelve el árbol igual", () => {
+    const arbol = armarArbol("origen", [receptor("n1")], 100);
+    expect(recolocar(arbol, "fantasma")).toEqual(arbol);
   });
 });
