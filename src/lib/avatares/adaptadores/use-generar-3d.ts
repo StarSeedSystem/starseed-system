@@ -65,7 +65,15 @@ export function prepararGeneracion(c: Contexto3D, deps: Pick<Dependencias3D, "ta
     : "Qué otra neurona podría generarla: aquí no se leyó el registro de neuronas de MetaGenesis, así que no se puede decir.";
   if (ml && deps.taller) return { optimizacion, plan: local, via: "local", motivo: `Se genera en esta neurona con ${ml.nombre}.`, neurona };
   const porQue = ml ? `Esta neurona podría generar con ${ml.nombre}, pero su taller local (servicios/taller-3d) aún no está instalado aquí.` : "Esta neurona no puede generar en local (ver los motivos de la etapa «generar»).";
-  if (mr?.remoto && deps.espacio) return { optimizacion, plan: remoto, via: "remota", motivo: `${porQue} Solo queda ${mr.nombre}: tu imagen saldría de este aparato.`, neurona };
+  if (ml && !deps.taller && mr?.remoto && deps.espacio) {
+    return { optimizacion, plan: remoto, via: "remota", motivo: `${porQue} Solo queda ${mr.nombre}: tu imagen saldría de este aparato.`, neurona };
+  }
+  if (!ml && mr?.remoto && deps.espacio && c.hierro?.permiteEspacioHf) {
+    return { optimizacion, plan: remoto, via: "remota", motivo: `${porQue} Solo queda ${mr.nombre}: tu imagen saldría de este aparato.`, neurona };
+  }
+  if (!ml && mr?.remoto && deps.espacio && !c.hierro?.permiteEspacioHf) {
+    return { optimizacion, plan: local, via: "ninguna", motivo: `${porQue} Las versiones públicas del Space están apagadas para esta neurona.`, neurona };
+  }
   return { optimizacion, plan: local, via: "ninguna", motivo: `${porQue} Tampoco hay respaldo remoto disponible.`, neurona };
 }
 
