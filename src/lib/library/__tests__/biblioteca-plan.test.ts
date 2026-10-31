@@ -10,7 +10,7 @@ describe("biblioteca-plan", () => {
     puedeEditar: () => true,
   };
 
-  const baseDoc = (items: any[]): EntityLibraryDoc => ({
+  const baseDoc = (items: EntityLibraryDoc["items"]): EntityLibraryDoc => ({
     items,
     folders: [],
     rev: 1,
