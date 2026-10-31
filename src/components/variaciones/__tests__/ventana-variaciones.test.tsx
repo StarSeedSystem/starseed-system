@@ -129,4 +129,5 @@ describe("VentanaVariaciones", () => {
     expect(enlaces[0].getAttribute("rel")).toBe("noopener noreferrer");
     expect(screen.getByText("Repo inseguro")).toBeTruthy();
   });
+
 });
