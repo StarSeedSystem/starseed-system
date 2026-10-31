@@ -3,8 +3,10 @@
  * La API de hoy vive en `src/lib/genesis/conectores/escalera.ts`: el peldaño
  * numérico (1–6) sustituye a la etiqueta que usaba el panel antiguo.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, afterEach } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import type { OpcionCatalogo } from "@/lib/genesis/conectores/catalogo-opciones";
+import type { PermisoLanzamiento } from "@/lib/genesis/conectores/cupo-cloudroom";
 import {
   elegirCandidatos,
   type OfertaContexto,
@@ -18,12 +20,16 @@ import {
   agregarACadena,
   disponiblesParaFila,
   entradasDeFila,
+  estadoCloudroom,
   etiquetaFila,
   etiquetaPeldano,
   filasSugeridas,
+  idsSugeridas,
   moverEnCadena,
   peldanoDe,
   quitarDeCadena,
+  AsignacionesPanel,
+  type AvisosContenedores,
   type FilaPanel,
 } from "../asignaciones-panel";
 
@@ -141,5 +147,114 @@ describe("AsignacionesPanel · filas por papel y director", () => {
     expect(accionGuardar("aplicar")).toBe("aplicar");
     expect(accionGuardar("proponer")).toBe("proponer");
     expect(accionGuardar("sin-permiso")).toBe("nada");
+  });
+});
+
+/* CRM1024F · Cloudroom en el panel: estado honesto y sugerencia solo del sugeridor. */
+
+const CLOUDROOM = {
+  id: "cloudroom",
+  nombre: "Cloudroom",
+  enlaceAlta: "https://cloudroom.dev",
+  guia: null,
+  requiereCuenta: true,
+  requierePago: false,
+  aptoPrivado: false,
+  verificado: true,
+};
+
+const CICLO: PermisoLanzamiento = {
+  plan: { tipo: "gratis" },
+  consumos: [],
+  inicioCiclo: "2026-10-01T00:00:00Z",
+  ahora: "2026-10-31T00:00:00Z",
+  contextos: [{ id: "personal", peso: 1 }],
+  diasQueQuedan: 10,
+};
+
+describe("estadoCloudroom · honestidad de esta neurona y del cupo", () => {
+  it("sin medidas ni cupo declarado, lo dice sin inventar nada", () => {
+    const texto = estadoCloudroom();
+    expect(texto).toContain("sin verificar en esta neurona");
+    expect(texto).toContain("declara tu plan de Cloudroom");
+  });
+
+  it("con una oferta medida compatible, afirma que la app está en la neurona", () => {
+    const avisos: AvisosContenedores = {
+      ofertas: [{ id: "neurona", nombre: "Neurona", tipo: "contenedor", papel: ["código"], escritorioCompatible: true }],
+    };
+    expect(estadoCloudroom(avisos)).toContain("compatible verificada en esta neurona");
+  });
+
+  it("con el cupo del plan declara lo restante y su ritmo diario", () => {
+    const texto = estadoCloudroom({ cupoCloudroom: CICLO });
+    expect(texto).toContain("Cupo restante del ciclo: 100 agentes");
+    expect(texto).toContain("ritmo diario: 10");
+  });
+
+  it("el cupo agotado se dice tal cual, sin ofrecer lanzar", () => {
+    const agotado = { ...CICLO, consumos: [{ contextoId: "personal", n: 100, t: "2026-10-31T00:00:00Z" }] };
+    expect(estadoCloudroom({ cupoCloudroom: agotado })).toContain("agotado hasta el próximo ciclo");
+  });
+});
+
+describe("idsSugeridas · Cloudroom solo cuando la devuelve sugerirParaAmbito", () => {
+  const filas: FilaPanel[] = [{ tipo: "papel", clave: "código", cadena: ["local-uno"] }];
+
+  it("sin ofertas medidas del ámbito, no la sugiere", () => {
+    expect(idsSugeridas(filas, [], { contenedores: [CLOUDROOM] }).has("cloudroom")).toBe(false);
+  });
+
+  it("con la app compatible medida y una tarea de código larga, sí la sugiere", () => {
+    const avisos: AvisosContenedores = {
+      contenedores: [CLOUDROOM],
+      ofertas: [{ id: "neurona", nombre: "Neurona", tipo: "contenedor", papel: ["código"], escritorioCompatible: true }],
+      relevanteCloudroom: true,
+    };
+    expect(idsSugeridas(filas, [], avisos).has("cloudroom")).toBe(true);
+  });
+});
+
+describe("AsignacionesPanel · Cloudroom pintado", () => {
+  afterEach(cleanup);
+
+  const catalogo: OpcionCatalogo[] = [
+    {
+      ...opcion({ id: "cloudroom", tipo: "contenedor", nombre: "Cloudroom", privacidad: "nube-con-retencion", requiereCuenta: true }),
+      papeles: [],
+    },
+    opcion({ id: "local-uno", nombre: "Local uno" }),
+  ];
+
+  it("muestra el estado honesto junto a la fila donde está Cloudroom", () => {
+    const fila: FilaPanel = { tipo: "director", clave: "diseno", cadena: ["cloudroom"] };
+    render(<AsignacionesPanel catalogo={catalogo} filasIniciales={[fila]} />);
+    expect(screen.getByText(/App de escritorio sin verificar en esta neurona/)).toBeTruthy();
+  });
+
+  it("no marca «Sugerida» si el sugeridor no la devuelve, y sí cuando sí", () => {
+    const filas: FilaPanel[] = [
+      { tipo: "papel", clave: "código", cadena: [] },
+      { tipo: "director", clave: "diseno", cadena: ["local-uno"] },
+    ];
+    const { unmount: desmonta } = render(
+      <AsignacionesPanel catalogo={catalogo} filasIniciales={filas} avisos={{ contenedores: [CLOUDROOM] }} />,
+    );
+    expect(screen.queryByRole("option", { name: "Sugerida · Cloudroom" })).toBeNull();
+    expect(screen.getByRole("option", { name: "Cloudroom" })).toBeTruthy();
+    desmonta();
+
+    render(
+      <AsignacionesPanel
+        catalogo={catalogo}
+        filasIniciales={filas}
+        avisos={{
+          contenedores: [CLOUDROOM],
+          ofertas: [{ id: "neurona", nombre: "Neurona", tipo: "contenedor", papel: ["código"], escritorioCompatible: true }],
+          relevanteCloudroom: true,
+        }}
+      />,
+    );
+    expect(screen.getByRole("option", { name: "Sugerida · Cloudroom" })).toBeTruthy();
   });
 });
