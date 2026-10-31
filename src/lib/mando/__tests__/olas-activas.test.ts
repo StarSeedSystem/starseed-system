@@ -140,6 +140,13 @@ describe("verificacionDe", () => {
         expect(verificacionDe(undefined, "tsc").texto).toBe("pasando tsc ahora mismo");
         expect(verificacionDe(undefined, "escribiendo").texto).toBe("aún sin verificar: está escribiendo");
     });
+
+    it("la imaginación profunda se nombra así, no como sueño", () => {
+        expect(verificacionDe({ estado: "informe" }).texto).toBe(
+            "imaginación profunda: informe escrito, sin código que integrar (lo verifica un supervisor Claude)",
+        );
+        expect(verificacionDe(undefined, "analizando").texto).toBe("imaginación profunda: leyendo y analizando (no escribe código)");
+    });
 });
 
 describe("filasDeOlasActivas", () => {
@@ -186,6 +193,25 @@ describe("filasDeOlasActivas", () => {
         expect(fq?.enlace).toBe("https://github.com/x/y/commit/1234567890");
     });
 
+    it("los informes de la imaginación se cuentan con ese nombre", () => {
+        const [cab] = filasDeOlasActivas(
+            base({
+                olasActivas: [
+                    {
+                        ...olaNube,
+                        tareas: [
+                            { id: "DR1", titulo: "Informe de área", archivos: ["a.py"] },
+                            { id: "Q4", titulo: "Código", archivos: ["b.py"] },
+                        ],
+                    },
+                ],
+                progreso: { DR1: { estado: "informe" }, Q4: { estado: "commit", sha: "1234567890" } },
+            }),
+        );
+        expect(cab.porque).toContain("1 informe(s) de imaginación");
+        expect(cab.porque).not.toContain("sueños");
+    });
+
     it("una tarea viva en la Mac: etapa, porcentaje, agente y archivos que tiene abiertos", () => {
         const olaMac: OlaActiva = { ...olaNube, medio: "mac", asignacionConocida: true, run: undefined, enlace: undefined };
         const [, dr] = filasDeOlasActivas(
@@ -216,5 +242,22 @@ describe("filasDeOlasActivas", () => {
         const d = detalleDeMedidor("ola-activa", {});
         expect(d.filas).toEqual([]);
         expect(d.resumen).toBe("ninguna ola en marcha");
+    });
+});
+
+describe("el medidor de agentes con la imaginación profunda", () => {
+    it("un analista dice «imaginación profunda», no «sueño profundo»", () => {
+        const latido = {
+            tarea: "SA1",
+            fase: "analizando",
+            modelo: "llm7/gpt-oss",
+            minutos: 4,
+            donde: "mac",
+            subfase: "lectura 2/9",
+        };
+        const d = detalleDeMedidor("agentes", base({ latidos: [latido] }));
+        expect(d.filas[0].estado).toBe("soñando");
+        expect(d.filas[0].porque).toBe("imaginación profunda · lectura 2/9 (lee, no escribe código)");
+        expect(d.filas[0].porque).not.toContain("sueño");
     });
 });
