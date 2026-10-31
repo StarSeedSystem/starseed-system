@@ -9,6 +9,7 @@ import { useState } from "react";
 import { GripVertical, RotateCcw, Save, Trash2 } from "lucide-react";
 import type { Director } from "@/lib/genesis/conectores/asignaciones";
 import type { OpcionCatalogo, Papel } from "@/lib/genesis/conectores/catalogo-opciones";
+import { estadoCloudroom, sugerenciaCloudroom, type EntradaEstadoCloudroom } from "./asistente-conectores";
 
 export type ModoPanel = "aplicar" | "proponer" | "sin-permiso";
 export type Peldano = "local" | "malla" | "contenedor" | "gratis" | "pago";
@@ -32,6 +33,8 @@ export interface PropsPanel {
   modo?: ModoPanel;
   filasIniciales?: readonly FilaPanel[];
   onGuardar?: (filas: FilaPanel[]) => void | Promise<void>;
+  /** Estado honesto de Cloudroom y las sugerencias del ámbito, para pintarlo en su fila. */
+  cloudroom?: EntradaEstadoCloudroom;
 }
 
 export const PAPELES: readonly Papel[] = ["escritor", "revisor", "chat", "visión", "voz", "imagen", "código"];
@@ -123,10 +126,12 @@ export function etiquetaFila(fila: FilaPanel): string {
 const BOTON = "min-h-11 min-w-11 cursor-pointer rounded-lg border border-white/15 p-1.5 text-white/60 transition-colors duration-150 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-9 sm:min-w-9";
 const ACCION = "min-h-11 cursor-pointer rounded-full border border-white/15 px-3 py-1.5 text-[11px] text-white/75 transition-colors duration-150 hover:border-emerald-300/50 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-9 inline-flex items-center gap-1";
 
-export function AsignacionesPanel({ catalogo, modo = "aplicar", filasIniciales, onGuardar }: PropsPanel) {
+export function AsignacionesPanel({ catalogo, modo = "aplicar", filasIniciales, onGuardar, cloudroom }: PropsPanel) {
   const [filas, setFilas] = useState<FilaPanel[]>(() => (filasIniciales ? filasIniciales.map((f) => ({ ...f, cadena: [...f.cadena] })) : filasSugeridas(catalogo)));
   const [aviso, setAviso] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const estadoCloudroomActual = cloudroom ? estadoCloudroom(cloudroom) : null;
+  const cloudroomSugerida = cloudroom ? sugerenciaCloudroom(cloudroom.sugerencias ?? []) : null;
   const soloLectura = modo === "sin-permiso";
   const cambiar = (i: number, cambio: (f: FilaPanel) => FilaPanel) => setFilas((lista) => lista.map((f, j) => (j === i ? cambio(f) : f)));
   const guardar = async () => {
@@ -165,7 +170,11 @@ export function AsignacionesPanel({ catalogo, modo = "aplicar", filasIniciales, 
                 <select aria-label={`Añadir a ${etiquetaFila(fila)}`} className="min-h-11 max-w-[45%] cursor-pointer truncate rounded-lg border border-white/15 bg-black/30 p-1 text-[11px] text-white/75 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-9" disabled={soloLectura || !opciones.length} value=""
                   onChange={(e) => { if (e.target.value) cambiar(i, (f) => ({ ...f, cadena: agregarACadena(f.cadena, e.target.value) })); }}>
                   <option value="">{opciones.length ? "Añadir del catálogo…" : "Sin opciones"}</option>
-                  {opciones.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                  {opciones.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.id === "cloudroom" && cloudroomSugerida ? `${o.nombre} · sugerida` : o.nombre}
+                    </option>
+                  ))}
                 </select>
               </div>
               <ol className="mt-2 space-y-1">
@@ -187,6 +196,11 @@ export function AsignacionesPanel({ catalogo, modo = "aplicar", filasIniciales, 
                         <span className="truncate text-xs text-white/85">{j + 1}. {entrada.nombre}</span>
                       </div>
                       <p className="text-[11px] text-white/50">{entrada.motivo}</p>
+                      {entrada.id === "cloudroom" && estadoCloudroomActual ? (
+                        <p data-testid="cloudroom-estado" className="mt-1 text-[11px] text-cyan-100/80">
+                          {estadoCloudroomActual.texto}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex shrink-0 gap-1">
                       <button type="button" className={BOTON} aria-label={`Subir ${entrada.nombre}`} disabled={soloLectura || j === 0} onClick={() => cambiar(i, (f) => ({ ...f, cadena: moverEnCadena(f.cadena, j, j - 1) }))}>↑</button>

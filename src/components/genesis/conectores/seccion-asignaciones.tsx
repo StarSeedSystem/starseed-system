@@ -132,7 +132,13 @@ export function SeccionAsignacionesGenesis({
           : "Guarda la cadena por defecto de cada papel y director de este ámbito; lo local va primero y de pago solo con permiso."}
       </p>
       <AsistenteConectores className="mb-3" entrada={{ ...cloudroom, sugerencias }} />
-      <AsignacionesPanel catalogo={CATALOGO_GENESIS} modo={modo} filasIniciales={iniciales} onGuardar={onGuardar} />
+      <AsignacionesPanel
+        catalogo={CATALOGO_GENESIS}
+        modo={modo}
+        filasIniciales={iniciales}
+        onGuardar={onGuardar}
+        cloudroom={{ ...cloudroom, sugerencias }}
+      />
       <div className="mt-4">
         <ClaudeConector urlMcp={urlMcpDelGenesis()} />
       </div>

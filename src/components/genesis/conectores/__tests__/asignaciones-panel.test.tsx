@@ -3,8 +3,10 @@
  * La API de hoy vive en `src/lib/genesis/conectores/escalera.ts`: el peldaño
  * numérico (1–6) sustituye a la etiqueta que usaba el panel antiguo.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import type { OpcionCatalogo } from "@/lib/genesis/conectores/catalogo-opciones";
+import type { GrupoSugerencias, Sugerencia } from "@/lib/genesis/conectores/sugerir";
 import {
   elegirCandidatos,
   type OfertaContexto,
@@ -12,6 +14,7 @@ import {
   type Tarea,
 } from "@/lib/genesis/conectores/escalera";
 import {
+  AsignacionesPanel,
   DIRECTORES,
   PAPELES,
   accionGuardar,
@@ -141,5 +144,71 @@ describe("AsignacionesPanel · filas por papel y director", () => {
     expect(accionGuardar("aplicar")).toBe("aplicar");
     expect(accionGuardar("proponer")).toBe("proponer");
     expect(accionGuardar("sin-permiso")).toBe("nada");
+  });
+});
+
+describe("AsignacionesPanel · Cloudroom aplicado donde se elige el servidor", () => {
+  afterEach(cleanup);
+
+  const CLOUDROOM = opcion({
+    id: "cloudroom",
+    nombre: "Cloudroom",
+    tipo: "contenedor",
+    papeles: [],
+    privacidad: "nube-con-retencion",
+    requiereCuenta: true,
+  });
+  const FILA: FilaPanel = { tipo: "director", clave: "diseno", cadena: ["cloudroom"] };
+
+  it("pinta el estado honesto en la fila de Cloudroom", () => {
+    render(
+      <AsignacionesPanel
+        catalogo={[CLOUDROOM]}
+        filasIniciales={[FILA]}
+        cloudroom={{
+          instalacion: "instalada",
+          plan: { tipo: "gratis" },
+          consumos: [],
+          inicioCiclo: "2026-10-01T00:00:00Z",
+          ahora: "2026-10-02T12:00:00Z",
+          diasQueQuedan: 30,
+        }}
+      />,
+    );
+    expect(screen.getByTestId("cloudroom-estado").textContent).toContain("instalada en esta neurona");
+    expect(screen.getByTestId("cloudroom-estado").textContent).toContain("100");
+  });
+
+  it("sin datos no finge instalación ni cupo", () => {
+    render(<AsignacionesPanel catalogo={[CLOUDROOM]} filasIniciales={[FILA]} cloudroom={{}} />);
+    expect(screen.getByTestId("cloudroom-estado").textContent).toContain("sin comprobar");
+    expect(screen.getByTestId("cloudroom-estado").textContent).toContain("cupo sin lectura");
+  });
+
+  it("marca Cloudroom como sugerida solo si el sugeridor la devuelve", () => {
+    const sugerencia: Sugerencia = {
+      id: "cloudroom",
+      nombre: "Cloudroom",
+      tipo: "contenedor",
+      papeles: [],
+      enlaceAlta: "https://cloudroom.dev",
+      enlaceClave: null,
+      limite: null,
+      verificado: true,
+      privacidad: "nube-con-retencion",
+      variables: [],
+      motivo: "Tarea larga de código.",
+    };
+    const grupos: GrupoSugerencias[] = [
+      { clave: "gratis-por-vincular", titulo: "Gratis por vincular", opciones: [sugerencia] },
+    ];
+    render(
+      <AsignacionesPanel
+        catalogo={[CLOUDROOM]}
+        filasIniciales={[{ tipo: "director", clave: "diseno", cadena: [] }]}
+        cloudroom={{ sugerencias: grupos }}
+      />,
+    );
+    expect(screen.getByRole("option", { name: "Cloudroom · sugerida" })).toBeTruthy();
   });
 });
