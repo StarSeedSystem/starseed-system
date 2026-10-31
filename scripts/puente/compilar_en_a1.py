@@ -21,8 +21,7 @@ Lo que hace (el mismo camino que la Mac, pero compilando fuera):
    borra `.env.production.local` del A1 — ahí las claves nunca hacen falta.
 6. CAMBIAR · `marcar_listo` con la hora del envío, estado `al-dia` con la huella
    del envío en `reconstruccion.json` y `reiniciar_mando` (de `reconstruir_mando`).
-7. TURNO   · (GEN1031A) con `urgente` (Genesis caído o la pantalla vieja > 6 h) el A1 da turno
-   aunque esté en cola o guardián (ver `compilar`).
+7. TURNO   · (GEN1031A) con `urgente` el A1 da turno aunque esté en cola o guardián.
 """
 from __future__ import annotations
 
@@ -42,8 +41,8 @@ import oracle_nodo  # noqa: E402
 import reconstruir_mando as RM  # noqa: E402
 
 RAIZ = RM.RAIZ
-#: El repo del A1 es el mismo checkout que lleva `oracle_nodo` (REPO_A1).
-RAIZ_A1 = os.environ.get("STARSEED_ROOT_A1") or oracle_nodo.REPO_A1
+#: (GEN1031A) La MISMA ruta que la Mac (`.next` guarda rutas absolutas); nunca el checkout del medio.
+RAIZ_A1 = os.environ.get("STARSEED_ROOT_A1") or RM.RAIZ
 DIST_BUILD = RM.DIST_BUILD
 ENV_PRODUCCION = ".env.production.local"
 USUARIO = oracle_nodo.USUARIO_SSH
@@ -52,16 +51,10 @@ USUARIO = oracle_nodo.USUARIO_SSH
 EXCLUIDOS = (".git", ".next*", "starseed_memory_root", ".codegraph", ".transfer",
              ".env*", "node_modules")
 
-# ── (GEN1031A) El 31-10 04:31 `se_puede_compilar` dijo «el A1 está en fase cola»: con su enjambre
-#: casi siempre en cola o guardián, la pantalla de Genesis no se ponía nunca al día.
 VIEJA_URGENTE_S = float(os.environ.get("STARSEED_A1_URGENTE_H", "6")) * 3600
 ESPERA_TURNO_S = int(os.environ.get("STARSEED_A1_ESPERA_TURNO_S", "3600"))
 HOME_A1 = os.path.dirname(oracle_nodo.REPO_A1)
-#: El turno compila en un árbol APARTE: en cola el orquestador integra (`merge --ff-only`) en el
-#: checkout del medio y la cola siguiente hace `reset --hard`; un rsync ahí rompe a los dos.
-RAIZ_TURNO_A1 = os.environ.get("STARSEED_ROOT_TURNO_A1") or HOME_A1 + "/genesis-turno"
-#: El freno que YA lee el orquestador del A1 (`tope_gobernador`) y el turno pesado (tsc/vitest)
-#: que comparte con `tsc-turno.sh`.
+#: El freno que YA lee el orquestador del A1 (`tope_gobernador`) y su turno pesado (tsc/vitest).
 GOBERNADOR_A1 = HOME_A1 + "/.starseed/gobernador.json"
 PESADO_A1 = HOME_A1 + "/.starseed/cerrojos/pesado.lock"
 FASE_A1 = oracle_nodo.ESTADO_A1 + "/estado.json"
@@ -107,6 +100,12 @@ def orden_env(path):
 def orden_limpiar_env(path):
     """PURA: la clave prestada se borra del A1 en cuanto el build está aquí."""
     return "sudo -u starseed -H sh -c 'rm -f %s'" % shlex.quote(path)
+
+
+def orden_preparar_arbol(raiz=RAIZ_A1):
+    """PURA: el árbol existe y es de starseed (el del 30-10 era de ubuntu). Idempotente: chown una vez."""
+    q = shlex.quote(raiz)
+    return 'sudo mkdir -p %s && { [ "$(stat -c %%U %s)" = starseed ] || sudo chown -R starseed:starseed %s; }' % (q, q, q)
 
 
 def orden_instalar(raiz=RAIZ_A1):
@@ -184,9 +183,8 @@ def se_puede_compilar(estado_a1, ahora, vivo=None, urgente=None):
 
 
 def urgencia(caido, mtime_build_ns, entradas, ahora, umbral_s=VIEJA_URGENTE_S):
-    """PURA (GEN1031A): por qué la build del A1 no puede esperar a su enjambre, o None. Genesis
-    caído o sin build, o la fuente más vieja de las que no están en el build servido lleva más de
-    `umbral_s` fuera de la pantalla. `entradas`: [(ruta, mtime_ns, tamaño)] de `reconstruir_mando`."""
+    """PURA: por qué la build del A1 no espera a su enjambre (o None): Genesis caído o sin build, o la
+    fuente más vieja fuera del build servido lleva más de `umbral_s`. `entradas`: (ruta, mtime_ns, tam)."""
     if caido:
         return "Genesis está caído"
     if mtime_build_ns is None:
@@ -197,8 +195,7 @@ def urgencia(caido, mtime_build_ns, entradas, ahora, umbral_s=VIEJA_URGENTE_S):
 
 
 def orden_pedir_turno(hasta, ruta=GOBERNADOR_A1):
-    """PURA: el freno del orquestador del A1 a 1 trabajador (nada en marcha se corta: solo no LANZA
-    más). Su mtime es `hasta`, así que caduca solo aunque nadie lo quite (frescura de 15 min)."""
+    """PURA: el freno del orquestador a 1 trabajador (no corta nada); mtime `hasta`: caduca solo."""
     datos = json.dumps({"trabajadores": 1, "motivo": MARCA_TURNO})
     guion = "mkdir -p %s && printf '%%s\\n' %s > %s && touch -d @%d %s" % (
         shlex.quote(os.path.dirname(ruta)), shlex.quote(datos), shlex.quote(ruta), int(hasta), shlex.quote(ruta))
@@ -213,9 +210,8 @@ def orden_quitar_turno(ruta=GOBERNADOR_A1):
 
 def guion_turno(compilar, espera_s=ESPERA_TURNO_S, fase=FASE_A1, cerrojo=PESADO_A1, tsc_vivo=TSC_VIVO,
                 pausa_s=15):
-    """PURA: guion de `sh -s` (como starseed): espera a que el A1 salga del guardián y no haya tsc
-    ni turno pesado en curso, TOMA ese turno (con `dueno`, como `tsc-turno.sh`) y compila. Un dueño
-    muerto se aparta, como hacen ellos; uno vivo nunca. Sin turno en `espera_s`: SIN_TURNO."""
+    """PURA: `sh -s` como starseed: espera a que no haya guardián, tsc ni turno pesado, TOMA el turno
+    (`dueno`, como `tsc-turno.sh`; un dueño muerto se aparta, uno vivo nunca) y compila. Si no: SIN_TURNO."""
     q = shlex.quote
     return "\n".join((
         "L=%s; F=%s; fin=$(( $(date +%%s) + %d ))" % (q(cerrojo), q(fase), int(espera_s)),
@@ -253,8 +249,7 @@ def compilar(raiz=RAIZ, tope=7200, urgente=None):
     """Envía, instala si toca, compila en el A1, trae y cambia. (ok, detalle).
 
     Un fallo de maquinaria remota NO toca `reconstruccion.json`: la Mac espera a la
-    próxima pasada y este camino puede volver a intentarse. (GEN1031A) Con `urgente`, el A1 da
-    turno: freno a 1, árbol aparte, espera al guardián o al tsc, y el freno se quita SIEMPRE."""
+    próxima pasada y este camino puede volver a intentarse. Con `urgente`, turno (freno SIEMPRE fuera)."""
     ip = oracle_nodo._ip()
     if not ip:
         return False, "sin A1 en ~/.starseed/oracle.json"
@@ -271,7 +266,7 @@ def compilar(raiz=RAIZ, tope=7200, urgente=None):
     try:
         if rc != 0:
             return False, "freno del A1: %s" % cola(salida)
-        ok, detalle = _enviar_y_compilar(ip, raiz, tope, RAIZ_TURNO_A1, ESPERA_TURNO_S)
+        ok, detalle = _enviar_y_compilar(ip, raiz, tope, espera_turno=ESPERA_TURNO_S)
         return ok, "%s (urgente: %s; el A1 dio turno)" % (detalle, urgente)
     finally:
         oracle_nodo.ssh(orden_quitar_turno(), timeout=60)
@@ -284,6 +279,9 @@ def _enviar_y_compilar(ip, raiz, tope, raiz_a1=RAIZ_A1, espera_turno=None):
         return False, "sin git de la Mac: %s" % cola(cabeza)
     huella = huella_envio(cabeza.strip(), _git_local(["status", "--porcelain"], raiz)[1])
     t_envio = time.time()
+    rc, salida = oracle_nodo.ssh(orden_preparar_arbol(raiz_a1), timeout=600)
+    if rc != 0:
+        return False, "árbol del A1: %s" % cola(salida)
     rc, salida = _rsync(args_envio(raiz, ip, raiz_a1), 3600, ip)
     if rc != 0:
         return False, "envío al A1: %s" % cola(salida)

@@ -218,7 +218,7 @@ class Flujo(unittest.TestCase):
 
     def test_build_muerto_no_cambia_nada(self):
         mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
-        ssh = mock.patch.object(C.oracle_nodo, "ssh", side_effect=[(0, "abc123\n"), (0, ""), (0, ""),
+        ssh = mock.patch.object(C.oracle_nodo, "ssh", side_effect=[(0, ""), (0, "abc123\n"), (0, ""), (0, ""),
                                                                   (1, "muerte a los 814 s")]).start()
         ok, detalle = C.compilar(raiz=self.raiz)
         self.assertFalse(ok)
@@ -248,7 +248,10 @@ class Flujo(unittest.TestCase):
         self.estado.return_value = ({"fase": "espera"}, {}, [])
         C.compilar(raiz=self.raiz)
         self.assertFalse(any(C.GOBERNADOR_A1 in o or o == C.ORDEN_GUION for o in self._ordenes()))
-        self.assertTrue(self.rsync.call_args_list[0][0][0][-1].endswith(":" + RAIZ_A1))
+        self.assertEqual(self._ordenes()[0], C.orden_preparar_arbol())  # el árbol aparte, también sin urgencia
+        self.assertEqual((RAIZ_A1, RAIZ_A1 != C.oracle_nodo.REPO_A1), (C.RM.RAIZ, True))
+        self.assertEqual(C.orden_preparar_arbol("/n"),  # chown solo si no es ya de starseed: idempotente
+                         'sudo mkdir -p /n && { [ "$(stat -c %U /n)" = starseed ] || sudo chown -R starseed:starseed /n; }')
 
     def test_urgente_en_cola_da_turno_en_arbol_aparte_y_lo_quita(self):
         mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
@@ -259,15 +262,12 @@ class Flujo(unittest.TestCase):
         ordenes = self._ordenes()
         self.assertTrue(C.GOBERNADOR_A1 in ordenes[0] and "touch -d @" in ordenes[0])  # el freno, lo primero
         self.assertEqual(ordenes[-1], C.orden_quitar_turno())  # y quitarlo, lo último
-        guion = [c[1]["entrada"] for c in self.ssh.call_args_list if c[0][0] == C.ORDEN_GUION]
-        self.assertEqual(len(guion), 1)
-        self.assertTrue(all(s in guion[0] for s in ("nice -n 10", "STARSEED_BUILD_LIGERO=1", "cd " + C.RAIZ_TURNO_A1,
-                                                     C.PESADO_A1, "guardian")), guion[0])
-        self.assertTrue(self.rsync.call_args_list[0][0][0][-1].endswith(":" + C.RAIZ_TURNO_A1))
-        self.assertIn(C.RAIZ_TURNO_A1 + "/" + C.DIST_BUILD, self.rsync.call_args_list[-1][0][0][-2])
-        self.assertIn(C.RAIZ_TURNO_A1, self.bytes.call_args_list[0][0][0])
+        (guion,) = [c[1]["entrada"] for c in self.ssh.call_args_list if c[0][0] == C.ORDEN_GUION]  # uno solo
+        self.assertTrue(all(s in guion for s in ("nice -n 10", "STARSEED_BUILD_LIGERO=1", "cd " + RAIZ_A1,
+                                                  C.PESADO_A1, "guardian")), guion)
+        self.assertIn(RAIZ_A1 + "/" + C.DIST_BUILD, self.rsync.call_args_list[-1][0][0][-2])
         prohibido = ("pkill", "killall", "kill -9", "kill -TERM", "systemctl")  # nunca se mata al enjambre
-        self.assertEqual([o for o in ordenes + guion if any(p in o for p in prohibido)], [])
+        self.assertEqual([o for o in ordenes + [guion] if any(p in o for p in prohibido)], [])
 
     def test_urgente_roto_sin_turno_o_reventado_quita_el_freno(self):
         mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
@@ -306,8 +306,7 @@ class Turno(unittest.TestCase):
         o = C.orden_pedir_turno(1234.9)
         self.assertTrue(o.startswith("sudo -u starseed -H sh -c "))
         trozos = shlex.split(shlex.split(o)[-1])
-        self.assertEqual(json.loads(trozos[trozos.index("printf") + 2])["trabajadores"], 1)
-        self.assertIn("@1234", trozos)
+        self.assertEqual((json.loads(trozos[trozos.index("printf") + 2])["trabajadores"], "@1234" in trozos), (1, True))
         with tempfile.TemporaryDirectory() as d:
             ruta = os.path.join(d, "gobernador.json")
             quitar = ["sh", "-c", shlex.split(C.orden_quitar_turno(ruta))[-1]]
