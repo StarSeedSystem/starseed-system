@@ -731,6 +731,28 @@ def esperar_reintento(motivo):
         time.sleep(INTERVALO_S)
 
 
+def _dirijo(lider_fn=None, ahora=None):
+    """(OPS1031A) ¿Relanzo YO el orquestador? La misma regla que la autocuración y la
+    autopublicación (IND1029Cb): `autocuracion_mando.decidir_lider` sobre el arriendo de
+    dirección solo leído. Me abstengo SOLO si otra neurona tiene el arriendo vigente; sin
+    puerta, sin arriendo, con él caducado o si algo falla, True: como hoy."""
+    try:
+        import autocuracion_mando
+
+        if lider_fn is None:
+            import lider_direccion
+
+            lider_fn = lider_direccion.soy_lider
+        dirijo, motivo = autocuracion_mando.decidir_lider(
+            lider_fn(), time.time() if ahora is None else ahora
+        )
+    except Exception:  # noqa: BLE001 — como hoy: nadie se queda parado por la puerta
+        return True
+    if not dirijo:
+        print("vigilante: %s: no relanzo el orquestador" % motivo, flush=True)
+    return bool(dirijo)
+
+
 def main():
     print(
         "Vigilante del enjambre · cada %ss · tope %d tareas por tanda"
@@ -801,6 +823,9 @@ def main():
             cola = [] if hay else pendientes()
             cfg, _avisos = config_director.cargar()
             relanzar, trabajadores, tope = decidir_relanzamiento(cfg, hay, len(cola))
+            # (OPS1031A) Si dirige otra neurona, el orquestador lo relanza ella.
+            cede = relanzar and not _dirijo()
+            relanzar = relanzar and not cede
             if relanzar:
                 callado_desde = None
                 tanda = cola[:tope]
@@ -829,6 +854,9 @@ def main():
                         if curar_arbol_sucio():
                             continue
                     esperar_reintento(motivo)
+            elif cede:
+                # Hay trabajo, pero lo lleva el líder: ni «callado» ni «sin trabajo».
+                callado_desde = None
             elif cfg.get("pausado"):
                 callado_desde = None
                 ahora = time.time()
