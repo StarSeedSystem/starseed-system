@@ -46,6 +46,8 @@ describe("almacén de tareas por bot", () => {
   it("espeja a la cuenta con su clave, best-effort", () => {
     guardar(TAREA, inconclusa(TAREA));
     expect(h.espejo).toHaveBeenCalledWith({ [CLAVE_TAREAS]: expect.anything() });
+    const guardado: { porBot?: Record<string, unknown[]> } = JSON.parse(window.localStorage.getItem(CLAVE_TAREAS) ?? "{}");
+    expect(guardado.porBot?.[BOT.id]).toHaveLength(1);
   });
 });
 
