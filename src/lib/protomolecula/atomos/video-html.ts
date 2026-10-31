@@ -1,11 +1,16 @@
 import type { DefinicionAtomo } from "@/lib/protomolecula/registro-atomos";
+import { ATOMO_VIDEO_HTML, vistaVideoHtmlDe } from "@/lib/protomolecula/bloque-protomolecula";
+
+/** La correspondencia del bloque decide qué vista de componente pinta este átomo (§4.1). */
+const vistaDeLaFicha = vistaVideoHtmlDe(ATOMO_VIDEO_HTML);
 
 export const VIDEO_HTML: DefinicionAtomo = {
-  herramientaId: "hyperframes",
+  herramientaId: ATOMO_VIDEO_HTML,
   nombre: "Vídeo con HyperFrames",
   categoria: "video",
   integracion: "servicio-local",
   control: "total",
+  vista: vistaDeLaFicha ? { tipo: "componente", id: vistaDeLaFicha } : undefined,
   parametros: [
     { id: "duracion", nombre: "Duración", tipo: "numero", min: 1, max: 600, paso: 1, unidad: "s", defecto: 3, sinonimos: ["tiempo", "seconds"] },
     { id: "resolucion", nombre: "Resolución", tipo: "opcion", opciones: ["landscape", "portrait", "square", "4k"], defecto: "landscape", sinonimos: ["tamaño", "aspecto"] },
