@@ -15,6 +15,8 @@ Así que no se elige. Se turnan:
     medido: wired 3,9 -> 1,9 GB al matar, no al congelar; freeze solo retiene RAM).
     Vuelve con SIGCONT (BitNet) o se relanza (tts-server).
   · Si el orquestador para y hay holgura → SIGCONT. Astraura recupera su motor sola.
+  · Con poca memoria y sin conversación (1031) → se pide a Astraura DORMIR su BitNet local
+    antes que congelarlo: dormido suelta su RAM de verdad (mlock), congelado no.
 
 Un proceso congelado por nosotros se anota, para no reanudar jamás uno que el dueño
 hubiera parado él mismo.
@@ -22,7 +24,8 @@ hubiera parado él mismo.
   python3 scripts/puente/guardia-memoria.py
 """
 
-import importlib.util, os, re, signal, subprocess, sys, time
+import importlib.util, json, os, re, signal, subprocess, sys, time
+import urllib.request
 
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 INTERVALO_S = int(os.environ.get("STARSEED_GUARDIA_S", "45"))
@@ -34,6 +37,13 @@ REANUDAR_SOBRE_MB = int(os.environ.get("STARSEED_REANUDAR_MB", "2600"))
 #: congelado no suelta su RAM (mlock/wired) y nadie la está usando. BitNet pasó horas en «T».
 REANUDAR_SIN_ENJAMBRE_MIN = float(os.environ.get("STARSEED_REANUDAR_SIN_ENJAMBRE_MIN", "15"))
 MARCA = "/tmp/starseed-%s-congelado-por-el-guardia"  # un marcador por motor
+# (1031 · 2026-10-31) Congelado no suelta su RAM (mlock/wired): solo dormida se libera. Con
+# poca memoria y sin conversación se pide al gestor de Astraura que duerma a su BitNet
+# (POST /api/bitnet/dormir, el mismo punto «Aliviar memoria» de Genesis); desperta solo con
+# el próximo mensaje. Como mucho un intento cada SUENO_CADA_MIN y, en el ciclo del pedido,
+# ni SIGSTOP ni SIGKILL al motor que el gestor está durmiendo.
+URL_ASTRAURA = os.environ.get("STARSEED_ASTRAURA_URL") or "http://127.0.0.1:8000"
+SUENO_CADA_MIN = float(os.environ.get("STARSEED_SUENO_CADA_MIN", "10"))
 # Se compara el EJECUTABLE (`comm`), no la linea de ordenes. Un patron sobre los
 # argumentos detecta como motor el propio shell que lo busca, porque su orden menciona
 # el nombre — esa trampa ya nos hizo matar nuestro shell, contar orquestadores fantasma
@@ -178,6 +188,55 @@ def presion_nucleo():
         return None
 
 
+def falta_memoria(libre_mb, presion):
+    """PURA: ¿se está agotando la RAM? Vale lo medido (bajo el umbral del enjambre)
+    o la presión del kernel (nivel 2 o más, aunque el medidor diga otra cosa).
+    Sin medida y sin presión no se decide nada."""
+    if presion is not None and presion >= 2:
+        return True
+    return libre_mb is not None and libre_mb < CONGELAR_BAJO_MB
+
+
+def toca_pedir_sueno(hay_bitnet, conversando, libre_mb, presion, min_desde_ultimo):
+    """PURA: ¿corresponde pedir a Astraura que duerma su BitNet local?
+
+    Solo con el motor vivo y SIN conversación (la conversación manda sobre los
+    motores, siempre), solo con falta de memoria, y como mucho un intento cada
+    SUENO_CADA_MIN: machacar al gestor con culpa del guardia no es suyo.
+    """
+    if not hay_bitnet or conversando:
+        return False
+    if not falta_memoria(libre_mb, presion):
+        return False
+    return min_desde_ultimo is None or min_desde_ultimo >= SUENO_CADA_MIN
+
+
+def sin_tocar_al_dormido(acciones, motor):
+    """PURA: se le pidió dormir: este ciclo ni SIGSTOP ni SIGKILL para ese motor
+    (el gestor está descargando o recolocando el modelo); devolverle la vida nunca sobra.
+    """
+    return [(m, a) for (m, a) in acciones if not (m == motor and a in ("congelar", "reevaluar"))]
+
+
+def pedir_dormir_bitnet(url, min_inactivo_s=60, timeout=8):
+    """POST /api/bitnet/dormir al gestor de Astraura (el gestor vive fuera del repo:
+    aquí solo se le habla). Devuelve (ok, dormido); si no contestó, (False, False): el
+    guardia mantiene el congelar de siempre y no insiste (el cooldown lo cubre
+    `toca_pedir_sueno`). Nunca lanzar: un endpoint apagado no es un drama.
+    """
+    try:
+        req = urllib.request.Request(
+            url.rstrip("/") + "/api/bitnet/dormir",
+            data=json.dumps({"min_inactivo_s": min_inactivo_s}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            j = json.loads(r.read().decode("utf-8") or "{}")
+        return True, bool((j or {}).get("dormido"))
+    except Exception:
+        return False, False
+
+
 def swap_pct():
     """Porcentaje aproximado de swap usada (macOS sysctl)."""
     try:
@@ -318,6 +377,7 @@ def main():
         "guardia",
         "hecho",
     )
+    ultimo_sueno = None  # t del último intento de sueño pedido a Astraura, o None
     while True:
         try:
             cortados = barrer_trabajadores_huerfanos()
@@ -338,8 +398,36 @@ def main():
             congelados = obtener_congelados(motores) if ps_ok else set()
 
             conversando = _conv.activa(_conv.leer_concesion())
-            acciones = decidir(orq, libres_mb(), congelados, vivos, conversando, presion_nucleo(),
+            libre = libres_mb()
+            presion = presion_nucleo()
+            acciones = decidir(orq, libre, congelados, vivos, conversando, presion,
                                {m: congelado_min(m) for m in congelados})
+            # (1031) El sueño del BitNet manda antes que congelarlo: congelado no suelta su
+            # RAM (mlock), dormida sí. El cooldown del último intento se cuenta desde EL
+            # INTENTO (éxito o fallo): ni machacar al gestor ni repetirlo en cada ciclo.
+            desde_sueno = (
+                None
+                if ultimo_sueno is None
+                else (time.time() - ultimo_sueno) / 60.0
+            )
+            if toca_pedir_sueno("llama-server" in vivos, conversando, libre, presion, desde_sueno):
+                ultimo_sueno = time.time()
+                ok_sueno, dormido = pedir_dormir_bitnet(URL_ASTRAURA)
+                if ok_sueno:
+                    acciones = sin_tocar_al_dormido(acciones, "llama-server")
+                    _p.decir(
+                        "Poca RAM libre y sin conversación: pedido a Astraura que "
+                        "duerma su BitNet local · gestor dice: %s · desperta solo con el "
+                        "próximo mensaje." % ("dormido" if dormido else "en uso, sigue"),
+                        "guardia",
+                        "aviso",
+                    )
+                else:
+                    print(
+                        "guardia: el gestor de Astraura no contó el sueño del BitNet; "
+                        "se mantiene el congelar de siempre.",
+                        flush=True,
+                    )
             # El enjambre cede la RAM mientras dura la conversación y vuelve al acabar.
             if conversando or _conv.leer_marca():
                 print("conversación: %s" % _conv.aplicar(), flush=True)

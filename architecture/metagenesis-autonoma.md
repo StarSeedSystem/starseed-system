@@ -68,3 +68,57 @@ Cola: `starseed_memory_root/olas/cola-metagenesis-autonoma-1029.json`.
 | G | Hermes y Telegram en el líder |
 | H | chat del director compartido entre neuronas |
 | I | token de despliegue: acción «Te toca a ti» con enlace y comando |
+
+## 6. El sueño del BitNet de la Mac y el carril del A1 (1031 · 2026-10-31)
+
+El 31-10 la Mac (8 GB) quedó con < 1 GB libre y la swap al 95 %: `llama-server` congelado
+horas reteniendo ~1,1 GB de RAM fija (mlock), el enjambre parado por memoria y Google Drive
+sin responder. El guardia ya reanuda un motor congelado sin enjambre (7192b966e), pero
+congelar no devuelve la RAM: solo dormirla la suelta.
+
+### 6.1 El guardia pide dormir (HECHO en el repo, `scripts/puente/guardia-memoria.py`)
+
+Con falta de memoria (medida bajo `STARSEED_CONGELAR_MB` o presión del kernel ≥ 2) y SIN
+conversación en curso (la concesión de voz manda: `prioridad_conversacion`), antes del
+congelar el guardia pide al gestor de Astraura que duerma su BitNet local:
+
+```
+POST {STARSEED_ASTRAURA_URL | http://127.0.0.1:8000}/api/bitnet/dormir
+cuerpo {"min_inactivo_s": 60}
+→ 200 {"dormido": bool, "ya_estaba"?: bool, "mb_liberados"?: number}
+```
+
+- Es el MISMO endpoint que «Aliviar memoria» de Genesis y `revisor_bloqueadas` ya usan: el
+  gestor solo duerme si el motor lleva ese rato sin servicio.
+- `dormido: true` ⇒ `llama-server` no queda sirviendo con el modelo cargado (con mlock,
+  congelar retiene la RAM; dormida se libera). Desperta solo con el próximo mensaje y
+  `availability.ts` ya lo entiende («BitNet dormido: despertará al primer mensaje»).
+- `sin_tocar_al_dormido`: en el ciclo del pedido, ni SIGSTOP ni SIGKILL a ese motor (el
+  gestor está descargando o recolocando el modelo); descongelarle sigue valiendo. Si el
+  gestor no contesta, el congelar de siempre se mantiene como antes.
+- Cooldown por INTENTO (éxito o fallo): `STARSEED_SUENO_CADA_MIN` (defecto 10). El reanudar
+  a los 15 min sin enjambre (`STARSEED_REANUDAR_SIN_ENJAMBRE_MIN`) no cambia.
+- Pruebas: `python3 -m pytest -q scripts/puente/test_guardia_memoria.py` (30/30).
+
+### 6.2 El router de capas usa el BitNet del A1 (CONTRATO — fuera de esta ola)
+
+Cuando el BitNet de la Mac duerme (o no está), la capa de capas de conciencia de la Mac
+(`src/ai/astraura/*`) debe dirigirse al nodo del A1, que ya lo sirve permanente y gratis:
+
+- **Servicio:** `starseed-bitnet.service` (systemd) — `llama-server` OpenAI-compatible,
+  `/v1/chat/completions`, `/v1/models` y salud en `/health`, publicado por Caddy en
+  `https://bitnet.<host-del-A1>` (DNS sslip.io). **Nunca la IP del A1 en el repo, ni en
+  documentos, ni en registros ni en el bus.**
+- **Clave:** `Authorization: Bearer` con el valor de la variable
+  `STARSEED_ORACLE_BITNET_KEY` — solo el NOMBRE en código y documentos; el valor vive en
+  `~/.starseed/env` (Mac) y `/etc/starseed/bitnet.key` (A1). El Caddyfile no lleva la clave
+  ni su bandera (test `test_genesis_a1`).
+- **Conexión propuesta** (tarea aparte, esta queda con la parte del guardia): fuente nueva
+  `astraura-158-a1` en `free-catalog.ts` con la clave por `{env:STARSEED_ORACLE_BITNET_KEY}`,
+  tier `nube`; la disponibilidad sondea `GET /v1/models` con la clave y **sin registrar
+  nunca el valor**; el router de capas la coloca tras la capa local y antes del resto de la
+  nube (gratis-primero, sin coste: es el A1 ya pagado con su Free Tier). `capas-conciencia`
+  la apaga con el maestro; sin clave o sin URL declarada, la fuente no entra en la lista y
+  no se sondea nada.
+- **URL por entorno** (nunca hardcode): `STARSEED_ORACLE_BITNET_URL` en `~/.starseed/env`
+  de la Mac; ante 429/402/errores, relevo a la cadena del sistema sin insistir.
