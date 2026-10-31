@@ -1,0 +1,56 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "ola": "1024S",
+   "capacidad": "alta",
+   "id": "SGO1024D-d1b",
+   "titulo": "Voz · resolveActiveVoiceEngine aplica la jerarquía (y VibeVoice recibe su guion multi-locutor) (parte 1 de 3)",
+   "archivos": [
+    "src/lib/aurora/voice-config.ts"
+   ],
+   "depende": [],
+   "prompt": "Hallado por VOZ1024B (2026-10-24): resolveActiveVoiceEngine no aplica la jerarquía agente › personalidad › cerebro › neurona › cuenta y casi siempre devuelve el pin por defecto openvoice2, por eso src/ai/astraura/router.ts (~1981) casi nunca prepara el guion multi-locutor de VibeVoice y VibeVoice habla todo como Speaker 0. Haz que resuelva con la misma jerarquía que la cadena de voz (busca con grep cómo la resuelve speakWithConfiguredEngine / la capa neurona×personalidad) y que el router prepare el guion cuando el motor resuelto sea vibevoice. Pruebas con configuraciones simuladas. Máximo 3 archivos y 120 líneas nuevas por archivo.\n\n## PARTE 1 DE 3 (la dirección dividió SGO1024D: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/aurora/voice-config.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41002924626`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 41014487018) falla «tsc»: 6:31:43.9337589Z env:\n2026-10-30T06:31:43.9337864Z   NODE_OPTIONS: --max-old-space-size=8192\n2026-10-30T06:31:43.9338157Z ##[endgroup]\n2026-10-30T06:34:05.1512387Z ##[error]src/lib/genesis/mcp/ruta.ts(15,14): error TS2741: Property '\"variaciones:buscar\"' is missing in type '{ \"estado:leer\": \"ver-resumen\"; \"tareas:listar\": \"ver-resumen\"; \"tareas:crear\": \"encolar\"; \"agentes:listar\": \"ver-resumen\"; \"medidores:leer\": \"ver-resumen\"; \"operaciones:proponer\": \"encolar\"; \"biblioteca:buscar\": \"ver-detalle\"; \"opciones:sugerir\": \"ver-resumen\"; \"chat:enviar\": \"chatear\"; }' but required in type 'Record<PermisoMcp, CapacidadAmbito>'.\n2026-10-30T06:34:05.4238735Z ##[error]Process completed with exit code 2.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41002924626:refs/remotes/origin/nube/41002924626\"` y `git cherry-pick --no-commit 1bc8f4ecfd9c 6db0444176ec`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/aurora/voice-config.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "SGO1024D",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41002924626"
+  },
+  {
+   "id": "CB1013Nb",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Procesos activos: panel del pilar",
+   "archivos": [
+    "src/components/cerebro/procesos-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §7 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Sustituye el componente de partida manteniendo `ProcesosPanelProps { brainId; brainName? }` y el default. Lee con `leerProcesos()` al montarse y luego cada `intervaloSeg` de las preferencias (`usarPreferenciasProcesos()` de CB1013P) SOLO con la pestaña visible (`document.visibilityState`). Arriba, cuentas reales por tipo (`ETIQUETA_TIPO`) como filtros pulsables (respetando los tipos visibles de las preferencias); debajo, la lista de procesos agrupada por tipo: nombre, estado en palabras, dónde corre, desde cuándo (relativo) y barra de progreso SOLO si `progreso` no es null; acciones existentes únicamente (abrir Genesis `/genesis` para agentes; restaurar una ventana en segundo plano si desktop-store lo permite). Luego `<ProcesosHardware />` (CB1013O) con el hardware y los avisos, y `<ProcesosAjustes />` (CB1013P) plegable. Al pie, las fuentes consultadas con ✓/✗ y su motivo («no disponible aquí» en un aparato que no es la Mac). Hora de la última lectura y botón «Actualizar».\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41002924626`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 41014414824) falla «tsc»: 6:30:59.6640708Z env:\n2026-10-30T06:30:59.6640955Z   NODE_OPTIONS: --max-old-space-size=8192\n2026-10-30T06:30:59.6641231Z ##[endgroup]\n2026-10-30T06:33:34.5966351Z ##[error]src/lib/genesis/mcp/ruta.ts(15,14): error TS2741: Property '\"variaciones:buscar\"' is missing in type '{ \"estado:leer\": \"ver-resumen\"; \"tareas:listar\": \"ver-resumen\"; \"tareas:crear\": \"encolar\"; \"agentes:listar\": \"ver-resumen\"; \"medidores:leer\": \"ver-resumen\"; \"operaciones:proponer\": \"encolar\"; \"biblioteca:buscar\": \"ver-detalle\"; \"opciones:sugerir\": \"ver-resumen\"; \"chat:enviar\": \"chatear\"; }' but required in type 'Record<PermisoMcp, CapacidadAmbito>'.\n2026-10-30T06:33:34.8848956Z ##[error]Process completed with exit code 2.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41002924626:refs/remotes/origin/nube/41002924626\"` y `git cherry-pick --no-commit 39c01ed5b6c2`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/cerebro/procesos-panel.tsx, src/lib/cerebros/__tests__/procesos-panel-logica.test.ts, src/lib/cerebros/procesos-panel-logica.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "CB1013P"
+   ],
+   "dependencias_ya_en_main": [
+    "CB1013L",
+    "CB1013O"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41002924626"
+  },
+  {
+   "id": "CVV1028B",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Contenido vivo · elegir la ruta de cada tarea (local o externo) con la razón escrita",
+   "archivos": [
+    "src/lib/contenido-vivo/rutas.ts",
+    "src/lib/contenido-vivo/__tests__/rutas.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nPURA: `compararRutas(tarea, contexto)` → [{ruta, puntuacion, disponible, motivoNoDisponible?, razon}] ordenada, y `elegirRuta(tarea, contexto)` → la primera disponible o null. `contexto`: {alcance (personal | perfil | grupo | publica), conectados: string[], cupoHoy: Record<string, number>, creditosDisponibles, topeMes, gastadoMes, neurona: {gpu: bool, capaz3d: bool}, ajustes: {localPrimero, externosPermitidos}}. Puntuación: calidad por tarea, menos coste relativo al tope, cero si no está disponible (no conectado, sin cupo, neurona incapaz, alcance personal con ruta que sale de la neurona sin permiso, externo no permitido). Con `localPrimero`, una local gana si queda a ≤ 0,1 de la mejor externa. `razon` en una frase en español («Local: Three.js basta para una escena interactiva y no gasta créditos»). Pruebas: alcance personal nunca elige externa; sin conectar sale `motivoNoDisponible` con el enlace; película fotorrealista con Higgsfield conectado y cupo elige Higgsfield; gráfico vivo siempre local.",
+   "dependencias_ya_en_main": [
+    "CVV1028A"
+   ]
+  }
+ ]
+}
