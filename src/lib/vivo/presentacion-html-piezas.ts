@@ -170,5 +170,6 @@ export function elementoAHtml(el: ElementoLienzo, factor: number): string {
         return `<div style="${caja(el, f)}"><img src="${escaparHtml(src)}" alt="" style="width:100%;height:100%;object-fit:contain"></div>`;
     }
     if (el.tipo === "forma") return formaAHtml(el, f);
-    return cajaConNombre(el, f, el.nombre ?? el.tipo);
+    const nombre = el.nombre ?? el.vivo?.name ?? el.tipo;
+    return cajaConNombre(el, f, nombre);
 }

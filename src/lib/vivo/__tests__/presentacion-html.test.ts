@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { DocRico, ElementoLienzo, LienzoMensaje } from "@/lib/mensajeria/formato-tipos";
 import type { Diapositiva, MetaPresentacion } from "@/lib/vivo/presentacion";
 import { nombreArchivoPresentacion, presentacionAHtml } from "@/lib/vivo/presentacion-html";
-import { docRicoAHtml, escaparHtml, hexValido } from "@/lib/vivo/presentacion-html-piezas";
+import { docRicoAHtml, escaparHtml, hexValido, elementoAHtml } from "@/lib/vivo/presentacion-html-piezas";
 
 const meta: MetaPresentacion = { titulo: "Mi charla", tema: "cosmos", proporcion: "16:9" };
 const fecha = "2026-10-30";
@@ -118,5 +118,48 @@ describe("presentacion-html · documento", () => {
     it("nombre de archivo sin acentos ni símbolos", () => {
         expect(nombreArchivoPresentacion("Mi charla ñandú")).toBe("mi-charla-nandu.html");
         expect(nombreArchivoPresentacion({ titulo: "" })).toBe("presentacion.html");
+    });
+});
+
+describe("presentacion-html · elementos del lienzo", () => {
+    it("renderiza formas: círculo, estrella, línea y rectángulo", () => {
+        const circulo: ElementoLienzo = {
+            id: "c", tipo: "forma", x: 10, y: 10, w: 50, h: 50, z: 1, forma: { tipo: "circulo", color: "#ff0000" },
+        };
+        const estrella: ElementoLienzo = {
+            id: "e", tipo: "forma", x: 0, y: 0, w: 100, h: 100, z: 2, forma: { tipo: "estrella", color: "#00ff00", relleno: true },
+        };
+        const linea: ElementoLienzo = {
+            id: "l", tipo: "forma", x: 0, y: 50, w: 100, h: 4, z: 3, forma: { tipo: "linea", color: "#0000ff" },
+        };
+        expect(elementoAHtml(circulo, 1)).toContain("border-radius:50%");
+        expect(elementoAHtml(estrella, 1)).toContain("clip-path:");
+        expect(elementoAHtml(linea, 1)).toContain("height:2px");
+    });
+    it("renderiza video, audio, web, app, vivo, archivo como caja con nombre", () => {
+        const video: ElementoLienzo = { id: "v", tipo: "video", x: 0, y: 0, w: 100, h: 60, z: 1, nombre: "Video test" };
+        const audio: ElementoLienzo = { id: "a", tipo: "audio", x: 0, y: 0, w: 100, h: 60, z: 1, nombre: "Audio test" };
+        const web: ElementoLienzo = { id: "w", tipo: "web", x: 0, y: 0, w: 100, h: 60, z: 1, nombre: "Sitio web" };
+        const app: ElementoLienzo = { id: "ap", tipo: "app", x: 0, y: 0, w: 100, h: 100, z: 1, ruta: "/pizarra", nombre: "App test" };
+        const vivo: ElementoLienzo = {
+            id: "vi", tipo: "vivo", x: 0, y: 0, w: 100, h: 100, z: 1,
+            vivo: { kind: "vivo", tipoVivo: "presentacion", sesionId: "abc123", route: "/vivo/abc123", name: "Prensa vivo", permiso: "ver" },
+        };
+        const archivo: ElementoLienzo = { id: "f", tipo: "archivo", x: 0, y: 0, w: 100, h: 60, z: 1, nombre: "documento.pdf", mime: "application/pdf" };
+        expect(elementoAHtml(video, 1)).toContain("Video test");
+        expect(elementoAHtml(audio, 1)).toContain("Audio test");
+        expect(elementoAHtml(web, 1)).toContain("Sitio web");
+        expect(elementoAHtml(app, 1)).toContain("App test");
+        expect(elementoAHtml(vivo, 1)).toContain("Prensa vivo");
+        expect(elementoAHtml(archivo, 1)).toContain("documento.pdf");
+    });
+    it("no incluye iframe, video ni audio tags para estos tipos", () => {
+        const video: ElementoLienzo = { id: "v", tipo: "video", x: 0, y: 0, w: 100, h: 60, z: 1 };
+        const audio: ElementoLienzo = { id: "a", tipo: "audio", x: 0, y: 0, w: 100, h: 60, z: 1 };
+        const web: ElementoLienzo = { id: "w", tipo: "web", x: 0, y: 0, w: 100, h: 60, z: 1 };
+        const html = presentacionAHtml(meta, [diapo({ elementos: [video, audio, web] })], { fecha });
+        expect(html).not.toContain("<iframe");
+        expect(html).not.toContain("<video");
+        expect(html).not.toContain("<audio");
     });
 });
