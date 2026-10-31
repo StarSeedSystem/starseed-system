@@ -73,7 +73,7 @@ describe("ruta MCP con permisos (tarea S)", () => {
     );
     expect(atendida.status).toBe(200);
     const salida = atendida.salida as { result: { tools: Array<{ name: string }> } };
-    expect(salida.result.tools.map((h) => h.name)).toEqual(HERRAMIENTAS_MCP.map((h) => h.name));
+    expect(salida.result.tools.map((h) => h.name)).toEqual(HERRAMIENTAS_MCP.map((h) => h.nombre));
     expect(registros[0]).toMatchObject({ via: "sesion", ambito: "cuenta:user-1", tipo: "tools/list", statusCode: 200 });
   });
 
@@ -92,6 +92,12 @@ describe("ruta MCP con permisos (tarea S)", () => {
     expect(await resolverAcceso(deps, r.valor, null)).toMatchObject({ ok: false, status: 401 });
     expect(await resolverAcceso(deps, "token que jamás existió", null)).toMatchObject({ ok: false, status: 401 });
   });
+  it("un token caducado también se deniega con 401", async () => {
+    const { deps } = depsFalsas();
+    const r = await crearToken("ambito-caducado", ["chatear"], deps.reloj() - 1, deps.almacen);
+    expect(await resolverAcceso(deps, r.valor, null)).toMatchObject({ ok: false, status: 401 });
+  });
+
   it("aplica el límite de uso del token", async () => {
     const { deps } = depsFalsas(2);
     const r = await crearToken("ambito-tres", ["chatear"], undefined, deps.almacen);
@@ -129,6 +135,16 @@ describe("ruta MCP con permisos (tarea S)", () => {
       via: "token", ambito: "ambito-mcp", metodo: "POST", endpoint: "/api/mcp/genesis", tipo: "tools/list", statusCode: 200,
     });
     expect(JSON.stringify(registros)).not.toContain(r.valor);
+  });
+
+  it("un token con permiso de lectura solo lista las herramientas de su alcance", async () => {
+    const { deps } = depsFalsas();
+    const r = await crearToken("ambito-mcp", ["ver-resumen"], undefined, deps.almacen);
+    const dirigido = await atenderMcpConPermisos(
+      { jsonrpc: "2.0", id: 6, method: "tools/list" }, HERRAMIENTAS_MCP, deps, r.valor, null, "/api/mcp/genesis",
+    );
+    const nombres = (dirigido.salida as { result: { tools: Array<{ name: string }> } }).result.tools.map((h) => h.name);
+    expect(nombres).toEqual(["estado", "tareas_listar", "agentes_listar", "medidores", "opciones_sugerir"]);
   });
 
   it("tools/call sin permiso del alcance falla y con permiso pasa", async () => {
