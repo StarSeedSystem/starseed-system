@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "INV1025P",
+   "ola": "Ola 1025R · Investigación y alcance (Agent-Reach, ScrapeGraphAI, OpenRefine, Inbox Zero)",
+   "titulo": "Alcance: API local y panel en Genesis para editar, aprobar y enviar",
+   "archivos": [
+    "src/app/api/mando/alcance/route.ts",
+    "src/components/mando/panel-alcance.tsx",
+    "src/components/mando/panel-imaginacion.tsx"
+   ],
+   "depende": [],
+   "prompt": "(1) `route.ts` (solo local, `guardianMando`, como `/api/mando/imaginacion`; reutiliza sus funciones de lectura y escritura de propuestas): GET `?id=` → estado de envío de una propuesta de alcance (la dirección solo se resuelve para mostrarla en la confirmación); POST `editar {id, asunto, cuerpo}` (reescribe el texto y ANULA la aprobación si cambió), `aprobar-texto` (mismo camino que `integrar`), `enviar {id, medio, confirmacion: \"ENVIAR\"}` (evalúa con `evaluarEnvio`; `correo-propio` llama a `enviarPorProveedor`; `correo-usuario` devuelve el `mailto:`; nunca guarda ni lee credenciales de correo del usuario), `suprimir` y `marcar {id, estado}`. El registro de envíos va a `~/.starseed/alcance/registro.jsonl` solo con el hash del destinatario.\n(2) `panel-alcance.tsx`: editor de asunto y cuerpo (contador; remitente y medio a la vista), botones Aprobar texto · Reimaginar · Rechazar (con «no volver a contactar») · Enviar (solo tras aprobar; ventana que muestra remitente, destinatario resuelto, asunto, cuerpo y enlaces verificados y pide escribir ENVIAR) y el estado de seguimiento (`seguimiento-respuestas.ts`); texto sin HTML crudo.\n(3) `panel-imaginacion.tsx`: en las propuestas con `agente === \"alcance\"` monta `panel-alcance` en lugar de los botones de código. Nada de `node:*` en el cliente. Prueba de humo a mano en localhost:9002/genesis y dilo en el commit.\n\nContrato: architecture/repos-libreria-1025.md (grupo investigación: reglas duras R1–R10 y el diseño del agente de alcance). Reglas de la casa: español con acentos en comentarios y textos; nada de `any`; módulos puros con red, disco y reloj inyectables; claves solo en variables de entorno; nada de `node:*` en código de cliente; ≤ 3 archivos y ≤ 120 líneas por archivo; pruebas reales (si una prueba vieja falla, se arregla el código, no la prueba). Antes de empezar comprueba si lo pedido ya está hecho; si ya está, NO APLICA.",
+   "dependencias_ya_en_main": [
+    "INV1025O",
+    "INV1025N"
+   ]
+  }
+ ]
+}
