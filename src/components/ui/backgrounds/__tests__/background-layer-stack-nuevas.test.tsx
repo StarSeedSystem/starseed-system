@@ -299,6 +299,23 @@ describe("BackgroundLayerStack · capas nuevas en su orden, posición y mezcla",
         expect((container.children[0] as HTMLElement).getAttribute("style") ?? "").toContain("opacity: 0.8");
     });
 
+    it("el z-index de la pila sube por capa (-9, -8 …) y sin capas no pinta NADA", () => {
+        conCapas([
+            createLayer("color"),
+            crearCapaShader({ blend: "normal" }),
+            crearCapaDifusion({ blend: "normal" }),
+        ]);
+        const { container, unmount } = render(<BackgroundLayerStack />);
+        // La primera capa visible → -9 (sobre el motor base) y van subiendo; así la
+        // lista manda y el orden de pintado coincide con el de la configuración.
+        expect([...container.children].map((e) => (e as HTMLElement).style.zIndex)).toEqual(["-9", "-8", "-7"]);
+        unmount();
+        conCapas([]);
+        const vacio = render(<BackgroundLayerStack />);
+        expect(vacio.container.firstElementChild).toBeNull();
+        unmount();
+    });
+
     it("la opacidad y la mezcla de la capa shader NO se aplican dos veces (envoltorio + capa)", () => {
         conCapas([crearCapaShader({ opacity: 0.5, blend: "multiply" })]);
         const { container } = render(<BackgroundLayerStack />);
