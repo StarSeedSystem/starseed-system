@@ -14,9 +14,7 @@ export function escaparHtml(t: string): string {
 const RE_HEX = /^#[0-9a-fA-F]{3,8}$/;
 
 export function hexValido(c: unknown): string | null {
-    if (typeof c !== "string") return null;
-    const t = c.trim();
-    return RE_HEX.test(t) ? t.toLowerCase() : null;
+    return typeof c === "string" && RE_HEX.test(c) ? c.toLowerCase() : null;
 }
 
 export const FUENTES_HTML: Record<FuenteMensaje, string> = {

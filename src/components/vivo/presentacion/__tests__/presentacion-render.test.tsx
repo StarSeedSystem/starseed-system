@@ -12,6 +12,7 @@ import type { InstantaneaSala, Presente } from "@/lib/vivo/doc-colaborativo/moto
 import type { Diapositiva, MetaPresentacion } from "@/lib/vivo/presentacion";
 
 const estado = vi.hoisted(() => ({ inst: null as unknown }));
+const descargas = vi.hoisted(() => ({ html: [] as { nombre: string; contenido: string; mime: string }[] }));
 
 vi.mock("@/lib/vivo/doc-colaborativo/usar-sala", () => ({
     useSalaColaborativa: () => ({
@@ -39,6 +40,12 @@ vi.mock("@/components/ui/confirm-dialog", () => ({ useConfirm: () => vi.fn(async
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { message: vi.fn(), success: vi.fn(), error: vi.fn(), info: vi.fn() }) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock("next/dynamic", () => ({ default: () => () => null }));
+vi.mock("@/components/vivo/documento/comun-colab", async (orig) => ({
+    ...(await orig<typeof import("@/components/vivo/documento/comun-colab")>()),
+    descargarArchivo: (nombre: string, contenido: string, mime: string) => {
+        descargas.html.push({ nombre, contenido, mime });
+    },
+}));
 vi.mock("@/context/appearance-context", () => ({
     useAppearance: () => ({ config: { themeStore: { activeMode: "secondary" } } }),
 }));
@@ -87,6 +94,7 @@ beforeEach(() => {
 });
 afterEach(() => {
     cleanup();
+    descargas.html.length = 0;
     HTMLElement.prototype.getBoundingClientRect = rectOriginal;
 });
 
@@ -182,6 +190,18 @@ describe("PaginaPresentacion", () => {
         expect(screen.getByRole("textbox", { name: /Notas del orador/ })).toHaveValue("Saludar y agradecer");
         fireEvent.click(screen.getByRole("button", { name: /Presentar$/ }));
         expect(screen.getByRole("dialog", { name: "Presentación · diapositiva 1 de 3" })).toBeInTheDocument();
+    });
+
+    test("exporta el mazo a un HTML autónomo descargable", async () => {
+        estado.inst = instantanea();
+        render(<PaginaPresentacion espacioId="esp1" />);
+        fireEvent.click(screen.getByRole("button", { name: "Más acciones de la presentación" }));
+        fireEvent.click(await screen.findByRole("menuitem", { name: /Exportar a HTML/ }));
+        expect(descargas.html).toHaveLength(1);
+        expect(descargas.html[0].nombre).toBe("asamblea-de-otono.html");
+        expect(descargas.html[0].mime).toBe("text/html");
+        expect(descargas.html[0].contenido).toContain('<section class="slide');
+        expect(descargas.html[0].contenido).toContain("Bienvenida");
     });
 
     test("si alguien presenta a todos, se avisa y se puede seguir su presentación", () => {
