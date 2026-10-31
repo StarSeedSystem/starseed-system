@@ -111,9 +111,10 @@ describe("TarjetaVariacion", () => {
 });
 
 describe("ayudantes puros de la tarjeta", () => {
-  it("solo acepta enlaces https", () => {
+  it("solo acepta enlaces https y rechaza esquemas peligrosos", () => {
     expect(esEnlaceSeguro("https://github.com/a/b")).toBe("https://github.com/a/b");
     expect(esEnlaceSeguro("http://inseguro.test")).toBeNull();
+    expect(esEnlaceSeguro("javascript:alert(1)")).toBeNull();
     expect(esEnlaceSeguro(undefined)).toBeNull();
   });
 
