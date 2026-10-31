@@ -115,6 +115,23 @@ def _agente_referencias(raiz, ahora):
     return {"ok": True} if r is None else r
 
 
+def _agente_alcance(raiz, ahora):
+    """`agente_alcance.ciclo(raiz, ahora)` si ese módulo existe; None si no hay agente (INV1025N)."""
+    try:
+        import agente_alcance as A
+    except Exception:
+        return None
+    f = getattr(A, "ciclo", None)
+    if not callable(f): return None
+    r = f(raiz, ahora)
+    return {"ok": True} if r is None else r
+
+
+def _es_alcance(p):
+    """Un borrador del agente de alcance: lo aprueba SIEMPRE una persona y nunca es tarea de código (R2, R8)."""
+    return str(p.get("agente") or "").strip().lower() == "alcance"
+
+
 def _consejo_jev(p):
     """Jev de consejero por la puerta común (decidir.py): ¿se integra sola? Solo puede vetar (p ≥ 0,8);
     si calla (sin motor, sin crédito, apagado), None y manda la regla."""
@@ -180,6 +197,12 @@ def _evaluar(p, aj, existe, consejo):
     p["utilidad"], p["motivo"] = AD.utilidad_propuesta(p, existe)
     p["importancia"] = AD.importancia_visible(AD.importancia(p))
     p["via"] = AD.via(p, existe)
+    if _es_alcance(p):
+        # (INV1025N) Ni la aprobación automática ni Jev mueven un borrador de mensaje: R2 y R8.
+        # El motivo propio evita que «es de Alex → pregunta» lo saque de la espera de aprobación.
+        motivo = "borrador de alcance: siempre espera tu aprobación y nunca se envía solo"
+        p["motivo"] = motivo
+        return {"destino": "esperando-aprobacion", "aprobacion_diff": False, "notas": "", "motivo": motivo}
     return AD.automatica(p, aj, existe, consejo)
 
 
@@ -324,11 +347,12 @@ def _aplicar_en_astraura(lista, aplicar, iso):
 
 
 def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_diario=None, lanzador_profundo=None,
-          existe_ruta=None, datos=None, avisar=None, consejo=None, agente_referencias=None, aplicar_astraura=None,
-          a_la_flota=None):
+          existe_ruta=None, datos=None, avisar=None, consejo=None, agente_referencias=None, agente_alcance=None,
+          aplicar_astraura=None, a_la_flota=None):
     """Un ciclo (§5). `datos`: {diaria, profunda, astraura, directores, agentes} para no leer disco ni red.
     `consejo(p)`: Jev para el veto de lo que se integraría solo (None = solo la regla). `agente_referencias(raiz,
     ahora)`: el agente de referencias de diseño (por defecto, el módulo si existe); devuelve None si no hay agente.
+    `agente_alcance(raiz, ahora)`: el agente de alcance (por defecto, el módulo si existe); None si no hay agente.
     `aplicar_astraura(item)`: aplica una creación en el backend 1.58 (None si lo hizo, o el error); por defecto, HTTP.
     `a_la_flota(raiz, tareas)`: entrega el análisis encolado al orquestador vivo (por defecto `AR.a_la_flota`).
     Ola 1025S: reimaginar y preparar entregables se encargan con `AL.toca_analizar` (análisis por HTTP con su
@@ -359,6 +383,9 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
             try: ref = (agente_referencias or _agente_referencias)(raiz, ahora)
             except Exception as e: ref = {"ok": False, "error": type(e).__name__}
             if ref is not None: lanzo.append("referencias-diseno")
+            try: alc = (agente_alcance or _agente_alcance)(raiz, ahora)
+            except Exception as e: alc = {"ok": False, "error": type(e).__name__}
+            if alc is not None: lanzo.append("alcance")
             _escribir(est_ruta, est)
         d, f = datos or {}, aj["fuentes"]
         enc = _json(os.path.join(home, "dream-encargado.json"), {}); claves = enc.get("claves", []) if isinstance(enc, dict) else list(enc)
@@ -397,7 +424,12 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         auto = AD.cuantas([p for p in propuestas if p.get("estado") == "autodesarrollo"], aj["rango"], AD.umbral_efectivo(aj))["elegidas"]
         aprobadas = {v: [] for v in AD.VIAS}
         for p in propuestas:
-            if p.get("estado") == "aprobada" and not p.get("tarea"):
+            if p.get("estado") != "aprobada": continue
+            if _es_alcance(p):
+                # (INV1025N) Un borrador aprobado NO es tarea de código: espera al panel de alcance.
+                if not p.get("envio"): p["envio"] = "pendiente"
+                continue
+            if not p.get("tarea"):
                 aprobadas[p.get("via") if p.get("via") in AD.VIAS else AD.via(p, existe)].append(p)
         for p in aprobadas["astraura"]:  # integrada por Alex desde Genesis: el servidor ya la aplicó en su backend
             if p.get("aprobada_por") != "automatica":

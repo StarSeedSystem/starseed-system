@@ -30,6 +30,7 @@ class DirectorTest(unittest.TestCase):
                     lanzador_diario=lambda: self.llamadas.append("diaria") or True,
                     lanzador_profundo=lambda *a: self.llamadas.append(a) or True,
                     agente_referencias=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
+                    agente_alcance=lambda raiz, ahora: None,
                     datos={"diaria": MD, "profunda": {}, "astraura": {}, "directores": {}})
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
@@ -141,6 +142,7 @@ class Imaginacion1024Test(unittest.TestCase):
         args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: r in self.EXISTEN,
                     lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True,
                     agente_referencias=lambda raiz, ahora: self.referencias.append((raiz, ahora)) or {"ok": True},
+                    agente_alcance=lambda raiz, ahora: None,
                     datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}})
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
@@ -317,7 +319,8 @@ class Ola1025STest(unittest.TestCase):
     def correr(self, **kw):
         args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: False,
                     lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True, agente_referencias=lambda raiz, ahora: None,
-                    aplicar_astraura=self.aplicar, datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
+                    agente_alcance=lambda raiz, ahora: None, aplicar_astraura=self.aplicar,
+                    datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
 
@@ -487,6 +490,91 @@ class Ola1025STest(unittest.TestCase):
         rama = self.astraura("b1"); rama["origen"]["tipo"] = "rama"
         self.assertEqual(D.item_astraura(rama)["item_type"], "branch")
         self.assertIsNone(D.item_astraura(self.libre("x")))
+
+
+class Alcance1025NTest(unittest.TestCase):
+    """Ola 1025N · INV1025N: un borrador de alcance no es tarea de código ni se mueve solo (R2, R8)."""
+
+    RICO = ("## Hola\nTe escribo desde StarSeed OS, un sistema operativo social descentralizado.\n\n"
+            + "Creemos en la soberanía de los datos y en las comunidades que se gobiernan solas. " * 12
+            + "\n\n- afinidad\n- respeto\n- apertura\n\nVer https://example.org/proyecto y https://example.com/manifiesto\n")
+
+    def setUp(self):
+        self.t = tempfile.TemporaryDirectory(); self.home = os.path.join(self.t.name, "h"); self.raiz = os.path.join(self.t.name, "r")
+        self.mem = os.path.join(self.raiz, "starseed_memory_root"); os.makedirs(self.home); os.makedirs(self.raiz)
+
+    def tearDown(self):
+        self.t.cleanup()
+
+    def _flota(self, raiz, tareas):
+        self.__dict__.setdefault("entregadas", []).append([t["id"] for t in tareas])
+        return {"accion": "probada", "tareas": len(tareas)}
+
+    def ajustes(self, **auto):
+        d = {"aprobar": True, "reimaginar": True, "umbral": 0.6, "max_reimaginaciones": 1}; d.update(auto)
+        json.dump({"auto": d}, open(os.path.join(self.home, "autodesarrollo.json"), "w"))
+
+    def sembrar(self, lista):
+        os.makedirs(os.path.join(self.mem, "imaginacion"), exist_ok=True)
+        json.dump({"propuestas": lista}, open(os.path.join(self.mem, "imaginacion", "propuestas.json"), "w", encoding="utf-8"), ensure_ascii=False)
+
+    def props(self):
+        return {p["id"]: p for p in json.load(open(os.path.join(self.mem, "imaginacion", "propuestas.json"), encoding="utf-8"))["propuestas"]}
+
+    def correr(self, **kw):
+        args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: False,
+                    lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True,
+                    agente_referencias=lambda raiz, ahora: None, agente_alcance=lambda raiz, ahora: None,
+                    datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
+        args.setdefault("a_la_flota", self._flota)
+        args.update(kw); return D.ciclo(**args)
+
+    def borrador(self, ident="2026-10-24-1", estado="nueva", **extra):
+        p = {"id": "agentes:alcance--" + ident, "fuente": "agentes", "agente": "alcance", "tipo": "contenido",
+             "titulo": "Mensaje para Matías", "cuerpo": self.RICO, "archivos": [], "referencias": [],
+             "estado": estado, "version": 1, "importancia": "media", "origen": {"fecha": "2026-10-24"}}
+        p.update(extra); return p
+
+    def test_una_aprobada_de_alcance_no_genera_tarea_y_espera_al_panel(self):
+        self.ajustes()
+        self.sembrar([self.borrador(estado="aprobada")])
+        r = self.correr()
+        p = self.props()["agentes:alcance--2026-10-24-1"]
+        self.assertEqual((p["estado"], p["envio"]), ("aprobada", "pendiente"))
+        self.assertEqual((r["autodesarrolladas"], r["entregables_encargados"]), (0, 0))
+        self.assertIsNone(r["cola"]); self.assertFalse(os.path.isdir(os.path.join(self.mem, "olas")))
+
+    def test_con_auto_aprobado_encendido_tampoco_se_mueve_sola_y_jev_no_la_mueve(self):
+        self.ajustes()
+        self.sembrar([self.borrador()])
+        r = self.correr(consejo=lambda p: {"p": 1.0, "prioridad": "subir"})
+        p = self.props()["agentes:alcance--2026-10-24-1"]
+        self.assertEqual(p["estado"], "esperando-aprobacion")
+        self.assertEqual((r["autodesarrolladas"], r["entregables_encargados"], r["esperando_aprobacion"]), (0, 0, 1))
+        self.assertFalse(os.path.isdir(os.path.join(self.mem, "olas")))
+
+    def test_llama_al_agente_de_alcance_solo_cuando_toca(self):
+        llamadas = []
+        r = self.correr(agente_alcance=lambda raiz, ahora: llamadas.append((raiz, ahora)) or {"ok": True})
+        self.assertEqual(llamadas, [(self.raiz, NOCHE)])
+        self.assertIn("alcance", r["lanzado"])
+        self.correr(seco=True); self.correr(capacidad=None)
+        self.assertEqual(len(llamadas), 1)
+
+    def test_modulo_del_agente_protegido(self):
+        import types
+        llamadas, previo = [], sys.modules.get("agente_alcance")
+        try:
+            sys.modules["agente_alcance"] = None  # no existe: import falla → nada
+            self.assertIsNone(D._agente_alcance(self.raiz, NOCHE))
+            m = types.ModuleType("agente_alcance"); sys.modules["agente_alcance"] = m
+            self.assertIsNone(D._agente_alcance(self.raiz, NOCHE))  # sin `ciclo`
+            m.ciclo = lambda raiz, ahora: llamadas.append((raiz, ahora))
+            self.assertEqual(D._agente_alcance(self.raiz, NOCHE), {"ok": True})
+            self.assertEqual(llamadas, [(self.raiz, NOCHE)])
+        finally:
+            if previo is None: sys.modules.pop("agente_alcance", None)
+            else: sys.modules["agente_alcance"] = previo
 
 
 if __name__ == "__main__":
