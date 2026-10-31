@@ -13,10 +13,14 @@ export interface CursoOssu {
     bloque: string;
     nombre: string;
     url: string;
+    /** Anfitrión visible del enlace: el OS enlaza, nunca copia el material. */
+    anfitrion: string;
     duracion: string;
     esfuerzo: string;
     requisitos: string;
     nodo: string;
+    /** En OSSU es «elige una de estas»: se marca en la interfaz. */
+    opcional: boolean;
 }
 
 export interface SeccionOssu {
@@ -30,6 +34,7 @@ interface DatosOssu {
     aviso_licencia: string;
     commit_main: string;
     fecha_commit: string;
+    cursos_total: number;
     secciones: SeccionOssu[];
     cursos: CursoOssu[];
 }
@@ -39,11 +44,33 @@ const OSSU = datos as unknown as DatosOssu;
 export const AVISO_LICENCIA_OSSU: string = OSSU.aviso_licencia;
 
 export function versionOssu(): { commit: string; fecha: string } {
-    return { commit: OSSU.commit_main, fecha: OSSU.fecha_commit };
+    return { commit: OSSU.commit_main.slice(0, 7), fecha: OSSU.fecha_commit };
 }
 
 export function seccionesOssu(): SeccionOssu[] {
     return OSSU.secciones;
+}
+
+/** El contador oficial de cursos (63) que trae el dato de base. */
+export function contadorCursosOssu(): number {
+    return OSSU.cursos_total;
+}
+
+/** Bloques únicos, en orden de aparición: Intro CS, Core CS, Advanced CS, Final project. */
+export function bloquesOssu(): string[] {
+    const bloques: string[] = [];
+    for (const s of seccionesOssu()) if (!bloques.includes(s.bloque)) bloques.push(s.bloque);
+    return bloques;
+}
+
+/** Los 63 cursos, en orden. */
+export function cursosOssu(): CursoOssu[] {
+    return OSSU.cursos.slice().sort((a, b) => a.orden - b.orden);
+}
+
+/** Los cursos de una sección concreta, en orden. */
+export function cursosDeSeccion(seccion: string): CursoOssu[] {
+    return OSSU.cursos.filter((c) => c.seccion === seccion).sort((a, b) => a.orden - b.orden);
 }
 
 export function cursosDeNodo(nodoId: string): CursoOssu[] {
@@ -112,9 +139,9 @@ export function itinerarioOssu(): UpsertGuideInput {
     });
     const { commit, fecha } = versionOssu();
     return {
-        title: "Currículo de Informática de OSSU",
+        title: "Ruta de Ciencias de la Computación (OSSU)",
         topic: "Programación",
-        summary: `Ruta completa de ciencia de la computación de la Open Source Society University (OSSU), leída en ${fecha} del commit ${commit}. ${AVISO_LICENCIA_OSSU}`,
+        summary: `Ruta completa de Ciencias de la Computación de la Open Source Society University (OSSU): ${contadorCursosOssu()} cursos, leída en ${fecha} del commit ${commit}. ${AVISO_LICENCIA_OSSU}`,
         kind: "itinerario",
         sections: secciones,
     };

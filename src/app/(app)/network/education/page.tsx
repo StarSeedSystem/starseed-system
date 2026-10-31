@@ -31,6 +31,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { useMemo, useState } from "react";
 import { CommentSystem } from "@/components/comment-system";
 import { ConocimientoCard } from "./conocimiento-card";
+import { RutaOssuCard } from "./ruta-ossu-card";
 import { SystemShowcase } from "@/components/showcase/SystemShowcase";
 import { TopicGraph } from "@/components/education/topic-graph";
 import { StudyHub } from "@/components/education/study/study-hub";
@@ -433,8 +434,9 @@ export default function EducationPage() {
     </Link>
 
     {/* Red de Conocimiento (Módulo 3) — enlace + explicación de cómo se conecta con cursos/temas */}
-    <div className="mb-6">
+    <div className="mb-6 space-y-6">
       <ConocimientoCard />
+      <RutaOssuCard />
     </div>
 
     <Tabs value={tab} onValueChange={setTab} className="w-full">
