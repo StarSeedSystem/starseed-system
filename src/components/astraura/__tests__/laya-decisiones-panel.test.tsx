@@ -48,8 +48,10 @@ describe("LayaDecisionesPanel", () => {
         });
         expect(buttons).toHaveLength(3);
 
-        constemeraldBg = document.querySelectorAll('[class*="emerald-500/20"]');
-        expect(emeraldBg).toHaveLength(3);
+        for (const button of buttons) {
+            const classList = button.getAttribute("class") || "";
+            expect(classList).toContain("bg-emerald-500/20");
+        }
     });
 
     it("renders without crashing when no decisiones provided", () => {
