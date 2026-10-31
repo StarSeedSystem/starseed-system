@@ -25,6 +25,7 @@ import {
     Users2, FolderOpen, Workflow, LayoutGrid, SquareKanban, Puzzle, Network, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LayaDecisionesPanel } from "@/components/astraura/laya-decisiones-panel";
 import { IntelligencePanel } from "@/components/settings/ai/intelligence-panel";
 import { AgentesFondoSection } from "@/components/astraura/agentes-fondo-section";
 import { readRouteLog, getIntelligenceSettings, saveIntelligenceSettings, type RouteRecord } from "@/ai/astraura/router";
