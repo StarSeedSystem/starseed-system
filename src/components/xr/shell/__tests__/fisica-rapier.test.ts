@@ -59,6 +59,17 @@ describe("física Rapier", () => {
         expect(mf.cuerpos.has("o20")).toBe(false); expect(mf.cuerpos.has("o29")).toBe(false);
         liberarMundo(mf);
     });
+    it("sin exceso no recorta ningún cuerpo", () => {
+        const objetos = [
+            objeto("fijo", [0, 1, 0], { tipo: "fijo", forma: "caja" }),
+            objeto("movil", [5, 1, 0]),
+        ];
+        const mf = crearMundoFisico(rapierFalso(), mundo({ objetos }), "minima");
+        expect(mf.cuerpos.size).toBe(2);
+        expect(mf.cuerpos.has("fijo")).toBe(true);
+        expect(mf.cuerpos.has("movil")).toBe(true);
+        expect(mf.dinamicos.size).toBe(1);
+    });
     it.skipIf(!cargado)("el paso fijo avanza el número esperado de pasos", () => {
         const mf = crearMundoFisico(RAPIER, mundo({ suelo: false, objetos: [objeto("bola", [0, 5, 0])] }), "minima");
         expect(mf.pasosHz).toBe(30); expect(paso(mf, 0.1)).toBe(3);
