@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "HFR1018L",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Lienzo y publicaciones · el átomo video-html se ve y se reproduce dentro del bloque protomolécula",
+   "archivos": [
+    "src/components/protomolecula/vista-video-html.tsx",
+    "src/lib/protomolecula/bloque-protomolecula.ts",
+    "src/lib/protomolecula/__tests__/vista-video-html.test.ts"
+   ],
+   "depende": [],
+   "prompt": "En bloque-protomolecula.ts añade (solo eso) la correspondencia átomo `video-html` → vista; vista-video-html.tsx muestra el póster o el vídeo ya renderizado y, si hay servicio local, la vista previa en vivo. Una función pura `elegirVista(atomo, servicioVivo, renderHecho)` decide qué mostrar y se prueba. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "HFR1018D"
+   ]
+  }
+ ]
+}
