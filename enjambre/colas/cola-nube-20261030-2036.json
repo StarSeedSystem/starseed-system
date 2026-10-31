@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "CRM1024F",
+   "ola": "1024C",
+   "titulo": "Genesis · Cloudroom visible en Contenedores y como servidor elegible de un agente",
+   "archivos": [
+    "src/components/genesis/conectores/asistente-conectores.tsx",
+    "src/components/genesis/conectores/__tests__/asistente-conectores.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Lee architecture/cloudroom-servidor-agentes.md ENTERO. El asistente «Conectar Genesis» (GCA1019M, src/components/genesis/conectores/asistente-conectores.tsx) es la interfaz que pinta el catálogo; busca además con grep dónde se pintan los contenedores de agentes del catálogo de src/lib/genesis/conectores/contenedores.ts (componentes que importen contenedoresPara, sugerirParaAmbito o el catálogo) y dónde se elige el servidor de un agente (personal, de grupo o de página). Cablea la entrada 'cloudroom' (CRM1024B) en ESA interfaz existente —no hagas una nueva— mostrando su estado honesto (instalado o no en esta neurona, cupo restante del contexto con cupo-cloudroom.ts de CRM1024C) y sugiriéndola solo cuando sugerirParaAmbito la devuelve. Si no existe todavía ninguna interfaz que pinte el catálogo, responde PENDIENTE-DE con la tarea que la crea y no inventes una. Máximo 3 archivos, 120 líneas nuevas por archivo, prueba con testing-library.",
+   "importancia": "capacidad",
+   "adelantar": "Alex 2026-10-24: priorizar Cloudroom como contenedor en la nube de los agentes",
+   "revisor_quitadas": [
+    "GCA1019M"
+   ],
+   "dependencias_ya_en_main": [
+    "CRM1024B",
+    "CRM1024C"
+   ]
+  }
+ ]
+}
