@@ -1,25 +1,47 @@
 "use client";
 
-import { useState } from "react";
-import { Sparkles, ShieldAlert, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Sparkles, ShieldAlert, Cpu } from "lucide-react";
+
+type DecisionLaya = {
+    id: string;
+    punto: string;
+    respuesta: string;
+    confianza: number;
+    donde: string;
+    ms: number;
+};
+
+type HabilidadesLaya = {
+    toSpec: boolean;
+    toTickets: boolean;
+    triage: boolean;
+};
+
+interface LayaDecisionesPanelProps {
+    compacto?: boolean;
+    decisiones?: ReadonlyArray<DecisionLaya>;
+    habilidades?: Readonly<HabilidadesLaya>;
+}
 
 /**
  * Panel de Decisiones de Laya (Ola 1018L)
  * ─────────────────────────────────────────────────────────────────────────────
  * Muestra las decisiones en tiempo real de Laya sobre las capas de Astraura.
  */
-export function LayaDecisionesPanel({ compacto = false }: { compacto?: boolean }) {
-    // Mock inicial, luego conectará con el store de Laya
-    const [decisiones] = useState<Array<{ id: string; punto: string; respuesta: string; confianza: number; donde: string; ms: number }>>([
+export function LayaDecisionesPanel({
+    compacto = false,
+    decisiones: decisionesProp = [
         { id: "1", punto: "¿Publicar?", respuesta: "publicar", confianza: 0.95, donde: "CPU", ms: 42 },
-    ]);
-
-    const [habilidades] = useState({
+    ],
+    habilidades: habilidadesProp = {
         toSpec: true,
         toTickets: true,
         triage: true,
-    });
+    },
+}: LayaDecisionesPanelProps) {
+    const decisiones = decisionesProp;
+    const habilidades = habilidadesProp;
 
     return (
         <div className={cn("space-y-4 rounded-xl border border-white/10 bg-white/[0.03] p-4", compacto && "p-2")}>
