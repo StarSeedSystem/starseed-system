@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { crearAlmacenMemoria, crearToken, revocarToken } from "@/lib/genesis/mcp/tokens-externos";
 import { HERRAMIENTAS_MCP } from "@/lib/genesis/mcp/herramientas";
+import { CAPACIDADES_AMBITO } from "@/lib/mando/ambito";
 import {
   atenderMcpConPermisos,
   extraerBearer,
@@ -62,6 +63,18 @@ describe("ruta MCP con permisos (tarea S)", () => {
     expect(filtrarHerramientas(HERRAMIENTAS_MCP, [])).toEqual([]);
     const todas = ["ver-resumen", "encolar", "ver-detalle", "chatear"];
     expect(filtrarHerramientas(HERRAMIENTAS_MCP, todas).length).toBe(HERRAMIENTAS_MCP.length);
+  });
+
+  it("con sesión de ámbito completo el tools/list muestra todas las herramientas", async () => {
+    const { deps, registros } = depsFalsas();
+    const sesion: SesionResuelta = { ...sesionFalsa, alcance: [...CAPACIDADES_AMBITO] };
+    const atendida = await atenderMcpConPermisos(
+      { jsonrpc: "2.0", id: 5, method: "tools/list" }, HERRAMIENTAS_MCP, deps, null, sesion, "/api/mcp/genesis",
+    );
+    expect(atendida.status).toBe(200);
+    const salida = atendida.salida as { result: { tools: Array<{ name: string }> } };
+    expect(salida.result.tools.map((h) => h.name)).toEqual(HERRAMIENTAS_MCP.map((h) => h.name));
+    expect(registros[0]).toMatchObject({ via: "sesion", ambito: "cuenta:user-1", tipo: "tools/list", statusCode: 200 });
   });
 
   it("prefiere el token sobre la sesión y devuelve su ámbito", async () => {
