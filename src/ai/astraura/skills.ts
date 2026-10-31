@@ -691,6 +691,22 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     routing: {},
     rutaCompleta: h.rutaCompleta,
   })),
+  /* ═══ HABILIDADES-INGENIERIA · Laya elige cuál aplica y el tamaño sale de la capa ═══
+   * Encendida por defecto y desactivable (Ola 1018L · LYS1018K): contra lo que pide la
+   * tarea, la capa reflejo pregunta a Laya con `preguntaHabilidad` (choice entre las
+   * habilidades de ingeniería + «ninguna») y el que responde recibe con
+   * `bloqueHabilidad` el texto al tamaño de SU capa: tarjeta para reflejo y palabra
+   * pequeña, resumen para palabra/razón con Bonsai y, para profunda y nube, la
+   * referencia al SKILL.md completo. Ver habilidades/elegir-habilidad.ts y
+   * architecture/laya-y-habilidades.md §5. */
+  {
+    id: "habilidades-ingenieria",
+    label: "Habilidades de ingeniería (elegidas por Laya)",
+    defaultOn: true,
+    systemPrompt:
+      "Cuando la tarea encaje con una habilidad de ingeniería, Laya ya ha elegido cuál aplica y te llega un bloque con su texto al tamaño de tu capa (tarjeta, resumen o referencia al SKILL.md completo): aplícalo tal cual, guiándote primero por él. Si no llega ningún bloque, responde sin aplicar ninguna habilidad y no las inventes ni las nombres de oído.",
+    routing: {},
+  },
 ];
 
 function isClient(): boolean {

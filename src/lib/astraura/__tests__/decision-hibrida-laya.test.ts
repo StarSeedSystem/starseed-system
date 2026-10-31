@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import { MODELO_JEV } from "@/lib/jev/decisiones";
 import {
   decidirConLaya,
+  decidirHabilidad,
   decidirTipoDiagrama,
   planDeDecision,
   UMBRAL_LAYA_EJECUTAR,
   type RespuestaJev,
   type RespuestaLaya,
+  type RespuestaLayaChoice,
 } from "../decision-hibrida";
+import { bloqueHabilidad } from "@/ai/astraura/habilidades/elegir-habilidad";
 import type { DecisionNeedle, HerramientaNeedle } from "../needle3-client";
 
 const herramientas: HerramientaNeedle[] = [{
@@ -122,6 +125,61 @@ describe("decidirTipoDiagrama", () => {
       answers: { tipo: { type: "choice", choice: "sankey", confidence: 0.9 } },
     }), { status: 200, headers: { "Content-Type": "application/json" } });
     await expect(decidirTipoDiagrama("dibuja", ["flowchart"], ajeno)).resolves.toBeNull();
+  });
+});
+
+describe("decidirHabilidad", () => {
+  // Respuesta de Laya de ejemplo, con la forma real del punto `habilidad.elegir`:
+  // choice + probabilities + answer_confidence (calibrada); `confidence` NO manda.
+  function respuestaHabilidad(choice = "tdd", answerConfidence?: number): Response {
+    return new Response(JSON.stringify({
+      answers: { habilidad: { type: "choice", choice,
+        probabilities: { [choice]: 0.88, ninguna: 0.12 },
+        confidence: 0.95, ...(answerConfidence === undefined ? {} : { answer_confidence: answerConfidence }) } },
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
+
+  it("pasa por el cliente único con la pregunta del punto «habilidad.elegir»", async () => {
+    let cuerpo: unknown;
+    const transporte = async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toBe("http://127.0.0.1:4470/v1/systemone");
+      cuerpo = JSON.parse(String(init?.body)) as unknown;
+      return respuestaHabilidad("tdd", 0.71);
+    };
+    await expect(decidirHabilidad("escribe primero los tests", transporte)).resolves.toEqual({
+      choice: "tdd", answer_confidence: 0.71,
+    });
+    expect(cuerpo).toMatchObject({
+      model: MODELO_JEV,
+      state: "escribe primero los tests",
+      questions: { habilidad: { type: "choice", instructions: expect.any(String),
+        criteria: expect.objectContaining({ tdd: expect.any(String), ninguna: expect.any(String) }) } },
+    });
+  });
+
+  it("solo decide con answer_confidence: sin calibrada no hay respuesta", async () => {
+    const sinCalibrada = async () => respuestaHabilidad("code-review");
+    await expect(decidirHabilidad("revisa esto", sinCalibrada)).resolves.toBeNull();
+    const nan = async () => respuestaHabilidad("tdd", Number.NaN);
+    await expect(decidirHabilidad("revisa esto", nan)).resolves.toBeNull();
+  });
+
+  it("devuelve null ante fallo HTTP, opción ajena al menú y «ninguna» vale igual", async () => {
+    const fallo = async () => new Response(null, { status: 503 });
+    await expect(decidirHabilidad("consulta", fallo)).resolves.toBeNull();
+    const ajena = async () => respuestaHabilidad("no-existe", 0.9);
+    await expect(decidirHabilidad("consulta", ajena)).resolves.toBeNull();
+    const ninguna = async () => respuestaHabilidad("ninguna", 0.9);
+    await expect(decidirHabilidad("consulta", ninguna)).resolves.toEqual({
+      choice: "ninguna", answer_confidence: 0.9,
+    });
+  });
+
+  it("lo devuelto alimenta bloqueHabilidad: la capa recibe su tamaño", async () => {
+    const si = async () => respuestaHabilidad("tdd", 0.8);
+    const respuesta: RespuestaLayaChoice | null = await decidirHabilidad("tarea", si);
+    expect(bloqueHabilidad(respuesta, "reflejo")).not.toBe("");
+    expect(bloqueHabilidad(respuesta, "memoria")).toBe("");
   });
 });
 
