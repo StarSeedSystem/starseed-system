@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { VentanaVariaciones, type DatosVentanaVariaciones, type VariacionVentana } from "../ventana-variaciones";
 import type { PestanaVariaciones } from "../variaciones-bus";
 import { AppearanceProvider } from "@/context/appearance-context";
+import { __resetRegistros, registrarFamilia } from "@/lib/variaciones/familias";
+import { SANDBOX_CODIGO } from "@/lib/variaciones/validar";
 import { cloneElement, type ReactElement, type ReactNode } from "react";
 
 const slots: { guardarSlot: ReactNode; compartirSlot: ReactNode } = {
@@ -12,7 +14,10 @@ const slots: { guardarSlot: ReactNode; compartirSlot: ReactNode } = {
 const renderWithProvider = (ui: ReactElement) =>
   render(<AppearanceProvider>{cloneElement(ui as ReactElement<typeof slots>, slots)}</AppearanceProvider>);
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  __resetRegistros();
+});
 
 function v(id: string, titulo: string, extra: Partial<VariacionVentana> = {}): VariacionVentana {
   return {
@@ -84,6 +89,32 @@ describe("VentanaVariaciones", () => {
     expect(screen.getByRole("alert").textContent).toMatch(/no está disponible en este proyecto/);
     expect(filas()).toHaveLength(0);
     expect(screen.queryByText("Aún nadie ha publicado una variación de este elemento")).toBeNull();
+  });
+
+  it("pasa el payload a la tarjeta: vista previa y acciones de Biblioteca y Compartir", () => {
+    registrarFamilia({
+      familia: "prueba", nombre: "Prueba", capturar: () => null,
+      validar: (p) => ({ ok: true, payload: p }),
+      aplicar: () => ({ deshacer: () => undefined }),
+      vistaPrevia: (p) => p,
+    });
+    const lista = [v("1", "Cristal", { payload: { brillo: 2 } })];
+    renderWithProvider(<VentanaVariaciones clave="prueba:clima" datos={datos({ variaciones: lista })} />);
+    fireEvent.click(screen.getByRole("button", { name: /vista previa/i }));
+    expect(screen.getByText(/"brillo": 2/)).toBeTruthy();
+    expect(screen.getByText("Guardar en la Biblioteca")).toBeTruthy();
+    expect(screen.getByText("Compartir")).toBeTruthy();
+  });
+
+  it("una variación de código desde la ventana confirma y solo se abre aislada", () => {
+    const codigo = v("2", "Script", { payload: { html: "<p>hola</p>" }, esCodigo: true });
+    renderWithProvider(<VentanaVariaciones clave="widget:clima" datos={datos({ variaciones: [codigo] })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Probar" }));
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir aislada" }));
+    const marco = screen.getByTitle(/variación aislada/i);
+    expect(marco.getAttribute("sandbox")).toBe(SANDBOX_CODIGO);
+    expect(marco.getAttribute("srcdoc")).toContain("<p>hola</p>");
   });
 
   it("en repos solo pinta enlaces https y los abre fuera de la pestaña", () => {
