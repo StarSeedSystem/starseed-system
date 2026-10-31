@@ -5,6 +5,8 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { BUILTIN_NODES } from "@/lib/education/curriculum";
 import {
     AVISO_LICENCIA_OSSU,
@@ -176,5 +178,30 @@ describe("buscarEnOssu", () => {
         expect(buscarEnOssu("seguridad", 2).length).toBeLessThanOrEqual(2);
         // 6+ cursos de seguridad existen; el max por defecto son 5.
         expect(buscarEnOssu("seguridad").length).toBe(5);
+    });
+});
+
+describe("el módulo está aplicado, no sólo integrado", () => {
+    const RAIZ = path.resolve(__dirname, "../../..");
+    const fuenteDe = (...partes: string[]): string =>
+        readFileSync(path.join(RAIZ, "src", "components", "education", ...partes), "utf8");
+
+    it("la ruta de aprendizaje de un nodo enlaza sus cursos OSSU (con el aviso de licencia)", () => {
+        const src = fuenteDe("learning-path.tsx");
+        expect(src).toContain('from "@/lib/education/ossu"');
+        expect(src).toContain("cursosDeNodo(topicId)");
+        expect(src).toContain("AVISO_LICENCIA_OSSU");
+    });
+
+    it("la búsqueda del mapa del conocimiento también busca en OSSU", () => {
+        const src = fuenteDe("topic-graph.tsx");
+        expect(src).toContain('from "@/lib/education/ossu"');
+        expect(src).toContain("buscarEnOssu(query");
+    });
+
+    it("el panel de guías siembra el itinerario OSSU", () => {
+        const src = fuenteDe("study", "study-guides-panel.tsx");
+        expect(src).toContain('from "@/lib/education/ossu"');
+        expect(src).toContain("createGuide(itinerarioOssu())");
     });
 });

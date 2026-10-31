@@ -8,16 +8,17 @@
 // (src/lib/education/progress.ts). Progreso visible en una barra de %.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, Newspaper, Plus, Trash2, Loader2, ListChecks } from "lucide-react";
+import { BookOpen, Newspaper, Plus, Trash2, Loader2, ListChecks, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { contentForNode, type LinkedContent } from "@/lib/education/curriculum";
+import { AVISO_LICENCIA_OSSU, cursosDeNodo, versionOssu } from "@/lib/education/ossu";
 import {
     addLearningStep,
     loadLearningPath,
@@ -40,6 +41,9 @@ export function LearningPathPanel({
     const [loading, setLoading] = useState(true);
     const [newTitle, setNewTitle] = useState("");
     const [linked, setLinked] = useState<LinkedContent>({ courses: [], articles: [] });
+    // Cursos del currículo OSSU asignados a este nodo del catálogo (config/educacion-ossu.json:
+    // el OS ENLAZA el material de sus anfitriones, nunca lo copia). Los cursos llevan `nodo`.
+    const ossu = useMemo(() => cursosDeNodo(topicId), [topicId]);
 
     const reload = useCallback(async () => {
         setSteps(await loadLearningPath(topicId));
@@ -53,7 +57,7 @@ export function LearningPathPanel({
     }, [reload, topicName]);
 
     const pct = progressPct(steps);
-    const hasLinked = linked.courses.length > 0 || linked.articles.length > 0;
+    const hasLinked = linked.courses.length > 0 || linked.articles.length > 0 || ossu.length > 0;
 
     const submit = async () => {
         const t = newTitle.trim();
@@ -92,6 +96,28 @@ export function LearningPathPanel({
                             <span className="truncate">{a.title}</span>
                         </Link>
                     ))}
+                </div>
+            )}
+
+            {ossu.length > 0 && (
+                <div className="space-y-1.5">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Cursos de OSSU para este tema</p>
+                    {ossu.map((c) => (
+                        <a
+                            key={c.orden}
+                            href={c.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs transition hover:border-white/25"
+                        >
+                            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-violet-300" />
+                            <span className="min-w-0 flex-1 truncate">{c.nombre}</span>
+                            <span className="shrink-0 text-[10px] text-muted-foreground">{c.duracion}</span>
+                        </a>
+                    ))}
+                    <p className="text-[10px] leading-snug text-muted-foreground">
+                        De OSSU · {AVISO_LICENCIA_OSSU} (commit {versionOssu().commit.slice(0, 10)}).
+                    </p>
                 </div>
             )}
 
