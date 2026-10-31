@@ -2,6 +2,7 @@
 
 import type * as React from "react";
 import { DashboardWidget } from "./dashboard-types";
+import type { WidgetType } from "./dashboard-types";
 import dynamic from "next/dynamic";
 import { useAppearance } from "@/context/appearance-context";
 import { getWidgetFunctionStyle } from "./widget-function-style";
@@ -182,6 +183,14 @@ const PanelProtomoleculaAutonomo = dynamic(
     () => import("@/components/protomolecula/panel-protomolecula").then((mod) => mod.PanelProtomoleculaAutonomo),
     { ssr: false, loading: dashboardWidgetLoading }
 );
+// Vídeo con HyperFrames (ola 1018H): estudio comunitario en dashboard, escritorio y pizarra
+const EstudioVideoVentana = dynamic(
+    () => import("@/components/video/estudio-video-ventana").then((mod) => mod.EstudioVideoVentana),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
+/** El estudio usa un id de contexto propio (no del manifiesto): el cableado de las
+ *  superficies lo añade por su lado; aquí solo se acepta para no caer a «desconocido». */
+const TIPO_ESTUDIO_VIDEO = "estudio-video" as WidgetType;
 
 interface WidgetProps {
     widget: DashboardWidget;
@@ -522,6 +531,10 @@ function cuerpoClasico(
         // ── Protomolécula (ola 1010P) ──
         case 'PROTOMOLECULA':
             return <PanelProtomoleculaAutonomo compacto />;
+
+        // ── Vídeo con HyperFrames (ola 1018H): estudio en dashboard, escritorio y pizarra ──
+        case TIPO_ESTUDIO_VIDEO:
+            return <EstudioVideoVentana />;
 
         default:
             return (
