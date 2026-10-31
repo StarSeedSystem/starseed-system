@@ -20,6 +20,9 @@ const capa = (extra: Partial<BackgroundLayer>): BackgroundLayer => ({
     id: "c1", kind: "color", visible: true, opacity: 1, blend: "normal", value: "#0a0118", ...extra,
 });
 
+/** El cuerpo de la capa dentro de la envoltura de la pila (envoltura → CapaDifusion → modo). */
+const modoDe = (envoltura: Element): HTMLElement | null => (envoltura.firstElementChild?.firstElementChild ?? null) as HTMLElement | null;
+
 const sembrar = (capas: BackgroundLayer[]): void => {
     localStorage.setItem("appearance-config-v2", JSON.stringify({ background: { type: "spline", layers: capas } }));
 };
@@ -51,8 +54,8 @@ describe("BackgroundLayerStack · capas nuevas de la pila (rescate FSH1018G)", (
     const envolturas = Array.from(pila.children) as HTMLElement[];
     expect(envolturas).toHaveLength(2);
     expect(envolturas.map((e) => e.style.zIndex)).toEqual(["-9", "-8"]);
-    expect(cuerpoDe(envolturas[0])).toMatch(/background:\s*#0a0118/); // la de color, abajo
-    expect(cuerpoDe(envolturas[1])).toContain("blur(8px)"); // la de difusión, encima: desenfoca lo de abajo
+    expect(cuerpoDe(envolturas[0])).toMatch(/background:\s*(#0a0118|rgb\(10, 1, 24\))/); // la de color, abajo
+    expect(modoDe(envolturas[1])?.style.backdropFilter).toBe("blur(8px)"); // jsdom guarda backdrop-filter como propiedad, no como atributo
     expect(envolturas[1].style.opacity).toBe("0.42");
     expect(envolturas[1].style.mixBlendMode).toBe("normal");
   });
@@ -66,7 +69,7 @@ describe("BackgroundLayerStack · capas nuevas de la pila (rescate FSH1018G)", (
     expect(envoltura.style.opacity).toBe("0.42");
     expect(envoltura.style.mixBlendMode).toBe("screen");
     const cuerpo = cuerpoDe(envoltura);
-    expect(cuerpo).toContain("blur(8px)");
+    expect(modoDe(envoltura)?.style.backdropFilter).toBe("blur(8px)"); // jsdom lo guarda en propiedad, no en atributo
     expect(cuerpo).toMatch(/opacity:\s*1(?!\.?\d)/); // CapaDifusion pide neutras para no aplicarlas dos veces
     expect(cuerpo).not.toContain("0.42");
   });
