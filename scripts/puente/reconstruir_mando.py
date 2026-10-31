@@ -988,22 +988,30 @@ def camino_de_build(freno, estado, ahora, huella=None, espera_a1_s=ESPERA_TRAS_F
 
 def orden_ligera(orden) -> str:
     """PURA: la build del A1 con STARSEED_BUILD_LIGERO=1 (el 30-10 sin ella murió por OOM);
-    `compilar_en_a1.orden_compilar` aún no la lleva. Si un día la lleva, no hace nada."""
+    desde GEN1031A `compilar_en_a1.orden_compilar` ya la lleva y esto no hace nada (red de seguridad)."""
     orden = str(orden or "")
     return orden if "STARSEED_BUILD_LIGERO=" in orden else orden.replace(
         "STARSEED_DIST=", "STARSEED_BUILD_LIGERO=1 STARSEED_DIST=", 1)
 
 
-def compilar_en_el_a1(huella, de_espera="esperando-maquina") -> bool:
+def urgencia_a1(caido, entradas, ahora=None):
+    """(GEN1031A) Por qué la build del A1 no espera a su enjambre (Genesis caído o la pantalla vieja
+    más de 6 h), o None: con urgencia el A1 le da turno aunque esté en su cola o en su guardián."""
+    import compilar_en_a1 as CA  # aquí y no arriba: él importa este módulo
+    return CA.urgencia(caido, mtime_del_build(), entradas, time.time() if ahora is None else ahora)
+
+
+def compilar_en_el_a1(huella, de_espera="esperando-maquina", urgente=None) -> bool:
     """Todas las etapas de `compilar_en_a1` con sus esperas; al traer y cambiar, su `marcar_listo`
-    con la hora del envío y `reiniciar_mando`. El estado dice que está en curso."""
+    con la hora del envío y `reiniciar_mando`. El estado dice que está en curso. Con `urgente`
+    (el motivo, de `urgencia_a1`), el A1 le da turno (GEN1031A)."""
     import compilar_en_a1 as CA  # aquí y no arriba: él importa este módulo
     _guardar(dict(_leer_estado(), estado="compilando-a1", a1_desde=time.time(), a1_huella=huella))
     devolver_cache()  # `traer_y_cambiar` vacía .next-build: la caché de webpack vuelve antes a .next
     orden = CA.orden_compilar
     CA.orden_compilar = lambda *a, **k: orden_ligera(orden(*a, **k))
     try:
-        ok, detalle = CA.compilar()
+        ok, detalle = CA.compilar(**({"urgente": urgente} if urgente else {}))
     except Exception as ex:  # noqa: BLE001
         ok, detalle = False, CA.oracle_nodo.tachar("%s: %s" % (type(ex).__name__, ex))
     finally:
@@ -1115,8 +1123,10 @@ def una_pasada(forzar: bool = False) -> bool:
         freno = freno_de_maquina(forzar=forzar)
         via, porque = camino_de_build(freno, _leer_estado(), time.time(), actual)
         if via == "a1":
-            print("[%s] COMPILO EN EL A1: %s, y %s" % (time.strftime("%H:%M"), motivo, porque), flush=True)
-            return compilar_en_el_a1(actual, de_espera)
+            urgente = urgencia_a1(caido, entradas)
+            print("[%s] COMPILO EN EL A1: %s, y %s%s" % (time.strftime("%H:%M"), motivo, porque, (
+                "; urgente (%s): el A1 me da turno" % urgente) if urgente else ""), flush=True)
+            return compilar_en_el_a1(actual, de_espera, urgente=urgente)
         if via == "espera":
             print("[%s] espero: %s, pero %s" % (time.strftime("%H:%M"), motivo, porque), flush=True)
             _guardar(dict(_leer_estado(), estado=de_espera, freno=porque,
@@ -1178,7 +1188,7 @@ def una_pasada(forzar: bool = False) -> bool:
         datos = reconstruir(actual) or {}
         if datos.get("por_memoria") and camino_de_build(None, _leer_estado(), time.time(), actual)[0] == "a1":
             print("[%s] la build de la Mac murió por memoria: COMPILO EN EL A1" % time.strftime("%H:%M"), flush=True)
-            compilar_en_el_a1(actual, de_espera)
+            compilar_en_el_a1(actual, de_espera, urgente=urgencia_a1(caido, entradas))
         elif caido and datos.get("estado") != "al-dia":
             _guardar(dict(_leer_estado(), estado="caido-sin-build"))
         return True

@@ -5,7 +5,10 @@
 es decir, un `.env` entero NUNCA va al A1."""
 from __future__ import annotations
 
+import json
 import os
+import shlex
+import subprocess
 import tempfile
 import sys
 import unittest
@@ -233,6 +236,123 @@ class Flujo(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("no late", detalle)
         self.rsync.assert_not_called()
+
+    def _ordenes(self, ssh=None):  # GEN1031A: con urgencia el A1 da turno; sin ella, como hoy
+        return [c[0][0] for c in (ssh or self.ssh).call_args_list]
+
+    def test_sin_urgencia_como_hoy(self):
+        mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
+        self.estado.return_value = ({"fase": "cola"}, {}, [])
+        self.assertIn("fase cola", C.compilar(raiz=self.raiz)[1])
+        self.assertEqual((self.ssh.call_count, self.rsync.call_count), (0, 0))
+        self.estado.return_value = ({"fase": "espera"}, {}, [])
+        C.compilar(raiz=self.raiz)
+        self.assertFalse(any(C.GOBERNADOR_A1 in o or o == C.ORDEN_GUION for o in self._ordenes()))
+        self.assertTrue(self.rsync.call_args_list[0][0][0][-1].endswith(":" + RAIZ_A1))
+
+    def test_urgente_en_cola_da_turno_en_arbol_aparte_y_lo_quita(self):
+        mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
+        self.estado.return_value = ({"fase": "cola"}, {}, [])
+        self.rsync.side_effect = self._con_build_traido
+        ok, detalle = C.compilar(raiz=self.raiz, urgente="Genesis está caído")
+        self.assertTrue(ok and "dio turno" in detalle, detalle)
+        ordenes = self._ordenes()
+        self.assertTrue(C.GOBERNADOR_A1 in ordenes[0] and "touch -d @" in ordenes[0])  # el freno, lo primero
+        self.assertEqual(ordenes[-1], C.orden_quitar_turno())  # y quitarlo, lo último
+        guion = [c[1]["entrada"] for c in self.ssh.call_args_list if c[0][0] == C.ORDEN_GUION]
+        self.assertEqual(len(guion), 1)
+        self.assertTrue(all(s in guion[0] for s in ("nice -n 10", "STARSEED_BUILD_LIGERO=1", "cd " + C.RAIZ_TURNO_A1,
+                                                     C.PESADO_A1, "guardian")), guion[0])
+        self.assertTrue(self.rsync.call_args_list[0][0][0][-1].endswith(":" + C.RAIZ_TURNO_A1))
+        self.assertIn(C.RAIZ_TURNO_A1 + "/" + C.DIST_BUILD, self.rsync.call_args_list[-1][0][0][-2])
+        self.assertIn(C.RAIZ_TURNO_A1, self.bytes.call_args_list[0][0][0])
+        prohibido = ("pkill", "killall", "kill -9", "kill -TERM", "systemctl")  # nunca se mata al enjambre
+        self.assertEqual([o for o in ordenes + guion if any(p in o for p in prohibido)], [])
+
+    def test_urgente_roto_sin_turno_o_reventado_quita_el_freno(self):
+        mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
+        for rc, texto in ((1, "next build en el A1"), (C.SIN_TURNO, "sin turno en el A1"), (255, "freno del A1")):
+            ssh = mock.patch.object(C.oracle_nodo, "ssh", side_effect=lambda o, entrada=None, timeout=0, rc=rc: (
+                (rc, "muerte") if o == C.ORDEN_GUION or (rc == 255 and "touch" in o) else (0, ""))).start()
+            ok, detalle = C.compilar(raiz=self.raiz, urgente="la pantalla lleva 7.0 h vieja")
+            self.assertTrue(not ok and texto in detalle, detalle)
+            self.assertEqual(self._ordenes(ssh)[-1], C.orden_quitar_turno())
+        ssh = mock.patch.object(C.oracle_nodo, "ssh", return_value=(0, "")).start()
+        self.rsync.side_effect = RuntimeError("se cayó la red")
+        with self.assertRaises(RuntimeError):
+            C.compilar(raiz=self.raiz, urgente="Genesis está caído")
+        self.assertEqual(self._ordenes(ssh)[-1], C.orden_quitar_turno())
+        self.assertEqual((self.listo.call_count, self.guardar.call_count), (0, 0))
+
+
+class Turno(unittest.TestCase):
+    """GEN1031A: urgencia, freno del orquestador y guion del turno (este, ejecutado con dobles)."""
+
+    def test_urgencia(self):
+        ahora, h = 10 ** 9, 3600
+        ns = lambda horas: int((ahora - horas * h) * 1e9)  # noqa: E731
+        self.assertEqual(C.urgencia(True, ns(1), [], ahora), "Genesis está caído")
+        self.assertEqual(C.urgencia(False, None, [], ahora), "no hay build servido")
+        vieja = [("src/a.ts", ns(1), 1), ("src/b.ts", ns(7), 1)]
+        self.assertEqual(C.urgencia(False, ns(10), vieja, ahora), "la pantalla lleva 7.0 h vieja")
+        self.assertIsNone(C.urgencia(False, ns(10), vieja[:1], ahora))
+        self.assertIsNone(C.urgencia(False, ns(10), vieja, ahora, umbral_s=8 * h))
+        self.assertIsNone(C.urgencia(False, ns(10), [("src/c.ts", ns(11), 1), ("public/version.json", ns(9), 1)], ahora))
+        for fase, vivo, esperado in (("cola", True, True), ("guardian", True, True), ("cola", False, False)):
+            ok, motivo = C.se_puede_compilar({"fase": fase}, 0, vivo=vivo, urgente="Genesis está caído")
+            self.assertEqual((ok, "me da turno" in motivo), (esperado, esperado), motivo)
+
+    def test_freno_a_un_trabajador_con_caducidad_y_quitar_solo_el_suyo(self):
+        o = C.orden_pedir_turno(1234.9)
+        self.assertTrue(o.startswith("sudo -u starseed -H sh -c "))
+        trozos = shlex.split(shlex.split(o)[-1])
+        self.assertEqual(json.loads(trozos[trozos.index("printf") + 2])["trabajadores"], 1)
+        self.assertIn("@1234", trozos)
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "gobernador.json")
+            quitar = ["sh", "-c", shlex.split(C.orden_quitar_turno(ruta))[-1]]
+            self.assertEqual(subprocess.run(quitar).returncode, 0)  # sin freno: nunca falla
+            for ajeno, queda in (('{"trabajadores": 2}', True), (json.dumps({"motivo": C.MARCA_TURNO}), False)):
+                with open(ruta, "w", encoding="utf-8") as f:
+                    f.write(ajeno)
+                self.assertEqual(subprocess.run(quitar).returncode, 0)
+                self.assertEqual(os.path.exists(ruta), queda)
+
+    def _turno(self, d, fase="espera", dueno=None, tsc="false", compilar=None):
+        estado, cerrojo = os.path.join(d, "estado.json"), os.path.join(d, "cerrojos", "pesado.lock")
+        with open(estado, "w", encoding="utf-8") as f:
+            json.dump({"fase": fase}, f, indent=1)
+        if dueno is not None:
+            os.makedirs(cerrojo)
+            with open(os.path.join(cerrojo, "dueno"), "w", encoding="utf-8") as f:
+                f.write("%d 0" % dueno)
+        hecho = os.path.join(d, "compilado")
+        guion = C.guion_turno(compilar or "test -d %s && touch %s" % (cerrojo, hecho), espera_s=0,
+                              fase=estado, cerrojo=cerrojo, tsc_vivo=tsc, pausa_s=0)
+        r = subprocess.run(["sh", "-s"], input=guion, capture_output=True, text=True, timeout=30)
+        return r.returncode, os.path.exists(hecho), os.path.isdir(cerrojo)
+
+    def test_guion_espera_al_guardian_y_al_tsc_y_suelta_siempre(self):
+        muerto = int(subprocess.run(["sh", "-c", "echo $$"], capture_output=True, text=True).stdout)
+        casos = ((dict(), (0, True, False)), (dict(fase="guardian"), (C.SIN_TURNO, False, False)),
+                 (dict(tsc="true"), (C.SIN_TURNO, False, False)),
+                 (dict(dueno=os.getpid()), (C.SIN_TURNO, False, True)),  # a un dueño vivo no se le quita
+                 (dict(dueno=muerto), (0, True, False)), (dict(compilar="sh -c 'exit 3'"), (3, False, False)))
+        for kw, esperado in casos:
+            with tempfile.TemporaryDirectory() as d:
+                self.assertEqual(self._turno(d, **kw), esperado, kw)
+        self.assertIn("bin/ts[c]", C.TSC_VIVO)
+
+    def test_el_reconstructor_le_pasa_la_urgencia(self):
+        R, vistos = C.RM, []
+        with mock.patch.object(R, "mtime_del_build", return_value=None), mock.patch.object(R, "_guardar"), \
+                mock.patch.object(R, "_leer_estado", return_value={}), mock.patch.object(R, "devolver_cache"), \
+                mock.patch("builtins.print"), \
+                mock.patch.object(C, "compilar", side_effect=lambda **k: (vistos.append(k), (True, "ok"))[1]):
+            self.assertEqual(R.urgencia_a1(False, []), "no hay build servido")
+            self.assertTrue(R.compilar_en_el_a1("h", urgente="Genesis está caído"))
+            self.assertTrue(R.compilar_en_el_a1("h"))
+        self.assertEqual(vistos, [{"urgente": "Genesis está caído"}, {}])
 
 
 if __name__ == "__main__":
