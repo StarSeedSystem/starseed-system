@@ -25,6 +25,7 @@ import {
     Users2, FolderOpen, Workflow, LayoutGrid, SquareKanban, Puzzle, Network, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LayaDecisionesPanel } from "@/components/astraura/laya-decisiones-panel";
 import { IntelligencePanel } from "@/components/settings/ai/intelligence-panel";
 import { AgentesFondoSection } from "@/components/astraura/agentes-fondo-section";
 import { readRouteLog, getIntelligenceSettings, saveIntelligenceSettings, type RouteRecord } from "@/ai/astraura/router";
@@ -105,7 +106,7 @@ export function InteligenciaSection({ compact = false }: { compact?: boolean }) 
     const [entonacion, setEntonacion] = useState(() => { try { return estadoEntonacion(); } catch { return null; } });
     const [ultimaDecision, setUltimaDecision] = useState<DecisionEntonacion | null>(null);
     const [reflexionando, setReflexionando] = useState(false);
-    const [vista, setVista] = useState<"uso" | "rutas" | "fondo" | "voz" | "fuentes" | "conexiones">("uso");
+    const [vista, setVista] = useState<"uso" | "rutas" | "fondo" | "voz" | "fuentes" | "conexiones" | "laya">("uso");
     const [estadoVoicestudio, setEstadoVoicestudio] = useState<EstadoVoicestudioNeurona>("sin-comprobar");
 
     const refrescar = useCallback(() => {
@@ -145,6 +146,7 @@ export function InteligenciaSection({ compact = false }: { compact?: boolean }) 
         { id: "voz", label: "Entonación", icon: Mic2 },
         { id: "fuentes", label: "Motores y claves", icon: Cpu },
         { id: "conexiones", label: "Conexiones", icon: Link2 },
+        { id: "laya", label: "Decisiones de Laya", icon: Sparkles },
     ];
 
     return (
@@ -329,6 +331,13 @@ export function InteligenciaSection({ compact = false }: { compact?: boolean }) 
                         </div>
                     )}
                     <IntelligencePanel />
+                </div>
+            )}
+
+            {/* ── Decisiones de Laya y habilidades ──────────────────────────── */}
+            {vista === "laya" && (
+                <div className="space-y-2">
+                    <LayaDecisionesPanel compacto={compact} />
                 </div>
             )}
 
