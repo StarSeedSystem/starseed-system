@@ -35,6 +35,59 @@ const CLEF: Entrada = {
     medios: ["servidor"],
 };
 
+/** Entrada 3: capa «juicio», la que decide (Laya). */
+const LAYA: Entrada = {
+    id: "colibri-laya",
+    capa: "juicio",
+    modelo: "Laya",
+    runtime: "colibri",
+    formato: "safetensors",
+    tamano_bytes: 870_000_000,
+    ram_min_mb: 1740,
+    estado: "por-verificar",
+    medios: ["servidor"],
+};
+
+/** Entrada 4: capa «palabra», la que habla (OLMoE 7B int8). */
+const OLMOE: Entrada = {
+    id: "colibri-olmoe-7b",
+    capa: "palabra",
+    modelo: "OLMoE 7B (int8 tras convertir)",
+    runtime: "colibri",
+    formato: "safetensors",
+    tamano_bytes: 7168_000_000,
+    ram_min_mb: 8192,
+    estado: "por-verificar",
+    medios: ["servidor"],
+};
+
+/** Entrada 5: otra «razón» (la segunda del catálogo). */
+const QWEN3_CODER: Entrada = {
+    id: "colibri-qwen3-coder-30b",
+    capa: "razon",
+    modelo: "Qwen3-Coder-30B-A3B (int4)",
+    runtime: "colibri",
+    formato: "safetensors",
+    tamano_bytes: 19400_000_000,
+    ram_min_mb: 8192,
+    estado: "por-verificar",
+    medios: ["servidor"],
+};
+
+/** Entrada 6: otra «profunda», con streaming también. */
+const DEEPSEEK_FLASH: Entrada = {
+    id: "colibri-deepseek-v4-flash-reap",
+    capa: "profunda",
+    modelo: "DeepSeek V4 Flash REAP 150B",
+    runtime: "colibri",
+    formato: "safetensors",
+    tamano_bytes: 86732_000_000,
+    ram_min_mb: 16384,
+    estado: "por-verificar",
+    medios: ["servidor"],
+    streaming_disco: true,
+};
+
 const colibri = capasDe([CODER, CLEF]);
 const porId = (id: string) => colibri.find((m) => m.id === id);
 
@@ -85,5 +138,23 @@ describe("modelosDeCapas · runtime colibri", () => {
     it("ignora las entradas sin capa conocida o sin id", () => {
         expect(capasDe([{ id: "sin-capa", capa: "desconocida", runtime: "colibri", modelo: "X" }])).toHaveLength(0);
         expect(capasDe([{ capa: "razon", runtime: "colibri", modelo: "X" }])).toHaveLength(0);
+    });
+
+    it("capas: juicio → decisión y palabra → texto", () => {
+        const laya = capasDe([LAYA])[0];
+        expect(laya?.capacidades).toEqual(["decision"]);
+        expect(capasDe([OLMOE])[0]?.capacidades).toEqual(["texto"]);
+    });
+
+    it("medios: las cuatro capas llegan con solo «servidor»", () => {
+        expect(capasDe([LAYA])[0]?.medios).toEqual(["servidor"]);
+        expect(capasDe([OLMOE])[0]?.medios).toEqual(["servidor"]);
+        expect(capasDe([QWEN3_CODER])[0]?.medios).toEqual(["servidor"]);
+        expect(capasDe([DEEPSEEK_FLASH])[0]?.medios).toEqual(["servidor"]);
+    });
+
+    it("formato: se conserva tal cual (gguf y safetensors)", () => {
+        expect(capasDe([CODER])[0]?.formato).toBe("gguf");
+        expect(capasDe([DEEPSEEK_FLASH])[0]?.formato).toBe("safetensors");
     });
 });
