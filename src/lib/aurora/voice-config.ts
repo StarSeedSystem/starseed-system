@@ -246,6 +246,44 @@ export function resolveVoiceChoice(
 }
 
 /**
+ * (SGO1031B) PIN del router de Astraura con el MISMO veredicto que la cadena
+ * que suena. Dos reglas que antes divergían en `src/ai/astraura/router.ts`:
+ *   · La CUENTA no encabeza el pin: `buildVoiceChain` pone el pin por defecto
+ *     (`refreshPersonalityVoicePin`: openvoice2 / omnivoice / fastweb) DELANTE
+ *     de `cfg.engine`, así que la elección de la cuenta nunca llega a ser pin;
+ *     si el pin no puede hablar, la cadena ya coge detrás la cuenta y el AUTO.
+ *   · El override neurona×personalidad no existe SIN personalidad activa
+ *     (`neuronPersonaVoice` devolvía `null`): el router lo leía con
+ *     `persona?.id ?? "*"` y lo aplicaba igual.
+ * El pin por defecto llega ya calculado en `pinCadena` (lo que acaba de
+ * devolver `refreshPersonalityVoicePin`) y manda cuando ningún ámbito fija
+ * motor. Pura y defensiva: nunca lanza.
+ */
+export function voicePinForRouter(
+  sources: VoiceHierarchySources,
+  pinCadena: AuroraVoiceEngine | null,
+): AuroraVoiceEngine | null {
+  try {
+    const ctx = sources.ctx ?? {};
+    // Sin personalidad activa, el override de neurona no aplica (Adenda 149).
+    const fuentes: VoiceHierarchySources = ctx.personaId
+      ? sources
+      : { ...sources, override: null };
+    const completo = voiceHierarchyStoreFrom(fuentes);
+    // La cuenta sale del pin: en la cadena va SIEMPRE detrás del pin por defecto.
+    const store: VoiceHierarchyStore = {
+      agente: completo.agente,
+      neurona: completo.neurona,
+      personalidad: completo.personalidad,
+      cerebro: completo.cerebro,
+    };
+    return elegirDeStore(store, ctx)?.motor ?? pinCadena;
+  } catch {
+    return pinCadena;
+  }
+}
+
+/**
  * Primer eslabón que DE VERDAD puede hablar en esta cadena, con el mismo
  * filtro que `resolveActiveVoiceEngine`: Kokoro solo cuenta si su modelo está
  * listo o el usuario autorizó la descarga, y Kitten sigue siendo un stub.
