@@ -1,0 +1,54 @@
+{
+ "ola": "nube-20261030",
+ "tareas": [
+  {
+   "id": "FSH1018Lb",
+   "ola": "Ola 1018F · Fondos con Shaders: capas y difuminado, sets en la Biblioteca, elección al crear el perfil y rediseño sugerido por Astraura",
+   "titulo": "Diseño · tres propuestas de rediseño adaptadas al fondo (tokens de tema), con Astraura",
+   "archivos": [
+    "src/lib/design/rediseno-desde-fondo.ts",
+    "src/lib/design/__tests__/rediseno-desde-fondo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO: `propuestasDesdeFondo({ paleta, temaActual: ThemeTokens, modo: \"claro\"|\"oscuro\", adn })` → 3 propuestas (sobria, armónica, atrevida) de ThemeTokens (theme-engine.ts) con superficies translúcidas que dejan ver el fondo, acentos de la paleta y la escala φ de armonia.ts, cada una con su motivo y con contraste AA verificado (texto/superficie ≥ 4,5; las que no pasan se ajustan o se descartan). `pedidoParaIA(...)` arma el pedido al Director de diseño (memoria de gustos: lo privado solo si corre en una neurona de la persona). Pruebas. Contrato: architecture/fondos-shaders.md (léelo entero antes de empezar) y los que amplía (director-diseno.md, protomolecula.md, libreria-biblioteca-sync.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; el fondo actual (motor base, Spline por defecto) sigue siendo la opción principal; `shaders` 4.0.4 ya está instalado (importa solo `shaders/js` y `shaders/registry`, siempre en cliente y con import dinámico) y SIEMPRE con `disableTelemetry: true`; nunca presets ni recursos de shaders.com (solo el paquete MIT); `WebcamTexture` y `ObjectTracker` solo con permiso explícito y nunca en fondos compartidos; módulos PUROS siempre que se pueda; pruebas sin GPU, sin red y sin DOM real salvo Testing Library; nada de `any` fuera de los tipos que da el paquete; migraciones de config persistida obligatorias (las cuentas existentes deben ver lo nuevo); nunca se oculta ni se desactiva un control esencial; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41002924626`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 41014552960) falla «tsc»: 6:32:18.8528239Z env:\n2026-10-30T06:32:18.8528498Z   NODE_OPTIONS: --max-old-space-size=8192\n2026-10-30T06:32:18.8528805Z ##[endgroup]\n2026-10-30T06:34:59.9554736Z ##[error]src/lib/genesis/mcp/ruta.ts(15,14): error TS2741: Property '\"variaciones:buscar\"' is missing in type '{ \"estado:leer\": \"ver-resumen\"; \"tareas:listar\": \"ver-resumen\"; \"tareas:crear\": \"encolar\"; \"agentes:listar\": \"ver-resumen\"; \"medidores:leer\": \"ver-resumen\"; \"operaciones:proponer\": \"encolar\"; \"biblioteca:buscar\": \"ver-detalle\"; \"opciones:sugerir\": \"ver-resumen\"; \"chat:enviar\": \"chatear\"; }' but required in type 'Record<PermisoMcp, CapacidadAmbito>'.\n2026-10-30T06:35:00.4919446Z ##[error]Process completed with exit code 2.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41002924626:refs/remotes/origin/nube/41002924626\"` y `git cherry-pick --no-commit d28517076c5b`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/design/__tests__/rediseno-desde-fondo.test.ts, src/lib/design/rediseno-desde-fondo.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "dependencias_ya_en_main": [
+    "FSH1018M"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41002924626"
+  },
+  {
+   "id": "GCA1019Mb",
+   "ola": "Ola 1019G · Genesis abierto: cualquier IA, contenedor, herramienta y servicio, local primero, para cualquier cuenta y página",
+   "titulo": "Asistente «Conectar Genesis» (cuenta, grupo o página)",
+   "archivos": [
+    "src/components/genesis/conectores/asistente-conectores.tsx",
+    "src/components/genesis/conectores/__tests__/asistente-conectores.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Tres pasos: 1) lo local del contexto (neuronas, servidores del cerebro, capa de Astraura que cabe) con interruptores; 2) lo gratis sugerido, con botón «Vincular» que abre el `enlaceAlta`/`enlaceClave` oficial en pestaña nueva y un campo para pegar la clave (se envía a la API y se borra del campo); 3) resumen por papel con la cadena elegida y su motivo. Estética de Genesis (cristal, píldoras). Prueba con Testing Library y API simulada. Contrato: architecture/genesis-conectores-abiertos.md (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, reloj, Supabase y almacenamiento inyectables); pruebas sin red; nada de `any`; nunca escribas, registres ni devuelvas valores de claves o tokens (solo nombres de variables y huellas); lo privado nunca sale de las neuronas de la cuenta ni de los servidores de su cerebro; local más potente primero y de pago solo con permiso del ámbito; nunca inventes límites gratis: si un dato no está verificado, `null` y `verificado: null`; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261030-034003-GCA1019M`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261030-034003-GCA1019M:refs/remotes/origin/nube/a1-20261030-034003-GCA1019M\"` y `git cherry-pick --no-commit 69872b790800 eff3101393dd d7a96809a3e5 0e049a4b4cbe 3a770e755c8b 100907ddc891`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/genesis/conectores/__tests__/asistente-conectores.test.tsx, src/components/genesis/conectores/asistente-conectores.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor_quitadas": [
+    "GCA1019L"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261030-034003-GCA1019M"
+  },
+  {
+   "id": "CB1013S",
+   "ola": "Ola CB1013 · Cerebros: Fusionar, Telepatía, Privados/Públicos, Conectores y Procesos activos",
+   "titulo": "Ajustes del cerebro: diálogo y pestaña Medios (capacidades y almacenamiento)",
+   "archivos": [
+    "src/components/cerebro/ajustes-cerebro-dialog.tsx",
+    "src/components/cerebro/ajustes-medios.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: architecture/cerebros-fusion-telepatia.md §8 (léelo entero antes de empezar). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos de interfaz en español, sin jerga; basta de ilusiones: cada número sale de una medida real con su fuente y, si no se puede medir, se dice «sin medida» (null), nunca un 0 inventado; ningún botón lleva `truncate`, `line-clamp-*` ni `whitespace-nowrap` en su etiqueta (§3; con el Button de shadcn añade `whitespace-normal h-auto` si el texto puede ser largo); pruebas vitest en verde; `npx tsc --noEmit` limpio. Sustituye `ajustes-cerebro-dialog.tsx` manteniendo `AjustesCerebroDialogProps { open; onOpenChange; cerebro; cerebros; onHecho? }` y el default. Arriba el selector «Aplicar a»: cerebro completo, una memoria (nombres de `brain_memory_files` de este cerebro) o una carpeta (ids de `starseed.brain.<id>.memoryRoots`). Pestañas: Medios, Seguridad y privacidad, Vinculación y sincronización. Guardar con `saveBrain({ ...cerebro, config: conAjustes(...) })` y `onHecho()`. `ajustes-medios.tsx` (`export function AjustesMedios(...)`): por cada `CAPACIDADES`, un selector con 'auto' + `cerebro.servers` + neuronas de `listNeurons()` (src/lib/neurons/neurons.ts); almacenamiento con los destinos de `getMemoryDestinations(cerebro)` (src/lib/brains/memory-destinations.ts: local, StarSeed, externos y P2P) que, en el nivel cerebro, se guardan con `setMemoryDestinations` (se aplica de verdad) y una línea por destino explicando adónde va cada dato con `destinosDe()` de src/lib/malla/cristal/destinos-almacen.ts si encaja su firma. Junto a cada ajuste, la marca de `APLICACION` («se aplica ya» / «solo se guarda por ahora»).",
+   "revisor_quitadas": [
+    "CB1013R"
+   ],
+   "dependencias_ya_en_main": [
+    "CB1013T"
+   ]
+  }
+ ]
+}
