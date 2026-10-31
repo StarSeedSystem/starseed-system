@@ -3,6 +3,7 @@
 import copy
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -50,6 +51,27 @@ class AreasDelVigia(unittest.TestCase):
         self.assertEqual(motores["alias_github"]["comfyanonymous/ComfyUI"], "Comfy-Org/ComfyUI")
         self.assertTrue({"Qwen", "Tongyi-MAI"} <= set(areas[0]["autores"]) and "text-to-image" in areas[0]["pipeline_tags"])
         self.assertTrue({"unsloth", "city96", "QuantStack"} <= set(areas[0]["cuantizadores"]))
+
+    def test_habilidades_vigila_diagram_design_con_manifiesto_y_destino(self):
+        habilidades = next(a for a in V.cargar_areas() if a["id"] == "habilidades")
+        self.assertIn("cathrynlavery/diagram-design", habilidades["repos_github"])
+        self.assertEqual(habilidades["alias_github"]["cathrynlavery/diagram-design"], "cathrynlavery/diagram-design")
+        nota = habilidades["nota"]
+        self.assertIn(".claude-plugin/plugin.json", nota)  # el manifiesto es la señal de versión
+        self.assertIn("version", nota)
+        self.assertIn("vendor/habilidades/diagram-design", nota)  # la carpeta que se renueva entera
+        self.assertIn("MIT", nota)  # licencia citada
+        destino = os.path.join(V.RAIZ_REPO, "vendor", "habilidades", "diagram-design")
+        self.assertTrue(os.path.isdir(destino), destino)
+        self.assertTrue(os.path.isfile(os.path.join(destino, "LICENSE")))
+        with open(os.path.join(destino, "ORIGEN.md"), encoding="utf-8") as f:
+            origen = f.read()
+        self.assertIn("cathrynlavery/diagram-design", origen)
+        self.assertIn("MIT", origen)
+        version = re.search(r"plugin\s+([0-9]+(?:\.[0-9]+)*)", origen)  # la versión de la copia y la de la nota coinciden
+        if version is None:
+            self.fail("ORIGEN.md no declara la versión del plugin")
+        self.assertIn(version.group(1), nota)
 
     def test_resuelve_herencias(self):
         imagen, motores = V.validar_areas(con(lambda d: d["areas"][0].pop("cuantizadores")))
