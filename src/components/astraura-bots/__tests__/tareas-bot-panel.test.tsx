@@ -79,6 +79,16 @@ describe("TareasBotPanel", () => {
     expect(listar(BOT.id)[0].verificacion?.marcas["La orbe respira"].ok).toBe(true);
   });
 
+  it("sin evidencia no marca nada y lo explica", () => {
+    guardar(TAREA, inconclusa(TAREA));
+    render(<TareasBotPanel bot={BOT} />);
+    fireEvent.click(screen.getByLabelText("Verificar La orbe respira"));
+    fireEvent.click(screen.getByLabelText("Cumple La orbe respira"));
+    expect(screen.getByRole("status").textContent).toMatch(/Toda marca lleva su evidencia/);
+    expect(screen.queryByText(/cumple ·/)).toBeNull();
+    expect(listar(BOT.id)[0].verificacion?.marcas["La orbe respira"]).toBeUndefined();
+  });
+
   it("no deja que un bot verifique lo que él mismo hizo", () => {
     const t = nuevaTarea({ verificador: "bot" });
     guardar(t, verificacionInicial(t, [{ criterio: "La orbe respira", agente: "bot:b", coincidencias: 1 }]));
