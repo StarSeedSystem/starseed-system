@@ -28,6 +28,10 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import { Check, ChevronDown, Clock, ExternalLink, FileSearch, Loader2, RefreshCw, ShieldCheck, Sparkles, X } from "lucide-react";
 
 import { Switch } from "@/components/ui/switch";
+// INV1025P: las propuestas del agente de alcance montan su panel de mensajes
+// (editor · aprobar texto · reimaginar · rechazar · enviar con ENVIAR) en lugar
+// de los botones de código.
+import { PanelAlcance } from "@/components/mando/panel-alcance";
 import {
     MAX_REFERENCIAS,
     MAX_REIMAGINACIONES,
@@ -731,6 +735,11 @@ function TarjetaPropuesta({
                         <p className="mt-1.5 text-[11px] text-white/70">Crítica: al integrarla verás el diff antes de que entre.</p>
                     ) : null}
 
+                    {p.agente === "alcance" ? (
+                        <div className="border-t border-white/10 pt-2">
+                            <PanelAlcance id={p.id} alMensaje={alDecidido} />
+                        </div>
+                    ) : (
                     <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/10 pt-2">
                         {decidible ? (
                             <>
@@ -757,6 +766,7 @@ function TarjetaPropuesta({
                             Ver origen
                         </button>
                     </div>
+                    )}
                 </div>
             </div>
         </article>

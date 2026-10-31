@@ -1,6 +1,10 @@
 // Alcance del agente de imaginación (INV1025O): tipos compartidos entre el
 // panel de Genesis, el almacén privado de objetivos y la evaluación de envío.
-// Módulo puro, apto para cliente: nada de node:*.
+// Módulo puro, apto para cliente: nada de node:*. (INV1025P: vista del panel
+// y seguimiento de respuestas; `seguimiento-respuestas.ts` también es puro.)
+import type { EstadoSeguimiento } from "@/lib/mail/seguimiento-respuestas";
+// (re-export para cliente: el tipo vive en el módulo puro del correo)
+export type { EstadoSeguimiento };
 
 /** Medio por el que sale un mensaje del alcance. `red` jamás se automatiza. */
 export type MedioAlcance =
@@ -114,4 +118,109 @@ export interface EntradaEnvio {
 export interface VeredictoEnvio {
   puede: boolean;
   motivos: string[];
+}
+
+/* ── INV1025P · Panel de Genesis y servidor del envío (tipos compartidos) ── */
+
+/** Canal de contacto tal y como lo guarda el almacén privado (R5). */
+export interface CanalContacto {
+  medio?: string;
+  valor?: string;
+  fuente_url?: string;
+}
+
+/** Objetivo privado (`~/.starseed/alcance/objetivos.json`). Sin nivel se trata como alto (R8). */
+export interface ObjetivoPrivado {
+  id?: string;
+  nombre_publico?: string;
+  nivel?: string;
+  canal_contacto?: CanalContacto | null;
+}
+
+/** Ficha privada (`~/.starseed/alcance/fichas/<obj>.json`), la que el agente construyó. */
+export interface FichaPrivada {
+  obj_id?: string;
+  nombre_publico?: string;
+  canal_oficial?: CanalContacto | null;
+  tono?: string;
+}
+
+/** Objetivo resuelto para evaluar y para PINTAR (la dirección solo se muestra, nunca se guarda). */
+export interface DestinoResuelto {
+  /** Referencia opaca del objetivo (obj-…). */
+  id: string;
+  nombrePublico: string;
+  nivel: NivelAlcance;
+  medio: MedioAlcance;
+  /** Canal que la propia entidad publicó: correo o https (vacío si no hay: R1). */
+  canalPublicado: string;
+}
+
+const MEDIOS: MedioAlcance[] = ["correo-propio", "correo-usuario", "formulario", "github", "red"];
+const NIVELES: NivelAlcance[] = ["alto", "medio", "bajo"];
+
+/** Objetivo + ficha ≫ lo que el envío y el panel necesitan de él. PURA. */
+export function resolverDestino(o: ObjetivoPrivado | null, f: FichaPrivada | null): DestinoResuelto {
+  const objetivo = typeof o === "object" && o !== null ? o : {};
+  const ficha = typeof f === "object" && f !== null ? f : {};
+  const canal = ficha.canal_oficial && typeof ficha.canal_oficial === "object" ? ficha.canal_oficial : (objetivo.canal_contacto && typeof objetivo.canal_contacto === "object" ? objetivo.canal_contacto : null);
+  const valor = `${canal && typeof canal.valor === "string" ? canal.valor : ""}`.trim();
+  const fuente = `${canal && typeof canal.fuente_url === "string" ? canal.fuente_url : ""}`.trim();
+  const canalPublicado = valor || (fuente.startsWith("https://") ? fuente : "");
+  const tipoMedio = `${canal && typeof canal.medio === "string" ? canal.medio : ""}`.trim();
+  const nivel = NIVELES.includes(`${objetivo.nivel}`.trim().toLowerCase() as NivelAlcance)
+    ? (`${objetivo.nivel}`.trim().toLowerCase() as NivelAlcance)
+    : "alto";
+  const medio =
+    tipoMedio && MEDIOS.includes(tipoMedio as MedioAlcance)
+      ? (tipoMedio as MedioAlcance)
+      : /^[\w.+-]+@[\w-]+(\.[\w-]+)+$/.test(canalPublicado)
+        ? "correo-usuario"
+        : canalPublicado.startsWith("https://")
+          ? "formulario"
+          : "correo-propio";
+  return {
+    id: `${objetivo.id || ficha.obj_id || ""}`.trim(),
+    nombrePublico: `${objetivo.nombre_publico || ficha.nombre_publico || ""}`.trim().slice(0, 120),
+    nivel,
+    medio,
+    canalPublicado,
+  };
+}
+
+/** Vista que devuelve GET /api/mando/alcance?id=… para montar el panel de alcance. */
+export interface VistaAlcance {
+  id: string;
+  titular: string;
+  asunto: string;
+  cuerpo: string;
+  medio: MedioAlcance;
+  /** Firma honesta del remitente (R7); vive en variables de entorno, nunca se guarda. */
+  remitente: string;
+  /** Dirección/canal resuelto SOLO para mostrarlo en la confirmación (R5). */
+  destinatario: string;
+  /** Canal público para copiar/abrir en medios no de correo (formulario, github, red). */
+  destinoUrl: string;
+  /** Estado de la propuesta de imaginación (esperando-aprobacion, aprobada, rechazada…). */
+  estadoPropuesta: string;
+  /** Estado del envío: pendiente · aprobada · enviada · respondida · sin-respuesta · rebotada · no-contactar. */
+  envio: EstadoEnvio;
+  aprobada: boolean;
+  huellaAprobada: string;
+  enlaces: EnlaceVerificado[];
+  suprimido: boolean;
+  seguimiento: EstadoSeguimiento;
+  /** Por qué aún no puede salir, con la confirmación ya sobreentendida. */
+  motivos: string[];
+}
+
+/** Estado de seguimiento de un envío, mapeado desde el estado del alcance. PURA. */
+export function seguimientoDe(envio: EstadoEnvio): EstadoSeguimiento {
+  switch (envio) {
+    case "enviada":
+    case "sin-respuesta":
+      return "esperando";
+    default:
+      return "resuelto";
+  }
 }
