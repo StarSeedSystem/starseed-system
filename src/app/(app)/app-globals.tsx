@@ -59,6 +59,17 @@ const MenuTexto = dynamic(() => import("@/components/traduccion/menu-texto").the
   ssr: false,
 });
 
+// Variaciones públicas (Ola 1019V · architecture/variaciones-publicas.md): se montan UNA vez
+// aquí para que el clic derecho de TODO el OS abra el menú propio si nadie más lo pide, y
+// cualquier superficie abra la ventana de variaciones con `abrirVariaciones(clave)`.
+const ClicDerechoGlobal = dynamic(
+  () => import("@/components/variaciones/clic-derecho-global").then((m) => m.ClicDerechoGlobal),
+  { ssr: false },
+);
+const VariacionesHost = dynamic(() => import("@/components/variaciones/variaciones-host").then((m) => m.VariacionesHost), {
+  ssr: false,
+});
+
 /** (Ola 3 · Adenda 155) Sondeo del puente de eventos Astraura 1.58 → centro de
  * notificaciones del OS + siembra de personalidades/agentes 1.58. Singleton. */
 function Astraura158FeedMount() {
@@ -102,6 +113,9 @@ export default function AppGlobals() {
       <InstalacionesPendientes />
       {/* TRD1020E: menú global del clic derecho sobre textos. */}
       <MenuTexto />
+      {/* Ola 1019V: clic derecho global de variaciones + anfitrión de la ventana «Variaciones públicas». */}
+      <ClicDerechoGlobal />
+      <VariacionesHost />
     </SoloFueraDeConsola>
   );
 }
