@@ -11,11 +11,13 @@
 // SOP: architecture/dashboard-launcher-apps-y-archivos.md
 // ════════════════════════════════════════════════════════════════
 
-import React, { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { geometriaVentana } from "@/lib/design/composicion";
+import type { Viewport } from "@/lib/design/composicion";
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -57,6 +59,40 @@ function apuntarVentana(v: VentanaApilada): () => void {
     };
 }
 
+/* ── Posición inicial por aparato (DSN1019B) ──
+   Composición centrada por aparato (identidades.md, decisiones de Alex 2026-10-19; ADN §7b):
+   la ventana abre centrada en la pantalla; en teléfono es una hoja centrada que sube desde
+   abajo con entrada cardinal. La medida la decide `geometriaVentana` (módulo puro del área
+   de diseño, src/lib/design/composicion.ts); aquí solo se aplica. No cambia la API ni el
+   arrastre: el desplazamiento del usuario sigue siendo un translate sobre la capa base. */
+export interface GeometriaVentanaOS {
+    /** En teléfono la ventana es hoja: sube desde el borde inferior. */
+    hoja: boolean;
+    ancho: number;
+    alto: number;
+    /** Posición inicial (arriba a la izquierda) que la geometría asigna. */
+    x: number;
+    y: number;
+    /** Hueco bajo la ventana respecto al borde inferior del viewport. */
+    abajo: number;
+    /** Margen lateral de la hoja en teléfono (igual en ambos lados). */
+    margen: number;
+}
+
+/** Pura: viewport → disposición inicial según el aparato. */
+export function geometriaInicialVentana(viewport: Viewport): GeometriaVentanaOS {
+    const hoja = viewport.ancho < 430;
+    const g = geometriaVentana(viewport, { tipo: hoja ? "hoja" : "ventana" });
+    const abajo = viewport.alto - (g.y + g.alto);
+    return { hoja, ancho: g.ancho, alto: g.alto, x: g.x, y: g.y, abajo, margen: g.x };
+}
+
+/** Medida del aparato (cliente; en el primer pintado del servidor da la de escritorio). */
+export function medirViewport(): Viewport {
+    if (typeof window === "undefined") return { ancho: 1280, alto: 800 };
+    return { ancho: window.innerWidth, alto: window.innerHeight };
+}
+
 export interface OSWindowProps {
     title: string;
     subtitle?: string;
@@ -80,6 +116,17 @@ export function OSWindow({
 }: OSWindowProps) {
     const [offset, setOffset] = useState({ dx: 0, dy: 0 });
     const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+
+    // Vista del aparato: media al montar y sigue el giro/resize del sistema (DSN1019B).
+    const [viewport, setViewport] = useState<Viewport>(medirViewport);
+    const geometria = useMemo(() => geometriaInicialVentana(viewport), [viewport]);
+    const hoja = geometria.hoja;
+    const reducido = useReducedMotion() === true;
+    useEffect(() => {
+        const alRedimensionar = () => setViewport(medirViewport());
+        window.addEventListener("resize", alRedimensionar);
+        return () => window.removeEventListener("resize", alRedimensionar);
+    }, []);
 
     const raizRef = useRef<HTMLDivElement>(null);
     const cerrarRef = useRef(onClose);
