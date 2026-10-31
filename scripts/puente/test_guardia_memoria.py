@@ -184,3 +184,37 @@ def test_sin_enjambre_reanuda_tras_minutos_aunque_falte_memoria():
     assert gm.decidir(False, 900, {m}, [m], minutos={m: 5}) == []
     assert gm.decidir(False, 900, {m}, [m]) == []  # sin minutos: como antes
     assert gm.decidir(True, 900, {m}, [m], minutos={m: 99}) == [(m, "reevaluar")]  # con enjambre: igual que antes
+
+
+# (2026-10-31 · 1031) El sueño del BitNet: congelado retiene su RAM (mlock); dormida se suelta.
+def test_falta_memoria_medida_o_presion_sin_medida_es_nada():
+    assert G.falta_memoria(None, None) is False  # sin medida no se decide nada
+    assert G.falta_memoria(BAJO - 1, None) is True
+    assert G.falta_memoria(BAJO + 1, None) is False
+    assert G.falta_memoria(BAJO + 1, 2) is True   # presión del kernel manda aunque haya libre
+    assert G.falta_memoria(None, 3) is True
+    assert G.falta_memoria(None, 1) is False
+
+
+def test_toca_pedir_sueno_reglas():
+    hay = "llama-server" in ("llama-server",)
+    # sin BitNet vivo, nada
+    assert G.toca_pedir_sueno(False, False, BAJO - 1, None, None) is False
+    # con Alex conversando nada (la conversación manda)
+    assert G.toca_pedir_sueno(hay, True, BAJO - 1, None, None) is False
+    # con holgura nada
+    assert G.toca_pedir_sueno(hay, False, BAJO + 1, None, None) is False
+    # primera vez con falta de memoria: pedir
+    assert G.toca_pedir_sueno(hay, False, BAJO - 1, None, None) is True
+    assert G.toca_pedir_sueno(hay, False, None, 2, None) is True
+    # dentro del cooldown (5 min < SUENO_CADA_MIN): no insistir
+    assert G.toca_pedir_sueno(hay, False, BAJO - 1, None, 5.0) is False
+    # pasado el cooldown: tocar de nuevo
+    assert G.toca_pedir_sueno(hay, False, BAJO - 1, None, G.SUENO_CADA_MIN + 0.1) is True
+
+
+def test_sin_tocar_al_dormido_quita_daños_y_deja_la_vida():
+    acciones = [("llama-server", "congelar"), ("tts-server", "congelar"),
+                ("llama-server", "reevaluar"), ("llama-server", "descongelar")]
+    assert G.sin_tocar_al_dormido(acciones, "llama-server") == [
+        ("tts-server", "congelar"), ("llama-server", "descongelar")]
