@@ -117,4 +117,9 @@ describe("leerSobre · JSON de la v1.6", () => {
     expect(HINT_INSTALACION).toContain("uv tool install https://github.com/Panniantong/Agent-Reach/releases/latest/download/agent-reach.zip");
     expect(HINT_INSTALACION).toContain("PyPI");
   });
+
+  it("la pista de instalación NO menciona pip ni npx como métodos válidos", () => {
+    expect(HINT_INSTALACION).not.toContain("pip install agent-reach");
+    expect(HINT_INSTALACION).not.toContain("npx agent-reach");
+  });
 });

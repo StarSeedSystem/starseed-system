@@ -40,6 +40,11 @@ export interface IntegrationDescriptorExt extends IntegrationDescriptor {
    * debe tratar `undefined` como `false`.
    */
   onByDefault?: boolean;
+  /**
+   * Notas adicionales (ES) sobre limitaciones, canales con sesión,
+   * dependencias de terceros, etc. No cambia el comportamiento del runner.
+   */
+  notes?: string;
 }
 
 // ── Catálogo de integraciones ────────────────────────────────────
@@ -627,14 +632,15 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
       "YouTube (títulos/transcripciones por subtítulos)",
       "GitHub (lectura de archivos y repos)",
       "CLI local nativo (Node.js) + proxy HTTP del OS; sin claves, sin cuotas",
-      "Nota: búsqueda web pasa por EXA y lectura pasa por Jina Reader (terceros)",
-      "Reddit, X, LinkedIn necesitan sesión activa (canales apagados por defecto R1)",
+      "Búsqueda web pasa por EXA y lectura pasa por Jina Reader (terceros)",
     ],
     defaultEndpoint: "http://localhost:0",
     needsKey: false,
     docsUrl: "https://github.com/Panniantong/Agent-Reach",
     freeHostingHint:
       "Instalar con: uv tool install https://github.com/Panniantong/Agent-Reach/releases/latest/download/agent-reach.zip (queda en ~/.local/bin). ADVERTENCIA: el paquete 'agent-reach' de PyPI NO es este proyecto; no uses pip ni npx. En Vercel no hay CLI; el proxy degrada limpio (ok:false) y Aurora usa alternativas configuradas (SearXNG, Crawl4AI).",
+    notes:
+      "Reddit, X (Twitter), LinkedIn requieren sesión activa y están apagados por defecto según la regla R1 (canal con sesión → NEED_LOGIN_BLOQUEADO).",
     actions: [
       { id: "web-search", label: "Buscar web", description: "Búsqueda multi-backend gratis. Entrada: { q }." },
       { id: "read-web", label: "Leer página", description: "Lee web/GitHub/RSS → Markdown. Entrada: { url }." },
