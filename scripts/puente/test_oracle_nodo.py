@@ -106,6 +106,12 @@ class Prestamo(unittest.TestCase):
         # Nodo muerto más allá de la gracia: vuelven aunque no conste terminada.
         self.assertEqual(N.devolver_de_oracle(p, lanz, {}, False, 4 * 3600, gracia_s=3 * 3600), ["T1"])
 
+    def test_basura_en_progreso_no_regresa_ni_tumba(self):
+        """(Rescate nube/40131365064) Una entrada del progreso que no es diccionario no se devuelve
+        y no rompe el devolvedor (aquí solían llegar filas escribidas a medias)."""
+        p = {"X": "basura", None: "también"}
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, 1), [])
+
     def test_no_toca_lo_prestado_a_la_nube_de_github(self):
         p = {"T": {"estado": "reasignada", "medio": "nube"}}
         self.assertEqual(N.devolver_de_oracle(p, [{"rama": "r", "ids": ["T"], "t": 0}], {"r": {}}, True, 1), [])
