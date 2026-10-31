@@ -22,6 +22,8 @@ class Base(unittest.TestCase):
         jev.TRANSPORTE = None; razonador.TRANSPORTE_NEEDLE = None; razonador.TRANSPORTE_BITNET = None
         # (2026-10-10) Sin el BitNet real de la Mac: si estaba despierto respondía y el juicio no era None.
         sys.modules["jev_local"] = None
+        # Desactivar laya-local: simular que decidir_con_laya devuelve None
+        jev.TRANSPORTE_LOCALES = lambda endpoint, cuerpo, timeout: (_ for _ in ()).throw(OSError("sin laya-local"))
 
     def tearDown(self):
         sys.modules.pop("jev_local", None)
@@ -29,6 +31,7 @@ class Base(unittest.TestCase):
         os.environ.pop("STARSEED_JEV", None)
         os.environ.pop("STARSEED_LAYA_URL", None)
         os.environ.pop("STARSEED_SYSTEMONE_LOCALES", None)
+        jev.TRANSPORTE_LOCALES = None
 
 
 class Reflejo(Base):
