@@ -36,25 +36,20 @@ interface DatosOssu {
 
 const OSSU = datos as unknown as DatosOssu;
 
-/** Aviso de licencia: el MIT cubre la lista de OSSU, no el material de los cursos enlazados. */
 export const AVISO_LICENCIA_OSSU: string = OSSU.aviso_licencia;
 
-/** Versión del dato: commit de OSSU del que se leyó y fecha de esa lectura. */
 export function versionOssu(): { commit: string; fecha: string } {
     return { commit: OSSU.commit_main, fecha: OSSU.fecha_commit };
 }
 
-/** Las 15 secciones del currículo, en el orden del repositorio. */
 export function seccionesOssu(): SeccionOssu[] {
     return OSSU.secciones;
 }
 
-/** Cursos asignados a un nodo del catálogo de Educación, en su orden. */
 export function cursosDeNodo(nodoId: string): CursoOssu[] {
     return OSSU.cursos.filter((c) => c.nodo === nodoId);
 }
 
-/** Nodos del catálogo a los que apunta algo del dato (secciones, luego cursos), en orden de aparición. */
 export function nodosConOssu(): string[] {
     const vistos = new Set<string>();
     const out: string[] = [];
@@ -63,17 +58,10 @@ export function nodosConOssu(): string[] {
     return out;
 }
 
-/** Sin acentos, sin mayúsculas: «Máquina» compara igual que "machine". */
 function quitarAcentos(s: string): string {
     return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
-/**
-<<<<<<< HEAD
- * El currículo de OSSU está en inglés (es su texto); para que la búsqueda del
- * OS funcione en español, cada palabra de la consulta se compara también con
- * su equivalente en inglés (o raíz común: "system" está dentro de "systems").
- */
 const ESPAÑOL_A_INGLÉS: Record<string, string[]> = {
     algoritmo: ["algorithm"],
     algoritmos: ["algorithms"],
@@ -89,23 +77,11 @@ const ESPAÑOL_A_INGLÉS: Record<string, string[]> = {
     sistemas: ["systems"],
 };
 
-/**
- * Búsqueda por palabras en el nombre del curso y en los temas de su sección
- * (sin acentos ni mayúsculas; las palabras en español se equiparan a su
- * equivalente en inglés del currículo). Devuelve hasta `max` cursos en su orden.
- */
 export function buscarEnOssu(consulta: string, max = 5): CursoOssu[] {
     const palabras = quitarAcentos(consulta)
         .split(/\s+/)
         .filter(Boolean)
         .map((p) => [p, ...(ESPAÑOL_A_INGLÉS[quitarAcentos(p)] ?? [])]);
-=======
- * Búsqueda por palabras en el nombre del curso y en los temas de su sección
- * (sin acentos ni mayúsculas). Devuelve hasta `max` cursos en su orden.
- */
-export function buscarEnOssu(consulta: string, max = 5): CursoOssu[] {
-    const palabras = quitarAcentos(consulta).split(/\s+/).filter(Boolean);
->>>>>>> 3181b20cb (salvavidas · INF1025D: trabajo del agente antes de las puertas (tsc / vitest))
     if (!palabras.length) return [];
     const textoSeccion = new Map(
         OSSU.secciones.map((s) => [s.seccion, `${s.seccion} ${s.temas.join(" ")}`] as const),
@@ -113,11 +89,7 @@ export function buscarEnOssu(consulta: string, max = 5): CursoOssu[] {
     const out: CursoOssu[] = [];
     for (const c of OSSU.cursos) {
         const paja = quitarAcentos(`${c.nombre} ${textoSeccion.get(c.seccion) ?? ""}`);
-<<<<<<< HEAD
         if (palabras.every((formas) => formas.some((f) => paja.includes(f)))) {
-=======
-        if (palabras.every((p) => paja.includes(p))) {
->>>>>>> 3181b20cb (salvavidas · INF1025D: trabajo del agente antes de las puertas (tsc / vitest))
             out.push(c);
             if (out.length >= max) return out;
         }
@@ -125,12 +97,6 @@ export function buscarEnOssu(consulta: string, max = 5): CursoOssu[] {
     return out;
 }
 
-/**
- * El currículo completo como itinerario de guías (forma de `UpsertGuideInput`
- * de study.ts): una sección por sección OSSU, el `body` lista los temas (en
- * inglés, tal cual están en el dato, entre comillas) y la duración y el
- * esfuerzo de cada curso; las URL van solo en los recursos.
- */
 export function itinerarioOssu(): UpsertGuideInput {
     const secciones = OSSU.secciones.map((sec) => {
         const cursos = OSSU.cursos.filter((c) => c.seccion === sec.seccion);
