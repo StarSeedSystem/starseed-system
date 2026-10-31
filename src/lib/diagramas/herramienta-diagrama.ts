@@ -3,20 +3,18 @@
  * `pedidoDiagrama` arma el contexto para el modelo (tipo elegido a ojo o pedido, guía del tipo de la
  * skill diagram-design MIT · vendida en vendor/habilidades/diagram-design/, tamaño, perfil de marca)
  * y `recibirDiagrama` extrae el HTML y lo pasa por fuentes-locales y aislar-diagrama. PURO, sin `any`.
+ * El canon de los 45 tipos y sus límites editoriales es el del átomo «diagrama» (DGM1018H.
+ * `src/lib/protomolecula/atomos/diagrama.ts`): aquí se aplica, no se duplica.
  */
 
+import { LIMITES_DIAGRAMA, familiaDe, normalizarTipoDiagrama, TIPOS_DIAGRAMA as TIPOS_ATOMO, type TipoDiagrama as TipoDiagramaAtomo } from "@/lib/protomolecula/atomos/diagrama";
 import { prepararDiagrama } from "./aislar-diagrama";
 import { sustituirFuentes, type FuenteDisponible } from "./fuentes-locales";
 import { bloquePerfil, type PerfilDiagrama } from "./perfil-marca";
 
-/** Los 45 tipos de la skill: los slugs de `references/type-*.md`. */
-export const TIPOS_DIAGRAMA = ["architecture", "architecture-delta", "it-state", "data-flow", "db-schema",
-  "dependency", "deployment", "dp-integration", "dp-security-matrix", "er", "exploded", "fishbone",
-  "flowchart", "gantt", "heatmap", "high-level", "timeline", "process", "medallion", "nested", "tree",
-  "org-chart", "kanban", "layers", "line", "loop", "polar", "quadrant", "radar", "sankey", "scatter",
-  "sequence", "service-blueprint", "state", "story-map", "swimlane", "uml-class", "venn", "pyramid",
-  "bar", "waterfall", "treemap", "wardley", "journey", "axonometric-plan"] as const;
-export type TipoDiagrama = (typeof TIPOS_DIAGRAMA)[number]; export type TamanoDiagrama = "tarjeta" | "resumen" | "completa";
+/** Canon único de los 45 tipos de la skill (references/type-*.md): vive en el átomo «diagrama». */
+export const TIPOS_DIAGRAMA: readonly string[] = TIPOS_ATOMO;
+export type TipoDiagrama = TipoDiagramaAtomo; export type TamanoDiagrama = "tarjeta" | "resumen" | "completa";
 /** Entrada, contexto armado y respuesta aislada de la herramienta. */
 export interface PeticionDiagrama { peticion: string; tipo?: string; tamano?: TamanoDiagrama; animado?: boolean; perfil?: PerfilDiagrama; }
 export interface ContextoDiagrama { tipo: TipoDiagrama; tamano: TamanoDiagrama; animado: boolean; avisos: string[]; instruccion: string; }
@@ -91,6 +89,9 @@ function resolverTipo(peticion: string, tipo?: string): { tipo: TipoDiagrama; av
   const avisos: string[] = [];
   const porEntrada = tipo ? normalizar(tipo) : "";
   if (porEntrada) {
+    // Primero el canon del átomo «diagrama» (DGM1018H): los 45 slugs exactos y sus alias en español.
+    const canonico = normalizarTipoDiagrama(tipo);
+    if (canonico) return { tipo: canonico, avisos };
     const slug = (ALIAS_TIPO[porEntrada] ?? (TIPOS_DIAGRAMA as readonly string[]).find((t) => t === porEntrada)) as TipoDiagrama | undefined;
     if (slug) return { tipo: slug, avisos };
     avisos.push(`No conozco el tipo «${tipo}»: uso los ${TIPOS_DIAGRAMA.length} de la skill. Detección a ojo…`);
@@ -115,6 +116,8 @@ const TEXTO_TAMANO: Record<TamanoDiagrama, string> = {
   completa: "editorial completa con título, apartes y anotaciones, como la guía de la skill",
 };
 const REGLAS_SANDBOX = "Reglas del OS: UN documento HTML completo con UN único <svg> inline y estilos en <style> del propio archivo; nada de <link>, <iframe> ni formularios, manejadores on*, javascript: ni red ni recursos externos. Las fuentes las pone el OS: no pidas Google Fonts (cada referencia de fuente se sustituye por las locales). El HTML se muestra solo dentro de un iframe sandbox sin permisos.";
+/** Límites editoriales de la skill (SKILL.md §7), desde el átomo «diagrama» (DGM1018H): máx. 9 nodos, 12 aristas y 2 acentos. */
+const TEXTO_LIMITES = `Límites editoriales de la skill: como máximo ${LIMITES_DIAGRAMA.nodos} nodos, ${LIMITES_DIAGRAMA.aristas} aristas y ${LIMITES_DIAGRAMA.acentos} acentos.`;
 
 /** Arma el contexto para el modelo: tipo, guía del tipo, tamaño, marca de contexto y reglas del sandbox. */
 export function pedidoDiagrama(entrada: PeticionDiagrama): ContextoDiagrama {
@@ -126,10 +129,11 @@ export function pedidoDiagrama(entrada: PeticionDiagrama): ContextoDiagrama {
   const tamano: TamanoDiagrama = entrada.tamano && entrada.tamano !== "completa" ? entrada.tamano : "completa";
   const animado = entrada.animado === true;
   const partes = [
-    `Escribe un diagrama del tipo «${resuelto.tipo}»: ${guiaDe(resuelto.tipo)}`,
+    `Escribe un diagrama del tipo «${resuelto.tipo}» (familia «${familiaDe(resuelto.tipo)}»): ${guiaDe(resuelto.tipo)}`,
     `Petición: «${peticion || "un diagrama del tema que venimos hablando"}»`,
     `Tamaño: ${tamano} (${TEXTO_TAMANO[tamano]}).`,
     animado ? "Lleva una animación corta en JavaScript embebido: se mostrará en iframe con scripts permitidos y sin más permisos." : "Estático: sin JavaScript.",
+    TEXTO_LIMITES,
     REGLAS_SANDBOX,
   ];
   if (entrada.perfil) partes.push("Marca del contexto (guía de estilo con perfil activo):\n" + bloquePerfil(entrada.perfil));
