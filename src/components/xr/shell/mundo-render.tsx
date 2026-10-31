@@ -4,20 +4,33 @@
  * StarSeed XR · RENDER DEL MUNDO (XR1010V · contrato §3 g): pinta un `MundoSpec` validado —cielo,
  * terreno procedural, objetos, luces y marcas de spawn— recortado al nivel de calidad del aparato.
  * Toda la decisión es del módulo puro `mundo-render-puro.ts`; esto es el cascarón R3F. Los objetos
- * de la Biblioteca (glb/splat/imagen/audio/vrm), la física de Rapier y las reglas van en sus tareas
- * (XR1010AM, XR1010Z, XR1010X): aquí tocan un marcador honesto de «todavía no se carga», nunca una máscara.
+ * de la Biblioteca (glb/splat/imagen/audio/vrm) y las reglas van en sus tareas (XR1010AM,
+ * XR1010Z): aquí tocan un marcador honesto de «todavía no se carga», nunca una máscara.
+ * Las zonas y los portales los pinta y decide `zonas-portales.tsx` (XR1010X).
  */
 import { useMemo } from "react";
 import { Html, Stars } from "@react-three/drei";
 import { PlaneGeometry, DoubleSide } from "three";
-import type { NivelCalidad } from "@/lib/xr/tipos";
+import type { NivelCalidad, Vec3 } from "@/lib/xr/tipos";
 import type { MundoSpec, ObjetoMundo, LuzMundo } from "@/lib/xr/mundo-tipos";
 import { COLORES_NODO, CRISTAL } from "@/lib/xr/tokens-3d";
 import { visualDe, PAISAJE, COLOR_ZONA, ARGS_PRIMITIVA, alturaTerreno, segmentosTerreno, materialObjeto, estrellasActivas, altoPantalla, type VisualMundo } from "./mundo-render-puro";
 import { useFisica, type CanalPoses } from "./use-fisica";
 import type { PoseCuerpo } from "./fisica-rapier";
+import type { DestinoRegistrado, EfectosZona, ResultadoPortal } from "@/lib/xr/zonas";
+import { ZonasPortales, type EventoReglasZona } from "./zonas-portales";
 
-type Props = { mundo: MundoSpec; nivel: NivelCalidad; esAnfitrion?: boolean; canal?: CanalPoses | null };
+type Props = {
+    mundo: MundoSpec;
+    nivel: NivelCalidad;
+    esAnfitrion?: boolean;
+    canal?: CanalPoses | null;
+    posicion?: Vec3;
+    conocidos?: readonly DestinoRegistrado[];
+    alIr?: (destino: ResultadoPortal) => void;
+    alEvento?: (evento: EventoReglasZona) => void;
+    alEfectos?: (efectos: EfectosZona) => void;
+};
 
 /** Geometría del suelo: cuadrícula del nivel, alturas de `alturaTerreno` (misma semilla en todos los equipos). */
 function useGeometriaTerreno(mundo: MundoSpec, nivel: NivelCalidad) {
@@ -122,22 +135,6 @@ function MarcasSpawn({ puntos }: { puntos: MundoSpec["spawns"] }) {
     ));
 }
 
-/** Portal: anillo en pie con disco translúcido (el destino lo elige el motor de reglas, no el render). */
-function PortalesDe({ portales }: { portales: MundoSpec["portales"] }) {
-    return portales.map((p) => (
-        <group key={p.id} position={p.pos} rotation={p.rot}>
-            <mesh rotation={[0, 0, 0]}>
-                <torusGeometry args={[p.radio, 0.06, 12, 32]} />
-                <meshBasicMaterial color={COLORES_NODO.horizon.vivo} />
-            </mesh>
-            <mesh position={[0, 0, 0]}>
-                <circleGeometry args={[p.radio, 24]} />
-                <meshBasicMaterial color={COLORES_NODO.horizon.base} transparent opacity={0.25} side={DoubleSide} />
-            </mesh>
-        </group>
-    ));
-}
-
 /** Zonas: contorno guía en hilo con el color del efecto (no es un DataSet: no bloquea el paso). */
 function ZonasDe({ zonas }: { zonas: MundoSpec["zonas"] }) {
     return zonas.map((z) => (
@@ -163,12 +160,13 @@ function Muebles({ visual }: { visual: VisualMundo }) {
     )));
 }
 
-export default function MundoRender({ mundo, nivel, esAnfitrion = true, canal = null }: Props) {
+export default function MundoRender({ mundo, nivel, esAnfitrion = true, canal = null, posicion, conocidos, alIr, alEvento, alEfectos }: Props) {
     const visual = useMemo(() => visualDe(mundo, nivel), [mundo, nivel]);
     // XR1010W · §3 g: el anfitrión simula con Rapier y publica; los demás interpolan sus poses.
     const { poses, aviso } = useFisica({ mundo: visual.mundo, nivel, esAnfitrion, canal });
     const paisaje = PAISAJE[visual.mundo.entorno.cielo];
     const nieblaSegura = { cerca: visual.mundo.entorno.tamano * 0.35, lejos: visual.mundo.entorno.tamano * 0.95 };
+    const posicionPersona: Vec3 = posicion ?? visual.mundo.spawns[0]?.pos ?? [0, 0, 0];
     return (
         <group>
             <Cielo cielo={{
@@ -187,8 +185,16 @@ export default function MundoRender({ mundo, nivel, esAnfitrion = true, canal = 
                 </Html>
             )}
             <MarcasSpawn puntos={visual.spawns.visibles} />
-            <PortalesDe portales={visual.portales.visibles} />
             <ZonasDe zonas={visual.zonas.visibles} />
+            <ZonasPortales
+                posicion={posicionPersona}
+                zonas={visual.zonas.visibles}
+                portales={visual.portales.visibles}
+                conocidos={conocidos}
+                alIr={alIr}
+                alEvento={alEvento}
+                alEfectos={alEfectos}
+            />
             <Muebles visual={visual} />
         </group>
     );
