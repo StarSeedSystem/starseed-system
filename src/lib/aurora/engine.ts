@@ -95,7 +95,7 @@ import { montarInterrupcionPorVoz, type MontajeInterrupcion } from "@/lib/aurora
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
 // (VZF1015G) OÍDO FUSIONADO por tramos con elector (voz-fusionada-astraura.md §3)
 // y su glosario de nombres propios («Stars Seed» → StarSeed) como hotwords.
-import { escucharFusionado, tramoAWav, type FragmentoOido } from "@/lib/aurora/stt-oss/escucha-fusionada";
+import { escucharFusionado, tramoAWav, type FragmentoOido, type SesionEscuchaFusionada } from "@/lib/aurora/stt-oss/escucha-fusionada";
 import { glosarioBase } from "@/lib/aurora/stt-oss/glosario-oido";
 import { prepararAudio, abrirFlujoOido, type OidoFlujo } from "@/lib/aurora/stt-oss/oido-flujo";
 import {
@@ -2615,6 +2615,7 @@ export function useAuroraEngine(): AuroraEngine {
     let sawResult = false;
     let lastErr = "";
     let relevo: ((f: FragmentoOido | null) => void) | null = null; // entrega el marco al tramador
+    let sesionOido: SesionEscuchaFusionada | null = null; // sesion del tramador: `detener` remata el bucle
     let mediaStream: MediaStream | null = null;
     let audioCtx: AudioContext | null = null;
     let procesador: ScriptProcessorNode | null = null;
@@ -2623,6 +2624,8 @@ export function useAuroraEngine(): AuroraEngine {
 
     /** Suelta micro, contexto de audio y sesión, sin tedio. */
     const soltarAudio = () => {
+      try { sesionOido?.detener(); } catch { /* */ } // remata el bucle del tramador (contrato SesionEscuchaFusionada)
+      sesionOido = null;
       if (procesador) { try { procesador.disconnect(); } catch { /* */ } procesador = null; }
       if (audioCtx) { try { void audioCtx.close(); } catch { /* */ } audioCtx = null; }
       if (mediaStream) { try { mediaStream.getTracks().forEach((t) => t.stop()); } catch { /* */ } mediaStream = null; }
@@ -2725,7 +2728,7 @@ export function useAuroraEngine(): AuroraEngine {
           mudo.gain.value = 0;
           procesador.connect(mudo);
           mudo.connect(audioCtx.destination);
-          void escucharFusionado({
+          sesionOido = escucharFusionado({
             obtenerAudio: () => new Promise<FragmentoOido | null>((resolver) => { relevo = resolver; }),
             elegir: (idioma) => elegirOido({
               idioma: idioma || idiomaBaseDeVoz(langVoz),
