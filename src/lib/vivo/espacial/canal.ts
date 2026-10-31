@@ -28,8 +28,8 @@ import { createClient } from "@/utils/supabase/client";
 import { elegirTransporte, type Alcanzabilidad, type Sala } from "@/lib/salas/sala";
 import { abrirCanalEscenaP2P, type OpcionesCanalP2P } from "./canal-p2p";
 
-export type EventoEscena = "pose" | "cambios" | "arrastre" | "pedir-estado" | "estado";
-export const EVENTOS_ESCENA: readonly EventoEscena[] = ["pose", "cambios", "arrastre", "pedir-estado", "estado"];
+export type EventoEscena = "pose" | "cambios" | "arrastre" | "adn" | "pedir-estado" | "estado";
+export const EVENTOS_ESCENA: readonly EventoEscena[] = ["pose", "cambios", "arrastre", "adn", "pedir-estado", "estado"];
 
 export interface FilaCambiada {
     rev: number;

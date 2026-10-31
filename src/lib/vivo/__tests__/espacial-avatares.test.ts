@@ -6,6 +6,7 @@ import {
     crearEstrangulador,
     intervaloPara,
     mismosAvatares,
+    sanearMetaAvatar,
     sanearPose,
     type Pose,
 } from "@/lib/vivo/espacial/avatares";
@@ -166,5 +167,25 @@ describe("avatares · saneado y presencia", () => {
         expect(lista[1].modo).toBe("vr");
         expect(lista[0].color).toBe(colorDeClave("leo:3"));
         expect(mismosAvatares(lista, avataresDePresencia(estado, "yo:1"))).toBe(true);
+    });
+
+    it("los campos de ADN son opcionales y no rompen a quien no los manda", () => {
+        const sinAdn = { clave: "ana:2", nombre: "Ana", color: "#007FFF", modo: "3d", editor: false, desde: 0 };
+        expect(mismosAvatares([sinAdn as never], [{ ...sinAdn, adnRef: undefined, adnRev: undefined } as never])).toBe(true);
+    });
+
+    it("adnRef solo con ref interna y adnRev numérica: medio campo se descarta", () => {
+        const bien = sanearMetaAvatar({ nombre: "Ana", adnRef: "biblioteca:adn-1", adnRev: 4 }, "ana:2");
+        expect(bien?.adnRef).toBe("biblioteca:adn-1");
+        expect(bien?.adnRev).toBe(4);
+        expect(sanearMetaAvatar({ nombre: "Ana", adnRef: "https://externa" }, "ana:2")?.adnRef).toBeUndefined();
+        expect(sanearMetaAvatar({ nombre: "Ana", adnRef: "genesis:x", adnRev: "uno" }, "ana:2")?.adnRev).toBeUndefined();
+        expect(sanearMetaAvatar({ nombre: "Ana", adnRev: 9 }, "ana:2")?.adnRef).toBeUndefined();
+        // el cambio de revisión se nota (entrada de alguien → nueva lectura por rev)
+        const a = sanearMetaAvatar({ nombre: "Ana", adnRef: "biblioteca:adn-1", adnRev: 4 }, "ana:2");
+        const b = sanearMetaAvatar({ nombre: "Ana", adnRef: "biblioteca:adn-1", adnRev: 5 }, "ana:2");
+        expect(bien).not.toBeNull();
+        expect(mismosAvatares([a!], [b!])).toBe(false);
+        expect(mismosAvatares([a!], [bien!])).toBe(true);
     });
 });
