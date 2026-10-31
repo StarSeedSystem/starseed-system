@@ -192,6 +192,15 @@ const EstudioVideoVentana = dynamic(
  *  superficies lo añade por su lado; aquí solo se acepta para no caer a «desconocido». */
 const TIPO_ESTUDIO_VIDEO = "estudio-video" as WidgetType;
 
+// Diagramas (ola 1018D): ventana de diagrama en dashboard, escritorio, pizarra y capa flotante
+const DiagramaVentana = dynamic(
+    () => import("@/components/diagramas/diagrama-ventana").then((mod) => mod.DiagramaVentana),
+    { ssr: false, loading: dashboardWidgetLoading }
+);
+/** Mismo patrón que el estudio: id de contexto propio fuera del manifiesto; el cableado
+ *  de las superficies lo registra por su lado y aquí solo se acepta el tipo. */
+const TIPO_DIAGRAMA = "diagrama" as WidgetType;
+
 interface WidgetProps {
     widget: DashboardWidget;
     /** Persiste un patch en `widget.settings` (fusionado por el llamador — ver
@@ -535,6 +544,10 @@ function cuerpoClasico(
         // ── Vídeo con HyperFrames (ola 1018H): estudio en dashboard, escritorio y pizarra ──
         case TIPO_ESTUDIO_VIDEO:
             return <EstudioVideoVentana />;
+
+        // ── Diagramas (ola 1018D): ventana en dashboard, escritorio, pizarra y flotante ──
+        case TIPO_DIAGRAMA:
+            return <DiagramaVentana />;
 
         default:
             return (
