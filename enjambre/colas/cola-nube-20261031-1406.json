@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "IND1029G",
+   "ola": "1029 · MetaGenesis autónoma (sin Claude y sin la Mac)",
+   "depende": [],
+   "titulo": "Hermes en el líder · el gateway y Telegram siguen a quien dirige",
+   "archivos": [
+    "scripts/puente/oracle_nodo.py",
+    "deploy/oracle/nodo/systemd/starseed-hermes.service",
+    "scripts/puente/test_oracle_nodo_hermes.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas; nunca rutas de un worktree (`starseed-wt/…`) en el código. Contrato: `architecture/metagenesis-autonoma.md` (léelo entero). Antes de escribir algo nuevo, mira lo que ya existe y úsalo: `scripts/puente/puerta_datos.py` y `puerta_datos_cliente.py` (la puerta de datos del A1), `espejo_puerta.py`, `deploy/oracle/nodo/systemd/` (ya hay `starseed-genesis` y `starseed-metagenesis`), `oracle_nodo.py`, `buscar_capacidad.py` y la colmena.\n\nHermes es el puente, no el motor (contrato §2). Una orden `hermes` en `oracle_nodo.py` que instala el gateway de Hermes en el A1 (su instalador oficial para Linux, con `config.yaml` sin claves: el modelo `freellmapi/auto` contra el FreeLLMAPI del A1 y el MCP `starseed-director`), y una regla: Telegram en modo encuesta solo en el líder (dos encuestas del mismo bot se pisan). Pruebas en seco.",
+   "importancia": "capacidad",
+   "dependencias_ya_en_main": [
+    "IND1029D"
+   ]
+  }
+ ]
+}
