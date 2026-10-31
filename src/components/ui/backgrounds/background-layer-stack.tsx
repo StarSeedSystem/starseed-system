@@ -41,6 +41,8 @@ import {
     type BackgroundLayer,
 } from "@/lib/appearance/background-layers";
 import type { VisualizerParams } from "@/lib/audiomorphic/types";
+import { CapaShader } from "@/components/ui/backgrounds/capa-shader";
+import { CapaDifusion } from "@/components/ui/backgrounds/capa-difusion";
 
 // El motor nativo se carga en diferido: una capa apagada no cuesta NADA.
 const AudiomorphicCanvas = dynamic(
@@ -78,6 +80,32 @@ function LayerBody({ layer }: { layer: BackgroundLayer }) {
                     loop
                     playsInline
                 />
+            ) : null;
+        case "shader":
+            return layer.visible ? (
+                <div
+                    key={layer.id}
+                    className="absolute inset-0 h-full w-full overflow-hidden transition-opacity duration-700"
+                    style={{
+                        opacity: layer.opacity,
+                        mixBlendMode: layer.blend,
+                    }}
+                >
+                    <CapaShader layer={layer} />
+                </div>
+            ) : null;
+        case "difusion":
+            return layer.visible ? (
+                <div
+                    key={layer.id}
+                    className="absolute inset-0 h-full w-full overflow-hidden transition-opacity duration-700"
+                    style={{
+                        opacity: layer.opacity,
+                        mixBlendMode: layer.blend,
+                    }}
+                >
+                    <CapaDifusion layer={layer} />
+                </div>
             ) : null;
         default:
             return null;
