@@ -36,6 +36,7 @@ describe("validarTrabajo", () => {
     expect(escena[3].interpolacion).toBe("lineal");
   });
   it("comprueba la versión, el título y los límites", () => {
+    expect(VERSION_VOCABULARIO).toBe(1);
     expect(VERSION_VOCABULARIO).toBe(vocabulario.version);
     expect(fallo({ ...base(), v: 2 })).toContain("v debe ser 1");
     for (const titulo of ["   ", "x".repeat(81), 12]) expect(fallo({ ...base(), titulo })).toContain("titulo");
@@ -47,6 +48,7 @@ describe("validarTrabajo", () => {
     expect(fallo(conEscena([CUBO, { op: "material", objeto: "Cubo", color: [1, Number.NaN, 0.5, 1] }]))).toContain("rgba");
     expect(fallo(conEscena([CUBO, { op: "material", objeto: "Cubo", alfa: 2 }]))).toContain("número");
     expect(fallo(conEscena([CUBO, { op: "luz", nombre: "sol", tipo: "sol", energia: Number.POSITIVE_INFINITY }]))).toContain("número");
+    expect(fallo({ ...base(), salidas: [{ ...PNG, ancho: 512.5 }] })).toContain("entero");
   });
   it("rechaza campos desconocidos del trabajo y de una operación", () => {
     expect(motivos({ ...base(), extra: 1 }).join(" ")).toContain("campo desconocido en el trabajo: extra");

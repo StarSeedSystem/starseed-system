@@ -72,6 +72,7 @@ describe("modelosDeCapas · runtime colibri", () => {
             expect(m.origen).toBe("capas");
             expect(m.almacenamiento.soloLocal).toBe(true);
             expect(m.estado).toBe("en-pruebas");
+            expect(m.medios).toEqual(["servidor"]);
         }
     });
 
