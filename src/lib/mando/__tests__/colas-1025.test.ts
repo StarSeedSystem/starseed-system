@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { baseDeParte, validarCola } from "@/lib/mando/colas";
+import { raizDelProyecto } from "@/lib/mando/raiz";
 
 /**
  * Ola 1025R: las colas que dejan los cinco grupos de la tanda de repos (agentes, capas, diseño, infra,
@@ -33,6 +34,23 @@ describe("dependencias a partes del revisor de Bloqueadas (PUB1029C)", () => {
         expect(ok.errores.filter((e) => e.includes("depende"))).toEqual([]);
         const mal = validarCola("1029-prueba", [tarea("A1"), tarea("B1", ["Z9-d3"])]);
         expect(mal.errores.some((e) => e.includes("Z9-d3"))).toBe(true);
+    });
+    it("acepta «-dN» si su base está en progreso.json; rechaza si ni base ni dependencia existen", () => {
+        const ra = raizDelProyecto();
+        const rutaProg = path.join(ra, "starseed_memory_root", "olas", "progreso.json");
+        const respaldo = existsSync(rutaProg) ? readFileSync(rutaProg, "utf8") : null;
+        try {
+            require("node:fs").writeFileSync(rutaProg, JSON.stringify({ ART1025B: { estado: "bloqueada" } }), "utf8");
+            const conProg = validarCola("1029-prog", [tarea("D1"), tarea("E1", ["ART1025B-d3"])]);
+            expect(conProg.errores.filter((e) => e.includes("depende"))).toEqual([]);
+            // Sin progreso, una base inexistente debe fallar.
+            require("node:fs").unlinkSync(rutaProg);
+            const sinProg = validarCola("1029-sin-prog", [tarea("F1"), tarea("G1", ["NOEXISTE-d1"])]);
+            expect(sinProg.errores.some((e) => e.includes("NOEXISTE-d1"))).toBe(true);
+        } finally {
+            if (respaldo !== null && respaldo !== undefined) require("node:fs").writeFileSync(rutaProg, respaldo, "utf8");
+            else if (existsSync(rutaProg)) require("node:fs").unlinkSync(rutaProg);
+        }
     });
 });
 

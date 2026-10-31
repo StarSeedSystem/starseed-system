@@ -18,6 +18,7 @@
 
 import { createHmac } from "node:crypto";
 import { spawn } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { openSync } from "node:fs";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -322,11 +323,21 @@ export function validarCola(nombre: string, bruto: unknown): { errores: string[]
             ...extras,
         });
     }
+    // (2026-10-29, PUB1029C) Las partes «-dN» viven en progreso.json cuando su base fue dividida.
+    let idsProgreso = new Set<string>();
+    try {
+        const rutasProg = [path.join(OLAS, "progreso.json"), path.join(RAÍZ, "olas", "progreso.json")];
+        for (const r of rutasProg) if (existsSync(r)) {
+            const crudo = JSON.parse(readFileSync(r, "utf-8")) as unknown;
+            idsProgreso = new Set(extraerIdsProgreso(crudo));
+            break;
+        }
+    } catch { /* sin progreso o ilegible: vacío */ }
     for (const t of tareas) {
         for (const dep of t.depende) {
-            // (2026-10-29, PUB1029C) Una parte «<ID>-d3», «-d2b»… la crea el revisor de Bloqueadas y vive en
-            // progreso.json: vale si la tarea base está en la cola.
-            if (!ids.has(dep) && !ids.has(baseDeParte(dep))) errores.push(`${t.id}: depende de «${dep}», que no está en la cola.`);
+            const base = baseDeParte(dep);
+            // Vale si la dependencia está en la cola, o si su base está en la cola o en progreso.json.
+            if (!ids.has(dep) && !ids.has(base) && !idsProgreso.has(base)) errores.push(`${t.id}: depende de «${dep}», que no está en la cola.`);
             if (dep === t.id) errores.push(`${t.id}: no puede depender de sí misma.`);
         }
     }
