@@ -7745,6 +7745,27 @@ def ejecutar(t, intento=1):
                 "Codex sin cuota de ChatGPT: fuera de la rotación %d min "
                 "(las demás tareas ya no lo intentan)" % minutos,
             )
+            continue
+        if modelo in MODELOS_CODEX and getattr(_cupo_codex, "sin_modelo_en", lambda s: False)(out):
+            try:
+                _cupo_codex.anotar(
+                    "cuenta de ChatGPT sin Codex para %s" % modelo,
+                    horas=getattr(_cupo_codex, "HORAS_SIN_MODELO", 24),
+                )
+            except Exception:
+                pass
+            for _m in list(MODELOS_CODEX):
+                if _m in MODELOS:
+                    MODELOS.remove(_m)
+            try:
+                evento(
+                    "proveedor_caido",
+                    tid,
+                    "Codex: cuenta de ChatGPT sin Codex para %s (modelo no admitido) → fuera de la rotación" % modelo,
+                )
+            except Exception:
+                pass
+            continue
         if apartar_si_pide_pago(tid, modelo, out):
             continue
         pista = fallo_de_proveedor(out)

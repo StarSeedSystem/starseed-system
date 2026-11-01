@@ -13,6 +13,12 @@ import cupo_codex as C
 REAL = ("ERROR: You've hit your usage limit. Upgrade to Pro "
         "(https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage")
 
+#: Salida real cuando el modelo no está admitido con la cuenta de ChatGPT.
+SIN_MODELO = (
+    '{"status":400,"error":{"message":"The \'gpt-5.6-sol\' model is not supported '
+    'when using Codex with a ChatGPT account.","code":"model_not_found"}}'
+)
+
 AHORA = 1_700_000_000.0
 
 
@@ -33,6 +39,18 @@ class TestDeteccion(unittest.TestCase):
     def test_da_igual_como_lo_escriban(self):
         for t in ("Usage limit reached for your plan", "QUOTA EXCEEDED", "Upgrade to Pro"):
             self.assertTrue(C.agotado_en(t), t)
+
+
+class TestSinModelo(unittest.TestCase):
+    def test_salida_real_sin_modelo_con_cuenta_chatgpt(self):
+        self.assertTrue(C.sin_modelo_en(SIN_MODELO))
+
+    def test_cuota_agotada_no_es_sin_modelo(self):
+        self.assertFalse(C.sin_modelo_en(REAL))
+
+    def test_pistas_sin_modelo(self):
+        self.assertTrue(C.sin_modelo_en("The 'gpt-5.6-sol' model is not supported when using Codex with a ChatGPT account."))
+        self.assertTrue(C.sin_modelo_en('{"code":"model_not_found"}'))
 
 
 class TestVigencia(unittest.TestCase):
