@@ -18,7 +18,7 @@ import { motion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
-import { geometriaVentana, tipoAparato } from "@/lib/design/composicion";
+import { geometriaVentana } from "@/lib/design/composicion";
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -92,18 +92,23 @@ export function OSWindow({
     // Calcula offset inicial para teléfono: hoja centrada que sube desde abajo.
     // En escritorio, flex centra; offset inicial = 0.
     // En teléfono, necesitamos offset para alinear borde inferior con viewport.
+    // Usa geometriaVentana para determinar la posición correcta.
     useEffect(() => {
       if (typeof window === "undefined") return;
       const isPhone = window.innerWidth < 430;
       if (!isPhone) return;
       
-      // Deriva dimensiones aproximadas de la ventana
-      // sizeClass: w-[min(94vw,1100px)] h-[min(86vh,760px)]
-      const maxWidth = Math.min(window.innerWidth * 0.94, 1100);
-      const maxHeight = Math.min(window.innerHeight * 0.86, 760);
+      // Tamaño por defecto de OSWindow: w-[min(94vw,1100px)] h-[min(86vh,760px)]
+      const defaultAncho = Math.min(window.innerWidth * 0.94, 1100);
+      const defaultAlto = Math.min(window.innerHeight * 0.86, 760);
       
-      // En teléfono, posición Y = viewport.alto - height (borde inferior alineado)
-      const offsetY = window.innerHeight - maxHeight;
+      const geom = geometriaVentana(
+        { ancho: window.innerWidth, alto: window.innerHeight },
+        { tipo: "ventana", ancho: defaultAncho, alto: defaultAlto }
+      );
+      
+      // En teléfono, geom.y = viewport.alto - height (posición para hoja que sube desde abajo)
+      const offsetY = geom.y;
       
       setOffset({ dx: 0, dy: offsetY });
     }, []);
