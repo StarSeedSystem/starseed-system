@@ -43,10 +43,10 @@ export const VOZ_RT_POR_DEFECTO = "F1";
 export const TIMBRE_POR_DEFECTO = TIMBRE_PREDETERMINADO.femenina;
 
 /**
- * Espejo de `VOZ_POR_PERSONA` de `voz-rt.ts` (el mapa original no se borra; la
- * parte de cableado lo hará leer desde aquí para que exista UNA sola tabla).
+ * Tabla canónica de `VOZ_POR_PERSONA`: una sola fuente para el resolutor y
+ * para `vozDePersona` de `voz-rt.ts` (el mapa original pasa a leer esta).
  */
-const VOZ_RT_POR_ID: Record<string, string> = {
+export const VOZ_RT_POR_PERSONA: Record<string, string> = {
     aurora: "F1", astraura: "F1", astraura_prime: "F1", atenea: "F2", hermione: "F3",
     mnemosyne: "F4", kallisti: "F5", hephaestus: "M1", hermes: "M2", logos: "M3", oneiros: "M4",
 };
@@ -73,7 +73,7 @@ function generoDe(id: string, timbreId?: string): VoiceGender | undefined {
     if (porTimbre) return porTimbre;
     const xai = XAI[id];
     if (xai) return xai.gender === "f" ? "femenina" : "masculina";
-    const rt = VOZ_RT_POR_ID[id];
+    const rt = VOZ_RT_POR_PERSONA[id];
     return rt ? (rt.startsWith("M") ? "masculina" : "femenina") : undefined;
 }
 interface Parcial extends CapaVoz { reconocida?: boolean }
@@ -83,7 +83,7 @@ function resolverCapa(valor: ValorCapaVoz): Parcial {
     const crudo = typeof valor === "string" ? valor.trim().toLowerCase() : "";
     const id = crudo ? normalizar(crudo) : "";
     const timbre = (registro.timbre && timbreDe(registro.timbre)) || (id ? timbreDe(id) : undefined);
-    const vozRT = registro.vozRT?.trim() || (id ? VOZ_RT_POR_ID[id] : undefined);
+    const vozRT = registro.vozRT?.trim() || (id ? VOZ_RT_POR_PERSONA[id] : undefined);
     const motor = registro.motor?.trim() || (isVoiceEngineId(crudo) ? crudo : undefined);
     const genero = id ? generoDe(id, timbre) : undefined;
     return { timbre: timbre ?? (genero ? TIMBRE_PREDETERMINADO[genero] : undefined), motor,
