@@ -130,4 +130,28 @@ describe("VentanaVariaciones", () => {
     expect(screen.getByText("Repo inseguro")).toBeTruthy();
   });
 
+  it("pide las sugerencias a Astraura con el enrutador inyectado y pinta solo las que pasan", async () => {
+    const adn = {
+      meta: { slug: "starseed-os" },
+      paleta: [{ rol: "zenith", hex: "#007FFF" }],
+      pruebas: [{ id: "p7", comprobacion: "contraste >=4.5:1", auto: true }],
+    };
+    const deps = {
+      enrutar: async () => [
+        { titulo: "Cristal cian", descripcion: "Ajuste suave", payload: { colores: ["#007FFF"], contraste: 5.2 } },
+        { titulo: "Fuera de paleta", payload: { colores: ["#FF00AA"], contraste: 6 } },
+      ],
+      ahora: () => new Date("2026-11-01T00:00:00Z"),
+    };
+    renderWithProvider(
+      <VentanaVariaciones clave="widget:clima" datos={datos({ variaciones: [] })}
+        sugerencias={{ contexto: { payloadCapturado: { radio: 12 }, adn }, deps }} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Sugerir variaciones" }));
+    expect(await screen.findByText("Cristal cian")).toBeTruthy();
+    expect(screen.getByText(/Pasa el validador y las pruebas automáticas/)).toBeTruthy();
+    expect(screen.getByText(/p7/)).toBeTruthy();
+    expect(screen.queryByText("Fuera de paleta")).toBeNull();
+  });
+
 });
