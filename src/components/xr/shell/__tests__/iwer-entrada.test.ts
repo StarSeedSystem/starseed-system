@@ -101,5 +101,7 @@ describe("IWER · entrada emulada a WebXR", () => {
         const refinadas = refinarFunciones(c, sesion.enabledFeatures);
         expect(refinadas.funciones).toEqual(["local-floor", "hand-tracking"]);
         expect(refinadas.funciones).not.toContain("plane-detection");
+        // RAMVAR1021Cd: refinar no toca el resto de la evaluación (la plataforma sigue siendo la suya).
+        expect(refinadas.plataforma).toBe(c.plataforma);
     });
 });
