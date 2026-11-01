@@ -1,0 +1,28 @@
+{
+ "ola": "nube-20261101",
+ "tareas": [
+  {
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261031-231438",
+   "id": "OPS1031Cb-d1",
+   "titulo": "A1 · la huella de node_modules del guardián y la de compilar_en_a1 hablan el mismo formato (parte 1 de 2)",
+   "archivos": [
+    "scripts/puente/compilar_en_a1.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; nunca la IP del A1; funciones PURAS con pruebas.\n\nGEN1031A vio que el guardián del A1 escribe `node_modules/.huella-lock` en otro formato que `compilar_en_a1`, y en el checkout del medio se repite `npm ci` en bucle. Unifica el formato (lee el que escribe el guardián: búscalo en `oracle_nodo.py`, `deploy/oracle/` y `scripts/enjambre/`) para que ninguno de los dos reinstale sin necesidad.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261031-231438`)\nUn agente de la nube ya avanzó esta tarea (en la Mac no pasa: pruebas del puente: oup(1)))\nE                       AssertionError: 'revisor_bloqueadas_logica' not found in {'nodo_metagenesis_bus', 'nodo_metagenesis_logica', 'nodo_metagenesis_medio', 'colmena_logica', 'traer_nube', 'puerta_datos_cliente', 'nodo_metagenesis', 'vigia_runs_nube'} : traer_nube importa revisor_bloqueadas_logica al arrancar\n\nscripts/puente/test_oracle_nodo.py:298: AssertionError\n=========================== short test summary info ============================\nFAILED scripts/puente/test_oracle_nodo.py::ModulosDelNodo::test_lo_que_el_nodo_importa_al_arrancar_viaja_con_el\n1 failed, 83 passed in 8.39s\n). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261031-231438:refs/remotes/origin/nube/a1-20261031-231438\"` y `git cherry-pick --no-commit 80cf2506b5d2 2820aff84bcf f3ff87dbd59c c3e12c2c4cde 9dc74623b608`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, scripts/puente/compilar_en_a1.py, scripts/puente/oracle_nodo.py, scripts/puente/test_compilar_en_a1.py, scripts/puente/test_jev.py, scripts/puente/test_razonador.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió OPS1031Cb: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/compilar_en_a1.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "OPS1031Cb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "OPS1031Cb-d1"
+  ]
+ }
+}
