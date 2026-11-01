@@ -267,6 +267,21 @@ class TestBriefHerramientas(unittest.TestCase):
         self.assertIn("taste-skill", texto)
         self.assertIn("UI-TARS", texto)
 
+    def test_apartados_6_y_7_caben_en_el_tope_de_2500(self):
+        """Con el tope real del brief (2500) y tres claves nuevas, §6 y §7 siguen dentro."""
+        tarea = {"titulo": "Presentación de documentación con panel de datos",
+                 "archivos": ["src/app/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA)
+        self.assertLessEqual(len(texto), 2500)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+        for linea in (
+            "frontend-slides — https://github.com/zarazhangrui/frontend-slides",
+            "Docusaurus — https://github.com/facebook/docusaurus",
+            "Refine — https://github.com/refinedev/refine",
+        ):
+            self.assertEqual(len(_lineas_de_herramientas(texto, linea)), 1, linea)
+
 
 class TestBriefRise(unittest.TestCase):
     """§10: sección RISE solo si la tarea toca movimiento."""
