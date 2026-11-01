@@ -23,6 +23,13 @@ Un solo camino para el botón «Reparar» y para los directores:
 Lo que NO hace, a propósito: publicar (la autopublicación tiene sus puertas y su interruptor),
 borrar ramas, tocar claves, ni nada que no tenga una reparación conocida: eso se dice tal cual.
 
+RPM1101A (2026-11-01): reiniciar Genesis con la Mac sin memoria no sirve (medido: «0 de 1», el
+resumen «sigue igual»). Cuando el medidor queda muerto por «la API de Genesis no contestó» y hay
+presión de memoria, el plan LIBERA primero con lo que ya existe — trabajadores de tsc/vitest
+huérfanos (`agentes_huerfanos`, SUP0111K), dormir el BitNet por el guardia (el mismo punto
+«Aliviar memoria») y descargar los modelos de Ollama (`keep_alive: 0`)—, luego intenta el
+reinicio y, si sigue igual, el resumen dice la causa («la Mac está sin memoria: …»).
+
 Uso:
   reparar_medidor.py <medidor> [--origen boton|directores]   # uno, ya (el botón)
   reparar_medidor.py --todos [--origen directores] [--forzar] # los automáticos, con tiempos mínimos
@@ -39,8 +46,10 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.request
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
 
 DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECTORIO))
@@ -95,6 +104,7 @@ TITULOS = {
     "autopublicacion": "Ver por qué no ha salido la autopublicación",
     "tokens": "Reiniciar el servicio de tokens",
     "genesis": "Comprobar que Genesis contesta y reiniciarlo si no",
+    "liberar_memoria": "Liberar memoria antes de reiniciar (tsc huérfanos, dormir BitNet, descargar Ollama)",
     "contenedores": "Volver a medir los contenedores de la nube",
     "capacidad": "Buscar más capacidad en todos los medios (llenar la Mac, lanzar jobs en la nube)",
 }
@@ -102,15 +112,38 @@ TITULOS = {
 
 # ── Decisiones (PURAS) ───────────────────────────────────────────────────────────────────────
 
+#: El mismo umbral de arranque del enjambre que usa el guardia de memoria (CONGELAR_BAJO_MB):
+#: por debajo de eso, reiniciar Genesis directo es pedirle RAM que no existe (RPM1101A).
+UMBRAL_LIBRES_MB = 1600
+
+
+def sin_memoria(libre_mb: Optional[float], presion: Optional[int]) -> Optional[str]:
+    """PURA: la causa «la Mac está sin memoria: …» (None: que por ahí no es).
+
+    Vale lo medido (pocas páginas libres) O la presión del kernel (2 = aviso, 3 = crítica),
+    las mismas dos señales que usa `guardia-memoria.falta_memoria`."""
+    if presion is not None and presion >= 2 and libre_mb is not None and libre_mb < UMBRAL_LIBRES_MB:
+        return "la Mac está sin memoria: quedan %d MB libres y el núcleo está en presión %s" % (
+            int(libre_mb), presion)
+    if presion is not None and presion >= 2:
+        return "la Mac está sin memoria: el núcleo está en presión %s" % presion
+    if libre_mb is not None and libre_mb < UMBRAL_LIBRES_MB:
+        return "la Mac está sin memoria: quedan %d MB libres (el enjambre arranca con %d)" % (
+            int(libre_mb), UMBRAL_LIBRES_MB)
+    return None
+
+
 def no_vivos(veredictos: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [v for v in veredictos or [] if isinstance(v, dict) and v.get("estado") not in ("vivo", None)]
 
 
-def plan_reparacion(clave: str, veredictos: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+def plan_reparacion(clave: str, veredictos: List[Dict[str, Any]],
+                    sin_memoria_txt: Optional[str] = None) -> List[Dict[str, str]]:
     """PURA: [{accion, titulo, por_que}] sin repetir, en el orden en que salen las reglas.
 
     Un veredicto «desconocido» no se repara (no se sabe qué está mal); un «colgado» o «muerto» sí,
-    si hay una regla para él."""
+    si hay una regla para él. Y si va a tocar reiniciar Genesis y la Mac está sin memoria
+    (`sin_memoria_txt`), se LIBERA primero (RPM1101A): reiniciar no devuelve RAM."""
     clave = (clave or "").replace("_", "-")
     plan: List[Dict[str, str]] = []
     vistas = set()
@@ -131,6 +164,10 @@ def plan_reparacion(clave: str, veredictos: List[Dict[str, Any]]) -> List[Dict[s
     if malos and clave in POR_MEDIDOR:
         for a in POR_MEDIDOR[clave]:
             poner(a, "el medidor «%s» no está sano" % clave)
+    if sin_memoria_txt and "genesis" in vistas:
+        i = plan.index(next(p for p in plan if p["accion"] == "genesis"))
+        plan.insert(i, {"accion": "liberar_memoria", "titulo": TITULOS.get("liberar_memoria", "liberar_memoria"),
+                        "por_que": sin_memoria_txt})
     return plan
 
 
@@ -173,14 +210,20 @@ def toca_auto(clave: str, plan: List[Dict[str, str]], estado: Dict[str, Any], ah
     return ahora - ultima >= MINIMO_AUTO_S.get(clave, MINIMO_AUTO_DEFECTO_S)
 
 
-def frase(clave: str, res: str, hechas: List[Dict[str, Any]], resumen_despues: str) -> str:
+def frase(clave: str, res: str, hechas: List[Dict[str, Any]], resumen_despues: str,
+          falta_memoria: Optional[str] = None) -> str:
     """PURA: la línea que se enseña bajo el botón y se dice en el Chat Director."""
     bien = sum(1 for h in hechas if h.get("ok"))
     if res == "nada":
         return "«%s» está sano: no había nada que reparar." % clave
     if res == "sin_reparacion":
         return "«%s» tiene fallos sin reparación automática conocida: se dicen abajo." % clave
-    cabeza = {"reparado": "reparado", "mejorado": "mejorado (queda algo)", "sigue": "sigue igual tras reparar"}[res]
+    cabeza = {"reparado": "reparado", "mejorado": "mejorado (queda algo)",
+              "sigue": "sigue igual tras reparar"}[res]
+    if res == "sigue" and falta_memoria and any(h.get("accion") == "liberar_memoria" for h in hechas):
+        # RPM1101A: «0 de 1» con la Mac sin memoria no es un fallo del reinicio: el reinicio
+        # no devuelve RAM. Se dice la causa, no un «sigue igual» que no explica nada.
+        cabeza = "sigue sin contestar y %s (liberé lo que pude y reinicié: no bastó)" % falta_memoria
     return "«%s» %s · %d de %d acción(es) bien · ahora: %s" % (clave, cabeza, bien, len(hechas), resumen_despues)
 
 
@@ -310,6 +353,90 @@ def accion_memoria() -> Tuple[bool, str]:
     return True, texto
 
 
+#: Ollama de ESTA máquina. La URL solo acepta 127.0.0.1/localhost (`es_url_local` lo filtra):
+#: jamás una IP de otra neurona (ni la del A1 ni ninguna otra).
+URL_OLLAMA = os.environ.get("STARSEED_OLLAMA_URL") or "http://127.0.0.1:11434"
+
+
+def es_url_local(url: str) -> bool:
+    """PURA: ¿es el Ollama de esta máquina (127.0.0.1/localhost) y ningún otro?"""
+    try:
+        return (urlparse(url).hostname or "") in ("127.0.0.1", "localhost", "::1")
+    except ValueError:
+        return False
+
+
+def modelos_cargados(ps: Any) -> List[str]:
+    """PURA: los modelos que Ollama tiene en RAM (`/api/ps`), sin repetir."""
+    salida: List[str] = []
+    for m in (ps or {}).get("models") or []:
+        if not isinstance(m, dict):
+            continue
+        n = str(m.get("name") or m.get("model") or "").strip()
+        if n and n not in salida:
+            salida.append(n)
+    return salida
+
+
+def accion_ollama() -> Tuple[bool, str]:
+    """Descarga (keep_alive 0) los modelos que Ollama tiene cargados: suelta su RAM al punto."""
+    if not es_url_local(URL_OLLAMA):
+        return False, "no toco un Ollama que no sea el de esta máquina"
+    base = URL_OLLAMA.rstrip("/")
+    try:
+        with urllib.request.urlopen(base + "/api/ps", timeout=8) as r:
+            modelos = modelos_cargados(json.loads((r.read() or b"{}").decode("utf-8")))
+    except Exception as e:  # noqa: BLE001
+        return False, "Ollama no contestó: %s" % type(e).__name__
+    if not modelos:
+        return False, "Ollama no tiene modelos cargados en RAM"
+    bien = []
+    for modelo in modelos:
+        try:
+            req = urllib.request.Request(
+                base + "/api/generate",
+                data=json.dumps({"model": modelo, "keep_alive": 0}).encode("utf-8"),
+                headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                r.read()
+            bien.append(modelo)
+        except Exception:  # noqa: BLE001 — uno que no se deje, no para a los demás
+            continue
+    return bool(bien), "Ollama: descargados %d de %d modelo(s) cargado(s)" % (len(bien), len(modelos))
+
+
+def accion_liberar_memoria() -> Tuple[bool, str]:
+    """RPM1101A: con la Mac sin memoria, reiniciar Genesis directo acaba «0 de 1». Se suelta
+    con lo que ya existe — trabajadores de tsc/vitest huérfanos (`agentes_huerfanos`,
+    SUP0111K: su vitest murió y nadie leerá sus resultados, cada uno retiene ~2,2 GB), dormir
+    el BitNet (el mismo POST /api/bitnet/dormir de «Aliviar memoria», jamás durante una
+    conversación de Alex) y descargar Ollama (keep_alive 0)— y después ya se intenta reiniciar."""
+    partes: List[str] = []
+    ok = False
+    try:
+        g = _modulo("guardia-memoria.py", "guardia_memoria_liberar")
+        cortados = g.barrer_trabajadores_huerfanos()
+        partes.append("corté %d trabajador(es) de pruebas huérfano(s)" % len(cortados) if cortados
+                      else "sin trabajadores de pruebas huérfanos")
+        ok = ok or bool(cortados)
+        if g._conv.activa(g._conv.leer_concesion()):
+            partes.append("hay conversación de Alex: el BitNet sigue despierto")
+        else:
+            d_ok, dormido = g.pedir_dormir_bitnet(g.URL_ASTRAURA)
+            if d_ok:
+                ok = ok or bool(dormido)
+            partes.append("BitNet: %s" % ("dormido" if dormido else
+                                          "en uso, el gestor no lo durmió" if d_ok else
+                                          "el gestor de Astraura no alcanzable"))
+    except Exception as e:  # noqa: BLE001 — la liberación no para por lo primero
+        partes.append("guardia: %s: %s" % (type(e).__name__, str(e)[:120]))
+    ok_ollama, texto_ollama = accion_ollama()
+    if ok_ollama:
+        ok = True
+    partes.append(texto_ollama)
+    return ok, " · ".join(partes)
+
+
 #: Marcas de «sin cupo» que puso el clasificador viejo leyendo la transcripción de opencode
 #: (arreglado en 29ce92b06): su motivo empieza por la orden, no por un error.
 _MOTIVO_FALSO = "$ opencode run"
@@ -433,7 +560,8 @@ def _lo_que_sumo_buscar() -> str:
 ACCIONES: Dict[str, Callable[[], Tuple[bool, str]]] = {
     "vigilante": accion_vigilante, "enjambre": accion_enjambre, "carril_nube": accion_carril_nube,
     "nube_gh": accion_nube_gh, "reconciliar": accion_reconciliar, "disco": accion_disco,
-    "memoria": accion_memoria, "proveedores": accion_proveedores, "autopublicacion": accion_autopublicacion,
+    "memoria": accion_memoria, "liberar_memoria": accion_liberar_memoria,
+    "proveedores": accion_proveedores, "autopublicacion": accion_autopublicacion,
     "tokens": accion_tokens, "genesis": accion_genesis, "contenedores": accion_contenedores,
     "capacidad": accion_capacidad,
 }
@@ -471,9 +599,22 @@ def _comprobar(clave: str) -> Dict[str, Any]:
     return CM.comprobar_y_guardar(clave)
 
 
+def medir_falta_si_genesis(veredictos: List[Dict[str, Any]]) -> Optional[str]:
+    """REAL: solo si el medidor quedó muerto («la API de Genesis no contestó») se mide la
+    memoria: es el único caso donde reiniciar necesita RAM por delante (RPM1101A)."""
+    if not any(v.get("proceso") == "Medidor" and v.get("estado") == "muerto" for v in no_vivos(veredictos)):
+        return None
+    try:
+        g = _modulo("guardia-memoria.py", "guardia_memoria_medir")
+        return sin_memoria(g.libres_mb(), g.presion_nucleo())
+    except Exception:  # noqa: BLE001 — sin medida no se añade nada al plan
+        return None
+
+
 def reparar(clave: str, origen: str = "boton", comprobar: Callable[[str], Dict[str, Any]] = _comprobar,
             acciones: Optional[Dict[str, Callable[[], Tuple[bool, str]]]] = None,
-            plan_previo: Optional[Tuple[Dict[str, Any], List[Dict[str, str]]]] = None) -> Dict[str, Any]:
+            plan_previo: Optional[Tuple[Dict[str, Any], List[Dict[str, str]]]] = None,
+            falta: Optional[str] = None) -> Dict[str, Any]:
     """Comprueba, repara y vuelve a comprobar UN medidor; deja `reparacion-<clave>.json`."""
     clave = clave.replace("_", "-")
     acciones = acciones or ACCIONES
@@ -484,7 +625,9 @@ def reparar(clave: str, origen: str = "boton", comprobar: Callable[[str], Dict[s
     antes, plan = plan_previo if plan_previo else (None, None)
     if antes is None:
         antes = comprobar(clave)
-        plan = plan_reparacion(clave, antes.get("veredictos") or [])
+        if falta is None:
+            falta = medir_falta_si_genesis(antes.get("veredictos") or [])
+        plan = plan_reparacion(clave, antes.get("veredictos") or [], falta)
     hechas: List[Dict[str, Any]] = []
     for paso in plan or []:
         _escribir(ruta_reparacion(clave), dict(base, paso="reparando: %s" % paso["titulo"], acciones=hechas))
@@ -499,7 +642,8 @@ def reparar(clave: str, origen: str = "boton", comprobar: Callable[[str], Dict[s
     res = resultado(antes.get("veredictos") or [], despues.get("veredictos") or [], bool(plan))
     salida = {
         "medidor": clave, "origen": origen, "empezado": empezado, "terminado": _iso(),
-        "resultado": res, "resumen": frase(clave, res, hechas, despues.get("resumen") or ""),
+        "resultado": res, "resumen": frase(clave, res, hechas, despues.get("resumen") or "", falta),
+        "sin_memoria": falta,
         "antes": {"resumen": antes.get("resumen"), "veredictos": antes.get("veredictos") or []},
         "despues": {"resumen": despues.get("resumen"), "veredictos": despues.get("veredictos") or []},
         "acciones": hechas, "sin_reparacion": sin_reparacion(clave, despues.get("veredictos") or []),
@@ -536,16 +680,22 @@ def reparar_todos(origen: str = "directores", forzar: bool = False, ahora: Optio
     ahora = time.time() if ahora is None else ahora
     estado = _leer(ESTADO_AUTO, {})
     hechas = []
+    falta: Optional[str] = None
     for clave in MEDIDORES_AUTO:
         try:
             comp = comprobar(clave)
         except Exception as e:  # noqa: BLE001
             estado.setdefault("_errores", {})[clave] = "%s: %s" % (type(e).__name__, e)
             continue
-        plan = plan_reparacion(clave, comp.get("veredictos") or [])
+        # La falta se mide UNA vez por pasada y solo si algún medidor va a reiniciar Genesis:
+        # cargar el guardia cada vuelta no vale el coste.
+        if falta is None:
+            falta = medir_falta_si_genesis(comp.get("veredictos") or [])
+        plan = plan_reparacion(clave, comp.get("veredictos") or [], falta)
         if not toca_auto(clave, plan, estado, ahora, forzar):
             continue
-        r = reparar(clave, origen=origen, comprobar=comprobar, acciones=acciones, plan_previo=(comp, plan))
+        r = reparar(clave, origen=origen, comprobar=comprobar, acciones=acciones, plan_previo=(comp, plan),
+                    falta=falta)
         estado[clave] = {"t": ahora, "resultado": r["resultado"], "resumen": r["resumen"]}
         hechas.append(r)
     estado["ultima_pasada"] = ahora

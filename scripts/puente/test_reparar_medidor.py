@@ -145,10 +145,6 @@ class Reparar(unittest.TestCase):
         self.assertEqual(hechas, [1, 1])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class AvisosDelVigia(unittest.TestCase):
     def test_cada_aviso_su_reparacion(self):
         casos = {
@@ -179,3 +175,96 @@ class GenesisNoSeReiniciaEncimaDeUnaInstalacion(unittest.TestCase):
             self.assertTrue(R.instalando_build(d))
         finally:
             shutil.rmtree(d, ignore_errors=True)
+
+
+class SinMemoria(unittest.TestCase):
+    def test_la_causa_nombra_libres_y_presion(self):
+        m = R.sin_memoria(800.0, 3)
+        self.assertIn("la Mac está sin memoria", m)
+        self.assertIn("800 MB", m)
+        self.assertIn("presión", m)
+
+    def test_basta_solo_la_presion_o_solo_lo_libre(self):
+        self.assertIn("presió", R.sin_memoria(None, 3))
+        self.assertIn("la Mac está sin memoria", R.sin_memoria(800.0, None))
+        self.assertIsNone(R.sin_memoria(None, 1))
+
+    def test_con_holgura_no_hay_causa(self):
+        self.assertIsNone(R.sin_memoria(3000.0, 1))
+        self.assertIsNone(R.sin_memoria(None, None))
+
+
+class PlanPocaMemoria(unittest.TestCase):
+    def test_libera_antes_de_reiniciar_genesis(self):
+        malos = [v("Medidor", "muerto", "la API de Genesis no contestó")]
+        plan = R.plan_reparacion("agentes", malos, "la Mac está sin memoria: quedan 800 MB libres")
+        self.assertEqual([p["accion"] for p in plan], ["liberar_memoria", "genesis"])
+        self.assertIn("la Mac está sin memoria", plan[0]["por_que"])
+        self.assertTrue(plan[0]["titulo"])
+
+    def test_sin_falta_igual_que_siempre(self):
+        malos = [v("Medidor", "muerto")]
+        self.assertEqual([p["accion"] for p in R.plan_reparacion("agentes", malos)], ["genesis"])
+
+    def test_la_falta_solo_alarga_el_plan_con_genesis(self):
+        plan = R.plan_reparacion("agentes", [v("Agentes medidos", "colgado")], "la Mac está sin memoria: 800 MB")
+        self.assertEqual([p["accion"] for p in plan], ["enjambre", "carril_nube", "nube_gh", "reconciliar"])
+
+
+class OllamaPuro(unittest.TestCase):
+    def test_modelos_cargados_de_ps(self):
+        ps = {"models": [{"name": "qwen3:4b", "size": 1}, {"model": "llama3"}, "raro"]}
+        self.assertEqual(R.modelos_cargados(ps), ["qwen3:4b", "llama3"])
+        self.assertEqual(R.modelos_cargados({}), [])
+        self.assertEqual(R.modelos_cargados(None), [])
+
+    def test_solo_el_ollama_de_esta_maquina(self):
+        self.assertTrue(R.es_url_local("http://127.0.0.1:11434"))
+        self.assertTrue(R.es_url_local("http://localhost:11434"))
+        self.assertFalse(R.es_url_local("http://192.168.1.7:11434"))
+        self.assertFalse(R.es_url_local("no es una url"))
+
+
+class ResumenCausa(unittest.TestCase):
+    def test_dice_la_causa_en_vez_de_sigue_igual(self):
+        falta = R.sin_memoria(800.0, 3)
+        hechas = [{"accion": "liberar_memoria", "ok": True}, {"accion": "genesis", "ok": False}]
+        linea = R.frase("agentes", "sigue", hechas, "la API de Genesis no contestó", falta)
+        self.assertIn("la Mac está sin memoria", linea)
+        self.assertNotIn("sigue igual", linea)
+
+    def test_sin_liberacion_se_queda_como_estaba(self):
+        falta = R.sin_memoria(800.0, 3)
+        linea = R.frase("agentes", "sigue", [{"accion": "genesis", "ok": False}], "x", falta)
+        self.assertIn("sigue igual", linea)
+
+
+class RepararLiberando(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        viejos = (R.CARPETA, R.ESTADO_AUTO)
+        R.CARPETA, R.ESTADO_AUTO = self.tmp, os.path.join(self.tmp, "auto.json")
+
+        def restaurar():
+            R.CARPETA, R.ESTADO_AUTO = viejos
+        self.addCleanup(restaurar)
+
+    def test_liberar_va_antes_del_reinicio_y_la_causa_se_guarda(self):
+        falta = R.sin_memoria(800.0, 3)
+        comprobar = lambda c: {"veredictos": [v("Medidor", "muerto", "la API de Genesis no contestó")],
+                               "resumen": "la API de Genesis no contestó"}
+        acciones = {"liberar_memoria": lambda: (True, "corté 2 huérfanos · BitNet dormido"),
+                    "genesis": lambda: (False, "launchctl no pudo reiniciar com.starseed.mando")}
+        r = R.reparar("agentes", comprobar=comprobar, acciones=acciones, falta=falta)
+        self.assertEqual([a["accion"] for a in r["acciones"]], ["liberar_memoria", "genesis"])
+        self.assertEqual(r["resultado"], "sigue")
+        self.assertIn("la Mac está sin memoria", r["resumen"])
+        self.assertNotIn("sigue igual", r["resumen"])
+        self.assertEqual(r["sin_memoria"], falta)
+        with open(R.ruta_reparacion("agentes"), encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["sin_memoria"], falta)
+
+
+if __name__ == "__main__":
+    unittest.main()
