@@ -40,6 +40,21 @@ describe("física Rapier", () => {
         expect(y).toBeGreaterThan(0.35); expect(y).toBeLessThan(0.65);
         liberarMundo(mf);
     });
+    it.skipIf(!cargado)("la rotación Euler del objeto llega al cuerpo como cuaternión", () => {
+        const girado: ObjetoMundo = { ...objeto("girado", CERO), rot: [0, Math.PI / 2, 0] };
+        const recto: ObjetoMundo = { ...objeto("recto", CERO), rot: CERO };
+        const poses = leerPoses(crearMundoFisico(RAPIER, mundo({ gravedad: 0, suelo: false, objetos: [girado, recto] }), "minima"));
+        const q = poses.get("girado")?.rot;
+        expect(q?.[0]).toBeCloseTo(0, 6);
+        expect(q?.[1]).toBeCloseTo(Math.SQRT1_2, 6);
+        expect(q?.[2]).toBeCloseTo(0, 6);
+        expect(q?.[3]).toBeCloseTo(Math.SQRT1_2, 6);
+        const identidad = poses.get("recto")?.rot;
+        expect(identidad?.[0]).toBeCloseTo(0, 6);
+        expect(identidad?.[1]).toBeCloseTo(0, 6);
+        expect(identidad?.[2]).toBeCloseTo(0, 6);
+        expect(identidad?.[3]).toBeCloseTo(1, 6);
+    });
     it.skipIf(!cargado)("gravedad cero no cae", () => {
         const mf = crearMundoFisico(RAPIER, mundo({ gravedad: 0, suelo: false, objetos: [objeto("bola", [0, 5, 0])] }), "minima");
         for (let i = 0; i < 120; i += 1) paso(mf, 1 / 60);
