@@ -4662,3 +4662,20 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-11-01 03:32 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** Conectar Genesis
+
+**Resultado.** 0 de 5 integradas. 5 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — los tipos no compilan (CRM1024Fc, RTCLB1027Cb-d1b-d2d, RTHFR1018Ld). Es 60 % de la ola.
+- freellmapi/auto no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CRM1024Fc` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/CRM1024Fc conservada)
+- `OPS1031Cb` — pruebas en rojo: vitest falla (rama conservada)
+- `DSN1025H-d1d` — no escribió nada
+- `RTCLB1027Cb-d1b-d2d` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTCLB1027Cb-d1b-d2d conservada)
+- `RTHFR1018Ld` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTHFR1018Ld conservada)
