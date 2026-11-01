@@ -11,8 +11,12 @@ import type {
   PlanPeticion,
   VeredictoGobierno,
 } from "@/lib/protomolecula/peticion/contrato";
+import type { OpcionImagen } from "@/lib/imagenes/plan";
 
 export type PestanaVentana = "crear" | "controles" | "vinculos" | "gobierno" | "apariencia";
+
+/** Esquela de una opción de imagen del resultado: la del plan más su prompt y, si ya se generó, su URL. */
+export type OpcionResultadoVentana = OpcionImagen & { prompt?: string; url?: string; elegida?: boolean };
 
 /** Resultado de ejecutar un plan. `deshacer` es opcional: solo se enseña el botón si quien ejecutó lo ofrece. */
 export interface ResultadoVentana {
@@ -21,6 +25,8 @@ export interface ResultadoVentana {
   pendientes: string[];
   motivo?: string;
   deshacer?: () => void | Promise<void>;
+  /** Imágenes YA generadas por pasos «generar-imagen» (IMG1011J): la tarjeta del resultado las enseña. */
+  imagenes?: OpcionResultadoVentana[];
 }
 
 /** Quién originó el plan: una persona con un botón, o Astraura interpretando un texto. */

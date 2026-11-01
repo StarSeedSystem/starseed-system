@@ -1056,6 +1056,8 @@ export const AURORA_GENERATE_TOOLS: AuroraScreenTool[] = [
        runServiceGeneration((m) =>
          m.generarImagen(
            pickInput(input, "prompt", "descripcion", "descripción", "texto", "text", "idea", "imagen"),
+           // Opciones pedidas al chat (1–8); sin dato claro, 4: las descripciones del tool prometen varias.
+           Number(pickInput(input, "opciones", "numero", "cuantas", "cuántas", "n")) || 4,
          ),
        ),
    },

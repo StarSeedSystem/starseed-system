@@ -5,6 +5,10 @@
  */
 import { TriangleAlert, CircleCheck, Loader2, RotateCcw, Undo2, WandSparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TarjetaImagenes } from "@/components/imagenes";
+import { atribucionDe } from "@/lib/imagenes/adaptadores/use-tarjeta-imagenes";
+import { guardarEnBiblioteca } from "@/lib/library";
+import { abrirEnProtomolecula } from "@/lib/protomolecula/editor";
 import { permiteReglasLocales, permiteReintento, textoFallo } from "./pasos";
 import type { EstadoPeticion } from "./tipos";
 
@@ -54,6 +58,19 @@ export function Resultado({ estado, alDeshacer, alCerrar }: ResultadoProps) {
           <ul className="list-disc pl-4 text-white/75">
             {resultado.pendientes.map((h, i) => <li key={i} className="break-words">{h}</li>)}
           </ul>
+        </div>
+      )}
+      {/* Tarjeta de las imágenes que este plan generó (contrato §6): cada opción lleva su procedencia, licencia y atribución. */}
+      {resultado.imagenes && resultado.imagenes.length > 0 && (
+        <div className="mt-2">
+          <TarjetaImagenes
+            opciones={resultado.imagenes}
+            onEditar={(o) => { if (o.url) void abrirEnProtomolecula.abrirProtomoleculaEditor(o.url); }}
+            onGuardar={(o) => { if (o.url) void guardarEnBiblioteca({ kind: "image", title: `Imagen: ${(o.prompt ?? "de Astraura").slice(0, 60)}`, url: o.url, origin: atribucionDe(o) }); }}
+          />
+          <p className="mt-1 text-[10px] leading-snug text-white/50">
+            Elegir y variar nuevos modelos se hace con la tarjeta de la barra de herramientas; aquí quedan las imágenes que ya se generaron.
+          </p>
         </div>
       )}
       <div className="mt-2 flex flex-wrap gap-2">
