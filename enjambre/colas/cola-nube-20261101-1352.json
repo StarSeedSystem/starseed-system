@@ -1,0 +1,51 @@
+{
+ "ola": "nube-20261101",
+ "tareas": [
+  {
+   "id": "MVD1027Eb",
+   "ola": "1027V · Cápsulas de memoria (Memvid)",
+   "titulo": "Cerebros · la cápsula Memvid como destino de sincronía",
+   "archivos": [
+    "src/lib/brains/memory-destinations.ts",
+    "src/lib/brains/__tests__/memory-destinations-capsula.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Memvid (memvid/memvid, Apache-2.0) «en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda». Contrato: `architecture/memvid-capsulas.md` (léelo entero). Firmas del núcleo Rust en `integraciones-de-codigo/memvid/README-starseed.md`. Reglas: núcleo en Rust en un servidor propio (127.0.0.1:4490, token en `~/.starseed/memvid.token`), nunca el SDK de Node, nunca cuenta ni tickets de memvid.com, 50 MB por cápsula y se reparte, alcance de `src/lib/nucleo/alcance-memoria.ts`, personal y perfil cifradas.\n\n`MemoryDestinationsConfig` gana `capsula: { enabled: boolean }` (por defecto false; `normalizeMemoryDestinations` lo acepta sin romper lo guardado). En `syncBrainMemoryNow`, si está encendido, manda a `/api/memorias/capsulas` (accion poner, sujeto `cerebro:<id>`) solo los archivos de memoria nuevos o cambiados desde la última vez (huella SHA-256 guardada en el estado del cerebro), con `uri` `mv2://cerebro/<id>/<archivo>`; añade su paso a `MemoryDestinationSyncResult`. Sin servidor de cápsulas, el paso dice «sin servidor de cápsulas» y los demás destinos siguen igual. Pruebas.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41071507849`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 41111724810) falla «tsc»: ﻿2026-10-30T19:02:27.5621160Z ##[group]Run npx tsc --noEmit --skipLibCheck\n2026-10-30T19:02:27.5621553Z \u001b[36;1mnpx tsc --noEmit --skipLibCheck\u001b[0m\n2026-10-30T19:02:27.5635241Z shell: /usr/bin/bash -e {0}\n2026-10-30T19:02:27.5635502Z env:\n2026-10-30T19:02:27.5635747Z   NODE_OPTIONS: --max-old-space-size=8192\n2026-10-30T19:02:27.5636027Z ##[endgroup]\n2026-10-30T19:04:59.3705692Z ##[error]src/components/education/topic-graph.tsx(36,10): error TS2300: Duplicate identifier 'abrirGuia'.\n2026-10-30T19:04:59.3714388Z ##[error]src/components/education/topic-graph.tsx(70,10): error TS2300: Duplicate identifier 'abrirGuia'.\n2026-10-30T19:04:59.6696717Z ##[error]Process completed with exit code 2.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41071507849:refs/remotes/origin/nube/41071507849\"` y `git cherry-pick --no-commit dde431e25118 a99d7e29ee37`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/education/topic-graph.tsx, src/lib/brains/__tests__/memory-destinations-capsula.test.ts, src/lib/brains/memory-destinations.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41071507849",
+   "dependencias_ya_en_main": [
+    "MVD1027D"
+   ]
+  },
+  {
+   "id": "IMG1011J",
+   "ola": "Ola 1011E · Imágenes locales de Astraura por capas y malla (Qwen-Image, Krea 2, FLUX, SD, PixArt, Sana) con varias opciones en la Protomolécula",
+   "titulo": "Integración, verificación y estado real de las imágenes locales",
+   "archivos": [
+    "src/components/imagenes/index.ts",
+    "architecture/astraura-imagenes.md"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-imagenes.md` (léelo ENTERO; el §1 tiene las licencias y motores VERIFICADOS el 2026-10-11 — no inventes otros datos). Se apoya en `architecture/generacion-audiovisual-astraura.md` y `src/ai/astraura/media/media-gen.ts` (Pollinations como suelo gratis, proveedores por neurona): su regla de oro sigue intacta y NO se duplica nada de lo que ya hace. El núcleo puro YA está escrito y probado (19 pruebas) y NO se modifica: `src/lib/imagenes/{modelos,plan,sugerencias}.ts` (MODELOS_IMAGEN, MOTORES, cabe, planImagen, paqueteBase, motoresPosibles). Para la malla reutiliza lo que hagan G3D1011D (`src/lib/avatares/adaptadores/reparto-taller.ts`) y el registro de neuronas existente; para referencias 3D, G3D1011E. Reglas: «basta de ilusiones» (si algo no corre aquí, se dice por qué); NUNCA descargas automáticas de pesos (los repos pesan de 6 a 100 GB): solo con permiso, solo los archivos necesarios y tras comprobar ≥ 3 veces su tamaño libre; modelos «gated» necesitan que la persona acepte sus términos en Hugging Face y un token suyo en el entorno (explícale qué es y dónde se consigue, con enlace); nada de claves en código ni registros; nada no comercial en uso comercial; con imagen de referencia nada sale de sus neuronas sin permiso; en la Mac de Alex (8 GB) las imágenes ceden ante el enjambre; ningún sondeo a Supabase; textos en español claro y accesibles; nunca `next build` en la Mac. Pruebas (vitest o pytest) sin red ni GPU. Al terminar, resumen honesto de qué funciona y qué no.\n\nTAREA: Monta la tarjeta y las sugerencias donde la gente las encuentra (chat de Astraura, ajustes de la neurona, Protomolécula). Pasa tsc y vitest de `src/lib/imagenes`, `src/ai/astraura/media`, `src/lib/astraura-bots` y `src/lib/protomolecula`, y pytest de `servicios/imagenes-local` y `scripts/imagenes`; arregla lo que falle. NO ejecutes `next build` en la Mac. Actualiza el §9 del contrato con el estado REAL de cada tarea.",
+   "revisor_quitadas": [
+    "IMG1011C",
+    "IMG1011F"
+   ],
+   "dependencias_ya_en_main": [
+    "IMG1011A",
+    "IMG1011B",
+    "IMG1011D",
+    "IMG1011E",
+    "IMG1011G",
+    "IMG1011H-d3",
+    "IMG1011I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "MVD1027Eb",
+   "IMG1011J"
+  ]
+ }
+}
