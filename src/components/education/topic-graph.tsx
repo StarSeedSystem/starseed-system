@@ -47,7 +47,6 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 
 import {
     type EduNode,
