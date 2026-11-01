@@ -15,17 +15,12 @@ export function leerConfort(
   sistema?: { movimientoReducido?: boolean; contrasteAlto?: boolean; reducirTransparencia?: boolean },
   storage: Pick<Storage, "getItem" | "setItem"> = typeof localStorage !== "undefined" ? localStorage : ({} as Storage)
 ): { confort: PreferenciasConfort; avisos: string[] } {
-  console.log('leerConfort called');
   try {
     const item = storage.getItem(STORAGE_KEYS.confort);
-    console.log('leerConfort: item:', item);
     const crudo = item ? JSON.parse(item) : undefined;
-    console.log('leerConfort: crudo:', crudo);
     const result = sanearConfort(crudo, sistema);
-    console.log('leerConfort: result:', result);
     return result;
   } catch (e) {
-    // JSON roto o cualquier otro error: devolvemos por defecto sin avisos de corrección (pero sí del sistema si aplica)
     return sanearConfort(undefined, sistema);
   }
 }
