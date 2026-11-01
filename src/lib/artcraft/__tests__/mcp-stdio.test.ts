@@ -60,6 +60,24 @@ describe("ClienteMcpStdio", () => {
     transporte.responder(id2, { orden: 2 }); transporte.responder(id1, { orden: 1 });
     expect(await p1).toEqual({ orden: 1 }); expect(await p2).toEqual({ orden: 2 });
   });
+  it("acumula el contador de ilegibles y sigue operativo", async () => {
+    const { transporte, cliente } = montar();
+    transporte.enviar("no es json 1\n");
+    transporte.enviar("{malformed\n");
+    expect(cliente.ilegibles).toBe(2);
+    const promesa = cliente.listar(1000);
+    transporte.responder(transporte.ultima.id, {});
+    expect(await promesa).toEqual({});
+  });
+  it("reensambla un JSON partido en mitad de línea a nivel de cliente", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.listar(5000);
+    const completo = `${JSON.stringify({ jsonrpc: "2.0", id: transporte.ultima.id, result: true })}\n`;
+    const corte = Math.floor(completo.length / 2);
+    transporte.enviar(completo.slice(0, corte));
+    transporte.enviar(completo.slice(corte));
+    expect(await promesa).toBe(true);
+  });
   it("ignora notificaciones y líneas sin id, y cuenta las ilegibles", async () => {
     const { transporte, cliente } = montar();
     transporte.enviar('{"jsonrpc":"2.0","method":"notifications/message","params":{}}\n');
