@@ -253,7 +253,7 @@ ${definidos}
 export function App() {
   return (
     <Refine
-      dataProvider={dataProvider(import.meta.env.VITE_API_URL ?? "")}
+      dataProvider={dataProvider(import.meta.env.VITE_API_URL)}
       routerProvider={routerProvider}
       resources={RECURSOS}
       options={{ disableTelemetry: true }}
