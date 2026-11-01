@@ -4,7 +4,9 @@
  * §5 de `architecture/guias-introduccion.md`: la guía entera se abre sin cuenta, por la puerta
  * común (`abrirGuia`), desde leer bienvenida (`desde: "bienvenida"`) y desde leer detección de
  * sesión (`desde: "login"`). Se comprueba el evento real que escucha `aurora-guide.tsx`, la
- * activación con ratón y con teclado, y las dianas de 44 px con cursor pointer.
+ * activación con ratón y con teclado (Enter y Espacio), y las dianas de 44 px con cursor pointer.
+ *
+ * Sin `temaInicial`: la guía retoma por donde se quedó (§6.2), no se fuerza un paso.
  */
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -56,24 +58,48 @@ function escucharGuia() {
   return { recibidos, parar: () => window.removeEventListener(EVENTO_ABRIR_GUIA, oir) };
 }
 
+/** Pulsa con ratón, Enter y Espacio: las tres formas de activar un botón nativo. */
+async function activarDeTresFormas(boton: HTMLElement) {
+  fireEvent.click(boton);
+  const teclado = userEvent.setup();
+  boton.focus();
+  await teclado.keyboard("{Enter}");
+  await teclado.keyboard("[Space]");
+}
+
+/** El botón es un <button type="button"> enfocable (no envía formularios por accidente). */
+function esperarBotonSano(boton: HTMLElement) {
+  expect(boton.tagName).toBe("BUTTON");
+  expect(boton).toHaveAttribute("type", "button");
+  expect(boton).not.toBeDisabled();
+  boton.focus();
+  expect(document.activeElement).toBe(boton);
+}
+
 afterEach(() => cleanup());
 
 describe("WelcomeWindow (GUI1021K2)", () => {
   it("«Conoce StarSeed (sin cuenta)» abre la guía desde «bienvenida», con ratón y con teclado", async () => {
     render(<WelcomeWindow onContinue={() => undefined} />);
     const boton = screen.getByRole("button", { name: "Conoce StarSeed (sin cuenta)" });
+    esperarBotonSano(boton);
     expect(boton.style.cursor).toBe("pointer");
     expect(boton.style.minHeight).toBe("44px");
     expect(boton.className).toMatch(/ss-wel-soft/); // su :focus-visible está en el <style>
 
     const guia = escucharGuia();
-    fireEvent.click(boton);
-
-    const teclado = userEvent.setup();
-    boton.focus();
-    await teclado.keyboard("{Enter}");
+    await activarDeTresFormas(boton);
     guia.parar();
-    expect(guia.recibidos).toEqual([{ desde: "bienvenida" }, { desde: "bienvenida" }]);
+
+    // Una sola forma de abrirla, sin tema impuesto: retoma donde se quedó (§6.2).
+    expect(guia.recibidos).toEqual([
+      { desde: "bienvenida" },
+      { desde: "bienvenida" },
+      { desde: "bienvenida" },
+    ]);
+    for (const detalle of guia.recibidos) {
+      expect(Object.keys(detalle)).toEqual(["desde"]);
+    }
   });
 });
 
@@ -83,15 +109,20 @@ describe("SessionResumePrompt (GUI1021K2)", () => {
     const guia = escucharGuia();
 
     const boton = await screen.findByRole("button", { name: "Conoce StarSeed (sin cuenta)" });
+    esperarBotonSano(boton);
     expect(guia.recibidos).toEqual([]); // aún nada sin gesto
 
-    fireEvent.click(boton);
-
-    const teclado = userEvent.setup();
-    boton.focus();
-    await teclado.keyboard("{Enter}");
+    await activarDeTresFormas(boton);
     guia.parar();
-    expect(guia.recibidos).toEqual([{ desde: "login" }, { desde: "login" }]);
+
+    expect(guia.recibidos).toEqual([
+      { desde: "login" },
+      { desde: "login" },
+      { desde: "login" },
+    ]);
+    for (const detalle of guia.recibidos) {
+      expect(Object.keys(detalle)).toEqual(["desde"]);
+    }
   });
 });
 
