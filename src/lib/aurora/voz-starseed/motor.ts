@@ -24,10 +24,12 @@
 
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
-import { nivelPara, siguienteNivel, NIVELES, estudioSegunUso, acotarNivel, type NivelVoz } from "./niveles";
+import { nivelPara, siguienteNivel, NIVELES, estudioSegunUso, acotarNivel, type NivelVoz, type UsoVoz } from "./niveles";
 import { motoresPermitidos, type ContextoLicenciaVoz } from "./licencia-voz";
 import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
+import { leerMedidas } from "@/lib/aurora/medidas-voz";
 import type { MedidaVoz } from "@/lib/aurora/medidas-voz";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 import {
     soporteSupertonic,
     nivelParaVoz,
@@ -240,6 +242,83 @@ async function resolverNivel(explicito?: NivelVoz): Promise<NivelVoz> {
     return preferencia === "auto" ? auto : preferencia;
 }
 
+// ── (Ola 1018V · VST1018F, parte 2) LA PRIMERA FRASE, APLICADA ───────────────
+// La elección pura de arriba, con los datos REALES del motor único: el uso
+// visto del contexto del llamador, los candidatos que esta puerta sabe rendir
+// con la voz del timbre y las medidas «primer-sonido» de ESTA neurona. Si algo
+// falta (sin demonio, sin Kokoro, sin medidas, error) se devuelve null: la
+// puerta cae al nivel por defecto de siempre. Nunca lanza.
+
+/** Uso del turno (`UsoVoz`), visto `ContextoVoz` del llamador: lectura larga
+ *  se declara con «lectura»; rito e imaginación cuentan como conversación. */
+function usoDesdeContexto(c: ContextoVoz): UsoVoz {
+    if (c === "aviso") return "aviso";
+    if (c === "lectura") return "lectura";
+    return "conversacion";
+}
+
+/**
+ * Nivel de la puerta para un motor del catálogo: el mismo mapa que ya usaba
+ * `hablarStarSeed` para el recomendado, ahora también para el motor ELEGIDO
+ * para la primera frase. El tope por contexto (`topeEstudioSegunContexto`)
+ * se aplica después.
+ */
+function nivelDeMotorCatalogo(id: string): NivelVoz {
+    switch (id) {
+        case "voicemorphic":
+        case "voicestudio":
+            return "estudio";
+        case "kokoro":
+        case "kittentts":
+        case "moss-tts-nano":
+            return "ligera";
+        case "sistema":
+            return "minima";
+        default:
+            // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
+            return "nube";
+    }
+}
+
+/**
+ * Nivel de la PRIMERA FRASE por la elección medida (contrato voz-voicestudio
+ * §4), traducido a nivel de la puerta; `null` sin base medida.
+ *
+ * Candidatos = los recorridos que esta puerta sabe rendir HOY con la voz del
+ * timbre: el demonio local (la voz neuronal del timbre, niveles estudio/alta)
+ * y Kokoro en el navegador (entiende `timbre.local.voz`). Contexto de
+ * licencia: estas ventanas del OS son el uso personal de la persona; sin
+ * preferencias de capas declaradas aquí (el elector las respeta en cuanto
+ * existan). Solo cuentan medidas de ESTA neurona.
+ */
+async function nivelPrimeraFrase(caps: Capacidades, uso: UsoVoz): Promise<NivelVoz | null> {
+    if (typeof window === "undefined") return null;
+    try {
+        const candidatos: CandidatoPrimeraFrase[] = [];
+        if (caps.daemonLocal) {
+            candidatos.push({ id: "voicemorphic", claseLicencia: "personal", tieneVozDe: true });
+        }
+        const kok = await import("@/lib/aurora/tts-oss/kokoro");
+        if (kok.kokoroAvailable() && kok.KOKORO_SPANISH_VOICES.length > 0) {
+            candidatos.push({ id: "kokoro", claseLicencia: "libre", tieneVozDe: true });
+        }
+        if (!candidatos.length) return null;
+        const contexto: ContextoLicenciaVoz = "personal";
+        const capas: CapasPrefs = {};
+        const electo = elegirMotorPrimeraFrase(
+            candidatos,
+            contexto,
+            capas,
+            leerMedidas(neuronDeviceIdActual()),
+            uso,
+        );
+        return electo.motor ? nivelDeMotorCatalogo(electo.motor) : null;
+    } catch {
+        return null; // sin elección medida: cae al nivel por hardware
+    }
+}
+
+
 // ── (Ola 1018V · VST1018F, parte 2) LA PRIMERA FRASE DE UNA CONVERSACIÓN ────
 // Contrato `architecture/voz-voicestudio.md` §4: una conversación EMPIEZA a
 // sonar con el motor de MENOR latencia MEDIDA en esta neurona que tenga la voz
@@ -312,7 +391,12 @@ export function elegirMotorPrimeraFrase(
 ): EleccionPrimeraFrase {
     const conVoz = candidatos.filter((c) => c.tieneVozDe === true);
     const { permitidos } = motoresPermitidos(conVoz, contexto, capas);
-    const combate = permitidos.filter((c) => !c.esEstudio || (uso !== undefined && estudioSegunUso(uso)));
+    const permitidosIds = new Set(permitidos.map((p) => p.id));
+    const combate = conVoz.filter(
+        (c) =>
+            permitidosIds.has(c.id) &&
+            (!c.esEstudio || (uso !== undefined && estudioSegunUso(uso)))
+    );
     const valorados = combate
         .map((c) => ({ id: c.id, mediana: medianaLatencia(medidas, c.id) }))
         .filter((x): x is { id: string; mediana: number } => x.mediana !== null)
@@ -554,27 +638,21 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     const timbre = timbreConEmocion(opciones.timbre, resuelta.emocion, resuelta.intensidad);
 
     const plataforma = detectarPlataforma();
-    const { memoriaGB } = await detectarCapacidades();
-    const ramGB = memoriaGB ?? 8;
+    const caps = await detectarCapacidades();
+    const ramGB = caps.memoriaGB ?? 8;
     const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
-    let nivel: NivelVoz;
-    switch (motorCat.id) {
-        case "voicemorphic":
-        case "voicestudio":
-            nivel = "estudio";
-            break;
-        case "kokoro":
-        case "kittentts":
-        case "moss-tts-nano":
-            nivel = "ligera";
-            break;
-        case "sistema":
-            nivel = "minima";
-            break;
-        default:
-            // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
-            nivel = "nube";
-            break;
+    let nivel: NivelVoz = nivelDeMotorCatalogo(motorCat.id);
+
+    // ── (Ola 1018V · VST1018F, parte 2) LA PRIMERA FRASE DE LA CONVERSACIÓN ──
+    // Cuando aún NADA ha sonado en esta sesión (`nivelEnUso === null`), el
+    // mensaje empieza por el motor PERMITIDO con la voz de esa persona y MENOR
+    // latencia «primer-sonido» MEDIDA en esta neurona (contrato voz-voicestudio
+    // §4). Sin medidas ni motores con la voz queda el nivel por hardware de
+    // arriba; tras la primera frase la conversación sigue por el motor que
+    // empezó, y el nivel pedido explícito (`opciones.nivel`) no se pisa.
+    if (nivelEnUso === null && !opciones.nivel) {
+        const elegido = await nivelPrimeraFrase(caps, usoDesdeContexto(opciones.contexto));
+        if (elegido) nivel = elegido;
     }
 
     // (Ola 1018V · VST1018F, parte 2) El nivel «estudio» es para lectura larga,
