@@ -14,7 +14,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { NEVER_SYNCED_KEYS, SYNCED_KEYS, esClaveFusionable, isNeverSyncedKey } from "@/lib/settings-sync";
-import { isSyncedKey } from "@/lib/sync/realtime-sync";
+import { EVENTO_MAUSBOT } from "@/lib/mausbot/config";
+import { isSyncedKey, eventsForKey } from "@/lib/sync/realtime-sync";
 import { AVISOS_KEY } from "@/lib/sync/avisos-cuenta";
 
 /** Preferencias de usuario que esta auditoría añadió a la cuenta. */
@@ -27,6 +28,7 @@ const AÑADIDAS = [
     "starseed.theme.favorites.v1",
     "starseed.privacy.telemetry",
     "starseed.privacy.ghost",
+    "starseed.mausbot.v1",
 ] as const;
 
 /** Lo que jamás debe viajar: secretos, bloqueo, identidad y ids de este medio, cachés y colas. */
@@ -116,5 +118,12 @@ describe("documento de política", () => {
         for (const k of ["starseed.neuron.device-id", "starseed.device.id", "starseed.mesh.device-id.v1", "starseed.bloqueo.v1", "starseed.media.prefs.v1"]) {
             expect(doc, `${k} no está documentada como local`).toContain(k);
         }
+    });
+});
+
+describe("EVENT_BY_KEY · eventos por clave", () => {
+    it("starseed.mausbot.v1 está en SYNCED_KEYS y tiene su evento mapeado", () => {
+        expect(isSyncedKey("starseed.mausbot.v1")).toBe(true);
+        expect(eventsForKey("starseed.mausbot.v1")).toEqual([EVENTO_MAUSBOT]);
     });
 });

@@ -267,7 +267,7 @@ const EVENT_BY_PREFIX: Array<{ prefix: string; events: string[] }> = [
     { prefix: "starseed.agentes-red.perfil.", events: ["starseed:agentes-red-perfil"] },
 ];
 
-function eventsForKey(key: string): string[] {
+export function eventsForKey(key: string): string[] {
     const events = new Set<string>();
     const exact = EVENT_BY_KEY[key];
     if (exact) {
@@ -280,11 +280,7 @@ function eventsForKey(key: string): string[] {
             }
         }
     }
-    // Config de integración por CEREBRO (`starseed.brain.<id>.integration.<x>`):
-    // el prefijo genérico la captura antes, pero su panel escucha este evento.
     if (isIntegrationConfigKey(key)) events.add("starseed:integration-config-changed");
-    // Red de seguridad: TODA clave de Aurora/Astraura despacha además el evento
-    // genérico, aunque su store todavía no tenga uno propio (p. ej. visión).
     if (isAuroraKey(key)) events.add(AURORA_CONFIG_EVENT);
     return Array.from(events);
 }

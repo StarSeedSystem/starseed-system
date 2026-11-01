@@ -114,6 +114,7 @@ Método: barrido de `src/**` (sin tests) buscando declaraciones `const … = "st
 | `starseed.theme.favorites.v1` | temas favoritos | — |
 | `starseed.privacy.telemetry` | telemetría opt-in | — |
 | `starseed.privacy.ghost` | modo fantasma | — |
+| `starseed.mausbot.v1` | configuración del Mausbot (cursor, acompañante) — Ola MBT1027 | `starseed:mausbot` |
 
 Además: `starseed.avisos.vistos.v1` (fusionable, §2). Se quitó un duplicado de
 `starseed.audiomorphic.presets.v1` en `SYNCED_KEYS`.
