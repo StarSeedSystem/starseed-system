@@ -56,6 +56,16 @@ MAX_DIA = 24
 #: dice, y deciden las puertas deterministas (pruebas, CI, Vercel y humo).
 JEV_FRENA = 0.95
 JEV_DUDA = 0.8
+#: (SUP0111M, 2026-11-01) Un tope para las pruebas del puente JUNTAS (antes, 15 min cada orden). Con la
+#: Mac ahogada (carga 37 y 10 GB de swap) el pytest de scripts/enjambre tardó 14 min 25 s a las 03:29 y
+#: pasó de 15 min a las 04:22: eso se contaba como «en rojo», se vetaba el commit y producción se quedó
+#: 8 h esperando a un commit nuevo. Pasar del tope no es rojo: se reintenta tras ESPERA_TRAS_TOPE_S y
+#: solo a la MAX_TOPES.ª vez seguida con el mismo commit se veta (una prueba colgada de verdad). La
+#: pasada vive 1 h (`main --bucle`): el tope deja sitio para git, Jev y el árbol limpio.
+PRUEBAS_TOPE_S = int(os.environ.get("STARSEED_PUBLICAR_PRUEBAS_TOPE_S", str(45 * 60)))
+ESPERA_TRAS_TOPE_S = int(os.environ.get("STARSEED_PUBLICAR_ESPERA_TOPE_S", str(30 * 60)))
+MAX_TOPES = 3
+TOPE_PRUEBAS = "las pruebas del puente pasaron del tope"
 PETICION = os.path.join(CARPETA, "autopublicar-peticion.json")
 #: (PUB1029G) Las colas de tareas que lee el enjambre: ahí se escribe la cola del CI en rojo.
 RAIZ_OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
@@ -173,6 +183,49 @@ def arbol_limpio(raiz, sha, git, destino):
         except OSError:
             pass
     return destino
+
+
+def _texto_de(salida):
+    if isinstance(salida, bytes):
+        return salida.decode("utf-8", "replace")
+    return str(salida or "")
+
+
+def correr_pruebas(ordenes, cwd, env, tope_s=None, correr=subprocess.run, reloj=time.time):
+    """(True|False|None, detalle) de las órdenes [(nombre, orden), …] con un tope para TODAS juntas
+    (SUP0111M). Pasar del tope es None («no se pudo probar ahora»), nunca rojo: el detalle empieza por
+    TOPE_PRUEBAS y dice qué orden se cortó y lo último que escribió."""
+    tope_s = PRUEBAS_TOPE_S if tope_s is None else tope_s
+    t0 = reloj()
+    for nombre, orden in ordenes:
+        queda = tope_s - (reloj() - t0)
+        if queda < 60:
+            return None, "%s: no quedó tiempo para %s (tope de %d min para todas)" % (TOPE_PRUEBAS, nombre, tope_s // 60)
+        try:
+            r = correr(orden, cwd=cwd, capture_output=True, text=True, timeout=queda, env=env)
+        except subprocess.TimeoutExpired as ex:
+            cola = " ".join((_texto_de(ex.stdout) + "\n" + _texto_de(ex.stderr)).split())[-300:]
+            return None, "%s: %s seguía a los %d min (tope de %d min para todas, con la Mac cargada)%s" % (
+                TOPE_PRUEBAS, nombre, int(reloj() - t0) // 60, tope_s // 60, ("; lo último: " + cola) if cola else "")
+        if r.returncode != 0:
+            return False, ((r.stdout or "") + (r.stderr or ""))[-2400:]
+    return True, "en verde"
+
+
+def espera_tras_tope(est, ahora, espera_s=None):
+    """PURA (SUP0111M): «reintento hacia las HH:MM…» si unas pruebas del puente pasaron del tope hace
+    menos de `espera_s` (con cualquier commit: lo que pesa es la Mac cargada), o None."""
+    espera_s = ESPERA_TRAS_TOPE_S if espera_s is None else espera_s
+    t = (est or {}).get("pruebas_tope") if isinstance(est, dict) else None
+    try:
+        desde = float((t or {}).get("t"))
+    except (TypeError, ValueError):
+        return None
+    if ahora - desde >= espera_s:
+        return None
+    return "las pruebas del puente pasaron del tope hace %d min con la Mac cargada (vez %s con %s): no es rojo; " \
+           "reintento hacia las %s" % ((ahora - desde) // 60, t.get("veces") or 1, str(t.get("sha") or "?")[:8],
+                                       time.strftime("%H:%M", time.localtime(desde + espera_s)))
 
 
 def quitar_arbol(raiz, destino, git):
@@ -311,16 +364,13 @@ class Medios(object):
             return None, "no pude preparar un árbol limpio de %s para las pruebas" % sha[:8]
         env = dict(PUB.entorno(), STARSEED_ROOT=arbol)
         try:
-            for orden in ([py, "-m", "unittest", "discover", "-s", "scripts/puente", "-p", "test_*.py"],
-                          [py, "-m", "pytest", "scripts/enjambre", "-q"]):
-                try:
-                    r = subprocess.run(orden, cwd=arbol, capture_output=True, text=True, timeout=900, env=env)
-                except subprocess.TimeoutExpired:
-                    return False, "las pruebas del puente pasaron de 15 min"
-                if r.returncode != 0:
-                    return False, ((r.stdout or "") + (r.stderr or ""))[-2400:]
+            ok, detalle = correr_pruebas(
+                (("el unittest de scripts/puente", [py, "-m", "unittest", "discover", "-s", "scripts/puente", "-p", "test_*.py"]),
+                 ("el pytest de scripts/enjambre", [py, "-m", "pytest", "scripts/enjambre", "-q"])), arbol, env)
         finally:
             quitar_arbol(self.raiz, arbol, lambda a, timeout=180: self.git(a, timeout=timeout))
+        if ok is not True:
+            return ok, detalle
         return True, "unittest y pytest en verde (árbol limpio de %s)" % sha[:8]
 
     def jev_opina(self, resumen):
@@ -566,6 +616,12 @@ def _nuevo_lote(m, est, ahora):
     if publicadas_hoy(est.get("historial"), ahora) >= MAX_DIA:
         return con_fase(est, "esperando", "Tope de %d publicaciones hoy." % MAX_DIA, ahora, pendientes=pendientes)
 
+    # (SUP0111M) Si unas pruebas del puente acaban de pasar del tope, la Mac sigue cargada: se espera
+    # antes de gastar el análisis, Jev y otra media hora de pruebas.
+    espera = espera_tras_tope(est, ahora)
+    if espera:
+        return con_fase(est, "esperando", espera + ".", ahora, pendientes=pendientes)
+
     # 1. Análisis del lote
     diff = m.git(["diff", "origin/main..%s" % head], timeout=300)[1]
     nombres = m.git(["diff", "--name-only", "origin/main..%s" % head])[1].splitlines()
@@ -599,8 +655,26 @@ def _nuevo_lote(m, est, ahora):
 
     # 2. Pruebas del puente sobre ESE commit
     ok, detalle = m.pruebas_python(head)
+    if ok is None and str(detalle or "").startswith(TOPE_PRUEBAS):
+        # (SUP0111M) Pasar del tope no es rojo: se espera y se reintenta; a la MAX_TOPES.ª vez seguida
+        # con este mismo commit, se veta como antes (una prueba colgada de verdad no reintenta siempre).
+        previo = est.get("pruebas_tope") or {}
+        veces = (int(previo.get("veces") or 0) if previo.get("sha") == head else 0) + 1
+        if veces >= MAX_TOPES:
+            est.pop("pruebas_tope", None)
+            m.avisar("Autopublicación frenada (%s): las pruebas del puente pasaron del tope %d veces seguidas.\n%s"
+                     % (head[:8], veces, str(detalle)[-800:]), tipo="aviso")
+            return vetar(est, head, "pruebas del puente en rojo", ahora,
+                         evidencia="%d veces seguidas sin terminar. %s" % (veces, detalle))
+        if veces == 1:
+            m.avisar("Autopublicación en espera (%s): %s. No es rojo: reintento en %d min."
+                     % (head[:8], str(detalle)[-700:], ESPERA_TRAS_TOPE_S // 60), tipo="aviso")
+        est["pruebas_tope"] = {"sha": head, "t": ahora, "veces": veces}
+        return con_fase(est, "esperando", "Reintento en %d min: %s." % (ESPERA_TRAS_TOPE_S // 60, detalle),
+                        ahora, pendientes=pendientes)
     if ok is None:
         return con_fase(est, "esperando", "Reintento: %s." % detalle, ahora, pendientes=pendientes)
+    est.pop("pruebas_tope", None)
     if not ok:
         m.avisar("Autopublicación frenada (%s): pruebas del puente en rojo.\n%s" % (head[:8], detalle[-800:]), tipo="aviso")
         return vetar(est, head, "pruebas del puente en rojo", ahora, evidencia=detalle)

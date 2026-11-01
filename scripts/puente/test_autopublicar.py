@@ -519,5 +519,76 @@ class CiRojoACola(unittest.TestCase):
         self.assertNotIn("heap out of memory", "".join(t["prompt"] for t in tareas))
 
 
+class TopeDeLasPruebas(unittest.TestCase):
+    """(SUP0111M) Pasar del tope no es rojo: se reintenta tras una espera y solo a la tercera vez
+    seguida con el mismo commit se veta (el 01-11 un tope vetó 51fb7aab y producción esperó 8 h)."""
+
+    TOPE = A.TOPE_PRUEBAS + ": el pytest de scripts/enjambre seguía a los 45 min"
+
+    def test_pasar_del_tope_espera_sin_vetar_y_avisa_una_vez(self):
+        m = Falso(pruebas=(None, self.TOPE))
+        e = A.pasada(m, {}, T0)
+        self.assertEqual(e["fase"], "esperando")
+        self.assertNotIn(SHA, e.get("vetados") or {})
+        self.assertEqual(e["pruebas_tope"], {"sha": SHA, "t": T0, "veces": 1})
+        self.assertEqual(len(m.avisos), 1)
+        self.assertIn("No es rojo", m.avisos[0])
+
+    def test_durante_la_espera_no_se_repiten_las_pruebas(self):
+        llamadas = []
+        m = Falso()
+        m.pruebas_python = lambda sha: llamadas.append(sha) or (None, self.TOPE)
+        e = A.pasada(m, {}, T0)
+        e = A.pasada(m, e, T0 + 600)
+        self.assertEqual(e["fase"], "esperando")
+        self.assertIn("reintento hacia las", e["detalle"])
+        self.assertEqual(len(llamadas), 1)
+        self.assertEqual(len(m.avisos), 1)
+
+    def test_a_la_tercera_vez_seguida_con_el_mismo_commit_se_veta(self):
+        m = Falso(pruebas=(None, self.TOPE))
+        e = A.pasada(m, {}, T0)
+        e = A.pasada(m, e, T0 + A.ESPERA_TRAS_TOPE_S)
+        self.assertEqual((e["fase"], e["pruebas_tope"]["veces"]), ("esperando", 2))
+        e = A.pasada(m, e, T0 + 2 * A.ESPERA_TRAS_TOPE_S)
+        self.assertEqual(e["fase"], "bloqueado")
+        self.assertEqual(e["vetados"][SHA], "pruebas del puente en rojo")
+        self.assertIn("3 veces seguidas", e["evidencia"]["texto"])
+        self.assertNotIn("pruebas_tope", e)
+
+    def test_en_verde_tras_un_tope_sigue_al_ci_y_olvida_el_tope(self):
+        m = Falso(pruebas=(None, self.TOPE))
+        e = A.pasada(m, {}, T0)
+        m.o["pruebas"] = (True, "ok")
+        e = A.pasada(m, e, T0 + A.ESPERA_TRAS_TOPE_S)
+        self.assertEqual(e["fase"], "ci")
+        self.assertNotIn("pruebas_tope", e)
+
+    def test_correr_pruebas_tiene_un_tope_para_todas_y_cortar_no_es_rojo(self):
+        import subprocess
+        reloj, vistos = [0.0], []
+
+        def correr(orden, timeout=None, **_k):
+            vistos.append((orden[0], round(timeout)))
+            if orden[0] == "uno":
+                reloj[0] += 1000  # la primera se come 1000 s del tope
+                return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+            raise subprocess.TimeoutExpired(orden, timeout, output=b"....F..", stderr=b"test_lento corriendo")
+
+        ok, detalle = A.correr_pruebas((("la primera", ["uno"]), ("la segunda", ["dos"])), "/tmp", {},
+                                       tope_s=2700, correr=correr, reloj=lambda: reloj[0])
+        self.assertIsNone(ok)
+        self.assertEqual(vistos, [("uno", 2700), ("dos", 1700)])
+        self.assertTrue(detalle.startswith(A.TOPE_PRUEBAS))
+        self.assertIn("la segunda", detalle)
+        self.assertIn("test_lento corriendo", detalle)
+
+    def test_correr_pruebas_en_rojo_devuelve_la_salida(self):
+        def correr(_orden, **_k):
+            return type("R", (), {"returncode": 1, "stdout": "1 failed", "stderr": ""})()
+        self.assertEqual(A.correr_pruebas((("x", ["x"]),), "/tmp", {}, tope_s=600, correr=correr),
+                         (False, "1 failed"))
+
+
 if __name__ == "__main__":
     unittest.main()
