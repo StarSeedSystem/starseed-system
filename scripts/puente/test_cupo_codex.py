@@ -35,6 +35,36 @@ class TestDeteccion(unittest.TestCase):
             self.assertTrue(C.agotado_en(t), t)
 
 
+#: Literal del log del 2026-10-23: la cuenta de ChatGPT no admite ese modelo.
+REAL_SIN_MODELO = (
+    '{"status":400, "error":{"message":"The \'gpt-5.6-sol\' model is not supported '
+    'when using Codex with a ChatGPT account."},"code":"model_not_found"}'
+)
+
+
+class TestSinModelo(unittest.TestCase):
+    def test_la_salida_real_del_23(self):
+        self.assertTrue(C.sin_modelo_en(REAL_SIN_MODELO))
+
+    def test_la_cuota_agotada_NO_es_sin_modelo(self):
+        # Causas opuestas: una espera 3 h, la otra aparta 24 h.
+        self.assertFalse(C.sin_modelo_en(REAL))
+
+    def test_no_confunde_otros_errores(self):
+        self.assertFalse(C.sin_modelo_en("ERROR: model 'gpt-9' does not exist"))
+        self.assertFalse(C.sin_modelo_en("error: the argument '--sandbox' cannot be used"))
+        self.assertFalse(C.sin_modelo_en(""))
+        self.assertFalse(C.sin_modelo_en(None))
+
+    def test_da_igual_como_lo_escriban(self):
+        t = "the 'gpt-5.5' model is not supported when using codex with a chatgpt account"
+        self.assertTrue(C.sin_modelo_en(t))
+        self.assertTrue(C.sin_modelo_en("MODEL_NOT_FOUND"))
+
+    def test_se_aparta_las_24h(self):
+        self.assertEqual(C.HORAS_SIN_MODELO, 24.0)
+
+
 class TestVigencia(unittest.TestCase):
     def test_recien_anotado_sigue_agotado(self):
         marca = {"hasta": C.hasta_cuando(AHORA)}

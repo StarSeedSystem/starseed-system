@@ -321,8 +321,12 @@ except Exception:  # sin el módulo, se comporta como antes
             return False
 
         @staticmethod
-        def anotar(motivo=""):
+        def anotar(motivo="", horas=3.0):
             return 0
+
+        @staticmethod
+        def sin_modelo_en(salida):
+            return False
 
 
 MODELOS_CODEX = ["codex/gpt-5.6-sol"]
@@ -7728,6 +7732,36 @@ def ejecutar(t, intento=1):
         if reaccion == "red":
             return
         if reaccion in ("pasarela", "cuota"):
+            continue
+        # (2026-10-28, DEC1028C) Modelo no admitido con la cuenta de ChatGPT:
+        # «The 'gpt-5.6-sol' model is not supported when using Codex with a
+        # ChatGPT account», también con `-m gpt-5.5`. Causa distinta del
+        # agotamiento: no se repone en ventanas, así que 24 h de apartamiento.
+        # Con `-m gpt-5.6-sol` cada tarea de Codex gastaba su primer intento y
+        # acababa `sin_cambios` (ojo las 8 de DEC1028A). Como una pasarela
+        # caída: `continue` SIN contar intento.
+        if modelo in MODELOS_CODEX and _cupo_codex.sin_modelo_en(out):
+            try:
+                minutos = _cupo_codex.anotar(
+                    "cuenta de ChatGPT sin Codex para %s" % modelo,
+                    horas=getattr(_cupo_codex, "HORAS_SIN_MODELO", 24.0),
+                )
+            except Exception:
+                minutos = 0
+            for _m in list(MODELOS_CODEX):
+                if _m in MODELOS:
+                    MODELOS.remove(_m)
+            # Fuera también de la rotación de ESTA tarea (lo que hace
+            # reaccionar_al_fallo por su cuenta en pasarela/cuota): si no, la
+            # vuelta lo reelegiría y volvería a fallar sin gastar intento.
+            pendientes[:] = [m for m in pendientes if m not in MODELOS_CODEX]
+            evento(
+                "proveedor_caido",
+                tid,
+                "Codex: la cuenta de ChatGPT no admite %s; fuera de la rotación "
+                "%d h (las demás tareas ya no lo intentan, sin gastar intento)"
+                % (modelo, minutos // 60),
+            )
             continue
         # Agotamiento de la suscripción de ChatGPT: se anota para que las tareas
         # siguientes no repitan la espera, y Codex sale de la rotación de esta ola.
