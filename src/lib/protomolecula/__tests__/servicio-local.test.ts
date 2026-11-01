@@ -118,3 +118,25 @@ describe("servicio-local · lanzador nativo (lista blanca y confirmación siempr
     expect(pedirLanzamiento("krita", { ...ctx, appNativa: false, confirmado: true })).toEqual({ estado: "proximamente", motivo: "próximamente: no hay app nativa conectada" });
   });
 });
+
+// Rescate de la rama nube/41237713333 (HFR1018H): hyperframes entre los servicios locales conocidos.
+// La rama declaraba rutaSalud "/salud" y tiempoMs 900_000; main decidó "/health" y tope de tiempo
+// por defecto (el propio servicio atiende /salud y /health en rutas.mjs): se comprueba el contrato de hoy.
+describe("servicio-local · hyperframes en los servicios locales conocidos", () => {
+  it("definición válida y salud solo en 127.0.0.1:4490 con la ruta de salud declarada", async () => {
+    const hf = SERVICIOS_CONOCIDOS.find((d) => d.id === "hyperframes");
+    expect(hf).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/health" });
+    expect(validarDefinicion(hf!)).toBeNull();
+    const f = vi.fn<FetchLocal>(async () => resp(200, '{"vivo":true}'));
+    const s = await sondearServicio(hf!, f);
+    expect(s).toMatchObject({ vivo: true });
+    expect(f.mock.calls).toHaveLength(1);
+    const [url, init] = f.mock.calls[0] as [string, PeticionLocal];
+    const destino = new URL(url);
+    expect(destino.hostname).toBe("127.0.0.1");
+    expect(Number(destino.port)).toBe(4490);
+    expect(destino.pathname).toBe("/health");
+    expect(init).toMatchObject({ method: "GET" });
+    expect(init.headers.authorization).toBeUndefined();
+  });
+});
