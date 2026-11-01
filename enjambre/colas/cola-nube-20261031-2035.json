@@ -1,0 +1,61 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "RESC1031D",
+   "titulo": "Rescates · traer_nube.base_de con ids que acaban en minúscula",
+   "archivos": [
+    "scripts/puente/traer_nube.py",
+    "scripts/puente/test_traer_nube.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\n`traer_nube.base_de(tid)` corta mal los ids cuyo final es una minúscula de la propia tarea (p. ej. `RTESP1011Bb`, `SGO1031B-d1`, `MC1013TCc`): distingue el sufijo de rescate/derivación (`-d1`, `-d2b`, prefijos `RT`) de la letra que forma parte del id. Pruebas con esos casos y los que ya existen.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "CAD1031B",
+   "titulo": "Relé de estaciones · documentar miembros(tema) y el servidor WebSocket",
+   "archivos": [
+    "architecture/estaciones-en-vivo-parametricas.md",
+    "src/lib/estaciones/canal-rele.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nCAD1031A (d3ecc616d y e091828ab) añadió `miembros(tema)` en `servicios/estaciones-rele/salas.mjs` y el servidor WebSocket `servicios/estaciones-rele/servidor.mjs` (ping cada 30 s, corte de quien no contesta, oyente con más de 1 MiB pendiente se salta). Actualiza §4.1 y §4.3 de la arquitectura y la cabecera de `canal-rele.ts` para que digan lo que hay. Solo documentación: el despliegue (compose y Caddy) es SOLO con la palabra de Alex, no lo toques.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "SUP0111B",
+   "importancia": "capacidad",
+   "titulo": "Reconstructor · aparta a cuarentena los .ts/.tsx SIN git de src/ que no transpilan (incidente del 31-10)",
+   "archivos": [
+    "scripts/puente/cuarentena_sin_git.py",
+    "scripts/puente/test_cuarentena_sin_git.py",
+    "scripts/puente/reconstruir_mando.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nEl 31-10 a las 13:59 apareció en el checkout vivo `src/app/mando/page.tsx` SIN git y con JSX inválido (dos hermanos en un `map` sin fragmento): todas las builds, Mac y A1 (el envío al A1 lleva el árbol de trabajo), fallaron durante horas. Crea `cuarentena_sin_git.py` con: (1) PURA `candidatos(lineas)` que, de la salida de `git ls-files --others --exclude-standard -- src`, se queda con .ts/.tsx/.js/.jsx/.mjs; (2) `transpila(raiz, ruta)` con `node_modules/.bin/esbuild <ruta> --log-level=error --outfile=/dev/null` (sin bundle; loader por extensión): True/False, o None si no hay esbuild (entonces no se decide nada); (3) `revisar(raiz)` que MUEVE (os.renames, nunca borrar) cada candidato que NO transpila a `~/.starseed/cuarentena/<AAAAMMDD-HHMM>-sin-git/<ruta relativa>` y avisa con `puente.decir(texto, 'reconstruir', 'aviso')` como hace guardia-memoria.py. En `reconstruir_mando.una_pasada()`, al principio, llama a `revisar(RAIZ)` dentro de try/except: nunca debe tumbar al reconstructor. Pruebas con un repo git temporal: un .tsx roto sin git se aparta; uno válido sin git se queda; uno con git nunca se toca; sin esbuild no se mueve nada.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "RESC1031C",
+   "importancia": "capacidad",
+   "titulo": "Rescates · nodo_metagenesis no releva lo agotado ni rescata lo que está en alta capacidad",
+   "archivos": [
+    "scripts/puente/nodo_metagenesis.py",
+    "scripts/puente/nodo_metagenesis_logica.py",
+    "scripts/puente/test_nodo_metagenesis_logica.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nSeguimiento de RESC1031A (7d9c14c52): lo agotado queda `bloqueada` + `alta_capacidad`. Falta: (1) en `nodo_metagenesis._relevar`, no relevar tareas con `rescate_agotado` (o `alta_capacidad`) en su progreso; (2) en `nodo_metagenesis_logica.candidatos_rescate`, excluir las que estén en alta capacidad (`en_alta_capacidad`). Pruebas PURAS en test_nodo_metagenesis_logica.py.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "RESC1031C",
+   "SUP0111B",
+   "CAD1031B",
+   "RESC1031D"
+  ]
+ }
+}
