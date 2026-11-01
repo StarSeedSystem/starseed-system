@@ -184,6 +184,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Users,
   // Tanda 1027 (Mausbot, neurona insomne y Colibri)
   MousePointer2, Bird,
+  // Tanda 1027b (Meta^n y Memvid)
+  Repeat, Film,
 };
 
 /** Id del repo builtin de Herramientas IA & Agentes (para la sección destacada). */
