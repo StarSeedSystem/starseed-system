@@ -1,0 +1,14 @@
+{
+ "google": {
+  "sin_cupo_hasta": "2026-11-02 02:00:11",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "openrouter": {
+  "sin_cupo_hasta": "2026-11-01 18:00:11",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "xkiro": {
+  "sin_cupo_hasta": "2026-11-01 18:00:11",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ }
+}
