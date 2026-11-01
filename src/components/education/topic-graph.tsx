@@ -718,6 +718,7 @@ export function TopicGraph() {
                 }
                 if (creados === 0) {
                     toast.error("Inicia sesión para importar documentos a tu mapa de conocimiento.", {
+                        description: "Tu cuenta StarSeed es el ancla soberana de lo que guardas.",
                         action: { label: "Conoce StarSeed", onClick: () => abrirGuia({ desde: "aviso" }) },
                     });
                     return;
