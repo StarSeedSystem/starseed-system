@@ -49,14 +49,18 @@ describe("Almacén de ADN de Avatar (AV1011)", () => {
     expect(entry!.id).toBe("test-adn-1");
     expect(entry!.kind).toBe("avatar-adn");
     expect(entry!.visibilidad).toBe("privado");
+    await removeAdnFromLibrary("biblioteca:test-adn-1");
   });
 
   it("parsea el raw JSON a AdnAvatar", async () => {
     await saveAdnToLibrary(adnDePrueba, "privado");
-    const parsed = await parseAdnEntry((await loadAdnEntry("biblioteca:test-adn-1"))!);
+    const entry = await loadAdnEntry("biblioteca:test-adn-1");
+    expect(entry).not.toBeNull();
+    const parsed = await parseAdnEntry(entry!);
     expect(parsed).not.toBeNull();
     expect(parsed!.id).toBe("test-adn-1");
     expect(parsed!.nombre).toBe("Avatar de Prueba");
+    await removeAdnFromLibrary("biblioteca:test-adn-1");
   });
 
   it("valida el ADN con sanearAdn", () => {
