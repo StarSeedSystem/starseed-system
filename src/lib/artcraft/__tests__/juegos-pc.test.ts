@@ -157,6 +157,16 @@ describe("Rare: ficha viva del catálogo, programa aparte y credenciales de Epic
     }
   });
 
+  it("solo se actualiza desde github.com/RareDevs/Rare con su filtro de versiones", () => {
+    const h = rare();
+    expect(h.codigo).toBe("https://github.com/RareDevs/Rare");
+    expect(h.actualizacion).toMatchObject({ fuente: "github-tags", ref: "RareDevs/Rare" });
+    const { filtro, ultimaVersion } = h.actualizacion;
+    expect(filtro).toBeTruthy();
+    expect(ultimaVersion).not.toBeNull();
+    expect(ultimaVersion ?? "").toMatch(new RegExp(filtro ?? ""));
+  });
+
   it("nombra las descargas remotas sin huella que bloquea y solo permite el repo oficial de RareDevs", () => {
     const ficha = rare();
     const avisos = (ficha.avisos ?? []).join(" ");
