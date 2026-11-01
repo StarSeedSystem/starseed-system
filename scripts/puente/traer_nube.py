@@ -219,9 +219,34 @@ def elegir_por_tarea(entradas):
     return salida
 
 
+#: (RESC1031D) Sufijo de derivación al final de un id: `-d1`, `-d2b` y los encadenados (`-d3d-d3b`).
+_DERIVACION = re.compile(r"-d\d+[a-z]?$")
+#: (RESC1031D) Tanda de reintento al final de un id (`b`, `bb`, `ab`, `dsb`…).
+_REINTENTO = re.compile(r"[a-z]+$")
+
+
 def base_de(tid):
-    """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` de Genesis)."""
-    return tid[:-1] if re.search(r"[A-Z0-9][b-z]$", tid) else tid
+    """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` de Genesis).
+
+    (RESC1031D) Antes solo se cortaba UNA minúscula detrás de mayúscula o cifra: `…-d1` se quedaba
+    entero, `…dsb`/`…1ab` no se tocaban y `MC1013TCc` perdía una letra que es parte del id. Ahora se
+    quitan primero los sufijos de derivación (`-d1`, `-d2b`, encadenados) y después la tanda de
+    reintento, SOLO si va pegada a la cifra de la ola (`…1011B` + `b`) o a la letra que la sigue
+    (`…1011Bb`); una tanda detrás de una marca de varias mayúsculas (`MC1013TCc`) o de minúsculas
+    (`tOtra`) es parte del id y no se corta. El prefijo de rescate `RT` se conserva."""
+    t = str(tid or "")
+    anterior = None
+    while anterior != t:
+        anterior = t
+        t = _DERIVACION.sub("", t)
+        m = _REINTENTO.search(t)
+        if not m:
+            continue
+        antes = t[:m.start()]
+        if antes and (antes[-1].isdigit()
+                      or (antes[-1].isupper() and len(antes) > 1 and antes[-2].isdigit())):
+            t = antes
+    return t
 
 
 def siguiente_id(tid, conocidos):

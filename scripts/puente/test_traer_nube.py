@@ -243,6 +243,45 @@ class Sucesor(unittest.TestCase):
         self.assertFalse(T.es_rescate(None))
 
 
+class BaseDe(unittest.TestCase):
+    """(RESC1031D) El id base no se corta por una minúscula que forma parte del id: primero se
+    quitan los sufijos de derivación (`-d1`, `-d2b`, encadenados) y después la tanda de reintento,
+    solo si va pegada a la cifra de la ola (o a la letra que la sigue). El prefijo `RT` se queda."""
+
+    def test_los_de_siempre(self):
+        self.assertEqual(T.base_de("LC1004Bc"), "LC1004B")
+        self.assertEqual(T.base_de("LC1004B"), "LC1004B")
+        self.assertEqual(T.base_de("p318Jc"), "p318J")
+        self.assertEqual(T.base_de("c313_QW4"), "c313_QW4")
+        self.assertEqual(T.base_de("MGP1010-7F3A2C"), "MGP1010-7F3A2C")
+        self.assertEqual(T.base_de("OPO1011T1"), "OPO1011T1")
+        self.assertEqual(T.base_de("S1010-TU-LL1c"), "S1010-TU-LL1")
+        self.assertEqual(T.base_de(None), "")
+
+    def test_sufijo_de_derivacion(self):
+        self.assertEqual(T.base_de("SGO1031B-d1"), "SGO1031B")
+        self.assertEqual(T.base_de("SGO1031B-d2b"), "SGO1031B")
+        self.assertEqual(T.base_de("CPA1007Kb-d1b"), "CPA1007K")
+        self.assertEqual(T.base_de("RTGN1010A-d3d-d3b"), "RTGN1010A")
+        self.assertEqual(T.base_de("RTFS1013Ad-d2c"), "RTFS1013A")
+        self.assertEqual(T.base_de("RTS1010-MGR3d-d1c"), "RTS1010-MGR3")
+
+    def test_prefijo_rt_y_tandas_de_reintento(self):
+        self.assertEqual(T.base_de("RTESP1011Bb"), "RTESP1011B")
+        self.assertEqual(T.base_de("RTRTCOL1012Bdsb"), "RTRTCOL1012B")
+        self.assertEqual(T.base_de("RTRTRTS1010-EV-ORACLE-1ab"), "RTRTRTS1010-EV-ORACLE-1")
+        self.assertEqual(T.base_de("RTRTRTRTRTS1010-EV-ORACLE-1acb-d2b"),
+                         "RTRTRTRTRTS1010-EV-ORACLE-1")
+        self.assertEqual(T.base_de("CU3br"), "CU3")
+
+    def test_la_letra_que_forma_parte_del_id_no_se_corta(self):
+        # `MC1013TCc`: la minúscula va detrás de una marca de varias mayúsculas (TC), no de la
+        # cifra de la ola; es parte del id. Lo mismo con ids que ya son minúsculas (`tOtra`).
+        self.assertEqual(T.base_de("MC1013TCc"), "MC1013TCc")
+        self.assertEqual(T.base_de("tOtra"), "tOtra")
+        self.assertEqual(T.base_de("tReintento"), "tReintento")
+
+
 class Informe(unittest.TestCase):
     def test_pregunta_antes_de_borrar(self):
         t = T.texto_informe([], [], [{"rama": "nube/1/ola/RDV8", "tid": "RDV8", "motivo": "sustituida"}], [])
