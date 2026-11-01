@@ -50,9 +50,19 @@ describe("cambiosDeZona", () => {
     it("una zona borrada del mundo también se abandona", () => {
         expect(cambiosDeZona([], ahora("vieja", "otra"), [0, 0, 0]).sale).toEqual(["vieja", "otra"]);
     });
+    it("varias zonas a la vez: entra en una y abandona la que ya no existe", () => {
+        const caja = zona("caja", { tam: [2, 2, 2] });
+        const otra = zona("otra", { pos: [0, 1, -1] });
+        const r = cambiosDeZona([caja, otra], ahora("caja", "fantasma"), [0, 1, -0.9]);
+        expect(r.entra).toEqual(["otra"]);
+        expect(r.sale).toEqual(["fantasma"]);
+    });
 });
 
 describe("efectosActivos", () => {
+    it("sin zonas activas todo está apagado", () => {
+        expect(efectosActivos([zona("a")], ahora())).toEqual(SIN_EFECTOS);
+    });
     it("punto-reunión se anuncia pero no cambia ningún efecto", () => {
         const z = zona("reunion", { efecto: "punto-reunion" });
         const r = cambiosDeZona([z], ahora(), [0, 0, 0]);

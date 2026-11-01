@@ -58,6 +58,13 @@ describe("fuentesDeMapaXR", () => {
     };
     expect(fuentesDeMapaXR(mapa)).toHaveLength(1);
   });
+  it("descarta gestos, teclas y frases: solo el mando produce fuentes", () => {
+    const mapa: MapaEntrada = {
+      seleccionar: [{ tipo: "gesto", gesto: "pellizco", mano: "cualquiera" }],
+      salir: [{ tipo: "tecla", codigo: "Escape" }, { tipo: "frase", texto: "salir" }],
+    };
+    expect(fuentesDeMapaXR(mapa)).toEqual([]);
+  });
 });
 
 describe("rangoAGesto", () => {
@@ -67,6 +74,16 @@ describe("rangoAGesto", () => {
   it("respeta el paso y la curva invertida", () => {
     expect(rangoAGesto({ ...VOLUMEN, paso: 10 }, 0.53)).toBe(50);
     expect(rangoAGesto(VOLUMEN, 0.2, { ...CURVA_LINEAL, invertir: true })).toBe(80);
+  });
+  it("acota fuera de 0..1 y respeta los enteros", () => {
+    expect(rangoAGesto(VOLUMEN, -3)).toBe(0);
+    expect(rangoAGesto(VOLUMEN, 9)).toBe(100);
+    expect(rangoAGesto({ ...VOLUMEN, tipo: "entero" }, 0.333)).toBe(33);
+  });
+  it("la curva log responde antes que la lineal", () => {
+    const log = { ...CURVA_LINEAL, forma: "log" as const };
+    expect(rangoAGesto(VOLUMEN, 0.5)).toBe(50);
+    expect(rangoAGesto(VOLUMEN, 0.5, log)).toBeGreaterThan(50);
   });
   it("interruptores y opciones se resuelven con la misma curva", () => {
     expect(rangoAGesto({ id: "eco", nombre: "Eco", tipo: "booleano" }, 0.7)).toBe(true);
@@ -111,5 +128,20 @@ describe("aplicarEnVisor", () => {
     expect(aplicarEnVisor(controladorFalso({ ambito: "grupo", mover: okMover() }), REF, op({ tipo: "exacta", valor: 50 })).ok).toBe(true);
     const rechazo = controladorFalso({ mover: () => ({ ok: false, motivo: "Parámetro desconocido: fantasma" }) });
     expect(aplicarEnVisor(rechazo, { atomoId: "x", parametroId: "fantasma" }, op({ tipo: "exacta", valor: 1 }))).toEqual({ ok: false, motivo: "Parámetro desconocido: fantasma" });
+  });
+  it("la misma operación de agente en un espacio personal sí se aplica", () => {
+    const mover = okMover();
+    const r = aplicarEnVisor(controladorFalso({ ambito: "personal", mover }), REF, op({ tipo: "exacta", valor: 50 }, AGENTE, "agente"));
+    expect(r.ok).toBe(true);
+    expect(mover).toHaveBeenCalledTimes(1);
+  });
+  it("un deslizador al 50 % se aplica como operación exacta", () => {
+    const valor = rangoAGesto(VOLUMEN, 0.5);
+    expect(valor).toBe(50);
+    const mover = okMover();
+    const r = aplicarEnVisor(controladorFalso({ mover }), REF, op({ tipo: "exacta", valor }));
+    expect(r.ok).toBe(true);
+    expect(mover).toHaveBeenCalledTimes(1);
+    expect(mover.mock.calls[0][0].accion).toEqual({ tipo: "exacta", valor: 50 });
   });
 });
