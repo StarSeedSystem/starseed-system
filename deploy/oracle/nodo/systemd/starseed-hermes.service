@@ -1,0 +1,49 @@
+[Unit]
+Description=StarSeed · gateway de Hermes en el A1 (IND1029G): el puente, no el motor
+After=network-online.target starseed-medio.service starseed-freellmapi.service
+Wants=network-online.target
+# requiere: /home/starseed/.local/bin/hermes
+# requiere: /opt/starseed/nodo/hermes_arranque.py
+# requiere: /home/starseed/.hermes/config.yaml
+# requiere: /home/starseed/starseed-system/scripts/puente/lider_direccion.py
+# requiere: /usr/bin/python3
+#
+# (IND1029G) Hermes es el PUENTE, no el motor (architecture/metagenesis-autonoma.md §2): este
+# gateway sirve el chat del director y sus conectores. Lo instala `oracle_nodo.py hermes --aplicar`
+# con el instalador oficial para Linux, como el usuario del servicio; su `config.yaml` NO lleva
+# claves (el modelo `freellmapi/auto` va contra el FreeLLMAPI del propio A1 y las claves se leen
+# del entorno). Aquí solo van NOMBRES de variable.
+#
+# TELEGRAM: la encuesta (`getUpdates`) es única por bot. Dos encuestas del mismo bot, en la misma
+# neurona o en dos, se pisan (Telegram contesta 409 Conflict) y el bot deja de contestar. Por eso
+# el arranque es `hermes_arranque.py`: levanta el gateway SOLO cuando esta neurona tiene el
+# arriendo `direccion.lider`, y lo para cuando el arriendo es de otra. Sin puerta o sin red,
+# `lider_direccion` da líder en local y se sigue como hoy.
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed/starseed-system
+Environment=STARSEED_MEDIO=oracle STARSEED_DONDE=oracle STARSEED_ROOT=/home/starseed/starseed-system
+Environment=PATH=/home/starseed/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+# La bóveda del A1 (600, del usuario del servicio): trae las claves del gateway y el token del bot.
+# El archivo es opcional: sin él el gateway arranca y lo dice, no se cae en bucle.
+EnvironmentFile=-/home/starseed/.starseed/env
+ExecStart=/usr/bin/python3 -u /opt/starseed/nodo/hermes_arranque.py
+Restart=on-failure
+RestartSec=30
+# Al parar la unidad se para el grupo entero: no queda un gateway huérfano encuestando Telegram.
+KillMode=control-group
+TimeoutStopSec=60
+MemoryHigh=1500M
+MemoryMax=2G
+CPUWeight=50
+Nice=10
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
