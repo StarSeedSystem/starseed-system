@@ -145,9 +145,21 @@ if __name__ == "__main__":                         # uso: reconciliar_progreso.p
     vivo = any(re.match(r"^[^ ]*[Pp]ython[0-9.]* +-u +.*starseed-enjambre\.py", l)
                for l in subprocess.run(["ps", "-eo", "args"], capture_output=True, text=True).stdout.splitlines())
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    nuevo, cambios = reconciliar(json.load(open(ruta, encoding="utf-8")), asuntos, vivo,
-                                 ids_en_colas=ids_de_colas_fuente(os.path.dirname(ruta)))
-    print("\n".join(cambios) or "nada que reconciliar")
-    if "--aplicar" in sys.argv and cambios:
-        json.dump(nuevo, open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-        print("aplicados %d cambios" % len(cambios))
+    import fcntl
+    import importlib.util
+    # (SUP0111P) La misma lectura entera y escritura atómica que `puente.py integrada` (por ruta: con
+    # el repo en el path, `import puente` podría ser la carpeta scripts/puente).
+    _espec = importlib.util.spec_from_file_location("puente_cli", os.path.join(os.path.dirname(os.path.abspath(__file__)), "puente.py"))
+    puente = importlib.util.module_from_spec(_espec)
+    _espec.loader.exec_module(puente)
+    os.makedirs(os.path.dirname(puente.CERROJO_PROGRESO), exist_ok=True)
+    with open(puente.CERROJO_PROGRESO, "a") as cerrojo:  # el cerrojo del orquestador: nadie escribe en medio
+        fcntl.flock(cerrojo, fcntl.LOCK_EX)
+        actual = puente.leer_json_entero(ruta)
+        if actual is None:
+            sys.exit("progreso.json no se pudo leer entero: no lo toco")
+        nuevo, cambios = reconciliar(actual, asuntos, vivo, ids_en_colas=ids_de_colas_fuente(os.path.dirname(ruta)))
+        print("\n".join(cambios) or "nada que reconciliar")
+        if "--aplicar" in sys.argv and cambios:
+            puente.escribir_json_atomico(ruta, nuevo)
+            print("aplicados %d cambios" % len(cambios))

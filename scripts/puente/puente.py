@@ -224,6 +224,51 @@ def cmd_chat(cual):
     return subprocess.call(orden, shell=True)
 
 
+CERROJO_PROGRESO = os.path.expanduser("~/.starseed/cerrojos/progreso.lock")
+
+
+def leer_json_entero(ruta, intentos=20, pausa_s=0.25):
+    """(SUP0111P) El JSON de `ruta`, {} si no existe, o None si no se pudo leer ENTERO. Antes una lectura
+    a medias (el orquestador escribía progreso.json sin os.replace) contaba como {} y `integrada`
+    escribía encima solo sus ids: 3.700 tareas borradas de un plumazo."""
+    for i in range(max(1, intentos)):
+        try:
+            with open(ruta, encoding="utf-8") as f:
+                datos = json.load(f)
+            return datos if isinstance(datos, dict) else None
+        except FileNotFoundError:
+            return {}
+        except Exception:
+            if i + 1 < intentos:
+                time.sleep(pausa_s)
+    return None
+
+
+def escribir_json_atomico(ruta, datos):
+    """(SUP0111P) A un temporal y os.replace: quien lea nunca ve medio archivo."""
+    tmp = "%s.tmp-%d" % (ruta, os.getpid())
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(datos, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, ruta)
+
+
+def marcar_en_progreso(ruta, ids, fila, cerrojo=None):
+    """(SUP0111P) Pone `fila` (con su hora) a cada id de progreso.json bajo el cerrojo de progreso (el
+    mismo del orquestador). → nº de ids, o None si no se pudo leer entero (entonces no escribe)."""
+    import fcntl
+    cerrojo = cerrojo or CERROJO_PROGRESO
+    os.makedirs(os.path.dirname(cerrojo), exist_ok=True)
+    with open(cerrojo, "a") as c:
+        fcntl.flock(c, fcntl.LOCK_EX)
+        d = leer_json_entero(ruta)
+        if d is None:
+            return None
+        for i in ids:
+            d[i] = dict(fila, t=time.strftime("%Y-%m-%d %H:%M:%S"))
+        escribir_json_atomico(ruta, d)
+    return len(ids)
+
+
 def cmd_integrada(ids, sha=""):
     """Avisa al orquestador de que una tarea YA esta en main.
 
@@ -234,15 +279,12 @@ def cmd_integrada(ids, sha=""):
     se quedo sin trabajo real creyendo que habia fallado.
     Regla: integrar por fuera y no decirlo aqui es dejar el enjambre a ciegas."""
     ruta = os.path.join(OLAS, "progreso.json")
-    try:
-        d = json.load(open(ruta, encoding="utf-8"))
-    except Exception:
-        d = {}
-    for i in ids:
-        d[i] = {"estado": "commit", "sha": sha or "integrada-fuera-del-orquestador",
-                "modelo": _quien(), "nota": "integrada en main desde un IDE",
-                "t": time.strftime("%Y-%m-%d %H:%M:%S")}
-    json.dump(d, open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    fila = {"estado": "commit", "sha": sha or "integrada-fuera-del-orquestador",
+            "modelo": _quien(), "nota": "integrada en main desde un IDE"}
+    if marcar_en_progreso(ruta, ids, fila) is None:
+        print("progreso.json no se pudo leer entero (alguien lo está escribiendo): no lo toco. "
+              "Repite la orden en un momento.")
+        return 1
     decir("integradas en main: %s" % ", ".join(ids), None, "hecho")
     print("Marcadas como integradas: %s\nEl enjambre ya no las reintenta ni bloquea a sus dependientes."
           % ", ".join(ids))
@@ -312,16 +354,16 @@ def orden(accion, ids, extra=None):
     # «control-cola-310-….json.json», un archivo que nadie lee nunca. Estuvo asi desde el
     # primer dia: ninguna orden de aprobar, soltar o reasignar llego al vigilante.
     ruta = os.path.join(OLAS, "control-%s.json" % (cola[:-5] if cola.endswith(".json") else cola))
-    try:
-        d = json.load(open(ruta, encoding="utf-8"))
-    except Exception:
-        d = {}
+    d = leer_json_entero(ruta)  # (SUP0111P) una lectura a medias ya no tira las órdenes que había
+    if d is None:
+        print("%s no se pudo leer entero: no lo toco. Repite la orden en un momento." % os.path.basename(ruta))
+        return 1
     quien = os.environ.get("STARSEED_IDE") or "ide"
     for i in ids:
         d[i] = {"accion": accion, "quien": quien, "t": time.strftime("%Y-%m-%d %H:%M:%S")}
         if extra:
             d[i].update(extra)
-    json.dump(d, open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    escribir_json_atomico(ruta, d)
     aviso = "orden «%s» → %s" % (accion, ", ".join(ids))
     if extra: aviso += " (%s)" % ", ".join("%s=%s" % kv for kv in extra.items())
     decir(aviso, quien, "aviso")
