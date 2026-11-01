@@ -5,13 +5,16 @@
  * El catálogo se fusiona en el cliente (local primero) y el almacenamiento se inyecta con
  * `almacenNavegador`; no hay red ni valores de claves. El padre decide si aplica o propone. */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   AsignacionesPanel,
   filasSugeridas,
   type FilaPanel,
   type ModoPanel,
 } from "./asignaciones-panel";
+import { AsistenteConectores, type EntradaEstadoCloudroom } from "./asistente-conectores";
+import { asignacionesDesdeFilas } from "@/lib/genesis/conectores/opciones-ambito";
+import { sugerirParaAmbito } from "@/lib/genesis/conectores/sugerir";
 import { fusionarCatalogos, type OpcionCatalogo } from "@/lib/genesis/conectores/catalogo-opciones";
 import { CONTENEDORES_OPCIONES, type ContenedorOpcion } from "@/lib/genesis/conectores/contenedores";
 import { PROVEEDORES_CATALOGO } from "@/lib/mando/proveedores-catalogo";
@@ -86,18 +89,40 @@ export function cargarAsignaciones(ambito: string): FilaPanel[] | null {
   }
 }
 
+/** Estado honesto de Cloudroom que cada página puede aportar; sin datos no se inventa nada. */
+export type CloudroomDePanel = Omit<EntradaEstadoCloudroom, "sugerencias"> & { relevante?: boolean };
+
 export function SeccionAsignacionesGenesis({
   ambito,
   titulo,
   modo = "aplicar",
   onGuardar,
+  cloudroom,
 }: {
   ambito: string;
   titulo: string;
   modo?: ModoPanel;
   onGuardar: (filas: FilaPanel[]) => void | Promise<void>;
+  cloudroom?: CloudroomDePanel;
 }) {
   const [iniciales] = useState<FilaPanel[]>(() => cargarAsignaciones(ambito) ?? filasSugeridas(CATALOGO_GENESIS));
+  const sugerencias = useMemo(() => {
+    const filas = filasSugeridas(CATALOGO_GENESIS).filter((fila) => fila.tipo === "papel");
+    return sugerirParaAmbito({
+      asignaciones: asignacionesDesdeFilas(filas.map((fila) => ({ clave: fila.clave, cadena: { cadena: fila.cadena } }))),
+      catalogo: CATALOGO_GENESIS,
+      ofertas: [{
+        id: "esta-neurona",
+        nombre: "Esta neurona",
+        tipo: "contenedor",
+        papel: ["código"],
+        escritorioCompatible: cloudroom?.instalacion === "instalada",
+      }],
+      vinculadas: new Set<string>(),
+      contenedores: CONTENEDORES_OPCIONES,
+      relevanteCloudroom: cloudroom?.relevante === true,
+    });
+  }, [cloudroom?.instalacion, cloudroom?.relevante]);
   return (
     <section aria-label="Asignaciones por papel y director">
       <h2 className="text-base font-semibold">{titulo}</h2>
@@ -106,6 +131,7 @@ export function SeccionAsignacionesGenesis({
           ? "En democracia, guardar convierte tus cadenas en una propuesta que la entidad vota; nada se aplica hasta que se apruebe."
           : "Guarda la cadena por defecto de cada papel y director de este ámbito; lo local va primero y de pago solo con permiso."}
       </p>
+      <AsistenteConectores className="mb-3" entrada={{ ...cloudroom, sugerencias }} />
       <AsignacionesPanel catalogo={CATALOGO_GENESIS} modo={modo} filasIniciales={iniciales} onGuardar={onGuardar} />
       <div className="mt-4">
         <ClaudeConector urlMcp={urlMcpDelGenesis()} />
