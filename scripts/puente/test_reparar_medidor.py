@@ -145,6 +145,37 @@ class Reparar(unittest.TestCase):
         self.assertEqual(hechas, [1, 1])
 
 
+class MemoriaAlta(unittest.TestCase):
+    def test_presion_alta_libera_recursos(self):
+        libres = {"libres_mb": 50, "presion_nucleo": 2, "mensaje": "RAM 50 MB libre · presión de kernel nivel 2"}
+        hecho, mensaje = R.presion_alta_y_librar()
+        self.assertTrue(hecho)
+        self.assertIn("RAM 50 MB libre", mensaje)
+        self.assertIn("presión de kernel nivel 2", mensaje)
+
+    def test_memoria_critica_corta_huerfanos(self):
+        libres = {"libres_mb": 80, "presion_nucleo": None, "mensaje": "RAM 80 MB libre"}
+        hecho, mensaje = R.presion_alta_y_librar()
+        self.assertTrue(hecho)
+        self.assertIn("RAM 80 MB libre", mensaje)
+
+    def test_sin_presion_no_hace_nada(self):
+        libres = {"libres_mb": 800, "presion_nucleo": None, "mensaje": ""}
+        hecho, mensaje = R.presion_alta_y_librar()
+        self.assertFalse(hecho)
+        self.assertEqual(mensaje, "")
+
+    def test_libres_mb_none_devuelve_falso(self):
+        hecho, mensaje = R.presion_alta_y_librar()
+        self.assertFalse(hecho)
+
+
+class ResumenConMemoriaAlta(unittest.TestCase):
+    def test_frase_indica_memoria_alta_luego_de_liberar(self):
+        resumen = R.frase("genesis", "sigue", [], "Genesis no contesta: la Mac está sin memoria: RAM 50 MB libre")
+        self.assertIn("la Mac está sin memoria", resumen)
+
+
 if __name__ == "__main__":
     unittest.main()
 

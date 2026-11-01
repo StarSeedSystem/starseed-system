@@ -195,31 +195,42 @@ def frase(clave: str, res: str, hechas: List[Dict[str, Any]], resumen_despues: s
     return "«%s» %s · %d de %d acción(es) bien · ahora: %s" % (clave, cabeza, bien, len(hechas), resumen_despues)
 
 
+def hay_presion_memoria(libre_mb: Optional[float], presion: Optional[int]) -> bool:
+    """PURA: ¿hay presión de memoria alta? Presión de kernel >= 2 o RAM < 100 MB."""
+    if presion is not None and presion >= 2:
+        return True
+    return libre_mb is not None and libre_mb < 100
+
+
+def mensaje_presion_memoria(libre_mb: Optional[float], presion: Optional[int]) -> str:
+    """PURA: mensaje que explica la presión de memoria."""
+    if presion is not None and presion >= 2:
+        return "la Mac está sin memoria: presión de kernel nivel %d" % presion
+    if libre_mb is not None and libre_mb < 100:
+        return "la Mac está sin memoria: RAM %d MB libre" % libre_mb
+    return ""
+
+
 def presion_alta_y_librar() -> Tuple[bool, str]:
     """Verifica si hay presión de memoria alta y libera recursos si es necesario.
     
     Retorna (hubo_presion_alta, mensaje). Si hay presión alta, intenta liberar
-    memoria congelando BitNet, matando procesos huérfanos y despertando tts-server."""
+    memoria: dormir BitNet; cortar trabajadores huérfanos con `agentes_huerfanos`."""
     libre = libres_mb()
     presion = presion_nucleo()
-    mensaje = ""
+    
+    if not hay_presion_memoria(libre, presion):
+        return False, ""
+    
+    mensaje = mensaje_presion_memoria(libre, presion)
+    barrer_trabajadores_huerfanos()
     
     if presion is not None and presion >= 2:
-        mensaje = "presión de kernel nivel %d" % presion
-        # Forzar liberación: matar procesos huérfanos y dormir BitNet
-        barrer_trabajadores_huerfanos()
-        # Pedir a Astraura que duerma BitNet para liberar ~800 MB
         ok, _ = pedir_dormir_bitnet(URL_ASTRAURA)
         if ok:
-            mensaje += " · BitNet dormido"
+            mensaje = mensaje + "· BitNet dormido"
         else:
-            mensaje += " · no se pudo dormir BitNet"
-    elif libre is not None and libre < 100:
-        mensaje = "RAM %d MB libre" % libre
-        # Matar procesos huérfanos que retengan memoria
-        barrer_trabajadores_huerfanos()
-    else:
-        return False, ""
+            mensaje = mensaje + "· no se pudo dormir BitNet"
     
     return True, mensaje
 
