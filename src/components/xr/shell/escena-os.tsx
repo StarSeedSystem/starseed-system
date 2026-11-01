@@ -39,6 +39,9 @@ const HorizonDinamico = nextDynamic(() => import("./horizon-montado").then((m) =
 /** Página declarativa (UiSpec, §3 b escalón 2): la pinta `uispec-uikit`; carga perezosa como el resto. */
 const UiSpec3DDinamico = nextDynamic(() => import("./uispec-uikit").then((m) => m.UiSpec3D), { ssr: false });
 
+/** Comodidad (XR1010F, §3 j): viñeta al mover la cabeza, giros por saltos y subtítulos de Aurora. */
+const ComodidadMontadaDinamica = nextDynamic(() => import("./comodidad-montada").then((m) => m.ComodidadMontada), { ssr: false });
+
 export interface CapaUiSpec { forma?: string; uiSpec?: unknown }
 
 /** El UiSpec del ÚLTIMO widget de capa (lo publica Astraura): la página declarativa que toca pintar. */
@@ -163,6 +166,7 @@ export function EscenaOS({ modo = null }: Props) {
                         alturaOjosMedida={alturaOjosMedida}
                         contenido={{ zenith: <OrbeVozDinamico />, horizon: <HorizonDinamico />, logic: pagina !== null ? <UiSpec3DDinamico spec={pagina} /> : null }}
                     />
+                    <ComodidadMontadaDinamica modo={modoTrinity(modoUrl, plan)} alturaOjosMedida={alturaOjosMedida} />
                     {!enSesion && <OrbitControls />}
                 </Suspense>
             </Canvas>
