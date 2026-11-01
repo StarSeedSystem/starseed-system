@@ -111,6 +111,25 @@ describe("cargarSplat", () => {
         expect(resultado).toEqual({ ok: false, motivo: MOTIVO_URL_INSEGURA });
     });
 
+    it("una respuesta con Content-Length enorme se rechaza sin descargar el cuerpo", async () => {
+        const fetchOriginal = globalThis.fetch;
+        let descargas = 0;
+        globalThis.fetch = (async () => ({
+            ok: true,
+            status: 200,
+            headers: new Headers({ "content-length": String(MAX_BYTES_SPLAT + 1) }),
+            arrayBuffer: async () => { descargas += 1; return new ArrayBuffer(0); },
+        })) as unknown as typeof fetch;
+        try {
+            const resultado = await cargarSplat(URL, { SplatMesh: MallaFalsa });
+            expect(resultado.ok).toBe(false);
+            if (!resultado.ok) expect(resultado.motivo).toContain(MOTIVO_SPLAT_GRANDE);
+            expect(descargas).toBe(0);
+        } finally {
+            globalThis.fetch = fetchOriginal;
+        }
+    });
+
     it("con url y bytes válidos crea la malla con el presupuesto del nivel", async () => {
         MallaFalsa.ultima = null;
         const resultado = await cargarSplat(URL, {
