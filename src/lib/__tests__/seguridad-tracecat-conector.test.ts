@@ -42,6 +42,10 @@ describe("validarDestino", () => {
     expect(validarDestino("no es una url").ok).toBe(false);
     expect(validarDestino("https://tracecat.example.org/" + "a".repeat(2048)).ok).toBe(false);
   });
+
+  it("rechaza la URL vacía aunque sea cadena", () => {
+    expect(validarDestino("").ok).toBe(false);
+  });
 });
 
 describe("firmarCuerpo", () => {
@@ -83,6 +87,13 @@ describe("prepararEnvio", () => {
     expect(resultado.init.headers[CABECERAS_TRACECAT.firma]).toBe(firma);
   });
 
+  it("conserva la URL del destino completa, con su ruta", async () => {
+    const resultado = await prepararEnvio(EVENTO, DESTINO, SECRETO, AHORA);
+    expect(resultado.ok).toBe(true);
+    if (!resultado.ok) return;
+    expect(resultado.url.toString()).toBe(DESTINO);
+  });
+
   it("rechaza un destino inválido y un cuerpo de más de 16 KB", async () => {
     expect((await prepararEnvio(EVENTO, "http://example.org/hook", SECRETO, AHORA)).ok).toBe(false);
     const grande = { ...EVENTO, resumen: "x".repeat(17_000) };
@@ -101,5 +112,10 @@ describe("describirEnvio", () => {
     expect(texto).toContain(firma.slice(0, 6) + "…");
     expect(texto).not.toContain(SECRETO);
     expect(texto.toLowerCase()).toContain("tracecat");
+  });
+
+  it("menciona el identificador del evento para saber cuál saldría", async () => {
+    const texto = await describirEnvio(EVENTO, DESTINO, SECRETO, AHORA);
+    expect(texto).toContain(EVENTO.id);
   });
 });
