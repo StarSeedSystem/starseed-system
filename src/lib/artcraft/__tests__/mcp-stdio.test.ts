@@ -53,6 +53,12 @@ describe("ClienteMcpStdio", () => {
     transporte.responder(transporte.ultima.id, { content: [{ type: "text", text: "ho" }, { type: "text", text: "la" }] });
     expect(await promesa).toEqual({ ok: true, texto: "hola" });
   });
+  it("descarta los bloques de tipo desconocido sin romper", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("x", {}, 1000);
+    transporte.responder(transporte.ultima.id, { content: [{ type: "resource", uri: "figcraft://doc" }, { type: "text", text: "solo esto" }] });
+    expect(await promesa).toEqual({ ok: true, texto: "solo esto" });
+  });
   it("empareja respuestas desordenadas", async () => {
     const { transporte, cliente } = montar();
     const p1 = cliente.listar(1000); const id1 = transporte.ultima.id;
@@ -116,5 +122,11 @@ describe("ClienteMcpStdio", () => {
     const comprobacion = expect(promesa).rejects.toMatchObject({ tipo: "rpc", mensaje: "boom" });
     transporte.enviar(`${JSON.stringify({ jsonrpc: "2.0", id: transporte.ultima.id, error: { message: "boom" } })}\n`);
     await comprobacion;
+  });
+});
+
+describe("LIMITE_LINEA", () => {
+  it("el tope del contrato §2.1 son los 32 MiB", () => {
+    expect(LIMITE_LINEA).toBe(32 * 1024 * 1024);
   });
 });
