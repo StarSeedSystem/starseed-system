@@ -131,11 +131,21 @@ def _esperar(cond, tope_s=15.0):
     return cond()
 
 
+#: (SUP0111L) El hijo del npx falso duerme una duración única de esta prueba: así se ve si sigue vivo
+#: aunque el npx no llegara a escribir sus pids (con la Mac ahogada, el corte puede llegar antes).
+MARCA_SLEEP = "120.%03d" % (os.getpid() % 1000)
+
+
+def _sleeps_vivos(marca=MARCA_SLEEP):
+    r = subprocess.run(["pgrep", "-f", "sleep %s" % marca], capture_output=True, text=True)
+    return [int(x) for x in r.stdout.split() if x.isdigit()]
+
+
 def _npx_que_cuelga(tmp_path):
     """npx falso con la forma de `npx → node tsc`: un hijo que duerme; deja los dos pids escritos."""
     pids = tmp_path / "pids"
     npx = tmp_path / "npx"
-    npx.write_text("#!/bin/sh\necho $$ >> '%s'\nsleep 60 &\necho $! >> '%s'\nwait\n" % (pids, pids),
+    npx.write_text("#!/bin/sh\necho $$ >> '%s'\nsleep %s &\necho $! >> '%s'\nwait\n" % (pids, MARCA_SLEEP, pids),
                    encoding="utf-8")
     npx.chmod(0o755)
     return pids
@@ -157,19 +167,24 @@ def _cerrojos(cerrojos_tmp):
 def test_tsc_turno_corta_el_tsc_que_pasa_del_plazo(cerrojos_tmp, tmp_path):
     """Medido el 31-10: un tsc de un agente muerto siguió 3 h con 4,6 GB y, pasados 30 min, su
     cerrojo contaba como huérfano y entró otro tsc. Ahora, al plazo, se corta el árbol entero
-    (npx y su hijo), sale 75 sin escribir la caché y suelta el cerrojo."""
+    (npx y su hijo), sale 75 sin escribir la caché y suelta el cerrojo.
+
+    (SUP0111L) El 01-11 a las 03:29, con la Mac ahogada (carga 37 y 10 GB de swap), el npx falso no
+    llegó ni a escribir sus pids en el plazo de 2 s: un FileNotFoundError aquí vetó la autopublicación.
+    Ahora el plazo es de 5 s y se exige lo que importa: que no quede vivo nada del árbol, lo escribiera
+    o no (el hijo duerme `MARCA_SLEEP` segundos y se busca por esa marca)."""
     repo = tmp_path / "repo"
     repo.mkdir()
     pids = _npx_que_cuelga(tmp_path)
-    env = _entorno(cerrojos_tmp, tmp_path, STARSEED_TSC_MAX_S="2", STARSEED_TSC_VIGILA_S="1")
+    env = _entorno(cerrojos_tmp, tmp_path, STARSEED_TSC_MAX_S="5", STARSEED_TSC_VIGILA_S="1")
     t0 = time.time()
-    r = subprocess.run(["bash", SCRIPT], cwd=str(repo), env=env, capture_output=True, text=True, timeout=60)
+    r = subprocess.run(["bash", SCRIPT], cwd=str(repo), env=env, capture_output=True, text=True, timeout=110)
     assert r.returncode == 75, r.stderr
     assert "NO compilé" in r.stderr and "huérfano" in r.stderr
-    assert time.time() - t0 < 40
-    vistos = [int(x) for x in pids.read_text().split()]
-    assert len(vistos) == 2
-    assert _esperar(lambda: not any(_vivo(p) for p in vistos)), "el árbol de tsc sigue vivo"
+    assert time.time() - t0 < 100  # el hijo duerme 120 s: no se esperó a que acabara
+    vistos = [int(x) for x in pids.read_text().split()] if pids.exists() else []
+    assert len(vistos) <= 2
+    assert _esperar(lambda: not any(_vivo(p) for p in vistos) and not _sleeps_vivos()), "el árbol de tsc sigue vivo"
     assert not os.path.exists(os.path.join(_cerrojos(cerrojos_tmp), "pesado.lock"))
     assert [f for f in os.listdir(_cerrojos(cerrojos_tmp)) if f.startswith("tsc-cache-")] == []
 
@@ -198,7 +213,8 @@ def test_tsc_turno_corta_el_tsc_si_su_agente_murio(cerrojos_tmp, tmp_path):
     assert rc.read_text().strip() == "75", err.read_text()
     assert "ya no existe" in err.read_text()
     vistos = [int(x) for x in pids.read_text().split()]
-    assert vistos and _esperar(lambda: not any(_vivo(p) for p in vistos)), "el árbol de tsc sigue vivo"
+    assert vistos and _esperar(lambda: not any(_vivo(p) for p in vistos) and not _sleeps_vivos()), \
+        "el árbol de tsc sigue vivo"
     assert not os.path.exists(os.path.join(_cerrojos(cerrojos_tmp), "pesado.lock"))
 
 
