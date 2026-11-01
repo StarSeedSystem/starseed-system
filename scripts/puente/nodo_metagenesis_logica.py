@@ -1235,6 +1235,45 @@ def reparaciones_superadas(tareas: List[Dict[str, Any]], progreso: Dict[str, Any
     return salida
 
 
+#: (RESC1031C) Marca que `revisor_bloqueadas_logica.cierre_rescate_agotado` escribe en el progreso:
+#: lo que pasó el tope de rescate queda `bloqueada` + `alta_capacidad` y lo lleva su carril.
+_MARCA_RESCATE_AGOTADO = "cadena de rescates agotada"
+
+_TOPE_TRAMOS_RESCATE = 2
+
+
+def en_alta_capacidad(entrada: Any) -> bool:
+    """PURA. (RESC1031C) ¿La lleva ya el carril de alta capacidad?
+
+    Misma regla que `revisor_bloqueadas_logica.en_alta_capacidad`: `alta_capacidad` a True en el
+    progreso, o la marca de rescate agotado en su nota (lo que RESC1031A dejó como `bloqueada` +
+    `alta_capacidad`). Réplica local si este medio no tiene el resto del puente."""
+    try:
+        from revisor_bloqueadas_logica import en_alta_capacidad as _marca  # noqa: WPS433
+    except ImportError:  # pragma: no cover — medio sin el resto del puente
+        def _marca(entrada: Any) -> bool:
+            entrada = entrada if isinstance(entrada, dict) else {}
+            return entrada.get("alta_capacidad") is True or _MARCA_RESCATE_AGOTADO in str(entrada.get("nota") or "")
+    return _marca(entrada)
+
+
+def relevo_excluido(tid: Any, entrada: Any) -> bool:
+    """PURA. (RESC1031C) ¿No se releva esta tarea a medias?
+
+    Lo agotado por el propio id (los `RT…` que pasan el tope de tramos) y lo que el carril de
+    alta capacidad ya lleva NO vuelve al enjambre gratuito: ni reparación ni préstamo a otro
+    medio. Misma regla que `revisor_bloqueadas_logica` (`rescate_agotado` + `en_alta_capacidad`)."""
+    try:
+        from revisor_bloqueadas_logica import rescate_agotado as _agotada  # noqa: WPS433
+    except ImportError:  # pragma: no cover — medio sin el resto del puente
+        def _agotada(tid: Any) -> bool:
+            t, n = str(tid or ""), 0
+            while t.startswith("RT" * (n + 1)):
+                n += 1
+            return n > _TOPE_TRAMOS_RESCATE
+    return _agotada(tid) or en_alta_capacidad(entrada)
+
+
 def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, Any]]]], ids_vivos: set,
                        progreso: Dict[str, Any], asuntos_git: Sequence[str], ahora: float,
                        max_dias: int = 21, tope: int = 12) -> List[Dict[str, Any]]:
@@ -1287,6 +1326,9 @@ def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, A
             if estado in CERRADAS or estado in ("fallo", "fallo_tsc", "fallo_tests", "bloqueante",
                                                 "esperando_aprobacion", "pendiente_aprobacion"):
                 # Las falladas son del revisor de bloqueadas (OPB1011), no de un rescate a ciegas.
+                continue
+            if en_alta_capacidad(est):
+                # (RESC1031C) Lo agotado y el carril de alta capacidad: no se rescata otra vez.
                 continue
             if id_en_asuntos(tid, asuntos_git or []) or sucesora_integrada(tid, progreso or {}, asuntos_git or []):
                 continue

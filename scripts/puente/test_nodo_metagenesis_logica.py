@@ -3,7 +3,8 @@
 
 Aquí: la neurona INSOMNE suma `PUNTOS_INSOMNE` de estabilidad para liderar y para recibir
 préstamos, sin disparar por sí sola el relevo ordenado de `MARGEN_RELEVO` y quedando bajo el
-A1 siempre encendido. Nada toca red ni disco: todo son capacidades y latidos de mentira.
+A1 siempre encendido; y lo agotado (RESC1031A) no se releva ni se rescata (RESC1031C).
+Nada toca red ni disco: todo son capacidades y latidos de mentira.
 """
 import os
 import sys
@@ -113,6 +114,47 @@ class TestLiderarYPrestamos(unittest.TestCase):
                  "neurona-bbbbbb": latido_ocioso("neurona-bbbbbb",
                                                  L.MEDIOS["neurona"]["base"] + L.PUNTOS_INSOMNE)}
         self.assertEqual(L.mejor_medio_ocioso(nodos), "neurona-bbbbbb")
+
+
+class TestRescateAgotadoYSuCarril(unittest.TestCase):
+    """RESC1031C · lo agotado (RESC1031A: `bloqueada` + `alta_capacidad`) no se releva ni rescata."""
+
+    def test_en_alta_capacidad_por_marca_o_nota(self):
+        self.assertTrue(L.en_alta_capacidad({"alta_capacidad": True}))
+        self.assertTrue(L.en_alta_capacidad(
+            {"nota": "cadena de rescates agotada: carril de alta capacidad · RT1X lleva 3 niveles"}))
+
+    def test_en_alta_capacidad_sanito(self):
+        self.assertFalse(L.en_alta_capacidad({}))
+        self.assertFalse(L.en_alta_capacidad(None))
+        self.assertFalse(L.en_alta_capacidad({"alta_capacidad": False}))
+
+    def test_relevo_excluido(self):
+        cierre = {"estado": "bloqueada", "bloqueante": True, "alta_capacidad": True}
+        self.assertTrue(L.relevo_excluido("RT1X", cierre))
+        self.assertTrue(L.relevo_excluido("RTRTRTX1", {}))  # pasa el tope de tramos solo por el id
+        self.assertFalse(L.relevo_excluido("RTX1", {}))     # dentro del tope y sin marca
+
+    def test_candidatos_rescate_excluye_alta_capacidad(self):
+        alta = {"id": "RT1ALTA", "archivos": ["a.ts"], "prompt": "p"}
+        abierta = {"id": "TR0ABI", "archivos": ["a.ts"], "prompt": "p"}
+        colas = [("cola-20261101-1200", T0, [alta, abierta])]
+        progreso = {"RT1ALTA": {"estado": "bloqueada", "bloqueante": True, "alta_capacidad": True}}
+        ids = {c["id"] for c in L.candidatos_rescate(colas, set(), progreso, [], T0 - 100)}
+        self.assertIn("TR0ABI", ids)
+        self.assertNotIn("RT1ALTA", ids)
+
+    def test_candidatos_rescate_excluye_marca_de_nota(self):
+        marca = {"id": "RT2MAR", "archivos": ["a.ts"], "prompt": "p"}
+        colas = [("cola-20261101-1200", T0, [marca])]
+        progreso = {"RT2MAR": {"nota": "cadena de rescates agotada: carril de alta capacidad"}}
+        self.assertEqual(L.candidatos_rescate(colas, set(), progreso, [], T0 - 100), [])
+
+    def test_candidatos_rescate_sin_progreso_sigue_igual(self):
+        abierta = {"id": "TR0NUE", "archivos": ["a.ts"], "prompt": "p"}
+        colas = [("cola-20261101-1200", T0, [abierta])]
+        cands = L.candidatos_rescate(colas, set(), {}, [], T0 - 100)
+        self.assertEqual([c["id"] for c in cands], ["TR0NUE"])
 
 
 if __name__ == "__main__":

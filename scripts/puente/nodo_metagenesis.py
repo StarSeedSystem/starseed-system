@@ -780,6 +780,14 @@ class Nodo:
         necesarias = [str(e.get("id")) for n in perdidos
                       for e in (datos["latidos"].get(n) or {}).get("en_curso") or []
                       if isinstance(e, dict) and e.get("id")]
+        # (RESC1031C) Lo agotado y lo que el carril de alta capacidad ya lleva no se releva: su
+        # sucesora sería otro rescate del enjambre gratuito; se lee su marca en el progreso.
+        if necesarias:
+            progreso = M.leer_json(os.path.join(raiz, "starseed_memory_root", "olas",
+                                                "progreso.json"), {})
+            if not isinstance(progreso, dict):
+                progreso = {}
+            necesarias = [tid for tid in necesarias if not L.relevo_excluido(tid, progreso.get(tid))]
         if not necesarias:
             return
         tareas = self._tareas_para_relevo(raiz, t, necesarias)
