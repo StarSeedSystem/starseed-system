@@ -104,9 +104,26 @@ export function validarSinCredencialesEpic(texto: string): { ok: boolean; hallaz
   return { ok: hallazgos.length === 0, hallazgos };
 }
 
+/**
+ * ¿La URL es una descarga oficial de Rare? (SUP0111H, 01-11 · seguridad) Antes bastaba con que
+ * el TEXTO empezara por el prefijo, así que `…/releases/../../../evil` pasaba. Ahora se parsea
+ * con `URL` (que normaliza la ruta) y se exige protocolo, host exacto, sin credenciales ni
+ * puerto. Se rechaza además el texto crudo con `..`, `%2e` o barra invertida.
+ */
 export function esUrlPermitidaRare(url: string): boolean {
-  // Blocked domains
+  // Dominios remotos sin huella que nunca se permiten
   if (url.includes("raredevs.github.io") || url.includes("protondb.com")) return false;
-  if (!url.startsWith("https://github.com/RareDevs/Rare/releases/")) return false;
-  return true;
+  // Intentos de salir de la ruta con el texto crudo, antes de que URL los normalice
+  if (url.includes("..") || /%2e/i.test(url) || url.includes("\\")) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "https:") return false;
+  if (parsed.hostname !== "github.com") return false;
+  if (parsed.username !== "" || parsed.password !== "") return false;
+  if (parsed.port !== "") return false;
+  return parsed.pathname.startsWith("/RareDevs/Rare/releases/");
 }

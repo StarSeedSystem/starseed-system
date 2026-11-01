@@ -104,6 +104,35 @@ describe("validarSinCredencialesEpic · nada con forma de sesión de Epic", () =
   });
 });
 
+describe("esUrlPermitidaRare · SUP0111H: la guarda no se deja engañar por el prefijo", () => {
+  const BUENA = "https://github.com/RareDevs/Rare/releases/tag/1.12.0.237";
+  it("la URL buena de siempre sigue valiendo", () => {
+    expect(esUrlPermitidaRare(BUENA)).toBe(true);
+  });
+  it("rechaza el escape con .. en claro y codificado (%2e, cualquier caja)", () => {
+    for (const u of [
+      "https://github.com/RareDevs/Rare/releases/../../../evil/x",
+      "https://github.com/RareDevs/Rare/releases/%2e%2e/%2e%2e/evil",
+      "https://github.com/RareDevs/Rare/releases/%2E%2E/evil",
+    ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
+  it("rechaza otro host que empieza por github.com y las credenciales en la URL", () => {
+    for (const u of [
+      "https://github.com.evil.com/RareDevs/Rare/releases/tag/1",
+      "https://user@github.com/RareDevs/Rare/releases/tag/1",
+      "https://user:clave@github.com/RareDevs/Rare/releases/tag/1",
+    ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
+  it("rechaza http, puerto, barra invertida y URL inválida", () => {
+    for (const u of [
+      "http://github.com/RareDevs/Rare/releases/tag/1",
+      "https://github.com:8443/RareDevs/Rare/releases/tag/1",
+      "https://github.com/RareDevs/Rare/releases/\\evil",
+      "sin url",
+    ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
+});
+
 describe("esUrlPermitidaRare · solo releases oficiales, descargas remotas bloqueadas", () => {
   it("las páginas de releases de RareDevs/Rare valen", () => {
     for (const u of ["https://github.com/RareDevs/Rare/releases/tag/1.12.0.237", "https://github.com/RareDevs/Rare/releases/latest"]) {
