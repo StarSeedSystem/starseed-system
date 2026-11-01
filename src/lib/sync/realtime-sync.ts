@@ -78,8 +78,9 @@ import { activeProfileId } from "@/lib/profiles/profiles";
 // dependencias a propósito — no arrastra el catálogo de iconos a este bundle.
 import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaults";
 // (Ola MBT1027) El Mausbot guarda su config con su propio evento (EVENTO_MAUSBOT,
-//  src/lib/mausbot/config.ts); el valor que llega de otro dispositivo usa el mismo evento.
-import { EVENTO_MAUSBOT } from "@/lib/mausbot/config";
+//  src/lib/mausbot/config.ts); el valor que llega de otro dispositivo usa el mismo evento
+//  y se SANA con `normalizarConfigMausbot` antes de tocar localStorage.
+import { EVENTO_MAUSBOT, CLAVE_MAUSBOT, normalizarConfigMausbot } from "@/lib/mausbot/config";
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
@@ -267,7 +268,8 @@ const EVENT_BY_PREFIX: Array<{ prefix: string; events: string[] }> = [
     { prefix: "starseed.agentes-red.perfil.", events: ["starseed:agentes-red-perfil"] },
 ];
 
-function eventsForKey(key: string): string[] {
+/** Mapeo clave → eventos (exportado para probar el contrato del mapa EVENT_BY_KEY). */
+export function eventsForKey(key: string): string[] {
     const events = new Set<string>();
     const exact = EVENT_BY_KEY[key];
     if (exact) {
@@ -942,6 +944,19 @@ function applyRemoteChanges(
             if (key === DOCK_STORAGE_KEY) {
                 const norm = normalizeDockSyncValue(merged);
                 if (norm.changed) { merged = norm.value; repaired = true; }
+            }
+            // ── MAUSBOT (Ola MBT1027): normalizar ANTES de escribir ────
+            // La cuenta puede traer un valor antiguo/roto de otro medio; igual
+            // que el dock, el payload entrante pasa por la MISMA función pura
+            // que la carga local (`normalizarConfigMausbot`): cuenta rota →
+            // config de fábrica. Si cambió algo, se reenvía a la cuenta (repaired)
+            // para que las demás neuronas converjan.
+            if (key === CLAVE_MAUSBOT) {
+                const sana = normalizarConfigMausbot(merged);
+                if (serializeForStorage(sana) !== serializeForStorage(merged)) {
+                    merged = sana;
+                    repaired = true;
+                }
             }
 
             const serialized = serializeForStorage(merged);
