@@ -77,6 +77,21 @@ describe("ClienteMcpStdio", () => {
     transporte.responder(transporte.ultima.id, { ok: true });
     expect(await promesa).toEqual({ ok: true });
   });
+  it("reensambla una respuesta que llega partida en trozos", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.listar(1000);
+    const linea = JSON.stringify({ jsonrpc: "2.0", id: transporte.ultima.id, result: { tools: [{ name: "export" }] } });
+    transporte.enviar(linea.slice(0, 9));
+    transporte.enviar(linea.slice(9) + "\n");
+    expect(await promesa).toEqual({ tools: [{ name: "export" }] });
+  });
+  it("ignora la respuesta de un id sin petición pendiente", async () => {
+    const { transporte, cliente } = montar();
+    transporte.enviar('{"jsonrpc":"2.0","id":77,"result":{"herramienta ajena":true}}\n');
+    const promesa = cliente.listar(1000);
+    transporte.responder(transporte.ultima.id, { ok: true });
+    expect(await promesa).toEqual({ ok: true });
+  });
   it("falla con tiempo agotado", async () => {
     const { reloj, cliente } = montar();
     const promesa = cliente.listar(50);
@@ -123,5 +138,11 @@ describe("ClienteMcpStdio", () => {
     const comprobacion = expect(promesa).rejects.toMatchObject({ tipo: "rpc", mensaje: "boom" });
     transporte.enviar(`${JSON.stringify({ jsonrpc: "2.0", id: transporte.ultima.id, error: { message: "boom" } })}\n`);
     await comprobacion;
+  });
+});
+
+describe("limite de línea del contrato §2.1", () => {
+  it("LIMITE_LINEA son los 32 MiB de FigCraft", () => {
+    expect(LIMITE_LINEA).toBe(32 * 1024 * 1024);
   });
 });
