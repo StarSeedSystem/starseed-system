@@ -103,16 +103,128 @@ def es_trabajador_de_puerta(args):
 
 
 def trabajadores_huerfanos(filas):
-    """Pids de trabajadores de vitest adoptados por init: su vitest ya murió.
+    """Pids de trabajadores de vitest adoptados por init y de tsc de un turno sin lector.
 
     `filas`: (pid, ppid, args) como da `ps -eo pid=,ppid=,args=`."""
+    filas = list(filas or ())
     fuera = []
-    for fila in filas or ():
+    for fila in filas:
         try:
             pid, ppid, args = fila
             pid, ppid = int(pid), int(ppid)
         except (TypeError, ValueError):
             continue
         if ppid == 1 and es_trabajador_de_puerta(args) and pid not in fuera:
+            fuera.append(pid)
+    for pid in tsc_huerfanos(filas):
+        if pid not in fuera:
+            fuera.append(pid)
+    return fuera
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (SUP0111K, 2026-11-01) EL TSC DE UN TURNO QUE YA NADIE LEE
+#
+# El 31-10 a las 20:41 un agente lanzó `zsh -c 'bash scripts/enjambre/tsc-turno.sh
+# 2>&1 | tail -40'`, murió, launchd adoptó el zsh (ppid 1) y su `npm exec tsc` →
+# `node …/bin/tsc` siguió 3 h con 4,6 GB en una Mac de 8 GB. SUP0111J ya lo evita
+# desde dentro del turno, pero no cubre un tsc-turno matado con SIGKILL ni los que
+# corrían con el guion viejo. Se reconoce por la cadena de padres, nunca por grep:
+# la puerta del orquestador (cadena a starseed-enjambre.py) y el tsc de una
+# terminal con padre vivo NUNCA entran.
+# ─────────────────────────────────────────────────────────────────────────────
+_SHELLS = {"sh", "-sh", "bash", "-bash", "zsh", "-zsh", "dash", "-dash", "ksh", "-ksh"}
+
+
+def _mapa_de_padres(filas):
+    """{pid: (ppid, args)} de las filas válidas; la basura de ps se descarta."""
+    mapa = {}
+    for fila in filas or ():
+        try:
+            pid, ppid, args = fila
+            mapa[int(pid)] = (int(ppid), args or "")
+        except (TypeError, ValueError):
+            continue
+    return mapa
+
+
+def _nombre(args):
+    partes = (args or "").split()
+    return partes[0].rsplit("/", 1)[-1] if partes else ""
+
+
+def _es_tsc(args):
+    """¿La línea es `npm exec tsc` o un `node …/bin/tsc`? (nunca un shell que los nombra)."""
+    partes = (args or "").split()
+    exe = _nombre(args)
+    if exe in ("npm", "npx"):
+        return "tsc" in partes[1:]
+    if exe.startswith("node"):
+        if any(p.endswith("/bin/tsc") for p in partes[1:]):
+            return True
+        # `npx` puede aparecer como `node …/npm-cli.js exec tsc`.
+        return "exec" in partes[1:3] and "tsc" in partes[1:]
+    return False
+
+
+def _es_tsc_turno(args):
+    """¿Es el `bash …scripts/enjambre/tsc-turno.sh` (no el shell -c que lo envuelve)?"""
+    partes = (args or "").split()
+    if not partes or _nombre(args) not in _SHELLS:
+        return False
+    for p in partes[1:]:
+        if p.startswith("-"):
+            continue
+        return p.endswith("tsc-turno.sh")
+    return False
+
+
+def _es_shell_con_c(args):
+    """¿Es un shell lanzado con `-c` (el `zsh -c '… | tail -40'` del agente)?"""
+    partes = (args or "").split()
+    if not partes or _nombre(args) not in _SHELLS:
+        return False
+    return any(p.startswith("-") and not p.startswith("--") and "c" in p for p in partes[1:])
+
+
+def _es_orquestador(args):
+    return "starseed-enjambre.py" in (args or "")
+
+
+def _ancestros(mapa, pid, tope=64):
+    """Los ancestros de `pid`, de hijo a padre; corta ciclos, muertes y cadenas absurdas."""
+    actual = mapa.get(pid, (None, ""))[0]
+    vistos = set()
+    while actual in mapa and actual not in vistos and len(vistos) < tope:
+        vistos.add(actual)
+        yield actual
+        actual = mapa[actual][0]
+
+
+def _de_un_turno_sin_quien_espere(mapa, pid):
+    """(b) Arriba hay un tsc-turno cuyo padre es un shell -c con ppid 1: nadie lee."""
+    for anc in _ancestros(mapa, pid):
+        ppid, args = mapa[anc]
+        if _es_orquestador(args):
+            return False
+        if _es_tsc_turno(args):
+            padre = mapa.get(ppid)
+            return bool(padre) and padre[0] == 1 and _es_shell_con_c(padre[1])
+    return False
+
+
+def tsc_huerfanos(filas):
+    """Pids del árbol de tsc (`npm exec tsc` y `node …/bin/tsc`) que ya nadie leerá.
+
+    `filas`: (pid, ppid, args) como da `ps -eo pid=,ppid=,args=`. Entra un tsc cuyo
+    padre es init (a) y el de un tsc-turno cuyo shell -c fue adoptado por init (b).
+    No entra la puerta del orquestador ni un tsc con padre vivo distinto de init."""
+    mapa = _mapa_de_padres(filas)
+    fuera, visto = [], set()
+    for pid in mapa:
+        if pid in visto or not _es_tsc(mapa[pid][1]):
+            continue
+        if mapa[pid][0] == 1 or _de_un_turno_sin_quien_espere(mapa, pid):
+            visto.add(pid)
             fuera.append(pid)
     return fuera
