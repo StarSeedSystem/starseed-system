@@ -145,10 +145,6 @@ class Reparar(unittest.TestCase):
         self.assertEqual(hechas, [1, 1])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class AvisosDelVigia(unittest.TestCase):
     def test_cada_aviso_su_reparacion(self):
         casos = {
@@ -170,6 +166,54 @@ class AvisosDelVigia(unittest.TestCase):
         self.assertEqual(len(R.sin_reparacion("agentes", malos)), 1)
 
 
+class HuerfanosTsc(unittest.TestCase):
+    """(1031) Con la Mac sin memoria, antes de reiniciar a Genesis hay que liberar:
+    un `tsc` adoptado por init retiene cientos de MB y nadie leerá su veredicto."""
+
+    def test_reconoce_al_compilador_adoptado_por_init(self):
+        filas = [(500, 1, "tsc --noEmit -p tsconfig.json"),
+                 (501, 1, "/opt/homebrew/bin/node /repo/node_modules/typescript/bin/tsc --noEmit"),
+                 (502, 1, "/opt/homebrew/bin/node /repo/node_modules/.bin/tsc.js --build")]
+        self.assertEqual(R.huerfanos_tsc(filas), [500, 501, 502])
+
+    def test_no_confunde_al_turno_al_grep_ni_al_del_padre_vivo(self):
+        filas = [(600, 7, "tsc --noEmit"),  # su padre vive: no se toca
+                 (601, 1, "bash scripts/enjambre/tsc-turno.sh"),  # el turno, no el compilador
+                 (602, 1, "grep tsc cadena"),
+                 (603, 1, "node (vitest 2) "),
+                 (604, 1, ""),
+                 (605, 1, None)]
+        self.assertEqual(R.huerfanos_tsc(filas), [])
+
+
+class ModelosDeOllama(unittest.TestCase):
+    """(1031) Descargar los modelos que Ollama tiene cargados (keep_alive 0) suelta su RAM."""
+
+    def test_los_cargados_según_api_ps(self):
+        ps = {"models": [{"name": "qwen2.5:0.5b", "size_vram": 400000000},
+                          {"model": "bge-m3", "size_vram": 1},
+                          {"name": "", "size_vram": 1}, {}, "x"]}
+        self.assertEqual(R.modelos_cargados(ps), ["qwen2.5:0.5b", "bge-m3"])
+        self.assertEqual(R.modelos_cargados(None), [])
+
+
+class CausaSinMemoria(unittest.TestCase):
+    """(1031) «Sigues igual» sin decir por qué mandó a Alex a adivinar: si la Mac está sin
+    memoria, el resumen lo dice — reiniciar a Genesis no libera nada."""
+
+    def test_el_resumen_dice_la_causa(self):
+        hechas = [{"accion": "genesis", "ok": False,
+                   "resultado": "la Mac está sin memoria: corté 2 huérfanos; quedan 300 MB"}]
+        self.assertEqual(
+            R.frase("agentes", "sigue", hechas, "la API de Genesis no contestó"),
+            "«agentes» sigue sin contestar: la Mac está sin memoria: corté 2 huérfanos; quedan 300 MB")
+
+    def test_sin_causa_dicha_dice_lo_de_siempre(self):
+        r = R.frase("agentes", "sigue", [{"accion": "genesis", "ok": False,
+                                          "resultado": "launchctl no pudo reiniciar: x"}], "r")
+        self.assertIn("sigue igual tras reparar", r)
+
+
 class GenesisNoSeReiniciaEncimaDeUnaInstalacion(unittest.TestCase):
     def test_build_a_medio_instalar(self):
         d = tempfile.mkdtemp()
@@ -179,3 +223,7 @@ class GenesisNoSeReiniciaEncimaDeUnaInstalacion(unittest.TestCase):
             self.assertTrue(R.instalando_build(d))
         finally:
             shutil.rmtree(d, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    unittest.main()

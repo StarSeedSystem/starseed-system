@@ -20,6 +20,12 @@ Un solo camino para el botón «Reparar» y para los directores:
   4. Vuelve a comprobar y deja `reparacion-<medidor>.json` junto a la comprobación: antes, después,
      y qué hizo cada acción. Genesis lo enseña bajo el botón.
 
+(1031 · 2026-11-01) Cuando Genesis no contesta porque la Mac está sin memoria, reiniciarlo no
+sirve: la reparación de «agentes» primero LIBERA con lo que ya existe (`liberar_memoria`:
+huérfanos de vitest/tsc, sueño del BitNet local, Ollama con `keep_alive: 0`) y vuelve a sondear;
+si sigue sin contestar, el resumen dice la causa («la Mac está sin memoria: …») en vez de
+«sigue igual».
+
 Lo que NO hace, a propósito: publicar (la autopublicación tiene sus puertas y su interruptor),
 borrar ramas, tocar claves, ni nada que no tenga una reparación conocida: eso se dice tal cual.
 
@@ -36,9 +42,11 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import time
+import urllib.request
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -173,6 +181,68 @@ def toca_auto(clave: str, plan: List[Dict[str, str]], estado: Dict[str, Any], ah
     return ahora - ultima >= MINIMO_AUTO_S.get(clave, MINIMO_AUTO_DEFECTO_S)
 
 
+CAUSA_MEMORIA = "la Mac está sin memoria"
+
+
+def causa_memoria(hechas: List[Dict[str, Any]]) -> Optional[str]:
+    """PURA (1031): el texto de la acción que falló diciendo que la Mac está sin memoria.
+
+    «Sigues igual» sin causa mandaba a Alex a adivinar; el reinicio de Genesis sobre una
+    Mac sin RAM es inútil, y eso hay que decirlo tal cual en el resumen."""
+    for h in hechas or []:
+        texto = str(h.get("resultado") or "")
+        if texto.startswith(CAUSA_MEMORIA):
+            return texto
+    return None
+
+
+_RE_TSC_EXE = re.compile(r"(^|/)(?:tsc)(?:\.\w+)?(?:\s|$)")
+
+
+def huerfanos_tsc(filas: Any) -> List[int]:
+    """PURA (1031): pids de `tsc` adoptados por init (ppid 1): la puerta que lo lanzó murió
+    y nadie va a leer su veredicto, pero el compilador retiene cientos de MB.
+
+    Por EJECUTABLE, nunca por líneas de grep: `tsc-turno.sh`, un `grep tsc` o el `node` de
+    un trabajador de vitest no son el compilador. `filas`: (pid, ppid, args) como `ps`."""
+    reconocidos: List[int] = []
+    for fila in filas or ():
+        try:
+            pid, ppid, args = fila
+            pid, ppid = int(pid), int(ppid)
+        except (TypeError, ValueError):
+            continue
+        if pid in reconocidos or ppid != 1:
+            continue
+        partes = str(args or "").split(None, 1)
+        if not partes:
+            continue
+        ejecutable = partes[0].rstrip("/").split("/")[-1]
+        if ejecutable in ("node", "nodejs"):
+            resto = partes[1] if len(partes) > 1 else ""
+            es_compilador = "/typescript/bin/tsc" in resto or "/.bin/tsc.js" in resto
+        else:
+            es_compilador = bool(_RE_TSC_EXE.search(partes[0] + " "))
+        if pid not in reconocidos and es_compilador:
+            reconocidos.append(pid)
+    return reconocidos
+
+
+def modelos_cargados(ps: Any) -> List[str]:
+    """PURA (1031): los modelos que Ollama tiene cargados en memoria, según su `/api/ps`."""
+    filas = []
+    if isinstance(ps, dict):
+        filas = ps.get("models") or []
+    salida: List[str] = []
+    for m in filas:
+        if not isinstance(m, dict):
+            continue
+        nombre = str(m.get("name") or m.get("model") or "").strip()
+        if nombre and (m.get("size_vram") or 0) > 0:
+            salida.append(nombre)
+    return salida
+
+
 def frase(clave: str, res: str, hechas: List[Dict[str, Any]], resumen_despues: str) -> str:
     """PURA: la línea que se enseña bajo el botón y se dice en el Chat Director."""
     bien = sum(1 for h in hechas if h.get("ok"))
@@ -180,6 +250,10 @@ def frase(clave: str, res: str, hechas: List[Dict[str, Any]], resumen_despues: s
         return "«%s» está sano: no había nada que reparar." % clave
     if res == "sin_reparacion":
         return "«%s» tiene fallos sin reparación automática conocida: se dicen abajo." % clave
+    if res == "sigue":
+        causa = causa_memoria(hechas)
+        if causa:
+            return "«%s» sigue sin contestar: %s" % (clave, causa)
     cabeza = {"reparado": "reparado", "mejorado": "mejorado (queda algo)", "sigue": "sigue igual tras reparar"}[res]
     return "«%s» %s · %d de %d acción(es) bien · ahora: %s" % (clave, cabeza, bien, len(hechas), resumen_despues)
 
@@ -315,6 +389,87 @@ def accion_memoria() -> Tuple[bool, str]:
 _MOTIVO_FALSO = "$ opencode run"
 
 
+URL_OLLAMA = os.environ.get("STARSEED_OLLAMA_URL") or "http://127.0.0.1:11434"
+
+
+def _filas_ps() -> List[Tuple[str, str, str]]:
+    """(pid, ppid, args) de todos los procesos, contado por pids, nunca por líneas de grep."""
+    try:
+        s = subprocess.run(["ps", "-eo", "pid=,ppid=,args="], capture_output=True, text=True,
+                           timeout=20, stdin=subprocess.DEVNULL).stdout
+    except Exception:  # noqa: BLE001
+        return []
+    filas = []
+    for linea in s.splitlines():
+        partes = linea.split(None, 2)
+        if len(partes) == 3:
+            filas.append(tuple(partes))
+    return filas
+
+
+def _ollama_ps() -> List[str]:
+    """Los modelos que Ollama tiene cargados ahora; si no contesta, nada que descargar."""
+    try:
+        with urllib.request.urlopen(URL_OLLAMA + "/api/ps", timeout=6) as r:
+            return modelos_cargados(json.loads((r.read() or b"{}").decode("utf-8")))
+    except Exception:  # noqa: BLE001 — un Ollama apagado no es un drama
+        return []
+
+
+def _descargar_ollama(nombres: List[str]) -> None:
+    """POST /api/generate con `keep_alive: 0`: el modo oficial de Ollama para soltar su RAM."""
+    for n in nombres:
+        try:
+            pedido = urllib.request.Request(
+                URL_OLLAMA + "/api/generate",
+                data=json.dumps({"model": n, "keep_alive": 0}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(pedido, timeout=30) as r:
+                r.read()
+        except Exception:  # noqa: BLE001 — un modelo que no se deja no para a los demás
+            continue
+
+
+def liberar_memoria() -> Tuple[bool, str]:
+    """(1031) Libera RAM con lo que ya existe, ANTES de reiniciar a Genesis, porque el
+    reinicio no suelta nada: corta los huérfanos de vitest y tsc (nadie leerá sus
+    resultados), pide el sueño del BitNet local con las mismas reglas del guardia
+    (cooldown, conversación, sin insistir) y descarga los modelos que Ollama tiene cargados."""
+    g = _modulo("guardia-memoria.py", "guardia_memoria_reparar")
+    a = _modulo("agentes_huerfanos.py", "agentes_huerfanos_reparar")
+    hechas: List[str] = []
+    filas = _filas_ps()
+    pids = list(a.trabajadores_huerfanos(filas)) + huerfanos_tsc(filas)
+    cortados = []
+    for pid in pids:
+        try:
+            os.kill(int(pid), signal.SIGKILL)
+            cortados.append(int(pid))
+        except (OSError, ValueError):
+            continue
+    if cortados:
+        hechas.append("corté %d huérfano(s) de vitest/tsc" % len(cortados))
+    try:
+        motores, _orq, ps_ok = g.procesos()
+        vivos = [m for m in g.MOTORES if (motores or {}).get(m)] if ps_ok else []
+        libre, presion = g.libres_mb(), g.presion_nucleo()
+        conversando = g._conv.activa(g._conv.leer_concesion())
+        if g.toca_pedir_sueno("llama-server" in vivos, conversando, libre, presion, None):
+            ok_sueno, dormido = g.pedir_dormir_bitnet(g.URL_ASTRAURA)
+            if ok_sueno:
+                hechas.append("BitNet local %s (desperta solo con el próximo mensaje)"
+                              % ("dormido" if dormido else "en uso, sigue"))
+    except Exception as e:  # noqa: BLE001
+        hechas.append("guardia: %s: %s" % (type(e).__name__, str(e)[:120]))
+    nombres = _ollama_ps()
+    if nombres:
+        _descargar_ollama(nombres)
+        hechas.append("descargué de Ollama (keep_alive 0): %s" % ", ".join(nombres))
+    return True, "; ".join(hechas) or \
+        "no había nada que liberar: sin huérfanos de vitest/tsc, sin BitNet vivo y sin modelos de Ollama cargados"
+
+
 def quitar_marcas_falsas(salud: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
     """PURA: (salud sin las marcas falsas, a quién se le quitaron)."""
     nueva, quitados = {}, []
@@ -383,7 +538,11 @@ def instalando_build(raiz: str = RAIZ) -> bool:
 def accion_genesis() -> Tuple[bool, str]:
     """Con las MISMAS reglas que la autocuración (2026-10-23: la primera pasada reinició Genesis
     mientras `instalar_build.py` lo estaba reiniciando): nunca durante una publicación o una
-    instalación, y no otra vez si ya se reinició hace poco."""
+    instalación, y no otra vez si ya se reinició hace poco.
+
+    (1031 · 2026-11-01) Si no contesta y la Mac está sin memoria, reiniciar NO sirve: primero
+    libera con lo que ya existe (`liberar_memoria`: huérfanos de vitest/tsc, sueño del BitNet,
+    Ollama) y vuelve a sondear; si sigue sin contestar, lo dice como causa y no toca a Genesis."""
     import autocuracion_mando as A
     sondas = []
     for _ in range(A.SONDAS):
@@ -393,6 +552,16 @@ def accion_genesis() -> Tuple[bool, str]:
         time.sleep(A.ESPERA_ENTRE_SONDAS_S)
     if instalando_build():
         return False, "no contesta, pero se está instalando una build nueva (ella lo reinicia): espero"
+    g = _modulo("guardia-memoria.py", "guardia_memoria_reparar")
+    if g.falta_memoria(g.libres_mb(), g.presion_nucleo()):
+        _ok, hecho = liberar_memoria()
+        for _ in range(A.SONDAS):
+            if A.sondear():
+                return True, "la Mac estaba sin memoria: %s; con ese aire Genesis contesta" % hecho
+            time.sleep(A.ESPERA_ENTRE_SONDAS_S)
+        quedan = g.libres_mb()
+        return False, "%s: %s; quedan %s MB y reiniciar a Genesis no libera nada" % (
+            CAUSA_MEMORIA, hecho, "?" if quedan is None else "%d" % quedan)
     estado = A._leer_json(A.ESTADO, {})
     ahora = time.time()
     reiniciar, porque = A.decidir_reinicio(sondas, ahora, estado.get("ultimo_reinicio"),
