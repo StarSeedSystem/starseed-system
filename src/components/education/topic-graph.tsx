@@ -34,6 +34,7 @@ import {
     ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
