@@ -84,7 +84,7 @@ export function estadoCloudroom(entrada: EntradaEstadoCloudroom): EstadoCloudroo
     ? cupoRestante(entrada.plan, [...(entrada.consumos ?? [])], entrada.inicioCiclo, entrada.ahora) : null;
   const ritmo = cupo !== null && entrada.diasQueQuedan !== undefined ? ritmoDiario(cupo, entrada.diasQueQuedan) : 0;
   const sugerencia = sugerenciaCloudroom(entrada.sugerencias ?? []);
-  const cupoTexto = cupo === null ? "cupo sin lectura"
+  const cupoTexto = cupo === null ? "Cupo sin lectura"
     : `${cupo} agente(s) en la nube en este ciclo · ritmo ${ritmo}/día`;
   const motivo = sugerencia ? `Sugerida para este ámbito: ${sugerencia.motivo}`
     : "No se ofrece como servidor aquí: el sugeridor del ámbito no la devuelve.";

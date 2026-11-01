@@ -15,6 +15,7 @@ import {
   type EntradaEstadoCloudroom,
   type VistaOpcionesAmbito,
 } from "../asistente-conectores";
+import { SeccionAsignacionesGenesis } from "../seccion-asignaciones";
 
 afterEach(cleanup);
 
@@ -57,8 +58,10 @@ const VISTA_CON_CLOUDROOM: VistaOpcionesAmbito = {
 function entradaCloudroom(sugerencias: readonly GrupoSugerencias[], consumos = 0): EntradaEstadoCloudroom {
   const ahora = 1_800_000_000_000;
   return { instalacion: "instalada", plan: { tipo: "gratis" },
+    // El consumo vive dentro del ciclo en curso (el ciclo empezó hace 10 días); con
+    // inicioCiclo === ahora quedaría fuera y no lo contaría cupoRestante.
     consumos: consumos > 0 ? [{ contextoId: "personal", t: ahora - 86_400_000, n: consumos }] : [],
-    inicioCiclo: ahora, ahora, diasQueQuedan: 30, sugerencias };
+    inicioCiclo: ahora - 10 * 86_400_000, ahora, diasQueQuedan: 30, sugerencias };
 }
 
 describe("resumenPorPapel · motivo de la cadena elegida", () => {
@@ -117,6 +120,8 @@ describe("Cloudroom en la interfaz · tarjeta honesta donde ya se leía el catá
   it("pinta estado y enlace solo dentro del paso gratis y solo cuando se ofrece", () => {
     render(<AsistenteConectarGenesis ambito="cuenta-demo" opciones={VISTA_CON_CLOUDROOM}
       cloudroom={entradaCloudroom(VISTA_CON_CLOUDROOM.sugerencias, 10)} />);
+    // La tarjeta vive en el paso 2 (Gratis por vincular), que es donde la sugerencia entra.
+    fireEvent.click(screen.getByRole("tab", { name: /2\. Gratis por vincular/ }));
     expect(screen.getByTestId("cloudroom-instalacion")).toHaveTextContent("instalada en esta neurona");
     expect(screen.getByTestId("cloudroom-cupo")).toHaveTextContent("90 agente(s) en la nube · ritmo 3/día");
     const enlace = screen.getByRole("link", { name: "Abrir Cloudroom" });
@@ -135,6 +140,7 @@ describe("Cloudroom en la interfaz · tarjeta honesta donde ya se leía el catá
     expect(container.textContent).not.toMatch(/Cloudroom/);
     cleanup();
     render(<AsistenteConectarGenesis ambito="cuenta-demo" opciones={VISTA} cloudroom={{ instalacion: "sin-dato" }} />);
+    fireEvent.click(screen.getByRole("tab", { name: /2\. Gratis por vincular/ }));
     expect(screen.getByTestId("cloudroom-instalacion")).toHaveTextContent("instalación sin comprobar en esta neurona");
     expect(screen.getByText("No se sugiere aquí; el catálogo la deja como una opción más, nunca la única.")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Abrir Cloudroom" })).toBeNull();
@@ -145,6 +151,14 @@ describe("Cloudroom en la interfaz · tarjeta honesta donde ya se leía el catá
     expect(screen.getByTestId("cloudroom-instalacion")).toHaveTextContent("instalada en esta neurona");
     expect(screen.getByTestId("cloudroom-cupo")).toHaveTextContent("100 agente(s) en la nube · ritmo 3/día");
     expect(screen.getByRole("status")).toHaveTextContent(/Sugerida para los agentes de este ámbito/);
+  });
+
+  it("aplicado · SeccionAsignacionesGenesis (la que montan mi Génesis y PoliGenesis) pinta la tarjeta con el estado que la página aporta", () => {
+    render(<SeccionAsignacionesGenesis ambito="cuenta-demo" titulo="Conectar · asignaciones"
+      onGuardar={() => undefined} cloudroom={{ instalacion: "sin-dato" }} />);
+    expect(screen.getByTestId("cloudroom-instalacion")).toHaveTextContent("instalación sin comprobar en esta neurona");
+    expect(screen.getByTestId("cloudroom-cupo")).toHaveTextContent(/Cupo sin lectura/);
+    expect(screen.getByText(/No se sugiere aquí/)).toBeInTheDocument();
   });
 });
 
