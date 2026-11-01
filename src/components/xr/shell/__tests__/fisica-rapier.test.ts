@@ -70,6 +70,30 @@ describe("física Rapier", () => {
         expect(mf.cuerpos.has("movil")).toBe(true);
         expect(mf.dinamicos.size).toBe(1);
     });
+    it("la rotación en euler del objeto llega como cuaternión al cuerpo", () => {
+        const rotaciones: { x: number; y: number; z: number; w: number }[] = [];
+        const desc = () => {
+            const o: Record<string, unknown> = {};
+            for (const k of ["setTranslation", "setMass", "setRestitution", "setFriction", "setActiveEvents"]) o[k] = () => o;
+            o.setRotation = (r: { x: number; y: number; z: number; w: number }) => { rotaciones.push(r); return o; };
+            return o;
+        };
+        const rapier = {
+            World: class { timestep = 0; createRigidBody() { return {}; } createCollider() { return { handle: 0 }; } step() {} free() {} },
+            EventQueue: class { drainCollisionEvents() {} free() {} },
+            RigidBodyDesc: { dynamic: desc, fixed: desc, kinematicPositionBased: desc },
+            ColliderDesc: { ball: desc, cuboid: desc, capsule: desc, convexHull: desc }, ActiveEvents: { COLLISION_EVENTS: 1 },
+        } as unknown as Rapier;
+        const girado = { ...objeto("girado", CERO), rot: [0, Math.PI / 2, 0] as Vec3 };
+        const recto = objeto("recto", CERO);
+        crearMundoFisico(rapier, mundo({ suelo: false, objetos: [girado, recto] }), "minima");
+        expect(rotaciones).toHaveLength(2);
+        expect(rotaciones[0].y).toBeCloseTo(Math.SQRT1_2, 6);
+        expect(rotaciones[0].w).toBeCloseTo(Math.SQRT1_2, 6);
+        expect(rotaciones[0].x).toBeCloseTo(0, 6);
+        expect(rotaciones[0].z).toBeCloseTo(0, 6);
+        expect(rotaciones[1]).toEqual({ x: 0, y: 0, z: 0, w: 1 });
+    });
     it.skipIf(!cargado)("el paso fijo avanza el número esperado de pasos", () => {
         const mf = crearMundoFisico(RAPIER, mundo({ suelo: false, objetos: [objeto("bola", [0, 5, 0])] }), "minima");
         expect(mf.pasosHz).toBe(30); expect(paso(mf, 0.1)).toBe(3);

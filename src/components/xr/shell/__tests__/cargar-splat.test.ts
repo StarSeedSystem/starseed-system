@@ -3,7 +3,7 @@
  * Todo puro: el descargador y el constructor de Spark se inyectan, así que no hay red,
  * ni disco, ni WebGL. Los motivos se comprueban tal como los lee la persona.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ObjetoMundo } from "../../../../lib/xr/mundo-tipos";
 import {
     cargarSplat,
@@ -51,12 +51,13 @@ describe("presupuestoSplat", () => {
 });
 
 describe("urlSplatSegura", () => {
-    it("acepta https y rechaza http, credenciales y rutas relativas", () => {
+    it("acepta https y rechaza http, credenciales, rutas relativas y basura", () => {
         expect(urlSplatSegura(URL)).toBe(true);
         expect(urlSplatSegura("http://cdn.ejemplo.org/bosque.spz")).toBe(false);
         expect(urlSplatSegura("https://ana:secreto@cdn.ejemplo.org/bosque.spz")).toBe(false);
         expect(urlSplatSegura("/mundos/bosque.spz")).toBe(false);
         expect(urlSplatSegura("")).toBe(false);
+        expect(urlSplatSegura("no es una url")).toBe(false);
     });
 });
 
@@ -109,6 +110,23 @@ describe("cargarSplat", () => {
         });
         expect(pedidos).toBe(0);
         expect(resultado).toEqual({ ok: false, motivo: MOTIVO_URL_INSEGURA });
+    });
+
+    it("un Content-Length anunciado por encima del tope se rechaza sin construir la malla", async () => {
+        const pedir = vi.fn(async () =>
+            new Response(null, { status: 200, headers: { "content-length": String(MAX_BYTES_SPLAT + 1) } }),
+        );
+        vi.stubGlobal("fetch", pedir);
+        MallaFalsa.ultima = null;
+        try {
+            const resultado = await cargarSplat(URL, { SplatMesh: MallaFalsa });
+            expect(resultado.ok).toBe(false);
+            if (!resultado.ok) expect(resultado.motivo).toContain(MOTIVO_SPLAT_GRANDE);
+            expect(pedir).toHaveBeenCalledOnce();
+            expect(MallaFalsa.ultima).toBeNull();
+        } finally {
+            vi.unstubAllGlobals();
+        }
     });
 
     it("con url y bytes válidos crea la malla con el presupuesto del nivel", async () => {
