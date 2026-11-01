@@ -68,6 +68,13 @@ describe("evaluarLlamada · vetados", () => {
     expect(evaluarLlamada(llamada({ app: "gridcraft", herramienta: "automate.trustScripts" })).decision).toBe("denegar");
     expect(evaluarLlamada(llamada({ app: "gridcraft", herramienta: "execute_command", parametros: { command: "automate.runScript", trusted: true } })).decision).toBe("denegar");
   });
+  it("niega el prefijo `automate.` de GridCraft en execute_command sin trusted", () => {
+    expect(evaluarLlamada(llamada({ app: "gridcraft", herramienta: "execute_command", parametros: { command: "automate.doSomething" } })).decision).toBe("denegar");
+  });
+  it("niega las vetadas de la tabla de DeckCraft", () => {
+    for (const herramienta of ["select_tool", "key", "type_text", "select"])
+      expect(evaluarLlamada(llamada({ app: "deckcraft", herramienta })).decision).toBe("denegar");
+  });
   it("niega la herramienta desconocida y la que no está en la lista", () => {
     expect(evaluarLlamada(llamada({ herramienta: "grabar_video" })).decision).toBe("denegar");
     expect(evaluarLlamada(llamada({ app: "figcraft", herramienta: "inspect_slide" })).decision).toBe("denegar");
@@ -109,5 +116,9 @@ describe("evaluarLlamada · rutas", () => {
   it("`trusted: true` anidado y un rol nulo al escribir se deniegan", () => {
     expect(evaluarLlamada(llamada({ app: "gridcraft", herramienta: "execute_command", parametros: { opciones: { deep: { trusted: true } } } })).decision).toBe("denegar");
     expect(evaluarLlamada(llamada({ herramienta: "save_file", parametros: { path: "/datos/neurona/salida/x.figcraft" }, rol: null })).decision).toBe("denegar");
+  });
+  it("save_workbook de GridCraft escribe en salida/ sin pedir confirmación", () => {
+    const v = evaluarLlamada(llamada({ app: "gridcraft", herramienta: "save_workbook", parametros: { path: "/datos/neurona/salida/x.xlsx" } }));
+    expect(v).toMatchObject({ decision: "permitir", escribe: true });
   });
 });
