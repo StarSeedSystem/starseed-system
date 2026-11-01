@@ -56,6 +56,38 @@ class TestVigencia(unittest.TestCase):
         self.assertEqual(C.minutos_restantes({}, AHORA), 0)
 
 
+REAL_SIN_MODELO = ("{\"status\":400, ... \"message\":\"The 'gpt-5.6-sol' model is not supported "
+                     "when using Codex with a ChatGPT account.\",\"code\":\"model_not_found\"}")
+
+
+class TestSinModelo(unittest.TestCase):
+    def test_salida_real_de_modelo_no_admitido(self):
+        self.assertTrue(C.sin_modelo_en(REAL_SIN_MODELO))
+
+    def test_no_confunde_quota_con_modelo(self):
+        # La cuota agotada NO es el rechazo por modelo no admitido.
+        self.assertFalse(C.sin_modelo_en(REAL))
+
+    def test_vacio_no_es_rechazo_por_modelo(self):
+        self.assertFalse(C.sin_modelo_en(""))
+        self.assertFalse(C.sin_modelo_en(None))
+
+    def test_pistas_sin_modelo_reconocidas(self):
+        for t in ("The 'gpt-5.5' model is not supported when using Codex with a ChatGPT account",
+                  "model_not_found", "is not supported when using codex with a chatgpt account"):
+            self.assertTrue(C.sin_modelo_en(t), t)
+
+    def test_horas_sin_modelo_24(self):
+        self.assertEqual(C.HORAS_SIN_MODELO, 24)
+
+    def test_anotar_con_horas_24(self):
+        import tempfile
+        ruta = os.path.join(tempfile.mkdtemp(), "codex-cupo.json")
+        minutos = C.anotar("cuenta sin modelo", ruta=ruta, horas=C.HORAS_SIN_MODELO)
+        self.assertGreater(minutos, 23 * 60)
+        self.assertLess(minutos, 25 * 60)
+
+
 class TestVentana(unittest.TestCase):
     def test_tres_horas_por_defecto(self):
         self.assertAlmostEqual(C.hasta_cuando(AHORA) - AHORA, 3 * 3600, places=3)

@@ -50,6 +50,21 @@ PISTAS = (
 #: Cuánto se aparta tras un agotamiento.
 HORAS = 3.0
 
+#: Cuánto se aparta cuando el modelo no está admitido con la cuenta de ChatGPT.
+HORAS_SIN_MODELO = 24
+
+#: Pistas que indican «modelo no admitido con la cuenta de ChatGPT» (minúsculas).
+PISTAS_SIN_MODELO = (
+    "is not supported when using codex with a chatgpt account",
+    "model_not_found",
+)
+
+
+def sin_modelo_en(salida):
+    """¿Esta salida es un rechazo por modelo no admitido con ChatGPT?"""
+    b = (salida or "").lower()
+    return any(p in b for p in PISTAS_SIN_MODELO)
+
 
 def agotado_en(salida):
     """¿Esta salida es un agotamiento de cuota de Codex?
