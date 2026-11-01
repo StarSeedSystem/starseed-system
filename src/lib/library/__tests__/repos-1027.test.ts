@@ -63,8 +63,8 @@ describe("tanda 1027 · cada ficha", () => {
     });
 
     it("conserva el tipo de la ficha: dos herramientas y una fuente de IA", () => {
-        expect(porId("lib-openmausbot").kind).toBe("app"); // la ficha dice «tool»: se pinta como app
-        expect(porId("lib-insomnia").kind).toBe("app");
+        expect(porId("lib-openmausbot").kind).toBe("tool"); // la ficha dice «tool»: se conserva
+        expect(porId("lib-insomnia").kind).toBe("tool");
         expect(porId("lib-colibri").kind).toBe("ai-source");
         for (const p of FICHAS_REPOS_1027) expect(p.kind, p.id).not.toBe("project");
     });

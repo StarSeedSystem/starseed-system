@@ -107,6 +107,7 @@ export type PackageKind =
   | "function"
   | "ai-source"
   | "repo"
+  | "tool"
   // Agentes (P5): un agente Aurora+Astraura guardable/instalable. Su efecto de
   // instalación (packages.install) registra el agente en el store de agentes
   // (src/lib/agents/store.ts). El `payload.agent` lleva su definición.
@@ -184,7 +185,7 @@ export const DESIGN_EVENT = "starseed:design";
 export const VALID_KINDS: PackageKind[] = [
   "app", "widget", "page", "publication", "board", "research",
   "project", "design", "animation", "function", "ai-source", "repo",
-  "agent",
+  "tool", "agent",
 ];
 
 /* ─────────────────── Utilidades base (SSR-safe) ─────────────────── */

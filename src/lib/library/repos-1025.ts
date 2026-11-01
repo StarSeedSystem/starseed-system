@@ -228,7 +228,7 @@ export const IDS_SIEMBRA_1025: string[] = [
  *  `packages.ts` (ciclo). Un tipo nuevo en una ficha («tool») tumbaba la Biblioteca entera
  *  (31-10: «reading 'chip'»); lo desconocido se muestra como `app`. */
 const TIPOS_BIBLIOTECA = ["agent", "ai-source", "animation", "app", "board", "design", "function", "page",
-    "project", "publication", "repo", "research", "widget"] as const;
+    "project", "publication", "repo", "research", "tool", "widget"] as const;
 export function tipoDeFicha(kind: unknown): (typeof TIPOS_BIBLIOTECA)[number] {
     const k = typeof kind === "string" ? kind.trim() : "";
     return (TIPOS_BIBLIOTECA as readonly string[]).includes(k) ? (k as (typeof TIPOS_BIBLIOTECA)[number]) : "app";
