@@ -6,14 +6,15 @@
  * estaciones (`listarEstaciones`) y servidores (`listServers`, los de `/servidores`).
  * Lecturas de una sola vez (sin sondeos en bucle); no se inventa nada.
  * Privacidad: el micrófono arranca CERRADO; solo la acción `hablar` lo abre.
- * Consumo: la tarjeta de confirmación y los ejecutores los cablean XR1010Q y XR1010T.
+ * Consumo: OrbeVoz aplica el `resultado` (mundo) y la tarjeta de confirmación/pregunta (XR1010Q);
+ * el flujo final de lo que sale de la cuenta queda para XR1010T.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLiveGroups } from "@/lib/widget-data/os-live";
 import { useContactos } from "@/lib/contactos/store";
 import { listarEstaciones } from "@/lib/estaciones/datos";
 import { listServers } from "@/lib/brains/servers";
-import { construirContexto, crearSesionVoz, MOTIVO_SIN_VOZ, reconocedorDelNavegador, reconocedorLocal, type EstadoVoz, type Referenciable, type Reparto, type SesionVoz } from "./voz-xr";
+import { construirContexto, crearSesionVoz, MOTIVO_SIN_VOZ, reconocedorDelNavegador, reconocedorLocal, repartirFrase, type EstadoVoz, type Referenciable, type Reparto, type SesionVoz } from "./voz-xr";
 
 export interface OpcionesVozXR {
     /** «este grupo» / lo señalado con el rayo (§3 f): lo trae XR1010Q. */
@@ -31,6 +32,9 @@ export interface VozXR {
     /** `true` = pulsar (abre el mic); `false` = soltar (cierra el mic y reparte). */
     hablar(sube: boolean): void;
     cancelar(): void;
+    /** Re-entiende una frase con el contexto actual; con `elegido`, SOLO esa referencia queda en las listas
+     *  (la respuesta a «¿Cuál?»: `resolverRespuesta` eligió un candidato y el flujo sigue sin adivinar). */
+    reenviar(frase: string, elegido?: Referenciable): void;
 }
 
 export function useVozXR(opciones: OpcionesVozXR = {}): VozXR {
@@ -89,6 +93,10 @@ export function useVozXR(opciones: OpcionesVozXR = {}): VozXR {
 
     const hablar = useCallback((sube: boolean) => { void sesion?.hablar(sube); }, [sesion]);
     const cancelar = useCallback(() => { sesion?.cancelar(); setParcial(""); setResultado(null); }, [sesion]);
-
-    return { estado, parcial, resultado, hablar, cancelar };
+    const reenviar = useCallback((frase: string, elegido?: Referenciable) => {
+        const c = ctxRef.current;
+        const filtrar = (xs: Referenciable[]): Referenciable[] => (elegido ? xs.filter((x) => x.id === elegido.id) : xs);
+        setResultado(repartirFrase(frase, { ...c, grupos: filtrar(c.grupos), contactos: filtrar(c.contactos), estaciones: filtrar(c.estaciones), servidores: filtrar(c.servidores) }, opcionesRef.current.moleculaConFoco ?? false));
+    }, []);
+    return { estado, parcial, resultado, hablar, cancelar, reenviar };
 }

@@ -10,15 +10,15 @@ import { transcribirLocal } from "@/lib/aurora/stt-oss/vibeasr-local";
 export type { ContextoVoz, Referenciable, ResultadoVoz };
 export interface DatosCuenta { grupos: Referenciable[]; contactos: Referenciable[]; estaciones: Referenciable[]; servidores: Referenciable[] }
 
-export type Reparto = { via: "intencion"; resultado: ResultadoVoz } | { via: "dictado"; texto: string } | { via: "preguntar"; pregunta: string };
+export type Reparto = { via: "intencion"; resultado: ResultadoVoz; frase: string } | { via: "dictado"; texto: string } | { via: "preguntar"; pregunta: string; frase: string };
 export function construirContexto(datos: DatosCuenta, enfoque: { tipo: TipoRef; id: string } | null, mundoActual: { id: string; nombre: string } | null): ContextoVoz {
     return { grupos: datos.grupos ?? [], contactos: datos.contactos ?? [], estaciones: datos.estaciones ?? [], servidores: datos.servidores ?? [], enfoque, mundoActual };
 }
 export function repartirFrase(frase: string, ctx: ContextoVoz, moleculaConFoco: boolean): Reparto {
     const r = entenderVoz(frase, ctx);
-    if (r.ok) return { via: "intencion", resultado: r };
-    if (r.razon === "no-entendido") return moleculaConFoco ? { via: "dictado", texto: frase } : { via: "preguntar", pregunta: r.pregunta };
-    return { via: "intencion", resultado: r };
+    if (r.ok) return { via: "intencion", resultado: r, frase };
+    if (r.razon === "no-entendido") return moleculaConFoco ? { via: "dictado", texto: frase } : { via: "preguntar", pregunta: r.pregunta, frase };
+    return { via: "intencion", resultado: r, frase };
 }
 export interface Reconocedor {
     iniciar(): Promise<void>; parar(): void;
