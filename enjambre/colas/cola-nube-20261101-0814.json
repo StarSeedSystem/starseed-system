@@ -1,0 +1,116 @@
+{
+ "ola": "nube-20261101",
+ "tareas": [
+  {
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261031-231438",
+   "id": "OPS1031Cb-d1",
+   "titulo": "A1 · la huella de node_modules del guardián y la de compilar_en_a1 hablan el mismo formato (parte 1 de 2)",
+   "archivos": [
+    "scripts/puente/compilar_en_a1.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; nunca la IP del A1; funciones PURAS con pruebas.\n\nGEN1031A vio que el guardián del A1 escribe `node_modules/.huella-lock` en otro formato que `compilar_en_a1`, y en el checkout del medio se repite `npm ci` en bucle. Unifica el formato (lee el que escribe el guardián: búscalo en `oracle_nodo.py`, `deploy/oracle/` y `scripts/enjambre/`) para que ninguno de los dos reinstale sin necesidad.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261031-231438`)\nUn agente de la nube ya avanzó esta tarea (en la Mac no pasa: pruebas del puente: oup(1)))\nE                       AssertionError: 'revisor_bloqueadas_logica' not found in {'nodo_metagenesis_bus', 'nodo_metagenesis_logica', 'nodo_metagenesis_medio', 'colmena_logica', 'traer_nube', 'puerta_datos_cliente', 'nodo_metagenesis', 'vigia_runs_nube'} : traer_nube importa revisor_bloqueadas_logica al arrancar\n\nscripts/puente/test_oracle_nodo.py:298: AssertionError\n=========================== short test summary info ============================\nFAILED scripts/puente/test_oracle_nodo.py::ModulosDelNodo::test_lo_que_el_nodo_importa_al_arrancar_viaja_con_el\n1 failed, 83 passed in 8.39s\n). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261031-231438:refs/remotes/origin/nube/a1-20261031-231438\"` y `git cherry-pick --no-commit 80cf2506b5d2 2820aff84bcf f3ff87dbd59c c3e12c2c4cde 9dc74623b608`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: memory/aprendizaje-olas.md, scripts/puente/compilar_en_a1.py, scripts/puente/oracle_nodo.py, scripts/puente/test_compilar_en_a1.py, scripts/puente/test_jev.py, scripts/puente/test_razonador.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió OPS1031Cb: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: scripts/puente/compilar_en_a1.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "OPS1031Cb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   }
+  },
+  {
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "revisor_quitadas": [
+    "VST1018C",
+    "VST1018D"
+   ],
+   "id": "VST1018F-d2",
+   "titulo": "Voz · nivel «estudio» y regla instantánea en el motor único (parte 2 de 3)",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/motor.ts"
+   ],
+   "depende": [],
+   "prompt": "En niveles.ts añade el nivel \"estudio\" por encima de \"alta\" (solo si `descubrir()` de voicestudio.ts dijo vivo y la neurona tiene ≥ 8 GB libres o lo sirve otra neurona). En motor.ts añade como mucho 120 líneas: la primera frase de una conversación sale del motor PERMITIDO (licencia-voz.ts) con menor latencia medida (medidas-voz.ts) que tenga la voz de esa persona; «estudio» solo para lectura larga, doblaje y audiolibros; nunca se parte un mensaje entre dos motores. Prueba pura de la elección con medidas falsas. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos.\n\n## PARTE 2 DE 3 (la dirección dividió VST1018F: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: src/lib/aurora/voz-starseed/motor.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "VST1018F",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   },
+   "dependencias_ya_en_main": [
+    "VST1018F-d1"
+   ]
+  },
+  {
+   "ola": "1021G",
+   "revisor_quitadas": [
+    "GUI1021I",
+    "GUI1021K2-d2"
+   ],
+   "id": "GUI1021K2-d3",
+   "titulo": "Guía sin cuenta · el mismo acceso en la bienvenida y en retomar sesión (parte 3 de 3)",
+   "archivos": [
+    "src/components/welcome/__tests__/bienvenida-guia.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Contrato: lee entero architecture/guias-introduccion.md (§5 sobre todo). §5. Añade «Conoce StarSeed» (bienvenida: `desde: 'bienvenida'`; retomar sesión: `desde: 'login'`) con `abrirGuia`, sin tocar nada más. Pruebas de los dos botones. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos existentes solo lo necesario; módulos puros sin `node:*` si los importa el cliente; nada de `any`; textos en español con acentos; accesible (teclado, dianas de 44 px, cursor pointer, reduced-motion); honestidad radical.\n\n## PARTE 3 DE 3 (la dirección dividió GUI1021K2: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/welcome/__tests__/bienvenida-guia.test.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "GUI1021K2",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   }
+  },
+  {
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "id": "VZF1015M-d1",
+   "titulo": "Un solo resolutor de identidad de voz por persona (agente › personalidad › cerebro › neurona › cuenta) (parte 1 de 3)",
+   "archivos": [
+    "src/lib/aurora/identidad-voz.ts"
+   ],
+   "depende": [],
+   "prompt": "Hay seis mapas de «qué voz tiene esta persona» sin coordinar (VOZ_POR_PERSONA de voz-rt, pines del registro, timbres/voz-inicial/voz-rito, INSTRUCT del demonio, seedKindFor de openvoice2, xai-persona-voices). Crea `identidadVoz({ agente?, personalidad, cerebro?, neurona?, cuenta? })` → `{ timbre, motor, vozRT, origen }` con esa precedencia, leyendo los mapas existentes (no los borres) y que `vozDePersona` de `voz-rt.ts` la use. Pruebas de la precedencia y de que la voz F1 de Alex se conserva por defecto. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.\n\n## PARTE 1 DE 3 (la dirección dividió VZF1015M: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/aurora/identidad-voz.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "VZF1015M",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  },
+  {
+   "id": "SUP0111H",
+   "importancia": "capacidad",
+   "titulo": "Seguridad · esUrlPermitidaRare rechaza `..`, otro host y credenciales en la URL",
+   "archivos": [
+    "src/lib/artcraft/juegos-pc.ts",
+    "src/lib/artcraft/__tests__/juegos-pc.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nHallazgo del triage del 31-10: `esUrlPermitidaRare(url)` (src/lib/artcraft/juegos-pc.ts) solo mira el prefijo del texto, así que acepta `https://github.com/RareDevs/Rare/releases/../../../evil/x` (y `%2e%2e`). Hoy solo la llaman las pruebas, pero es la guarda de las descargas de Rare. Reescríbela PURA con `new URL(url)` dentro de try/catch (URL inválida → false): protocolo `https:`, hostname exactamente `github.com`, sin usuario ni contraseña, sin puerto, y `pathname` (ya normalizado por URL) que empiece por `/RareDevs/Rare/releases/`; además, false si el texto crudo contiene `..`, `%2e` (cualquier caja) o `\\\\`. Mantén lo que ya rechaza (raredevs.github.io, protondb.com). Pruebas: la URL buena de siempre; `..` en claro y codificado; `github.com.evil.com`; `user@github.com`; `http:`; puerto; URL inválida; las de hoy siguen igual.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "XR1010M",
+   "ola": "Ola 1010X · StarSeed XR: el OS en visores de AR/VR (entrada automática, Trinity espacial, menús 3D, voz de Astraura, mundos, P2P, calidad automática)",
+   "titulo": "Dock curvo 3D (Anchor): las mismas apps del dock 2D, con honestidad sobre lo que aún no tiene vista 3D",
+   "archivos": [
+    "src/components/xr/shell/dock-3d.tsx",
+    "src/components/xr/shell/apps-3d.ts",
+    "src/components/xr/shell/__tests__/apps-3d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/starseed-xr.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §2 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica; §3 (a)–(o) son las reglas del área y §1 la investigación fechada (qué existe y qué NO en cada visor). El núcleo puro YA está escrito y probado (214 pruebas) y NO se modifica: `src/lib/xr/{tipos,capacidades,calidad,calidad-perfiles,espacio-trinity,tokens-3d,transiciones,mundo-tipos,mundo-reglas,mundo-saneo,mundo-spec,intenciones-tipos,intenciones-ref,intenciones-destinos,intenciones-clausulas,intenciones-voz,confort,privacidad,vinculos-xr}.ts` (ábrelos y usa sus nombres reales; la tabla del inicio de §3 dice qué da cada uno). Petición de Alex (2026-10-10): StarSeed OS instalable y usable en gafas de AR/VR de todo tipo (Meta Quest, SteamVR, Android XR, Vision Pro, Pico…) o en cualquier navegador con WebXR; se abre solo en su formato (VR o AR); todo el sistema en 3D con el mismo diseño, funciones y estilo; menús 3D completos con animaciones y transiciones autoadaptables; calidad fijada sola por aparato; Astraura y la Protomolécula incluidas, con voz («crea un mundo virtual… e invita a este grupo de amigos», «súbelo a la Biblioteca / a una estación / a una publicación / a un mensaje»); servidores y estaciones públicos o privados como destinos; herramientas configurables para construir entornos, también en pizarras y llamadas.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/starseed-xr.md` y los módulos de `src/lib/xr/` de arriba. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos versiones del núcleo) y NO edites ningún archivo del núcleo para que un import resuelva: escribe SOLO tus archivos, con los nombres y firmas de este prompt, y si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo XR en main» para que el director la reencole cuando llegue.\nReglas de la casa (`memory/workflow-actual.md` y CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea qué tarea posterior la cablea); si una prueba falla se arregla el código, no la prueba. Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; lo de terceros solo en iframe con sandbox y postMessage de origen verificado, WASM en un Worker, app nativa o servicio aparte. Nada de `node:*` en código que llegue al navegador. Claves solo por NOMBRE de variable. Pruebas sin red, sin hardware y sin WebGL: lo del navegador se inyecta; los `*.test.ts` corren en node y los `*.test.tsx` en jsdom; el lienzo 3D (three/R3F/uikit) se simula con `vi.mock` como hace `src/components/vivo/espacial/__tests__/escena-compartida.test.tsx`; los componentes de R3F son cascarones finos y su LÓGICA vive en funciones puras que sí se prueban. Español claro en toda cadena visible; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». Dependencias: NO ejecutes `npm install` salvo que tu tarea sea XR1010A; las 7 dependencias XR (§3 n) las añade esa tarea con el visto bueno de Alex; si tu tarea las necesita y `node_modules` no las trae, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: XR1010A (dependencias XR)». El layout raíz no carga motores pesados: three/uikit/rapier/vrm/spark solo dentro de `src/components/xr/shell/**` y de la ruta `/xr/os` (carga perezosa con `next/dynamic` sin SSR o `import()` dentro de una función). Privacidad (§3 k): nunca pidas la función `camera-access`; la cámara del passthrough y el mapa de la habitación no salen del aparato. Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Migra lo persistido si cambias un valor por defecto. Honestidad: no digas que algo «se ve bien» o «funciona en el visor»: di que pasan tsc y vitest; solo Alex lo comprueba con un visor, en `/xr/diagnostico` (tarea XR1010AI). Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (XR1010M): Contrato §3 (a) y (b). `apps-3d.ts` (puro): `itemsDelDock(config: DockItemConfig[], postura: Postura)` → solo los `enabled`, en su orden, con un máximo visible (7 de pie o sentado, 5 en una mano) y el resto bajo «Más»; `resolverApp(item): {tipo: 'nativa-3d'; id: string} | {tipo: 'uispec'; ruta: string} | {tipo: 'solo-2d'; ruta: string; motivo: string}` con una tabla `APPS_3D` de lo que SÍ tiene vista 3D hoy (el hub `/xr`, las escenas `/escena/*` y `/sala-xr/*`, Astraura y los ajustes XR) y el resto `solo-2d` con el motivo en español («Esta app todavía no tiene vista 3D»); nunca finge. `dock-3d.tsx` ('use client'): `<Dock3D>` curvo con `posicionesDock(n, entrada)` de `src/lib/xr/espacio-trinity.ts`; lee `loadDockConfig()` de `@/components/layout/dock-config` (SON LAS MISMAS apps que el dock 2D: si el usuario las cambia en 2D cambian aquí; escucha el evento `storage` de `starseed.dock.items.v2` y limpia el oyente). Cada botón es un `PanelCristal` (XR1010H) del color del item (`DockColor` → color de `tokens-3d.ts`; ninguno a mano) con el nombre debajo; el icono: usa el SVG del icono de `DOCK_ICON_MAP` si uikit trae `Svg` y es barato, y si no la inicial del nombre dentro de un círculo (decide lo más simple y dilo). Objetivo táctil ≥ 3 cm (`OBJETIVO_MIN_TACTO_M`), entrada escalonada con `Animado` (XR1010I, `retardoDeHermano`) y foco al apuntar. Pulsar: `nativa-3d` abre su panel en Horizon o Logic mediante un callback `abrir(id)`; `solo-2d` muestra una tarjeta con el motivo y el botón «Salir y abrir en 2D» (termina la sesión y navega a la ruta); nunca un botón sin efecto. Pruebas (≥ 8, node): orden y `enabled`; límite por postura con «Más»; `solo-2d` con motivo; `/escena/abc` resuelve a nativa; un item desconocido → `solo-2d`; sin items → lista vacía. Integración: la cablea XR1010AS en el nodo Anchor; di en tu última línea que queda pendiente de ella.",
+   "dependencias_ya_en_main": [
+    "XR1010J"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "XR1010M",
+   "VST1018F-d2",
+   "VZF1015M-d1",
+   "GUI1021K2-d3",
+   "SUP0111H",
+   "OPS1031Cb-d1"
+  ]
+ }
+}
