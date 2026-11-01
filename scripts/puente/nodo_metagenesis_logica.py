@@ -1235,6 +1235,41 @@ def reparaciones_superadas(tareas: List[Dict[str, Any]], progreso: Dict[str, Any
     return salida
 
 
+# ─── tope del rescate en el relevo y el rescate (RESC1031C, 2026-11-01) ──────────────────
+#: Seguimiento de RESC1031A: lo que pasa el tope de profundidad de rescate queda «bloqueada»
+#: + `alta_capacidad`. Ni el relevo de medio caído ni el rescate de colas-fuente deben reincidir:
+#: la sucesora de esas tareas sería OTRO rescate (reparación, división o más «RT»), justo lo que
+#: ese carril ya cierra.
+
+
+def relevables_para_relevo(tids: Iterable[str], progreso: Dict[str, Any]) -> List[str]:
+    """PURA (RESC1031C). Los ids que sí se relevan a otro medio, en el mismo orden.
+
+    Fuera: las que ya pasaron el tope de profundidad de rescate (se ve con el id solo) y las que
+    el progreso ya dejó en el carril de alta capacidad (`cierre_rescate_agotado` o la escalera).
+    Continuar una tarea que está EN curso no nace un rescate nuevo: a nivel del tope se sigue.
+    """
+    try:
+        from revisor_bloqueadas_logica import en_alta_capacidad, rescate_agotado  # la regla que ya existe
+    except ImportError:  # pragma: no cover — medio sin el resto del puente
+        def rescate_agotado(tid: Any, tope: int = 2) -> bool:
+            t, n = str(tid or ""), 0
+            while t.startswith("RT" * (n + 1)):
+                n += 1
+            return n > tope
+
+        def en_alta_capacidad(entrada: Any) -> bool:
+            return isinstance(entrada, dict) and entrada.get("alta_capacidad") is True
+
+    salida: List[str] = []
+    for tid in tids or ():
+        tid = str(tid)
+        if rescate_agotado(tid) or en_alta_capacidad((progreso or {}).get(tid)):
+            continue
+        salida.append(tid)
+    return salida
+
+
 def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, Any]]]], ids_vivos: set,
                        progreso: Dict[str, Any], asuntos_git: Sequence[str], ahora: float,
                        max_dias: int = 21, tope: int = 12) -> List[Dict[str, Any]]:
@@ -1266,6 +1301,12 @@ def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, A
                     return k
             return None
 
+    try:
+        from revisor_bloqueadas_logica import en_alta_capacidad  # noqa: WPS433 · el carril de alta capacidad
+    except ImportError:  # pragma: no cover — medio sin el resto del puente
+        def en_alta_capacidad(entrada: Any) -> bool:
+            return isinstance(entrada, dict) and entrada.get("alta_capacidad") is True
+
     elegidas: Dict[str, Dict[str, Any]] = {}
     vistos: set = set()
     for nombre, mtime, tareas in sorted(colas_fuente or (), key=lambda x: -float(x[1] or 0)):
@@ -1284,6 +1325,9 @@ def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, A
                 continue
             est = (progreso or {}).get(tid)
             estado = est.get("estado") if isinstance(est, dict) else ""
+            # (RESC1031C) Las del carril de alta capacidad no vuelven al enjambre gratuito.
+            if en_alta_capacidad(est):
+                continue
             if estado in CERRADAS or estado in ("fallo", "fallo_tsc", "fallo_tests", "bloqueante",
                                                 "esperando_aprobacion", "pendiente_aprobacion"):
                 # Las falladas son del revisor de bloqueadas (OPB1011), no de un rescate a ciegas.

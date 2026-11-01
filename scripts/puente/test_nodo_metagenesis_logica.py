@@ -115,6 +115,46 @@ class TestLiderarYPrestamos(unittest.TestCase):
         self.assertEqual(L.mejor_medio_ocioso(nodos), "neurona-bbbbbb")
 
 
+class TestRelevoRescateAgotado(unittest.TestCase):
+    """(RESC1031C) Ni el relevo ni el rescate reinciden en lo que la escalera de RESC1031A cerró."""
+
+    def test_relevo_excluye_alta_capacidad(self):
+        progreso = {"T2": {"estado": "bloqueada", "alta_capacidad": True,
+                           "nota": "cadena de rescates agotada: carril de alta capacidad · T2 lleva 3 niveles"}}
+        self.assertEqual(L.relevables_para_relevo(["T1", "T2"], progreso), ["T1"])
+
+    def test_relevo_excluye_alta_capacidad_por_nota(self):
+        progreso = {"T2": {"estado": "bloqueada",
+                           "nota": "cadena de rescates agotada: carril de alta capacidad · T2 lleva 3"}}
+        self.assertEqual(L.relevables_para_relevo(["T2"], progreso), [])
+
+    def test_relevo_excluye_cadena_que_pasó_el_tope(self):
+        # Más «RT» del tope (2): su sucesora sería OTRO rescate sin salida; no se releva.
+        self.assertEqual(L.relevables_para_relevo(["COL1012B", "RTRTRTRTCOL1012B"], {}), ["COL1012B"])
+        # En el propio tope el relevo sigue: continuar una tarea en curso no es un rescate nuevo.
+        self.assertEqual(L.relevables_para_relevo(["RTRTCOL1012B"], {}), ["RTRTCOL1012B"])
+
+    def test_relevo_con_progreso_vacío_y_lista_vacía(self):
+        self.assertEqual(L.relevables_para_relevo(["T1"], {}), ["T1"])
+        self.assertEqual(L.relevables_para_relevo([], {"T1": {"alta_capacidad": True}}), [])
+
+
+class TestRescateNoAltaCapacidad(unittest.TestCase):
+    """(RESC1031C) El rescate de colas-fuente deja el carril de alta capacidad tranquilo."""
+
+    def test_excluye_la_que_ya_está_en_el_carril(self):
+        colas = [("cola-uno.json", T0, [{"id": "RTX1", "archivos": ["a.py"], "prompt": "hazla"}])]
+        progreso = {"RTX1": {"estado": "bloqueada", "alta_capacidad": True,
+                             "nota": "cadena de rescates agotada: carril de alta capacidad"}}
+        cands = L.candidatos_rescate(colas, set(), progreso, [], T0)
+        self.assertEqual([c["id"] for c in cands], [])
+
+    def test_deja_el_resto(self):
+        colas = [("cola-uno.json", T0, [{"id": "T1", "archivos": ["a.py"], "prompt": "hazla"}])]
+        cands = L.candidatos_rescate(colas, set(), {"T1": {"estado": "en_curso"}}, [], T0)
+        self.assertEqual([c["id"] for c in cands], ["T1"])
+
+
 if __name__ == "__main__":
     unittest.main()
 
