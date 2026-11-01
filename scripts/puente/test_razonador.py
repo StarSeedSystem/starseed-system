@@ -71,6 +71,7 @@ class Juicio(Base):
         self.assertEqual(experiencias.calibracion(exps, "jev"), {"0.7": {"n": 1, "aciertos": 1}})
 
     def test_sin_jev_none(self):
+        jev.TRANSPORTE_LOCALES = lambda e, c, t: None  # bloquear Laya-local
         self.assertIsNone(razonador.juicio({"x": 1}, "?", {"a": "", "b": ""}))
         self.assertIsNone(razonador.si_no({"x": 1}, "?"))
 
