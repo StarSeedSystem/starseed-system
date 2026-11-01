@@ -58,8 +58,8 @@ describe("validarTrabajo", () => {
     expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }, { op: "material", objeto: "c", alfa: 2 }])).join(" ")).toContain("número en rango");
     expect(motivos({ ...base(), salidas: [{ ...PNG, ancho: 512.5 }] }).join(" ")).toContain("entero");
   });
-  it("rechaza nombres con unicode ajeno, demasiado largos o que empiezan por dígito", () => {
-    for (const nombre of ["Cuboño", "立立方方", "a".repeat(33), "2empieza"]) expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre, tam: 1 }])).join(" ")).toContain("nombre");
+  it("rechaza nombres con unicode ajeno, saltos de línea, demasiado largos o que empiezan por dígito", () => {
+    for (const nombre of ["Cuboño", "立立方方", "a".repeat(33), "2empieza", "Cubo\nrm -rf /"]) expect(motivos(conEscena([{ op: "primitiva", tipo: "cubo", nombre, tam: 1 }])).join(" ")).toContain("nombre");
   });
   it("rechaza texto3d con separador de línea y demasiado largo", () => {
     for (const texto of ["Cubo\u2028 业", "x".repeat(65)]) expect(motivos(conEscena([{ op: "texto3d", nombre: "t", texto, extrusion: 0.1, tam: 1 }])).join(" ")).toContain("texto");
@@ -136,6 +136,19 @@ describe("estimarCoste y necesitaConfirmacion", () => {
     const soloGlb = estimarCoste(valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }], [{ tipo: "exportar_glb" }])));
     expect(soloGlb.segundos).toBe(0);
     expect(soloGlb.vertices).toBe(8);
+  });
+  it("el mínimo ligero no pide confirmación en ligero ni estándar; límites, fotogramas y vértices que no caben sí en ligero", () => {
+    expect(necesitaConfirmacion(valido(base()), "ligero")).toBe(false);
+    expect(necesitaConfirmacion(valido(base()), "estandar")).toBe(false);
+    expect(necesitaConfirmacion(valido({ ...base(), limites: { memoriaMB: 4096 } }), "ligero")).toBe(true);
+    expect(necesitaConfirmacion(valido({ ...base(), limites: { memoriaMB: 4096 } }), "estandar")).toBe(false);
+    const mp4Largo = valido({ ...base(), salidas: [{ tipo: "render_mp4", ancho: 320, alto: 240, fps: 12, desde: 0, hasta: 120, muestras: 8, motor: "workbench" }] });
+    expect(necesitaConfirmacion(mp4Largo, "ligero")).toBe(true);
+    expect(necesitaConfirmacion(mp4Largo, "estandar")).toBe(false);
+    const conMalla = valido(conEscena([{ op: "primitiva", tipo: "esfera", nombre: "malla", tam: 1 }, { op: "modificador", objeto: "malla", tipo: "subdivision", niveles: 4 }]));
+    expect(estimarCoste(conMalla).vertices).toBe(482 + 482 * 255);
+    expect(necesitaConfirmacion(conMalla, "ligero")).toBe(true);
+    expect(necesitaConfirmacion(conMalla, "estandar")).toBe(false);
   });
   it("pide confirmación por ámbito, importar, final y coste sobre el perfil ligero", () => {
     expect(necesitaConfirmacion(valido(base()), "ligero")).toBe(false);
