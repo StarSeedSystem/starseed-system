@@ -37,6 +37,7 @@ import {
 } from "@/lib/aurora/colchon-voz";
 import { pedirLimiteFondo } from "@/lib/perf/fondo-vivo";
 import { anotarMedida } from "@/lib/aurora/medidas-voz";
+import { identidadVoz } from "@/lib/aurora/identidad-voz";
 
 const BASE = "/api/voz-rt";
 /** (2026-09-24) Lo medido en este equipo: RTF del motor, ritmo del texto, duración típica. */
@@ -85,6 +86,12 @@ export function vozDePersona(personaId?: string): string {
         if (elegida && /^[FM][1-5]$/.test(elegida)) return elegida;
     } catch {
         /* sin almacenamiento */
+    }
+    try {
+        const res = identidadVoz({ personalidad: personaId });
+        if (res?.vozRT && /^[FM][1-5]$/i.test(res.vozRT)) return res.vozRT.toUpperCase();
+    } catch {
+        /* sin romper */
     }
     const id = (personaId || "").toLowerCase().replace(/\s+/g, "_");
     return VOZ_POR_PERSONA[id] ?? "F1";

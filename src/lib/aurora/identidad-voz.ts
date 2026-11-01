@@ -14,6 +14,7 @@ import { isVoiceEngineId, type AuroraVoiceEngine } from "@/lib/aurora/tts-oss/vo
 
 /** Ámbito que aportó la identidad, del más fuerte al más débil. */
 export type CapaVoz = "agente" | "personalidad" | "cerebro" | "neurona" | "cuenta" | "defecto";
+type CapaDatos = "agente" | "personalidad" | "cerebro" | "neurona" | "cuenta";
 
 /** Lo que una capa sabe de su voz. Todo opcional: lo que falte se hereda. */
 export interface FuenteIdentidadVoz {
@@ -53,7 +54,7 @@ export const VOZ_RT_POR_PERSONA: Readonly<Record<string, string>> = {
 export const MOTOR_IDENTIDAD_POR_DEFECTO: AuroraVoiceEngine = "openvoice2";
 export const VOZ_RT_POR_DEFECTO = "F1";
 const VOZ_RT_VALIDA = /^[FM][1-5]$/i;
-const ORDEN_CAPAS: readonly CapaVoz[] = ["agente", "personalidad", "cerebro", "neurona", "cuenta"];
+const ORDEN_CAPAS: readonly CapaDatos[] = ["agente", "personalidad", "cerebro", "neurona", "cuenta"];
 
 function normalizar(capa: CapaIdentidadVoz): FuenteIdentidadVoz {
   if (typeof capa === "string") return { id: capa };
