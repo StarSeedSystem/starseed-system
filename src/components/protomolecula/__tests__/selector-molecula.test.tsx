@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NEW_BLOCK_DEFS, RichBlockEditor } from "@/components/creation/creation-blocks";
 import { CLAVE_INDICE, PREFIJO_MOLECULA, type AlmacenLocal } from "@/lib/protomolecula/almacen-moleculas";
@@ -33,6 +34,12 @@ function molecula(id: string, titulo: string, ambito: string, referencia: { tipo
 const sinReservas = () => "publica" as const;
 
 describe("SelectorMolecula", () => {
+  it("antes de que corra su efecto muestra el aviso de carga, no la lista", () => {
+    const a = sembrar(almacenMemoria(), [molecula("m1", "Río", "grupo")]);
+    const html = renderToString(<SelectorMolecula ambitoPost="grupo" alElegir={vi.fn()} almacen={a} ambitoDe={sinReservas} />);
+    expect(html).toContain("Cargando tus moléculas…");
+    expect(html).not.toContain("Río");
+  });
   it("una molécula guardada por la sesión de la Protomolécula (forma del núcleo) se lista y llega al lienzo", () => {
     const a = almacenMemoria();
     const nueva = abrirSesion(undefined, { almacen: a, ahora: () => 5, nuevoId: () => "m-sesion" });
@@ -122,6 +129,16 @@ describe("SelectorMolecula", () => {
 });
 
 describe("prepararMolecula", () => {
+  it("una molécula válida carga sus detalles: el texto que sale lo lee leerBloque", () => {
+    const a = sembrar(almacenMemoria(), [molecula("m1", "Río", "grupo")]);
+    const p = prepararMolecula(a, "m1", "grupo", sinReservas);
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.titulo).toBe("Río");
+    expect(p.avisos).toEqual([]);
+    const leido = leerBloque(p.texto);
+    expect(leido.ok && leido.valor.id).toBe("m1");
+  });
   it("si comprobar el ámbito falla, avisa como si fuese privada (exige confirmar)", () => {
     const a = sembrar(almacenMemoria(), [molecula("m1", "Mural", "grupo", { tipo: "entity", id: "e1" })]);
     const p = prepararMolecula(a, "m1", "grupo", () => { throw new Error("sin red"); });
