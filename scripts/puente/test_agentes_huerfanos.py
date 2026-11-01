@@ -98,5 +98,64 @@ class TrabajadoresDePuertaHuerfanos(unittest.TestCase):
         self.assertEqual(A.trabajadores_huerfanos([("x", 1, "node (vitest 1)"), None, (1, 2)]), [])
 
 
+class TestTscHuerfanos(unittest.TestCase):
+    """(31-10) El `tsc-turno.sh` que sobrevivió al zsh que lo lanzó."""
+
+    def test_el_arbol_del_31_10(self):
+        filas = [
+            (100, 1, "/bin/zsh -c bash scripts/enjambre/tsc-turno.sh 2>&1 | tail -40"),
+            (101, 100, "bash scripts/enjambre/tsc-turno.sh"),
+            (102, 101, "npm exec tsc --noEmit"),
+            (103, 102, "node /repo/node_modules/.bin/tsc --noEmit"),
+        ]
+        self.assertEqual(A.tsc_huerfanos(filas), [102, 103])
+
+    def test_la_puerta_del_orquestador_no_se_toca(self):
+        filas = [
+            (200, 1, "python -u /Users/alex/.local/bin/starseed-enjambre.py"),
+            (201, 200, "bash scripts/enjambre/tsc-turno.sh"),
+            (202, 201, "npm exec tsc --noEmit"),
+            (203, 202, "node /repo/node_modules/.bin/tsc --noEmit"),
+        ]
+        self.assertEqual(A.tsc_huerfanos(filas), [])
+
+    def test_un_tsc_de_una_terminal_viva_no_se_toca(self):
+        filas = [
+            (300, 1, "/bin/zsh"),
+            (301, 300, "npm exec tsc --noEmit"),
+            (302, 301, "node /repo/node_modules/.bin/tsc --noEmit"),
+        ]
+        self.assertEqual(A.tsc_huerfanos(filas), [])
+
+    def test_tsc_adoptado_por_init(self):
+        filas = [
+            (400, 1, "npm exec tsc --noEmit"),
+            (401, 400, "node /repo/node_modules/.bin/tsc --noEmit"),
+            (402, 1, "node /repo/node_modules/.bin/tsc --noEmit"),
+        ]
+        self.assertEqual(A.tsc_huerfanos(filas), [400, 401, 402])
+
+    def test_no_confunde_un_grep_ni_vitest(self):
+        filas = [
+            (500, 1, "grep tsc scripts/enjambre/tsc-turno.sh"),
+            (501, 1, "node (vitest 2)"),
+        ]
+        self.assertEqual(A.tsc_huerfanos(filas), [])
+
+    def test_ciclo_de_ppid_no_cuelga(self):
+        filas = [(600, 601, "npm exec tsc"), (601, 600, "bash x")]
+        self.assertEqual(A.tsc_huerfanos(filas), [])
+
+
+class TestTrabajadoresIncluyenTsc(unittest.TestCase):
+    def test_suma_los_tsc_a_los_trabajadores_de_puerta(self):
+        filas = [
+            (39558, 1, "node (vitest 2)"),
+            (40176, 1, "node (vitest 1)"),
+            (102, 1, "npm exec tsc --noEmit"),
+        ]
+        self.assertEqual(A.trabajadores_huerfanos(filas), [39558, 40176, 102])
+
+
 if __name__ == "__main__":
     unittest.main()
