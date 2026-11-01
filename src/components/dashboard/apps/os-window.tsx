@@ -13,9 +13,11 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import type { TargetAndTransition, Transition } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { geometriaVentana } from "@/lib/design/composicion";
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -74,12 +76,91 @@ export interface OSWindowProps {
     bare?: boolean;
 }
 
+/* ── Composición centrada por aparato (DSN1019B) ─────────────────────
+   La posición inicial sale de `geometriaVentana` (src/lib/design/composicion.ts):
+   · escritorio/tableta: ventana centrada — el flex padre ya la da (§7b) y no
+     se toca nada del centrado de siempre.
+   · teléfono (menos de 430 px, el umbral de composicion.ts): HOJA centrada que
+     sube desde abajo, anclada con el left/top que devuelve la geometría, con
+     entrada cardinal (24 px de recorrido, curva --ease-glide, fundamentos §5).
+   Con `prefers-reduced-motion` la hoja solo funde, sin recorrido. El arrastre
+   de siempre no cambia: su transform convive con el anclaje left/top. */
+const UMBRAL_TELEFONO = 430;
+const RECORRIDO_HOJA_PX = 24;
+
+interface Colocacion {
+    esHoja: boolean;
+    pocoMovimiento: boolean;
+    left?: number;
+    top?: number;
+}
+
+function leerColocacion(marco?: HTMLElement | null): Colocacion {
+    if (typeof window === "undefined") return { esHoja: false, pocoMovimiento: false };
+    const viewport = { ancho: window.innerWidth, alto: window.innerHeight };
+    const esHoja = viewport.ancho < UMBRAL_TELEFONO;
+    const pocoMovimiento =
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!esHoja) return { esHoja, pocoMovimiento };
+    // El tamaño real lo da `sizeClass` del llamador: se mide el marco ya renderizado
+    // y geometriaVentana acota el anclaje al espacio libre de cada aparato.
+    const ancho = marco && marco.offsetWidth > 0 ? marco.offsetWidth : undefined;
+    const alto = marco && marco.offsetHeight > 0 ? marco.offsetHeight : undefined;
+    const geo = geometriaVentana(viewport, { tipo: "hoja", ancho, alto });
+    return { esHoja, pocoMovimiento, left: geo.x, top: geo.y };
+}
+
+const ENTRA_VENTANA: { initial: TargetAndTransition; animate: TargetAndTransition; transition: Transition } = {
+    initial: { opacity: 0, scale: 0.96 },
+    animate: { opacity: 1, scale: 1 },
+    transition: { type: "spring", stiffness: 260, damping: 26 },
+};
+const ENTRA_HOJA: { initial: TargetAndTransition; animate: TargetAndTransition; transition: Transition } = {
+    initial: { opacity: 0, y: RECORRIDO_HOJA_PX },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.24, ease: [0.16, 1, 0.3, 1] }, // --ease-glide
+};
+const ENTRA_HOJA_QUIETA: { initial: TargetAndTransition; animate: TargetAndTransition; transition: Transition } = {
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    transition: { duration: 0.2 },
+};
+
 export function OSWindow({
     title, subtitle, icon: Icon, accent, onClose, actions, toolbar, children,
     sizeClass = "w-[min(94vw,1100px)] h-[min(86vh,760px)]", bare = true,
 }: OSWindowProps) {
     const [offset, setOffset] = useState({ dx: 0, dy: 0 });
     const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+
+    // Colocación por aparato: se decide en el primer render (el viewport ya se conoce)
+    // para que la entrada de Framer nazca con el recorrido correcto, y se mide de nuevo
+    // montado el marco y ante cambios de viewport o de movimiento.
+    const [colocacion, setColocacion] = useState<Colocacion>(() => leerColocacion());
+    const marcoRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const reencuadrar = () => {
+            if (dragRef.current) return; // arrastrándose a mitad: no se reencuadra
+            setColocacion(leerColocacion(marcoRef.current));
+        };
+        reencuadrar();
+        window.addEventListener("resize", reencuadrar);
+        const mq =
+            typeof window.matchMedia === "function"
+                ? window.matchMedia("(prefers-reduced-motion: reduce)")
+                : null;
+        mq?.addEventListener("change", reencuadrar);
+        return () => {
+            window.removeEventListener("resize", reencuadrar);
+            mq?.removeEventListener("change", reencuadrar);
+        };
+    }, []);
+    const entrada = colocacion.esHoja
+        ? colocacion.pocoMovimiento
+            ? ENTRA_HOJA_QUIETA
+            : ENTRA_HOJA
+        : ENTRA_VENTANA;
 
     const raizRef = useRef<HTMLDivElement>(null);
     const cerrarRef = useRef(onClose);
@@ -113,12 +194,18 @@ export function OSWindow({
 
             {/* Capa de arrastre centrada por el flex padre. El transform de arrastre va
                 aquí (div plano), NO en el hijo animado → la animación de Framer ya no pisa
-                el centrado y la ventana SIEMPRE abre centrada. */}
-            <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
+                el centrado y la ventana SIEMPRE abre centrada. En teléfono la hoja es
+                absoluta y el anclaje (left/top) lo pone geometriaVentana. */}
+            <div
+                className={cn("max-w-full max-h-full", colocacion.esHoja ? "absolute" : "relative")}
+                style={{
+                    transform: `translate(${offset.dx}px, ${offset.dy}px)`,
+                    ...(colocacion.esHoja ? { left: colocacion.left, top: colocacion.top } : {}),
+                }}
+            >
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ type: "spring", stiffness: 260, damping: 26 }}
+                    ref={marcoRef}
+                    {...entrada}
                     className={cn(
                         "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
                         sizeClass,
