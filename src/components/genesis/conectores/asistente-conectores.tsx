@@ -1,12 +1,16 @@
 "use client";
 /** GENESIS · ASISTENTE «CONECTAR GENESIS» (Ola 1019G · GCA1019M · architecture/genesis-conectores-abiertos.md §3).
  * Tres pasos: local con interruptores, gratis con enlace oficial y clave que se envía y se borra, resumen por
- * papel con su motivo. Red inyectable: pruebas sin red; ninguna clave se guarda ni se devuelve. */
+ * papel con su motivo. Red inyectable: pruebas sin red; ninguna clave se guarda ni se devuelve.
+ * Cloudroom (CRM1024F): estado honesto (instalada o no en esta neurona, cupo restante del contexto con
+ * cupo-cloudroom.ts) y sugerencia SOLO cuando el sugeridor del ámbito la devuelve. Sin red ni claves. */
 import { useEffect, useMemo, useState } from "react";
+import { Cloud, ExternalLink } from "lucide-react";
 import type { Asignacion } from "@/lib/genesis/conectores/asignaciones";
 import type { GrupoSugerencias, Sugerencia } from "@/lib/genesis/conectores/sugerir";
 import type { Papel } from "@/lib/genesis/conectores/catalogo-opciones";
 import type { VistaOpciones } from "@/lib/genesis/conectores/opciones-ambito";
+import { cupoRestante, ritmoDiario, type Consumo, type PlanCloudroom } from "@/lib/genesis/conectores/cupo-cloudroom";
 /** Parte de la vista de la API que usa el asistente (mismo tipo, sin duplicarlo). */
 export type VistaOpcionesAmbito = Pick<VistaOpciones, "sugerencias" | "asignaciones">;
 export type ResultadoVincular = { ok: boolean; error?: string };
@@ -42,7 +46,93 @@ function opcionesDeGrupo(grupos: readonly GrupoSugerencias[], clave: string): Su
   for (const g of grupos) if (g.clave === clave && "opciones" in g) return g.opciones;
   return [];
 }
-export function AsistenteConectarGenesis({ ambito, opciones = null, cargar, vincular }: { ambito: string; opciones?: VistaOpcionesAmbito | null; cargar?: Cargar; vincular?: VincularClave }) {
+export type InstalacionCloudroom = "instalada" | "no-instalada" | "sin-dato";
+/** Lo que cada página aporta sobre Cloudroom; sin datos no se inventa nada (arquitectura §5). */
+export interface EntradaEstadoCloudroom {
+  instalacion?: InstalacionCloudroom;
+  plan?: PlanCloudroom;
+  consumos?: readonly Consumo[];
+  inicioCiclo?: string | number;
+  ahora?: string | number;
+  diasQueQuedan?: number;
+  /** Lo que el sugeridor del ámbito devuelve: se ofrece solo si trae la entrada cloudroom. */
+  sugerencias?: readonly GrupoSugerencias[];
+}
+export interface EstadoCloudroom {
+  instalacion: InstalacionCloudroom;
+  cupo: number | null;
+  ritmo: number;
+  sugerencia: Sugerencia | null;
+  ofrecible: boolean;
+  texto: string;
+}
+/** Busca la entrada «cloudroom» entre los grupos que devuelve el sugeridor; null si no la devuelve. */
+export function sugerenciaCloudroom(grupos: readonly GrupoSugerencias[]): Sugerencia | null {
+  for (const g of grupos) if ("opciones" in g) { const o = g.opciones.find((x) => x.id === "cloudroom"); if (o) return o; }
+  return null;
+}
+const INSTALACION_TEXTO: Record<InstalacionCloudroom, string> = {
+  instalada: "instalada en esta neurona",
+  "no-instalada": "no instalada en esta neurona",
+  "sin-dato": "instalación sin comprobar en esta neurona",
+};
+/** Estado honesto, PURO: instalación en la neurona + cupo restante del contexto. Ofrecida solo si el
+ * sugeridor la devuelve y la neurona la tiene; si no, se dice por qué y se queda como opción más. */
+export function estadoCloudroom(entrada: EntradaEstadoCloudroom): EstadoCloudroom {
+  const instalacion = entrada.instalacion ?? "sin-dato";
+  const cupo = entrada.plan !== undefined && entrada.inicioCiclo !== undefined && entrada.ahora !== undefined
+    ? cupoRestante(entrada.plan, [...(entrada.consumos ?? [])], entrada.inicioCiclo, entrada.ahora) : null;
+  const ritmo = cupo !== null && entrada.diasQueQuedan !== undefined ? ritmoDiario(cupo, entrada.diasQueQuedan) : 0;
+  const sugerencia = sugerenciaCloudroom(entrada.sugerencias ?? []);
+  const cupoTexto = cupo === null ? "cupo sin lectura"
+    : `${cupo} agente(s) en la nube en este ciclo · ritmo ${ritmo}/día`;
+  const motivo = sugerencia ? `Sugerida para este ámbito: ${sugerencia.motivo}`
+    : "No se ofrece como servidor aquí: el sugeridor del ámbito no la devuelve.";
+  return {
+    instalacion, cupo, ritmo, sugerencia,
+    ofrecible: sugerencia !== null && instalacion !== "no-instalada",
+    texto: `Cloudroom ${INSTALACION_TEXTO[instalacion]}; ${cupoTexto}. ${motivo}`,
+  };
+}
+const CARD_CLOUDROOM = "rounded-xl border border-cyan-400/20 bg-cyan-500/[0.04] p-3 backdrop-blur";
+/** Tarjeta de Cloudroom: honesta y compacta; se usa en el asistente y en la sección de asignaciones. */
+export function TarjetaCloudroom({ estado, className = "" }: { estado: EstadoCloudroom; className?: string }) {
+  return (
+    <section aria-label="Cloudroom como servidor de agentes" className={`${CARD_CLOUDROOM} ${className}`}>
+      <header className="flex flex-wrap items-center gap-2">
+        <Cloud className="h-4 w-4 shrink-0 text-cyan-300" aria-hidden={true} />
+        <h3 className="text-sm font-semibold text-white/85">Cloudroom</h3>
+        <span data-testid="cloudroom-instalacion" className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] text-white/60">
+          {INSTALACION_TEXTO[estado.instalacion]}
+        </span>
+        <span data-testid="cloudroom-cupo" className="text-[10px] text-white/55">
+          {estado.cupo === null ? "Cupo sin lectura" : `${estado.cupo} agente(s) en la nube · ritmo ${estado.ritmo}/día`}
+        </span>
+      </header>
+      <p className="mt-1 text-[11px] text-white/55">{estado.texto}</p>
+      {estado.ofrecible && estado.sugerencia ? (
+        <p role="status" className="mt-2 rounded-lg border border-emerald-400/25 bg-emerald-500/10 p-2 text-[11px] text-emerald-100">
+          Sugerida para los agentes de este ámbito (100 agentes en la nube cada 30 días).
+          {estado.sugerencia.enlaceAlta ? (
+            <a href={estado.sugerencia.enlaceAlta} target="_blank" rel="noreferrer"
+              className="ml-1 inline-flex cursor-pointer items-center gap-0.5 underline">
+              Abrir Cloudroom <ExternalLink className="h-3 w-3" aria-hidden={true} />
+            </a>
+          ) : null}
+        </p>
+      ) : (
+        <p role="status" className="mt-2 rounded-lg border border-white/10 bg-black/20 p-2 text-[11px] text-white/50">
+          No se sugiere aquí; el catálogo la deja como una opción más, nunca la única.
+        </p>
+      )}
+    </section>
+  );
+}
+/** Estado de Cloudroom para la sección de asignaciones (mi Génesis, PoliGenesis): mismo cálculo. */
+export function AsistenteConectores({ entrada, className = "" }: { entrada: EntradaEstadoCloudroom; className?: string }) {
+  return <TarjetaCloudroom estado={estadoCloudroom(entrada)} className={className} />;
+}
+export function AsistenteConectarGenesis({ ambito, opciones = null, cargar, vincular, cloudroom = null }: { ambito: string; opciones?: VistaOpcionesAmbito | null; cargar?: Cargar; vincular?: VincularClave; cloudroom?: EntradaEstadoCloudroom | null }) {
   const [vista, setVista] = useState<VistaOpcionesAmbito | null>(opciones), [errorCarga, setErrorCarga] = useState<string | null>(null),
     [paso, setPaso] = useState(1), [locales, setLocales] = useState<Set<string>>(new Set()), [claves, setClaves] = useState<Record<string, string>>({}),
     [vinculadasOk, setVinculadasOk] = useState<Set<string>>(new Set()), [avisoVincular, setAvisoVincular] = useState<string | null>(null);
@@ -62,6 +152,12 @@ export function AsistenteConectarGenesis({ ambito, opciones = null, cargar, vinc
     const r = await (vincular ?? vincularPorApi)(ambito, id, valor); setClaves((p) => ({ ...p, [id]: "" }));
     if (r.ok) setVinculadasOk((p) => new Set(p).add(id)); else setAvisoVincular(r.error ?? "No se pudo vincular esa clave.");
   };
+  /** Cloudroom: se pinta si hay entrada de la página o si el sugeridor la devuelve; nunca se inventa. */
+  const estadoCloudroomVista = useMemo(() => {
+    const sugerencia = sugerenciaCloudroom(vista?.sugerencias ?? []);
+    if (sugerencia === null && cloudroom === null) return null;
+    return estadoCloudroom({ ...(cloudroom ?? {}), sugerencias: vista?.sugerencias });
+  }, [cloudroom, vista]);
   return (
     <section className="space-y-4">
       <h2 className="text-xl font-semibold">Conectar Genesis</h2>
@@ -88,7 +184,7 @@ export function AsistenteConectarGenesis({ ambito, opciones = null, cargar, vinc
       {paso === 2 ? (
         <div className="space-y-2" data-testid="paso-gratis">
           <p className="text-xs text-white/60">Crea tu cuenta en el enlace oficial, pega la clave y se envía a la bóveda del servidor.</p>
-          {gratis.map((o) => (
+          {gratis.filter((o) => o.id !== "cloudroom").map((o) => (
             <div key={o.id} className={CRISTAL}>
               <p className="text-sm">{o.nombre}</p>
               {o.enlaceAlta || o.enlaceClave ? <a href={o.enlaceAlta ?? o.enlaceClave ?? "#"} target="_blank" rel="noreferrer" className={`${PILDORA} inline-block py-1`}>Vincular</a> : null}
@@ -103,6 +199,7 @@ export function AsistenteConectarGenesis({ ambito, opciones = null, cargar, vinc
             </div>
           ))}
           {avisoVincular ? <p className={`${CRISTAL} border-amber-400/25 bg-amber-500/10 text-xs text-amber-100`}>{avisoVincular}</p> : null}
+          {estadoCloudroomVista ? <TarjetaCloudroom estado={estadoCloudroomVista} className="mt-1" /> : null}
         </div>
       ) : null}
       {paso === 3 ? (
