@@ -105,6 +105,15 @@ describe("ayudantes de fuga de palabra", () => {
         expect(textoContienePalabra("hola", "   ")).toBe(false);
     });
 
+    test("la palabra con espacios sobrantes se recorta y el texto vacío no contiene nada", () => {
+        // rescatado de la rama de la nube, adaptado al contrato de palabra propia:
+        // el recorte de espacios sí manda; el troceo dentro de otra palabra («hol») no cuenta,
+        // porque eso es exactamente el falso positivo «la revela»/«vela» que tiró la CI
+        expect(textoContienePalabra("hola mundo", " mundo")).toBe(true);
+        expect(textoContienePalabra("hola mundo", "mundo ")).toBe(true);
+        expect(textoContienePalabra("", "hola")).toBe(false);
+    });
+
     test("el texto pegado sí se ve, aunque esté encajado entre otras letras", () => {
         const palabraVela = "vela";
         // textContent pega las filas sin separador: «…zzzzBetovela…» era invisible con `\b`
