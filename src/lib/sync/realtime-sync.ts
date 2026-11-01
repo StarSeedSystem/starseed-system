@@ -79,7 +79,8 @@ import { activeProfileId } from "@/lib/profiles/profiles";
 import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaults";
 // (Ola MBT1027) El Mausbot guarda su config con su propio evento (EVENTO_MAUSBOT,
 //  src/lib/mausbot/config.ts); el valor que llega de otro dispositivo usa el mismo evento.
-import { EVENTO_MAUSBOT } from "@/lib/mausbot/config";
+//  El valor de la cuenta se sana con `normalizarConfigMausbot` antes de tocar localStorage.
+import { EVENTO_MAUSBOT, CLAVE_MAUSBOT, normalizarConfigMausbot } from "@/lib/mausbot/config";
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
@@ -939,6 +940,8 @@ function applyRemoteChanges(
                 const norm = normalizeDockSyncValue(merged);
                 if (norm.changed) { merged = norm.value; repaired = true; }
             }
+            // Mausbot (Ola MBT1027): el valor de la cuenta se sana antes de tocar localStorage.
+            if (key === CLAVE_MAUSBOT) merged = normalizarConfigMausbot(merged);
 
             const serialized = serializeForStorage(merged);
             if (localStorage.getItem(key) === serialized) {
