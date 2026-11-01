@@ -13,6 +13,9 @@ import cupo_codex as C
 REAL = ("ERROR: You've hit your usage limit. Upgrade to Pro "
         "(https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage")
 
+#: Salida real de 2026-10-23 de "modelo no admitido con la cuenta de ChatGPT".
+REAL_MODELO = "{\"status\":400, ... \"message\":\"The 'gpt-5.6-sol' model is not supported when using codex with a chatgpt account.\",\"code\":\"model_not_found\"}"
+
 AHORA = 1_700_000_000.0
 
 
@@ -62,6 +65,27 @@ class TestVentana(unittest.TestCase):
 
     def test_se_puede_ajustar(self):
         self.assertAlmostEqual(C.hasta_cuando(AHORA, horas=0.5) - AHORA, 1800, places=3)
+
+
+class TestSinModelo(unittest.TestCase):
+    def test_detecta_modelo_no_soportado(self):
+        self.assertTrue(C.sin_modelo_en(REAL_MODELO))
+
+    def test_no_confunde_con_agotamiento(self):
+        self.assertFalse(C.sin_modelo_en("ERROR: model 'gpt-9' does not exist"))
+        self.assertFalse(C.sin_modelo_en("error: the argument '--sandbox' cannot be used"))
+
+    def test_vacio_no_es_sin_modelo(self):
+        self.assertFalse(C.sin_modelo_en(""))
+        self.assertFalse(C.sin_modelo_en(None))
+
+    def test_da_igual_como_lo_escriban(self):
+        for t in ("The 'gpt-5.6-sol' model is not supported when using codex with a chatgpt account",
+                  "model_not_found"):
+            self.assertTrue(C.sin_modelo_en(t), t)
+
+    def test_horas_sin_modelo_es_24(self):
+        self.assertAlmostEqual(C.hasta_cuando(AHORA, C.HORAS_SIN_MODELO) - AHORA, 24 * 3600, places=3)
 
 
 class TestDisco(unittest.TestCase):

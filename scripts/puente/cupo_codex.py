@@ -47,8 +47,17 @@ PISTAS = (
     "upgrade to pro",
 )
 
+#: Lo que dice la CLI de codex cuando "el modelo no está admitido con la cuenta de ChatGPT".
+PISTAS_SIN_MODELO = (
+    "is not supported when using codex with a chatgpt account",
+    "model_not_found",
+)
+
 #: Cuánto se aparta tras un agotamiento.
 HORAS = 3.0
+
+#: Cuánto se aparta tras que el modelo no esté admitido.
+HORAS_SIN_MODELO = 24.0
 
 
 def agotado_en(salida):
@@ -60,6 +69,16 @@ def agotado_en(salida):
     """
     b = (salida or "").lower()
     return any(p in b for p in PISTAS)
+
+
+def sin_modelo_en(salida):
+    """¿Esta salida es un modelo no admitido con la cuenta de ChatGPT?
+
+    El error 'model_not_found' con mensaje específico indica que el modelo
+    de Codex no está disponible para la cuenta de ChatGPT usada.
+    """
+    b = (salida or "").lower()
+    return any(p in b for p in PISTAS_SIN_MODELO)
 
 
 def hasta_cuando(ahora, horas=HORAS):

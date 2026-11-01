@@ -312,6 +312,8 @@ try:
 except Exception:  # sin el módulo, se comporta como antes
 
     class _cupo_codex(object):  # noqa: N801
+        HORAS_SIN_MODELO = 24.0
+
         @staticmethod
         def puede_escribir():
             return True
@@ -321,7 +323,11 @@ except Exception:  # sin el módulo, se comporta como antes
             return False
 
         @staticmethod
-        def anotar(motivo=""):
+        def sin_modelo_en(salida):
+            return False
+
+        @staticmethod
+        def anotar(motivo="", horas=3.0):
             return 0
 
 
@@ -7745,6 +7751,23 @@ def ejecutar(t, intento=1):
                 "Codex sin cuota de ChatGPT: fuera de la rotación %d min "
                 "(las demás tareas ya no lo intentan)" % minutos,
             )
+        # Modelo no admitido con la cuenta de ChatGPT: se anota y se aparta Codex
+        # de la rotación sin contar el intento (como una pasarela caída).
+        if modelo in MODELOS_CODEX and _cupo_codex.sin_modelo_en(out):
+            try:
+                minutos = _cupo_codex.anotar("cuenta de ChatGPT sin Codex para %s" % modelo, horas=_cupo_codex.HORAS_SIN_MODELO)
+            except Exception:
+                minutos = 0
+            for _m in list(MODELOS_CODEX):
+                if _m in MODELOS:
+                    MODELOS.remove(_m)
+            evento(
+                "proveedor_caido",
+                tid,
+                "Codex sin modelo admitido con la cuenta de ChatGPT: fuera de la rotación %d min "
+                "(las demás tareas ya no lo intentan)" % minutos,
+            )
+            continue
         if apartar_si_pide_pago(tid, modelo, out):
             continue
         pista = fallo_de_proveedor(out)
