@@ -1,0 +1,46 @@
+{
+ "ola": "nube-20261101",
+ "tareas": [
+  {
+   "id": "SUP0111D",
+   "importancia": "capacidad",
+   "titulo": "Reconstructor · si el .next servido pierde su BUILD_ID, repone .next-anterior al momento",
+   "archivos": [
+    "scripts/puente/reconstruir_mando.py",
+    "scripts/puente/test_reconstruir_mando.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nEl 31-10 un `next build` ajeno borró el `.next` servido y Genesis quedó caído hasta que alguien repuso `.next-anterior` a mano. Hoy `una_pasada()` solo repone si `.next-build` está entero. Añade: si `genesis_caido()` y `.next-build` NO está entero pero `.next-anterior` tiene BUILD_ID y build-manifest.json, entonces (a) mueve el `.next` roto a `~/.starseed/cuarentena/<AAAAMMDD-HHMM>-next-roto/` (nunca borrar), (b) renombra `.next-anterior` → `.next` con Genesis parado, siguiendo el mismo patrón bootout/bootstrap y comprobación de `_reiniciar_mando_sin_cerrojo` y con su cerrojo (`_tomar_cerrojo`), y (c) avisa. Decisión en una función PURA `reponer_anterior_toca(caido, build_entero, anterior_entero)` con pruebas; el resto, con dobles.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "RESC1031D",
+   "titulo": "Rescates · traer_nube.base_de con ids que acaban en minúscula",
+   "archivos": [
+    "scripts/puente/traer_nube.py",
+    "scripts/puente/test_traer_nube.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\n`traer_nube.base_de(tid)` corta mal los ids cuyo final es una minúscula de la propia tarea (p. ej. `RTESP1011Bb`, `SGO1031B-d1`, `MC1013TCc`): distingue el sufijo de rescate/derivación (`-d1`, `-d2b`, prefijos `RT`) de la letra que forma parte del id. Pruebas con esos casos y los que ya existen.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "CAD1031B",
+   "titulo": "Relé de estaciones · documentar miembros(tema) y el servidor WebSocket",
+   "archivos": [
+    "architecture/estaciones-en-vivo-parametricas.md",
+    "src/lib/estaciones/canal-rele.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nCAD1031A (d3ecc616d y e091828ab) añadió `miembros(tema)` en `servicios/estaciones-rele/salas.mjs` y el servidor WebSocket `servicios/estaciones-rele/servidor.mjs` (ping cada 30 s, corte de quien no contesta, oyente con más de 1 MiB pendiente se salta). Actualiza §4.1 y §4.3 de la arquitectura y la cabecera de `canal-rele.ts` para que digan lo que hay. Solo documentación: el despliegue (compose y Caddy) es SOLO con la palabra de Alex, no lo toques.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "SUP0111D",
+   "CAD1031B",
+   "RESC1031D"
+  ]
+ }
+}
