@@ -166,6 +166,16 @@ describe("Rare: ficha viva del catálogo, programa aparte y credenciales de Epic
     expect(ficha.codigo).toBe("https://github.com/RareDevs/Rare");
   });
 
+  it("se actualiza solo desde las releases de github.com/RareDevs/Rare", () => {
+    const ficha = rare();
+    const { actualizacion } = ficha;
+    expect(ficha.codigo).toBe("https://github.com/RareDevs/Rare");
+    expect(actualizacion).toMatchObject({ fuente: "github-tags", ref: "RareDevs/Rare" });
+    expect(actualizacion.filtro).toBeTruthy();
+    expect(actualizacion.ultimaVersion).not.toBeNull();
+    expect(actualizacion.ultimaVersion as string).toMatch(new RegExp(actualizacion.filtro as string));
+  });
+
   it("sin condiciones de Epic decididas por Alex, las rutas de servidores siguen sin cablear", () => {
     const ficha = rare();
     expect(ficha.motivo).toMatch(/sin cablear/);
