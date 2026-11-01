@@ -780,6 +780,21 @@ class Nodo:
         necesarias = [str(e.get("id")) for n in perdidos
                       for e in (datos["latidos"].get(n) or {}).get("en_curso") or []
                       if isinstance(e, dict) and e.get("id")]
+        # (RESC1031C) Una cadena de rescates agotada o ya marcada de alta capacidad no se releva:
+        # su carril la lleva; el relevo la haría volver al enjambre gratuito.
+        progreso: Dict[str, Any] = {}
+        try:
+            progreso = M.leer_json(os.path.join(raiz, "starseed_memory_root", "olas",
+                                                "progreso.json"), {})
+        except Exception:  # noqa: BLE001 — sin progreso local queda ver la profundidad del id
+            pass
+        if not isinstance(progreso, dict):
+            progreso = {}
+        apartadas = [tid for tid in necesarias if L.excluida_del_rescate(tid, progreso)]
+        if apartadas:
+            necesarias = [tid for tid in necesarias if tid not in set(apartadas)]
+            informe.setdefault("avisos", []).append(
+                "relevo apartado (alta capacidad o rescates agotados): %s" % ", ".join(apartadas[:8]))
         if not necesarias:
             return
         tareas = self._tareas_para_relevo(raiz, t, necesarias)

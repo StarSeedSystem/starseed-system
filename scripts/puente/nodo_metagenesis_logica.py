@@ -1163,6 +1163,32 @@ def autocurar(salud: Dict[str, Any], memoria: Dict[str, Any], ahora: float) -> L
 
 # ─── rescate de trabajo de colas-fuente ──────────────────────────────────────────────────
 
+try:
+    from revisor_bloqueadas_logica import en_alta_capacidad, rescate_agotado  # noqa: WPS433
+except ImportError:  # pragma: no cover — medio sin el resto del puente
+    def en_alta_capacidad(entrada: Any) -> bool:
+        return isinstance(entrada, dict) and entrada.get("alta_capacidad") is True
+
+    def rescate_agotado(tid: Any, tope: int = 2) -> bool:
+        t, n = str(tid or ""), 0
+        while t.startswith("RT" * (n + 1)):
+            n += 1
+        return n > tope
+
+
+def excluida_del_rescate(tid: Any, progreso: Optional[Dict[str, Any]] = None) -> bool:
+    """PURA (RESC1031C). ¿Esta tarea ya NO se releva ni se rescata?
+
+    Su cadena de rescates pasó el tope (`rescate_agotado`, se ve en el propio id) o su progreso
+    ya la marca del carril de alta capacidad (`alta_capacidad`, la puso la escalera o el revisor):
+    seguirla por el enjambre gratuito sería repetir lo que ya se decidió no repetir.
+    """
+    if rescate_agotado(tid):
+        return True
+    e = (progreso if isinstance(progreso, dict) else {}).get(str(tid or ""))
+    return en_alta_capacidad(e) if isinstance(e, dict) else False
+
+
 #: Estados que cierran una tarea para siempre (no se rescata).
 CERRADAS = {"commit", "hecho", "integrada", "sustituida", "rechazada", "descartada", "obsoleta", "informe",
             "reasignada"}
@@ -1242,8 +1268,9 @@ def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, A
 
     `colas_fuente`: [(nombre, mtime, tareas)]. Fuera: copias `cola-auto-*`, sueños, colas de más
     de `max_dias`, tareas sin archivos o sin prompt (no son trabajo del enjambre), las que piden
-    visto bueno humano, las cerradas en el progreso o con su id ya en un commit de main, y las
-    que tienen una sucesora (misma cadena) cerrada. Gana la definición más nueva de cada id.
+    visto bueno humano, las cerradas en el progreso o su id ya en un commit de main, las que tienen
+    una sucesora (misma cadena) cerrada y las del carril de alta capacidad o rescates agotados
+    (RESC1031C). Gana la definición más nueva de cada id.
     """
     try:
         from vigilante_logica import id_en_asuntos, sucesora_integrada  # misma regla que el vigilante
@@ -1289,6 +1316,8 @@ def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, A
                 # Las falladas son del revisor de bloqueadas (OPB1011), no de un rescate a ciegas.
                 continue
             if id_en_asuntos(tid, asuntos_git or []) or sucesora_integrada(tid, progreso or {}, asuntos_git or []):
+                continue
+            if excluida_del_rescate(tid, progreso or {}):
                 continue
             elegidas[tid] = dict(t, origen_rescate=nombre)
     return list(elegidas.values())[:tope]

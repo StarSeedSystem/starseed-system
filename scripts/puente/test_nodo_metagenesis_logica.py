@@ -115,6 +115,45 @@ class TestLiderarYPrestamos(unittest.TestCase):
         self.assertEqual(L.mejor_medio_ocioso(nodos), "neurona-bbbbbb")
 
 
+class TestExcluidaDelRescate(unittest.TestCase):
+    def test_cadena_de_rescates_pasada_de_tope(self):
+        self.assertTrue(L.excluida_del_rescate("RTRTRTS1010-EV-ORACLE-1"))
+        self.assertFalse(L.excluida_del_rescate("RTRTCOL1012B"))
+
+    def test_marca_de_alta_capacidad_en_progreso(self):
+        p = {"B": {"estado": "bloqueada", "alta_capacidad": True}}
+        self.assertTrue(L.excluida_del_rescate("B", p))
+
+    def test_nota_del_cierre_agotado(self):
+        nota = "cierre · cadena de rescates agotada: carril de alta capacidad (prueba)"
+        p = {"B": {"estado": "bloqueada", "nota": nota}}
+        self.assertTrue(L.excluida_del_rescate("B", p))
+
+    def test_normal_no_excluida(self):
+        self.assertFalse(L.excluida_del_rescate("CPA1007K"))
+        self.assertFalse(L.excluida_del_rescate("CPA1007K", {"CPA1007K": {"estado": "en_curso"}}))
+        self.assertFalse(L.excluida_del_rescate("CPA1007K", {"otra": {"alta_capacidad": True}}))
+
+
+class TestCandidatosRescateAltaCapacidad(unittest.TestCase):
+    def fuente(self, tareas):
+        return [("cola-ejemplo.json", T0, tareas)]
+
+    def test_excluye_las_de_alta_capacidad_y_las_agotadas(self):
+        tareas = [{"id": "A", "archivos": ["a"], "prompt": "hacer"},
+                  {"id": "B", "archivos": ["b"], "prompt": "hacer"},
+                  {"id": "RTRTRTRTS1010-EV-ORACLE-1", "archivos": ["c"], "prompt": "hacer"}]
+        progreso = {"B": {"estado": "bloqueada", "alta_capacidad": True}}
+        ids = [c["id"] for c in L.candidatos_rescate(self.fuente(tareas), set(), progreso, [], T0)]
+        self.assertEqual(ids, ["A"])
+
+    def test_deja_las_bloqueadas_sin_marca(self):
+        tareas = [{"id": "C", "archivos": ["a"], "prompt": "hacer"}]
+        progreso = {"C": {"estado": "bloqueada", "nota": "otro motivo"}}
+        ids = [c["id"] for c in L.candidatos_rescate(self.fuente(tareas), set(), progreso, [], T0)]
+        self.assertEqual(ids, ["C"])
+
+
 if __name__ == "__main__":
     unittest.main()
 
