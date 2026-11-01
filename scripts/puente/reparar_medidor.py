@@ -52,6 +52,18 @@ CERROJO = os.path.join(STARSEED, "cerrojos", "reparar-medidor.lock")
 ESTADO_AUTO = os.path.join(STARSEED, "reparar-medidores.json")
 CARPETA = os.path.join(RAIZ, "starseed_memory_root", "mando", "comprobaciones")
 
+from guardia_memoria import libres_mb, presion_nucleo, barrer_trabajadores_huerfanos, pedir_dormir_bitnet, URL_ASTRAURA, MOTORES
+
+DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
+RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECTORIO))
+if DIRECTORIO not in sys.path:
+    sys.path.insert(0, DIRECTORIO)
+
+STARSEED = os.path.expanduser("~/.starseed")
+CERROJO = os.path.join(STARSEED, "cerrojos", "reparar-medidor.lock")
+ESTADO_AUTO = os.path.join(STARSEED, "reparar-medidores.json")
+CARPETA = os.path.join(RAIZ, "starseed_memory_root", "mando", "comprobaciones")
+
 #: Lo que los directores comprueban y reparan solos, cada 10 min (desde la autocuración).
 MEDIDORES_AUTO = ("agentes", "listas", "en-curso", "proveedores", "disco", "memoria",
                   "contenedores", "tokens", "integradas")
