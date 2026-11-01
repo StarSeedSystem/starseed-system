@@ -9,8 +9,7 @@
  */
 
 import { useDeliveryReceipts } from '@/ai/astraura/mesh';
-import type { DeliveryReceipt } from '@/ai/astraura/mesh/delivery';
-import type { TransmitVia } from '@/ai/astraura/mesh/synaptic-router';
+import type { DeliveryReceipt, TransmitVia } from '@/ai/astraura/mesh/delivery';
 import type { Medio } from '@/lib/malla/cristal/tipos';
 import type { Recibo } from '@/lib/malla/cristal/recibos';
 import { desdeEntregaMesh } from '@/lib/malla/cristal/adaptadores-recibos';
