@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NEW_BLOCK_DEFS, RichBlockEditor } from "@/components/creation/creation-blocks";
 import { CLAVE_INDICE, PREFIJO_MOLECULA, type AlmacenLocal } from "@/lib/protomolecula/almacen-moleculas";
@@ -33,6 +34,11 @@ function molecula(id: string, titulo: string, ambito: string, referencia: { tipo
 const sinReservas = () => "publica" as const;
 
 describe("SelectorMolecula", () => {
+  it("el primer render (SSR) muestra la carga y no una lista vacía antes de leer el almacén", () => {
+    const html = renderToStaticMarkup(<SelectorMolecula ambitoPost="personal" alElegir={vi.fn()} />);
+    expect(html).toContain("Cargando tus moléculas");
+    expect(html).not.toContain("Aún no tienes moléculas");
+  });
   it("una molécula guardada por la sesión de la Protomolécula (forma del núcleo) se lista y llega al lienzo", () => {
     const a = almacenMemoria();
     const nueva = abrirSesion(undefined, { almacen: a, ahora: () => 5, nuevoId: () => "m-sesion" });
