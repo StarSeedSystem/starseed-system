@@ -48,4 +48,19 @@ describe("servicio hyperframes · peticiones de vídeo (ramas de la nube)", () =
     expect(r.estado).toBe(500);
     expect((r.cuerpo as { error: string }).error).toContain("cola llena");
   });
+
+  it("el formato elegido (p. ej. webm) viaja a la cola junto a la composición", async () => {
+    const d = deps();
+    const r = await manejar({ metodo: "POST", ruta: "/render", cuerpo: { composicion: HTML, formato: "webm" } }, d);
+    expect(r).toEqual({ estado: 202, cuerpo: { id: "t1" } });
+    expect(d.cola.encolar).toHaveBeenCalledWith({ composicion: HTML, formato: "webm" });
+  });
+
+  it("sin cola de render en esta neurona: rechazo honesto 503, nunca pánico ni invento", async () => {
+    // Caso rescatado de nube/41114607031 (503 «cola de render»): hoy la cola vive en
+    // hyperframes; si la neurona no la tiene, /render no finge encolar.
+    const r = await manejar({ metodo: "POST", ruta: "/render", cuerpo: { composicion: HTML } }, { version: "0.8.172" });
+    expect(r.estado).toBe(503);
+    expect((r.cuerpo as { error: string }).error).toContain("sin cola de render");
+  });
 });

@@ -98,6 +98,22 @@ describe("servicio-local · llamadas a 127.0.0.1", () => {
     const caido = await sondearServicio(DEF, async () => { throw new Error("ECONNREFUSED"); });
     expect(caido).toMatchObject({ vivo: false, motivo: expect.stringMatching(/no contesta/) });
   });
+
+  it("hyperframes está en el catálogo: valida y su salud se consulta en 127.0.0.1:4490", async () => {
+    // Caso rescatado de nube/41114607031 (HFR1018H): como ComfyUI y Ollama, el servicio de
+    // vídeo vive en el catálogo; sin el `tiempoMs` largo de la rama porque hoy el render es
+    // asíncrono (202 con la referencia; la cola avanza aparte).
+    const hyper = SERVICIOS_CONOCIDOS.find((d) => d.id === "hyperframes");
+    if (!hyper) throw new Error("falta hyperframes en SERVICIOS_CONOCIDOS");
+    expect(hyper).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/health" });
+    expect(validarDefinicion(hyper)).toBeNull();
+    const f = vi.fn<FetchLocal>(async () => resp(200, '{"vivo":true}'));
+    expect(await sondearServicio(hyper, f, { leerVariable: () => undefined })).toMatchObject({ vivo: true });
+    const [url, init] = f.mock.calls[0] as [string, PeticionLocal];
+    expect(url).toBe("http://127.0.0.1:4490/health");
+    expect(init).toMatchObject({ method: "GET", headers: { accept: "application/json" } });
+    expect(init.redirect).toBe("manual");
+  });
 });
 
 describe("servicio-local · lanzador nativo (lista blanca y confirmación siempre)", () => {
