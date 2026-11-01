@@ -52,17 +52,16 @@ CERROJO = os.path.join(STARSEED, "cerrojos", "reparar-medidor.lock")
 ESTADO_AUTO = os.path.join(STARSEED, "reparar-medidores.json")
 CARPETA = os.path.join(RAIZ, "starseed_memory_root", "mando", "comprobaciones")
 
-from guardia_memoria import libres_mb, presion_nucleo, barrer_trabajadores_huerfanos, pedir_dormir_bitnet, URL_ASTRAURA, MOTORES
-
-DIRECTORIO = os.path.dirname(os.path.abspath(__file__))
-RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECTORIO))
-if DIRECTORIO not in sys.path:
-    sys.path.insert(0, DIRECTORIO)
-
-STARSEED = os.path.expanduser("~/.starseed")
-CERROJO = os.path.join(STARSEED, "cerrojos", "reparar-medidor.lock")
-ESTADO_AUTO = os.path.join(STARSEED, "reparar-medidores.json")
-CARPETA = os.path.join(RAIZ, "starseed_memory_root", "mando", "comprobaciones")
+# Importar guardia-memoria desde el mismo directorio
+_spec = importlib.util.spec_from_file_location("guardia_memoria", os.path.join(DIRECTORIO, "guardia-memoria.py"))
+_guardia = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_guardia)
+libres_mb = _guardia.libres_mb
+presion_nucleo = _guardia.presion_nucleo
+barrer_trabajadores_huerfanos = _guardia.barrer_trabajadores_huerfanos
+pedir_dormir_bitnet = _guardia.pedir_dormir_bitnet
+URL_ASTRAURA = _guardia.URL_ASTRAURA
+MOTORES = _guardia.MOTORES
 
 #: Lo que los directores comprueban y reparan solos, cada 10 min (desde la autocuración).
 MEDIDORES_AUTO = ("agentes", "listas", "en-curso", "proveedores", "disco", "memoria",
@@ -194,6 +193,35 @@ def frase(clave: str, res: str, hechas: List[Dict[str, Any]], resumen_despues: s
         return "«%s» tiene fallos sin reparación automática conocida: se dicen abajo." % clave
     cabeza = {"reparado": "reparado", "mejorado": "mejorado (queda algo)", "sigue": "sigue igual tras reparar"}[res]
     return "«%s» %s · %d de %d acción(es) bien · ahora: %s" % (clave, cabeza, bien, len(hechas), resumen_despues)
+
+
+def presion_alta_y_librar() -> Tuple[bool, str]:
+    """Verifica si hay presión de memoria alta y libera recursos si es necesario.
+    
+    Retorna (hubo_presion_alta, mensaje). Si hay presión alta, intenta liberar
+    memoria congelando BitNet, matando procesos huérfanos y despertando tts-server."""
+    libre = libres_mb()
+    presion = presion_nucleo()
+    mensaje = ""
+    
+    if presion is not None and presion >= 2:
+        mensaje = "presión de kernel nivel %d" % presion
+        # Forzar liberación: matar procesos huérfanos y dormir BitNet
+        barrer_trabajadores_huerfanos()
+        # Pedir a Astraura que duerma BitNet para liberar ~800 MB
+        ok, _ = pedir_dormir_bitnet(URL_ASTRAURA)
+        if ok:
+            mensaje += " · BitNet dormido"
+        else:
+            mensaje += " · no se pudo dormir BitNet"
+    elif libre is not None and libre < 100:
+        mensaje = "RAM %d MB libre" % libre
+        # Matar procesos huérfanos que retengan memoria
+        barrer_trabajadores_huerfanos()
+    else:
+        return False, ""
+    
+    return True, mensaje
 
 
 # ── Acciones reales ──────────────────────────────────────────────────────────────────────────
@@ -488,11 +516,17 @@ def reparar(clave: str, origen: str = "boton", comprobar: Callable[[str], Dict[s
             plan_previo: Optional[Tuple[Dict[str, Any], List[Dict[str, str]]]] = None) -> Dict[str, Any]:
     """Comprueba, repara y vuelve a comprobar UN medidor; deja `reparacion-<clave>.json`."""
     clave = clave.replace("_", "-")
-    acciones = acciones or ACCIONES
+    acciones = ACCIONES if acciones is None else acciones
     empezado = _iso()
     base = {"medidor": clave, "origen": origen, "empezado": empezado, "terminado": None,
             "resumen": "Reparando…", "acciones": [], "paso": "comprobando"}
     _escribir(ruta_reparacion(clave), base)
+
+    # PRIMERO: Verificar y liberar presión de memoria alta si es necesario
+    hubo_presion, mensaje_presion = presion_alta_y_librar()
+    if hubo_presion:
+        _escribir(ruta_reparacion(clave), dict(base, paso="liberando_memoria", resumen="Liberando %s" % mensaje_presion))
+
     antes, plan = plan_previo if plan_previo else (None, None)
     if antes is None:
         antes = comprobar(clave)
@@ -513,7 +547,7 @@ def reparar(clave: str, origen: str = "boton", comprobar: Callable[[str], Dict[s
         "medidor": clave, "origen": origen, "empezado": empezado, "terminado": _iso(),
         "resultado": res, "resumen": frase(clave, res, hechas, despues.get("resumen") or ""),
         "antes": {"resumen": antes.get("resumen"), "veredictos": antes.get("veredictos") or []},
-        "despues": {"resumen": despues.get("resumen"), "veredictos": despues.get("veredictos") or []},
+        "despues": {"resumen": despues.get("veredictos") or []},
         "acciones": hechas, "sin_reparacion": sin_reparacion(clave, despues.get("veredictos") or []),
     }
     _escribir(ruta_reparacion(clave), salida)
