@@ -29,6 +29,7 @@ Lo que NO hace, a propósito:
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -36,6 +37,16 @@ import subprocess
 import sys
 import time
 import urllib.request
+
+# (SUP0111B) Antes de compilar se aparta el código SIN git que no transpila: el 31-10
+# un `src/app/mando/page.tsx` sin git y con JSX inválido tumbó las builds horas.
+_AQUI = os.path.dirname(os.path.abspath(__file__))
+_spec_cuarentena = importlib.util.spec_from_file_location(
+    "cuarentena_sin_git", os.path.join(_AQUI, "cuarentena_sin_git.py"))
+_cargador_cuarentena = getattr(_spec_cuarentena, "loader", None)
+assert _spec_cuarentena is not None and _cargador_cuarentena is not None
+_cuarentena = importlib.util.module_from_spec(_spec_cuarentena)
+_cargador_cuarentena.exec_module(_cuarentena)
 
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.expanduser("~/Documents/starseed-os-main")
 ESTADO = os.path.join(RAIZ, "starseed_memory_root", "mando", "reconstruccion.json")
@@ -1149,6 +1160,13 @@ def silencio_tolerable(silencio_desde, ahora, espera_s=ESPERA_MAX_SIN_RESPUESTA_
 def una_pasada(forzar: bool = False) -> bool:
     """`forzar` (orden `--una-vez --ya`): compila aunque Astraura esté en uso o haya
     conversación. Solo a mano; el disco se sigue comprobando."""
+    try:
+        apartados = _cuarentena.revisar(RAIZ)
+        if apartados:
+            print("[%s] cuarentena: %s" % (time.strftime("%H:%M"), ", ".join(apartados)),
+                  flush=True)
+    except Exception as e:  # nunca debe tumbar al reconstructor
+        print("reconstruir-mando cuarentena: %s: %s" % (type(e).__name__, e), flush=True)
     entradas = list(_entradas())
     actual = huella_de(entradas)
     estado = _leer_estado()
