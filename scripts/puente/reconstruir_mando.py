@@ -1028,6 +1028,45 @@ def compilar_en_el_a1(huella, de_espera="esperando-maquina", urgente=None) -> bo
     return bool(ok)
 
 
+#: (SUP0111A) Con la Mac frenada (enjambre vivo, o el A1 en su espera tras un fallo) se puede TRAER
+#: un build que ya terminó en el A1: aquí no se compila nada. Un intento cada PREVIO_CADA_S como mucho.
+PREVIO_CADA_S = int(os.environ.get("STARSEED_RECONSTRUIR_PREVIO_S", "600"))
+
+
+def toca_traer_previo(freno, estado, ahora, cada_s=PREVIO_CADA_S) -> bool:
+    """PURA: ¿se pregunta al A1 por un build ya hecho? Nunca con la mezcla de dependencias (`next start`
+    usa el `next` de esta Mac: servir un build de otro `next` es la pantalla rota del 10-03)."""
+    if re.match(r"node_modules trae next", str(freno or "")):
+        return False
+    try:
+        return float(ahora) - float((estado or {}).get("previo_t") or 0) >= cada_s
+    except (TypeError, ValueError):
+        return True
+
+
+def traer_hecho_del_a1(freno, ahora=None) -> bool:
+    """(SUP0111A) Con la Mac frenada, pone el build que ya terminó en el A1 si es más nuevo que el
+    servido (`compilar_en_a1.traer_previo`). True solo si lo puso. El 31-10 el build bueno del A1
+    esperó horas mientras la Mac decía «espero: el enjambre está vivo»."""
+    ahora = time.time() if ahora is None else ahora
+    if not toca_traer_previo(freno, _leer_estado(), ahora):
+        return False
+    _guardar(dict(_leer_estado(), previo_t=ahora))
+    import compilar_en_a1 as CA  # aquí y no arriba: él importa este módulo
+    devolver_cache()
+    try:
+        hecho = CA.traer_previo()
+    except Exception as ex:  # noqa: BLE001
+        hecho = (False, CA.oracle_nodo.tachar("%s: %s" % (type(ex).__name__, ex)))
+    if not hecho:
+        return False
+    ok, detalle = hecho
+    _guardar(dict(_leer_estado(), a1_t=time.time(), a1_ok=bool(ok), a1_error=None if ok else detalle))
+    print("[%s] TRAIGO DEL A1 lo ya compilado (la Mac sigue frenada: %s): %s"
+          % (time.strftime("%H:%M"), freno, detalle), flush=True)
+    return bool(ok)
+
+
 def conversando(ruta=os.path.expanduser("~/.starseed/conversacion.json")) -> bool:
     """¿Hay una conversación en curso con Astraura (concesión de `voz_rt.py`)?"""
     try:
@@ -1132,6 +1171,8 @@ def una_pasada(forzar: bool = False) -> bool:
                 "; urgente (%s): el A1 me da turno" % urgente) if urgente else ""), flush=True)
             return compilar_en_el_a1(actual, de_espera, urgente=urgente)
         if via == "espera":
+            if traer_hecho_del_a1(freno):  # (SUP0111A) traer lo hecho no compila aquí: no espera al freno
+                return True
             print("[%s] espero: %s, pero %s" % (time.strftime("%H:%M"), motivo, porque), flush=True)
             _guardar(dict(_leer_estado(), estado=de_espera, freno=porque,
                           visto=time.strftime("%Y-%m-%d %H:%M:%S")))

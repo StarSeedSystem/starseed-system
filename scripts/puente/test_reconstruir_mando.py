@@ -852,10 +852,12 @@ class FrenosDeMaquina(unittest.TestCase):
              mock.patch.object(R, "mtime_del_build", return_value=None), \
              mock.patch.object(R, "freno_de_maquina", return_value="el enjambre está vivo"), \
              mock.patch.object(R, "genesis_caido", return_value=False), \
+             mock.patch.object(R, "traer_hecho_del_a1", return_value=False) as previo, \
              mock.patch.object(R, "_guardar") as guardar, \
              mock.patch.object(R, "reconstruir") as reconstruir:
             self.assertFalse(R.una_pasada(forzar=True))
         reconstruir.assert_not_called()
+        previo.assert_called_once_with("el enjambre está vivo")  # (SUP0111A) mira si hay algo hecho que traer
         self.assertEqual(guardar.call_args[0][0]["estado"], "esperando-maquina")
 
 
@@ -864,8 +866,10 @@ class SiLaMacNoPuedeCompilaElA1(unittest.TestCase):
     SWAP = "hay 7.0 GB de swap en uso (tope 4.0): la build lo llevaría al disco"
     H = R.huella_de([("src/a.ts", 1, 1)])
 
-    def _pasada(self, caido, freno, estado=None):
+    def _pasada(self, caido, freno, estado=None, previo=False):
         guardados, log = [], []
+        mock.patch.object(R, "traer_hecho_del_a1", return_value=previo).start()  # (SUP0111A) sin red en pruebas
+        self.addCleanup(mock.patch.stopall)
         with mock.patch.object(R, "_entradas", return_value=[("src/a.ts", 1, 1)]), \
                 mock.patch.object(R, "_leer_estado", return_value=dict(estado or {})), \
                 mock.patch.object(R, "genesis_caido", return_value=caido), \
@@ -881,8 +885,16 @@ class SiLaMacNoPuedeCompilaElA1(unittest.TestCase):
                 mock.patch.object(R, "reconstruir", return_value={"estado": "al-dia"}) as rec, \
                 mock.patch.object(R, "_guardar", side_effect=guardados.append), \
                 mock.patch("builtins.print", side_effect=lambda *a, **k: log.append(" ".join(map(str, a)))):
-            R.una_pasada()
+            self.hecho = R.una_pasada()
         return a1, rec, uso, guardados, "\n".join(log)
+
+    def test_con_enjambre_vivo_trae_lo_ya_hecho_del_a1_sin_compilar(self):  # SUP0111A
+        a1, rec, _, guardados, log = self._pasada(False, "el enjambre está vivo (1 orquestador)", previo=True)
+        self.assertTrue(self.hecho)
+        a1.assert_not_called()
+        rec.assert_not_called()
+        self.assertNotIn("espero", log)
+        self.assertFalse(any(g.get("estado") == "esperando-maquina" for g in guardados))
 
     def test_sin_build_y_swap_alto_compila_el_a1(self):
         a1, rec, _, _, log = self._pasada(True, self.SWAP)
@@ -969,3 +981,55 @@ class SiLaMacNoPuedeCompilaElA1(unittest.TestCase):
         self.assertEqual(guardados[-1]["estado"], "caido-sin-build")
         self.assertIn("STARSEED_BUILD_LIGERO=1 STARSEED_DIST=", ordenes[0])
         self.assertEqual(R.orden_ligera(ordenes[0]), ordenes[0])
+
+
+class TraerLoHechoConLaMacFrenada(unittest.TestCase):
+    """SUP0111A (01-11): el build bueno del A1 esperó horas mientras la Mac decía «el enjambre está vivo».
+    Traerlo no compila aquí: con la Mac frenada se trae igual (salvo con la mezcla de dependencias)."""
+
+    def test_toca_traer_previo(self):
+        self.assertTrue(R.toca_traer_previo("el enjambre está vivo", {}, 1000))
+        self.assertFalse(R.toca_traer_previo("node_modules trae next 16.3.8 y package-lock pide 15.5", {}, 1000))
+        self.assertFalse(R.toca_traer_previo(None, {"previo_t": 900}, 1000, cada_s=600))
+        self.assertTrue(R.toca_traer_previo(None, {"previo_t": 300}, 1000, cada_s=600))
+        self.assertTrue(R.toca_traer_previo(None, {"previo_t": "ayer"}, 1000))
+
+    def _traer(self, hecho, estado=None, freno="el enjambre está vivo (1 orquestador)"):
+        import compilar_en_a1 as CA
+        guardados, log = [], []
+        with mock.patch.object(R, "_leer_estado", return_value=dict(estado or {})), \
+                mock.patch.object(R, "_guardar", side_effect=guardados.append), \
+                mock.patch.object(R, "devolver_cache"), \
+                mock.patch("builtins.print", side_effect=lambda *a, **k: log.append(" ".join(map(str, a)))), \
+                mock.patch.object(CA, "traer_previo", return_value=hecho) as previo:
+            puesto = R.traer_hecho_del_a1(freno, ahora=10 ** 9)
+        return puesto, previo, guardados, "\n".join(log)
+
+    def test_sin_nada_que_traer_sigue_esperando(self):
+        puesto, previo, guardados, log = self._traer(None)
+        self.assertFalse(puesto)
+        previo.assert_called_once()
+        self.assertEqual(guardados, [{"previo_t": 10 ** 9}])  # solo se apunta el intento
+        self.assertEqual(log, "")
+
+    def test_lo_trae_y_lo_pone(self):
+        puesto, _, guardados, log = self._traer((True, "compiló en el A1 (ya compilado en el A1, build x)"))
+        self.assertTrue(puesto)
+        self.assertIs(guardados[-1]["a1_ok"], True)
+        self.assertNotIn("huella_construida", guardados[-1])  # la huella la apuntó traer_y_cambiar
+        self.assertIn("TRAIGO DEL A1", log)
+
+    def test_traerlo_falla_y_queda_para_reanudar(self):
+        puesto, _, guardados, log = self._traer((False, "traer del A1 (4 intentos; lo traído se queda para reanudar)"))
+        self.assertFalse(puesto)
+        self.assertIs(guardados[-1]["a1_ok"], False)
+        self.assertIn("reanudar", guardados[-1]["a1_error"])
+
+    def test_un_intento_cada_diez_minutos_y_nunca_con_dependencias_mezcladas(self):
+        puesto, previo, guardados, _ = self._traer((True, "x"), estado={"previo_t": 10 ** 9 - 60})
+        self.assertFalse(puesto)
+        previo.assert_not_called()
+        self.assertEqual(guardados, [])
+        puesto, previo, _, _ = self._traer((True, "x"), freno="node_modules trae next 16.3.8 y package-lock pide 15.5")
+        self.assertFalse(puesto)
+        previo.assert_not_called()

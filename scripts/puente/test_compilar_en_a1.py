@@ -343,6 +343,17 @@ class Flujo(unittest.TestCase):
         self.assertTrue(C.MARCA_A1 in build and C.huella_envio("SHA1", "SHA1") in build, build)
         self.assertNotIn(C.REAPROVECHADO, detalle)
 
+    def test_traer_previo_sin_a1_o_sin_marca_no_hace_nada(self):
+        self.getu.return_value = None
+        self.assertIsNone(C.traer_previo(self.raiz))
+        self.getu.return_value = IP
+        self.ssh.return_value = (0, "marca=\nbuild=\n")
+        self.assertIsNone(C.traer_previo(self.raiz))
+        self.ssh.return_value = (255, "Operation timed out")  # sin red: tampoco
+        self.assertIsNone(C.traer_previo(self.raiz))
+        self.rsync.assert_not_called()
+        self.reiniciar.assert_not_called()
+
 
 class RedQueSeCorta(unittest.TestCase):
     """SUP0111A: marca del envío, lectura del build previo y rsync que no se cuelga."""

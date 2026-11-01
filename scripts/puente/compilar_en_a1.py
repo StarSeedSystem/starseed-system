@@ -306,6 +306,23 @@ def cola(texto, n=400):
     return (str(texto or "")).strip()[-n:]
 
 
+def traer_previo(raiz=RAIZ):
+    """(SUP0111A) Solo «traer lo ya hecho»: (ok, detalle) si el A1 tiene un build TERMINADO más nuevo
+    que el de la Mac; None si no hay nada que traer (o no hay A1). Nunca compila ni envía código:
+    el reconstructor lo usa también con la Mac frenada (enjambre vivo o swap)."""
+    ip = oracle_nodo._ip()
+    if not ip:
+        return None
+    rc, salida = oracle_nodo.ssh(orden_build_previo(), timeout=60)
+    previo = build_previo(salida, RM.mtime_del_build(raiz=raiz)) if rc == 0 else None
+    if not previo:
+        return None
+    t_envio, huella, build_id = previo
+    ok, detalle = traer_y_cambiar(ip, huella, t_envio, raiz)
+    return ok, "%s (%s, build %s del envío de las %s: sin recompilar)" % (
+        detalle, REAPROVECHADO, build_id[:12], time.strftime("%H:%M", time.localtime(t_envio)))
+
+
 def compilar(raiz=RAIZ, tope=7200, urgente=None):
     """Envía, instala si toca, compila en el A1, trae y cambia. (ok, detalle).
 
@@ -317,13 +334,9 @@ def compilar(raiz=RAIZ, tope=7200, urgente=None):
     # (SUP0111A) Un build que ya acabó bien en el A1 y es más nuevo que el de la Mac se TRAE
     # sin recompilar (ni turno ni latido: solo hace falta ssh). Si traerlo falla, se queda lo
     # traído para reanudar y la próxima pasada vuelve aquí, no a otra build de 10 minutos.
-    rc, salida = oracle_nodo.ssh(orden_build_previo(), timeout=60)
-    previo = build_previo(salida, RM.mtime_del_build(raiz=raiz)) if rc == 0 else None
-    if previo:
-        t_envio, huella, build_id = previo
-        ok, detalle = traer_y_cambiar(ip, huella, t_envio, raiz)
-        return ok, "%s (%s, build %s del envío de las %s: sin recompilar)" % (
-            detalle, REAPROVECHADO, build_id[:12], time.strftime("%H:%M", time.localtime(t_envio)))
+    hecho = traer_previo(raiz)
+    if hecho:
+        return hecho
     try:
         estado_a1, _, _ = oracle_nodo.estado(guardar=False)
     except Exception as e:  # noqa: BLE001
