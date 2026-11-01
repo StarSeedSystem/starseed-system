@@ -501,7 +501,10 @@ def _avisar(texto):
 #: `nodo_metagenesis*`). La prueba `ModulosDelNodo` falla si uno nuevo no está aquí.
 #: (OPS1024E, 2026-10-24) `vigia_runs_nube.py`: `traer_nube` lo importa al arrancar para leer
 #: la reasignación igual que el vigía; sin él, reinstalar el nodo moriría en el primer import.
-MODULOS_DEL_NODO = ("puerta_datos_cliente.py", "colmena_logica.py", "traer_nube.py", "vigia_runs_nube.py")
+#: (RESC1031A) `revisor_bloqueadas_logica.py`: `traer_nube` lo importa al arrancar como tope de
+#: las cadenas de rescate; solo usa la biblioteca estándar, así que no arrastra a nadie más.
+MODULOS_DEL_NODO = ("puerta_datos_cliente.py", "colmena_logica.py", "traer_nube.py", "vigia_runs_nube.py",
+                    "revisor_bloqueadas_logica.py")
 
 #: (IND1029D) Dirección en el A1: unidad del repo, arranque generado allí y repo de las piezas; sin claves.
 UNIDAD_DIRECCION = os.path.join(os.path.dirname(os.path.dirname(DIRECTORIO)), "deploy", "oracle",
