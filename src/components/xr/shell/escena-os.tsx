@@ -6,7 +6,7 @@
  * Entrada automática UNA vez si el plan la permite (un rechazo no se reintenta); altura de ojos en `alturaOjosRef`.
  * El rig de la Trinity (XR1010J) monta aquí sus cuatro nodos cardinales; sin WebXR, misma escena con OrbitControls; `onSessionEnd` vuelve sin perder estado; `offerSession` lo lleva el almacén.
  */
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState, type ComponentRef } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { XR, XROrigin, useXR, type XRStore } from "@react-three/xr";
 import { OrbitControls } from "@react-three/drei";
@@ -38,6 +38,9 @@ const HorizonDinamico = nextDynamic(() => import("./horizon-montado").then((m) =
 
 /** Página declarativa (UiSpec, §3 b escalón 2): la pinta `uispec-uikit`; carga perezosa como el resto. */
 const UiSpec3DDinamico = nextDynamic(() => import("./uispec-uikit").then((m) => m.UiSpec3D), { ssr: false });
+
+/** Comodidad (XR1010AF, §3 j): viñeta, giro por saltos, subtítulos y movimiento reducido; carga perezosa. */
+const ComodidadDinamico = nextDynamic(() => import("./comodidad").then((m) => m.Comodidad), { ssr: false });
 
 export interface CapaUiSpec { forma?: string; uiSpec?: unknown }
 
@@ -102,6 +105,8 @@ export function EscenaOS({ modo = null }: Props) {
     const [pagina, setPagina] = useState<unknown | null>(null);
     const intentadoRef = useRef(false);
     const alturaOjosRef = useRef<{ metros: number } | null>(null);
+    // El rig (XROrigin) al que la Comodidad gira por saltos; sin él giraría la cámara.
+    const rigRef = useRef<ComponentRef<typeof XROrigin> | null>(null);
     const { nivel: calidadNivel, cambio, aviso } = useCalidadDinamica();
 
     // Página declarativa del OS: el widget UiSpec que publica Astraura se pinta en 3D (nunca código).
@@ -154,7 +159,7 @@ export function EscenaOS({ modo = null }: Props) {
                 <ambientLight intensity={0.7} />
                 <Suspense fallback={null}>
                 {almacen !== null && (
-                    <XR store={almacen}><XROrigin /><AlturaOjos refAltura={alturaOjosRef} alMedir={setAlturaOjosMedida} /></XR>
+                    <XR store={almacen}><XROrigin ref={rigRef} /><AlturaOjos refAltura={alturaOjosRef} alMedir={setAlturaOjosMedida} /></XR>
                 )}
                     {/* Rig de la Trinity (XR1010J): reemplaza al panel provisional de XR1010G. */}
                     <RigTrinityDinamico
@@ -163,6 +168,8 @@ export function EscenaOS({ modo = null }: Props) {
                         alturaOjosMedida={alturaOjosMedida}
                         contenido={{ zenith: <OrbeVozDinamico />, horizon: <HorizonDinamico />, logic: pagina !== null ? <UiSpec3DDinamico spec={pagina} /> : null }}
                     />
+                    {/* Comodidad (XR1010AF): viñeta, giro por saltos, subtítulos, una mano y movimiento reducido. */}
+                    <ComodidadDinamico rig={rigRef} />
                     {!enSesion && <OrbitControls />}
                 </Suspense>
             </Canvas>
