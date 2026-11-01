@@ -1,0 +1,94 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "RTAV1011Dc",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Almacén del ADN en la Biblioteca y avatar 3D en perfiles, grupos, comunidades y páginas",
+   "archivos": [
+    "src/lib/avatares/adaptadores/__tests__/almacen-adn.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea AV1011D («Almacén del ADN en la Biblioteca y avatar 3D en perfiles, grupos, comunidades y páginas») se hizo en main por otro camino; su rama nube/a1-20261012-012328-BOT1011I1 queda archivada en `refs/archivo/nube/a1-20261012-012328-BOT1011I1` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.97)\n\nTU TAREA (RTAV1011Dc · solo estos archivos: src/lib/avatares/adaptadores/__tests__/almacen-adn.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/avatares/adaptadores/__tests__/almacen-adn.test.ts\n  it(\"guarda y carga un ADN en la Biblioteca\", async () => {\n    await saveAdnToLibrary(adnDePrueba, \"privado\");\n    const entry = await loadAdnEntry(\"biblioteca:test-adn-1\");\n    expect(entry).not.toBeNull();\n    expect(entry!.id).toBe(\"test-adn-1\");\n    expect(entry!.kind).toBe(\"avatar-adn\");\n    expect(entry!.visibilidad).toBe(\"privado\");\n    await removeAdnFromLibrary(\"biblioteca:test-adn-1\");\n  });\n\n# src/lib/avatares/adaptadores/__tests__/almacen-adn.test.ts\n  it(\"parsea el raw JSON a AdnAvatar\", async () => {\n    await saveAdnToLibrary(adnDePrueba, \"privado\");\n    const entry = await loadAdnEntry(\"biblioteca:test-adn-1\");\n    expect(entry).not.toBeNull();\n    const parsed = await parseAdnEntry(entry!);\n    expect(parsed).not.toBeNull();\n    expect(parsed!.id).toBe(\"test-adn-1\");\n    expect(parsed!.nombre).toBe(\"Avatar de Prueba\");\n    await removeAdnFromLibrary(\"biblioteca:test-adn-1\");\n  });\n\n# src/lib/avatares/adaptadores/__tests__/almacen-adn.test.ts\n  it(\"valida el ADN con sanearAdn\", () => {\n    const cleaned = sanearAdn(adnDePrueba);\n    expect(cleaned).not.toBeNull();\n    expect(cleaned!.id).toBe(\"test-adn-1\");\n    expect(cleaned!.v).toBe(1);\n  });\n\n# src/lib/avatares/adaptadores/__tests__/almacen-adn.test.ts\n  it(\"rejaza el ADN inválido\", () => {\n    const invalid = { id: \"\", v: 2 } as unknown;\n    const cleaned = sanearAdn(invalid);\n    expect(cleaned).toBeNull();\n  });\n\n# src/lib/avatares/adaptadores/__tests__/almacen-adn.test.ts\n  it(\"devuelve null al cargar un ref que no existe\", async () => {\n    const entry = await loadAdnEntry(\"biblioteca:inexistente\");\n    expect(entry).toBeNull();\n  });\n\n# src/lib/avatares/adaptadores/__tests__/almacen-adn.test.ts\n  it(\"elimina un ADN de la Biblioteca\", async () => {\n    await saveAdnToLibrary(adnDePrueba, \"privado\");\n    await removeAdnFromLibrary(\"biblioteca:test-adn-1\");\n    const entry = await loadAdnEntry(\"biblioteca:test-adn-1\");\n    expect(entry).toBeNull();\n  });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "AV1011D",
+    "rama": "nube/a1-20261012-012328-BOT1011I1"
+   }
+  },
+  {
+   "id": "RTVZF1015T",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Llamadas grupales con bots: cada uno se transcribe en su neurona, el bot contesta con voz en la llamada",
+   "archivos": [
+    "src/lib/llamadas/__tests__/bot-en-llamada.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea VZF1015T («Llamadas grupales con bots: cada uno se transcribe en su neurona, el bot contesta con voz en la llamada») se hizo en main por otro camino; su rama nube/41107795741 queda archivada en `refs/archivo/nube/41107795741` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.88)\n\nTU TAREA (RTVZF1015T · solo estos archivos: src/lib/llamadas/__tests__/bot-en-llamada.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/llamadas/__tests__/bot-en-llamada.test.ts\n    it(\"corta al bot en cuanto una persona comparte texto\", () => {\n        const estado: EstadoTurnos = { ...estadoInicialTurnos(), bot: { id: \"bot\", desde: 0 } };\n        const d = textoPersona(estado, frase(\"p1\", \"hola\", 10));\n        expect(d.accion).toBe(\"cortar\");\n        expect(d.estado.bot).toBeNull();\n        expect(d.estado.frases).toHaveLength(1);\n    });\n\n# src/lib/llamadas/__tests__/bot-en-llamada.test.ts\n    it(\"ignora la frase vacía y el eco inmediato del mismo texto\", () => {\n        const e = estadoInicialTurnos();\n        expect(textoPersona(e, frase(\"p1\", \"   \", 5)).estado).toBe(e);\n        const primera = textoPersona(e, frase(\"p1\", \"hola\", 5)).estado;\n        const eco = textoPersona(primera, frase(\"p1\", \"hola\", 100));\n        expect(eco.accion).toBe(\"nada\");\n        expect(eco.estado).toBe(primera);\n    });\n\n# src/lib/llamadas/__tests__/bot-en-llamada.test.ts\n    it(\"espera al silencio exigido antes de contestar\", () => {\n        const { estado } = textoPersona(estadoInicialTurnos(), frase(\"p1\", \"¿qué tal?\", 0));\n        const antes = evaluarTurno(estado, SILENCIO_RESPUESTA_MS - 1, { responder: cerebro(\"mucho gusto\") });\n        expect(antes.accion).toBe(\"nada\");\n        const despues = evaluarTurno(estado, SILENCIO_RESPUESTA_MS, { responder: cerebro(\"mucho gusto\") });\n        expect(despues.accion).toBe(\"responder\");\n        expect(despues.texto).toBe(\"mucho gusto\");\n        expect(despues.estado.frases).toHaveLength(0);\n    });\n\n# src/lib/llamadas/__tests__/bot-en-llamada.test.ts\n    it(\"no responde si ya hay un bot sonando, ni repite la pregunta si el cerebro calló\", () => {\n        const bot = evaluarTurno(textoPersona(estadoInicialTurnos(), frase(\"p1\", \"hola\", 0)).estado, 800, { responder: cerebro(\"hola\") }).estado;\n        expect(evaluarTurno({ ...bot, bot: { id: \"bot\", desde: 800 } }, 900, { responder: cerebro(\"hola\") }).accion).toBe(\"nada\");\n        const silencio = evaluarTurno(textoPersona(estadoInicialTurnos(), frase(\"p1\", \"hola\", 0)).estado, 800, { responder: () => null });\n        expect(silencio.accion).toBe(\"nada\");\n        expect(evaluarTurno(silencio.estado, 2000, { responder: () => \"atrás\" }).accion).toBe(\"nada\");\n    });\n\n# src/lib/llamadas/__tests__/bot-en-llamada.test.ts\n    it(\"elige el de menor latencia y deja fuera lo caído, lo ajeno y el sin memoria\", () => {\n        const r = elegirServidorVoz(\n            [c(\"a\", 90, { deConfianza: false }), c(\"b\", 70, { online: false }), c(\"e\", 95, { ramLibreMB: 100 }), c(\"c\", 80)],\n            null,\n            { ramMinimaMB: 500 },\n        );\n        expect(r?.id).toBe(\"c\");\n    });\n\n# src/lib/llamadas/__tests__/bot-en-llamada.test.ts\n    it(\"histéresis: conserva el vigente salvo mejora clara, y hace relevo si se cae\", () => {\n        const vigente = c(\"v\", 100);\n        expect(elegirServidorVoz([c(\"n\", 85), vigente], vigente)?.id).toBe(\"v\");\n        expect(elegirServidorVoz([c(\"n\", 70), vigente], vigente)?.id).toBe(\"n\");\n        const caido = c(\"v\", 100, { online: false });\n        expect(elegirServidorVoz([caido, c(\"s\", 190)], caido)?.id).toBe(\"s\");\n    });\n\n# src/lib/llamadas/__tests__/bot-en-llamada.test.ts\n    it(\"responde tras el silencio y una persona lo corta en mitad de la frase\", async () => {\n        let alTexto!: (f: FrasePersona) => void;\n        let tocado = 0;\n        const recibidos: string[] = [];\n        const bot = engancharBot(\n            { onTexto: (cb) => (alTexto = cb) },\n            {\n                botId: \"bot\",\n                responder: () => \"todo en orden\",\n                sintetizar: async (texto) => { recibidos.push(texto); return null; },\n                callar: () => { tocado += 1; },\n                ahora: (() => { let t = 0; return () => (t += 1000); })(),\n                silencioMs: 10,\n            },\n        );\n        alTexto(frase(\"p1\", \"hola\", 0));\n        expect(bot.pulsar().accion).toBe(\"responder\");\n        expect(bot.estado().bot?.id).toBe(\"bot\");\n        await Promise.resolve();\n        expect(recibidos).toEqual([\"todo en orden\"]);\n        alTexto(frase(\"p2\", \"espérate\", 500));\n        expect(tocado).toBe(1);\n        expect(bot.estado().bot).toBeNull();\n        bot.cerrar();\n    });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "VZF1015T",
+    "rama": "nube/41107795741"
+   }
+  },
+  {
+   "id": "RESC1031D",
+   "titulo": "Rescates · traer_nube.base_de con ids que acaban en minúscula",
+   "archivos": [
+    "scripts/puente/traer_nube.py",
+    "scripts/puente/test_traer_nube.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\n`traer_nube.base_de(tid)` corta mal los ids cuyo final es una minúscula de la propia tarea (p. ej. `RTESP1011Bb`, `SGO1031B-d1`, `MC1013TCc`): distingue el sufijo de rescate/derivación (`-d1`, `-d2b`, prefijos `RT`) de la letra que forma parte del id. Pruebas con esos casos y los que ya existen.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "CAD1031B",
+   "titulo": "Relé de estaciones · documentar miembros(tema) y el servidor WebSocket",
+   "archivos": [
+    "architecture/estaciones-en-vivo-parametricas.md",
+    "src/lib/estaciones/canal-rele.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nCAD1031A (d3ecc616d y e091828ab) añadió `miembros(tema)` en `servicios/estaciones-rele/salas.mjs` y el servidor WebSocket `servicios/estaciones-rele/servidor.mjs` (ping cada 30 s, corte de quien no contesta, oyente con más de 1 MiB pendiente se salta). Actualiza §4.1 y §4.3 de la arquitectura y la cabecera de `canal-rele.ts` para que digan lo que hay. Solo documentación: el despliegue (compose y Caddy) es SOLO con la palabra de Alex, no lo toques.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "APM1017W",
+   "ola": "Ola 1017A · Apps en la malla: abrir cualquier app desde cualquier neurona con los recursos de toda la red del contexto",
+   "titulo": "Eventos · canal de eventos del contexto: reloj híbrido, sin duplicados, orden causal y acuses",
+   "archivos": [
+    "src/lib/recursos/eventos-contexto.ts",
+    "src/lib/recursos/__tests__/eventos-contexto.test.ts"
+   ],
+   "depende": [],
+   "prompt": "PURO (§11): reloj lógico híbrido sobre el desfase de src/lib/estaciones/reloj-comun.ts (inyectado), `crearCanal({ nodoId, enviar, ahora })` con `emitir(tipo, cuerpo)`, `recibir(sobre)` (descarta duplicados por id, ordena por reloj híbrido, entrega en orden causal con un búfer de espera corto), acuses y reintentos con espera creciente, y reparto por el árbol de relevo (arbol-relevo.ts) cuando hay más de 8 receptores. Pruebas con desorden, pérdida y duplicados. Contrato: architecture/apps-en-la-malla.md (léelo entero antes de empezar) y los que amplía (colmena, malla cristalina, transporte universal, archivos por la malla, capas autoadaptables). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin disco real y sin procesos; nada de `any`; nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de la cuenta ni va a la nube compartida; comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "APM1017V"
+   ]
+  },
+  {
+   "id": "SUP0111B",
+   "importancia": "capacidad",
+   "titulo": "Reconstructor · aparta a cuarentena los .ts/.tsx SIN git de src/ que no transpilan (incidente del 31-10)",
+   "archivos": [
+    "scripts/puente/cuarentena_sin_git.py",
+    "scripts/puente/test_cuarentena_sin_git.py",
+    "scripts/puente/reconstruir_mando.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nEl 31-10 a las 13:59 apareció en el checkout vivo `src/app/mando/page.tsx` SIN git y con JSX inválido (dos hermanos en un `map` sin fragmento): todas las builds, Mac y A1 (el envío al A1 lleva el árbol de trabajo), fallaron durante horas. Crea `cuarentena_sin_git.py` con: (1) PURA `candidatos(lineas)` que, de la salida de `git ls-files --others --exclude-standard -- src`, se queda con .ts/.tsx/.js/.jsx/.mjs; (2) `transpila(raiz, ruta)` con `node_modules/.bin/esbuild <ruta> --log-level=error --outfile=/dev/null` (sin bundle; loader por extensión): True/False, o None si no hay esbuild (entonces no se decide nada); (3) `revisar(raiz)` que MUEVE (os.renames, nunca borrar) cada candidato que NO transpila a `~/.starseed/cuarentena/<AAAAMMDD-HHMM>-sin-git/<ruta relativa>` y avisa con `puente.decir(texto, 'reconstruir', 'aviso')` como hace guardia-memoria.py. En `reconstruir_mando.una_pasada()`, al principio, llama a `revisar(RAIZ)` dentro de try/except: nunca debe tumbar al reconstructor. Pruebas con un repo git temporal: un .tsx roto sin git se aparta; uno válido sin git se queda; uno con git nunca se toca; sin esbuild no se mueve nada.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "SUP0111B",
+   "RTAV1011Dc",
+   "RTVZF1015T",
+   "CAD1031B",
+   "RESC1031D",
+   "APM1017W"
+  ]
+ }
+}
