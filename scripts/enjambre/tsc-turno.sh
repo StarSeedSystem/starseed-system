@@ -120,7 +120,38 @@ _liberar() {
     pid=$(cut -d' ' -f1 "$LOCK/dueno" 2>/dev/null || true)
     if [ "${pid:-}" = "$$" ]; then rm -rf "$LOCK"; fi
 }
-trap '_liberar' EXIT
+# (SUP0111J, 2026-11-01) El tsc que lanzamos no vive más que su turno ni sin quien lo espere.
+# Medido el 31-10 en la Mac de 8 GB: el agente que lanzó un tsc-turno a las 20:41 murió, su shell
+# quedó adoptado por launchd y el tsc siguió 3 h (4,6 GB, casi todo en swap). A los 30 min su
+# cerrojo ya contaba como huérfano y la puerta del orquestador compiló a la vez: dos tsc, 10 GB
+# de swap y Genesis sin contestar. Ahora tsc corre en segundo plano y se vigila cada segundo: si
+# pasa del plazo (el de un cerrojo huérfano) o ya nadie leerá el resultado, se corta su árbol
+# (npx → node tsc) y se sale con 75 («no compilé»), sin tocar la caché.
+MAX_TSC_S=${STARSEED_TSC_MAX_S:-$MAX_EDAD_CERROJO_S}
+VIGILA_S=${STARSEED_TSC_VIGILA_S:-10}   # cada cuánto se mira si queda quién espere (usa `ps`)
+case "$MAX_TSC_S" in ''|*[!0-9]*) MAX_TSC_S=$MAX_EDAD_CERROJO_S ;; esac
+case "$VIGILA_S" in ''|*[!0-9]*|0) VIGILA_S=10 ;; esac
+TSC_PID=""
+
+# Los pids del árbol de $1, él incluido, hijos antes que padres.
+_arbol() {
+    local p
+    for p in $(pgrep -P "$1" 2>/dev/null); do _arbol "$p"; done
+    echo "$1"
+}
+
+_parar_tsc() {
+    [ -n "${TSC_PID:-}" ] || return 0
+    local pids p i=0
+    pids=$(_arbol "$TSC_PID")
+    for p in $pids; do kill -TERM "$p" 2>/dev/null; done
+    while kill -0 "$TSC_PID" 2>/dev/null && [ $i -lt 10 ]; do sleep 1; i=$((i + 1)); done
+    for p in $pids; do kill -0 "$p" 2>/dev/null && kill -KILL "$p" 2>/dev/null; done
+    wait "$TSC_PID" 2>/dev/null
+    TSC_PID=""
+}
+
+trap '_parar_tsc; _liberar' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
@@ -156,8 +187,25 @@ if [ -n "$HASH_AHORA" ] && [ "$HASH_AHORA" = "${CACHE_HASH:-}" ] && [ "${CACHE_R
 fi
 
 echo "tsc-turno: turno tomado (pid $$), compilando…" >&2
-NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit --skipLibCheck
+NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit --skipLibCheck &
+TSC_PID=$!
+T0_TSC=$(date +%s)
+VUELTAS=0
+while kill -0 "$TSC_PID" 2>/dev/null; do
+    if [ $(( $(date +%s) - T0_TSC )) -ge "$MAX_TSC_S" ]; then
+        _parar_tsc
+        _no_compilo "tsc pasó de $(( MAX_TSC_S / 60 )) min y su turno ya cuenta como huérfano (otro tsc entraría a la vez)"
+    fi
+    VUELTAS=$(( VUELTAS + 1 ))
+    if [ $(( VUELTAS % VIGILA_S )) -eq 0 ] && _sin_quien_espere; then
+        _parar_tsc
+        _no_compilo "el agente que me pidió compilar ya no existe"
+    fi
+    sleep 1
+done
+wait "$TSC_PID"
 RC=$?
+TSC_PID=""
 if [ -n "$HASH_AHORA" ]; then
     printf '%s\n%s\n' "$HASH_AHORA" "$RC" > "$CACHE"
 fi
