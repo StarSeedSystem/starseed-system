@@ -137,6 +137,20 @@ class Prestamo(unittest.TestCase):
                     "nota": "movida a oracle (colas/oracle-20261018-231246) desde Genesis"}}
         self.assertEqual(N.devolver_de_oracle(p2, [], {}, True, nacida + 3 * 3600 + 60), [])
 
+    def test_la_basura_del_progreso_no_rompe_ni_se_cuela(self):
+        """Rescate de VAR1021Cd: `progreso.json` puede traer entradas que no son una tarea; no se
+        devuelven, no rompen el cálculo y no impiden que vuelva la que sí toca."""
+        import calendar
+        nacida = calendar.timegm((2026, 10, 18, 23, 12, 46, 0, 0, 0))
+        rama = "colas/oracle-20261018-231246"
+        nota = "movida a oracle (%s) desde Genesis" % rama
+        p = {"T": {"estado": "reasignada", "medio": "oracle", "nota": nota},
+             "U": {"estado": "reasignada", "medio": "oracle", "nota": "sin rama"},
+             "V": {"estado": "commit", "medio": "oracle", "nota": nota},
+             "W": {"estado": "reasignada", "medio": "nube", "nota": nota},
+             "X": "basura"}
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 3 * 3600 + 60), ["T"])
+
 
 class Resumen(unittest.TestCase):
     def test_sin_urls_ni_ips_y_con_la_sonda_publica(self):
