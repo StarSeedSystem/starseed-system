@@ -12,7 +12,7 @@ export interface LatidoEntrada { tareas?: Record<string, TareaLatido> }
 export type EstadoAgente =
   | "escribiendo" | "verificando" | "revisando"
   | "esperando_aprobacion" | "colgado" | "hecho"
-  // (2026-09-29) Sueño profundo: lee código y escribe un informe, no escribe código.
+  // (2026-09-29) Imaginación profunda: lee código y escribe un informe, no escribe código.
   | "analizando";
 export interface ResumenAgentes {
   vivos: number; colgados: number; esperandoAprobacion: number;
