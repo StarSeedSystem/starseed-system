@@ -28,6 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { SugerenciasInstalacion } from "@/components/imagenes";
 import { PrimaryChoiceEditor } from "@/components/astraura/primary-choice-editor";
 import { Astraura158NeuronCard } from "@/components/neurons/astraura-158-neuron-card";
 import { safeSet } from "@/lib/safe-storage";
@@ -202,6 +203,15 @@ export function ConfiguracionTab({ target }: S158TabProps) {
         <Astraura158NeuronCard />
         <p className="mt-1.5 text-[10px] text-white/45">
           El Studio lee de «{target}» en el resto de pestañas; esta tarjeta gobierna el backend 1.58 propio de ESTA neurona en concreto (endpoint, motor, activarlo/desactivarlo como fuente local).
+        </p>
+      </div>
+
+      {/* Imágenes de esta neurona ─ IMG1011E/J: lo que Astraura sugiere instalar aquí, con hierro real. */}
+      <div>
+        <p className={cn(LABEL, "mb-1.5")}>Imágenes en esta neurona</p>
+        <SugerenciasInstalacion />
+        <p className="mt-1.5 text-[10px] text-white/45">
+          Astraura sugiere un modelo rápido, uno de calidad y uno de texto; nada se descarga sin tu permiso y con el espacio comprobado. La pestaña completa vive en Habilidades → Generación audiovisual.
         </p>
       </div>
 

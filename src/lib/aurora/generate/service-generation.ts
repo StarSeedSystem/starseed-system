@@ -262,6 +262,28 @@ function extractImageFromResponse(data: unknown, rawText?: string): string | nul
   return null;
 }
 
+/** Nº de opciones sanado: 1–8; sin dato claro es 1 (quien pide varias lo dice; el chat pasa 4 por defecto). */
+export function sanearOpcionesImagen(v: unknown): number {
+  const n = Math.floor(Number(v));
+  return Number.isFinite(n) && n >= 1 ? Math.min(8, n) : 1;
+}
+
+interface OpcionParaChat { url?: string; modelo: string | null; atribucion: string; capa: string }
+
+const CAPA_ETIQUETA: Record<string, string> = {
+  dispositivo: "Tu aparato", navegador: "Tu PC (la pestaña)", neurona: "Otra neurona tuya",
+  malla: "La malla", espacio: "La web (Space gratuito de Hugging Face)", "web-gratis": "La web (gratis)", externo: "La web (servicio de pago)",
+};
+
+/** La tarjeta de opciones EN EL CHAT: cada opción es una imagen markdown (el chat ya las pinta) con su procedencia en el texto alternativo. */
+function tarjetaEnChat(opciones: readonly OpcionParaChat[]): string {
+  return opciones
+    .filter((o) => o.url)
+    .slice(0, 8)
+    .map((o, i) => `![Opción ${i + 1} · ${o.modelo ?? o.atribucion} · ${CAPA_ETIQUETA[o.capa] ?? "Procedencia por decidir"}](${o.url})`)
+    .join("\n");
+}
+
 /**
  * generarImagen — resuelve la función de IMAGEN configurada y genera una imagen
  * a partir de un prompt, guardándola en la Biblioteca.
@@ -273,12 +295,15 @@ function extractImageFromResponse(data: unknown, rawText?: string): string | nul
  *     con { prompt, ... }.
  *   • Otro servicio de imagen con endpoint: intento genérico Fooocus-like.
  * Si NO hay servicio/endpoint configurado, devuelve un mensaje honesto que guía
- * a configurarlo en /servicios (no inventa una imagen).
+ * a configurarlo en /servicios (no inventa una imagen). Con `opciones` N > 1 el
+ * motor gratis-primero devuelve VARIAS opciones a la vez (galería del proveedor
+ * «neuronas», IMG1011B) y el mensaje las lleva como la tarjeta del chat.
  *
  * Nunca lanza. Devuelve { ok, message, data? }.
  */
 export async function generarImagen(
   prompt: unknown,
+  opciones: unknown = 1,
   scope: OssScope = "user",
 ): Promise<ContentOutcome> {
   if (!isClient()) {
@@ -298,6 +323,7 @@ export async function generarImagen(
   // Fooocus, que casi nunca existe). Solo intentamos el endpoint si es una
   // conexión real; si no, vamos directos a GRATIS-PRIMERO (Adenda 138).
   const hasUserConn = !!resolved?.fromUserConnection;
+  const nOpciones = sanearOpcionesImagen(opciones);
 
   const timeoutMs = 120000; // la generación de imagen puede tardar
   const title = `Imagen: ${p.slice(0, 60)}`;
@@ -306,15 +332,26 @@ export async function generarImagen(
   // audiovisual gratis-primero (Pollinations por defecto), que funciona desde
   // la web SIN instalar nada, para cualquier cuenta. Ver media-gen.ts.
   if (!hasUserConn || !endpoint) {
-    const free = await generateImageFree({ prompt: p });
+    const free = await generateImageFree({ prompt: p, opciones: nOpciones });
     if (free.ok && free.url) {
       const saved = saveToLibrary({ kind: "image", title, url: free.url, origin: `Astraura · ${free.provider}` });
+      const deLaGaleria =
+        free.galeria?.ok === true
+          ? free.galeria.opciones.map((o) => ({ url: o.url, modelo: o.modelo, atribucion: o.atribucion, capa: o.capa as string }))
+          : [{ url: free.url, modelo: null, atribucion: free.provider, capa: "web-gratis" }];
+      const tarjeta = tarjetaEnChat(deLaGaleria);
+      const huboVarias = tarjeta.includes("\n") || deLaGaleria.length > 1;
+      const url = free.url;
       return {
         ok: true,
         message: saved.ok
-          ? `Generé la imagen con el motor gratis de la red (${free.provider}) y la guardé en tu Biblioteca. Dime «abre la biblioteca» para verla. Para más calidad puedes conectar Stable Diffusion o Fooocus en /servicios, o elegir otro servicio en Habilidades → Generación audiovisual.`
-          : `Generé la imagen (${free.provider}), pero no pude guardarla en la Biblioteca de este equipo.`,
-        data: { id: saved.id || undefined, serviceId: free.provider, kind: "image", url: free.url },
+          ? `Generé ${huboVarias ? `${deLaGaleria.length} opciones de imagen` : "la imagen"} con el motor gratis de la red (${free.provider}) y la primera quedó guardada en tu Biblioteca.\n${tarjeta}`
+          : `Generé ${huboVarias ? `${deLaGaleria.length} opciones de imagen` : "la imagen"} (${free.provider}), pero no pude guardarla en la Biblioteca de este equipo.\n${tarjeta}`,
+        data: {
+          id: saved.id || undefined, serviceId: free.provider, kind: "image", url,
+          urls: deLaGaleria.map((o) => o.url).filter((u): u is string => typeof u === "string"),
+          opciones: deLaGaleria.length,
+        },
       };
     }
     return {

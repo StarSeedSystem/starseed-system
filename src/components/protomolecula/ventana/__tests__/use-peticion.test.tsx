@@ -92,6 +92,23 @@ describe("usePeticion", () => {
     expect(result.current.ocupado).toBe(false);
   });
 
+  it("las imágenes generadas por los pasos llegan al resultado para la tarjeta (IMG1011J)", async () => {
+    const ejecutar = vi.fn(async () => ({
+      ok: true, hechos: ["Generé la imagen con Pollinations.ai."], pendientes: [],
+      detalle: [
+        { paso: 1, operacion: { tipo: "generar-imagen", descripcion: "un atardecer" }, estado: "hecho", texto: "Generé la imagen con Pollinations.ai.", imagenUrl: "https://img.ejemplo/a.png" },
+        { paso: 2, operacion: { tipo: "abrir-en", donde: "pizarra" }, estado: "hecho", texto: "Abierto en una pizarra." },
+      ],
+    }));
+    const { result } = montar({ ejecutar });
+    await act(async () => { result.current.lanzarPlan(plan({ tipoCambio: "creacion", pasos: [{ tipo: "generar-imagen", descripcion: "un atardecer" }] })); });
+    await act(async () => { result.current.confirmar(); });
+    await waitFor(() => expect(result.current.estado.fase).toBe("hecho"));
+    const r = result.current.estado.fase === "hecho" ? result.current.estado.resultado : null;
+    expect(r?.imagenes?.length).toBe(1);
+    expect(r?.imagenes?.[0]).toMatchObject({ url: "https://img.ejemplo/a.png", prompt: "un atardecer", capa: "web-gratis", motor: "pollinations" });
+  });
+
   it("si el gobierno revienta, no se aplica nada", async () => {
     const { result } = montar({ decidir: vi.fn(() => { throw new Error("sin reglas"); }) });
     await act(async () => { await result.current.pedir("haz algo"); });

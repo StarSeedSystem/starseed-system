@@ -20,7 +20,8 @@ import type { ActorProto, ContextoProto, ModoEdicion, PlanPeticion, VeredictoGob
 import { descartarPlanPendiente, EVENTO_PLAN_PENDIENTE, planesPendientes, tomarPlanPendiente, type PlanPendiente } from "@/lib/protomolecula/peticion/pedir";
 import { actorDeLaVentana } from "./contexto";
 import { esPlanSoloDeApertura } from "./herramientas";
-import { MAX_TEXTO_PETICION, type EstadoPeticion, type OrigenPlan, type PendienteVentana, type ResultadoVentana } from "./tipos";
+import { MAX_TEXTO_PETICION, type EstadoPeticion, type OpcionResultadoVentana, type OrigenPlan, type PendienteVentana, type ResultadoVentana } from "./tipos";
+import type { DetallePaso } from "@/lib/protomolecula/peticion";
 
 export interface DependenciasPeticion {
   planificar: typeof planificarPeticion;
@@ -45,6 +46,30 @@ export const ESPERA_PLAN_MS = 45_000;
 const VEREDICTO_APERTURA: VeredictoGobierno = { decision: "aplicar", motivo: "Solo abre una vista: no cambia nada de nadie.", confirmar: false };
 
 const mensajeDe = (e: unknown): string => (e instanceof Error && e.message ? e.message : typeof e === "string" ? e : "");
+
+/** De dónde vino la imagen, según lo que el paso hecho contó (su etiqueta de generador la dice sola). */
+export function procedenciaDeImagen(texto: string): Pick<OpcionResultadoVentana, "capa" | "motor"> {
+  const t = texto.toLowerCase();
+  if (/space|hugging face/.test(t)) return { capa: "espacio", motor: "espacio-hf" };
+  if (/pollinations/.test(t)) return { capa: "web-gratis", motor: "pollinations" };
+  if (/neuronas/.test(t)) return { capa: "neurona", motor: "sdcpp" };
+  return { capa: "dispositivo", motor: "onnx-web" };
+}
+
+/** Las imágenes YA generadas por pasos «generar-imagen» (regla del contrato §6): prompt, URL y procedencia legible. */
+export function opcionesImagenesDeDetalle(detalle: readonly DetallePaso[]): OpcionResultadoVentana[] {
+  return detalle
+    .filter((d) => d.estado === "hecho" && typeof d.imagenUrl === "string" && d.imagenUrl.trim().length > 0)
+    .map((d) => ({
+      ...procedenciaDeImagen(d.texto),
+      modelo: null,
+      cuantizacion: "nativa" as const,
+      semilla: d.paso,
+      motivo: d.texto,
+      url: d.imagenUrl as string,
+      ...(d.operacion.tipo === "generar-imagen" ? { prompt: d.operacion.descripcion } : {}),
+    }));
+}
 
 const POR_DEFECTO: DependenciasPeticion = { planificar: planificarPeticion, ejecutar: ejecutarPlan, decidir: decidirCambio, resolverActor: actorDeLaSesion };
 
@@ -111,7 +136,10 @@ export function usePeticion(contexto: ContextoProto, deps?: Partial<Dependencias
     poner(mio, { fase: "ejecutando", plan });
     try {
       const r = (await dep.current.ejecutar(plan, { contexto: donde ?? ctx.current, ...(abrirRuta.current ? { abrirRuta: abrirRuta.current } : {}) })) as ResultadoVentana;
-      poner(mio, { fase: "hecho", plan, resultado: { ok: r.ok, hechos: r.hechos ?? [], pendientes: r.pendientes ?? [], motivo: r.motivo, deshacer: typeof r.deshacer === "function" ? r.deshacer : undefined } });
+      // La tarjeta del resultado (contrato §6): las imágenes que un paso «generar-imagen» ya produjo.
+      const detalleEjecucion = (r as unknown as { detalle?: readonly DetallePaso[] }).detalle;
+      const imagenes = opcionesImagenesDeDetalle(detalleEjecucion ?? []);
+      poner(mio, { fase: "hecho", plan, resultado: { ok: r.ok, hechos: r.hechos ?? [], pendientes: r.pendientes ?? [], motivo: r.motivo, deshacer: typeof r.deshacer === "function" ? r.deshacer : undefined, ...(imagenes.length ? { imagenes } : {}) } });
     } catch (e) {
       poner(mio, { fase: "hecho", plan, resultado: { ok: false, hechos: [], pendientes: [], motivo: mensajeDe(e) || "La ejecución falló." } });
     } finally {
