@@ -42,8 +42,10 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
 import { CLAVE_MAUSBOT, normalizarConfigMausbot } from "@/lib/mausbot/config";
 import { CLAVE_DISENOS } from "@/lib/mausbot/disenos";
 // (Ola MTN1027 · Meta^n) Las directivas de la automejora de las capas viajan con la
-// cuenta: la clave ya emite su evento propio al guardar (directivas-almacen.ts).
-import { CLAVE_DIRECTIVAS } from "@/lib/astraura/capas/directivas-almacen";
+// cuenta: al bajar NO se escriben en crudo — cada capa entra por guardarDirectivas
+// (sanear + nunca retroceder la versión activa, contrato automejora-meta-n §3.5).
+import { CLAVE_DIRECTIVAS, guardarDirectivas } from "@/lib/astraura/capas/directivas-almacen";
+import type { ArchivoDirectivas } from "@/lib/astraura/capas/directivas";
 
 /** Claves de preferencia que viajan con la cuenta. Aditivo: ampliar sin migración. */
 export const SYNCED_KEYS = [
@@ -661,6 +663,19 @@ export async function pullPreferences(): Promise<SyncResult & { applied?: string
                 if (key === DOCK_STORAGE_KEY) merged = normalizeDockSyncValue(merged).value;
                 // Mausbot (Ola MBT1027): el valor de la cuenta se sana con su módulo antes de tocar localStorage.
                 if (key === CLAVE_MAUSBOT) merged = normalizarConfigMausbot(merged);
+                // Directivas Meta^n (Ola MTN1027): cada capa del mapa entra POR
+                // guardarDirectivas — saneado defensivo y jamás retrocede la versión
+                // activa ni escribe lo que no aporta (contrato automejora-meta-n §3.5).
+                if (key === CLAVE_DIRECTIVAS) {
+                    if (merged && typeof merged === "object" && !Array.isArray(merged)) {
+                        let cambio = false;
+                        for (const [capa, archivo] of Object.entries(merged)) {
+                            if (guardarDirectivas(capa, archivo as ArchivoDirectivas)) cambio = true;
+                        }
+                        if (cambio) applied.push(key);
+                    }
+                    continue;
+                }
                 const serialized = typeof merged === "string" ? merged : JSON.stringify(merged);
                 window.localStorage.setItem(key, serialized);
                 applied.push(key);

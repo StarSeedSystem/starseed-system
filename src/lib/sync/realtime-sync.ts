@@ -82,7 +82,10 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
 import { EVENTO_MAUSBOT } from "@/lib/mausbot/config";
 // (Ola MTN1027) Las directivas Meta^n de las capas (directivas-almacen.ts) emiten su
 //  evento propio al guardar; el mismo evento sirve para el valor que llega de otro dispositivo.
-import { CLAVE_DIRECTIVAS, EVENTO_DIRECTIVAS } from "@/lib/astraura/capas/directivas-almacen";
+//  Al aplicar ese valor NO se escribe en crudo: cada capa pasa por guardarDirectivas
+//  (sanear + nunca retroceder la versión activa, contrato automejora-meta-n §3.5).
+import { CLAVE_DIRECTIVAS, EVENTO_DIRECTIVAS, guardarDirectivas } from "@/lib/astraura/capas/directivas-almacen";
+import type { ArchivoDirectivas } from "@/lib/astraura/capas/directivas";
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
@@ -946,6 +949,26 @@ function applyRemoteChanges(
             if (key === DOCK_STORAGE_KEY) {
                 const norm = normalizeDockSyncValue(merged);
                 if (norm.changed) { merged = norm.value; repaired = true; }
+            }
+
+            /* ── DIRECTIVAS Meta^n (Ola MTN1027): aplicar POR CAPA, no en crudo ──
+             * El mapa entrante no se escribe tal cual: cada capa pasa por
+             * guardarDirectivas, que sanea y jamás deja retroceder la versión
+             * activa ni escribe lo que no aporta (contrato §3.5). Sin cambio
+             * real solo se adopta la marca remota, como en el camino «sin cambio
+             * real» de abajo; el cambio real se anuncia con los eventos de
+             * appliedKeys (guardarDirectivas ya emite el suyo). */
+            if (key === CLAVE_DIRECTIVAS) {
+                markAppliedRemote(key);
+                let cambio = false;
+                if (merged && typeof merged === "object" && !Array.isArray(merged)) {
+                    for (const [capa, archivo] of Object.entries(merged)) {
+                        if (guardarDirectivas(capa, archivo as ArchivoDirectivas)) cambio = true;
+                    }
+                }
+                if (remoteTs > 0) metaToStamp[key] = Math.max(remoteTs, localMeta[key] ?? 0);
+                if (cambio) appliedKeys.push(key);
+                continue;
             }
 
             const serialized = serializeForStorage(merged);
