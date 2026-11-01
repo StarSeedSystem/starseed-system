@@ -35,6 +35,12 @@ import { listarDispositivos, obtenerMedios, obtenerPantalla, obtenerPista, parar
 import { AVISO_SIN_TURN, contieneTurn, servidoresIce } from "@/lib/llamadas/ice";
 import { clavePestana, type Identidad } from "@/lib/llamadas/identidad";
 import {
+    engancharBot,
+    type EngancheBot,
+    type ServiciosBot,
+    type TextoLlamada,
+} from "@/lib/llamadas/bot-en-llamada";
+import {
     MAX_PARTICIPANTES,
     type CalidadConexion,
     type EstadoConexionPar,
@@ -43,6 +49,24 @@ import {
     type ParticipanteLlamada,
     type SenalLlamada,
 } from "@/lib/llamadas/tipos";
+
+/**
+ * Bot invitado de la llamada (contrato `voz-fusionada-astraura.md` §5, «Llamadas grupales con
+ * bots»): turnos, silencio y corte los decide `bot-en-llamada.ts`; la voz sale por la PUERTA
+ * ÚNICA de `voz-unica` (contexto «llamada», que entra por `omnivoice-mixer`) y su ganancia se
+ * fija con `setNeuronMixGain`. Solo `responder` (el cerebro del bot) es obligatorio: todo lo
+ * demás está inyectado por el propio motor.
+ */
+export interface OpcionesBotLlamada {
+    /** Id de presencia con el que el bot tiene la palabra («un solo bot a la vez»). */
+    botId: string;
+    /** Cerebro del bot: pregunta en claro → respuesta. Inyectable. */
+    responder: (pregunta: string) => Promise<string>;
+    /** Silencio (ms) antes de contestar; por defecto 700 (SILENCIO_MS). */
+    silencioMs?: number;
+    /** Volumen de la voz del bot, 0..1 (1 por defecto). */
+    volumen?: number;
+}
 
 export interface OpcionesMotor {
     sesionId: string;
@@ -66,6 +90,8 @@ export interface OpcionesMotor {
     canalesDirectos?: () => ConexionCanal[];
     /** Llamadas 1:1: al irse la otra persona, cuelga solo. */
     colgarAlQuedarSolo?: boolean;
+    /** Bot invitado (Astraura en la llamada); sin él, todo queda como antes. */
+    bot?: OpcionesBotLlamada;
     intervaloStatsMs?: number;
     intervaloNivelMs?: number;
 }
@@ -187,6 +213,8 @@ export class MotorLlamada {
     private ctxAudio: AudioContext | null = null;
     private readonly analizadores = new Map<string, Analizador>();
     private niveles: Record<string, number> = {};
+    /** Enganche del bot invitado con la llamada (null si no hay bot). */
+    private bot: EngancheBot | null = null;
     private hablante: HablanteVigente | null = null;
     private temporizadorNivel: ReturnType<typeof setInterval> | null = null;
     private temporizadorStats: ReturnType<typeof setInterval> | null = null;
@@ -766,8 +794,79 @@ export class MotorLlamada {
         }
         if (privado && !this.temaActual) this.temaActual = privado.tema;
         this.set({ fase: this.canales.some((c) => c.conn.suscrito()) ? "esperando" : "conectando" });
+        this.engancharBotInvitado();
         this.arrancarTemporizadores();
         return true;
+    }
+
+    /* ───────────────────────────── Bot invitado ───────────────────────────── */
+
+    /**
+     * Conecta el bot invitado (si lo hay) con la llamada: los turnos los lleva
+     * `bot-en-llamada.ts`; el TEXTO va por las señales de la llamada (difusión) y la voz por la
+     * puerta única (`voz-unica`, contexto «llamada → omnivoice-mixer»), con su ganancia en el
+     * mezclador (`setNeuronMixGain`). Los módulos pesados se importan SOLO al usarlos, y un
+     * fallo del bot nunca tumba la llamada.
+     */
+    private engancharBotInvitado() {
+        const o = this.opc.bot;
+        if (!o || this.bot) return;
+        const servicios: ServiciosBot = {
+            publicarTexto: (t: TextoLlamada) => {
+                try {
+                    this.enviar({ tipo: "texto", de: t.de, texto: t.texto, en: t.en });
+                } catch {
+                    /* canal cerrado: el turno se recupera en el siguiente tick */
+                }
+            },
+            responder: o.responder,
+            hablar: async (texto) => {
+                const v = await import("@/lib/aurora/voz-unica");
+                await v.hablar(texto, { contexto: "llamada" });
+            },
+            callar: () => {
+                void import("@/lib/aurora/voz-unica")
+                    .then((v) => v.callar())
+                    .catch(() => undefined);
+            },
+            ganancia: (g: number) => {
+                void import("@/lib/aurora/tts-oss/omnivoice-mixer")
+                    .then((m) => m.setNeuronMixGain(o.botId, g))
+                    .catch(() => undefined);
+            },
+        };
+        try {
+            this.bot = engancharBot({ botId: o.botId, silencioMs: o.silencioMs, volumen: o.volumen, servicios });
+        } catch {
+            this.bot = null;
+        }
+    }
+
+    /**
+     * Comparte el TEXTO de lo que alguien ha dicho (una transcripción, nunca el audio, contrato
+     * §5): lo lee el bot de esta llamada y sale por difusión para el de las demás.
+     */
+    compartirTexto(texto: string, en = Date.now()): void {
+        if (this.cerrado) return;
+        const limpio = texto.trim();
+        if (!limpio) return;
+        const t: TextoLlamada = { de: this.miId, texto: limpio, en };
+        this.bot?.recibir(t);
+        this.enviar({ tipo: "texto", de: t.de, texto: t.texto, en: t.en });
+    }
+
+    /** Suelta el turno del bot, lo calla y deja de lado el enganche (al colgar). */
+    private soltarBot() {
+        if (!this.bot) return;
+        try {
+            this.bot.soltar();
+        } catch {
+            /* noop */
+        }
+        this.bot = null;
+        void import("@/lib/aurora/voz-unica")
+            .then((v) => v.callar())
+            .catch(() => undefined);
     }
 
     private alCambiarPresencia(lista: MetaPresencia[]) {
@@ -815,6 +914,11 @@ export class MotorLlamada {
         if (c && this.canales.includes(c)) this.rutaPar.set(s.de, c);
         if (s.tipo === "mudanza") {
             void this.revisarCanal(false);
+            return;
+        }
+        if (s.tipo === "texto") {
+            // El TEXTO compartido lo lee el bot de esta llamada (si lo hay); nunca es señal de par.
+            this.bot?.recibir({ de: s.de, texto: s.texto, en: s.en });
             return;
         }
         if (s.tipo === "colgar") {
@@ -1118,7 +1222,10 @@ export class MotorLlamada {
     }
 
     private medirNiveles() {
-        if (this.cerrado || !this.analizadores.size) return;
+        if (this.cerrado) return;
+        // El reloj de la llamada mueve también los turnos del bot (silencio ≥ SILENCIO_MS, corte…).
+        this.bot?.tictac(Date.now());
+        if (!this.analizadores.size) return;
         if (this.ctxAudio?.state === "suspended") void this.ctxAudio.resume().catch(() => undefined);
         const niveles: Record<string, number> = {};
         for (const [id, a] of this.analizadores) {
@@ -1236,6 +1343,7 @@ export class MotorLlamada {
         if (this.temporizadorStats) clearInterval(this.temporizadorStats);
         this.temporizadorNivel = null;
         this.temporizadorStats = null;
+        this.soltarBot();
         for (const id of Array.from(this.pares.keys())) this.cerrarPar(id);
         for (const id of Array.from(this.analizadores.keys())) this.desconectarAnalizador(id);
         for (const t of [this.pistaAudio, this.pistaCamara, this.pistaPantalla]) {
