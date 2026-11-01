@@ -32,9 +32,9 @@ export interface OpcionesPlantillaRefine {
 
 /** Valida un nombre de recurso; lanza un Error en español si no casa. */
 function validarRecurso(nombre: string): string {
-  if (!RE_RECURSO.test(nombre)) {
+  if (typeof nombre !== "string" || !RE_RECURSO.test(nombre)) {
     throw new Error(
-      `Nombre de recurso no válido: «${nombre}». Debe empezar por minúscula y traer solo ` +
+      `Nombre de recurso no válido: «${String(nombre)}». Debe empezar por minúscula y traer solo ` +
         `letras en minúscula, números y guiones (hasta 41 caracteres).`,
     );
   }
@@ -228,7 +228,7 @@ function appTsx(recursos: RecursoPlantilla[]): string {
     )
     .join("\n");
   const definidos = recursos
-    .map((r) => `  { name: "${r.nombre}", list: "${r.nombre}" },`)
+    .map((r) => `  { name: "${r.nombre}", list: "/${r.nombre}" },`)
     .join("\n");
   const rutas = recursos
     .map(
@@ -241,8 +241,8 @@ function appTsx(recursos: RecursoPlantilla[]): string {
     .join("\n");
 
   return `import { Refine } from "@refinedev/core";
-import { dataProvider } from "@refinedev/simple-rest";
-import { routerProvider } from "@refinedev/react-router";
+import dataProvider from "@refinedev/simple-rest";
+import routerProvider from "@refinedev/react-router";
 import { Link, Route, Routes } from "react-router";
 ${importaciones}
 
@@ -253,7 +253,7 @@ ${definidos}
 export function App() {
   return (
     <Refine
-      dataProvider={dataProvider(import.meta.env.VITE_API_URL ?? "")}
+      dataProvider={dataProvider(import.meta.env.VITE_API_URL)}
       routerProvider={routerProvider}
       resources={RECURSOS}
       options={{ disableTelemetry: true }}
