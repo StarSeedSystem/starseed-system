@@ -59,7 +59,7 @@ import {
 } from "@/lib/voces/emociones";
 // (2026-09-06, Ola 264 · J1b) Normalización en español del texto hablado.
 import { normalizarParaVoz } from "@/lib/voces/normalizar-es";
-import { motorRecomendado, Plataforma, MOTORES_VOZ, type MotorVozCatalogo } from "../catalogo-voces";
+import { motorRecomendado, Plataforma, MOTORES_VOZ } from "../catalogo-voces";
 import { motoresPermitidos, type MotorInfo, type ContextoLicenciaVoz, type CapasPrefs } from "./licencia-voz";
 function detectarPlataforma(): Plataforma {
     if (typeof window === "undefined") return "web";
@@ -285,7 +285,7 @@ export function parametrosPorNivel(
 export interface OpcionesHablar {
     /** Identidad de la voz: LA MISMA en todos los niveles. */
     timbre: Timbre;
-    /** Dónde suena (rito, conversación…). Documental: no cambia el timbre. */
+    /** Dónde suena (rito, conversacion…). Documental: no cambia el timbre. */
     contexto: ContextoVoz;
     /** Fuerza un nivel concreto; si falta, se resuelve solo. */
     nivel?: NivelVoz;
@@ -315,6 +315,21 @@ export interface OpcionesHablar {
      * esta opción solo es para vías que ya entregan el texto normalizado.
      */
     sinNormalizar?: boolean;
+    /**
+     * (VST1018F) Si es la primera frase de conversación, elige el motor PERMITIDO
+     * con menor latencia medida. Sin este flag, se elige por hardware normalmente.
+     */
+    primeraFrase?: boolean;
+    /**
+     * Contexto de uso para filtrar motores por licencia. Por defecto se usa
+     * "grupo" si `contexto` es "conversacion", de lo contrario el valor de
+     * `contexto` se mapea a este.
+     */
+    contextoUso?: ContextoLicenciaVoz;
+    /**
+     * Capas de conciencia para filtrar motores por licencia.
+     */
+    capas?: CapasPrefs;
 }
 
 /**
@@ -493,25 +508,71 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     const plataforma = detectarPlataforma();
     const { memoriaGB } = await detectarCapacidades();
     const ramGB = memoriaGB ?? 8;
-    const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
+
     let nivel: NivelVoz;
-    switch (motorCat.id) {
-        case "voicemorphic":
-        case "voicestudio":
-            nivel = "estudio";
-            break;
-        case "kokoro":
-        case "kittentts":
-        case "moss-tts-nano":
-            nivel = "ligera";
-            break;
-        case "sistema":
-            nivel = "minima";
-            break;
-        default:
-            // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
-            nivel = "nube";
-            break;
+    let motorElegido: string | null = null;
+
+    // (VST1018F) Primera frase: elige por latencia el motor PERMITIDO con menor
+    // latencia medida. Solo para conversacion, no para lectura larga (use nivel
+    // normalmente). El motor elegido determina el nivel a usar.
+    if (opciones.primeraFrase && opciones.contexto === "conversacion") {
+        const contextoUso: ContextoLicenciaVoz = opciones.contextoUso ?? (opciones.contexto === "conversacion" ? "grupo" : opciones.contexto as ContextoLicenciaVoz);
+        const capas: CapasPrefs = opciones.capas ?? {};
+
+        const elegido = elegirMotorPorLatencia(timbre, capas);
+        if (elegido) {
+            const permitidos = motoresPermitidos(
+                MOTORES_VOZ.map((m): MotorInfo => ({ id: m.id, claseLicencia: m.claseLicencia })),
+                contextoUso,
+                capas
+            );
+            const motorBase = MOTORES_VOZ.find(m => m.id === elegido.motor);
+            if (motorBase && !permitidos.permitidos.some(p => p.id === elegido.motor)) {
+                motorElegido = null;
+            } else {
+                motorElegido = elegido.motor;
+            }
+        }
+
+        if (motorElegido) {
+            nivel = nivelParaMotor(motorElegido);
+        } else {
+            const motorCat = motorRecomendado(plataforma, ramGB, "grupo");
+            switch (motorCat.id) {
+                case "voicemorphic":
+                case "voicestudio":
+                case "kokoro":
+                case "kittentts":
+                case "moss-tts-nano":
+                    nivel = "ligera";
+                    break;
+                case "sistema":
+                    nivel = "minima";
+                    break;
+                default:
+                    nivel = "nube";
+                    break;
+            }
+        }
+    } else {
+        const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
+        switch (motorCat.id) {
+            case "voicemorphic":
+            case "voicestudio":
+                nivel = "estudio";
+                break;
+            case "kokoro":
+            case "kittentts":
+            case "moss-tts-nano":
+                nivel = "ligera";
+                break;
+            case "sistema":
+                nivel = "minima";
+                break;
+            default:
+                nivel = "nube";
+                break;
+        }
     }
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
