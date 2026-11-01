@@ -128,3 +128,64 @@ class ReaperturaDevolucionNubeTest(unittest.TestCase):
         self.assertEqual("reabrir", ordenes["T1"]["accion"])
         self.assertEqual("director-nube", ordenes["T1"]["quien"])
         self.assertEqual("devuelta de la nube: su run terminó", ordenes["T1"]["motivo"])
+
+
+class GuardarProgresoTest(unittest.TestCase):
+    """(SUP0111N, 2026-11-01) Sin el disco entero no se pisa con la copia de memoria; sin cambios no
+    se reescribe (1,2 MB cada 3-6 s con 220 «soltar» de tareas ajenas); y siempre con os.replace."""
+
+    def setUp(self):
+        import contextlib
+        import tempfile
+        from unittest import mock
+
+        self.dir = tempfile.mkdtemp()
+        self.json = os.path.join(self.dir, "progreso.json")
+        self.md = os.path.join(self.dir, "progreso.md")
+        for p in (mock.patch.object(enjambre, "PROG_JSON", self.json),
+                  mock.patch.object(enjambre, "PROG_MD", self.md),
+                  mock.patch.object(enjambre, "MIAS", {"T1"}),
+                  mock.patch.object(enjambre, "cerrojo", lambda *_a, **_k: contextlib.nullcontext())):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _escribir(self, texto):
+        with open(self.json, "w", encoding="utf-8") as f:
+            f.write(texto)
+
+    def test_con_el_disco_a_medias_no_lo_pisa(self):
+        from unittest import mock
+
+        self._escribir('{"T1": {"estado": "commit"}, "T2": {"est')
+        with mock.patch.object(enjambre.time, "sleep"):
+            self.assertFalse(enjambre.guardar_prog({"T1": {"estado": "en_curso"}}))
+        with open(self.json, encoding="utf-8") as f:
+            self.assertEqual('{"T1": {"estado": "commit"}, "T2": {"est', f.read())
+        self.assertFalse(os.path.exists(self.md))
+
+    def test_sin_cambios_no_reescribe(self):
+        import json
+
+        self._escribir(json.dumps({"T1": {"estado": "commit"}, "T2": {"estado": "fallo"}}))
+        inodo = os.stat(self.json).st_ino
+        prog = {"T2": {"estado": "en_curso"}}  # ajena: manda el disco
+        self.assertFalse(enjambre.guardar_prog(prog))
+        self.assertEqual(inodo, os.stat(self.json).st_ino)
+        self.assertEqual({"estado": "fallo"}, prog["T2"])
+        self.assertFalse(os.path.exists(self.md))
+
+    def test_con_cambios_funde_y_escribe_con_os_replace(self):
+        import json
+
+        self._escribir(json.dumps({"T1": {"estado": "en_curso"}, "T2": {"estado": "fallo"}}))
+        inodo = os.stat(self.json).st_ino
+        self.assertTrue(enjambre.guardar_prog({"T1": {"estado": "revisando"}}))
+        with open(self.json, encoding="utf-8") as f:
+            self.assertEqual({"T1": {"estado": "revisando"}, "T2": {"estado": "fallo"}}, json.load(f))
+        self.assertNotEqual(inodo, os.stat(self.json).st_ino)
+        self.assertEqual(["progreso.json", "progreso.md"], sorted(os.listdir(self.dir)))

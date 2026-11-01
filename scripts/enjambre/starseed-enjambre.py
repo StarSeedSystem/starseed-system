@@ -3145,12 +3145,33 @@ def relevo_nota(texto):
 
 
 # ── estado / progreso ───────────────────────────────────────────────────────
+def _leer_prog_del_disco(intentos=8, pausa_s=0.25):
+    """(SUP0111N) progreso.json del disco, {} si aún no existe, o None si no se pudo leer ENTERO:
+    otros procesos lo escriben sin os.replace y una lectura a mitad de escritura no es JSON."""
+    for i in range(max(1, intentos)):
+        try:
+            with open(PROG_JSON, encoding="utf-8") as f:
+                datos = json.load(f)
+            return datos if isinstance(datos, dict) else None
+        except FileNotFoundError:
+            return {}
+        except Exception:
+            if i + 1 < intentos:
+                time.sleep(pausa_s)
+    return None
+
+
+def _escribir_atomico(ruta, texto):
+    """(SUP0111N) Escribe a un temporal y lo pone con os.replace: quien lea nunca ve medio archivo."""
+    tmp = "%s.tmp-%d-%d" % (ruta, os.getpid(), threading.get_ident())
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(texto)
+    os.replace(tmp, ruta)
+
+
 def cargar_prog():
-    try:
-        with open(PROG_JSON, encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    datos = _leer_prog_del_disco()
+    return datos if isinstance(datos, dict) else {}
 
 
 MIAS = set()  # tareas que ESTE orquestador gobierna (las de su cola/--solo)
@@ -3161,17 +3182,23 @@ def guardar_prog(prog):
         # Otra ola puede haber escrito mientras tanto: se funde en vez de pisar. Y de las tareas
         # que NO son de este orquestador manda SIEMPRE el disco: el 2026-09-04 un orquestador
         # viejo pisaba una y otra vez el «commit» de VZ2 con su «fallo» en memoria.
-        try:
-            with open(PROG_JSON, encoding="utf-8") as f:
-                disco = json.load(f)
-            fundido = fusionar_progreso(prog, disco, MIAS)
-            prog.clear()
-            prog.update(fundido)
-        except Exception:
-            pass
-        json.dump(
-            prog, open(PROG_JSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1
-        )
+        # (SUP0111N, 2026-11-01) Sin el disco ENTERO no se escribe: una lectura a medias caía en
+        # `except: pass` y se volcaba la copia de memoria encima de lo que otros habían escrito
+        # (RTESP1011Bb volvió a «bloqueada» tras marcarse «sustituida»); la memoria se guarda en
+        # el próximo guardado que lea bien. Si la fusión no cambia nada, no se reescribe: el 01-11
+        # este orquestador volcaba 1,2 MB cada 3-6 s (220 «soltar» de tareas ajenas, donde manda el
+        # disco) y Drive subía cada versión. Y se escribe con os.replace, nunca a medias.
+        disco = _leer_prog_del_disco()
+        if disco is None:
+            print("[%s] progreso.json no se pudo leer entero: no lo piso con la copia de memoria"
+                  % ahora()[11:19], flush=True)
+            return False
+        fundido = fusionar_progreso(prog, disco, MIAS)
+        prog.clear()
+        prog.update(fundido)
+        if fundido == disco:
+            return False
+        _escribir_atomico(PROG_JSON, json.dumps(prog, ensure_ascii=False, indent=1))
         lines = [
             "# Progreso de las olas (enjambre gratuito)",
             "",
@@ -3189,7 +3216,8 @@ def guardar_prog(prog):
                     t.get("nota", ""),
                 )
             )
-        open(PROG_MD, "w", encoding="utf-8").write("\n".join(lines) + "\n")
+        _escribir_atomico(PROG_MD, "\n".join(lines) + "\n")
+        return True
 
 
 PROG = cargar_prog()
