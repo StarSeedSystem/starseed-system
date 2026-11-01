@@ -1,0 +1,42 @@
+[Unit]
+Description=StarSeed · gateway de Hermes en el A1 (IND1029G): el puente, no el motor
+After=network-online.target starseed-medio.service a1-freellmapi.service
+Wants=network-online.target
+# requiere: /home/starseed/.hermes/bin/hermes
+# requiere: /home/starseed/.hermes/config.yaml
+# requiere: /opt/starseed/nodo/hermes_arranque.py
+# requiere: /home/starseed/starseed-system/scripts/puente/lider_direccion.py
+#
+# Hermes es el PUENTE (chat, Telegram y herramientas), no el motor de la dirección
+# (architecture/metagenesis-autonoma.md §2). El instalador oficial para Linux deja el
+# binario en ~/.hermes/bin; `oracle_nodo.py hermes --aplicar` escribe la config SIN
+# claves: el modelo `freellmapi/auto` va contra el FreeLLMAPI del propio A1 y el MCP
+# `starseed-director`. Telegram usa long polling y SOLO el líder lo enciende: dos
+# encuestas del mismo bot se pisan. El arranque consulta el arriendo `direccion.lider`
+# cada minuto y calla el token cuando el arriendo es de otra neurona.
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed/starseed-system
+Environment=STARSEED_MEDIO=oracle STARSEED_DONDE=oracle STARSEED_ROOT=/home/starseed/starseed-system
+Environment=PYTHONUNBUFFERED=1
+# La bóveda del A1 (600): los NOMBRES viven en la unidad y en el repo; los valores, solo
+# en este archivo del A1. Sin él, Hermes arranca sin proveedor y no encuesta Telegram.
+EnvironmentFile=-/home/starseed/.starseed/env
+ExecStart=/usr/bin/python3 -u /opt/starseed/nodo/hermes_arranque.py
+Restart=on-failure
+RestartSec=30
+# Al parar la unidad se para el grupo entero: no queda un gateway huérfano encuestando.
+KillMode=control-group
+TimeoutStopSec=30
+# El gateway es ligero, pero el A1 comparte RAM y CPU con BitNet, Genesis y el enjambre.
+MemoryMax=3G
+Nice=10
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
