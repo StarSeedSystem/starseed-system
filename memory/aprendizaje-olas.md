@@ -4662,3 +4662,47 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-11-01 12:47 · mg-oracle-1101-0531
+
+**Lo que se pidió.** Decisiones de Alex 2026-10-19
+
+**Resultado.** 0 de 30 integradas. 30 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 25 tareas se fueron por lo mismo — no escribió nada (RTAV1011Id, RTRTRTCOL1012Bdsbbbbbbbbbbbbbbb-d2, RTRTRC1013Cd-d2, RTRTCOL1012Bdsbbbbbbbbbcb-d3, INF1025D, DSN1025D). Es 83 % de la ola.
+- 5 tareas se fueron por lo mismo — los tipos no compilan (DSN1019B, SGO1024D-d2, INF1025B, AGT1025B, ART1025C). Es 17 % de la ola.
+- sin modelo anotado no integró ninguna de sus 25 tareas.
+- opencode/minimax-m3.1-flash-free no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `DSN1019B` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/DSN1019B conservada)
+- `SGO1024D-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/SGO1024D-d2 conservada)
+- `RTAV1011Id` — no escribió nada
+- `RTRTRTCOL1012Bdsbbbbbbbbbbbbbbb-d2` — no escribió nada
+- `RTRTRC1013Cd-d2` — no escribió nada
+- `RTRTCOL1012Bdsbbbbbbbbbcb-d3` — no escribió nada
+- `INF1025D` — no escribió nada
+- `INF1025B` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/INF1025B conservada)
+- `DSN1025D` — no escribió nada
+- `AGT1025B` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/AGT1025B conservada)
+- `ART1025C` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/ART1025C conservada)
+- `ART1025G` — no escribió nada
+- `BLD1025K` — no escribió nada
+- `CPZ1025D` — no escribió nada
+- `CPZ1025F` — no escribió nada
+- `CPZ1025H` — no escribió nada
+- `DSN1025G` — no escribió nada
+- `DSN1025H` — no escribió nada
+- `INF1025G` — no escribió nada
+- `ART1025B` — no escribió nada
+- `ART1025L` — no escribió nada
+- `BLD1025B` — no escribió nada
+- `BLD1025C` — no escribió nada
+- `CFC1025A` — no escribió nada
+- `CPZ1025A` — no escribió nada
+- `DSN1025A` — no escribió nada
+- `INV1025B` — no escribió nada
+- `INV1025F` — no escribió nada
+- `DSN1025B` — no escribió nada
+- `INV1025J` — no escribió nada
