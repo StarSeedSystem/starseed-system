@@ -87,6 +87,36 @@ function textoContienePegado(texto: string | null, trozo: string): boolean {
 }
 
 describe("ayudantes de fuga de palabra", () => {
+    test("returns true when palabra is a token in texto", () => {
+        expect(textoContienePalabra("hola mundo", "mundo")).toBe(true);
+        expect(textoContienePalabra("hola mundo", "hola")).toBe(true);
+    });
+
+    test("returns false when palabra is a substring of texto", () => {
+        expect(textoContienePalabra("hola mundo", "adios")).toBe(false);
+        expect(textoContienePalabra("hola mundo", "")).toBe(false);
+        expect(textoContienePalabra("", "hola")).toBe(false);
+        expect(textoContienePalabra(null, "hola")).toBe(false);
+    });
+
+
+
+    test("returns false when palabra is not a substring of texto", () => {
+        expect(textoContienePalabra("hola mundo", "adios")).toBe(false);
+        expect(textoContienePalabra("hola mundo", "")).toBe(false);
+        expect(textoContienePalabra("", "hola")).toBe(false);
+        expect(textoContienePalabra(null, "hola")).toBe(false);
+    });
+
+    test("detects concatenated string without word boundaries", () => {
+        // Simulate the concatenated string scenario: "Beto" + "vela" = "Betovela"
+        expect(textoContienePegado("abcBetovela def", "Betovela")).toBe(true);
+        // Also, it should detect it even if adjacent to word characters (because we removed word boundaries)
+        expect(textoContienePegado("abcBetovelad", "Betovela")).toBe(true);
+        expect(textoContienePegado("Betovela", "Betovela")).toBe(true);
+        expect(textoContienePegado("Betovel", "Betovela")).toBe(false);
+    });
+
     test("la palabra se detecta como palabra propia, con acentos y en cualquier caja", () => {
         expect(textoContienePalabra("La era vela", "vela")).toBe(true);
         expect(textoContienePalabra("gató entre ÁrBol", "árbol")).toBe(true);
