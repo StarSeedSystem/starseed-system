@@ -7,7 +7,11 @@ import { FRAME_ALLOW, FRAME_SANDBOX } from "@/components/browser/web-frame";
 import { conParent, detectarFormato } from "@/lib/estaciones/formato";
 import type { Estacion } from "@/lib/estaciones/tipos";
 import { anuncio as anuncioMalla, codificar, decodificar, fusionar, type AnuncioDisponibilidad, type AnuncioRecibido, type RegistroDisponibilidad } from "@/lib/recursos/disponibilidad";
-import { armarArbol, recolocar } from "@/lib/recursos/arbol-relevo";
+import { armarArbol, type ReceptorRelevo, recolocar } from "@/lib/recursos/arbol-relevo";
+import {
+    avanzarReloj, compararMarcas, crearCanal, destinosRelevo, fundirReloj,
+    type MarcaEvento, type SobreEvento,
+} from "@/lib/recursos/eventos-contexto";
 import { contextoMalla, crearCargadorMalla, puedeSubirPrestado, type ConexiónCargadorMalla } from "@/lib/recursos/hls-malla-loader";
 import type { FragmentLoaderConstructor } from "hls.js";
 
@@ -32,7 +36,7 @@ function BarrasAudio() {
 }
 
 // ─── Malla (§10): pedir y repartir segmentos por la red; el origen queda de respaldo ───
-const CANAL_DISPONIBILIDAD = "hls.disponibilidad", CANAL_PEDIDO = "hls.pedido", CANAL_TROZO = "hls.trozo";
+const CANAL_EVENTOS = "hls.eventos", CANAL_PEDIDO = "hls.pedido", CANAL_TROZO = "hls.trozo";
 const TOTAL_MALLA = 10_000, SEGMENTOS_EN_CACHE = 64, TOPE_SUBIDA_KBPS = 64, VENTANA_SUBIDA_MS = 60_000;
 const servidos = new Map<string, Map<number, Uint8Array>>(); let subidaBytes = 0, subidaDesde = 0;
 /** Id del elemento: un rastro del enlace; la URL nunca sale por la malla. */
@@ -72,7 +76,56 @@ async function conectarMalla(enlace: string, contexto: "publico" | "cuenta"): Pr
     const arbol = fuentes.length > 0
         ? armarArbol(elemento, [{ nodoId: propio, subidaKbps: TOPE_SUBIDA_KBPS }, ...fuentes], TOPE_SUBIDA_KBPS)
         : undefined;
-    const esperados = new Map<string, (b: Uint8Array | null) => void>(); let recibidos: AnuncioRecibido[] = [];
+    /** Vecinos del contexto (§11): enlaces locales vivos más pares de la malla, sin contar a nadie dos veces. */
+    const vecinosRelevo = (): ReceptorRelevo[] => {
+        const porNodo = new Map<string, ReceptorRelevo>();
+        for (const e of reg.enlacesLocalesVivos()) {
+            if (soloCuenta) break;
+            const id = e.par.syncDeviceId;
+            if (id && id !== propio) porNodo.set(id, { nodoId: id, subidaKbps: e.capacidadKbps() ?? undefined, latenciaMs: e.rttMs() ?? undefined });
+        }
+        for (const p of mesh?.getPeers() ?? []) {
+            if (p.state === "connected" && p.channelOpen && p.deviceId !== propio) porNodo.set(p.deviceId, { nodoId: p.deviceId });
+        }
+        return [{ nodoId: propio, subidaKbps: TOPE_SUBIDA_KBPS }, ...porNodo.values()];
+    };
+    const eventoSano = (s: SobreEvento | null): s is SobreEvento =>
+        !!s && typeof s.id === "string" && typeof s.de === "string" && typeof s.tipo === "string" &&
+            !!s.marca && typeof s.marca.fisico === "number" && typeof s.marca.contador === "number" &&
+            typeof s.marca.nodoId === "string" && Array.isArray(s.causal);
+    const mandaNodo = (nodo: string, sobre: SobreEvento): void => {
+        if (!nodo || nodo === propio) return;
+        if (nodo === "*") {
+            for (const e of reg.enlacesLocalesVivos()) if (!soloCuenta) void tu.enviarMensaje({ enlaceId: e.id }, CANAL_EVENTOS, sobre);
+            for (const p of mesh?.getPeers() ?? []) if (p.channelOpen && p.deviceId !== propio) void tu.enviarMensaje({ syncDeviceId: p.deviceId }, CANAL_EVENTOS, sobre);
+            return;
+        }
+        if (!soloCuenta) for (const e of reg.enlacesLocalesVivos()) if (e.par.syncDeviceId === nodo) { void tu.enviarMensaje({ enlaceId: e.id }, CANAL_EVENTOS, sobre); return; }
+        void tu.enviarMensaje({ syncDeviceId: nodo }, CANAL_EVENTOS, sobre);
+    };
+    // Canal de eventos del contexto (§11): los anuncios viajan con reloj híbrido, sin duplicados,
+    // con acuses y reintentos; directo hasta 8 vecinos y por el árbol de relevo con más.
+    const canalEventos = crearCanal({
+        nodoId: propio, enviar: mandaNodo, ahora,
+        receptores: vecinosRelevo, kbpsFlujo: TOPE_SUBIDA_KBPS,
+    });
+    let marcaReloj: MarcaEvento = { fisico: ahora(), contador: 0, nodoId: propio };
+    const marcaDeAnuncio = (a: AnuncioDisponibilidad): MarcaEvento => ({ fisico: a.t, contador: 0, nodoId: a.nodo });
+    const reenviar = (sobre: SobreEvento): void => {
+        const receptores = vecinosRelevo();
+        if (receptores.length - 1 <= 8) return;
+        for (const d of destinosRelevo(propio, receptores, TOPE_SUBIDA_KBPS)) mandaNodo(d, sobre);
+    };
+    let recibidos: AnuncioRecibido[] = [];
+    const aplicarEvento = (s: SobreEvento): void => {
+        marcaReloj = fundirReloj(marcaReloj, s.marca, ahora(), propio);
+        if (s.tipo !== "disponibilidad" || !esAnuncio(s.cuerpo, propio, elemento)) return;
+        recibidos.push({ anuncio: s.cuerpo, recibidoEn: ahora() });
+        if (recibidos.length > 256) recibidos = recibidos.slice(-256);
+        recibidos.sort((a, b) => compararMarcas(marcaDeAnuncio(a.anuncio), marcaDeAnuncio(b.anuncio)));
+        try { con.registro = fusionar(recibidos); } catch { recibidos.pop(); }
+    };
+    const esperados = new Map<string, (b: Uint8Array | null) => void>();
     const bajas: (() => void)[] = [];
     const con: ConexiónCargadorMalla = {
         elemento, registro: new Map() as RegistroDisponibilidad,
@@ -84,11 +137,9 @@ async function conectarMalla(enlace: string, contexto: "publico" | "cuenta"): Pr
             trozos.set(indice, bytes);
             if (trozos.size > SEGMENTOS_EN_CACHE) trozos.delete(trozos.keys().next().value ?? 0);
             servidos.set(elemento, trozos);
-            const piezas = anuncioMalla(propio, elemento, TOTAL_MALLA, [...trozos.keys()].sort((a, b) => a - b), ahora());
-            for (const pieza of piezas) {
-                for (const e of reg.enlacesLocalesVivos()) if (!soloCuenta) void tu.enviarMensaje({ enlaceId: e.id }, CANAL_DISPONIBILIDAD, pieza);
-                for (const p of mesh?.getPeers() ?? []) if (p.channelOpen) void tu.enviarMensaje({ syncDeviceId: p.deviceId }, CANAL_DISPONIBILIDAD, pieza);
-            }
+            marcaReloj = avanzarReloj(marcaReloj, ahora(), propio);
+            const piezas = anuncioMalla(propio, elemento, TOTAL_MALLA, [...trozos.keys()].sort((a, b) => a - b), marcaReloj.fisico);
+            for (const pieza of piezas) canalEventos.emitir("disponibilidad", pieza);
         },
         pedir: (nodo, indice) => new Promise((resolver) => {
             const pid = `${indice}-${Math.random().toString(36).slice(2)}`;
@@ -108,12 +159,13 @@ async function conectarMalla(enlace: string, contexto: "publico" | "cuenta"): Pr
             if (con.arbol) con.arbol = recolocar(con.arbol, id);
         }
     }));
-    bajas.push(tu.alRecibirMensaje(CANAL_DISPONIBILIDAD, (m) => {
+    bajas.push(canalEventos.suscribir(aplicarEvento), () => canalEventos.cerrar());
+    bajas.push(tu.alRecibirMensaje(CANAL_EVENTOS, (m) => {
         if (soloCuenta && m.origen.tipo !== "cuenta") return;
-        if (!esAnuncio(m.cuerpo, propio, elemento)) return;
-        recibidos.push({ anuncio: m.cuerpo, recibidoEn: ahora() });
-        if (recibidos.length > 256) recibidos = recibidos.slice(-256);
-        try { con.registro = fusionar(recibidos); } catch { recibidos.pop(); }
+        const sobre = m.cuerpo as SobreEvento | null;
+        if (!eventoSano(sobre)) return;
+        if (!canalEventos.recibir(sobre)) return;
+        if (sobre.acuseDe === undefined && sobre.de !== propio) reenviar(sobre);
     }));
     bajas.push(tu.alRecibirMensaje(CANAL_PEDIDO, (m) => {
         if (soloCuenta && m.origen.tipo !== "cuenta") return;
