@@ -102,6 +102,27 @@ class Puras(unittest.TestCase):
         self.assertEqual(R.profundidad_rescate(""), 0)
         self.assertGreaterEqual(R.profundidad_rescate(R.id_rescate("OPT1004C", set())), R.TOPE_RESCATE)
 
+    def test_id_de_rama(self):
+        self.assertEqual(R.id_de_rama("nube/1/ola/X1"), "X1")
+        self.assertEqual(R.id_de_rama("nube/a1-20261101-065042-RTCLB1027Cb-d1b-d3"), "RTCLB1027Cb-d1b-d3")
+        self.assertIsNone(R.id_de_rama("nube/a1-20261101-065042"))
+        self.assertIsNone(R.id_de_rama("nube/2"))
+
+    def test_rescatable_solo_si_la_rama_toca_los_archivos_de_la_tarea(self):
+        archivos = ["scripts/puente/a.py"]
+        self.assertTrue(R.rescatable(["b.py", "scripts/puente/a.py"], archivos, "nube/1/ola/X1", "X1"))
+        # La misma cadena: la rama de `X1` sirve para su sucesora `X1b`.
+        self.assertTrue(R.rescatable(["scripts/puente/a.py"], archivos, "nube/1/ola/X1", "X1b"))
+        # (RESC1031B) El diff no toca los archivos de la tarea: se archiva con su motivo.
+        self.assertFalse(R.rescatable(["b.ts"], archivos, "nube/1/ola/X1", "X1"))
+        self.assertIn("no toca", R.motivo_no_rescatable(["b.ts"], archivos, "nube/1/ola/X1", "X1"))
+        # Sin archivos en la tarea no hay con qué compartir: no.
+        self.assertFalse(R.rescatable(["a.py"], [], "nube/1/ola/X1", "X1"))
+        # La rama lleva el ID de otra tarea: no se rescata nunca para esta.
+        self.assertFalse(R.rescatable(["scripts/puente/a.py"], archivos, "nube/1/ola/Y1", "X1"))
+        self.assertIn("otra tarea", R.motivo_no_rescatable(["scripts/puente/a.py"], archivos,
+                                                           "nube/1/ola/Y1", "X1"))
+
     def test_id_rescate(self):
         self.assertEqual(R.id_rescate("OPT1004C", set()), "RTOPT1004C")
         self.assertEqual(R.id_rescate("LC1004Bd", set()), "RTLC1004B")
