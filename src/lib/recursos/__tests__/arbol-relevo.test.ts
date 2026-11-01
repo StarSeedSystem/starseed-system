@@ -114,4 +114,19 @@ describe("arbol-relevo", () => {
     const arbol = armarArbol("origen", [receptor("n1")], 100);
     expect(recolocar(arbol, "fantasma")).toEqual(arbol);
   });
+
+  it("capacidadRelevo aplica floor y da 1 sin medida", () => {
+    expect(capacidadRelevo(5000, 1000)).toBe(5);
+    expect(capacidadRelevo(999, 1000)).toBe(0);
+    expect(capacidadRelevo(0, 1000)).toBe(0);
+    expect(capacidadRelevo(undefined, 1000)).toBe(1);
+  });
+
+  it("el orden de entrada no cambia el árbol", () => {
+    const receptores = Array.from({ length: 10 }, (_, i) => receptor(`n${i}`, (10 - i) * 1000));
+    const barajado = [receptores[7], ...receptores.slice(0, 7), receptores[9], receptores[8]];
+    expect(armarArbol("origen", barajado, 1000)).toEqual(
+      armarArbol("origen", receptores, 1000),
+    );
+  });
 });
