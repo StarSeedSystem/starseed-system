@@ -220,8 +220,23 @@ def elegir_por_tarea(entradas):
 
 
 def base_de(tid):
-    """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` de Genesis)."""
-    return tid[:-1] if re.search(r"[A-Z0-9][b-z]$", tid) else tid
+    """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` de Genesis).
+
+    (RESC1031D) Mirar solo la última letra cortaba mal: `SGO1031B-d1` se quedaba entero (y su
+    sucesor nacía `…-d1b`) y `X-d2b` perdía su `b` dejando `X-d2`. Ahora se quitan primero las
+    partes derivadas COMPLETAS (`-d1`, `-d2b`, encadenadas) y el `RT` de rescate no se toca:
+    es parte del id, no un reintento. La letra de reintento (una sola, `b`-`z`) se quita solo
+    si va detrás de mayúscula o cifra, o si cierra un id que ya acababa en minúscula
+    (`…-1ab` → `…-1a`, como la regla del vigilante y del revisor)."""
+    t = str(tid or "")
+    while re.search(r"-d\d+[a-z]?$", t):
+        t = re.sub(r"-d\d+[a-z]?$", "", t)
+    if len(t) > 1 and t[-1] in "bcdefghijklmnopqrstuvwxyz":
+        if t[-2].isdigit() or t[-2].isupper():
+            return t[:-1]
+        if len(t) > 2 and t[-2].islower() and (t[-3].isdigit() or t[-3].isupper()):
+            return t[:-1]
+    return t
 
 
 def siguiente_id(tid, conocidos):

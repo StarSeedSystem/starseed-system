@@ -105,6 +105,30 @@ class Sucesor(unittest.TestCase):
         self.assertEqual(T.siguiente_id("LC1004B", {"LC1004B", "LC1004Bb", "LC1004Bc"}), "LC1004Bd")
         self.assertEqual(T.siguiente_id("SB1004A", {"SB1004A", "SB1004Ab", "OTRA"}), "SB1004Ac")
 
+    def test_base_de_ids_que_acaban_en_minuscula(self):
+        # RESC1031D: la letra final es la del reintento y se quita; la marca de rescate (`RT`)
+        # se conserva, y una parte derivada (`-d1`, `-d2b`) se quita entera.
+        self.assertEqual(T.base_de("RTESP1011Bb"), "RTESP1011B")
+        self.assertEqual(T.base_de("SGO1031B-d1"), "SGO1031B")
+        self.assertEqual(T.base_de("MC1013TCc"), "MC1013TC")
+        self.assertEqual(T.base_de("X-d2b"), "X")
+        self.assertEqual(T.base_de("CPA1007Kb-d1b"), "CPA1007K")
+        self.assertEqual(T.base_de("RTGN1010A-d3d-d3b"), "RTGN1010A")
+        # un id que ya acababa en minúscula pierde solo la letra del reintento, no las dos
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1ab"), "S1010-EV-ORACLE-1a")
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1a"), "S1010-EV-ORACLE-1")
+        # mayúsculas, cifras y guiones del id no son letras de reintento
+        self.assertEqual(T.base_de("p318Jc"), "p318J")
+        self.assertEqual(T.base_de("c313_QW4"), "c313_QW4")
+        self.assertEqual(T.base_de("OPO1011T1"), "OPO1011T1")
+        self.assertEqual(T.base_de("MGP1010-7F3A2C"), "MGP1010-7F3A2C")
+        self.assertEqual(T.base_de(None), "")
+        self.assertEqual(T.base_de(""), "")
+
+    def test_siguiente_de_una_parte_derivada(self):
+        self.assertEqual(T.siguiente_id("SGO1031B-d1", {"SGO1031B-d1"}), "SGO1031Bb")
+        self.assertEqual(T.siguiente_id("X-d2b", {"Xb"}), "Xc")
+
     def test_tarea_reparacion_continua_desde_la_rama(self):
         original = {"id": "LC1004B", "ola": "Ola 1004L", "titulo": "Límites", "archivos": ["a.ts"],
                     "depende": ["LC1004A"], "prompt": "Haz X.", "estado": "fallo_tests", "modelo": "nim/kimi"}
