@@ -46,6 +46,16 @@ describe("ClienteMcpStdio", () => {
     transporte.responder(transporte.ultima.id, { tools: [{ name: "x" }] });
     expect(await promesa).toEqual({ tools: [{ name: "x" }] });
   });
+  it("maneja trozos de línea partidos en mitad de JSON", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.listar(5000);
+    const id = transporte.ultima.id;
+    const jsonCompleto = `{"jsonrpc":"2.0","id":${id},"result":true}\n`;
+    const puntoDeCorte = Math.floor(jsonCompleto.length / 2);
+    transporte.enviar(jsonCompleto.slice(0, puntoDeCorte));
+    transporte.enviar(jsonCompleto.slice(puntoDeCorte));
+    expect(await promesa).toBe(true);
+  });
   it("concatena los bloques de texto de una llamada", async () => {
     const { transporte, cliente } = montar();
     const promesa = cliente.llamar("x", { a: 1 }, 1000);
@@ -69,6 +79,15 @@ describe("ClienteMcpStdio", () => {
     const promesa = cliente.listar(1000);
     transporte.responder(transporte.ultima.id, { ok: true });
     expect(await promesa).toEqual({ ok: true });
+  });
+  it("mantiene el contador de ilegibles tras múltiples líneas no JSON", async () => {
+    const { transporte, cliente } = montar();
+    transporte.enviar("no es json 1\n");
+    transporte.enviar("{malformed\n");
+    expect(cliente.ilegibles).toBe(2);
+    const promesa = cliente.listar(1000);
+    transporte.responder(transporte.ultima.id, {});
+    expect(await promesa).toEqual({});
   });
   it("falla con tiempo agotado", async () => {
     const { reloj, cliente } = montar();
