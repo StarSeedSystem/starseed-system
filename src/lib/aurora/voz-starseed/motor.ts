@@ -54,6 +54,9 @@ import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
 import type { MedidaVoz } from "@/lib/aurora/medidas-voz";
 // (Ola 1018F · niveles.ts) «estudio» solo compite en lectura/doblaje/audiolibro.
 import { estudioSegunUso, type UsoVoz } from "./niveles";
+// (Ola 1018F · VST1018F 2/3) La elección se alimenta de las medidas de ESTA neurona.
+import { leerMedidas } from "@/lib/aurora/medidas-voz";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 // (2026-09-06, Ola 264 · G2) Emoción e intensidad: etiquetas `[emocion]` del
 // texto, capa `aplicarEmocion` sobre el perfil neuronal y catálogo `EmocionVoz`.
 import {
@@ -64,7 +67,7 @@ import {
 } from "@/lib/voces/emociones";
 // (2026-09-06, Ola 264 · J1b) Normalización en español del texto hablado.
 import { normalizarParaVoz } from "@/lib/voces/normalizar-es";
-import { motorRecomendado, Plataforma } from "../catalogo-voces";
+import { motorRecomendado, MOTORES_VOZ, Plataforma } from "../catalogo-voces";
 function detectarPlataforma(): Plataforma {
     if (typeof window === "undefined") return "web";
     const ua = navigator.userAgent;
@@ -277,6 +280,78 @@ export function elegirMotorPrimeraFrase(
             }
         }
         return mejor;
+    } catch {
+        return null;
+    }
+}
+
+// ── (Ola 1018F · VST1018F 2/3) APLICACIÓN: quién elige de verdad ─────────────
+//
+// El elector de arriba se usa en `hablarStarSeed`, la puerta única, para
+// resolver el nivel de la PRIMERA frase de una conversación. Aquí está la parte
+// que arma los datos: candidatos desde el catálogo (solo motores que esta
+// neurona puede ejecutar de verdad), medidas reales de esta misma neurona y el
+// contexto de escucha con sus capas. Del ganador sale el mensaje COMPLETO por
+// UN nivel; sin ganador, manda la cadena de siempre. Nunca se lanza.
+
+/** Motores del catálogo que la vía del demonio local sabe sonar (niveles estudio/alta). */
+const IDS_MOTOR_LOCAL: ReadonlySet<string> = new Set(["voicemorphic", "voicestudio"]);
+
+/** Motores del catálogo que suenan en el navegador por la vía «ligera». */
+const IDS_MOTOR_NAVEGADOR: ReadonlySet<string> = new Set(["kokoro", "kittentts", "moss-tts-nano"]);
+
+/** Nivel del motor único con el que sonaría ese id de catálogo; `null` si no tiene vía. */
+function nivelDeCandidato(id: string): NivelVoz | null {
+    if (IDS_MOTOR_LOCAL.has(id)) return "alta";
+    return IDS_MOTOR_NAVEGADOR.has(id) ? "ligera" : null;
+}
+
+/**
+ * Candidatos a la primera frase: los motores del catálogo que esta neurona
+ * puede ejecutar de verdad (los demás no compiten aunque la licencia los deje):
+ *  · demonio local → hace falta el demonio vivo y la RAM mínima del motor;
+ *  · vía ligera    → escritorio con WebGPU o WASM SIMD (la regla de niveles.ts).
+ * `tieneLaVoz` es `true` en todos: las vías del motor único conservan el
+ * timbre, y el timbre viaja al elector por otras rampas si algún día un motor
+ * no la puede expresar.
+ */
+function candidatosPrimeraFrase(plataforma: Plataforma, caps: Capacidades, ramGB: number): CandidatoInstantaneo[] {
+    const candidatos: CandidatoInstantaneo[] = [];
+    for (const m of MOTORES_VOZ) {
+        if (!m.plataformas.includes(plataforma)) continue;
+        if (IDS_MOTOR_LOCAL.has(m.id)) {
+            if (!caps.daemonLocal || ramGB < m.ramMinGB) continue;
+        } else if (IDS_MOTOR_NAVEGADOR.has(m.id)) {
+            if (caps.movil || !(caps.webgpu || caps.wasmSimd)) continue;
+        } else {
+            continue; // sin vía en el motor único: no compite
+        }
+        candidatos.push({ id: m.id, claseLicencia: m.claseLicencia, tieneLaVoz: true });
+    }
+    return candidatos;
+}
+
+/** true solo hasta que la voz suena por primera vez en esta sesión de la interfaz. */
+let habloEnSesion = false;
+
+/**
+ * Nivel de la PRIMERA frase de una conversación según el elector, o `null` si
+ * no toca elegir o no hay ganador: en lectura, rito o avisos no; si el usuario
+ * ya fijó un nivel, tampoco; y sin motor apto MEDIDO, la cadena de siempre.
+ * Lee las medidas de esta neurona (único acceso a disco) y nunca lanza.
+ */
+async function nivelPrimeraFrase(plataforma: Plataforma, caps: Capacidades, uso: UsoVoz): Promise<NivelVoz | null> {
+    try {
+        if (habloEnSesion || uso !== "conversacion") return null;
+        if (nivelPreferido() !== "auto") return null; // el nivel fijado por el usuario manda
+        const conVoz = candidatosPrimeraFrase(plataforma, caps, caps.memoriaGB ?? 8);
+        const elegido = elegirMotorPrimeraFrase(
+            conVoz,
+            leerMedidas(neuronDeviceIdActual()),
+            "personal", // los contextos de grupo y más arriba los declara quien llama…
+            {}, // …con sus capas; hoy la puerta única habla en la neurona de la persona
+        );
+        return elegido ? nivelDeCandidato(elegido.id) : null;
     } catch {
         return null;
     }
@@ -548,8 +623,8 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     const timbre = timbreConEmocion(opciones.timbre, resuelta.emocion, resuelta.intensidad);
 
     const plataforma = detectarPlataforma();
-    const { memoriaGB } = await detectarCapacidades();
-    const ramGB = memoriaGB ?? 8;
+    const caps = await detectarCapacidades();
+    const ramGB = caps.memoriaGB ?? 8;
     const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
     // (Ola 1018V · VST1018F 2/3) «estudio» solo para lectura larga, doblaje y
     // audiolibros (contrato `voz-voicestudio.md` §4): en conversación, avisos,
@@ -557,23 +632,38 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     // mensaje sale SIEMPRE por un solo nivel: nunca se parte entre dos motores.
     const uso = usoParaContexto(opciones.contexto);
     let nivel: NivelVoz;
-    switch (motorCat.id) {
-        case "voicemorphic":
-        case "voicestudio":
-            nivel = estudioSegunUso(uso) ? "estudio" : "alta";
-            break;
-        case "kokoro":
-        case "kittentts":
-        case "moss-tts-nano":
-            nivel = "ligera";
-            break;
-        case "sistema":
-            nivel = "minima";
-            break;
-        default:
-            // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
-            nivel = "nube";
-            break;
+    if (opciones.nivel) {
+        // Nivel que pidió quien llama (p. ej. el banco de pruebas A/B): manda
+        // sobre el elector y sobre la recomendación del catálogo.
+        nivel = opciones.nivel;
+    } else {
+        // (Ola 1018F · VST1018F 2/3) PRIMERA frase de una conversación: la
+        // elige el elector (licencia + voz + latencia MEDIDA en esta neurona)
+        // y de él sale el mensaje COMPLETO por un solo nivel. Sin ganador —
+        // o pasada la primera frase — manda la recomendación del catálogo.
+        const primera = await nivelPrimeraFrase(plataforma, caps, uso);
+        if (primera) {
+            nivel = primera;
+        } else {
+            switch (motorCat.id) {
+                case "voicemorphic":
+                case "voicestudio":
+                    nivel = estudioSegunUso(uso) ? "estudio" : "alta";
+                    break;
+                case "kokoro":
+                case "kittentts":
+                case "moss-tts-nano":
+                    nivel = "ligera";
+                    break;
+                case "sistema":
+                    nivel = "minima";
+                    break;
+                default:
+                    // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
+                    nivel = "nube";
+                    break;
+            }
+        }
     }
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
@@ -602,6 +692,7 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
         try {
             if (await sintetizar(actual, limpio, timbre, opciones)) {
                 nivelEnUso = actual;
+                habloEnSesion = true; // a partir de aquí ya no hay primera frase
                 return true;
             }
         } catch { /* esta vía falló: se baja de nivel */ }
