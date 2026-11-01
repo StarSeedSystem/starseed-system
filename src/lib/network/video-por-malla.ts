@@ -12,8 +12,13 @@
  * Todo inyectado: sin red, sin disco, sin procesos y sin reloj.
  */
 
+import type { MeshHandle, PeerEvents } from "@/lib/network/webrtc-mesh";
+import { getSharedMesh } from "@/lib/network/lan-sync";
 import { detectarAdaptadores, type ResultadoDeteccion } from "@/lib/video-html/adaptadores";
-import { crearIdPeticion } from "@/lib/network/capacidad-por-malla";
+import {
+  crearIdPeticion, parseCapacidadMallaMensaje,
+  type MsgPedir, type MsgFin, type MsgError,
+} from "@/lib/network/capacidad-por-malla";
 
 /* ═══════════════════ 1) Tipos y guard de la petición ═══════════════════ */
 
@@ -139,4 +144,82 @@ export async function videoRenderPorMalla(
   } catch (e) {
     return { aceptado: false, motivo: `Rechazo: la cola de render (${e instanceof Error ? e.message : "error al encolar"}).` };
   }
+}
+
+/* ═══════════════════ 4) Rol SERVIDOR del relé ═══════════════════ */
+
+export type MeshRenderServidor = Pick<MeshHandle, "userId" | "sendToPeer" | "onPeer">;
+
+/** Piezas de la neurona que sirve, todas inyectables (probar sin mesh real). */
+export interface DepsServidorRenderMalla {
+  cuentaLocal?: () => string | null;
+  gruposPresta?: () => string[];
+  encolar?: (p: PeticionVideoRenderMalla) => string | Promise<string>;
+}
+
+/** Responde por el canal sin lanzar: un peer que se va no rompe la neurona que servía. */
+function responder(mesh: Pick<MeshRenderServidor, "sendToPeer">, peerId: string, msg: MsgFin | MsgError): void {
+  try { mesh.sendToPeer(peerId, JSON.stringify(msg)); } catch { /* el peer ya no escucha */ }
+}
+
+/** Entrega UNA `capacidad.pedir` (tipo `render`) al manejador PURO y contesta
+ * la REFERENCIA (`trabajoId`) o el rechazo legible. Ningún error sin mensaje. */
+export async function atenderPedidoRenderMalla(
+  mesh: Pick<MeshRenderServidor, "userId" | "sendToPeer">,
+  peerId: string,
+  msg: Pick<MsgPedir, "id" | "cuerpo">,
+  deps: DepsServidorRenderMalla = {},
+): Promise<void> {
+  const cuenta = deps.cuentaLocal?.() ?? mesh.userId;
+  if (!cuenta) {
+    responder(mesh, peerId, { t: "capacidad.error", id: msg.id, estado: 503, mensaje: "Esta neurona no atiende render ahora mismo: sin cuenta en el canal." });
+    return;
+  }
+  // La petición mal formada es un 400; el resto (admisión, GSAP, recursos,
+  // cola) lo juzga el manejador puro y sale como 403 legible.
+  const v = validarPeticionVideoRender(msg.cuerpo);
+  if (!v.ok) {
+    responder(mesh, peerId, { t: "capacidad.error", id: msg.id, estado: 400, mensaje: v.motivo });
+    return;
+  }
+  const ctx: ContextoServidaVideo = { cuentaLocal: cuenta, gruposPresta: deps.gruposPresta?.() };
+  const plan = await videoRenderPorMalla(msg.cuerpo, ctx, { encolar: deps.encolar });
+  if (plan.aceptado)
+    responder(mesh, peerId, { t: "capacidad.fin", id: msg.id, resultado: { trabajoId: plan.trabajoId, editableVisualmente: plan.editableVisualmente } });
+  else
+    responder(mesh, peerId, { t: "capacidad.error", id: msg.id, estado: 403, mensaje: plan.motivo });
+}
+
+/** Escucha `capacidad.pedir` tipo `render` en el mesh compartido y los entrega
+ * al manejador puro. Devuelve unsubscribe. Namespace `capacidad.*`, disjunto
+ * de `astraura.*`, `ia.*` y `archivo.*` que conviven en el mismo canal. */
+export function adjuntarServidorRenderMalla(mesh: MeshRenderServidor, deps: DepsServidorRenderMalla = {}): () => void {
+  const onMessage: PeerEvents["onMessage"] = (peerId, data) => {
+    const msg = parseCapacidadMallaMensaje(data);
+    if (msg?.t === "capacidad.pedir" && msg.tipo === "render") void atenderPedidoRenderMalla(mesh, peerId, msg, deps);
+  };
+  return mesh.onPeer({ onMessage });
+}
+
+let servidorRenderTimer: ReturnType<typeof setInterval> | null = null;
+let servidorRenderUnsub: (() => void) | null = null;
+
+/** Arranca (o reintenta hasta que exista) el servidor sobre el MISMO mesh
+ * compartido; nunca abre uno segundo. Idempotente, hermano de
+ * `iniciarServidorIaPorMalla`. */
+export function iniciarServidorRenderPorMalla(deps: DepsServidorRenderMalla = {}): () => void {
+  let cancelado = false;
+  const intentar = () => {
+    if (cancelado || servidorRenderUnsub) return;
+    const mesh = getSharedMesh();
+    if (mesh) servidorRenderUnsub = adjuntarServidorRenderMalla(mesh, deps);
+  };
+  intentar();
+  if (!servidorRenderUnsub) servidorRenderTimer = setInterval(intentar, 2000);
+  return () => {
+    cancelado = true;
+    if (servidorRenderTimer) { clearInterval(servidorRenderTimer); servidorRenderTimer = null; }
+    servidorRenderUnsub?.();
+    servidorRenderUnsub = null;
+  };
 }
