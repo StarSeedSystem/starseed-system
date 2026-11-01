@@ -983,6 +983,126 @@ class SiLaMacNoPuedeCompilaElA1(unittest.TestCase):
         self.assertEqual(R.orden_ligera(ordenes[0]), ordenes[0])
 
 
+class ReponerElAnteriorSiElServidoSeRompe(unittest.TestCase):
+    """(SUP0111D, 31-10) Un `next build` ajeno borró el `.next` servido y Genesis cayó: un
+    humano repuso `.next-anterior` a mano. El anterior guarda el build que funcionaba."""
+
+    def test_reponer_anterior_toca(self):
+        repone, motivo = R.reponer_anterior_toca(True, False, True)
+        self.assertTrue(repone)
+        self.assertIn("anterior", motivo)
+        self.assertEqual([R.reponer_anterior_toca(c, b, a)[0] for c, b, a in
+                          ((False, False, True), (True, True, True), (True, False, False))],
+                         [False, False, False])
+
+
+class MoverElNextRotoACuarentena(unittest.TestCase):
+    """Nunca borrar: el `.next` roto se MUEVE a `~/.starseed/cuarentena/`."""
+
+    def setUp(self):
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.raiz, True)
+        self.cuarentena = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.cuarentena, True)
+
+    def _escribir(self, ruta, texto="x"):
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        with open(ruta, "w", encoding="utf-8") as f:
+            f.write(texto)
+
+    def test_mueve_el_roto_y_donde_lo_dejo(self):
+        self._escribir(os.path.join(self.raiz, R.DIST_SERVIDO, "BUILD_ID"), "roto")
+        destino = R.mover_next_roto_a_cuarentena(self.raiz, cuarentena=self.cuarentena)
+        self.assertTrue(destino.startswith(self.cuarentena) and "next-roto" in destino)
+        self.assertFalse(os.path.exists(os.path.join(self.raiz, R.DIST_SERVIDO)))
+        self.assertTrue(os.path.exists(os.path.join(destino, "BUILD_ID")))
+        self.assertEqual(R.mover_next_roto_a_cuarentena(self.raiz, cuarentena=self.cuarentena), "")
+
+    def test_dos_veces_en_el_mismo_minuto_no_se_pisan(self):
+        self._escribir(os.path.join(self.raiz, R.DIST_SERVIDO, "x"), "primero")
+        uno = R.mover_next_roto_a_cuarentena(self.raiz, cuarentena=self.cuarentena)
+        self._escribir(os.path.join(self.raiz, R.DIST_SERVIDO, "x"), "segundo")
+        dos = R.mover_next_roto_a_cuarentena(self.raiz, cuarentena=self.cuarentena)
+        self.assertNotEqual(uno, dos)
+        with open(os.path.join(dos, "x")) as f:
+            self.assertEqual(f.read(), "segundo")
+
+
+class ConElBuildPerdidoReponerAnterior(unittest.TestCase):
+    """El flujo: con su cerrojo, Genesis parado, `.next` roto a cuarentena y el anterior en su sitio."""
+
+    def setUp(self):
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.raiz, True)
+        self._escribir_anterior()
+
+    def _escribir_anterior(self):
+        os.makedirs(os.path.join(self.raiz, ".next-anterior"))
+        # id_del_build lee BUILD_ID: su contenido es el identificador guardado al final.
+        for nombre, texto in (("build-manifest.json", "{}"), ("BUILD_ID", "ANTERIOR123")):
+            with open(os.path.join(self.raiz, ".next-anterior", nombre), "w") as f:
+                f.write(texto)
+
+    def _pasada(self, caido=True, build_terminado=False):
+        with mock.patch.object(R, "_entradas", return_value=[]), \
+                mock.patch.object(R, "_leer_estado", return_value={}), \
+                mock.patch.object(R, "genesis_caido", return_value=caido), \
+                mock.patch.object(R, "build_terminado", return_value=build_terminado), \
+                mock.patch.object(R, "reponer_anterior") as rep, \
+                mock.patch.object(R, "reiniciar_mando") as reinicia, \
+                mock.patch.object(R, "decidir_caido", return_value=(True, "caído")) as decidir, \
+                mock.patch.object(R, "freno_de_maquina"), \
+                mock.patch.object(R, "reconstruir", return_value={"estado": "al-dia"}), \
+                mock.patch.object(R, "_guardar"), \
+                mock.patch("builtins.print"):
+            self.hecho = R.una_pasada()
+        return rep, decidir, reinicia
+
+    def test_caido_sin_build_nueva_repone_el_anterior_antes_de_compilar(self):
+        self._pasada()[0].assert_called_once()
+        self.assertTrue(self.hecho)
+
+    def test_con_build_nuevo_se_mantiene_el_camino_de_siempre(self):
+        rep, decidir, reinicia = self._pasada(build_terminado=True)
+        rep.assert_not_called()
+        decidir.assert_not_called()
+        reinicia.assert_called_once()
+
+    def _cuando(self, cerrojo=True, anterior=True):
+        guardados, log = [], []
+        with mock.patch.object(R, "_tomar_cerrojo", return_value=cerrojo) as tomar, \
+                mock.patch.object(R, "_soltar_cerrojo") as soltar, \
+                mock.patch.object(R, "_levantar_genesis") as levantar, \
+                mock.patch.object(R, "liberar_puerto"), \
+                mock.patch.object(R.subprocess, "run") as lctl, \
+                mock.patch.object(R, "_guardar", side_effect=guardados.append), \
+                mock.patch.object(R, "_leer_estado", return_value={}), \
+                mock.patch("builtins.print", side_effect=lambda *a, **k: log.append(" ".join(map(str, a)))):
+            destino = R.reponer_anterior(self.raiz)
+            self.tomar, self.levantar, self.lctl = tomar, levantar, lctl
+            return destino, guardados, "\n".join(log)
+
+    def test_repone_el_anterior_genesis_parado_avisando(self):
+        destino, guardados, log = self._cuando()
+        self.assertTrue(destino)
+        self.assertEqual(open(os.path.join(self.raiz, R.DIST_SERVIDO, "BUILD_ID")).read(), "ANTERIOR123")
+        self.assertFalse(os.path.exists(os.path.join(self.raiz, ".next-anterior")))
+        self.assertTrue(self.tomar.call_args.args[0].endswith("reinicio-mando.lock"))
+        self.levantar.assert_called_once()
+        # Genesis parado antes de mover nada: bootout, el patrón de _reiniciar_mando_sin_cerrojo.
+        self.assertTrue(any("bootout" in str(c.args) for c in self.lctl.call_args_list))
+        self.assertIn("REPUESTO", log)
+        self.assertEqual(guardados[-1]["build_servido"], "ANTERIOR123")
+        self.assertEqual(guardados[-1]["estado"], "al-dia")
+
+    def test_sin_cerrojo_no_toca_nada(self):
+        destino, _, _ = self._cuando(cerrojo=False)
+        self.assertFalse(destino)
+        self.assertTrue(os.path.exists(os.path.join(self.raiz, ".next-anterior")))
+        self.assertFalse(os.path.exists(os.path.join(self.raiz, R.DIST_SERVIDO)))
+        self.levantar.assert_not_called()
+
+
 class TraerLoHechoConLaMacFrenada(unittest.TestCase):
     """SUP0111A (01-11): el build bueno del A1 esperó horas mientras la Mac decía «el enjambre está vivo».
     Traerlo no compila aquí: con la Mac frenada se trae igual (salvo con la mezcla de dependencias)."""
