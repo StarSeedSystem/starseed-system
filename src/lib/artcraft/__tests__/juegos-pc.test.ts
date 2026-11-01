@@ -117,6 +117,39 @@ describe("esUrlPermitidaRare · solo releases oficiales, descargas remotas bloqu
       "https://protondb.com/", "https://example.com/RareDevs/Rare.zip", "sin url",
     ]) expect(esUrlPermitidaRare(u), u).toBe(false);
   });
+  // SUP0111H: la guarda solo miraba el prefijo del texto, así que un `..` colado
+  // detrás del prefijo oficial pasaba. Ahora se normaliza con `new URL` y se
+  // rechaza cualquier traversal en el texto crudo.
+  it("rechaza el salto de directorio en claro detrás del prefijo oficial", () => {
+    expect(esUrlPermitidaRare("https://github.com/RareDevs/Rare/releases/../../../evil/x")).toBe(false);
+  });
+  it("rechaza el salto de directorio codificado (%2e en cualquier caja)", () => {
+    for (const u of [
+      "https://github.com/RareDevs/Rare/releases/%2e%2e/evil",
+      "https://github.com/RareDevs/Rare/releases/%2E%2E/evil",
+      "https://github.com/RareDevs/Rare/releases/%2E%2e/evil",
+    ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
+  it("el hostname tiene que ser exactamente github.com", () => {
+    for (const u of [
+      "https://github.com.evil.com/RareDevs/Rare/releases/latest",
+      "https://user@github.com/RareDevs/Rare/releases/latest",
+      "https://user:clave@github.com/RareDevs/Rare/releases/latest",
+    ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
+  it("sin puerto y solo https", () => {
+    for (const u of [
+      "https://github.com:8443/RareDevs/Rare/releases/latest",
+      "http://github.com/RareDevs/Rare/releases/latest",
+    ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
+  it("una URL inválida no lanza: devuelve false", () => {
+    expect(() => esUrlPermitidaRare("no es una url")).not.toThrow();
+    expect(esUrlPermitidaRare("no es una url")).toBe(false);
+  });
+  it("la URL buena de siempre sigue valiendo", () => {
+    expect(esUrlPermitidaRare("https://github.com/RareDevs/Rare/releases/download/1.12.0.237/Rare-1.12.0.237.AppImage")).toBe(true);
+  });
 });
 
 function rare(): HerramientaProto {
