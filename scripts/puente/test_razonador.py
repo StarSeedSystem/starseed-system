@@ -16,15 +16,17 @@ class Base(unittest.TestCase):
         experiencias.RUTA = os.path.join(self._dir, "exp.jsonl")
         experiencias.COPIA_DIR = os.path.join(self._dir, "copia")
         jev.CACHE = os.path.join(self._dir, "cache.json"); jev.USO = os.path.join(self._dir, "uso.json")
+        jev.TRANSPORTE = None; jev.TRANSPORTE_LOCALES = None
         os.environ["STARSEED_JEV"] = "0"
-        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"  # invalid port to prevent laya-local from responding
-        jev.TRANSPORTE = None; razonador.TRANSPORTE_NEEDLE = None; razonador.TRANSPORTE_BITNET = None
-        # (2026-10-10) Sin el BitNet real de la Mac: si estaba despierto respondía y el juicio no era None.
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"
+        jev.TRANSPORTE_NEEDLE = None; jev.TRANSPORTE_BITNET = None
+        razonador.TRANSPORTE_NEEDLE = None; razonador.TRANSPORTE_BITNET = None
         sys.modules["jev_local"] = None
 
     def tearDown(self):
         sys.modules.pop("jev_local", None)
-        jev.TRANSPORTE = None; razonador.TRANSPORTE_NEEDLE = None; razonador.TRANSPORTE_BITNET = None
+        jev.TRANSPORTE = None; jev.TRANSPORTE_LOCALES = None; jev.TRANSPORTE_NEEDLE = None; jev.TRANSPORTE_BITNET = None
+        razonador.TRANSPORTE_NEEDLE = None; razonador.TRANSPORTE_BITNET = None
         os.environ.pop("STARSEED_JEV", None)
         os.environ.pop("STARSEED_LAYA_URL", None)
 
