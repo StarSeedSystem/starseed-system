@@ -71,12 +71,39 @@ describe("movimientoDe — 18 pares registro × sección", () => {
         expect(escalas[2]).toBeLessThanOrEqual(1.03);
     });
 
+    it("la amplitud de la respiración la manda el registro, no la sección", () => {
+        const esperadas: Record<RegistroMovimiento, number> = {
+            sobrio: 1.01,
+            expresivo: 1.02,
+            experimental: 1.03,
+        };
+        for (const registro of REGISTROS) {
+            for (const seccion of SECCIONES) {
+                expect(movimientoDe(registro, seccion).respiracion.escala).toBe(esperadas[registro]);
+            }
+        }
+    });
+
+    it("el periodo de la respiración lo manda la sección, no el registro", () => {
+        for (const seccion of SECCIONES) {
+            const periodos = REGISTROS.map((r) => movimientoDe(r, seccion).respiracion.periodoMs);
+            expect(new Set(periodos).size).toBe(1);
+        }
+    });
+
     it("el experimental lleva el elástico SOLO en la entrada", () => {
         for (const seccion of SECCIONES) {
             const m = movimientoDe("experimental", seccion);
             expect(m.entrada.curva).toBe(CURVA.elastico);
             expect(m.entrada.ms).toBe(DURACION.escena);
             expect(m.salida.curva).not.toBe(CURVA.elastico);
+        }
+    });
+
+    it("el experimental retira a pausado con la curva de salida", () => {
+        for (const seccion of SECCIONES) {
+            const m = movimientoDe("experimental", seccion);
+            expect(m.salida).toEqual({ ms: DURACION.pausado, curva: CURVA.salida });
         }
     });
 
