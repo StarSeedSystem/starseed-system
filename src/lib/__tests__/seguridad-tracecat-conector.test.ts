@@ -42,6 +42,12 @@ describe("validarDestino", () => {
     expect(validarDestino("no es una url").ok).toBe(false);
     expect(validarDestino("https://tracecat.example.org/" + "a".repeat(2048)).ok).toBe(false);
   });
+
+  it("rechaza la URL vacía con un motivo explícito", () => {
+    const resultado = validarDestino("");
+    expect(resultado.ok).toBe(false);
+    if (!resultado.ok) expect(resultado.motivo).toMatch(/vacía/i);
+  });
 });
 
 describe("firmarCuerpo", () => {
@@ -76,6 +82,7 @@ describe("prepararEnvio", () => {
     expect(resultado.init.method).toBe("POST");
     expect(resultado.init.body).toBe(JSON.stringify(EVENTO));
     expect(resultado.url.host).toBe("tracecat.example.org");
+    expect(resultado.url.toString()).toBe(DESTINO);
     expect(resultado.init.headers[CABECERAS_TRACECAT.contenido]).toBe("application/json");
     expect(resultado.init.headers[CABECERAS_TRACECAT.idempotencia]).toBe(EVENTO.id);
     const { marca, firma } = await firmarCuerpo(resultado.init.body, SECRETO, AHORA);
@@ -112,6 +119,7 @@ describe("describirEnvio", () => {
     const firma = resultado.init.headers[CABECERAS_TRACECAT.firma];
     const texto = await describirEnvio(EVENTO, DESTINO, SECRETO, AHORA);
     expect(texto).toContain(firma.slice(0, 6) + "…");
+    expect(texto).toContain(EVENTO.id);
     expect(texto).not.toContain(SECRETO);
     expect(texto.toLowerCase()).toContain("tracecat");
   });
