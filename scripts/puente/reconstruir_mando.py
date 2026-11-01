@@ -29,6 +29,7 @@ Lo que NO hace, a propósito:
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -1107,9 +1108,30 @@ def silencio_tolerable(silencio_desde, ahora, espera_s=ESPERA_MAX_SIN_RESPUESTA_
     return ahora - silencio_desde < espera_s
 
 
+def apartar_lo_que_no_transpila(raiz=RAIZ) -> list:
+    """(2026-11-01) Antes de compilar, aparta las fuentes SIN git que no transpilan.
+
+    El 31-10 un `src/app/mando/page.tsx` sin git con JSX inválido tumbó todas las
+    builds (el árbol viaja al A1). Nunca debe tumbar al reconstructor: si falla,
+    se anota y se sigue compilando como siempre.
+    """
+    try:
+        ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cuarentena_sin_git.py")
+        spec = importlib.util.spec_from_file_location("cuarentena_sin_git", ruta)
+        if spec is None or spec.loader is None:
+            return []
+        modulo = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(modulo)
+        return modulo.revisar(raiz)
+    except Exception as e:
+        print("cuarentena sin git: %s: %s" % (type(e).__name__, e), flush=True)
+        return []
+
+
 def una_pasada(forzar: bool = False) -> bool:
     """`forzar` (orden `--una-vez --ya`): compila aunque Astraura esté en uso o haya
     conversación. Solo a mano; el disco se sigue comprobando."""
+    apartar_lo_que_no_transpila(RAIZ)
     entradas = list(_entradas())
     actual = huella_de(entradas)
     estado = _leer_estado()
