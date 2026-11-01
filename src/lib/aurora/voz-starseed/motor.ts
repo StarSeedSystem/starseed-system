@@ -35,6 +35,10 @@ import {
     type NivelVozSuptonica,
     type OpcionesNivelVoz,
 } from "./supertonic";
+import { leerMedidas } from "../medidas-voz";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
+import { motoresPermitidos, type MotorInfo, type ContextoLicenciaVoz } from "./licencia-voz";
+import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
 
 export {
     soporteSupertonic,
