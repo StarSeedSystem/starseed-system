@@ -88,6 +88,7 @@ export const SYNCED_KEYS = [
     "starseed.cursorfx.v1",              // cursor personalizado + animaciones de clic — cursor-fx.tsx
     CLAVE_MAUSBOT,                       // (Ola MBT1027) config del Mausbot — src/lib/mausbot/config.ts
     CLAVE_DISENOS,                       // (Ola MBT1027) diseños propios del Mausbot — src/lib/mausbot/disenos.ts
+    "starseed.mausbot.config.v1",        // (Ola MBT1027) config del Mausbot
     "starseed.aurora.chatlog.v1",        // registro de conversación con Aurora — aurora-chat-log.ts
     "starseed.dock.folders.v1",          // folders del OmniDock — dock-config.ts
     "starseed.dock.iconos.v1",           // (Ola 1025U · V1b) plantilla de iconos del perfil (forma, fondo, glifo) — lib/dock/iconos/almacen.ts

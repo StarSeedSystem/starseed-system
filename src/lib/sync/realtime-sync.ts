@@ -165,6 +165,7 @@ const EVENT_BY_KEY: Record<string, string[]> = {
     // (Ola MBT1027) El Mausbot ya emite su evento propio al guardar (EVENTO_MAUSBOT,
     //  src/lib/mausbot/config.ts); el mismo evento sirve para el valor que llega de otro dispositivo.
     "starseed.mausbot.v1": [EVENTO_MAUSBOT],
+    "starseed.mausbot.config.v1": [EVENTO_MAUSBOT],
     "starseed.aurora.chatlog.v1": ["starseed:aurora-chatlog"],
     "starseed.aurora.orb.pos.v1": ["starseed:aurora-orb-visibility"],
     "starseed.perf.v1": ["starseed:perf-changed"],
