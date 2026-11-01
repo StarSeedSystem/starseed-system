@@ -162,9 +162,6 @@ interface BroadcastPayload {
 const EVENT_BY_KEY: Record<string, string[]> = {
     "starseed.desktops.v1": ["starseed:desktops"],
     "starseed.cursorfx.v1": ["starseed:cursorfx"],
-    // (Ola MBT1027) El Mausbot ya emite su evento propio al guardar (EVENTO_MAUSBOT,
-    //  src/lib/mausbot/config.ts); el mismo evento sirve para el valor que llega de otro dispositivo.
-    "starseed.mausbot.v1": [EVENTO_MAUSBOT],
     "starseed.aurora.chatlog.v1": ["starseed:aurora-chatlog"],
     "starseed.aurora.orb.pos.v1": ["starseed:aurora-orb-visibility"],
     "starseed.perf.v1": ["starseed:perf-changed"],
@@ -210,6 +207,8 @@ const EVENT_BY_KEY: Record<string, string[]> = {
     "starseed.aurora.oss-stt.model": ["starseed:aurora-oss-stt"],
     "starseed.aurora.oss-stt.lang": ["starseed:aurora-oss-stt"],
     "starseed.aurora.always-on": ["starseed:aurora-always-on"],
+    // (Ola MBT1027) Mausbot: evento de configuración del cursor de Astraura
+    "starseed.mausbot.v1": ["starseed:mausbot"],
     "starseed.aurora.wake.acoustic": ["starseed:aurora-wake-acoustic"],
 
     // Orbe, avatar, intro, canales
