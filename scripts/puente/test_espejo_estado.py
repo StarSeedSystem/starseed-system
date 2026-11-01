@@ -45,15 +45,26 @@ class PruebasSeleccion(unittest.TestCase):
         sel = que_copiar([("cola-borde.json", AHORA - espejo_estado.COLA_VENTANA_S)], AHORA)
         self.assertEqual(sel, ["cola-borde.json"])
 
-    def test_viajan_todas_las_colas_recientes_y_el_log_txt(self):
-        """Rescatado de rama nube (RTCOL1012I): la selección no depende del nombre de la cola
-        (una «antigua» tocada hace una hora viaja) y un ``log.txt`` también es un log."""
+    def test_que_copiar_selecciona_correctamente(self):
         listado = self.pares(
             "progreso.json", "progreso.md", "medios.json", "puntos-control.json",
             "cola-1.json", "cola-2.json", "cola-antigua.json",
             "evento1.jsonl", "evento2.jsonl", "log.txt",
         )
-        self.assertEqual(que_copiar(listado, AHORA), sorted(n for n, _ in listado))
+        seleccion = que_copiar(listado, AHORA)
+        esperados = {
+            "progreso.json",
+            "progreso.md",
+            "medios.json",
+            "puntos-control.json",
+            "cola-1.json",
+            "cola-2.json",
+            "cola-antigua.json",
+            "evento1.jsonl",
+            "evento2.jsonl",
+            "log.txt",
+        }
+        self.assertEqual(set(seleccion), esperados)
 
 
 class PruebasEmpaquetar(unittest.TestCase):
@@ -69,6 +80,54 @@ class PruebasEmpaquetar(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_empaquetar_crea_tar_gz(self):
+        corte = espejo_estado.LOG_LINEAS
+        seleccion = [
+            "progreso.json", "progreso.md", "medios.json", "puntos-control.json",
+            "cola-1.json", "evento1.jsonl", "log.txt",
+        ]
+        # Crear los archivos en el setup temporal
+        for nombre in seleccion:
+            ruta_f = os.path.join(self.olas, nombre)
+            with open(ruta_f, "w", encoding="utf-8") as f:
+                if nombre.endswith(".json"):
+                    json.dump({"test": "data"}, f)
+                elif nombre.endswith(".md"):
+                    f.write("\n".join(f"linea {i}" for i in range(300)))
+                else: # .jsonl or .txt
+                    f.write("\n".join(f"linea {i}" for i in range(200)))
+        
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            ruta_tar = empaquetar(seleccion, self.olas, tmp_dir)
+            self.assertTrue(os.path.exists(ruta_tar))
+            
+            extra_dir = os.path.join(tmp_dir, "extra")
+            os.makedirs(extra_dir, exist_ok=True)
+            
+            with tarfile.open(ruta_tar, "r:gz") as tar:
+                tar.extractall(path=extra_dir)
+            
+            contenido_extra = os.listdir(extra_dir)
+            self.assertEqual(set(contenido_extra), set(seleccion))
+            
+            esperadas_lineas = {
+                "progreso.json": 1,
+                "progreso.md": 300,
+                "medios.json": 1,
+                "puntos-control.json": 1,
+                "cola-1.json": 1,
+                "evento1.jsonl": corte,
+                "log.txt": corte,
+            }
+            for nombre, esperada in esperadas_lineas.items():
+                ruta_extra = os.path.join(extra_dir, nombre)
+                with open(ruta_extra, "r", encoding="utf-8") as f:
+                    lineas = f.read().splitlines()
+                if nombre in ["evento1.jsonl", "log.txt"]:
+                     self.assertEqual(len(lineas), corte, f"{nombre}: {len(lineas)} != {corte}")
+                else:
+                     self.assertEqual(len(lineas), esperada, f"{nombre}: {len(lineas)} != {esperada}")
 
     def _tar(self, seleccion):
         with tempfile.TemporaryDirectory() as salida:
