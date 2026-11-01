@@ -1,11 +1,12 @@
 /**
- * Rescate de la rama `nube/40695130948` (tarea VGM1016Db-d2, parte 2/2): casos
- * de la ficha insomne de la neurona que main no cubría con ese nombre. La
- * función vive hoy en `src/lib/neurons/insomne.ts` (pura); aquí se prueba la
- * parte de la ficha que registra la capacidad por plataforma.
+ * Rescate de las ramas `nube/40695130948` y `nube/40659574880`: casos de la
+ * ficha insomne de la neurona que main no cubría con ese nombre. La función
+ * vive hoy en `src/lib/neurons/insomne.ts` (pura); aquí se prueba la parte de
+ * la ficha que traduce la plataforma y registra la capacidad.
  */
 import { describe, it, expect } from "vitest";
 import { capacidadInsomne } from "@/lib/neurons/insomne";
+import { plataformaInsomne } from "@/components/cerebro/insomne-ficha";
 
 describe("capacidadInsomne · ficha", () => {
   it("un servidor no depende de la plataforma que declare", () => {
@@ -19,5 +20,15 @@ describe("capacidadInsomne · ficha", () => {
     expect(d.proveedor).toBe("no");
     expect(d.disponible).toBe(false);
     expect(d.motivo).toContain("no reconocida");
+  });
+});
+
+describe("plataformaInsomne · Android en la ficha", () => {
+  it("Android tiene plataforma propia y la ficha no le promete insomnio", () => {
+    const plataforma = plataformaInsomne({ platform: "Android" });
+    expect(plataforma).toBe("android");
+    const d = capacidadInsomne(plataforma);
+    expect(d.proveedor).toBe("no");
+    expect(d.disponible).toBe(false);
   });
 });
