@@ -1,0 +1,55 @@
+{
+ "explabs": {
+  "ultimo_429": "2026-11-01 12:25:25",
+  "estado": "vivo",
+  "t": "2026-11-01 12:33:55",
+  "desde": "2026-11-01 10:54:06"
+ },
+ "groq": {
+  "ultimo_429": "2026-11-01 12:32:14",
+  "estado": "vivo",
+  "t": "2026-11-01 12:31:35",
+  "desde": "2026-11-01 10:54:06"
+ },
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-11-01 12:33:41",
+  "desde": "2026-11-01 10:52:51",
+  "sin_cupo_hasta": "2026-11-01 18:00:05",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-11-01 12:33:45",
+  "desde": "2026-11-01 10:52:51"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-11-01 12:33:46",
+  "desde": "2026-11-01 10:52:51"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-11-01 12:33:53",
+  "desde": "2026-11-01 10:52:51",
+  "sin_cupo_hasta": "2026-11-01 18:00:05",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-11-01 12:33:55",
+  "desde": "2026-11-01 10:52:52",
+  "sin_cupo_hasta": "2026-11-02 11:12:47",
+  "motivo": "http error 402: payment required"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-11-01 12:33:57",
+  "desde": "2026-11-01 10:52:55"
+ },
+ "google": {
+  "sin_cupo_hasta": "2026-11-02 02:00:05",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "opencode": {}
+}
