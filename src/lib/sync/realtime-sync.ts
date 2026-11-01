@@ -81,8 +81,15 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
 //  src/lib/mausbot/config.ts); el valor que llega de otro dispositivo usa el mismo evento.
 import { EVENTO_MAUSBOT } from "@/lib/mausbot/config";
 // (MTN1027C) Las directivas de automejora Meta^n por capa viajan con la cuenta; su
-//  almacén (src/lib/astraura/capas/directivas-almacen.ts) usa su propio evento.
-import { EVENTO_CAPAS_DIRECTIVAS } from "@/lib/astraura/capas/directivas-almacen";
+//  almacén (src/lib/astraura/capas/directivas-almacen.ts) usa su propio evento y
+//  decide cada aplicación (normalizar + escribir solo si toca) en SUS funciones.
+import {
+    CLAVE_CAPAS_DIRECTIVAS,
+    EVENTO_CAPAS_DIRECTIVAS,
+    guardarDirectivas,
+    leerDirectivas,
+    normalizarArchivoDirectivas,
+} from "@/lib/astraura/capas/directivas-almacen";
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
@@ -947,6 +954,32 @@ function applyRemoteChanges(
             if (key === DOCK_STORAGE_KEY) {
                 const norm = normalizeDockSyncValue(merged);
                 if (norm.changed) { merged = norm.value; repaired = true; }
+            }
+
+            /* ── Directivas de capas (MTN1027C): se aplican POR SU ALMACÉN ──
+             * El valor de la cuenta es un registro capa → archivo que puede
+             * venir de cualquier medio: cada archivo se NORMALIZA
+             * (normalizarArchivoDirectivas) y se escribe con guardarDirectivas,
+             * que decide con debeEscribirArchivo (versión activa más nueva o
+             * historial nuevo) y emite EVENTO_CAPAS_DIRECTIVAS solo si cambió
+             * algo. Un registro de la cuenta más viejo NO pisa una directiva
+             * local más nueva: sin cambio real no se sella la marca, para que
+             * la mejor siga disponible para la reconciliación hacia arriba. */
+            if (key === CLAVE_CAPAS_DIRECTIVAS) {
+                const antes = JSON.stringify(leerDirectivas());
+                markAppliedRemote(key); // el setItem interno del almacén no agenda push del eco
+                if (typeof merged === "object" && merged !== null && !Array.isArray(merged)) {
+                    for (const [capa, archivo] of Object.entries(merged as Record<string, unknown>)) {
+                        try {
+                            const limpio = normalizarArchivoDirectivas(archivo);
+                            if (limpio) guardarDirectivas(capa, limpio);
+                        } catch { /* archivo individual de la cuenta ignorado */ }
+                    }
+                }
+                if (JSON.stringify(leerDirectivas()) === antes) continue; // eco: nada que reaplicar
+                metaToStamp[key] = remoteTs > 0 ? remoteTs : Date.now();
+                appliedKeys.push(key);
+                continue;
             }
 
             const serialized = serializeForStorage(merged);

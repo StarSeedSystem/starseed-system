@@ -43,7 +43,13 @@ import { CLAVE_MAUSBOT, normalizarConfigMausbot } from "@/lib/mausbot/config";
 import { CLAVE_DISENOS } from "@/lib/mausbot/disenos";
 // (MTN1027C) Las directivas de automejora Meta^n por capa (directivas-almacen.ts)
 // viajan con la cuenta: son texto de estrategia saneado, sin claves ni URLs.
-import { CLAVE_CAPAS_DIRECTIVAS } from "@/lib/astraura/capas/directivas-almacen";
+// La aplicación pasa por SU almacén: normaliza cada archivo y escribe solo lo
+// que llega vigente, igual que se hizo con la config del Mausbot (MBT1027).
+import {
+    CLAVE_CAPAS_DIRECTIVAS,
+    guardarDirectivas,
+    normalizarArchivoDirectivas,
+} from "@/lib/astraura/capas/directivas-almacen";
 
 /** Claves de preferencia que viajan con la cuenta. Aditivo: ampliar sin migración. */
 export const SYNCED_KEYS = [
@@ -661,6 +667,22 @@ export async function pullPreferences(): Promise<SyncResult & { applied?: string
                 if (key === DOCK_STORAGE_KEY) merged = normalizeDockSyncValue(merged).value;
                 // Mausbot (Ola MBT1027): el valor de la cuenta se sana con su módulo antes de tocar localStorage.
                 if (key === CLAVE_MAUSBOT) merged = normalizarConfigMausbot(merged);
+                // Directivas de capas (MTN1027C): se aplican por SU almacén. Cada archivo se
+                // normaliza y guardarDirectivas decide si escribe (versión activa más nueva o
+                // historial nuevo) y emite su evento. Un valor de cuenta que no pase la
+                // normalización por capa no toca localStorage.
+                if (key === CLAVE_CAPAS_DIRECTIVAS) {
+                    if (typeof merged === "object" && merged !== null && !Array.isArray(merged)) {
+                        for (const [capa, archivo] of Object.entries(merged as Record<string, unknown>)) {
+                            try {
+                                const limpio = normalizarArchivoDirectivas(archivo);
+                                if (limpio) guardarDirectivas(capa, limpio);
+                            } catch { /* archivo individual ignorado */ }
+                        }
+                        applied.push(key);
+                    }
+                    continue;
+                }
                 const serialized = typeof merged === "string" ? merged : JSON.stringify(merged);
                 window.localStorage.setItem(key, serialized);
                 applied.push(key);
