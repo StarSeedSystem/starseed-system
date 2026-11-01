@@ -40,6 +40,12 @@ describe("expresiones del Mausbot (port de OpenMausBot)", () => {
     }
   });
 
+  it("publica la caja y el centro de la cara y el recorrido de la mirada exactos del origen", () => {
+    expect(CAJA_CARA).toBeGreaterThan(0);
+    expect(CENTRO_CARA).toEqual([120, 122.5]);
+    expect(RECORRIDO_MIRADA).toEqual({ x: 13.2, y: 8.4 });
+  });
+
   it("empareja 25 bocas con las 25 expresiones y las ancla dentro de la caja", () => {
     expect(BOCAS).toHaveLength(EXPRESIONES.length);
     for (const espec of BOCAS) {
@@ -63,6 +69,27 @@ describe("expresiones del Mausbot (port de OpenMausBot)", () => {
 });
 
 describe("tabla estado → expresión", () => {
+  const CANONICA = {
+    sleeping: 22, waking: 13, idle: 6, listening: 1, thinking: 17, searching: 20,
+    working: 10, excited: 2, surprised: 21, suspicious: 5, angry: 7, drowsy: 22,
+    happy: 19, curious: 21, confused: 8, bored: 0, proud: 2, shy: 24,
+  } satisfies Record<EstadoMausbot, number>;
+
+  it("cubre exactamente los 18 estados del Mausbot", () => {
+    const claves = Object.keys(POSESIONES);
+    expect(claves).toHaveLength(18);
+    expect(new Set(claves).size).toBe(18);
+    for (const estado of ESTADOS) expect(claves).toContain(estado);
+  });
+
+  it("asigna a cada estado su expresión canónica del origen", () => {
+    for (const [estado, indice] of Object.entries(CANONICA) as [EstadoMausbot, number][]) {
+      expect(expresionDe(estado)[0]).toBe(indice);
+      expect(EXPRESIONES[indice]).toHaveLength(2);
+      for (const ojo of EXPRESIONES[indice]) expect(ojo).toHaveLength(48);
+    }
+  });
+
   it("expresionDe devuelve índices válidos para los 18 estados", () => {
     expect(ESTADOS.map(e => POSESIONES[e]).every(Boolean)).toBe(true);
     for (const estado of ESTADOS) {
