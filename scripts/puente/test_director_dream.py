@@ -72,21 +72,22 @@ class TestTextosDeImaginacion(unittest.TestCase):
     sigue llamando `cola-dream-…`; solo cambian los textos.
     """
 
-    def test_el_titulo_de_la_ola_dice_imaginacion(self):
+    def test_la_ola_nueva_se_llama_imaginacion(self):
         self.assertEqual(
             DD.tarea_de(P, "2026-09-17", 0)["ola"],
             "Ola Imaginación 2026-09-17 · lo que el análisis nocturno encontró",
         )
 
     def test_el_resumen_dice_imaginacion_diaria(self):
-        t = DC.resumen([P], total_leidas=5)
+        t = DC.resumen([P], total_leidas=3)
         self.assertTrue(t.startswith("Imaginación diaria leída: encargo 1"), t)
         self.assertNotIn("Dream", t)
 
     def test_el_resumen_vacio_tambien_dice_imaginacion_diaria(self):
-        t = DC.resumen([])
-        self.assertTrue(t.startswith("Imaginación diaria leída: nada accionable"), t)
-        self.assertNotIn("Dream", t)
+        self.assertEqual(
+            DC.resumen([]),
+            "Imaginación diaria leída: nada accionable nuevo que encargar.",
+        )
 
 
 if __name__ == "__main__":
