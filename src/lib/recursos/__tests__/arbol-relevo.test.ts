@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { armarArbol, capacidadRelevo, recolocar, type ArbolRelevo } from "../arbol-relevo";
-
 function padres(arbol: ArbolRelevo): Map<string, string[]> {
   const mapa = new Map<string, string[]>();
   for (const [id, nodo] of arbol.nodos) {
@@ -8,7 +7,6 @@ function padres(arbol: ArbolRelevo): Map<string, string[]> {
   }
   return mapa;
 }
-
 function profundidades(arbol: ArbolRelevo): Map<string, number> {
   const mapa = new Map<string, number>([[arbol.origen, 0]]);
   const cola = [arbol.origen];
@@ -22,7 +20,6 @@ function profundidades(arbol: ArbolRelevo): Map<string, number> {
   }
   return mapa;
 }
-
 const receptor = (nodoId: string, subidaKbps?: number) => ({ nodoId, subidaKbps });
 const tope = (id: string, subidaKbps: number | undefined) =>
   id === "origen" ? 1 : capacidadRelevo(subidaKbps, 1000);
@@ -47,9 +44,15 @@ describe("arbol-relevo", () => {
       expect(p.get(nodoId), nodoId).toHaveLength(1);
       expect(hondo.get(nodoId), nodoId).toBeGreaterThanOrEqual(hondo.get("n0")!);
     }
+    const barajado = [receptores[7], ...receptores.slice(0, 7), receptores[9], receptores[8]];
+    expect(armarArbol("origen", barajado, 1000)).toEqual(arbol);
   });
 
   it("respeta la capacidad de cada nodo (sin medida: 1)", () => {
+    expect(capacidadRelevo(5000, 1000)).toBe(5);
+    expect(capacidadRelevo(999, 1000)).toBe(0);
+    expect(capacidadRelevo(undefined, 1000)).toBe(1);
+    expect(capacidadRelevo(0, 1000)).toBe(0);
     const arbol = armarArbol(
       "origen",
       [receptor("a", 5000), receptor("b", 1000), receptor("c"), receptor("d", 0)],
