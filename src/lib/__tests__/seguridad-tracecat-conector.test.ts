@@ -16,6 +16,11 @@ const EVENTO = construirEventoSeguridad(
 ) as EventoSeguridad;
 const DESTINO = "https://tracecat.example.org/webhooks/seguridad";
 
+function eventoConCuerpoDe(bytes: number): EventoSeguridad {
+  const base = JSON.stringify({ ...EVENTO, resumen: "" });
+  return { ...EVENTO, resumen: "x".repeat(bytes - new TextEncoder().encode(base).length) };
+}
+
 async function firmaDePrueba(cuerpo: string, secreto: string, marca: string): Promise<string> {
   const codificador = new TextEncoder();
   const clave = await globalThis.crypto.subtle.importKey(
@@ -89,6 +94,14 @@ describe("prepararEnvio", () => {
     const resultado = await prepararEnvio(grande, DESTINO, SECRETO, AHORA);
     expect(resultado.ok).toBe(false);
     if (!resultado.ok) expect(resultado.motivo).toMatch(/16/);
+  });
+
+  it("acepta un cuerpo que ocupa justo el tope de 16 KB y rechaza un byte más", async () => {
+    const justo = eventoConCuerpoDe(16 * 1024);
+    expect(new TextEncoder().encode(JSON.stringify(justo)).length).toBe(16 * 1024);
+    expect((await prepararEnvio(justo, DESTINO, SECRETO, AHORA)).ok).toBe(true);
+    const unByteMas = eventoConCuerpoDe(16 * 1024 + 1);
+    expect((await prepararEnvio(unByteMas, DESTINO, SECRETO, AHORA)).ok).toBe(false);
   });
 });
 
