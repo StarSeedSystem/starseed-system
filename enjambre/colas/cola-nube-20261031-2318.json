@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "SUP0111E",
+   "importancia": "capacidad",
+   "titulo": "Genesis en el A1 · la build sobrevive a un corte de ssh (desacoplada y con sondeo)",
+   "archivos": [
+    "scripts/puente/compilar_en_a1.py",
+    "scripts/puente/test_compilar_en_a1.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nEl 31-10, entre 18:51 y 19:20, la build del A1 murió varias veces porque se cortó la sesión ssh («Connection reset by peer»): `guion_turno` atrapa HUP y sale 129. SUP0111A (cde19c97d) ya deja la marca `.envio-a1` y TRAE sin recompilar un build terminado (`build_previo`); falta que la build no dependa de la sesión. Lanza el guion del turno DESACOPLADO: súbelo a `HOME_A1 + '/.starseed/compilar-a1/guion.sh'` con `oracle_nodo._ssh_bytes`, arráncalo como starseed con `setsid nohup sh guion.sh > build.log 2>&1 < /dev/null &` y que el propio guion escriba `estado.json` ({pid, inicio, rc}) al acabar. La Mac sondea cada 30 s con ssh cortos (`cat estado.json`; un fallo de red no es un fallo de build) hasta `rc` o el tope; con rc 0 → `traer_y_cambiar`. Si al empezar ya hay un guion vivo (pid de estado.json con `kill -0`), NO envía ni lanza otro: espera a ese. Funciones PURAS para el guion y la decisión; pruebas como las de `Flujo` y `Turno` (estas con `sh -s` de verdad).",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "SUP0111E"
+  ]
+ }
+}
