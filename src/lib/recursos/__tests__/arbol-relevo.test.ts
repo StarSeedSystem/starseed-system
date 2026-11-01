@@ -1,6 +1,31 @@
 import { describe, it, expect } from "vitest";
 import { armarArbol, recolocar } from "../arbol-relevo";
 
+type Arbol = ReturnType<typeof armarArbol>;
+
+function normalizar(arbol: Arbol) {
+  return [...arbol.nodos.entries()]
+    .map(([id, n]) => ({ id, subida: n.subidaKbps ?? null, hijos: [...n.hijos] }))
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+}
+
+function alcanzables(arbol: Arbol) {
+  if (!arbol.nodos.has(arbol.origen)) return 0;
+  const vistos = new Set<string>([arbol.origen]);
+  const cola: string[] = [arbol.origen];
+  while (cola.length > 0) {
+    const id = cola.shift();
+    if (id === undefined) break;
+    for (const hijo of arbol.nodos.get(id)?.hijos ?? []) {
+      if (!vistos.has(hijo)) {
+        vistos.add(hijo);
+        cola.push(hijo);
+      }
+    }
+  }
+  return vistos.size;
+}
+
 describe("arbol-relevo", () => {
   describe("armarArbol", () => {
     it("con 1 receptor", () => {
@@ -150,6 +175,41 @@ describe("arbol-relevo", () => {
         const nodo2 = arbol2.nodos.get(id);
         expect(nodo2?.hijos).toEqual(nodo1.hijos);
       }
+    });
+  });
+
+  describe("rescate rama nube/41109134200", () => {
+    it("un receptor cuelga del origen y queda como hoja", () => {
+      const arbol = armarArbol("o", [{ nodoId: "n1", subidaKbps: 2000 }], 1000);
+      expect(arbol.nodos.get("o")?.hijos).toEqual(["n1"]);
+      expect(arbol.nodos.get("n1")?.hijos).toEqual([]);
+    });
+
+    it("el orden de entrada no cambia el árbol (10 receptores barajados)", () => {
+      const receptores = Array.from({ length: 10 }, (_, i) => ({
+        nodoId: `n${i}`,
+        subidaKbps: (10 - i) * 1000,
+      }));
+      const recto = armarArbol("o", receptores, 1000);
+      const barajado = [
+        receptores[7],
+        ...receptores.slice(0, 7),
+        receptores[9],
+        receptores[8],
+      ];
+      expect(normalizar(armarArbol("o", barajado, 1000))).toEqual(normalizar(recto));
+    });
+
+    it("con 200 receptores todos quedan conectados y sin duplicados", () => {
+      const receptores = Array.from({ length: 200 }, (_, i) => ({
+        nodoId: `n${i}`,
+        subidaKbps: ((i % 7) + 1) * 500,
+      }));
+      const arbol = armarArbol("o", receptores, 1000);
+      expect(arbol.nodos.size).toBe(201);
+      expect(alcanzables(arbol)).toBe(201);
+      const hijosOrigen = arbol.nodos.get("o")?.hijos ?? [];
+      expect(new Set(hijosOrigen).size).toBe(hijosOrigen.length);
     });
   });
 });
