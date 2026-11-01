@@ -115,6 +115,35 @@ class TestLiderarYPrestamos(unittest.TestCase):
         self.assertEqual(L.mejor_medio_ocioso(nodos), "neurona-bbbbbb")
 
 
+class TestSeAparta(unittest.TestCase):
+    """(RESC1031C) Lo agotado y lo del carril de alta capacidad no se releva ni se rescata."""
+
+    def test_agotada_por_id(self):
+        self.assertTrue(L.se_aparta("RTRTRTX1", None))
+        self.assertFalse(L.se_aparta("RTRTX1", None))  # RT×2 = el tope exacto, aún se puede
+        self.assertFalse(L.se_aparta("X1", None))
+        self.assertFalse(L.se_aparta(None, None))
+
+    def test_marca_alta_capacidad(self):
+        self.assertTrue(L.se_aparta("B1", {"estado": "bloqueada", "alta_capacidad": True}))
+        self.assertFalse(L.se_aparta("B1", {"estado": "en_curso"}))
+        self.assertFalse(L.se_aparta("B1", {"alta_capacidad": False}))
+        self.assertFalse(L.se_aparta("B1", None))
+
+    def test_nota_del_cierre(self):
+        from revisor_bloqueadas_logica import MOTIVO_RESCATE_AGOTADO
+        self.assertTrue(L.se_aparta("B1", {"nota": "· %s" % MOTIVO_RESCATE_AGOTADO}))
+        self.assertFalse(L.se_aparta("B1", {"nota": " espera al revisor de bloqueadas"}))
+
+    def test_candidatos_rescate_no_rescata_lo_agotado_ni_lo_llevado(self):
+        def T(tid, **kw):
+            return dict({"id": tid, "titulo": tid, "archivos": ["src/a.ts"], "prompt": "haz " + tid}, **kw)
+        fuente = [("cola-buena.json", T0 - 3600, [T("B1"), T("B2"), T("RTRTRTB3")])]
+        progreso = {"B2": {"estado": "bloqueada", "alta_capacidad": True}}
+        cands = L.candidatos_rescate(fuente, set(), progreso, [], T0)
+        self.assertEqual([c["id"] for c in cands], ["B1"])
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -1235,6 +1235,26 @@ def reparaciones_superadas(tareas: List[Dict[str, Any]], progreso: Dict[str, Any
     return salida
 
 
+def se_aparta(tid: Any, entrada: Any) -> bool:
+    """PURA (RESC1031C). ¿Ya no se le da más cuerda: el relevo no la vuelve a prestar y el rescate
+    no la recoge? Dos motivos, los de RESC1031A: la cadena de rescates pasa el tope (`RT…` con más
+    niveles de `TOPE_PROFUNDIDAD_RESCATE`) o ya la lleva el carril de alta capacidad (`alta_capacidad`
+    en el progreso o la nota de su cierre). Usa la MISMA regla del revisor de bloqueadas."""
+    #: El mismo tope que `revisor_bloqueadas_logica.TOPE_PROFUNDIDAD_RESCATE`, para el medio sin él.
+    TOPE_RESCATE = 2
+    try:
+        from revisor_bloqueadas_logica import en_alta_capacidad, rescate_agotado
+        return rescate_agotado(tid) or en_alta_capacidad(entrada)
+    except ImportError:  # pragma: no cover — medio sin el resto del puente
+        e = entrada if isinstance(entrada, dict) else {}
+        if e.get("alta_capacidad") is True:
+            return True
+        t, n = str(tid or ""), 0
+        while t.startswith("RT" * (n + 1)):
+            n += 1
+        return n > TOPE_RESCATE
+
+
 def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, Any]]]], ids_vivos: set,
                        progreso: Dict[str, Any], asuntos_git: Sequence[str], ahora: float,
                        max_dias: int = 21, tope: int = 12) -> List[Dict[str, Any]]:
@@ -1244,6 +1264,8 @@ def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, A
     de `max_dias`, tareas sin archivos o sin prompt (no son trabajo del enjambre), las que piden
     visto bueno humano, las cerradas en el progreso o con su id ya en un commit de main, y las
     que tienen una sucesora (misma cadena) cerrada. Gana la definición más nueva de cada id.
+    (RESC1031C) También fuera las que `se_aparta`: rescate agotado o alta capacidad — el rescate
+    no rescata lo que ya quedó en el carril de alta capacidad.
     """
     try:
         from vigilante_logica import id_en_asuntos, sucesora_integrada  # misma regla que el vigilante
@@ -1287,6 +1309,8 @@ def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, A
             if estado in CERRADAS or estado in ("fallo", "fallo_tsc", "fallo_tests", "bloqueante",
                                                 "esperando_aprobacion", "pendiente_aprobacion"):
                 # Las falladas son del revisor de bloqueadas (OPB1011), no de un rescate a ciegas.
+                continue
+            if se_aparta(tid, est):  # (RESC1031C) agotada o alta capacidad: no se rescata
                 continue
             if id_en_asuntos(tid, asuntos_git or []) or sucesora_integrada(tid, progreso or {}, asuntos_git or []):
                 continue
