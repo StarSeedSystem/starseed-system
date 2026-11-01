@@ -76,6 +76,21 @@ describe("ClienteMcpStdio", () => {
     transporte.responder(transporte.ultima.id, { ok: true });
     expect(await promesa).toEqual({ ok: true });
   });
+  it("reensambla una respuesta que llega partida en trozos", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.listar(1000);
+    const linea = JSON.stringify({ jsonrpc: "2.0", id: transporte.ultima.id, result: { tools: [{ name: "export" }] } });
+    transporte.enviar(linea.slice(0, 9));
+    transporte.enviar(linea.slice(9) + "\n");
+    expect(await promesa).toEqual({ tools: [{ name: "export" }] });
+  });
+  it("ignora la respuesta de un id sin petición pendiente", async () => {
+    const { transporte, cliente } = montar();
+    transporte.enviar('{"jsonrpc":"2.0","id":77,"result":{"herramienta ajena":true}}\n');
+    const promesa = cliente.listar(1000);
+    transporte.responder(transporte.ultima.id, { ok: true });
+    expect(await promesa).toEqual({ ok: true });
+  });
   it("falla con tiempo agotado", async () => {
     const { reloj, cliente } = montar();
     const promesa = cliente.listar(50);
