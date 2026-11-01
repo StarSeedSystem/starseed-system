@@ -1,0 +1,14 @@
+/home/starseed/starseed-wt/APR1019A-d1/native/src-tauri/target/debug/deps/serde-cc35ccd0f9a7aea0.d: /home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/lib.rs /home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/integer128.rs /home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/mod.rs /home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/de.rs /home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/ser.rs /home/starseed/starseed-wt/APR1019A-d1/native/src-tauri/target/debug/build/serde-9e93ffc4516ba64b/out/private.rs
+
+/home/starseed/starseed-wt/APR1019A-d1/native/src-tauri/target/debug/deps/libserde-cc35ccd0f9a7aea0.rlib: /home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/lib.rs /home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/integer128.rs /home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/mod.rs /home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/de.rs /home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/ser.rs /home/starseed/starseed-wt/APR1019A-d1/native/src-tauri/target/debug/build/serde-9e93ffc4516ba64b/out/private.rs
+
+/home/starseed/starseed-wt/APR1019A-d1/native/src-tauri/target/debug/deps/libserde-cc35ccd0f9a7aea0.rmeta: /home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/lib.rs /home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/integer128.rs /home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/mod.rs /home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/de.rs /home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/ser.rs /home/starseed/starseed-wt/APR1019A-d1/native/src-tauri/target/debug/build/serde-9e93ffc4516ba64b/out/private.rs
+
+/home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/lib.rs:
+/home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/integer128.rs:
+/home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/mod.rs:
+/home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/de.rs:
+/home/starseed/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.229/src/private/ser.rs:
+/home/starseed/starseed-wt/APR1019A-d1/native/src-tauri/target/debug/build/serde-9e93ffc4516ba64b/out/private.rs:
+
+# env-dep:OUT_DIR=/home/starseed/starseed-wt/APR1019A-d1/native/src-tauri/target/debug/build/serde-9e93ffc4516ba64b/out

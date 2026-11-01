@@ -42,9 +42,8 @@ mod recursos_ia;
 mod segundo_plano;
 mod serie;
 mod sha256;
-// (2026-10-19) `ventana_remota` (APM1017P) queda FUERA de la compilación hasta que el enjambre lo
-// rehaga con las API reales de xcap 0.9, enigo 0.6 e image 0.25 (cola APR1019): rompía `cargo check`
-// del CI y frenaba la publicación de 45 commits. El archivo se conserva tal cual.
+#[cfg(desktop)]
+mod ventana_remota;
 #[cfg(test)]
 mod android_parche;
 
@@ -539,7 +538,7 @@ pub fn run() {
             }
             Ok(())
         })
-        // Comandos que la web (Aurora) puede invocar vía window.__TAURI__.
+        #[cfg(desktop)]
         .invoke_handler(tauri::generate_handler![
             run_terminal,
             check_update,
@@ -570,6 +569,8 @@ pub fn run() {
             nativa::nas_listar,
             nativa::nas_leer,
             recursos_ia::recursos_ia_detectar,
+            ventana_remota::ventanas_prestables,
+            ventana_remota::capturar_ventana,
         ])
         .build(tauri::generate_context!())
         .expect("error irrecuperable arrancando la app nativa StarSeed")
