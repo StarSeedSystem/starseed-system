@@ -69,7 +69,11 @@ import {
 } from "@/lib/voces/emociones";
 // (2026-09-06, Ola 264 · J1b) Normalización en español del texto hablado.
 import { normalizarParaVoz } from "@/lib/voces/normalizar-es";
-import { motorRecomendado, Plataforma } from "../catalogo-voces";
+import { motorRecomendado, MOTORES_VOZ, Plataforma } from "../catalogo-voces";
+// (Ola 1018V · VST1018F-d2) Latencias MEDIDAS por motor en esta neurona
+// (`medidas-voz.ts`): la primera frase de una conversación se decide con ellas.
+import { leerMedidas } from "@/lib/aurora/medidas-voz";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 function detectarPlataforma(): Plataforma {
     if (typeof window === "undefined") return "web";
     const ua = navigator.userAgent;
@@ -352,6 +356,62 @@ export function motorPrimeraFrase(
     return mejor;
 }
 
+/**
+ * Nivel del motor único por el que suena un motor del catálogo (pura). Es el
+ * mapeo que ya aplicaba la cadena histórica de `hablarStarSeed`, extraído para
+ * que los candidatos medidos de la primera frase se traduzcan IGUAL.
+ */
+export function nivelDeMotorId(id: string): NivelVoz {
+    switch (id) {
+        case "voicemorphic":
+        case "voicestudio":
+            return "estudio";
+        case "kokoro":
+        case "kittentts":
+        case "moss-tts-nano":
+            return "ligera";
+        case "sistema":
+            return "minima";
+        default:
+            // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
+            return "nube";
+    }
+}
+
+/**
+ * (Ola 1018V · VST1018F-d2) Candidatos MEDIDOS por defecto para la primera
+ * frase: los motores del catálogo que ya sonaron en ESTA neurona («primer
+ * sonido» de `medidas-voz.ts`), con su latencia media medida y su clase de
+ * licencia del catálogo. Un motor sin licencia conocida no compite. Nunca
+ * lanza; sin medidas devuelve `[]` y manda la cadena histórica de niveles.
+ */
+async function candidatosMedidos(): Promise<CandidatoPrimeraFrase[]> {
+    try {
+        const latencia = new Map<string, { total: number; n: number }>();
+        for (const m of leerMedidas(neuronDeviceIdActual())) {
+            if (m.tipo !== "primer-sonido" || !Number.isFinite(m.valor) || m.valor < 1) continue;
+            const prev = latencia.get(m.motor) ?? { total: 0, n: 0 };
+            latencia.set(m.motor, { total: prev.total + m.valor, n: prev.n + 1 });
+        }
+        const candidatos: CandidatoPrimeraFrase[] = [];
+        for (const [id, { total, n }] of latencia) {
+            const delCatalogo = MOTORES_VOZ.find((m) => m.id === id);
+            if (!delCatalogo) continue;
+            candidatos.push({
+                id,
+                nivel: nivelDeMotorId(id),
+                latenciaMs: total / n,
+                claseLicencia: delCatalogo.claseLicencia,
+                // Sonó aquí: la voz ya está lista en esta neurona.
+                tieneVoz: true,
+            });
+        }
+        return candidatos;
+    } catch {
+        return [];
+    }
+}
+
 export interface OpcionesHablar {
     /** Identidad de la voz: LA MISMA en todos los niveles. */
     timbre: Timbre;
@@ -388,8 +448,9 @@ export interface OpcionesHablar {
     /**
      * (Ola 1018V · VST1018F-d2) Candidatos MEDIDOS de la primera frase
      * (`medidas-voz.ts`, inyectados). En conversación, la frase entera sale del
-     * permitido más rápido que tenga la voz de esa persona; sin ellos manda la
-     * cadena histórica de niveles.
+     * permitido más rápido que tenga la voz de esa persona; si no se inyectan,
+     * el motor los construye con las medidas de ESTA neurona y las licencias
+     * del catálogo.
      */
     candidatosPrimera?: CandidatoPrimeraFrase[];
     /** (Ola 1018V · VST1018F-d2) Sitio de escucha para la licencia del motor. */
@@ -535,39 +596,27 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     const { memoriaGB } = await detectarCapacidades();
     const ramGB = memoriaGB ?? 8;
     const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
-    let nivel: NivelVoz;
-    switch (motorCat.id) {
-        case "voicemorphic":
-        case "voicestudio":
-            nivel = "estudio";
-            break;
-        case "kokoro":
-        case "kittentts":
-        case "moss-tts-nano":
-            nivel = "ligera";
-            break;
-        case "sistema":
-            nivel = "minima";
-            break;
-        default:
-            // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
-            nivel = "nube";
-            break;
-    }
+    let nivel: NivelVoz = nivelDeMotorId(motorCat.id);
 
     // ── (Ola 1018V · VST1018F-d2) PRIMERA FRASE INSTANTÁNEA ─────────────────
-    // En conversación, si quien llama trae candidatos medidos, el mensaje
-    // ÍNTEGRO suena por el motor permitido con menor latencia medido que
-    // tenga la voz de esa persona: UNA elección por mensaje, nunca partido
-    // entre dos motores. Si no hay elegido, manda la cadena histórica.
-    if (opciones.contexto === "conversacion" && opciones.candidatosPrimera?.length) {
-        const primera = motorPrimeraFrase(
-            opciones.candidatosPrimera,
-            "conversacion",
-            opciones.contextoLicencia ?? "personal",
-            opciones.capasLicencia ?? {},
-        );
-        if (primera) nivel = primera.nivel;
+    // En conversación, cada mensaje ÍNTEGRO (nunca partido entre dos motores)
+    // suena por el motor PERMITIDO con menor latencia MEDIDA en esta neurona
+    // que tenga la voz de esa persona. Los candidatos llegan inyectados; si
+    // nadie los trae, se construyen aquí con las medidas de la neurona y las
+    // licencias del catálogo. Sin elegido, manda la cadena histórica.
+    if (opciones.contexto === "conversacion") {
+        const candidatos = opciones.candidatosPrimera?.length
+            ? opciones.candidatosPrimera
+            : await candidatosMedidos();
+        if (candidatos.length) {
+            const primera = motorPrimeraFrase(
+                candidatos,
+                "conversacion",
+                opciones.contextoLicencia ?? "personal",
+                opciones.capasLicencia ?? {},
+            );
+            if (primera) nivel = primera.nivel;
+        }
     }
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
