@@ -1,0 +1,54 @@
+{
+ "ola": "nube-20261101",
+ "tareas": [
+  {
+   "id": "RPM1101A",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Reparar «agentes» · si Genesis no contesta por falta de memoria, la reparación lo dice y libera antes",
+   "archivos": [
+    "scripts/puente/reparar_medidor.py",
+    "scripts/puente/test_reparar_medidor.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; funciones PURAS con pruebas; nunca la IP del A1; nunca matar procesos ajenos al enjambre.\n\nEl botón «Reparar» de «agentes» intenta «Comprobar que Genesis contesta y reiniciarlo si no» y falla («0 de 1») cuando la Mac está sin memoria: reiniciar Genesis no sirve. Con presión de memoria alta, la reparación debe primero liberar con lo ya existente (guardia: dormir BitNet; tsc huérfanos con `agentes_huerfanos`/SUP0111K; Ollama keep_alive 0) y el resumen debe decir la causa («la Mac está sin memoria: …») en vez de «sigue igual»."
+  },
+  {
+   "id": "RESC1031B",
+   "importancia": "capacidad",
+   "titulo": "Rescates · revisar_ramas_nube solo rescata una rama si su diff toca los archivos de la tarea",
+   "archivos": [
+    "scripts/puente/revisar_ramas_nube.py",
+    "scripts/puente/test_revisar_ramas_nube.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nSeguimiento de RESC1031A (7d9c14c52, las cadenas de rescate paran en profundidad 2). Fallo 2: `revisar_ramas_nube._revisar` rescata ramas cuyo diff no tiene nada que ver con la tarea. Rescata solo si los archivos del diff de la rama comparten al menos uno con los `archivos` de la tarea; si no, archívala con motivo. Una rama `…-<ID>` cuyo ID es de otra tarea no se rescata nunca para esta. Decisión PURA `rescatable(archivos_diff, archivos_tarea, id_rama, id_tarea)` con pruebas.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "MTN1027C",
+   "ola": "1027N · Automejora recursiva (Meta^n)",
+   "titulo": "Capas · las directivas viajan con la cuenta",
+   "archivos": [
+    "src/lib/astraura/capas/directivas-almacen.ts",
+    "src/lib/settings-sync.ts",
+    "src/lib/sync/realtime-sync.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Meta^n (minnesotanlp/meta-n, MIT) «para todo el automejoramiento de cada capa de conciencia mesh automejorable de toda Astraura, con Colibri y los demás sistemas locales y mesh autoadaptables». Contrato: `architecture/automejora-meta-n.md` (léelo entero, sobre todo §3: Meta^n PROPONE dentro de una caja Docker sin red ni claves; el juez de StarSeed decide fuera de la caja sin ejecutar nada suyo; las funciones de ayuda nunca se cargan en caliente). Lo que hace falta de Meta^n está en `integraciones-de-codigo/meta-n/README-starseed.md`.\n\n`directivas-almacen.ts` (cliente, sin `node:*`): clave `starseed.capas.directivas.v1` = `Record<capa, ArchivoDirectivas>`, evento `starseed:capas-directivas`, `leerDirectivas()`, `guardarDirectivas(capa, archivo)` (solo si su versión activa es más nueva o cambió el historial), `directivaActiva(capa)`; lectura defensiva y try/catch en localStorage. Añade la clave a `SYNCED_KEYS` y el evento a `EVENT_BY_KEY`, como se hizo con `starseed.mausbot.v1`.",
+   "revisor_quitadas": [
+    "MBT1027C2"
+   ],
+   "dependencias_ya_en_main": [
+    "MTN1027B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "RESC1031B",
+   "RPM1101A",
+   "MTN1027C"
+  ]
+ }
+}
