@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { fichasIaConUpstreamGitHub } from "../fuentes-ia-locales";
 import {
     CONTRATO_1027,
     DECISIONES_1027,
@@ -83,5 +84,21 @@ describe("tanda 1027 · cada ficha", () => {
             expect(p.payload.canal, p.id).toBe("tags");
             expect(String(p.payload.patronTag), p.id).toBe("^v\\d+\\.\\d+\\.\\d+$");
         }
+    });
+});
+
+describe("tanda 1027 · el canal de versiones de cada una", () => {
+    it("las tres entran en la comprobación de versión, igual que la tanda 1026", () => {
+        expect(fichasIaConUpstreamGitHub(FICHAS_REPOS_1027)).toHaveLength(FICHAS_REPOS_1027.length);
+        for (const p of FICHAS_REPOS_1027) {
+            expect(p.payload.canal, p.id).toBe("tags");
+            expect(String(p.payload.upstream), p.id).toMatch(/^https:\/\/github\.com\//);
+        }
+    });
+
+    it("una app sin canal de etiquetas declarado no entra en la comprobación", () => {
+        const appSinCanal = { ...FICHAS_REPOS_1027[0], id: "prueba-app-sin-canal", kind: "app" as const };
+        const ficha = { ...appSinCanal, payload: { ...appSinCanal.payload, canal: undefined } };
+        expect(fichasIaConUpstreamGitHub([ficha])).toHaveLength(0);
     });
 });
