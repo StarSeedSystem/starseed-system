@@ -80,17 +80,28 @@ export function rutaConfigEpic(datos: string, personaId: string): { ruta: string
   return { ruta, modo: 0o700 };
 }
 
+/** Campo de sesión de Epic → largo mínimo de su VALOR para contarlo (nombrarlo sin valor no es una fuga). */
+const CAMPOS_EPIC: ReadonlyArray<readonly [string, number]> = [
+  ["access_token", 16],
+  ["refresh_token", 16],
+  ["account_id", 4],
+  ["exchange_code", 4],
+];
+
+/**
+ * ¿El texto lleva algo con forma de sesión de Epic? (SUP0111S, 01-11 · seguridad) Los hallazgos
+ * NUNCA repiten el secreto: antes se metía el token `eg1~…` entero en `hallazgos`, y los
+ * hallazgos se enseñan y se registran. Un campo cuenta solo con un valor (`access_token` largo).
+ */
 export function validarSinCredencialesEpic(texto: string): { ok: boolean; hallazgos: string[] } {
-  const campos = ["access_token", "refresh_token", "account_id", "exchange_code"]; 
   const hallazgos: string[] = [];
-  const regexToken = /eg1~[a-zA-Z0-9-_]+/;
-  for (const campo of campos) {
-    if (texto.includes(campo)) hallazgos.push(campo);
+  for (const [campo, minimo] of CAMPOS_EPIC) {
+    const conValor = new RegExp(`${campo}["']?\\s*[:=]\\s*["']?[^\\s"',}&]{${minimo},}`);
+    if (conValor.test(texto)) hallazgos.push(campo);
   }
-  const mTokens = texto.match(regexToken);
-  if (mTokens) hallazgos.push(...mTokens);
-  const ok = hallazgos.length === 0;
-  return { ok, hallazgos };
+  const tokens = texto.match(/eg1~[A-Za-z0-9_-]+/g)?.length ?? 0;
+  if (tokens > 0) hallazgos.push(tokens === 1 ? "token eg1~ (oculto)" : `${tokens} tokens eg1~ (ocultos)`);
+  return { ok: hallazgos.length === 0, hallazgos };
 }
 
 export function esUrlPermitidaRare(url: string): boolean {

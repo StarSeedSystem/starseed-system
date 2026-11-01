@@ -71,6 +71,19 @@ describe("validarSinCredencialesEpic · nada con forma de sesión de Epic", () =
     const token = ["eg1", "~", "TkAb12-9_kk"].join("");
     expect(validarSinCredencialesEpic(`el texto contiene ${token} y ya`).ok).toBe(false);
   });
+  it("SUP0111S · los hallazgos nunca repiten el secreto", () => {
+    const token = ["eg1", "~", "TkAb12-9_kk"].join("");
+    const r = validarSinCredencialesEpic(`uno ${token} y otro ${token}x, con access_token=${VALOR}`);
+    expect(r.ok).toBe(false);
+    expect(JSON.stringify(r)).not.toContain("TkAb12");
+    expect(JSON.stringify(r)).not.toContain(VALOR);
+    expect(r.hallazgos).toEqual(["access_token", "2 tokens eg1~ (ocultos)"]);
+  });
+  it("SUP0111S · nombrar un campo sin valor (o con uno corto) no es una fuga", () => {
+    expect(validarSinCredencialesEpic("Nunca guardes el access_token ni el refresh_token aquí.")).toEqual({ ok: true, hallazgos: [] });
+    expect(validarSinCredencialesEpic('{"access_token":"corto"}').ok).toBe(true);
+    expect(validarSinCredencialesEpic(`refresh_token: '${VALOR}'`).hallazgos).toEqual(["refresh_token"]);
+  });
 });
 
 describe("esUrlPermitidaRare · solo releases oficiales, descargas remotas bloqueadas", () => {
