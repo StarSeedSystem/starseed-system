@@ -1,0 +1,68 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "id": "RESC1031C",
+   "importancia": "capacidad",
+   "titulo": "Rescates · nodo_metagenesis no releva lo agotado ni rescata lo que está en alta capacidad",
+   "archivos": [
+    "scripts/puente/nodo_metagenesis.py",
+    "scripts/puente/nodo_metagenesis_logica.py",
+    "scripts/puente/test_nodo_metagenesis_logica.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nSeguimiento de RESC1031A (7d9c14c52): lo agotado queda `bloqueada` + `alta_capacidad`. Falta: (1) en `nodo_metagenesis._relevar`, no relevar tareas con `rescate_agotado` (o `alta_capacidad`) en su progreso; (2) en `nodo_metagenesis_logica.candidatos_rescate`, excluir las que estén en alta capacidad (`en_alta_capacidad`). Pruebas PURAS en test_nodo_metagenesis_logica.py.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "MBT1027Ob",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Biblioteca · registrar la tanda 1027 en el catálogo, la siembra y las actualizaciones",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/defaults-seed.ts",
+    "src/app/api/library/actualizaciones/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nRegistra `FICHAS_REPOS_1027` donde `packages.ts` registra las de 1026, sus ids en la siembra (`defaults-seed.ts`, sube `SEED_VERSION` en 1 como se hizo con 1026) y en `fichasIaConUpstreamGitHub([...])` de la ruta de actualizaciones, igual que `FICHAS_REPOS_1026`. Corre las pruebas de la Biblioteca (`src/lib/library/__tests__/`).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261031-185641-MBT1027O`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261031-185641-MBT1027O:refs/remotes/origin/nube/a1-20261031-185641-MBT1027O\"` y `git cherry-pick --no-commit f30074532b9d c078d96fed97 1c1a5d8e6417 437e6c8aa4e2`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/library/__tests__/defaults-seed-1020c.test.ts, src/lib/library/__tests__/defaults-seed-1020d.test.ts, src/lib/library/__tests__/defaults-seed.test.ts, src/lib/library/defaults-seed.ts, src/lib/library/fuentes-ia-locales.ts, src/lib/library/packages.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261031-185641-MBT1027O",
+   "dependencias_ya_en_main": [
+    "MBT1027N"
+   ]
+  },
+  {
+   "id": "IND1029A",
+   "ola": "1029 · MetaGenesis autónoma (sin Claude y sin la Mac)",
+   "depende": [],
+   "titulo": "Builds sin la Mac · el CI sube el `.next` y el reconstructor lo descarga",
+   "archivos": [
+    ".github/workflows/ci.yml",
+    "scripts/puente/reconstruir_mando.py",
+    "scripts/puente/test_reconstruir_mando.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave en código ni pruebas; nunca rutas de un worktree (`starseed-wt/…`) en el código. Contrato: `architecture/metagenesis-autonoma.md` (léelo entero). Antes de escribir algo nuevo, mira lo que ya existe y úsalo: `scripts/puente/puerta_datos.py` y `puerta_datos_cliente.py` (la puerta de datos del A1), `espejo_puerta.py`, `deploy/oracle/nodo/systemd/` (ya hay `starseed-genesis` y `starseed-metagenesis`), `oracle_nodo.py`, `buscar_capacidad.py` y la colmena.\n\nEl 29-10 Genesis local se quedó sin build (`.next` sin BUILD_ID) y el reconstructor esperaba para compilar en una Mac de 8 GB. En `ci.yml` (job que hace `next build` en «CI · verificación web»), sube el `.next` sin la caché (`.next/cache` fuera) como artefacto `genesis-next-<sha>` (retención 3 días). En `reconstruir_mando.py`, antes de compilar en local: si hay un run verde de `produccion/candidato` o `main` cuyo `headSha` es el árbol que se quiere servir, descarga su artefacto con `gh run download` en `.next-build` y sigue el contrato que ya existe (`.listo`, BUILD_ID, `reiniciar_mando()`); compila en local solo si no hay artefacto. Prueba pura de la elección (artefacto del mismo árbol › compilar). OJO (medido el 29-10): el build del CI usa NEXT_PUBLIC_SUPABASE_URL/ANON_KEY de relleno (`placeholder`), y esos valores se incrustan en el cliente: un artefacto así rompe el inicio de sesión de la Genesis local. Usa `${{ vars.NEXT_PUBLIC_… || 'https://placeholder…' }}` (variables del repo, no secretos: son públicas por diseño) y que la acción «Te toca a ti» pida a Alex subirlas una vez con `gh variable set` si faltan. El contenedor de Claude (8 GB) ya no puede compilar Genesis: murió por memoria con 3, 4 y 5 GB de heap.",
+   "importancia": "capacidad"
+  },
+  {
+   "id": "DEC1028C",
+   "ola": "1028 · Decisiones de Alex aprobadas",
+   "depende": [],
+   "titulo": "Codex · «modelo no admitido con la cuenta de ChatGPT» lo saca de la rotación y no gasta intento",
+   "archivos": [
+    "scripts/puente/cupo_codex.py",
+    "scripts/puente/test_cupo_codex.py",
+    "scripts/enjambre/starseed-enjambre.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en el código, en las pruebas ni en lo que imprimas.\n\nContexto (medido el 2026-10-28 por Claude, supervisor): desde el 2026-10-23 20:55 TODAS las llamadas de Codex en la Mac fallan con `{\"status\":400, ... \"message\":\"The 'gpt-5.6-sol' model is not supported when using Codex with a ChatGPT account.\",\"code\":\"model_not_found\"}` (206 sesiones en `~/.codex/sessions`; con `-m gpt-5.5` pasa lo mismo). `cupo_codex.agotado_en` solo reconoce la cuota agotada, así que Codex sigue en la rotación: cada tarea gasta su primer intento con él y acaba en `sin_cambios` (DEC1028A lo hizo 8 veces). Hoy se apartó a mano 24 h con `cupo_codex.anotar`.\n\nEn `cupo_codex.py`: `PISTAS_SIN_MODELO = (\"is not supported when using codex with a chatgpt account\", \"model_not_found\")`, `sin_modelo_en(salida)` (en minúsculas, como `agotado_en`) y `HORAS_SIN_MODELO = 24`. En `starseed-enjambre.py`, junto al bloque `if modelo in MODELOS_CODEX and _cupo_codex.agotado_en(out):` (cerca de la línea 7727): si `sin_modelo_en(out)`, `anotar(\"cuenta de ChatGPT sin Codex para %s\" % modelo, horas=HORAS_SIN_MODELO)`, quita los `MODELOS_CODEX` de `MODELOS`, evento `proveedor_caido` con el porqué, y `continue` SIN contar el intento (como una pasarela caída). Pruebas en `test_cupo_codex.py` con la salida real de arriba y con la de cuota agotada (que sigue igual)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "IND1029A",
+   "MBT1027Ob",
+   "DEC1028C",
+   "RESC1031C"
+  ]
+ }
+}
