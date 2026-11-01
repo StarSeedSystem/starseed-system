@@ -76,6 +76,8 @@ export type EstadoVoz = { estado: "cerrado" } | { estado: "escuchando" } | { est
 export interface OpcionesSesion {
     /** Contexto CONGELADO al soltar: listas + enfoque + molécula con foco. */
     preguntar: () => { ctx: ContextoVoz; molecula: boolean }; alEstado: (e: EstadoVoz) => void; alParcial: (t: string) => void; alReparto: (r: Reparto) => void;
+    /** XR1010Q: frase completa dicha, para las respuestas por voz de la tarjeta (§3 f). */
+    alFrase?: (t: string) => void;
 }
 export interface SesionVoz {
     /** `true` = pulsar «hablar» (abre el mic); `false` = soltar (lo cierra y reparte). */
@@ -89,7 +91,7 @@ export function crearSesionVoz(recon: Reconocedor | null, es: OpcionesSesion): S
     const bajo = (r: Reconocedor) => { try { r.parar(); } catch { /* ya cerrado */ } };
     const bajas: (() => void)[] = recon
         ? [recon.onParcial((t) => es.alParcial(t)),
-            recon.onFinal((t) => { if (cancelada || (!abierta && !esperando)) return; abierta = false; esperando = false; const c = es.preguntar(); es.alReparto(repartirFrase(t, c.ctx, c.molecula)); es.alEstado({ estado: "cerrado" }); }),
+            recon.onFinal((t) => { if (cancelada || (!abierta && !esperando)) return; abierta = false; esperando = false; const c = es.preguntar(); es.alFrase?.(t); es.alReparto(repartirFrase(t, c.ctx, c.molecula)); es.alEstado({ estado: "cerrado" }); }),
             recon.onError((m) => { bajo(recon); abierta = false; esperando = false; es.alEstado({ estado: "sin-voz", motivo: `El micrófono falló y quedó cerrado: ${m}` }); })]
         : [];
     return {

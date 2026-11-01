@@ -28,6 +28,8 @@ export interface VozXR {
     estado: EstadoVoz;
     parcial: string;
     resultado: Reparto | null;
+    /** XR1010Q: la frase completa que la persona acaba de decir (la necesita la tarjeta de voz). */
+    frase: string | null;
     /** `true` = pulsar (abre el mic); `false` = soltar (cierra el mic y reparte). */
     hablar(sube: boolean): void;
     cancelar(): void;
@@ -37,6 +39,7 @@ export function useVozXR(opciones: OpcionesVozXR = {}): VozXR {
     const [estado, setEstado] = useState<EstadoVoz>({ estado: "cerrado" });
     const [parcial, setParcial] = useState("");
     const [resultado, setResultado] = useState<Reparto | null>(null);
+    const [frase, setFrase] = useState<string | null>(null);
 
     const grupos = useLiveGroups();
     const libreta = useContactos();
@@ -81,6 +84,7 @@ export function useVozXR(opciones: OpcionesVozXR = {}): VozXR {
             alEstado: (e) => setEstado(e),
             alParcial: (t) => setParcial(t),
             alReparto: (r) => setResultado(r),
+            alFrase: (t) => setFrase(t),
         });
         setSesion(s);
         if (!recon) setEstado({ estado: "sin-voz", motivo: MOTIVO_SIN_VOZ });
@@ -90,5 +94,5 @@ export function useVozXR(opciones: OpcionesVozXR = {}): VozXR {
     const hablar = useCallback((sube: boolean) => { void sesion?.hablar(sube); }, [sesion]);
     const cancelar = useCallback(() => { sesion?.cancelar(); setParcial(""); setResultado(null); }, [sesion]);
 
-    return { estado, parcial, resultado, hablar, cancelar };
+    return { estado, parcial, resultado, frase, hablar, cancelar };
 }
