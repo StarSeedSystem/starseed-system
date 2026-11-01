@@ -51,12 +51,53 @@ describe("tokenizar", () => {
     expect(tokenizar("de la tareas el listar")).toEqual(["tareas", "listar"]);
     expect(tokenizar("the tasks for")).toEqual(["tasks"]);
   });
+
+  // Rescate RTAGT1025Bb de la rama archivada a1-20261101-153627-AGT1025B.
+  it("separa camelCase de varias palabras", () => {
+    expect(tokenizar("crearTareaPrioritaria")).toEqual(["crear", "tarea", "prioritaria"]);
+  });
+
+  it("las mayúsculas sueltas también pasan a minúsculas", () => {
+    expect(tokenizar("Tareas Listar")).toEqual(["tareas", "listar"]);
+  });
+
+  it("al quitar la tilde puede quedar una palabra vacía y se descarta", () => {
+    // "ún" se vuelve "un" (NFD + minúsculas) y "un" es palabra vacía.
+    expect(tokenizar("tarea_ún")).toEqual(["tarea"]);
+  });
 });
 
 describe("crearIndiceBm25", () => {
   it("consulta vacía devuelve []", () => {
     const indice = crearIndiceBm25([]);
     expect(indice.buscar("", 10)).toEqual([]);
+  });
+
+  it("consulta vacía con documentos también devuelve []", () => {
+    const indice = crearIndiceBm25([{ id: "1", texto: "tareas_listar" }]);
+    expect(indice.buscar("", 10)).toEqual([]);
+  });
+
+  it("solo se devuelven los documentos con puntuación > 0", () => {
+    const indice = crearIndiceBm25([
+      { id: "1", texto: "tareas" },
+      { id: "2", texto: "otro" },
+    ]);
+    const resultados = indice.buscar("tareas", 10);
+    expect(resultados).toHaveLength(1);
+    expect(resultados[0].id).toBe("1");
+  });
+
+  it("varios documentos coinciden y el empate se resuelve por id", () => {
+    const indice = crearIndiceBm25([
+      { id: "1", texto: "tareas por hacer" },
+      { id: "2", texto: "listar tareas pendientes" },
+      { id: "3", texto: "estado del sistema" },
+    ]);
+    const resultados = indice.buscar("tareas", 10);
+    expect(resultados).toHaveLength(2);
+    expect(resultados[0].id).toBe("1");
+    expect(resultados[1].id).toBe("2");
   });
 
   it("'tareas listar' devuelve resultados con puntuación", () => {
@@ -293,5 +334,39 @@ describe("envolverProgresivo · metaherramientas", () => {
       { testCtx: "valor" } as { testCtx: string },
     );
     expect(jsonResult.contenido[0].texto).toBe("valor");
+  });
+});
+
+// Rescate RTAGT1025Bb de la rama archivada a1-20261101-153627-AGT1025B:
+// `permitida` se aplica antes de contar; una herramienta filtrada existe en el
+// servidor pero para el modelo es desconocida, en descubrir, detalle y ejecutar.
+describe("envolverProgresivo · el filtro permitida", () => {
+  const herramientasFalsas: HerramientaMcp[] = [
+    herramientaFalsa("tareas_listar", "Lista las tareas por hacer."),
+    herramientaFalsa("tareas_crear", "Crea una tarea nueva."),
+    herramientaFalsa("tareas_marcar", "Marca una tarea como hecha."),
+    herramientaFalsa("notas_buscar", "Busca en tus notas."),
+    herramientaFalsa("estado_resumen", "Resumen del estado del sistema."),
+  ];
+  const permitida = (h: HerramientaMcp) => h.nombre !== "tareas_crear";
+  const primerTexto = (r: Awaited<ReturnType<HerramientaMcp["ejecutar"]>>): string =>
+    r.contenido[0]?.texto ?? "";
+
+  it("quitada una herramienta y sin cruzar el umbral, se devuelve el filtrado tal cual", () => {
+    const resultado = envolverProgresivo(herramientasFalsas, { permitida, umbral: 10 });
+    expect(resultado).toHaveLength(4);
+    expect(resultado.map((h) => h.nombre)).not.toContain("tareas_crear");
+  });
+
+  it("con el umbral cruzado, la herramienta filtrada es desconocida en detalle", async () => {
+    const resultado = envolverProgresivo(herramientasFalsas, { permitida, umbral: 3 });
+    const detalle = resultado.find((h) => h.nombre === "detalle_herramienta");
+    expect(primerTexto(await detalle!.ejecutar({ nombre: "tareas_crear" }))).toContain("desconocida");
+  });
+
+  it("con el umbral cruzado, la herramienta filtrada es desconocida en ejecutar", async () => {
+    const resultado = envolverProgresivo(herramientasFalsas, { permitida, umbral: 3 });
+    const ejecutar = resultado.find((h) => h.nombre === "ejecutar_herramienta");
+    expect(primerTexto(await ejecutar!.ejecutar({ nombre: "tareas_crear" }))).toContain("desconocida");
   });
 });

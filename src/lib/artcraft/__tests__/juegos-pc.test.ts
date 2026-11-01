@@ -166,6 +166,20 @@ describe("Rare: ficha viva del catálogo, programa aparte y credenciales de Epic
     expect(ficha.codigo).toBe("https://github.com/RareDevs/Rare");
   });
 
+  // Rescate RTAGT1025Bb de la rama archivada a1-20261101-153627-AGT1025B.
+  it("la actualización se sigue en los tags de RareDevs/Rare y su versión estable pasa el filtro", () => {
+    const ficha = rare();
+    const actualizacion = ficha.actualizacion;
+    expect(actualizacion.fuente).toBe("github-tags");
+    expect(actualizacion.ref).toBe("RareDevs/Rare");
+    expect(actualizacion.filtro).toBeTruthy();
+    expect(actualizacion.ultimaVersion).toBeTruthy();
+    if (!actualizacion.filtro || !actualizacion.ultimaVersion) {
+      throw new Error("La ficha de Rare debía traer filtro y última versión");
+    }
+    expect(actualizacion.ultimaVersion).toMatch(new RegExp(actualizacion.filtro));
+  });
+
   it("sin condiciones de Epic decididas por Alex, las rutas de servidores siguen sin cablear", () => {
     const ficha = rare();
     expect(ficha.motivo).toMatch(/sin cablear/);
