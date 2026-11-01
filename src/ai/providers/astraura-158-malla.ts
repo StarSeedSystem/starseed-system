@@ -27,6 +27,8 @@ import {
   preferencesFor,
 } from "./astraura-158";
 import type { AstrauraMallaError } from "@/lib/network/astraura-por-malla";
+import { leerDirectivas } from "@/lib/astraura/capas/directivas-almacen";
+import { seccionDirectivas } from "@/lib/astraura/capas/directivas";
 
 /** (2026-09-27) Relé perezoso: ver la nota en `ia-malla.ts` (ciclo providers ↔ red). */
 const cargarRele = () => import("@/lib/network/astraura-por-malla");
@@ -52,7 +54,14 @@ async function chat(_config: DecryptedProviderConfig, messages: ChatMessage[], o
   const built = buildAstraura158Prompt(messages);
   if (!built.prompt.trim()) throw new Error("Astraura 1.58 (malla) error: no hay mensaje del usuario.");
   const note = mentionsSystemNote(mentions, persona);
-  const systemPrompt = note ? [built.system_prompt, note].filter(Boolean).join("\n\n") : built.system_prompt;
+  // ── Directivas Meta^n por capa/persona (sección de sistema) ──
+  const archivoDirectivas = leerDirectivas(persona);
+  const seccionDirectivasTexto = archivoDirectivas ? seccionDirectivas(archivoDirectivas) : "";
+  const systemPrompt = note
+    ? [built.system_prompt, seccionDirectivasTexto, note].filter(Boolean).join("\n\n")
+    : seccionDirectivasTexto
+      ? [built.system_prompt, seccionDirectivasTexto].filter(Boolean).join("\n\n")
+      : built.system_prompt;
 
   const { pedirAstrauraPorMalla } = await cargarRele();
   const text = await pedirAstrauraPorMalla({
