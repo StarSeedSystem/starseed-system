@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Controlador, EstadoControl, ResultadoMover } from "@/lib/protomolecula/controlador";
-import { CURVA_LINEAL, estadoInicial, procesar, type Vinculo } from "@/lib/protomolecula/vinculos-control";
+import { CURVA_LINEAL, estadoInicial, procesar, type Curva, type Vinculo } from "@/lib/protomolecula/vinculos-control";
 import type { Accion, Ambito, Autor, Operacion, Parametro, ParametroRef } from "@/lib/protomolecula/tipos";
 import { MAPAS_DEFECTO, type MapaEntrada } from "@/lib/xr/vinculos-xr";
 import { aplicarEnVisor, fuentesDeMapaXR, operacionEnVisor, rangoAGesto } from "../vinculos-protomolecula";
@@ -58,6 +58,25 @@ describe("fuentesDeMapaXR", () => {
     };
     expect(fuentesDeMapaXR(mapa)).toHaveLength(1);
   });
+  it("las teclas y frases del teclado-raton o del tactil nunca son mandos", () => {
+    expect(fuentesDeMapaXR(MAPAS_DEFECTO["teclado-raton"])).toEqual([]);
+    expect(fuentesDeMapaXR(MAPAS_DEFECTO.tactil)).toEqual([]);
+  });
+  it("distingue la mano del botón y traduce los ejes sin repetir la fuente", () => {
+    const f = fuentesDeMapaXR({
+      seleccionar: [
+        { tipo: "boton", indice: 0, mano: "derecha" },
+        { tipo: "boton", indice: 0, mano: "izquierda" },
+      ],
+      agarrar: [{ tipo: "boton", indice: 0, mano: "derecha" }],
+      teletransporte: [{ tipo: "eje", indice: 3, direccion: "-", mano: "derecha" }],
+    });
+    expect(f).toContainEqual({ tipo: "gamepad", control: "boton", numero: 0, indice: 1 });
+    expect(f).toContainEqual({ tipo: "gamepad", control: "boton", numero: 0, indice: 0 });
+    expect(f).toContainEqual({ tipo: "gamepad", control: "eje", numero: 3, indice: 1 });
+    expect(f.filter((x) => x.tipo === "gamepad" && x.control === "boton" && x.numero === 0 && x.indice === 1)).toHaveLength(1);
+    expect(f).toHaveLength(3);
+  });
 });
 
 describe("rangoAGesto", () => {
@@ -76,6 +95,17 @@ describe("rangoAGesto", () => {
   });
   it("un parámetro desconocido no rompe", () => {
     expect(rangoAGesto({ id: "x", nombre: "X", tipo: "numero" }, 0.5)).toBe(0.5);
+  });
+  it("redondea los enteros y acota gestos fuera de 0..1", () => {
+    expect(rangoAGesto({ ...VOLUMEN, tipo: "entero" }, 0.333)).toBe(33);
+    expect(rangoAGesto(VOLUMEN, -3)).toBe(0);
+    expect(rangoAGesto(VOLUMEN, 9)).toBe(100);
+  });
+  it("usa la forma log de la curva real: responde antes que la lineal", () => {
+    const log: Curva = { ...CURVA_LINEAL, forma: "log" };
+    expect(rangoAGesto(VOLUMEN, 0.5)).toBe(50);
+    expect(rangoAGesto(VOLUMEN, 0.5, log)).toBeGreaterThan(50);
+    expect(rangoAGesto(VOLUMEN, 0.5, log)).toBeLessThan(100);
   });
 });
 
@@ -111,5 +141,11 @@ describe("aplicarEnVisor", () => {
     expect(aplicarEnVisor(controladorFalso({ ambito: "grupo", mover: okMover() }), REF, op({ tipo: "exacta", valor: 50 })).ok).toBe(true);
     const rechazo = controladorFalso({ mover: () => ({ ok: false, motivo: "Parámetro desconocido: fantasma" }) });
     expect(aplicarEnVisor(rechazo, { atomoId: "x", parametroId: "fantasma" }, op({ tipo: "exacta", valor: 1 }))).toEqual({ ok: false, motivo: "Parámetro desconocido: fantasma" });
+  });
+  it("el mismo agente en un espacio personal sí se aplica", () => {
+    const mover = okMover();
+    const r = aplicarEnVisor(controladorFalso({ ambito: "personal", mover }), REF, op({ tipo: "exacta", valor: 50 }, AGENTE, "agente"));
+    expect(r.ok).toBe(true);
+    expect(mover).toHaveBeenCalledTimes(1);
   });
 });
