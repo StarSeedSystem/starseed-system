@@ -51,6 +51,29 @@ describe("fuentesDeMapaXR", () => {
     expect(fuentesDeMapaXR(MAPAS_DEFECTO.manos)).toEqual([]);
     expect(fuentesDeMapaXR(MAPAS_DEFECTO.voz)).toEqual([]);
   });
+  it("ni gestos, ni teclas, ni frases son gatillos de mando, aunque el mapa los mezcle", () => {
+    const mapa: MapaEntrada = {
+      seleccionar: [
+        { tipo: "gesto", gesto: "pellizco", mano: "cualquiera" },
+        { tipo: "tecla", codigo: "Escape" },
+        { tipo: "frase", texto: "selecciona" },
+        { tipo: "boton", indice: 0, mano: "derecha" },
+      ],
+    };
+    expect(fuentesDeMapaXR(mapa)).toEqual([{ tipo: "gamepad", control: "boton", numero: 0, indice: 1 }]);
+  });
+  it("respeta la mano (izquierda 0, derecha 1) y no repite la misma fuente entre acciones", () => {
+    const mapa: MapaEntrada = {
+      seleccionar: [{ tipo: "boton", indice: 0, mano: "derecha" }, { tipo: "boton", indice: 0, mano: "izquierda" }],
+      agarrar: [{ tipo: "boton", indice: 0, mano: "derecha" }],
+      teletransporte: [{ tipo: "eje", indice: 3, direccion: "-", mano: "derecha" }],
+    };
+    expect(fuentesDeMapaXR(mapa)).toEqual([
+      { tipo: "gamepad", control: "boton", numero: 0, indice: 1 },
+      { tipo: "gamepad", control: "boton", numero: 0, indice: 0 },
+      { tipo: "gamepad", control: "eje", numero: 3, indice: 1 },
+    ]);
+  });
   it("no repite una fuente mapeada a dos acciones", () => {
     const mapa: MapaEntrada = {
       seleccionar: [{ tipo: "boton", indice: 4, mano: "izquierda" }],
@@ -73,6 +96,14 @@ describe("rangoAGesto", () => {
     expect(rangoAGesto({ id: "eco", nombre: "Eco", tipo: "booleano" }, 0.2)).toBe(false);
     const filtro: Parametro = { id: "filtro", nombre: "Filtro", tipo: "opcion", opciones: ["bajo", "medio", "alto"] };
     expect(rangoAGesto(filtro, 0.9)).toBe("alto");
+  });
+  it("acota el gesto fuera de 0..1 y redondea los enteros", () => {
+    expect(rangoAGesto(VOLUMEN, -3)).toBe(0);
+    expect(rangoAGesto(VOLUMEN, 9)).toBe(100);
+    expect(rangoAGesto({ ...VOLUMEN, tipo: "entero" }, 0.333)).toBe(33);
+  });
+  it("la curva log responde antes que la lineal al mismo gesto", () => {
+    expect(rangoAGesto(VOLUMEN, 0.5, { ...CURVA_LINEAL, forma: "log" })).toBeGreaterThan(50);
   });
   it("un parámetro desconocido no rompe", () => {
     expect(rangoAGesto({ id: "x", nombre: "X", tipo: "numero" }, 0.5)).toBe(0.5);
@@ -107,8 +138,9 @@ describe("aplicarEnVisor", () => {
     expect(!r.ok && r.pendiente?.motivo).toMatch(/pendiente de tu confirmación/);
     expect(mover).not.toHaveBeenCalled();
   });
-  it("una persona en grupo sí aplica y un parámetro desconocido devuelve el motivo", () => {
+  it("una persona en grupo sí aplica, igual que un agente en personal", () => {
     expect(aplicarEnVisor(controladorFalso({ ambito: "grupo", mover: okMover() }), REF, op({ tipo: "exacta", valor: 50 })).ok).toBe(true);
+    expect(aplicarEnVisor(controladorFalso({ mover: okMover() }), REF, op({ tipo: "exacta", valor: 50 }, AGENTE, "agente")).ok).toBe(true);
     const rechazo = controladorFalso({ mover: () => ({ ok: false, motivo: "Parámetro desconocido: fantasma" }) });
     expect(aplicarEnVisor(rechazo, { atomoId: "x", parametroId: "fantasma" }, op({ tipo: "exacta", valor: 1 }))).toEqual({ ok: false, motivo: "Parámetro desconocido: fantasma" });
   });
