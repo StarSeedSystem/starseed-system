@@ -13,10 +13,12 @@
  *     así que oír lo mismo por dos canales es inocuo.
  *   · El relé NO es de confianza: solo reparte texto. Lo que llega por aquí pasa por la misma
  *     verificación de firma (y descifrado, en las privadas) que lo que llega por Supabase.
- *   · Protocolo con el servidor (el servidor aún no existe en main; este es el contrato que debe
- *     cumplir): se abre `<base>/ws?tema=<tema codificado>`; el servidor solo difunde textos que
- *     empiezan por `{"t":"est"` (≤ 40 000) y manda a cada conectado `{"t":"rele","n":N}` con N = los
- *     conectados a la sala contándole a él. Los oyentes son N − 1. Ver `servicios/estaciones-rele`.
+ *   · Protocolo con el servidor (`servicios/estaciones-rele/servidor.mjs`, ya en main; salas en
+ *     `salas.mjs`): se abre `<base>/ws?tema=<tema codificado>`; el servidor solo difunde textos que
+ *     empiezan por `{"t":"est"` (≤ 40 000, a los demás de la sala) y manda a cada conectado
+ *     `{"t":"rele","n":N}` con N = los conectados a la sala contándole a él. Los oyentes son N − 1.
+ *     Defensa del servidor: ping cada 30 s corta a quien no contesta; un oyente con más de 1 MiB
+ *     pendientes se salta el sobre (idempotente por `n`: el próximo lo pone al día).
  *   · Módulo puro: sin `node:*`, sin `window` y sin Supabase. El WebSocket y los temporizadores se
  *     inyectan, así que se prueba entero con un WebSocket falso.
  *

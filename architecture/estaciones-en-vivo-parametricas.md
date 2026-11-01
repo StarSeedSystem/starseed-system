@@ -147,8 +147,9 @@ Sobre: `{"t":"est","s":id,"e":evento,"d":json | "x":cifrado,"f":firma}`. Eventos
 Cada mensaje de difusión cuenta una vez por cada conectado que lo recibe. Con N conectados y en régimen
 (rondas cada 5 min): preguntas ≈ 36·N²/h, respuestas ≤ 36·N²/h (en lote suelen ser menos), latidos 120·N/h.
 N = 10 → ≈ 8 400/h (≈ 238 h de estación al mes en el plan gratuito); N = 30 → ≈ 68 000/h (≈ 29 h/mes). Al
-entrar cada persona: unas 16·N. Por enlaces locales no cuesta nada. Para audiencias grandes: el relé propio (§4.3, tarea
-`EV-ORACLE`): no cuenta mensajes de Realtime. Hoy existe el cliente y la lógica de salas; el servidor aún no.
+entrar cada persona: unas 16·N. Por enlaces locales no cuesta nada. Para audiencias grandes: el relé propio (§4.3): no cuenta mensajes de
+Realtime. Hoy existe el cliente, la lógica de salas y el servidor
+(`servicios/estaciones-rele/servidor.mjs`); su despliegue (compose + Caddy) queda con la palabra de Alex.
 
 ### 4.3 Relé propio (cliente `canal-rele.ts`, RTS1010-EV-ORACLE-2d · 2026-10-20)
 
@@ -167,6 +168,15 @@ de Realtime (2 M de mensajes al mes) con audiencias grandes.
   `{"t":"rele","n":N}` con N = conectados contándole a él; el cliente muestra N − 1 y NO entrega ese mensaje a la
   sesión. Cierres que el cliente entiende: 1008 (sala rechazada: tema no válido o sala llena), 1009 (mensaje
   demasiado grande), 1013 (saturado); cualquier otro código se muestra tal cual.
+- **El servidor existe** (`servicios/estaciones-rele/servidor.mjs`, ORACLE-1b; `ws` en Node): ruta `/ws`,
+  puerto `PUERTO` (8787 en local), tope de trama 128 KiB (más llega como 1009) y `MAX_CONEXIONES`
+  (5 000; por encima, 1013 «relé saturado»). Vida de las conexiones: **ping cada 30 s**, y quien no
+  contestó el anterior se corta (su cierre lo saca de la sala). Oyente lento: quien va con **más de 1 MiB
+  pendientes (`bufferedAmount`) se salta el sobre** (idempotente por `n`; el próximo lo pone al día) y se
+  cuenta como «saltado». Cuentas por minuto (entradas, rechazadas, mensajes, entregas, saltados) volcadas
+  en una línea SIN contenido, tema ni URL. Al parar cierra con 1001 («el relé se reinicia»), que el
+  cliente entiende como una caída normal y reconecta con su espera creciente. `miembros(tema)`
+  (`salas.mjs`) da una COPIA de la sala para anunciar la presencia sin riesgo de recorridos rotos.
 - **Estado honesto** (`estadoCanalRele()`, el que lee el panel): `conectando` → `abierto` → `error` con motivo
   (`no se pudo abrir o se cortó la conexión con el relé (código 1006); reintenta en 2 s`, `sin respuesta del relé en
   10 s`, `este navegador no trae WebSocket`, `la dirección del relé no es válida`) → `cerrado`. Tras una caída
@@ -181,9 +191,10 @@ de Realtime (2 M de mensajes al mes) con audiencias grandes.
   (AES-GCM con el token); el cliente verifica lo que llega por él igual que lo que llega por Supabase. Privacidad:
   el tema va en la URL y, en una privada, es el derivado del token de 128 bits; **el servidor y Caddy no deben
   registrar la query ni guardar mensajes**.
-- **Lo que falta** (no se afirma que funcione de punta a punta hasta que exista): (1) el servidor WebSocket
-  (ORACLE-1b) y su servicio en `deploy/oracle/compose-a1.yml` + Caddyfile (hoy solo está la lógica de salas);
-  (2) añadir el host del relé a `connect-src` de `src-tauri/tauri.conf.json` cuando se conozca (la CSP web ya
+- **Lo que falta** (no se afirma que funcione de punta a punta hasta que exista): (1) el despliegue del
+  servidor en `deploy/oracle/compose-a1.yml` + Caddyfile — el servidor está en main
+  (`servicios/estaciones-rele/servidor.mjs`), pero su puesta en producción va SOLO con la palabra de
+  Alex; (2) añadir el host del relé a `connect-src` de `src-tauri/tauri.conf.json` cuando se conozca (la CSP web ya
   permite `wss:`; en la app nativa el canal fallaría con «código 1006» hasta entonces); (3) paridad en el kit
   `integraciones-de-codigo/starseed-link` (su copia de canales es solo Supabase): **no hacer el relé exclusivo
   hasta tenerla**; (4) probar de extremo a extremo una estación de Genesis/MetaGenesis/PoliGenesis con el relé
