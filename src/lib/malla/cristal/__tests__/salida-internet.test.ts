@@ -73,6 +73,16 @@ describe('planSalida', () => {
     expect(p.motivo).toBe('va por la malla P2P')
   })
 
+  it('un dato interno entre neuronas tampoco usa puerta', () => {
+    const p = planSalida({
+      cristal: cristal(['a', 'b']), reticula: reticula(señal('a', 'b')),
+      dato: dato({ clase: 'interno' }), ctx, puertas: [puerta('p1', 'b')], solicitante: sol,
+    })
+    expect(p.puerta).toBeNull()
+    expect(p.ruta?.saltos).toEqual(['a', 'b'])
+    expect(p.motivo).toBe('va por la malla P2P')
+  })
+
   it('público difundido elige la puerta alcanzable de menor coste', () => {
     const barata = puerta('barata', 'gan')
     const p = planSalida({
