@@ -117,4 +117,33 @@ describe("plantillaRefine", () => {
     const paquete = JSON.parse(buscar(GENERADOS, "package.json")) as { name: string };
     expect(paquete.name).toBe("panel-de-datos-aureo");
   });
+
+  it("cada listado lleva las constantes CAMPOS con los campos del recurso", () => {
+    for (const { nombre, campos } of [
+      { nombre: "clientes", campos: ["nombre", "email", "total"] },
+      { nombre: "pedidos", campos: ["fecha", "importe"] },
+    ]) {
+      const pagina = buscar(GENERADOS, `src/paginas/listado-${nombre}.tsx`);
+      expect(pagina, nombre).toContain(`const CAMPOS: string[] = ${JSON.stringify(campos)};`);
+    }
+  });
+
+  it("cada listado nombra su componente React con el recurso en PascalCase", () => {
+    for (const [recurso, componente] of [
+      ["clientes", "ListadoClientes"],
+      ["pedidos", "ListadoPedidos"],
+    ] as const) {
+      const pagina = buscar(GENERADOS, `src/paginas/listado-${recurso}.tsx`);
+      expect(pagina, recurso).toContain(`export function ${componente}()`);
+    }
+  });
+
+  it("LEEME.md lista los recursos y trae la activación manual", () => {
+    const leeme = buscar(GENERADOS, "LEEME.md");
+    expect(leeme).toContain("clientes");
+    expect(leeme).toContain("pedidos");
+    expect(leeme).toContain("Node 20");
+    expect(leeme).toContain("npm install");
+    expect(leeme).toContain("VITE_API_URL");
+  });
 });
