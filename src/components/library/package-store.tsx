@@ -135,6 +135,7 @@ export const KIND_META: Record<PackageKind, { label: string; plural: string; ico
   function: { label: "Función", plural: "Funciones", icon: Wand2, chip: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
   "ai-source": { label: "Fuente IA", plural: "Fuentes IA", icon: Brain, chip: "bg-teal-500/15 text-teal-300 border-teal-500/30" },
   repo: { label: "Repo", plural: "Repos", icon: GitBranch, chip: "bg-lime-500/15 text-lime-300 border-lime-500/30" },
+  tool: { label: "Herramienta", plural: "Herramientas", icon: MousePointer2, chip: "bg-rose-500/15 text-rose-300 border-rose-500/30" },
   agent: { label: "Agente", plural: "Agentes", icon: Bot, chip: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30" },
 };
 
@@ -152,6 +153,7 @@ const EFFECT_EXPLAIN: Record<PackageKind, string> = {
   board: "Registra la pizarra en tu sistema y abre el lienzo colaborativo.",
   research: "Registra la investigación en tu sistema y abre su superficie real.",
   project: "Registra el proyecto en tu sistema y abre su superficie real.",
+  tool: "Guarda el enlace en tu biblioteca y abre la página de referencia. Honesto: no ejecuta código en el navegador; es un servicio/servidor o repo de referencia.",
   agent: "Registra la definición del agente (persona + capacidades) en tu biblioteca personal de agentes: podrás configurarlo y atarlo al cerebro de cualquier superficie del OS. Desinstalar no borra vínculos ya creados.",
 };
 
