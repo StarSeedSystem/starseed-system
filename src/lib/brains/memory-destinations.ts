@@ -77,12 +77,27 @@ export interface P2pMemoryDestination {
   label?: string;
 }
 
+/**
+ * Destino «cápsula» (MVD1027E): la cápsula Memvid del sujeto cerebro:<id> en el
+ * servidor de la neurona (127.0.0.1:4490; architecture/memvid-capsulas.md).
+ * Default OFF (contrato §5: apagado por defecto en todas las cuentas).
+ */
+export interface CapsulaMemoryDestination {
+  enabled: boolean;
+  /** Huella SHA-256 (hex) por archivo de la última ronda ENVIADA: archivo → hex. */
+  huellas?: Record<string, string>;
+  /** Fecha ISO de la última ronda enviada con éxito (informativo). */
+  ultimaSincronia?: string;
+}
+
 export interface MemoryDestinationsConfig {
   local: { enabled: true };
   starseed: { enabled: boolean };
   external: ExternalMemoryDestination[];
   /** Espejo por Syncthing (folder local sincronizada) — default OFF. */
   p2p: P2pMemoryDestination;
+  /** Cápsula Memvid del cerebro — default OFF. */
+  capsula: CapsulaMemoryDestination;
 }
 
 /** Manifiesto honesto del destino StarSeed de un cerebro (solo metadatos). */
@@ -102,7 +117,10 @@ const MANIFEST_KEY_PREFIX = "brain-store:";
 /* ------------------------------------------------------------------ */
 
 export function defaultMemoryDestinations(): MemoryDestinationsConfig {
-  return { local: { enabled: true }, starseed: { enabled: true }, external: [], p2p: { enabled: false } };
+  return {
+    local: { enabled: true }, starseed: { enabled: true }, external: [],
+    p2p: { enabled: false }, capsula: { enabled: false },
+  };
 }
 
 function normalizeP2p(raw: unknown): P2pMemoryDestination {
@@ -133,6 +151,16 @@ function normalizeExternal(raw: unknown): ExternalMemoryDestination[] {
   return out;
 }
 
+function normalizeCapsula(raw: unknown): CapsulaMemoryDestination {
+  if (!raw || typeof raw !== "object") return { enabled: false };
+  const r = raw as Partial<CapsulaMemoryDestination>;
+  const huellas = r.huellas && typeof r.huellas === "object" ? (r.huellas as Record<string, string>) : undefined;
+  const ultima = typeof r.ultimaSincronia === "string" && r.ultimaSincronia ? r.ultimaSincronia : undefined;
+  return huellas
+    ? { enabled: r.enabled === true, huellas, ultimaSincronia: ultima }
+    : { enabled: r.enabled === true, ultimaSincronia: ultima };
+}
+
 /** Normaliza cualquier valor de `Brain.config.memoryDestinations`. Nunca lanza. */
 export function normalizeMemoryDestinations(raw: unknown): MemoryDestinationsConfig {
   try {
@@ -143,6 +171,7 @@ export function normalizeMemoryDestinations(raw: unknown): MemoryDestinationsCon
       starseed: { enabled: r.starseed?.enabled !== false }, // default ON.
       external: normalizeExternal(r.external),
       p2p: normalizeP2p(r.p2p), // default OFF (requiere Syncthing propio).
+      capsula: normalizeCapsula(r.capsula), // default OFF (destino MVD1027E).
     };
   } catch {
     return defaultMemoryDestinations();
@@ -171,6 +200,8 @@ export async function setMemoryDestinations(
         folderId: patch.p2p && "folderId" in patch.p2p ? patch.p2p.folderId : current.p2p.folderId,
         label: patch.p2p && "label" in patch.p2p ? patch.p2p.label : current.p2p.label,
       },
+      // La cápsula se fusiona: así guardar huellas tras una ronda no borra lo demás.
+      capsula: patch.capsula ? { ...current.capsula, ...patch.capsula } : current.capsula,
     };
     return await saveBrain({
       ...brain,
@@ -289,7 +320,7 @@ export async function removeExternalDestination(brain: Brain, destinationId: str
 /* ------------------------------------------------------------------ */
 
 export interface MemoryDestinationSyncStep {
-  kind: "starseed" | "external" | "local" | "p2p" | "gdrive";
+  kind: "starseed" | "external" | "local" | "p2p" | "gdrive" | "capsula";
   ok: boolean;
   detail: string;
 }
@@ -359,6 +390,53 @@ async function effectiveBrainStore(): Promise<BrainStoreMode> {
   } catch {
     return "auto";
   }
+}
+
+/* ── MVD1027E · la cápsula Memvid como destino de sincronía ───────────────── */
+
+/** URI del archivo dentro de la cápsula del cerebro: mv2://cerebro/<id>/<archivo>. */
+export function uriCapsula(brainId: string, archivo: string): string {
+  return `mv2://cerebro/${brainId}/${archivo}`;
+}
+
+/** Huella SHA-256 (hex) del texto: igual en navegador y servidor; "" sin Web Crypto. */
+export async function huellaCapsula(texto: string): Promise<string> {
+  try {
+    const cripto = globalThis.crypto;
+    if (!cripto?.subtle) return "";
+    const resumen = await cripto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
+    return Array.from(new Uint8Array(resumen), (b) => b.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return "";
+  }
+}
+
+/** Un archivo de memoria pendiente de entrar en la cápsula del cerebro. */
+interface CapsulaPorEnviar {
+  archivo: string;
+  contenido: string;
+  huella: string;
+  uri: string;
+}
+
+/** Plan de la cápsula del cerebro (PURO y asincrónico: solo calcula huellas): los
+ * archivos de memoria nuevos o cambiados frente a la huella guardada; los vacíos
+ * y sin nombre quedan fuera, y un archivo sin huella espera a la próxima ronda. */
+export async function planCapsulaCerebro(
+  brainId: string,
+  archivos: { name: string; content: string }[] | null | undefined,
+  huellasPrevias?: Record<string, string>,
+): Promise<{ enviar: { archivo: string; contenido: string; huella: string; uri: string }[] }> {
+  const previas = huellasPrevias && typeof huellasPrevias === "object" ? huellasPrevias : {};
+  const enviar: CapsulaPorEnviar[] = [];
+  for (const a of archivos ?? []) {
+    if (!a || typeof a.name !== "string" || a.name.length === 0) continue;
+    if (typeof a.content !== "string" || a.content.trim().length === 0) continue;
+    const huella = await huellaCapsula(a.content);
+    if (!huella || previas[a.name] === huella) continue;
+    enviar.push({ archivo: a.name, contenido: a.content, huella, uri: uriCapsula(brainId, a.name) });
+  }
+  return { enviar };
 }
 
 /**
@@ -461,6 +539,52 @@ export async function syncBrainMemoryNow(brain: Brain): Promise<MemoryDestinatio
       }
     } else if (dest.external.length && !soloLocal) {
       steps.push({ kind: "external", ok: false, detail: "Sin red disponible para sincronizar destinos externos." });
+    }
+
+    // Cápsula Memvid del cerebro (MVD1027E) — destino «capsula». Solo archivos
+    // NUEVOS o CAMBIADOS frente a la huella guardada en el estado del cerebro; sin
+    // servidor de cápsulas el paso lo dice y los demás destinos siguen igual.
+    if (dest.capsula.enabled && !soloLocal) {
+      if (!canFetch()) {
+        steps.push({ kind: "capsula", ok: false, detail: "Sin red disponible para la cápsula Memvid." });
+      } else {
+        try {
+          const files = await listMemoryFiles(brain.id);
+          const plan = await planCapsulaCerebro(brain.id, files, dest.capsula.huellas);
+          if (plan.enviar.length === 0) {
+            steps.push({ kind: "capsula", ok: true, detail: "Cápsula al día: 0 archivos nuevos o cambiados." });
+          } else {
+            const huellasNuevas: Record<string, string> = {};
+            let faltas = 0;
+            for (const item of plan.enviar) {
+              try {
+                const res = await fetch("/api/memorias/capsulas", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ accion: "poner", sujeto: `cerebro:${brain.id}`, texto: item.contenido, uri: item.uri }),
+                });
+                if (res.ok) huellasNuevas[item.archivo] = item.huella;
+                else faltas += 1;
+              } catch { faltas += 1; }
+            }
+            const detalleCapsula = faltas === 0
+              ? `Cápsula (Memvid): ${plan.enviar.length} archivo(s) enviados.`
+              : `Sin servidor de cápsulas: ${plan.enviar.length - faltas} de ${plan.enviar.length} enviados; lo pendiente reintenta en la próxima sincronía.`;
+            steps.push({ kind: "capsula", ok: faltas === 0, detail: detalleCapsula });
+            if (Object.keys(huellasNuevas).length > 0) {
+              await setMemoryDestinations(brain, {
+                capsula: {
+                  ...dest.capsula, enabled: true,
+                  huellas: { ...dest.capsula.huellas, ...huellasNuevas },
+                  ultimaSincronia: new Date().toISOString(),
+                },
+              });
+            }
+          }
+        } catch (e) {
+          steps.push({ kind: "capsula", ok: false, detail: `Sin servidor de cápsulas: ${e instanceof Error ? e.message : String(e)}` });
+        }
+      }
     }
 
     // Google Drive del cerebro (Ola 374) — backend(s) kind:'gdrive' con
