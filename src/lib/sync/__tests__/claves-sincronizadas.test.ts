@@ -13,9 +13,15 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { NEVER_SYNCED_KEYS, SYNCED_KEYS, esClaveFusionable, isNeverSyncedKey } from "@/lib/settings-sync";
+import { NEVER_SYNCED_KEYS, SYNCED_KEYS, esClaveFusionable, fusionarConLocal, isNeverSyncedKey } from "@/lib/settings-sync";
 import { isSyncedKey } from "@/lib/sync/realtime-sync";
 import { AVISOS_KEY } from "@/lib/sync/avisos-cuenta";
+import {
+    CLAVE_DIRECTIVAS,
+    type ArchivoDirectivas,
+    type DirectivaCapa,
+    type RegistroDirectivas,
+} from "@/lib/astraura/capas/directivas-almacen";
 
 /** Preferencias de usuario que esta auditoría añadió a la cuenta. */
 const AÑADIDAS = [
@@ -68,6 +74,15 @@ const NOMBRE_SENSIBLE_PERMITIDO: Record<string, string> = {
 };
 const NOMBRE_SENSIBLE = /(secret|password|passwd|token|api-?key|credential|porcupine|passkey|verifier|salt|bearer|private)/i;
 
+/** Archivo de directivas mínimo y válido para las pruebas de fusión (MTN1027 · Meta^n). */
+const archivoDirectivas = (capa: string, version: number, texto: string): ArchivoDirectivas => {
+    const d: DirectivaCapa = {
+        capa, version, texto, sha256: `sha-${version}`, acierto: 0.6, base: 0.5,
+        n: 100, fecha: "2026-01-01", origen: "pruebas", estado: "activa",
+    };
+    return { v: 1, capa, activa: version, historial: [d] };
+};
+
 describe("SYNCED_KEYS · política de persistencia", () => {
     it("no hay claves repetidas", () => {
         const vistas = new Set<string>();
@@ -89,6 +104,38 @@ describe("SYNCED_KEYS · política de persistencia", () => {
     it("el almacén de avisos viaja y se fusiona (no se pisa)", () => {
         expect(isSyncedKey(AVISOS_KEY)).toBe(true);
         expect(esClaveFusionable(AVISOS_KEY)).toBe(true);
+    });
+
+    it("el almacén de directivas viaja y se fusiona (no se pisa)", () => {
+        expect(isSyncedKey(CLAVE_DIRECTIVAS)).toBe(true);
+        expect(esClaveFusionable(CLAVE_DIRECTIVAS)).toBe(true);
+    });
+
+    it("la activa más nueva que viene de la cuenta entra en la fusión", () => {
+        const local = JSON.stringify({ juicio: archivoDirectivas("juicio", 2, "Pauta vieja") });
+        const fusion = fusionarConLocal(CLAVE_DIRECTIVAS, { juicio: archivoDirectivas("juicio", 3, "Pauta nueva") }, local);
+        expect((fusion.valor as RegistroDirectivas).juicio?.activa).toBe(3);
+        expect(fusion.difiereDeRemoto).toBe(false);
+    });
+
+    it("la copia atrasada de otro medio no pisa lo que ya hay y lo local vuelve a subir", () => {
+        const local = JSON.stringify({ juicio: archivoDirectivas("juicio", 3, "Pauta de aquí") });
+        const fusion = fusionarConLocal(CLAVE_DIRECTIVAS, { juicio: archivoDirectivas("juicio", 2, "Pauta vieja") }, local);
+        expect((fusion.valor as RegistroDirectivas).juicio?.activa).toBe(3);
+        expect(fusion.difiereDeRemoto).toBe(true);
+    });
+
+    it("la capa que solo tiene este medio no la borra la cuenta", () => {
+        const local = JSON.stringify({ palabra: archivoDirectivas("palabra", 1, "Pauta propia") });
+        const fusion = fusionarConLocal(CLAVE_DIRECTIVAS, {}, local);
+        expect((fusion.valor as RegistroDirectivas).palabra?.activa).toBe(1);
+        expect(fusion.difiereDeRemoto).toBe(true);
+    });
+
+    it("lo ilegible que llega de la cuenta se cae, nunca entra en crudo", () => {
+        const fusion = fusionarConLocal(CLAVE_DIRECTIVAS, { juicio: "basura" }, null);
+        expect(Object.keys(fusion.valor as RegistroDirectivas)).toEqual([]);
+        expect(fusion.difiereDeRemoto).toBe(false);
     });
 
     it("secretos, bloqueo, ids de dispositivo y cachés NUNCA viajan", () => {

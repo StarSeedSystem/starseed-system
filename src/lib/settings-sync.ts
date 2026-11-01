@@ -42,8 +42,15 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
 import { CLAVE_MAUSBOT, normalizarConfigMausbot } from "@/lib/mausbot/config";
 import { CLAVE_DISENOS } from "@/lib/mausbot/disenos";
 // (MTN1027 · Meta^n) Las directivas de automejora por capa viajan con la cuenta;
-// al bajar se NORMALIZAN con su módulo: capas o historiales ilegibles fuera.
-import { CLAVE_DIRECTIVAS, normalizarRegistroDirectivas } from "@/lib/astraura/capas/directivas-almacen";
+// al bajar se NORMALIZAN y se FUSIONAN con su módulo: capas o historiales ilegibles
+// fuera y, por capa, solo gana quien trae la activa más nueva o el historial crecido
+// (ganaGuardado: una copia atrasada de otra neurona nunca pisa lo que ya hay).
+import {
+    CLAVE_DIRECTIVAS,
+    ganaGuardado,
+    normalizarRegistroDirectivas,
+    type RegistroDirectivas,
+} from "@/lib/astraura/capas/directivas-almacen";
 
 /** Claves de preferencia que viajan con la cuenta. Aditivo: ampliar sin migración. */
 export const SYNCED_KEYS = [
@@ -247,8 +254,11 @@ export const SYNCED_PREFIXES = [
  * compartido por varios medios (`avisos-cuenta`), eso perdería lo que otro medio marcó a la
  * vez. Con la fusión por id todos convergen. El gating por marca LWW no se aplica a estas
  * claves (la fusión es conmutativa: el orden de llegada no importa).
+ * Las directivas de las capas (MTN1027 · Meta^n) entran aquí por su contrato §3.5/§4:
+ * por capa gana `ganaGuardado` (activa más nueva o historial crecido), nunca el reloj,
+ * y una copia atrasada no pisa lo que la neurona ya tiene.
  */
-export const CLAVES_FUSIONABLES: readonly string[] = [AVISOS_KEY];
+export const CLAVES_FUSIONABLES: readonly string[] = [AVISOS_KEY, CLAVE_DIRECTIVAS];
 
 export function esClaveFusionable(key: string): boolean {
     return CLAVES_FUSIONABLES.includes(key);
@@ -260,7 +270,35 @@ export function esClaveFusionable(key: string): boolean {
  */
 export function fusionarConLocal(key: string, remoto: unknown, localRaw: string | null): { valor: unknown; difiereDeRemoto: boolean } {
     if (key === AVISOS_KEY) return fusionarAvisosCrudo(remoto, localRaw);
+    if (key === CLAVE_DIRECTIVAS) return fusionarDirectivas(remoto, localRaw);
     return { valor: remoto, difiereDeRemoto: false };
+}
+
+/**
+ * Fusión del registro de directivas (MTN1027 · Meta^n, contrato §3.5/§4): por capa
+ * decide `ganaGuardado`, no el orden de llegada. Lo ilegible de ambos lados se cae
+ * (`normalizarRegistroDirectivas`), así el valor nunca viaja ni se fusiona en crudo.
+ */
+function fusionarDirectivas(remoto: unknown, localRaw: string | null): { valor: RegistroDirectivas; difiereDeRemoto: boolean } {
+    let local: RegistroDirectivas = {};
+    try {
+        local = normalizarRegistroDirectivas(localRaw ? (JSON.parse(localRaw) as unknown) : {});
+    } catch { /* valor local ilegible: se cae y manda por capa el de la cuenta */ }
+    const cuenta = normalizarRegistroDirectivas(remoto);
+    const fusion: RegistroDirectivas = {};
+    let localAporta = false;
+    for (const capa of new Set([...Object.keys(local), ...Object.keys(cuenta)])) {
+        const aqui = local[capa];
+        const alla = cuenta[capa];
+        if (!aqui) { fusion[capa] = alla; continue; }
+        if (!alla) { fusion[capa] = aqui; localAporta = true; continue; }
+        if (ganaGuardado(aqui, alla)) fusion[capa] = alla;
+        else {
+            fusion[capa] = aqui;
+            if (JSON.stringify(aqui) !== JSON.stringify(alla)) localAporta = true;
+        }
+    }
+    return { valor: fusion, difiereDeRemoto: localAporta };
 }
 
 /** Prefijos EXCLUIDOS aunque coincidan con un prefijo sincronizado (defensa en profundidad). */
