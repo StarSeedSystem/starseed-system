@@ -23,6 +23,11 @@ Un solo camino para el botón «Reparar» y para los directores:
 Lo que NO hace, a propósito: publicar (la autopublicación tiene sus puertas y su interruptor),
 borrar ramas, tocar claves, ni nada que no tenga una reparación conocida: eso se dice tal cual.
 
+(RPM1101A, 2026-11-01): si Genesis no contesta porque la Mac VA SIN MEMORIA, reiniciarlo no sirve:
+la reparación libera primero con lo ya existente (el guardia: dormir BitNet, que congelado no
+suelta su RAM; los trabajadores de pruebas huérfanos fuera, `agentes_huerfanos`) y el resumen
+dice la causa («la Mac está sin memoria: …») en vez de «sigue igual».
+
 Uso:
   reparar_medidor.py <medidor> [--origen boton|directores]   # uno, ya (el botón)
   reparar_medidor.py --todos [--origen directores] [--forzar] # los automáticos, con tiempos mínimos
@@ -83,6 +88,10 @@ REGLAS: Tuple[Tuple[str, Tuple[str, ...], Tuple[str, ...]], ...] = (
 #: Medidores que se reparan siempre con lo mismo cuando algo no está vivo.
 POR_MEDIDOR = {"contenedores": ("contenedores",)}
 
+#: (RPM1101A) Lo que pone `accion_genesis` en su resultado cuando la Mac va sin memoria: la
+#: «causa» que `frase` sube al resumen en lugar del «sigue igual».
+SIN_MEMORIA = "la Mac está sin memoria"
+
 TITULOS = {
     "vigilante": "Relanzar el vigilante del enjambre (él relanza el orquestador si hay trabajo)",
     "enjambre": "Curar el enjambre (proveedores que volvieron, orquestador atascado)",
@@ -94,7 +103,7 @@ TITULOS = {
     "proveedores": "Quitar marcas falsas de «sin cupo» y levantar las de quien responde",
     "autopublicacion": "Ver por qué no ha salido la autopublicación",
     "tokens": "Reiniciar el servicio de tokens",
-    "genesis": "Comprobar que Genesis contesta y reiniciarlo si no",
+    "genesis": "Comprobar que Genesis contesta y reiniciar si no (o liberar si la Mac no tiene memoria)",
     "contenedores": "Volver a medir los contenedores de la nube",
     "capacidad": "Buscar más capacidad en todos los medios (llenar la Mac, lanzar jobs en la nube)",
 }
@@ -162,6 +171,16 @@ def resultado(antes: List[Dict[str, Any]], despues: List[Dict[str, Any]], hubo_p
     return "sigue"
 
 
+def causa_sin_memoria(hechas: List[Dict[str, Any]]) -> str:
+    """PURA (RPM1101A): el resultado de una acción que dice la causa de memoria («la Mac está
+    sin memoria: …»), o «» si ninguna la dijo. `frase` lo sube al resumen cuando quedó algo."""
+    for h in hechas or []:
+        r = str(h.get("resultado") or "")
+        if r.startswith(SIN_MEMORIA):
+            return r
+    return ""
+
+
 def toca_auto(clave: str, plan: List[Dict[str, str]], estado: Dict[str, Any], ahora: float,
               forzar: bool = False) -> bool:
     """PURA: ¿reparan los directores este medidor ahora? Solo si hay plan y pasó su tiempo mínimo."""
@@ -180,7 +199,12 @@ def frase(clave: str, res: str, hechas: List[Dict[str, Any]], resumen_despues: s
         return "«%s» está sano: no había nada que reparar." % clave
     if res == "sin_reparacion":
         return "«%s» tiene fallos sin reparación automática conocida: se dicen abajo." % clave
+    causa = causa_sin_memoria(hechas)
     cabeza = {"reparado": "reparado", "mejorado": "mejorado (queda algo)", "sigue": "sigue igual tras reparar"}[res]
+    if causa and res in ("sigue", "mejorado"):
+        # (RPM1101A) El «sigue igual» sin explicación ya era mitad del problema: la causa
+        # («la Mac está sin memoria: …») va EN su lugar.
+        cabeza = causa
     return "«%s» %s · %d de %d acción(es) bien · ahora: %s" % (clave, cabeza, bien, len(hechas), resumen_despues)
 
 
@@ -380,19 +404,67 @@ def instalando_build(raiz: str = RAIZ) -> bool:
     return os.path.isdir(os.path.join(raiz, ".next-build"))
 
 
-def accion_genesis() -> Tuple[bool, str]:
+def falta_memoria_guardia() -> bool:
+    """¿La Mac va sin memoria? La MISMA medida del guardia: poca RAM libre bajo su umbral o
+    presión de kernel (nivel 2 o más). Sin medida o sin el guardia cargable: no, no se inventa
+    una falta que no se ve."""
+    try:
+        g = _modulo("guardia-memoria.py", "guardia_genesis_reparar")
+        return bool(g.falta_memoria(g.libres_mb(), g.presion_nucleo()))
+    except Exception:  # noqa: BLE001 — sin medida, no hay causa que decir
+        return False
+
+
+def liberar_memoria() -> Tuple[bool, str]:
+    """(RPM1101A) Liberar ANTES de darle una vuelta a Genesis, con lo ya existente: los
+    trabajadores de pruebas huérfanos fuera (el barrido de `guardia-memoria` con
+    `agentes_huerfanos`, vitest y tsc adoptados por init) y el guardia de memoria encendido,
+    que con falta de memoria pide ÉL solo dormir a BitNet (dormida suelta su RAM, congelada
+    no) y congela lo demás con sus reglas — la conversación manda, nunca lo hacemos por él.
+    «Ollama keep_alive 0» vive fuera del repo (en el gestor de Astraura): no se toca."""
+    g = _modulo("guardia-memoria.py", "guardia_liberar_genesis")
+    cortados = g.barrer_trabajadores_huerfanos()
+    partes = []
+    if cortados:
+        partes.append("corte %d trabajador(es) de pruebas huérfano(s)" % len(cortados))
+    libres = g.libres_mb()
+    if libres is not None:
+        partes.append("quedan %d MB de RAM" % libres)
+    ok_v, texto_v = _kickstart("com.starseed.guardia")
+    partes.append("guardia de memoria %s" % ("encendido" if ok_v else "sigue igual: %s" % texto_v))
+    return bool(cortados) or ok_v, "; ".join(partes)
+
+
+def accion_genesis(sondear: Optional[Callable[[], bool]] = None,
+                   falta: Optional[Callable[[], bool]] = None,
+                   liberar: Optional[Callable[[], Tuple[bool, str]]] = None,
+                   espera: Optional[float] = None) -> Tuple[bool, str]:
     """Con las MISMAS reglas que la autocuración (2026-10-23: la primera pasada reinició Genesis
     mientras `instalar_build.py` lo estaba reiniciando): nunca durante una publicación o una
-    instalación, y no otra vez si ya se reinició hace poco."""
+    instalación, y no otra vez si ya se reinició hace poco.
+
+    (RPM1101A) Si no contesta porque la Mac va sin memoria, reiniciarlo NO sirve: con las sondas
+    fallidas y falta de memoria, libera primero (el guardia y lo suyo) y el resultado (la que va
+    al resumen) dice la causa, sin reiniciar. Vuelve solo cuando quede memoria."""
     import autocuracion_mando as A
+    sondear = sondear or (lambda: bool(A.sondear()))
+    falta_fn = falta if falta is not None else falta_memoria_guardia
+    liberar_fn = liberar or liberar_memoria
+    espera = A.ESPERA_ENTRE_SONDAS_S if espera is None else espera
     sondas = []
     for _ in range(A.SONDAS):
-        sondas.append(bool(A.sondear()))
+        sondas.append(sondear())
         if sondas[-1]:
             return True, "Genesis contesta: no hacía falta reiniciarlo"
-        time.sleep(A.ESPERA_ENTRE_SONDAS_S)
+        time.sleep(espera)
     if instalando_build():
         return False, "no contesta, pero se está instalando una build nueva (ella lo reinicia): espero"
+    if falta_fn():
+        ok_libera, texto_liberado = liberar_fn()
+        causa = "%s: %s" % (SIN_MEMORIA, texto_liberado)
+        if sondear():
+            return True, "%s · Genesis contesta otra vez" % causa
+        return False, "%s · Genesis sigue sin contestar: volverá cuando quede memoria" % causa
     estado = A._leer_json(A.ESTADO, {})
     ahora = time.time()
     reiniciar, porque = A.decidir_reinicio(sondas, ahora, estado.get("ultimo_reinicio"),
@@ -402,7 +474,7 @@ def accion_genesis() -> Tuple[bool, str]:
     A._reiniciar()
     estado["ultimo_reinicio"] = ahora
     A._guardar(estado)
-    return bool(A.sondear()), "Genesis %s: lo reinicié" % porque
+    return bool(sondear()), "Genesis %s: lo reinicié" % porque
 
 
 def accion_contenedores() -> Tuple[bool, str]:
