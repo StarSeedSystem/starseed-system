@@ -84,15 +84,17 @@ export interface PropsTexto3D {
     grados?: number;
     /** Tamaño pedido por quien pinta; se sube al mínimo si hace falta. */
     fontSize?: number;
+    /** Peso tipográfico del texto (títulos): `undefined` = el normal. */
+    peso?: "normal" | "bold";
     tono?: TonoTexto;
     children?: ReactNode;
 }
 
 /** Texto 3D que NUNCA se pinta por debajo de 1° de arco (contrato §3 a). */
-export function Texto3D({ distancia, grados, fontSize, tono = "texto", children }: PropsTexto3D) {
+export function Texto3D({ distancia, grados, fontSize, peso, tono = "texto", children }: PropsTexto3D) {
     const tamano = fontSizeTexto(distancia, grados ?? TEXTO_MIN_DEG, fontSize);
     return (
-        <Text fontSize={tamano} color={CRISTAL[tono]}>
+        <Text fontSize={tamano} fontWeight={peso} color={CRISTAL[tono]}>
             {children}
         </Text>
     );

@@ -65,7 +65,7 @@ export function TarjetaVoz({ modelo, frase, onResultado }: PropsTarjetaVoz) {
                     <Container flexDirection="column" width={ANCHO_INTERIOR} paddingTop={26} paddingLeft={26} paddingRight={26} paddingBottom={22} gap={12}>
                         {modelo.tipo === "confirmar" && (
                             <>
-                                <Texto3D distancia={DISTANCIA} fontSize={40} fontWeight="bold">{modelo.titulo}</Texto3D>
+                                <Texto3D distancia={DISTANCIA} fontSize={40} peso="bold">{modelo.titulo}</Texto3D>
                                 {modelo.lineas.map((s, i) => (
                                     <Texto3D key={i} distancia={DISTANCIA} tono={i === modelo.lineas.length - 1 ? "textoSecundario" : "texto"}>
                                         {s}
@@ -80,7 +80,7 @@ export function TarjetaVoz({ modelo, frase, onResultado }: PropsTarjetaVoz) {
                         )}
                         {modelo.tipo === "preguntar" && (
                             <>
-                                <Texto3D distancia={DISTANCIA} fontSize={34} fontWeight="bold">{modelo.pregunta}</Texto3D>
+                                <Texto3D distancia={DISTANCIA} fontSize={34} peso="bold">{modelo.pregunta}</Texto3D>
                                 {modelo.opciones.map((o, i) => (
                                     <Container key={o.id} width={ANCHO_INTERIOR} height={pixeles(0.042)} borderRadius={10}
                                         backgroundColor={CRISTAL.fondoB.color} cursor="pointer" onPointerUp={() => onResultado({ elegir: o.id })}>

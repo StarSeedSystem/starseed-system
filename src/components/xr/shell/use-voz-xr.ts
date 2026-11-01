@@ -9,11 +9,12 @@
  * Consumo: la tarjeta de confirmación y los ejecutores los cablean XR1010Q y XR1010T.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ContextoVoz } from "@/lib/xr/intenciones-tipos";
 import { useLiveGroups } from "@/lib/widget-data/os-live";
 import { useContactos } from "@/lib/contactos/store";
 import { listarEstaciones } from "@/lib/estaciones/datos";
 import { listServers } from "@/lib/brains/servers";
-import { construirContexto, crearSesionVoz, MOTIVO_SIN_VOZ, reconocedorDelNavegador, reconocedorLocal, type EstadoVoz, type Referenciable, type Reparto, type SesionVoz } from "./voz-xr";
+import { construirContexto, crearSesionVoz, MOTIVO_SIN_VOZ, reconocedorDelNavegador, reconocedorLocal, repartirFrase, type DatosCuenta, type EstadoVoz, type Referenciable, type Reparto, type SesionVoz } from "./voz-xr";
 
 export interface OpcionesVozXR {
     /** «este grupo» / lo señalado con el rayo (§3 f): lo trae XR1010Q. */
@@ -22,6 +23,8 @@ export interface OpcionesVozXR {
     mundoActual?: { id: string; nombre: string } | null;
     /** Hay una Protomolécula con foco abierto: lo da XR1010T. */
     moleculaConFoco?: boolean;
+    /** Mientras haya tarjeta de confirmación abierta, la frase es SUYA: devuelve `null` y el visor lo resuelve. */
+    repartoExterno?: (frase: string, ctx: ContextoVoz, molecula: boolean) => Reparto | null;
 }
 
 export interface VozXR {
@@ -31,6 +34,8 @@ export interface VozXR {
     /** `true` = pulsar (abre el mic); `false` = soltar (cierra el mic y reparte). */
     hablar(sube: boolean): void;
     cancelar(): void;
+    /** Vuelve a repartir la ÚLTIMA frase con un candidato elegido como enfoque (resuelve «¿cuál?»). */
+    elegirEnfoque(ref: NonNullable<OpcionesVozXR["enfoque"]>): void;
 }
 
 export function useVozXR(opciones: OpcionesVozXR = {}): VozXR {
@@ -59,16 +64,19 @@ export function useVozXR(opciones: OpcionesVozXR = {}): VozXR {
     }, []);
 
     // Contexto de voz FRESCO en cada render, pero congelado al soltar (lo lee `preguntar`).
+    const [enfoque, setEnfoque] = useState<NonNullable<OpcionesVozXR["enfoque"]> | null>(opciones.enfoque ?? null);
+    const enfoqueActual = enfoque ?? opciones.enfoque ?? null;
+    useEffect(() => { setEnfoque(opciones.enfoque ?? null); }, [opciones.enfoque]);
     const ctx = useMemo(() => {
         const gs: Referenciable[] = grupos.rows.filter((g) => !!g.name).map((g) => ({ id: g.id, nombre: g.name!, ...(typeof g.member_count === "number" ? { miembros: g.member_count } : {}) }));
         const cs: Referenciable[] = libreta.contactos.map((c) => ({ id: c.id, nombre: c.nombre, ...(c.username ? { alias: [c.username] } : {}) }));
-        return construirContexto(
-            { grupos: gs, contactos: cs, estaciones: extras.estaciones, servidores: extras.servidores },
-            opciones.enfoque ?? null,
-            opciones.mundoActual ?? null,
-        );
-    }, [grupos.rows, libreta.contactos, extras.estaciones, extras.servidores, opciones.enfoque, opciones.mundoActual]);
+        const datos: DatosCuenta = { grupos: gs, contactos: cs, estaciones: extras.estaciones, servidores: extras.servidores };
+        datosRef.current = datos;
+        return construirContexto(datos, enfoqueActual, opciones.mundoActual ?? null);
+    }, [grupos.rows, libreta.contactos, extras.estaciones, extras.servidores, enfoqueActual, opciones.mundoActual]);
     const ctxRef = useRef(ctx); ctxRef.current = ctx;
+    const datosRef = useRef<DatosCuenta>({ grupos: [], contactos: [], estaciones: [], servidores: [] });
+    const fraseRef = useRef<string | null>(null);
     const opcionesRef = useRef(opciones); opcionesRef.current = opciones;
 
     // Reconocedor 1 (navegador) con respaldo 2 (oído local de la neurona); si ninguno, sin voz.
@@ -78,6 +86,8 @@ export function useVozXR(opciones: OpcionesVozXR = {}): VozXR {
     useEffect(() => {
         const s = crearSesionVoz(recon, {
             preguntar: () => ({ ctx: ctxRef.current, molecula: opcionesRef.current.moleculaConFoco ?? false }),
+            alFrase: (t) => { fraseRef.current = t; },
+            repartir: (frase, ctx, molecula) => opcionesRef.current.repartoExterno?.(frase, ctx, molecula) ?? repartirFrase(frase, ctx, molecula),
             alEstado: (e) => setEstado(e),
             alParcial: (t) => setParcial(t),
             alReparto: (r) => setResultado(r),
@@ -89,6 +99,14 @@ export function useVozXR(opciones: OpcionesVozXR = {}): VozXR {
 
     const hablar = useCallback((sube: boolean) => { void sesion?.hablar(sube); }, [sesion]);
     const cancelar = useCallback(() => { sesion?.cancelar(); setParcial(""); setResultado(null); }, [sesion]);
+    // «¿Cuál? Banda (6) · Banda vieja (3)»: la respuesta se convierte en el enfoque y la ÚLTIMA frase
+    // se vuelve a repartir con él; `entenderVoz` resuelve «este grupo» contra el candidato elegido.
+    const elegirEnfoque = useCallback((ref: NonNullable<OpcionesVozXR["enfoque"]>) => {
+        setEnfoque(ref);
+        const frase = fraseRef.current;
+        if (!frase) return;
+        setResultado(repartirFrase(frase, construirContexto(datosRef.current, ref, opcionesRef.current.mundoActual ?? null), opcionesRef.current.moleculaConFoco ?? false));
+    }, []);
 
-    return { estado, parcial, resultado, hablar, cancelar };
+    return { estado, parcial, resultado, hablar, cancelar, elegirEnfoque };
 }

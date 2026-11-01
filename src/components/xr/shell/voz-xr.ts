@@ -73,9 +73,15 @@ export const reconocedorLocal = (): Reconocedor | null => {
 };
 
 export type EstadoVoz = { estado: "cerrado" } | { estado: "escuchando" } | { estado: "procesando" } | { estado: "sin-voz"; motivo: string };
+/** Quién reparte la frase; `null` = esa frase no la reparte la máquina (la arbitra la tarjeta, §3 f). */
+export type Repartidor = (frase: string, ctx: ContextoVoz, molecula: boolean) => Reparto | null;
 export interface OpcionesSesion {
     /** Contexto CONGELADO al soltar: listas + enfoque + molécula con foco. */
     preguntar: () => { ctx: ContextoVoz; molecula: boolean }; alEstado: (e: EstadoVoz) => void; alParcial: (t: string) => void; alReparto: (r: Reparto) => void;
+    /** Frase FINAL suelta (tal como la dictó la persona), para que la tarjeta de confirmación la resuelva también por voz. */
+    alFrase?: (t: string) => void;
+    /** Falta si es `undefined`: `repartirFrase` directo. Si hay tarjeta de confirmación abierta, la frase es SUYA. */
+    repartir?: Repartidor;
 }
 export interface SesionVoz {
     /** `true` = pulsar «hablar» (abre el mic); `false` = soltar (lo cierra y reparte). */
@@ -87,9 +93,18 @@ export const MOTIVO_SIN_VOZ = "Este aparato no ofrece reconocimiento del navegad
 export function crearSesionVoz(recon: Reconocedor | null, es: OpcionesSesion): SesionVoz {
     let abierta = false, esperando = false, cancelada = false;
     const bajo = (r: Reconocedor) => { try { r.parar(); } catch { /* ya cerrado */ } };
+    const repartir: Repartidor = es.repartir ?? repartirFrase;
     const bajas: (() => void)[] = recon
         ? [recon.onParcial((t) => es.alParcial(t)),
-            recon.onFinal((t) => { if (cancelada || (!abierta && !esperando)) return; abierta = false; esperando = false; const c = es.preguntar(); es.alReparto(repartirFrase(t, c.ctx, c.molecula)); es.alEstado({ estado: "cerrado" }); }),
+            recon.onFinal((t) => {
+                if (cancelada || (!abierta && !esperando)) return;
+                abierta = false; esperando = false;
+                es.alFrase?.(t);
+                const c = es.preguntar();
+                const r = repartir(t, c.ctx, c.molecula);
+                if (r) es.alReparto(r);
+                es.alEstado({ estado: "cerrado" });
+            }),
             recon.onError((m) => { bajo(recon); abierta = false; esperando = false; es.alEstado({ estado: "sin-voz", motivo: `El micrófono falló y quedó cerrado: ${m}` }); })]
         : [];
     return {

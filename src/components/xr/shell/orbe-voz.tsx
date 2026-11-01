@@ -3,9 +3,9 @@
  * StarSeed XR · ORBE CON VOZ (tarea XR1010P · contrato `architecture/starseed-xr.md` §3 a y f).
  * Conecta lo que YA existía: `useVozXR` (máquina pura probada en `voz-xr.ts`) con `OrbeAstraura`
  * (XR1010O), que dejó el puente `pipeline` a la espera de esta tarea. Escucha, parcial, capa
- * entendida y avisos entran a Zenith por ahí. El ejecutor del mundo (XR1010R) ya se aplica sobre
- * `resultado` (crear/editar, ir a y abrir); la tarjeta de confirmación y lo que sale de la cuenta
- * lo cablean XR1010Q y XR1010T. Cascarón fino de R3F.
+ * entendida y avisos entran a Zenith por ahí. El ejecutor del mundo (XR1010R) se aplica sobre
+ * `resultado` (crear/editar, ir a y abrir) y la TARJETA DE CONFIRMACIÓN (XR1010Q) arbitra lo
+ * que sale de la cuenta: nada se ejecuta sin su «confirmar». Cascarón fino de R3F.
  */
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { astrauraChat } from "@/ai/astraura/router";
@@ -13,6 +13,8 @@ import { leerMundo } from "@/lib/vivo/xr-mundo";
 import { ejecutarMundo, pasosDeMundo, refSalaDeUrl, type MundoEnContexto } from "./ejecutor-mundo";
 import { NivelCalidadContext } from "./panel-cristal";
 import { OrbeAstraura, type EmisorOrbe } from "./orbe-astraura";
+import { TarjetaVoz } from "./tarjeta-voz";
+import { conSalidaPendiente, usarTarjeta } from "./tarjeta-enlace";
 import type { EventoOrbe } from "./estado-orbe";
 import { useVozXR } from "./use-voz-xr";
 import type { EstadoVoz, Reparto } from "./voz-xr";
@@ -43,12 +45,21 @@ export function eventosDeCambio(estado: EstadoVoz, parcial: string, resultado: R
 export function OrbeVoz() {
     const nivel = useContext(NivelCalidadContext);
     const [actual, setActual] = useState<MundoEnContexto | null>(null);
-    const { estado, parcial, resultado, hablar } = useVozXR({
+    const { estado, parcial, resultado, hablar, cancelar, elegirEnfoque } = useVozXR({
         mundoActual: actual ? { id: actual.refId, nombre: actual.mundo.nombre } : null,
     });
     const emisor = useRef<EmisorOrbe | null>(null);
     const creado = useRef<MundoEnContexto | null>(null);
     const ejecutado = useRef<Reparto | null>(null);
+    // La tarjeta de confirmación (XR1010Q): con lo que sale de la cuenta o con la duda «¿cuál?»,
+    // y de ella no sale nada sin decidir (botón, opción tocada o la frase dictada, por voz).
+    const enlace = usarTarjeta({
+        resultado,
+        avisar: (e) => { emisor.current?.(e); },
+        escena: () => actual?.refId ?? creado.current?.refId ?? null,
+        cancelar,
+        elegirEnfoque,
+    });
     const pipeline = useCallback((enviar: EmisorOrbe) => {
         emisor.current = enviar;
         return () => { emisor.current = null; };
@@ -73,12 +84,13 @@ export function OrbeVoz() {
         [],
     );
 
-    // La voz ya entendida se APLICA aquí: crea o edita el mundo y navega al destino; lo que sale
-    // de la cuenta (invitar, subir) espera a la tarjeta de XR1010Q y a XR1010T.
+    // La voz ya entendida se APLICA aquí: crea o edita el mundo y decide el destino; lo que sale
+    // de la cuenta (invitar, subir) espera a la tarjeta de confirmación y a su «confirmar».
     useEffect(() => {
         if (!resultado || resultado.via !== "intencion" || !resultado.resultado.ok || ejecutado.current === resultado) return;
         ejecutado.current = resultado;
-        const pasos = pasosDeMundo(resultado.resultado.pasos);
+        const salidaOk = resultado.resultado;
+        const pasos = pasosDeMundo(salidaOk.pasos);
         if (!pasos.length) return;
         void (async () => {
             let destino: string | null = null;
@@ -94,11 +106,16 @@ export function OrbeVoz() {
                 enviar?.({ tipo: "habla-inicio", texto: r.resumen });
                 enviar?.({ tipo: "habla-fin" });
             }
-            if (destino) window.location.assign(destino);
+            enlace.siHayDestino(destino, conSalidaPendiente(salidaOk.pasos));
         })();
-    }, [resultado, nivel, razonar, actual]);
+    }, [resultado, nivel, razonar, actual, enlace]);
 
-    return <OrbeAstraura pipeline={pipeline} hablar={hablar} />;
+    return (
+        <>
+            <OrbeAstraura pipeline={pipeline} hablar={hablar} />
+            <TarjetaVoz modelo={enlace.modelo} frase={enlace.frase} onResultado={enlace.resolver} />
+        </>
+    );
 }
 
 export default OrbeVoz;
