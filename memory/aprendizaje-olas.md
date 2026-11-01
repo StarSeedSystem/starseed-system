@@ -4662,3 +4662,49 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-11-01 18:15 · mg-oracle-1101-1018
+
+**Lo que se pidió.** Ejecutor de intenciones I: crear y editar mundos, ir a destinos, abrir pizarra o llamada
+
+**Resultado.** 0 de 30 integradas. 30 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 23 tareas se fueron por lo mismo — no escribió nada (RTXR1010R-d2, RTRTRTS1010-EV-ORACLE-1acbbbbbbbbbb-d2, INF1025D, INF1025B, DSN1025D, ART1025C). Es 77 % de la ola.
+- 5 tareas se fueron por lo mismo — los tipos no compilan (RTRTRTRTCOL1012Bdsbbbbbbbbbb-d2, RTRTRTRTRTRTCOL1012Bdsbbbbbbbbbbb-d2, MVD1027Eb, RTVPU1019D-d3, AGT1025B). Es 17 % de la ola.
+- 2 tareas se fueron por lo mismo — otra cosa (BLD1025K, BLD1025B). Es 7 % de la ola.
+- sin modelo anotado no integró ninguna de sus 23 tareas.
+- freellmapi/auto no integró ninguna de sus 5 tareas.
+- llm7/minimax-m2.7 no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTXR1010R-d2` — no escribió nada
+- `RTRTRTRTCOL1012Bdsbbbbbbbbbb-d2` — los tipos no compilan: 15 errores tsc (rama ola/RTRTRTRTCOL1012Bdsbbbbbbbbbb-d2 conservada)
+- `RTRTRTS1010-EV-ORACLE-1acbbbbbbbbbb-d2` — no escribió nada
+- `RTRTRTRTRTRTCOL1012Bdsbbbbbbbbbbb-d2` — los tipos no compilan: 1 errores tsc (rama ola/RTRTRTRTRTRTCOL1012Bdsbbbbbbbbbbb-d2 conservada)
+- `MVD1027Eb` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/MVD1027Eb conservada)
+- `RTVPU1019D-d3` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTVPU1019D-d3 conservada)
+- `INF1025D` — no escribió nada
+- `INF1025B` — no escribió nada
+- `DSN1025D` — no escribió nada
+- `AGT1025B` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/AGT1025B conservada)
+- `ART1025C` — no escribió nada
+- `ART1025G` — no escribió nada
+- `BLD1025K` — otra cosa: sin decisión en 0 h; rama ola/BLD1025K conservada
+- `CPZ1025D` — no escribió nada
+- `CPZ1025F` — no escribió nada
+- `CPZ1025H` — no escribió nada
+- `DSN1025G` — no escribió nada
+- `DSN1025H` — no escribió nada
+- `INF1025G` — no escribió nada
+- `ART1025B` — no escribió nada
+- `ART1025L` — no escribió nada
+- `BLD1025B` — otra cosa: sin decisión en 0 h; rama ola/BLD1025B conservada
+- `BLD1025C` — no escribió nada
+- `CFC1025A` — no escribió nada
+- `CPZ1025A` — no escribió nada
+- `DSN1025A` — no escribió nada
+- `INV1025B` — no escribió nada
+- `INV1025F` — no escribió nada
+- `DSN1025B` — no escribió nada
+- `INV1025J` — no escribió nada
