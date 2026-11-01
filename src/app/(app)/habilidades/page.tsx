@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import AbilitiesHub from "@/components/abilities/abilities-hub";
 import MediaGenPanel from "@/components/media/media-gen-panel";
-import SugerenciasInstalacion from "@/components/imagenes/sugerencias-instalacion";
+import { SugerenciasInstalacion, TarjetaImagenes } from "@/components/imagenes";
+import type { PeticionImagen } from "@/lib/imagenes/plan";
 import { isCapabilityDisabled, setCapabilityDisabled } from "@/ai/astraura/skills";
 
 // Adenda 138 · La habilidad de GENERACIÓN AUDIOVISUAL está ENCENDIDA por defecto
@@ -42,8 +43,44 @@ function AudiovisualAbilitySection() {
       <div className="mt-4 space-y-4">
         <MediaGenPanel />
         <SugerenciasInstalacion />
+        <PruebaPorCapas />
       </div>
     </section>
+  );
+}
+
+/** Prueba aquí las opciones por capas (IMG1011J): escribes una idea y Astraura reparte modelos y motores. */
+function PruebaPorCapas() {
+  const [prompt, setPrompt] = useState("");
+  const [peticion, setPeticion] = useState<(PeticionImagen & { prompt?: string }) | undefined>();
+  const repartir = () => {
+    const texto = prompt.trim();
+    if (!texto) return;
+    setPeticion({ opciones: 4, prioridad: "rapidez", comercial: false, necesita: ["texto-a-imagen"], conReferencia: false, permisoRemoto: false, permitirDePago: false, prompt: texto });
+  };
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+      <h3 className="text-sm font-semibold text-white">Opciones por capas</h3>
+      <p className="mt-1 text-xs text-white/55">
+        Describe una imagen y Astraura reparte VARIAS opciones: la pestaña, tu neurona, la malla y la web gratis,
+        con el modelo, la procedencia y la licencia de cada una.
+      </p>
+      <div className="mt-2 flex gap-2">
+        <input
+          type="text"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") repartir(); }}
+          placeholder="Ej.: un bosque de cristal al amanecer"
+          aria-label="Petición de imagen"
+          className="min-w-0 flex-1 rounded-lg border border-white/15 bg-transparent px-3 py-1.5 text-xs text-white placeholder:text-white/30"
+        />
+        <button type="button" onClick={repartir} className="cursor-pointer rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white transition-colors duration-200 hover:bg-white/10">
+          Repartir opciones
+        </button>
+      </div>
+      <div className="mt-3 text-white/80"><TarjetaImagenes peticion={peticion} /></div>
+    </div>
   );
 }
 
