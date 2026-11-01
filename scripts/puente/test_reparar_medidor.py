@@ -146,28 +146,34 @@ class Reparar(unittest.TestCase):
 
 
 class MemoriaAlta(unittest.TestCase):
-    def test_presion_alta_libera_recursos(self):
-        libres = {"libres_mb": 50, "presion_nucleo": 2, "mensaje": "RAM 50 MB libre · presión de kernel nivel 2"}
-        hecho, mensaje = R.presion_alta_y_librar()
-        self.assertTrue(hecho)
-        self.assertIn("RAM 50 MB libre", mensaje)
-        self.assertIn("presión de kernel nivel 2", mensaje)
+    def test_hay_presion_kernel_alta(self):
+        self.assertTrue(R.hay_presion_memoria(50, 2))
+        self.assertTrue(R.hay_presion_memoria(50, 3))
 
-    def test_memoria_critica_corta_huerfanos(self):
-        libres = {"libres_mb": 80, "presion_nucleo": None, "mensaje": "RAM 80 MB libre"}
-        hecho, mensaje = R.presion_alta_y_librar()
-        self.assertTrue(hecho)
-        self.assertIn("RAM 80 MB libre", mensaje)
+    def test_hay_presion_kernel_media(self):
+        self.assertTrue(R.hay_presion_memoria(50, 2))
 
-    def test_sin_presion_no_hace_nada(self):
-        libres = {"libres_mb": 800, "presion_nucleo": None, "mensaje": ""}
-        hecho, mensaje = R.presion_alta_y_librar()
-        self.assertFalse(hecho)
-        self.assertEqual(mensaje, "")
+    def test_ram_baja_indica_presion(self):
+        self.assertTrue(R.hay_presion_memoria(99, None))
+        self.assertTrue(R.hay_presion_memoria(50, None))
 
-    def test_libres_mb_none_devuelve_falso(self):
-        hecho, mensaje = R.presion_alta_y_librar()
-        self.assertFalse(hecho)
+    def test_sin_presion(self):
+        self.assertFalse(R.hay_presion_memoria(500, None))
+        self.assertFalse(R.hay_presion_memoria(500, 1))
+        self.assertFalse(R.hay_presion_memoria(None, None))
+        self.assertFalse(R.hay_presion_memoria(None, 1))
+
+    def test_mensaje_presion_kernel(self):
+        self.assertEqual(R.mensaje_presion_memoria(50, 2), "la Mac está sin memoria: presión de kernel nivel 2")
+        self.assertEqual(R.mensaje_presion_memoria(80, 3), "la Mac está sin memoria: presión de kernel nivel 3")
+
+    def test_mensaje_ram_baja(self):
+        self.assertEqual(R.mensaje_presion_memoria(99, None), "la Mac está sin memoria: RAM 99 MB libre")
+        self.assertEqual(R.mensaje_presion_memoria(50, None), "la Mac está sin memoria: RAM 50 MB libre")
+
+    def test_mensaje_sin_presion(self):
+        self.assertEqual(R.mensaje_presion_memoria(500, None), "")
+        self.assertEqual(R.mensaje_presion_memoria(None, None), "")
 
 
 class ResumenConMemoriaAlta(unittest.TestCase):
@@ -175,9 +181,18 @@ class ResumenConMemoriaAlta(unittest.TestCase):
         resumen = R.frase("genesis", "sigue", [], "Genesis no contesta: la Mac está sin memoria: RAM 50 MB libre")
         self.assertIn("la Mac está sin memoria", resumen)
 
+    def test_frase_con_presion_kernel(self):
+        resumen = R.frase("genesis", "sigue", [], "Genesis no contesta: la Mac está sin memoria: presión de kernel nivel 2")
+        self.assertIn("presión de kernel", resumen)
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_frase_con_mensaje_presion_incluido(self):
+        resumen = R.frase("genesis", "sigue", [], "Genesis no contesta", "la Mac está sin memoria: RAM 50 MB libre")
+        self.assertIn("la Mac está sin memoria", resumen)
+        self.assertIn("RAM 50 MB libre", resumen)
+
+    def test_frase_sin_mensaje_presion(self):
+        resumen = R.frase("genesis", "sigue", [], "Genesis no contesta")
+        self.assertIn("sigue igual tras reparar", resumen)
 
 
 class AvisosDelVigia(unittest.TestCase):
@@ -210,3 +225,7 @@ class GenesisNoSeReiniciaEncimaDeUnaInstalacion(unittest.TestCase):
             self.assertTrue(R.instalando_build(d))
         finally:
             shutil.rmtree(d, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -184,7 +184,8 @@ def toca_auto(clave: str, plan: List[Dict[str, str]], estado: Dict[str, Any], ah
     return ahora - ultima >= MINIMO_AUTO_S.get(clave, MINIMO_AUTO_DEFECTO_S)
 
 
-def frase(clave: str, res: str, hechas: List[Dict[str, Any]], resumen_despues: str) -> str:
+def frase(clave: str, res: str, hechas: List[Dict[str, Any]], resumen_despues: str,
+          mensaje_presion: str = "") -> str:
     """PURA: la línea que se enseña bajo el botón y se dice en el Chat Director."""
     bien = sum(1 for h in hechas if h.get("ok"))
     if res == "nada":
@@ -192,7 +193,10 @@ def frase(clave: str, res: str, hechas: List[Dict[str, Any]], resumen_despues: s
     if res == "sin_reparacion":
         return "«%s» tiene fallos sin reparación automática conocida: se dicen abajo." % clave
     cabeza = {"reparado": "reparado", "mejorado": "mejorado (queda algo)", "sigue": "sigue igual tras reparar"}[res]
-    return "«%s» %s · %d de %d acción(es) bien · ahora: %s" % (clave, cabeza, bien, len(hechas), resumen_despues)
+    frase_base = "«%s» %s · %d de %d acción(es) bien · ahora: %s" % (clave, cabeza, bien, len(hechas), resumen_despues)
+    if mensaje_presion:
+        frase_base = frase_base + " · " + mensaje_presion
+    return frase_base
 
 
 def hay_presion_memoria(libre_mb: Optional[float], presion: Optional[int]) -> bool:
@@ -228,9 +232,9 @@ def presion_alta_y_librar() -> Tuple[bool, str]:
     if presion is not None and presion >= 2:
         ok, _ = pedir_dormir_bitnet(URL_ASTRAURA)
         if ok:
-            mensaje = mensaje + "· BitNet dormido"
+            mensaje = mensaje + " · BitNet dormido"
         else:
-            mensaje = mensaje + "· no se pudo dormir BitNet"
+            mensaje = mensaje + " · no se pudo dormir BitNet"
     
     return True, mensaje
 
@@ -556,9 +560,9 @@ def reparar(clave: str, origen: str = "boton", comprobar: Callable[[str], Dict[s
     res = resultado(antes.get("veredictos") or [], despues.get("veredictos") or [], bool(plan))
     salida = {
         "medidor": clave, "origen": origen, "empezado": empezado, "terminado": _iso(),
-        "resultado": res, "resumen": frase(clave, res, hechas, despues.get("resumen") or ""),
+        "resultado": res, "resumen": frase(clave, res, hechas, despues.get("resumen") or "", mensaje_presion),
         "antes": {"resumen": antes.get("resumen"), "veredictos": antes.get("veredictos") or []},
-        "despues": {"resumen": despues.get("veredictos") or []},
+        "despues": {"resumen": despues.get("resumen") or "", "veredictos": despues.get("veredictos") or []},
         "acciones": hechas, "sin_reparacion": sin_reparacion(clave, despues.get("veredictos") or []),
     }
     _escribir(ruta_reparacion(clave), salida)
