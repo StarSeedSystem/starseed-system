@@ -25,7 +25,8 @@ import {
     cerebro,
     c,
 } from "@/lib/llamadas/bot-en-llamada";
-import type { PeticionServidorVoz, SesionVoz } from "@/lib/network/servidor-voz-sesion";
+import type { PeticionServidorVoz, SesionVoz, FichaServidorVoz, EleccionServidorVoz } from "@/lib/network/servidor-voz-sesion";
+import { elegirServidorVoz } from "@/lib/network/servidor-voz-sesion";
 
 const HORA = 1_760_000_000_000;
 const sesion = (): SesionVoz => ({ miembros: ["neurona-1", "n-habla"], tipo: "llamada" });

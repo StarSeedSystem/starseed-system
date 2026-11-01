@@ -13,7 +13,7 @@
  * mixer y reloj INYECTABLES, así que las pruebas no tocan red, micrófono ni procesos.
  * «Aurora SIEMPRE habla»: ninguna función de esta capa lanza (aurora-voz-motores.md §0).
  */
-import { elegirServidorVoz, type PeticionServidorVoz } from "@/lib/network/servidor-voz-sesion";
+import { elegirServidorVoz, type PeticionServidorVoz, type FichaServidorVoz } from "@/lib/network/servidor-voz-sesion";
 
 /** Silencio compartido mínimo para que el bot tome el turno (ms). */
 export const SILENCIO_MS = 700;
@@ -208,6 +208,21 @@ export function textoPersonaHelper(en: number, texto = "hola, ¿me oís?") {
     return { tipo: "persona" as const, de: "u-1", texto, en };
 }
 
+/** Helper para crear un mensaje de persona para pruebas (alias de textoPersonaHelper). */
+export function textoPersona(en: number, texto = "hola, ¿me oís?") {
+    return textoPersonaHelper(en, texto);
+}
+
+/** Helper para crear frase persona desde un test case. */
+export function frasePersona(p: string, t: string, e: number): FrasePersona {
+    return { de: p, texto: t, en: e };
+}
+
+/** Helper para crear frase persona (alias de frasePersona). */
+export function frase(p: string, t: string, e: number): FrasePersona {
+    return { de: p, texto: t, en: e };
+}
+
 /** Helper para pruebas — crea un servidor de voz falso. */
 export function c(id: string, latenciaMs: number, extra: Partial<FichaServidorVoz> = {}): FichaServidorVoz {
     return { neurona: id, latido: Date.now() - 5_000, latenciaMs, ...extra };
@@ -224,8 +239,8 @@ export function estadoInicialTurnos(): EstadoTurnos {
 }
 
 /** Funciones auxiliares PÚASAS para pruebas del turno del bot en llamada.
- * Esto permite probar la lógica del bot sin red, mixer ni procesos.
- */
+  * Esto permite probar la lógica del bot sin red, mixer ni procesos.
+  */
 export function evaluarTurno(estado: EstadoTurnos, ahora: number, opciones: { responder?: (textoPersona: string, persona: string) => string | null }): { accion: string; estado: EstadoTurnos; texto: string | null } {
     const { estado: nuevoEstado } = textoPersonaHelper(estado.personaEn ?? ahora);
     const respuesta = opciones.responder?.(nuevoEstado.texto ?? "", nuevoEstado.de ?? "") ?? null;
