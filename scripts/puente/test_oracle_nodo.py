@@ -137,6 +137,16 @@ class Prestamo(unittest.TestCase):
                     "nota": "movida a oracle (colas/oracle-20261018-231246) desde Genesis"}}
         self.assertEqual(N.devolver_de_oracle(p2, [], {}, True, nacida + 3 * 3600 + 60), [])
 
+    def test_lo_que_no_es_prestamo_de_oracle_no_vuelve(self):
+        """(RTVAR1021Cd) Una nota que cita la rama no basta: si el medio no es Oracle no es un
+        préstamo al A1, y una entrada que no es un dict no rompe el barrido del progreso."""
+        import calendar
+        nacida = calendar.timegm((2026, 10, 18, 23, 12, 46, 0, 0, 0))
+        nota = "movida a oracle (colas/oracle-20261018-231246) desde Genesis"
+        p = {"W": {"estado": "reasignada", "medio": "nube", "nota": nota},
+             "X": "basura"}
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 3 * 3600 + 60), [])
+
 
 class Resumen(unittest.TestCase):
     def test_sin_urls_ni_ips_y_con_la_sonda_publica(self):
