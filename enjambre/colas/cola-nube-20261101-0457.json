@@ -1,0 +1,130 @@
+{
+ "ola": "nube-20261101",
+ "tareas": [
+  {
+   "id": "SUP0111F",
+   "titulo": "ArtCraft · casos útiles de la rama de RTART1025M en huellas.test.ts y mcp-stdio.test.ts",
+   "archivos": [
+    "src/lib/artcraft/__tests__/huellas.test.ts",
+    "src/lib/artcraft/__tests__/mcp-stdio.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nSustituye a RTART1025M-d2 (reasignada por el triage del 31-10; la nube la intentó 3 veces y dijo «sin_cambios»). La rama archivada `refs/archivo/nube/41010054460` trae casos para `src/lib/artcraft/__tests__/huellas.test.ts` y `mcp-stdio.test.ts`. Léelos con `git show refs/archivo/nube/41010054460:<ruta>` y añade SOLO los que prueban algo que main no cubre, mínimos y contra el código de hoy (`src/lib/artcraft/huellas.ts` y el de mcp-stdio). Un caso cubierto con otro nombre no se repite; uno que prueba un contrato que main cambió a propósito se descarta. Si ninguno aporta, `NO APLICA`. vitest de esos dos archivos.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "SUP0111K",
+   "titulo": "Guardia · también corta el tsc de un tsc-turno huérfano (como los vitest adoptados por init)",
+   "archivos": [
+    "scripts/puente/agentes_huerfanos.py",
+    "scripts/puente/test_agentes_huerfanos.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nEl 31-10 a las 20:41 un agente lanzó `zsh -c 'bash scripts/enjambre/tsc-turno.sh 2>&1 | tail -40'`, murió, el zsh quedó adoptado por launchd (ppid 1) y su `npm exec tsc` → `node …/bin/tsc --noEmit` siguió 3 h con 4,6 GB en una Mac de 8 GB. SUP0111J (tsc-turno con plazo y vigilancia) lo evita desde ahora, pero no cubre un tsc-turno matado con SIGKILL ni los que ya corrían con el guion viejo. `agentes_huerfanos.trabajadores_huerfanos(filas)` (filas = (pid, ppid, args) de `ps -eo pid=,ppid=,args=`) ya devuelve los `node (vitest N)` adoptados por init y guardia-memoria.py los corta. Añade una función PURA `tsc_huerfanos(filas)` que devuelva los pids del árbol (npm exec tsc y node …/bin/tsc) cuando: (a) su padre es init (ppid 1), o (b) subiendo por ppid hay un `bash …scripts/enjambre/tsc-turno.sh` cuyo padre es un shell `-c` (zsh/bash/sh) con ppid 1. NUNCA el tsc de la puerta del orquestador (su cadena sube a `starseed-enjambre.py`, aunque ese tenga ppid 1) ni un tsc sin tsc-turno que tenga un padre vivo distinto de init. Haz que `trabajadores_huerfanos` incluya esos pids (o expórtala para que el guardia la llame sin tocar guardia-memoria.py). Pruebas PURAS con filas inventadas: el caso del 31-10, la puerta del orquestador, un tsc de una terminal, y un tsc con padre init.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "SUP0111D",
+   "importancia": "capacidad",
+   "titulo": "Reconstructor · si el .next servido pierde su BUILD_ID, repone .next-anterior al momento",
+   "archivos": [
+    "scripts/puente/reconstruir_mando.py",
+    "scripts/puente/test_reconstruir_mando.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nEl 31-10 un `next build` ajeno borró el `.next` servido y Genesis quedó caído hasta que alguien repuso `.next-anterior` a mano. Hoy `una_pasada()` solo repone si `.next-build` está entero. Añade: si `genesis_caido()` y `.next-build` NO está entero pero `.next-anterior` tiene BUILD_ID y build-manifest.json, entonces (a) mueve el `.next` roto a `~/.starseed/cuarentena/<AAAAMMDD-HHMM>-next-roto/` (nunca borrar), (b) renombra `.next-anterior` → `.next` con Genesis parado, siguiendo el mismo patrón bootout/bootstrap y comprobación de `_reiniciar_mando_sin_cerrojo` y con su cerrojo (`_tomar_cerrojo`), y (c) avisa. Decisión en una función PURA `reponer_anterior_toca(caido, build_entero, anterior_entero)` con pruebas; el resto, con dobles.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "SUP0111E",
+   "importancia": "capacidad",
+   "titulo": "Genesis en el A1 · la build sobrevive a un corte de ssh (desacoplada y con sondeo)",
+   "archivos": [
+    "scripts/puente/compilar_en_a1.py",
+    "scripts/puente/test_compilar_en_a1.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nEl 31-10, entre 18:51 y 19:20, la build del A1 murió varias veces porque se cortó la sesión ssh («Connection reset by peer»): `guion_turno` atrapa HUP y sale 129. SUP0111A (cde19c97d) ya deja la marca `.envio-a1` y TRAE sin recompilar un build terminado (`build_previo`); falta que la build no dependa de la sesión. Lanza el guion del turno DESACOPLADO: súbelo a `HOME_A1 + '/.starseed/compilar-a1/guion.sh'` con `oracle_nodo._ssh_bytes`, arráncalo como starseed con `setsid nohup sh guion.sh > build.log 2>&1 < /dev/null &` y que el propio guion escriba `estado.json` ({pid, inicio, rc}) al acabar. La Mac sondea cada 30 s con ssh cortos (`cat estado.json`; un fallo de red no es un fallo de build) hasta `rc` o el tope; con rc 0 → `traer_y_cambiar`. Si al empezar ya hay un guion vivo (pid de estado.json con `kill -0`), NO envía ni lanza otro: espera a ese. Funciones PURAS para el guion y la decisión; pruebas como las de `Flujo` y `Turno` (estas con `sh -s` de verdad).",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "VZF1015T",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Llamadas grupales con bots: cada uno se transcribe en su neurona, el bot contesta con voz en la llamada",
+   "archivos": [
+    "src/lib/llamadas/bot-en-llamada.ts",
+    "src/lib/llamadas/__tests__/bot-en-llamada.test.ts"
+   ],
+   "depende": [],
+   "prompt": "La llamada (`src/lib/llamadas/motor.ts`, malla WebRTC de hasta 8) no tiene oído ni voz de Astraura. Crea la lógica de turnos PURA: cada participante comparte el TEXTO de lo que dice (no el audio) por el canal de datos; un bot invitado lee ese texto, contesta cuando hay silencio (≥ 700 ms) y nadie más habla; un solo bot a la vez; una persona que habla lo corta; y la función que decide quién sintetiza la respuesta (el servidor de voz de la sesión, `elegirServidorVoz`). Más el enganche mínimo con `MotorLlamada` (pista de audio del bot por `omnivoice-mixer` con `setNeuronMixGain`), con todo inyectable. Pruebas de los turnos. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "revisor_quitadas": [
+    "VZF1015S"
+   ],
+   "dependencias_ya_en_main": [
+    "VZF1015R"
+   ]
+  },
+  {
+   "id": "MTN1027L2",
+   "ola": "1027N · Automejora recursiva (Meta^n)",
+   "titulo": "Biblioteca · registrar la tanda 1027b en el catálogo, la siembra y las actualizaciones",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/defaults-seed.ts",
+    "src/app/api/library/actualizaciones/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Meta^n (minnesotanlp/meta-n, MIT) «para todo el automejoramiento de cada capa de conciencia mesh automejorable de toda Astraura, con Colibri y los demás sistemas locales y mesh autoadaptables». Contrato: `architecture/automejora-meta-n.md` (léelo entero, sobre todo §3: Meta^n PROPONE dentro de una caja Docker sin red ni claves; el juez de StarSeed decide fuera de la caja sin ejecutar nada suyo; las funciones de ayuda nunca se cargan en caliente). Lo que hace falta de Meta^n está en `integraciones-de-codigo/meta-n/README-starseed.md`.\n\nComo hizo MBT1027O con la tanda 1027: registra `FICHAS_REPOS_1027B` donde se registran las de 1027, sus ids en la siembra (sube `SEED_VERSION` en 1) y en `fichasIaConUpstreamGitHub([...])` de la ruta de actualizaciones.",
+   "revisor_quitadas": [
+    "MBT1027O"
+   ],
+   "dependencias_ya_en_main": [
+    "MTN1027L"
+   ]
+  },
+  {
+   "id": "MBT1027Ob",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Biblioteca · registrar la tanda 1027 en el catálogo, la siembra y las actualizaciones",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/defaults-seed.ts",
+    "src/app/api/library/actualizaciones/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nRegistra `FICHAS_REPOS_1027` donde `packages.ts` registra las de 1026, sus ids en la siembra (`defaults-seed.ts`, sube `SEED_VERSION` en 1 como se hizo con 1026) y en `fichasIaConUpstreamGitHub([...])` de la ruta de actualizaciones, igual que `FICHAS_REPOS_1026`. Corre las pruebas de la Biblioteca (`src/lib/library/__tests__/`).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261031-185641-MBT1027O`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261031-185641-MBT1027O:refs/remotes/origin/nube/a1-20261031-185641-MBT1027O\"` y `git cherry-pick --no-commit f30074532b9d c078d96fed97 1c1a5d8e6417 437e6c8aa4e2`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/library/__tests__/defaults-seed-1020c.test.ts, src/lib/library/__tests__/defaults-seed-1020d.test.ts, src/lib/library/__tests__/defaults-seed.test.ts, src/lib/library/defaults-seed.ts, src/lib/library/fuentes-ia-locales.ts, src/lib/library/packages.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261031-185641-MBT1027O",
+   "dependencias_ya_en_main": [
+    "MBT1027N"
+   ]
+  },
+  {
+   "id": "XR1010M",
+   "ola": "Ola 1010X · StarSeed XR: el OS en visores de AR/VR (entrada automática, Trinity espacial, menús 3D, voz de Astraura, mundos, P2P, calidad automática)",
+   "titulo": "Dock curvo 3D (Anchor): las mismas apps del dock 2D, con honestidad sobre lo que aún no tiene vista 3D",
+   "archivos": [
+    "src/components/xr/shell/dock-3d.tsx",
+    "src/components/xr/shell/apps-3d.ts",
+    "src/components/xr/shell/__tests__/apps-3d.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/starseed-xr.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §2 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica; §3 (a)–(o) son las reglas del área y §1 la investigación fechada (qué existe y qué NO en cada visor). El núcleo puro YA está escrito y probado (214 pruebas) y NO se modifica: `src/lib/xr/{tipos,capacidades,calidad,calidad-perfiles,espacio-trinity,tokens-3d,transiciones,mundo-tipos,mundo-reglas,mundo-saneo,mundo-spec,intenciones-tipos,intenciones-ref,intenciones-destinos,intenciones-clausulas,intenciones-voz,confort,privacidad,vinculos-xr}.ts` (ábrelos y usa sus nombres reales; la tabla del inicio de §3 dice qué da cada uno). Petición de Alex (2026-10-10): StarSeed OS instalable y usable en gafas de AR/VR de todo tipo (Meta Quest, SteamVR, Android XR, Vision Pro, Pico…) o en cualquier navegador con WebXR; se abre solo en su formato (VR o AR); todo el sistema en 3D con el mismo diseño, funciones y estilo; menús 3D completos con animaciones y transiciones autoadaptables; calidad fijada sola por aparato; Astraura y la Protomolécula incluidas, con voz («crea un mundo virtual… e invita a este grupo de amigos», «súbelo a la Biblioteca / a una estación / a una publicación / a un mensaje»); servidores y estaciones públicos o privados como destinos; herramientas configurables para construir entornos, también en pizarras y llamadas.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/starseed-xr.md` y los módulos de `src/lib/xr/` de arriba. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos versiones del núcleo) y NO edites ningún archivo del núcleo para que un import resuelva: escribe SOLO tus archivos, con los nombres y firmas de este prompt, y si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo XR en main» para que el director la reencole cuando llegue.\nReglas de la casa (`memory/workflow-actual.md` y CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea qué tarea posterior la cablea); si una prueba falla se arregla el código, no la prueba. Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; lo de terceros solo en iframe con sandbox y postMessage de origen verificado, WASM en un Worker, app nativa o servicio aparte. Nada de `node:*` en código que llegue al navegador. Claves solo por NOMBRE de variable. Pruebas sin red, sin hardware y sin WebGL: lo del navegador se inyecta; los `*.test.ts` corren en node y los `*.test.tsx` en jsdom; el lienzo 3D (three/R3F/uikit) se simula con `vi.mock` como hace `src/components/vivo/espacial/__tests__/escena-compartida.test.tsx`; los componentes de R3F son cascarones finos y su LÓGICA vive en funciones puras que sí se prueban. Español claro en toda cadena visible; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». Dependencias: NO ejecutes `npm install` salvo que tu tarea sea XR1010A; las 7 dependencias XR (§3 n) las añade esa tarea con el visto bueno de Alex; si tu tarea las necesita y `node_modules` no las trae, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: XR1010A (dependencias XR)». El layout raíz no carga motores pesados: three/uikit/rapier/vrm/spark solo dentro de `src/components/xr/shell/**` y de la ruta `/xr/os` (carga perezosa con `next/dynamic` sin SSR o `import()` dentro de una función). Privacidad (§3 k): nunca pidas la función `camera-access`; la cámara del passthrough y el mapa de la habitación no salen del aparato. Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Migra lo persistido si cambias un valor por defecto. Honestidad: no digas que algo «se ve bien» o «funciona en el visor»: di que pasan tsc y vitest; solo Alex lo comprueba con un visor, en `/xr/diagnostico` (tarea XR1010AI). Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (XR1010M): Contrato §3 (a) y (b). `apps-3d.ts` (puro): `itemsDelDock(config: DockItemConfig[], postura: Postura)` → solo los `enabled`, en su orden, con un máximo visible (7 de pie o sentado, 5 en una mano) y el resto bajo «Más»; `resolverApp(item): {tipo: 'nativa-3d'; id: string} | {tipo: 'uispec'; ruta: string} | {tipo: 'solo-2d'; ruta: string; motivo: string}` con una tabla `APPS_3D` de lo que SÍ tiene vista 3D hoy (el hub `/xr`, las escenas `/escena/*` y `/sala-xr/*`, Astraura y los ajustes XR) y el resto `solo-2d` con el motivo en español («Esta app todavía no tiene vista 3D»); nunca finge. `dock-3d.tsx` ('use client'): `<Dock3D>` curvo con `posicionesDock(n, entrada)` de `src/lib/xr/espacio-trinity.ts`; lee `loadDockConfig()` de `@/components/layout/dock-config` (SON LAS MISMAS apps que el dock 2D: si el usuario las cambia en 2D cambian aquí; escucha el evento `storage` de `starseed.dock.items.v2` y limpia el oyente). Cada botón es un `PanelCristal` (XR1010H) del color del item (`DockColor` → color de `tokens-3d.ts`; ninguno a mano) con el nombre debajo; el icono: usa el SVG del icono de `DOCK_ICON_MAP` si uikit trae `Svg` y es barato, y si no la inicial del nombre dentro de un círculo (decide lo más simple y dilo). Objetivo táctil ≥ 3 cm (`OBJETIVO_MIN_TACTO_M`), entrada escalonada con `Animado` (XR1010I, `retardoDeHermano`) y foco al apuntar. Pulsar: `nativa-3d` abre su panel en Horizon o Logic mediante un callback `abrir(id)`; `solo-2d` muestra una tarjeta con el motivo y el botón «Salir y abrir en 2D» (termina la sesión y navega a la ruta); nunca un botón sin efecto. Pruebas (≥ 8, node): orden y `enabled`; límite por postura con «Más»; `solo-2d` con motivo; `/escena/abc` resuelve a nativa; un item desconocido → `solo-2d`; sin items → lista vacía. Integración: la cablea XR1010AS en el nodo Anchor; di en tu última línea que queda pendiente de ella.",
+   "dependencias_ya_en_main": [
+    "XR1010J"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "MBT1027Ob",
+   "XR1010M",
+   "SUP0111D",
+   "SUP0111E",
+   "VZF1015T",
+   "SUP0111F",
+   "SUP0111K",
+   "MTN1027L2"
+  ]
+ }
+}
