@@ -4662,3 +4662,22 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-11-01 06:17 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** Connection reset by peer
+
+**Resultado.** 0 de 7 integradas. 7 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 7 tareas se fueron por lo mismo — no escribió nada (SGO1031B-d2, RESC1031B, SUP0111D, SUP0111E, IND1029A, RESC1031C). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 7 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `SGO1031B-d2` — no escribió nada
+- `RESC1031B` — no escribió nada
+- `SUP0111D` — no escribió nada
+- `SUP0111E` — no escribió nada
+- `IND1029A` — no escribió nada
+- `RESC1031C` — no escribió nada
+- `SUP0111B` — no escribió nada
