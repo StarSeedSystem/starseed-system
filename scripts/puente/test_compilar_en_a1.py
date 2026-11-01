@@ -256,31 +256,54 @@ class Flujo(unittest.TestCase):
         self.assertEqual(C.orden_preparar_arbol("/n"),  # chown solo si no es ya de starseed: idempotente
                          'sudo mkdir -p /n && { [ "$(stat -c %U /n)" = starseed ] || sudo chown -R starseed:starseed /n; }')
 
-    def test_urgente_en_cola_da_turno_en_arbol_aparte_y_lo_quita(self):
+    def _a1(self, orden, entrada=None, timeout=0):
+        """Dobles del A1 para el camino desacoplado (SUP0111E)."""
+        if orden == C.orden_build_previo():
+            return 0, "marca=\nbuild=\n"
+        if orden == C.orden_sondeo_guion():
+            return 0, self.sondeos.pop(0) if self.sondeos else ""
+        if orden == C.orden_lanzar_guion():
+            return 0, "lanzado\n"
+        return 0, "abc123\n"
+
+    def test_urgente_en_cola_da_turno_desacoplado_y_lo_quita(self):
         mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
         self.estado.return_value = ({"fase": "cola"}, {}, [])
+        self.sondeos = ["", '{"pid": 7, "inicio": 1, "rc": 0}\nvivo=0\n']
+        self.ssh.side_effect = self._a1
         self.rsync.side_effect = self._con_build_traido
         ok, detalle = C.compilar(raiz=self.raiz, urgente="Genesis está caído")
         self.assertTrue(ok and "dio turno" in detalle, detalle)
         ordenes = self._ordenes()
         self.assertEqual(ordenes[0], C.orden_build_previo())  # (SUP0111A) mirar si ya hay uno hecho
-        self.assertTrue(C.GOBERNADOR_A1 in ordenes[1] and "touch -d @" in ordenes[1])  # el freno, lo primero
+        self.assertEqual(ordenes[1], C.orden_sondeo_guion())  # (SUP0111E) sin guion vivo al empezar
+        self.assertTrue(C.GOBERNADOR_A1 in ordenes[2] and "touch -d @" in ordenes[2])  # el freno
         self.assertEqual(ordenes[-1], C.orden_quitar_turno())  # y quitarlo, lo último
-        (guion,) = [c[1]["entrada"] for c in self.ssh.call_args_list if c[0][0] == C.ORDEN_GUION]  # uno solo
-        self.assertTrue(all(s in guion for s in ("nice -n 10", "STARSEED_BUILD_LIGERO=1", "cd " + RAIZ_A1,
-                                                  C.PESADO_A1, "guardian")), guion)
+        subido = [c[0] for c in self.bytes.call_args_list if c[0][0] == C.orden_subir_guion()]
+        self.assertEqual(len(subido), 1)
+        guion = subido[0][1].decode("utf-8")
+        self.assertTrue(all(s in guion for s in ("nice -n 10", "STARSEED_BUILD_LIGERO=1",
+                                                 "cd " + RAIZ_A1, C.PESADO_A1, "guardian",
+                                                 C.ESTADO_GUION_A1, '"rc": null')), guion)
+        (lanzar,) = [o for o in ordenes if o == C.orden_lanzar_guion()]
+        self.assertTrue(all(s in lanzar for s in ("setsid", "nohup", "build.log", "/dev/null")), lanzar)
+        self.assertNotIn(C.ORDEN_GUION, ordenes)  # ya no va por el `sh -s` de la sesión
         self.assertIn(RAIZ_A1 + "/" + C.DIST_BUILD, self.rsync.call_args_list[-1][0][0][-2])
         prohibido = ("pkill", "killall", "kill -9", "kill -TERM", "systemctl")  # nunca se mata al enjambre
         self.assertEqual([o for o in ordenes + [guion] if any(p in o for p in prohibido)], [])
 
     def test_urgente_roto_sin_turno_o_reventado_quita_el_freno(self):
         mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
-        for rc, texto in ((1, "next build en el A1"), (C.SIN_TURNO, "sin turno en el A1"), (255, "freno del A1")):
-            ssh = mock.patch.object(C.oracle_nodo, "ssh", side_effect=lambda o, entrada=None, timeout=0, rc=rc: (
-                (rc, "muerte") if o == C.ORDEN_GUION or (rc == 255 and "touch" in o) else (0, ""))).start()
+        for rc, texto in ((1, "next build en el A1"), (C.SIN_TURNO, "sin turno en el A1")):
+            self.sondeos = ["", '{"pid": 7, "inicio": 1, "rc": %d}\nvivo=0\n' % rc]
+            self.ssh.side_effect = self._a1
             ok, detalle = C.compilar(raiz=self.raiz, urgente="la pantalla lleva 7.0 h vieja")
             self.assertTrue(not ok and texto in detalle, detalle)
-            self.assertEqual(self._ordenes(ssh)[-1], C.orden_quitar_turno())
+            self.assertEqual(self._ordenes()[-1], C.orden_quitar_turno())
+        ssh = mock.patch.object(C.oracle_nodo, "ssh", side_effect=lambda o, **k: (
+            (255, "freno roto") if "gobernador" in o else (0, ""))).start()
+        self.assertIn("freno del A1", C.compilar(raiz=self.raiz, urgente="x")[1])
+        self.assertEqual(self._ordenes(ssh)[-1], C.orden_quitar_turno())
         ssh = mock.patch.object(C.oracle_nodo, "ssh", return_value=(0, "")).start()
         self.rsync.side_effect = RuntimeError("se cayó la red")
         with self.assertRaises(RuntimeError):
@@ -493,6 +516,67 @@ class Turno(unittest.TestCase):
             self.assertTrue(R.compilar_en_el_a1("h", urgente="Genesis está caído"))
             self.assertTrue(R.compilar_en_el_a1("h"))
         self.assertEqual(vistos, [{"urgente": "Genesis está caído"}, {}])
+
+
+class Desacoplado(unittest.TestCase):
+    """SUP0111E: la build del turno no depende de la sesión ssh; la Mac la sondea."""
+
+    HUELLA = "ab" * 32
+
+    def test_el_guion_anota_estado_y_contiene_los_exit_del_turno(self):
+        with tempfile.TemporaryDirectory() as d:
+            estado = os.path.join(d, "estado.json")
+            for rc in (0, 3, C.SIN_TURNO):
+                guion = C.guion_desacoplado("sh -c 'exit %d'" % rc, estado=estado)
+                r = subprocess.run(["sh", "-s"], input=guion, capture_output=True, text=True, timeout=30)
+                self.assertEqual(r.returncode, rc, r.stderr)
+                with open(estado, encoding="utf-8") as f:
+                    datos = json.load(f)
+                self.assertEqual((datos["rc"], isinstance(datos["pid"], int),
+                                  isinstance(datos["inicio"], int)), (rc, True, True))
+
+    def test_subir_y_lanzar_desacoplado(self):
+        subir = C.orden_subir_guion()
+        self.assertTrue(subir.startswith("sudo -u starseed -H sh -c "), subir)
+        self.assertIn(C.GUION_A1, subir)
+        lanzar = C.orden_lanzar_guion()
+        self.assertTrue(all(s in lanzar for s in ("setsid", "nohup", "build.log", "/dev/null", "&")), lanzar)
+
+    def test_leer_sondeo_y_decidir(self):
+        self.assertIsNone(C.leer_sondeo(""))
+        self.assertIsNone(C.leer_sondeo("basura\nvivo=1\n"))
+        self.assertEqual(C.leer_sondeo('{"pid": 7, "inicio": 100, "rc": null}\nvivo=1\n'),
+                         (7, 100, None, True))
+        self.assertEqual(C.leer_sondeo('{"pid": 7, "inicio": 100, "rc": 3}\nvivo=0\n'), (7, 100, 3, False))
+        self.assertEqual(C.decidir_sondeo((7, 100, 0, False), 1000, 60)[0], "listo")
+        self.assertEqual(C.decidir_sondeo((7, 100, 3, False), 1000, 60)[0], "roto")
+        self.assertEqual(C.decidir_sondeo((7, 100, C.SIN_TURNO, False), 1000, 60)[1], "sin turno en el A1")
+        self.assertEqual(C.decidir_sondeo((7, 100, None, True), 130, 60)[0], "esperar")
+        self.assertEqual(C.decidir_sondeo((7, 100, None, False), 130, 60)[0], "muerto")
+        self.assertEqual(C.decidir_sondeo((7, 100, None, True), 1000, 60)[0], "tope")
+        self.assertEqual(C.decidir_sondeo(None, 1000, 60, inicio_previsto=1)[0], "tope")
+
+    def test_un_fallo_de_red_no_es_un_fallo_de_build(self):
+        salidas = [(255, "Connection reset by peer"), (1, "Operation timed out"),
+                   (0, '{"pid": 7, "inicio": 1, "rc": 0}\nvivo=0\n')]
+        with mock.patch.object(C.oracle_nodo, "ssh", side_effect=salidas):
+            self.assertEqual(C.esperar_guion(60, pausa_s=0)[0], "listo")
+
+    def test_si_ya_hay_un_guion_vivo_no_envia_ni_lanza(self):
+        with tempfile.TemporaryDirectory() as d:
+            vivo = '{"pid": %d, "inicio": 0, "rc": null}\nvivo=1\n' % os.getpid()
+            listo = '{"pid": %d, "inicio": 0, "rc": 0}\nvivo=0\n' % os.getpid()
+            with mock.patch.object(C.oracle_nodo, "_ip", return_value=IP), \
+                    mock.patch.object(C.oracle_nodo, "estado", return_value=({}, {}, [])), \
+                    mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True), \
+                    mock.patch.object(C.oracle_nodo, "ssh", side_effect=[(0, vivo), (0, listo)]), \
+                    mock.patch.object(C, "traer_previo", side_effect=[None, (True, "traído")]), \
+                    mock.patch.object(C, "_rsync") as rsync, \
+                    mock.patch.object(C.oracle_nodo, "_ssh_bytes") as subir:
+                ok, detalle = C.compilar(raiz=d, urgente="Genesis está caído")
+            self.assertEqual((ok, detalle), (True, "traído"))
+            rsync.assert_not_called()
+            subir.assert_not_called()
 
 
 if __name__ == "__main__":
