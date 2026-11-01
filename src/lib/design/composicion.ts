@@ -101,9 +101,18 @@ export function geometriaVentana(viewport: Viewport, options: GeometriaVentanaOp
 
   switch (tipo) {
     case "dialogo":
-    case "ventana":
+      // Diálogo centrado en toda la pantalla
       x = horizontalMargin + (availWidth - width) / 2;
       y = (viewport.alto - height) / 2;
+      break;
+    case "ventana":
+      // Ventana centrada en pantalla; en teléfono, hoja centrada que sube desde abajo
+      x = horizontalMargin + (availWidth - width) / 2;
+      if (isPhone) {
+        y = viewport.alto - height;
+      } else {
+        y = (viewport.alto - height) / 2;
+      }
       break;
     case "hoja":
       if (isPhone) {
@@ -130,6 +139,26 @@ export interface ZonaPulgar {
   y: number;
   ancho: number;
   alto: number;
+}
+
+export function posicionVentana(
+  viewport: Viewport,
+  width: number,
+  height: number,
+): PosicionVentana {
+  const isPhone = viewport.ancho < 430;
+  const horizontalMargin = isPhone ? 16 : 0;
+  const availWidth = viewport.ancho - 2 * horizontalMargin;
+  const maxWidth = Math.min(availWidth, 1186);
+  const finalWidth = Math.min(width, maxWidth);
+  const finalHeight = Math.min(height, viewport.alto);
+  
+  const x = horizontalMargin + (availWidth - finalWidth) / 2;
+  const y = isPhone 
+    ? viewport.alto - finalHeight 
+    : (viewport.alto - finalHeight) / 2;
+  
+  return { x, y, ancho: finalWidth, alto: finalHeight };
 }
 
 export function zonaPulgar(viewport: Viewport): ZonaPulgar {

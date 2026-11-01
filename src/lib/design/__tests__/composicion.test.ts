@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tipoAparato, geometriaVentana, ZonaPulgar, zonaPulgar } from "@/lib/design/composicion";
+import { tipoAparato, geometriaVentana, posicionVentana, ZonaPulgar, zonaPulgar } from "@/lib/design/composicion";
 
 describe("tipoAparato", () => {
   it("should return xr when xr is true", () => {
@@ -97,5 +97,40 @@ describe("geometriaVentana · tipo ventana", () => {
     expect(result.alto).toBe(600);
     expect(result.x).toBeCloseTo((1920 - 800) / 2);
     expect(result.y).toBeCloseTo((1080 - 600) / 2);
+  });
+});
+
+describe("posicionVentana (para OSWindow)", () => {
+  it("centra ventana en escritorio", () => {
+    const viewport = { ancho: 1920, alto: 1080 };
+    const width = 800;
+    const height = 600;
+    const result = posicionVentana(viewport, width, height);
+    expect(result.x).toBeCloseTo((1920 - width) / 2);
+    expect(result.y).toBeCloseTo((1080 - height) / 2);
+    expect(result.ancho).toBe(width);
+    expect(result.alto).toBe(height);
+  });
+
+  it("hoja centrada en telefono (y = viewport.alto - height)", () => {
+    const viewport = { ancho: 400, alto: 800 };
+    const width = 360;
+    const height = 600;
+    const result = posicionVentana(viewport, width, height);
+    expect(result.y).toBeCloseTo(viewport.alto - height);
+    expect(result.x).toBeCloseTo((viewport.ancho - width) / 2);
+  });
+
+  it("respeta margen de 16px en telefono", () => {
+    const viewport = { ancho: 400, alto: 800 };
+    const width = 360;
+    const height = 500;
+    const result = posicionVentana(viewport, width, height);
+    // Margen de 16px en cada lado: availWidth = 400 - 32 = 368
+    // maxWidth = min(368, 1186) = 368
+    // finalWidth = min(360, 368) = 360
+    // x = 16 + (368 - 360) / 2 = 20
+    expect(result.x).toBeCloseTo(16 + (368 - 360) / 2);
+    expect(result.x).toBeGreaterThanOrEqual(16);
   });
 });
