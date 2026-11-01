@@ -32,7 +32,7 @@ export interface OpcionesPlantillaRefine {
 
 /** Valida un nombre de recurso; lanza un Error en español si no casa. */
 function validarRecurso(nombre: string): string {
-  if (!RE_RECURSO.test(nombre)) {
+  if (typeof nombre !== "string" || !RE_RECURSO.test(nombre)) {
     throw new Error(
       `Nombre de recurso no válido: «${nombre}». Debe empezar por minúscula y traer solo ` +
         `letras en minúscula, números y guiones (hasta 41 caracteres).`,

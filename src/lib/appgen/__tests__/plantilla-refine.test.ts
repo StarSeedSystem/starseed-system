@@ -82,6 +82,21 @@ describe("plantillaRefine", () => {
     ).toThrow(/recurso/i);
     expect(() =>
       plantillaRefine({ ...datosEjemplo(), recursos: [{ nombre: "clientes", campos: ['no"puede'] }] }),
+    ).toThrow(/recurso|campo/i);
+  });
+
+  it("rechaza nombres y campos que no son texto (llamada desde JavaScript)", () => {
+    expect(() =>
+      plantillaRefine({
+        ...datosEjemplo(),
+        recursos: [{ nombre: 21 as unknown as string, campos: [] }],
+      }),
+    ).toThrow(/recurso/i);
+    expect(() =>
+      plantillaRefine({
+        ...datosEjemplo(),
+        recursos: [{ nombre: "clientes", campos: [21 as unknown as string] }],
+      }),
     ).toThrow(/campo/i);
   });
 
