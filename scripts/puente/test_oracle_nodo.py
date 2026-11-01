@@ -110,6 +110,18 @@ class Prestamo(unittest.TestCase):
         p = {"T": {"estado": "reasignada", "medio": "nube"}}
         self.assertEqual(N.devolver_de_oracle(p, [{"rama": "r", "ids": ["T"], "t": 0}], {"r": {}}, True, 1), [])
 
+    def test_la_nota_no_convierte_en_prestamo_lo_que_no_lo_es(self):
+        """(RTVAR1021Cd) El `medio` manda sobre la nota: una tarea reasignada a la nube no vuelve
+        aunque su nota cite una rama de Oracle ya vieja, y una entrada que no es un dict no rompe
+        el barrido."""
+        import calendar
+        rama = "colas/oracle-20261018-231246"
+        nacida = calendar.timegm((2026, 10, 18, 23, 12, 46, 0, 0, 0))
+        p = {"W": {"estado": "reasignada", "medio": "nube",
+                   "nota": "movida a oracle (%s) desde Genesis" % rama},
+             "X": "basura"}
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 3 * 3600 + 60), [])
+
     def test_movida_desde_genesis_vuelve_sin_estar_en_lanzamientos(self):
         """(2026-10-21) La reasignación de Genesis no apunta en `lanzamientos`: la rama que cita la
         nota manda. Rama de 20261018-231246, A1 sin ella y pasadas más de las 3 h de gracia."""
