@@ -51,6 +51,20 @@ describe("fuentesDeMapaXR", () => {
     expect(fuentesDeMapaXR(MAPAS_DEFECTO.manos)).toEqual([]);
     expect(fuentesDeMapaXR(MAPAS_DEFECTO.voz)).toEqual([]);
   });
+  it("solo gatillos de mando: ni gestos, ni teclas, ni frases", () => {
+    const mapa: MapaEntrada = {
+      seleccionar: [{ tipo: "gesto", gesto: "pellizco", mano: "cualquiera" }],
+      salir: [{ tipo: "tecla", codigo: "Escape" }, { tipo: "frase", texto: "salir" }],
+    };
+    expect(fuentesDeMapaXR(mapa)).toEqual([]);
+  });
+  it("respeta izquierda (0) y derecha (1), mapea ejes y no repite la fuente", () => {
+    const fuentes = fuentesDeMapaXR(MAPAS_DEFECTO.mandos);
+    expect(fuentes).toContainEqual({ tipo: "gamepad", control: "boton", numero: 0, indice: 1 });
+    expect(fuentes).toContainEqual({ tipo: "gamepad", control: "boton", numero: 0, indice: 0 });
+    expect(fuentes).toContainEqual({ tipo: "gamepad", control: "eje", numero: 3, indice: 1 });
+    expect(fuentes.filter((f) => f.tipo === "gamepad" && f.control === "boton" && f.numero === 0 && f.indice === 1)).toHaveLength(1);
+  });
   it("no repite una fuente mapeada a dos acciones", () => {
     const mapa: MapaEntrada = {
       seleccionar: [{ tipo: "boton", indice: 4, mano: "izquierda" }],
@@ -76,6 +90,15 @@ describe("rangoAGesto", () => {
   });
   it("un parámetro desconocido no rompe", () => {
     expect(rangoAGesto({ id: "x", nombre: "X", tipo: "numero" }, 0.5)).toBe(0.5);
+  });
+  it("respeta el tipo entero y acota el gesto fuera de 0..1", () => {
+    expect(rangoAGesto({ ...VOLUMEN, tipo: "entero" }, 0.333)).toBe(33);
+    expect(rangoAGesto(VOLUMEN, -3)).toBe(0);
+    expect(rangoAGesto(VOLUMEN, 9)).toBe(100);
+  });
+  it("usa la curva real de vinculos-control: la forma log responde antes que la lineal", () => {
+    expect(rangoAGesto(VOLUMEN, 0.5)).toBe(50);
+    expect(rangoAGesto(VOLUMEN, 0.5, { ...CURVA_LINEAL, forma: "log" })).toBeGreaterThan(50);
   });
 });
 
@@ -106,6 +129,12 @@ describe("aplicarEnVisor", () => {
     expect(r.ok).toBe(false);
     expect(!r.ok && r.pendiente?.motivo).toMatch(/pendiente de tu confirmación/);
     expect(mover).not.toHaveBeenCalled();
+  });
+  it("una operación de agente en un espacio personal sí se aplica", () => {
+    const mover = okMover();
+    const r = aplicarEnVisor(controladorFalso({ mover }), REF, op({ tipo: "exacta", valor: 50 }, AGENTE, "agente"), "personal");
+    expect(r.ok).toBe(true);
+    expect(mover).toHaveBeenCalledTimes(1);
   });
   it("una persona en grupo sí aplica y un parámetro desconocido devuelve el motivo", () => {
     expect(aplicarEnVisor(controladorFalso({ ambito: "grupo", mover: okMover() }), REF, op({ tipo: "exacta", valor: 50 })).ok).toBe(true);
