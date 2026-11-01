@@ -52,6 +52,22 @@ describe("dependencias a partes del revisor de Bloqueadas (PUB1029C)", () => {
             else if (existsSync(rutaProg)) require("node:fs").unlinkSync(rutaProg);
         }
     });
+
+    it("acepta dependencias «-dN» reales de artcraft, blender e investigación cuando su base está en la cola o en progreso", () => {
+        // Casos reales que fallaban antes de PUB1029C: ART1025B-d3, INV1025J-d2, etc.
+        const art = validarCola("art-1025", leer("artcraft"));
+        const bl = validarCola("blender-1025", leer("blender"));
+        const inv = validarCola("inv-1025", leer("investigacion"));
+        expect(art.errores.filter((e) => e.includes("depende"))).toEqual([]);
+        expect(bl.errores.filter((e) => e.includes("depende"))).toEqual([]);
+        expect(inv.errores.filter((e) => e.includes("depende"))).toEqual([]);
+    });
+
+    it("rechaza una parte «-dN» cuya base no existe en ningún lado", () => {
+        const mal = validarCola("1029-falsa", [tarea("X1", ["NOEXISTO-d2"]), tarea("Y1", ["OTRA-d3"])]);
+        expect(mal.errores.some((e) => e.includes("NOEXISTO-d2"))).toBe(true);
+        expect(mal.errores.some((e) => e.includes("OTRA-d3"))).toBe(true);
+    });
 });
 
 describe("colas de la Ola 1025R", () => {
