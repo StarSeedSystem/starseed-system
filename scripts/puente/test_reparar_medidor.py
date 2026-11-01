@@ -145,6 +145,135 @@ class Reparar(unittest.TestCase):
         self.assertEqual(hechas, [1, 1])
 
 
+class MemoriaApretada(unittest.TestCase):
+    """RPM1101A · los mismos criterios que el guardia: presión de kernel o poca RAM libre."""
+
+    def test_solo_con_medida_o_presion_de_verdad(self):
+        self.assertFalse(R.memoria_apretada(None, None))   # sin medida no se dice nada
+        self.assertFalse(R.memoria_apretada(4000, 1))
+        self.assertFalse(R.memoria_apretada(None, 1))
+        self.assertTrue(R.memoria_apretada(None, 2))       # la presión del kernel manda
+        self.assertTrue(R.memoria_apretada(None, 3))
+        self.assertTrue(R.memoria_apretada(500, None))     # bajo lo que necesita el enjambre
+        self.assertFalse(R.memoria_apretada(1600, None))
+        self.assertFalse(R.memoria_apretada(3000, None))
+
+
+class ConLiberacion(unittest.TestCase):
+    """RPM1101A · con la Mac sin memoria, liberar va PRIMERO, no después de un reinicio que no sirve."""
+
+    def _plan(self, *acciones):
+        return [{"accion": a, "titulo": "t", "por_que": "p"} for a in acciones]
+
+    def test_libera_primero_y_no_duplica(self):
+        con, liberando = R.con_liberacion(self._plan("genesis"), None, 3)
+        self.assertTrue(liberando)
+        self.assertEqual([p["accion"] for p in con], ["liberar_memoria", "genesis"])
+        self.assertTrue(con[0]["titulo"] and con[0]["por_que"])
+        con2, _ = R.con_liberacion(self._plan("memoria", "genesis"), None, 2)
+        # «memoria» (su barrida de pruebas) se queda: emitida por el medidor de memoria, no se adivina
+        self.assertEqual([p["accion"] for p in con2], ["liberar_memoria", "memoria", "genesis"])
+
+    def test_sano_o_memoria_bien_no_se_toca_nada(self):
+        plan = self._plan("genesis")
+        self.assertEqual(R.con_liberacion(plan, 8000, 1), (plan, False))
+        self.assertEqual(R.con_liberacion([], None, 3), ([], False))
+        self.assertEqual(R.con_liberacion([], 500, 3), ([], False))   # sin plan, sin liberar
+
+
+class TscHuerfanos(unittest.TestCase):
+    """RPM1101A · la barrida de tsc huérfanos del orquestador (SUP0111K), como función pura."""
+
+    _TSC = "node /x/node_modules/.bin/tsc --noEmit"
+
+    def test_el_padre_muerto_o_muy_viejo_es_huerfano(self):
+        filas = [("10", "1", "1200", self._TSC),       # huérfano: nadie lo vigila
+                 ("11", "5", "10", self._TSC),         # joven con padre vivo: NO se toca
+                 ("12", "5", "1300", self._TSC),       # vivo pero > 20 min: se corta
+                 ("13", "5", "10", "npx vitest run x"),  # no es tsc
+                 ("14", "5", "10", self._TSC)]         # repetido: no se repite
+        vivo = lambda pid: pid == 5
+        self.assertEqual(R.tsc_huerfanos(filas, vivo), [10, 12])
+
+    def test_filas_imparables_y_el_filtro_de_tsc(self):
+        self.assertEqual(R.tsc_huerfanos([("x", "1", "a", self._TSC), ("15",)], lambda p: True), [])
+        filas = [("17", "1", "60", "python3 -u script tsc")]   # « tsc» al final, como la barrida vieja
+        self.assertEqual(R.tsc_huerfanos(filas, lambda p: p == 5), [17])
+        joven = [("18", "5", "10", "python3 -u script tsc")]
+        self.assertEqual(R.tsc_huerfanos(joven, lambda p: p == 5), [])
+
+
+class FraseDelResumen(unittest.TestCase):
+    """RPM1101A · «sigue igual» sin decir POR QUÉ dejó a Alex sin nada tres veces seguidas."""
+
+    def test_si_sigue_y_falta_memoria_la_causa_se_dice(self):
+        hechas = [{"accion": "liberar_memoria", "ok": False}, {"accion": "genesis", "ok": False}]
+        con_causa = R.frase("agentes", "sigue", hechas, "1 muerto", sin_memoria=True)
+        self.assertIn("la Mac está sin memoria", con_causa)
+        self.assertNotIn("sigue igual tras reparar", con_causa)
+        self.assertIn("0 de 2 acción(es) bien", con_causa)
+        sin_causa = R.frase("agentes", "sigue", hechas, "1 muerto", sin_memoria=False)
+        self.assertIn("sigue igual tras reparar", sin_causa)
+        self.assertNotIn("sin memoria", sin_causa)
+
+
+class MemoriaEnLaReparacion(unittest.TestCase):
+    """RPM1101A · el flujo completo: mide, libera primero si hace falta y dice la causa al final."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self._viejos = (R.CARPETA, R.ESTADO_AUTO)
+        R.CARPETA, R.ESTADO_AUTO = self.tmp, os.path.join(self.tmp, "auto.json")
+        self.addCleanup(self._restaurar)
+
+    def _restaurar(self):
+        R.CARPETA, R.ESTADO_AUTO = self._viejos
+
+    def _comprobar_muerto(self):
+        def comprobar(clave):
+            return {"veredictos": [v("Medidor", "muerto", "la API de Genesis no contestó")],
+                    "resumen": "la API de Genesis no contestó"}
+        return comprobar
+
+    def test_con_presion_liberar_va_primero_y_lo_dice_al_final(self):
+        llamadas = []
+
+        def acciones():
+            return {"liberar_memoria": lambda: (llamadas.append("liberar") or (False, "no había nada que liberar")),
+                    "genesis": lambda: (llamadas.append("genesis") or (True, "lo reinicié"))}
+
+        r = R.reparar("agentes", comprobar=self._comprobar_muerto(), acciones=acciones(),
+                      medir=lambda: (900, 3))
+        self.assertEqual(llamadas, ["liberar", "genesis"])       # liberar ANTES de reiniciar
+        self.assertFalse(r["acciones"][0]["ok"])
+        self.assertIn("la Mac está sin memoria", r["resumen"])
+        self.assertNotIn("sigue igual", r["resumen"])
+        self.assertEqual(r["memoria"]["antes"]["presion"], 3)    # quedó dicho en el archivo
+
+    def test_si_liberar_basta_el_resumen_es_de_reparado(self):
+        estados = iter([[v("Medidor", "muerto")], [v("Medidor", "vivo")]])
+
+        def comprobar(clave):
+            vs = next(estados)
+            return {"veredictos": vs, "resumen": "vivo" if vs[0]["estado"] == "vivo" else "no contesta"}
+
+        r = R.reparar("agentes", comprobar=comprobar,
+                      acciones={"liberar_memoria": lambda: (True, "dormí el BitNet y corté 2 tsc"),
+                                "genesis": lambda: (True, "ok")},
+                      medir=iter([(900, 3), (2600, 1)]).__next__)
+        self.assertTrue(r["resumen"].startswith("«agentes» reparado"))
+        self.assertNotIn("sin memoria", r["resumen"])
+
+    def test_sin_presion_el_plan_no_se_toca(self):
+        llamadas = []
+        r = R.reparar("agentes", comprobar=self._comprobar_muerto(),
+                      acciones={"genesis": lambda: (llamadas.append(1) or (True, "ok"))},
+                      medir=lambda: (8000, 1))
+        self.assertEqual(llamadas, [1])
+        self.assertEqual([a["accion"] for a in r["acciones"]], ["genesis"])
+
+
 if __name__ == "__main__":
     unittest.main()
 

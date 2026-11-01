@@ -16,6 +16,11 @@ Un solo camino para el botón «Reparar» y para los directores:
      existentes del puente (relanzar el vigilante, curar el enjambre, devolver préstamos de la
      nube, reconciliar el progreso, limpiar el disco, cortar huérfanos de memoria, levantar marcas
      falsas de «sin cupo», volver a medir la nube y los contenedores, reiniciar un servicio).
+  2b. (2026-11-01, RPM1101A) Si la Mac está SIN MEMORIA, `liberar_memoria` va PRIMERO en el plan
+     y al final el resumen dice la causa: reiniciar Genesis con la RAM por las nubes no sirve
+     (medido: Genesis en «U», esperando página, y el botón diciendo «0 de 1»). Liberar es lo mismo
+     que ya existe: dormir el BitNet, ceder la voz, descargar la Neurona (Ollama, keep_alive 0)
+     y cortar los huérfanos que ya nadie vigila (pruebas de vitest con el guardia, tsc SUP0111K).
   3. Las ejecuta (cada una con su tope de tiempo; un fallo no para a las demás).
   4. Vuelve a comprobar y deja `reparacion-<medidor>.json` junto a la comprobación: antes, después,
      y qué hizo cada acción. Genesis lo enseña bajo el botón.
@@ -36,9 +41,11 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import time
+import urllib.request
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -97,10 +104,38 @@ TITULOS = {
     "genesis": "Comprobar que Genesis contesta y reiniciarlo si no",
     "contenedores": "Volver a medir los contenedores de la nube",
     "capacidad": "Buscar más capacidad en todos los medios (llenar la Mac, lanzar jobs en la nube)",
+    "liberar_memoria": "Liberar memoria de la Mac (dormir BitNet, ceder la voz, descargar la Neurona, cortar huérfanos)",
 }
 
 
 # ── Decisiones (PURAS) ───────────────────────────────────────────────────────────────────────
+
+#: (RPM1101A) Nivel de presión del kernel a partir del que se libera (mismo criterio que el
+#: guardia para «falta memoria»): 2 o más en `kern.memorystatus_vm_pressure_level` (3 = alta),
+#: o menos de los MB que necesita el enjambre (= el CONGELAR_BAJO_MB del guardia-memoria).
+PRESION_LIBERAR = 2
+MB_LIBERAR = 1600
+
+
+def memoria_apretada(libre_mb: Optional[float], presion: Optional[int]) -> bool:
+    """PURA · RPM1101A: ¿la Mac está sin memoria, en el mismo sentido que el guardia? Sin
+    ninguna de las dos medidas se dice que NO: liberar «por si acaso» tocaría procesos sanos."""
+    if presion is not None and presion >= PRESION_LIBERAR:
+        return True
+    return libre_mb is not None and libre_mb < MB_LIBERAR
+
+
+def con_liberacion(plan: List[Dict[str, str]], libre_mb: Optional[float],
+                   presion: Optional[int]) -> Tuple[List[Dict[str, str]], bool]:
+    """PURA · RPM1101A: si hay algo que reparar y falta memoria, `liberar_memoria` va PRIMERO
+    (reiniciar Genesis o curar el enjambre con la RAM agotada es insistir en lo que no sirve).
+    Devuelve (plan_final, liberando). Si ya estaba en el plan (regla «Memoria RAM libre») no se
+    duplica; si todo está vivo o la memoria está bien, se devuelve el plan tal cual."""
+    if plan and memoria_apretada(libre_mb, presion):
+        paso = {"accion": "liberar_memoria", "titulo": TITULOS["liberar_memoria"],
+                "por_que": "la Mac está sin memoria: sin liberar, lo demás no llega a nada"}
+        return [paso] + [p for p in plan if p["accion"] != "liberar_memoria"], True
+    return plan, False
 
 def no_vivos(veredictos: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [v for v in veredictos or [] if isinstance(v, dict) and v.get("estado") not in ("vivo", None)]
@@ -173,15 +208,55 @@ def toca_auto(clave: str, plan: List[Dict[str, str]], estado: Dict[str, Any], ah
     return ahora - ultima >= MINIMO_AUTO_S.get(clave, MINIMO_AUTO_DEFECTO_S)
 
 
-def frase(clave: str, res: str, hechas: List[Dict[str, Any]], resumen_despues: str) -> str:
-    """PURA: la línea que se enseña bajo el botón y se dice en el Chat Director."""
+def frase(clave: str, res: str, hechas: List[Dict[str, Any]], resumen_despues: str,
+          sin_memoria: bool = False) -> str:
+    """PURA: la línea que se enseña bajo el botón y se dice en el Chat Director.
+    RPM1101A: si siguió igual y la Mac SIGUE sin memoria, la causa se dice («la Mac está sin
+    memoria…»), no un vago «sigue igual»: liberar no bastó y Alex necesita saberlo enseguida."""
     bien = sum(1 for h in hechas if h.get("ok"))
     if res == "nada":
         return "«%s» está sano: no había nada que reparar." % clave
     if res == "sin_reparacion":
         return "«%s» tiene fallos sin reparación automática conocida: se dicen abajo." % clave
-    cabeza = {"reparado": "reparado", "mejorado": "mejorado (queda algo)", "sigue": "sigue igual tras reparar"}[res]
+    if res == "sigue":
+        cabeza = ("sigue mal: la Mac está sin memoria (lo liberado no bastó)" if sin_memoria
+                  else "sigue igual tras reparar")
+    else:
+        cabeza = {"reparado": "reparado", "mejorado": "mejorado (queda algo)"}[res]
     return "«%s» %s · %d de %d acción(es) bien · ahora: %s" % (clave, cabeza, bien, len(hechas), resumen_despues)
+
+
+# ── Memoria apretada (RPM1101A, puros) ───────────────────────────────────────────────────────
+
+#: Cómo se reconoce un tsc real: el ejecutable (`node …/bin/tsc`) o un guion que acaba en « tsc».
+#: Es el MISMO filtro de la barrida de tsc huérfanos del orquestador (SUP0111K), aquí en puro.
+TSC_TOPE_MIN = 20  # un tsc con más minutos que este y un padre vivo, también se corta
+
+
+def es_proceso_tsc(args: str) -> bool:
+    """PURA · SUP0111K: ¿esta línea de comandos es un `tsc` (el guardia de `prioridad_conversacion`
+    usa el mismo doble asidero)? Igual que ahí, se mira la orden y no el nombre dentro de un prompt."""
+    linea = (args or "").strip()
+    return "bin/tsc" in linea or linea.endswith(" tsc")
+
+
+def tsc_huerfanos(filas: List[Tuple[Any, ...]], pid_vivo: Callable[[int], bool],
+                  tope_min: int = TSC_TOPE_MIN) -> List[int]:
+    """PURA · SUP0111K: los tsc huérfanos — su padre ya no vive, o llevan más de `tope_min`
+    minutos de vida aunque el padre respire. Un tsc en su turno (padre vivo y joven) NO se toca.
+    `filas`: (pid, ppid, etimes_s, args), tal cual da `ps -eo pid=,ppid=,etimes=,args=`."""
+    fuera: List[int] = []
+    for fila in filas or ():
+        try:
+            pid, ppid, etimes, args = fila[0], fila[1], fila[2], fila[3]
+            pid, ppid, etimes = int(pid), int(ppid), int(etimes)
+        except (IndexError, TypeError, ValueError):
+            continue
+        if pid in fuera or not es_proceso_tsc(args):
+            continue
+        if not pid_vivo(ppid) or etimes >= tope_min * 60:
+            fuera.append(pid)
+    return fuera
 
 
 # ── Acciones reales ──────────────────────────────────────────────────────────────────────────
@@ -430,12 +505,127 @@ def _lo_que_sumo_buscar() -> str:
     return ("no cabía más: " + nube[2:])[:400] if nube else ""
 
 
+# ── Liberar memoria (RPM1101A) ───────────────────────────────────────────────────────────────
+
+URL_VOZ = "http://127.0.0.1:4444"      # el mismo «Aliviar memoria» de Genesis: ceder el pool de voz
+URL_NEURONA = "http://127.0.0.1:11434"  # la Neurona local (Ollama): cargar sus modelos cuesta RAM
+
+
+def _pid_vivo(pid: int) -> bool:
+    """¿El proceso respira? `kill 0`: no señala nada, solo pregunta. Un pid muerto (ESRCH) no."""
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except OSError:
+        return False
+
+
+def _medir_memoria() -> Tuple[Optional[float], Optional[int]]:
+    """La medida con el guardia YA AQUÍ instalado (libres_mb: libre+inactiva; presion_nucleo:
+    nivel del kernel). Fuera de la Mac (o el guardia sin `vm_stat`/`sysctl`): None y None, con lo
+    que `memoria_apretada` dice que no y NO se libera nada — solo se libera sobre su medida."""
+    try:
+        g = _modulo("guardia-memoria.py", "guardia_memoria_medir")
+        return g.libres_mb(), g.presion_nucleo()
+    except Exception:  # noqa: BLE001
+        return None, None
+
+
+def _medida(medir: Callable[[], Any]) -> Tuple[Optional[float], Optional[int]]:
+    try:
+        libre, presion = medir()
+        return libre, presion
+    except Exception:  # noqa: BLE001 — la medida nunca debe tirar una reparación
+        return None, None
+
+
+def _descargar_neurona() -> List[str]:
+    """`keep_alive: 0` de Ollama: descargar AHORA lo cargado (si no, se queda en RAM hasta su
+    horario; y descargar RAM es lo que se busca). Sin generar tokens: `num_predict: 0`."""
+    descargados: List[str] = []
+    try:
+        with urllib.request.urlopen(URL_NEURONA + "/api/ps", timeout=4) as r:
+            cargados = json.loads(r.read().decode("utf-8") or "[]") or []
+    except Exception:  # noqa: BLE001 — sin Neurona local, paso siguiente
+        return []
+    for m in cargados[:8]:
+        nombre = (m.get("name") or m.get("model")) if isinstance(m, dict) else None
+        if not nombre:
+            continue
+        try:
+            cuerpo = json.dumps({"model": nombre, "prompt": "", "keep_alive": 0,
+                                 "options": {"num_predict": 0}}).encode("utf-8")
+            peticion = urllib.request.Request(URL_NEURONA + "/api/generate", data=cuerpo,
+                                              headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(peticion, timeout=20) as r:
+                r.read()
+            descargados.append(str(nombre))
+        except Exception:  # noqa: BLE001
+            continue
+    return descargados
+
+
+def accion_liberar_memoria() -> Tuple[bool, str]:
+    """RPM1101A · la causa de fondo, con lo ya existente y EN ESTE ORDEN (lo que suelta RAM de
+    verdad antes, lo que solo la retiene después): 1) dormir el BitNet (el guardia ya tiene el
+    pedir: `/api/bitnet/dormir`, el del botón «Aliviar memoria»; dormido suelta su mlock),
+    2) ceder el pool de voz (se relanza solo en la siguiente frase), 3) descargar la Neurona con
+    `keep_alive: 0`, 4) cortar los huérfanos que ya nadie vigila: los trabajadores de pruebas
+    (vitest) con el barrido del guardia y los tsc con el patrón SUP0111K. Devuelve (ya no está
+    apretada, lo que se hizo); si no pudimos soltar nada, el texto lo dice."""
+    g = _modulo("guardia-memoria.py", "guardia_memoria_liberar")
+    partes: List[str] = []
+    hecho, dormido = g.pedir_dormir_bitnet(g.URL_ASTRAURA)
+    if hecho:
+        partes.append("BitNet: %s" % ("dormido" if dormido else "en uso, sigue"))
+    try:
+        with urllib.request.urlopen(URL_VOZ + "/ceder", timeout=8) as r:
+            voz = json.loads(r.read().decode("utf-8") or "{}")
+        partes.append("voz cedida: %s servidor(es)" % (voz.get("cedidos") if isinstance(voz, dict) else "?"))
+    except Exception:  # noqa: BLE001 — sin demonio de voz, seguir
+        pass
+    descargados = _descargar_neurona()
+    if descargados:
+        partes.append("%d modelo(s) de la Neurona descargado(s)" % len(descargados))
+    cortados = g.barrer_trabajadores_huerfanos()
+    if cortados:
+        partes.append("%d trabajador(es) de pruebas huérfano(s) cortado(s)" % len(cortados))
+    tsc_cortados = []
+    try:
+        filas = []
+        for linea in subprocess.run(["ps", "-eo", "pid=,ppid=,etimes=,args="], capture_output=True,
+                                    text=True, timeout=15).stdout.splitlines():
+            partes_l = linea.split(None, 3)
+            if len(partes_l) == 4:
+                filas.append(tuple(partes_l))
+        for pid in tsc_huerfanos(filas, _pid_vivo):
+            if pid == os.getpid():
+                continue
+            try:
+                os.kill(pid, signal.SIGKILL)
+                tsc_cortados.append(pid)
+            except OSError:
+                pass
+    except Exception:  # noqa: BLE001
+        pass
+    if tsc_cortados:
+        partes.append("%d tsc huérfano(s) cortado(s)" % len(tsc_cortados))
+    libre, presion = _medir_memoria()
+    suelto = not memoria_apretada(libre, presion)
+    texto = ("; ".join(partes) or "nada que liberar: sin BitNet, sin voz, sin Neurona, sin huérfanos")
+    if suelto:
+        texto += " · la Mac respira otra vez"
+    else:
+        texto += " · sigue apretada (%s MB libres)" % ("?" if libre is None else int(libre))
+    return suelto or bool(partes or cortados or tsc_cortados), texto
+
+
 ACCIONES: Dict[str, Callable[[], Tuple[bool, str]]] = {
     "vigilante": accion_vigilante, "enjambre": accion_enjambre, "carril_nube": accion_carril_nube,
     "nube_gh": accion_nube_gh, "reconciliar": accion_reconciliar, "disco": accion_disco,
     "memoria": accion_memoria, "proveedores": accion_proveedores, "autopublicacion": accion_autopublicacion,
     "tokens": accion_tokens, "genesis": accion_genesis, "contenedores": accion_contenedores,
-    "capacidad": accion_capacidad,
+    "capacidad": accion_capacidad, "liberar_memoria": accion_liberar_memoria,
 }
 
 
@@ -473,8 +663,12 @@ def _comprobar(clave: str) -> Dict[str, Any]:
 
 def reparar(clave: str, origen: str = "boton", comprobar: Callable[[str], Dict[str, Any]] = _comprobar,
             acciones: Optional[Dict[str, Callable[[], Tuple[bool, str]]]] = None,
-            plan_previo: Optional[Tuple[Dict[str, Any], List[Dict[str, str]]]] = None) -> Dict[str, Any]:
-    """Comprueba, repara y vuelve a comprobar UN medidor; deja `reparacion-<clave>.json`."""
+            plan_previo: Optional[Tuple[Dict[str, Any], List[Dict[str, str]]]] = None,
+            medir: Callable[[], Any] = _medir_memoria) -> Dict[str, Any]:
+    """Comprueba, repara y vuelve a comprobar UN medidor; deja `reparacion-<clave>.json`.
+    RPM1101A: con la Mac sin memoria, `liberar_memoria` entra primero en el plan (el que manda
+    es la medida con el guardia, inyectable para las pruebas) y si al final SIGUE sin memoria,
+    el resumen lo dice como causa en vez de «sigue igual»."""
     clave = clave.replace("_", "-")
     acciones = acciones or ACCIONES
     empezado = _iso()
@@ -485,6 +679,9 @@ def reparar(clave: str, origen: str = "boton", comprobar: Callable[[str], Dict[s
     if antes is None:
         antes = comprobar(clave)
         plan = plan_reparacion(clave, antes.get("veredictos") or [])
+    plan = plan or []
+    libre_antes, presion_antes = _medida(medir)
+    plan, liberando = con_liberacion(plan, libre_antes, presion_antes)
     hechas: List[Dict[str, Any]] = []
     for paso in plan or []:
         _escribir(ruta_reparacion(clave), dict(base, paso="reparando: %s" % paso["titulo"], acciones=hechas))
@@ -496,10 +693,14 @@ def reparar(clave: str, origen: str = "boton", comprobar: Callable[[str], Dict[s
             ok, texto = False, "%s: %s" % (type(e).__name__, str(e)[:160])
         hechas.append(dict(paso, ok=bool(ok), resultado=texto, segundos=round(time.time() - t0, 1)))
     despues = comprobar(clave) if plan else antes
+    libre_despues, presion_despues = _medida(medir)
+    sin_memoria = memoria_apretada(libre_despues, presion_despues)
     res = resultado(antes.get("veredictos") or [], despues.get("veredictos") or [], bool(plan))
     salida = {
         "medidor": clave, "origen": origen, "empezado": empezado, "terminado": _iso(),
-        "resultado": res, "resumen": frase(clave, res, hechas, despues.get("resumen") or ""),
+        "resultado": res, "resumen": frase(clave, res, hechas, despues.get("resumen") or "", sin_memoria),
+        "memoria": {"antes": {"libre_mb": libre_antes, "presion": presion_antes},
+                    "despues": {"libre_mb": libre_despues, "presion": presion_despues}},
         "antes": {"resumen": antes.get("resumen"), "veredictos": antes.get("veredictos") or []},
         "despues": {"resumen": despues.get("resumen"), "veredictos": despues.get("veredictos") or []},
         "acciones": hechas, "sin_reparacion": sin_reparacion(clave, despues.get("veredictos") or []),
