@@ -103,6 +103,9 @@ describe("ayudantes de fuga de palabra", () => {
         expect(textoContienePalabra(null, "vela")).toBe(false);
         expect(textoContienePalabra("hola", "")).toBe(false);
         expect(textoContienePalabra("hola", "   ")).toBe(false);
+        expect(textoContienePalabra("", "hola")).toBe(false);
+        // la palabra puede venir con espacios alrededor (se recorta) sin dejar de casar
+        expect(textoContienePalabra("hola mundo", "  mundo  ")).toBe(true);
     });
 
     test("el texto pegado sí se ve, aunque esté encajado entre otras letras", () => {
