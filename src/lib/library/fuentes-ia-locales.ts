@@ -59,9 +59,21 @@ const RE_GITHUB = /^https?:\/\/github\.com\/[^/\s]+\/[^/\s]+/;
 export function fichasIaConUpstreamGitHub(paquetes: LibraryPackage[]): LibraryPackage[] {
     return paquetes.filter(
         // Modelos, repos, proyectos y funciones integradas (Hono…): la regla es «todo repo
-        // integrado con comprobación automática de versión», no solo los modelos. Las apps no.
+        // integrado con comprobación automática de versión», no solo los modelos. Las apps de
+        // verdad (con `route` del OS) no. Excepción: desde el 31-10 las fichas «tool» pintan
+        // como `app` (el cargador de tipos de repos-1025 lo muestraba como app para no tumbar
+        // la Biblioteca) y así OpenMausBot e Insomnia perdían el seguimiento de su versión;
+        // una app que DECLARA canal de etiquetas (`canal: "tags"` + `patronTag`) es un repo
+        // integrado y vuelve a entrar. (Contrato: architecture/mausbot-astraura.md.)
         (p) =>
-            (p.kind === "ai-source" || p.kind === "repo" || p.kind === "project" || p.kind === "function") &&
+            (p.kind === "ai-source" ||
+                p.kind === "repo" ||
+                p.kind === "project" ||
+                p.kind === "function" ||
+                (p.kind === "app" &&
+                    typeof p.payload?.canal === "string" &&
+                    p.payload.canal === "tags" &&
+                    typeof p.payload?.patronTag === "string")) &&
             typeof p.payload?.upstream === "string" &&
             RE_GITHUB.test(p.payload.upstream),
     );

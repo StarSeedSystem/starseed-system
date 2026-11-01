@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FICHAS_IA_LOCALES, RUTA_RECURSOS_IA, fichasIaConUpstreamGitHub } from "../fuentes-ia-locales";
+import { FICHAS_REPOS_1027 } from "../repos-1027";
 import { REPO_DECISIONES } from "../fuentes-decision";
 import { STARSEED_LABS_REPO, findPackage, install, isInstalled, type LibraryPackage } from "../packages";
 import { urlDeConsulta } from "../actualizaciones";
@@ -53,6 +54,30 @@ describe("instalar TurboFieldfare", () => {
         const res = await install(rota);
         expect(res.ok).toBe(false);
         expect(isInstalled("ai-rota")).toBe(false);
+    });
+});
+
+describe("instrumentos de la tanda 1027 en la comprobación de versión", () => {
+    it("las tres fichas de la tanda 1027 siguen su repo, aunque «tool» pinte como app", () => {
+        // El 31-10 el cargador de tipos pasó a mostrar «tool» como `app` para no
+        // tumbar la Biblioteca: OpenMausBot e Insomnia dejaron de seguir su
+        // upstream. La regla «todo repo integrado con comprobación automática»
+        // Los recupera por su canal de etiquetas declarado
+        // (contrato: architecture/mausbot-astraura.md).
+        const ids = fichasIaConUpstreamGitHub([...FICHAS_REPOS_1027]).map((p) => p.id);
+        for (const esperado of ["lib-colibri", "lib-insomnia", "lib-openmausbot"]) {
+            expect(ids, esperado).toContain(esperado);
+        }
+    });
+
+    it("una app de verdad (con ruta del OS) sigue FUERA de la comprobación", () => {
+        const app: LibraryPackage = { ...tf, id: "app-real", kind: "app", payload: { route: "/escritorios" } };
+        expect(fichasIaConUpstreamGitHub([app])).toEqual([]);
+    });
+
+    it("una app sin canal de etiquetas ni upstream completo tampoco entra", () => {
+        const sinCanal: LibraryPackage = { ...tf, id: "app-suelta", kind: "app", payload: { upstream: "https://github.com/x/y" } };
+        expect(fichasIaConUpstreamGitHub([sinCanal])).toEqual([]);
     });
 });
 
