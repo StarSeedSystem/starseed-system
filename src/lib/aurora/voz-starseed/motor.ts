@@ -47,6 +47,13 @@ export {
     type OpcionesNivelVoz,
 };
 import { perfilNeuronal } from "@/lib/voces/perfil-neuronal";
+// (Ola 1018V · VST1018F 2/3) Licencia por contexto en la puerta del motor único.
+import { motoresPermitidos, type ContextoLicenciaVoz, type ClaseLicenciaVoz } from "./licencia-voz";
+import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
+// (Ola 1018V) Medidas de latencia MEDIDAS en esta neurona (inyectables en pruebas).
+import type { MedidaVoz } from "@/lib/aurora/medidas-voz";
+// (Ola 1018F · niveles.ts) «estudio» solo compite en lectura/doblaje/audiolibro.
+import { estudioSegunUso, type UsoVoz } from "./niveles";
 // (2026-09-06, Ola 264 · G2) Emoción e intensidad: etiquetas `[emocion]` del
 // texto, capa `aplicarEmocion` sobre el perfil neuronal y catálogo `EmocionVoz`.
 import {
@@ -180,6 +187,99 @@ export function resolverEmocion(
         intensidad: delTexto.intensidad ?? opciones.intensidad ?? timbre?.intensidad ?? 1,
         texto: delTexto.textoLimpio,
     };
+}
+
+// ── (Ola 1018V · VST1018F 2/3) PRIMERA FRASE INSTANTÁNEA Y LICENCIA ─────────
+//
+// Contrato `architecture/voz-voicestudio.md` §4: la PRIMERA FRASE de una
+// conversación sale del motor PERMITIDO de menor latencia MEDIDA en esta
+// neurona que TENGA LA VOZ de esa persona (Supertonic, Kitten, Kokoro o el
+// demonio). Y la regla del `speak-router` manda igual que ahí: UNA respuesta
+// sale entera por UN motor — nunca se parte un mensaje entre dos motores, por
+// rápido que sea el arranque. El elector es PURO: candidatos, medidas, contexto
+// y capas entran como datos; nada de red, disco, reloj ni audio.
+
+/** Motor candidato a la primera frase (lo arma quien llama desde el catálogo). */
+export interface CandidatoInstantaneo {
+    /** Identificador del motor (la misma clave de catálogo y de medidas). */
+    id: string;
+    claseLicencia: ClaseLicenciaVoz;
+    /** Solo se mira en las «condicionada»; ausente equivale a no cumplida. */
+    condicionCumplida?: boolean;
+    /** true si este motor puede sonar con la voz de esa persona. */
+    tieneLaVoz: boolean;
+}
+
+/** Traduce el contexto de la puerta única al uso del turno (pura). */
+export function usoParaContexto(contexto: ContextoVoz): UsoVoz {
+    switch (contexto) {
+        case "aviso":
+            return "aviso";
+        case "lectura":
+        case "rito": // el rito es una ventana larga: lectura
+            return "lectura";
+        default:
+            return "conversacion";
+    }
+}
+
+/** Media de «primer-sonido» por motor (ms), solo de los motores aptos. */
+function latenciaMedia(candidatos: Set<string>, medidas: readonly MedidaVoz[]): Map<string, number> {
+    const suma = new Map<string, { total: number; n: number }>();
+    for (const m of medidas) {
+        if (m.tipo !== "primer-sonido" || !Number.isFinite(m.valor) || m.valor < 0) continue;
+        if (!candidatos.has(m.motor)) continue;
+        const prev = suma.get(m.motor) ?? { total: 0, n: 0 };
+        suma.set(m.motor, { total: prev.total + m.valor, n: prev.n + 1 });
+    }
+    const media = new Map<string, number>();
+    for (const [motor, s] of suma) media.set(motor, s.total / s.n);
+    return media;
+}
+
+/**
+ * Elige QUIÉN habla la PRIMERA FRASE de una conversación. Orden de aptitud:
+ *   1. Tiene la voz de esa persona (sin voz, fuera: identidad intocable).
+ *   2. Tiene licencia en el contexto (`motoresPermitidos` de licencia-voz.ts):
+ *      fuera de lo personal no entran motores «personal», y las «condicionada»
+ *      solo con su condición cumplida, nunca por omisión.
+ *   3. Tiene latencia de primer sonido MEDIDA en esta neurona (medidas-voz.ts).
+ * Gana el de menor VALOR MEDIO medido; empate: el primero en llegar. Sin
+ * aptos devuelve `null` y quien llama sigue su cadena habitual. Del que gana
+ * sale el MENSAJE COMPLETO: nunca se parte entre dos motores. Pura, nunca lanza.
+ */
+export function elegirMotorPrimeraFrase(
+    candidatos: readonly CandidatoInstantaneo[],
+    medidas: readonly MedidaVoz[],
+    contextoLicencia: ContextoLicenciaVoz,
+    capas: CapasPrefs,
+): CandidatoInstantaneo | null {
+    try {
+        const conVoz = candidatos.filter((c) => c.tieneLaVoz);
+        if (!conVoz.length) return null;
+        const conLicencia = motoresPermitidos(
+            conVoz.map((c) => ({ id: c.id, claseLicencia: c.claseLicencia, condicionCumplida: c.condicionCumplida })),
+            contextoLicencia,
+            capas,
+        ).permitidos;
+        if (!conLicencia.length) return null;
+        const aptos = conLicencia.map((m) => m.id);
+        const conVozPermitidos = conVoz.filter((c) => aptos.includes(c.id));
+        const media = latenciaMedia(new Set(aptos), medidas);
+        let mejor: CandidatoInstantaneo | null = null;
+        let mejorMs = Number.POSITIVE_INFINITY;
+        for (const c of conVozPermitidos) {
+            const ms = media.get(c.id);
+            if (ms === undefined || ms < 0) continue; // sin medida no compite
+            if (ms < mejorMs) {
+                mejor = c;
+                mejorMs = ms;
+            }
+        }
+        return mejor;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -451,11 +551,16 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     const { memoriaGB } = await detectarCapacidades();
     const ramGB = memoriaGB ?? 8;
     const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
+    // (Ola 1018V · VST1018F 2/3) «estudio» solo para lectura larga, doblaje y
+    // audiolibros (contrato `voz-voicestudio.md` §4): en conversación, avisos,
+    // rito e imaginación el candidato de estudio queda como «alta», y todo el
+    // mensaje sale SIEMPRE por un solo nivel: nunca se parte entre dos motores.
+    const uso = usoParaContexto(opciones.contexto);
     let nivel: NivelVoz;
     switch (motorCat.id) {
         case "voicemorphic":
         case "voicestudio":
-            nivel = "estudio";
+            nivel = estudioSegunUso(uso) ? "estudio" : "alta";
             break;
         case "kokoro":
         case "kittentts":
