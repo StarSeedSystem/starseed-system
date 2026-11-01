@@ -98,5 +98,76 @@ class TrabajadoresDePuertaHuerfanos(unittest.TestCase):
         self.assertEqual(A.trabajadores_huerfanos([("x", 1, "node (vitest 1)"), None, (1, 2)]), [])
 
 
+class TscHuerfanos(unittest.TestCase):
+    """(2026-10-31) El `tsc-turno.sh` de un agente muerto: 3 h y 4,6 GB en una Mac de 8.
+
+    El agente lanzó `zsh -c 'bash scripts/enjambre/tsc-turno.sh … | tail -40'`, murió, launchd
+    adoptó el zsh y su `npm exec tsc` → `node …/bin/tsc` siguió vivo sin dueño.
+    """
+
+    DEL_31_10 = [
+        (700, 1, "zsh -c bash scripts/enjambre/tsc-turno.sh 2>&1 | tail -40"),
+        (701, 700, "bash scripts/enjambre/tsc-turno.sh"),
+        (702, 701, "npm exec tsc -- --noEmit"),
+        (703, 702, "/usr/local/bin/node /repo/node_modules/typescript/bin/tsc --noEmit"),
+    ]
+
+    def test_el_caso_del_31_10(self):
+        self.assertEqual(A.tsc_huerfanos(self.DEL_31_10), [702, 703])
+
+    def test_la_puerta_del_orquestador_no_se_toca(self):
+        # La cadena sube a starseed-enjambre.py, aunque él mismo tenga ppid 1.
+        filas = [
+            (800, 1, "python3 -u /Users/alex/.local/bin/starseed-enjambre.py"),
+            (801, 800, "bash scripts/enjambre/tsc-turno.sh"),
+            (802, 801, "npm exec tsc -- --noEmit"),
+            (803, 802, "node /repo/node_modules/typescript/bin/tsc --noEmit"),
+        ]
+        self.assertEqual(A.tsc_huerfanos(filas), [])
+
+    def test_un_tsc_de_una_terminal_no_se_toca(self):
+        filas = [
+            (900, 1, "-zsh"),
+            (901, 900, "npm exec tsc -- --noEmit"),
+            (902, 901, "node /repo/node_modules/typescript/bin/tsc --noEmit"),
+        ]
+        self.assertEqual(A.tsc_huerfanos(filas), [])
+
+    def test_el_tsc_turno_de_un_agente_vivo_no_se_toca(self):
+        filas = [
+            (950, 1, "python3 -u /Users/alex/.local/bin/starseed-enjambre.py"),
+            (951, 950, "zsh -c bash scripts/enjambre/tsc-turno.sh 2>&1 | tail -40"),
+            (952, 951, "bash scripts/enjambre/tsc-turno.sh"),
+            (953, 952, "npm exec tsc -- --noEmit"),
+        ]
+        self.assertEqual(A.tsc_huerfanos(filas), [])
+
+    def test_un_tsc_con_padre_init_se_corta(self):
+        filas = [
+            (1000, 1, "/usr/local/bin/node /repo/node_modules/typescript/bin/tsc --noEmit"),
+            (1001, 1, "npm exec tsc -- --noEmit"),
+        ]
+        self.assertEqual(A.tsc_huerfanos(filas), [1000, 1001])
+
+    def test_no_confunde_otras_ordenes(self):
+        filas = [
+            (1100, 1, "grep tsc"),
+            (1101, 1, "/opt/homebrew/bin/node /repo/node_modules/.bin/vitest run"),
+            (1102, 1, "node (vitest 2)"),
+        ]
+        self.assertEqual(A.tsc_huerfanos(filas), [])
+
+    def test_filas_rotas(self):
+        self.assertEqual(A.tsc_huerfanos([("x", 1, "npm exec tsc"), None, (1, 2)]), [])
+
+    def test_la_guardia_tambien_los_corta(self):
+        # `guardia-memoria.py` mata lo que devuelve trabajadores_huerfanos: sin tocarlo,
+        # un tsc-turno viudo tiene que salir también por ahí.
+        self.assertEqual(
+            A.trabajadores_huerfanos([(39558, 1, "node (vitest 2)")] + self.DEL_31_10),
+            [39558, 702, 703],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
