@@ -59,7 +59,8 @@ import {
 } from "@/lib/voces/emociones";
 // (2026-09-06, Ola 264 · J1b) Normalización en español del texto hablado.
 import { normalizarParaVoz } from "@/lib/voces/normalizar-es";
-import { motorRecomendado, Plataforma } from "../catalogo-voces";
+import { motorRecomendado, Plataforma, MOTORES_VOZ, type MotorVozCatalogo } from "../catalogo-voces";
+import { motoresPermitidos, type MotorInfo, type ContextoLicenciaVoz, type CapasPrefs } from "./licencia-voz";
 function detectarPlataforma(): Plataforma {
     if (typeof window === "undefined") return "web";
     const ua = navigator.userAgent;
