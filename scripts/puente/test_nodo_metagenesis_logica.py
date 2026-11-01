@@ -115,6 +115,49 @@ class TestLiderarYPrestamos(unittest.TestCase):
         self.assertEqual(L.mejor_medio_ocioso(nodos), "neurona-bbbbbb")
 
 
+class TestRescateFrenado(unittest.TestCase):
+    """RESC1031C · seguimiento de la supervisión: lo que la cadena de rescate cerró no vuelve."""
+
+    def cola(self, *tareas):
+        return [("cola-fuente-x", T0, list(tareas))]
+
+    def test_candidatos_rescate_excluye_alta_capacidad(self):
+        tareas = [{"id": "RTRT7", "archivos": ["a.ts"], "prompt": "arregla"}]
+        progreso = {"RTRT7": {"estado": "bloqueada", "bloqueante": True, "alta_capacidad": True,
+                              "nota": "cadena de rescates agotada: carril de alta capacidad"}}
+        cands = L.candidatos_rescate(self.cola(*tareas), set(), progreso, [], T0)
+        self.assertEqual([c["id"] for c in cands], [])
+
+    def test_candidatos_rescate_excluye_por_nota(self):
+        # Sin la marca `alta_capacidad`, la NOTA del cierre del revisor basta para frenar el rescate.
+        tareas = [{"id": "RTT2b", "archivos": ["a.ts"], "prompt": "arregla"}]
+        progreso = {"RTT2b": {"estado": "bloqueada",
+                              "nota": "cadena de rescates agotada: carril de alta capacidad · RTT2b"}}
+        cands = L.candidatos_rescate(self.cola(*tareas), set(), progreso, [], T0)
+        self.assertEqual([c["id"] for c in cands], [])
+
+    def test_candidatos_rescate_deja_pasar_lo_fresco(self):
+        # Control: una misma cola sin la marca ni nota sigue siendo rescatable.
+        tareas = [{"id": "Z1", "archivos": ["a.ts"], "prompt": "hazlo"}]
+        cands = L.candidatos_rescate(self.cola(*tareas), set(), {}, [], T0)
+        self.assertEqual([c["id"] for c in cands], ["Z1"])
+
+    def test_relevo_excluido_por_id_de_cadena_agotada(self):
+        self.assertTrue(L.relevo_excluido("RTRTRT9"))
+        self.assertFalse(L.relevo_excluido("RTRT9"))  # en el tope (2), todavía sigue
+        self.assertFalse(L.relevo_excluido("X9"))
+
+    def test_relevo_excluido_por_progreso(self):
+        self.assertTrue(L.relevo_excluido("X9", {"estado": "bloqueada", "alta_capacidad": True}))
+        self.assertTrue(L.relevo_excluido("X9", {"nota": "cadena de rescates agotada: carril de alta capacidad"}))
+        self.assertFalse(L.relevo_excluido("X9", {"estado": "bloqueada"}))
+        self.assertFalse(L.relevo_excluido("X9", None))
+
+    def test_relevo_agotado_al_tope_marcado_en_progreso(self):
+        # Un id «en el tope» no lo frena el nombre, pero sí su cierre en alta capacidad.
+        self.assertTrue(L.relevo_excluido("RTRT9", {"alta_capacidad": True}))
+
+
 if __name__ == "__main__":
     unittest.main()
 

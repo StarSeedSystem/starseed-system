@@ -796,12 +796,19 @@ class Nodo:
                 asignadas[tid] = {"a": "relevo", "t": ts}
         plan = C.plan_relevo(datos["latidos"], datos["bajas"], asignadas, datos["nodos"],
                              datos["ocupados"], para_plan, t)
+        # (RESC1031C) Lo que la cadena de rescates ya cerró (RT×3+, carril de alta capacidad) no
+        # vuelve al relevo: otra ronda del enjambre gratuito repetiría lo que ya se descartó.
+        progreso = M.leer_json(os.path.join(raiz, "starseed_memory_root", "olas", "progreso.json"), {})
+        progreso = progreso if isinstance(progreso, dict) else {}
         conocidos = set(para_plan) | set(asignadas) | {
             str(e.get("id")) for l in datos["latidos"].values()
             for e in l.get("en_curso") or [] if isinstance(e, dict) and e.get("id")}
         for r in plan:
             tid = str(r.get("id") or "")
             if not tid or tid in hechas:
+                continue
+            if L.relevo_excluido(tid, progreso.get(tid)):
+                self._anotar_relevo(r, None, "rescate agotado o alta capacidad: no se sigue", informe, t)
                 continue
             punto = r.get("punto") if isinstance(r.get("punto"), dict) else None
             perdida = r.get("perdida_s")

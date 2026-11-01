@@ -1235,6 +1235,32 @@ def reparaciones_superadas(tareas: List[Dict[str, Any]], progreso: Dict[str, Any
     return salida
 
 
+def relevo_excluido(tid: Any, entrada: Any = None) -> bool:
+    """PURA (RESC1031C). ¿Esta tarea a MEDIAS NO se sigue a otro medio cuando su nodo se fue?
+
+    Sí lo frenan: (a) que su id ya pase el tope de la cadena de rescates (`rescate_agotado`,
+    RT×3+: otra sucesora sería el mismo rescate de siempre) y (b) que su progreso ya la deje en
+    el carril de alta capacidad (`en_alta_capacidad`, marca de RESC1031A). Fuera de ahí se sigue
+    como siempre («relevo sin pérdidas», COL1012G)."""
+
+    def prof_rt(t: Any) -> int:
+        s, n = str(t or ""), 0
+        while s.startswith("RT" * (n + 1)):
+            n += 1
+        return n
+
+    try:
+        # La MISMA regla del revisor (RESC1031A) para alta capacidad y cadena agotada.
+        from revisor_bloqueadas_logica import en_alta_capacidad as _alta_capacidad, rescate_agotado as _rescate_agotado
+    except ImportError:  # pragma: no cover — medio sin el resto del puente
+        def _alta_capacidad(entrada: Any) -> bool:
+            return (entrada or {}).get("alta_capacidad") is True
+
+        def _rescate_agotado(tid: Any, tope: int = 2) -> bool:
+            return prof_rt(tid) > tope
+    return _rescate_agotado(tid) or _alta_capacidad(entrada)
+
+
 def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, Any]]]], ids_vivos: set,
                        progreso: Dict[str, Any], asuntos_git: Sequence[str], ahora: float,
                        max_dias: int = 21, tope: int = 12) -> List[Dict[str, Any]]:
@@ -1247,12 +1273,16 @@ def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, A
     """
     try:
         from vigilante_logica import id_en_asuntos, sucesora_integrada  # misma regla que el vigilante
+        from revisor_bloqueadas_logica import en_alta_capacidad as en_alta_de  # misma regla (RESC1031C)
     except ImportError:  # pragma: no cover — medio sin el resto del puente
         def _base(tid: Any) -> str:
             tid = str(tid or "")
             if len(tid) > 1 and tid[-1] in "bcdefghijklmnopqrstuvwxyz" and (tid[-2].isdigit() or tid[-2].isupper()):
                 return tid[:-1]
             return tid
+
+        def en_alta_de(entrada: Any) -> bool:
+            return (entrada or {}).get("alta_capacidad") is True
 
         def id_en_asuntos(tid: Any, asuntos: Sequence[str]) -> bool:
             patron = re.compile(r"(?:^|·\s*)%s\s*:" % re.escape(str(tid)))
@@ -1283,6 +1313,10 @@ def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, A
             if t.get("aprobacion") or not t.get("archivos") or not str(t.get("prompt") or "").strip():
                 continue
             est = (progreso or {}).get(tid)
+            # (RESC1031C) La que el revisor sacó al carril de alta capacidad no vuelve al rescate:
+            # el enjambre gratuito repetiría la cadena agotada (RESC1031A, 7d9c14c52).
+            if en_alta_de(est):
+                continue
             estado = est.get("estado") if isinstance(est, dict) else ""
             if estado in CERRADAS or estado in ("fallo", "fallo_tsc", "fallo_tests", "bloqueante",
                                                 "esperando_aprobacion", "pendiente_aprobacion"):
