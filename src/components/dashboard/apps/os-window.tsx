@@ -89,34 +89,23 @@ export function OSWindow({
     useEffect(() => { cerrarRef.current = onClose; }, [onClose]);
     useEffect(() => apuntarVentana({ raiz: raizRef, cerrar: cerrarRef }), []);
 
-    // Calcula posición inicial centrada usando geometriaVentana.
-    // En teléfono (< 430px), la ventana se posiciona en la parte inferior
-    // (hoja centrada que sube desde abajo).
+    // Calcula offset inicial para teléfono: hoja centrada que sube desde abajo.
+    // En escritorio, flex centra; offset inicial = 0.
+    // En teléfono, necesitamos offset para alinear borde inferior con viewport.
     useEffect(() => {
+      if (typeof window === "undefined") return;
       const isPhone = window.innerWidth < 430;
-      const isTablet = window.innerWidth >= 430 && window.innerWidth < 768;
-      const tipoAparato = window.innerWidth < 430 ? "telefono" 
-        : window.innerWidth < 768 && !("pointer" in window) ? "tableta"
-        : window.innerWidth < 1280 ? "escritorio" : "grande";
+      if (!isPhone) return;
       
-      // Deriva dimensiones del sizeClass
-      // w-[min(94vw,1100px)] h-[min(86vh,760px)]
+      // Deriva dimensiones aproximadas de la ventana
+      // sizeClass: w-[min(94vw,1100px)] h-[min(86vh,760px)]
       const maxWidth = Math.min(window.innerWidth * 0.94, 1100);
       const maxHeight = Math.min(window.innerHeight * 0.86, 760);
       
-      const geom = geometriaVentana(
-        { ancho: window.innerWidth, alto: window.innerHeight },
-        { tipo: "ventana", ancho: maxWidth, alto: maxHeight }
-      );
+      // En teléfono, posición Y = viewport.alto - height (borde inferior alineado)
+      const offsetY = window.innerHeight - maxHeight;
       
-      // Flex centra, pero necesitamos el offset inicial para teléfono
-      // El contenedor flex tiene p-3 sm:p-4, así que restamos el padding
-      const padding = isPhone ? 16 : 12; // p-3 = 12px, p-4 = 16px en sm
-      const centerX = (window.innerWidth - maxWidth) / 2;
-      const centerY = isPhone ? window.innerHeight - maxHeight : (window.innerHeight - maxHeight) / 2;
-      
-      // El offset inicial compensa la posición que calculamos
-      setOffset({ dx: centerX, dy: centerY });
+      setOffset({ dx: 0, dy: offsetY });
     }, []);
 
     useEffect(() => {
