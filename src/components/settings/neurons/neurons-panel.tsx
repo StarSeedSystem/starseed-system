@@ -35,6 +35,9 @@ import {
 import { SecurityScanPanel } from "@/components/security/security-scan-panel";
 // Voz por neurona (Adenda 87): elección nube/local POR DISPOSITIVO + instalador.
 import { NeuronVoiceChoice } from "@/components/settings/aurora/neuron-voice-choice";
+// Imágenes locales de Astraura (IMG1011J): aquí la gente ajusta SU neurona, así que
+// es también donde Astraura le sugiere lo mejor que cabe en este hierro.
+import { SugerenciasInstalacion } from "@/components/imagenes";
 
 /* ── Icono por tipo de dispositivo ── */
 const KIND_ICONS: Record<NeuronKind, typeof Monitor> = {
@@ -191,6 +194,10 @@ export function NeuronsPanel() {
       {/* Voz de ESTA neurona (Adenda 87): elección nube/local por dispositivo,
           que ordena la cadena de voz de este equipo, con el instalador local. */}
       <NeuronVoiceChoice />
+
+      {/* Imágenes locales (IMG1011J): «Astraura te sugiere instalar…» según el hierro
+          REAL de esta neurona (nada se descarga solo, contrato §5 y §8). */}
+      <SugerenciasInstalacion />
 
       {/* Aviso suave: sin sesión solo se ve este dispositivo */}
       {hasSession === false && (

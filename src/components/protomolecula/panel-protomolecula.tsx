@@ -11,6 +11,8 @@
 import { useEffect, useState } from "react";
 
 import type { Controlador } from "@/lib/protomolecula/controlador";
+import type { PeticionImagen } from "@/lib/imagenes/plan";
+type PeticionConPrompt = PeticionImagen & { prompt?: string };
 import { AVISO_SALUD } from "@/lib/protomolecula/permisos";
 import { candidatosDe, obtenerAtomo } from "@/lib/protomolecula/registro-atomos";
 import type { EstadoGuardado } from "@/lib/protomolecula/sesion-molecula";
@@ -25,7 +27,41 @@ import { PanelParametros } from "./panel-parametros";
 import { MarcoAislado } from "./marco-aislado";
 import { useEstadoControl, useMolecula } from "./use-molecula";
 
+// Imágenes locales de Astraura (IMG1011J): la tarjeta de opciones por capas, §6 del contrato.
+import { TarjetaImagenes } from "@/components/imagenes";
+
 const AUTOR_PANEL: Autor = { tipo: "persona", id: "panel" };
+
+/** Sección «Imágenes» de la Protomolécula (IMG1011J): la tarjeta de opciones por capas del contrato §6:
+ *  se pregunta aquí qué imagen se quiere (o llega la petición de un átomo) y Astraura reparte pestaña,
+ *  neurona, malla y web gratis, con licencia y atribución visibles. Plegada por defecto para no ocupar el panel. */
+function SeccionImagenes() {
+  const [prompt, setPrompt] = useState("");
+  const [peticion, setPeticion] = useState<PeticionConPrompt | undefined>();
+  const repartir = () => {
+    const texto = prompt.trim();
+    if (!texto) return;
+    setPeticion({ opciones: 4, prioridad: "calidad", comercial: false, necesita: ["texto-a-imagen"], conReferencia: false, permisoRemoto: false, permitirDePago: false, prompt: texto });
+  };
+  return (
+    <details className="rounded-md border p-2 group">
+      <summary className="cursor-pointer text-sm font-medium">Imágenes · opciones por capas</summary>
+      <div className="mt-2 flex gap-2">
+        <input
+          type="text"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); repartir(); } }}
+          placeholder="Describe la imagen que quieres"
+          aria-label="Petición de imagen en la Protomolécula"
+          className="min-w-0 flex-1 cursor-text rounded-lg border border-input bg-input/30 px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground"
+        />
+        <button type="button" onClick={repartir} className="cursor-pointer rounded-lg border border-input px-3 py-1.5 text-xs transition-colors duration-200 hover:bg-muted motion-reduce:transition-none">Repartir opciones</button>
+      </div>
+      <div className="mt-3 text-foreground"><TarjetaImagenes peticion={peticion} /></div>
+    </details>
+  );
+}
 
 const ETIQUETA_AMBITO: Record<Ambito, string> = { personal: "personal", perfil: "perfil", grupo: "grupo", publica: "pública" };
 const TEXTO_GUARDADO = { "sin-cambios": "Sin cambios que guardar", guardando: "Guardando…", guardado: "Guardado en este aparato" } as const;
@@ -86,6 +122,9 @@ export function PanelProtomolecula({ controlador: ctl, autor = AUTOR_PANEL, comp
       <ListaPendientes controlador={ctl} estado={estado} />
       {!compacto && <BarraDictado alDictar={(frase) => ctl.dictar(frase, autor).resultados} />}
       <PanelMausbot molecula={estado.molecula} candidatos={candidatosDe(estado.molecula)} />
+      {!compacto && (
+        <SeccionImagenes />
+      )}
       {estado.molecula.atomos.map((atomo) => {
         const def = obtenerAtomo(atomo.herramientaId);
         if (!def?.vista) return null;

@@ -88,8 +88,21 @@ el enjambre (guardia de memoria); en la A1, hilos limitados para no ahogar sus s
 Supabase (las capacidades se publican al arrancar y al cambiar); el token de Hugging Face, si hace falta, va en
 el entorno y nunca en el código.
 
-## §9 · Cola `cola-imagenes-1011.json`
+## §9 · Estado real de la cola `cola-imagenes-1011.json` (verificado en IMG1011J, 2026-11-01)
 
-IMG1011A servicio local de imágenes por neurona · B proveedor «neuronas» en media-gen · C tarjeta de opciones
-de la Protomolécula · D chats, agentes y bots · E sugerencias e instalador en las apps · F malla · G explorador
-y autoactualización · H SD-Turbo en la pestaña · I fichas del catálogo · J integración y verificación.
+| Tarea | Estado | Dónde se ve |
+|---|---|---|
+| IMG1011A servicio local de imágenes por neurona | **Integrada en main** | `servicios/imagenes-local/` (servicio.py, systemd, README, pruebas pytest) |
+| IMG1011B proveedor «neuronas» en media-gen | **Integrada en main** | `src/ai/astraura/media/proveedor-neuronas.ts` (+ pruebas en `__tests__/`) |
+| IMG1011C tarjeta de opciones de la Protomolécula | **Integrada en main** | `src/components/imagenes/tarjeta-imagenes.tsx` (núcleo), `src/lib/imagenes/adaptadores/use-tarjeta-imagenes.ts` (hook) |
+| IMG1011D chats, agentes y bots | **Integrada en main, partida**: la tool `generar_imagen` y la acción de bots `imagen.generar` ya corren; montar la tarjeta DENTRO del flujo de mensajes del chat queda abierto (hoy el resultado del tool lleva solo la primera URL, no la galería) | `src/lib/integrations/aurora-tools.ts` y `src/lib/astraura-bots/acciones.ts` |
+| IMG1011E sugerencias e instalador en las apps | **Integrada en main** | `src/components/imagenes/sugerencias-instalacion.tsx` + `src/lib/imagenes/adaptadores/hierro-local.ts` |
+| IMG1011F malla de imágenes | **Integrada en main** | `src/lib/imagenes/adaptadores/malla-imagenes.ts` (con su prueba) |
+| IMG1011G explorador y autoactualización | **Integrada en main, a medias**: `scripts/imagenes/explorador_modelos.py` existe y pasa pytest, pero NINGÚN servicio lo lanza (verificado el 2026-10-16 en `architecture/vigia-modelos.md` §1); lo asume el vigía `scripts/puente/vigia_modelos.py` | Ola 1016M |
+| IMG1011H SD-Turbo en la pestaña | **Integrada en main** | `src/lib/imagenes/adaptadores/webgpu-sd-turbo.ts` + worker (con pruebas); se consume como generador de pestaña desde el proveedor «neuronas» |
+| IMG1011I fichas del catálogo | **Integrada en main** | `src/lib/protomolecula/__tests__/catalogo-imagenes.test.ts` + fichas en `src/lib/recursos-ia/catalogo.ts` |
+| IMG1011J integración y verificación | **En curso (esta rama)**: barril `src/components/imagenes/index.ts`; tarjeta montada en Habilidades (prueba por capas), en Ajustes → Neuronas (sugerencias) y en la Protomolécula (sección plegada «Imágenes · opciones por capas»); en los chats sigue llegando por la tool y la acción ya integradas. tsc y vitest en verde y pytest de `servicios/imagenes-local` y `scripts/imagenes` en verde | `src/components/imagenes/index.ts`, `src/app/(app)/habilidades/page.tsx`, `src/components/settings/neurons/neurons-panel.tsx`, `src/components/protomolecula/panel-protomolecula.tsx` |
+
+Pendiente honesto: meter la tarjeta como parte del resultado del tool del chat (hace falta que `generarImagen` de
+`service-generation.ts` devuelva la galería y que el render de mensajes sepa pintarla: de la ola de media-gen,
+no de esta cola).
