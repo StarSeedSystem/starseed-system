@@ -108,6 +108,16 @@ describe('planSalida', () => {
     expect(p.ruta?.saltos).toEqual(['a', 'gan'])
   })
 
+  it('un dato interno entre neuronas tampoco usa puerta', () => {
+    const p = planSalida({
+      cristal: cristal(['a', 'b']), reticula: reticula(señal('a', 'b')),
+      dato: dato({ clase: 'interno' }), ctx, puertas: [puerta('p1', 'b')], solicitante: sol,
+    })
+    expect(p.puerta).toBeNull()
+    expect(p.ruta?.saltos).toEqual(['a', 'b'])
+    expect(p.motivo).toBe('va por la malla P2P')
+  })
+
   it('sin puertas con ruta devuelve motivo claro y sin puerta', () => {
     const p = planSalida({
       cristal: cristal(['a', 'lon']), reticula: reticula(señal('a', 'lon')), dato: dato({ destino: null }),
