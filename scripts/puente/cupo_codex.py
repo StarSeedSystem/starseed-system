@@ -50,6 +50,21 @@ PISTAS = (
 #: Cuánto se aparta tras un agotamiento.
 HORAS = 3.0
 
+#: Lo que dice la CLI de codex cuando el modelo no existe para esta cuenta.
+PISTAS_SIN_MODELO = (
+    "is not supported when using codex with a chatgpt account",
+    "model_not_found",
+)
+
+#: Cuánto se aparta cuando la cuenta no tiene Codex disponible.
+HORAS_SIN_MODELO = 24
+
+
+def sin_modelo_en(salida):
+    """¿Esta salida indica que el modelo de Codex no está admitido con esta cuenta?"""
+    b = (salida or "").lower()
+    return any(p in b for p in PISTAS_SIN_MODELO)
+
 
 def agotado_en(salida):
     """¿Esta salida es un agotamiento de cuota de Codex?

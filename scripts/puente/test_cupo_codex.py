@@ -9,9 +9,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import cupo_codex as C
 
-#: Literal del log de CU3b, RS3b, RS1p y las dos del Dream.
+#: Literal del log de CU3b, RS3b, RS1p y las dos del Dream (cuota agotada).
 REAL = ("ERROR: You've hit your usage limit. Upgrade to Pro "
         "(https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage")
+
+#: Salida real del 2026-10-28: «The 'gpt-5.6-sol' model is not supported...»
+REAL_SIN_MODELO = ("{\"status\":400, \"message\":\"The 'gpt-5.6-sol' model is not supported "
+                  "when using Codex with a ChatGPT account.\",\"code\":\"model_not_found\"}")
 
 AHORA = 1_700_000_000.0
 
@@ -54,6 +58,21 @@ class TestVigencia(unittest.TestCase):
         marca = {"hasta": AHORA + 90 * 60}
         self.assertEqual(C.minutos_restantes(marca, AHORA), 90)
         self.assertEqual(C.minutos_restantes({}, AHORA), 0)
+
+
+class TestSinModelo(unittest.TestCase):
+    def test_la_salida_real_de_modelo_no_admitido(self):
+        self.assertTrue(C.sin_modelo_en(REAL_SIN_MODELO))
+
+    def test_cuota_agotada_no_es_sin_modelo(self):
+        self.assertFalse(C.sin_modelo_en(REAL))
+
+    def test_no_confunde_otros_errores_de_modelo(self):
+        self.assertFalse(C.sin_modelo_en("ERROR: model 'gpt-9' does not exist"))
+
+    def test_vacio_no_es_sin_modelo(self):
+        self.assertFalse(C.sin_modelo_en(""))
+        self.assertFalse(C.sin_modelo_en(None))
 
 
 class TestVentana(unittest.TestCase):
