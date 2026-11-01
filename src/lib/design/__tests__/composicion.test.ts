@@ -73,3 +73,29 @@ describe("zonaPulgar", () => {
     expect(result.x).toBe(0);
   });
 });
+
+describe("geometriaVentana · tipo ventana", () => {
+  it("abre centrada en escritorio: posición media del viewport", () => {
+    const viewport = { ancho: 1920, alto: 1080 };
+    const result = geometriaVentana(viewport, { tipo: "ventana" });
+    expect(result.x).toBeCloseTo((1920 - result.ancho) / 2);
+    expect(result.y).toBeCloseTo((1080 - result.alto) / 2);
+    expect(result.origen).toBe("top-left");
+  });
+
+  it("en telefono: hoja centrada que sube desde abajo (y=viewport.alto-height)", () => {
+    const viewport = { ancho: 400, alto: 800 };
+    const result = geometriaVentana(viewport, { tipo: "ventana" });
+    expect(result.y).toBeCloseTo(viewport.alto - result.alto);
+    expect(result.x).toBeCloseTo((viewport.ancho - result.ancho) / 2);
+  });
+
+  it("respeta el ancho/alto proporcionado", () => {
+    const viewport = { ancho: 1920, alto: 1080 };
+    const result = geometriaVentana(viewport, { tipo: "ventana", ancho: 800, alto: 600 });
+    expect(result.ancho).toBe(800);
+    expect(result.alto).toBe(600);
+    expect(result.x).toBeCloseTo((1920 - 800) / 2);
+    expect(result.y).toBeCloseTo((1080 - 600) / 2);
+  });
+});

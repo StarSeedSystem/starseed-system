@@ -4,6 +4,13 @@ export type TipoAparato = "telefono" | "tableta" | "escritorio" | "grande" | "xr
 
 export type TipoVentana = "dialogo" | "ventana" | "hoja" | "panel-lateral";
 
+export interface PosicionVentana {
+  x: number;
+  y: number;
+  ancho: number;
+  alto: number;
+}
+
 export interface Viewport {
   ancho: number;
   alto: number;
