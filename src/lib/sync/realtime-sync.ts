@@ -256,6 +256,8 @@ const EVENT_BY_KEY: Record<string, string[]> = {
 
     // Bots de IA (Ola 1025U · U3, bloqueo-bots.ts): al llegar la regla de otro medio, el feed se refiltra al instante.
     "starseed.agentes-red.bloqueo.v1": ["starseed:agentes-red-bloqueo"],
+    // Directivas de automejora por capas (MTN1027C)
+    "starseed.capas.directivas.v1": ["starseed:capas-directivas"],
 };
 
 /** Prefijo → evento(s); se usa cuando la clave concreta no está en EVENT_BY_KEY. */
