@@ -80,6 +80,10 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
 // (Ola MBT1027) El Mausbot guarda su config con su propio evento (EVENTO_MAUSBOT,
 //  src/lib/mausbot/config.ts); el valor que llega de otro dispositivo usa el mismo evento.
 import { EVENTO_MAUSBOT } from "@/lib/mausbot/config";
+// (MTN1027C) Las directivas de Meta^n anuncian su cambio con su propio evento
+// (EVENTO_DIRECTIVAS, src/lib/astraura/capas/directivas-almacen.ts); el valor que
+// llega de otro medio usa el mismo evento.
+import { EVENTO_DIRECTIVAS } from "@/lib/astraura/capas/directivas-almacen";
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
@@ -228,6 +232,9 @@ const EVENT_BY_KEY: Record<string, string[]> = {
     "starseed.astraura.usercontext.v1": ["starseed:astraura-usercontext"],
     // Capas de conciencia por entidad (Ola 1003, use-capas-entidad.ts): refresco en vivo.
     "starseed.astraura.capas-entidad.v1": ["starseed:astraura-capas-entidad"],
+    // Directivas de automejora Meta^n por capa (MTN1027C, directivas-almacen.ts): el valor
+    // que llega de otro medio usa el mismo evento que emite guardarDirectivas.
+    "starseed.capas.directivas.v1": ["starseed:capas-directivas"],
     "starseed.astraura.installed-models.v1": ["starseed:astraura-installed-models"],
     "starseed.astraura.huggingbay-candidates.v1": ["starseed:astraura-huggingbay-candidates"],
     "starseed.astraura.webaccess.v1": ["starseed:astraura-suggestions"],
