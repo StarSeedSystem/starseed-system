@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261031",
+ "tareas": [
+  {
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "id": "SGO1031B-d2",
+   "titulo": "Voz · el router y la cadena real coinciden también con la elección de la cuenta y sin personalidad (parte 2 de 3)",
+   "archivos": [
+    "src/app/api/aurora/router.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; nunca la IP del A1; funciones PURAS con pruebas.\n\nLo dejó abierto SGO1031A (c408156ce). (1) Cuando nadie fija motor, `refreshPersonalityVoicePin` da un pin por defecto (openvoice2/omnivoice/fastweb) que `buildVoiceChain` pone delante de `cfg.engine`, pero el router toma la elección de la cuenta como pin: cuenta=vibevoice con openvoice2 disponible ⇒ el router prepara guion y suena OpenVoice. (2) Sin personalidad activa el router lee el override con `persona?.id ?? \"*\"` y la cadena real no aplica override. Manda lo que suena: que el router decida igual que la cadena real en esos dos casos (busca la ruta real de router.ts con grep). Amplía la tabla de equivalencia de `voz-orden-cadena-real.test.ts`. Solo vitest de lo tocado.\n\n## PARTE 2 DE 3 (la dirección dividió SGO1031B: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/app/api/aurora/router.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "SGO1031B",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "SGO1031B-d1"
+   ]
+  }
+ ]
+}
