@@ -25,6 +25,11 @@ async function firmaDePrueba(cuerpo: string, secreto: string, marca: string): Pr
   return Array.from(new Uint8Array(firma), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+function eventoDeBytes(bytes: number): EventoSeguridad {
+  const base = new TextEncoder().encode(JSON.stringify({ ...EVENTO, resumen: "" })).length;
+  return { ...EVENTO, resumen: "x".repeat(bytes - base) };
+}
+
 describe("validarDestino", () => {
   it("acepta https y rechaza http salvo red local explícita", () => {
     expect(validarDestino(DESTINO).ok).toBe(true);
@@ -81,6 +86,13 @@ describe("prepararEnvio", () => {
     const { marca, firma } = await firmarCuerpo(resultado.init.body, SECRETO, AHORA);
     expect(resultado.init.headers[CABECERAS_TRACECAT.marca]).toBe(marca);
     expect(resultado.init.headers[CABECERAS_TRACECAT.firma]).toBe(firma);
+  });
+
+  it("acepta un cuerpo que ocupa justo el tope de 16 KB", async () => {
+    const alTope = eventoDeBytes(16 * 1024);
+    expect(new TextEncoder().encode(JSON.stringify(alTope)).length).toBe(16 * 1024);
+    const resultado = await prepararEnvio(alTope, DESTINO, SECRETO, AHORA);
+    expect(resultado.ok).toBe(true);
   });
 
   it("rechaza un destino inválido y un cuerpo de más de 16 KB", async () => {
