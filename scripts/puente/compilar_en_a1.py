@@ -30,6 +30,7 @@ Lo que hace (el mismo camino que la Mac, pero compilando fuera):
    la build deja en el A1 la marca `.envio-a1` («t_envio huella», solo si `next build`
    salió bien), y la siguiente pasada TRAE ese build sin recompilar si es más nuevo
    que el de la Mac (`build_previo`), aunque el nodo del A1 no lata.
+9. SESIÓN · (SUP0111E) el turno va desacoplado (setsid+nohup) y la Mac sondea `estado.json`.
 """
 from __future__ import annotations
 
@@ -74,6 +75,11 @@ TSC_VIVO = "pgrep -u starseed -f 'bin/ts[c]' >/dev/null 2>&1"  # [c]: no se encu
 #: (SUP0111A) Marca que la build del A1 deja DENTRO de su dist al acabar bien: «t_envio huella».
 #: Vive y muere con el build (`guion_compilar` empieza con `rm -rf dist`): nunca habla de otro.
 MARCA_A1 = ".envio-a1"
+#: (SUP0111E) El guion del turno vive FUERA del ssh (setsid+nohup) y deja {pid, inicio, rc} para sondearlo.
+DIR_GUION_A1 = HOME_A1 + "/.starseed/compilar-a1"
+GUION_A1 = DIR_GUION_A1 + "/guion.sh"
+ESTADO_GUION_A1 = DIR_GUION_A1 + "/estado.json"
+SONDEO_S = int(os.environ.get("STARSEED_A1_SONDEO_S", "30"))
 INTENTOS_TRAER = int(os.environ.get("STARSEED_A1_INTENTOS_TRAER", "4"))
 PAUSA_TRAER_S = int(os.environ.get("STARSEED_A1_PAUSA_TRAER_S", "20"))
 #: Un rsync sin un byte en este tiempo se corta (antes podía colgarse hasta la hora del subprocess).
@@ -293,6 +299,83 @@ def guion_turno(compilar, espera_s=ESPERA_TURNO_S, fase=FASE_A1, cerrojo=PESADO_
     )) + "\n"
 
 
+def leer_estado_guion(texto):
+    """PURA: {pid, inicio, rc} del guion; rc None mientras corre; None si no hay estado válido."""
+    try:
+        datos = json.loads(str(texto or "").strip() or "{}")
+    except ValueError:
+        return None
+    if not isinstance(datos, dict):
+        return None
+    pid, inicio, rc = datos.get("pid"), datos.get("inicio"), datos.get("rc")
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+        return None
+    if not isinstance(inicio, int) or isinstance(inicio, bool) or inicio < 0:
+        return None
+    if rc is not None and (not isinstance(rc, int) or isinstance(rc, bool)):
+        return None
+    return {"pid": pid, "inicio": inicio, "rc": rc}
+
+
+def decidir_sondeo(texto, inicio, ahora, tope_s):
+    """PURA: `esperar` mientras corre, `listo`/`fallo` con su rc, `sin-arrancar` sin estado y `tope` al agotarse."""
+    datos = leer_estado_guion(texto)
+    if datos and datos.get("rc") is not None:
+        return ("listo" if datos["rc"] == 0 else "fallo"), datos
+    desde = datos["inicio"] if datos else inicio
+    if float(ahora) - float(desde) >= float(tope_s):
+        return "tope", datos
+    return ("esperar" if datos else "sin-arrancar"), datos
+
+
+def guion_desacoplado(compilar, estado=ESTADO_GUION_A1, inicio=None):
+    """PURA: deja {pid, inicio} al empezar y añade rc al acabar; el exit del turno va en un subshell."""
+    inicio = int(time.time() if inicio is None else inicio)
+    q = shlex.quote
+    return "\n".join((
+        "mkdir -p %s" % q(os.path.dirname(estado)),
+        "printf '{\"pid\": %%d, \"inicio\": %d}\\n' \"$$\" > %s" % (inicio, q(estado)),
+        "(",
+        str(compilar or "").rstrip("\n"),
+        ")",
+        "rc=$?",
+        "printf '{\"pid\": %%d, \"inicio\": %d, \"rc\": %%d}\\n' \"$$\" \"$rc\" > %s" % (inicio, q(estado)),
+        "exit $rc",
+    )) + "\n"
+
+
+def orden_escribir_guion(ruta=GUION_A1):
+    """PURA: escribe el guion por la entrada de ssh como starseed (umask 077, ejecutable)."""
+    q = shlex.quote
+    return "sudo -u starseed -H sh -c 'umask 077 && mkdir -p %s && cat > %s && chmod 700 %s'" % (
+        q(os.path.dirname(ruta)), q(ruta), q(ruta))
+
+
+def orden_lanzar_guion(directorio=DIR_GUION_A1, guion=GUION_A1):
+    """PURA: setsid+nohup, log a build.log y stdin de /dev/null: el ssh puede irse y la build sigue."""
+    interior = "rm -f %s; cd %s && setsid nohup sh %s > build.log 2>&1 < /dev/null & echo lanzado" % (
+        shlex.quote(directorio + "/estado.json"), shlex.quote(directorio), shlex.quote(guion))
+    return "sudo -u starseed -H sh -c %s" % shlex.quote(interior)
+
+
+def orden_leer_estado_guion(ruta=ESTADO_GUION_A1):
+    """PURA: `cat` del estado del guion (una línea JSON); vacío si aún no existe."""
+    return "sudo -u starseed -H sh -c %s" % shlex.quote("cat %s 2>/dev/null || true" % shlex.quote(ruta))
+
+
+def orden_guion_vivo(ruta=ESTADO_GUION_A1):
+    """PURA: ¿el pid del estado sigue vivo? Una lectura y un `kill -0` (no mata nada)."""
+    interior = ("p=$(tr -d ' ' < %s 2>/dev/null | sed -n 's/.*\"pid\":\\([0-9]*\\).*/\\1/p'); "
+                "[ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null && echo vivo=1 || echo vivo=0") % shlex.quote(ruta)
+    return "sudo -u starseed -H sh -c %s" % shlex.quote(interior)
+
+
+def orden_cola_guion(directorio=DIR_GUION_A1):
+    """PURA: el final del registro del guion, para el detalle de un fallo."""
+    return "sudo -u starseed -H sh -c %s" % shlex.quote(
+        "tail -n 40 %s 2>/dev/null || true" % shlex.quote(directorio + "/build.log"))
+
+
 def _git_local(args, raiz=RAIZ, timeout=120):
     try:
         r = subprocess.run(["git", *args], cwd=raiz, capture_output=True, text=True, timeout=timeout)
@@ -356,6 +439,38 @@ def compilar(raiz=RAIZ, tope=7200, urgente=None):
         oracle_nodo.ssh(orden_quitar_turno(), timeout=60)
 
 
+def _esperar_guion(inicio, tope, estado=ESTADO_GUION_A1, pausa_s=None):
+    """Sondea `estado.json` con ssh cortos hasta el rc o el tope; un fallo de red no es un fallo de build."""
+    pausa_s = SONDEO_S if pausa_s is None else pausa_s
+    while True:
+        rc, salida = oracle_nodo.ssh(orden_leer_estado_guion(estado), timeout=60)
+        accion, datos = decidir_sondeo(salida if rc == 0 else "", inicio, time.time(), tope)
+        if accion == "listo":
+            return 0, ""
+        if accion in ("fallo", "tope"):
+            _, registro = oracle_nodo.ssh(orden_cola_guion(os.path.dirname(estado)), timeout=60)
+            return ((datos or {}).get("rc") or 1), cola(registro)
+        time.sleep(pausa_s)
+
+
+def _compilar_desacoplado(guion, tope, estado=ESTADO_GUION_A1, pausa_s=None):
+    """(SUP0111E) Sube y lanza el guion DESACOPLADO; si ya hay uno vivo, NO lanza otro: espera a ese."""
+    inicio = time.time()
+    rc, salida = oracle_nodo.ssh(orden_leer_estado_guion(estado), timeout=60)
+    datos = leer_estado_guion(salida) if rc == 0 else None
+    if datos and datos.get("rc") is None:
+        rc, vivo = oracle_nodo.ssh(orden_guion_vivo(estado), timeout=60)
+        if rc == 0 and "vivo=1" in vivo:
+            return _esperar_guion(inicio, tope, estado, pausa_s)
+    rc, salida = oracle_nodo._ssh_bytes(orden_escribir_guion(), guion.encode("utf-8"), timeout=60)
+    if rc != 0:
+        return 1, "guion del A1: %s" % cola(salida)
+    rc, salida = oracle_nodo.ssh(orden_lanzar_guion(), timeout=60)
+    if rc != 0:
+        return 1, "lanzar en el A1: %s" % cola(salida)
+    return _esperar_guion(inicio, tope, estado, pausa_s)
+
+
 def _enviar_y_compilar(ip, raiz, tope, raiz_a1=RAIZ_A1, espera_turno=None):
     """El camino de siempre en `raiz_a1`; con `espera_turno`, la build va dentro de `guion_turno`."""
     rc, cabeza = _git_local(["rev-parse", "HEAD"], raiz)
@@ -397,9 +512,10 @@ def _enviar_y_compilar(ip, raiz, tope, raiz_a1=RAIZ_A1, espera_turno=None):
     if espera_turno is None:
         rc, salida = oracle_nodo.ssh(orden_compilar(raiz_a1, marca=marca), timeout=tope)
     else:
-        rc, salida = oracle_nodo.ssh(ORDEN_GUION, entrada=guion_turno(guion_compilar(raiz_a1, marca=marca),
-                                                                      espera_turno),
-                                     timeout=tope + espera_turno)
+        # (SUP0111E) El turno va DESACOPLADO: un corte del ssh ya no le manda HUP ni lo mata.
+        guion = guion_desacoplado(guion_turno(guion_compilar(raiz_a1, marca=marca), espera_turno),
+                                  ESTADO_GUION_A1, time.time())
+        rc, salida = _compilar_desacoplado(guion, tope + espera_turno)
         if rc == SIN_TURNO:
             return False, "sin turno en el A1: %s" % cola(salida)
     if rc != 0:
