@@ -70,6 +70,25 @@ describe("ClienteMcpStdio", () => {
     transporte.responder(transporte.ultima.id, { ok: true });
     expect(await promesa).toEqual({ ok: true });
   });
+  it("mantiene el contador de ilegibles tras múltiples líneas no JSON", async () => {
+    const { transporte, cliente } = montar();
+    transporte.enviar("no es json 1\n");
+    transporte.enviar("{malformed\n");
+    expect(cliente.ilegibles).toBe(2);
+    const promesa = cliente.listar(1000);
+    transporte.responder(transporte.ultima.id, {});
+    expect(await promesa).toEqual({});
+  });
+  it("reasembja una línea JSON que llega partida en mitad de la respuesta", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.listar(5000);
+    const id = transporte.ultima.id;
+    const jsonCompleto = `{"jsonrpc":"2.0","id":${id},"result":true}\n`;
+    const corte = Math.floor(jsonCompleto.length / 2);
+    transporte.enviar(jsonCompleto.slice(0, corte));
+    transporte.enviar(jsonCompleto.slice(corte));
+    expect(await promesa).toBe(true);
+  });
   it("falla con tiempo agotado", async () => {
     const { reloj, cliente } = montar();
     const promesa = cliente.listar(50);
