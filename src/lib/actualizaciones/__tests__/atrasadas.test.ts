@@ -4,6 +4,7 @@ import {
   type EstadoNeuronaActualizacion,
   type VersionesPorCapa
 } from "../atrasadas";
+import { CAPAS_ORDEN } from "../manifiesto";
 
 /** Las seis capas con versión publicada: para los casos que miran varias filas por neurona. */
 const ULTIMA_SEIS: VersionesPorCapa = {
@@ -352,5 +353,25 @@ describe("neuronasAtrasadas", () => {
     const atrasos = neuronasAtrasadas(neuronas, ultima);
     expect(atrasos.map((a) => a.neuronaId)).toEqual(["n1", "n3", "n2"]);
     expect(atrasos.map((a) => a.nombre)).toEqual(["Alpha", "Alpha", "Beta"]);
+  });
+
+  it("con las seis capas, cada grupo de neurona va entero y en el orden del manifiesto", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      { neuronaId: "2", nombre: "Beta", online: true, versiones: { datos: "2025.12.01" } },
+      { neuronaId: "1", nombre: "Alpha", online: true, versiones: { datos: "2025.12.01" } },
+      { neuronaId: "3", nombre: "Alpha", online: true, versiones: { datos: "2025.12.01" } }
+    ];
+    const atrasos = neuronasAtrasadas(neuronas, ULTIMA_SEIS);
+    // Tres neuronas × seis capas: primero Alpha (id 1), luego Alpha (id 3) y al final Beta (id 2).
+    expect(atrasos).toHaveLength(18);
+    for (let i = 0; i < 6; i++) expect(atrasos[i].neuronaId).toBe("1");
+    for (let i = 6; i < 12; i++) expect(atrasos[i].neuronaId).toBe("3");
+    for (let i = 12; i < 18; i++) expect(atrasos[i].neuronaId).toBe("2");
+    // Y dentro de cada neurona, las capas van en el orden de CAPAS_ORDEN: de datos a nativa.
+    for (let i = 0; i < CAPAS_ORDEN.length; i++) {
+      expect(atrasos[i].capa).toBe(CAPAS_ORDEN[i]);
+      expect(atrasos[6 + i].capa).toBe(CAPAS_ORDEN[i]);
+      expect(atrasos[12 + i].capa).toBe(CAPAS_ORDEN[i]);
+    }
   });
 });
