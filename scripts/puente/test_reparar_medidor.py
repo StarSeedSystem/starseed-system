@@ -145,6 +145,17 @@ class Reparar(unittest.TestCase):
         self.assertEqual(hechas, [1, 1])
 
 
+class FraseDelResumen(unittest.TestCase):
+    """La línea que se enseña bajo el botón y se dice en el Chat Director."""
+
+    def test_si_sigue_igual_lo_dice_con_su_cuenta(self):
+        hechas = [{"accion": "enjambre", "ok": False}, {"accion": "reconciliar", "ok": False}]
+        texto = R.frase("agentes", "sigue", hechas, "1 muerto")
+        self.assertIn("sigue igual tras reparar", texto)
+        self.assertIn("0 de 2 acción(es) bien", texto)
+        self.assertNotIn("sin memoria", texto)
+
+
 if __name__ == "__main__":
     unittest.main()
 
