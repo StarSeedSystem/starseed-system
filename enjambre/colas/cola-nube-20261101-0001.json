@@ -1,0 +1,125 @@
+{
+ "ola": "nube-20261101",
+ "tareas": [
+  {
+   "id": "SUP0111F",
+   "titulo": "ArtCraft · casos útiles de la rama de RTART1025M en huellas.test.ts y mcp-stdio.test.ts",
+   "archivos": [
+    "src/lib/artcraft/__tests__/huellas.test.ts",
+    "src/lib/artcraft/__tests__/mcp-stdio.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nSustituye a RTART1025M-d2 (reasignada por el triage del 31-10; la nube la intentó 3 veces y dijo «sin_cambios»). La rama archivada `refs/archivo/nube/41010054460` trae casos para `src/lib/artcraft/__tests__/huellas.test.ts` y `mcp-stdio.test.ts`. Léelos con `git show refs/archivo/nube/41010054460:<ruta>` y añade SOLO los que prueban algo que main no cubre, mínimos y contra el código de hoy (`src/lib/artcraft/huellas.ts` y el de mcp-stdio). Un caso cubierto con otro nombre no se repite; uno que prueba un contrato que main cambió a propósito se descarta. Si ninguno aporta, `NO APLICA`. vitest de esos dos archivos.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "SUP0111K",
+   "titulo": "Guardia · también corta el tsc de un tsc-turno huérfano (como los vitest adoptados por init)",
+   "archivos": [
+    "scripts/puente/agentes_huerfanos.py",
+    "scripts/puente/test_agentes_huerfanos.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nEl 31-10 a las 20:41 un agente lanzó `zsh -c 'bash scripts/enjambre/tsc-turno.sh 2>&1 | tail -40'`, murió, el zsh quedó adoptado por launchd (ppid 1) y su `npm exec tsc` → `node …/bin/tsc --noEmit` siguió 3 h con 4,6 GB en una Mac de 8 GB. SUP0111J (tsc-turno con plazo y vigilancia) lo evita desde ahora, pero no cubre un tsc-turno matado con SIGKILL ni los que ya corrían con el guion viejo. `agentes_huerfanos.trabajadores_huerfanos(filas)` (filas = (pid, ppid, args) de `ps -eo pid=,ppid=,args=`) ya devuelve los `node (vitest N)` adoptados por init y guardia-memoria.py los corta. Añade una función PURA `tsc_huerfanos(filas)` que devuelva los pids del árbol (npm exec tsc y node …/bin/tsc) cuando: (a) su padre es init (ppid 1), o (b) subiendo por ppid hay un `bash …scripts/enjambre/tsc-turno.sh` cuyo padre es un shell `-c` (zsh/bash/sh) con ppid 1. NUNCA el tsc de la puerta del orquestador (su cadena sube a `starseed-enjambre.py`, aunque ese tenga ppid 1) ni un tsc sin tsc-turno que tenga un padre vivo distinto de init. Haz que `trabajadores_huerfanos` incluya esos pids (o expórtala para que el guardia la llame sin tocar guardia-memoria.py). Pruebas PURAS con filas inventadas: el caso del 31-10, la puerta del orquestador, un tsc de una terminal, y un tsc con padre init.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "SUP0111B",
+   "importancia": "capacidad",
+   "titulo": "Reconstructor · aparta a cuarentena los .ts/.tsx SIN git de src/ que no transpilan (incidente del 31-10)",
+   "archivos": [
+    "scripts/puente/cuarentena_sin_git.py",
+    "scripts/puente/test_cuarentena_sin_git.py",
+    "scripts/puente/reconstruir_mando.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nEl 31-10 a las 13:59 apareció en el checkout vivo `src/app/mando/page.tsx` SIN git y con JSX inválido (dos hermanos en un `map` sin fragmento): todas las builds, Mac y A1 (el envío al A1 lleva el árbol de trabajo), fallaron durante horas. Crea `cuarentena_sin_git.py` con: (1) PURA `candidatos(lineas)` que, de la salida de `git ls-files --others --exclude-standard -- src`, se queda con .ts/.tsx/.js/.jsx/.mjs; (2) `transpila(raiz, ruta)` con `node_modules/.bin/esbuild <ruta> --log-level=error --outfile=/dev/null` (sin bundle; loader por extensión): True/False, o None si no hay esbuild (entonces no se decide nada); (3) `revisar(raiz)` que MUEVE (os.renames, nunca borrar) cada candidato que NO transpila a `~/.starseed/cuarentena/<AAAAMMDD-HHMM>-sin-git/<ruta relativa>` y avisa con `puente.decir(texto, 'reconstruir', 'aviso')` como hace guardia-memoria.py. En `reconstruir_mando.una_pasada()`, al principio, llama a `revisar(RAIZ)` dentro de try/except: nunca debe tumbar al reconstructor. Pruebas con un repo git temporal: un .tsx roto sin git se aparta; uno válido sin git se queda; uno con git nunca se toca; sin esbuild no se mueve nada.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "RESC1031C",
+   "importancia": "capacidad",
+   "titulo": "Rescates · nodo_metagenesis no releva lo agotado ni rescata lo que está en alta capacidad",
+   "archivos": [
+    "scripts/puente/nodo_metagenesis.py",
+    "scripts/puente/nodo_metagenesis_logica.py",
+    "scripts/puente/test_nodo_metagenesis_logica.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nSeguimiento de RESC1031A (7d9c14c52): lo agotado queda `bloqueada` + `alta_capacidad`. Falta: (1) en `nodo_metagenesis._relevar`, no relevar tareas con `rescate_agotado` (o `alta_capacidad`) en su progreso; (2) en `nodo_metagenesis_logica.candidatos_rescate`, excluir las que estén en alta capacidad (`en_alta_capacidad`). Pruebas PURAS en test_nodo_metagenesis_logica.py.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "MBT1027Ob",
+   "ola": "1027M · Mausbot de Astraura",
+   "titulo": "Biblioteca · registrar la tanda 1027 en el catálogo, la siembra y las actualizaciones",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/defaults-seed.ts",
+    "src/app/api/library/actualizaciones/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nRegistra `FICHAS_REPOS_1027` donde `packages.ts` registra las de 1026, sus ids en la siembra (`defaults-seed.ts`, sube `SEED_VERSION` en 1 como se hizo con 1026) y en `fichasIaConUpstreamGitHub([...])` de la ruta de actualizaciones, igual que `FICHAS_REPOS_1026`. Corre las pruebas de la Biblioteca (`src/lib/library/__tests__/`).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261031-185641-MBT1027O`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261031-185641-MBT1027O:refs/remotes/origin/nube/a1-20261031-185641-MBT1027O\"` y `git cherry-pick --no-commit f30074532b9d c078d96fed97 1c1a5d8e6417 437e6c8aa4e2`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/library/__tests__/defaults-seed-1020c.test.ts, src/lib/library/__tests__/defaults-seed-1020d.test.ts, src/lib/library/__tests__/defaults-seed.test.ts, src/lib/library/defaults-seed.ts, src/lib/library/fuentes-ia-locales.ts, src/lib/library/packages.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261031-185641-MBT1027O",
+   "dependencias_ya_en_main": [
+    "MBT1027N"
+   ]
+  },
+  {
+   "id": "AV1011B",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Editor del avatar en tiempo real: deslizadores, colores, piezas, voz, Astraura y MIDI",
+   "archivos": [
+    "src/components/avatares/editor-avatar.tsx",
+    "src/lib/avatares/adaptadores/use-editor-avatar.ts",
+    "src/lib/avatares/adaptadores/__tests__/use-editor-avatar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Panel con: morfología (8 deslizadores), color por ranura, piezas por ranura (elementos de la Biblioteca de tipo pieza de avatar; si no hay, dilo y ofrece importar), expresiones, aura, carácter del movimiento y visibilidad. Hook `useEditorAvatar`: aplica con `aplicarCambio` al instante, deshacer/rehacer (pila de ADN, tope 50), emite con `encolar`/`lote` solo si hay otros presentes y guarda con `debeGuardar` en el almacén de AV1011D. Voz y texto: un campo y un botón de micrófono con el dictado que ya tenga el OS (búscalo en src/lib/aurora); lo dicho pasa por `cambiosDesdeFrase`; lo que queda en `sinEntender` va a Astraura con una instrucción que pide SOLO una lista JSON de `CambioAvatar` (se filtra con `sanearCambio`; si no hay modelo disponible, se dice). MIDI: si la Protomolécula ya tiene mapeo de controles, úsalo; si no, Web MIDI con permiso explícito, CC → deslizador elegido. Pruebas del hook con reloj falso: agrupación, deshacer, cuándo guarda y que sin nadie mirando no emite.",
+   "dependencias_ya_en_main": [
+    "AV1011A",
+    "AV1011D"
+   ]
+  },
+  {
+   "id": "AV1011C",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "La orbe del bot puede ser su avatar 3D: emoción, voz y movimiento",
+   "archivos": [
+    "src/lib/avatares/adaptadores/adn-de-bot.ts",
+    "src/components/avatares/cuerpo-3d-bot.tsx",
+    "src/lib/avatares/adaptadores/__tests__/adn-de-bot.test.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Cuando `bot.cuerpo.forma` es `avatar-3d` o `vrm`, `bot.cuerpo.avatarRef` apunta al ADN (`biblioteca:`). `adnDeBot(bot)` lo carga o crea `adnPorDefecto` con el tono de la orbe y dueño `{tipo:'bot'}`. La emoción del bot (valencia y activación de `src/lib/astraura-bots/tipos.ts`) mueve expresiones (happy/sad/angry/surprised/relaxed) y la intensidad del aura si `aura.ligadaEmocion`; al hablar, visemas por `sincronia-voz.ts` y gestos con `moverAvatar` respetando `adn.movimiento`. Punto de integración: la tarea BOT1011U de la cola de bots crea `src/components/astraura-bots/cuerpo-bot.tsx`; si ya existe, monta ahí `<Cuerpo3dBot>` para esas formas; si no existe, deja el componente exportado y dilo en el resumen (no lo crees tú). Tamaño de widget flotante, pausa al ocultarse, sin animación con prefers-reduced-motion. Pruebas de `adnDeBot` y del mapeo emoción→expresiones.",
+   "dependencias_ya_en_main": [
+    "AV1011A"
+   ]
+  },
+  {
+   "id": "DEC1028C",
+   "ola": "1028 · Decisiones de Alex aprobadas",
+   "depende": [],
+   "titulo": "Codex · «modelo no admitido con la cuenta de ChatGPT» lo saca de la rotación y no gasta intento",
+   "archivos": [
+    "scripts/puente/cupo_codex.py",
+    "scripts/puente/test_cupo_codex.py",
+    "scripts/enjambre/starseed-enjambre.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en el código, en las pruebas ni en lo que imprimas.\n\nContexto (medido el 2026-10-28 por Claude, supervisor): desde el 2026-10-23 20:55 TODAS las llamadas de Codex en la Mac fallan con `{\"status\":400, ... \"message\":\"The 'gpt-5.6-sol' model is not supported when using Codex with a ChatGPT account.\",\"code\":\"model_not_found\"}` (206 sesiones en `~/.codex/sessions`; con `-m gpt-5.5` pasa lo mismo). `cupo_codex.agotado_en` solo reconoce la cuota agotada, así que Codex sigue en la rotación: cada tarea gasta su primer intento con él y acaba en `sin_cambios` (DEC1028A lo hizo 8 veces). Hoy se apartó a mano 24 h con `cupo_codex.anotar`.\n\nEn `cupo_codex.py`: `PISTAS_SIN_MODELO = (\"is not supported when using codex with a chatgpt account\", \"model_not_found\")`, `sin_modelo_en(salida)` (en minúsculas, como `agotado_en`) y `HORAS_SIN_MODELO = 24`. En `starseed-enjambre.py`, junto al bloque `if modelo in MODELOS_CODEX and _cupo_codex.agotado_en(out):` (cerca de la línea 7727): si `sin_modelo_en(out)`, `anotar(\"cuenta de ChatGPT sin Codex para %s\" % modelo, horas=HORAS_SIN_MODELO)`, quita los `MODELOS_CODEX` de `MODELOS`, evento `proveedor_caido` con el porqué, y `continue` SIN contar el intento (como una pasarela caída). Pruebas en `test_cupo_codex.py` con la salida real de arriba y con la de cuota agotada (que sigue igual)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "MBT1027Ob",
+   "AV1011B",
+   "AV1011C",
+   "DEC1028C",
+   "RESC1031C",
+   "SUP0111B",
+   "SUP0111F",
+   "SUP0111K"
+  ]
+ }
+}
