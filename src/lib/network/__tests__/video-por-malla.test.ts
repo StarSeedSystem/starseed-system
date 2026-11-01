@@ -41,6 +41,16 @@ describe("servicio hyperframes · peticiones de vídeo (ramas de la nube)", () =
     expect(d.cola.encolar).toHaveBeenCalledWith({ composicion: CON_GSAP, formato: "mp4" });
   });
 
+  it("sin cola de render en esta neurona: rechazo honesto 503, nunca pánico", async () => {
+    const sinCola = { version: "0.8.172" };
+    const r = await manejar({ metodo: "POST", ruta: "/render", cuerpo: { composicion: HTML } }, sinCola);
+    expect(r.estado).toBe(503);
+    expect((r.cuerpo as { error: string }).error).toContain("sin cola de render");
+    const trabajo = await manejar({ metodo: "GET", ruta: "/trabajos/t1" }, sinCola);
+    expect(trabajo.estado).toBe(503);
+    expect((trabajo.cuerpo as { error: string }).error).toContain("sin cola de render");
+  });
+
   it("cola llena ⇒ rechazo legible y sin lanzar", async () => {
     const d = deps();
     d.cola.encolar = vi.fn(async () => { throw new Error("cola llena"); });
