@@ -65,6 +65,24 @@ class Puras(unittest.TestCase):
         for r in ("src/a/b.ts", "scripts/puente/x_test.md", "contest_x.py"):
             self.assertFalse(R.es_prueba(r), r)
 
+    def test_rescatable_requiere_un_archivo_comun_con_la_tarea(self):
+        self.assertFalse(R.rescatable(["a.py", "b.ts"], ["c.ts", "d.ts"], None, "RSC1031B"))
+        self.assertFalse(R.rescatable([], ["b.ts"], None, "X1"))
+        self.assertFalse(R.rescatable(["a.py"], [], None, "X1"))
+        self.assertTrue(R.rescatable(["a.py", "b.ts"], ["b.ts", "z.ts"], None, "RSC1031B"))
+
+    def test_rescatable_no_rescata_si_el_id_de_la_rama_es_de_otra_tarea(self):
+        self.assertFalse(R.rescatable(["b.ts"], ["b.ts"], "COL1012A", "RSC1031B"))
+        self.assertFalse(R.rescatable(["b.ts"], ["b.ts"], "X1", "RSC1031B"))
+        self.assertTrue(R.rescatable(["b.ts"], ["b.ts"], "RSC1031B", "RSC1031B"))
+        self.assertTrue(R.rescatable(["b.ts"], ["b.ts"], "RSC1031Bb", "RSC1031B"))
+
+    def test_id_de_rama(self):
+        self.assertEqual(R.id_de_rama("nube/1/ola/X1"), "X1")
+        self.assertEqual(R.id_de_rama("nube/a1-20261012-120300-RSC1031B"), "RSC1031B")
+        self.assertIsNone(R.id_de_rama("nube/2"))
+        self.assertIsNone(R.id_de_rama(""))
+
     def test_regla(self):
         self.assertEqual(R.regla(3), "rescatar")
         self.assertEqual(R.regla(2), "archivar")

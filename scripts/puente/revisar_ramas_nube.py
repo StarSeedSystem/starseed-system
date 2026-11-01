@@ -169,6 +169,28 @@ def regla(n_casos, minimo=MIN_CASOS):
     return "rescatar" if n_casos >= minimo else "archivar"
 
 
+_ID_DE_RAMA = (re.compile(r"/ola/([^/]+)$"),
+               re.compile(r"^nube/a1-\d{8}-\d{6}-([A-Za-z0-9][A-Za-z0-9-]*)$"))
+
+
+def id_de_rama(rama):
+    """PURA: el ID que la rama lleva en el nombre (`nube/1/ola/X1`, `nube/a1-<fecha>-<ID>`), o None."""
+    for rx in _ID_DE_RAMA:
+        m = rx.search(rama or "")
+        if m:
+            return m.group(1)
+    return None
+
+
+def rescatable(archivos_diff, archivos_tarea, id_rama, id_tarea):
+    """PURA: ¿merece la rama un rescate para ESTA tarea? Solo si su diff toca al menos un archivo
+    de la tarea; si no, se archiva con motivo (RESC1031A, fallo 2: se rescataban ramas ajenas).
+    Una rama `…-<ID>` cuyo ID es de otra tarea nunca se rescata para esta."""
+    if id_rama is not None and id_tarea and T.base_de(id_rama) != T.base_de(id_tarea):
+        return False
+    return not set(archivos_diff or []).isdisjoint(archivos_tarea or [])
+
+
 def con_jev(base, d, umbral=UMBRAL_JEV, perder=("archivar", "no")):
     """(final, motivo). Jev cambia la regla solo con p ≥ umbral y nunca hacia perder."""
     d = d if isinstance(d, dict) else {}
@@ -305,17 +327,19 @@ def _anotar(notas):
 
 
 def _casos_de(rama_ref):
-    """{archivo de prueba: [(título, código)]} nuevos de una rama frente a main."""
+    """({archivo de prueba: [(título, código)]}, TODOS los archivos del diff) nuevos de una rama
+    frente a main; los archivos completos hacen falta para decidir si la rama toca la tarea."""
     _, base = T._git(["merge-base", rama_ref, "main"])
     _, nombres = T._git(["diff", "--name-only", base.strip() or "main", rama_ref])
+    nombres = [n for n in nombres.splitlines() if n.strip()]
     salida = {}
-    for a in [n for n in nombres.splitlines() if es_prueba(n)]:
+    for a in [n for n in nombres if es_prueba(n)]:
         _, txt_r = T._git(["show", "%s:%s" % (rama_ref, a)])
         rc, txt_m = T._git(["show", "main:%s" % a])
         nuevos = casos_nuevos(txt_r, txt_m if rc == 0 else "", a)
         if nuevos:
             salida[a] = nuevos
-    return salida
+    return salida, nombres
 
 
 def _consultar_jev(tid, titulo, por_archivo, base):
@@ -351,7 +375,9 @@ def _revisar(aplicar, borrar):
     estado = T._leer_json(T.ESTADO, {}) or {}
     revisadas = set(estado.get("revisadas") or [])
     pendientes = [s for s in estado.get("superadas") or [] if s.get("rama") and s["rama"] not in revisadas]
-    titulos_cola = {tid: (t or {}).get("titulo", "") for tid, (_, t) in T._colas_por_id().items()}
+    por_cola = T._colas_por_id()
+    titulos_cola = {tid: (t or {}).get("titulo", "") for tid, (_, t) in por_cola.items()}
+    archivos_cola = {tid: (t or {}).get("archivos") or [] for tid, (_, t) in por_cola.items()}
     progreso = T._progreso()
     cola = T._leer_json(COLA_RESCATE, {"ola": OLA_RESCATE, "tareas": []})
     cola = cola if isinstance(cola, dict) else {"ola": OLA_RESCATE, "tareas": cola}
@@ -363,10 +389,12 @@ def _revisar(aplicar, borrar):
         por_rama.setdefault(s["rama"], []).append(s)
     for rama, filas in por_rama.items():
         ref = "refs/remotes/origin/" + rama
-        casos = _casos_de(ref)
+        por_archivo, archivos_diff = _casos_de(ref)
+        id_rama = id_de_rama(rama)
         for s in filas:
             tid = s.get("tid") or ""
-            n = sum(len(v) for v in casos.values())
+            n = sum(len(v) for v in por_archivo.values())
+            casos = {}  # una rama con varias tareas: el material va una vez
             vivos = cadena_viva(tid, progreso)
             if vivos:
                 base, d = "archivar", {}
@@ -374,7 +402,16 @@ def _revisar(aplicar, borrar):
             elif profundidad_rescate(tid) >= TOPE_RESCATE:
                 base, d = "archivar", {}
                 final, motivo = "archivar", "%s ya es un rescate: no se rescata otra vez (0 de 144 integrados)" % tid
+            elif not rescatable(archivos_diff, archivos_cola.get(tid) or [], id_rama, tid):
+                base, d = "archivar", {}
+                final = "archivar"
+                if id_rama is not None and tid and T.base_de(id_rama) != T.base_de(tid):
+                    motivo = "la rama lleva el ID de otra tarea (%s): no se rescata para %s" % (id_rama, tid)
+                else:
+                    motivo = "su diff no toca los archivos de la tarea (%s): se archiva igual" % (
+                        ", ".join(archivos_diff[:3]) or "sin archivos")
             else:
+                casos = por_archivo
                 base = regla(n)
                 d = _consultar_jev(tid, titulos_cola.get(tid, ""), casos, base) if (aplicar and n) else {}
                 final, motivo = con_jev(base, d)
