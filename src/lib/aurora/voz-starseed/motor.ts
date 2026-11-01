@@ -460,7 +460,7 @@ export function elegirMotorPorLatencia(
 export function nivelParaMotor(motorId: string): NivelVoz {
     if (motorId === "kokoro") return "ligera";
     if (["sistema", "system"].includes(motorId)) return "minima";
-    if (["voicestudio", "omnivoice", "vibevoice", "voice158", "voxcpm", "chatterbox", "cosyvoice3", "qwen3-tts", "dots-tts", "openvoice2", "kitten", "moss-tts-nano", "supertonic"].includes(motorId)) return "estudio";
+    if (["voicestudio", "omnivoice", "vibevoice", "voice158", "kitten", "moss-tts-nano", "supertonic"].includes(motorId)) return "estudio";
     return "nube";
 }
 

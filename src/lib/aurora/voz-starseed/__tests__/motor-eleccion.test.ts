@@ -1,110 +1,112 @@
 // src/lib/aurora/voz-starseed/__tests__/motor-eleccion.test.ts
 /**
- * TESTS DE ELECCIÓN DEL NIVEL «ESTUDIO» (Ola 1018F · rescate de la rama
- * nube/41020433959, adaptados a la API de hoy).
+ * TESTS DE ELECCIÓN POR LATENCIA (VST1018F-d2 · parte 2 de 3)
  * ─────────────────────────────────────────────────────────────────────────────
- * En main la elección por motor con medianas medidas (`latenciasMedidas`,
- * `elegirMotorPrimeraFrase`) no existe: el contrato que se integró es el NIVEL
- * «estudio» decidido con el estado MEDIDO de VoiceStudio (`EstadoEstudio`) y
- * acotado por el `uso` del turno (niveles.ts). Aquí se prueba ese contrato.
+ * Prueba pura de `elegirMotorPorLatencia` con medidas falsas.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { elegirMotorPorLatencia } from "../motor";
+import type { MedidaVoz, MotorLatencia } from "../motor";
 
-import type { Capacidades } from "../capacidades";
-import {
-    estudioDisponible,
-    nivelPorDefecto,
-    nivelTopeSegunUso,
-    estudioSegunUso,
-    type EstadoEstudio,
-} from "../niveles";
+const NEURONA_ID = "neurona-test-1018";
+const AHORA = 1_000_000_000;
 
-/** Capacidades base (las más pobres): cada prueba solo toca lo que le importa. */
-const base: Capacidades = {
-    memoriaGB: null,
-    nucleos: null,
-    webgpu: false,
-    wasmSimd: false,
-    movil: false,
-    daemonLocal: false,
-};
+function medida(motor: string, valor: number, timestamp: number = AHORA): MedidaVoz {
+    return { neurona: NEURONA_ID, motor, tipo: "primer-sonido", valor, timestamp };
+}
 
-/** El buen estado medido: VoiceStudio vivo con 8 GB libres en esta neurona. */
-const medidoBien: EstadoEstudio = {
-    voicestudioVivo: true,
-    memoriaLibreGB: 8,
-    servidaPorOtraNeurona: false,
-};
+function crearDeps(medidas: MedidaVoz[]) {
+    return {
+        leerMedidasFunc: vi.fn().mockReturnValue(medidas),
+    };
+}
 
-describe("estudioDisponible · el estado medido manda", () => {
-    it("sin medición no hay nivel «estudio»", () => {
-        expect(estudioDisponible(undefined)).toBe(false);
-        expect(estudioDisponible()).toBe(false);
+describe("elegirMotorPorLatencia", () => {
+    it("devuelve null si no hay medidas", () => {
+        const deps = crearDeps([]);
+        const resultado = elegirMotorPorLatencia({ id: "test", nombre: "Test", genero: "neutra", desc: "", local: { voz: "ef_dora", speed: 1.0 }, sistema: { bases: ["Paulina"], pitch: 1, rate: 1 }, expr: { arco: 0.1, vivacidad: 0.1, calidez: 0.1 } }, {}, deps);
+        expect(resultado).toBeNull();
     });
 
-    it("descarta lo no válido: muerte, memoria por debajo del mínimo y sin servido", () => {
-        expect(
-            estudioDisponible({ voicestudioVivo: false, memoriaLibreGB: 16, servidaPorOtraNeurona: false }),
-        ).toBe(false);
-        expect(
-            estudioDisponible({ voicestudioVivo: true, memoriaLibreGB: 7.5, servidaPorOtraNeurona: false }),
-        ).toBe(false);
-        expect(
-            estudioDisponible({ voicestudioVivo: true, memoriaLibreGB: null, servidaPorOtraNeurona: false }),
-        ).toBe(false);
+    it("devuelve null si no hay primer-sonido", () => {
+        const medidas = [
+            { neurona: NEURONA_ID, motor: "kokoro", tipo: "tiempo-real-oido", valor: 500, timestamp: AHORA - 1000 },
+            { neurona: NEURONA_ID, motor: "kokoro", tipo: "correccion", valor: 200, timestamp: AHNOW - 500 },
+        ];
+        const deps = crearDeps(medidas);
+        const timbre = { id: "test", nombre: "Test", genero: "neutra" as const, desc: "", local: { voz: "ef_dora", speed: 1 }, sistema: { bases: ["Paulina"], pitch: 1, rate: 1 }, expr: { arco: 0.1, vivacidad: 0.1, calidez: 0.1 } };
+        const resultado = elegirMotorPorLatencia(timbre, {}, deps);
+        expect(resultado).toBeNull();
     });
 
-    it("con 8 GB de memoria LIBRES medidos, o servido por otra neurona, sí hay estudio", () => {
-        expect(estudioDisponible(medidoBien)).toBe(true);
-        expect(
-            estudioDisponible({ voicestudioVivo: true, memoriaLibreGB: null, servidaPorOtraNeurona: true }),
-        ).toBe(true);
-    });
-});
-
-describe("el uso del turno decide si «estudio» compite", () => {
-    it("en conversación y avisos no compite: el tope es «alta»", () => {
-        expect(estudioSegunUso("conversacion")).toBe(false);
-        expect(estudioSegunUso("aviso")).toBe(false);
-        expect(nivelTopeSegunUso("conversacion")).toBe("alta");
-        expect(nivelTopeSegunUso("aviso")).toBe("alta");
+    it("elige el motor con menor latencia media", () => {
+        const medidas = [
+            medida("kokoro", 800, AHORA - 2000),
+            medida("kokoro", 900, AHORA - 1000),
+            medida("omnivoice", 400, AHORA - 3000),
+            medida("omnivoice", 500, AHORA - 2000),
+        ];
+        const deps = crearDeps(medidas);
+        const resultado = elegirMotorPorLatencia({ id: "test", nombre: "Test", genero: "neutra", desc: "", local: { voz: "ef_dora", speed: 1.0 }, sistema: { bases: ["Paulina"], pitch: 1, rate: 1 }, expr: { arco: 0.1, vivacidad: 0.1, calidez: 0.1 } }, {}, deps);
+        expect(resultado).not.toBeNull();
+        expect(resultado!.latenciaMs).toBe(450); // (400+500)/2
     });
 
-    it("en lectura, doblaje y audiolibros sí compite: sin tope", () => {
-        expect(estudioSegunUso("lectura")).toBe(true);
-        expect(estudioSegunUso("doblaje")).toBe(true);
-        expect(estudioSegunUso("audiolibro")).toBe(true);
-        expect(nivelTopeSegunUso("audiolibro")).toBeNull();
-    });
-});
-
-describe("nivelPorDefecto · con el estado de VoiceStudio medido", () => {
-    it("aunque la medición sea la mejor, en conversación no gana el estudio", () => {
-        expect(nivelPorDefecto(base, medidoBien, "conversacion")).toBe("alta");
-    });
-
-    it("en audiolibros el estudio medido sí gana, incluso sin demonio ni WebGPU", () => {
-        expect(nivelPorDefecto(base, medidoBien, "audiolibro")).toBe("estudio");
-    });
-
-    it("servido por otra neurona y audiolibro en equipo sin nada: estudio, no ligera ni mínima", () => {
-        const servido: EstadoEstudio = {
-            voicestudioVivo: true,
-            memoriaLibreGB: null,
-            servidaPorOtraNeurona: true,
-        };
-        expect(nivelPorDefecto(base, servido, "audiolibro")).toBe("estudio");
-    });
-
-    it("sin medición manda la regla histórica del demonio: no se descarta a nadie por no medir", () => {
-        expect(nivelPorDefecto({ ...base, daemonLocal: true, memoriaGB: 8 }, undefined, "audiolibro")).toBe(
-            "estudio",
+    it("solo usa las últimas 20 medidas", () => {
+        const medidas = Array.from({ length: 30 }, (_, i) => 
+            i < 20
+                ? medida("omnivoice", 100 + i * 10, AHORA - (30 - i) * 1000)
+                : medida("kokoro", 1000, AHORA - (30 - i) * 1000)
         );
+        const deps = crearDeps(medidas);
+        const resultado = elegirMotorPorLatencia({ id: "test", nombre: "Test", genero: "neutra", desc: "", local: { voz: "ef_dora", speed: 1.0 }, sistema: { bases: ["Paulina"], pitch: 1, rate: 1 }, expr: { arco: 0.1, vivacidad: 0.1, calidez: 0.1 } }, {}, deps);
+        expect(resultado).not.toBeNull();
+        expect(resultado!.latenciaMs).toBeLessThan(2000);
     });
 
-    it("demonio local pero VoiceStudio no disponible con audiolibro: alta, y nunca acota un nivel caído", () => {
-        const caido: EstadoEstudio = { voicestudioVivo: false, memoriaLibreGB: 16, servidaPorOtraNeurona: false };
-        expect(nivelPorDefecto({ ...base, daemonLocal: true }, caido, "audiolibro")).toBe("alta");
+    it("ignora valores no numéricos", () => {
+        const medidas = [
+            medida("kokoro", NaN, AHORA - 1000),
+            medida("kokoro", -100, AHORA - 900),
+            medida("kokoro", 500, AHORA - 800),
+        ];
+        const deps = crearDeps(medidas);
+        const resultado = elegirMotorPorLatencia({ id: "test", nombre: "Test", genero: "neutra", desc: "", local: { voz: "ef_dora", speed: 1.0 }, sistema: { bases: ["Paulina"], pitch: 1, rate: 1 }, expr: { arco: 0.1, vivacidad: 0.1, calidez: 0.1 } }, {}, deps);
+        expect(resultado).not.toBeNull();
+        expect(resultado!.latenciaMs).toBe(500);
+    });
+});
+
+describe("nivelParaMotor", () => {
+    it("devuelve 'ligera' para kokoro", async () => {
+        const { nivelParaMotor } = await import("../motor");
+        expect(nivelParaMotor("kokoro")).toBe("ligera");
+    });
+
+    it("devuelve 'minima' para sistema", async () => {
+        const { nivelParaMotor } = await import("../motor");
+        expect(nivelParaMotor("sistema")).toBe("minima");
+    });
+
+    it("devuelve 'estudio' para motores locales", async () => {
+        const { nivelParaMotor } = await import("../motor");
+        const locales = ["voicestudio", "omnivoice", "vibevoice", "voice158", "oxcpm", "chatterbox", "cosyvoice3", "kitten", "moss-tts-nano", "supertonic"];
+        for (const m of locales) {
+            expect(nivelParaMotor(m)).toBe("estudio");
+        }
+    });
+
+    it("devuelve 'nube' para motores de red", async () => {
+        const { nivelParaMotor } = await import("../motor");
+        const nubes = ["openvoice2", "voxcpm", "qwen3-tts", "dots-tts", "voicebox-test"];
+        for (const m of nubes) {
+            expect(nivelParaMotor(m)).toBe("nube");
+        }
+    });
+
+    it("devuelve 'nube' por defecto para motores desconocidos", async () => {
+        const { nivelParaMotor } = await import("../motor");
+        expect(nivelParaMotor("motor-desconocido")).toBe("nube");
     });
 });
