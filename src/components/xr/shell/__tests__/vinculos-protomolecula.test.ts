@@ -50,6 +50,7 @@ describe("fuentesDeMapaXR", () => {
     expect(new Set(fuentes.map((f) => (f.tipo === "gamepad" ? f.indice : -1)))).toEqual(new Set([0, 1]));
     expect(fuentesDeMapaXR(MAPAS_DEFECTO.manos)).toEqual([]);
     expect(fuentesDeMapaXR(MAPAS_DEFECTO.voz)).toEqual([]);
+    expect(fuentesDeMapaXR(MAPAS_DEFECTO["teclado-raton"])).toEqual([]);
   });
   it("no repite una fuente mapeada a dos acciones", () => {
     const mapa: MapaEntrada = {
@@ -67,6 +68,14 @@ describe("rangoAGesto", () => {
   it("respeta el paso y la curva invertida", () => {
     expect(rangoAGesto({ ...VOLUMEN, paso: 10 }, 0.53)).toBe(50);
     expect(rangoAGesto(VOLUMEN, 0.2, { ...CURVA_LINEAL, invertir: true })).toBe(80);
+  });
+  it("respeta el tipo entero y acota el gesto fuera de 0..1", () => {
+    expect(rangoAGesto({ ...VOLUMEN, tipo: "entero" }, 0.333)).toBe(33);
+    expect(rangoAGesto(VOLUMEN, -3)).toBe(0);
+    expect(rangoAGesto(VOLUMEN, 9)).toBe(100);
+  });
+  it("la curva log de vinculos-control responde antes que la lineal al mitad del gesto", () => {
+    expect(rangoAGesto(VOLUMEN, 0.5, { ...CURVA_LINEAL, forma: "log" })).toBeGreaterThan(50);
   });
   it("interruptores y opciones se resuelven con la misma curva", () => {
     expect(rangoAGesto({ id: "eco", nombre: "Eco", tipo: "booleano" }, 0.7)).toBe(true);
@@ -106,6 +115,11 @@ describe("aplicarEnVisor", () => {
     expect(r.ok).toBe(false);
     expect(!r.ok && r.pendiente?.motivo).toMatch(/pendiente de tu confirmación/);
     expect(mover).not.toHaveBeenCalled();
+  });
+  it("una operación de agente en espacio personal sí se aplica", () => {
+    const mover = okMover();
+    expect(aplicarEnVisor(controladorFalso({ mover }), REF, op({ tipo: "exacta", valor: 50 }, AGENTE, "agente"), "personal").ok).toBe(true);
+    expect(mover).toHaveBeenCalledTimes(1);
   });
   it("una persona en grupo sí aplica y un parámetro desconocido devuelve el motivo", () => {
     expect(aplicarEnVisor(controladorFalso({ ambito: "grupo", mover: okMover() }), REF, op({ tipo: "exacta", valor: 50 })).ok).toBe(true);
