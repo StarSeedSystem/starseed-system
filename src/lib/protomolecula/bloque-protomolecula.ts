@@ -5,6 +5,7 @@ import { AMBITOS } from "./tipos";
 import type { Ambito, AtomoEnUso, Capa, Molecula } from "./tipos";
 import { referenciasRotas } from "./permisos";
 import { prepararDiagrama } from "@/lib/diagramas/aislar-diagrama";
+import { ATOMO_VIDEO_HTML, VISTA_POR_ATOMO, vistaVideoHtmlDe } from "./atomos/vista-video-html";
 
 /** Versión del sobre JSON del bloque. */
 export const VERSION_BLOQUE = 1;
@@ -117,32 +118,6 @@ export const ATOMO_VIDEO_HTML = "hyperframes";
 export const ID_VISTA_VIDEO_HTML = "video-html";
 /** Lo que se puede mostrar del átomo dentro de un bloque: póster, vista previa en vivo o vídeo ya renderizado. */
 export type VistaVideoHtml = "poster" | "vivo" | "render";
-
-/** Correspondencia átomo «video-html» → vista componente; `null` para los demás átomos. */
-export function vistaVideoHtmlDe(herramientaId: string): string | null {
-    return herramientaId === ATOMO_VIDEO_HTML ? ID_VISTA_VIDEO_HTML : null;
-}
-
-/**
- * Qué se muestra del átomo, en orden de prioridad: si hay vídeo ya renderizado, ese
- * (determinista: lo ve todo el mundo igual); si no, la vista previa en vivo cuando
- * el servicio «hyperframes» de esta neurona responde; y si tampoco, el póster. Un
- * átomo suspendido no se reproduce: póster. `null` si el átomo no es video-html.
- */
-export function elegirVista(atomo: Pick<AtomoEnUso, "herramientaId" | "estado">, servicioVivo: boolean, renderHecho: boolean): VistaVideoHtml | null {
-    if (atomo.herramientaId !== ATOMO_VIDEO_HTML) return null;
-    if (atomo.estado !== "activo") return "poster";
-    if (renderHecho) return "render";
-    if (servicioVivo) return "vivo";
-    return "poster";
-}
-
-const ID_COMPOSICION = /^[A-Za-z0-9_-]{1,64}$/;
-
-/** URL del reproductor en vivo del servicio local (127.0.0.1:4490); `null` si el id de composición no sirve. */
-export function urlVistaViva(idComposicion: string): string | null {
-    return ID_COMPOSICION.test(idComposicion) ? `http://127.0.0.1:4490/vista/${idComposicion}` : null;
-}
 
 /* ── Átomo «diagrama» → vista (architecture/diagramas.md §3.4 y §4) ── */
 
