@@ -63,6 +63,21 @@ class Decidir(unittest.TestCase):
         self.assertEqual(accion, "superada")
         self.assertIn("persona", motivo)
 
+    def test_en_la_tanda_viva_solo_es_sueno_lo_que_es_de_los_suenos(self):
+        # (SUP0111O) La tanda viva de la Mac se llama cola-suenos-…: el nombre de la cola no basta.
+        cola = "cola-suenos-2026-10-31.json"
+        normal = {"id": "SUP0111H", "ola": "0111 · Seguimiento de la supervisión"}
+        accion, motivo = T.decidir("SUP0111H", [c("salvavidas")], False, "pendiente", cola, tarea=normal)
+        self.assertNotIn("sueños", motivo)
+        self.assertEqual(accion, "reparar")
+        for tid, t in (("SA10311", {"ola": "Sueños profundos 2026-10-31", "tipo": "analisis"}),
+                       ("SP092916", {"ola": "Imaginación profunda 2026-09-29"}),
+                       ("X1", {"ola": "Sueños profundos 2026-10-31"})):
+            accion, motivo = T.decidir(tid, [c("salvavidas")], False, "pendiente", cola, tarea=dict(t, id=tid))
+            self.assertEqual((accion, "persona" in motivo), ("superada", True), tid)
+        # Fuera de una cola de los sueños, ni la ola la vuelve propuesta (como antes).
+        self.assertFalse(T.es_propuesta_de_suenos("SP1", "cola-reparar-nube.json", {"ola": "Imaginación profunda"}))
+
     def test_integrada_en_la_nube_se_trae(self):
         # Medido: nube/37361406630, PRD1005L con su salvavidas y su commit «Ola …» (vacío).
         commits = [c("salvavidas"), c("ola", nuevo=False, vacio=True)]

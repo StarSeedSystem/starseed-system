@@ -77,6 +77,24 @@ DECIDIDAS = {"sustituida", "descartada", "duplicada", "commit", "hecho", "integr
 #: La Mac la está escribiendo ahora, o la nube la tiene: se espera a la próxima pasada.
 OCUPADAS = {"en_curso", "reasignada"}
 PREFIJO_SUENOS = "cola-suenos-"
+#: (SUP0111O, 2026-11-01) Lo que es un sueño se ve en la TAREA, no solo en el nombre de la cola: la tanda
+#: viva de la Mac se llama `cola-suenos-2026-10-31.json` y lleva 985 tareas (84 sueños y 901 rescates,
+#: olas y arreglos). Por el nombre, el trabajo de la nube de 71 tareas que no eran sueños (SUP0111H y K,
+#: RTXR…, RESC…, OPS…) se archivaba como «propuesta de los sueños»: volvían a «pendiente» y a la nube.
+_OLA_SUENO = re.compile(r"^\s*(sueños?|imaginaci[oó]n)\b", re.I)
+_ID_SUENO = re.compile(r"^S[AP]\d")
+
+
+def es_propuesta_de_suenos(tid, cola, tarea=None):
+    """PURA: ¿espera a una persona como propuesta de los sueños? Solo en una cola `cola-suenos-…` y, si
+    se tiene su entrada de la cola, solo si la tarea es de los sueños (su ola, `tipo: analisis` o un
+    id SA/SP). Sin la entrada, como antes: basta el nombre de la cola."""
+    if not str(cola or "").startswith(PREFIJO_SUENOS):
+        return False
+    if not isinstance(tarea, dict) or not tarea:
+        return True
+    return bool(_OLA_SUENO.match(str(tarea.get("ola") or "")) or tarea.get("tipo") == "analisis"
+                or _ID_SUENO.match(str(tid or tarea.get("id") or "")))
 #: (OPS1024E) Una reasignación a nube-gh de más de esto ya no la lleva ningún run (el job muere a las 6 h).
 REASIGNADA_VIEJA_S = 6 * 3600
 
@@ -166,12 +184,13 @@ def libre_de_su_reasignacion(rama, entrada, run_vivo, ahora):
     return None
 
 
-def decidir(tid, commits, en_main, estado, cola, libre=None):
+def decidir(tid, commits, en_main, estado, cola, libre=None, tarea=None):
     """PURA. Qué hacer con el trabajo de UNA tarea en UNA rama: (accion, motivo).
 
     accion: «traer» | «reparar» | «superada» (se pregunta antes de tocarla) | «esperar».
     `commits`: [{tipo, nuevo, vacio}] de esa tarea en la rama. `libre` (OPS1024E): el motivo de
-    `libre_de_su_reasignacion`; con él, una «reasignada» no espera y entra en las puertas normales."""
+    `libre_de_su_reasignacion`; con él, una «reasignada» no espera y entra en las puertas normales.
+    `tarea` (SUP0111O): su entrada en la cola, para saber si de verdad es un sueño."""
     estado = (estado or "").lower()
     if en_main:
         return "superada", "ya está en main (la integró la Mac u otra rama)"
@@ -184,7 +203,7 @@ def decidir(tid, commits, en_main, estado, cola, libre=None):
                 and any(x.get("tipo") == "ola" for x in commits)):
             return "traer", "progreso dice «%s» pero main no la tiene: se trae comprobada" % estado
         return "superada", "en progreso figura «%s»: ya se decidió por otro camino" % estado
-    if str(cola or "").startswith(PREFIJO_SUENOS):
+    if es_propuesta_de_suenos(tid, cola, tarea):
         return "superada", "es una propuesta de los sueños: espera a una persona, no al enjambre"
     trabajo = [c for c in commits if c.get("tipo") in ("salvavidas", "ola", "otro")]
     if not any(c.get("nuevo") or c.get("tipo") == "ola" for c in trabajo):
@@ -950,15 +969,16 @@ def _revisar(aplicar, espera_integrar_s):
         if previa.get("accion") in ("traida", "reparada"):
             continue
         entrada_p = progreso.get(tid) if isinstance(progreso.get(tid), dict) else {}
-        en_main, cola_t = bool(tid) and id_en_asuntos(tid, asuntos), (colas.get(tid) or ("", {}))[0]
-        accion, motivo = decidir(tid, fila["commits"], en_main, entrada_p.get("estado"), cola_t)
+        en_main, (cola_t, tarea_t) = bool(tid) and id_en_asuntos(tid, asuntos), (colas.get(tid) or ("", {}))
+        accion, motivo = decidir(tid, fila["commits"], en_main, entrada_p.get("estado"), cola_t, tarea=tarea_t)
         if accion == "esperar" and VR.es_reasignada_a_la_nube(entrada_p):
             # (OPS1024E) ¿La rama es de otro medio y el run de la reasignación ya no la lleva?
             run = VR.run_de_la_nota(entrada_p.get("nota"))
             vivo = _vivo(run) if run and run_de_rama(fila["rama"]) != run else None
             libre = libre_de_su_reasignacion(fila["rama"], entrada_p, vivo, time.time())
             if libre:
-                accion, motivo = decidir(tid, fila["commits"], en_main, entrada_p.get("estado"), cola_t, libre=libre)
+                accion, motivo = decidir(tid, fila["commits"], en_main, entrada_p.get("estado"), cola_t, libre=libre,
+                                         tarea=tarea_t)
         entradas.append(dict(fila, accion=accion, motivo=motivo, clave=clave))
     entradas = elegir_por_tarea(entradas)
 
