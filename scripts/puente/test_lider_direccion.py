@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Pruebas del líder de dirección (IND1029B): toma, renovación, caducidad, empate y sin puerta.
-HTTP falso detrás del cliente real, con el arriendo en memoria y un gancho por GET para carreras.
+"""Pruebas del líder de dirección (IND1029B): toma, renovación, caducidad, empate y sin puerta,
+con la neurona sana (el ahogo de LID1101A se inyecta, «sana»). HTTP falso detrás del cliente real.
 """
 import os
 import shutil
@@ -13,11 +13,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import puerta_datos_cliente as pdc  # noqa: E402
 import lider_direccion as LD  # noqa: E402
 
+# Neurona sana aquí: la medida real de ahogo y el A1 local se inyectan en test_lider_ahogo.
+LD._ahogo, LD._sin_puerta = (lambda *a, **k: None), (lambda *a, **k: None)
+
 T0 = 1_900_000_000.0
-
-
-def arriendo(dueno, version, caduca, tomado):
-    return {"dueno": dueno, "version": version, "caduca": caduca, "tomado": tomado}
 
 
 class HttpFalso:
@@ -60,7 +59,7 @@ class Base(unittest.TestCase):
 
 class ConPuerta(Base):
     def poner(self, dueno, version, caduca, tomado):
-        lat = arriendo(dueno, version, caduca, tomado)
+        lat = {"dueno": dueno, "version": version, "caduca": caduca, "tomado": tomado}
         self.f.latidos[LD.ID] = {"id": LD.ID, "clase": LD.CLASE, "t": 0, "datos": lat}
 
     def test_toma_y_nada_de_dos_lideres(self):
