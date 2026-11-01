@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Pruebas de Hermes en el nodo (rescate RTGUI1021K2-d3).
+"""Pruebas de Hermes en el nodo (IND1029G).
 
-El servicio `starseed-hermes` de la rama no está en main: la dirección del A1 se
-lanza con `guion_direccion` y ya tiene sus pruebas en `test_oracle_nodo_direccion.py`.
-Lo que sí sigue vivo y no tenía prueba es el registro del MCP `starseed-director`
-en el config de Hermes (`instalar_director.hermes`), sin claves ni rutas de worktree.
+El gateway es el PUENTE (contrato §2): su instalador oficial, la config sin claves
+(`freellmapi/auto` contra el FreeLLMAPI del A1 y el MCP `starseed-director`) y la
+regla de Telegram (encuesta solo en el líder, porque dos encuestas del mismo bot se
+pisan). En seco y sin red: aquí no se instala ni se encuesta nada.
 """
 import importlib.util
 import os
@@ -46,6 +46,40 @@ class McpEnHermes(unittest.TestCase):
         self.assertEqual(texto.count("starseed-director:"), 1)
         self.assertIn(inst.MCP, texto)
         self.assertFalse(CLAVES.search(texto))
+
+
+class HermesEnElA1(unittest.TestCase):
+    def test_config_sin_claves_con_freellmapi_y_el_director(self):
+        texto = N.config_hermes()
+        self.assertIn("default: auto", texto)
+        self.assertIn("provider: freellmapi", texto)
+        self.assertIn("base_url: http://127.0.0.1:3001/v1", texto)
+        self.assertIn("key_env: FREELLMAPI_KEY", texto)
+        self.assertIn("starseed-director:", texto)
+        self.assertIn("mcp_director.py", texto)
+        self.assertNotIn("starseed-wt", texto)
+        self.assertFalse(CLAVES.search(texto))
+
+    def test_el_plan_en_seco_usa_el_instalador_oficial(self):
+        texto = " ".join(str(p) for p in N.hermes()["pasos"])
+        self.assertIn("hermes-agent.nousresearch.com/install.sh", texto)
+        self.assertIn("starseed-hermes", texto)
+        self.assertIn("Telegram", texto)
+        self.assertFalse(CLAVES.search(texto))
+
+    def test_telegram_en_encuesta_solo_en_el_lider(self):
+        otro = {"dueno": "a1-otro", "caduca": 200}
+        self.assertFalse(N.telegram_encuesta_es_mia(otro, 100, "mac-1"))
+        self.assertTrue(N.telegram_encuesta_es_mia(otro, 100, "a1-otro"))
+        self.assertTrue(N.telegram_encuesta_es_mia({"dueno": "a1-otro", "caduca": 50}, 100, "mac-1"))
+        self.assertTrue(N.telegram_encuesta_es_mia(None, 100, "mac-1"))
+
+    def test_el_arranque_calla_telegram_si_no_es_lider(self):
+        guion = N.guion_hermes()
+        self.assertIn("TELEGRAM_BOT_TOKEN", guion)
+        self.assertIn("lider_direccion", guion)
+        self.assertIn('"gateway", "run"', guion)
+        compile(guion, "hermes_arranque.py", "exec")
 
 
 class ArranqueConArriendo(unittest.TestCase):
