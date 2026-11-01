@@ -40,8 +40,12 @@ describe("dependencias a partes del revisor de Bloqueadas (PUB1029C)", () => {
         const rutaProg = path.join(ra, "starseed_memory_root", "olas", "progreso.json");
         const respaldo = existsSync(rutaProg) ? readFileSync(rutaProg, "utf8") : null;
         try {
-            require("node:fs").writeFileSync(rutaProg, JSON.stringify({ ART1025B: { estado: "bloqueada" } }), "utf8");
-            const conProg = validarCola("1029-prog", [tarea("D1"), tarea("E1", ["ART1025B-d3"])]);
+            require("node:fs").writeFileSync(rutaProg, JSON.stringify({ ART1025B: { estado: "bloqueada" }, INV1025J: { estado: "bloqueada" } }), "utf8");
+            const conProg = validarCola("1029-prog", [
+                tarea("D1"),
+                tarea("E1", ["ART1025B-d3"]),
+                tarea("K1", ["INV1025J-d2"])
+            ]);
             expect(conProg.errores.filter((e) => e.includes("depende"))).toEqual([]);
             // Sin progreso, una base inexistente debe fallar.
             require("node:fs").unlinkSync(rutaProg);
