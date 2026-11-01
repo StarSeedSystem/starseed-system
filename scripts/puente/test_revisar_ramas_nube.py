@@ -69,6 +69,30 @@ class Puras(unittest.TestCase):
         self.assertEqual(R.regla(3), "rescatar")
         self.assertEqual(R.regla(2), "archivar")
 
+    def test_rescatable_por_archivos_y_rama(self):
+        tarea = ["scripts/puente/revisar_ramas_nube.py", "scripts/puente/test_revisar_ramas_nube.py"]
+        # Comparte al menos un archivo con la tarea → rescatar.
+        self.assertEqual(R.rescatable(["src/a.ts", tarea[0]], tarea,
+                                      "nube/a1-20261026-120000-RESC1031B", "RESC1031B")[0], "rescatar")
+        # No comparte nada → archivar, con el motivo que dice qué trae el diff.
+        d, m = R.rescatable(["src/otra.ts", "docs/notas.md"], tarea,
+                            "nube/1/ola/RESC1031B", "RESC1031B")
+        self.assertEqual(d, "archivar")
+        self.assertIn("src/otra.ts", m)
+        self.assertIn("revisar_ramas_nube.py", m)
+        # La rama de OTRA tarea (familia RESC1031A) no se rescata para RESC1031B.
+        d, m = R.rescatable(tarea, tarea, "nube/a1-20261026-120000-RESC1031A", "RESC1031B")
+        self.assertEqual(d, "archivar")
+        self.assertIn("RESC1031A", m)
+        # Sucesor de la MISMA cadena (RESC1031Bc) sí vale; rama sin id se juzga solo por archivos.
+        self.assertEqual(R.rescatable(tarea, tarea, "nube/1/ola/RESC1031Bc", "RESC1031B")[0], "rescatar")
+        self.assertEqual(R.rescatable(["x.ts"], tarea, "nube/2", "RESC1031B")[0], "archivar")
+        self.assertEqual(R.rescatable(tarea, tarea, "nube/2", "RESC1031B")[0], "rescatar")
+        # La cola no declara archivos: no hay con qué filtrar, no se bloquea por eso.
+        self.assertEqual(R.rescatable(["x.ts"], [], "nube/1/ola/RESC1031B", "RESC1031B")[0], "rescatar")
+        # Diff vacío: no toca ningún archivo → archivar.
+        self.assertEqual(R.rescatable([], tarea, "nube/1/ola/RESC1031B", "RESC1031B")[0], "archivar")
+
     def test_jev_veta_perder_y_no_da_permiso(self):
         self.assertEqual(R.con_jev("archivar", {"respuesta": "rescatar", "p": 0.85, "medio": "openrouter"})[0], "rescatar")
         self.assertEqual(R.con_jev("archivar", {"respuesta": "rescatar", "p": 0.66, "medio": "openrouter"})[0], "archivar")
