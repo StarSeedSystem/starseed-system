@@ -101,6 +101,7 @@ describe("ayudantes de fuga de palabra", () => {
         expect(textoContienePalabra("intento: solar", "sol")).toBe(false);
         expect(textoContienePalabra("zzzz", "vela")).toBe(false);
         expect(textoContienePalabra(null, "vela")).toBe(false);
+        expect(textoContienePalabra("", "hola")).toBe(false);
         expect(textoContienePalabra("hola", "")).toBe(false);
         expect(textoContienePalabra("hola", "   ")).toBe(false);
     });
