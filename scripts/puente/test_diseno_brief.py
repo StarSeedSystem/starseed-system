@@ -245,6 +245,18 @@ class TestBriefHerramientas(unittest.TestCase):
         texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
         self.assertIn("Refine — https://github.com/refinedev/refine", texto)
 
+    def test_tres_claves_nuevas_caben_en_2500(self):
+        """Con una tarea que casa 3 claves nuevas, el brief sigue cabiendo en los
+        2500 caracteres por defecto y se conservan los apartados 6 y 7."""
+        tarea = {"titulo": "Presentación con design.md y panel de datos",
+                 "archivos": ["src/app/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=2500)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+        self.assertIn("frontend-slides", texto)
+        self.assertIn("awesome-design-md", texto)
+        self.assertIn("Refine — https://github.com/refinedev/refine", texto)
+
     def test_no_duplica_linea_con_claves_multiples(self):
         """Tres claves («diapositiv», «presentaci», «conferencia») que casa con la
         misma línea de frontend-slides no la triplican en el apartado 6."""
