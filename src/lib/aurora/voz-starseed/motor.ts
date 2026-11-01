@@ -24,7 +24,19 @@
 
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
-import { nivelPara, siguienteNivel, NIVELES, type NivelVoz } from "./niveles";
+import {
+    nivelPara,
+    siguienteNivel,
+    NIVELES,
+    acotarNivel,
+    nivelTopeSegunUso,
+    type NivelVoz,
+    type UsoVoz,
+} from "./niveles";
+// (Ola 1018V · VST1018F-d2) Licencia por contexto: qué MOTORES pueden sonar en
+// cada sitio (personal, grupo, comunidad, público o comercial).
+import { motoresPermitidos, type ClaseLicenciaVoz, type ContextoLicenciaVoz } from "./licencia-voz";
+import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
 import {
     soporteSupertonic,
     nivelParaVoz,
@@ -279,6 +291,67 @@ export function parametrosPorNivel(
     return { via: "sistema", pitch: timbre.sistema.pitch, rate: timbre.sistema.rate };
 }
 
+// ── (Ola 1018V · VST1018F-d2) PRIMERA FRASE INSTANTÁNEA ─────────────────────
+// «La primera frase del más rápido que tenga esa voz» (contrato
+// `architecture/voz-voicestudio.md` §4): una conversación empieza a sonar con
+// el motor de MENOR latencia MEDIDA en esta neurona que tenga la voz de esa
+// persona y esté PERMITIDO en el contexto (licencia-voz.ts). Los candidatos
+// llegan Medidos (`medidas-voz.ts`, inyectados: aquí no hay red, disco ni
+// reloj) y la elección es PURA y determinista.
+
+/** Candidato a la primera frase, tal como lo entregan las medidas de voz. */
+export interface CandidatoPrimeraFrase {
+    /** Identificador del motor (el mismo id del elector y de medidas-voz.ts). */
+    id: string;
+    /** Nivel del motor único por el que sonaría este motor. */
+    nivel: NivelVoz;
+    /** Latencia MEDIDA en esta neurona, en ms; `null` = sin medida todavía. */
+    latenciaMs: number | null;
+    /** ¿Este motor tiene ya la voz de esa persona lista para sonar? */
+    tieneVoz: boolean;
+    /** Clase de licencia de sus pesos (licencia-voz.ts). */
+    claseLicencia: ClaseLicenciaVoz;
+    /** Solo se mira en «condicionada»; ausente equivale a no cumplida. */
+    condicionCumplida?: boolean;
+}
+
+/** El motor elegido para la primera frase de un mensaje. */
+export interface PrimeraFraseElegida {
+    id: string;
+    nivel: NivelVoz;
+    latenciaMs: number;
+}
+
+/**
+ * Elige UN SOLO motor (un mensaje NUNCA se parte entre dos motores) para la
+ * primera frase de un turno de uso: el permitido con la menor latencia medida
+ * que tenga la voz de esa persona. El nivel «estudio» se acota según el uso
+ * (conversación y avisos no lo alcanzan; lectura, doblaje y audiolibros sí).
+ * Sin candidatos medidos elegibles devuelve `null` y quien llama conserva su
+ * cadena histórica. Pura.
+ */
+export function motorPrimeraFrase(
+    candidatos: CandidatoPrimeraFrase[],
+    uso: UsoVoz,
+    contexto: ContextoLicenciaVoz = "personal",
+    capas: CapasPrefs = {},
+): PrimeraFraseElegida | null {
+    const { permitidos } = motoresPermitidos(candidatos, contexto, capas);
+    const permitidoPorId = new Set(permitidos.map((m) => m.id));
+    const tope = nivelTopeSegunUso(uso);
+    let mejor: PrimeraFraseElegida | null = null;
+    for (const c of candidatos) {
+        if (!permitidoPorId.has(c.id)) continue;
+        if (!c.tieneVoz) continue;
+        if (c.latenciaMs === null || !Number.isFinite(c.latenciaMs)) continue;
+        const nivel = tope ? acotarNivel(c.nivel, tope) : c.nivel;
+        if (mejor === null || c.latenciaMs < mejor.latenciaMs) {
+            mejor = { id: c.id, nivel, latenciaMs: c.latenciaMs };
+        }
+    }
+    return mejor;
+}
+
 export interface OpcionesHablar {
     /** Identidad de la voz: LA MISMA en todos los niveles. */
     timbre: Timbre;
@@ -312,6 +385,17 @@ export interface OpcionesHablar {
      * esta opción solo es para vías que ya entregan el texto normalizado.
      */
     sinNormalizar?: boolean;
+    /**
+     * (Ola 1018V · VST1018F-d2) Candidatos MEDIDOS de la primera frase
+     * (`medidas-voz.ts`, inyectados). En conversación, la frase entera sale del
+     * permitido más rápido que tenga la voz de esa persona; sin ellos manda la
+     * cadena histórica de niveles.
+     */
+    candidatosPrimera?: CandidatoPrimeraFrase[];
+    /** (Ola 1018V · VST1018F-d2) Sitio de escucha para la licencia del motor. */
+    contextoLicencia?: ContextoLicenciaVoz;
+    /** (Ola 1018V · VST1018F-d2) Capas de conciencia (sistema › comunidad › grupo › persona › neurona). */
+    capasLicencia?: CapasPrefs;
 }
 
 /**
@@ -469,6 +553,21 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
             // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
             nivel = "nube";
             break;
+    }
+
+    // ── (Ola 1018V · VST1018F-d2) PRIMERA FRASE INSTANTÁNEA ─────────────────
+    // En conversación, si quien llama trae candidatos medidos, el mensaje
+    // ÍNTEGRO suena por el motor permitido con menor latencia medido que
+    // tenga la voz de esa persona: UNA elección por mensaje, nunca partido
+    // entre dos motores. Si no hay elegido, manda la cadena histórica.
+    if (opciones.contexto === "conversacion" && opciones.candidatosPrimera?.length) {
+        const primera = motorPrimeraFrase(
+            opciones.candidatosPrimera,
+            "conversacion",
+            opciones.contextoLicencia ?? "personal",
+            opciones.capasLicencia ?? {},
+        );
+        if (primera) nivel = primera.nivel;
     }
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
