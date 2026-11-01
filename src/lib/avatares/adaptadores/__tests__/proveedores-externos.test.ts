@@ -155,10 +155,38 @@ describe("el permiso exige exactamente «1»", () => {
     expect(capacidadesExternas(e)).toEqual([]);
     expect(motoresDisponibles(e).some((m) => m.id === "meshy" || m.id === "tripo")).toBe(false);
   });
-  it("con «1» una clave vacía sigue sin valer, y solo se enciende el proveedor que tiene la suya", () => {
-    expect(motivoNoDisponible("meshy", { AVATARES_EXTERNOS_PERMITIDOS: "1", MESHY_API_KEY: "" })).toMatch(/MESHY_API_KEY/);
-    expect(estadoProveedores(ENCENDIDO).map((p) => [p.id, p.disponible, p.motivo])).toEqual([["meshy", true, null], ["tripo", true, null]]);
-  });
+it("con «1» una clave vacía sigue sin valer, y solo se enciende el proveedor que tiene la suya", () => {
+      expect(motivoNoDisponible("meshy", { AVATARES_EXTERNOS_PERMITIDOS: "1", MESHY_API_KEY: "" })).toMatch(/MESHY_API_KEY/);
+      expect(estadoProveedores(ENCENDIDO).map((p) => [p.id, p.disponible, p.motivo])).toEqual([["meshy", true, null], ["tripo", true, null]]);
+    });
+    it("respuesta sin result: lanza", async () => {
+      const { buscar } = simulado([{ status: 200, cuerpo: {} }]);
+      const resultado = await crearTarea("meshy", PNG, ENCENDIDO, buscar);
+      expect(resultado.ok).toBe(false);
+      if (!resultado.ok) { expect(resultado.motivo).toBe("Meshy no devolvió el id de la tarea."); }
+    });
+    it("tripo: «no disponible» sin llamar a la red", async () => {
+      const sinTripo = { AVATARES_EXTERNOS_PERMITIDOS: "0" };
+      const { buscar, llamadas } = simulado([{ status: 200, cuerpo: {} }]);
+      const resultado = await crearTarea("tripo", PNG, sinTripo, buscar);
+      expect(resultado.ok).toBe(false);
+      expect(llamadas).toHaveLength(0);
+    });
+    it("meshy: ok con fetch simulado", async () => {
+      const { buscar, llamadas } = simulado([{ status: 200, cuerpo: { result: "t-1" } }]);
+      const r = await crearTarea("meshy", PNG, ENCENDIDO, buscar);
+      expect(r).toEqual({ ok: true, valor: "t-1" });
+      expect(llamadas[0].url).toBe("https://api.meshy.ai/openapi/v1/image-to-3d");
+    });
+    it("meshy con error de red: motivo claro, nunca la clave", async () => {
+      const { buscar } = simulado([{ status: 401, cuerpo: {} }]);
+      const r = await crearTarea("meshy", PNG, ENCENDIDO, buscar);
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.motivo).toMatch(/rechazó la clave/);
+        expect(r.motivo).not.toContain(CLAVE);
+      }
+    });
 });
 
 describe("crearTarea: respuestas incompletas y errores HTTP, siempre una sola petición por paso", () => {
