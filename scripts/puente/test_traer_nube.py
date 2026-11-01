@@ -105,6 +105,35 @@ class Sucesor(unittest.TestCase):
         self.assertEqual(T.siguiente_id("LC1004B", {"LC1004B", "LC1004Bb", "LC1004Bc"}), "LC1004Bd")
         self.assertEqual(T.siguiente_id("SB1004A", {"SB1004A", "SB1004Ab", "OTRA"}), "SB1004Ac")
 
+    def test_derivaciones_y_letra_de_la_tarea(self):
+        # (RESC1031D) `-d1`/`-d2b` acaban en cifra o minúscula: hay que quitarlos ENTEROS antes
+        # de mirar la letra de sucesión. Antes, `MC1013TCc-d2b` daba `MC1013TCc-d` y `SGO1031B-d1`
+        # se quedaba con su sufijo.
+        self.assertEqual(T.base_de("SGO1031B-d1"), "SGO1031B")
+        self.assertEqual(T.base_de("C715AA-d1b"), "C715AA")
+        self.assertEqual(T.base_de("CPA1007Kb-d1b"), "CPA1007K")
+        self.assertEqual(T.base_de("X-d2b-d1"), "X")
+        self.assertEqual(T.base_de("MC1013TCc-d2b"), "MC1013TC")
+        self.assertEqual(T.base_de("RTESP1011Bb-d1"), "RTESP1011B")
+        self.assertEqual(T.base_de("RTRTX1b-d1"), "RTRTX1")
+        # El prefijo `RT` del rescate se conserva: su cadena es suya; la última minúscula de un
+        # id normal es la letra de sucesión.
+        self.assertEqual(T.base_de("RTESP1011Bb"), "RTESP1011B")
+        self.assertEqual(T.base_de("MC1013TCc"), "MC1013TC")
+        # Un id que ya acababa en minúscula pierde solo la letra del reintento (`…-1ab` → `…-1a`);
+        # la `a` forma parte del id, porque los reintentos empiezan en `b`.
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1ab"), "S1010-EV-ORACLE-1a")
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1a"), "S1010-EV-ORACLE-1a")
+        # Los que ya existían no cambian; mayúsculas, cifras y guiones no son letras de reintento.
+        self.assertEqual(T.base_de("LC1004Bc"), "LC1004B")
+        self.assertEqual(T.base_de("LC1004B"), "LC1004B")
+        self.assertEqual(T.base_de("p318Jc"), "p318J")
+        self.assertEqual(T.base_de("c313_QW4"), "c313_QW4")
+        self.assertEqual(T.base_de("OPO1011T1"), "OPO1011T1")
+        self.assertEqual(T.base_de("MGP1010-7F3A2C"), "MGP1010-7F3A2C")
+        self.assertEqual(T.base_de(None), "")
+        self.assertEqual(T.base_de(""), "")
+
     def test_tarea_reparacion_continua_desde_la_rama(self):
         original = {"id": "LC1004B", "ola": "Ola 1004L", "titulo": "Límites", "archivos": ["a.ts"],
                     "depende": ["LC1004A"], "prompt": "Haz X.", "estado": "fallo_tests", "modelo": "nim/kimi"}

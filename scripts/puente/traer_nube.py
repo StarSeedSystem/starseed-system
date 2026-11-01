@@ -219,9 +219,29 @@ def elegir_por_tarea(entradas):
     return salida
 
 
+#: (RESC1031D) Sufijo de derivación/parte: `-d1`, `-d2b` y los encadenados (`-d2b-d1`).
+_DERIVACION = re.compile(r"-d\d+[a-z]*$")
+
+
 def base_de(tid):
-    """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` de Genesis)."""
-    return tid[:-1] if re.search(r"[A-Z0-9][b-z]$", tid) else tid
+    """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` de Genesis).
+
+    (RESC1031D) Mirar solo el último carácter cortaba mal: `SGO1031B-d1` se quedaba entero (y su
+    sucesor nacía `…-d1b`) y `MC1013TCc-d2b` perdía solo la `b`, dejando `MC1013TCc-d`. Primero se
+    quita ENTERO el sufijo de derivación (`-d1`, `-d2b`, encadenados), que puede acabar en cifra o
+    en minúscula; solo después la letra de sucesión. El prefijo `RT` del rescate se conserva: su
+    cadena es suya. La `a` final forma parte del id (los reintentos empiezan en `b`), y un id que
+    ya acababa en minúscula pierde solo la letra del reintento (`…-1ab` → `…-1a`, como la regla
+    del vigilante y del revisor)."""
+    t = str(tid or "")
+    while _DERIVACION.search(t):
+        t = _DERIVACION.sub("", t)
+    if len(t) > 1 and t[-1] in "bcdefghijklmnopqrstuvwxyz":
+        if t[-2].isdigit() or t[-2].isupper():
+            return t[:-1]
+        if len(t) > 2 and t[-2].islower() and (t[-3].isdigit() or t[-3].isupper()):
+            return t[:-1]
+    return t
 
 
 def siguiente_id(tid, conocidos):
