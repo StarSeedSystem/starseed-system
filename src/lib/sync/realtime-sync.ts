@@ -80,10 +80,16 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
 // (Ola MBT1027) El Mausbot guarda su config con su propio evento (EVENTO_MAUSBOT,
 //  src/lib/mausbot/config.ts); el valor que llega de otro dispositivo usa el mismo evento.
 import { EVENTO_MAUSBOT } from "@/lib/mausbot/config";
-// (MTN1027C) Las directivas de Meta^n anuncian su cambio con su propio evento
-// (EVENTO_DIRECTIVAS, src/lib/astraura/capas/directivas-almacen.ts); el valor que
-// llega de otro medio usa el mismo evento.
-import { EVENTO_DIRECTIVAS } from "@/lib/astraura/capas/directivas-almacen";
+// (MTN1027C) Las directivas de Meta^n se aplican POR CAPA con su almacén
+// (guardarDirectivas, src/lib/astraura/capas/directivas-almacen.ts) y anuncian su
+// cambio con el mismo evento que el almacén emite al guardar (EVENTO_DIRECTIVAS).
+import {
+    CLAVE_DIRECTIVAS,
+    EVENTO_DIRECTIVAS,
+    guardarDirectivas,
+    leerDirectivas,
+    normalizarRegistroDirectivas,
+} from "@/lib/astraura/capas/directivas-almacen";
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
@@ -234,7 +240,7 @@ const EVENT_BY_KEY: Record<string, string[]> = {
     "starseed.astraura.capas-entidad.v1": ["starseed:astraura-capas-entidad"],
     // Directivas de automejora Meta^n por capa (MTN1027C, directivas-almacen.ts): el valor
     // que llega de otro medio usa el mismo evento que emite guardarDirectivas.
-    "starseed.capas.directivas.v1": ["starseed:capas-directivas"],
+    "starseed.capas.directivas.v1": [EVENTO_DIRECTIVAS],
     "starseed.astraura.installed-models.v1": ["starseed:astraura-installed-models"],
     "starseed.astraura.huggingbay-candidates.v1": ["starseed:astraura-huggingbay-candidates"],
     "starseed.astraura.webaccess.v1": ["starseed:astraura-suggestions"],
@@ -949,6 +955,29 @@ function applyRemoteChanges(
             if (key === DOCK_STORAGE_KEY) {
                 const norm = normalizeDockSyncValue(merged);
                 if (norm.changed) { merged = norm.value; repaired = true; }
+            }
+
+            /* ── DIRECTIVAS de Meta^n (MTN1027C): se aplican POR CAPA, no tal cual ──
+             * El almacén (astraura/capas/directivas-almacen.ts) decide cada una con
+             * su `guardarDirectivas` (§3.5: solo entra si su activa es MÁS NUEVA o
+             * cambió el historial; «lo de la cuenta no devuelve la capa a una pauta
+             * más vieja; una vuelta atrás SÍ cambia el historial, así que guarda»),
+             * escribe el registro y anuncia EVENTO_DIRECTIVAS. Las capas que solo
+             * estaban aquí se conservan y se marcan como reparado para que vuelvan
+             * a subir a la cuenta. */
+            if (key === CLAVE_DIRECTIVAS) {
+                markAppliedRemote(key); // silencia el anti-eco de los setItem del almacén
+                const remoto = normalizarRegistroDirectivas(merged);
+                let cambio = false;
+                for (const [capa, archivo] of Object.entries(remoto)) {
+                    const r = guardarDirectivas(capa, archivo);
+                    if (r.ok && r.guardado) cambio = true;
+                }
+                const reparado = Object.keys(leerDirectivas()).some((capa) => !(capa in remoto));
+                if (cambio) appliedKeys.push(key);
+                if (reparado) repairedKeys.push(key);
+                if (remoteTs > 0) metaToStamp[key] = reparado ? Date.now() : Math.max(remoteTs, localMeta[key] ?? 0);
+                continue;
             }
 
             const serialized = serializeForStorage(merged);
