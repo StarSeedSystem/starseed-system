@@ -4662,3 +4662,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-11-01 02:26 · mg-oracle-1031-1914
+
+**Lo que se pidió.** Procesos activos: normalizar cada fuente a ProcesoActivo (puro)
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (RTCB1013Kb, RTRTRTCOL1012Bdsbbbbbbbbbbbbbbb-d1b). Es 67 % de la ola.
+- google/gemini-3.6-flash no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTCB1013Kb` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTCB1013Kb conservada)
+- `MBT1027Ob` — otra cosa: sin decisión en 0 h; rama ola/MBT1027Ob conservada
+- `RTRTRTCOL1012Bdsbbbbbbbbbbbbbbb-d1b` — los tipos no compilan: 1 errores tsc (rama ola/RTRTRTCOL1012Bdsbbbbbbbbbbbbbbb-d1b conservada)
