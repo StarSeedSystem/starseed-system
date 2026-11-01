@@ -12,10 +12,11 @@
 // ════════════════════════════════════════════════════════════════
 
 import React, { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion, type Transition } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { geometriaVentana, type TipoVentana, type Viewport } from "@/lib/design/composicion";
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -57,6 +58,46 @@ function apuntarVentana(v: VentanaApilada): () => void {
     };
 }
 
+/* ── Posición inicial por aparato (Ola 1019D) ──
+   La ventana abre centrada en la pantalla y, en teléfono (< 430 px), como una hoja
+   centrada anclada abajo que entra desde el borde inferior (entrada cardinal).
+   `geometriaVentana` da la x/y; aquí se traduce a un desplazamiento relativo al
+   centro del contenedor flex para no tocar la API ni el arrastre. */
+export interface PosicionInicial {
+    tipo: TipoVentana;
+    hoja: boolean;
+    desplazamientoX: number;
+    desplazamientoY: number;
+    entradaDesdeAbajo: number;
+}
+
+export function posicionInicialVentana(
+    viewport: Viewport,
+    tamano?: { ancho: number; alto: number },
+): PosicionInicial {
+    const hoja = viewport.ancho < 430;
+    const tipo: TipoVentana = hoja ? "hoja" : "ventana";
+    const base: PosicionInicial = {
+        tipo,
+        hoja,
+        desplazamientoX: 0,
+        desplazamientoY: 0,
+        entradaDesdeAbajo: hoja ? 24 : 0,
+    };
+    if (!tamano || tamano.ancho <= 0 || tamano.alto <= 0) return base;
+    const geo = geometriaVentana(viewport, { tipo, ancho: tamano.ancho, alto: tamano.alto });
+    return {
+        ...base,
+        desplazamientoX: geo.x - (viewport.ancho - tamano.ancho) / 2,
+        desplazamientoY: geo.y - (viewport.alto - tamano.alto) / 2,
+    };
+}
+
+function viewportActual(): Viewport {
+    if (typeof window === "undefined") return { ancho: 1280, alto: 800 };
+    return { ancho: window.innerWidth, alto: window.innerHeight };
+}
+
 export interface OSWindowProps {
     title: string;
     subtitle?: string;
@@ -82,9 +123,51 @@ export function OSWindow({
     const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
 
     const raizRef = useRef<HTMLDivElement>(null);
+    const envoltorioRef = useRef<HTMLDivElement>(null);
     const cerrarRef = useRef(onClose);
     useEffect(() => { cerrarRef.current = onClose; }, [onClose]);
     useEffect(() => apuntarVentana({ raiz: raizRef, cerrar: cerrarRef }), []);
+
+    const reducir = useReducedMotion() ?? false;
+    const [viewport, setViewport] = useState<Viewport>(viewportActual);
+    const [tamano, setTamano] = useState<{ ancho: number; alto: number } | null>(null);
+
+    // La hoja/ventana se recoloca al girar o redimensionar la pantalla.
+    useEffect(() => {
+        const medir = () => setViewport(viewportActual());
+        window.addEventListener("resize", medir);
+        return () => window.removeEventListener("resize", medir);
+    }, []);
+
+    // Tamaño real del marco: la geometría necesita ancho y alto, no los del viewport.
+    useEffect(() => {
+        const el = envoltorioRef.current;
+        if (!el) return;
+        const medir = () => {
+            const r = el.getBoundingClientRect();
+            const ancho = Math.round(r.width);
+            const alto = Math.round(r.height);
+            if (ancho <= 0 || alto <= 0) return;
+            setTamano((prev) => (prev && prev.ancho === ancho && prev.alto === alto ? prev : { ancho, alto }));
+        };
+        medir();
+        if (typeof ResizeObserver === "undefined") return;
+        const observador = new ResizeObserver(medir);
+        observador.observe(el);
+        return () => observador.disconnect();
+    }, []);
+
+    const posicion = posicionInicialVentana(viewport, tamano ?? undefined);
+    const entrada = reducir
+        ? { initial: { opacity: 0 }, animate: { opacity: 1 } }
+        : posicion.hoja
+            ? { initial: { opacity: 0, y: posicion.entradaDesdeAbajo }, animate: { opacity: 1, y: 0 } }
+            : { initial: { opacity: 0, scale: 0.96 }, animate: { opacity: 1, scale: 1 } };
+    const transicion: Transition = reducir
+        ? { duration: 0.15 }
+        : posicion.hoja
+            ? { duration: 0.24, ease: [0.16, 1, 0.3, 1] }
+            : { type: "spring", stiffness: 260, damping: 26 };
 
     useEffect(() => {
         const onMove = (e: PointerEvent) => {
@@ -108,19 +191,29 @@ export function OSWindow({
     };
 
     return (
-        <div ref={raizRef} className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
+        <div ref={raizRef} className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title} data-hoja={posicion.hoja ? "true" : undefined}>
             <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
 
             {/* Capa de arrastre centrada por el flex padre. El transform de arrastre va
                 aquí (div plano), NO en el hijo animado → la animación de Framer ya no pisa
-                el centrado y la ventana SIEMPRE abre centrada. */}
-            <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
+                el centrado. `left`/`top` aplican la geometría por aparato: 0 en escritorio
+                (centrada) y el anclaje inferior de la hoja en teléfono. */}
+            <div
+                ref={envoltorioRef}
+                className="relative max-w-full max-h-full"
+                style={{
+                    transform: `translate(${offset.dx}px, ${offset.dy}px)`,
+                    left: posicion.desplazamientoX,
+                    top: posicion.desplazamientoY,
+                }}
+            >
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ type: "spring", stiffness: 260, damping: 26 }}
+                    initial={entrada.initial}
+                    animate={entrada.animate}
+                    transition={transicion}
                     className={cn(
                         "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
+                        posicion.hoja && "rounded-b-none",
                         sizeClass,
                     )}
                 >
