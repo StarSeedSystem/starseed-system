@@ -58,6 +58,29 @@ describe("fuentesDeMapaXR", () => {
     };
     expect(fuentesDeMapaXR(mapa)).toHaveLength(1);
   });
+  it("descarta gestos, teclas y frases: solo quedan gatillos de mando", () => {
+    const mapa: MapaEntrada = {
+      seleccionar: [{ tipo: "gesto", gesto: "pellizco", mano: "cualquiera" }],
+      salir: [{ tipo: "tecla", codigo: "Escape" }, { tipo: "frase", texto: "salir" }],
+    };
+    expect(fuentesDeMapaXR(mapa)).toEqual([]);
+  });
+  it("mano derecha es índice 1 e izquierda 0, sin repetir la misma fuente", () => {
+    const fuentes = fuentesDeMapaXR({
+      seleccionar: [{ tipo: "boton", indice: 0, mano: "derecha" }, { tipo: "boton", indice: 0, mano: "izquierda" }],
+      agarrar: [{ tipo: "boton", indice: 0, mano: "derecha" }],
+      teletransporte: [{ tipo: "eje", indice: 3, direccion: "-", mano: "derecha" }],
+    });
+    expect(fuentes).toContainEqual({ tipo: "gamepad", control: "boton", numero: 0, indice: 1 });
+    expect(fuentes).toContainEqual({ tipo: "gamepad", control: "boton", numero: 0, indice: 0 });
+    expect(fuentes).toContainEqual({ tipo: "gamepad", control: "eje", numero: 3, indice: 1 });
+    expect(fuentes.filter((f) => f.tipo === "gamepad" && f.control === "boton" && f.numero === 0 && f.indice === 1)).toHaveLength(1);
+  });
+  it("el mapa de gamepad también da fuentes de mando", () => {
+    const fuentes = fuentesDeMapaXR(MAPAS_DEFECTO.gamepad);
+    expect(fuentes.length).toBeGreaterThan(0);
+    expect(fuentes.every((f) => f.tipo === "gamepad")).toBe(true);
+  });
 });
 
 describe("rangoAGesto", () => {
@@ -76,6 +99,15 @@ describe("rangoAGesto", () => {
   });
   it("un parámetro desconocido no rompe", () => {
     expect(rangoAGesto({ id: "x", nombre: "X", tipo: "numero" }, 0.5)).toBe(0.5);
+  });
+  it("respeta el entero y acota fuera de 0..1", () => {
+    expect(rangoAGesto({ ...VOLUMEN, tipo: "entero" }, 0.333)).toBe(33);
+    expect(rangoAGesto(VOLUMEN, -3)).toBe(0);
+    expect(rangoAGesto(VOLUMEN, 9)).toBe(100);
+  });
+  it("la curva log responde antes que la lineal", () => {
+    expect(rangoAGesto(VOLUMEN, 0.5)).toBe(50);
+    expect(rangoAGesto(VOLUMEN, 0.5, { ...CURVA_LINEAL, forma: "log" })).toBeGreaterThan(50);
   });
 });
 
@@ -111,5 +143,11 @@ describe("aplicarEnVisor", () => {
     expect(aplicarEnVisor(controladorFalso({ ambito: "grupo", mover: okMover() }), REF, op({ tipo: "exacta", valor: 50 })).ok).toBe(true);
     const rechazo = controladorFalso({ mover: () => ({ ok: false, motivo: "Parámetro desconocido: fantasma" }) });
     expect(aplicarEnVisor(rechazo, { atomoId: "x", parametroId: "fantasma" }, op({ tipo: "exacta", valor: 1 }))).toEqual({ ok: false, motivo: "Parámetro desconocido: fantasma" });
+  });
+  it("una operación de agente en un espacio personal sí se aplica", () => {
+    const mover = okMover();
+    const r = aplicarEnVisor(controladorFalso({ ambito: "personal", mover }), REF, op({ tipo: "exacta", valor: 50 }, AGENTE, "agente"));
+    expect(r.ok).toBe(true);
+    expect(mover).toHaveBeenCalledTimes(1);
   });
 });
