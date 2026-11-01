@@ -53,6 +53,15 @@ describe("ClienteMcpStdio", () => {
     transporte.responder(transporte.ultima.id, { content: [{ type: "text", text: "ho" }, { type: "text", text: "la" }] });
     expect(await promesa).toEqual({ ok: true, texto: "hola" });
   });
+  it("maneja trozos de línea partidos en mitad de JSON", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.listar(5000);
+    const jsonCompleto = `{"jsonrpc":"2.0","id":${transporte.ultima.id},"result":true}\n`;
+    const puntoDeCorte = Math.floor(jsonCompleto.length / 2);
+    transporte.enviar(jsonCompleto.slice(0, puntoDeCorte));
+    transporte.enviar(jsonCompleto.slice(puntoDeCorte));
+    expect(await promesa).toBe(true);
+  });
   it("empareja respuestas desordenadas", async () => {
     const { transporte, cliente } = montar();
     const p1 = cliente.listar(1000); const id1 = transporte.ultima.id;
