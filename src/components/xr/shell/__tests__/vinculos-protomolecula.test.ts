@@ -58,6 +58,22 @@ describe("fuentesDeMapaXR", () => {
     };
     expect(fuentesDeMapaXR(mapa)).toHaveLength(1);
   });
+  it("descarta gestos, teclas y frases: solo quedan gatillos de mando", () => {
+    const mapa: MapaEntrada = {
+      seleccionar: [{ tipo: "gesto", gesto: "pellizco", mano: "cualquiera" }],
+      salir: [{ tipo: "tecla", codigo: "Escape" }, { tipo: "frase", texto: "salir" }],
+    };
+    expect(fuentesDeMapaXR(mapa)).toEqual([]);
+  });
+  it("traduce un eje con su número y la mano (izquierda 0, derecha 1)", () => {
+    const f = fuentesDeMapaXR({
+      seleccionar: [{ tipo: "boton", indice: 0, mano: "derecha" }, { tipo: "boton", indice: 0, mano: "izquierda" }],
+      teletransporte: [{ tipo: "eje", indice: 3, direccion: "-", mano: "derecha" }],
+    });
+    expect(f).toContainEqual({ tipo: "gamepad", control: "boton", numero: 0, indice: 1 });
+    expect(f).toContainEqual({ tipo: "gamepad", control: "boton", numero: 0, indice: 0 });
+    expect(f).toContainEqual({ tipo: "gamepad", control: "eje", numero: 3, indice: 1 });
+  });
 });
 
 describe("rangoAGesto", () => {
@@ -67,6 +83,15 @@ describe("rangoAGesto", () => {
   it("respeta el paso y la curva invertida", () => {
     expect(rangoAGesto({ ...VOLUMEN, paso: 10 }, 0.53)).toBe(50);
     expect(rangoAGesto(VOLUMEN, 0.2, { ...CURVA_LINEAL, invertir: true })).toBe(80);
+  });
+  it("respeta el tipo entero y acota fuera de 0..1", () => {
+    expect(rangoAGesto({ ...VOLUMEN, tipo: "entero" }, 0.333)).toBe(33);
+    expect(rangoAGesto(VOLUMEN, -3)).toBe(0);
+    expect(rangoAGesto(VOLUMEN, 9)).toBe(100);
+  });
+  it("la curva log responde antes que la lineal", () => {
+    expect(rangoAGesto(VOLUMEN, 0.5)).toBe(50);
+    expect(rangoAGesto(VOLUMEN, 0.5, { ...CURVA_LINEAL, forma: "log" })).toBeGreaterThan(50);
   });
   it("interruptores y opciones se resuelven con la misma curva", () => {
     expect(rangoAGesto({ id: "eco", nombre: "Eco", tipo: "booleano" }, 0.7)).toBe(true);
@@ -106,6 +131,11 @@ describe("aplicarEnVisor", () => {
     expect(r.ok).toBe(false);
     expect(!r.ok && r.pendiente?.motivo).toMatch(/pendiente de tu confirmación/);
     expect(mover).not.toHaveBeenCalled();
+  });
+  it("una operación de agente en un espacio personal sí se aplica", () => {
+    const mover = okMover();
+    expect(aplicarEnVisor(controladorFalso({ mover }), REF, op({ tipo: "exacta", valor: 50 }, AGENTE, "agente")).ok).toBe(true);
+    expect(mover).toHaveBeenCalledTimes(1);
   });
   it("una persona en grupo sí aplica y un parámetro desconocido devuelve el motivo", () => {
     expect(aplicarEnVisor(controladorFalso({ ambito: "grupo", mover: okMover() }), REF, op({ tipo: "exacta", valor: 50 })).ok).toBe(true);

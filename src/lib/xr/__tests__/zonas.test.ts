@@ -26,6 +26,13 @@ describe("dentroDeZona", () => {
         expect(dentroDeZona(z, [0.9, 0.6, 0.9])).toBe(false);
         expect(dentroDeZona(z, [0.9, 0.53, 0.9], HISTERESIS_M)).toBe(true);
     });
+    it("la caja incluye justo el borde de tam y una décima fuera ya no", () => {
+        const z = zona("c", { tam: [2, 2, 2] });
+        expect(dentroDeZona(z, [0, 1, 0])).toBe(true);
+        expect(dentroDeZona(z, [1, 1, 1])).toBe(true);
+        expect(dentroDeZona(z, [1.01, 1, 0])).toBe(false);
+        expect(dentroDeZona(z, [0, 2.01, 0])).toBe(false);
+    });
 });
 
 describe("cambiosDeZona", () => {
@@ -50,6 +57,15 @@ describe("cambiosDeZona", () => {
     it("una zona borrada del mundo también se abandona", () => {
         expect(cambiosDeZona([], ahora("vieja", "otra"), [0, 0, 0]).sale).toEqual(["vieja", "otra"]);
     });
+    it("entra en una zona mientras sigue en otra y abandona la que ya no existe", () => {
+        const caja = zona("caja", { tam: [2, 2, 2] });
+        const otra = zona("otra", { pos: [0, 1, -1] });
+        const r = cambiosDeZona([caja, otra], ahora("caja", "fantasma"), [0, 1, -0.9]);
+        expect(r.entra).toEqual(["otra"]);
+        expect(r.sale).toEqual(["fantasma"]);
+        expect(r.ahora.has("caja")).toBe(true);
+        expect(r.ahora.has("otra")).toBe(true);
+    });
 });
 
 describe("efectosActivos", () => {
@@ -58,6 +74,9 @@ describe("efectosActivos", () => {
         const r = cambiosDeZona([z], ahora(), [0, 0, 0]);
         expect(r.entra).toEqual(["reunion"]);
         expect(efectosActivos([z], r.ahora)).toEqual(SIN_EFECTOS);
+    });
+    it("una zona con efecto que no está activa no aporta nada", () => {
+        expect(efectosActivos([zona("s", { efecto: "silencio" })], ahora())).toEqual(SIN_EFECTOS);
     });
     it("varios efectos a la vez y sólo de las zonas activas", () => {
         const zs = [
