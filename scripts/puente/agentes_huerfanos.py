@@ -103,16 +103,101 @@ def es_trabajador_de_puerta(args):
 
 
 def trabajadores_huerfanos(filas):
-    """Pids de trabajadores de vitest adoptados por init: su vitest ya murió.
+    """Pids de trabajadores de puerta adoptados por init: su dueño ya murió.
 
-    `filas`: (pid, ppid, args) como da `ps -eo pid=,ppid=,args=`."""
-    fuera = []
+    Incluye los `node (vitest N)` (su vitest principal ya no existe) y los tsc de
+    un `tsc-turno.sh` huérfano (ver `tsc_huerfanos`). `filas`: (pid, ppid, args)
+    como da `ps -eo pid=,ppid=,args=`."""
+    tsc = set(tsc_huerfanos(filas))
+    fuera, visto = [], set()
     for fila in filas or ():
         try:
             pid, ppid, args = fila
             pid, ppid = int(pid), int(ppid)
         except (TypeError, ValueError):
             continue
-        if ppid == 1 and es_trabajador_de_puerta(args) and pid not in fuera:
+        if pid in visto:
+            continue
+        if (ppid == 1 and es_trabajador_de_puerta(args)) or pid in tsc:
+            visto.add(pid)
+            fuera.append(pid)
+    return fuera
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# (2026-11-01) TSC DE UN tsc-turno MUERTO
+#
+# El 31-10 a las 20:41 un agente lanzó `zsh -c 'bash scripts/enjambre/tsc-turno.sh
+# … | tail -40'` y murió. Launchd adoptó el zsh (ppid 1), y su `npm exec tsc` →
+# `node …/bin/tsc --noEmit` siguió 3 h con 4,6 GB en una Mac de 8 GB. SUP0111J ya
+# pone plazo y vigilancia dentro del guion, pero no cubre un tsc-turno matado con
+# SIGKILL ni los que ya corrían con el guion viejo.
+#
+# Solo se corta el árbol cuando quien iba a leer el resultado ya no existe:
+#   (a) el propio tsc tiene a init por padre, o
+#   (b) su cadena sube a un `tsc-turno.sh` cuyo padre es un shell `-c` con ppid 1.
+# Nunca la puerta del orquestador: su cadena sube a `starseed-enjambre.py`.
+# ─────────────────────────────────────────────────────────────────────────────
+_NPM_TSC = _re.compile(r"(?:^|\s)npm\s+exec\s+tsc(?:\s|$)")
+_NODE_TSC = _re.compile(r"(?:^|\s)node\s+\S*/bin/tsc(?:\s|$)")
+_TURNO = _re.compile(r"scripts/enjambre/tsc-turno\.sh")
+_ORQUESTADOR = _re.compile(r"starseed-enjambre\.py")
+_SHELLS_C = ("zsh", "bash", "sh", "dash", "ksh")
+
+
+def es_tsc(args):
+    """¿Es el envoltorio (`npm exec tsc`) o el propio `node …/bin/tsc`?"""
+    linea = args or ""
+    return bool(_NPM_TSC.search(linea) or _NODE_TSC.search(linea))
+
+
+def es_tsc_turno(args):
+    """¿Es el guion que pide el turno de compilación?"""
+    return bool(_TURNO.search(args or ""))
+
+
+def es_shell_con_c(args):
+    """¿Es un shell lanzado con `-c` (zsh/bash/sh…), como el de la herramienta?"""
+    partes = (args or "").strip().split(None, 1)
+    if len(partes) < 2:
+        return False
+    nombre = partes[0].rsplit("/", 1)[-1]
+    bandera = partes[1].split(None, 1)[0]
+    return nombre in _SHELLS_C and bandera.startswith("-") and "c" in bandera
+
+
+def _cuelga_de_turno_adoptado(ppid, mapa):
+    """Sube por ppid hasta un tsc-turno con shell `-c` huérfano; corta en el orquestador."""
+    vistos = set()
+    while ppid in mapa and ppid not in vistos:
+        vistos.add(ppid)
+        su_ppid, args = mapa[ppid]
+        if _ORQUESTADOR.search(args):
+            return False
+        if es_tsc_turno(args):
+            padre = mapa.get(su_ppid)
+            return bool(padre and padre[0] == 1 and es_shell_con_c(padre[1]))
+        ppid = su_ppid
+    return False
+
+
+def tsc_huerfanos(filas):
+    """Pids de `npm exec tsc`/`node …/bin/tsc` que ya no sirven a nadie.
+
+    (a) su padre es init (ppid 1); o (b) su cadena sube a un tsc-turno cuyo padre
+    es un shell `-c` adoptado por init. Nunca la puerta del orquestador ni un tsc
+    con un padre vivo distinto de init. Devuelve en el orden de `filas`, sin repetir."""
+    mapa = {}
+    for fila in filas or ():
+        try:
+            pid, ppid, args = fila
+            mapa[int(pid)] = (int(ppid), args or "")
+        except (TypeError, ValueError):
+            continue
+    fuera = []
+    for pid, (ppid, args) in mapa.items():
+        if not es_tsc(args):
+            continue
+        if ppid == 1 or _cuelga_de_turno_adoptado(ppid, mapa):
             fuera.append(pid)
     return fuera

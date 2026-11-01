@@ -98,5 +98,59 @@ class TrabajadoresDePuertaHuerfanos(unittest.TestCase):
         self.assertEqual(A.trabajadores_huerfanos([("x", 1, "node (vitest 1)"), None, (1, 2)]), [])
 
 
+class TscHuerfanos(unittest.TestCase):
+    """(2026-11-01) El tsc-turno del 31-10 que siguió 3 h con 4,6 GB."""
+
+    ZSH_C = "zsh -c 'bash scripts/enjambre/tsc-turno.sh 2>&1 | tail -40'"
+    TURNO = "bash scripts/enjambre/tsc-turno.sh"
+    NPM = "npm exec tsc --noEmit"
+    NODE = "node /repo/node_modules/typescript/bin/tsc --noEmit"
+    ORQ = "python -u /Users/alex/.local/bin/starseed-enjambre.py"
+
+    def test_el_caso_del_31_10(self):
+        filas = [
+            (900, 1, self.ZSH_C),
+            (901, 900, self.TURNO),
+            (902, 901, self.NPM),
+            (903, 902, self.NODE),
+        ]
+        self.assertEqual(A.tsc_huerfanos(filas), [902, 903])
+
+    def test_nunca_la_puerta_del_orquestador(self):
+        filas = [
+            (800, 1, self.ORQ),
+            (801, 800, self.TURNO),
+            (802, 801, self.NPM),
+            (803, 802, self.NODE),
+        ]
+        self.assertEqual(A.tsc_huerfanos(filas), [])
+
+    def test_un_tsc_de_una_terminal_no_se_toca(self):
+        filas = [
+            (700, 555, "zsh"),
+            (701, 700, self.TURNO),
+            (702, 701, self.NPM),
+            (703, 702, self.NODE),
+        ]
+        self.assertEqual(A.tsc_huerfanos(filas), [])
+
+    def test_tsc_con_padre_init(self):
+        self.assertEqual(A.tsc_huerfanos([(710, 1, self.NODE)]), [710])
+
+    def test_tsc_sin_turno_con_padre_vivo(self):
+        filas = [(720, 721, self.NODE), (721, 1, "zsh")]
+        self.assertEqual(A.tsc_huerfanos(filas), [])
+
+    def test_trabajadores_incluye_los_tsc(self):
+        filas = [
+            (39558, 1, "node (vitest 2)"),
+            (900, 1, self.ZSH_C),
+            (901, 900, self.TURNO),
+            (902, 901, self.NPM),
+            (903, 902, self.NODE),
+        ]
+        self.assertEqual(A.trabajadores_huerfanos(filas), [39558, 902, 903])
+
+
 if __name__ == "__main__":
     unittest.main()
