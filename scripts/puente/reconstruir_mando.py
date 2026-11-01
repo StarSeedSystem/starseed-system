@@ -51,6 +51,10 @@ SERVICIO = "com.starseed.mando"
 #: Dónde compila quien no quiere tirar lo que se está sirviendo. Ver `next.config.ts`.
 DIST_BUILD = os.environ.get("STARSEED_DIST_BUILD", ".next-build")
 DIST_SERVIDO = ".next"
+#: (SUP0111D) El build que funcionó antes del último cambio: la vuelta atrás del servido.
+ANTERIOR = ".next-anterior"
+#: (SUP0111D) Ahí espera con sello lo que se aparta y NUNCA se borra.
+CUARENTENA = os.path.expanduser("~/.starseed/cuarentena")
 #: La escribe quien compiló, y solo si el compilador salió con 0. Ver `build_terminado`.
 MARCA_LISTO = ".listo"
 #: Por debajo de esto no se compila: `next build` muere con ENOSPC a mitad y deja basura.
@@ -622,6 +626,90 @@ def intercambiar_build() -> bool:
     return True
 
 
+def anterior_servible(raiz=RAIZ) -> bool:
+    """¿Queda en `.next-anterior` un build SERVIBLE? (SUP0111D, 2026-10-31)
+
+    Un `next build` ajeno borró el `.next` servido y Genesis quedó caído hasta que alguien
+    repuso `.next-anterior` a mano: esa vuelta atrás existe si conserva BUILD_ID y
+    build-manifest.json, lo mínimo que `next start` necesita para servir."""
+    return (os.path.exists(os.path.join(raiz, ANTERIOR, "BUILD_ID"))
+            and os.path.exists(os.path.join(raiz, ANTERIOR, "build-manifest.json")))
+
+
+def reponer_anterior_toca(caido, build_entero, anterior_entero):
+    """PURA (SUP0111D): ¿se repone `.next-anterior` a `.next` en este momento?
+
+    El 31-10 un `next build` ajeno borró el `.next` servido y Genesis quedó caído hasta
+    que alguien repuso `.next-anterior` a mano. Se repone AL MOMENTO cuando Genesis está
+    caído y no hay salida mejor ya en disco: si `.next-build` está entero ese entra por
+    la puerta de siempre, y si el anterior tampoco tiene build no hay nada que reponer."""
+    if not caido:
+        return False, "Genesis está sirviendo su build: no se toca nada"
+    if build_entero:
+        return False, "hay build entero en .next-build: entra por la puerta de siempre"
+    if anterior_entero:
+        return True, "el .next servido se perdió y .next-anterior tiene un build entero: lo repone"
+    return False, "no hay .next-anterior servible: toca compilar (a1 o la Mac)"
+
+
+def a_cuarentena(ruta, sello=None) -> str:
+    """Mueve `ruta` a `~/.starseed/cuarentena/<AAAAMMDD-HHMM>-next-roto/` (SUP0111D).
+
+    Nada se borra: lo roto puede explicar una caída. Devuelve a dónde fue, o "" si no se
+    pudo mover — mover a medias dejaría el disco peor que antes."""
+    sello = sello or time.strftime("%Y%m%d-%H%M")
+    destino = os.path.join(CUARENTENA, sello + "-next-roto")
+    n = 1
+    while os.path.exists(destino):
+        destino = os.path.join(CUARENTENA, "%s-next-roto-%d" % (sello, n))
+        n += 1
+    try:
+        os.makedirs(CUARENTENA, exist_ok=True)
+        os.rename(ruta, destino)
+    except OSError:
+        return ""
+    return destino
+
+
+def reponer_anterior(raiz=RAIZ) -> bool:
+    """(SUP0111D) Repone `.next-anterior` al sitio del `.next` perdido y levanta Genesis.
+
+    Con su cerrojo de reinicio y el mismo patrón que el cambio de build: bootout, lavar
+    el puerto, mudar el roto a la cuarentena, renombrar CON EL SERVIDOR PARADO y las
+    comprobaciones de `_levantar_mando_y_comprobar`."""
+    if not anterior_servible(raiz):
+        return False
+    if not _tomar_cerrojo():
+        print("otro proceso está reiniciando Genesis; no me meto", flush=True)
+        return False
+    try:
+        uid = os.getuid()
+        etiqueta = "gui/%d/%s" % (uid, SERVICIO)
+        subprocess.run(["launchctl", "bootout", etiqueta], capture_output=True, text=True)
+        time.sleep(1)
+        liberar_puerto()
+        roto = os.path.join(raiz, DIST_SERVIDO)
+        if os.path.exists(roto):
+            destino = a_cuarentena(roto)
+            if not destino:
+                print("[%s] no pude mudar el .next roto a la cuarentena: no renombro nada"
+                      % time.strftime("%H:%M"), flush=True)
+                return False
+            print("[%s] el .next roto muda a la cuarentena: %s (nada se borra)"
+                  % (time.strftime("%H:%M"), destino), flush=True)
+        try:
+            os.rename(os.path.join(raiz, ANTERIOR), roto)
+        except OSError as e:
+            print("no pude renombrar %s a %s: %s" % (ANTERIOR, DIST_SERVIDO, e), flush=True)
+            return False
+        print("[%s] REPUESTO: el build anterior vuelve a ser el servido" % time.strftime("%H:%M"),
+              flush=True)
+        _levantar_mando_y_comprobar()
+        return True
+    finally:
+        _soltar_cerrojo()
+
+
 def chunk_del_html(html):
     """PURA: el chunk de arranque que pide una página servida, o None.
 
@@ -774,17 +862,11 @@ def reiniciar_mando() -> None:
         _soltar_cerrojo()
 
 
-def _reiniciar_mando_sin_cerrojo() -> None:
+def _levantar_mando_y_comprobar() -> None:
+    """Arranca Genesis y comprueba que sirve el disco: lo común tras cambiar el build."""
     uid = os.getuid()
     etiqueta = "gui/%d/%s" % (uid, SERVICIO)
     plist = os.path.expanduser("~/Library/LaunchAgents/%s.plist" % SERVICIO)
-    # `kill SIGTERM` NO basta: con `KeepAlive` launchd lo relanza antes del cambio y el
-    # Genesis levanta el build viejo. `bootout` lo descarga; nadie lo relanza a mitad.
-    subprocess.run(["launchctl", "bootout", etiqueta], capture_output=True, text=True)
-    time.sleep(1)
-    liberar_puerto()
-    if intercambiar_build():
-        print("build nuevo puesto en su sitio (el anterior queda en .next-anterior)", flush=True)
     # (2026-09-22, MEDIDO) `bootstrap` justo después de `bootout` FALLA a veces —launchd
     # todavía está desmontando el servicio— y entonces Genesis se queda APAGADO: ni en
     # `launchctl list`, ni proceso, ni nada escuchando en el 9002. Me pasó hoy y lo tuve
@@ -824,6 +906,19 @@ def _reiniciar_mando_sin_cerrojo() -> None:
                   error=None, visto=time.strftime("%Y-%m-%d %H:%M:%S")))
     print("Genesis reiniciado: la pantalla ya sirve el código nuevo (%s)" % (servido or "?"),
           flush=True)
+
+
+def _reiniciar_mando_sin_cerrojo() -> None:
+    uid = os.getuid()
+    etiqueta = "gui/%d/%s" % (uid, SERVICIO)
+    # `kill SIGTERM` NO basta: con `KeepAlive` launchd lo relanza antes del cambio y el
+    # Genesis levanta el build viejo. `bootout` lo descarga; nadie lo relanza a mitad.
+    subprocess.run(["launchctl", "bootout", etiqueta], capture_output=True, text=True)
+    time.sleep(1)
+    liberar_puerto()
+    if intercambiar_build():
+        print("build nuevo puesto en su sitio (el anterior queda en .next-anterior)", flush=True)
+    _levantar_mando_y_comprobar()
 
 
 # ── Frenos de máquina (2026-10-03) ───────────────────────────────────────────────────────
@@ -1157,6 +1252,13 @@ def una_pasada(forzar: bool = False) -> bool:
         print("[%s] %s, pero hay uno entero en %s: lo pongo" % (time.strftime("%H:%M"), CAIDO, DIST_BUILD))
         reiniciar_mando()
         return True
+    # (SUP0111D) Sin build servido ni el de trabajo entero, antes de recompilar se repone
+    # el build anterior si lo hay: Genesis vuelve en segundos, no en horas de build.
+    if caido:
+        toca, porque = reponer_anterior_toca(True, build_terminado(), anterior_servible())
+        if toca:
+            print("[%s] REpongo: %s" % (time.strftime("%H:%M"), porque), flush=True)
+            return bool(reponer_anterior())
     hazlo, motivo = decidir_caido(actual, estado, time.time()) if caido else decidir(
         actual, estado, time.time(), mas_nuevas=cuantas_mas_nuevas(mtime_del_build(), entradas))
     if forzar:

@@ -869,6 +869,7 @@ class SiLaMacNoPuedeCompilaElA1(unittest.TestCase):
     def _pasada(self, caido, freno, estado=None, previo=False):
         guardados, log = [], []
         mock.patch.object(R, "traer_hecho_del_a1", return_value=previo).start()  # (SUP0111A) sin red en pruebas
+        mock.patch.object(R, "anterior_servible", return_value=False).start()  # (SUP0111D) sin disco real
         self.addCleanup(mock.patch.stopall)
         with mock.patch.object(R, "_entradas", return_value=[("src/a.ts", 1, 1)]), \
                 mock.patch.object(R, "_leer_estado", return_value=dict(estado or {})), \
@@ -1033,3 +1034,120 @@ class TraerLoHechoConLaMacFrenada(unittest.TestCase):
         puesto, previo, _, _ = self._traer((True, "x"), freno="node_modules trae next 16.3.8 y package-lock pide 15.5")
         self.assertFalse(puesto)
         previo.assert_not_called()
+
+
+class ReponerElAnteriorPerdido(unittest.TestCase):
+    """SUP0111D (01-11): un `next build` ajeno borró el `.next` servido y Genesis quedó
+    caído hasta que alguien repuso `.next-anterior` a mano. Ahora lo repone el reconstructor."""
+
+    def setUp(self):
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.raiz, True)
+        self.cuarentena = os.path.join(self.raiz, "cuarentena")
+        suena = mock.patch.object(R.time, "sleep")
+        suena.start()
+        self.addCleanup(suena.stop)
+        # Los sleeps del bootout/bootstrap no deben alargar las pruebas.
+
+    def _carpeta(self, dist, entero=True):
+        d = os.path.join(self.raiz, dist)
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "BUILD_ID"), "w", encoding="utf-8") as f:
+            f.write("b1")
+        if entero:
+            with open(os.path.join(d, "build-manifest.json"), "w", encoding="utf-8") as f:
+                f.write("{}")
+        return d
+
+    # ── la decisión pura ─────────────────────────────────────────────────────
+    def test_caido_sin_nuevo_y_con_anterior_toca_reponer(self):
+        toca, motivo = R.reponer_anterior_toca(True, False, True)
+        self.assertTrue(toca)
+        self.assertIn("anterior", motivo)
+
+    def test_genesis_sirviendo_no_se_toca_nada(self):
+        toca, _ = R.reponer_anterior_toca(False, True, True)
+        self.assertFalse(toca)
+
+    def test_un_nuevo_entero_entra_por_la_puerta_de_siempre(self):
+        toca, motivo = R.reponer_anterior_toca(True, True, True)
+        self.assertFalse(toca)
+        self.assertIn("next-build", motivo)
+
+    def test_sin_anterior_servible_toca_compilar_como_siempre(self):
+        toca, _ = R.reponer_anterior_toca(True, False, False)
+        self.assertFalse(toca)
+
+    def test_el_anterior_cuenta_solo_con_sus_dos_marcas(self):
+        self._carpeta(".next-anterior")
+        self.assertTrue(R.anterior_servible(self.raiz))
+        os.remove(os.path.join(self.raiz, ".next-anterior", "build-manifest.json"))
+        self.assertFalse(R.anterior_servible(self.raiz))
+        os.remove(os.path.join(self.raiz, ".next-anterior", "BUILD_ID"))
+        self.assertFalse(R.anterior_servible(self.raiz))
+
+    # ── la reposición, con dobles de launchd, cerrojo y arranque ────────────
+    def _dobles(self, toca_cerrojo=True):
+        """Dobles comunes de `reponer_anterior`; devuelve los mocks y lo impreso."""
+        escritos = []
+        mock.patch.object(R, "CUARENTENA", self.cuarentena).start()
+        tomar = mock.patch.object(R, "_tomar_cerrojo", return_value=toca_cerrojo).start()
+        soltar = mock.patch.object(R, "_soltar_cerrojo").start()
+        mock.patch.object(R.subprocess, "run").start()
+        mock.patch.object(R, "servicio_cargado", return_value=True).start()
+        mock.patch.object(R, "_html_del_mando", return_value="").start()
+        mock.patch.object(R, "liberar_puerto").start()
+        mock.patch.object(R, "_guardar").start()
+        mock.patch("builtins.print",
+                   side_effect=lambda *a, **k: escritos.append(" ".join(map(str, a)))).start()
+        self.addCleanup(mock.patch.stopall)
+        return dict(tomar=tomar, soltar=soltar, escritos=escritos)
+
+    def test_reponer_mueve_lo_roto_a_cuarentena_y_monta_el_anterior(self):
+        self._carpeta(".next-anterior")
+        roto = os.path.join(self.raiz, ".next")
+        os.makedirs(roto)  # sin BUILD_ID: el caso del 31-10
+        with open(os.path.join(roto, "basura"), "w", encoding="utf-8") as f:
+            f.write("x")
+        dobles = self._dobles()
+        self.assertTrue(R.reponer_anterior(self.raiz))
+        dobles["tomar"].assert_called_once()
+        dobles["soltar"].assert_called_once()
+        self.assertFalse(os.path.exists(os.path.join(self.raiz, ".next-anterior")),
+                         "el anterior se gastó al renombrarlo")
+        self.assertEqual(R.id_del_build(self.raiz), "b1")
+        mudanza, = os.listdir(self.cuarentena)
+        self.assertTrue(mudanza.endswith("-next-roto"))
+        self.assertTrue(os.path.exists(os.path.join(self.cuarentena, mudanza, "basura")),
+                        "el .next roto no se borra: espera en la cuarentena")
+        texto = "\n".join(dobles["escritos"])
+        self.assertIn("cuarentena", texto)
+
+    def test_con_el_next_perdido_del_todo_renoma_igual(self):
+        self._carpeta(".next-anterior")
+        dobles = self._dobles()
+        self.assertTrue(R.reponer_anterior(self.raiz))
+        self.assertFalse(os.path.exists(self.cuarentena), "nada se mudó: no hay cuarentena")
+        self.assertEqual(R.id_del_build(self.raiz), "b1")
+        self.assertIn("REPUESTO", "\n".join(dobles["escritos"]))
+
+    def test_si_el_cerrojo_lo_tiene_otro_no_toca_nada(self):
+        self._carpeta(".next-anterior")
+        os.makedirs(os.path.join(self.raiz, ".next"))
+        dobles = self._dobles(toca_cerrojo=False)
+        self.assertFalse(R.reponer_anterior(self.raiz))
+        dobles["soltar"].assert_not_called()
+        self.assertTrue(os.path.exists(os.path.join(self.raiz, ".next-anterior")))
+        self.assertEqual(os.listdir(os.path.join(self.raiz, ".next")), [])
+
+    def test_una_pasada_lo_repone_en_cuanto_lo_ve(self):
+        self._carpeta(".next-anterior")
+        with mock.patch.object(R, "_entradas", return_value=[]), \
+                mock.patch.object(R, "_leer_estado", return_value={}), \
+                mock.patch.object(R, "genesis_caido", return_value=True), \
+                mock.patch.object(R, "build_terminado", return_value=False), \
+                mock.patch.object(R, "anterior_servible", return_value=True), \
+                mock.patch.object(R, "reponer_anterior", return_value=True) as reponer, \
+                mock.patch.object(R, "_guardar"):
+            self.assertTrue(R.una_pasada())
+        reponer.assert_called_once()
