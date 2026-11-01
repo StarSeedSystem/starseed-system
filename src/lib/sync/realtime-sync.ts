@@ -80,6 +80,10 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
 // (Ola MBT1027) El Mausbot guarda su config con su propio evento (EVENTO_MAUSBOT,
 //  src/lib/mausbot/config.ts); el valor que llega de otro dispositivo usa el mismo evento.
 import { EVENTO_MAUSBOT } from "@/lib/mausbot/config";
+// (Ola MTN1027 · Meta^n) Las directivas de automejora por capa guardan con su
+// propio evento (EVENTO_DIRECTIVAS, src/lib/astraura/capas/directivas-almacen.ts);
+// el valor que llega de otro dispositivo usa el mismo evento.
+import { EVENTO_DIRECTIVAS } from "@/lib/astraura/capas/directivas-almacen";
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
@@ -165,6 +169,7 @@ const EVENT_BY_KEY: Record<string, string[]> = {
     // (Ola MBT1027) El Mausbot ya emite su evento propio al guardar (EVENTO_MAUSBOT,
     //  src/lib/mausbot/config.ts); el mismo evento sirve para el valor que llega de otro dispositivo.
     "starseed.mausbot.v1": [EVENTO_MAUSBOT],
+    "starseed.capas.directivas.v1": [EVENTO_DIRECTIVAS], // (Ola MTN1027 · Meta^n) directivas por capa
     "starseed.aurora.chatlog.v1": ["starseed:aurora-chatlog"],
     "starseed.aurora.orb.pos.v1": ["starseed:aurora-orb-visibility"],
     "starseed.perf.v1": ["starseed:perf-changed"],
