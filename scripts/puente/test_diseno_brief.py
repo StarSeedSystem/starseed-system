@@ -255,6 +255,27 @@ class TestBriefHerramientas(unittest.TestCase):
                  "(presentaciones HTML de un archivo, escenario 16:9 fijo)")
         self.assertEqual(texto.count(linea), 1)
 
+    def test_taste_skill_con_metodo_en_toda_tarea(self):
+        """La línea de taste-skill es la nueva con el método, no solo el nombre."""
+        tarea = {"titulo": "Vista simple", "archivos": ["src/app/x/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        linea = ("taste-skill — https://github.com/Leonxlnx/taste-skill "
+                 "(método: inventario, argumento, capturas a 3 anchos y crítica; "
+                 "el ADN manda; en la Biblioteca)")
+        self.assertEqual(len(_lineas_de_herramientas(texto, "taste-skill — https://")), 1,
+                         "taste-skill solo fuera de la base, una vez")
+        self.assertIn(linea, texto)
+
+    def test_brief_2500_con_claves_nuevas_mantiene_6_y_7(self):
+        """Con el recorte por defecto (2500) y una tarea que casa 3 claves nuevas,
+        los apartados 6 (Herramientas) y 7 (Verificación) siguen apareciendo."""
+        tarea = {"titulo": "Presentación design.md y panel de datos de diapositiva",
+                 "archivos": ["src/app/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA)
+        self.assertLessEqual(len(texto), 2500)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+
     def test_apartados_6_y_7_con_varias_claves(self):
         """Los apartados 6 (Herramientas) y 7 (Verificación) se conservan con varias claves."""
         tarea = {"titulo": "Chat de agente con grafo", "archivos": ["src/app/x/page.tsx"]}
