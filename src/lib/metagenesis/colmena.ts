@@ -115,6 +115,7 @@ export function botonesNeurona(n: NeuronaColmena): { desconectar: Boton; contene
             explica: sinTraspaso
                 ? "Ya no se ofrece como contenedor. El traspaso del trabajo a otro contenedor aún no está activo."
                 : "Guarda el trabajo a medias y lo pasa a otro contenedor.",
+            confirmar: false,
         };
     } else if (n.nodo && n.vivo && n.sinDatosTrabajo) {
         desconectar = {
@@ -122,6 +123,7 @@ export function botonesNeurona(n: NeuronaColmena): { desconectar: Boton; contene
             habilitado: false,
             etiqueta: "Desconectar",
             explica: "Este nodo aún no informa de su trabajo, así que no sé si tiene algo a medias. Actualiza su nodo de MetaGenesis.",
+            confirmar: false,
         };
     } else if (n.nodo && n.vivo && sinTraspaso) {
         desconectar = {
@@ -135,6 +137,7 @@ export function botonesNeurona(n: NeuronaColmena): { desconectar: Boton; contene
                   : n.orquestadorVivo
                     ? "Tiene un orquestador en marcha aunque ahora no publique tareas: puede estar entre dos. Páralo antes de apagar este aparato."
                     : "No tiene trabajo en curso: puedes apagarlo sin más.",
+            confirmar: false,
         };
     } else if (n.nodo && n.vivo) {
         const trabajo = n.enCurso > 0 || !!c?.activo || n.orquestadorVivo === true;
@@ -164,21 +167,23 @@ export function botonesNeurona(n: NeuronaColmena): { desconectar: Boton; contene
             habilitado: false,
             etiqueta: "Usar como contenedor",
             explica: "Este nodo aún no informa de lo que puede aportar. Actualiza su nodo de MetaGenesis.",
+            confirmar: false,
         };
     } else if (n.nodo && c) {
         if (c.activo && !c.apto) {
             // Se apuntó como contenedor y luego dejó de poder (falta una herramienta, poca RAM…): hay que poder apagarlo.
             contenedor = dejarDeUsar(`Ya no puede ser contenedor (${c.motivo || "sin motivo"}). Deja de ofrecer este aparato como contenedor.`, false);
         } else if (!c.apto) {
-            contenedor = { visible: true, habilitado: false, etiqueta: "Usar como contenedor", explica: c.motivo };
+            contenedor = { visible: true, habilitado: false, etiqueta: "Usar como contenedor", explica: c.motivo, confirmar: false };
         } else if (c.activo) {
             contenedor = sinTraspaso
                 ? dejarDeUsar("Deja de ofrecer este aparato como contenedor. No para lo que ya esté corriendo.", false)
                 : dejarDeUsar("Termina lo que lleva y no coge más.", n.enCurso > 0);
         } else {
+            const habilitado = n.vivo && c.agentes > 0 && !sinTraspaso;
             contenedor = {
                 visible: true,
-                habilitado: n.vivo && c.agentes > 0 && !sinTraspaso,
+                habilitado,
                 etiqueta: `Usar como contenedor (${c.agentes} agente${c.agentes === 1 ? "" : "s"})`,
                 explica:
                     c.agentes <= 0
@@ -186,6 +191,7 @@ export function botonesNeurona(n: NeuronaColmena): { desconectar: Boton; contene
                         : sinTraspaso
                           ? "El reparto de tareas a contenedores aún no está activo (COL1012G): apuntar este aparato como contenedor no cambiaría nada hoy."
                           : "Este aparato coge tareas de la cola como la Mac.",
+                confirmar: false,
             };
         }
     }
