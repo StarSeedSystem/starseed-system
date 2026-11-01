@@ -11,6 +11,7 @@ import shlex
 import subprocess
 import tempfile
 import sys
+import time
 import unittest
 from unittest import mock
 
@@ -219,8 +220,9 @@ class Flujo(unittest.TestCase):
     def test_build_muerto_no_cambia_nada(self):
         mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
         # (SUP0111A) la primera orden pregunta por un build previo del A1: sin marca, se compila.
-        ssh = mock.patch.object(C.oracle_nodo, "ssh", side_effect=[(0, "marca=\nbuild=\n"), (0, ""), (0, "abc123\n"),
-                                                                  (0, ""), (0, ""),
+        # (SUP0111E) después se pregunta si hay un guion vivo (no lo hay): sin estado, se sigue.
+        ssh = mock.patch.object(C.oracle_nodo, "ssh", side_effect=[(0, "marca=\nbuild=\n"), (0, ""), (0, ""),
+                                                                  (0, "abc123\n"), (0, ""), (0, ""),
                                                                   (1, "muerte a los 814 s")]).start()
         ok, detalle = C.compilar(raiz=self.raiz)
         self.assertFalse(ok)
@@ -246,41 +248,79 @@ class Flujo(unittest.TestCase):
         mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
         self.estado.return_value = ({"fase": "cola"}, {}, [])
         self.assertIn("fase cola", C.compilar(raiz=self.raiz)[1])
-        # (SUP0111A) solo la pregunta por un build previo (lectura): ni envío ni build
-        self.assertEqual((self._ordenes(), self.rsync.call_count), ([C.orden_build_previo()], 0))
+        # (SUP0111A/SUP0111E) solo dos lecturas —build previo y guion vivo—: ni envío ni build
+        self.assertEqual((self._ordenes(), self.rsync.call_count),
+                         ([C.orden_build_previo(), C.orden_leer_estado()], 0))
         self.estado.return_value = ({"fase": "espera"}, {}, [])
+        antes = len(self._ordenes())
         C.compilar(raiz=self.raiz)
-        self.assertFalse(any(C.GOBERNADOR_A1 in o or o == C.ORDEN_GUION for o in self._ordenes()))
-        self.assertEqual(self._ordenes()[2], C.orden_preparar_arbol())  # el árbol aparte, también sin urgencia
+        self.assertFalse(any(C.GOBERNADOR_A1 in o or "sh -s" in o for o in self._ordenes()))
+        # (SUP0111E) la pasada nueva lee build previo y guion vivo, y luego prepara el árbol aparte
+        self.assertEqual(self._ordenes()[antes + 2], C.orden_preparar_arbol())
         self.assertEqual((RAIZ_A1, RAIZ_A1 != C.oracle_nodo.REPO_A1), (C.RM.RAIZ, True))
         self.assertEqual(C.orden_preparar_arbol("/n"),  # chown solo si no es ya de starseed: idempotente
                          'sudo mkdir -p /n && { [ "$(stat -c %U /n)" = starseed ] || sudo chown -R starseed:starseed /n; }')
 
-    def test_urgente_en_cola_da_turno_en_arbol_aparte_y_lo_quita(self):
+    def _responder(self, rc_build=0, vivo=False, falla_turno=False):
+        """(SUP0111E) Doble del A1 por orden: freno, `kill -0`, estado.json y lo demás en blanco."""
+        lecturas = {"n": 0}
+        previos = {"n": 0}
+
+        def responder(orden, entrada=None, timeout=0):
+            if C.GOBERNADOR_A1 in orden and "touch -d" in orden:
+                return (255, "no puedo frenar") if falla_turno else (0, "")
+            if "kill -0" in orden and "echo vivo" in orden:
+                return (0, "vivo" if vivo else "muerto")
+            if C.MARCA_A1 in orden and "BUILD_ID" in orden:
+                previos["n"] += 1
+                if vivo and previos["n"] > 1:  # la marca del build que acaba de terminar
+                    return (0, "marca=%d %s\nbuild=SvBUf3-q8qHlFuF9Bh3kB\n"
+                            % (int(time.time()) + 60, "ab" * 32))
+                return (0, "marca=\nbuild=\n")
+            if C.ESTADO_GUION_A1 in orden and "cat" in orden:
+                lecturas["n"] += 1
+                if vivo and lecturas["n"] == 1:  # la primera lectura ve el guion en marcha
+                    return (0, json.dumps({"pid": os.getpid(), "inicio": int(time.time())}))
+                return (0, json.dumps({"pid": os.getpid(), "inicio": int(time.time()), "rc": rc_build}))
+            return (0, "")
+        return responder
+
+    def test_urgente_en_cola_la_lanza_desacoplada_y_lo_quita(self):
         mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
+        mock.patch.object(C, "SONDEO_S", 0).start()
         self.estado.return_value = ({"fase": "cola"}, {}, [])
+        self.ssh.side_effect = self._responder(rc_build=0)
         self.rsync.side_effect = self._con_build_traido
         ok, detalle = C.compilar(raiz=self.raiz, urgente="Genesis está caído")
         self.assertTrue(ok and "dio turno" in detalle, detalle)
         ordenes = self._ordenes()
         self.assertEqual(ordenes[0], C.orden_build_previo())  # (SUP0111A) mirar si ya hay uno hecho
-        self.assertTrue(C.GOBERNADOR_A1 in ordenes[1] and "touch -d @" in ordenes[1])  # el freno, lo primero
+        self.assertEqual(ordenes[1], C.orden_leer_estado())  # (SUP0111E) ¿hay un guion vivo?
+        self.assertTrue(C.GOBERNADOR_A1 in ordenes[2] and "touch -d @" in ordenes[2])  # el freno
         self.assertEqual(ordenes[-1], C.orden_quitar_turno())  # y quitarlo, lo último
-        (guion,) = [c[1]["entrada"] for c in self.ssh.call_args_list if c[0][0] == C.ORDEN_GUION]  # uno solo
+        (subida,) = [c for c in self.bytes.call_args_list if c[0][0] == C.orden_subir_guion()]
+        guion = subida[0][1].decode("utf-8")
         self.assertTrue(all(s in guion for s in ("nice -n 10", "STARSEED_BUILD_LIGERO=1", "cd " + RAIZ_A1,
-                                                  C.PESADO_A1, "guardian")), guion)
+                                                  C.PESADO_A1, "guardian", C.ESTADO_GUION_A1)), guion)
+        self.assertTrue(any("setsid nohup sh" in o and C.LOG_GUION_A1 in o and "< /dev/null" in o
+                            and C.ESTADO_GUION_A1 in o for o in ordenes), ordenes)
         self.assertIn(RAIZ_A1 + "/" + C.DIST_BUILD, self.rsync.call_args_list[-1][0][0][-2])
         prohibido = ("pkill", "killall", "kill -9", "kill -TERM", "systemctl")  # nunca se mata al enjambre
         self.assertEqual([o for o in ordenes + [guion] if any(p in o for p in prohibido)], [])
 
-    def test_urgente_roto_sin_turno_o_reventado_quita_el_freno(self):
+    def test_urgente_roto_quita_el_freno_siempre(self):
         mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
-        for rc, texto in ((1, "next build en el A1"), (C.SIN_TURNO, "sin turno en el A1"), (255, "freno del A1")):
-            ssh = mock.patch.object(C.oracle_nodo, "ssh", side_effect=lambda o, entrada=None, timeout=0, rc=rc: (
-                (rc, "muerte") if o == C.ORDEN_GUION or (rc == 255 and "touch" in o) else (0, ""))).start()
+        mock.patch.object(C, "SONDEO_S", 0).start()
+        self.estado.return_value = ({"fase": "espera"}, {}, [])
+        for rc, texto in ((1, "next build en el A1"), (C.SIN_TURNO, "sin turno en el A1")):
+            ssh = mock.patch.object(C.oracle_nodo, "ssh", side_effect=self._responder(rc_build=rc)).start()
             ok, detalle = C.compilar(raiz=self.raiz, urgente="la pantalla lleva 7.0 h vieja")
             self.assertTrue(not ok and texto in detalle, detalle)
             self.assertEqual(self._ordenes(ssh)[-1], C.orden_quitar_turno())
+        ssh = mock.patch.object(C.oracle_nodo, "ssh", side_effect=self._responder(falla_turno=True)).start()
+        ok, detalle = C.compilar(raiz=self.raiz, urgente="Genesis está caído")
+        self.assertTrue(not ok and "freno del A1" in detalle, detalle)
+        self.assertEqual(self._ordenes(ssh)[-1], C.orden_quitar_turno())
         ssh = mock.patch.object(C.oracle_nodo, "ssh", return_value=(0, "")).start()
         self.rsync.side_effect = RuntimeError("se cayó la red")
         with self.assertRaises(RuntimeError):
@@ -342,6 +382,21 @@ class Flujo(unittest.TestCase):
         (build,) = [o for o in self._ordenes() if "next build" in o]
         self.assertTrue(C.MARCA_A1 in build and C.huella_envio("SHA1", "SHA1") in build, build)
         self.assertNotIn(C.REAPROVECHADO, detalle)
+
+    def test_si_ya_hay_un_guion_vivo_espera_y_no_envia_ni_lanza_otro(self):
+        """SUP0111E: con una build ya lanzada en el A1 no se manda código ni se arranca otra."""
+        mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
+        mock.patch.object(C, "SONDEO_S", 0).start()
+        self.ssh.side_effect = self._responder(rc_build=0, vivo=True)
+        self.rsync.side_effect = self._con_build_traido
+        ok, detalle = C.compilar(raiz=self.raiz, urgente="la pantalla lleva 9.0 h vieja")
+        self.assertTrue(ok, detalle)
+        ordenes = self._ordenes()
+        self.assertFalse(any("next build" in o or C.GOBERNADOR_A1 in o for o in ordenes), ordenes)
+        self.bytes.assert_not_called()  # no se sube ni el .env ni el guion
+        self.assertEqual(self.rsync.call_count, 1)  # solo TRAER
+        self.listo.assert_called_once()
+        self.reiniciar.assert_called_once()
 
     def test_traer_previo_sin_a1_o_sin_marca_no_hace_nada(self):
         self.getu.return_value = None
@@ -494,6 +549,70 @@ class Turno(unittest.TestCase):
             self.assertTrue(R.compilar_en_el_a1("h"))
         self.assertEqual(vistos, [{"urgente": "Genesis está caído"}, {}])
 
+
+class Desacoplada(unittest.TestCase):
+    """SUP0111E: el guion vive sin la sesión ssh, deja estado.json y la Mac lo sondea."""
+
+    HUELLA = "ab" * 32
+
+    def test_el_guion_deja_pid_inicio_y_rc(self):
+        for compilar, esperado in (("echo hola", 0), ("sh -c 'exit 3'", 3)):
+            with tempfile.TemporaryDirectory() as d:
+                estado = os.path.join(d, "estado.json")
+                guion = C.guion_desacoplado(compilar, estado=estado)
+                r = subprocess.run(["sh", "-s"], input=guion, capture_output=True, text=True, timeout=30)
+                self.assertEqual(r.returncode, esperado, r.stderr)
+                with open(estado, encoding="utf-8") as f:
+                    datos = C.leer_estado_guion(f.read()) or {}
+                self.assertEqual(datos.get("rc"), esperado)
+                self.assertGreater(datos.get("pid", 0), 0)
+                self.assertGreater(datos.get("inicio", 0), 0)
+
+    def test_mientras_corre_no_hay_rc_y_el_pid_sigue_vivo(self):
+        with tempfile.TemporaryDirectory() as d:
+            estado, ruta = os.path.join(d, "estado.json"), os.path.join(d, "guion.sh")
+            with open(ruta, "w", encoding="utf-8") as f:
+                f.write(C.guion_desacoplado("sleep 1", estado=estado))
+            p = subprocess.Popen(["sh", ruta])
+            for _ in range(200):
+                if os.path.exists(estado):
+                    break
+                time.sleep(0.01)
+            with open(estado, encoding="utf-8") as f:
+                self.assertIsNone((C.leer_estado_guion(f.read()) or {}).get("rc"))  # aún corre
+            self.assertEqual(p.wait(timeout=15), 0)
+            with open(estado, encoding="utf-8") as f:
+                self.assertEqual((C.leer_estado_guion(f.read()) or {}).get("rc"), 0)
+
+    def test_se_arranca_desacoplado_y_sin_heredar_la_sesion(self):
+        orden = C.orden_arrancar_guion()
+        self.assertIn("sudo -u starseed -H sh -c ", orden)
+        self.assertIn("setsid nohup sh guion.sh", orden)
+        self.assertIn("> " + C.LOG_GUION_A1 + " 2>&1 < /dev/null &", orden)
+        self.assertIn("rm -f " + C.ESTADO_GUION_A1, orden)  # nunca se lee el rc de otra pasada
+        subir = C.orden_subir_guion()
+        self.assertIn("umask 077", subir)
+        self.assertIn("chmod 700", subir)
+        self.assertIn(C.GUION_A1 + ".tmp", subir)
+
+    def test_leer_estado_guion(self):
+        self.assertEqual(C.leer_estado_guion('{"pid": 12, "inicio": 34}'),
+                         {"pid": 12, "inicio": 34, "rc": None})
+        self.assertEqual(C.leer_estado_guion('{"pid": 12, "inicio": 34, "rc": 0}'),
+                         {"pid": 12, "inicio": 34, "rc": 0})
+        for malo in ("", "abc", "[]", '{"inicio": 1}', '{"pid": "x", "inicio": 1}',
+                     '{"pid": 1, "inicio": 2, "rc": "x"}'):
+            self.assertIsNone(C.leer_estado_guion(malo), malo)
+
+    def test_decide_sondeo_no_confunde_un_corte_de_red_con_un_fallo_de_build(self):
+        ahora, tope = 1000, 100
+        corriendo = {"pid": 7, "inicio": 0, "rc": None}
+        self.assertEqual(C.decide_sondeo(None, False, ahora, tope, 900), ("esperar", None))  # sin red
+        self.assertEqual(C.decide_sondeo(corriendo, True, ahora, tope, 900), ("esperar", None))
+        self.assertEqual(C.decide_sondeo(corriendo, False, ahora, tope, 900), ("muerto", None))
+        self.assertEqual(C.decide_sondeo({"pid": 7, "inicio": 0, "rc": 3}, False, ahora, tope, 900),
+                         ("listo", 3))
+        self.assertEqual(C.decide_sondeo(corriendo, True, ahora, tope, 800), ("tope", None))
 
 if __name__ == "__main__":
     unittest.main()

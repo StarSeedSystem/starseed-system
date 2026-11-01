@@ -27,9 +27,12 @@ Lo que hace (el mismo camino que la Mac, pero compilando fuera):
    traído y RECOMPILABA: la pantalla se quedó 9 h vieja. Ahora: TRAER reanuda (no se
    borra `.next-build` antes; `--partial --inplace` + `--delete` lo deja idéntico al
    del A1), reintenta dentro de la misma pasada y corta un rsync parado (`--timeout`);
-   la build deja en el A1 la marca `.envio-a1` («t_envio huella», solo si `next build`
-   salió bien), y la siguiente pasada TRAE ese build sin recompilar si es más nuevo
-   que el de la Mac (`build_previo`), aunque el nodo del A1 no lata.
+    la build deja en el A1 la marca `.envio-a1` («t_envio huella», solo si `next build`
+    salió bien), y la siguiente pasada TRAE ese build sin recompilar si es más nuevo
+    que el de la Mac (`build_previo`), aunque el nodo del A1 no lata.
+9. CORTE  · (SUP0111E, 01-11) el ssh cortaba la build con HUP (129). Ahora el guion del turno
+   se sube a `~/.starseed/compilar-a1/guion.sh` y se arranca DESACOPLADO (`setsid nohup … &`);
+   deja `estado.json` ({pid, inicio, rc}) y la Mac SONDEA. Si ya hay uno vivo, espera a ese.
 """
 from __future__ import annotations
 
@@ -67,9 +70,14 @@ HOME_A1 = os.path.dirname(oracle_nodo.REPO_A1)
 GOBERNADOR_A1 = HOME_A1 + "/.starseed/gobernador.json"
 PESADO_A1 = HOME_A1 + "/.starseed/cerrojos/pesado.lock"
 FASE_A1 = oracle_nodo.ESTADO_A1 + "/estado.json"
+#: (SUP0111E) La build vive fuera de la sesión ssh y deja `estado.json` ({pid, inicio, rc}).
+DIR_GUION_A1 = HOME_A1 + "/.starseed/compilar-a1"
+GUION_A1 = DIR_GUION_A1 + "/guion.sh"
+ESTADO_GUION_A1 = DIR_GUION_A1 + "/estado.json"
+LOG_GUION_A1 = DIR_GUION_A1 + "/build.log"
+SONDEO_S = int(os.environ.get("STARSEED_A1_SONDEO_S", "30"))  # ssh corto cada 30 s
 MARCA_TURNO = "turno-build-genesis"
 SIN_TURNO = 75  # EX_TEMPFAIL, como `tsc-turno.sh`: ni verde ni rojo
-ORDEN_GUION = "sudo -u starseed -H sh -s"
 TSC_VIVO = "pgrep -u starseed -f 'bin/ts[c]' >/dev/null 2>&1"  # [c]: no se encuentra a sí mismo
 #: (SUP0111A) Marca que la build del A1 deja DENTRO de su dist al acabar bien: «t_envio huella».
 #: Vive y muere con el build (`guion_compilar` empieza con `rm -rf dist`): nunca habla de otro.
@@ -293,6 +301,96 @@ def guion_turno(compilar, espera_s=ESPERA_TURNO_S, fase=FASE_A1, cerrojo=PESADO_
     )) + "\n"
 
 
+def guion_desacoplado(compilar, estado=ESTADO_GUION_A1):
+    """PURA: (SUP0111E) la build sin sesión ssh: {pid, inicio} al empezar y {…, rc} al acabar."""
+    return "\n".join((
+        "inicio=$(date +%s)",
+        "anotar() { printf '{\"pid\": %s, \"inicio\": %s%s}\\n' \"$$\" \"$inicio\" \"$1\" > "
+        + shlex.quote(estado) + "; }",
+        "anotar ''; ( %s" % compilar,
+        "); rc=$?; anotar ', \"rc\": '\"$rc\"; exit $rc",
+    )) + "\n"
+
+
+def orden_subir_guion(ruta=GUION_A1):
+    """PURA: (SUP0111E) deja el guion en el A1 como starseed (tmp + mv; dentro no hay secretos)."""
+    q = shlex.quote
+    return ("sudo -u starseed -H sh -c 'umask 077 && mkdir -p %s && cat > %s.tmp && mv -f %s.tmp %s && chmod 700 %s'"
+            % (q(os.path.dirname(ruta)), q(ruta), q(ruta), q(ruta), q(ruta)))
+
+
+def orden_arrancar_guion(guion=GUION_A1, estado=ESTADO_GUION_A1, log=LOG_GUION_A1):
+    """PURA: (SUP0111E) arranca DESACOPLADO (setsid + nohup, sin tty ni entrada); borra el rc viejo."""
+    q = shlex.quote
+    interior = ("cd %s && rm -f %s && { setsid nohup sh %s > %s 2>&1 < /dev/null & }"
+                % (q(os.path.dirname(guion)), q(estado), q(os.path.basename(guion)), q(log)))
+    return "sudo -u starseed -H sh -c %s" % q(interior)
+
+
+def orden_leer_estado(estado=ESTADO_GUION_A1):
+    """PURA: (SUP0111E) el sondeo CORTO: solo `cat estado.json`; sin red no hay noticia."""
+    return "sudo -u starseed -H sh -c 'cat %s 2>/dev/null'" % shlex.quote(estado)
+
+
+def orden_pid_vivo(pid):
+    """PURA: (SUP0111E) ¿sigue vivo el guion? `kill -0` solo comprueba; nunca mata."""
+    return "sudo -u starseed -H sh -c 'kill -0 %d 2>/dev/null && echo vivo || echo muerto'" % int(pid)
+
+
+def leer_estado_guion(salida):
+    """PURA: (SUP0111E) {pid, inicio, rc} de estado.json (rc None si corre); None si no se leer."""
+    try:
+        d = json.loads(str(salida or "").strip())
+        pid, inicio, rc = int(d["pid"]), int(d["inicio"]), d.get("rc")
+        return {"pid": pid, "inicio": inicio, "rc": None if rc is None else int(rc)}
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return None
+
+
+def decide_sondeo(datos, vivo, ahora, tope_s, desde):
+    """PURA: (SUP0111E) "listo"/"esperar"/"tope"/"muerto"; sin estado (red) NO es fallo de build."""
+    if datos and datos.get("rc") is not None:
+        return "listo", datos["rc"]
+    if desde is not None and ahora - desde > tope_s:
+        return "tope", None
+    if datos and vivo:
+        return "esperar", None
+    if datos:
+        return "muerto", None
+    return "esperar", None
+
+
+def _pid_vivo(pid):
+    rc, salida = oracle_nodo.ssh(orden_pid_vivo(pid), timeout=60)
+    return rc == 0 and "vivo" in str(salida) and "muerto" not in str(salida)
+
+
+def _guion_en_marcha():
+    """(SUP0111E) Datos del guion vivo, o None: si ya hay build, no se envía ni se lanza otra."""
+    rc, salida = oracle_nodo.ssh(orden_leer_estado(), timeout=60)
+    datos = leer_estado_guion(salida) if rc == 0 else None
+    if not datos or datos.get("rc") is not None:
+        return None
+    return datos if _pid_vivo(datos["pid"]) else None
+
+
+def _esperar_rc(tope, desde=None, pausa_s=None):
+    """(SUP0111E) Sondea estado.json cada SONDEO_S: ("listo", rc, None) o ("tope|muerto", None, motivo)."""
+    desde = time.time() if desde is None else desde
+    pausa_s = SONDEO_S if pausa_s is None else pausa_s
+    while True:
+        rc, salida = oracle_nodo.ssh(orden_leer_estado(), timeout=60)
+        datos = leer_estado_guion(salida) if rc == 0 else None
+        vivo = bool(datos) and datos.get("rc") is None and _pid_vivo(datos["pid"])
+        accion, valor = decide_sondeo(datos, vivo, time.time(), tope, desde)
+        if accion == "listo":
+            return accion, valor, None
+        if accion in ("tope", "muerto"):
+            return accion, None, ("no acabó en %d s (sigue sola en el A1)" % int(tope)
+                                  if accion == "tope" else "se fue sin dejar su rc")
+        time.sleep(pausa_s)
+
+
 def _git_local(args, raiz=RAIZ, timeout=120):
     try:
         r = subprocess.run(["git", *args], cwd=raiz, capture_output=True, text=True, timeout=timeout)
@@ -337,6 +435,17 @@ def compilar(raiz=RAIZ, tope=7200, urgente=None):
     hecho = traer_previo(raiz)
     if hecho:
         return hecho
+    # (SUP0111E) Con un guion VIVO no se envía ni se lanza otro: se espera a ese (el tope cuenta
+    # desde el `inicio` que dejó el propio guion).
+    en_marcha = _guion_en_marcha()
+    if en_marcha is not None:
+        accion, rc, motivo = _esperar_rc(tope + ESPERA_TURNO_S, desde=en_marcha.get("inicio"))
+        if accion != "listo":
+            return False, "la build del A1 %s" % motivo
+        if rc:
+            return False, ("sin turno en el A1: no llegó a empezar" if rc == SIN_TURNO
+                           else "next build en el A1: rc %d (ya estaba lanzada)" % int(rc))
+        return traer_previo(raiz) or (False, "el build del A1 acabó sin dejar su marca")
     try:
         estado_a1, _, _ = oracle_nodo.estado(guardar=False)
     except Exception as e:  # noqa: BLE001
@@ -357,7 +466,7 @@ def compilar(raiz=RAIZ, tope=7200, urgente=None):
 
 
 def _enviar_y_compilar(ip, raiz, tope, raiz_a1=RAIZ_A1, espera_turno=None):
-    """El camino de siempre en `raiz_a1`; con `espera_turno`, la build va dentro de `guion_turno`."""
+    """El camino de siempre en `raiz_a1`; con `espera_turno` (SUP0111E), el guion va desacoplado."""
     rc, cabeza = _git_local(["rev-parse", "HEAD"], raiz)
     if rc != 0:
         return False, "sin git de la Mac: %s" % cola(cabeza)
@@ -396,14 +505,25 @@ def _enviar_y_compilar(ip, raiz, tope, raiz_a1=RAIZ_A1, espera_turno=None):
     marca = marca_envio(t_envio, huella)  # (SUP0111A) solo se escribe si `next build` acaba bien
     if espera_turno is None:
         rc, salida = oracle_nodo.ssh(orden_compilar(raiz_a1, marca=marca), timeout=tope)
-    else:
-        rc, salida = oracle_nodo.ssh(ORDEN_GUION, entrada=guion_turno(guion_compilar(raiz_a1, marca=marca),
-                                                                      espera_turno),
-                                     timeout=tope + espera_turno)
-        if rc == SIN_TURNO:
-            return False, "sin turno en el A1: %s" % cola(salida)
+        if rc != 0:
+            return False, "next build en el A1: %s" % cola(salida)
+        return traer_y_cambiar(ip, huella, t_envio, raiz, raiz_a1)
+    # (SUP0111E) Se sube y se arranca desacoplado; la Mac sondea `estado.json` aunque la red caiga.
+    guion = guion_desacoplado(guion_turno(guion_compilar(raiz_a1, marca=marca), espera_turno))
+    rc, salida = oracle_nodo._ssh_bytes(orden_subir_guion(), guion.encode("utf-8"), timeout=60)
     if rc != 0:
-        return False, "next build en el A1: %s" % cola(salida)
+        return False, "guion del A1: %s" % cola(salida)
+    rc, salida = oracle_nodo.ssh(orden_arrancar_guion(), timeout=60)
+    if rc != 0:
+        return False, "arrancar el guion del A1: %s" % cola(salida)
+    accion, rc, motivo = _esperar_rc(tope + espera_turno)
+    if accion != "listo":
+        return False, "next build en el A1: %s" % motivo
+    codigo = int(rc or 0)
+    if codigo == SIN_TURNO:
+        return False, "sin turno en el A1: la build del turno no llegó a empezar"
+    if codigo != 0:
+        return False, "next build en el A1: rc %d (siguió sola tras el corte)" % codigo
     return traer_y_cambiar(ip, huella, t_envio, raiz, raiz_a1)
 
 
