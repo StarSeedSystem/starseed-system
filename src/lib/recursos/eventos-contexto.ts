@@ -72,7 +72,8 @@ export function crearCanal(op: OpcionesCanal) {
   const enEspera: (EventoContexto & { recibidoEn: number })[] = [];
 
   // El orden causal lo cumple un evento cuando cada nodo de su vector ya entregó lo pedido; los listos salen ordenados por reloj híbrido.
-  const soltar = (e: EventoContexto) => { enEspera.splice(enEspera.indexOf(e), 1); entregados.push(e); };
+  type EnSpera = EventoContexto & { recibidoEn: number };
+  const soltar = (e: EnSpera) => { enEspera.splice(enEspera.indexOf(e), 1); entregados.push(e); };
   const causales = (e: EventoContexto) =>
     Object.entries(e.causal).every(([n, s]) => (vistasPorNodo.get(n) ?? 0) >= s);
   const entregarListos = () => enEspera.filter(causales).sort(compararEventos).forEach(soltar);

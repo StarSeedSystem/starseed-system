@@ -7,7 +7,8 @@ import { FRAME_ALLOW, FRAME_SANDBOX } from "@/components/browser/web-frame";
 import { conParent, detectarFormato } from "@/lib/estaciones/formato";
 import type { Estacion } from "@/lib/estaciones/tipos";
 import { anuncio as anuncioMalla, codificar, decodificar, fusionar, type AnuncioDisponibilidad, type AnuncioRecibido, type RegistroDisponibilidad } from "@/lib/recursos/disponibilidad";
-import { armarArbol, recolocar } from "@/lib/recursos/arbol-relevo";
+import { armarArbol, type ReceptorRelevo, recolocar } from "@/lib/recursos/arbol-relevo";
+import { crearCanal, reparto, type EventoContexto, type MensajeCanal } from "@/lib/recursos/eventos-contexto";
 import { contextoMalla, crearCargadorMalla, puedeSubirPrestado, type ConexiónCargadorMalla } from "@/lib/recursos/hls-malla-loader";
 import type { FragmentLoaderConstructor } from "hls.js";
 
@@ -32,7 +33,7 @@ function BarrasAudio() {
 }
 
 // ─── Malla (§10): pedir y repartir segmentos por la red; el origen queda de respaldo ───
-const CANAL_DISPONIBILIDAD = "hls.disponibilidad", CANAL_PEDIDO = "hls.pedido", CANAL_TROZO = "hls.trozo";
+const CANAL_EVENTOS = "hls.eventos", CANAL_PEDIDO = "hls.pedido", CANAL_TROZO = "hls.trozo";
 const TOTAL_MALLA = 10_000, SEGMENTOS_EN_CACHE = 64, TOPE_SUBIDA_KBPS = 64, VENTANA_SUBIDA_MS = 60_000;
 const servidos = new Map<string, Map<number, Uint8Array>>(); let subidaBytes = 0, subidaDesde = 0;
 /** Id del elemento: un rastro del enlace; la URL nunca sale por la malla. */
@@ -72,6 +73,36 @@ async function conectarMalla(enlace: string, contexto: "publico" | "cuenta"): Pr
     const arbol = fuentes.length > 0
         ? armarArbol(elemento, [{ nodoId: propio, subidaKbps: TOPE_SUBIDA_KBPS }, ...fuentes], TOPE_SUBIDA_KBPS)
         : undefined;
+    /** Vecinos del contexto (§11): enlaces locales vivos más pares de la malla, sin contar a nadie dos veces. */
+    const vecinosRelevo = (): ReceptorRelevo[] => {
+        const porNodo = new Map<string, ReceptorRelevo>();
+        for (const e of reg.enlacesLocalesVivos()) {
+            if (soloCuenta) break;
+            const id = e.par.syncDeviceId;
+            if (id && id !== propio) porNodo.set(id, { nodoId: id, subidaKbps: e.capacidadKbps() ?? undefined, latenciaMs: e.rttMs() ?? undefined });
+        }
+        for (const p of mesh?.getPeers() ?? []) {
+            if (p.state === "connected" && p.channelOpen && p.deviceId !== propio) porNodo.set(p.deviceId, { nodoId: p.deviceId });
+        }
+        return [{ nodoId: propio, subidaKbps: TOPE_SUBIDA_KBPS }, ...porNodo.values()];
+    };
+    const eventoSano = (e: EventoContexto): boolean =>
+        !!e && typeof e.id === "string" && typeof e.origen === "string" && typeof e.seq === "number" &&
+            typeof e.reloj?.fisico === "number" && typeof e.reloj?.logico === "number" &&
+            typeof e.causal === "object" && e.causal !== null;
+    // Canal de eventos del contexto (§11): los anuncios viajan con reloj híbrido, sin duplicados,
+    // con acuses y reintentos; directo hasta 8 vecinos y por el árbol de relevo con más.
+    const mandaNodo = (nodo: string, sobre: MensajeCanal): void => {
+        for (const e of reg.enlacesLocalesVivos()) if (e.par.syncDeviceId === nodo) { void tu.enviarMensaje({ enlaceId: e.id }, CANAL_EVENTOS, sobre); return; }
+        void tu.enviarMensaje({ syncDeviceId: nodo }, CANAL_EVENTOS, sobre);
+    };
+    const envioEventos = (sobre: MensajeCanal): void => {
+        if (sobre.clase === "acuse") { mandaNodo(sobre.para, sobre); return; }
+        const f = reparto(propio, vecinosRelevo(), TOPE_SUBIDA_KBPS);
+        const unos = f.modo === "directo" ? f.destinos : f.arbol.nodos.get(propio)?.hijos ?? [];
+        for (const d of unos) if (d !== propio) mandaNodo(d, sobre);
+    };
+    const canalEventos = crearCanal({ nodoId: propio, enviar: envioEventos, ahora });
     const esperados = new Map<string, (b: Uint8Array | null) => void>(); let recibidos: AnuncioRecibido[] = [];
     const bajas: (() => void)[] = [];
     const con: ConexiónCargadorMalla = {
@@ -85,10 +116,7 @@ async function conectarMalla(enlace: string, contexto: "publico" | "cuenta"): Pr
             if (trozos.size > SEGMENTOS_EN_CACHE) trozos.delete(trozos.keys().next().value ?? 0);
             servidos.set(elemento, trozos);
             const piezas = anuncioMalla(propio, elemento, TOTAL_MALLA, [...trozos.keys()].sort((a, b) => a - b), ahora());
-            for (const pieza of piezas) {
-                for (const e of reg.enlacesLocalesVivos()) if (!soloCuenta) void tu.enviarMensaje({ enlaceId: e.id }, CANAL_DISPONIBILIDAD, pieza);
-                for (const p of mesh?.getPeers() ?? []) if (p.channelOpen) void tu.enviarMensaje({ syncDeviceId: p.deviceId }, CANAL_DISPONIBILIDAD, pieza);
-            }
+            for (const pieza of piezas) canalEventos.emitir("disponibilidad", pieza);
         },
         pedir: (nodo, indice) => new Promise((resolver) => {
             const pid = `${indice}-${Math.random().toString(36).slice(2)}`;
@@ -108,13 +136,33 @@ async function conectarMalla(enlace: string, contexto: "publico" | "cuenta"): Pr
             if (con.arbol) con.arbol = recolocar(con.arbol, id);
         }
     }));
-    bajas.push(tu.alRecibirMensaje(CANAL_DISPONIBILIDAD, (m) => {
+    // Canal de eventos del contexto: aplica los anuncios que llegan (una vez por id) y reenvía
+    // hacia abajo lo venido de arriba cuando el reparto es por árbol de relevo.
+    const relevados = new Set<string>();
+    const latir = setInterval(() => canalEventos.paso(), 500);
+    bajas.push(tu.alRecibirMensaje(CANAL_EVENTOS, (m) => {
         if (soloCuenta && m.origen.tipo !== "cuenta") return;
-        if (!esAnuncio(m.cuerpo, propio, elemento)) return;
-        recibidos.push({ anuncio: m.cuerpo, recibidoEn: ahora() });
-        if (recibidos.length > 256) recibidos = recibidos.slice(-256);
-        try { con.registro = fusionar(recibidos); } catch { recibidos.pop(); }
+        const sobre = m.cuerpo as MensajeCanal | null;
+        if (!sobre || (sobre.clase !== "evento" && sobre.clase !== "acuse")) return;
+        if (sobre.clase === "evento") {
+            const e = sobre.evento;
+            if (!eventoSano(e)) return;
+            if (!relevados.has(e.id)) {
+                relevados.add(e.id);
+                if (e.origen !== propio) {
+                    const f = reparto(propio, vecinosRelevo(), TOPE_SUBIDA_KBPS);
+                    if (f.modo === "arbol") for (const h of f.arbol.nodos.get(propio)?.hijos ?? []) mandaNodo(h, sobre);
+                }
+                if (e.tipo === "disponibilidad" && esAnuncio(e.cuerpo, propio, elemento)) {
+                    recibidos.push({ anuncio: e.cuerpo, recibidoEn: ahora() });
+                    if (recibidos.length > 256) recibidos = recibidos.slice(-256);
+                    try { con.registro = fusionar(recibidos); } catch { recibidos.pop(); }
+                }
+            }
+        }
+        canalEventos.recibir(sobre);
     }));
+    bajas.push(() => clearInterval(latir));
     bajas.push(tu.alRecibirMensaje(CANAL_PEDIDO, (m) => {
         if (soloCuenta && m.origen.tipo !== "cuenta") return;
         const p = m.cuerpo as { elemento?: string; indice?: number; pid?: string; responde?: string } | null;
