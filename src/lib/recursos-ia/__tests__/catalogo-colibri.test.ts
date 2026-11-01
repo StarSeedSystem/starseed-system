@@ -35,6 +35,19 @@ const CLEF: Entrada = {
     medios: ["servidor"],
 };
 
+/** Entrada 3: capa «juicio» (decide). */
+const LAYA: Entrada = {
+    id: "colibri-laya",
+    capa: "juicio",
+    modelo: "Laya",
+    runtime: "colibri",
+    formato: "safetensors",
+    tamano_bytes: 870_000_000,
+    ram_min_mb: 1740,
+    estado: "por-verificar",
+    medios: ["servidor"],
+};
+
 const colibri = capasDe([CODER, CLEF]);
 const porId = (id: string) => colibri.find((m) => m.id === id);
 
@@ -85,5 +98,32 @@ describe("modelosDeCapas · runtime colibri", () => {
     it("ignora las entradas sin capa conocida o sin id", () => {
         expect(capasDe([{ id: "sin-capa", capa: "desconocida", runtime: "colibri", modelo: "X" }])).toHaveLength(0);
         expect(capasDe([{ capa: "razon", runtime: "colibri", modelo: "X" }])).toHaveLength(0);
+    });
+
+    it("capas: juicio → decision y palabra → texto; retirado sale", () => {
+        const capas = capasDe([LAYA]);
+        expect(capas[0]?.capacidades).toEqual(["decision"]);
+        expect(capas[0]?.estado).toBe("en-pruebas");
+        expect(capas[0]?.servidor).toEqual({ protocolo: "openai", url: "http://127.0.0.1:4480/v1" });
+        const palabra = capasDe([{ id: "colibri-olmoe-7b", capa: "palabra", modelo: "OLMoE 7B", runtime: "colibri", estado: "por-verificar" }])[0];
+        expect(palabra?.capacidades).toEqual(["texto"]);
+        expect(capasDe([{ id: "retirada", capa: "razon", modelo: "X", runtime: "colibri", estado: "retirado" }])).toHaveLength(0);
+    });
+
+    it("discos y RAM desde los bytes, redondeados por arriba al céntimo", () => {
+        const laya = capasDe([LAYA])[0];
+        expect(laya?.disco).toEqual({ gb: 0.87, verificado: false });
+        expect(laya?.ramMinGb).toBe(1.7);
+    });
+
+    it("medios: se quedan solo los válidos y van vacíos si la capa no los trae", () => {
+        expect(capasDe([{ id: "x", capa: "juicio", modelo: "X", runtime: "colibri", estado: "por-verificar", medios: ["servidor", "web", "tipo-inexistente"] }])[0]?.medios).toEqual(["servidor", "web"]);
+        expect(capasDe([{ id: "y", capa: "juicio", modelo: "Y", runtime: "colibri", estado: "por-verificar" }])[0]?.medios).toEqual([]);
+    });
+
+    it("formato: el de la capa sin el empaquetado; sin formato, desconocido", () => {
+        expect(porId("colibri-qwen-coder")?.formato).toBe("gguf");
+        expect(capasDe([{ id: "bps", capa: "juicio", modelo: "X", runtime: "colibri", estado: "por-verificar", formato: "bps.tar.zst" }])[0]?.formato).toBe("bps");
+        expect(porId("colibri-clef")?.formato).toBe("desconocido");
     });
 });
