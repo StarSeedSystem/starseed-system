@@ -36,6 +36,12 @@ describe("parseSha256Sums", () => {
     const mapa = parseSha256Sums(texto);
     expect(mapa.size).toBe(1);
   });
+
+  it("normaliza huellas en mayúsculas a minúsculas", () => {
+    const texto = "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD  figcraft-web-0.10.0.zip\n";
+    const mapa = parseSha256Sums(texto);
+    expect(mapa.get("figcraft-web-0.10.0.zip")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  });
 });
 
 describe("nombreActivoWeb", () => {
@@ -91,6 +97,10 @@ describe("esActivoPermitido", () => {
 
   it("rechaza nombre con barra", () => {
     expect(esActivoPermitido("some/path.zip")).toBe(false);
+  });
+
+  it("rechaza nombre con prefijo ajeno a la lista", () => {
+    expect(esActivoPermitido("OtraCosa.zip")).toBe(false);
   });
 });
 

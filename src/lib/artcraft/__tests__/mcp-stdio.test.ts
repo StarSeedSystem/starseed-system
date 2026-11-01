@@ -60,10 +60,11 @@ describe("ClienteMcpStdio", () => {
     transporte.responder(id2, { orden: 2 }); transporte.responder(id1, { orden: 1 });
     expect(await p1).toEqual({ orden: 1 }); expect(await p2).toEqual({ orden: 2 });
   });
-  it("ignora notificaciones y líneas sin id, y cuenta las ilegibles", async () => {
+  it("ignora notificaciones, respuestas de id desconocido y líneas sin id, y cuenta las ilegibles", async () => {
     const { transporte, cliente } = montar();
     transporte.enviar('{"jsonrpc":"2.0","method":"notifications/message","params":{}}\n');
     transporte.enviar('{"jsonrpc":"2.0","result":{}}\n');
+    transporte.enviar('{"jsonrpc":"2.0","id":77,"result":{"tardio":true}}\n');
     transporte.enviar("no es json\n");
     expect(cliente.ilegibles).toBe(1);
     const promesa = cliente.listar(1000);
@@ -91,6 +92,12 @@ describe("ClienteMcpStdio", () => {
     const promesa = cliente.llamar("x", {}, 1000);
     transporte.responder(transporte.ultima.id, { isError: true, content: [{ type: "text", text: "falló" }] });
     expect(await promesa).toEqual({ ok: false, texto: "falló" });
+  });
+  it("descarta los bloques de contenido que no son texto conocido", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("x", {}, 1000);
+    transporte.responder(transporte.ultima.id, { content: [{ type: "resource", uri: "figcraft://doc" }, { type: "text", text: "solo esto" }] });
+    expect(await promesa).toEqual({ ok: true, texto: "solo esto" });
   });
   it("cierra el transporte y falla las pendientes", async () => {
     const { transporte, cliente } = montar();
