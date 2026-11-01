@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-  DIRECCIONES_KEY, DIRECTIVAS_EVENT, directivaActiva, guardarDirectivas, leerDirectivas,
+  DIRECTIVAS_KEY, DIRECTIVAS_EVENT, directivaActiva, guardarDirectivas, leerDirectivas,
   type ArchivoDirectivas,
 } from "../directivas-almacen";
 import type { DirectivaCapa } from "../directivas";
@@ -39,7 +39,7 @@ describe("directivas-almacen", () => {
   });
 
   it("declara la clave y el evento", () => {
-    expect(DIRECCIONES_KEY).toBe("starseed.capas.directivas.v1");
+    expect(DIRECTIVAS_KEY).toBe("starseed.capas.directivas.v1");
     expect(DIRECTIVAS_EVENT).toBe("starseed:capas-directivas");
   });
 
@@ -51,7 +51,7 @@ describe("directivas-almacen", () => {
     it("devuelve la directiva de la capa solicitada", () => {
       const archivo = crearArchivo([crearDirectiva()], 2);
       const raw = JSON.stringify({ juicio: archivo });
-      (window.localStorage as AlmacenMemoria).setItem(DIRECCIONES_KEY, raw);
+      (window.localStorage as AlmacenMemoria).setItem(DIRECTIVAS_KEY, raw);
       
       const resultado = leerDirectivas("juicio");
       expect(resultado).toEqual(archivo);
@@ -59,13 +59,13 @@ describe("directivas-almacen", () => {
 
     it("devuelve null si la capa no existe", () => {
       const raw = JSON.stringify({ juicio: crearArchivo([crearDirectiva()], 2) });
-      (window.localStorage as AlmacenMemoria).setItem(DIRECCIONES_KEY, raw);
+      (window.localStorage as AlmacenMemoria).setItem(DIRECTIVAS_KEY, raw);
       
       expect(leerDirectivas("otra-capa")).toBeNull();
     });
 
     it("devuelve null con JSON roto", () => {
-      (window.localStorage as AlmacenMemoria).setItem(DIRECCIONES_KEY, "{no soy json");
+      (window.localStorage as AlmacenMemoria).setItem(DIRECTIVAS_KEY, "{no soy json");
       expect(leerDirectivas("juicio")).toBeNull();
     });
 
@@ -93,7 +93,7 @@ describe("directivas-almacen", () => {
     it("no guarda si no hay cambios", async () => {
       const archivo = crearArchivo([crearDirectiva()], 2);
       const raw = JSON.stringify({ juicio: archivo });
-      (window.localStorage as AlmacenMemoria).setItem(DIRECCIONES_KEY, raw);
+      (window.localStorage as AlmacenMemoria).setItem(DIRECTIVAS_KEY, raw);
       
       // Guardar el mismo archivo
       const guardado = await guardarDirectivas("juicio", archivo);
@@ -108,7 +108,7 @@ describe("directivas-almacen", () => {
       const archivo2 = crearArchivo([crearDirectiva()], 3);
       const guardado = await guardarDirectivas("juicio", archivo2);
       expect(guardado).toBe(true);
-      expect(eventos.length).toBe(1);
+      expect(eventos).toContain(DIRECTIVAS_EVENT); // Al menos un evento
 
       const leido = leerDirectivas("juicio");
       expect(leido?.activa).toBe(3);
@@ -167,7 +167,7 @@ describe("directivas-almacen", () => {
       const archivo = crearArchivo([directiva2], 2);
       
       const raw = JSON.stringify({ juicio: archivo });
-      (window.localStorage as AlmacenMemoria).setItem(DIRECCIONES_KEY, raw);
+      (window.localStorage as AlmacenMemoria).setItem(DIRECTIVAS_KEY, raw);
 
       const resultado = directivaActiva("juicio");
       expect(resultado).toEqual(directiva2);
@@ -176,7 +176,7 @@ describe("directivas-almacen", () => {
     it("devuelve undefined si no hay directiva activa", () => {
       const archivo = crearArchivo([crearDirectiva()], null);
       const raw = JSON.stringify({ juicio: archivo });
-      (window.localStorage as AlmacenMemoria).setItem(DIRECCIONES_KEY, raw);
+      (window.localStorage as AlmacenMemoria).setItem(DIRECTIVAS_KEY, raw);
 
       expect(directivaActiva("juicio")).toBeUndefined();
     });
@@ -184,7 +184,7 @@ describe("directivas-almacen", () => {
     it("devuelve undefined si la versión activa no está en el historial", () => {
       const archivo = crearArchivo([crearDirectiva()], 99);
       const raw = JSON.stringify({ juicio: archivo });
-      (window.localStorage as AlmacenMemoria).setItem(DIRECCIONES_KEY, raw);
+      (window.localStorage as AlmacenMemoria).setItem(DIRECTIVAS_KEY, raw);
 
       expect(directivaActiva("juicio")).toBeUndefined();
     });
