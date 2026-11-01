@@ -4662,3 +4662,42 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-11-01 09:19 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** Conectar Genesis
+
+**Resultado.** 0 de 26 integradas. 26 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 24 tareas se fueron por lo mismo — otra cosa (INF1025D, INF1025B, DSN1025D, AGT1025B, ART1025C, ART1025G). Es 92 % de la ola.
+- 2 tareas se fueron por lo mismo — no escribió nada (CRM1024Fc, OPS1031Cb). Es 8 % de la ola.
+- sin modelo anotado no integró ninguna de sus 26 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CRM1024Fc` — no escribió nada
+- `OPS1031Cb` — no escribió nada
+- `INF1025D` — otra cosa
+- `INF1025B` — otra cosa
+- `DSN1025D` — otra cosa
+- `AGT1025B` — otra cosa
+- `ART1025C` — otra cosa
+- `ART1025G` — otra cosa
+- `BLD1025K` — otra cosa
+- `CPZ1025D` — otra cosa
+- `CPZ1025F` — otra cosa
+- `CPZ1025H` — otra cosa
+- `DSN1025G` — otra cosa
+- `DSN1025H` — otra cosa
+- `INF1025G` — otra cosa
+- `ART1025B` — otra cosa
+- `ART1025L` — otra cosa
+- `BLD1025B` — otra cosa
+- `BLD1025C` — otra cosa
+- `CFC1025A` — otra cosa
+- `CPZ1025A` — otra cosa
+- `DSN1025A` — otra cosa
+- `INV1025B` — otra cosa
+- `INV1025F` — otra cosa
+- `DSN1025B` — otra cosa
+- `INV1025J` — otra cosa
