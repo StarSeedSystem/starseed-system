@@ -24,7 +24,7 @@
 
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
-import { nivelPara, siguienteNivel, NIVELES, type NivelVoz } from "./niveles";
+import { RAM_MIN_ESTUDIO_GB, estudioSegunUso, nivelPara, siguienteNivel, NIVELES, type NivelVoz, type UsoVoz } from "./niveles";
 import {
     soporteSupertonic,
     nivelParaVoz,
@@ -57,7 +57,13 @@ import {
 } from "@/lib/voces/emociones";
 // (2026-09-06, Ola 264 · J1b) Normalización en español del texto hablado.
 import { normalizarParaVoz } from "@/lib/voces/normalizar-es";
-import { motorRecomendado, Plataforma } from "../catalogo-voces";
+import { motorRecomendado, MOTORES_VOZ, Plataforma } from "../catalogo-voces";
+// (Ola 1018F · VST1018F) Licencia por contexto, medidas de latencia y neurona:
+// la primera frase sale del motor PERMITIDO más rápido MEDIDO que tenga la voz.
+import { motoresPermitidos, type ContextoLicenciaVoz, type MotorInfo } from "./licencia-voz";
+import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
+import { leerMedidas, type MedidaVoz } from "@/lib/aurora/medidas-voz";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 function detectarPlataforma(): Plataforma {
     if (typeof window === "undefined") return "web";
     const ua = navigator.userAgent;
@@ -279,6 +285,129 @@ export function parametrosPorNivel(
     return { via: "sistema", pitch: timbre.sistema.pitch, rate: timbre.sistema.rate };
 }
 
+// ── (Ola 1018F · VST1018F) PRIMERA FRASE INSTANTÁNEA (contrato §4) ───────────
+// El motor PERMITIDO con menor latencia MEDIDA que tenga la voz de la persona;
+// «estudio» solo para lectura, doblaje y audiolibros; un mensaje no se parte
+// entre dos motores. Pura: candidatos, medidas y reloj inyectables.
+
+export interface CandidatoPrimeraFrase extends MotorInfo {
+    conVoz: boolean;
+    esEstudio?: boolean;
+}
+export interface OpcionesEleccionPrimeraFrase {
+    candidatos: CandidatoPrimeraFrase[];
+    contexto: ContextoLicenciaVoz;
+    capas: CapasPrefs;
+    medidas: readonly MedidaVoz[];
+    uso?: UsoVoz;
+    neurona?: string;
+    ahora?: number;
+}
+export interface ResultadoPrimeraFrase {
+    id: string;
+    latenciaMs: number;
+    medido: boolean;
+}
+export const VIGENCIA_LATENCIA_MS = 7 * 24 * 60 * 60 * 1000;
+export const MEDIDAS_POR_MOTOR = 20;
+
+function mediana(valores: number[]): number {
+    const o = [...valores].sort((a, b) => a - b);
+    const m = Math.floor(o.length / 2);
+    return o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2;
+}
+
+/** Mediana de «primer-sonido» por motor; lo viejo, futuro o de otra neurona fuera. Pura. */
+export function latenciasMedidas(
+    medidas: readonly MedidaVoz[],
+    opciones: { neurona?: string; ahora?: number } = {},
+): Record<string, number> {
+    const ahora = opciones.ahora ?? Date.now();
+    const grupos = new Map<string, Array<{ ts: number; valor: number }>>();
+    for (const m of Array.isArray(medidas) ? medidas : []) {
+        if (!m || m.tipo !== "primer-sonido" || !(m.valor > 0) || !Number.isFinite(m.timestamp)) continue;
+        if (opciones.neurona !== undefined && m.neurona !== opciones.neurona) continue;
+        if (m.timestamp > ahora || ahora - m.timestamp > VIGENCIA_LATENCIA_MS) continue;
+        const motor = typeof m.motor === "string" ? m.motor.trim() : "";
+        if (motor) grupos.set(motor, [...(grupos.get(motor) ?? []), { ts: m.timestamp, valor: m.valor }]);
+    }
+    const salida: Record<string, number> = {};
+    for (const [motor, lista] of grupos) {
+        const recientes = [...lista].sort((a, b) => a.ts - b.ts).slice(-MEDIDAS_POR_MOTOR);
+        salida[motor] = mediana(recientes.map((x) => x.valor));
+    }
+    return salida;
+}
+
+/** El mensaje entero sale del MISMO motor: no se parte entre dos. Pura. */
+export function motorDeMensaje(elegido: string | null, motorEnCurso: string | null): string | null {
+    return motorEnCurso ?? elegido;
+}
+
+/** Permitidos por licencia, con voz y sin estudio fuera de lectura/doblaje/audiolibro. Pura. */
+export function elegirMotorPrimeraFrase(o: OpcionesEleccionPrimeraFrase): ResultadoPrimeraFrase | null {
+    const estudio = estudioSegunUso(o.uso ?? "conversacion");
+    const latencias = latenciasMedidas(o.medidas, { neurona: o.neurona, ahora: o.ahora });
+    const { permitidos } = motoresPermitidos(o.candidatos, o.contexto, o.capas);
+    let mejor: ResultadoPrimeraFrase | null = null;
+    for (const c of permitidos) {
+        const cand = c as CandidatoPrimeraFrase;
+        if (!cand.conVoz || (!estudio && cand.esEstudio)) continue;
+        const lat = latencias[c.id];
+        const r: ResultadoPrimeraFrase = lat !== undefined && lat > 0
+            ? { id: c.id, latenciaMs: lat, medido: true }
+            : { id: c.id, latenciaMs: 0, medido: false };
+        if (!mejor || (r.medido && !mejor.medido) ||
+            (r.medido === mejor.medido && r.medido && r.latenciaMs < mejor.latenciaMs)) mejor = r;
+    }
+    return mejor;
+}
+
+// ── APLICACIÓN EN LA PUERTA ÚNICA ───────────────────────────────────────────
+const PAUSA_NUEVA_FRASE_MS = 30_000;
+const MOTOR_POR_NIVEL: Record<NivelVoz, string> = {
+    estudio: "voicemorphic", alta: "voicemorphic", nube: "nube", ligera: "kokoro", minima: "sistema",
+};
+let motorEnCurso: string | null = null;
+let ultimoHablaMs = 0;
+
+/** Nivel del motor elegido; «estudio» solo con lectura/doblaje/audiolibro y RAM suficiente. */
+function nivelDeMotor(id: string, uso: UsoVoz, caps: Capacidades): NivelVoz {
+    if (id === "voicemorphic" || id === "voicestudio") {
+        const hayRam = (caps.memoriaGB ?? 0) >= RAM_MIN_ESTUDIO_GB;
+        return estudioSegunUso(uso) && hayRam ? "estudio" : "alta";
+    }
+    if (id === "kokoro") return "ligera";
+    if (id === "sistema") return "minima";
+    return "nube";
+}
+
+/** Vías que puede hablar ESTA neurona ahora, con su licencia del catálogo. */
+function candidatasPrimeraFrase(caps: Capacidades, uso: UsoVoz): CandidatoPrimeraFrase[] {
+    const clase = (id: string) => MOTORES_VOZ.find((m) => m.id === id)?.claseLicencia ?? "libre";
+    const lista: CandidatoPrimeraFrase[] = [];
+    if (caps.daemonLocal) lista.push({
+        id: "voicemorphic", claseLicencia: clase("voicemorphic"), conVoz: true,
+        ...(estudioSegunUso(uso) ? { esEstudio: true } : {}),
+    });
+    if (caps.webgpu || caps.wasmSimd) lista.push({ id: "kokoro", claseLicencia: clase("kokoro"), conVoz: true });
+    return lista;
+}
+
+/** Elección real de la primera frase con las medidas de esta neurona. Nunca lanza. */
+function elegirPrimeraFrase(
+    caps: Capacidades, uso: UsoVoz, contexto: ContextoLicenciaVoz, capas: CapasPrefs,
+): string | null {
+    try {
+        return elegirMotorPrimeraFrase({
+            candidatos: candidatasPrimeraFrase(caps, uso), contexto, capas, medidas: leerMedidas(),
+            uso, neurona: neuronDeviceIdActual() || undefined, ahora: Date.now(),
+        })?.id ?? null;
+    } catch {
+        return null; // sin medidas legibles manda la decisión por hardware
+    }
+}
+
 export interface OpcionesHablar {
     /** Identidad de la voz: LA MISMA en todos los niveles. */
     timbre: Timbre;
@@ -312,6 +441,12 @@ export interface OpcionesHablar {
      * esta opción solo es para vías que ya entregan el texto normalizado.
      */
     sinNormalizar?: boolean;
+    /** (Ola 1018F) Uso del turno; «conversación» por omisión (sin él no hay «estudio»). */
+    uso?: UsoVoz;
+    /** (Ola 1018F) Sitio donde suena para la licencia; «personal» por omisión. */
+    contextoUso?: ContextoLicenciaVoz;
+    /** (Ola 1018F) Capas de conciencia para la licencia. */
+    capas?: CapasPrefs;
 }
 
 /**
@@ -415,6 +550,17 @@ async function hablarPorSistema(texto: string, timbre: Timbre, alEmpezar?: () =>
 
 /** Sintetiza por la vía existente en el OS para ese nivel. Nunca lanza. */
 async function sintetizar(nivel: NivelVoz, texto: string, timbre: Timbre, opciones: OpcionesHablar): Promise<boolean> {
+    // (Ola 1018F) Anota el «primer-sonido» real: la próxima primera frase sale
+    // del motor más rápido MEDIDO en esta neurona (el elector se mejora solo).
+    const desde = Date.now();
+    const previo = opciones.alEmpezar;
+    opciones = { ...opciones, alEmpezar: () => {
+        try { previo?.(); } catch { /* el aviso no puede romper */ }
+        void import("@/lib/aurora/medidas-voz").then((mv) => mv.anotarMedida({
+            motor: MOTOR_POR_NIVEL[nivel], tipo: "primer-sonido",
+            valor: Math.max(1, Date.now() - desde), idioma: "es-ES",
+        })).catch(() => null);
+    } };
     if (nivel === "estudio" || nivel === "alta") return hablarPorLocal(texto, timbre, opciones.alEmpezar);
     if (nivel === "nube") return hablarPorNube(texto, timbre, opciones.alEmpezar);
     if (nivel === "ligera") return hablarPorKokoro(texto, timbre, opciones.alEmpezar);
@@ -448,8 +594,8 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     const timbre = timbreConEmocion(opciones.timbre, resuelta.emocion, resuelta.intensidad);
 
     const plataforma = detectarPlataforma();
-    const { memoriaGB } = await detectarCapacidades();
-    const ramGB = memoriaGB ?? 8;
+    const caps = await detectarCapacidades();
+    const ramGB = caps.memoriaGB ?? 8;
     const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
     let nivel: NivelVoz;
     switch (motorCat.id) {
@@ -470,6 +616,20 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
             nivel = "nube";
             break;
     }
+
+    // (Ola 1018F · VST1018F) PRIMERA FRASE POR LATENCIA MEDIDA (contrato §4):
+    // tras una pausa se elige el motor permitido más rápido con la voz de esa
+    // persona; mientras el mensaje siga en curso se conserva el mismo motor.
+    const uso = opciones.uso ?? (opciones.contexto === "lectura" ? "lectura" : "conversacion");
+    const ahora = Date.now();
+    if (ahora - ultimoHablaMs > PAUSA_NUEVA_FRASE_MS) {
+        motorEnCurso = elegirPrimeraFrase(
+            caps, uso, opciones.contextoUso ?? "personal", opciones.capas ?? { persona: "personal" },
+        );
+    }
+    ultimoHablaMs = ahora;
+    const motor = motorDeMensaje(null, motorEnCurso);
+    if (motor) nivel = nivelDeMotor(motor, uso, caps);
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
     // Al empezar a hablar se deriva el gesto del texto y se emite `starseed:gesto`
