@@ -27,6 +27,31 @@ const receptor = (nodoId: string, subidaKbps?: number) => ({ nodoId, subidaKbps 
 const tope = (id: string, subidaKbps: number | undefined) =>
   id === "origen" ? 1 : capacidadRelevo(subidaKbps, 1000);
 
+type Arbol = ReturnType<typeof armarArbol>;
+
+function normalizar(arbol: Arbol) {
+  return [...arbol.nodos.entries()]
+    .map(([id, n]) => ({ id, subida: n.subidaKbps ?? null, hijos: [...n.hijos] }))
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+}
+
+function alcanzables(arbol: Arbol) {
+  if (!arbol.nodos.has(arbol.origen)) return 0;
+  const vistos = new Set<string>([arbol.origen]);
+  const cola: string[] = [arbol.origen];
+  while (cola.length > 0) {
+    const id = cola.shift();
+    if (id === undefined) break;
+    for (const hijo of arbol.nodos.get(id)?.hijos ?? []) {
+      if (!vistos.has(hijo)) {
+        vistos.add(hijo);
+        cola.push(hijo);
+      }
+    }
+  }
+  return vistos.size;
+}
+
 describe("arbol-relevo", () => {
   it("con 1 receptor cuelga del origen", () => {
     const arbol = armarArbol("origen", [receptor("n1", 1000)], 500);
@@ -113,5 +138,36 @@ describe("arbol-relevo", () => {
   it("si el que se va no está, devuelve el árbol igual", () => {
     const arbol = armarArbol("origen", [receptor("n1")], 100);
     expect(recolocar(arbol, "fantasma")).toEqual(arbol);
+  });
+
+  it("usa floor de la subida y 1 cuando no hay medida", () => {
+    expect(capacidadRelevo(5000, 1000)).toBe(5);
+    expect(capacidadRelevo(999, 1000)).toBe(0);
+    expect(capacidadRelevo(undefined, 1000)).toBe(1);
+  });
+
+  it("el orden de entrada no cambia el árbol (10 receptores barajados)", () => {
+    const receptores = Array.from({ length: 10 }, (_, i) =>
+      receptor(`n${i}`, (10 - i) * 1000),
+    );
+    const recto = armarArbol("origen", receptores, 1000);
+    const barajado = [
+      receptores[7],
+      ...receptores.slice(0, 7),
+      receptores[9],
+      receptores[8],
+    ];
+    expect(normalizar(armarArbol("origen", barajado, 1000))).toEqual(normalizar(recto));
+  });
+
+  it("con 200 receptores todos quedan conectados y sin duplicados", () => {
+    const receptores = Array.from({ length: 200 }, (_, i) =>
+      receptor(`n${i}`, ((i % 7) + 1) * 500),
+    );
+    const arbol = armarArbol("origen", receptores, 1000);
+    expect(arbol.nodos.size).toBe(201);
+    expect(alcanzables(arbol)).toBe(201);
+    const hijosOrigen = arbol.nodos.get("origen")?.hijos ?? [];
+    expect(new Set(hijosOrigen).size).toBe(hijosOrigen.length);
   });
 });
