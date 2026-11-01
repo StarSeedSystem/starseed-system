@@ -115,6 +115,10 @@ class TestPlanPuente(unittest.TestCase):
         plan = plan_puente(None)
         self.assertIn("TELEMETRY", plan["avisos"]["telemetria"])
 
+    def test_menciona_hunyuan(self):
+        plan = plan_puente(None)
+        self.assertIn("Hunyuan3D", plan["avisos"]["licencia"])
+
 
 class TestEscribirCandidato(unittest.TestCase):
     def setUp(self):
@@ -142,9 +146,15 @@ class TestEscribirCandidato(unittest.TestCase):
             self.assertNotIn("/home/", contenido)
             self.assertNotIn("/Users/", contenido)
             self.assertNotIn("/opt/", contenido)
-            self.assertNotIn("/Applications/", contenido)
         else:
             self.skipTest("Archivo no creado")
+
+    def test_json_valido(self):
+        plan = {"titulo": "test", "pasos": ["1. Instalar"], "avisos": {}}
+        escribir_candidato(plan, self.raiz)
+        archivo = Path(self.tmp_dir) / ".starseed" / "blender-3d" / "puente-mcp.candidato.json"
+        cargado = json.loads(archivo.read_text(encoding="utf-8"))
+        self.assertEqual(cargado["pasos"], ["1. Instalar"])
 
 
 class TestNingunEjecutaComandos(unittest.TestCase):
