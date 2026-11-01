@@ -131,10 +131,15 @@ class Prestamo(unittest.TestCase):
         self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 3600), [])
         # Si el A1 la terminó, vuelve aunque la gracia no pase.
         self.assertEqual(N.devolver_de_oracle(p, [], {"colas/oracle-20261018-231246": {}}, True, nacida + 60), ["T"])
-        # Nota sin rama citada, y lo que no es «reasignada · oracle»: nada.
+        # Nota sin rama, otro estado, un préstamo de la nube que la cita y una fila rota:
+        # nada de eso es un préstamo de Oracle.
+        rama = "colas/oracle-20261018-231246"
         p2 = {"U": {"estado": "reasignada", "medio": "oracle", "nota": "sin rama"},
               "V": {"estado": "commit", "medio": "oracle",
-                    "nota": "movida a oracle (colas/oracle-20261018-231246) desde Genesis"}}
+                    "nota": "movida a oracle (%s) desde Genesis" % rama},
+              "W": {"estado": "reasignada", "medio": "nube",
+                    "nota": "movida a oracle (%s) desde Genesis" % rama},
+              "X": "basura"}
         self.assertEqual(N.devolver_de_oracle(p2, [], {}, True, nacida + 3 * 3600 + 60), [])
 
 
