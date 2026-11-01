@@ -1149,6 +1149,11 @@ def silencio_tolerable(silencio_desde, ahora, espera_s=ESPERA_MAX_SIN_RESPUESTA_
 def una_pasada(forzar: bool = False) -> bool:
     """`forzar` (orden `--una-vez --ya`): compila aunque Astraura esté en uso o haya
     conversación. Solo a mano; el disco se sigue comprobando."""
+    try:
+        from scripts.puente.cuarentena_sin_git import revisar
+        revisar(RAIZ)
+    except Exception:
+        pass
     entradas = list(_entradas())
     actual = huella_de(entradas)
     estado = _leer_estado()
