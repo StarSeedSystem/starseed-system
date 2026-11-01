@@ -53,6 +53,12 @@ describe("ClienteMcpStdio", () => {
     transporte.responder(transporte.ultima.id, { content: [{ type: "text", text: "ho" }, { type: "text", text: "la" }] });
     expect(await promesa).toEqual({ ok: true, texto: "hola" });
   });
+  it("descarta los bloques de tipo conocido no textual y saca el texto", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("x", {}, 1000);
+    transporte.responder(transporte.ultima.id, { content: [{ type: "resource", uri: "figcraft://doc" }, { type: "text", text: "solo esto" }] });
+    expect(await promesa).toEqual({ ok: true, texto: "solo esto" });
+  });
   it("empareja respuestas desordenadas", async () => {
     const { transporte, cliente } = montar();
     const p1 = cliente.listar(1000); const id1 = transporte.ultima.id;
@@ -64,6 +70,7 @@ describe("ClienteMcpStdio", () => {
     const { transporte, cliente } = montar();
     transporte.enviar('{"jsonrpc":"2.0","method":"notifications/message","params":{}}\n');
     transporte.enviar('{"jsonrpc":"2.0","result":{}}\n');
+    transporte.enviar('{"jsonrpc":"2.0","id":77,"result":{"tools":[]}}\n');
     transporte.enviar("no es json\n");
     expect(cliente.ilegibles).toBe(1);
     const promesa = cliente.listar(1000);
