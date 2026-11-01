@@ -107,6 +107,20 @@ export function validarSinCredencialesEpic(texto: string): { ok: boolean; hallaz
 export function esUrlPermitidaRare(url: string): boolean {
   // Blocked domains
   if (url.includes("raredevs.github.io") || url.includes("protondb.com")) return false;
-  if (!url.startsWith("https://github.com/RareDevs/Rare/releases/")) return false;
-  return true;
+  // Rechaza si el texto crudo contiene traversal o escapes sospechosos
+  const lower = url.toLowerCase();
+  if (url.includes("..") || lower.includes("%2e") || url.includes("\\")) {
+    return false;
+  }
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") return false;
+    if (parsed.hostname !== "github.com") return false;
+    if (parsed.username || parsed.password) return false;
+    if (parsed.port) return false;
+    if (!parsed.pathname.startsWith("/RareDevs/Rare/releases/")) return false;
+    return true;
+  } catch {
+    return false;
+  }
 }
