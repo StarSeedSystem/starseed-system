@@ -63,6 +63,8 @@ import {
   Users,
   // Tanda 1027 (Mausbot, neurona insomne y Colibri)
   MousePointer2, Bird,
+  // Tanda 1027b (Meta^n y Memvid)
+  Repeat, Film,
   type LucideIcon,
   Flame, LogIn, Replace, Ear, Atom, ShieldCheck, Network,
 } from "lucide-react";
