@@ -42,6 +42,13 @@ class PuertaFalsa(object):
 
 
 class DecidirLider(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory(prefix="lider-visto-")
+        self.addCleanup(tmp.cleanup)
+        old = os.environ.get("STARSEED_LIDER_VISTO")
+        os.environ["STARSEED_LIDER_VISTO"] = os.path.join(tmp.name, "visto-a1.json")
+        self.addCleanup(os.environ.pop, "STARSEED_LIDER_VISTO", None)
+
     def test_sin_saber_quien_dirige_actua_como_hoy(self):
         for lider in (None, "roto", {}, {"soy": True, "motivo": "sin puerta o sin red: líder en local"}):
             self.assertTrue(A.decidir_lider(lider, T0)[0], lider)
@@ -56,7 +63,9 @@ class DecidirLider(unittest.TestCase):
             self.assertIn("sigo en local", porque)
 
     def test_con_la_eleccion_real_de_ind1029b(self):
-        decide = lambda yo, datos: A.decidir_lider(LD.soy_lider(yo, T0, PuertaFalsa(datos)), T0)[0]
+        SANA = {"presion": None, "swap_pct": None, "genesis_tarda": 0.0}  # no ahogada: no Genesis real
+        decide = lambda yo, datos: A.decidir_lider(
+            LD.soy_lider(yo, T0, PuertaFalsa(datos), SANA), T0)[0]
         self.assertFalse(decide(MAC, arriendo(A1, T0 + 100)))  # dirige el A1: la Mac mira
         self.assertTrue(decide(A1, arriendo(A1, T0 + 100)))    # el A1 lee su propio arriendo
         self.assertTrue(decide(MAC, arriendo(A1, T0 - 30)))    # el A1 cayó: la Mac no se queda parada
