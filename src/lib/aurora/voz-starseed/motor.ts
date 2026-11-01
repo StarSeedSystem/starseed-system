@@ -426,6 +426,73 @@ async function sintetizar(nivel: NivelVoz, texto: string, timbre: Timbre, opcion
     return hablarPorSistema(texto, timbre, opciones.alEmpezar);
 }
 
+/** Motor de voz permitido con menor latencia medida (contrato voz-voicestudio.md §4). */
+interface MotorLatencia {
+    motor: string;
+    latenciaMs: number;
+}
+
+/**
+ * Para la primera frase de una conversación, elige el motor PERMITIDO con menor
+ * latencia medida en esta neurona que tenga la voz de esa persona.
+ * Devuelve el motor o null si no hay medidas válidas.
+ * Pura: usa leerMedidas inyectable.
+ */
+function elegirMotorPorLatencia(
+    _timbre: Timbre,
+    capas: CapasPrefs = {},
+    deps: { leerMedidasFunc: (neurona?: string) => readonly MedidaVoz[] | null } = { leerMedidasFunc: (n) => leerMedidas(n) }
+): MotorLatencia | null {
+    const neurona = neuronDeviceIdActual();
+    const medidas = deps.leerMedidasFunc(neurona);
+    if (!medidas || medidas.length === 0) return null;
+
+    const primerSonidoMedidas = medidas
+        .filter(m => m.tipo === "primer-sonido" && typeof m.valor === "number" && m.valor > 0)
+        .sort((a, b) => a.timestamp - b.timestamp);
+
+    if (primerSonidoMedidas.length === 0) return null;
+
+    const ultimas = primerSonidoMedidas.slice(-20);
+    const porMotor = new Map<string, number[]>();
+    for (const m of ultimas) {
+        const arr = porMotor.get(m.motor) ?? [];
+        arr.push(m.valor);
+        porMotor.set(m.motor, arr);
+    }
+
+    const latencias: MotorLatencia[] = [];
+    for (const [motor, valores] of porMotor) {
+        const media = valores.reduce((a, b) => a + b, 0) / valores.length;
+        latencias.push({ motor, latenciaMs: media });
+    }
+
+    if (latencias.length === 0) return null;
+
+    const motorConMenorLatencia = latencias
+        .sort((a, b) => b.latenciaMs - a.latenciaMs)[0];
+
+    return motorConMenorLatencia;
+}
+
+/**
+ * Mapea el ID del motor a su nivel correspondiente.
+ * - voice158, voxcpm, chatterbox, etc. → nube
+ * - kokoro → ligera
+ * - sistema → minima
+ * - omnivoice, voicestudio → estudio (local)
+ */
+function nivelParaMotor(motorId: string): NivelVoz {
+    if (motorId === "kokoro") return "ligera";
+    if (["sistema", "system"].includes(motorId)) return "minima";
+    if (["voicestudio", "omnivoice", "vibevoice", "voice158", "voxcpm", "chatterbox", "cosyvoice3", "qwen3-tts", "dots-tts", "openvoice2", "kitten", "moss-tts-nano", "supertonic"].includes(motorId)) {
+        return "estudio";
+    }
+    if (motorId.startsWith("voicebox")) return "nube";
+    if (motorId.startsWith("xai")) return "nube";
+    return "nube";
+}
+
 /**
  * HABLA — entrada única del OS.
  *
