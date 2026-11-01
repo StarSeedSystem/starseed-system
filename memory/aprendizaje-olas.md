@@ -4662,3 +4662,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-10-31 23:14 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** Conectar Genesis
+
+**Resultado.** 1 de 8 integradas. 7 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — los tipos no compilan (CRM1024Fb, AGT1025B-d2d, DSN1025H-d1c, IMN1021K3-d2d, RTCLB1027Cb-d1b-d2c). Es 62 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `CRM1024Fb` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/CRM1024Fb conservada)
+- `RTC1031A` — no escribió nada
+- `IND1029A` — pruebas en rojo: vitest falla (rama conservada)
+- `AGT1025B-d2d` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/AGT1025B-d2d conservada)
+- `DSN1025H-d1c` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/DSN1025H-d1c conservada)
+- `IMN1021K3-d2d` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/IMN1021K3-d2d conservada)
+- `RTCLB1027Cb-d1b-d2c` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTCLB1027Cb-d1b-d2c conservada)

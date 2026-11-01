@@ -31,6 +31,11 @@ def _sin_motor_local():
     sys.modules["jev_local"] = None
 
 
+def _sin_laya_local():
+    """Desactiva los endpoints locales de Laya/Colibri para aislar las pruebas de la red."""
+    jev.TRANSPORTE_LOCALES = lambda endpoint, cuerpo, timeout: (_ for _ in ()).throw(OSError("sin laya-local"))
+
+
 def _transporte_que_explota(cuerpo):
     raise AssertionError("no debía llamarse a OpenRouter")
 
@@ -59,16 +64,21 @@ class Jev(unittest.TestCase):
         jev.TRANSPORTE = None
         os.environ["STARSEED_JEV"] = "0"
         os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"  # invalid port to prevent laya-local from responding
+        os.environ["STARSEED_SYSTEMONE_LOCALES"] = ""  # disable all local endpoints
         # Estas pruebas miden local -> OpenRouter; la pasarela gratis de Experiential se prueba en
         # test_jev_explabs.py. Sin esto, en la Mac (con EXPLABS_API_KEY) contestaría de verdad.
         os.environ["STARSEED_JEV_EXPLABS"] = "0"
         _sin_motor_local()
+        _sin_laya_local()
 
     def tearDown(self):
         jev.TRANSPORTE = None
         _quita_local()
+        jev.TRANSPORTE_LOCALES = None
         os.environ.pop("STARSEED_JEV", None)
         os.environ.pop("STARSEED_JEV_EXPLABS", None)
+        os.environ.pop("STARSEED_LAYA_URL", None)
+        os.environ.pop("STARSEED_SYSTEMONE_LOCALES", None)
 
     def test_apagado_devuelve_none_sin_tocar_nada(self):
         self.assertFalse(jev.activo())
@@ -213,17 +223,21 @@ class Piramide(unittest.TestCase):
         jev.TRANSPORTE = None
         os.environ["STARSEED_JEV"] = "0"
         os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"  # invalid port to prevent laya-local from responding
+        os.environ["STARSEED_SYSTEMONE_LOCALES"] = ""  # disable all local endpoints
         # Estas pruebas miden local -> OpenRouter; la pasarela gratis de Experiential se prueba en
         # test_jev_explabs.py. Sin esto, en la Mac (con EXPLABS_API_KEY) contestaría de verdad.
         os.environ["STARSEED_JEV_EXPLABS"] = "0"
         _sin_motor_local()
+        _sin_laya_local()
 
     def tearDown(self):
         jev.TRANSPORTE = None
+        jev.TRANSPORTE_LOCALES = None
         _quita_local()
         os.environ.pop("STARSEED_JEV", None)
         os.environ.pop("STARSEED_JEV_EXPLABS", None)
         os.environ.pop("STARSEED_LAYA_URL", None)
+        os.environ.pop("STARSEED_SYSTEMONE_LOCALES", None)
 
     def test_local_responde_no_se_toca_openrouter(self):
         _local_falso(respuesta={"q": {"type": "noul", "noul": 0.8}})

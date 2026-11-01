@@ -5,6 +5,7 @@
 es decir, un `.env` entero NUNCA va al A1."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shlex
@@ -108,7 +109,27 @@ class Decisiones(unittest.TestCase):
         self.assertNotEqual(a, C.huella_envio("sha2", ""))
         self.assertNotEqual(a, C.huella_envio("sha1", "src/x.ts"))
 
-    def test_huella_lock_y_pide_instalacion(self):
+    def test_huella_lock_formato_del_guardian_sobre_bytes(self):
+        # El guardián (`preparar-a1.sh`) escribe `sha256sum package-lock.json | cut -c1-16`:
+        # las PRIMERAS 16 posiciones del sha256 de los BYTES del fichero. La huella
+        # se calcula igual venga el lock como texto utf-8 o como bytes leídos a lo crudo.
+        texto = '{"name": "starseed"}\n'
+        self.assertEqual(C.huella_lock(texto), hashlib.sha256(texto.encode("utf-8")).hexdigest()[:16])
+        self.assertEqual(C.huella_lock(texto.encode("utf-8")), C.huella_lock(texto))
+        self.assertEqual(len(C.huella_lock(texto)), 16)
+
+    def test_pide_instalacion_toma_la_huella_larga_vieja_como_valida(self):
+        # (OPS1031C·d1) La versión anterior marcaba con las 64 hex completas: NO reinstala
+        # por eso si es la misma lock (la de 16 es su prefijo); otra lock sí fuerza npm ci.
+        lock = '{"name": "starseed"}\n'
+        vieja = hashlib.sha256(lock.encode("utf-8")).hexdigest()  # huella ANTERIOR: 64 hex
+        self.assertFalse(C.pide_instalacion(vieja, C.huella_lock(lock), existe=True))
+        otra = '{"name": "otra"}\n'
+        self.assertTrue(C.pide_instalacion(vieja, C.huella_lock(otra), existe=True))
+        # una marca dañada (con basura detrás del prefijo) pierde la válida: reinstala,
+        # y la nueva pasada deja la marca ya en formato del guardián
+        self.assertTrue(C.pide_instalacion(C.huella_lock(lock)[:16] + "z",
+                                           C.huella_lock(lock), existe=True))
         self.assertEqual(C.huella_lock("x")[:10], C.huella_lock("x")[:10])
         self.assertTrue(C.pide_instalacion("", "huevo", existe=True))
         self.assertTrue(C.pide_instalacion("", "huevo", existe=False))
@@ -215,6 +236,20 @@ class Flujo(unittest.TestCase):
         traer = self.rsync.call_args_list[-1][0][0]
         self.assertIn("--exclude=standalone", traer)
         self.assertIn("--exclude=cache", traer)
+
+    def test_no_reinstala_con_la_marca_del_guardian(self):
+        # (OPS1031C·d1) El A1 ya tiene `node_modules/.huella-lock` escrito por el
+        # guardián (`preparar-a1.sh`): `sha256sum package-lock.json | cut -c1-16`.
+        # Con esa marca puesta, el flujo NO repite `npm ci` (ni reescribe la marca).
+        with open(os.path.join(self.raiz, "package-lock.json"), "rb") as f:
+            marca = hashlib.sha256(f.read()).hexdigest()[:16]
+        mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
+        ssh = mock.patch.object(C.oracle_nodo, "ssh", return_value=(0, marca)).start()
+        ok, _ = C.compilar(raiz=self.raiz)
+        self.assertTrue(ok)
+        ordenes = [c[0][0] for c in ssh.call_args_list]
+        self.assertFalse(any("npm ci" in o for o in ordenes), ordenes)
+        self.assertFalse(any(".huella-lock" in o and "echo" in o for o in ordenes), ordenes)
 
     def test_build_muerto_no_cambia_nada(self):
         mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()

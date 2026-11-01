@@ -99,14 +99,24 @@ def huella_envio(cabeza, porcelana=""):
 
 
 def huella_lock(texto):
-    """PURA: sha256 de `package-lock.json`, para saber si hay que instalar."""
-    return hashlib.sha256(str(texto or "").encode("utf-8")).hexdigest()
+    """PURA: huella de `package-lock.json` en el FORMATO DEL GUARDIÁN: las primeras
+    16 hex del sha256 de sus BYTES (lo mismo que `sha256sum … | cut -c1-16`,
+    `deploy/oracle/nodo/preparar-a1.sh`). Acepta el fichero como bytes (lo fiel a
+    `sha256sum`) o ya leído a texto utf-8 (mismo hash si el fichero no tiene crlf)."""
+    contenido = texto if isinstance(texto, bytes) else str(texto or "").encode("utf-8")
+    return hashlib.sha256(contenido).hexdigest()[:16]
 
 
 def pide_instalacion(instalada, actual, existe=True):
-    """PURA: ¿el A1 necesita `npm ci`? Solo si cambia el lock (o nunca se marcó)."""
+    """PURA: ¿el A1 necesita `npm ci`? Solo si cambia el lock (o nunca se marcó).
+    (OPS1031C·d1) Toma por válida la huella LARGA que marcaba la versión de antes
+    (64 hex del mismo lock: su 16-hex es prefijo); huella ajena o basura, reinstala."""
     if not existe:
         return True
+    instalada, actual = str(instalada or ""), str(actual or "")
+    if re.fullmatch(r"[0-9a-f]{16}", actual) \
+            and re.fullmatch(r"[0-9a-f]{16,64}", instalada) and instalada.startswith(actual):
+        return False
     return bool(instalada) != bool(actual) or instalada != actual
 
 
@@ -379,8 +389,8 @@ def _enviar_y_compilar(ip, raiz, tope, raiz_a1=RAIZ_A1, espera_turno=None):
                                         texto.encode("utf-8"), timeout=60)
     if rc != 0:
         return False, "env del A1: %s" % cola(salida)
-    try:
-        with open(os.path.join(raiz, "package-lock.json"), encoding="utf-8") as f:
+    try:  # (OPS1031C·d1) el lock se lee a BYTES: la huella es la misma que `sha256sum`
+        with open(os.path.join(raiz, "package-lock.json"), "rb") as f:
             actual = huella_lock(f.read())
     except OSError:
         return False, "sin package-lock.json"
