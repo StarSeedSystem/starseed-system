@@ -80,10 +80,16 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
 // (Ola MBT1027) El Mausbot guarda su config con su propio evento (EVENTO_MAUSBOT,
 //  src/lib/mausbot/config.ts); el valor que llega de otro dispositivo usa el mismo evento.
 import { EVENTO_MAUSBOT } from "@/lib/mausbot/config";
-// (Ola MTN1027 · Meta^n) Las directivas de automejora por capa guardan con su
-// propio evento (EVENTO_DIRECTIVAS, src/lib/astraura/capas/directivas-almacen.ts);
-// el valor que llega de otro dispositivo usa el mismo evento.
-import { EVENTO_DIRECTIVAS } from "@/lib/astraura/capas/directivas-almacen";
+// (Ola MTN1027 · Meta^n) Las directivas de automejora se aplican POR CAPA con su
+// almacén (guardarDirectivas, src/lib/astraura/capas/directivas-almacen.ts) y
+// anuncian su cambio con el mismo evento que el almacén emite al guardar.
+import {
+    CLAVE_DIRECTIVAS,
+    EVENTO_DIRECTIVAS,
+    guardarDirectivas,
+    leerDirectivas,
+    normalizarDirectivas,
+} from "@/lib/astraura/capas/directivas-almacen";
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
@@ -947,6 +953,26 @@ function applyRemoteChanges(
             if (key === DOCK_STORAGE_KEY) {
                 const norm = normalizeDockSyncValue(merged);
                 if (norm.changed) { merged = norm.value; repaired = true; }
+            }
+
+            /* ── DIRECTIVAS de Meta^n (MTN1027 · Meta^n): se aplican POR CAPA, no tal cual ──
+             * El almacén (astraura/capas/directivas-almacen.ts) decide cada una con su
+             * `guardarDirectivas` (§3.5: solo entra si su activa es MÁS NUEVA o cambió
+             * el historial; lo de la cuenta no devuelve la capa a una pauta más vieja y
+             * una vuelta atrás SÍ cambia el historial), escribe y anuncia EVENTO_DIRECTIVAS.
+             * Las capas que solo estaban aquí se conservan (reparado → vuelven a subir). */
+            if (key === CLAVE_DIRECTIVAS) {
+                markAppliedRemote(key); // silencia el anti-eco de los setItem del almacén
+                const remoto = normalizarDirectivas(merged);
+                let cambio = false;
+                for (const [capa, archivo] of Object.entries(remoto)) {
+                    if (guardarDirectivas(capa, archivo)) cambio = true;
+                }
+                const reparado = Object.keys(leerDirectivas()).some((capa) => !(capa in remoto));
+                if (cambio) appliedKeys.push(key);
+                if (reparado) repairedKeys.push(key);
+                if (remoteTs > 0) metaToStamp[key] = reparado ? Date.now() : Math.max(remoteTs, localMeta[key] ?? 0);
+                continue;
             }
 
             const serialized = serializeForStorage(merged);
