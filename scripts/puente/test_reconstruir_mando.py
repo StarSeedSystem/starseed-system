@@ -1033,3 +1033,99 @@ class TraerLoHechoConLaMacFrenada(unittest.TestCase):
         puesto, previo, _, _ = self._traer((True, "x"), freno="node_modules trae next 16.3.8 y package-lock pide 15.5")
         self.assertFalse(puesto)
         previo.assert_not_called()
+
+
+class ReponerElAnterior(unittest.TestCase):
+    """SUP0111D (31-10): un `next build` ajeno borró el `.next` servido y Genesis quedó
+    caído hasta que alguien repuso `.next-anterior` a mano. Si `.next-build` no está entero,
+    el reconstructor tiene que poder reponerlo solo — y sin BORRAR el `.next` roto."""
+
+    def setUp(self):
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.raiz, True)
+        self.anterior = os.path.join(self.raiz, ".next-anterior")
+        os.makedirs(self.anterior)
+        for nombre in ("BUILD_ID", "build-manifest.json"):
+            with open(os.path.join(self.anterior, nombre), "w", encoding="utf-8") as f:
+                f.write("x")
+
+    def test_la_decision_es_pura(self):
+        self.assertTrue(R.reponer_anterior_toca(True, False, True))
+        self.assertFalse(R.reponer_anterior_toca(False, False, True), "Genesis vivo: nada que reponer")
+        self.assertFalse(R.reponer_anterior_toca(True, True, True), "hay build entero: camino normal")
+        self.assertFalse(R.reponer_anterior_toca(True, False, False))
+        self.assertFalse(R.reponer_anterior_toca(True, False, None))
+
+    def test_anterior_entero_pide_build_id_y_manifest(self):
+        self.assertTrue(R.anterior_entero(self.raiz))
+        os.remove(os.path.join(self.anterior, "BUILD_ID"))
+        self.assertFalse(R.anterior_entero(self.raiz))
+        self.assertFalse(R.anterior_entero(self.raiz), "sin la mitad tampoco")
+
+    def test_reponer_cuarentena_el_roto_y_sube_el_anterior(self):
+        roto = os.path.join(self.raiz, ".next")
+        os.makedirs(roto)
+        with open(os.path.join(roto, "a"), "w", encoding="utf-8") as f:
+            f.write("roto")
+        cuarentena = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, cuarentena, True)
+        ordenes, estados = [], []
+        with mock.patch.object(R, "CUARENTENA", cuarentena), \
+                mock.patch.object(R, "_tomar_cerrojo", return_value=True), \
+                mock.patch.object(R, "_soltar_cerrojo"), \
+                mock.patch.object(R, "liberar_puerto", return_value=[]), \
+                mock.patch.object(R, "_leer_estado", return_value={}), \
+                mock.patch.object(R, "_guardar", side_effect=lambda d: estados.append(dict(d))), \
+                mock.patch.object(R, "_html_del_mando", return_value=""), \
+                mock.patch("time.sleep"), \
+                mock.patch.object(R.subprocess, "run",
+                                  side_effect=lambda o, **k: (ordenes.append(o[:2]), mock.Mock(returncode=0))[1]):
+            hecho = R._reponer_anterior_sin_cerrojo(self.raiz)
+        self.assertTrue(hecho)
+        en_cuarentena = os.listdir(cuarentena)
+        self.assertEqual(len(en_cuarentena), 1)
+        self.assertIn("next-roto", en_cuarentena[0])
+        self.assertFalse(os.path.exists(os.path.join(cuarentena, en_cuarentena[0], "BUILD_ID")))
+        self.assertTrue(os.path.exists(os.path.join(cuarentena, en_cuarentena[0], "a")),
+                        "el .next roto NO se borra: va a cuarentena")
+        self.assertFalse(os.path.exists(os.path.join(self.raiz, ".next", "a")),
+                         "el servido ya no es el roto: es el anterior recompuesto")
+        self.assertEqual(R.id_del_build(self.raiz), "x", "el anterior recompuesto es el servido")
+        self.assertEqual(estados[-1]["build_servido"], "x")
+        bootouts = [o for o in ordenes if "bootout" in o]
+        bootstraps = [o for o in ordenes if "bootstrap" in o]
+        self.assertEqual(len(bootouts), 1, "se toca el disco con Genesis PARADO (bootout antes)")
+        self.assertLess(ordenes.index(bootouts[0]), ordenes.index(bootstraps[0]))
+
+    def test_reponer_con_el_cerrojo_ocupado_no_toca_nada(self):
+        with mock.patch.object(R, "_tomar_cerrojo", return_value=False), \
+                mock.patch.object(R, "_reponer_anterior_sin_cerrojo") as cuerpo:
+            self.assertFalse(R.reponer_anterior())
+        cuerpo.assert_not_called()
+
+    def test_una_pasada_repone_si_no_hay_otro_build(self):
+        guardados = []
+        with mock.patch.object(R, "_entradas", return_value=[]), \
+                mock.patch.object(R, "genesis_caido", return_value=True), \
+                mock.patch.object(R, "build_terminado", return_value=False), \
+                mock.patch.object(R, "anterior_entero", return_value=True), \
+                mock.patch.object(R, "reponer_anterior", return_value=True) as reponer:
+            self.assertTrue(R.una_pasada())
+        reponer.assert_called_once()
+
+    def test_una_pasada_sin_anterior_entero_sigue_por_el_camino_de_siempre(self):
+        guardados = []
+        with mock.patch.object(R, "_entradas", return_value=[("src/a.ts", 1, 1)]), \
+                mock.patch.object(R, "genesis_caido", return_value=True), \
+                mock.patch.object(R, "build_terminado", return_value=False), \
+                mock.patch.object(R, "anterior_entero", return_value=False), \
+                mock.patch.object(R, "reponer_anterior") as reponer, \
+                mock.patch.object(R, "freno_de_maquina", return_value=None), \
+                mock.patch.object(R, "publicacion_va_a_compilar", return_value=False), \
+                mock.patch.object(R, "espacio_libre_gb", return_value=50.0), \
+                mock.patch.object(R, "reconstruir", return_value={"estado": "fallo"}) as rec, \
+                mock.patch.object(R, "_guardar", side_effect=guardados.append):
+            self.assertTrue(R.una_pasada())
+        reponer.assert_not_called()
+        rec.assert_called_once()
+        self.assertEqual(guardados[-1]["estado"], "caido-sin-build")
