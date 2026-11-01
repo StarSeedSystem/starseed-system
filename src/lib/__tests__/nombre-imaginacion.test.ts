@@ -34,7 +34,6 @@ const PERMITIDOS = new Set<string>([
     "lib/mando/ramificacion.ts",
     "lib/mando/tipos.ts",
     "lib/mando/grafo-disposicion.ts",
-    "lib/mando/director-datos.ts",
     "components/mando/disenador-ola.tsx",
     "components/mando/ramificacion-agentes.tsx",
 ]);
