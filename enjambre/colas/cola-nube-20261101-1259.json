@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261101",
+ "tareas": [
+  {
+   "id": "LID1101A",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Dirección · una neurona ahogada (swap > 90 % o Genesis sin contestar) cede el arriendo de líder al A1",
+   "archivos": [
+    "scripts/puente/lider_direccion.py",
+    "scripts/puente/test_lider_direccion.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; funciones PURAS con pruebas; nunca la IP del A1; nunca matar procesos ajenos al enjambre.\n\n01-11 04:20 (hora de la Mac): swap 10,2 de 11,3 GB, Genesis sin contestar 25 s, el botón «Reparar agentes» da «0 de 1 acción(es) bien» (Medidor muerto: la API de Genesis no contestó) y el orquestador del A1 en «espera» con carga 0,7, mientras la Mac seguía dirigiendo («sin puerta o sin red: líder en local»). Haz que una neurona no tome ni renueve el arriendo si está ahogada (presión de memoria del núcleo ≥ 2, swap > 90 % o su Genesis no contesta en 10 s), y que con la puerta inalcanzable no se declare líder en local si el A1 latía hace menos de 10 min. Así el A1 (starseed-direccion.service, instalado el 31-10) dirige y trabaja mientras la Mac se recupera."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "LID1101A"
+  ]
+ }
+}
