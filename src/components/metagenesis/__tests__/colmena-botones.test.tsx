@@ -43,7 +43,7 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0 } as NeuronaColmena);
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
         expect(b.desconectar.explica).toBe("No tiene trabajo en curso: puedes apagarlo sin más.");
-        expect(b.desconectar.confirmar).toBeFalsy();
+        expect(b.desconectar.confirmar).toBe(false);
     });
 
     it("con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado", () => {
@@ -153,7 +153,7 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         const b = botonesNeurona({ nodo: "mac-a1b2c3", vivo: true, so: "macos", enCurso: 0 });
         expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: "Desconectar" });
         expect(b.desconectar.explica).toBe("No tiene trabajo en curso: puedes apagarlo sin más.");
-        expect(b.desconectar.confirmar).toBeFalsy();
+        expect(b.desconectar.confirmar).toBe(false);
     });
 
     it("con contenedor activo y sin trabajo en curso, sin relevo activo Desconectar remite a «Dejar de usar»", () => {
@@ -162,7 +162,7 @@ describe("colmena-botones · botones de una neurona (rescatado de rama nube)", (
         expect(b.desconectar.explica).toContain("Dejar de usar como contenedor");
         // El relevo no está activo: ni promete apagar sin más (contradice el repecho) ni pide confirmar nada.
         expect(b.desconectar.explica).not.toContain("puedes apagarlo sin más");
-        expect(b.desconectar.confirmar).toBeFalsy();
+        expect(b.desconectar.confirmar).toBe(false);
         expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: "Dejar de usar como contenedor" });
     });
 
