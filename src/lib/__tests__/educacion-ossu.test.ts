@@ -12,6 +12,7 @@ import {
     AVISO_LICENCIA_OSSU,
     buscarEnOssu,
     cursosDeNodo,
+    cursosDeSeccion,
     itinerarioOssu,
     nodosConOssu,
     seccionesOssu,
@@ -96,6 +97,15 @@ describe("consultas del módulo", () => {
         expect(cursosDeNodo("top-bases-datos").length).toBeGreaterThan(0);
         expect(cursosDeNodo("top-programacion")[0].orden).toBe(1);
         expect(cursosDeNodo("id-que-no-existe")).toEqual([]);
+    });
+
+    it("cursosDeSeccion devuelve cursos en orden y de la sección correcta", () => {
+        const deIntro = cursosDeSeccion("Intro CS");
+        expect(deIntro.length).toBeGreaterThan(0);
+        expect(deIntro.every((c) => c.seccion === "Intro CS")).toBe(true);
+        const ordenes = deIntro.map((c) => c.orden);
+        expect(ordenes).toEqual([...ordenes].sort((a, b) => a - b));
+        expect(cursosDeSeccion("seccion-inexistente")).toEqual([]);
     });
 
     it("AVISO_LICENCIA_OSSU es copia del aviso del dato", () => {
