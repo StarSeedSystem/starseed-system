@@ -148,7 +148,7 @@ Cada mensaje de difusión cuenta una vez por cada conectado que lo recibe. Con N
 (rondas cada 5 min): preguntas ≈ 36·N²/h, respuestas ≤ 36·N²/h (en lote suelen ser menos), latidos 120·N/h.
 N = 10 → ≈ 8 400/h (≈ 238 h de estación al mes en el plan gratuito); N = 30 → ≈ 68 000/h (≈ 29 h/mes). Al
 entrar cada persona: unas 16·N. Por enlaces locales no cuesta nada. Para audiencias grandes: el relé propio (§4.3, tarea
-`EV-ORACLE`): no cuenta mensajes de Realtime. Hoy existe el cliente y la lógica de salas; el servidor aún no.
+`EV-ORACLE`): no cuenta mensajes de Realtime. El servidor WebSocket (`servicios/estaciones-rele/servidor.mjs`) gestiona las salas con `miembros(tema)` (ping cada 30 s, corte de quien no contesta, oyente con más de 1 MiB pendiente se salta).
 
 ### 4.3 Relé propio (cliente `canal-rele.ts`, RTS1010-EV-ORACLE-2d · 2026-10-20)
 
@@ -160,10 +160,10 @@ de Realtime (2 M de mensajes al mes) con audiencias grandes.
   no pinta nada: no hay conexión que fingir. `estacion-global.ts` lo engancha en `sintonizar`, tras Supabase y
   antes de `arrancar()`, con el MISMO tema (`temaPublico`/`temaPrivado`).
 - **Protocolo con el servidor** (contrato que debe cumplir ORACLE-1b): el cliente abre
-  `<base>/ws?tema=<tema codificado>`. El servidor solo reparte, a los demás de la misma sala, textos que
-  empiezan por `{"t":"est"` y miden como mucho 40 000 (`servicios/estaciones-rele/salas.mjs`: temas
+  `<base>/ws?tema=<tema codificado>`. El servidor (`servicios/estaciones-rele/servidor.mjs`) gestiona las salas mediante `servicios/estaciones-rele/salas.mjs` con `miembros(tema)`, ping cada 30 s, corte de quien no contesta y omisión de oyentes con más de 1 MiB pendiente. El servidor solo difunde, a los demás de la misma sala, textos que
+  empiezan por `{"t":"est"` y miden como mucho 40 000. Temas
   `^estacion-(vivo|p):[A-Za-z0-9_:-]{8,80}$`, 200 salas, 500 por sala; una conexión vive en UNA sala: `entrar` en otra
-  la saca de la anterior y, si la nueva la rechaza, se queda donde estaba — OPF1024G). Cada vez que cambia la sala manda a cada conectado
+  la saca de la anterior y, si la nueva la rechaca, se queda donde estaba — OPF1024G). Cada vez que cambia la sala manda a cada conectado
   `{"t":"rele","n":N}` con N = conectados contándole a él; el cliente muestra N − 1 y NO entrega ese mensaje a la
   sesión. Cierres que el cliente entiende: 1008 (sala rechazada: tema no válido o sala llena), 1009 (mensaje
   demasiado grande), 1013 (saturado); cualquier otro código se muestra tal cual.
@@ -182,7 +182,7 @@ de Realtime (2 M de mensajes al mes) con audiencias grandes.
   el tema va en la URL y, en una privada, es el derivado del token de 128 bits; **el servidor y Caddy no deben
   registrar la query ni guardar mensajes**.
 - **Lo que falta** (no se afirma que funcione de punta a punta hasta que exista): (1) el servidor WebSocket
-  (ORACLE-1b) y su servicio en `deploy/oracle/compose-a1.yml` + Caddyfile (hoy solo está la lógica de salas);
+  (`servicios/estaciones-rele/servidor.mjs` con `miembros(tema)`, ping de 30 s y corte de inactivos ya incorporado en la infraestructura) y su servicio en `deploy/oracle/compose-a1.yml` + Caddyfile;
   (2) añadir el host del relé a `connect-src` de `src-tauri/tauri.conf.json` cuando se conozca (la CSP web ya
   permite `wss:`; en la app nativa el canal fallaría con «código 1006» hasta entonces); (3) paridad en el kit
   `integraciones-de-codigo/starseed-link` (su copia de canales es solo Supabase): **no hacer el relé exclusivo
