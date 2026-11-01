@@ -107,6 +107,31 @@ class Puras(unittest.TestCase):
         self.assertEqual(R.id_rescate("LC1004Bd", set()), "RTLC1004B")
         self.assertEqual(R.id_rescate("OPT1004C", {"RTOPT1004C"}), "RTOPT1004Cb")
 
+    def test_id_en_rama(self):
+        self.assertEqual(R.id_en_rama("nube/3/ola/LC1004B"), "LC1004B")
+        self.assertEqual(R.id_en_rama("nube/1/ola/X1"), "X1")
+        self.assertEqual(R.id_en_rama("nube/a1-20261012-114650-RSC1031A"), "RSC1031A")
+        self.assertEqual(R.id_en_rama("nube/1/ola/X1-2"), "")
+        for r in ("nube/2", "nube/a1-20261012-114650", "nube/40000000001|MED1", ""):
+            self.assertEqual(R.id_en_rama(r), "", r)
+
+    def test_rescatable_exige_archivos_de_la_tarea(self):
+        d, motivo = R.rescatable(["src/f.ts", "a.test.ts"], ["a.test.ts"], "nube/1/ola/X1", "X1")
+        self.assertEqual(d, "rescatar")
+        self.assertIn("a.test.ts", motivo)
+        d, motivo = R.rescatable(["otro.ts"], ["a.test.ts"], "nube/2", "X1")
+        self.assertEqual(d, "archivar")
+        self.assertIn("los archivos de la tarea", motivo)
+        self.assertEqual(R.rescatable([], ["a.test.ts"], "", "X1")[0], "archivar")
+
+    def test_rescatable_nunca_rescata_rama_de_otra_tarea(self):
+        d, motivo = R.rescatable(["a.test.ts"], ["a.test.ts"], "nube/1/ola/RTX1", "X1")
+        self.assertEqual(d, "archivar")
+        self.assertIn("otra tarea", motivo)
+        self.assertEqual(R.rescatable(["a.test.ts"], ["a.test.ts"], "LC1004B", "LC1004B")[0], "rescatar")
+        # Misma cadena (sucesores por letra) no es «otra tarea»: mandan los archivos.
+        self.assertEqual(R.rescatable(["a.test.ts"], ["a.test.ts"], "nube/1/ola/LC1004Bd", "LC1004B")[0], "rescatar")
+
     def test_informe(self):
         self.assertEqual(R.texto_informe([]), "")
         n = [R.nota("nube/1", "X1", "t", "en main", "rescatar", "m", 4, "RTX1"),
@@ -198,6 +223,46 @@ class ArchivarYBorrar(unittest.TestCase):
         self.assertEqual(a["archivadas"], {})
         self.assertEqual(a["fallidas"], ["nube/9/ola/NADA"])
         self.assertIsNone(a["paquete"])
+
+
+class Filtro(unittest.TestCase):
+    """RESC1031B (2026-11-01): `_revisar` solo rescata la rama si su diff toca los archivos de la
+    tarea y la rama no es de otra tarea; lo demás se archiva con motivo."""
+
+    def test_revisar_solo_rescata_ramas_de_la_tarea(self):
+        estado = {"superadas": [
+            {"tid": "X1", "rama": "nube/1/ola/X1", "motivo": "en main"},
+            {"tid": "X2", "rama": "nube/2-Y2", "motivo": "en main"},
+            {"tid": "X3", "rama": "nube/3/ola/X3", "motivo": "en main"},
+        ]}
+        colas = {"X1": ("cola-a.json", {"id": "X1", "titulo": "A", "archivos": ["a.test.ts"]}),
+                 "X2": ("cola-a.json", {"id": "X2", "titulo": "B", "archivos": ["a.test.ts"]}),
+                 "X3": ("cola-a.json", {"id": "X3", "titulo": "C", "archivos": ["a.test.ts"]})}
+        progreso = {"X1": {"estado": "sustituida"}, "X2": {"estado": "sustituida"},
+                    "X3": {"estado": "sustituida"}}
+        casos = {
+            "refs/remotes/origin/nube/1/ola/X1": ({"b.test.ts": [("t1", "c")]}, ["b.test.ts"]),
+            "refs/remotes/origin/nube/2-Y2": ({"a.test.ts": [("n%d" % i, "c") for i in range(3)]},
+                                              ["a.test.ts"]),
+            "refs/remotes/origin/nube/3/ola/X3": ({"a.test.ts": [("n%d" % i, "c") for i in range(3)]},
+                                                  ["a.test.ts"]),
+        }
+
+        def leer(ruta, defecto=None):
+            return estado if ruta == T.ESTADO else {"ola": "x", "tareas": []}
+
+        with mock.patch.object(T, "_leer_json", side_effect=leer), \
+             mock.patch.object(T, "_colas_por_id", return_value=colas), \
+             mock.patch.object(T, "_progreso", return_value=progreso), \
+             mock.patch.object(R, "_casos_de", side_effect=lambda r: casos[r]):
+            r = R._revisar(False, False)
+        por_tid = {n["tarea"]: n for n in r["notas"]}
+        self.assertEqual(por_tid["X1"]["decision"], "archivar")
+        self.assertIn("los archivos de la tarea", por_tid["X1"]["motivo"])
+        self.assertEqual(por_tid["X2"]["decision"], "archivar")
+        self.assertIn("otra tarea", por_tid["X2"]["motivo"])
+        self.assertEqual(por_tid["X3"]["decision"], "rescatar")
+        self.assertEqual(r["tareas"], ["RTX3"])
 
 
 if __name__ == "__main__":

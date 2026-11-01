@@ -16,7 +16,9 @@ main no cubre (18 tareas de rescate de 72 ramas). Esta pasada lo hace sola en ca
    los casos con título nuevo (ni igual ni parecido: Jaccard de palabras < 0,5).
 2. Decide con la REGLA (≥ 3 casos nuevos → rescatar; si no, archivar) y pregunta a Jev
    (`decidir.consultar`, dominio «ramas-nube»). Jev solo cambia la regla con p ≥ 0,8 y nunca
-   hacia archivar: veta perder, no da permiso para borrar.
+   hacia archivar: veta perder, no da permiso para borrar. Delante de Jev hay un cedazo puro
+   (`rescatable`): una rama cuyo diff no toca los archivos de la tarea, o cuya id es la de otra
+   tarea, se archiva de oficio (fallo 2 de RESC1031A, 2026-11-01).
 3. Rescatar = una tarea en `cola-rescate-nube.json` con el código de los casos en el prompt (el
    agente no ve la rama): los añade a la prueba de main SOLO si cubren algo nuevo, adaptados a la
    API de hoy; si ninguno aporta, `NO APLICA`.
@@ -142,6 +144,33 @@ def profundidad_rescate(tid):
     while (tid or "").startswith("RT" * (n + 1)):
         n += 1
     return n
+
+
+ID_RAMA = re.compile(r"^[A-Z][A-Z0-9]{1,}(?:[a-z]{1,3})?$")
+
+
+def id_en_rama(rama):
+    """PURA: el id de tarea al final del nombre de la rama (`nube/3/ola/LC1004B` → `LC1004B`,
+    `nube/a1-…-RSC1031A` → `RSC1031A`); «» si no hay ninguno reconocible (`nube/2` y
+    `nube/40000000001|MED1` son runs, no ids)."""
+    cola = (rama or "").rstrip("/")
+    candidato = cola.rsplit("/", 1)[-1] if cola else ""
+    candidato = candidato.rsplit("-", 1)[-1]
+    return candidato if ID_RAMA.match(candidato) else ""
+
+
+def rescatable(archivos_diff, archivos_tarea, id_rama, id_tarea):
+    """PURA: (decisión, motivo). La rama solo se rescata para UNA tarea: su diff toca al menos un
+    archivo de esa tarea y su id no es el de otra (RESC1031A, 2026-11-01: rescataba ramas cuyo
+    diff no tenía nada que ver). Acepta el id suelto o el nombre de la rama entera."""
+    id_r = id_en_rama(id_rama)
+    if id_r and (id_tarea or "") and id_r != str(id_tarea) and T.base_de(id_r) != T.base_de(str(id_tarea)):
+        return ("archivar", "la rama es de otra tarea (%s ≠ %s): para esta no se rescata nunca" % (id_r, id_tarea))
+    comunes = sorted(set(archivos_diff or []) & set(archivos_tarea or []))
+    if comunes:
+        return ("rescatar", "el diff de la rama toca %d archivo(s) de la tarea (%s)"
+                % (len(comunes), ", ".join(comunes[:3])))
+    return ("archivar", "el diff de la rama no toca ninguno de los archivos de la tarea")
 
 
 CERRADOS = {"sustituida", "descartada", "duplicada", "commit", "hecho", "integrada", "rechazada", "informe"}
@@ -305,7 +334,7 @@ def _anotar(notas):
 
 
 def _casos_de(rama_ref):
-    """{archivo de prueba: [(título, código)]} nuevos de una rama frente a main."""
+    """({archivo de prueba: [(título, código)]}, nombres del diff completo) nuevos frente a main."""
     _, base = T._git(["merge-base", rama_ref, "main"])
     _, nombres = T._git(["diff", "--name-only", base.strip() or "main", rama_ref])
     salida = {}
@@ -315,7 +344,7 @@ def _casos_de(rama_ref):
         nuevos = casos_nuevos(txt_r, txt_m if rc == 0 else "", a)
         if nuevos:
             salida[a] = nuevos
-    return salida
+    return salida, nombres.splitlines()
 
 
 def _consultar_jev(tid, titulo, por_archivo, base):
@@ -351,7 +380,8 @@ def _revisar(aplicar, borrar):
     estado = T._leer_json(T.ESTADO, {}) or {}
     revisadas = set(estado.get("revisadas") or [])
     pendientes = [s for s in estado.get("superadas") or [] if s.get("rama") and s["rama"] not in revisadas]
-    titulos_cola = {tid: (t or {}).get("titulo", "") for tid, (_, t) in T._colas_por_id().items()}
+    colas = T._colas_por_id()
+    titulos_cola = {tid: (t or {}).get("titulo", "") for tid, (_, t) in colas.items()}
     progreso = T._progreso()
     cola = T._leer_json(COLA_RESCATE, {"ola": OLA_RESCATE, "tareas": []})
     cola = cola if isinstance(cola, dict) else {"ola": OLA_RESCATE, "tareas": cola}
@@ -363,9 +393,16 @@ def _revisar(aplicar, borrar):
         por_rama.setdefault(s["rama"], []).append(s)
     for rama, filas in por_rama.items():
         ref = "refs/remotes/origin/" + rama
-        casos = _casos_de(ref)
+        casos, nombres_diff = _casos_de(ref)
         for s in filas:
             tid = s.get("tid") or ""
+            tarea_cola = (colas.get(tid) or (None, {}))[1] if tid else {}
+            archivos_tarea = [f for f in (tarea_cola.get("archivos") or []) if isinstance(f, str)]
+            casa, motivo_casa = rescatable(nombres_diff, archivos_tarea, rama, tid)
+            if casa != "rescatar":
+                notas.append(nota(rama, tid, titulos_cola.get(tid, ""), s.get("motivo"), "archivar",
+                                  motivo_casa, 0))
+                continue
             n = sum(len(v) for v in casos.values())
             vivos = cadena_viva(tid, progreso)
             if vivos:
