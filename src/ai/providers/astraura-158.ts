@@ -59,6 +59,8 @@ import { ASTRAURA_158_WS_READY_TIMEOUT_MS, getAstraura158Ws, type Astraura158Ws 
 import { preferenciaCapasGuardada } from "@/lib/astraura/capas-conciencia";
 import { paginaEsLocal } from "@/lib/astraura/destino-local";
 import { plegarHistorial, type Turno } from "@/lib/astraura/contexto/pliegue";
+import { leerDirectivas } from "@/lib/astraura/capas/directivas-almacen";
+import { seccionDirectivas } from "@/lib/astraura/capas/directivas";
 
 /* ───────────────────── Personalidades 1.58 (modelos de la fuente) ───────────────────── */
 
