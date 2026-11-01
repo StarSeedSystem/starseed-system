@@ -1007,7 +1007,7 @@ def compilar_en_el_a1(huella, de_espera="esperando-maquina", urgente=None) -> bo
     (el motivo, de `urgencia_a1`), el A1 le da turno (GEN1031A)."""
     import compilar_en_a1 as CA  # aquí y no arriba: él importa este módulo
     _guardar(dict(_leer_estado(), estado="compilando-a1", a1_desde=time.time(), a1_huella=huella))
-    devolver_cache()  # `traer_y_cambiar` vacía .next-build: la caché de webpack vuelve antes a .next
+    devolver_cache()  # la caché de webpack vuelve antes a .next (`traer_y_cambiar` reanuda en .next-build: SUP0111A)
     orden = CA.orden_compilar
     CA.orden_compilar = lambda *a, **k: orden_ligera(orden(*a, **k))
     try:
@@ -1017,7 +1017,11 @@ def compilar_en_el_a1(huella, de_espera="esperando-maquina", urgente=None) -> bo
     finally:
         CA.orden_compilar = orden
     datos = dict(_leer_estado(), a1_desde=None, a1_t=time.time(), a1_ok=ok, a1_error=None if ok else detalle)
-    datos.update(dict(huella_construida=huella, huella_intentada=huella, por_memoria=False) if ok
+    # (SUP0111A) Un build del A1 traído SIN recompilar es de las fuentes de su envío, no de las de
+    # ahora: se queda la huella que apuntó `traer_y_cambiar` y manda lo medido (más nuevas que `.listo`).
+    reaprovechado = bool(ok) and CA.REAPROVECHADO in str(detalle or "")
+    datos.update(dict(por_memoria=False) if reaprovechado else
+                 dict(huella_construida=huella, huella_intentada=huella, por_memoria=False) if ok
                  else dict(estado=de_espera, freno="el A1 no pudo: %s" % detalle))
     _guardar(datos)
     print("[%s] A1: %s" % (time.strftime("%H:%M"), detalle), flush=True)

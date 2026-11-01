@@ -22,12 +22,21 @@ Lo que hace (el mismo camino que la Mac, pero compilando fuera):
 6. CAMBIAR · `marcar_listo` con la hora del envío, estado `al-dia` con la huella
    del envío en `reconstruccion.json` y `reiniciar_mando` (de `reconstruir_mando`).
 7. TURNO   · (GEN1031A) con `urgente` el A1 da turno aunque esté en cola o guardián.
+8. RED     · (SUP0111A, 01-11) con la red Mac↔A1 cortándose, el build del A1 se hizo bien
+   (19:32) pero el `rsync` de vuelta murió a los 9 MB de 466, y cada intento borraba lo
+   traído y RECOMPILABA: la pantalla se quedó 9 h vieja. Ahora: TRAER reanuda (no se
+   borra `.next-build` antes; `--partial --inplace` + `--delete` lo deja idéntico al
+   del A1), reintenta dentro de la misma pasada y corta un rsync parado (`--timeout`);
+   la build deja en el A1 la marca `.envio-a1` («t_envio huella», solo si `next build`
+   salió bien), y la siguiente pasada TRAE ese build sin recompilar si es más nuevo
+   que el de la Mac (`build_previo`), aunque el nodo del A1 no lata.
 """
 from __future__ import annotations
 
 import hashlib
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -62,6 +71,16 @@ MARCA_TURNO = "turno-build-genesis"
 SIN_TURNO = 75  # EX_TEMPFAIL, como `tsc-turno.sh`: ni verde ni rojo
 ORDEN_GUION = "sudo -u starseed -H sh -s"
 TSC_VIVO = "pgrep -u starseed -f 'bin/ts[c]' >/dev/null 2>&1"  # [c]: no se encuentra a sí mismo
+#: (SUP0111A) Marca que la build del A1 deja DENTRO de su dist al acabar bien: «t_envio huella».
+#: Vive y muere con el build (`guion_compilar` empieza con `rm -rf dist`): nunca habla de otro.
+MARCA_A1 = ".envio-a1"
+INTENTOS_TRAER = int(os.environ.get("STARSEED_A1_INTENTOS_TRAER", "4"))
+PAUSA_TRAER_S = int(os.environ.get("STARSEED_A1_PAUSA_TRAER_S", "20"))
+#: Un rsync sin un byte en este tiempo se corta (antes podía colgarse hasta la hora del subprocess).
+RSYNC_TIMEOUT_S = int(os.environ.get("STARSEED_A1_RSYNC_TIMEOUT_S", "120"))
+#: Lo lleva el detalle cuando se trajo un build ya hecho: el reconstructor NO lo apunta como
+#: construido con la huella de ahora (sus fuentes son las del envío de entonces).
+REAPROVECHADO = "ya compilado en el A1"
 
 
 def exclusiones(extra=()):
@@ -124,16 +143,57 @@ def orden_marcar_lock(huella, raiz=RAIZ_A1):
         shlex.quote(huella), shlex.quote(raiz))
 
 
-def guion_compilar(raiz=RAIZ_A1, dist=DIST_BUILD, heap=4096):
-    """PURA: la build como la Mac: dist aparte, 4096 de heap, nice 10 y STARSEED_BUILD_LIGERO=1 (30-10: OOM)."""
-    return ("cd %s && rm -rf %s && STARSEED_BUILD_LIGERO=1 STARSEED_DIST=%s "
-            "NODE_OPTIONS=--max-old-space-size=%d nice -n 10 npx next build"
-            % (shlex.quote(raiz), shlex.quote(dist), shlex.quote(dist), heap))
+def marca_envio(t_envio, huella):
+    """PURA: el texto de `.envio-a1`: «segundos huella» (solo dígitos, hex y un espacio: viaja
+    dentro de un `sh -c '…'` sin comillas). Una huella que no sea hex no se marca (None)."""
+    huella = str(huella or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{16,64}", huella):
+        return None
+    return "%d %s" % (int(t_envio), huella)
 
 
-def orden_compilar(raiz=RAIZ_A1, dist=DIST_BUILD, heap=4096):
+def guion_compilar(raiz=RAIZ_A1, dist=DIST_BUILD, heap=4096, marca=None):
+    """PURA: la build como la Mac: dist aparte, 4096 de heap, nice 10 y STARSEED_BUILD_LIGERO=1 (30-10: OOM).
+    (SUP0111A) Con `marca`, al acabar BIEN deja `dist/.envio-a1`: la próxima pasada puede traerlo sin recompilar."""
+    guion = ("cd %s && rm -rf %s && STARSEED_BUILD_LIGERO=1 STARSEED_DIST=%s "
+             "NODE_OPTIONS=--max-old-space-size=%d nice -n 10 npx next build"
+             % (shlex.quote(raiz), shlex.quote(dist), shlex.quote(dist), heap))
+    if marca and re.fullmatch(r"\d+ [0-9a-f]{16,64}", str(marca)):
+        guion += " && echo %s > %s/%s" % (marca, shlex.quote(dist), MARCA_A1)
+    return guion
+
+
+def orden_compilar(raiz=RAIZ_A1, dist=DIST_BUILD, heap=4096, marca=None):
     """PURA: build con `nice` y 4096 de heap, en dist aparte, igual que la Mac."""
-    return "sudo -u starseed -H sh -c '%s'" % guion_compilar(raiz, dist, heap)
+    return "sudo -u starseed -H sh -c '%s'" % guion_compilar(raiz, dist, heap, marca=marca)
+
+
+def orden_build_previo(raiz=RAIZ_A1, dist=DIST_BUILD):
+    """PURA: (SUP0111A) lee del A1 la marca y el BUILD_ID de su último build, con etiquetas."""
+    d = "%s/%s" % (raiz.rstrip("/"), dist)
+    return ("sudo -u starseed -H sh -c 'echo \"marca=$(cat %s/%s 2>/dev/null)\"; "
+            "echo \"build=$(cat %s/BUILD_ID 2>/dev/null)\"'" % (shlex.quote(d), MARCA_A1, shlex.quote(d)))
+
+
+def build_previo(salida, mtime_build_ns):
+    """PURA: (t_envio, huella, build_id) del build TERMINADO que espera en el A1, si sus fuentes
+    son más nuevas que el mejor build de la Mac (`RM.mtime_del_build`, en ns); si no, None.
+    Sin marca no hay nada que traer: o no acabó, o lo hizo un código sin marcas."""
+    datos = {}
+    for linea in str(salida or "").splitlines():
+        clave, _, valor = linea.strip().partition("=")
+        if clave in ("marca", "build"):
+            datos[clave] = valor.strip()
+    partes = datos.get("marca", "").split()
+    build_id = datos.get("build", "")
+    if len(partes) != 2 or not partes[0].isdigit() or not re.fullmatch(r"[0-9a-f]{16,64}", partes[1]):
+        return None
+    if not re.fullmatch(r"[A-Za-z0-9_-]{6,64}", build_id):
+        return None
+    t_envio = int(partes[0])
+    if mtime_build_ns is not None and t_envio * 1_000_000_000 <= int(mtime_build_ns):
+        return None
+    return t_envio, partes[1], build_id
 
 
 def args_envio(raiz, ip, destino=None, transporte=None):
@@ -146,9 +206,10 @@ def args_envio(raiz, ip, destino=None, transporte=None):
 
 
 def _rsync_args(excl, transporte, origen, destino):
-    """PURA: los argumentos comunes de rsync (y no llega nunca `--delete-excluded`)."""
-    return ["rsync", "-a", "--partial", "--inplace", "--rsync-path", "sudo -u starseed rsync",
-            "-e", transporte, "--delete", *excl, origen, destino]
+    """PURA: los argumentos comunes de rsync (y no llega nunca `--delete-excluded`).
+    (SUP0111A) `--timeout`: un rsync parado por la red se corta y se reintenta (reanudando)."""
+    return ["rsync", "-a", "--partial", "--inplace", "--timeout=%d" % RSYNC_TIMEOUT_S,
+            "--rsync-path", "sudo -u starseed rsync", "-e", transporte, "--delete", *excl, origen, destino]
 
 
 def args_traer(origen, ip, destino, transporte=None):
@@ -253,6 +314,16 @@ def compilar(raiz=RAIZ, tope=7200, urgente=None):
     ip = oracle_nodo._ip()
     if not ip:
         return False, "sin A1 en ~/.starseed/oracle.json"
+    # (SUP0111A) Un build que ya acabó bien en el A1 y es más nuevo que el de la Mac se TRAE
+    # sin recompilar (ni turno ni latido: solo hace falta ssh). Si traerlo falla, se queda lo
+    # traído para reanudar y la próxima pasada vuelve aquí, no a otra build de 10 minutos.
+    rc, salida = oracle_nodo.ssh(orden_build_previo(), timeout=60)
+    previo = build_previo(salida, RM.mtime_del_build(raiz=raiz)) if rc == 0 else None
+    if previo:
+        t_envio, huella, build_id = previo
+        ok, detalle = traer_y_cambiar(ip, huella, t_envio, raiz)
+        return ok, "%s (%s, build %s del envío de las %s: sin recompilar)" % (
+            detalle, REAPROVECHADO, build_id[:12], time.strftime("%H:%M", time.localtime(t_envio)))
     try:
         estado_a1, _, _ = oracle_nodo.estado(guardar=False)
     except Exception as e:  # noqa: BLE001
@@ -309,10 +380,12 @@ def _enviar_y_compilar(ip, raiz, tope, raiz_a1=RAIZ_A1, espera_turno=None):
         if rc != 0:
             return False, "npm ci en el A1: %s" % cola(salida)
         oracle_nodo.ssh(orden_marcar_lock(actual, raiz_a1), timeout=60)
+    marca = marca_envio(t_envio, huella)  # (SUP0111A) solo se escribe si `next build` acaba bien
     if espera_turno is None:
-        rc, salida = oracle_nodo.ssh(orden_compilar(raiz_a1), timeout=tope)
+        rc, salida = oracle_nodo.ssh(orden_compilar(raiz_a1, marca=marca), timeout=tope)
     else:
-        rc, salida = oracle_nodo.ssh(ORDEN_GUION, entrada=guion_turno(guion_compilar(raiz_a1), espera_turno),
+        rc, salida = oracle_nodo.ssh(ORDEN_GUION, entrada=guion_turno(guion_compilar(raiz_a1, marca=marca),
+                                                                      espera_turno),
                                      timeout=tope + espera_turno)
         if rc == SIN_TURNO:
             return False, "sin turno en el A1: %s" % cola(salida)
@@ -321,26 +394,41 @@ def _enviar_y_compilar(ip, raiz, tope, raiz_a1=RAIZ_A1, espera_turno=None):
     return traer_y_cambiar(ip, huella, t_envio, raiz, raiz_a1)
 
 
-def traer_y_cambiar(ip, huella, t_envio, raiz=RAIZ, raiz_a1=RAIZ_A1):
+def traer_y_cambiar(ip, huella, t_envio, raiz=RAIZ, raiz_a1=RAIZ_A1, intentos=None, pausa_s=None):
     """Trae el build del A1 (sin cache ni standalone, vía tachar), borra el .env
-    prestado y cambia: `marcar_listo` + estado al-dia + reinicio de Genesis."""
+    prestado y cambia: `marcar_listo` + estado al-dia + reinicio de Genesis.
+
+    (SUP0111A) Ya NO se vacía `.next-build` antes: con la red cortándose, empezar de cero en
+    cada intento no acababa nunca (466 MB; morían a los 9). `--partial --inplace` reanuda y
+    `--delete` deja la carpeta idéntica al build del A1 (lo de otro build se va; `cache` y
+    `standalone` quedan fuera). Hasta `intentos` rsync seguidos en la misma pasada."""
     destino = os.path.join(raiz, DIST_BUILD)
-    try:
-        subprocess.run(["rm", "-rf", destino], check=False)
+    intentos = max(1, INTENTOS_TRAER if intentos is None else int(intentos))
+    pausa_s = PAUSA_TRAER_S if pausa_s is None else pausa_s
+    args = args_traer("%s/%s" % (raiz_a1, DIST_BUILD), ip, destino)
+    try:  # la marca de «entero» se quita ANTES: a medio traer, nadie puede tomarlo por terminado
+        os.remove(os.path.join(destino, RM.MARCA_LISTO))
     except OSError:
         pass
-    rc, salida = _rsync(args_traer("%s/%s" % (raiz_a1, DIST_BUILD), ip, destino), 3600, ip)
+    rc, salida = 1, ""
+    for n in range(intentos):
+        if n:
+            time.sleep(pausa_s)
+        rc, salida = _rsync(args, 3600, ip)
+        if rc == 0:
+            break
     oracle_nodo.ssh(orden_limpiar_env(os.path.join(raiz_a1, ENV_PRODUCCION)), timeout=60)
     if rc != 0:
-        return False, "traer del A1: %s" % cola(salida)
+        return False, "traer del A1 (%d intento%s; lo traído se queda para reanudar): %s" % (
+            intentos, "" if intentos == 1 else "s", cola(salida))
     if not os.path.exists(os.path.join(destino, "BUILD_ID")):
         return False, "el build traído no tiene BUILD_ID"
     RM.marcar_listo(raiz=raiz, dist=DIST_BUILD, inicio=t_envio)
     RM._guardar(dict(RM._leer_estado(), estado="al-dia", ok=True, t=time.time(),
                      visto=time.strftime("%Y-%m-%d %H:%M:%S"),
                      huella_intentada=huella, huella_construida=huella, error=None))
+    build_id = RM.id_del_build(raiz=raiz, dist=DIST_BUILD) or ""  # antes del cambio: después ya no está ahí
     RM.reiniciar_mando()
-    build_id = RM.id_del_build(raiz=raiz, dist=DIST_BUILD) or ""
     return True, "compiló en el A1, muerte del medio evitada: build %s" % build_id[:12]
 
 

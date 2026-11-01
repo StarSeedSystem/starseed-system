@@ -218,7 +218,9 @@ class Flujo(unittest.TestCase):
 
     def test_build_muerto_no_cambia_nada(self):
         mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
-        ssh = mock.patch.object(C.oracle_nodo, "ssh", side_effect=[(0, ""), (0, "abc123\n"), (0, ""), (0, ""),
+        # (SUP0111A) la primera orden pregunta por un build previo del A1: sin marca, se compila.
+        ssh = mock.patch.object(C.oracle_nodo, "ssh", side_effect=[(0, "marca=\nbuild=\n"), (0, ""), (0, "abc123\n"),
+                                                                  (0, ""), (0, ""),
                                                                   (1, "muerte a los 814 s")]).start()
         ok, detalle = C.compilar(raiz=self.raiz)
         self.assertFalse(ok)
@@ -244,11 +246,12 @@ class Flujo(unittest.TestCase):
         mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
         self.estado.return_value = ({"fase": "cola"}, {}, [])
         self.assertIn("fase cola", C.compilar(raiz=self.raiz)[1])
-        self.assertEqual((self.ssh.call_count, self.rsync.call_count), (0, 0))
+        # (SUP0111A) solo la pregunta por un build previo (lectura): ni envío ni build
+        self.assertEqual((self._ordenes(), self.rsync.call_count), ([C.orden_build_previo()], 0))
         self.estado.return_value = ({"fase": "espera"}, {}, [])
         C.compilar(raiz=self.raiz)
         self.assertFalse(any(C.GOBERNADOR_A1 in o or o == C.ORDEN_GUION for o in self._ordenes()))
-        self.assertEqual(self._ordenes()[0], C.orden_preparar_arbol())  # el árbol aparte, también sin urgencia
+        self.assertEqual(self._ordenes()[2], C.orden_preparar_arbol())  # el árbol aparte, también sin urgencia
         self.assertEqual((RAIZ_A1, RAIZ_A1 != C.oracle_nodo.REPO_A1), (C.RM.RAIZ, True))
         self.assertEqual(C.orden_preparar_arbol("/n"),  # chown solo si no es ya de starseed: idempotente
                          'sudo mkdir -p /n && { [ "$(stat -c %U /n)" = starseed ] || sudo chown -R starseed:starseed /n; }')
@@ -260,7 +263,8 @@ class Flujo(unittest.TestCase):
         ok, detalle = C.compilar(raiz=self.raiz, urgente="Genesis está caído")
         self.assertTrue(ok and "dio turno" in detalle, detalle)
         ordenes = self._ordenes()
-        self.assertTrue(C.GOBERNADOR_A1 in ordenes[0] and "touch -d @" in ordenes[0])  # el freno, lo primero
+        self.assertEqual(ordenes[0], C.orden_build_previo())  # (SUP0111A) mirar si ya hay uno hecho
+        self.assertTrue(C.GOBERNADOR_A1 in ordenes[1] and "touch -d @" in ordenes[1])  # el freno, lo primero
         self.assertEqual(ordenes[-1], C.orden_quitar_turno())  # y quitarlo, lo último
         (guion,) = [c[1]["entrada"] for c in self.ssh.call_args_list if c[0][0] == C.ORDEN_GUION]  # uno solo
         self.assertTrue(all(s in guion for s in ("nice -n 10", "STARSEED_BUILD_LIGERO=1", "cd " + RAIZ_A1,
@@ -283,6 +287,132 @@ class Flujo(unittest.TestCase):
             C.compilar(raiz=self.raiz, urgente="Genesis está caído")
         self.assertEqual(self._ordenes(ssh)[-1], C.orden_quitar_turno())
         self.assertEqual((self.listo.call_count, self.guardar.call_count), (0, 0))
+
+    # ── SUP0111A (01-11): la red Mac↔A1 se corta; lo hecho en el A1 no se tira ──────────────
+    def test_trae_lo_ya_compilado_sin_recompilar_ni_latido(self):
+        h = "cd" * 32
+        mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=False).start()  # ni el latido hace falta
+        self.ssh.return_value = (0, "marca=1793496180 %s\nbuild=SvBUf3-q8qHlFuF9Bh3kB\n" % h)
+        self.rsync.side_effect = self._con_build_traido
+        ok, detalle = C.compilar(raiz=self.raiz, urgente="la pantalla lleva 9.0 h vieja")
+        self.assertTrue(ok and C.REAPROVECHADO in detalle and "SvBUf3-q8qHl" in detalle, detalle)
+        self.estado.assert_not_called()
+        self.assertEqual(self.rsync.call_count, 1)  # solo TRAER: no se envía nada
+        self.assertIn("--exclude=standalone", self.rsync.call_args[0][0])
+        ordenes = self._ordenes()
+        self.assertFalse(any("next build" in o or C.GOBERNADOR_A1 in o for o in ordenes), ordenes)
+        self.listo.assert_called_once_with(raiz=self.raiz, dist=C.DIST_BUILD, inicio=1793496180)
+        self.assertEqual(self.guardado.get("huella_construida"), h)
+        self.reiniciar.assert_called_once()
+
+    def test_traer_reanuda_sin_vaciar_y_reintenta(self):
+        destino = os.path.join(self.raiz, C.DIST_BUILD)
+        with open(os.path.join(destino, "medio.js"), "w", encoding="utf-8") as f:
+            f.write("9 MB de 466")
+        with open(os.path.join(destino, C.RM.MARCA_LISTO), "w", encoding="utf-8") as f:
+            f.write("viejo")
+        vistos = []
+
+        def red(args, timeout, ip):
+            vistos.append((os.path.exists(os.path.join(destino, "medio.js")),
+                           os.path.exists(os.path.join(destino, C.RM.MARCA_LISTO))))
+            return (255, "Connection reset by peer") if len(vistos) < 3 else (0, "")
+        self.rsync.side_effect = red
+        ok, detalle = C.traer_y_cambiar(IP, "ef" * 32, 1000, raiz=self.raiz, intentos=4, pausa_s=0)
+        self.assertTrue(ok, detalle)
+        self.assertEqual(vistos, [(True, False)] * 3)  # lo traído sigue ahí; la marca de «entero», no
+        self.listo.assert_called_once()
+        self.reiniciar.assert_called_once()
+
+    def test_traer_agotado_no_cambia_y_deja_lo_traido(self):
+        self.rsync.side_effect = lambda args, timeout, ip: (255, "Operation timed out")
+        ok, detalle = C.traer_y_cambiar(IP, "ef" * 32, 1000, raiz=self.raiz, intentos=3, pausa_s=0)
+        self.assertFalse(ok)
+        self.assertTrue("3 intentos" in detalle and "reanudar" in detalle, detalle)
+        self.assertEqual(self.rsync.call_count, 3)
+        self.assertTrue(os.path.exists(os.path.join(self.raiz, C.DIST_BUILD, "BUILD_ID")))  # nada se borró
+        self.assertEqual((self.listo.call_count, self.reiniciar.call_count, self.guardar.call_count), (0, 0, 0))
+        self.assertTrue(any("rm -f" in o for o in self._ordenes()))  # el .env prestado se limpia igual
+
+    def test_la_build_deja_la_marca_del_envio(self):
+        mock.patch.object(C.oracle_nodo, "nodo_vivo", return_value=True).start()
+        self.rsync.side_effect = self._con_build_traido
+        ok, detalle = C.compilar(raiz=self.raiz)
+        self.assertTrue(ok, detalle)
+        (build,) = [o for o in self._ordenes() if "next build" in o]
+        self.assertTrue(C.MARCA_A1 in build and C.huella_envio("SHA1", "SHA1") in build, build)
+        self.assertNotIn(C.REAPROVECHADO, detalle)
+
+
+class RedQueSeCorta(unittest.TestCase):
+    """SUP0111A: marca del envío, lectura del build previo y rsync que no se cuelga."""
+
+    HUELLA = "ab" * 32
+
+    def test_marca_solo_con_huella_hex_y_tras_build_verde(self):
+        self.assertEqual(C.marca_envio(1793496180.9, self.HUELLA), "1793496180 " + self.HUELLA)
+        self.assertIsNone(C.marca_envio(1, "no-hex; rm -rf /"))
+        g = C.guion_compilar("/r", marca=C.marca_envio(5, self.HUELLA))
+        self.assertTrue(g.endswith("npx next build && echo 5 %s > .next-build/.envio-a1" % self.HUELLA), g)
+        self.assertNotIn(C.MARCA_A1, C.guion_compilar("/r"))
+        self.assertNotIn(C.MARCA_A1, C.guion_compilar("/r", marca="5 x'; reboot"))  # nada raro entra en sh -c
+        self.assertIn(C.MARCA_A1, C.orden_compilar("/r", marca=C.marca_envio(5, self.HUELLA)))
+
+    def test_la_marca_se_escribe_de_verdad_solo_si_next_build_acaba_bien(self):
+        with tempfile.TemporaryDirectory() as d:
+            binario = os.path.join(d, "bin")
+            os.makedirs(binario)
+            for rc, queda in ((0, True), (1, False)):
+                with open(os.path.join(binario, "npx"), "w", encoding="utf-8") as f:
+                    f.write('#!/bin/sh\nmkdir -p "$STARSEED_DIST"\nexit %d\n' % rc)
+                os.chmod(os.path.join(binario, "npx"), 0o755)
+                guion = C.guion_compilar(d, marca=C.marca_envio(7, self.HUELLA))
+                r = subprocess.run(["sh", "-c", guion], capture_output=True, text=True, timeout=30,
+                                   env=dict(os.environ, PATH=binario + os.pathsep + os.environ.get("PATH", "")))
+                self.assertEqual(r.returncode, rc, r.stderr)
+                self.assertEqual(os.path.exists(os.path.join(d, C.DIST_BUILD, C.MARCA_A1)), queda)
+
+    def test_build_previo(self):
+        salida = "marca=1793496180 %s\nbuild=SvBUf3-q8qHlFuF9Bh3kB\n" % self.HUELLA
+        self.assertEqual(C.build_previo(salida, None), (1793496180, self.HUELLA, "SvBUf3-q8qHlFuF9Bh3kB"))
+        self.assertEqual(C.build_previo(salida, 1793496179 * 10 ** 9)[0], 1793496180)  # más nuevo que el de la Mac
+        self.assertIsNone(C.build_previo(salida, 1793496180 * 10 ** 9))  # el mismo envío: ya está aquí
+        for malo in ("", "abc123\n", "marca=\nbuild=SvBUf3-q8qHlFuF9Bh3kB",
+                     "marca=1793496180 %s\nbuild=" % self.HUELLA,
+                     "marca=ayer %s\nbuild=SvBUf3-q8qHlFuF9Bh3kB" % self.HUELLA,
+                     "marca=1 zz\nbuild=SvBUf3-q8qHlFuF9Bh3kB"):
+            self.assertIsNone(C.build_previo(malo, None), malo)
+
+    def test_orden_build_previo_ejecutada(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, C.DIST_BUILD))
+            orden = C.orden_build_previo(d)
+            self.assertTrue(orden.startswith("sudo -u starseed -H sh -c "), orden)
+            interior = shlex.split(orden)[-1]
+            vacio = subprocess.run(["sh", "-c", interior], capture_output=True, text=True, timeout=30).stdout
+            self.assertIsNone(C.build_previo(vacio, None))
+            with open(os.path.join(d, C.DIST_BUILD, C.MARCA_A1), "w", encoding="utf-8") as f:
+                f.write("9 %s\n" % self.HUELLA)
+            with open(os.path.join(d, C.DIST_BUILD, "BUILD_ID"), "w", encoding="utf-8") as f:
+                f.write("id-del-a1")
+            lleno = subprocess.run(["sh", "-c", interior], capture_output=True, text=True, timeout=30).stdout
+            self.assertEqual(C.build_previo(lleno, None), (9, self.HUELLA, "id-del-a1"))
+
+    def test_rsync_corta_lo_parado(self):
+        espera = "--timeout=%d" % C.RSYNC_TIMEOUT_S
+        self.assertIn(espera, C.args_traer("/a", IP, "/b", transporte=TRANS))
+        self.assertIn(espera, C.args_envio("/raiz", IP, transporte=TRANS))
+
+    def test_el_reconstructor_no_apunta_la_huella_de_ahora_si_se_trajo_lo_hecho(self):
+        R, guardados, antes = C.RM, [], "ef" * 32
+        for detalle, esperado in (("compiló (%s, build x: sin recompilar)" % C.REAPROVECHADO, antes),
+                                  ("compiló en el A1, muerte del medio evitada: build x", "h-de-ahora")):
+            with mock.patch.object(R, "_guardar", side_effect=guardados.append), \
+                    mock.patch.object(R, "_leer_estado", return_value={"huella_construida": antes}), \
+                    mock.patch.object(R, "devolver_cache"), mock.patch("builtins.print"), \
+                    mock.patch.object(C, "compilar", return_value=(True, detalle)):
+                self.assertTrue(R.compilar_en_el_a1("h-de-ahora"))
+            self.assertEqual(guardados[-1]["huella_construida"], esperado, detalle)
 
 
 class Turno(unittest.TestCase):
