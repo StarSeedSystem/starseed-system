@@ -1,0 +1,91 @@
+{
+ "ola": "nube-20261101",
+ "tareas": [
+  {
+   "id": "SUP0111K",
+   "titulo": "Guardia · también corta el tsc de un tsc-turno huérfano (como los vitest adoptados por init)",
+   "archivos": [
+    "scripts/puente/agentes_huerfanos.py",
+    "scripts/puente/test_agentes_huerfanos.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nEl 31-10 a las 20:41 un agente lanzó `zsh -c 'bash scripts/enjambre/tsc-turno.sh 2>&1 | tail -40'`, murió, el zsh quedó adoptado por launchd (ppid 1) y su `npm exec tsc` → `node …/bin/tsc --noEmit` siguió 3 h con 4,6 GB en una Mac de 8 GB. SUP0111J (tsc-turno con plazo y vigilancia) lo evita desde ahora, pero no cubre un tsc-turno matado con SIGKILL ni los que ya corrían con el guion viejo. `agentes_huerfanos.trabajadores_huerfanos(filas)` (filas = (pid, ppid, args) de `ps -eo pid=,ppid=,args=`) ya devuelve los `node (vitest N)` adoptados por init y guardia-memoria.py los corta. Añade una función PURA `tsc_huerfanos(filas)` que devuelva los pids del árbol (npm exec tsc y node …/bin/tsc) cuando: (a) su padre es init (ppid 1), o (b) subiendo por ppid hay un `bash …scripts/enjambre/tsc-turno.sh` cuyo padre es un shell `-c` (zsh/bash/sh) con ppid 1. NUNCA el tsc de la puerta del orquestador (su cadena sube a `starseed-enjambre.py`, aunque ese tenga ppid 1) ni un tsc sin tsc-turno que tenga un padre vivo distinto de init. Haz que `trabajadores_huerfanos` incluya esos pids (o expórtala para que el guardia la llame sin tocar guardia-memoria.py). Pruebas PURAS con filas inventadas: el caso del 31-10, la puerta del orquestador, un tsc de una terminal, y un tsc con padre init.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "SUP0111E",
+   "importancia": "capacidad",
+   "titulo": "Genesis en el A1 · la build sobrevive a un corte de ssh (desacoplada y con sondeo)",
+   "archivos": [
+    "scripts/puente/compilar_en_a1.py",
+    "scripts/puente/test_compilar_en_a1.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nEl 31-10, entre 18:51 y 19:20, la build del A1 murió varias veces porque se cortó la sesión ssh («Connection reset by peer»): `guion_turno` atrapa HUP y sale 129. SUP0111A (cde19c97d) ya deja la marca `.envio-a1` y TRAE sin recompilar un build terminado (`build_previo`); falta que la build no dependa de la sesión. Lanza el guion del turno DESACOPLADO: súbelo a `HOME_A1 + '/.starseed/compilar-a1/guion.sh'` con `oracle_nodo._ssh_bytes`, arráncalo como starseed con `setsid nohup sh guion.sh > build.log 2>&1 < /dev/null &` y que el propio guion escriba `estado.json` ({pid, inicio, rc}) al acabar. La Mac sondea cada 30 s con ssh cortos (`cat estado.json`; un fallo de red no es un fallo de build) hasta `rc` o el tope; con rc 0 → `traer_y_cambiar`. Si al empezar ya hay un guion vivo (pid de estado.json con `kill -0`), NO envía ni lanza otro: espera a ese. Funciones PURAS para el guion y la decisión; pruebas como las de `Flujo` y `Turno` (estas con `sh -s` de verdad).",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "RESC1031D",
+   "titulo": "Rescates · traer_nube.base_de con ids que acaban en minúscula",
+   "archivos": [
+    "scripts/puente/traer_nube.py",
+    "scripts/puente/test_traer_nube.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\n`traer_nube.base_de(tid)` corta mal los ids cuyo final es una minúscula de la propia tarea (p. ej. `RTESP1011Bb`, `SGO1031B-d1`, `MC1013TCc`): distingue el sufijo de rescate/derivación (`-d1`, `-d2b`, prefijos `RT`) de la letra que forma parte del id. Pruebas con esos casos y los que ya existen.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "CAD1031B",
+   "titulo": "Relé de estaciones · documentar miembros(tema) y el servidor WebSocket",
+   "archivos": [
+    "architecture/estaciones-en-vivo-parametricas.md",
+    "src/lib/estaciones/canal-rele.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nCAD1031A (d3ecc616d y e091828ab) añadió `miembros(tema)` en `servicios/estaciones-rele/salas.mjs` y el servidor WebSocket `servicios/estaciones-rele/servidor.mjs` (ping cada 30 s, corte de quien no contesta, oyente con más de 1 MiB pendiente se salta). Actualiza §4.1 y §4.3 de la arquitectura y la cabecera de `canal-rele.ts` para que digan lo que hay. Solo documentación: el despliegue (compose y Caddy) es SOLO con la palabra de Alex, no lo toques.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "VZF1015T",
+   "ola": "Ola 1015V · Voz fusionada de Astraura: un oído, una voz y una plática en directo (Phonon-2 + Parakeet + los motores de hoy)",
+   "titulo": "Llamadas grupales con bots: cada uno se transcribe en su neurona, el bot contesta con voz en la llamada",
+   "archivos": [
+    "src/lib/llamadas/bot-en-llamada.ts",
+    "src/lib/llamadas/__tests__/bot-en-llamada.test.ts"
+   ],
+   "depende": [],
+   "prompt": "La llamada (`src/lib/llamadas/motor.ts`, malla WebRTC de hasta 8) no tiene oído ni voz de Astraura. Crea la lógica de turnos PURA: cada participante comparte el TEXTO de lo que dice (no el audio) por el canal de datos; un bot invitado lee ese texto, contesta cuando hay silencio (≥ 700 ms) y nadie más habla; un solo bot a la vez; una persona que habla lo corta; y la función que decide quién sintetiza la respuesta (el servidor de voz de la sesión, `elegirServidorVoz`). Más el enganche mínimo con `MotorLlamada` (pista de audio del bot por `omnivoice-mixer` con `setNeuronMixGain`), con todo inyectable. Pruebas de los turnos. Contrato: architecture/voz-fusionada-astraura.md (léelo entero antes de empezar) y los que amplía (aurora-voz-motores.md: «Aurora SIEMPRE habla», ninguna función de la capa lanza). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; nada de `any`; comentarios y textos en español con acentos; las pruebas sin red, sin micrófono y sin procesos (todo inyectable); nunca valores de claves, solo nombres de variables.",
+   "revisor_quitadas": [
+    "VZF1015S"
+   ],
+   "dependencias_ya_en_main": [
+    "VZF1015R"
+   ]
+  },
+  {
+   "id": "DSN1019B",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Las ventanas del OS abren centradas y como hoja en teléfono",
+   "archivos": [
+    "src/components/dashboard/apps/os-window.tsx",
+    "src/components/dashboard/apps/__tests__/os-window-centrada.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Usa `geometriaVentana` para la posición inicial de `OSWindow` (centrada en la pantalla; en teléfono, hoja centrada que sube desde abajo con entrada cardinal) sin cambiar su API ni el arrastre. Solo añadir. Prueba con viewport de teléfono y de escritorio. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos.",
+   "dependencias_ya_en_main": [
+    "DSN1019A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "SUP0111E",
+   "CAD1031B",
+   "RESC1031D",
+   "DSN1019B",
+   "VZF1015T",
+   "SUP0111K"
+  ]
+ }
+}
