@@ -1045,7 +1045,7 @@ export const AURORA_GENERATE_TOOLS: AuroraScreenTool[] = [
       ),
   },
   // ── GENERAR CON SERVICIOS por función (usa lo que el usuario conectó en /servicios) ──
-{
+ {
      name: "generar_imagen",
      description:
        "Genera una IMAGEN a partir de un prompt con varias opciones (por defecto 4) usando los modelos locales de Astraura (Qwen-Image, Krea 2, FLUX, etc.) o el servicio gratuito de Pollinations como respaldo. Soporta parámetros como opciones (número de imágenes), necesidades (texto legible, edición, transparencia), referencia (imagen de referencia) y comercial (uso comercial). Entrada: { prompt, opciones?, necesita?, referencia?, comercial? }. Úsala para «genera varias opciones de imagen de…», «créame una imagen editable de…», etc. Siempre devuelve un resultado gracias al fallback gratuito.",
@@ -1057,7 +1057,20 @@ export const AURORA_GENERATE_TOOLS: AuroraScreenTool[] = [
          m.generarImagen(
            pickInput(input, "prompt", "descripcion", "descripción", "texto", "text", "idea", "imagen"),
          ),
-       ),
+       ).then((r) => {
+         // Aviso a la UI (aditivo): si hay un chat abierto, muestra ahí mismo la
+         // tarjeta de opciones por capas (IMG1011J, contrato astraura-imagenes.md
+         // §6). Si nadie escucha, no pasa nada; si falló la generación, tampoco.
+         try {
+           if (typeof window !== "undefined" && r.ok) {
+             const prompt = pickInput(input, "prompt", "descripcion", "descripción", "texto", "text", "idea", "imagen");
+             window.dispatchEvent(new CustomEvent("starseed:tarjeta-imagenes", { detail: { prompt } }));
+           }
+         } catch {
+           /* defensivo: el aviso nunca rompe el resultado real */
+         }
+         return r;
+       }),
    },
   {
     name: "lanzar_workflow",

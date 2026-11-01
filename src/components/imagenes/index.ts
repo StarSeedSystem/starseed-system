@@ -8,4 +8,5 @@
  * en `src/lib/imagenes/` y sus adaptadores.
  */
 export { TarjetaImagenes, default as TarjetaImagenesDefecto, type OpcionTarjeta, type TarjetaImagenesProps } from "./tarjeta-imagenes";
+export { default as TarjetaEnChat, NOMBRE_EVENTO_IMAGENES, peticionDeEvento } from "./tarjeta-en-chat";
 export { default as SugerenciasInstalacion } from "./sugerencias-instalacion";

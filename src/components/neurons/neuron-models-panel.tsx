@@ -17,7 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   Cpu, Gauge, Server, Download, CheckCircle2, XCircle, Loader2, MonitorSmartphone,
-  Sparkles, Mic, Brain, ChevronDown, HardDrive, Wifi, ShieldCheck, BarChart3,
+  Sparkles, Mic, Brain, ChevronDown, HardDrive, Wifi, ShieldCheck, BarChart3, Image as ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,6 +56,19 @@ const ModelScoutPanel = dynamic(
 const ResumenRecursosNeurona = dynamic(
   () => import("@/components/recursos-ia/resumen-neurona").then((m) => ({ default: m.ResumenRecursosNeurona })),
   { ssr: false },
+);
+
+/** Sugerencias de instalación de modelos de IMAGEN locales para esta neurona (IMG1011J · contrato astraura-imagenes.md §5). */
+const SugerenciasInstalacion = dynamic(
+  () => import("@/components/imagenes/sugerencias-instalacion"),
+  {
+    ssr: false,
+    loading: () => (
+      <p className="flex items-center gap-2 px-0.5 py-2 text-[11px] text-white/45">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Mirando qué imágenes puede generar esta neurona…
+      </p>
+    ),
+  },
 );
 
 const FIT_META: Record<FitLevel, { label: string; cls: string }> = {
@@ -269,6 +282,16 @@ export function NeuronModelsPanel({ embedded = false }: { embedded?: boolean }) 
       {/* Descargas locales en 2º plano + modelos propios (Adenda 113). */}
       <div className="border-t border-white/10 pt-3">
         <ModelDownloadsPanel embedded />
+      </div>
+
+      {/* Imágenes locales de esta neurona (IMG1011 · contrato astraura-imagenes.md §5):
+          Astraura sugiere qué instalar (rápido, calidad, texto) según el hierro REAL
+          medido; en la web solo avisa, en la app instalable con un toque. */}
+      <div className="border-t border-white/10 pt-3">
+        <p className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-white/90">
+          <ImageIcon className="h-4 w-4 text-pink-300" /> Imágenes locales de esta neurona
+        </p>
+        <SugerenciasInstalacion />
       </div>
 
        {/* Gestión de esta neurona: servidor/receptor, ubicación, memorias, logs (Adenda 114). */}

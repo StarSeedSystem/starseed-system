@@ -24,9 +24,10 @@ import { ID_VISTA_VIDEO_HTML, ID_VISTA_DIAGRAMA } from "../bloque-protomolecula"
 import { FONDO_SHADER } from "./fondo-shader";
 import { ATOMOS_ARTCRAFT } from "./artcraft";
 import { DIAGRAMA } from "./diagrama";
+import { TARJETA_IMAGENES, ID_VISTA_TARJETA_IMAGENES } from "./imagen-tarjeta";
 
 /** Los átomos que el OS trae de serie. Las tareas siguientes añaden los suyos aquí. */
-export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURAS, ANIMACION_MANIMGX, MAUSBOT, ESCENA3D, VIDEO_HTML, FONDO_SHADER, DIAGRAMA, ...ATOMOS_ARTCRAFT];
+export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURAS, ANIMACION_MANIMGX, MAUSBOT, ESCENA3D, VIDEO_HTML, FONDO_SHADER, DIAGRAMA, ...ATOMOS_ARTCRAFT, TARJETA_IMAGENES];
 
 /**
  * Registra los átomos propios que falten en el registro. Es idempotente: llamarla dos
@@ -51,4 +52,5 @@ export const VISTAS_COMPONENTE: Record<string, () => Promise<{ default: Componen
   "fondo-shader": () => import("@/components/protomolecula/atomo-fondo-shader"),
   [ID_VISTA_VIDEO_HTML]: () => import("@/components/protomolecula/vista-video-html"),
   [ID_VISTA_DIAGRAMA]: () => import("@/components/protomolecula/vista-diagrama-atomo"),
+  [ID_VISTA_TARJETA_IMAGENES]: () => import("@/components/protomolecula/atomo-tarjeta-imagenes"),
 };

@@ -51,6 +51,7 @@ import { ConfigChangeNotice, isConfigChangeMessage } from "@/components/aurora/c
 import { ChatNeuralSidebar } from "@/components/agent/chat-neural-sidebar";
 import { ChatNavPanel } from "@/components/agent/chat-nav-panel";
 import { ChatMessageActions } from "@/components/agent/chat-message-actions";
+import TarjetaEnChat from "@/components/imagenes/tarjeta-en-chat";
 import {
   ChatPersonalityTray,
   readAstraura158Selection,
@@ -1155,6 +1156,12 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
             <PendingAttachmentChips items={pendingAttachments} onRemove={removeAttachment} />
           </div>
         )}
+        {/* Tarjeta de opciones de imagen (IMG1011J): Astraura la abre con el
+            evento `starseed:tarjeta-imagenes` cada vez que genera una imagen
+            aquí; compare opciones, varía, edita o guarda sin salir del chat. */}
+        <div className="max-w-4xl mx-auto w-full">
+          <TarjetaEnChat />
+        </div>
         {/* Bandeja de personalidades activas (Tarea 3): colapsable, sobre el
             cuadro de escritura. Su selección viaja como menciones ocultas al
             proveedor Astraura 1.58-bit (ver `withAstraura158Hint`); con
