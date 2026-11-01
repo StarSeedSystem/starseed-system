@@ -111,4 +111,25 @@ describe("física Rapier", () => {
         const objetos = Array.from({ length: 30 }, (_, i) => objeto(`o${i}`, [i, 0, 0]));
         expect(crearMundoFisico(rapierFalso(), mundo({ objetos }), "minima").cuerpos.size).toBe(20);
     });
+    it("convierte la rotación Euler del objeto a cuaternión para Rapier", () => {
+        const rotaciones: Array<{ x: number; y: number; z: number; w: number }> = [];
+        const base = rapierFalso();
+        const descriptor = () => {
+            const d: Record<string, unknown> = {};
+            for (const k of ["setTranslation", "setMass", "setRestitution", "setFriction", "setActiveEvents"]) d[k] = () => d;
+            d.setRotation = (q: { x: number; y: number; z: number; w: number }) => { rotaciones.push(q); return d; };
+            return d;
+        };
+        const rapier = {
+            ...base,
+            RigidBodyDesc: { dynamic: descriptor, fixed: descriptor, kinematicPositionBased: descriptor },
+        } as unknown as Rapier;
+        const quieto = objeto("quieto", CERO);
+        const girado = objeto("girado", [1, 0, 0]);
+        girado.rot = [0, Math.PI / 2, 0];
+        crearMundoFisico(rapier, mundo({ suelo: false, objetos: [quieto, girado] }), "minima");
+        expect(rotaciones).toHaveLength(2);
+        expect(rotaciones.find((q) => q.x === 0 && q.y === 0 && q.z === 0 && q.w === 1)).toBeDefined();
+        expect(rotaciones.find((q) => Math.abs(q.y - Math.SQRT1_2) < 1e-6 && Math.abs(q.w - Math.SQRT1_2) < 1e-6)).toBeDefined();
+    });
 });

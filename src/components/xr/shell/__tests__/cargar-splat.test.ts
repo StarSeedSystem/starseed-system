@@ -3,7 +3,7 @@
  * Todo puro: el descargador y el constructor de Spark se inyectan, así que no hay red,
  * ni disco, ni WebGL. Los motivos se comprueban tal como los lee la persona.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ObjetoMundo } from "../../../../lib/xr/mundo-tipos";
 import {
     cargarSplat,
@@ -123,5 +123,35 @@ describe("cargarSplat", () => {
         const opciones = MallaFalsa.ultima as OpcionesSplatMesh | null;
         expect(opciones).toMatchObject({ url: URL, maxSplats: 3_000_000 });
         expect(opciones?.fileBytes).toBeInstanceOf(ArrayBuffer);
+    });
+
+    it("sin tope explícito rechaza un archivo de más de 60 MB", async () => {
+        const resultado = await cargarSplat(URL, {
+            SplatMesh: MallaFalsa,
+            pedirBytes: async () => new ArrayBuffer(65 * 1024 * 1024),
+        });
+        expect(resultado).toEqual({ ok: false, motivo: MOTIVO_SPLAT_GRANDE });
+        expect(65 * 1024 * 1024).toBeGreaterThan(MAX_BYTES_SPLAT);
+    });
+
+    it("rechaza por Content-Length enorme antes de leer el cuerpo", async () => {
+        let construida = false;
+        class MallaEspia extends MallaFalsa {
+            constructor(opciones?: OpcionesSplatMesh) {
+                construida = true;
+                super(opciones);
+            }
+        }
+        vi.stubGlobal("fetch", async () =>
+            new Response(null, { headers: { "Content-Length": String(MAX_BYTES_SPLAT + 1) } }),
+        );
+        try {
+            const resultado = await cargarSplat(URL, { SplatMesh: MallaEspia });
+            expect(resultado.ok).toBe(false);
+            if (!resultado.ok) expect(resultado.motivo).toContain("60 MB");
+            expect(construida).toBe(false);
+        } finally {
+            vi.unstubAllGlobals();
+        }
     });
 });
