@@ -90,6 +90,19 @@ describe("prepararEnvio", () => {
     expect(resultado.ok).toBe(false);
     if (!resultado.ok) expect(resultado.motivo).toMatch(/16/);
   });
+
+  it("acepta un cuerpo de exactamente 16 KB y rechaza un byte más", async () => {
+    const codificador = new TextEncoder();
+    const base = JSON.stringify({ ...EVENTO, resumen: "" });
+    const relleno = 16 * 1024 - codificador.encode(base).length;
+    expect(relleno).toBeGreaterThan(0);
+    const justo = { ...EVENTO, resumen: "x".repeat(relleno) };
+    const resultado = await prepararEnvio(justo, DESTINO, SECRETO, AHORA);
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) expect(codificador.encode(resultado.init.body).length).toBe(16 * 1024);
+    const unoMas = { ...EVENTO, resumen: "x".repeat(relleno + 1) };
+    expect((await prepararEnvio(unoMas, DESTINO, SECRETO, AHORA)).ok).toBe(false);
+  });
 });
 
 describe("describirEnvio", () => {
