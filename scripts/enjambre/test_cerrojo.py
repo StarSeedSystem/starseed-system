@@ -202,6 +202,26 @@ def test_tsc_turno_corta_el_tsc_si_su_agente_murio(cerrojos_tmp, tmp_path):
     assert not os.path.exists(os.path.join(_cerrojos(cerrojos_tmp), "pesado.lock"))
 
 
+@pytest.mark.skipif(not shutil.which("bash") or not shutil.which("pgrep"), reason="sin bash o pgrep")
+def test_tsc_turno_con_un_padre_que_no_es_shell_y_adoptado_por_init_si_espera(cerrojos_tmp, tmp_path):
+    """Un pytest (o un orquestador) lanzado con nohup tiene ppid 1 y SÍ lee el resultado: no es el
+    shell huérfano de un agente. Medido al probar SUP0111J: scripts/enjambre con nohup salía 75."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    npx = tmp_path / "npx"
+    npx.write_text("#!/bin/sh\nsleep 2\nexit 0\n", encoding="utf-8")
+    npx.chmod(0o755)
+    rc, err, quien = tmp_path / "rc", tmp_path / "err", tmp_path / "pid-del-python"
+    env = _entorno(cerrojos_tmp, tmp_path, STARSEED_TSC_VIGILA_S="1")
+    py = ("import os, subprocess, sys, time; open(%r, 'w').write(str(os.getpid())); time.sleep(1); "
+          "r = subprocess.run(['bash', %r], stderr=open(%r, 'w')); open(%r, 'w').write(str(r.returncode))"
+          % (str(quien), SCRIPT, str(err), str(rc)))
+    subprocess.run(["sh", "-c", '"$0" -c "$1" &', sys.executable, py], cwd=str(repo), env=env, timeout=60,
+                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    assert _esperar(lambda: rc.exists() and rc.read_text().strip() != "", 60), "tsc-turno no salió"
+    assert rc.read_text().strip() == "0", err.read_text()
+
+
 @pytest.mark.skipif(not shutil.which("bash"), reason="no hay bash")
 def test_tsc_turno_en_verde_sigue_escribiendo_la_cache(cerrojos_tmp, tmp_path):
     """La vigilancia no cambia el camino normal: tsc en verde → rc 0, caché con rc 0 y, en la

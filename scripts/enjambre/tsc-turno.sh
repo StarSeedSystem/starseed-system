@@ -81,7 +81,16 @@ _limpiar_huerfano() {
 # orquestador → dos tsc de ~3,5 GB en la Mac de 8 GB y el gobernador bajó un trabajador.
 _sin_quien_espere() {
     [ "${PPID:-1}" = "1" ] && return 1   # lanzado directamente por launchd/systemd: sí espera alguien
-    [ "$(ps -o ppid= -p "$PPID" 2>/dev/null | tr -d ' ')" = "1" ]
+    [ "$(ps -o ppid= -p "$PPID" 2>/dev/null | tr -d ' ')" = "1" ] || return 1
+    # (SUP0111J) Solo cuenta un SHELL envoltorio adoptado por init (el `zsh -c '… | tail -40'` de la
+    # herramienta del agente): un pytest, un orquestador o un guion lanzados con nohup también tienen
+    # ppid 1 y sí leen el resultado (medido: el pytest de scripts/enjambre lanzado con nohup).
+    local nombre
+    nombre=$(ps -o comm= -p "$PPID" 2>/dev/null | tr -d ' ')
+    case "${nombre##*/}" in
+        sh|-sh|bash|-bash|zsh|-zsh|dash|-dash|ksh|-ksh) return 0 ;;
+        *) return 1 ;;
+    esac
 }
 
 # 75 = EX_TEMPFAIL: «no compilé», que no es ni verde ni rojo.
