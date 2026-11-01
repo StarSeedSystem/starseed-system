@@ -37,11 +37,12 @@ import {
 } from "@/lib/aurora/colchon-voz";
 import { pedirLimiteFondo } from "@/lib/perf/fondo-vivo";
 import { anotarMedida } from "@/lib/aurora/medidas-voz";
+import { VOZ_RT_FIJA_KEY, VOZ_RT_POR_PERSONA, clavePersona, identidadVoz } from "@/lib/aurora/identidad-voz";
 
 const BASE = "/api/voz-rt";
 /** (2026-09-24) Lo medido en este equipo: RTF del motor, ritmo del texto, duración típica. */
 const CLAVE_MEDIDAS = "starseed.voz-rt.medidas.v1";
-const CLAVE_VOZ = "starseed.voz-rt.voz";
+const CLAVE_VOZ = VOZ_RT_FIJA_KEY;
 const CLAVE_DESACTIVADA = "starseed.voz-rt.desactivada";
 const LATIDO_MS = 20_000;
 /** Sin ningún turno durante este tiempo, la conversación se da por acabada sola. */
@@ -78,7 +79,7 @@ interface Pendiente {
     promesa: Promise<AudioBuffer | null>;
 }
 
-/** La voz elegida para una personalidad (preferencia guardada > mapa > F1). PURA salvo localStorage. */
+/** La voz elegida para una personalidad (preferencia guardada > resolutor único > F1). PURA salvo localStorage. */
 export function vozDePersona(personaId?: string): string {
     try {
         const elegida = typeof window !== "undefined" ? window.localStorage.getItem(CLAVE_VOZ) : null;
@@ -86,8 +87,12 @@ export function vozDePersona(personaId?: string): string {
     } catch {
         /* sin almacenamiento */
     }
-    const id = (personaId || "").toLowerCase().replace(/\s+/g, "_");
-    return VOZ_POR_PERSONA[id] ?? "F1";
+    // (VZF1015M) Un solo resolutor: el mapa de aquí es la capa «personalidad»; el canónico
+    // completa lo que falte y, sin personalidad conocida, se conserva la voz F1 de Alex.
+    return identidadVoz(
+        { personalidad: clavePersona(personaId) },
+        { vozPorPersona: { ...VOZ_RT_POR_PERSONA, ...VOZ_POR_PERSONA } },
+    ).vozRT;
 }
 
 class VozRT {

@@ -12,13 +12,14 @@
  */
 
 import { safeGet } from "@/lib/safe-storage";
+import { TIMBRE_FIJO_KEY } from "@/lib/aurora/timbres";
 import { TIMBRE_AUTONOMO_BASE, TIMBRE_PREDETERMINADO, TIMBRES } from "@/lib/aurora/timbres-catalogo";
 import { seedKindFor } from "@/lib/aurora/tts-oss/openvoice2";
 import { XAI_PERSONA_VOICES, isXaiPersonaId } from "@/lib/aurora/tts-oss/xai-persona-voices";
 import { generoEfectivo, getModoVoz, type ModoVoz } from "@/lib/aurora/voz-inicial";
 /** Claves compartidas con `voz-rt.ts` y `timbres.ts` (los mapas no se mueven). */
 export const VOZ_RT_FIJA_KEY = "starseed.voz-rt.voz";
-export const TIMBRE_FIJO_KEY = "starseed.voz.timbre.v1";
+export { TIMBRE_FIJO_KEY };
 export type OrigenIdentidadVoz = "agente" | "personalidad" | "cerebro" | "neurona" | "cuenta" | "defecto";
 /** Lo que cualquier ámbito puede fijar; lo ausente hereda del siguiente. */
 export interface EleccionIdentidadVoz { timbre?: string; motor?: string; vozRT?: string; instruct?: string; semilla?: string; xai?: string }

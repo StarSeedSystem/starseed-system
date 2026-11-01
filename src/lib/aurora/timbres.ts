@@ -44,7 +44,9 @@ export { TIMBRES, TIMBRE_PREDETERMINADO, TIMBRE_AUTONOMO_BASE } from "./timbres-
 export type { Timbre } from "./timbres-catalogo";
 export { esVozPersonaje } from "./timbres-catalogo";
 
-const CLAVE = "starseed.voz.timbre.v1";
+/** Clave única del timbre fijado (la comparte el resolutor de identidad de voz). */
+export const TIMBRE_FIJO_KEY = "starseed.voz.timbre.v1";
+const CLAVE = TIMBRE_FIJO_KEY;
 const CLAVE_PROPIOS = "starseed.voz.timbres-propios.v1";
 
 export function timbresDe(genero: VoiceGender): Timbre[] {
