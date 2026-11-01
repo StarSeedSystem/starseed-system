@@ -1149,6 +1149,16 @@ def silencio_tolerable(silencio_desde, ahora, espera_s=ESPERA_MAX_SIN_RESPUESTA_
 def una_pasada(forzar: bool = False) -> bool:
     """`forzar` (orden `--una-vez --ya`): compila aunque Astraura esté en uso o haya
     conversación. Solo a mano; el disco se sigue comprobando."""
+    # (SUP0111B) Antes de decidir nada: lo de src/ SIN git que no transpila se aparta a
+    # cuarentena. El 31-10 a las 13:59 apareció `src/app/mando/page.tsx` sin git y con JSX
+    # inválido, y todas las builds (la del A1 lleva el árbol de trabajo) fallaron durante
+    # horas. Dentro de try/except: la cuarentena nunca tumba al reconstructor.
+    try:
+        import cuarentena_sin_git
+        cuarentena_sin_git.revisar(RAIZ)
+    except Exception as e:
+        print("[%s] cuarentena sin git no pudo: %s: %s"
+              % (time.strftime("%H:%M"), type(e).__name__, e), flush=True)
     entradas = list(_entradas())
     actual = huella_de(entradas)
     estado = _leer_estado()
