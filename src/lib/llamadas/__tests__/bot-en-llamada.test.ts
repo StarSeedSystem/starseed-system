@@ -265,13 +265,13 @@ describe("from tarea VZF1015T — casos adicionales de rescue", () => {
             c("e", 95, { ramLibreMb: 1000, mia: true, voz: habla(90) }),
             c("c", 80, { ramLibreMb: 2000, mia: true, voz: habla(60) }),
         ];
-        const p = { sesion: { miembros: ["neurona-1"], tipo: "llamada" } as const, fichas, ahora: Date.now() };
+        const p = { sesion: { miembros: ["neurona-1"], tipo: "llamada" } as SesionVoz, fichas, ahora: Date.now() };
         const r = elegirServidorVoz(p);
         expect(r?.habla).toBe("c");
     });
 
     it("histéresis: el servidor actual se mantiene salvo mejora clara (30%)", () => {
-        const base = { sesion: { miembros: ["neurona-1"], tipo: "llamada" } as const, ahora: Date.now() };
+        const base = { sesion: { miembros: ["neurona-1"], tipo: "llamada" } as SesionVoz, ahora: Date.now() };
         const fichaA = c("a", 100, { ramLibreMb: 1000, mia: true, voz: { oido: [], habla: [{ motor: "o", primerSonidoMs: 100 }] } });
         const fichaB80 = c("b", 80, { ramLibreMb: 1000, mia: true, voz: { oido: [], habla: [{ motor: "o", primerSonidoMs: 80 }] } });
         const fichaB50 = c("b", 50, { ramLibreMb: 1000, mia: true, voz: { oido: [], habla: [{ motor: "o", primerSonidoMs: 50 }] } });

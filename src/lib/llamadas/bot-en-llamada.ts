@@ -35,6 +35,7 @@ export interface EstadoTurnos {
 export interface EstadoTurnosTest extends EstadoTurnos {
     bot: { id: string; desde: number } | null;
     frases: FrasePersona[];
+    cerebroCallado?: boolean;
 }
 
 export const ESTADO_INI: EstadoTurnos = { botHablador: null, desde: null, persona: null, personaTexto: null, personaEn: null };
@@ -181,11 +182,12 @@ export function evaluarTurno(
     opciones: { responder: (textoPersona: string, persona: string) => string | null }
 ): { accion: "nada" | "responder"; estado: EstadoTurnosTest; texto: string | null } {
     if (estado.bot) return { accion: "nada", estado, texto: null };
+    if (estado.cerebroCallado) return { accion: "nada", estado, texto: null };
     const ultimaFrase = estado.frases[estado.frases.length - 1];
     if (!ultimaFrase) return { accion: "nada", estado, texto: null };
     if (ahora - ultimaFrase.en < SILENCIO_RESPUESTA_MS) return { accion: "nada", estado, texto: null };
     const respuesta = opciones.responder?.(ultimaFrase.texto, ultimaFrase.de) ?? null;
-    if (!respuesta) return { accion: "nada", estado, texto: null };
+    if (!respuesta) return { accion: "nada", estado: { ...estado, cerebroCallado: true }, texto: null };
     const nuevoEstado: EstadoTurnosTest = { ...estado, bot: { id: "bot", desde: ahora }, frases: [] };
     return { accion: "responder", estado: nuevoEstado, texto: respuesta };
 }
@@ -201,21 +203,11 @@ export function engancharBot(
     opciones.onTexto((f) => {
         if (_estado.bot) {
             tocado++;
-            _estado = { ..._estado, bot: null, frases: [..._estado.frases, f] };
+            _estado = { ..._estado, bot: null, frases: [] };
             pieza.callar();
             return;
         }
-        const nuevaEstado = { ..._estado, frases: [..._estado.frases, f] };
-        _estado = nuevaEstado;
-        const ahora = pieza.ahora();
-        const ultimaFrase = _estado.frases[_estado.frases.length - 1];
-        if (ultimaFrase && ahora - ultimaFrase.en >= pieza.silencioMs) {
-            const respuesta = pieza.responder();
-            if (respuesta) {
-                pieza.sintetizar(respuesta);
-                _estado = { ..._estado, bot: { id: pieza.botId, desde: ahora }, frases: [] };
-            }
-        }
+        _estado = { ..._estado, frases: [..._estado.frases, f] };
     });
 
     return {
