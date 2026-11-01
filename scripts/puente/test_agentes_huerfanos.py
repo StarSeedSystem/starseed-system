@@ -98,5 +98,56 @@ class TrabajadoresDePuertaHuerfanos(unittest.TestCase):
         self.assertEqual(A.trabajadores_huerfanos([("x", 1, "node (vitest 1)"), None, (1, 2)]), [])
 
 
+class TscHuerfanos(unittest.TestCase):
+    """(2026-10-31) El tsc-turno que sobrevivió tres horas a su agente muerto."""
+
+    DEL_31_10 = [
+        (100, 1, "/bin/zsh -c 'bash scripts/enjambre/tsc-turno.sh 2>&1 | tail -40'"),
+        (101, 100, "bash scripts/enjambre/tsc-turno.sh"),
+        (102, 101, "npm exec tsc --noEmit"),
+        (103, 102, "node /repo/node_modules/.bin/tsc --noEmit"),
+    ]
+
+    PUERTA_ORQUESTADOR = [
+        (900, 1, "python -u /Users/alex/.local/bin/starseed-enjambre.py"),
+        (901, 900, "bash scripts/enjambre/tsc-turno.sh"),
+        (902, 901, "npm exec tsc --noEmit"),
+        (903, 902, "node /repo/node_modules/.bin/tsc --noEmit"),
+    ]
+
+    TERMINAL = [
+        (200, 199, "/bin/zsh"),
+        (201, 200, "npm exec tsc --noEmit"),
+        (202, 201, "node /repo/node_modules/.bin/tsc --noEmit"),
+    ]
+
+    PADRE_INIT = [
+        (300, 1, "npm exec tsc --noEmit"),
+        (400, 1, "node /repo/node_modules/.bin/tsc --noEmit"),
+    ]
+
+    def test_el_caso_del_31_10(self):
+        self.assertEqual(A.tsc_huerfanos(self.DEL_31_10), [102, 103])
+
+    def test_nunca_la_puerta_del_orquestador(self):
+        self.assertEqual(A.tsc_huerfanos(self.PUERTA_ORQUESTADOR), [])
+
+    def test_un_tsc_de_una_terminal_viva_no_se_toca(self):
+        self.assertEqual(A.tsc_huerfanos(self.TERMINAL), [])
+
+    def test_un_tsc_adoptado_por_init(self):
+        self.assertEqual(A.tsc_huerfanos(self.PADRE_INIT), [300, 400])
+
+    def test_trabajadores_huerfanos_incluye_los_tsc(self):
+        self.assertEqual(A.trabajadores_huerfanos(self.DEL_31_10), [102, 103])
+
+    def test_reconoce_las_dos_formas(self):
+        self.assertTrue(A.es_tsc("npm exec tsc --noEmit"))
+        self.assertTrue(A.es_tsc("node /repo/node_modules/.bin/tsc --noEmit"))
+        self.assertFalse(A.es_tsc("bash scripts/enjambre/tsc-turno.sh"))
+        self.assertFalse(A.es_tsc("node (vitest 2)"))
+        self.assertFalse(A.es_tsc(""))
+
+
 if __name__ == "__main__":
     unittest.main()
