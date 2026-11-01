@@ -20,8 +20,8 @@
 // «detectada» con su motivo en una frase. Nada se marca viva sin haberlo medido.
 // ═══════════════════════════════════════════════════════════════════════════
 
-use crate::faro::{self, TipoAparato};
 use crate::disco::orden;
+use crate::faro::{self, TipoAparato};
 use crate::sha256::desde_hex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -77,11 +77,21 @@ impl EstadoAntenas {
     /// Para Nexus y Café (no llevan guardián) o si aún no arrancó.
     pub fn sin_guardian(motivo: &str) -> Self {
         EstadoAntenas {
-            medido_ms: SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0),
+            medido_ms: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0),
             plataforma: std::env::consts::OS.to_string(),
             guardian_activo: false,
             app_en_segundo_plano: false,
-            antenas: vec![antena("guardian", "Guardián de antenas", "no-disponible", motivo.to_string(), false, vec![])],
+            antenas: vec![antena(
+                "guardian",
+                "Guardián de antenas",
+                "no-disponible",
+                motivo.to_string(),
+                false,
+                vec![],
+            )],
             vecinos: vec![],
             otras_cerca: 0,
         }
@@ -111,7 +121,14 @@ pub struct ConfigAntenas {
 
 /// Nombres de /dev que suelen ser una radio USB (Meshtastic/RNode).
 pub fn es_puerto_radio(nombre: &str) -> bool {
-    const PREFIJOS: [&str; 6] = ["cu.usbserial", "cu.usbmodem", "cu.SLAB_USBtoUART", "cu.wchusbserial", "ttyUSB", "ttyACM"];
+    const PREFIJOS: [&str; 6] = [
+        "cu.usbserial",
+        "cu.usbmodem",
+        "cu.SLAB_USBtoUART",
+        "cu.wchusbserial",
+        "ttyUSB",
+        "ttyACM",
+    ];
     PREFIJOS.iter().any(|p| nombre.starts_with(p))
 }
 
@@ -151,7 +168,10 @@ pub fn leer_mode(salida: &str) -> Vec<String> {
         .lines()
         .filter_map(|l| {
             let i = l.find("COM")?;
-            let resto: String = l[i..].chars().take_while(|c| c.is_ascii_alphanumeric()).collect();
+            let resto: String = l[i..]
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric())
+                .collect();
             (resto.len() > 3 && resto[3..].chars().all(|c| c.is_ascii_digit())).then_some(resto)
         })
         .collect();
@@ -162,29 +182,48 @@ pub fn leer_mode(salida: &str) -> Vec<String> {
 
 /// ¿Responde un puerto TCP? (connect con tiempo máximo; nunca bloquea más).
 pub fn tcp_abierto(host: &str, puerto: u16, ms: u64) -> bool {
-    let Ok(dirs) = (host, puerto).to_socket_addrs() else { return false };
-    dirs.take(2).any(|d: SocketAddr| TcpStream::connect_timeout(&d, Duration::from_millis(ms)).is_ok())
+    let Ok(dirs) = (host, puerto).to_socket_addrs() else {
+        return false;
+    };
+    dirs.take(2)
+        .any(|d: SocketAddr| TcpStream::connect_timeout(&d, Duration::from_millis(ms)).is_ok())
 }
 
 /// Busca un ejecutable en el PATH y en las carpetas donde suele estar aunque una
 /// app gráfica de macOS arranque con un PATH mínimo.
 pub fn buscar_ejecutable(nombre: &str) -> Option<PathBuf> {
-    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).collect())
+        .unwrap_or_default();
     if let Some(h) = std::env::var_os("HOME") {
         let h = PathBuf::from(h);
         dirs.push(h.join(".local/bin"));
         dirs.push(h.join("Library/Python/3.12/bin"));
         dirs.push(h.join("Library/Python/3.11/bin"));
     }
-    dirs.extend(["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"].iter().map(PathBuf::from));
-    let exts: &[&str] = if cfg!(windows) { &[".exe", ".cmd", ""] } else { &[""] };
-    dirs.iter().flat_map(|d| exts.iter().map(move |e| d.join(format!("{nombre}{e}")))).find(|p| p.is_file())
+    dirs.extend(
+        ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]
+            .iter()
+            .map(PathBuf::from),
+    );
+    let exts: &[&str] = if cfg!(windows) {
+        &[".exe", ".cmd", ""]
+    } else {
+        &[""]
+    };
+    dirs.iter()
+        .flat_map(|d| exts.iter().map(move |e| d.join(format!("{nombre}{e}"))))
+        .find(|p| p.is_file())
 }
 
 #[cfg(all(unix, not(target_os = "android")))]
 fn proceso_corriendo(patron: &str) -> bool {
     // pgrep se lanza directo (sin shell): no puede encontrarse a sí mismo.
-    orden("pgrep").args(["-f", patron]).output().map(|o| o.status.success()).unwrap_or(false)
+    orden("pgrep")
+        .args(["-f", patron])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 #[cfg(not(all(unix, not(target_os = "android"))))]
@@ -192,21 +231,50 @@ fn proceso_corriendo(_patron: &str) -> bool {
     false
 }
 
-fn antena(id: &str, nombre: &str, estado: &str, motivo: String, segundo_plano: bool, detalle: Vec<String>) -> EstadoAntena {
-    EstadoAntena { id: id.into(), nombre: nombre.into(), estado: estado.into(), motivo, segundo_plano, detalle }
+fn antena(
+    id: &str,
+    nombre: &str,
+    estado: &str,
+    motivo: String,
+    segundo_plano: bool,
+    detalle: Vec<String>,
+) -> EstadoAntena {
+    EstadoAntena {
+        id: id.into(),
+        nombre: nombre.into(),
+        estado: estado.into(),
+        motivo,
+        segundo_plano,
+        detalle,
+    }
 }
 
 /// LoRa/Meshtastic a partir de lo medido (puro: se prueba).
-pub fn evaluar_lora(serie: &[String], serie_abierta: Option<&str>, nodos_tcp_vivos: &[String], movil: bool) -> EstadoAntena {
+pub fn evaluar_lora(
+    serie: &[String],
+    serie_abierta: Option<&str>,
+    nodos_tcp_vivos: &[String],
+    movil: bool,
+) -> EstadoAntena {
     if let Some(p) = serie_abierta {
-        return antena("lora", "LoRa · Meshtastic", "viva", format!("Radio conectada por serie en {p} (puente nativo)."), true, vec![p.to_string()]);
+        return antena(
+            "lora",
+            "LoRa · Meshtastic",
+            "viva",
+            format!("Radio conectada por serie en {p} (puente nativo)."),
+            true,
+            vec![p.to_string()],
+        );
     }
     if !nodos_tcp_vivos.is_empty() {
         return antena(
             "lora",
             "LoRa · Meshtastic",
             "viva",
-            format!("Nodo Meshtastic respondiendo por TCP en {}.", nodos_tcp_vivos.join(", ")),
+            format!(
+                "Nodo Meshtastic respondiendo por TCP en {}.",
+                nodos_tcp_vivos.join(", ")
+            ),
             true,
             nodos_tcp_vivos.to_vec(),
         );
@@ -216,19 +284,40 @@ pub fn evaluar_lora(serie: &[String], serie_abierta: Option<&str>, nodos_tcp_viv
             "lora",
             "LoRa · Meshtastic",
             "detectada",
-            format!("Radio USB enchufada ({}); ábrela desde Conexiones para usarla.", serie.join(", ")),
+            format!(
+                "Radio USB enchufada ({}); ábrela desde Conexiones para usarla.",
+                serie.join(", ")
+            ),
             true,
             serie.to_vec(),
         );
     }
     if movil {
-        return antena("lora", "LoRa · Meshtastic", "apagada", "Sin radio: en Android se conectará por Bluetooth (próxima versión del plugin).".into(), true, vec![]);
+        return antena(
+            "lora",
+            "LoRa · Meshtastic",
+            "apagada",
+            "Sin radio: en Android se conectará por Bluetooth (próxima versión del plugin).".into(),
+            true,
+            vec![],
+        );
     }
-    antena("lora", "LoRa · Meshtastic", "apagada", "No hay ninguna radio enchufada ni nodo Meshtastic en la red.".into(), true, vec![])
+    antena(
+        "lora",
+        "LoRa · Meshtastic",
+        "apagada",
+        "No hay ninguna radio enchufada ni nodo Meshtastic en la red.".into(),
+        true,
+        vec![],
+    )
 }
 
 /// Reticulum a partir de lo medido (puro).
-pub fn evaluar_reticulum(rnsd: Option<&Path>, corriendo: bool, puerto_abierto: bool) -> EstadoAntena {
+pub fn evaluar_reticulum(
+    rnsd: Option<&Path>,
+    corriendo: bool,
+    puerto_abierto: bool,
+) -> EstadoAntena {
     match (rnsd, corriendo || puerto_abierto) {
         (_, true) => antena("reticulum", "Reticulum", "viva", "rnsd está corriendo en este aparato.".into(), true, vec![]),
         (Some(p), false) => antena(
@@ -256,7 +345,12 @@ pub fn resumen(estado: &EstadoAntenas) -> String {
     if !estado.guardian_activo {
         return "Antenas: sin medir".to_string();
     }
-    let vivas: Vec<&str> = estado.antenas.iter().filter(|a| a.estado == "viva").map(|a| a.nombre.as_str()).collect();
+    let vivas: Vec<&str> = estado
+        .antenas
+        .iter()
+        .filter(|a| a.estado == "viva")
+        .map(|a| a.nombre.as_str())
+        .collect();
     let mut texto = if vivas.is_empty() {
         "Ninguna antena viva".to_string()
     } else {
@@ -267,7 +361,10 @@ pub fn resumen(estado: &EstadoAntenas) -> String {
         texto.push_str(&format!(" — {propias} neurona(s) tuya(s) cerca"));
     } else if estado.otras_cerca > 0 {
         // Sin clave de faro de la cuenta no se sabe de quién son: solo se cuentan.
-        texto.push_str(&format!(" — {} neurona(s) StarSeed cerca", estado.otras_cerca));
+        texto.push_str(&format!(
+            " — {} neurona(s) StarSeed cerca",
+            estado.otras_cerca
+        ));
     }
     texto
 }
@@ -303,12 +400,23 @@ pub struct Guardian {
 static GUARDIAN: OnceLock<Arc<Guardian>> = OnceLock::new();
 
 fn ahora_s() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 fn bt_por_plataforma() -> EstadoAntena {
     if cfg!(target_os = "android") {
-        antena("bluetooth", "Bluetooth", "no-disponible", "El Bluetooth nativo de Android llega con el plugin Kotlin (en el contrato, §3.3).".into(), true, vec![])
+        antena(
+            "bluetooth",
+            "Bluetooth",
+            "no-disponible",
+            "El Bluetooth nativo de Android llega con el plugin Kotlin (en el contrato, §3.3)."
+                .into(),
+            true,
+            vec![],
+        )
     } else {
         antena(
             "bluetooth",
@@ -327,7 +435,11 @@ impl Guardian {
         GUARDIAN
             .get_or_init(|| {
                 let config = cargar_config(&dir_datos);
-                let clave = config.clave_faro.as_deref().and_then(desde_hex).filter(|k| k.len() == 32);
+                let clave = config
+                    .clave_faro
+                    .as_deref()
+                    .and_then(desde_hex)
+                    .filter(|k| k.len() == 32);
                 let g = Arc::new(Guardian {
                     tipo: TipoAparato::de_este_aparato(),
                     dir_datos,
@@ -337,10 +449,38 @@ impl Guardian {
                         vecinos: HashMap::new(),
                         otras: HashMap::new(),
                         propios_nonces: Vec::new(),
-                        wifi: antena("wifi-local", "Wi-Fi local", "apagada", "Arrancando…".into(), true, vec![]),
-                        lora: antena("lora", "LoRa · Meshtastic", "apagada", "Midiendo…".into(), true, vec![]),
-                        reticulum: antena("reticulum", "Reticulum", "apagada", "Midiendo…".into(), true, vec![]),
-                        internet: antena("internet", "Internet", "apagada", "Midiendo…".into(), true, vec![]),
+                        wifi: antena(
+                            "wifi-local",
+                            "Wi-Fi local",
+                            "apagada",
+                            "Arrancando…".into(),
+                            true,
+                            vec![],
+                        ),
+                        lora: antena(
+                            "lora",
+                            "LoRa · Meshtastic",
+                            "apagada",
+                            "Midiendo…".into(),
+                            true,
+                            vec![],
+                        ),
+                        reticulum: antena(
+                            "reticulum",
+                            "Reticulum",
+                            "apagada",
+                            "Midiendo…".into(),
+                            true,
+                            vec![],
+                        ),
+                        internet: antena(
+                            "internet",
+                            "Internet",
+                            "apagada",
+                            "Midiendo…".into(),
+                            true,
+                            vec![],
+                        ),
                         serie_abierta: None,
                         segundo_plano: false,
                     }),
@@ -367,7 +507,11 @@ impl Guardian {
     pub fn configurar(&self, nueva: ConfigAntenas) -> Result<(), String> {
         let clave = match nueva.clave_faro.as_deref() {
             None | Some("") => None,
-            Some(h) => Some(desde_hex(h).filter(|k| k.len() == 32).ok_or("La clave de faro debe tener 64 caracteres hex.")?),
+            Some(h) => Some(
+                desde_hex(h)
+                    .filter(|k| k.len() == 32)
+                    .ok_or("La clave de faro debe tener 64 caracteres hex.")?,
+            ),
         };
         guardar_config(&self.dir_datos, &nueva)?;
         let mut i = self.interno.lock().map_err(|_| "estado bloqueado")?;
@@ -408,15 +552,27 @@ impl Guardian {
         let mut vecinos: Vec<Vecino> = i
             .vecinos
             .values()
-            .map(|(v, t)| Vecino { visto_hace_s: t.elapsed().as_secs(), ..v.clone() })
+            .map(|(v, t)| Vecino {
+                visto_hace_s: t.elapsed().as_secs(),
+                ..v.clone()
+            })
             .collect();
         vecinos.sort_by(|a, b| a.ip.cmp(&b.ip));
         EstadoAntenas {
-            medido_ms: SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0),
+            medido_ms: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0),
             plataforma: std::env::consts::OS.to_string(),
             guardian_activo: true,
             app_en_segundo_plano: i.segundo_plano,
-            antenas: vec![i.wifi.clone(), i.lora.clone(), bt_por_plataforma(), i.reticulum.clone(), i.internet.clone()],
+            antenas: vec![
+                i.wifi.clone(),
+                i.lora.clone(),
+                bt_por_plataforma(),
+                i.reticulum.clone(),
+                i.internet.clone(),
+            ],
             vecinos,
             otras_cerca: i.otras.len() as u32,
         }
@@ -449,14 +605,37 @@ impl Guardian {
                 nodos.push(h.clone());
             }
         }
-        let lora = evaluar_lora(&puertos_serie(), serie_abierta.as_deref(), &nodos, cfg!(target_os = "android"));
+        let lora = evaluar_lora(
+            &puertos_serie(),
+            serie_abierta.as_deref(),
+            &nodos,
+            cfg!(target_os = "android"),
+        );
         let rnsd = buscar_ejecutable("rnsd");
-        let reticulum = evaluar_reticulum(rnsd.as_deref(), proceso_corriendo("rnsd"), tcp_abierto("127.0.0.1", PUERTO_RNS, 300));
+        let reticulum = evaluar_reticulum(
+            rnsd.as_deref(),
+            proceso_corriendo("rnsd"),
+            tcp_abierto("127.0.0.1", PUERTO_RNS, 300),
+        );
         let net = tcp_abierto("1.1.1.1", 443, 1500) || tcp_abierto("9.9.9.9", 443, 1500);
         let internet = if net {
-            antena("internet", "Internet", "viva", "Hay salida a internet.".into(), true, vec![])
+            antena(
+                "internet",
+                "Internet",
+                "viva",
+                "Hay salida a internet.".into(),
+                true,
+                vec![],
+            )
         } else {
-            antena("internet", "Internet", "apagada", "Sin salida a internet: la malla local sigue funcionando.".into(), true, vec![])
+            antena(
+                "internet",
+                "Internet",
+                "apagada",
+                "Sin salida a internet: la malla local sigue funcionando.".into(),
+                true,
+                vec![],
+            )
         };
         if let Ok(mut i) = self.interno.lock() {
             i.lora = lora;
@@ -502,19 +681,31 @@ impl Guardian {
     }
 
     fn recibir(&self, datos: &[u8], de: SocketAddr) -> bool {
-        let Some(f) = faro::leer(datos) else { return false };
-        let Ok(mut i) = self.interno.lock() else { return false };
+        let Some(f) = faro::leer(datos) else {
+            return false;
+        };
+        let Ok(mut i) = self.interno.lock() else {
+            return false;
+        };
         if i.propios_nonces.contains(&f.nonce) {
             return false; // el eco de nuestro propio faro
         }
         let ip = de.ip().to_string();
         let ahora = ahora_s();
-        let propia = i.clave.as_deref().map(|k| faro::es_de_mi_cuenta(&f, k, ahora)).unwrap_or(false);
+        let propia = i
+            .clave
+            .as_deref()
+            .map(|k| faro::es_de_mi_cuenta(&f, k, ahora))
+            .unwrap_or(false);
         if !propia {
             i.otras.insert(ip, Instant::now());
             return true;
         }
-        let neurona = i.clave.as_deref().and_then(|k| faro::que_neurona(&f, k, &i.config.conocidas)).map(String::from);
+        let neurona = i
+            .clave
+            .as_deref()
+            .and_then(|k| faro::que_neurona(&f, k, &i.config.conocidas))
+            .map(String::from);
         let v = Vecino {
             ip: ip.clone(),
             tipo: f.tipo.nombre().into(),
@@ -532,7 +723,9 @@ impl Guardian {
     }
 
     fn caducar(&self) -> bool {
-        let Ok(mut i) = self.interno.lock() else { return false };
+        let Ok(mut i) = self.interno.lock() else {
+            return false;
+        };
         let limite = Duration::from_secs(faro::CADUCA_SEGUNDOS);
         let antes = i.vecinos.len() + i.otras.len();
         i.vecinos.retain(|_, (_, t)| t.elapsed() < limite);
@@ -543,7 +736,11 @@ impl Guardian {
     fn poner_wifi(&self, estado: &str, motivo: String) {
         if let Ok(mut i) = self.interno.lock() {
             let n = i.vecinos.len();
-            let detalle = if n > 0 { vec![format!("{n} neurona(s) de tu cuenta en esta red")] } else { vec![] };
+            let detalle = if n > 0 {
+                vec![format!("{n} neurona(s) de tu cuenta en esta red")]
+            } else {
+                vec![]
+            };
             i.wifi = antena("wifi-local", "Wi-Fi local", estado, motivo, true, detalle);
         }
     }
@@ -559,7 +756,11 @@ fn cargar_config(dir: &Path) -> ConfigAntenas {
 fn guardar_config(dir: &Path, c: &ConfigAntenas) -> Result<(), String> {
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     let ruta = dir.join(ARCHIVO_CONFIG);
-    std::fs::write(&ruta, serde_json::to_string_pretty(c).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    std::fs::write(
+        &ruta,
+        serde_json::to_string_pretty(c).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -570,8 +771,12 @@ fn guardar_config(dir: &Path, c: &ConfigAntenas) -> Result<(), String> {
 
 fn abrir_socket_faro() -> Result<UdpSocket, String> {
     let grupo = Ipv4Addr::from(faro::GRUPO_MULTICAST);
-    let s = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, faro::PUERTO))
-        .map_err(|e| format!("El puerto {} del faro está ocupado (¿otra app StarSeed abierta?): {e}", faro::PUERTO))?;
+    let s = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, faro::PUERTO)).map_err(|e| {
+        format!(
+            "El puerto {} del faro está ocupado (¿otra app StarSeed abierta?): {e}",
+            faro::PUERTO
+        )
+    })?;
     s.join_multicast_v4(&grupo, &Ipv4Addr::UNSPECIFIED)
         .map_err(|e| format!("No se pudo unir al grupo local {grupo}: {e} (¿sin Wi-Fi o sin permiso de red local?)"))?;
     let _ = s.set_multicast_ttl_v4(1); // solo esta red: el faro nunca sale del router
@@ -660,7 +865,10 @@ mod pruebas {
         assert!(es_puerto_radio("cu.usbserial-0001"));
         assert!(es_puerto_radio("ttyACM0"));
         assert!(!es_puerto_radio("cu.Bluetooth-Incoming-Port"));
-        assert!(!es_puerto_radio("tty.usbserial-0001"), "en macOS se usa cu.*, no tty.*");
+        assert!(
+            !es_puerto_radio("tty.usbserial-0001"),
+            "en macOS se usa cu.*, no tty.*"
+        );
     }
 
     #[test]
@@ -679,13 +887,21 @@ mod pruebas {
         assert_eq!(abierta.estado, "viva");
         let tcp = evaluar_lora(&[], None, &["192.168.1.40".into()], false);
         assert_eq!(tcp.estado, "viva");
-        assert!(evaluar_lora(&[], None, &[], true).motivo.contains("Android"));
+        assert!(evaluar_lora(&[], None, &[], true)
+            .motivo
+            .contains("Android"));
     }
 
     #[test]
     fn reticulum_dice_la_verdad() {
-        assert_eq!(evaluar_reticulum(None, false, false).estado, "no-disponible");
-        assert_eq!(evaluar_reticulum(Some(Path::new("/usr/local/bin/rnsd")), false, false).estado, "apagada");
+        assert_eq!(
+            evaluar_reticulum(None, false, false).estado,
+            "no-disponible"
+        );
+        assert_eq!(
+            evaluar_reticulum(Some(Path::new("/usr/local/bin/rnsd")), false, false).estado,
+            "apagada"
+        );
         assert_eq!(evaluar_reticulum(None, true, false).estado, "viva");
     }
 
@@ -702,13 +918,30 @@ mod pruebas {
         assert_eq!(resumen(&e), "Antenas: sin medir");
         e.guardian_activo = true;
         e.antenas = vec![
-            antena("wifi-local", "Wi-Fi local", "viva", "ok".into(), true, vec![]),
-            antena("lora", "LoRa · Meshtastic", "detectada", "usb".into(), true, vec![]),
+            antena(
+                "wifi-local",
+                "Wi-Fi local",
+                "viva",
+                "ok".into(),
+                true,
+                vec![],
+            ),
+            antena(
+                "lora",
+                "LoRa · Meshtastic",
+                "detectada",
+                "usb".into(),
+                true,
+                vec![],
+            ),
             antena("internet", "Internet", "viva", "ok".into(), true, vec![]),
         ];
         assert_eq!(resumen(&e), "Vivas: Wi-Fi local · Internet");
         e.otras_cerca = 2;
-        assert_eq!(resumen(&e), "Vivas: Wi-Fi local · Internet — 2 neurona(s) StarSeed cerca");
+        assert_eq!(
+            resumen(&e),
+            "Vivas: Wi-Fi local · Internet — 2 neurona(s) StarSeed cerca"
+        );
         e.vecinos.push(Vecino {
             ip: "192.168.1.9".into(),
             tipo: "android".into(),
@@ -721,14 +954,21 @@ mod pruebas {
             visto_hace_s: 3,
         });
         assert!(resumen(&e).ends_with("1 neurona(s) tuya(s) cerca"));
-        e.antenas.iter_mut().for_each(|a| a.estado = "apagada".into());
+        e.antenas
+            .iter_mut()
+            .for_each(|a| a.estado = "apagada".into());
         assert!(resumen(&e).starts_with("Ninguna antena viva"));
     }
 
     #[test]
     fn config_ida_y_vuelta() {
         let dir = std::env::temp_dir().join(format!("ss-antenas-{}", std::process::id()));
-        let c = ConfigAntenas { clave_faro: Some("ab".repeat(32)), neurona: Some("mac".into()), nas: true, ..Default::default() };
+        let c = ConfigAntenas {
+            clave_faro: Some("ab".repeat(32)),
+            neurona: Some("mac".into()),
+            nas: true,
+            ..Default::default()
+        };
         guardar_config(&dir, &c).unwrap();
         assert_eq!(cargar_config(&dir), c);
         let _ = std::fs::remove_dir_all(&dir);

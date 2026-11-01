@@ -47,7 +47,12 @@ impl Default for Sha256 {
 
 impl Sha256 {
     pub fn new() -> Self {
-        Sha256 { estado: H0, bloque: [0u8; 64], usados: 0, total_bytes: 0 }
+        Sha256 {
+            estado: H0,
+            bloque: [0u8; 64],
+            usados: 0,
+            total_bytes: 0,
+        }
     }
 
     pub fn update(&mut self, mut datos: &[u8]) {
@@ -99,18 +104,30 @@ impl Sha256 {
 fn comprimir(estado: &mut [u32; 8], bloque: &[u8; 64]) {
     let mut w = [0u32; 64];
     for i in 0..16 {
-        w[i] = u32::from_be_bytes([bloque[i * 4], bloque[i * 4 + 1], bloque[i * 4 + 2], bloque[i * 4 + 3]]);
+        w[i] = u32::from_be_bytes([
+            bloque[i * 4],
+            bloque[i * 4 + 1],
+            bloque[i * 4 + 2],
+            bloque[i * 4 + 3],
+        ]);
     }
     for i in 16..64 {
         let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
         let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
-        w[i] = w[i - 16].wrapping_add(s0).wrapping_add(w[i - 7]).wrapping_add(s1);
+        w[i] = w[i - 16]
+            .wrapping_add(s0)
+            .wrapping_add(w[i - 7])
+            .wrapping_add(s1);
     }
     let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = *estado;
     for i in 0..64 {
         let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
         let ch = (e & f) ^ ((!e) & g);
-        let t1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(K[i]).wrapping_add(w[i]);
+        let t1 = h
+            .wrapping_add(s1)
+            .wrapping_add(ch)
+            .wrapping_add(K[i])
+            .wrapping_add(w[i]);
         let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
         let maj = (a & b) ^ (a & c) ^ (b & c);
         let t2 = s0.wrapping_add(maj);
@@ -230,10 +247,18 @@ mod pruebas {
 
     #[test]
     fn vectores_nist() {
-        assert_eq!(hex(&sha256(b"")), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
-        assert_eq!(hex(&sha256(b"abc")), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
         assert_eq!(
-            hex(&sha256(b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")),
+            hex(&sha256(b"")),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert_eq!(
+            hex(&sha256(b"abc")),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        assert_eq!(
+            hex(&sha256(
+                b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+            )),
             "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"
         );
     }
@@ -245,7 +270,10 @@ mod pruebas {
         for trozo in datos.chunks(997) {
             h.update(trozo);
         }
-        assert_eq!(hex(&h.finalize()), "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0");
+        assert_eq!(
+            hex(&h.finalize()),
+            "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"
+        );
     }
 
     #[test]
@@ -274,7 +302,10 @@ mod pruebas {
         // Caso 6: clave de 131 bytes (más larga que el bloque).
         let k6 = [0xaau8; 131];
         assert_eq!(
-            hex(&hmac_sha256(&k6, b"Test Using Larger Than Block-Size Key - Hash Key First")),
+            hex(&hmac_sha256(
+                &k6,
+                b"Test Using Larger Than Block-Size Key - Hash Key First"
+            )),
             "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54"
         );
     }
@@ -284,7 +315,9 @@ mod pruebas {
         assert_eq!(desde_hex("00ff10").unwrap(), vec![0, 255, 16]);
         assert!(desde_hex("0g").is_none());
         assert!(desde_hex("abc").is_none());
-        assert!(es_sha256_hex("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"));
+        assert!(es_sha256_hex(
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ));
         assert!(!es_sha256_hex("por-verificar"));
         assert!(iguales_ct(b"abc", b"abc"));
         assert!(!iguales_ct(b"abc", b"abd"));

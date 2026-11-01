@@ -40,10 +40,22 @@ pub const PERMISOS: [&str; 9] = [
 
 /// Las plantillas Kotlin (nombre de archivo, contenido con `{{LIB}}`).
 pub const KOTLIN: [(&str, &str); 4] = [
-    ("PuenteNativo.kt", include_str!("../android/PuenteNativo.kt")),
-    ("ArranqueStarSeed.kt", include_str!("../android/ArranqueStarSeed.kt")),
-    ("ServicioAntenas.kt", include_str!("../android/ServicioAntenas.kt")),
-    ("ArranqueAlEncender.kt", include_str!("../android/ArranqueAlEncender.kt")),
+    (
+        "PuenteNativo.kt",
+        include_str!("../android/PuenteNativo.kt"),
+    ),
+    (
+        "ArranqueStarSeed.kt",
+        include_str!("../android/ArranqueStarSeed.kt"),
+    ),
+    (
+        "ServicioAntenas.kt",
+        include_str!("../android/ServicioAntenas.kt"),
+    ),
+    (
+        "ArranqueAlEncender.kt",
+        include_str!("../android/ArranqueAlEncender.kt"),
+    ),
 ];
 
 /// Reglas de R8: el release de Tauri minifica y el JNI busca la clase por nombre.
@@ -51,7 +63,9 @@ pub const PROGUARD: &str = "# Lo escribe native/src-tauri/build.rs (StarSeed · 
 
 /// Quita el bloque entre dos marcadores (con la línea de cada marcador).
 fn quitar_bloque(texto: &str, inicio: &str, fin: &str) -> String {
-    let (Some(a), Some(b)) = (texto.find(inicio), texto.find(fin)) else { return texto.to_string() };
+    let (Some(a), Some(b)) = (texto.find(inicio), texto.find(fin)) else {
+        return texto.to_string();
+    };
     if b < a {
         return texto.to_string();
     }
@@ -70,7 +84,10 @@ fn ya_declarado(manifiesto: &str, permiso: &str) -> bool {
 /// Bloque de permisos con los que aún no estén (fuera de nuestro bloque).
 pub fn bloque_permisos(manifiesto_sin_bloques: &str) -> String {
     let mut s = format!("    {PERMISOS_INICIO}\n");
-    for p in PERMISOS.iter().filter(|p| !ya_declarado(manifiesto_sin_bloques, p)) {
+    for p in PERMISOS
+        .iter()
+        .filter(|p| !ya_declarado(manifiesto_sin_bloques, p))
+    {
         s.push_str(&format!("    <uses-permission android:name=\"{p}\" />\n"));
     }
     s.push_str(&format!("    {PERMISOS_FIN}\n"));
@@ -105,7 +122,11 @@ pub fn bloque_componentes() -> String {
 
 /// Devuelve el manifiesto con los dos bloques (sustituye los que ya hubiera).
 pub fn parchear_manifiesto(texto: &str) -> Result<String, String> {
-    let limpio = quitar_bloque(&quitar_bloque(texto, PERMISOS_INICIO, PERMISOS_FIN), COMPONENTES_INICIO, COMPONENTES_FIN);
+    let limpio = quitar_bloque(
+        &quitar_bloque(texto, PERMISOS_INICIO, PERMISOS_FIN),
+        COMPONENTES_INICIO,
+        COMPONENTES_FIN,
+    );
     let app = limpio
         .find("<application")
         .ok_or("El AndroidManifest.xml no tiene <application>: ¿cambió la plantilla de Tauri?")?;
@@ -116,7 +137,10 @@ pub fn parchear_manifiesto(texto: &str) -> Result<String, String> {
     if cierre < app {
         return Err("El AndroidManifest.xml tiene </application> antes de <application>.".into());
     }
-    let linea_cierre = limpio[..cierre].rfind('\n').map(|i| i + 1).unwrap_or(cierre);
+    let linea_cierre = limpio[..cierre]
+        .rfind('\n')
+        .map(|i| i + 1)
+        .unwrap_or(cierre);
     let permisos = bloque_permisos(&limpio);
     Ok(format!(
         "{}{}{}{}{}",
@@ -144,15 +168,21 @@ pub fn aplica(paquete: &str, desactivado: bool) -> bool {
 }
 
 fn escribir_si_cambia(ruta: &Path, contenido: &str) -> Result<bool, String> {
-    if std::fs::read_to_string(ruta).map(|t| t == contenido).unwrap_or(false) {
+    if std::fs::read_to_string(ruta)
+        .map(|t| t == contenido)
+        .unwrap_or(false)
+    {
         return Ok(false);
     }
     if let Some(dir) = ruta.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| format!("No se pudo crear {}: {e}", dir.display()))?;
+        std::fs::create_dir_all(dir)
+            .map_err(|e| format!("No se pudo crear {}: {e}", dir.display()))?;
     }
     let tmp = ruta.with_extension("starseed-tmp");
-    std::fs::write(&tmp, contenido).map_err(|e| format!("No se pudo escribir {}: {e}", tmp.display()))?;
-    std::fs::rename(&tmp, ruta).map_err(|e| format!("No se pudo colocar {}: {e}", ruta.display()))?;
+    std::fs::write(&tmp, contenido)
+        .map_err(|e| format!("No se pudo escribir {}: {e}", tmp.display()))?;
+    std::fs::rename(&tmp, ruta)
+        .map_err(|e| format!("No se pudo colocar {}: {e}", ruta.display()))?;
     Ok(true)
 }
 
@@ -160,13 +190,19 @@ fn escribir_si_cambia(ruta: &Path, contenido: &str) -> Result<bool, String> {
 pub fn aplicar(proyecto: &Path, libreria: &str) -> Result<Vec<PathBuf>, String> {
     let mut cambiados = Vec::new();
     let manifiesto = proyecto.join("app/src/main/AndroidManifest.xml");
-    let texto = std::fs::read_to_string(&manifiesto)
-        .map_err(|e| format!("No se pudo leer {}: {e} (¿falta `cargo tauri android init`?)", manifiesto.display()))?;
+    let texto = std::fs::read_to_string(&manifiesto).map_err(|e| {
+        format!(
+            "No se pudo leer {}: {e} (¿falta `cargo tauri android init`?)",
+            manifiesto.display()
+        )
+    })?;
     let nuevo = parchear_manifiesto(&texto)?;
     if escribir_si_cambia(&manifiesto, &nuevo)? {
         cambiados.push(manifiesto);
     }
-    let dir_kotlin = proyecto.join("app/src/main/java").join(PAQUETE_KOTLIN.replace('.', "/"));
+    let dir_kotlin = proyecto
+        .join("app/src/main/java")
+        .join(PAQUETE_KOTLIN.replace('.', "/"));
     for (nombre, plantilla) in KOTLIN {
         let ruta = dir_kotlin.join(nombre);
         if escribir_si_cambia(&ruta, &kotlin(plantilla, libreria))? {
@@ -231,17 +267,27 @@ mod pruebas {
         let c = m.find(COMPONENTES_INICIO).unwrap();
         let cierre = m.rfind("</application>").unwrap();
         assert!(p < a, "los permisos van antes de <application>");
-        assert!(a < c && c < cierre, "los componentes van dentro de <application>");
+        assert!(
+            a < c && c < cierre,
+            "los componentes van dentro de <application>"
+        );
         assert!(m.contains("android:foregroundServiceType=\"connectedDevice|dataSync\""));
         assert!(m.contains("android.permission.CHANGE_WIFI_MULTICAST_STATE"));
         assert!(m.contains("app.starseed.nativa.ArranqueAlEncender"));
-        assert!(m.contains("${applicationId}.starseed-arranque"), "el marcador de Gradle llega tal cual");
+        assert!(
+            m.contains("${applicationId}.starseed-arranque"),
+            "el marcador de Gradle llega tal cual"
+        );
     }
 
     #[test]
     fn no_duplica_permisos_que_ya_estan() {
         let m = parchear_manifiesto(PLANTILLA).unwrap();
-        assert_eq!(m.matches("\"android.permission.POST_NOTIFICATIONS\"").count(), 1);
+        assert_eq!(
+            m.matches("\"android.permission.POST_NOTIFICATIONS\"")
+                .count(),
+            1
+        );
         assert_eq!(m.matches("\"android.permission.INTERNET\"").count(), 1);
     }
 
@@ -256,18 +302,28 @@ mod pruebas {
 
     #[test]
     fn falla_en_alto_si_cambia_la_plantilla() {
-        assert!(parchear_manifiesto("<manifest></manifest>").unwrap_err().contains("<application>"));
+        assert!(parchear_manifiesto("<manifest></manifest>")
+            .unwrap_err()
+            .contains("<application>"));
     }
 
     #[test]
     fn plantillas_kotlin_completas() {
         for (nombre, t) in KOTLIN {
-            assert!(t.contains("package app.starseed.nativa"), "{nombre} sin paquete fijo");
+            assert!(
+                t.contains("package app.starseed.nativa"),
+                "{nombre} sin paquete fijo"
+            );
             let k = kotlin(t, "starseed_native_lib");
             assert!(!k.contains("{{"), "{nombre} con marcador sin sustituir");
         }
-        assert!(KOTLIN[0].1.contains("{{LIB}}"), "PuenteNativo carga la librería por su nombre real");
-        assert!(KOTLIN.iter().any(|(_, t)| t.contains("external fun iniciarGuardian")));
+        assert!(
+            KOTLIN[0].1.contains("{{LIB}}"),
+            "PuenteNativo carga la librería por su nombre real"
+        );
+        assert!(KOTLIN
+            .iter()
+            .any(|(_, t)| t.contains("external fun iniciarGuardian")));
     }
 
     #[test]
@@ -275,7 +331,10 @@ mod pruebas {
         assert!(aplica("app.starseed.os", false));
         assert!(aplica("app.starseed.`os`", false));
         assert!(!aplica("app.starseed.nexus", false));
-        assert!(!aplica("app.starseed.os", true), "STARSEED_SIN_SERVICIO_ANDROID lo apaga");
+        assert!(
+            !aplica("app.starseed.os", true),
+            "STARSEED_SIN_SERVICIO_ANDROID lo apaga"
+        );
     }
 
     #[test]
@@ -286,7 +345,9 @@ mod pruebas {
         std::fs::write(dir.join("app/src/main/AndroidManifest.xml"), PLANTILLA).unwrap();
         let primera = aplicar(&dir, "starseed_native_lib").unwrap();
         assert_eq!(primera.len(), 6, "manifiesto + 4 Kotlin + proguard");
-        assert!(dir.join("app/src/main/java/app/starseed/nativa/ServicioAntenas.kt").is_file());
+        assert!(dir
+            .join("app/src/main/java/app/starseed/nativa/ServicioAntenas.kt")
+            .is_file());
         let segunda = aplicar(&dir, "starseed_native_lib").unwrap();
         assert!(segunda.is_empty(), "la segunda vez no cambia nada");
         let _ = std::fs::remove_dir_all(&dir);

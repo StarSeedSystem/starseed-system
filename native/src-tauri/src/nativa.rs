@@ -31,7 +31,10 @@ pub struct EstadoNativo {
 }
 
 fn ahora_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 pub fn es_starseed_os(app: &AppHandle) -> bool {
@@ -39,20 +42,26 @@ pub fn es_starseed_os(app: &AppHandle) -> bool {
 }
 
 fn estado_nativo(app: &AppHandle) -> Result<tauri::State<'_, EstadoNativo>, String> {
-    app.try_state::<EstadoNativo>().ok_or_else(|| "La app nativa aún no terminó de arrancar.".to_string())
+    app.try_state::<EstadoNativo>()
+        .ok_or_else(|| "La app nativa aún no terminó de arrancar.".to_string())
 }
 
 fn sin_guardian(app: &AppHandle) -> EstadoAntenas {
     if es_starseed_os(app) {
         EstadoAntenas::sin_guardian("El guardián de antenas no arrancó en este aparato.")
     } else {
-        EstadoAntenas::sin_guardian("Este portal no lleva guardián de antenas: vive en StarSeed OS.")
+        EstadoAntenas::sin_guardian(
+            "Este portal no lleva guardián de antenas: vive en StarSeed OS.",
+        )
     }
 }
 
 /// Arranque: registro de carpetas, alcance de archivos y (solo StarSeed OS) guardián.
 pub fn iniciar(app: &AppHandle) {
-    let base = app.path().app_data_dir().unwrap_or_else(|_| std::env::temp_dir().join("starseed-native"));
+    let base = app
+        .path()
+        .app_data_dir()
+        .unwrap_or_else(|_| std::env::temp_dir().join("starseed-native"));
     #[cfg(target_os = "android")]
     let dir = crate::android::dir_datos().unwrap_or_else(|| base.join("starseed"));
     #[cfg(not(target_os = "android"))]
@@ -63,7 +72,11 @@ pub fn iniciar(app: &AppHandle) {
     for c in &registro.carpetas {
         permitir_en_alcance(app, &c.ruta);
     }
-    app.manage(EstadoNativo { dir: dir.clone(), carpetas: Mutex::new(registro), serie: Mutex::new(None) });
+    app.manage(EstadoNativo {
+        dir: dir.clone(),
+        carpetas: Mutex::new(registro),
+        serie: Mutex::new(None),
+    });
     if !es_starseed_os(app) {
         return;
     }
@@ -80,13 +93,17 @@ pub fn iniciar(app: &AppHandle) {
 
 #[tauri::command]
 pub fn antenas_estado(app: AppHandle) -> EstadoAntenas {
-    Guardian::actual().map(|g| g.estado()).unwrap_or_else(|| sin_guardian(&app))
+    Guardian::actual()
+        .map(|g| g.estado())
+        .unwrap_or_else(|| sin_guardian(&app))
 }
 
 /// Mide LoRa, Reticulum e Internet ahora (≤ ~4 s, fuera del hilo de la ventana).
 #[tauri::command]
 pub async fn antenas_medir(app: AppHandle) -> Result<EstadoAntenas, String> {
-    let Some(g) = Guardian::actual() else { return Ok(sin_guardian(&app)) };
+    let Some(g) = Guardian::actual() else {
+        return Ok(sin_guardian(&app));
+    };
     tauri::async_runtime::spawn_blocking(move || {
         g.medir();
         g.estado()
@@ -98,7 +115,9 @@ pub async fn antenas_medir(app: AppHandle) -> Result<EstadoAntenas, String> {
 /// La configuración guardada (la web la lee, cambia un campo y la devuelve entera).
 #[tauri::command]
 pub fn antenas_config() -> Result<ConfigAntenas, String> {
-    Guardian::actual().map(|g| g.config()).ok_or_else(|| "Esta app no lleva guardián de antenas.".to_string())
+    Guardian::actual()
+        .map(|g| g.config())
+        .ok_or_else(|| "Esta app no lleva guardián de antenas.".to_string())
 }
 
 #[tauri::command]
@@ -163,13 +182,17 @@ fn fondo(app: &AppHandle) -> EstadoFondo {
         return no_disponible("Este portal no mantiene antenas en segundo plano.");
     }
     let Some(dir) = crate::android::dir_datos() else {
-        return no_disponible("Este APK se compiló sin el servicio de antenas: al cerrar la app, Android la detiene.");
+        return no_disponible(
+            "Este APK se compiló sin el servicio de antenas: al cerrar la app, Android la detiene.",
+        );
     };
     let pref = crate::android::leer_preferencia(&dir);
     let servicio = crate::android::leer_servicio(&dir);
     let al_cerrar = match (&servicio, pref.activo) {
         (_, false) => "Segundo plano apagado: al cerrar la app, Android la detiene.".to_string(),
-        (Some(s), true) if s.vivo => "Las antenas siguen con la app cerrada (notificación «StarSeed · antenas»).".to_string(),
+        (Some(s), true) if s.vivo => {
+            "Las antenas siguen con la app cerrada (notificación «StarSeed · antenas»).".to_string()
+        }
         (Some(s), true) => s.motivo.clone(),
         (None, true) => "El servicio aún no ha arrancado en este aparato.".to_string(),
     };
@@ -218,7 +241,11 @@ pub fn fondo_arranque(app: AppHandle, activo: bool) -> Result<EstadoFondo, Strin
     #[cfg(desktop)]
     {
         use tauri_plugin_autostart::ManagerExt;
-        let r = if activo { app.autolaunch().enable() } else { app.autolaunch().disable() };
+        let r = if activo {
+            app.autolaunch().enable()
+        } else {
+            app.autolaunch().disable()
+        };
         r.map_err(|e| format!("El sistema no dejó cambiar el arranque: {e}"))?;
     }
     #[cfg(target_os = "android")]
@@ -270,14 +297,20 @@ fn prohibir_en_alcance(app: &AppHandle, ruta: &str) {
 #[tauri::command]
 pub fn carpetas_listar(app: AppHandle) -> Result<Vec<CarpetaConcedida>, String> {
     let st = estado_nativo(&app)?;
-    let r = st.carpetas.lock().map_err(|_| "registro de carpetas bloqueado")?;
+    let r = st
+        .carpetas
+        .lock()
+        .map_err(|_| "registro de carpetas bloqueado")?;
     Ok(r.carpetas.clone())
 }
 
 /// Abre el selector NATIVO de carpetas: ese gesto es el permiso (la web no puede pasar rutas).
 /// Devuelve None si la persona cierra el selector.
 #[tauri::command]
-pub async fn carpetas_conceder(app: AppHandle, modo: String) -> Result<Option<CarpetaConcedida>, String> {
+pub async fn carpetas_conceder(
+    app: AppHandle,
+    modo: String,
+) -> Result<Option<CarpetaConcedida>, String> {
     conceder(app, modo)
 }
 
@@ -285,14 +318,18 @@ pub async fn carpetas_conceder(app: AppHandle, modo: String) -> Result<Option<Ca
 fn conceder(app: AppHandle, modo: String) -> Result<Option<CarpetaConcedida>, String> {
     use tauri_plugin_dialog::DialogExt;
     if modo != "lectura" && modo != "lectura-escritura" {
-        return Err(format!("Modo «{modo}» desconocido (lectura o lectura-escritura)."));
+        return Err(format!(
+            "Modo «{modo}» desconocido (lectura o lectura-escritura)."
+        ));
     }
     let titulo = if modo == "lectura" {
         "StarSeed: elige una carpeta para LEER"
     } else {
         "StarSeed: elige una carpeta para leer y ESCRIBIR"
     };
-    let Some(elegida) = app.dialog().file().set_title(titulo).blocking_pick_folder() else { return Ok(None) };
+    let Some(elegida) = app.dialog().file().set_title(titulo).blocking_pick_folder() else {
+        return Ok(None);
+    };
     let ruta = elegida
         .as_path()
         .map(|p| p.to_string_lossy().to_string())
@@ -300,7 +337,10 @@ fn conceder(app: AppHandle, modo: String) -> Result<Option<CarpetaConcedida>, St
     let personal = app.path().home_dir().ok();
     let st = estado_nativo(&app)?;
     let entrada = {
-        let mut r = st.carpetas.lock().map_err(|_| "registro de carpetas bloqueado")?;
+        let mut r = st
+            .carpetas
+            .lock()
+            .map_err(|_| "registro de carpetas bloqueado")?;
         let e = r.conceder(&ruta, &modo, ahora_ms(), personal.as_deref())?;
         r.guardar(&st.dir)?;
         e
@@ -318,7 +358,10 @@ fn conceder(_app: AppHandle, _modo: String) -> Result<Option<CarpetaConcedida>, 
 pub fn carpetas_revocar(app: AppHandle, ruta: String) -> Result<Vec<CarpetaConcedida>, String> {
     let st = estado_nativo(&app)?;
     let lista = {
-        let mut r = st.carpetas.lock().map_err(|_| "registro de carpetas bloqueado")?;
+        let mut r = st
+            .carpetas
+            .lock()
+            .map_err(|_| "registro de carpetas bloqueado")?;
         if !r.revocar(&ruta) {
             return Err(format!("«{ruta}» no estaba concedida."));
         }
@@ -331,9 +374,16 @@ pub fn carpetas_revocar(app: AppHandle, ruta: String) -> Result<Vec<CarpetaConce
 }
 
 #[tauri::command]
-pub fn carpetas_nas(app: AppHandle, ruta: String, activo: bool) -> Result<CarpetaConcedida, String> {
+pub fn carpetas_nas(
+    app: AppHandle,
+    ruta: String,
+    activo: bool,
+) -> Result<CarpetaConcedida, String> {
     let st = estado_nativo(&app)?;
-    let mut r = st.carpetas.lock().map_err(|_| "registro de carpetas bloqueado")?;
+    let mut r = st
+        .carpetas
+        .lock()
+        .map_err(|_| "registro de carpetas bloqueado")?;
     let e = r.compartir_nas(&ruta, activo)?;
     r.guardar(&st.dir)?;
     if let Some(g) = Guardian::actual() {
@@ -399,7 +449,9 @@ pub fn serie_abrir(app: AppHandle, ruta: String, baudios: Option<u32>) -> Result
 pub fn serie_escribir(app: AppHandle, datos: Vec<u8>) -> Result<(), String> {
     let st = estado_nativo(&app)?;
     let s = st.serie.lock().map_err(|_| "puerto bloqueado")?;
-    s.as_ref().ok_or("No hay ninguna radio abierta.")?.escribir(&datos)
+    s.as_ref()
+        .ok_or("No hay ninguna radio abierta.")?
+        .escribir(&datos)
 }
 
 #[tauri::command]
@@ -450,17 +502,29 @@ fn medir_capas(dir: &Path) -> EstadoCapasDisco {
 #[tauri::command]
 pub async fn capas_estado(app: AppHandle) -> Result<EstadoCapasDisco, String> {
     let dir = dir_capas(&app)?;
-    tauri::async_runtime::spawn_blocking(move || medir_capas(&dir)).await.map_err(|e| e.to_string())
+    tauri::async_runtime::spawn_blocking(move || medir_capas(&dir))
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Descarga una capa del catálogo, comprueba su SHA-256 y solo entonces la coloca.
 #[tauri::command]
-pub async fn capas_descargar(app: AppHandle, peticion: PeticionDescarga) -> Result<Verificacion, String> {
+pub async fn capas_descargar(
+    app: AppHandle,
+    peticion: PeticionDescarga,
+) -> Result<Verificacion, String> {
     let dir = dir_capas(&app)?;
     tauri::async_runtime::spawn_blocking(move || -> Result<Verificacion, String> {
         let actual = medir_capas(&dir);
-        let libre = actual.libre_bytes.ok_or("No se pudo medir el disco libre: no se descarga a ciegas.")?;
-        let ocupado: u64 = actual.instaladas.iter().filter(|c| c.nombre != peticion.nombre).map(|c| c.bytes).sum();
+        let libre = actual
+            .libre_bytes
+            .ok_or("No se pudo medir el disco libre: no se descarga a ciegas.")?;
+        let ocupado: u64 = actual
+            .instaladas
+            .iter()
+            .filter(|c| c.nombre != peticion.nombre)
+            .map(|c| c.bytes)
+            .sum();
         disco::validar_peticion(&peticion, libre, ocupado)?;
         disco::descargar(&peticion, &dir)
     })
@@ -469,12 +533,18 @@ pub async fn capas_descargar(app: AppHandle, peticion: PeticionDescarga) -> Resu
 }
 
 #[tauri::command]
-pub async fn capas_verificar(app: AppHandle, nombre: String, sha256: String) -> Result<Verificacion, String> {
+pub async fn capas_verificar(
+    app: AppHandle,
+    nombre: String,
+    sha256: String,
+) -> Result<Verificacion, String> {
     if !disco::nombre_seguro(&nombre) {
         return Err(format!("Nombre de archivo no válido: «{nombre}»."));
     }
     let ruta = dir_capas(&app)?.join(&nombre);
-    tauri::async_runtime::spawn_blocking(move || disco::verificar(&ruta, &sha256)).await.map_err(|e| e.to_string())
+    tauri::async_runtime::spawn_blocking(move || disco::verificar(&ruta, &sha256))
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -504,12 +574,18 @@ pub struct EntradaNas {
 /// Ruta canónica dentro de una carpeta compartida (NAS) o error. Segunda capa de permisos:
 /// la web ya lo comprobó (src/lib/nativa/nas.ts), pero quien manda es el disco real.
 fn ruta_nas(app: &AppHandle, ruta: &str) -> Result<PathBuf, String> {
-    let canonica = std::fs::canonicalize(ruta).map_err(|e| format!("No se puede abrir «{ruta}»: {e}"))?;
+    let canonica =
+        std::fs::canonicalize(ruta).map_err(|e| format!("No se puede abrir «{ruta}»: {e}"))?;
     let st = estado_nativo(app)?;
-    let r = st.carpetas.lock().map_err(|_| "registro de carpetas bloqueado")?;
+    let r = st
+        .carpetas
+        .lock()
+        .map_err(|_| "registro de carpetas bloqueado")?;
     let canonizar = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
     if r.cubre_nas(&canonica, &canonizar).is_none() {
-        return Err("Esa ruta no está dentro de ninguna carpeta compartida con tus neuronas (NAS).".into());
+        return Err(
+            "Esa ruta no está dentro de ninguna carpeta compartida con tus neuronas (NAS).".into(),
+        );
     }
     Ok(canonica)
 }
@@ -539,7 +615,11 @@ pub async fn nas_listar(app: AppHandle, ruta: String) -> Result<Vec<EntradaNas>,
                 })
             })
             .collect();
-        v.sort_by(|a, b| b.carpeta.cmp(&a.carpeta).then_with(|| a.nombre.to_lowercase().cmp(&b.nombre.to_lowercase())));
+        v.sort_by(|a, b| {
+            b.carpeta
+                .cmp(&a.carpeta)
+                .then_with(|| a.nombre.to_lowercase().cmp(&b.nombre.to_lowercase()))
+        });
         Ok(v)
     })
     .await
@@ -548,7 +628,12 @@ pub async fn nas_listar(app: AppHandle, ruta: String) -> Result<Vec<EntradaNas>,
 
 /// Lee un trozo (≤ 256 KiB) de un archivo compartido. Llega a la web como ArrayBuffer.
 #[tauri::command]
-pub async fn nas_leer(app: AppHandle, ruta: String, desde: u64, largo: u32) -> Result<tauri::ipc::Response, String> {
+pub async fn nas_leer(
+    app: AppHandle,
+    ruta: String,
+    desde: u64,
+    largo: u32,
+) -> Result<tauri::ipc::Response, String> {
     let archivo = ruta_nas(&app, &ruta)?;
     let largo = largo.min(NAS_TROZO_MAX) as usize;
     let datos = tauri::async_runtime::spawn_blocking(move || -> Result<Vec<u8>, String> {
@@ -559,7 +644,9 @@ pub async fn nas_leer(app: AppHandle, ruta: String, desde: u64, largo: u32) -> R
         }
         f.seek(SeekFrom::Start(desde)).map_err(|e| e.to_string())?;
         let mut buf = Vec::with_capacity(largo);
-        f.take(largo as u64).read_to_end(&mut buf).map_err(|e| e.to_string())?;
+        f.take(largo as u64)
+            .read_to_end(&mut buf)
+            .map_err(|e| e.to_string())?;
         Ok(buf)
     })
     .await

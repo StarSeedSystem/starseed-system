@@ -192,14 +192,22 @@ pub fn es_de_mi_cuenta(faro: &FaroLeido, clave: &[u8], segundos_unix: u64) -> bo
     if faro.ventana.abs_diff(v) > 1 {
         return false;
     }
-    iguales_ct(&etiqueta_cuenta(clave, faro.ventana, &faro.nonce), &faro.etiqueta_cuenta)
+    iguales_ct(
+        &etiqueta_cuenta(clave, faro.ventana, &faro.nonce),
+        &faro.etiqueta_cuenta,
+    )
 }
 
 /// ¿Qué neurona de mi cuenta es? Prueba los ids conocidos (los da la web).
 pub fn que_neurona<'a>(faro: &FaroLeido, clave: &[u8], conocidas: &'a [String]) -> Option<&'a str> {
     conocidas
         .iter()
-        .find(|id| iguales_ct(&etiqueta_neurona(clave, &faro.nonce, id), &faro.etiqueta_neurona))
+        .find(|id| {
+            iguales_ct(
+                &etiqueta_neurona(clave, &faro.nonce, id),
+                &faro.etiqueta_neurona,
+            )
+        })
         .map(|s| s.as_str())
 }
 
@@ -213,14 +221,25 @@ mod pruebas {
 
     #[test]
     fn ida_y_vuelta_y_reconocimiento() {
-        let b = construir(Some(&CLAVE), Some("tablet-1"), TipoAparato::Android, FLAG_NAS, 47071, T, [1, 2, 3, 4, 5, 6, 7, 8]);
+        let b = construir(
+            Some(&CLAVE),
+            Some("tablet-1"),
+            TipoAparato::Android,
+            FLAG_NAS,
+            47071,
+            T,
+            [1, 2, 3, 4, 5, 6, 7, 8],
+        );
         let f = leer(&b).expect("faro válido");
         assert_eq!(f.tipo, TipoAparato::Android);
         assert_eq!(f.flags & FLAG_NAS, FLAG_NAS);
         assert_eq!(f.puerto_servicio, 47071);
         assert!(es_de_mi_cuenta(&f, &CLAVE, T));
         assert!(es_de_mi_cuenta(&f, &CLAVE, T + 300), "ventana vecina vale");
-        assert!(!es_de_mi_cuenta(&f, &CLAVE, T + 900), "más de una ventana: no");
+        assert!(
+            !es_de_mi_cuenta(&f, &CLAVE, T + 900),
+            "más de una ventana: no"
+        );
         assert!(!es_de_mi_cuenta(&f, &OTRA, T), "otra cuenta no lo reconoce");
         let ids = vec!["mac-1".to_string(), "tablet-1".to_string()];
         assert_eq!(que_neurona(&f, &CLAVE, &ids), Some("tablet-1"));
@@ -229,7 +248,15 @@ mod pruebas {
 
     #[test]
     fn sin_clave_no_lleva_nada_identificable() {
-        let b = construir(None, Some("tablet-1"), TipoAparato::Escritorio, 0, 0, T, [9; 8]);
+        let b = construir(
+            None,
+            Some("tablet-1"),
+            TipoAparato::Escritorio,
+            0,
+            0,
+            T,
+            [9; 8],
+        );
         let f = leer(&b).unwrap();
         assert_eq!(f.etiqueta_cuenta, [0u8; 8]);
         assert_eq!(f.etiqueta_neurona, [0u8; 8]);
@@ -238,8 +265,24 @@ mod pruebas {
 
     #[test]
     fn nonces_distintos_dan_faros_no_enlazables() {
-        let a = construir(Some(&CLAVE), Some("x"), TipoAparato::Escritorio, 0, 0, T, nonce_nuevo());
-        let b = construir(Some(&CLAVE), Some("x"), TipoAparato::Escritorio, 0, 0, T, nonce_nuevo());
+        let a = construir(
+            Some(&CLAVE),
+            Some("x"),
+            TipoAparato::Escritorio,
+            0,
+            0,
+            T,
+            nonce_nuevo(),
+        );
+        let b = construir(
+            Some(&CLAVE),
+            Some("x"),
+            TipoAparato::Escritorio,
+            0,
+            0,
+            T,
+            nonce_nuevo(),
+        );
         assert_ne!(a[10..37], b[10..37]);
     }
 

@@ -32,6 +32,8 @@ use tauri_plugin_shell::ShellExt;
 // antenas, serie, android. Pegamento con Tauri: nativa (comandos) y segundo_plano
 // (bandeja y cierre que oculta, solo escritorio). android_parche lo usa build.rs.
 mod android;
+#[cfg(test)]
+mod android_parche;
 mod antenas;
 mod carpetas;
 mod disco;
@@ -44,8 +46,6 @@ mod serie;
 mod sha256;
 #[cfg(desktop)]
 mod ventana_remota;
-#[cfg(test)]
-mod android_parche;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Actualización automática INTELIGENTE del shell nativo (SOLO escritorio).
@@ -134,24 +134,48 @@ mod actualizacion {
     /// Nunca hace panic: cualquier fallo se reporta como fase "error" y se
     /// devuelve como Err(String) para quien haya invocado el comando.
     pub async fn comprobar_e_instalar(app: AppHandle) -> Result<Option<String>, String> {
-        emitir(&app, EstadoActualizacion { fase: "buscando".into(), ..Default::default() });
+        emitir(
+            &app,
+            EstadoActualizacion {
+                fase: "buscando".into(),
+                ..Default::default()
+            },
+        );
 
-        let updater = app
-            .updater()
-            .map_err(|e| {
-                let msg = format!("Updater no disponible: {e}");
-                emitir(&app, EstadoActualizacion { fase: "error".into(), mensaje: Some(msg.clone()), ..Default::default() });
-                msg
-            })?;
+        let updater = app.updater().map_err(|e| {
+            let msg = format!("Updater no disponible: {e}");
+            emitir(
+                &app,
+                EstadoActualizacion {
+                    fase: "error".into(),
+                    mensaje: Some(msg.clone()),
+                    ..Default::default()
+                },
+            );
+            msg
+        })?;
 
         let encontrado = updater.check().await.map_err(|e| {
             let msg = format!("No se pudo comprobar actualizaciones: {e}");
-            emitir(&app, EstadoActualizacion { fase: "error".into(), mensaje: Some(msg.clone()), ..Default::default() });
+            emitir(
+                &app,
+                EstadoActualizacion {
+                    fase: "error".into(),
+                    mensaje: Some(msg.clone()),
+                    ..Default::default()
+                },
+            );
             msg
         })?;
 
         let Some(update) = encontrado else {
-            emitir(&app, EstadoActualizacion { fase: "al-dia".into(), ..Default::default() });
+            emitir(
+                &app,
+                EstadoActualizacion {
+                    fase: "al-dia".into(),
+                    ..Default::default()
+                },
+            );
             return Ok(None);
         };
 
@@ -181,7 +205,8 @@ mod actualizacion {
             if let Some(t) = total {
                 total_bytes_chunk.store(t, Ordering::Relaxed);
             }
-            let acumulado = descargado_bytes_chunk.fetch_add(chunk as u64, Ordering::Relaxed) + chunk as u64;
+            let acumulado =
+                descargado_bytes_chunk.fetch_add(chunk as u64, Ordering::Relaxed) + chunk as u64;
             let total_actual = total_bytes_chunk.load(Ordering::Relaxed);
             emitir(
                 &app_chunk,
@@ -189,7 +214,11 @@ mod actualizacion {
                     fase: "descargando".into(),
                     version: Some(version_chunk.clone()),
                     descargado: Some(acumulado),
-                    total: if total_actual > 0 { Some(total_actual) } else { None },
+                    total: if total_actual > 0 {
+                        Some(total_actual)
+                    } else {
+                        None
+                    },
                     mensaje: None,
                 },
             );
@@ -213,7 +242,15 @@ mod actualizacion {
             .await
             .map_err(|e| {
                 let msg = format!("Falló la instalación de la actualización: {e}");
-                emitir(&app, EstadoActualizacion { fase: "error".into(), version: Some(version.clone()), mensaje: Some(msg.clone()), ..Default::default() });
+                emitir(
+                    &app,
+                    EstadoActualizacion {
+                        fase: "error".into(),
+                        version: Some(version.clone()),
+                        mensaje: Some(msg.clone()),
+                        ..Default::default()
+                    },
+                );
                 msg
             })?;
 
@@ -228,7 +265,9 @@ mod actualizacion {
                 EstadoActualizacion {
                     fase: "lista".into(),
                     version: Some(version.clone()),
-                    mensaje: Some("Actualización lista: reinicia cuando quieras para aplicarla.".into()),
+                    mensaje: Some(
+                        "Actualización lista: reinicia cuando quieras para aplicarla.".into(),
+                    ),
                     ..Default::default()
                 },
             );
@@ -360,7 +399,10 @@ async fn check_update(app: tauri::AppHandle) -> Result<String, String> {
     #[cfg(not(desktop))]
     {
         let _ = app;
-        Ok("En móvil las actualizaciones llegan por la tienda o instalando el APK nuevo.".to_string())
+        Ok(
+            "En móvil las actualizaciones llegan por la tienda o instalando el APK nuevo."
+                .to_string(),
+        )
     }
 }
 
@@ -392,7 +434,11 @@ fn estado_actualizacion(app: tauri::AppHandle) -> actualizacion_estado::EstadoAc
         use tauri::Manager;
         if let Some(estado) = app.try_state::<actualizacion::EstadoCompartido>() {
             let ultimo = estado.ultimo.lock().map(|g| g.clone()).unwrap_or_default();
-            let pendiente = estado.pendiente_reinicio.lock().map(|g| *g).unwrap_or(false);
+            let pendiente = estado
+                .pendiente_reinicio
+                .lock()
+                .map(|g| *g)
+                .unwrap_or(false);
             return actualizacion_estado::EstadoActualizacionPublico {
                 fase: ultimo.fase,
                 version: ultimo.version,
@@ -492,7 +538,9 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
         // Cerrar la ventana principal la OCULTA si el segundo plano está encendido y hay
         // por dónde volver (bandeja o Dock); si no, se cierra como siempre.
-        builder = builder.on_window_event(|ventana, evento| segundo_plano::al_evento_de_ventana(ventana, evento));
+        builder = builder.on_window_event(|ventana, evento| {
+            segundo_plano::al_evento_de_ventana(ventana, evento)
+        });
     }
 
     builder
@@ -538,7 +586,6 @@ pub fn run() {
             }
             Ok(())
         })
-        #[cfg(desktop)]
         .invoke_handler(tauri::generate_handler![
             run_terminal,
             check_update,
@@ -566,8 +613,8 @@ pub fn run() {
             nativa::capas_descargar,
             nativa::capas_verificar,
             nativa::capas_borrar,
-            nativa::nas_listar,
             nativa::nas_leer,
+            nativa::nas_listar,
             recursos_ia::recursos_ia_detectar,
             ventana_remota::ventanas_prestables,
             ventana_remota::capturar_ventana,
@@ -578,7 +625,11 @@ pub fn run() {
             // macOS: con la ventana oculta, un clic en el icono del Dock la devuelve.
             #[cfg(target_os = "macos")]
             {
-                if let tauri::RunEvent::Reopen { has_visible_windows: false, .. } = _evento {
+                if let tauri::RunEvent::Reopen {
+                    has_visible_windows: false,
+                    ..
+                } = _evento
+                {
                     segundo_plano::mostrar(_app);
                 }
             }

@@ -283,7 +283,8 @@ pub fn volumenes_de_df(
     sistema_so: &str,
 ) -> Vec<VolumenNativo> {
     let sistemas = sistemas_de_montaje(salida_mount);
-    let solo_lectura: std::collections::HashSet<String> = montajes_solo_lectura(salida_mount).into_iter().collect();
+    let solo_lectura: std::collections::HashSet<String> =
+        montajes_solo_lectura(salida_mount).into_iter().collect();
     let mut filas = filas_df(salida_df);
     // En macOS el volumen raíz es de solo lectura; el espacio real lo da el volumen Data.
     if sistema_so == "macos" {
@@ -331,7 +332,11 @@ pub fn volumenes_de_df(
                 }
                 .to_string(),
                 sistema_archivos: (!fs.is_empty()).then(|| texto(&fs, 20)),
-                solo_lectura: if solo_lectura.contains(&f.montaje) { Some(true) } else { None },
+                solo_lectura: if solo_lectura.contains(&f.montaje) {
+                    Some(true)
+                } else {
+                    None
+                },
             })
         })
         .collect()

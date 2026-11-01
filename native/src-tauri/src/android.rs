@@ -41,7 +41,10 @@ pub struct PreferenciaAndroid {
 
 impl Default for PreferenciaAndroid {
     fn default() -> Self {
-        PreferenciaAndroid { activo: true, arranque: true }
+        PreferenciaAndroid {
+            activo: true,
+            arranque: true,
+        }
     }
 }
 
@@ -77,12 +80,18 @@ pub fn leer_preferencia(dir: &Path) -> PreferenciaAndroid {
 }
 
 pub fn guardar_preferencia(dir: &Path, p: PreferenciaAndroid) -> Result<(), String> {
-    escribir_atomico(dir, PREFERENCIA, &serde_json::to_string(&p).map_err(|e| e.to_string())?)
+    escribir_atomico(
+        dir,
+        PREFERENCIA,
+        &serde_json::to_string(&p).map_err(|e| e.to_string())?,
+    )
 }
 
 /// None si el servicio nunca escribió (parche no aplicado o app recién instalada).
 pub fn leer_servicio(dir: &Path) -> Option<ServicioAndroid> {
-    std::fs::read_to_string(dir.join(SERVICIO)).ok().and_then(|t| serde_json::from_str(&t).ok())
+    std::fs::read_to_string(dir.join(SERVICIO))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
 }
 
 /// Pide a Kotlin una acción que necesita una pantalla del sistema (solo «bateria» hoy).
@@ -93,8 +102,14 @@ pub fn pedir(dir: &Path, accion: &str, ahora_ms: u64) -> Result<(), String> {
 
 /// JSON del resumen para la notificación (puro).
 pub fn json_resumen(estado: &EstadoAntenas) -> String {
-    let vivas: Vec<&str> = estado.antenas.iter().filter(|a| a.estado == "viva").map(|a| a.id.as_str()).collect();
-    serde_json::json!({ "texto": resumen(estado), "vivas": vivas, "medido_ms": estado.medido_ms }).to_string()
+    let vivas: Vec<&str> = estado
+        .antenas
+        .iter()
+        .filter(|a| a.estado == "viva")
+        .map(|a| a.id.as_str())
+        .collect();
+    serde_json::json!({ "texto": resumen(estado), "vivas": vivas, "medido_ms": estado.medido_ms })
+        .to_string()
 }
 
 static ULTIMO: Mutex<String> = Mutex::new(String::new());
@@ -118,7 +133,9 @@ pub fn iniciar_en(dir: PathBuf) -> bool {
     }
     let g = crate::antenas::Guardian::iniciar(dir.clone());
     let d = dir;
-    g.al_cambiar(std::sync::Arc::new(move |e: &EstadoAntenas| escribir_resumen(&d, e)));
+    g.al_cambiar(std::sync::Arc::new(move |e: &EstadoAntenas| {
+        escribir_resumen(&d, e)
+    }));
     true
 }
 
@@ -151,8 +168,14 @@ pub mod jni {
 
     /// `PuenteNativo.iniciarGuardian(dirDatos: String): Boolean` (Kotlin, @JvmStatic).
     #[no_mangle]
-    pub extern "system" fn Java_app_starseed_nativa_PuenteNativo_iniciarGuardian(env: Env, _clase: *mut c_void, dir: *mut c_void) -> u8 {
-        let Some(ruta) = (unsafe { texto(env, dir) }) else { return 0 };
+    pub extern "system" fn Java_app_starseed_nativa_PuenteNativo_iniciarGuardian(
+        env: Env,
+        _clase: *mut c_void,
+        dir: *mut c_void,
+    ) -> u8 {
+        let Some(ruta) = (unsafe { texto(env, dir) }) else {
+            return 0;
+        };
         if ruta.is_empty() {
             return 0;
         }
@@ -168,15 +191,37 @@ mod pruebas {
     fn preferencia_por_defecto_encendida_e_ida_y_vuelta() {
         let dir = std::env::temp_dir().join(format!("ss-android-pref-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        assert_eq!(leer_preferencia(&dir), PreferenciaAndroid { activo: true, arranque: true });
-        guardar_preferencia(&dir, PreferenciaAndroid { activo: false, arranque: true }).unwrap();
+        assert_eq!(
+            leer_preferencia(&dir),
+            PreferenciaAndroid {
+                activo: true,
+                arranque: true
+            }
+        );
+        guardar_preferencia(
+            &dir,
+            PreferenciaAndroid {
+                activo: false,
+                arranque: true,
+            },
+        )
+        .unwrap();
         assert!(!leer_preferencia(&dir).activo);
-        assert!(leer_servicio(&dir).is_none(), "sin servicio.json no se inventa un estado");
-        std::fs::write(dir.join(SERVICIO), r#"{"vivo":true,"motivo":"ok","bateria_exenta":false}"#).unwrap();
+        assert!(
+            leer_servicio(&dir).is_none(),
+            "sin servicio.json no se inventa un estado"
+        );
+        std::fs::write(
+            dir.join(SERVICIO),
+            r#"{"vivo":true,"motivo":"ok","bateria_exenta":false}"#,
+        )
+        .unwrap();
         let s = leer_servicio(&dir).unwrap();
         assert!(s.vivo && !s.bateria_exenta && !s.notificaciones);
         pedir(&dir, "bateria", 5).unwrap();
-        assert!(std::fs::read_to_string(dir.join(PETICION)).unwrap().contains("\"bateria\""));
+        assert!(std::fs::read_to_string(dir.join(PETICION))
+            .unwrap()
+            .contains("\"bateria\""));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

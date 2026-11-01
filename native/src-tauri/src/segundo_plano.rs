@@ -35,7 +35,10 @@ struct Preferencia {
 impl Default for Preferencia {
     fn default() -> Self {
         // Encendido por defecto: es lo que pidió Alex (antenas vivas al cerrar).
-        Preferencia { activo: true, avisado: false }
+        Preferencia {
+            activo: true,
+            avisado: false,
+        }
     }
 }
 
@@ -73,7 +76,11 @@ fn leer_pref(app: &AppHandle) -> Preferencia {
 fn guardar_pref(app: &AppHandle, p: Preferencia) -> Result<(), String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    std::fs::write(dir.join(ARCHIVO), serde_json::to_string(&p).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+    std::fs::write(
+        dir.join(ARCHIVO),
+        serde_json::to_string(&p).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())
 }
 
 fn puede_volver(e: &EstadoEscritorio) -> bool {
@@ -150,7 +157,15 @@ pub fn bandeja_posible() -> bool {
     let mut dirs: Vec<std::path::PathBuf> = std::env::var_os("LD_LIBRARY_PATH")
         .map(|p| std::env::split_paths(&p).collect())
         .unwrap_or_default();
-    for d in ["/usr/lib", "/usr/lib64", "/usr/lib/x86_64-linux-gnu", "/usr/lib/aarch64-linux-gnu", "/lib/x86_64-linux-gnu", "/lib/aarch64-linux-gnu", "/usr/local/lib"] {
+    for d in [
+        "/usr/lib",
+        "/usr/lib64",
+        "/usr/lib/x86_64-linux-gnu",
+        "/usr/lib/aarch64-linux-gnu",
+        "/lib/x86_64-linux-gnu",
+        "/lib/aarch64-linux-gnu",
+        "/usr/local/lib",
+    ] {
         dirs.push(std::path::PathBuf::from(d));
     }
     if let Some(appdir) = std::env::var_os("APPDIR") {
@@ -163,7 +178,8 @@ pub fn bandeja_posible() -> bool {
             .map(|it| {
                 it.filter_map(|e| e.ok()).any(|e| {
                     let n = e.file_name().to_string_lossy().to_string();
-                    n.starts_with("libayatana-appindicator3.so") || n.starts_with("libappindicator3.so")
+                    n.starts_with("libayatana-appindicator3.so")
+                        || n.starts_with("libappindicator3.so")
                 })
             })
             .unwrap_or(false)
@@ -179,7 +195,13 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<MenuItem<Wry>> {
     let abrir = MenuItem::with_id(app, "ss-abrir", "Abrir StarSeed", true, None::<&str>)?;
     let antenas = MenuItem::with_id(app, "ss-antenas", "Antenas: midiendo…", false, None::<&str>)?;
     let separador = PredefinedMenuItem::separator(app)?;
-    let salir = MenuItem::with_id(app, "ss-salir", "Salir del todo (apaga las antenas)", true, None::<&str>)?;
+    let salir = MenuItem::with_id(
+        app,
+        "ss-salir",
+        "Salir del todo (apaga las antenas)",
+        true,
+        None::<&str>,
+    )?;
     let menu = Menu::with_items(app, &[&abrir, &antenas, &separador, &salir])?;
     let mut b = TrayIconBuilder::with_id("starseed")
         .menu(&menu)
@@ -191,7 +213,12 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<MenuItem<Wry>> {
             _ => {}
         })
         .on_tray_icon_event(|tray, ev| {
-            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = ev {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = ev
+            {
                 mostrar(tray.app_handle());
             }
         });
@@ -204,19 +231,29 @@ fn crear_bandeja(app: &AppHandle) -> tauri::Result<MenuItem<Wry>> {
 
 /// Llamar desde `on_window_event`: cerrar la principal la oculta si procede.
 pub fn al_evento_de_ventana(window: &Window, event: &WindowEvent) {
-    let WindowEvent::CloseRequested { api, .. } = event else { return };
+    let WindowEvent::CloseRequested { api, .. } = event else {
+        return;
+    };
     if window.label() != "main" {
         return;
     }
     let app = window.app_handle();
-    let Some(e) = app.try_state::<EstadoEscritorio>() else { return };
+    let Some(e) = app.try_state::<EstadoEscritorio>() else {
+        return;
+    };
     if !e.activo.load(Ordering::Relaxed) || !puede_volver(&e) {
         return; // se cierra como siempre
     }
     api.prevent_close();
     ocultar(app);
     if !e.avisado.swap(true, Ordering::Relaxed) {
-        let _ = guardar_pref(app, Preferencia { activo: true, avisado: true });
+        let _ = guardar_pref(
+            app,
+            Preferencia {
+                activo: true,
+                avisado: true,
+            },
+        );
         use tauri_plugin_notification::NotificationExt;
         let _ = app
             .notification()
@@ -231,7 +268,9 @@ pub fn al_evento_de_ventana(window: &Window, event: &WindowEvent) {
 /// guardián: el cambio se ENCOLA en el hilo principal (no se espera), así un guardián que
 /// avisa nunca se queda bloqueado esperando a la ventana, ni al revés.
 pub fn al_cambiar_antenas(app: &AppHandle, estado: &EstadoAntenas) {
-    let Some(e) = app.try_state::<EstadoEscritorio>() else { return };
+    let Some(e) = app.try_state::<EstadoEscritorio>() else {
+        return;
+    };
     let texto = crate::antenas::resumen(estado);
     if let Ok(mut ultimo) = e.ultimo_texto.lock() {
         if *ultimo == texto {
@@ -250,22 +289,44 @@ pub fn al_cambiar_antenas(app: &AppHandle, estado: &EstadoAntenas) {
 pub fn estado(app: &AppHandle) -> EstadoSegundoPlano {
     let plataforma = std::env::consts::OS.to_string();
     let Some(e) = app.try_state::<EstadoEscritorio>() else {
-        return EstadoSegundoPlano { plataforma, activo: false, bandeja: false, oculta: false, al_cerrar: "La app se cierra del todo.".into() };
+        return EstadoSegundoPlano {
+            plataforma,
+            activo: false,
+            bandeja: false,
+            oculta: false,
+            al_cerrar: "La app se cierra del todo.".into(),
+        };
     };
     let activo = e.activo.load(Ordering::Relaxed);
     let bandeja = puede_volver(&e);
     let al_cerrar = match (activo, bandeja) {
-        (true, true) => "Cerrar la ventana la oculta: las antenas siguen; se sale desde la bandeja.".to_string(),
-        (true, false) => "Este sistema no tiene bandeja disponible: cerrar la ventana sale del todo.".to_string(),
+        (true, true) => {
+            "Cerrar la ventana la oculta: las antenas siguen; se sale desde la bandeja.".to_string()
+        }
+        (true, false) => {
+            "Este sistema no tiene bandeja disponible: cerrar la ventana sale del todo.".to_string()
+        }
         (false, _) => "Segundo plano apagado: cerrar la ventana sale del todo.".to_string(),
     };
-    EstadoSegundoPlano { plataforma, activo, bandeja, oculta: e.oculta.load(Ordering::Relaxed), al_cerrar }
+    EstadoSegundoPlano {
+        plataforma,
+        activo,
+        bandeja,
+        oculta: e.oculta.load(Ordering::Relaxed),
+        al_cerrar,
+    }
 }
 
 pub fn fijar(app: &AppHandle, activo: bool) -> Result<EstadoSegundoPlano, String> {
     if let Some(e) = app.try_state::<EstadoEscritorio>() {
         e.activo.store(activo, Ordering::Relaxed);
-        guardar_pref(app, Preferencia { activo, avisado: e.avisado.load(Ordering::Relaxed) })?;
+        guardar_pref(
+            app,
+            Preferencia {
+                activo,
+                avisado: e.avisado.load(Ordering::Relaxed),
+            },
+        )?;
     }
     Ok(estado(app))
 }

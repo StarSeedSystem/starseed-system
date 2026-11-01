@@ -32,11 +32,14 @@ fn servicio_android() {
         }
         return;
     }
-    let Some(proyecto) = std::env::var_os("TAURI_ANDROID_PROJECT_PATH").map(std::path::PathBuf::from) else {
+    let Some(proyecto) =
+        std::env::var_os("TAURI_ANDROID_PROJECT_PATH").map(std::path::PathBuf::from)
+    else {
         println!("cargo:warning=[starseed] Sin TAURI_ANDROID_PROJECT_PATH (¿build sin la CLI de Tauri?): el APK sale SIN servicio de antenas.");
         return;
     };
-    let libreria = std::env::var("WRY_ANDROID_LIBRARY").unwrap_or_else(|_| "starseed_native_lib".to_string());
+    let libreria =
+        std::env::var("WRY_ANDROID_LIBRARY").unwrap_or_else(|_| "starseed_native_lib".to_string());
     println!(
         "cargo:rerun-if-changed={}",
         proyecto.join("app/src/main/AndroidManifest.xml").display()

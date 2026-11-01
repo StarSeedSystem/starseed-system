@@ -32,9 +32,15 @@ pub struct PuenteSerie {
 
 /// Argumentos de `stty` para dejar la línea en 8N1 crudo con lecturas de 0,5 s.
 pub fn args_stty(ruta: &str, baudios: u32) -> Vec<String> {
-    let bandera = if cfg!(target_os = "macos") { "-f" } else { "-F" };
+    let bandera = if cfg!(target_os = "macos") {
+        "-f"
+    } else {
+        "-F"
+    };
     let mut v = vec![bandera.to_string(), ruta.to_string(), baudios.to_string()];
-    for a in ["raw", "-echo", "cs8", "-parenb", "-cstopb", "clocal", "min", "0", "time", "5"] {
+    for a in [
+        "raw", "-echo", "cs8", "-parenb", "-cstopb", "clocal", "min", "0", "time", "5",
+    ] {
         v.push(a.to_string());
     }
     v
@@ -47,7 +53,13 @@ pub fn ruta_permitida(ruta: &str, candidatos: &[String]) -> bool {
 
 impl PuenteSerie {
     #[cfg(all(unix, not(target_os = "android")))]
-    pub fn abrir(ruta: &str, baudios: u32, candidatos: &[String], al_recibir: AlRecibir, al_cerrar: AlCerrar) -> Result<PuenteSerie, String> {
+    pub fn abrir(
+        ruta: &str,
+        baudios: u32,
+        candidatos: &[String],
+        al_recibir: AlRecibir,
+        al_cerrar: AlCerrar,
+    ) -> Result<PuenteSerie, String> {
         if !ruta_permitida(ruta, candidatos) {
             return Err(format!("«{ruta}» no es una radio reconocida (USB serie)."));
         }
@@ -86,21 +98,36 @@ impl PuenteSerie {
                 al_cerrar();
             })
             .map_err(|e| e.to_string())?;
-        Ok(PuenteSerie { ruta: ruta.to_string(), escritor: Mutex::new(archivo), parar })
+        Ok(PuenteSerie {
+            ruta: ruta.to_string(),
+            escritor: Mutex::new(archivo),
+            parar,
+        })
     }
 
     #[cfg(not(all(unix, not(target_os = "android"))))]
-    pub fn abrir(_ruta: &str, _baudios: u32, _candidatos: &[String], _al_recibir: AlRecibir, _al_cerrar: AlCerrar) -> Result<PuenteSerie, String> {
+    pub fn abrir(
+        _ruta: &str,
+        _baudios: u32,
+        _candidatos: &[String],
+        _al_recibir: AlRecibir,
+        _al_cerrar: AlCerrar,
+    ) -> Result<PuenteSerie, String> {
         Err(if cfg!(windows) {
             "En Windows el puente serie nativo aún no está (necesita el crate serialport: decisión de Alex). Usa Chrome/Edge con Web Serial.".into()
         } else {
-            "En el móvil la radio irá por Bluetooth o USB desde el plugin Kotlin (próxima versión).".into()
+            "En el móvil la radio irá por Bluetooth o USB desde el plugin Kotlin (próxima versión)."
+                .into()
         })
     }
 
     pub fn escribir(&self, datos: &[u8]) -> Result<(), String> {
-        let mut f = self.escritor.lock().map_err(|_| "puerto bloqueado".to_string())?;
-        f.write_all(datos).map_err(|e| format!("No se pudo escribir en {}: {e}", self.ruta))?;
+        let mut f = self
+            .escritor
+            .lock()
+            .map_err(|_| "puerto bloqueado".to_string())?;
+        f.write_all(datos)
+            .map_err(|e| format!("No se pudo escribir en {}: {e}", self.ruta))?;
         f.flush().map_err(|e| e.to_string())
     }
 

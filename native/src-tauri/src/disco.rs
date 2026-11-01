@@ -54,7 +54,10 @@ pub fn leer_df(salida: &str) -> Option<u64> {
     if pos_pct < 1 {
         return None;
     }
-    campos[pos_pct - 1].parse::<u64>().ok().map(|kib| kib * 1024)
+    campos[pos_pct - 1]
+        .parse::<u64>()
+        .ok()
+        .map(|kib| kib * 1024)
 }
 
 /// Lee la salida de PowerShell `(Get-PSDrive -Name C).Free` (un número).
@@ -68,7 +71,10 @@ pub fn espacio_libre(dir: &Path) -> Option<u64> {
     let texto = dir.to_string_lossy();
     let letra = texto.chars().next().filter(|c| c.is_ascii_alphabetic())?;
     let ps = format!("(Get-PSDrive -Name {letra}).Free");
-    let out = orden("powershell").args(["-NoProfile", "-Command", &ps]).output().ok()?;
+    let out = orden("powershell")
+        .args(["-NoProfile", "-Command", &ps])
+        .output()
+        .ok()?;
     leer_psdrive(&String::from_utf8_lossy(&out.stdout))
 }
 
@@ -91,13 +97,18 @@ pub struct CapaEnDisco {
 
 /// Archivos de capa ya en el disco (se ignoran los temporales `.parcial`).
 pub fn capas_instaladas(dir: &Path) -> Vec<CapaEnDisco> {
-    let Ok(lector) = std::fs::read_dir(dir) else { return vec![] };
+    let Ok(lector) = std::fs::read_dir(dir) else {
+        return vec![];
+    };
     let mut v: Vec<CapaEnDisco> = lector
         .filter_map(|e| e.ok())
         .filter_map(|e| {
             let m = e.metadata().ok()?;
             let nombre = e.file_name().to_string_lossy().to_string();
-            (m.is_file() && !nombre.ends_with(".parcial")).then_some(CapaEnDisco { nombre, bytes: m.len() })
+            (m.is_file() && !nombre.ends_with(".parcial")).then_some(CapaEnDisco {
+                nombre,
+                bytes: m.len(),
+            })
         })
         .collect();
     v.sort_by(|a, b| a.nombre.cmp(&b.nombre));
@@ -111,7 +122,9 @@ pub fn nombre_seguro(nombre: &str) -> bool {
         && nombre != "."
         && nombre != ".."
         && !nombre.starts_with('.')
-        && nombre.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+        && nombre
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
 }
 
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
@@ -136,13 +149,22 @@ pub fn verificar(ruta: &Path, sha_esperado: &str) -> Verificacion {
         Ok((sha, bytes)) => {
             let ok = sha.eq_ignore_ascii_case(sha_esperado);
             Verificacion {
-                motivo: if ok { "SHA-256 correcto.".into() } else { "El SHA-256 no casa con el catálogo.".into() },
+                motivo: if ok {
+                    "SHA-256 correcto.".into()
+                } else {
+                    "El SHA-256 no casa con el catálogo.".into()
+                },
                 ok,
                 sha256: sha,
                 bytes,
             }
         }
-        Err(e) => Verificacion { ok: false, sha256: String::new(), bytes: 0, motivo: format!("No se pudo leer: {e}") },
+        Err(e) => Verificacion {
+            ok: false,
+            sha256: String::new(),
+            bytes: 0,
+            motivo: format!("No se pudo leer: {e}"),
+        },
     }
 }
 
@@ -185,20 +207,33 @@ pub fn descargar(p: &PeticionDescarga, dir: &Path) -> Result<Verificacion, Strin
     std::fs::create_dir_all(dir).map_err(|e| format!("No se pudo crear {}: {e}", dir.display()))?;
     let parcial: PathBuf = dir.join(format!("{}.parcial", p.nombre));
     let estado = orden("curl")
-        .args(["-L", "--fail", "--silent", "--show-error", "--retry", "3", "-C", "-", "-o"])
+        .args([
+            "-L",
+            "--fail",
+            "--silent",
+            "--show-error",
+            "--retry",
+            "3",
+            "-C",
+            "-",
+            "-o",
+        ])
         .arg(&parcial)
         .arg(&p.url)
         .status()
         .map_err(|e| format!("No se pudo lanzar curl: {e}"))?;
     if !estado.success() {
-        return Err(format!("curl terminó con {estado}: la descarga se reanudará en el siguiente intento."));
+        return Err(format!(
+            "curl terminó con {estado}: la descarga se reanudará en el siguiente intento."
+        ));
     }
     let v = verificar(&parcial, &p.sha256);
     if !v.ok {
         let _ = std::fs::remove_file(&parcial);
         return Err(format!("{} Se borró el archivo descargado.", v.motivo));
     }
-    std::fs::rename(&parcial, dir.join(&p.nombre)).map_err(|e| format!("No se pudo colocar la capa: {e}"))?;
+    std::fs::rename(&parcial, dir.join(&p.nombre))
+        .map_err(|e| format!("No se pudo colocar la capa: {e}"))?;
     Ok(v)
 }
 
@@ -241,14 +276,32 @@ mod pruebas {
     #[test]
     fn valida_peticiones() {
         let sha = "c9d915eca282ed42d1a09b143b592adb4cc6744ffe2d294adf5cfc5548170c38".to_string();
-        let ok = PeticionDescarga { url: "https://huggingface.co/x".into(), sha256: sha.clone(), nombre: "needle3.cact".into(), tamano_bytes: 35_335_380 };
+        let ok = PeticionDescarga {
+            url: "https://huggingface.co/x".into(),
+            sha256: sha.clone(),
+            nombre: "needle3.cact".into(),
+            tamano_bytes: 35_335_380,
+        };
         assert!(validar_peticion(&ok, 50 * GB, 0).is_ok());
-        let http = PeticionDescarga { url: "http://x".into(), ..ok.clone() };
+        let http = PeticionDescarga {
+            url: "http://x".into(),
+            ..ok.clone()
+        };
         assert!(validar_peticion(&http, 50 * GB, 0).is_err());
-        let sin_sha = PeticionDescarga { sha256: "por-verificar".into(), ..ok.clone() };
-        assert!(validar_peticion(&sin_sha, 50 * GB, 0).unwrap_err().contains("SHA"));
-        let grande = PeticionDescarga { tamano_bytes: 9 * GB, ..ok.clone() };
-        assert!(validar_peticion(&grande, 500 * GB, 0).unwrap_err().contains("No cabe"));
+        let sin_sha = PeticionDescarga {
+            sha256: "por-verificar".into(),
+            ..ok.clone()
+        };
+        assert!(validar_peticion(&sin_sha, 50 * GB, 0)
+            .unwrap_err()
+            .contains("SHA"));
+        let grande = PeticionDescarga {
+            tamano_bytes: 9 * GB,
+            ..ok.clone()
+        };
+        assert!(validar_peticion(&grande, 500 * GB, 0)
+            .unwrap_err()
+            .contains("No cabe"));
     }
 
     #[test]
@@ -257,13 +310,22 @@ mod pruebas {
         std::fs::create_dir_all(&dir).unwrap();
         let f = dir.join("capa.bin");
         std::fs::write(&f, b"abc").unwrap();
-        let bien = verificar(&f, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+        let bien = verificar(
+            &f,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        );
         assert!(bien.ok && bien.bytes == 3);
         assert!(!verificar(&f, &"0".repeat(64)).ok);
         assert!(!verificar(&f, "por-verificar").ok);
         std::fs::write(dir.join("otra.gguf.parcial"), b"x").unwrap();
         let inst = capas_instaladas(&dir);
-        assert_eq!(inst, vec![CapaEnDisco { nombre: "capa.bin".into(), bytes: 3 }]);
+        assert_eq!(
+            inst,
+            vec![CapaEnDisco {
+                nombre: "capa.bin".into(),
+                bytes: 3
+            }]
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

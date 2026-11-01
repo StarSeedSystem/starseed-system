@@ -72,7 +72,10 @@ pub fn contiene(madre: &Path, hija: &Path) -> bool {
 
 /// Raíz de disco o carpeta personal entera → concesión amplia.
 pub fn es_amplia(ruta: &Path, carpeta_personal: Option<&Path>) -> bool {
-    let componentes = ruta.components().filter(|c| !matches!(c, Component::Prefix(_))).count();
+    let componentes = ruta
+        .components()
+        .filter(|c| !matches!(c, Component::Prefix(_)))
+        .count();
     if componentes <= 1 {
         return true; // "/" o "C:\"
     }
@@ -84,7 +87,10 @@ pub fn es_amplia(ruta: &Path, carpeta_personal: Option<&Path>) -> bool {
 
 impl RegistroCarpetas {
     pub fn nuevo() -> Self {
-        RegistroCarpetas { esquema: 1, carpetas: vec![] }
+        RegistroCarpetas {
+            esquema: 1,
+            carpetas: vec![],
+        }
     }
 
     /// Lee el registro; si no existe o está roto, empieza vacío (nunca falla).
@@ -98,11 +104,14 @@ impl RegistroCarpetas {
 
     /// Guarda de forma atómica (temporal + renombrar).
     pub fn guardar(&self, dir: &Path) -> Result<(), String> {
-        std::fs::create_dir_all(dir).map_err(|e| format!("No se pudo crear {}: {e}", dir.display()))?;
+        std::fs::create_dir_all(dir)
+            .map_err(|e| format!("No se pudo crear {}: {e}", dir.display()))?;
         let tmp = dir.join(format!("{ARCHIVO}.tmp"));
         let json = serde_json::to_string_pretty(self).map_err(|e| e.to_string())?;
-        std::fs::write(&tmp, json).map_err(|e| format!("No se pudo escribir {}: {e}", tmp.display()))?;
-        std::fs::rename(&tmp, dir.join(ARCHIVO)).map_err(|e| format!("No se pudo guardar el registro: {e}"))
+        std::fs::write(&tmp, json)
+            .map_err(|e| format!("No se pudo escribir {}: {e}", tmp.display()))?;
+        std::fs::rename(&tmp, dir.join(ARCHIVO))
+            .map_err(|e| format!("No se pudo guardar el registro: {e}"))
     }
 
     /// Concede (o actualiza el modo de) una carpeta. Devuelve la entrada final.
@@ -116,7 +125,11 @@ impl RegistroCarpetas {
         let p = normalizar(ruta)?;
         let modo = match modo {
             "lectura" | "lectura-escritura" => modo.to_string(),
-            otro => return Err(format!("Modo «{otro}» desconocido (lectura o lectura-escritura).")),
+            otro => {
+                return Err(format!(
+                    "Modo «{otro}» desconocido (lectura o lectura-escritura)."
+                ))
+            }
         };
         let texto = p.to_string_lossy().to_string();
         if let Some(e) = self.carpetas.iter_mut().find(|c| c.ruta == texto) {
@@ -136,7 +149,9 @@ impl RegistroCarpetas {
 
     /// Quita una carpeta. Devuelve si estaba.
     pub fn revocar(&mut self, ruta: &str) -> bool {
-        let Ok(p) = normalizar(ruta) else { return false };
+        let Ok(p) = normalizar(ruta) else {
+            return false;
+        };
         let texto = p.to_string_lossy().to_string();
         let antes = self.carpetas.len();
         self.carpetas.retain(|c| c.ruta != texto);
@@ -159,7 +174,11 @@ impl RegistroCarpetas {
     /// La carpeta NAS que cubre una ruta YA canonicalizada (enlaces simbólicos resueltos).
     /// `canonizar` resuelve también la raíz de cada carpeta, para que un enlace dentro de la
     /// carpeta no escape de ella ni una raíz con enlace deje fuera lo que sí es suyo.
-    pub fn cubre_nas(&self, ruta_canonica: &Path, canonizar: &dyn Fn(&Path) -> PathBuf) -> Option<&CarpetaConcedida> {
+    pub fn cubre_nas(
+        &self,
+        ruta_canonica: &Path,
+        canonizar: &dyn Fn(&Path) -> PathBuf,
+    ) -> Option<&CarpetaConcedida> {
         self.carpetas
             .iter()
             .filter(|c| c.nas)
@@ -184,7 +203,10 @@ mod pruebas {
     #[cfg(unix)]
     #[test]
     fn normaliza_y_rechaza() {
-        assert_eq!(normalizar("/home/ana/./fotos/../docs").unwrap(), PathBuf::from("/home/ana/docs"));
+        assert_eq!(
+            normalizar("/home/ana/./fotos/../docs").unwrap(),
+            PathBuf::from("/home/ana/docs")
+        );
         assert!(normalizar("fotos").is_err());
         assert!(normalizar("").is_err());
         assert!(normalizar("/..").is_err());
@@ -193,8 +215,14 @@ mod pruebas {
     #[cfg(unix)]
     #[test]
     fn contiene_por_componentes() {
-        assert!(contiene(Path::new("/home/ana"), Path::new("/home/ana/x.txt")));
-        assert!(!contiene(Path::new("/home/ana"), Path::new("/home/anabel/x.txt")));
+        assert!(contiene(
+            Path::new("/home/ana"),
+            Path::new("/home/ana/x.txt")
+        ));
+        assert!(!contiene(
+            Path::new("/home/ana"),
+            Path::new("/home/anabel/x.txt")
+        ));
     }
 
     #[cfg(unix)]
@@ -203,12 +231,21 @@ mod pruebas {
         let dir = std::env::temp_dir().join(format!("ss-carpetas-{}", std::process::id()));
         let mut r = RegistroCarpetas::nuevo();
         let home = PathBuf::from("/home/ana");
-        let e = r.conceder("/home/ana/Fotos", "lectura", 1, Some(&home)).unwrap();
+        let e = r
+            .conceder("/home/ana/Fotos", "lectura", 1, Some(&home))
+            .unwrap();
         assert!(!e.nas && !e.amplia);
         assert!(r.conceder("/", "lectura", 2, Some(&home)).unwrap().amplia);
-        assert!(r.conceder("/home/ana", "lectura-escritura", 3, Some(&home)).unwrap().amplia);
+        assert!(
+            r.conceder("/home/ana", "lectura-escritura", 3, Some(&home))
+                .unwrap()
+                .amplia
+        );
         assert!(r.conceder("/x", "todo", 4, None).is_err());
-        assert_eq!(r.cubre("/home/ana/Fotos/a.jpg").unwrap().ruta, "/home/ana/Fotos");
+        assert_eq!(
+            r.cubre("/home/ana/Fotos/a.jpg").unwrap().ruta,
+            "/home/ana/Fotos"
+        );
         assert!(r.compartir_nas("/home/ana/Fotos", true).unwrap().nas);
         assert!(r.compartir_nas("/no/concedida", true).is_err());
         r.guardar(&dir).unwrap();
@@ -228,13 +265,36 @@ mod pruebas {
         r.conceder("/datos/musica", "lectura", 1, None).unwrap();
         r.compartir_nas("/datos/musica", true).unwrap();
         let id = |p: &Path| p.to_path_buf();
-        assert!(r.cubre_nas(Path::new("/datos/fotos/a.jpg"), &id).is_none(), "concedida pero no compartida");
-        assert_eq!(r.cubre_nas(Path::new("/datos/musica/x.flac"), &id).unwrap().ruta, "/datos/musica");
-        assert!(r.cubre_nas(Path::new("/datos/musicas/x"), &id).is_none(), "por componentes, no por texto");
+        assert!(
+            r.cubre_nas(Path::new("/datos/fotos/a.jpg"), &id).is_none(),
+            "concedida pero no compartida"
+        );
+        assert_eq!(
+            r.cubre_nas(Path::new("/datos/musica/x.flac"), &id)
+                .unwrap()
+                .ruta,
+            "/datos/musica"
+        );
+        assert!(
+            r.cubre_nas(Path::new("/datos/musicas/x"), &id).is_none(),
+            "por componentes, no por texto"
+        );
         // La raíz es un enlace: se compara con su destino real.
-        let enlace = |p: &Path| if p == Path::new("/datos/musica") { PathBuf::from("/mnt/disco/musica") } else { p.to_path_buf() };
-        assert!(r.cubre_nas(Path::new("/mnt/disco/musica/y.flac"), &enlace).is_some());
-        assert!(r.cubre_nas(Path::new("/datos/musica/y.flac"), &enlace).is_none(), "solo cuenta el destino canónico");
+        let enlace = |p: &Path| {
+            if p == Path::new("/datos/musica") {
+                PathBuf::from("/mnt/disco/musica")
+            } else {
+                p.to_path_buf()
+            }
+        };
+        assert!(r
+            .cubre_nas(Path::new("/mnt/disco/musica/y.flac"), &enlace)
+            .is_some());
+        assert!(
+            r.cubre_nas(Path::new("/datos/musica/y.flac"), &enlace)
+                .is_none(),
+            "solo cuenta el destino canónico"
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
-use tauri::AppHandle;
 use serde::Serialize;
 use std::collections::HashSet;
+use tauri::AppHandle;
 
 #[tauri::command]
 pub fn ventanas_prestables(_app: AppHandle, apps: Vec<String>) -> Result<Vec<VentanaInfo>, String> {
@@ -8,8 +8,12 @@ pub fn ventanas_prestables(_app: AppHandle, apps: Vec<String>) -> Result<Vec<Ven
     let mut ventanas = Vec::new();
     let mut seen_ids = HashSet::new();
 
-    for window in xcap::Window::all().map_err(|e| format!("No se pudieron obtener las ventanas: {e}"))? {
-        let id = window.id().map_err(|e| format!("No se pudo obtener el ID de la ventana: {e}"))?;
+    for window in
+        xcap::Window::all().map_err(|e| format!("No se pudieron obtener las ventanas: {e}"))?
+    {
+        let id = window
+            .id()
+            .map_err(|e| format!("No se pudo obtener el ID de la ventana: {e}"))?;
         if seen_ids.contains(&id) {
             continue;
         }
@@ -23,7 +27,11 @@ pub fn ventanas_prestables(_app: AppHandle, apps: Vec<String>) -> Result<Vec<Ven
             .map_err(|e| format!("No se pudo obtener el título: {e}"))?;
 
         if apps_set.contains(&app_name) {
-            ventanas.push(VentanaInfo { id, app_name, title });
+            ventanas.push(VentanaInfo {
+                id,
+                app_name,
+                title,
+            });
         }
     }
 
@@ -39,7 +47,8 @@ pub struct VentanaInfo {
 
 #[tauri::command]
 pub fn capturar_ventana(_app: AppHandle, id: u32, ancho_max: u32) -> Result<String, String> {
-    let window = xcap::Window::all().map_err(|e| format!("No se pudieron obtener las ventanas: {e}"))?
+    let window = xcap::Window::all()
+        .map_err(|e| format!("No se pudieron obtener las ventanas: {e}"))?
         .into_iter()
         .find(|w| w.id().ok() == Some(id))
         .ok_or_else(|| format!("No se encontró la ventana con ID {id}"))?;
@@ -64,7 +73,10 @@ pub fn capturar_ventana(_app: AppHandle, id: u32, ancho_max: u32) -> Result<Stri
 
     let mut buffer = Vec::new();
     resized_img
-        .write_to(&mut std::io::Cursor::new(&mut buffer), image::ImageOutputFormat::Png)
+        .write_to(
+            &mut std::io::Cursor::new(&mut buffer),
+            image::ImageOutputFormat::Png,
+        )
         .map_err(|e| format!("No se pudo codificar PNG: {e}"))?;
 
     let base64 = base64::engine::general_purpose::STANDARD.encode(buffer);
