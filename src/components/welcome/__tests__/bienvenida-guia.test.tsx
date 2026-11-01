@@ -2,9 +2,9 @@
  * GUI1021K2 · «Conoce StarSeed (sin cuenta)» en la bienvenida y en el aviso de retomar sesión.
  *
  * §5 de `architecture/guias-introduccion.md`: la guía entera se abre sin cuenta, por la puerta
- * común (`abrirGuia`), desde leer bienvenida (`desde: "bienvenida"`) y desde leer detección de
- * sesión (`desde: "login"`). Se comprueba el evento real que escucha `aurora-guide.tsx`, la
- * activación con ratón y con teclado, y las dianas de 44 px con cursor pointer.
+ * común (`abrirGuia`), desde la bienvenida (`desde: "bienvenida"`) y desde la detección de sesión
+ * (`desde: "login"`). Se comprueba el evento real que escucha `aurora-guide.tsx`, la activación con
+ * ratón y con teclado, y las dianas de 44 px con cursor pointer y movimiento reducido.
  */
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -60,20 +60,28 @@ afterEach(() => cleanup());
 
 describe("WelcomeWindow (GUI1021K2)", () => {
   it("«Conoce StarSeed (sin cuenta)» abre la guía desde «bienvenida», con ratón y con teclado", async () => {
-    render(<WelcomeWindow onContinue={() => undefined} />);
+    const { container } = render(<WelcomeWindow onContinue={() => undefined} />);
     const boton = screen.getByRole("button", { name: "Conoce StarSeed (sin cuenta)" });
+    expect(boton).toHaveAttribute("type", "button");
     expect(boton.style.cursor).toBe("pointer");
     expect(boton.style.minHeight).toBe("44px");
     expect(boton.className).toMatch(/ss-wel-soft/); // su :focus-visible está en el <style>
+    expect(container.textContent).toMatch(/prefers-reduced-motion:\s*reduce/);
 
     const guia = escucharGuia();
+    expect(guia.recibidos).toEqual([]); // no se abre sola: nada sin gesto
     fireEvent.click(boton);
 
     const teclado = userEvent.setup();
     boton.focus();
     await teclado.keyboard("{Enter}");
+    await teclado.keyboard(" "); // la barra espaciadora también activa un botón
     guia.parar();
-    expect(guia.recibidos).toEqual([{ desde: "bienvenida" }, { desde: "bienvenida" }]);
+    expect(guia.recibidos).toEqual([
+      { desde: "bienvenida" },
+      { desde: "bienvenida" },
+      { desde: "bienvenida" },
+    ]);
   });
 });
 
@@ -84,24 +92,31 @@ describe("SessionResumePrompt (GUI1021K2)", () => {
 
     const boton = await screen.findByRole("button", { name: "Conoce StarSeed (sin cuenta)" });
     expect(guia.recibidos).toEqual([]); // aún nada sin gesto
+    expect(boton).toHaveAttribute("type", "button");
 
     fireEvent.click(boton);
 
     const teclado = userEvent.setup();
     boton.focus();
     await teclado.keyboard("{Enter}");
+    await teclado.keyboard(" ");
     guia.parar();
-    expect(guia.recibidos).toEqual([{ desde: "login" }, { desde: "login" }]);
+    expect(guia.recibidos).toEqual([
+      { desde: "login" },
+      { desde: "login" },
+      { desde: "login" },
+    ]);
   });
 });
 
 describe("accesibilidad del botón en el retomar sesión (GUI1021K2)", () => {
-  it("diana de 44 px con cursor pointer y foco visible por teclado", async () => {
-    render(<SessionResumePrompt />);
+  it("diana de 44 px con cursor pointer, foco visible y movimiento reducido", async () => {
+    const { container } = render(<SessionResumePrompt />);
     const region = await screen.findByRole("region", { name: "Sesión StarSeed detectada" });
     const boton = within(region).getByRole("button", { name: "Conoce StarSeed (sin cuenta)" });
     expect(boton.style.cursor).toBe("pointer");
     expect(boton.style.minHeight).toBe("44px");
     expect(boton.className).toMatch(/ss-sso-guia/); // su :focus-visible está en el <style>
+    expect(container.textContent).toMatch(/prefers-reduced-motion:\s*reduce/);
   });
 });
