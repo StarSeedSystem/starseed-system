@@ -31,6 +31,12 @@ describe("parseSha256Sums", () => {
     expect(mapa.has("abc.zip")).toBe(true);
   });
 
+  it("lee un solo espacio y normaliza la huella a minúsculas", () => {
+    const texto = "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD abc.zip";
+    const mapa = parseSha256Sums(texto);
+    expect(mapa.get("abc.zip")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  });
+
   it("ignora líneas mal formadas", () => {
     const texto = "basura\nba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  abc.zip";
     const mapa = parseSha256Sums(texto);
@@ -125,6 +131,7 @@ describe("verificarActivo", () => {
     const result = await verificarActivo("figcraft-web-1.0.0.zip", bytes, sumas);
     expect(result.ok).toBe(false);
     expect(result.motivo).toMatch(/ba7816bf/);
+    expect(result.motivo).not.toContain("f20015ad"); // solo se enseñan los 8 primeros caracteres
   });
 
   it("sin huella publicada", async () => {

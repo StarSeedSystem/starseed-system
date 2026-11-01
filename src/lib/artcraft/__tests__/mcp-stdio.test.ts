@@ -110,6 +110,20 @@ describe("ClienteMcpStdio", () => {
     if (!("tipo" in resultado)) throw new Error("se esperaba una imagen");
     expect(resultado.mime).toBe("image/png"); expect(Array.from(resultado.bytes)).toEqual(Array.from(datos));
   });
+  it("reensambla una respuesta que llega a trozos", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.listar(1000);
+    const linea = `${JSON.stringify({ jsonrpc: "2.0", id: transporte.ultima.id, result: { herramientas: true } })}\n`;
+    transporte.enviar(linea.slice(0, 12));
+    transporte.enviar(linea.slice(12));
+    expect(await promesa).toEqual({ herramientas: true });
+  });
+  it("descarta los bloques que no son texto o imagen", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("eso", {}, 1000);
+    transporte.responder(transporte.ultima.id, { content: [{ type: "resource", uri: "figcraft://doc" }, { type: "text", text: "solo esto" }] });
+    expect(await promesa).toEqual({ ok: true, texto: "solo esto" });
+  });
   it("convierte un error RPC en excepción tipada", async () => {
     const { transporte, cliente } = montar();
     const promesa = cliente.llamar("x", {}, 1000);
