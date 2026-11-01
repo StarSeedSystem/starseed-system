@@ -113,6 +113,18 @@ class ConPuerta(Base):
         self.assertEqual(r["motivo"], "dueño: mac-2")
         self.assertEqual(self.f.escrituras, 0)  # escritura condicional: solo escribe si la versión coincide
 
+    def test_sin_puerta_con_el_a1_latiendo_no_dirige_ni_encola(self):
+        self.poner("mac-1", 1, T0 + 100, T0)
+        self.f.sana = False
+        real = LD._sin_puerta
+        LD._sin_puerta = lambda *a, **k: "sin puerta: el A1 latió hace 120 s"
+        self.addCleanup(setattr, LD, "_sin_puerta", real)
+        self.assertFalse(LD.soy_lider("mac-1", T0, self.p)["soy"])
+        r = LD.renovar("mac-1", T0, self.p)
+        self.assertFalse(r["soy"] or r["escrito"])
+        self.assertEqual(self.f.escrituras, 0)
+        self.assertFalse(os.path.exists(self.p.cola))  # el arriendo no se encola para reenviarlo luego
+
 
 if __name__ == "__main__":
     unittest.main()
