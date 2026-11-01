@@ -24,7 +24,10 @@
 
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
-import { nivelPara, siguienteNivel, NIVELES, type NivelVoz } from "./niveles";
+import { nivelPara, siguienteNivel, NIVELES, estudioSegunUso, acotarNivel, type NivelVoz } from "./niveles";
+import { motoresPermitidos, type ContextoLicenciaVoz } from "./licencia-voz";
+import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
+import type { MedidaVoz } from "@/lib/aurora/medidas-voz";
 import {
     soporteSupertonic,
     nivelParaVoz,
@@ -235,6 +238,109 @@ async function resolverNivel(explicito?: NivelVoz): Promise<NivelVoz> {
     if (explicito) return explicito;
     const preferencia = nivelPreferido();
     return preferencia === "auto" ? auto : preferencia;
+}
+
+// ── (Ola 1018V · VST1018F, parte 2) LA PRIMERA FRASE DE UNA CONVERSACIÓN ────
+// Contrato `architecture/voz-voicestudio.md` §4: una conversación EMPIEZA a
+// sonar con el motor de MENOR latencia MEDIDA en esta neurona que tenga la voz
+// de esa persona y esté PERMITIDO en el contexto (`licencia-voz.ts`); el nivel
+// «estudio» queda solo para lectura larga, doblaje y audiolibros. TODO es
+// PURO: candidatos, contexto, capas, medidas y uso entran por parámetro, sin
+// red, disco, reloj ni audio. Y el mensaje entero suena por UN motor: nunca se
+// parte entre dos (regla de `speak-router`, voz-fusionada-astraura.md §3).
+
+/** Candidato a sonar la primera frase, con lo mínimo para elegirlo. */
+export interface CandidatoPrimeraFrase {
+    id: string;
+    /** ¿Este motor sabe rendir la voz de esa persona (propia o clonada con permiso)? */
+    tieneVozDe?: boolean;
+    /** Clase de licencia de los PESOS (la del catálogo, no la del programa). */
+    claseLicencia: "libre" | "condicionada" | "personal";
+    /** Solo mira en las «condicionada»: ausente equivale a no cumplida. */
+    condicionCumplida?: boolean;
+    /** true solo en los motores del nivel «estudio» (VoiceStudio por la malla o demonio). */
+    esEstudio?: boolean;
+}
+
+export interface EleccionPrimeraFrase {
+    /** El motor elegido (UNO: el mensaje entero suena por él) o null sin elección. */
+    motor: string | null;
+    /** Por qué se eligió (o por qué no se eligió ninguno), legible. */
+    motivo: string;
+    /** Mediana «primer-sonido» medida del elegido, en ms. */
+    latenciaMs: number | null;
+}
+
+/**
+ * Mediana de latencia «primer-sonido» acumulada de UN motor, con las medidas
+ * que le pasen (en la neurona viva las trae `leerMedidas(neurona)` de
+ * `medidas-voz.ts`; solo cuentan las de ESTA neurona). Pura.
+ */
+export function medianaLatencia(medidas: readonly MedidaVoz[], motor: string): number | null {
+    const valores = medidas
+        .filter((x) => x.tipo === "primer-sonido" && x.motor === motor)
+        .map((x) => x.valor)
+        .sort((a, b) => a - b);
+    if (!valores.length) return null;
+    const centro = Math.floor(valores.length / 2);
+    return valores.length % 2 ? valores[centro] : (valores[centro - 1] + valores[centro]) / 2;
+}
+
+/**
+ * La elección de la primera frase (contrato voz-voicestudio §4). Orden fijo:
+ *  1. Solo los candidatos con la voz de esa persona.
+ *  2. Solo los permitidos por licencia de contexto (`motoresPermitidos`):
+ *     fuera de lo personal ningún motor «personal»; una «condicionada» entra
+ *     solo con su condición cumplida Y su capa concedida. El piso libre nunca
+ *     se pierde.
+ *  3. El motor de «estudio» solo compite en lectura, doblaje y audiolibros.
+ *  4. De los que QUEDEN, solo los MEDIDOS: gana la menor mediana
+ *     «primer-sonido»; a igual latencia, el que llegó primero en la lista
+ *     (orden estable, así la elección es repetible). Sin medidas no hay
+ *     promesa de instantánea y se devuelve null: quien llama cae al nivel
+ *     por defecto.
+ *
+ * El resultado es UN motor: quien hable ese mensaje entero lo hace por él,
+ * sin trocearlo por motrices distintas. Pura.
+ */
+export function elegirMotorPrimeraFrase(
+    candidatos: readonly CandidatoPrimeraFrase[],
+    contexto: ContextoLicenciaVoz,
+    capas: CapasPrefs,
+    medidas: readonly MedidaVoz[],
+    uso?: "conversacion" | "aviso" | "lectura" | "doblaje" | "audiolibro",
+): EleccionPrimeraFrase {
+    const conVoz = candidatos.filter((c) => c.tieneVozDe === true);
+    const { permitidos } = motoresPermitidos(conVoz, contexto, capas);
+    const combate = permitidos.filter((c) => !c.esEstudio || (uso !== undefined && estudioSegunUso(uso)));
+    const valorados = combate
+        .map((c) => ({ id: c.id, mediana: medianaLatencia(medidas, c.id) }))
+        .filter((x): x is { id: string; mediana: number } => x.mediana !== null)
+        .sort((a, b) => a.mediana - b.mediana); // estable: a igual mediana gana el primero
+    const mejor = valorados[0];
+    if (!mejor) {
+        return {
+            motor: null,
+            motivo: "sin medidas «primer-sonido» de ningún motor permitido con esa voz",
+            latenciaMs: null,
+        };
+    }
+    return {
+        motor: mejor.id,
+        motivo: "menor latencia medida («primer-sonido») entre los permitidos con esa voz",
+        latenciaMs: mejor.mediana,
+    };
+}
+
+/**
+ * Tope de nivel según dónde suena el mensaje, vista `ContextoVoz` del llamador
+ * (contrato §4): «estudio» solo queda para lectura larga; rito, conversación,
+ * avisos e imaginación no pasan de «alta». `doblaje` y `audiolibro` no son
+ * contextos de la puerta (son usos declarados aguas arriba), y la lectura
+ * devuelve null: sin tope. Pura.
+ */
+export function topeEstudioSegunContexto(contexto: "rito" | "conversacion" | "aviso" | "lectura" | "imaginacion"): "alta" | null {
+    return contexto === "lectura" ? null : "alta";
 }
 
 /**
@@ -470,6 +576,12 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
             nivel = "nube";
             break;
     }
+
+    // (Ola 1018V · VST1018F, parte 2) El nivel «estudio» es para lectura larga,
+    // no para las primeras frases del rito, chat o avisos: quien llamó sin
+    // declarar «lectura» no pasa de «alta» (contrato voz-voicestudio §4).
+    const topeContexto = topeEstudioSegunContexto(opciones.contexto);
+    if (topeContexto) nivel = acotarNivel(nivel, topeContexto);
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
     // Al empezar a hablar se deriva el gesto del texto y se emite `starseed:gesto`
