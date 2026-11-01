@@ -255,6 +255,19 @@ class TestBriefHerramientas(unittest.TestCase):
                  "(presentaciones HTML de un archivo, escenario 16:9 fijo)")
         self.assertEqual(texto.count(linea), 1)
 
+    def test_tres_claves_nuevas_caben_en_2500(self):
+        """Con una tarea que casa 3 claves nuevas, el brief sigue cabiendo en los
+        2500 caracteres por defecto y se conservan los apartados 6 y 7."""
+        tarea = {"titulo": "Presentación con design.md y panel de datos",
+                 "archivos": ["src/app/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=2500)
+        self.assertLessEqual(len(texto), 2500)
+        self.assertIn("## 6. Herramientas y skills", texto)
+        self.assertIn("## 7. Verificación", texto)
+        self.assertIn("frontend-slides", texto)
+        self.assertIn("awesome-design-md", texto)
+        self.assertIn("Refine — https://github.com/refinedev/refine", texto)
+
     def test_apartados_6_y_7_con_varias_claves(self):
         """Los apartados 6 (Herramientas) y 7 (Verificación) se conservan con varias claves."""
         tarea = {"titulo": "Chat de agente con grafo", "archivos": ["src/app/x/page.tsx"]}
