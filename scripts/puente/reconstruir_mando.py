@@ -37,6 +37,8 @@ import sys
 import time
 import urllib.request
 
+import cuarentena_sin_git as _cuarentena
+
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.expanduser("~/Documents/starseed-os-main")
 ESTADO = os.path.join(RAIZ, "starseed_memory_root", "mando", "reconstruccion.json")
 #: Lo que escribe `publicar.py` paso a paso. Se lee para no compilar a la vez que él.
@@ -1149,6 +1151,12 @@ def silencio_tolerable(silencio_desde, ahora, espera_s=ESPERA_MAX_SIN_RESPUESTA_
 def una_pasada(forzar: bool = False) -> bool:
     """`forzar` (orden `--una-vez --ya`): compila aunque Astraura esté en uso o haya
     conversación. Solo a mano; el disco se sigue comprobando."""
+    try:
+        # (2026-10-31) Un .tsx SIN git y con JSX inválido tumbó todas las builds durante
+        # horas. Se aparta antes de medir la huella: nunca debe tumbar al reconstructor.
+        _cuarentena.revisar(RAIZ)
+    except Exception as e:
+        print("cuarentena sin git: %s: %s" % (type(e).__name__, e), flush=True)
     entradas = list(_entradas())
     actual = huella_de(entradas)
     estado = _leer_estado()
