@@ -60,7 +60,8 @@ HERRAMIENTAS = [
 ]
 
 HERRAMIENTAS_BASE = [
-    "taste-skill — https://github.com/Leonxlnx/taste-skill (método: inventario, argumento, capturas a 3 anchos y crítica; el ADN manda; en la Biblioteca) — UI-TARS se queda.",
+    "taste-skill — https://github.com/Leonxlnx/taste-skill (método: inventario, argumento, capturas a 3 anchos y crítica; el ADN manda; en la Biblioteca)",
+    "UI-TARS — https://github.com/bytedance/UI-TARS (verificación visual de §4)",
 ]
 
 # §10 movimiento: palabras que delatan una tarea con pieza en movimiento
