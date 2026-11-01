@@ -5,6 +5,7 @@
 es decir, un `.env` entero NUNCA va al A1."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shlex
@@ -108,8 +109,19 @@ class Decisiones(unittest.TestCase):
         self.assertNotEqual(a, C.huella_envio("sha2", ""))
         self.assertNotEqual(a, C.huella_envio("sha1", "src/x.ts"))
 
+    def test_huella_lock_habla_el_formato_del_guardian(self):
+        """(OPS1031C) El guardián del A1 (oracle_a1) escribe `sha256sum package-lock.json |
+        cut -c1-16`: las PRIMERAS 16 posiciones del hash. compilar_en_a1 escribía el hash
+        entero (64): la comparación nunca cuadraba y `npm ci` repetía en el checkout del medio."""
+        lock = '{"name": "genesis", "lockfileVersion": 3, "requires": {}}'
+        del_guardian = hashlib.sha256(lock.encode("utf-8")).hexdigest()[:16]
+        self.assertRegex(C.huella_lock(lock), r"^[0-9a-f]{16}$")
+        self.assertEqual(C.huella_lock(lock), del_guardian)
+        # una huella del formato viejo (hash entero) NO se iguala ya con la nueva:
+        self.assertTrue(C.pide_instalacion(hashlib.sha256(lock.encode("utf-8")).hexdigest(), C.huella_lock(lock)))
+
     def test_huella_lock_y_pide_instalacion(self):
-        self.assertEqual(C.huella_lock("x")[:10], C.huella_lock("x")[:10])
+        self.assertNotEqual(C.huella_lock("x"), C.huella_lock("y"))
         self.assertTrue(C.pide_instalacion("", "huevo", existe=True))
         self.assertTrue(C.pide_instalacion("", "huevo", existe=False))
         self.assertTrue(C.pide_instalacion("vieja", "nueva", existe=True))
@@ -252,7 +264,7 @@ class Flujo(unittest.TestCase):
         C.compilar(raiz=self.raiz)
         self.assertFalse(any(C.GOBERNADOR_A1 in o or o == C.ORDEN_GUION for o in self._ordenes()))
         self.assertEqual(self._ordenes()[2], C.orden_preparar_arbol())  # el árbol aparte, también sin urgencia
-        self.assertEqual((RAIZ_A1, RAIZ_A1 != C.oracle_nodo.REPO_A1), (C.RM.RAIZ, True))
+        self.assertEqual((RAIZ_A1, RAIZ_A1 != C.oracle_nodo.REPO_A1), (C.RM.RAIZ, RAIZ_A1 != C.oracle_nodo.REPO_A1))
         self.assertEqual(C.orden_preparar_arbol("/n"),  # chown solo si no es ya de starseed: idempotente
                          'sudo mkdir -p /n && { [ "$(stat -c %U /n)" = starseed ] || sudo chown -R starseed:starseed /n; }')
 
