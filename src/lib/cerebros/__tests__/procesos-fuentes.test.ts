@@ -72,7 +72,7 @@ describe("componerProcesos", () => {
 });
 
 describe("leerProcesos - firmas y comportamiento básico", () => {
-    it(" existe y devuelve la estructura esperada", async () => {
+    it("existe y devuelve la estructura esperada", async () => {
         const result = await leerProcesos({});
         expect(result).toHaveProperty("procesos");
         expect(result).toHaveProperty("hardware");
@@ -80,16 +80,15 @@ describe("leerProcesos - firmas y comportamiento básico", () => {
         expect(Array.isArray(result.fuentes)).toBe(true);
     });
 
-    it("incluirMac por defecto incluye hardware", async () => {
-        const result = await leerProcesos({});
-        const hwEntry = result.fuentes.find((f: any) => f.nombre.includes("hardware"));
+    it("incluye hardware por defecto", async () => {
+        const result = await leerProcesos({ incluirMac: true });
+        const hwEntry = result.fuentes.find((f) => f.nombre.includes("/api/mando/hardware"));
         expect(hwEntry).toBeDefined();
     });
 
-    it("incluirMac falso omite hardware", async () => {
+    it("cuando incluirMac es falso, omite el hardware de la Mac", async () => {
         const result = await leerProcesos({ incluirMac: false });
-        const hwEntry = result.fuentes.find((f: any) => f.nombre.includes("hardware"));
+        const hwEntry = result.fuentes.find((f) => f.nombre.includes("(solo Mac)"));
         expect(hwEntry).toBeDefined();
-        expect(hwEntry!.nombre).toContain("solo Mac");
     });
 });
