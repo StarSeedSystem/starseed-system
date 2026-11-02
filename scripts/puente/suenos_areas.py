@@ -34,11 +34,15 @@ import re
 import subprocess
 import sys
 
+_PUENTE = os.path.dirname(os.path.abspath(__file__))
+if _PUENTE not in sys.path:
+    sys.path.insert(0, _PUENTE)
 RAIZ_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _ENJAMBRE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "enjambre")
 if _ENJAMBRE not in sys.path:
     sys.path.insert(0, _ENJAMBRE)
-import analista as _analista  # noqa: E402  (lentes, tamaños de trozo: una sola verdad)
+import analista as _analista  # noqa: E402
+import imaginacion_contexto as IC  # noqa: E402
 AREAS_TS = os.path.join("src", "lib", "mando", "areas.ts")
 
 # Áreas de la orquestación que no están en la rejilla de áreas del OS pero sí son código vivo
@@ -304,10 +308,10 @@ def id_tarea(fecha, indice):
     return n
 
 
-def prompt_de(area, lente, privado):
+def prompt_de(area, lente, privado, contexto=""):
     """El encargo que viaja en la cola. Corto a propósito: el analista construye los prompts
     de verdad con el código leído; esto es lo que un humano lee en Genesis."""
-    return (
+    base = (
         "SUEÑO PROFUNDO · análisis, NO escritura: no edites ningún archivo ni hagas commits.\n\n"
         "Analiza el área «%s» (%s) con la lente «%s»: %s.\n\n"
         "Preguntas guía:\n%s\n\n"
@@ -315,16 +319,18 @@ def prompt_de(area, lente, privado):
         "propuesta de tarea para el enjambre de ≤3 archivos y ≤120 líneas por archivo. Lo ejecuta "
         "scripts/enjambre/analista.py (map → reduce → contraste con modelos gratuitos) y lo verifica "
         "un supervisor Claude.%s"
-        % (
-            area["nombre"], area.get("descripcion") or area["id"], lente["nombre"], lente["foco"],
-            "\n".join("- " + p for p in lente["preguntas"]),
-            "\n\n🔒 PRIVADO: el informe se queda en la Mac (ni bus, ni Telegram, ni nube)." if privado else "",
-        )
+    ) % (
+        area["nombre"], area.get("descripcion") or area["id"], lente["nombre"], lente["foco"],
+        "\n".join("- " + p for p in lente["preguntas"]),
+        "\n\n🔒 PRIVADO: el informe se queda en la Mac (ni bus, ni Telegram, ni nube)." if privado else "",
     )
+    if contexto:
+        base += "\n\n## Contexto medido de Imaginación (familias de 7 días, tareas abiertas, archivos existentes)\n" + contexto
+    return base
 
 
 def construir_plan(areas, archivos_repo, fecha, horas=0, ids_areas=None, ids_lentes=None,
-                   trabajadores=TOPE_ANALISIS_POR_DEFECTO, maximo_archivos=None):
+                   trabajadores=TOPE_ANALISIS_POR_DEFECTO, maximo_archivos=None, contexto_comun=""):
     """El plan completo de una sesión de sueños. PURA.
 
     `areas`: salida de `areas_del_plan`; `archivos_repo`: {ruta: bytes}; `fecha`: date.
@@ -367,7 +373,7 @@ def construir_plan(areas, archivos_repo, fecha, horas=0, ids_areas=None, ids_len
                 "privado": privado,
                 "archivos": archivos,
                 "depende": [],
-                "prompt": prompt_de(area, lente, privado),
+                "prompt": prompt_de(area, lente, privado, contexto_comun),
                 "estimado": {
                     "caracteres": caracteres,
                     "trozos_area": trozos,
@@ -441,8 +447,13 @@ def main(argv=None):
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
     fecha = datetime.date.fromisoformat(a.fecha) if a.fecha else datetime.date.today()
+    contexto_comun = ""
+    try:
+        contexto_comun = IC.texto(RAIZ_REPO) or ""
+    except Exception:
+        pass
     plan = construir_plan(cargar_areas(), listar_repo(), fecha, a.horas, _lista(a.areas),
-                          _lista(a.lentes), a.trabajadores)
+                          _lista(a.lentes), a.trabajadores, contexto_comun=contexto_comun)
     if a.json:
         print(json.dumps(plan, ensure_ascii=False, indent=1))
         return 0
