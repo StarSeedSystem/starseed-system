@@ -119,13 +119,13 @@ describe("servicio-local · lanzador nativo (lista blanca y confirmación siempr
   });
 });
 
-// Rescate de la rama nube/41237713333 (HFR1018H): hyperframes entre los servicios locales conocidos.
-// La rama declaraba rutaSalud "/salud" y tiempoMs 900_000; main decidó "/health" y tope de tiempo
-// por defecto (el propio servicio atiende /salud y /health en rutas.mjs): se comprueba el contrato de hoy.
+// HFR1018H: hyperframes entre los servicios locales conocidos. El servicio atiende /salud y
+// /health (rutas.mjs), pero la definición declara /salud y un tope de 15 min para los renders.
 describe("servicio-local · hyperframes en los servicios locales conocidos", () => {
   it("definición válida y salud solo en 127.0.0.1:4490 con la ruta de salud declarada", async () => {
     const hf = SERVICIOS_CONOCIDOS.find((d) => d.id === "hyperframes");
-    expect(hf).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/health" });
+    expect(hf).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900_000 });
+    expect(hf?.tiempoMs).toBe(900_000);
     expect(validarDefinicion(hf!)).toBeNull();
     const f = vi.fn<FetchLocal>(async () => resp(200, '{"vivo":true}'));
     const s = await sondearServicio(hf!, f);
@@ -135,7 +135,7 @@ describe("servicio-local · hyperframes en los servicios locales conocidos", () 
     const destino = new URL(url);
     expect(destino.hostname).toBe("127.0.0.1");
     expect(Number(destino.port)).toBe(4490);
-    expect(destino.pathname).toBe("/health");
+    expect(destino.pathname).toBe("/salud");
     expect(init).toMatchObject({ method: "GET" });
     expect(init.headers.authorization).toBeUndefined();
   });
