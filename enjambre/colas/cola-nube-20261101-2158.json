@@ -1,0 +1,80 @@
+{
+ "ola": "nube-20261101",
+ "tareas": [
+  {
+   "id": "DSN1019Bb",
+   "ola": "Ola 1019D · Diseño de Alex: todas las variantes donde encajan, composición centrada por aparato, movimiento, transiciones y 3D con variaciones aprobadas",
+   "titulo": "Las ventanas del OS abren centradas y como hoja en teléfono",
+   "archivos": [
+    "src/components/dashboard/apps/os-window.tsx",
+    "src/components/dashboard/apps/__tests__/os-window-centrada.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "Usa `geometriaVentana` para la posición inicial de `OSWindow` (centrada en la pantalla; en teléfono, hoja centrada que sube desde abajo con entrada cardinal) sin cambiar su API ni el arrastre. Solo añadir. Prueba con viewport de teléfono y de escritorio. Fuentes de verdad: `memory/diseno/identidades.md` §«Decisiones de Alex 2026-10-19», `memory/diseno/estudio-audiovisual/references/adn-y-tokens.md` (§4, §5 y §7b), `fundamentos-diseno.md`, `variaciones-de-identidad.md` y sus `examples/`, y `architecture/variaciones-publicas.md`. Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; en archivos que ya existen SOLO añadir; módulos PUROS cuando se pueda; pruebas sin red; nada de `any`; solo se animan transform, opacity, filter y clip-path; siempre versión de movimiento reducido; tokens, nunca hexadecimales sueltos; Satoshi solo por su CSS de Fontshare (licencia ITF: nunca sus archivos en el repo); comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261101-221006-DSN1019B`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261101-221006-DSN1019B:refs/remotes/origin/nube/a1-20261101-221006-DSN1019B\"` y `git cherry-pick --no-commit b6f5e915c9e5 cabb234bf8aa bb584a3702b4 732d01b0abca`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/dashboard/apps/os-window.tsx, src/lib/design/__tests__/composicion.test.ts, src/lib/design/composicion.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "dependencias_ya_en_main": [
+    "DSN1019A"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261101-221006-DSN1019B"
+  },
+  {
+   "id": "KAL1101A",
+   "ola": "1101 · Neuronas despiertas con la pantalla cerrada (keepalive)",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Mantener despierto · mantener_pantalla.py usa keepalive (multiplataforma) y cae a caffeinate/systemd-inhibit",
+   "archivos": [
+    "scripts/puente/mantener_pantalla.py",
+    "scripts/puente/test_mantener_pantalla.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; funciones PURAS con pruebas; nunca sudo ni cambios de energía del sistema sin el ajuste explícito del dueño; nunca matar procesos ajenos.\n\nAlex (01-11): «que funcionen los procesos en segundo plano de los dispositivos aun con las pantallas cerradas o desconectadas, siempre que esté abierto el sistema en cualquier área de StarSeed OS (MetaGenesis, PoliGenesis, Genesis, servidores, cerebros…)», con https://github.com/stigoleg/keep-alive (keepalive v2, Go, MIT). keepalive usa aserciones de energía de IOKit en macOS, peticiones de energía en Windows y un inhibidor de systemd-logind en Linux; flags: `--keep-display=false` (solo el sistema despierto), `--pid`, `--while`, `-b` (batería), `--plain`, `run -- <cmd>`, `service install`. Instalar: `brew install --cask stigoleg/tap/keepalive`, `scoop install keepalive`, .deb/.rpm/.apk de releases, o `go install github.com/stigoleg/keep-alive/v2/cmd/keepalive@latest`. En la Mac de Alex (MacBook Air M1) ya está keepalive 2.0.1, y hoy `scripts/puente/mantener_pantalla.py` mantiene un `caffeinate -dim -w <pid>` según `~/.starseed/pantalla.json`. VERDAD A RESPETAR: en un portátil Mac, cerrar la tapa duerme el sistema aunque haya aserciones; solo no duerme en modo clamshell (corriente + pantalla externa) o con `pmset -a disablesleep 1` (requiere admin). Si la neurona va a dormir igual, sus tareas pasan al A1 (colmena).\n\nDos modos en `~/.starseed/pantalla.json`: «pantalla» (como hoy) y «sistema» (pantalla apagable, procesos vivos). Si `keepalive` está en el PATH: `keepalive --plain --keep-display=<modo> --pid <pid propio> -b <umbral, por defecto 15>`; si no, caffeinate (macOS), `systemd-inhibit --what=sleep:idle` (Linux) o nada con aviso. La orden se construye en una función PURA probada por plataforma. Escribe su estado en `~/.starseed/despierto.json` (modo, herramienta, pid)."
+  },
+  {
+   "id": "KAL1101E",
+   "ola": "1101 · Neuronas despiertas con la pantalla cerrada (keepalive)",
+   "importancia": "",
+   "depende": [],
+   "titulo": "Navegador y app instalada · Wake Lock mientras corre un proceso largo, con aviso honesto",
+   "archivos": [
+    "src/lib/install/despierto-web.ts",
+    "src/lib/install/__tests__/despierto-web.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; funciones PURAS con pruebas; nunca sudo ni cambios de energía del sistema sin el ajuste explícito del dueño; nunca matar procesos ajenos.\n\nAlex (01-11): «que funcionen los procesos en segundo plano de los dispositivos aun con las pantallas cerradas o desconectadas, siempre que esté abierto el sistema en cualquier área de StarSeed OS (MetaGenesis, PoliGenesis, Genesis, servidores, cerebros…)», con https://github.com/stigoleg/keep-alive (keepalive v2, Go, MIT). keepalive usa aserciones de energía de IOKit en macOS, peticiones de energía en Windows y un inhibidor de systemd-logind en Linux; flags: `--keep-display=false` (solo el sistema despierto), `--pid`, `--while`, `-b` (batería), `--plain`, `run -- <cmd>`, `service install`. Instalar: `brew install --cask stigoleg/tap/keepalive`, `scoop install keepalive`, .deb/.rpm/.apk de releases, o `go install github.com/stigoleg/keep-alive/v2/cmd/keepalive@latest`. En la Mac de Alex (MacBook Air M1) ya está keepalive 2.0.1, y hoy `scripts/puente/mantener_pantalla.py` mantiene un `caffeinate -dim -w <pid>` según `~/.starseed/pantalla.json`. VERDAD A RESPETAR: en un portátil Mac, cerrar la tapa duerme el sistema aunque haya aserciones; solo no duerme en modo clamshell (corriente + pantalla externa) o con `pmset -a disablesleep 1` (requiere admin). Si la neurona va a dormir igual, sus tareas pasan al A1 (colmena).\n\nHelper que pide `navigator.wakeLock.request('screen')` mientras una pestaña de StarSeed tiene un proceso largo (transmisión, estación, contenedor) y lo suelta al acabar o al ocultarse; reintenta al volver visible. Lógica de cuándo pedir/soltar PURA y probada. El navegador no puede mantener el equipo despierto con la pantalla apagada: dilo y ofrece la app nativa o keepalive."
+  },
+  {
+   "id": "KAL1101B",
+   "ola": "1101 · Neuronas despiertas con la pantalla cerrada (keepalive)",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Latido · la neurona dice si sigue despierta y si dormirá al cerrar la tapa",
+   "archivos": [
+    "scripts/puente/despierto_logica.py",
+    "scripts/puente/test_despierto_logica.py",
+    "scripts/puente/nodo_metagenesis_logica.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; funciones PURAS con pruebas; nunca sudo ni cambios de energía del sistema sin el ajuste explícito del dueño; nunca matar procesos ajenos.\n\nAlex (01-11): «que funcionen los procesos en segundo plano de los dispositivos aun con las pantallas cerradas o desconectadas, siempre que esté abierto el sistema en cualquier área de StarSeed OS (MetaGenesis, PoliGenesis, Genesis, servidores, cerebros…)», con https://github.com/stigoleg/keep-alive (keepalive v2, Go, MIT). keepalive usa aserciones de energía de IOKit en macOS, peticiones de energía en Windows y un inhibidor de systemd-logind en Linux; flags: `--keep-display=false` (solo el sistema despierto), `--pid`, `--while`, `-b` (batería), `--plain`, `run -- <cmd>`, `service install`. Instalar: `brew install --cask stigoleg/tap/keepalive`, `scoop install keepalive`, .deb/.rpm/.apk de releases, o `go install github.com/stigoleg/keep-alive/v2/cmd/keepalive@latest`. En la Mac de Alex (MacBook Air M1) ya está keepalive 2.0.1, y hoy `scripts/puente/mantener_pantalla.py` mantiene un `caffeinate -dim -w <pid>` según `~/.starseed/pantalla.json`. VERDAD A RESPETAR: en un portátil Mac, cerrar la tapa duerme el sistema aunque haya aserciones; solo no duerme en modo clamshell (corriente + pantalla externa) o con `pmset -a disablesleep 1` (requiere admin). Si la neurona va a dormir igual, sus tareas pasan al A1 (colmena).\n\nFunción PURA que, con `pmset -g`, `pmset -g batt` y `pmset -g assertions` (texto) y `~/.starseed/despierto.json`, dice {despierta, herramienta, bateria, enchufada, tapa: 'duerme'|'clamshell'|'sin-tapa'|'desactivada'}. Añádelo a las capacidades del latido. Si tapa='duerme' y la batería baja del umbral, la neurona se anuncia como «se va a dormir» para que la colmena pase sus tareas al A1 antes (orden `desconectar` ya existente)."
+  },
+  {
+   "id": "KAL1101F",
+   "ola": "1101 · Neuronas despiertas con la pantalla cerrada (keepalive)",
+   "importancia": "",
+   "depende": [],
+   "titulo": "Biblioteca · ficha de keepalive (MIT) instalable por sistema operativo",
+   "archivos": [
+    "config/repos-libreria-1101.json",
+    "src/lib/library/repos-1101.ts",
+    "src/lib/library/__tests__/repos-1101.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; funciones PURAS con pruebas; nunca sudo ni cambios de energía del sistema sin el ajuste explícito del dueño; nunca matar procesos ajenos.\n\nAlex (01-11): «que funcionen los procesos en segundo plano de los dispositivos aun con las pantallas cerradas o desconectadas, siempre que esté abierto el sistema en cualquier área de StarSeed OS (MetaGenesis, PoliGenesis, Genesis, servidores, cerebros…)», con https://github.com/stigoleg/keep-alive (keepalive v2, Go, MIT). keepalive usa aserciones de energía de IOKit en macOS, peticiones de energía en Windows y un inhibidor de systemd-logind en Linux; flags: `--keep-display=false` (solo el sistema despierto), `--pid`, `--while`, `-b` (batería), `--plain`, `run -- <cmd>`, `service install`. Instalar: `brew install --cask stigoleg/tap/keepalive`, `scoop install keepalive`, .deb/.rpm/.apk de releases, o `go install github.com/stigoleg/keep-alive/v2/cmd/keepalive@latest`. En la Mac de Alex (MacBook Air M1) ya está keepalive 2.0.1, y hoy `scripts/puente/mantener_pantalla.py` mantiene un `caffeinate -dim -w <pid>` según `~/.starseed/pantalla.json`. VERDAD A RESPETAR: en un portátil Mac, cerrar la tapa duerme el sistema aunque haya aserciones; solo no duerme en modo clamshell (corriente + pantalla externa) o con `pmset -a disablesleep 1` (requiere admin). Si la neurona va a dormir igual, sus tareas pasan al A1 (colmena).\n\nFicha `lib-keepalive` con kind \"app\" (usa `tipoDeFicha` de repos-1025.ts: un kind fuera de VALID_KINDS tumbó la Biblioteca el 31-10), autor stigoleg, licencia MIT, versión v2.0.1, y los comandos de instalación por sistema. Sigue el patrón de repos-1028 (JSON + módulo puro + prueba) y regístrala donde se registran las tandas (mira cómo entra repos-1028 en packages.ts; si eso es un 4.º archivo, deja la ficha y di la línea exacta)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "DSN1019Bb",
+   "KAL1101B",
+   "KAL1101A",
+   "KAL1101E",
+   "KAL1101F"
+  ]
+ }
+}
