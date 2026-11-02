@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   adnConEmocion,
   adnDeBot,
+  esFormaAvatar3d,
   expresionesDeEmocion,
+  EXPRESIONES_EMOCION,
   gestoConMovimiento,
   intensidadAuraConEmocion,
   refAdnDeBot,
@@ -129,5 +131,68 @@ describe("visemas y gesto con el carácter del ADN", () => {
     expect(rapido.prompt).toBe("friendly wave");
     expect(rapido.energia).toBeGreaterThan(lento.energia ?? 0);
     expect(rapido.duracionMs!).toBeLessThan(lento.duracionMs!);
+  });
+});
+
+// Casos rescatados de la rama archivada nube/41430071907 (AV1011C), adaptados a la API de hoy.
+describe("casos rescatados (rama nube/41430071907)", () => {
+  it("reconoce solo las formas con cuerpo 3D", () => {
+    expect(esFormaAvatar3d("avatar-3d")).toBe(true);
+    expect(esFormaAvatar3d("vrm")).toBe(true);
+    expect(esFormaAvatar3d("orbe")).toBe(false);
+    expect(esFormaAvatar3d("ser-genesis")).toBe(false);
+  });
+
+  it("el ADN por defecto conserva el nombre del bot y el aura ligada a la emoción", () => {
+    const adn = adnDeBot(botDe());
+    expect(adn.nombre).toBe("Semilla");
+    expect(adn.aura.ligadaEmocion).toBe(true);
+  });
+
+  it("un ADN guardado de otra referencia (mismo dueño) no se cuela: crea el derivado del bot", () => {
+    const otraRef = adnPorDefecto("adn-bot-2", "Semilla", { tipo: "bot", id: "bot-1" }, 190);
+    const adn = adnDeBot(botDe(), otraRef);
+    expect(adn.id).toBe("adn-bot-1");
+    expect(adn.rev).toBe(0);
+    expect(adn.dueno).toEqual({ tipo: "bot", id: "bot-1" });
+  });
+
+  it("acota la intensidad de cada expresión a 0…1 aunque la entrada se salga de rango", () => {
+    for (const e of [
+      emo("alegria", 5, 5),
+      emo("calma", -5, -5),
+      emo("asombro", Number.NaN, Number.POSITIVE_INFINITY),
+    ]) {
+      const r = expresionesDeEmocion(e);
+      for (const v of Object.values(r.expresiones)) {
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it("adnConEmocion no muta el original, deja una sola expresión emocional y no sube la revisión", () => {
+    const adn = {
+      ...adnPorDefecto("adn-bot-1", "Semilla", { tipo: "bot", id: "bot-1" }, 190),
+      expresionBase: { happy: 0.7, blink: 0.2, aa: 0.4 },
+    };
+    const antes = JSON.stringify(adn);
+    const r = adnConEmocion(adn, emo("preocupacion", -0.7, 0.2));
+    expect(JSON.stringify(adn)).toBe(antes);
+    const emocionales = EXPRESIONES_EMOCION.filter((k) => (r.expresionBase[k] ?? 0) > 0);
+    expect(emocionales).toEqual(["sad"]);
+    expect(r.expresionBase.happy).toBeUndefined();
+    expect(r.expresionBase.blink).toBe(0.2);
+    expect(r.expresionBase.aa).toBe(0.4);
+    expect(r.rev).toBe(adn.rev);
+  });
+
+  it("traduce las vocales del español al visema correspondiente, en orden y sin acentos", () => {
+    expect(visemasDeTexto("hola")).toEqual(["oh", "aa"]);
+    expect(visemasDeTexto("holá")).toEqual(["oh", "aa"]);
+    expect(visemasDeTexto("miau")).toEqual(["ih", "aa", "ou"]);
+    expect(visemasDeTexto("e")).toEqual(["ee"]);
+    expect(visemasDeTexto("rrr")).toEqual([]);
+    expect(visemasDeTexto("")).toEqual([]);
   });
 });
