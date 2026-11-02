@@ -1,0 +1,27 @@
+{
+ "ola": "nube-20261101",
+ "tareas": [
+  {
+   "id": "SUP0211D",
+   "titulo": "Autopublicación · el árbol de pruebas se quita aunque un `worktree add` cortado lo dejara bloqueado",
+   "archivos": [
+    "scripts/puente/autopublicar.py",
+    "scripts/puente/test_autopublicar.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nContexto (SUP0211A, e05ba07e3): un `git worktree add` cortado (un tope de tiempo con la Mac ahogada) deja el worktree BLOQUEADO con motivo «initializing» (`.git/worktrees/<nombre>/locked`). Con un solo `--force`, `git worktree remove` NO quita uno bloqueado; si después se borra la carpeta queda «missing but locked», `git worktree prune` no poda los bloqueados y todo `worktree add` en esa ruta falla para siempre («use 'add -f -f' to override, or 'unlock' and 'prune' or 'remove' to clear»). En traer_nube.py se arregló con `_soltar_carpeta` (`worktree remove --force --force`, la carpeta fuera y prune). git 2.49. En scripts/puente/autopublicar.py, `quitar_arbol` hace `worktree remove --force destino` y, si la carpeta sigue, la borra; `arbol_limpio` hace después `worktree add --detach --force destino sha` con tope de 300 s. Si un add anterior se cortó, el árbol `arbol-pruebas` queda bloqueado y la autopublicación ya no puede probar ningún commit. Haz que `quitar_arbol` use `--force` DOS veces (y que, si la carpeta no existe pero el registro sí, también lo quite y haga `worktree prune`), sin tocar nunca otros worktrees. Prueba con un repo git temporal de verdad (como test_traer_nube_sin_tocar_main.py): árbol bloqueado «initializing» con y sin carpeta → el siguiente árbol limpio se crea bien.",
+   "ola": "0211 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "SUP0211E",
+   "titulo": "A1 · la limpieza de worktrees tras cada cola quita también los bloqueados «initializing»",
+   "archivos": [
+    "scripts/puente/oracle_a1.py",
+    "scripts/puente/test_oracle_a1.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nContexto (SUP0211A, e05ba07e3): un `git worktree add` cortado (un tope de tiempo con la Mac ahogada) deja el worktree BLOQUEADO con motivo «initializing» (`.git/worktrees/<nombre>/locked`). Con un solo `--force`, `git worktree remove` NO quita uno bloqueado; si después se borra la carpeta queda «missing but locked», `git worktree prune` no poda los bloqueados y todo `worktree add` en esa ruta falla para siempre («use 'add -f -f' to override, or 'unlock' and 'prune' or 'remove' to clear»). En traer_nube.py se arregló con `_soltar_carpeta` (`worktree remove --force --force`, la carpeta fuera y prune). git 2.49. En scripts/puente/oracle_a1.py, al acabar cada cola el A1 recorre `git worktree list --porcelain` y quita cada worktree que no es la raíz con `worktree remove --force` y luego `prune`. Uno bloqueado sobrevive y la próxima cola que use esa ruta falla al crearlo. Usa `--force` dos veces ahí (nunca la raíz). Si la lista se decide en una función, que sea PURA y probada (líneas de `--porcelain` con `locked initializing`, la raíz y uno normal). Llega al A1 con la próxima `oracle_nodo.py instalar`: no lo instales tú.",
+   "ola": "0211 · Seguimiento de la supervisión",
+   "depende": []
+  }
+ ]
+}
