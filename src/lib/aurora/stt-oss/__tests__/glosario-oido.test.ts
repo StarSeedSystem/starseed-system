@@ -43,11 +43,37 @@ describe("corregirConGlosario", () => {
     expect(resultado.cambios).toEqual(["Astora → Astraura"]);
   });
 
+  it("suma usuario, bots y grupo; recorta, quita vacíos y compara sin mayúsculas", () => {
+    const base = glosarioBase();
+    const conOtros = glosarioBase(["Jev", "astraura", "Madrina Orbita", "  Jev  ", "   ", ""]);
+    expect(conOtros.slice(base.length)).toEqual(["Jev", "Madrina Orbita"]);
+    expect(conOtros.filter((nombre) => nombre === "Astraura").length).toBe(1);
+  });
+
+  it("devuelve el texto y sin cambios cuando la entrada está vacía", () => {
+    expect(corregirConGlosario("", glosario, "es")).toEqual({ texto: "", cambios: [] });
+  });
+
+  it("une dos palabras de un nombre del usuario o del grupo", () => {
+    const resultado = corregirConGlosario("Madrina Orbit", ["Madrina Orbita", "Astraura"], "es");
+    expect(resultado).toEqual({ texto: "Madrina Orbita", cambios: ["Madrina Orbit → Madrina Orbita"] });
+  });
+
   it("con un glosario vacío no cambia nada", () => {
-    // Rescate rama nube/40695130948: sin nombres no hay corrección posible.
-    const resultado = corregirConGlosario("hola Estora", [], "es");
-    expect(resultado.texto).toBe("hola Estora");
-    expect(resultado.cambios).toEqual([]);
+    expect(corregirConGlosario("hola Star Sed", [], "es")).toEqual({
+      texto: "hola Star Sed",
+      cambios: [],
+    });
+  });
+
+  it("corrige «%s» (%s) a «%s»", () => {
+    const res = corregirConGlosario("Star Sed", glosario, "es");
+    expect(res.texto).toBe("StarSeed");
+  });
+
+  it("no muerde palabras comunes ni reales: «%s» (%s)", () => {
+    const res = corregirConGlosario("hola", glosario, "es");
+    expect(res.texto).toBe("hola");
   });
 
   it("no muerde palabras comunes en inglés que ya existen", () => {
