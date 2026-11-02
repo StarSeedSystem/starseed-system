@@ -395,5 +395,42 @@ class CheckoutEnElNodo(unittest.TestCase):
         self.assertNotIn(A.PREFIJO_BANDEJA + "cola-z.json", self._colas().get("procesadas") or {})
 
 
+class LimpiezaDeWorktrees(unittest.TestCase):
+    """(SUP0211E) Un `worktree add` cortado deja el worktree bloqueado («initializing») y con un
+    solo --force `worktree remove` no lo quita: la ruta queda inservible para la siguiente cola."""
+
+    def test_quita_los_bloqueados_y_los_normales_no_la_raiz(self):
+        lineas = ["worktree /x/starseed-system", "HEAD " + "a" * 40, "branch refs/heads/main",
+                  "worktree /home/a/starseed-wt/Z1", "HEAD " + "b" * 40, "branch refs/heads/ola/RM7",
+                  "locked initializing",
+                  "worktree /home/a/starseed-wt/Z2", "HEAD " + "c" * 40, "branch refs/heads/ola/T1",
+                  "worktree /home/a/starseed-wt/Z3", "locked"]
+        self.assertEqual(A.worktrees_a_quitar(lineas, "/x/starseed-system"),
+                         ["/home/a/starseed-wt/Z1", "/home/a/starseed-wt/Z2", "/home/a/starseed-wt/Z3"])
+
+    def test_nada_si_solo_hay_raiz_o_entrado_vacio(self):
+        self.assertEqual(A.worktrees_a_quitar(["worktree /x/starseed-system"], "/x/starseed-system"), [])
+        self.assertEqual(A.worktrees_a_quitar([], "/x/starseed-system"), [])
+        self.assertEqual(A.worktrees_a_quitar(None, "/x/starseed-system"), [])
+
+    def test_el_remove_usa_doble_force(self):
+        from unittest import mock
+        nodo = A.Nodo()
+        ordenes = []
+
+        def git(args, timeout=300, cwd=None):
+            ordenes.append(list(args))
+            if args[:2] == ["worktree", "list"]:
+                return 0, ("worktree %s\nworktree %s\n" % (A.RAIZ, os.path.join(A.RAIZ, "..", "wt-x")))
+            return 0, ""
+
+        with mock.patch.object(A, "_git", git):
+            nodo.limpiar_tras_cola()
+        removes = [o for o in ordenes if o[:2] == ["worktree", "remove"]]
+        self.assertEqual(len(removes), 1)
+        self.assertEqual(removes[0][:4], ["worktree", "remove", "--force", "--force"])
+        self.assertNotIn("--force", [o[:2] for o in ordenes if o[:2] == ["worktree", "prune"]])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -270,6 +270,20 @@ def resumen_paso(nombre, rc, salida):
     return (lineas[-1] if lineas else ("ok" if rc == 0 else "rc=%s" % rc))[:160]
 
 
+def worktrees_a_quitar(lineas, raiz):
+    """PURA (SUP0211E). Las rutas de worktree que sobran tras una cola, de las líneas de
+    `git worktree list --porcelain`: todos menos la raíz, BLOQUEADOS o no (un `add` cortado
+    deja `locked initializing` y esa ruta no se puede recrear hasta quitarlo)."""
+    fuera = []
+    for linea in lineas or []:
+        if not str(linea).startswith("worktree "):
+            continue
+        ruta = str(linea)[9:].strip()
+        if ruta and os.path.realpath(ruta) != os.path.realpath(raiz or ""):
+            fuera.append(ruta)
+    return fuera
+
+
 def nombres_entrega(ts, ramas_ola):
     """PURA. Los nombres de las ramas de entrega de una cola terminada a la hora `ts`
     (AAAAmmdd-HHMMSS): la integración (`nube/a1-<ts>`) y una HERMANA por cada rama `ola/<id>`
@@ -724,9 +738,13 @@ class Nodo:
         """Worktrees y ramas `ola/*` de la cola que acabó (lo útil ya está en sus entregas) y
         archivo de su carpeta de olas: la siguiente cola empieza limpia, como un runner."""
         _, wts = _git(["worktree", "list", "--porcelain"])
-        for linea in wts.splitlines():
-            if linea.startswith("worktree ") and os.path.realpath(linea[9:]) != os.path.realpath(RAIZ):
-                _git(["worktree", "remove", "--force", linea[9:]])
+        for ruta in worktrees_a_quitar(wts.splitlines(), RAIZ):
+            # (SUP0211E) Un `worktree add` cortado (Mac ahogada) deja el worktree BLOQUEADO
+            # («initializing», `.git/worktrees/<nombre>/locked`): con UN solo `--force` no lo
+            # quita y esa ruta falla para siempre en el próximo `worktree add`. Doble `--force`
+            # como en `traer_nube._soltar_carpeta`, y `prune` después. Nunca la raíz (la elige
+            # `worktrees_a_quitar`).
+            _git(["worktree", "remove", "--force", "--force", ruta])
         _git(["worktree", "prune"])
         _, ramas = _git(["for-each-ref", "--format=%(refname:short)", "refs/heads/ola/"])
         for r in [x.strip() for x in ramas.splitlines() if x.strip()]:
