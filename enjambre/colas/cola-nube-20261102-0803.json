@@ -1,0 +1,31 @@
+{
+ "ola": "nube-20261102",
+ "tareas": [
+  {
+   "id": "AV1011K",
+   "ola": "Ola 1011C · Avatares 3D autopersonalizables en tiempo real para bots, personas, grupos y páginas (ADN del avatar, VRM vivo, taller imagen→3D, UniMate en vigía)",
+   "titulo": "Integración, verificación y estado real de los avatares 3D",
+   "archivos": [
+    "src/components/avatares/index.ts",
+    "architecture/astraura-avatares-3d.md"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md`. Léelo ENTERO antes de empezar: es la fuente de verdad (§1 dice qué hay DE VERDAD en cada herramienta). El núcleo puro YA está escrito y probado (61 pruebas) y NO se modifica: `src/lib/avatares/adn/{adn,cambios,dictado,motores,canalizacion,calidad,permisos}.ts` (ábrelos y usa sus nombres reales; si de verdad falta algo puro, añádelo en un archivo NUEVO de ese directorio que cumpla `__tests__/pureza.test.ts`). Reutiliza lo que existe, nunca lo dupliques: motor único de movimiento `src/lib/avatares/movimiento/`, avatares de escena `src/lib/vivo/espacial/avatares.ts`, niveles de avatar de XR `src/lib/xr/calidad-perfiles.ts`, bots `src/lib/astraura-bots/` (contrato `architecture/astraura-bots.md`), Biblioteca `src/lib/library*`. Reglas del área: «basta de ilusiones» (nada simulado que parezca real: si algo no está instalado o no existe, la interfaz lo dice con su motivo); en un avatar solo referencias `biblioteca:`/`genesis:`, nunca una URL externa suelta; NINGUNA petición a Supabase en bucle ni sondeo (presupuesto del §3: emitir solo si hay alguien mirando, guardar tras 5 s de calma y como mucho una vez cada 30 s, leer cada ADN una vez por sesión y revisión); migraciones: si hiciera falta una, escríbela y NO la apliques; nada de claves en el código ni en registros; textos en español claro; accesible (teclado, lector de pantalla, prefers-reduced-motion); nunca `next build` en la Mac. Pruebas vitest de lo que hagas, y las existentes en verde. Al terminar, resumen honesto: qué quedó funcionando, qué no y por qué.\n\nTAREA: Monta el editor donde la gente lo encuentra: edición de perfil, ajustes de grupo/página y el editor de «Mis bots» (si existe la tarea BOT1011I1). Exporta los componentes en `index.ts`. Pasa tsc y vitest de `src/lib/avatares`, `src/lib/astraura-bots`, `src/lib/vivo/espacial` y `src/lib/protomolecula`, y arregla lo que falle. NO ejecutes `next build` en la Mac (el director compila en el contenedor). Actualiza el §9 del contrato con el estado REAL de cada tarea (hecho, a medias y por qué, pendiente de Alex).",
+   "revisor_quitadas": [
+    "AV1011J"
+   ],
+   "dependencias_ya_en_main": [
+    "AV1011A",
+    "AV1011B",
+    "AV1011C",
+    "AV1011D",
+    "AV1011E",
+    "AV1011F",
+    "AV1011G-d2",
+    "AV1011H-d2",
+    "AV1011I",
+    "AV1011L"
+   ]
+  }
+ ]
+}

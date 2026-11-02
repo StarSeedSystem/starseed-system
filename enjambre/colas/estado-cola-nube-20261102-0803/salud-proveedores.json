@@ -1,0 +1,55 @@
+{
+ "groq": {
+  "ultimo_429": "2026-11-02 07:54:23",
+  "estado": "vivo",
+  "t": "2026-11-02 08:02:21",
+  "desde": "2026-11-02 07:26:37"
+ },
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-11-02 08:02:15",
+  "desde": "2026-11-02 07:24:33",
+  "sin_cupo_hasta": "2026-11-02 18:00:06",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-11-02 08:02:15",
+  "desde": "2026-11-02 07:24:33"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-11-02 08:02:16",
+  "desde": "2026-11-02 07:24:33"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-11-02 08:02:17",
+  "desde": "2026-11-02 07:24:34",
+  "sin_cupo_hasta": "2026-11-02 18:00:06",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-11-02 08:02:17",
+  "desde": "2026-11-02 07:24:34"
+ },
+ "explabs": {
+  "estado": "vivo",
+  "t": "2026-11-02 08:02:21",
+  "desde": "2026-11-02 08:02:21",
+  "ultimo_429": "2026-11-02 07:59:45"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-11-02 08:02:21",
+  "desde": "2026-11-02 07:24:34"
+ },
+ "llm7": {
+  "ultimo_429": "2026-11-02 07:57:50"
+ },
+ "google": {
+  "sin_cupo_hasta": "2026-11-03 02:00:06",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ }
+}
