@@ -30,8 +30,17 @@ import {
     estadoMac,
     guardarEstadoPantalla,
     leerEstadoPantalla,
+    LIMITE_TAPA_HONESTO,
+    textoDespiertoLatido,
+    textoModoPantalla,
     type EstadoPantallaMando,
 } from "@/components/mando/guardian-pantalla";
+import {
+    argumentosKeepalive,
+    comandoInstalarKeepalive,
+    detectOS,
+    type OsId,
+} from "@/lib/install/device-install";
 import {
     AlertTriangle,
     ArrowDown,
@@ -363,9 +372,11 @@ function TarjetaPantalla() {
     const [estado, setEstado] = useState<EstadoPantallaMando | null>(null);
     const [ocupado, setOcupado] = useState(false);
     const [aviso, setAviso] = useState<string | null>(null);
+    const [os, setOs] = useState<OsId>("unknown");
 
     useEffect(() => {
         let vivo = true;
+        setOs(detectOS().os);
         void leerEstadoPantalla().then((e) => {
             if (vivo && e) setEstado(e);
         });
@@ -387,6 +398,11 @@ function TarjetaPantalla() {
     }, []);
 
     const activa = estado?.activa ?? true;
+    const modo = estado?.modo ?? "pantalla";
+    const instalacion = comandoInstalarKeepalive(os);
+    const pid = estado?.mac.pid ?? 0;
+    const ordenKeepalive =
+        pid > 0 ? ["keepalive", ...argumentosKeepalive(modo, pid)].join(" ") : null;
     return (
         <article className="rounded-xl border border-white/10 bg-black/30 p-4">
             <header className="flex flex-wrap items-center justify-between gap-3">
@@ -421,6 +437,31 @@ function TarjetaPantalla() {
                         ? "Pantalla encendida: la Mac no entra en reposo de pantalla ni salvapantallas."
                         : "Pantalla normal: la Mac y los dispositivos se apagan solos por inactividad."}
                 </p>
+                <p>
+                    {estado?.modo
+                        ? textoModoPantalla(estado.modo)
+                        : "Modo: el servicio aún no publica si mantiene la pantalla o solo el sistema."}
+                </p>
+                <p>{textoDespiertoLatido(estado?.despierto ?? null)}</p>
+                <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                    <p className="text-[11px] text-white/70">
+                        keepalive mantiene el sistema despierto con la pantalla apagada. Lo
+                        instala la persona; el OS no pide administrador ni cambia la energía
+                        del sistema por su cuenta.
+                    </p>
+                    {instalacion.comando ? (
+                        <code className="mt-1 block font-mono text-[10px] text-white/90">
+                            {instalacion.comando}
+                        </code>
+                    ) : null}
+                    <p className="mt-1 text-[10px] text-white/50">{instalacion.nota}</p>
+                    {ordenKeepalive ? (
+                        <p className="mt-1 text-[10px] text-white/50">
+                            Orden del servicio:{" "}
+                            <code className="font-mono text-white/80">{ordenKeepalive}</code>
+                        </p>
+                    ) : null}
+                </div>
                 <p className="text-white/50">
                     {estado ? estadoMac(estado.mac) : "Mac: comprobando el servicio…"}
                 </p>
@@ -429,6 +470,7 @@ function TarjetaPantalla() {
                     móvil o tablet no permite mantener la pantalla; en la Mac sí, porque
                     lo hace el servicio aunque esta ventana esté cerrada.
                 </p>
+                <p className="text-[11px] text-amber-200/80">{LIMITE_TAPA_HONESTO}</p>
                 {aviso && (
                     <p role="alert" className="text-red-300">
                         {aviso}
