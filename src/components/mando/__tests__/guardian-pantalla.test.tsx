@@ -10,8 +10,10 @@ import { describe, expect, it } from "vitest";
 import {
     estadoMac,
     estadoPantalla,
+    parsearDespiertoLatido,
     parsearEstadoPantalla,
     PANTALLA_DEFECTO,
+    textoDespiertoLatido,
 } from "@/components/mando/guardian-pantalla";
 
 describe("estadoPantalla", () => {
@@ -96,5 +98,24 @@ describe("parsearEstadoPantalla", () => {
         const estado = parsearEstadoPantalla({ activa: true, modo: "siempre" });
         expect(estado?.modo).toBeUndefined();
         expect(estado?.despierto).toBeUndefined();
+    });
+});
+
+describe("textoDespiertoLatido", () => {
+    it("nombra la herramienta y la batería cuando el latido las trae", () => {
+        const texto = textoDespiertoLatido(
+            parsearDespiertoLatido({
+                despierta: true,
+                herramienta: "caffeinate",
+                bateria: 92,
+                enchufada: false,
+                tapa: "",
+                va_a_dormir: false,
+                se_va_a_dormir: false,
+                umbral_bateria: 25,
+            }),
+        );
+        expect(texto).toContain("caffeinate");
+        expect(texto).toContain("batería 92 %");
     });
 });
