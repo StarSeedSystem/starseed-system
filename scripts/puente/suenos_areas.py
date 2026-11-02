@@ -304,9 +304,20 @@ def id_tarea(fecha, indice):
     return n
 
 
-def prompt_de(area, lente, privado):
+def contexto_medido(raiz=RAIZ_REPO, ahora=None):
+    """El contexto REAL de Imaginación (`imaginacion_contexto.texto()`): abiertas y bloqueadas,
+    archivos que existen, ejemplos buenos y malos y familias de 7 días. "" si no hay datos."""
+    try:
+        import imaginacion_contexto as IC  # noqa: WPS433
+        return IC.texto(raiz, ahora) or ""
+    except Exception:  # noqa: BLE001 — sin contexto, el sueño sigue con su encargo de siempre
+        return ""
+
+
+def prompt_de(area, lente, privado, contexto=""):
     """El encargo que viaja en la cola. Corto a propósito: el analista construye los prompts
-    de verdad con el código leído; esto es lo que un humano lee en Genesis."""
+    de verdad con el código leído; esto es lo que un humano lee en Genesis. `contexto` son los
+    datos medidos que evitan repetir familias y citar archivos que no existen (IMG1102E)."""
     return (
         "SUEÑO PROFUNDO · análisis, NO escritura: no edites ningún archivo ni hagas commits.\n\n"
         "Analiza el área «%s» (%s) con la lente «%s»: %s.\n\n"
@@ -314,23 +325,28 @@ def prompt_de(area, lente, privado):
         "Cada hallazgo con cita archivo:línea, impacto (1-5), esfuerzo (1-5), confianza (0-1) y una "
         "propuesta de tarea para el enjambre de ≤3 archivos y ≤120 líneas por archivo. Lo ejecuta "
         "scripts/enjambre/analista.py (map → reduce → contraste con modelos gratuitos) y lo verifica "
-        "un supervisor Claude.%s"
+        "un supervisor Claude.%s%s"
         % (
             area["nombre"], area.get("descripcion") or area["id"], lente["nombre"], lente["foco"],
             "\n".join("- " + p for p in lente["preguntas"]),
             "\n\n🔒 PRIVADO: el informe se queda en la Mac (ni bus, ni Telegram, ni nube)." if privado else "",
+            ("\n\n" + contexto.strip()) if contexto and contexto.strip() else "",
         )
     )
 
 
 def construir_plan(areas, archivos_repo, fecha, horas=0, ids_areas=None, ids_lentes=None,
-                   trabajadores=TOPE_ANALISIS_POR_DEFECTO, maximo_archivos=None):
-    """El plan completo de una sesión de sueños. PURA.
+                   trabajadores=TOPE_ANALISIS_POR_DEFECTO, maximo_archivos=None, contexto=None):
+    """El plan completo de una sesión de sueños. PURA si `contexto` se inyecta; con el valor por
+    defecto (None) lee UNA vez el contexto medido del disco y lo pone en cada encargo.
 
     `areas`: salida de `areas_del_plan`; `archivos_repo`: {ruta: bytes}; `fecha`: date.
-    `ids_areas`/`ids_lentes`: filtros (None = todas). Devuelve {sesion, ola, horas, tareas,
-    llamadas, pausa_s, tope_analisis, desconocidas}. El índice de cada tarea es el canónico
-    (área × lente en el orden completo), no el del filtro: así los ids no cambian."""
+    `ids_areas`/`ids_lentes`: filtros (None = todas). `contexto`: texto ya armado ("" lo apaga).
+    Devuelve {sesion, ola, horas, tareas, llamadas, pausa_s, tope_analisis, desconocidas}. El
+    índice de cada tarea es el canónico (área × lente en el orden completo), no el del filtro: así
+    los ids no cambian."""
+    if contexto is None:
+        contexto = contexto_medido()
     ids_areas = [x for x in (ids_areas or []) if x]
     ids_lentes = [x for x in (ids_lentes or []) if x]
     conocidas_a = {a["id"] for a in areas}
@@ -367,7 +383,7 @@ def construir_plan(areas, archivos_repo, fecha, horas=0, ids_areas=None, ids_len
                 "privado": privado,
                 "archivos": archivos,
                 "depende": [],
-                "prompt": prompt_de(area, lente, privado),
+                "prompt": prompt_de(area, lente, privado, contexto),
                 "estimado": {
                     "caracteres": caracteres,
                     "trozos_area": trozos,
