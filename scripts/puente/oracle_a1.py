@@ -109,8 +109,13 @@ CALIDAD_CADA_S = 3600
 #: en la Mac no se puede (no cabe) y aquí sí: 12 GB, con BitNet aparte y por delante en CPU.
 #: Medido el 2026-10-10 en este A1 (main 4f2ead81): tsc 210 s · vitest 546 s (8.128 pruebas) ·
 #: mesh 5 s. Cada paso: (nombre, orden, tope en segundos).
+#: (SUP0211C) tsc ya no cabe en el montón de 4096 que `_entorno` da a todo: desde el 01-11 el tsc del
+#: guardián moría SIEMPRE por memoria (rc 134 a los ~215 s, «JavaScript heap out of memory» en 4 GB) y
+#: el veredicto salía rojo con «0 error(es) de tipos». El CI usa 8192 desde el 26-10; aquí 6144, como
+#: `tsc-turno.sh` (el A1 tiene 12 GB y el guardián solo corre sin cola).
+HEAP_TSC_GUARDIAN = "--max-old-space-size=6144"
 PASOS_GUARDIAN = (
-    ("tsc", ["npx", "tsc", "--noEmit"], 2400),
+    ("tsc", ["env", "NODE_OPTIONS=" + HEAP_TSC_GUARDIAN, "npx", "tsc", "--noEmit"], 2400),
     ("vitest", ["npx", "vitest", "run", "--maxWorkers=2", "--minWorkers=1"], 5400),
     ("mesh", ["npx", "--yes", "tsx", "scripts/test-mesh-core.ts"], 900),
     ("build", ["bash", "-c", "npm run prebuild >/dev/null 2>&1; NODE_ENV=production "
@@ -229,11 +234,20 @@ def guardian_toca(ultimo, ahora, sha_objetivo, cada_s=GUARDIAN_CADA_S, min_s=GUA
     return ultimo.get("sha") != sha_objetivo and hace >= min_s
 
 
+def murio_por_memoria(rc, salida):
+    """PURA. (SUP0211C) ¿El paso murió por memoria (node sin montón, o el núcleo lo mató) en vez de
+    dar un veredicto? Entonces no hay «N errores» que contar: decirlo así es avisar en falso."""
+    texto = str(salida or "")
+    return rc in (134, 137, -6, -9) or "heap out of memory" in texto or "Reached heap limit" in texto
+
+
 def resumen_paso(nombre, rc, salida):
     """PURA. Una línea legible del resultado de un paso del guardián."""
     texto = salida or ""
     if rc == 124:
         return "cortado: pasó su tope de tiempo"
+    if rc != 0 and murio_por_memoria(rc, texto):
+        return "sin memoria: %s murió antes de acabar (rc=%s); no es un fallo del código" % (nombre, rc)
     if nombre == "vitest":
         m = re.search(r"Tests\s+([^\n]+)", texto)
         if m:

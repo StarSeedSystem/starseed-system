@@ -71,6 +71,25 @@ class Guardian(unittest.TestCase):
         # Un paso cortado no se confunde con «0 errores» ni con un fallo de tipos.
         self.assertIn("cortado", A.resumen_paso("tsc", 124, ""))
 
+    def test_sin_memoria_no_se_disfraza_de_errores_de_tipos(self):
+        # (SUP0211C) Medido en el A1 el 01-11: seis pasadas seguidas con tsc rc=134 y «0 error(es) de tipos».
+        oom = ("<--- JS stacktrace --->\n\nFATAL ERROR: Ineffective mark-compacts near heap limit Allocation "
+               "failed - JavaScript heap out of memory\nAborted (core dumped)\n")
+        r = A.resumen_paso("tsc", 134, oom)
+        self.assertIn("sin memoria", r)
+        self.assertNotIn("error(es) de tipos", r)
+        self.assertIn("sin memoria", A.resumen_paso("vitest", 137, ""))
+        self.assertIn("sin memoria", A.resumen_paso("tsc", 1, "FATAL ERROR: Reached heap limit"))
+        self.assertEqual(A.resumen_paso("tsc", 2, "a.ts(1,1): error TS2322: x"), "1 error(es) de tipos")
+        self.assertTrue(A.murio_por_memoria(134, ""))
+        self.assertFalse(A.murio_por_memoria(2, "a.ts(1,1): error TS2322: x"))
+
+    def test_tsc_del_guardian_lleva_su_propio_monton(self):
+        nombre, orden, _ = A.PASOS_GUARDIAN[0]
+        self.assertEqual(nombre, "tsc")
+        self.assertEqual(orden[:2], ["env", "NODE_OPTIONS=--max-old-space-size=6144"])
+        self.assertEqual(orden[2:], ["npx", "tsc", "--noEmit"])
+
 
 class Entregas(unittest.TestCase):
     def test_hermanas_no_hijas(self):
