@@ -13,6 +13,7 @@ import {
   sugerenciaCloudroom,
   type VistaOpcionesAmbito,
 } from "../asistente-conectores";
+import { SeccionAsignacionesGenesis } from "../seccion-asignaciones";
 
 afterEach(cleanup);
 
@@ -138,6 +139,37 @@ describe("AsistenteConectarGenesis · cableado de Cloudroom en el paso de gratis
     render(<AsistenteConectarGenesis ambito="cuenta-demo" opciones={VISTA}
       cloudroom={{ instalacion: "instalada", plan: { tipo: "gratis" }, inicioCiclo: INICIO, ahora: INICIO }} />);
     fireEvent.click(screen.getByRole("tab", { name: /2\. Gratis por vincular/ }));
+    expect(screen.queryByTestId("estado-cloudroom")).not.toBeInTheDocument();
+  });
+});
+
+describe("SeccionAsignacionesGenesis · cableado del asistente con Cloudroom", () => {
+  const CICLO = { plan: { tipo: "gratis" as const }, inicioCiclo: INICIO,
+    consumos: [{ contextoId: "personal", t: INICIO + 86400000, n: 10 }], ahora: INICIO + 3 * 86400000 };
+
+  it("aplica el asistente con sugerencias de la escalera: Cloudroom llega solo cuando es relevante y la neurona la tiene", () => {
+    render(<SeccionAsignacionesGenesis ambito="cuenta-demo" titulo="Asignaciones" onGuardar={() => {}}
+      cloudroom={{ ...CICLO, instalacion: "instalada", relevante: true }} />);
+    fireEvent.click(screen.getByRole("tab", { name: /2\. Gratis por vincular/ }));
+    const bloque = screen.getByTestId("estado-cloudroom");
+    expect(bloque).toHaveTextContent("Cloudroom");
+    expect(bloque).toHaveTextContent("Instalada en esta neurona");
+    expect(bloque).toHaveTextContent("90 agentes en la nube");
+    expect(screen.getByRole("link", { name: "Abrir Cloudroom" })).toHaveAttribute("href", "https://cloudroom.dev");
+  });
+
+  it("sin relevancia declarada no muestra Cloudroom, aunque la app esté instalada", () => {
+    render(<SeccionAsignacionesGenesis ambito="cuenta-demo" titulo="Asignaciones" onGuardar={() => {}}
+      cloudroom={{ ...CICLO, instalacion: "instalada" }} />);
+    fireEvent.click(screen.getByRole("tab", { name: /2\. Gratis por vincular/ }));
+    expect(screen.queryByTestId("estado-cloudroom")).not.toBeInTheDocument();
+  });
+
+  it("sin datos de la neurona no sugiere ni «Esta neurona» ni Cloudroom", () => {
+    render(<SeccionAsignacionesGenesis ambito="cuenta-demo" titulo="Asignaciones" onGuardar={() => {}}
+      cloudroom={{ relevante: true }} />);
+    fireEvent.click(screen.getByRole("tab", { name: /1\. Local del contexto/ }));
+    expect(screen.queryByText("Esta neurona")).not.toBeInTheDocument();
     expect(screen.queryByTestId("estado-cloudroom")).not.toBeInTheDocument();
   });
 });
