@@ -135,4 +135,47 @@ describe("ClienteMcpStdio", () => {
     transporte.enviar(`${JSON.stringify({ jsonrpc: "2.0", id: transporte.ultima.id, error: { message: "boom" } })}\n`);
     await comprobacion;
   });
+  it("usa mime por defecto image/png cuando el header no es string", async () => {
+    const { transporte, cliente } = montar();
+    const datos = new Uint8Array([0, 255]);
+    const promesa = cliente.llamar("x", {}, 1000);
+    transporte.enviar(`${JSON.stringify({ jsonrpc: "2.0", id: transporte.ultima.id, result: { content: [{ type: "image", mime: 123, data: btoa(String.fromCharCode(...datos)) }] } })}\n`);
+    const resultado = await promesa;
+    if (!("tipo" in resultado)) throw new Error("se esperaba una imagen");
+    expect(resultado.mime).toBe("image/png");
+  });
+  it("maneja trozos de línea partidos en mitad", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("x", {}, 5000);
+    transporte.enviar('{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"hola"}]}}');
+    transporte.enviar("\n");
+    expect(await promesa).toEqual({ ok: true, texto: "hola" });
+  });
+  it("falla con error de protocolo al escribir", async () => {
+    class TransporteQueFalla implements TransporteMcp {
+      escritas: string[] = [];
+      private receptor?: (texto: string) => void;
+      escribir(_linea: string) { throw new Error("fail"); }
+      alRecibir(cb: (texto: string) => void) { this.receptor = cb; }
+      cerrar() {}
+    }
+    const transporte = new TransporteQueFalla();
+    const reloj = new RelojFalso();
+    const cliente = new ClienteMcpStdio((transporte as unknown as TransporteMcp), reloj);
+    const promesa = cliente.llamar("x", {}, 5000);
+    const comprobacion = expect(promesa).rejects.toMatchObject({ tipo: "protocolo" });
+    await comprobacion;
+  });
+  it("falla con error de protocolo cuando result no es objeto", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("x", {}, 5000);
+    transporte.enviar(`${JSON.stringify({ jsonrpc: "2.0", id: transporte.ultima.id, result: "string" })}\n`);
+    await expect(promesa).rejects.toMatchObject({ tipo: "protocolo", mensaje: "Respuesta sin resultado" });
+  });
+  it("falla con error de protocolo cuando result es undefined sin error", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.listar(1000);
+    transporte.enviar(`${JSON.stringify({ jsonrpc: "2.0", id: transporte.ultima.id, result: undefined })}\n`);
+    await expect(promesa).rejects.toMatchObject({ tipo: "protocolo", mensaje: "Respuesta sin resultado" });
+  });
 });
