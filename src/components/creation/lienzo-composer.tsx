@@ -15,7 +15,7 @@
 // (con su ACL) en vez de un post.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -45,6 +45,10 @@ import { NEW_BLOCK_DEFS, RichBlockEditor } from "@/components/creation/creation-
 import { MarcoDeMedio } from "@/components/creation/marco-de-medio";
 import type { Marco } from "@/lib/profile/marco-foto";
 import { SocialCrosspost } from "@/components/creation/social-crosspost";
+import { PanelContenidoVivo } from "@/components/contenido-vivo/panel-contenido-vivo";
+import type { ContextoVivo } from "@/lib/contenido-vivo/rutas";
+import type { ConfirmacionContenidoVivo } from "@/lib/contenido-vivo/panel";
+import { CONNECTORS_EVENT, listConnectors } from "@/lib/connectors/store";
 import {
     isRichBlock,
     newBlockId,
@@ -220,6 +224,48 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
     const [publishing, setPublishing] = useState(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const forged = useMemo(listForgedWidgets, []);
+
+    // Contenido vivo (CVV1028): el panel compara rutas locales y externas antes
+    // de gastar créditos. Los conectores se leen del almacén local del navegador.
+    const [vivoAbierto, setVivoAbierto] = useState(false);
+    const [conectadosVivo, setConectadosVivo] = useState<string[]>([]);
+    useEffect(() => {
+        const refrescar = () => {
+            setConectadosVivo(
+                listConnectors()
+                    .filter(({ status }) => status === "connected")
+                    .map(({ connector }) => connector.id),
+            );
+        };
+        refrescar();
+        window.addEventListener(CONNECTORS_EVENT, refrescar);
+        return () => window.removeEventListener(CONNECTORS_EVENT, refrescar);
+    }, []);
+
+    const contextoVivo = useMemo<ContextoVivo>(
+        () => ({
+            alcance: "publica",
+            conectados: conectadosVivo,
+            cupoHoy: {},
+            creditosDisponibles: 100,
+            topeMes: 1000,
+            gastadoMes: 0,
+            neurona: { gpu: false, capaz3d: false },
+            ajustes: { localPrimero: true, externosPermitidos: true },
+        }),
+        [conectadosVivo],
+    );
+
+    const confirmarContenidoVivo = useCallback(
+        (confirmacion: ConfirmacionContenidoVivo) => {
+            toast({
+                title: "Plan de contenido vivo confirmado",
+                description: `Selección de ${Object.keys(confirmacion.seleccion).length} rutas por ${confirmacion.totalCreditos} créditos.`,
+            });
+            setVivoAbierto(false);
+        },
+        [toast],
+    );
 
     const changeDest = useCallback((d: CreationDest) => {
         setDest(d);
@@ -476,6 +522,16 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                         <span className="text-[10px] uppercase tracking-widest text-emerald-300/50 font-mono">
                             Publicación por bloques
                         </span>
+                        <button
+                            type="button"
+                            onClick={() => setVivoAbierto((previo) => !previo)}
+                            aria-expanded={vivoAbierto}
+                            aria-controls="panel-contenido-vivo"
+                            className="ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/[0.06] px-3 py-1.5 text-xs font-medium text-emerald-300/90 transition-all duration-150 hover:bg-emerald-500/15 hover:text-emerald-200"
+                        >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            {vivoAbierto ? "Ocultar contenido vivo" : "Hacerla viva"}
+                        </button>
                     </div>
 
                     <Input
@@ -694,6 +750,16 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                         onChange={(e) => void handleFileChosen(e)}
                     />
                 </div>
+
+                {vivoAbierto && (
+                    <div id="panel-contenido-vivo" className="rounded-3xl border border-emerald-400/20 bg-black/20 p-2 sm:p-3">
+                        <PanelContenidoVivo
+                            key={conectadosVivo.join("|")}
+                            contexto={contextoVivo}
+                            onConfirmar={confirmarContenidoVivo}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* Columna derecha: destino + etiquetas + publicar */}
