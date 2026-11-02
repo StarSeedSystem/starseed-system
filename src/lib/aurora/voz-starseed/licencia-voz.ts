@@ -54,6 +54,7 @@ export type MotorVozLicencia = MotorInfo;
 export type ExclusionVoz = MotorExcluido;
 export type Excluido = MotorExcluido;
 export type PermisosVoz = ResultadoPermisos;
+export { type CapasPrefs };
 
 const MOTIVO_PERSONAL_FUERA = "pesos no comerciales: solo uso personal";
 const MOTIVO_PERSONAL_CAPAS = "las capas activas no autorizan pesos de uso personal";
