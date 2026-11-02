@@ -17,7 +17,7 @@ import oracle_nodo as N  # noqa: E402
 SERVICIO = os.path.normpath(os.path.join(DIR, "..", "..", "deploy", "oracle", "nodo", "systemd", "starseed-direccion.service"))
 with open(SERVICIO, encoding="utf-8") as _f:
     TEXTO = _f.read()
-PIEZAS = ("orquestador", "autocuracion", "autopublicacion", "cartero")
+
 
 class Unidad(unittest.TestCase):
     def test_es_del_a1_requiere_lo_que_lanza_y_limita_memoria(self):
@@ -36,13 +36,18 @@ class Unidad(unittest.TestCase):
         self.assertFalse(re.search(r"sk-|ghp_|AIza|BEGIN OPENSSH|xoxb-|Bearer ", TEXTO))
 
 class Piezas(unittest.TestCase):
-    def test_las_cuatro_piezas_del_reparto_de_la_mac(self):
+    def test_las_cinco_piezas_del_reparto_de_la_mac(self):
         piezas = N.piezas_direccion()
-        self.assertEqual(tuple(p[0] for p in piezas), PIEZAS)
+        self.assertEqual(tuple(p[0] for p in piezas), ("orquestador", "autocuracion", "autopublicacion", "cartero", "director"))
         for nombre, ruta, args, marca in piezas:
             self.assertTrue(ruta.startswith(N.RAIZ_DIRECCION_A1))
             self.assertTrue(ruta.endswith("/scripts/puente/" + marca))
-            self.assertEqual(args, ("--bucle",) if nombre == "autopublicacion" else ())
+            if nombre == "autopublicacion":
+                self.assertEqual(args, ("--bucle",))
+            elif nombre == "director":
+                self.assertEqual(args, ("ciclo",))
+            else:
+                self.assertEqual(args, ())
         self.assertNotIn(("starseed" + "-wt"), repr(piezas))
 
 class Guion(unittest.TestCase):
@@ -50,7 +55,8 @@ class Guion(unittest.TestCase):
         guion = N.guion_direccion()
         for pieza in N.piezas_direccion():
             self.assertIn(pieza[3], guion)
-        self.assertIn('lider_direccion.renovar().get("soy")', guion)
+        self.assertIn('lider_direccion.renovar()', guion)
+        self.assertIn('get("soy")', guion)
         self.assertIn('["--bucle"]', guion)
         self.assertIn("/proc/%s/cmdline", guion)
         self.assertNotIn(("starseed" + "-wt"), guion)

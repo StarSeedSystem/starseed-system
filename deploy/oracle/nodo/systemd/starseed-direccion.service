@@ -1,5 +1,5 @@
 [Unit]
-Description=StarSeed · dirección de MetaGenesis en el A1 (IND1029): orquesta, cura, publica y correo
+Description=StarSeed · dirección de MetaGenesis en el A1 (IND1029): orquesta, cura, publica, correo y director
 After=network-online.target starseed-medio.service
 Wants=network-online.target
 # requiere: /opt/starseed/nodo/direccion_arranque.py
@@ -8,15 +8,17 @@ Wants=network-online.target
 # requiere: /home/starseed/starseed-system/scripts/puente/vigia_medidores.py
 # requiere: /home/starseed/starseed-system/scripts/puente/autopublicar.py
 # requiere: /home/starseed/starseed-system/scripts/puente/cartero_director.py
+# requiere: /home/starseed/starseed-system/scripts/puente/director_autodesarrollo.py
 # requiere: /usr/bin/python3
 #
 # (IND1029D) Dirección en el A1: un solo proceso que, cuando el arriendo
-# `direccion.lider` es del A1, mantiene vivas las cuatro piezas de la dirección
+# `direccion.lider` es del A1, mantiene vivas las cinco piezas de la dirección
 # con el mismo reparto que la Mac (instalar-servicios.py):
 #   · orquestador      → vigilante-enjambre.py (relanza el enjambre si no hay uno vivo)
 #   · autocuración     → vigia_medidores.py (llama a autocuracion_mando.revisar)
 #   · autopublicación  → autopublicar.py --bucle
 #   · cartero          → cartero_director.py
+#   · director         → director_autodesarrollo.py ciclo
 # El arranque NO duplica: comprueba /proc y solo lanza lo que no está vivo. Sin
 # puerta o sin red, `lider_direccion` devuelve líder en local y se sigue como hoy.
 # Se instala con `oracle_nodo.py direccion --aplicar` (en seco por defecto); el
@@ -44,7 +46,7 @@ KillMode=control-group
 TimeoutStopSec=120
 # Trabajo de fondo: el A1 comparte CPU y RAM con BitNet, Genesis y el medio. El
 # orquestador ya vivo del medio no se duplica (el arranque lo detecta), así que
-# este techo cubre las cuatro piezas ligeras y, si el medio cae, un orquestador.
+# este techo cubre las cinco piezas ligeras y, si el medio cae, un orquestador.
 MemoryHigh=2G
 MemoryMax=3G
 CPUWeight=50

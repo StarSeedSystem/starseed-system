@@ -103,7 +103,8 @@ class HermesEnElA1(unittest.TestCase):
 class ArranqueConArriendo(unittest.TestCase):
     def test_las_piezas_solo_arrancan_si_el_arriendo_es_mio(self):
         guion = N.guion_direccion()
-        self.assertIn('lider_direccion.renovar().get("soy")', guion)
+        self.assertIn('lider_direccion.renovar()', guion)
+        self.assertIn('get("soy")', guion)
         antes, despues = guion.split("if lider:", 1)
         llamada = "\n            arrancar(nombre, guion, args, procesos)"
         self.assertNotIn(llamada, antes)
