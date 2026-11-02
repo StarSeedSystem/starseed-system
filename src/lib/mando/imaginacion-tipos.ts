@@ -269,6 +269,40 @@ export function filasMedidor(propuestas: PropuestaImaginacion[]): FilaMedidor[] 
     || PESO_IMPORTANCIA[b.importancia] - PESO_IMPORTANCIA[a.importancia] || b.utilidad - a.utilidad || a.id.localeCompare(b.id));
 }
 
+// ── Filtro de entrada de Astraura (Ola 1102 · IMG1102A/D) ────────────────────────────────────────────
+/**
+ * Lo que el director guarda en `propuestas.json → filtro_astraura` al decidir antes de crear la
+ * propuesta (contrato `architecture/imaginacion-calidad.md` §1), ya interpretado. `hoy` compara con la
+ * fecha del calendario del reloj dado (no con UTC); lo de otro día vale, pero no se anuncia como de hoy.
+ */
+export interface FiltroAstraura {
+    fecha: string; hoy: boolean; vistas: number; entran: number;
+    filtradas: { "familia repetida": number; "tipo de archivo": number; tope: number };
+    autorizacionInventada: number;
+    /** La línea lista para el medidor: «Filtradas de Astraura hoy: N (familia X · tipo Y · tope Z)». */
+    linea: string;
+}
+const DIA = /^(\d{4})-(\d{2})-(\d{2})/;
+/** `null` si no trae una fecha (día); lo numérico que falta o es raro cuenta como 0. PURA. */
+export function filtroAstraura(x: unknown, hoy: Date): FiltroAstraura | null {
+    if (!esObj(x)) return null;
+    const fecha = typeof x.fecha === "string" ? (DIA.exec(x.fecha.trim())?.[0] ?? "") : "";
+    if (!fecha) return null;
+    const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
+    const f = esObj(x.filtradas) ? x.filtradas : {};
+    const familia = n(f["familia repetida"]), tipo = n(f["tipo de archivo"]), tope = n(f.tope);
+    const dia = DIA.exec(hoyLocal(hoy))?.[0] ?? "";
+    return {
+        fecha, hoy: fecha === dia, vistas: n(x.vistas), entran: n(x.entran),
+        filtradas: { "familia repetida": familia, "tipo de archivo": tipo, tope },
+        autorizacionInventada: n(x.autorizacion_inventada),
+        linea: `Filtradas de Astraura hoy: ${familia + tipo + tope} (familia ${familia} · tipo ${tipo} · tope ${tope})`,
+    };
+}
+/** La fecha del calendario del reloj dado, como la escribe Python (`YYYY-MM-DD`), no la de UTC. */
+const hoyLocal = (d: Date): string =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 /** Cuerpo de POST /api/mando/imaginacion ya interpretado (§4). Las notas y referencias las valida el servidor. */
 export type PeticionImaginacion =
   | { accion: "integrar"; id: string; por: QuienDecide }
