@@ -211,6 +211,44 @@ def toca_pedir_sueno(hay_bitnet, conversando, libre_mb, presion, min_desde_ultim
     return min_desde_ultimo is None or min_desde_ultimo >= SUENO_CADA_MIN
 
 
+GRACIA_ARRANQUE_MIN = float(os.environ.get("STARSEED_GUARDIA_GRACIA_MIN", "10"))
+
+
+def minutos_de_etime(texto):
+    """PURA: «[[dd-]hh:]mm:ss» de `ps -o etime=` en minutos; None si no se entiende."""
+    t = (texto or "").strip()
+    try:
+        dias, _, resto = t.rpartition("-")
+        partes = [int(p) for p in resto.split(":")]
+        while len(partes) < 3:
+            partes.insert(0, 0)
+        h, m, s = partes[-3:]
+        return (int(dias or 0) * 1440) + h * 60 + m + s / 60.0
+    except ValueError:
+        return None
+
+
+def sin_congelar_en_arranque(acciones, edades_min, gracia=None):
+    """PURA: un motor con algún proceso más joven que la gracia no se congela (está arrancando)."""
+    g = GRACIA_ARRANQUE_MIN if gracia is None else gracia
+    return [(m, a) for (m, a) in acciones
+            if not (a == "congelar" and edades_min.get(m) is not None and edades_min[m] < g)]
+
+
+def _edad_min(pids):
+    """Minutos del proceso más joven del motor (None si no se puede medir)."""
+    edades = []
+    for pid in (pids or {}):
+        try:
+            r = subprocess.run(["ps", "-o", "etime=", "-p", str(pid)], capture_output=True, text=True, timeout=5)
+        except Exception:
+            continue
+        e = minutos_de_etime(r.stdout)
+        if e is not None:
+            edades.append(e)
+    return min(edades) if edades else None
+
+
 def sin_tocar_al_dormido(acciones, motor):
     """PURA: se le pidió dormir: este ciclo ni SIGSTOP ni SIGKILL para ese motor
     (el gestor está descargando o recolocando el modelo); devolverle la vida nunca sobra.
@@ -402,6 +440,8 @@ def main():
             presion = presion_nucleo()
             acciones = decidir(orq, libre, congelados, vivos, conversando, presion,
                                {m: congelado_min(m) for m in congelados})
+            # (1102) Recién arrancado no se congela: Astraura espera a su BitNet al arrancar.
+            acciones = sin_congelar_en_arranque(acciones, {m: _edad_min(motores[m]) for m in vivos})
             # (1031) El sueño del BitNet manda antes que congelarlo: congelado no suelta su
             # RAM (mlock), dormida sí. El cooldown del último intento se cuenta desde EL
             # INTENTO (éxito o fallo): ni machacar al gestor ni repetirlo en cada ciclo.

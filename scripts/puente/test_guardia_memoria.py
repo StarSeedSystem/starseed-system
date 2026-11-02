@@ -218,3 +218,16 @@ def test_sin_tocar_al_dormido_quita_daños_y_deja_la_vida():
                 ("llama-server", "reevaluar"), ("llama-server", "descongelar")]
     assert G.sin_tocar_al_dormido(acciones, "llama-server") == [
         ("tts-server", "congelar"), ("llama-server", "descongelar")]
+
+
+def test_bitnet_recien_arrancado_no_se_congela():
+    import importlib.util as _u, os as _o
+    _s = _u.spec_from_file_location("gm1102", _o.path.join(_o.path.dirname(__file__), "guardia-memoria.py"))
+    gm = _u.module_from_spec(_s); _s.loader.exec_module(gm)
+    assert gm.minutos_de_etime("06:23") == 6 + 23 / 60.0
+    assert gm.minutos_de_etime("01-02:00:00") == 1440 + 120
+    assert gm.minutos_de_etime("basura") is None
+    acc = [("llama-server", "congelar"), ("tts-server", "congelar")]
+    assert gm.sin_congelar_en_arranque(acc, {"llama-server": 3.0, "tts-server": 30.0}, gracia=10) == [("tts-server", "congelar")]
+    assert gm.sin_congelar_en_arranque(acc, {"llama-server": None}, gracia=10) == acc
+    assert gm.sin_congelar_en_arranque([("llama-server", "descongelar")], {"llama-server": 1.0}) == [("llama-server", "descongelar")]
