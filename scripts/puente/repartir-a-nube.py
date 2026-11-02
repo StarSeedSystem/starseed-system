@@ -15,7 +15,7 @@ Uso:
               lanzarla con `nube-gh.py lanzar --cola`
 """
 
-import argparse, datetime, json, os, re, subprocess, sys
+import argparse, contextlib, datetime, fcntl, json, os, re, subprocess, sys, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import puente
@@ -38,6 +38,8 @@ RAIZ = os.environ.get("STARSEED_ROOT", "/Users/alex/Documents/starseed-os-main")
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 PROGRESO = os.path.join(OLAS, "progreso.json")
 DESTINO_DIR = os.path.join(RAIZ, "enjambre", "colas")
+#: (SUP0211H) El cerrojo de progreso.json: el mismo del orquestador, el revisor y `puente.py integrada`.
+CERROJO_PROGRESO = os.path.expanduser("~/.starseed/cerrojos/progreso.lock")
 
 
 def validar_raiz(raiz):
@@ -99,6 +101,70 @@ def ola_actual(colas):
         return ""
     m = re.search(r"cola-(\d+)", colas[0][0])
     return m.group(1) if m else ""
+
+
+def _mensaje(fecha, elegidas):
+    return "Reparto a la nube %s: %d tareas (%s)" % (
+        fecha,
+        len(elegidas),
+        ", ".join(t["id"] for t in elegidas) or "ninguna",
+    )
+
+
+def vigentes(elegidas, visto, fresco):
+    """PURA (SUP0211H). Las elegidas cuyo estado sigue igual que cuando se eligieron: lo que en
+    ese rato empezó, se integró o se cerró ya no es de este reparto (marcarla «reasignada» pisaba
+    lo nuevo)."""
+    def estado(progreso, tid):
+        v = (progreso or {}).get(tid)
+        return v.get("estado") if isinstance(v, dict) else None
+
+    return [t for t in elegidas if estado(fresco, t["id"]) == estado(visto, t["id"])]
+
+
+def _leer_json_entero(ruta, intentos=60, pausa_s=0.5):
+    """(SUP0211H) El JSON de `ruta`, {} si no existe, o None si no se pudo leer ENTERO (otros lo
+    escriben sin os.replace: una lectura a mitad no es JSON)."""
+    for i in range(max(1, intentos)):
+        try:
+            with open(ruta, encoding="utf-8") as f:
+                datos = json.load(f)
+            return datos if isinstance(datos, dict) else None
+        except FileNotFoundError:
+            return {}
+        except (OSError, ValueError):
+            if i + 1 < intentos:
+                time.sleep(pausa_s)
+    return None
+
+
+def _escribir_json_atomico(ruta, datos):
+    """(SUP0211H) A un temporal y os.replace: quien lea nunca ve medio archivo."""
+    tmp = "%s.tmp-%d" % (ruta, os.getpid())
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(datos, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, ruta)
+
+
+@contextlib.contextmanager
+def _cerrojo_progreso(espera_s=120):
+    """(SUP0211H) El cerrojo de progreso.json (`CERROJO_PROGRESO`). Sin él en `espera_s`, no se reparte."""
+    ruta = CERROJO_PROGRESO
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    with open(ruta, "a") as f:
+        t0 = time.time()
+        while True:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.time() - t0 > espera_s:
+                    raise SystemExit("[reparto] progreso.lock ocupado más de %d s: no reparto" % espera_s)
+                time.sleep(0.5)
+        try:
+            yield
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 def main():
@@ -180,30 +246,44 @@ def main():
               % (len(tanda), len(cedibles), len(cedidas), ", ".join(cedidas) or "ninguna"))
     ahora = datetime.datetime.now()
     fecha = ahora.strftime("%Y%m%d")
-    mensaje = "Reparto a la nube %s: %d tareas (%s)" % (
-        fecha,
-        len(elegidas),
-        ", ".join(t["id"] for t in elegidas) or "ninguna",
-    )
+    mensaje = _mensaje(fecha, elegidas)
 
     if args.simular or not elegidas:
         print("[reparto] %s (simulación)" % mensaje)
         return
-    os.makedirs(DESTINO_DIR, exist_ok=True)
-    nombre = nombre_destino(ahora, DESTINO_DIR)
-    ruta = os.path.join(DESTINO_DIR, nombre)
-    datos = {"ola": "nube-%s" % fecha, "tareas": elegidas}
-    if cedidas:
-        # Quién las tenía: `nube-gh.py lanzar` manda el «soltar» a ESAS colas de la Mac.
-        datos["cedidas_de_la_mac"] = {n: [i for i in ids if i in set(cedidas)] for n, ids in colas_mac
-                                      if any(i in set(cedidas) for i in ids)}
-    with open(ruta, "w", encoding="utf-8") as f:
-        json.dump(datos, f, ensure_ascii=False, indent=1)
-    # Quien lanza (`nube-gh.py lanzar`) lee ESTA línea para saber qué cola subir (2026-10-13).
-    print("[reparto] cola: enjambre/colas/%s" % nombre)
-    nuevo = marcar(progreso, [t["id"] for t in elegidas], fecha)
-    with open(PROGRESO, "w", encoding="utf-8") as f:
-        json.dump(nuevo, f, ensure_ascii=False, indent=1)
+    # (SUP0211H, 2026-11-02) Se marca sobre el progreso.json de AHORA, bajo el cerrojo de progreso (el
+    # del orquestador y el revisor) y con os.replace. Antes se volcaba encima la foto leída al empezar
+    # (git log, colas, medir la Mac: minutos con la Mac cargada), sin cerrojo y a medias: lo que otros
+    # escribieron en ese rato se perdía (CVV1028Bb y MTN1027L2b volvieron a «sin_cambios» 15 s después
+    # de marcarse «sustituida») y quien leía a mitad de la escritura veía medio JSON.
+    with _cerrojo_progreso():
+        fresco = _leer_json_entero(PROGRESO)
+        if fresco is None:
+            print("[reparto] progreso.json no se pudo leer entero: no reparto nada (0 tareas)")
+            return
+        quedan = RN.sin_cadenas_partidas(vigentes(elegidas, progreso, fresco), lote, colas)
+        if len(quedan) != len(elegidas):
+            fuera = sorted({t["id"] for t in elegidas} - {t["id"] for t in quedan})
+            print("[reparto] cambiaron mientras se elegía, no viajan: %s" % ", ".join(fuera))
+            elegidas = quedan
+            cedidas = [i for i in cedidas if i in {t["id"] for t in elegidas}]
+            mensaje = _mensaje(fecha, elegidas)
+        if not elegidas:
+            print("[reparto] %s" % mensaje)
+            return
+        os.makedirs(DESTINO_DIR, exist_ok=True)
+        nombre = nombre_destino(ahora, DESTINO_DIR)
+        ruta = os.path.join(DESTINO_DIR, nombre)
+        datos = {"ola": "nube-%s" % fecha, "tareas": elegidas}
+        if cedidas:
+            # Quién las tenía: `nube-gh.py lanzar` manda el «soltar» a ESAS colas de la Mac.
+            datos["cedidas_de_la_mac"] = {n: [i for i in ids if i in set(cedidas)] for n, ids in colas_mac
+                                          if any(i in set(cedidas) for i in ids)}
+        with open(ruta, "w", encoding="utf-8") as f:
+            json.dump(datos, f, ensure_ascii=False, indent=1)
+        # Quien lanza (`nube-gh.py lanzar`) lee ESTA línea para saber qué cola subir (2026-10-13).
+        print("[reparto] cola: enjambre/colas/%s" % nombre)
+        _escribir_json_atomico(PROGRESO, marcar(fresco, [t["id"] for t in elegidas], fecha))
     puente.decir(mensaje, quien="reparto-nube", tipo="hecho")
 
     if args.publicar:

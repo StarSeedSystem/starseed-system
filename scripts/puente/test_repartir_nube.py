@@ -3,6 +3,7 @@
 """Puertas de repartir_nube: qué se va a la nube y qué se queda en la Mac."""
 
 import datetime, json, os, shutil, sys, tempfile, unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(__file__))
 import repartir_nube as R
@@ -96,6 +97,75 @@ class RepartoScript(unittest.TestCase):
         esp.loader.exec_module(self.mod)
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp, True)
+        # El cerrojo de progreso de las pruebas nunca es el de la Mac (SUP0211H).
+        p = mock.patch.object(self.mod, "CERROJO_PROGRESO", os.path.join(self.tmp, "cerrojos", "progreso.lock"),
+                              create=True)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def _preparar(self):
+        """Árbol temporal con una cola de código (Z1, de otra ola) y el reparto apuntando a él."""
+        raiz = self.tmp
+        os.makedirs(os.path.join(raiz, "enjambre"))
+        olas = os.path.join(raiz, "starseed_memory_root", "olas")
+        os.makedirs(olas)
+        with open(os.path.join(olas, "cola-999.json"), "w") as f:
+            json.dump({"tareas": [{"id": "Z1", "ola": "111"}]}, f)
+        m = self.mod
+        m.RAIZ, m.OLAS = raiz, olas
+        m.PROGRESO = os.path.join(olas, "progreso.json")
+        m.DESTINO_DIR = os.path.join(raiz, "enjambre", "colas")
+        m.asuntos_main = lambda r: []
+        m.validar_raiz = lambda r: None
+        import repartir_nube as RN
+
+        for objeto, nombre, valor in ((m.puente, "decir", lambda *a, **k: None),
+                                      (RN, "nube_pausada", lambda *a, **k: None)):
+            p = mock.patch.object(objeto, nombre, valor, create=True)
+            p.start()
+            self.addCleanup(p.stop)
+        sys.argv = ["repartir-a-nube.py"]
+        return m
+
+    def _escribir_progreso(self, m, datos):
+        with open(m.PROGRESO, "w", encoding="utf-8") as f:
+            json.dump(datos, f)
+
+    def test_lo_que_otros_escriben_durante_el_reparto_no_se_pierde(self):
+        # (SUP0211H, medido el 02-11) Se volcaba la foto del principio: «sustituida» volvía a «sin_cambios».
+        m = self._preparar()
+        self._escribir_progreso(m, {"OTRA": {"estado": "sin_cambios"}})
+
+        def asuntos(_raiz):  # mientras el reparto mide y elige, otro proceso cierra OTRA
+            self._escribir_progreso(m, {"OTRA": {"estado": "sustituida"}})
+            return []
+
+        m.asuntos_main = asuntos
+        m.main()
+        with open(m.PROGRESO, encoding="utf-8") as f:
+            prog = json.load(f)
+        self.assertEqual(prog["OTRA"]["estado"], "sustituida")
+        self.assertEqual(prog["Z1"]["estado"], "reasignada")
+        self.assertEqual(len(os.listdir(m.DESTINO_DIR)), 1)
+
+    def test_la_que_cambia_mientras_se_elige_no_viaja(self):
+        m = self._preparar()
+
+        def asuntos(_raiz):  # el orquestador la empieza mientras tanto
+            self._escribir_progreso(m, {"Z1": {"estado": "en_curso"}})
+            return []
+
+        m.asuntos_main = asuntos
+        m.main()
+        self.assertFalse(os.path.isdir(m.DESTINO_DIR) and os.listdir(m.DESTINO_DIR))
+        with open(m.PROGRESO, encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["Z1"]["estado"], "en_curso")
+
+    def test_vigentes_es_pura(self):
+        elegidas = [{"id": "A"}, {"id": "B"}, {"id": "C"}]
+        visto = {"A": {"estado": "fallo"}, "B": {"estado": "pendiente"}}
+        fresco = {"A": {"estado": "fallo"}, "B": {"estado": "commit"}, "C": {"estado": "en_curso"}}
+        self.assertEqual([t["id"] for t in self.mod.vigentes(elegidas, visto, fresco)], ["A"])
 
     def test_nombre_lleva_fecha_hora_y_nunca_sobrescribe(self):
         ahora = datetime.datetime(2026, 9, 13, 2, 30)
