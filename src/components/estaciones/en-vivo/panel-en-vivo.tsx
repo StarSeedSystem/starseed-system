@@ -15,6 +15,8 @@ import {
   Timer, Volume2, VolumeX, Waves, Orbit, Wifi, WifiOff, Cable, Server,
 } from "lucide-react";
 import { estacionGlobal, useEstacionGlobal } from "@/lib/estaciones/estacion-global";
+import { avisoDespierto } from "@/lib/install/despierto-web";
+import { useDespierto } from "@/lib/install/usar-despierto";
 import { registroDe } from "@/lib/estaciones/llaves-locales";
 import {
   ETIQUETA_FUENTE_TRANSMISION,
@@ -108,6 +110,12 @@ export function PanelEnVivo({ href }: { href: string }) {
   const sesion = estacionGlobal().sesionActual();
   const ahora = sesion ? sesion.ahora() : 0;
   const pos = useMemo(() => (s ? posicionEn(s.estado, ahora) : null), [s, ahora, tic]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Proceso largo en esta pestaña (KAL1101E): mientras la sesión corre y no acaba
+  // de terminar, decidirDespierto mantiene la pantalla; el aviso es honesto.
+  const enMarcha = pos !== null && pos.fase !== "terminada";
+  const despierto = useDespierto(enMarcha);
+  const textoDespierto = avisoDespierto(despierto !== "sin-soporte");
 
   if (!s || !pos) {
     return (
@@ -326,6 +334,9 @@ export function PanelEnVivo({ href }: { href: string }) {
       )}
       {(aviso || g.error || g.motor.error) && (
         <p className="text-xs text-amber-200/90" role="status">{aviso ?? g.error ?? g.motor.error}</p>
+      )}
+      {enMarcha && (
+        <p className="text-xs text-white/50" data-testid="aviso-despierto">{textoDespierto}</p>
       )}
       {f.fuente === "audiomorphic" && (
         <p className="text-xs text-white/50">
