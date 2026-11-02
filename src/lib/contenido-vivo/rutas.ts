@@ -43,7 +43,11 @@ export function razonCandidato(ruta: Ruta, tarea: TareaViva, motivo: string | nu
 }
 /** Compara los candidatos, del mejor al peor y con las disponibles delante. */
 export function compararRutas(tarea: TareaViva, contexto: ContextoVivo): CandidatoRuta[] {
-  return CATALOGO_RUTAS.filter((ruta) => ruta.tareas.includes(tarea))
+  const candidatas = CATALOGO_RUTAS.filter((ruta) => ruta.tareas.includes(tarea));
+  const rutas = TAREAS_SIEMPRE_LOCALES.includes(tarea)
+    ? candidatas.filter((ruta) => ruta.tipo === "local")
+    : candidatas;
+  return rutas
     .map((ruta) => valorarRuta(ruta, tarea, contexto))
     .sort((a, b) => b.puntuacion - a.puntuacion || (a.disponible === b.disponible ? 0 : a.disponible ? -1 : 1));
 }
