@@ -116,6 +116,14 @@ describe("presentacion-html · documento", () => {
         expect(html).toContain('<aside class="aside-notas" hidden>');
         expect(html).toContain("&lt;b&gt;nota&lt;/b&gt;");
     });
+    it("fondo: hex propio, preset de burbuja o tema", () => {
+        const htmlHex = presentacionAHtml({ ...meta, fondo: "#123456" }, [diapo()], { fecha });
+        expect(htmlHex).toContain("background:#123456");
+        const htmlPreset = presentacionAHtml({ ...meta, fondo: "violeta" }, [diapo()], { fecha });
+        expect(htmlPreset).toContain("background:linear-gradient(135deg,#7C5CFF,#5B3FD9)");
+        const htmlTema = presentacionAHtml(meta, [diapo()], { fecha });
+        expect(htmlTema).toContain("background:radial-gradient(120% 120% at 0% 0%,#2a1650,#0b0d1a 70%)");
+    });
     it("nombre de archivo sin acentos ni símbolos", () => {
         expect(nombreArchivoPresentacion("Mi charla ñandú")).toBe("mi-charla-nandu.html");
         expect(nombreArchivoPresentacion({ titulo: "" })).toBe("presentacion.html");
@@ -162,5 +170,53 @@ describe("presentacion-html · elementos del lienzo", () => {
         expect(html).not.toContain("<iframe");
         expect(html).not.toContain("<video");
         expect(html).not.toContain("<audio");
+    });
+    it("imagen con URL válida: alt vacío y src escapado", () => {
+        const el: ElementoLienzo = {
+            id: "i", tipo: "imagen", x: 0, y: 0, w: 10, h: 10, z: 1, url: "https://example.com/img.png?a=<b>",
+        };
+        const html = elementoAHtml(el, 1);
+        expect(html).toContain('alt=""');
+        expect(html).toContain('src="https://example.com/img.png?a=&lt;b&gt;"');
+    });
+    it("elementos con rotación, opacidad y radio de esquinas", () => {
+        const forma: ElementoLienzo = {
+            id: "s", tipo: "forma", x: 10, y: 10, w: 50, h: 50, z: 1,
+            forma: { tipo: "circulo", color: "#00ff00" }, rot: 45, opacidad: 0.5,
+        };
+        const rect: ElementoLienzo = {
+            id: "r", tipo: "texto", x: 0, y: 0, w: 100, h: 50, z: 1, radio: 8,
+            texto: { bloques: [{ tipo: "parrafo", tramos: [{ texto: "test" }] }] },
+        };
+        expect(elementoAHtml(forma, 1)).toContain("rotate(45deg)");
+        expect(elementoAHtml(forma, 1)).toContain("opacity:0.5");
+        expect(elementoAHtml(rect, 1)).toContain("border-radius:8px");
+    });
+    it("forma sin relleno tiene borde y sin fondo", () => {
+        const forma: ElementoLienzo = {
+            id: "s", tipo: "forma", x: 10, y: 10, w: 50, h: 50, z: 1,
+            forma: { tipo: "circulo", color: "#ff0000", relleno: false },
+        };
+        const html = elementoAHtml(forma, 1);
+        expect(html).toContain("border-radius:50%");
+        expect(html).not.toContain("background:");
+    });
+    it("forma con color inválido usa blanco por defecto", () => {
+        const forma: ElementoLienzo = {
+            id: "s", tipo: "forma", x: 10, y: 10, w: 50, h: 50, z: 1,
+            forma: { tipo: "circulo", color: "rojo" },
+        };
+        expect(elementoAHtml(forma, 1)).toContain("background:#ffffff");
+    });
+    it("elementos con factor decimal redondean a centésimas", () => {
+        const forma: ElementoLienzo = {
+            id: "s", tipo: "forma", x: 10.567, y: 20.891, w: 100.123, h: 50.456, z: 1,
+            forma: { tipo: "rect", color: "#aabbcc" },
+        };
+        const html = elementoAHtml(forma, 3.456);
+        expect(html).toContain("left:36.52px");
+        expect(html).toContain("top:72.2px");
+        expect(html).toContain("width:346.03px");
+        expect(html).toContain("height:174.38px");
     });
 });
