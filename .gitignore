@@ -136,3 +136,6 @@ enjambre/colas/estado-*/
 
 # (2026-10-18) Dependencias de los servicios propios (taller 3D, etc.): nunca al repositorio
 servicios/*/node_modules/
+
+# (2026-11-02, SUP0211K) Caché de la CLI de Supabase (la última versión vista): ensuciaba main.
+supabase/.temp/cli-latest
