@@ -1,0 +1,61 @@
+{
+ "llm7": {
+  "ultimo_429": "2026-11-02 05:27:12"
+ },
+ "groq": {
+  "ultimo_429": "2026-11-02 05:22:39",
+  "estado": "vivo",
+  "t": "2026-11-02 05:31:04",
+  "desde": "2026-11-02 04:34:38"
+ },
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-11-02 05:31:03",
+  "desde": "2026-11-02 04:32:33",
+  "sin_cupo_hasta": "2026-11-02 18:00:15",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-11-02 05:31:04",
+  "desde": "2026-11-02 04:32:33"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-11-02 05:15:37",
+  "desde": "2026-11-02 04:32:33",
+  "sin_cupo_hasta": "2026-11-03 05:16:37",
+  "motivo": "contenido: Sorry, to prevent abuse of free resources, accounts that have not been recharged"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-11-02 05:31:04",
+  "desde": "2026-11-02 04:32:34",
+  "sin_cupo_hasta": "2026-11-02 18:00:15",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-11-02 05:31:04",
+  "desde": "2026-11-02 04:32:34",
+  "sin_cupo_hasta": "2026-11-03 05:00:23",
+  "motivo": "http error 402: payment required"
+ },
+ "explabs": {
+  "estado": "vivo",
+  "t": "2026-11-02 05:31:04",
+  "desde": "2026-11-02 05:04:18",
+  "ultimo_429": "2026-11-02 05:27:16"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-11-02 05:31:04",
+  "desde": "2026-11-02 04:32:36"
+ },
+ "ultimo_revisor_ok": "freellmapi/auto",
+ "google": {
+  "sin_cupo_hasta": "2026-11-03 02:00:15",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "opencode": {}
+}
