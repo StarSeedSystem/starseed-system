@@ -13,6 +13,8 @@ import { leerBots, guardarBots } from "@/lib/astraura-bots/adaptadores/almacen-b
 import type { Bot } from "@/lib/astraura-bots/tipos";
 import { NIVEL_POR_DEFECTO, type NivelBot } from "@/lib/astraura-bots/permisos";
 import { QuantumOrbAvatar } from "@/components/aurora/quantum-orb-avatar";
+import { Cuerpo3dBot } from "@/components/avatares/cuerpo-3d-bot";
+import { esFormaAvatar3d } from "@/lib/avatares/adaptadores/adn-de-bot";
 import { EditorBot } from "./editor-bot";
 import { TareasBotPanel } from "./tareas-bot-panel";
 
@@ -103,7 +105,11 @@ export function PanelBots({ perfilId, cuentaId }: { perfilId: string; cuentaId: 
       <ul className="space-y-2">
         {bots.map((b) => (
           <li key={b.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
-            <QuantumOrbAvatar personaId={b.id} size={36} />
+            {esFormaAvatar3d(b.cuerpo.forma) ? (
+              <Cuerpo3dBot bot={b} tamano={48} />
+            ) : (
+              <QuantumOrbAvatar personaId={b.id} size={36} />
+            )}
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">{b.nombre}</p>
               <p className="text-xs text-muted-foreground">{etiquetaOrigen(b)} · {b.activo ? "activo" : "en pausa"}</p>
