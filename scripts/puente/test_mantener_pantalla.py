@@ -121,6 +121,26 @@ class CicloTests(unittest.TestCase):
         self.assertEqual(popen.call_count, 1)
         self.assertEqual(len(escritos), 1)
 
+    def test_sin_herramienta_no_lanza_nada_y_escribe_apagado_una_vez(self):
+        # Rescate RTKAL1101A (rama nube/41371892695): sin herramienta útil el
+        # ciclo no lanza nada y solo escribe el estado apagado una vez.
+        servicio, popen, escritos = servicio_simulado(plataforma="win32")
+        servicio.ciclo(ajuste("pantalla"))
+        servicio.ciclo(ajuste("pantalla"))
+        popen.assert_not_called()
+        self.assertEqual(
+            escritos, [{"modo": None, "herramienta": None, "pid": 42}]
+        )
+
+    def test_nunca_usa_pkill(self):
+        # Rescate RTKAL1101A: el servicio jamás mata procesos ajenos, ni al
+        # lanzar ni al apagar.
+        servicio, popen, escritos = servicio_simulado(keepalive=True)
+        servicio.ciclo(ajuste("pantalla"))
+        servicio.ciclo(ajuste(False))
+        for llamada in popen.call_args_list:
+            self.assertNotIn("pkill", " ".join(llamada[0][0]))
+
     def test_apagado_termina_solo_su_hijo(self):
         servicio, popen, escritos = servicio_simulado()
         servicio.ciclo(ajuste("pantalla"))

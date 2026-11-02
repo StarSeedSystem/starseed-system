@@ -138,6 +138,8 @@ describe("esUrlPermitidaRare · solo releases oficiales, descargas remotas bloqu
       "https://user@github.com/RareDevs/Rare/releases/latest",
       "https://user:clave@github.com/RareDevs/Rare/releases/latest",
       "https://github.com:8443/RareDevs/Rare/releases/latest",
+      // Rescate RTKAL1101A: un host IP literal (IPv6) tampoco vale.
+      "https://[::1]/RareDevs/Rare/releases/latest",
     ]) expect(esUrlPermitidaRare(u), u).toBe(false);
   });
   it("SUP0111H · URL inválida, con barra invertida o protocolo que no es https: false", () => {
