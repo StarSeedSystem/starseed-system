@@ -94,9 +94,18 @@ export function geometriaVentana(viewport: Viewport, options: GeometriaVentanaOp
 
   switch (tipo) {
     case "dialogo":
-    case "ventana":
+      // Diálogo centrado en toda la pantalla
       x = horizontalMargin + (availWidth - width) / 2;
       y = (viewport.alto - height) / 2;
+      break;
+    case "ventana":
+      // Ventana centrada en pantalla; en teléfono, hoja centrada que sube desde abajo
+      x = horizontalMargin + (availWidth - width) / 2;
+      if (isPhone) {
+        y = viewport.alto - height;
+      } else {
+        y = (viewport.alto - height) / 2;
+      }
       break;
     case "hoja":
       if (isPhone) {
@@ -123,6 +132,26 @@ export interface ZonaPulgar {
   y: number;
   ancho: number;
   alto: number;
+}
+
+export interface DesplazamientoVentana {
+  dx: number;
+  dy: number;
+}
+
+/**
+ * Desplazamiento inicial de una ventana flotante respecto al centro del flex
+ * que la aloja. En escritorio es cero; en teléfono, la ventana se comporta
+ * como una hoja centrada que sube desde abajo. Delega en `geometriaVentana`
+ * para no duplicar márgenes ni topes por aparato.
+ */
+export function desplazamientoInicialVentana(
+  viewport: Viewport,
+  tamano: { ancho: number; alto: number },
+): DesplazamientoVentana {
+  const geo = geometriaVentana(viewport, { tipo: "ventana", ancho: tamano.ancho, alto: tamano.alto });
+  const centroY = (viewport.alto - geo.alto) / 2;
+  return { dx: 0, dy: Math.max(0, geo.y - centroY) };
 }
 
 export function zonaPulgar(viewport: Viewport): ZonaPulgar {

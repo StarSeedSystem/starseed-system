@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tipoAparato, geometriaVentana, ZonaPulgar, zonaPulgar } from "@/lib/design/composicion";
+import { tipoAparato, geometriaVentana, desplazamientoInicialVentana, ZonaPulgar, zonaPulgar } from "@/lib/design/composicion";
 
 describe("tipoAparato", () => {
   it("should return xr when xr is true", () => {
@@ -71,5 +71,59 @@ describe("zonaPulgar", () => {
     expect(result.ancho).toBe(viewport.ancho);
     expect(result.y).toBe(viewport.alto - 140);
     expect(result.x).toBe(0);
+  });
+});
+
+describe("geometriaVentana · tipo ventana", () => {
+  it("abre centrada en escritorio: posición media del viewport", () => {
+    const viewport = { ancho: 1920, alto: 1080 };
+    const result = geometriaVentana(viewport, { tipo: "ventana" });
+    expect(result.x).toBeCloseTo((1920 - result.ancho) / 2);
+    expect(result.y).toBeCloseTo((1080 - result.alto) / 2);
+    expect(result.origen).toBe("top-left");
+  });
+
+  it("en telefono: hoja centrada que sube desde abajo (y=viewport.alto-height)", () => {
+    const viewport = { ancho: 400, alto: 800 };
+    const result = geometriaVentana(viewport, { tipo: "ventana" });
+    expect(result.y).toBeCloseTo(viewport.alto - result.alto);
+    expect(result.x).toBeCloseTo((viewport.ancho - result.ancho) / 2);
+  });
+
+  it("respeta el ancho/alto proporcionado", () => {
+    const viewport = { ancho: 1920, alto: 1080 };
+    const result = geometriaVentana(viewport, { tipo: "ventana", ancho: 800, alto: 600 });
+    expect(result.ancho).toBe(800);
+    expect(result.alto).toBe(600);
+    expect(result.x).toBeCloseTo((1920 - 800) / 2);
+    expect(result.y).toBeCloseTo((1080 - 600) / 2);
+  });
+});
+
+describe("desplazamientoInicialVentana (para OSWindow)", () => {
+  it("en escritorio no desplaza: el flex ya la deja centrada", () => {
+    const result = desplazamientoInicialVentana({ ancho: 1920, alto: 1080 }, { ancho: 800, alto: 600 });
+    expect(result).toEqual({ dx: 0, dy: 0 });
+  });
+
+  it("en teléfono la baja hasta el borde inferior: hoja centrada que sube", () => {
+    const viewport = { ancho: 400, alto: 800 };
+    const result = desplazamientoInicialVentana(viewport, { ancho: 360, alto: 600 });
+    expect(result.dx).toBe(0);
+    expect(result.dy).toBeCloseTo((viewport.alto - 600) / 2);
+  });
+
+  it("nunca produce un desplazamiento negativo si la ventana ocupa todo el alto", () => {
+    const result = desplazamientoInicialVentana({ ancho: 400, alto: 800 }, { ancho: 360, alto: 900 });
+    expect(result.dy).toBe(0);
+  });
+
+  it("coincide con geometriaVentana: el borde inferior queda en el viewport", () => {
+    const viewport = { ancho: 400, alto: 800 };
+    const geo = geometriaVentana(viewport, { tipo: "ventana", ancho: 360, alto: 600 });
+    const centroY = (viewport.alto - geo.alto) / 2;
+    const { dy } = desplazamientoInicialVentana(viewport, { ancho: 360, alto: 600 });
+    expect(centroY + dy).toBeCloseTo(geo.y);
+    expect(geo.y).toBeCloseTo(viewport.alto - geo.alto);
   });
 });

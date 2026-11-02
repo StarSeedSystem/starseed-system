@@ -9,13 +9,16 @@
 // Render: el llamador la porta a document.body (vía createPortal).
 // Escape: con varias apiladas cierra SOLO la de arriba (pila compartida, abajo).
 // SOP: architecture/dashboard-launcher-apps-y-archivos.md
+// Composición centrada: desplazamientoInicialVentana (geometría de composicion)
+// deja la ventana centrada; en teléfono, hoja apoyada abajo con entrada cardinal.
 // ════════════════════════════════════════════════════════════════
 
 import React, { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { desplazamientoInicialVentana } from "@/lib/design/composicion";
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -79,12 +82,28 @@ export function OSWindow({
     sizeClass = "w-[min(94vw,1100px)] h-[min(86vh,760px)]", bare = true,
 }: OSWindowProps) {
     const [offset, setOffset] = useState({ dx: 0, dy: 0 });
+    const movimientoReducido = useReducedMotion();
     const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
 
     const raizRef = useRef<HTMLDivElement>(null);
+    const marcoRef = useRef<HTMLDivElement>(null);
     const cerrarRef = useRef(onClose);
     useEffect(() => { cerrarRef.current = onClose; }, [onClose]);
     useEffect(() => apuntarVentana({ raiz: raizRef, cerrar: cerrarRef }), []);
+
+    // Posición inicial de la ventana, relativa al centro del flex que la aloja:
+    // en escritorio no hay desplazamiento; en teléfono se convierte en una hoja
+    // centrada apoyada abajo, que luego sube con la entrada cardinal. El arrastre
+    // sigue sumando sobre este mismo offset, así que no cambia de comportamiento.
+    useEffect(() => {
+        const viewport = { ancho: window.innerWidth, alto: window.innerHeight };
+        const marco = marcoRef.current;
+        // Tamaño real ya maquetado; si aún no lo está, el de la clase por defecto.
+        const ancho = marco?.offsetWidth || Math.min(viewport.ancho * 0.94, 1100);
+        const alto = marco?.offsetHeight || Math.min(viewport.alto * 0.86, 760);
+        const { dy } = desplazamientoInicialVentana(viewport, { ancho, alto });
+        setOffset({ dx: 0, dy });
+    }, []);
 
     useEffect(() => {
         const onMove = (e: PointerEvent) => {
@@ -116,8 +135,9 @@ export function OSWindow({
                 el centrado y la ventana SIEMPRE abre centrada. */}
             <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    ref={marcoRef}
+                    initial={movimientoReducido ? { opacity: 0 } : { opacity: 0, y: 24, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
                     transition={{ type: "spring", stiffness: 260, damping: 26 }}
                     className={cn(
                         "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
