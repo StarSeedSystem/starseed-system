@@ -27,6 +27,7 @@ import fcntl
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -229,12 +230,22 @@ def espera_tras_tope(est, ahora, espera_s=None):
 
 
 def quitar_arbol(raiz, destino, git):
-    """Quita el árbol de pruebas (solo ese: nunca toca otros worktrees). Nunca lanza."""
+    """Quita el árbol de pruebas (solo ese: nunca toca otros worktrees). Nunca lanza.
+
+    (SUP0211D) Un `worktree add` cortado lo deja bloqueado con motivo «initializing», y un solo
+    `--force` NO quita uno bloqueado: la autopublicación se quedaba sin poder probar ningún commit.
+    Dos `--force` sí lo quitan, exista la carpeta o no; después se poda el registro huérfano."""
     try:
-        if os.path.exists(destino):
-            git(["worktree", "remove", "--force", destino], timeout=120)
-            if os.path.exists(destino) and os.path.basename(destino) == "arbol-pruebas":
-                subprocess.run(["rm", "-rf", destino], check=False)
+        git(["worktree", "remove", "--force", "--force", destino], timeout=120)
+    except Exception:  # noqa: BLE001 — un git colgado no tumba la pasada: se reintenta
+        pass
+    try:
+        if os.path.exists(destino) and os.path.basename(destino) == "arbol-pruebas":
+            shutil.rmtree(destino, ignore_errors=True)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        git(["worktree", "prune"], timeout=120)
     except Exception:  # noqa: BLE001
         pass
 

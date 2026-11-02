@@ -3,7 +3,10 @@
 """Pruebas de la autopublicación (director de producción y publicación). Sin red, sin git real,
 sin procesos ni ~/.starseed: todo pasa por un `Medios` falso."""
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -12,6 +15,10 @@ import autopublicar as A  # noqa: E402
 SHA = "a" * 40
 T0 = 1_800_000_000.0
 CLAVE_FALSA = "sk-" + "x" * 30  # se monta en tiempo de ejecución (protección de secretos de GitHub)
+
+
+def _g(cwd, *args):
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout.strip()
 
 
 class Falso(object):
@@ -410,6 +417,63 @@ class EvidenciaYArbolLimpio(unittest.TestCase):
                 self.assertEqual(f.read(), "BIEN = (\n", "el trabajo a medias del otro agente sigue intacto")
             self.assertNotIn(destino, git(["worktree", "list"])[1])
             self.assertIsNone(A.arbol_limpio(raiz, "0" * 40, git, destino), "un sha que no existe no da árbol")
+
+
+class ArbolBloqueado(unittest.TestCase):
+    """(SUP0211D) Un `worktree add` cortado deja `arbol-pruebas` bloqueado «initializing»: el
+    siguiente árbol limpio tiene que poder crearse, con la carpeta todavía ahí o ya borrada."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.raiz = os.path.join(self.dir, "repo")
+        os.makedirs(self.raiz)
+        self.destino = os.path.join(self.dir, "arbol-pruebas")
+        _g(self.raiz, "init", "-q", "-b", "main")
+        _g(self.raiz, "config", "user.email", "prueba@starseed.local")
+        _g(self.raiz, "config", "user.name", "Prueba")
+        with open(os.path.join(self.raiz, "a.txt"), "w") as f:
+            f.write("uno\n")
+        _g(self.raiz, "add", "a.txt")
+        _g(self.raiz, "commit", "-q", "-m", "base")
+        self.sha = _g(self.raiz, "rev-parse", "HEAD")
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def git(self, args, timeout=180):
+        r = subprocess.run(["git"] + args, cwd=self.raiz, capture_output=True, text=True, timeout=timeout)
+        return r.returncode, r.stdout.strip(), r.stderr.strip()
+
+    def _bloqueado(self, dejar_carpeta):
+        os.makedirs(os.path.dirname(self.destino), exist_ok=True)
+        _g(self.raiz, "worktree", "add", "-q", "--detach", self.destino, "main")
+        with open(os.path.join(self.raiz, ".git", "worktrees", "arbol-pruebas", "locked"), "w") as f:
+            f.write("initializing")
+        if not dejar_carpeta:
+            shutil.rmtree(self.destino)
+
+    def _otro_arbol_intacto(self):
+        otro = os.path.join(self.dir, "otro")
+        _g(self.raiz, "worktree", "add", "-q", "--detach", otro, "main")
+        return otro
+
+    def test_bloqueado_con_carpeta_no_frena_el_siguiente_arbol_limpio(self):
+        self._bloqueado(dejar_carpeta=True)
+        otro = self._otro_arbol_intacto()
+        A.quitar_arbol(self.raiz, self.destino, self.git)
+        self.assertFalse(os.path.exists(self.destino))
+        self.assertTrue(os.path.isdir(otro), "el otro worktree no se toca")
+        self.assertEqual(A.arbol_limpio(self.raiz, self.sha, self.git, self.destino), self.destino)
+        A.quitar_arbol(self.raiz, self.destino, self.git)
+
+    def test_bloqueado_sin_carpeta_no_frena_el_siguiente_arbol_limpio(self):
+        self._bloqueado(dejar_carpeta=False)
+        otro = self._otro_arbol_intacto()
+        A.quitar_arbol(self.raiz, self.destino, self.git)
+        self.assertNotIn(self.destino, self.git(["worktree", "list"])[1])
+        self.assertTrue(os.path.isdir(otro), "el otro worktree no se toca")
+        self.assertEqual(A.arbol_limpio(self.raiz, self.sha, self.git, self.destino), self.destino)
+        A.quitar_arbol(self.raiz, self.destino, self.git)
 
 
 class FlujosWebhooks(unittest.TestCase):
