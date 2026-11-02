@@ -6,6 +6,8 @@ import shutil
 import sys
 import tempfile
 import unittest
+import unittest.mock
+from contextlib import ExitStack
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -22,8 +24,10 @@ class Plan(unittest.TestCase):
                                                        v("Agentes medidos", "desconocido")]), [])
 
     def test_agentes_colgados_curan_el_enjambre_sin_repetir(self):
-        plan = R.plan_reparacion("agentes", [v("Agente opencode", "muerto"), v("Agentes medidos", "colgado")])
-        self.assertEqual([p["accion"] for p in plan], ["enjambre", "carril_nube", "reconciliar", "nube_gh"])
+        plan = R.plan_reparacion("agentes", [v("Agente opencode", "muerto"),
+                                             v("Agentes medidos", "colgado")])
+        self.assertEqual([p["accion"] for p in plan],
+                         ["enjambre", "carril_nube", "reconciliar", "nube_gh"])
         self.assertTrue(all(p["titulo"] and p["por_que"] for p in plan))
 
     def test_cada_medidor_su_reparacion(self):
@@ -38,7 +42,8 @@ class Plan(unittest.TestCase):
         }
         for (clave, proceso, estado), esperado in casos.items():
             with self.subTest(clave=clave):
-                self.assertEqual([p["accion"] for p in R.plan_reparacion(clave, [v(proceso, estado)])], esperado)
+                self.assertEqual([p["accion"] for p in R.plan_reparacion(clave, [v(proceso, estado)])],
+                                 esperado)
 
     def test_contenedores_se_vuelven_a_medir(self):
         plan = R.plan_reparacion("contenedores", [v("Algo nuevo", "colgado")])
@@ -70,9 +75,11 @@ class Resultado(unittest.TestCase):
 
 class MarcasFalsas(unittest.TestCase):
     def test_quita_solo_las_que_puso_la_transcripcion(self):
-        salud = {"opencode": {"sin_cupo_hasta": "2099-01-01 00:00:00", "motivo": "$ opencode run --model x · …"},
+        salud = {"opencode": {"sin_cupo_hasta": "2099-01-01 00:00:00",
+                              "motivo": "$ opencode run --model x · …"},
                  "nim": {"sin_cupo_hasta": "2099-01-01 00:00:00", "motivo": "sonda: HTTP 402"},
-                 "openrouter": {"claves_agotadas": {"a1": {"motivo": "$ opencode run …"}, "b2": {"motivo": "429"}}}}
+                 "openrouter": {"claves_agotadas": {"a1": {"motivo": "$ opencode run …"},
+                                                    "b2": {"motivo": "429"}}}}
         nueva, quitados = R.quitar_marcas_falsas(salud)
         self.assertNotIn("sin_cupo_hasta", nueva["opencode"])
         self.assertIn("sin_cupo_hasta", nueva["nim"])
@@ -96,13 +103,15 @@ class Reparar(unittest.TestCase):
 
         def comprobar(clave):
             vs = next(estados)
-            return {"veredictos": vs, "resumen": "todos vivos" if vs[0]["estado"] == "vivo" else "1 muerto"}
+            return {"veredictos": vs,
+                    "resumen": "todos vivos" if vs[0]["estado"] == "vivo" else "1 muerto"}
         return comprobar
 
     def test_comprueba_repara_y_vuelve_a_comprobar(self):
         llamadas = []
         r = R.reparar("listas", comprobar=self._comprobar_que_mejora(),
-                      acciones={"vigilante": lambda: (llamadas.append(1) or (True, "reinicié el vigilante"))})
+                      acciones={"vigilante": lambda: (llamadas.append(1) or
+                                                     (True, "reinicié el vigilante"))})
         self.assertEqual(llamadas, [1])
         self.assertEqual(r["resultado"], "reparado")
         self.assertIn("reparado", r["resumen"])
@@ -115,7 +124,8 @@ class Reparar(unittest.TestCase):
     def test_una_accion_rota_no_para_a_las_demas(self):
         def rota():
             raise RuntimeError("se rompió")
-        comprobar = lambda clave: {"veredictos": [v("Agentes medidos", "colgado")], "resumen": "1 colgado"}
+        comprobar = lambda clave: {"veredictos": [v("Agentes medidos", "colgado")],
+                                   "resumen": "1 colgado"}
         hechas = []
         acciones = {a: (lambda a=a: (hechas.append(a) or (True, "ok"))) for a in R.ACCIONES}
         acciones["enjambre"] = rota
@@ -127,7 +137,8 @@ class Reparar(unittest.TestCase):
 
     def test_sano_no_hace_nada(self):
         llamadas = []
-        r = R.reparar("disco", comprobar=lambda c: {"veredictos": [v("Espacio en disco", "vivo")], "resumen": "ok"},
+        r = R.reparar("disco", comprobar=lambda c: {"veredictos": [v("Espacio en disco", "vivo")],
+                                                     "resumen": "ok"},
                       acciones={"disco": lambda: llamadas.append(1)})
         self.assertEqual((r["resultado"], llamadas), ("nada", []))
 
@@ -156,8 +167,67 @@ class FraseDelResumen(unittest.TestCase):
         self.assertNotIn("sin memoria", texto)
 
 
-if __name__ == "__main__":
-    unittest.main()
+class MemoriaAlta(unittest.TestCase):
+    """Lo que hace el botón cuando la Mac está sin memoria: no reiniciar Genesis,
+    liberar primero con lo ya existente (BitNet duerme, huérfanos de vitest cortados)."""
+
+    def test_presion_kernel_libera(self):
+        stack = self._patch_guardia(libres=50, presion=2)
+        with stack:
+            hecho, mensaje = R.presion_alta_y_librar()
+        self.assertTrue(hecho)
+        self.assertIn("presión de kernel nivel 2", mensaje)
+
+    def test_ram_baja_libera(self):
+        stack = self._patch_guardia(libres=80, presion=None)
+        with stack:
+            hecho, mensaje = R.presion_alta_y_librar()
+        self.assertTrue(hecho)
+        self.assertIn("RAM 80 MB libre", mensaje)
+
+    def test_sin_presion_no_hace_nada(self):
+        stack = self._patch_guardia(libres=800, presion=None)
+        with stack:
+            hecho, mensaje = R.presion_alta_y_librar()
+        self.assertFalse(hecho)
+        self.assertEqual(mensaje, "")
+
+    def test_libres_mb_none_devuelve_falso(self):
+        stack = self._patch_guardia(libres=None, presion=None)
+        with stack:
+            hecho, mensaje = R.presion_alta_y_librar()
+        self.assertFalse(hecho)
+
+    def test_bitnet_se_duerme_solo_con_presion_kernel(self):
+        stack, mocks = self._patch_guardia(libres=50, presion=2)
+        with stack:
+            hecho, mensaje = R.presion_alta_y_librar()
+        self.assertTrue(hecho)
+        self.assertIn("BitNet dormido", mensaje)
+        self.assertEqual(mocks[3].call_count, 1)
+
+    def test_no_llama_a_bitnet_solo_ram_baja(self):
+        stack, mocks = self._patch_guardia(libres=80, presion=None)
+        with stack:
+            hecho, mensaje = R.presion_alta_y_librar()
+        self.assertTrue(hecho)
+        self.assertIn("RAM 80 MB libre", mensaje)
+        self.assertNotIn("BitNet", mensaje)
+        self.assertEqual(mocks[3].call_count, 0)
+
+    def _patch_guardia(self, libres, presion, bitnet=None):
+        guardia = unittest.mock.patch.object(R, "libres_mb", return_value=libres)
+        presion_ctx = unittest.mock.patch.object(R, "presion_nucleo", return_value=presion)
+        barrer_ctx = unittest.mock.patch.object(R, "barrer_trabajadores_huerfanos", return_value=[])
+        bitnet_ctx = unittest.mock.patch.object(R, "pedir_dormir_bitnet", return_value=(True, "dormido"))
+        return _ctx_manager(guardia, presion_ctx, barrer_ctx, bitnet_ctx)
+
+
+class ResumenConMemoriaAlta(unittest.TestCase):
+    def test_frase_indica_memoria_alta_luego_de_liberar(self):
+        resumen = R.frase("genesis", "sigue", [],
+                          "Genesis no contesta: la Mac está sin memoria: RAM 50 MB libre")
+        self.assertIn("la Mac está sin memoria", resumen)
 
 
 class AvisosDelVigia(unittest.TestCase):
@@ -190,3 +260,16 @@ class GenesisNoSeReiniciaEncimaDeUnaInstalacion(unittest.TestCase):
             self.assertTrue(R.instalando_build(d))
         finally:
             shutil.rmtree(d, ignore_errors=True)
+
+
+def _ctx_manager(*ctxs):
+    stack = ExitStack()
+    mocks = []
+    for c in ctxs:
+        mock = stack.enter_context(c)
+        mocks.append(mock)
+    return tuple(mocks)
+
+
+if __name__ == "__main__":
+    unittest.main()
