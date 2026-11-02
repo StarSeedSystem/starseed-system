@@ -61,6 +61,12 @@ describe("ClienteMcpStdio", () => {
     transporte.responder(transporte.ultima.id, { content: [{ type: "text", text: "ho" }, { type: "text", text: "la" }] });
     expect(await promesa).toEqual({ ok: true, texto: "hola" });
   });
+  it("descarta los bloques que no son texto conocido sin romper", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("x", {}, 1000);
+    transporte.responder(transporte.ultima.id, { content: [{ type: "resource", uri: "figcraft://doc" }, { type: "text", text: "solo esto" }] });
+    expect(await promesa).toEqual({ ok: true, texto: "solo esto" });
+  });
   it("empareja respuestas desordenadas", async () => {
     const { transporte, cliente } = montar();
     const p1 = cliente.listar(1000); const id1 = transporte.ultima.id;
@@ -92,6 +98,14 @@ describe("ClienteMcpStdio", () => {
     transporte.enviar('{"jsonrpc":"2.0","result":{}}\n');
     transporte.enviar("no es json\n");
     expect(cliente.ilegibles).toBe(1);
+    const promesa = cliente.listar(1000);
+    transporte.responder(transporte.ultima.id, { ok: true });
+    expect(await promesa).toEqual({ ok: true });
+  });
+  it("ignora una respuesta con id desconocido sin contarla como ilegible", async () => {
+    const { transporte, cliente } = montar();
+    transporte.enviar(`${JSON.stringify({ jsonrpc: "2.0", id: 77, result: { tools: [] } })}\n`);
+    expect(cliente.ilegibles).toBe(0);
     const promesa = cliente.listar(1000);
     transporte.responder(transporte.ultima.id, { ok: true });
     expect(await promesa).toEqual({ ok: true });
@@ -142,5 +156,11 @@ describe("ClienteMcpStdio", () => {
     const comprobacion = expect(promesa).rejects.toMatchObject({ tipo: "rpc", mensaje: "boom" });
     transporte.enviar(`${JSON.stringify({ jsonrpc: "2.0", id: transporte.ultima.id, error: { message: "boom" } })}\n`);
     await comprobacion;
+  });
+});
+
+describe("LIMITE_LINEA", () => {
+  it("son los 32 MiB de FigCraft", () => {
+    expect(LIMITE_LINEA).toBe(32 * 1024 * 1024);
   });
 });
