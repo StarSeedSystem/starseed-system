@@ -4,7 +4,7 @@
  */
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { BotonHacerlaViva, textoPlanVivo } from "../boton-hacerla-viva";
 import type { CotizacionViva } from "@/components/contenido-vivo/panel-contenido-vivo";
 import type { ContextoVivo } from "@/lib/contenido-vivo/rutas";
@@ -60,6 +60,15 @@ describe("Botón Hacerla viva", () => {
     expect(screen.getByRole("region", { name: "Contenido vivo" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Ocultar el plan" }));
     expect(screen.getByRole("button", { name: "Hacerla viva" })).toBeInTheDocument();
+  });
+
+  it("al abrirlo enseña los tres niveles del panel", () => {
+    render(<BotonHacerlaViva contexto={contexto({})} anadir={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Hacerla viva" }));
+    const panel = screen.getByRole("region", { name: "Contenido vivo" });
+    expect(within(panel).getByText("Nivel 1 · 3D vivo")).toBeInTheDocument();
+    expect(within(panel).getByText("Nivel 2 · Película e imágenes")).toBeInTheDocument();
+    expect(within(panel).getByText("Nivel 3 · Gráficos vivos")).toBeInTheDocument();
   });
 
   it("al Generar añade el plan y no rehace nada: el botón ya no está abierto", () => {
