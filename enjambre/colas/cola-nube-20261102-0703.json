@@ -1,0 +1,78 @@
+{
+ "ola": "nube-20261102",
+ "tareas": [
+  {
+   "id": "RTC1031A",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Rescates · RTCOL1012Ic lleva la rama de otra tarea (GN1010A-d2): revisar y cerrar o rehacer",
+   "archivos": [
+    "src/components/genesis/__tests__/colmena-botones.test.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; nunca la IP del A1; funciones PURAS con pruebas.\n\nEl carril Opus vio que `revisar_ramas_nube.py` asignó a RTCOL1012Ic la rama de GN1010A-d2 (toca enlace-poligenesis y colmena-botones). Mira la tarea original COL1012I, lo que ya está en main (`git log --grep=COL1012I`) y decide: si ya está, responde NO APLICA explicando qué IDs cerrar; si falta algo de colmena-botones, hazlo. Ojo: si una prueba importa de `servicios/`, la puerta necesita esa carpeta en el worktree."
+  },
+  {
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Contenido vivo · elegir la ruta de cada tarea (local o externo) con la razón escrita",
+   "archivos": [
+    "src/lib/contenido-vivo/rutas.ts",
+    "src/lib/contenido-vivo/__tests__/rutas.test.ts"
+   ],
+   "medio": null,
+   "t": "2026-11-01 16:41:46",
+   "revisado_por": "revisor-bloqueadas",
+   "segundos": 35,
+   "modelos_fallidos": [
+    "codex/gpt-5.6-sol",
+    "llm7/minimax-m2.7"
+   ],
+   "intentos_auto": 0,
+   "adelantar": "2026-11-01 15:51:40",
+   "rama": "ola/CVV1028Bb",
+   "sha": null,
+   "reintentos_medio": 1,
+   "id": "CVV1028Bc",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nPURA: `compararRutas(tarea, contexto)` → [{ruta, puntuacion, disponible, motivoNoDisponible?, razon}] ordenada, y `elegirRuta(tarea, contexto)` → la primera disponible o null. `contexto`: {alcance (personal | perfil | grupo | publica), conectados: string[], cupoHoy: Record<string, number>, creditosDisponibles, topeMes, gastadoMes, neurona: {gpu: bool, capaz3d: bool}, ajustes: {localPrimero, externosPermitidos}}. Puntuación: calidad por tarea, menos coste relativo al tope, cero si no está disponible (no conectado, sin cupo, neurona incapaz, alcance personal con ruta que sale de la neurona sin permiso, externo no permitido). Con `localPrimero`, una local gana si queda a ≤ 0,1 de la mejor externa. `razon` en una frase en español («Local: Three.js basta para una escena interactiva y no gasta créditos»). Pruebas: alcance personal nunca elige externa; sin conectar sale `motivoNoDisponible` con el enlace; película fotorrealista con Higgsfield conectado y cupo elige Higgsfield; gráfico vivo siempre local.\n\n## REPARACIÓN\nTu intento no tocó tus archivos declarados: src/lib/contenido-vivo/rutas.ts, src/lib/contenido-vivo/__tests__/rutas.test.ts no existen o no cambiaron. Créalos o modifícalos según el contrato.\n\nCorrige cada punto y añade pruebas que demuestren la reparación.",
+   "modelo": "codex/gpt-5.6-sol",
+   "dependencias_ya_en_main": [
+    "CVV1028A"
+   ]
+  },
+  {
+   "ola": "1021V",
+   "importancia": "capacidad",
+   "titulo": "Nube · lo prestado vuelve en cuanto SU run termina, aunque haya otros runs vivos",
+   "archivos": [
+    "scripts/puente/repartir_nube.py",
+    "scripts/puente/director-nube.py",
+    "scripts/puente/test_repartir_nube.py"
+   ],
+   "depende": [],
+   "segundos": 1914,
+   "t": "2026-10-21 15:59:40",
+   "modelos_fallidos": [
+    "freellmapi/auto",
+    "nvidia/z-ai/glm-5.3"
+   ],
+   "intentos_auto": 9,
+   "rama": "ola/VAR1021A",
+   "sha": null,
+   "reintentos_medio": 6,
+   "modelo_siguiente": null,
+   "corregido": "2026-10-21 10:27:41",
+   "id": "VAR1021Ac",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nCaso real medido (2026-10-21 03:15 UTC): 43 tareas llevaban horas en progreso.json como «reasignada · medio nube» (IMG1020A, PES1020A, TRD1020A, LSD1020A, OHS1020A, CNX1020A, GUI1021A/D/E… algunas desde el 18-10) aunque el run de GitHub que las llevaba había terminado (casi todos en «failure» con «cero commits»). Nadie las devolvía porque `repartir_nube.reclamar_varadas(progreso, runs_en_marcha)` solo devuelve cuando hay CERO runs vivos, y casi siempre hay alguno: el préstamo se volvía traspaso. Claude las devolvió a mano con `devolver_a_pendiente` (ver `.transfer/varadas-1021/devolver.py`, no lo copies: es el parche puntual).\n\nArreglo, en tres archivos:\n1. `scripts/puente/repartir_nube.py`: `reclamar_varadas(progreso, runs_en_marcha, ids_vivos=None, colas_jovenes=())` sigue PURA. Si `ids_vivos` es None, se comporta como hoy (compatibilidad). Si es un conjunto, devuelve las «reasignada · nube» (y las «movida a nube…» sin medio, como hoy) que NO estén en `ids_vivos` ni en `colas_jovenes` (ids de colas creadas hace menos de 30 min que aún pueden estar arrancando su run). Docstring en español con el caso medido.\n2. `scripts/puente/director-nube.py`: en `reclamar_varadas_de_la_nube`, construir `ids_vivos` con los ids de las colas (`enjambre/colas/<cola>`) de los runs en marcha (`agentes_nube` ya da `cola` por run, de `inputs.cola`) y `colas_jovenes` con los ids de las `cola-nube-*.json` de menos de 30 min. Si no se puede saber qué cola lleva algún run vivo (cola None o ilegible), NO devolver nada en esa pasada (mejor esperar que devolver lo que alguien está haciendo). Mantener envíos y veredictos como hoy.\n3. `scripts/puente/test_repartir_nube.py`: pruebas nuevas — con un run vivo de OTRA cola, la varada se devuelve; con el run vivo de SU cola, no; una cola joven sin run, no; sin `ids_vivos`, comportamiento de siempre (las pruebas actuales siguen en verde).\n\nCorre `python3 -m unittest scripts/puente/test_repartir_nube.py` y lee su resumen entero.\n\n## REPARACIÓN\nCorrige todos los errores de TypeScript de los archivos declarados:\n{\"t\": \"2026-10-21 01:15:41\", \"tarea\": \"VAR1021A\", \"paso\": \"tsc\", \"errores_antes\": 1, \"errores_despues\": 1, \"reparado\": false}\n{\"t\": \"2026-10-21 02:22:50\", \"tarea\": \"VAR1021A\", \"paso\": \"tsc\", \"errores_antes\": 1, \"errores_despues\": 1, \"reparado\": false}\n{\"t\": \"2026-10-21 03:35:28\", \"tarea\": \"VAR1021A\", \"paso\": \"tsc\", \"errores_antes\": 1, \"errores_despues\": 1, \"reparado\": false}\n{\"t\": \"2026-10-21 05:35:40\", \"tarea\": \"VAR1021A\", \"paso\": \"tsc\", \"errores_antes\": 1, \"errores_despues\": 1, \"reparado\": false}\n{\"t\": \"2026-10-21 07:33:23\", \"tarea\": \"VAR1021A\", \"paso\": \"tsc\", \"errores_antes\": 1, \"errores_despues\": 1, \"reparado\": false}\n{\"t\": \"2026-10-21 08:38:28\", \"tarea\": \"VAR1021A\", \"paso\": \"tsc\", \"errores_antes\": 1, \"errores_despues\": 1, \"reparado\": false}\n{\"t\": \"2026-10-21 10:23:35\", \"tarea\": \"VAR1021A\", \"paso\": \"tsc\", \"errores_antes\": 1, \"errores_despues\": 1, \"reparado\": false}\n{\"t\": \"2026-10-21 12:30:00\", \"tarea\": \"VAR1021A\", \"paso\": \"tsc\", \"errores_antes\": 1, \"errores_despues\": 1, \"reparado\": false}\n{\"t\": \"2026-10-21 14:46:04\", \"tarea\": \"VAR1021A\", \"paso\": \"tsc\", \"errores_antes\": 1, \"errores_despues\": 1, \"reparado\": false}\n{\"t\": \"2026-10-21 15:59:39\", \"tarea\": \"VAR1021A\", \"paso\": \"tsc\", \"errores_antes\": 1, \"errores_despues\": 1, \"reparado\": false}\nTrabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). Lee primero CLAUDE.md (secciones 8, 11 y 💠) y los archivos implicados. Reglas: sin `any`; cursor-pointer en lo clicable; español en textos de UI y comentarios (con acentos); no toques archivos ajenos a la tarea; no ejecutes git; deja los cambios escritos en disco sin pedir confirmación.\nIMPORTANTE: NO ejecutes `npx tsc` directamente: usa `bash scripts/enjambre/tsc-turno.sh` (un solo tsc a la vez en la máquina, con caché por repo); tests: `npx vitest run <archivo o carpeta concreta>`, nunca la suite entera.\n- Puertas: alcance → cableado → tsc → vitest → revisión → integración; nada está hecho hasta que se ve en Genesis de la Mac.\nTrabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). Lee primero CLAUDE.md (secciones 8, 11 y 💠) y los archivos implicados. Reglas: sin `any`; cursor-pointer en lo clicable; español en textos de UI y comentarios (con acentos); no toques archivos ajenos a la tarea; no ejecutes git; deja los cambios escritos en disco sin pedir confirmación.\nIMPORTANTE: NO ejecutes `npx tsc` directamente: usa `bash scripts/enjambre/tsc-turno.sh` (un solo tsc a la vez en la máquina, con caché por repo); tests: `npx vitest run <archivo o carpeta concreta>`, nunca la suite entera.\n- Puertas: alcance → cableado → tsc → vitest → revisión → integración; nada está hecho hasta que se ve en Genesis de la Mac.\nTrabajas en el repositorio StarSeed OS (Next.js 15 + React 19 + TypeScript estricto + Tailwind/shadcn + Supabase). Lee primero CLAUDE.md (secciones 8, 11 y 💠) y los archivos implicados. Reglas: sin `any`; cursor-pointer en lo clicable; español en textos de UI y comentarios (con acentos); no toques archivos ajenos a la tarea; no ejecutes git; deja los cambios escritos en disco sin pedir confirmación.\nIMPORTANTE: NO ejecutes `npx tsc` directamente: usa `bash scripts/enjambre/tsc-turno.sh` (un solo tsc a la vez en la máquina, con caché por repo); tests: `npx vitest run <archivo o carpeta concreta>`, nunca la suite entera.\n- Puertas: alcance → cableado → tsc → vitest → revisión → integración; nada está hecho hasta que se ve en Genesis de la Mac.\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n$ npx tsc --noEmit --skipLibCheck\n\nCorrige cada punto y añade pruebas que demuestren la reparación.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/39695552007`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/39695552007:refs/remotes/origin/nube/39695552007\"` y `git cherry-pick --no-commit 94648af018f2`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/puente/director-nube.py, scripts/puente/repartir_nube.py, scripts/puente/test_director_nube.py, scripts/puente/test_repartir_nube.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/39695552007"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "CVV1028Bc",
+   "RTC1031A",
+   "VAR1021Ac"
+  ]
+ }
+}
