@@ -37,6 +37,8 @@ describe("adnDeBot: la referencia manda y el ADN por defecto conserva la orbe", 
     expect(adn.dueno).toEqual({ tipo: "bot", id: "bot-1" });
     expect(adn.aura.tono).toBe(190);
     expect(adn.visibilidad).toBe("privado");
+    expect(adn.aura.ligadaEmocion).toBe(true);
+    expect(adn.nombre).toBe("Semilla");
   });
 
   it("si el ADN guardado es válido y de este bot, se reutiliza tal cual", () => {
