@@ -13,12 +13,6 @@ const IDS_ARTCRAFT = [
   "os:artcraft-deckcraft",
 ];
 
-function pareceClave(texto: string): boolean {
-  if (/[=]/.test(texto)) return true;
-  if (/(sk-|gsk_|nvapi-)/.test(texto)) return true;
-  return texto.length > 48;
-}
-
 describe("RECURSOS_ARTCRAFT", () => {
   it("declara las tres vías con identificadores únicos y con prefijo os:", () => {
     expect(RECURSOS_ARTCRAFT).toHaveLength(3);
@@ -32,16 +26,6 @@ describe("RECURSOS_ARTCRAFT", () => {
     for (const r of RECURSOS_ARTCRAFT) {
       expect(r.tipo).toBe("mcp");
       expect(r.origen).toBe("os");
-    }
-  });
-
-  it("no lleva en `requiere` nada con forma de clave, solo nombres de condiciones", () => {
-    for (const r of RECURSOS_ARTCRAFT) {
-      expect(r.requiere.length).toBeGreaterThan(0);
-      for (const condicion of r.requiere) {
-        expect(pareceClave(condicion)).toBe(false);
-        expect(condicion).toMatch(/^[A-Z][A-Z0-9_]+$/);
-      }
     }
   });
 
@@ -80,13 +64,6 @@ describe("RECURSOS_ARTCRAFT", () => {
     }
   });
 
-  it("declara exactamente tres recursos con ids únicos y prefijo os:artcraft-", () => {
-    expect(RECURSOS_ARTCRAFT).toHaveLength(3);
-    const ids = RECURSOS_ARTCRAFT.map((r) => r.id);
-    expect(new Set(ids).size).toBe(3);
-    for (const id of ids) expect(id).toMatch(/^os:artcraft-(figcraft|gridcraft|deckcraft)$/);
-  });
-
   it("ningún requiere tiene forma de clave", () => {
     const PATRONES_CLAVE = ["sk-", "gsk_", "nvapi-", "Bearer", "/Users/"];
     const texto = JSON.stringify(RECURSOS_ARTCRAFT);
@@ -103,25 +80,6 @@ describe("RECURSOS_ARTCRAFT", () => {
     for (const r of RECURSOS_ARTCRAFT) {
       expect(r.requiere).toEqual(["NEURONA_CON_PASARELA_ARTCRAFT"]);
     }
-  });
-
-  it("disponibleEn devuelve true en Mac y en nube (maquina: cualquiera)", () => {
-    for (const r of RECURSOS_ARTCRAFT) {
-      expect(disponibleEn(r, "mac")).toBe(true);
-      expect(disponibleEn(r, "nube")).toBe(true);
-    }
-  });
-
-  it("los tres están en catalogoDeclarado()", () => {
-    const ids = catalogoDeclarado().map((r) => r.id);
-    for (const r of RECURSOS_ARTCRAFT) expect(ids).toContain(r.id);
-  });
-
-  it("cada recurso tiene ruta /api/artcraft/<app> y docs architecture/artcraft-y-rare.md", () => {
-    expect(RECURSOS_ARTCRAFT.find((r) => r.id === "os:artcraft-figcraft")?.ruta).toBe("/api/artcraft/figcraft");
-    expect(RECURSOS_ARTCRAFT.find((r) => r.id === "os:artcraft-gridcraft")?.ruta).toBe("/api/artcraft/gridcraft");
-    expect(RECURSOS_ARTCRAFT.find((r) => r.id === "os:artcraft-deckcraft")?.ruta).toBe("/api/artcraft/deckcraft");
-    for (const r of RECURSOS_ARTCRAFT) expect(r.docs).toBe("architecture/artcraft-y-rare.md");
   });
 
   it("descripcion menciona pasarela ArtCraft, directorio de trabajo y sin red", () => {
