@@ -27,6 +27,13 @@
  *                              permisos. Al hacerlo, el dispositivo se registra
  *                              como neurona con permiso 'agent'
  *                              (src/lib/neurons/neurons.ts).
+ *   6. instalarKeepalive/os  → el COMANDO de instalación de `keepalive` (v2,
+ *                              Go, MIT, stigoleg/keep-alive) para ESTE sistema:
+ *                              aserciones de energía del propio SO (IOKit en
+ *                              macOS, peticiones de energía en Windows,
+ *                              inhibidor de systemd-logind en Linux). NO se
+ *                              ejecuta nada: solo datos honestos para copiar
+ *                              (KAL1101C).
  *
  * Regla de oro: nunca lanza; en el servidor devuelve valores neutros.
  * ═══════════════════════════════════════════════════════════════════════════
@@ -481,6 +488,88 @@ export function companionInfo(os: OsId): CompanionInfo {
     href: OS_RELEASES_URL,
     browserLimit,
   };
+}
+
+/* ═══════════ 6 · Segundo plano sin pantalla (keepalive, KAL1101C) ═══════════ */
+
+/** Proyecto keepalive (v2, Go, MIT) — las aserciones del propio sistema, no del OS. */
+export const KEEPALIVE_REPO_URL = "https://github.com/stigoleg/keep-alive";
+/** Vía universal de instalación (Go 1.25+), la que siempre existe. */
+export const COMANDO_KEEPALIVE_GO =
+  "go install github.com/stigoleg/keep-alive/v2/cmd/keepalive@latest";
+
+export interface OpcionInstalarKeepalive {
+  label: string;
+  /** Comando exacto listo para copiar; "" cuando se descarga paquete de releases. */
+  comando: string;
+  /** Nota honesta sobre lo que hace (y lo que NO hace) en este sistema. */
+  nota: string;
+  /** Enlace de descarga (Releases de keepalive) cuando hay paquete. */
+  href?: string;
+}
+
+/**
+ * Cómo se instala keepalive en CADA sistema, con datos del README y de la
+ * release v2.0.1 (comprobados el 2026-11-02). PURA: nunca ejecuta, nunca
+ * toca ajustes de energía ni procesos ajenos.
+ */
+export function instalarKeepalive(os: OsId): OpcionInstalarKeepalive[] {
+  const go: OpcionInstalarKeepalive = {
+    label: "Go (cualquier escritorio)",
+    comando: COMANDO_KEEPALIVE_GO,
+    nota: "Binario estático (Go 1.25+): mismo inhibidor del sistema que las demás vías.",
+  };
+  const tapaMac =
+    "En un portátil Mac, cerrar la tapa duerme el equipo aunque haya aserción: solo seguirá despierto en clamshell (corriente y pantalla externa) o con `pmset -a disablesleep 1`, que el dueño decide (dato del latido «despierto»).";
+  switch (os) {
+    case "macos":
+      return [
+        {
+          label: "Homebrew (macOS)",
+          comando: "brew install --cask stigoleg/tap/keepalive",
+          nota: `Aserciones de energía IOKit (igual que caffeinate). Con --keep-display=false solo el sistema queda despierto. ${tapaMac}`,
+        },
+        go,
+      ];
+    case "windows":
+      return [
+        {
+          label: "Scoop (Windows)",
+          comando: "scoop bucket add stigoleg https://github.com/stigoleg/scoop-bucket && scoop install keepalive",
+          nota: "Peticiones de energía del propio Windows, ajustes intactos.",
+        },
+        go,
+      ];
+    case "linux":
+      return [
+        {
+          label: ".deb / .rpm / .apk (Releases de keepalive)",
+          comando: "",
+          href: "https://github.com/stigoleg/keep-alive/releases",
+          nota: "Inhibidor de systemd-logind: el mismo que usarías a mano con systemd-inhibit.",
+        },
+        go,
+      ];
+    case "ios":
+    case "android":
+      return [];
+    default:
+      return [go];
+  }
+}
+
+/** PURA: una frase honesta (con el comando principal) para resumir la vía. */
+export function resumenKeepalive(os: OsId): string {
+  if (os === "ios" || os === "android") {
+    return "En un móvil o iPhone no hay keepalive: el sistema del aparato gobierna el segundo plano, y si lo suspende, sus tareas pasan al A1 (colmena).";
+  }
+  const primera = instalarKeepalive(os)[0];
+  const via = primera
+    ? primera.comando
+      ? `${primera.comando}`
+      : `paquetes .deb/.rpm/.apk en ${primera.href ?? KEEPALIVE_REPO_URL}`
+    : COMANDO_KEEPALIVE_GO;
+  return `keepalive (Go, MIT) mantiene el sistema despierto con las aserciones del propio SO. Vía principal: ${via}.`;
 }
 
 /**
