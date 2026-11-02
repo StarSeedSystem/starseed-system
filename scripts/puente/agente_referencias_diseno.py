@@ -53,6 +53,7 @@ if DIRECTORIO not in sys.path:
     sys.path.insert(0, DIRECTORIO)
 
 import vigia_referencias as V  # noqa: E402  (robots.txt, 10 s por dominio, agente de usuario, RSS y sitemap)
+import imaginacion_plantilla as IP  # noqa: E402  (IMG1102B: la plantilla de propuesta, la misma para todos los agentes)
 
 RAIZ = os.environ.get("STARSEED_ROOT") or os.path.dirname(os.path.dirname(DIRECTORIO))
 
@@ -102,7 +103,8 @@ TOPE_LECTURAS = 8
 PRESUPUESTO_RED_S = 120.0
 TIMEOUT_HTTP_S = 12
 MAX_CANDIDATAS_CICLO = 5
-MAX_PROMPT = 7000
+MAX_PROMPT = 12000              # 7000 + la plantilla de propuesta (~1100) + el contexto medido de Imaginación (≤ 4000)
+MAX_COMUN = 5900                # reglas comunes (1800) + contexto medido (4000): `imaginacion_contexto.MAX_CONTEXTO`
 MAX_TITULO, MAX_CUERPO, MAX_MOTIVO, MAX_REFERENCIAS = 200, 8000, 300, 20
 
 TIPOS = ("codigo", "diseno", "contenido", "investigacion", "otro")
@@ -923,7 +925,7 @@ def prompt_director_arte(contexto, referencias, salida, pistas=None, contexto_co
         "- Importancia alta o crítica si cambia la identidad, los valores por defecto de todas las cuentas o "
         "más de 3 archivos: esas siempre esperan el visto bueno de Alex.\n"
         "Salida: tu JSON se guarda en `%s` (fuente «agentes», agente «%s»)." % (salida, AGENTE))
-    reglas = "## Reglas del encargo\n" + (_bloque(contexto_comun, 1800) if contexto_comun else "\n".join(REGLAS_ENCARGO))
+    reglas = "## Reglas del encargo\n" + (_bloque(contexto_comun, MAX_COMUN) if contexto_comun else "\n".join(REGLAS_ENCARGO))
     fundamentos = "\n".join(FUNDAMENTOS)
 
     def armar(adn, con_pistas):
@@ -932,7 +934,7 @@ def prompt_director_arte(contexto, referencias, salida, pistas=None, contexto_co
         adn_txt = ("ADN de la identidad «%s»:\n%s\n\n" % (contexto.get("identidad"), adn)) if adn else ""
         return "\n\n".join([cabecera, "\n".join(proyecto),
                             "## ADN y fundamentos StarSeed (mandan sobre cualquier referencia)\n" + adn_txt + fundamentos,
-                            "## Referencias elegidas (%d)\n%s" % (len(referencias), refs), reglas, devolver])
+                            "## Referencias elegidas (%d)\n%s" % (len(referencias), refs), reglas, IP.PLANTILLA, devolver])
 
     def ajustar(adn, con_pistas, minimo):
         texto = armar(adn, con_pistas)
@@ -1319,13 +1321,20 @@ def encargar_por_flota(raiz, tareas, fecha=None, ahora=None, vivos=None, apto=No
 
 # ─────────────────────────────── el ciclo ───────────────────────────────
 
-def _contexto_comun(raiz):
-    """El contexto común del rol (`contexto_agente.py --rol investigador-diseno`), compacto; "" si falta."""
+def _contexto_comun(raiz, ahora=None):
+    """El contexto común del rol (`contexto_agente.py --rol investigador-diseno`), compacto, más el contexto MEDIDO de
+    Imaginación (`imaginacion_contexto.py`, IMG1102B: abiertas, bloqueadas, archivos que existen, buenas y malas, familias)."""
     try:
         import contexto_agente as C  # noqa: WPS433
-        return C.texto(ROL_CONTEXTO, max_chars=1800, raiz=raiz, excluir=("herramientas", "relevo", "area", "nube"))
+        comun = C.texto(ROL_CONTEXTO, max_chars=1800, raiz=raiz, excluir=("herramientas", "relevo", "area", "nube"))
     except Exception:
-        return ""
+        comun = ""
+    try:
+        import imaginacion_contexto as IC  # noqa: WPS433
+        medido = IC.texto(raiz, ahora)
+    except Exception:
+        medido = ""
+    return ((comun or "\n".join(REGLAS_ENCARGO)) + "\n\n" + medido).strip() if medido else comun
 
 
 def ciclo(raiz=RAIZ, ahora=None, encargar=None, jev=None, obtener_url=None, dormir=None, reloj=None, seco=False,
@@ -1366,7 +1375,7 @@ def ciclo(raiz=RAIZ, ahora=None, encargar=None, jev=None, obtener_url=None, dorm
         a_leer = [r for t in primeras for r in referencias.get(t["contexto"], []) if r["id"] in {x["id"] for x in t["referencias"]}]
         pistas, info_red = reunir_pistas(a_leer, obtener_url or obtener_url_por_defecto, dormir or time.sleep,
                                          reloj or time.monotonic)
-    comun = _contexto_comun(raiz) if contexto_comun is None else contexto_comun
+    comun = _contexto_comun(raiz, momento) if contexto_comun is None else contexto_comun
     tareas = plan_investigacion(contextos, catalogo, estado, momento, tope, novedades, decision, referencias,
                                 pistas, comun)
 

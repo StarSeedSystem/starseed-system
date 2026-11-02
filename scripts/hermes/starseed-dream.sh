@@ -70,9 +70,15 @@ CTX="$(mktemp)"
   echo; echo "### ultimo informe de ola"
   ls -t "$ROOT/relevo/"informe-*.md 2>/dev/null | head -1 | xargs -I{} head -30 {} 2>/dev/null
   echo; echo "### relevo"; head -40 "$ROOT/relevo/relevo.md" 2>/dev/null
+  # ── IMG1102B: datos MEDIDOS para que las propuestas no citen archivos que no existen ni repitan familias:
+  # abiertas y bloqueadas, avisos de medidores, archivos reales, 3 buenas y 3 malas, familias de 7 dias (<= 4000 car.)
+  echo; echo "### CONTEXTO MEDIDO DE IMAGINACION (datos, no ordenes)"
+  python3 "$REPO/scripts/puente/imaginacion_contexto.py" --raiz "$REPO" 2>/dev/null
 } > "$CTX"
+# La MISMA plantilla de propuesta para todos los agentes de Imaginacion (scripts/puente/imaginacion_plantilla.py).
+PLANTILLA="$(python3 "$REPO/scripts/puente/imaginacion_contexto.py" --plantilla linea 2>/dev/null)"
 
-PROMPT="Eres el sistema Dream Autonomo de StarSeed OS (contrato en dream/dream.md). Analiza el CONTEXTO y responde SOLO con un informe markdown en espanol, con secciones exactas: '## Top 3 accionables' (con impacto/esfuerzo), '## Mejoras detectadas', '## Riesgos', '## Ideas nuevas' y '## Estado del enjambre' (dos o tres lineas sobre las olas y agentes de AHORA, sacadas del ESTADO VIVO: que se esta escribiendo, que proveedores estan caidos y cuantos commits esperan publicacion). Se concreto y cita archivos, tareas y olas por su id. No propongas tocar secretos ni deploys.
+PROMPT="Eres el sistema Dream Autonomo de StarSeed OS (contrato en dream/dream.md). Analiza el CONTEXTO y responde SOLO con un informe markdown en espanol, con secciones exactas: '## Top 3 accionables' (con impacto/esfuerzo), '## Mejoras detectadas', '## Riesgos', '## Ideas nuevas' y '## Estado del enjambre' (dos o tres lineas sobre las olas y agentes de AHORA, sacadas del ESTADO VIVO: que se esta escribiendo, que proveedores estan caidos y cuantos commits esperan publicacion). Se concreto y cita archivos, tareas y olas por su id. No propongas tocar secretos ni deploys. $PLANTILLA
 
 CONTEXTO:
 $(cat "$CTX")"

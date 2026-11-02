@@ -116,3 +116,51 @@ def test_plantilla_unica_y_cli(capsys):
     assert "≤ 3 archivos y ≤ 120 líneas" in P.PLANTILLA_LINEA and "\n" not in P.PLANTILLA_LINEA
     assert C.main(["--plantilla", "linea"]) == 0 and P.PLANTILLA_LINEA in capsys.readouterr().out
     assert C.main(["--plantilla", "bloque"]) == 0 and P.PLANTILLA in capsys.readouterr().out
+
+
+# ───────────────────── enganche: lo que de verdad llega a las instrucciones de los agentes ─────────────────────
+REF = {"id": "galeria", "nombre": "Galería", "url": "https://galeria.example/", "tema": "movimiento", "clase_uso": "solo-referencia",
+       "modo": "cita", "canales": [], "por_que": "movimiento"}
+CTX = {"id": "sistema:master", "nombre": "Sistema", "que": "x", "estado": "activo", "archivos": ["src/a.tsx"], "palabras": ["botones"],
+       "temas": ["movimiento"], "identidad": "starseed-os", "adn": "A" * 5000}
+
+
+def memoria(tmp_path):
+    mem = tmp_path / "starseed_memory_root"
+    for d in ("imaginacion", "olas", "mando"):
+        (mem / d).mkdir(parents=True)
+    (mem / "imaginacion" / "propuestas.json").write_text(json.dumps({"propuestas": PROPS}), encoding="utf-8")
+    (mem / "olas" / "progreso.json").write_text(json.dumps(PROGRESO), encoding="utf-8")
+    return mem
+
+
+def test_la_plantilla_aparece_en_las_instrucciones_de_referencias_de_diseno():
+    import agente_referencias_diseno as A
+    from datetime import timezone
+    ahora = datetime(2026, 11, 2, 9, 0, tzinfo=timezone.utc)
+    sin = A.tarea_de(CTX, [REF], "2026-11-02", 1, ahora)["prompt"]  # `plan --json`: sin contexto medido, con plantilla
+    con = A.tarea_de(CTX, [REF], "2026-11-02", 1, ahora, contexto_comun="## Reglas\n- una\n\n" + contexto()["texto"])["prompt"]
+    for p in (sin, con):
+        assert P.PLANTILLA in p and "Criterio de aceptación" in p and len(p) <= A.MAX_PROMPT
+        assert "## Qué devolver" in p and "referencias-diseno-2026-11-02-1.json" in p  # lo final no se recorta
+    assert "## Familias ya propuestas en 7 días" in con and "## Ejemplos buenos" in con and "Horizon-Pulse" in con
+    assert "# Contexto medido" not in sin and "Horizon-Pulse" not in sin
+
+
+def test_contexto_comun_del_agente_une_reglas_y_contexto_medido(tmp_path):
+    import agente_referencias_diseno as A
+    vacio = A._contexto_comun(str(tmp_path / "nada"), AHORA)
+    assert "Contexto medido" not in vacio  # sin datos no se añade nada: quedan las reglas de siempre
+    memoria(tmp_path)
+    junto = A._contexto_comun(str(tmp_path), AHORA)
+    assert junto.startswith(vacio.strip()[:40]) and "# Contexto medido de Imaginación (2026-11-02)" in junto and len(junto) <= A.MAX_COMUN
+
+
+def test_el_dream_lleva_el_contexto_y_la_plantilla():
+    import subprocess
+    sh = open(os.path.join(DIRECTORIO, "..", "hermes", "starseed-dream.sh"), encoding="utf-8").read()
+    assert 'imaginacion_contexto.py" --raiz "$REPO"' in sh and "$PLANTILLA\n\nCONTEXTO:" in sh
+    linea = [x for x in sh.splitlines() if x.startswith("PLANTILLA=")][0]  # la línea real del script, ejecutada de verdad
+    repo = os.path.abspath(os.path.join(DIRECTORIO, "..", ".."))
+    r = subprocess.run(["bash", "-c", 'REPO="%s"; %s; printf %%s "$PLANTILLA"' % (repo, linea)], capture_output=True, text=True, timeout=30)
+    assert r.stdout == P.PLANTILLA_LINEA and subprocess.run(["bash", "-n", os.path.join(DIRECTORIO, "..", "hermes", "starseed-dream.sh")]).returncode == 0
