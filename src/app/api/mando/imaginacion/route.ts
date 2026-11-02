@@ -5,7 +5,8 @@
  * rechazar, posponer, decidir en lote y los ajustes (con el automático).
  * Contrato `architecture/imaginacion-autodesarrollo.md` §6 y el de la Ola 1024I §4.
  *
- * GET  `?ambito=<a>` (por defecto todos) → `{ propuestas, ajustes, resumen, actualizadoEn }`.
+ * GET  `?ambito=<a>` (por defecto todos) → `{ propuestas, ajustes, resumen, filtroAstraura, actualizadoEn }`.
+ *      `filtroAstraura` es el resumen del filtro de entrada de Astraura (IMG1102D); null si no lo hay.
  * POST → `{ accion: "integrar" | "aprobar", id }`        «aprobada»; si es de Astraura, se aplica en su backend 1.58
  *        `{ accion: "reimaginar", id, notas, referencias? }` notas o al menos una referencia https
  *        `{ accion: "rechazar", id, motivo? }`
@@ -19,9 +20,11 @@
  * escritura son genéricos. Lo auxiliar vive en `src/lib/mando/imaginacion-*`.
  */
 
+import { readFile } from "node:fs/promises";
+
 import { guardianMando } from "@/lib/mando/guardian";
 import { filtrarPorAmbito, interpretarPeticion, leerAmbito, resumenPastilla } from "@/lib/mando/imaginacion-tipos";
-import { aprobar, guardarAjustes, leerAjustes, leerPropuestas, lote, posponer, rechazar, reimaginar, type Resultado } from "@/lib/mando/imaginacion-servidor";
+import { aprobar, guardarAjustes, leerAjustes, leerPropuestas, lote, posponer, rechazar, reimaginar, rutasImaginacion, type Resultado } from "@/lib/mando/imaginacion-servidor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,15 +32,26 @@ export const dynamic = "force-dynamic";
 const SIN_CACHE = { "Cache-Control": "no-store" };
 const responder = (cuerpo: unknown, status = 200) => Response.json(cuerpo, { status, headers: SIN_CACHE });
 
+/** El resumen del filtro de entrada de Astraura, tal cual lo dejó el director; null si no lo hay. */
+async function leerFiltroAstraura(): Promise<unknown> {
+    try {
+        const crudo = JSON.parse(await readFile(rutasImaginacion().propuestas, "utf-8")) as unknown;
+        if (typeof crudo !== "object" || crudo === null || Array.isArray(crudo)) return null;
+        return (crudo as Record<string, unknown>).filtro_astraura ?? null;
+    } catch {
+        return null;
+    }
+}
+
 export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
     const ambito = leerAmbito(new URL(peticion.url).searchParams.get("ambito"));
     if (ambito === null) return responder({ error: "Ámbito desconocido: usa metagenesis, personal, grupo:<id> o pagina:<id>." }, 400);
     try {
-        const [todas, ajustes] = await Promise.all([leerPropuestas(), leerAjustes()]);
+        const [todas, ajustes, filtroAstraura] = await Promise.all([leerPropuestas(), leerAjustes(), leerFiltroAstraura()]);
         const propuestas = filtrarPorAmbito(todas, ambito);
-        return responder({ propuestas, ajustes, resumen: resumenPastilla(propuestas, new Date()), actualizadoEn: new Date().toISOString() });
+        return responder({ propuestas, ajustes, resumen: resumenPastilla(propuestas, new Date()), filtroAstraura, actualizadoEn: new Date().toISOString() });
     } catch {
         return responder({ error: "No se pudieron leer las propuestas." }, 500);
     }

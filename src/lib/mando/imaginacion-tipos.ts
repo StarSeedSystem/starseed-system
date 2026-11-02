@@ -245,6 +245,40 @@ export function resumenPastilla(propuestas: PropuestaImaginacion[], hoy: Date): 
   return { texto: `${espera.length} por decidir · ${reimaginando} reimaginando · ${integradasHoy} integradas hoy`, tono, porDecidir: espera.length, reimaginando, integradasHoy };
 }
 
+/**
+ * El resumen del filtro de entrada de Astraura (`propuestas.json → filtro_astraura`, Ola 1102 · IMG1102A):
+ * lo que el director descartó antes de crear la propuesta. Se lee sin fiarse de lo que traiga el archivo.
+ */
+export interface FiltroAstraura {
+  fecha?: string;
+  vistas?: number;
+  entran?: number;
+  filtradas?: Record<string, number>;
+  autorizacion_inventada?: number;
+}
+export interface CuentaFiltroAstraura { fecha: string; total: number; familia: number; tipo: number; tope: number; inventadas: number }
+
+const cuenta = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
+const claveDia = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** La cuenta del día por motivo (los tres de `MOTIVOS_FILTRO`) y las autorizaciones inventadas; null si no hay filtro. PURA. */
+export function cuentaFiltroAstraura(x: unknown): CuentaFiltroAstraura | null {
+  if (!esObj(x) || typeof x.fecha !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(x.fecha)) return null;
+  const f = esObj(x.filtradas) ? x.filtradas : {};
+  const familia = cuenta(f["familia repetida"]);
+  const tipo = cuenta(f["tipo de archivo"]);
+  const tope = cuenta(f.tope);
+  return { fecha: x.fecha, total: familia + tipo + tope, familia, tipo, tope, inventadas: cuenta(x.autorizacion_inventada) };
+}
+
+/** «Filtradas de Astraura hoy: N (familia X · tipo Y · tope Z)»; null si el resumen no es del día de `hoy`. PURA. */
+export function lineaFiltroAstraura(x: unknown, hoy: Date = new Date()): string | null {
+  const c = cuentaFiltroAstraura(x);
+  if (!c || c.fecha !== claveDia(hoy)) return null;
+  const linea = `Filtradas de Astraura hoy: ${c.total} (familia ${c.familia} · tipo ${c.tipo} · tope ${c.tope})`;
+  return c.inventadas ? `${linea} · ${c.inventadas} con autorización inventada` : linea;
+}
+
 /** «aprobar» se conserva por compatibilidad (la API lo acepta); las filas ofrecen «integrar», que es lo mismo. */
 export type AccionPropuesta = "integrar" | "aprobar" | "reimaginar" | "rechazar" | "posponer" | "ver-origen";
 export interface FilaMedidor {
