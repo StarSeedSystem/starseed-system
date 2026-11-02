@@ -496,7 +496,10 @@ def _avisar_real(texto, telegram):
     except Exception: pass
     h = telegram and (shutil.which("hermes") or os.path.expanduser("~/.local/bin/hermes"))
     if h and os.path.exists(h):
-        subprocess.run([h, "send", "-t", os.environ.get("STARSEED_TELEGRAM_DESTINO", "telegram:Maggasukha"), "-s", "Imaginación · StarSeed OS", texto], timeout=40, capture_output=True)
+        try:  # (1102) un Telegram lento no tumba el ciclo: antes salía con rc 1 cada 15 min
+            subprocess.run([h, "send", "-t", os.environ.get("STARSEED_TELEGRAM_DESTINO", "telegram:Maggasukha"), "-s", "Imaginación · StarSeed OS", texto], timeout=40, capture_output=True)
+        except (subprocess.TimeoutExpired, OSError) as e:
+            print("aviso a Telegram sin enviar: %s" % type(e).__name__, flush=True)
 
 
 def main(argv=None):

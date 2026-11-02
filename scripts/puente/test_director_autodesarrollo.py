@@ -523,3 +523,14 @@ class Ola1025STest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_aviso_lento_no_tumba_el_ciclo(monkeypatch, tmp_path):
+    """(1102) `hermes send` que pasa de 40 s ya no lanza TimeoutExpired fuera de _avisar_real."""
+    import subprocess as sp, importlib
+    da = importlib.import_module("director_autodesarrollo")
+    falso = tmp_path / "hermes"; falso.write_text("#!/bin/sh\n"); falso.chmod(0o755)
+    monkeypatch.setattr(da.shutil, "which", lambda n: str(falso))
+    def lento(*a, **k): raise sp.TimeoutExpired(a[0], 40)
+    monkeypatch.setattr(da.subprocess, "run", lento)
+    da._avisar_real("prueba", True)  # no debe lanzar
