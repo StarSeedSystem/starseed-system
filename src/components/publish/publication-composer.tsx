@@ -169,9 +169,11 @@ import ImageEditorDialog from "@/components/publish/image-editor-dialog";
 import SharePostActions from "@/components/publish/share-post-actions";
 // Botón global "Generar con Aurora" (texto del cuerpo, modo clásico).
 import AuroraGenerateButton from "@/components/publish/aurora-generate-button";
-// Contenido vivo (CVV1028H): panel de plan con los tres niveles y las rutas
-// (contrato `architecture/contenido-vivo.md` §3).
-import { PanelContenidoVivo, type CotizacionViva } from "@/components/contenido-vivo/panel-contenido-vivo";
+// Contenido vivo (CVV1028K): botón «Hacerla viva» del lienzo universal, que
+// abre el panel de plan (CVV1028H) con los tres niveles y las rutas
+// (contrato `architecture/contenido-vivo.md` §2 y §3).
+import { BotonHacerlaViva } from "@/components/contenido-vivo/boton-hacerla-viva";
+import { type CotizacionViva } from "@/components/contenido-vivo/panel-contenido-vivo";
 import type { ContextoVivo } from "@/lib/contenido-vivo/rutas";
 import { CATALOGO_RUTAS } from "@/lib/contenido-vivo/catalogo-rutas";
 
@@ -1587,7 +1589,6 @@ function StepFormatContent({
     // Contenido vivo (CVV1028): el panel se abre sobre esta publicación y,
     // al confirmar la cotización, añade el plan al cuerpo sin rehacer lo que
     // ya existe. El panel solo llama aquí tras el «sí» cuando hay créditos.
-    const [vivoAbierto, setVivoAbierto] = useState(false);
     const confirmarPlanVivo = (cotizacion: CotizacionViva[]) => {
         const resumen = cotizacion.map((linea) => {
             const ruta = CATALOGO_RUTAS.find((r) => r.id === linea.rutaId);
@@ -1797,24 +1798,11 @@ function StepFormatContent({
                     </div>
                 )}
 
-                {/* Contenido vivo (CVV1028): interruptor del panel de plan sobre esta publicación */}
-                <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-white/55">Contenido vivo</label>
-                    <button
-                        type="button"
-                        aria-expanded={vivoAbierto}
-                        onClick={() => setVivoAbierto((v) => !v)}
-                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-cyan-400/50 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-100 transition-colors hover:bg-cyan-400/20"
-                    >
-                        {vivoAbierto ? "Ocultar el plan" : "Hacerla viva"}
-                    </button>
-                    {vivoAbierto && (
-                        <PanelContenidoVivo
-                            contexto={CONTEXTO_VIVO_PUBLICACION}
-                            onConfirmar={confirmarPlanVivo}
-                        />
-                    )}
-                </div>
+                {/* Contenido vivo (CVV1028K): botón «Hacerla viva» que abre el panel de plan sobre esta publicación */}
+                <BotonHacerlaViva
+                    contexto={CONTEXTO_VIVO_PUBLICACION}
+                    onConfirmar={confirmarPlanVivo}
+                />
 
                 {(type.id === "texto" ||
                     type.id === "articulo" ||
