@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261102",
+ "tareas": [
+  {
+   "id": "RTART1025Gb",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Taller del agente: tres recursos MCP de ArtCraft",
+   "archivos": [
+    "src/lib/__tests__/agentes-taller-artcraft.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea ART1025G («Taller del agente: tres recursos MCP de ArtCraft») se hizo en main por otro camino; su rama nube/a1-20261102-142442-ART1025G queda archivada en `refs/archivo/nube/a1-20261102-142442-ART1025G` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.94)\n\nTU TAREA (RTART1025Gb · solo estos archivos: src/lib/__tests__/agentes-taller-artcraft.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/__tests__/agentes-taller-artcraft.test.ts\n  it(\"declara exactamente tres recursos con ids únicos y prefijo os:artcraft-\", () => {\n    expect(RECURSOS_ARTCRAFT).toHaveLength(3);\n    const ids = RECURSOS_ARTCRAFT.map((r) => r.id);\n    expect(new Set(ids).size).toBe(3);\n    for (const id of ids) {\n      expect(id).toMatch(/^os:artcraft-(figcraft|gridcraft|deckcraft)$/);\n    }\n  });\n\n# src/lib/__tests__/agentes-taller-artcraft.test.ts\n  it(\"todos requieren NEURONA_CON_PASARELA_ARTCRAFT\", () => {\n    for (const recurso of RECURSOS_ARTCRAFT) {\n      expect(recurso.requiere).toEqual([\"NEURONA_CON_PASARELA_ARTCRAFT\"]);\n    }\n  });\n\n# src/lib/__tests__/agentes-taller-artcraft.test.ts\n  it(\"disponibleEn devuelve true tanto en Mac como en nube (maquina: cualquiera)\", () => {\n    for (const recurso of RECURSOS_ARTCRAFT) {\n      expect(disponibleEn(recurso, \"mac\")).toBe(true);\n      expect(disponibleEn(recurso, \"nube\")).toBe(true);\n    }\n  });\n\n# src/lib/__tests__/agentes-taller-artcraft.test.ts\n  it(\"todos tienen ruta bajo /api/artcraft/<app> y docs al contrato\", () => {\n    const esperado: Record<string, string> = {\n      \"os:artcraft-figcraft\": \"/api/artcraft/figcraft\",\n      \"os:artcraft-gridcraft\": \"/api/artcraft/gridcraft\",\n      \"os:artcraft-deckcraft\": \"/api/artcraft/deckcraft\",\n    };\n    for (const recurso of RECURSOS_ARTCRAFT) {\n      expect(recurso.ruta).toBe(esperado[recurso.id]);\n      expect(recurso.docs).toBe(\"architecture/artcraft-y-rare.md\");\n    }\n  });\n\n# src/lib/__tests__/agentes-taller-artcraft.test.ts\n  it(\"entraron enteros en catalogoDeclarado()\", () => {\n    const ids = catalogoDeclarado().map((r) => r.id);\n    for (const recurso of RECURSOS_ARTCRAFT) {\n      expect(ids).toContain(recurso.id);\n    }\n  });\n\n# src/lib/__tests__/agentes-taller-artcraft.test.ts\n    it(\"«diseñar una interfaz» devuelve FigCraft\", () => {\n      const salida = recomendarPara(catalogoDeclarado(), \"diseñar una interfaz\");\n      expect(salida.length).toBeGreaterThan(0);\n      expect(salida[0].id).toBe(\"os:artcraft-figcraft\");\n    });\n\n# src/lib/__tests__/agentes-taller-artcraft.test.ts\n    it(\"en nube sigue recomendando los tres (maquina: cualquiera)\", () => {\n      const salida = recomendarPara(catalogoDeclarado(), \"hacer una presentación en pptx\", 6, \"nube\");\n      expect(salida.map((r) => r.id)).toContain(\"os:artcraft-deckcraft\");\n      const salida2 = recomendarPara(catalogoDeclarado(), \"limpiar una hoja de cálculo\", 6, \"nube\");\n      expect(salida2.map((r) => r.id)).toContain(\"os:artcraft-gridcraft\");\n    });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "ART1025G",
+    "rama": "nube/a1-20261102-142442-ART1025G"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "RTART1025Gb"
+  ]
+ }
+}
