@@ -181,6 +181,24 @@ class Plan(unittest.TestCase):
             S.id_tarea(FECHA, 1000)
         self.assertTrue(re.match(r"^SA0929999$", S.id_tarea(FECHA, 999)))
 
+    def test_prompt_de_incluye_contexto_medido(self):
+        area = {"id": "rito", "nombre": "Rito", "descripcion": "Entrada"}
+        lente = S.LENTES[0]
+        privado = lente["id"] in S.LENTES_PRIVADAS
+        contexto = "## Contexto medido de Imaginación (2026-11-02)\n- Tareas abiertas: 5"
+        prompt = S.prompt_de(area, lente, privado, contexto)
+        self.assertIn("SUEÑO PROFUNDO", prompt)
+        self.assertIn("## Contexto medido", prompt)
+        self.assertIn("Tareas abiertas: 5", prompt)
+
+    def test_prompt_sin_contexto_medido(self):
+        area = {"id": "rito", "nombre": "Rito", "descripcion": "Entrada"}
+        lente = S.LENTES[0]
+        privado = False
+        prompt = S.prompt_de(area, lente, privado, "")
+        self.assertIn("SUEÑO PROFUNDO", prompt)
+        self.assertNotIn("## Contexto medido", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

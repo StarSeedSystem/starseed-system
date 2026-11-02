@@ -302,11 +302,13 @@ def horas_de(raiz, a):
 
 
 def construir(raiz, a):
+    contexto = suenos_areas.cargar_contexto_medido(raiz)
     a.horas = horas_de(raiz, a)
     fecha = datetime.date.fromisoformat(a.fecha) if getattr(a, "fecha", None) else datetime.date.today()
     return suenos_areas.construir_plan(
         suenos_areas.cargar_areas(raiz), suenos_areas.listar_repo(raiz), fecha, a.horas,
-        _lista(a.areas), _lista(a.lentes), getattr(a, "tope_analisis", None) or suenos_areas.TOPE_ANALISIS_POR_DEFECTO)
+        _lista(a.areas), _lista(a.lentes), getattr(a, "tope_analisis", None) or suenos_areas.TOPE_ANALISIS_POR_DEFECTO,
+        contexto=contexto)
 
 
 def fundir_tareas(previas, nuevas, rehacer=False):

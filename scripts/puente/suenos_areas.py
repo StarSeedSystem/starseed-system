@@ -111,6 +111,7 @@ EXCLUIR = {
 LENTES = _analista.LENTES
 IDS_LENTES = [l["id"] for l in LENTES]
 LENTES_PRIVADAS = set(_analista.LENTES_PRIVADAS)
+MAX_CONTEXTO = 4000
 
 EXTENSIONES = (".ts", ".tsx", ".py", ".md", ".mjs", ".js", ".sql", ".css", ".sh", ".yml", ".yaml")
 ARCHIVOS_SUELTOS = {"Dockerfile"}
@@ -304,10 +305,13 @@ def id_tarea(fecha, indice):
     return n
 
 
-def prompt_de(area, lente, privado):
+def prompt_de(area, lente, privado, contexto=""):
     """El encargo que viaja en la cola. Corto a propósito: el analista construye los prompts
-    de verdad con el código leído; esto es lo que un humano lee en Genesis."""
-    return (
+    de verdad con el código leído; esto es lo que un humano lee en Genesis.
+    
+    El contexto (contexto_medido de imaginacion_contexto.py) va al final: abajo del prompt principal,
+    separado por líneas en blanco. Se recorta a MAX_CONTEXTO caracteres."""
+    base = (
         "SUEÑO PROFUNDO · análisis, NO escritura: no edites ningún archivo ni hagas commits.\n\n"
         "Analiza el área «%s» (%s) con la lente «%s»: %s.\n\n"
         "Preguntas guía:\n%s\n\n"
@@ -321,16 +325,20 @@ def prompt_de(area, lente, privado):
             "\n\n🔒 PRIVADO: el informe se queda en la Mac (ni bus, ni Telegram, ni nube)." if privado else "",
         )
     )
+    if contexto:
+        base = base + "\n\n" + contexto[:MAX_CONTEXTO]
+    return base
 
 
 def construir_plan(areas, archivos_repo, fecha, horas=0, ids_areas=None, ids_lentes=None,
-                   trabajadores=TOPE_ANALISIS_POR_DEFECTO, maximo_archivos=None):
+                   trabajadores=TOPE_ANALISIS_POR_DEFECTO, maximo_archivos=None, contexto=""):
     """El plan completo de una sesión de sueños. PURA.
 
     `areas`: salida de `areas_del_plan`; `archivos_repo`: {ruta: bytes}; `fecha`: date.
     `ids_areas`/`ids_lentes`: filtros (None = todas). Devuelve {sesion, ola, horas, tareas,
     llamadas, pausa_s, tope_analisis, desconocidas}. El índice de cada tarea es el canónico
-    (área × lente en el orden completo), no el del filtro: así los ids no cambian."""
+    (área × lente en el orden completo), no el del filtro: así los ids no cambian.
+    `contexto`: texto del contexto medido de imaginacion_contexto.py (se recorta a MAX_CONTEXTO)."""
     ids_areas = [x for x in (ids_areas or []) if x]
     ids_lentes = [x for x in (ids_lentes or []) if x]
     conocidas_a = {a["id"] for a in areas}
@@ -367,7 +375,7 @@ def construir_plan(areas, archivos_repo, fecha, horas=0, ids_areas=None, ids_len
                 "privado": privado,
                 "archivos": archivos,
                 "depende": [],
-                "prompt": prompt_de(area, lente, privado),
+                "prompt": prompt_de(area, lente, privado, contexto),
                 "estimado": {
                     "caracteres": caracteres,
                     "trozos_area": trozos,
@@ -398,6 +406,15 @@ def construir_plan(areas, archivos_repo, fecha, horas=0, ids_areas=None, ids_len
 
 
 # ─────────────────────────────── impuro: el repo ───────────────────────────────
+
+def cargar_contexto_medido(raiz=RAIZ_REPO):
+    """Devuelve el texto del contexto medido de imaginacion_contexto.py ("" si falla)."""
+    try:
+        import imaginacion_contexto as IC
+        return IC.texto(raiz)
+    except Exception:
+        return ""
+
 
 def listar_repo(raiz=RAIZ_REPO):
     """{ruta: bytes} de los archivos versionados (git ls-files). Sin git, un recorrido del
