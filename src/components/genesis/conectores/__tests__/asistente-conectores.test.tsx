@@ -143,6 +143,28 @@ describe("Cloudroom en la interfaz · tarjeta honesta donde ya se leía el catá
     expect(screen.queryByTestId("cloudroom-instalacion")).toBeNull();
   });
 
+  // Rama nube 41384258340: con la app ausente, hoy la tarjeta es honesta y NO inventa enlace, en vez de esconderse.
+  it("con la app NO instalada, la pinta tal cual y no ofrece ni enlace: así de honesta (rama nube, adaptada)", () => {
+    render(<AsistenteConectarGenesis ambito="cuenta-demo" opciones={VISTA_CON_CLOUDROOM}
+      cloudroom={{ instalacion: "no-instalada" }} />);
+    fireEvent.click(screen.getByRole("tab", { name: /2\. Gratis por vincular/ }));
+    expect(screen.getByTestId("cloudroom-instalacion")).toHaveTextContent("no instalada en esta neurona");
+    expect(screen.getByText("No se sugiere aquí; el catálogo la deja como una opción más, nunca la única.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Abrir Cloudroom" })).toBeNull();
+  });
+
+  // Rama nube 41384258340: con datos reales de la página pero sin la sugerencia del ámbito, se pinta el cupo sin inventar oferta ni enlace.
+  it("con datos de la página y SIN sugerencia del ámbito: cupo honesto, mensaje de que no se ofrece y sin enlace (rama nube, adaptada)", () => {
+    render(<AsistenteConectarGenesis ambito="cuenta-demo" opciones={VISTA}
+      cloudroom={entradaCloudroom(VISTA.sugerencias, 10)} />);
+    fireEvent.click(screen.getByRole("tab", { name: /2\. Gratis por vincular/ }));
+    expect(screen.getByTestId("cloudroom-instalacion")).toHaveTextContent("instalada en esta neurona");
+    expect(screen.getByTestId("cloudroom-cupo")).toHaveTextContent("90 agente(s) en la nube · ritmo 3/día");
+    expect(screen.getByTestId("cloudroom-cupo").textContent).not.toContain("Abrir Cloudroom");
+    expect(screen.queryByRole("link", { name: "Abrir Cloudroom" })).toBeNull();
+    expect(screen.getByText("No se sugiere aquí; el catálogo la deja como una opción más, nunca la única.")).toBeInTheDocument();
+  });
+
   it("sin datos ni sugerencia no pinta nada de Cloudroom, y sin oferta avisa sin venderla", () => {
     const { container } = render(<AsistenteConectarGenesis ambito="cuenta-demo" opciones={VISTA} />);
     expect(screen.queryByTestId("cloudroom-instalacion")).toBeNull();
