@@ -44,11 +44,11 @@ describe("prepararGeneracion", () => {
       expect(p.motivo).toMatch(/taller local .* no está instalado/);
       expect(p.neurona).toMatch(/ninguna neurona viva/i);
     });
-    it("sin permiso de la cuenta no ofrece el Space aunque exista el respaldo, y lo dice", () => {
-      const p = prepararGeneracion(ctx({ permiteEspacioHf: false }), deps({ espacio: async () => ok() }));
-      expect(p.via).toBe("ninguna");
-      expect(p.motivo).toMatch(/versiones públicas .* apagadas/i);
-    });
+  it("sin permiso de la cuenta no ofrece el Space aunque exista el respaldo, y lo dice", () => {
+    const p = prepararGeneracion(ctx({ permiteEspacioHf: false }), deps({ espacio: async () => ok() }));
+    expect(p.via).toBe("ninguna");
+    expect(p.motivo).toContain("versiones públicas apagadas");
+  });
   it("sin hierro medido no promete generar en local", () => {
     expect(prepararGeneracion(ctx({ hierro: null }), deps({ taller: async () => ok() })).via).toBe("ninguna");
   });

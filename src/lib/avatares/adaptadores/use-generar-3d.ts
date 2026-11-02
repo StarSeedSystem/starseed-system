@@ -28,6 +28,8 @@ export interface Contexto3D {
   /** Neuronas del registro de MetaGenesis; null = aquí no se leyó (no se dice que no haya ninguna). */
   neuronas: readonly NeuronaTaller[] | null;
   esqueleto?: Esqueleto;
+  /** Permite usar el Space público de Hugging Face (la imagen sale de su aparato). Para tests: se usa en lugar de hierro.permiteEspacioHf cuando existe. */
+  permiteEspacioHf?: boolean;
 }
 export type ResultadoTaller =
   | { ok: true; glb: Blob; lods: number[]; procedencia: Procedencia[] }
@@ -66,7 +68,8 @@ export function prepararGeneracion(c: Contexto3D, deps: Pick<Dependencias3D, "ta
     : "Qué otra neurona podría generarla: aquí no se leyó el registro de neuronas de MetaGenesis, así que no se puede decir.";
   if (ml && deps.taller) return { optimizacion, plan: local, via: "local", motivo: `Se genera en esta neurona con ${ml.nombre}.`, neurona };
   const porQue = ml ? `Esta neurona podría generar con ${ml.nombre}, pero su taller local (servicios/taller-3d) aún no está instalado aquí.` : "Esta neurona no puede generar en local (ver los motivos de la etapa «generar»).";
-  if (mr?.remoto && deps.espacio && c.hierro?.permiteEspacioHf) return { optimizacion, plan: remoto, via: "remota", motivo: `${porQue} Solo queda ${mr.nombre}: tu imagen saldría de este aparato.`, neurona };
+  const permiteEspacio = c.permiteEspacioHf ?? c.hierro?.permiteEspacioHf;
+  if (mr?.remoto && deps.espacio && permiteEspacio) return { optimizacion, plan: remoto, via: "remota", motivo: `${porQue} Solo queda ${mr.nombre}: tu imagen saldría de este aparato.`, neurona };
   return { optimizacion, plan: local, via: "ninguna", motivo: `${porQue} Tampoco hay respaldo remoto disponible: versiones públicas apagadas.`, neurona };
 }
 
