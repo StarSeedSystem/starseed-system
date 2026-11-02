@@ -143,6 +143,16 @@ describe("corregirConGlosario", () => {
     expect(corregirConGlosario("Madrina Orbit", propio, "es").texto).toBe("Madrina Orbita");
   });
 
+  it("une dos palabras de un nombre del usuario y anuncia el cambio con su forma partida", () => {
+    // Rescate rama nube/40659574880: por el camino del glosario de usuario el
+    // par artículo+apellido también se anuncia completo en `cambios`.
+    const resultado = corregirConGlosario("Madrina Orbit", ["Madrina Orbita", "Astraura"], "es");
+    expect(resultado).toEqual({
+      texto: "Madrina Orbita",
+      cambios: ["Madrina Orbit → Madrina Orbita"],
+    });
+  });
+
   it("devuelve la forma del glosario aunque la entrada vaya en minúscula", () => {
     const resultado = corregirConGlosario("astraura", glosario, "es");
     expect(resultado.texto).toBe("Astraura");
