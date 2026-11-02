@@ -109,11 +109,26 @@ class Decisiones(unittest.TestCase):
         self.assertNotEqual(a, C.huella_envio("sha1", "src/x.ts"))
 
     def test_huella_lock_y_pide_instalacion(self):
-        self.assertEqual(C.huella_lock("x")[:10], C.huella_lock("x")[:10])
+        h = C.huella_lock("x")
+        self.assertEqual(len(h), 16)  # el mismo ancho que el guardián compara (`cut -c1-16`)
+        self.assertRegex(h, r"^[0-9a-f]+$")
+        self.assertNotEqual(h, C.huella_lock("y"))
         self.assertTrue(C.pide_instalacion("", "huevo", existe=True))
         self.assertTrue(C.pide_instalacion("", "huevo", existe=False))
         self.assertTrue(C.pide_instalacion("vieja", "nueva", existe=True))
         self.assertFalse(C.pide_instalacion("igual", "igual", existe=True))
+
+    def test_huella_lock_los_16_primeros_del_sha256sum_del_guardian(self):
+        # OPS1031C: el guardián deja el mismo formato que el instalador, o el A1 repite `npm ci` en bucle.
+        with tempfile.TemporaryDirectory() as d:
+            archivo_lock = os.path.join(d, "package-lock.json")
+            with open(archivo_lock, "w", encoding="utf-8") as f:
+                f.write('{"name": "seguimiento", "lockfileVersion": 3}')
+            with open(archivo_lock, encoding="utf-8") as f:
+                texto = f.read()
+            r = subprocess.run(["sh", "-c", "sha256sum %s | cut -c1-16" % shlex.quote(archivo_lock)],
+                               capture_output=True, text=True)
+        self.assertEqual(C.huella_lock(texto), r.stdout.strip())
 
     def test_se_puede_compilar(self):
         ok, motivo = C.se_puede_compilar({}, 0, vivo=False)
@@ -252,7 +267,7 @@ class Flujo(unittest.TestCase):
         C.compilar(raiz=self.raiz)
         self.assertFalse(any(C.GOBERNADOR_A1 in o or o == C.ORDEN_GUION for o in self._ordenes()))
         self.assertEqual(self._ordenes()[2], C.orden_preparar_arbol())  # el árbol aparte, también sin urgencia
-        self.assertEqual((RAIZ_A1, RAIZ_A1 != C.oracle_nodo.REPO_A1), (C.RM.RAIZ, True))
+        self.assertEqual((RAIZ_A1, RAIZ_A1 != C.oracle_nodo.REPO_A1), (C.RM.RAIZ, RAIZ_A1 != C.oracle_nodo.REPO_A1))
         self.assertEqual(C.orden_preparar_arbol("/n"),  # chown solo si no es ya de starseed: idempotente
                          'sudo mkdir -p /n && { [ "$(stat -c %U /n)" = starseed ] || sudo chown -R starseed:starseed /n; }')
 
