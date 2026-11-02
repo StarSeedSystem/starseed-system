@@ -8,6 +8,7 @@ import tempfile
 import unittest
 
 from scripts.puente.diseno_brief import (
+    HERRAMIENTAS,
     LINEA_E_RISE,
     TOPE_PROMPT_ADN,
     brief,
@@ -244,6 +245,38 @@ class TestBriefHerramientas(unittest.TestCase):
         tarea = {"titulo": "Panel de datos", "archivos": ["src/app/page.tsx"]}
         texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
         self.assertIn("Refine — https://github.com/refinedev/refine", texto)
+
+    def test_conferencia_y_diapositiva_traen_frontend_slides(self):
+        """«diapositiv» y «conferencia» casan la línea de frontend-slides."""
+        for titulo in ["Diapositivas del taller", "Conferencia de diseño"]:
+            tarea = {"titulo": titulo, "archivos": ["src/app/page.tsx"]}
+            texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+            self.assertIn(
+                "frontend-slides — https://github.com/zarazhangrui/frontend-slides",
+                texto, "Falta frontend-slides en: " + titulo)
+
+    def test_sistema_de_diseno_trae_awesome_design_md(self):
+        tarea = {"titulo": "Sistema de diseño del OS", "archivos": ["src/app/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn(
+            "awesome-design-md — https://github.com/VoltAgent/awesome-design-md", texto)
+
+    def test_panel_administracion_trae_refine(self):
+        tarea = {"titulo": "Panel de administración", "archivos": ["src/app/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        self.assertIn("Refine — https://github.com/refinedev/refine", texto)
+
+    def test_documentacion_y_educacion_no_duplican_docusaurus(self):
+        """Dos claves con la misma línea (documentación, educación) no la duplican."""
+        tarea = {"titulo": "Documentación de educación", "archivos": ["src/app/page.tsx"]}
+        texto = brief(tarea, MEMORIA_PRUEBA, max_chars=9000)
+        linea = "Docusaurus — https://github.com/facebook/docusaurus"
+        self.assertEqual(len(_lineas_de_herramientas(texto, linea)), 1)
+
+    def test_lineas_nuevas_caben_en_150(self):
+        """Cada herramienta propuesta respeta el tope de 150 caracteres por línea."""
+        for clave, linea in HERRAMIENTAS:
+            self.assertLessEqual(len(linea), 150, "Línea demasiado larga: " + clave)
 
     def test_no_duplica_linea_con_claves_multiples(self):
         """Tres claves («diapositiv», «presentaci», «conferencia») que casa con la
