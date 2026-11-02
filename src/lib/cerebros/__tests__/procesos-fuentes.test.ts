@@ -1,4 +1,4 @@
-import { beforeEach, vi, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { componerProcesos, type FuentesProcesos, leerProcesos } from "../procesos-fuentes";
 
 const FuentesProcesosMock: FuentesProcesos = {
@@ -82,13 +82,13 @@ describe("leerProcesos - firmas y comportamiento básico", () => {
 
     it("incluirMac por defecto incluye hardware", async () => {
         const result = await leerProcesos({});
-        const hwEntry = result.fuentes.find((f: any) => f.nombre.includes("hardware"));
+        const hwEntry = result.fuentes.find((f: { nombre: string }) => f.nombre.includes("hardware"));
         expect(hwEntry).toBeDefined();
     });
 
     it("incluirMac falso omite hardware", async () => {
         const result = await leerProcesos({ incluirMac: false });
-        const hwEntry = result.fuentes.find((f: any) => f.nombre.includes("hardware"));
+        const hwEntry = result.fuentes.find((f: { nombre: string }) => f.nombre.includes("hardware"));
         expect(hwEntry).toBeDefined();
         expect(hwEntry!.nombre).toContain("solo Mac");
     });
