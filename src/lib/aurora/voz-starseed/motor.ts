@@ -35,6 +35,12 @@ import {
     type NivelVozSuptonica,
     type OpcionesNivelVoz,
 } from "./supertonic";
+import { leerMedidas, type MedidaVoz } from "../medidas-voz";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
+// (VST1018F · parte 2) Licencia por contexto: la primera frase sale del motor
+// PERMITIDO con menor latencia medida (contrato voz-voicestudio.md §4).
+import { motoresPermitidos, type MotorInfo, type ContextoLicenciaVoz } from "./licencia-voz";
+import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
 
 export {
     soporteSupertonic,
@@ -57,7 +63,7 @@ import {
 } from "@/lib/voces/emociones";
 // (2026-09-06, Ola 264 · J1b) Normalización en español del texto hablado.
 import { normalizarParaVoz } from "@/lib/voces/normalizar-es";
-import { motorRecomendado, Plataforma } from "../catalogo-voces";
+import { motorRecomendado, Plataforma, MOTORES_VOZ } from "../catalogo-voces";
 function detectarPlataforma(): Plataforma {
     if (typeof window === "undefined") return "web";
     const ua = navigator.userAgent;
@@ -312,6 +318,12 @@ export interface OpcionesHablar {
      * esta opción solo es para vías que ya entregan el texto normalizado.
      */
     sinNormalizar?: boolean;
+    /** (VST1018F) Es la primera frase de la conversación: salir por el motor más rápido medido y permitido. */
+    primeraFrase?: boolean;
+    /** Contexto de uso del turno para la licencia (personal, grupo, comunidad, publico, comercial). */
+    contextoUso?: ContextoLicenciaVoz;
+    /** Capas de conciencia para la licencia: sistema › comunidad › grupo › persona › neurona. */
+    capas?: CapasPrefs;
 }
 
 /**
@@ -422,6 +434,88 @@ async function sintetizar(nivel: NivelVoz, texto: string, timbre: Timbre, opcion
     return hablarPorSistema(texto, timbre, opciones.alEmpezar);
 }
 
+// ── (VST1018F · parte 2) PRIMERA FRASE DE CONVERSACIÓN ──────────────────────
+// Sale del motor PERMITIDO con menor latencia MEDIDA en esta neurona que
+// tenga la voz de esa persona (las medidas de «primer-sonido» vienen del uso
+// real con ese timbre); «estudio» no compite, queda para lectura, doblaje y
+// audiolibros. La frase completa sale de UN motor y la degradación, igual.
+
+/** Una latencia media por motor, ms desde el pedido hasta el primer sonido. */
+export interface MotorLatencia { motor: string; latenciaMs: number }
+
+/**
+ * Media de «primer-sonido» por motor con las 20 medidas más recientes, en
+ * orden ascendente; descarta lo no medible (tipo ajeno, valor ≤ 0 o infinito). Pura.
+ */
+export function latenciasPorMotor(medidas: readonly MedidaVoz[]): MotorLatencia[] {
+    const validas = medidas.filter(
+        (m) => m.tipo === "primer-sonido" && Number.isFinite(m.valor) && m.valor > 0,
+    ).slice(-20);
+    const porMotor = new Map<string, number[]>();
+    for (const m of validas) {
+        const lista = porMotor.get(m.motor) ?? [];
+        lista.push(m.valor);
+        porMotor.set(m.motor, lista);
+    }
+    const latencias: MotorLatencia[] = [];
+    for (const [motor, valores] of porMotor) {
+        latencias.push({ motor, latenciaMs: valores.reduce((a, b) => a + b, 0) / valores.length });
+    }
+    return latencias.sort((a, b) => a.latenciaMs - b.latenciaMs);
+}
+
+/** El motor de menor latencia medida, o `null` si no hay mediciones. Pura. */
+export function elegirMotorPorLatencia(medidas: readonly MedidaVoz[]): MotorLatencia | null {
+    return latenciasPorMotor(medidas)[0] ?? null;
+}
+
+/** Nivel del motor entrante en la primera frase: jamás «estudio» aquí. Pura. */
+export function nivelParaMotor(motorId: string): NivelVoz {
+    if (motorId === "sistema" || motorId === "system") return "minima";
+    if (motorId === "kokoro") return "ligera";
+    const locales = ["voicemorphic", "voicestudio", "omnivoice", "kittentts", "moss-tts-nano", "supertonic"];
+    return locales.includes(motorId) ? "alta" : "nube";
+}
+
+/** Nivel del catálogo por plataforma y RAM; `conEstudio` se lo prohíbe a la primera frase. Pura. */
+const NIVEL_CAT: Record<string, NivelVoz> = {
+    voicemorphic: "estudio",
+    voicestudio: "estudio",
+    kokoro: "ligera",
+    kittentts: "ligera",
+    "moss-tts-nano": "ligera",
+    sistema: "minima",
+};
+function nivelConMotorCat(
+    plataforma: Plataforma,
+    ramGB: number,
+    usoCat: "personal" | "grupo",
+    conEstudio: boolean,
+): NivelVoz {
+    const nivel = NIVEL_CAT[motorRecomendado(plataforma, ramGB, usoCat).id] ?? "nube";
+    return nivel === "estudio" && !conEstudio ? "alta" : nivel;
+}
+
+/** El motor PERMITIDO más rápido medido, para la primera frase. Pura. */
+export function motorPermitidoMasRapido(
+    medidas: readonly MedidaVoz[],
+    contextoUso: ContextoLicenciaVoz,
+    capas: CapasPrefs,
+): MotorLatencia | null {
+    const enCatalogo = new Set(MOTORES_VOZ.map((m) => m.id));
+    const { permitidos } = motoresPermitidos(
+        MOTORES_VOZ.map((m): MotorInfo => ({ id: m.id, claseLicencia: m.claseLicencia })),
+        contextoUso,
+        capas,
+    );
+    const visos = new Set(permitidos.map((p) => p.id));
+    // Un motor que el catálogo no declara (p. ej. Supertonic por la malla)
+    // compite sin bloqueo: la licencia la declara el catálogo, y sus medidas indican
+    // que ya sonó con la voz de esa persona en esta neurona.
+    const compite = (id: string) => visos.has(id) || !enCatalogo.has(id);
+    return latenciasPorMotor(medidas).find((l) => compite(l.motor)) ?? null;
+}
+
 /**
  * HABLA — entrada única del OS.
  *
@@ -450,25 +544,21 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     const plataforma = detectarPlataforma();
     const { memoriaGB } = await detectarCapacidades();
     const ramGB = memoriaGB ?? 8;
-    const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
+
     let nivel: NivelVoz;
-    switch (motorCat.id) {
-        case "voicemorphic":
-        case "voicestudio":
-            nivel = "estudio";
-            break;
-        case "kokoro":
-        case "kittentts":
-        case "moss-tts-nano":
-            nivel = "ligera";
-            break;
-        case "sistema":
-            nivel = "minima";
-            break;
-        default:
-            // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
-            nivel = "nube";
-            break;
+    // (VST1018F · parte 2) PRIMERA FRASE: en conversación sale del motor
+    // PERMITIDO con menor latencia medida en esta neurona, con su nivel por
+    // `nivelParaMotor` (jamás «estudio» aquí). Sin medidas o sin permitidos
+    // manda el catálogo de siempre; la frase completa sale de UN nivel.
+    if (opciones.primeraFrase && opciones.contexto === "conversacion") {
+        const rapido = motorPermitidoMasRapido(
+            leerMedidas(neuronDeviceIdActual()),
+            opciones.contextoUso ?? "grupo",
+            opciones.capas ?? {},
+        );
+        nivel = rapido ? nivelParaMotor(rapido.motor) : nivelConMotorCat(plataforma, ramGB, "grupo", false);
+    } else {
+        nivel = nivelConMotorCat(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo", true);
     }
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
