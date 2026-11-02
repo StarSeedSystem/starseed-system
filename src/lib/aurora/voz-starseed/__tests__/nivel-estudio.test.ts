@@ -144,6 +144,34 @@ describe("nivel «estudio» · la disponibilidad viene MEDIDA, no declarada", ()
         ).toBe(true);
     });
 
+    it("servida por otra neurona basta aunque la memoria propia sea desconocida o cero", () => {
+        expect(
+            estudioDisponible(estadoEstudio({ memoriaLibreGB: null, servidaPorOtraNeurona: true })),
+        ).toBe(true);
+        expect(
+            estudioDisponible({ voicestudioVivo: true, memoriaLibreGB: 0, servidaPorOtraNeurona: true }),
+        ).toBe(true);
+        expect(
+            nivelPorDefecto(
+                caps({ daemonLocal: true }),
+                { voicestudioVivo: true, memoriaLibreGB: null, servidaPorOtraNeurona: true },
+            ),
+        ).toBe("estudio");
+    });
+
+    it("lo servido solo cuenta si quien lo sirve está vivo: el estado muerto descalifica", () => {
+        expect(
+            estudioDisponible({ voicestudioVivo: false, memoriaLibreGB: null, servidaPorOtraNeurona: true }),
+        ).toBe(false);
+        expect(
+            nivelPorDefecto(
+                caps({ daemonLocal: true }),
+                { voicestudioVivo: false, memoriaLibreGB: null, servidaPorOtraNeurona: true },
+                "audiolibro",
+            ),
+        ).not.toBe("estudio");
+    });
+
     it("el mínimo del contrato son 8 GB y la ficha del nivel existe y va por encima de «alta»", () => {
         expect(RAM_MIN_ESTUDIO_GB).toBe(8);
         expect(NIVELES.estudio.etiqueta).toBe("Estudio");
@@ -203,6 +231,25 @@ describe("«estudio» solo para lectura, doblaje y audiolibros (contrato §4)", 
         expect(nivelPorDefecto(caps({ daemonLocal: true }), estadoEstudio(), undefined)).toBe(
             "estudio",
         );
+    });
+
+    it("lectura, doblaje y audiolibros ofertan «estudio» el primero", () => {
+        const buenas = caps({ daemonLocal: true });
+        for (const uso of ["lectura", "doblaje", "audiolibro"] as const satisfies readonly UsoVoz[]) {
+            expect(nivelesDisponibles(buenas, estadoEstudio(), uso)[0]).toBe("estudio");
+        }
+    });
+
+    it("la frontera de la regla histórica es exactamente 8 GB de RAM", () => {
+        expect(
+            nivelPorDefecto(caps({ daemonLocal: true, memoriaGB: 8 }), undefined, "audiolibro"),
+        ).toBe("estudio");
+        expect(
+            nivelPorDefecto(caps({ daemonLocal: true, memoriaGB: 6 }), undefined, "audiolibro"),
+        ).toBe("alta");
+        expect(
+            nivelPorDefecto(caps({ daemonLocal: true, memoriaGB: 8 }), undefined, "conversacion"),
+        ).toBe("alta");
     });
 });
 
