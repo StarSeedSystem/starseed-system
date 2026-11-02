@@ -63,6 +63,36 @@ describe("planificar · copiar", () => {
         expect(resumenPlan(plan)).toContain("Copiarías 1");
     });
 
+    it("deshacer de copiar con carpeta guarda la carpeta correcta", () => {
+        const snap = instantaneasBase();
+        snap["user:a"] = documento([
+            item("i1", { folderId: "carpeta-origen" }),
+        ]);
+        const plan = planificar(
+            { tipo: "copiar", origen: docA, destino: docB, itemIds: ["i1"] },
+            snap,
+            permisosTotales
+        );
+        expect(plan.deshacer[0]).toEqual({
+            op: "quitar",
+            ref: docB,
+            itemId: "i1",
+            haciaCarpeta: "carpeta-origen",
+        });
+    });
+
+    it("no omite por URL distinta en el destino", () => {
+        const snap = instantaneasBase();
+        snap["user:b"] = documento([item("otro", { url: "https://diferente.test/x" })]);
+        const plan = planificar(
+            { tipo: "copiar", origen: docA, destino: docB, itemIds: ["i1"] },
+            snap,
+            permisosTotales
+        );
+        expect(plan.vistaPrevia.crea).toEqual(["i1"]);
+        expect(plan.vistaPrevia.omite).toEqual([]);
+    });
+
     it("omite por mismo id o misma referencia en el destino", () => {
         const snap = instantaneasBase();
         snap["user:b"] = documento([
