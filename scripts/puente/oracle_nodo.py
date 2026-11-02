@@ -523,6 +523,7 @@ def piezas_direccion(raiz=RAIZ_DIRECCION_A1):
         ("autocuracion", os.path.join(p, "vigia_medidores.py"), (), "vigia_medidores.py"),
         ("autopublicacion", os.path.join(p, "autopublicar.py"), ("--bucle",), "autopublicar.py"),
         ("cartero", os.path.join(p, "cartero_director.py"), (), "cartero_director.py"),
+        ("autodesarrollo", os.path.join(p, "director_autodesarrollo.py"), ("ciclo",), "director_autodesarrollo.py"),
     )
 
 
@@ -535,7 +536,8 @@ P = os.path.join(RAIZ, "scripts", "puente")
 sys.path.insert(0, P)
 LOG = os.path.join(os.path.expanduser("~"), "registros")
 HIJOS = (("orquestador", "vigilante-enjambre.py", []), ("autocuracion", "vigia_medidores.py", []),
-         ("autopublicacion", "autopublicar.py", ["--bucle"]), ("cartero", "cartero_director.py", []))
+         ("autopublicacion", "autopublicar.py", ["--bucle"]), ("cartero", "cartero_director.py", []),
+         ("autodesarrollo", "director_autodesarrollo.py", ["ciclo"]))
 def vivos():
     v = []
     for pid in os.listdir("/proc"):

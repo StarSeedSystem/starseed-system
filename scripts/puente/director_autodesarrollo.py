@@ -12,7 +12,7 @@ Decidir se hace y se escribe siempre (no cuesta memoria); lanzar trabajo, solo c
 lanzadores, Jev, Astraura y agentes por parámetro (las pruebas no lanzan nada real); escrituras atómicas
 (tmp + os.replace) y cerrojo propio."""
 from __future__ import annotations
-import argparse, fcntl, json, os, shutil, subprocess, sys, tempfile, urllib.error, urllib.request
+import argparse, fcntl, json, os, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
 from collections import Counter
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -364,9 +364,19 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         if not libre: return {"toca_ejecutar": False, "motivo_toca": "otro ciclo en marcha", "autodesarrolladas": 0}
         aj = AL.validar_ajustes(_json(os.path.join(home, "autodesarrollo.json"), {}))
         cap = medir_capacidad(home) if capacidad == -1 else capacidad
+        # (IND1029Cb) Solo encargo trabajo pesado si esta neurona es líder de dirección;
+        # si el A1 tiene el arriendo, él encarga con su memoria y la Mac solo cuida esta máquina.
+        try:
+            import autocuracion_mando as AC
+            dirijo, porque_lider = AC.decidir_lider(AC._lider(), time.time())
+        except Exception as e:
+            dirijo, porque_lider = True, "líder en local (%s: %s)" % (type(e).__name__, str(e)[:60])
         if cap is None and aj["horario"]["modo"] == "inteligente":
             toca, motivo = False, "sin dato de capacidad: en modo inteligente no se ejecuta"
-        else: toca, motivo = AL.toca_ejecutar(ahora, aj["horario"], cap or {})
+        else:
+            toca, motivo = AL.toca_ejecutar(ahora, aj["horario"], cap or {})
+        if not dirijo:
+            toca, motivo = False, "no es líder de dirección (%s): el A1 encarga con su memoria" % porque_lider
         toca_an, motivo_an = (True, motivo) if toca else AL.toca_analizar(ahora, aj["horario"], cap)
         est_ruta = os.path.join(home, "autodesarrollo-estado.json"); est = _json(est_ruta, {})
         lanzo = []
