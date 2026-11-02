@@ -117,6 +117,30 @@ describe("esUrlPermitidaRare · solo releases oficiales, descargas remotas bloqu
       "https://protondb.com/", "https://example.com/RareDevs/Rare.zip", "sin url",
     ]) expect(esUrlPermitidaRare(u), u).toBe(false);
   });
+  it("SUP0111H · un `..` en claro o codificado no se escapa del repo oficial", () => {
+    for (const u of [
+      "https://github.com/RareDevs/Rare/releases/../../../evil/x",
+      "https://github.com/RareDevs/Rare/releases/%2e%2e/%2e%2e/evil/x",
+      "https://github.com/RareDevs/Rare/releases/%2E%2E/evil/x",
+      "https://github.com/RareDevs/Rare/releases/tag/1/..%2f..%2fevil",
+    ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
+  it("SUP0111H · otro host que solo lo parece queda fuera", () => {
+    for (const u of [
+      "https://github.com.evil.com/RareDevs/Rare/releases/latest",
+      "https://evilgithub.com/RareDevs/Rare/releases/latest",
+      "https://user@github.com/RareDevs/Rare/releases/latest",
+      "https://user:clave@github.com/RareDevs/Rare/releases/latest",
+      "https://github.com:8443/RareDevs/Rare/releases/latest",
+    ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
+  it("SUP0111H · URL inválida, con barra invertida o protocolo que no es https: false", () => {
+    for (const u of [
+      "no es una url", "://", "https://", "https://github.com",
+      "https:\\\\github.com\\RareDevs\\Rare\\releases\\latest",
+      "ftp://github.com/RareDevs/Rare/releases/latest",
+    ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
 });
 
 function rare(): HerramientaProto {
