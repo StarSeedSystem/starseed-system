@@ -525,6 +525,55 @@ class Servicio(unittest.TestCase):
         self.assertEqual(self._leer("progreso-correcciones.json")["PM1010F0B"]["estado"], "sustituida")
         self.assertEqual(self._leer("cola-proto.json")[0]["depende"], ["PM1010F0Bc"])  # recableada
 
+    # (SUP0211G, 2026-11-02) La tanda viva de la Mac es una cola de SUEÑOS desde el 31-10. Antes sus
+    # ids no contaban: cada pasada «trasladaba» las mismas ~80 tareas que ya estaban en ella y lo
+    # decidido iba directo a progreso.json, donde la memoria del orquestador lo pisaba (AV1011C).
+    VIVA = "cola-suenos-2026-10-31.json"
+
+    def test_tanda_viva_de_suenos_cuenta_como_tanda(self):
+        self._escribir("cola-a.json", [T("CAIDA"), T("LISTA")])
+        self._escribir(self.VIVA, [T("SA1", tipo="analisis"), T("CAIDA"), T("LISTA")])
+        self._escribir("progreso.json", {
+            "LISTA": {"estado": "pendiente"},
+            "CAIDA": {"estado": "conflicto", "nota": "ff falló: index.lock exists", "t": _t(30), "intentos_auto": 1},
+        })
+        with mock.patch.object(self.R, "_cola_viva", lambda: self.VIVA), \
+                mock.patch.object(self.R, "_sh", lambda orden, timeout=30: (0, "")):
+            inf = self.R.pasada(jev=False, ahora=AHORA)
+        acc = {(a["tid"], a["accion"]): a for a in inf["acciones"]}
+        self.assertNotIn(("LISTA", "trasladar"), acc)  # ya está en la tanda: no se «traslada» cada pasada
+        self.assertEqual(acc[("CAIDA", "reintentar")]["via"], "orden reabrir a la tanda viva")
+        self.assertEqual(self._leer("control-" + self.VIVA)["CAIDA"]["accion"], "reabrir")
+        self.assertEqual(self._leer("progreso.json")["CAIDA"]["estado"], "conflicto")  # lo hace el orquestador
+        self.assertNotIn("SA1", {a["tid"] for a in inf["acciones"]})  # los sueños no se tocan
+
+    def test_trasladar_llega_a_la_tanda_viva_de_suenos(self):
+        self._escribir("cola-a.json", [T("A0"), T("B0", ["A0"])])
+        self._escribir(self.VIVA, [T("SA1", tipo="analisis"), T("A0")])
+        self._escribir("progreso.json", {"A0": {"estado": "commit"}, "B0": {"estado": "pendiente"}})
+        with mock.patch.object(self.R, "_cola_viva", lambda: self.VIVA), \
+                mock.patch.object(self.R, "_sh", lambda orden, timeout=30: (0, "")):
+            inf = self.R.pasada(jev=False, ahora=AHORA)
+        self.assertIn(("B0", "trasladar"), {(a["tid"], a["accion"]) for a in inf["acciones"]})
+        ids = [t["id"] for t in self._leer(self.VIVA)]
+        self.assertEqual(ids.count("B0"), 1)  # entró de verdad, y una sola vez
+        self.assertIn("SA1", ids)
+        with mock.patch.object(self.R, "_cola_viva", lambda: self.VIVA), \
+                mock.patch.object(self.R, "_sh", lambda orden, timeout=30: (0, "")):
+            otra = self.R.pasada(jev=False, ahora=AHORA + 3600)
+        self.assertNotIn(("B0", "trasladar"), {(a["tid"], a["accion"]) for a in otra["acciones"]})
+
+    def test_relajar_llega_a_la_copia_de_la_tanda_viva_de_suenos(self):
+        self._escribir("cola-a.json", [T("Y1", ["X1", "OK1"])])
+        self._escribir(self.VIVA, [T("SA1", tipo="analisis"), T("Y1", ["X1", "OK1"])])
+        self._escribir("progreso.json", {"X1": {"estado": "rechazada"}, "OK1": {"estado": "commit"}})
+        with mock.patch.object(self.R, "_cola_viva", lambda: self.VIVA), \
+                mock.patch.object(self.R, "_sh", lambda orden, timeout=30: (0, "")):
+            self.R.pasada(jev=False, ahora=AHORA)
+        self.assertEqual(self._leer("cola-a.json")[0]["depende"], ["OK1"])
+        viva = {t["id"]: t for t in self._leer(self.VIVA)}
+        self.assertEqual(viva["Y1"]["depende"], ["OK1"])  # la versión vigente de la tanda también
+
     def test_dependencias_que_faltan_se_detectan(self):
         with open(os.path.join(self.tmp, "package.json"), "w", encoding="utf-8") as f:
             json.dump({"dependencies": {"qrcode": "^1.5.4", "next": "15"}, "devDependencies": {"vitest": "3"}}, f)

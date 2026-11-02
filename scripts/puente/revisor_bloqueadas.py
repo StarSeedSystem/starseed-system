@@ -417,6 +417,15 @@ def reunir(ahora=None):
     _, asuntos = _sh(["git", "log", "main", "--format=%s"], timeout=60)
     _, head = _sh(["git", "rev-parse", "--short", "main"])
     cola_viva = _cola_viva()
+    if cola_viva and cola_viva not in colas:
+        # (SUP0211G, 2026-11-02) La tanda viva puede ser una cola de SUEÑOS (`cola-suenos-*`: la
+        # de la Mac desde el 31-10), y en ella viven también tareas de código. Sus ids cuentan como
+        # «en la tanda» aunque sus definiciones no entren en `tareas` (los sueños no se tocan).
+        # Sin ellos `ids_viva` salía vacío: cada pasada «trasladaba» las mismas ~80 tareas que ya
+        # estaban en la tanda, y lo que se decidía sobre ellas iba directo a progreso.json, donde
+        # la copia en memoria del orquestador lo pisaba (AV1011C volvía a «bloqueada»).
+        colas[cola_viva] = [str(t["id"]) for t in _lista_de(_leer(os.path.join(OLAS, cola_viva), []))
+                            if isinstance(t, dict) and t.get("id")]
     fallos, reabiertas = _fallos_recientes(ahora)
     try:
         mtime_viva = os.path.getmtime(os.path.join(OLAS, cola_viva)) if cola_viva else 0
@@ -488,15 +497,19 @@ def _orden_control(cola, ordenes):
     return list(ordenes)
 
 
-def _editar_colas(editar):
-    """Aplica `editar(nombre, lista) -> lista|None` a cada cola de código viva (atómico)."""
+def _editar_colas(editar, viva=None):
+    """Aplica `editar(nombre, lista) -> lista|None` a cada cola de código viva (atómico).
+
+    (SUP0211G) Y a la tanda viva `viva` aunque sea una cola de sueños: el orquestador relee SU
+    cola y «la versión vigente manda», así que la dependencia soltada o recableada, la tarea
+    trasladada o el orden nuevo que no llegan a ella no llegan a quien corre."""
     tocadas = []
     try:
         nombres = sorted(os.listdir(OLAS))
     except OSError:
         return tocadas
     for nombre in nombres:
-        if not _es_cola_de_codigo(nombre):
+        if not _es_cola_de_codigo(nombre) and not (viva and nombre == viva):
             continue
         ruta = os.path.join(OLAS, nombre)
         d = _leer(ruta, None)
@@ -603,7 +616,7 @@ def aplicar(decision, foto, seco=False, jev=True):
                 if acc in ("fusionar", "ceder") and datos.get("por"):
                     # Quien la esperaba pasa a esperar a la que de verdad la rehace: la regla de la
                     # «letra final» no ve que «…-1ab» rehace «…-1a» y el dependiente esperaría siempre.
-                    _recablear(tid, datos["por"])
+                    _recablear(tid, datos["por"], viva=cola_viva)
                 reg["resultado"] = "aplicada"
             elif acc in ("reintentar", "reintegrar", "reescribir", "reasignar", "reabrir"):
                 entrada = progreso.get(tid) if isinstance(progreso.get(tid), dict) else {}
@@ -651,13 +664,18 @@ def aplicar(decision, foto, seco=False, jev=True):
                                 t["revisor_quitadas"] = sorted(set((t.get("revisor_quitadas") or []) + quitar))
                     return lista if cambio else None
 
-                _editar_colas(_sin_deps)
+                _editar_colas(_sin_deps, viva=cola_viva)
                 _mensaje(tid, "REVISOR DE BLOQUEADAS: se soltó tu dependencia de %s (%s). Si necesitas algo "
                          "suyo, créalo dentro de tus archivos o adáptate a lo que ya hay en main."
                          % (", ".join(quitar), a.get("motivo")))
                 if logica._estado(progreso, tid) == "bloqueada":
-                    a_progreso[tid] = {"estado": "pendiente", "nota": "revisor: %s" % a.get("motivo"),
-                                       "quitar_dependencias": quitar}
+                    if en_tanda:
+                        # (SUP0211G) En la tanda viva manda la memoria del orquestador: se le pide.
+                        a_control[tid] = {"accion": "reabrir", "quien": "revisor",
+                                          "motivo": ("revisor: %s" % a.get("motivo"))[:160], "t": ahora_txt}
+                    else:
+                        a_progreso[tid] = {"estado": "pendiente", "nota": "revisor: %s" % a.get("motivo"),
+                                           "quitar_dependencias": quitar}
                 reg["resultado"] = "aplicada"
             elif acc == "trasladar":
                 if datos.get("estado"):
@@ -671,7 +689,7 @@ def aplicar(decision, foto, seco=False, jev=True):
                         if nombre != cola_viva or any(isinstance(t, dict) and str(t.get("id")) == tid for t in lista):
                             return None
                         return lista + [dict(tareas[tid])]
-                    _editar_colas(_meter)
+                    _editar_colas(_meter, viva=cola_viva)
                 reg["resultado"] = "aplicada"
             elif acc == "dividir":
                 partes = datos.get("tareas_nuevas") or []
@@ -683,7 +701,7 @@ def aplicar(decision, foto, seco=False, jev=True):
                                    "sustituida_por": ultima}
                 a_corregir[tid] = a_progreso[tid]
                 if ultima:
-                    _recablear(tid, ultima)
+                    _recablear(tid, ultima, viva=cola_viva)
                 reg["resultado"] = "aplicada"
             elif acc == "priorizar":
                 orden = [str(x) for x in datos.get("orden") or []]
@@ -701,7 +719,7 @@ def aplicar(decision, foto, seco=False, jev=True):
                     return libres + resto
 
                 if cola_viva:
-                    _editar_colas(_ordenar)
+                    _editar_colas(_ordenar, viva=cola_viva)
                 reg["resultado"] = "aplicada"
             elif acc == "pedir_a_alex":
                 reg["resultado"] = "preguntada"
@@ -749,8 +767,9 @@ def _enlistar_en_cola_revisor(tareas_nuevas):
     return [str(t.get("id")) for t in nuevas]
 
 
-def _recablear(viejo, nuevo):
-    """Quien dependía de `viejo` pasa a depender de `nuevo` (división o fusión)."""
+def _recablear(viejo, nuevo, viva=None):
+    """Quien dependía de `viejo` pasa a depender de `nuevo` (división o fusión), también en la
+    tanda viva `viva` aunque sea de sueños (SUP0211G)."""
     def _cambiar(nombre, lista):
         cambio = False
         for t in lista:
@@ -762,7 +781,7 @@ def _recablear(viejo, nuevo):
                     t[clave] = [nuevo if str(d) == viejo else d for d in deps]
                     cambio = True
         return lista if cambio else None
-    return _editar_colas(_cambiar)
+    return _editar_colas(_cambiar, viva=viva)
 
 
 # ── cerrojo de git del repo principal ────────────────────────────────────────────────────
