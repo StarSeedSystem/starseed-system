@@ -68,11 +68,15 @@ import {
   applyVoiceChainPriority,
 } from "@/lib/aurora/tts-oss/omnivoice-web-router";
 import { BrainApiManager } from "@/lib/aurora/tts-oss/brain-api-manager";
-import { cronometroHabla, leerMedidas } from "@/lib/aurora/medidas-voz";
+import { cronometroHabla, leerMedidas, type MedidaVoz } from "@/lib/aurora/medidas-voz";
 import {
-  PRESUPUESTO_PRIMER_SONIDO_MS,
   type ContextoDialogo,
 } from "@/lib/aurora/tts-oss/conversacion-fluida";
+import {
+  puntuarMotores,
+  type MedidaElector,
+} from "@/lib/aurora/voz-starseed/elector-aprende";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 import {
   getEngineSettings,
   getVoiceConfig,
@@ -124,34 +128,75 @@ export interface ConfiguredSpeakOptions {
 }
 
 /**
- * Ordena la cadena por la latencia MEDIDA en esta neurona (media del «primer
- * sonido» por motor, `medidas-voz`). Solo adelanta los motores MEDIDOS que
- * llegan al presupuesto de conversación, de más rápido a más lento; el resto
- * conserva su orden del registro (lo comprobado manda, pero lo que no llega no
- * bloquea a los siguientes). Sin medidas o si el almacén falla, no cambia nada.
+ * Convierte las medidas del almacén (`medidas-voz`) a las del elector
+ * (`elector-aprende`): la latencia del «primer sonido» es la que puntúa, y las
+ * correcciones («la persona corrigió lo que oyó») se reparten como errores
+ * entre las medidas de latencia del MISMO motor y neurona — nunca se inventa
+ * una latencia con el 1 de una corrección. Pura; nunca lanza.
+ */
+export function medidasParaElector(medidas: readonly MedidaVoz[], ahora: number): MedidaElector[] {
+  try {
+    const CLAVE = "\u0000";
+    const latencias: MedidaElector[] = [];
+    const correcciones = new Map<string, number>();
+    for (const m of medidas) {
+      if (!Number.isFinite(m.valor) || !Number.isFinite(m.timestamp) || m.timestamp > ahora) continue;
+      if (m.tipo === "primer-sonido") {
+        latencias.push({
+          motor: m.motor,
+          neurona: m.neurona,
+          latenciaPrimeraFraseMs: m.valor,
+          errores: 0,
+          t: m.timestamp,
+        });
+      } else if (m.tipo === "correccion") {
+        const clave = `${m.neurona}${CLAVE}${m.motor}`;
+        correcciones.set(clave, (correcciones.get(clave) ?? 0) + 1);
+      }
+    }
+    const cuantas = new Map<string, number>();
+    for (const l of latencias) {
+      const clave = `${l.neurona}${CLAVE}${l.motor}`;
+      cuantas.set(clave, (cuantas.get(clave) ?? 0) + 1);
+    }
+    for (const l of latencias) {
+      const clave = `${l.neurona}${CLAVE}${l.motor}`;
+      const n = cuantas.get(clave) ?? 0;
+      l.errores = n > 0 ? (correcciones.get(clave) ?? 0) / n : 0;
+    }
+    return latencias;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Ordena la cadena de conversación con el ELECTOR que aprende
+ * (`puntuarMotores`, contrato `voz-voicestudio.md` §4): media del «primer
+ * sonido» con olvido exponencial (mitad del peso cada 7 días), un mínimo de
+ * MEDIDAS_MINIMAS (5) antes de cambiar el orden, y los errores (las
+ * correcciones oídas) penalizan — un motor que falla ya no es rápido. Solo los
+ * motores MEDIDOS de ESTA neurona se reordenan, del mejor (menor puntuación) al
+ * peor; los demás conservan su lugar de la cadena (lo no medido se queda
+ * «sin medir», no con un número inventado). Los 👍/👎 entran por la lista de
+ * votos del elector; aún no hay almacén de pulgares, así que de momento no
+ * llega ninguno. Sin medidas o si el almacén falla, no cambia nada.
  */
 export function reordenarCadenaPorLatenciaMedida(
   chain: readonly VoiceChainLink[],
 ): VoiceChainLink[] {
   try {
-    const suma = new Map<string, { total: number; n: number }>();
-    for (const m of leerMedidas()) {
-      if (m.tipo !== "primer-sonido" || !Number.isFinite(m.valor)) continue;
-      const prev = suma.get(m.motor) ?? { total: 0, n: 0 };
-      suma.set(m.motor, { total: prev.total + m.valor, n: prev.n + 1 });
-    }
-    if (!suma.size) return [...chain];
-    const media = new Map<VoiceChainLink, number>();
-    for (const link of chain) {
-      const s = suma.get(link);
-      const ms = s ? s.total / s.n : Number.POSITIVE_INFINITY;
-      if (ms <= PRESUPUESTO_PRIMER_SONIDO_MS) media.set(link, ms);
-    }
-    if (!media.size) return [...chain];
-    const dentro = chain
-      .filter((link) => media.has(link))
-      .sort((a, b) => (media.get(a) ?? 0) - (media.get(b) ?? 0));
-    return [...dentro, ...chain.filter((link) => !media.has(link))];
+    const ahora = Date.now();
+    const neurona = neuronDeviceIdActual();
+    if (!neurona) return [...chain];
+    const puntuados = puntuarMotores(medidasParaElector(leerMedidas(), ahora), [], ahora)[neurona] ?? [];
+    const medida = puntuados
+      .filter((m) => m.estado === "medido")
+      .map((m) => m.motor)
+      .filter((motor) => (chain as readonly string[]).includes(motor));
+    if (!medida.length) return [...chain];
+    const delante = new Set(medida as VoiceChainLink[]);
+    return [...medida, ...chain.filter((l) => !delante.has(l))] as VoiceChainLink[];
   } catch {
     return [...chain];
   }
