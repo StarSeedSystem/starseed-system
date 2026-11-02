@@ -317,3 +317,45 @@ botones se ven desactivados diciendo que hay que actualizar ese nodo; un nodo en
 la orden; la razón de un botón desactivado se ve en pantalla (en el móvil no hay `title`); la confirmación es de
 un solo nodo (`accion:destino`); nunca se enseñan ids de tarea, ramas ni sha.
 
+## §11 · Tapa cerrada en la Mac (KAL1101D) · solo con permiso, corriente y trabajo
+
+En un portátil Mac, **cerrar la tapa duerme el sistema aunque haya aserciones de energía** (caffeinate,
+keepalive). Solo sigue despierto en modo clamshell (corriente + pantalla externa) o con
+`pmset -a disablesleep 1`, que exige admin. Si la neurona se va a dormir igual, su trabajo se releva al A1
+(§3); esto no lo evita, solo permite que la Mac siga despierta cuando el dueño lo ha pedido de verdad.
+
+**Decisión (pura, `scripts/puente/tapa_cerrada.py`).** Se activa **solo** si se cumplen las cuatro:
+el ajuste lo permite, hay corriente, la batería supera el **50 %** y hay trabajo del enjambre o servicios
+vivos. Se desactiva en cuanto falta una, al acabar el trabajo o al salir (también ante errores). Sin dato
+de batería no se activa. Es idempotente: si ya está en el estado correcto, no ejecuta nada.
+
+| Situación | Acción |
+|---|---|
+| Permiso + corriente + batería > 50 % + trabajo, y está apagado | `pmset -a disablesleep 1` |
+| Falta permiso, corriente, trabajo o batería (> 50 %), y está encendido | `pmset -a disablesleep 0` |
+| Ya está como debe | Nada |
+
+**Ajuste del dueño:** `~/.starseed/tapa.json` con `{"permitir": true}`. Cualquier otra cosa (vacío, roto,
+`false`, `0`, texto) cuenta como **NO**: nunca se cambia la energía del sistema sin permiso explícito.
+
+**Uso previsto** (el orquestador o el vigía lo llama; este módulo no se cablea solo):
+
+```bash
+python3 scripts/puente/tapa_cerrada.py --trabajo          # con tareas o servicios vivos
+python3 scripts/puente/tapa_cerrada.py --deshacer         # al terminar o ante cualquier salida
+python3 scripts/puente/tapa_cerrada.py --simular          # enseña la decisión sin ejecutar
+```
+
+El script escribe `sudo -n`: si sudoers no lo permite, **no hace nada y lo dice** (`hecho: false`,
+`motivo: sudo-o-pmset`). Nunca usa `sudo` interactivo ni toca otros ajustes de energía.
+
+**Línea exacta de sudoers que instalaría Alex** (él mismo, con `sudo visudo -f /etc/sudoers.d/starseed-tapa`;
+el OS **no** la instala):
+
+```sudoers
+alex ALL=(root) NOPASSWD: /usr/bin/pmset -a disablesleep 1, /usr/bin/pmset -a disablesleep 0
+```
+
+Pruebas: `python3 -m unittest scripts/puente/test_tapa_cerrada.py -v` (21 casos puros y de ejecución con
+corredor inyectado).
+
