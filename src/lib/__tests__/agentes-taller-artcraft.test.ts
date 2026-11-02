@@ -57,6 +57,21 @@ describe("RECURSOS_ARTCRAFT", () => {
     for (const id of IDS_ARTCRAFT) expect(ids).toContain(id);
   });
 
+  it("no lleva dentro nada con forma de clave, tampoco fuera de `requiere`", () => {
+    const patrones = ["sk-", "gsk_", "nvapi-", "Bearer", "-----BEGIN"];
+    const texto = JSON.stringify(RECURSOS_ARTCRAFT);
+    for (const patron of patrones) expect(texto).not.toContain(patron);
+  });
+
+  it("cubre las tres apps de la pasarela con una ruta exacta por app", () => {
+    const rutas = RECURSOS_ARTCRAFT.map((r) => r.ruta).sort();
+    expect(rutas).toEqual([
+      "/api/artcraft/deckcraft",
+      "/api/artcraft/figcraft",
+      "/api/artcraft/gridcraft",
+    ]);
+  });
+
   it("su ruta pasa por la pasarela y apunta al contrato", () => {
     for (const r of RECURSOS_ARTCRAFT) {
       expect(r.ruta).toMatch(/^\/api\/artcraft\/[a-z]+$/);
