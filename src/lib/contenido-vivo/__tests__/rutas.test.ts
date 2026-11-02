@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { compararRutas, elegirRuta, type ContextoVivo } from "../rutas";
+import {
+  TAREAS_SIEMPRE_LOCALES, compararRutas, elegirRuta, razonCandidato, servicioConectado, servicioDeRuta, valorarRuta,
+  type ContextoVivo,
+} from "../rutas";
+import type { Ruta } from "../tipos";
 
 const BASE: ContextoVivo = {
   alcance: "publica",
@@ -115,5 +119,46 @@ describe("compararRutas / elegirRuta", () => {
     expect(elegida?.ruta.tipo).toBe("local");
     const comparadas = compararRutas("clip-pelicula", contexto);
     expect(comparadas.every((c) => c.ruta.tipo === "local" || !c.disponible)).toBe(true);
+  });
+});
+
+describe("reparaciones de la elección de ruta", () => {
+  it("el servicio de una ruta es la primera parte de su id", () => {
+    const ruta = compararRutas("foto", BASE).find((c) => c.ruta.id === "higgsfield-nano-banana-2")?.ruta;
+    expect(ruta && servicioDeRuta(ruta)).toBe("higgsfield");
+    expect(ruta && servicioConectado(ruta, { ...BASE, conectados: ["higgsfield"] })).toBe(true);
+  });
+
+  it("las tareas fijadas en local solo se resuelven en la neurona", () => {
+    expect(TAREAS_SIEMPRE_LOCALES).toEqual(["grafico-vivo", "revision-texto", "comprobacion"]);
+    for (const tarea of TAREAS_SIEMPRE_LOCALES) {
+      const contexto: ContextoVivo = { ...BASE, conectados: ["spline", "higgsfield", "google"] };
+      const candidatos = compararRutas(tarea, contexto);
+      expect(candidatos.length).toBeGreaterThan(0);
+      expect(candidatos.every((c) => c.ruta.tipo === "local" && c.disponible)).toBe(true);
+      expect(elegirRuta(tarea, contexto)?.ruta.tipo).toBe("local");
+    }
+  });
+
+  it("un externo no sirve una tarea fijada en local, aunque esté conectado y sobre cupo", () => {
+    const externo: Ruta = {
+      id: "higgsfield-grafico", nombre: "Servicio ajeno", tipo: "externo",
+      tareas: ["grafico-vivo"], calidad: { "grafico-vivo": 1 }, creditosPorUnidad: 0,
+      unidad: "gráfico", requiere: [], privacidad: "local", licencia: "propia",
+      comercial: true, latenciaS: 1, verificado: "por-verificar", fuente: "https://ejemplo.com",
+    };
+    const valorado = valorarRuta(externo, "grafico-vivo", BASE);
+    expect(valorado.disponible).toBe(false);
+    expect(valorado.puntuacion).toBe(0);
+    expect(valorado.motivoNoDisponible).toContain("Siempre local");
+    expect(valorado.razon).toContain("Siempre local");
+  });
+
+  it("la razón de una local nombra la tarea en español y dice que no gasta", () => {
+    const local = compararRutas("grafico-vivo", BASE)[0];
+    expect(local.razon).toBe(
+      "Local: Código y HyperFrames (recetas propias) resuelve un gráfico vivo en la neurona y no gasta créditos.",
+    );
+    expect(razonCandidato(local.ruta, "grafico-vivo", "Sin cupo hoy")).toBe("No disponible: Sin cupo hoy.");
   });
 });
