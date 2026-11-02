@@ -24,6 +24,9 @@ class LeerModoTests(unittest.TestCase):
         self.assertEqual(leer_modo("{roto"), "pantalla")
         self.assertEqual(leer_modo(""), "pantalla")
 
+    def test_json_valido_que_no_es_objeto_enciende_pantalla(self):
+        self.assertEqual(leer_modo("[1]"), "pantalla")
+
     def test_compatibilidad_activa(self):
         self.assertIsNone(leer_modo(json.dumps({"activa": False})))
         self.assertEqual(leer_modo(json.dumps({"activa": True})), "pantalla")
@@ -54,6 +57,16 @@ class ConstruirOrdenTests(unittest.TestCase):
         orden = construir_orden("linux", "sistema", 42, False) or []
         self.assertEqual(orden[0], "systemd-inhibit")
         self.assertIn("--what=sleep:idle", orden)
+
+    def test_keepalive_manda_aunque_el_so_no_lo_conozca(self):
+        orden = construir_orden("win32", "pantalla", 42, True) or []
+        self.assertEqual(orden[0], "keepalive")
+        self.assertIn("--keep-display=true", orden)
+
+    def test_systemd_inhibit_bloquea_sueno_e_idle_sin_fin(self):
+        orden = construir_orden("linux", "sistema", 42, False) or []
+        for esperada in ("--what=sleep:idle", "--mode=block", "sleep", "infinity"):
+            self.assertIn(esperada, orden)
 
     def test_sin_herramienta_o_apagado(self):
         self.assertIsNone(construir_orden("win32", "sistema", 42, False))
@@ -107,6 +120,17 @@ class CicloTests(unittest.TestCase):
         servicio.ciclo(ajuste("pantalla"))
         self.assertEqual(popen.call_count, 1)
         self.assertEqual(len(escritos), 1)
+
+    def test_sin_herramienta_no_lanza_y_declara_una_sola_vez(self):
+        servicio, popen, escritos = servicio_simulado(
+            plataforma="win32", keepalive=False)
+        servicio.ciclo(ajuste("pantalla"))
+        servicio.ciclo(ajuste("pantalla"))
+        popen.assert_not_called()
+        self.assertEqual(
+            escritos,
+            [{"modo": None, "herramienta": None, "pid": 42}],
+        )
 
     def test_apagado_termina_solo_su_hijo(self):
         servicio, popen, escritos = servicio_simulado()
