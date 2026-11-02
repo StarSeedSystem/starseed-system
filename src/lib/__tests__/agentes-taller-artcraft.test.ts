@@ -80,6 +80,58 @@ describe("RECURSOS_ARTCRAFT", () => {
     }
   });
 
+  it("declara exactamente tres recursos con ids únicos y prefijo os:artcraft-", () => {
+    expect(RECURSOS_ARTCRAFT).toHaveLength(3);
+    const ids = RECURSOS_ARTCRAFT.map((r) => r.id);
+    expect(new Set(ids).size).toBe(3);
+    for (const id of ids) expect(id).toMatch(/^os:artcraft-(figcraft|gridcraft|deckcraft)$/);
+  });
+
+  it("ningún requiere tiene forma de clave", () => {
+    const PATRONES_CLAVE = ["sk-", "gsk_", "nvapi-", "Bearer", "/Users/"];
+    const texto = JSON.stringify(RECURSOS_ARTCRAFT);
+    for (const patron of PATRONES_CLAVE) expect(texto).not.toContain(patron);
+    for (const r of RECURSOS_ARTCRAFT) {
+      for (const req of r.requiere) {
+        expect(req).not.toMatch(/^(sk-|gsk_|nvapi-|Bearer)/);
+        expect(req).not.toContain("/Users/");
+      }
+    }
+  });
+
+  it("requiere solo nombres de condiciones (NEURONA_CON_PASARELA_ARTCRAFT)", () => {
+    for (const r of RECURSOS_ARTCRAFT) {
+      expect(r.requiere).toEqual(["NEURONA_CON_PASARELA_ARTCRAFT"]);
+    }
+  });
+
+  it("disponibleEn devuelve true en Mac y en nube (maquina: cualquiera)", () => {
+    for (const r of RECURSOS_ARTCRAFT) {
+      expect(disponibleEn(r, "mac")).toBe(true);
+      expect(disponibleEn(r, "nube")).toBe(true);
+    }
+  });
+
+  it("los tres están en catalogoDeclarado()", () => {
+    const ids = catalogoDeclarado().map((r) => r.id);
+    for (const r of RECURSOS_ARTCRAFT) expect(ids).toContain(r.id);
+  });
+
+  it("cada recurso tiene ruta /api/artcraft/<app> y docs architecture/artcraft-y-rare.md", () => {
+    expect(RECURSOS_ARTCRAFT.find((r) => r.id === "os:artcraft-figcraft")?.ruta).toBe("/api/artcraft/figcraft");
+    expect(RECURSOS_ARTCRAFT.find((r) => r.id === "os:artcraft-gridcraft")?.ruta).toBe("/api/artcraft/gridcraft");
+    expect(RECURSOS_ARTCRAFT.find((r) => r.id === "os:artcraft-deckcraft")?.ruta).toBe("/api/artcraft/deckcraft");
+    for (const r of RECURSOS_ARTCRAFT) expect(r.docs).toBe("architecture/artcraft-y-rare.md");
+  });
+
+  it("descripcion menciona pasarela ArtCraft, directorio de trabajo y sin red", () => {
+    for (const r of RECURSOS_ARTCRAFT) {
+      expect(r.descripcion).toContain("pasarela ArtCraft");
+      expect(r.descripcion).toContain("directorio de trabajo");
+      expect(r.descripcion).toContain("sin red");
+    }
+  });
+
   it("usa etiquetas propias, distintas de las del navegador", () => {
     const etiquetasNavegador = new Set(
       RECURSOS_NAVEGADOR.flatMap((r) => r.etiquetas.map((e) => e.toLowerCase())),
