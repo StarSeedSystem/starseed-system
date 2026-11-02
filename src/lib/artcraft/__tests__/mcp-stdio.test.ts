@@ -34,6 +34,11 @@ describe("trocearLineas", () => {
   it("ignora \\r final y líneas vacías", () => {
     expect(trocearLineas("", "a\r\n\r\nb\n")).toEqual({ lineas: ["a", "b"], resto: "" });
   });
+
+  it("deja todo como resto cuando no hay ninguna línea completa y reensambla", () => {
+    expect(trocearLineas("", "ab")).toEqual({ lineas: [], resto: "ab" });
+    expect(trocearLineas("ab", "cd\nef\n")).toEqual({ lineas: ["abcd", "ef"], resto: "" });
+  });
 });
 
 describe("ClienteMcpStdio", () => {
@@ -96,6 +101,22 @@ describe("ClienteMcpStdio", () => {
     transporte.responder(transporte.ultima.id, { ok: true });
     expect(await promesa).toEqual({ ok: true });
   });
+  it("ignora una respuesta con id desconocido sin contarla como ilegible", async () => {
+    const { transporte, cliente } = montar();
+    transporte.enviar('{"jsonrpc":"2.0","id":77,"result":{"tools":[]}}\n');
+    expect(cliente.ilegibles).toBe(0);
+    const promesa = cliente.listar(1000);
+    transporte.responder(transporte.ultima.id, { tools: [] });
+    expect(await promesa).toEqual({ tools: [] });
+  });
+  it("descarta los bloques que no son texto al concatenar", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("x", {}, 1000);
+    transporte.responder(transporte.ultima.id, {
+      content: [{ type: "resource", uri: "figcraft://doc" }, { type: "text", text: "solo esto" }],
+    });
+    expect(await promesa).toEqual({ ok: true, texto: "solo esto" });
+  });
   it("falla con tiempo agotado", async () => {
     const { reloj, cliente } = montar();
     const promesa = cliente.listar(50);
@@ -142,5 +163,11 @@ describe("ClienteMcpStdio", () => {
     const comprobacion = expect(promesa).rejects.toMatchObject({ tipo: "rpc", mensaje: "boom" });
     transporte.enviar(`${JSON.stringify({ jsonrpc: "2.0", id: transporte.ultima.id, error: { message: "boom" } })}\n`);
     await comprobacion;
+  });
+});
+
+describe("LIMITE_LINEA", () => {
+  it("fija el límite en los 32 MiB de FigCraft", () => {
+    expect(LIMITE_LINEA).toBe(32 * 1024 * 1024);
   });
 });
