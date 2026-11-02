@@ -77,6 +77,72 @@ ARCHIVOS = ("package.json", "package-lock.json", "next.config.ts", "next.config.
 IGNORADOS = (".next", "node_modules", "__pycache__", ".git", ".DS_Store", "__tests__", "__mocks__")
 _PRUEBA = re.compile(r"\.(test|spec|stories)\.[cm]?[jt]sx?$")
 
+#: (2026-10-31, IND1029) Artefacto del build del CI: nombre base para `gh run download`.
+ARTIFACTO_CI = "genesis-next-"
+#: (2026-10-31) Cuántos segundos esperar buscando artefactos del CI antes de compilar localmente.
+ESPERA_ARTIFACTO_CI_S = int(os.environ.get("STARSEED_RECONSTRUIR_ARTIFACTO_CI_S", "60"))
+#: Artefactos descargados exitosamente (sha → (t, huella)), para no repetir si el build es el mismo.
+ARTIFACTOS_CI = {}
+
+
+def artefacto_ci_disponible(huella, raiz=RAIZ, espera_s=ESPERA_ARTIFACTO_CI_S) -> tuple[str, str] | None:
+    """PURA-ish: busca y descarga artefacto `genesis-next-<sha>` del CI.
+
+    Usa `gh run download` para buscar runs del CI que subieron el artefacto.
+    Devuelve (sha, build_id) si el artefacto existe y se descargó, o None si no.
+    El artefacto se descarga a `.next-build` y se marca como listo.
+    """
+    t0 = time.time()
+    ultima = None
+    try:
+        r = subprocess.run(
+            ["gh", "run", "list", "--workflow", "ci.yml", "-L", "10", "--json", "headSha,status,artifacts"],
+            cwd=raiz, capture_output=True, text=True, timeout=30
+        )
+        if r.returncode != 0:
+            return None
+        runs = json.loads(r.stdout or "[]")
+        for run in sorted(runs, key=lambda x: x.get("headSha") or "", reverse=True):
+            sha = run.get("headSha") or ""
+            if not sha:
+                continue
+            if sha == ultima:
+                break
+            if sha in ARTIFACTOS_CI:
+                t, h = ARTIFACTOS_CI[sha]
+                if h == huella:
+                    return (sha, h) if h else None
+            artifacts = run.get("artifacts") or []
+            for art in artifacts:
+                art_name = art.get("name") or ""
+                if art_name.startswith(ARTIFACTO_CI):
+                    ultima = sha
+                    break
+            if ultima:
+                break
+    except Exception:
+        return None
+    if not ultima:
+        return None
+    res = subprocess.run(
+        ["gh", "run", "download", "--", f"{ARTIFACTO_CI}{ultima[:8]}"],
+        cwd=raiz, capture_output=True, text=True, timeout=120,
+        env={**os.environ, "GH_TOKEN": os.environ.get("GITHUB_TOKEN", "")}
+    )
+    rc = res.returncode
+    salida = res.stdout or ""
+    if rc != 0 and "not found" not in salida.lower():
+        return None
+    dist = os.path.join(raiz, DIST_BUILD)
+    build_id_path = os.path.join(dist, "BUILD_ID")
+    if not os.path.exists(build_id_path):
+        return None
+    with open(build_id_path, encoding="utf-8") as f:
+        build_id = f.read().strip()
+    marcar_listo(raiz=raiz, dist=DIST_BUILD, inicio=time.time())
+    ARTIFACTOS_CI[huella] = (time.time(), build_id)
+    return (ultima, build_id)
+
 
 def es_prueba(ruta: str) -> bool:
     """PURA: ¿es una prueba (o historia) que la build no sirve? Vale para rutas del repo."""
@@ -1226,6 +1292,14 @@ def una_pasada(forzar: bool = False) -> bool:
         print("[%s] espero: %s, pero la publicación en marcha va a compilar: su build sirve"
               % (time.strftime("%H:%M"), motivo), flush=True)
         return False
+    # (2026-10-31, IND1029) Intentar artefacto del CI antes de compilar local.
+    if hazlo:
+        print("[%s] busco artefacto del CI: %s" % (time.strftime("%H:%M"), motivo), flush=True)
+        artefacto = artefacto_ci_disponible(actual)
+        if artefacto:
+            sha, build_id = artefacto
+            print("[%s] artefacto del CI: %s (build %s)" % (time.strftime("%H:%M"), sha[:12], build_id[:12]), flush=True)
+            return True
     libre = espacio_libre_gb()
     if hazlo and not hay_sitio_para_compilar(libre):
         # Antes de decir que no, se recoge lo que dejó la compilación anterior.

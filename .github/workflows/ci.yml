@@ -61,9 +61,20 @@ jobs:
           # GitHub tiene 16 GB; la autopublicación usa este CI como puerta de build.
           NODE_OPTIONS: --max-old-space-size=8192
           NEXT_TELEMETRY_DISABLED: "1"
-          # Placeholders: el build no debe requerir secretos reales de Supabase.
-          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          # (2026-10-29, IND1029) Variables del repo para el build: el .next se sube como artefacto
+          # y el reconstructor de la Mac lo descarga cuando Genesis no puede compilar.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
+        # (2026-10-29, IND1029) Artefacto del build: el reconstructor de la Mac lo descarga cuando
+        # Genesis no puede compilar. El .next se sube sin caché (NEXT_PUBLIC_* de variables del repo,
+        # no secretos: son públicos por diseño). El artifact name usa el sha para identificar el
+        # build exacto que sirve.
+      - name: Subir artefacto de build (genesis-next-<sha>)
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-next-${{ github.sha }}
+          path: .next
+          retention-days: 3
 
   tauri-check:
     name: Tauri · cargo check
