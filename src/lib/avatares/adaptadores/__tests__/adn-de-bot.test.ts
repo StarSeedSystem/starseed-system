@@ -50,6 +50,23 @@ describe("adnDeBot: la referencia manda y el ADN por defecto conserva la orbe", 
     expect(adnDeBot(botDe(), ajeno).rev).toBe(0);
   });
 
+  it("un ADN de otro bot (tipo «bot» pero id distinto) tampoco se cuela", () => {
+    const ajeno = adnPorDefecto("adn-bot-1", "Otro", { tipo: "bot", id: "bot-2" }, 190);
+    expect(adnDeBot(botDe(), ajeno).dueno).toEqual({ tipo: "bot", id: "bot-1" });
+  });
+
+  it("un ADN del mismo bot con una URL externa en la base vuelve a orbe y la URL no sobrevive", () => {
+    const guardado = {
+      ...adnPorDefecto("adn-bot-1", "Semilla", { tipo: "bot", id: "bot-1" }, 190),
+      base: { tipo: "vrm", ref: "https://mal.example/x.vrm" },
+      rev: 7,
+    };
+    const adn = adnDeBot(botDe(), guardado);
+    expect(adn.base.tipo).toBe("orbe");
+    expect(adn.base.ref).toBeUndefined();
+    expect(JSON.stringify(adn)).not.toContain("https://mal.example");
+  });
+
   it("una referencia externa no se acepta: cae al ADN por defecto", () => {
     const bot = botDe({ cuerpo: { forma: "vrm", avatarRef: "https://malo.com/a.vrm", tono: 40, escala: 1 } });
     expect(refAdnDeBot(bot)).toBeNull();
@@ -57,10 +74,13 @@ describe("adnDeBot: la referencia manda y el ADN por defecto conserva la orbe", 
     expect(adnDeBot(bot).aura.tono).toBe(40);
   });
 
-  it("con forma «orbe» no hay referencia de ADN y el tono es el de la orbe", () => {
+  it("con forma «orbe» no hay referencia de ADN y el tono es el de la orbe, aunque lleve una interna", () => {
     const bot = botDe({ cuerpo: { forma: "orbe", tono: 300, escala: 1 } });
     expect(refAdnDeBot(bot)).toBeNull();
     expect(adnDeBot(bot).aura.tono).toBe(300);
+    expect(
+      refAdnDeBot(botDe({ cuerpo: { forma: "orbe", avatarRef: "biblioteca:adn-1", tono: 300, escala: 1 } })),
+    ).toBeNull();
   });
 });
 
