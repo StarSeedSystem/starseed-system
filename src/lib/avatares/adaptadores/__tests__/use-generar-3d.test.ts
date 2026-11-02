@@ -38,12 +38,17 @@ describe("prepararGeneracion", () => {
     expect(p.plan.pasos[0].motor?.id).toBe("pixal3d");
     expect(p.optimizacion).toMatchObject({ destino: "avatar", prioridad: "calidad", generador: { resolucion: 1024, pocaMemoria: false } });
   });
-  it("sin taller ni Space: «ninguna», y dice que el taller local no está instalado", () => {
-    const p = prepararGeneracion(ctx({ hierro: NV16, neuronas: [] }), deps());
-    expect(p.via).toBe("ninguna");
-    expect(p.motivo).toMatch(/taller local .* no está instalado/);
-    expect(p.neurona).toMatch(/ninguna neurona viva/i);
-  });
+    it("sin taller ni Space: «ninguna», y dice que el taller local no está instalado", () => {
+      const p = prepararGeneracion(ctx({ hierro: NV16, neuronas: [] }), deps());
+      expect(p.via).toBe("ninguna");
+      expect(p.motivo).toMatch(/taller local .* no está instalado/);
+      expect(p.neurona).toMatch(/ninguna neurona viva/i);
+    });
+    it("sin permiso de la cuenta no ofrece el Space aunque exista el respaldo, y lo dice", () => {
+      const p = prepararGeneracion(ctx({ permiteEspacioHf: false }), deps({ espacio: async () => ok() }));
+      expect(p.via).toBe("ninguna");
+      expect(p.motivo).toMatch(/versiones públicas .* apagadas/i);
+    });
   it("sin hierro medido no promete generar en local", () => {
     expect(prepararGeneracion(ctx({ hierro: null }), deps({ taller: async () => ok() })).via).toBe("ninguna");
   });
