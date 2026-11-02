@@ -88,6 +88,15 @@ describe("peticionFlujoComfyui · muestreo según la lista blanca", () => {
   });
 });
 
+describe("grafoComfyuiDe · validación de estructura", () => {
+  it("el grafo de texto a imagen está contenido en NODOS_NUCLEO", () => {
+    const grafo = grafoComfyuiDe({ prompt: "paisaje lunar" });
+    for (const nodo of Object.values(grafo)) {
+      expect(NODOS_NUCLEO as readonly string[]).toContain(nodo.class_type);
+    }
+  });
+});
+
 describe("grafoComfyuiDe · texto a imagen o imagen a imagen", () => {
   const base = { prompt: "retrato con niebla", seed: 5 };
 
