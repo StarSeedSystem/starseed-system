@@ -35,6 +35,12 @@ describe("RECURSOS_ARTCRAFT", () => {
     }
   });
 
+  it("corren en cualquier máquina, no solo en la Mac", () => {
+    for (const r of RECURSOS_ARTCRAFT) {
+      expect(r.maquina).toBe("cualquiera");
+    }
+  });
+
   it("no lleva en `requiere` nada con forma de clave, solo nombres de condiciones", () => {
     for (const r of RECURSOS_ARTCRAFT) {
       expect(r.requiere.length).toBeGreaterThan(0);
@@ -43,6 +49,12 @@ describe("RECURSOS_ARTCRAFT", () => {
         expect(condicion).toMatch(/^[A-Z][A-Z0-9_]+$/);
       }
     }
+  });
+
+  it("no lleva dentro de la ficha nada que parezca una clave", () => {
+    const PATRONES_CLAVE = ["sk-", "gsk_", "nvapi-", "Bearer", "-----BEGIN"];
+    const texto = JSON.stringify(RECURSOS_ARTCRAFT);
+    for (const patron of PATRONES_CLAVE) expect(texto).not.toContain(patron);
   });
 
   it("está disponible en la Mac y en la nube", () => {
@@ -55,6 +67,15 @@ describe("RECURSOS_ARTCRAFT", () => {
   it("entra entero en el catálogo declarado", () => {
     const ids = catalogoDeclarado().map((r) => r.id);
     for (const id of IDS_ARTCRAFT) expect(ids).toContain(id);
+  });
+
+  it("cada recurso apunta a su propia app de la pasarela", () => {
+    const apps = ["figcraft", "gridcraft", "deckcraft"].sort();
+    const rutas = RECURSOS_ARTCRAFT.map((r) => r.ruta).sort();
+    expect(rutas).toEqual(apps.map((a) => `/api/artcraft/${a}`));
+    for (const r of RECURSOS_ARTCRAFT) {
+      expect(r.ruta).toBe(`/api/artcraft/${r.id.replace("os:artcraft-", "")}`);
+    }
   });
 
   it("su ruta pasa por la pasarela y apunta al contrato", () => {
