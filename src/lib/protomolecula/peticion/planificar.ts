@@ -152,8 +152,7 @@ export async function planificar(p: PeticionProto, deps: DependenciasPlan = {}):
     return { error: "fuera-de-vocabulario", motivo: "«En una rama» o «directamente» modifican una petición: escribe primero qué quieres cambiar, o elige el modo en la ventana." };
   }
 
-  const niveles = nivelesDeContenidoVivo(texto);
-  if (niveles) return planLocal([{ tipo: "abrir-en", donde: "protomolecula", que: `contenido-vivo · ${listaDeNiveles(niveles)}` }], []);
+  if (nivelesDeContenidoVivo(texto)) return planificarVivo(texto);
 
   const opts = opcionesDePeticion({ texto, modo: p.modo });
   const { pasos, sinResolver } = aplicarReglas(texto, ctx, opts);
