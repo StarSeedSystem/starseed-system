@@ -104,9 +104,20 @@ export function validarSinCredencialesEpic(texto: string): { ok: boolean; hallaz
   return { ok: hallazgos.length === 0, hallazgos };
 }
 
+/**
+ * Guarda de las descargas de Rare (SUP0111H). Solo el texto crudo no basta: `new URL` normaliza
+ * `..` y trata `%2e` y `\` como separadores, así que se rechazan también antes de analizar.
+ */
 export function esUrlPermitidaRare(url: string): boolean {
-  // Blocked domains
+  if (url.includes("..") || url.includes("\\") || /%2e/i.test(url)) return false;
   if (url.includes("raredevs.github.io") || url.includes("protondb.com")) return false;
-  if (!url.startsWith("https://github.com/RareDevs/Rare/releases/")) return false;
-  return true;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "https:" || parsed.hostname !== "github.com") return false;
+  if (parsed.username !== "" || parsed.password !== "" || parsed.port !== "") return false;
+  return parsed.pathname.startsWith("/RareDevs/Rare/releases/");
 }

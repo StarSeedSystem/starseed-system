@@ -117,6 +117,29 @@ describe("esUrlPermitidaRare · solo releases oficiales, descargas remotas bloqu
       "https://protondb.com/", "https://example.com/RareDevs/Rare.zip", "sin url",
     ]) expect(esUrlPermitidaRare(u), u).toBe(false);
   });
+  it("SUP0111H · rechaza travesía con .. en claro y codificada (%2e en cualquier caja)", () => {
+    for (const u of [
+      "https://github.com/RareDevs/Rare/releases/../../../evil/x",
+      "https://github.com/RareDevs/Rare/releases/%2e%2e/%2e%2e/evil",
+      "https://github.com/RareDevs/Rare/releases/%2E%2E/evil",
+      "https://github.com/RareDevs/Rare/releases/..%2fevil",
+    ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
+  it("SUP0111H · rechaza otro host que solo lo parece, credenciales y puerto", () => {
+    for (const u of [
+      "https://github.com.evil.com/RareDevs/Rare/releases/tag/1",
+      "https://user@github.com/RareDevs/Rare/releases/tag/1",
+      "https://user:clave@github.com/RareDevs/Rare/releases/tag/1",
+      "https://github.com:8443/RareDevs/Rare/releases/tag/1",
+    ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
+  it("SUP0111H · rechaza barra invertida y URLs inválidas", () => {
+    for (const u of [
+      "https://github.com/RareDevs/Rare/releases/..\\evil",
+      "https://github.com/RareDevs/Rare/releases/\\..\\evil",
+      "", "no es una url", "https://",
+    ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
 });
 
 function rare(): HerramientaProto {
