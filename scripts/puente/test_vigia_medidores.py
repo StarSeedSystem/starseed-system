@@ -168,6 +168,52 @@ class SeRecargaConCodigoNuevo(unittest.TestCase):
             self.assertEqual(list(h), [os.path.abspath(dentro)])
 
 
+class ArrancarConElArbolSucio(unittest.TestCase):
+    """(2026-11-02, SUP0211J) El remedio «arrancar_enjambre» se negaba con CUALQUIER línea de
+    `git status`, aunque fuera la contabilidad que el propio orquestador recoge al arrancar
+    (PUENTE-DE-MANDO.md, las colas que la higiene archiva). Solo frena lo que el guardia llama ajeno."""
+
+    def setUp(self):
+        import os, shutil, sys, tempfile, types
+        from unittest import mock
+
+        self.mock = mock
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.raiz, ignore_errors=True)
+        self.curado = []
+        falso = types.ModuleType("atasco_orquestador")
+        falso.curar = lambda: (self.curado.append(1), {"accion": "nada", "motivo": "prueba"})[1]
+        for p in (mock.patch.dict(sys.modules, {"atasco_orquestador": falso}),
+                  mock.patch.object(V, "RAIZ", self.raiz)):
+            p.start()
+            self.addCleanup(p.stop)
+        destino = os.path.join(self.raiz, "starseed_memory_root", "colas-fuente")
+        os.makedirs(destino)
+        with open(os.path.join(destino, "cola-infra-1025.json"), "w", encoding="utf-8") as f:
+            f.write('[{"id": "INF1025A"}]')
+
+    def aplica(self, rc, porcelain):
+        with self.mock.patch.object(V, "_sh", return_value=(rc, porcelain)):
+            return V.aplicar({"remedio": "arrancar_enjambre"})
+
+    def test_la_contabilidad_propia_no_frena_la_cura(self):
+        r = self.aplica(0, " M PUENTE-DE-MANDO.md\n D starseed_memory_root/olas/cola-infra-1025.json\n")
+        self.assertNotIn("no arranca", r)
+        self.assertEqual(self.curado, [1])
+
+    def test_el_trabajo_ajeno_frena_y_se_nombra_solo_el(self):
+        r = self.aplica(0, " M PUENTE-DE-MANDO.md\n M src/app/page.tsx\n D starseed_memory_root/olas/cola-otra.json\n")
+        self.assertIn("no arranca", r)
+        self.assertIn("src/app/page.tsx", r)
+        self.assertIn("cola-otra.json", r)
+        self.assertNotIn("PUENTE-DE-MANDO.md", r)
+        self.assertEqual(self.curado, [])
+
+    def test_sin_poder_leer_el_arbol_no_se_cura(self):
+        r = self.aplica(128, "fatal: not a git repository")
+        self.assertIn("no pude leer", r)
+        self.assertEqual(self.curado, [])
+
 if __name__ == "__main__":
     unittest.main()
 

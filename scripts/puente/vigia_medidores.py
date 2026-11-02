@@ -282,11 +282,23 @@ def aplicar(problema: dict) -> str:
         # vigilante solo relanza si no hay ninguno). Ahora se mira de verdad: si hay un
         # orquestador parado con listas, se reinicia; si no hay ninguno, se despierta al
         # vigilante en el acto. Lo único que sigue sin tocarse es un árbol sucio.
+        #
+        # (2026-11-02, SUP0211J) «Sucio» es lo que el GUARDIA del orquestador llama ajeno
+        # (`arbol_de_trabajo.clasificar`), no cualquier línea de `git status`: la contabilidad propia
+        # (PUENTE-DE-MANDO.md, colas re-apuntadas o archivadas) la commitea él al arrancar y el
+        # estorbo lo aparta. Contándolo todo, el vigía se negaba a curar con solo eso en el árbol.
         rc, salida = _sh(["git", "status", "--porcelain"], timeout=30)
-        sucios = [l for l in salida.splitlines() if l.strip()]
+        if rc:
+            return "no pude leer el árbol de main: %s" % salida.strip()[-120:]
+        try:
+            import arbol_de_trabajo
+
+            _mias, _estorbo, sucios = arbol_de_trabajo.clasificar(salida, raiz=RAIZ)
+        except Exception:  # noqa: BLE001  sin el clasificador, todo cuenta (el lado seguro)
+            sucios = [l[3:].strip() for l in salida.splitlines() if l.strip()]
         if sucios:
-            return "el árbol tiene %d archivo(s) sin commitear y el enjambre no arranca con eso: %s" % (
-                len(sucios), ", ".join(l[3:] for l in sucios[:3]))
+            return "el árbol tiene %d archivo(s) ajenos sin commitear y el enjambre no arranca con eso: %s" % (
+                len(sucios), ", ".join(sucios[:3]))
         try:
             import atasco_orquestador
 

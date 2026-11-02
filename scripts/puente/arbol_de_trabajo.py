@@ -30,6 +30,14 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 # ajeno, y el orquestador de la Mac no arrancó del 27-10 22:26 al 28-10 00:40 por tres de ellas.
 PREFIJO_COLA = "starseed_memory_root/olas/cola-"
 
+# (2026-11-02, SUP0211J) `higiene_colas` MUEVE (nunca borra) a `colas-fuente/` las colas cerradas, y
+# nueve de `olas/` estaban VERSIONADAS (REP1025A las subió a git): el traslado de las 11:57 dejó
+# ` D starseed_memory_root/olas/cola-*-1025.json` en `main`. También es contabilidad del propio
+# enjambre —la cola sigue entera en `colas-fuente/`—, pero contaba como AJENA: el orquestador no habría
+# vuelto a arrancar (ni relanzado a mano ni por el vigilante tras una caída) y el vigía se negaba a
+# curarlo («el árbol tiene 12 archivo(s) sin commitear y el enjambre no arranca con eso»).
+DESTINO_HIGIENE = "starseed_memory_root/colas-fuente/"
+
 # Rutas (relativas a la raíz del repo) que escribe el propio enjambre como parte
 # de su funcionamiento normal. Solo esto se considera «propio»: la lista se
 # amplía a mano y con motivo, nunca con comodines, para que un fallo de un agente
@@ -92,6 +100,21 @@ def _cola_versionada(linea, ruta):
     return "M" in estado and set(estado) <= {" ", "M"}
 
 
+def _cola_archivada(linea, ruta, raiz):
+    """¿Es una cola versionada BORRADA de `olas/` (` D`, `D `) que `higiene_colas` dejó en
+    `colas-fuente/`? Solo cuenta si allí sigue siendo una lista JSON de tareas con `id`: un borrado
+    sin su copia archivada es trabajo de alguien, y el lado seguro es no recogerlo."""
+    if not ruta.startswith(PREFIJO_COLA) or not ruta.endswith(".json"):
+        return False
+    nombre = ruta[len(PREFIJO_COLA):]
+    if "/" in nombre:
+        return False
+    estado = (linea or "")[:2]
+    if "D" not in estado or not set(estado) <= {" ", "D"}:
+        return False
+    return _lista_de_tareas(raiz, DESTINO_HIGIENE + "cola-" + nombre)
+
+
 def _lista_de_tareas(raiz, ruta):
     """La cola sigue siendo una lista JSON de tareas con `id`. Si no se puede leer o ya no lo
     es, es AJENA: el lado seguro es no tocar lo que no se entiende."""
@@ -108,11 +131,13 @@ def _lista_de_tareas(raiz, ruta):
 
 
 def _colas_propias(lineas, raiz):
-    """Rutas de colas versionadas que el propio enjambre re-apuntó y siguen siendo válidas."""
+    """Rutas de colas versionadas que el propio enjambre re-apuntó y siguen siendo válidas, o que
+    `higiene_colas` archivó en `colas-fuente/` (SUP0211J)."""
     rutas = []
     for linea in lineas:
         ruta = ruta_de(linea)
-        if _cola_versionada(linea, ruta) and _lista_de_tareas(raiz, ruta):
+        if (_cola_versionada(linea, ruta) and _lista_de_tareas(raiz, ruta)) or _cola_archivada(
+                linea, ruta, raiz):
             rutas.append(ruta)
     return rutas
 

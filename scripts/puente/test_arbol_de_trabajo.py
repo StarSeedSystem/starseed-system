@@ -182,5 +182,62 @@ class TestColasVersionadas(unittest.TestCase):
         self.assertEqual((mias, ajenas), ([self.ART], []))
 
 
+class TestColasArchivadas(unittest.TestCase):
+    """(2026-11-02, SUP0211J) `higiene_colas` MUEVE a `colas-fuente/` las colas cerradas. Si estaban
+    versionadas, en `main` queda ` D olas/cola-*.json`: contabilidad propia, no trabajo ajeno. El
+    02-11 las nueve colas 1025 así habrían impedido relanzar el orquestador."""
+
+    ART = "starseed_memory_root/olas/cola-artcraft-1025.json"
+    ARCH = "starseed_memory_root/colas-fuente/cola-artcraft-1025.json"
+
+    def setUp(self):
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.raiz, ignore_errors=True)
+
+    def escribe(self, ruta, texto):
+        destino = os.path.join(self.raiz, ruta)
+        os.makedirs(os.path.dirname(destino), exist_ok=True)
+        with open(destino, "w", encoding="utf-8") as f:
+            f.write(texto)
+
+    def test_la_cola_archivada_por_la_higiene_es_propia(self):
+        self.escribe(self.ARCH, '[{"id": "ART1025B", "depende": []}]')
+        for linea in (" D " + self.ART, "D  " + self.ART):
+            with self.subTest(linea=linea):
+                self.assertEqual(clasificar(linea, raiz=self.raiz), ([self.ART], [], []))
+
+    def test_el_arbol_del_02_11_deja_arrancar(self):
+        nombres = ("agentes", "artcraft", "blender", "capas", "cloudflare", "diseno", "infra",
+                   "investigacion", "libreria")
+        lineas = [" M PUENTE-DE-MANDO.md"]
+        for n in nombres:
+            self.escribe("starseed_memory_root/colas-fuente/cola-%s-1025.json" % n, '[{"id": "X-%s"}]' % n)
+            lineas.append(" D starseed_memory_root/olas/cola-%s-1025.json" % n)
+        mias, estorbo, ajenas = clasificar("\n".join(lineas), raiz=self.raiz)
+        self.assertEqual((estorbo, ajenas), ([], []))
+        self.assertEqual(len(mias), 10)
+
+    def test_un_borrado_sin_copia_archivada_es_ajeno(self):
+        self.assertEqual(clasificar(" D " + self.ART, raiz=self.raiz), ([], [], [self.ART]))
+
+    def test_una_copia_archivada_rota_no_vale(self):
+        for texto in ("{rota", "[]", '[{"titulo": "sin id"}]'):
+            with self.subTest(texto=texto):
+                self.escribe(self.ARCH, texto)
+                self.assertEqual(clasificar(" D " + self.ART, raiz=self.raiz), ([], [], [self.ART]))
+
+    def test_solo_cuenta_el_borrado(self):
+        self.escribe(self.ARCH, '[{"id": "ART1025B"}]')
+        for linea in ("AD " + self.ART, "?? " + self.ART):
+            with self.subTest(linea=linea):
+                self.assertEqual(clasificar(linea, raiz=self.raiz)[2], [self.ART])
+
+    def test_fuera_de_olas_o_otro_archivo_sigue_siendo_ajeno(self):
+        self.escribe("starseed_memory_root/colas-fuente/cola-x-1025.json", '[{"id": "X"}]')
+        for ruta in ("starseed_memory_root/cola-x-1025.json", "starseed_memory_root/olas/sub/cola-x-1025.json",
+                     "src/lib/algo.ts"):
+            with self.subTest(ruta=ruta):
+                self.assertEqual(clasificar(" D " + ruta, raiz=self.raiz)[2], [ruta])
+
 if __name__ == "__main__":
     unittest.main()
