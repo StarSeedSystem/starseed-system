@@ -3,20 +3,46 @@
 import * as React from 'react';
 import { planCuerpo } from '@/lib/astraura-bots/cuerpo';
 import { resolverRefBiblioteca } from '@/lib/avatares/adaptadores/resolver-ref-biblioteca';
+import { esFormaAvatar3d } from '@/lib/avatares/adaptadores/adn-de-bot';
 import { QuantumOrbAvatar } from '@/components/aurora/quantum-orb-avatar';
 import { PatoSimuladoComponent } from '@/components/robots/pato-simulado';
+import { Cuerpo3dBot } from '@/components/avatares/cuerpo-3d-bot';
+import type { Bot, EstadoEmocional } from '@/lib/astraura-bots/tipos';
 
 // We'll also need to import a component for the ser genesis avatar if it exists.
 // For now, we'll use a placeholder.
 
 export interface CuerpoBotProps {
-  cuerpo: NonNullable<NonNullable<import('@/lib/astraura-bots/tipos').Bot>['cuerpo']>;
+  cuerpo: NonNullable<Bot['cuerpo']>;
   medio: import('@/lib/astraura-bots/tipos').Medio;
   xrDisponible: boolean;
   vrmDisponible: boolean;
+  /** El bot completo: hace falta para montar su avatar 3D (ADN, emoción y voz). */
+  bot?: Bot;
+  /** Emoción expresada del bot (valencia y activación). */
+  estado?: EstadoEmocional;
+  /** El bot está hablando ahora (además del evento `starseed:gesto`). */
+  hablando?: boolean;
+  /** Texto que dice ahora, para los visemas. */
+  texto?: string;
+  /** Personalidad dueña del turno de voz. */
+  personalidadId?: string;
+  /** ADN ya leído por quien monta; si falta, el cuerpo 3D lo lee una vez del almacén. */
+  adnGuardado?: unknown;
 }
 
-export const CuerpoBot: React.FC<CuerpoBotProps> = ({ cuerpo, medio, xrDisponible, vrmDisponible }) => {
+export const CuerpoBot: React.FC<CuerpoBotProps> = ({
+  cuerpo,
+  medio,
+  xrDisponible,
+  vrmDisponible,
+  bot,
+  estado,
+  hablando,
+  texto,
+  personalidadId,
+  adnGuardado,
+}) => {
   const { render, ref, motivo } = React.useMemo(() => planCuerpo(cuerpo, medio, { xrDisponible, vrmDisponible }), [cuerpo, medio, xrDisponible, vrmDisponible]);
 
   // State for the resolved URL when we need to display an image
@@ -41,6 +67,20 @@ export const CuerpoBot: React.FC<CuerpoBotProps> = ({ cuerpo, medio, xrDisponibl
       });
     }
   }, [render, ref]);
+
+  // Las formas 3D/VRM viven en su propio componente: la orbe ES su avatar 3D.
+  if (bot && esFormaAvatar3d(cuerpo.forma)) {
+    return (
+      <Cuerpo3dBot
+        bot={bot}
+        estado={estado}
+        hablando={hablando}
+        texto={texto}
+        personalidadId={personalidadId}
+        adnGuardado={adnGuardado}
+      />
+    );
+  }
 
   // Now, render based on the render type
   switch (render) {
