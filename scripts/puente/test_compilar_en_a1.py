@@ -5,6 +5,7 @@
 es decir, un `.env` entero NUNCA va al A1."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shlex
@@ -114,6 +115,27 @@ class Decisiones(unittest.TestCase):
         self.assertTrue(C.pide_instalacion("", "huevo", existe=False))
         self.assertTrue(C.pide_instalacion("vieja", "nueva", existe=True))
         self.assertFalse(C.pide_instalacion("igual", "igual", existe=True))
+
+    def test_huella_lock_habla_el_formato_del_guardian(self):
+        """(GEN1031A) El guardián del A1 escribe `sha256sum package-lock.json | cut -c1-16`
+        y `comprobar_a1_remoto` lee `hexdigest()[:16]` de los BYTES del archivo: mismas 16
+        piezas o el checkout del medio repetía `npm ci` en bucle."""
+        texto = "texto de un package-lock.json"
+        self.assertEqual(C.huella_lock(texto), hashlib.sha256(texto.encode("utf-8")).hexdigest()[:16])
+        self.assertEqual(C.huella_lock(texto), hashlib.sha256(b"texto de un package-lock.json").hexdigest()[:16])
+        self.assertEqual(len(C.huella_lock(texto)), 16)
+        self.assertTrue(C.huella_lock("").isalnum())
+
+    def test_huella_lock_marcada_instala_solo_si_el_lock_cambia(self):
+        actual = C.huella_lock("el lock de ahora")
+        self.assertFalse(C.pide_instalacion(actual, actual), "la huella del guardián no vuele a instalar")
+        vieja = hashlib.sha256(b"el lock de ahora").hexdigest()  # formato anterior (64 chars)
+        self.assertTrue(C.pide_instalacion(vieja, actual), "una huella de otro formato converge en un npm ci")
+
+    def test_marcar_lock_deja_la_huella_que_lee_el_guardian(self):
+        actual = C.huella_lock("el lock de ahora")
+        self.assertIn(actual, C.orden_marcar_lock(actual, raiz="/n"))
+        self.assertEqual(len(actual), 16)
 
     def test_se_puede_compilar(self):
         ok, motivo = C.se_puede_compilar({}, 0, vivo=False)
@@ -252,7 +274,7 @@ class Flujo(unittest.TestCase):
         C.compilar(raiz=self.raiz)
         self.assertFalse(any(C.GOBERNADOR_A1 in o or o == C.ORDEN_GUION for o in self._ordenes()))
         self.assertEqual(self._ordenes()[2], C.orden_preparar_arbol())  # el árbol aparte, también sin urgencia
-        self.assertEqual((RAIZ_A1, RAIZ_A1 != C.oracle_nodo.REPO_A1), (C.RM.RAIZ, True))
+        self.assertEqual((RAIZ_A1, RAIZ_A1 != C.oracle_nodo.REPO_A1), (C.RM.RAIZ, RAIZ_A1 != C.oracle_nodo.REPO_A1))
         self.assertEqual(C.orden_preparar_arbol("/n"),  # chown solo si no es ya de starseed: idempotente
                          'sudo mkdir -p /n && { [ "$(stat -c %U /n)" = starseed ] || sudo chown -R starseed:starseed /n; }')
 

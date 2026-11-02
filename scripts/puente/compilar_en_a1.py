@@ -99,8 +99,11 @@ def huella_envio(cabeza, porcelana=""):
 
 
 def huella_lock(texto):
-    """PURA: sha256 de `package-lock.json`, para saber si hay que instalar."""
-    return hashlib.sha256(str(texto or "").encode("utf-8")).hexdigest()
+    """PURA: la huella de `package-lock.json`, primeras 16 del sha256 hex (el texto codificado en
+    utf-8 son los mismos bytes que los del archivo). Es el MISMO formato que escribe el guardián
+    del A1 (`sha256sum package-lock.json | cut -c1-16`, `oracle_a1.guardian`) y leen
+    `comprobar_a1_remoto` y `a1_freellmapi`: cada uno con el suyo repetía `npm ci` en bucle (GEN1031A)."""
+    return hashlib.sha256(str(texto or "").encode("utf-8")).hexdigest()[:16]
 
 
 def pide_instalacion(instalada, actual, existe=True):
