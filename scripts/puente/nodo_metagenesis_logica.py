@@ -911,6 +911,62 @@ def medio_para_vigia(nodos: Dict[str, Dict[str, Any]]) -> Optional[str]:
     return min(pool, key=lambda kv: (_carga_de(kv[1]), _clave_mejor(kv[0], kv[1])))[0]
 
 
+# ─── neurona despierta con la tapa cerrada (KAL1101B) ────────────────────────────────────
+#
+# Alex: «que funcionen los procesos en segundo plano aun con las pantallas cerradas». VERDAD a
+# respetar: cerrar la tapa DUERME el sistema aunque haya aserciones (salvo clamshell o disablesleep);
+# si va a dormir igual, lo suyo baja AL A1 con la orden `desconectar` que ya existe. La medida la
+# hacen los tres `pmset` (despierto_logica.py) y viaja en el latido como
+# `salud.despierto` = {despierta, herramienta, bateria, enchufada, tapa, va_a_dormir, se_va_a_dormir}.
+
+#: Entre dos `desconectar` a la misma neurona por batería baja: no repetir hasta que la medida cambie.
+DUERME_ESPERA_S = 30 * 60
+#: Umbral por defecto (el del latido manda si su `despierto.umbral_bateria` trae otro).
+UMBRAL_DUERME = 25
+TAPA_DUERME = "duerme"
+TAPAS_VALIDAS = ("duerme", "clamshell", "sin-tapa", "desactivada")
+
+
+def despierto_de_latido(l: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """PURA. La capacidad `despierto` del latido ((salud).despierto): None si no la tiene o no es
+    en forma (con `tapa` válida), para que un campo a medias no dispare nada."""
+    d = ((l or {}).get("salud") or {}).get("despierto")
+    if not isinstance(d, dict) or not isinstance(d.get("tapa"), str) or d["tapa"] not in TAPAS_VALIDAS:
+        return None
+    return d
+
+
+#: (KAL1101B) La decisión de quien publica el latido es ya una y sola: «se va a dormir».
+def anunciado_dormir(d: Dict[str, Any], umbral: int = UMBRAL_DUERME) -> bool:
+    """PURA. ¿Este latido anuncia que la neurona se va a dormir? La medida de la neurona
+    (`despierto_logica.se_va_a_dormir`, tapa «duerme» + batería por debajo del umbral) MANDA sobre
+    lo que el líder crea (KAL1101B); si no vino ese campo, se aplica por los dos datos."""
+    if d.get("se_va_a_dormir") is not None:
+        return bool(d.get("se_va_a_dormir"))
+    return bool(d.get("tapa") == TAPA_DUERME) and (
+        isinstance(d.get("bateria"), int) and 0 <= d["bateria"] < umbral
+    )
+
+
+def planificar_despierto(nodos: Dict[str, Dict[str, Any]], ahora: float,
+                         umbral: int = UMBRAL_DUERME) -> List[Dict[str, Any]]:
+    """PURA. (KAL1101B) Las `desconectar` que el líder ordena ANTES de que apaguen a las neuronas
+    que se van a dormir (tapa «duerme» + batería baja): guarda el trabajo a medias y lo pasa al
+    A1 sobre ya existente. Sin enfriamiento: lo filtra `planificar` con `anadir`."""
+    plan: List[Dict[str, Any]] = []
+    for n, l in (nodos or {}).items():
+        d = despierto_de_latido(l)
+        if not d or not anunciado_dormir(d, umbral):
+            continue
+        bateria = d.get("bateria") if isinstance(d.get("bateria"), int) else None
+        plan.append(accion(
+            "desconectar:" + n, "desconectar", n,
+            "%s se va a dormir: tapa «duerme» y batería %s%% (umbral %d%%): la colmena pasa sus tareas al A1 antes"
+            % (n, "?" if bateria is None else bateria, umbral),
+            espera_s=DUERME_ESPERA_S))
+    return plan
+
+
 def planificar_vigia(mundo: Dict[str, Any], ahora: float) -> List[Dict[str, Any]]:
     """PURA. La acción `vigia_modelos` del líder (VGM1016F): si la última pasada (dato en la foto
     o en el estado de los nodos) tiene más de VIGIA_ESPERA_S, se la da al nodo con red y menos
@@ -993,6 +1049,11 @@ def planificar(mundo: Dict[str, Any], memoria: Dict[str, Any], ahora: float) -> 
     # 10. Vigía de modelos (VGM1016F): una pasada al día la encarga el líder al nodo con red y
     # menos carga (el A1 si está libre); nunca dos a la vez.
     for a in planificar_vigia(mundo, ahora):
+        anadir(a)
+
+    # 11. (KAL1101B) Neuronas despiertas: la que se va a dormir (tapa «duerme» + batería baja)
+    # baja su trabajo a otro medio ANTES de que la tapa o la pila la apaguen (orden ya existente).
+    for a in planificar_despierto(nodos, ahora):
         anadir(a)
 
     # 5. El medio con las colas en disco calla: otro medio real sigue su trabajo (relevo de medio).
