@@ -88,6 +88,12 @@ class TestTextosDeImaginacion(unittest.TestCase):
         self.assertTrue(t.startswith("Imaginación diaria leída: nada accionable"), t)
         self.assertNotIn("Dream", t)
 
+    def test_el_resumen_sin_nada_tambien_lo_dice(self):
+        self.assertEqual(
+            DC.resumen([]),
+            "Imaginación diaria leída: nada accionable nuevo que encargar.",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
