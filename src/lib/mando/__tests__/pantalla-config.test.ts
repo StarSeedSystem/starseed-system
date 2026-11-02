@@ -8,7 +8,9 @@ import {
     PANTALLA_POR_DEFECTO,
     estadoServicioMac,
     guardarPantalla,
+    leerDespierto,
     leerPantalla,
+    senalesDespierto,
     validarPantalla,
 } from "../pantalla-config";
 
@@ -57,5 +59,63 @@ describe("pantalla-config", () => {
         const estado = await estadoServicioMac();
         expect(typeof estado.servicio_vivo).toBe("boolean");
         expect(estado.pid === null || typeof estado.pid === "number").toBe(true);
+    });
+
+    /* ─── KAL1101C: el modo keepalive y el estado del latido local ─── */
+
+    it("guarda el modo y lo vuelve a leer (modo sistema)", async () => {
+        const guardado = await guardarPantalla(true, "prueba", ruta, "sistema");
+        expect(guardado.modo).toBe("sistema");
+        expect(await leerPantalla(ruta)).toEqual(guardado);
+    });
+
+    it("apagado no deja modo que pueda dejar el servicio despierto", async () => {
+        const guardado = await guardarPantalla(false, "prueba", ruta, "sistema");
+        expect("modo" in guardado).toBe(false);
+    });
+
+    it("validarPantalla descarta modos que no sean pantalla o sistema", () => {
+        expect(validarPantalla({ activa: true, modo: "siesta" })).toEqual(PANTALLA_POR_DEFECTO);
+        expect(validarPantalla({ activa: true, modo: "sistema" })).toEqual({
+            activa: true,
+            modo: "sistema",
+            desde: null,
+            quien: "defecto",
+        });
+        expect(validarPantalla({ activa: false, modo: "sistema" })).toEqual({
+            activa: false,
+            desde: null,
+            quien: "defecto",
+        });
+    });
+
+    it("leerDespierto devuelve el latido crudo, y null sin dato", async () => {
+        const rutaDespierto = path.join(carpeta, "despierto.json");
+        expect(await leerDespierto(rutaDespierto)).toBeNull();
+        await writeFile(
+            rutaDespierto,
+            JSON.stringify({ modo: "sistema", herramienta: "keepalive", pid: 123 }),
+            "utf-8",
+        );
+        expect(await leerDespierto(rutaDespierto)).toEqual({
+            modo: "sistema",
+            herramienta: "keepalive",
+            pid: 123,
+        });
+    });
+
+    it("senalesDespierto mapea el latido al contrato keepalive sin inventar nada", () => {
+        expect(senalesDespierto(null)).toBeNull();
+        expect(senalesDespierto("latido")).toBeNull();
+        expect(senalesDespierto({})).toBeNull();
+        expect(senalesDespierto({ modo: "sistema", herramienta: "keepalive", pid: 123 })).toEqual({
+            keepalive: { activo: true, modo: "sistema" },
+        });
+        expect(senalesDespierto({ modo: "sistema", herramienta: "caffeinate" })).toEqual({
+            keepalive: { activo: false, modo: "sistema" },
+        });
+        expect(senalesDespierto({ herramienta: "keepalive" })).toEqual({
+            keepalive: { activo: true },
+        });
     });
 });

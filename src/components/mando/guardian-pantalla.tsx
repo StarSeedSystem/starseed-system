@@ -21,15 +21,20 @@ import { Switch } from "@/components/ui/switch";
 
 export interface EstadoPantallaMando {
     activa: boolean;
+    /** (KAL1101C) Modo keepalive; null = sin dato (y vale solo el ajuste clásico). */
+    modo: ModoPantalla | null;
+    /** (KAL1101C) Señales del latido local (despierto.json), crudo: lo lee `estadoKeepaliveDeLatido`. */
+    senales?: unknown;
     desde: number | null;
     mac: { servicio_vivo: boolean; pid: number | null };
 }
 
 export type EstadoBloqueo = "activo" | "suelto" | "sin-soporte" | "oculta";
 
-/** Encendido por defecto: antes de la primera lectura, vale activa. */
+/** Encendido por defecto: antes de la primera lectura, vale activa (modo "pantalla"). */
 export const PANTALLA_DEFECTO: EstadoPantallaMando = {
     activa: true,
+    modo: "pantalla",
     desde: null,
     mac: { servicio_vivo: false, pid: null },
 };
@@ -139,13 +144,19 @@ export function parsearEstadoPantalla(bruto: unknown): EstadoPantallaMando | nul
     if (typeof obj.activa !== "boolean") return null;
     const macBruto = (obj.mac ?? {}) as Record<string, unknown>;
     const pidBruto = macBruto.pid;
+    // (KAL1101C) Sin `modo` guardado vale "pantalla" (igual que lo lee
+    // `scripts/puente/mantener_pantalla.py`); apagado solo declara un modo que ya trajera.
+    const modoValido = obj.modo === "sistema" || obj.modo === "pantalla" ? obj.modo : null;
+    const senalesBruto = obj.senales;
     return {
         activa: obj.activa,
+        modo: modoValido ?? (obj.activa ? modoPantalla(obj.modo) : null),
         desde: typeof obj.desde === "number" && Number.isFinite(obj.desde) ? obj.desde : null,
         mac: {
             servicio_vivo: Boolean(macBruto.servicio_vivo),
             pid: typeof pidBruto === "number" && Number.isFinite(pidBruto) ? pidBruto : null,
         },
+        ...(senalesBruto && typeof senalesBruto === "object" ? { senales: senalesBruto } : {}),
     };
 }
 
@@ -160,13 +171,16 @@ export async function leerEstadoPantalla(): Promise<EstadoPantallaMando | null> 
     }
 }
 
-/** Cambia el ajuste y devuelve el estado resultante; null = fallo. */
-export async function guardarEstadoPantalla(activa: boolean): Promise<EstadoPantallaMando | null> {
+/** Cambia el ajuste (y opcionalmente el modo) y devuelve el estado; null = fallo. */
+export async function guardarEstadoPantalla(
+    activa: boolean,
+    modo?: ModoPantalla | null,
+): Promise<EstadoPantallaMando | null> {
     try {
         const r = await fetch("/api/mando/pantalla", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ activa }),
+            body: JSON.stringify({ activa, ...(activa && modo ? { modo } : {}) }),
         });
         if (!r.ok) return null;
         return parsearEstadoPantalla(await r.json());

@@ -22,16 +22,23 @@
  *  • Al guardar avisa de que los cambios se aplican a la SIGUIENTE ola.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AjustesAccesos } from "@/components/mando/ajustes-accesos";
 import { InterruptorAutopublicacion } from "@/components/mando/interruptor-autopublicacion";
 import { PanelBitnetAjustes } from "@/components/mando/panel-bitnet-ajustes";
 import {
+    avisoTapaPortatil,
+    estadoKeepaliveDeLatido,
     estadoMac,
     guardarEstadoPantalla,
     leerEstadoPantalla,
+    MODOS_PANTALLA,
+    parsearAjustePantallaNeurona,
+    textoSeguirTrabajando,
     type EstadoPantallaMando,
+    type ModoPantalla,
 } from "@/components/mando/guardian-pantalla";
+import { detectOS, infoKeepalive } from "@/lib/install/device-install";
 import {
     AlertTriangle,
     ArrowDown,
@@ -354,30 +361,40 @@ function unionModelos(
 }
 
 /**
- * Interruptor «Mantener la pantalla encendida» (Ola 1005P · PA1005Ds).
- * Un único ajuste global (`~/.starseed/pantalla.json`, vía `/api/mando/pantalla`)
- * gobierna el servicio `com.starseed.pantalla` de la Mac y la Screen Wake Lock
- * de cualquier dispositivo con Genesis abierto. Encendido por defecto.
+ * Interruptor «Seguir trabajando con la pantalla apagada» (Ola 1005P; modo
+ * keepalive por neurona en KAL1101C). Un único ajuste global
+ * (`~/.starseed/pantalla.json`, vía `/api/mando/pantalla`) gobierna el servicio
+ * de la Mac (`com.starseed.pantalla`) y la Screen Wake Lock de cualquier
+ * dispositivo con Genesis abierto. Dos modos: "pantalla" (todo despierto) y
+ * "sistema" (keepalive con la pantalla apagada). Encendido por defecto.
  */
 function TarjetaPantalla() {
     const [estado, setEstado] = useState<EstadoPantallaMando | null>(null);
     const [ocupado, setOcupado] = useState(false);
     const [aviso, setAviso] = useState<string | null>(null);
+    const idNeurona = useRef("");
 
     useEffect(() => {
         let vivo = true;
         void leerEstadoPantalla().then((e) => {
             if (vivo && e) setEstado(e);
         });
+        // (KAL1101C) El id de ESTA neurona para el ajuste por neurona; si no lo
+        // hay, vale "": el ajuste local no necesita id para aplicarse.
+        import("@/lib/neurons/neurons")
+            .then((n) => {
+                if (vivo) idNeurona.current = n.thisDeviceId();
+            })
+            .catch(() => undefined);
         return () => {
             vivo = false;
         };
     }, []);
 
-    const alCambiar = useCallback(async (activa: boolean) => {
+    const alGuardar = useCallback(async (seguir: boolean, modo: ModoPantalla) => {
         setOcupado(true);
         setAviso(null);
-        const siguiente = await guardarEstadoPantalla(activa);
+        const siguiente = await guardarEstadoPantalla(seguir, modo);
         setOcupado(false);
         if (siguiente) {
             setEstado(siguiente);
@@ -386,18 +403,46 @@ function TarjetaPantalla() {
         }
     }, []);
 
+    const alCambiar = useCallback(
+        async (seguir: boolean) => {
+            await alGuardar(seguir, estado?.modo ?? "pantalla");
+        },
+        [alGuardar, estado],
+    );
+
+    /** (KAL1101C) Cambiar de modo lo sanitiza como ajuste por neurona y lo aplica. */
+    const alCambiarModo = useCallback(
+        (modo: ModoPantalla) => {
+            const ajuste = parsearAjustePantallaNeurona({
+                neuronaId: idNeurona.current,
+                seguir: true,
+                modo,
+            });
+            void alGuardar(ajuste?.seguir ?? true, ajuste?.modo ?? modo);
+        },
+        [alGuardar],
+    );
+
     const activa = estado?.activa ?? true;
+    const modo: ModoPantalla | null = estado?.modo ?? (activa ? "pantalla" : null);
+    // (KAL1101C) Estado del latido local (lo mide `mantener_pantalla.py`); lo que
+    // no trae el latido no se inventa: sale "aún sin dato".
+    const keepalive = estadoKeepaliveDeLatido(estado?.senales);
+    const soEste = detectOS();
+    const info = infoKeepalive(soEste.os);
     return (
         <article className="rounded-xl border border-white/10 bg-black/30 p-4">
             <header className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
-                        {activa ? (
+                        {activa && modo === "sistema" ? (
+                            <MonitorOff className="h-4 w-4 text-emerald-300" aria-hidden />
+                        ) : activa ? (
                             <MonitorCheck className="h-4 w-4 text-emerald-300" aria-hidden />
                         ) : (
                             <MonitorOff className="h-4 w-4 text-white/50" aria-hidden />
                         )}
-                        Mantener la pantalla encendida
+                        Seguir trabajando con la pantalla apagada
                     </h3>
                     <p className="mt-0.5 text-xs text-white/50">
                         Un solo ajuste para la Mac y cualquier dispositivo con Genesis
@@ -411,19 +456,73 @@ function TarjetaPantalla() {
                         checked={activa}
                         onCheckedChange={(v) => void alCambiar(v)}
                         disabled={ocupado}
-                        aria-label="Mantener la pantalla encendida"
+                        aria-label="Seguir trabajando con la pantalla apagada"
                     />
                 </div>
             </header>
             <div className="mt-3 space-y-2 text-xs text-white/60">
+                {activa && modo ? (
+                    <p role="status">{textoSeguirTrabajando(modo)}</p>
+                ) : (
+                    <p>Apagado: la Mac y los dispositivos se apagan solos por inactividad.</p>
+                )}
+                <div
+                    role="radiogroup"
+                    aria-label="Modo de seguir trabajando"
+                    className="flex flex-wrap gap-2"
+                >
+                    {MODOS_PANTALLA.map((opcion) => (
+                        <button
+                            key={opcion.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={modo === opcion.id}
+                            disabled={ocupado}
+                            onClick={() => alCambiarModo(opcion.id)}
+                            className={`cursor-pointer rounded-lg border px-2 py-1 text-left text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                                activa && modo === opcion.id
+                                    ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
+                                    : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                            }`}
+                        >
+                            {opcion.etiqueta}
+                            <span className="block text-[10px] text-white/45">{opcion.detalle}</span>
+                        </button>
+                    ))}
+                </div>
                 <p>
-                    {activa
-                        ? "Pantalla encendida: la Mac no entra en reposo de pantalla ni salvapantallas."
-                        : "Pantalla normal: la Mac y los dispositivos se apagan solos por inactividad."}
+                    {keepalive
+                        ? keepalive.activo
+                            ? `Latido: esta neurona se mantiene despierta con keepalive (modo ${keepalive.modo}).`
+                            : "Latido: esta neurona se mantiene despierta con otra herramienta, no con keepalive."
+                        : "Latido: aún sin dato del estado keepalive de esta neurona."}
                 </p>
                 <p className="text-white/50">
                     {estado ? estadoMac(estado.mac) : "Mac: comprobando el servicio…"}
                 </p>
+                {modo === "sistema" && info.disponible && (
+                    <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                        <p className="text-[11px] text-white/70">
+                            Instalación de keepalive en {soEste.label} (el servicio local lo
+                            usa en cuanto lo detecta; sin él, caffeinate deja el sistema
+                            despierto pero no suelta la pantalla):
+                        </p>
+                        <ul className="mt-1 space-y-1">
+                            {info.comandos.map((c) => (
+                                <li key={c.etiqueta} className="flex flex-wrap items-baseline gap-1.5">
+                                    <span className="text-white/50">{c.etiqueta}:</span>
+                                    <code className="font-mono text-[10px] text-white/90">
+                                        {c.comando}
+                                    </code>
+                                </li>
+                            ))}
+                        </ul>
+                        <p className="mt-1 text-[10px] text-white/40">
+                            Ejecución en modo sistema: <code>{info.ejecucion}</code>
+                        </p>
+                    </div>
+                )}
+                <p className="text-[11px] text-amber-200/80">{avisoTapaPortatil(modo ?? "pantalla")}</p>
                 <p className="text-[11px] text-amber-200/80">
                     Límite honesto: con la pestaña en segundo plano, el navegador de un
                     móvil o tablet no permite mantener la pantalla; en la Mac sí, porque

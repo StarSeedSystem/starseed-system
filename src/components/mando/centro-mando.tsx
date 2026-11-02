@@ -156,6 +156,7 @@ import { ReactivadorDirectores } from "@/components/mando/reactivador-directores
 import {
     leerEstadoPantalla,
     useMantenerPantalla,
+    type EstadoPantallaMando,
 } from "@/components/mando/guardian-pantalla";
 // Ídem para el almacenamiento: solo el tipo y los helpers puros de tono/texto
 // (que no dependen de `node:*`) cruzan al cliente; las sondas quedan en servidor.
@@ -179,13 +180,18 @@ import {
  * aunque esta ventana se cierre.
  */
 function GuardianPantalla() {
-    const [activa, setActiva] = useState(true);
-    useMantenerPantalla(activa);
+    // (KAL1101C) Con el modo "sistema", la pantalla NO se mantiene: solo el
+    // sistema sigue despierto (el servicio `com.starseed.pantalla` con keepalive).
+    const [ajuste, setAjuste] = useState<Pick<EstadoPantallaMando, "activa" | "modo">>({
+        activa: true,
+        modo: "pantalla",
+    });
+    useMantenerPantalla(ajuste.activa && ajuste.modo !== "sistema");
     useEffect(() => {
         let vivo = true;
         const leer = async () => {
             const estado = await leerEstadoPantalla();
-            if (vivo && estado) setActiva(estado.activa);
+            if (vivo && estado) setAjuste({ activa: estado.activa, modo: estado.modo });
         };
         void leer();
         const cada = window.setInterval(() => void leer(), 60_000);

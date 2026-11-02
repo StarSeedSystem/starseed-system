@@ -49,6 +49,7 @@ describe("parsearEstadoPantalla", () => {
         });
         expect(estado).toEqual({
             activa: false,
+            modo: null,
             desde: 1728000000000,
             mac: { servicio_vivo: true, pid: 42 },
         });
@@ -63,13 +64,30 @@ describe("parsearEstadoPantalla", () => {
     it("tolera campos ausentes con valores seguros", () => {
         expect(parsearEstadoPantalla({ activa: true })).toEqual({
             activa: true,
+            modo: "pantalla",
             desde: null,
             mac: { servicio_vivo: false, pid: null },
         });
     });
 
+    it("(KAL1101C) guarda el modo del cuerpo y las señales del latido", () => {
+        const senales = { keepalive: { activo: true, modo: "sistema" } };
+        expect(parsearEstadoPantalla({ activa: true, modo: "sistema", senales })).toEqual({
+            activa: true,
+            modo: "sistema",
+            desde: null,
+            mac: { servicio_vivo: false, pid: null },
+            senales,
+        });
+        // Un modo raro vale el ajuste clásico ("pantalla"); el latido raro no entra.
+        expect(
+            parsearEstadoPantalla({ activa: true, modo: "siesta", senales: "credencial" })?.modo,
+        ).toBe("pantalla");
+    });
+
     it("encendido por defecto: el valor inicial del cliente es activa", () => {
         expect(PANTALLA_DEFECTO.activa).toBe(true);
         expect(PANTALLA_DEFECTO.desde).toBeNull();
+        expect(PANTALLA_DEFECTO.modo).toBe("pantalla");
     });
 });

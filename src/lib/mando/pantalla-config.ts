@@ -17,6 +17,8 @@ const execFileAsync = promisify(execFile);
 
 export interface AjustePantalla {
     activa: boolean;
+    /** Modo keepalive (KAL1101C): "pantalla" todo despierto; "sistema" solo el sistema. */
+    modo?: "pantalla" | "sistema";
     desde: number | null;
     quien: string;
 }
@@ -45,8 +47,14 @@ function rutaArchivo(): string {
 export function validarPantalla(bruto: unknown): AjustePantalla {
     if (!bruto || typeof bruto !== "object") return { ...PANTALLA_POR_DEFECTO };
     const obj = bruto as Record<string, unknown>;
+    const activa = typeof obj.activa === "boolean" ? obj.activa : PANTALLA_POR_DEFECTO.activa;
+    const modo = obj.modo === "pantalla" || obj.modo === "sistema" ? obj.modo : undefined;
     return {
-        activa: typeof obj.activa === "boolean" ? obj.activa : PANTALLA_POR_DEFECTO.activa,
+        activa,
+        // (KAL1101C) El modo declarado solo cuenta con el ajuste encendido:
+        // así lo lee `scripts/puente/mantener_pantalla.py`, y
+        // {"activa": false, "modo": "sistema"} NO puede dejar el servicio despierto.
+        ...(activa && modo ? { modo } : {}),
         desde: typeof obj.desde === "number" && Number.isFinite(obj.desde) ? obj.desde : null,
         quien: typeof obj.quien === "string" && obj.quien.length > 0
             ? obj.quien
@@ -69,8 +77,17 @@ export async function guardarPantalla(
     activa: boolean,
     quien: string,
     ruta?: string,
+    modo?: string,
 ): Promise<AjustePantalla> {
-    const ajuste: AjustePantalla = { activa, desde: Date.now(), quien };
+    const modoValido = activa && (modo === "pantalla" || modo === "sistema")
+        ? modo
+        : undefined;
+    const ajuste: AjustePantalla = {
+        activa,
+        ...(modoValido ? { modo: modoValido } : {}),
+        desde: Date.now(),
+        quien,
+    };
     const destino = ruta ?? rutaArchivo();
     await mkdir(path.dirname(destino), { recursive: true });
     const temporal = `${destino}.tmp`;
@@ -95,4 +112,46 @@ export async function estadoServicioMac(): Promise<EstadoServicioMac> {
     } catch {
         return { servicio_vivo: false, pid: null };
     }
+}
+
+/* ════════ KAL1101C · el estado del latido local, leído tal cual ════════ */
+
+/** Archivo de estado que escribe el latido local (`mantener_pantalla.py`, KAL1101B). */
+function rutaDespierto(): string {
+    return process.env.STARSEED_DESPIERTO_JSON
+        ?? path.join(os.homedir(), ".starseed", "despierto.json");
+}
+
+/** Lee crudo `~/.starseed/despierto.json`; null = sin dato (no se inventa estado). */
+export async function leerDespierto(ruta?: string): Promise<Record<string, unknown> | null> {
+    try {
+        const bruto: unknown = JSON.parse(await readFile(ruta ?? rutaDespierto(), "utf-8"));
+        return bruto && typeof bruto === "object" && !Array.isArray(bruto)
+            ? (bruto as Record<string, unknown>)
+            : null;
+    } catch {
+        return null;
+    }
+}
+
+/** La forma que leen las neuronas del latido (`estadoKeepaliveDeLatido`). */
+export interface SenalesKeepalive {
+    keepalive: { activo: boolean; modo?: string };
+}
+
+/**
+ * PURA: el estado del latido mapeado al contrato keepalive, con fechas reales del
+ * archivo: `activo` solo si la herramienta del latido ES keepalive. Sin archivo o
+ * sin campo reconocible devuelve null («sin dato», nunca apagado de invención).
+ */
+export function senalesDespierto(despierto: unknown): SenalesKeepalive | null {
+    if (!despierto || typeof despierto !== "object") return null;
+    const d = despierto as Record<string, unknown>;
+    if (typeof d.herramienta !== "string" && d.modo === undefined) return null;
+    return {
+        keepalive: {
+            activo: d.herramienta === "keepalive",
+            ...(d.modo === "pantalla" || d.modo === "sistema" ? { modo: d.modo } : {}),
+        },
+    };
 }
