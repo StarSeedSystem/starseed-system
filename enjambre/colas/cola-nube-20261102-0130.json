@@ -1,0 +1,46 @@
+{
+ "ola": "nube-20261102",
+ "tareas": [
+  {
+   "id": "CVV1028H",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Contenido vivo · panel con los tres niveles y la comparación local frente a externo",
+   "archivos": [
+    "src/components/contenido-vivo/panel-contenido-vivo.tsx",
+    "src/components/contenido-vivo/__tests__/panel-contenido-vivo.test.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nPanel con el ADN StarSeed (tokens, centrado y adaptable a móvil): tres tarjetas (3D vivo, película e imágenes, gráficos vivos) con interruptor por nivel; por cada tarea, la tabla de `compararRutas` (ruta, local o externo, créditos, por qué) con la elegida marcada y un selector para cambiarla; para un externo no conectado, botón «Conectar» con su enlace; la cotización total y un botón «Generar» que, si hay créditos, abre una confirmación con el total y no hace nada sin el «sí» (llama a un `onConfirmar` que recibe por props). Pruebas: con Spline sin conectar sale «Conectar»; con créditos sale la confirmación con el total.",
+   "revisor_quitadas": [
+    "CVV1028Bb"
+   ],
+   "dependencias_ya_en_main": [
+    "CVV1028C"
+   ]
+  },
+  {
+   "id": "CVV1028F",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Protomolécula · átomo «contenido vivo» (publicación viva de tres niveles)",
+   "archivos": [
+    "src/lib/protomolecula/atomos/contenido-vivo.ts",
+    "src/lib/protomolecula/atomos/index.ts",
+    "src/lib/protomolecula/atomos/__tests__/contenido-vivo.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nMira cómo están hechos `escena3d.ts` y `video-html.ts` y su registro en `index.ts`, y escribe el átomo `contenido-vivo` igual: entrada {publicacion, niveles: NivelVivo[], tareas por nivel}, plan con las rutas elegidas por `elegirRuta` (CVV1028B) para cada tarea, cotización total en créditos por servicio y `necesitaConfirmar: true` si hay créditos. No ejecuta nada externo: deja el plan para que la interfaz pida el «sí». Pruebas: un plan solo-local no pide confirmación; uno con Higgsfield la pide y suma los créditos.",
+   "revisor_quitadas": [
+    "CVV1028Bb"
+   ],
+   "dependencias_ya_en_main": [
+    "CVV1028A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "CVV1028F",
+   "CVV1028H"
+  ]
+ }
+}
