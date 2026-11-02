@@ -10,7 +10,7 @@ import {
   plataformaInsomne,
   type MedioAnuncio,
 } from "@/components/cerebro/insomne-ficha";
-import { capacidadInsomne, debeSoltarTrabajo } from "@/lib/neurons/insomne";
+import { capacidadInsomne, debeSoltarTrabajo, politicaInsomne } from "@/lib/neurons/insomne";
 
 describe("capacidadInsomne · ficha", () => {
   it("un servidor no depende de la plataforma que declare", () => {
@@ -34,6 +34,13 @@ describe("capacidadInsomne · ficha", () => {
  * ficha es `estadoDePresencia` (anuncio de la presencia) + `debeSoltarTrabajo`.
  */
 const AHORA = 1_000_000;
+
+  it("aplica la política parcial sin apagar lo demás", () => {
+    const p = politicaInsomne({ agentes: false });
+    expect(p.agentes).toBe(false);
+    expect(p.malla).toBe(true);
+    expect(p.biblioteca).toBe(true);
+  });
 
 describe("plataformaInsomne · rescate BLD1025B-d3", () => {
   it("traduce Android de la neurona a la plataforma del contrato", () => {
