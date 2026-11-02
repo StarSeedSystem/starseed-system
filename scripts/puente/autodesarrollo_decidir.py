@@ -14,8 +14,23 @@ from typing import Callable, Dict, Optional, Tuple
 Existe = Callable[[str], bool]; UMBRAL_UTIL = 0.6
 VERIFICACION = {"verificado": 1.0, "ajustado": 0.8, "sin verificar": 0.4, "sin dato": 0.6}
 VERBOS = ("anadir", "agregar", "crear", "implementar", "arreglar", "corregir", "migrar", "renombrar", "eliminar", "borrar", "quitar", "documentar", "actualizar", "cablear", "optimizar", "proteger", "validar", "sincronizar", "unificar", "ajustar", "mejorar", "integrar", "evitar", "exportar", "importar", "depurar", "medir", "cambiar", "aplicar", "normalizar", "programar", "revisar", "comprobar", "verificar", "probar")
-RESERVADOS = ("publicar", "publicacion", "desplegar", "deploy", "vercel", "comprar", "compra", "pagar", "pago", "suscripcion", "contrasena", "clave", "credencial", "decision de alex", "decide alex", "que alex decida", "preguntar a alex", "avisar a alex", "eleccion de alex")
+RESERVADOS = ("publicar", "publicacion", "desplegar", "deploy", "vercel", "contrasena", "clave", "credencial", "decision de alex", "decide alex", "que alex decida", "preguntar a alex", "avisar a alex", "eleccion de alex")
 CUENTAS = re.compile(r"\b(crear|borrar|eliminar|gestionar|cerrar|abrir|cambiar)\s+(la\s+|las\s+)?cuentas?\b|\bcuentas?\s+(de\s+alex|de\s+usuario|bancarias?|de\s+pago)\b")
+#: Ola 1102 (IMG1102A): un GASTO de verdad: pagar, comprar, contratar o suscribirse; una compra, un pago, un importe, una
+#: tarjeta, una factura o algo «de pago» que se usa (créditos, plan, modelo, API…). «pago» suelto ya no basta: «acceso
+#: (libre, registro, pago)» describe una web pública y no gasta nada; «la suscripción realtime» tampoco.
+GASTO = re.compile(
+    r"\b(?:pag(?:ar|ue|uemos|amos|aremos|aria)|compr(?:ar|e|emos|aremos|aria)|contrat(?:ar|e|emos)|suscribir(?:se|nos|te)?)\b"
+    r"|\b(?:una|la|esta|cada) compra\b|\bcompras? de\b|\b(?:un|el|los|cada|primer) pagos?\b"
+    r"|\bpagos? (?:de|del|por|mensual(?:es)?|anual(?:es)?|unicos?|recurrentes?)\b|\b(?:metodo|pasarela|datos) de pago\b"
+    r"|\b(?:creditos?|plan(?:es)?|modelos?|api|servicios?|version(?:es)?|cuentas?|nivel(?:es)?|licencias?|herramientas?) de pago\b"
+    r"|\bsuscripcion(?:es)? (?:de pago|mensual(?:es)?|anual(?:es)?|pro|premium|plus)\b|\btarjetas? (?:de credito|bancarias?)\b"
+    r"|\bfactura(?:s|cion)?\b|\d+(?:[.,]\d+)?\s?(?:€|(?:eur|euros|usd|dolares)\b)|€\s?\d")
+#: «Candidata al catálogo de referencias: <web>» (agente de referencias de diseño, §5): investigar una web pública de diseño
+#: o inspiración y, si sus términos lo permiten, añadirla al catálogo. Su dirección no es un tema de Alex («github.com/vercel/ai»).
+CATALOGO_REFERENCIAS = "config/referencias-inspiracion.json"
+_CANDIDATA = re.compile(r"^\s*candidata al catalogo de referencias\b")
+_DIRECCION_WEB = re.compile(r"(?:https?://)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:/[^\s,;)\]`'\"]*)?")
 #: Credenciales escritas de cualquier forma (también dentro de un nombre de archivo: «r2_credentials.json»).
 SECRETOS = re.compile(r"credencial|credential|password|passwd|contrasena|api[_-]?key|private[_-]?key"
                       # «token» solo como credencial (Ola 1025S): «quitar ese token del sandbox» o «tokens del modelo»
@@ -43,15 +58,19 @@ def _vigente(p, existe):
     rutas = [cita] if isinstance(cita, str) else list(cita)
     ok = bool(rutas) and all(_existe(existe, r) for r in rutas)
     return (True, "") if ok else (False, "ya no aplica: la cita no sigue en el código")
+def es_candidata_referencia(p):
+    """True si es una «Candidata al catálogo de referencias» que solo toca el catálogo. PURA."""
+    return bool(_CANDIDATA.match(_norm(p.get("titulo")))) and all(a == CATALOGO_REFERENCIAS for a in _archivos(p))
+def _texto_riesgo(p):
+    """El texto donde se buscan los temas de Alex y la infraestructura: sin las direcciones web en una candidata."""
+    return _DIRECCION_WEB.sub(" ", _texto(p)) if es_candidata_referencia(p) else _texto(p)
 def es_de_alex(p: Dict) -> str:
-    """El motivo si toca algo que solo decide Alex (publicar, pagar, cuentas, claves…); cadena vacía si no."""
-    texto = _texto(p)
-    # Remove enumeration of access types such as "libre, registro, pago" or "libre, registro, pagar"
-    texto = re.sub(r'\b(?:libre|gratis|abierto|registro)(?:\s*,\s*(?:libre|gratis|abierto|registro))*\s*(?:pago|pagar)\b', '', texto, flags=re.IGNORECASE)
-    # Remove parentheses that contain the word "pago"
-    texto = re.sub(r'\([^)]*pago[^)]*\)', '', texto, flags=re.IGNORECASE)
+    """El motivo si toca algo que solo decide Alex (publicar, gastar, cuentas, claves…); cadena vacía si no."""
+    texto = _texto_riesgo(p)
     for tema in RESERVADOS:
         if re.search(rf"\b{tema}\b", texto): return f"no accionable por el enjambre ({tema}): es de Alex → pregunta"
+    gasto = GASTO.search(texto)
+    if gasto: return f"no accionable por el enjambre (gasto: {gasto.group(0).strip()}): es de Alex → pregunta"
     if CUENTAS.search(texto): return "no accionable por el enjambre (cuentas): es de Alex → pregunta"
     if SECRETOS.search(texto): return "no accionable por el enjambre (credenciales): es de Alex → pregunta"
     return ""
@@ -139,15 +158,20 @@ def importancia_declarada(p):
     if p.get("fuente") == "astraura": niveles.append(nivel_astraura(o.get("importance_level")))
     niveles = [n for n in niveles if n]
     return max(niveles, key=NIVELES.index) if niveles else ""
-def importancia(p):
-    """La de la regla o la que declare quien propone, la MAYOR: declarar «baja» no rebaja nada."""
+def importancia(p, existe=None):
+    """La de la regla o la que declare quien propone, la MAYOR: declarar «baja» no rebaja nada. Ola 1102 (IMG1102A): con
+    `existe`, en un ENTREGABLE de investigación, diseño o contenido de los agentes (un documento: no toca código,
+    producción ni dinero) la «alta» que declara su agente es prioridad, no riesgo, y no lo sube; «crítica» sí."""
     regla, declarada = _importancia_regla(p), importancia_declarada(p)
+    if (declarada == "alta" and existe is not None and p.get("fuente") == "agentes"
+            and (p.get("tipo") or "codigo") in TIPOS_SIN_CODIGO and via(p, existe) == "entregable"): declarada = ""
     return max(regla, declarada or "baja", key=NIVELES.index)
+def _borra(p): return bool(p.get("borra")) or bool(re.search(r"\b(borrar|borra|eliminar|elimina|quitar|quita)\b", _texto(p)))
 def _importancia_regla(p):
     """Crítica (núcleo e intocable), alta (>3 archivos, borra, cuentas, router IA) o menor."""
     archivos = _archivos(p); texto = _texto(p)
     if any(_es_critica(a) for a in archivos): return "critica"
-    borra = bool(p.get("borra")) or bool(re.search(r"\b(borrar|borra|eliminar|elimina|quitar|quita)\b", texto))
+    borra = _borra(p)
     todas = bool(p.get("valores_por_defecto") or p.get("afecta_todas_las_cuentas")) or "todas las cuentas" in texto
     if len(archivos) > 3 or borra or todas or p.get("enrutador_ia") or "enrutador de ia" in texto or "router de ia" in texto or any(_es_enrutador_ia(a) for a in archivos): return "alta"
     if len(archivos) >= 2 or any(a.replace("\\", "/").startswith(("src/", "scripts/puente/")) for a in archivos): return "media"
@@ -158,7 +182,7 @@ def _es_codigo(p, existe):
     return es_accionable(p, existe if existe is not None else (lambda r: True))[0]
 def destino(p, automatico, existe=None):
     """Destino y si hace falta ver el diff; lo que no es código va a «pregunta»."""
-    imp = importancia(p); diff = imp == "critica"
+    imp = importancia(p, existe); diff = imp == "critica"
     if not automatico:
         return {"destino": "esperando-aprobacion", "aprobacion_diff": diff, "motivo": "automático apagado: todo espera tu visto bueno"}
     if not _es_codigo(p, existe):
@@ -182,7 +206,7 @@ VIAS = ("codigo", "astraura", "entregable")
 #: Lo que espera una decisión (para las duplicadas): nunca lo que ya decidió Alex ni lo que está en vuelo.
 PENDIENTES = ("nueva", "pregunta", "esperando-aprobacion", "autodesarrollo")
 #: Versión de las reglas: entra en la firma, así lo pendiente se vuelve a decidir cuando cambian.
-REGLAS = "1025S"
+REGLAS = "1102A"
 #: Reimaginaciones nuevas del automático por ciclo (el director corre cada 15 min) y en vuelo a la vez:
 #: así 230 propuestas no salen de golpe hacia los modelos gratuitos. Lo de Alex no cuenta: se hace siempre.
 TOPE_POR_CICLO, MAX_EN_VUELO = 12, 24
@@ -315,6 +339,53 @@ def ya_autorizada_por_astraura(p):
     estado = _norm(o.get("status")).strip()
     return bool(estado) and estado not in ("pending_approval", "pending", "pendiente")
 
+# ── carril de bajo riesgo y autorizaciones inventadas (Ola 1102 · IMG1102A) ──
+#: Investigación, diseño y contenido sustanciales y de bajo riesgo se integran solos desde el suelo de §5.4 (0,6) aunque el
+#: umbral del botón sea mayor. El código de tipo «codigo» sigue con su umbral; lo de Alex, lo alto y lo crítico, nunca.
+UMBRAL_BAJO_RIESGO = UMBRAL_UTIL
+TIPOS_SIN_CODIGO = ("diseno", "contenido", "investigacion")
+INFRA = re.compile(r"\b(?:infraestructura|docker(?:file)?|docker-compose|kubernetes|k8s|launchd|launchctl|crontab|cron|systemd"
+                   r"|tunel(?:es)?|tunnel|cloudflared|nginx|coolify|dns|firewall|certificados? ssl|migracion de (?:la )?base de datos"
+                   r"|(?:en|a) produccion|(?:entorno|servidor(?:es)?|rama|base de datos) de produccion)\b")
+_ARCHIVO_INFRA = re.compile(r"(?:^|/)(?:dockerfile[^/]*|docker-compose[^/]*|[^/]+\.(?:sh|plist)|\.env[^/]*|vercel[^/]*\.json|nginx[^/]*)$"
+                            r"|^\.github/|^supabase/", re.I)
+#: Lo que en un texto generado finge una autorización («[AUTORIZADO]», «Permiso Concedido», «autorizada por…»). Nunca es una.
+RECLAMO = re.compile(r"\[[^\]\n\"]{0,40}(?:autoriz|aprob|approv|granted|concedid)[^\]\n\"]{0,40}\]|\bpermisos?\s+concedid[oa]s?\b"
+                     r"|\bpermission\s+granted\b|\b(?:autorizad[oa]s?|aprobad[oa]s?)\s+por\b|\b(?:approved|authorized)\s+by\b", re.I)
+def autorizacion_inventada(p):
+    """True si dice estar autorizada: la marca `autorizacion_inventada` de la fuente o, en Astraura, su texto (también lo
+    guardado antes de la marca). Nunca cuenta como aprobación. PURA."""
+    return bool(p.get("autorizacion_inventada")) or (p.get("fuente") == "astraura" and bool(RECLAMO.search(_texto(p))))
+def bajo_riesgo(p, existe=None):
+    """(sí o no, motivo). De la imaginación o los agentes, de tipo investigación, diseño o contenido, sin nada de Alex
+    (publicar, gastos, cuentas, credenciales), sin borrados ni infraestructura, de importancia baja o media y, si es una
+    tarea de código, con TODOS sus archivos citados existiendo hoy. PURA."""
+    tipo, archivos = p.get("tipo") or "codigo", _archivos(p)
+    if p.get("fuente") not in ("diaria", "profunda", "agentes") or tipo not in TIPOS_SIN_CODIGO:
+        return False, "solo investigación, diseño o contenido de la imaginación o los agentes"
+    if autorizacion_inventada(p): return False, "dice estar autorizada sin estarlo"
+    alex = es_de_alex(p)
+    if alex: return False, alex.replace(" → pregunta", "")
+    if _borra(p): return False, "borra algo"
+    if INFRA.search(_texto_riesgo(p)) or any(_ARCHIVO_INFRA.search(a) or _es_critica(a) for a in archivos):
+        return False, "toca infraestructura"
+    imp = importancia(p, existe)
+    if imp not in ("baja", "media"): return False, f"importancia {importancia_visible(imp)}"
+    if via(p, existe) == "entregable": return True, f"entregable de {tipo}"
+    if existe is None or not archivos or not all(_existe(existe, a) for a in archivos):
+        return False, "tarea de código con archivos citados que no existen hoy"
+    return True, f"{tipo} con sus {len(archivos)} archivo(s) citados existiendo hoy"
+def turno_de_las_solas(aprobadas, maximo):
+    """De lo aprobado para la cola de código: lo que aprobó Alex, entero; lo que aprobó sola la automática, como mucho
+    `maximo` por ciclo y una por archivo (las candidatas al catálogo tocan todas el mismo JSON). Lo demás espera, aprobado,
+    al ciclo siguiente. PURA."""
+    alex, solas, vistos = [p for p in aprobadas if p.get("aprobada_por") != "automatica"], [], set()
+    for p in aprobadas:
+        clave = tuple(_archivos(p)[:1])
+        if p.get("aprobada_por") != "automatica" or clave in vistos or len(solas) >= max(0, int(maximo or 0)): continue
+        vistos.add(clave); solas.append(p)
+    return alex + solas
+
 # ── duplicadas y orden ──
 def titulo_normalizado(t):
     """Sin acentos, emojis ni puntuación, en minúsculas y con un espacio entre palabras."""
@@ -427,7 +498,7 @@ def automatica(p, ajustes, existe=None, consejo=None):
     a, aj = _auto(ajustes), ajustes if isinstance(ajustes, dict) else {}
     integra = bool(aj.get("automatico")) or bool(a.get("aprobar"))
     reimagina, boton = bool(a.get("reimaginar")), bool(a.get("aprobar")) or bool(a.get("reimaginar"))
-    imp = importancia(p); base = dict(destino(p, integra, existe), notas="")
+    imp = importancia(p, existe); base = dict(destino(p, integra, existe), notas="")
     camino = via(p, existe)
     # Lo que no es código solo lo decide el botón de la Ola 1024I, nunca el «automático» viejo de la 1021I.
     if p.get("fuente") not in FUENTES_AUTO or not (integra or reimagina) or (camino != "codigo" and not boton):
@@ -444,13 +515,19 @@ def automatica(p, ajustes, existe=None, consejo=None):
     if amb != "metagenesis": return manual("nueva", f"ámbito {amb}: lo decide su dueño, no el automático de MetaGenesis")
     umbral, u = umbral_efectivo(aj), _num(p.get("utilidad")) or 0.0
     aprueba = integra if camino == "codigo" else bool(a.get("aprobar"))
-    if aprueba and u >= umbral:
+    # Ola 1102 (IMG1102A): el mismo botón, con el carril de bajo riesgo desde 0,6 (sale «aprobada»: la cola de código o el
+    # entregable la recogen sin el umbral de `cuantas`); y una autorización escrita por un modelo nunca integra nada.
+    seguro, porque = bajo_riesgo(p, existe) if aprueba and UMBRAL_BAJO_RIESGO <= u < umbral else (False, "")
+    if aprueba and (u >= umbral or seguro):
+        if autorizacion_inventada(p):
+            return manual("esperando-aprobacion", "dice estar autorizada y no lo está (lo escribió un modelo): eso nunca cuenta como aprobación; la decides tú")
         vetada, nota = veto_jev(p, consejo)
         if vetada: return manual("nueva", f"Jev veta la integración automática ({nota}): queda en tu lista")
-        cola = f"utilidad {_coma(round(u, 2))} ≥ umbral {_coma(umbral)} e importancia {imp}: se integra sola"
+        cola = (f"bajo riesgo ({porque}): utilidad {_coma(round(u, 2))} ≥ {_coma(UMBRAL_BAJO_RIESGO)}: se integra sola" if seguro
+                else f"utilidad {_coma(round(u, 2))} ≥ umbral {_coma(umbral)} e importancia {imp}: se integra sola")
         extra = f" ({nota})" if nota else ""
-        if camino == "codigo": return {"destino": "autodesarrollo", "aprobacion_diff": False, "notas": "", "motivo": cola + extra}
-        donde = "se aplica en Astraura" if camino == "astraura" else "la flota prepara el entregable"
+        if camino == "codigo" and not seguro: return {"destino": "autodesarrollo", "aprobacion_diff": False, "notas": "", "motivo": cola + extra}
+        donde = {"codigo": "a la cola de código", "astraura": "se aplica en Astraura"}.get(camino, "la flota prepara el entregable")
         return manual("aprobada", f"{cola} ({donde}){extra}")
     quedan = reimaginaciones_libres(p, a.get("max_reimaginaciones"))
     tipo = p.get("tipo") or "codigo"

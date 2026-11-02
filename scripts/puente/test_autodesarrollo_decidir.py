@@ -372,7 +372,9 @@ class Ola1025STest(unittest.TestCase):
         self.assertEqual(floja["destino"], "nueva"); self.assertIn("Astraura", floja["motivo"])
 
     def test_alta_critica_y_lo_de_alex_nunca_solas(self):
-        importantes = [astraura(nivel="critical_security"), astraura(nivel="high"), libre(importancia_declarada="alta"),
+        # Ola 1102: en un entregable de investigación, diseño o contenido la «alta» declarada es prioridad
+        # (Ola1102ATest.test_horizon_pulse_pasa_a_la_cola); en «otro» sigue siendo de Alex.
+        importantes = [astraura(nivel="critical_security"), astraura(nivel="high"), libre(importancia_declarada="alta", tipo="otro"),
                        libre("Una idea suelta.", importancia_declarada="critica")]
         jevs = [None, lambda p: {"p": 1.0, "prioridad": "subir"}, lambda p: 1 / 0]
         for p in importantes:
@@ -492,6 +494,106 @@ class TokenSoloComoCredencial(unittest.TestCase):
         for t in ("Rotar el token de acceso de GitHub", "Mover GITHUB_TOKEN al servidor", "Usar un API token nuevo",
                   "Cabecera Bearer en la sonda", "Guardar la clave en el entorno", "r2_credentials.local.json"):
             self.assertTrue(D.es_de_alex({"titulo": t, "cuerpo": ""}), t)
+
+
+# ─────────────── Ola 1102 · IMG1102A: el gasto de verdad, el carril de bajo riesgo y las autorizaciones inventadas ───────────────
+# Cuerpos y títulos sacados de starseed_memory_root/imaginacion/propuestas.json (medido el 01-11).
+CATALOGO = "config/referencias-inspiracion.json"
+CANDIDATA = ("Sitio citado en `memory/diseno/referencias.md` que aún no está en el catálogo de referencias de la Librería.\n\n"
+             "Antes de añadirlo a `config/referencias-inspiracion.json` hay que verificar (con fecha y sin inventar):\n"
+             "- sus términos (scraping, entrenar IA, uso comercial, atribución) y su `robots.txt`;\n"
+             "- sus canales oficiales (RSS, sitemap con lastmod, API, MCP, oEmbed) y su acceso (libre, registro, pago);\n"
+             "- su clase de uso (reutilizable, con condiciones, solo referencia o solo enlace) y su tema.\n\n"
+             "Hasta entonces solo se cita como enlace para abrirlo en el navegador.")
+HORIZON = ("**Qué**: Un conjunto de transiciones de entrada‑foco‑despliegue‑salida que sigue la regla de la línea de horizonte cruzando la Trinity sin intersectar el centro (relación 1:2). Cada panel cardinal entra desde el perímetro con proporción 1:1.618, usando un *radial accent* que cubre el 15 % del área y respeta la paleta **zenith** (#007FFF), **horizonte** (#10B981) y **lógica** (#FFBF00) sin mezclar colores.\n\n"
+           "**Patrón de referencia**: Se toma la estructura de los *timings* y *easing* de `transitions.dev` (clase “reutilizable‑con‑condiciones”). Se adapta el *easing* “ease‑out‑cubic” para la fase de foco y “ease‑in‑quad” para el despliegue, manteniendo la regla de *prefers‑reduced‑motion*.\n\n"
+           "**Cómo encaja en el ADN**:\n- No se usan controles en el centro ni sombras múltiples.\n- El movimiento se limita a 2‑D (no animar dimensiones).\n- Contraste ≥ 4.5:1 garantizado al aplicar la gradación de color sobre fondos oscuros.\n- Un solo foco visual por vista: la zona de foco se ilumina con el acento radial y desaparece al salir.\n\n"
+           "**Variaciones**:\n- *Sobria*: Duración 200 ms, easing suave, colores de acento con opacidad 0.6.\n- *Expresiva*: Duración 350 ms, acento al 100 % y ligera vibración de escala < 2 %.\n- *Experimental*: Añade un “trail” de partículas de 4 px (radio > 16 px) que siguen la trayectoria del panel, siempre bajo el límite de una dimensión.\n\n"
+           "**Verificación**:\n- Test A/B con métricas de tiempo‑to‑focus y tasa de abandono.\n- Auditoría de accesibilidad (WCAG 2.2) para contraste y movimiento.\n- Revisión de código con el linter de `transitions.dev` para asegurar cumplimiento de licencia (comentario “transitions.dev” preservado).")
+
+def con_catalogo(ruta):
+    return ruta in EXISTEN or ruta == CATALOGO
+
+def candidata(sitio="awwwards.com", **extra):
+    p = {"id": "agentes:referencias-diseno--" + sitio, "fuente": "agentes", "agente": "referencias-diseno", "tipo": "investigacion",
+         "titulo": "Candidata al catálogo de referencias: " + sitio, "cuerpo": CANDIDATA, "archivos": [CATALOGO],
+         "referencias": [{"titulo": sitio, "url": "https://" + sitio}], "verificacion": "sin dato", "version": 1,
+         "importancia_declarada": "baja", "origen": {"fecha": "2026-10-28"}}
+    p.update(extra)
+    p["utilidad"], p["motivo"] = D.utilidad_propuesta(p, con_catalogo)
+    return p
+
+
+class Ola1102ATest(unittest.TestCase):
+    def test_pago_solo_si_hay_un_gasto_de_verdad(self):
+        for t in ("Su acceso (libre, registro, pago)", "Web con acceso: pago", "Documentar qué webs son libres o de pago",
+                  "Arreglar la suscripción realtime del store", "Comparar planes gratuitos"):
+            self.assertEqual(D.es_de_alex({"titulo": t, "cuerpo": ""}), "", t)
+        for t in ("Pagar la suscripción de Figma", "Comprar créditos de OpenRouter", "Usar los créditos de pago de Higgsfield",
+                  "Suscripción mensual a Midjourney", "Cuesta 20 € al mes", "Añadir el método de pago al Café", "Hacer el pago del dominio"):
+            self.assertIn("gasto", D.es_de_alex({"titulo": t, "cuerpo": ""}), t)
+
+    def test_candidata_al_catalogo_pasa_a_la_cola(self):
+        for sitio in ("awwwards.com", "21st.dev", "godly.website", "github.com/vercel/ai"):
+            p = candidata(sitio)
+            self.assertEqual((D.es_de_alex(p), p["utilidad"]), ("", 0.6), sitio)
+            self.assertTrue(D.bajo_riesgo(p, con_catalogo)[0], sitio)
+            r = D.automatica(p, ajustes(), con_catalogo)  # el umbral de Alex es 0,75; la candidata vale 0,6
+            self.assertEqual(r["destino"], "aprobada", sitio); self.assertIn("bajo riesgo", r["motivo"])
+            self.assertIn("cola de código", r["motivo"])
+        self.assertEqual(D.automatica(candidata(), ajustes(automatico=False, aprobar=False), con_catalogo)["destino"], "esperando-aprobacion")
+        self.assertEqual(D.automatica(candidata(), ajustes(), con_catalogo, lambda q: {"p": 0.9, "veta": True})["destino"], "nueva")
+        cara = candidata(cuerpo=CANDIDATA + "\nPara verla entera hay que pagar la suscripción anual.")
+        self.assertEqual(D.automatica(cara, ajustes(), con_catalogo)["destino"], "pregunta")
+        # el código de tipo «codigo» sigue con el umbral de Alex: un 0,6 se reimagina, no se integra
+        self.assertEqual(D.automatica(candidata(tipo="codigo"), ajustes(), con_catalogo)["destino"], "reimaginando")
+        for no in (dict(candidata(), archivos=[CATALOGO, "src/no-existe.ts"]), candidata(cuerpo=CANDIDATA + "\nBorrar la entrada vieja."),
+                   candidata(cuerpo=CANDIDATA + "\nY subir el Dockerfile a producción."), candidata(archivos=["scripts/arranque.sh"])):
+            self.assertFalse(D.bajo_riesgo(no, con_catalogo)[0], no["archivos"])
+
+    def test_publicar_el_backlog_sigue_siendo_pregunta(self):
+        p = {"id": "diaria:publicar el backlog acumulado", "fuente": "diaria", "titulo": "Publicar el backlog acumulado",
+             "cuerpo": "75 commits en `main` sin push (HEAD `78686d139`, olas 1024I→1025R). Con el enjambre parado, pasar las tres "
+                       "puertas (`npx tsc --noEmit`, `npx vitest run`, `npx next build`) y push. Impacto 5 · esfuerzo 2.",
+             "archivos": [], "cita": "", "verificacion": "sin_verificar", "impacto": 5, "esfuerzo": 2, "origen": {"fecha": "2026-10-30"}}
+        p["utilidad"], p["motivo"] = D.utilidad_propuesta(p, con_catalogo)
+        for aj in (ajustes(), ajustes(umbral=0.6)):
+            r = D.automatica(p, aj, con_catalogo)
+            self.assertEqual(r["destino"], "pregunta"); self.assertIn("publicar", r["motivo"])
+        self.assertFalse(D.bajo_riesgo(dict(p, tipo="investigacion"), con_catalogo)[0])
+
+    def test_horizon_pulse_pasa_a_la_cola(self):
+        p = libre(HORIZON, tipo="diseno", id="agentes:referencias-diseno--agentes-referencias-diseno-2026-10-28-2-1",
+                  titulo="Patrón de transición “Horizon‑Pulse” inspirado en transitions.dev", agente="referencias-diseno",
+                  archivos=["src/components/TransitionManager.tsx", "src/styles/transition‑variables.css"],
+                  referencias=[{"titulo": "transitions.dev", "url": "https://transitions.dev"}], importancia_declarada="alta")
+        self.assertAlmostEqual(p["utilidad"], 0.8333, places=4)
+        self.assertEqual((D.via(p, existe), D.importancia(p), D.importancia(p, existe)), ("entregable", "alta", "media"))
+        r = D.automatica(p, ajustes(), existe)
+        self.assertEqual(r["destino"], "aprobada"); self.assertIn("entregable", r["motivo"])
+        for q in (dict(p, importancia_declarada="critica"), dict(p, tipo="otro")):  # crítica u «otro»: siempre tu visto bueno
+            self.assertEqual(D.automatica(q, ajustes(), existe)["destino"], "esperando-aprobacion", q["tipo"])
+        self.assertEqual(D.automatica(p, ajustes(aprobar=False), existe)["destino"], "esperando-aprobacion")  # el mismo botón
+
+    def test_autorizacion_inventada_nunca_cuenta_como_aprobacion(self):
+        p = astraura(autorizacion_inventada=True)  # medium y 0,9: sin la marca se aplicaría sola
+        self.assertEqual(D.automatica(astraura(), ajustes(), existe)["destino"], "aprobada")
+        r = D.automatica(p, ajustes(), existe)
+        self.assertEqual(r["destino"], "esperando-aprobacion"); self.assertIn("nunca cuenta como aprobación", r["motivo"])
+        vieja = astraura(titulo="⚡ [AUTORIZADO] ✅ Permiso Concedido: Mutación Sináptica Inter-Cerebros: Génesis ✕ Hephaestus")
+        self.assertTrue(D.autorizacion_inventada(vieja))  # lo guardado antes de la marca también
+        self.assertFalse(D.autorizacion_inventada(astraura(cuerpo="Bloquear el acceso no autorizado al panel")))
+        self.assertFalse(D.autorizacion_inventada(libre("Quitar las marcas [AUTORIZADO] de Astraura")))  # hablar de ello no es fingirlo
+        self.assertFalse(D.bajo_riesgo(dict(libre(), autorizacion_inventada=True), existe)[0])
+
+    def test_lo_que_aprueba_sola_entra_con_tope_y_una_por_archivo(self):
+        solas = [dict(candidata(s), aprobada_por="automatica") for s in ("awwwards.com", "21st.dev", "godly.website")]
+        otra = dict(decidida(id="P2", archivos=["src/lib/otro.ts"]), aprobada_por="automatica")
+        alex = [dict(decidida(id="P%d" % i), aprobada_por="alex") for i in range(3, 6)]
+        turno = D.turno_de_las_solas(alex + solas + [otra], 10)
+        self.assertEqual([p["id"] for p in turno], ["P3", "P4", "P5", solas[0]["id"], "P2"])  # lo de Alex, entero
+        self.assertEqual([p["id"] for p in D.turno_de_las_solas(solas + [otra], 1)], [solas[0]["id"]])
+        self.assertEqual(D.turno_de_las_solas(solas, -3), [])
 
 
 if __name__ == "__main__":
