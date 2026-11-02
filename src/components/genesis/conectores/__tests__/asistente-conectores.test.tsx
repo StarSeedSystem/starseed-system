@@ -108,6 +108,13 @@ describe("estadoCloudroom · honestidad de instalación y cupo (CRM1024F)", () =
     expect(estado.texto).toMatch(/No se ofrece como servidor aquí/);
   });
 
+  it("la neurona la tiene, pero sin la entrada del sugeridor no se ofrece nunca (rescate rama nube 41384258340)", () => {
+    const estado = estadoCloudroom({ instalacion: "instalada", sugerencias: VISTA.sugerencias });
+    expect(estado.sugerencia).toBeNull();
+    expect(estado.ofrecible).toBe(false);
+    expect(estado.texto).toContain("No se ofrece como servidor aquí");
+  });
+
   it("no se ofrece si la neurona no tiene la app, aunque el sugeridor la devuelva", () => {
     const estado = estadoCloudroom({ instalacion: "no-instalada", sugerencias: VISTA_CON_CLOUDROOM.sugerencias });
     expect(estado.sugerencia?.id).toBe("cloudroom");
@@ -151,6 +158,20 @@ describe("Cloudroom en la interfaz · tarjeta honesta donde ya se leía el catá
     expect(screen.getByTestId("cloudroom-instalacion")).toHaveTextContent("instalada en esta neurona");
     expect(screen.getByTestId("cloudroom-cupo")).toHaveTextContent("100 agente(s) en la nube · ritmo 3/día");
     expect(screen.getByRole("status")).toHaveTextContent(/Sugerida para los agentes de este ámbito/);
+  });
+
+  it("SeccionAsignacionesGenesis con la neurona compatible y Cloudroom relevante: tarjeta con instalación, cupo y enlace oficial (rescate rama nube 41384258340)", () => {
+    const HOY = 1_800_000_000_000;
+    render(<SeccionAsignacionesGenesis ambito="cuenta-demo" titulo="Asignaciones"
+      onGuardar={() => undefined} cloudroom={{ instalacion: "instalada", relevante: true,
+        plan: { tipo: "gratis" },
+        consumos: [{ contextoId: "personal", t: HOY - 86_400_000, n: 10 }],
+        inicioCiclo: HOY - 10 * 86_400_000, ahora: HOY, diasQueQuedan: 30 }} />);
+    // El sugeridor real (sugerirParaAmbito) devuelve cloudroom al declarar relevo+compatibilidad: la tarjeta es la esperada.
+    expect(screen.getByTestId("cloudroom-instalacion")).toHaveTextContent("instalada en esta neurona");
+    expect(screen.getByTestId("cloudroom-cupo")).toHaveTextContent("90 agente(s) en la nube · ritmo 3/día");
+    expect(screen.getByRole("status")).toHaveTextContent(/Sugerida para los agentes de este ámbito/);
+    expect(screen.getByRole("link", { name: "Abrir Cloudroom" })).toHaveAttribute("href", "https://cloudroom.dev");
   });
 
   it("aplicado · SeccionAsignacionesGenesis (la que montan mi Génesis y PoliGenesis) pinta la tarjeta con el estado que la página aporta", () => {

@@ -640,6 +640,17 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         expect(screen.getByTestId(id("desconectar-explica"))).toHaveTextContent("cuando acaben sus 2 tarea(s)");
     });
 
+    it("nodo que declara relevo y contenedor activo, con 2 tareas con punto: la tarjeta junta las dos líneas honestas (rescate rama nube 41384258340)", async () => {
+        estado.lectura = lectura([nodo({ relevo: true, contenedor: { activo: true, agentes: 2, apto: true, motivo: "" },
+            enCurso: [tarea("task-1", 5 * 60_000), tarea("task-2", 10 * 60_000)] })]);
+        pintar();
+        const info = await screen.findByTestId(id("info"));
+        expect(info).toHaveTextContent("2 agentes · contenedor activo");
+        expect(info).toHaveTextContent("2 tareas en curso · Último punto de control hace 5 min");
+        expect(info).not.toHaveTextContent("task-1");
+        expect(info).not.toHaveTextContent("task-2");
+    });
+
     // ── cuando un nodo declara el relevo activo (COL1012E/G/H cableadas): el camino del contrato ──────────
     it("con el relevo activo: Desconectar habilitado, con la explicación del contrato en title", async () => {
         estado.lectura = lectura([nodo({ relevo: true, enCurso: [tarea("task-1", 5 * 60_000)] })]);
