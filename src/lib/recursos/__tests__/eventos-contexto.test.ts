@@ -1,12 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { crearCanal } from "../eventos-contexto";
 
-function makeCanal() {
+function makeCanal(tiempoBase = Date.now()) {
   let llamadasEnviar: any[] = [];
   const enviar = (e: any) => { llamadasEnviar.push(e); };
-  const ahora = () => Date.now();
-  const canal = crearCanal({ nodoId: "nodo-test", enviar, ahora });
-  return { canal, llamadasEnviar, ahora, reset: () => { llamadasEnviar = []; } };
+  const ahora = () => tiempoBase;
+  const ahoraHibrido = () => tiempoBase + 2;
+  const canal = crearCanal({ nodoId: "nodo-test", enviar, ahora, ahoraHibrido });
+  return { canal, llamadasEnviar, ahora, ahoraHibrido, reset: () => { llamadasEnviar = []; } };
 }
 
 describe("eventos-contexto", () => {
@@ -18,23 +19,21 @@ describe("eventos-contexto", () => {
     expect(recibido?.tipo).toBe("alerta");
     expect(recibido?.cuerpo).toEqual({ mensaje: "test" });
     expect(recibido?.nodoId).toBe("nodo-test");
+    expect(recibido?.t).toBe(2);
     reset();
   });
 
 it("recibir con parametro sobre busca evento por ID", () => {
-    const { canal, reset, llamadasEnviar } = makeCanal();
-    // Emitir y capturar el ID generado
-    canal.emitir("buscado", { x: 1 });
-    const ultimo = llamadasEnviar[llamadasEnviar.length - 1];
-    // Recibir con ese ID debería encontrar el evento
-    const encontrado = canal.recibir(ultimo?.id);
-    // El evento debe ser recibido (no null) y tener el mismo ID
-    expect(encontrado).not.toBeNull();
-    if (encontrado && ultimo) {
-      expect(encontrado?.id).toBe(ultimo?.id);
-    }
-    reset();
-  });
+  const { canal, reset, llamadasEnviar } = makeCanal();
+  canal.emitir("buscado", { x: 1 });
+  const ultimo = llamadasEnviar[llamadasEnviar.length - 1];
+  const encontrado = canal.recibir(ultimo?.id);
+  expect(encontrado).not.toBeNull();
+  if (encontrado && ultimo) {
+    expect(encontrado?.id).toBe(ultimo?.id);
+  }
+  reset();
+});
 
   it("emite y recibe en orden causal", () => {
     const { canal, reset } = makeCanal();
@@ -92,6 +91,14 @@ it("recibir con parametro sobre busca evento por ID", () => {
     const recibido = canal.recibir();
     expect(recibido?.tipo).toBe("personalizado");
     expect(recibido?.cuerpo).toEqual({ valor: 42, nombre: "test" });
+    reset();
+  });
+
+  it("evento usa el reloj hibrido (con desfase)", () => {
+    const { canal, reset } = makeCanal(5000);
+    canal.emitir("conDesfase", { x: 1 });
+    const recibido = canal.recibir();
+    expect(recibido?.t).toBe(5002);
     reset();
   });
 });
