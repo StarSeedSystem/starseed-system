@@ -38,10 +38,10 @@ describe("prepararGeneracion", () => {
     expect(p.plan.pasos[0].motor?.id).toBe("pixal3d");
     expect(p.optimizacion).toMatchObject({ destino: "avatar", prioridad: "calidad", generador: { resolucion: 1024, pocaMemoria: false } });
   });
-  it("sin taller ni Space: «ninguna», y dice que el taller local no está instalado", () => {
+  it("sin taller ni Space: «ninguna», y dice que no hay permiso para el Space ni taller local", () => {
     const p = prepararGeneracion(ctx({ hierro: NV16, neuronas: [] }), deps());
     expect(p.via).toBe("ninguna");
-    expect(p.motivo).toMatch(/taller local .* no está instalado/);
+    expect(p.motivo).toMatch(/versiones públicas .* apagadas/i);
     expect(p.neurona).toMatch(/ninguna neurona viva/i);
   });
   it("sin hierro medido no promete generar en local", () => {
