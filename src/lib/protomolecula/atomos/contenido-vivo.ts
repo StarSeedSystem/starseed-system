@@ -71,7 +71,11 @@ export function planificarContenidoVivo(entrada: EntradaContenidoVivo): PlanCont
   const tareas: TareaPlanificada[] = [];
   const sinRuta: PlanContenidoVivo["sinRuta"] = [];
   const porServicio: Record<string, number> = {};
+  const niveles = new Set(entrada.niveles);
   for (const grupo of entrada.tareas) {
+    if (!niveles.has(grupo.nivel)) {
+      continue;
+    }
     for (const tarea of grupo.tareas) {
       const elegida = elegirRuta(tarea, entrada.contexto);
       if (!elegida) {
