@@ -98,6 +98,27 @@ const casos: Array<[string, Perfil | null, VozNeurona | null, AuroraVoiceEngine 
     null,
     "openvoice2",
   ],
+  [
+    "SGO1031B · cuenta elige browser: pin por defecto absoluto",
+    auto(),
+    null,
+    "browser",
+    "openvoice2",
+  ],
+  [
+    "SGO1031B · personalidad fija + cuenta elige vibevoice: personalidad manda sobre cuenta",
+    fija("omnivoice"),
+    null,
+    "vibevoice",
+    "omnivoice",
+  ],
+  [
+    "SGO1031B · neurona fija local, sin personalidad: pin local por defecto",
+    auto(),
+    { modo: "local" },
+    null,
+    "omnivoice",
+  ],
 ];
 
 describe("SGO1031A · el router decide el motor con el orden de la cadena que suena", () => {
