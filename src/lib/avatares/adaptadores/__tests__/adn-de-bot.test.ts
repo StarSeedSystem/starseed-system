@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   adnConEmocion,
   adnDeBot,
+  esFormaAvatar3d,
   expresionesDeEmocion,
   gestoConMovimiento,
   intensidadAuraConEmocion,
@@ -9,7 +10,7 @@ import {
   visemasDeTexto,
 } from "@/lib/avatares/adaptadores/adn-de-bot";
 import { adnPorDefecto } from "@/lib/avatares/adn/adn";
-import type { Bot, EstadoEmocional } from "@/lib/astraura-bots/tipos";
+import type { Bot, EstadoEmocional, FormaCuerpo } from "@/lib/astraura-bots/tipos";
 
 const botDe = (sobres: Partial<Bot> = {}): Bot => ({
   id: "bot-1",
@@ -26,6 +27,16 @@ const botDe = (sobres: Partial<Bot> = {}): Bot => ({
 
 const emo = (emocion: EstadoEmocional["emocion"], valencia: number, activacion: number): EstadoEmocional =>
   ({ emocion, valencia, activacion });
+
+describe("esFormaAvatar3d: solo un cuerpo 3D lleva avatar de malla", () => {
+  it("reconoce «avatar-3d» y «vrm» y descarta orbe, imagen, ser y robot", () => {
+    expect(esFormaAvatar3d("avatar-3d")).toBe(true);
+    expect(esFormaAvatar3d("vrm")).toBe(true);
+    for (const forma of ["orbe", "avatar-2d", "ser-genesis", "robot"] as FormaCuerpo[]) {
+      expect(esFormaAvatar3d(forma)).toBe(false);
+    }
+  });
+});
 
 describe("adnDeBot: la referencia manda y el ADN por defecto conserva la orbe", () => {
   it("con forma 3D y una referencia interna usa ese id y el dueño «bot»", () => {
@@ -59,6 +70,29 @@ describe("adnDeBot: la referencia manda y el ADN por defecto conserva la orbe", 
     const bot = botDe({ cuerpo: { forma: "orbe", tono: 300, escala: 1 } });
     expect(refAdnDeBot(bot)).toBeNull();
     expect(adnDeBot(bot).aura.tono).toBe(300);
+  });
+
+  it("una «orbe» con referencia interna tampoco la expone: la forma no es 3D", () => {
+    const bot = botDe({ cuerpo: { forma: "orbe", avatarRef: "biblioteca:adn-bot-1", tono: 300, escala: 1 } });
+    expect(refAdnDeBot(bot)).toBeNull();
+  });
+
+  it("un ADN guardado de otro id tampoco se cuela, aunque el dueño coincida", () => {
+    const otro = { ...adnPorDefecto("adn-otro", "Semilla", { tipo: "bot", id: "bot-1" }, 190), rev: 5 };
+    const adn = adnDeBot(botDe(), otro);
+    expect(adn.id).toBe("adn-bot-1");
+    expect(adn.rev).toBe(0);
+  });
+
+  it("el ADN guardado con una URL externa suelta se sanea: cae a orbe sin la URL", () => {
+    const podrido = {
+      ...adnPorDefecto("adn-bot-1", "Semilla", { tipo: "bot", id: "bot-1" }, 190),
+      base: { tipo: "vrm" as const, ref: "https://mal.example/x.vrm" },
+    };
+    const adn = adnDeBot(botDe(), podrido);
+    expect(JSON.stringify(adn)).not.toContain("https://mal.example");
+    expect(adn.base.tipo).toBe("orbe");
+    expect(adn.base.ref).toBeUndefined();
   });
 });
 
@@ -102,6 +136,38 @@ describe("emoción del bot → expresiones (happy/sad/angry/surprised/relaxed)",
     expect(adn.expresionBase.blink).toBe(0.2);
   });
 
+  it("adnConEmocion no muta el ADN original y conserva su revisión", () => {
+    const base = {
+      ...adnPorDefecto("adn-bot-1", "Semilla", { tipo: "bot", id: "bot-1" }, 190),
+      rev: 3,
+      expresionBase: { happy: 0.7, blink: 0.2, aa: 0.4 },
+    };
+    const antes = JSON.stringify(base);
+    const adn = adnConEmocion(base, emo("preocupacion", -0.7, 0.2));
+    expect(JSON.stringify(base)).toBe(antes);
+    expect(adn.rev).toBe(3);
+    expect(adn.expresionBase.sad).toBeGreaterThan(0);
+    expect(adn.expresionBase.happy).toBeUndefined();
+    expect(adn.expresionBase.blink).toBe(0.2);
+    expect(adn.expresionBase.aa).toBe(0.4);
+  });
+
+  it("con valencia o activación fuera de rango la intensidad y sus expresiones quedan entre 0 y 1", () => {
+    for (const estado of [
+      emo("alegria", 5, 5),
+      emo("preocupacion", -5, -5),
+      emo("asombro", Number.NaN, Number.POSITIVE_INFINITY),
+    ]) {
+      const r = expresionesDeEmocion(estado);
+      expect(r.intensidad).toBeGreaterThanOrEqual(0);
+      expect(r.intensidad).toBeLessThanOrEqual(1);
+      for (const v of Object.values(r.expresiones)) {
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
   it("el aura solo late con la emoción si está ligada a ella", () => {
     const ligada = { ...adnPorDefecto("a", "A", { tipo: "bot", id: "b" }), aura: { tono: 10, intensidad: 0.5, ligadaEmocion: true } };
     const suelta = { ...ligada, aura: { ...ligada.aura, ligadaEmocion: false } };
@@ -120,6 +186,13 @@ describe("visemas y gesto con el carácter del ADN", () => {
 
   it("sin texto no hay visemas", () => {
     expect(visemasDeTexto("")).toEqual([]);
+  });
+
+  it("cada palabra castellana se traduce vocal a vocal, en orden", () => {
+    expect(visemasDeTexto("hola")).toEqual(["oh", "aa"]);
+    expect(visemasDeTexto("miau")).toEqual(["ih", "aa", "ou"]);
+    expect(visemasDeTexto("e")).toEqual(["ee"]);
+    expect(visemasDeTexto("rrr")).toEqual([]);
   });
 
   it("el gesto respeta la energía y el ritmo del ADN del bot", () => {
