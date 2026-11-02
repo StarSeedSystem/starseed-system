@@ -142,8 +142,10 @@ export const HERRAMIENTA_CONTENIDO_VIVO: HerramientaContenidoVivo = {
   label: "Contenido vivo",
   descripcion:
     "3D vivo, película de scroll y gráficos que se mueven, eligiendo entre lo local y los servicios conectados",
+  defaultOn: true,
   systemPrompt:
-    "Cuando la persona quiera una pieza viva (un 3D, una película de scroll, fotos vivas o un gráfico que se mueva), usa la herramienta «Contenido vivo»: arma el plan de los tres niveles y pide a la Protomolécula el átomo contenido-vivo. La ruta local o externa la elige el átomo comparando coste, privacidad y calidad; no gastes créditos sin cotización y sin un sí.",
+    "Cuando la persona quiera una pieza viva (un 3D, una película de scroll, fotos vivas o un gráfico que se mueva), usa la herramienta «Contenido vivo»: arma el plan de los tres niveles y pide a la Protomolécula el átomo contenido-vivo. La ruta local o externa la elige el átomo comparando coste, privacidad y calidad; no gastes créditos sin cotización y sin un sí. " +
+    `Emite la directiva ${directivaAtomoContenidoVivo()} para abrirlo.`,
   routing: {},
   atomoId: ATOMO_CONTENIDO_VIVO,
 };

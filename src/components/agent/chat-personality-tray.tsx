@@ -41,6 +41,9 @@ import type { ChatConfig } from "@/components/aurora/chat-config-menu";
 import { ASTRAURA_158_PERSONAS, type Astraura158MultiMode } from "@/ai/providers/astraura-158";
 import { alternarTodasPersonalidades, todasPersonalidadesActivas, type SeleccionPersonalidades } from "@/lib/astraura/personalidades-todas";
 import {
+  ATOMO_CONTENIDO_VIVO,
+  HERRAMIENTA_CONTENIDO_VIVO,
+  HERRAMIENTAS_DEFAULTS_VERSION,
   alternarHerramienta,
   alternarTodasHerramientas,
   contarHerramientasActivas,
@@ -48,6 +51,7 @@ import {
   etiquetaEstadoConector,
   herramientaActiva,
   migrarSeleccionHabilidades,
+  peticionAtomoContenidoVivo,
   resumenPickerHerramientas,
   todasHerramientasActivas,
   type SeleccionHerramientas,
@@ -275,7 +279,11 @@ export function ChatPersonalityTray({
   const persistSkills = useCallback(
     (next: SeleccionHerramientas) => {
       setSkillsSel(next);
-      void patchChatConfig(convId, { skills: next });
+      const patch: Partial<ChatConfig> & ChatHerramientasConfigExtra = {
+        skills: next,
+        herramientasSkillsV: HERRAMIENTAS_DEFAULTS_VERSION,
+      };
+      void patchChatConfig(convId, patch);
     },
     [convId],
   );
@@ -302,6 +310,16 @@ export function ChatPersonalityTray({
     () => persistConnections(alternarTodasHerramientas(connectionsSel, todasConexionesIds)),
     [connectionsSel, todasConexionesIds, persistConnections],
   );
+
+  const abrirContenidoVivo = useCallback(async () => {
+    const peticion = peticionAtomoContenidoVivo(HERRAMIENTA_CONTENIDO_VIVO.label);
+    const { manejarAccionProtomolecula } = await import("@/lib/protomolecula/accion-agente");
+    const r = manejarAccionProtomolecula({ ...peticion }, {
+      abrirRuta: (ruta) => { window.location.assign(ruta); },
+    });
+    if (r.status) toast.info(r.status);
+    if (!r.ok) toast.info(r.message);
+  }, []);
 
   const habilidadesActivasCount = contarHerramientasActivas(skillsSel, TODAS_HABILIDADES_IDS);
   const todasHabilidadesOn = todasHerramientasActivas(skillsSel, TODAS_HABILIDADES_IDS);
@@ -496,23 +514,36 @@ export function ChatPersonalityTray({
                       const activa = herramientaActiva(skillsSel, c.id);
                       const instalada = globalActiveSkillIds.has(c.id);
                       const hint = activa && !instalada ? " · aún sin instalar en tu cuenta" : "";
+                      const viva = c.id === ATOMO_CONTENIDO_VIVO;
                       return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => toggleSkillId(c.id)}
-                          aria-pressed={activa}
-                          aria-label={`${activa ? "Desactivar" : "Activar"} habilidad ${c.label}`}
-                          title={`${c.label}${hint}`}
-                          className={cn(
-                            "cursor-pointer rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
-                            activa
-                              ? "border-white/20 bg-white/10 text-white/90"
-                              : "border-white/10 bg-transparent text-white/35 hover:border-white/20 hover:text-white/60",
+                        <span key={c.id} className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => toggleSkillId(c.id)}
+                            aria-pressed={activa}
+                            aria-label={`${activa ? "Desactivar" : "Activar"} habilidad ${c.label}`}
+                            title={viva ? HERRAMIENTA_CONTENIDO_VIVO.descripcion : `${c.label}${hint}`}
+                            className={cn(
+                              "cursor-pointer rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
+                              activa
+                                ? "border-white/20 bg-white/10 text-white/90"
+                                : "border-white/10 bg-transparent text-white/35 hover:border-white/20 hover:text-white/60",
+                            )}
+                          >
+                            {c.label}
+                          </button>
+                          {viva && activa && (
+                            <button
+                              type="button"
+                              onClick={() => void abrirContenidoVivo()}
+                              aria-label={`Abrir ${c.label} en la Protomolécula`}
+                              title={HERRAMIENTA_CONTENIDO_VIVO.descripcion}
+                              className="cursor-pointer rounded-full border border-fuchsia-400/30 bg-fuchsia-500/10 px-1.5 py-0.5 text-[9.5px] font-medium text-fuchsia-100 transition-colors hover:border-fuchsia-400/50"
+                            >
+                              Abrir
+                            </button>
                           )}
-                        >
-                          {c.label}
-                        </button>
+                        </span>
                       );
                     })}
                     {!habilidadesFiltradas.length && (

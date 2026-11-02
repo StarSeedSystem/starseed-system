@@ -26,7 +26,9 @@ describe("herramienta Contenido vivo", () => {
       "3D vivo, película de scroll y gráficos que se mueven, eligiendo entre lo local y los servicios conectados",
     );
     expect(HERRAMIENTA_CONTENIDO_VIVO.atomoId).toBe("contenido-vivo");
+    expect(HERRAMIENTA_CONTENIDO_VIVO.defaultOn).toBe(true);
     expect(HERRAMIENTA_CONTENIDO_VIVO.systemPrompt).toContain("contenido-vivo");
+    expect(HERRAMIENTA_CONTENIDO_VIVO.systemPrompt).toContain(directivaAtomoContenidoVivo());
   });
 
   it("viaja en el catálogo que suma al picker", () => {
