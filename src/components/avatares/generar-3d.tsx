@@ -17,6 +17,7 @@ import { encargoDeCierre, espaciosComoDependencia } from "@/lib/avatares/adaptad
 import { hierroDeCapacidades, type NeuronaTaller } from "@/lib/avatares/adaptadores/reparto-taller";
 import { useGenerar3d, type Contexto3D, type Dependencias3D } from "@/lib/avatares/adaptadores/use-generar-3d";
 import { leerEstadoAutonomo } from "@/lib/metagenesis/remoto-nodos-cliente";
+import { permiteEspacioHf, resolverPermisoEspaciosGuardado } from "@/lib/espacios/permiso-espacios";
 import { uploadFile } from "@/lib/files/os-files";
 import { saveResource, useSavedLibrary } from "@/lib/library-store";
 
@@ -72,11 +73,14 @@ export function Generar3D({ destino, contexto, dependencias, etiqueta = "Crear e
   const [neuronasLeidas, setNeuronasLeidas] = useState(contexto?.neuronas !== undefined);
   const leoNeuronas = useMemo(() => leerNeuronas ?? neuronasDelRegistro, [leerNeuronas]);
   const imagenes = useSavedLibrary().items.filter((r) => r.kind === "image" && r.url);
+  // El permiso de «versiones públicas» vive en las preferencias de la cuenta (ESP1011B).
+  const versionesPublicas = useMemo(() => permiteEspacioHf(resolverPermisoEspaciosGuardado(false)), []);
   const c = useMemo<Contexto3D>(() => ({
     destino, region: null, comercial: false, cuenta: null, neuronas,
+    permiteEspacioHf: versionesPublicas,
     hierro: typeof navigator === "undefined" ? null : hierroDeCapacidades({ platform: navigator.platform, memoryGb: (navigator as Navigator & { deviceMemory?: number }).deviceMemory }),
     ...contexto,
-  }), [destino, contexto, neuronas]);
+  }), [destino, contexto, neuronas, versionesPublicas]);
   const deps = useMemo(() => dependencias ?? dependenciasDelOs(), [dependencias]);
   const { preparado: p, estado, generar, reiniciar } = useGenerar3d(c, deps);
   // Al abrir el diálogo se lee el registro de neuronas de MetaGenesis (una vez, no en cada latido).

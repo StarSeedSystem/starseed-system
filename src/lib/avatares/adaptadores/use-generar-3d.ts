@@ -28,6 +28,8 @@ export interface Contexto3D {
   /** Neuronas del registro de MetaGenesis; null = aquí no se leyó (no se dice que no haya ninguna). */
   neuronas: readonly NeuronaTaller[] | null;
   esqueleto?: Esqueleto;
+  /** Permiso de la cuenta para las versiones públicas: manda sobre `hierro.permiteEspacioHf` cuando se indica. */
+  permiteEspacioHf?: boolean;
 }
 export type ResultadoTaller =
   | { ok: true; glb: Blob; lods: number[]; procedencia: Procedencia[] }
@@ -58,15 +60,20 @@ export function prepararGeneracion(c: Contexto3D, deps: Pick<Dependencias3D, "ta
   const caps = [...(c.hierro ? capacidadesDe({ ...c.hierro, permiteEspacioHf: false, claveExterna: false }) : (["cpu"] as const)), "navegador" as const];
   const base = { partida: "imagen" as const, esqueleto, region: c.region, comercial: c.comercial, permitirDePago: false, prioridad: optimizacion.prioridad, cerrada: optimizacion.cerrada };
   const local = planificar({ ...base, capacidades: caps }), ml = motorGenerar(local);
+  const permiteEspacio = c.permiteEspacioHf ?? c.hierro?.permiteEspacioHf === true;
   // Sin taller no corre un generador local: el plan remoto genera solo con lo remoto (si no, lo local va primero y tapa al Space).
-  const remoto = planificar({ ...base, capacidades: [...caps, "espacio-hf"] }, ml && !deps.taller ? MOTORES_3D.filter((m) => m.etapa !== "generar" || m.remoto) : MOTORES_3D), mr = motorGenerar(remoto);
+  const capacidadesRemoto = [...caps, ...(permiteEspacio ? ["espacio-hf" as const] : [])];
+  const remoto = planificar({ ...base, capacidades: capacidadesRemoto }, ml && !deps.taller ? MOTORES_3D.filter((m) => m.etapa !== "generar" || m.remoto) : MOTORES_3D), mr = motorGenerar(remoto);
   // A las demás se les pregunta por GENERAR (sin esqueleto): animar ocurre en el navegador de quien mira, y el reparto planifica sin «navegador».
   const neurona = c.neuronas ? `Para generar la malla: ${elegirNeurona({ destino: c.destino, partida: "imagen", esqueleto: "ninguno", region: c.region, comercial: c.comercial, cuenta: c.cuenta, grupos: c.grupos }, c.neuronas).motivo}`
     : "Qué otra neurona podría generarla: aquí no se leyó el registro de neuronas de MetaGenesis, así que no se puede decir.";
   if (ml && deps.taller) return { optimizacion, plan: local, via: "local", motivo: `Se genera en esta neurona con ${ml.nombre}.`, neurona };
   const porQue = ml ? `Esta neurona podría generar con ${ml.nombre}, pero su taller local (servicios/taller-3d) aún no está instalado aquí.` : "Esta neurona no puede generar en local (ver los motivos de la etapa «generar»).";
-  if (mr?.remoto && deps.espacio) return { optimizacion, plan: remoto, via: "remota", motivo: `${porQue} Solo queda ${mr.nombre}: tu imagen saldría de este aparato.`, neurona };
-  return { optimizacion, plan: local, via: "ninguna", motivo: `${porQue} Tampoco hay respaldo remoto disponible.`, neurona };
+  if (mr?.remoto && deps.espacio && permiteEspacio) return { optimizacion, plan: remoto, via: "remota", motivo: `${porQue} Solo queda ${mr.nombre}: tu imagen saldría de este aparato.`, neurona };
+  const sinRespaldo = c.hierro && !permiteEspacio && deps.espacio
+    ? "Tampoco hay respaldo remoto disponible: las versiones públicas están apagadas."
+    : "Tampoco hay respaldo remoto disponible.";
+  return { optimizacion, plan: local, via: "ninguna", motivo: `${porQue} ${sinRespaldo}`, neurona };
 }
 
 /** Ejecuta la generación por la vía preparada, con reintentos más ligeros si falta memoria, y la guarda. */
