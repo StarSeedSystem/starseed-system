@@ -1,6 +1,6 @@
 // Pruebas del generador de datasets SFT/KTO para LlamaFactory (módulo puro).
 import { describe, it, expect } from "vitest";
-import { paraLlamaFactory, permitido } from "../dataset-llamafactory";
+import { contieneSecreto, paraLlamaFactory, permitido } from "../dataset-llamafactory";
 import type { DestinoModelo } from "../dataset-llamafactory";
 import type { Experiencia } from "../../experiencias";
 import type { AjustesAprendizaje } from "../../experiencias-aprendizaje";
@@ -55,6 +55,20 @@ describe("permitido", () => {
   it("público exige además privacidad pública", () => {
     expect(permitido("publico", "salas", AJUSTES).ok).toBe(false);
     expect(permitido("publico", "ultima", AJUSTES)).toEqual({ ok: true });
+  });
+});
+
+describe("contieneSecreto", () => {
+  it("detecta clave Google AIza", () => {
+    expect(contieneSecreto("AIzaSy1234567890abcdefghijklm")).toBe(true);
+  });
+
+  it("detecta clave privada PEM", () => {
+    expect(contieneSecreto("-----BEGIN RSA PRIVATE KEY-----")).toBe(true);
+  });
+
+  it("no detecta texto limpio", () => {
+    expect(contieneSecreto("Hola, cómo estás?")).toBe(false);
   });
 });
 
@@ -128,6 +142,28 @@ describe("paraLlamaFactory", () => {
     expect(r.sft).toHaveLength(0);
     expect(r.kto).toHaveLength(0);
     expect(r.descartadas).toEqual({ secreto: 1 });
+  });
+
+  it("se descarta si la entrada está vacía", () => {
+    const r = paraLlamaFactory(
+      [exp({ id: "v1", entrada: "   " })],
+      AJUSTES,
+      OP_AMBITO,
+    );
+    expect(r.sft).toHaveLength(0);
+    expect(r.kto).toHaveLength(0);
+    expect(r.descartadas).toEqual({ "entrada-vacia": 1 });
+  });
+
+  it("se descarta si la salida no es string", () => {
+    const r = paraLlamaFactory(
+      [exp({ id: "v2", salida: 123 as unknown as string })],
+      AJUSTES,
+      OP_AMBITO,
+    );
+    expect(r.sft).toHaveLength(0);
+    expect(r.kto).toHaveLength(0);
+    expect(r.descartadas).toEqual({ "salida-no-string": 1 });
   });
 
   it("el duplicado exacto se descarta con el motivo «duplicado»", () => {
