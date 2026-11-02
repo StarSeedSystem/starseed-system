@@ -363,7 +363,7 @@ export function SessionResumePrompt({
                         marginTop: 10,
                     }}
                 >
-                    <Sparkles size={15} aria-hidden /> Conoce StarSeed (sin cuenta)
+                    <Sparkles size={15} aria-hidden /> Conoce StarSeed
                 </button>
 
                 <p
