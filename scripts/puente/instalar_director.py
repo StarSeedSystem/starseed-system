@@ -107,7 +107,8 @@ def hermes(aplicar):
     if not os.path.exists(HERMES_YAML):
         print("  no existe %s: añade a mano:\nmcp_servers:\n%s" % (HERMES_YAML, bloque))
         return "mostrado"
-    texto = open(HERMES_YAML, encoding="utf-8").read()
+    with open(HERMES_YAML, encoding="utf-8") as f:
+        texto = f.read()
     if NOMBRE in texto:
         if PY not in texto and "command: python3" in texto:
             print(
@@ -132,7 +133,8 @@ def hermes(aplicar):
         return "mostrado"
     copia_bak(HERMES_YAML, aplicar)
     lineas.insert(indice + 1, bloque)
-    open(HERMES_YAML, "w", encoding="utf-8").write("".join(lineas))
+    with open(HERMES_YAML, "w", encoding="utf-8") as f:
+        f.write("".join(lineas))
     print("  añadido a %s (copia en .bak)" % HERMES_YAML)
     return "cambiado"
 

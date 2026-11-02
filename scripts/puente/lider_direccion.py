@@ -5,7 +5,8 @@ toma con escritura condicional, lo alarga o renuncia; `soy_lider()` solo LEE si 
 vigente es mío. Caducidad 180 s, renovación cada 60 s, prioridad `a1` › `mac` › otras: tras
 caducar, un rango peor espera su fila y un dueño de peor prioridad solo en su primer minuto.
 Una neurona AHOGADA no lo toma ni lo renueva, ni sin puerta se declara líder en local si el A1
-latió hace menos de 10 min (LID1101A, `lider_ahogo`): que se releve él. Solo biblioteca estándar.
+latió hace menos de 10 min (LID1101A, `lider_ahogo`): que se releve él. La propia A1 no se frena
+por su único latido. Solo biblioteca estándar.
 """
 import time
 
@@ -48,6 +49,16 @@ def decidir(arriendo, neurona, ahora, renueva=False):
     return dict(tomar, motivo="tomado: caducó el de %s" % dueno)
 
 
+def _ceder(abierta, neurona, ahora):
+    """Sin puerta, por qué ceder el mando al A1 vivo si latió hace poco (LID1101A); la propia A1
+    no se frena por su ÚNICO latido: ese latido es el suyo, no el de otra neurona."""
+    if abierta:
+        return None
+    if prioridad(neurona) == 0:
+        return None
+    return _sin_puerta(ahora)
+
+
 def mismo_id():
     """La identidad del nodo de MetaGenesis de esta máquina (`mac-…`, `oracle-a1-…`, …)."""
     try:
@@ -75,7 +86,7 @@ def soy_lider(neurona=None, ahora=None, puerta=None):
     neurona = neurona or mismo_id()
     p = puerta if puerta is not None else _puerta()
     abierta = p is not None and p.configurada() and p.disponible()
-    dejo = _ahogo() or (None if abierta else _sin_puerta(ahora))
+    dejo = _ahogo() or _ceder(abierta, neurona, ahora)
     if dejo:
         return {"soy": False, "motivo": dejo, "arriendo": None}
     if not abierta:
@@ -91,7 +102,7 @@ def renovar(neurona=None, ahora=None, puerta=None):
     neurona = neurona or mismo_id()
     p = puerta if puerta is not None else _puerta()
     abierta = p is not None and p.configurada() and p.disponible()
-    dejo = _ahogo() or (None if abierta else _sin_puerta(ahora))
+    dejo = _ahogo() or _ceder(abierta, neurona, ahora)
     if dejo:
         return {"soy": False, "escrito": False, "arriendo": None, "motivo": dejo}
     if p is None or not abierta:
