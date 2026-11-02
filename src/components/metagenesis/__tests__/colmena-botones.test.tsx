@@ -658,6 +658,22 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         expect(screen.getByTestId(id("info", "mac-aaaaaa"))).toHaveTextContent("2 agentes · contenedor activo");
     });
 
+    it("con el relevo activo: la línea junta «contenedor activo» con el recuento PLURAL de tareas y el punto más reciente de todas", async () => {
+        // Caso rescatado de la rama nube: dos tareas en curso (la segunda en «reparando», con punto más viejo);
+        // la tarjeta cuenta las dos y enseña solo el punto de control más reciente, sin ids ni ramas.
+        estado.lectura = lectura([nodo({
+            relevo: true,
+            contenedor: { activo: true, agentes: 2, apto: true, motivo: "Listo para trabajar" },
+            enCurso: [tarea("task-1", 5 * 60_000), tarea("task-2", 10 * 60_000, "reparando")],
+        })]);
+        pintar();
+        const info = await screen.findByTestId(id("info"));
+        expect(info).toHaveTextContent("2 agentes · contenedor activo");
+        expect(info).toHaveTextContent("2 tareas en curso · Último punto de control hace 5 min");
+        expect(info).not.toHaveTextContent("hace 10 min");
+        expect(info).not.toHaveTextContent(/task-1|task-2/);
+    });
+
     it("con el relevo activo y el contenedor activo: «Dejar de usar» se puede pulsar y su title explica qué hace", async () => {
         estado.lectura = lectura([nodo({ relevo: true, contenedor: { activo: true, agentes: 2, apto: true, motivo: "Listo para trabajar" } })]);
         pintar();
