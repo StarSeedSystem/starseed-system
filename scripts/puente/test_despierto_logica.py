@@ -167,6 +167,15 @@ class TestEstadoDespierto(unittest.TestCase):
         self.assertEqual(e["umbral_bateria"], D.UMBRAL_BATERIA)
         self.assertFalse(e["enchufada"])
 
+    def test_portatil_con_bateria_y_sin_herramienta(self):
+        # Portátil desenchufado y sin ninguna aserción: no está despierto aunque aún quede batería.
+        e = self._estado(batt=BATT_BAJA, assertions=ASSER_NADA)
+        self.assertFalse(e["despierta"])
+        self.assertIsNone(e["herramienta"])
+        self.assertEqual(e["bateria"], 18)
+        self.assertFalse(e["enchufada"])
+        self.assertEqual(e["tapa"], "duerme")
+
     def test_escritorio_y_desactivada(self):
         e = self._estado(batt=BATT_DESKTOP)
         self.assertEqual(e["tapa"], "sin-tapa")
@@ -182,6 +191,18 @@ class TestEstadoDespierto(unittest.TestCase):
         self.assertFalse(e["enchufada"])
         self.assertEqual(e["tapa"], "sin-tapa")
         self.assertFalse(e["se_va_a_dormir"])
+
+
+class TestAnunciadoDormir(unittest.TestCase):
+    def test_la_medida_del_nodo_manda_sobre_el_umbral_del_lider(self):
+        e = D.estado_despierto(None, BATT_BAJA, ASSER_NADA)
+        self.assertTrue(e["se_va_a_dormir"])
+        latido = {"nodo": "neurona-abc123", "salud": {"despierto": e}}
+        d = L.despierto_de_latido(latido) or {}
+        self.assertEqual(d, e)
+        self.assertTrue(L.anunciado_dormir(d, umbral=25))
+        # Si la propia neurona mide que NO se va a dormir, el umbral del líder no la contradice.
+        self.assertFalse(L.anunciado_dormir(dict(e, se_va_a_dormir=False), umbral=25))
 
 
 DESPIERTO_DUERME = {"tapa": "duerme", "despierta": True, "bateria": 18, "enchufada": False,
@@ -205,6 +226,14 @@ class TestPlanificarDespierto(unittest.TestCase):
         self.assertEqual(a["nodo"], "neurona-a1b2c3")
         self.assertEqual(a["args"], {})
         self.assertIsNone(L.args_validos("desconectar", a["args"]))
+
+    def test_planificar_manda_desconectar_al_que_se_duerme(self):
+        latido = {"nodo": "neurona-abc123", "modo": "real",
+                  "salud": {"despierto": {"tapa": "duerme", "bateria": 9}}}
+        mundo = {"nodos": {"neurona-abc123": latido}, "yo": "mac-aaaaaa", "autonomia": True}
+        plan = L.planificar(mundo, {}, 100.0)
+        self.assertEqual([a["accion"] for a in plan], ["desconectar"])
+        self.assertEqual(plan[0]["nodo"], "neurona-abc123")
 
     def test_no_planifica_sin_bateria_baja_ni_tapa_otra(self):
         viva = dict(DESPIERTO_DUERME, bateria=60, se_va_a_dormir=False)
