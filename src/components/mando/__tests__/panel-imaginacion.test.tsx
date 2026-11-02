@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 import { PanelImaginacion, leerReferencias, extracto } from "@/components/mando/panel-imaginacion";
-import { AJUSTES_POR_DEFECTO, type AjustesAutodesarrollo, type PropuestaNormalizada } from "@/lib/mando/imaginacion-tipos";
+import { AJUSTES_POR_DEFECTO, fechaLocal, type AjustesAutodesarrollo, type PropuestaNormalizada } from "@/lib/mando/imaginacion-tipos";
 
 const HOY = new Date().toISOString();
 const prop = (o: Partial<PropuestaNormalizada>): PropuestaNormalizada => ({
@@ -346,5 +346,31 @@ describe("PanelImaginacion", () => {
         expect(await screen.findByText("Sin propuestas de la imaginación en página p1.")).toBeInTheDocument();
         expect(screen.getByRole("link", { name: "MetaGenesis (3)" })).toBeInTheDocument();
         expect(screen.getByRole("link", { name: "Volver al pulso de MetaGenesis" })).toBeInTheDocument();
+    });
+
+    it("IMG1102D: enseña lo que el filtro de Astraura dejó fuera hoy, con sus motivos", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () =>
+                new Response(
+                    JSON.stringify({
+                        propuestas: [], ajustes: structuredClone(AJUSTES_POR_DEFECTO), resumen: {},
+                        filtro_astraura: {
+                            fecha: fechaLocal(new Date()), vistas: 690, entran: 8,
+                            filtradas: { "familia repetida": 303, "tipo de archivo": 320, tope: 59 },
+                            autorizacion_inventada: 4, por_id: { "astraura:a": "tope" }, inventadas: ["astraura:b"],
+                        },
+                    }),
+                    { status: 200, headers: { "Content-Type": "application/json" } },
+                ),
+            ),
+        );
+        render(<PanelImaginacion ambito="metagenesis" />);
+        const linea = await screen.findByTestId("imaginacion-filtro-astraura");
+        expect(linea).toHaveTextContent(
+            "Filtradas de Astraura hoy: 682 (familia repetida 303 · tipo de archivo 320 · tope 59) · autorizaciones inventadas: 4",
+        );
+        expect(linea).not.toHaveTextContent("astraura:a");
+        expect(linea).not.toHaveTextContent("astraura:b");
     });
 });

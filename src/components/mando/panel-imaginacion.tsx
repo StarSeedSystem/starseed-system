@@ -42,8 +42,10 @@ import {
     UMBRAL_MINIMO,
     esDecidible,
     esperaAAlex,
+    fechaLocal,
     filasMedidor,
     normalizarReferencias,
+    textoFiltroAstraura,
     vetoReimaginar,
     type AjustesAuto,
     type AjustesAutodesarrollo,
@@ -119,7 +121,12 @@ const dominio = (u: string) => {
 
 // ── Datos y red ─────────────────────────────────────────────────────────────────────────────────────
 
-interface DatosImaginacion { propuestas: PropuestaNormalizada[]; ajustes: AjustesAutodesarrollo }
+interface DatosImaginacion {
+    propuestas: PropuestaNormalizada[];
+    ajustes: AjustesAutodesarrollo;
+    /** Lo que dejó el filtro de entrada de Astraura (IMG1102A); opcional en una respuesta vieja. */
+    filtro_astraura?: unknown;
+}
 interface ResultadoId { id: string; ok: boolean; error?: string }
 interface RespuestaPost { ok?: boolean; error?: string; propuesta?: PropuestaNormalizada; resultados?: ResultadoId[]; ajustes?: AjustesAutodesarrollo }
 type Envio = { ok: boolean; status: number; datos: RespuestaPost };
@@ -828,7 +835,7 @@ export function PanelImaginacion({
                 setErrorLectura(d?.error ?? `No se pudieron leer las propuestas (HTTP ${r.status}).`);
                 return;
             }
-            setDatos({ propuestas: d.propuestas, ajustes: d.ajustes });
+            setDatos({ propuestas: d.propuestas, ajustes: d.ajustes, filtro_astraura: d.filtro_astraura });
             setErrorLectura(null);
             // La selección solo guarda lo que sigue esperando decisión (lo fallido de un lote, sí).
             const siguen = new Set(d.propuestas.filter((p) => esDecidible(p.estado)).map((p) => p.id));
@@ -873,6 +880,7 @@ export function PanelImaginacion({
     );
 
     const propuestas = useMemo(() => datos?.propuestas ?? [], [datos]);
+    const lineaFiltro = datos ? textoFiltroAstraura(datos.filtro_astraura, fechaLocal(new Date())) : null;
     const orden = useMemo(() => new Map(filasMedidor(propuestas).map((f, i) => [f.id, i])), [propuestas]);
     const titulos = useMemo(() => new Map(propuestas.map((p) => [p.id, p.titulo])), [propuestas]);
     const filtradas = useMemo(
@@ -984,6 +992,16 @@ export function PanelImaginacion({
             </p>
 
             {datos ? <AjustesAutomatico auto={datos.ajustes.auto} alGuardar={guardarAuto} /> : null}
+
+            {lineaFiltro ? (
+                <p
+                    data-testid="imaginacion-filtro-astraura"
+                    className="mc-centrado flex items-center justify-center gap-2 rounded-lg border border-cyan-300/25 bg-cyan-400/5 px-3 py-2 text-[11px] leading-snug text-cyan-100"
+                >
+                    <FileSearch className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    {lineaFiltro}
+                </p>
+            ) : null}
 
             {errorLectura ? (
                 <p role="alert" className="mc-centrado rounded-lg border border-rose-300/30 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   AJUSTES_POR_DEFECTO, ESTADOS_DECIDIBLES, NOMBRE_ESTADO, NOMBRE_FUENTE, ambitoDeLaUrl, decidibles, esAmbito, esDecidible,
-  esperaAAlex, filasMedidor, filtrarPorAmbito, interpretarPeticion, leerAmbito, normalizarAmbito, normalizarImportancia, normalizarReferencias,
-  normalizarReimaginacion, reimaginacionesLibres, resumenPastilla, validarAjustes, vetoDecision,
+  esperaAAlex, fechaLocal, filasMedidor, filtrarPorAmbito, interpretarPeticion, leerAmbito, normalizarAmbito,
+  normalizarFiltroAstraura, normalizarImportancia, normalizarReferencias, normalizarReimaginacion, reimaginacionesLibres,
+  resumenPastilla, textoFiltroAstraura, validarAjustes, vetoDecision,
   type EstadoPropuesta,
   type PropuestaImaginacion,
 } from "../imaginacion-tipos";
@@ -241,5 +242,41 @@ describe("lo que escribe el director (IMG1024C) leído en TS", () => {
     expect(ambitoDeLaUrl("?ambito=local")).toBe("metagenesis");
     expect(ambitoDeLaUrl("?nivel=meta&ambito=grupo%3Ag1")).toBe("grupo:g1");
     expect(ambitoDeLaUrl("?ambito=personal")).toBe("personal");
+  });
+});
+
+describe("filtro de entrada de Astraura (IMG1102A) en el medidor", () => {
+  const filtro = {
+    fecha: "2026-11-02", tope_dia: 3, ventana_dias: 7, vistas: 690, entran: 8,
+    filtradas: { "familia repetida": 303, "tipo de archivo": 320, tope: 59 },
+    autorizacion_inventada: 4,
+    por_id: { "astraura:a": "familia repetida" }, inventadas: ["astraura:b"],
+  };
+  it("normaliza solo lo que se enseña, sin ids ni rastro", () => {
+    expect(normalizarFiltroAstraura(filtro)).toEqual({
+      fecha: "2026-11-02", vistas: 690, entran: 8,
+      filtradas: { "familia repetida": 303, "tipo de archivo": 320, tope: 59 },
+      autorizacion_inventada: 4,
+    });
+    expect(normalizarFiltroAstraura(null)).toBeNull();
+    expect(normalizarFiltroAstraura({})).toBeNull();
+    expect(normalizarFiltroAstraura({ fecha: "2026-11-02", filtradas: { "familia repetida": -3, tope: 2.9 } })).toEqual({
+      fecha: "2026-11-02", vistas: 0, entran: 0,
+      filtradas: { "familia repetida": 0, "tipo de archivo": 0, tope: 2 }, autorizacion_inventada: 0,
+    });
+  });
+  it("pinta la línea de hoy y suma los tres motivos; de otro día, dice su fecha", () => {
+    expect(textoFiltroAstraura(filtro, "2026-11-02")).toBe(
+      "Filtradas de Astraura hoy: 682 (familia repetida 303 · tipo de archivo 320 · tope 59) · autorizaciones inventadas: 4",
+    );
+    expect(textoFiltroAstraura({ ...filtro, autorizacion_inventada: 0 }, "2026-11-02")).toBe(
+      "Filtradas de Astraura hoy: 682 (familia repetida 303 · tipo de archivo 320 · tope 59)",
+    );
+    expect(textoFiltroAstraura(filtro, "2026-11-03")).toContain("Filtradas de Astraura el 2026-11-02:");
+    expect(textoFiltroAstraura(null, "2026-11-02")).toBeNull();
+  });
+  it("fechaLocal es la fecha del reloj que se le pasa, no la de UTC", () => {
+    expect(fechaLocal(new Date(2026, 10, 2, 23, 30))).toBe("2026-11-02");
+    expect(fechaLocal(new Date(2026, 0, 9, 0, 5))).toBe("2026-01-09");
   });
 });

@@ -77,6 +77,43 @@ export function normalizarImportancia(x: unknown): ImportanciaPropuesta {
   return (IMPORTANCIAS_PROPUESTA as string[]).includes(t) ? (t as ImportanciaPropuesta) : "media";
 }
 
+const MOTIVOS_FILTRO = ["familia repetida", "tipo de archivo", "tope"] as const;
+/** Lo que dejó el filtro de entrada de Astraura (IMG1102A) en `propuestas.json`: sin ids ni rutas. */
+export interface FiltroAstraura {
+  fecha: string; vistas: number; entran: number;
+  filtradas: { "familia repetida": number; "tipo de archivo": number; tope: number };
+  autorizacion_inventada: number;
+}
+const cuenta = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
+/** La fecha local en ISO corto (`AAAA-MM-DD`), como la escribe el director; reloj por parámetro. PURA. */
+export const fechaLocal = (ahora: Date) =>
+  `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, "0")}-${String(ahora.getDate()).padStart(2, "0")}`;
+/** El resumen del filtro ya acotado, o null si no hay nada que enseñar. PURA. */
+export function normalizarFiltroAstraura(d: unknown): FiltroAstraura | null {
+  if (!esObj(d)) return null;
+  const fecha = cadena(d.fecha, 10);
+  if (!fecha) return null;
+  const f = esObj(d.filtradas) ? d.filtradas : {};
+  return {
+    fecha, vistas: cuenta(d.vistas), entran: cuenta(d.entran),
+    filtradas: { "familia repetida": cuenta(f["familia repetida"]), "tipo de archivo": cuenta(f["tipo de archivo"]), tope: cuenta(f.tope) },
+    autorizacion_inventada: cuenta(d.autorizacion_inventada),
+  };
+}
+/**
+ * «Filtradas de Astraura hoy: N (familia repetida X · tipo de archivo Y · tope Z)», con las
+ * autorizaciones inventadas si las hubo. `hoy` es la fecha local; si el resumen es de otro día,
+ * se dice su fecha en vez de «hoy». PURA.
+ */
+export function textoFiltroAstraura(d: unknown, hoy: string): string | null {
+  const f = normalizarFiltroAstraura(d);
+  if (!f || !f.fecha) return null;
+  const n = MOTIVOS_FILTRO.reduce((s, m) => s + f.filtradas[m], 0);
+  const cuando = f.fecha === hoy ? "hoy" : `el ${f.fecha}`;
+  const inv = f.autorizacion_inventada ? ` · autorizaciones inventadas: ${f.autorizacion_inventada}` : "";
+  return `Filtradas de Astraura ${cuando}: ${n} (familia repetida ${f.filtradas["familia repetida"]} · tipo de archivo ${f.filtradas["tipo de archivo"]} · tope ${f.filtradas.tope})${inv}`;
+}
+
 export const AJUSTES_POR_DEFECTO: AjustesAutodesarrollo = {
   automatico: true, rango: { min: 0, max: 10 },
   fuentes: { diaria: true, profunda: true, astraura: true, directores: true, agentes: true },
