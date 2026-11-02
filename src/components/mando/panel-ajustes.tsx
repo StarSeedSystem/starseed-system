@@ -29,9 +29,11 @@ import { PanelBitnetAjustes } from "@/components/mando/panel-bitnet-ajustes";
 import {
     estadoMac,
     guardarEstadoPantalla,
+    InterruptorSegundoPlano,
     leerEstadoPantalla,
     type EstadoPantallaMando,
 } from "@/components/mando/guardian-pantalla";
+import { detectOS, resumenKeepalive } from "@/lib/install/device-install";
 import {
     AlertTriangle,
     ArrowDown,
@@ -363,6 +365,7 @@ function TarjetaPantalla() {
     const [estado, setEstado] = useState<EstadoPantallaMando | null>(null);
     const [ocupado, setOcupado] = useState(false);
     const [aviso, setAviso] = useState<string | null>(null);
+    const so = useMemo(() => detectOS().os, []);
 
     useEffect(() => {
         let vivo = true;
@@ -429,6 +432,7 @@ function TarjetaPantalla() {
                     móvil o tablet no permite mantener la pantalla; en la Mac sí, porque
                     lo hace el servicio aunque esta ventana esté cerrada.
                 </p>
+                <p className="text-white/50">{resumenKeepalive(so)}</p>
                 {aviso && (
                     <p role="alert" className="text-red-300">
                         {aviso}
@@ -843,6 +847,7 @@ export function PanelAjustes() {
             </section>
 
             <TarjetaPantalla />
+            <InterruptorSegundoPlano />
             <InterruptorAutopublicacion />
 
             <article className="rounded-xl border border-white/10 bg-black/30 p-4">
