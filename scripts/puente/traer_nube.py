@@ -751,6 +751,22 @@ def _puertas(base_sha, shas, cambiados, cwd=None):
     return True, "tsc y pruebas relacionadas en verde"
 
 
+def _soltar_carpeta(wt):
+    """Quita la carpeta de comprobación y su registro en git, también si quedó BLOQUEADA.
+
+    (SUP0211A) Un `worktree add` cortado (su tope de 300 s con la Mac ahogada) deja el worktree
+    bloqueado con motivo «initializing». Con un solo `--force` git no quita uno bloqueado, el rmtree
+    lo dejaba «missing but locked», `prune` no poda los bloqueados y cada `add` de esa tarea fallaba
+    en todas las pasadas («no pude preparar la carpeta de comprobación»: el 01-11, HFR1018H, HFR1018I,
+    VZF1015T, XR1010Q, IND1029G y RTBLD1025B-d3-d1). `--force` dos veces sí lo quita, exista la
+    carpeta o no. La carpeta es de esta tarea y de esta pasada (traer_nube no corre dos a la vez)."""
+    import shutil
+
+    _git(["worktree", "remove", "--force", "--force", wt])
+    shutil.rmtree(wt, ignore_errors=True)
+    _git(["worktree", "prune"])
+
+
 def _traer(fila, espera_integrar_s=60):
     """Trae la tarea a main SIN tocar main hasta que pasa. (ok, detalle, del_medio).
 
@@ -765,9 +781,7 @@ def _traer(fila, espera_integrar_s=60):
     orig = orig.strip()
     shas = [c["sha"] for c in fila["commits"] if c["nuevo"] or (c["tipo"] == "ola" and c["vacio"])]
     wt = os.path.join(CARPETA_COMPROBAR, re.sub(r"[^A-Za-z0-9._-]", "-", str(fila["tid"])))
-    _git(["worktree", "remove", "--force", wt])
-    shutil.rmtree(wt, ignore_errors=True)
-    _git(["worktree", "prune"])
+    _soltar_carpeta(wt)
     os.makedirs(CARPETA_COMPROBAR, exist_ok=True)
     rc, salida = _git(["worktree", "add", "-q", "--detach", wt, orig], timeout=300)
     if rc != 0:
@@ -815,9 +829,7 @@ def _traer(fila, espera_integrar_s=60):
             return False, "no pude avanzar main: " + salida.strip()[-200:], True
         return True, detalle, False
     finally:
-        _git(["worktree", "remove", "--force", wt])
-        shutil.rmtree(wt, ignore_errors=True)
-        _git(["worktree", "prune"])
+        _soltar_carpeta(wt)
 
 
 def _crear_reparacion(fila, motivo, colas, progreso):

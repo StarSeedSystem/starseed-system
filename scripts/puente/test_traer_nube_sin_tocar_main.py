@@ -120,6 +120,34 @@ class TraerSinTocarMain(unittest.TestCase):
         self.assertEqual(_git(self.raiz, "log", "-1", "--format=%s", "main"), "Ola 2 · Y1: lo mismo")
         self.assertIsNone(antes)
 
+    def _bloqueada_initializing(self, dejar_carpeta):
+        """Como un `worktree add` cortado: el registro queda bloqueado «initializing» (SUP0211A)."""
+        wt = os.path.join(T.CARPETA_COMPROBAR, "X1")
+        os.makedirs(T.CARPETA_COMPROBAR, exist_ok=True)
+        _git(self.raiz, "worktree", "add", "-q", "--detach", wt, "main")
+        with open(os.path.join(self.raiz, ".git", "worktrees", "X1", "locked"), "w") as f:
+            f.write("initializing")
+        if not dejar_carpeta:
+            shutil.rmtree(wt)
+        return wt
+
+    def test_carpeta_bloqueada_y_borrada_no_frena_la_tarea_para_siempre(self):
+        self._bloqueada_initializing(dejar_carpeta=False)  # «missing but locked worktree»
+        T._puertas = lambda base_sha, shas, cambiados, cwd=None: (True, "verde")
+        ok, detalle, medio = T._traer(self.fila)
+        self.assertTrue(ok, detalle)
+        self.assertEqual(_git(self.raiz, "log", "-1", "--format=%s", "main"), "Ola 1 · X1: algo")
+        self.assertNotIn("_traer", _git(self.raiz, "worktree", "list"))
+
+    def test_carpeta_bloqueada_que_sigue_ahi_tambien_se_quita(self):
+        self._bloqueada_initializing(dejar_carpeta=True)
+        T._puertas = lambda base_sha, shas, cambiados, cwd=None: (False, "tsc: src/a.ts(1,1): error TS2304")
+        ok, detalle, medio = T._traer(self.fila)
+        self.assertFalse(ok)
+        self.assertNotIn("no pude preparar", detalle)
+        self.assertFalse(os.path.exists(os.path.join(T.CARPETA_COMPROBAR, "X1")))
+        self.assertNotIn("_traer", _git(self.raiz, "worktree", "list"))
+
     def test_reaplicable(self):
         self.assertTrue(T.reaplicable(["src/a.ts"], ["scripts/puente/x.py"]))
         self.assertFalse(T.reaplicable(["src/a.ts"], ["src/b.ts"]))
