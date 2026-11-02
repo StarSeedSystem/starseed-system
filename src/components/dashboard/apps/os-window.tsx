@@ -9,13 +9,16 @@
 // Render: el llamador la porta a document.body (vía createPortal).
 // Escape: con varias apiladas cierra SOLO la de arriba (pila compartida, abajo).
 // SOP: architecture/dashboard-launcher-apps-y-archivos.md
+// Composición centrada: usa geometriaVentana para posición inicial.
+// En teléfono, hoja centrada que sube desde abajo.
 // ════════════════════════════════════════════════════════════════
 
 import React, { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { desplazamientoVentana } from "@/lib/design/composicion";
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -78,13 +81,44 @@ export function OSWindow({
     title, subtitle, icon: Icon, accent, onClose, actions, toolbar, children,
     sizeClass = "w-[min(94vw,1100px)] h-[min(86vh,760px)]", bare = true,
 }: OSWindowProps) {
-    const [offset, setOffset] = useState({ dx: 0, dy: 0 });
+    // En teléfono la ventana es una hoja que sube desde abajo; el flex padre ya
+    // la centra, así que el desplazamiento se calcula respecto a ese centrado.
+    // `useState` con inicializador síncrono evita el salto de un fotograma: el
+    // primer pintado ya nace en su sitio. La lectura de `window` va guardada
+    // (los anfitriones montan OSWindow solo en cliente, tras un portal).
+    const [hoja] = useState(() => typeof window !== "undefined" && window.innerWidth < 430);
+    const [offset, setOffset] = useState(() => {
+        if (typeof window === "undefined") return { dx: 0, dy: 0 };
+        const viewport = { ancho: window.innerWidth, alto: window.innerHeight };
+        const d = desplazamientoVentana(viewport, {
+            ancho: Math.min(viewport.ancho * 0.94, 1100),
+            alto: Math.min(viewport.alto * 0.86, 760),
+        });
+        return { dx: d.dx, dy: d.dy };
+    });
     const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+    const reducirMovimiento = useReducedMotion();
 
     const raizRef = useRef<HTMLDivElement>(null);
+    const marcoRef = useRef<HTMLDivElement>(null);
     const cerrarRef = useRef(onClose);
     useEffect(() => { cerrarRef.current = onClose; }, [onClose]);
     useEffect(() => apuntarVentana({ raiz: raizRef, cerrar: cerrarRef }), []);
+
+    // Afina la posición con la medida real del marco (el `sizeClass` puede ser
+    // propio de cada anfitrión). Si el marco aún no mide, conserva el cálculo
+    // por defecto del inicializador.
+    useEffect(() => {
+        const marco = marcoRef.current;
+        if (!marco) return;
+        const rect = marco.getBoundingClientRect();
+        const viewport = { ancho: window.innerWidth, alto: window.innerHeight };
+        const d = desplazamientoVentana(viewport, {
+            ancho: rect.width || Math.min(viewport.ancho * 0.94, 1100),
+            alto: rect.height || Math.min(viewport.alto * 0.86, 760),
+        });
+        setOffset((prev) => (prev.dx === d.dx && prev.dy === d.dy ? prev : { dx: d.dx, dy: d.dy }));
+    }, []);
 
     useEffect(() => {
         const onMove = (e: PointerEvent) => {
@@ -108,16 +142,24 @@ export function OSWindow({
     };
 
     return (
-        <div ref={raizRef} className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
+        <div ref={raizRef} data-hoja={hoja ? "true" : undefined} className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
             <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
 
             {/* Capa de arrastre centrada por el flex padre. El transform de arrastre va
                 aquí (div plano), NO en el hijo animado → la animación de Framer ya no pisa
-                el centrado y la ventana SIEMPRE abre centrada. */}
-            <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
+                el centrado y la ventana SIEMPRE abre centrada. El desplazamiento inicial
+                de la hoja se suma aquí y el arrastre continúa desde esa base. */}
+            <div ref={marcoRef} className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    /* Entrada cardinal en teléfono: 24 px desde abajo; en escritorio,
+                       el fundido con escala de siempre. Con movimiento reducido solo
+                       queda el fundido, sin desplazamiento ni escala. */
+                    initial={reducirMovimiento
+                        ? { opacity: 0 }
+                        : hoja ? { opacity: 0, y: 24 } : { opacity: 0, scale: 0.96 }}
+                    animate={reducirMovimiento
+                        ? { opacity: 1 }
+                        : hoja ? { opacity: 1, y: 0 } : { opacity: 1, scale: 1 }}
                     transition={{ type: "spring", stiffness: 260, damping: 26 }}
                     className={cn(
                         "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",

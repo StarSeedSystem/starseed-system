@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tipoAparato, geometriaVentana, ZonaPulgar, zonaPulgar } from "@/lib/design/composicion";
+import { tipoAparato, geometriaVentana, desplazamientoVentana, ZonaPulgar, zonaPulgar } from "@/lib/design/composicion";
 
 describe("tipoAparato", () => {
   it("should return xr when xr is true", () => {
@@ -71,5 +71,60 @@ describe("zonaPulgar", () => {
     expect(result.ancho).toBe(viewport.ancho);
     expect(result.y).toBe(viewport.alto - 140);
     expect(result.x).toBe(0);
+  });
+});
+
+describe("geometriaVentana · tipo ventana", () => {
+  it("abre centrada en escritorio: posición media del viewport", () => {
+    const viewport = { ancho: 1920, alto: 1080 };
+    const result = geometriaVentana(viewport, { tipo: "ventana" });
+    expect(result.x).toBeCloseTo((1920 - result.ancho) / 2);
+    expect(result.y).toBeCloseTo((1080 - result.alto) / 2);
+    expect(result.origen).toBe("top-left");
+  });
+
+  it("en telefono la ventana sigue centrada; la hoja es quien sube desde abajo", () => {
+    const viewport = { ancho: 400, alto: 800 };
+    const result = geometriaVentana(viewport, { tipo: "ventana" });
+    expect(result.y).toBeCloseTo((viewport.alto - result.alto) / 2);
+    expect(result.x).toBeCloseTo(16 + (368 - result.ancho) / 2);
+  });
+
+  it("respeta el ancho/alto proporcionado", () => {
+    const viewport = { ancho: 1920, alto: 1080 };
+    const result = geometriaVentana(viewport, { tipo: "ventana", ancho: 800, alto: 600 });
+    expect(result.ancho).toBe(800);
+    expect(result.alto).toBe(600);
+    expect(result.x).toBeCloseTo((1920 - 800) / 2);
+    expect(result.y).toBeCloseTo((1080 - 600) / 2);
+  });
+});
+
+describe("desplazamientoVentana (posición inicial de OSWindow)", () => {
+  it("en escritorio no desplaza: el flex ya la centra y no es hoja", () => {
+    const viewport = { ancho: 1920, alto: 1080 };
+    const result = desplazamientoVentana(viewport, { ancho: 800, alto: 600 });
+    expect(result.dx).toBeCloseTo(0);
+    expect(result.dy).toBeCloseTo(0);
+    expect(result.hoja).toBe(false);
+  });
+
+  it("en teléfono baja media diferencia: hoja anclada abajo y centrada", () => {
+    const viewport = { ancho: 400, alto: 800 };
+    const medida = { ancho: 360, alto: 600 };
+    const result = desplazamientoVentana(viewport, medida);
+    // El flex centra en (800 - 600) / 2 = 100; la hoja va a 800 - 600 = 200.
+    expect(result.dy).toBeCloseTo((viewport.alto - medida.alto) / 2);
+    expect(result.dx).toBeCloseTo(0);
+    expect(result.hoja).toBe(true);
+  });
+
+  it("en teléfono con ancho mayor que el disponible no se sale de lado", () => {
+    const viewport = { ancho: 360, alto: 780 };
+    const result = desplazamientoVentana(viewport, { ancho: 400, alto: 500 });
+    // geometriaVentana acota el ancho a 360 - 32 = 328 y x = 16, que coincide
+    // con el centrado del flex: el desplazamiento horizontal sigue siendo 0.
+    expect(result.dx).toBeCloseTo(0);
+    expect(result.hoja).toBe(true);
   });
 });

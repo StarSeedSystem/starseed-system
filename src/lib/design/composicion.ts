@@ -4,6 +4,15 @@ export type TipoAparato = "telefono" | "tableta" | "escritorio" | "grande" | "xr
 
 export type TipoVentana = "dialogo" | "ventana" | "hoja" | "panel-lateral";
 
+/** Desplazamiento que hay que sumar al centrado del flex para colocar la
+ *  ventana según el aparato: 0 en escritorio y, en teléfono, el que la
+ *  convierte en hoja anclada abajo. `hoja` avisa a la entrada animada. */
+export interface DesplazamientoVentana {
+  dx: number;
+  dy: number;
+  hoja: boolean;
+}
+
 export interface Viewport {
   ancho: number;
   alto: number;
@@ -123,6 +132,29 @@ export interface ZonaPulgar {
   y: number;
   ancho: number;
   alto: number;
+}
+
+/**
+ * Posición inicial de una ventana del OS respecto al centrado del contenedor.
+ * En escritorio el flex ya la centra, así que el desplazamiento es 0; en
+ * teléfono se usa la geometría de hoja para subirla desde abajo. Puro: no lee
+ * el DOM, recibe el viewport y la medida real del marco.
+ */
+export function desplazamientoVentana(
+  viewport: Viewport,
+  medida: { ancho: number; alto: number },
+): DesplazamientoVentana {
+  const hoja = viewport.ancho < 430;
+  const geom = geometriaVentana(viewport, {
+    tipo: hoja ? "hoja" : "ventana",
+    ancho: medida.ancho,
+    alto: medida.alto,
+  });
+  return {
+    dx: geom.x - (viewport.ancho - geom.ancho) / 2,
+    dy: geom.y - (viewport.alto - geom.alto) / 2,
+    hoja,
+  };
 }
 
 export function zonaPulgar(viewport: Viewport): ZonaPulgar {
