@@ -3,6 +3,7 @@ import {
   BOCAS, CAJA_CARA, CENTRO_CARA, EXPRESIONES, MIRADAS, POSESIONES, RECORRIDO_MIRADA,
   TOTAL_EXPRESIONES, TRAZO_BOCAS, estadoDesdeOrbe, expresionDe, marcoBoca,
   type EstadoMausbot,
+  ORBE_ESPERADO,
 } from "@/lib/mausbot/expresiones";
 import type { QuantumOrbVoiceState } from "@/lib/aurora/quantum-orb-bus";
 
@@ -33,7 +34,6 @@ describe("expresiones del Mausbot (port de OpenMausBot)", () => {
     expect(CENTRO_CARA[0]).toBeLessThan(CAJA_CARA);
     expect(CENTRO_CARA[1]).toBeLessThan(CAJA_CARA);
     expect(RECORRIDO_MIRADA.x).toBeGreaterThan(0);
-    // la mirada de cada expresión cabe dentro de la caja de la cara
     for (const [mx, my] of MIRADAS) {
       expect(Math.abs(mx)).toBeLessThan(CAJA_CARA);
       expect(Math.abs(my)).toBeLessThan(CAJA_CARA);
@@ -59,6 +59,49 @@ describe("expresiones del Mausbot (port de OpenMausBot)", () => {
       expect(m.y).toBeGreaterThan(0);
       expect(m.y).toBeLessThan(CAJA_CARA);
     });
+  });
+
+  it("trae una boca por expresión con sus cuatro parámetros", () => {
+    expect(BOCAS).toHaveLength(25);
+    for (const boca of BOCAS) {
+      expect(boca).toHaveLength(4);
+      expect(boca.every(Number.isFinite)).toBe(true);
+    }
+  });
+
+  it("publica la caja y el centro de la cara y el recorrido de la mirada", () => {
+    expect(FACE_BOX).toBeGreaterThan(0);
+    expect(FACE_CENTRE).toEqual([120, 122.5]);
+    expect(GAZE_TRAVEL).toEqual({ x: 13.2, y: 8.4 });
+  });
+
+  it("cubre los 18 estados del Mausbot", () => {
+    expect(ESTADOS).toHaveLength(18);
+    expect(new Set(ESTADOS).size).toBe(18);
+  });
+
+  it("asigna a cada estado su expresión canónica", () => {
+    expect(INDICE_ESPERADO).toHaveLength(18);
+    for (const [estado, indice] of INDICE_ESPERADO) {
+      const expresion = expresionDe(estado);
+      expect(EXPRESIONES.indexOf(expresion)).toBe(indice);
+      expect(expresion).toHaveLength(2);
+      expect(expresion[0]).toHaveLength(48);
+      expect(expresion[1]).toHaveLength(48);
+    }
+  });
+
+  it("sigue la tabla del contrato §3", () => {
+    expect(ORBE_ESPERADO).toHaveLength(6);
+    for (const [voz, estado] of ORBE_ESPERADO) {
+      expect(estadoDesdeOrbe(voz)).toBe(estado);
+    }
+  });
+
+  it("devuelve siempre un estado conocido", () => {
+    for (const [voz] of ORBE_ESPERADO) {
+      expect(ESTADOS).toContain(estadoDesdeOrbe(voz));
+    }
   });
 });
 
