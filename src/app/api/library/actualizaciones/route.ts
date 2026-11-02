@@ -61,6 +61,9 @@ const MS_CACHÉ = 6 * 60 * 60 * 1000;
 const MS_CACHÉ_FALLO = 60 * 1000;
 const MS_PLAZO_TOTAL = 8000;
 
+/** Upstream de GitHub con dueño y repo: lo único que la ruta puede consultar. */
+const RE_UPSTREAM_GITHUB = /^https?:\/\/github\.com\/[^/\s]+\/[^/\s]+/;
+
 export interface FuenteActualizacion {
     id: string;
     instalada: string;
@@ -125,6 +128,30 @@ export async function GET(): Promise<Response> {
         // Fuentes de decisiones + fichas `ai-source` de modelos locales con repo en GitHub
         // (TurboFieldfare: sin releases, se sigue por commits). Sin duplicar ids.
         const idsDecisiones = new Set(REPO_DECISIONES.packages.map((p) => p.id));
+        const seguibles = fichasIaConUpstreamGitHub([
+            ...FICHAS_IA_LOCALES,
+            ...FICHAS_REPOS_OS,
+            ...FICHAS_REPOS_1025,
+            ...FICHAS_VIEJAS_SEGUIMIENTO_1025,
+            ...FICHAS_REPOS_1026,
+            ...FICHAS_VIEJAS_SEGUIMIENTO_1026,
+            ...FICHAS_REPOS_1027,
+            ...FICHAS_REPOS_1027B,
+            ...FICHAS_REPOS_1028,
+            ...FICHAS_REPOS_1101,
+        ]).filter((p) => !idsDecisiones.has(p.id));
+        const idsSeguibles = new Set(seguibles.map((p) => p.id));
+        // Las fichas «tool» de la tanda 1027 se pintan como `app` (el cargador de tipos
+        // de repos-1025 no conoce «tool») y el filtro por tipo las descartaría. Se
+        // recuperan por su upstream de GitHub para que OpenMausBot e Insomnia sigan su
+        // versión, como manda el contrato (architecture/mausbot-astraura.md).
+        const tanda1027 = FICHAS_REPOS_1027.filter(
+            (p) =>
+                !idsDecisiones.has(p.id) &&
+                !idsSeguibles.has(p.id) &&
+                typeof p.payload?.upstream === "string" &&
+                RE_UPSTREAM_GITHUB.test(p.payload.upstream),
+        );
         const fichas = [
             ...REPO_DECISIONES.packages,
             // Tanda 1025: las 26 nuevas y las 3 fichas viejas (iatool-*) que ahora siguen su repo real.
@@ -133,18 +160,8 @@ export async function GET(): Promise<Response> {
             // Tanda 1027b: Meta^n por commits y Memvid por etiquetas vX.Y.Z.
             // Tanda 1028: LEANN por etiquetas vX.Y.Z.
             // Tanda 1101: keepalive por etiquetas vX.Y.Z.
-            ...fichasIaConUpstreamGitHub([
-                ...FICHAS_IA_LOCALES,
-                ...FICHAS_REPOS_OS,
-                ...FICHAS_REPOS_1025,
-                ...FICHAS_VIEJAS_SEGUIMIENTO_1025,
-                ...FICHAS_REPOS_1026,
-                ...FICHAS_VIEJAS_SEGUIMIENTO_1026,
-                ...FICHAS_REPOS_1027,
-                ...FICHAS_REPOS_1027B,
-                ...FICHAS_REPOS_1028,
-                ...FICHAS_REPOS_1101,
-            ]).filter((p) => !idsDecisiones.has(p.id)),
+            ...seguibles,
+            ...tanda1027,
         ];
         const entradas: EntradaFuente[] = fichas
             .map((paquete): EntradaFuente => ({
