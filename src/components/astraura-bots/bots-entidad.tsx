@@ -10,6 +10,7 @@ import { createClient } from "@/utils/supabase/client";
 import { botPredeterminado } from "@/lib/astraura-bots/predeterminado";
 import { decidirConfiguracion, DELEGACION_POR_DEFECTO_GRUPO, NIVEL_POR_DEFECTO, type CambioBot, type NivelBot } from "@/lib/astraura-bots/permisos";
 import { acotar, esOrigen, esSentido, FORMAS_CUERPO, RASGOS, type Bot, type FormaCuerpo, type RolBot } from "@/lib/astraura-bots/tipos";
+import { esFormaAvatar3d } from "@/lib/avatares/adaptadores/adn-de-bot";
 import { modoDe, proponer, propuestasDe } from "@/lib/genesis/entidades";
 import { TIPOS_OPERACION, validarOperacion, type Ambito, type EntidadAmbito } from "@/lib/genesis/operaciones";
 import { EditorBot } from "./editor-bot";
@@ -98,6 +99,9 @@ export function BotsEntidad({ entidad, rol, servicios }: { entidad: EntidadAmbit
       <ul className="space-y-2">{bots.map((b) => {
         const d = decidirConfiguracion(b.bot, rol, "personalidad"), dem = b.bot.gobierno === "democratico";
         return (<li key={b.bot.id} className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
+          {esFormaAvatar3d(b.bot.cuerpo.forma) ? (
+            <CuerpoBot cuerpo={b.bot.cuerpo} medio="web" xrDisponible={false} vrmDisponible={false} bot={b.bot} />
+          ) : null}
           <p className="text-sm text-white/90">{b.bot.nombre} <span className="text-[11px] text-white/50">· {b.bot.activo ? "activo" : "en pausa (reanudarlo sigue el gobierno)"}{dem ? ` · ${b.delegado ? `delegado lo de riesgo ${b.delegado}` : "sin delegación: todo se vota"}` : ""}</span></p>
           {d.requiere === "nunca" ? <p className="text-[11px] text-white/55">{d.motivo}</p> : activa ? (<div className="flex flex-wrap gap-2">
             <button type="button" className={btn} disabled={ocupado} onClick={() => setAbierto({ que: "editar", b })}>{d.requiere === "votacion" ? <Vote className={ico} aria-hidden /> : <Pencil className={ico} aria-hidden />}{ETIQUETA[d.requiere] ?? d.motivo}</button>

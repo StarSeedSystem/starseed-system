@@ -2,9 +2,13 @@
  * Pruebas del panel «Mis bots» y su editor (BOT1011I1) en jsdom.
  * El almacén es localStorage (SSR-safe); la orbe en miniatura se tolera sin canvas.
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { PanelBots } from "../panel-bots";
+
+vi.mock("@/components/avatares/cuerpo-3d-bot", () => ({
+  Cuerpo3dBot: ({ bot }: { bot: { id: string } }) => <span data-testid="cuerpo-3d" data-bot={bot.id} />,
+}));
 
 const PROPS = { perfilId: "perfil-1", cuentaId: "cuenta-1" };
 const CLAVE = "starseed.astraura.bots.v1";
@@ -64,6 +68,14 @@ describe("PanelBots", () => {
     fireEvent.click(screen.getByLabelText("Editar Astraura"));
     fireEvent.change(screen.getByLabelText("Cuerpo"), { target: { value: "vrm" } });
     expect(screen.getByText("próximamente: llega con StarSeed XR")).toBeTruthy();
+  });
+
+  it("un bot con cuerpo vrm muestra su avatar 3D en la lista", () => {
+    render(<PanelBots {...PROPS} />);
+    fireEvent.click(screen.getByLabelText("Editar Astraura"));
+    fireEvent.change(screen.getByLabelText("Cuerpo"), { target: { value: "vrm" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    expect(screen.getByTestId("cuerpo-3d").getAttribute("data-bot")).toBe("astraura:perfil-1");
   });
 
   it("pausar cambia el estado del bot", () => {

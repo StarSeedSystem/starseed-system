@@ -10,6 +10,8 @@ import { Fragment, useEffect, useMemo, useRef, useState, type PointerEvent } fro
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { QuantumOrbAvatar } from "@/components/aurora/quantum-orb-avatar";
+import { Cuerpo3dBot } from "@/components/avatares/cuerpo-3d-bot";
+import { esFormaAvatar3d } from "@/lib/avatares/adaptadores/adn-de-bot";
 import { prefersReducedMotion } from "@/components/aurora/quantum-orb";
 import { readOrbPosition } from "@/lib/aurora/aurora-orb-bus";
 import { uidActual } from "@/lib/consumo/usuario";
@@ -166,7 +168,11 @@ export function OrbesBots({ extra = SIN_EXTRA, principal, perfilId, cuentaId }: 
               className={cn("fixed cursor-pointer touch-none select-none rounded-full", !reducido && "hover:scale-105", enfocado === id && "ring-2 ring-cyan-300/70")}
               style={{ left: p.xRatio * vista.ancho - D / 2, top: p.yRatio * vista.alto - D / 2, zIndex: 41 + capas.indexOf(id), transition: moviendo?.id === id ? "none" : transicion }}>
               <div style={{ width: D, height: D, animation: animacion }}>
-                <QuantumOrbAvatar personaId={b.id} size={D} />
+                {esFormaAvatar3d(b.cuerpo.forma) ? (
+                  <Cuerpo3dBot bot={b} tamano={D} />
+                ) : (
+                  <QuantumOrbAvatar personaId={b.id} size={D} />
+                )}
               </div>
             </button>
             {est && indicadorVisible(est) ? (
