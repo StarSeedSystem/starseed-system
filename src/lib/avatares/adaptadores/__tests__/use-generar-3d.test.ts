@@ -47,8 +47,8 @@ describe("prepararGeneracion", () => {
   it("sin hierro medido no promete generar en local", () => {
     expect(prepararGeneracion(ctx({ hierro: null }), deps({ taller: async () => ok() })).via).toBe("ninguna");
   });
-  it("con NVIDIA pero sin taller, el Space sigue de respaldo y se dice por qué no se genera aquí", () => {
-    const p = prepararGeneracion(ctx({ hierro: NV16 }), deps({ espacio: async () => ok() }));
+  it("con NVIDIA, sin taller y con permiso, el Space sigue de respaldo y se dice por qué no se genera aquí", () => {
+    const p = prepararGeneracion(ctx({ hierro: { ...NV16, permiteEspacioHf: true } }), deps({ espacio: async () => ok() }));
     expect(p.via).toBe("remota");
     expect(p.plan.pasos[0].motor?.id).toBe("pixal3d-espacio");
     expect(p.motivo).toMatch(/podría generar con Pixal3D.*no está instalado.*saldría de este aparato/);

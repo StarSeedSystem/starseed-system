@@ -28,7 +28,7 @@ function deps(): { d: Dependencias3D; espacio: ReturnType<typeof vi.fn>; guardar
 }
 
 async function generarCon(d: Dependencias3D, leerNeuronas: () => Promise<readonly NeuronaTaller[] | null>) {
-  render(<Generar3D destino="bot" dependencias={d} contexto={{ cuenta: "alex" }} leerNeuronas={leerNeuronas} />);
+  render(<Generar3D destino="bot" dependencias={d} contexto={{ cuenta: "alex", permiteEspacioHf: true }} leerNeuronas={leerNeuronas} />);
   fireEvent.click(screen.getByRole("button", { name: /Crear en 3D desde una imagen/ }));
   const campo = screen.getByLabelText(/Imagen de este aparato/) as HTMLInputElement;
   fireEvent.change(campo, { target: { files: [IMAGEN()] } });
