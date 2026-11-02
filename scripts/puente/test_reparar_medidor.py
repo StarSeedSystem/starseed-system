@@ -172,28 +172,28 @@ class MemoriaAlta(unittest.TestCase):
     liberar primero con lo ya existente (BitNet duerme, huérfanos de vitest cortados)."""
 
     def test_presion_kernel_libera(self):
-        stack = self._patch_guardia(libres=50, presion=2)
+        stack, _ = self._patch_guardia(libres=50, presion=2)
         with stack:
             hecho, mensaje = R.presion_alta_y_librar()
         self.assertTrue(hecho)
         self.assertIn("presión de kernel nivel 2", mensaje)
 
     def test_ram_baja_libera(self):
-        stack = self._patch_guardia(libres=80, presion=None)
+        stack, _ = self._patch_guardia(libres=80, presion=None)
         with stack:
             hecho, mensaje = R.presion_alta_y_librar()
         self.assertTrue(hecho)
         self.assertIn("RAM 80 MB libre", mensaje)
 
     def test_sin_presion_no_hace_nada(self):
-        stack = self._patch_guardia(libres=800, presion=None)
+        stack, _ = self._patch_guardia(libres=800, presion=None)
         with stack:
             hecho, mensaje = R.presion_alta_y_librar()
         self.assertFalse(hecho)
         self.assertEqual(mensaje, "")
 
     def test_libres_mb_none_devuelve_falso(self):
-        stack = self._patch_guardia(libres=None, presion=None)
+        stack, _ = self._patch_guardia(libres=None, presion=None)
         with stack:
             hecho, mensaje = R.presion_alta_y_librar()
         self.assertFalse(hecho)
@@ -268,7 +268,7 @@ def _ctx_manager(*ctxs):
     for c in ctxs:
         mock = stack.enter_context(c)
         mocks.append(mock)
-    return tuple(mocks)
+    return stack, tuple(mocks)
 
 
 if __name__ == "__main__":
