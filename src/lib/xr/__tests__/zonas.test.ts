@@ -26,6 +26,19 @@ describe("dentroDeZona", () => {
         expect(dentroDeZona(z, [0.9, 0.6, 0.9])).toBe(false);
         expect(dentroDeZona(z, [0.9, 0.53, 0.9], HISTERESIS_M)).toBe(true);
     });
+    it("esfera: el borde exacto cuenta como dentro y la diagonal se queda fuera", () => {
+        const z = zona("e", { forma: "esfera", tam: [2, 2, 2] });
+        expect(dentroDeZona(z, [1, 0, 0])).toBe(true);
+        expect(dentroDeZona(z, [0, 0, -1])).toBe(true);
+        expect(dentroDeZona(z, [1.01, 0, 0])).toBe(false);
+        expect(dentroDeZona(z, [1, 1, 0])).toBe(false);
+    });
+    it("caja: la esquina exacta cuenta como dentro", () => {
+        const z = zona("c", { tam: [2, 2, 2] });
+        expect(dentroDeZona(z, [1, 1, 1])).toBe(true);
+        expect(dentroDeZona(z, [1, 1, -1])).toBe(true);
+        expect(dentroDeZona(z, [1.01, 1, 1])).toBe(false);
+    });
 });
 
 describe("cambiosDeZona", () => {
@@ -49,6 +62,26 @@ describe("cambiosDeZona", () => {
     });
     it("una zona borrada del mundo también se abandona", () => {
         expect(cambiosDeZona([], ahora("vieja", "otra"), [0, 0, 0]).sale).toEqual(["vieja", "otra"]);
+    });
+    it("la histéresis no atrae desde fuera: sólo mantiene a quien ya estaba dentro", () => {
+        const z = zona("a", { tam: [2, 2, 2] });
+        const justoFuera: [number, number, number] = [1 + HISTERESIS_M / 2, 0, 0];
+        const desdeFuera = cambiosDeZona([z], ahora(), justoFuera);
+        expect(desdeFuera.entra).toEqual([]);
+        expect(desdeFuera.ahora.has("a")).toBe(false);
+        const desdeDentro = cambiosDeZona([z], ahora("a"), justoFuera);
+        expect(desdeDentro.sale).toEqual([]);
+        expect(desdeDentro.ahora.has("a")).toBe(true);
+        const lejos: [number, number, number] = [1 + HISTERESIS_M * 2, 0, 0];
+        expect(cambiosDeZona([z], ahora("a"), lejos).sale).toEqual(["a"]);
+    });
+    it("varias zonas a la vez: una entra, otra sale y una fantasma se abandona", () => {
+        const caja = zona("caja", { tam: [2, 2, 2] });
+        const otra = zona("otra", { pos: [5, 0, 0], tam: [2, 2, 2] });
+        const r = cambiosDeZona([caja, otra], ahora("caja", "fantasma"), [5, 0, 0]);
+        expect(r.entra).toEqual(["otra"]);
+        expect(r.sale).toEqual(["caja", "fantasma"]);
+        expect(r.ahora).toEqual(new Set(["otra"]));
     });
 });
 
