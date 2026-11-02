@@ -24,7 +24,16 @@
 
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
-import { nivelPara, siguienteNivel, NIVELES, type NivelVoz } from "./niveles";
+import {
+    nivelPara,
+    siguienteNivel,
+    NIVELES,
+    acotarNivel,
+    nivelTopeSegunUso,
+    estudioSegunUso,
+    type NivelVoz,
+    type UsoVoz,
+} from "./niveles";
 import {
     soporteSupertonic,
     nivelParaVoz,
@@ -35,6 +44,9 @@ import {
     type NivelVozSuptonica,
     type OpcionesNivelVoz,
 } from "./supertonic";
+import { leerMedidas, type MedidaVoz } from "../medidas-voz";
+import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
+import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
 
 export {
     soporteSupertonic,
@@ -57,7 +69,8 @@ import {
 } from "@/lib/voces/emociones";
 // (2026-09-06, Ola 264 · J1b) Normalización en español del texto hablado.
 import { normalizarParaVoz } from "@/lib/voces/normalizar-es";
-import { motorRecomendado, Plataforma } from "../catalogo-voces";
+import { motorRecomendado, Plataforma, MOTORES_VOZ } from "../catalogo-voces";
+import { motoresPermitidos, type MotorInfo, type ContextoLicenciaVoz } from "./licencia-voz";
 function detectarPlataforma(): Plataforma {
     if (typeof window === "undefined") return "web";
     const ua = navigator.userAgent;
@@ -282,7 +295,7 @@ export function parametrosPorNivel(
 export interface OpcionesHablar {
     /** Identidad de la voz: LA MISMA en todos los niveles. */
     timbre: Timbre;
-    /** Dónde suena (rito, conversación…). Documental: no cambia el timbre. */
+    /** Dónde suena (rito, conversacion…). Documental: no cambia el timbre. */
     contexto: ContextoVoz;
     /** Fuerza un nivel concreto; si falta, se resuelve solo. */
     nivel?: NivelVoz;
@@ -312,6 +325,24 @@ export interface OpcionesHablar {
      * esta opción solo es para vías que ya entregan el texto normalizado.
      */
     sinNormalizar?: boolean;
+    /**
+     * (VST1018F) Fuerza o desactiva la elección por latencia medida. Por
+     * defecto se activa sola en conversación; el mensaje entero va por el motor
+     * elegido (nunca se parte entre dos).
+     */
+    primeraFrase?: boolean;
+    /**
+     * (VST1018F) Uso del turno. Si falta se deduce de `contexto`; permite pedir
+     * «doblaje» o «audiolibro», los únicos sitios donde compite «estudio».
+     */
+    uso?: UsoVoz;
+    /**
+     * Contexto de uso para filtrar motores por licencia. Por defecto «grupo»,
+     * que nunca permite pesos personales (regla del contrato §4).
+     */
+    contextoUso?: ContextoLicenciaVoz;
+    /** Capas de conciencia para filtrar motores por licencia. */
+    capas?: CapasPrefs;
 }
 
 /**
@@ -422,6 +453,92 @@ async function sintetizar(nivel: NivelVoz, texto: string, timbre: Timbre, opcion
     return hablarPorSistema(texto, timbre, opciones.alEmpezar);
 }
 
+// ── (VST1018F · parte 2) MOTOR DE LA PRIMERA FRASE ──────────────────────────
+// Contrato §4 de `voz-voicestudio.md`: la conversación arranca con el motor
+// PERMITIDO de menor latencia MEDIDA que tenga la voz de esa persona. «Estudio»
+// solo para lectura larga, doblaje y audiolibros. Una elección por mensaje:
+// nunca se parte una locución entre dos motores.
+const NIVEL_MOTOR: Readonly<Record<string, NivelVoz>> = {
+    voicestudio: "estudio", voicemorphic: "estudio", omnivoice: "estudio",
+    kokoro: "ligera", kitten: "ligera", kittentts: "ligera", "moss-tts": "ligera",
+    "moss-tts-nano": "ligera", sistema: "minima", system: "minima",
+    openvoice2: "nube", voicebox: "nube", xai: "nube",
+};
+/** Nombres con los que el enrutador mide al motor del catálogo. */
+const ALIAS_MOTOR: Readonly<Record<string, string>> = {
+    kitten: "kittentts", "moss-tts": "moss-tts-nano", omnivoice: "voicemorphic",
+};
+/** Motores que sintetizan la voz forjada (`timbre.local.voz`). */
+const CON_VOZ_FORJADA = new Set([
+    "voicemorphic", "voicestudio", "kokoro", "kittentts", "moss-tts-nano",
+    "chatterbox", "voxcpm", "cosyvoice3", "qwen3-tts", "dots-tts", "sistema",
+]);
+
+/** Motor candidato: catálogo, voz de la persona y nivel. */
+export interface CandidatoMotorVoz {
+    id: string;
+    claseLicencia: MotorInfo["claseLicencia"];
+    condicionCumplida?: boolean;
+    tieneVoz: boolean;
+    nivel: NivelVoz;
+}
+/** Elección única para todo el mensaje. */
+export interface EleccionMotorVoz { motor: string; nivel: NivelVoz; latenciaMs: number; }
+
+/** Nivel que corresponde a cada motor del catálogo y del enrutador. Puro. */
+export function nivelParaMotor(motorId: string): NivelVoz {
+    return NIVEL_MOTOR[motorId] ?? "alta";
+}
+
+/** Mediana de los últimos `ventana` «primer-sonido» del motor. Pura. */
+function latenciaMediana(medidas: readonly MedidaVoz[], motor: string, ventana: number): number | null {
+    const v = medidas.filter((m) => (m.motor === motor || ALIAS_MOTOR[m.motor] === motor)
+        && m.tipo === "primer-sonido" && Number.isFinite(m.valor) && m.valor > 0)
+        .slice(-ventana).map((m) => m.valor).sort((a, b) => a - b);
+    if (!v.length) return null;
+    const i = Math.floor(v.length / 2);
+    return v.length % 2 ? v[i] : (v[i - 1] + v[i]) / 2;
+}
+
+/**
+ * Elige el motor de una locución: licencia del contexto, voz de la persona,
+ * tope del uso y menor mediana medida. Sin medidas devuelve `null` (manda la
+ * regla por hardware). Pura.
+ */
+export function elegirMotorPrimeraFrase(p: {
+    uso: UsoVoz; contexto: ContextoLicenciaVoz; capas?: CapasPrefs;
+    candidatos: readonly CandidatoMotorVoz[]; medidas: readonly MedidaVoz[]; ventana?: number;
+}): EleccionMotorVoz | null {
+    const { uso, contexto, capas = {}, candidatos, medidas, ventana = 20 } = p;
+    const conVoz = candidatos.filter((c) => c.tieneVoz && c.id.trim() !== "");
+    const permitidos = new Set(motoresPermitidos(conVoz.map(
+        ({ id, claseLicencia, condicionCumplida }) => ({ id, claseLicencia, condicionCumplida }),
+    ), contexto, capas).permitidos.map((m) => m.id));
+    const estudio = estudioSegunUso(uso);
+    let mejor: EleccionMotorVoz | null = null;
+    for (const c of conVoz) {
+        if (!permitidos.has(c.id) || (!estudio && c.nivel === "estudio")) continue;
+        const latenciaMs = latenciaMediana(medidas, c.id, ventana);
+        if (latenciaMs !== null && (mejor === null || latenciaMs < mejor.latenciaMs)) {
+            mejor = { motor: c.id, nivel: c.nivel, latenciaMs };
+        }
+    }
+    return mejor;
+}
+
+/** Uso del turno a partir del contexto documental de `OpcionesHablar`. Puro. */
+function usoDelContexto(c: ContextoVoz): UsoVoz {
+    return c === "lectura" ? "lectura" : c === "aviso" ? "aviso" : "conversacion";
+}
+
+/** Candidatos del catálogo, con la voz y el nivel de este timbre. Puro. */
+function candidatosDelCatalogo(timbre: Timbre): CandidatoMotorVoz[] {
+    return MOTORES_VOZ.map((m) => ({
+        id: m.id, claseLicencia: m.claseLicencia, nivel: nivelParaMotor(m.id),
+        tieneVoz: !!timbre.local.voz && CON_VOZ_FORJADA.has(m.id),
+    }));
+}
+
 /**
  * HABLA — entrada única del OS.
  *
@@ -450,26 +567,29 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     const plataforma = detectarPlataforma();
     const { memoriaGB } = await detectarCapacidades();
     const ramGB = memoriaGB ?? 8;
-    const motorCat = motorRecomendado(plataforma, ramGB, opciones.contexto === undefined ? "personal" : "grupo");
-    let nivel: NivelVoz;
-    switch (motorCat.id) {
-        case "voicemorphic":
-        case "voicestudio":
-            nivel = "estudio";
-            break;
-        case "kokoro":
-        case "kittentts":
-        case "moss-tts-nano":
-            nivel = "ligera";
-            break;
-        case "sistema":
-            nivel = "minima";
-            break;
-        default:
-            // openvoice2, chatterbox, voxcpm, cosyvoice3, qwen3-tts, dots-tts
-            nivel = "nube";
-            break;
+
+    const uso = opciones.uso ?? usoDelContexto(opciones.contexto);
+    const contextoLicencia: ContextoLicenciaVoz = opciones.contextoUso ?? "grupo";
+
+    const id = motorRecomendado(plataforma, ramGB, contextoLicencia).id;
+    let nivel: NivelVoz = id === "voicemorphic" || id === "voicestudio" ? "estudio"
+        : id === "kokoro" || id === "kittentts" || id === "moss-tts-nano" ? "ligera"
+        : id === "sistema" ? "minima" : "nube";
+
+    // (VST1018F) La primera frase de una conversación sale del motor PERMITIDO
+    // con menor latencia medida que tenga la voz; vale para TODO el mensaje y
+    // nunca se reparte la locución entre dos motores.
+    if (opciones.primeraFrase ?? uso === "conversacion") {
+        const neurona = neuronDeviceIdActual();
+        const eleccion = elegirMotorPrimeraFrase({
+            uso, contexto: contextoLicencia, capas: opciones.capas ?? {},
+            candidatos: candidatosDelCatalogo(timbre),
+            medidas: leerMedidas(neurona || undefined),
+        });
+        if (eleccion) nivel = eleccion.nivel;
     }
+    const tope = nivelTopeSegunUso(uso);
+    if (tope) nivel = acotarNivel(nivel, tope);
 
     // ── (Ola 232 · M5) GESTO EN EL MISMO INSTANTE ───────────────────────────
     // Al empezar a hablar se deriva el gesto del texto y se emite `starseed:gesto`
