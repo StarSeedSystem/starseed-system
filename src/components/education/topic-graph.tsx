@@ -35,6 +35,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { abrirGuia } from "@/lib/onboarding/guia-acceso";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -46,7 +48,6 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { abrirGuia } from "@/lib/onboarding/guia-acceso";
 
 import {
     type EduNode,
@@ -718,6 +719,7 @@ export function TopicGraph() {
                 }
                 if (creados === 0) {
                     toast.error("Inicia sesión para importar documentos a tu mapa de conocimiento.", {
+                        description: "Tu cuenta StarSeed es el ancla soberana de lo que guardas.",
                         action: { label: "Conoce StarSeed", onClick: () => abrirGuia({ desde: "aviso" }) },
                     });
                     return;
