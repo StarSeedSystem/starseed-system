@@ -1,0 +1,36 @@
+{
+ "ola": "nube-20261102",
+ "tareas": [
+  {
+   "id": "IMG1102D",
+   "ola": "1102 · Imaginación útil",
+   "importancia": "",
+   "depende": [],
+   "titulo": "Medidor de Imaginación · enseña lo filtrado de Astraura y por qué",
+   "archivos": [
+    "src/lib/mando/imaginacion-tipos.ts",
+    "src/components/mando/imaginacion-panel.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; funciones PURAS con pruebas; nunca la IP del A1.\n\nContexto: el 02-11 se integraron IMG1102A (1718e5272, 0545f728f: filtro de entrada de Astraura, gasto de verdad, carril de bajo riesgo ≥ 0,6 para investigación/diseño/contenido, autorizaciones inventadas) e IMG1102B (884bfff4f, d949a5e8f: `imaginacion_contexto.py` + `imaginacion_plantilla.py` enganchados en referencias de diseño y la diaria), y d20fe1c80 (el ciclo del director ya no muere si Telegram tarda). Contrato: `architecture/imaginacion-calidad.md`.\n\n`propuestas.json → filtro_astraura` (familia repetida, tipo de archivo, tope, autorizaciones inventadas) y `ciclo()` ya lo devuelven. Píntalo en la ventana de Imaginación (busca el componente real con grep) como una línea «Filtradas de Astraura hoy: N (familia X · tipo Y · tope Z)». vitest."
+  },
+  {
+   "id": "IMG1102C",
+   "ola": "1102 · Imaginación útil",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Imaginación · el director de autodesarrollo también corre en la dirección del A1 cuando la Mac está ahogada",
+   "archivos": [
+    "scripts/puente/director_autodesarrollo.py",
+    "scripts/puente/test_director_autodesarrollo.py",
+    "scripts/puente/oracle_nodo.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; funciones PURAS con pruebas; nunca la IP del A1.\n\nContexto: el 02-11 se integraron IMG1102A (1718e5272, 0545f728f: filtro de entrada de Astraura, gasto de verdad, carril de bajo riesgo ≥ 0,6 para investigación/diseño/contenido, autorizaciones inventadas) e IMG1102B (884bfff4f, d949a5e8f: `imaginacion_contexto.py` + `imaginacion_plantilla.py` enganchados en referencias de diseño y la diaria), y d20fe1c80 (el ciclo del director ya no muere si Telegram tarda). Contrato: `architecture/imaginacion-calidad.md`.\n\nTras integrar, el ciclo terminó «la Mac tiene presión de memoria · 0 tarea(s) · 13 esperando»: con la Mac cargada no encarga nada nunca. Añade el director a las piezas de `starseed-direccion.service` del A1 (mira `oracle_nodo.direccion` y `direccion_arranque.py`) para que, cuando el A1 tenga el arriendo, encargue allí con su memoria, y que en la Mac solo encargue si es líder (regla `autocuracion_mando.decidir_lider`)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "IMG1102C",
+   "IMG1102D"
+  ]
+ }
+}
