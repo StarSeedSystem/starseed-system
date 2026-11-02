@@ -44,6 +44,10 @@ import { NEW_BLOCK_DEFS, RichBlockEditor } from "@/components/creation/creation-
 // (Adenda 219) Marco de forma opcional para fotos y vídeos del Lienzo.
 import { MarcoDeMedio } from "@/components/creation/marco-de-medio";
 import type { Marco } from "@/lib/profile/marco-foto";
+// Contenido vivo (CVV1028, tarea K): botón «Hacerla viva» sobre esta creación,
+// con el panel de la tarea H (contrato architecture/contenido-vivo.md §2).
+import { BotonHacerlaViva } from "@/components/contenido-vivo/boton-hacerla-viva";
+import type { ContextoVivo } from "@/lib/contenido-vivo/rutas";
 import { SocialCrosspost } from "@/components/creation/social-crosspost";
 import {
     isRichBlock,
@@ -203,6 +207,19 @@ function listForgedWidgets(): Array<{ id: string; title: string }> {
 
 // ── Composer ─────────────────────────────────────────────────────────────────
 
+// Contexto del ámbito mientras no haya ajustes ni libro de créditos: local
+// primero, externos permitidos pero sin conectar y sin créditos en juego.
+const CONTEXTO_VIVO_LIENZO: ContextoVivo = {
+    alcance: "publica",
+    conectados: [],
+    cupoHoy: {},
+    creditosDisponibles: 0,
+    topeMes: 0,
+    gastadoMes: 0,
+    neurona: { gpu: false, capaz3d: true },
+    ajustes: { localPrimero: true, externosPermitidos: true },
+};
+
 interface LienzoComposerProps {
     initialDest?: CreationDest;
     initialGeo?: { lat: number; lng: number };
@@ -298,6 +315,13 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
     );
 
     const anyUploading = blocks.some((b) => b.uploading);
+
+    // Contenido vivo (CVV1028, tarea K): el plan del panel llega como texto y la
+    // creación lo recibe como bloque nuevo al final, sin rehacer lo que ya hay.
+    const anadirPlanVivo = useCallback((plan: string) => {
+        if (!plan) return;
+        setBlocks((prev) => [...prev, { ...makeBlock("texto"), text: plan }]);
+    }, []);
 
     // Compone el cuerpo (markdown de bloques legados) + metadata ss:meta.
     // (Ola 224) Devuelve también `meta` para poder medir su tamaño antes de publicar.
@@ -484,6 +508,9 @@ export function LienzoComposer({ initialDest, initialGeo }: LienzoComposerProps)
                         onChange={(e) => setTitulo(e.target.value)}
                         className="bg-black/30 border-white/10 text-base"
                     />
+
+                    {/* Contenido vivo (CVV1028): el plan se abre sobre esta creación */}
+                    <BotonHacerlaViva contexto={CONTEXTO_VIVO_LIENZO} anadir={anadirPlanVivo} />
 
                     {geo && (
                         <div className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-xs text-sky-200">
