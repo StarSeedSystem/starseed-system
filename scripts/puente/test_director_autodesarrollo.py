@@ -521,6 +521,74 @@ class Ola1025STest(unittest.TestCase):
         self.assertIsNone(D.item_astraura(self.libre("x")))
 
 
+class Ola1102CTest(unittest.TestCase):
+    """IMG1102C: el director encarga en el A1 con el arriendo y en la Mac solo si es líder."""
+
+    def setUp(self):
+        self.t = tempfile.TemporaryDirectory(); self.home = os.path.join(self.t.name, "h"); self.raiz = os.path.join(self.t.name, "r")
+        self.mem = os.path.join(self.raiz, "starseed_memory_root"); os.makedirs(self.home); os.makedirs(self.raiz)
+
+    def tearDown(self):
+        self.t.cleanup()
+
+    def _flota(self, raiz, tareas):
+        return {"accion": "probada", "tareas": len(tareas)}
+
+    def agentes(self, nombre, contenido):
+        carpeta = os.path.join(self.mem, "imaginacion", "agentes"); os.makedirs(carpeta, exist_ok=True)
+        json.dump(contenido, open(os.path.join(carpeta, nombre), "w", encoding="utf-8"), ensure_ascii=False)
+
+    def correr(self, **kw):
+        args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: True,
+                    lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True,
+                    agente_referencias=lambda raiz, ahora: None, agente_alcance=lambda raiz, ahora: None,
+                    lider={"soy": True, "motivo": "líder vigente"},
+                    datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}})
+        args.setdefault("a_la_flota", self._flota)
+        args.update(kw); return D.ciclo(**args)
+
+    def props(self):
+        return {p["id"]: p for p in json.load(open(os.path.join(self.mem, "imaginacion", "propuestas.json"), encoding="utf-8"))["propuestas"]}
+
+    def ajeno(self):
+        return {"soy": False, "motivo": "dueño: oracle-a1-prueba",
+                "arriendo": {"dueno": "oracle-a1-prueba", "caduca": NOCHE.timestamp() + 120,
+                             "version": 3, "tomado": NOCHE.timestamp() - 60}}
+
+    def test_con_el_arriendo_ajeno_decide_pero_no_encarga(self):
+        self.agentes("a.json", [{"titulo": "Arreglar el lector", "archivos": ["src/lib/a.ts"], "verificacion": "verificado"}])
+        r = self.correr(lider=self.ajeno())
+        self.assertFalse(r["toca_ejecutar"])
+        self.assertFalse(r["toca_analizar"])
+        self.assertIn("dirige", r["motivo_lider"])
+        self.assertEqual((r["autodesarrolladas"], r["reimaginaciones_encargadas"], r["entregables_encargados"]), (0, 0, 0))
+        self.assertEqual(self.props()["agentes:a--arreglar-el-lector"]["estado"], "autodesarrollo")  # decide y escribe
+        self.assertFalse(os.path.isdir(os.path.join(self.mem, "olas")))
+
+    def test_con_el_arriendo_propio_encarga_como_siempre(self):
+        self.agentes("a.json", [{"titulo": "Arreglar el lector", "archivos": ["src/lib/a.ts"], "verificacion": "verificado"}])
+        r = self.correr()
+        self.assertTrue(r["toca_ejecutar"])
+        self.assertEqual(r["autodesarrolladas"], 1)
+        self.assertEqual(self.props()["agentes:a--arreglar-el-lector"]["estado"], "encargada")
+
+    def test_el_a1_sin_gobernador_cuenta_su_salud_y_no_la_presion_de_la_mac(self):
+        salud = {"nim": {}, "xkiro": {"caido": True}}
+        json.dump(salud, open(os.path.join(self.home, "salud-proveedores.json"), "w"))
+        self.assertIsNone(D.medir_capacidad(self.home))
+        cap = D.medir_capacidad(self.home, medio="oracle", trabajadores=3)
+        self.assertEqual(cap, {"huecos_mac": 0, "huecos_a1": 2, "huecos_nube": 0, "proveedores_con_cupo": 1, "presion_mac": 0})
+
+    def test_el_arranque_del_a1_corre_el_director_cada_15_min_bajo_el_arriendo(self):
+        import oracle_nodo as N
+        guion = N.guion_direccion()
+        self.assertIn("director_autodesarrollo.py", guion)
+        self.assertIn('["ciclo"]', guion)
+        self.assertIn("900", guion)
+        self.assertLess(guion.index("if lider:"), guion.index("director_autodesarrollo.py"))
+        compile(guion, "direccion_arranque.py", "exec")
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -578,14 +578,20 @@ def soy_lider():
     except Exception as e:  # noqa: BLE001 — una puerta caída no para la dirección local
         print("direccion: sin arriendo (%s): sigo en local" % type(e).__name__, flush=True)
         return True
-ultimo, lider = 0.0, False
+ultimo, ultimo_director, lider = 0.0, 0.0, False
 while True:
-    if time.time() - ultimo >= 60:
-        lider, ultimo = soy_lider(), time.time()
+    ahora = time.time()
+    if ahora - ultimo >= 60:
+        lider, ultimo = soy_lider(), ahora
     if lider:
         procesos = vivos()
         for nombre, guion, args in HIJOS:
             arrancar(nombre, guion, args, procesos)
+        # (IMG1102C) El director de autodesarrollo, cada 15 min: una pasada y sale. Con el arriendo
+        # aquí, encarga en el A1 con su memoria aunque la Mac esté ahogada; sin él, no se lanza.
+        if ahora - ultimo_director >= 900:
+            arrancar("director", "director_autodesarrollo.py", ["ciclo"], procesos)
+            ultimo_director = ahora
     time.sleep(30)
 '''
 
@@ -681,6 +687,7 @@ def _poner_en_a1(contenido, destino, modo=0o644, dueno="root"):
 
 def direccion(aplicar=False):
     """`direccion [--aplicar]`: arma la unidad y el arranque en el A1. En seco solo enseña el plan.
+    (IMG1102C) Con el arriendo, el arranque también corre el director de autodesarrollo cada 15 min.
     (OPS1031B) Si otra neurona tiene el arriendo de dirección vigente, en vez de arrancar PARA las
     piezas de dirección (systemctl stop de las unidades de dirección, nunca las ajenas); si la
     unidad está muerta, no la arranca — la limpieza es del A1, que las restituye al recuperar el

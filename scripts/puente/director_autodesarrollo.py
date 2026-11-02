@@ -8,9 +8,11 @@ lista manual; alta y crítica NUNCA solas), encarga las reimaginaciones al enjam
 de referencias de diseño si existe. Desde la Ola 1025S (IMG1025A) el automático decide también Astraura y lo
 que no es código, descarta duplicadas, reparte las reimaginaciones con tope por ciclo y manda cada aprobada por
 su vía: código → cola de código; Astraura → su backend 1.58; lo demás → entregable del analista en modo libre.
-Decidir se hace y se escribe siempre (no cuesta memoria); lanzar trabajo, solo cuando toca. Reloj, disco,
-lanzadores, Jev, Astraura y agentes por parámetro (las pruebas no lanzan nada real); escrituras atómicas
-(tmp + os.replace) y cerrojo propio."""
+Decidir se hace y se escribe siempre (no cuesta memoria); lanzar trabajo, solo cuando toca. Desde la Ola 1102C
+(IMG1102C) el arriendo de dirección decide dónde se encarga: en la Mac solo si es líder (la misma regla que la
+autocuración, `autocuracion_mando.decidir_lider`), y en el A1 la dirección lo corre cada 15 min con su memoria.
+Reloj, disco, lanzadores, Jev, Astraura, agentes y arriendo por parámetro (las pruebas no lanzan nada real);
+escrituras atómicas (tmp + os.replace) y cerrojo propio."""
 from __future__ import annotations
 import argparse, fcntl, json, os, shutil, subprocess, sys, tempfile, urllib.error, urllib.request
 from collections import Counter
@@ -62,19 +64,59 @@ def cerrojo(ruta):
         finally: fcntl.flock(f, fcntl.LOCK_UN)
 
 
-def medir_capacidad(home):
+def _vivos(salud):
+    """Los proveedores que no están caídos ni sin cupo. PURA (compartida por las dos capacidades)."""
+    return [k for k, v in (salud or {}).items()
+            if isinstance(v, dict) and not (v.get("caido") or v.get("estado") in ("caido", "caído", "sin_cupo"))]
+
+
+def capacidad_en_a1(salud, trabajadores=None):
+    """PURA (IMG1102C). Capacidad del A1 cuando no hay `gobernador.json` (es de la Mac): cuenta su salud
+    de proveedores y los trabajadores declarados, sin la presión de memoria de la Mac. None sin salud."""
+    if not isinstance(salud, dict): return None
+    try: n = int(trabajadores if trabajadores is not None else 2)
+    except (TypeError, ValueError): n = 2
+    vivos = _vivos(salud)
+    return {"huecos_mac": 0, "huecos_a1": max(0, min(2, n)) if vivos else 0, "huecos_nube": 0,
+            "proveedores_con_cupo": len(vivos), "presion_mac": 0}
+
+
+def medir_capacidad(home, medio=None, trabajadores=None):
     """Gobernador + salud de proveedores. Claves no halladas = sin dato (None): nunca se inventa.
-    El A1 y la nube no se miden aquí: cuentan 0 huecos."""
+    El A1 y la nube no se miden aquí: cuentan 0 huecos. En el A1 (IMG1102C), que no tiene el
+    `gobernador.json` de la Mac, su salud de proveedores y sus trabajadores dan la capacidad propia."""
     g, s = _json(os.path.join(home, "gobernador.json"), None), _json(os.path.join(home, "salud-proveedores.json"), None)
-    if not isinstance(g, dict) or not isinstance(g.get("maximo"), int) or not isinstance(s, dict): return None
+    if not isinstance(s, dict): return None
+    if not isinstance(g, dict) or not isinstance(g.get("maximo"), int):
+        en_a1 = (medio if medio is not None else os.environ.get("STARSEED_MEDIO")) == "oracle"
+        if not en_a1: return None
+        return capacidad_en_a1(s, trabajadores if trabajadores is not None else os.environ.get("STARSEED_A1_TRABAJADORES", 2))
     ocupados = g.get("trabajando", g.get("en_curso", 0)) or 0
-    vivos = [k for k, v in s.items() if isinstance(v, dict) and not (v.get("caido") or v.get("estado") in ("caido", "caído", "sin_cupo"))]
     return {"huecos_mac": max(0, g["maximo"] - ocupados), "huecos_a1": 0, "huecos_nube": 0,
-            "proveedores_con_cupo": len(vivos), "presion_mac": g.get("presion") or 0}
+            "proveedores_con_cupo": len(_vivos(s)), "presion_mac": g.get("presion") or 0}
 
 
 def _lanzar_real(*orden):
     return subprocess.Popen(orden, cwd=RAIZ, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True) and True
+
+
+def _lider_direccion():
+    """El arriendo de dirección, solo LEÍDO (IND1029B); sin el módulo o con la puerta rota, líder en local."""
+    try:
+        import lider_direccion
+        return lider_direccion.soy_lider()
+    except Exception as e:  # noqa: BLE001 — como la autocuración: sin puerta se sigue en local
+        return {"soy": True, "motivo": "sin líder de dirección (%s): sigo en local" % type(e).__name__}
+
+
+def _dirigir_aqui(lider, ahora):
+    """PURA (IND1029Cb). ¿Encarga trabajo ESTA neurona? La misma regla que la autocuración y la
+    autopublicación; sin el módulo, sí (nada deja a una sola máquina esperando a nadie)."""
+    try:
+        import autocuracion_mando as AM
+        return AM.decidir_lider(lider, ahora)
+    except Exception:  # noqa: BLE001
+        return True, "sin la regla del líder: sigo en local"
 
 
 def _astraura():
@@ -349,13 +391,15 @@ def _aplicar_en_astraura(lista, aplicar, iso):
 
 def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_diario=None, lanzador_profundo=None,
           existe_ruta=None, datos=None, avisar=None, consejo=None, agente_referencias=None, aplicar_astraura=None,
-          a_la_flota=None, agente_alcance=None):
+          a_la_flota=None, agente_alcance=None, lider=None):
     """Un ciclo (§5). `datos`: {diaria, profunda, astraura, directores, agentes} para no leer disco ni red.
     `consejo(p)`: Jev para el veto de lo que se integraría solo (None = solo la regla). `agente_referencias(raiz,
     ahora)`: el agente de referencias de diseño (por defecto, el módulo si existe); devuelve None si no hay agente.
     `agente_alcance(raiz, ahora)`: el agente de alcance (por defecto, `agente_alcance.ciclo` si existe).
     `aplicar_astraura(item)`: aplica una creación en el backend 1.58 (None si lo hizo, o el error); por defecto, HTTP.
     `a_la_flota(raiz, tareas)`: entrega el análisis encolado al orquestador vivo (por defecto `AR.a_la_flota`).
+    `lider`: el arriendo de dirección (IMG1102C); por defecto se lee. Si dirige otra neurona, aquí solo se
+    decide y se escribe: encargar es del líder (la misma regla que la autocuración).
     Ola 1025S: reimaginar y preparar entregables se encargan con `AL.toca_analizar` (análisis por HTTP con su
     propio tope), no con `toca_ejecutar`: la presión de memoria de la Mac frenaba toda reimaginación."""
     ahora, home, raiz = ahora or datetime.now(), home or os.path.expanduser("~/.starseed"), raiz or RAIZ
@@ -368,6 +412,10 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
             toca, motivo = False, "sin dato de capacidad: en modo inteligente no se ejecuta"
         else: toca, motivo = AL.toca_ejecutar(ahora, aj["horario"], cap or {})
         toca_an, motivo_an = (True, motivo) if toca else AL.toca_analizar(ahora, aj["horario"], cap)
+        dirijo, motivo_lider = _dirigir_aqui(lider if lider is not None else _lider_direccion(), ahora.timestamp())
+        if not dirijo:  # la Mac con el arriendo en el A1 no encarga: lo hace el A1 con su memoria
+            toca, motivo = False, "dirige otra neurona (%s): aquí solo se decide y se escribe" % motivo_lider
+            toca_an, motivo_an = False, motivo
         est_ruta = os.path.join(home, "autodesarrollo-estado.json"); est = _json(est_ruta, {})
         lanzo = []
         if toca and not seco:
@@ -486,6 +534,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
                 "decisiones": dict(decisiones), "entregables": dict(entregables),
                 "entregables_encargados": len(tareas_e) if not seco else 0, "cola_entregables": cola_e,
                 "aplicadas_astraura": aplicadas, "toca_analizar": toca_an, "motivo_analisis": motivo_an,
+                "dirijo": dirijo, "motivo_lider": motivo_lider,
                 "flota": flota, "estados": dict(Counter(p.get("estado") or "nueva" for p in propuestas)),
                 "filtro_astraura": {k: v for k, v in filtro.items() if k not in ("por_id", "inventadas")} if filtro else None}
 
