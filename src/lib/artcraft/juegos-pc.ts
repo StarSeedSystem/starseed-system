@@ -104,9 +104,24 @@ export function validarSinCredencialesEpic(texto: string): { ok: boolean; hallaz
   return { ok: hallazgos.length === 0, hallazgos };
 }
 
+/**
+ * Guarda de las descargas de Rare (SUP0111H, 01-11 · seguridad): solo releases oficiales de
+ * `github.com/RareDevs/Rare`. Mira el texto crudo (travesía `..`, `%2e` en cualquier caja y
+ * barras invertidas) y luego la URL ya normalizada: esquema, host exacto, sin credenciales ni
+ * puerto, y `pathname` bajo `/RareDevs/Rare/releases/`. URL inválida → false.
+ */
 export function esUrlPermitidaRare(url: string): boolean {
-  // Blocked domains
   if (url.includes("raredevs.github.io") || url.includes("protondb.com")) return false;
-  if (!url.startsWith("https://github.com/RareDevs/Rare/releases/")) return false;
-  return true;
+  if (url.includes("..") || /%2e/i.test(url) || url.includes("\\")) return false;
+  let destino: URL;
+  try {
+    destino = new URL(url);
+  } catch {
+    return false;
+  }
+  if (destino.protocol !== "https:") return false;
+  if (destino.hostname !== "github.com") return false;
+  if (destino.username !== "" || destino.password !== "") return false;
+  if (destino.port !== "") return false;
+  return destino.pathname.startsWith("/RareDevs/Rare/releases/");
 }
