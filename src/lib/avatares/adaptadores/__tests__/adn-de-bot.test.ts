@@ -66,6 +66,17 @@ describe("adnDeBot: la referencia manda y el ADN por defecto conserva la orbe", 
     expect(adnDeBot(bot).aura.tono).toBe(40);
   });
 
+  it("el ADN por defecto de una orbe lleva dueño bot, el nombre del bot y el aura ligada a la emoción", () => {
+    const bot = botDe({ cuerpo: { forma: "orbe", tono: 210, escala: 1 } });
+    const adn = adnDeBot(bot);
+    expect(adn.id).toBe("adn-bot-bot-1");
+    expect(adn.nombre).toBe("Semilla");
+    expect(adn.dueno).toEqual({ tipo: "bot", id: "bot-1" });
+    expect(adn.aura.tono).toBe(210);
+    expect(adn.aura.ligadaEmocion).toBe(true);
+    expect(adn.visibilidad).toBe("privado");
+  });
+
   it("con forma «orbe» no hay referencia de ADN y el tono es el de la orbe", () => {
     const bot = botDe({ cuerpo: { forma: "orbe", tono: 300, escala: 1 } });
     expect(refAdnDeBot(bot)).toBeNull();
