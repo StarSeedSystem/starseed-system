@@ -223,4 +223,12 @@ describe("Rare: ficha viva del catálogo, programa aparte y credenciales de Epic
     expect(avisos).toMatch(/las decide Alex/);
     expect(avisos).toContain("servidores compartidos");
   });
+
+  it("solo se actualiza desde github.com/RareDevs/Rare/releases", () => {
+    const ficha = rare();
+    expect(ficha.actualizacion.fuente).toBe("github-tags");
+    expect(ficha.actualizacion.ref).toBe("RareDevs/Rare");
+    expect(ficha.actualizacion.filtro).toBeTruthy();
+    expect(ficha.actualizacion.ultimaVersion).toMatch(new RegExp(ficha.actualizacion.filtro as string));
+  });
 });
