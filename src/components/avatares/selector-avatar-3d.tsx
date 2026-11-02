@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +16,9 @@ import type { Gobierno, RolBot } from "@/lib/astraura-bots/tipos";
 /** Peso en MB decimales (como las sumas de `plantillas.ts`): es lo que gasta quien lo baje con datos móviles. */
 const pesoMb = (bytes: number): string => `${(bytes / 1e6).toFixed(1).replace(".", ",")} MB`;
 
+/** El editor en tiempo real (AV1011B) se carga a demanda: solo entra en la página que lo abre. */
+const EditorAvatar = dynamic(() => import("@/components/avatares/editor-avatar"), { ssr: false });
+
 interface BaseProps {
   previewOnly?: boolean;
   /** Avisa con la clave del ADN guardado (`biblioteca:<id>`). */
@@ -27,6 +31,19 @@ interface BaseProps {
 interface PropsPerfil extends BaseProps {
   profileId: string;
   esPropio: boolean;
+  botId?: never;
+  entityId?: never;
+  entityKind?: never;
+  rol?: never;
+  gobierno?: never;
+}
+/**
+ * El avatar de un bot personal (AV1011C): quien lo edita es su dueño (el editor de «Mis bots»).
+ * El ADN vive con dueño `{ tipo: "bot", id }` y el cuerpo del bot apunta a él con `avatarRef`.
+ */
+interface PropsBot extends BaseProps {
+  botId: string;
+  profileId?: never;
   entityId?: never;
   entityKind?: never;
   rol?: never;
@@ -38,12 +55,13 @@ interface PropsPerfil extends BaseProps {
  */
 interface PropsEntidad extends BaseProps {
   profileId?: never;
+  botId?: never;
   entityId: string;
   entityKind: Extract<DuenoAvatar, "grupo" | "comunidad" | "pagina">;
   rol?: RolBot;
   gobierno?: Gobierno;
 }
-type SelectorAvatar3dProps = PropsPerfil | PropsEntidad;
+type SelectorAvatar3dProps = PropsPerfil | PropsBot | PropsEntidad;
 
 /** Por qué no se puede aplicar aquí, sin prometer flujos que aún no existen (propuesta y voto: AV1011J). */
 function porQueSoloVer(decision: ReturnType<typeof decidirCambioAvatar>): string {
@@ -59,16 +77,18 @@ export default function SelectorAvatar3d(props: SelectorAvatar3dProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [adnAvatar, setAdnAvatar] = useState<AdnAvatar | null>(null);
+  const [personalizando, setPersonalizando] = useState(false);
 
-  /** El dueño del ADN sale del perfil o de la entidad que está eligiendo el avatar. */
+  /** El dueño del ADN sale del perfil, del bot o de la entidad que está eligiendo el avatar. */
   const dueno = useMemo<AdnAvatar["dueno"]>(() => {
     if (props.profileId !== undefined) return { tipo: "perfil", id: props.profileId };
+    if (props.botId !== undefined) return { tipo: "bot", id: props.botId };
     return { tipo: props.entityKind, id: props.entityId };
-  }, [props.profileId, props.entityId, props.entityKind]);
+  }, [props.profileId, props.botId, props.entityId, props.entityKind]);
   const esPerfil = props.profileId !== undefined;
   const decision = decidirCambioAvatar({
     adn: { dueno },
-    rol: esPerfil ? (props.esPropio ? "dueno" : "invitado") : (props.rol ?? "invitado"),
+    rol: esPerfil ? (props.esPropio ? "dueno" : "invitado") : props.botId !== undefined ? "dueno" : (props.rol ?? "invitado"),
     gobierno: props.gobierno,
     vistaPrevia: false,
   });
@@ -155,7 +175,9 @@ export default function SelectorAvatar3d(props: SelectorAvatar3dProps) {
           <p className="text-xs text-muted-foreground">
             {esPerfil
               ? "Se guarda en este aparato y se espeja a tu cuenta; las demás personas aún no lo ven en tu ficha pública."
-              : "Se guarda en este aparato y se espeja a tu cuenta; la entidad y sus miembros aún no lo ven."}
+              : props.botId !== undefined
+                ? "Se guarda en este aparato y se espeja a tu cuenta; el cuerpo de tu bot apunta a este ADN."
+                : "Se guarda en este aparato y se espeja a tu cuenta; la entidad y sus miembros aún no lo ven."}
           </p>
           <h4 className="font-medium">Cambiar avatar</h4>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -177,6 +199,20 @@ export default function SelectorAvatar3d(props: SelectorAvatar3dProps) {
               );
             })}
           </div>
+
+          {/* Editor en tiempo real (AV1011B): necesita un ADN ya elegido (nunca arranca apilando ADN huérfanos). */}
+          {adnAvatar && puedeAplicar && (
+            personalizando ? (
+              <>
+                <h4 className="font-medium">Personalizar en tiempo real</h4>
+                <EditorAvatar adn={adnAvatar} />
+              </>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={() => setPersonalizando(true)}>
+                Personalizar en tiempo real
+              </Button>
+            )
+          )}
         </>
       )}
     </div>

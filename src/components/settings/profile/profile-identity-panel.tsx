@@ -50,6 +50,7 @@ import { uploadEntityMedia } from "@/lib/os-social";
 import { MarcoDeMedio } from "@/components/creation/marco-de-medio";
 import { FotoConMarco } from "@/components/profile/foto-con-marco";
 import { EditorAvatar3D, Avatar3DVisor, type Avatar3D } from "@/components/profile/avatar-3d";
+import SelectorAvatar3d from "@/components/avatares/selector-avatar-3d";
 import { type Marco, normalizarMarco } from "@/lib/profile/marco-foto";
 
 type Row = Record<string, any>;
@@ -545,6 +546,21 @@ export function ProfileIdentityPanel() {
                                 />
                             </div>
                         </div>
+
+                        {/* ── (AV1011K) Avatar 3D en vivo: orbe/plantillas CC0 + editor en tiempo real ── */}
+                        {uid && (
+                            <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                                <div className="min-w-0">
+                                    <p className="text-sm font-medium">Avatar 3D en vivo</p>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Elige un orbe o una plantilla CC0 y personalízalo al momento. Vive en este aparato
+                                        (ADN espejado a tu cuenta); la ficha pública todavía no lo enseña: seguirá el avatar
+                                        GLB opcional de arriba hasta que llege esa fase.
+                                    </p>
+                                </div>
+                                <SelectorAvatar3d profileId={uid} esPropio />
+                            </div>
+                        )}
 
                         {/* ── Credenciales verificables REALES (o estado honesto) ── */}
                         <div className="space-y-1.5">

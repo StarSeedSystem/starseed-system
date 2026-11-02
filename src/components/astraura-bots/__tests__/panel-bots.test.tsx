@@ -10,6 +10,21 @@ vi.mock("@/components/avatares/cuerpo-3d-bot", () => ({
   Cuerpo3dBot: ({ bot }: { bot: { id: string } }) => <span data-testid="cuerpo-3d" data-bot={bot.id} />,
 }));
 
+/** El selector de avatar de la editora usa UI de shadcn, que pide el AppearanceProvider que no hay en jsdom. */
+vi.mock("@/components/ui/button", () => ({
+  Button: (p: { onClick?: () => void; disabled?: boolean; children?: React.ReactNode }) => (
+    <button type="button" disabled={p.disabled} onClick={p.onClick}>{p.children}</button>
+  ),
+}));
+vi.mock("@/components/ui/card", () => ({
+  Card: (p: { children?: React.ReactNode }) => <div>{p.children}</div>,
+  CardContent: (p: { children?: React.ReactNode }) => <div>{p.children}</div>,
+}));
+vi.mock("@/components/ui/badge", () => ({
+  Badge: (p: { children?: React.ReactNode }) => <span>{p.children}</span>,
+}));
+import * as React from "react";
+
 const PROPS = { perfilId: "perfil-1", cuentaId: "cuenta-1" };
 const CLAVE = "starseed.astraura.bots.v1";
 
@@ -63,11 +78,12 @@ describe("PanelBots", () => {
     expect(leerGuardados().bots[0].personalidad.calidez).toBe(0.9);
   });
 
-  it("la forma vrm se anuncia como «próximamente»", () => {
+  it("la forma vrm se elige y se explica dónde se ve: orbe+ADN en la web, XR más adelante", () => {
     render(<PanelBots {...PROPS} />);
     fireEvent.click(screen.getByLabelText("Editar Astraura"));
     fireEvent.change(screen.getByLabelText("Cuerpo"), { target: { value: "vrm" } });
-    expect(screen.getByText("próximamente: llega con StarSeed XR")).toBeTruthy();
+    expect(screen.getByText("en la web se ve su orbe con este ADN; el cuerpo dentro de XR llega con StarSeed XR")).toBeTruthy();
+    expect(screen.getByText(/Elige la orbe o una plantilla CC0/)).toBeTruthy();
   });
 
   it("un bot con cuerpo vrm muestra su avatar 3D en la lista", () => {

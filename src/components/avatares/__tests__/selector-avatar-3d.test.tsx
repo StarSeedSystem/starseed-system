@@ -217,6 +217,18 @@ describe("SelectorAvatar3d", () => {
     expect(getSavedAdnEntries()).toHaveLength(0);
   });
 
+  it("con botId el dueño es el bot: elige plantilla, guarda con dueno {tipo:\"bot\"} y avisa con su clave", async () => {
+    const onChange = vi.fn();
+    render(<SelectorAvatar3d botId="bot:abc" onChange={onChange} />);
+    abrir();
+    fireEvent.click(screen.getByLabelText("Elegir Avatar Arla"));
+    await waitFor(() => expect(screen.getByTestId("avatar-vivo").textContent).toBe("Avatar Arla"));
+    const guardado = adnActualDeDueno({ tipo: "bot", id: "bot:abc" });
+    expect(guardado).not.toBeNull();
+    expect(onChange).toHaveBeenCalledWith(`biblioteca:${guardado!.id}`);
+    expect(adnActualDeDueno({ tipo: "perfil", id: "bot:abc" })).toBeNull();
+  });
+
   it("al cambiar de avatar conserva la visibilidad que ya tenía el ADN", async () => {
     const dueno = { tipo: "perfil" as const, id: "p1" };
     await saveAdnToLibrary({ ...adnDePlantilla("arla", dueno, "adn-previo")!, rev: 4 }, "publico");

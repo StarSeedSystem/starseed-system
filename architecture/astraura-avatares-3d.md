@@ -109,6 +109,23 @@ XR · F servicio local «taller-3d» · G vigías de UniMate, Filigree3D y BTC3D
 I proveedores externos opcionales (apagados) · J propuestas y votos de avatar en grupos · L plantillas iniciales
 CC0 (como mucho 10 modelos y 30 MB) · K integración y verificación.
 
+### §9.1 · Estado REAL por tarea (2026-11-02 · AV1011K)
+
+| Tarea | Estado | Qué es verdad |
+|---|---|---|
+| **A** visor VRM vivo | Hecha | `AvatarVivo` en `src/lib/avatares/…` probada en sus propios tests; segura sin WebGL (orbe). |
+| **B** editor en tiempo real | Hecha | Núcleo en `src/lib/avatares/adaptadores/use-editor-avatar.ts` y panel `src/components/avatares/editor-avatar.tsx` (morfología, colores, expresiones, aura, voz, MIDI). Ahora accesible: el selector lo monta con «Personalizar en tiempo real» para perfil, grupo/página y bot. |
+| **C** orbe→avatar en los bots | Hecha con matiz | `adn-de-bot.ts` + `cuerpo-3d-bot.tsx` + `esFormaAvatar3d`; el editor de «Mis bots» (BOT1011I1) ofrece ahora el selector del ADN del bot por `botId` y guarda `cuerpo.avatarRef` (`biblioteca:<id>`). El cuerpo DENTRO de XR sigue pendiente (se ve en web; se dice en la interfaz). |
+| **D** avatar en perfiles, grupos y páginas | A medias | Montado en la EDICIÓN: `ProfileIdentityPanel` (Ajustes → Perfil, con `profileId` = id de cuenta) y en «Conexiones y Roles» de /cuenta para facetas «grupal»/«pública» (grupo/página). Falta: enseñar el ADN en la FICHA pública de perfil, grupo y página ( siguen pintando el `avatar_3d` GLB legado de la Adenda 219). |
+| **E** sincronía escenas/XR | Pendiente | No empezada: otra superficie. |
+| **F** servicio «taller-3d» | Pendiente | Depende de G. |
+| **G** vigías UniMate/Filigree3D/BTC3D | Hecha (UniMate con paréntesis) | `scripts/protomolecula/vigias_3d*.py`; task pendiente como propuesta `VGUNIA` (§8, §10). |
+| **H** catálogo Protomolécula | Hecha | Núcleo puro con procedencia y plan por neurona (`optimizacion.ts`). |
+| **I** proveedores externos | Hecha (apagados) | `proveedores-externos.ts`: nada se activa sin clave. |
+| **J** propuesta y voto | Pendiente | El selector todaví dice que «proponer y votar no está disponible» (§7). |
+| **L** plantillas CC0 | Hecha | 6 plantillas Numinia CC0 (~24,6 MB), `plantillas.ts`. |
+| **K** integración y verificación | Esta tarea | Punto de export único: `src/components/avatares/index.ts` (SelectorAvatar3d, EditorAvatar, AvatarVivo, Cuerpo3dBot). Montajes: perfil (identidad), grupo/página (roles de entidad), bots (editor). Las tablas onboarding/skipped no cambian (ningún rito toca este flujo). |
+
 ## §10 · Lo que decide Alex
 
 - Comprar Smart Remesh (17 USD) o quedarnos con Instant Meshes + QuadriFlow (gratis).
@@ -191,18 +208,24 @@ Qué hay de verdad (2026-10-20, rescate RTAV1011Dd-d1) y qué no:
 - **Recordar por dueño**: `adnActualDeDueno({ tipo, id })` devuelve el ADN guardado más reciente de un perfil, bot, grupo,
   comunidad o página. El selector parte siempre de lo guardado (no de lo pintado) y, al cambiar de avatar, reutiliza el id,
   sube la revisión y conserva la visibilidad.
-- **Selector** (`SelectorAvatar3d`): props de perfil (`profileId`) o de entidad (`entityId` + `entityKind` + `rol` + `gobierno`).
+- **Selector** (`SelectorAvatar3d`): props de perfil (`profileId` + `esPropio` obligatorio), de bot (`botId`, dueño implícito) o de
+  entidad (`entityId` + `entityKind` + `rol` + `gobierno`).
   En perfil, `esPropio` es obligatorio: quien lo monte dice si quien mira es la dueña (en la ficha de otra persona solo se
-  ve). Sin `rol` en una entidad solo se ve, con el motivo de `decidirCambioAvatar` (§7) y sin prometer la propuesta/voto
-  (AV1011J, que no existe). Ofrece la orbe y las 6 plantillas CC0 (§9-L). Se suscribe a los cambios del almacén (`suscribirCambiosAdn`: esta pestaña y las demás del aparato): si otra instancia
-  cambia el avatar del dueño, se ve sin volver a montarlo. **Todavía no está montado en ninguna ruta.**
+  ve). Un bot en el editor de «Mis bots» es dueño implícito. Sin `rol` en una entidad solo se ve, con el motivo de
+  `decidirCambioAvatar` (§7) y sin prometer la propuesta/voto
+  (AV1011J, que no existe). Ofrece la orbe y las 6 plantillas CC0 (§9-L) y, cuando el dueño puede aplicar, el editor en
+  tiempo real de AV1011B («Personalizar en tiempo real», cargado a demanda). Se suscribe a los cambios del almacén
+  (`suscribirCambiosAdn`: esta pestaña y las demás del aparato): si otra instancia
+  cambia el avatar del dueño, se ve sin volver a montarlo. **Está montado (AV1011K):** en `ProfileIdentityPanel`
+  (Ajustes → Perfil), en el panel de roles de entidad de /cuenta (faceta grupal/pública) y en el editor de «Mis bots»
+  (BOT1011I1); el punto de export es `src/components/avatares/index.ts`.
 - **Dos linajes de «ADN»**: `AdnAvatar` (este contrato) y el `adnDeSer` de los seres de Genesis son conceptos distintos;
   `Cuerpo.forma` `"ser-genesis"` y `"avatar-3d"` son caminos distintos y no se fusionan.
 
 Falta (cada punto es una tarea propia): ADN en la ficha pública de perfil, grupo y página (hoy los perfiles pintan el
 `profiles.avatar_3d` legado de la Adenda 219: un GLB por URL), bajada del almacén a otros aparatos, tipo de ítem «avatar»
-en la Biblioteca real (`entity-library`), propuesta y votación en grupos (AV1011J), ADN en los bots (AV1011C) y en la
-escena compartida XR (AV1011E).
+en la Biblioteca real (`entity-library`), propuesta y votación en grupos (AV1011J) y en la
+escena compartida XR (AV1011E). El cuerpo del bot DENTRO de XR también queda pendiente (en la web ya se ve con `cuerpo-3d-bot`).
 
 ## §13 · Vigías de la Biblioteca (AV1011G · `scripts/protomolecula/vigias_3d*.py`)
 
