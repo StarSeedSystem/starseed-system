@@ -7,9 +7,10 @@
  *   3. sin IA disponible, un `FalloPeticion` honesto (o el plan parcial de las reglas, diciendo lo que no entendió).
  * Módulo PURO: la IA entra por `deps.completar` (la real vive en `dependencias.ts`).
  */
+import type { NivelVivo } from "@/lib/contenido-vivo/tipos";
 import type { ContextoProto, FalloPeticion, PeticionProto, PlanPeticion } from "./contrato";
 import { deducirTipoCambio, describirOperacion, extraerJson, MAX_RESUMEN, validarPlan } from "./esquema";
-import { aplicarReglas, esSoloModo, opcionesDePeticion } from "./reglas";
+import { aplicarReglas, esSoloModo, opcionesDePeticion, plano } from "./reglas";
 import { TOPE_AGENTE_POR_HORA, TOPE_PERSONA_POR_HORA, consumirTope, type AlmacenTope } from "./tope";
 
 export const MAX_TEXTO_PETICION = 1000;
@@ -79,6 +80,69 @@ function planLocal(pasos: PlanPeticion["pasos"], noEntendido: string[]): PlanPet
   };
 }
 
+const normalizar = (texto: string): string =>
+  plano(typeof texto === "string" ? texto : "").replace(/[¡!¿?;]+/g, " ").replace(/\s+/g, " ").trim();
+
+/** ¿La frase pide una publicación viva? (contrato §2: «hazlo vivo», «añade un 3D», «una película de scroll»…) */
+function pideContenidoVivo(n: string): boolean {
+  const vivo = /\bviv[oa]s?\b/.test(n);
+  if (/\bfondo\b/.test(n) && !/\bcontenido vivo\b/.test(n)) return false;
+  return /\bcontenido vivo\b/.test(n)
+    || (vivo && /\b(?:haz|hazme|hacer|hazlo|hazla|hacerlo|hacerla|vuelve|convertir|convierte|anade|anadir|agrega|agregar|pon|poner)\b/.test(n))
+    || (vivo && /\b(?:3d|tridimensional|fotos?|imagenes?|graficos?|diagramas?|peliculas?|scroll)\b/.test(n))
+    || /\bpelicula de scroll\b/.test(n)
+    || /\b(?:anade|anadir|agrega|agregar|pon|poner|inserta|insertar|mete|meter)\b[^.;]*\b3d\b/.test(n);
+}
+
+/** Los niveles nombrados con número o palabra («nivel 2», «niveles uno y tres», «los tres niveles»). */
+function nivelesExplicitos(n: string): NivelVivo[] {
+  if (/\b(?:los\s+)?tres niveles\b|\btodos los niveles\b/.test(n)) return [1, 2, 3];
+  const trozo = n.match(/\bnivel(?:es)?\b(.{0,50})/)?.[1] ?? "";
+  const pedidos = new Set<NivelVivo>();
+  if (/\b(?:uno|primer[oa]?)\b/.test(trozo)) pedidos.add(1);
+  if (/\b(?:dos|segundo)\b/.test(trozo)) pedidos.add(2);
+  if (/\b(?:tres|tercer[oa]?)\b/.test(trozo)) pedidos.add(3);
+  for (const d of trozo.match(/\b[123]\b/g) ?? []) pedidos.add(Number(d) as NivelVivo);
+  if (!pedidos.size) {
+    if (/\bprimer nivel\b/.test(n)) pedidos.add(1);
+    if (/\bsegundo nivel\b/.test(n)) pedidos.add(2);
+    if (/\btercer nivel\b/.test(n)) pedidos.add(3);
+  }
+  return [...pedidos].sort((a, b) => a - b);
+}
+
+/** Los niveles que la propia frase nombra (no cualquier palabra que aparezca de pasada). */
+function nivelesPorFrase(n: string): NivelVivo[] {
+  const pedidos = new Set<NivelVivo>();
+  if (/\b3d\s+viv[oa]\b|\bviv[oa]\s+3d\b/.test(n)) pedidos.add(1);
+  if (/\b(?:fotos?|imagenes?)\s+viv[oa]s?\b/.test(n)) pedidos.add(2);
+  if (/\b(?:graficos?|diagramas?)\s+viv[oa]s?\b/.test(n)) pedidos.add(3);
+  if (/\bpelicula\b|\bscroll\b/.test(n)) pedidos.add(2);
+  if (/\b(?:anade|anadir|agrega|agregar|pon|poner|inserta|insertar|mete|meter)\b[^.;]*\b3d\b/.test(n)) pedidos.add(1);
+  return [...pedidos].sort((a, b) => a - b);
+}
+
+/** Los niveles que pide una frase de contenido vivo, o null si la frase no lo pide. Sin nivel explícito: los tres. */
+export function nivelesDeContenidoVivo(texto: string): NivelVivo[] | null {
+  const n = normalizar(texto);
+  if (!n || !pideContenidoVivo(n)) return null;
+  const explicitos = nivelesExplicitos(n);
+  if (explicitos.length) return explicitos;
+  const porFrase = nivelesPorFrase(n);
+  return porFrase.length ? porFrase : [1, 2, 3];
+}
+
+const listaDeNiveles = (niveles: readonly NivelVivo[]): string =>
+  niveles.length === 1
+    ? `nivel ${niveles[0]}`
+    : `niveles ${niveles.slice(0, -1).join(", ")} y ${niveles[niveles.length - 1]}`;
+
+/** Plan local del átomo `contenido-vivo`: se abre en la Protomolécula con los niveles pedidos. */
+export function planificarVivo(texto: string): PlanPeticion {
+  const niveles = nivelesDeContenidoVivo(texto) ?? [1, 2, 3];
+  return planLocal([{ tipo: "abrir-en", donde: "protomolecula", que: `contenido-vivo · ${listaDeNiveles(niveles)}` }], []);
+}
+
 export async function planificar(p: PeticionProto, deps: DependenciasPlan = {}): Promise<PlanPeticion | FalloPeticion> {
   const texto = limpiar(typeof p?.texto === "string" ? p.texto : "", MAX_TEXTO_PETICION);
   if (!texto) return { error: "vacia", motivo: "Escribe qué quieres pedirle a Astraura." };
@@ -87,6 +151,9 @@ export async function planificar(p: PeticionProto, deps: DependenciasPlan = {}):
   if (esSoloModo(texto)) {
     return { error: "fuera-de-vocabulario", motivo: "«En una rama» o «directamente» modifican una petición: escribe primero qué quieres cambiar, o elige el modo en la ventana." };
   }
+
+  const niveles = nivelesDeContenidoVivo(texto);
+  if (niveles) return planLocal([{ tipo: "abrir-en", donde: "protomolecula", que: `contenido-vivo · ${listaDeNiveles(niveles)}` }], []);
 
   const opts = opcionesDePeticion({ texto, modo: p.modo });
   const { pasos, sinResolver } = aplicarReglas(texto, ctx, opts);
