@@ -94,6 +94,7 @@ import { OmniAppHost } from "@/components/dashboard/apps/omnifrecuencias/omni-ap
 // Estaciones EN VIVO (Omnifrecuencias/Audiomorphic): montaje diminuto; el motor, el minicontrol y el
 // puente con la app oficial se cargan solo al sintonizar. SOP architecture/estaciones-en-vivo-parametricas.md.
 import { EstacionVivoMontaje } from "@/components/estaciones/en-vivo/montaje-estacion-vivo";
+import { DespiertoWebMontaje } from "@/components/install/despierto-web-montaje";
 import { AudiomorphicConfigHost } from "@/components/ui/backgrounds/audiomorphic-config-window";
 import { RegisterSW } from "@/components/pwa/register-sw";
 // Aviso de actualización del SHELL NATIVO (apps Tauri de escritorio/Android):
@@ -371,6 +372,9 @@ export default function RootLayout({
                         <SoloFueraDeConsola><OmniAppHost /></SoloFueraDeConsola>
                         {/* Estación en vivo sonando en todo el OS + puente postMessage con la app oficial. */}
                         <SoloFueraDeConsola><EstacionVivoMontaje /></SoloFueraDeConsola>
+                        {/* Despierto web (1101): Wake Lock del navegador mientras esta pestaña
+                            tenga un proceso largo (transmisión, estación, contenedor). */}
+                        <DespiertoWebMontaje />
                         {/* Ventana de configuración del fondo Audiomorphic (escucha 'starseed:open-audiomorphic-config'). */}
                         <SoloFueraDeConsola><AudiomorphicConfigHost /></SoloFueraDeConsola>
                         {/* Receptor de solicitudes de archivo entre neuronas de la cuenta (defensivo, sin UI hasta que llega una). */}

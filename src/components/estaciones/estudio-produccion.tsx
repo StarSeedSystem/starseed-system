@@ -9,6 +9,7 @@ import {
   volumenCapa, type Escena, type Fuente, type TipoFuente,
 } from "@/lib/estaciones/estudio-escenas";
 import { obtenerPantalla, obtenerPista } from "@/lib/llamadas/medios";
+import { avisarProcesoLargo } from "@/components/install/despierto-web-montaje";
 import { BarraSalidasEstudio, PanelIa, VistaPrevia } from "./estudio-salidas";
 
 let contador = 0;
@@ -69,6 +70,14 @@ export function EstudioProduccion() {
   const salida = SALIDAS[salidaId] ?? SALIDAS.horizontal;
   const adaptada = (() => { try { return escenaAire ? adaptarEscena(escenaAire, salida) : null; } catch { return escenaAire; } })();
   const parcheEscena = (e: Escena) => setEscenas((l) => l.map((x) => (x.id === e.id ? e : x)));
+
+  // Transmisión en marcha: haya una escena en el aire con fuentes vivas visibles.
+  // Idempotente: el montaje despierto-web la deduplica; al desmontar, acaba el proceso.
+  useEffect(() => {
+    const enAire = aire !== null && (adaptada?.capas ?? []).some((c) => c.visible && pistas.current.has(c.fuente.id));
+    avisarProcesoLargo("transmision", enAire);
+  }, [aire, adaptada]);
+  useEffect(() => () => avisarProcesoLargo("transmision", false), []);
 
   const flujoSalida = useCallback((): MediaStream | null => {
     const ids = new Set((adaptada?.capas ?? []).filter((c) => c.visible).map((c) => c.fuente.id));
