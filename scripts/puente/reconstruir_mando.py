@@ -124,13 +124,11 @@ def artefacto_ci_disponible(huella, raiz=RAIZ, espera_s=ESPERA_ARTIFACTO_CI_S) -
         return None
     if not ultima:
         return None
-    res = subprocess.run(
+    rc, salida = subprocess.run(
         ["gh", "run", "download", "--", f"{ARTIFACTO_CI}{ultima[:8]}"],
         cwd=raiz, capture_output=True, text=True, timeout=120,
         env={**os.environ, "GH_TOKEN": os.environ.get("GITHUB_TOKEN", "")}
     )
-    rc = res.returncode
-    salida = res.stdout or ""
     if rc != 0 and "not found" not in salida.lower():
         return None
     dist = os.path.join(raiz, DIST_BUILD)
@@ -139,6 +137,8 @@ def artefacto_ci_disponible(huella, raiz=RAIZ, espera_s=ESPERA_ARTIFACTO_CI_S) -
         return None
     with open(build_id_path, encoding="utf-8") as f:
         build_id = f.read().strip()
+    if build_id == huella and huella in ARTIFACTOS_CI:
+        return (ultima, build_id)
     marcar_listo(raiz=raiz, dist=DIST_BUILD, inicio=time.time())
     ARTIFACTOS_CI[huella] = (time.time(), build_id)
     return (ultima, build_id)
