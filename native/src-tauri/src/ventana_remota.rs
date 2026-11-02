@@ -2,9 +2,12 @@
 //! (APR1019A, parte 1): `Window::all()` ya devuelve las ventanas de todos los
 //! monitores con duplicados, `app_name()` da el nombre de la app y `capture_image()`
 //! devuelve un `image::RgbaImage` (image 0.25) listo para codificar. La entrada
-//! (`entrada_ventana`, con enigo 0.6) queda fuera por ahora: va en APR1019B.
+//! (`entrada_ventana`, con enigo 0.6) rehecha en APR1019B.
 
 use base64::Engine as _;
+use enigo::{
+    Coordinate, Direction, Enigo, Keyboard, Mouse, Settings,
+};
 use serde::Serialize;
 use std::collections::HashSet;
 use tauri::AppHandle;
@@ -66,6 +69,60 @@ fn altura_escalada(ancho: u32, alto: u32, ancho_max: u32) -> Option<u32> {
     let escala = ancho_max as f32 / ancho as f32;
     let nueva = (alto as f32 * escala).round() as u32;
     Some(nueva.max(1))
+}
+
+/// Simula una entrada de teclado o ratón dentro de la ventana dada.
+#[tauri::command]
+pub fn entrada_ventana(
+    _app: AppHandle,
+    id: u32,
+    tipo: String, // "click", "teclado"
+    x: Option<i32>,
+    y: Option<i32>,
+    texto: Option<String>,
+) -> Result<(), String> {
+    // 1. Obtener los límites de la ventana
+    let ventana = xcap::Window::all()
+        .map_err(|e| format!("Error listando ventanas: {e}"))?
+        .into_iter()
+        .find(|w| w.id().map(|wid| wid == id).unwrap_or(false))
+        .ok_or_else(|| format!("Ventana {id} no encontrada"))?;
+
+    let win_x = ventana.x().map_err(|e| e.to_string())?;
+    let win_y = ventana.y().map_err(|e| e.to_string())?;
+    let win_w = ventana.width().map_err(|e| e.to_string())?;
+    let win_h = ventana.height().map_err(|e| e.to_string())?;
+
+    // 2. Verificar si el punto está dentro de la ventana (para ratón)
+    if let (Some(px), Some(py)) = (x, y) {
+        if px < win_x || px > win_x + win_w as i32 || py < win_y || py > win_y + win_h as i32 {
+            return Err("El punto cae fuera de la ventana".into());
+        }
+    }
+
+    // 3. Ejecutar acción
+    let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
+
+    match tipo.as_str() {
+        "click" => {
+            if let (Some(px), Some(py)) = (x, y) {
+                enigo.move_mouse(px, py, Coordinate::Abs).map_err(|e| e.to_string())?;
+                enigo.button(enigo::Button::Left, Direction::Click).map_err(|e| e.to_string())?;
+            } else {
+                return Err("Coordenadas necesarias para el click".into());
+            }
+        }
+        "teclado" => {
+            if let Some(t) = texto {
+                enigo.text(&t).map_err(|e| e.to_string())?;
+            } else {
+                return Err("Texto necesario para el teclado".into());
+            }
+        }
+        _ => return Err("Tipo de acción no soportado".into()),
+    }
+
+    Ok(())
 }
 
 /// Captura un fotograma de la ventana con el `id` dado y lo devuelve como PNG
