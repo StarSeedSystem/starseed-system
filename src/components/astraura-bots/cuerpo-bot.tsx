@@ -5,18 +5,25 @@ import { planCuerpo } from '@/lib/astraura-bots/cuerpo';
 import { resolverRefBiblioteca } from '@/lib/avatares/adaptadores/resolver-ref-biblioteca';
 import { QuantumOrbAvatar } from '@/components/aurora/quantum-orb-avatar';
 import { PatoSimuladoComponent } from '@/components/robots/pato-simulado';
-
-// We'll also need to import a component for the ser genesis avatar if it exists.
-// For now, we'll use a placeholder.
+import { Cuerpo3dBot } from '@/components/avatares/cuerpo-3d-bot';
+import type { Bot, EstadoEmocional } from '@/lib/astraura-bots/tipos';
 
 export interface CuerpoBotProps {
   cuerpo: NonNullable<NonNullable<import('@/lib/astraura-bots/tipos').Bot>['cuerpo']>;
   medio: import('@/lib/astraura-bots/tipos').Medio;
   xrDisponible: boolean;
   vrmDisponible: boolean;
+  /** Identidad completa del bot: la necesita el cuerpo 3D (ADN, emoción y voz). */
+  bot?: Bot;
+  estado?: EstadoEmocional;
+  hablando?: string | null;
+  visible?: boolean;
+  tamano?: number;
 }
 
-export const CuerpoBot: React.FC<CuerpoBotProps> = ({ cuerpo, medio, xrDisponible, vrmDisponible }) => {
+export const CuerpoBot: React.FC<CuerpoBotProps> = ({
+  cuerpo, medio, xrDisponible, vrmDisponible, bot, estado, hablando, visible, tamano,
+}) => {
   const { render, ref, motivo } = React.useMemo(() => planCuerpo(cuerpo, medio, { xrDisponible, vrmDisponible }), [cuerpo, medio, xrDisponible, vrmDisponible]);
 
   // State for the resolved URL when we need to display an image
@@ -41,6 +48,12 @@ export const CuerpoBot: React.FC<CuerpoBotProps> = ({ cuerpo, medio, xrDisponibl
       });
     }
   }, [render, ref]);
+
+  // Las formas «avatar-3d» y «vrm» visten el ADN del bot (AV1011C). Sin la identidad completa del
+  // bot no hay ADN ni emoción que mover: se sigue con el plan de cuerpo de siempre, sin simularlo.
+  if (bot && (cuerpo.forma === 'avatar-3d' || cuerpo.forma === 'vrm')) {
+    return <Cuerpo3dBot bot={bot} estado={estado} hablando={hablando} visible={visible} tamano={tamano} />;
+  }
 
   // Now, render based on the render type
   switch (render) {
