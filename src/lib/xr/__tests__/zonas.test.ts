@@ -50,9 +50,28 @@ describe("cambiosDeZona", () => {
     it("una zona borrada del mundo también se abandona", () => {
         expect(cambiosDeZona([], ahora("vieja", "otra"), [0, 0, 0]).sale).toEqual(["vieja", "otra"]);
     });
+    it("acercarse al borde sin estar dentro no dispara la entrada", () => {
+        const z = zona("a", { tam: [2, 2, 2] });
+        const fueraCerca: [number, number, number] = [1 + HISTERESIS_M / 2, 1, 0];
+        const r = cambiosDeZona([z], ahora(), fueraCerca);
+        expect(r.entra).toEqual([]);
+        expect(r.sale).toEqual([]);
+        expect(r.ahora.has("a")).toBe(false);
+    });
+    it("varias zonas a la vez: una entra y otra que ya no existe sale", () => {
+        const caja = zona("caja");
+        const otra = zona("otra", { pos: [0, 1, -1] });
+        const r = cambiosDeZona([caja, otra], ahora("caja", "fantasma"), [0, 1, -0.9]);
+        expect(r.entra).toEqual(["otra"]);
+        expect(r.sale).toEqual(["fantasma"]);
+        expect(r.ahora).toEqual(ahora("caja", "otra"));
+    });
 });
 
 describe("efectosActivos", () => {
+    it("sin zonas activas no hay ningún efecto", () => {
+        expect(efectosActivos([zona("a")], ahora())).toEqual(SIN_EFECTOS);
+    });
     it("punto-reunión se anuncia pero no cambia ningún efecto", () => {
         const z = zona("reunion", { efecto: "punto-reunion" });
         const r = cambiosDeZona([z], ahora(), [0, 0, 0]);
