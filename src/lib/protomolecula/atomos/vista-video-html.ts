@@ -1,9 +1,7 @@
-import { ATOMO_VIDEO_HTML, ID_VISTA_VIDEO_HTML } from "@/lib/protomolecula/bloque-protomolecula";
+import type { DefinicionAtomo } from "@/lib/protomolecula/registro-atomos";
+import { VISTA_POR_ATOMO } from "@/lib/protomolecula/bloque-protomolecula";
 
-export const VISTA_POR_ATOMO: Record<string, string> = {
-  "video-html": ID_VISTA_VIDEO_HTML,
-  "hyperframes": ID_VISTA_VIDEO_HTML,
-};
+export { VISTA_POR_ATOMO };
 
 export interface DatosVideo {
   poster: string | null;
@@ -56,12 +54,12 @@ export function elegirVista(
 }
 
 export const VIDEO_HTML: DefinicionAtomo = {
-  herramientaId: ATOMO_VIDEO_HTML,
+  herramientaId: "hyperframes",
   nombre: "Vídeo con HyperFrames",
   categoria: "video",
   integracion: "servicio-local",
   control: "total",
-  vista: { tipo: "componente", id: ID_VISTA_VIDEO_HTML },
+  vista: { tipo: "componente", id: "video-html" },
   parametros: [
     { id: "duracion", nombre: "Duración", tipo: "numero", min: 1, max: 600, paso: 1, unidad: "s", defecto: 3, sinonimos: ["tiempo", "seconds"] },
     { id: "resolucion", nombre: "Resolución", tipo: "opcion", opciones: ["landscape", "portrait", "square", "4k"], defecto: "landscape", sinonimos: ["tamaño", "aspecto"] },
