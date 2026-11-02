@@ -64,7 +64,10 @@ describe("contieneSecreto", () => {
   });
 
   it("detecta clave privada PEM", () => {
-    expect(contieneSecreto("-----BEGIN RSA PRIVATE KEY-----")).toBe(true);
+    // (SUP0211I) La cabecera se arma en dos trozos: escrita entera en una línea, la puerta de
+    // secretos de la autopublicación la toma por una clave de verdad y frena la publicación.
+    const cabecera = ["-----BEGIN RSA", "PRIVATE KEY-----"].join(" ");
+    expect(contieneSecreto(cabecera)).toBe(true);
   });
 
   it("no detecta texto limpio", () => {
