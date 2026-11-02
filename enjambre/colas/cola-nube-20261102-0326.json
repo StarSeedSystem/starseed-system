@@ -1,0 +1,71 @@
+{
+ "ola": "nube-20261102",
+ "tareas": [
+  {
+   "id": "RTCPZ1025F",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Planificador de fusiones de modelos: PEFT, mergekit externo o ensamble de sistema, según compatibilidad real",
+   "archivos": [
+    "src/lib/astraura/capas/__tests__/fusion-modelos.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea CPZ1025F («Planificador de fusiones de modelos: PEFT, mergekit externo o ensamble de sistema, según compatibilidad real») se hizo en main por otro camino; su rama nube/a1-20261102-061640-CPZ1025F queda archivada en `refs/archivo/nube/a1-20261102-061640-CPZ1025F` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.94)\n\nTU TAREA (RTCPZ1025F · solo estos archivos: src/lib/astraura/capas/__tests__/fusion-modelos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/astraura/capas/__tests__/fusion-modelos.test.ts\n  it(\"2 adaptadores ⇒ linear\", () => {\n    const base = { tipo: \"adaptador\" as const, baseId: \"Qwen/Qwen3-2B\" };\n    const plan = planFusion([CON_AJUSTES({ ...base, id: \"a1\" }), CON_AJUSTES({ ...base, id: \"a2\" })]);\n    expect(plan.estrategia).toBe(\"adaptadores-ponderados\");\n    expect(plan.herramienta).toBe(\"peft\");\n    expect(plan.metodo).toBe(\"linear\");\n    expect(plan.pasos.some((paso) => paso.includes(\"add_weighted_adapter\"))).toBe(true);\n  });\n\n# src/lib/astraura/capas/__tests__/fusion-modelos.test.ts\n  it(\"3 ⇒ ties\", () => {\n    const base = { tipo: \"adaptador\" as const, baseId: \"Qwen/Qwen3-2B\" };\n    const grupo = [\"a1\", \"a2\", \"a3\"].map((id) => CON_AJUSTES({ ...base, id }));\n    const plan = planFusion(grupo);\n    expect(plan.metodo).toBe(\"ties\");\n    expect(plan.pasos.some((paso) => paso.includes(\"densidad 0,5\"))).toBe(true);\n    expect(plan.pasos.some((paso) => paso.includes(\"capas_banco\"))).toBe(true);\n  });\n\n# src/lib/astraura/capas/__tests__/fusion-modelos.test.ts\n  it(\"Needle + BitNet ⇒ ensamble\", () => {\n    const plan = planFusion([\n      CON_AJUSTES({ id: \"n1\", arquitectura: \"needle-3\", parametrosB: 0.02 }),\n      CON_AJUSTES({ id: \"b1\", arquitectura: \"BitNet-1.58\", parametrosB: 2 }),\n    ]);\n    expect(plan.estrategia).toBe(\"ensamble-sistema\");\n    expect(plan.herramienta).toBe(\"sistema\");\n    expect(plan.motivo).toContain(\"no hay fusión de pesos\");\n    expect(plan.bloqueos.some((b) => b.includes(\"needle finetune\"))).toBe(true);\n  });\n\n# src/lib/astraura/capas/__tests__/fusion-modelos.test.ts\n  it(\"privado + público ⇒ ninguna\", () => {\n    const plan = planFusion([\n      CON_AJUSTES({ id: \"p1\", ambito: \"privado\" }),\n      CON_AJUSTES({ id: \"p2\", ambito: \"publico\" }),\n    ]);\n    expect(plan.estrategia).toBe(\"ninguna\");\n    expect(plan.bloqueos).toContain(\"lo privado no se mezcla con lo público ni con lo de otra persona\");\n  });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "CPZ1025F",
+    "rama": "nube/a1-20261102-061640-CPZ1025F"
+   }
+  },
+  {
+   "id": "RTDSN1025Db",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Presentación en vivo · exportar a un HTML autónomo (núcleo puro)",
+   "archivos": [
+    "src/lib/vivo/__tests__/presentacion-html.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea DSN1025D («Presentación en vivo · exportar a un HTML autónomo (núcleo puro)») se hizo en main por otro camino; su rama nube/a1-20261102-061640-DSN1025D queda archivada en `refs/archivo/nube/a1-20261102-061640-DSN1025D` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.96)\n\nTU TAREA (RTDSN1025Db · solo estos archivos: src/lib/vivo/__tests__/presentacion-html.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/vivo/__tests__/presentacion-html.test.ts\n    it(\"renderiza marcas: subrayado, tachado, codigo\", () => {\n        const doc: DocRico = {\n            bloques: [\n                { tipo: \"parrafo\", tramos: [{ texto: \"subrayado\", marcas: [\"subrayado\"] }] },\n                { tipo: \"parrafo\", tramos: [{ texto: \"tachado\", marcas: [\"tachado\"] }] },\n                { tipo: \"parrafo\", tramos: [{ texto: \"codigo\", marcas: [\"codigo\"] }] },\n            ],\n        };\n        const html = docRicoAHtml(doc, 1);\n        expect(html).toContain(\"<u>subrayado</u>\");\n        expect(html).toContain(\"<s>tachado</s>\");\n        expect(html).toContain(\"<code>codigo</code>\");\n    });\n\n# src/lib/vivo/__tests__/presentacion-html.test.ts\n    it(\"renderiza lista no ordenada y tareas no hechas\", () => {\n        const doc: DocRico = {\n            bloques: [\n                { tipo: \"lista\", ordenada: false, items: [[{ texto: \"a\" }], [{ texto: \"b\" }]] },\n                { tipo: \"tareas\", items: [{ hecha: false, tramos: [{ texto: \"pendiente\" }] }] },\n            ],\n        };\n        const html = docRicoAHtml(doc, 1);\n        expect(html).toContain(\"<ul><li>a</li><li>b</li></ul>\");\n        expect(html).toContain(\"☐ pendiente\");\n    });\n\n# src/lib/vivo/__tests__/presentacion-html.test.ts\n    it(\"16:9 da 1920×1080\", () => {\n        const html = presentacionAHtml({ ...meta, proporcion: \"16:9\" }, [diapo()], { fecha });\n        expect(html).toContain('data-ancho=\"1920\"');\n        expect(html).toContain('data-alto=\"1080\"');\n    });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "DSN1025D",
+    "rama": "nube/a1-20261102-061640-DSN1025D"
+   }
+  },
+  {
+   "id": "CVV1028G",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Protomolécula · «hazlo vivo» en las peticiones",
+   "archivos": [
+    "src/lib/protomolecula/peticion/planificar.ts",
+    "src/lib/protomolecula/peticion/__tests__/planificar-vivo.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nEn `planificar.ts` reconoce peticiones en español («hazlo vivo», «hazla viva», «añade un 3D», «una película de scroll», «fotos vivas», «un gráfico vivo que explique…») y planifica el átomo `contenido-vivo` con los niveles que pide (sin nivel explícito: los tres). No rompas los planes que ya existen: pruebas nuevas para las frases y las de antes en verde (`npx vitest run src/lib/protomolecula`).",
+   "dependencias_ya_en_main": [
+    "CVV1028F"
+   ]
+  },
+  {
+   "id": "CVV1028I",
+   "ola": "1028 · Contenido vivo (tres niveles)",
+   "depende": [],
+   "titulo": "Astraura · herramienta «Contenido vivo» en «Conectores y habilidades»",
+   "archivos": [
+    "src/lib/astraura/chat-herramientas.ts",
+    "src/lib/astraura/__tests__/chat-herramientas-vivo.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en código, pruebas o salida. Contrato: `architecture/contenido-vivo.md` (léelo entero antes de empezar). No copies código de ninguna skill externa: todo es propio de StarSeed. Textos de la interfaz en español, sin rayas largas.\n\nAñade la herramienta «Contenido vivo» (descripción: «3D vivo, película de scroll y gráficos que se mueven, eligiendo entre lo local y los servicios conectados») con la misma forma que las demás del picker, sube la versión de los valores por defecto si el archivo lo exige para que las cuentas ya creadas la vean (regla de migración del OS), y que al usarla pida a la Protomolécula el átomo `contenido-vivo`. Pruebas.",
+   "dependencias_ya_en_main": [
+    "CVV1028F"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "RTCPZ1025F",
+   "RTDSN1025Db",
+   "CVV1028G",
+   "CVV1028I"
+  ]
+ }
+}
