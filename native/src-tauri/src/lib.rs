@@ -42,9 +42,12 @@ mod recursos_ia;
 mod segundo_plano;
 mod serie;
 mod sha256;
-// (2026-10-19) `ventana_remota` (APM1017P) queda FUERA de la compilación hasta que el enjambre lo
-// rehaga con las API reales de xcap 0.9, enigo 0.6 e image 0.25 (cola APR1019): rompía `cargo check`
-// del CI y frenaba la publicación de 45 commits. El archivo se conserva tal cual.
+// `ventana_remota` (APM1017P, rehecho en APR1019A) está de vuelta con las API
+// reales: xcap 0.9 (`Window::all()`, `app_name()`, `capture_image()`), image
+// 0.25 y base64 0.22. Solo escritorio: xcap y el resto de sus dependencias van
+// en el target cfg de escritorio de Cargo.toml (móvil ni compilan).
+#[cfg(desktop)]
+mod ventana_remota;
 #[cfg(test)]
 mod android_parche;
 
@@ -496,7 +499,7 @@ pub fn run() {
         builder = builder.on_window_event(|ventana, evento| segundo_plano::al_evento_de_ventana(ventana, evento));
     }
 
-    builder
+    builder = builder
         // Terminal / procesos → control profundo para Aurora.
         .plugin(tauri_plugin_shell::init())
         // Notificaciones nativas.
@@ -538,39 +541,58 @@ pub fn run() {
                 }
             }
             Ok(())
-        })
-        // Comandos que la web (Aurora) puede invocar vía window.__TAURI__.
-        .invoke_handler(tauri::generate_handler![
-            run_terminal,
-            check_update,
-            reiniciar_para_actualizar,
-            estado_actualizacion,
-            device_info,
-            recursos_ia::recursos_ia_detectar,
-            nativa::antenas_estado,
-            nativa::antenas_medir,
-            nativa::antenas_config,
-            nativa::antenas_configurar,
-            nativa::fondo_estado,
-            nativa::fondo_fijar,
-            nativa::fondo_arranque,
-            nativa::fondo_pedir_bateria,
-            nativa::carpetas_listar,
-            nativa::carpetas_conceder,
-            nativa::carpetas_revocar,
-            nativa::carpetas_nas,
-            nativa::serie_puertos,
-            nativa::serie_abrir,
-            nativa::serie_escribir,
-            nativa::serie_cerrar,
-            nativa::capas_estado,
-            nativa::capas_descargar,
-            nativa::capas_verificar,
-            nativa::capas_borrar,
-            nativa::nas_listar,
-            nativa::nas_leer,
-            recursos_ia::recursos_ia_detectar,
-        ])
+        });
+
+    // ─── Comandos que la web (Aurora) invoca vía window.__TAURI__ ───
+    // `generate_handler!` NO admite atributos `#[cfg]` dentro de su invocación
+    // (los atributos no se procesan dentro de una macro), así que la lista común
+    // la repite esta macro local en las dos plataformas y la lista de escritorio
+    // (`ventana_remota` de APR1019A: xcap no se compila para móvil, ver
+    // Cargo.toml) queda en su propio bloque `#[cfg(desktop)]`.
+    macro_rules! registrar_comandos {
+        ($builder:ident [$($solo_desktop:path),* $(,)?]) => {
+            $builder = $builder.invoke_handler(tauri::generate_handler![
+                run_terminal,
+                check_update,
+                reiniciar_para_actualizar,
+                estado_actualizacion,
+                device_info,
+                recursos_ia::recursos_ia_detectar,
+                nativa::antenas_estado,
+                nativa::antenas_medir,
+                nativa::antenas_config,
+                nativa::antenas_configurar,
+                nativa::fondo_estado,
+                nativa::fondo_fijar,
+                nativa::fondo_arranque,
+                nativa::fondo_pedir_bateria,
+                nativa::carpetas_listar,
+                nativa::carpetas_conceder,
+                nativa::carpetas_revocar,
+                nativa::carpetas_nas,
+                nativa::serie_puertos,
+                nativa::serie_abrir,
+                nativa::serie_escribir,
+                nativa::serie_cerrar,
+                nativa::capas_estado,
+                nativa::capas_descargar,
+                nativa::capas_verificar,
+                nativa::capas_borrar,
+                nativa::nas_listar,
+                nativa::nas_leer,
+                $($solo_desktop,)*
+            ]);
+        };
+    }
+    #[cfg(desktop)]
+    registrar_comandos!(builder [
+        ventana_remota::ventanas_prestables,
+        ventana_remota::capturar_ventana,
+    ]);
+    #[cfg(not(desktop))]
+    registrar_comandos!(builder []);
+
+    builder
         .build(tauri::generate_context!())
         .expect("error irrecuperable arrancando la app nativa StarSeed")
         .run(|_app, _evento| {
