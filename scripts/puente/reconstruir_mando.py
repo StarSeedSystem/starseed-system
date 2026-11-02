@@ -967,14 +967,25 @@ def fallo_por_memoria(rc, salida) -> bool:
     return rc in (134, 137, -6, -9) or bool(_OOM.search(str(salida or "")))
 
 
-def camino_de_build(freno, estado, ahora, huella=None, espera_a1_s=ESPERA_TRAS_FALLO_A1_S):
-    """PURA: ("mac" | "a1" | "espera", motivo). `freno_de_maquina` mira el swap el último."""
+#: (SUP0211B) El freno del enjambre vivo de ESTA Mac (`motivo_enjambre`): con urgencia no frena al A1.
+ENJAMBRE_VIVO = "el enjambre está vivo"
+A1_COMPILANDO = "el A1 ya está compilando"
+
+
+def camino_de_build(freno, estado, ahora, huella=None, espera_a1_s=ESPERA_TRAS_FALLO_A1_S, urgente=None):
+    """PURA: ("mac" | "a1" | "espera", motivo). `freno_de_maquina` mira el swap el último.
+
+    (SUP0211B) Con `urgente` (`urgencia_a1`: la pantalla vieja más de 6 h o Genesis caído), el enjambre
+    vivo de la Mac tampoco frena al A1: la build no corre en la Mac y el enjambre casi siempre está vivo
+    (el 01-11 la pantalla pasó 22 h vieja diciendo «espero: el enjambre está vivo»). La mezcla de
+    dependencias frena siempre: servir un build de otro `next` es la pantalla rota del 10-03."""
     e = estado if isinstance(estado, dict) else {}
     num = lambda x: float(x) if isinstance(x, (int, float)) and not isinstance(x, bool) else None  # noqa: E731
     desde, fin = num(e.get("a1_desde")), num(e.get("a1_t"))
     if desde is not None and ahora - desde < A1_TOPE_S:
-        return "espera", "el A1 ya está compilando (hace %d min): no lanzo otra" % ((ahora - desde) // 60)
-    if freno and not re.match(r"hay [\d.]+ GB de swap en uso", str(freno)):
+        return "espera", "%s (hace %d min): no lanzo otra" % (A1_COMPILANDO, (ahora - desde) // 60)
+    if freno and not re.match(r"hay [\d.]+ GB de swap en uso", str(freno)) and not (
+            urgente and str(freno).startswith(ENJAMBRE_VIVO)):
         return "espera", freno
     oom = e.get("ok") is False and bool(e.get("por_memoria")) and e.get("huella_intentada") == huella
     if not freno and not oom:
@@ -1164,14 +1175,17 @@ def una_pasada(forzar: bool = False) -> bool:
     de_espera = "caido-sin-build" if caido else "esperando-maquina"
     if hazlo:
         freno = freno_de_maquina(forzar=forzar)
-        via, porque = camino_de_build(freno, _leer_estado(), time.time(), actual)
+        urgente = urgencia_a1(caido, entradas) if freno else None  # (SUP0211B) el enjambre vivo no frena al A1
+        via, porque = camino_de_build(freno, _leer_estado(), time.time(), actual, urgente=urgente)
         if via == "a1":
-            urgente = urgencia_a1(caido, entradas)
+            urgente = urgente or urgencia_a1(caido, entradas)
             print("[%s] COMPILO EN EL A1: %s, y %s%s" % (time.strftime("%H:%M"), motivo, porque, (
                 "; urgente (%s): el A1 me da turno" % urgente) if urgente else ""), flush=True)
             return compilar_en_el_a1(actual, de_espera, urgente=urgente)
         if via == "espera":
-            if traer_hecho_del_a1(freno):  # (SUP0111A) traer lo hecho no compila aquí: no espera al freno
+            # (SUP0111A) traer lo hecho no compila aquí: no espera al freno. (SUP0211B) Pero no con una build
+            # del A1 en marcha: su `traer_y_cambiar` y este serían dos rsync a la vez sobre .next-build.
+            if not str(porque).startswith(A1_COMPILANDO) and traer_hecho_del_a1(freno):
                 return True
             print("[%s] espero: %s, pero %s" % (time.strftime("%H:%M"), motivo, porque), flush=True)
             _guardar(dict(_leer_estado(), estado=de_espera, freno=porque,

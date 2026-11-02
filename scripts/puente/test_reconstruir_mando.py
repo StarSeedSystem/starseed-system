@@ -853,10 +853,13 @@ class FrenosDeMaquina(unittest.TestCase):
              mock.patch.object(R, "freno_de_maquina", return_value="el enjambre está vivo"), \
              mock.patch.object(R, "genesis_caido", return_value=False), \
              mock.patch.object(R, "traer_hecho_del_a1", return_value=False) as previo, \
+             mock.patch.object(R, "urgencia_a1", return_value=None), \
+             mock.patch.object(R, "compilar_en_el_a1") as a1, \
              mock.patch.object(R, "_guardar") as guardar, \
              mock.patch.object(R, "reconstruir") as reconstruir:
             self.assertFalse(R.una_pasada(forzar=True))
         reconstruir.assert_not_called()
+        a1.assert_not_called()
         previo.assert_called_once_with("el enjambre está vivo")  # (SUP0111A) mira si hay algo hecho que traer
         self.assertEqual(guardar.call_args[0][0]["estado"], "esperando-maquina")
 
@@ -866,9 +869,10 @@ class SiLaMacNoPuedeCompilaElA1(unittest.TestCase):
     SWAP = "hay 7.0 GB de swap en uso (tope 4.0): la build lo llevaría al disco"
     H = R.huella_de([("src/a.ts", 1, 1)])
 
-    def _pasada(self, caido, freno, estado=None, previo=False):
+    def _pasada(self, caido, freno, estado=None, previo=False, urgente=None):
         guardados, log = [], []
-        mock.patch.object(R, "traer_hecho_del_a1", return_value=previo).start()  # (SUP0111A) sin red en pruebas
+        self.previo = mock.patch.object(R, "traer_hecho_del_a1", return_value=previo).start()  # (SUP0111A) sin red
+        mock.patch.object(R, "urgencia_a1", return_value=urgente).start()  # (SUP0211B) la elige cada prueba
         self.addCleanup(mock.patch.stopall)
         with mock.patch.object(R, "_entradas", return_value=[("src/a.ts", 1, 1)]), \
                 mock.patch.object(R, "_leer_estado", return_value=dict(estado or {})), \
@@ -915,6 +919,38 @@ class SiLaMacNoPuedeCompilaElA1(unittest.TestCase):
         rec.assert_not_called()
         self.assertEqual(guardados[-1]["estado"], "esperando-maquina")
         self.assertEqual(R.camino_de_build("node_modules trae next 16 y package-lock 15", {}, 9)[0], "espera")
+
+    def test_con_la_pantalla_vieja_el_enjambre_vivo_no_frena_al_a1(self):  # SUP0211B
+        vieja = "la pantalla lleva 22.8 h vieja"
+        a1, rec, _, _, log = self._pasada(False, "el enjambre está vivo (1 orquestador): nunca next build",
+                                          urgente=vieja)
+        self.assertEqual(a1.call_args[0], (self.H, "esperando-maquina"))
+        self.assertEqual(a1.call_args.kwargs, {"urgente": vieja})
+        rec.assert_not_called()
+        self.assertIn("COMPILO EN EL A1", log)
+        # Genesis caído con el enjambre vivo: también el A1, no «espero» para siempre.
+        a1, rec, _, _, _ = self._pasada(True, "el enjambre está vivo (1 orquestador)", urgente="Genesis está caído")
+        self.assertEqual(a1.call_args[0], (self.H, "caido-sin-build"))
+        rec.assert_not_called()
+
+    def test_la_urgencia_no_salta_la_mezcla_de_dependencias_ni_otra_build_del_a1(self):  # SUP0211B
+        mezcla = "node_modules trae next 16.3.8 y package-lock pide 15.5.21: no compilo con esa mezcla"
+        vivo = "el enjambre está vivo (1 orquestador)"
+        self.assertEqual(R.camino_de_build(mezcla, {}, 9, urgente="x")[0], "espera")
+        self.assertEqual(R.camino_de_build(vivo, {}, 9)[0], "espera")
+        self.assertEqual(R.camino_de_build(vivo, {}, 9, urgente="x")[0], "a1")
+        self.assertEqual(R.camino_de_build(vivo, {"a1_desde": 940.0}, 1000, urgente="x")[0], "espera")
+        fallo = {"a1_ok": False, "a1_t": 900, "a1_huella": "h", "a1_error": "A1: sin turno"}
+        self.assertEqual(R.camino_de_build(vivo, fallo, 1000, "h", urgente="x")[0], "espera")
+        a1, _, _, _, _ = self._pasada(False, mezcla, urgente="la pantalla lleva 30 h vieja")
+        a1.assert_not_called()
+
+    def test_con_una_build_del_a1_en_marcha_no_se_trae_a_la_vez(self):  # SUP0211B
+        a1, rec, _, _, log = self._pasada(False, "el enjambre está vivo (1 orquestador)",
+                                          {"a1_desde": R.time.time() - 60}, previo=True, urgente="vieja")
+        self.previo.assert_not_called()
+        self.assertEqual((a1.call_count, rec.call_count), (0, 0))
+        self.assertIn("A1 ya está compilando", log)
 
     def test_sin_build_es_caido_nunca_al_dia_y_no_espera_a_astraura(self):
         al_dia = {"huella_construida": self.H, "ok": True}
