@@ -5,6 +5,7 @@ import {
   esFormaAvatar3d,
   expresionesDeEmocion,
   gestoConMovimiento,
+  idAdnDeBot,
   intensidadAuraConEmocion,
   refAdnDeBot,
   visemasDeTexto,
@@ -80,6 +81,12 @@ describe("adnDeBot: la referencia manda y el ADN por defecto conserva la orbe", 
     const bot = botDe({ cuerpo: { forma: "orbe", tono: 300, escala: 1 } });
     expect(refAdnDeBot(bot)).toBeNull();
     expect(adnDeBot(bot).aura.tono).toBe(300);
+  });
+
+  it("la forma manda sobre el valor de la referencia: una orbe con referencia interna válida tampoco la acepta", () => {
+    const bot = botDe({ cuerpo: { forma: "orbe", avatarRef: "biblioteca:adn-bot-1", tono: 300, escala: 1 } });
+    expect(refAdnDeBot(bot)).toBeNull();
+    expect(idAdnDeBot(bot)).toBe("adn-bot-bot-1");
   });
 });
 
