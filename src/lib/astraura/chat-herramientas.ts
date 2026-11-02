@@ -22,6 +22,8 @@
  * Sin red, sin DOM, sin localStorage: todo puro y testeable (vitest).
  */
 
+import type { SkillCapability } from "@/ai/astraura/skills";
+
 /** `undefined` = «Todas» (sin restricción); array = exactamente esos ids. */
 export type SeleccionHerramientas = string[] | undefined;
 
@@ -118,10 +120,66 @@ export function resumenPickerHerramientas(args: {
   return `${hab} · ${con}`;
 }
 
+// ── Herramienta «Contenido vivo» (CVV1028I) ─────────────────────────────────
+
+/** Átomo de la Protomolécula que pide esta herramienta. */
+export const ATOMO_CONTENIDO_VIVO = "contenido-vivo" as const;
+
+/** Misma forma que una habilidad del picker, con su descripción y su átomo. */
+export interface HerramientaContenidoVivo extends SkillCapability {
+  descripcion: string;
+  atomoId: typeof ATOMO_CONTENIDO_VIVO;
+}
+
+/**
+ * «Contenido vivo»: los tres niveles del contrato (`architecture/contenido-vivo.md`).
+ * Al usarla, Astraura arma el plan y pide a la Protomolécula el átomo
+ * `contenido-vivo`; la elección entre local y servicios conectados la razona el
+ * átomo, nunca esta herramienta.
+ */
+export const HERRAMIENTA_CONTENIDO_VIVO: HerramientaContenidoVivo = {
+  id: ATOMO_CONTENIDO_VIVO,
+  label: "Contenido vivo",
+  descripcion:
+    "3D vivo, película de scroll y gráficos que se mueven, eligiendo entre lo local y los servicios conectados",
+  systemPrompt:
+    "Cuando la persona quiera una pieza viva (un 3D, una película de scroll, fotos vivas o un gráfico que se mueva), usa la herramienta «Contenido vivo»: arma el plan de los tres niveles y pide a la Protomolécula el átomo contenido-vivo. La ruta local o externa la elige el átomo comparando coste, privacidad y calidad; no gastes créditos sin cotización y sin un sí.",
+  routing: {},
+  atomoId: ATOMO_CONTENIDO_VIVO,
+};
+
+/** Catálogo listo para sumar al picker junto a `SKILL_CAPABILITIES`. */
+export const HERRAMIENTAS_ASTRAURA_VIVO: readonly SkillCapability[] = [HERRAMIENTA_CONTENIDO_VIVO];
+
+/** Acción de agente que añade el átomo a la molécula activa de la Protomolécula. */
+export interface PeticionAtomoContenidoVivo {
+  accion: "abrir";
+  herramienta: typeof ATOMO_CONTENIDO_VIVO;
+  titulo: string;
+}
+
+/** Pide el átomo `contenido-vivo` con el título de la pieza (nunca vacío). */
+export function peticionAtomoContenidoVivo(titulo = "Contenido vivo"): PeticionAtomoContenidoVivo {
+  const limpio = titulo.trim();
+  return { accion: "abrir", herramienta: ATOMO_CONTENIDO_VIVO, titulo: limpio || "Contenido vivo" };
+}
+
+/** Directiva que ya entiende el puente de agentes: `[[ACCION: protomolecula {json}]]`. */
+export function directivaAtomoContenidoVivo(titulo?: string): string {
+  return `[[ACCION: protomolecula ${JSON.stringify(peticionAtomoContenidoVivo(titulo))}]]`;
+}
+
 // ── Migración: universo legado de habilidades (antes de este picker) ─────────
 
 /** Versión de la migración de la selección de habilidades del chat. */
-export const HERRAMIENTAS_DEFAULTS_VERSION = 1;
+export const HERRAMIENTAS_DEFAULTS_VERSION = 2;
+
+/**
+ * Herramientas que entraron al catálogo DESPUÉS de la migración 1. Se añaden
+ * a las selecciones explícitas al subir de versión, sin reencender nada que la
+ * persona ya hubiera apagado antes (su decisión se respeta).
+ */
+export const HERRAMIENTAS_NUEVAS_DESDE_V1: readonly string[] = [ATOMO_CONTENIDO_VIVO];
 
 /**
  * Ids de habilidad que YA se podían elegir a mano antes de este picker: el
@@ -160,6 +218,8 @@ export interface MigracionHerramientas {
  *   · De antes de esta migración (o sin versión) y con selección EXPLÍCITA →
  *     añade las habilidades FUERA del universo legado (nunca elegibles a
  *     mano hasta ahora) sin tocar las que el usuario sí pudo decidir.
+ *   · De la versión 1 a la 2 → añade solo `HERRAMIENTAS_NUEVAS_DESDE_V1`
+ *     (contenido-vivo), sin reencender ninguna otra que ya estuviera apagada.
  *   · Sin selección explícita («Todas») → nada que migrar: ya cubre las
  *     nuevas solas. Solo se estampa la versión.
  */
@@ -175,10 +235,18 @@ export function migrarSeleccionHabilidades(
   if (seleccion === undefined) {
     return { seleccion: undefined, version: HERRAMIENTAS_DEFAULTS_VERSION, cambio: true };
   }
-  const legado = new Set(HABILIDADES_UNIVERSO_LEGADO);
   const activos = new Set(seleccion);
-  for (const id of todosIdsActuales) {
-    if (!legado.has(id)) activos.add(id);
+  // Paso 1: las habilidades fuera del universo legado nunca fueron elegibles a mano.
+  if (actual < 1) {
+    const legado = new Set(HABILIDADES_UNIVERSO_LEGADO);
+    for (const id of todosIdsActuales) {
+      if (!legado.has(id)) activos.add(id);
+    }
+  }
+  // Paso 2: las herramientas nuevas de cada versión entran solas, solo si el
+  // catálogo real ya las conoce (nunca se inventa un id fuera de él).
+  for (const id of HERRAMIENTAS_NUEVAS_DESDE_V1) {
+    if (todosIdsActuales.includes(id)) activos.add(id);
   }
   const migrada = todosIdsActuales.filter((id) => activos.has(id));
   const final = migrada.length === todosIdsActuales.length ? undefined : migrada;
