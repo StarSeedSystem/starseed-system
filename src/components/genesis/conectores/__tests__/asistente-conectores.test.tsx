@@ -160,6 +160,16 @@ describe("Cloudroom en la interfaz · tarjeta honesta donde ya se leía el catá
     expect(screen.getByTestId("cloudroom-cupo")).toHaveTextContent(/Cupo sin lectura/);
     expect(screen.getByText(/No se sugiere aquí/)).toBeInTheDocument();
   });
+
+  it("la escalera la sugiere solo si la tarea es relevante y la neurona compatible, y entonces enseña el cupo", () => {
+    const { sugerencias: _omitidas, ...ciclo } = entradaCloudroom([]);
+    render(<SeccionAsignacionesGenesis ambito="cuenta-escalera" titulo="Asignaciones"
+      onGuardar={() => undefined} cloudroom={{ ...ciclo, instalacion: "instalada", relevante: true }} />);
+    // La tarjeta sale del sugeridor real de la escalera, no de una lista inyectada a mano.
+    expect(screen.getByTestId("cloudroom-instalacion")).toHaveTextContent("instalada en esta neurona");
+    expect(screen.getByTestId("cloudroom-cupo")).toHaveTextContent("100 agente(s) en la nube · ritmo 3/día");
+    expect(screen.getByRole("link", { name: "Abrir Cloudroom" })).toHaveAttribute("href", "https://cloudroom.dev");
+  });
 });
 
 describe("AsistenteConectarGenesis · pasos, enlace oficial y clave efímera", () => {
