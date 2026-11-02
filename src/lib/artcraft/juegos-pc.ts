@@ -104,9 +104,26 @@ export function validarSinCredencialesEpic(texto: string): { ok: boolean; hallaz
   return { ok: hallazgos.length === 0, hallazgos };
 }
 
+/**
+ * ¿Es una descarga legítima de los releases oficiales de Rare? (SUP0111H, 02-11 · seguridad)
+ * Antes solo miraba el prefijo del texto, así que `…/releases/../../../evil` pasaba. Ahora se
+ * normaliza con `new URL` y se exige https, host exacto, sin credenciales ni puerto y ruta dentro
+ * de `/RareDevs/Rare/releases/`. Se rechaza además el texto crudo con `..`, `%2e` (cualquier
+ * caja) o barra invertida, porque la normalización podría esconder un salto de ruta.
+ */
 export function esUrlPermitidaRare(url: string): boolean {
-  // Blocked domains
-  if (url.includes("raredevs.github.io") || url.includes("protondb.com")) return false;
-  if (!url.startsWith("https://github.com/RareDevs/Rare/releases/")) return false;
-  return true;
+  const crudo = url.toLowerCase();
+  if (crudo.includes("raredevs.github.io") || crudo.includes("protondb.com")) return false;
+  if (crudo.includes("..") || crudo.includes("%2e") || crudo.includes("\\")) return false;
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:") return false;
+  if (u.hostname !== "github.com") return false;
+  if (u.username !== "" || u.password !== "") return false;
+  if (u.port !== "") return false;
+  return u.pathname.startsWith("/RareDevs/Rare/releases/");
 }
