@@ -78,7 +78,7 @@ class TestTextosDeImaginacion(unittest.TestCase):
             "Ola Imaginación 2026-09-17 · lo que el análisis nocturno encontró",
         )
 
-    def test_el_resumen_dice_imaginacion_diaria(self):
+    def test_el_resumen_dice_imaginacion_diaria_completo(self):
         t = DC.resumen([P], total_leidas=5)
         self.assertTrue(t.startswith("Imaginación diaria leída: encargo 1"), t)
         self.assertNotIn("Dream", t)
@@ -93,6 +93,11 @@ class TestTextosDeImaginacion(unittest.TestCase):
             DC.resumen([]),
             "Imaginación diaria leída: nada accionable nuevo que encargar.",
         )
+
+    def test_el_resumen_dice_imaginacion_diaria(self):
+        t = DC.resumen([{"titulo": "Algo que hacer"}], total_leidas=3)
+        self.assertTrue(t.startswith("Imaginación diaria leída: encargo 1"), t)
+        self.assertNotIn("Dream", t)
 
 
 if __name__ == "__main__":
