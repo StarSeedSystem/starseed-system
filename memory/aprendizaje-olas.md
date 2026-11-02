@@ -4662,3 +4662,48 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-11-02 08:32 · mg-oracle-1102-0020
+
+**Lo que se pidió.** Currículo OSSU como datos + temas de informática en Educación
+
+**Resultado.** 0 de 29 integradas. 29 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 22 tareas se fueron por lo mismo — no escribió nada (RTAV1011Dc, RTC1031A, INF1025D, INF1025B, DSN1025D, AGT1025B). Es 76 % de la ola.
+- 5 tareas se fueron por lo mismo — los tipos no compilan (RTINF1025Dd, RTART1025Cc, RTAGT1025Be, AGT1025B-d2d, ART1025L). Es 17 % de la ola.
+- 2 tareas se fueron por lo mismo — otra cosa (ART1025B, BLD1025C). Es 7 % de la ola.
+- sin modelo anotado no integró ninguna de sus 23 tareas.
+- freellmapi/auto no integró ninguna de sus 4 tareas.
+- opencode/minimax-m3.1-flash-free no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTINF1025Dd` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTINF1025Dd conservada)
+- `RTART1025Cc` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTART1025Cc conservada)
+- `RTAGT1025Be` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTAGT1025Be conservada)
+- `RTAV1011Dc` — no escribió nada
+- `AGT1025B-d2d` — los tipos no compilan: tsc no terminó (se pasó de tiempo): la puerta no da el visto bueno sin un tsc completo (rama ola/AGT1025B-d2d conservada)
+- `RTC1031A` — no escribió nada
+- `INF1025D` — no escribió nada
+- `INF1025B` — no escribió nada
+- `DSN1025D` — no escribió nada
+- `AGT1025B` — no escribió nada
+- `ART1025C` — no escribió nada
+- `ART1025G` — no escribió nada
+- `CPZ1025D` — no escribió nada
+- `CPZ1025F` — no escribió nada
+- `CPZ1025H` — no escribió nada
+- `DSN1025G` — no escribió nada
+- `DSN1025H` — no escribió nada
+- `INF1025G` — no escribió nada
+- `ART1025B` — otra cosa: sin decisión en 0 h; rama ola/ART1025B conservada
+- `ART1025L` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/ART1025L conservada)
+- `BLD1025B` — no escribió nada
+- `BLD1025C` — otra cosa: directorio sin worktree Git: conservado para recuperación
+- `CFC1025A` — no escribió nada
+- `CPZ1025A` — no escribió nada
+- `DSN1025A` — no escribió nada
+- `INV1025B` — no escribió nada
+- `INV1025F` — no escribió nada
+- `DSN1025B` — no escribió nada
+- `INV1025J` — no escribió nada
