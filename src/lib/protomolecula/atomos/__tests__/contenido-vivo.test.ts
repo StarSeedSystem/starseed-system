@@ -4,6 +4,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { CONTENIDO_VIVO, planificarContenidoVivo, type EntradaContenidoVivo } from "../contenido-vivo";
+import { ATOMOS_PROPIOS } from "../index";
 import type { ContextoVivo } from "@/lib/contenido-vivo/rutas";
 
 const BASE: ContextoVivo = {
@@ -18,6 +19,11 @@ const BASE: ContextoVivo = {
 };
 
 describe("átomo contenido-vivo", () => {
+  it("está registrado entre los átomos propios del índice", () => {
+    expect(ATOMOS_PROPIOS).toContain(CONTENIDO_VIVO);
+    expect(CONTENIDO_VIVO.herramientaId).toBe("contenido-vivo");
+  });
+
   it("declara el contrato del átomo", () => {
     expect(CONTENIDO_VIVO.herramientaId).toBe("contenido-vivo");
     expect(CONTENIDO_VIVO.nombre).toContain("Contenido vivo");

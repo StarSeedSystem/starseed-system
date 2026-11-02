@@ -77,4 +77,62 @@ describe("Panel Contenido vivo", () => {
     const totalRecibido = alConfirmar.mock.calls[0][0].reduce((suma, linea) => suma + linea.creditos, 0);
     expect(totalRecibido).toBe(0);
   });
+
+  it("el interruptor de un nivel oculta sus tablas y el total baja al vacío", () => {
+    const alConfirmar = vi.fn<(cotizacion: CotizacionViva[]) => void>();
+    render(
+      <PanelContenidoVivo
+        contexto={contexto({ conectados: ["higgsfield"], neurona: { gpu: true, capaz3d: true }, ajustes: { localPrimero: false, externosPermitidos: true } })}
+        onConfirmar={alConfirmar}
+      />,
+    );
+    expect(screen.getByText("Tarea: escena-3d")).toBeInTheDocument();
+    expect(screen.getByText("Tarea: clip-pelicula")).toBeInTheDocument();
+    const total = Number(screen.getByTestId("total-creditos").textContent);
+    expect(total).toBeGreaterThan(0);
+    fireEvent.click(screen.getByTestId("interruptor-nivel-2"));
+    expect(screen.queryByText("Tarea: clip-pelicula")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tarea: foto")).not.toBeInTheDocument();
+    expect(screen.getByText("Tarea: escena-3d")).toBeInTheDocument();
+    expect(Number(screen.getByTestId("total-creditos").textContent)).toBe(0);
+  });
+
+  it("el selector cambia la ruta elegida y el total sigue la cotización", () => {
+    render(
+      <PanelContenidoVivo
+        contexto={contexto({ conectados: ["higgsfield"], neurona: { gpu: true, capaz3d: true }, ajustes: { localPrimero: false, externosPermitidos: true } })}
+        onConfirmar={vi.fn()}
+      />,
+    );
+    const tarea = screen.getByText("Tarea: clip-pelicula");
+    const lista = tarea.closest("li") as HTMLElement;
+    const corto = within(lista).getByRole("radio", { name: /Seedance 2\.0 \(720p\)/ });
+    expect(corto).toBeChecked();
+    const totalAntes = Number(screen.getByTestId("total-creditos").textContent);
+    const largo = within(lista).getByRole("radio", { name: /Seedance 2\.0 \(1080p\)/ });
+    fireEvent.click(largo);
+    expect(largo).toBeChecked();
+    expect(corto).not.toBeChecked();
+    const totalDespués = Number(screen.getByTestId("total-creditos").textContent);
+    expect(totalDespués).toBeGreaterThan(totalAntes);
+  });
+
+  it("el «Cancelar» de la confirmación cierra sin generar y permite volver a preguntar", () => {
+    const alConfirmar = vi.fn<(cotizacion: CotizacionViva[]) => void>();
+    render(
+      <PanelContenidoVivo
+        contexto={contexto({ conectados: ["higgsfield"], neurona: { gpu: true, capaz3d: true }, ajustes: { localPrimero: false, externosPermitidos: true } })}
+        onConfirmar={alConfirmar}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Generar" }));
+    expect(screen.getByTestId("confirmacion-generar")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByTestId("confirmacion-generar")).not.toBeInTheDocument();
+    expect(alConfirmar).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Generar" }));
+    expect(screen.getByTestId("confirmacion-generar")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Sí, generar" }));
+    expect(alConfirmar).toHaveBeenCalledTimes(1);
+  });
 });
