@@ -35,6 +35,11 @@ def _transporte_que_explota(cuerpo):
     raise AssertionError("no debía llamarse a OpenRouter")
 
 
+def _transporte_laya_bloqueado(cuerpo, timeout=None):
+    """Transporte falso para Laya que siempre devuelve None (bloqueado)."""
+    return None
+
+
 def _falso(respuestas):
     """Transporte que no toca la red: devuelve lo que le des y apunta lo que recibió."""
     recibido = []
@@ -57,18 +62,19 @@ class Jev(unittest.TestCase):
         jev.CACHE = os.path.join(self._dir, "cache.json")
         jev.USO = os.path.join(self._dir, "uso.json")
         jev.TRANSPORTE = None
+        jev.TRANSPORTE_LOCALES = _transporte_laya_bloqueado
         os.environ["STARSEED_JEV"] = "0"
-        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"  # invalid port to prevent laya-local from responding
-        # Estas pruebas miden local -> OpenRouter; la pasarela gratis de Experiential se prueba en
-        # test_jev_explabs.py. Sin esto, en la Mac (con EXPLABS_API_KEY) contestaría de verdad.
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"
         os.environ["STARSEED_JEV_EXPLABS"] = "0"
         _sin_motor_local()
 
     def tearDown(self):
         jev.TRANSPORTE = None
+        jev.TRANSPORTE_LOCALES = None
         _quita_local()
         os.environ.pop("STARSEED_JEV", None)
         os.environ.pop("STARSEED_JEV_EXPLABS", None)
+        os.environ.pop("STARSEED_LAYA_URL", None)
 
     def test_apagado_devuelve_none_sin_tocar_nada(self):
         self.assertFalse(jev.activo())
@@ -211,15 +217,15 @@ class Piramide(unittest.TestCase):
         jev.CACHE = os.path.join(self._dir, "cache.json")
         jev.USO = os.path.join(self._dir, "uso.json")
         jev.TRANSPORTE = None
+        jev.TRANSPORTE_LOCALES = _transporte_laya_bloqueado
         os.environ["STARSEED_JEV"] = "0"
-        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"  # invalid port to prevent laya-local from responding
-        # Estas pruebas miden local -> OpenRouter; la pasarela gratis de Experiential se prueba en
-        # test_jev_explabs.py. Sin esto, en la Mac (con EXPLABS_API_KEY) contestaría de verdad.
+        os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"
         os.environ["STARSEED_JEV_EXPLABS"] = "0"
         _sin_motor_local()
 
     def tearDown(self):
         jev.TRANSPORTE = None
+        jev.TRANSPORTE_LOCALES = None
         _quita_local()
         os.environ.pop("STARSEED_JEV", None)
         os.environ.pop("STARSEED_JEV_EXPLABS", None)

@@ -846,6 +846,8 @@ def decidir(estado, preguntas, usar_cache=True, medio=None, quien=None):
         respuestas = _intenta_local(jl, estado, preguntas)
         if respuestas is not None:
             medio_usado = "local"
+        else:
+            local_disponible = False  # el local estaba disponible pero no respondió
     # Capa local Laya (SystemOne) antes del Jev remoto
     if respuestas is None and intenta_laya:
         resp_laya = decidir_con_laya(estado, preguntas)
