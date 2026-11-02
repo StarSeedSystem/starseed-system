@@ -113,6 +113,10 @@ describe("pliegue de historial", () => {
 });
 
 describe("resumenExtractivo", () => {
+  it("devuelve cadena vacía si no hay turnos", () => {
+    expect(resumenExtractivo([], 100)).toBe("");
+  });
+
   it("une una primera frase por turno con « | »", () => {
     const t: Turno[] = [
       { rol: "user", texto: "Hola mundo. ¿Qué tal?" },
