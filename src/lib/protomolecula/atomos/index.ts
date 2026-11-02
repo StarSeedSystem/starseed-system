@@ -52,4 +52,5 @@ export const VISTAS_COMPONENTE: Record<string, () => Promise<{ default: Componen
   "fondo-shader": () => import("@/components/protomolecula/atomo-fondo-shader"),
   [ID_VISTA_VIDEO_HTML]: () => import("@/components/protomolecula/vista-video-html"),
   [ID_VISTA_DIAGRAMA]: () => import("@/components/protomolecula/vista-diagrama-atomo"),
+  "contenido-vivo": () => import("@/components/protomolecula/vista-contenido-vivo"),
 };

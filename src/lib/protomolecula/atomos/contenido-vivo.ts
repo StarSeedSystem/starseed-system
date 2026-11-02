@@ -101,6 +101,7 @@ export const CONTENIDO_VIVO: DefinicionAtomo = {
   categoria: "video",
   integracion: "servicio-local",
   control: "total",
+  vista: { tipo: "componente", id: "contenido-vivo" },
   parametros: [
     { id: "nivel", nombre: "Nivel", tipo: "opcion", opciones: ["1", "2", "3"], defecto: "1", sinonimos: ["nivel vivo"] },
     { id: "tarea", nombre: "Tarea", tipo: "opcion", opciones: [...TAREAS_VIVAS], defecto: "escena-3d", sinonimos: ["pieza"] },
