@@ -72,7 +72,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 23;
+export const SEED_VERSION = 24;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -414,6 +414,14 @@ const IDS_SIEMBRA_1020D: string[] = [
  * Stirling-PDF (iatool-*). Aquí siembran las 5 «siempre» restantes cuyo efecto es solo
  * ficha/enlace o conector (ver IDS_SIEMBRA_1020D, más abajo); gallery-dl y OpenRig son
  * «manual» y no se siembran.
+ *
+ * (SEED_VERSION 24 · Mausbot de Astraura · MBT1027Ob · parte 2 de 3) REMACHO DE LA TANDA
+ * 1027: con la cadena del Mausbot en marcha (partes 1 y 3 de MBT1027Ob en el catálogo y la
+ * ruta de actualizaciones), la siembra vuelve a subir la versión —sin ids nuevos: los tres
+ * de la tanda 1027 (OpenMausBot, Insomnia y Colibri, sembrados desde la 19) siguen en la
+ * unión— para que TODAS las cuentas y neuronas repasen ensureDefaultsSeeded. Los ya
+ * ofrecidos no se vuelven a instalar; una desinstalada no vuelve. El remacho no entra a las
+ * «manual» y no toca lo que la persona ya decidió, como siempre.
  */
 export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
   new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...IDS_SIEMBRA_1020C, ...IDS_SIEMBRA_1020D]),

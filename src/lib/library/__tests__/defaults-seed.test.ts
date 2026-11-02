@@ -7,7 +7,7 @@ import {
 } from "../defaults-seed";
 import { FICHAS_REPOS_1025, IDS_SIEMBRA_1025, TANDA_1025_FICHAS } from "../repos-1025";
 import { FICHAS_REPOS_1026, IDS_SIEMBRA_1026, TANDA_1026_FICHAS } from "../repos-1026";
-import { IDS_SIEMBRA_1027 } from "../repos-1027";
+import { FICHAS_REPOS_1027, IDS_SIEMBRA_1027, TANDA_1027_FICHAS } from "../repos-1027";
 import { IDS_SIEMBRA_1027B } from "../repos-1027b";
 import { IDS_SIEMBRA_1028 } from "../repos-1028";
 
@@ -55,8 +55,8 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 }
 
 describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
-  it("sube la versión (23) y mantiene las siete «siempre» de la 2.ª tanda", () => {
-    expect(SEED_VERSION).toBe(23);
+  it("la versión está en 24 (remacho del Mausbot) y mantiene las siete «siempre» de la 2.ª tanda", () => {
+    expect(SEED_VERSION).toBe(24);
     for (const id of SIEMPRE_2A) {
       expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
     }
@@ -234,5 +234,58 @@ describe("defaults-seed · tanda 1026 (Open-Higgsfield-AI, WeKnora, OpenProject 
     });
     expect(plan).not.toContain("lib-cap");
     expect(plan).toHaveLength(nuevas.length - 1);
+  });
+});
+
+describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remacho 24", () => {
+  const nuevas = FICHAS_REPOS_1027.map((f) => f.id);
+
+  it("los tres ids del JSON quedan en la recomendación, uno por ficha y sin repetir", () => {
+    expect(TANDA_1027_FICHAS).toHaveLength(3);
+    expect([...IDS_SIEMBRA_1027].sort()).toEqual(["lib-colibri", "lib-insomnia", "lib-openmausbot"]);
+    for (const id of nuevas) expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
+    expect(new Set(RECOMMENDED_PACKAGE_IDS).size).toBe(RECOMMENDED_PACKAGE_IDS.length);
+  });
+
+  it("una cuenta nueva recibe las tres y una ya al día con la 23 no recibe nada repetido", () => {
+    const plan = selectSeedIds({
+      currentVersion: 23,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: [...FICHAS_REPOS_1025, ...FICHAS_REPOS_1026, ...FICHAS_REPOS_1027].map((f) => ({ id: f.id, comingSoon: f.comingSoon })),
+      alreadyOffered: [...RECOMMENDED_PACKAGE_IDS],
+      installedIds: [...RECOMMENDED_PACKAGE_IDS],
+    });
+    expect(plan).toEqual([]);
+
+    const fresca = selectSeedIds({
+      currentVersion: 0,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: FICHAS_REPOS_1027.map((f) => ({ id: f.id, comingSoon: f.comingSoon })),
+      alreadyOffered: [],
+      installedIds: [],
+    });
+    expect(fresca.sort()).toEqual([...nuevas].sort());
+  });
+
+  it("una cuenta que desinstaló una de la tanda no la recupera sola con el remacho", () => {
+    const plan = selectSeedIds({
+      currentVersion: 23,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: FICHAS_REPOS_1027.map((f) => ({ id: f.id })),
+      alreadyOffered: [...RECOMMENDED_PACKAGE_IDS], // la tanda ya se le ofreció antes
+      installedIds: IDS_SIEMBRA_1027.filter((id) => id !== "lib-openmausbot"),
+    });
+    expect(plan).not.toContain("lib-openmausbot");
+  });
+
+  it("ninguna ficha de la tanda es descargable ni comingSoon: instalar solo registra su enlace", () => {
+    for (const f of FICHAS_REPOS_1027) {
+      expect(f.comingSoon, f.id).toBeFalsy();
+      expect(f.payload.downloadable, f.id).toBeUndefined();
+      expect(String(f.payload.route ?? ""), f.id).toBe("");
+    }
   });
 });
