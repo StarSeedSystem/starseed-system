@@ -6,12 +6,17 @@
  * cuenta/grupo, GSAP prohibido al editar, recursos privados ajenos y { aceptado,
  * trabajoId } o rechazo legible con cola inyectada.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   VIDEO_MALLA_MAX_COMPOSICION, validarPeticionVideoRender, admiteVideoRenderMalla,
   extraerRecursosRemotos, validarRecursosRenderMalla, videoRenderPorMalla,
   type PeticionVideoRenderMalla, type RecursoVideoRemoto, type ContextoServidaVideo,
 } from "@/lib/network/video-por-malla";
+import {
+  atenderPedidoRenderMalla, adjuntarServidorRenderMalla,
+  type MeshRenderServidor,
+} from "@/lib/network/video-por-malla-relay";
+import type { PeerEvents } from "@/lib/network/webrtc-mesh";
 
 const HTML = `<div data-composition-id="a"></div>`;
 const CON_GSAP = `<div><script>gsap.to('.a', { x: 1 });</script></div>`;
@@ -117,5 +122,64 @@ describe("videoRenderPorMalla (cola inyectada)", () => {
     expect((await videoRenderPorMalla(peticion({ cuenta: "otra", grupo: "teatro" }), NEURONA, { encolar })).aceptado).toBe(false);
     const conFoto = { cuenta: "sami", composicion: `<img src="${FOTO}">`, recursos: [{ url: FOTO }] };
     expect((await videoRenderPorMalla(conFoto, NEURONA, { encolar })).aceptado).toBe(false);
+  });
+});
+
+/** Mesh de mentira: guarda lo enviado y deja disparar `capacidad.pedir` sin red. */
+function meshFalso(userId = "sami") {
+  const enviados: { peerId: string; msg: Record<string, unknown> }[] = [];
+  let onMessage: PeerEvents["onMessage"] | undefined;
+  const mesh: MeshRenderServidor = {
+    userId,
+    sendToPeer: (peerId, data) => { enviados.push({ peerId, msg: JSON.parse(data) as Record<string, unknown> }); return true; },
+    onPeer: (eventos) => { onMessage = eventos.onMessage; return () => { onMessage = undefined; }; },
+  };
+  const emitir = (peerId: string, msg: unknown) => onMessage?.(peerId, JSON.stringify(msg));
+  return { mesh, enviados, emitir };
+}
+
+describe("relé servidor de capacidad.video.render", () => {
+  it("entrega la petición al manejador y contesta capacidad.fin con trabajoId", async () => {
+    const { mesh, enviados } = meshFalso();
+    await atenderPedidoRenderMalla(
+      mesh, "peer-1", { id: "p1", cuerpo: peticion() },
+      { encolar: (p) => `t-${p.cuenta}` },
+    );
+    expect(enviados).toEqual([
+      { peerId: "peer-1", msg: { t: "capacidad.fin", id: "p1", resultado: { trabajoId: "t-sami", editableVisualmente: true, recursosRemotos: 0 } } },
+    ]);
+  });
+
+  it("rechaza con estado legible: 400 inválida, 403 sin permiso, 413 enorme y 503 sin cuenta", async () => {
+    const { mesh, enviados } = meshFalso();
+    const encolar = () => "t";
+    await atenderPedidoRenderMalla(mesh, "p", { id: "a", cuerpo: { cuenta: "sami" } }, { encolar });
+    await atenderPedidoRenderMalla(mesh, "p", { id: "b", cuerpo: peticion({ cuenta: "otra", grupo: "teatro" }) }, { encolar });
+    await atenderPedidoRenderMalla(mesh, "p", { id: "c", cuerpo: { cuenta: "sami", composicion: "x".repeat(VIDEO_MALLA_MAX_COMPOSICION + 1) } }, { encolar });
+    const sinCuenta = meshFalso("");
+    await atenderPedidoRenderMalla(sinCuenta.mesh, "p", { id: "d", cuerpo: peticion() }, { encolar });
+    expect([...enviados, ...sinCuenta.enviados].map((e) => (e.msg as { estado: number }).estado)).toEqual([400, 403, 413, 503]);
+  });
+
+  it("cuenta los recursos remotos admitidos y nunca encola un rechazo de la cola", async () => {
+    const { mesh, enviados } = meshFalso();
+    const compo = `<img src="${FOTO}">`;
+    await atenderPedidoRenderMalla(
+      mesh, "p", { id: "ok", cuerpo: { cuenta: "sami", composicion: compo, recursos: [{ url: FOTO, publico: true }] } },
+      { encolar: () => "t-1" },
+    );
+    expect(enviados[0].msg).toMatchObject({ t: "capacidad.fin", resultado: { trabajoId: "t-1", recursosRemotos: 1 } });
+  });
+
+  it("adjuntar escucha solo capacidad.pedir tipo render y se puede soltar", async () => {
+    const { mesh, enviados, emitir } = meshFalso();
+    const soltar = adjuntarServidorRenderMalla(mesh, { encolar: () => "t-sami" });
+    emitir("peer-1", { t: "capacidad.pedir", id: "r1", tipo: "render", cuerpo: peticion() });
+    emitir("peer-1", { t: "capacidad.pedir", id: "r2", tipo: "voz", cuerpo: peticion() });
+    await vi.waitFor(() => expect(enviados).toHaveLength(1));
+    expect(enviados[0]).toMatchObject({ peerId: "peer-1", msg: { t: "capacidad.fin", id: "r1" } });
+    soltar();
+    emitir("peer-1", { t: "capacidad.pedir", id: "r3", tipo: "render", cuerpo: peticion() });
+    expect(enviados).toHaveLength(1);
   });
 });

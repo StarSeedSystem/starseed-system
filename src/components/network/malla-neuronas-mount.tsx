@@ -80,10 +80,11 @@ function MallaNeuronasEngine() {
   // compartido — coexisten sin pisarse.
   useMotorPerezoso(() => import("@/lib/network/ia-por-malla").then((m) => m.iniciarServidorIaPorMalla));
   // (Ola 1018H · I) Rol SERVIDOR del relé `capacidad.video.render`: atiende
-  // `capacidad.pedir` tipo `render` sobre el MISMO mesh compartido — el
-  // manejador PURO de `video-por-malla.ts` valida, encola en la cola de esta
-  // neurona y contesta la REFERENCIA por `trabajoId`.
-  useMotorPerezoso(() => import("@/lib/network/video-por-malla").then((m) => m.iniciarServidorRenderPorMalla));
+  // `capacidad.pedir` tipo `render` sobre el MISMO mesh compartido — el relé
+  // de `video-por-malla-relay.ts` aplica las puertas puras de `video-por-malla.ts`,
+  // encola en el servicio «hyperframes» de esta neurona y contesta la
+  // REFERENCIA por `trabajoId`.
+  useMotorPerezoso(() => import("@/lib/network/video-por-malla-relay").then((m) => m.iniciarServidorRenderPorMalla));
   // (Ola 369) Motor de ARCHIVOS por la malla: namespace `archivo.*`, mismo
   // mesh compartido de siempre. La tarjeta de "aceptar/rechazar" de una
   // oferta entrante se pinta aquí (global) para que llegue con el panel
