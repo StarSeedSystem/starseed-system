@@ -30,6 +30,9 @@ import os
 import re
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
+# (KAL1101B) keepalive/pantalla cerrada: el CRITERIO de la tapa vive en su módulo puro.
+import despierto_logica as D  # noqa: E402
+
 VERSION = "1"
 
 #: Un nodo late cada `LATIDO_S`; quien lleva `TTL_LIDER_S` sin latir ya no cuenta como vivo.
@@ -46,6 +49,10 @@ ORDEN_CADUCA_S = 15 * 60
 NONCE_RECUERDO_S = 24 * 3600
 #: Si el medio con las colas en su disco (la Mac) calla tanto tiempo, otro medio sigue su trabajo.
 RELEVO_MEDIO_S = 20 * 60
+#: (KAL1101B) Penalización de puntos para una neurona que se anuncia «se va a dormir», por encima
+#: de `PUNTOS_INSOMNE` (80): que suspende el sostenimiento, no que solo lo reduce. La neurona pasa
+#: sus tareas al A1 (orden `desconectar`) y no vuelve a ser elegida como destino.
+CASTIGO_DORMIDA = 150
 #: Una tarea entregada a otro medio que no vuelve integrada en este plazo vuelve a la cola.
 GRACIA_ASIGNACION_S = 6 * 3600
 
@@ -163,6 +170,10 @@ def puntos_nodo(cap: Dict[str, Any], ahora: Optional[float] = None) -> int:
         p -= 80
     if insomne_vigente(cap, ahora):
         p += PUNTOS_INSOMNE
+    # (KAL1101B) Una neurona que se va a dormir (tapa que duerme + batería baja) no merece dirigir
+    # ni sostiene a nadie: la colmena le pasa las tareas al A1 antes (orden `desconectar` ya existente).
+    if D.anuncio_de_dormir((cap or {}).get("despierto")):
+        p -= CASTIGO_DORMIDA
     return p
 
 
@@ -899,8 +910,10 @@ def medio_para_vigia(nodos: Dict[str, Dict[str, Any]]) -> Optional[str]:
     """PURA. A quién se la encarga el líder: un nodo REAL con red (su latido no declara
     `salud.red = False`) y la menor carga; el A1 (24/7) SIEMPRE primero si está libre. None si no
     hay nadie con red."""
+    # (KAL1101B) Una neurona que se va a dormir (salud.despierto) no recibe trabajo: va al A1.
     candidatos = [(n, l) for n, l in (nodos or {}).items()
-                  if l.get("modo") == "real" and (l.get("salud") or {}).get("red") is not False]
+                  if l.get("modo") == "real" and (l.get("salud") or {}).get("red") is not False
+                  and not D.anuncio_de_dormir((l.get("salud") or {}).get("despierto"))]
     if not candidatos:
         return None
     libres = [(n, l) for n, l in candidatos if _libre_para_vigia(l)]
@@ -1122,6 +1135,9 @@ def mejor_medio_libre(nodos: Dict[str, Dict[str, Any]]) -> Optional[str]:
         if l.get("modo") != "real" or not s.get("repo") or not s.get("orquestador"):
             continue
         if s.get("orquestadores"):
+            continue
+        # (KAL1101B) Que se va a dormir: sus tareas pasan al A1 con la orden `desconectar`.
+        if D.anuncio_de_dormir(s.get("despierto")):
             continue
         if isinstance(s.get("disco_gb"), (int, float)) and s["disco_gb"] < 3:
             continue
