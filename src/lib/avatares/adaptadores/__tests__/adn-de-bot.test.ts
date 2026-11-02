@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   adnConEmocion,
   adnDeBot,
+  esFormaAvatar3d,
   expresionesDeEmocion,
   gestoConMovimiento,
   intensidadAuraConEmocion,
@@ -60,6 +61,11 @@ describe("adnDeBot: la referencia manda y el ADN por defecto conserva la orbe", 
     expect(refAdnDeBot(bot)).toBeNull();
     expect(adnDeBot(bot).aura.tono).toBe(300);
   });
+
+  it("una referencia interna no vale si la forma no es 3D", () => {
+    const bot = botDe({ cuerpo: { forma: "orbe", avatarRef: "biblioteca:adn-bot-1", tono: 210, escala: 1 } });
+    expect(refAdnDeBot(bot)).toBeNull();
+  });
 });
 
 describe("emoción del bot → expresiones (happy/sad/angry/surprised/relaxed)", () => {
@@ -108,6 +114,75 @@ describe("emoción del bot → expresiones (happy/sad/angry/surprised/relaxed)",
     expect(intensidadAuraConEmocion(ligada, emo("asombro", 0.8, 0.9))).toBeGreaterThan(0.5);
     expect(intensidadAuraConEmocion(suelta, emo("asombro", 0.8, 0.9))).toBe(0.5);
   });
+
+  it("la valencia y la activación eligen una expresión coherente y encendida", () => {
+    expect(expresionesDeEmocion(emo("alegria", 0.9, 0.8)).expresiones.happy).toBeGreaterThan(0.5);
+    expect(expresionesDeEmocion(emo("preocupacion", -0.8, 0.2)).expresiones.sad).toBeGreaterThan(0.5);
+    expect(expresionesDeEmocion(emo("concentracion", -0.8, 0.9)).expresiones.angry).toBeGreaterThan(0.5);
+    expect(expresionesDeEmocion(emo("asombro", 0.2, 0.95)).expresiones.surprised).toBeGreaterThan(0.5);
+    expect(expresionesDeEmocion(emo("calma", 0.1, 0.1)).expresion).toBe("relaxed");
+  });
+
+  it("acota la intensidad de cada expresión a 0…1 aunque la emoción venga desbordada", () => {
+    for (const e of [emo("alegria", 5, 5), emo("preocupacion", -5, -5), emo("calma", Number.NaN, Number.POSITIVE_INFINITY)]) {
+      const r = expresionesDeEmocion(e);
+      for (const v of Object.values(r.expresiones)) {
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it("adnConEmocion no muta el original, no sube la revisión y deja una sola expresión emocional", () => {
+    const base = {
+      ...adnPorDefecto("adn-bot-1", "Semilla", { tipo: "bot", id: "bot-1" }, 190),
+      expresionBase: { happy: 0.7, blink: 0.2, aa: 0.4 },
+    };
+    const antes = JSON.stringify(base);
+    const r = adnConEmocion(base, emo("preocupacion", -0.7, 0.2));
+    expect(JSON.stringify(base)).toBe(antes);
+    expect(r.rev).toBe(base.rev);
+    expect(r.expresionBase.sad).toBeGreaterThan(0);
+    expect(r.expresionBase.happy).toBeUndefined();
+    expect(r.expresionBase.blink).toBe(0.2);
+    expect(r.expresionBase.aa).toBe(0.4);
+  });
+});
+
+describe("formas de cuerpo con avatar 3D", () => {
+  it("reconoce solo las formas con cuerpo 3D", () => {
+    expect(esFormaAvatar3d("avatar-3d")).toBe(true);
+    expect(esFormaAvatar3d("vrm")).toBe(true);
+    expect(esFormaAvatar3d("orbe")).toBe(false);
+    expect(esFormaAvatar3d("ser-genesis")).toBe(false);
+  });
+});
+
+describe("adnDeBot: identidad de bot", () => {
+  it("el ADN por defecto liga el aura a la emoción y hereda el nombre del bot", () => {
+    const adn = adnDeBot(botDe());
+    expect(adn.nombre).toBe("Semilla");
+    expect(adn.aura.ligadaEmocion).toBe(true);
+  });
+
+  it("carga el ADN guardado del mismo bot y de la misma referencia, con su base y revisión", () => {
+    const guardado = {
+      ...adnPorDefecto("adn-bot-1", "Semilla", { tipo: "bot", id: "bot-1" }, 190),
+      base: { tipo: "vrm" as const, ref: "biblioteca:vrm-1" },
+      rev: 7,
+    };
+    const adn = adnDeBot(botDe(), guardado);
+    expect(adn.base).toEqual({ tipo: "vrm", ref: "biblioteca:vrm-1" });
+    expect(adn.id).toBe("adn-bot-1");
+    expect(adn.rev).toBe(7);
+  });
+
+  it("no pisa el ADN guardado con otra referencia: crea el de fábrica del bot", () => {
+    const otraRef = { ...adnPorDefecto("adn-otro", "Otro", { tipo: "bot", id: "bot-1" }, 190), rev: 12 };
+    const adn = adnDeBot(botDe(), otraRef);
+    expect(adn.id).toBe("adn-bot-1");
+    expect(adn.rev).toBe(0);
+  });
 });
 
 describe("visemas y gesto con el carácter del ADN", () => {
@@ -120,6 +195,13 @@ describe("visemas y gesto con el carácter del ADN", () => {
 
   it("sin texto no hay visemas", () => {
     expect(visemasDeTexto("")).toEqual([]);
+  });
+
+  it("traduce las vocales del español a visemas VRM 1.0", () => {
+    expect(visemasDeTexto("hola")).toEqual(["oh", "aa"]);
+    expect(visemasDeTexto("miau")).toEqual(["ih", "aa", "ou"]);
+    expect(visemasDeTexto("e")).toEqual(["ee"]);
+    expect(visemasDeTexto("rrr")).toEqual([]);
   });
 
   it("el gesto respeta la energía y el ritmo del ADN del bot", () => {
