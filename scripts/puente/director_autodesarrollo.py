@@ -12,7 +12,7 @@ Decidir se hace y se escribe siempre (no cuesta memoria); lanzar trabajo, solo c
 lanzadores, Jev, Astraura y agentes por parámetro (las pruebas no lanzan nada real); escrituras atómicas
 (tmp + os.replace) y cerrojo propio."""
 from __future__ import annotations
-import argparse, fcntl, json, os, shutil, subprocess, sys, tempfile, urllib.error, urllib.request
+import argparse, fcntl, json, os, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
 from collections import Counter
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -83,6 +83,19 @@ def _astraura():
         return json.load(urllib.request.urlopen(url, timeout=3))
     except Exception:
         return {}
+
+
+def _soy_lider_direccion(ahora):
+    """(¿encargo aquí?, por qué) con el arriendo de dirección (IND1029B) solo leído y la regla de la
+    autocuración (IND1029Cb): si OTRA neurona lo tiene vigente, aquí nadie encarga — lo hace el
+    director del medio líder (IMG1102C), con su propia memoria. Sin módulo, sin puerta, sin arriendo
+    o caducado: como hoy, sí. Una sola lectura por ciclo, nunca sondeos."""
+    try:
+        import autocuracion_mando as AC, lider_direccion as LD
+
+        return AC.decidir_lider(LD.soy_lider(), ahora.timestamp())
+    except Exception as e:  # noqa: BLE001 — una puerta caída no para el encargo local
+        return True, "sin líder de dirección (%s): sigo en local" % type(e).__name__
 
 
 def leer_agentes(mem, tope=MAX_ARCHIVOS_AGENTES, max_bytes=MAX_BYTES_AGENTE):
@@ -349,13 +362,16 @@ def _aplicar_en_astraura(lista, aplicar, iso):
 
 def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_diario=None, lanzador_profundo=None,
           existe_ruta=None, datos=None, avisar=None, consejo=None, agente_referencias=None, aplicar_astraura=None,
-          a_la_flota=None, agente_alcance=None):
+          a_la_flota=None, agente_alcance=None, soy_lider=None):
     """Un ciclo (§5). `datos`: {diaria, profunda, astraura, directores, agentes} para no leer disco ni red.
     `consejo(p)`: Jev para el veto de lo que se integraría solo (None = solo la regla). `agente_referencias(raiz,
     ahora)`: el agente de referencias de diseño (por defecto, el módulo si existe); devuelve None si no hay agente.
     `agente_alcance(raiz, ahora)`: el agente de alcance (por defecto, `agente_alcance.ciclo` si existe).
     `aplicar_astraura(item)`: aplica una creación en el backend 1.58 (None si lo hizo, o el error); por defecto, HTTP.
     `a_la_flota(raiz, tareas)`: entrega el análisis encolado al orquestador vivo (por defecto `AR.a_la_flota`).
+    `soy_lider()`: (¿encargo aquí?, por qué) por el arriendo de dirección (por defecto `_soy_lider_direccion`);
+    desde la Ola 1102 (IMG1102C) solo si es líder se encarga aquí: lo pesado (`autodesarrolladas`, entregables,
+    reimaginaciones, aplicar en Astraura) espera a que una neurona con capacidad dirija.
     Ola 1025S: reimaginar y preparar entregables se encargan con `AL.toca_analizar` (análisis por HTTP con su
     propio tope), no con `toca_ejecutar`: la presión de memoria de la Mac frenaba toda reimaginación."""
     ahora, home, raiz = ahora or datetime.now(), home or os.path.expanduser("~/.starseed"), raiz or RAIZ
@@ -368,6 +384,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
             toca, motivo = False, "sin dato de capacidad: en modo inteligente no se ejecuta"
         else: toca, motivo = AL.toca_ejecutar(ahora, aj["horario"], cap or {})
         toca_an, motivo_an = (True, motivo) if toca else AL.toca_analizar(ahora, aj["horario"], cap)
+        soy, porque_lider = (soy_lider or _soy_lider_direccion)(ahora)  # IMG1102C: solo el líder encarga
         est_ruta = os.path.join(home, "autodesarrollo-estado.json"); est = _json(est_ruta, {})
         lanzo = []
         if toca and not seco:
@@ -422,7 +439,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         por_tarea = {AR.id_tarea(p): p for p in propuestas if p.get("estado") == "reimaginando"}
         auto_r = AD.orden_reimaginar([por_tarea[t["id"]] for t in reim if t.get("por") != "alex" and t["id"] in por_tarea])
         elegidas_r = {AR.id_tarea(p) for p in auto_r[:AD.TOPE_POR_CICLO]}
-        reim = [t for t in reim if t.get("por") == "alex" or t["id"] in elegidas_r] if toca_an else []
+        reim = [t for t in reim if t.get("por") == "alex" or t["id"] in elegidas_r] if toca_an and soy else []
         entregables = _revisar_entregables(propuestas, raiz, ahora, iso)
         auto = AD.cuantas([p for p in propuestas if p.get("estado") == "autodesarrollo"], aj["rango"], AD.umbral_efectivo(aj))["elegidas"]
         aprobadas = {v: [] for v in AD.VIAS}
@@ -439,13 +456,13 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
             if p.get("aprobada_por") != "automatica":
                 p.update(estado="hecha", aplicada=p.get("decidida") or iso, t=iso, motivo_destino="aplicada en Astraura al integrarla desde Genesis")
         astraura = [p for p in aprobadas["astraura"] if p.get("estado") == "aprobada"]
-        aplicadas = _aplicar_en_astraura(astraura, aplicar_astraura, iso) if toca and not seco else 0
-        cupo_e = max(0, min(AD.TOPE_POR_CICLO, AD.MAX_EN_VUELO - AE.en_vuelo(propuestas))) if toca_an else 0
+        aplicadas = _aplicar_en_astraura(astraura, aplicar_astraura, iso) if toca and soy and not seco else 0
+        cupo_e = max(0, min(AD.TOPE_POR_CICLO, AD.MAX_EN_VUELO - AE.en_vuelo(propuestas))) if toca_an and soy else 0
         ent = AD.orden_reimaginar(aprobadas["entregable"])[:cupo_e]
         tareas_e = [AE.tarea(p, ahora) for p in ent]
         # Ola 1102: lo que aprobó sola la automática (carril de bajo riesgo) entra con el máximo del rango y una por archivo.
         aprobadas_c = AD.turno_de_las_solas(aprobadas["codigo"], aj["rango"]["max"] - len(auto))
-        cola = [p for p in (auto + aprobadas_c) if not _es_alcance(p)] if toca else []
+        cola = [p for p in (auto + aprobadas_c) if not _es_alcance(p)] if toca and soy else []
         fr = [x for x in aj["horario"]["franjas"] if x["desde"] > ahora.strftime("%H:%M")] if aj["horario"]["modo"] == "franjas" else []
         if cola and aj["horario"]["repartir"] and fr: cola = cola[:AL.lotes(len(cola), len(fr) + 1)[0]]
         nombre = f"cola-imaginacion-{ahora.strftime('%Y%m%d-%H%M')}"
@@ -487,6 +504,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
                 "entregables_encargados": len(tareas_e) if not seco else 0, "cola_entregables": cola_e,
                 "aplicadas_astraura": aplicadas, "toca_analizar": toca_an, "motivo_analisis": motivo_an,
                 "flota": flota, "estados": dict(Counter(p.get("estado") or "nueva" for p in propuestas)),
+                "lider": {"soy": soy, "motivo": porque_lider},
                 "filtro_astraura": {k: v for k, v in filtro.items() if k not in ("por_id", "inventadas")} if filtro else None}
 
 
@@ -503,7 +521,15 @@ def _avisar_real(texto, telegram):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(); ap.add_argument("orden", choices=["ciclo"]); ap.add_argument("--seco", action="store_true"); ap.add_argument("--json", action="store_true")
+    """`ciclo` (el servicio de launchd de la Mac) y `--bucle` (la dirección del A1, `direccion_arranque.py`)."""
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if "--bucle" in argv:
+        cada = BUCLE_CADA_S
+        if "--cada" in argv:
+            try: cada = int(argv[argv.index("--cada") + 1])
+            except (IndexError, ValueError): pass
+        return bucle(cada)
+    ap = argparse.ArgumentParser(); ap.add_argument("orden", nargs="?", default="ciclo", choices=["ciclo"]); ap.add_argument("--seco", action="store_true"); ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv); r = ciclo(seco=a.seco, avisar=_avisar_real, consejo=_consejo_jev)
     print(json.dumps(r, ensure_ascii=False, indent=1) if a.json else f"{r['motivo_toca']} · {r.get('autodesarrolladas', 0)} tarea(s) · {r.get('esperando_aprobacion', 0)} esperando")
 
