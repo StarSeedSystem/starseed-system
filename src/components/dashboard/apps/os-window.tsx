@@ -9,13 +9,16 @@
 // Render: el llamador la porta a document.body (vía createPortal).
 // Escape: con varias apiladas cierra SOLO la de arriba (pila compartida, abajo).
 // SOP: architecture/dashboard-launcher-apps-y-archivos.md
+// Composición centrada: usa geometriaVentana para posición inicial.
+// En teléfono, hoja centrada que sube desde abajo.
 // ════════════════════════════════════════════════════════════════
 
-import React, { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { geometriaVentana, type Viewport } from "@/lib/design/composicion";
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -57,6 +60,25 @@ function apuntarVentana(v: VentanaApilada): () => void {
     };
 }
 
+/** Rectángulo medido del marco en coordenadas de la ventana del navegador. */
+export interface RectMarco {
+    izquierda: number;
+    arriba: number;
+    ancho: number;
+    alto: number;
+}
+
+/**
+ * Desplazamiento entre el centro que ya aplica el flex del diálogo y la posición que
+ * manda `geometriaVentana` (ADN §7b): centrada en escritorio y hoja anclada abajo en
+ * teléfono. Es puro para poder probarlo con viewport de teléfono y de escritorio.
+ */
+export function desplazamientoInicial(viewport: Viewport, marco: RectMarco): { dx: number; dy: number } {
+    const tipo = viewport.ancho < 430 ? "hoja" : "ventana";
+    const geometria = geometriaVentana(viewport, { tipo, ancho: marco.ancho, alto: marco.alto });
+    return { dx: geometria.x - marco.izquierda, dy: geometria.y - marco.arriba };
+}
+
 export interface OSWindowProps {
     title: string;
     subtitle?: string;
@@ -82,10 +104,30 @@ export function OSWindow({
     const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
 
     const raizRef = useRef<HTMLDivElement>(null);
+    const marcoRef = useRef<HTMLDivElement>(null);
     const cerrarRef = useRef(onClose);
+    const sinMovimiento = useReducedMotion();
+    const esTelefono = typeof window !== "undefined" && window.innerWidth < 430;
     useEffect(() => { cerrarRef.current = onClose; }, [onClose]);
     useEffect(() => apuntarVentana({ raiz: raizRef, cerrar: cerrarRef }), []);
 
+    // Posición inicial según el aparato: en escritorio el flex ya la centra; en
+    // teléfono se desplaza hasta quedar como hoja centrada anclada abajo. Se mide
+    // antes de pintar para que la entrada no parpadee y el arrastre siga partiendo
+    // de este mismo offset. Sin maquetación (pruebas sin layout) no se toca nada.
+    useLayoutEffect(() => {
+        const marco = marcoRef.current;
+        if (!marco) return;
+        const ancho = marco.offsetWidth;
+        const alto = marco.offsetHeight;
+        if (ancho < 1 || alto < 1) return;
+        const rect = marco.getBoundingClientRect();
+        const { dx, dy } = desplazamientoInicial(
+            { ancho: window.innerWidth, alto: window.innerHeight },
+            { izquierda: rect.left, arriba: rect.top, ancho, alto },
+        );
+        if (dx !== 0 || dy !== 0) setOffset({ dx, dy });
+    }, []);
     useEffect(() => {
         const onMove = (e: PointerEvent) => {
             const d = dragRef.current;
@@ -114,11 +156,27 @@ export function OSWindow({
             {/* Capa de arrastre centrada por el flex padre. El transform de arrastre va
                 aquí (div plano), NO en el hijo animado → la animación de Framer ya no pisa
                 el centrado y la ventana SIEMPRE abre centrada. */}
-            <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
+            <div ref={marcoRef} className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ type: "spring", stiffness: 260, damping: 26 }}
+                    initial={
+                        sinMovimiento
+                            ? { opacity: 0 }
+                            : esTelefono
+                                ? { opacity: 0, y: 28 }
+                                : { opacity: 0, scale: 0.96 }
+                    }
+                    animate={
+                        sinMovimiento
+                            ? { opacity: 1 }
+                            : esTelefono
+                                ? { opacity: 1, y: 0 }
+                                : { opacity: 1, scale: 1 }
+                    }
+                    transition={
+                        sinMovimiento
+                            ? { duration: 0.2 }
+                            : { type: "spring", stiffness: 260, damping: 26 }
+                    }
                     className={cn(
                         "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
                         sizeClass,

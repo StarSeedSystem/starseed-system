@@ -7,7 +7,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { createPortal } from "react-dom";
 import { Sparkles } from "lucide-react";
-import { OSWindow } from "../os-window";
+import { OSWindow, desplazamientoInicial } from "../os-window";
 
 vi.mock("@/context/appearance-context", () => ({
     useAppearance: () => ({ config: { themeStore: { activeMode: "primary" } } }),
@@ -48,5 +48,54 @@ describe("OSWindow · ventana centrada (ramas de la nube)", () => {
         fireEvent(window, new MouseEvent("pointermove", { clientX: 128, clientY: 60, bubbles: true }));
         fireEvent(window, new MouseEvent("pointerup", { bubbles: true }));
         expect(envoltorio.style.transform).toBe("translate(28px, -40px)");
+    });
+});
+
+describe("desplazamientoInicial · composición por aparato (ADN §7b)", () => {
+    it("en escritorio no desplaza: el flex ya deja la ventana centrada", () => {
+        const viewport = { ancho: 1440, alto: 900 };
+        const marco = { izquierda: 420, arriba: 200, ancho: 600, alto: 500 };
+        expect(desplazamientoInicial(viewport, marco)).toEqual({ dx: 0, dy: 0 });
+    });
+
+    it("en teléfono baja el marco hasta anclar su borde inferior al viewport", () => {
+        const viewport = { ancho: 400, alto: 800 };
+        const marco = { izquierda: 16, arriba: 56, ancho: 368, alto: 688 };
+        const { dx, dy } = desplazamientoInicial(viewport, marco);
+        expect(dx).toBe(0);
+        // centro actual (arriba 56) → hoja anclada abajo (arriba 112)
+        expect(dy).toBe(56);
+        expect(marco.arriba + dy + marco.alto).toBe(viewport.alto);
+    });
+
+    it("en teléfono también centra en horizontal cuando el marco no lo estaba", () => {
+        const viewport = { ancho: 400, alto: 800 };
+        const marco = { izquierda: 0, arriba: 0, ancho: 320, alto: 600 };
+        const { dx } = desplazamientoInicial(viewport, marco);
+        // geometriaVentana: x = 16 + (368 - 320) / 2 = 40; antes estaba en 0
+        expect(dx).toBe(40);
+    });
+});
+
+describe("OSWindow · hoja en teléfono", () => {
+    afterEach(() => {
+        cleanup();
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+    });
+
+    it("se desplaza hasta quedar como hoja centrada anclada abajo", () => {
+        vi.stubGlobal("innerWidth", 400);
+        vi.stubGlobal("innerHeight", 800);
+        vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(368);
+        vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(688);
+        vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+            left: 16, top: 56, right: 384, bottom: 744, width: 368, height: 688, x: 16, y: 56,
+            toJSON: () => ({}),
+        } as DOMRect);
+
+        render(<Ventana />);
+        const envoltorio = screen.getByRole("dialog").querySelector("div.relative") as HTMLElement;
+        expect(envoltorio.style.transform).toBe("translate(0px, 56px)");
     });
 });
