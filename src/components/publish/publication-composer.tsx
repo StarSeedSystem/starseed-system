@@ -169,6 +169,8 @@ import ImageEditorDialog from "@/components/publish/image-editor-dialog";
 import SharePostActions from "@/components/publish/share-post-actions";
 // Botón global "Generar con Aurora" (texto del cuerpo, modo clásico).
 import AuroraGenerateButton from "@/components/publish/aurora-generate-button";
+import { PanelContenidoVivo, type PlanVivo } from "@/components/contenido-vivo/panel-contenido-vivo";
+import type { ContextoVivo } from "@/lib/contenido-vivo/rutas";
 
 // ── Resolución de iconos (string → componente de lucide) ──
 
@@ -306,6 +308,20 @@ const VISIBILITIES: { id: string; label: string; hint: string }[] = [
     { id: "members", label: "Miembros", hint: "Sólo miembros del destino." },
     { id: "private", label: "Privada", hint: "Sólo tú y los destinatarios directos." },
 ];
+
+// ── Contenido vivo (CVV1028, contrato `architecture/contenido-vivo.md`) ──
+// Contexto del ámbito mientras no haya ajustes ni libro de créditos del
+// destino: local primero, externos permitidos pero sin conectar y sin créditos.
+const CONTEXTO_VIVO_PUBLICACION: ContextoVivo = {
+    alcance: "publica",
+    conectados: [],
+    cupoHoy: {},
+    creditosDisponibles: 0,
+    topeMes: 0,
+    gastadoMes: 0,
+    neurona: { gpu: false, capaz3d: true },
+    ajustes: { localPrimero: true, externosPermitidos: true },
+};
 
 // Estado del contenido editable (campos crudos de la UI).
 interface DraftContent {
@@ -1565,6 +1581,23 @@ function StepFormatContent({
     const setTemplate = (id: string, value: string) =>
         onDraft({ ...draft, template: { ...draft.template, [id]: value } });
 
+    // Contenido vivo (CVV1028): el panel se abre sobre esta publicación y,
+    // al confirmar el plan, añade sus niveles al cuerpo sin rehacer lo que ya existe.
+    const [vivoAbierto, setVivoAbierto] = useState(false);
+    const confirmarPlanVivo = (plan: PlanVivo) => {
+        const resumen = plan.tareas
+            .filter((t) => t.elegida)
+            .map((t) => {
+                const ruta = t.elegida!.ruta;
+                return `- ${t.tarea}: ${ruta.nombre} (${ruta.tipo === "local" ? "local" : `${ruta.creditosPorUnidad} créditos`})`;
+            });
+        if (resumen.length === 0) return;
+        const lineas = ["Contenido vivo:", ...resumen];
+        if (plan.total > 0) lineas.push(`Total: ${plan.total} créditos`);
+        const texto = lineas.join("\n");
+        set({ body: draft.body ? draft.body + "\n\n" + texto : texto });
+    };
+
     // Encuesta no ofrece el modo Diseño (sus opciones son un requisito
     // estructurado propio) — si se cambia a Encuesta con Diseño ya activo, se
     // sale de él para no dejar el paso sin forma de completar el requisito.
@@ -1761,6 +1794,25 @@ function StepFormatContent({
                         </div>
                     </div>
                 )}
+
+                {/* Contenido vivo (CVV1028): interruptor del panel de plan sobre esta publicación */}
+                <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-white/55">Contenido vivo</label>
+                    <button
+                        type="button"
+                        aria-expanded={vivoAbierto}
+                        onClick={() => setVivoAbierto((v) => !v)}
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-cyan-400/50 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-100 transition-colors hover:bg-cyan-400/20"
+                    >
+                        {vivoAbierto ? "Ocultar el plan" : "Hacerla viva"}
+                    </button>
+                    {vivoAbierto && (
+                        <PanelContenidoVivo
+                            contexto={CONTEXTO_VIVO_PUBLICACION}
+                            onConfirmar={confirmarPlanVivo}
+                        />
+                    )}
+                </div>
 
                 {(type.id === "texto" ||
                     type.id === "articulo" ||
