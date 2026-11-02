@@ -123,6 +123,12 @@ describe("esUrlPermitidaRare · solo releases oficiales, descargas remotas bloqu
       "https://github.com/RareDevs/Rare/releases/%2e%2e/%2e%2e/evil/x",
       "https://github.com/RareDevs/Rare/releases/%2E%2E/evil/x",
       "https://github.com/RareDevs/Rare/releases/tag/1/..%2f..%2fevil",
+      "https://github.com/RareDevs/Rare/releases/..\\evil/x",
+    ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
+  it("SUP0111H · baldío dentro del repo: datos extraños tras el prefijo oficial no cuelan", () => {
+    for (const u of [
+      "https://github.com/RareDevs/Rare/releases@evil.com/1",
     ]) expect(esUrlPermitidaRare(u), u).toBe(false);
   });
   it("SUP0111H · otro host que solo lo parece queda fuera", () => {

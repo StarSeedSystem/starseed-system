@@ -24,6 +24,10 @@ class LeerModoTests(unittest.TestCase):
         self.assertEqual(leer_modo("{roto"), "pantalla")
         self.assertEqual(leer_modo(""), "pantalla")
 
+    def test_numerico_o_lista_enciende_pantalla(self):
+        # Un JSON válido que no sea objeto también vale por defecto (rescate).
+        self.assertEqual(leer_modo("[1]"), "pantalla")
+
     def test_compatibilidad_activa(self):
         self.assertIsNone(leer_modo(json.dumps({"activa": False})))
         self.assertEqual(leer_modo(json.dumps({"activa": True})), "pantalla")
@@ -54,6 +58,15 @@ class ConstruirOrdenTests(unittest.TestCase):
         orden = construir_orden("linux", "sistema", 42, False) or []
         self.assertEqual(orden[0], "systemd-inhibit")
         self.assertIn("--what=sleep:idle", orden)
+
+    def test_linux_inhibe_completo_en_ambos_modos(self):
+        # Rescate RTKAL1101A: la inhibición duerme solo el sistema y bloquea,
+        # sea cual sea el modo; no hay caída a "ninguna".
+        for modo in ("pantalla", "sistema"):
+            orden = construir_orden("linux", modo, 42, False) or []
+            for esperada in ("--what=sleep:idle", "--mode=block",
+                             "sleep", "infinity"):
+                self.assertIn(esperada, orden)
 
     def test_sin_herramienta_o_apagado(self):
         self.assertIsNone(construir_orden("win32", "sistema", 42, False))
