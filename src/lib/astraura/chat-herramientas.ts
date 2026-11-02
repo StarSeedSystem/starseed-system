@@ -22,6 +22,8 @@
  * Sin red, sin DOM, sin localStorage: todo puro y testeable (vitest).
  */
 
+import type { SkillCapability } from "@/ai/astraura/skills";
+
 /** `undefined` = «Todas» (sin restricción); array = exactamente esos ids. */
 export type SeleccionHerramientas = string[] | undefined;
 
@@ -118,10 +120,76 @@ export function resumenPickerHerramientas(args: {
   return `${hab} · ${con}`;
 }
 
+// ── Herramienta «Contenido vivo» (CVV1028 · contrato §2 y §3) ────────────────
+
+/** Id estable de la habilidad y del átomo que la sirve en la Protomolécula. */
+export const ID_HERRAMIENTA_CONTENIDO_VIVO = "contenido-vivo";
+
+/** Descripción exacta del picker: lo que hace la herramienta, en una frase. */
+export const DESCRIPCION_CONTENIDO_VIVO =
+  "3D vivo, película de scroll y gráficos que se mueven, eligiendo entre lo local y los servicios conectados";
+
+/**
+ * La habilidad tiene la MISMA forma que las demás del picker (`SkillCapability`:
+ * `id`, `label`, `systemPrompt`, `defaultOn`…) más la `descripcion` visible. El
+ * `systemPrompt` es el que hace que, al usarla, Astraura pida a la Protomolécula
+ * el átomo `contenido-vivo` con la acción que ya entiende `accion-agente.ts`.
+ */
+export interface HabilidadPickerViva extends SkillCapability {
+  descripcion: string;
+}
+
+export const HERRAMIENTA_CONTENIDO_VIVO: HabilidadPickerViva = {
+  id: ID_HERRAMIENTA_CONTENIDO_VIVO,
+  label: "Contenido vivo",
+  descripcion: DESCRIPCION_CONTENIDO_VIVO,
+  defaultOn: true,
+  systemPrompt:
+    `Puedes hacer VIVA una publicación, página o mensaje: ${DESCRIPCION_CONTENIDO_VIVO}. ` +
+    "Elige por tarea la ruta local o la de un servicio conectado (Spline, Higgsfield, Flow), con lo local primero " +
+    "y sin gastar un crédito sin cotizar y sin un sí de la persona. " +
+    "Al usarla, abre la Protomolécula y pide su átomo «contenido-vivo» con " +
+    '[[ACCION: protomolecula {"accion":"abrir","herramienta":"contenido-vivo"}]]. ' +
+    "No inventes cifras ni copies código de ninguna skill externa.",
+  routing: {},
+};
+
+/** Petición al átomo de la Protomolécula: la misma forma que usa `accion-agente.ts`. */
+export interface PeticionAtomoContenidoVivo {
+  accion: "abrir";
+  herramienta: typeof ID_HERRAMIENTA_CONTENIDO_VIVO;
+  titulo?: string;
+}
+
+/** Devuelve la petición al átomo `contenido-vivo`; el título opcional va acotado. Puro. */
+export function peticionAtomoContenidoVivo(titulo?: string): PeticionAtomoContenidoVivo {
+  const limpio = typeof titulo === "string" ? titulo.trim().slice(0, 80) : "";
+  return limpio
+    ? { accion: "abrir", herramienta: ID_HERRAMIENTA_CONTENIDO_VIVO, titulo: limpio }
+    : { accion: "abrir", herramienta: ID_HERRAMIENTA_CONTENIDO_VIVO };
+}
+
+/** Petición al átomo SOLO para «Contenido vivo»; cualquier otra herramienta devuelve `null`. */
+export function peticionAtomoDeHerramienta(id: string, titulo?: string): PeticionAtomoContenidoVivo | null {
+  return id === ID_HERRAMIENTA_CONTENIDO_VIVO ? peticionAtomoContenidoVivo(titulo) : null;
+}
+
+/** Catálogo del picker con la herramienta añadida una sola vez y sin mutar `base`. */
+export function habilidadesConContenidoVivo(base: readonly SkillCapability[]): SkillCapability[] {
+  return base.some((h) => h.id === ID_HERRAMIENTA_CONTENIDO_VIVO)
+    ? [...base]
+    : [...base, HERRAMIENTA_CONTENIDO_VIVO];
+}
+
 // ── Migración: universo legado de habilidades (antes de este picker) ─────────
 
-/** Versión de la migración de la selección de habilidades del chat. */
-export const HERRAMIENTAS_DEFAULTS_VERSION = 1;
+/**
+ * Versión de la migración de la selección de habilidades del chat.
+ * v2 (CVV1028): añade «Contenido vivo» a las selecciones explícitas ya
+ * migradas en v1. Como su id está FUERA del universo legado, la migración lo
+ * enciende sin tocar lo que la persona sí había decidido a mano.
+ */
+export const HERRAMIENTAS_DEFAULTS_VERSION = 2;
 
 /**
  * Ids de habilidad que YA se podían elegir a mano antes de este picker: el
@@ -160,6 +228,8 @@ export interface MigracionHerramientas {
  *   · De antes de esta migración (o sin versión) y con selección EXPLÍCITA →
  *     añade las habilidades FUERA del universo legado (nunca elegibles a
  *     mano hasta ahora) sin tocar las que el usuario sí pudo decidir.
+ *   · En v1 (ya migrada) → solo añade la novedad de v2 («Contenido vivo»):
+ *     lo que la persona apagara después de v1 se respeta.
  *   · Sin selección explícita («Todas») → nada que migrar: ya cubre las
  *     nuevas solas. Solo se estampa la versión.
  */
@@ -177,8 +247,11 @@ export function migrarSeleccionHabilidades(
   }
   const legado = new Set(HABILIDADES_UNIVERSO_LEGADO);
   const activos = new Set(seleccion);
-  for (const id of todosIdsActuales) {
-    if (!legado.has(id)) activos.add(id);
+  const novedades = actual === 0
+    ? todosIdsActuales.filter((id) => !legado.has(id))
+    : [ID_HERRAMIENTA_CONTENIDO_VIVO];
+  for (const id of novedades) {
+    if (todosIdsActuales.includes(id)) activos.add(id);
   }
   const migrada = todosIdsActuales.filter((id) => activos.has(id));
   const final = migrada.length === todosIdsActuales.length ? undefined : migrada;
