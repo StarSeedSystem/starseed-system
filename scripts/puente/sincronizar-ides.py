@@ -60,7 +60,8 @@ def latido():
         pass
     if not mejor: return {}, 0
     try:
-        return json.load(open(os.path.join(OLAS, mejor), encoding="utf-8")), mt
+        with open(os.path.join(OLAS, mejor), encoding="utf-8") as f:
+            return json.load(f), mt
     except Exception:
         return {}, mt
 
@@ -208,7 +209,8 @@ def repartir(texto):
                  os.path.join(RAIZ, ".cursor", "rules", "puente-de-mando.mdc")):
         try:
             os.makedirs(os.path.dirname(ruta), exist_ok=True)
-            open(ruta, "w", encoding="utf-8").write(puntero)
+            with open(ruta, "w", encoding="utf-8") as f:
+                f.write(puntero)
             destinos.append(ruta)
         except Exception as e:
             destinos.append("%s  (FALLÓ: %s)" % (ruta, e))
@@ -217,7 +219,8 @@ def repartir(texto):
 
 if __name__ == "__main__":
     texto = documento()
-    open(DOC, "w", encoding="utf-8").write(texto)
+    with open(DOC, "w", encoding="utf-8") as f:
+        f.write(texto)
     print("Escrito %s (%d líneas)" % (DOC, len(texto.splitlines())))
     if "--solo" not in sys.argv:
         for d in repartir(texto):

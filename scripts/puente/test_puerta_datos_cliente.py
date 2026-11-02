@@ -164,7 +164,7 @@ class TestContratoConElServicioReal(unittest.TestCase):
         cls.puerto = _puerto_libre()
         cls.env = dict(os.environ, PUERTA_PUERTO=str(cls.puerto), PUERTA_DIR=os.path.join(cls.dir, "datos"),
                        PUERTA_FICHAS=os.path.join(cls.dir, "tokens.json"), SUPABASE_URL="http://127.0.0.1:9",
-                       SUPABASE_ANON_KEY="anon-de-prueba", PUERTA_CADDY="0")
+                       SUPABASE_ANON_KEY="anon-de-prueba", PUERTA_CADDY="0", PUERTA_LLAVE_REPLICA="")
         node = _node_valido()
         bin_ = os.path.join(SERVICIO, "bin", "puerta-datos.mjs")
         cls.ficha = subprocess.run([node, "--disable-warning=ExperimentalWarning", bin_, "ficha", "nueva", "enjambre-prueba", "bus,latidos,freno,metricas", "--imprimir"],
