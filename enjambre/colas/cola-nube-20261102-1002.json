@@ -1,0 +1,33 @@
+{
+ "ola": "nube-20261102",
+ "tareas": [
+  {
+   "ola": "1027N · Automejora recursiva (Meta^n)",
+   "revisor_quitadas": [
+    "MBT1027O"
+   ],
+   "dependencias_ya_en_main": [
+    "MTN1027L"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261101-221006-MTN1027L2",
+   "id": "MTN1027L2c-d1",
+   "titulo": "Biblioteca · registrar la tanda 1027b en el catálogo, la siembra y las actualizaciones (parte 1 de 3)",
+   "archivos": [
+    "src/lib/library/packages.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Meta^n (minnesotanlp/meta-n, MIT) «para todo el automejoramiento de cada capa de conciencia mesh automejorable de toda Astraura, con Colibri y los demás sistemas locales y mesh autoadaptables». Contrato: `architecture/automejora-meta-n.md` (léelo entero, sobre todo §3: Meta^n PROPONE dentro de una caja Docker sin red ni claves; el juez de StarSeed decide fuera de la caja sin ejecutar nada suyo; las funciones de ayuda nunca se cargan en caliente). Lo que hace falta de Meta^n está en `integraciones-de-codigo/meta-n/README-starseed.md`.\n\nComo hizo MBT1027O con la tanda 1027: registra `FICHAS_REPOS_1027B` donde se registran las de 1027, sus ids en la siembra (sube `SEED_VERSION` en 1) y en `fichasIaConUpstreamGitHub([...])` de la ruta de actualizaciones.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261101-221006-MTN1027L2`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261101-221006-MTN1027L2:refs/remotes/origin/nube/a1-20261101-221006-MTN1027L2\"` y `git cherry-pick --no-commit b1c0018dd2cd 9bfb11b9054e`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/library/package-store.tsx, src/lib/library/__tests__/defaults-seed.test.ts, src/lib/library/defaults-seed.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 3 (la dirección dividió MTN1027L2c: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/library/packages.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MTN1027L2c",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "MTN1027L2c-d1"
+  ]
+ }
+}
