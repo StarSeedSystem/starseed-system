@@ -1,0 +1,56 @@
+{
+ "groq": {
+  "ultimo_429": "2026-11-01 19:07:19",
+  "estado": "vivo",
+  "t": "2026-11-01 19:06:32",
+  "desde": "2026-11-01 18:31:31"
+ },
+ "explabs": {
+  "ultimo_429": "2026-11-01 18:41:13",
+  "estado": "vivo",
+  "t": "2026-11-01 19:07:55",
+  "desde": "2026-11-01 17:59:23"
+ },
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-11-01 19:07:47",
+  "desde": "2026-11-01 18:10:42",
+  "ultimo_429": "2026-11-01 18:30:25",
+  "sin_cupo_hasta": "2026-11-02 17:59:54",
+  "motivo": "sonda de escritura: cupo del día agotado (429)"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-11-01 19:07:49",
+  "desde": "2026-11-01 17:57:04"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-11-01 18:13:18",
+  "desde": "2026-11-01 17:57:05",
+  "sin_cupo_hasta": "2026-11-02 18:26:27",
+  "motivo": "contenido: Sorry, to prevent abuse of free resources, accounts that have not been recharged"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-11-01 19:07:54",
+  "desde": "2026-11-01 18:36:15",
+  "ultimo_429": "2026-11-01 18:29:54",
+  "sin_cupo_hasta": "2026-11-01 19:32:55",
+  "motivo": "llamada: límite de la clave"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-11-01 19:07:56",
+  "desde": "2026-11-01 17:57:06"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-11-01 19:07:55",
+  "desde": "2026-11-01 17:59:19"
+ },
+ "google": {
+  "sin_cupo_hasta": "2026-11-02 02:00:00",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ }
+}
