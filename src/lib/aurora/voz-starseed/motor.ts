@@ -571,10 +571,10 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     const uso = opciones.uso ?? usoDelContexto(opciones.contexto);
     const contextoLicencia: ContextoLicenciaVoz = opciones.contextoUso ?? "grupo";
 
+    // El nivel del motor recomendado sale del MISMO mapa que usa la elección de
+    // la primera frase (`nivelParaMotor`): una sola traducción motor → nivel.
     const id = motorRecomendado(plataforma, ramGB, contextoLicencia).id;
-    let nivel: NivelVoz = id === "voicemorphic" || id === "voicestudio" ? "estudio"
-        : id === "kokoro" || id === "kittentts" || id === "moss-tts-nano" ? "ligera"
-        : id === "sistema" ? "minima" : "nube";
+    let nivel: NivelVoz = nivelParaMotor(id);
 
     // (VST1018F) La primera frase de una conversación sale del motor PERMITIDO
     // con menor latencia medida que tenga la voz; vale para TODO el mensaje y
