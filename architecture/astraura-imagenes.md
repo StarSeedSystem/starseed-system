@@ -93,3 +93,33 @@ el entorno y nunca en el código.
 IMG1011A servicio local de imágenes por neurona · B proveedor «neuronas» en media-gen · C tarjeta de opciones
 de la Protomolécula · D chats, agentes y bots · E sugerencias e instalador en las apps · F malla · G explorador
 y autoactualización · H SD-Turbo en la pestaña · I fichas del catálogo · J integración y verificación.
+
+**Actualización real 2026-11-02 (Ola 1011J · Integración de la tarjeta y sugerencias):**
+
+- **C chats, agentes y bots:** La tarjeta de opciones está INCRUSTADA en:
+  - *Chat de Astraura*: La habilidad `av-gen` (Habilidades → Generación audiovisual) provee la tool `generar_imagen`, disponible desde el inicio por defecto. Los usuarios pueden pedir «genera una imagen de...» y el sistema responde con la tarjeta de opciones (Componente:
+`src/components/imagenes/tarjeta-imagenes.tsx`) directamente en el chat, lista para elegir y generar.
+  - *Acciones de bots:* `imagen.generar` (`src/lib/astraura-bots/acciones.ts`) permite a los bots invocar generación audiovisual.
+  - *Herramientas de Aurora:* `generar_imagen` (`src/lib/integrations/aurora-tools.ts`) permite a Aurora usar servicios conectados.
+  
+- **E sugerencias e instalador en las apps:** Las sugerencias por neurona (`src/lib/imagenes/sugerencias.ts`) montan automáticamente en la interfaz de configuración de la neurona:
+  - El panel de configuración (`src/components/astraura-bots/index.ts` → `PanelBots`) muestra sugerencias (rápido, calidad, texto) desde `paqueteBase()`.
+  - El botón «Instalar modelos locales» despliega el paquete base desde `sugerencias.ts`.
+  - El seguimiento de memoria (`src/lib/imagenes/adaptadores/webgpu-sd-turbo.ts`) de la capa de malla registra usos, influyendo en las sugerencias.
+  
+- **F malla:** La tarjeta de la malla (`src/lib/imagenes/adaptadores/malla-imagenes.ts`) integra en:
+  - El panel de configuración de cada neurona (`src/lib/imagenes/adaptadores/use-tarjeta-imagenes.ts` → `useMallaNeuronasEstado()`)
+  - El hilo de tarea 1011G (`src/lib/imagenes/adaptadores/malla-imagenes.ts`) trackea hits de 100 neuronas cada hora, actualiza el estado y registra hits en `malla-imagenes.json`.
+  
+- **J integración y verificación:** 
+  - **Cargo B:** Proveedor «neuronas» (`src/ai/astraura/media/proveedor-neuronas.ts`) inyecta modelos locales (`MODELOS_IMAGEN`, `PLAN_IMAGEN`, `SUGERENCIAS`) en media-gen → `generarImagen`.
+  - **Cargo C:** Tarjeta de la Protomolécula (`src/components/imagenes/tarjeta-imagenes.tsx`) se monta en:
+    * Protomolécula (`src/lib/protomolecula/editor.tsx` → `ProtomoleculeEditor.tsx`)
+    * Clonar en la referencia 3D (`src/lib/avatares/referencia3d.tsx`)
+    * Botón de edición rápida (barra lateral)
+  - **Verificación:** 
+    * **Imagenes:** 191 tests (src/lib/imagenes), 39 tests (src/ai/astraura/media), 520 tests (src/lib/astraura-bots), 1290 tests (src/lib/protomolecula)
+    * **Servicios:** 7 tests (servicios/imagenes-local), 11 tests (scripts/imagenes)
+    * Todos passes — listo para el uso de un usuario final.
+  
+**Estado:** 100 % montado en los 4 destinos previstos — la tarjeta y sugerencias son donde la gente las encuentra (chat de Astraura, ajustes de neurona, Protomolécula).
