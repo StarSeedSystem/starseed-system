@@ -1,6 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { corregirConGlosario, glosarioBase } from "../glosario-oido";
 
+// Palabras reales que caen a ≤ 0,50 de un nombre del glosario y que, sin la
+// lista de comunes del idioma, una mayúscula convertiría en nombre propio.
+const PALABRAS_QUE_NO_SE_TOCAN: Array<[string, string]> = [
+  ["Ostra", "es"],
+  ["Mes", "es"],
+  ["Aura", "es"],
+  ["Arena", "es"],
+  ["Started", "en"],
+  ["Stated", "en"],
+  ["Stars", "en"],
+  ["Hearts", "en"],
+];
+
 describe("corregirConGlosario", () => {
   const glosario = glosarioBase();
 
@@ -58,6 +71,16 @@ describe("corregirConGlosario", () => {
     expect(resultado.texto).toBe("the Star shines and the Store shines too");
     expect(resultado.cambios).toEqual([]);
   });
+
+  it.each(PALABRAS_QUE_NO_SE_TOCAN)(
+    "no muerde palabras comunes ni reales: «%s» (%s)",
+    (palabra, idioma) => {
+      expect(corregirConGlosario(palabra, glosario, idioma)).toEqual({
+        texto: palabra,
+        cambios: [],
+      });
+    }
+  );
 
   it("corrige Genesis, Hermes, Aurora, MetaGenesis, PoliGenesis y ProtoGenesis", () => {
     expect(corregirConGlosario("dime Genasis", glosario, "es").texto).toBe("dime Genesis");
