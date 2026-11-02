@@ -35,6 +35,12 @@ describe("RECURSOS_ARTCRAFT", () => {
     }
   });
 
+  it("todos requieren exactamente NEURONA_CON_PASARELA_ARTCRAFT", () => {
+    for (const r of RECURSOS_ARTCRAFT) {
+      expect(r.requiere).toEqual(["NEURONA_CON_PASARELA_ARTCRAFT"]);
+    }
+  });
+
   it("no lleva en `requiere` nada con forma de clave, solo nombres de condiciones", () => {
     for (const r of RECURSOS_ARTCRAFT) {
       expect(r.requiere.length).toBeGreaterThan(0);
@@ -93,6 +99,12 @@ describe("RECURSOS_ARTCRAFT", () => {
 });
 
 describe("recomendarPara con ArtCraft", () => {
+  it("ofrece FigCraft primero para diseñar una interfaz", () => {
+    const salida = recomendarPara(catalogoDeclarado(), "diseñar una interfaz");
+    expect(salida.length).toBeGreaterThan(0);
+    expect(salida[0].id).toBe("os:artcraft-figcraft");
+  });
+
   it("ofrece DeckCraft para hacer una presentación en pptx", () => {
     const salida = recomendarPara(catalogoDeclarado(), "hacer una presentación en pptx");
     expect(salida.map((r) => r.id)).toContain("os:artcraft-deckcraft");
