@@ -12,7 +12,7 @@ Decidir se hace y se escribe siempre (no cuesta memoria); lanzar trabajo, solo c
 lanzadores, Jev, Astraura y agentes por parámetro (las pruebas no lanzan nada real); escrituras atómicas
 (tmp + os.replace) y cerrojo propio."""
 from __future__ import annotations
-import argparse, fcntl, json, os, shutil, subprocess, sys, tempfile, urllib.error, urllib.request
+import argparse, fcntl, json, os, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
 from collections import Counter
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -71,6 +71,27 @@ def medir_capacidad(home):
     vivos = [k for k, v in s.items() if isinstance(v, dict) and not (v.get("caido") or v.get("estado") in ("caido", "caído", "sin_cupo"))]
     return {"huecos_mac": max(0, g["maximo"] - ocupados), "huecos_a1": 0, "huecos_nube": 0,
             "proveedores_con_cupo": len(vivos), "presion_mac": g.get("presion") or 0}
+
+
+def decidir_encargar(lider, ahora):
+    """PURA. (¿encargo trabajo aquí?, motivo) con la misma regla que la autocuración y la
+    autopublicación (`autocuracion_mando.decidir_lider`): si OTRA neurona tiene el arriendo
+    `direccion.lider` vigente, este ciclo decide y escribe, pero no encarga nada. Sin puerta,
+    sin red, sin arriendo o si la regla no se puede importar, sigue en local como hoy."""
+    try:
+        import autocuracion_mando as AC
+        return AC.decidir_lider(lider, ahora)
+    except Exception as e:  # noqa: BLE001 — nadie se queda parado por la puerta
+        return True, "sin regla de líder (%s): sigue en local" % type(e).__name__
+
+
+def _lider():
+    """El arriendo de dirección, SOLO leído (`lider_direccion.soy_lider`): renovarlo es del arranque."""
+    try:
+        import lider_direccion
+        return lider_direccion.soy_lider()
+    except Exception as e:  # noqa: BLE001 — una puerta caída no para la imaginación local
+        return {"soy": True, "motivo": "sin líder de dirección (%s): sigo en local" % type(e).__name__}
 
 
 def _lanzar_real(*orden):

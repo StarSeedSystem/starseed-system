@@ -31,6 +31,7 @@ class DirectorTest(unittest.TestCase):
                     lanzador_profundo=lambda *a: self.llamadas.append(a) or True,
                     agente_referencias=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
                     agente_alcance=lambda raiz, ahora: None,  # sin el agente real (red) en las pruebas
+                    lider_fn=lambda: {"soy": True, "motivo": "líder en local"},
                     datos={"diaria": MD, "profunda": {}, "astraura": {}, "directores": {}})
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
@@ -99,7 +100,7 @@ class DirectorTest(unittest.TestCase):
         self.assertIn("ninguno", motivo)
 
     def test_ciclo_seco_no_lanza_y_devuelve_resultado(self):
-        res = D.ciclo(seco=True, ahora=datetime(2026, 10, 23, 3, 0), capacidad={"huecos_mac": 1, "huecos_a1": 0, "huecos_nube": 0, "proveedores_con_cupo": 2, "presion_mac": 0}, lanzador_diario=self.lanzador_vacio, lanzador_profundo=self.lanzador_vacio, datos={"diaria": "## mejoras detectadas\n1. **Arreglar el lector**", "profunda": {}, "astraura": {}, "directores": {}})
+        res = D.ciclo(seco=True, ahora=datetime(2026, 10, 23, 3, 0), capacidad={"huecos_mac": 1, "huecos_a1": 0, "huecos_nube": 0, "proveedores_con_cupo": 2, "presion_mac": 0}, lanzador_diario=self.lanzador_vacio, lanzador_profundo=self.lanzador_vacio, lider_fn=lambda: {"soy": True, "motivo": "líder en local"}, datos={"diaria": "## mejoras detectadas\n1. **Arreglar el lector**", "profunda": {}, "astraura": {}, "directores": {}})
         # Con seco, toca ejecutar (hay capacidad) pero no lanza
         self.assertTrue(res["toca_ejecutar"])
         self.assertEqual(res["lanzado"], [])
@@ -143,6 +144,7 @@ class Imaginacion1024Test(unittest.TestCase):
                     lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True,
                     agente_referencias=lambda raiz, ahora: self.referencias.append((raiz, ahora)) or {"ok": True},
                     agente_alcance=lambda raiz, ahora: None,
+                    lider_fn=lambda: {"soy": True, "motivo": "líder en local"},
                     datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}})
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
@@ -320,6 +322,7 @@ class Ola1025STest(unittest.TestCase):
         args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: False,
                     lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True, agente_referencias=lambda raiz, ahora: None,
                     agente_alcance=lambda raiz, ahora: None, aplicar_astraura=self.aplicar,
+                    lider_fn=lambda: {"soy": True, "motivo": "líder en local"},
                     datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
         args.setdefault("a_la_flota", self._flota)
         args.update(kw); return D.ciclo(**args)
@@ -519,6 +522,75 @@ class Ola1025STest(unittest.TestCase):
         rama = self.astraura("b1"); rama["origen"]["tipo"] = "rama"
         self.assertEqual(D.item_astraura(rama)["item_type"], "branch")
         self.assertIsNone(D.item_astraura(self.libre("x")))
+
+
+class Liderazgo1102CTest(unittest.TestCase):
+    """IMG1102C: decide y escribe siempre; encarga solo donde está el arriendo de dirección."""
+
+    def setUp(self):
+        self.t = tempfile.TemporaryDirectory(); self.home = os.path.join(self.t.name, "h"); self.raiz = os.path.join(self.t.name, "r")
+        self.mem = os.path.join(self.raiz, "starseed_memory_root"); os.makedirs(self.home); os.makedirs(self.raiz)
+        json.dump({"auto": {"aprobar": True, "reimaginar": True, "umbral": 0.75, "max_reimaginaciones": 2}},
+                  open(os.path.join(self.home, "autodesarrollo.json"), "w"))
+        self.encoladas = []
+
+    def tearDown(self):
+        self.t.cleanup()
+
+    def correr(self, **kw):
+        args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: True,
+                    lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True,
+                    agente_referencias=lambda raiz, ahora: None, agente_alcance=lambda raiz, ahora: None,
+                    lider_fn=lambda: {"soy": True, "motivo": "líder en local"},
+                    datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}})
+        args.setdefault("a_la_flota", lambda raiz, tareas: self.encoladas.append(tareas) or {"accion": "probada"})
+        args.update(kw); return D.ciclo(**args)
+
+    def sembrar(self):
+        os.makedirs(os.path.join(self.mem, "imaginacion"), exist_ok=True)
+        json.dump({"propuestas": [{"id": "diaria:x", "fuente": "diaria", "titulo": "Arreglar el lector",
+                                   "cuerpo": "corregir el error en src/lib/a.ts", "archivos": ["src/lib/a.ts"],
+                                   "verificacion": "verificado", "estado": "nueva"}]},
+                  open(os.path.join(self.mem, "imaginacion", "propuestas.json"), "w", encoding="utf-8"))
+
+    def props(self):
+        return json.load(open(os.path.join(self.mem, "imaginacion", "propuestas.json"), encoding="utf-8"))["propuestas"]
+
+    def test_la_regla_es_la_de_la_autocuracion(self):
+        ahora = NOCHE.timestamp()
+        self.assertTrue(D.decidir_encargar({"soy": True, "motivo": "líder"}, ahora)[0])
+        ajeno = {"soy": False, "arriendo": {"dueno": "oracle-a1-abc", "caduca": ahora + 60}}
+        encargo, motivo = D.decidir_encargar(ajeno, ahora)
+        self.assertFalse(encargo); self.assertIn("dirige", motivo)
+        caducado = {"soy": False, "arriendo": {"dueno": "oracle-a1-abc", "caduca": ahora - 1}}
+        self.assertTrue(D.decidir_encargar(caducado, ahora)[0])
+
+    def test_si_dirige_otra_neurona_decide_y_escribe_pero_no_encarga(self):
+        self.sembrar()
+        r = self.correr(lider_fn=lambda: {"soy": False, "arriendo": {"dueno": "oracle-a1-abc",
+                                                                    "caduca": NOCHE.timestamp() + 60}})
+        self.assertFalse(r["lider"]["encargo"]); self.assertIn("dirige", r["motivo_toca"])
+        self.assertFalse(r["toca_ejecutar"]); self.assertFalse(r["toca_analizar"])
+        self.assertEqual(r["decisiones"].get("aprobada"), 1)  # decidió
+        p = self.props()[0]  # y lo dejó escrito
+        self.assertEqual(p["estado"], "aprobada"); self.assertNotIn("tarea", p)
+        self.assertEqual((r["autodesarrolladas"], r["reimaginaciones_encargadas"], r["entregables_encargados"]), (0, 0, 0))
+        self.assertEqual((r["cola"], r["cola_reimaginar"], r["cola_entregables"]), (None, None, None))
+        self.assertEqual(self.encoladas, [])
+
+    def test_con_el_arriendo_encarga_en_su_propia_memoria(self):
+        self.sembrar()
+        r = self.correr()
+        self.assertTrue(r["lider"]["encargo"])
+        self.assertEqual(r["autodesarrolladas"], 1)
+        self.assertEqual(self.props()[0]["estado"], "encargada")
+        self.assertTrue(os.path.isfile(os.path.join(self.mem, "olas", r["cola"])))
+
+    def test_el_bucle_del_a1_repite_el_ciclo_cada_intervalo(self):
+        dormidos, ciclos = [], []
+        veces = D.bucle(veces=2, intervalo_s=5, dormir=dormidos.append,
+                        ciclo_fn=lambda: ciclos.append(1) or {"autodesarrolladas": 0})
+        self.assertEqual((veces, len(ciclos), dormidos), (2, 2, [5]))
 
 
 if __name__ == "__main__":
