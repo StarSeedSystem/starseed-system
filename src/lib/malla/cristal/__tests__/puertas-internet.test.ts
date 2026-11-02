@@ -446,6 +446,8 @@ describe('elegirPuerta', () => {
     });
 
     expect(resultado.puerta?.id).toBe('zeta');
+    // El desempate de hoy sale por la misma puerta del menor coste, sin reordenar.
+    expect(resultado.motivo).toBe('Puerta de menor coste seleccionada');
   });
 
   it('devuelve null cuando ninguna puerta está permitida', () => {
