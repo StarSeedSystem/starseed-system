@@ -323,3 +323,54 @@ export function interpretarPeticion(cuerpo: unknown): PeticionImaginacion | { er
   const veto = vetoReimaginar(notas, cuerpo.referencias);
   return veto ? { error: veto } : { accion: "reimaginar", id, notas, referencias: cuerpo.referencias, por };
 }
+
+// ── Filtro de entrada de Astraura (Ola 1102 · IMG1102A) ─────────────────────────────────────────────
+/** `propuestas.json → filtro_astraura`: lo que el director descartó ANTES de crear la propuesta, por id y día. */
+export interface FiltroAstraura {
+  fecha: string;
+  topeDia: number;
+  ventanaDias: number;
+  vistas: number;
+  entran: number;
+  filtradas: { familiaRepetida: number; tipoDeArchivo: number; tope: number };
+  autorizacionesInventadas: number;
+}
+
+const cuenta = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
+const diaLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** El resumen del filtro tal como lo guarda el director, o null si no trae una fecha válida. PURA. */
+export function normalizarFiltroAstraura(x: unknown): FiltroAstraura | null {
+  if (!esObj(x)) return null;
+  const fecha = typeof x.fecha === "string" ? x.fecha.trim().slice(0, 10) : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return null;
+  const f = esObj(x.filtradas) ? x.filtradas : {};
+  return {
+    fecha,
+    topeDia: cuenta(x.tope_dia),
+    ventanaDias: cuenta(x.ventana_dias),
+    vistas: cuenta(x.vistas),
+    entran: cuenta(x.entran),
+    filtradas: {
+      familiaRepetida: cuenta(f["familia repetida"]),
+      tipoDeArchivo: cuenta(f["tipo de archivo"]),
+      tope: cuenta(f.tope),
+    },
+    autorizacionesInventadas: cuenta(x.autorizacion_inventada),
+  };
+}
+
+/** El total filtrado: la suma de los tres motivos, nunca una cifra inventada. PURA. */
+export const totalFiltradas = (f: FiltroAstraura): number =>
+  f.filtradas.familiaRepetida + f.filtradas.tipoDeArchivo + f.filtradas.tope;
+
+/**
+ * La línea del medidor: «Filtradas de Astraura hoy: N (familia X · tipo Y · tope Z)». Si el último ciclo no
+ * es de hoy, se dice su fecha en lugar de «hoy»: lo de ayer no se hace pasar por lo de hoy. PURA.
+ */
+export function textoFiltroAstraura(f: FiltroAstraura, hoy: Date): string {
+  const cuando = f.fecha === diaLocal(hoy) ? "hoy" : `el ${f.fecha.slice(8, 10)}/${f.fecha.slice(5, 7)}`;
+  const inventadas = f.autorizacionesInventadas ? ` · ${f.autorizacionesInventadas} autorización(es) inventada(s)` : "";
+  const { familiaRepetida, tipoDeArchivo, tope } = f.filtradas;
+  return `Filtradas de Astraura ${cuando}: ${totalFiltradas(f)} (familia ${familiaRepetida} · tipo ${tipoDeArchivo} · tope ${tope}${inventadas})`;
+}

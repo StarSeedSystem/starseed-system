@@ -25,7 +25,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
-import { Check, ChevronDown, Clock, ExternalLink, FileSearch, Loader2, RefreshCw, ShieldCheck, Sparkles, X } from "lucide-react";
+import { Check, ChevronDown, Clock, ExternalLink, FileSearch, Filter, Loader2, RefreshCw, ShieldCheck, Sparkles, X } from "lucide-react";
 
 import { Switch } from "@/components/ui/switch";
 // INV1025P: las propuestas del agente de alcance montan su panel de mensajes
@@ -44,11 +44,13 @@ import {
     esperaAAlex,
     filasMedidor,
     normalizarReferencias,
+    textoFiltroAstraura,
     vetoReimaginar,
     type AjustesAuto,
     type AjustesAutodesarrollo,
     type AmbitoPropuesta,
     type EstadoPropuesta,
+    type FiltroAstraura,
     type FuentePropuesta,
     type HacerLote,
     type ImportanciaPropuesta,
@@ -119,7 +121,7 @@ const dominio = (u: string) => {
 
 // ── Datos y red ─────────────────────────────────────────────────────────────────────────────────────
 
-interface DatosImaginacion { propuestas: PropuestaNormalizada[]; ajustes: AjustesAutodesarrollo }
+interface DatosImaginacion { propuestas: PropuestaNormalizada[]; ajustes: AjustesAutodesarrollo; filtroAstraura?: FiltroAstraura | null }
 interface ResultadoId { id: string; ok: boolean; error?: string }
 interface RespuestaPost { ok?: boolean; error?: string; propuesta?: PropuestaNormalizada; resultados?: ResultadoId[]; ajustes?: AjustesAutodesarrollo }
 type Envio = { ok: boolean; status: number; datos: RespuestaPost };
@@ -828,7 +830,7 @@ export function PanelImaginacion({
                 setErrorLectura(d?.error ?? `No se pudieron leer las propuestas (HTTP ${r.status}).`);
                 return;
             }
-            setDatos({ propuestas: d.propuestas, ajustes: d.ajustes });
+            setDatos({ propuestas: d.propuestas, ajustes: d.ajustes, filtroAstraura: d.filtroAstraura ?? null });
             setErrorLectura(null);
             // La selección solo guarda lo que sigue esperando decisión (lo fallido de un lote, sí).
             const siguen = new Set(d.propuestas.filter((p) => esDecidible(p.estado)).map((p) => p.id));
@@ -984,6 +986,17 @@ export function PanelImaginacion({
             </p>
 
             {datos ? <AjustesAutomatico auto={datos.ajustes.auto} alGuardar={guardarAuto} /> : null}
+
+            {datos?.filtroAstraura ? (
+                <p
+                    role="note"
+                    data-testid="imaginacion-filtro-astraura"
+                    className="mc-centrado flex flex-wrap items-center justify-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-400/5 px-3 py-1.5 text-[11px] leading-snug text-cyan-100/90"
+                >
+                    <Filter className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    {textoFiltroAstraura(datos.filtroAstraura, new Date())}
+                </p>
+            ) : null}
 
             {errorLectura ? (
                 <p role="alert" className="mc-centrado rounded-lg border border-rose-300/30 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
