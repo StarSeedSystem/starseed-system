@@ -164,3 +164,52 @@ def test_el_dream_lleva_el_contexto_y_la_plantilla():
     repo = os.path.abspath(os.path.join(DIRECTORIO, "..", ".."))
     r = subprocess.run(["bash", "-c", 'REPO="%s"; %s; printf %%s "$PLANTILLA"' % (repo, linea)], capture_output=True, text=True, timeout=30)
     assert r.stdout == P.PLANTILLA_LINEA and subprocess.run(["bash", "-n", os.path.join(DIRECTORIO, "..", "hermes", "starseed-dream.sh")]).returncode == 0
+
+
+# ───────────────────── enganche: sueños profundos y agente de alcance (IMG1102E) ─────────────────────
+AREA = {"id": "mando", "nombre": "Genesis", "descripcion": "Orquestación"}
+FICHA = {"nombre_publico": "Taller de Viento", "que_hacen": "Arte comunitario.", "canal_oficial": {},
+         "idioma": "es", "tono": "formal"}
+OBJ = {"id": "obj-1", "nombre_publico": "Taller de Viento"}
+
+
+def test_los_suenos_profundos_llevan_el_contexto_medido_en_su_encargo():
+    import datetime
+    import suenos_areas as S
+    ctx = contexto()["texto"]
+    solo = S.prompt_de(AREA, S.LENTES[0], False, contexto=ctx)
+    vacio = S.prompt_de(AREA, S.LENTES[0], False)
+    assert "NO escritura" in solo and ctx in solo and ctx not in vacio
+    areas = S.areas_del_plan([dict(AREA, documentos=[])])
+    plan = S.construir_plan(areas, {"scripts/puente/a.py": 100}, datetime.date(2026, 11, 2), contexto=ctx)
+    assert plan["tareas"] and all(ctx in t["prompt"] for t in plan["tareas"])
+    sin = S.construir_plan(areas, {"scripts/puente/a.py": 100}, datetime.date(2026, 11, 2), contexto="")
+    assert all("Contexto medido de Imaginación" not in t["prompt"] for t in sin["tareas"])
+
+
+def test_el_contexto_de_los_suenos_sale_del_disco_y_nunca_lanza(tmp_path):
+    import suenos_areas as S
+    memoria(tmp_path)
+    assert "Horizon-Pulse" in S.contexto_medido(str(tmp_path), AHORA)
+    assert S.contexto_medido(str(tmp_path / "nada"), AHORA) == ""
+
+
+def test_el_alcance_no_repite_las_familias_y_conserva_r1_r8():
+    import alcance_plan as A
+    familias = A.familias_de(PROPS, AHORA)
+    assert ("publicar los commits", 2) in familias and ("candidata al catálogo", 1) in familias
+    assert not any("ruido" in f for f, _ in familias) and not any("vieja" in f for f, _ in familias)
+    prompt = A.prompt_alcance(OBJ, FICHA, "Carta de StarSeed", "salida.json", familias=familias)
+    assert "Familias ya propuestas en 7 días" in prompt and "publicar los commits ×2" in prompt
+    for regla in ("R1", "R5", "R7", "R8"):
+        assert regla in prompt
+    sin = A.prompt_alcance(OBJ, FICHA, "Carta de StarSeed", "salida.json")
+    assert "Familias ya propuestas" not in sin
+
+
+def test_la_tarea_de_alcance_lleva_las_familias_sin_pasarse_del_tope():
+    import alcance_plan as A
+    familias = A.familias_de(PROPS, AHORA)
+    t = A.tarea_de(OBJ, FICHA, "Carta de StarSeed", AHORA, 1, familias=familias)
+    assert "publicar los commits" in t["prompt"] and "R8" in t["prompt"]
+    assert len(t["prompt"]) <= A.MAX_PROMPT
