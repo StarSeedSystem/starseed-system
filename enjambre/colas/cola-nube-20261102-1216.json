@@ -1,0 +1,38 @@
+{
+ "ola": "nube-20261102",
+ "tareas": [
+  {
+   "id": "RTC1031A",
+   "ola": "1031 · Seguimiento del carril Opus",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Rescates · RTCOL1012Ic lleva la rama de otra tarea (GN1010A-d2): revisar y cerrar o rehacer",
+   "archivos": [
+    "src/components/genesis/__tests__/colmena-botones.test.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; nada de claves; nunca la IP del A1; funciones PURAS con pruebas.\n\nEl carril Opus vio que `revisar_ramas_nube.py` asignó a RTCOL1012Ic la rama de GN1010A-d2 (toca enlace-poligenesis y colmena-botones). Mira la tarea original COL1012I, lo que ya está en main (`git log --grep=COL1012I`) y decide: si ya está, responde NO APLICA explicando qué IDs cerrar; si falta algo de colmena-botones, hazlo. Ojo: si una prueba importa de `servicios/`, la puerta necesita esa carpeta en el worktree."
+  },
+  {
+   "id": "HFR1018Hb",
+   "ola": "Ola 1018H · Vídeo con HyperFrames en la Protomolécula: editor propio sin GSAP, render en la malla y edición en grupo",
+   "titulo": "Protomolécula · el servicio hyperframes en los servicios locales conocidos",
+   "archivos": [
+    "src/lib/protomolecula/servicio-local.ts",
+    "src/lib/protomolecula/__tests__/servicio-local.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Añade a `SERVICIOS_CONOCIDOS` { id: \"hyperframes\", nombre: \"HyperFrames\", puerto: 4490, rutaSalud: \"/salud\", tiempoMs: 900000 } sin cambiar nada más. Amplía la prueba existente: la definición valida y la salud se consulta solo en 127.0.0.1. Contrato: architecture/video-hyperframes.md (léelo entero antes de empezar) y los que amplía (protomolecula.md, apps-en-la-malla.md, starseed-xr.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; NO instales paquetes (las dependencias de servicios/hyperframes solo se declaran en su package.json); módulos PUROS siempre que se pueda (red, disco, procesos y reloj inyectables); pruebas sin red, sin navegador real y sin procesos; nada de `any`; nunca GSAP en lo que genere o edite visualmente el OS (licencia GSAP Standard, ver §2); telemetría de HyperFrames siempre apagada (HYPERFRAMES_NO_TELEMETRY=1); nunca valores de claves, IPs ni rutas absolutas en mensajes; lo privado nunca sale de las neuronas de la persona; comentarios y textos en español con acentos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41253382108`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41253382108:refs/remotes/origin/nube/41253382108\"` y `git cherry-pick --no-commit 1af625c6c1f8`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/protomolecula/__tests__/servicio-local.test.ts, src/lib/protomolecula/servicio-local.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "dependencias_ya_en_main": [
+    "HFR1018F"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41253382108"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "RTC1031A",
+   "HFR1018Hb"
+  ]
+ }
+}
