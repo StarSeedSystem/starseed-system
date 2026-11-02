@@ -45,6 +45,10 @@ import {
     type OpcionesNivelVoz,
 } from "./supertonic";
 import { leerMedidas, type MedidaVoz } from "../medidas-voz";
+// (VST1018N) El elector que aprende: orden por neurona con el olvido de 7 días y
+// el pulgar de las respuestas habladas. Contrato `architecture/voz-voicestudio.md` §4.
+import { puntuarMotores, type MedidaElector, type VotoVoz } from "./elector-aprende";
+import { leerVotos } from "../votos-voz";
 import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 import type { CapasPrefs } from "@/lib/modelos/preferencias-capas";
 
@@ -117,6 +121,24 @@ export function fijarNivel(n: PreferenciaNivel): void {
 
 /** Nivel en el que está sonando AHORA la voz (lo fija `hablarStarSeed`). */
 let nivelEnUso: NivelVoz | null = null;
+
+// ── (VST1018N) LA RESPUESTA HABLADA RECIENTE, PARA EL PULGAR ────────────────
+// Cuando la persona valora con 👍/👎 una respuesta que salió HABLADA (`ValorarRespuesta`),
+// el voto tiene que llegar al elector con el motor que la dijo (`votos-voz.ts`). El
+// motor único elige UNO por mensaje; se recuerda ese motor y su hora, con caducidad:
+// valorar algo viejo no vota a un motor que no sonó para esa respuesta.
+const CADUCIDAD_ULTIMA_HABLADA_MS = 10 * 60 * 1000; // el pulgar llega minutos después
+let ultimaHablada: { motor: string; t: number } | null = null;
+
+/**
+ * El motor de voz que habló la ÚLTIMA respuesta de hace `maxMs` o menos
+ * (por defecto 10 min), o `null` si no fue hablada o ya caducó. Nunca lanza.
+ */
+export function motorUltimaRespuestaHablada(maxMs: number = CADUCIDAD_ULTIMA_HABLADA_MS): string | null {
+    const r = ultimaHablada;
+    if (!r) return null;
+    return Date.now() - r.t <= Math.max(0, maxMs) ? r.motor : null;
+}
 
 // ── (2026-09-06, Ola 264 · G2) EMOCIÓN E INTENSIDAD EN EL MOTOR ─────────────
 
@@ -500,25 +522,89 @@ function latenciaMediana(medidas: readonly MedidaVoz[], motor: string, ventana: 
     return v.length % 2 ? v[i] : (v[i - 1] + v[i]) / 2;
 }
 
+// ── (VST1018N) EL ELECTOR QUE APRENDE, APLICADO ─────────────────────────────
+// Contrato §4 «Se mejora sola»: las medidas y el 👍/👎 de cada respuesta hablada
+// ordenan el elector. Entre candidatos con MEDIDAS BASTANTES (5: MEDIDAS_MINIMAS)
+// manda `puntuarMotores` — olvido de 7 días, errores y pulgar —; con menos, el
+// motor sigue «sin medir» y NO cambia el orden: manda la mediana de siempre.
+
+/** Lo medido por el enrutador con este motor del catálogo (alias de `medidas-voz`). */
+function idDeMedida(id: string): string {
+    return ALIAS_MOTOR[id] ?? id;
+}
+
+/** De lo medido a la entrada del elector: «primer-sonido» con latencia y hora, la última `ventana` por motor. Pura. */
+function medidasParaElector(medidas: readonly MedidaVoz[], ventana: number): MedidaElector[] {
+    const porMotor = new Map<string, MedidaElector[]>();
+    for (const m of medidas ?? []) {
+        if (m?.tipo !== "primer-sonido" || !Number.isFinite(m.valor) || m.valor <= 0) continue;
+        if (typeof m.motor !== "string" || m.motor.trim() === "") continue;
+        const e: MedidaElector = {
+            motor: m.motor.trim(),
+            neurona: m.neurona,
+            latenciaPrimeraFraseMs: m.valor,
+            errores: 0, // las medidas de hoy no traen errores por tramo; el elector los suma si llegan
+            t: m.timestamp,
+        };
+        porMotor.set(e.motor, [...(porMotor.get(e.motor) ?? []), e]);
+    }
+    const fuera: MedidaElector[] = [];
+    for (const lista of porMotor.values()) fuera.push(...lista.slice(-ventana));
+    return fuera;
+}
+
+/** La neurona de la medida más reciente: el elector ordena POR NEURONA. Pura. */
+function neuronaDeMedidas(medidas: readonly MedidaElector[]): string {
+    let masReciente: MedidaElector | null = null;
+    for (const m of medidas) if (!masReciente || m.t > masReciente.t) masReciente = m;
+    return masReciente?.neurona ?? "";
+}
+
 /**
  * Elige el motor de una locución: licencia del contexto, voz de la persona,
  * tope del uso y menor mediana medida. Sin medidas devuelve `null` (manda la
  * regla por hardware). Pura.
+ *
+ * (VST1018N) Con `ahora` presente el elector que aprende manda entre los
+ * motores con medidas bastantes (5): `puntuarMotores` los ordena con el olvido
+ * de 7 días, los errores y el pulgar (`votos`). Un motor con menos medidas
+ * sigue «sin medir» y no cambia el orden: la mediana de siempre decide.
  */
 export function elegirMotorPrimeraFrase(p: {
     uso: UsoVoz; contexto: ContextoLicenciaVoz; capas?: CapasPrefs;
     candidatos: readonly CandidatoMotorVoz[]; medidas: readonly MedidaVoz[]; ventana?: number;
+    /** El pulgar de las respuestas habladas (`votos-voz.ts`), o null/vacío. */
+    votos?: readonly VotoVoz[] | null;
+    /** Reloj inyectable (ms de época); sin él, manda la mediana de siempre. */
+    ahora?: number;
 }): EleccionMotorVoz | null {
-    const { uso, contexto, capas = {}, candidatos, medidas, ventana = 20 } = p;
+    const { uso, contexto, capas = {}, candidatos, medidas, ventana = 20, votos, ahora } = p;
     const conVoz = candidatos.filter((c) => c.tieneVoz && c.id.trim() !== "");
     const permitidos = new Set(motoresPermitidos(conVoz.map(
         ({ id, claseLicencia, condicionCumplida }) => ({ id, claseLicencia, condicionCumplida }),
     ), contexto, capas).permitidos.map((m) => m.id));
     const estudio = estudioSegunUso(uso);
+    const compite = (c: CandidatoMotorVoz): boolean =>
+        permitidos.has(c.id) && (estudio || c.nivel !== "estudio");
+
+    // ── Elector que aprende (VST1018N): primero, los MEDIDOS por puntuación. ──
+    if (typeof ahora === "number" && Number.isFinite(ahora)) {
+        const deMedidas = medidasParaElector(medidas ?? [], ventana);
+        const orden = puntuarMotores(deMedidas, votos, ahora)[neuronaDeMedidas(deMedidas)] ?? [];
+        for (const puntuado of orden) {
+            if (puntuado.estado !== "medido") break; // los medidos van primero: no mandan los sin medir
+            const c = conVoz.find((x) => compite(x) && idDeMedida(x.id) === puntuado.motor);
+            if (!c) continue;
+            const latenciaMs = latenciaMediana(medidas ?? [], puntuado.motor, ventana);
+            if (latenciaMs === null) continue; // sin mediana legible: siguiente
+            return { motor: c.id, nivel: c.nivel, latenciaMs };
+        }
+    }
+
     let mejor: EleccionMotorVoz | null = null;
     for (const c of conVoz) {
-        if (!permitidos.has(c.id) || (!estudio && c.nivel === "estudio")) continue;
-        const latenciaMs = latenciaMediana(medidas, c.id, ventana);
+        if (!compite(c)) continue;
+        const latenciaMs = latenciaMediana(medidas ?? [], c.id, ventana);
         if (latenciaMs !== null && (mejor === null || latenciaMs < mejor.latenciaMs)) {
             mejor = { motor: c.id, nivel: c.nivel, latenciaMs };
         }
@@ -575,6 +661,9 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
     // la primera frase (`nivelParaMotor`): una sola traducción motor → nivel.
     const id = motorRecomendado(plataforma, ramGB, contextoLicencia).id;
     let nivel: NivelVoz = nivelParaMotor(id);
+    // (VST1018N) El motor que abre esta locución: UNO para todo el mensaje, así
+    // que el pulgar de la respuesta hablada vuelve a él (motorUltimaRespuestaHablada).
+    let motorDelTurno = id;
 
     // (VST1018F) La primera frase de una conversación sale del motor PERMITIDO
     // con menor latencia medida que tenga la voz; vale para TODO el mensaje y
@@ -585,8 +674,16 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
             uso, contexto: contextoLicencia, capas: opciones.capas ?? {},
             candidatos: candidatosDelCatalogo(timbre),
             medidas: leerMedidas(neurona || undefined),
+            // (VST1018N) El elector aprende: con el reloj real y el pulgar guardado
+            // (`votos-voz.ts`), el orden sale de `puntuarMotores` (olvido de 7 días,
+            // errores y votos). Sin votos ni reloj, la mediana de siempre.
+            votos: leerVotos().map((v) => ({ motor: idDeMedida(v.motor), voto: v.voto, t: v.timestamp })),
+            ahora: Date.now(),
         });
-        if (eleccion) nivel = eleccion.nivel;
+        if (eleccion) {
+            nivel = eleccion.nivel;
+            motorDelTurno = eleccion.motor;
+        }
     }
     const tope = nivelTopeSegunUso(uso);
     if (tope) nivel = acotarNivel(nivel, tope);
@@ -617,6 +714,9 @@ export async function hablarStarSeed(texto: string, opciones: OpcionesHablar): P
         try {
             if (await sintetizar(actual, limpio, timbre, opciones)) {
                 nivelEnUso = actual;
+                // (VST1018N) La respuesta hablada queda atribuida al motor que la
+                // abrió; el pulgar de la persona volverá a él por `anotarVoto`.
+                ultimaHablada = { motor: motorDelTurno, t: Date.now() };
                 return true;
             }
         } catch { /* esta vía falló: se baja de nivel */ }

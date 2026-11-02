@@ -8,6 +8,7 @@ import { ThumbsUp, ThumbsDown, Pencil, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Almacen, Capa, Valoracion, ResultadoHerramienta } from "@/lib/astraura/experiencias";
 import { registrarValoracion, subirPendientes, AJUSTES_APRENDIZAJE_DEFECTO } from "@/lib/astraura/experiencias-aprendizaje";
+import { anotarVoto } from "@/lib/aurora/votos-voz";
 import { almacenIDB } from "@/lib/astraura/experiencias-idb";
 import { preferenciaCapasGuardada } from "@/lib/astraura/capas-conciencia";
 
@@ -23,6 +24,12 @@ export interface ValorarRespuestaProps {
   modelo?: string;
   /** Herramientas que usó la respuesta y si acertaron, si las hubo. */
   herramientas?: ResultadoHerramienta[];
+  /**
+   * (VST1018N) Motor de voz que habló esta respuesta (contrato voz-voicestudio §4
+   * «Se mejora sola»). Si vino, el 👍/👎 también enseña al elector de voz
+   * (`votos-voz.ts`): el pulgar vuelve al motor que la dijo para el próximo mensaje.
+   */
+  motorVoz?: string;
   /** Almacén inyectable (pruebas); en el navegador, IDB por defecto. */
   almacen?: Almacen;
   /** Aviso tras guardar (p. ej. para telemetría de vista). */
@@ -33,7 +40,7 @@ export interface ValorarRespuestaProps {
 export function ValorarRespuesta(props: ValorarRespuestaProps) {
   const {
     entrada, respuesta, ambito = "cuenta", capa = "llm", modelo = "",
-    herramientas, almacen, onValorada, className,
+    herramientas, motorVoz, almacen, onValorada, className,
   } = props;
   const [estado, setEstado] = useState<"esperando" | "guardado" | "corrigiendo">("esperando");
   const [textoCorreccion, setTextoCorreccion] = useState("");
@@ -49,6 +56,12 @@ export function ValorarRespuesta(props: ValorarRespuestaProps) {
     (valoracion: Valoracion, correccion?: string) => {
       setEstado("guardado");
       onValorada?.(valoracion, correccion);
+      // (VST1018N) El pulgar de la respuesta hablada (contrato voz-voicestudio §4):
+      // junto a la valoración del modelo cuenta para el motor de voz que la dijo.
+      // `anotarVoto` nunca lanza: si no hay almacenamiento, la valoración sigue igual.
+      if (motorVoz) {
+        anotarVoto({ motor: motorVoz, voto: valoracion === "positiva" ? 1 : -1 });
+      }
       const almacen = obtenerAlmacen();
       void registrarValoracion(
         {
@@ -97,7 +110,7 @@ export function ValorarRespuesta(props: ValorarRespuestaProps) {
           /* el aprendizaje nunca rompe el chat */
         });
     },
-    [ambito, capa, modelo, entrada, respuesta, herramientas, obtenerAlmacen, onValorada],
+    [ambito, capa, modelo, motorVoz, entrada, respuesta, herramientas, obtenerAlmacen, onValorada],
   );
 
   if (estado === "guardado") {

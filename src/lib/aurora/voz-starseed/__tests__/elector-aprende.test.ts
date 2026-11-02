@@ -7,8 +7,11 @@ import {
     type MedidaElector,
     type VotoVoz,
 } from "@/lib/aurora/voz-starseed/elector-aprende";
+import { elegirMotorPrimeraFrase, nivelParaMotor, type CandidatoMotorVoz } from "../motor";
+import type { MedidaVoz } from "../../medidas-voz";
 
 const AHORA = 1_700_000_000_000;
+const GRUPO = { uso: "conversacion" as const, contexto: "grupo" as const };
 
 function medida(parcial: Partial<MedidaElector> = {}): MedidaElector {
     return { motor: "omnivoice", neurona: "n1", latenciaPrimeraFraseMs: 300, errores: 0, t: AHORA - 1_000, ...parcial };
@@ -100,5 +103,76 @@ describe("elector-aprende · aprende de lo medido y del 👍/👎 (Ola 1018V · 
             medida({ motor: "   " }),
             null as unknown as MedidaElector,
         ])).toEqual([]);
+    });
+});
+
+// ── (VST1018N) EL ELECTOR APLICADO ──────────────────────────────────────────
+// La conexión de verdad: `elegirMotorPrimeraFrase` (motor.ts) consume
+// `puntuarMotores` con lo medido (`medidas-voz.ts`) y el pulgar (`votos-voz.ts`).
+describe("elector-aprende · aplicado en la elección de la primera frase (1018N)", () => {
+    const NEURONA = "neurona-1018n";
+    const candidato = (id: string): CandidatoMotorVoz => ({
+        id, claseLicencia: "libre", tieneVoz: true, nivel: nivelParaMotor(id),
+    });
+    /** Medidas falsas de `medidas-voz.ts` («primer-sonido») sin red ni disco. */
+    const medidasVoice = (motor: string, valor: number, cuantas: number, timestamp = AHORA - 1_000): MedidaVoz[] =>
+        Array.from({ length: cuantas }, () => ({ neurona: NEURONA, motor, tipo: "primer-sonido" as const, valor, timestamp }));
+
+    it("aplicado: un motor rápido con muchos 👎 pierde contra el lento (ambos con 5 medidas)", () => {
+        const votos = Array.from({ length: 4 }, (_, i) => voto({ motor: "kokoro", t: AHORA - i }));
+        const r = elegirMotorPrimeraFrase({
+            ...GRUPO,
+            candidatos: [candidato("kokoro"), candidato("chatterbox")],
+            medidas: [...medidasVoice("kokoro", 250, 5), ...medidasVoice("chatterbox", 800, 5)],
+            votos, ahora: AHORA,
+        });
+        expect(r?.motor).toBe("chatterbox");
+        expect(r?.latenciaMs).toBe(800);
+    });
+
+    it("aplicado: con 3 medidas no cambia nada — la mediana de siempre decide", () => {
+        const votos = Array.from({ length: 4 }, (_, i) => voto({ motor: "kokoro", t: AHORA - i }));
+        const r = elegirMotorPrimeraFrase({
+            ...GRUPO,
+            candidatos: [candidato("kokoro"), candidato("chatterbox")],
+            medidas: [...medidasVoice("kokoro", 250, 3), ...medidasVoice("chatterbox", 800, 3)],
+            votos, ahora: AHORA,
+        });
+        expect(r?.motor).toBe("kokoro");
+        expect(r?.latenciaMs).toBe(250);
+    });
+
+    it("aplicado: con medidas bastantes y sin votos, el elector elige lo mismo que la mediana", () => {
+        const r = elegirMotorPrimeraFrase({
+            ...GRUPO,
+            candidatos: [candidato("kokoro"), candidato("chatterbox")],
+            medidas: [...medidasVoice("kokoro", 250, 5), ...medidasVoice("chatterbox", 800, 5)],
+            ahora: AHORA,
+        });
+        expect(r?.motor).toBe("kokoro");
+    });
+
+    it("sin reloj no se usa el elector: el pulgar no muda la mediana de siempre", () => {
+        const votos = Array.from({ length: 4 }, (_, i) => voto({ motor: "kokoro", t: AHORA - i }));
+        const r = elegirMotorPrimeraFrase({
+            ...GRUPO,
+            candidatos: [candidato("kokoro"), candidato("chatterbox")],
+            medidas: [...medidasVoice("kokoro", 250, 5), ...medidasVoice("chatterbox", 800, 5)],
+            votos,
+        });
+        expect(r?.motor).toBe("kokoro");
+    });
+
+    it("aplicado: la licencia del contexto manda también con el elector (en grupo nada personal)", () => {
+        const r = elegirMotorPrimeraFrase({
+            ...GRUPO,
+            candidatos: [
+                { id: "voicemorphic", claseLicencia: "personal", tieneVoz: true, nivel: nivelParaMotor("voicemorphic") },
+                candidato("chatterbox"),
+            ],
+            medidas: [...medidasVoice("voicemorphic", 100, 6), ...medidasVoice("chatterbox", 900, 6)],
+            ahora: AHORA,
+        });
+        expect(r?.motor).toBe("chatterbox");
     });
 });

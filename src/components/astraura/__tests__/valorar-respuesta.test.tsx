@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ValorarRespuesta } from "@/components/astraura/valorar-respuesta";
+import { CLAVE_VOTOS_VOZ, leerVotos } from "@/lib/aurora/votos-voz";
 import type { Almacen, LineaExperiencias } from "@/lib/astraura/experiencias";
 import { leer } from "@/lib/astraura/experiencias";
 
@@ -94,5 +95,29 @@ describe("ValorarRespuesta", () => {
     fireEvent.click(screen.getByRole("button", { name: "Corregir la respuesta" }));
     fireEvent.keyDown(screen.getByLabelText("Escribe la respuesta correcta"), { key: "Escape" });
     expect(screen.getByRole("button", { name: "Respuesta útil" })).toBeTruthy();
+  });
+
+  // (VST1018N) El pulgar de la respuesta hablada: si la respuesta salió por un
+  // motor de voz, el 👍/👎 también llega al elector que aprende (votos-voz.ts).
+  describe("con motor de voz", () => {
+    it("el pulgar guarda un voto para el motor que habló la respuesta", () => {
+      window.localStorage.clear();
+      render(<ValorarRespuesta {...base} almacen={almacenMemoria()} motorVoz="kokoro" />);
+      fireEvent.click(screen.getByRole("button", { name: "Respuesta útil" }));
+      const votos = leerVotos();
+      expect(votos).toEqual([{ motor: "kokoro", voto: 1, timestamp: expect.any(Number) }]);
+    });
+
+    it("el 👎 también vota, y sin motor de voz el pulgar no escribe voto alguno", () => {
+      window.localStorage.clear();
+      render(<ValorarRespuesta {...base} almacen={almacenMemoria()} motorVoz="omnivoice" />);
+      fireEvent.click(screen.getByRole("button", { name: "Respuesta incorrecta" }));
+      expect(leerVotos()).toEqual([{ motor: "omnivoice", voto: -1, timestamp: expect.any(Number) }]);
+
+      render(<ValorarRespuesta {...base} almacen={almacenMemoria()} />);
+      fireEvent.click(screen.getByRole("button", { name: "Respuesta útil" }));
+      const crudo = window.localStorage.getItem(CLAVE_VOTOS_VOZ);
+      expect(JSON.parse(crudo ?? "[]")).toHaveLength(1); // solo el voto anterior
+    });
   });
 });

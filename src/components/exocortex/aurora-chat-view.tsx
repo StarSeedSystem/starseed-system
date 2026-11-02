@@ -58,6 +58,9 @@ import { ConfigChangeNotice, isConfigChangeMessage } from "@/components/aurora/c
 // (§8) Botones 👍/👎/«corregir» bajo cada respuesta: alimentan las
 // experiencias de aprendizaje en IDB sin tocar nada más de la vista.
 import { ValorarRespuesta } from "@/components/astraura/valorar-respuesta";
+// (VST1018N) El motor de voz que habló la última respuesta: el pulgar de cada
+// respuesta hablada vuelve a él (`votos-voz.ts` → elector que aprende).
+import { motorUltimaRespuestaHablada } from "@/lib/aurora/voz-starseed/motor";
 
 // ── Tipos de props ───────────────────────────────────────────────────────────
 /** Un mensaje "en vivo" del motor (conversation lleva `.at`). */
@@ -574,6 +577,9 @@ function Conversation(props: {
                       respuesta={displayText}
                       modelo={m.meta?.model ?? ""}
                       herramientas={m.meta?.tools?.map((t) => ({ nombre: t.name, ok: t.ok }))}
+                      // (VST1018N) Si la respuesta salió hablada hace poco, el 👍/👎
+                      // también vota al motor de voz que la dijo (elector que aprende).
+                      motorVoz={motorUltimaRespuestaHablada() ?? undefined}
                     />
                   )}
                 </div>
