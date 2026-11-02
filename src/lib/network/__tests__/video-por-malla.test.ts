@@ -10,8 +10,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { manejar } from "../../../../servicios/hyperframes/src/rutas.mjs";
 import {
-  admiteVideoMalla, esRecursoPrivado, validarPeticionVideoMalla, videoRenderPorMalla,
+  admiteVideoMalla, adjuntarServidorVideoMalla, atenderRenderVideoMalla,
+  esRecursoPrivado, validarPeticionVideoMalla, videoRenderPorMalla,
 } from "../video-por-malla";
+import type { PeerEvents } from "../webrtc-mesh";
 
 const HTML = "<div data-composition-id=\"a\"></div>";
 const CON_GSAP = "<div><script>import { gsap } from 'gsap'; gsap.to('.a', { x: 1 });</script></div>";
@@ -128,5 +130,56 @@ describe("capacidad.video.render por la malla (HFR1018I)", () => {
     const llena = await videoRenderPorMalla({ ...BASE }, ctx, { encolar: vi.fn(async () => { throw new Error("/tmp/x/fallo"); }) });
     expect(llena.ok).toBe(false); expect((llena as { motivo: string }).motivo).toContain("no se encoló");
     expect((llena as { motivo: string }).motivo).not.toContain("/tmp/x");
+  });
+});
+
+/* ── Cableado del relé (HFR1018I · conexión): el mesh COMPARTIDO atiende
+ * `capacidad.pedir` tipo `render` con el manejador puro y contesta
+ * `capacidad.fin` { trabajoId } o `capacidad.error` legible. Sin red real. */
+describe("rol SERVIDOR del relé `capacidad.*` tipo `render` (HFR1018I)", () => {
+  const CUERPO = { cuenta: "alex", composicion: HTML, formato: "mp4" };
+
+  const meshDe = () => {
+    const enviados: { peerId: string; texto: string }[] = [];
+    let eventos: PeerEvents | null = null;
+    const mesh = {
+      userId: "alex",
+      onPeer: (e: PeerEvents): (() => void) => { eventos = e; return () => { eventos = null; }; },
+      sendToPeer: (peerId: string, texto: string): boolean => { enviados.push({ peerId, texto }); return true; },
+    };
+    return { mesh, enviados, alMandar: () => eventos, soltar: () => { eventos = null; } };
+  };
+
+  it("el mensaje `capacidad.pedir` de la malla llega al manejador y sale el `fin` con trabajoId", async () => {
+    const { mesh, enviados, alMandar } = meshDe();
+    const baja = adjuntarServidorVideoMalla(mesh, { encolar: vi.fn(async () => "t-9") });
+    alMandar()?.onMessage?.("peer-1", JSON.stringify({ t: "capacidad.pedir", id: "p1", tipo: "render", cuerpo: CUERPO }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(enviados).toHaveLength(1);
+    expect(JSON.parse(enviados[0].texto).t).toBe("capacidad.fin");
+    expect(JSON.parse(enviados[0].texto).resultado.trabajoId).toBe("t-9");
+    expect(enviados[0].peerId).toBe("peer-1");
+    baja(); expect(alMandar()).toBeNull();
+  });
+
+  it("silencio con lo ajeno: no render, otro relé o JSON roto no produce ninguna respuesta", async () => {
+    const { mesh, enviados, alMandar } = meshDe();
+    adjuntarServidorVideoMalla(mesh, { encolar: vi.fn(async () => "t") });
+    alMandar()?.onMessage?.("peer-1", JSON.stringify({ t: "capacidad.pedir", id: "p2", tipo: "buscar", cuerpo: CUERPO }));
+    alMandar()?.onMessage?.("peer-2", JSON.stringify({ t: "ia.pedir", id: "p3", cuerpo: {} }));
+    alMandar()?.onMessage?.("peer-3", "no-es-json");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(enviados).toHaveLength(0);
+  });
+
+  it("peticiones rechazadas por admisión o cola salen como `capacidad.error` legible", async () => {
+    const { mesh, enviados } = meshDe();
+    await atenderRenderVideoMalla(mesh, "peer-1", { t: "capacidad.pedir", id: "p4", tipo: "render", cuerpo: { ...CUERPO, cuenta: "otra" } });
+    const err1 = JSON.parse(enviados[0].texto);
+    expect(err1.t).toBe("capacidad.error"); expect(err1.estado).toBe(403);
+    expect(err1.mensaje).toContain("misma cuenta");
+    await atenderRenderVideoMalla(mesh, "peer-1", { t: "capacidad.pedir", id: "p5", tipo: "render", cuerpo: CUERPO }, { encolar: vi.fn(async () => { throw new Error("fallo"); }) });
+    const err2 = JSON.parse(enviados[1].texto);
+    expect(err2.estado).toBe(500); expect(err2.mensaje).toContain("no se encoló"); expect(err2.mensaje).not.toContain("/tmp/");
   });
 });
