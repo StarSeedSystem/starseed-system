@@ -66,6 +66,54 @@ describe("Panel Contenido vivo", () => {
     expect(cotizacion).toHaveLength(6);
   });
 
+  it("el interruptor apaga el nivel y oculta su tabla y sus créditos", () => {
+    const alConfirmar = vi.fn<(cotizacion: CotizacionViva[]) => void>();
+    render(
+      <PanelContenidoVivo
+        contexto={contexto({ conectados: ["higgsfield"], ajustes: { localPrimero: false, externosPermitidos: true } })}
+        onConfirmar={alConfirmar}
+      />,
+    );
+    expect(screen.getByText("Tarea: clip-pelicula")).toBeInTheDocument();
+    expect(screen.getByTestId("total-creditos")).toHaveTextContent("34");
+    fireEvent.click(screen.getByTestId("interruptor-nivel-2"));
+    expect(screen.queryByText("Tarea: clip-pelicula")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tarea: foto")).not.toBeInTheDocument();
+    expect(screen.getByText("Tarea: escena-3d")).toBeInTheDocument();
+    expect(screen.getByTestId("total-creditos")).toHaveTextContent("0");
+  });
+
+  it("el selector marca la elegida y cambia la ruta y el total", () => {
+    render(
+      <PanelContenidoVivo
+        contexto={contexto({ conectados: ["higgsfield"], ajustes: { localPrimero: false, externosPermitidos: true } })}
+        onConfirmar={vi.fn()}
+      />,
+    );
+    const lista = (screen.getByText("Tarea: clip-pelicula").closest("li") as HTMLElement);
+    expect(within(lista).getByRole("radio", { name: /Seedance 2\.0 \(720p\)/ })).toBeChecked();
+    expect(screen.getByTestId("total-creditos")).toHaveTextContent("34");
+    const milozochos = within(lista).getByRole("radio", { name: /Seedance 2\.0 \(1080p\)/ });
+    fireEvent.click(milozochos);
+    expect(milozochos).toBeChecked();
+    expect(screen.getByTestId("total-creditos")).toHaveTextContent("64");
+  });
+
+  it("el «Cancelar» cierra la confirmación sin generar", () => {
+    const alConfirmar = vi.fn<(cotizacion: CotizacionViva[]) => void>();
+    render(
+      <PanelContenidoVivo
+        contexto={contexto({ conectados: ["higgsfield"], ajustes: { localPrimero: false, externosPermitidos: true } })}
+        onConfirmar={alConfirmar}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Generar" }));
+    expect(screen.getByTestId("confirmacion-generar")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByTestId("confirmacion-generar")).not.toBeInTheDocument();
+    expect(alConfirmar).not.toHaveBeenCalled();
+  });
+
   it("con todo local genera sin preguntar y con crédito cero", () => {
     const alConfirmar = vi.fn<(cotizacion: CotizacionViva[]) => void>();
     render(

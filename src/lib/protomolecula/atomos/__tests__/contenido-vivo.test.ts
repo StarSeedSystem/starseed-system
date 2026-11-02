@@ -4,6 +4,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { CONTENIDO_VIVO, planificarContenidoVivo, type EntradaContenidoVivo } from "../contenido-vivo";
+import { ATOMOS_PROPIOS } from "../index";
 import type { ContextoVivo } from "@/lib/contenido-vivo/rutas";
 
 const BASE: ContextoVivo = {
@@ -60,6 +61,10 @@ describe("átomo contenido-vivo", () => {
     expect(plan.creditosTotales).toBe(62);
   });
 
+  it("está en el índice de átomos propios", () => {
+    expect(ATOMOS_PROPIOS).toContain(CONTENIDO_VIVO);
+  });
+
   it("apunta sin ruta lo que el ámbito no puede, en vez de inventar una", () => {
     const entrada: EntradaContenidoVivo = {
       publicacion: "publica-7",
@@ -71,5 +76,21 @@ describe("átomo contenido-vivo", () => {
     expect(plan.tareas).toEqual([]);
     expect(plan.sinRuta).toEqual([{ nivel: 2, tarea: "clip-pelicula", motivo: "Sin ruta disponible para esta tarea en este ámbito" }]);
     expect(plan.necesitaConfirmar).toBe(false);
+  });
+
+  it("ignora las tareas de niveles que no están en el plan", () => {
+    const entrada: EntradaContenidoVivo = {
+      publicacion: "publica-15",
+      niveles: [1],
+      tareas: [
+        { nivel: 1, tareas: ["escena-3d"] },
+        { nivel: 2, tareas: ["clip-pelicula"] },
+      ],
+      contexto: { ...BASE, conectados: ["higgsfield"] },
+    };
+    const plan = planificarContenidoVivo(entrada);
+    expect(plan.tareas.map((t) => t.nivel)).toEqual([1]);
+    expect(plan.tareas.map((t) => t.tarea)).toEqual(["escena-3d"]);
+    expect(plan.creditosTotales).toBe(0);
   });
 });
