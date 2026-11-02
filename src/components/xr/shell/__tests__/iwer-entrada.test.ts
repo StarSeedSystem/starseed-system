@@ -63,6 +63,8 @@ describe("IWER · entrada emulada a WebXR", () => {
         expect(d.tieneXR).toBe(true);
         expect([d.vr, d.ar]).toEqual([true, true]);
         expect(d.webgl2).toBe(false);
+        // IWER sustituye la UA de jsdom por la del metaQuest3: el sondeo la lleva al núcleo tal cual.
+        expect(d.ua).toContain("Quest 3");
     });
 
     it("(2) UA de jsdom = escritorio; UA de Quest = quest con VR recomendada", async () => {
@@ -91,6 +93,7 @@ describe("IWER · entrada emulada a WebXR", () => {
 
     it("(5) LÍMITE de la emulación: sin gesto real IWER abre la sesión igual", async () => {
         // En un navegador de verdad `requestSession` exige activación del usuario; IWER no la comprueba.
+        expect(navigator.userActivation?.isActive ?? false).toBe(false);
         const sesion = await abrir("immersive-vr", { optionalFeatures: ["local-floor"] });
         expect(sesion.enabledFeatures).toContain("local-floor");
     });
@@ -101,5 +104,10 @@ describe("IWER · entrada emulada a WebXR", () => {
         const refinadas = refinarFunciones(c, sesion.enabledFeatures);
         expect(refinadas.funciones).toEqual(["local-floor", "hand-tracking"]);
         expect(refinadas.funciones).not.toContain("plane-detection");
+        // Contrato general: lo concedido intersectado con el vocabulario, y el resto de campos intactos.
+        expect(refinadas.funciones).toEqual(
+            [...sesion.enabledFeatures].filter((f) => c.funciones.includes(f as (typeof c.funciones)[number])),
+        );
+        expect(refinadas.plataforma).toBe(c.plataforma);
     });
 });
