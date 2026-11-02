@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """El reconstructor de Genesis: cuándo compilar y, sobre todo, cuándo NO insistir."""
+import json
 import os
 import shutil
 import tempfile
@@ -1069,3 +1070,101 @@ class TraerLoHechoConLaMacFrenada(unittest.TestCase):
         puesto, previo, _, _ = self._traer((True, "x"), freno="node_modules trae next 16.3.8 y package-lock pide 15.5")
         self.assertFalse(puesto)
         previo.assert_not_called()
+
+
+class _SalidaGH:
+    def __init__(self, returncode, stdout=""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = ""
+
+
+class ElArtefactoDelCISePrefiereACompilar(unittest.TestCase):
+    """(IND1029) El CI compila en Ubuntu y sube `.next`: si el artefacto sirve para el
+    árbol que se quiere servir, se descarga. Compilar en la Mac de 8 GB es el último
+    recurso, no el primero."""
+
+    def _gh(self, raiz, registros, runs, completo=True):
+        def correr(orden, **kw):
+            registros.append(list(orden))
+            if orden[:3] == ["gh", "run", "list"]:
+                return _SalidaGH(0, json.dumps(runs))
+            if orden[:3] == ["gh", "run", "download"]:
+                if completo:
+                    dist = os.path.join(raiz, R.DIST_BUILD)
+                    os.makedirs(dist, exist_ok=True)
+                    with open(os.path.join(dist, "BUILD_ID"), "w", encoding="utf-8") as f:
+                        f.write("BUILD-DEL-CI")
+                return (0, "")
+            return _SalidaGH(1, "")
+        return correr
+
+    def _buscar(self, runs, completo=True):
+        raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, raiz, True)
+        registros = []
+        with mock.patch.object(R.subprocess, "run",
+                               side_effect=self._gh(raiz, registros, runs, completo)), \
+                mock.patch.object(R, "marcar_listo") as listo, \
+                mock.patch.dict(R.ARTIFACTOS_CI, clear=True):
+            elegido = R.artefacto_ci_disponible("huella-local", raiz=raiz)
+        return elegido, [orden[:3] for orden in registros], listo
+
+    def test_el_artefacto_del_arbol_se_descarga_y_no_se_compila(self):
+        sha = "a" * 40
+        runs = [{"headSha": sha, "status": "completed",
+                 "artifacts": [{"name": R.ARTIFACTO_CI + sha}]}]
+        elegido, llamadas, listo = self._buscar(runs)
+        self.assertEqual(elegido, (sha, "BUILD-DEL-CI"))
+        self.assertIn(["gh", "run", "download"], llamadas)
+        listo.assert_called_once()
+
+    def test_sin_artefacto_del_ci_la_pasada_compila_en_local(self):
+        runs = [{"headSha": "b" * 40, "status": "completed",
+                 "artifacts": [{"name": "otro-build-cualquiera"}]}]
+        elegido, llamadas, listo = self._buscar(runs)
+        self.assertIsNone(elegido)
+        self.assertEqual(llamadas, [["gh", "run", "list"]])
+        listo.assert_not_called()
+
+    def test_si_gh_no_contesta_se_compila_en_local(self):
+        raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, raiz, True)
+        with mock.patch.object(R.subprocess, "run", return_value=_SalidaGH(1, "")), \
+                mock.patch.dict(R.ARTIFACTOS_CI, clear=True):
+            self.assertIsNone(R.artefacto_ci_disponible("h", raiz=raiz))
+
+    def test_un_artefacto_sin_build_id_no_cuenta(self):
+        sha = "c" * 40
+        runs = [{"headSha": sha, "status": "completed",
+                 "artifacts": [{"name": R.ARTIFACTO_CI + sha}]}]
+        elegido, _, listo = self._buscar(runs, completo=False)
+        self.assertIsNone(elegido)
+        listo.assert_not_called()
+
+    def _pasada(self, artefacto):
+        with mock.patch.object(R, "_entradas", return_value=[]), \
+                mock.patch.object(R, "huella_de", return_value="bbb"), \
+                mock.patch.object(R, "_leer_estado",
+                                  return_value={"huella_construida": "aaa", "ok": True}), \
+                mock.patch.object(R, "cuantas_mas_nuevas", return_value=3), \
+                mock.patch.object(R, "mtime_del_build", return_value=0), \
+                mock.patch.object(R, "conversando", return_value=False), \
+                mock.patch.object(R, "uso_de_astraura", return_value="libre"), \
+                mock.patch.object(R, "publicacion_va_a_compilar", return_value=False), \
+                mock.patch.object(R, "espacio_libre_gb", return_value=50.0), \
+                mock.patch.object(R, "freno_de_maquina", return_value=None), \
+                mock.patch.object(R, "genesis_caido", return_value=False), \
+                mock.patch.object(R, "_guardar"), \
+                mock.patch.object(R, "artefacto_ci_disponible", return_value=artefacto), \
+                mock.patch.object(R, "reconstruir", return_value={"estado": "al-dia"}) as compilar:
+            self.assertTrue(R.una_pasada())
+        return compilar
+
+    def test_la_pasada_prefiere_el_artefacto_antes_que_next_build(self):
+        compilar = self._pasada(("a" * 40, "BID"))
+        compilar.assert_not_called()
+
+    def test_la_pasada_compila_solo_si_no_hay_artefacto(self):
+        compilar = self._pasada(None)
+        compilar.assert_called_once()
