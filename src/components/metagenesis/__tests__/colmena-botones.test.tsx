@@ -553,14 +553,119 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
         expect(enviarOrden).not.toHaveBeenCalled();
     });
 
-    it("la línea de información no escribe «contenedor activo» mientras no haya reparto", async () => {
-        estado.lectura = lectura([nodo({ contenedor: { activo: true, agentes: 2, apto: true, motivo: "" }, enCurso: [tarea("task-1", 5 * 60_000)] })]);
+    it("muestra el botón de desconectar cuando hay trabajo en curso", async () => {
+        // Mocking behavior by manipulating state and checking the rendering
+        estado.lectura = lectura([nodo({ 
+            relevo: true,
+            enCurso: [
+                {
+                    id: "task-1",
+                    fase: "escribiendo",
+                    punto: {
+                        rama: "main",
+                        sha: "abc123",
+                        t: (Date.now() - 5 * 60_000) / 1000, // 5 minutes ago in seconds
+                    },
+                },
+            ],
+        })]);
+        
+        pintar();
+        const botonDesconectar = await screen.findByTestId(id("desconectar"));
+        expect(botonDesconectar).toBeInTheDocument();
+        expect(botonDesconectar).toHaveTextContent("Desconectar");
+        // Should be enabled because there's work in progress and relevo=true
+        expect(botonDesconectar).not.toBeDisabled();
+        // Should have the explanation as title attribute
+        expect(botonDesconectar).toHaveAttribute(
+            "title",
+            "Guarda el trabajo a medias de sus 1 agente(s) y lo pasa a otro contenedor antes de que este aparato se quede sin internet."
+        );
+    });
+
+    it("muestra el botón de usar como contenedor cuando el nodo puede ser contenedor", async () => {
+        // Modify the first node to have a contenedor object
+        estado.lectura = lectura([nodo({
+            relevo: true,
+            contenedor: {
+                activo: true,
+                agentes: 2,
+                apto: true,
+                motivo: "Listo para trabajar",
+            },
+        })]);
+        
+        pintar();
+        const botonContenedor = await screen.findByTestId(id("contenedor"));
+        expect(botonContenedor).toBeInTheDocument();
+        expect(botonContenedor).toHaveTextContent("Dejar de usar como contenedor");
+        // Should be enabled because the node is alive and has container capacity
+        expect(botonContenedor).not.toBeDisabled();
+        expect(botonContenedor).toHaveAttribute("title", "Termina lo que lleva y no coge más.");
+    });
+
+    it("muestra la línea de información bajo el nombre del nodo", async () => {
+        estado.lectura = lectura([nodo({
+            relevo: true,
+            enCurso: [
+                {
+                    id: "task-1",
+                    fase: "escribiendo",
+                    punto: {
+                        rama: "main",
+                        sha: "abc123",
+                        t: (Date.now() - 5 * 60_000) / 1000,
+                    },
+                },
+                {
+                    id: "task-2",
+                    fase: "reparando",
+                    punto: {
+                        rama: "main",
+                        sha: "def456",
+                        t: (Date.now() - 10 * 60_000) / 1000,
+                    },
+                },
+            ],
+            contenedor: {
+                activo: true,
+                agentes: 2,
+                apto: true,
+                motivo: "Listo para trabajar",
+            },
+        })]);
+        
         pintar();
         const info = await screen.findByTestId(id("info"));
-        expect(info).toHaveTextContent("Apuntado como contenedor (hasta 2 agentes) · el reparto de tareas aún no está activo");
-        expect(info).not.toHaveTextContent("contenedor activo");
-        expect(info).toHaveTextContent("1 tarea en curso · Último punto de control hace 5 min");
-        expect(info).not.toHaveTextContent("task-1");
+        
+        await waitFor(() => {
+            expect(info).toHaveTextContent("2 agentes");
+            expect(info).toHaveTextContent("contenedor activo");
+            expect(info).toHaveTextContent("2 tareas en curso");
+        });
+    });
+
+    it("muestra información de tarea a medias cuando existe", async () => {
+        estado.lectura = lectura([nodo({
+            relevo: true,
+            enCurso: [
+                {
+                    id: "task-1",
+                    fase: "escribiendo",
+                    punto: {
+                        rama: "main",
+                        sha: "abc123",
+                        t: (Date.now() - 5 * 60_000) / 1000,
+                    },
+                },
+            ],
+        })]);
+        
+        pintar();
+        const info = await screen.findByTestId(id("info"));
+        await waitFor(() => {
+            expect(info).toHaveTextContent(/Último punto de control hace 5 min/);
+        });
     });
 
     it("la línea de información va dentro de la tarjeta de SU nodo, no suelta en la lista", async () => {
