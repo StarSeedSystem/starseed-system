@@ -64,6 +64,8 @@ import {
   // Tanda 1027 (Mausbot, neurona insomne y Colibri)
   MousePointer2, Bird,
   type LucideIcon,
+  // Iconos de herramientas (tool)
+  Tool, Settings, Settings2 as SettingsIcon,
   Flame, LogIn, Replace, Ear, Atom, ShieldCheck, Network,
 } from "lucide-react";
 import {
@@ -135,6 +137,7 @@ export const KIND_META: Record<PackageKind, { label: string; plural: string; ico
   function: { label: "Función", plural: "Funciones", icon: Wand2, chip: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
   "ai-source": { label: "Fuente IA", plural: "Fuentes IA", icon: Brain, chip: "bg-teal-500/15 text-teal-300 border-teal-500/30" },
   repo: { label: "Repo", plural: "Repos", icon: GitBranch, chip: "bg-lime-500/15 text-lime-300 border-lime-500/30" },
+  tool: { label: "Herramienta", plural: "Herramientas", icon: Tool, chip: "bg-violet-600/15 text-violet-300 border-violet-600/30" },
   agent: { label: "Agente", plural: "Agentes", icon: Bot, chip: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30" },
 };
 
@@ -145,6 +148,7 @@ const EFFECT_EXPLAIN: Record<PackageKind, string> = {
   animation: "Añade su clase de animación al registro de diseño (starseed.library.design.v1); la capa de movimiento del OS la aplica. Desinstalar la quita.",
   function: "Registra la skill en starseed.library.functions.v1 para que tus cerebros de Aurora la usen. Desinstalar la quita.",
   repo: "Añade otro repo de paquetes (JSON con shape LibraryRepo) como fuente de esta Biblioteca.",
+  tool: "Registra la herramienta en tu biblioteca y la hace disponible para Aurora y tus agentes. Sin efecto visible until integrated.",
   app: "Registra la app en tu sistema (starseed.library.installed.v1, sincronizado con tu cuenta) y abre su ruta real del OS.",
   widget: "Registra el widget en tu sistema y abre la superficie del OS donde vive.",
   page: "Registra la página en tu sistema y abre su ruta real.",
