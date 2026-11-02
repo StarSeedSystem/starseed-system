@@ -33,7 +33,6 @@ describe("expresiones del Mausbot (port de OpenMausBot)", () => {
     expect(CENTRO_CARA[0]).toBeLessThan(CAJA_CARA);
     expect(CENTRO_CARA[1]).toBeLessThan(CAJA_CARA);
     expect(RECORRIDO_MIRADA.x).toBeGreaterThan(0);
-    // la mirada de cada expresión cabe dentro de la caja de la cara
     for (const [mx, my] of MIRADAS) {
       expect(Math.abs(mx)).toBeLessThan(CAJA_CARA);
       expect(Math.abs(my)).toBeLessThan(CAJA_CARA);
@@ -59,6 +58,29 @@ describe("expresiones del Mausbot (port de OpenMausBot)", () => {
       expect(m.y).toBeGreaterThan(0);
       expect(m.y).toBeLessThan(CAJA_CARA);
     });
+  });
+
+  // Caso de la rama archivada nube/40615233367, adaptado a los nombres de main:
+  // fija los números exactos del origen OpenMausBot, no solo relaciones.
+  it("publica la caja y el centro de la cara y el recorrido de la mirada", () => {
+    expect(CAJA_CARA).toBeGreaterThan(0);
+    expect(CENTRO_CARA).toEqual([120, 122.5]);
+    expect(RECORRIDO_MIRADA).toEqual({ x: 13.2, y: 8.4 });
+  });
+
+  // Caso de la rama archivada nube/40615233367, adaptado sin INDICE_ESPERADO:
+  // la primera posesión de cada estado es la expresión original de CursorAvatar.tsx.
+  it("asigna a cada estado su expresión canónica", () => {
+    const CANONICA: Record<EstadoMausbot, number> = {
+      sleeping: 22, waking: 13, idle: 6, listening: 1, thinking: 17,
+      searching: 20, working: 10, excited: 2, surprised: 21,
+      suspicious: 5, angry: 7, drowsy: 22, happy: 19, curious: 21,
+      confused: 8, bored: 0, proud: 2, shy: 24,
+    };
+    expect(Object.keys(CANONICA)).toHaveLength(18);
+    for (const estado of Object.keys(CANONICA) as EstadoMausbot[]) {
+      expect(POSESIONES[estado][0]).toBe(CANONICA[estado]);
+    }
   });
 });
 
