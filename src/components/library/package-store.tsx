@@ -136,6 +136,7 @@ export const KIND_META: Record<PackageKind, { label: string; plural: string; ico
   "ai-source": { label: "Fuente IA", plural: "Fuentes IA", icon: Brain, chip: "bg-teal-500/15 text-teal-300 border-teal-500/30" },
   repo: { label: "Repo", plural: "Repos", icon: GitBranch, chip: "bg-lime-500/15 text-lime-300 border-lime-500/30" },
   agent: { label: "Agente", plural: "Agentes", icon: Bot, chip: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30" },
+  tool: { label: "Herramienta", plural: "Herramientas", icon: Terminal, chip: "bg-zinc-500/15 text-zinc-300 border-zinc-500/30" },
 };
 
 /** Qué hace EXACTAMENTE instalar cada kind (transparencia en la ficha). */
@@ -153,6 +154,7 @@ const EFFECT_EXPLAIN: Record<PackageKind, string> = {
   research: "Registra la investigación en tu sistema y abre su superficie real.",
   project: "Registra el proyecto en tu sistema y abre su superficie real.",
   agent: "Registra la definición del agente (persona + capacidades) en tu biblioteca personal de agentes: podrás configurarlo y atarlo al cerebro de cualquier superficie del OS. Desinstalar no borra vínculos ya creados.",
+  tool: "Registra la herramienta en tu sistema para usarla en flujos o terminales.",
 };
 
 /** Mapa nombre-lucide → componente (fallback defensivo: Package). */
