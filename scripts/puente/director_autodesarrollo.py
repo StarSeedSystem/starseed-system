@@ -8,11 +8,14 @@ lista manual; alta y crítica NUNCA solas), encarga las reimaginaciones al enjam
 de referencias de diseño si existe. Desde la Ola 1025S (IMG1025A) el automático decide también Astraura y lo
 que no es código, descarta duplicadas, reparte las reimaginaciones con tope por ciclo y manda cada aprobada por
 su vía: código → cola de código; Astraura → su backend 1.58; lo demás → entregable del analista en modo libre.
-Decidir se hace y se escribe siempre (no cuesta memoria); lanzar trabajo, solo cuando toca. Reloj, disco,
-lanzadores, Jev, Astraura y agentes por parámetro (las pruebas no lanzan nada real); escrituras atómicas
-(tmp + os.replace) y cerrojo propio."""
+Decidir y escribir se hace SIEMPRE (no cuesta memoria); lanzar trabajo, solo cuando toca. Y desde la
+Ola 1102 (IMG1102C) ENCARGAR solo si es el líder de dirección (regla común `autocuracion_mando.decidir_lider`
+sobre el arriendo de `lider_direccion`, solo leído): el A1 con el arriendo encarga con SU memoria —
+corre como pieza `director` de `starseed-direccion` (`bucle`: un ciclo cada 15 min)— y la Mac ahogada
+no encarga nada. Reloj, disco, lanzadores, Jev, Astraura y
+agentes por parámetro (las pruebas no lanzan nada real); escrituras atómicas (tmp + os.replace) y cerrojo propio."""
 from __future__ import annotations
-import argparse, fcntl, json, os, shutil, subprocess, sys, tempfile, urllib.error, urllib.request
+import argparse, fcntl, json, os, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
 from collections import Counter
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -71,6 +74,20 @@ def medir_capacidad(home):
     vivos = [k for k, v in s.items() if isinstance(v, dict) and not (v.get("caido") or v.get("estado") in ("caido", "caído", "sin_cupo"))]
     return {"huecos_mac": max(0, g["maximo"] - ocupados), "huecos_a1": 0, "huecos_nube": 0,
             "proveedores_con_cupo": len(vivos), "presion_mac": g.get("presion") or 0}
+
+
+def encargo_lider(lider, ahora):
+    """PURA (IMG1102C). ¿Encarga ESTE ciclo? Devuelve (sí/no, por qué): la regla común de la dirección
+    (`autocuracion_mando.decidir_lider`) sobre el arriendo de `lider_direccion`, SOLO LEÍDO. Se
+    abstiene SOLO si OTRA neurona tiene el arriendo vigente (ella encarga con su memoria): sin puerta,
+    sin arriendo, caducado, sin poder leerlo o sin la regla, sí, como hoy. `lider` es lo que devuelve
+    `lider_direccion.soy_lider()`; None o algo ilegible vale como «sin dato»."""
+    try:
+        import autocuracion_mando as AC  # noqa: PLC0415
+
+        return AC.decidir_lider(lider, ahora)
+    except Exception:  # noqa: BLE001 — una decisión que falla no para el director
+        return True, "sin la regla del líder: sigo en local"
 
 
 def _lanzar_real(*orden):
@@ -349,15 +366,18 @@ def _aplicar_en_astraura(lista, aplicar, iso):
 
 def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_diario=None, lanzador_profundo=None,
           existe_ruta=None, datos=None, avisar=None, consejo=None, agente_referencias=None, aplicar_astraura=None,
-          a_la_flota=None, agente_alcance=None):
+          a_la_flota=None, agente_alcance=None, lider_fn=None):
     """Un ciclo (§5). `datos`: {diaria, profunda, astraura, directores, agentes} para no leer disco ni red.
     `consejo(p)`: Jev para el veto de lo que se integraría solo (None = solo la regla). `agente_referencias(raiz,
     ahora)`: el agente de referencias de diseño (por defecto, el módulo si existe); devuelve None si no hay agente.
     `agente_alcance(raiz, ahora)`: el agente de alcance (por defecto, `agente_alcance.ciclo` si existe).
     `aplicar_astraura(item)`: aplica una creación en el backend 1.58 (None si lo hizo, o el error); por defecto, HTTP.
     `a_la_flota(raiz, tareas)`: entrega el análisis encolado al orquestador vivo (por defecto `AR.a_la_flota`).
+    `lider_fn()`: el arriendo de dirección para la regla del encargo (por defecto `lider_direccion.soy_lider`).
     Ola 1025S: reimaginar y preparar entregables se encargan con `AL.toca_analizar` (análisis por HTTP con su
-    propio tope), no con `toca_ejecutar`: la presión de memoria de la Mac frenaba toda reimaginación."""
+    propio tope), no con `toca_ejecutar`: la presión de memoria de la Mac frenaba toda reimaginación.
+    Ola 1102C: decide y escribe SIEMPRE; encarga (cola, reimaginaciones, entregables, aplicar Astraura y
+    flota) solo si es el líder de dirección (`encargo_lider` → `autocuracion_mando.decidir_lider`)."""
     ahora, home, raiz = ahora or datetime.now(), home or os.path.expanduser("~/.starseed"), raiz or RAIZ
     mem, hoy = os.path.join(raiz, "starseed_memory_root"), (ahora or datetime.now()).strftime("%Y-%m-%d")
     with cerrojo(os.path.join(home, "cerrojos", "autodesarrollo.lock")) as libre:
@@ -368,6 +388,18 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
             toca, motivo = False, "sin dato de capacidad: en modo inteligente no se ejecuta"
         else: toca, motivo = AL.toca_ejecutar(ahora, aj["horario"], cap or {})
         toca_an, motivo_an = (True, motivo) if toca else AL.toca_analizar(ahora, aj["horario"], cap)
+        if seco:  # en seco no encarga de todos modos: no se consulta al líder
+            encarga, motivo_encargo = True, "(seco)"
+        else:
+            try:
+                if lider_fn is None:
+                    import lider_direccion  # noqa: PLC0415
+
+                    lider_fn = lider_direccion.soy_lider
+                lider = lider_fn()
+            except Exception:  # noqa: BLE001 — sin puerta o sin arriendo legible se encarga como hoy
+                lider = None
+            encarga, motivo_encargo = encargo_lider(lider, ahora.timestamp())
         est_ruta = os.path.join(home, "autodesarrollo-estado.json"); est = _json(est_ruta, {})
         lanzo = []
         if toca and not seco:
@@ -422,7 +454,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         por_tarea = {AR.id_tarea(p): p for p in propuestas if p.get("estado") == "reimaginando"}
         auto_r = AD.orden_reimaginar([por_tarea[t["id"]] for t in reim if t.get("por") != "alex" and t["id"] in por_tarea])
         elegidas_r = {AR.id_tarea(p) for p in auto_r[:AD.TOPE_POR_CICLO]}
-        reim = [t for t in reim if t.get("por") == "alex" or t["id"] in elegidas_r] if toca_an else []
+        reim = [t for t in reim if t.get("por") == "alex" or t["id"] in elegidas_r] if toca_an and encarga else []
         entregables = _revisar_entregables(propuestas, raiz, ahora, iso)
         auto = AD.cuantas([p for p in propuestas if p.get("estado") == "autodesarrollo"], aj["rango"], AD.umbral_efectivo(aj))["elegidas"]
         aprobadas = {v: [] for v in AD.VIAS}
@@ -439,13 +471,13 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
             if p.get("aprobada_por") != "automatica":
                 p.update(estado="hecha", aplicada=p.get("decidida") or iso, t=iso, motivo_destino="aplicada en Astraura al integrarla desde Genesis")
         astraura = [p for p in aprobadas["astraura"] if p.get("estado") == "aprobada"]
-        aplicadas = _aplicar_en_astraura(astraura, aplicar_astraura, iso) if toca and not seco else 0
-        cupo_e = max(0, min(AD.TOPE_POR_CICLO, AD.MAX_EN_VUELO - AE.en_vuelo(propuestas))) if toca_an else 0
+        aplicadas = _aplicar_en_astraura(astraura, aplicar_astraura, iso) if toca and encarga and not seco else 0
+        cupo_e = max(0, min(AD.TOPE_POR_CICLO, AD.MAX_EN_VUELO - AE.en_vuelo(propuestas))) if toca_an and encarga else 0
         ent = AD.orden_reimaginar(aprobadas["entregable"])[:cupo_e]
         tareas_e = [AE.tarea(p, ahora) for p in ent]
         # Ola 1102: lo que aprobó sola la automática (carril de bajo riesgo) entra con el máximo del rango y una por archivo.
         aprobadas_c = AD.turno_de_las_solas(aprobadas["codigo"], aj["rango"]["max"] - len(auto))
-        cola = [p for p in (auto + aprobadas_c) if not _es_alcance(p)] if toca else []
+        cola = [p for p in (auto + aprobadas_c) if not _es_alcance(p)] if toca and encarga else []
         fr = [x for x in aj["horario"]["franjas"] if x["desde"] > ahora.strftime("%H:%M")] if aj["horario"]["modo"] == "franjas" else []
         if cola and aj["horario"]["repartir"] and fr: cola = cola[:AL.lotes(len(cola), len(fr) + 1)[0]]
         nombre = f"cola-imaginacion-{ahora.strftime('%Y%m%d-%H%M')}"
@@ -472,7 +504,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
             ids_f = {(p.get("reimaginacion") or {}).get("tarea") for p in propuestas if p.get("estado") == "reimaginando"}
             ids_f |= {(p.get("entregable") or {}).get("tarea") for p in propuestas if p.get("estado") == "encargada"}
             ids_f.discard(None)
-            if toca_an and ids_f:
+            if toca_an and encarga and ids_f:
                 try: flota = (a_la_flota or AR.a_la_flota)(raiz, AR.tareas_esperadas(mem, ids_f, ahora))
                 except Exception as e: flota = {"accion": "error", "motivo": type(e).__name__}
             if avisar and (tareas or esperan or reim or tareas_e or aplicadas):
@@ -486,8 +518,24 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
                 "decisiones": dict(decisiones), "entregables": dict(entregables),
                 "entregables_encargados": len(tareas_e) if not seco else 0, "cola_entregables": cola_e,
                 "aplicadas_astraura": aplicadas, "toca_analizar": toca_an, "motivo_analisis": motivo_an,
+                "encargo": encarga, "motivo_encargo": "" if encarga else motivo_encargo,
                 "flota": flota, "estados": dict(Counter(p.get("estado") or "nueva" for p in propuestas)),
                 "filtro_astraura": {k: v for k, v in filtro.items() if k not in ("por_id", "inventadas")} if filtro else None}
+
+
+def bucle(cada_s=900):
+    """`bucle` (IMG1102C): un ciclo cada `cada_s` segundos (900: el mismo ritmo del launchd de la
+    Mac), para correrlo como pieza `director` de `starseed-direccion` en el A1. Un ciclo fallido
+    nunca para el director; se imprime una línea por vuelta para journald."""
+    while True:
+        try:
+            r = ciclo(avisar=_avisar_real, consejo=_consejo_jev)
+            print("[director] %s · %d tarea(s) · %d esperando%s" % (
+                r["motivo_toca"], r.get("autodesarrolladas") or 0, r.get("esperando_aprobacion") or 0,
+                "" if r.get("encargo", True) else " · sin encargo (%s)" % r.get("motivo_encargo")), flush=True)
+        except Exception as e:  # noqa: BLE001
+            print("[director] ciclo en error: %s: %s" % (type(e).__name__, e), flush=True)
+        time.sleep(max(60, int(cada_s)))
 
 
 def _avisar_real(texto, telegram):
@@ -503,9 +551,16 @@ def _avisar_real(texto, telegram):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(); ap.add_argument("orden", choices=["ciclo"]); ap.add_argument("--seco", action="store_true"); ap.add_argument("--json", action="store_true")
-    a = ap.parse_args(argv); r = ciclo(seco=a.seco, avisar=_avisar_real, consejo=_consejo_jev)
-    print(json.dumps(r, ensure_ascii=False, indent=1) if a.json else f"{r['motivo_toca']} · {r.get('autodesarrolladas', 0)} tarea(s) · {r.get('esperando_aprobacion', 0)} esperando")
+    ap = argparse.ArgumentParser(); ap.add_argument("orden", choices=["ciclo", "bucle"])
+    ap.add_argument("--seco", action="store_true"); ap.add_argument("--json", action="store_true")
+    ap.add_argument("--cada", type=int, default=900)
+    a = ap.parse_args(argv)
+    if a.orden == "bucle":  # (1102C) pieza `director` de `starseed-direccion` en el A1
+        bucle(a.cada); return
+    r = ciclo(seco=a.seco, avisar=_avisar_real, consejo=_consejo_jev)
+    linea = f"{r['motivo_toca']} · {r.get('autodesarrolladas', 0)} tarea(s) · {r.get('esperando_aprobacion', 0)} esperando"
+    print(json.dumps(r, ensure_ascii=False, indent=1) if a.json
+          else linea + ("" if r.get("encargo", True) else f" · sin encargo ({r.get('motivo_encargo')})"))
 
 
 if __name__ == "__main__":

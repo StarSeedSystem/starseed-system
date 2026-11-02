@@ -521,6 +521,57 @@ class Ola1025STest(unittest.TestCase):
         self.assertIsNone(D.item_astraura(self.libre("x")))
 
 
+class Ola1102CTest(Ola1025STest):
+    """Ola 1102 · IMG1102C: el director de la Mac solo ENCARGA si es el líder de dirección.
+
+    Con el A1 al mando (arriendo `direccion.lider` vigente) la Mac se abstiene: decide y escribe
+    como siempre, pero no deja trabajo (cola de código, reimaginaciones, entregables ni aplicar en
+    Astraura): lo encarga el A1 con su propia memoria, como pieza de `starseed-direccion`."""
+
+    def setUp(self):
+        super().setUp(); self.entregadas = []
+
+    def test_encargo_lider_pura(self):
+        """La regla es `autocuracion_mando.decidir_lider`: se abstiene SOLO con arriendo vigente ajeno."""
+        lider = {"soy": False, "motivo": "dueño: a1-x", "arriendo": {"dueno": "a1-x", "caduca": NOCHE.timestamp() + 60}}
+        encarga, motivo = D.encargo_lider(lider, NOCHE.timestamp())
+        self.assertFalse(encarga); self.assertIn("a1-x", motivo)
+        caducado = dict(lider, arriendo={"dueno": "a1-x", "caduca": NOCHE.timestamp() - 1})
+        self.assertTrue(D.encargo_lider(caducado, NOCHE.timestamp())[0])
+        self.assertTrue(D.encargo_lider(None, NOCHE.timestamp())[0])  # sin dato: como hoy
+
+    def test_otro_dirige_decide_pero_no_encarga(self):
+        self.sembrar([self.astraura("creation_1"), self.libre("floja", cuerpo="Idea suelta.")])
+        lider = {"soy": False, "motivo": "dueño: a1-x", "arriendo": {"dueno": "a1-x", "caduca": NOCHE.timestamp() + 60}}
+        r = self.correr(lider_fn=lambda: lider)
+        self.assertFalse(r["encargo"]); self.assertIn("a1-x", r["motivo_encargo"])
+        props = self.props()  # decidió y escribió como siempre
+        self.assertEqual((props["astraura:creation_1"]["estado"], props["agentes:a--floja"]["estado"]),
+                         ("aprobada", "reimaginando"))
+        self.assertNotIn("tarea", props["agentes:a--floja"]["reimaginacion"])
+        self.assertEqual((r["autodesarrolladas"], r["reimaginaciones_encargadas"], r["entregables_encargados"]), (0, 0, 0))
+        self.assertEqual((self.aplicadas, self.entregadas), ([], []))
+        self.assertFalse(os.path.isdir(os.path.join(self.mem, "olas")))
+
+    def test_siendo_lider_encarga_como_hoy(self):
+        self.sembrar([self.libre("floja", cuerpo="Idea suelta.")])
+        r = self.correr(lider_fn=lambda: {"soy": True, "motivo": "líder vigente", "arriendo": None})
+        self.assertTrue(r["encargo"]); self.assertEqual(r["motivo_encargo"], "")
+        self.assertIn("tarea", self.props()["agentes:a--floja"]["reimaginacion"])
+        self.assertEqual((r["reimaginaciones_encargadas"], len(self.entregadas)), (1, 1))
+
+    def test_ya_vuelto_el_arriendo_encarga_lo_que_esperaba(self):
+        self.sembrar([self.astraura("creation_1"), self.libre("floja", cuerpo="Idea suelta.")])
+        lider = {"soy": False, "motivo": "dueño: a1-x", "arriendo": {"dueno": "a1-x", "caduca": NOCHE.timestamp() + 60}}
+        r = self.correr(lider_fn=lambda: lider)
+        self.assertFalse(r["encargo"]); self.assertEqual(self.aplicadas, [])
+        r = self.correr(ahora=NOCHE.replace(minute=15), datos={"diaria": "", "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
+        self.assertTrue(r["encargo"])
+        p = self.props()["agentes:a--floja"]
+        self.assertIn("tarea", p["reimaginacion"])
+        self.assertEqual(len(self.aplicadas), 1)  # lo aprobado de Astraura se aplica en su backend
+
+
 if __name__ == "__main__":
     unittest.main()
 

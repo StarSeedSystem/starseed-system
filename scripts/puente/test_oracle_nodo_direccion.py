@@ -17,7 +17,7 @@ import oracle_nodo as N  # noqa: E402
 SERVICIO = os.path.normpath(os.path.join(DIR, "..", "..", "deploy", "oracle", "nodo", "systemd", "starseed-direccion.service"))
 with open(SERVICIO, encoding="utf-8") as _f:
     TEXTO = _f.read()
-PIEZAS = ("orquestador", "autocuracion", "autopublicacion", "cartero")
+PIEZAS = ("orquestador", "autocuracion", "autopublicacion", "cartero", "director")
 
 class Unidad(unittest.TestCase):
     def test_es_del_a1_requiere_lo_que_lanza_y_limita_memoria(self):
@@ -36,13 +36,14 @@ class Unidad(unittest.TestCase):
         self.assertFalse(re.search(r"sk-|ghp_|AIza|BEGIN OPENSSH|xoxb-|Bearer ", TEXTO))
 
 class Piezas(unittest.TestCase):
-    def test_las_cuatro_piezas_del_reparto_de_la_mac(self):
+    def test_las_cinco_piezas_del_reparto_de_la_mac(self):
         piezas = N.piezas_direccion()
         self.assertEqual(tuple(p[0] for p in piezas), PIEZAS)
         for nombre, ruta, args, marca in piezas:
             self.assertTrue(ruta.startswith(N.RAIZ_DIRECCION_A1))
             self.assertTrue(ruta.endswith("/scripts/puente/" + marca))
-            self.assertEqual(args, ("--bucle",) if nombre == "autopublicacion" else ())
+            # (1102C) El director corre en bucle: una vuelta de ciclo cada 15 min, como el launchd de la Mac.
+            self.assertEqual(args, {"autopublicacion": ("--bucle",), "director": ("bucle",)}.get(nombre, ()))
         self.assertNotIn(("starseed" + "-wt"), repr(piezas))
 
 class Guion(unittest.TestCase):

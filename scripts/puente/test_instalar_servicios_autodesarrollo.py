@@ -101,7 +101,7 @@ class ServicioAutodesarrollo(unittest.TestCase):
     def test_el_director_entiende_la_orden(self):
         with open(os.path.join(AQUI, "director_autodesarrollo.py"), encoding="utf-8") as f:
             fuente = f.read()
-        self.assertIn('choices=["ciclo"]', fuente)
+        self.assertIn('choices=["ciclo", "bucle"]', fuente)  # IMG1102C: `bucle` para la pieza del A1
 
 
 class InstalacionCompleta(unittest.TestCase):

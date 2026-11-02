@@ -37,10 +37,11 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
                          el plan de `colibri_nodo.plan_instalacion`; con él lo corre por SSH.
                          Instalar (GB de descarga) SIEMPRE necesita el visto bueno de Alex.
     direccion [--aplicar]  deja en el A1 `starseed-direccion.service` y su arranque: orquestador,
-                          autocuración, autopublicación y cartero solo con el arriendo de líder.
-                          Sin `--aplicar` solo enseña el plan; no arranca nada que ya esté vivo.
-                          (OPS1031B) Si otra neurona tiene el arriendo vigente, para las piezas
-                          (systemctl stop de las unidades de dirección y solo de ellas) y no arranca.
+                          autocuración, autopublicación, cartero y director de imaginación, solo
+                          con el arriendo de líder. Sin `--aplicar` solo enseña el plan; no arranca
+                          nada que ya esté vivo. (OPS1031B) Si otra neurona tiene el arriendo
+                          vigente, para las piezas (systemctl stop de las unidades de dirección y
+                          solo de ellas) y no arranca.
   automejora enviar|traer
                          la Mac manda sus experiencias al A1 o trae lo que propuso la noche
                          (MTN1027H2); el ciclo lo hace solo una vez al día tras 02:00/06:00 UTC.
@@ -535,13 +536,16 @@ HERMES_MCP_A1 = os.path.join(RAIZ_DIRECCION_A1, "scripts", "puente", "mcp_direct
 
 
 def piezas_direccion(raiz=RAIZ_DIRECCION_A1):
-    """PURA. Las cuatro piezas de la dirección en el A1: (nombre, script, argumentos, marca)."""
+    """PURA. La dirección en el A1: (nombre, script, argumentos, marca). (IMG1102C: +director.) El
+    director de autodesarrollo encarga la imaginación AQUÍ, con la memoria del A1, cuando tiene el
+    arriendo (en la Mac solo encarga si es líder)."""
     p = os.path.join(raiz, "scripts", "puente")
     return (
         ("orquestador", os.path.join(p, "vigilante-enjambre.py"), (), "vigilante-enjambre.py"),
         ("autocuracion", os.path.join(p, "vigia_medidores.py"), (), "vigia_medidores.py"),
         ("autopublicacion", os.path.join(p, "autopublicar.py"), ("--bucle",), "autopublicar.py"),
         ("cartero", os.path.join(p, "cartero_director.py"), (), "cartero_director.py"),
+        ("director", os.path.join(p, "director_autodesarrollo.py"), ("bucle",), "director_autodesarrollo.py"),
     )
 
 
@@ -554,7 +558,8 @@ P = os.path.join(RAIZ, "scripts", "puente")
 sys.path.insert(0, P)
 LOG = os.path.join(os.path.expanduser("~"), "registros")
 HIJOS = (("orquestador", "vigilante-enjambre.py", []), ("autocuracion", "vigia_medidores.py", []),
-         ("autopublicacion", "autopublicar.py", ["--bucle"]), ("cartero", "cartero_director.py", []))
+         ("autopublicacion", "autopublicar.py", ["--bucle"]), ("cartero", "cartero_director.py", []),
+         ("director", "director_autodesarrollo.py", ["bucle"]))
 def vivos():
     v = []
     for pid in os.listdir("/proc"):
