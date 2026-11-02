@@ -7,8 +7,11 @@
  *  respetan la regla dura: ningún gasto sin cotización y sin un «sí». */
 import { useState } from "react";
 import { Activity, Clapperboard, Cuboid } from "lucide-react";
-import { TAREAS_VIVAS } from "@/lib/contenido-vivo/catalogo-rutas";
-import { compararRutas, elegirRuta, servicioConectado, type ContextoVivo } from "@/lib/contenido-vivo/rutas";
+import { CATALOGO_RUTAS, TAREAS_VIVAS } from "@/lib/contenido-vivo/catalogo-rutas";
+import {
+  TAREAS_SIEMPRE_LOCALES, compararRutas, elegirRuta, razonCandidato, servicioConectado, servicioDeRuta, valorarRuta,
+  type ContextoVivo,
+} from "@/lib/contenido-vivo/rutas";
 import type { TareaViva } from "@/lib/contenido-vivo/tipos";
 
 /** Una fila de la cotización: tarea, ruta elegida y lo que cuesta. */
@@ -23,10 +26,15 @@ const NIVELES = [
   { nivel: 3, nombre: "Gráficos vivos", icono: Activity, tareas: ["grafico-vivo"] as TareaViva[] },
 ];
 
-/** El candidato de la tarea: el elegido en el panel o, si aún no hay, la propuesta de `elegirRuta`. */
+/** El candidato de la tarea: el elegido en el panel (valorado aquí) o, si aún no hay, la propuesta de `elegirRuta`. */
 function deLaTarea(tarea: TareaViva, contexto: ContextoVivo, elegidas: Partial<Record<TareaViva, string>>) {
-  const disponibles = compararRutas(tarea, contexto).filter((c) => c.disponible);
-  return disponibles.find((c) => c.ruta.id === (elegidas[tarea] ?? elegirRuta(tarea, contexto)?.ruta.id)) ?? disponibles[0];
+  const elegida = elegidas[tarea];
+  if (elegida) {
+    const ruta = CATALOGO_RUTAS.find((r) => r.id === elegida && r.tareas.includes(tarea));
+    const valorada = ruta ? valorarRuta(ruta, tarea, contexto) : null;
+    if (valorada?.disponible) return valorada;
+  }
+  return elegirRuta(tarea, contexto);
 }
 
 /** La cotización de las tareas de los niveles encendidos, en el orden del catálogo. */
@@ -94,9 +102,10 @@ function TablaRutas({ tarea, contexto, elegidas, alElegir }: {
   tarea: TareaViva; contexto: ContextoVivo; elegidas: Partial<Record<TareaViva, string>>; alElegir: (rutaId: string) => void;
 }) {
   const idElegida = elegidas[tarea] ?? elegirRuta(tarea, contexto)?.ruta.id ?? "";
+  const siempreLocal = TAREAS_SIEMPRE_LOCALES.includes(tarea);
   return (
     <li className="rounded-lg border border-muted bg-muted/10 p-3">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tarea: {tarea}</p>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tarea: {tarea}{siempreLocal ? " · Siempre local" : ""}</p>
       <ul className="space-y-1.5 text-xs">
         {compararRutas(tarea, contexto).map((c) => (
           <li key={c.ruta.id} className="flex flex-col gap-1 sm:flex-row sm:items-start sm:gap-3">
@@ -105,8 +114,10 @@ function TablaRutas({ tarea, contexto, elegidas, alElegir }: {
                 disabled={!c.disponible} onChange={() => alElegir(c.ruta.id)} className="mt-0.5 cursor-pointer accent-[#007FFF]" />
               <span className="flex flex-1 flex-wrap gap-x-2">
                 <span className="font-medium">{c.ruta.nombre}</span>
-                <span className="text-muted-foreground">{c.ruta.tipo === "local" ? "Local" : "Externo"} · {c.ruta.creditosPorUnidad} créditos</span>
-                <span className="text-muted-foreground">{c.razon}</span>
+                <span className="text-muted-foreground">
+                  {c.ruta.tipo === "local" ? "Local" : `Externo · ${servicioDeRuta(c.ruta)}`} · {c.ruta.creditosPorUnidad} créditos
+                </span>
+                <span className="text-muted-foreground">{razonCandidato(c.ruta, tarea, c.disponible ? null : c.motivoNoDisponible ?? null)}</span>
               </span>
             </label>
             {c.ruta.tipo === "externo" && !servicioConectado(c.ruta, contexto) && (

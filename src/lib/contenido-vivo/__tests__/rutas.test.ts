@@ -140,6 +140,18 @@ describe("reparaciones de la elección de ruta", () => {
     }
   });
 
+  it("con localPrimero apagado y todos los servicios conectados, una tarea siempre local no ofrece externas", () => {
+    const contexto: ContextoVivo = {
+      ...BASE,
+      conectados: ["spline", "higgsfield", "google"],
+      ajustes: { localPrimero: false, externosPermitidos: true },
+    };
+    for (const tarea of TAREAS_SIEMPRE_LOCALES) {
+      expect(compararRutas(tarea, contexto).every((c) => c.ruta.tipo === "local")).toBe(true);
+      expect(elegirRuta(tarea, contexto)?.ruta.tipo).toBe("local");
+    }
+  });
+
   it("un externo no sirve una tarea fijada en local, aunque esté conectado y sobre cupo", () => {
     const externo: Ruta = {
       id: "higgsfield-grafico", nombre: "Servicio ajeno", tipo: "externo",
