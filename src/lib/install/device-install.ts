@@ -504,3 +504,73 @@ export async function registerAsAgentNeuron(): Promise<boolean> {
     return false;
   }
 }
+
+/* ══════ 6 · KeepAlive (KAL1101C · seguir trabajando con la pantalla apagada) ══════
+ *
+ * keepalive v2 (https://github.com/stigoleg/keep-alive, Go, MIT): aserciones de energía
+ * de IOKit en macOS, peticiones de energía en Windows e inhibidor de systemd-logind
+ * en Linux. Aquí SOLO se declara la orden de instalación por SO (pura, sin proceso):
+ * lanzar keepalive en el aparato corresponde al servicio local, con el ajuste del dueño.
+ */
+
+export const KEEPALIVE_REPO_URL = "https://github.com/stigoleg/keep-alive";
+const KEEPALIVE_GO =
+  "go install github.com/stigoleg/keep-alive/v2/cmd/keepalive@latest";
+
+export interface InstalacionKeepalive {
+  /** ¿Este sistema puede sostener el aparato despierto con keepalive? */
+  disponible: boolean;
+  /** Orden real de instalación en este SO (null: no aplica aquí). */
+  comando: string | null;
+  /** Enlace con el resto de vías oficiales (Releases, renovación del tap). */
+  href: string;
+  /** Qué consigue y qué NO (una ficha no promete lo que no hace). */
+  nota: string;
+}
+
+/** Ficha honesta de instalación de keepalive para un sistema dado. Nunca lanza. */
+export function instalacionKeepalive(os: OsId): InstalacionKeepalive {
+  switch (os) {
+    case "macos":
+      return {
+        disponible: true,
+        comando: "brew install --cask stigoleg/tap/keepalive",
+        href: KEEPALIVE_REPO_URL,
+        nota:
+          "Mantiene la Mac despierta con aserciones de energía de IOKit. En un portátil, cerrar la tapa duerme el equipo igual: solo sigue despierto con corriente y pantalla externa (clamshell).",
+      };
+    case "windows":
+      return {
+        disponible: true,
+        comando: "scoop install keepalive",
+        href: KEEPALIVE_REPO_URL,
+        nota:
+          "Pide al sistema de energía de Windows que no se suspenda; si el fabricante o el plan de energía fuerzan suspensión, la neurona se duerme igual.",
+      };
+    case "linux":
+      return {
+        disponible: true,
+        comando: KEEPALIVE_GO,
+        href: `${KEEPALIVE_REPO_URL}/releases`,
+        nota:
+          "Inhibe systemd-logind (tapa, inactividad y suspensión). También hay paquetes .deb/.rpm/.apk listos en releases.",
+      };
+    case "android":
+    case "ios":
+      return {
+        disponible: false,
+        comando: null,
+        href: KEEPALIVE_REPO_URL,
+        nota:
+          "El sistema móvil no deja seguir trabajando con la pantalla apagada; el navegador solo ofrece Wake Lock y con la pestaña visible.",
+      };
+    default:
+      return {
+        disponible: true,
+        comando: KEEPALIVE_GO,
+        href: KEEPALIVE_REPO_URL,
+        nota:
+          "Si este aparato es un ordenador, keepalive entra por go install (build local) o por los binarios de releases; en móvil, no aplica.",
+      };
+  }
+}
