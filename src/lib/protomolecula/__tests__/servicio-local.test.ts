@@ -119,24 +119,40 @@ describe("servicio-local · lanzador nativo (lista blanca y confirmación siempr
   });
 });
 
-// Rescate de la rama nube/41237713333 (HFR1018H): hyperframes entre los servicios locales conocidos.
-// La rama declaraba rutaSalud "/salud" y tiempoMs 900_000; main decidó "/health" y tope de tiempo
-// por defecto (el propio servicio atiende /salud y /health en rutas.mjs): se comprueba el contrato de hoy.
-describe("servicio-local · hyperframes en los servicios locales conocidos", () => {
-  it("definición válida y salud solo en 127.0.0.1:4490 con la ruta de salud declarada", async () => {
-    const hf = SERVICIOS_CONOCIDOS.find((d) => d.id === "hyperframes");
-    expect(hf).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/health" });
-    expect(validarDefinicion(hf!)).toBeNull();
-    const f = vi.fn<FetchLocal>(async () => resp(200, '{"vivo":true}'));
-    const s = await sondearServicio(hf!, f);
-    expect(s).toMatchObject({ vivo: true });
+// HyperFrames en los servicios locales conocidos (Ola 1018H): el contrato fija /salud y un plazo
+// propio de 15 min para los renders largos. El servicio atiende /salud y /health (rutas.mjs), pero
+// el cliente solo debe llamar a la ruta declarada, y siempre dentro de 127.0.0.1.
+describe("servicio-local · servicio hyperframes (vídeo, Ola 1018H)", () => {
+  const HF = SERVICIOS_CONOCIDOS.find((d) => d.id === "hyperframes") as DefinicionServicio;
+  it("la definición es la del contrato: puerto 4490, salud en /salud y plazo propio de 15 min", () => {
+    expect(HF).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900_000 });
+    expect(validarDefinicion(HF)).toBeNull();
+    expect(SERVICIOS_CONOCIDOS).toHaveLength(3); // nada más cambió
+  });
+  it("la salud se consulta SOLO en 127.0.0.1:4490/salud, con GET y sin exigir el token", async () => {
+    const f = vi.fn<FetchLocal>(async () => resp(200, '{"ok":true}'));
+    expect((await sondearServicio(HF, f, { leerVariable: () => undefined })).vivo).toBe(true);
     expect(f.mock.calls).toHaveLength(1);
     const [url, init] = f.mock.calls[0] as [string, PeticionLocal];
+    expect(url).toBe("http://127.0.0.1:4490/salud");
     const destino = new URL(url);
     expect(destino.hostname).toBe("127.0.0.1");
     expect(Number(destino.port)).toBe(4490);
-    expect(destino.pathname).toBe("/health");
-    expect(init).toMatchObject({ method: "GET" });
+    expect(init).toMatchObject({ method: "GET", redirect: "manual", headers: { accept: "application/json" } });
     expect(init.headers.authorization).toBeUndefined();
+  });
+  it("el plazo propio (tiempoMs: 900000) manda en las llamadas: 30 s no corta, 15 min sí", async () => {
+    const { reloj, avanzar } = relojFalso();
+    let senal: AbortSignal | undefined;
+    const colgado: FetchLocal = (_u, i) => {
+      senal = i.signal;
+      return new Promise((_, rej) => i.signal.addEventListener("abort", () => rej(new Error("abortado"))));
+    };
+    const p = llamarServicio(HF, "/render", {}, colgado, { reloj });
+    avanzar(30_000); // el plazo por defecto pasaría: aún no corta
+    expect(senal?.aborted).toBe(false);
+    avanzar(870_000); // total 900.000 ms
+    expect(await p).toMatchObject({ ok: false, fallo: "tiempo", ms: 900_000 });
+    expect(senal?.aborted).toBe(true);
   });
 });
