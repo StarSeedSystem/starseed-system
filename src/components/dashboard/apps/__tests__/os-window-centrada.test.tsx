@@ -95,4 +95,35 @@ describe("OSWindow · ventana centrada (ramas de la nube)", () => {
         fireEvent(window, new MouseEvent("pointerup", { bubbles: true }));
         expect(envoltorio.style.transform).toBe("translate(28px, -40px)");
     });
+
+    it("el arrastre en teléfono suma sobre la posición de hoja", () => {
+        const restaurar = conViewport(390, 844);
+        const rectOriginal = Element.prototype.getBoundingClientRect;
+        const rectSpy = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+            if (this.classList?.contains("max-w-full")) {
+                return {
+                    x: 18.75, y: 78, top: 78, left: 18.75,
+                    width: 352.5, height: 688, right: 371.25, bottom: 766,
+                    toJSON: () => ({}),
+                } as DOMRect;
+            }
+            return rectOriginal.call(this);
+        });
+
+        try {
+            render(<Ventana />);
+            const envoltorio = screen.getByRole("dialog").querySelector("div.relative") as HTMLElement;
+            // Sin arrastre, la hoja ya está bajada 78 px (borde inferior en el viewport).
+            expect(envoltorio.style.transform).toBe("translate(0px, 78px)");
+            const cabecera = screen.getByText("Muestra").closest("header") as HTMLElement;
+            fireEvent.pointerDown(cabecera, { clientX: 100, clientY: 100 });
+            fireEvent(window, new MouseEvent("pointermove", { clientX: 128, clientY: 60, bubbles: true }));
+            fireEvent(window, new MouseEvent("pointerup", { bubbles: true }));
+            // El arrastre (+28, -40) se suma a la base de hoja: 78 - 40 = 38.
+            expect(envoltorio.style.transform).toBe("translate(28px, 38px)");
+        } finally {
+            rectSpy.mockRestore();
+            restaurar();
+        }
+    });
 });
