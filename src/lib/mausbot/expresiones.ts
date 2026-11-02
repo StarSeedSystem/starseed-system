@@ -115,5 +115,32 @@ export const POSESIONES = {
 /** Índices de expresión válidos para un estado. */
 export const expresionDe = (estado: EstadoMausbot): number[] => POSESIONES[estado];
 /** Tabla del contrato §3: voz de la orbe cuántica → estado del Mausbot. */
-const ORBE_A_ESTADO = { idle: "idle", listening: "listening", user_speaking: "listening", thinking: "thinking", speaking: "happy", error: "confused" } satisfies Record<VozOrbe, EstadoMausbot>;
+const ORBE_A_ESTADO: Record<VozOrbe, EstadoMausbot> = {
+  idle: "idle",
+  listening: "listening",
+  user_speaking: "listening",
+  thinking: "thinking",
+  speaking: "happy",
+  error: "confused",
+};
 export const estadoDesdeOrbe = (voz: VozOrbe): EstadoMausbot => ORBE_A_ESTADO[voz];
+
+export const INDICE_ESPERADO: [EstadoMausbot, number][] = [
+  ["sleeping", 22], ["waking", 13], ["idle", 6], ["listening", 1], ["thinking", 17],
+  ["searching", 20], ["working", 10], ["excited", 2], ["surprised", 21],
+  ["suspicious", 5], ["angry", 7], ["drowsy", 22], ["happy", 19], ["curious", 21],
+  ["confused", 8], ["bored", 0], ["proud", 2], ["shy", 24],
+];
+
+export const ORBE_ESPERADO: [VozOrbe, EstadoMausbot][] = [
+  ["idle", "idle"],
+  ["listening", "listening"],
+  ["user_speaking", "listening"],
+  ["thinking", "thinking"],
+  ["speaking", "happy"],
+  ["error", "confused"],
+];
+
+export const FACE_BOX = 228.541;
+export const FACE_CENTRE: [number, number] = [120, 122.5];
+export const GAZE_TRAVEL = { x: 13.2, y: 8.4 };

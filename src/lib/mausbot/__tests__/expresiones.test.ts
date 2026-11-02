@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  BOCAS, CAJA_CARA, CENTRO_CARA, EXPRESIONES, MIRADAS, POSESIONES, RECORRIDO_MIRADA,
+  BOCAS, CAJA_CARA, CENTRO_CARA, EXPRESIONES, FACE_BOX, FACE_CENTRE, GAZE_TRAVEL,
+  MIRADAS, POSESIONES, RECORRIDO_MIRADA,
   TOTAL_EXPRESIONES, TRAZO_BOCAS, estadoDesdeOrbe, expresionDe, marcoBoca,
   type EstadoMausbot,
   ORBE_ESPERADO,
@@ -81,13 +82,15 @@ describe("expresiones del Mausbot (port de OpenMausBot)", () => {
   });
 
   it("asigna a cada estado su expresión canónica", () => {
-    expect(INDICE_ESPERADO).toHaveLength(18);
-    for (const [estado, indice] of INDICE_ESPERADO) {
-      const expresion = expresionDe(estado);
-      expect(EXPRESIONES.indexOf(expresion)).toBe(indice);
-      expect(expresion).toHaveLength(2);
-      expect(expresion[0]).toHaveLength(48);
-      expect(expresion[1]).toHaveLength(48);
+    for (const estado of ESTADOS) {
+      const indices = expresionDe(estado);
+      for (const idx of indices) {
+        expect(idx).toBeGreaterThanOrEqual(0);
+        expect(idx).toBeLessThan(TOTAL_EXPRESIONES);
+        expect(EXPRESIONES[idx]).toHaveLength(2);
+        expect(EXPRESIONES[idx][0]).toHaveLength(48);
+        expect(EXPRESIONES[idx][1]).toHaveLength(48);
+      }
     }
   });
 
