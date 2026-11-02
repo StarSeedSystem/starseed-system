@@ -4662,3 +4662,44 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-11-02 17:52 · mg-oracle-1102-1108
+
+**Lo que se pidió.** La orbe del bot puede ser su avatar 3D: emoción, voz y movimiento
+
+**Resultado.** 0 de 29 integradas. 29 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 28 tareas se fueron por lo mismo — no escribió nada (RTAV1011C, VAR1021Ac, IMG1102D, RTCOL1012Ie-d2, PUB1029C-d2, RTPM1010F2Hc-d2). Es 97 % de la ola.
+- sin modelo anotado no integró ninguna de sus 29 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTAV1011C` — no escribió nada
+- `VAR1021Ac` — no escribió nada
+- `IMG1102D` — no escribió nada
+- `RTCOL1012Ie-d2` — no escribió nada
+- `PUB1029C-d2` — no escribió nada
+- `RTPM1010F2Hc-d2` — no escribió nada
+- `INF1025D` — no escribió nada
+- `INF1025B` — no escribió nada
+- `DSN1025D` — no escribió nada
+- `AGT1025B` — no escribió nada
+- `ART1025C` — no escribió nada
+- `ART1025G` — no escribió nada
+- `CPZ1025D` — no escribió nada
+- `CPZ1025F` — no escribió nada
+- `CPZ1025H` — no escribió nada
+- `DSN1025G` — no escribió nada
+- `DSN1025H` — no escribió nada
+- `INF1025G` — no escribió nada
+- `ART1025B` — no escribió nada
+- `ART1025L` — no escribió nada
+- `BLD1025B` — no escribió nada
+- `BLD1025C` — otra cosa: directorio sin worktree Git: conservado para recuperación
+- `CFC1025A` — no escribió nada
+- `CPZ1025A` — no escribió nada
+- `DSN1025A` — no escribió nada
+- `INV1025B` — no escribió nada
+- `INV1025F` — no escribió nada
+- `DSN1025B` — no escribió nada
+- `INV1025J` — no escribió nada
