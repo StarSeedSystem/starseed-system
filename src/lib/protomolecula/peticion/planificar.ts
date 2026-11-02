@@ -153,7 +153,7 @@ export async function planificar(p: PeticionProto, deps: DependenciasPlan = {}):
   }
 
   const niveles = nivelesDeContenidoVivo(texto);
-  if (niveles) return planLocal([{ tipo: "abrir-en", donde: "protomolecula", que: `contenido-vivo · ${listaDeNiveles(niveles)}` }], []);
+  if (niveles) return planificarVivo(texto);
 
   const opts = opcionesDePeticion({ texto, modo: p.modo });
   const { pasos, sinResolver } = aplicarReglas(texto, ctx, opts);
