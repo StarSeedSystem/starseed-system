@@ -54,6 +54,15 @@ describe("componerProcesos", () => {
         expect(r.find((x) => x.id === "actualizacion:n1:interfaz")?.estado).toBe("fallando");
     });
 
+    it("no mezcla procesos en marcha con los que esperan", () => {
+        const r = componerProcesos({
+            poligenesis: { propuestas: [{ id: "p1", titulo: "Votación", estado: "open" }] },
+            medidores: { latidos: [{ tarea: "CB1", fase: "escribiendo", modelo: "m", minutos: 1, donde: "mac" }] },
+        });
+        expect(r[0].estado).toBe("en-marcha");
+        expect(r[r.length - 1].estado).toBe("esperando");
+    });
+
     it("fuentes vacías o rotas no inventan procesos", () => {
         expect(componerProcesos({})).toEqual([]);
         expect(componerProcesos({
