@@ -1,0 +1,68 @@
+{
+  "ola": "Ola 1101 · Librería · lib-keepalive: la neurona despierta con la pantalla cerrada (pedido de Alex del 2026-11-01)",
+  "fecha": "2026-11-02",
+  "principio": "Misma regla que las tandas 1025 a 1028: canal de versión declarado, instalar SOLO registra el enlace (cero descarga, cero ejecución, cero clave). Ficha de stigoleg/keep-alive (keepalive v2, Go, MIT) comprobada el 2026-11-02 con el README del repo y la API de releases; NADA se ejecutó. Requisito de Alex: que los procesos en segundo plano de los dispositivos sigan con las pantallas cerradas o desconectadas, siempre que haya un área del OS abierta (MetaGenesis, PoliGenesis, Genesis, servidores, cerebros…).",
+  "fusionadas": {},
+  "duplicadas": {},
+  "decisiones": [
+    "Alex decide si el OS usa la aserción larga de keepalive (service install o --pid) en lugar del caffeinate que hoy sostiene scripts/puente/mantener_pantalla.py según ~/.starseed/pantalla.json: no se cambia la energía del sistema sin el ajuste explícito del dueño.",
+    "En un portátil Mac, cerrar la tapa duerme el sistema AUNQUE haya aserciones: solo sigue despierto en modo clamshell (corriente + pantalla externa) o con `pmset -a disablesleep 1`, que exige admin y permiso del dueño (architecture/colmena-relevo-contenedores.md §11). Si la neurona se va a dormir igual, sus tareas pasan al A1 (colmena)."
+  ],
+  "licencias_verificadas": {
+    "neuronas": "2026-11-02: LICENSE de stigoleg/keep-alive (MIT); release v2.0.1 publicada el 2026-10-26 (tarball universal darwin, .deb/.rpm/.apk de linux y .zip de windows con checksums.txt); 29 etiquetas vX.Y.Z, 265 commits en main y 108 estrellas en GitHub. Nada se ejecutó."
+  },
+  "paquetes": [
+    {
+      "id": "lib-keepalive",
+      "repo": "stigoleg/keep-alive",
+      "nombre": "keepalive",
+      "titulo": "la neurona despierta con las aserciones de energía del propio sistema",
+      "kind": "app",
+      "icono": "Zap",
+      "grupo": "neuronas",
+      "canal": "tags",
+      "patron_tag": "^v\\d+\\.\\d+\\.\\d+$",
+      "licencia": "MIT",
+      "version_actual": "v2.0.1",
+      "fecha_version": "2026-10-26",
+      "estado": "activo",
+      "actividad": "29 etiquetas; v2.0.1 publicada el 2026-10-26; 265 commits en main y 108 estrellas (2026-11-02).",
+      "area": [
+        "neuronas",
+        "energia",
+        "procesos-en-segundo-plano",
+        "servidores",
+        "malla",
+        "agentes",
+        "centro-de-control"
+      ],
+      "efecto": "HERRAMIENTA-SISTEMA",
+      "preinstalar": "siempre",
+      "claude": "skill",
+      "gratis": true,
+      "gratis_motivo": "Binario libre (MIT); no hay servicio de pago detrás.",
+      "corre_aqui": true,
+      "que_es": "Utilidad ligera multiplataforma (Go, CLI con interfaz interactiva) que mantiene el sistema despierto sin tocar los ajustes de energía: sujeta el propio inhibidor del SO —aserciones de energía de IOKit en macOS, peticiones de energía en Windows, inhibidor de systemd-logind en Linux— y lo suelta al terminar, incluso si se cae. Modelos: durante un tiempo (-d 2h), hasta una hora (-c 17:00), en horario laboral (--schedule), mientras corre un proceso (--pid, --while) o un comando (keepalive run --), con tope por batería (-b), dejando dormir solo la pantalla (--keep-display=false), salida plana para scripts (--plain) y servicio de inicio (service install).",
+      "nota": "En StarSeed OS es el proveedor multiplataforma de la «neurona despierta»: los procesos en segundo plano (enjambre, servidores, cerebros, malla) siguen aunque la pantalla se cierre o se desconecte, siempre que haya un área del OS abierta. En la Mac de Alex ya está instalada la 2.0.1 y hoy `scripts/puente/mantener_pantalla.py` sostiene un `caffeinate -dim -w <pid>` según `~/.starseed/pantalla.json`. VERDAD A RESPETAR (architecture/colmena-relevo-contenedores.md §11): en un portátil Mac, cerrar la tapa duerme el sistema aunque haya aserciones; solo sigue despierto en modo clamshell (corriente + pantalla externa) o con `pmset -a disablesleep 1` (requiere admin). Si la neurona va a dormir igual, su trabajo se releva al A1.",
+      "aviso": "Solo guarda el enlace. Instalación por sistema: macOS `brew install --cask stigoleg/tap/keepalive`; Windows `scoop bucket add stigoleg https://github.com/stigoleg/scoop-bucket` y luego `scoop install keepalive`; Linux los paquetes .deb/.rpm/.apk de la release; o `go install github.com/stigoleg/keep-alive/v2/cmd/keepalive@latest` (Go 1.25+). No cambia los ajustes de energía y la aserción se suelta sola al terminar; nunca matar procesos ajenos ni sudo sin el ajuste explícito del dueño.",
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "arm64",
+          "amd64",
+          "386",
+          "armv7"
+        ],
+        "so": [
+          "macos",
+          "windows",
+          "linux"
+        ],
+        "fuente": "README y release v2.0.1 de stigoleg/keep-alive (2026-11-02); macOS 13+; binario estático, sin dependencias en tiempo de ejecución"
+      }
+    }
+  ]
+}
