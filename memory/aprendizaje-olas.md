@@ -4662,3 +4662,44 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-11-02 19:04 · mg-oracle-1102-1156
+
+**Lo que se pidió.** Taller del agente: tres recursos MCP de ArtCraft
+
+**Resultado.** 0 de 29 integradas. 29 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 27 tareas se fueron por lo mismo — no escribió nada (RTMGP1011-1ECCC4dobjbb-d3, RTRTRTRTCOL1012Bdsbbbbbbbbbb-d2, RTRTRTCOL1012Bdsbbbbbbbbbbbbbbb-d2, RTRTRC1013Cd-d2, RTRTCOL1012Bdsbbbbbbbbbcb-d3, INF1025D). Es 93 % de la ola.
+- sin modelo anotado no integró ninguna de sus 28 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTART1025Gc` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTART1025Gc conservada)
+- `RTMGP1011-1ECCC4dobjbb-d3` — no escribió nada
+- `RTRTRTRTCOL1012Bdsbbbbbbbbbb-d2` — no escribió nada
+- `RTRTRTCOL1012Bdsbbbbbbbbbbbbbbb-d2` — no escribió nada
+- `RTRTRC1013Cd-d2` — no escribió nada
+- `RTRTCOL1012Bdsbbbbbbbbbcb-d3` — no escribió nada
+- `INF1025D` — no escribió nada
+- `INF1025B` — no escribió nada
+- `DSN1025D` — no escribió nada
+- `AGT1025B` — no escribió nada
+- `ART1025C` — no escribió nada
+- `ART1025G` — no escribió nada
+- `CPZ1025D` — no escribió nada
+- `CPZ1025F` — no escribió nada
+- `CPZ1025H` — no escribió nada
+- `DSN1025G` — no escribió nada
+- `DSN1025H` — no escribió nada
+- `INF1025G` — no escribió nada
+- `ART1025B` — no escribió nada
+- `ART1025L` — no escribió nada
+- `BLD1025B` — no escribió nada
+- `BLD1025C` — otra cosa: directorio sin worktree Git: conservado para recuperación
+- `CFC1025A` — no escribió nada
+- `CPZ1025A` — no escribió nada
+- `DSN1025A` — no escribió nada
+- `INV1025B` — no escribió nada
+- `INV1025F` — no escribió nada
+- `DSN1025B` — no escribió nada
+- `INV1025J` — no escribió nada
