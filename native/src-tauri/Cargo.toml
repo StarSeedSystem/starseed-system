@@ -89,6 +89,10 @@ image = "0.25"
 # Codifica la captura como PNG en base64 (API 0.22 de engines:
 # `base64::engine::general_purpose::STANDARD.encode`).
 base64 = "0.22"
+# Entrada remota de `entrada_ventana` (APR1019B): teclado y ratón. En 0.6 ya
+# no existen los features «keyboard» ni «mouse»: los traits `Keyboard` y `Mouse`
+# vienen con el crate. En Linux el feature por defecto `x11rb` no pide libxdo.
+enigo = "0.6"
 
 # (2026-10-19) tauri-plugin-deep-link 2.6.2 construye `ini::ParseOption` con 2 campos y rust-ini
 # 0.21.3 añadió dos más: en Linux (el CI) no compila. Se fija 0.21.1 hasta que deep-link lo arregle.

@@ -2,10 +2,12 @@
 //! (APR1019A, parte 1): `Window::all()` ya devuelve las ventanas de todos los
 //! monitores con duplicados, `app_name()` da el nombre de la app y `capture_image()`
 //! devuelve un `image::RgbaImage` (image 0.25) listo para codificar. La entrada
-//! (`entrada_ventana`, con enigo 0.6) queda fuera por ahora: va en APR1019B.
+//! (`entrada_ventana`, con enigo 0.6) se rehízo en APR1019B: solo actúa dentro de
+//! los límites de la ventana y usa `Coordinate::Abs` y `Direction::Click`.
 
 use base64::Engine as _;
-use serde::Serialize;
+use enigo::{Button, Coordinate, Direction, Enigo, Keyboard, Mouse, Settings};
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use tauri::AppHandle;
 
@@ -109,9 +111,101 @@ pub fn capturar_ventana(_app: AppHandle, id: u32, ancho_max: u32) -> Result<Stri
     Ok(base64::engine::general_purpose::STANDARD.encode(png.into_inner()))
 }
 
+/// Evento de entrada que reenvía la web mientras dura el préstamo de la
+/// ventana. Las coordenadas `x` e `y` son relativas a la ventana (0,0 es su
+/// esquina superior izquierda).
+#[derive(Deserialize, Clone)]
+pub struct EntradaVentana {
+    /// «teclado», «raton» o «tacto».
+    pub tipo: String,
+    /// Acción pedida por la web («pulsar», «mover», «escribir»…).
+    pub accion: String,
+    #[serde(default)]
+    pub x: Option<f64>,
+    #[serde(default)]
+    pub y: Option<f64>,
+    #[serde(default)]
+    pub tecla: Option<String>,
+    #[serde(default)]
+    pub boton: Option<u8>,
+}
+
+/// Comprueba si el punto de pantalla `(px, py)` cae dentro del rectángulo de
+/// la ventana situado en `(x, y)` con `ancho × alto`. El borde derecho y el
+/// inferior no cuentan (rectángulo semiabierto). Se opera en `i64` para que
+/// sumar el tamaño a un origen negativo no desborde.
+fn punto_dentro(x: i32, y: i32, ancho: u32, alto: u32, px: i32, py: i32) -> bool {
+    let (x, y, px, py) = (x as i64, y as i64, px as i64, py as i64);
+    px >= x && px < x + ancho as i64 && py >= y && py < y + alto as i64
+}
+
+/// Envía una entrada a la ventana `id` con enigo 0.6. Solo actúa si el punto
+/// indicado cae dentro de los límites de la ventana: así un clic perdido no
+/// toca otra aplicación del escritorio.
+#[tauri::command]
+pub fn entrada_ventana(
+    _app: AppHandle,
+    id: u32,
+    entrada: EntradaVentana,
+) -> Result<(), String> {
+    let ventana = xcap::Window::all()
+        .map_err(|e| format!("No se pudieron listar las ventanas: {e}"))?
+        .into_iter()
+        .find(|w| w.id().map(|wid| wid == id).unwrap_or(false))
+        .ok_or_else(|| format!("No se encontró la ventana con el ID {id}"))?;
+
+    let x = ventana.x().map_err(|e| format!("No se pudo leer la posición X de la ventana: {e}"))?;
+    let y = ventana.y().map_err(|e| format!("No se pudo leer la posición Y de la ventana: {e}"))?;
+    let ancho = ventana.width().map_err(|e| format!("No se pudo leer el ancho de la ventana: {e}"))?;
+    let alto = ventana.height().map_err(|e| format!("No se pudo leer el alto de la ventana: {e}"))?;
+
+    // Sin punto no hay forma de saber si el evento va dirigido a esta ventana.
+    let (Some(rel_x), Some(rel_y)) = (entrada.x, entrada.y) else {
+        return Ok(());
+    };
+    let pantalla_x = x.saturating_add(rel_x.round() as i32);
+    let pantalla_y = y.saturating_add(rel_y.round() as i32);
+    if !punto_dentro(x, y, ancho, alto, pantalla_x, pantalla_y) {
+        return Ok(());
+    }
+
+    let mut enigo = Enigo::new(&Settings::default())
+        .map_err(|e| format!("No se pudo inicializar enigo: {e}"))?;
+
+    match entrada.tipo.as_str() {
+        "teclado" => {
+            if let Some(texto) = entrada.tecla.as_deref() {
+                enigo
+                    .text(texto)
+                    .map_err(|e| format!("No se pudo escribir el texto: {e}"))?;
+            }
+        }
+        "raton" | "tacto" => {
+            enigo
+                .move_mouse(pantalla_x, pantalla_y, Coordinate::Abs)
+                .map_err(|e| format!("No se pudo mover el ratón: {e}"))?;
+            // «mover» solo desplaza el cursor; cualquier otra acción pulsa.
+            if entrada.accion == "mover" {
+                return Ok(());
+            }
+            let boton = match entrada.boton.unwrap_or(0) {
+                1 => Button::Middle,
+                2 => Button::Right,
+                _ => Button::Left,
+            };
+            enigo
+                .button(boton, Direction::Click)
+                .map_err(|e| format!("No se pudo pulsar el botón del ratón: {e}"))?;
+        }
+        otro => return Err(format!("Tipo de entrada no reconocido: {otro}")),
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod pruebas {
-    use super::{altura_escalada, capturar_ventana, ventanas_prestables};
+    use super::{altura_escalada, capturar_ventana, punto_dentro, ventanas_prestables};
     use base64::Engine as _;
 
     #[test]
@@ -127,6 +221,23 @@ mod pruebas {
         assert_eq!(altura_escalada(0, 300, 100), None);
         assert_eq!(altura_escalada(100, 0, 100), None);
         assert_eq!(altura_escalada(100, 300, 0), None);
+    }
+
+    #[test]
+    fn punto_dentro_respeta_los_bordes_de_la_ventana() {
+        // Ventana en (100, 50) de 200 × 100: las esquinas interiores entran.
+        assert!(punto_dentro(100, 50, 200, 100, 100, 50));
+        assert!(punto_dentro(100, 50, 200, 100, 299, 149));
+        // El borde derecho y el inferior quedan fuera (rectángulo semiabierto).
+        assert!(!punto_dentro(100, 50, 200, 100, 300, 100));
+        assert!(!punto_dentro(100, 50, 200, 100, 200, 150));
+        // A la izquierda y por arriba tampoco.
+        assert!(!punto_dentro(100, 50, 200, 100, 99, 50));
+        assert!(!punto_dentro(100, 50, 200, 100, 100, 49));
+        // Un origen negativo (pantalla a la izquierda) no desborda al sumar.
+        assert!(punto_dentro(-1920, 0, 1920, 1080, -100, 100));
+        // Una ventana de tamaño cero no contiene ningún punto.
+        assert!(!punto_dentro(0, 0, 0, 0, 0, 0));
     }
 
     // Las pruebas que usan `VentanaFalsa` necesitan un `xcap` sustituto (crate

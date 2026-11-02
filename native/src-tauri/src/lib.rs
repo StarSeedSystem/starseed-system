@@ -588,6 +588,7 @@ pub fn run() {
     registrar_comandos!(builder [
         ventana_remota::ventanas_prestables,
         ventana_remota::capturar_ventana,
+        ventana_remota::entrada_ventana,
     ]);
     #[cfg(not(desktop))]
     registrar_comandos!(builder []);
