@@ -1,0 +1,53 @@
+{
+ "explabs": {
+  "ultimo_429": "2026-11-01 22:29:17",
+  "estado": "vivo",
+  "t": "2026-11-01 22:28:23",
+  "desde": "2026-11-01 22:17:49"
+ },
+ "groq": {
+  "ultimo_429": "2026-11-01 22:28:07",
+  "estado": "vivo",
+  "t": "2026-11-01 22:27:19",
+  "desde": "2026-11-01 21:26:04"
+ },
+ "xkiro": {
+  "estado": "vivo",
+  "t": "2026-11-01 22:29:23",
+  "desde": "2026-11-01 21:26:02",
+  "sin_cupo_hasta": "2026-11-02 18:00:09",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ },
+ "nim": {
+  "estado": "vivo",
+  "t": "2026-11-01 22:29:24",
+  "desde": "2026-11-01 21:26:02"
+ },
+ "aihubmix": {
+  "estado": "vivo",
+  "t": "2026-11-01 22:29:24",
+  "desde": "2026-11-01 21:26:03"
+ },
+ "openrouter": {
+  "estado": "vivo",
+  "t": "2026-11-01 22:29:28",
+  "desde": "2026-11-01 21:26:03",
+  "sin_cupo_hasta": "2026-11-02 18:00:18",
+  "motivo": "sonda de escritura: cupo del día agotado (429)"
+ },
+ "apinex": {
+  "estado": "vivo",
+  "t": "2026-11-01 22:29:29",
+  "desde": "2026-11-01 21:26:04"
+ },
+ "freellmapi": {
+  "estado": "vivo",
+  "t": "2026-11-01 22:29:31",
+  "desde": "2026-11-01 21:26:04"
+ },
+ "opencode": {},
+ "google": {
+  "sin_cupo_hasta": "2026-11-02 02:00:09",
+  "motivo": "sonda del botón: cupo del día agotado (429)"
+ }
+}
