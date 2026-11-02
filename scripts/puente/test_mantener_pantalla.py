@@ -108,6 +108,25 @@ class CicloTests(unittest.TestCase):
         self.assertEqual(popen.call_count, 1)
         self.assertEqual(len(escritos), 1)
 
+    def test_cambio_de_modo_reinicia_con_la_orden_nueva(self):
+        servicio, popen, _ = servicio_simulado(keepalive=True)
+        servicio.ciclo(ajuste("pantalla"))
+        servicio.ciclo(ajuste("sistema"))
+        self.assertEqual(popen.call_count, 2)
+        self.assertIn("--keep-display=false", popen.call_args[0][0])
+
+    def test_json_roto_mantiene_activo(self):
+        servicio, popen, _ = servicio_simulado()
+        servicio.ciclo("{roto")
+        self.assertEqual(popen.call_count, 1)
+
+    def test_nunca_usa_pkill(self):
+        servicio, popen, _ = servicio_simulado()
+        servicio.ciclo(ajuste("pantalla"))
+        servicio.ciclo(json.dumps({"activa": False}))
+        for llamada in popen.call_args_list:
+            self.assertNotIn("pkill", llamada[0][0])
+
     def test_apagado_termina_solo_su_hijo(self):
         servicio, popen, escritos = servicio_simulado()
         servicio.ciclo(ajuste("pantalla"))

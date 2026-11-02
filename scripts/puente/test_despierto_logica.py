@@ -21,6 +21,7 @@ PMSET_LAPTOP = "System-wide power settings:\n SleepDisabled         0\nCurrently
 PMSET_DESACTIVADA = "System-wide power settings:\n SleepDisabled         1"
 BATT_AC = "Now drawing from 'AC Power'\n -InternalBattery-0 (id=17044777)\t 92%; discharging; 1:23 remaining present: true"
 BATT_BAJA = "Now drawing from 'Battery Power'\n -InternalBattery-0 (id=17044777)\t 18%; discharging; 0:39 remaining present: true"
+BATT_BATERIA = "Now drawing from 'Battery Power'\n -InternalBattery-0 (id=17044777)\t 23%; discharging; 0:30 remaining present: true"
 BATT_DESKTOP = "Now drawing from 'AC Power'"
 ASSER_NADA = "2026-11-01 22:00:00 +0200 Assertion status system-wide:\n   BackgroundTask                    0"
 ASSER_CAFFEINATE = (
@@ -156,6 +157,15 @@ class TestEstadoDespierto(unittest.TestCase):
         # VERDAD: con la tapa cerrada el sistema duerme; aunque esté despierto YENDO y enchufada.
         self.assertFalse(e["se_va_a_dormir"])
 
+    def test_portatil_con_bateria_y_sin_herramienta(self):
+        e = self._estado(batt=BATT_BATERIA, assertions=ASSER_NADA)
+        self.assertFalse(e["despierta"])
+        self.assertIsNone(e["herramienta"])
+        self.assertEqual(e["bateria"], 23)
+        self.assertFalse(e["enchufada"])
+        self.assertEqual(e["tapa"], "duerme")
+        self.assertTrue(e["va_a_dormir"])
+
     def test_se_va_a_dormir_con_bateria_baja_y_umbral_del_json(self):
         e = self._estado(batt=BATT_BAJA, json={"umbral_bateria": 15})
         self.assertFalse(e["se_va_a_dormir"])
@@ -205,6 +215,21 @@ class TestPlanificarDespierto(unittest.TestCase):
         self.assertEqual(a["nodo"], "neurona-a1b2c3")
         self.assertEqual(a["args"], {})
         self.assertIsNone(L.args_validos("desconectar", a["args"]))
+
+    def test_anunciado_por_tapa_y_bateria_sin_campo_explicito(self):
+        # Sin `se_va_a_dormir` en el latido, manda el umbral: 23 % avisa a 25 y calla a 15.
+        latido = {"nodo": "neurona-abc123", "salud": {"despierto": {"tapa": "duerme", "bateria": 23}}}
+        d = L.despierto_de_latido(latido) or {}
+        self.assertTrue(L.anunciado_dormir(d, umbral=25))
+        self.assertFalse(L.anunciado_dormir(d, umbral=15))
+
+    def test_planificar_manda_desconectar_al_que_se_duerme(self):
+        latido = {"nodo": "neurona-abc123", "modo": "real",
+                  "salud": {"despierto": {"tapa": "duerme", "bateria": 9}}}
+        mundo = {"nodos": {"neurona-abc123": latido}, "yo": "mac-aaaaaa", "autonomia": True}
+        plan = L.planificar(mundo, {}, 100.0)
+        self.assertEqual([a["accion"] for a in plan], ["desconectar"])
+        self.assertEqual(plan[0]["nodo"], "neurona-abc123")
 
     def test_no_planifica_sin_bateria_baja_ni_tapa_otra(self):
         viva = dict(DESPIERTO_DUERME, bateria=60, se_va_a_dormir=False)
