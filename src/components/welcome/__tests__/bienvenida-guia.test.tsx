@@ -2,9 +2,10 @@
  * GUI1021K2 · «Conoce StarSeed (sin cuenta)» en la bienvenida y en el aviso de retomar sesión.
  *
  * §5 de `architecture/guias-introduccion.md`: la guía entera se abre sin cuenta, por la puerta
- * común (`abrirGuia`), desde leer bienvenida (`desde: "bienvenida"`) y desde leer detección de
- * sesión (`desde: "login"`). Se comprueba el evento real que escucha `aurora-guide.tsx`, la
- * activación con ratón y con teclado, y las dianas de 44 px con cursor pointer.
+ * común (`abrirGuia`), desde la bienvenida (`desde: "bienvenida"`) y desde el aviso de retomar
+ * sesión (`desde: "login"`). Se comprueba el evento real que escucha `aurora-guide.tsx`, que nada
+ * se abre sin gesto, la activación con ratón y con teclado (Enter y espacio), y las dianas de
+ * 44 px con cursor pointer.
  */
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -59,6 +60,14 @@ function escucharGuia() {
 afterEach(() => cleanup());
 
 describe("WelcomeWindow (GUI1021K2)", () => {
+  it("no abre la guía al montar: el silencio no es aprobación, solo un gesto la abre", () => {
+    render(<WelcomeWindow onContinue={() => undefined} />);
+    const guia = escucharGuia();
+    screen.getByRole("button", { name: "Conoce StarSeed (sin cuenta)" });
+    guia.parar();
+    expect(guia.recibidos).toEqual([]);
+  });
+
   it("«Conoce StarSeed (sin cuenta)» abre la guía desde «bienvenida», con ratón y con teclado", async () => {
     render(<WelcomeWindow onContinue={() => undefined} />);
     const boton = screen.getByRole("button", { name: "Conoce StarSeed (sin cuenta)" });
@@ -72,8 +81,10 @@ describe("WelcomeWindow (GUI1021K2)", () => {
     const teclado = userEvent.setup();
     boton.focus();
     await teclado.keyboard("{Enter}");
+    boton.focus();
+    await teclado.keyboard(" "); // el espacio también activa un botón nativo
     guia.parar();
-    expect(guia.recibidos).toEqual([{ desde: "bienvenida" }, { desde: "bienvenida" }]);
+    expect(guia.recibidos).toEqual([{ desde: "bienvenida" }, { desde: "bienvenida" }, { desde: "bienvenida" }]);
   });
 });
 
@@ -90,8 +101,10 @@ describe("SessionResumePrompt (GUI1021K2)", () => {
     const teclado = userEvent.setup();
     boton.focus();
     await teclado.keyboard("{Enter}");
+    boton.focus();
+    await teclado.keyboard(" "); // el espacio también activa un botón nativo
     guia.parar();
-    expect(guia.recibidos).toEqual([{ desde: "login" }, { desde: "login" }]);
+    expect(guia.recibidos).toEqual([{ desde: "login" }, { desde: "login" }, { desde: "login" }]);
   });
 });
 
