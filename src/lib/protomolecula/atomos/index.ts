@@ -24,9 +24,10 @@ import { ID_VISTA_VIDEO_HTML, ID_VISTA_DIAGRAMA } from "../bloque-protomolecula"
 import { FONDO_SHADER } from "./fondo-shader";
 import { ATOMOS_ARTCRAFT } from "./artcraft";
 import { DIAGRAMA } from "./diagrama";
+import { CONTENIDO_VIVO } from "./contenido-vivo";
 
 /** Los átomos que el OS trae de serie. Las tareas siguientes añaden los suyos aquí. */
-export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURAS, ANIMACION_MANIMGX, MAUSBOT, ESCENA3D, VIDEO_HTML, FONDO_SHADER, DIAGRAMA, ...ATOMOS_ARTCRAFT];
+export const ATOMOS_PROPIOS: DefinicionAtomo[] = [SINTETIZADOR, DOBLAJE, TEXTURAS, ANIMACION_MANIMGX, MAUSBOT, ESCENA3D, VIDEO_HTML, FONDO_SHADER, DIAGRAMA, CONTENIDO_VIVO, ...ATOMOS_ARTCRAFT];
 
 /**
  * Registra los átomos propios que falten en el registro. Es idempotente: llamarla dos
