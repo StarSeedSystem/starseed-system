@@ -229,12 +229,23 @@ def espera_tras_tope(est, ahora, espera_s=None):
 
 
 def quitar_arbol(raiz, destino, git):
-    """Quita el árbol de pruebas (solo ese: nunca toca otros worktrees). Nunca lanza."""
+    """Quita el árbol de pruebas (solo ese: nunca toca otros worktrees). Nunca lanza.
+
+    (SUP0211D, como `_soltar_carpeta` de traer_nube.py) Un `worktree add` cortado deja el árbol
+    BLOQUEADO con motivo «initializing»: con un solo `--force` git no lo quita, la carpeta borrada
+    queda «missing but locked», `prune` no poda los bloqueados y todo `add` en esa ruta falla para
+    siempre. `--force` DOS veces sí lo quita, exista la carpeta o no; después `prune` por si acaso."""
+    try:  # el remove VALE aunque la carpeta no exista: el bloqueo está en el registro de git
+        git(["worktree", "remove", "--force", "--force", destino], timeout=120)
+    except Exception:  # noqa: BLE001
+        pass
+    try:  # red de seguridad SOLO para la carpeta del árbol de pruebas de ver MAT
+        if os.path.exists(destino) and os.path.basename(destino) == "arbol-pruebas":
+            subprocess.run(["rm", "-rf", destino], check=False)
+    except Exception:  # noqa: BLE001
+        pass
     try:
-        if os.path.exists(destino):
-            git(["worktree", "remove", "--force", destino], timeout=120)
-            if os.path.exists(destino) and os.path.basename(destino) == "arbol-pruebas":
-                subprocess.run(["rm", "-rf", destino], check=False)
+        git(["worktree", "prune"], timeout=120)
     except Exception:  # noqa: BLE001
         pass
 

@@ -412,6 +412,87 @@ class EvidenciaYArbolLimpio(unittest.TestCase):
             self.assertIsNone(A.arbol_limpio(raiz, "0" * 40, git, destino), "un sha que no existe no da árbol")
 
 
+class ArbolPruebasBloqueado(unittest.TestCase):
+    """(SUP0211D) Un `worktree add` cortado con la Mac ahogada deja «arbol-pruebas» BLOQUEADO con
+    motivo «initializing» (y si se borra la carpeta, «missing but locked»): la autopublicación ya no
+    podía probar NINGÚN commit. `quitar_arbol` debe soltarlo con doble --force (+ prune) y SIN tocar
+    otros worktrees, para que el siguiente árbol limpio se cree bien. Repo git temporal de verdad."""
+
+    def setUp(self):
+        import subprocess
+        import tempfile
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.raiz = tmp.name
+        self.g = lambda *a: subprocess.run(["git", "-C", self.raiz] + list(a), capture_output=True, text=True)
+        self.g("init", "-q", "-b", "main")
+        self.g("config", "user.email", "p@p")
+        self.g("config", "user.name", "p")
+        os.makedirs(os.path.join(self.raiz, "scripts", "puente"))
+        with open(os.path.join(self.raiz, "scripts", "puente", "modulo.py"), "w") as f:
+            f.write("BIEN = True\n")
+        self.g("add", "scripts")
+        self.g("commit", "-q", "-m", "c1")
+        self.sha = self.g("rev-parse", "HEAD").stdout.strip()
+
+    def _git(self):
+        raiz = self.raiz
+        return lambda args, timeout=180: (lambda r: (r.returncode, r.stdout.strip(), r.stderr.strip()))(
+            __import__("subprocess").run(["git"] + args, cwd=raiz, capture_output=True, text=True,
+                                         timeout=timeout))
+
+    def _bloqueada(self, dejar_carpeta):
+        import shutil
+
+        destino = os.path.join(os.path.dirname(self.raiz), "arbol-pruebas-%d" % os.getpid())
+        r = self.g("worktree", "add", "-q", "--detach", destino, "main")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        reg = os.path.join(self.raiz, ".git", "worktrees", os.path.basename(destino))
+        self.assertTrue(os.path.isdir(reg))
+        with open(os.path.join(reg, "locked"), "w") as f:  # como un add cortado a mitad
+            f.write("initializing")
+        if not dejar_carpeta:  # se borró a mano después: «missing but locked»
+            shutil.rmtree(destino, ignore_errors=True)
+            self.assertFalse(os.path.exists(destino))
+        return destino
+
+    def _otro_worktree(self):
+        otro = os.path.join(os.path.dirname(self.raiz), "otro-wt-%d" % os.getpid())
+        self.addCleanup(lambda: self.g("worktree", "remove", "--force", "--force", otro))
+        r = self.g("worktree", "add", "-q", "--detach", otro, "main")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return otro
+
+    def _arbol_bien(self, destino):
+        arbol = A.arbol_limpio(self.raiz, self.sha, self._git(), destino)
+        try:
+            self.assertEqual(arbol, destino)
+            with open(os.path.join(arbol, "scripts", "puente", "modulo.py")) as f:
+                self.assertEqual(f.read(), "BIEN = True\n")
+        finally:
+            A.quitar_arbol(self.raiz, destino, self._git())
+
+    def test_bloqueado_con_carpeta_se_suelta_y_el_siguiente_arbol_va_bien(self):
+        destino = self._bloqueada(dejar_carpeta=True)
+        otro = self._otro_worktree()
+        self.assertIn(destino, self.g("worktree", "list").stdout)
+        A.quitar_arbol(self.raiz, destino, self._git())
+        self.assertFalse(os.path.exists(destino))
+        lista = self.g("worktree", "list").stdout
+        self.assertNotIn(destino, lista)
+        self.assertIn(otro, lista, "el otro worktree queda intacto")
+        self._arbol_bien(destino)
+
+    def test_missing_but_locked_se_suelta_y_el_siguiente_arbol_va_bien(self):
+        destino = self._bloqueada(dejar_carpeta=False)
+        self.assertTrue(os.path.isdir(os.path.join(self.raiz, ".git", "worktrees",
+                                                   os.path.basename(destino))))
+        A.quitar_arbol(self.raiz, destino, self._git())
+        self.assertNotIn(destino, self.g("worktree", "list").stdout)
+        self._arbol_bien(destino)
+
+
 class FlujosWebhooks(unittest.TestCase):
     """(FLU1014G) `autopublicar` avisa «publicada» al gancho de Flujos sin frenar nada."""
 
