@@ -241,6 +241,21 @@ def murio_por_memoria(rc, salida):
     return rc in (134, 137, -6, -9) or "heap out of memory" in texto or "Reached heap limit" in texto
 
 
+def rutas_worktree_a_quitar(porcelain, raiz):
+    """PURA. (SUP0211E) Rutas de worktree que no son la raíz, según `worktree list --porcelain`.
+    Incluye los BLOQUEADOS («locked initializing») que un `worktree add` cortado deja atrás y
+    los que quedaron sin carpeta («missing but locked»): git los lista igual, y los quita quien
+    llama pasando `--force` dos veces — con uno solo git no quita un worktree bloqueado (SUP0211A)."""
+    real_raiz = os.path.realpath(raiz)
+    rutas = []
+    for linea in str(porcelain or "").splitlines():
+        if linea.startswith("worktree "):
+            ruta = linea[len("worktree "):].strip()
+            if ruta and os.path.realpath(ruta) != real_raiz:
+                rutas.append(ruta)
+    return rutas
+
+
 def resumen_paso(nombre, rc, salida):
     """PURA. Una línea legible del resultado de un paso del guardián."""
     texto = salida or ""
@@ -724,9 +739,10 @@ class Nodo:
         """Worktrees y ramas `ola/*` de la cola que acabó (lo útil ya está en sus entregas) y
         archivo de su carpeta de olas: la siguiente cola empieza limpia, como un runner."""
         _, wts = _git(["worktree", "list", "--porcelain"])
-        for linea in wts.splitlines():
-            if linea.startswith("worktree ") and os.path.realpath(linea[9:]) != os.path.realpath(RAIZ):
-                _git(["worktree", "remove", "--force", linea[9:]])
+        # (SUP0211E) `--force` DOS veces: con uno solo git no quita un worktree bloqueado
+        # («locked initializing», quedado por un `add` cortado) y la ruta se quedaba inútil.
+        for ruta in rutas_worktree_a_quitar(wts, RAIZ):
+            _git(["worktree", "remove", "--force", "--force", ruta])
         _git(["worktree", "prune"])
         _, ramas = _git(["for-each-ref", "--format=%(refname:short)", "refs/heads/ola/"])
         for r in [x.strip() for x in ramas.splitlines() if x.strip()]:

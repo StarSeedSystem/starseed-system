@@ -395,5 +395,27 @@ class CheckoutEnElNodo(unittest.TestCase):
         self.assertNotIn(A.PREFIJO_BANDEJA + "cola-z.json", self._colas().get("procesadas") or {})
 
 
+class LimpiezaWorktrees(unittest.TestCase):
+    """(SUP0211E) Qué worktrees quita la limpieza tras cada cola: todos menos la raíz,
+    incluso los bloqueados («locked initializing») que un `add` cortado deja atrás."""
+
+    def test_la_raiz_queda_y_el_resto_va(self):
+        raiz = "/repo"
+        porcelain = (f"worktree {raiz}\nHEAD a\nbranch refs/heads/main\n\n"
+                     "worktree /repo/wt-normal\nHEAD b\n\n"
+                     "worktree /repo/wt-cortado\nlocked initializing\nprunable\n\n")
+        self.assertEqual(A.rutas_worktree_a_quitar(porcelain, raiz),
+                         ["/repo/wt-normal", "/repo/wt-cortado"])
+
+    def test_carpeta_borrada_con_cerrojo_tambien_va(self):
+        porcelain = "worktree /repo/wt-sumida\nlocked initializing\n\n"
+        self.assertEqual(A.rutas_worktree_a_quitar(porcelain, "/repo"),
+                         ["/repo/wt-sumida"])
+
+    def test_salida_vacia_o_rara_no_da_rutas(self):
+        for raro in ("", None, "HEAD b\n", "worktree \n"):
+            self.assertEqual(A.rutas_worktree_a_quitar(raro, "/repo"), [])
+
+
 if __name__ == "__main__":
     unittest.main()
