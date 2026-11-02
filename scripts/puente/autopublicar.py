@@ -228,13 +228,30 @@ def espera_tras_tope(est, ahora, espera_s=None):
                                        time.strftime("%H:%M", time.localtime(desde + espera_s)))
 
 
-def quitar_arbol(raiz, destino, git):
-    """Quita el árbol de pruebas (solo ese: nunca toca otros worktrees). Nunca lanza."""
+def _registrado(destino, git):
+    """PURA respecto al árbol: ¿`destino` sigue en el registro de worktrees? (aunque falte la carpeta)."""
     try:
-        if os.path.exists(destino):
-            git(["worktree", "remove", "--force", destino], timeout=120)
+        _, out, _ = git(["worktree", "list", "--porcelain"], timeout=120)
+    except Exception:  # noqa: BLE001
+        return False
+    destino = os.path.realpath(destino)
+    return any(linea.startswith("worktree ") and os.path.realpath(linea[9:].strip()) == destino
+               for linea in str(out or "").splitlines())
+
+
+def quitar_arbol(raiz, destino, git):
+    """Quita el árbol de pruebas (solo ese: nunca toca otros worktrees). Nunca lanza.
+
+    (SUP0211D) Un `worktree add` cortado deja el árbol bloqueado con motivo «initializing»:
+    un solo `--force` no lo quita, y si la carpeta se borró queda «missing but locked», que
+    `prune` tampoco poda, y ningún `add` vuelve a funcionar en esa ruta. `--force` dos veces
+    sí lo quita, exista la carpeta o no; después se poda el registro."""
+    try:
+        if os.path.exists(destino) or _registrado(destino, git):
+            git(["worktree", "remove", "--force", "--force", destino], timeout=120)
             if os.path.exists(destino) and os.path.basename(destino) == "arbol-pruebas":
                 subprocess.run(["rm", "-rf", destino], check=False)
+            git(["worktree", "prune"], timeout=120)
     except Exception:  # noqa: BLE001
         pass
 

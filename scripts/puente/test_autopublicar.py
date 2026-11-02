@@ -411,6 +411,59 @@ class EvidenciaYArbolLimpio(unittest.TestCase):
             self.assertNotIn(destino, git(["worktree", "list"])[1])
             self.assertIsNone(A.arbol_limpio(raiz, "0" * 40, git, destino), "un sha que no existe no da árbol")
 
+    def _bloqueado_initializing(self, raiz, destino, sha, git, dejar_carpeta):
+        """Un `git worktree add` cortado deja el árbol bloqueado «initializing» (SUP0211A)."""
+        import shutil
+
+        git(["worktree", "add", "-q", "--detach", destino, sha])
+        registro = os.path.join(raiz, ".git", "worktrees", os.path.basename(destino), "locked")
+        os.makedirs(os.path.dirname(registro), exist_ok=True)
+        with open(registro, "w") as f:
+            f.write("initializing")
+        if not dejar_carpeta:
+            shutil.rmtree(destino)
+
+    def _repo_con_bloqueo(self, dejar_carpeta):
+        import subprocess
+        import tempfile
+
+        dir_tmp = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, dir_tmp, True)
+        raiz = os.path.join(dir_tmp, "repo")
+        os.makedirs(raiz)
+        g = lambda *a, cwd=raiz: subprocess.run(["git", "-C", cwd] + list(a), capture_output=True, text=True)
+        g("init", "-q", "-b", "main")
+        g("config", "user.email", "p@p")
+        g("config", "user.name", "p")
+        with open(os.path.join(raiz, "a.txt"), "w") as f:
+            f.write("uno\n")
+        g("add", "a.txt")
+        g("commit", "-q", "-m", "base")
+        sha = g("rev-parse", "HEAD").stdout.strip()
+
+        def git(args, timeout=180):
+            r = subprocess.run(["git"] + args, cwd=raiz, capture_output=True, text=True, timeout=timeout)
+            return r.returncode, r.stdout.strip(), r.stderr.strip()
+
+        destino = os.path.join(dir_tmp, "arbol-pruebas")
+        self._bloqueado_initializing(raiz, destino, sha, git, dejar_carpeta)
+        return raiz, destino, sha, git
+
+    def test_arbol_bloqueado_con_carpeta_no_frena_la_siguiente(self):
+        raiz, destino, sha, git = self._repo_con_bloqueo(dejar_carpeta=True)
+        arbol = A.arbol_limpio(raiz, sha, git, destino)
+        self.assertEqual(arbol, destino, "un bloqueo «initializing» no impide crear el árbol limpio")
+        A.quitar_arbol(raiz, destino, git)
+        self.assertNotIn(destino, git(["worktree", "list"])[1])
+        self.assertFalse(os.path.exists(destino))
+
+    def test_arbol_bloqueado_sin_carpeta_no_frena_la_siguiente(self):
+        raiz, destino, sha, git = self._repo_con_bloqueo(dejar_carpeta=False)
+        arbol = A.arbol_limpio(raiz, sha, git, destino)
+        self.assertEqual(arbol, destino, "un «missing but locked» no impide crear el árbol limpio")
+        A.quitar_arbol(raiz, destino, git)
+        self.assertNotIn(destino, git(["worktree", "list"])[1])
+
 
 class FlujosWebhooks(unittest.TestCase):
     """(FLU1014G) `autopublicar` avisa «publicada» al gancho de Flujos sin frenar nada."""
