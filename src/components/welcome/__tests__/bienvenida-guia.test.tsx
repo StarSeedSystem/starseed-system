@@ -75,6 +75,15 @@ describe("WelcomeWindow (GUI1021K2)", () => {
     guia.parar();
     expect(guia.recibidos).toEqual([{ desde: "bienvenida" }, { desde: "bienvenida" }]);
   });
+  it("no abre la guía al montar: el silencio no es aprobación, solo un gesto la abre", () => {
+    // Escucha ANTES de montar: si la bienvenida dispensara el evento en su
+    // montaje, aquí se vería.
+    const guia = escucharGuia();
+    render(<WelcomeWindow onContinue={() => undefined} />);
+    screen.getByRole("button", { name: "Conoce StarSeed (sin cuenta)" });
+    guia.parar();
+    expect(guia.recibidos).toEqual([]);
+  });
 });
 
 describe("SessionResumePrompt (GUI1021K2)", () => {
