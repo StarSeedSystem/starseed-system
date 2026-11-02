@@ -83,6 +83,10 @@ import { FICHAS_REPOS_1027B } from "./repos-1027b";
 // Tanda del 2026-10-28 (Ola 1028 · LNN1028): LEANN, el recuerdo semántico de Astraura.
 // Contrato: architecture/leann-recuerdo-semantico.md.
 import { FICHAS_REPOS_1028 } from "./repos-1028";
+// Tanda del 2026-11-02 (Ola 1101 · keepalive): la neurona despierta con las aserciones
+// de energía del propio sistema (stigoleg/keep-alive, Go, MIT).
+// Contrato: architecture/colmena-relevo-contenedores.md.
+import { FICHAS_REPOS_1101 } from "./repos-1101";
 // Repo builtin externo de la Ola 1020: 14 repos verificados con upstream y canal
 // para que la Biblioteca autobúsque sus releases/tags/commits.
 import { REPO_EXTERNOS_1020, REPOS_YA_PRESENTES } from "./repos-externos-1020";
@@ -1048,6 +1052,8 @@ const LABS_PACKAGES: LibraryPackage[] = [
     ...FICHAS_REPOS_1027B,
     /* ── Tanda del 2026-10-28 (Ola 1028 · LNN1028): LEANN, el recuerdo semántico ── */
     ...FICHAS_REPOS_1028,
+    /* ── Tanda del 2026-11-02 (Ola 1101 · keepalive): la neurona despierta ── */
+    ...FICHAS_REPOS_1101,
 ];
 
 /** Repo builtin de laboratorio (modelos/repos OSS reales del visionario). */

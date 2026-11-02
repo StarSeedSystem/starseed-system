@@ -12,6 +12,7 @@ import { FICHAS_REPOS_1026, FICHAS_VIEJAS_SEGUIMIENTO_1026 } from "@/lib/library
 import { FICHAS_REPOS_1027 } from "@/lib/library/repos-1027";
 import { FICHAS_REPOS_1027B } from "@/lib/library/repos-1027b";
 import { FICHAS_REPOS_1028 } from "@/lib/library/repos-1028";
+import { FICHAS_REPOS_1101 } from "@/lib/library/repos-1101";
 import {
     urlDeConsulta,
     leerVersion,
@@ -131,6 +132,7 @@ export async function GET(): Promise<Response> {
             // Tanda 1027: OpenMausBot, Insomnia y Colibri, por etiquetas vX.Y.Z.
             // Tanda 1027b: Meta^n por commits y Memvid por etiquetas vX.Y.Z.
             // Tanda 1028: LEANN por etiquetas vX.Y.Z.
+            // Tanda 1101: keepalive por etiquetas vX.Y.Z.
             ...fichasIaConUpstreamGitHub([
                 ...FICHAS_IA_LOCALES,
                 ...FICHAS_REPOS_OS,
@@ -141,6 +143,7 @@ export async function GET(): Promise<Response> {
                 ...FICHAS_REPOS_1027,
                 ...FICHAS_REPOS_1027B,
                 ...FICHAS_REPOS_1028,
+                ...FICHAS_REPOS_1101,
             ]).filter((p) => !idsDecisiones.has(p.id)),
         ];
         const entradas: EntradaFuente[] = fichas
