@@ -1,0 +1,78 @@
+{
+  "ola": "Ola 1101 · Librería · KAL1101F: keepalive, las neuronas despiertas con la pantalla cerrada (pedido de Alex del 2026-11-01)",
+  "fecha": "2026-11-01",
+  "principio": "Misma regla que las tandas 1025 a 1028: canal de versión declarado, instalar SOLO registra el enlace (cero descarga, cero ejecución, cero clave) y lo que toca energía del sistema queda como activación explicada en `aviso`. Licencia, flags y comandos comprobados el 2026-11-01 con el README y las releases públicas de stigoleg/keep-alive; no se ejecutó nada.",
+  "fusionadas": {},
+  "duplicadas": {},
+  "decisiones": [
+    "En un Mac portátil, cerrar la tapa duerme el sistema aunque haya aserciones de energía: keepalive solo lo evita en modo clamshell (corriente + pantalla externa) o con `pmset -a disablesleep 1` (requiere admin). ¿Se activa esa excepción en el MacBook Air M1 o, al cerrar la tapa, las tareas de la neurona pasan al A1 (colmena)?",
+    "La Mac ya tiene keepalive 2.0.1 y `scripts/puente/mantener_pantalla.py` mantiene keepalive (o caffeinate) según `~/.starseed/pantalla.json`. La ficha conserva la verdad y los comandos por sistema; nunca mata procesos ajenos ni cambia la energía del sistema sin el ajuste explícito del dueño."
+  ],
+  "licencias_verificadas": {
+    "neuronas": "2026-11-01: LICENSE de stigoleg/keep-alive (MIT, keepalive v2, Go); etiqueta v2.0.1; README: aserciones de energía de IOKit en macOS, peticiones de energía en Windows e inhibidor de systemd-logind en Linux; flags `--keep-display=false`, `--pid`, `--while`, `-b`, `--plain`, `run --` y `service install`. Nada se ejecutó."
+  },
+  "paquetes": [
+    {
+      "id": "lib-keepalive",
+      "repo": "stigoleg/keep-alive",
+      "nombre": "keepalive",
+      "titulo": "neuronas despiertas con la pantalla cerrada",
+      "kind": "app",
+      "icono": "Monitor",
+      "grupo": "neuronas",
+      "canal": "tags",
+      "patron_tag": "^v\\d+\\.\\d+\\.\\d+$",
+      "licencia": "MIT (stigoleg)",
+      "version_actual": "v2.0.1",
+      "fecha_version": null,
+      "estado": "activo",
+      "actividad": "keepalive v2.0.1 (Go, MIT); la Mac de Alex ya la tiene instalada y `scripts/puente/mantener_pantalla.py` la usa si está en PATH.",
+      "area": [
+        "neuronas",
+        "procesos",
+        "pantalla",
+        "energia",
+        "sistema",
+        "agentes",
+        "cerebros",
+        "malla",
+        "paginas",
+        "movil",
+        "escritorio",
+        "television",
+        "plegable"
+      ],
+      "efecto": "HERRAMIENTA-SISTEMA",
+      "preinstalar": "siempre",
+      "claude": "si",
+      "gratis": true,
+      "gratis_motivo": "Código libre MIT y todo local: sin cuenta, sin nube y sin telemetría.",
+      "corre_aqui": false,
+      "que_es": "Mantiene despierto el sistema entero (no solo la pantalla) mientras un proceso de StarSeed OS siga vivo: usa aserciones de energía de IOKit en macOS, peticiones de energía en Windows y un inhibidor de systemd-logind en Linux. `--keep-display=false` deja la pantalla apagada, `--pid` lo ata a un proceso, `--while` a una condición, `-b` fija el umbral de batería y `run -- <cmd>` ejecuta algo mientras dure.",
+      "nota": "En StarSeed es la pieza de las neuronas que siguen trabajando con el sistema cerrado: `scripts/puente/mantener_pantalla.py` lo prefiere (si está en PATH) y, si no, cae a caffeinate en macOS o systemd-inhibit en Linux, siempre según `~/.starseed/pantalla.json`. En la Mac de Alex ya está keepalive 2.0.1.",
+      "aviso": "Solo guarda el enlace. keepalive no vence el cierre de tapa de un portátil: con la tapa cerrada el Mac duerme igual salvo clamshell (corriente + pantalla externa) o `pmset -a disablesleep 1`, que pide admin y no se toca sin el ajuste explícito del dueño. Si la neurona va a dormir igual, sus tareas pasan al A1 (colmena). No mata procesos ajenos.",
+      "instalacion": {
+        "macos": "brew install --cask stigoleg/tap/keepalive",
+        "windows": "scoop install keepalive",
+        "linux": "Descarga el .deb, .rpm o .apk de https://github.com/stigoleg/keep-alive/releases y instálalo con el gestor de tu distribución.",
+        "go": "go install github.com/stigoleg/keep-alive/v2/cmd/keepalive@latest"
+      },
+      "requisitos": {
+        "ram_gb": 0,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": [
+          "arm64",
+          "amd64"
+        ],
+        "so": [
+          "macos",
+          "windows",
+          "linux"
+        ],
+        "fuente": "README y releases de stigoleg/keep-alive (2026-11-01); Mac de Alex con keepalive 2.0.1 ya instalado"
+      }
+    }
+  ]
+}
