@@ -45,6 +45,12 @@ describe("RECURSOS_ARTCRAFT", () => {
     }
   });
 
+  it("los tres atan su uso a la misma condición: la pasarela ArtCraft", () => {
+    for (const r of RECURSOS_ARTCRAFT) {
+      expect(r.requiere).toEqual(["NEURONA_CON_PASARELA_ARTCRAFT"]);
+    }
+  });
+
   it("está disponible en la Mac y en la nube", () => {
     for (const r of RECURSOS_ARTCRAFT) {
       expect(disponibleEn(r, "mac")).toBe(true);
@@ -101,5 +107,18 @@ describe("recomendarPara con ArtCraft", () => {
   it("ofrece GridCraft para limpiar una hoja de cálculo", () => {
     const salida = recomendarPara(catalogoDeclarado(), "limpiar una hoja de cálculo");
     expect(salida.map((r) => r.id)).toContain("os:artcraft-gridcraft");
+  });
+
+  it("ofrece FigCraft al pedir diseñar una interfaz", () => {
+    const salida = recomendarPara(catalogoDeclarado(), "diseñar una interfaz");
+    expect(salida.length).toBeGreaterThan(0);
+    expect(salida[0].id).toBe("os:artcraft-figcraft");
+  });
+
+  it("en la nube siguen ofreciéndose, porque su máquina es cualquiera", () => {
+    const salida = recomendarPara(catalogoDeclarado(), "hacer una presentación en pptx", 6, "nube");
+    expect(salida.map((r) => r.id)).toContain("os:artcraft-deckcraft");
+    const salida2 = recomendarPara(catalogoDeclarado(), "limpiar una hoja de cálculo", 6, "nube");
+    expect(salida2.map((r) => r.id)).toContain("os:artcraft-gridcraft");
   });
 });
