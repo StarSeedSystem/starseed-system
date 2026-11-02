@@ -28,6 +28,10 @@ class LeerModoTests(unittest.TestCase):
         self.assertIsNone(leer_modo(json.dumps({"activa": False})))
         self.assertEqual(leer_modo(json.dumps({"activa": True})), "pantalla")
 
+    # Rescate RTKAL1101A: un JSON válido que no es un objeto también enciende.
+    def test_no_dict_enciende_pantalla(self):
+        self.assertEqual(leer_modo("[1]"), "pantalla")
+
 
 class ConstruirOrdenTests(unittest.TestCase):
     def test_keepalive_pantalla_y_sistema(self):
@@ -58,6 +62,28 @@ class ConstruirOrdenTests(unittest.TestCase):
     def test_sin_herramienta_o_apagado(self):
         self.assertIsNone(construir_orden("win32", "sistema", 42, False))
         self.assertIsNone(construir_orden("darwin", None, 42, True))
+
+    # Rescate RTKAL1101A: la inhibición de Linux duerme solo el sistema y bloquea.
+    def test_linux_inhibe_completo_dueme_solo_el_sistema(self):
+        orden = construir_orden("linux", "sistema", 42, False) or []
+        for esperada in ("--what=sleep:idle", "--mode=block",
+                         "--why=StarSeed OS mantiene procesos vivos",
+                         "sleep", "infinity"):
+            self.assertIn(esperada, orden)
+        pantalla = construir_orden("linux", "pantalla", 42, True)
+        self.assertIsNotNone(pantalla)
+        self.assertEqual(pantalla, ["keepalive", "--plain",
+                                    "--keep-display=true", "--pid", "42",
+                                    "-b", "15"])
+
+    # Rescate RTKAL1101A: la orden construida nunca mata procesos ajenos.
+    def test_construir_orden_nunca_pkill(self):
+        for plataforma in ("darwin", "linux", "win32"):
+            for modo in ("pantalla", "sistema", None):
+                for keepalive in (True, False):
+                    orden = construir_orden(plataforma, modo, 42, keepalive)
+                    if orden is not None:
+                        self.assertNotIn("pkill", " ".join(orden))
 
 
 class EstadoTests(unittest.TestCase):
@@ -116,6 +142,18 @@ class CicloTests(unittest.TestCase):
         hijo.terminate.assert_called_once()
         self.assertFalse(servicio.hijo_vivo())
         self.assertIsNone(escritos[-1]["modo"])
+
+    # Rescate RTKAL1101A: sin herramienta (win32 sin keepalive) no se lanza nada
+    # y el estado se declara una sola vez; main declara el modo que corre (None).
+    def test_sin_herramienta_no_lanza_nada_y_declara_una_vez(self):
+        servicio, popen, escritos = servicio_simulado("win32")
+        servicio.ciclo(ajuste("pantalla"))
+        servicio.ciclo(ajuste("pantalla"))
+        popen.assert_not_called()
+        self.assertEqual(
+            escritos,
+            [{"modo": None, "herramienta": None, "pid": 42}],
+        )
 
 
 if __name__ == "__main__": unittest.main()
