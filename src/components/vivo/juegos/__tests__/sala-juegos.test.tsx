@@ -96,7 +96,6 @@ describe("ayudantes de fuga de palabra", () => {
     });
 
     test("lo que no es la palabra propia no se cuenta", () => {
-        // el falso positivo que tiró la CI: «la revela» contiene «vela» como letras, no como palabra
         expect(textoContienePalabra("y al final la revela: cualquiera comprueba", "vela")).toBe(false);
         expect(textoContienePalabra("intento: solar", "sol")).toBe(false);
         expect(textoContienePalabra("zzzz", "vela")).toBe(false);
@@ -104,13 +103,11 @@ describe("ayudantes de fuga de palabra", () => {
         expect(textoContienePalabra("hola", "")).toBe(false);
         expect(textoContienePalabra("hola", "   ")).toBe(false);
         expect(textoContienePalabra("", "hola")).toBe(false);
-        // la palabra puede venir con espacios alrededor (se recorta) sin dejar de casar
         expect(textoContienePalabra("hola mundo", "  mundo  ")).toBe(true);
     });
 
     test("el texto pegado sí se ve, aunque esté encajado entre otras letras", () => {
         const palabraVela = "vela";
-        // textContent pega las filas sin separador: «…zzzzBetovela…» era invisible con `\b`
         expect(textoContienePegado("zzzzBeto", `Beto${palabraVela}`)).toBe(false);
         expect(textoContienePegado("zzzzBetovela salir", `Beto${palabraVela}`)).toBe(true);
         expect(textoContienePegado("Beto vela", `Beto${palabraVela}`)).toBe(false);
