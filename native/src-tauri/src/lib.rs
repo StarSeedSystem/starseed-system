@@ -42,9 +42,13 @@ mod recursos_ia;
 mod segundo_plano;
 mod serie;
 mod sha256;
-// (2026-10-19) `ventana_remota` (APM1017P) queda FUERA de la compilación hasta que el enjambre lo
-// rehaga con las API reales de xcap 0.9, enigo 0.6 e image 0.25 (cola APR1019): rompía `cargo check`
-// del CI y frenaba la publicación de 45 commits. El archivo se conserva tal cual.
+// (2026-11-02, APR1019A-d3) `ventana_remota` vuelve a entrar en compilación: rehecho con las
+// API REALES de xcap 0.9 (`Window::all()`, `app_name()`, `capture_image()` → `RgbaImage` de
+// image 0.25), base64 0.22 (engine `STANDARD`) y sin el campo repetido de `VentanaInfo`.
+// Solo escritorio: xcap, image y base64 viven en la sección de escritorio de Cargo.toml.
+// La entrada (teclado/ratón con enigo 0.6) queda fuera: va en APR1019B.
+#[cfg(desktop)]
+mod ventana_remota;
 #[cfg(test)]
 mod android_parche;
 
@@ -496,7 +500,7 @@ pub fn run() {
         builder = builder.on_window_event(|ventana, evento| segundo_plano::al_evento_de_ventana(ventana, evento));
     }
 
-    builder
+    builder = builder
         // Terminal / procesos → control profundo para Aurora.
         .plugin(tauri_plugin_shell::init())
         // Notificaciones nativas.
@@ -538,9 +542,18 @@ pub fn run() {
                 }
             }
             Ok(())
-        })
-        // Comandos que la web (Aurora) puede invocar vía window.__TAURI__.
-        .invoke_handler(tauri::generate_handler![
+        });
+
+    // Comandos que la web (Aurora) puede invocar vía window.__TAURI__.
+    // `generate_handler!` es una lista de rutas: no admite `#[cfg]` dentro, y
+    // `ventana_remota` solo existe en escritorio (sus dependencias van en la
+    // sección de escritorio de Cargo.toml). Por eso hay DOS bloques, uno por
+    // plataforma, con la macro SIEMPRE como argumento directo de
+    // `invoke_handler` (Patrón de la doc de Tauri 2 para comandos condicionales).
+    #[cfg(desktop)]
+    {
+        // Escritorio: la lista común + las ventanas prestables y su captura.
+        builder = builder.invoke_handler(tauri::generate_handler![
             run_terminal,
             check_update,
             reiniciar_para_actualizar,
@@ -569,8 +582,47 @@ pub fn run() {
             nativa::capas_borrar,
             nativa::nas_listar,
             nativa::nas_leer,
+            ventana_remota::ventanas_prestables,
+            ventana_remota::capturar_ventana,
+        ]);
+    }
+    #[cfg(not(desktop))]
+    {
+        // Móvil: sin xcap, la lista común sola (los comandos de ventana remota
+        // no existen allí; los de actualización tampoco exponen nada útil).
+        builder = builder.invoke_handler(tauri::generate_handler![
+            run_terminal,
+            check_update,
+            reiniciar_para_actualizar,
+            estado_actualizacion,
+            device_info,
             recursos_ia::recursos_ia_detectar,
-        ])
+            nativa::antenas_estado,
+            nativa::antenas_medir,
+            nativa::antenas_config,
+            nativa::antenas_configurar,
+            nativa::fondo_estado,
+            nativa::fondo_fijar,
+            nativa::fondo_arranque,
+            nativa::fondo_pedir_bateria,
+            nativa::carpetas_listar,
+            nativa::carpetas_conceder,
+            nativa::carpetas_revocar,
+            nativa::carpetas_nas,
+            nativa::serie_puertos,
+            nativa::serie_abrir,
+            nativa::serie_escribir,
+            nativa::serie_cerrar,
+            nativa::capas_estado,
+            nativa::capas_descargar,
+            nativa::capas_verificar,
+            nativa::capas_borrar,
+            nativa::nas_listar,
+            nativa::nas_leer,
+        ]);
+    }
+
+    builder
         .build(tauri::generate_context!())
         .expect("error irrecuperable arrancando la app nativa StarSeed")
         .run(|_app, _evento| {
