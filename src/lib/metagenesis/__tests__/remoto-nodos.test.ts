@@ -68,8 +68,19 @@ describe("resumen del bus", () => {
         };
         const e = resumirBus([latido("mac-aaaaaa", "mac", 10, { capacidades_taller: conTaller })], AHORA);
         expect(e.nodos[0].taller).toMatchObject({ id: "mac-aaaaaa", viva: true, hierro: { gpu: "nvidia", vramGB: 16 } });
+
         const sin = resumirBus([latido("oracle-a1-bbbbbb", "oracle-a1", 5)], AHORA);
         expect(sin.nodos[0].taller).toBeNull();
+    });
+
+    it("el bloque `despierto` del latido (KAL1101B) llega crudo al nodo; sin él queda null (KAL1101C)", () => {
+        const bloque = { despierta: true, tapa: "clamshell", va_a_dormir: false };
+        const sin = resumirBus([latido("mac-aaaaaa", "mac", 10, {}, 0)], AHORA).nodos[0];
+        expect(sin.despierto).toBeNull();
+        // El bloque real viaja dentro de `salud.despierto` (despierto_logica.py).
+        const con = resumirBus([fila("mg_latido", { nodo: "mac-aaaaaa", medio: "mac", puntos: 10, salud: { despierto: bloque } })], AHORA).nodos[0];
+        expect(con.despierto?.despierta).toBe(true);
+        expect(con.despierto?.tapa).toBe("clamshell");
     });
 
     it("el líder reclamado y vivo va primero; los demás con su latido; la foto da cifras y decisiones", () => {

@@ -240,6 +240,8 @@ export interface NodoVista {
     relevo?: boolean;
     /** El latido trae `en_curso` como lista (aunque vacía): false = este nodo aún no informa de su trabajo (latido viejo o su medida falló). */
     informaTrabajo?: boolean;
+    /** (KAL1101B) El bloque `despierto` del latido, crudo (`parsearDespiertoLatido` lo sanea); null si no lo trae. */
+    despierto?: Record<string, unknown> | null;
 }
 
 const boolDe = (x: unknown): boolean => x === true;
@@ -279,6 +281,17 @@ function contenedorDe(d: Record<string, unknown>): ContenedorNodo | null {
     if (!c || typeof c !== "object") return null;
     // El latido dice `trabajadores`; la pantalla y colmena.ts lo llaman `agentes`. Se aceptan ambos.
     return { activo: boolDe(c.activo), agentes: num(c.trabajadores) ?? num(c.agentes) ?? 0, apto: boolDe(c.apto), motivo: txt(c.motivo, 160) };
+}
+
+/**
+ * PURA. El bloque `despierto` crudo del latido (KAL1101B: la neurona dice si el
+ * sistema sigue despierto y si dormirá al cerrar la tapa); viene en la raíz o en
+ * `salud.despierto`. Sin saneamiento aquí: lo sanea `parsearDespiertoLatido`
+ * (guardian-pantalla). null si el latido no lo trae o no es objeto.
+ */
+function despiertoDeLatido(d: Record<string, unknown>): Record<string, unknown> | null {
+    const bloque = campoDe(d, "despierto");
+    return bloque && typeof bloque === "object" ? (bloque as Record<string, unknown>) : null;
 }
 
 export interface DecisionVista {
@@ -362,6 +375,7 @@ function nodoDeLatido(d: Record<string, unknown>, ts: number, ahora: number, lid
         desconectando: boolDe(campoDe(d, "desconectando")),
         relevo: boolDe(campoDe(d, "relevo")),
         informaTrabajo: Array.isArray(campoDe(d, "en_curso")),
+        despierto: despiertoDeLatido(d),
     };
 }
 

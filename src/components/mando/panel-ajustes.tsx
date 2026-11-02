@@ -27,11 +27,18 @@ import { AjustesAccesos } from "@/components/mando/ajustes-accesos";
 import { InterruptorAutopublicacion } from "@/components/mando/interruptor-autopublicacion";
 import { PanelBitnetAjustes } from "@/components/mando/panel-bitnet-ajustes";
 import {
+    alternarModoVela,
     estadoMac,
     guardarEstadoPantalla,
     leerEstadoPantalla,
+    parsearDespiertoLatido,
+    textoTapa,
+    type EstadoDespiertoLatido,
     type EstadoPantallaMando,
+    type ModoVela,
 } from "@/components/mando/guardian-pantalla";
+import { comandoKeepalive, detectOS, OS_KEEPALIVE_RELEASES_URL, OS_KEEPALIVE_URL } from "@/lib/install/device-install";
+import { leerEstadoAutonomo } from "@/lib/metagenesis/remoto-nodos-cliente";
 import {
     AlertTriangle,
     ArrowDown,
@@ -369,6 +376,19 @@ function TarjetaPantalla() {
         void leerEstadoPantalla().then((e) => {
             if (vivo && e) setEstado(e);
         });
+        // (KAL1101C) Estado `despierto` publicado en el latido de una neurona
+        // viva (KAL1101B): solo lo que de verdad trae; si no lo trae, null y la
+        // tarjeta lo dice. El nodo se etiqueta por su id: nada inventado.
+        void leerEstadoAutonomo().then((lectura) => {
+            if (!vivo || !lectura.ok) return;
+            const nodo = lectura.estado.nodos.find((n) => n.vivo && n.despierto);
+            if (!nodo?.despierto) return;
+            const despierto = parsearDespiertoLatido(nodo.despierto);
+            if (despierto) {
+                setDespierto(despierto);
+                setNodoDespierto(nodo.nodo);
+            }
+        });
         return () => {
             vivo = false;
         };
@@ -387,6 +407,15 @@ function TarjetaPantalla() {
     }, []);
 
     const activa = estado?.activa ?? true;
+
+    // (KAL1101C) Modo del guardián: «pantalla» (Wake Lock de este dispositivo,
+    // el control que ya existía) o «sistema» (keepalive): el sistema sigue
+    // despierto con la pantalla apagada. Cada cambio pasa por la función pura.
+    const [modo, setModo] = useState<ModoVela>("pantalla");
+    const [despierto, setDespierto] = useState<EstadoDespiertoLatido | null>(null);
+    const [nodoDespierto, setNodoDespierto] = useState<string | null>(null);
+    const soEste = useMemo(() => detectOS(), []);
+    const keepalive = useMemo(() => comandoKeepalive(soEste.os), [soEste]);
     return (
         <article className="rounded-xl border border-white/10 bg-black/30 p-4">
             <header className="flex flex-wrap items-center justify-between gap-3">
@@ -418,9 +447,56 @@ function TarjetaPantalla() {
             <div className="mt-3 space-y-2 text-xs text-white/60">
                 <p>
                     {activa
-                        ? "Pantalla encendida: la Mac no entra en reposo de pantalla ni salvapantallas."
+                        ? modo === "pantalla"
+                            ? "Pantalla encendida: la Mac no entra en reposo de pantalla ni salvapantallas."
+                            : "Sistema despierto: keepalive mantiene la Mac encendida con la pantalla apagada."
                         : "Pantalla normal: la Mac y los dispositivos se apagan solos por inactividad."}
                 </p>
+                <div role="radiogroup" aria-label="Modo de seguir trabajando" className="flex flex-wrap gap-2">
+                    {(["pantalla", "sistema"] as const).map((opcion) => (
+                        <button
+                            key={opcion}
+                            type="button"
+                            role="radio"
+                            aria-checked={modo === opcion}
+                            onClick={() => setModo((m) => (m === opcion ? m : alternarModoVela(m)))}
+                            className={`cursor-pointer rounded-lg border px-2 py-1 text-[11px] transition-colors ${
+                                modo === opcion
+                                    ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
+                                    : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                            }`}
+                        >
+                            {opcion === "pantalla" ? "Pantalla (Wake Lock)" : "Sistema (keepalive)"}
+                        </button>
+                    ))}
+                </div>
+                {modo === "sistema" && (
+                    <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                        <p className="text-[11px] text-white/70">
+                            {keepalive.label} — {keepalive.nota} La instalación la hace la
+                            persona (el OS no ejecuta el sistema ni pide administrador):
+                        </p>
+                        {keepalive.comando && (
+                            <code className="mt-1 block font-mono text-[10px] text-white/90">
+                                {keepalive.comando}
+                            </code>
+                        )}
+                        <p className="mt-1 text-[10px] text-white/50">
+                            <a href={OS_KEEPALIVE_URL} className="cursor-pointer underline">proyecto</a> ·{" "}
+                            <a href={OS_KEEPALIVE_RELEASES_URL} className="cursor-pointer underline">descargas</a>
+                        </p>
+                    </div>
+                )}
+                <p>
+                    {despierto
+                        ? `Latido (${nodoDespierto}): sistema ${despierto.despierta ? "despierto" : "sin aserción: puede dormirse"}`
+                        : "Latido: esta neurona todavía no publica su estado despierto."}
+                    {despierto?.herramienta ? `, herramienta: ${despierto.herramienta}` : ""}
+                    {despierto && despierto.bateria !== null
+                        ? `, batería ${despierto.bateria} ${despierto.enchufada ? "% (enchufada)" : "%"}`
+                        : "."}
+                </p>
+                <p className="text-[11px] text-amber-200/80">{textoTapa(despierto?.tapa ?? null)}</p>
                 <p className="text-white/50">
                     {estado ? estadoMac(estado.mac) : "Mac: comprobando el servicio…"}
                 </p>
