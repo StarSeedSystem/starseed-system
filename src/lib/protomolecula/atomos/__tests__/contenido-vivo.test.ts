@@ -4,6 +4,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { CONTENIDO_VIVO, planificarContenidoVivo, type EntradaContenidoVivo } from "../contenido-vivo";
+import { ATOMOS_PROPIOS } from "../index";
 import type { ContextoVivo } from "@/lib/contenido-vivo/rutas";
 
 const BASE: ContextoVivo = {
@@ -23,6 +24,15 @@ describe("átomo contenido-vivo", () => {
     expect(CONTENIDO_VIVO.nombre).toContain("Contenido vivo");
     expect(CONTENIDO_VIVO.parametros.map((p) => p.id)).toEqual(["niveles", "movimiento"]);
     expect(CONTENIDO_VIVO.parametros[1].opciones).toEqual(["apagado", "encendido", "rayos-x"]);
+  });
+
+  it("se registra en el índice de átomos propios y declara los tres niveles", () => {
+    expect(ATOMOS_PROPIOS).toContain(CONTENIDO_VIVO);
+    const niveles = CONTENIDO_VIVO.parametros.find((p) => p.id === "niveles");
+    expect(niveles?.tipo).toBe("numero");
+    expect(niveles?.min).toBe(1);
+    expect(niveles?.max).toBe(3);
+    expect(niveles?.defecto).toBe(3);
   });
 
   it("un plan solo-local no pide confirmación y no gasta créditos", () => {
