@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """El reconstructor de Genesis: cuándo compilar y, sobre todo, cuándo NO insistir."""
+import json
 import os
 import shutil
 import tempfile
@@ -1069,3 +1070,91 @@ class TraerLoHechoConLaMacFrenada(unittest.TestCase):
         puesto, previo, _, _ = self._traer((True, "x"), freno="node_modules trae next 16.3.8 y package-lock pide 15.5")
         self.assertFalse(puesto)
         previo.assert_not_called()
+
+
+class ElArtefactoDelCISePrefiereACompilar(unittest.TestCase):
+    """IND1029: si el CI ya compiló ESTE árbol, se descarga; no se compila otra vez.
+
+    El 29-10 Genesis se quedó sin build y la Mac (8 GB) no podía compilar. El artefacto
+    `genesis-next-<sha>` del run verde es la primera opción; compilar en local, la última.
+    """
+
+    def setUp(self):
+        R.ARTIFACTOS_CI.clear()
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.raiz, True)
+        self.addCleanup(R.ARTIFACTOS_CI.clear)
+
+    def _build_descargado(self, build_id="BUILD-CI"):
+        dist = os.path.join(self.raiz, R.DIST_BUILD)
+        os.makedirs(dist, exist_ok=True)
+        if build_id is not None:
+            with open(os.path.join(dist, "BUILD_ID"), "w", encoding="utf-8") as f:
+                f.write(build_id)
+        return dist
+
+    def _gh(self, runs, descarga_ok=True):
+        listado = mock.Mock(returncode=0, stdout=json.dumps(runs))
+        bajada = mock.Mock(returncode=0 if descarga_ok else 1, stdout="")
+        return mock.patch.object(R.subprocess, "run", side_effect=[listado, bajada])
+
+    @staticmethod
+    def _run(sha="abc123def456"):
+        return {"headSha": sha, "status": "completed",
+                "artifacts": [{"name": "genesis-next-" + sha}]}
+
+    def _pasada(self, artefacto):
+        with mock.patch.object(R, "_entradas", return_value=[("src/a.ts", 1, 1)]), \
+                mock.patch.object(R, "huella_de", return_value="MISMO-ARBOL"), \
+                mock.patch.object(R, "_leer_estado", return_value={}), \
+                mock.patch.object(R, "genesis_caido", return_value=False), \
+                mock.patch.object(R, "decidir", return_value=(True, "cambiaron las fuentes")), \
+                mock.patch.object(R, "cuantas_mas_nuevas", return_value=1), \
+                mock.patch.object(R, "mtime_del_build", return_value=None), \
+                mock.patch.object(R, "freno_de_maquina", return_value=None), \
+                mock.patch.object(R, "camino_de_build",
+                                  return_value=("mac", "la máquina está libre")), \
+                mock.patch.object(R, "conversando", return_value=False), \
+                mock.patch.object(R, "uso_de_astraura", return_value="libre"), \
+                mock.patch.object(R, "publicacion_va_a_compilar", return_value=False), \
+                mock.patch.object(R, "espacio_libre_gb", return_value=50.0), \
+                mock.patch.object(R, "artefacto_ci_disponible",
+                                  return_value=artefacto) as busca, \
+                mock.patch.object(R, "_guardar"), \
+                mock.patch.object(R, "reconstruir",
+                                  return_value={"estado": "al-dia"}) as rec:
+            return R.una_pasada(), busca, rec
+
+    def test_el_mismo_arbol_trae_su_artefacto_y_no_compila(self):
+        hecho, busca, rec = self._pasada(("abc123def456", "BUILD-CI"))
+        self.assertTrue(hecho)
+        busca.assert_called_once_with("MISMO-ARBOL")
+        rec.assert_not_called()
+
+    def test_sin_artefacto_del_mismo_arbol_compila_en_local(self):
+        hecho, _, rec = self._pasada(None)
+        self.assertTrue(hecho)
+        rec.assert_called_once()
+
+    def test_descarga_el_artefacto_y_lo_deja_listo(self):
+        self._build_descargado()
+        with self._gh([self._run()]) as gh:
+            sha, build_id = R.artefacto_ci_disponible("MISMO-ARBOL", raiz=self.raiz, espera_s=1)
+        self.assertEqual((sha, build_id), ("abc123def456", "BUILD-CI"))
+        self.assertTrue(R.build_terminado(self.raiz))
+        orden = " ".join(gh.call_args_list[1][0][0])
+        self.assertIn("download", orden)
+        self.assertIn("genesis-next-abc123de", orden)
+
+    def test_sin_run_con_artefacto_no_descarga_nada(self):
+        with self._gh([{"headSha": "abc", "status": "completed", "artifacts": []}]) as gh:
+            self.assertIsNone(R.artefacto_ci_disponible("MISMO-ARBOL", raiz=self.raiz, espera_s=1))
+        self.assertEqual(gh.call_count, 1)
+
+    def test_gh_en_rojo_o_sin_build_id_no_devuelve_nada(self):
+        with mock.patch.object(R.subprocess, "run",
+                               return_value=mock.Mock(returncode=1, stdout="")):
+            self.assertIsNone(R.artefacto_ci_disponible("MISMO-ARBOL", raiz=self.raiz, espera_s=1))
+        self._build_descargado(build_id=None)
+        with self._gh([self._run()]):
+            self.assertIsNone(R.artefacto_ci_disponible("MISMO-ARBOL", raiz=self.raiz, espera_s=1))
