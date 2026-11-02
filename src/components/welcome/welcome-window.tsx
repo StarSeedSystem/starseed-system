@@ -396,7 +396,7 @@ export function WelcomeWindow({ onContinue, className }: WelcomeWindowProps) {
             onClick={() => abrirGuia({ desde: "bienvenida" })}
             style={{ width: "100%", border: "1px solid rgba(255,255,255,.16)", borderRadius: 13, padding: "10px 0", minHeight: 44, color: "rgba(255,255,255,.85)", fontWeight: 600, fontSize: 13, cursor: "pointer", background: "rgba(255,255,255,.04)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}
           >
-            <Compass size={14} aria-hidden /> Conoce StarSeed (sin cuenta)
+            <Compass size={14} aria-hidden /> Conoce StarSeed
           </button>
 
           <button
