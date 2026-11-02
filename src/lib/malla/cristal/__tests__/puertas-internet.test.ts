@@ -446,6 +446,8 @@ describe('elegirPuerta', () => {
     });
 
     expect(resultado.puerta?.id).toBe('zeta');
+    // Rescate RTBLD1025B-d3: el motivo sale por la rama de menor coste, no por histéresis.
+    expect(resultado.motivo).toBe('Puerta de menor coste seleccionada');
   });
 
   it('devuelve null cuando ninguna puerta está permitida', () => {
