@@ -153,6 +153,38 @@ describe("Cloudroom en la interfaz · tarjeta honesta donde ya se leía el catá
     expect(screen.getByRole("status")).toHaveTextContent(/Sugerida para los agentes de este ámbito/);
   });
 
+  /** La página declara neurona compatible y tarea relevante: el sugeridor REAL del panel (no uno simulado)
+   * cruza sus contenedores y devuelve Cloudroom; la tarjeta la ofrece con el estado que la página aporta. */
+  it("aplicado · con la neurona compatible y la tarea relevante, el sugeridor real la devuelve y la tarjeta la ofrece", () => {
+    const ahora = 1_800_000_000_000;
+    render(<SeccionAsignacionesGenesis ambito="cuenta-demo" titulo="Conectar · asignaciones"
+      onGuardar={() => undefined}
+      cloudroom={{
+        instalacion: "instalada", relevante: true, plan: { tipo: "gratis" },
+        consumos: [{ contextoId: "personal", t: ahora - 86_400_000, n: 10 }],
+        inicioCiclo: ahora - 10 * 86_400_000, ahora, diasQueQuedan: 30,
+      }} />);
+    expect(screen.getByTestId("cloudroom-instalacion")).toHaveTextContent("instalada en esta neurona");
+    expect(screen.getByTestId("cloudroom-cupo")).toHaveTextContent("90 agente(s) en la nube · ritmo 3/día");
+    const enlace = screen.getByRole("link", { name: "Abrir Cloudroom" });
+    expect(enlace).toHaveAttribute("href", "https://cloudroom.dev");
+    expect(screen.getByText(/tu neurona de escritorio es compatible/)).toBeInTheDocument();
+  });
+
+  it("aplicado · con la neurona instalada pero sin declarar la tarea relevante, no se ofrece: el cupo se lee, el enlace no salta", () => {
+    const ahora = 1_800_000_000_000;
+    render(<SeccionAsignacionesGenesis ambito="cuenta-demo" titulo="Conectar · asignaciones"
+      onGuardar={() => undefined}
+      cloudroom={{
+        instalacion: "instalada", plan: { tipo: "gratis" },
+        inicioCiclo: ahora - 10 * 86_400_000, ahora, diasQueQuedan: 30,
+      }} />);
+    expect(screen.getByTestId("cloudroom-instalacion")).toHaveTextContent("instalada en esta neurona");
+    expect(screen.getByTestId("cloudroom-cupo")).toHaveTextContent("100 agente(s) en la nube · ritmo 3/día");
+    expect(screen.queryByRole("link", { name: "Abrir Cloudroom" })).toBeNull();
+    expect(screen.getByText(/No se sugiere aquí/)).toBeInTheDocument();
+  });
+
   it("aplicado · SeccionAsignacionesGenesis (la que montan mi Génesis y PoliGenesis) pinta la tarjeta con el estado que la página aporta", () => {
     render(<SeccionAsignacionesGenesis ambito="cuenta-demo" titulo="Conectar · asignaciones"
       onGuardar={() => undefined} cloudroom={{ instalacion: "sin-dato" }} />);
