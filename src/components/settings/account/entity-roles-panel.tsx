@@ -4,11 +4,12 @@ import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Link as LinkIcon, ShieldCheck, UserPlus, X, AlertCircle } from "lucide-react";
+import { Loader2, Link as LinkIcon, ShieldCheck, UserPlus, X, AlertCircle, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useActiveProfile, profileKindLabel } from "@/lib/profiles/profiles";
 import { grantEntityRole, getEntityRoles, revokeEntityRole, type EntityRoleRecord } from "@/lib/social/entity-roles";
+import SelectorAvatar3d from "@/components/avatares/selector-avatar-3d";
 
 export function EntityRolesPanel() {
   const confirm = useConfirm();
@@ -153,6 +154,30 @@ export function EntityRolesPanel() {
             ))}
           </select>
         </div>
+
+        {/* (AV1011K) Avatar 3D del grupo o la página (faceta «grupal»/«publica») que se tiene delante:
+            la orbe o la plantilla CC0 y su editor en tiempo real. Cada entidad lleva su propio ADN. */}
+        {(() => {
+          const entidad = profiles.find((p) => p.id === selectedEntityId);
+          if (!entidad || (entidad.kind !== "grupal" && entidad.kind !== "publico")) return null;
+          return (
+            <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-2">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" /> Avatar 3D de {entidad.name}
+              </h4>
+              <p className="text-xs text-muted-foreground">
+                La orbe o la plantilla CC0 que representan a {entidad.name}. Se guarda en este aparato
+                y se espeja a tu cuenta; los demás miembros lo verán cuando llegue su fase de compartidos.
+              </p>
+              <SelectorAvatar3d
+                entityId={entidad.id}
+                entityKind={entidad.kind === "publico" ? "pagina" : "grupo"}
+                rol="dueno"
+                gobierno="jerarquico"
+              />
+            </div>
+          );
+        })()}
 
         <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-4">
           <h4 className="text-sm font-semibold flex items-center gap-2">

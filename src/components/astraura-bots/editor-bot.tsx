@@ -21,6 +21,8 @@ import { instruccionesDeTono } from "@/lib/astraura-bots/personalidad-adaptable"
 import type { NivelBot } from "@/lib/astraura-bots/permisos";
 import { normalizarVozBot, vozBotDefecto, type VozBot } from "@/lib/astraura-bots/voz-bot";
 import { EditorVozBot } from "./voz-bot-editor";
+import { esFormaAvatar3d, refAdnDeBot } from "@/lib/avatares/adaptadores/adn-de-bot";
+import SelectorAvatar3d from "@/components/avatares/selector-avatar-3d";
 
 /** Formas que aún no tienen renderizador: se anuncian y no se ofrecen elegir. */
 const FORMAS_PROXIMAS: readonly FormaCuerpo[] = ["avatar-3d", "vrm"];
@@ -48,15 +50,22 @@ export function EditorBot({ bot, nivel: nivelInicial, onGuardar, onCerrar }: Edi
   const [voz, setVoz] = useState<VozBot>(
     () => normalizarVozBot(bot.voz) ?? vozBotDefecto(bot.id, Date.now()),
   );
+  /** El ADN elegido para el cuerpo 3D (`biblioteca:<id>`); el cuerpo apunta a él con `avatarRef`. */
+  const [refAdn, setRefAdn] = useState<string | undefined>(() => refAdnDeBot(bot) ?? undefined);
 
   const proxima = FORMAS_PROXIMAS.includes(cuerpo.forma);
+  const cuerpo3d = esFormaAvatar3d(cuerpo.forma);
   const alternarSentido = (s: Sentido) =>
     setSentidos((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
 
   const guardar = () => {
     const limpio = nombre.trim() || bot.nombre;
     onGuardar(
-      { ...bot, nombre: limpio, cuerpo, personalidad, sentidosHabilitados: sentidos, voz },
+      {
+        ...bot, nombre: limpio,
+        cuerpo: { ...cuerpo, ...(cuerpo3d && refAdn ? { avatarRef: refAdn } : {}) },
+        personalidad, sentidosHabilitados: sentidos, voz,
+      },
       nivel,
     );
   };
@@ -73,11 +82,13 @@ export function EditorBot({ bot, nivel: nivelInicial, onGuardar, onCerrar }: Edi
             onChange={(e) => setCuerpo({ ...cuerpo, forma: e.target.value as FormaCuerpo })}>
             {FORMAS_CUERPO.map((f) => <option key={f} value={f}>{f}</option>)}
           </select>
-          {proxima && (
+          {cuerpo3d ? (
             <p className="mt-1 text-xs text-muted-foreground">
-              próximamente: llega con StarSeed XR
+              en la web se ve su orbe con este ADN; el cuerpo dentro de XR llega con StarSeed XR
             </p>
-          )}
+          ) : proxima ? (
+            <p className="mt-1 text-xs text-muted-foreground">próximamente: llega con StarSeed XR</p>
+          ) : null}
         </label>
         <label className="block font-medium">Tono (0–360)
           <input type="number" min={0} max={360} className={campo} value={cuerpo.tono}
@@ -123,6 +134,15 @@ export function EditorBot({ bot, nivel: nivelInicial, onGuardar, onCerrar }: Edi
         <legend className="font-medium">Voz</legend>
         <EditorVozBot valor={voz} onCambiar={setVoz} />
       </fieldset>
+      {cuerpo3d && (
+        <fieldset>
+          <legend className="font-medium">Avatar 3D</legend>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Elige la orbe o una plantilla CC0: es el ADN de este bot y su cuerpo lo muestra.
+          </p>
+          <SelectorAvatar3d botId={bot.id} onChange={setRefAdn} />
+        </fieldset>
+      )}
       <label className="block font-medium">Nivel de acción
         <select className={`${campo} cursor-pointer`} value={nivel}
           onChange={(e) => setNivel(e.target.value as NivelBot)}>
