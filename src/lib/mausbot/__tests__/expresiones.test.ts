@@ -60,6 +60,15 @@ describe("expresiones del Mausbot (port de OpenMausBot)", () => {
       expect(m.y).toBeLessThan(CAJA_CARA);
     });
   });
+
+  it("publica los números decodificados del origen sin retocar", () => {
+    // Caja y centro de la cara, y recorrido de la mirada: los valores EXACTOS
+    // que OpenMausBot publica (cursor-face-data.ts). Una decodificación o un
+    // píxel desplazados se ven aquí, no en las comprobaciones de rango.
+    expect(CAJA_CARA).toBe(228.541);
+    expect(CENTRO_CARA).toEqual([120, 122.5]);
+    expect(RECORRIDO_MIRADA).toEqual({ x: 13.2, y: 8.4 });
+  });
 });
 
 describe("tabla estado → expresión", () => {
