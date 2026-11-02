@@ -26,6 +26,12 @@ describe("dentroDeZona", () => {
         expect(dentroDeZona(z, [0.9, 0.6, 0.9])).toBe(false);
         expect(dentroDeZona(z, [0.9, 0.53, 0.9], HISTERESIS_M)).toBe(true);
     });
+    it("la caja incluye justo el borde y descarta un centímetro más", () => {
+        const z = zona("borde", { tam: [2, 2, 2] });
+        expect(dentroDeZona(z, [1, 1, 1])).toBe(true);
+        expect(dentroDeZona(z, [1.01, 1, 0])).toBe(false);
+        expect(dentroDeZona(z, [0, 2.01, 0])).toBe(false);
+    });
 });
 
 describe("cambiosDeZona", () => {
@@ -49,6 +55,13 @@ describe("cambiosDeZona", () => {
     });
     it("una zona borrada del mundo también se abandona", () => {
         expect(cambiosDeZona([], ahora("vieja", "otra"), [0, 0, 0]).sale).toEqual(["vieja", "otra"]);
+    });
+    it("entra en una zona y abandona otra (aunque ya no exista) en el mismo paso", () => {
+        const lejos = zona("lejos", { pos: [5, 0, 0] });
+        const r = cambiosDeZona([zona("cerca"), lejos], ahora("cerca", "fantasma"), [5, 0, 0]);
+        expect(r.entra).toEqual(["lejos"]);
+        expect(r.sale).toEqual(["cerca", "fantasma"]);
+        expect([...r.ahora]).toEqual(["lejos"]);
     });
 });
 
