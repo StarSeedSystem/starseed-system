@@ -124,11 +124,12 @@ def artefacto_ci_disponible(huella, raiz=RAIZ, espera_s=ESPERA_ARTIFACTO_CI_S) -
         return None
     if not ultima:
         return None
-    rc, salida = subprocess.run(
+    descarga = subprocess.run(
         ["gh", "run", "download", "--", f"{ARTIFACTO_CI}{ultima[:8]}"],
         cwd=raiz, capture_output=True, text=True, timeout=120,
         env={**os.environ, "GH_TOKEN": os.environ.get("GITHUB_TOKEN", "")}
     )
+    rc, salida = descarga.returncode, descarga.stdout or ""
     if rc != 0 and "not found" not in salida.lower():
         return None
     dist = os.path.join(raiz, DIST_BUILD)
