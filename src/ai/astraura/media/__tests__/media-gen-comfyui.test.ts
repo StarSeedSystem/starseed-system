@@ -10,7 +10,7 @@ const mockLocalStorage = {
 globalThis.window = { localStorage: mockLocalStorage } as unknown as Window & typeof globalThis;
 
 import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } from "vitest";
-import { NODOS_NUCLEO, type GrafoComfyUI } from "@/lib/imagenes/flujos-comfyui";
+import { NODOS_NUCLEO, ladosFormato, type GrafoComfyUI } from "@/lib/imagenes/flujos-comfyui";
 import {
   formatoComfyuiMasCercano,
   grafoComfyuiDe,
@@ -119,6 +119,25 @@ describe("grafoComfyuiDe · texto a imagen o imagen a imagen", () => {
     for (const nodo of Object.values(grafo)) {
       expect(NODOS_NUCLEO as readonly string[]).toContain(nodo.class_type);
     }
+  });
+
+  it("el latente de texto a imagen toma los lados del formato pedido y la escala SD 1.5 (≈0,26 MP)", () => {
+    const grafo = grafoComfyuiDe({ prompt: "una plaza", width: 800, height: 1000 });
+    const lados = ladosFormato("4:5", "sd15");
+    const latente = Object.values(grafo).find((n) => n.class_type === "EmptyLatentImage");
+    expect(latente?.inputs).toMatchObject({ width: lados.ancho, height: lados.alto });
+    expect(grafo["4"].inputs.width).toBe(lados.ancho);
+    expect(grafo["4"].inputs.height).toBe(lados.alto);
+  });
+
+  it("con un modelo que no es de SD 1.5, el latente sube a la escala estándar y respeta el formato vertical", () => {
+    const grafo = grafoComfyuiDe({ prompt: "una torre", model: "sd_xl.safetensors", width: 720, height: 1280 });
+    const lados = ladosFormato("9:16", "estandar");
+    const latente = Object.values(grafo).find((n) => n.class_type === "EmptyLatentImage");
+    expect(latente?.inputs).toMatchObject({ width: lados.ancho, height: lados.alto });
+    expect(lados.alto).toBeGreaterThan(lados.ancho);
+    expect(grafo["4"].inputs.width).toBe(lados.ancho);
+    expect(grafo["4"].inputs.height).toBe(lados.alto);
   });
 });
 
