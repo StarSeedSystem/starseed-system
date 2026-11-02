@@ -1,13 +1,13 @@
 /*
  * HFR1018I · video-por-malla.test.ts — manejador PURO del relé `capacidad.video.render`
- * (video-por-malla.ts). Fusión a mano de dos historias: los casos de rutas.mjs que main
- * rescató de nube/40126871156 (RLB1020N, aún sin cobertura en hyperframes-rutas.test.ts)
- * y los casos del módulo puro que nube/41253382108 trajo (admisión por cuenta/grupo,
- * GSAP prohibido al editar, recursos privados ajenos y { aceptado, trabajoId } o rechazo
- * legible con cola inyectada). Sin red, sin navegador y sin procesos: todo inyectado.
+ * (video-por-malla.ts). Del rescate nube/40126871156 (RLB1020N) se retiran los casos de
+ * rutas.mjs: nunca se importa una implementación de rutas desde una prueba (eso lo cubre
+ * src/lib/__tests__/hyperframes-rutas.test.ts). Quedan, sin red ni navegador ni procesos:
+ * los casos del módulo puro que nube/41253382108 trajo (admisión por cuenta/grupo, GSAP
+ * prohibido al editar, recursos privados ajenos y { aceptado, trabajoId } o rechazo
+ * legible con cola inyectada) y el rol SERVIDOR del relé con un mesh de mentira.
  */
-import { describe, it, expect, vi } from "vitest";
-import { manejar } from "../../../../servicios/hyperframes/src/rutas.mjs";
+import { describe, it, expect } from "vitest";
 import {
   VIDEO_MALLA_MAX_COMPOSICION, validarPeticionVideoRender, admiteVideoRenderMalla,
   extraerRecursosRemotos, validarRecursosRenderMalla, videoRenderPorMalla,
@@ -21,58 +21,11 @@ const HTML = `<div data-composition-id="a"></div>`;
 const CON_GSAP = `<div><script>import { gsap } from 'gsap'; gsap.to('.a', { x: 1 });</script></div>`;
 const FOTO = "http://cinta.local/piezas/foto.png";
 const NEURONA: ContextoServidaVideo = { cuentaLocal: "sami", gruposPresta: ["estudio"] };
-const deps = () => ({
-  version: "0.8.172",
-  navegador: true,
-  ffmpeg: false,
-  lint: vi.fn(async () => ({ errores: [], avisos: [] })),
-  editar: vi.fn(async (c: string) => c),
-  cola: { encolar: vi.fn(async () => "t1"), estado: vi.fn() },
-});
 const peticion = (sobre: Record<string, unknown> = {}): Record<string, unknown> => ({ cuenta: "sami", composicion: HTML, ...sobre });
 /** Motivo de rechazo, o cadena vacía si la petición pasa (así se acota el sindicato). */
 const motivoDeValidar = (x: unknown): string => { const r = validarPeticionVideoRender(x); return r.ok ? "" : r.motivo; };
 /** Un microtacto: las respuestas del servidor salen en microtareas (permite real setTimeout). */
 const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
-
-describe("servicio hyperframes · peticiones de vídeo (rescate RLB1020N)", () => {
-  it("rechaza basura: sin composición en /lint, /editar y /render, sin encolar", async () => {
-    const d = deps();
-    const sinCuerpo = { composicion: null };
-    for (const ruta of ["/lint", "/editar", "/render"]) {
-      const r = await manejar({ metodo: "POST", ruta, cuerpo: sinCuerpo }, d);
-      expect(r.estado).toBe(400);
-      expect((r.cuerpo as { error: string }).error).toContain("composición");
-    }
-    expect(d.cola.encolar).not.toHaveBeenCalled();
-  });
-
-  it("una composición ajena con GSAP se puede renderizar (solo no se edita)", async () => {
-    const d = deps();
-    const r = await manejar({ metodo: "POST", ruta: "/render", cuerpo: { composicion: CON_GSAP } }, d);
-    expect(r.estado).toBe(202);
-    expect((r.cuerpo as { id: string }).id).toBe("t1");
-    expect(d.cola.encolar).toHaveBeenCalledWith({ composicion: CON_GSAP, formato: "mp4" });
-  });
-
-  it("sin cola de render en esta neurona: rechazo honesto 503, nunca pánico", async () => {
-    const sinCola = { version: "0.8.172" };
-    const r = await manejar({ metodo: "POST", ruta: "/render", cuerpo: { composicion: HTML } }, sinCola);
-    expect(r.estado).toBe(503);
-    expect((r.cuerpo as { error: string }).error).toContain("sin cola de render");
-    const trabajo = await manejar({ metodo: "GET", ruta: "/trabajos/t1" }, sinCola);
-    expect(trabajo.estado).toBe(503);
-    expect((trabajo.cuerpo as { error: string }).error).toContain("sin cola de render");
-  });
-
-  it("cola llena ⇒ rechazo legible y sin lanzar", async () => {
-    const d = deps();
-    d.cola.encolar = vi.fn(async () => { throw new Error("cola llena"); });
-    const r = await manejar({ metodo: "POST", ruta: "/render", cuerpo: { composicion: HTML } }, d);
-    expect(r.estado).toBe(500);
-    expect((r.cuerpo as { error: string }).error).toContain("cola llena");
-  });
-});
 
 describe("validarPeticionVideoRender", () => {
   it("sin cuenta o sin composición (inline ni id) ⇒ rechazo legible", () => {
