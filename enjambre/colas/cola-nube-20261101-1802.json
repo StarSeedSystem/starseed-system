@@ -1,0 +1,63 @@
+{
+ "ola": "nube-20261101",
+ "tareas": [
+  {
+   "id": "KAL1101A",
+   "ola": "1101 · Neuronas despiertas con la pantalla cerrada (keepalive)",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Mantener despierto · mantener_pantalla.py usa keepalive (multiplataforma) y cae a caffeinate/systemd-inhibit",
+   "archivos": [
+    "scripts/puente/mantener_pantalla.py",
+    "scripts/puente/test_mantener_pantalla.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; funciones PURAS con pruebas; nunca sudo ni cambios de energía del sistema sin el ajuste explícito del dueño; nunca matar procesos ajenos.\n\nAlex (01-11): «que funcionen los procesos en segundo plano de los dispositivos aun con las pantallas cerradas o desconectadas, siempre que esté abierto el sistema en cualquier área de StarSeed OS (MetaGenesis, PoliGenesis, Genesis, servidores, cerebros…)», con https://github.com/stigoleg/keep-alive (keepalive v2, Go, MIT). keepalive usa aserciones de energía de IOKit en macOS, peticiones de energía en Windows y un inhibidor de systemd-logind en Linux; flags: `--keep-display=false` (solo el sistema despierto), `--pid`, `--while`, `-b` (batería), `--plain`, `run -- <cmd>`, `service install`. Instalar: `brew install --cask stigoleg/tap/keepalive`, `scoop install keepalive`, .deb/.rpm/.apk de releases, o `go install github.com/stigoleg/keep-alive/v2/cmd/keepalive@latest`. En la Mac de Alex (MacBook Air M1) ya está keepalive 2.0.1, y hoy `scripts/puente/mantener_pantalla.py` mantiene un `caffeinate -dim -w <pid>` según `~/.starseed/pantalla.json`. VERDAD A RESPETAR: en un portátil Mac, cerrar la tapa duerme el sistema aunque haya aserciones; solo no duerme en modo clamshell (corriente + pantalla externa) o con `pmset -a disablesleep 1` (requiere admin). Si la neurona va a dormir igual, sus tareas pasan al A1 (colmena).\n\nDos modos en `~/.starseed/pantalla.json`: «pantalla» (como hoy) y «sistema» (pantalla apagable, procesos vivos). Si `keepalive` está en el PATH: `keepalive --plain --keep-display=<modo> --pid <pid propio> -b <umbral, por defecto 15>`; si no, caffeinate (macOS), `systemd-inhibit --what=sleep:idle` (Linux) o nada con aviso. La orden se construye en una función PURA probada por plataforma. Escribe su estado en `~/.starseed/despierto.json` (modo, herramienta, pid)."
+  },
+  {
+   "id": "KAL1101E",
+   "ola": "1101 · Neuronas despiertas con la pantalla cerrada (keepalive)",
+   "importancia": "",
+   "depende": [],
+   "titulo": "Navegador y app instalada · Wake Lock mientras corre un proceso largo, con aviso honesto",
+   "archivos": [
+    "src/lib/install/despierto-web.ts",
+    "src/lib/install/__tests__/despierto-web.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; funciones PURAS con pruebas; nunca sudo ni cambios de energía del sistema sin el ajuste explícito del dueño; nunca matar procesos ajenos.\n\nAlex (01-11): «que funcionen los procesos en segundo plano de los dispositivos aun con las pantallas cerradas o desconectadas, siempre que esté abierto el sistema en cualquier área de StarSeed OS (MetaGenesis, PoliGenesis, Genesis, servidores, cerebros…)», con https://github.com/stigoleg/keep-alive (keepalive v2, Go, MIT). keepalive usa aserciones de energía de IOKit en macOS, peticiones de energía en Windows y un inhibidor de systemd-logind en Linux; flags: `--keep-display=false` (solo el sistema despierto), `--pid`, `--while`, `-b` (batería), `--plain`, `run -- <cmd>`, `service install`. Instalar: `brew install --cask stigoleg/tap/keepalive`, `scoop install keepalive`, .deb/.rpm/.apk de releases, o `go install github.com/stigoleg/keep-alive/v2/cmd/keepalive@latest`. En la Mac de Alex (MacBook Air M1) ya está keepalive 2.0.1, y hoy `scripts/puente/mantener_pantalla.py` mantiene un `caffeinate -dim -w <pid>` según `~/.starseed/pantalla.json`. VERDAD A RESPETAR: en un portátil Mac, cerrar la tapa duerme el sistema aunque haya aserciones; solo no duerme en modo clamshell (corriente + pantalla externa) o con `pmset -a disablesleep 1` (requiere admin). Si la neurona va a dormir igual, sus tareas pasan al A1 (colmena).\n\nHelper que pide `navigator.wakeLock.request('screen')` mientras una pestaña de StarSeed tiene un proceso largo (transmisión, estación, contenedor) y lo suelta al acabar o al ocultarse; reintenta al volver visible. Lógica de cuándo pedir/soltar PURA y probada. El navegador no puede mantener el equipo despierto con la pantalla apagada: dilo y ofrece la app nativa o keepalive."
+  },
+  {
+   "id": "KAL1101B",
+   "ola": "1101 · Neuronas despiertas con la pantalla cerrada (keepalive)",
+   "importancia": "capacidad",
+   "depende": [],
+   "titulo": "Latido · la neurona dice si sigue despierta y si dormirá al cerrar la tapa",
+   "archivos": [
+    "scripts/puente/despierto_logica.py",
+    "scripts/puente/test_despierto_logica.py",
+    "scripts/puente/nodo_metagenesis_logica.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; funciones PURAS con pruebas; nunca sudo ni cambios de energía del sistema sin el ajuste explícito del dueño; nunca matar procesos ajenos.\n\nAlex (01-11): «que funcionen los procesos en segundo plano de los dispositivos aun con las pantallas cerradas o desconectadas, siempre que esté abierto el sistema en cualquier área de StarSeed OS (MetaGenesis, PoliGenesis, Genesis, servidores, cerebros…)», con https://github.com/stigoleg/keep-alive (keepalive v2, Go, MIT). keepalive usa aserciones de energía de IOKit en macOS, peticiones de energía en Windows y un inhibidor de systemd-logind en Linux; flags: `--keep-display=false` (solo el sistema despierto), `--pid`, `--while`, `-b` (batería), `--plain`, `run -- <cmd>`, `service install`. Instalar: `brew install --cask stigoleg/tap/keepalive`, `scoop install keepalive`, .deb/.rpm/.apk de releases, o `go install github.com/stigoleg/keep-alive/v2/cmd/keepalive@latest`. En la Mac de Alex (MacBook Air M1) ya está keepalive 2.0.1, y hoy `scripts/puente/mantener_pantalla.py` mantiene un `caffeinate -dim -w <pid>` según `~/.starseed/pantalla.json`. VERDAD A RESPETAR: en un portátil Mac, cerrar la tapa duerme el sistema aunque haya aserciones; solo no duerme en modo clamshell (corriente + pantalla externa) o con `pmset -a disablesleep 1` (requiere admin). Si la neurona va a dormir igual, sus tareas pasan al A1 (colmena).\n\nFunción PURA que, con `pmset -g`, `pmset -g batt` y `pmset -g assertions` (texto) y `~/.starseed/despierto.json`, dice {despierta, herramienta, bateria, enchufada, tapa: 'duerme'|'clamshell'|'sin-tapa'|'desactivada'}. Añádelo a las capacidades del latido. Si tapa='duerme' y la batería baja del umbral, la neurona se anuncia como «se va a dormir» para que la colmena pase sus tareas al A1 antes (orden `desconectar` ya existente)."
+  },
+  {
+   "id": "KAL1101F",
+   "ola": "1101 · Neuronas despiertas con la pantalla cerrada (keepalive)",
+   "importancia": "",
+   "depende": [],
+   "titulo": "Biblioteca · ficha de keepalive (MIT) instalable por sistema operativo",
+   "archivos": [
+    "config/repos-libreria-1101.json",
+    "src/lib/library/repos-1101.ts",
+    "src/lib/library/__tests__/repos-1101.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; funciones PURAS con pruebas; nunca sudo ni cambios de energía del sistema sin el ajuste explícito del dueño; nunca matar procesos ajenos.\n\nAlex (01-11): «que funcionen los procesos en segundo plano de los dispositivos aun con las pantallas cerradas o desconectadas, siempre que esté abierto el sistema en cualquier área de StarSeed OS (MetaGenesis, PoliGenesis, Genesis, servidores, cerebros…)», con https://github.com/stigoleg/keep-alive (keepalive v2, Go, MIT). keepalive usa aserciones de energía de IOKit en macOS, peticiones de energía en Windows y un inhibidor de systemd-logind en Linux; flags: `--keep-display=false` (solo el sistema despierto), `--pid`, `--while`, `-b` (batería), `--plain`, `run -- <cmd>`, `service install`. Instalar: `brew install --cask stigoleg/tap/keepalive`, `scoop install keepalive`, .deb/.rpm/.apk de releases, o `go install github.com/stigoleg/keep-alive/v2/cmd/keepalive@latest`. En la Mac de Alex (MacBook Air M1) ya está keepalive 2.0.1, y hoy `scripts/puente/mantener_pantalla.py` mantiene un `caffeinate -dim -w <pid>` según `~/.starseed/pantalla.json`. VERDAD A RESPETAR: en un portátil Mac, cerrar la tapa duerme el sistema aunque haya aserciones; solo no duerme en modo clamshell (corriente + pantalla externa) o con `pmset -a disablesleep 1` (requiere admin). Si la neurona va a dormir igual, sus tareas pasan al A1 (colmena).\n\nFicha `lib-keepalive` con kind \"app\" (usa `tipoDeFicha` de repos-1025.ts: un kind fuera de VALID_KINDS tumbó la Biblioteca el 31-10), autor stigoleg, licencia MIT, versión v2.0.1, y los comandos de instalación por sistema. Sigue el patrón de repos-1028 (JSON + módulo puro + prueba) y regístrala donde se registran las tandas (mira cómo entra repos-1028 en packages.ts; si eso es un 4.º archivo, deja la ficha y di la línea exacta)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-suenos-2026-10-31.json": [
+   "KAL1101B",
+   "KAL1101A",
+   "KAL1101E",
+   "KAL1101F"
+  ]
+ }
+}
