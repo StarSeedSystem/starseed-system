@@ -81,7 +81,7 @@ describe("generar3d", () => {
       prog(140, "Generando la malla");
       return planes.length === 1 ? { ok: false as const, fallo: "sin-memoria" as const, motivo: "CUDA out of memory" } : ok();
   it("sin permiso de la cuenta no ofrece el Space aunque exista el respaldo, y lo dice", () => {
-    const p = prepararGeneracion(ctx({ permiteEspacioHf: false }), deps({ espacio: async () => ok() }));
+    const p = prepararGeneracion(ctx({ hierro: { ...MAC8, permiteEspacioHf: false } }), deps({ espacio: async () => ok() }));
     expect(p.via).toBe("ninguna");
     expect(p.motivo).toMatch(/versiones públicas .* apagadas/i);
   });
