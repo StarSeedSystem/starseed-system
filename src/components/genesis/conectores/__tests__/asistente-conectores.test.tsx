@@ -1,6 +1,6 @@
 /** Asistente «Conectar Genesis» · pruebas sin red: la carga y el envío de claves entran por props. */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { Asignacion } from "@/lib/genesis/conectores/asignaciones";
 import type { Papel } from "@/lib/genesis/conectores/catalogo-opciones";
@@ -114,6 +114,15 @@ describe("estadoCloudroom · honestidad de instalación y cupo (CRM1024F)", () =
     expect(estado.ofrecible).toBe(false);
     expect(estado.texto).toMatch(/no instalada en esta neurona/);
   });
+
+  it("tampoco se ofrece con la app instalada y el cupo declarado si el sugeridor no la devuelve (rescatado de rama nube)", () => {
+    const estado = estadoCloudroom(entradaCloudroom(VISTA.sugerencias, 10));
+    expect(estado.sugerencia).toBeNull();
+    expect(estado.ofrecible).toBe(false);
+    expect(estado.cupo).toBe(90);
+    expect(estado.texto).toMatch(/instalada en esta neurona/);
+    expect(estado.texto).toMatch(/No se ofrece como servidor aquí/);
+  });
 });
 
 describe("Cloudroom en la interfaz · tarjeta honesta donde ya se leía el catálogo", () => {
@@ -159,6 +168,42 @@ describe("Cloudroom en la interfaz · tarjeta honesta donde ya se leía el catá
     expect(screen.getByTestId("cloudroom-instalacion")).toHaveTextContent("instalación sin comprobar en esta neurona");
     expect(screen.getByTestId("cloudroom-cupo")).toHaveTextContent(/Cupo sin lectura/);
     expect(screen.getByText(/No se sugiere aquí/)).toBeInTheDocument();
+  });
+});
+
+describe("SeccionAsignacionesGenesis · la escalera decide si Cloudroom se ofrece (rescatado de rama nube)", () => {
+  const AHORA = 1_800_000_000_000;
+
+  /** Ciclo gratis con consumo real dentro del ciclo (10 agentes): cupo restante 90, ritmo 3/día. */
+  function cicloCloudroom(relevante: boolean) {
+    return {
+      instalacion: "instalada" as const,
+      plan: { tipo: "gratis" as const },
+      consumos: [{ contextoId: "personal", t: AHORA - 86_400_000, n: 10 }],
+      inicioCiclo: AHORA - 10 * 86_400_000,
+      ahora: AHORA,
+      diasQueQuedan: 30,
+      ...(relevante ? { relevante: true } : {}),
+    };
+  }
+
+  it("con tarea larga declarada y la neurona de escritorio compatible, la escalera la sugiere y la tarjeta ofrece cupo y enlace oficial", () => {
+    render(<SeccionAsignacionesGenesis ambito="cuenta-escalera" titulo="Asignaciones" onGuardar={() => undefined}
+      cloudroom={cicloCloudroom(true)} />);
+    const tarjeta = within(screen.getByLabelText("Cloudroom como servidor de agentes"));
+    expect(tarjeta.getByTestId("cloudroom-instalacion")).toHaveTextContent("instalada en esta neurona");
+    expect(tarjeta.getByTestId("cloudroom-cupo")).toHaveTextContent("90 agente(s) en la nube · ritmo 3/día");
+    expect(tarjeta.getByRole("status")).toHaveTextContent(/Sugerida para los agentes de este ámbito/);
+    expect(tarjeta.getByRole("link", { name: "Abrir Cloudroom" })).toHaveAttribute("href", "https://cloudroom.dev");
+  });
+
+  it("sin la relevancia declarada, la escalera no la devuelve y la tarjeta avisa sin ofrecerla, con el cupo honesto", () => {
+    render(<SeccionAsignacionesGenesis ambito="cuenta-escalera" titulo="Asignaciones" onGuardar={() => undefined}
+      cloudroom={cicloCloudroom(false)} />);
+    const tarjeta = within(screen.getByLabelText("Cloudroom como servidor de agentes"));
+    expect(tarjeta.getByTestId("cloudroom-cupo")).toHaveTextContent("90 agente(s) en la nube · ritmo 3/día");
+    expect(tarjeta.getByRole("status")).toHaveTextContent(/No se sugiere aquí/);
+    expect(tarjeta.queryByRole("link", { name: "Abrir Cloudroom" })).toBeNull();
   });
 });
 
