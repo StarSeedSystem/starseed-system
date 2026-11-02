@@ -35,9 +35,9 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 }
 
 describe("defaults-seed · 4.ª tanda (Ola 1020U, solo sus «siempre» que crea el cargador)", () => {
-  it("sube la versión a 23, una más que la 22 de la 3.ª tanda", () => {
-    expect(SEED_VERSION).toBe(23);
-    expect(SEED_VERSION).toBeGreaterThan(22);
+  it("la versión está en 24, sin bajar de la 23 que trajo la 4.ª tanda", () => {
+    expect(SEED_VERSION).toBe(24);
+    expect(SEED_VERSION).toBeGreaterThanOrEqual(23);
   });
 
   it("las 5 «siempre» nuevas quedan en la recomendación y las «manual» no entran", () => {
