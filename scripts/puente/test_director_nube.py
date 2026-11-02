@@ -185,6 +185,7 @@ class DevolverLoQueYaNadieHace(unittest.TestCase):
         D._ULTIMO_RESUMEN.clear()  # la medición falló: no sé qué llevan los runs vivos
         self.assertEqual(D.reclamar_varadas_de_la_nube(1), [])
 
+<<<<<<< HEAD
     def test_medicion_fallida_con_cero_runs_tampoco_devuelve(self):
         # Antes, una medición fallida daba «0 runs» y se reclamaba TODO lo prestado.
         self._progreso(IMG1020A={"estado": "reasignada", "medio": "nube"})
@@ -203,6 +204,8 @@ class DevolverLoQueYaNadieHace(unittest.TestCase):
         self.assertEqual(D.medir_nube(), (0, 0))
         self.assertEqual(D._ULTIMO_RESUMEN, [])
 
+=======
+>>>>>>> 94648af01 (salvavidas · VAR1021Ab: trabajo del agente antes de las puertas (tsc / vitest))
 
 if __name__ == "__main__":
     unittest.main()

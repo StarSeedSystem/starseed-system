@@ -854,6 +854,7 @@ def devolver_envio_por_el_medio(tid, carpeta_colas, ahora_ts=None, ruta_reapertu
         return None
 
 
+<<<<<<< HEAD
 #: (2026-10-26, CAP1026B) Lo que la nube integró en su rama espera a `traer_nube` (cada 30 min) como
 #: «integrada · nube». Si en este plazo no llegó a main, algo pasa con su rama: se reclama y, al
 #: devolverla, va a Bloqueadas con el motivo (no a otra vuelta igual).
@@ -888,6 +889,9 @@ def combinar_veredictos(por_run, ids=None):
 
 
 def reclamar_varadas(progreso, runs_en_marcha, ids_vivos=None, colas_jovenes=(), ahora=None):
+=======
+def reclamar_varadas(progreso, runs_en_marcha, ids_vivos=None, colas_jovenes=()):
+>>>>>>> 94648af01 (salvavidas · VAR1021Ab: trabajo del agente antes de las puertas (tsc / vitest))
     """PURA. Las que se mandaron a la nube y allí ya no queda nadie que las haga.
 
     (2026-09-22, MEDIDO) RM3 y RM4 llevaban horas en «reasignada · nube» con CERO runs en
@@ -910,8 +914,11 @@ def reclamar_varadas(progreso, runs_en_marcha, ids_vivos=None, colas_jovenes=(),
     estén en él ni en `colas_jovenes`; el llamador solo pasa un conjunto cuando conoce la
     cola de TODOS los runs vivos. `ids_vivos=None` conserva el comportamiento de siempre:
     solo reclamar cuando hayan quedado las colas vacías.
+<<<<<<< HEAD
 
     (2026-10-26, CAP1026B) También las «integrada · nube» que pasaron `ESPERA_TRAER_S` sin llegar a main.
+=======
+>>>>>>> 94648af01 (salvavidas · VAR1021Ab: trabajo del agente antes de las puertas (tsc / vitest))
     """
     if ids_vivos is None:
         if runs_en_marcha != 0:
@@ -919,6 +926,7 @@ def reclamar_varadas(progreso, runs_en_marcha, ids_vivos=None, colas_jovenes=(),
         prestadas = set()
     else:
         prestadas = {str(i) for i in ids_vivos} | {str(i) for i in colas_jovenes or ()}
+<<<<<<< HEAD
     ahora = time.time() if ahora is None else ahora
     return sorted(
         tid for tid, v in (progreso or {}).items()
@@ -929,6 +937,16 @@ def reclamar_varadas(progreso, runs_en_marcha, ids_vivos=None, colas_jovenes=(),
                    # sin medio hasta este día. Quedaban «reasignada» para siempre si su run moría.
                    or (not v.get("medio") and str(v.get("nota") or "").startswith("movida a nube"))))
              or _integrada_sin_traer(v, ahora))
+=======
+    return sorted(
+        tid for tid, v in (progreso or {}).items()
+        if isinstance(v, dict)
+        and v.get("estado") == "reasignada"
+        and ((v.get("medio") or "") == "nube"
+             # (2026-10-13) Las que soltó la tanda de la Mac al lanzar el run: «movida a nube-gh (run …)»,
+             # sin medio hasta este día. Quedaban «reasignada» para siempre si su run moría.
+             or (not v.get("medio") and str(v.get("nota") or "").startswith("movida a nube")))
+>>>>>>> 94648af01 (salvavidas · VAR1021Ab: trabajo del agente antes de las puertas (tsc / vitest))
         and tid not in prestadas
     )
 

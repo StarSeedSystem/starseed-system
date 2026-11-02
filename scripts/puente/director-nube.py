@@ -310,6 +310,7 @@ def ids_de_colas_jovenes(carpeta, ahora_ts, max_s=COLA_JOVEN_S):
     return jovenes
 
 
+<<<<<<< HEAD
 def ordenar_reapertura_en_colas_vivas(ids):
     """Pide al orquestador local que retome las tareas devueltas por la nube."""
     if not ids:
@@ -357,6 +358,8 @@ def ordenar_reapertura_en_colas_vivas(ids):
             print("director-nube: no pude pedir reapertura en %s: %s" % (nombre, e), flush=True)
 
 
+=======
+>>>>>>> 94648af01 (salvavidas · VAR1021Ab: trabajo del agente antes de las puertas (tsc / vitest))
 def reclamar_varadas_de_la_nube(runs_vivos):
     """Devuelve a `pendiente` lo que se prestó a la nube y allí ya no lo hace nadie.
 
@@ -384,9 +387,12 @@ def reclamar_varadas_de_la_nube(runs_vivos):
     if not isinstance(tareas, dict):
         return []
     resumen = _ULTIMO_RESUMEN[0] if _ULTIMO_RESUMEN else None
+<<<<<<< HEAD
     if resumen is None:
         # La medición falló: «0 runs» no es un dato, es no saber. No se devuelve nada.
         return []
+=======
+>>>>>>> 94648af01 (salvavidas · VAR1021Ab: trabajo del agente antes de las puertas (tsc / vitest))
     runs = [r for r in ((resumen or {}).get("runs") or []) if isinstance(r, dict)]
     # Cada run vivo debe decir qué cola lleva. Si lo medido no coincide con lo que puedo
     # enumerar, no lo sé entero: no se devuelve nada.
