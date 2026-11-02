@@ -1,6 +1,8 @@
 // Canal de eventos por contexto: reloj lógico híbrido, sin duplicados, orden causal, acuses y reintentos.
 // Arquitectura/apps-en-la-malla.md §11 · tarea W.
 
+import { armarArbol } from "./arbol-relevo";
+
 export interface EventoContexto {
   id: string;
   tipo: string;
@@ -41,7 +43,7 @@ export function crearCanal(opts: OpcionesCanal): {
   obtenerArbol: (receptores: { nodoId: string; subidaKbps?: number }[]) => import("./arbol-relevo").ArbolRelevo;
 } {
   let idSequencial = 0;
-  const recibidos = new Set<string>();
+  const recibidos = new Set<string>(); // IDs de eventos ya consumidos (para dedup)
   const buffer: EventoContexto[] = [];
   const oyentes: ((e: EventoContexto) => void)[] = [];
   const subs: Map<string, Suscripcion> = new Map();
@@ -67,8 +69,6 @@ export function crearCanal(opts: OpcionesCanal): {
       nodos.set(r.nodoId, { hijos: [] });
     }
 
-    // Construir árbol simple: origen distribuye a todos los receptores
-    // Cada nodo puede tener hijos, pero limitados por capacidad
     for (const r of receptores) {
       nodos.get(r.nodoId)!.hijos.push(...receptores.filter(r2 => r2.nodoId !== r.nodoId).map(r2 => r2.nodoId));
     }
@@ -92,13 +92,11 @@ export function crearCanal(opts: OpcionesCanal): {
     if (receptores.length > 8) {
       const idsReceptores = receptores.map(r => ({ nodoId: r, subidaKbps: undefined }));
       const arbol = armarArbol("origen", idsReceptores, 1000);
-      // Los hijos del origen distribuyen sus subárboles
       for (const hijoId of arbol.nodos.get("origen")?.hijos ?? []) {
         const nodoHijo = arbol.nodos.get(hijoId);
         if (nodoHijo && nodoHijo.hijos.length > 0) {
           const eventoHijo = { ...evento, nodoId: hijoId };
           opts.enviar(eventoHijo);
-          // Recursivo: los hijos también pueden reenviar
           for (const nietoId of nodoHijo.hijos) {
             const eventoNieto = { ...evento, nodoId: nietoId };
             opts.enviar(eventoNieto);
@@ -108,62 +106,30 @@ export function crearCanal(opts: OpcionesCanal): {
     }
   }
 
-  function procesarEvento(evento: EventoContexto): EventoContexto | null {
-    if (recibidos.has(evento.id)) return null;
+  function procesarEvento(evento: EventoContexto): void {
+    if (recibidos.has(evento.id)) return; // duplicado, descarta
     recibidos.add(evento.id);
 
     const tHibrid = relojHibrido(evento);
 
-    // Insertar en buffer ordenado por reloj híbrido
+    // Insertar en buffer ordenado por reloj híbrido (mayor tiempo al inicio para sacar del final)
     const insertado: EventoContexto = { ...evento, t: tHibrid };
     const pos = buffer.findIndex(b => relojHibrido(b) > tHibrid);
     if (pos >= 0) buffer.splice(pos, 0, insertado); else buffer.push(insertado);
+  }
 
-    // Aplicar búfer de espera causal: mantener eventos un corto período
-    // para permitir que lleguen los precedentes causales
-    const ahoraLocal = opts.ahora();
-    const bufferCorte = ahoraLocal - 5000; // 5 segundos de buffer
-
-    // Entregar eventos cuyo precedente causal ya llegó
-    const entregados: EventoContexto[] = [];
-    while (buffer.length > 0) {
-      const primero = buffer[0];
-      const tPrimero = relojHibrido(primero);
-
-      // Si el evento actual tiene precedentes en el buffer, esperar
-      // Lógica simplificada: entregar si no hay eventos con reloj menor sin procesar
-      if (buffer.length > 1) {
-        const segundo = buffer[1];
-        const tSegundo = relojHibrido(segundo);
-        if (tPrimero > tSegundo) {
-          // Ya llegaron los de menor reloj, entregar el primero
-          buffer.shift();
-          entregados.push(primero);
-        } else {
-          break;
-        }
-      } else {
-        // Único evento en buffer, entregarlo
-        buffer.shift();
-        entregados.push(primero);
-      }
-    }
-
+  function entregarDespuesDeRecibir(evt: EventoContexto): void {
     // Entregar a suscriptores
     for (const cb of oyentes) {
-      for (const evt of entregados) {
-        try {
-          cb(evt);
-        } catch {
-          /* suscriptor roto */
-        }
+      try {
+        cb(evt);
+      } catch {
+        /* suscriptor roto */
       }
     }
 
     // Repartir por árbol de relevo
-    entregarAReceptores(evento);
-
-    return evento;
+    entregarAReceptores(evt);
   }
 
   return {
@@ -175,30 +141,36 @@ export function crearCanal(opts: OpcionesCanal): {
         t: opts.ahora(),
         nodoId: opts.nodoId,
       };
-      const resultado = procesarEvento(evento);
-      // No esperamos ACK aquí pura por diseño; el reenvío lo hace el árbol
+      // Solo agregar al buffer, no entregar aún (lo hará recibir)
+      procesarEvento(evento);
     },
 
     recibir: (sobre = null) => {
       if (sobre) {
-        // Devolver evento con ID matching 'sobre' si está en el buffer o ya recibió
-        for (const evt of buffer) {
+        // Buscar evento con ID matching 'sobre' en el buffer
+        for (let i = 0; i < buffer.length; i++) {
+          const evt = buffer[i];
           if (evt.id === sobre) {
-            recibidos.add(evt.id); // marcar como recibido
-            const pos = buffer.indexOf(evt);
-            if (pos >= 0) buffer.splice(pos, 1);
+            // Marcar como consumido
+            recibidos.add(evt.id);
+            buffer.splice(i, 1);
+            // Entregar a suscriptores y árbol
+            entregarDespuesDeRecibir(evt);
             return evt;
           }
         }
-        // Buscar en los recibidos previos
+        // Buscar en los ya consumidos (ya no en buffer)
         return null;
       }
 
-      // Devolver próximo evento en orden causal del buffer
+      // Devolver próximo evento en orden causal del buffer (el primero)
       if (buffer.length > 0) {
         const evt = buffer[0];
-        const pos = buffer.indexOf(evt);
-        if (pos >= 0) buffer.splice(pos, 1);
+        buffer.splice(0, 1);
+        // Marcar como consumido y entregar
+        procesarEvento(evt); // esto añade a recibidos y buffer (aunque ya lo sacamos, por si acaso)
+        // Pero como ya lo sacamos del buffer, solo entregamos
+        entregarDespuesDeRecibir(evt);
         return evt;
       }
       return null;
@@ -216,8 +188,6 @@ export function crearCanal(opts: OpcionesCanal): {
     },
   };
 }
-
-// Helpers para trabajar con el canal
 
 /** Genera un ID único para un evento */
 export function generarIdEvento(nodoId: string): string {
