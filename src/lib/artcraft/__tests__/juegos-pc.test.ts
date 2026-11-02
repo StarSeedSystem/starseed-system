@@ -47,6 +47,16 @@ describe("planificarJuegoPc · rutas A, B y C (§5.1)", () => {
   it("servidor propio con GPU, sin Wine ni Proton y sin transmisión: ninguna", () => {
     expect(plan(NEURONA_SERVIDOR, [{ ...SERVIDOR_PROPIO, wineOProton: false, transmision: null }]).ruta).toBe("ninguna");
   });
+  // Rescate RTART1025Lbs: sin GPU no vale aunque tenga Wine/Proton y transmisión.
+  it("servidor propio sin GPU, con Wine/Proton y transmisión: ninguna", () => {
+    expect(plan(NEURONA_SERVIDOR, [{ id: "cpu", propio: true, compartido: false, gpu: false, wineOProton: true, transmision: "sunshine", libreDiscoGB: 200 }]).ruta).toBe("ninguna");
+  });
+  it("ruta A: pasos exactos, sin instrucciones de más", () => {
+    expect(plan(NEURONA_A, []).pasos).toEqual(["abre Rare", "inicia sesión en Epic tú mismo"]);
+  });
+  it("sin ruta: además de sin pasos, avisa de que no hay ruta disponible", () => {
+    expect(plan(NEURONA_SERVIDOR, []).avisos).toContain("no hay ruta disponible en las condiciones actuales");
+  });
 });
 
 describe("rutaConfigEpic · carpeta de Legendary por persona (§5.3)", () => {
@@ -140,6 +150,10 @@ describe("esUrlPermitidaRare · solo releases oficiales, descargas remotas bloqu
       "https:\\\\github.com\\RareDevs\\Rare\\releases\\latest",
       "ftp://github.com/RareDevs/Rare/releases/latest",
     ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
+  it("RTART1025Lbs · la ruta de descarga releases/download vale; releases sin cola no", () => {
+    expect(esUrlPermitidaRare("https://github.com/RareDevs/Rare/releases/download/1.12.0.237/Rare.dmg")).toBe(true);
+    expect(esUrlPermitidaRare("https://github.com/RareDevs/Rare/releases")).toBe(false);
   });
 });
 
