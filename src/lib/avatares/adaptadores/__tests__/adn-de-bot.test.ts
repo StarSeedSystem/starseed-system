@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   adnConEmocion,
   adnDeBot,
+  esFormaAvatar3d,
   expresionesDeEmocion,
   gestoConMovimiento,
   intensidadAuraConEmocion,
@@ -28,6 +29,19 @@ const emo = (emocion: EstadoEmocional["emocion"], valencia: number, activacion: 
   ({ emocion, valencia, activacion });
 
 describe("adnDeBot: la referencia manda y el ADN por defecto conserva la orbe", () => {
+  it("solo las formas con cuerpo 3D aceptan un ADN de avatar", () => {
+    expect(esFormaAvatar3d("avatar-3d")).toBe(true);
+    expect(esFormaAvatar3d("vrm")).toBe(true);
+    expect(esFormaAvatar3d("orbe")).toBe(false);
+    expect(esFormaAvatar3d("ser-genesis")).toBe(false);
+    expect(esFormaAvatar3d("robot")).toBe(false);
+  });
+
+  it("el ADN por defecto lleva el nombre del bot y su orbe ligada a la emoción", () => {
+    const adn = adnDeBot(botDe());
+    expect(adn.nombre).toBe("Semilla");
+    expect(adn.aura.ligadaEmocion).toBe(true);
+  });
   it("con forma 3D y una referencia interna usa ese id y el dueño «bot»", () => {
     const bot = botDe();
     expect(refAdnDeBot(bot)).toBe("biblioteca:adn-bot-1");
@@ -46,6 +60,13 @@ describe("adnDeBot: la referencia manda y el ADN por defecto conserva la orbe", 
   it("un ADN guardado de otro dueño no se cuela", () => {
     const ajeno = { ...adnPorDefecto("adn-bot-1", "Otra", { tipo: "perfil", id: "u2" }, 10), rev: 9 };
     expect(adnDeBot(botDe(), ajeno).rev).toBe(0);
+  });
+
+  it("un ADN guardado con otra id tampoco se cuela: crea el de fábrica de la referencia", () => {
+    const otroId = adnPorDefecto("adn-bot-2", "Otra", { tipo: "bot", id: "bot-1" }, 190);
+    const adn = adnDeBot(botDe(), otroId);
+    expect(adn.id).toBe("adn-bot-1");
+    expect(adn.rev).toBe(0);
   });
 
   it("una referencia externa no se acepta: cae al ADN por defecto", () => {
@@ -90,6 +111,20 @@ describe("emoción del bot → expresiones (happy/sad/angry/surprised/relaxed)",
     expect(floja).toBeGreaterThan(0);
   });
 
+  it("acota la intensidad con valencia, activación, NaN e infinito fuera de rango", () => {
+    for (const { valencia, activacion } of [
+      { valencia: 5, activacion: 5 },
+      { valencia: -5, activacion: -5 },
+      { valencia: Number.NaN, activacion: Number.POSITIVE_INFINITY },
+    ]) {
+      const r = expresionesDeEmocion(emo("alegria", valencia, activacion));
+      for (const v of Object.values(r.expresiones)) {
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
   it("adnConEmocion cambia solo la expresión emocional y respeta visemas y parpadeo", () => {
     const base = {
       ...adnPorDefecto("adn-bot-1", "Semilla", { tipo: "bot", id: "bot-1" }, 190),
@@ -100,6 +135,18 @@ describe("emoción del bot → expresiones (happy/sad/angry/surprised/relaxed)",
     expect(adn.expresionBase.sad).toBeUndefined();
     expect(adn.expresionBase.aa).toBe(0.5);
     expect(adn.expresionBase.blink).toBe(0.2);
+  });
+
+  it("adnConEmocion no muta el ADN original ni sube la revisión", () => {
+    const base = {
+      ...adnPorDefecto("adn-bot-1", "Semilla", { tipo: "bot", id: "bot-1" }, 190),
+      expresionBase: { happy: 0.7, blink: 0.2, aa: 0.4 },
+    };
+    const antes = JSON.stringify(base);
+    const r = adnConEmocion(base, emo("preocupacion", -0.7, 0.2));
+    expect(JSON.stringify(base)).toBe(antes);
+    expect(r.rev).toBe(base.rev);
+    expect(r.expresionBase.sad).toBeGreaterThan(0);
   });
 
   it("el aura solo late con la emoción si está ligada a ella", () => {
@@ -120,6 +167,13 @@ describe("visemas y gesto con el carácter del ADN", () => {
 
   it("sin texto no hay visemas", () => {
     expect(visemasDeTexto("")).toEqual([]);
+  });
+
+  it("traduce cada vocal del español a su visema exacto de VRM 1.0", () => {
+    expect(visemasDeTexto("hola")).toEqual(["oh", "aa"]);
+    expect(visemasDeTexto("miau")).toEqual(["ih", "aa", "ou"]);
+    expect(visemasDeTexto("e")).toEqual(["ee"]);
+    expect(visemasDeTexto("rrr")).toEqual([]);
   });
 
   it("el gesto respeta la energía y el ritmo del ADN del bot", () => {
