@@ -323,3 +323,48 @@ export function interpretarPeticion(cuerpo: unknown): PeticionImaginacion | { er
   const veto = vetoReimaginar(notas, cuerpo.referencias);
   return veto ? { error: veto } : { accion: "reimaginar", id, notas, referencias: cuerpo.referencias, por };
 }
+
+// ── IMG1102D: la cuenta diaria del filtro de entrada de Astraura ────────────────────────────────────
+
+/** Los tres motivos del filtro (`autodesarrollo_fuentes.MOTIVOS_FILTRO`, en su orden). */
+export const MOTIVOS_FILTRO = ["familia repetida", "tipo de archivo", "tope"] as const;
+export type MotivoFiltroAstraura = (typeof MOTIVOS_FILTRO)[number];
+/**
+ * Lo que el director deja en `propuestas.json → filtro_astraura` (IMG1102A): cuántas de Astraura vio
+ * el filtro, cuántas entraron y cuántas descartó por cada motivo; aparte, cuántas traían una
+ * autorización inventada («[AUTORIZADO]» y similares): esas nunca se integran solas.
+ */
+export interface FiltroAstraura {
+  /** Día de la cuenta, «AAAA-MM-DD» (como Python). La línea del medidor solo es si es la de hoy. */
+  fecha: string;
+  vistas: number;
+  entran: number;
+  filtradas: Record<MotivoFiltroAstraura, number>;
+  autorizacion_inventada: number;
+}
+const DIA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+const cuentaFiltro = (v: unknown): number =>
+  typeof v === "number" && Number.isInteger(v) && v >= 0 ? Math.min(v, 99_999) : 0;
+/** La cuenta cruda del director → la tipada que ve Genesis; si no es un objeto con su fecha, null. PURA. */
+export function filtroAstrauraDe(x: unknown): FiltroAstraura | null {
+  if (!esObj(x) || typeof x.fecha !== "string" || !DIA_ISO.test(x.fecha)) return null;
+  const crudo = esObj(x.filtradas) ? x.filtradas : {};
+  const filtradas = Object.fromEntries(MOTIVOS_FILTRO.map((m) => [m, cuentaFiltro(crudo[m])])) as Record<MotivoFiltroAstraura, number>;
+  return {
+    fecha: x.fecha.slice(0, 10), vistas: cuentaFiltro(x.vistas), entran: cuentaFiltro(x.entran),
+    filtradas, autorizacion_inventada: cuentaFiltro(x.autorizacion_inventada),
+  };
+}
+/** La línea del medidor: «Filtradas de Astraura hoy: N (familia X · tipo Y · tope Z)», con las
+ * autorizaciones inventadas aparte cuando hay. Null si no hay cuenta de HOY o si nada filtró hoy
+ * (con el reloj por parámetro: pura). */
+export function lineaFiltroAstraura(filtro: FiltroAstraura | null | undefined, hoy: Date): string | null {
+  if (!filtro) return null;
+  const dia = `${String(hoy.getFullYear()).padStart(4, "0")}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
+  if (filtro.fecha !== dia) return null;
+  const [familia, tipo, tope] = MOTIVOS_FILTRO.map((m) => filtro.filtradas[m]);
+  const total = familia + tipo + tope;
+  if (!total) return null;
+  const inventadas = filtro.autorizacion_inventada ? ` · autorizaciones inventadas: ${filtro.autorizacion_inventada}` : "";
+  return `Filtradas de Astraura hoy: ${total} (familia ${familia} · tipo ${tipo} · tope ${tope})${inventadas}`;
+}

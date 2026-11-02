@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   AJUSTES_POR_DEFECTO, ESTADOS_DECIDIBLES, NOMBRE_ESTADO, NOMBRE_FUENTE, ambitoDeLaUrl, decidibles, esAmbito, esDecidible,
-  esperaAAlex, filasMedidor, filtrarPorAmbito, interpretarPeticion, leerAmbito, normalizarAmbito, normalizarImportancia, normalizarReferencias,
+  esperaAAlex, filasMedidor, filtrarPorAmbito, filtroAstrauraDe, interpretarPeticion, leerAmbito, lineaFiltroAstraura,
+  normalizarAmbito, normalizarImportancia, normalizarReferencias,
   normalizarReimaginacion, reimaginacionesLibres, resumenPastilla, validarAjustes, vetoDecision,
   type EstadoPropuesta,
   type PropuestaImaginacion,
@@ -241,5 +242,49 @@ describe("lo que escribe el director (IMG1024C) leído en TS", () => {
     expect(ambitoDeLaUrl("?ambito=local")).toBe("metagenesis");
     expect(ambitoDeLaUrl("?nivel=meta&ambito=grupo%3Ag1")).toBe("grupo:g1");
     expect(ambitoDeLaUrl("?ambito=personal")).toBe("personal");
+  });
+});
+
+describe("filtroAstrauraDe y lineaFiltroAstraura (IMG1102D)", () => {
+  const cuentaDeHoy = () => {
+    const h = new Date();
+    const dia = (n: number) => String(n).padStart(2, "0");
+    return `${h.getFullYear()}-${dia(h.getMonth() + 1)}-${dia(h.getDate())}`;
+  };
+  const deHoy = {
+    fecha: cuentaDeHoy(), vistas: 12, entran: 3,
+    filtradas: { "familia repetida": 2, "tipo de archivo": 4, tope: 3 }, autorizacion_inventada: 1,
+  };
+  it("normaliza la cuenta cruda del director: mantiene los tres motivos y sueltan los que no son de la interfaz", () => {
+    const n = filtroAstrauraDe({
+      fecha: cuentaDeHoy(), tope_dia: 3, ventana_dias: 7, vistas: 12, entran: 3,
+      filtradas: { "familia repetida": 2, "tipo de archivo": 4, tope: 3 }, autorizacion_inventada: 1,
+      por_id: { "astraura:creacion:1": "tope" }, inventadas: ["astraura:creacion:2"], de_mas: "lo que venga",
+    });
+    expect(n).toEqual({ fecha: cuentaDeHoy(), vistas: 12, entran: 3, filtradas: { "familia repetida": 2, "tipo de archivo": 4, tope: 3 }, autorizacion_inventada: 1 });
+  });
+  it("lo que no trae fecha o trae una fecha mala, o motivos basura, vuelve a valores honestos: nada inventado", () => {
+    expect(filtroAstrauraDe(null)).toBeNull();
+    expect(filtroAstrauraDe("no es tabla")).toBeNull();
+    expect(filtroAstrauraDe({ fecha: "2-11" })).toBeNull();
+    expect(filtroAstrauraDe({ fecha: 20261102 })).toBeNull();
+    expect(filtroAstrauraDe({ fecha: cuentaDeHoy() })).toEqual({ fecha: cuentaDeHoy(), vistas: 0, entran: 0, filtradas: { "familia repetida": 0, "tipo de archivo": 0, tope: 0 }, autorizacion_inventada: 0 });
+    expect(filtroAstrauraDe({ fecha: cuentaDeHoy(), filtradas: { tope: -3, "familia repetida": "dos" }, vistas: 4.5, autorizacion_inventada: 2.5 }))
+      .toEqual({ fecha: cuentaDeHoy(), vistas: 0, entran: 0, filtradas: { "familia repetida": 0, "tipo de archivo": 0, tope: 0 }, autorizacion_inventada: 0 });
+  });
+  it("la línea es de HOY y solo cuando filtró algo: otra fecha o cero filtradas, no hay línea", () => {
+    expect(lineaFiltroAstraura(null, new Date())).toBeNull();
+    const f = structuredClone(deHoy);
+    f.fecha = "2026-11-01";
+    expect(lineaFiltroAstraura(f, new Date())).toBeNull();
+    const nada = structuredClone(deHoy);
+    nada.filtradas = { "familia repetida": 0, "tipo de archivo": 0, tope: 0 };
+    expect(lineaFiltroAstraura(nada, new Date())).toBeNull();
+  });
+  it("la línea enseña el total y cada motivo, y las autorizaciones inventadas solo cuando hay", () => {
+    expect(lineaFiltroAstraura(deHoy, new Date()))
+      .toBe("Filtradas de Astraura hoy: 9 (familia 2 · tipo 4 · tope 3) · autorizaciones inventadas: 1");
+    const sinInventadas = { ...structuredClone(deHoy), autorizacion_inventada: 0 };
+    expect(lineaFiltroAstraura(sinInventadas, new Date())).toBe("Filtradas de Astraura hoy: 9 (familia 2 · tipo 4 · tope 3)");
   });
 });

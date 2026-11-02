@@ -5,7 +5,8 @@
  * rechazar, posponer, decidir en lote y los ajustes (con el automático).
  * Contrato `architecture/imaginacion-autodesarrollo.md` §6 y el de la Ola 1024I §4.
  *
- * GET  `?ambito=<a>` (por defecto todos) → `{ propuestas, ajustes, resumen, actualizadoEn }`.
+ * GET  `?ambito=<a>` (por defecto todos) → `{ propuestas, ajustes, resumen, filtro, actualizadoEn }`,
+ *      donde `filtro` es la cuenta diaria del filtro de Astraura (`filtro_astraura`, IMG1102D) o null.
  * POST → `{ accion: "integrar" | "aprobar", id }`        «aprobada»; si es de Astraura, se aplica en su backend 1.58
  *        `{ accion: "reimaginar", id, notas, referencias? }` notas o al menos una referencia https
  *        `{ accion: "rechazar", id, motivo? }`
@@ -20,8 +21,9 @@
  */
 
 import { guardianMando } from "@/lib/mando/guardian";
-import { filtrarPorAmbito, interpretarPeticion, leerAmbito, resumenPastilla } from "@/lib/mando/imaginacion-tipos";
-import { aprobar, guardarAjustes, leerAjustes, leerPropuestas, lote, posponer, rechazar, reimaginar, type Resultado } from "@/lib/mando/imaginacion-servidor";
+import { readFile } from "node:fs/promises";
+import { filtroAstrauraDe, filtrarPorAmbito, interpretarPeticion, leerAmbito, resumenPastilla } from "@/lib/mando/imaginacion-tipos";
+import { aprobar, guardarAjustes, leerAjustes, leerPropuestas, lote, posponer, rechazar, rutasImaginacion, reimaginar, type Resultado } from "@/lib/mando/imaginacion-servidor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,7 +39,10 @@ export async function GET(peticion: Request): Promise<Response> {
     try {
         const [todas, ajustes] = await Promise.all([leerPropuestas(), leerAjustes()]);
         const propuestas = filtrarPorAmbito(todas, ambito);
-        return responder({ propuestas, ajustes, resumen: resumenPastilla(propuestas, new Date()), actualizadoEn: new Date().toISOString() });
+        const filtro = await readFile(rutasImaginacion().propuestas, "utf-8")
+            .then((t) => filtroAstrauraDe((JSON.parse(t) as { filtro_astraura?: unknown }).filtro_astraura))
+            .catch(() => null); // la cuenta de Astraura es un extra: sin ella, el resto sigue
+        return responder({ propuestas, ajustes, resumen: resumenPastilla(propuestas, new Date()), filtro, actualizadoEn: new Date().toISOString() });
     } catch {
         return responder({ error: "No se pudieron leer las propuestas." }, 500);
     }

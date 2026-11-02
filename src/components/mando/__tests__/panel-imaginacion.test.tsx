@@ -347,4 +347,29 @@ describe("PanelImaginacion", () => {
         expect(screen.getByRole("link", { name: "MetaGenesis (3)" })).toBeInTheDocument();
         expect(screen.getByRole("link", { name: "Volver al pulso de MetaGenesis" })).toBeInTheDocument();
     });
+
+    // IMG1102D: la línea de lo que el filtro de entrada de Astraura descartó hoy.
+    it("enseña «Filtradas de Astraura hoy: N (familia · tipo · tope)» con la cuenta del día, y nada si no es de hoy", async () => {
+        const dia = (d: Date | number) => {
+            const h = new Date(d);
+            const dos = (n: number) => String(n).padStart(2, "0");
+            return `${h.getFullYear()}-${dos(h.getMonth() + 1)}-${dos(h.getDate())}`;
+        };
+        const filtro = {
+            fecha: dia(new Date()), vistas: 26, entran: 9,
+            filtradas: { "familia repetida": 2, "tipo de archivo": 4, tope: 3 }, autorizacion_inventada: 1,
+        };
+        vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ propuestas: [], ajustes: AJUSTES_POR_DEFECTO, filtro, resumen: {} }), { status: 200 })));
+        render(<PanelImaginacion ambito="metagenesis" />);
+        expect(await screen.findByTestId("imaginacion-filtro-astraura")).toHaveTextContent(
+            "Filtradas de Astraura hoy: 9 (familia 2 · tipo 4 · tope 3) · autorizaciones inventadas: 1",
+        );
+        cleanup();
+        vi.unstubAllGlobals();
+
+        vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ propuestas: [], ajustes: AJUSTES_POR_DEFECTO, filtro: { ...filtro, fecha: "2026-10-05" }, resumen: {} }), { status: 200 })));
+        render(<PanelImaginacion ambito="metagenesis" />);
+        await waitFor(() => expect(screen.getByRole("tab", { name: /Todas/ })).toHaveTextContent("(0)"));
+        expect(screen.queryByTestId("imaginacion-filtro-astraura")).toBeNull();
+    });
 });
