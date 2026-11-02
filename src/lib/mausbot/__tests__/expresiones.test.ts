@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  BOCAS, CAJA_CARA, CENTRO_CARA, EXPRESIONES, MIRADAS, POSESIONES, RECORRIDO_MIRADA,
+  BOCAS, CAJA_CARA, CENTRO_CARA, EXPRESIONES,
+  MIRADAS, POSESIONES, RECORRIDO_MIRADA,
   TOTAL_EXPRESIONES, TRAZO_BOCAS, estadoDesdeOrbe, expresionDe, marcoBoca,
   type EstadoMausbot,
 } from "@/lib/mausbot/expresiones";
@@ -33,7 +34,6 @@ describe("expresiones del Mausbot (port de OpenMausBot)", () => {
     expect(CENTRO_CARA[0]).toBeLessThan(CAJA_CARA);
     expect(CENTRO_CARA[1]).toBeLessThan(CAJA_CARA);
     expect(RECORRIDO_MIRADA.x).toBeGreaterThan(0);
-    // la mirada de cada expresión cabe dentro de la caja de la cara
     for (const [mx, my] of MIRADAS) {
       expect(Math.abs(mx)).toBeLessThan(CAJA_CARA);
       expect(Math.abs(my)).toBeLessThan(CAJA_CARA);
@@ -59,6 +59,27 @@ describe("expresiones del Mausbot (port de OpenMausBot)", () => {
       expect(m.y).toBeGreaterThan(0);
       expect(m.y).toBeLessThan(CAJA_CARA);
     });
+  });
+
+  // Fijado del port: los números del origen (cursor-face-data.ts de OpenMausBot)
+  // no deben moverse sin querer.
+  it("publica la caja y el centro de la cara y el recorrido de la mirada", () => {
+    expect(CAJA_CARA).toBe(228.541);
+    expect(CENTRO_CARA).toEqual([120, 122.5]);
+    expect(RECORRIDO_MIRADA).toEqual({ x: 13.2, y: 8.4 });
+  });
+
+  it("asigna a cada estado su expresión canónica", () => {
+    for (const estado of ESTADOS) {
+      const indices = expresionDe(estado);
+      for (const idx of indices) {
+        expect(idx).toBeGreaterThanOrEqual(0);
+        expect(idx).toBeLessThan(TOTAL_EXPRESIONES);
+        expect(EXPRESIONES[idx]).toHaveLength(2);
+        expect(EXPRESIONES[idx][0]).toHaveLength(48);
+        expect(EXPRESIONES[idx][1]).toHaveLength(48);
+      }
+    }
   });
 });
 
