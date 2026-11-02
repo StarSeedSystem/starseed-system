@@ -4662,3 +4662,47 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-11-02 20:41 · mg-oracle-1102-1311
+
+**Lo que se pidió.** punto dentro de la ventana
+
+**Resultado.** 0 de 29 integradas. 29 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 22 tareas se fueron por lo mismo — no escribió nada (RTS1010-MGR2b, RTRTS1010-TU-LL1cobjbbb-d2, RTAV1011Dc, AGT1025B, ART1025C, ART1025G). Es 76 % de la ola.
+- 4 tareas se fueron por lo mismo — los tipos no compilan (APR1019B, APM1017W, RTINF1025Dd, INF1025D). Es 14 % de la ola.
+- 3 tareas se fueron por lo mismo — otra cosa (INF1025B, DSN1025D, BLD1025C). Es 10 % de la ola.
+- sin modelo anotado no integró ninguna de sus 25 tareas.
+- freellmapi/auto no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `APR1019B` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/APR1019B conservada)
+- `RTS1010-MGR2b` — no escribió nada
+- `APM1017W` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/APM1017W conservada)
+- `RTRTS1010-TU-LL1cobjbbb-d2` — no escribió nada
+- `RTINF1025Dd` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTINF1025Dd conservada)
+- `RTAV1011Dc` — no escribió nada
+- `INF1025D` — los tipos no compilan: tsc no terminó (se pasó de tiempo): la puerta no da el visto bueno sin un tsc completo (rama ola/INF1025D conservada)
+- `INF1025B` — otra cosa: ningún proveedor respondió (does not exist)
+- `DSN1025D` — otra cosa: ningún proveedor respondió (does not exist)
+- `AGT1025B` — no escribió nada
+- `ART1025C` — no escribió nada
+- `ART1025G` — no escribió nada
+- `CPZ1025D` — no escribió nada
+- `CPZ1025F` — no escribió nada
+- `CPZ1025H` — no escribió nada
+- `DSN1025G` — no escribió nada
+- `DSN1025H` — no escribió nada
+- `INF1025G` — no escribió nada
+- `ART1025B` — no escribió nada
+- `ART1025L` — no escribió nada
+- `BLD1025B` — no escribió nada
+- `BLD1025C` — otra cosa: directorio sin worktree Git: conservado para recuperación
+- `CFC1025A` — no escribió nada
+- `CPZ1025A` — no escribió nada
+- `DSN1025A` — no escribió nada
+- `INV1025B` — no escribió nada
+- `INV1025F` — no escribió nada
+- `DSN1025B` — no escribió nada
+- `INV1025J` — no escribió nada
