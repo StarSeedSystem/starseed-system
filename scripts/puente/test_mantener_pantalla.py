@@ -5,97 +5,117 @@ import unittest
 from unittest.mock import MagicMock
 
 import mantener_pantalla as mp
+from pantalla_logica import construir_orden, estado_despierto, leer_modo
 
 
-def ajuste(activa: bool) -> str:
-    return json.dumps({"activa": activa, "desde": None, "quien": "prueba"})
+def ajuste(modo):
+    return json.dumps({"modo": modo, "desde": None, "quien": "prueba"})
 
 
-class LeerAjusteTests(unittest.TestCase):
-    def test_activa_true(self):
-        self.assertTrue(mp.leer_ajuste(ajuste(True)))
+class LeerModoTests(unittest.TestCase):
+    def test_modos_validos(self):
+        self.assertEqual(leer_modo(ajuste("pantalla")), "pantalla")
+        self.assertEqual(leer_modo(ajuste("sistema")), "sistema")
 
-    def test_activa_false(self):
-        self.assertFalse(mp.leer_ajuste(ajuste(False)))
+    def test_modo_desconocido_apaga(self):
+        self.assertIsNone(leer_modo(ajuste("otro")))
 
-    def test_json_roto_activa_por_defecto(self):
-        self.assertTrue(mp.leer_ajuste("{roto"))
+    def test_roto_o_vacio_enciende_pantalla(self):
+        self.assertEqual(leer_modo("{roto"), "pantalla")
+        self.assertEqual(leer_modo(""), "pantalla")
 
-    def test_vacio_activa_por_defecto(self):
-        self.assertTrue(mp.leer_ajuste(""))
-
-    def test_no_dict_activa_por_defecto(self):
-        self.assertTrue(mp.leer_ajuste("[1]"))
-
-
-class QueHacerTests(unittest.TestCase):
-    def test_activa_sin_hijo_lanza_y_declara(self):
-        acciones = mp.que_hacer(True, False, 999)
-        self.assertEqual(acciones, ["lanzar_dim", "declarar_usuario"])
-
-    def test_activa_con_hijo_y_55s_declara(self):
-        self.assertEqual(mp.que_hacer(True, True, 55), ["declarar_usuario"])
-
-    def test_activa_con_hijo_reciente_nada(self):
-        self.assertEqual(mp.que_hacer(True, True, 5), ["nada"])
-
-    def test_inactiva_con_hijo_para(self):
-        self.assertEqual(mp.que_hacer(False, True, 0), ["parar_dim"])
-
-    def test_inactiva_sin_hijo_nada(self):
-        self.assertEqual(mp.que_hacer(False, False, 0), ["nada"])
+    def test_compatibilidad_activa(self):
+        self.assertIsNone(leer_modo(json.dumps({"activa": False})))
+        self.assertEqual(leer_modo(json.dumps({"activa": True})), "pantalla")
 
 
-def servicio_simulado():
+class ConstruirOrdenTests(unittest.TestCase):
+    def test_keepalive_pantalla_y_sistema(self):
+        self.assertEqual(
+            construir_orden("darwin", "pantalla", 42, True),
+            ["keepalive", "--plain", "--keep-display=true", "--pid", "42", "-b", "15"],
+        )
+        self.assertEqual(
+            construir_orden("linux", "sistema", 7, True, 30),
+            ["keepalive", "--plain", "--keep-display=false", "--pid", "7", "-b", "30"],
+        )
+
+    def test_macos_sin_keepalive(self):
+        self.assertEqual(
+            construir_orden("darwin", "pantalla", 42, False),
+            ["/usr/bin/caffeinate", "-dim", "-w", "42"],
+        )
+        self.assertEqual(
+            construir_orden("darwin", "sistema", 42, False),
+            ["/usr/bin/caffeinate", "-i", "-w", "42"],
+        )
+
+    def test_linux_sin_keepalive_inhibe_sueno(self):
+        orden = construir_orden("linux", "sistema", 42, False) or []
+        self.assertEqual(orden[0], "systemd-inhibit")
+        self.assertIn("--what=sleep:idle", orden)
+
+    def test_sin_herramienta_o_apagado(self):
+        self.assertIsNone(construir_orden("win32", "sistema", 42, False))
+        self.assertIsNone(construir_orden("darwin", None, 42, True))
+
+
+class EstadoTests(unittest.TestCase):
+    def test_estado_activo_y_apagado(self):
+        self.assertEqual(
+            estado_despierto("sistema", ["keepalive"], 42),
+            {"modo": "sistema", "herramienta": "keepalive", "pid": 42},
+        )
+        self.assertEqual(
+            estado_despierto(None, None, 42),
+            {"modo": None, "herramienta": None, "pid": 42},
+        )
+
+
+def servicio_simulado(plataforma="darwin", keepalive=False):
     popen = MagicMock()
-    run = MagicMock()
-    reloj = [1000.0]
     popen.return_value.poll.return_value = None
-    servicio = mp.ServicioPantalla(popen, run, ahora=lambda: reloj[0])
-    return servicio, popen, run, reloj
+    escritos = []
+    servicio = mp.ServicioPantalla(
+        lanzador=popen,
+        plataforma=plataforma,
+        hay_keepalive=keepalive,
+        pid=42,
+        escritor=escritos.append,
+    )
+    return servicio, popen, escritos
 
 
 class CicloTests(unittest.TestCase):
-    def test_activa_sin_hijo_lanza_caffeinate_dim(self):
-        servicio, popen, run, _ = servicio_simulado()
-        servicio.ciclo(ajuste(True))
-        args = popen.call_args[0][0]
-        self.assertIn("-dim", args)
-        self.assertIn("-w", args)
-        run.assert_called_once_with([mp.CAFFEINATE, "-u", "-t", "60"], timeout=10)
+    def test_pantalla_lanza_caffeinate_y_escribe_estado(self):
+        servicio, popen, escritos = servicio_simulado()
+        servicio.ciclo(ajuste("pantalla"))
+        self.assertEqual(popen.call_args[0][0], ["/usr/bin/caffeinate", "-dim", "-w", "42"])
+        self.assertEqual(
+            escritos,
+            [{"modo": "pantalla", "herramienta": "/usr/bin/caffeinate", "pid": 42}],
+        )
 
-    def test_activa_con_hijo_a_los_55s_declara_usuario(self):
-        servicio, popen, run, reloj = servicio_simulado()
-        servicio.ciclo(ajuste(True))
-        run.reset_mock()
-        reloj[0] += 55
-        servicio.ciclo(ajuste(True))
-        run.assert_called_once_with([mp.CAFFEINATE, "-u", "-t", "60"], timeout=10)
+    def test_sistema_con_keepalive_no_duerme_pantalla(self):
+        servicio, popen, _ = servicio_simulado(keepalive=True)
+        servicio.ciclo(ajuste("sistema"))
+        self.assertIn("--keep-display=false", popen.call_args[0][0])
 
-    def test_inactiva_con_hijo_lo_termina(self):
-        servicio, popen, _, _ = servicio_simulado()
-        servicio.ciclo(ajuste(True))
+    def test_mismo_modo_vivo_no_relanza(self):
+        servicio, popen, escritos = servicio_simulado()
+        servicio.ciclo(ajuste("pantalla"))
+        servicio.ciclo(ajuste("pantalla"))
+        self.assertEqual(popen.call_count, 1)
+        self.assertEqual(len(escritos), 1)
+
+    def test_apagado_termina_solo_su_hijo(self):
+        servicio, popen, escritos = servicio_simulado()
+        servicio.ciclo(ajuste("pantalla"))
         hijo = popen.return_value
-        servicio.ciclo(ajuste(False))
+        servicio.ciclo(json.dumps({"activa": False}))
         hijo.terminate.assert_called_once()
         self.assertFalse(servicio.hijo_vivo())
-
-    def test_json_roto_en_ciclo_activa(self):
-        servicio, popen, _, _ = servicio_simulado()
-        acciones = servicio.ciclo("{roto")
-        self.assertIn("lanzar_dim", acciones)
-        popen.assert_called_once()
-
-    def test_nunca_usa_pkill(self):
-        servicio, popen, run, reloj = servicio_simulado()
-        servicio.ciclo(ajuste(True))
-        reloj[0] += 60
-        servicio.ciclo(ajuste(True))
-        servicio.ciclo(ajuste(False))
-        for llamada in popen.call_args_list + run.call_args_list:
-            for cadena in llamada[0][0] if llamada[0] else []:
-                self.assertNotIn("pkill", cadena)
+        self.assertIsNone(escritos[-1]["modo"])
 
 
-if __name__ == "__main__":
-    unittest.main()
+if __name__ == "__main__": unittest.main()
