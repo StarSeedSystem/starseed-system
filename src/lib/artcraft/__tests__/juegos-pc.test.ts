@@ -117,6 +117,28 @@ describe("esUrlPermitidaRare · solo releases oficiales, descargas remotas bloqu
       "https://protondb.com/", "https://example.com/RareDevs/Rare.zip", "sin url",
     ]) expect(esUrlPermitidaRare(u), u).toBe(false);
   });
+  // Rescate SUP0111H: la travesía de directorios no cuela, ni en claro ni codificada.
+  it("la travesía de directorios no cuela, ni en claro ni codificada", () => {
+    for (const u of [
+      "https://github.com/RareDevs/Rare/releases/../../../evil/x",
+      "https://github.com/RareDevs/Rare/releases/%2e%2e/%2e%2e/evil/x",
+      "https://github.com/RareDevs/Rare/releases/%2E%2E/evil/x",
+      "https://github.com/RareDevs/Rare/releases/..\\evil/x",
+    ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
+  // Rescate SUP0111H: host disfrazado, credenciales, puerto, esquema y travesía tras un prefijo válido.
+  it("otro host que se disfraza, credenciales, puerto o esquema quedan fuera", () => {
+    for (const u of [
+      "https://github.com.evil.com/RareDevs/Rare/releases/1",
+      "https://user@github.com/RareDevs/Rare/releases/1",
+      "https://user:clave@github.com/RareDevs/Rare/releases/1",
+      "https://github.com:8443/RareDevs/Rare/releases/1",
+      "https://github.com/RareDevs/Rare/releases@evil.com/1",
+      "ftp://github.com/RareDevs/Rare/releases/1",
+      "https://[::1]/RareDevs/Rare/releases/1",
+      "https://github.com/RareDevs/Rare/releases/../../../../RareDevs/Rare/releases/1",
+    ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
 });
 
 function rare(): HerramientaProto {

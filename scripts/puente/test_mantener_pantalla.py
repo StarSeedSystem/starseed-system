@@ -28,6 +28,11 @@ class LeerModoTests(unittest.TestCase):
         self.assertIsNone(leer_modo(json.dumps({"activa": False})))
         self.assertEqual(leer_modo(json.dumps({"activa": True})), "pantalla")
 
+    def test_json_no_dict_enciende_pantalla(self):
+        # Rescate KAL1101A: un JSON válido que no es objeto vale «pantalla».
+        self.assertEqual(leer_modo("[1]"), "pantalla")
+        self.assertEqual(leer_modo("42"), "pantalla")
+
 
 class ConstruirOrdenTests(unittest.TestCase):
     def test_keepalive_pantalla_y_sistema(self):
@@ -54,6 +59,13 @@ class ConstruirOrdenTests(unittest.TestCase):
         orden = construir_orden("linux", "sistema", 42, False) or []
         self.assertEqual(orden[0], "systemd-inhibit")
         self.assertIn("--what=sleep:idle", orden)
+
+    def test_systemd_inhibit_duerme_solo_el_sistema(self):
+        # Rescate KAL1101A: la orden completa solo inhibe sueño e inactividad.
+        orden = construir_orden("linux", "sistema", 42, False) or []
+        for esperada in ("--what=sleep:idle", "--mode=block", "sleep", "infinity"):
+            self.assertIn(esperada, orden)
+        self.assertNotIn("--what=shutdown", orden)
 
     def test_sin_herramienta_o_apagado(self):
         self.assertIsNone(construir_orden("win32", "sistema", 42, False))
@@ -116,6 +128,22 @@ class CicloTests(unittest.TestCase):
         hijo.terminate.assert_called_once()
         self.assertFalse(servicio.hijo_vivo())
         self.assertIsNone(escritos[-1]["modo"])
+
+    def test_apagado_sin_hijo_no_lanza_nada(self):
+        # Rescate KAL1101A: apagado desde el arranque no levanta ninguna orden.
+        servicio, popen, _ = servicio_simulado()
+        servicio.ciclo(json.dumps({"activa": False}))
+        popen.assert_not_called()
+        self.assertFalse(servicio.hijo_vivo())
+
+    def test_sin_herramienta_avisa_una_vez_y_no_lanza_nada(self):
+        # Rescate KAL1101A: sin keepalive ni inhibidor no lanza y no repite el aviso.
+        servicio, popen, escritos = servicio_simulado(plataforma="win32")
+        servicio.ciclo(ajuste("pantalla"))
+        servicio.ciclo(ajuste("pantalla"))
+        popen.assert_not_called()
+        self.assertEqual(len(escritos), 1)
+        self.assertIsNone(escritos[0]["herramienta"])
 
 
 if __name__ == "__main__": unittest.main()
