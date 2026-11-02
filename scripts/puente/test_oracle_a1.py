@@ -423,6 +423,18 @@ class LimpiezaDeWorktrees(unittest.TestCase):
                          [("/srv/wt/x", "")])
         self.assertEqual(A.worktrees_a_quitar("", "/srv/repo"), [])
 
+    def test_registro_con_prunable_y_sin_cabeza_tambien_va(self):
+        """(rama nube/41385183139) Un `add` cortado suelta además `prunable`; y un registro puede
+        llegar sin `HEAD` ni `branch` (la carpeta ya no existe). Ni lo uno ni lo otro cambia el veredicto."""
+        porcelana = "worktree /srv/wt/cortado\nlocked initializing\nprunable\n"
+        self.assertEqual(A.worktrees_a_quitar(porcelana, "/srv/repo"),
+                         [("/srv/wt/cortado", "initializing")])
+
+    def test_salida_rara_no_da_rutas(self):
+        """(rama nube/41385183139) Sin salida, salida sin `worktree` o con la ruta vacía: nada que quitar."""
+        for raro in (None, "HEAD b\n", "worktree \n"):
+            self.assertEqual(A.worktrees_a_quitar(raro, "/srv/repo"), [])
+
 
 if __name__ == "__main__":
     unittest.main()
