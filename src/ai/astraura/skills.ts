@@ -20,6 +20,7 @@
  */
 
 import { getInstalledFunctionIds, getInstalledPackageIds } from "@/lib/library/packages";
+import { HERRAMIENTA_CONTENIDO_VIVO } from "@/lib/astraura/chat-herramientas";
 import { PRODUCTIVITY_SKILLS } from "./habilidades/productividad";
 import {
   ATRIBUCION_DIAGRAMAS, HABILIDAD_DIAGRAMAS, comoCapacidad,
@@ -756,6 +757,11 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
       "Cuando la tarea encaje con una habilidad de ingeniería, Laya ya ha elegido cuál aplica y te llega un bloque con su texto al tamaño de tu capa (tarjeta, resumen o referencia al SKILL.md completo): aplícalo tal cual, guiándote primero por él. Si no llega ningún bloque, responde sin aplicar ninguna habilidad y no las inventes ni las nombres de oído.",
     routing: {},
   },
+  /* CVV1028 · Contenido vivo: entra al manifiesto con la MISMA forma que las
+     demás capacidades (defaultOn), para que el picker la vea, la migración
+     v2 la encienda en cuentas ya creadas y el prompt de Astraura pida el
+     átomo «contenido-vivo» de la Protomolécula. */
+  HERRAMIENTA_CONTENIDO_VIVO,
 ];
 
 function isClient(): boolean {

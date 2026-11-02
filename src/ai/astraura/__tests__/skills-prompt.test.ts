@@ -70,12 +70,19 @@ describe("skillsSystemPrompt · capa completa y filtro por chat", () => {
     expect(etiquetas.some((l) => l.startsWith("Generación audiovisual"))).toBe(false);
   });
 
+  it("«Contenido vivo» entra activa por defecto y su prompt pide el átomo", () => {
+    const bloque = skillsSystemPrompt();
+    expect(bloque).toContain("Contenido vivo:");
+    expect(bloque).toContain('[[ACCION: protomolecula {"accion":"abrir","herramienta":"contenido-vivo"}]]');
+  });
+
   it("sin capacidades activas el bloque es vacío y no deja texto suelto", () => {
     // Sin espejo quedan las defaultOn: hoy «av-gen» (Adenda 138),
     // «diagram-design» (Ola 1018D), «habilidades-ingenieria» (Ola 1018L · LYS1018K)
     // y «slides»/«design-md» (Ola 1025R · DSN1025A)
-    // y «educacion-informatica» (Ola 1025R · INF1025F). El bloque se vacía al apagarlas.
-    desactivar(["av-gen", "diagram-design", "habilidades-ingenieria", "slides", "design-md", "educacion-informatica"]);
+    // y «educacion-informatica» (Ola 1025R · INF1025F)
+    // y «contenido-vivo» (CVV1028). El bloque se vacía al apagarlas.
+    desactivar(["av-gen", "diagram-design", "habilidades-ingenieria", "slides", "design-md", "educacion-informatica", "contenido-vivo"]);
     expect(skillsSystemPrompt()).toBe("");
   });
 });
