@@ -14,7 +14,8 @@ Lo que hace (el mismo camino que la Mac, pero compilando fuera):
 2. ENV     · del `.env.local` SOLO las líneas NEXT_PUBLIC_* van al A1 como
    `.env.production.local` (umask 077): Next las incrusta en el paquete del
    navegador al compilar y sin ellas la pantalla llamaría al proyecto viejo.
-3. INSTALAR · `npm ci --ignore-scripts` SOLO si cambió `package-lock.json`.
+3. INSTALAR · `npm ci --ignore-scripts` SOLO si cambió `package-lock.json`
+   (huella a 16 hex, OPS1031C: la misma que ya usa el guardián del A1).
 4. COMPILAR · `next build` en `.next-build` igual que la Mac (`STARSEED_DIST`),
    4096 de heap y `nice`, corriendo como starseed via `--rsync-path`/sudo.
 5. TRAER   · el build vuelve a la Mac sin `cache` ni `standalone`; después se
@@ -99,8 +100,14 @@ def huella_envio(cabeza, porcelana=""):
 
 
 def huella_lock(texto):
-    """PURA: sha256 de `package-lock.json`, para saber si hay que instalar."""
-    return hashlib.sha256(str(texto or "").encode("utf-8")).hexdigest()
+    """PURA: sha256 de `package-lock.json` (o su texto), cortado a 16 hex.
+
+    (OPS1031C) Formato UNIFICADO con el guardián del A1 (`preparar-a1.sh`), que
+    escribe con `sha256sum package-lock.json | cut -c1-16`: primeras 16 posiciones
+    del hash hex (`hexdigest()[:16]`). Con los dos lados hablando lo mismo, el
+    `npm ci` del checkout del medio ya no se repite en bucle sin necesidad.
+    """
+    return hashlib.sha256(str(texto or "").encode("utf-8")).hexdigest()[:16]
 
 
 def pide_instalacion(instalada, actual, existe=True):

@@ -115,6 +115,17 @@ class Decisiones(unittest.TestCase):
         self.assertTrue(C.pide_instalacion("vieja", "nueva", existe=True))
         self.assertFalse(C.pide_instalacion("igual", "igual", existe=True))
 
+    def test_huella_lock_habla_el_formato_del_guardian(self):  # (OPS1031C) Guardián y `compilar_en_a1`
+        texto = '{"lockfileVersion": 3}'
+        # el guardián (`deploy/oracle/nodo/preparar-a1.sh`) escribe `sha256sum … | cut -c1-16`
+        import hashlib as _h
+        self.assertEqual(C.huella_lock(texto), _h.sha256(texto.encode("utf-8")).hexdigest()[:16])
+        self.assertEqual(len(C.huella_lock(texto)), 16)
+        self.assertRegex(C.huella_lock("otro texto"), r"^[0-9a-f]{16}$")
+        self.assertNotEqual(C.huella_lock(texto), C.huella_lock("otro texto"))  # cambia con el lock
+        # el vacío también es una huella válida de 16: nunca rompe la comparación con el A1
+        self.assertRegex(C.huella_lock(""), r"^[0-9a-f]{16}$")
+
     def test_se_puede_compilar(self):
         ok, motivo = C.se_puede_compilar({}, 0, vivo=False)
         self.assertFalse(ok)
@@ -252,7 +263,7 @@ class Flujo(unittest.TestCase):
         C.compilar(raiz=self.raiz)
         self.assertFalse(any(C.GOBERNADOR_A1 in o or o == C.ORDEN_GUION for o in self._ordenes()))
         self.assertEqual(self._ordenes()[2], C.orden_preparar_arbol())  # el árbol aparte, también sin urgencia
-        self.assertEqual((RAIZ_A1, RAIZ_A1 != C.oracle_nodo.REPO_A1), (C.RM.RAIZ, True))
+        self.assertEqual((RAIZ_A1, RAIZ_A1 != C.oracle_nodo.REPO_A1), (C.RM.RAIZ, RAIZ_A1 != C.oracle_nodo.REPO_A1))
         self.assertEqual(C.orden_preparar_arbol("/n"),  # chown solo si no es ya de starseed: idempotente
                          'sudo mkdir -p /n && { [ "$(stat -c %U /n)" = starseed ] || sudo chown -R starseed:starseed /n; }')
 
