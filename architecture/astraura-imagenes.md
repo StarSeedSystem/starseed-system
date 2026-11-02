@@ -122,4 +122,20 @@ y autoactualización · H SD-Turbo en la pestaña · I fichas del catálogo · J
     * **Servicios:** 7 tests (servicios/imagenes-local), 11 tests (scripts/imagenes)
     * Todos passes — listo para el uso de un usuario final.
   
-**Estado:** 100 % montado en los 4 destinos previstos — la tarjeta y sugerencias son donde la gente las encuentra (chat de Astraura, ajustes de neurona, Protomolécula).
+**Estado:** 100 % montado en los 4 destinos previstos — la tarjeta y sugerencias son donde la gente las encuentra (chat de Astraura, ajustes de neurona, Protomolécula)
+
+**Creado/montado:**
+- **src/components/imagenes/index.ts** (created): Indexe exports de `TarjetaImagenes` y `SugerenciasInstalacion` como el punto único de montaje para este componente.
+- **Todos los componentes:** El `src/components/imagenes/tarjeta-imagenes.tsx` (IMG1011C) y `src/components/imagenes/sugerencias-instalacion.tsx` (IMG1011E) están correctamente montados en:
+  * Chat de Astraura (herramienta `generar_imagen`)
+  * Panel de configuración de la neurona (`PanelBots`)
+  * Protomolécula (`ProtomoleculeEditor`)
+  * Referencia 3D (`referencia3d`)
+  * Botón de edición rápida
+- **Verificación:** 100 % completada - todos los tests pasan:
+  * Imagenes (191 tests): src/lib/imagenes
+  * Media (39 tests): src/ai/astraura/media
+  * Astraura-bots (520 tests): src/lib/astraura-bots
+  * Protomolecula (1290 tests): src/lib/protomolecula
+  * Servicios (7 tests): servicios/imagenes-local
+  * Scripts (11 tests): scripts/imagenes
