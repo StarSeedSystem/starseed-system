@@ -9,6 +9,10 @@
  */
 import { detectarAdaptadores } from "@/lib/video-html/adaptadores";
 import { DURACION_MAX, DURACION_MIN, FORMATOS_VIDEO } from "@/lib/video-html/herramienta-componer";
+import { parseCapacidadMallaMensaje, type MsgPedir, type MsgFin, type MsgError } from "@/lib/network/capacidad-por-malla";
+import { getSharedMesh } from "@/lib/network/lan-sync";
+import type { MeshHandle, PeerEvents } from "@/lib/network/webrtc-mesh";
+import { SERVICIOS_CONOCIDOS, llamarServicio } from "@/lib/protomolecula/servicio-local";
 
 /** Cuerpo de `capacidad.pedir` (tipo `render`) para vídeo HyperFrames. */
 export interface PeticionVideoMalla {
@@ -117,4 +121,112 @@ function admiteYValida(
 function cuentaReferencia(ref: string): string {
   const anfitrion = ref.replace(/^starseed:\/\//, "").replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, "").split(/[/?#]/)[0];
   return anfitrion || "esquema local";
+}
+
+/* ── Conexión al relé `capacidad.*` (HFR1018I): rol SERVIDOR de `capacidad.pedir` tipo `render` ──
+ * Pone el manejador puro de arriba donde debe usarse: sobre el mesh COMPARTIDO, con el patrón
+ * de `adjuntarServidorAstrauraMalla`/`adjuntarServidorIaMalla` (namespaces disjuntos, nunca un
+ * mesh segundo) y contesta `capacidad.fin` { trabajoId } o `capacidad.error` legible. Se monta
+ * UNA vez desde `MallaNeuronasMount`, como los demás relés. Sin cola inyectada, la cola ES el
+ * servicio «hyperframes» de ESTA neurona (127.0.0.1:4490, tarea Fb); la cuenta por defecto sale
+ * del propio mesh (los peers son de la misma cuenta) y los grupos con permiso llegan inyectados. */
+
+/** Cuerpo crudo del relé → petición tipada. Pura; nunca lanza. */
+export function cuerpoPeticionVideoMalla(c: Record<string, unknown>): PeticionVideoMalla {
+  const texto = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+  return {
+    cuenta: texto(c.cuenta) ?? "",
+    composicion: texto(c.composicion) ?? "",
+    grupo: texto(c.grupo),
+    formato: texto(c.formato),
+    duracionSeg: typeof c.duracionSeg === "number" ? c.duracionSeg : undefined,
+    editar: typeof c.editar === "boolean" ? c.editar : undefined,
+  };
+}
+
+/** Cola por defecto: el servicio «hyperframes» LOCAL de esta neurona (POST /render). */
+async function encolarLocal(t: TrabajoRender): Promise<string> {
+  const def = SERVICIOS_CONOCIDOS.find((s) => s.id === "hyperframes");
+  if (!def) throw new Error("Esta neurona no declara el servicio «hyperframes».");
+  const r = await llamarServicio(def, "/render", { composicion: t.composicion, formato: t.formato }, fetch, {});
+  if (!r.ok) throw new Error(`El servicio «hyperframes» no admitió el render: ${r.motivo}`);
+  const id = r.datos && typeof (r.datos as { id?: unknown }).id === "string" ? (r.datos as { id: string }).id : "";
+  if (!id) throw new Error("El servicio «hyperframes» no devolvió el id del trabajo de render.");
+  return id;
+}
+
+/** Conexiones para pruebas u otras neuronas (sin servicio local ni red en las pruebas). */
+export interface DepsServidaVideoRender {
+  encolar?: (t: TrabajoRender) => string | Promise<string>;
+  cuentaLocal?: () => string;
+  gruposPermitidos?: () => string[];
+  sirveRender?: () => boolean;
+}
+
+/** Código del rechazo legible: 503 sin cola, 500 fallo al encolar, 403 cuenta/grupo, 400 petición inválida. */
+function estadoDeRechazo(motivo: string): number {
+  if (motivo.includes("cola de render")) return 503;
+  if (motivo.includes("No encolé") || motivo.includes("no admitió") || motivo.includes("no devolvió")) return 500;
+  if (motivo.includes("cuenta o de un grupo")) return 403;
+  return 400;
+}
+
+/** Atiende UN `capacidad.pedir` tipo `render` de `peerId`: admite, valida, encola y contesta. */
+export async function atenderRenderVideoMalla(
+  mesh: Pick<MeshHandle, "sendToPeer" | "userId">,
+  peerId: string,
+  msg: MsgPedir,
+  deps: DepsServidaVideoRender = {},
+): Promise<void> {
+  const ctx: ContextoServidaVideo = {
+    cuentaLocal: deps.cuentaLocal?.() ?? mesh.userId,
+    gruposPermitidos: deps.gruposPermitidos?.() ?? [],
+    sirveRender: deps.sirveRender?.() ?? true,
+  };
+  const r = await videoRenderPorMalla(cuerpoPeticionVideoMalla(msg.cuerpo), ctx, { encolar: deps.encolar ?? encolarLocal });
+  try {
+    if (!r.ok) {
+      const error: MsgError = { t: "capacidad.error", id: msg.id, estado: estadoDeRechazo(r.motivo), mensaje: r.motivo.slice(0, 300) };
+      mesh.sendToPeer(peerId, JSON.stringify(error));
+      return;
+    }
+    const fin: MsgFin = { t: "capacidad.fin", id: msg.id, resultado: { trabajoId: r.trabajoId, motivo: r.motivo } };
+    mesh.sendToPeer(peerId, JSON.stringify(fin));
+  } catch {
+    /* el peer ya no escucha: nada que hacer */
+  }
+}
+
+/** Cuelga el rol SERVIDOR en un mesh (real o de mentira; las pruebas no tocan la red). */
+export function adjuntarServidorVideoMalla(
+  mesh: Pick<MeshHandle, "onPeer" | "sendToPeer" | "userId">,
+  deps: DepsServidaVideoRender = {},
+): () => void {
+  const onMessage: PeerEvents["onMessage"] = (peerId, data) => {
+    const msg = parseCapacidadMallaMensaje(data);
+    if (!msg || msg.t !== "capacidad.pedir" || msg.tipo !== "render") return;
+    void atenderRenderVideoMalla(mesh, peerId, msg, deps);
+  };
+  return mesh.onPeer({ onMessage });
+}
+
+let servidorVideoUnsub: (() => void) | null = null;
+let servidorVideoTimer: ReturnType<typeof setInterval> | null = null;
+
+/** Arranca (o reintenta hasta que exista) el rol SERVIDOR sobre el mesh COMPARTIDO. Idempotente. */
+export function iniciarServidorVideoPorMalla(): () => void {
+  let parado = false;
+  const intentar = () => {
+    if (parado || servidorVideoUnsub) return;
+    const mesh = getSharedMesh();
+    if (mesh) servidorVideoUnsub = adjuntarServidorVideoMalla(mesh);
+  };
+  intentar();
+  if (!servidorVideoUnsub) servidorVideoTimer = setInterval(intentar, 2000);
+  return () => {
+    parado = true;
+    if (servidorVideoTimer) { clearInterval(servidorVideoTimer); servidorVideoTimer = null; }
+    servidorVideoUnsub?.();
+    servidorVideoUnsub = null;
+  };
 }
