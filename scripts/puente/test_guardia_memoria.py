@@ -231,3 +231,16 @@ def test_bitnet_recien_arrancado_no_se_congela():
     assert gm.sin_congelar_en_arranque(acc, {"llama-server": 3.0, "tts-server": 30.0}, gracia=10) == [("tts-server", "congelar")]
     assert gm.sin_congelar_en_arranque(acc, {"llama-server": None}, gracia=10) == acc
     assert gm.sin_congelar_en_arranque([("llama-server", "descongelar")], {"llama-server": 1.0}) == [("llama-server", "descongelar")]
+
+
+def test_gracia_de_arranque_va_por_pid():
+    import importlib.util as _u, os as _o
+    _s = _u.spec_from_file_location("gm1102b", _o.path.join(_o.path.dirname(__file__), "guardia-memoria.py"))
+    gm = _u.module_from_spec(_s); _s.loader.exec_module(gm)
+    # BitNet viejo (30 min) + Ollama recién nacido (2 min): se congela el viejo, no el que carga.
+    assert gm.pids_a_congelar({1: "S", 2: "R", 3: "T"}, {1: 30.0, 2: 2.0, 3: 40.0}, gracia=10) == {1}
+    assert gm.pids_a_congelar({1: "S"}, {}, gracia=10) == {1}  # sin edad: como siempre
+    # Con el más viejo de 30 min la acción sigue; con todos jóvenes, no entra.
+    acc = [("llama-server", "congelar")]
+    assert gm.sin_congelar_en_arranque(acc, {"llama-server": 30.0}, gracia=10) == acc
+    assert gm.sin_congelar_en_arranque(acc, {"llama-server": 2.0}, gracia=10) == []

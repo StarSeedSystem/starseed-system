@@ -229,15 +229,23 @@ def minutos_de_etime(texto):
 
 
 def sin_congelar_en_arranque(acciones, edades_min, gracia=None):
-    """PURA: un motor con algún proceso más joven que la gracia no se congela (está arrancando)."""
+    """PURA: un motor cuyos procesos son TODOS más jóvenes que la gracia no entra en las acciones de congelar.
+    `edades_min` = edad del más viejo de cada motor. Los jóvenes sueltos los aparta `pids_a_congelar`."""
     g = GRACIA_ARRANQUE_MIN if gracia is None else gracia
     return [(m, a) for (m, a) in acciones
             if not (a == "congelar" and edades_min.get(m) is not None and edades_min[m] < g)]
 
 
-def _edad_min(pids):
-    """Minutos del proceso más joven del motor (None si no se puede medir)."""
-    edades = []
+def pids_a_congelar(estados, edades, gracia=None):
+    """PURA: los pids sueltos (no en T) que no están arrancando. Sin edad medida, se congela como siempre."""
+    g = GRACIA_ARRANQUE_MIN if gracia is None else gracia
+    return {p for p, e in (estados or {}).items()
+            if "T" not in e and not ((edades or {}).get(p) is not None and edades[p] < g)}
+
+
+def _edades(pids):
+    """{pid: minutos vivo} de los procesos del motor (los que no se pueden medir no salen)."""
+    edades = {}
     for pid in (pids or {}):
         try:
             r = subprocess.run(["ps", "-o", "etime=", "-p", str(pid)], capture_output=True, text=True, timeout=5)
@@ -245,8 +253,8 @@ def _edad_min(pids):
             continue
         e = minutos_de_etime(r.stdout)
         if e is not None:
-            edades.append(e)
-    return min(edades) if edades else None
+            edades[pid] = e
+    return edades
 
 
 def sin_tocar_al_dormido(acciones, motor):
@@ -440,8 +448,11 @@ def main():
             presion = presion_nucleo()
             acciones = decidir(orq, libre, congelados, vivos, conversando, presion,
                                {m: congelado_min(m) for m in congelados})
-            # (1102) Recién arrancado no se congela: Astraura espera a su BitNet al arrancar.
-            acciones = sin_congelar_en_arranque(acciones, {m: _edad_min(motores[m]) for m in vivos})
+            # (1102) Recién arrancado no se congela: un llama-server parado mientras carga el modelo queda a
+            # medias y su gestor lo mata y lo recarga. Por pid: el de Ollama nace a menudo y no libra al viejo.
+            edades = {m: _edades(motores[m]) for m in vivos}
+            acciones = sin_congelar_en_arranque(
+                acciones, {m: (max(e.values()) if e else None) for m, e in edades.items()})
             # (1031) El sueño del BitNet manda antes que congelarlo: congelado no suelta su
             # RAM (mlock), dormida sí. El cooldown del último intento se cuenta desde EL
             # INTENTO (éxito o fallo): ni machacar al gestor ni repetirlo en cada ciclo.
@@ -478,7 +489,7 @@ def main():
                     # SIGSTOP salvo que lleve >20 min congelado con swap >=80 %.
                     cong_min = congelado_min(motor)
                     swp = swap_pct()
-                    sueltos = {p for p, e in motores[motor].items() if "T" not in e}
+                    sueltos = pids_a_congelar(motores[motor], edades.get(motor, {}))
                     hechos = set()
                     for pid in sueltos:
                         decision = accion_para(motor, cong_min, swp)
