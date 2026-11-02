@@ -446,6 +446,65 @@ describe('elegirPuerta', () => {
     });
 
     expect(resultado.puerta?.id).toBe('zeta');
+    expect(resultado.motivo).toBe('Puerta de menor coste seleccionada');
+  });
+
+  it('aplica también al dueño una puerta configurada para nadie', () => {
+    // La rama esperaba que el dueño se saltara el reparto, pero en main la
+    // decisión de `compartir` va antes del trato de dueño: «nadie» la cierra
+    // también para quien la hospeda.
+    const basePuerta: PuertaInternet = {
+      id: 'p1', neurona: 'n1', cuenta: 'c1', tipo: 'movil-4g',
+      bajadaKbps: 10000, subidaKbps: 5000, latenciaMs: 50, medida: true,
+      topeMensualMb: 1000, usadoMesMb: 200, reservaDuenoPct: 20, compartir: 'publico',
+    };
+    const baseSolicitante: Solicitante = { cuenta: 'c2', vinculado: false, grupos: [] };
+
+    expect(
+      puedeUsar(
+        { ...basePuerta, compartir: 'nadie' },
+        { ...baseSolicitante, cuenta: 'c1' } // dueño
+      )
+    ).toEqual({ ok: false, motivo: 'Puerta configurada para no compartir' });
+  });
+
+  it('con costes empatados conserva la primera puerta del orden recibido', () => {
+    // La rama desempataba por id alfabético; main no reordena: entre dos
+    // costes iguales se queda con la primera que llega en `puertas`.
+    const gemelas: PuertaInternet[] = [
+      {
+        id: 'zeta',
+        neurona: 'n1',
+        cuenta: 'c1',
+        tipo: 'wifi-externa',
+        bajadaKbps: 5000,
+        subidaKbps: 5000,
+        latenciaMs: 100, // coste 0,1 + 0,5 = 0,6 (no medida)
+        medida: false,
+        compartir: 'publico',
+      },
+      {
+        id: 'alfa',
+        neurona: 'n2',
+        cuenta: 'c1',
+        tipo: 'cable',
+        bajadaKbps: 5000,
+        subidaKbps: 5000,
+        latenciaMs: 100, // mismo coste que zeta: 0,6
+        medida: false,
+        compartir: 'publico',
+      },
+    ];
+
+    const resultado = elegirPuerta({
+      clase: 'interno' as ClaseDato,
+      necesitaInternet: true,
+      puertas: gemelas,
+      solicitante: baseSolicitante,
+    });
+
+    expect(resultado.puerta?.id).toBe('zeta');
+    expect(resultado.motivo).toBe('Puerta de menor coste seleccionada');
   });
 
   it('devuelve null cuando ninguna puerta está permitida', () => {
