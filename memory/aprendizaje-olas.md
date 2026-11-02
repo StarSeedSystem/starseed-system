@@ -4662,3 +4662,45 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-11-02 13:00 · mg-oracle-1102-0632
+
+**Lo que se pidió.** Cliente MCP por stdio con límites (puro, transporte inyectado)
+
+**Resultado.** 0 de 29 integradas. 29 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 23 tareas se fueron por lo mismo — otra cosa (INF1025D, INF1025B, DSN1025D, AGT1025B, ART1025C, ART1025G). Es 79 % de la ola.
+- 6 tareas se fueron por lo mismo — no escribió nada (RTART1025Cd, RTAGT1025Bg, RTBLD1025C-d3b-d2, RTINF1025Dd, RTAV1011Dc, AGT1025B-d2d). Es 21 % de la ola.
+- sin modelo anotado no integró ninguna de sus 29 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTART1025Cd` — no escribió nada
+- `RTAGT1025Bg` — no escribió nada
+- `RTBLD1025C-d3b-d2` — no escribió nada
+- `RTINF1025Dd` — no escribió nada
+- `RTAV1011Dc` — no escribió nada
+- `AGT1025B-d2d` — no escribió nada
+- `INF1025D` — otra cosa
+- `INF1025B` — otra cosa
+- `DSN1025D` — otra cosa
+- `AGT1025B` — otra cosa
+- `ART1025C` — otra cosa
+- `ART1025G` — otra cosa
+- `CPZ1025D` — otra cosa
+- `CPZ1025F` — otra cosa
+- `CPZ1025H` — otra cosa
+- `DSN1025G` — otra cosa
+- `DSN1025H` — otra cosa
+- `INF1025G` — otra cosa
+- `ART1025B` — otra cosa
+- `ART1025L` — otra cosa
+- `BLD1025B` — otra cosa
+- `BLD1025C` — otra cosa
+- `CFC1025A` — otra cosa
+- `CPZ1025A` — otra cosa
+- `DSN1025A` — otra cosa
+- `INV1025B` — otra cosa
+- `INV1025F` — otra cosa
+- `DSN1025B` — otra cosa
+- `INV1025J` — otra cosa
