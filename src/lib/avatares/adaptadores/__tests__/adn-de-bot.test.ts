@@ -66,6 +66,18 @@ describe("adnDeBot: la referencia manda y el ADN por defecto conserva la orbe", 
     const bot = botDe({ cuerpo: { forma: "orbe", avatarRef: "biblioteca:adn-bot-1", tono: 210, escala: 1 } });
     expect(refAdnDeBot(bot)).toBeNull();
   });
+
+  it("un guardado con una base externa no sale tal cual: la referencia que no es interna se descarta", () => {
+    const contaminado = {
+      ...adnPorDefecto("adn-bot-1", "Contaminado", { tipo: "bot", id: "bot-1" }, 190),
+      base: { tipo: "vrm" as const, ref: "https://mal.example/x.vrm" },
+      rev: 5,
+    };
+    const adn = adnDeBot(botDe(), contaminado);
+    expect(adn.dueno).toEqual({ tipo: "bot", id: "bot-1" });
+    expect(adn.base.tipo).toBe("orbe");
+    expect(JSON.stringify(adn)).not.toContain("https://mal.example");
+  });
 });
 
 describe("emoción del bot → expresiones (happy/sad/angry/surprised/relaxed)", () => {
