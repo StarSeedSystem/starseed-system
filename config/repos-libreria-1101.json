@@ -1,0 +1,64 @@
+{
+  "ola": "Ola 1101 · Librería · KAL1101F: keepalive, neuronas despiertas con la pantalla cerrada (pedido de Alex del 2026-11-01)",
+  "fecha": "2026-11-02",
+  "principio": "Misma regla que las tandas 1025 a 1028: canal de versión declarado, instalar SOLO registra el enlace (cero descarga, cero ejecución, cero clave) y la instalación real queda documentada por sistema operativo. Licencia, etiqueta y comandos de instalación comprobados el 2026-11-02 contra el README y la release v2.0.1 de stigoleg/keep-alive. Nada se ejecutó.",
+  "fusionadas": {},
+  "duplicadas": {},
+  "decisiones": [],
+  "licencias_verificadas": {
+    "neuronas": "2026-11-02: LICENSE de stigoleg/keep-alive (MIT, badge «License: MIT» del README); release v2.0.1 «keepalive 2.0.1» publicada el 2026-10-26 con paquetes .deb/.rpm/.apk/.tar.gz/.zip para darwin, linux (386/armv7/amd64/arm64) y windows (amd64/arm64), más checksums.txt; README: macOS usa aserciones de energía de IOKit, Windows peticiones de energía y Linux inhibidor de systemd-logind; flags y subcomandos confirmados (--keep-display, -c/--until, -b, --schedule, --while, --pid, --plain, run --, service install/status/uninstall, status/stop/extend, doctor). En la Mac de Alex ya está keepalive 2.0.1: `keepalive status` lo dice. Nada se ejecutó."
+  },
+  "paquetes": [
+    {
+      "id": "lib-keepalive",
+      "repo": "stigoleg/keep-alive",
+      "nombre": "keepalive",
+      "titulo": "neuronas despiertas con la pantalla cerrada",
+      "kind": "app",
+      "icono": "Activity",
+      "grupo": "neuronas",
+      "canal": "tags",
+      "patron_tag": "^v\\d+\\.\\d+\\.\\d+$",
+      "licencia": "MIT",
+      "version_actual": "v2.0.1",
+      "fecha_version": "2026-10-26",
+      "estado": "activo",
+      "actividad": "Etiqueta v2.0.1 publicada el 2026-10-26 (la v2.0.0 fue el 2026-10-04); el desarrollo sigue sobre main (fix de actividad 2ea4b59).",
+      "area": ["neuronas", "enjambre", "servidores", "cerebros", "a1", "olas", "macos", "windows", "linux"],
+      "efecto": "MANTENER-DESPIERTO",
+      "preinstalar": "manual",
+      "claude": false,
+      "gratis": true,
+      "gratis_motivo": "Libre (MIT) y local: nada que pagar y ningún servicio en la nube; comanda el inhibidor de energía del PROPIO sistema operativo, no uno inventado.",
+      "corre_aqui": false,
+      "que_es": "Herramienta en Go (MIT) que mantiene despierto el aparato sosteniendo el inhibidor de suspensión NATIVO del sistema: aserciones de energía de IOKit en macOS, peticiones de energía en Windows e inhibidor de systemd-logind en Linux. Aguanta un rato (-d 2h), hasta una hora del reloj (-c 17:00), dentro de un horario laboral (--schedule), mientras vive un proceso (--while, --pid, run --) o con tope de batería (-b). Con --keep-display=false solo el SISTEMA sigue despierto y la pantalla sí se apaga: lo que una neurona necesita. `service install` lo arranca en cada inicio de sesión y suelta el inhibidor en cuanto termina, aunque se caiga.",
+      "nota": "Para lo de Alex del 2026-11-01: que los procesos de fondo de cada neurona sigan aunque la pantalla se cierre o se desenchufe, mientras el sistema esté abierto en cualquier área (MetaGenesis, PoliGenesis, Genesis, servidores, cerebros…). En la Mac ya está keepalive 2.0.1 y hoy `scripts/puente/mantener_pantalla.py` mantiene un `caffeinate -dim -w <pid>` según `~/.starseed/pantalla.json`: la ficha documenta el binario que ya vive; el cableado del script a keepalive es otra tarea. VERDAD a respetar: en un portátil Mac CERRAR LA TAPA duerme el sistema aunque haya aserciones; solo lo evita el modo clamshell (corriente + pantalla externa) o `pmset -a disablesleep 1` (requiere administrador). Si la neurona duerme igual, sus tareas pasan a la colmena (A1), que no se cierra.",
+      "aviso": "Instalar la ficha SOLO guarda el enlace: no ejecuta brew, scoop, go ni descarga nada. La instalación se hace a mano con la orden de tu sistema (campo instalacion). Lo que pida sudo —el .deb/.rpm/.apk lo instaló el paquete con reglas udev, y `pmset -a disablesleep 1` necesita administrador— lo decide Alex, nunca los agentes. En la Mac ya está 2.0.1: `keepalive status` lo confirma.",
+      "instalacion": {
+        "macos": "brew install --cask stigoleg/tap/keepalive",
+        "windows": "scoop bucket add stigoleg https://github.com/stigoleg/scoop-bucket && scoop install keepalive",
+        "linux": "paquete .deb/.rpm/.apk de https://github.com/stigoleg/keep-alive/releases (p. ej. sudo apt install ./keepalive_2.0.1_linux_amd64.deb · sudo dnf install ./keepalive_2.0.1_linux_amd64.rpm · sudo apk add --allow-untrusted keepalive_2.0.1_linux_amd64.apk)",
+        "go": "go install github.com/stigoleg/keep-alive/v2/cmd/keepalive@latest",
+        "servicio": "keepalive service install (arranca en cada inicio: LaunchAgent en macOS, unidad systemd --user o autostart en Linux, tarea programada en Windows)"
+      },
+      "flags_de_uso": [
+        "--keep-display=false (solo el sistema despierto; la pantalla sí se duerme: lo habitual en una neurona)",
+        "--pid 4242 · --while zoom (aguanta mientras vive ese pid, o cualquier proceso con ese nombre)",
+        "run -- <cmd> (corre el comando y aguanta hasta que acabe; sale con su mismo código de salida)",
+        "-b 20 (en servicio PAUSA si la batería baja del umbral; -b 100 = solo con corriente)",
+        "--plain (cabeza fría, una línea por evento; --json para NDJSON) y -a si hace falta parecer Activo en Teams/Slack",
+        "--schedule \"Mon-Fri 08:00-16:00\" (solo dentro del horario; fuera suelta el inhibidor)",
+        "status · stop · extend 30m (una sola sesión por usuario, control por zócalo)"
+      ],
+      "requisitos": {
+        "ram_gb": null,
+        "vram_gb": null,
+        "gpu": "no",
+        "docker": "no",
+        "arquitecturas": ["arm64", "amd64", "386", "armv7"],
+        "so": ["macos", "windows", "linux"],
+        "fuente": ""
+      }
+    }
+  ]
+}
