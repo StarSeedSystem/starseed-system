@@ -57,6 +57,30 @@ describe("presentacion-html · documento rico", () => {
         expect(html).toContain("<pre>&lt;b&gt;x&lt;/b&gt;</pre>");
         expect(html).toContain("<hr>");
     });
+    it("renderiza marcas: subrayado, tachado, codigo", () => {
+        const doc: DocRico = {
+            bloques: [
+                { tipo: "parrafo", tramos: [{ texto: "subrayado", marcas: ["subrayado"] }] },
+                { tipo: "parrafo", tramos: [{ texto: "tachado", marcas: ["tachado"] }] },
+                { tipo: "parrafo", tramos: [{ texto: "codigo", marcas: ["codigo"] }] },
+            ],
+        };
+        const html = docRicoAHtml(doc, 1);
+        expect(html).toContain("<u>subrayado</u>");
+        expect(html).toContain("<s>tachado</s>");
+        expect(html).toContain("<code>codigo</code>");
+    });
+    it("renderiza lista no ordenada y tareas no hechas", () => {
+        const doc: DocRico = {
+            bloques: [
+                { tipo: "lista", ordenada: false, items: [[{ texto: "a" }], [{ texto: "b" }]] },
+                { tipo: "tareas", items: [{ hecha: false, tramos: [{ texto: "pendiente" }] }] },
+            ],
+        };
+        const html = docRicoAHtml(doc, 1);
+        expect(html).toContain("<ul><li>a</li><li>b</li></ul>");
+        expect(html).toContain("☐ pendiente");
+    });
 });
 
 describe("presentacion-html · documento", () => {
@@ -100,6 +124,11 @@ describe("presentacion-html · documento", () => {
         expect(html).toContain("default-src 'none'");
         expect(html).not.toContain("display:none");
         expect(html).toContain("prefers-reduced-motion");
+    });
+    it("16:9 da 1920×1080", () => {
+        const html = presentacionAHtml({ ...meta, proporcion: "16:9" }, [diapo()], { fecha });
+        expect(html).toContain('data-ancho="1920"');
+        expect(html).toContain('data-alto="1080"');
     });
     it("4:3 da 1440×1080", () => {
         const html = presentacionAHtml({ ...meta, proporcion: "4:3" }, [diapo()], { fecha });
