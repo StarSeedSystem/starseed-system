@@ -174,3 +174,73 @@ export async function guardarEstadoPantalla(activa: boolean): Promise<EstadoPant
         return null;
     }
 }
+
+/* ═════════ Seguir trabajando con la pantalla apagada (KAL1101C) ═════════ */
+
+/** Modos del guardián: pantalla es el Wake Lock; sistema es keepalive. */
+export type ModoVela = "pantalla" | "sistema";
+
+/** PURA: alterna entre pantalla (Wake Lock) y sistema (keepalive). */
+export function alternarModoVela(modo: ModoVela): ModoVela {
+    return modo === "pantalla" ? "sistema" : "pantalla";
+}
+
+/** Capacidad `despierto` que el nodo publica en su latido (KAL1101B). */
+export interface EstadoDespiertoLatido {
+    despierta: boolean;
+    herramienta: string | null;
+    bateria: number | null;
+    enchufada: boolean;
+    tapa: typeof TAPAS[number] | null;
+    vaADormir: boolean | null;
+    seVaADormir: boolean | null;
+}
+
+/** Valores de `tapa` que publica el latido (despierto_logica.py). */
+const TAPAS = ["desactivada", "sin-tapa", "clamshell", "duerme"] as const;
+
+function booleano(u: unknown): boolean | null {
+    return typeof u === "boolean" ? u : null;
+}
+
+function numero(u: unknown): number | null {
+    return typeof u === "number" && Number.isFinite(u) ? u : null;
+}
+
+/** PURA: el estado despierto del latido de la neurona; null si no llega o es raro. */
+export function parsearDespiertoLatido(bruto: unknown): EstadoDespiertoLatido | null {
+    if (!bruto || typeof bruto !== "object") return null;
+    const d = bruto as Record<string, unknown>;
+    if (typeof d.despierta !== "boolean") return null;
+    if (d.tapa !== undefined && d.tapa !== null &&
+        !(typeof d.tapa === "string" && (TAPAS as readonly string[]).includes(d.tapa))) {
+        return null;
+    }
+    const tapa = typeof d.tapa === "string" && (TAPAS as readonly string[]).includes(d.tapa)
+        ? (d.tapa as EstadoDespiertoLatido["tapa"]) : null;
+    return {
+        despierta: d.despierta,
+        herramienta: typeof d.herramienta === "string" && d.herramienta !== "" ? d.herramienta : null,
+        bateria: numero(d.bateria),
+        enchufada: booleano(d.enchufada) ?? false,
+        tapa,
+        vaADormir: booleano(d.vaADormir),
+        seVaADormir: booleano(d.seVaADormir),
+    };
+}
+
+/** PURA: la verdad sobre la tapa, en español, sin suponer nada. */
+export function textoTapa(tapa: EstadoDespiertoLatido["tapa"]): string {
+    switch (tapa) {
+        case "duerme":
+            return "En un portátil, cerrar la tapa duerme el equipo salvo con corriente y pantalla externa; si duerme, sus tareas siguen en el A1.";
+        case "clamshell":
+            return "Con corriente y pantalla externa: puede seguir despierta con la tapa cerrada.";
+        case "sin-tapa":
+            return "Este equipo no tiene tapa: cerrarla no lo duerme.";
+        case "desactivada":
+            return "Reposo desactivado en el sistema (ajuste que exige administrador).";
+        default:
+            return "El latido de esta neurona todavía no publica su estado de tapa.";
+    }
+}

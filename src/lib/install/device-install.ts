@@ -483,6 +483,73 @@ export function companionInfo(os: OsId): CompanionInfo {
   };
 }
 
+/* ═══════════════════════ 6 · keepalive (sistema despierto) ═════════════════ */
+
+/**
+ * keepalive (keep-alive v2 · Go · MIT, https://github.com/stigoleg/keep-alive):
+ * mantiene EL SISTEMA despierto con la pantalla apagada — aserciones de energía
+ * de IOKit en macOS, peticiones de energía en Windows e inhibidor de
+ * systemd-logind en Linux. Lo instala la persona; el OS solo da la orden.
+ */
+export const OS_KEEPALIVE_URL = "https://github.com/stigoleg/keep-alive";
+export const OS_KEEPALIVE_RELEASES_URL = "https://github.com/stigoleg/keep-alive/releases";
+
+export interface KeepaliveInfo {
+  /** Etiqueta del modo de instalación para la UI. */
+  label: string;
+  /** Orden de instalación (null si en este dispositivo no aplica). */
+  comando: string | null;
+  /** Enlace real al proyecto o a su página de releases. */
+  url: string;
+  /** Nota honesta sobre lo que hace y su límite. */
+  nota: string;
+}
+
+/**
+ * Cómo instalar keepalive según el SO del dispositivo. Nunca lanza. En móvil no
+ * aplica: el sistema apaga los procesos del navegador con la pantalla.
+ */
+export function comandoKeepalive(os: OsId): KeepaliveInfo {
+  switch (os) {
+    case "macos":
+      return {
+        label: "keepalive (Homebrew)",
+        comando: "brew install --cask stigoleg/tap/keepalive",
+        url: OS_KEEPALIVE_URL,
+        nota: "Mantiene el sistema despierto con aserciones de energía de IOKit, sin encender la pantalla.",
+      };
+    case "windows":
+      return {
+        label: "keepalive (scoop)",
+        comando: "scoop install keepalive",
+        url: OS_KEEPALIVE_URL,
+        nota: "Mantiene el sistema despierto con peticiones de energía de Windows, sin encender la pantalla.",
+      };
+    case "linux":
+      return {
+        label: "keepalive (.deb / .rpm / .apk)",
+        comando: null,
+        url: OS_KEEPALIVE_RELEASES_URL,
+        nota: "Descarga el paquete (.deb / .rpm / .apk) de los releases: usa un inhibidor de systemd-logind.",
+      };
+    case "android":
+    case "ios":
+      return {
+        label: "keepalive",
+        comando: null,
+        url: OS_KEEPALIVE_URL,
+        nota: "No aplica: el sistema móvil no deja procesos en segundo plano con la pantalla apagada.",
+      };
+    default:
+      return {
+        label: "keepalive (Go)",
+        comando: "go install github.com/stigoleg/keep-alive/v2/cmd/keepalive@latest",
+        url: OS_KEEPALIVE_URL,
+        nota: "La vía general si no sabes el sistema: instala el binario con Go.",
+      };
+  }
+}
+
 /**
  * Marca conceptualmente este dispositivo como neurona con permiso 'agent' tras
  * instalar el compañero. Import dinámico defensivo de neurons.ts (toca Supabase
