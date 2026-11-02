@@ -182,4 +182,15 @@ describe("relé servidor de capacidad.video.render", () => {
     emitir("peer-1", { t: "capacidad.pedir", id: "r3", tipo: "render", cuerpo: peticion() });
     expect(enviados).toHaveLength(1);
   });
+
+  it("adjuntar ignora capacidad.fin y contesta 400 a un render malformado", async () => {
+    const { mesh, enviados, emitir } = meshFalso();
+    const soltar = adjuntarServidorRenderMalla(mesh, { encolar: () => "t-sami" });
+    emitir("peer-1", { t: "capacidad.fin", id: "r0", resultado: 1 });
+    emitir("peer-1", { t: "capacidad.pedir", id: "r1", tipo: "render", cuerpo: {} });
+    await vi.waitFor(() => expect(enviados).toHaveLength(1));
+    expect(enviados[0].msg).toMatchObject({ t: "capacidad.error", id: "r1", estado: 400 });
+    expect(enviados[0].msg).not.toHaveProperty("resultado");
+    soltar();
+  });
 });
