@@ -51,6 +51,17 @@ describe("planificarJuegoPc · rutas A, B y C (§5.1)", () => {
   it("servidor propio sin GPU, con Wine/Proton y transmisión: ninguna", () => {
     expect(plan(NEURONA_SERVIDOR, [{ id: "cpu", propio: true, compartido: false, gpu: false, wineOProton: true, transmision: "sunshine", libreDiscoGB: 200 }]).ruta).toBe("ninguna");
   });
+  // Rescate RTSUP0111G (rama nube a1-20261102-105544): el planificador recorre la lista
+  // entera y elige el primer servidor propio viable aunque antes vaya uno sin GPU.
+  it("elige el servidor propio viable aunque un servidor sin GPU vaya antes", () => {
+    const servidores: EntradaPlan["servidores"] = [
+      { ...SERVIDOR_PROPIO, id: "sin-gpu", gpu: false, transmision: null },
+      { ...SERVIDOR_PROPIO, id: "cpu", transmision: "sunshine" },
+    ];
+    const r = plan(NEURONA_SERVIDOR, servidores);
+    expect(r.ruta).toBe("servidor-propio");
+    expect(r.pasos.join(" ")).toContain("abre Rare en servidor");
+  });
   it("ruta A: pasos exactos, sin instrucciones de más", () => {
     expect(plan(NEURONA_A, []).pasos).toEqual(["abre Rare", "inicia sesión en Epic tú mismo"]);
   });
