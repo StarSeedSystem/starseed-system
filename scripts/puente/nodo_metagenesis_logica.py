@@ -56,6 +56,11 @@ GRACIA_ASIGNACION_S = 6 * 3600
 #: encendido (base 250): una neurona insomne queda en 200, aún bajo el siempre-encendido de referencia.
 PUNTOS_INSOMNE = 80
 
+#: (KAL1101B) Una neurona que dormirá al cerrar la tapa no puede prometer la sesión insomne. Por
+#: debajo de este % de batería se anuncia («se va a dormir») y el líder le manda `desconectar`
+#: para que su trabajo pase al A1 antes de que se caiga.
+UMBRAL_BATERIA_DORMIR = 15
+
 MEDIOS: Dict[str, Dict[str, Any]] = {
     "mac": {"etiqueta": "Mac de desarrollo", "base": 300, "siempre": False},
     "oracle-a1": {"etiqueta": "Oracle A1 (24/7)", "base": 250, "siempre": True},
@@ -137,6 +142,36 @@ def insomne_vigente(cap: Dict[str, Any], ahora: Optional[float] = None) -> bool:
     return True
 
 
+def despierto_de(latido: Dict[str, Any]) -> Dict[str, Any]:
+    """PURA (KAL1101B). La capacidad «despierto» que trae el latido, o {} si no la trae.
+
+    Se acepta dentro de `salud` (lo que viaja en el bus) o en la raíz (las capacidades que se
+    pasan a `puntos_nodo`). El contenido lo mide `despierto_logica.estado_despierto`.
+    """
+    if not isinstance(latido, dict):
+        return {}
+    salud = latido.get("salud")
+    dentro = salud.get("despierto") if isinstance(salud, dict) else None
+    if isinstance(dentro, dict):
+        return dentro
+    raiz = latido.get("despierto")
+    return raiz if isinstance(raiz, dict) else {}
+
+
+def se_va_a_dormir(latido: Dict[str, Any], umbral: int = UMBRAL_BATERIA_DORMIR) -> bool:
+    """PURA (KAL1101B). ¿La neurona se anuncia porque dormirá al cerrar la tapa?
+
+    Solo con `tapa = 'duerme'` (ninguna herramienta lo evita) y batería conocida por debajo del
+    umbral. Un sobremesa (`sin-tapa`) o un `desactivada` no se anuncian. Es la señal que usa el
+    líder para mandar `desconectar` antes de que el aparato se caiga.
+    """
+    d = despierto_de(latido)
+    if str(d.get("tapa") or "") != "duerme":
+        return False
+    nivel = d.get("bateria")
+    return isinstance(nivel, (int, float)) and not isinstance(nivel, bool) and nivel < umbral
+
+
 def puntos_nodo(cap: Dict[str, Any], ahora: Optional[float] = None) -> int:
     """PURA. Cuánto merece dirigir un nodo. Real ≫ seco; colas en disco ≫ siempre encendido ≫ resto.
 
@@ -161,7 +196,8 @@ def puntos_nodo(cap: Dict[str, Any], ahora: Optional[float] = None) -> int:
     disco = cap.get("disco_gb")
     if isinstance(disco, (int, float)) and disco < 2:
         p -= 80
-    if insomne_vigente(cap, ahora):
+    if insomne_vigente(cap, ahora) and not se_va_a_dormir(cap):
+        # (KAL1101B) Una sesión insomne que la tapa se va a llevar no sostiene nada: no suma.
         p += PUNTOS_INSOMNE
     return p
 
@@ -710,6 +746,8 @@ def medio_ocioso(n: str, l: Dict[str, Any]) -> Tuple[bool, str]:
         return False, "sin secreto: no podría comprobar la orden firmada"
     if s.get("orquestadores"):
         return False, "ya trabaja una cola"
+    if se_va_a_dormir(l):
+        return False, "se va a dormir al cerrar la tapa: su trabajo pasa al A1"
     a1 = s.get("a1") or {}
     # «guardian» = el A1 comprobando main (tsc, vitest, next build) a falta de trabajo: le CEDE la
     # máquina a una cola en cuanto llega (oracle_a1.guardian), así que cuenta como libre.
@@ -746,6 +784,8 @@ def medio_alimentable(n: str, l: Dict[str, Any]) -> Tuple[bool, str]:
         return False, "sin secreto: no podría comprobar la orden firmada"
     if not s.get("repo") or not s.get("orquestador"):
         return False, "sin repo u orquestador"
+    if se_va_a_dormir(l):
+        return False, "se va a dormir al cerrar la tapa: no se le dan más tareas"
     if not s.get("orquestadores"):
         return False, "sin orquestador vivo: se le lanza una cola, no se alimenta"
     cv = s.get("cola_viva")
@@ -989,6 +1029,15 @@ def planificar(mundo: Dict[str, Any], memoria: Dict[str, Any], ahora: float) -> 
         # 6-9. RESULTADOS, no solo latidos (OPA1011b).
         for a in planificar_resultados(n, s, nodos, mundo.get("yo") or n, ahora):
             anadir(a)
+
+    # 9b. (KAL1101B) La neurona que se va a dormir al cerrar la tapa se anuncia en su latido: el
+    # líder le manda `desconectar` para que guarde y pase su trabajo al A1 antes de caerse.
+    for n, l in nodos.items():
+        if se_va_a_dormir(l):
+            nivel = despierto_de(l).get("bateria")
+            anadir(accion("desconectar:%s" % n, "desconectar", n,
+                          "se va a dormir al cerrar la tapa (batería al %s %%): su trabajo pasa al A1 antes"
+                          % nivel, espera_s=1800))
 
     # 10. Vigía de modelos (VGM1016F): una pasada al día la encarga el líder al nodo con red y
     # menos carga (el A1 si está libre); nunca dos a la vez.
