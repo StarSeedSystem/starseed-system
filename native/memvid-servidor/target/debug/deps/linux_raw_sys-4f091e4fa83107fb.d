@@ -1,0 +1,10 @@
+/home/runner/work/_temp/starseed-wt/MVD1027C/native/memvid-servidor/target/debug/deps/linux_raw_sys-4f091e4fa83107fb.d: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/elf.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/x86_64/auxvec.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/x86_64/errno.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/x86_64/general.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/x86_64/ioctl.rs
+
+/home/runner/work/_temp/starseed-wt/MVD1027C/native/memvid-servidor/target/debug/deps/liblinux_raw_sys-4f091e4fa83107fb.rmeta: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/elf.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/x86_64/auxvec.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/x86_64/errno.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/x86_64/general.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/x86_64/ioctl.rs
+
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/lib.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/elf.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/x86_64/auxvec.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/x86_64/errno.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/x86_64/general.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/linux-raw-sys-0.12.1/src/x86_64/ioctl.rs:

@@ -1,0 +1,10 @@
+/home/runner/work/_temp/starseed-wt/MVD1027C/native/memvid-servidor/target/debug/deps/crc32fast-de7dab03884dc6fb.d: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/baseline.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/combine.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/specialized/mod.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/table.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/specialized/pclmulqdq.rs
+
+/home/runner/work/_temp/starseed-wt/MVD1027C/native/memvid-servidor/target/debug/deps/libcrc32fast-de7dab03884dc6fb.rmeta: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/baseline.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/combine.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/specialized/mod.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/table.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/specialized/pclmulqdq.rs
+
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/lib.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/baseline.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/combine.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/specialized/mod.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/table.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.4/src/specialized/pclmulqdq.rs:

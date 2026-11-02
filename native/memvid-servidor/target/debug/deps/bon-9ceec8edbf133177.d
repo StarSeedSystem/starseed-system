@@ -1,0 +1,12 @@
+/home/runner/work/_temp/starseed-wt/MVD1027C/native/memvid-servidor/target/debug/deps/bon-9ceec8edbf133177.d: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/collections.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/__/mod.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/__/ide.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/__/better_errors.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/__/cfg_eval.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/builder_state.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/../README.md
+
+/home/runner/work/_temp/starseed-wt/MVD1027C/native/memvid-servidor/target/debug/deps/libbon-9ceec8edbf133177.rmeta: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/collections.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/__/mod.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/__/ide.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/__/better_errors.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/__/cfg_eval.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/builder_state.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/../README.md
+
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/lib.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/collections.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/__/mod.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/__/ide.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/__/better_errors.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/__/cfg_eval.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/builder_state.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bon-3.10.3/src/../README.md:

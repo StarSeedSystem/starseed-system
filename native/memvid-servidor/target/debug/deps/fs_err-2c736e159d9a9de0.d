@@ -1,0 +1,12 @@
+/home/runner/work/_temp/starseed-wt/MVD1027C/native/memvid-servidor/target/debug/deps/fs_err-2c736e159d9a9de0.d: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/dir.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/errors.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/file.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/open_options.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/os.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/os/unix.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/path.rs
+
+/home/runner/work/_temp/starseed-wt/MVD1027C/native/memvid-servidor/target/debug/deps/libfs_err-2c736e159d9a9de0.rmeta: /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/lib.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/dir.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/errors.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/file.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/open_options.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/os.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/os/unix.rs /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/path.rs
+
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/lib.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/dir.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/errors.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/file.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/open_options.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/os.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/os/unix.rs:
+/home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fs-err-3.3.2/src/path.rs:
