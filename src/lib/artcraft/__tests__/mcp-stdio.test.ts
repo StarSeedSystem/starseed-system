@@ -26,6 +26,14 @@ describe("trocearLineas", () => {
     expect(trocearLineas("ini\r\n", "uno\n\n dos \r\nresto")).toEqual({ lineas: ["ini", "uno", " dos "], resto: "resto" });
     expect(trocearLineas("hola", " mundo\notra")).toEqual({ lineas: ["hola mundo"], resto: "otra" });
   });
+
+  it("separa por salto y devuelve el resto", () => {
+    expect(trocearLineas("", "a\nb\nc")).toEqual({ lineas: ["a", "b"], resto: "c" });
+  });
+
+  it("ignora \\r final y líneas vacías", () => {
+    expect(trocearLineas("", "a\r\n\r\nb\n")).toEqual({ lineas: ["a", "b"], resto: "" });
+  });
 });
 
 describe("ClienteMcpStdio", () => {
