@@ -101,5 +101,7 @@ describe("IWER · entrada emulada a WebXR", () => {
         const refinadas = refinarFunciones(c, sesion.enabledFeatures);
         expect(refinadas.funciones).toEqual(["local-floor", "hand-tracking"]);
         expect(refinadas.funciones).not.toContain("plane-detection");
+        expect(refinadas.plataforma).toBe(c.plataforma);
+        expect(refinadas.modos).toEqual(c.modos);
     });
 });
