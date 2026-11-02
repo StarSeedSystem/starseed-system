@@ -8,7 +8,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { XRDevice, metaQuest3 } from "iwer";
 import { evaluarCapacidades, refinarFunciones } from "@/lib/xr/capacidades";
 import { funcionesAPedir } from "../aplicar-perfil";
-import { sondearNavegador, type EntornoNavegador } from "../sondeo-navegador";
+import { _olvidarWebgl2, sondearNavegador, type EntornoNavegador } from "../sondeo-navegador";
 
 type SesionEmulada = { enabledFeatures: string[]; end(): Promise<void> };
 type XREmulada = {
@@ -63,6 +63,23 @@ describe("IWER · entrada emulada a WebXR", () => {
         expect(d.tieneXR).toBe(true);
         expect([d.vr, d.ar]).toEqual([true, true]);
         expect(d.webgl2).toBe(false);
+    });
+
+    it("(1b) sin inyectar entorno, el sondeo real lee el navigator.xr que instala IWER", async () => {
+        // IWER sustituye `navigator.xr` de verdad: el camino `entornoReal()` también debe verlo.
+        expect(navigator.xr).toBeDefined();
+        // jsdom no implementa canvas: sin la clase, `hayWebgl2` ni lo intenta (evita el aviso de stderr).
+        const original = globalThis.WebGL2RenderingContext;
+        vi.stubGlobal("WebGL2RenderingContext", undefined);
+        _olvidarWebgl2();
+        try {
+            const d = await sondearNavegador();
+            expect(d).toMatchObject({ tieneXR: true, vr: true, ar: true });
+            expect(d.ua).toContain("Quest 3");
+        } finally {
+            vi.stubGlobal("WebGL2RenderingContext", original);
+            _olvidarWebgl2();
+        }
     });
 
     it("(2) UA de jsdom = escritorio; UA de Quest = quest con VR recomendada", async () => {
