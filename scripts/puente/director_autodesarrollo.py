@@ -367,6 +367,19 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         if cap is None and aj["horario"]["modo"] == "inteligente":
             toca, motivo = False, "sin dato de capacidad: en modo inteligente no se ejecuta"
         else: toca, motivo = AL.toca_ejecutar(ahora, aj["horario"], cap or {})
+        # Liderazgo: en Mac solo se encarga si es líder; en A1 el arriendo lo garantiza
+        try:
+            import lider_direccion as LD, autocuracion_mando as AC
+            lider_info = LD.soy_lider()
+        except Exception:
+            lider_info = None
+        try:
+            dirijo, porque_lider = AC.decidir_lider(lider_info, ahora)
+        except Exception:
+            dirijo, porque_lider = False, "error al decidir liderazgo"
+        if toca and not dirijo:
+            toca = False
+            motivo = "no soy líder de dirección (%s): no se encarga en Mac" % porque_lider
         toca_an, motivo_an = (True, motivo) if toca else AL.toca_analizar(ahora, aj["horario"], cap)
         est_ruta = os.path.join(home, "autodesarrollo-estado.json"); est = _json(est_ruta, {})
         lanzo = []

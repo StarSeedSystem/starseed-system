@@ -534,3 +534,13 @@ def test_aviso_lento_no_tumba_el_ciclo(monkeypatch, tmp_path):
     def lento(*a, **k): raise sp.TimeoutExpired(a[0], 40)
     monkeypatch.setattr(da.subprocess, "run", lento)
     da._avisar_real("prueba", True)  # no debe lanzar
+
+
+def test_piezas_direccion_incluye_director():
+    """IMG1102C: piezas_direccion debe incluir director_autodesarrollo en el A1."""
+    import oracle_nodo as ON
+    piezas = ON.piezas_direccion("/tmp")
+    nombres = [p[0] for p in piezas]
+    assert "director" in nombres
+    assert any("director_autodesarrollo.py" in p[1] for p in piezas)
+

@@ -542,6 +542,7 @@ def piezas_direccion(raiz=RAIZ_DIRECCION_A1):
         ("autocuracion", os.path.join(p, "vigia_medidores.py"), (), "vigia_medidores.py"),
         ("autopublicacion", os.path.join(p, "autopublicar.py"), ("--bucle",), "autopublicar.py"),
         ("cartero", os.path.join(p, "cartero_director.py"), (), "cartero_director.py"),
+        ("director", os.path.join(p, "director_autodesarrollo.py"), ("ciclo",), "director_autodesarrollo.py"),
     )
 
 
@@ -554,7 +555,8 @@ P = os.path.join(RAIZ, "scripts", "puente")
 sys.path.insert(0, P)
 LOG = os.path.join(os.path.expanduser("~"), "registros")
 HIJOS = (("orquestador", "vigilante-enjambre.py", []), ("autocuracion", "vigia_medidores.py", []),
-         ("autopublicacion", "autopublicar.py", ["--bucle"]), ("cartero", "cartero_director.py", []))
+         ("autopublicacion", "autopublicar.py", ["--bucle"]), ("cartero", "cartero_director.py", []),
+         ("director", "director_autodesarrollo.py", ["ciclo"]))
 def vivos():
     v = []
     for pid in os.listdir("/proc"):
@@ -574,10 +576,14 @@ def arrancar(nombre, guion, args, procesos):
 def soy_lider():
     try:
         import lider_direccion
-        return bool(lider_direccion.renovar().get("soy"))
-    except Exception as e:  # noqa: BLE001 — una puerta caída no para la dirección local
-        print("direccion: sin arriendo (%s): sigo en local" % type(e).__name__, flush=True)
-        return True
+        r = lider_direccion.renovar()
+        if not isinstance(r, dict):
+            print("direccion: renovar sin dict: no asumo líder", flush=True)
+            return False
+        return bool(r.get("soy"))
+    except Exception as e:
+        print("direccion: error al consultar liderazgo (%s): no se asume líder" % type(e).__name__, flush=True)
+        return False
 ultimo, lider = 0.0, False
 while True:
     if time.time() - ultimo >= 60:
@@ -752,10 +758,14 @@ HERMES = __HERMES__
 def soy_lider():
     try:
         import lider_direccion
-        return bool(lider_direccion.renovar().get("soy"))
-    except Exception as e:  # noqa: BLE001 — sin arriendo, la encuesta sigue en local
-        print("hermes: sin arriendo (%s): encuesto en local" % type(e).__name__, flush=True)
-        return True
+        r = lider_direccion.renovar()
+        if not isinstance(r, dict):
+            print("hermes: renovar sin dict: no asumo líder", flush=True)
+            return False
+        return bool(r.get("soy"))
+    except Exception as e:
+        print("hermes: error al consultar liderazgo (%s): no se asume líder" % type(e).__name__, flush=True)
+        return False
 while True:
     lider = soy_lider()
     env = dict(os.environ)
