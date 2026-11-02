@@ -99,7 +99,7 @@ export default function EditorAvatar(props: EditorAvatarProps) {
 
   const ed = useEditorAvatar(adn, {
     guardar: guardarRef.current
-      ? (a) => guardarRef.current(a)
+      ? (a) => guardarRef.current?.(a)
       : (a) => saveAdnToLibrary(a, a.visibilidad),
     emitir,
     otrosPresentes,
@@ -138,7 +138,7 @@ export default function EditorAvatar(props: EditorAvatarProps) {
     if (!hayMidi(navigator)) { setMidiTexto("Este navegador no ofrece MIDI: el editor sigue funcionando con el ratón y el teclado."); return; }
     const r = await pedirAccesoMidi(navigator);
     if (!r.ok) { setMidiTexto(r.motivo); return; }
-    setMidiTexto("Mando MIDI conectado: mueve un control y mueve su deslizador.");
+    setMidiTexto("Controlador MIDI conectado: mueve un control y mueve su deslizador.");
     conectarMidi(
       r.acceso,
       (m) => {
@@ -150,7 +150,7 @@ export default function EditorAvatar(props: EditorAvatarProps) {
           setMidiTexto(`CC ${m.fuente.numero} ligado a ${etiquetaControl(claveRef.current)}.`);
         } else { ed.midi(m.fuente.numero, m.bruto); setMidiTexto(`CC ${m.fuente.numero}: ${Math.round((m.bruto / 127) * 100)} %`); }
       },
-      (nombres) => { if (nombres.length) setMidiTexto(`Mandos MIDI: ${nombres.join(", ")}`); },
+      (nombres) => { if (nombres.length) setMidiTexto(`Controladores MIDI: ${nombres.join(", ")}`); },
     );
   }, [ed]);
 
@@ -235,5 +235,8 @@ export default function EditorAvatar(props: EditorAvatarProps) {
           Atar el aura a la emoción del momento
         </label>
       </section>
+    </div>
+  );
+}
 
 
