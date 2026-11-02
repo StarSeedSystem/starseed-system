@@ -47,6 +47,13 @@ describe("cambiosDeZona", () => {
         expect(r.sale).toEqual([]);
         expect(r.ahora.has("a")).toBe(true);
     });
+    it("la histéresis no adelanta la entrada desde fuera", () => {
+        const z = zona("a", { tam: [2, 2, 2] });
+        const cerca: [number, number, number] = [1 + HISTERESIS_M / 2, 0, 0];
+        expect(cambiosDeZona([z], ahora(), cerca).ahora.has("a")).toBe(false);
+        expect(cambiosDeZona([z], ahora(), cerca).entra).toEqual([]);
+        expect(cambiosDeZona([z], ahora("a"), cerca).ahora.has("a")).toBe(true);
+    });
     it("una zona borrada del mundo también se abandona", () => {
         expect(cambiosDeZona([], ahora("vieja", "otra"), [0, 0, 0]).sale).toEqual(["vieja", "otra"]);
     });
