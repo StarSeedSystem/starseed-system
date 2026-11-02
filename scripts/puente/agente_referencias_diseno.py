@@ -951,7 +951,7 @@ def prompt_director_arte(contexto, referencias, salida, pistas=None, contexto_co
     return texto[:max_chars]
 
 
-def tarea_de(contexto, referencias, fecha, n, ahora, pistas=None, contexto_comun=""):
+def tarea_de(contexto, referencias, fecha, n, ahora, pistas=None, contexto_comun="", raiz=None):
     """Un encargo de análisis LIBRE para la flota del enjambre. PURA."""
     salida = ruta_salida(fecha, n)
     return {
@@ -1008,7 +1008,7 @@ def plan_investigacion(contextos, catalogo, estado, ahora=None, tope=TOPE_POR_DE
         refs = [r for r in referencias.get(cid) or [] if r["id"] not in set(vetos.get(cid) or [])]
         if not refs:
             continue
-        tareas.append(tarea_de(por_id[cid], refs, fecha, n, momento, pistas, contexto_comun))
+        tareas.append(tarea_de(por_id[cid], refs, fecha, n, momento, pistas, contexto_comun, raiz=raiz if "raiz" in dir() else None))
         n += 1
     return tareas
 
