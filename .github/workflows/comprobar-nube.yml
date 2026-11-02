@@ -50,7 +50,7 @@ jobs:
           import os, re, sys
           c = [l.strip() for l in open(sys.argv[1], encoding="utf-8") if l.strip()]
           ts = any(re.search(r"\.(ts|tsx|mts|cts)$", x) or os.path.basename(x) in ("tsconfig.json", "package.json",
-                   "package-lock.json") for x in c)
+                    "package-lock.json") for x in c)
           codigo = [x for x in c if x.startswith("src/") and re.search(r"\.(ts|tsx)$", x) and os.path.exists(x)]
           py = []
           for x in c:
@@ -59,9 +59,11 @@ jobs:
                   cand = x if n.startswith("test_") else os.path.join(d, "test_" + n)
                   if cand not in py and os.path.exists(cand):
                       py.append(cand)
+          memvid = any(x.startswith("native/memvid-servidor/") for x in c)
           print("ts=%s" % ("1" if ts else "0"))
           print("codigo=%s" % " ".join(codigo))
           print("py=%s" % " ".join(py))
+          print("memvid=%s" % ("1" if memvid else "0"))
           PY
 
       - name: Dependencias
@@ -95,3 +97,17 @@ jobs:
           rc=$?
           # 5 = no encontró pruebas (como en la Mac)
           if [ "$rc" != 0 ] && [ "$rc" != 5 ]; then exit "$rc"; fi
+
+      - name: Instalar Rust
+        if: steps.cambia.outputs.memvid == '1'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Pruebas de cápsulas Memvid
+        if: steps.cambia.outputs.memvid == '1'
+        timeout-minutes: 15
+        run: |
+          if [ -f native/memvid-servidor/Cargo.lock ]; then
+            cargo test --manifest-path native/memvid-servidor/Cargo.toml --locked
+          else
+            cargo test --manifest-path native/memvid-servidor/Cargo.toml
+          fi
