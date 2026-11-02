@@ -7,8 +7,10 @@ from __future__ import annotations
 import hashlib
 import re
 import unicodedata
+from collections import Counter
+from datetime import date
 import dream_a_cola as D
-from autodesarrollo_decidir import nivel  # baja · media · alta · critica: una sola tabla
+from autodesarrollo_decidir import RECLAMO, nivel  # baja · media · alta · critica: una sola tabla
 
 _ARCHIVO = re.compile(r"([A-Za-z0-9_./-]+\.(?:tsx?|jsx?|py|mjs|cjs|json|md|sql|ya?ml|css|scss|sh|toml))(?::(\d+))?")
 _PESO = re.compile(r"(impacto|esfuerzo)\s*[:=]?\s*(\d)", re.I)
@@ -143,6 +145,10 @@ def de_astraura(status, fecha="", ya_encargadas=()):
             titulo, quitadas = _sin_marcas(crudo)
             if not titulo: titulo = clave
             cuerpo = it.get("content") or it.get("hypothesis") or it.get("insights") or titulo
+            # Ola 1102 (IMG1102A): «[AUTORIZADO]», «Permiso Concedido» o «autorizada por…» en el título o el cuerpo se quita y
+            # se marca: nadie la autorizó, y la marca nunca cuenta como aprobación (`autodesarrollo_decidir.automatica`).
+            inventada = bool(RECLAMO.search(crudo) or RECLAMO.search(str(cuerpo)))
+            if inventada: cuerpo = re.sub(r"[ \t]{2,}", " ", RECLAMO.sub("", str(cuerpo))).strip() or titulo
             verif = it.get("verification")
             verif = verif if isinstance(verif, dict) else {}
             importancia = str(it.get("importance_level") or "")
@@ -155,9 +161,82 @@ def de_astraura(status, fecha="", ya_encargadas=()):
                  "status": str(it.get("status") or "")})
             guardarrail = _guardarrail(titulo, quitadas)
             if quitadas: p["marcas_quitadas"] = True
+            if inventada: p["autorizacion_inventada"] = True
             p.update(guardarrail)
             fuera.append(p)
     return fuera
+
+# ─────────────── filtro de entrada de Astraura (Ola 1102 · IMG1102A) ───────────────
+#: Medido el 01-11: 690 de las 728 propuestas venían del bucle creativo de Astraura (BitNet 2B, un ciclo cada 5 min): la
+#: misma idea por cada archivo suelto del workspace, NEON para scripts y credenciales y títulos que se dan por autorizados.
+#: Este filtro decide ANTES de crear la propuesta y deja la cuenta de lo filtrado para el medidor (`filtro_astraura`).
+TOPE_ASTRAURA_DIA, VENTANA_FAMILIA_DIAS, MAX_RASTRO = 3, 7, 2000
+MOTIVOS_FILTRO = ("familia repetida", "tipo de archivo", "tope")
+#: Lo que en la ventana impide otra de la misma familia (el mismo día, cualquiera): abierta, descartada, rechazada o agrupada.
+_BLOQUEAN = ("nueva", "pregunta", "esperando-aprobacion", "autodesarrollo", "reimaginando", "pospuesta", "agrupada", "descartada", "rechazada")
+_FICHERO = re.compile(r"[\w./-]*\w\.[A-Za-z]\w{0,5}\b|\b(?:dockerfile|makefile)\b", re.I)
+_OPTIMIZA = re.compile(r"optimiz|vectoriz|aceler|bucle|intrins|reestructur", re.I)
+_COMPILABLE = re.compile(r"\.(?:c|h|cc|cpp|cxx|hpp|hh|hxx|rs|zig|s|asm|metal|cu|cl)$", re.I)
+_KERNEL = re.compile(r"\bkernels?\b|\bggml\b|bitnet\.cpp|llama\.cpp", re.I)
+_SIN_SIMD = re.compile(r"\.(?:sh|bash|zsh|json|md|txt|ya?ml|toml|ini|plist|lock)$|(?:^|/)dockerfile|credenc|credential|secret"
+                       r"|passw|\.env\b|(?:\b|_)tokens?\b|_key\b", re.I)
+
+def neon_sin_sentido(p):
+    """El motivo si es una optimización NEON/SIMD (el título optimiza; NEON o SIMD en el título o el cuerpo) que no cabe:
+    algún objetivo del título es un script, un documento, una configuración o una credencial, o no cita ningún archivo C,
+    C++, Rust, Zig o ensamblador ni un kernel; "" si cabe o no es de NEON. PURA."""
+    titulo, cuerpo = str(p.get("titulo") or ""), str(p.get("cuerpo") or "")
+    if not (_OPTIMIZA.search(titulo) and _NEON.search(titulo + " " + cuerpo)): return ""
+    objetivos = _objetivos_neon(titulo) + [m.group(0) for m in _FICHERO.finditer(titulo)]
+    malos = list(dict.fromkeys(o.strip() for o in objetivos if _SIN_SIMD.search(o.strip())))
+    if malos: return "NEON/SIMD no se aplica a %s" % ", ".join(malos)
+    citados = [m.group(0) for m in _FICHERO.finditer(titulo + " " + cuerpo)]
+    if any(_COMPILABLE.search(a) for a in citados) or _KERNEL.search(titulo + " " + cuerpo): return ""
+    return "NEON/SIMD sin un archivo C, C++, Rust, Zig o un kernel donde aplicarlo"
+def familia_astraura(titulo):
+    """La idea sin lo que cambia de una copia a otra: sin marcas de autorización, emojis ni símbolos, sin el objetivo de
+    una optimización NEON/SIMD ni nombres de archivo, sin acentos y en minúsculas. PURA."""
+    t = RECLAMO.sub(" ", _MARCA.sub(" ", str(titulo or "")))
+    if _NEON.search(t) and _OPTIMIZA.search(t): t = re.split(r"\bpara\b", t, maxsplit=1, flags=re.I)[0]
+    t = re.sub(r"[^a-z0-9]+", " ", _plano(_FICHERO.sub(" ", t))).strip()
+    return re.sub(r"(?:\s+(?:para|en|de|del|a))+$", "", t)
+def _dia(p):
+    o = p.get("origen") if isinstance(p.get("origen"), dict) else {}
+    return str(o.get("fecha") or p.get("t") or "")[:10]
+def _dias(desde, hasta):
+    try: return (date.fromisoformat(hasta) - date.fromisoformat(desde)).days
+    except (TypeError, ValueError): return None
+def filtrar_astraura(nuevas, previas=(), fecha="", previo=None, tope=TOPE_ASTRAURA_DIA, ventana=VENTANA_FAMILIA_DIAS):
+    """(las que entran, el resumen del día). Solo filtra las de Astraura que no están ya en `previas` (lo demás pasa tal
+    cual). Por orden: NEON/SIMD sin sentido («tipo de archivo»); su familia ya entró hoy o en este lote, o sigue abierta,
+    descartada, rechazada o agrupada en los últimos `ventana` días («familia repetida»); y como mucho `tope` de Astraura al
+    día («tope»). `previo` es el resumen del ciclo anterior: el día se acumula por id y repetir el ciclo no infla nada. PURA."""
+    previas = [q for q in (previas or []) if isinstance(q, dict)]
+    conocidas, de_hoy, familias = {q.get("id") for q in previas}, 0, set()
+    for q in previas:
+        if q.get("fuente") != "astraura": continue
+        d = _dias(_dia(q), fecha)
+        de_hoy += d == 0
+        if d is not None and 0 <= d < ventana and (d == 0 or (q.get("estado") or "nueva") in _BLOQUEAN):
+            familias.add(familia_astraura(q.get("titulo")))
+    mismo = isinstance(previo, dict) and previo.get("fecha") == fecha
+    rastro = dict(previo.get("por_id") or {}) if mismo else {}
+    inventadas = set(previo.get("inventadas") or []) if mismo else set()
+    entran = []
+    for p in nuevas or []:
+        if not isinstance(p, dict) or p.get("fuente") != "astraura" or p.get("id") in conocidas:
+            entran.append(p); continue
+        fam = familia_astraura(p.get("titulo"))
+        motivo = ("tipo de archivo" if neon_sin_sentido(p) else "familia repetida" if fam in familias
+                  else "tope" if de_hoy >= tope else "entra")
+        rastro[p["id"]] = motivo
+        if p.get("autorizacion_inventada"): inventadas.add(p["id"])
+        if motivo == "entra": familias.add(fam); de_hoy += 1; entran.append(p)
+    rastro = dict(list(rastro.items())[-MAX_RASTRO:])
+    cuenta = Counter(rastro.values())
+    return entran, {"fecha": fecha, "tope_dia": tope, "ventana_dias": ventana, "vistas": len(rastro), "entran": cuenta["entra"],
+                    "filtradas": {m: cuenta[m] for m in MOTIVOS_FILTRO}, "autorizacion_inventada": len(inventadas),
+                    "por_id": rastro, "inventadas": sorted(inventadas)[-MAX_RASTRO:]}
 def de_directores(revisor, fecha="", ya_encargadas=()):
     alex = revisor.get("necesitan_alex") if isinstance(revisor, dict) else {}
     ya, vistas, fuera = {str(k) for k in (ya_encargadas or ()) if str(k)}, set(), []

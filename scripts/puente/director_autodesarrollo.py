@@ -200,7 +200,7 @@ def _evaluar(p, aj, existe, consejo):
         return {"destino": "esperando-aprobacion", "aprobacion_diff": False, "notas": "",
                 "motivo": "borrador de alcance: siempre espera la aprobación de una persona y nunca se envía solo (R2/R8)"}
     p["utilidad"], p["motivo"] = AD.utilidad_propuesta(p, existe)
-    p["importancia"] = AD.importancia_visible(AD.importancia(p))
+    p["importancia"] = AD.importancia_visible(AD.importancia(p, existe))  # Ola 1102: la misma que decide `automatica`
     p["via"] = AD.via(p, existe)
     return AD.automatica(p, aj, existe, consejo)
 
@@ -401,9 +401,11 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         crudo = _json(pr, {})  # lista o {propuestas: [...]}: se respeta la forma que haya (contrato §1)
         lista = crudo if isinstance(crudo, list) else (crudo.get("propuestas") if isinstance(crudo, dict) else None) or []
         previas = {p["id"]: p for p in lista if isinstance(p, dict) and p.get("id")}
+        astr, filtro = (AF.de_astraura(d.get("astraura") or {}, hoy, claves) if f["astraura"] else []), None
+        if astr:  # Ola 1102 (IMG1102A): el filtro de entrada de Astraura decide antes de crear la propuesta
+            astr, filtro = AF.filtrar_astraura(astr, previas.values(), hoy, crudo.get("filtro_astraura") if isinstance(crudo, dict) else None)
         nuevas = (AF.de_diaria(d.get("diaria", ""), hoy, claves) if f["diaria"] else []) + \
-                 (AF.de_profunda(d.get("profunda") or {}, hoy, claves) if f["profunda"] else []) + \
-                 (AF.de_astraura(d.get("astraura") or {}, hoy, claves) if f["astraura"] else []) + \
+                 (AF.de_profunda(d.get("profunda") or {}, hoy, claves) if f["profunda"] else []) + astr + \
                  (AF.de_directores(d.get("directores") or {}, hoy, claves) if f["directores"] else []) + \
                  (AF.de_agentes(d.get("agentes") or {}, hoy, claves, AR.esperadas(previas.values())) if f["agentes"] else [])
         existe = existe_ruta or (lambda r: os.path.isfile(r if os.path.isabs(r) else os.path.join(raiz, r)))
@@ -441,7 +443,9 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         cupo_e = max(0, min(AD.TOPE_POR_CICLO, AD.MAX_EN_VUELO - AE.en_vuelo(propuestas))) if toca_an else 0
         ent = AD.orden_reimaginar(aprobadas["entregable"])[:cupo_e]
         tareas_e = [AE.tarea(p, ahora) for p in ent]
-        cola = [p for p in (auto + aprobadas["codigo"]) if not _es_alcance(p)] if toca else []
+        # Ola 1102: lo que aprobó sola la automática (carril de bajo riesgo) entra con el máximo del rango y una por archivo.
+        aprobadas_c = AD.turno_de_las_solas(aprobadas["codigo"], aj["rango"]["max"] - len(auto))
+        cola = [p for p in (auto + aprobadas_c) if not _es_alcance(p)] if toca else []
         fr = [x for x in aj["horario"]["franjas"] if x["desde"] > ahora.strftime("%H:%M")] if aj["horario"]["modo"] == "franjas" else []
         if cola and aj["horario"]["repartir"] and fr: cola = cola[:AL.lotes(len(cola), len(fr) + 1)[0]]
         nombre = f"cola-imaginacion-{ahora.strftime('%Y%m%d-%H%M')}"
@@ -462,7 +466,8 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
                 cola_r = AR.encolar(mem, reim, ahora)
                 por_tarea = {AR.id_tarea(p): p for p in propuestas if p.get("estado") == "reimaginando"}
                 for t in reim: AR.marcar_encolada(por_tarea[t["id"]], t, cola_r, iso)
-            _escribir(pr, propuestas if isinstance(crudo, list) else {**crudo, "actualizado": iso, "propuestas": propuestas})
+            _escribir(pr, propuestas if isinstance(crudo, list) else {**crudo, "actualizado": iso, "propuestas": propuestas,
+                                                                      **({"filtro_astraura": filtro} if filtro else {})})
             # Ola 1025S: lo encolado (de este ciclo y de los anteriores que siguen esperando) va al orquestador vivo.
             ids_f = {(p.get("reimaginacion") or {}).get("tarea") for p in propuestas if p.get("estado") == "reimaginando"}
             ids_f |= {(p.get("entregable") or {}).get("tarea") for p in propuestas if p.get("estado") == "encargada"}
@@ -481,7 +486,8 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
                 "decisiones": dict(decisiones), "entregables": dict(entregables),
                 "entregables_encargados": len(tareas_e) if not seco else 0, "cola_entregables": cola_e,
                 "aplicadas_astraura": aplicadas, "toca_analizar": toca_an, "motivo_analisis": motivo_an,
-                "flota": flota, "estados": dict(Counter(p.get("estado") or "nueva" for p in propuestas))}
+                "flota": flota, "estados": dict(Counter(p.get("estado") or "nueva" for p in propuestas)),
+                "filtro_astraura": {k: v for k, v in filtro.items() if k not in ("por_id", "inventadas")} if filtro else None}
 
 
 def _avisar_real(texto, telegram):
