@@ -28,6 +28,12 @@ describe("RECURSOS_ARTCRAFT", () => {
     for (const id of ids) expect(id.startsWith("os:")).toBe(true);
   });
 
+  it("todos piden exactamente NEURONA_CON_PASARELA_ARTCRAFT, solo nombres de condiciones", () => {
+    for (const r of RECURSOS_ARTCRAFT) {
+      expect(r.requiere).toEqual(["NEURONA_CON_PASARELA_ARTCRAFT"]);
+    }
+  });
+
   it("son de tipo mcp y de origen os", () => {
     for (const r of RECURSOS_ARTCRAFT) {
       expect(r.tipo).toBe("mcp");
@@ -101,5 +107,18 @@ describe("recomendarPara con ArtCraft", () => {
   it("ofrece GridCraft para limpiar una hoja de cálculo", () => {
     const salida = recomendarPara(catalogoDeclarado(), "limpiar una hoja de cálculo");
     expect(salida.map((r) => r.id)).toContain("os:artcraft-gridcraft");
+  });
+
+  it("ofrece FigCraft primero para diseñar una interfaz", () => {
+    const salida = recomendarPara(catalogoDeclarado(), "diseñar una interfaz");
+    expect(salida.length).toBeGreaterThan(0);
+    expect(salida[0].id).toBe("os:artcraft-figcraft");
+  });
+
+  it("en la nube sigue ofreciendo DeckCraft y GridCraft (maquina: cualquiera)", () => {
+    const salida = recomendarPara(catalogoDeclarado(), "hacer una presentación en pptx", 6, "nube");
+    expect(salida.map((r) => r.id)).toContain("os:artcraft-deckcraft");
+    const salida2 = recomendarPara(catalogoDeclarado(), "limpiar una hoja de cálculo", 6, "nube");
+    expect(salida2.map((r) => r.id)).toContain("os:artcraft-gridcraft");
   });
 });
