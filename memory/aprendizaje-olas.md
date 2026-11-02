@@ -4662,3 +4662,44 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-11-02 11:15 · mg-oracle-1102-0416
+
+**Lo que se pidió.** Recursos de IA por neurona · los modelos de Colibri (decisión, texto, razón y streaming del disco) (parte 1 de 2)
+
+**Resultado.** 0 de 29 integradas. 29 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 28 tareas se fueron por lo mismo — no escribió nada (RTCLB1027Cb-d1b-d3, RTRTRC1013Cd-d2, RTRTCOL1012Bdsbbbbbbbbbcb-d3, APM1017W, PUB1029F, RTS1010-MGR2b). Es 97 % de la ola.
+- sin modelo anotado no integró ninguna de sus 29 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTCLB1027Cb-d1b-d3` — no escribió nada
+- `RTRTRC1013Cd-d2` — no escribió nada
+- `RTRTCOL1012Bdsbbbbbbbbbcb-d3` — no escribió nada
+- `APM1017W` — no escribió nada
+- `PUB1029F` — no escribió nada
+- `RTS1010-MGR2b` — no escribió nada
+- `INF1025D` — no escribió nada
+- `INF1025B` — no escribió nada
+- `DSN1025D` — no escribió nada
+- `AGT1025B` — no escribió nada
+- `ART1025C` — no escribió nada
+- `ART1025G` — no escribió nada
+- `CPZ1025D` — no escribió nada
+- `CPZ1025F` — no escribió nada
+- `CPZ1025H` — no escribió nada
+- `DSN1025G` — no escribió nada
+- `DSN1025H` — no escribió nada
+- `INF1025G` — no escribió nada
+- `ART1025B` — no escribió nada
+- `ART1025L` — no escribió nada
+- `BLD1025B` — no escribió nada
+- `BLD1025C` — otra cosa: directorio sin worktree Git: conservado para recuperación
+- `CFC1025A` — no escribió nada
+- `CPZ1025A` — no escribió nada
+- `DSN1025A` — no escribió nada
+- `INV1025B` — no escribió nada
+- `INV1025F` — no escribió nada
+- `DSN1025B` — no escribió nada
+- `INV1025J` — no escribió nada
