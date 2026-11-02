@@ -2019,11 +2019,16 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
             let vibeVoiceScript: string | null | undefined;
             try {
               // (SGO1024D) El motor activo se resuelve con la JERARQUÍA real
-              // (agente > personalidad > cerebro > neurona > cuenta), no con el
+              // (agente > neurona > personalidad > cerebro), no con el
               // pin cacheado: sin refrescarlo casi siempre salía openvoice2 y
-              // VibeVoice nunca recibía su guion multi-locutor. Si ningún
-              // ámbito fija motor, se conserva el pin por defecto de la neurona
-              // y, si tampoco hay, manda la cadena AUTO.
+              // VibeVoice nunca recibía su guion multi-locutor.
+              // (SGO1031B · parte 2) Manda lo que suena: aquí NO entra la
+              // ELECCIÓN DE LA CUENTA — es `cfg.engine`, paso 2 de la cadena que
+              // suena, detrás del pin por defecto de `refreshPersonalityVoicePin`
+              // (jamás encabeza ni prepara guion) — y el override de la neurona
+              // SOLO entra con personalidad activa (la cadena real no lo lee sin
+              // ella: `neuronPersonaVoice(null)` → null). Si nadie fija motor,
+              // manda el pin por defecto, con la cadena AUTO detrás.
               const { buildVoiceChain, refreshPersonalityVoicePin } = await import(
                 "@/lib/aurora/tts-oss/engine-registry"
               );
@@ -2032,7 +2037,6 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
               const {
                 activeEngineFromChain,
                 resolveVoiceChoiceFrom,
-                voiceChoiceFromConfig,
                 voiceChoiceFromOverride,
                 voiceChoiceFromPersonality,
               } = await import("@/lib/aurora/voice-config");
@@ -2041,7 +2045,10 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
               try { deviceId = thisDeviceId() || undefined; } catch { deviceId = undefined; }
               let override: { voz?: { motor?: string } } | null = null;
               try {
-                if (deviceId) override = getOverrides(deviceId, persona?.id ?? "*");
+                // (SGO1031B) Solo con personalidad activa: `persona?.id ?? "*"`
+                // leía el comodín del store y fabricaba una elección de neurona
+                // que la cadena real jamás aplicaría sin personalidad.
+                if (deviceId && persona?.id) override = getOverrides(deviceId, persona.id);
               } catch { override = null; }
               const elegido = resolveVoiceChoiceFrom(
                 {
@@ -2051,7 +2058,6 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
                   neurona: deviceId
                     ? { [deviceId]: { motor: voiceChoiceFromOverride(override) } }
                     : undefined,
-                  cuenta: { motor: voiceChoiceFromConfig(cfg) },
                 },
                 { personaId: persona?.id, deviceId, agentId: req.agentId, brainId: req.brainId },
               );
