@@ -21,6 +21,7 @@ PMSET_LAPTOP = "System-wide power settings:\n SleepDisabled         0\nCurrently
 PMSET_DESACTIVADA = "System-wide power settings:\n SleepDisabled         1"
 BATT_AC = "Now drawing from 'AC Power'\n -InternalBattery-0 (id=17044777)\t 92%; discharging; 1:23 remaining present: true"
 BATT_BAJA = "Now drawing from 'Battery Power'\n -InternalBattery-0 (id=17044777)\t 18%; discharging; 0:39 remaining present: true"
+BATT_BATERIA = "Now drawing from 'Battery Power'\n -InternalBattery-0 (id=17044777)\t 23%; discharging; 2:39 remaining present: true"
 BATT_DESKTOP = "Now drawing from 'AC Power'"
 ASSER_NADA = "2026-11-01 22:00:00 +0200 Assertion status system-wide:\n   BackgroundTask                    0"
 ASSER_CAFFEINATE = (
@@ -167,6 +168,16 @@ class TestEstadoDespierto(unittest.TestCase):
         self.assertEqual(e["umbral_bateria"], D.UMBRAL_BATERIA)
         self.assertFalse(e["enchufada"])
 
+    def test_portatil_con_bateria_y_sin_herramienta(self):
+        # Portátil tirando de batería y sin aserciones: nada lo mantiene despierto.
+        e = D.estado_despierto(PMSET_LAPTOP, BATT_BATERIA, ASSER_NADA)
+        self.assertFalse(e["despierta"])
+        self.assertIsNone(e["herramienta"])
+        self.assertEqual(e["bateria"], 23)
+        self.assertFalse(e["enchufada"])
+        self.assertEqual(e["tapa"], "duerme")
+        self.assertTrue(e["se_va_a_dormir"])
+
     def test_escritorio_y_desactivada(self):
         e = self._estado(batt=BATT_DESKTOP)
         self.assertEqual(e["tapa"], "sin-tapa")
@@ -212,6 +223,16 @@ class TestPlanificarDespierto(unittest.TestCase):
         nodos = {"neurona-a1b2c3": {"salud": {"despierto": viva}},
                  "neurona-d4e5f6": {"salud": {"despierto": seguro}}}
         self.assertEqual(L.planificar_despierto(nodos, 100.0), [])
+
+    def test_planificar_desconecta_al_que_no_anuncio_pero_baja_bateria(self):
+        # Sin el campo `se_va_a_dormir`, la tapa «duerme» y la batería baja lo delatan:
+        # el líder manda `desconectar` para pasar su trabajo al A1 antes de que se apague.
+        latido = {"nodo": "neurona-abc123", "modo": "real",
+                  "salud": {"despierto": {"tapa": "duerme", "bateria": 9}}}
+        mundo = {"nodos": {"neurona-abc123": latido}, "yo": "mac-aaaaaa", "autonomia": True}
+        plan = L.planificar(mundo, {}, 100.0)
+        self.assertEqual([a["accion"] for a in plan], ["desconectar"])
+        self.assertEqual(plan[0]["nodo"], "neurona-abc123")
 
 
 if __name__ == "__main__":

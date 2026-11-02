@@ -117,5 +117,24 @@ class CicloTests(unittest.TestCase):
         self.assertFalse(servicio.hijo_vivo())
         self.assertIsNone(escritos[-1]["modo"])
 
+    def test_cambio_de_modo_reinicia_con_la_orden_nueva(self):
+        servicio, popen, _ = servicio_simulado()
+        servicio.ciclo(ajuste("pantalla"))
+        servicio.ciclo(ajuste("sistema"))
+        self.assertEqual(popen.call_count, 2)
+        self.assertEqual(popen.call_args[0][0], ["/usr/bin/caffeinate", "-i", "-w", "42"])
+
+    def test_json_roto_mantiene_activo(self):
+        servicio, popen, _ = servicio_simulado()
+        servicio.ciclo("{roto")
+        popen.assert_called_once()
+
+    def test_nunca_usa_pkill(self):
+        servicio, popen, _ = servicio_simulado()
+        servicio.ciclo(ajuste("pantalla"))
+        servicio.ciclo(json.dumps({"activa": False}))
+        for llamada in popen.call_args_list:
+            self.assertNotIn("pkill", " ".join(llamada[0][0]))
+
 
 if __name__ == "__main__": unittest.main()
