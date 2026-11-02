@@ -6,7 +6,10 @@ El gateway es el PUENTE (contrato §2): su instalador oficial, la config sin cla
 regla de Telegram (encuesta solo en el líder, porque dos encuestas del mismo bot se
 pisan). En seco y sin red: aquí no se instala ni se encuesta nada.
 """
+import contextlib
 import importlib.util
+import io
+import json
 import os
 import re
 import sys
@@ -66,6 +69,21 @@ class HermesEnElA1(unittest.TestCase):
         self.assertIn("starseed-hermes", texto)
         self.assertIn("Telegram", texto)
         self.assertFalse(CLAVES.search(texto))
+
+    def test_el_plan_solo_si_no_ya_vivo(self):
+        pasos = N.hermes()["pasos"]
+        self.assertEqual([p["que"] for p in pasos],
+                         ["instalar", "escribir", "escribir", "instalar", "arrancar"])
+
+    def test_no_toca_la_red_en_seco(self):
+        with mock.patch.object(N, "ssh", side_effect=AssertionError("no hay red en seco")):
+            salida = io.StringIO()
+            with contextlib.redirect_stdout(salida):
+                self.assertEqual(N.main(["oracle_nodo.py", "hermes"]), 0)
+        r = json.loads(salida.getvalue())
+        self.assertTrue(r["ok"])
+        self.assertFalse(r["aplicado"])
+        self.assertEqual(len(r["pasos"]), 5)
 
     def test_telegram_en_encuesta_solo_en_el_lider(self):
         otro = {"dueno": "a1-otro", "caduca": 200}
