@@ -239,5 +239,30 @@ class TestPlanificarDespierto(unittest.TestCase):
         self.assertEqual(L.planificar_despierto(nodos, 100.0), [])
 
 
+class TestConsumoEnElLatido(unittest.TestCase):
+    @unittest.expectedFailure
+    def test_insomne_que_se_duerme_no_suma_puntos(self):
+        """FALLO REAL en main: `puntos_nodo` suma `PUNTOS_INSOMNE` con la sesión insomne
+        vigente sin mirar `se_va_a_dormir`; una neurona que la tapa va a apagar sigue
+        cobrando los puntos de estabilidad. Cuando se arregle, este decorador sobrará."""
+        dormida = {"medio": "neurona", "modo": "real", "repo": True, "orquestador": True,
+                   "insomne": {"activo": True, "hasta": 100.0 + 3600},
+                   "despierto": {"tapa": "duerme", "bateria": 8}}
+        despierta = dict(dormida, despierto={"tapa": "duerme", "bateria": 80})
+        self.assertEqual(L.puntos_nodo(despierta, 100.0) - L.puntos_nodo(dormida, 100.0),
+                         L.PUNTOS_INSOMNE)
+
+    @unittest.expectedFailure
+    def test_no_recibe_prestamos_si_se_duerme(self):
+        """FALLO REAL en main: `medio_ocioso` no mira `salud.despierto`; un nodo que anuncia
+        que la tapa lo va a dormir sigue contando como ocioso y recibe préstamos. Cuando se
+        arregle, este decorador sobrará."""
+        l = {"modo": "real", "secreto": True, "salud": {
+            "repo": True, "orquestador": True, "disco_gb": 30, "ram_libre_mb": 8000,
+            "despierto": {"tapa": "duerme", "bateria": 9}}}
+        self.assertFalse(L.medio_ocioso("neurona-abc123", l)[0])
+        self.assertIn("dormir", L.medio_ocioso("neurona-abc123", l)[1])
+
+
 if __name__ == "__main__":
     unittest.main()
