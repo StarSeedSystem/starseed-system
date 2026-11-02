@@ -72,7 +72,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 24;
+export const SEED_VERSION = 25;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -422,6 +422,11 @@ const IDS_SIEMBRA_1020D: string[] = [
  * unión— para que TODAS las cuentas y neuronas repasen ensureDefaultsSeeded. Los ya
  * ofrecidos no se vuelven a instalar; una desinstalada no vuelve. El remacho no entra a las
  * «manual» y no toca lo que la persona ya decidió, como siempre.
+ *
+ * (SEED_VERSION 25 · Ola 1028 · LNN1028) LEANN, el recuerdo semántico de Astraura: con `preinstalar: "siempre"`
+ * en `config/repos-libreria-1028.json` (módulo puro `repos-1028.ts`). Instalar SOLO registra el enlace;
+ * LEANN corre en el servidor de cerebro (hoy el A1) en 127.0.0.1:4495 con token, y la activación
+ * la decide la persona, explicada en `aviso`.
  */
 export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
   new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...IDS_SIEMBRA_1020C, ...IDS_SIEMBRA_1020D]),

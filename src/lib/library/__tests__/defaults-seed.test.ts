@@ -9,7 +9,7 @@ import { FICHAS_REPOS_1025, IDS_SIEMBRA_1025, TANDA_1025_FICHAS } from "../repos
 import { FICHAS_REPOS_1026, IDS_SIEMBRA_1026, TANDA_1026_FICHAS } from "../repos-1026";
 import { FICHAS_REPOS_1027, IDS_SIEMBRA_1027, TANDA_1027_FICHAS } from "../repos-1027";
 import { IDS_SIEMBRA_1027B } from "../repos-1027b";
-import { IDS_SIEMBRA_1028 } from "../repos-1028";
+import { IDS_SIEMBRA_1028, FICHAS_REPOS_1028 } from "../repos-1028";
 
 const SIEMPRE_2A = [
   "lib-vikunja",
@@ -55,8 +55,8 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 }
 
 describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
-  it("la versión está en 24 (remacho del Mausbot) y mantiene las siete «siempre» de la 2.ª tanda", () => {
-    expect(SEED_VERSION).toBe(24);
+  it("la versión está en 25 (LEANN de la tanda 1028) y mantiene todos los ids sembrados", () => {
+    expect(SEED_VERSION).toBe(25);
     for (const id of SIEMPRE_2A) {
       expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
     }
@@ -64,6 +64,8 @@ describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
     const deLasTandas = RECOMMENDED_PACKAGE_IDS.filter((id) => id.startsWith("lib-"));
     const esperados = [...SIEMPRE_2A, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...SIEMPRE_3A, ...SIEMPRE_4A].filter((id) => id.startsWith("lib-"));
     expect(deLasTandas.sort()).toEqual(Array.from(new Set(esperados)).sort());
+    // LEANN está incluido desde SEED_VERSION 25
+    expect(RECOMMENDED_PACKAGE_IDS).toContain("lib-leann");
   });
 
   it("la lista sembrada no repite ningún id (una repetición instalaría dos veces)", () => {
@@ -287,5 +289,34 @@ describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remac
       expect(f.payload.downloadable, f.id).toBeUndefined();
       expect(String(f.payload.route ?? ""), f.id).toBe("");
     }
+  });
+});
+
+describe("defaults-seed · tanda 1028 (LEANN, el recuerdo semántico)", () => {
+  it("LEANN está incluido en IDS_SIEMBRA_1028 y se instala por defecto con preinstalar: siempre", () => {
+    expect(IDS_SIEMBRA_1028).toEqual(["lib-leann"]);
+    expect(RECOMMENDED_PACKAGE_IDS).toContain("lib-leann");
+  });
+
+  it("LEANN no es comingSoon ni descargable: instalar solo registra su enlace", () => {
+    // FICHAS_REPOS_1028 solo tiene lib-leann
+    const leann = FICHAS_REPOS_1028[0];
+    expect(leann.id).toBe("lib-leann");
+    expect(leann.comingSoon).toBeFalsy();
+    expect(leann.payload.route).toBeUndefined();
+    expect(leann.payload.skillId).toBeUndefined();
+    expect(String(leann.payload.upstream)).toBe("https://github.com/StarTrail-org/LEANN");
+  });
+
+  it("una cuenta con versión 24 recibe LEANN al actualizar a 25", () => {
+    const plan = selectSeedIds({
+      currentVersion: 24,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: [{ id: "lib-leann" }],
+      alreadyOffered: RECOMMENDED_PACKAGE_IDS.filter((id) => id !== "lib-leann"),
+      installedIds: [],
+    });
+    expect(plan).toEqual(["lib-leann"]);
   });
 });
