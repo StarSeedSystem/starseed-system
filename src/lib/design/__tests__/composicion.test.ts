@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tipoAparato, geometriaVentana, ZonaPulgar, zonaPulgar } from "@/lib/design/composicion";
+import { tipoAparato, geometriaVentana, ajusteInicialVentana, ZonaPulgar, zonaPulgar } from "@/lib/design/composicion";
 
 describe("tipoAparato", () => {
   it("should return xr when xr is true", () => {
@@ -71,5 +71,61 @@ describe("zonaPulgar", () => {
     expect(result.ancho).toBe(viewport.ancho);
     expect(result.y).toBe(viewport.alto - 140);
     expect(result.x).toBe(0);
+  });
+});
+
+describe("geometriaVentana · tipo ventana", () => {
+  it("abre centrada en escritorio: posición media del viewport", () => {
+    const viewport = { ancho: 1920, alto: 1080 };
+    const result = geometriaVentana(viewport, { tipo: "ventana" });
+    expect(result.x).toBeCloseTo((1920 - result.ancho) / 2);
+    expect(result.y).toBeCloseTo((1080 - result.alto) / 2);
+    expect(result.origen).toBe("top-left");
+  });
+
+  it("en teléfono sigue centrada: la hoja es otro tipo", () => {
+    const viewport = { ancho: 400, alto: 800 };
+    const result = geometriaVentana(viewport, { tipo: "ventana" });
+    expect(result.y).toBeCloseTo((viewport.alto - result.alto) / 2);
+    expect(result.x).toBeCloseTo((viewport.ancho - result.ancho) / 2);
+  });
+
+  it("respeta el ancho/alto proporcionado", () => {
+    const viewport = { ancho: 1920, alto: 1080 };
+    const result = geometriaVentana(viewport, { tipo: "ventana", ancho: 800, alto: 600 });
+    expect(result.ancho).toBe(800);
+    expect(result.alto).toBe(600);
+    expect(result.x).toBeCloseTo((1920 - 800) / 2);
+    expect(result.y).toBeCloseTo((1080 - 600) / 2);
+  });
+});
+
+describe("ajusteInicialVentana (para OSWindow)", () => {
+  it("en escritorio no desplaza: el flex ya la centra", () => {
+    const viewport = { ancho: 1920, alto: 1080 };
+    const result = ajusteInicialVentana(viewport, { y: 240, alto: 600 });
+    expect(result).toEqual({ dy: 0, esHoja: false });
+  });
+
+  it("en teléfono baja el marco hasta anclar su borde inferior", () => {
+    const viewport = { ancho: 390, alto: 844 };
+    // Marco centrado por el flex: y = (844 - 688) / 2 = 78
+    const result = ajusteInicialVentana(viewport, { y: 78, alto: 688 });
+    // geometriaVentana(hoja) da y = 844 - 688 = 156; desplazamiento = 156 - 78 = 78
+    expect(result.esHoja).toBe(true);
+    expect(result.dy).toBeCloseTo(78);
+  });
+
+  it("respeta una ventana más corta en teléfono", () => {
+    const viewport = { ancho: 400, alto: 800 };
+    const result = ajusteInicialVentana(viewport, { y: 150, alto: 500 });
+    // hoja: y = 800 - 500 = 300; desde el centro (150) hay que bajar 150
+    expect(result.dy).toBeCloseTo(150);
+  });
+
+  it("en tableta no se comporta como hoja", () => {
+    const viewport = { ancho: 768, alto: 1024 };
+    const result = ajusteInicialVentana(viewport, { y: 200, alto: 600 });
+    expect(result).toEqual({ dy: 0, esHoja: false });
   });
 });

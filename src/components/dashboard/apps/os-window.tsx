@@ -9,13 +9,16 @@
 // Render: el llamador la porta a document.body (vía createPortal).
 // Escape: con varias apiladas cierra SOLO la de arriba (pila compartida, abajo).
 // SOP: architecture/dashboard-launcher-apps-y-archivos.md
+// Composición centrada: usa geometriaVentana para la posición inicial.
+// En teléfono, hoja centrada que sube desde abajo con entrada cardinal.
 // ════════════════════════════════════════════════════════════════
 
-import React, { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotonCerrar } from "@/components/ui/boton-cerrar";
+import { ajusteInicialVentana } from "@/lib/design/composicion";
 
 /* ── Pila de ventanas: Escape cierra SOLO la de arriba (OPF1024H) ──
    Cada OSWindow se apunta al montar y un ÚNICO oyente de `keydown` en `window` elige, en el momento de la
@@ -79,12 +82,31 @@ export function OSWindow({
     sizeClass = "w-[min(94vw,1100px)] h-[min(86vh,760px)]", bare = true,
 }: OSWindowProps) {
     const [offset, setOffset] = useState({ dx: 0, dy: 0 });
+    // En teléfono la ventana es una hoja anclada abajo. Se decide en el primer
+    // render (los anfitriones la montan ya en cliente) para que la entrada
+    // cardinal salga desde abajo y no desde el centro.
+    const [esTelefono] = useState(() => typeof window !== "undefined" && window.innerWidth < 430);
+    const [baseDy, setBaseDy] = useState(0);
+    const reducirMovimiento = useReducedMotion() ?? false;
+    const marcoRef = useRef<HTMLDivElement>(null);
     const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
 
     const raizRef = useRef<HTMLDivElement>(null);
     const cerrarRef = useRef(onClose);
     useEffect(() => { cerrarRef.current = onClose; }, [onClose]);
     useEffect(() => apuntarVentana({ raiz: raizRef, cerrar: cerrarRef }), []);
+
+    // Se mide el marco ya centrado por el flex y se calcula cuánto bajarlo para
+    // que, en teléfono, su borde inferior coincida con el de la pantalla.
+    useLayoutEffect(() => {
+        const marco = marcoRef.current?.getBoundingClientRect();
+        if (!marco || marco.height === 0) return;
+        const { dy, esHoja } = ajusteInicialVentana(
+            { ancho: window.innerWidth, alto: window.innerHeight },
+            { y: marco.top, alto: marco.height },
+        );
+        if (esHoja) setBaseDy(dy);
+    }, []);
 
     useEffect(() => {
         const onMove = (e: PointerEvent) => {
@@ -113,12 +135,24 @@ export function OSWindow({
 
             {/* Capa de arrastre centrada por el flex padre. El transform de arrastre va
                 aquí (div plano), NO en el hijo animado → la animación de Framer ya no pisa
-                el centrado y la ventana SIEMPRE abre centrada. */}
-            <div className="relative max-w-full max-h-full" style={{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }}>
+                el centrado por defecto. `baseDy` solo la baja en teléfono para convertirla
+                en hoja; el arrastre suma su desplazamiento. */}
+            <div
+                ref={marcoRef}
+                data-hoja={esTelefono ? "true" : undefined}
+                className="relative max-w-full max-h-full"
+                style={{ transform: `translate(${offset.dx}px, ${offset.dy + baseDy}px)` }}
+            >
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ type: "spring", stiffness: 260, damping: 26 }}
+                    initial={reducirMovimiento
+                        ? { opacity: 0 }
+                        : { opacity: 0, scale: 0.96, y: esTelefono ? 24 : 0 }}
+                    animate={reducirMovimiento
+                        ? { opacity: 1 }
+                        : { opacity: 1, scale: 1, y: 0 }}
+                    transition={reducirMovimiento
+                        ? { duration: 0.2 }
+                        : { type: "spring", stiffness: 260, damping: 26 }}
                     className={cn(
                         "flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 backdrop-blur-2xl shadow-2xl",
                         sizeClass,

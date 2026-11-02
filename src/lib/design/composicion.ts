@@ -95,6 +95,7 @@ export function geometriaVentana(viewport: Viewport, options: GeometriaVentanaOp
   switch (tipo) {
     case "dialogo":
     case "ventana":
+      // Centrada en toda la pantalla (también en teléfono: la hoja es su propio tipo)
       x = horizontalMargin + (availWidth - width) / 2;
       y = (viewport.alto - height) / 2;
       break;
@@ -123,6 +124,36 @@ export interface ZonaPulgar {
   y: number;
   ancho: number;
   alto: number;
+}
+
+export interface AjusteVentana {
+  /** Desplazamiento vertical desde el centro flexible hasta la posición de la hoja. */
+  dy: number;
+  /** Si la ventana debe abrir como hoja (teléfono). */
+  esHoja: boolean;
+}
+
+/**
+ * Posición inicial de una ventana del OS.
+ *
+ * En escritorio la centra el flex del contenedor y no hay que mover nada. En
+ * teléfono se reutiliza `geometriaVentana` con tipo `hoja`: margen lateral de
+ * 16 px y borde inferior anclado a la pantalla, con lo que la ventana sube
+ * desde abajo en vez de quedar flotando en el centro.
+ */
+export function ajusteInicialVentana(
+  viewport: Viewport,
+  marco: { y: number; alto: number },
+): AjusteVentana {
+  const esHoja = viewport.ancho < 430;
+  if (!esHoja) return { dy: 0, esHoja: false };
+
+  const geo = geometriaVentana(viewport, {
+    tipo: "hoja",
+    ancho: viewport.ancho,
+    alto: marco.alto,
+  });
+  return { dy: geo.y - marco.y, esHoja: true };
 }
 
 export function zonaPulgar(viewport: Viewport): ZonaPulgar {
