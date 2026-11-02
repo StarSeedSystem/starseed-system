@@ -53,6 +53,70 @@ const OS_LABEL: Record<OsId, string> = {
   unknown: "tu sistema",
 };
 
+/* ═══════════════ 1b · keepalive (KAL1101C · pantalla cerrada) ═══════════════ */
+
+/** Modo del control: pantalla encendida o solo el sistema despierto. */
+export type ModoKeepalive = "pantalla" | "sistema";
+
+export interface InstalacionKeepalive {
+  /** Comando copiable; null si este sistema no puede ejecutar keepalive. */
+  comando: string | null;
+  /** Nota honesta: qué instala o por qué no hay comando. */
+  nota: string;
+}
+
+/**
+ * PURA. El comando real para instalar keepalive 2.x (Go, MIT) en cada sistema.
+ * macOS y Windows usan su gestor; Linux, Go o los paquetes de las releases.
+ * En móvil no se inventa: el sistema no permite seguir con la pantalla apagada.
+ */
+export function comandoInstalarKeepalive(os: OsId): InstalacionKeepalive {
+  switch (os) {
+    case "macos":
+      return {
+        comando: "brew install --cask stigoleg/tap/keepalive",
+        nota: "Homebrew instala keepalive 2.x; no hace falta sudo.",
+      };
+    case "windows":
+      return {
+        comando: "scoop install keepalive",
+        nota: "Scoop instala keepalive 2.x en Windows.",
+      };
+    case "linux":
+      return {
+        comando: "go install github.com/stigoleg/keep-alive/v2/cmd/keepalive@latest",
+        nota: "En Linux también hay .deb, .rpm y .apk en las releases de stigoleg/keep-alive.",
+      };
+    default:
+      return {
+        comando: null,
+        nota: "keepalive solo tiene binarios para macOS, Windows y Linux; en móvil el sistema no permite seguir con la pantalla apagada.",
+      };
+  }
+}
+
+/**
+ * PURA. Argumentos reales de keepalive según el modo: `--keep-display=true`
+ * deja la pantalla encendida y `false` mantiene solo el sistema despierto.
+ * `-b` es el umbral de batería; se sanea el pid para no pasar basura.
+ */
+export function argumentosKeepalive(
+  modo: ModoKeepalive,
+  pid: number,
+  umbral = 15,
+): string[] {
+  const pidSeguro = Number.isFinite(pid) && pid > 0 ? Math.trunc(pid) : 0;
+  const umbralSeguro = Number.isFinite(umbral) && umbral >= 0 ? Math.trunc(umbral) : 15;
+  return [
+    "--plain",
+    `--keep-display=${modo === "pantalla"}`,
+    "--pid",
+    String(pidSeguro),
+    "-b",
+    String(umbralSeguro),
+  ];
+}
+
 /**
  * Detecta el sistema operativo por User-Agent Client Hints (preferido) con
  * fallback a userAgent. iPadOS moderno se camufla como Mac: lo distinguimos por

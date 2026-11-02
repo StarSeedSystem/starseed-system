@@ -18,11 +18,31 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MonitorCheck, MonitorOff, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+    esModoPantalla,
+    parsearDespiertoLatido,
+    type EstadoDespiertoLatido,
+    type ModoPantalla,
+} from "@/lib/mando/pantalla-despierto";
+
+export {
+    LIMITE_TAPA_HONESTO,
+    esModoPantalla,
+    parsearDespiertoLatido,
+    textoDespiertoLatido,
+    textoModoPantalla,
+    type EstadoDespiertoLatido,
+    type ModoPantalla,
+} from "@/lib/mando/pantalla-despierto";
 
 export interface EstadoPantallaMando {
     activa: boolean;
     desde: number | null;
     mac: { servicio_vivo: boolean; pid: number | null };
+    /** Modo del servicio, si el cuerpo lo trae (el ajuste viejo solo guarda `activa`). */
+    modo?: ModoPantalla;
+    /** Capacidad `despierto` del último latido KAL1101B, si el cuerpo la trae. */
+    despierto?: EstadoDespiertoLatido | null;
 }
 
 export type EstadoBloqueo = "activo" | "suelto" | "sin-soporte" | "oculta";
@@ -139,7 +159,7 @@ export function parsearEstadoPantalla(bruto: unknown): EstadoPantallaMando | nul
     if (typeof obj.activa !== "boolean") return null;
     const macBruto = (obj.mac ?? {}) as Record<string, unknown>;
     const pidBruto = macBruto.pid;
-    return {
+    const estado: EstadoPantallaMando = {
         activa: obj.activa,
         desde: typeof obj.desde === "number" && Number.isFinite(obj.desde) ? obj.desde : null,
         mac: {
@@ -147,6 +167,10 @@ export function parsearEstadoPantalla(bruto: unknown): EstadoPantallaMando | nul
             pid: typeof pidBruto === "number" && Number.isFinite(pidBruto) ? pidBruto : null,
         },
     };
+    if (esModoPantalla(obj.modo)) estado.modo = obj.modo;
+    const despierto = parsearDespiertoLatido(obj);
+    if (despierto) estado.despierto = despierto;
+    return estado;
 }
 
 /** Lee el ajuste del servicio local; null = lectura fallida. */

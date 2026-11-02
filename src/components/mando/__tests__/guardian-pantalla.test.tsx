@@ -72,4 +72,29 @@ describe("parsearEstadoPantalla", () => {
         expect(PANTALLA_DEFECTO.activa).toBe(true);
         expect(PANTALLA_DEFECTO.desde).toBeNull();
     });
+
+    it("lee el modo y el latido KAL1101B cuando vienen en el cuerpo", () => {
+        const estado = parsearEstadoPantalla({
+            activa: true,
+            modo: "sistema",
+            salud: {
+                despierto: {
+                    despierta: true,
+                    herramienta: "keepalive",
+                    bateria: 74,
+                    enchufada: true,
+                    tapa: "clamshell",
+                },
+            },
+        });
+        expect(estado?.modo).toBe("sistema");
+        expect(estado?.despierto?.herramienta).toBe("keepalive");
+        expect(estado?.despierto?.tapa).toBe("clamshell");
+    });
+
+    it("ignora un modo inventado y no inventa latido", () => {
+        const estado = parsearEstadoPantalla({ activa: true, modo: "siempre" });
+        expect(estado?.modo).toBeUndefined();
+        expect(estado?.despierto).toBeUndefined();
+    });
 });
