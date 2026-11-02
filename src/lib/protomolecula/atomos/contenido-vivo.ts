@@ -4,10 +4,14 @@
  *
  * No ejecuta nada externo: arma el PLAN con la ruta que `elegirRuta` (CVV1028B) elige para
  * cada tarea, la cotiza en créditos por servicio y pide el «sí» si el plan gasta créditos.
+ *
+ * La vista (molécula «publicación viva», contrato §2) va como componente en
+ * `vista-contenido-vivo.tsx`, registrado en `VISTAS_COMPONENTE`: es la interfaz que muestra
+ * el plan de esta función y pide el «sí».
  */
 import type { DefinicionAtomo } from "@/lib/protomolecula/registro-atomos";
 import type { NivelVivo, TareaViva, TipoRuta } from "@/lib/contenido-vivo/tipos";
-import type { ContextoVivo } from "@/lib/contenido-vivo/rutas";
+import type { AlcanceVivo, ContextoVivo } from "@/lib/contenido-vivo/rutas";
 import { elegirRuta } from "@/lib/contenido-vivo/rutas";
 
 /** Definición del átomo en el registro de la Protomolécula (§11.1). */
@@ -17,6 +21,7 @@ export const CONTENIDO_VIVO: DefinicionAtomo = {
   categoria: "arquitectura",
   integracion: "servicio-local",
   control: "total",
+  vista: { tipo: "componente", id: "contenido-vivo" },
   parametros: [
     { id: "niveles", nombre: "Niveles activos", tipo: "numero", min: 0, max: 3, paso: 1, unidad: "x", defecto: 1, sinonimos: ["nivel"] },
     { id: "movimiento", nombre: "Interruptor de movimiento", tipo: "booleano", defecto: true, sinonimos: ["animacion"] },
@@ -120,4 +125,50 @@ function cotizar(cotizacion: CotizacionServicio[], servicio: string, creditos: n
   const previa = cotizacion.find((c) => c.servicio === servicio);
   if (previa) previa.creditos += creditos;
   else cotizacion.push({ servicio, creditos });
+}
+
+/* ── Entrada de la vista (la interfaz "publicación viva") ── */
+
+/**
+ * Tope provisional de cotización mientras el ámbito no guarde sus ajustes (tarea C). Con él
+ * el plan puede cotizar y pedir el «sí»; el gasto real lo aprueba quien confirme, contra el
+ * tope real del ámbito en el libro de créditos.
+ */
+export const TOPE_INICIAL = 100;
+
+/** Las tareas que trae cada nivel de fábrica (contrato §3). */
+export const TAREAS_DEL_NIVEL: Record<NivelVivo, readonly TareaViva[]> = {
+  1: ["escena-3d"],
+  2: ["fotograma-clave", "foto", "clip-pelicula", "foto-viva"],
+  3: ["grafico-vivo"],
+};
+
+/** Arma la entrada del plan por niveles con los valores del átomo, el alcance y el equipo. Puro. */
+export function entradaDeVista(
+  valores: Record<string, unknown> | undefined,
+  alcance: AlcanceVivo,
+  conectados: string[],
+  capaz3d: boolean,
+): EntradaContenidoVivo {
+  const pedido = typeof valores?.niveles === "number" && Number.isFinite(valores.niveles) ? Math.floor(valores.niveles) : 1;
+  const niveles = Array.from({ length: Math.max(0, Math.min(3, pedido)) }, (_, i) => (i + 1) as NivelVivo);
+  const tareasPorNivel = niveles
+    .map((nivel) => ({ nivel, tareas: [...TAREAS_DEL_NIVEL[nivel]] }))
+    .filter((grupo) => grupo.tareas.length > 0);
+  const publicacion = typeof valores?.publicacion === "string" && valores.publicacion.trim() !== "" ? valores.publicacion : "Esta publicación";
+  return {
+    publicacion,
+    niveles,
+    tareasPorNivel,
+    contexto: {
+      alcance,
+      conectados: [...conectados],
+      cupoHoy: {},
+      creditosDisponibles: TOPE_INICIAL,
+      topeMes: TOPE_INICIAL,
+      gastadoMes: 0,
+      neurona: { gpu: false, capaz3d },
+      ajustes: { localPrimero: true, externosPermitidos: true },
+    },
+  };
 }

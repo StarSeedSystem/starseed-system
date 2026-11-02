@@ -6,7 +6,8 @@
 import { describe, it, expect } from "vitest";
 import type { ContextoVivo } from "../../../contenido-vivo/rutas";
 import { CONTENIDO_VIVO, planContenidoVivo, type EntradaContenidoVivo } from "../contenido-vivo";
-import { ATOMOS_PROPIOS } from "../index";
+import { ATOMOS_PROPIOS, VISTAS_COMPONENTE } from "../index";
+import { entradaDeVista, TOPE_INICIAL } from "../contenido-vivo";
 
 const entradas = (contexto: ContextoVivo, publicacion: string, grupos: EntradaContenidoVivo["tareasPorNivel"], niveles: EntradaContenidoVivo["niveles"]): EntradaContenidoVivo => ({
   publicacion,
@@ -89,5 +90,24 @@ describe("átomo contenido-vivo", () => {
     expect(plan.pasos[0].razon).toContain("Sin ruta disponible para foto");
     expect(plan.totalCreditos).toBe(0);
     expect(plan.necesitaConfirmar).toBe(false);
+  });
+
+  it("la vista de la interfaz queda registrada en VISTAS_COMPONENTE", () => {
+    expect(CONTENIDO_VIVO.vista?.tipo).toBe("componente");
+    expect(typeof VISTAS_COMPONENTE["contenido-vivo"]).toBe("function");
+  });
+
+  it("la entrada de la vista sale de los niveles del átomo y de lo conectado", () => {
+    const entrada = entradaDeVista({ niveles: 3, publicacion: "Cartel del evento" }, "publica", ["higgsfield"], false);
+    expect(entrada.publicacion).toBe("Cartel del evento");
+    expect(entrada.niveles).toEqual([1, 2, 3]);
+    expect(entrada.tareasPorNivel[0]).toEqual({ nivel: 1, tareas: ["escena-3d"] });
+    expect(entrada.contexto.conectados).toEqual(["higgsfield"]);
+    expect(entrada.contexto.topeMes).toBe(TOPE_INICIAL);
+    expect(entrada.contexto.ajustes.localPrimero).toBe(true);
+    // El parámetro no baja de 0 ni sube de 3: un valor de 9 toma el máximo.
+    const entradaAlTope = entradaDeVista({ niveles: 9 }, "perfil", [], false);
+    expect(entradaAlTope.niveles).toEqual([1, 2, 3]);
+    expect(entradaAlTope.publicacion).toBe("Esta publicación");
   });
 });
