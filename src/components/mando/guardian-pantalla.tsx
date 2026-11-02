@@ -174,3 +174,93 @@ export async function guardarEstadoPantalla(activa: boolean): Promise<EstadoPant
         return null;
     }
 }
+
+/* ─── KAL1101C · «Seguir trabajando con la pantalla apagada», por neurona ─── */
+
+/**
+ * Dos modos de trabajar sin mirar (keepalive v2):
+ *  · "pantalla": todo despierto (lo que ya hacía el Wake Lock / caffeinate).
+ *  · "sistema": solo el sistema despierto (`keepalive --keep-display=false`);
+ *    la pantalla se apaga sola y las neuronas siguen sirviendo.
+ */
+export type ModoPantalla = "pantalla" | "sistema";
+
+export interface ModoPantallaOpcion {
+    id: ModoPantalla;
+    etiqueta: string;
+    detalle: string;
+}
+
+export const MODOS_PANTALLA: readonly ModoPantallaOpcion[] = [
+    {
+        id: "pantalla",
+        etiqueta: "Pantalla encendida",
+        detalle: "Todo despierto, como hasta ahora (Wake Lock o el servicio de la Mac).",
+    },
+    {
+        id: "sistema",
+        etiqueta: "Solo el sistema despierto",
+        detalle: "La pantalla se apaga y la neurona sigue trabajando (keepalive).",
+    },
+];
+
+/** PURA: el modo válido para cualquier cosa que llegue (defecto "pantalla"). */
+export function modoPantalla(valor: unknown): ModoPantalla {
+    return valor === "sistema" ? "sistema" : "pantalla";
+}
+
+/** PURA: qué dice el latido (KAL1101B) de keepalive en esta neurona. */
+export interface EstadoKeepalive {
+    activo: boolean;
+    modo: ModoPantalla;
+}
+
+/**
+ * PURA: lee el campo `keepalive` de las señales del latido. Cuerpos raros o
+ * vacíos devuelven null (no se inventa estado): "sin dato" es un dato.
+ */
+export function estadoKeepaliveDeLatido(senales: unknown): EstadoKeepalive | null {
+    if (!senales || typeof senales !== "object") return null;
+    const ka = (senales as Record<string, unknown>).keepalive;
+    if (!ka || typeof ka !== "object") return null;
+    const obj = ka as Record<string, unknown>;
+    return {
+        activo: obj.activo === true,
+        modo: modoPantalla(obj.modo),
+    };
+}
+
+/** PURA: el interruptor por neurona, saneado. */
+export interface AjustePantallaNeurona {
+    neuronaId: string;
+    seguir: boolean;
+    modo: ModoPantalla;
+}
+
+export function parsearAjustePantallaNeurona(bruto: unknown): AjustePantallaNeurona | null {
+    if (!bruto || typeof bruto !== "object") return null;
+    const obj = bruto as Record<string, unknown>;
+    const id = typeof obj.neuronaId === "string" ? obj.neuronaId.trim() : "";
+    if (!id) return null;
+    return {
+        neuronaId: id,
+        seguir: obj.seguir === true,
+        modo: modoPantalla(obj.modo),
+    };
+}
+
+/** PURA: el texto honesto que acompaña al interruptor, según el modo. */
+export function textoSeguirTrabajando(modo: ModoPantalla): string {
+    return modo === "sistema"
+        ? "Solo el sistema despierto: la pantalla se apaga y las neuronas siguen."
+        : "Pantalla encendida: todo el equipo sigue despierto.";
+}
+
+/** PURA: el límite real de una tapa cerrada, siempre visible junto al modo. */
+export function avisoTapaPortatil(modo: ModoPantalla): string {
+    const base =
+        "En un portátil, cerrar la tapa duerme el equipo incluso con el sistema despierto: solo sigue con la tapa cerrada si hay corriente y pantalla externa.";
+    return modo === "sistema"
+        ? `${base} Si la neurona se duerme igual, sus tareas siguen en el A1.`
+        : base;
+}

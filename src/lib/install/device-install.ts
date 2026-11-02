@@ -504,3 +504,63 @@ export async function registerAsAgentNeuron(): Promise<boolean> {
     return false;
   }
 }
+
+/* ══════════ 6 · keepalive: seguir trabajando con la pantalla apagada ══════════ */
+
+export interface InfoKeepalive {
+  /** ¿Hay instalación real de keepalive para este SO? (KAL1101C) */
+  disponible: boolean;
+  /** Órdenes de instalación reales, con su etiqueta para la UI. */
+  comandos: Array<{ etiqueta: string; comando: string; href?: string }>;
+  /** Cómo se usa en modo sistema (la pantalla puede apagarse, el equipo no duerme). */
+  ejecucion: string;
+  /** Límite honesto: nada de promesas que el sistema operativo no cumple. */
+  limites: string;
+}
+
+/** La orden de instalación del upstream y la ejecución en modo sistema. */
+export const KEEPALIVE_GO_INSTALL =
+  "go install github.com/stigoleg/keep-alive/v2/cmd/keepalive@latest";
+export const KEEPALIVE_REPO_URL = "https://github.com/stigoleg/keep-alive";
+
+const EJECUCION_SISTEMA = "keepalive --keep-display=false";
+
+const LIMITE_TAPA =
+  "En un portátil, cerrar la tapa duerme el equipo aunque el sistema esté despierto: solo sigue con la tapa cerrada si hay corriente y pantalla externa. Si la neurona duerme igual, sus tareas siguen en el A1 (la colmena).";
+
+/**
+ * keepalive v2 (Go, MIT): el comando por SO para instalarlo y usarlo con la
+ * pantalla apagada. PURA. No instala nada ni ejecuta nada: devuelve texto que
+ * la persona copia, y solo mac / windows / linux tienen binario real.
+ */
+export function infoKeepalive(os: OsId): InfoKeepalive {
+  if (os === "macos" || os === "windows" || os === "linux") {
+    const comandos =
+      os === "macos"
+        ? [
+            { etiqueta: "Homebrew", comando: "brew install --cask stigoleg/tap/keepalive", href: KEEPALIVE_REPO_URL },
+            { etiqueta: "Go", comando: KEEPALIVE_GO_INSTALL, href: KEEPALIVE_REPO_URL },
+          ]
+        : os === "windows"
+          ? [
+              { etiqueta: "Scoop", comando: "scoop install keepalive", href: KEEPALIVE_REPO_URL },
+              { etiqueta: "Go", comando: KEEPALIVE_GO_INSTALL, href: KEEPALIVE_REPO_URL },
+            ]
+          : [
+              { etiqueta: "Releases (.deb / .rpm / .apk)", comando: "descarga el paquete de tu distribución", href: OS_RELEASES_URL },
+              { etiqueta: "Go", comando: KEEPALIVE_GO_INSTALL, href: KEEPALIVE_REPO_URL },
+            ];
+    return {
+      disponible: true,
+      comandos,
+      ejecucion: EJECUCION_SISTEMA,
+      limites: LIMITE_TAPA,
+    };
+  }
+  return {
+    disponible: false,
+    comandos: [],
+    ejecucion: "",
+    limites: "keepalive no tiene binario para este sistema: se dice tal cual.",
+  };
+}
