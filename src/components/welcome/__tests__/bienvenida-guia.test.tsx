@@ -59,6 +59,17 @@ function escucharGuia() {
 afterEach(() => cleanup());
 
 describe("WelcomeWindow (GUI1021K2)", () => {
+  it("no abre la guía al montar: el silencio no es aprobación, solo un gesto la abre", () => {
+    const guia = escucharGuia();
+    try {
+      render(<WelcomeWindow onContinue={() => undefined} />);
+      screen.getByRole("button", { name: "Conoce StarSeed (sin cuenta)" });
+      expect(guia.recibidos).toEqual([]);
+    } finally {
+      guia.parar();
+    }
+  });
+
   it("«Conoce StarSeed (sin cuenta)» abre la guía desde «bienvenida», con ratón y con teclado", async () => {
     render(<WelcomeWindow onContinue={() => undefined} />);
     const boton = screen.getByRole("button", { name: "Conoce StarSeed (sin cuenta)" });
