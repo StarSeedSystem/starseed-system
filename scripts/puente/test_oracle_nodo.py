@@ -137,6 +137,19 @@ class Prestamo(unittest.TestCase):
                     "nota": "movida a oracle (colas/oracle-20261018-231246) desde Genesis"}}
         self.assertEqual(N.devolver_de_oracle(p2, [], {}, True, nacida + 3 * 3600 + 60), [])
 
+    def test_nota_sin_rama_y_lo_que_no_es_prestamo_de_oracle(self):
+        """Nota sin rama, tarea ya terminada, reasignada a otro medio y valores basura: nada vuelve."""
+        import calendar
+        nacida = calendar.timegm((2026, 10, 18, 23, 12, 46, 0, 0, 0))
+        rama = "colas/oracle-20261018-231246"
+        p = {"U": {"estado": "reasignada", "medio": "oracle", "nota": "sin rama"},
+             "V": {"estado": "commit", "medio": "oracle",
+                   "nota": "movida a oracle (%s) desde Genesis" % rama},
+             "W": {"estado": "reasignada", "medio": "nube",
+                   "nota": "movida a oracle (%s) desde Genesis" % rama},
+             "X": "basura"}
+        self.assertEqual(N.devolver_de_oracle(p, [], {}, True, nacida + 3 * 3600 + 60), [])
+
 
 class Resumen(unittest.TestCase):
     def test_sin_urls_ni_ips_y_con_la_sonda_publica(self):
