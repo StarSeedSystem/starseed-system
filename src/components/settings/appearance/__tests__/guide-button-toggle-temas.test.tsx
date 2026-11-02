@@ -46,6 +46,16 @@ describe("temas con icono", () => {
 });
 
 describe("lista de temas", () => {
+  it("no abre la guía sola al montarse: solo al pulsar un tema (nunca un bucle)", () => {
+    const { peticiones, dejar } = escucharPeticiones();
+    try {
+      render(<ListaTemasGuia />);
+      expect(peticiones).toEqual([]);
+    } finally {
+      dejar();
+    }
+  });
+
   it("muestra los diez títulos con su icono, en botones de 44 px y cursor pointer", () => {
     render(<ListaTemasGuia />);
     const lista = screen.getByRole("list", { name: "Temas de la guía de introducción" });
