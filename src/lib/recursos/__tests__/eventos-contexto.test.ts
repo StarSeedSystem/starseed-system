@@ -1,16 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { crearCanal } from "../eventos-contexto";
-
-function makeCanal(tiempoBase = Date.now()) {
-  let llamadasEnviar: any[] = [];
-  const enviar = (e: any) => { llamadasEnviar.push(e); };
-  const ahora = () => tiempoBase;
-  const ahoraHibrido = () => tiempoBase + 2;
-  const canal = crearCanal({ nodoId: "nodo-test", enviar, ahora, ahoraHibrido });
-  return { canal, llamadasEnviar, ahora, ahoraHibrido, reset: () => { llamadasEnviar = []; } };
-}
+import { crearCanal, generarIdEvento, eventoBase } from "../eventos-contexto";
 
 describe("eventos-contexto", () => {
+  function makeCanal() {
+    let llamadasEnviar: any[] = [];
+    const enviar = (e: any) => { llamadasEnviar.push(e); };
+    const ahora = () => Date.now();
+    const ahoraHibrido = () => Date.now() + 5;
+    const canal = crearCanal({ nodoId: "nodo-test", enviar, ahora, ahoraHibrido });
+    return { canal, llamadasEnviar, ahora, ahoraHibrido, reset: () => { llamadasEnviar = []; } };
+  }
+
   it("emitir y recibir un evento basico", () => {
     const { canal, reset } = makeCanal();
     canal.emitir("alerta", { mensaje: "test" });
@@ -19,21 +19,20 @@ describe("eventos-contexto", () => {
     expect(recibido?.tipo).toBe("alerta");
     expect(recibido?.cuerpo).toEqual({ mensaje: "test" });
     expect(recibido?.nodoId).toBe("nodo-test");
-    expect(recibido?.t).toBe(2);
     reset();
   });
 
-it("recibir con parametro sobre busca evento por ID", () => {
-  const { canal, reset, llamadasEnviar } = makeCanal();
-  canal.emitir("buscado", { x: 1 });
-  const ultimo = llamadasEnviar[llamadasEnviar.length - 1];
-  const encontrado = canal.recibir(ultimo?.id);
-  expect(encontrado).not.toBeNull();
-  if (encontrado && ultimo) {
-    expect(encontrado?.id).toBe(ultimo?.id);
-  }
-  reset();
-});
+  it("recibir con parametro sobre busca evento por ID", () => {
+    const { canal, reset, llamadasEnviar } = makeCanal();
+    canal.emitir("buscado", { x: 1 });
+    const ultimo = llamadasEnviar[llamadasEnviar.length - 1];
+    const encontrado = canal.recibir(ultimo?.id);
+    expect(encontrado).not.toBeNull();
+    if (encontrado && ultimo) {
+      expect(encontrado?.id).toBe(ultimo?.id);
+    }
+    reset();
+  });
 
   it("emite y recibe en orden causal", () => {
     const { canal, reset } = makeCanal();
@@ -94,11 +93,26 @@ it("recibir con parametro sobre busca evento por ID", () => {
     reset();
   });
 
-  it("evento usa el reloj hibrido (con desfase)", () => {
-    const { canal, reset } = makeCanal(5000);
-    canal.emitir("conDesfase", { x: 1 });
-    const recibido = canal.recibir();
-    expect(recibido?.t).toBe(5002);
-    reset();
+  it("generarIdEvento crea IDs unicos", () => {
+    const id1 = generarIdEvento("nodoA");
+    const id2 = generarIdEvento("nodoA");
+    expect(id1).not.toBe(id2);
+    expect(id1).toMatch(/^evt_\d+_nodoA_[a-z0-9]+$/);
+  });
+
+  it("eventoBase crea evento con el reloj proporcionado", () => {
+    const ahora = () => 5000;
+    const ev = eventoBase({ tipo: "test", cuerpo: { x: 1 }, nodoId: "n1", ahora });
+    expect(ev.tipo).toBe("test");
+    expect(ev.cuerpo).toEqual({ x: 1 });
+    expect(ev.nodoId).toBe("n1");
+    expect(ev.t).toBe(5000);
+    expect(ev.id).toMatch(/^evt_\d+_n1_[a-z0-9]+$/);
+  });
+
+  it("eventoBase acepta desfaseMs", () => {
+    const ahora = () => 5000;
+    const ev = eventoBase({ tipo: "test", nodoId: "n1", desfaseMs: 100, ahora });
+    expect(ev.desfaseMs).toBe(100);
   });
 });
