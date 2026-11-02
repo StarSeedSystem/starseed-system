@@ -52,6 +52,7 @@ import json
 import os
 import re
 import signal
+import shutil
 import subprocess
 import sys
 import time
@@ -299,6 +300,26 @@ def entregas_viejas(ramas, ahora, dias=DIAS_ENTREGAS):
         if ahora - t > dias * 86400:
             fuera.append(r)
     return fuera
+
+
+def worktrees_a_quitar(porcelana, raiz):
+    """PURA (SUP0211E). Los worktrees que la limpieza de fin de cola debe quitar, de la salida
+    de `git worktree list --porcelain`: todo el que no sea la raíz del repo (comparada canónica).
+    Devuelve [(ruta, motivo_bloqueo)] por registro; motivo None si no está bloqueado, "" si un
+    `locked` sin motivo (SUP0211A: un `add` cortado queda «locked initializing» y solo sale con
+    --force dos veces, así que da igual si lleva motivo: se quita igual)."""
+    raiz_real = os.path.realpath(raiz or "")
+    salida, ruta, bloqueado = [], None, None
+    for linea in str(porcelana or "").splitlines():
+        if linea.startswith("worktree "):
+            if ruta is not None:
+                salida.append((ruta, bloqueado))
+            ruta, bloqueado = linea[len("worktree "):].strip(), None
+        elif linea.startswith("locked") and ruta is not None:
+            bloqueado = linea[len("locked"):].strip()
+    if ruta is not None:
+        salida.append((ruta, bloqueado))
+    return [(p, b) for p, b in salida if p and os.path.realpath(p) != raiz_real]
 
 
 def carga_por_hora(muestras, ahora, horas=24):
@@ -722,11 +743,17 @@ class Nodo:
 
     def limpiar_tras_cola(self):
         """Worktrees y ramas `ola/*` de la cola que acabó (lo útil ya está en sus entregas) y
-        archivo de su carpeta de olas: la siguiente cola empieza limpia, como un runner."""
+        archivo de su carpeta de olas: la siguiente cola empieza limpia, como un runner.
+
+        (SUP0211E) Un `worktree add` cortado queda bloqueado «initializing» (`locked` en
+        `.git/worktrees/<nombre>/`); con un solo `--force` git no lo quita, queda «missing but
+        locked» y cualquier `worktree add` próximo en esa ruta falla para siempre. `--force` dos
+        veces, la carpeta sobrante fuera y `prune` (el mismo arreglo de `_soltar_carpeta` en
+        traer_nube.py). La raíz del repo NUNCA sale: lo dice `worktrees_a_quitar`."""
         _, wts = _git(["worktree", "list", "--porcelain"])
-        for linea in wts.splitlines():
-            if linea.startswith("worktree ") and os.path.realpath(linea[9:]) != os.path.realpath(RAIZ):
-                _git(["worktree", "remove", "--force", linea[9:]])
+        for wt, _bloqueo in worktrees_a_quitar(wts, RAIZ):
+            _git(["worktree", "remove", "--force", "--force", wt])
+            shutil.rmtree(wt, ignore_errors=True)
         _git(["worktree", "prune"])
         _, ramas = _git(["for-each-ref", "--format=%(refname:short)", "refs/heads/ola/"])
         for r in [x.strip() for x in ramas.splitlines() if x.strip()]:

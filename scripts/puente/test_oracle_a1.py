@@ -395,5 +395,34 @@ class CheckoutEnElNodo(unittest.TestCase):
         self.assertNotIn(A.PREFIJO_BANDEJA + "cola-z.json", self._colas().get("procesadas") or {})
 
 
+class LimpiezaDeWorktrees(unittest.TestCase):
+    """(SUP0211E) Un `worktree add` cortado queda bloqueado «initializing»: un solo --force no lo quita."""
+
+    PORCELANA = (
+        "worktree /srv/repo\n"
+        "HEAD aaaa\n"
+        "branch refs/heads/main\n"
+        "\n"
+        "worktree /srv/wt/normal\n"
+        "HEAD bbbb\n"
+        "branch refs/heads/ola/Z\n"
+        "\n"
+        "worktree /srv/wt/bloqueado\n"
+        "HEAD cccc\n"
+        "locked initializing\n"
+    )
+
+    def test_los_que_no_son_la_raiz_y_su_bloqueo(self):
+        quitar = dict(A.worktrees_a_quitar(self.PORCELANA, "/srv/repo"))
+        self.assertEqual(quitar, {"/srv/wt/normal": None, "/srv/wt/bloqueado": "initializing"})
+
+    def test_la_raiz_nunca_sale_y_vacio_no_rompe(self):
+        self.assertEqual(A.worktrees_a_quitar("worktree /srv/repo\nHEAD a\n", "/srv/repo"), [])
+        # "locked" sin motivo también es un bloqueo (el add pudo morir antes de anotarlo).
+        self.assertEqual(A.worktrees_a_quitar("worktree /srv/wt/x\nHEAD a\nlocked\n", "/srv/repo"),
+                         [("/srv/wt/x", "")])
+        self.assertEqual(A.worktrees_a_quitar("", "/srv/repo"), [])
+
+
 if __name__ == "__main__":
     unittest.main()
