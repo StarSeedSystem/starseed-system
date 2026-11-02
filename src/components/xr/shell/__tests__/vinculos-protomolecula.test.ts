@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Controlador, EstadoControl, ResultadoMover } from "@/lib/protomolecula/controlador";
-import { CURVA_LINEAL, estadoInicial, procesar, type Vinculo } from "@/lib/protomolecula/vinculos-control";
+import { CURVA_LINEAL, estadoInicial, procesar, type Curva, type Vinculo } from "@/lib/protomolecula/vinculos-control";
 import type { Accion, Ambito, Autor, Operacion, Parametro, ParametroRef } from "@/lib/protomolecula/tipos";
 import { MAPAS_DEFECTO, type MapaEntrada } from "@/lib/xr/vinculos-xr";
 import { aplicarEnVisor, fuentesDeMapaXR, operacionEnVisor, rangoAGesto } from "../vinculos-protomolecula";
@@ -100,6 +100,12 @@ describe("rangoAGesto", () => {
     expect(rangoAGesto({ ...VOLUMEN, tipo: "entero" }, 0.333)).toBe(33);
     expect(rangoAGesto(VOLUMEN, -3)).toBe(0);
     expect(rangoAGesto(VOLUMEN, 9)).toBe(100);
+  });
+  it("usa la forma log de la curva real: responde antes que la lineal", () => {
+    const log: Curva = { ...CURVA_LINEAL, forma: "log" };
+    expect(rangoAGesto(VOLUMEN, 0.5)).toBe(50);
+    expect(rangoAGesto(VOLUMEN, 0.5, log)).toBeGreaterThan(50);
+    expect(rangoAGesto(VOLUMEN, 0.5, log)).toBeLessThan(100);
   });
 });
 

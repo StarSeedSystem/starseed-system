@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import puerta_datos_cliente as pdc  # noqa: E402
 import lider_direccion as LD  # noqa: E402
+import lider_ahogo as IA  # noqa: E402
 
 # Neurona sana aquí: la medida real de ahogo y el A1 local se inyectan en test_lider_ahogo.
 LD._ahogo, LD._sin_puerta = (lambda *a, **k: None), (lambda *a, **k: None)
@@ -96,6 +97,14 @@ class ConPuerta(Base):
         self.assertTrue(caida["soy"] and "sin puerta o sin red" in caida["motivo"])
         self.assertTrue(LD.renovar("mac-1", T0, self.p)["soy"])
         self.assertFalse(os.path.exists(self.p.cola))  # el arriendo NO se encola para reenviarlo luego
+
+    def test_el_a1_no_se_frena_por_su_propio_latido(self):
+        self.f.sana = False
+        LD._sin_puerta = lambda ahora, nodo=None: IA.sin_puerta(ahora, {"latido": T0 - 60})
+        self.addCleanup(setattr, LD, "_sin_puerta", lambda *a, **k: None)
+        self.assertFalse(LD.renovar("mac-1", T0, self.p)["soy"])  # una mac común sí cede al A1 vivo
+        # Su latido en oracle.json es el SUYO: con la puerta caída el A1 debe seguir en local, no ceder a sí mismo.
+        self.assertTrue(LD.renovar("oracle-a1-abc", T0, self.p)["soy"])
 
     def test_empate_otro_aterriza_despues_y_lo_descubre_al_releer(self):
         self._al_leer = lambda n: self.poner("mac-2", 2, T0 + 150, T0) if n == 3 else None

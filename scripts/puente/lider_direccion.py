@@ -4,8 +4,9 @@
 toma con escritura condicional, lo alarga o renuncia; `soy_lider()` solo LEE si el arriendo
 vigente es mío. Caducidad 180 s, renovación cada 60 s, prioridad `a1` › `mac` › otras: tras
 caducar, un rango peor espera su fila y un dueño de peor prioridad solo en su primer minuto.
-Una neurona AHOGADA no lo toma ni lo renueva, ni sin puerta se declara líder en local si el A1
-latió hace menos de 10 min (LID1101A, `lider_ahogo`): que se releve él. Solo biblioteca estándar.
+Un rango AHOGADO no lo toma ni lo renueva, ni sin puerta se declara líder en local si un A1 ajeno
+latió hace menos de 10 min (LID1101A, `lider_ahogo`): que se releve él; el propio A1 no se frena por
+su latido, que es el suyo (oracle.json). Solo biblioteca estándar.
 """
 import time
 
@@ -70,12 +71,13 @@ def _leer_arriendo(puerta):
 
 
 def soy_lider(neurona=None, ahora=None, puerta=None):
-    """Solo LEE: ¿el arriendo vigente es mío? Ahogada o, con la puerta caída, el A1 vivo: no; sin puerta o sin red: ahí sigue."""
+    """Solo LEE: ¿el arriendo vigente es mío? Ahogada o, con la puerta caída, un A1 ajeno vivo: no;
+    el propio A1 no se frena por su latido; sin puerta o sin red: ahí sigue."""
     ahora = time.time() if ahora is None else ahora
     neurona = neurona or mismo_id()
     p = puerta if puerta is not None else _puerta()
     abierta = p is not None and p.configurada() and p.disponible()
-    dejo = _ahogo() or (None if abierta else _sin_puerta(ahora))
+    dejo = _ahogo() or (None if abierta or prioridad(neurona) == 0 else _sin_puerta(ahora))
     if dejo:
         return {"soy": False, "motivo": dejo, "arriendo": None}
     if not abierta:
@@ -86,12 +88,13 @@ def soy_lider(neurona=None, ahora=None, puerta=None):
 
 
 def renovar(neurona=None, ahora=None, puerta=None):
-    """Toma, alarga o renueva el arriendo con escritura condicional; se repite cada `RENOVA_S`."""
+    """Toma, alarga o renueva el arriendo con escritura condicional; se repite cada `RENOVA_S`.
+    Con la puerta caída el propio A1 sigue en local: su latido en oracle.json es el suyo."""
     ahora = time.time() if ahora is None else ahora
     neurona = neurona or mismo_id()
     p = puerta if puerta is not None else _puerta()
     abierta = p is not None and p.configurada() and p.disponible()
-    dejo = _ahogo() or (None if abierta else _sin_puerta(ahora))
+    dejo = _ahogo() or (None if abierta or prioridad(neurona) == 0 else _sin_puerta(ahora))
     if dejo:
         return {"soy": False, "escrito": False, "arriendo": None, "motivo": dejo}
     if p is None or not abierta:
