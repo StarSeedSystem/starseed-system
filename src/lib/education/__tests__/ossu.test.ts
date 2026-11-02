@@ -55,6 +55,16 @@ describe("AVISO_LICENCIA_OSSU", () => {
         expect(AVISO_LICENCIA_OSSU.length).toBeGreaterThan(20);
         expect(AVISO_LICENCIA_OSSU).toContain("enlaza");
     });
+
+    it("exporta las funciones públicas necesarias", () => {
+        expect(typeof versionOssu).toBe("function");
+        expect(typeof seccionesOssu).toBe("function");
+        expect(typeof cursosOssu).toBe("function");
+        expect(typeof cursosDeSeccion).toBe("function");
+        expect(typeof bloquesOssu).toBe("function");
+        expect(typeof itinerarioOssu).toBe("function");
+        expect(AVISO_LICENCIA_OSSU).toBeTypeOf("string");
+    });
 });
 
 describe("itinerarioOssu", () => {
