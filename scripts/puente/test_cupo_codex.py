@@ -56,6 +56,38 @@ class TestVigencia(unittest.TestCase):
         self.assertEqual(C.minutos_restantes({}, AHORA), 0)
 
 
+#: Literal de ~/.codex/sessions desde el 2026-10-23 20:55 (206 sesiones).
+SIN_MODELO = ('{"status":400,"error":{"type":"invalid_request_error","message":'
+              '"The \'gpt-5.6-sol\' model is not supported when using Codex with a '
+              'ChatGPT account.","code":"model_not_found"}}')
+
+
+class TestSinModelo(unittest.TestCase):
+    def test_la_salida_real_del_23_10(self):
+        self.assertTrue(C.sin_modelo_en(SIN_MODELO))
+
+    def test_solo_el_codigo_tambien(self):
+        self.assertTrue(C.sin_modelo_en('{"code":"MODEL_NOT_FOUND"}'))
+
+    def test_no_es_cuota_ni_al_reves(self):
+        self.assertFalse(C.agotado_en(SIN_MODELO))
+        self.assertFalse(C.sin_modelo_en(REAL))
+        self.assertTrue(C.agotado_en(REAL))
+
+    def test_vacio(self):
+        self.assertFalse(C.sin_modelo_en(""))
+        self.assertFalse(C.sin_modelo_en(None))
+
+    def test_se_aparta_24_horas(self):
+        import tempfile
+        ruta = os.path.join(tempfile.mkdtemp(), "codex-cupo.json")
+        C.anotar("cuenta de ChatGPT sin Codex", ruta=ruta, ahora=AHORA,
+                 horas=C.HORAS_SIN_MODELO)
+        self.assertEqual(C.HORAS_SIN_MODELO, 24)
+        self.assertFalse(C.puede_escribir(ruta, ahora=AHORA + 23 * 3600))
+        self.assertTrue(C.puede_escribir(ruta, ahora=AHORA + 25 * 3600))
+
+
 class TestVentana(unittest.TestCase):
     def test_tres_horas_por_defecto(self):
         self.assertAlmostEqual(C.hasta_cuando(AHORA) - AHORA, 3 * 3600, places=3)

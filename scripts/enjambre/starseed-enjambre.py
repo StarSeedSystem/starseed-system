@@ -326,7 +326,13 @@ except Exception:  # sin el módulo, se comporta como antes
             return False
 
         @staticmethod
-        def anotar(motivo=""):
+        def sin_modelo_en(salida):
+            return False
+
+        HORAS_SIN_MODELO = 24
+
+        @staticmethod
+        def anotar(motivo="", horas=3.0):
             return 0
 
 
@@ -7828,6 +7834,28 @@ def ejecutar(t, intento=1):
                 tid,
                 "%s se colgó y fue cortado → siguiente modelo, sin gastar intento"
                 % modelo,
+            )
+            continue
+        # La cuenta de ChatGPT no admite el modelo de Codex (400 «model_not_found», desde el
+        # 2026-10-23): no es cuota ni culpa de la tarea. Fuera de la rotación 24 h, y el
+        # intento NO cuenta, como con una pasarela caída (DEC1028C).
+        if modelo in MODELOS_CODEX and _cupo_codex.sin_modelo_en(out):
+            try:
+                minutos = _cupo_codex.anotar(
+                    "cuenta de ChatGPT sin Codex para %s" % modelo,
+                    horas=_cupo_codex.HORAS_SIN_MODELO,
+                )
+            except Exception:
+                minutos = 0
+            for _m in list(MODELOS_CODEX):
+                for _lista in (MODELOS, pendientes, apartados):
+                    while _m in _lista:
+                        _lista.remove(_m)
+            evento(
+                "proveedor_caido",
+                tid,
+                "Codex: la cuenta de ChatGPT no admite %s (model_not_found) → fuera de "
+                "la rotación %d min, sin gastar intento" % (modelo, minutos),
             )
             continue
         reaccion = reaccionar_al_fallo(tid, modelo, out, time.time() - t0, pendientes)
