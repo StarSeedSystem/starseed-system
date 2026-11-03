@@ -239,8 +239,17 @@ def elegir_por_tarea(entradas):
 
 
 def base_de(tid):
-    """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` de Genesis)."""
-    return tid[:-1] if re.search(r"[A-Z0-9][b-z]$", tid) else tid
+    """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` de Genesis).
+    Distingue el sufijo de rescate/derivación (`-d1`, `-d2b`, etc.) de la letra que forma parte del id."""
+    t = str(tid or "")
+    # 1. Quitar sufijo de rescate/derivación -d<N>[a-z]?
+    m = re.match(r"^(.+?)-d\d+[a-z]?$", t)
+    if m:
+        t = m.group(1)
+    # 2. Quitar letras sucesoras minúsculas al final (b-z precedidas por mayúscula o dígito)
+    while len(t) > 1 and t[-1] in "bcdefghijklmnopqrstuvwxyz" and (t[-2].isdigit() or t[-2].isupper()):
+        t = t[:-1]
+    return t
 
 
 def siguiente_id(tid, conocidos):

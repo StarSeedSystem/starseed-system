@@ -120,6 +120,20 @@ class Sucesor(unittest.TestCase):
         self.assertEqual(T.siguiente_id("LC1004B", {"LC1004B", "LC1004Bb", "LC1004Bc"}), "LC1004Bd")
         self.assertEqual(T.siguiente_id("SB1004A", {"SB1004A", "SB1004Ab", "OTRA"}), "SB1004Ac")
 
+    def test_base_de_con_sufijo_rescate_y_derivacion(self):
+        # Casos del issue RESC1031D: distingue sufijo -d1/-d2b de la letra sucesora
+        self.assertEqual(T.base_de("SGO1031B-d1"), "SGO1031B")
+        self.assertEqual(T.base_de("RTESP1011B-d1"), "RTESP1011B")
+        self.assertEqual(T.base_de("MC1013TCc-d1"), "MC1013TC")
+        self.assertEqual(T.base_de("CPA1007Kb-d1b"), "CPA1007K")
+        # Casos sin -d pero con letra sucesora
+        self.assertEqual(T.base_de("RTESP1011Bb"), "RTESP1011B")
+        self.assertEqual(T.base_de("S1010-TU-LL1c"), "S1010-TU-LL1")
+        self.assertEqual(T.base_de("CAMR1005Db"), "CAMR1005D")
+        # Casos sin sufijo ni sucesora
+        self.assertEqual(T.base_de("PRD1005L"), "PRD1005L")
+        self.assertEqual(T.base_de("MGP1010-7F3A2C"), "MGP1010-7F3A2C")
+
     def test_tarea_reparacion_continua_desde_la_rama(self):
         original = {"id": "LC1004B", "ola": "Ola 1004L", "titulo": "Límites", "archivos": ["a.ts"],
                     "depende": ["LC1004A"], "prompt": "Haz X.", "estado": "fallo_tests", "modelo": "nim/kimi"}
