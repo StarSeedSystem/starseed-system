@@ -202,6 +202,11 @@ MODELOS = [
     # fin de vida el 2026-09-21). Los que escriben hoy van delante; kimi-k3 conserva su mérito
     # en la Mac (`orden_por_merito`), pero la nube no tiene progreso.json y arranca con este
     # orden tal cual (rota entre los tres primeros).
+    # (2026-11-03, 1103 · S) NIM cambió su catálogo: kimi-k3 y glm-5.3 ya no están y nemotron-3-super se lista pero
+    # da 404. Medido con opencode en la Mac (archivo creado con la herramienta Write): nemotron-3-ultra-550b-a55b
+    # ESCRIBE en 47 s y minimax-m3.1-flash ESCRIBE en 161 s. glm-5.3-flash y deepseek-v4.1-flash no contestan en 40 s.
+    "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "nvidia/minimaxai/minimax-m3.1-flash",
     "nvidia/nvidia/nemotron-3-super-120b-a12b",
     "nvidia/z-ai/glm-5.3",
     "nvidia/moonshotai/kimi-k3",
@@ -1081,7 +1086,9 @@ SONDAS = {
     # (2026-10-10, CAP1010) Antes kimi-k3: tarda ~45 s en 16 tokens y la sonda de generación
     # (40 s) daba a NIM entero por caído («todos los proveedores útiles están caídos (llm7,
     # nim)», run 38070585964) mientras nemotron contestaba en 0,7 s.
-    "nim": ("nvidia/nemotron-3-super-120b-a12b", ("NVIDIA_API_KEY", "NVIDIA_SHARED_KEY")),
+    # (1103 · S) nemotron-3-super da 404 desde el 02-11; minimax-m3.1-flash contesta en 1 s (nemotron-3-ultra razona
+    # y a 16 tokens sale vacío: no sirve de sonda).
+    "nim": ("minimaxai/minimax-m3.1-flash", ("NVIDIA_API_KEY", "NVIDIA_SHARED_KEY")),
     "aihubmix": ("coding-glm-5.3-free", ("AIHUBMIX_API_KEY",)),
     "tokenrouter": ("z-ai/glm-5.3-free", ("TOKENROUTER_API_KEY",)),
     "openrouter": ("nvidia/nemotron-3-super-120b-a12b:free", ("OPENROUTER_API_KEY",)),

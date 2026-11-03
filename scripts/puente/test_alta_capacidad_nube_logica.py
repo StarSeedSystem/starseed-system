@@ -68,7 +68,8 @@ class CupoNube(unittest.TestCase):
         vence = datetime.fromtimestamp(AHORA + DIA / 2, timezone.utc).isoformat()
         ok, _, hoy = L.cupo_nube(credito(restante=50, vence=vence), AHORA, 0)
         self.assertTrue(ok)
-        self.assertAlmostEqual(hoy, 40.0, delta=0.01)
+        # (1103 · S) a medio día de vencer, la reserva es la de vencimiento (3 $), no 10 $
+        self.assertAlmostEqual(hoy, 47.0, delta=0.01)
 
 
 class RamaOrdenYBrief(unittest.TestCase):

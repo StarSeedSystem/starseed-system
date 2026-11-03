@@ -171,7 +171,7 @@ SECCIONES = ("mejora", "riesgo", "idea")
 # o no tengan clave fallan en segundos y la rotación sigue: no hay que acertar la lista entera.
 MAP_RAPIDOS = [
     ("llm7", "gpt-oss"),
-    ("nim", "nvidia/nemotron-3-super-120b-a12b"),
+    ("nim", "minimaxai/minimax-m3.1-flash"),  # (1103 · S) nemotron-3-super da 404 en NIM
     ("xkiro", "minimax/minimax-m2.7-highspeed:free"),
     ("groq", "openai/gpt-oss-120b"),
     ("aihubmix", "gemini-3.7-flash-free"),

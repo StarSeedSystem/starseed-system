@@ -38,6 +38,10 @@ MODELO_ECONOMICO = "sonnet"
 REPETIR_TRAS_H = 24
 MAX_LANZAMIENTOS_TAREA = 2
 MAX_LANZAMIENTOS_DIA = 6
+#: (1103 · S) A `DIAS_AL_VENCER` días o menos del vencimiento, la reserva baja a `RESERVA_AL_VENCER`: el crédito que
+#: vence no se guarda para nada. Medido el 03-11: 23 $ reales que vencen el 05-11 y el carril parado en «6 de 6 $».
+DIAS_AL_VENCER = 3.0
+RESERVA_AL_VENCER = 3.0
 
 _ANSI = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\)|[@-Z\\-_])")
 _VIEW = re.compile(r"View:\s*(https://claude\.ai/code/(session_[A-Za-z0-9]+))")
@@ -72,6 +76,8 @@ def cupo_nube(credito, ahora, vivas, max_vivas=3, reserva_usd=10.0):
         restante = float(credito.get("restante_usd") or 0)
     except (TypeError, ValueError):
         restante = 0.0
+    if (vence - ahora) / 86400.0 <= DIAS_AL_VENCER:
+        reserva_usd = min(reserva_usd, RESERVA_AL_VENCER)
     if restante <= reserva_usd:
         return False, "quedan %.2f $ y la reserva es %.2f $: no se gasta más" % (restante, reserva_usd), 0.0
     dias = max(1.0, (vence - ahora) / 86400.0)

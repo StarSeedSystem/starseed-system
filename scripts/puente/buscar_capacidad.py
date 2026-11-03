@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import os
 import subprocess
 import sys
@@ -159,10 +160,19 @@ def puede_reabrir(marcas, ahora, espera_s=REABRIR_ESPERA_S, maximo=REAPERTURAS_M
     return not marcas or ahora - marcas[-1] >= espera_s
 
 
+#: (1103 · S) Lo que el run dijo de la tarea y que prueba que SÍ se intentó. «su run terminó» con «la nube dijo
+#: «sin_cambios»» no es «nadie llegó a ella»: 12 tareas iban por su séptimo envío a los mismos modelos.
+VEREDICTOS_INTENTADA = ("sin_cambios", "fallo", "fallo_tsc", "fallo_tests", "rechazada", "conflicto", "bloqueada")
+_DIJO = re.compile(r"la nube dijo «([a-z_]+)»")
+
+
 def sin_intento(nota):
     """PURA (1103). ¿La nota dice que la tarea volvió sin que ningún agente la intentara?"""
     n = str(nota or "").strip().lower()
-    return any(n.startswith(p) for p in NOTAS_SIN_INTENTO)
+    if not any(n.startswith(p) for p in NOTAS_SIN_INTENTO):
+        return False
+    dicho = _DIJO.search(n)
+    return not (dicho and dicho.group(1) in VEREDICTOS_INTENTADA)
 
 
 def reaperturas_sin_intento_ajuste(ruta=None):

@@ -48,7 +48,9 @@ SONDAS = [
     ("openrouter", "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY", "nex-agi/nex-n2.5-pro:free"),
     # (2026-09-19) kimi-k3 y deepseek-v4-flash-0731 se cuelgan en NIM sin emitir (40 s
     # sin respuesta); nemotron-3-super contestó en 0,7 s. La sonda mide lo que escribe.
-    ("nvidia", "https://integrate.api.nvidia.com/v1", "NVIDIA_API_KEY", "nvidia/nemotron-3-super-120b-a12b"),
+    # (1103 · S) nemotron-3-super da 404 desde el 02-11 y el panel daba a NVIDIA por «modelo fuera»: minimax-m3.1-flash
+    # contesta en 1 s y escribe con opencode.
+    ("nvidia", "https://integrate.api.nvidia.com/v1", "NVIDIA_API_KEY", "minimaxai/minimax-m3.1-flash"),
     # Gemini directo por su endpoint OpenAI-compatible. Se sonda con flash-lite a
     # propósito: los modelos con razonamiento (3.6-flash) devuelven contenido VACÍO a
     # 16 tokens y saldrían «mudos» sin estarlo. Hermes y opencode usan gemini-3.6-flash.

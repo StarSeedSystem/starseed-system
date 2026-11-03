@@ -315,7 +315,16 @@ def ids_de_colas_jovenes(carpeta, ahora_ts, max_s=COLA_JOVEN_S):
     return jovenes
 
 
-def ordenar_reapertura_en_colas_vivas(ids):
+def motivo_de_vuelta(dicho):
+    """(1103 · S) PURA. Motivo de la orden «reabrir» con lo que dijo el run, si lo dijo: sin él, `sin_intento` daba
+    por no intentada una tarea que la nube probó con cinco modelos y dejó «sin_cambios»."""
+    base = "devuelta de la nube: su run terminó"
+    if dicho and str(dicho[0] or "").strip():
+        return base + " · la nube dijo «%s»" % str(dicho[0]).strip()
+    return base
+
+
+def ordenar_reapertura_en_colas_vivas(ids, veredictos=None):
     """Pide al orquestador local que retome las tareas devueltas por la nube."""
     if not ids:
         return
@@ -350,7 +359,7 @@ def ordenar_reapertura_en_colas_vivas(ids):
             ordenes[tid] = {
                 "accion": "reabrir",
                 "quien": "director-nube",
-                "motivo": "devuelta de la nube: su run terminó",
+                "motivo": motivo_de_vuelta((veredictos or {}).get(tid)),
                 "t": marca_tiempo,
             }
         tmp = ruta + ".tmp"
@@ -407,13 +416,14 @@ def reclamar_varadas_de_la_nube(runs_vivos):
     ids = RN.reclamar_varadas(tareas, runs_vivos, ids_vivos=ids_vivos, colas_jovenes=jovenes)
     if not ids:
         return []
-    ordenar_reapertura_en_colas_vivas(ids)
+    veredictos = veredictos_del_ultimo_run(ids)
+    ordenar_reapertura_en_colas_vivas(ids, veredictos)
     # (2026-09-24) Con cuántas veces se mandó y con lo que dijo la nube: si ya van tres,
     # a «Bloqueadas» con el motivo, no otra vez a «pendiente» (y otra vez a la nube).
     # (2026-10-05) Con las reaperturas descontadas: la misma cuenta que usa el reparto.
     envios = RN.envios_vigentes(os.path.join(RAIZ, "enjambre", "colas"), time.time())
     nuevas = RN.devolver_a_pendiente(tareas, ids, time.strftime("%Y%m%d"),
-                                     envios=envios, veredictos=veredictos_del_ultimo_run(ids))
+                                     envios=envios, veredictos=veredictos)
     if isinstance(progreso, dict) and "tareas" in progreso:
         progreso["tareas"] = nuevas
         salida = progreso
