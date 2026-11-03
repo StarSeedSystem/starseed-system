@@ -840,7 +840,9 @@ def reiniciar_mando() -> None:
         _soltar_cerrojo()
 
 
-def _reiniciar_mando_sin_cerrojo() -> None:
+def _reiniciar_mando_sin_cerrojo(cambiar=None) -> bool:
+    """`cambiar` (SUP0111D): quien cambia los directorios con Genesis PARADO; por defecto, el build nuevo.
+    Devuelve si puso algo en su sitio."""
     uid = os.getuid()
     etiqueta = "gui/%d/%s" % (uid, SERVICIO)
     plist = os.path.expanduser("~/Library/LaunchAgents/%s.plist" % SERVICIO)
@@ -849,7 +851,8 @@ def _reiniciar_mando_sin_cerrojo() -> None:
     subprocess.run(["launchctl", "bootout", etiqueta], capture_output=True, text=True)
     time.sleep(1)
     liberar_puerto()
-    if intercambiar_build():
+    hecho = cambiar() if cambiar is not None else intercambiar_build()
+    if hecho and cambiar is None:
         print("build nuevo puesto en su sitio (el anterior queda en .next-anterior)", flush=True)
     # (2026-09-22, MEDIDO) `bootstrap` justo después de `bootout` FALLA a veces —launchd
     # todavía está desmontando el servicio— y entonces Genesis se queda APAGADO: ni en
@@ -890,6 +893,83 @@ def _reiniciar_mando_sin_cerrojo() -> None:
                   error=None, visto=time.strftime("%Y-%m-%d %H:%M:%S")))
     print("Genesis reiniciado: la pantalla ya sirve el código nuevo (%s)" % (servido or "?"),
           flush=True)
+    return bool(hecho)
+
+
+# ── (SUP0111D) Si el `.next` servido se cae, vuelve el anterior ──────────────────────────
+#: El 31-10 un `next build` ajeno borró el `.next` servido y Genesis estuvo caído hasta que alguien repuso
+#: `.next-anterior` a mano. Reponerlo es un rename, no una build: no espera a ningún freno ni al A1.
+ANTERIOR = ".next-anterior"
+CUARENTENA = os.path.expanduser("~/.starseed/cuarentena")
+
+
+def reponer_anterior_toca(caido, build_entero, anterior_entero) -> bool:
+    """PURA: ¿se repone `.next-anterior` como `.next`? Con Genesis caído, SIN un `.next-build` entero (ese
+    camino manda: es el más nuevo) y con un anterior que tiene lo mínimo para servir."""
+    return bool(caido) and not build_entero and bool(anterior_entero)
+
+
+def anterior_entero(raiz=RAIZ) -> bool:
+    """¿`.next-anterior` tiene BUILD_ID y build-manifest.json? (al guardarlo ya se le quitó el `cache/`)."""
+    return all(os.path.isfile(os.path.join(raiz, ANTERIOR, n)) for n in ("BUILD_ID", "build-manifest.json"))
+
+
+def _puente():
+    """`puente.py` cargado por su ruta, como `guardia-memoria.py`: por nombre, con el repo en el path, `puente`
+    puede ser la carpeta `scripts/puente` (y no tiene `decir`)."""
+    import importlib.util
+    espec = importlib.util.spec_from_file_location("puente", os.path.join(os.path.dirname(os.path.abspath(__file__)), "puente.py"))
+    modulo = importlib.util.module_from_spec(espec)
+    espec.loader.exec_module(modulo)
+    return modulo
+
+
+def _avisar(texto, tipo="aviso") -> None:
+    """Al registro y al canal común (`puente.decir`). Un fallo aquí nunca tumba al reconstructor."""
+    print("[%s] %s" % (time.strftime("%H:%M"), texto), flush=True)
+    try:
+        _puente().decir(texto, "reconstruir", tipo)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def reponer_anterior(raiz=RAIZ, cuarentena=CUARENTENA, ahora=None) -> bool:
+    """Con Genesis PARADO: el `.next` roto se MUEVE a `<cuarentena>/<AAAAMMDD-HHMM>-next-roto` (nunca se borra)
+    y `.next-anterior` ocupa su sitio. True si quedó repuesto; si algo falla, lo dice y no avisa."""
+    servido, anterior = os.path.join(raiz, DIST_SERVIDO), os.path.join(raiz, ANTERIOR)
+    roto = os.path.join(cuarentena, time.strftime("%Y%m%d-%H%M", time.localtime(ahora)) + "-next-roto")
+    hay_roto = os.path.lexists(servido)
+    try:
+        if hay_roto:
+            os.makedirs(cuarentena, exist_ok=True)
+            os.rename(servido, roto)
+        os.rename(anterior, servido)
+    except OSError as e:
+        print("no pude reponer %s: %s" % (ANTERIOR, e), flush=True)
+        return False
+    _avisar("Genesis estaba caído (el %s servido no tenía un build entero): repuse %s como %s%s" % (
+        DIST_SERVIDO, ANTERIOR, DIST_SERVIDO,
+        "; el roto, en ~/.starseed/cuarentena/%s" % os.path.basename(roto) if hay_roto else ""))
+    return True
+
+
+def reponer_anterior_y_reiniciar() -> bool:
+    """Con el cerrojo del reinicio y su misma secuencia (bootout, cambio, bootstrap, comprobación): repone el
+    anterior y arranca Genesis. True si lo repuso."""
+    if not _tomar_cerrojo():
+        print("otro proceso está reiniciando Genesis; no me meto", flush=True)
+        return False
+    try:
+        # Con el cerrojo se vuelve a mirar: si mientras esperaba otro puso un build bueno, no se le pisa.
+        if not reponer_anterior_toca(genesis_caido(), build_terminado(), anterior_entero()):
+            return False
+        hecho = _reiniciar_mando_sin_cerrojo(cambiar=reponer_anterior)
+        if hecho:  # el repuesto es más viejo que las fuentes: ni «al día» ni con la huella de otro build (no recompilaría)
+            _guardar(dict(_leer_estado(), estado="esperando-maquina", huella_construida=None,
+                          freno="Genesis sirve el build anterior (repuesto): falta compilar el de las fuentes de ahora"))
+        return hecho
+    finally:
+        _soltar_cerrojo()
 
 
 # ── Frenos de máquina (2026-10-03) ───────────────────────────────────────────────────────
@@ -1234,6 +1314,12 @@ def una_pasada(forzar: bool = False) -> bool:
         print("[%s] %s, pero hay uno entero en %s: lo pongo" % (time.strftime("%H:%M"), CAIDO, DIST_BUILD))
         reiniciar_mando()
         return True
+    if reponer_anterior_toca(caido, build_terminado(), anterior_entero()):
+        # (SUP0111D) Un rename y no una build: Genesis vuelve ya y la build de las fuentes de ahora sigue su camino.
+        print("[%s] %s y no hay un build entero en %s, pero sí un %s: lo repongo"
+              % (time.strftime("%H:%M"), CAIDO, DIST_BUILD, ANTERIOR), flush=True)
+        if reponer_anterior_y_reiniciar():
+            return True
     hazlo, motivo = decidir_caido(actual, estado, time.time()) if caido else decidir(
         actual, estado, time.time(), mas_nuevas=cuantas_mas_nuevas(mtime_del_build(), entradas))
     if forzar:

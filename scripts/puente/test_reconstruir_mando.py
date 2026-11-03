@@ -869,11 +869,13 @@ class SiLaMacNoPuedeCompilaElA1(unittest.TestCase):
     SWAP = "hay 7.0 GB de swap en uso (tope 4.0): la build lo llevaría al disco"
     H = R.huella_de([("src/a.ts", 1, 1)])
 
-    def _pasada(self, caido, freno, estado=None, previo=False, urgente=None):
+    def _pasada(self, caido, freno, estado=None, previo=False, urgente=None, anterior=False, repone=True):
         guardados, log = [], []
+        self.addCleanup(mock.patch.stopall)  # primero: si un doble no existe, los ya puestos no se quedan
         self.previo = mock.patch.object(R, "traer_hecho_del_a1", return_value=previo).start()  # (SUP0111A) sin red
         mock.patch.object(R, "urgencia_a1", return_value=urgente).start()  # (SUP0211B) la elige cada prueba
-        self.addCleanup(mock.patch.stopall)
+        mock.patch.object(R, "anterior_entero", return_value=anterior).start()  # (SUP0111D) nunca el .next-anterior real
+        self.reponer = mock.patch.object(R, "reponer_anterior_y_reiniciar", return_value=repone).start()  # ni launchctl
         with mock.patch.object(R, "_entradas", return_value=[("src/a.ts", 1, 1)]), \
                 mock.patch.object(R, "_leer_estado", return_value=dict(estado or {})), \
                 mock.patch.object(R, "genesis_caido", return_value=caido), \
@@ -906,6 +908,18 @@ class SiLaMacNoPuedeCompilaElA1(unittest.TestCase):
         rec.assert_not_called()
         self.assertIn(R.CAIDO, log)
         self.assertNotIn("al día", log)
+
+    def test_caido_con_anterior_entero_lo_repone_antes_de_compilar(self):  # SUP0111D
+        a1, rec, _, _, log = self._pasada(True, self.SWAP, anterior=True)
+        self.assertTrue(self.hecho)
+        self.reponer.assert_called_once_with()
+        self.assertEqual((a1.call_count, rec.call_count), (0, 0))
+        self.assertIn("lo repongo", log)
+
+    def test_sin_caida_o_sin_anterior_no_se_repone_y_si_no_se_pudo_sigue_el_camino_de_siempre(self):  # SUP0111D
+        for caido, anterior, repone, intentos in ((True, False, True, 0), (False, True, True, 0), (True, True, False, 1)):
+            a1, _, _, _, _ = self._pasada(caido, self.SWAP, anterior=anterior, repone=repone)
+            self.assertEqual((self.reponer.call_count, a1.call_count), (intentos, 1))  # y la build sigue su camino
 
     def test_con_build_fuentes_nuevas_y_swap_alto_compila_el_a1(self):
         a1, rec, _, _, log = self._pasada(False, self.SWAP)
@@ -1069,3 +1083,99 @@ class TraerLoHechoConLaMacFrenada(unittest.TestCase):
         puesto, previo, _, _ = self._traer((True, "x"), freno="node_modules trae next 16.3.8 y package-lock pide 15.5")
         self.assertFalse(puesto)
         previo.assert_not_called()
+
+
+class ReponerElAnteriorSiSeCaeElServido(unittest.TestCase):
+    """SUP0111D (31-10): un `next build` ajeno borró el `.next` servido y Genesis estuvo caído hasta que alguien
+    repuso `.next-anterior` a mano. Ahora se repone solo, con Genesis parado y el roto a cuarentena."""
+    ANTERIOR = {"BUILD_ID": "anterior", "build-manifest.json": "{}"}
+
+    def setUp(self):
+        self.raiz = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.raiz, True)
+        self.cuarentena = os.path.join(self.raiz, "cuarentena")  # nunca la del HOME real
+
+    def _dist(self, dist, archivos):
+        os.makedirs(os.path.join(self.raiz, dist), exist_ok=True)
+        for nombre, texto in archivos.items():
+            with open(os.path.join(self.raiz, dist, nombre), "w", encoding="utf-8") as f:
+                f.write(texto)
+
+    def test_la_decision_solo_repone_caido_sin_build_entero_y_con_anterior(self):
+        for c, b, a in [(c, b, a) for c in (0, 1) for b in (0, 1) for a in (0, 1)]:
+            self.assertIs(R.reponer_anterior_toca(c, b, a), bool(c and not b and a), (c, b, a))
+
+    def test_el_anterior_esta_entero_con_build_id_y_manifiesto(self):
+        self.assertFalse(R.anterior_entero(self.raiz))
+        self._dist(R.ANTERIOR, {"BUILD_ID": "x"})
+        self.assertFalse(R.anterior_entero(self.raiz))
+        self._dist(R.ANTERIOR, self.ANTERIOR)
+        self.assertTrue(R.anterior_entero(self.raiz))
+
+    def test_repone_el_anterior_y_mueve_el_roto_a_cuarentena_sin_borrarlo(self):
+        self._dist(R.DIST_SERVIDO, {"roto.txt": "restos"})
+        self._dist(R.ANTERIOR, self.ANTERIOR)
+        ahora = R.time.mktime((2026, 11, 2, 18, 30, 0, 0, 0, -1))
+        with mock.patch.object(R, "_puente") as canal:  # el aviso va al canal común
+            self.assertTrue(R.reponer_anterior(self.raiz, self.cuarentena, ahora))
+        self.assertEqual(R.id_del_build(self.raiz), "anterior")
+        self.assertFalse(os.path.exists(os.path.join(self.raiz, R.ANTERIOR)))
+        self.assertTrue(os.path.isfile(os.path.join(self.cuarentena, "20261102-1830-next-roto", "roto.txt")))
+        decir = canal.return_value.decir
+        self.assertIn("20261102-1830-next-roto", decir.call_args[0][0])
+        self.assertEqual(decir.call_args[0][1:], ("reconstruir", "aviso"))
+
+    def test_el_canal_se_carga_por_ruta_y_tiene_decir(self):  # por nombre, bajo pytest, `puente` es la carpeta
+        self.assertTrue(callable(R._puente().decir))
+
+    def test_sin_ningun_next_repone_y_un_fallo_al_avisar_no_la_tumba(self):
+        self._dist(R.ANTERIOR, self.ANTERIOR)
+        with mock.patch.object(R, "_puente", side_effect=OSError("canal")):
+            self.assertTrue(R.reponer_anterior(self.raiz, self.cuarentena))
+        self.assertEqual((R.id_del_build(self.raiz), os.path.exists(self.cuarentena)), ("anterior", False))
+
+    def test_si_no_puede_mover_nada_no_toca_ni_avisa(self):
+        self._dist(R.DIST_SERVIDO, {"roto.txt": "restos"})
+        self._dist(R.ANTERIOR, self.ANTERIOR)
+        with mock.patch.object(R, "_puente") as canal, mock.patch.object(R.os, "rename", side_effect=OSError("disco")):
+            self.assertFalse(R.reponer_anterior(self.raiz, self.cuarentena))
+        self.assertTrue(os.path.isfile(os.path.join(self.raiz, R.DIST_SERVIDO, "roto.txt")) and R.anterior_entero(self.raiz))
+        canal.assert_not_called()
+
+    def _reinicio(self, llamar=None, caido=True, build=False, anterior=True, cerrojo=True, cambio=True):
+        """Todo lo real con doble (launchctl, cerrojo, disco, sueño): devuelve (resultado, eventos, estados guardados)."""
+        ev, guardados = [], []
+        anota = lambda nombre, valor=None: (lambda *a, **k: (ev.append(nombre), valor)[1])  # noqa: E731
+        lanzar = lambda orden, *a, **k: (ev.append(orden[1]), mock.Mock(returncode=0, stdout=""))[1]  # noqa: E731
+        dobles = dict(_tomar_cerrojo=anota("cerrojo", cerrojo), _soltar_cerrojo=anota("suelto"), liberar_puerto=anota("puerto"),
+                      genesis_caido=lambda *a: caido, build_terminado=lambda *a: build, anterior_entero=lambda *a: anterior,
+                      reponer_anterior=anota("repone", cambio), servicio_cargado=lambda *a: True, _html_del_mando=lambda *a: "",
+                      id_del_build=lambda *a: "anterior", _leer_estado=lambda *a: {"huella_construida": "h"}, _guardar=guardados.append)
+        with mock.patch.multiple(R, **dobles), mock.patch.object(R.subprocess, "run", side_effect=lanzar), \
+                mock.patch.object(R.time, "sleep"):
+            return (llamar or R.reponer_anterior_y_reiniciar)(), ev, guardados
+
+    def test_repone_con_el_cerrojo_y_con_genesis_parado_y_luego_arrancado(self):
+        hecho, ev, guardados = self._reinicio()
+        self.assertTrue(hecho)
+        self.assertEqual((ev[0], ev[-1]), ("cerrojo", "suelto"))
+        self.assertLess(ev.index("bootout"), ev.index("repone"))
+        self.assertLess(ev.index("repone"), ev.index("bootstrap"))
+        self.assertIsNone(guardados[-1]["huella_construida"])  # el repuesto no es de estas fuentes: tiene que recompilarse
+        self.assertNotEqual(guardados[-1]["estado"], "al-dia")
+
+    def test_si_otro_lo_arreglo_mientras_esperaba_el_cerrojo_no_pisa_un_build_bueno(self):
+        for arreglo in ({"caido": False}, {"build": True}, {"anterior": False}):
+            self.assertEqual(self._reinicio(**arreglo)[:2], (False, ["cerrojo", "suelto"]), arreglo)
+
+    def test_con_el_cerrojo_ocupado_no_se_mete_y_si_el_cambio_falla_no_dice_que_repuso(self):
+        self.assertEqual(self._reinicio(cerrojo=False)[:2], (False, ["cerrojo"]))
+        hecho, _, guardados = self._reinicio(cambio=False)
+        self.assertEqual((hecho, guardados[-1]["huella_construida"]), (False, "h"))  # no marca como repuesto lo que no lo está
+
+    def test_el_reinicio_de_siempre_sigue_cambiando_el_build_nuevo(self):
+        with mock.patch.object(R, "intercambiar_build", return_value=True) as cambia:
+            hecho, ev, _ = self._reinicio(llamar=R._reiniciar_mando_sin_cerrojo)
+        cambia.assert_called_once_with()
+        self.assertTrue(hecho)
+        self.assertNotIn("repone", ev)
