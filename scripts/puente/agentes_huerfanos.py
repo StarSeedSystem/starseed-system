@@ -102,17 +102,109 @@ def es_trabajador_de_puerta(args):
     return bool(_TRABAJADOR_VITEST.match((args or "").strip()))
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# (2026-11-03, SUP0111K) EL tsc DE UN AGENTE QUE YA MURIÓ
+#
+# El 31-10 a las 20:41 un agente lanzó `zsh -c 'bash scripts/enjambre/tsc-turno.sh 2>&1 | tail -40'`
+# y murió: el zsh quedó adoptado por launchd (ppid 1) y su `npm exec tsc` → `node …/bin/tsc` siguió
+# 3 h con 4,6 GB en una Mac de 8. tsc-turno.sh ya no deja vivo a su tsc (SUP0111J), pero no cubre un
+# tsc-turno matado con SIGKILL ni los que corrían con el guion viejo; y el barrido del orquestador
+# pide `ps -o etimes`, que el ps de macOS no tiene («keyword not found»).
+#
+# Solo se corta el tsc (npm exec tsc y su node …/bin/tsc), nunca el shell ni el guion: sin tsc,
+# tsc-turno sale solo (rc 137) y suelta su cerrojo con el trap. Un tsc no tiene a quién entregar su
+# resultado si (a) la cabeza de su árbol tsc es hija de init, o (b) lo lanzó un `bash …/tsc-turno.sh`
+# cuyo padre es un shell `-c` (la herramienta del agente) adoptado por init. Quedan a salvo por
+# construcción: la puerta del orquestador (cuelga de starseed-enjambre.py, aunque este tenga ppid 1),
+# el tsc de una terminal o de un agente vivo (su padre vive y no es init) y un tsc-turno lanzado
+# directamente por init (como `_sin_quien_espere` del guion: «lo lanzó launchd: sí espera alguien»).
+# ─────────────────────────────────────────────────────────────────────────────
+_TSC_NPM = _re.compile(r"^(?:\S*/)?(?:npm\s+exec|npx)\s+tsc(?:\s|$)")
+_TSC_NODE = _re.compile(r"^(?:\S*/)?node(?:\s+-\S+)*\s+\S*[/.]bin/tsc(?:\s|$)")
+_TSC_TURNO = _re.compile(r"^(?:\S*/)?(?:ba|z|da|k)?sh(?:\s+-\S+)*\s+\S*scripts/enjambre/tsc-turno\.sh(?:\s|$)")
+_SHELLS = ("sh", "bash", "zsh", "dash", "ksh")
+
+
+def es_tsc(args):
+    """¿Es `npm exec tsc` (o `npx tsc`) o el `node …/bin/tsc` que este lanza?"""
+    linea = (args or "").strip()
+    return bool(_TSC_NPM.match(linea) or _TSC_NODE.match(linea))
+
+
+def _es_shell_con_c(args):
+    """¿Es un shell lanzado con `-c` (`zsh -c '…'`, `bash -lc '…'`), como el de la herramienta de un agente?"""
+    piezas = (args or "").split()
+    if not piezas or piezas[0].rsplit("/", 1)[-1].lstrip("-") not in _SHELLS:
+        return False
+    for opcion in piezas[1:]:
+        if not opcion.startswith("-"):
+            return False                    # ya es el programa: no quedan opciones por mirar
+        if _re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", opcion):
+            return True
+    return False
+
+
+def _tabla(filas):
+    """{pid: (ppid, args)} de las filas válidas, en el orden en que llegaron; la basura se ignora."""
+    tabla = {}
+    for fila in filas or ():
+        try:
+            pid, ppid, args = fila
+            tabla[int(pid)] = (int(ppid), str(args or "").strip())
+        except (TypeError, ValueError):
+            continue
+    return tabla
+
+
+def _antepasados(tabla, pid):
+    """Los pids de los padres de `pid`, del más cercano al más lejano, sin llegar a init y sin dar vueltas."""
+    cadena, visto, padre = [], {pid}, tabla[pid][0]
+    while padre > 1 and padre in tabla and padre not in visto:
+        cadena.append(padre)
+        visto.add(padre)
+        padre = tabla[padre][0]
+    return cadena
+
+
+def _tsc_sin_agente(tabla, pid):
+    """¿A este tsc ya no lo espera nadie? Casos (a) y (b) de arriba."""
+    cadena = [pid] + _antepasados(tabla, pid)
+    i = 0
+    while i + 1 < len(cadena) and es_tsc(tabla[cadena[i + 1]][1]):
+        i += 1                              # npm exec tsc es el padre de node …/bin/tsc: un solo árbol
+    if tabla[cadena[i]][0] == 1:
+        return True                         # (a)
+    for p in cadena[i + 1:]:
+        if _TSC_TURNO.match(tabla[p][1]):   # (b): el primer tsc-turno que lo lanzó
+            shell = tabla[p][0]
+            return shell in tabla and tabla[shell][0] == 1 and _es_shell_con_c(tabla[shell][1])
+    return False
+
+
+def tsc_huerfanos(filas):
+    """Pids de los `npm exec tsc` y `node …/bin/tsc` que ya no tienen a quién entregar su resultado.
+
+    `filas`: (pid, ppid, args) como da `ps -eo pid=,ppid=,args=`. Salen en el orden en que llegaron."""
+    tabla = _tabla(filas)
+    return [p for p, (_, args) in tabla.items() if es_tsc(args) and _tsc_sin_agente(tabla, p)]
+
+
 def trabajadores_huerfanos(filas):
-    """Pids de trabajadores de vitest adoptados por init: su vitest ya murió.
+    """Pids de lo que ya no sirve a nadie y retiene RAM: los trabajadores de vitest adoptados por
+    init (su vitest ya murió) y, desde SUP0111K, el árbol de un tsc sin agente (`tsc_huerfanos`).
 
     `filas`: (pid, ppid, args) como da `ps -eo pid=,ppid=,args=`."""
+    filas = list(filas or ())               # se recorre más de una vez
     fuera = []
-    for fila in filas or ():
+    for fila in filas:
         try:
             pid, ppid, args = fila
             pid, ppid = int(pid), int(ppid)
         except (TypeError, ValueError):
             continue
         if ppid == 1 and es_trabajador_de_puerta(args) and pid not in fuera:
+            fuera.append(pid)
+    for pid in tsc_huerfanos(filas):
+        if pid not in fuera:
             fuera.append(pid)
     return fuera
