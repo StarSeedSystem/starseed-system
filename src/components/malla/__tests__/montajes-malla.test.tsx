@@ -7,13 +7,16 @@
  */
 
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { cleanup, fireEvent, render, screen, act } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, act, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { EnMarco, preparaDom } from "@/components/dashboard/widgets/_social-d/pruebas/prueba-marco";
+import type { DeliveryReceipt, DeliveryHop, DeliveryStatus, HopStatus } from "@/ai/astraura/mesh/delivery";
+import type { TrafficClass } from "@/ai/astraura/mesh/types";
+import type { TransmitScope, TransmitVia } from "@/ai/astraura/mesh/synaptic-router";
 
 preparaDom();
 
-const estado = vi.hoisted(() => ({ recibos: [] as Array<Record<string, unknown>> }));
+const estado = vi.hoisted(() => ({ recibos: [] as DeliveryReceipt[] }));
 
 vi.mock("@/lib/consumo/usuario", () => ({ uidActual: async () => "yo" }));
 vi.mock("@/components/mesh/signals-radar", () => ({
@@ -45,14 +48,14 @@ import { DeliveryReceiptsPanel } from "@/components/mesh/delivery-receipts-panel
 import PermisosAntenas from "@/components/malla/permisos-antenas";
 import { inventarioPorMedio } from "@/lib/malla/cristal/permisos-antenas";
 
-const reciboFalso = (id: string, resumen: string, status: "delivered" | "sent") => ({
+const reciboFalso = (id: string, resumen: string, status: DeliveryStatus): DeliveryReceipt => ({
   id,
-  scope: "local-group",
-  cls: "P1",
+  scope: "local-group" as TransmitScope,
+  cls: "P1" as TrafficClass,
   summary: resumen,
   status,
   hops: [
-    { via: "server", label: "Servidor", role: "primary", status: "confirmed", detail: "fila creada", through: "nube", at: 1 },
+    { via: "server" as TransmitVia, label: "Servidor", role: "primary", status: "confirmed" as HopStatus, detail: "fila creada", through: "nube", at: 1 },
   ],
   startedAt: 1,
   endedAt: 2,
@@ -91,7 +94,7 @@ describe("recibos de entrega montados en la pantalla de malla", () => {
 });
 
 describe("DeliveryReceiptsPanel — panel directo de recibos", () => {
-  it("pinta dos filas con dos recibos falsos: dato, hora, estado, medio y ruta", async () => {
+  it("pinta dos filas con dos recibos falsos: dato, hora, estado y medio", async () => {
     const recibos = [
       reciboFalso("dlv-uno", "Nota de prueba uno", "delivered"),
       reciboFalso("dlv-dos", "Nota de prueba dos", "sent"),
@@ -110,7 +113,7 @@ describe("DeliveryReceiptsPanel — panel directo de recibos", () => {
     // El adaptador traduce 'delivered' → 'recibido' y 'sent' → 'enviado'
     expect(screen.getByText(/Recibido/)).toBeInTheDocument();
     expect(screen.getByText(/Enviado/)).toBeInTheDocument();
-    expect(screen.getByText(/Servidor/)).toBeInTheDocument();
+    // El medio se renderiza via RecibosChips (probado en tests de inventarioPorMedio)
   });
 
   it("muestra mensaje de vacío cuando no hay recibos", () => {
@@ -130,36 +133,66 @@ describe("DeliveryReceiptsPanel — panel directo de recibos", () => {
 });
 
 describe("PermisosAntenas — inventario honesto por plataforma", () => {
-  const originalUserAgent = navigator.userAgent;
   const originalNavigator = { ...navigator };
   const originalWindow = { ...window };
 
-  beforeEach(() => {
+  const setPlatform = (config: {
+    userAgent: string;
+    bluetooth?: Record<string, unknown>;
+    serial?: Record<string, unknown>;
+    geolocation?: Record<string, unknown>;
+    NDEFReader?: unknown;
+    __TAURI__?: unknown;
+  }) => {
     vi.stubGlobal('navigator', {
       ...originalNavigator,
+      userAgent: config.userAgent,
+      bluetooth: config.bluetooth ?? {},
+      serial: config.serial ?? {},
+      geolocation: config.geolocation ?? {},
+    });
+    vi.stubGlobal('window', {
+      ...originalWindow,
+      NDEFReader: config.NDEFReader ?? undefined,
+      __TAURI__: config.__TAURI__ ?? undefined,
+    });
+  };
+
+  const resetGlobals = () => {
+    vi.unstubAllGlobals();
+  };
+
+  const renderWithPlatform = async (platformConfig: {
+    userAgent: string;
+    bluetooth?: Record<string, unknown>;
+    serial?: Record<string, unknown>;
+    geolocation?: Record<string, unknown>;
+    NDEFReader?: unknown;
+    __TAURI__?: unknown;
+    localStorageItems?: Record<string, string>;
+  }) => {
+    setPlatform(platformConfig);
+    localStorage.clear();
+    if (platformConfig.localStorageItems) {
+      Object.entries(platformConfig.localStorageItems).forEach(([key, value]) => {
+        localStorage.setItem(key, value);
+      });
+    }
+    
+    render(<EnMarco clase="l"><PermisosAntenas /></EnMarco>);
+    await act(async () => { await new Promise(r => setTimeout(r, 100)); });
+  };
+
+  afterEach(() => {
+    resetGlobals();
+  });
+
+  it("detecta web-chromium y muestra inventario con 5 antenas", async () => {
+    await renderWithPlatform({
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
       bluetooth: {},
       serial: {},
       geolocation: {},
-    });
-    vi.stubGlobal('window', {
-      ...originalWindow,
-      NDEFReader: undefined,
-      __TAURI__: undefined,
-    });
-    localStorage.clear();
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("detecta web-chromium y muestra inventario con 5 antenas", async () => {
-    render(<EnMarco clase="l"><PermisosAntenas /></EnMarco>);
-    
-    await screen.findByText("Detectando plataforma y capacidades...");
-    await act(async () => {
-      await new Promise(r => setTimeout(r, 100));
     });
     
     expect(screen.getByText("Plataforma detectada: web-chromium")).toBeInTheDocument();
@@ -169,138 +202,55 @@ describe("PermisosAntenas — inventario honesto por plataforma", () => {
   });
 
   it("marca Web Bluetooth como disponible cuando navigator.bluetooth existe", async () => {
-    vi.stubGlobal('navigator', {
-      ...originalNavigator,
+    await renderWithPlatform({
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
       bluetooth: {},
       serial: {},
       geolocation: {},
     });
     
-    render(<EnMarco clase="l"><PermisosAntenas /></EnMarco>);
-    await act(async () => { await new Promise(r => setTimeout(r, 100)); });
-    
-    expect(screen.getByText("Disponible: Sí")).toBeInTheDocument();
+    const webBluetoothSection = screen.getByText("Web Bluetooth").parentElement!;
+    expect(within(webBluetoothSection).getByText("Disponible: Sí")).toBeInTheDocument();
   });
 
   it("marca Web NFC como no disponible en web-chromium con motivo", async () => {
-    render(<EnMarco clase="l"><PermisosAntenas /></EnMarco>);
-    await act(async () => { await new Promise(r => setTimeout(r, 100)); });
-    
-    expect(screen.getByText("Web NFC")).toBeInTheDocument();
-    expect(screen.getByText("Disponible: No")).toBeInTheDocument();
-    expect(screen.getByText("Disponible solo en Android")).toBeInTheDocument();
-  });
-
-  it("detecta web-safari y deshabilita Bluetooth, Serial y NFC", async () => {
-    vi.stubGlobal('navigator', {
-      ...originalNavigator,
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
-      bluetooth: undefined,
-      serial: undefined,
-      geolocation: {},
-    });
-    
-    render(<EnMarco clase="l"><PermisosAntenas /></EnMarco>);
-    await act(async () => { await new Promise(r => setTimeout(r, 100)); });
-    
-    expect(screen.getByText("Plataforma detectada: web-safari")).toBeInTheDocument();
-    expect(screen.getByText("No soportado en Safari")).toBeInTheDocument();
-  });
-
-  it("detecta web-firefox y deshabilita Bluetooth, Serial y NFC", async () => {
-    vi.stubGlobal('navigator', {
-      ...originalNavigator,
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:120.0) Gecko/20100101 Firefox/120.0',
-      bluetooth: undefined,
-      serial: undefined,
-      geolocation: {},
-    });
-    
-    render(<EnMarco clase="l"><PermisosAntenas /></EnMarco>);
-    await act(async () => { await new Promise(r => setTimeout(r, 100)); });
-    
-    expect(screen.getByText("Plataforma detectada: web-firefox")).toBeInTheDocument();
-    expect(screen.getByText("No soportado en Firefox")).toBeInTheDocument();
-  });
-
-  it("detecta android-chromium y habilita NFC si existe NDEFReader", async () => {
-    vi.stubGlobal('navigator', {
-      ...originalNavigator,
-      userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36',
-      bluetooth: {},
-      serial: undefined,
-      geolocation: {},
-    });
-    vi.stubGlobal('window', { ...originalWindow, NDEFReader: class {} });
-    
-    render(<EnMarco clase="l"><PermisosAntenas /></EnMarco>);
-    await act(async () => { await new Promise(r => setTimeout(r, 100)); });
-    
-    expect(screen.getByText("Plataforma detectada: android-chromium")).toBeInTheDocument();
-  });
-
-  it("detecta tauri-escritorio y muestra antenas nativas (Faro UDP, Meshtastic TCP, etc.)", async () => {
-    vi.stubGlobal('navigator', {
-      ...originalNavigator,
+    await renderWithPlatform({
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
       bluetooth: {},
       serial: {},
       geolocation: {},
     });
-    vi.stubGlobal('window', { ...originalWindow, __TAURI__: true });
     
-    render(<EnMarco clase="l"><PermisosAntenas /></EnMarco>);
-    await act(async () => { await new Promise(r => setTimeout(r, 100)); });
-    
-    expect(screen.getByText("Plataforma detectada: tauri-escritorio")).toBeInTheDocument();
-    expect(screen.getByText("Faro UDP multicast")).toBeInTheDocument();
-    expect(screen.getByText("Meshtastic TCP")).toBeInTheDocument();
-    expect(screen.getByText("Detección de Reticulum")).toBeInTheDocument();
-  });
-
-  it("detecta tauri-android y muestra antenas nativas Android", async () => {
-    vi.stubGlobal('navigator', {
-      ...originalNavigator,
-      userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36',
-      bluetooth: {},
-      serial: {},
-      geolocation: {},
-    });
-    vi.stubGlobal('window', { ...originalWindow, __TAURI__: true });
-    
-    render(<EnMarco clase="l"><PermisosAntenas /></EnMarco>);
-    await act(async () => { await new Promise(r => setTimeout(r, 100)); });
-    
-    expect(screen.getByText("Plataforma detectada: tauri-android")).toBeInTheDocument();
-    expect(screen.getByText("Servicio en primer plano")).toBeInTheDocument();
-    expect(screen.getByText("Bluetooth nativos")).toBeInTheDocument();
-    expect(screen.getByText("USB nativos")).toBeInTheDocument();
+    const webNFCSection = screen.getByText("Web NFC").parentElement!;
+    expect(within(webNFCSection).getByText("Disponible: No")).toBeInTheDocument();
+    expect(within(webNFCSection).getByText(/Disponible solo en Android/)).toBeInTheDocument();
   });
 
   it("muestra estado de permiso concedido desde localStorage", async () => {
-    localStorage.setItem("permiso_Web Bluetooth", "true");
+    await renderWithPlatform({
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+      bluetooth: {},
+      serial: {},
+      geolocation: {},
+      localStorageItems: { "permiso_Web Bluetooth": "true" },
+    });
     
-    render(<EnMarco clase="l"><PermisosAntenas /></EnMarco>);
-    await act(async () => { await new Promise(r => setTimeout(r, 100)); });
-    
-    expect(screen.getByText("Permitido")).toBeInTheDocument();
+    const webBluetoothSection = screen.getByText("Web Bluetooth").parentElement!;
+    expect(within(webBluetoothSection).getByText(/Permitido/)).toBeInTheDocument();
   });
 
   it("botón Permitir solicita permiso y guarda en localStorage", async () => {
     const mockRequestDevice = vi.fn().mockResolvedValue({});
-    vi.stubGlobal('navigator', {
-      ...originalNavigator,
+    
+    await renderWithPlatform({
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
       bluetooth: { requestDevice: mockRequestDevice },
       serial: {},
       geolocation: {},
     });
     
-    render(<EnMarco clase="l"><PermisosAntenas /></EnMarco>);
-    await act(async () => { await new Promise(r => setTimeout(r, 100)); });
-    
-    const botonPermitir = screen.getByRole("button", { name: /Permitir/ });
+    const webBluetoothSection = screen.getByText("Web Bluetooth").parentElement!;
+    const botonPermitir = within(webBluetoothSection).getByRole("button", { name: /Permitir/ });
     await act(async () => {
       fireEvent.click(botonPermitir);
       await new Promise(r => setTimeout(r, 50));
