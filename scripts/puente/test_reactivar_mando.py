@@ -112,3 +112,20 @@ class Reactivar(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_1103_plist_con_guiones_en_comentario_se_lee_como_launchd(tmp_path):
+    import os as _o, shutil as _sh, sys as _s
+    import pytest as _pt
+    if not _sh.which("plutil"):
+        _pt.skip("sin plutil (no es macOS)")
+    _s.path.insert(0, _o.path.dirname(_o.path.abspath(__file__)))
+    import reactivar_mando as R
+    p = tmp_path / "com.starseed.x.plist"
+    p.write_text('<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" '
+                 '"http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<!-- con --path y --no-watch -->\n'
+                 '<plist version="1.0"><dict><key>Label</key><string>com.starseed.x</string>'
+                 '<key>KeepAlive</key><true/></dict></plist>\n')
+    d = R._leer_plist(str(p))
+    assert d["Label"] == "com.starseed.x" and d.get("_comentario_estricto") is True
+    assert R.decidir_servicio("com.starseed.x", True, 123, 0, d)[0] == "ok"

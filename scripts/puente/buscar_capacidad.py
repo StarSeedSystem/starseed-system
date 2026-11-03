@@ -119,6 +119,13 @@ MINUTOS_JOB = 60
 REABRIR_POR_PASADA = MAX_RUNS_NUBE * TAREAS_POR_RUN
 REABRIR_ESPERA_S = 3 * 3600
 REAPERTURAS_MAX = 2
+#: (1103, medido el 02-11 a las 19:40) 22 de las 34 agotadas volvieron de la nube SIN que nadie las intentara
+#: («devuelta de la nube: su run terminó», «no quedaba ningún run», «el carril no dio sesión»): su job acabó antes
+#: de llegar a ellas. Con 24 sitios libres en GitHub, la nube se quedaba en 0 jobs. Esas no gastan un intento de
+#: verdad: dos reaperturas más en la ventana y 1 h entre una y otra.
+NOTAS_SIN_INTENTO = ("devuelta de la nube", "devuelta del carril", "el carril en la nube no dio sesión")
+REAPERTURAS_SIN_INTENTO_EXTRA = 2
+REABRIR_SIN_INTENTO_ESPERA_S = 3600
 #: Un lanzamiento tarda hasta un minuto en verse en GitHub: mientras, cuenta como run vivo
 #: para que dos pulsaciones seguidas no lancen el doble.
 EN_CAMINO_S = 150
@@ -150,6 +157,40 @@ def puede_reabrir(marcas, ahora, espera_s=REABRIR_ESPERA_S, maximo=REAPERTURAS_M
     if len(marcas) >= maximo:
         return False
     return not marcas or ahora - marcas[-1] >= espera_s
+
+
+def sin_intento(nota):
+    """PURA (1103). ¿La nota dice que la tarea volvió sin que ningún agente la intentara?"""
+    n = str(nota or "").strip().lower()
+    return any(n.startswith(p) for p in NOTAS_SIN_INTENTO)
+
+
+def puede_reabrir_tarea(marcas, ahora, nota=""):
+    """PURA (1103). `puede_reabrir`, con más margen para lo que volvió sin intentarse."""
+    if sin_intento(nota):
+        return puede_reabrir(marcas, ahora, espera_s=REABRIR_SIN_INTENTO_ESPERA_S,
+                             maximo=REAPERTURAS_MAX + REAPERTURAS_SIN_INTENTO_EXTRA)
+    return puede_reabrir(marcas, ahora)
+
+
+def dependientes_y_capacidad(colas):
+    """PURA (1103). ({id: cuántas tareas esperan a esta}, {ids de importancia «capacidad»}) de todas las colas."""
+    dep, cap = {}, set()
+    for _nombre, tareas in colas or ():
+        for t in tareas or ():
+            if not isinstance(t, dict) or not t.get("id"):
+                continue
+            if str(t.get("importancia") or "") == "capacidad":
+                cap.add(str(t["id"]))
+            for d in list(t.get("depende") or []):
+                dep[str(d)] = dep.get(str(d), 0) + 1
+    return dep, cap
+
+
+def ordenar_por_prioridad(ids, dependientes=None, capacidad=()):
+    """PURA (1103). Primero lo que sube la capacidad, luego lo que más tareas desbloquea; estable por id."""
+    dependientes, capacidad = dependientes or {}, set(capacidad or ())
+    return sorted(ids or [], key=lambda t: (0 if str(t) in capacidad else 1, -int(dependientes.get(str(t), 0)), str(t)))
 
 
 def tope_runs_nube(tareas, escritores, maximo=MAX_RUNS_NUBE, por_run=TAREAS_POR_RUN,
@@ -233,7 +274,7 @@ def escritores_en_la_nube(resultados=None, salud=None, ahora_txt=""):
 
 def plan_nube(elegibles, agotadas, runs_vivos, pausa, reaperturas, ahora, listas_mac=0, tope_mac=0,
               tope_runs=TOPE_RUNS_NUBE, por_run=TAREAS_POR_RUN, max_reabrir=REABRIR_POR_PASADA,
-              motivo_tope=""):
+              motivo_tope="", notas=None):
     """PURA. Qué hacer con la nube: {"lanzar": n, "reabrir": [ids], "trabajadores": w, "por_que": str}.
 
     - En pausa o con los jobs al tope: nada, diciendo por qué es ese el tope (`motivo_tope`).
@@ -256,7 +297,8 @@ def plan_nube(elegibles, agotadas, runs_vivos, pausa, reaperturas, ahora, listas
     if len(elegibles) < sitio:
         sobra_mac = max(0, int(listas_mac) - int(tope_mac))
         cupo = min(max_reabrir, sitio - len(elegibles), sobra_mac)
-        candidatas = [t for t in (agotadas or []) if puede_reabrir((reaperturas or {}).get(t), ahora)]
+        candidatas = [t for t in (agotadas or [])
+                      if puede_reabrir_tarea((reaperturas or {}).get(t), ahora, (notas or {}).get(t, ""))]
         reabrir = candidatas[:max(0, cupo)]
     total = len(elegibles) + len(reabrir)
     if total == 0:
@@ -780,8 +822,12 @@ def reunir_nube(ahora, estado_mac=None, ceder=True):
         salida["mac"] = {"tanda": len(tanda), "cedibles": cedibles, "prestadas": sorted(ajenas),
                          "en_cadenas": len(lote),
                          "se_queda": max(0, len(listas_en_tanda) - len([t for t in cedibles if t in listas_en_tanda]))}
+        # (1103) La prioridad se mide sobre TODAS las colas (también lo que espera en la tanda de la Mac).
+        salida["dependientes"], salida["capacidad"] = dependientes_y_capacidad(colas)
         colas = RN.sin_lo_de_la_mac(colas, tanda, cedibles, ajenas)
         salida["clases"] = RN.clasificar(colas, progreso, asuntos, ran.ola_actual(colas), envios, mismo_lote=lote)
+        salida["notas"] = {t: str((progreso.get(t) or {}).get("nota") or "")
+                           for t in salida["clases"].get("agotada") or [] if isinstance(progreso.get(t), dict)}
         salida["por_traer"] = por_traer_de_la_nube(asuntos)
     except (Exception, SystemExit) as e:  # SystemExit: el reparto aborta así si git falla
         salida["error"] = "%s: %s" % (type(e).__name__, e)
@@ -1000,15 +1046,18 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
         escritores_nube = escritores_en_la_nube(sondas, _leer_json(SALUD, {}), time.strftime("%Y-%m-%d %H:%M:%S"))
         # (CAP1025D) Lo que la nube ya integró no se reabre: se trae (`traer_nube`), no se vuelve a escribir.
         por_traer = set(nube.get("por_traer") or ())
-        agotadas = [t for t in nube["clases"].get("agotada") or [] if t not in por_traer]
-        reabribles = [t for t in agotadas if puede_reabrir(reaperturas.get(t), ahora)]
+        # (1103) Por prioridad (capacidad, y lo que más desbloquea) y sin gastar intentos lo no intentado.
+        notas = nube.get("notas") or {}
+        agotadas = ordenar_por_prioridad([t for t in nube["clases"].get("agotada") or [] if t not in por_traer],
+                                         nube.get("dependientes") or {}, nube.get("capacidad") or ())
+        reabribles = [t for t in agotadas if puede_reabrir_tarea(reaperturas.get(t), ahora, notas.get(t, ""))]
         # (CAP1025B) Las nuevas frente a lo que ya llevan los jobs vivos, no frente a todos ellos.
         tope = tope_runs_nube(len(nube["clases"].get("elegibles") or []) + min(REABRIR_POR_PASADA, len(reabribles)),
                               escritores_nube, vivos=vivos)
         plan = plan_nube(
             nube["clases"].get("elegibles"), agotadas, vivos, nube["pausa"],
             reaperturas, ahora, listas_mac=len(estado_mac.get("listas") or []),
-            tope_mac=int(estado_mac.get("tope") or 0), tope_runs=tope[0], motivo_tope=tope[1],
+            tope_mac=int(estado_mac.get("tope") or 0), tope_runs=tope[0], motivo_tope=tope[1], notas=notas,
         )
         lineas_previas = texto_ultimo_despliegue(estado_prev, ahora)
         if lineas_previas:

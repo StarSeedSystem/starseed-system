@@ -766,3 +766,25 @@ class CloudroomEnLaPasada(unittest.TestCase):
             otros = B._otros_medios()
         self.assertEqual([m["id"] for m in otros], ["hf"])
         self.assertIn(self.USABLE, inventariados[0])  # el medidor Contenedores sí lo ve
+
+
+def test_1103_prioridad_y_sin_intento():
+    import os as _o, sys as _s
+    _s.path.insert(0, _o.path.dirname(_o.path.abspath(__file__)))
+    import buscar_capacidad as B
+    assert B.sin_intento("devuelta de la nube: su run terminó")
+    assert B.sin_intento("el carril en la nube no dio sesión: vuelve al enjambre")
+    assert not B.sin_intento("fallo tsc")
+    ahora = 100_000.0
+    dos = [ahora - 7200, ahora - 5000]
+    assert not B.puede_reabrir_tarea(dos, ahora, "fallo tsc")
+    assert B.puede_reabrir_tarea(dos, ahora, "devuelta de la nube: su run terminó")
+    assert not B.puede_reabrir_tarea(dos + [ahora - 600], ahora, "devuelta de la nube: su run terminó")
+    colas = [("a", [{"id": "X"}, {"id": "Y", "depende": ["X"]}, {"id": "Z", "depende": ["X", "W"]},
+                    {"id": "C", "importancia": "capacidad"}])]
+    dep, cap = B.dependientes_y_capacidad(colas)
+    assert dep == {"X": 2, "W": 1} and cap == {"C"}
+    assert B.ordenar_por_prioridad(["W", "Q", "X", "C"], dep, cap) == ["C", "X", "W", "Q"]
+    plan = B.plan_nube([], ["T1", "T2"], 0, None, {"T1": dos, "T2": dos}, ahora, listas_mac=10, tope_mac=2,
+                       tope_runs=2, por_run=6, notas={"T1": "devuelta de la nube: su run terminó"})
+    assert plan["reabrir"] == ["T1"] and plan["lanzar"] == 1

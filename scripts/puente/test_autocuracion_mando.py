@@ -198,3 +198,15 @@ class RevisarBusqueda(Revisar):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_1103_lento_no_es_caido():
+    import os as _o, sys as _s
+    _s.path.insert(0, _o.path.dirname(_o.path.abspath(__file__)))
+    import autocuracion_mando as A
+    no, porque = A.decidir_reinicio([False, False, False], 10_000, None, vivo_estatico=True, lento_s=120)
+    assert no is False and "lento" in porque
+    si, _ = A.decidir_reinicio([False, False, False], 10_000, None, vivo_estatico=True, lento_s=A.LENTO_MAX_S + 1)
+    assert si is True
+    si, _ = A.decidir_reinicio([False, False, False], 10_000, None, vivo_estatico=False)
+    assert si is True

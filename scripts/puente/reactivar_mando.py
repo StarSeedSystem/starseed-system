@@ -127,6 +127,24 @@ def _correr(orden, tope_s=30):
     return subprocess.run(orden, capture_output=True, text=True, timeout=tope_s)
 
 
+def _leer_plist(ruta):
+    """El plist como lo lee launchd. `plistlib` (expat) es más estricto que CoreFoundation: un «--» dentro de un
+    comentario lo tumba y launchd lo lee bien (codegraph-sync, 02-11: 121 pasadas, salida 0, y el reactivador
+    avisaba «XML mal formado»). Si plistlib falla, decide `plutil -convert xml1` (el analizador de launchd)."""
+    with open(ruta, "rb") as f:
+        crudo = f.read()
+    try:
+        return plistlib.loads(crudo)
+    except Exception:
+        r = subprocess.run(["plutil", "-convert", "xml1", "-o", "-", ruta], capture_output=True, timeout=15)
+        if r.returncode != 0:
+            raise ValueError("plist ilegible también para launchd")
+        datos = plistlib.loads(r.stdout)
+        if isinstance(datos, dict):
+            datos["_comentario_estricto"] = True
+        return datos
+
+
 def _plists():
     datos = {}
     try:
@@ -136,8 +154,7 @@ def _plists():
     for n in nombres:
         if n.startswith(PREFIJO) and n.endswith(".plist"):
             try:
-                with open(os.path.join(AGENTES, n), "rb") as f:
-                    datos[n[: -len(".plist")]] = plistlib.load(f)
+                datos[n[: -len(".plist")]] = _leer_plist(os.path.join(AGENTES, n))
             except Exception:
                 datos[n[: -len(".plist")]] = {"_ilegible": True}
     return datos

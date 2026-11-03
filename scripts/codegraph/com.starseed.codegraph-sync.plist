@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- CodeGraph (colbymchenry/codegraph, MIT): pone al día el índice de main cada 15 min para el
-     contexto de los agentes (MCP con --path a main y --no-watch). Telemetría apagada.
+     contexto de los agentes (MCP con la opción path a main y sin watch). Telemetría apagada.
      Instalar: cp a ~/Library/LaunchAgents y `launchctl bootstrap gui/$(id -u) <plist>`.
      Contrato: architecture/repos-3d-oido-agentes-1023.md §2. -->
 <plist version="1.0">

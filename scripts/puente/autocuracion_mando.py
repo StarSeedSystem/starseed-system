@@ -72,6 +72,10 @@ SONDAS = 3
 ESPERA_ENTRE_SONDAS_S = 5
 TOPE_SONDA_S = 15
 REINICIO_MINIMO_S = 10 * 60
+#: (1103) Si el latido no contesta pero lo estático sí, Genesis está LENTO (la Mac ahogada: medidores de 2 a 12 min),
+#: no caído; reiniciarlo lo deja 40 s sin servir y vuelve igual. Solo se reinicia si sigue así más de LENTO_MAX_S.
+TOPE_SONDA_ESTATICA_S = 20
+LENTO_MAX_S = 30 * 60
 LIMPIEZA_MINIMA_S = 60 * 60
 LLENADO_MINIMO_S = 5 * 60
 BUSQUEDA_MINIMA_S = 30 * 60
@@ -108,7 +112,7 @@ PASOS_QUE_LO_PARAN = ("build", "push", "verificar")
 # ── decisiones (puras) ──────────────────────────────────────────────────────────
 
 def decidir_reinicio(sondas_ok, ahora, ultimo_reinicio, publicacion_en_marcha=False,
-                     minimo_s=REINICIO_MINIMO_S):
+                     minimo_s=REINICIO_MINIMO_S, vivo_estatico=None, lento_s=0, lento_max_s=LENTO_MAX_S):
     """PURA. ¿Hay que reiniciar Genesis? Devuelve (sí/no, por qué).
 
     `sondas_ok`: lista de booleanos de esta pasada (True = respondió).
@@ -117,6 +121,9 @@ def decidir_reinicio(sondas_ok, ahora, ultimo_reinicio, publicacion_en_marcha=Fa
         return False, "responde"
     if publicacion_en_marcha:
         return False, "no responde, pero una publicación lo está compilando o reiniciando"
+    if vivo_estatico and float(lento_s or 0) < float(lento_max_s):
+        return False, ("no contesta el latido pero sí lo estático: está lento (la Mac va cargada), no caído; "
+                       "reiniciarlo lo empeora (lleva %d min así)" % int(float(lento_s or 0) // 60))
     if ultimo_reinicio and ahora - ultimo_reinicio < minimo_s:
         return False, "no responde y ya lo reinicié hace %d s: espero" % int(ahora - ultimo_reinicio)
     return True, "no respondió a %d sondas seguidas" % len(sondas_ok)
@@ -812,7 +819,7 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
             libre_fn=espacio_libre_gb, avisar_fn=_avisar, dormir=time.sleep, asignar_fn=_asignar,
             buscar_fn=_buscar, traer_fn=_traer_en_fondo, forzar=False, curar_fn=None,
             servicios_fn=_servicios, medidores_fn=_levantar_por_medidores, worktrees_fn=None,
-            reparar_fn=None, explabs_fn=None, relevo_fn=None, a1_fn=None, lider_fn=None):
+            reparar_fn=None, explabs_fn=None, relevo_fn=None, a1_fn=None, lider_fn=None, estatico_fn=None):
     """Una pasada completa. Devuelve lo que vio y lo que hizo (también queda en ESTADO).
     `forzar` (el botón «Reactivar directores»): todo ya, sin los tiempos mínimos.
     `lider_fn`: el arriendo de dirección (IND1029Cb); si dirige otra neurona, solo se cuida esta máquina."""
@@ -834,9 +841,25 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
             break
         if i < SONDAS - 1:
             dormir(ESPERA_ENTRE_SONDAS_S)
+    # (1103) Lento no es caído: si el latido falla, se mira lo estático (`/version.json`) antes de reiniciar.
+    vivo_estatico = None
+    if sondas and not any(sondas):
+        fn = estatico_fn if estatico_fn is not None else (
+            (lambda: sondear(MANDO + "/version.json", TOPE_SONDA_ESTATICA_S)) if sondear_fn is sondear else None)
+        if fn:
+            try:
+                vivo_estatico = bool(fn())
+            except Exception:
+                vivo_estatico = None
+        estado.setdefault("latido_falla_desde", ahora)
+    else:
+        estado.pop("latido_falla_desde", None)
     reiniciar, porque = decidir_reinicio(
         sondas, ahora, estado.get("ultimo_reinicio"),
-        publicacion_en_marcha(_leer_json(PUBLICACION, {})))
+        publicacion_en_marcha(_leer_json(PUBLICACION, {})),
+        vivo_estatico=vivo_estatico, lento_s=ahora - float(estado.get("latido_falla_desde") or ahora))
+    if not reiniciar and vivo_estatico:
+        hechos.append("Genesis lento pero vivo: %s" % porque)
     if reiniciar:
         try:
             reiniciar_fn()
