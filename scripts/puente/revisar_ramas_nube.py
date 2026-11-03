@@ -325,7 +325,7 @@ def archivos_diff_comparten(archivos_diff, archivos_tarea, id_rama, id_tarea):
     """
     if not archivos_diff or not archivos_tarea:
         return False
-    if id_rama and id_tarea and id_rama != id_tarea:
+    if id_rama and id_tarea and T.base_de(id_rama) != T.base_de(id_tarea):
         return False
     return any(af in archivos_tarea for af in archivos_diff)
 
