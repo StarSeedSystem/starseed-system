@@ -238,9 +238,43 @@ def elegir_por_tarea(entradas):
     return salida
 
 
+#: (RESC1031D) Sufijo de derivación/parte: `-d1`, `-d2b` y los encadenados (`-d3d-d3b`). Se quita
+#: entero: la base de una parte derivada es la tarea que la originó, no la parte.
+_DERIVACION = re.compile(r"-d\d+[a-z]*$")
+#: (RESC1031D) Tanda de reintento al final. Empieza en `b`: la `a` final es parte del id.
+_REINTENTO = re.compile(r"[b-z]+$")
+
+
 def base_de(tid):
-    """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` de Genesis)."""
-    return tid[:-1] if re.search(r"[A-Z0-9][b-z]$", tid) else tid
+    """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` de Genesis).
+
+    (RESC1031D) Mirar solo la última letra cortaba ids cuya minúscula final es de la propia
+    tarea. Ahora, en este orden:
+    - se quita el sufijo de derivación (`SGO1031B-d1` → `SGO1031B`, `…-d2b` → la raíz);
+    - el reintento que cuelga de la cifra de la ola (o de la única mayúscula que la sigue) sí se
+      quita: `LC1004Bc` → `LC1004B`, `RSC1006Qd` → `RSC1006Q`, `…-1ab` → `…-1a`;
+    - una tanda detrás de una marca de varias letras es del id y se conserva (`MC1013TCc`);
+    - en un rescate (`RT…`) se conserva la letra del id rescatado (`RTESP1011Bb`), salvo que
+      cuelgue de una cifra, que entonces es un reintento del propio rescate (`RTOPO1011T1b`).
+    """
+    t = str(tid or "")
+    while _DERIVACION.search(t):
+        t = _DERIVACION.sub("", t)
+    m = _REINTENTO.search(t)
+    if not m:
+        return t
+    antes = t[:m.start()]
+    if not antes:
+        return t
+    if t.startswith("RT"):
+        return antes if antes[-1].isdigit() else t
+    if antes[-1].isdigit():
+        return antes
+    if antes[-1].isupper() and len(antes) > 1 and antes[-2].isdigit():
+        return antes
+    if len(antes) > 1 and antes[-1].islower() and (antes[-2].isdigit() or antes[-2].isupper()):
+        return antes
+    return t
 
 
 def siguiente_id(tid, conocidos):

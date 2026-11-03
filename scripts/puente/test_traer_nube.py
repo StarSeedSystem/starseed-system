@@ -112,6 +112,48 @@ class ElegirPorTarea(unittest.TestCase):
         self.assertEqual(r[("nube/5", "BLQ1005D")], "superada")
 
 
+class BaseDe(unittest.TestCase):
+    """(RESC1031D) No se corta la minúscula que forma parte del id; sí el sufijo de derivación
+    (`-d1`, `-d2b`) y el reintento que cuelga de la cifra de la ola."""
+
+    def test_los_de_siempre(self):
+        self.assertEqual(T.base_de("LC1004Bc"), "LC1004B")
+        self.assertEqual(T.base_de("LC1004B"), "LC1004B")
+        self.assertEqual(T.base_de("p318Jc"), "p318J")
+        self.assertEqual(T.base_de("c313_QW4"), "c313_QW4")
+        self.assertEqual(T.base_de("MGP1010-7F3A2C"), "MGP1010-7F3A2C")
+        self.assertEqual(T.base_de("OPO1011T1"), "OPO1011T1")
+        self.assertEqual(T.base_de("S1010-TU-LL1c"), "S1010-TU-LL1")
+        self.assertEqual(T.base_de("RSC1006Qd"), "RSC1006Q")
+        self.assertEqual(T.base_de(None), "")
+        self.assertEqual(T.base_de(""), "")
+
+    def test_los_ejemplos_del_encargo(self):
+        # El final de `RTESP1011Bb` es el reintento de `ESP1011Bb`: forma parte del id rescatado
+        # y se conserva. `MC1013TCc` acaba en una marca de dos letras (TC), no en la cifra de la
+        # ola: la `c` también es del id. `-d1` es sufijo de derivación, no letra del id.
+        self.assertEqual(T.base_de("RTESP1011Bb"), "RTESP1011Bb")
+        self.assertEqual(T.base_de("SGO1031B-d1"), "SGO1031B")
+        self.assertEqual(T.base_de("MC1013TCc"), "MC1013TCc")
+
+    def test_sufijo_de_derivacion(self):
+        self.assertEqual(T.base_de("SGO1031B-d2b"), "SGO1031B")
+        self.assertEqual(T.base_de("CPA1007Kb-d1b"), "CPA1007K")
+        self.assertEqual(T.base_de("RTGN1010A-d3d-d3b"), "RTGN1010A")
+        self.assertEqual(T.base_de("RTFS1013Ad-d2c"), "RTFS1013Ad")
+        self.assertEqual(T.base_de("RTS1010-MGR3d-d1c"), "RTS1010-MGR3")
+        self.assertEqual(T.base_de("MC1013TCc-d2b"), "MC1013TCc")
+
+    def test_reintentos_y_rescates(self):
+        self.assertEqual(T.base_de("RTOPO1011T1b"), "RTOPO1011T1")  # reintento del propio rescate
+        self.assertEqual(T.base_de("RTRTX1b"), "RTRTX1")
+        self.assertEqual(T.base_de("RTRTCOL1012Bdsb"), "RTRTCOL1012Bdsb")  # letra del id rescatado
+        self.assertEqual(T.base_de("CU3br"), "CU3")
+        # El id ya acababa en minúscula (`a`): solo se quita la letra nueva.
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1ab"), "S1010-EV-ORACLE-1a")
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1a"), "S1010-EV-ORACLE-1a")
+
+
 class Sucesor(unittest.TestCase):
     def test_base_y_siguiente(self):
         self.assertEqual(T.base_de("LC1004Bc"), "LC1004B")
