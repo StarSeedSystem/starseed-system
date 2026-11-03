@@ -110,6 +110,15 @@ describe("validarSinCredencialesEpic · nada con forma de sesión de Epic", () =
     const token = ["eg1", "~", "TkAb12-9_kk"].join("");
     expect(validarSinCredencialesEpic(`el texto contiene ${token} y ya`).ok).toBe(false);
   });
+  it("un texto con campos de sesión o tokens eg1~ no pasa, y uno limpio sí", () => {
+    expect(validarSinCredencialesEpic("sesión iniciada por la persona")).toEqual({ ok: true, hallazgos: [] });
+    const VALOR_GRANDE = "AbC123deF9Xy8Zq7abCD12efGh34ij56";
+    const r = validarSinCredencialesEpic(`user.json: "access_token": "eg1~${VALOR_GRANDE}" y "exchange_code": "${VALOR_GRANDE}"`);
+    expect(r.ok).toBe(false);
+    expect(r.hallazgos).toContain("access_token");
+    expect(r.hallazgos).toContain("exchange_code");
+    expect(r.hallazgos.some((h) => h.includes("eg1~"))).toBe(true);
+  });
   it("SUP0111S · los hallazgos nunca repiten el secreto", () => {
     const token = ["eg1", "~", "TkAb12-9_kk"].join("");
     const r = validarSinCredencialesEpic(`uno ${token} y otro ${token}x, con access_token=${VALOR}`);
