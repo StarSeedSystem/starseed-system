@@ -216,5 +216,67 @@ class EnLaMacTest(unittest.TestCase):
                     else:
                         self.assertEqual((a1, gh), (None, None))
 
+class HayQueRecargarTest(unittest.TestCase):
+    """(SUP0211V) La decisión de recargar el módulo de una puerta es pura y no adivina."""
+
+    def test_solo_si_cambio_el_mtime(self):
+        self.assertIs(enjambre.hay_que_recargar(None, 1.0), False)
+        self.assertIs(enjambre.hay_que_recargar(1.0, None), False)
+        self.assertIs(enjambre.hay_que_recargar(None, None), False)
+        self.assertIs(enjambre.hay_que_recargar(1.0, 1.0), False)
+        self.assertIs(enjambre.hay_que_recargar(1.0, 2.0), True)
+
+
+class RecargaPuertasTest(unittest.TestCase):
+    """(SUP0211V) Un arreglo en scripts/puente llega sin reiniciar el orquestador: la primera carga
+    solo apunta el mtime; un cambio recarga el módulo; un archivo roto conserva el que ya estaba."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="enj-recarga-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.puente = os.path.join(self.tmp, "scripts", "puente")
+        os.makedirs(self.puente)
+        self._olvidar()
+        self.pila = contextlib.ExitStack()
+        self.pila.enter_context(mock.patch.object(enjambre, "ROOT", self.tmp))
+        self.pila.enter_context(mock.patch.object(enjambre, "evento"))
+        self.pila.enter_context(mock.patch.object(enjambre, "_en_la_mac", return_value=True))
+        self.pila.enter_context(mock.patch.dict(sys.modules))
+        self.pila.enter_context(mock.patch.object(sys, "path", list(sys.path)))
+        os.environ.pop("STARSEED_COMPROBAR_GITHUB", None)
+        self.addCleanup(self.pila.close)
+        self.addCleanup(self._olvidar)
+
+    def _olvidar(self):
+        for nombre in ("comprobar_en_a1", "comprobar_en_github"):
+            sys.modules.pop(nombre, None)
+        enjambre._MTIMES_PUERTA.clear()
+
+    def _escribir(self, nombre, cuerpo, t):
+        ruta = os.path.join(self.puente, nombre + ".py")
+        with open(ruta, "w", encoding="utf-8") as f:
+            f.write(cuerpo)
+        os.utime(ruta, (t, t))
+
+    def test_un_mtime_nuevo_da_la_version_nueva(self):
+        self._escribir("comprobar_en_a1", "def comprobar(*a, **k):\n    return 'vieja'\n", 1000.0)
+        self.assertEqual(enjambre._comprobar_en_a1()(), "vieja")
+        self._escribir("comprobar_en_a1", "def comprobar(*a, **k):\n    return 'nueva'\n", 2000.0)
+        self.assertEqual(enjambre._comprobar_en_a1()(), "nueva")
+
+    def test_un_archivo_roto_conserva_el_modulo_viejo(self):
+        self._escribir("comprobar_en_a1", "def comprobar(*a, **k):\n    return 'vieja'\n", 1000.0)
+        self.assertEqual(enjambre._comprobar_en_a1()(), "vieja")
+        self._escribir("comprobar_en_a1", "def comprobar(:\n    return 'rota'\n", 2000.0)
+        self.assertEqual(enjambre._comprobar_en_a1()(), "vieja")
+        self.assertEqual(enjambre.evento.call_args[0][0], "aviso")
+
+    def test_github_tambien_recarga(self):
+        self._escribir("comprobar_en_github", "def esperar_tsc(*a):\n    return 'gh-vieja'\n", 1000.0)
+        self.assertEqual(enjambre._comprobar_en_github()("b", [], self.tmp), "gh-vieja")
+        self._escribir("comprobar_en_github", "def esperar_tsc(*a):\n    return 'gh-nueva'\n", 2000.0)
+        self.assertEqual(enjambre._comprobar_en_github()("b", [], self.tmp), "gh-nueva")
+
+
 if __name__ == "__main__":
     unittest.main()

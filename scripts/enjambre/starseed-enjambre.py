@@ -25,6 +25,7 @@ Tiempos configurables:
 """
 
 import datetime, hashlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
+import importlib
 import signal
 import tempfile
 import contextlib, fcntl
@@ -4157,13 +4158,54 @@ def _comprobar_en_a1():
     if not _en_la_mac():
         return None
     ruta = os.path.join(ROOT, "scripts", "puente")
-    if not os.path.isfile(os.path.join(ruta, "comprobar_en_a1.py")):
+    archivo = os.path.join(ruta, "comprobar_en_a1.py")
+    if not os.path.isfile(archivo):
         return None
     if ruta not in sys.path:
         sys.path.insert(0, ruta)
-    from comprobar_en_a1 import comprobar
+    modulo = _cargar_puerta("comprobar_en_a1", archivo)
+    return getattr(modulo, "comprobar", None)
 
-    return comprobar
+
+#: (2026-11-03, SUP0211V) mtime visto de cada módulo de puerta. `orquestador_al_dia.py` solo reinicia
+#: el enjambre cuando cambian los .py de scripts/enjambre, así que un arreglo en scripts/puente no
+#: llegaba a las puertas hasta el siguiente reinicio. Aquí se recargan cuando su archivo cambia.
+_MTIMES_PUERTA = {}
+
+
+def hay_que_recargar(mtime_visto, mtime_ahora):
+    """PURA: ¿cambió el archivo de la puerta desde la última carga? Sin dato en ninguno, no."""
+    if mtime_visto is None or mtime_ahora is None:
+        return False
+    return mtime_visto != mtime_ahora
+
+
+def _cargar_puerta(nombre, archivo):
+    """Importa el módulo de una puerta y lo recarga con `importlib.reload` si su mtime cambió.
+    La primera carga solo apunta el mtime. Si la recarga falla (commit a medias, OSError), se
+    sigue con el módulo que ya estaba y se avisa por el canal."""
+    try:
+        ahora = os.path.getmtime(archivo)
+    except OSError:
+        ahora = None
+    visto = _MTIMES_PUERTA.get(nombre)
+    if hay_que_recargar(visto, ahora):
+        modulo = sys.modules.get(nombre)
+        if modulo is not None:
+            try:
+                importlib.reload(modulo)
+                _MTIMES_PUERTA[nombre] = ahora
+                return modulo
+            except Exception as exc:  # noqa: BLE001 — un commit a medias no tumba el orquestador
+                _MTIMES_PUERTA[nombre] = ahora
+                evento("aviso", "-", "no se pudo recargar %s.py (%s); sigo con la versión cargada" % (nombre, exc))
+                return modulo
+    modulo = sys.modules.get(nombre)
+    if modulo is None:
+        modulo = importlib.import_module(nombre)
+    if nombre not in _MTIMES_PUERTA:
+        _MTIMES_PUERTA[nombre] = ahora
+    return modulo
 
 
 #: (2026-10-27, CAP1026P) Lo que la puerta tsc de la Mac espera el veredicto de GitHub antes de caer al A1 o a la
@@ -4178,11 +4220,12 @@ def _comprobar_en_github():
     if not _en_la_mac() or os.environ.get("STARSEED_COMPROBAR_GITHUB", "1") == "0":
         return None
     ruta = os.path.join(ROOT, "scripts", "puente")
-    if not os.path.isfile(os.path.join(ruta, "comprobar_en_github.py")):
+    archivo = os.path.join(ruta, "comprobar_en_github.py")
+    if not os.path.isfile(archivo):
         return None
     if ruta not in sys.path:
         sys.path.insert(0, ruta)
-    import comprobar_en_github as G
+    G = _cargar_puerta("comprobar_en_github", archivo)
 
     return lambda base, cambiados, cwd: G.esperar_tsc(base, cambiados, cwd, TSC_GITHUB_ESPERA_S)
 
