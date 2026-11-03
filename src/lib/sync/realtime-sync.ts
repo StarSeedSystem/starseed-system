@@ -80,6 +80,9 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
 // (Ola MBT1027) El Mausbot guarda su config con su propio evento (EVENTO_MAUSBOT,
 //  src/lib/mausbot/config.ts); el valor que llega de otro dispositivo usa el mismo evento.
 import { EVENTO_MAUSBOT } from "@/lib/mausbot/config";
+// (MTN1027C) Directivas de las capas: el almacén emite su evento al guardar; el valor que llega
+//  de otro dispositivo usa el mismo, para que Astraura relea la pauta activa sin recargar.
+import { DIRECTIVAS_EVENT, DIRECTIVAS_KEY } from "@/lib/astraura/capas/directivas-almacen";
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
@@ -256,6 +259,9 @@ const EVENT_BY_KEY: Record<string, string[]> = {
 
     // Bots de IA (Ola 1025U · U3, bloqueo-bots.ts): al llegar la regla de otro medio, el feed se refiltra al instante.
     "starseed.agentes-red.bloqueo.v1": ["starseed:agentes-red-bloqueo"],
+
+    // Directivas de la automejora Meta^n por capa (MTN1027C, astraura/capas/directivas-almacen.ts).
+    [DIRECTIVAS_KEY]: [DIRECTIVAS_EVENT],
 };
 
 /** Prefijo → evento(s); se usa cuando la clave concreta no está en EVENT_BY_KEY. */

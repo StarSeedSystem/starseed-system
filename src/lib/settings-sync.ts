@@ -41,6 +41,7 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
 // NORMALIZA con su propio módulo: valor de cuenta roto → la de fábrica, nunca basura.
 import { CLAVE_MAUSBOT, normalizarConfigMausbot } from "@/lib/mausbot/config";
 import { CLAVE_DISENOS } from "@/lib/mausbot/disenos";
+import { DIRECTIVAS_KEY } from "@/lib/astraura/capas/directivas-almacen";
 
 /** Claves de preferencia que viajan con la cuenta. Aditivo: ampliar sin migración. */
 export const SYNCED_KEYS = [
@@ -108,6 +109,7 @@ export const SYNCED_KEYS = [
      "starseed.astraura.usercontext.v1", // "Aurora conoce mi contexto" (on/off) + nivel por defecto (breve/completo)
     // ── Ola 1003 · capas de conciencia por entidad (personalidad/agente), local preferente ──
     "starseed.astraura.capas-entidad.v1", // capas por entidad — astraura/capas-entidad.ts + use-capas-entidad.ts
+    DIRECTIVAS_KEY,                       // (MTN1027C) pautas aprendidas por la automejora Meta^n, por capa — astraura/capas/directivas-almacen.ts
     // ── Personalidades de Aurora (Adenda 63 · lib/aurora/personalities.ts) ────
     "starseed.aurora.personalities.v1",      // personalidades instaladas/creadas (archivos de configuración compartibles)
     "starseed.aurora.personality.active.v1", // asignaciones por contexto (global/sección/chat/cerebro)
