@@ -73,8 +73,24 @@ describe('validarCatalogo', () => {
     const r = validarCatalogo(catalogoReal);
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.catalogo.entradas.length).toBe(39); // 34 de la lista del 2026-10-18 + Claude Video 2.0 (2026-10-24) + 4 de la ola 1025R (2026-10-25)
+      expect(r.catalogo.entradas.length).toBe(40); // 34 de la lista del 2026-10-18 + Claude Video 2.0 (2026-10-24) + 4 de la ola 1025R (2026-10-25) + Recent, antes Godly (2026-11-03)
       expect(r.catalogo.temas.length).toBe(7);
+    }
+  });
+
+  it('incluye a Recent, antes Godly, como galería de referencia', () => {
+    const r = validarCatalogo(catalogoReal);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const entrada = r.catalogo.entradas.find((e) => e.id === 'recent-design');
+      expect(entrada?.url).toBe('https://recent.design/');
+      expect(entrada?.tema).toBe('inspiracion-ui');
+      expect(entrada?.clase_uso).toBe('solo-referencia');
+      expect(entrada?.canales).toContain('sitemap-respetando-robots');
+      expect(entrada?.actualizacion).toContainEqual({
+        tipo: 'sitemap-lastmod',
+        url: 'https://recent.design/sitemap.xml',
+      });
     }
   });
 

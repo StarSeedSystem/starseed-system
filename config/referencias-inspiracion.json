@@ -1,8 +1,8 @@
 {
  "formato": "starseed-referencias",
  "version": 1,
- "verificado": "2026-10-25",
- "origen": "Lista de Jack Roberts (vídeo IYNAyRkUsjI) pedida por Alex; cada enlace comprobado el 2026-10-18; + 4 entradas de la ola 1025R (taste-skill, frontend-slides, awesome-design-md, onetake), comprobadas el 2026-10-25",
+ "verificado": "2026-11-03",
+ "origen": "Lista de Jack Roberts (vídeo IYNAyRkUsjI) pedida por Alex; cada enlace comprobado el 2026-10-18; + 4 entradas de la ola 1025R (taste-skill, frontend-slides, awesome-design-md, onetake), comprobadas el 2026-10-25; + Recent, antes Godly, comprobada el 2026-11-03",
  "temas": [
   {
    "id": "ia-diseno",
@@ -1499,6 +1499,43 @@
    "og_imagen": null,
    "verificado": "2026-10-25",
    "sin_verificar": []
+  },
+  {
+   "id": "recent-design",
+   "nombre": "Recent (antes Godly)",
+   "url": "https://recent.design/",
+   "tema": "inspiracion-ui",
+   "subtema": "sitios y productos digitales",
+   "que_es": "Feed curado de diseño excepcional: sitios web, webs de producto, iconos de app, capturas de App Store, imágenes OG, vídeos de lanzamiento, herramientas y skills de agentes. Nació en 2023, se relanzó en 2026 y sustituye a Godly, cuya dirección godly.website redirige aquí.",
+   "tipo": "galeria-inspiracion",
+   "acceso": "libre",
+   "clase_uso": "solo-referencia",
+   "condiciones": "Las obras son de sus autores: se estudia el patrón (composición, jerarquía, ritmo, tipografía y transición) y se diseña una versión propia; nunca se copian capturas, marcas, textos ni assets. Su robots.txt (2026-11-03) declara Content-Signal search=yes, ai-train=no, use=reference: se puede enlazar e indexar, no entrenar IA.",
+   "canales": [
+    "sitemap-respetando-robots",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "scraping",
+    "entrenar-ia",
+    "descarga-masiva",
+    "rehospedar",
+    "copiar-capturas-o-marcas"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "sitemap-lastmod",
+     "url": "https://recent.design/sitemap.xml"
+    }
+   ],
+   "integracion": [],
+   "terminos": null,
+   "og_imagen": "https://recent.design/og.png",
+   "verificado": "2026-11-03",
+   "sin_verificar": [
+    "No publica términos, privacidad ni licencia: sus rutas /terms, /privacy y /legal devuelven 404 el 2026-11-03",
+    "No ofrece RSS, API pública, MCP ni oEmbed documentados; solo el sitemap con lastmod"
+   ]
   }
  ]
 }

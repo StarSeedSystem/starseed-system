@@ -24,7 +24,7 @@ dependencia sin tarea propia (`architecture/director-diseno.md:57-65`; `architec
 - [Awwwards](https://www.awwwards.com/) — dirección de arte, narrativa y ejecución premiada; útil para landing y experiencias editoriales.
 - [CSS Design Awards](https://www.cssdesignawards.com/) — composición y técnica CSS contemporánea; contrastar motion, layout y detalle.
 - [The FWA](https://thefwa.com/) — experiencias digitales experimentales; referencia para inmersión, 3D y multimedia.
-- [Godly](https://godly.website/) — patrones visuales de producto y marketing; comparar ritmo, hero y transiciones.
+- [Recent (antes Godly)](https://recent.design/) — feed curado de sitios, productos, iconos y vídeos; comparar ritmo, hero y transiciones. `godly.website` redirige aquí desde 2026.
 - [Mobbin](https://mobbin.com/) — flujos reales de producto móvil y web; referencia para onboarding, ajustes y tareas recurrentes.
 - [Land-book](https://land-book.com/) — layouts de landing y portafolio; estudiar jerarquía y secciones, no identidad de marca.
 - [Lapa Ninja](https://www.lapa.ninja/) — landing pages por industria y bloque; referencia para estructura y conversión.
