@@ -120,6 +120,20 @@ class Sucesor(unittest.TestCase):
         self.assertEqual(T.siguiente_id("LC1004B", {"LC1004B", "LC1004Bb", "LC1004Bc"}), "LC1004Bd")
         self.assertEqual(T.siguiente_id("SB1004A", {"SB1004A", "SB1004Ab", "OTRA"}), "SB1004Ac")
 
+    def test_cadena_doble_y_lo_que_no_acaba_en_letra_sucesora(self):
+        # Rescatado de nube/41579697472 (RESC1031D): derivaciones encadenadas y minúsculas que
+        # NO son letras sucesoras.
+        # Dos derivaciones seguidas: el corte deja el nodo padre (`-d3`), no la raíz entera.
+        self.assertEqual(T.base_de("RTGN1010A-d3d-d3b"), "RTGN1010A-d3")
+        # La «a» no es letra sucesora (la cadena empieza en «b») y va tras un dígito: no se corta.
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1a"), "S1010-EV-ORACLE-1a")
+        # Dos minúsculas seguidas: la primera (a) no es sucesora, así que la segunda (b) no sale:
+        # su antecesora no es mayúscula ni dígito.
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1ab"), "S1010-EV-ORACLE-1ab")
+        # Nada que cortar: vacío y sin id (`base_de(None)` corre en cada pasada).
+        self.assertEqual(T.base_de(""), "")
+        self.assertEqual(T.base_de(None), "")
+
     def test_base_de_con_sufijo_rescate_y_derivacion(self):
         # Casos del issue RESC1031D: distingue sufijo -d1/-d2b de la letra sucesora
         self.assertEqual(T.base_de("SGO1031B-d1"), "SGO1031B")
