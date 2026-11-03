@@ -86,12 +86,23 @@ describe("ClienteMcpStdio", () => {
     transporte.enviar(completo.slice(corte));
     expect(await promesa).toBe(true);
   });
+  it("fija el límite de línea en los 32 MiB del contrato §2.1", () => {
+    expect(LIMITE_LINEA).toBe(32 * 1024 * 1024);
+  });
   it("ignora notificaciones y líneas sin id, y cuenta las ilegibles", async () => {
     const { transporte, cliente } = montar();
     transporte.enviar('{"jsonrpc":"2.0","method":"notifications/message","params":{}}\n');
     transporte.enviar('{"jsonrpc":"2.0","result":{}}\n');
     transporte.enviar("no es json\n");
     expect(cliente.ilegibles).toBe(1);
+    const promesa = cliente.listar(1000);
+    transporte.responder(transporte.ultima.id, { ok: true });
+    expect(await promesa).toEqual({ ok: true });
+  });
+  it("ignora una respuesta válida con id numérico que nadie pidió", async () => {
+    const { transporte, cliente } = montar();
+    transporte.enviar('{"jsonrpc":"2.0","id":77,"result":{"tools":[]}}\n');
+    expect(cliente.ilegibles).toBe(0);
     const promesa = cliente.listar(1000);
     transporte.responder(transporte.ultima.id, { ok: true });
     expect(await promesa).toEqual({ ok: true });
@@ -117,6 +128,26 @@ describe("ClienteMcpStdio", () => {
     const promesa = cliente.llamar("x", {}, 1000);
     transporte.responder(transporte.ultima.id, { isError: true, content: [{ type: "text", text: "falló" }] });
     expect(await promesa).toEqual({ ok: false, texto: "falló" });
+  });
+  it("descarta los bloques que no son texto ni imagen sin romper", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("x", {}, 1000);
+    transporte.responder(transporte.ultima.id, {
+      content: [
+        { type: "resource", uri: "figcraft://doc" },
+        { type: "text", text: "solo esto" },
+      ],
+    });
+    expect(await promesa).toEqual({ ok: true, texto: "solo esto" });
+  });
+  it("una imagen sin mime usa image/png por defecto", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("captura", {}, 1000);
+    transporte.responder(transporte.ultima.id, { content: [{ type: "image", data: btoa("AB") }] });
+    const resultado = await promesa;
+    if (!("tipo" in resultado)) throw new Error("se esperaba una imagen");
+    expect(resultado.mime).toBe("image/png");
+    expect(Array.from(resultado.bytes)).toEqual([65, 66]);
   });
   it("cierra el transporte y falla las pendientes", async () => {
     const { transporte, cliente } = montar();
