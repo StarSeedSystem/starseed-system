@@ -1,7 +1,8 @@
 /** Proveedores externos opcionales (AV1011I): sin red, disco ni procesos (entorno = objeto, `fetch` simulado). Apagados por
  * defecto, `clave-externa` solo con clave Y permiso, peticiones de la documentación oficial y ninguna clave en los motivos. */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { planificar, type PeticionPlan } from "@/lib/avatares/adn/canalizacion";
+import { planificar, motivoDescarte, type PeticionPlan } from "@/lib/avatares/adn/canalizacion";
+import { MOTORES_3D, type Motor3D } from "@/lib/avatares/adn/motores";
 import { rateLimit } from "@/lib/security/rate-limit";
 import {
   MODELO, TOPE_DIARIO, VENTANA_TOPE_MS, capacidadesExternas, consultarTarea, crearTarea, esUrlDescarga, estadoProveedores,
@@ -390,5 +391,52 @@ describe("tope de modelos de pago: reservarTope con un limitador inyectado", () 
     expect(reservarTope(rateLimit, "reloj")).toMatchObject({ ok: false, reintentarSeg: 1 });
     vi.setSystemTime(t0 + VENTANA_TOPE_MS);
     expect(reservarTope(rateLimit, "reloj")).toEqual({ ok: true, quedan: 1 });
+  });
+  it("el tope es por persona", () => {
+    const { limitar } = limitadorDePrueba();
+    const r1 = reservarTope(limitar, "user-1");
+    expect(r1).toEqual({ ok: true, quedan: 1 });
+    const r2 = reservarTope(limitar, "user-1");
+    expect(r2).toEqual({ ok: true, quedan: 0 });
+    const r3 = reservarTope(limitar, "user-1");
+    expect(r3).toMatchObject({ ok: false });
+    reservarTope(limitar, "user-2");
+  });
+});
+
+const meshMotor = MOTORES_3D.find((m) => m.id === "meshy") as Motor3D;
+const tripoMotor = MOTORES_3D.find((m) => m.id === "tripo") as Motor3D;
+
+const basePeticion: PeticionPlan = {
+  partida: "imagen", esqueleto: "ninguno", region: "ES", comercial: false, permitirDePago: false,
+  detallar: false, prioridad: "rapidez", cerrada: false, capacidades: ["cpu"] as const,
+};
+
+describe("disponibilidad de proveedores según permiso y clave", () => {
+  it("sin permiso ni clave: no disponible", () => {
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Meshy");
+  });
+
+  it("solo clave, sin permiso: no disponible", () => {
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu", "clave-externa"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Meshy");
+  });
+
+  it("solo permiso, sin clave: no disponible", () => {
+    const p = { ...basePeticion, permitirDePago: true, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Meshy");
+  });
+
+  it("permiso+clave: disponible y se ofrece «clave-externa»", () => {
+    const p = { ...basePeticion, permitirDePago: true, capacidades: ["cpu", "clave-externa"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).toBeNull();
   });
 });
