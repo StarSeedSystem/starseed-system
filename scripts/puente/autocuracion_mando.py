@@ -114,7 +114,8 @@ PASOS_QUE_LO_PARAN = ("build", "push", "verificar")
 # ── decisiones (puras) ──────────────────────────────────────────────────────────
 
 def decidir_reinicio(sondas_ok, ahora, ultimo_reinicio, publicacion_en_marcha=False,
-                     minimo_s=REINICIO_MINIMO_S, vivo_estatico=None, lento_s=0, lento_max_s=LENTO_MAX_S):
+                     minimo_s=REINICIO_MINIMO_S, vivo_estatico=None, lento_s=0, lento_max_s=LENTO_MAX_S,
+                     memoria_ahogada=""):
     """PURA. ¿Hay que reiniciar Genesis? Devuelve (sí/no, por qué).
 
     `sondas_ok`: lista de booleanos de esta pasada (True = respondió).
@@ -126,6 +127,13 @@ def decidir_reinicio(sondas_ok, ahora, ultimo_reinicio, publicacion_en_marcha=Fa
     if vivo_estatico and float(lento_s or 0) < float(lento_max_s):
         return False, ("no contesta el latido pero sí lo estático: está lento (la Mac va cargada), no caído; "
                        "reiniciarlo lo empeora (lleva %d min así)" % int(float(lento_s or 0) // 60))
+    # (1103 · Y) Con la Mac ahogada de memoria, hasta lo estático tarda: reiniciar no lo arregla y cuesta un arranque
+    # en frío. Se espera `lento_max_s` y, después, como mucho un reinicio cada `lento_max_s`.
+    if memoria_ahogada:
+        if float(lento_s or 0) < float(lento_max_s):
+            return False, ("no contesta, pero la Mac está ahogada (%s): reiniciar Genesis no lo arregla y lo empeora; "
+                           "espero (lleva %d min así)" % (memoria_ahogada, int(float(lento_s or 0) // 60)))
+        minimo_s = max(float(minimo_s), float(lento_max_s))
     if ultimo_reinicio and ahora - ultimo_reinicio < minimo_s:
         return False, "no responde y ya lo reinicié hace %d s: espero" % int(ahora - ultimo_reinicio)
     return True, "no respondió a %d sondas seguidas" % len(sondas_ok)
@@ -863,12 +871,25 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
         estado.setdefault("latido_falla_desde", ahora)
     else:
         estado.pop("latido_falla_desde", None)
+    # (1103 · Y) ¿Lo que falla es la memoria de toda la Mac? Solo con las sondas de verdad (no en pruebas).
+    ahogo = ""
+    if sondas and not any(sondas) and sondear_fn is sondear:
+        try:
+            import lider_ahogo as _LA
+
+            _usado, _total = _LA.swap_mb()
+            ahogo = _LA.causa_ahogo(_LA.presion_nucleo(), _usado, _total, None)
+        except Exception:  # noqa: BLE001 — sin medida, se decide como antes
+            ahogo = ""
     reiniciar, porque = decidir_reinicio(
         sondas, ahora, estado.get("ultimo_reinicio"),
         publicacion_en_marcha(_leer_json(PUBLICACION, {})),
-        vivo_estatico=vivo_estatico, lento_s=ahora - float(estado.get("latido_falla_desde") or ahora))
+        vivo_estatico=vivo_estatico, lento_s=ahora - float(estado.get("latido_falla_desde") or ahora),
+        memoria_ahogada=ahogo)
     if not reiniciar and vivo_estatico:
         hechos.append("Genesis lento pero vivo: %s" % porque)
+    elif not reiniciar and ahogo:
+        hechos.append("Genesis no contesta: %s" % porque)
     if reiniciar:
         try:
             reiniciar_fn()
