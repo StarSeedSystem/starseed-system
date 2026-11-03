@@ -87,10 +87,14 @@ describe("IWER · entrada emulada a WebXR", () => {
         expect(todas).not.toContain("camera-access");
         const sesion = await abrir("immersive-vr", { requiredFeatures: pedidas.requeridas, optionalFeatures: pedidas.opcionales });
         expect(sesion.enabledFeatures).not.toContain("camera-access");
+        // Lo pedida por `funcionesAPedir` como requerida se concede de verdad (referencia de la Trinity).
+        expect(sesion.enabledFeatures).toContain("local-floor");
     });
 
     it("(5) LÍMITE de la emulación: sin gesto real IWER abre la sesión igual", async () => {
         // En un navegador de verdad `requestSession` exige activación del usuario; IWER no la comprueba.
+        // La prueba de esa ausencia: jsdom no trae activación y aun así la sesión abre.
+        expect(navigator.userActivation?.isActive ?? false).toBe(false);
         const sesion = await abrir("immersive-vr", { optionalFeatures: ["local-floor"] });
         expect(sesion.enabledFeatures).toContain("local-floor");
     });
@@ -101,5 +105,7 @@ describe("IWER · entrada emulada a WebXR", () => {
         const refinadas = refinarFunciones(c, sesion.enabledFeatures);
         expect(refinadas.funciones).toEqual(["local-floor", "hand-tracking"]);
         expect(refinadas.funciones).not.toContain("plane-detection");
+        // La refinación sólo cambia `funciones`: el resto de las capacidades se conserva.
+        expect(refinadas.plataforma).toBe(c.plataforma);
     });
 });
