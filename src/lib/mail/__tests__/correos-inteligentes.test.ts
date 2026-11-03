@@ -66,6 +66,12 @@ describe("reglas de correo como datos", () => {
     expect(validarRegla(r)).toEqual(r);
   });
 
+  it("acepta una regla válida sin parámetro y rechaza un id vacío", () => {
+    const sinParametro = regla({ id: "r2", hacer: "destacar", cuando: { de: "ana@ejemplo.org" } });
+    expect(validarRegla(sinParametro)).toEqual(sinParametro);
+    expect(validarRegla(regla({ id: "" }))).toBeNull();
+  });
+
   it("rechaza campos extra (en la regla y dentro de cuando)", () => {
     expect(validarRegla({ ...regla({ id: "r" }), canal: "correo" })).toBeNull();
     expect(
@@ -113,6 +119,13 @@ describe("aplicarReglas", () => {
     expect(aplicarReglas([regla({ id: "r", cuando: { etiqueta: "alcance" } })], h)).not.toEqual([]);
     expect(aplicarReglas([regla({ id: "r", cuando: { de: "nadie@otro.org" } })], h)).toEqual([]);
     expect(aplicarReglas([regla({ id: "r", cuando: { tieneAdjunto: false } })], h)).toEqual([]);
+  });
+
+  it("no aplica cuando el dominio no coincide", () => {
+    const h = hilo({ id: "h1", ultimoDe: "ana@ejemplo.org" });
+    expect(
+      aplicarReglas([regla({ id: "r", cuando: { dominio: "otro.com" }, hacer: "sugerir-borrador" })], h),
+    ).toEqual([]);
   });
 
   it("exige la antigüedad mínima (regla para hilos viejos)", () => {
@@ -183,6 +196,26 @@ describe("seguimiento de respuestas («Reply Zero»)", () => {
       porResponder: ["a"],
       esperando: ["b"],
       resuelto: ["c"],
+    });
+  });
+
+  it("agrupa varios hilos por estado y una bandeja vacía da listas vacías", () => {
+    const hilos: HiloLite[] = [
+      hilo({ id: "a", ultimoEn: "2026-10-28T06:00:00Z" }), // por-responder
+      hilo({ id: "b", ultimoEn: "2026-10-27T06:00:00Z" }), // por-responder
+      hilo({ id: "c", ultimoDe: YO, ultimoEn: "2026-10-01T00:00:00Z" }), // esperando
+      hilo({ id: "d", ultimoEn: "2026-10-29T08:00:00Z" }), // resuelto
+      hilo({ id: "e", ultimoDe: YO, ultimoEn: "2026-10-20T00:00:00Z" }), // resuelto
+    ];
+    expect(resumenSeguimiento(hilos, YO, AHORA)).toEqual({
+      porResponder: ["a", "b"],
+      esperando: ["c"],
+      resuelto: ["d", "e"],
+    });
+    expect(resumenSeguimiento([], YO, AHORA)).toEqual({
+      porResponder: [],
+      esperando: [],
+      resuelto: [],
     });
   });
 });
