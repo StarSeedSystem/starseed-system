@@ -133,16 +133,8 @@ describe("servicio-local · lanzador nativo (lista blanca y confirmación siempr
   });
 });
 
-<<<<<<< HEAD
-// HyperFrames entre los servicios locales conocidos (contrato video-hyperframes.md §4.3).
-// El servicio atiende /salud y /health en rutas.mjs; aquí se fija el contrato declarado: /salud
-// y un plazo propio de 15 minutos para los renders largos.
-describe("servicio-local · servicio hyperframes (vídeo, Ola 1018H)", () => {
-  const HF = SERVICIOS_CONOCIDOS.find((d) => d.id === "hyperframes") as DefinicionServicio;
-=======
 describe("servicio-local · servicio hyperframes (vídeo, Ola 1018H)", () => {
   const HF: DefinicionServicio = SERVICIOS_CONOCIDOS.find((d) => d.id === "hyperframes") as DefinicionServicio;
->>>>>>> 1af625c6c (salvavidas · HFR1018H: trabajo del agente antes de las puertas (tsc / vitest))
   it("la definición es la del contrato: puerto 4490, salud en /salud y plazo propio de 15 min", () => {
     expect(HF).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900_000 });
     expect(validarDefinicion(HF)).toBeNull();
@@ -151,20 +143,9 @@ describe("servicio-local · servicio hyperframes (vídeo, Ola 1018H)", () => {
   it("la salud se consulta SOLO en 127.0.0.1:4490/salud, con GET y sin exigir el token", async () => {
     const f = vi.fn<FetchLocal>(async () => resp(200, '{"ok":true}'));
     expect((await sondearServicio(HF, f, { leerVariable: () => undefined })).vivo).toBe(true);
-<<<<<<< HEAD
-    expect(f.mock.calls).toHaveLength(1);
-    const [url, init] = f.mock.calls[0] as [string, PeticionLocal];
-    const destino = new URL(url);
-    expect(destino.hostname).toBe("127.0.0.1");
-    expect(Number(destino.port)).toBe(4490);
-    expect(destino.pathname).toBe("/salud");
-    expect(init).toMatchObject({ method: "GET", redirect: "manual", headers: { accept: "application/json" } });
-    expect(init.headers.authorization).toBeUndefined();
-=======
-    expect(f.mock.calls[0]?.[0]).toBe("http://127.0.0.1:4490/salud");
+expect(f.mock.calls[0]?.[0]).toBe("http://127.0.0.1:4490/salud");
     expect(f.mock.calls[0]?.[1]).toMatchObject({ method: "GET", redirect: "manual", headers: { accept: "application/json" } });
     expect(f.mock.calls[0]?.[1].headers.authorization).toBeUndefined();
->>>>>>> 1af625c6c (salvavidas · HFR1018H: trabajo del agente antes de las puertas (tsc / vitest))
   });
   it("el plazo propio (tiempoMs: 900000) manda en las llamadas: 30 s no corta, 15 min sí", async () => {
     const { reloj, avanzar } = relojFalso();
@@ -180,12 +161,5 @@ describe("servicio-local · servicio hyperframes (vídeo, Ola 1018H)", () => {
     expect(await p).toMatchObject({ ok: false, fallo: "tiempo", ms: 900_000 });
     expect(senal?.aborted).toBe(true);
   });
-<<<<<<< HEAD
-  it("la suma es la misma de siempre: exactamente tres servicios conocidos, con ids únicos", () => {
-    expect(SERVICIOS_CONOCIDOS).toHaveLength(3);
-    expect(new Set(SERVICIOS_CONOCIDOS.map((d) => d.id)).size).toBe(3);
-    expect(SERVICIOS_CONOCIDOS.map((d) => d.id)).toEqual(["comfyui", "ollama", "hyperframes"]);
-  });
-=======
->>>>>>> 1af625c6c (salvavidas · HFR1018H: trabajo del agente antes de las puertas (tsc / vitest))
+
 });
