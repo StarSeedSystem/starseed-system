@@ -37,6 +37,14 @@ describe("parseSha256Sums", () => {
     expect(mapa.size).toBe(1);
   });
 
+  it("admite fines de línea CRLF y recorta el salto del nombre", () => {
+    const texto = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  figcraft-web-0.10.0.zip\r\n";
+    const mapa = parseSha256Sums(texto);
+    expect(mapa.get("figcraft-web-0.10.0.zip")).toBe(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    );
+  });
+
   it("lee uno y dos espacios y normaliza las huellas a minúsculas", () => {
     const MAYUS = "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD";
     const VACIO_MAYUS = "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855";

@@ -4,7 +4,8 @@ export function parseSha256Sums(texto: string): Map<string, string> {
   const mapa = new Map<string, string>();
   for (const linea of texto.split("\n")) {
     if (!linea.trim() || linea.startsWith("#")) continue;
-    const match = linea.match(/^([0-9a-f]{64})[ ]{1,2}(.+)$/i);
+    const limpia = linea.replace(/\r$/, "");
+    const match = limpia.match(/^([0-9a-f]{64})[ ]{1,2}(.+)$/i);
     if (!match) continue;
     const hash = match[1].toLowerCase();
     const nombre = match[2].trim();
