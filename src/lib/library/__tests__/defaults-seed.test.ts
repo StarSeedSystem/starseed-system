@@ -10,6 +10,7 @@ import { FICHAS_REPOS_1026, IDS_SIEMBRA_1026, TANDA_1026_FICHAS } from "../repos
 import { FICHAS_REPOS_1027, IDS_SIEMBRA_1027, TANDA_1027_FICHAS } from "../repos-1027";
 import { IDS_SIEMBRA_1027B } from "../repos-1027b";
 import { IDS_SIEMBRA_1028 } from "../repos-1028";
+import { FICHAS_REPOS_1028, IDS_SIEMBRA_1028 as IDS_SEED_1028, TANDA_1028_FICHAS } from "../repos-1028";
 
 const SIEMPRE_2A = [
   "lib-vikunja",
@@ -287,5 +288,81 @@ describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remac
       expect(f.payload.downloadable, f.id).toBeUndefined();
       expect(String(f.payload.route ?? ""), f.id).toBe("");
     }
+  });
+});
+
+describe("defaults-seed · tanda 1028 (LEANN, el recuerdo semántico)", () => {
+  const nuevas = FICHAS_REPOS_1028.map((f) => f.id);
+
+  it("la ficha única (lib-leann) queda en la recomendación, una por ficha", () => {
+    expect(TANDA_1028_FICHAS).toHaveLength(1);
+    expect([...IDS_SEED_1028]).toEqual(["lib-leann"]);
+    for (const id of nuevas) expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
+    expect(new Set(RECOMMENDED_PACKAGE_IDS).size).toBe(RECOMMENDED_PACKAGE_IDS.length);
+  });
+
+  it("toda ficha «siempre» del JSON acaba sembrada (con su id o el de la ficha que la absorbe)", () => {
+    for (const f of TANDA_1028_FICHAS) {
+      if (f.preinstalar !== "siempre" || f.id_en_catalogo !== undefined) continue;
+      expect(RECOMMENDED_PACKAGE_IDS).toContain(f.fusionar_en ?? f.id);
+    }
+  });
+
+  it("quien ya tenía la 23 recibe solo el delta de la 24: lo que ya se le ofreció no vuelve", () => {
+    const plan = selectSeedIds({
+      currentVersion: 23,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: [...FICHAS_REPOS_1025, ...FICHAS_REPOS_1026, ...FICHAS_REPOS_1027, ...FICHAS_REPOS_1028].map((f) => ({ id: f.id, comingSoon: f.comingSoon })),
+      alreadyOffered: [...RECOMMENDED_PACKAGE_IDS],
+      installedIds: [...RECOMMENDED_PACKAGE_IDS],
+    });
+    expect(plan).toEqual([]);
+
+    const fresca = selectSeedIds({
+      currentVersion: 0,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: FICHAS_REPOS_1028.map((f) => ({ id: f.id, comingSoon: f.comingSoon })),
+      alreadyOffered: [],
+      installedIds: [],
+    });
+    expect(fresca.sort()).toEqual([...nuevas].sort());
+  });
+
+  it("una cuenta que desinstaló la ficha no la recupera sola con el remacho", () => {
+    const plan = selectSeedIds({
+      currentVersion: 23,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: FICHAS_REPOS_1028.map((f) => ({ id: f.id })),
+      alreadyOffered: [...RECOMMENDED_PACKAGE_IDS],
+      installedIds: IDS_SEED_1028.filter((id) => id !== "lib-leann"),
+    });
+    expect(plan).not.toContain("lib-leann");
+  });
+
+  it("ninguna ficha de la tanda es descargable ni comingSoon: instalar solo registra su enlace", () => {
+    for (const f of FICHAS_REPOS_1028) {
+      expect(f.comingSoon, f.id).toBeFalsy();
+      expect(f.payload.downloadable, f.id).toBeUndefined();
+      expect(String(f.payload.route ?? ""), f.id).toBe("");
+    }
+  });
+
+  it("LEANN es ai-source con externalUrl de GitHub y contrato de memorias", () => {
+    const leann = FICHAS_REPOS_1028.find((p) => p.id === "lib-leann")!;
+    expect(leann.kind, leann.id).toBe("ai-source");
+    expect(String(leann.payload.upstream), leann.id).toBe("https://github.com/StarTrail-org/LEANN");
+    expect(leann.payload.externalUrl, leann.id).toBe(leann.payload.upstream);
+    expect(String(leann.payload.licencia), leann.id).toMatch(/^MIT/);
+    expect(leann.version, leann.id).toBe("v0.3.8");
+    expect(leann.version, leann.id).not.toMatch(/\s/);
+    expect(String(leann.payload.aviso).length, leann.id).toBeGreaterThan(10);
+    expect(leann.description.length, leann.id).toBeGreaterThan(40);
+    expect(leann.payload.contrato, leann.id).toBe("architecture/leann-recuerdo-semantico.md");
+    expect(leann.payload.corre_aqui, leann.id).toBe(false);
+    expect(leann.payload.route, leann.id).toBeUndefined();
+    expect(leann.payload.skillId, leann.id).toBeUndefined();
   });
 });
