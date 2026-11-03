@@ -1,0 +1,24 @@
+[Unit]
+Description=StarSeed · servidor de cápsulas Memvid en el A1 (MVD1027I)
+After=network-online.target
+Wants=network-online.target
+# requiere: /home/starseed/memvid-servidor/target/release/memvid-servidor
+
+[Service]
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed
+# Solo en local: el servidor escucha en 127.0.0.1:4490 y el puerto no se comparte.
+Environment=STARSEED_MEMVID_DIR=/var/lib/starseed/memvid
+ExecStart=/home/starseed/memvid-servidor/target/release/memvid-servidor
+# Búsquedas BM25 y escrituras de fotogramas cortas: no debe reiniciar en bucle si algo falla al arrancar.
+Restart=on-failure
+RestartSec=20
+# Cápsulas ≤ 50 MB en memoria: acotado para no pisar al enjambre en el A1 de 12 GB.
+MemoryMax=512M
+# El enjambre manda en la CPU.
+Nice=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
