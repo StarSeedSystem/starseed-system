@@ -36,9 +36,28 @@ BASE = os.path.expanduser("~/comprobar")
 TURNO = os.path.expanduser("~/.starseed/cerrojos/pesado.lock")
 #: (2026-10-13, medido) Con 3072 el tsc del repo muere por memoria en el A1 (rc 134 a los 175 s);
 #: el guardián del A1 usa 4096 y pasa en ~210 s.
-MEMORIA_TSC = "--max-old-space-size=4096"
+#: (2026-11-02, SUP0211T) Con 4096 también muere ya: la puerta tsc del orquestador dio «tsc no terminó por la
+#: máquina (rc=134) … v8::OOMDetails» a los ~200 s y cayó a la Mac (621 s perdidos y otros 30 min de tsc en una
+#: Mac sin memoria). El guardián (SUP0211C, `oracle_a1.HEAP_TSC_GUARDIAN`) y `tsc-turno.sh` ya usan 6144.
+MEMORIA_TSC = "--max-old-space-size=6144"
+#: vitest y pytest siguen con 4096: NODE_OPTIONS lo heredan también los 2 workers de vitest (2 × 6 GB no caben).
+MEMORIA_NODE = "--max-old-space-size=4096"
 RE_ID = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
 RE_SHA = re.compile(r"^[0-9a-f]{40}$")
+
+
+def memoria_de(paso):
+    """PURA. El NODE_OPTIONS de cada paso: el montón grande solo para tsc (SUP0211T)."""
+    return MEMORIA_TSC if paso == "tsc" else MEMORIA_NODE
+
+
+def minimo_de(paso, cfg):
+    """PURA. Los MB libres que pide cada paso antes de empezar: `minimo_mb` y, para tsc, también
+    `minimo_tsc_mb` (SUP0211T: con 6144 de montón, el mínimo de 4096 lo dejaba empezar y morir)."""
+    minimo = int(cfg.get("minimo_mb", 4500) or 0)
+    if paso == "tsc":
+        return max(minimo, int(cfg.get("minimo_tsc_mb") or 0))
+    return minimo
 
 
 def memoria_libre_mb(meminfo):
@@ -144,8 +163,8 @@ def _git(args, cwd=None, timeout=300):
         return 1, "%s: %s" % (type(e).__name__, e)
 
 
-def _correr(argv, cwd, tope_s):
-    env = dict(os.environ, NODE_OPTIONS=MEMORIA_TSC, CI="1", FORCE_COLOR="0")
+def _correr(argv, cwd, tope_s, memoria=MEMORIA_NODE):
+    env = dict(os.environ, NODE_OPTIONS=memoria, CI="1", FORCE_COLOR="0")
     casa = os.path.expanduser("~")
     env["PATH"] = ":".join([os.path.join(casa, ".npm-global", "bin"), os.path.join(casa, "bin"), "/usr/local/bin",
                             "/usr/bin", "/bin", env.get("PATH", "")])
@@ -217,9 +236,11 @@ def comprobar(cfg):
                 return {"medio": "el A1 está compilando (turno ocupado): en la próxima pasada", "pasos": pasos}
             try:
                 libre = memoria_libre_mb(_leer("/proc/meminfo"))
-                if libre < minimo:
-                    return {"medio": "el A1 tiene %d MB libres (mínimo %d)" % (libre, minimo), "pasos": pasos}
-                rc, salida, dur = _correr(argv, carpeta, tope)
+                minimo_paso = minimo_de(paso, cfg)
+                if libre < minimo_paso:
+                    return {"medio": "el A1 tiene %d MB libres (mínimo %d para %s)" % (libre, minimo_paso, paso),
+                            "pasos": pasos}
+                rc, salida, dur = _correr(argv, carpeta, tope, memoria_de(paso))
             finally:
                 soltar_turno()
             pasos.append({"paso": paso, "rc": rc, "s": int(dur), "cola": salida[-1500:]})

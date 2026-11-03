@@ -218,6 +218,18 @@ class Remoto(unittest.TestCase):
             res = R.comprobar(self._cfg(minimo_mb=4500))
         self.assertIn("1000 MB libres", res["medio"])
 
+    def test_tsc_sin_memoria_para_su_monton_es_del_medio(self):
+        # (SUP0211T) 6000 MB libres: pasa el mínimo general (5000), no el del tsc de 6144 de montón.
+        orig = R._leer
+        meminfo = "MemAvailable:    6144000 kB\n"
+        with mock.patch.object(R, "ordenes", return_value=[("tsc", ["true"], 30)]), \
+                mock.patch.object(R, "_leer", side_effect=lambda r: meminfo if r == "/proc/meminfo" else orig(r)):
+            res = R.comprobar(self._cfg(minimo_mb=5000, minimo_tsc_mb=6500))
+        self.assertIn("mínimo 6500 para tsc", res["medio"])
+        self.assertEqual(res["pasos"], [])
+        self.assertFalse(os.path.exists(R.TURNO))  # el turno se suelta
+        self.assertFalse(os.path.exists(os.path.join(self.comp, "t1")))  # y se limpia
+
     def test_peticion_con_rutas_raras_no_entra(self):
         for malo in ({"codigo": ["../../etc/passwd"]}, {"py": ["-rf"]}, {"id": "a b"}, {"sha": "zz"}):
             self.assertIn("no válid", R.comprobar(self._cfg(**malo))["medio"])
@@ -230,6 +242,46 @@ class Remoto(unittest.TestCase):
         with mock.patch("builtins.print") as imprimir:
             R.main(["x", "no es json"])
         self.assertTrue(imprimir.call_args[0][0].startswith("@@RESULTADO "))
+
+
+class MontonDelTsc(unittest.TestCase):
+    """(SUP0211T, 02-11) La puerta tsc del orquestador murió en el A1 con 4096 de montón (rc 134, v8::OOMDetails)
+    y cayó a la Mac. tsc va con el montón del guardián (6144); vitest y pytest, con el de siempre."""
+
+    def test_tsc_con_el_monton_del_guardian(self):
+        import oracle_a1
+        self.assertEqual(R.memoria_de("tsc"), oracle_a1.HEAP_TSC_GUARDIAN)
+        self.assertEqual(R.memoria_de("tsc"), "--max-old-space-size=6144")
+
+    def test_vitest_y_pytest_con_4096(self):
+        self.assertEqual(R.memoria_de("vitest"), "--max-old-space-size=4096")
+        self.assertEqual(R.memoria_de("pytest"), "--max-old-space-size=4096")
+
+    def test_correr_pone_el_monton_del_paso(self):
+        vistos = []
+
+        def falso(argv, **kw):
+            vistos.append((kw.get("env") or {}).get("NODE_OPTIONS"))
+            return subprocess.CompletedProcess(argv, 0, "", "")
+
+        with mock.patch.object(R.subprocess, "run", side_effect=falso):
+            R._correr(["true"], tempfile.gettempdir(), 5, R.memoria_de("tsc"))
+            R._correr(["true"], tempfile.gettempdir(), 5, R.memoria_de("vitest"))
+        self.assertEqual(vistos, ["--max-old-space-size=6144", "--max-old-space-size=4096"])
+
+    def test_minimo_de_cada_paso(self):
+        cfg = {"minimo_mb": 5000, "minimo_tsc_mb": 6500}
+        self.assertEqual(R.minimo_de("tsc", cfg), 6500)
+        self.assertEqual(R.minimo_de("vitest", cfg), 5000)
+        self.assertEqual(R.minimo_de("pytest", cfg), 5000)
+        # Una petición sin el campo (o las pruebas, con 0) no cambia.
+        self.assertEqual(R.minimo_de("tsc", {"minimo_mb": 0}), 0)
+        self.assertEqual(R.minimo_de("tsc", {"minimo_mb": 7000, "minimo_tsc_mb": 6500}), 7000)
+
+    def test_la_peticion_pide_memoria_para_el_monton_del_tsc(self):
+        pet = C.peticion("x", SHA, [], ["src/a.ts"], lambda r: False)
+        self.assertGreater(pet["minimo_tsc_mb"], 6144)
+        self.assertGreaterEqual(pet["minimo_tsc_mb"], pet["minimo_mb"])
 
 
 if __name__ == "__main__":

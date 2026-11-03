@@ -41,6 +41,9 @@ BASE_A1 = "/home/starseed/comprobar"
 TOPE_PAQUETE_MB = 60
 #: tsc con 4096 MB de heap + lo que no es heap: menos de esto y no se empieza (del medio).
 MINIMO_MB = 5000
+#: (SUP0211T) tsc corre ya con 6144 de montón (`comprobar_a1_remoto.MEMORIA_TSC`): su paso pide más memoria
+#: libre. Menos, y la respuesta es «del medio» en segundos, no un tsc que muere a los 200 s.
+MINIMO_TSC_MB = 6500
 ESPERA_TURNO_S = 600
 SENALES_MEDIO = ("heap out of memory", "FATAL ERROR", "Killed", "ENOMEM", "No space left",
                  "No module named pytest", "Cannot find module 'typescript'", "vitest: not found",
@@ -70,7 +73,7 @@ def peticion(id_, sha, prerrequisitos, cambiados, existe, tope_s=900):
     return {"id": id_, "sha": sha, "prerrequisitos": list(prerrequisitos),
             "ts": bool(_archivos_ts(cambiados)), "codigo": codigo,
             "py": _pruebas_python(cambiados, existe), "tope_s": int(tope_s),
-            "minimo_mb": MINIMO_MB, "espera_turno_s": ESPERA_TURNO_S}
+            "minimo_mb": MINIMO_MB, "minimo_tsc_mb": MINIMO_TSC_MB, "espera_turno_s": ESPERA_TURNO_S}
 
 
 def motivo_para_no_ir(estado_a1, cambiados):
