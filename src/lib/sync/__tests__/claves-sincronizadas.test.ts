@@ -27,6 +27,7 @@ const AÑADIDAS = [
     "starseed.theme.favorites.v1",
     "starseed.privacy.telemetry",
     "starseed.privacy.ghost",
+    "starseed.mausbot.v1",
 ] as const;
 
 /** Lo que jamás debe viajar: secretos, bloqueo, identidad y ids de este medio, cachés y colas. */
