@@ -108,6 +108,8 @@ export const SYNCED_KEYS = [
      "starseed.astraura.usercontext.v1", // "Aurora conoce mi contexto" (on/off) + nivel por defecto (breve/completo)
     // ── Ola 1003 · capas de conciencia por entidad (personalidad/agente), local preferente ──
     "starseed.astraura.capas-entidad.v1", // capas por entidad — astraura/capas-entidad.ts + use-capas-entidad.ts
+    // ── Directivas de automejora Meta^n por capa (MTN1027C · lib/astraura/capas/directivas-almacen.ts) ──
+    "starseed.capas.directivas.v1", // directivas aprendidas y activas de cada capa de conciencia
     // ── Personalidades de Aurora (Adenda 63 · lib/aurora/personalities.ts) ────
     "starseed.aurora.personalities.v1",      // personalidades instaladas/creadas (archivos de configuración compartibles)
     "starseed.aurora.personality.active.v1", // asignaciones por contexto (global/sección/chat/cerebro)
