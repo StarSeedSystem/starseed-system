@@ -354,6 +354,20 @@ async function leerTokens(): Promise<DatosMedidores["tokens"]> {
         }
     }
 
+/** (1103 · U) Preguntas y potenciados de «Buscar más capacidad» (`scripts/puente/potenciar_capacidad.py`). */
+async function leerPotenciar(): Promise<DatosMedidores["potenciar"]> {
+    try {
+        const crudo = await readFile(path.join(RAÍZ, "starseed_memory_root", "mando", "potenciar.json"), "utf8");
+        const d = JSON.parse(crudo) as NonNullable<DatosMedidores["potenciar"]>;
+        return d && typeof d === "object" ? d : null;
+    } catch {
+        return null;
+    }
+}
+
+/** (1103 · U) Los medios que se pueden potenciar (los mismos que `SERVICIOS` de potenciar_capacidad.py). */
+const POTENCIABLES = ["claude-nube", "cloudroom", "nube-gh"];
+
 async function leerContenedores(): Promise<DatosMedidores["contenedores"]> {
     try {
         const crudo = await readFile(
@@ -878,6 +892,7 @@ async function reunir(): Promise<Partial<DatosMedidores>> {
         correcciones: await leerCorrecciones(),
         revisorBloqueadas: await leerRevisorBloqueadas(),
         contenedores,
+        potenciar: await leerPotenciar().catch(() => null),
         disco,
         memoria,
         creditoClaude: await leerCreditoClaude().catch(() => null),
@@ -1093,6 +1108,38 @@ export async function POST(peticion: Request): Promise<Response> {
     // (2026-10-05) «Buscar más capacidad en todos los medios»: Mac, nube y el resto, de una
     // vez. La decisión vive en `scripts/puente/buscar_capacidad.py` (pura y probada); los jobs
     // de la nube salen en segundo plano, así que esto contesta en segundos con el plan.
+    // (1103 · U) Alex: «si ocurre eso cuando selecciono buscar más capacidades debe preguntarme si prefiero
+    // potencializar las tareas aumentando el consumo de los créditos mensuales». La decisión la guarda
+    // `scripts/puente/potenciar_capacidad.py`; al potenciar se vuelve a buscar en el acto para usar lo que se abrió.
+    if (accion === "potenciar-capacidad" || accion === "mantener-ritmo") {
+        if (!POTENCIABLES.includes(id)) {
+            return Response.json({ error: `«${id}» no es un medio que se pueda potenciar.` }, { status: 400 });
+        }
+        const orden = accion === "potenciar-capacidad" ? "activar" : "mantener";
+        try {
+            const { stdout } = await correr("python3", ["scripts/puente/potenciar_capacidad.py", orden, id, "--json"], {
+                cwd: RAÍZ,
+                timeout: 30_000,
+                windowsHide: true,
+            });
+            const r = JSON.parse((stdout || "").trim().split("\n").pop() || "{}") as { resumen?: string };
+            let resumen = r.resumen || "Hecho.";
+            if (orden === "activar") {
+                const b = await correr(
+                    "python3",
+                    ["scripts/puente/buscar_capacidad.py", "buscar", "--aplicar", "--json", "--origen", "boton"],
+                    { cwd: RAÍZ, timeout: 150_000, windowsHide: true },
+                );
+                const rb = JSON.parse((b.stdout || "").trim().split("\n").pop() || "{}") as { resumen?: string };
+                if (rb.resumen) resumen = `${resumen}\n${rb.resumen}`;
+            }
+            return Response.json({ ok: true, resumen });
+        } catch (e) {
+            const msj = e instanceof Error ? e.message : String(e);
+            return Response.json({ error: `No pude ${orden === "activar" ? "potenciar" : "mantener el ritmo de"} ${id}: ${msj.slice(0, 300)}` }, { status: 500 });
+        }
+    }
+
     if (accion === "buscar-capacidad") {
         try {
             const { stdout } = await correr(

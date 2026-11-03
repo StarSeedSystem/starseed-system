@@ -134,7 +134,7 @@ def medianoche(ahora):
     return time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0, 0, 0, -1))
 
 
-def ritmo(registro, ahora, total=100, usados_cuenta=0, max_vivos=MAX_VIVOS, tope_dia=TOPE_DIA):
+def ritmo(registro, ahora, total=100, usados_cuenta=0, max_vivos=MAX_VIVOS, tope_dia=TOPE_DIA, potenciado=False):
     """PURA. {"hoy", "quedan", "motivo", "por_dia"}: cuántos hilos caben AHORA sin agotar el ciclo.
 
     Cada hilo cuenta 30 días (ventana móvil); lo usado es lo mayor entre el registro y lo que diga la
@@ -163,6 +163,11 @@ def ritmo(registro, ahora, total=100, usados_cuenta=0, max_vivos=MAX_VIVOS, tope
     if vivos >= max_vivos:
         return {"hoy": 0, "quedan": quedan, "por_dia": por_dia,
                 "motivo": "sin cupo ahora: %d hilos abiertos (tope %d)" % (vivos, max_vivos)}
+    if potenciado:
+        # (1103 · U) Potenciado por Alex: lo que queda del ciclo, sin reparto por día (el tope a la vez sigue).
+        hoy = max(0, min(quedan, max_vivos - vivos))
+        return {"hoy": hoy, "quedan": quedan, "por_dia": por_dia, "potenciado": True,
+                "motivo": "potenciado: caben %d ahora (quedan %d del ciclo, sin reparto por día)" % (hoy, quedan)}
     if por_dia >= 1:
         hoy = int(por_dia) - hoy_ya
     else:
@@ -170,6 +175,37 @@ def ritmo(registro, ahora, total=100, usados_cuenta=0, max_vivos=MAX_VIVOS, tope
     hoy = max(0, min(hoy, quedan, max_vivos - vivos))
     motivo = ("caben %d (%s)" % (hoy, reparto)) if hoy else ("sin cupo hoy: ya van %d hoy (%s)" % (hoy_ya, reparto))
     return {"hoy": hoy, "quedan": quedan, "por_dia": por_dia, "motivo": motivo}
+
+
+def frena_el_ritmo(n_ids, r):
+    """(1103 · U) PURA. ¿Lo que deja tareas fuera es el REPARTO por día del ciclo (que Alex puede potenciar) y no
+    el tope de hilos a la vez del plan ni el ciclo agotado?"""
+    if not n_ids or (r or {}).get("potenciado"):
+        return False
+    quedan, hoy = int((r or {}).get("quedan") or 0), int((r or {}).get("hoy") or 0)
+    if quedan <= hoy or int(n_ids) <= hoy:
+        return False
+    return not str((r or {}).get("motivo") or "").startswith(("sin cupo ahora", "sin cupo:"))
+
+
+def _potenciado():
+    try:
+        import potenciar_capacidad as PC
+
+        return PC.activo("cloudroom")
+    except Exception:  # noqa: BLE001 — sin el módulo, el ritmo de siempre
+        return False
+
+
+def _preguntar(r):
+    try:
+        import potenciar_capacidad as PC
+
+        PC.anotar_pregunta("cloudroom", (r or {}).get("motivo") or "frena por su ritmo",
+                           "hasta %d hilo(s) a la vez de los %d que quedan del ciclo de 30 días, sin reparto por día"
+                           % (MAX_VIVOS, int((r or {}).get("quedan") or 0)))
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def no_relanzar(registro, ahora):
@@ -663,8 +699,11 @@ def lanzar(ids, seco=False, priorizar=False, medio=None, ahora=None, run=subproc
         res["motivo"] = ("sin modelos en la nube que quepan ahora (%s)" % descartes if descartes else
                          "sin modelos en la nube para esta cuenta (%s)" % (err or "conecta un agente en la app"))
         return res
-    r = ritmo(registro, ahora, *uso_cuenta(estado, ahora))
+    pot = _potenciado()
+    r = ritmo(registro, ahora, *uso_cuenta(estado, ahora), potenciado=pot)
     res.update(quedan=r["quedan"], hoy=r["hoy"])
+    if frena_el_ritmo(len(ids or ()), r):
+        _preguntar(r)
     if r["hoy"] <= 0:
         res["motivo"] = r["motivo"]
         return res

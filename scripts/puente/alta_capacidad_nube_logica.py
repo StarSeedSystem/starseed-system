@@ -42,6 +42,9 @@ MAX_LANZAMIENTOS_DIA = 6
 #: vence no se guarda para nada. Medido el 03-11: 23 $ reales que vencen el 05-11 y el carril parado en «6 de 6 $».
 DIAS_AL_VENCER = 3.0
 RESERVA_AL_VENCER = 3.0
+#: (1103 · U) Con el carril POTENCIADO por Alex (`potenciar_capacidad.py`): sesiones a la vez y lanzamientos del día.
+MAX_VIVAS_POTENCIADO = 6
+MAX_DIA_POTENCIADO = 24
 
 _ANSI = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\)|[@-Z\\-_])")
 _VIEW = re.compile(r"View:\s*(https://claude\.ai/code/(session_[A-Za-z0-9]+))")
@@ -62,7 +65,7 @@ def _vence_epoch(vence):
     return d.timestamp()
 
 
-def cupo_nube(credito, ahora, vivas, max_vivas=3, reserva_usd=10.0):
+def cupo_nube(credito, ahora, vivas, max_vivas=3, reserva_usd=10.0, potenciado=False):
     """(se puede lanzar, motivo, presupuesto de hoy en $).
 
     Presupuesto de hoy = (restante − reserva) / días que faltan hasta `vence` (mínimo 1 día)."""
@@ -80,7 +83,8 @@ def cupo_nube(credito, ahora, vivas, max_vivas=3, reserva_usd=10.0):
         reserva_usd = min(reserva_usd, RESERVA_AL_VENCER)
     if restante <= reserva_usd:
         return False, "quedan %.2f $ y la reserva es %.2f $: no se gasta más" % (restante, reserva_usd), 0.0
-    dias = max(1.0, (vence - ahora) / 86400.0)
+    # (1103 · U) Potenciado por Alex: todo lo que queda por encima de la reserva vale para HOY.
+    dias = 1.0 if potenciado else max(1.0, (vence - ahora) / 86400.0)
     hoy = round((restante - reserva_usd) / dias, 2)
     if vivas >= max_vivas:
         return False, "ya hay %d sesiones vivas (tope %d)" % (vivas, max_vivas), hoy
@@ -329,3 +333,20 @@ def elegir_auto(cands, vivas, max_vivas, presupuesto_hoy, gastado, maximo=None, 
         gasto += coste
         elegidas.append((t, cola, modelo, coste))
     return elegidas
+
+
+def pregunta_ritmo(n_cands, vivas, tope, hoy, gastado, lanzadas_hoy, max_dia, disponible):
+    """(1103 · U) PURA. (detalle, gasto) si lo que deja tareas fuera es el REPARTO por día del crédito —que Alex
+    puede potenciar desde «Buscar más capacidad»— y no la falta de crédito ni el tope de sesiones a la vez; si no,
+    None. `disponible`: lo que queda por encima de la reserva."""
+    barata = COSTE_USD[MODELO_ECONOMICO]
+    if int(n_cands) <= 0 or int(vivas) >= int(tope) or float(disponible) < barata:
+        return None
+    queda_hoy = max(0.0, float(hoy) - float(gastado))
+    if not (int(lanzadas_hoy) >= int(max_dia) or queda_hoy < barata):
+        return None
+    detalle = ("va al ritmo del crédito: %.2f de %.2f $ de hoy y %d de %d lanzamientos; %d tarea(s) esperan"
+               % (float(gastado), float(hoy), int(lanzadas_hoy), int(max_dia), int(n_cands)))
+    gasto = ("hasta %.2f $ hoy (todo lo que queda por encima de la reserva), %d lanzamientos y %d sesiones a la vez"
+             % (float(disponible), MAX_DIA_POTENCIADO, MAX_VIVAS_POTENCIADO))
+    return detalle, gasto

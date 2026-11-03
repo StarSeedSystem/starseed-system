@@ -310,6 +310,26 @@ def fuera_por_otros_medios(lista_colas, progreso):
         return None
 
 
+def _potenciado():
+    """(1103 · U) ¿Alex potenció el carril desde «Buscar más capacidad» (`potenciar_capacidad.py`)?"""
+    try:
+        import potenciar_capacidad as PC
+
+        return PC.activo("claude-nube")
+    except Exception:  # noqa: BLE001 — sin el módulo, el ritmo de siempre
+        return False
+
+
+def _preguntar(detalle, gasto):
+    """(1103 · U) Deja la pregunta «¿potenciar?» para la próxima vez que Alex pulse «Buscar más capacidad»."""
+    try:
+        import potenciar_capacidad as PC
+
+        PC.anotar_pregunta("claude-nube", detalle, gasto)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def lanzar(ids=None, modelo=None, seco=False, auto=False, maximo=None, ahora=None,
            lanzador=lanzador_real, decir=print, fuera_de_otros=None, sesion_cli=None):
     """Lanza las tareas pedidas (o las que elige `--auto`). Devuelve las filas anotadas.
@@ -320,12 +340,14 @@ def lanzar(ids=None, modelo=None, seco=False, auto=False, maximo=None, ahora=Non
     ahora = time.time() if ahora is None else ahora
     reg = leer_registro()
     progreso = traer_nube._progreso()
-    tope = max_vivas()
+    pot = _potenciado()
+    tope = max(max_vivas(), L.MAX_VIVAS_POTENCIADO) if pot else max_vivas()
+    dia_tope = max(max_dia(), L.MAX_DIA_POTENCIADO) if pot else max_dia()
     vivas = L.sesiones_vivas(reg, progreso)
     historial = leer_historial()
     credito = dict(_leer_json(CREDITO, {}) or {})
     credito["restante_usd"] = L.restante_estimado(credito, historial)
-    ok, motivo, hoy = L.cupo_nube(credito, ahora, vivas, max_vivas=tope)
+    ok, motivo, hoy = L.cupo_nube(credito, ahora, vivas, max_vivas=tope, potenciado=pot)
     if not ok:
         decir("sin cupo: %s" % motivo)
         return []
@@ -352,15 +374,21 @@ def lanzar(ids=None, modelo=None, seco=False, auto=False, maximo=None, ahora=Non
                 decir("no lanzo en automático: sin la foto de la tanda de la Mac")
                 return []
             cands = [c for c in L.candidatas(lista, progreso, reg, historial, ahora) if str(c[0].get("id")) not in fuera]
-            plan = L.elegir_auto(cands, vivas, tope, hoy, gastado, maximo, lanzadas_hoy=lanzadas_hoy,
-                                 max_dia=max_dia())
+            # (1103 · U) Potenciado: el presupuesto de hoy es lo gastado MÁS todo lo que queda sobre la reserva.
+            plan = L.elegir_auto(cands, vivas, tope, (hoy + gastado) if pot else hoy, gastado, maximo,
+                                 lanzadas_hoy=lanzadas_hoy, max_dia=dia_tope)
             if plan and not seco:
                 traer_nube._actualizar_progreso({str(t.get("id")): {
                     "estado": L.ESTADO_PRESTADA, "medio": L.MEDIO,
                     "nota": "reservada por el carril en la nube (lanzando la sesión)"} for t, _c, _m, _x in plan})
         if not plan:
             decir("nada que lanzar: %d candidatas, %d/%d vivas, %.2f de %.2f $ gastados hoy, %d de %d lanzamientos hoy"
-                  % (len(cands), vivas, tope, gastado, hoy, lanzadas_hoy, max_dia()))
+                  % (len(cands), vivas, tope, gastado, hoy, lanzadas_hoy, dia_tope))
+            if not pot:
+                pregunta = L.pregunta_ritmo(len(cands), vivas, tope, hoy, gastado, lanzadas_hoy, dia_tope,
+                                            L.cupo_nube(credito, ahora, 0, max_vivas=99, potenciado=True)[2])
+                if pregunta:
+                    _preguntar(*pregunta)
     else:
         plan = []
         for tid in ids or []:
@@ -379,7 +407,7 @@ def lanzar(ids=None, modelo=None, seco=False, auto=False, maximo=None, ahora=Non
             plan.append((t, cola, m, L.coste_estimado(m)))
     hechas = []
     for t, cola, m, _ in plan:
-        ok, motivo, _ = L.cupo_nube(credito, ahora, vivas, max_vivas=tope)
+        ok, motivo, _ = L.cupo_nube(credito, ahora, vivas, max_vivas=tope, potenciado=pot)
         if not ok:
             decir("paro: %s" % motivo)
             break

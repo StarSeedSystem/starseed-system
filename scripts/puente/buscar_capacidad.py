@@ -188,6 +188,29 @@ def reaperturas_sin_intento_ajuste(ruta=None):
     return REAPERTURAS_SIN_INTENTO_EXTRA
 
 
+#: (1103 · U) Con GitHub potenciado por Alex, las agotadas vuelven hasta estas veces más (una hora entre una y otra).
+REAPERTURAS_POTENCIADO = 3
+
+
+def puede_reabrir_potenciada(marcas, ahora):
+    """PURA (1103 · U). Con GitHub potenciado: las agotadas vuelven con los escritores de hoy."""
+    return puede_reabrir(marcas, ahora, espera_s=REABRIR_SIN_INTENTO_ESPERA_S,
+                         maximo=REAPERTURAS_MAX + REAPERTURAS_SIN_INTENTO_EXTRA + REAPERTURAS_POTENCIADO)
+
+
+def pregunta_nube_gh(agotadas, reabribles, reaperturas, ahora, runs_libres):
+    """PURA (1103 · U). (detalle, gasto) si GitHub tiene sitio y hay agotadas que solo vuelven potenciando; si no, None."""
+    if int(runs_libres) <= 0:
+        return None
+    ya = set(reabribles or ())
+    extra = [t for t in agotadas or () if t not in ya and puede_reabrir_potenciada((reaperturas or {}).get(t), ahora)]
+    if not extra:
+        return None
+    return ("%d tarea(s) agotadas (ya mandadas a los mismos modelos) no vuelven y caben %d job(s) más"
+            % (len(extra), int(runs_libres)),
+            "reabrirlas con los escritores de hoy: no gasta créditos (repo público, minutos gratis), solo intentos")
+
+
 def puede_reabrir_tarea(marcas, ahora, nota="", extra=None):
     """PURA salvo `extra=None` (1103). `puede_reabrir`, con más margen para lo que volvió sin intentarse."""
     if sin_intento(nota):
@@ -297,7 +320,7 @@ def escritores_en_la_nube(resultados=None, salud=None, ahora_txt=""):
 
 def plan_nube(elegibles, agotadas, runs_vivos, pausa, reaperturas, ahora, listas_mac=0, tope_mac=0,
               tope_runs=TOPE_RUNS_NUBE, por_run=TAREAS_POR_RUN, max_reabrir=REABRIR_POR_PASADA,
-              motivo_tope="", notas=None):
+              motivo_tope="", notas=None, potenciado=False):
     """PURA. Qué hacer con la nube: {"lanzar": n, "reabrir": [ids], "trabajadores": w, "por_que": str}.
 
     - En pausa o con los jobs al tope: nada, diciendo por qué es ese el tope (`motivo_tope`).
@@ -321,7 +344,8 @@ def plan_nube(elegibles, agotadas, runs_vivos, pausa, reaperturas, ahora, listas
         sobra_mac = max(0, int(listas_mac) - int(tope_mac))
         cupo = min(max_reabrir, sitio - len(elegibles), sobra_mac)
         candidatas = [t for t in (agotadas or [])
-                      if puede_reabrir_tarea((reaperturas or {}).get(t), ahora, (notas or {}).get(t, ""))]
+                      if (puede_reabrir_potenciada((reaperturas or {}).get(t), ahora) if potenciado
+                          else puede_reabrir_tarea((reaperturas or {}).get(t), ahora, (notas or {}).get(t, "")))]
         reabrir = candidatas[:max(0, cupo)]
     total = len(elegibles) + len(reabrir)
     if total == 0:
@@ -983,6 +1007,43 @@ def _lanzar_en_fondo(runs, trabajadores):
         )
 
 
+def _potenciado(servicio, ahora=None):
+    """(1103 · U) ¿Alex potenció este medio desde «Buscar más capacidad»?"""
+    try:
+        import potenciar_capacidad as PC
+
+        return PC.activo(servicio, ahora)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _preguntar(servicio, detalle, gasto):
+    try:
+        import potenciar_capacidad as PC
+
+        PC.anotar_pregunta(servicio, detalle, gasto)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _preguntas_vigentes(ahora):
+    try:
+        import potenciar_capacidad as PC
+
+        return PC.preguntas_vigentes(PC.leer(), ahora)
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _texto_preguntas(preguntas):
+    try:
+        import potenciar_capacidad as PC
+
+        return PC.texto_preguntas(preguntas)
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=None):
     """Una pasada por todos los medios. Devuelve {resumen, lineas, sumados, hechas, nube, ...}."""
     from concurrent.futures import ThreadPoolExecutor
@@ -1081,7 +1142,9 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
         notas = nube.get("notas") or {}
         agotadas = ordenar_por_prioridad([t for t in nube["clases"].get("agotada") or [] if t not in por_traer],
                                          nube.get("dependientes") or {}, nube.get("capacidad") or ())
-        reabribles = [t for t in agotadas if puede_reabrir_tarea(reaperturas.get(t), ahora, notas.get(t, ""))]
+        pot_gh = _potenciado("nube-gh", ahora)
+        reabribles = [t for t in agotadas if (puede_reabrir_potenciada(reaperturas.get(t), ahora) if pot_gh
+                                              else puede_reabrir_tarea(reaperturas.get(t), ahora, notas.get(t, "")))]
         # (CAP1025B) Las nuevas frente a lo que ya llevan los jobs vivos, no frente a todos ellos.
         tope = tope_runs_nube(len(nube["clases"].get("elegibles") or []) + min(REABRIR_POR_PASADA, len(reabribles)),
                               escritores_nube, vivos=vivos)
@@ -1089,7 +1152,12 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
             nube["clases"].get("elegibles"), agotadas, vivos, nube["pausa"],
             reaperturas, ahora, listas_mac=len(estado_mac.get("listas") or []),
             tope_mac=int(estado_mac.get("tope") or 0), tope_runs=tope[0], motivo_tope=tope[1], notas=notas,
+            potenciado=pot_gh,
         )
+        if not pot_gh:
+            _q = pregunta_nube_gh(agotadas, reabribles, reaperturas, ahora, max(0, MAX_RUNS_NUBE - vivos))
+            if _q:
+                _preguntar("nube-gh", *_q)
         lineas_previas = texto_ultimo_despliegue(estado_prev, ahora)
         if lineas_previas:
             lineas.append(lineas_previas)
@@ -1134,6 +1202,10 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
                                   + int((decision or {}).get("huecos") or 0))
     texto = resumen(lineas, sumados, sin_escritores=sin_escritores, sin_trabajo=sin_trabajo,
                     causas=causas_sin_suma(estado_mac, plan, linea_cr) if not sumados else (), posibles=posibles)
+    # (1103 · U) Lo que frenó por un reparto NUESTRO del crédito o del cupo del mes se pregunta, no se calla.
+    preguntas = _preguntas_vigentes(ahora)
+    if preguntas:
+        texto = texto + "\n" + _texto_preguntas(preguntas)
     estado_prev.update(visto=time.strftime("%Y-%m-%d %H:%M:%S"), origen=origen, sumados=sumados,
                        hechas=hechas, resumen=texto)
     if aplicar:
@@ -1142,7 +1214,7 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
         _avisar(("Buscar más capacidad (%s):\n" % ("botón de Genesis" if origen == "boton" else origen)) + texto)
     return {"ok": True, "resumen": texto, "lineas": lineas, "sumados": sumados, "hechas": hechas,
             "plan_nube": plan, "runs_nube": vivos, "tope_nube": list(tope), "escritores_nube": escritores_nube,
-            "mac_cede": (nube.get("mac") or {}).get("cedibles") or []}
+            "mac_cede": (nube.get("mac") or {}).get("cedibles") or [], "preguntas": preguntas}
 
 
 def desplegar(runs, trabajadores):

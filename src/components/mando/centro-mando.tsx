@@ -1397,7 +1397,10 @@ export function CentroMando() {
                     accion.clase === "buscar-capacidad" ||
                     accion.clase === "asignar-tarea" ||
                     accion.clase === "comprobar-asignacion" ||
-                    accion.clase === "comprobar-agente"
+                    accion.clase === "comprobar-agente" ||
+                    // (1103 · U) Potenciar o mantener el ritmo de un medio: la frase del servidor dice qué cambió.
+                    accion.clase === "potenciar-capacidad" ||
+                    accion.clase === "mantener-ritmo"
                 ) {
                     return d.resumen ?? "hecho.";
                 }

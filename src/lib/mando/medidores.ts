@@ -109,7 +109,11 @@ export type ClaseAccion =
     | "buscar-capacidad"
     | "asignar-tarea"
     | "comprobar-asignacion"
-    | "comprobar-agente";
+    | "comprobar-agente"
+    // (1103 · U) Alex: «si ocurre eso cuando selecciono buscar más capacidades debe preguntarme si prefiero
+    // potencializar las tareas aumentando el consumo de los créditos mensuales». `objetivo` = el medio.
+    | "potenciar-capacidad"
+    | "mantener-ritmo";
 
 export interface AccionMedidor {
     clase: ClaseAccion;
@@ -329,6 +333,42 @@ export const ACCION_BUSCAR_CAPACIDAD: AccionMedidor = {
  * desplegar en este contenedor) siguen: son de una cosa concreta, no de todo.
  */
 export const ACCIONES_ASIGNAR: AccionMedidor[] = [ACCION_BUSCAR_CAPACIDAD];
+
+/** (1103 · U) Los medios que reparten su crédito o su cupo del mes y que Alex puede potenciar. */
+export const SERVICIOS_POTENCIABLES = ["claude-nube", "cloudroom", "nube-gh"] as const;
+const NOMBRE_POTENCIABLE: Record<string, string> = {
+    "claude-nube": "Claude en la nube",
+    cloudroom: "Cloudroom",
+    "nube-gh": "GitHub Actions",
+};
+const PREGUNTA_VALE_S = 6 * 3600;
+
+/**
+ * (1103 · U) «Buscar más capacidad» y, si un reparto NUESTRO del crédito o del cupo del mes dejó tareas fuera, la
+ * pregunta con sus dos botones: «⚡ Potenciar …» (gasta más del mes para terminar antes) o «Mantener el ritmo de …».
+ * Un medio ya potenciado ofrece volver a su ritmo. PURA: el reloj entra por parámetro (ms).
+ */
+export function accionesDeCapacidad(d: Partial<DatosMedidores>, ahoraMs?: number): AccionMedidor[] {
+    const ahora = (ahoraMs ?? Date.now()) / 1000;
+    const acciones: AccionMedidor[] = [ACCION_BUSCAR_CAPACIDAD];
+    const p = d.potenciar;
+    if (!p) return acciones;
+    for (const s of SERVICIOS_POTENCIABLES) {
+        const nombre = NOMBRE_POTENCIABLE[s];
+        const hasta = Number(p.activos?.[s]?.hasta ?? 0);
+        if (hasta > ahora) {
+            const hora = new Date(hasta * 1000).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+            acciones.push({ clase: "mantener-ritmo", texto: `Volver al ritmo de ${nombre} (potenciado hasta las ${hora})`, objetivo: s, destructiva: false });
+            continue;
+        }
+        const q = p.preguntas?.[s];
+        const callado = Number(p.mantener?.[s]?.hasta ?? 0) > ahora;
+        if (!q || callado || ahora - Number(q.t ?? 0) > PREGUNTA_VALE_S) continue;
+        acciones.push({ clase: "potenciar-capacidad", texto: `⚡ Potenciar ${nombre}`, objetivo: s, destructiva: false });
+        acciones.push({ clase: "mantener-ritmo", texto: `Mantener el ritmo de ${nombre}`, objetivo: s, destructiva: false });
+    }
+    return acciones;
+}
 
 /**
  * (2026-09-23) Indicador de carga de «Sin publicar»: qué paso de la publicación va y cuánto
@@ -1397,6 +1437,12 @@ export interface DatosMedidores {
      *  dirección los toma manualmente desde claude.ai → Uso y los guarda con
      *  `scripts/puente/limites_claude.py declarar …`. */
     limitesClaude?: unknown;
+    /** (1103 · U) `starseed_memory_root/mando/potenciar.json` (`scripts/puente/potenciar_capacidad.py`). */
+    potenciar?: {
+        activos?: Record<string, { hasta?: number; desde?: number } | undefined>;
+        mantener?: Record<string, { hasta?: number } | undefined>;
+        preguntas?: Record<string, { t?: number; detalle?: string; gasto?: string; nombre?: string } | undefined>;
+    } | null;
     contenedores?: {
         generado?: string;
         contenedores: {
@@ -2440,7 +2486,7 @@ export function detalleDeMedidor(
                           }`,
                 filas,
                 porcentajeMedio: mediaDeAvance(filas),
-                acciones: [...ACCIONES_ASIGNAR, IR_A("Ver la ramificación", "procesos")],
+                acciones: [...accionesDeCapacidad(d, ahora), IR_A("Ver la ramificación", "procesos")],
                 vacio: fantasmas.length
                     ? `Ningún agente trabajando. ${fantasmas.length} latido(s) decían lo contrario sin ningún proceso detrás: descartados.`
                     : "Ningún agente trabajando ahora mismo.",
@@ -2580,7 +2626,7 @@ export function detalleDeMedidor(
                           }${suenosSueltos.length ? ` · ${suenosSueltos.length} sueño(s) sin agente` : ""}`,
                 filas: todas,
                 porcentajeMedio: medio,
-                acciones: [...ACCIONES_ASIGNAR, IR_A("Ver la ramificación", "procesos")],
+                acciones: [...accionesDeCapacidad(d, ahora), IR_A("Ver la ramificación", "procesos")],
                 vacio: "Ninguna tarea en curso ahora mismo.",
             };
         }
@@ -2669,7 +2715,7 @@ export function detalleDeMedidor(
                 resumen: resumen + avisoGit,
                 filas,
                 porcentajeMedio: 0,
-                acciones: [...ACCIONES_ASIGNAR, IR_A("Ver procesos", "procesos")],
+                acciones: [...accionesDeCapacidad(d, ahora), IR_A("Ver procesos", "procesos")],
                 vacio: "No queda trabajo ejecutable: todo lo definido está integrado, bloqueado o esperándote.",
             };
         }
@@ -2850,7 +2896,7 @@ export function detalleDeMedidor(
                     ? `${r.agentes_ahora ?? 0} agente(s) trabajando · ${libres} libre(s) de ${tope} · ${r.usables ?? 0} de ${r.contenedores ?? 0} servicio(s) usable(s)${inv.generado ? ` · medido ${inv.generado}` : ""}`
                     : "sin medir todavía: pulsa «Buscar más capacidad en todos los medios»",
                 filas,
-                acciones: [...ACCIONES_ASIGNAR, IR_A("Ver la flota", "flota")],
+                acciones: [...accionesDeCapacidad(d, ahora), IR_A("Ver la flota", "flota")],
                 vacio: `Ningún contenedor medido aún. «Buscar más capacidad en todos los medios» sondea ${CONTENEDORES_OPCIONES.map(o => o.nombre).join(", ")}.`,
             };
         }

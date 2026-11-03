@@ -22,3 +22,9 @@ _CARPETA = os.path.dirname(os.path.abspath(__file__))
 
 if _CARPETA not in sys.path:
     sys.path.insert(0, _CARPETA)
+
+# (1103 · U) Las pruebas nunca leen ni escriben las preguntas de «Potenciar» de verdad: Genesis se las enseña a Alex.
+import tempfile as _tempfile  # noqa: E402
+
+os.environ["STARSEED_POTENCIAR_RUTA"] = os.path.join(_tempfile.mkdtemp(prefix="potenciar-pruebas-"), "potenciar.json")
+os.environ.pop("STARSEED_POTENCIAR", None)
