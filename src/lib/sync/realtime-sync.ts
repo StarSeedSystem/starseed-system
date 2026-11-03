@@ -81,8 +81,13 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
 //  src/lib/mausbot/config.ts); el valor que llega de otro dispositivo usa el mismo evento.
 import { EVENTO_MAUSBOT } from "@/lib/mausbot/config";
 // (MTN1027C · Meta^n) Las directivas de automejora de las capas viajan con la cuenta
-// (astraura/capas/directivas-almacen.ts); al llegar de otro medio suena su evento propio.
-import { EVENTO_DIRECTIVAS } from "@/lib/astraura/capas/directivas-almacen";
+// (astraura/capas/directivas-almacen.ts); al llegar de otro medio suena su evento propio
+// y lo que baja se SANE con `normalizarRegistroDirectivas` antes de escribirse (abajo).
+import {
+    CLAVE_DIRECTIVAS,
+    EVENTO_DIRECTIVAS,
+    normalizarRegistroDirectivas,
+} from "@/lib/astraura/capas/directivas-almacen";
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
