@@ -123,14 +123,18 @@ describe("crearIndiceBm25", () => {
     expect(resultados[1].id).toBe("b");
   });
 
-  it("usa 20 herramientas falsas", () => {
-    const indices: { id: string; texto: string }[] = [];
-    for (let i = 0; i < 20; i += 1) {
+  it("con 20 herramientas falsas, «listar tareas» devuelve tareas_listar primero", () => {
+    const indices: { id: string; texto: string }[] = [
+      { id: "tareas_listar", texto: "tareas listar" },
+    ];
+    for (let i = 0; i < 19; i += 1) {
       indices.push({ id: `tool_${i}`, texto: `Herramienta numero ${i} con palabras clave` });
     }
     const indice = crearIndiceBm25(indices);
-    const resultados = indice.buscar("herramienta clave", 10);
-    expect(resultados.length).toBeGreaterThan(0);
+    const resultados = indice.buscar("listar tareas", 5);
+    expect(resultados).toHaveLength(1);
+    expect(resultados[0].id).toBe("tareas_listar");
+    expect(resultados[0].puntuacion).toBeGreaterThan(0);
   });
 });
 describe("constantes del módulo", () => {
@@ -166,12 +170,14 @@ describe("constantes del módulo", () => {
 });
 describe("envolverProgresivo · umbral", () => {
   it("≤ umbral devuelve las mismas herramientas sin metaherramientas", () => {
-    const resultado = envolverProgresivo([
+    const originales = [
       herramientaFalsa("a", "A"),
       herramientaFalsa("b", "B"),
       herramientaFalsa("c", "C"),
-    ]);
+    ];
+    const resultado = envolverProgresivo(originales);
     expect(resultado).toHaveLength(3);
+    expect(resultado).toBe(originales);
     const nombres = resultado.map((h) => h.nombre);
     expect(nombres).toEqual(["a", "b", "c"]);
     expect(nombres).not.toContain("descubrir_herramientas");
@@ -208,18 +214,29 @@ describe("envolverProgresivo · umbral", () => {
   });
 });
 describe("envolverProgresivo · metaherramientas", () => {
-  it("descubrir con perfil pequeño devuelve resultados con nombre y descripción", async () => {
+  it("descubrir con perfil pequeño da como mucho 3 resultados, sin esquema y con descripción corta", async () => {
     const resultado = envolverProgresivo(muchasHerramientas, { medio: "modelo-pequeno" });
     expect(resultado).toHaveLength(3);
     const descubrir = resultado.find((h) => h.nombre === "descubrir_herramientas");
     expect(descubrir).toBeDefined();
-    const resultadoJson = await descubrir!.ejecutar({ consulta: "tareas" });
+    const resultadoJson = await descubrir!.ejecutar({ consulta: "herramienta clave" });
     const parsed = JSON.parse(resultadoJson.contenido[0].texto);
     expect(parsed.resultados.length).toBeGreaterThan(0);
-    expect(parsed.resultados[0]).toHaveProperty("nombre");
-    expect(parsed.resultados[0]).toHaveProperty("descripcion");
-    expect(typeof parsed.resultados[0].descripcion).toBe("string");
-    expect(parsed.resultados[0].descripcion.length).toBeLessThanOrEqual(80);
+    expect(parsed.resultados.length).toBeLessThanOrEqual(3);
+    for (const ficha of parsed.resultados) {
+      expect(ficha).toHaveProperty("nombre");
+      expect(typeof ficha.descripcion).toBe("string");
+      expect(ficha.descripcion.length).toBeLessThanOrEqual(80);
+      expect(ficha).not.toHaveProperty("esquema");
+    }
+  });
+
+  it("un límite pedido mayor que maxResultados se recorta al perfil pequeño (3)", async () => {
+    const resultado = envolverProgresivo(muchasHerramientas, { medio: "modelo-pequeno" });
+    const descubrir = resultado.find((h) => h.nombre === "descubrir_herramientas");
+    const r = await descubrir!.ejecutar({ consulta: "herramienta clave", limite: 50 });
+    const parsed = JSON.parse(r.contenido[0].texto);
+    expect(parsed.resultados).toHaveLength(3);
   });
 
   it("descubrir con perfil grande incluye esquema", async () => {
