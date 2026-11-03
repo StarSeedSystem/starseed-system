@@ -1,0 +1,75 @@
+{
+ "ola": "nube-20261103",
+ "tareas": [
+  {
+   "id": "MVD1027I",
+   "ola": "1027V · Cápsulas de memoria (Memvid)",
+   "titulo": "A1 · servicio del servidor de cápsulas y su compilación",
+   "archivos": [
+    "deploy/oracle/nodo/systemd/starseed-memvid.service",
+    "scripts/puente/oracle_nodo.py",
+    "scripts/puente/test_oracle_nodo_memvid.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Memvid (memvid/memvid, Apache-2.0) «en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda». Contrato: `architecture/memvid-capsulas.md` (léelo entero). Firmas del núcleo Rust en `integraciones-de-codigo/memvid/README-starseed.md`. Reglas: núcleo en Rust en un servidor propio (127.0.0.1:4490, token en `~/.starseed/memvid.token`), nunca el SDK de Node, nunca cuenta ni tickets de memvid.com, 50 MB por cápsula y se reparte, alcance de `src/lib/nucleo/alcance-memoria.ts`, personal y perfil cifradas.\n\nUnidad (usuario starseed, `ExecStart=/home/starseed/memvid-servidor/target/release/memvid-servidor`, `Environment=STARSEED_MEMVID_DIR=/var/lib/starseed/memvid`, `Restart=on-failure`, `MemoryMax=512M`, `Nice=10`) con `# requiere: /home/starseed/memvid-servidor/target/release/memvid-servidor`. En `oracle_nodo.py` orden `memvid`: sin `--aplicar` enseña el plan (copiar `native/memvid-servidor` a `/home/starseed/memvid-servidor` y `cargo build --release` con `/home/starseed/.cargo/bin/cargo` como starseed); con `--aplicar` lo corre por `ssh` como `freellmapi`. Pruebas del plan y de que sin `--aplicar` no se llama a ssh.",
+   "dependencias_ya_en_main": [
+    "MVD1027C",
+    "MTN1027H2"
+   ]
+  },
+  {
+   "id": "MVD1027J",
+   "ola": "1027V · Cápsulas de memoria (Memvid)",
+   "titulo": "Mac · el binario del servidor de cápsulas compilado en GitHub Actions",
+   "archivos": [
+    ".github/workflows/memvid-servidor.yml",
+    "scripts/puente/instalar_memvid.py",
+    "scripts/puente/test_instalar_memvid.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Memvid (memvid/memvid, Apache-2.0) «en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda». Contrato: `architecture/memvid-capsulas.md` (léelo entero). Firmas del núcleo Rust en `integraciones-de-codigo/memvid/README-starseed.md`. Reglas: núcleo en Rust en un servidor propio (127.0.0.1:4490, token en `~/.starseed/memvid.token`), nunca el SDK de Node, nunca cuenta ni tickets de memvid.com, 50 MB por cápsula y se reparte, alcance de `src/lib/nucleo/alcance-memoria.ts`, personal y perfil cifradas.\n\nWorkflow `workflow_dispatch` (y `push` a ramas `comprobar/**` que toquen `native/memvid-servidor/**`) en `macos-14` (arm64): `cargo build --release` y `actions/upload-artifact` del binario como `memvid-servidor-darwin-arm64` (artefacto del run, 14 días; NO release ni publicación). Sin secretos. `instalar_memvid.py`: con `gh run list --workflow memvid-servidor.yml` y `gh run download` baja el último artefacto verde, comprueba su SHA-256 contra el que el job imprime en su resumen, lo deja en `~/.local/bin/memvid-servidor` (0755) y escribe un `~/Library/LaunchAgents/com.starseed.memvid.plist` (como los plist de `scripts/puente/`); `--plan` solo enseña lo que haría. Pruebas con `gh` falso.",
+   "dependencias_ya_en_main": [
+    "MVD1027C"
+   ]
+  },
+  {
+   "id": "XR1010AS",
+   "ola": "Ola 1010X · StarSeed XR: el OS en visores de AR/VR (entrada automática, Trinity espacial, menús 3D, voz de Astraura, mundos, P2P, calidad automática)",
+   "titulo": "Montaje final: cada nodo de la Trinity con su contenido, voz, mundos, presencia, calidad y comodidad",
+   "archivos": [
+    "src/components/xr/shell/contenido-trinity.tsx",
+    "src/components/xr/shell/escena-os.tsx",
+    "src/components/xr/shell/__tests__/contenido-trinity.test.tsx"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/starseed-xr.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §2 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica; §3 (a)–(o) son las reglas del área y §1 la investigación fechada (qué existe y qué NO en cada visor). El núcleo puro YA está escrito y probado (214 pruebas) y NO se modifica: `src/lib/xr/{tipos,capacidades,calidad,calidad-perfiles,espacio-trinity,tokens-3d,transiciones,mundo-tipos,mundo-reglas,mundo-saneo,mundo-spec,intenciones-tipos,intenciones-ref,intenciones-destinos,intenciones-clausulas,intenciones-voz,confort,privacidad,vinculos-xr}.ts` (ábrelos y usa sus nombres reales; la tabla del inicio de §3 dice qué da cada uno). Petición de Alex (2026-10-10): StarSeed OS instalable y usable en gafas de AR/VR de todo tipo (Meta Quest, SteamVR, Android XR, Vision Pro, Pico…) o en cualquier navegador con WebXR; se abre solo en su formato (VR o AR); todo el sistema en 3D con el mismo diseño, funciones y estilo; menús 3D completos con animaciones y transiciones autoadaptables; calidad fijada sola por aparato; Astraura y la Protomolécula incluidas, con voz («crea un mundo virtual… e invita a este grupo de amigos», «súbelo a la Biblioteca / a una estación / a una publicación / a un mensaje»); servidores y estaciones públicos o privados como destinos; herramientas configurables para construir entornos, también en pizarras y llamadas.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/starseed-xr.md` y los módulos de `src/lib/xr/` de arriba. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos versiones del núcleo) y NO edites ningún archivo del núcleo para que un import resuelva: escribe SOLO tus archivos, con los nombres y firmas de este prompt, y si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo XR en main» para que el director la reencole cuando llegue.\nReglas de la casa (`memory/workflow-actual.md` y CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea qué tarea posterior la cablea); si una prueba falla se arregla el código, no la prueba. Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; lo de terceros solo en iframe con sandbox y postMessage de origen verificado, WASM en un Worker, app nativa o servicio aparte. Nada de `node:*` en código que llegue al navegador. Claves solo por NOMBRE de variable. Pruebas sin red, sin hardware y sin WebGL: lo del navegador se inyecta; los `*.test.ts` corren en node y los `*.test.tsx` en jsdom; el lienzo 3D (three/R3F/uikit) se simula con `vi.mock` como hace `src/components/vivo/espacial/__tests__/escena-compartida.test.tsx`; los componentes de R3F son cascarones finos y su LÓGICA vive en funciones puras que sí se prueban. Español claro en toda cadena visible; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». Dependencias: NO ejecutes `npm install` salvo que tu tarea sea XR1010A; las 7 dependencias XR (§3 n) las añade esa tarea con el visto bueno de Alex; si tu tarea las necesita y `node_modules` no las trae, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: XR1010A (dependencias XR)». El layout raíz no carga motores pesados: three/uikit/rapier/vrm/spark solo dentro de `src/components/xr/shell/**` y de la ruta `/xr/os` (carga perezosa con `next/dynamic` sin SSR o `import()` dentro de una función). Privacidad (§3 k): nunca pidas la función `camera-access`; la cámara del passthrough y el mapa de la habitación no salen del aparato. Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Migra lo persistido si cambias un valor por defecto. Honestidad: no digas que algo «se ve bien» o «funciona en el visor»: di que pasan tsc y vitest; solo Alex lo comprueba con un visor, en `/xr/diagnostico` (tarea XR1010AI). Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (XR1010AS): Contrato §3 (a)–(h). Esta tarea CABLEA lo que las anteriores dejaron pendiente («integrado no es aplicado»): en `contenido-trinity.tsx` arma el `contenido` del rig (XR1010J): Zenith = `OrbeAstraura` (XR1010O) + `FlujoVoz` (XR1010T); Horizon = `NodoHorizon` (XR1010AO) + `Parametros3D` (XR1010AP si ya existe; si no, omítelo y dilo); Logic = `NodoLogic` (XR1010AG); Anchor = `Dock3D` (XR1010M); `menuMano` = `MenuMano` (XR1010N). En `escena-os.tsx` (añade ≤ 30 líneas; NUNCA lo reescribas) monta: el rig, `MundoRender` + física (XR1010V/W) cuando haya un `MundoSpec` abierto, `ZonasPortales` (XR1010X), `Pantalla3D`/`Pizarra3D` (XR1010Y), la presencia y los avatares (XR1010AC) con la conexión protegida por `protegerConexion` (XR1010AD), el audio espacial (XR1010AB), la calidad dinámica (XR1010AE) con su `NivelCalidadContext`, y la comodidad (XR1010AF). Todo lo que NO exista aún (porque una dependencia no llegó) se omite con un `try`-import perezoso o un `null` explícito y se enumera en el aviso de la última línea; no inventes sustitutos. Deja UNA sola fuente de verdad para el nivel de calidad y para las preferencias (no las dupliques). Pruebas (≥ 8, jsdom, con todo el 3D simulado): los cuatro nodos y el menú de mano reciben contenido; sin un mundo abierto no se monta el render; con un `MundoSpec` válido sí; una pieza ausente no rompe la escena; el botón de salir sigue presente. Integración: grep de cada componente de las tareas M–AP en `contenido-trinity.tsx`/`escena-os.tsx`: lista en tu última línea los que NO quedaron cableados y por qué. Verificación visual: solo Alex, con un visor y `/xr/diagnostico`.",
+   "revisor_quitadas": [
+    "XR1010V",
+    "XR1010X"
+   ],
+   "dependencias_ya_en_main": [
+    "XR1010J",
+    "XR1010M",
+    "XR1010N",
+    "XR1010O",
+    "XR1010T",
+    "XR1010W",
+    "XR1010Y",
+    "XR1010AB",
+    "XR1010AC",
+    "XR1010AD",
+    "XR1010AE",
+    "XR1010AF",
+    "XR1010AG",
+    "XR1010AO"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1103-042930.json": [
+   "MVD1027I",
+   "XR1010AS",
+   "MVD1027J"
+  ]
+ }
+}
