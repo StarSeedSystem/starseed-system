@@ -2,7 +2,9 @@
  * defecto, `clave-externa` solo con clave Y permiso, peticiones de la documentación oficial y ninguna clave en los motivos. */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { planificar, type PeticionPlan } from "@/lib/avatares/adn/canalizacion";
+import { motivoDescarte } from "@/lib/avatares/adn/canalizacion";
 import { rateLimit } from "@/lib/security/rate-limit";
+import { MOTORES_3D, type Motor3D } from "@/lib/avatares/adn/motores";
 import {
   MODELO, TOPE_DIARIO, VENTANA_TOPE_MS, capacidadesExternas, consultarTarea, crearTarea, esUrlDescarga, estadoProveedores,
   motivoImagen, motivoNoDisponible, motoresDisponibles, procedenciaExterna, reservarTope,
@@ -390,5 +392,82 @@ describe("tope de modelos de pago: reservarTope con un limitador inyectado", () 
     expect(reservarTope(rateLimit, "reloj")).toMatchObject({ ok: false, reintentarSeg: 1 });
     vi.setSystemTime(t0 + VENTANA_TOPE_MS);
     expect(reservarTope(rateLimit, "reloj")).toEqual({ ok: true, quedan: 1 });
+  });
+});
+
+describe("motivoDescarte: por qué un motor no vale para la petición", () => {
+
+  const meshMotor = MOTORES_3D.find((m) => m.id === "meshy") as Motor3D;
+  const tripoMotor = MOTORES_3D.find((m) => m.id === "tripo") as Motor3D;
+  const espacioMotor = MOTORES_3D.find((m) => m.id === "pixal3d-espacio") as Motor3D;
+
+  const basePeticion: PeticionPlan = {
+    partida: "imagen",
+    esqueleto: "soma30",
+    capacidades: ["cpu"],
+    region: "ES",
+    comercial: false,
+    permitirDePago: false,
+    detallar: false,
+    prioridad: "rapidez",
+    cerrada: false,
+  };
+
+  it("Meshy sin permiso ni clave: no disponible", () => {
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Meshy");
+    expect(motivo).toContain("no está permitido");
+  });
+
+  it("Meshy solo clave, sin permiso: no disponible", () => {
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu", "clave-externa"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Meshy");
+    expect(motivo).toContain("no está permitido");
+  });
+
+  it("Meshy solo permiso, sin clave: no disponible", () => {
+    const p = { ...basePeticion, permitirDePago: true, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Meshy");
+    expect(motivo).toContain("clave-externa");
+  });
+
+  it("Meshy permiso+clave: disponible", () => {
+    const p = { ...basePeticion, permitirDePago: true, capacidades: ["cpu", "clave-externa"] as const };
+    const motivo = motivoDescarte(meshMotor, p);
+    expect(motivo).toBeNull();
+  });
+
+  it("Tripo sin permiso ni clave: no disponible", () => {
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(tripoMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Tripo");
+    expect(motivo).toContain("no está permitido");
+  });
+
+  it("Tripo con permiso y clave: disponible", () => {
+    const p = { ...basePeticion, permitirDePago: true, capacidades: ["cpu", "clave-externa"] as const };
+    const motivo = motivoDescarte(tripoMotor, p);
+    expect(motivo).toBeNull();
+  });
+
+  it("pixal3d-espacio sin permiso para espacio-hf: no disponible", () => {
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu"] as const };
+    const motivo = motivoDescarte(espacioMotor, p);
+    expect(motivo).not.toBeNull();
+    expect(motivo).toContain("Pixal3D");
+    expect(motivo).toContain("espacio-hf");
+  });
+
+  it("pixal3d-espacio con permiso para espacio-hf: disponible", () => {
+    const p = { ...basePeticion, permitirDePago: false, capacidades: ["cpu", "espacio-hf"] as const };
+    const motivo = motivoDescarte(espacioMotor, p);
+    expect(motivo).toBeNull();
   });
 });
