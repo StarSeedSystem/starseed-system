@@ -357,8 +357,8 @@ export function accionesDeCapacidad(d: Partial<DatosMedidores>, ahoraMs?: number
         const nombre = NOMBRE_POTENCIABLE[s];
         const hasta = Number(p.activos?.[s]?.hasta ?? 0);
         if (hasta > ahora) {
-            const hora = new Date(hasta * 1000).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
-            acciones.push({ clase: "mantener-ritmo", texto: `Volver al ritmo de ${nombre} (potenciado hasta las ${hora})`, objetivo: s, destructiva: false });
+            const cuando = new Date(hasta * 1000).toLocaleString("es-ES", { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+            acciones.push({ clase: "mantener-ritmo", texto: `Volver al ritmo de ${nombre} (potenciado hasta el ${cuando})`, objetivo: s, destructiva: false });
             continue;
         }
         const q = p.preguntas?.[s];
