@@ -21,6 +21,11 @@ const montar = () => {
   const transporte = new TransporteFalso(); const reloj = new RelojFalso();
   return { transporte, reloj, cliente: new ClienteMcpStdio(transporte, reloj) };
 };
+describe("LIMITE_LINEA", () => {
+  it("es el tope de 32 MiB por línea del contrato art §2.1", () => {
+    expect(LIMITE_LINEA).toBe(32 * 1024 * 1024);
+  });
+});
 describe("trocearLineas", () => {
   it("separa por salto, descarta \\r y vacías, y junta trozos partidos", () => {
     expect(trocearLineas("ini\r\n", "uno\n\n dos \r\nresto")).toEqual({ lineas: ["ini", "uno", " dos "], resto: "resto" });
@@ -126,6 +131,12 @@ describe("ClienteMcpStdio", () => {
     await comprobacion;
     expect(transporte.cerrado).toBe(true);
     await expect(cliente.listar(1000)).rejects.toMatchObject({ tipo: "cerrado" });
+  });
+  it("los bloques que no son texto ni imagen se descartan sin romper", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("inspect", {}, 1000);
+    transporte.responder(transporte.ultima.id, { content: [{ type: "resource", uri: "figcraft://doc" }, { type: "text", text: "solo esto" }] });
+    expect(await promesa).toEqual({ ok: true, texto: "solo esto" });
   });
   it("decodifica una imagen base64", async () => {
     const { transporte, cliente } = montar();
