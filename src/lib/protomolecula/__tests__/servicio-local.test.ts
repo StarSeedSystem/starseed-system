@@ -56,6 +56,20 @@ describe("servicio-local · llamadas a 127.0.0.1", () => {
     expect(await p).toMatchObject({ ok: false, fallo: "tiempo", ms: 5_000 });
     expect(senal?.aborted).toBe(true); expect(timers).toHaveLength(0);
   });
+  it("el plazo propio de la definición manda sobre el de fábrica: 30 s no corta, 15 min sí", async () => {
+    const { reloj, avanzar } = relojFalso();
+    let senal: AbortSignal | undefined;
+    const colgado: FetchLocal = (_u, i) => {
+      senal = i.signal;
+      return new Promise((_, rej) => i.signal.addEventListener("abort", () => rej(new Error("abortado"))));
+    };
+    const p = llamarServicio({ ...DEF, tiempoMs: 900_000 }, "/render", {}, colgado, { ...conToken(), reloj });
+    avanzar(30_000); // el plazo de fábrica (TIEMPO_MS) habría cortado aquí: un plazo propio más largo no se recorta
+    expect(senal?.aborted).toBe(false);
+    avanzar(870_000); // total de 900.000 ms desde el inicio
+    expect(await p).toMatchObject({ ok: false, fallo: "tiempo", ms: 900_000 });
+    expect(senal?.aborted).toBe(true);
+  });
   it("tiempo agotado también mientras se lee un cuerpo que nunca acaba", async () => {
     const { reloj, avanzar } = relojFalso();
     const p = llamarServicio(DEF, "/x", undefined, async () => resp(200, "", { text: () => new Promise<string>(() => undefined) }), { ...conToken(), reloj });
@@ -153,5 +167,10 @@ describe("servicio-local · hyperframes en los servicios locales conocidos", () 
     avanzar(870_000); // total 900.000 ms
     expect(await p).toMatchObject({ ok: false, fallo: "tiempo", ms: 900_000 });
     expect(senal?.aborted).toBe(true);
+  });
+  it("la suma es la misma de siempre: exactamente tres servicios conocidos, con ids únicos", () => {
+    expect(SERVICIOS_CONOCIDOS).toHaveLength(3);
+    expect(new Set(SERVICIOS_CONOCIDOS.map((d) => d.id)).size).toBe(3);
+    expect(SERVICIOS_CONOCIDOS.map((d) => d.id)).toEqual(["comfyui", "ollama", "hyperframes"]);
   });
 });
