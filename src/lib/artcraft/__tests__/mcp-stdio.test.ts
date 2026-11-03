@@ -136,6 +136,15 @@ describe("ClienteMcpStdio", () => {
     if (!("tipo" in resultado)) throw new Error("se esperaba una imagen");
     expect(resultado.mime).toBe("image/png"); expect(Array.from(resultado.bytes)).toEqual(Array.from(datos));
   });
+  it("descarta los bloques que no son texto ni imagen", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("x", {}, 1000);
+    transporte.responder(transporte.ultima.id, { content: [{ type: "resource", uri: "figcraft://doc" }, { type: "text", text: "solo esto" }] });
+    expect(await promesa).toEqual({ ok: true, texto: "solo esto" });
+  });
+  it("LIMITE_LINEA fija los 32 MiB del contrato §2.1", () => {
+    expect(LIMITE_LINEA).toBe(32 * 1024 * 1024);
+  });
   it("convierte un error RPC en excepción tipada", async () => {
     const { transporte, cliente } = montar();
     const promesa = cliente.llamar("x", {}, 1000);
