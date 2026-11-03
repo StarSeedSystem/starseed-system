@@ -131,7 +131,8 @@ def disponible():
 
 def _correr(orden):
     try:
-        r = subprocess.run(orden, capture_output=True, text=True, timeout=15, check=False)
+        # (1103) 45 s: `room-cli` tarda más de 15 s con la Mac cargada y el medidor salía vacío.
+        r = subprocess.run(orden, capture_output=True, text=True, timeout=45, check=False)
         return r.stdout if r.returncode == 0 else ""
     except (OSError, subprocess.TimeoutExpired):
         return ""

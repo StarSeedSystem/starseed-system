@@ -70,7 +70,7 @@ class SondaCloudroom(unittest.TestCase):
             ["room-cli", "cloud", "status", "--json"],
             ["room-cli", "thread", "count", "--json"],
         ])
-        self.assertTrue(all(t == 15 for _, t in ordenes))
+        self.assertTrue(all(t == __import__("medio_cloudroom").TOPE_CLI_S for _, t in ordenes))  # (1103) tope de 45 s, no 15
         self.assertEqual(d["estado"], "usable")
 
     def test_si_falla_cloud_status_no_dice_usable(self):

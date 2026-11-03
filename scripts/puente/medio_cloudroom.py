@@ -8,10 +8,16 @@ def cli_path(env=None, which=shutil.which):
     ruta = env.get("CLOUDROOM_CLI")
     return (ruta if ruta and os.path.isfile(ruta) else which(ruta) if ruta else "") or which("room-cli") or (os.path.expanduser("~/.local/bin/room-cli") if os.path.isfile(os.path.expanduser("~/.local/bin/room-cli")) else "")
 
+#: (1103) Tope de cada orden de `room-cli`: `status` tarda 12 s con la Mac tranquila y más de 15 s con la Mac cargada.
+TOPE_CLI_S = int(os.environ.get("STARSEED_CLOUDROOM_TOPE_S", "45") or 45)
+
+
 def interpretar(local, nube, hilos=None, errores=()):
     """PURA: interpreta respuestas JSON y errores de `room-cli`."""
     capacidad = "100 agentes en la nube / 30 días (plan gratis)"
     motivo = next((str(e) for e in errores if e), "")
+    if local is None and isinstance(nube, dict) and (nube.get("ready") or nube.get("account")):
+        local = {}  # (1103) el estado local tardó, pero la cuenta en la nube contesta: el medio sirve
     if local is None:
         return medio("no_disponible", motivo or "app sin instalar", capacidad, "instala Cloudroom y vuelve a sondear")
     if not isinstance(local, dict):
@@ -38,7 +44,7 @@ def sondear(run=subprocess.run, env=None):
         return interpretar(None, None, errores=("app sin instalar",))
     def pedir(args):
         try:
-            p = run([ruta, *args, "--json"], capture_output=True, text=True, timeout=15)
+            p = run([ruta, *args, "--json"], capture_output=True, text=True, timeout=TOPE_CLI_S)
             return json.loads(p.stdout) if p.returncode == 0 else None, (p.stderr or "comando fallido").strip()
         except FileNotFoundError:
             return None, "app sin instalar"
