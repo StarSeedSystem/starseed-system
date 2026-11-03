@@ -127,7 +127,8 @@ describe("servicio-local · servicio hyperframes (vídeo, Ola 1018H)", () => {
   it("la definición es la del contrato: puerto 4490, salud en /salud y plazo propio de 15 min", () => {
     expect(HF).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900_000 });
     expect(validarDefinicion(HF)).toBeNull();
-    expect(SERVICIOS_CONOCIDOS).toHaveLength(3); // nada más cambió
+    // Nada más cambió: los tres servicios de siempre, en el mismo orden.
+    expect(SERVICIOS_CONOCIDOS.map((d) => d.id)).toEqual(["comfyui", "ollama", "hyperframes"]);
   });
   it("la salud se consulta SOLO en 127.0.0.1:4490/salud, con GET y sin exigir el token", async () => {
     const f = vi.fn<FetchLocal>(async () => resp(200, '{"ok":true}'));
@@ -140,6 +141,14 @@ describe("servicio-local · servicio hyperframes (vídeo, Ola 1018H)", () => {
     expect(destino.pathname).toBe("/salud");
     expect(init).toMatchObject({ method: "GET", redirect: "manual", headers: { accept: "application/json" } });
     expect(init.headers.authorization).toBeUndefined();
+  });
+  it("una redirección no saca la salud de 127.0.0.1: se sigue solo el modo manual y cuenta como no vivo", async () => {
+    const f = vi.fn<FetchLocal>(async () => resp(302, "otro host"));
+    const r = await sondearServicio(HF, f);
+    expect(r).toMatchObject({ vivo: false, motivo: expect.stringContaining("302") });
+    expect(f.mock.calls).toHaveLength(1);
+    expect(f.mock.calls[0]?.[1]).toMatchObject({ method: "GET", redirect: "manual" });
+    expect(new URL(f.mock.calls[0]![0]).hostname).toBe("127.0.0.1");
   });
   it("el plazo propio (tiempoMs: 900000) manda en las llamadas: 30 s no corta, 15 min sí", async () => {
     const { reloj, avanzar } = relojFalso();
