@@ -96,12 +96,23 @@ describe("ClienteMcpStdio", () => {
     transporte.responder(transporte.ultima.id, { ok: true });
     expect(await promesa).toEqual({ ok: true });
   });
+  it("ignora una respuesta con id desconocido sin contarla como ilegible", async () => {
+    const { transporte, cliente } = montar();
+    transporte.enviar('{"jsonrpc":"2.0","id":77,"result":{"tools":[]}}\n');
+    const promesa = cliente.listar(1000);
+    transporte.responder(transporte.ultima.id, { tools: [{ name: "get_cell" }] });
+    expect(await promesa).toEqual({ tools: [{ name: "get_cell" }] });
+    expect(cliente.ilegibles).toBe(0);
+  });
   it("falla con tiempo agotado", async () => {
     const { reloj, cliente } = montar();
     const promesa = cliente.listar(50);
     const comprobacion = expect(promesa).rejects.toMatchObject({ tipo: "tiempo" });
     reloj.disparar();
     await comprobacion;
+  });
+  it("LIMITE_LINEA son los 32 MiB de FigCraft", () => {
+    expect(LIMITE_LINEA).toBe(32 * 1024 * 1024);
   });
   it("corta una línea enorme y deja de despachar", async () => {
     const { transporte, cliente } = montar();
@@ -117,6 +128,12 @@ describe("ClienteMcpStdio", () => {
     const promesa = cliente.llamar("x", {}, 1000);
     transporte.responder(transporte.ultima.id, { isError: true, content: [{ type: "text", text: "falló" }] });
     expect(await promesa).toEqual({ ok: false, texto: "falló" });
+  });
+  it("descarta los bloques que no son texto ni imagen", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("x", {}, 1000);
+    transporte.responder(transporte.ultima.id, { content: [{ type: "resource", uri: "figcraft://doc" }, { type: "text", text: "solo esto" }] });
+    expect(await promesa).toEqual({ ok: true, texto: "solo esto" });
   });
   it("cierra el transporte y falla las pendientes", async () => {
     const { transporte, cliente } = montar();
