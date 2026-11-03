@@ -66,6 +66,13 @@ describe("reglas de correo como datos", () => {
     expect(validarRegla(r)).toEqual(r);
   });
 
+  it("acepta una regla sin parámetro y exige id y forma de regla", () => {
+    const sinParametro = regla({ id: "r1", hacer: "esperar-respuesta" });
+    expect(validarRegla(sinParametro)).toEqual(sinParametro);
+    expect(validarRegla(regla({ id: "", hacer: "etiquetar" }))).toBeNull();
+    expect(validarRegla({})).toBeNull();
+  });
+
   it("rechaza campos extra (en la regla y dentro de cuando)", () => {
     expect(validarRegla({ ...regla({ id: "r" }), canal: "correo" })).toBeNull();
     expect(
@@ -183,6 +190,14 @@ describe("seguimiento de respuestas («Reply Zero»)", () => {
       porResponder: ["a"],
       esperando: ["b"],
       resuelto: ["c"],
+    });
+  });
+
+  it("una bandeja vacía no reparte ids", () => {
+    expect(resumenSeguimiento([], YO, AHORA)).toEqual({
+      porResponder: [],
+      esperando: [],
+      resuelto: [],
     });
   });
 });
