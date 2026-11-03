@@ -58,6 +58,10 @@ describe("fuentesDeMapaXR", () => {
     };
     expect(fuentesDeMapaXR(mapa)).toEqual([]);
   });
+  it("los mapas por defecto de teclado-raton y táctil no dan ningún mando", () => {
+    expect(fuentesDeMapaXR(MAPAS_DEFECTO["teclado-raton"])).toEqual([]);
+    expect(fuentesDeMapaXR(MAPAS_DEFECTO.tactil)).toEqual([]);
+  });
   it("respeta izquierda (0) y derecha (1), mapea ejes y no repite la fuente", () => {
     const fuentes = fuentesDeMapaXR(MAPAS_DEFECTO.mandos);
     expect(fuentes).toContainEqual({ tipo: "gamepad", control: "boton", numero: 0, indice: 1 });
@@ -99,6 +103,7 @@ describe("rangoAGesto", () => {
   it("usa la curva real de vinculos-control: la forma log responde antes que la lineal", () => {
     expect(rangoAGesto(VOLUMEN, 0.5)).toBe(50);
     expect(rangoAGesto(VOLUMEN, 0.5, { ...CURVA_LINEAL, forma: "log" })).toBeGreaterThan(50);
+    expect(rangoAGesto(VOLUMEN, 0.5, { ...CURVA_LINEAL, forma: "log" })).toBeLessThan(100);
   });
 });
 
@@ -133,6 +138,12 @@ describe("aplicarEnVisor", () => {
   it("una operación de agente en un espacio personal sí se aplica", () => {
     const mover = okMover();
     const r = aplicarEnVisor(controladorFalso({ mover }), REF, op({ tipo: "exacta", valor: 50 }, AGENTE, "agente"), "personal");
+    expect(r.ok).toBe(true);
+    expect(mover).toHaveBeenCalledTimes(1);
+  });
+  it("sin ámbito explícito, un agente en una molécula personal sí se aplica", () => {
+    const mover = okMover();
+    const r = aplicarEnVisor(controladorFalso({ ambito: "personal", mover }), REF, op({ tipo: "exacta", valor: 50 }, AGENTE, "agente"));
     expect(r.ok).toBe(true);
     expect(mover).toHaveBeenCalledTimes(1);
   });
