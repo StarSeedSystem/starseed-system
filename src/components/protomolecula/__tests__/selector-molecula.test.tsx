@@ -76,6 +76,18 @@ describe("SelectorMolecula", () => {
     expect(alElegir).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("alert")).toBeNull();
   });
+  it("al confirmar una molécula con avisos, alElegir recibe el bloque serializado", () => {
+    const alElegir = vi.fn();
+    const a = sembrar(almacenMemoria(), [molecula("m1", "Cuaderno", "personal")]);
+    render(<SelectorMolecula ambitoPost="publica" alElegir={alElegir} almacen={a} ambitoDe={sinReservas} />);
+    fireEvent.click(screen.getByRole("button", { name: /Cuaderno/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: TEXTO_CONFIRMACION }));
+    fireEvent.click(screen.getByRole("button", { name: "Insertar instantánea" }));
+    expect(alElegir).toHaveBeenCalledTimes(1);
+    const leido = leerBloque(String(alElegir.mock.calls[0][0]));
+    expect(leido.ok).toBe(true);
+    if (leido.ok) expect([leido.valor.id, leido.valor.titulo, leido.valor.atomos[0].herramientaId]).toEqual(["m1", "Cuaderno", "sinte-web-audio"]);
+  });
   it("almacén vacío: lo dice y enlaza a /protomolecula", () => {
     render(<SelectorMolecula ambitoPost="publica" alElegir={vi.fn()} almacen={almacenMemoria()} />);
     expect(screen.getByText(/Aún no tienes moléculas/).textContent).toBe("Aún no tienes moléculas: crea una en Protomolécula.");
