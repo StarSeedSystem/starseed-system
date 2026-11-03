@@ -102,4 +102,15 @@ describe("IWER · entrada emulada a WebXR", () => {
         expect(refinadas.funciones).toEqual(["local-floor", "hand-tracking"]);
         expect(refinadas.funciones).not.toContain("plane-detection");
     });
+
+    it("(7) la cadena completa: lo que funcionesAPedir pide se concede y refinarFunciones conserva la plataforma", async () => {
+        const c = evaluarCapacidades(await sondearNavegador(entorno(navigator.userAgent)), { contexto: "mundo-vr" });
+        const pedidas = funcionesAPedir(c);
+        const sesion = await abrir("immersive-vr", { requiredFeatures: pedidas.requeridas, optionalFeatures: pedidas.opcionales });
+        // `local-floor` va requerida porque es la referencia de la Trinity; la sesión real la concede.
+        expect(sesion.enabledFeatures).toContain("local-floor");
+        const refinadas = refinarFunciones(c, sesion.enabledFeatures);
+        expect(refinadas.plataforma).toBe("quest");
+        expect(refinadas.funciones).toContain("local-floor");
+    });
 });
