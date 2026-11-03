@@ -44,6 +44,27 @@ describe("dependencias a partes del revisor de Bloqueadas (PUB1029C)", () => {
         const mal = validarCola("1029-prueba", [tarea("A1"), tarea("B1", ["Z9-d3"])]);
         expect(mal.errores.some((e) => e.includes("Z9-d3"))).toBe(true);
     });
+    it("la dependencia a una parte «-d<n>» es válida si la base está en la cola", () => {
+        // La tarea base de ART1025B no está en la cola porque fue dividida.
+        // Simulando el caso: ART1025B-d1 está en la cola, A2 depende de ella.
+        const ok = validarCola("1029-parte-valida", [tarea("ART1025B-d1"), tarea("A2", ["ART1025B-d1"])]);
+        expect(ok.errores.filter((e) => e.includes("depende"))).toEqual([]);
+    });
+    it("la dependencia a una parte «-d<n>» es válida si la base fue dividida (base existe en progreso)", () => {
+        const ra = raizDelProyecto();
+        const rutaProg = path.join(ra, "starseed_memory_root", "olas", "progreso.json");
+        const respaldo = existsSync(rutaProg) ? readFileSync(rutaProg, "utf8") : null;
+        try {
+            require("node:fs").mkdirSync(path.dirname(rutaProg), { recursive: true });
+            require("node:fs").writeFileSync(rutaProg, JSON.stringify({ ART1025B: { estado: "bloqueada" } }), "utf8");
+            // A2 depende de ART1025B-d3, pero ART1025B no está en la cola.
+            const ok = validarCola("1029-parte-valida-prog", [tarea("A2", ["ART1025B-d3"])]);
+            expect(ok.errores.filter((e) => e.includes("depende"))).toEqual([]);
+        } finally {
+            if (respaldo !== null && respaldo !== undefined) require("node:fs").writeFileSync(rutaProg, respaldo, "utf8");
+            else if (existsSync(rutaProg)) require("node:fs").unlinkSync(rutaProg);
+        }
+    });
     it("acepta «-dN» si su base está en progreso.json; rechaza si ni base ni dependencia existen", () => {
         const ra = raizDelProyecto();
         const rutaProg = path.join(ra, "starseed_memory_root", "olas", "progreso.json");
