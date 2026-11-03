@@ -216,5 +216,56 @@ class EnLaMacTest(unittest.TestCase):
                     else:
                         self.assertEqual((a1, gh), (None, None))
 
+class HayQueRecargarTest(unittest.TestCase):
+    """(SUP0211V) La decisión de recargar es pura: solo un mtime conocido y distinto la enciende."""
+
+    def test_sin_mtime_o_igual_no_recarga(self):
+        self.assertFalse(enjambre.hay_que_recargar(None, None))
+        self.assertFalse(enjambre.hay_que_recargar(None, 1.0))
+        self.assertFalse(enjambre.hay_que_recargar(1.0, None))
+        self.assertFalse(enjambre.hay_que_recargar(1.0, 1.0))
+
+    def test_mtime_distinto_recarga(self):
+        self.assertTrue(enjambre.hay_que_recargar(1.0, 2.0))
+
+
+class RecargaDePuertasTest(unittest.TestCase):
+    """(SUP0211V) Con un módulo falso: un cambio de mtime trae la versión nueva y un archivo
+    roto conserva la vieja, avisando."""
+
+    NOMBRE = "modulo_puente_falso_sup0211v"
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="enj-recarga-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        sys.path.insert(0, self.tmp)
+        self.addCleanup(sys.path.remove, self.tmp)
+        self.addCleanup(sys.modules.pop, self.NOMBRE, None)
+        enjambre._MTIMES_PUENTE.pop(self.NOMBRE, None)
+        self.addCleanup(enjambre._MTIMES_PUENTE.pop, self.NOMBRE, None)
+        self.ruta = os.path.join(self.tmp, self.NOMBRE + ".py")
+
+    def _escribir(self, texto, mtime):
+        with open(self.ruta, "w", encoding="utf-8") as f:
+            f.write(texto)
+        os.utime(self.ruta, (mtime, mtime))
+
+    def test_primera_carga_apunta_y_el_cambio_trae_la_nueva(self):
+        self._escribir("def version():\n    return 1\n", 1000)
+        self.assertEqual(enjambre._recargar_si_cambio(self.NOMBRE, self.ruta).version(), 1)
+        self.assertEqual(enjambre._MTIMES_PUENTE[self.NOMBRE], 1000)
+        self._escribir("def version():\n    return 2\n", 2000)
+        self.assertEqual(enjambre._recargar_si_cambio(self.NOMBRE, self.ruta).version(), 2)
+
+    def test_archivo_roto_conserva_la_version_cargada(self):
+        self._escribir("def version():\n    return 1\n", 1000)
+        self.assertEqual(enjambre._recargar_si_cambio(self.NOMBRE, self.ruta).version(), 1)
+        with mock.patch.object(enjambre, "evento") as aviso:
+            self._escribir("def version(:\n", 2000)
+            self.assertEqual(enjambre._recargar_si_cambio(self.NOMBRE, self.ruta).version(), 1)
+        self.assertTrue(aviso.called)
+        self.assertEqual(aviso.call_args[0][0], "aviso")
+
+
 if __name__ == "__main__":
     unittest.main()
