@@ -143,9 +143,11 @@ def a1_tiene_clave(nombre=TOKEN_DESPLIEGUE, ssh=None):
             return None
     patron = "^(export )?%s=" % nombre
     orden = (
-        "for f in \"$HOME/.starseed/env\" /etc/starseed/env; do "
+        # (1103 · L) También /etc/starseed/direccion.env (donde lo deja oracle_claves), y sin `[ -e ]`: en /etc/starseed
+        # (root 750) el usuario del ssh no puede ni mirar si existe; `sudo -n grep` sobre un archivo que falta solo falla.
+        "for f in \"$HOME/.starseed/env\" /etc/starseed/env /etc/starseed/direccion.env; do "
         "if grep -qE '%s' \"$f\" 2>/dev/null; then echo SI; exit 0; fi; "
-        "if [ -e \"$f\" ] && sudo -n grep -qE '%s' \"$f\" 2>/dev/null; then echo SI; exit 0; fi; "
+        "if sudo -n grep -qE '%s' \"$f\" 2>/dev/null; then echo SI; exit 0; fi; "
         "done; echo NO" % (patron, patron)
     )
     try:

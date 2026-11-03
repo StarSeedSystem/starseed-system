@@ -398,3 +398,15 @@ def test_1103_token_de_despliegue_explica_repo_y_permisos():
                   "Workflows = Read and write", "Actions = Read-only", "No access"):
         assert texto in m.PASOS_TOKEN_DESPLIEGUE, texto
     assert "workflows=write" in m.ENLACE_TOKEN_DESPLIEGUE
+
+
+def test_1103_el_token_se_busca_donde_lo_deja_oracle_claves():
+    import importlib.util as _u, os as _o
+    _s = _u.spec_from_file_location("ada1103l", _o.path.join(_o.path.dirname(__file__), "acciones-de-alex.py"))
+    m = _u.module_from_spec(_s); _s.loader.exec_module(m)
+    vistas = []
+    def ssh(orden, timeout=6):
+        vistas.append(orden)
+        return 0, "SI\n"
+    assert m.a1_tiene_clave(ssh=ssh) is True
+    assert "/etc/starseed/direccion.env" in vistas[0] and "[ -e" not in vistas[0]
