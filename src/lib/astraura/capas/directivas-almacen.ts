@@ -105,10 +105,9 @@ export function leerDirectivas(capa?: string): MapaDirectivas | ArchivoDirectiva
 }
 
 /**
- * Puerta de llegada (MTN1027C): un archivo solo entra si su versión activa es
- * MÁS NUEVA que la actual, o si con la misma activa cambió el historial
- * (propuesta nueva, retiro, vuelta atrás). Un gemelo idéntico o una versión
- * vieja no toca la pestaña que ya lo tiene.
+ * Puerta de llegada (MTN1027C): un archivo solo entra si su versión activa es MÁS NUEVA
+ * que la actual, o si cambió el historial (propuesta nueva, retiro, vuelta atrás). Un
+ * gemelo idéntico o una versión vieja no toca la pestaña que ya lo tiene.
  */
 export function debeGuardarDirectivas(
   actual: ArchivoDirectivas | undefined,
