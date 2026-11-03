@@ -1,0 +1,35 @@
+[Unit]
+Description=StarSeed · servidor de cápsulas Memvid en 127.0.0.1:4490 (MVD1027)
+After=network-online.target
+Wants=network-online.target
+# requiere: /home/starseed/memvid-servidor/target/release/memvid-servidor
+#
+# (MVD1027I) El servidor de cápsulas del A1: el núcleo Rust propio (memvid-core,
+# Apache-2.0) detrás de HTTP local. Nunca el SDK de Node y nunca la red de memvid.com.
+# La fuente del repo (`native/memvid-servidor`) se copia a /home/starseed/memvid-servidor
+# y se compila con el cargo de starseed: `oracle_nodo.py memvid --aplicar`.
+# El token de las peticiones vive en ~/.starseed/memvid.token (0600) y JAMÁS en esta
+# unidad ni en el repo; sin él, el servidor responde 403 a todo.
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed/memvid-servidor
+Environment=STARSEED_MEMVID_DIR=/var/lib/starseed/memvid
+# systemd crea la carpeta de cápsulas con su dueño (starseed) y permisos 0700.
+StateDirectory=starseed/memvid
+StateDirectoryMode=0700
+ExecStart=/home/starseed/memvid-servidor/target/release/memvid-servidor
+Restart=on-failure
+RestartSec=20
+# Solo las cápsulas y el índice: 512 MB dejan margen en el A1, que comparte RAM con el
+# enjambre y BitNet. Trabajo de fondo: cede la CPU a lo urgente.
+MemoryMax=512M
+Nice=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

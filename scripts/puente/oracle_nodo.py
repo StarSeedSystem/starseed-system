@@ -48,6 +48,9 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
                          `freellmapi/auto` y el MCP `starseed-director`, sin claves). Telegram
                          va en encuesta solo en el líder: dos encuestas del mismo bot se pisan.
                          Sin `--aplicar` solo enseña el plan.
+  memvid [--aplicar]     prepara el servidor de cápsulas Memvid en el A1 (MVD1027I): copia
+                         `native/memvid-servidor`, lo compila con el cargo de starseed e instala
+                         la unidad en 127.0.0.1:4490. Sin `--aplicar` solo enseña el plan.
 
 Reglas: Oracle SOLO Always Free (esto no crea nada en Oracle); nada se publica (main no se toca:
 solo ramas `colas/oracle-*` y `nube/a1-*`, como la nube de GitHub); ninguna IP, clave ni OCID se
@@ -532,6 +535,17 @@ ARRANQUE_HERMES_A1 = "/opt/starseed/nodo/hermes_arranque.py"
 SERVICIO_HERMES_A1 = "/etc/systemd/system/starseed-hermes.service"
 HERMES_URL_FREELLMAPI = "http://127.0.0.1:3001/v1"
 HERMES_MCP_A1 = os.path.join(RAIZ_DIRECCION_A1, "scripts", "puente", "mcp_director.py")
+
+#: (MVD1027I) El servidor de cápsulas Memvid en el A1: núcleo Rust propio, solo en
+#: 127.0.0.1:4490. Se copia la fuente del repo, se compila con el cargo de starseed y la
+#: unidad solo se instala cuando el binario ya existe (su línea `# requiere:`).
+UNIDAD_MEMVID = os.path.join(os.path.dirname(os.path.dirname(DIRECTORIO)), "deploy", "oracle",
+                             "nodo", "systemd", "starseed-memvid.service")
+MEMVID_FUENTE = os.path.join("native", "memvid-servidor")
+MEMVID_DESTINO_A1 = "/home/starseed/memvid-servidor"
+MEMVID_CARGO_A1 = "/home/starseed/.cargo/bin/cargo"
+MEMVID_DIR_A1 = "/var/lib/starseed/memvid"
+SERVICIO_MEMVID_A1 = "/etc/systemd/system/starseed-memvid.service"
 
 
 def piezas_direccion(raiz=RAIZ_DIRECCION_A1):
@@ -1619,6 +1633,76 @@ def colibri(aplicar=False, carpeta=COLIBRI_MODELOS_A1):
     return res
 
 
+def plan_memvid(origen=None):
+    """PURA. El plan del servidor de cápsulas en el A1: copiar la fuente del repo, compilarla
+    con el cargo de starseed e instalar la unidad. Sin `--aplicar` no se ejecuta nada."""
+    origen = origen or os.path.join(FUENTE, MEMVID_FUENTE)
+    return [
+        {"que": "copiar", "desde": origen, "ruta": MEMVID_DESTINO_A1,
+         "porque": "fuente del servidor de cápsulas (núcleo Rust, sin SDK de Node)"},
+        {"que": "compilar", "orden": [MEMVID_CARGO_A1, "build", "--release"], "en": MEMVID_DESTINO_A1,
+         "usuario": "starseed", "porque": "binario con lex, temporal_track y encryption"},
+        {"que": "instalar", "ruta": SERVICIO_MEMVID_A1, "porque": "unidad systemd en 127.0.0.1:4490"},
+        {"que": "recargar", "orden": "sudo systemctl daemon-reload", "porque": "systemd lee la unidad nueva"},
+        {"que": "arrancar", "orden": "sudo systemctl enable --now starseed-memvid",
+         "porque": "servidor de cápsulas vivo"},
+    ]
+
+
+def _sin_target(info):
+    """Filtro de `tarfile`: el árbol de compilación (`target/`) no viaja al A1."""
+    return None if info.name == "memvid-servidor/target" or "/target/" in info.name else info
+
+
+def memvid(aplicar=False, origen=None):
+    """(MVD1027I) `memvid [--aplicar]`: prepara el servidor de cápsulas Memvid en el A1. Sin
+    `--aplicar` solo enseña el plan; con él copia la fuente, compila como starseed e instala la
+    unidad. Necesita el visto bueno: compilar Rust tarda varios minutos en el A1."""
+    plan = plan_memvid(origen)
+    res = {"ok": True, "aplicado": bool(aplicar), "pasos": plan}
+    if not aplicar:
+        return res
+    try:
+        with open(UNIDAD_MEMVID, encoding="utf-8") as f:
+            unidad = f.read()
+    except OSError:
+        return dict(res, ok=False, motivo="falta %s en el repo" % os.path.basename(UNIDAD_MEMVID))
+    fuente = plan[0]["desde"]
+    if not os.path.isdir(fuente):
+        return dict(res, ok=False, motivo="falta %s en el repo" % MEMVID_FUENTE.replace(os.sep, "/"))
+    with tempfile.TemporaryDirectory(prefix="starseed-memvid-") as tmp:
+        tgz = os.path.join(tmp, "memvid-servidor.tar.gz")
+        with tarfile.open(tgz, "w:gz") as t:
+            t.add(fuente, arcname="memvid-servidor", filter=_sin_target)
+        with open(tgz, "rb") as f:
+            datos = f.read()
+    res["hecho"] = []
+    rc, salida = _ssh_bytes(
+        "sudo -u starseed sh -c 'set -e; rm -rf %s; mkdir -p %s; tar xzf - -C %s'"
+        % (MEMVID_DESTINO_A1, os.path.dirname(MEMVID_DESTINO_A1), os.path.dirname(MEMVID_DESTINO_A1)),
+        datos, timeout=600)
+    res["hecho"].append({"que": "copiar", "ok": rc == 0, "detalle": "" if rc == 0 else salida.strip()[-160:]})
+    if rc != 0:
+        return dict(res, ok=False)
+    rc, salida = ssh("sudo -u starseed -H %s build --release --manifest-path %s/Cargo.toml"
+                     % (MEMVID_CARGO_A1, MEMVID_DESTINO_A1), timeout=3600)
+    res["hecho"].append({"que": "compilar", "ok": rc == 0, "detalle": "" if rc == 0 else salida.strip()[-160:]})
+    if rc != 0:
+        return dict(res, ok=False)
+    rc, salida = _poner_en_a1(unidad, SERVICIO_MEMVID_A1)
+    res["hecho"].append({"que": "instalar", "ruta": SERVICIO_MEMVID_A1, "ok": rc == 0,
+                         "detalle": "" if rc == 0 else salida.strip()[-160:]})
+    res["ok"] = rc == 0
+    if not res["ok"]:
+        return res
+    for orden in ("sudo systemctl daemon-reload", "sudo systemctl enable --now starseed-memvid"):
+        rc, salida = ssh(orden, timeout=120)
+        res["hecho"].append({"que": "orden", "orden": orden, "ok": rc == 0,
+                             "detalle": "" if rc == 0 else salida.strip()[-160:]})
+        res["ok"] = res["ok"] and rc == 0
+    return res
+
+
 def freellmapi():
     """(2026-10-13) Instala o pone al día FreeLLMAPI en el A1, SOLO en 127.0.0.1:3001
     (`a1_freellmapi.py`, que corre allí como root). Antes deja las claves al día (`claves()`): el
@@ -1673,6 +1757,10 @@ def main(argv):
         r = hermes(aplicar="--aplicar" in argv)
     elif orden == "freellmapi":
         r = freellmapi()
+    elif orden == "memvid":
+        i = argv.index("--desde") if "--desde" in argv else -1
+        origen = argv[i + 1] if 0 <= i < len(argv) - 1 else None
+        r = memvid(aplicar="--aplicar" in argv, origen=origen)
     elif orden == "probar-bitnet":
         r = probar_bitnet()
     elif orden == "bitnet-pesos":
