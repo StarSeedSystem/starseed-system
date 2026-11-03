@@ -23,6 +23,30 @@ const P2 = "persona-2";
 const con = (de: string, texto: string, en: number): TextoLlamada => ({ de, texto, en });
 
 describe("turnos del bot", () => {
+    it("el estado inicial está limpio", () => {
+        expect(estadoInicial()).toEqual({
+            historial: [],
+            hablando: null,
+            respondidoHasta: 0,
+        });
+    });
+
+    it("tomarTurno da la palabra al bot y queda contestada la pregunta", () => {
+        const e = registrarTexto(estadoInicial(), con(P1, "pregunta", 1000));
+        const r = tomarTurno(e, BOT, 1500);
+        expect(r.hablando).toEqual({ botId: BOT, desde: 1500 });
+        expect(r.respondidoHasta).toBe(1000);
+        expect(r.historial).toEqual(e.historial);
+    });
+
+    it("soltarTurno suelta la palabra y conserva el historial y lo contestado", () => {
+        const e = tomarTurno(registrarTexto(estadoInicial(), con(P1, "pregunta", 1000)), BOT, 1500);
+        const r = soltarTurno(e);
+        expect(r.hablando).toBeNull();
+        expect(r.respondidoHasta).toBe(1000);
+        expect(r.historial).toEqual(e.historial);
+    });
+
     it("sin textos no contesta", () => {
         const d = decidirTurno(estadoInicial(), 1000, { botId: BOT });
         expect(d).toEqual({ accion: "esperar", motivo: "nadie ha hablado todavía" });
@@ -97,6 +121,14 @@ describe("servidor de voz de la sesión", () => {
             null,
         );
         expect(id).toBe("c");
+    });
+
+    it("un vigente que pierde la fiabilidad se descarta igual", () => {
+        const cands = [
+            { id: "viejo", latenciaMs: 50, ramLibreGB: 0.1, confianza: true },
+            { id: "otro", latenciaMs: 300, ramLibreGB: 4, confianza: true },
+        ];
+        expect(elegirServidorVoz(cands, "viejo")).toBe("otro");
     });
 
     it("histéresis: el vigente aguanta salvo que otro mejore por el margen", () => {
