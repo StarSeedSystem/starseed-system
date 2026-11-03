@@ -290,5 +290,28 @@ class Plist(unittest.TestCase):
         self.assertEqual(p["StartInterval"], 900)
 
 
+class CicloSinSesionDelCli(Entorno):
+    """(2026-11-02, SUP0211M) Desde el 31-10 13:46 cada sesión acababa en «Claude Code cloud sessions
+    require authentication with a Claude.ai account» y cuatro tareas iban y venían cada 15 min."""
+
+    def test_sin_sesion_no_lanza_ni_presta_nada(self):
+        lz, dicho = Lanzador(), []
+        filas = cli.ciclo(ahora=AHORA, ramas=set, traer=lambda: (0, ""), lanzador=lz, decir=dicho.append,
+                          sesion_cli=lambda: '{"loggedIn": false, "authMethod": "none"}')
+        self.assertEqual(filas, [])
+        self.assertEqual(lz.llamadas, [])
+        self.assertEqual(self._progreso(), {})
+        self.assertTrue(any("claude auth login" in d for d in dicho))
+
+    def test_con_sesion_lanza_como_siempre(self):
+        filas = cli.ciclo(ahora=AHORA, ramas=set, traer=lambda: (0, ""), lanzador=Lanzador(),
+                          decir=lambda *_: None, sesion_cli=lambda: '{"loggedIn": true, "authMethod": "claude.ai"}')
+        self.assertEqual(len(filas), 2)
+
+    def test_con_un_lanzador_de_pruebas_no_se_pregunta_al_cli(self):
+        preguntas = []
+        filas = cli.ciclo(ahora=AHORA, ramas=set, traer=lambda: (0, ""), lanzador=Lanzador(), decir=lambda *_: None)
+        self.assertEqual((len(filas), preguntas), (2, []))
+
 if __name__ == "__main__":
     unittest.main()

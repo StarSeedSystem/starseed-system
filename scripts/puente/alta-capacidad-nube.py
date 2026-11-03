@@ -210,6 +210,16 @@ def lanzador_real(orden, log, teclas, espera_s=ESPERA_SESION_S):
     return texto
 
 
+def sesion_cli_real():
+    """(SUP0211M) La salida de `claude auth status` (JSON), o "" si no se puede preguntar."""
+    try:
+        r = subprocess.run(["claude", "auth", "status"], capture_output=True, text=True, timeout=30,
+                           stdin=subprocess.DEVNULL)
+        return r.stdout or ""
+    except Exception:  # noqa: BLE001 — sin CLI o colgado: se intenta como antes
+        return ""
+
+
 def ramas_remotas_real():
     r = subprocess.run(["git", "ls-remote", "origin", "refs/heads/nube/cc-*"], cwd=traer_nube.RAIZ,
                        capture_output=True, text=True, timeout=120)
@@ -414,13 +424,24 @@ def seguir(aplicar=False, ahora=None, ramas=ramas_remotas_real, traer=traer_real
     return acciones
 
 
-def ciclo(ahora=None, ramas=ramas_remotas_real, traer=traer_real, lanzador=lanzador_real, decir=print):
-    """Lo que corre launchd cada 15 min: traer lo que llegó y llenar los huecos."""
+def ciclo(ahora=None, ramas=ramas_remotas_real, traer=traer_real, lanzador=lanzador_real, decir=print,
+          sesion_cli=None):
+    """Lo que corre launchd cada 15 min: traer lo que llegó y llenar los huecos.
+
+    (2026-11-02, SUP0211M) Antes de lanzar con el CLI de verdad se pregunta si tiene sesión de
+    claude.ai (`sesion_cli`, por defecto `claude auth status`): sin ella no se presta ninguna tarea."""
     seguir(aplicar=True, ahora=ahora, ramas=ramas, traer=traer, decir=decir)
     motivo = pausada()
     if motivo:
         decir("carril en la nube en pausa: %s (no lanzo)" % motivo)
         return []
+    if sesion_cli is None and lanzador is lanzador_real:
+        sesion_cli = sesion_cli_real
+    if sesion_cli is not None:
+        sin = L.motivo_sin_sesion(sesion_cli())
+        if sin:
+            decir("carril en la nube sin lanzar: %s" % sin)
+            return []
     return lanzar(auto=True, ahora=ahora, lanzador=lanzador, decir=decir)
 
 

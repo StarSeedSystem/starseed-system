@@ -14,6 +14,7 @@ reconoce por el sufijo `/ola/<ID>`.
 """
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime
 
@@ -78,6 +79,28 @@ def cupo_nube(credito, ahora, vivas, max_vivas=3, reserva_usd=10.0):
     if vivas >= max_vivas:
         return False, "ya hay %d sesiones vivas (tope %d)" % (vivas, max_vivas), hoy
     return True, "hay cupo: %d de %d vivas, %.2f $ para hoy" % (vivas, max_vivas, hoy), hoy
+
+
+def motivo_sin_sesion(texto):
+    """(2026-11-02, SUP0211M) PURA: por qué el CLI no puede abrir sesiones en la nube, o None.
+
+    Desde el 31-10 13:46 cada lanzamiento acababa en «Claude Code cloud sessions require
+    authentication with a Claude.ai account» y `claude auth status` decía `loggedIn: false`. El
+    carril seguía probando cuatro tareas cada 15 min (prestada → pendiente) y el crédito de sesiones
+    en la nube, que vence el 05-11, se quedaba sin usar. Solo frena un «no» claro: si la salida no se
+    entiende, se intenta como antes."""
+    texto = str(texto or "")
+    a, b = texto.find("{"), texto.rfind("}")
+    if a < 0 or b < a:
+        return None
+    try:
+        d = json.loads(texto[a:b + 1])
+    except ValueError:
+        return None
+    if not isinstance(d, dict) or d.get("loggedIn") is not False:
+        return None
+    return ("el CLI de Claude no tiene sesión de claude.ai (`claude auth status`: loggedIn false, authMethod %s): "
+            "hace falta `claude auth login` en la Mac" % (d.get("authMethod") or "?"))
 
 
 def rama_pedida(tid, fecha_aaaammdd):

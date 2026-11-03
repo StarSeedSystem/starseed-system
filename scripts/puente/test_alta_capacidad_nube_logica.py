@@ -193,6 +193,25 @@ class CandidatasYAuto(unittest.TestCase):
         self.assertEqual(len(L.elegir_auto(cands, vivas=0, max_vivas=4, presupuesto_hoy=99, gastado=0, maximo=1)), 1)
 
 
+class SinSesionDelCli(unittest.TestCase):
+    """(2026-11-02, SUP0211M) `claude auth status` con `loggedIn: false`: el carril no lanza."""
+
+    def test_sin_sesion_dice_por_que_y_que_hacer(self):
+        m = L.motivo_sin_sesion('{"loggedIn": false, "authMethod": "none", "apiProvider": "firstParty"}')
+        self.assertIn("claude auth login", m)
+        self.assertIn("loggedIn false", m)
+
+    def test_con_sesion_no_frena(self):
+        self.assertIsNone(L.motivo_sin_sesion('{"loggedIn": true, "authMethod": "claude.ai"}'))
+
+    def test_lo_que_no_se_entiende_no_frena(self):
+        for texto in ("", None, "command not found: claude", "[1, 2]", '{"otra": 1}', "{rota"):
+            with self.subTest(texto=texto):
+                self.assertIsNone(L.motivo_sin_sesion(texto))
+
+    def test_el_json_con_ruido_alrededor_se_lee(self):
+        self.assertIsNotNone(L.motivo_sin_sesion('aviso: algo\n{\n  "loggedIn": false\n}\n'))
+
 if __name__ == "__main__":
     unittest.main()
 
