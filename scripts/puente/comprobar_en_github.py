@@ -48,7 +48,11 @@ PASOS_DE_LA_TAREA = ("tsc", "pruebas TS", "pruebas del puente")
 #: (CAP1026P) Cada cuánto mira la puerta tsc del orquestador si GitHub ya tiene veredicto.
 SONDEO_S = 30
 #: (CAP1026P) Sin run en GitHub pasado esto desde el push, la puerta del orquestador deja de esperar.
-SIN_RUN_S = 180
+#: (SUP0211U, 02-11) Desde el push DE VERDAD (cuando vuelve la primera llamada), no desde que empieza la puerta: con
+#: la Mac cargada esa llamada (refrescar las demás comprobaciones, subir la rama y buscar el run) se comía los 180 s,
+#: y la puerta se rindió («sin veredicto en 268 s») 21 s antes de que naciera el run, que salió en verde mientras la
+#: Mac compilaba 30 min. Y 300 s: con GitHub cargado el run tarda minutos en aparecer.
+SIN_RUN_S = 300
 
 
 # ── lógica pura ──
@@ -192,10 +196,13 @@ def esperar_tsc(base_sha, cambiados, cwd, esperar_s, dormir=time.sleep, reloj=ti
     marcha en el A1)»)."""
     inicio = reloj()
     fin = inicio + max(0, esperar_s)
+    subida = None
     while True:
         r = comprobar(base_sha, [], cambiados, cwd=cwd)
         if r is None:
             return None
+        if subida is None:
+            subida = reloj()  # (SUP0211U) la rama ya está en GitHub: el plazo sin run cuenta desde aquí
         ok, detalle, del_medio = r
         if not del_medio:
             if ok:
@@ -208,7 +215,7 @@ def esperar_tsc(base_sha, cambiados, cwd, esperar_s, dormir=time.sleep, reloj=ti
         if ESPERANDO not in str(detalle) or "ya hay" in str(detalle) or "del medio" in str(detalle):
             return None
         e = _entrada(base_sha, cwd) or {}
-        if not e.get("run") and reloj() - inicio > SIN_RUN_S:
+        if not e.get("run") and reloj() - subida > SIN_RUN_S:
             return None  # GitHub no ha creado el run: mejor el A1 o la Mac que esperar a ciegas
         if e.get("run"):
             paso = paso_tsc(_jobs(e["run"]))

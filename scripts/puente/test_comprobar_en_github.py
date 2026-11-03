@@ -336,6 +336,48 @@ class LaPuertaDelOrquestadorEspera(unittest.TestCase):
         self.assertEqual(len(self.dormidas), G.SIN_RUN_S // G.SONDEO_S + 1)
 
 
+    def _lenta(self, primera_s, run_en_s=None, paso="success"):
+        """(SUP0211U) La primera llamada tarda `primera_s` (el push y el refresco de las demás con la Mac
+        cargada); el run aparece `run_en_s` después de esa llamada (None: nunca)."""
+        esperando = (False, G.ESPERANDO + " (run ?): lanzada", True)
+        llamadas = []
+
+        def comprobar(base, shas, cambiados, cwd=None):
+            if not llamadas:
+                self.t[0] += primera_s
+                llamadas.append(self.t[0])
+            return esperando
+
+        def entrada(b, c):
+            if run_en_s is not None and self.t[0] >= llamadas[0] + run_en_s:
+                return {"estado": "en_curso", "run": 9}
+            return {"estado": "en_curso"}
+
+        jobs = [{"steps": [{"name": "tsc", "conclusion": paso}]}]
+        with mock.patch.object(G, "comprobar", comprobar), mock.patch.object(G, "_entrada", entrada), \
+                mock.patch.object(G, "_jobs", lambda run: jobs):
+            return G.esperar_tsc(BASE, ["src/a.ts"], self.tmp.name, 1500, dormir=self._dormir, reloj=self._reloj)
+
+    def test_el_plazo_sin_run_cuenta_desde_el_push(self):
+        # 02-11, 23:07: la primera llamada tardó ~4 min; el run nació 21 s después de que la puerta se rindiera
+        # («GitHub sin veredicto en 268 s») y salió en verde mientras la Mac compilaba 30 min.
+        r = self._lenta(250, run_en_s=60)
+        self.assertIsNotNone(r)
+        self.assertEqual(r[0], True)
+        self.assertIn("run 9", r[1])
+
+    def test_sin_run_se_rinde_el_plazo_despues_del_push(self):
+        self.assertIsNone(self._lenta(250, run_en_s=None))
+        self.assertEqual(len(self.dormidas), G.SIN_RUN_S // G.SONDEO_S + 1)
+        self.assertGreaterEqual(self.t[0] - T, 250 + G.SIN_RUN_S)
+
+    def test_github_puede_tardar_minutos_en_crear_el_run(self):
+        # Con GitHub cargado el run tarda en aparecer: el plazo deja margen (no 3 min justos).
+        self.assertGreaterEqual(G.SIN_RUN_S, 300)
+        r = self._lenta(5, run_en_s=270)
+        self.assertEqual(r[0], True)
+
+
 class EnTraerNube(unittest.TestCase):
     def test_comprobandose_es_del_medio_y_no_toca_el_a1(self):
         import traer_nube as Tn
