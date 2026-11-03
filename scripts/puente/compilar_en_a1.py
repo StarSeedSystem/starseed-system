@@ -82,6 +82,14 @@ RSYNC_TIMEOUT_S = int(os.environ.get("STARSEED_A1_RSYNC_TIMEOUT_S", "120"))
 #: Lo lleva el detalle cuando se trajo un build ya hecho: el reconstructor NO lo apunta como
 #: construido con la huella de ahora (sus fuentes son las del envío de entonces).
 REAPROVECHADO = "ya compilado en el A1"
+#: (SUP0111E) La build corre DESACOPLADA en el A1 (`setsid nohup`): un corte del ssh no la mata. La Mac
+#: la sondea con ssh cortos; el propio guion deja `estado.json` {pid, inicio, rc} (rc null mientras corre).
+DIR_GUION = HOME_A1 + "/.starseed/compilar-a1"
+GUION_A1 = DIR_GUION + "/guion.sh"
+ESTADO_GUION = DIR_GUION + "/estado.json"
+LOG_GUION = DIR_GUION + "/build.log"
+SONDEO_S = int(os.environ.get("STARSEED_A1_SONDEO_S", "30"))
+GRACIA_ESTADO_S = 120  # tiempo que se le da al guion para escribir su primer estado
 
 
 def exclusiones(extra=()):
@@ -174,11 +182,27 @@ def orden_compilar(raiz=RAIZ_A1, dist=DIST_BUILD, heap=4096, marca=None):
     return "sudo -u starseed -H sh -c '%s'" % guion_compilar(raiz, dist, heap, marca=marca)
 
 
-def orden_build_previo(raiz=RAIZ_A1, dist=DIST_BUILD):
-    """PURA: (SUP0111A) lee del A1 la marca y el BUILD_ID de su último build, con etiquetas."""
-    d = "%s/%s" % (raiz.rstrip("/"), dist)
-    return ("sudo -u starseed -H sh -c 'echo \"marca=$(cat %s/%s 2>/dev/null)\"; "
-            "echo \"build=$(cat %s/BUILD_ID 2>/dev/null)\"'" % (shlex.quote(d), MARCA_A1, shlex.quote(d)))
+def _frag_vivo(estado=ESTADO_GUION):
+    """PURA: trozo de `sh` que imprime `vivo=1` si el guion de estado.json sigue en marcha (rc null y su
+    pid vive: `kill -0`), y `vivo=0` si no (un pid reutilizado tras acabar no cuenta)."""
+    f = shlex.quote(estado)
+    return ("p=$(sed -n 's/.*\"pid\": *\\([0-9][0-9]*\\).*/\\1/p' %s 2>/dev/null); "
+            "if grep -qs '\"rc\": *null' %s && [ -n \"$p\" ] && kill -0 \"$p\" 2>/dev/null; "
+            "then echo vivo=1; else echo vivo=0; fi" % (f, f))
+
+
+def orden_build_previo(raiz=RAIZ_A1, dist=DIST_BUILD, estado=ESTADO_GUION):
+    """PURA: (SUP0111A) lee del A1 la marca y el BUILD_ID de su último build, con etiquetas.
+    (SUP0111E) y si hay un guion de build vivo (`vivo=1`): entonces se espera a ese."""
+    d = shlex.quote("%s/%s" % (raiz.rstrip("/"), dist))
+    guion = ('echo "marca=$(cat %s/%s 2>/dev/null)"; echo "build=$(cat %s/BUILD_ID 2>/dev/null)"; %s'
+             % (d, MARCA_A1, d, _frag_vivo(estado)))
+    return "sudo -u starseed -H sh -c %s" % shlex.quote(guion)
+
+
+def guion_vivo(salida):
+    """PURA: ¿la salida de `orden_build_previo` dice que hay un guion de build vivo?"""
+    return "vivo=1" in [l.strip() for l in str(salida or "").splitlines()]
 
 
 def build_previo(salida, mtime_build_ns):
@@ -200,6 +224,72 @@ def build_previo(salida, mtime_build_ns):
     if mtime_build_ns is not None and t_envio * 1_000_000_000 <= int(mtime_build_ns):
         return None
     return t_envio, partes[1], build_id
+
+
+def guion_desacoplado(cuerpo, estado=ESTADO_GUION):
+    """PURA: el guion que corre DESACOPLADO en el A1: anota {pid, inicio, rc: null} al empezar, ejecuta
+    `cuerpo` (`guion_turno` o `guion_compilar`) con la entrada cerrada y anota su rc al acabar."""
+    return "\n".join((
+        'E=%s; ini=$(date +%%s)' % shlex.quote(estado),
+        'anotar() { printf \'{"pid": %d, "inicio": %d, "rc": %s}\\n\' "$$" "$ini" "$1" > "$E.tmp" && mv -f "$E.tmp" "$E"; }',
+        "anotar null",
+        "cat > \"$E.cuerpo.sh\" <<'FIN_CUERPO_A1'",
+        cuerpo.rstrip("\n"),
+        "FIN_CUERPO_A1",
+        'sh "$E.cuerpo.sh" < /dev/null',
+        'rc=$?; anotar "$rc"; exit "$rc"',
+    )) + "\n"
+
+
+def orden_lanzar(guion=GUION_A1, estado=ESTADO_GUION, log=LOG_GUION):
+    """PURA: sube el guion (por la entrada), borra el estado viejo y lo arranca como starseed, en una sesión
+    propia y sin terminal: `setsid nohup sh guion.sh > build.log 2>&1 < /dev/null &`."""
+    q, d = shlex.quote, os.path.dirname(guion)
+    interno = "mkdir -p %s && cat > %s && rm -f %s && cd %s && { setsid nohup sh %s > %s 2>&1 < /dev/null & }" % (
+        q(d), q(guion), q(estado), q(d), q(os.path.basename(guion)), q(os.path.basename(log)))
+    return "sudo -u starseed -H sh -c %s" % q(interno)
+
+
+def orden_sondeo(estado=ESTADO_GUION):
+    """PURA: ssh corto: el estado.json del guion (si hay) y `vivo=1|0`."""
+    return "sudo -u starseed -H sh -c %s" % shlex.quote('cat %s 2>/dev/null; %s' % (shlex.quote(estado), _frag_vivo(estado)))
+
+
+def orden_cola_log(log=LOG_GUION):
+    """PURA: el final del registro de la build del A1 (para el detalle de un fallo)."""
+    return "sudo -u starseed -H tail -c 2000 %s 2>/dev/null; true" % shlex.quote(log)
+
+
+def leer_sondeo(salida):
+    """PURA: (estado dict|None, vivo) de la salida de `orden_sondeo`."""
+    estado, vivo = None, False
+    for linea in str(salida or "").splitlines():
+        linea = linea.strip()
+        if linea == "vivo=1":
+            vivo = True
+        elif linea.startswith("{"):
+            try:
+                datos = json.loads(linea)
+            except ValueError:
+                continue
+            estado = datos if isinstance(datos, dict) else estado
+    return estado, vivo
+
+
+def decision_sondeo(rc_ssh, salida, transcurrido_s, tope_s, gracia_s=GRACIA_ESTADO_S):
+    """PURA: (accion, rc_build). acciones: «acabado» (rc entero en estado.json), «muerto» (el guion ya no
+    vive y no dejó rc, o no escribió estado en `gracia_s`), «tope», «medio» (el ssh falló: la red NO es la
+    build, se sigue sondeando) y «seguir». Acabar gana al tope."""
+    if rc_ssh == 0:
+        estado, vivo = leer_sondeo(salida)
+        rc = (estado or {}).get("rc")
+        if isinstance(rc, int) and not isinstance(rc, bool):
+            return "acabado", rc
+        if (estado is not None and not vivo) or (estado is None and transcurrido_s > gracia_s):
+            return "muerto", None
+    if transcurrido_s >= tope_s:
+        return "tope", None
+    return ("seguir" if rc_ssh == 0 else "medio"), None
 
 
 def args_envio(raiz, ip, destino=None, transporte=None):
@@ -312,14 +402,43 @@ def cola(texto, n=400):
     return (str(texto or "")).strip()[-n:]
 
 
-def traer_previo(raiz=RAIZ):
+def esperar_guion(tope_s, sondeo_s=None):
+    """(SUP0111E) Sondea el guion del A1 con ssh cortos hasta que acabe. (rc_build, detalle): rc None si se
+    agotó el tope (el guion sigue allí; la próxima pasada espera a ese), -1 si murió sin rc."""
+    sondeo_s = SONDEO_S if sondeo_s is None else sondeo_s
+    t0 = time.time()
+    while True:
+        rc, salida = oracle_nodo.ssh(orden_sondeo(), timeout=60)
+        accion, rc_build = decision_sondeo(rc, salida, time.time() - t0, tope_s)
+        if accion == "acabado":
+            return rc_build, ""
+        if accion == "muerto":
+            return -1, "el guion del A1 murió sin dejar rc"
+        if accion == "tope":
+            return None, "tope de %d s sondeando el A1: el guion sigue allí" % tope_s
+        time.sleep(sondeo_s)
+
+
+def _veredicto(rc_build, detalle, aviso, sin_turno=False):
+    """(None, «lo que se vio») si la build del A1 no acabó bien; (0, '') si sí."""
+    if rc_build == 0:
+        return 0, ""
+    if rc_build is None:
+        return None, detalle
+    cola_log = cola(oracle_nodo.ssh(orden_cola_log(), timeout=60)[1])
+    if rc_build == SIN_TURNO and sin_turno:
+        return None, "sin turno en el A1: %s" % cola_log
+    return None, "%s: %s" % (detalle or aviso, cola_log)
+
+
+def traer_previo(raiz=RAIZ, visto=None):
     """(SUP0111A) Solo «traer lo ya hecho»: (ok, detalle) si el A1 tiene un build TERMINADO más nuevo
     que el de la Mac; None si no hay nada que traer (o no hay A1). Nunca compila ni envía código:
     el reconstructor lo usa también con la Mac frenada (enjambre vivo o swap)."""
     ip = oracle_nodo._ip()
     if not ip:
         return None
-    rc, salida = oracle_nodo.ssh(orden_build_previo(), timeout=60)
+    rc, salida = visto or oracle_nodo.ssh(orden_build_previo(), timeout=60)
     previo = build_previo(salida, RM.mtime_del_build(raiz=raiz)) if rc == 0 else None
     if not previo:
         return None
@@ -340,7 +459,14 @@ def compilar(raiz=RAIZ, tope=7200, urgente=None):
     # (SUP0111A) Un build que ya acabó bien en el A1 y es más nuevo que el de la Mac se TRAE
     # sin recompilar (ni turno ni latido: solo hace falta ssh). Si traerlo falla, se queda lo
     # traído para reanudar y la próxima pasada vuelve aquí, no a otra build de 10 minutos.
-    hecho = traer_previo(raiz)
+    visto = oracle_nodo.ssh(orden_build_previo(), timeout=60)
+    if visto[0] == 0 and guion_vivo(visto[1]):  # (SUP0111E) ya hay un guion vivo: ni envía ni lanza otro
+        rc_build, detalle = esperar_guion(tope + ESPERA_TURNO_S)
+        rc_build, detalle = _veredicto(rc_build, detalle, "next build en el A1 (guion ya en marcha)")
+        if rc_build is None:
+            return False, detalle
+        return traer_previo(raiz) or (False, "el guion del A1 acabó sin dejar un build traíble")
+    hecho = traer_previo(raiz, visto)
     if hecho:
         return hecho
     try:
@@ -400,16 +526,16 @@ def _enviar_y_compilar(ip, raiz, tope, raiz_a1=RAIZ_A1, espera_turno=None):
             return False, "npm ci en el A1: %s" % cola(salida)
         oracle_nodo.ssh(orden_marcar_lock(actual, raiz_a1), timeout=60)
     marca = marca_envio(t_envio, huella)  # (SUP0111A) solo se escribe si `next build` acaba bien
-    if espera_turno is None:
-        rc, salida = oracle_nodo.ssh(orden_compilar(raiz_a1, marca=marca), timeout=tope)
-    else:
-        rc, salida = oracle_nodo.ssh(ORDEN_GUION, entrada=guion_turno(guion_compilar(raiz_a1, marca=marca),
-                                                                      espera_turno),
-                                     timeout=tope + espera_turno)
-        if rc == SIN_TURNO:
-            return False, "sin turno en el A1: %s" % cola(salida)
+    cuerpo = guion_compilar(raiz_a1, marca=marca)
+    if espera_turno is not None:
+        cuerpo = guion_turno(cuerpo, espera_turno)
+    rc, salida = oracle_nodo._ssh_bytes(orden_lanzar(), guion_desacoplado(cuerpo).encode("utf-8"), timeout=120)
     if rc != 0:
-        return False, "next build en el A1: %s" % cola(salida)
+        return False, "lanzar la build en el A1: %s" % cola(salida)
+    rc_build, detalle = esperar_guion(tope + (espera_turno or 0))
+    rc_build, detalle = _veredicto(rc_build, detalle, "next build en el A1", sin_turno=espera_turno is not None)
+    if rc_build is None:
+        return False, detalle
     return traer_y_cambiar(ip, huella, t_envio, raiz, raiz_a1)
 
 
