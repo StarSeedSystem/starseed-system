@@ -56,6 +56,19 @@ describe("servicio-local · llamadas a 127.0.0.1", () => {
     expect(await p).toMatchObject({ ok: false, fallo: "tiempo", ms: 5_000 });
     expect(senal?.aborted).toBe(true); expect(timers).toHaveLength(0);
   });
+  // Rescatado de nube/41518451047 (RTHFR1018Hd): el plazo propio manda también cuando es MAYOR que
+  // el de por defecto; hyperframes ya no declara tiempoMs, así que se prueba el contrato de llamarServicio.
+  it("un plazo propio mayor que el de por defecto no se recorta: 30 s no corta, 15 min sí", async () => {
+    const { reloj, avanzar } = relojFalso();
+    let senal: AbortSignal | undefined;
+    const colgado: FetchLocal = (_u, i) => { senal = i.signal; return new Promise((_, rej) => i.signal.addEventListener("abort", () => rej(new Error("abortado")))); };
+    const p = llamarServicio({ ...DEF, tiempoMs: 900_000 }, "/render", {}, colgado, { ...conToken(), reloj });
+    avanzar(30_000); // el plazo por defecto (30 s) ya habría vencido: no debe cortar
+    expect(senal?.aborted).toBe(false);
+    avanzar(870_000); // total 900.000 ms
+    expect(await p).toMatchObject({ ok: false, fallo: "tiempo", ms: 900_000 });
+    expect(senal?.aborted).toBe(true);
+  });
   it("tiempo agotado también mientras se lee un cuerpo que nunca acaba", async () => {
     const { reloj, avanzar } = relojFalso();
     const p = llamarServicio(DEF, "/x", undefined, async () => resp(200, "", { text: () => new Promise<string>(() => undefined) }), { ...conToken(), reloj });
@@ -136,7 +149,7 @@ describe("servicio-local · hyperframes en los servicios locales conocidos", () 
     expect(destino.hostname).toBe("127.0.0.1");
     expect(Number(destino.port)).toBe(4490);
     expect(destino.pathname).toBe("/health");
-    expect(init).toMatchObject({ method: "GET" });
+    expect(init).toMatchObject({ method: "GET", redirect: "manual", headers: { accept: "application/json" } });
     expect(init.headers.authorization).toBeUndefined();
   });
 });
