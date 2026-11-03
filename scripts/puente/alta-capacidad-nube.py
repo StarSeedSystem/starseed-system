@@ -311,8 +311,12 @@ def fuera_por_otros_medios(lista_colas, progreso):
 
 
 def lanzar(ids=None, modelo=None, seco=False, auto=False, maximo=None, ahora=None,
-           lanzador=lanzador_real, decir=print, fuera_de_otros=None):
-    """Lanza las tareas pedidas (o las que elige `--auto`). Devuelve las filas anotadas."""
+           lanzador=lanzador_real, decir=print, fuera_de_otros=None, sesion_cli=None):
+    """Lanza las tareas pedidas (o las que elige `--auto`). Devuelve las filas anotadas.
+
+    (2026-11-02, SUP0211S) En automático, antes de elegir nada se pregunta si el CLI tiene sesión de
+    claude.ai (`sesion_cli`; por defecto `claude auth status` con el lanzador de verdad): `buscar_capacidad`
+    llama a `lanzar --auto` sin pasar por `ciclo`. A mano (`--ids`) no se pregunta."""
     ahora = time.time() if ahora is None else ahora
     reg = leer_registro()
     progreso = traer_nube._progreso()
@@ -330,6 +334,13 @@ def lanzar(ids=None, modelo=None, seco=False, auto=False, maximo=None, ahora=Non
     gastado = L.gastado_desde(historial, inicio)
     lista = colas()
     if auto:
+        if sesion_cli is None and lanzador is lanzador_real:
+            sesion_cli = sesion_cli_real
+        if sesion_cli is not None:
+            sin = L.motivo_sin_sesion(sesion_cli())
+            if sin:
+                decir("no lanzo en automático: %s" % sin)
+                return []
         import repartir_nube as RN  # noqa: PLC0415
 
         # Un solo repartidor a la vez (el mismo cerrojo que la nube y el A1): se elige y se
@@ -437,12 +448,14 @@ def ciclo(ahora=None, ramas=ramas_remotas_real, traer=traer_real, lanzador=lanza
         return []
     if sesion_cli is None and lanzador is lanzador_real:
         sesion_cli = sesion_cli_real
-    if sesion_cli is not None:
-        sin = L.motivo_sin_sesion(sesion_cli())
-        if sin:
-            decir("carril en la nube sin lanzar: %s" % sin)
-            return []
-    return lanzar(auto=True, ahora=ahora, lanzador=lanzador, decir=decir)
+    texto = sesion_cli() if sesion_cli is not None else None
+    sin = L.motivo_sin_sesion(texto) if texto is not None else None
+    if sin:
+        decir("carril en la nube sin lanzar: %s" % sin)
+        return []
+    # Ya se preguntó: `lanzar` no vuelve a llamar a `claude auth status`.
+    return lanzar(auto=True, ahora=ahora, lanzador=lanzador, decir=decir,
+                  sesion_cli=(lambda: texto) if texto is not None else None)
 
 
 def ver(ahora=None):

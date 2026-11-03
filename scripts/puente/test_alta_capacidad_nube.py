@@ -254,6 +254,38 @@ class Ciclo(Entorno):
         self.assertTrue(v["sesiones"][0]["url"].startswith("https://claude.ai/code/session_"))
 
 
+class LanzarAutoSinSesionDelCli(Entorno):
+    """(2026-11-02, SUP0211S) `buscar_capacidad` llama a `lanzar --auto` sin pasar por `ciclo`: la comprobación
+    de la sesión del CLI tiene que estar en `lanzar` y no solo en `ciclo`."""
+
+    def test_lanzar_auto_sin_sesion_no_presta_nada(self):
+        lz, dicho = Lanzador(), []
+        filas = cli.lanzar(auto=True, ahora=AHORA, lanzador=lz, decir=dicho.append, fuera_de_otros=set,
+                           sesion_cli=lambda: '{"loggedIn": false, "authMethod": "none"}')
+        self.assertEqual((filas, lz.llamadas, self._progreso()), ([], [], {}))
+        self.assertTrue(any("claude auth login" in d for d in dicho))
+
+    def test_lanzar_auto_con_sesion_lanza(self):
+        filas = cli.lanzar(auto=True, ahora=AHORA, lanzador=Lanzador(), decir=lambda *_: None, fuera_de_otros=set,
+                           sesion_cli=lambda: '{"loggedIn": true}')
+        self.assertEqual(len(filas), 2)
+
+    def test_lanzar_a_mano_no_pregunta(self):
+        preguntas = []
+        filas = cli.lanzar(ids=["T1"], ahora=AHORA, lanzador=Lanzador(), decir=lambda *_: None,
+                           sesion_cli=lambda: preguntas.append(1) or '{"loggedIn": false}')
+        self.assertEqual((len(filas), preguntas), (1, []))
+
+    def test_el_ciclo_pregunta_una_sola_vez(self):
+        preguntas = []
+
+        def sesion():
+            preguntas.append(1)
+            return '{"loggedIn": true}'
+        filas = cli.ciclo(ahora=AHORA, ramas=set, traer=lambda: (0, ""), lanzador=Lanzador(), decir=lambda *_: None,
+                          sesion_cli=sesion)
+        self.assertEqual((len(filas), len(preguntas)), (2, 1))
+
 class Plist(unittest.TestCase):
     def test_plist_del_servicio_corre_ciclo_cada_15_min(self):
         import plistlib
