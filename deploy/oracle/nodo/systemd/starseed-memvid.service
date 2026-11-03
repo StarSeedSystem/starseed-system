@@ -1,0 +1,24 @@
+[Unit]
+Description=StarSeed · servidor de cápsulas Memvid (MVD1027)
+After=network-online.target
+Wants=network-online.target
+# requiere: /home/starseed/memvid-servidor/target/release/memvid-servidor
+
+[Service]
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed
+# Solo en local: el núcleo en Rust no se expone fuera de la neurona (contrato §4).
+Environment=STARSEED_MEMVID_DIR=/var/lib/starseed/memvid
+ExecStart=/home/starseed/memvid-servidor/target/release/memvid-servidor
+# Si una cápsula está bloqueada (MV007) no se entra en bucle: reintenta y sigue.
+Restart=on-failure
+RestartSec=20
+# Tope de 50 MB por cápsula y varias cápsulas por sujeto: 512M dejan margen para el índice.
+MemoryMax=512M
+# Trabajo de fondo: el enjambre y BitNet mandan en la CPU.
+Nice=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

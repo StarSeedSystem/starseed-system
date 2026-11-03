@@ -48,6 +48,8 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
                          `freellmapi/auto` y el MCP `starseed-director`, sin claves). Telegram
                          va en encuesta solo en el líder: dos encuestas del mismo bot se pisan.
                          Sin `--aplicar` solo enseña el plan.
+  memvid [--aplicar]     servidor de cápsulas Memvid en el A1 (MVD1027I): copia `native/memvid-servidor`
+                         y lo compila con el cargo de starseed. Sin `--aplicar` solo enseña el plan.
 
 Reglas: Oracle SOLO Always Free (esto no crea nada en Oracle); nada se publica (main no se toca:
 solo ramas `colas/oracle-*` y `nube/a1-*`, como la nube de GitHub); ninguna IP, clave ni OCID se
@@ -163,6 +165,18 @@ COLIBRI_REPO_A1 = "/home/starseed/colibri"
 COLIBRI_MODELOS_A1 = "/home/starseed/colibri-modelos"
 COLIBRI_MODELO = "colibri-laya"
 COLIBRI_MODELO_A1 = os.path.join(COLIBRI_MODELOS_A1, "laya")
+
+#: (MVD1027I) Servidor de cápsulas Memvid en el A1 (contrato §4): el núcleo en Rust de
+#: `native/memvid-servidor` se copia a /home/starseed/memvid-servidor y se compila con el cargo
+#: que ya tiene starseed; la unidad lo sirve en 127.0.0.1:4490 con las cápsulas en su carpeta.
+MEMVID_FUENTE = os.path.join("native", "memvid-servidor")
+MEMVID_REPO_A1 = "/home/starseed/memvid-servidor"
+MEMVID_BIN_A1 = os.path.join(MEMVID_REPO_A1, "target", "release", "memvid-servidor")
+MEMVID_CARGO = "/home/starseed/.cargo/bin/cargo"
+MEMVID_DIR_A1 = "/var/lib/starseed/memvid"
+UNIDAD_MEMVID = os.path.join(os.path.dirname(os.path.dirname(DIRECTORIO)), "deploy", "oracle",
+                             "nodo", "systemd", "starseed-memvid.service")
+SERVICIO_MEMVID_A1 = "/etc/systemd/system/starseed-memvid.service"
 
 
 # ── decisiones (puras) ──────────────────────────────────────────────────────────────────────────
@@ -620,7 +634,7 @@ def plan_direccion(activo=False, raiz=RAIZ_DIRECCION_A1):
 UNIDADES_AJENAS_DIRECCION = (
     "starseed-bitnet", "starseed-colibri", "a1-freellmapi", "starseed-puerta-datos",
     "starseed-metagenesis", "starseed-medio", "starseed-genesis", "starseed-metageminis",
-    "starseed-automejora", "starseed-vigia-modelos",
+    "starseed-automejora", "starseed-vigia-modelos", "starseed-memvid",
 )
 UNIDAD_DIRECCION_SERVICIO = "starseed-direccion.service"
 
@@ -826,6 +840,85 @@ def hermes(aplicar=False):
         res["hecho"].append({"orden": orden, "ok": rc == 0,
                              "detalle": "" if rc == 0 else tachar(salida, _ip())[-160:]})
         res["ok"] = res["ok"] and rc == 0
+    return res
+
+
+def plan_memvid():
+    """PURA. El plan de `memvid`: llevar el servidor Rust al A1, compilarlo con el cargo de
+    starseed y servirlo con su unidad (127.0.0.1:4490, contrato §4)."""
+    return [
+        {"que": "copiar", "desde": MEMVID_FUENTE, "ruta": MEMVID_REPO_A1,
+         "porque": "núcleo en Rust memvid-core (lex, temporal_track, encryption)"},
+        {"que": "compilar", "usuario": "starseed", "cwd": MEMVID_REPO_A1,
+         "orden": MEMVID_CARGO + " build --release", "porque": "binario " + MEMVID_BIN_A1},
+        {"que": "instalar", "ruta": SERVICIO_MEMVID_A1,
+         "porque": "unidad systemd con STARSEED_MEMVID_DIR y MemoryMax=512M"},
+        {"que": "arrancar", "orden": "sudo systemctl enable --now starseed-memvid",
+         "porque": "servidor vivo solo en 127.0.0.1:4490"},
+    ]
+
+
+def _guion_memvid(archivos):
+    """PURA. El guion que corre en el A1 por SSH (como `freellmapi`): deja los archivos del
+    servidor (`archivos` = {ruta relativa: bytes}) y compila con el cargo de starseed."""
+    import base64
+    datos = {rel: base64.b64encode(contenido).decode("ascii") for rel, contenido in archivos.items()}
+    return "\n".join([
+        "import base64, os, subprocess, sys",
+        "destino = " + repr(MEMVID_REPO_A1),
+        "archivos = " + repr(datos),
+        "for rel, codificado in archivos.items():",
+        "    ruta = os.path.join(destino, rel)",
+        "    os.makedirs(os.path.dirname(ruta), exist_ok=True)",
+        "    with open(ruta, 'wb') as f:",
+        "        f.write(base64.b64decode(codificado))",
+        "print('[memvid] archivos %d' % len(archivos), flush=True)",
+        "r = subprocess.run([%r, 'build', '--release'], cwd=destino, timeout=3600)" % MEMVID_CARGO,
+        "sys.exit(r.returncode)",
+    ])
+
+
+def memvid(aplicar=False):
+    """(MVD1027I) Servidor de cápsulas Memvid en el A1. Sin `aplicar` solo enseña el plan; con
+    él copia `native/memvid-servidor`, compila y deja viva `starseed-memvid.service`."""
+    res = {"ok": True, "aplicado": bool(aplicar), "pasos": plan_memvid()}
+    if not aplicar:
+        return res
+    origen = os.path.join(RAIZ, MEMVID_FUENTE)
+    if not os.path.isdir(origen):
+        return dict(res, ok=False, motivo="falta %s en el repo" % MEMVID_FUENTE)
+    try:
+        with open(UNIDAD_MEMVID, encoding="utf-8") as f:
+            unidad = f.read()
+    except OSError:
+        return dict(res, ok=False, motivo="falta %s en el repo" % os.path.basename(UNIDAD_MEMVID))
+    archivos = {}
+    for base, carpetas, nombres in os.walk(origen):
+        carpetas[:] = [c for c in carpetas if c not in ("target", ".git", "__pycache__")]
+        for nombre in nombres:
+            ruta = os.path.join(base, nombre)
+            with open(ruta, "rb") as f:
+                archivos[os.path.relpath(ruta, origen)] = f.read()
+    res["hecho"] = []
+    rc, salida = ssh("sudo -u starseed mkdir -p %s && sudo -u starseed python3 -" % MEMVID_REPO_A1,
+                     entrada=_guion_memvid(archivos), timeout=3600)
+    res["hecho"].append({"que": "copiar y compilar", "ok": rc == 0,
+                         "detalle": "" if rc == 0 else tachar(salida, _ip())[-200:]})
+    res["ok"] = rc == 0
+    if res["ok"]:
+        for orden in ("sudo install -d -o starseed -g starseed -m 700 %s" % MEMVID_DIR_A1,
+                      "sudo systemctl daemon-reload"):
+            rc, salida = ssh(orden, timeout=120)
+            res["ok"] = res["ok"] and rc == 0
+        rc, salida = _poner_en_a1(unidad, SERVICIO_MEMVID_A1, dueno="root")
+        res["hecho"].append({"ruta": SERVICIO_MEMVID_A1, "ok": rc == 0,
+                             "detalle": "" if rc == 0 else tachar(salida, _ip())[-160:]})
+        res["ok"] = res["ok"] and rc == 0
+    if res["ok"]:
+        rc, salida = ssh("sudo systemctl enable --now starseed-memvid", timeout=120)
+        res["hecho"].append({"que": "arrancar starseed-memvid", "ok": rc == 0,
+                             "detalle": "" if rc == 0 else tachar(salida, _ip())[-160:]})
+        res["ok"] = rc == 0
     return res
 
 
@@ -1671,6 +1764,8 @@ def main(argv):
         r = colibri(aplicar="--aplicar" in argv, carpeta=carpeta)
     elif orden == "hermes":
         r = hermes(aplicar="--aplicar" in argv)
+    elif orden == "memvid":
+        r = memvid(aplicar="--aplicar" in argv)
     elif orden == "freellmapi":
         r = freellmapi()
     elif orden == "probar-bitnet":
