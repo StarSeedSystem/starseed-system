@@ -321,7 +321,11 @@ except Exception:  # sin el módulo, se comporta como antes
             return False
 
         @staticmethod
-        def anotar(motivo=""):
+        def sin_modelo_en(salida):
+            return False
+
+        @staticmethod
+        def anotar(motivo="", horas=3.0):
             return 0
 
 
@@ -7803,6 +7807,30 @@ def ejecutar(t, intento=1):
         if reaccion == "red":
             return
         if reaccion in ("pasarela", "cuota"):
+            continue
+        # (2026-10-28, DEC1028C) «The '…' model is not supported when using Codex with a
+        # ChatGPT account»: NO es cuota (se repone sola) sino que la cuenta no sirve ese
+        # modelo; desde el 23-10 TODA llamada de Codex falla igual y cada tarea quemaba su
+        # primer intento con él (DEC1028A lo repitió 8 veces). Se apartan los Codex 24 h
+        # con `anotar`, se quitan de la rotación y se sigue SIN contar el intento, como una
+        # pasarela caída.
+        if modelo in MODELOS_CODEX and _cupo_codex.sin_modelo_en(out):
+            try:
+                minutos = _cupo_codex.anotar(
+                    "cuenta de ChatGPT sin Codex para %s" % modelo,
+                    horas=_cupo_codex.HORAS_SIN_MODELO,
+                )
+            except Exception:
+                minutos = 0
+            for _m in list(MODELOS_CODEX):
+                if _m in MODELOS:
+                    MODELOS.remove(_m)
+            evento(
+                "proveedor_caido",
+                tid,
+                "Codex con cuenta de ChatGPT sin %s (modelo no admitido): fuera de la "
+                "rotación %d min y sin gastar intento" % (modelo, minutos),
+            )
             continue
         # Agotamiento de la suscripción de ChatGPT: se anota para que las tareas
         # siguientes no repitan la espera, y Codex sale de la rotación de esta ola.

@@ -50,6 +50,20 @@ PISTAS = (
 #: Cuánto se aparta tras un agotamiento.
 HORAS = 3.0
 
+#: (2026-10-28) La otra mitad del problema: NO es cuota. Desde el 23-10, toda
+#: llamada de Codex con la cuenta de ChatGPT contesta «model is not supported
+#: when using Codex with a ChatGPT account» (400 · `model_not_found`): el
+#: servidor no sirve esos modelos para esa cuenta, y eso no se repone en tres
+#: horas. Los pistas, en minúsculas.
+PISTAS_SIN_MODELO = (
+    "is not supported when using codex with a chatgpt account",
+    "model_not_found",
+)
+
+#: Cuánto se aparta tras un «modelo no admitido». 24 h: es lo que se apartó a
+#: mano el 28-10 y lo prudente mientras la incompatibilidad siga viva.
+HORAS_SIN_MODELO = 24.0
+
 
 def agotado_en(salida):
     """¿Esta salida es un agotamiento de cuota de Codex?
@@ -60,6 +74,19 @@ def agotado_en(salida):
     """
     b = (salida or "").lower()
     return any(p in b for p in PISTAS)
+
+
+def sin_modelo_en(salida):
+    """¿Esta salida dice que NO SE SIRVE el modelo, en vez de que se acabó?
+
+    Mismo código de salida que la cuota (400), pero la reacción es distinta: la
+    cuota se repone en horas, la incompatibilidad con la cuenta puede durar
+    días. Además no debe gastar intento: el modelo no puede hacer nada con lo
+    que le tocó. Texto y no código de salida, igual que `agotado_en`: la CLI
+    devuelve el mismo código para ambas y solo el texto las distingue.
+    """
+    b = (salida or "").lower()
+    return any(p in b for p in PISTAS_SIN_MODELO)
 
 
 def hasta_cuando(ahora, horas=HORAS):

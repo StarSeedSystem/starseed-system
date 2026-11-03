@@ -13,6 +13,13 @@ import cupo_codex as C
 REAL = ("ERROR: You've hit your usage limit. Upgrade to Pro "
         "(https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage")
 
+#: Literal del log del 23-10 20:55 (206 sesiones seguidas con lo mismo): 400
+#: «model is not supported when using Codex with a ChatGPT account».
+REAL_SIN_MODELO = (
+    '{"status":400,"error":{"message":"The \'gpt-5.6-sol\' model is not supported '
+    'when using Codex with a ChatGPT account."},"code":"model_not_found"}'
+)
+
 AHORA = 1_700_000_000.0
 
 
@@ -33,6 +40,42 @@ class TestDeteccion(unittest.TestCase):
     def test_da_igual_como_lo_escriban(self):
         for t in ("Usage limit reached for your plan", "QUOTA EXCEEDED", "Upgrade to Pro"):
             self.assertTrue(C.agotado_en(t), t)
+
+
+class TestSinModelo(unittest.TestCase):
+    def test_la_salida_real_del_23(self):
+        self.assertTrue(C.sin_modelo_en(REAL_SIN_MODELO))
+
+    def test_da_igual_como_lo_escriban(self):
+        # Mayúsculas, comillas o el código suelto: any de las pistas.
+        for t in (
+            "The 'gpt-5.6-sol' model is NOT SUPPORTED when using Codex with a "
+            "ChatGPT account.",
+            "MODEL_NOT_FOUND",
+        ):
+            self.assertTrue(C.sin_modelo_en(t), t)
+
+    def test_vacio_nada_y_otra_cosa_no_es_sin_modelo(self):
+        for t in ("", None, "ERROR: model 'gpt-9' does not exist", REAL,
+                  "error: the argument '--sandbox' cannot be used"):
+            self.assertFalse(C.sin_modelo_en(t), str(t))
+
+    def test_agotado_y_sin_modelo_no_se_confunden(self):
+        # Cuota: no es «modelo no admitido». Modelo no admitido: no es cuota.
+        # Mismo código de salida (400), reacciones opuestas.
+        self.assertFalse(C.agotado_en(REAL_SIN_MODELO))
+        self.assertFalse(C.sin_modelo_en(REAL))
+
+    def test_ventana_de_24_horas(self):
+        self.assertAlmostEqual(
+            C.hasta_cuando(AHORA, horas=C.HORAS_SIN_MODELO) - AHORA,
+            24 * 3600,
+            places=3,
+        )
+        self.assertTrue(C.sigue_agotado(
+            {"hasta": C.hasta_cuando(AHORA, horas=C.HORAS_SIN_MODELO)},
+            AHORA + 23 * 3600,
+        ))
 
 
 class TestVigencia(unittest.TestCase):
