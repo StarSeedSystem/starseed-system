@@ -1,0 +1,34 @@
+{
+ "ola": "nube-20261103",
+ "tareas": [
+  {
+   "ola": "1027N · Automejora recursiva (Meta^n)",
+   "revisor_quitadas": [
+    "MBT1027C2",
+    "MTN1027Cb-d2"
+   ],
+   "dependencias_ya_en_main": [
+    "MTN1027B"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261101-221006-MTN1027C",
+   "id": "MTN1027Cb-d3",
+   "titulo": "Capas · las directivas viajan con la cuenta (parte 3 de 3)",
+   "archivos": [
+    "src/lib/sync/realtime-sync.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Meta^n (minnesotanlp/meta-n, MIT) «para todo el automejoramiento de cada capa de conciencia mesh automejorable de toda Astraura, con Colibri y los demás sistemas locales y mesh autoadaptables». Contrato: `architecture/automejora-meta-n.md` (léelo entero, sobre todo §3: Meta^n PROPONE dentro de una caja Docker sin red ni claves; el juez de StarSeed decide fuera de la caja sin ejecutar nada suyo; las funciones de ayuda nunca se cargan en caliente). Lo que hace falta de Meta^n está en `integraciones-de-codigo/meta-n/README-starseed.md`.\n\n`directivas-almacen.ts` (cliente, sin `node:*`): clave `starseed.capas.directivas.v1` = `Record<capa, ArchivoDirectivas>`, evento `starseed:capas-directivas`, `leerDirectivas()`, `guardarDirectivas(capa, archivo)` (solo si su versión activa es más nueva o cambió el historial), `directivaActiva(capa)`; lectura defensiva y try/catch en localStorage. Añade la clave a `SYNCED_KEYS` y el evento a `EVENT_BY_KEY`, como se hizo con `starseed.mausbot.v1`.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261101-221006-MTN1027C`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261101-221006-MTN1027C:refs/remotes/origin/nube/a1-20261101-221006-MTN1027C\"` y `git cherry-pick --no-commit e163caad1205 c0633b0e025e aed074f016e2 1b671793941a f805f314cbc8`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/providers/astraura-158-malla.ts, src/ai/providers/astraura-158.ts, src/lib/astraura/capas/__tests__/directivas-almacen.test.ts, src/lib/astraura/capas/directivas-almacen.ts, src/lib/settings-sync.ts, src/lib/sync/realtime-sync.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 3 DE 3 (la dirección dividió MTN1027Cb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/sync/realtime-sync.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MTN1027Cb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1103-042930.json": [
+   "MTN1027Cb-d3"
+  ]
+ }
+}
