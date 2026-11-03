@@ -133,6 +133,43 @@ class Sucesor(unittest.TestCase):
         # Casos sin sufijo ni sucesora
         self.assertEqual(T.base_de("PRD1005L"), "PRD1005L")
         self.assertEqual(T.base_de("MGP1010-7F3A2C"), "MGP1010-7F3A2C")
+        # La sucesora va dentro de la parte derivada: se corta el -d2b y después la letra.
+        self.assertEqual(T.base_de("RTESP1011Bd-d2b"), "RTESP1011B")
+        # Un id que YA acaba en minúscula es la base de su sucesora, no una sucesora.
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1a"), "S1010-EV-ORACLE-1a")
+        # Sin id no hay cadena que cortar.
+        self.assertEqual(T.base_de(""), "")
+        self.assertEqual(T.base_de(None), "")
+
+    @unittest.expectedFailure
+    def test_un_id_que_ya_acababa_en_minuscula_pierde_solo_la_letra_nueva(self):
+        """FALLO REAL en main: `base_de` no reconoce la sucesora de un id que ya acaba en
+        minúscula (`…-1a` → `…-1ab`), así que la cadena se parte. `revisor_bloqueadas_logica`
+        ya tiene esa segunda regla; cuando `traer_nube` la tenga, este decorador sobrará."""
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1ab"), "S1010-EV-ORACLE-1a")
+
+    @unittest.expectedFailure
+    def test_la_derivacion_anidada_se_corta_de_una_pieza(self):
+        """FALLO REAL en main: solo se quita el último tramo `-dN`; `RTGN1010A-d3d-d3b` se
+        queda en `RTGN1010A-d3` (un id que no existe) en vez de volver a su raíz."""
+        self.assertEqual(T.base_de("RTGN1010A-d3d-d3b"), "RTGN1010A")
+
+    @unittest.expectedFailure
+    def test_el_siguiente_de_un_derivado_sigue_su_nodo(self):
+        """FALLO REAL en main: `siguiente_id` toma la base de `SGO1031B-d1` (`SGO1031B`) y crea
+        `SGO1031Bb`; la parte derivada tiene su propia tanda, así que debe nacer `SGO1031B-d1b`
+        (y `RTESP1011Bd-d2b` → `RTESP1011Bd-d2e`)."""
+        self.assertEqual(T.siguiente_id("SGO1031B-d1", {"SGO1031B"}), "SGO1031B-d1b")
+        self.assertEqual(T.siguiente_id("RTESP1011Bd-d2b",
+                                        {"RTESP1011Bd-d2b", "RTESP1011Bd-d2d"}), "RTESP1011Bd-d2e")
+
+    @unittest.expectedFailure
+    def test_los_sucesores_de_un_derivado_no_se_mezclan_con_la_raiz(self):
+        """FALLO REAL en main: `sucesores_en_cadena` mide con `base_de`, que borra `-d2c`;
+        los hermanos derivados nunca cuentan y el tope de reparaciones no los ve."""
+        self.assertEqual(T.sucesores_en_cadena("RTESP1011Bd-d2c",
+                                               {"RTESP1011Bd-d2b": {}, "RTESP1011Bd-d2d": {}}),
+                         ["RTESP1011Bd-d2b", "RTESP1011Bd-d2d"])
 
     def test_tarea_reparacion_continua_desde_la_rama(self):
         original = {"id": "LC1004B", "ola": "Ola 1004L", "titulo": "Límites", "archivos": ["a.ts"],
