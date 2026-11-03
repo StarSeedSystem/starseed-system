@@ -1,8 +1,8 @@
 {
  "formato": "starseed-referencias",
  "version": 1,
- "verificado": "2026-10-25",
- "origen": "Lista de Jack Roberts (vídeo IYNAyRkUsjI) pedida por Alex; cada enlace comprobado el 2026-10-18; + 4 entradas de la ola 1025R (taste-skill, frontend-slides, awesome-design-md, onetake), comprobadas el 2026-10-25",
+ "verificado": "2026-11-03",
+ "origen": "Lista de Jack Roberts (vídeo IYNAyRkUsjI) pedida por Alex; cada enlace comprobado el 2026-10-18; + 4 entradas de la ola 1025R (taste-skill, frontend-slides, awesome-design-md, onetake), comprobadas el 2026-10-25; + OpenDesign, comprobado el 2026-11-03",
  "temas": [
   {
    "id": "ia-diseno",
@@ -1499,6 +1499,82 @@
    "og_imagen": null,
    "verificado": "2026-10-25",
    "sin_verificar": []
+  },
+  {
+   "id": "open-design",
+   "nombre": "OpenDesign",
+   "url": "https://open-design.ai/",
+   "tema": "ia-diseno",
+   "subtema": "espacio de diseño agéntico",
+   "que_es": "Espacio de diseño agéntico local-first (Apache-2.0) que convierte un agente de código (Claude Code, Codex, OpenCode, Cursor…) en motor de diseño: skills SKILL.md, sistemas DESIGN.md, plantillas, prototipos, diapositivas, imagen y movimiento. Su código vive en github.com/nexu-io/open-design.",
+   "tipo": "codigo-abierto",
+   "acceso": "mixto",
+   "clase_uso": "reutilizable-con-condiciones",
+   "condiciones": "El software es Apache-2.0: se puede usar, modificar y distribuir conservando los avisos y la licencia y declarando los cambios. Los términos de open-design.ai (27-08-2026) rigen la web y la nube, prohíben usarlo para decisiones automatizadas de alto riesgo y no mencionan scraping ni entrenamiento con el contenido; su robots.txt permite todo salvo /og/. Cada skill, plantilla y sistema de diseño del repo puede traer su propia licencia y marcas de terceros: se revisa antes de reutilizar. En StarSeed se estudia y se enlaza; instalar el CLI, la app o el MCP exige una tarea propia.",
+   "canales": [
+    "mcp-oficial",
+    "cli-oficial",
+    "github",
+    "skill",
+    "rss",
+    "sitemap-lastmod",
+    "navegador-de-la-persona"
+   ],
+   "prohibido": [
+    "Reutilizar una skill o plantilla sin comprobar su licencia propia",
+    "Copiar la identidad o las marcas de los sistemas de diseño incluidos",
+    "Usarlo para decisiones automatizadas de alto riesgo (salud, legal, finanzas, empleo, crédito, seguros o seguridad)",
+    "Instalarlo o cablearlo desde una tarea de diseño sin alcance propio"
+   ],
+   "actualizacion": [
+    {
+     "tipo": "github",
+     "ref": "nexu-io/open-design"
+    },
+    {
+     "tipo": "github-releases",
+     "ref": "nexu-io/open-design/releases"
+    },
+    {
+     "tipo": "rss",
+     "url": "https://open-design.ai/blog/rss.xml"
+    },
+    {
+     "tipo": "sitemap-lastmod",
+     "url": "https://open-design.ai/sitemap-blog-0.xml"
+    }
+   ],
+   "integracion": [
+    {
+     "tipo": "cli",
+     "ref": "od (CLI oficial; instalación: curl -fsSL https://open-design.ai/install.sh)",
+     "licencia": "Apache-2.0",
+     "requiere": "macOS o Windows; la app de escritorio instala el CLI"
+    },
+    {
+     "tipo": "mcp",
+     "ref": "servidor MCP stdio oficial: od mcp install <agente>",
+     "licencia": "Apache-2.0",
+     "requiere": "app o CLI local; sin cuenta para uso BYOK"
+    },
+    {
+     "tipo": "skill",
+     "ref": "skills/ del repositorio (SKILL.md)",
+     "licencia": "Apache-2.0 en el repo; cada skill puede declarar la suya"
+    },
+    {
+     "tipo": "codigo",
+     "ref": "repositorio github.com/nexu-io/open-design",
+     "licencia": "Apache-2.0"
+    }
+   ],
+   "terminos": "https://open-design.ai/terms/",
+   "og_imagen": "https://open-design.ai/og-homepage-20261009.png",
+   "verificado": "2026-11-03",
+   "sin_verificar": [
+    "Documentación pública de la API alojada de OpenDesign Cloud: solo consta el acceso con plan de pago",
+    "Licencia concreta de cada skill y plantilla empaquetada (cada carpeta trae su LICENSE)"
+   ]
   }
  ]
 }
