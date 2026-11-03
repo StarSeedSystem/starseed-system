@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   ESQUEMA_VARIACIONES_BUSCAR,
+  ORDENES_VARIACIONES,
   type ListarVariaciones,
   crearHerramientaVariaciones,
   ejecutarVariacionesBuscar,
@@ -31,6 +32,13 @@ describe("variaciones_buscar · esquema y argumentos", () => {
     expect(ESQUEMA_VARIACIONES_BUSCAR.required).toEqual(["clave"]);
     expect(Object.keys(ESQUEMA_VARIACIONES_BUSCAR.properties)).toEqual(["clave", "buscar", "orden"]);
     expect(ESQUEMA_VARIACIONES_BUSCAR.properties.orden.enum).toContain("valoradas");
+  });
+
+  it("publica una descripción útil y las seis órdenes de la lámina", () => {
+    expect(variaciones_buscar.descripcion.length).toBeGreaterThan(10);
+    expect(ORDENES_VARIACIONES).toHaveLength(6);
+    expect(ORDENES_VARIACIONES).toContain("aurora");
+    expect([...ORDENES_VARIACIONES]).toEqual([...ESQUEMA_VARIACIONES_BUSCAR.properties.orden.enum]);
   });
 
   it("lee la clave, recorta la búsqueda y acepta solo órdenes conocidos", () => {
@@ -70,6 +78,20 @@ describe("variaciones_buscar · listado", () => {
     expect(formatearListado("widget:clima", { clave: "widget:clima" },
       listado({ disponible: false, variaciones: [], error: "sin red" }))[1]).toContain("sin red");
   });
+
+  it("una clave nueva sin variaciones se dice sin marcar error", async () => {
+    const r = await ejecutarVariacionesBuscar(async () => listado({ variaciones: [], total: 0 }),
+      { clave: "boton:publicar" });
+    expect(r.esError).toBeUndefined();
+    expect(texto(r)).toContain("Sin variaciones públicas todavía.");
+  });
+
+  it("sin tabla y sin motivo de la base lo cuenta como error y lo explica", async () => {
+    const r = await ejecutarVariacionesBuscar(
+      async () => listado({ disponible: false, variaciones: [], error: undefined }), { clave: "widget:clima" });
+    expect(r.esError).toBe(true);
+    expect(texto(r)).toContain("todavía no están disponibles");
+  });
 });
 
 describe("variaciones_buscar · manejador", () => {
@@ -94,6 +116,21 @@ describe("variaciones_buscar · manejador", () => {
     const rota = await ejecutarVariacionesBuscar(async () => { throw new Error("fetch failed"); }, { clave: "widget:clima" });
     expect(texto(rota)).toContain("fetch failed");
     expect(rota.esError).toBe(true);
+  });
+
+  it("rechaza claves vacías o sin familia y un orden fuera de la lámina sin tocar la capa", async () => {
+    let llamadas = 0;
+    const listar = async () => (llamadas += 1, listado());
+    for (const args of [{}, { clave: "   " }, { clave: "Widget Clima" }, { clave: "widget" }]) {
+      const r = await ejecutarVariacionesBuscar(listar, args);
+      expect(r.esError).toBe(true);
+      expect(texto(r)).toContain("Clave:");
+    }
+    const orden = await ejecutarVariacionesBuscar(listar, { clave: "widget:clima", orden: "mas_vistas" });
+    expect(orden.esError).toBe(true);
+    expect(texto(orden)).toContain("no es un orden");
+    expect(texto(orden)).toContain("aurora, novedades");
+    expect(llamadas).toBe(0);
   });
 
   it("la fábrica recorta la clave y la búsqueda antes de llamar a la capa inyectada", async () => {
