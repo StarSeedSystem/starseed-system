@@ -914,6 +914,10 @@ MUERTO, SIN_CLAVE, CUOTA, RITMO, SERVIDOR, GRANDE, OTRO = (
     "muerto", "sin_clave", "cuota", "ritmo", "servidor", "grande", "otro")
 ENFRIAR_S = {RITMO: 90, SERVIDOR: 60, OTRO: 45}
 ENFRIAR_MAX_S = 15 * 60
+# (0211c, 02-11-2026) Medido: llm7/gpt-oss llevaba 888 «otro» seguidos (HTTP 400: la petición
+# no le sirve a ese modelo, no es pasajero) y 22 h «analizando». Un 400 que se repite saca el
+# par (p, m) para toda la sesión; RITMO, CUOTA y SIN_CLAVE no cambian.
+OTRO_SEGUIDOS_MAX = 20
 CUOTA_FUERA_S = 60 * 60
 MALA_FORMA_ENFRIAR_S = 10 * 60
 
@@ -941,6 +945,16 @@ def clasificar_fallo(mensaje):
             "timed out", "timeout", "connection", "reset by peer", "temporarily", "overloaded", "unavailable")):
         return SERVIDOR
     return OTRO
+
+
+def fuera_por_seguidos(clase, n):
+    """¿Este fallo consecutivo número `n` de la clase `clase` saca el par (p, m) de la sesión?
+    Solo «otro» llega al tope: un 400 repetido no es pasajero (la petición no le sirve a ese
+    modelo); a partir de OTRO_SEGUIDOS_MAX seguidos, fuera. PURA."""
+    try:
+        return clase == OTRO and int(n) >= OTRO_SEGUIDOS_MAX
+    except (TypeError, ValueError):
+        return False
 
 
 class SaludFlota(object):
@@ -1021,6 +1035,9 @@ class SaludFlota(object):
                 return "proveedor sin cuota: fuera %d min" % (CUOTA_FUERA_S // 60)
             n = self.seguidos.get((p, m), 0) + 1
             self.seguidos[(p, m)] = n
+            if fuera_por_seguidos(clase, n):
+                self.muertos[(p, m)] = _corta(motivo, 120) or clase
+                return "fuera para toda la sesión (otro, %d seguidos)" % n
             espera = min(ENFRIAR_MAX_S, ENFRIAR_S.get(clase, 45) * (2 ** (n - 1)))
             self.enfriado[(p, m)] = ahora + espera
             if clase == RITMO:
