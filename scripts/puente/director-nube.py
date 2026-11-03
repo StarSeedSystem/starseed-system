@@ -157,14 +157,19 @@ def _sh_rc(orden, timeout=120):
         return 1, "%s: %s" % (type(e).__name__, e)
 
 
+def atraso_de(salida):
+    """PURA (1103 · M). Las tareas de la línea «Reparto a la nube <fecha>: N tareas» de la simulación. Antes se cogía el
+    PRIMER número de la salida, que es el de «en vuelo en la nube: N tarea(s)» o el de la tanda de la Mac."""
+    import re as _re
+
+    m = _re.search(r"Reparto a la nube \d+: (\d+) tareas?", salida or "")
+    return int(m.group(1)) if m else 0
+
+
 def atraso():
     """Cuántas tareas repartiría el reparto AHORA (simulación, no toca nada)."""
-    salida = _sh([sys.executable, os.path.join(RAIZ, "scripts", "puente", "repartir-a-nube.py"),
-                  "--tope", "6", "--simular"])
-    for trozo in salida.split():
-        if trozo.isdigit():
-            return int(trozo)
-    return 0
+    return atraso_de(_sh([sys.executable, os.path.join(RAIZ, "scripts", "puente", "repartir-a-nube.py"),
+                          "--tope", "6", "--simular"]))
 
 
 #: Los nombres que lee el paso de claves del workflow. Solo NOMBRES, jamás un valor.
