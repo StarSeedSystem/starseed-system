@@ -55,6 +55,13 @@ class ConstruirOrdenTests(unittest.TestCase):
         self.assertEqual(orden[0], "systemd-inhibit")
         self.assertIn("--what=sleep:idle", orden)
 
+    def test_systemd_inhibit_duerme_solo_el_sistema(self):
+        # Rescate RTKAL1101A: el resto del contrato de systemd-inhibit (bloquear,
+        # no matar) no estaba fijado por ninguna prueba.
+        orden = construir_orden("linux", "sistema", 42, False) or []
+        for esperada in ("--what=sleep:idle", "--mode=block", "sleep", "infinity"):
+            self.assertIn(esperada, orden)
+
     def test_sin_herramienta_o_apagado(self):
         self.assertIsNone(construir_orden("win32", "sistema", 42, False))
         self.assertIsNone(construir_orden("darwin", None, 42, True))
