@@ -216,5 +216,53 @@ class EnLaMacTest(unittest.TestCase):
                     else:
                         self.assertEqual((a1, gh), (None, None))
 
+class RecargaDePuertasTest(unittest.TestCase):
+    """(SUP0211V) Las puertas de fuera viven en scripts/puente y el orquestador las importa UNA vez.
+    `orquestador_al_dia.py` solo lo reinicia cuando cambian los .py del enjambre, así que un arreglo
+    de las puertas no llegaba hasta el reinicio: ahora se recargan solas cuando cambia su mtime."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="enj-recarga-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.puente = os.path.join(self.tmp, "scripts", "puente")
+        os.makedirs(self.puente)
+        self.avisos = []
+        self.pila = contextlib.ExitStack()
+        self.addCleanup(self.pila.close)
+        self.pila.enter_context(mock.patch.dict(os.environ, {"STARSEED_MEDIO": "mac"}))
+        self.pila.enter_context(mock.patch.object(enjambre, "ROOT", self.tmp))
+        self.pila.enter_context(mock.patch.dict(enjambre._MTIMES_PUERTAS, {}, clear=True))
+        self.pila.enter_context(mock.patch.object(sys, "path", list(sys.path)))
+        self.pila.enter_context(mock.patch.dict(sys.modules))
+        self.pila.enter_context(mock.patch.object(enjambre, "evento", lambda *a, **k: self.avisos.append(a)))
+        sys.modules.pop("comprobar_en_a1", None)
+        sys.modules.pop("comprobar_en_github", None)
+
+    def escribir(self, nombre, texto, mtime):
+        ruta = os.path.join(self.puente, nombre + ".py")
+        with open(ruta, "w", encoding="utf-8") as f:
+            f.write(texto)
+        os.utime(ruta, (mtime, mtime))
+
+    def test_hay_que_recargar_es_pura(self):
+        self.assertFalse(enjambre.hay_que_recargar(None, 2.0))  # la primera carga solo apunta
+        self.assertFalse(enjambre.hay_que_recargar(2.0, None))  # sin mtime no se puede saber
+        self.assertFalse(enjambre.hay_que_recargar(2.0, 2.0))
+        self.assertTrue(enjambre.hay_que_recargar(2.0, 3.0))
+
+    def test_un_mtime_nuevo_da_la_version_nueva(self):
+        self.escribir("comprobar_en_a1", "def comprobar(*a, **k):\n    return 'viejo'\n", 1000)
+        self.assertEqual(enjambre._comprobar_en_a1()(), "viejo")
+        self.escribir("comprobar_en_a1", "def comprobar(*a, **k):\n    return 'nuevo'\n", 2000)
+        self.assertEqual(enjambre._comprobar_en_a1()(), "nuevo")
+
+    def test_un_archivo_roto_conserva_la_version_vieja(self):
+        self.escribir("comprobar_en_github", "def esperar_tsc(*a):\n    return 'viejo'\n", 1000)
+        self.assertEqual(enjambre._comprobar_en_github()("base", [], self.tmp), "viejo")
+        self.escribir("comprobar_en_github", "def esperar_tsc(:\n", 2000)
+        self.assertEqual(enjambre._comprobar_en_github()("base", [], self.tmp), "viejo")
+        self.assertTrue(self.avisos)  # la recarga fallida se dice, no se calla
+
+
 if __name__ == "__main__":
     unittest.main()
