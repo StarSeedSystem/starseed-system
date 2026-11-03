@@ -107,6 +107,9 @@ import {
   type CamposCapas,
   type PreferenciaCapas,
 } from "@/lib/astraura/capas-conciencia";
+// Directivas de automejora Meta^n (MTN1027): seccionDirectivas + directivaActiva.
+import { seccionDirectivas } from "@/lib/astraura/capas/directivas";
+import { directivaActiva } from "@/lib/astraura/capas/directivas-almacen";
 // (Ola 1003 · §19) Capas por entidad: cuenta → personalidad → agente.
 import {
   aPreferenciaCapas,
@@ -1510,10 +1513,22 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     if (cc.memoryScope) parts.push(`Alcance de memoria para este chat: ${cc.memoryScope}.`);
     if (parts.length) chatCfgNote = "CONFIGURACIÓN DE ESTE CHAT (Astraura):\n" + parts.join("\n");
   }
+  // ── Directiva activa de automejora Meta^n (MTN1027) ────────────────────────
+  // Capa elegida por el planificador si está a mano; si no, "palabra" (contrato).
+  // Va DESPUÉS de las reglas y permisos, nunca antes (architecture/automejora-meta-n.md §4).
+  let directivaTexto = "";
+  try {
+    const capaDirectiva = "palabra"; // TODO: usar capa del planificador cuando esté disponible
+    const activa = directivaActiva(capaDirectiva);
+    if (activa) {
+      const archivo = { v: 1 as const, capa: capaDirectiva, activa: activa.version, historial: [activa] };
+      directivaTexto = seccionDirectivas(archivo);
+    }
+  } catch { /* defensivo: sin directiva, Aurora sigue igual */ }
   // `voiceStateText` va ANTES que `capText` (capacidades/skills): así la
   // verdad del estado de voz tiene prioridad sobre el texto de las skills de
   // voz (que ahora hablan en general de motores opcionales, nunca del activo).
-  const brainExtra = [personaText, ctxText, voiceStateText, capText, userCtxText, chatCfgNote]
+  const brainExtra = [personaText, ctxText, voiceStateText, capText, userCtxText, chatCfgNote, directivaTexto]
     .filter(Boolean)
     .join("\n\n");
   const messages = brainExtra ? mergeSystemPrompt(req.messages, brainExtra) : req.messages;
