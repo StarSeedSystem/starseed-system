@@ -10,8 +10,8 @@
     <string>com.starseed.codegraph-sync</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/alex/.local/bin/codegraph</string>
-        <string>sync</string>
+        <string>/bin/bash</string>
+        <string>/Users/alex/Documents/starseed-os-main/scripts/codegraph/sync-si-cabe.sh</string>
         <string>/Users/alex/Documents/starseed-os-main</string>
     </array>
     <key>EnvironmentVariables</key>
