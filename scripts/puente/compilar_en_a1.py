@@ -60,7 +60,8 @@ USUARIO = oracle_nodo.USUARIO_SSH
 EXCLUIDOS = (".git", ".next*", "starseed_memory_root", ".codegraph", ".transfer",
              ".env*", "node_modules")
 
-VIEJA_URGENTE_S = float(os.environ.get("STARSEED_A1_URGENTE_H", "6")) * 3600
+#: (1103 · Q) 1 h, no 6: con el enjambre siempre vivo en la Mac, solo esta urgencia compila, y en el A1 (no en la Mac).
+VIEJA_URGENTE_S = float(os.environ.get("STARSEED_A1_URGENTE_H", "1") or 1) * 3600
 ESPERA_TURNO_S = int(os.environ.get("STARSEED_A1_ESPERA_TURNO_S", "3600"))
 HOME_A1 = os.path.dirname(oracle_nodo.REPO_A1)
 #: El freno que YA lee el orquestador del A1 (`tope_gobernador`) y su turno pesado (tsc/vitest).
