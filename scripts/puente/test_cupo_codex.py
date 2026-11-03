@@ -35,6 +35,40 @@ class TestDeteccion(unittest.TestCase):
             self.assertTrue(C.agotado_en(t), t)
 
 
+#: Literal del log del 2026-10-28: 206 sesiones de Codex, todas con este 400.
+SIN_MODELO = (
+    '{"status":400, "message":"The \'gpt-5.6-sol\' model is not supported when '
+    'using Codex with a ChatGPT account.","code":"model_not_found"}'
+)
+
+
+class TestSinModelo(unittest.TestCase):
+    """La cuenta de ChatGPT ya no admite el modelo de Codex: no es cuota, no se
+    repone en horas y hay que apartarlo por más tiempo (DEC1028C)."""
+
+    def test_la_salida_real_del_28(self):
+        self.assertTrue(C.sin_modelo_en(SIN_MODELO))
+
+    def test_la_cuota_agotada_no_es_sin_modelo(self):
+        # Dos reacciones opuestas que hoy comparten código de salida.
+        self.assertTrue(C.agotado_en(REAL))
+        self.assertFalse(C.sin_modelo_en(REAL))
+        self.assertFalse(C.agotado_en(SIN_MODELO))
+
+    def test_otro_fallo_de_modelo_no_cuenta(self):
+        self.assertFalse(C.sin_modelo_en("ERROR: model 'gpt-9' does not exist"))
+
+    def test_vacio_y_mayusculas(self):
+        self.assertFalse(C.sin_modelo_en(""))
+        self.assertFalse(C.sin_modelo_en(None))
+        self.assertTrue(
+            C.sin_modelo_en("MODEL_NOT_FOUND: not supported with a ChatGPT account")
+        )
+
+    def test_las_horas_saltan_de_tres_a_ventana_de_dia(self):
+        self.assertEqual(C.HORAS_SIN_MODELO, 24)
+
+
 class TestVigencia(unittest.TestCase):
     def test_recien_anotado_sigue_agotado(self):
         marca = {"hasta": C.hasta_cuando(AHORA)}
