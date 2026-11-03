@@ -367,7 +367,7 @@ def _revisar(aplicar, borrar):
     progreso = T._progreso()
     cola = T._leer_json(COLA_RESCATE, {"ola": OLA_RESCATE, "tareas": []})
     cola = cola if isinstance(cola, dict) else {"ola": OLA_RESCATE, "tareas": cola}
-    conocidos = set(progreso) | set(titulos_cola) | {str(t.get("id")) for t in cola.get("tareas") or []}
+    conocidos = set(progreso) | set(titulos_cola) | {str(t.get("id")) for t in (cola.get("tareas") or [])}
     if aplicar:
         T._git(["fetch", "-q", "origin", "+refs/heads/nube/*:refs/remotes/origin/nube/*"], timeout=300)
     notas, nuevas_tareas, por_rama = [], [], {}
@@ -375,9 +375,10 @@ def _revisar(aplicar, borrar):
         por_rama.setdefault(s["rama"], []).append(s)
     for rama, filas in por_rama.items():
         ref = "refs/remotes/origin/" + rama
-        casos = _casos_de(ref)
+        casos = _casos_de(ref) or {}
         for s in filas:
             tid = s.get("tid") or ""
+            archivos_tarea = s.get("archivos", []) if s else []
             n = sum(len(v) for v in casos.values())
             vivos = cadena_viva(tid, progreso)
             if vivos:
@@ -386,6 +387,9 @@ def _revisar(aplicar, borrar):
             elif profundidad_rescate(tid) >= TOPE_RESCATE:
                 base, d = "archivar", {}
                 final, motivo = "archivar", "%s ya es un rescate: no se rescata otra vez (0 de 144 integrados)" % tid
+            elif casos and not archivos_diff_comparten(list(casos.keys()), archivos_tarea, rama, tid):
+                base, d = "archivar", {}
+                final, motivo = "archivar", "archivar rama %s de la tarea %s: los archivos del diff (%s) no comparten ninguno con los archivos de la tarea (%s)" % (rama, tid, ", ".join(list(casos.keys())), ", ".join(archivos_tarea))
             else:
                 base = regla(n)
                 d = _consultar_jev(tid, titulos_cola.get(tid, ""), casos, base) if (aplicar and n) else {}
