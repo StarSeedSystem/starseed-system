@@ -43,6 +43,52 @@ describe("cliente del Agent Server de OpenHands", () => {
     expect(llamadas[0].init?.redirect).toBe("manual");
   });
 
+  it("crearConversacion: esquema StartConversationRequest y aprobación por defecto", async () => {
+    const { f, llamadas } = capturar(() => json({ id: "c-1" }));
+    const c = await crearConversacion({
+      ...op(f), modelo: "openai/gpt", apiKey: SECRETO, directorioTrabajo: "/workspace",
+      mensajeInicial: "hola", herramientas: [{ nombre: "TerminalTool" }],
+    });
+    expect(c.id).toBe("c-1");
+    expect(cuerpo(llamadas[0].init)).toEqual({
+      agent: { kind: "Agent", llm: { model: "openai/gpt", api_key: SECRETO }, tools: [{ name: "TerminalTool" }] },
+      workspace: { kind: "LocalWorkspace", working_dir: "/workspace" },
+      confirmation_policy: { kind: "AlwaysConfirm" },
+      initial_message: { role: "user", content: [{ type: "text", text: "hola" }] },
+    });
+  });
+
+  it("sin clave de modelo no manda api_key y permite otra política", async () => {
+    const { f, llamadas } = capturar(() => json({ id: "c-2" }));
+    await crearConversacion({ ...op(f), modelo: "m", directorioTrabajo: "/w", politica: "ConfirmRisky" });
+    const b = cuerpo(llamadas[0].init) as { agent: { llm: Record<string, unknown> }; confirmation_policy: { kind: string } };
+    expect(b.agent.llm).toEqual({ model: "m" });
+    expect(b.confirmation_policy.kind).toBe("ConfirmRisky");
+  });
+
+  it("enviarMensaje, ejecutar, pausar y política usan sus rutas y cuerpos", async () => {
+    const { f, llamadas } = capturar(() => json({ success: true }));
+    const o = op(f);
+    await enviarMensaje("c 1", "hola", o);
+    await ejecutar("c 1", o);
+    await pausar("c 1", o);
+    await politicaConfirmacion("c 1", "NeverConfirm", o);
+    expect(llamadas.map((l) => new URL(l.url).pathname)).toEqual([
+      "/api/conversations/c%201/events", "/api/conversations/c%201/run",
+      "/api/conversations/c%201/pause", "/api/conversations/c%201/confirmation_policy",
+    ]);
+    expect(cuerpo(llamadas[0].init)).toEqual({ role: "user", content: [{ type: "text", text: "hola" }] });
+    expect(cuerpo(llamadas[3].init)).toEqual({ policy: { kind: "NeverConfirm" } });
+  });
+
+  it("eventos: pagina por next_page_id y devuelve la página tal cual", async () => {
+    const { f, llamadas } = capturar(() => json({ items: [{ kind: "MessageEvent", id: "e1" }], next_page_id: "p2" }));
+    const p = await eventos("c1", op(f), "p1");
+    expect(new URL(llamadas[0].url).searchParams.get("page_id")).toBe("p1");
+    expect(p.items[0].kind).toBe("MessageEvent");
+    expect(p.next_page_id).toBe("p2");
+  });
+
   it("salud: acepta el estado como texto plano, sin exigir JSON", async () => {
     const { f } = capturar(() => new Response("OK", { status: 200 }));
     await expect(salud(op(f))).resolves.toEqual({ sano: true, estado: "OK" });
