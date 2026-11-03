@@ -112,6 +112,56 @@ class ElegirPorTarea(unittest.TestCase):
         self.assertEqual(r[("nube/5", "BLQ1005D")], "superada")
 
 
+class BaseDeCadena(unittest.TestCase):
+    """(RESC1031D) `base_de` da la RAÍZ de la cadena: la letra de reintento sale, el sufijo de
+    derivación (`-d1`, `-d2b`, encadenados) se corta ENTERO y el prefijo de rescate `RT` se
+    conserva. Un id que no acaba en letra de reintento no se toca."""
+
+    def test_ejemplos_del_encargo(self):
+        self.assertEqual(T.base_de("RTESP1011Bb"), "RTESP1011B")
+        self.assertEqual(T.base_de("SGO1031B-d1"), "SGO1031B")
+        self.assertEqual(T.base_de("MC1013TCc"), "MC1013TC")
+
+    def test_la_derivacion_se_corta_de_una_pieza(self):
+        # Antes `SGO1031B-d1` se quedaba entero y `RTESP1011Bd-d2b` → `RTESP1011Bd-d2` (no existe).
+        self.assertEqual(T.base_de("SGO1031B-d2b"), "SGO1031B")
+        self.assertEqual(T.base_de("CPA1007Kb-d1b"), "CPA1007K")
+        self.assertEqual(T.base_de("RTESP1011Bd-d2b"), "RTESP1011B")
+        self.assertEqual(T.base_de("RTGN1010A-d3d-d3b"), "RTGN1010A")
+        self.assertEqual(T.base_de("X-d1"), "X")
+        self.assertEqual(T.base_de("X-d1b"), "X")
+        self.assertEqual(T.base_de("SGO1031B-d1b"), "SGO1031B")
+
+    def test_reintentos_y_rescates(self):
+        self.assertEqual(T.base_de("LC1004Bc"), "LC1004B")
+        self.assertEqual(T.base_de("RSC1006Qd"), "RSC1006Q")
+        self.assertEqual(T.base_de("RTESP1011Bd"), "RTESP1011B")
+        self.assertEqual(T.base_de("RTOPO1011T1b"), "RTOPO1011T1")
+        self.assertEqual(T.base_de("RTRTX1b"), "RTRTX1")
+        self.assertEqual(T.base_de("p318Jc"), "p318J")
+
+    def test_un_id_que_ya_acababa_en_minuscula_pierde_solo_la_letra_nueva(self):
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1ab"), "S1010-EV-ORACLE-1a")
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1a"), "S1010-EV-ORACLE-1a")
+
+    def test_lo_que_es_del_id_no_se_corta(self):
+        self.assertEqual(T.base_de("MC1013TC"), "MC1013TC")
+        self.assertEqual(T.base_de("OPT1004C"), "OPT1004C")
+        self.assertEqual(T.base_de("c313_QW4"), "c313_QW4")
+        self.assertEqual(T.base_de("MGP1010-7F3A2C"), "MGP1010-7F3A2C")
+        self.assertEqual(T.base_de(""), "")
+        self.assertEqual(T.base_de(None), "")
+
+    def test_el_nombrado_del_derivado_sigue_su_nodo(self):
+        # Cada parte (`-d1`) tiene su propia tanda de reintentos: no se mezcla con la raíz.
+        self.assertEqual(T.siguiente_id("SGO1031B-d1", {"SGO1031B"}), "SGO1031B-d1b")
+        self.assertEqual(T.siguiente_id("RTESP1011Bd-d2b",
+                                        {"RTESP1011Bd-d2b", "RTESP1011Bd-d2d"}), "RTESP1011Bd-d2e")
+        self.assertEqual(T.sucesores_en_cadena("RTESP1011Bd-d2c",
+                                               {"RTESP1011Bd-d2b": {}, "RTESP1011Bd-d2d": {}}),
+                         ["RTESP1011Bd-d2b", "RTESP1011Bd-d2d"])
+
+
 class Sucesor(unittest.TestCase):
     def test_base_y_siguiente(self):
         self.assertEqual(T.base_de("LC1004Bc"), "LC1004B")
