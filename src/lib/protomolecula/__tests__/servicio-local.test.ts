@@ -155,6 +155,13 @@ describe("servicio-local · servicio hyperframes (vídeo, Ola 1018H)", () => {
     expect(init).toMatchObject({ method: "GET", redirect: "manual", headers: { accept: "application/json" } });
     expect(init.headers.authorization).toBeUndefined();
   });
+  it("la salud no sale de 127.0.0.1: una ruta de salud con otro host se rechaza sin llamar", async () => {
+    const f = vi.fn<FetchLocal>();
+    const hostil: DefinicionServicio = { ...HF, rutaSalud: "//otro.host/salud" };
+    const r = await sondearServicio(hostil, f, { leerVariable: () => undefined });
+    expect(r).toMatchObject({ vivo: false, motivo: expect.stringMatching(/ruta local válida/) });
+    expect(f).not.toHaveBeenCalled();
+  });
   it("el plazo propio (tiempoMs: 900000) manda en las llamadas: 30 s no corta, 15 min sí", async () => {
     const { reloj, avanzar } = relojFalso();
     let senal: AbortSignal | undefined;
