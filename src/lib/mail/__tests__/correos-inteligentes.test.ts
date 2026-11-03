@@ -66,6 +66,13 @@ describe("reglas de correo como datos", () => {
     expect(validarRegla(r)).toEqual(r);
   });
 
+  it("acepta una regla válida sin parámetro", () => {
+    const sinParametro = regla({ id: "r1" });
+    expect(validarRegla(sinParametro)).toEqual(sinParametro);
+    const esperar = regla({ id: "r2", hacer: "esperar-respuesta", cuando: { antiguedadHorasMin: 24 } });
+    expect(validarRegla(esperar)).toEqual(esperar);
+  });
+
   it("rechaza campos extra (en la regla y dentro de cuando)", () => {
     expect(validarRegla({ ...regla({ id: "r" }), canal: "correo" })).toBeNull();
     expect(
@@ -87,6 +94,12 @@ describe("reglas de correo como datos", () => {
 
   it("rechaza una regla sin condiciones (dispararía contra todo el correo)", () => {
     expect(validarRegla(regla({ id: "r", cuando: {} }))).toBeNull();
+  });
+
+  it("rechaza un id vacío o en blanco y un objeto que no es una regla", () => {
+    expect(validarRegla(regla({ id: "" }))).toBeNull();
+    expect(validarRegla(regla({ id: "   " }))).toBeNull();
+    expect(validarRegla({})).toBeNull();
   });
 });
 
@@ -183,6 +196,14 @@ describe("seguimiento de respuestas («Reply Zero»)", () => {
       porResponder: ["a"],
       esperando: ["b"],
       resuelto: ["c"],
+    });
+  });
+
+  it("una bandeja vacía deja los tres estados vacíos", () => {
+    expect(resumenSeguimiento([], YO, AHORA)).toEqual({
+      porResponder: [],
+      esperando: [],
+      resuelto: [],
     });
   });
 });
