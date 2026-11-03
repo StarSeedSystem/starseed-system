@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /**
  * «Juegos de PC» (Rare, contrato `architecture/artcraft-y-rare.md` §5 y §5.3).
  * Arriba, las funciones puras de `juegos-pc.ts`: planificador de las rutas A, B y C,
@@ -201,19 +202,49 @@ describe("Rare: ficha viva del catálogo, programa aparte y credenciales de Epic
   });
 
   it("cuenta de Epic por persona: LEGENDARY_CONFIG_PATH con permisos 0700, fuera de repo, memoria y sala", () => {
+=======
+import { describe, it, expect } from "vitest";
+import { rare } from "@/lib/artcraft/rare";
+
+describe("artcraft · rare", () => {
+  it("solo se actualiza desde github.com/RareDevs/Rare", () => {
+    const h = rare();
+    expect(h.codigo).toBe("https://github.com/RareDevs/Rare");
+    expect(h.actualizacion).toMatchObject({ fuente: "github-tags", ref: "RareDevs/Rare" });
+    expect(h.actualizacion.filtro).toBeTruthy();
+    expect(h.actualizacion.ultimaVersion).toMatch(new RegExp(h.actualizacion.filtro as string));
+  });
+
+  it("nombra raredevs.github.io (wring) y ProtonDB entre las descargas remotas bloqueadas", () => {
+    const avisos = (rare().avisos ?? []).join(" ");
+    expect(avisos).toContain("raredevs.github.io/wring");
+    expect(avisos).toContain("ProtonDB");
+    expect(avisos).toMatch(/bloquea o se aloja con SHA fijado/);
+  });
+
+  it("deja la sesión de Epic por persona en LEGENDARY_CONFIG_PATH con permisos 0700", () => {
+>>>>>>> 006f153ba (salvavidas · RTTRD1020Db-d2: trabajo del agente antes de las puertas (tsc / vitest))
     const notas = rare().control.notas;
     expect(notas).toContain("LEGENDARY_CONFIG_PATH");
     expect(notas).toContain("0700");
     expect(notas).toMatch(/por persona/);
+<<<<<<< HEAD
     expect(notas).toMatch(/nunca la lleva a un repositorio, una memoria ni una sala/);
   });
 
   it("la ficha publicada no lleva campos de la sesión de Epic ni claves reales", () => {
+=======
+    expect(notas).toMatch(/nunca/);
+  });
+
+  it("no expone campos de la sesión de Epic en la ficha publicada", () => {
+>>>>>>> 006f153ba (salvavidas · RTTRD1020Db-d2: trabajo del agente antes de las puertas (tsc / vitest))
     const texto = JSON.stringify(rare());
     for (const campo of ["access_token", "refresh_token", "account_id", "exchange_code"]) {
       expect(texto).not.toContain(campo);
     }
   });
+<<<<<<< HEAD
 
   it("nombra las descargas remotas sin huella que bloquea y solo permite el repo oficial de RareDevs", () => {
     const ficha = rare();
@@ -241,3 +272,6 @@ describe("Rare: ficha viva del catálogo, programa aparte y credenciales de Epic
     expect(ficha.actualizacion.ultimaVersion).toMatch(new RegExp(ficha.actualizacion.filtro as string));
   });
 });
+=======
+});
+>>>>>>> 006f153ba (salvavidas · RTTRD1020Db-d2: trabajo del agente antes de las puertas (tsc / vitest))
