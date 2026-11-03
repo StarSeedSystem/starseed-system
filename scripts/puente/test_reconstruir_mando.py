@@ -1179,3 +1179,53 @@ class ReponerElAnteriorSiSeCaeElServido(unittest.TestCase):
         cambia.assert_called_once_with()
         self.assertTrue(hecho)
         self.assertNotIn("repone", ev)
+
+
+class ArtefactoCI(unittest.TestCase):
+    """(2026-11-02, IND1029Abs) Pruebas del reconstructor con artefactos del CI."""
+
+    def _raiz_con_build(self, build_id="BUILD123"):
+        import tempfile, os
+        raiz = tempfile.mkdtemp()
+        dist = os.path.join(raiz, R.DIST_BUILD)
+        os.makedirs(dist, exist_ok=True)
+        with open(os.path.join(dist, "BUILD_ID"), "w", encoding="utf-8") as f:
+            f.write(build_id)
+        return raiz
+
+    def test_sin_runs_devuelve_none(self):
+        import tempfile
+        raiz = self._raiz_con_build()
+        with mock.patch.object(R.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="[]", stderr="")):
+            self.assertIsNone(R.artefacto_ci_disponible("huella-xyz", raiz=raiz))
+
+    def test_con_artefacto_descarga_y_devuelve_sha_y_build(self):
+        import json, os, shutil
+        raiz = self._raiz_con_build("BUILD123")
+        sha = "abc123def4567890"
+        runs = [{"headSha": sha, "status": "success", "artifacts": [{"name": f"genesis-next-{sha}"}]}]
+        list_mock = mock.Mock(returncode=0, stdout=json.dumps(runs), stderr="")
+        # el código actual hace rc, salida = subprocess.run, así que devolvemos tupla
+        download_ret = (0, "")
+        with mock.patch.object(R.subprocess, "run", side_effect=[list_mock, download_ret]):
+            sha_ret, build = R.artefacto_ci_disponible("huella-t", raiz=raiz)
+        self.assertEqual(sha_ret, sha)
+        self.assertEqual(build, "BUILD123")
+
+    def test_sin_build_id_devuelve_none(self):
+        import tempfile, os, json
+        raiz = tempfile.mkdtemp()
+        os.makedirs(os.path.join(raiz, R.DIST_BUILD), exist_ok=True)
+        sha = "deadbeef"
+        runs = [{"headSha": sha, "status": "success", "artifacts": [{"name": f"genesis-next-{sha}"}]}]
+        with mock.patch.object(R.subprocess, "run", side_effect=[
+            mock.Mock(returncode=0, stdout=json.dumps(runs), stderr=""),
+            (0, "")
+        ]):
+            self.assertIsNone(R.artefacto_ci_disponible("h", raiz=raiz))
+
+    def test_error_en_listado_devuelve_none(self):
+        raiz = self._raiz_con_build()
+        with mock.patch.object(R.subprocess, "run", return_value=mock.Mock(returncode=1, stdout="", stderr="boom")):
+            self.assertIsNone(R.artefacto_ci_disponible("h", raiz=raiz))
+
