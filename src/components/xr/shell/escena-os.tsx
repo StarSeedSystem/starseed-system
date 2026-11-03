@@ -39,6 +39,9 @@ const OrbeVozDinamico = nextDynamic(() => import("./orbe-voz").then((m) => m.Orb
 /** Horizon (XR1010AO): crear, destinos y Biblioteca conectados a la cuenta real; carga perezosa. */
 const HorizonDinamico = nextDynamic(() => import("./horizon-montado").then((m) => m.HorizonMontado), { ssr: false });
 
+/** Logic (XR1010AG): calidad, confort, vínculos, privacidad y conexiones; carga perezosa. */
+const NodoLogicDinamico = nextDynamic(() => import("./nodo-logic").then((m) => m.NodoLogic), { ssr: false });
+
 /** Página declarativa (UiSpec, §3 b escalón 2): la pinta `uispec-uikit`; carga perezosa como el resto. */
 const UiSpec3DDinamico = nextDynamic(() => import("./uispec-uikit").then((m) => m.UiSpec3D), { ssr: false });
 
@@ -166,7 +169,16 @@ export function EscenaOS({ modo = null }: Props) {
                             modo={modoTrinity(modoUrl, plan)}
                             nivel={calidadNivel}
                             alturaOjosMedida={alturaOjosMedida}
-                            contenido={{ zenith: <OrbeVozDinamico />, horizon: <HorizonDinamico />, logic: pagina !== null ? <UiSpec3DDinamico spec={pagina} /> : null }}
+                            contenido={{
+                                zenith: <OrbeVozDinamico />,
+                                horizon: <HorizonDinamico />,
+                                logic: (
+                                    <>
+                                        <NodoLogicDinamico />
+                                        {pagina !== null && <UiSpec3DDinamico spec={pagina} />}
+                                    </>
+                                ),
+                            }}
                         />
                     </group>
                     {/* Comodidad (XR1010AF): aquí se APLICA el confort (§3 j), no solo se exporta. */}
