@@ -74,6 +74,10 @@ describe("SelectorMolecula", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: TEXTO_CONFIRMACION }));
     fireEvent.click(screen.getByRole("button", { name: "Insertar instantánea" }));
     expect(alElegir).toHaveBeenCalledTimes(1);
+    // Al confirmar también emite un bloque serializado que leerBloque entiende: la misma molécula.
+    const leido = leerBloque(String(alElegir.mock.calls[0][0]));
+    expect(leido.ok).toBe(true);
+    if (leido.ok) expect([leido.valor.id, leido.valor.titulo]).toEqual(["m1", "Diario"]);
     expect(screen.queryByRole("alert")).toBeNull();
   });
   it("almacén vacío: lo dice y enlaza a /protomolecula", () => {
