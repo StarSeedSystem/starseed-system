@@ -30,6 +30,9 @@ export type ModoSesion = "vr-inmersivo" | "ar-passthrough" | "ar-mano";
 /** El rig de la Trinity (XR1010J): uikit y three se cargan solo al entrar en /xr/os, nunca en el layout raíz. */
 const RigTrinityDinamico = nextDynamic(() => import("./rig-trinity").then((m) => m.RigTrinity), { ssr: false });
 
+/** Comodidad (XR1010AF): viñeta, giro por saltos, subtítulos y postura; carga perezosa como el resto. */
+const ComodidadDinamica = nextDynamic(() => import("./comodidad").then((m) => m.Comodidad), { ssr: false });
+
 /** Zenith (XR1010O) con la voz de XR1010P enganchada por su puente `pipeline`; carga perezosa también. */
 const OrbeVozDinamico = nextDynamic(() => import("./orbe-voz").then((m) => m.OrbeVoz), { ssr: false });
 
@@ -99,6 +102,7 @@ export function EscenaOS({ modo = null }: Props) {
     const [fallo, setFallo] = useState<string | null>(null);
     const [enSesion, setEnSesion] = useState(false);
     const [alturaOjosMedida, setAlturaOjosMedida] = useState<number | null>(null);
+    const [giroRig, setGiroRig] = useState(0);
     const [pagina, setPagina] = useState<unknown | null>(null);
     const intentadoRef = useRef(false);
     const alturaOjosRef = useRef<{ metros: number } | null>(null);
@@ -154,14 +158,23 @@ export function EscenaOS({ modo = null }: Props) {
                 <ambientLight intensity={0.7} />
                 <Suspense fallback={null}>
                 {almacen !== null && (
-                    <XR store={almacen}><XROrigin /><AlturaOjos refAltura={alturaOjosRef} alMedir={setAlturaOjosMedida} /></XR>
+                    <XR store={almacen}><XROrigin rotation={[0, -giroRig, 0]} /><AlturaOjos refAltura={alturaOjosRef} alMedir={setAlturaOjosMedida} /></XR>
                 )}
                     {/* Rig de la Trinity (XR1010J): reemplaza al panel provisional de XR1010G. */}
-                    <RigTrinityDinamico
+                    <group rotation={[0, -giroRig, 0]}>
+                        <RigTrinityDinamico
+                            modo={modoTrinity(modoUrl, plan)}
+                            nivel={calidadNivel}
+                            alturaOjosMedida={alturaOjosMedida}
+                            contenido={{ zenith: <OrbeVozDinamico />, horizon: <HorizonDinamico />, logic: pagina !== null ? <UiSpec3DDinamico spec={pagina} /> : null }}
+                        />
+                    </group>
+                    {/* Comodidad (XR1010AF): aquí se APLICA el confort (§3 j), no solo se exporta. */}
+                    <ComodidadDinamica
                         modo={modoTrinity(modoUrl, plan)}
-                        nivel={calidadNivel}
-                        alturaOjosMedida={alturaOjosMedida}
-                        contenido={{ zenith: <OrbeVozDinamico />, horizon: <HorizonDinamico />, logic: pagina !== null ? <UiSpec3DDinamico spec={pagina} /> : null }}
+                        alturaOjos={alturaOjosMedida ?? 1.6}
+                        yawActual={() => giroRig}
+                        alGirar={setGiroRig}
                     />
                     {!enSesion && <OrbitControls />}
                 </Suspense>
