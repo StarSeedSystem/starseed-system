@@ -342,6 +342,36 @@ describe("neuronasAtrasadas", () => {
     expect(atrasos[0].texto).toContain("no declara qué versión tiene");
   });
 
+  it("solo una capa atrasada entre varias presentes", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      {
+        neuronaId: "1",
+        nombre: "Parcial",
+        online: true,
+        versiones: { datos: "2026.01.01", interfaz: "2025.12.01", sw: "2026.01.01", servicios: "2026.01.01", modelos: "2026.01.01", nativa: "2026.01.01" },
+      },
+    ];
+    const result = neuronasAtrasadas(neuronas, ULTIMA_SEIS);
+    expect(result).toHaveLength(1);
+    expect(result[0].capa).toBe("interfaz");
+    expect(result[0].motivo).toBe("sin-motivo");
+  });
+
+  it("manual con versión antigua mantiene manual", () => {
+    const neuronas: EstadoNeuronaActualizacion[] = [
+      {
+        neuronaId: "1",
+        nombre: "Manual",
+        online: true,
+        versiones: { datos: "2025.12.01" },
+        manual: true,
+      },
+    ];
+    const result = neuronasAtrasadas(neuronas, { datos: "2026.01.01" });
+    const datos = result.find((r) => r.capa === "datos");
+    expect(datos?.motivo).toBe("manual");
+  });
+
   it("el orden desempata por id cuando dos neuronas comparten nombre", () => {
     const neuronas: EstadoNeuronaActualizacion[] = [
       { neuronaId: "n2", nombre: "Beta", online: true, versiones: { datos: "2025.12.01" } },
