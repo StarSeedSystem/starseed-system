@@ -132,6 +132,59 @@ class Puras(unittest.TestCase):
         self.assertTrue(R.archivos_diff_comparten(["X1a.test.ts"], ["X1a.test.ts"], "nube/1/ola/X1", "X1"))
 
 
+class RevisionDecide(unittest.TestCase):
+    """`_revisar` solo rescata la rama si su diff toca los archivos de la tarea (fallo 2)."""
+
+    def _revisar(self, superadas, casos):
+        estado = {"superadas": superadas, "revisadas": []}
+
+        def leer(ruta, defecto):
+            return estado if ruta == T.ESTADO else defecto
+
+        with mock.patch.object(R, "_casos_de", lambda _ref: casos), \
+                mock.patch.object(T, "_leer_json", leer), \
+                mock.patch.object(T, "_colas_por_id", dict), \
+                mock.patch.object(T, "_progreso", dict):
+            return R._revisar(False, True)
+
+    @staticmethod
+    def superada(**extra):
+        s = {"rama": "nube/1/ola/X1", "tid": "X1", "archivos": ["src/a.ts", "scripts/puente/test_x.py"],
+             "motivo": "main ya la superó"}
+        s.update(extra)
+        return s
+
+    def casos(self, n=3, archivo="scripts/puente/test_x.py"):
+        return {archivo: [("caso %d" % i, "it('c%d', () => {})" % i) for i in range(n)]}
+
+    def test_archiva_si_el_diff_no_toca_la_tarea(self):
+        r = self._revisar([self.superada()], self.casos(archivo="scripts/puente/test_otra.py"))
+        n = r["notas"][0]
+        self.assertEqual(n["decision"], "archivar")
+        self.assertIn("no comparten", n["motivo"])
+        self.assertEqual(r["tareas"], [])
+
+    def test_rescata_si_el_diff_toca_la_tarea(self):
+        r = self._revisar([self.superada()], self.casos())
+        self.assertEqual(r["notas"][0]["decision"], "rescatar")
+        self.assertEqual(r["tareas"], ["RTX1"])
+
+    def test_rama_de_otra_tarea_no_se_rescata_aunque_coincida(self):
+        r = self._revisar([self.superada(rama="nube/2/ola/Y2")], self.casos())
+        self.assertEqual(r["notas"][0]["decision"], "archivar")
+        self.assertEqual(r["tareas"], [])
+
+    def test_rama_a1_de_otra_tarea_tampoco(self):
+        self.assertFalse(R.archivos_diff_comparten(
+            ["a.test.ts"], ["a.test.ts"], "nube/a1-20261103-014251-Y2", "X1"))
+
+    def test_pocos_casos_archiva_aunque_coincida(self):
+        r = self._revisar([self.superada()], self.casos(n=2))
+        self.assertEqual(r["notas"][0]["decision"], "archivar")
+        self.assertIn("regla", r["notas"][0]["motivo"])
+        self.assertEqual(r["tareas"], [])
+
+
 class ArchivarYBorrar(unittest.TestCase):
     """Un origin desnudo con dos ramas nube/*: se archivan, se verifican y solo entonces se borran."""
 
