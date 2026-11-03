@@ -141,7 +141,6 @@ describe("servicio-local · servicio hyperframes (vídeo, Ola 1018H)", () => {
   it("la definición es la del contrato: puerto 4490, salud en /salud y plazo propio de 15 min", () => {
     expect(HF).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900_000 });
     expect(validarDefinicion(HF)).toBeNull();
-    expect(SERVICIOS_CONOCIDOS).toHaveLength(3); // nada más cambió
   });
   it("la salud se consulta SOLO en 127.0.0.1:4490/salud, con GET y sin exigir el token", async () => {
     const f = vi.fn<FetchLocal>(async () => resp(200, '{"ok":true}'));
@@ -169,9 +168,12 @@ describe("servicio-local · servicio hyperframes (vídeo, Ola 1018H)", () => {
     expect(await p).toMatchObject({ ok: false, fallo: "tiempo", ms: 900_000 });
     expect(senal?.aborted).toBe(true);
   });
-  it("la suma es la misma de siempre: exactamente tres servicios conocidos, con ids únicos", () => {
-    expect(SERVICIOS_CONOCIDOS).toHaveLength(3);
-    expect(new Set(SERVICIOS_CONOCIDOS.map((d) => d.id)).size).toBe(3);
-    expect(SERVICIOS_CONOCIDOS.map((d) => d.id)).toEqual(["comfyui", "ollama", "hyperframes"]);
+  it("«sin cambiar nada más»: los otros dos servicios siguen exactamente igual y no hay duplicados", () => {
+    expect(SERVICIOS_CONOCIDOS).toEqual([
+      { id: "comfyui", nombre: "ComfyUI", puerto: 8188, rutaSalud: "/system_stats" },
+      { id: "ollama", nombre: "Ollama", puerto: 11434, rutaSalud: "/api/version" },
+      { id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900_000 },
+    ]);
+    expect(new Set(SERVICIOS_CONOCIDOS.map((d) => d.id)).size).toBe(SERVICIOS_CONOCIDOS.length);
   });
 });
