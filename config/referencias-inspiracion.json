@@ -1,8 +1,8 @@
 {
  "formato": "starseed-referencias",
  "version": 1,
- "verificado": "2026-10-25",
- "origen": "Lista de Jack Roberts (vídeo IYNAyRkUsjI) pedida por Alex; cada enlace comprobado el 2026-10-18; + 4 entradas de la ola 1025R (taste-skill, frontend-slides, awesome-design-md, onetake), comprobadas el 2026-10-25",
+ "verificado": "2026-11-03",
+ "origen": "Lista de Jack Roberts (vídeo IYNAyRkUsjI) pedida por Alex; cada enlace comprobado el 2026-10-18; + 4 entradas de la ola 1025R (taste-skill, frontend-slides, awesome-design-md, onetake), comprobadas el 2026-10-25; + 21st.dev, citado en memory/diseno/referencias.md y comprobado el 2026-11-03",
  "temas": [
   {
    "id": "ia-diseno",
@@ -1496,9 +1496,68 @@
    ],
    "integracion": [],
    "terminos": "https://github.com/feitangyuan/onetake/blob/HEAD/LICENSE",
-   "og_imagen": null,
-   "verificado": "2026-10-25",
-   "sin_verificar": []
-  }
- ]
-}
+    "og_imagen": null,
+    "verificado": "2026-10-25",
+    "sin_verificar": []
+   },
+   {
+    "id": "21st-dev",
+    "nombre": "21st",
+    "url": "https://21st.dev/",
+    "tema": "inspiracion-ui",
+    "subtema": "componentes React y microinteracciones",
+    "que_es": "Catálogo comunitario con más de 12.000 componentes React + Tailwind + TypeScript, plantillas, temas shadcn, iconos y shaders publicados por diseñadores e ingenieros de interfaz: vista previa en vivo, TSX copiable o instalación por el CLI de shadcn sin dependencia de runtime.",
+    "tipo": "recursos-descargables",
+    "acceso": "mixto",
+    "clase_uso": "reutilizable-con-condiciones",
+    "condiciones": "Verificado el 2026-11-03 (términos del 20-07-2026). El código del componente se copia al repo propio y se puede editar libremente, pero redistribuirlo exige un enlace visible a la página original del componente; sus demos, previsualizaciones y metadatos (títulos, descripciones, etiquetas) pertenecen a 21st Labs y no se republican. Prohibido entrenar IA con el catálogo sin permiso escrito (también declarado en su robots.txt: ai-input=yes para agentes, ai-train=no, y /api/ reservado a crawlers; el API y el MCP se usan con clave, sondeando no). Gratis: navegar todo y 2 copias o instalaciones al día; copia ilimitada, plantillas premium y créditos de 21st AI con los planes de pago; sin reembolso.",
+    "canales": [
+     "mcp-oficial",
+     "cli-oficial",
+     "api-oficial",
+     "sitemap-lastmod",
+     "navegador-de-la-persona"
+    ],
+    "prohibido": [
+     "scraping",
+     "entrenar-ia",
+     "republicar-media-y-metadatos",
+     "redistribuir-sin-enlace-atras"
+    ],
+    "actualizacion": [
+     {
+      "tipo": "sitemap-lastmod",
+      "url": "https://21st.dev/sitemap.xml"
+     },
+     {
+      "tipo": "changelog",
+      "url": "https://21st.dev/changelog"
+     }
+    ],
+    "integracion": [
+     {
+      "tipo": "mcp",
+      "url": "https://21st.dev/api/mcp",
+      "requiere": "API key (la crea la persona en 21st.dev/mcp); gratis 2 copias/día, pago más; antes «Magic MCP»"
+     },
+     {
+      "tipo": "cli",
+      "ref": "npx @21st-dev/cli@latest init --client <cursor|claude|codex|vscode|devin>",
+      "requiere": "API key"
+     },
+     {
+      "tipo": "api",
+      "url": "https://21st.dev/openapi.json",
+      "requiere": "Authorization: Bearer con la misma API key; catálogo RFC 9727 en /.well-known/api-catalog"
+     }
+    ],
+    "terminos": "https://21st.dev/terms",
+    "og_imagen": null,
+    "verificado": "2026-11-03",
+    "sin_verificar": [
+     "Precios exactos de los planes Builder y Team",
+     "URL de la tarjeta OpenGraph (se renderiza desde /og/*)"
+    ]
+   }
+  ]
+ }
