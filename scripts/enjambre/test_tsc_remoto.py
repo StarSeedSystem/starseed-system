@@ -216,5 +216,63 @@ class EnLaMacTest(unittest.TestCase):
                     else:
                         self.assertEqual((a1, gh), (None, None))
 
+class RecargaDePuertasTest(unittest.TestCase):
+    """(SUP0211V) Las puertas tsc recargan su .py cuando cambia el mtime, sin reiniciar el orquestador."""
+
+    def test_hay_que_recargar(self):
+        casos = [
+            (None, None, False),
+            (None, 1.0, False),
+            (1.0, None, False),
+            (1.0, 1.0, False),
+            (1.0, 2.0, True),
+            (2.0, 1.0, True),
+        ]
+        for visto, ahora, esperado in casos:
+            with self.subTest(visto=visto, ahora=ahora):
+                self.assertIs(enjambre.hay_que_recargar(visto, ahora), esperado)
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="enj-recarga-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        sys.path.insert(0, self.tmp)
+        self.addCleanup(lambda: sys.path.remove(self.tmp) if self.tmp in sys.path else None)
+        self.nombre = "puerta_falsa_%d" % os.getpid()
+        self.ruta = os.path.join(self.tmp, self.nombre + ".py")
+        self.addCleanup(sys.modules.pop, self.nombre, None)
+        pila = mock.patch.dict(enjambre._MTIMES_PUENTE, clear=True)
+        pila.start()
+        self.addCleanup(pila.stop)
+
+    def _escribir(self, version, salto_mtime=0.0):
+        with open(self.ruta, "w", encoding="utf-8") as f:
+            f.write("def version():\n    return %d\n" % version)
+        if salto_mtime:
+            st = os.stat(self.ruta)
+            os.utime(self.ruta, (st.st_atime, st.st_mtime + salto_mtime))
+        return enjambre._cargar_modulo_puente(self.nombre, self.ruta)
+
+    def test_mismo_mtime_no_recarga_y_un_mtime_nuevo_si(self):
+        self.assertEqual(self._escribir(1).version(), 1)
+        mtime = os.path.getmtime(self.ruta)
+        with open(self.ruta, "w", encoding="utf-8") as f:
+            f.write("def version():\n    return 2\n")
+        os.utime(self.ruta, (mtime, mtime))  # mismo mtime: no se recarga
+        self.assertEqual(enjambre._cargar_modulo_puente(self.nombre, self.ruta).version(), 1)
+        os.utime(self.ruta, (mtime, mtime + 5))
+        self.assertEqual(enjambre._cargar_modulo_puente(self.nombre, self.ruta).version(), 2)
+
+    def test_archivo_roto_conserva_la_version_vieja(self):
+        self.assertEqual(self._escribir(1).version(), 1)
+        st = os.stat(self.ruta)
+        with open(self.ruta, "w", encoding="utf-8") as f:
+            f.write("def version(:\n")  # SyntaxError a medias de un commit
+        os.utime(self.ruta, (st.st_atime, st.st_mtime + 5))
+        with mock.patch.object(enjambre, "evento") as evento:
+            self.assertEqual(enjambre._cargar_modulo_puente(self.nombre, self.ruta).version(), 1)
+        self.assertEqual(evento.call_count, 1)
+        self.assertEqual(evento.call_args[0][:2], ("aviso", "-"))
+
+
 if __name__ == "__main__":
     unittest.main()

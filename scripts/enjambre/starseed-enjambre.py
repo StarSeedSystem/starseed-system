@@ -27,6 +27,7 @@ Tiempos configurables:
 import datetime, hashlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
 import signal
 import tempfile
+import importlib
 import contextlib, fcntl
 
 # La decisión de salud, vencimiento y reparto vive fuera para poder probarla sin lanzar una ola.
@@ -4151,19 +4152,66 @@ def _en_la_mac():
     return os.environ.get("STARSEED_DONDE") == "mac" and sys.platform == "darwin"
 
 
+#: (SUP0211V) mtime con el que se cargó cada módulo de scripts/puente. Las puertas tsc viven en
+#: memoria y el orquestador solo se reinicia al cambiar scripts/enjambre: sin esto, un arreglo de
+#: las puertas (SUP0211U) no llegaba hasta el próximo reinicio.
+_MTIMES_PUENTE = {}
+
+
+def hay_que_recargar(mtime_visto, mtime_ahora):
+    """PURA: ¿cambió el archivo del módulo desde la última carga? Sin mtime no hay nada que recargar."""
+    if mtime_visto is None or mtime_ahora is None:
+        return False
+    return mtime_visto != mtime_ahora
+
+
+def _cargar_modulo_puente(nombre, ruta):
+    """Importa `nombre` de scripts/puente y lo recarga si su archivo cambió (SUP0211V).
+
+    La primera carga solo apunta el mtime. Si la recarga falla (SyntaxError a medias de un commit,
+    OSError), se sigue con el módulo que ya estaba y se avisa."""
+    try:
+        mtime = os.path.getmtime(ruta)
+    except OSError:
+        mtime = None
+    visto = _MTIMES_PUENTE.get(nombre)
+    modulo = sys.modules.get(nombre)
+    if modulo is None:
+        modulo = importlib.import_module(nombre)
+        _MTIMES_PUENTE[nombre] = mtime
+        return modulo
+    if visto is None:
+        # Primera carga de esta sesión: solo se apunta, no se recarga.
+        _MTIMES_PUENTE[nombre] = mtime
+        return modulo
+    if hay_que_recargar(visto, mtime):
+        viejo = modulo
+        try:
+            modulo = importlib.reload(modulo)
+        except (SyntaxError, OSError) as e:
+            evento(
+                "aviso",
+                "-",
+                "puerta tsc: no se pudo recargar %s (%s); sigo con el que estaba"
+                % (nombre, str(e)[:120]),
+            )
+            modulo = viejo
+        _MTIMES_PUENTE[nombre] = mtime
+    return modulo
+
+
 def _comprobar_en_a1():
     """La función `comprobar` de comprobar_en_a1.py, o None si no se puede usar (TRA1012A).
     Solo en la Mac (`_en_la_mac`): la nube y el A1 mismo ya compilan donde tienen memoria."""
     if not _en_la_mac():
         return None
     ruta = os.path.join(ROOT, "scripts", "puente")
-    if not os.path.isfile(os.path.join(ruta, "comprobar_en_a1.py")):
+    archivo = os.path.join(ruta, "comprobar_en_a1.py")
+    if not os.path.isfile(archivo):
         return None
     if ruta not in sys.path:
         sys.path.insert(0, ruta)
-    from comprobar_en_a1 import comprobar
-
-    return comprobar
+    return _cargar_modulo_puente("comprobar_en_a1", archivo).comprobar
 
 
 #: (2026-10-27, CAP1026P) Lo que la puerta tsc de la Mac espera el veredicto de GitHub antes de caer al A1 o a la
@@ -4178,11 +4226,12 @@ def _comprobar_en_github():
     if not _en_la_mac() or os.environ.get("STARSEED_COMPROBAR_GITHUB", "1") == "0":
         return None
     ruta = os.path.join(ROOT, "scripts", "puente")
-    if not os.path.isfile(os.path.join(ruta, "comprobar_en_github.py")):
+    archivo = os.path.join(ruta, "comprobar_en_github.py")
+    if not os.path.isfile(archivo):
         return None
     if ruta not in sys.path:
         sys.path.insert(0, ruta)
-    import comprobar_en_github as G
+    G = _cargar_modulo_puente("comprobar_en_github", archivo)
 
     return lambda base, cambiados, cwd: G.esperar_tsc(base, cambiados, cwd, TSC_GITHUB_ESPERA_S)
 
