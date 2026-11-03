@@ -78,8 +78,16 @@ import { activeProfileId } from "@/lib/profiles/profiles";
 // dependencias a propósito — no arrastra el catálogo de iconos a este bundle.
 import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaults";
 // (Ola MBT1027) El Mausbot guarda su config con su propio evento (EVENTO_MAUSBOT,
-//  src/lib/mausbot/config.ts); el valor que llega de otro dispositivo usa el mismo evento.
-import { EVENTO_MAUSBOT } from "@/lib/mausbot/config";
+ //  src/lib/mausbot/config.ts); el valor que llega de otro dispositivo usa el mismo evento.
+ import { EVENTO_MAUSBOT } from "@/lib/mausbot/config";
+ // (MTN1027C · Meta^n) Las directivas de automejora de las capas viajan con la cuenta
+ // (astraura/capas/directivas-almacen.ts); al llegar de otro medio suena su evento propio
+ // y lo que baja se SANEA con `normalizarRegistroDirectivas` antes de escribirse (abajo).
+ import {
+     CLAVE_DIRECTIVAS,
+     EVENTO_DIRECTIVAS,
+     normalizarRegistroDirectivas,
+ } from "@/lib/astraura/capas/directivas-almacen";
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
@@ -162,10 +170,12 @@ interface BroadcastPayload {
 const EVENT_BY_KEY: Record<string, string[]> = {
     "starseed.desktops.v1": ["starseed:desktops"],
     "starseed.cursorfx.v1": ["starseed:cursorfx"],
-    // (Ola MBT1027) El Mausbot ya emite su evento propio al guardar (EVENTO_MAUSBOT,
-    //  src/lib/mausbot/config.ts); el mismo evento sirve para el valor que llega de otro dispositivo.
-    "starseed.mausbot.v1": [EVENTO_MAUSBOT],
-    "starseed.aurora.chatlog.v1": ["starseed:aurora-chatlog"],
+// (Ola MBT1027) El Mausbot ya emite su evento propio al guardar (EVENTO_MAUSBOT,
+ //  src/lib/mausbot/config.ts); el mismo evento sirve para el valor que llega de otro dispositivo.
+ "starseed.mausbot.v1": [EVENTO_MAUSBOT],
+ // (MTN1027C · Meta^n) Directivas de automejora de las capas: viajan con la cuenta.
+ "starseed.capas.directivas.v1": [EVENTO_DIRECTIVAS],
+ "starseed.aurora.chatlog.v1": ["starseed:aurora-chatlog"],
     "starseed.aurora.orb.pos.v1": ["starseed:aurora-orb-visibility"],
     "starseed.perf.v1": ["starseed:perf-changed"],
     "starseed.dock.items.v2": ["starseed:sync:apply"],
@@ -942,6 +952,24 @@ function applyRemoteChanges(
             if (key === DOCK_STORAGE_KEY) {
                 const norm = normalizeDockSyncValue(merged);
                 if (norm.changed) { merged = norm.value; repaired = true; }
+            }
+
+            /* ── DIRECTIVAS (MTN1027C · Meta^n): sanear ANTES de escribir ──────
+             * El registro de directivas (`starseed.capas.directivas.v1`) se aplica
+             * aquí TAL CUAL llega. igual que con el dock, un valor torcido de la
+             * cuenta (claves ajenas, directivas con versión infinita o estados
+             * desconocidos) quedaría persistido con esa basura. Pasa por la MISMA
+             * normalización pura que usa el almacén (`normalizarRegistroDirectivas`)
+             * y lo que se caiga del saneado se marca como reparado para volver a
+             * subir lo ya limpio. */
+            if (key === CLAVE_DIRECTIVAS) {
+                const crudo: unknown =
+                    typeof merged === "string" ? JSON.parse(merged) : merged;
+                const saneado = normalizarRegistroDirectivas(crudo);
+                if (JSON.stringify(crudo) !== JSON.stringify(saneado)) {
+                    merged = saneado;
+                    repaired = true;
+                }
             }
 
             const serialized = serializeForStorage(merged);
