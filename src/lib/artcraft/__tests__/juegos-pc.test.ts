@@ -42,6 +42,48 @@ describe("planificarJuegoPc · rutas A, B y C (§5.1)", () => {
     expect(CONDICIONES_EPIC_DECIDIDAS).toBe(false);
     expect(plan(NEURONA_SERVIDOR, [SERVIDOR_COMPARTIDO]).ruta).toBe("ninguna");
   });
+  it("ruta A: neurona con pantalla y Rare instalado, aunque haya servidores compartidos", () => {
+    const p = plan(NEURONA_A, [{ id: "a1", propio: false, compartido: true, gpu: true, wineOProton: true, transmision: "selkies", libreDiscoGB: 40 }]);
+    expect(p.ruta).toBe("neurona-propia");
+    expect(p.pasos).toEqual(["abre Rare", "inicia sesión en Epic tú mismo"]);
+  });
+  it("ruta B: sin pantalla ni Rare, servidor propio con GPU y compatibilidad", () => {
+    const p = plan(NEURONA_SERVIDOR, [
+      { id: "a1", propio: true, compartido: false, gpu: false, wineOProton: true, transmision: "sunshine", libreDiscoGB: 40 },
+      { id: "cpu", propio: true, compartido: false, gpu: true, wineOProton: true, transmision: "sunshine", libreDiscoGB: 40 },
+    ]);
+    expect(p.ruta).toBe("servidor-propio");
+  });
+  it("sin condiciones de Epic decididas, la ruta C no se ofrece aunque la persona acepte", () => {
+    expect(CONDICIONES_EPIC_DECIDIDAS).toBe(false);
+    const p = plan(NEURONA_SERVIDOR, [
+      { id: "a1", propio: false, compartido: true, gpu: true, wineOProton: true, transmision: "selkies", libreDiscoGB: 40 },
+    ]);
+    expect(p.ruta).toBe("ninguna");
+    expect(p.pasos).toEqual([]);
+    expect(p.avisos).toContain("no hay ruta disponible en las condiciones actuales");
+  });
+  it("carpeta 0700 por persona bajo <datos>/juegos, y personaId estricto", () => {
+    expect(rutaConfigEpic("/datos", "alex-01")).toEqual({ ruta: "/datos/juegos/alex-01/legendary", modo: 0o700 });
+    for (const malo of ["Alex", "a b", "a/b", "", "-".repeat(65)])
+      expect(() => rutaConfigEpic("/datos", malo)).toThrow();
+  });
+  it("un texto con campos de sesión o tokens eg1~ no pasa, y uno limpio sí", () => {
+    expect(validarSinCredencialesEpic("sesión iniciada por la persona")).toEqual({ ok: true, hallazgos: [] });
+    const r = validarSinCredencialesEpic('{"access_token":"valor_mas_largo_aqui","exchange_code":"código"}');
+    expect(r.ok).toBe(false);
+    expect(r.hallazgos).toContain("access_token");
+    expect(r.hallazgos).toContain("exchange_code");
+    expect(r.hallazgos.some((h) => h.startsWith("eg1~"))).toBe(false);
+  });
+  it("solo releases del repo oficial de RareDevs", () => {
+    expect(esUrlPermitidaRare("https://github.com/RareDevs/Rare/releases/download/1.12.0.237/Rare.dmg")).toBe(true);
+    for (const url of [
+      "https://raredevs.github.io/wring/workarounds.json", "https://protondb.com/",
+      "https://github.com/Otro/otro/releases/download/1.0/x",
+      "https://github.com/RareDevs/Rare/releases",
+    ]) expect(esUrlPermitidaRare(url)).toBe(false);
+  });
   // Rescate RTART1025Ld: sin capa de compatibilidad Y sin transmisión, un
   // servidor propio con GPU no vale para la ruta B (ni para ninguna otra).
   it("servidor propio con GPU, sin Wine ni Proton y sin transmisión: ninguna", () => {
