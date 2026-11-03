@@ -127,7 +127,7 @@ describe("servicio-local · servicio hyperframes (vídeo, Ola 1018H)", () => {
   it("la definición es la del contrato: puerto 4490, salud en /salud y plazo propio de 15 min", () => {
     expect(HF).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900_000 });
     expect(validarDefinicion(HF)).toBeNull();
-    expect(SERVICIOS_CONOCIDOS).toHaveLength(3); // nada más cambió
+    expect(SERVICIOS_CONOCIDOS.map((d) => d.id)).toEqual(["comfyui", "ollama", "hyperframes"]); // nada más cambió
   });
   it("la salud se consulta SOLO en 127.0.0.1:4490/salud, con GET y sin exigir el token", async () => {
     const f = vi.fn<FetchLocal>(async () => resp(200, '{"ok":true}'));
