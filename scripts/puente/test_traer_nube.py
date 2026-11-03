@@ -134,6 +134,20 @@ class Sucesor(unittest.TestCase):
         self.assertEqual(T.base_de(""), "")
         self.assertEqual(T.base_de(None), "")
 
+    def test_toda_la_cadena_de_una_tarea_converge_en_su_raiz(self):
+        # Rescatado de nube/41579697472 (RESC1031D): toda la cadena de una tarea converge en la
+        # raíz, incluidos los derivados del derivado — el sufijo se corta ENTEIRO, de una pieza,
+        # y detrás cabe una sola letra de reintento.
+        for k in ("RTESP1011Bb", "RTESP1011Bd", "RTESP1011Bd-d1", "RTESP1011Bd-d2b", "RTESP1011Bd-d2d"):
+            self.assertEqual(T.base_de(k), "RTESP1011B", k)
+
+    def test_los_ids_minimos_no_rompen_el_corte(self):
+        # Rescatado de nube/41579697472 (RESC1031D): con un id de una letra el corte del sufijo
+        # no deja nada vacío, y la letra sucesora detrás de una mayúscula también sale. Antes
+        # `Xb-d2b` → `Xb-d2` (que NO existe).
+        self.assertEqual(T.base_de("X-d1"), "X")
+        self.assertEqual(T.base_de("Xb-d2b"), "X")
+
     def test_base_de_con_sufijo_rescate_y_derivacion(self):
         # Casos del issue RESC1031D: distingue sufijo -d1/-d2b de la letra sucesora
         self.assertEqual(T.base_de("SGO1031B-d1"), "SGO1031B")
