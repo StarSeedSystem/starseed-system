@@ -92,6 +92,8 @@ REFRESCO_SIN_EFECTO_S = 10 * 60
 REINICIO_ORQ_MINIMO_S = 45 * 60
 SONDA_VALIDA_S = 10 * 60
 SERVICIOS_MINIMO_S = 10 * 60
+#: (1103 · G) Cada cuánto se mira si el orquestador instalado y el vivo corren el código de main.
+ORQ_AL_DIA_MINIMO_S = 15 * 60
 FASES_ESPERA = ("esperando proveedor", "esperando cupo")
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 SALUD = os.path.expanduser("~/.starseed/salud-proveedores.json")
@@ -382,6 +384,12 @@ def _guardar(datos):
         os.replace(tmp, ESTADO)
     except OSError:
         pass
+
+
+def _orquestador_al_dia():
+    import orquestador_al_dia as OD
+
+    return OD.revisar(aplicar=True)
 
 
 def sondear(url=None, tope_s=TOPE_SONDA_S):
@@ -819,7 +827,8 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
             libre_fn=espacio_libre_gb, avisar_fn=_avisar, dormir=time.sleep, asignar_fn=_asignar,
             buscar_fn=_buscar, traer_fn=_traer_en_fondo, forzar=False, curar_fn=None,
             servicios_fn=_servicios, medidores_fn=_levantar_por_medidores, worktrees_fn=None,
-            reparar_fn=None, explabs_fn=None, relevo_fn=None, a1_fn=None, lider_fn=None, estatico_fn=None):
+            reparar_fn=None, explabs_fn=None, relevo_fn=None, a1_fn=None, lider_fn=None, estatico_fn=None,
+            orquestador_fn=None):
     """Una pasada completa. Devuelve lo que vio y lo que hizo (también queda en ESTADO).
     `forzar` (el botón «Reactivar directores»): todo ya, sin los tiempos mínimos.
     `lider_fn`: el arriendo de dirección (IND1029Cb); si dirige otra neurona, solo se cuida esta máquina."""
@@ -956,6 +965,18 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
                 avisar_fn("Autocuración: servicios de Genesis — %s." % r.get("detalle"))
         except Exception as e:
             hechos.append("no pude revisar los servicios: %s: %s" % (type(e).__name__, e))
+
+    # (1103 · G) El orquestador al día, en ESTA máquina: si main trae código nuevo del enjambre se instala solo, y el
+    # orquestador que corre con el viejo se reinicia en un momento seguro (SIGTERM con el cerrojo del progreso; el
+    # vigilante lo relanza y retoma por los puntos de control). Alex (02-11): «todo lo ejecutable lo hace un director».
+    od_fn = orquestador_fn if orquestador_fn is not None else (_orquestador_al_dia if limpiar_fn is limpiar else None)
+    if od_fn and (forzar or ahora - float(estado.get("ultimo_orquestador_al_dia") or 0) >= ORQ_AL_DIA_MINIMO_S):
+        estado["ultimo_orquestador_al_dia"] = ahora
+        try:
+            for h in (od_fn() or {}).get("hechos") or []:
+                hechos.append("orquestador: %s" % h)
+        except Exception as e:
+            hechos.append("no pude poner al día el orquestador: %s: %s" % (type(e).__name__, e))
 
     # Marcas viejas de «sin cupo» que el medidor de crédito desmiente (cada pasada; gratis).
     try:
