@@ -32,6 +32,9 @@ export type ModoSesion = "vr-inmersivo" | "ar-passthrough" | "ar-mano";
 /** Trinity completa (XR1010AS): contenido de los cuatro nodos, menú de mano y mundo; perezosa. */
 const ContenidoTrinityDinamico = nextDynamic(() => import("./contenido-trinity").then((m) => m.ContenidoTrinity), { ssr: false });
 
+/** Presencia, avatares (XR1010AC/AD) y audio espacial (XR1010AB); perezosa como el resto. */
+const EscenaVivaDinamica = nextDynamic(() => import("./escena-viva").then((m) => m.EscenaViva), { ssr: false });
+
 /** Comodidad (XR1010AF): viñeta, giro por saltos, subtítulos y postura; carga perezosa como el resto. */
 const ComodidadDinamica = nextDynamic(() => import("./comodidad").then((m) => m.Comodidad), { ssr: false });
 
@@ -181,6 +184,7 @@ export function EscenaOS({ modo = null }: Props) {
                             menuAbierto={menuAbierto}
                             alCalidad={() => setMenuAbierto(false)}
                         />
+                        <EscenaVivaDinamica nivel={calidadNivel} />
                         {pagina !== null && <UiSpec3DDinamico spec={pagina} />}
                     </group>
                     {/* Comodidad (XR1010AF): aquí se APLICA el confort (§3 j), no solo se exporta. */}

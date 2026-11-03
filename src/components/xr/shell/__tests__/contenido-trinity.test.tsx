@@ -73,6 +73,13 @@ describe("piezas de la Trinity", () => {
         expect(screen.getByTestId("menu-mano")).toBeInTheDocument();
     });
 
+    it("Zenith suma el flujo de voz cuando llega su contexto real", () => {
+        const voz = { mundo: {}, compartir: {} } as unknown as Parameters<typeof ContenidoTrinity>[0]["voz"];
+        mostrar({ voz });
+        expect(screen.getByTestId("n-zenith")).toContainElement(screen.getByTestId("orbe"));
+        expect(screen.getByTestId("n-zenith")).toContainElement(screen.getByTestId("flujo-voz"));
+    });
+
     it("una pieza ausente (sin controlador) no rompe la escena ni deja huecos falsos", () => {
         mostrar();
         expect(screen.queryByTestId("parametros")).toBeNull();
