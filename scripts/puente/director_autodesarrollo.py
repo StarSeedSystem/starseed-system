@@ -427,7 +427,8 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         except Exception:
             lider_info = None
         try:
-            dirijo, porque_lider = AC.decidir_lider(lider_info, ahora)
+            ahora_s = ahora.timestamp() if isinstance(ahora, datetime) else float(ahora)
+            dirijo, porque_lider = AC.decidir_lider(lider_info, ahora_s)
         except Exception:
             dirijo, porque_lider = False, "error al decidir liderazgo"
         if toca and not dirijo:

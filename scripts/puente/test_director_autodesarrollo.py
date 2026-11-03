@@ -3,6 +3,7 @@
 """Pruebas de director_autodesarrollo (IMN1021Db): sin red, carpetas temporales, lanzadores inyectados."""
 import json, os, sys, tempfile, unittest
 from datetime import datetime, timedelta
+from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import director_autodesarrollo as D
 
@@ -125,6 +126,28 @@ class DirectorTest(unittest.TestCase):
         # El archivo de propuestas debe existir (se escribió atómicamente)
         props_file = os.path.join(self.raiz, "starseed_memory_root", "imaginacion", "propuestas.json")
         self.assertTrue(os.path.isfile(props_file))
+
+    def test_arriendo_vigente_de_otra_neurona_no_encarga(self):
+        # (SUP0311C) El arriendo de `decidir_lider` va en segundos: con un datetime se tomaba por
+        # caducado y la Mac encargaba aunque el A1 dirigiera (encargos repetidos).
+        otro = {"soy": False, "motivo": "dueño: a1",
+                "arriendo": {"dueno": "a1", "caduca": NOCHE.timestamp() + 600}}
+        with mock.patch("lider_direccion.soy_lider", return_value=otro):
+            r = self.correr(seco=True)
+        self.assertFalse(r["toca_ejecutar"])
+        self.assertIn("no soy líder", r["motivo_toca"])
+        self.assertIn("a1", r["motivo_toca"])
+
+    def test_arriendo_caducado_o_sin_arriendo_encarga_como_hoy(self):
+        caducado = {"soy": False, "motivo": "tomado: libre",
+                    "arriendo": {"dueno": "a1", "caduca": NOCHE.timestamp() - 30}}
+        sin_arriendo = {"soy": False, "motivo": "sin arriendo vigente", "arriendo": None}
+        for lider in (caducado, sin_arriendo):
+            with self.subTest(lider=lider):
+                with mock.patch("lider_direccion.soy_lider", return_value=lider):
+                    r = self.correr(seco=True)
+                self.assertTrue(r["toca_ejecutar"])
+                self.assertNotIn("no soy líder", r["motivo_toca"])
 
 
 class Imaginacion1024Test(unittest.TestCase):
