@@ -367,6 +367,46 @@ class FlotaViva(unittest.TestCase):
         self.assertEqual(llamadas.count(("gemini", "gemini-2.5-flash-lite")), 1)
         self.assertIn("gemini/gemini-2.5-flash-lite", salud.resumen()["muertos"])
 
+    def test_fuera_por_seguidos_pura(self):
+        self.assertFalse(A.fuera_por_seguidos(A.OTRO, 19))
+        self.assertTrue(A.fuera_por_seguidos(A.OTRO, 20))
+        self.assertFalse(A.fuera_por_seguidos(A.OTRO, 19))
+        self.assertFalse(A.fuera_por_seguidos(A.RITMO, 50))
+        self.assertFalse(A.fuera_por_seguidos(A.CUOTA, 20))
+        self.assertFalse(A.fuera_por_seguidos(A.SIN_CLAVE, 20))
+        self.assertFalse(A.fuera_por_seguidos(A.OTRO, None))
+
+    def test_veinte_otro_seguidos_saca_el_par_de_la_sesion(self):
+        salud = A.SaludFlota()
+        for n in range(19):
+            r = salud.fallo("llm7", "gpt-oss", A.OTRO, n * 60.0)
+            self.assertIn("enfriado", r)
+        self.assertNotIn(("llm7", "gpt-oss"), salud.muertos)
+        r = salud.fallo("llm7", "gpt-oss", A.OTRO, 19 * 60.0)
+        self.assertEqual(r, "fuera para toda la sesión (otro, 20 seguidos)")
+        self.assertIn("llm7/gpt-oss", salud.resumen()["muertos"])
+        self.assertFalse(salud.sano("llm7", "gpt-oss", 10 ** 9))
+        self.assertFalse(salud.volvera("llm7", "gpt-oss", 10 ** 9))
+
+    def test_un_exito_en_medio_reinicia_la_cuenta(self):
+        salud = A.SaludFlota()
+        for n in range(10):
+            salud.fallo("a", "m", A.OTRO, n * 60.0)
+        salud.exito("a", "m")
+        for n in range(19):
+            self.assertIn("enfriado", salud.fallo("a", "m", A.OTRO, 1000.0 + n * 60.0))
+        self.assertNotIn(("a", "m"), salud.muertos)
+        self.assertIn("fuera para toda la sesión (otro, 20 seguidos)",
+                      salud.fallo("a", "m", A.OTRO, 99999.0))
+
+    def test_cincuenta_ritmo_seguidos_nunca_sacan_el_par(self):
+        salud = A.SaludFlota()
+        for n in range(50):
+            r = salud.fallo("b", "m", A.RITMO, n * 60.0)
+            self.assertIn("enfriado", r)
+        self.assertNotIn(("b", "m"), salud.muertos)
+        self.assertTrue(salud.volvera("b", "m", 10 ** 9))
+
     def test_por_turnos_entre_todos_y_el_cupo_lleno_al_final(self):
         salud = A.SaludFlota()
         usados = []
