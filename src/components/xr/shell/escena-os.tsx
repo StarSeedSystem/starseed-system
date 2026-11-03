@@ -21,29 +21,18 @@ import { mensajeErrorXR } from "@/components/vivo/espacial/use-sesion-xr";
 import type { ModoXR as ModoURL } from "@/lib/vivo/xr";
 import { BotonEntradaXR } from "./boton-entrada-xr";
 import { useCapacidadesXR } from "./use-capacidades-xr";
+import type { ContextoAcciones } from "./acciones-xr";
 
 type ModoRuta = ModoURL | "pantalla" | null;
 type Props = { modo?: ModoRuta };
 
 export type ModoSesion = "vr-inmersivo" | "ar-passthrough" | "ar-mano";
 
-/** El rig de la Trinity (XR1010J): uikit y three se cargan solo al entrar en /xr/os, nunca en el layout raíz. */
-const RigTrinityDinamico = nextDynamic(() => import("./rig-trinity").then((m) => m.RigTrinity), { ssr: false });
+/** Trinity completa (XR1010AS): nodos, menú, mundo, presencia y audio; perezosa como el resto. */
+const ContenidoTrinityDinamico = nextDynamic(() => import("./contenido-trinity").then((m) => m.MontajeTrinity), { ssr: false });
 
 /** Comodidad (XR1010AF): viñeta, giro por saltos, subtítulos y postura; carga perezosa como el resto. */
 const ComodidadDinamica = nextDynamic(() => import("./comodidad").then((m) => m.Comodidad), { ssr: false });
-
-/** Zenith (XR1010O) con la voz de XR1010P enganchada por su puente `pipeline`; carga perezosa también. */
-const OrbeVozDinamico = nextDynamic(() => import("./orbe-voz").then((m) => m.OrbeVoz), { ssr: false });
-
-/** Horizon (XR1010AO): crear, destinos y Biblioteca conectados a la cuenta real; carga perezosa. */
-const HorizonDinamico = nextDynamic(() => import("./horizon-montado").then((m) => m.HorizonMontado), { ssr: false });
-
-/** Logic (XR1010AG): calidad, confort, vínculos, privacidad y conexiones; carga perezosa. */
-const NodoLogicDinamico = nextDynamic(() => import("./nodo-logic").then((m) => m.NodoLogic), { ssr: false });
-
-/** Página declarativa (UiSpec, §3 b escalón 2): la pinta `uispec-uikit`; carga perezosa como el resto. */
-const UiSpec3DDinamico = nextDynamic(() => import("./uispec-uikit").then((m) => m.UiSpec3D), { ssr: false });
 
 export interface CapaUiSpec { forma?: string; uiSpec?: unknown }
 
@@ -107,9 +96,24 @@ export function EscenaOS({ modo = null }: Props) {
     const [alturaOjosMedida, setAlturaOjosMedida] = useState<number | null>(null);
     const [giroRig, setGiroRig] = useState(0);
     const [pagina, setPagina] = useState<unknown | null>(null);
+    const [menuAbierto, setMenuAbierto] = useState(false);
     const intentadoRef = useRef(false);
     const alturaOjosRef = useRef<{ metros: number } | null>(null);
     const { nivel: calidadNivel, cambio, aviso } = useCalidadDinamica();
+
+    // Acciones del menú de mano y del motor de entrada (XR1010L): salir y recentrar, reales.
+    const acciones: ContextoAcciones = {
+        recentrar: () => setGiroRig(0),
+        salir: async () => { try { await almacen?.getState().session?.end(); } catch { /* sin sesión abierta */ } setEnSesion(false); },
+        abrirMenuMano: () => setMenuAbierto((v) => !v),
+        abrirDock: () => setMenuAbierto(false),
+        hablar: () => setMenuAbierto(false),
+        atras: () => setMenuAbierto(false),
+        seleccionar: () => undefined,
+        agarrar: () => undefined,
+        teletransporte: () => undefined,
+        girar: (dir) => setGiroRig((y) => y + dir * (Math.PI / 6)),
+    };
 
     // Página declarativa del OS: el widget UiSpec que publica Astraura se pinta en 3D (nunca código).
     useEffect(() => {
@@ -161,26 +165,22 @@ export function EscenaOS({ modo = null }: Props) {
                 <ambientLight intensity={0.7} />
                 <Suspense fallback={null}>
                 {almacen !== null && (
-                    <XR store={almacen}><XROrigin rotation={[0, -giroRig, 0]} /><AlturaOjos refAltura={alturaOjosRef} alMedir={setAlturaOjosMedida} /></XR>
+                    <XR store={almacen}>
+                        <XROrigin rotation={[0, -giroRig, 0]} />
+                        <AlturaOjos refAltura={alturaOjosRef} alMedir={setAlturaOjosMedida} />
+                        {/* Trinity completa (XR1010AS): dentro del almacén, porque el menú de mano lee las entradas XR. */}
+                        <group rotation={[0, -giroRig, 0]}>
+                            <ContenidoTrinityDinamico
+                                modo={modoTrinity(modoUrl, plan)}
+                                nivel={calidadNivel}
+                                alturaOjosMedida={alturaOjosMedida}
+                                pagina={pagina}
+                                acciones={acciones}
+                                menuAbierto={menuAbierto}
+                            />
+                        </group>
+                    </XR>
                 )}
-                    {/* Rig de la Trinity (XR1010J): reemplaza al panel provisional de XR1010G. */}
-                    <group rotation={[0, -giroRig, 0]}>
-                        <RigTrinityDinamico
-                            modo={modoTrinity(modoUrl, plan)}
-                            nivel={calidadNivel}
-                            alturaOjosMedida={alturaOjosMedida}
-                            contenido={{
-                                zenith: <OrbeVozDinamico />,
-                                horizon: <HorizonDinamico />,
-                                logic: (
-                                    <>
-                                        <NodoLogicDinamico />
-                                        {pagina !== null && <UiSpec3DDinamico spec={pagina} />}
-                                    </>
-                                ),
-                            }}
-                        />
-                    </group>
                     {/* Comodidad (XR1010AF): aquí se APLICA el confort (§3 j), no solo se exporta. */}
                     <ComodidadDinamica
                         modo={modoTrinity(modoUrl, plan)}
