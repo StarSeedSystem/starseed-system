@@ -195,6 +195,7 @@ describe("fijarVersion", () => {
     const sumas = new Map<string, string>([["deckcraft-web-0.10.0.zip", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"]]);
     const result = fijarVersion("deckcraft", "v0.10.0", sumas);
     expect(result).not.toBeNull();
+    expect(result?.version).toBe("v0.10.0");
     expect(result?.activo).toBe("deckcraft-web-0.10.0.zip");
     expect(result?.sha256).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
   });
