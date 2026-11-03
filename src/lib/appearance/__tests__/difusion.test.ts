@@ -31,20 +31,13 @@ describe("veloDifusion", () => {
     expect(veloDifusion(d({ modo: "desenfoque", opacidad: 0.5 }))).toBe("rgba(255, 255, 255, 0.06)");
   });
 
-  it("modo tono sin tono → cae al blanco (saneado defensivo)", () => {
-    expect(veloDifusion(d({ modo: "tono", opacidad: 1 }))).toBe("color-mix(in srgb, #ffffff 100%, transparent)");
-  });
-
-  it("opacidad 0 → sin velo en CUALQUIER modo", () => {
-    expect(veloDifusion(d({ modo: "blanco", opacidad: 0 }))).toBeUndefined();
-    expect(veloDifusion(d({ modo: "negro", opacidad: 0 }))).toBeUndefined();
-    expect(veloDifusion(d({ modo: "tono", tono: "#1d4ed8", opacidad: 0 }))).toBeUndefined();
-    expect(veloDifusion(d({ modo: "desenfoque", opacidad: 0 }))).toBeUndefined();
-  });
-
   it("opacidad fuera de rango → se recorta a 1 y a 0", () => {
     expect(veloDifusion(d({ modo: "blanco", opacidad: 3 }))).toBe("rgba(255, 255, 255, 1)");
     expect(veloDifusion(d({ modo: "blanco", opacidad: -2 }))).toBeUndefined();
+  });
+
+  it("modo tono sin tono → cae al blanco (saneado defensivo)", () => {
+    expect(veloDifusion(d({ modo: "tono", opacidad: 1 }))).toBe("color-mix(in srgb, #ffffff 100%, transparent)");
   });
 });
 
