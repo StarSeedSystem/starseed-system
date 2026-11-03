@@ -1306,6 +1306,11 @@ def silencio_tolerable(silencio_desde, ahora, espera_s=ESPERA_MAX_SIN_RESPUESTA_
 def una_pasada(forzar: bool = False) -> bool:
     """`forzar` (orden `--una-vez --ya`): compila aunque Astraura esté en uso o haya
     conversación. Solo a mano; el disco se sigue comprobando."""
+    try:  # (SUP0111B) un .ts/.tsx SIN git que no transpila tumba toda build (31-10): se aparta antes de mirar nada
+        import cuarentena_sin_git
+        cuarentena_sin_git.revisar(RAIZ)
+    except Exception as e:  # noqa: BLE001  nunca debe tumbar al reconstructor
+        print("cuarentena sin git: %s: %s" % (type(e).__name__, e), flush=True)
     entradas = list(_entradas())
     actual = huella_de(entradas)
     estado = _leer_estado()
