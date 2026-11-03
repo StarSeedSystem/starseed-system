@@ -67,10 +67,13 @@ def orden_remota(destino: str, nombres: list[str]) -> str:
         "nuevo=$(mktemp); fus=$(mktemp)\n"
         "trap 'rm -f \"$nuevo\" \"$fus\"' EXIT\n"
         "cat > \"$nuevo\"\n"
-        f"if [ -f {destino_q} ]; then grep -vE '^(export )?({patron})=' {destino_q} > \"$fus\" || true; fi\n"
+        # (1103 · K) /etc/starseed es root 750 y el archivo root 600: leer y comprobar también con sudo, o la fusión
+        # no ve lo que ya había (y lo perdería) y la comprobación da «✗» aunque la clave quedó.
+        f"if sudo test -f {destino_q}; then sudo grep -vE '^(export )?({patron})=' {destino_q} > \"$fus\" || true; "
+        f"sudo cp -p {destino_q} {destino_q}.anterior; fi\n"
         "cat \"$nuevo\" >> \"$fus\"\n"
         f"sudo install -m 600 -o root -g root \"$fus\" {destino_q} || exit 1\n"
-        f"for v in {lista}; do grep -qE \"^(export )?$v=\" {destino_q} && echo \"OK $v\"; done\n"
+        f"for v in {lista}; do sudo grep -qE \"^(export )?$v=\" {destino_q} && echo \"OK $v\"; done; true\n"
     )
 
 

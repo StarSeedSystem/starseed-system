@@ -121,3 +121,13 @@ class PruebasOracleClaves(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_1103_lee_y_comprueba_con_sudo_y_guarda_copia():
+    import os as _o, sys as _s
+    _s.path.insert(0, _o.path.dirname(_o.path.abspath(__file__)))
+    import oracle_claves as _oc
+    orden = _oc.orden_remota("/etc/starseed/direccion.env", ["A_VAR"])
+    assert "sudo test -f /etc/starseed/direccion.env" in orden
+    assert "sudo grep -vE" in orden and "sudo grep -qE" in orden
+    assert "sudo cp -p /etc/starseed/direccion.env /etc/starseed/direccion.env.anterior" in orden
