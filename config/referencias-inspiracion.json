@@ -1039,9 +1039,45 @@
    "og_imagen": "https://cdn.prod.website-files.com/65ba70a4bb6f912baf009423/6899c6b37147b1d3587301c5_2533.webp",
    "verificado": "2026-10-18",
    "sin_verificar": []
-  },
-  {
-   "id": "unsection",
+},
+   {
+    "id": "behance",
+    "nombre": "Behance",
+    "url": "https://www.behance.net/",
+    "tema": "inspiracion-ui",
+    "subtema": "casos de proyecto y proceso creativo",
+    "que_es": "Red global de creativos con más de 50 millones de miembros; muestra trabajos, procesos y casos extensos de identidad visual, branding y aplicaciones, tanto de freelance como de estudios. Útil para entender sistemas de marca, patrones y aplicaciones en contexto.",
+    "tipo": "galeria-inspiracion",
+    "acceso": "libre",
+    "clase_uso": "solo-referencia",
+    "condiciones": "Las obras son de sus dueños: se estudia el proceso (estructura, jerarquía, sistemas, aplicaciones) y se crea una identidad propia; no se copian textos, marcas ni imágenes. Adobe prohibe el scraping automático y el entrenamiento de IA con su contenido.",
+    "canales": [
+     "sitemap-respetando-robots",
+     "navegador-de-la-persona"
+    ],
+    "prohibido": [
+     "scraping",
+     "entrenar-ia",
+     "copiar-disenos",
+     "descarga-masiva"
+    ],
+    "actualizacion": [
+     {
+      "tipo": "sitemap",
+      "url": "https://www.behance.net/sitemap"
+     }
+    ],
+    "integracion": [],
+    "terminos": "https://www.adobe.com/legal/terms.html",
+    "og_imagen": null,
+    "verificado": "2026-11-03",
+    "sin_verificar": [
+     "Términos de uso actualizados de Adobe/Behance",
+     "Acceso a API oficial (no disponible para consulta pública)"
+    ]
+   },
+   {
+    "id": "unsection",
    "nombre": "Unsection",
    "url": "https://www.unsection.com/",
    "tema": "inspiracion-ui",
