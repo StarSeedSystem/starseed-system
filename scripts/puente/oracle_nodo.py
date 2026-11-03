@@ -944,7 +944,7 @@ def huella_local():
 def reinstalar_si_toca(nodo):
     """(1103 · V) Lo que hace el ciclo: compara huellas y, si toca, `instalar()` (sin esperar). Nunca lanza."""
     local = huella_local()
-    rc, salida = ssh("cat %s/%s 2>/dev/null; echo '|'; pgrep -f 'next build|vitest run|tsc --noEmit|npm ci' "
+    rc, salida = ssh("cat %s/%s 2>/dev/null; echo '|'; pgrep -f '[n]ext build|[v]itest run|[t]sc --noEmit|[n]pm ci' "
                      "| head -1" % (ESTADO_A1, HUELLA_PAQUETE), timeout=40)
     if rc != 0:
         return {"ok": False, "no": "no pude leer la huella del A1"}
