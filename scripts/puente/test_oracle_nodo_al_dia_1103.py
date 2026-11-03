@@ -30,6 +30,9 @@ def test_decidir_reinstalar():
     assert N.decidir_reinstalar("abc", "xyz", "espera", AHORA - 600, AHORA)[0] is False
     assert N.decidir_reinstalar("abc", "xyz", "espera", AHORA - 7 * 3600, AHORA)[0]
     assert N.decidir_reinstalar("", "xyz", "espera", None, AHORA)[0] is False
+    # (1103 · W) con una build, un vitest, un tsc o un npm ci en marcha en el A1, se espera
+    ok, motivo = N.decidir_reinstalar("abc", "xyz", "espera", None, AHORA, ocupado="proceso 4242")
+    assert not ok and "compilando" in motivo
 
 
 def test_preparar_deja_la_huella():

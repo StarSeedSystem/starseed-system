@@ -915,14 +915,17 @@ def huella_de_carpeta(carpeta):
     return h.hexdigest()[:16]
 
 
-def decidir_reinstalar(local, remota, fase, ultima, ahora, cada_s=REINSTALAR_CADA_S):
-    """PURA (1103 · V). (reinstalar, motivo): el A1 corre otra versión que esta neurona y está libre para recibirla."""
+def decidir_reinstalar(local, remota, fase, ultima, ahora, cada_s=REINSTALAR_CADA_S, ocupado=""):
+    """PURA (1103 · V). (reinstalar, motivo): el A1 corre otra versión que esta neurona y está libre para recibirla.
+    (1103 · W) `ocupado`: un proceso pesado en marcha en el A1 (build, vitest, tsc, npm ci): se espera."""
     if not local:
         return False, "no pude armar el paquete de esta neurona"
     if remota == local:
         return False, "el A1 ya corre esta versión (%s)" % local
     if str(fase or "") == "cola":
         return False, "el A1 está con una cola: espero a que la termine"
+    if str(ocupado or "").strip():
+        return False, "el A1 está compilando o comprobando (%s): espero" % str(ocupado).strip()[:80]
     if ultima and ahora - float(ultima) < cada_s:
         return False, "ya lo reinstalé hace %.0f min (como mucho cada %.0f h)" % ((ahora - float(ultima)) / 60, cada_s / 3600)
     if not remota:
@@ -941,12 +944,14 @@ def huella_local():
 def reinstalar_si_toca(nodo):
     """(1103 · V) Lo que hace el ciclo: compara huellas y, si toca, `instalar()` (sin esperar). Nunca lanza."""
     local = huella_local()
-    rc, remota = ssh("cat %s/%s 2>/dev/null || true" % (ESTADO_A1, HUELLA_PAQUETE), timeout=40)
+    rc, salida = ssh("cat %s/%s 2>/dev/null; echo '|'; pgrep -f 'next build|vitest run|tsc --noEmit|npm ci' "
+                     "| head -1" % (ESTADO_A1, HUELLA_PAQUETE), timeout=40)
     if rc != 0:
         return {"ok": False, "no": "no pude leer la huella del A1"}
+    remota, _, ocupado = salida.partition("|")
     datos = _leer(ESTADO, {}) or {}
     ok, motivo = decidir_reinstalar(local, remota.strip(), (nodo or {}).get("fase"), datos.get("ultima_reinstalacion"),
-                                    time.time())
+                                    time.time(), ocupado=("proceso %s" % ocupado.strip()) if ocupado.strip() else "")
     if not ok:
         return {"ok": True, "no": motivo}
     datos["ultima_reinstalacion"] = time.time()
