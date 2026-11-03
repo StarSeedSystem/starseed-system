@@ -95,6 +95,12 @@ describe("esActivoPermitido", () => {
     expect(esActivoPermitido("Rare-1.12.0.237-arm64.dmg")).toBe(true);
   });
 
+  it("acepta los nombres que generan las tres funciones", () => {
+    expect(esActivoPermitido(nombreActivoWeb("deckcraft", "0.10.0"))).toBe(true);
+    expect(esActivoPermitido(nombreActivoCli("figcraft", "0.10.0"))).toBe(true);
+    expect(esActivoPermitido(nombreActivoRare("1.12.0.237", "x86_64.dmg"))).toBe(true);
+  });
+
   it("rechaza ruta con ../", () => {
     expect(esActivoPermitido("../x.zip")).toBe(false);
   });
