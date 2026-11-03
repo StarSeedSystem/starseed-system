@@ -35,6 +35,48 @@ class TestDeteccion(unittest.TestCase):
             self.assertTrue(C.agotado_en(t), t)
 
 
+REAL_SIN_MODELO = (
+    '{"status":400, "error":"unexpected_status", '
+    '"details":{"error":"unexpected_status","code":"model_not_found"},'
+    '"message":"The \'gpt-5.6-sol\' model is not supported when using Codex with '
+    'a ChatGPT account."}'
+)
+
+
+class TestSinModelo(unittest.TestCase):
+    # (2026-10-28, DEC1028C) Desde el 23/10 20:55 TODAS las llamadas de Codex en la
+    # Mac fallan con ese 400. No es cuota (se repone en horas) ni «el modelo no
+    # existe»: es la cuenta. `agotado_en` no lo reconoce y Codex seguía en la
+    # rotación: cada tarea quemaba su primer intento con él y volvía `sin_cambios`.
+    def test_la_salida_real_de_hoy(self):
+        self.assertTrue(C.sin_modelo_en(REAL_SIN_MODELO))
+
+    def test_da_igual_como_lo_escriban(self):
+        for t in (
+            "The 'gpt-5.5' model is not supported when using Codex with a ChatGPT account.",
+            'CODE "MODEL_NOT_FOUND"',
+        ):
+            self.assertTrue(C.sin_modelo_en(t), t)
+
+    def test_no_confunde_la_cuota_agotada_con_sin_modelo(self):
+        # La cuota se repone: 3 h. La cuenta sin Codex no: 24 h. Dos reacciones
+        # opuestas que la misma letra minúscula ya separaba con `agotado_en`.
+        self.assertFalse(C.sin_modelo_en(REAL))
+        self.assertTrue(C.agotado_en(REAL))
+
+    def test_otros_errores_no_cuentan(self):
+        for t in ("", None, "ERROR: model 'gpt-9' does not exist"):
+            self.assertFalse(C.sin_modelo_en(t), str(t))
+
+    def test_ventana_de_un_dia(self):
+        self.assertEqual(C.HORAS_SIN_MODELO, 24)
+        self.assertAlmostEqual(
+            C.hasta_cuando(AHORA, horas=C.HORAS_SIN_MODELO) - AHORA,
+            24 * 3600,
+            places=3,
+        )
+
+
 class TestVigencia(unittest.TestCase):
     def test_recien_anotado_sigue_agotado(self):
         marca = {"hasta": C.hasta_cuando(AHORA)}
