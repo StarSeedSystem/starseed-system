@@ -13,6 +13,13 @@ import cupo_codex as C
 REAL = ("ERROR: You've hit your usage limit. Upgrade to Pro "
         "(https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage")
 
+#: Literal de las 206 sesiones del 23/10 al 28/10 (tarea DEC1028C): la cuenta de
+#: ChatGPT ya no admite el modelo. Mismo código de salida (400), espera distinta.
+SIN_MODELO = (
+    '{"status":400, "message":"The \'gpt-5.6-sol\' model is not supported when '
+    'using Codex with a ChatGPT account.","code":"model_not_found"}'
+)
+
 AHORA = 1_700_000_000.0
 
 
@@ -33,6 +40,35 @@ class TestDeteccion(unittest.TestCase):
     def test_da_igual_como_lo_escriban(self):
         for t in ("Usage limit reached for your plan", "QUOTA EXCEEDED", "Upgrade to Pro"):
             self.assertTrue(C.agotado_en(t), t)
+
+
+class TestSinModelo(unittest.TestCase):
+    def test_la_salida_real_de_esta_semana(self):
+        self.assertTrue(C.sin_modelo_en(SIN_MODELO))
+
+    def test_no_es_un_agotamiento_y_viceversa(self):
+        # Mismo código de salida (400), reacciones distintas: el agotamiento
+        # vuelve en tres horas, el modelo no admitido ni en un día.
+        self.assertFalse(C.sin_modelo_en(REAL))
+        self.assertFalse(C.agotado_en(SIN_MODELO))
+
+    def test_no_confunde_otros_errores(self):
+        self.assertFalse(C.sin_modelo_en("ERROR: model 'gpt-9' does not exist"))
+        self.assertFalse(C.sin_modelo_en("error: the argument '--sandbox' cannot be used"))
+
+    def test_vacio_no_es_sin_modelo(self):
+        self.assertFalse(C.sin_modelo_en(""))
+        self.assertFalse(C.sin_modelo_en(None))
+
+    def test_da_igual_como_lo_escriban(self):
+        self.assertTrue(C.sin_modelo_en("MODEL_NOT_FOUND: gpt-5.6-sol"))
+        self.assertTrue(C.sin_modelo_en("Is not supported when using Codex with a ChatGPT account."))
+
+    def test_se_apara_tiene_ventana_propia(self):
+        self.assertEqual(C.HORAS_SIN_MODELO, 24.0)
+        self.assertAlmostEqual(
+            C.hasta_cuando(AHORA, horas=C.HORAS_SIN_MODELO) - AHORA, 24 * 3600, places=3
+        )
 
 
 class TestVigencia(unittest.TestCase):

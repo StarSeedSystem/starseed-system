@@ -50,6 +50,30 @@ PISTAS = (
 #: Cuánto se aparta tras un agotamiento.
 HORAS = 3.0
 
+#: Lo que dice cuando la CUENTA de ChatGPT ya no admite el modelo (2026-10-28,
+#: tarea DEC1028C). Desde el 23/10 todas las llamadas devuelven esto y el módulo
+#: solo veía el agotamiento, así que cada tarea gastaba su primer intento
+#: con Codex y acababa en `sin_cambios`. No es cuota: no vuelve almorzando, se
+#: aparta un día entero y, al ser distinta la causa, el motivo anotado lo dice.
+PISTAS_SIN_MODELO = (
+    "is not supported when using codex with a chatgpt account",
+    "model_not_found",
+)
+
+#: Cuánto se aparta cuando la cuenta no admite el modelo.
+HORAS_SIN_MODELO = 24.0
+
+
+def sin_modelo_en(salida):
+    """¿Esta salida es «la cuenta de ChatGPT no admite este modelo»?
+
+    Igual que `agotado_en`, se mira el texto y no el código de salida: el 400 de
+    «model not found» y el de «no tienes cuota» son el mismo código y piden
+    esperas distintas (tres horas y veinticuatro).
+    """
+    b = (salida or "").lower()
+    return any(p in b for p in PISTAS_SIN_MODELO)
+
 
 def agotado_en(salida):
     """¿Esta salida es un agotamiento de cuota de Codex?
