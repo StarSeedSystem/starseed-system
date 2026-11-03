@@ -46,6 +46,9 @@ import { ASTRAURA_158_LOCAL_SOURCE_ID, ASTRAURA_158_CLOUD_SOURCE_ID, ASTRAURA_15
 // este módulo por un import DINÁMICO dentro de su rol servidor (ver su
 // cabecera) — nunca de forma estática, así que no hay ciclo.
 import { servidoresIaPorMalla, codificarModeloIaMalla, IA_MALLA_MODEL_AUTO } from "@/lib/network/ia-por-malla";
+// Recuerdos de las cápsulas Memvid (MVD1027F): lógica PURA testeada (recuerdos-capsulas.ts);
+// el cliente del servidor (memvid-cliente.ts, con node:*) se importa DE FORMA DINÁMICA abajo.
+import { recordarDeCapsulas, consultaDeTurno } from "./recuerdos-capsulas";
 import { chromeAiChat, chromeAiReadyNow, webllmChat, transformersChat } from "./builtin-engines";
 import { noteUsage, isCoolingDown, markCooldown, dailyPercent } from "./usage";
 import { penalizacionPorPresupuesto } from "./presupuesto"; // (Ola 223 I1F)
@@ -1513,6 +1516,35 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     if (cc.memoryScope) parts.push(`Alcance de memoria para este chat: ${cc.memoryScope}.`);
     if (parts.length) chatCfgNote = "CONFIGURACIÓN DE ESTE CHAT (Astraura):\n" + parts.join("\n");
   }
+  // ── Recuerdos de las cápsulas Memvid (MVD1027F) ───────────────────────────
+  // El chat pregunta a las cápsulas del contexto (personalidad, agente y cerebro; perfil,
+  // grupo y página si estuvieran a mano) ANTES de responder y el bloque entra AL LADO de
+  // `chatCfgNote` (architecture/memvid-capsulas.md §3). Topes del contrato: k=4 por
+  // cápsula, 6 fragmentos y 1.500 caracteres; 800 ms de tope total; el alcance de
+  // memoria del chat acota qué cápsulas se consultan (módulo: recuerdos-capsulas.ts).
+  let recuerdosCapsulas = "";
+  try {
+    if (!req.soloAgente) {
+      // Import dinámico: memvid-cliente usa node:fs (solo de servidor) y este router
+      // también se importa desde el navegador; nunca debe quedar en su paquete.
+      const { buscar: buscarCapsulas } = await import("@/lib/memorias/memvid-cliente");
+      recuerdosCapsulas = await withTimeout(
+        recordarDeCapsulas(
+          { personalidadId: persona?.id, agenteId: req.agentId, cerebroId: req.brainId },
+          consultaDeTurno(req.messages),
+          {
+            buscarFn: buscarCapsulas,
+            k: 4,
+            memoryScope: cc?.memoryScope,
+            // El bloque se antepone al ranking y no se sabe aún qué fuente hablará:
+            // se criba contra lo personal, conservador (módulo: esModeloNube=true).
+          },
+        ),
+        800,
+        "recuerdos de cápsulas",
+      ).catch(() => "");
+    }
+  } catch { /* defensivo: sin recuerdos de cápsulas, Aurora sigue igual */ }
   // ── Directiva activa de automejora Meta^n (MTN1027) ────────────────────────
   // Capa elegida por el planificador si está a mano; si no, "palabra" (contrato).
   // Va DESPUÉS de las reglas y permisos, nunca antes (architecture/automejora-meta-n.md §4).
@@ -1528,7 +1560,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // `voiceStateText` va ANTES que `capText` (capacidades/skills): así la
   // verdad del estado de voz tiene prioridad sobre el texto de las skills de
   // voz (que ahora hablan en general de motores opcionales, nunca del activo).
-  const brainExtra = [personaText, ctxText, voiceStateText, capText, userCtxText, chatCfgNote, directivaTexto]
+  const brainExtra = [personaText, ctxText, voiceStateText, capText, userCtxText, chatCfgNote, recuerdosCapsulas, directivaTexto]
     .filter(Boolean)
     .join("\n\n");
   const messages = brainExtra ? mergeSystemPrompt(req.messages, brainExtra) : req.messages;
