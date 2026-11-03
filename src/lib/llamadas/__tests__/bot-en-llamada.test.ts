@@ -107,6 +107,15 @@ describe("servidor de voz de la sesión", () => {
         expect(elegirServidorVoz(cands, "vigente")).toBe("vigente");
         expect(elegirServidorVoz(cands, "vigente", { margenMs: 50 })).toBe("mejor");
     });
+
+    it("releva al vigente en cuanto deja de ser fiable, aunque sea el más rápido", () => {
+        const vigente = { id: "vigente", latenciaMs: 100, ramLibreGB: 4, confianza: true };
+        const relevo = { id: "relevo", latenciaMs: 190, ramLibreGB: 4, confianza: true };
+        // Sin confianza (la neurona «se cayó»): no compite y entra el relevo.
+        expect(elegirServidorVoz([{ ...vigente, confianza: false }, relevo], "vigente")).toBe("relevo");
+        // Sin memoria libre suficiente: tampoco sostiene la voz y entra el relevo.
+        expect(elegirServidorVoz([{ ...vigente, ramLibreGB: 0.1 }, relevo], "vigente")).toBe("relevo");
+    });
 });
 
 describe("enganche del bot", () => {
@@ -157,6 +166,21 @@ describe("enganche del bot", () => {
         expect(s.cortes()).toBe(1);
         expect(bot.estado().hablando).toBeNull();
         s.terminarHabla();
+    });
+
+    it("si el cerebro calla no publica nada ni repite la pregunta en el siguiente tick", async () => {
+        const s = servicios();
+        const callado = { ...s.servicios, responder: async () => "" };
+        const bot = engancharBot({ botId: BOT, servicios: callado });
+        bot.recibir(con(P1, "¿sigues ahí?", 1000));
+        bot.tictac(1000 + SILENCIO_MS);
+        await new Promise((r) => setTimeout(r, 5));
+        expect(s.publicados).toHaveLength(0);
+        expect(bot.estado().hablando).toBeNull();
+        bot.tictac(1000 + SILENCIO_MS * 4);
+        await new Promise((r) => setTimeout(r, 5));
+        expect(s.publicados).toHaveLength(0);
+        expect(bot.estado().hablando).toBeNull();
     });
 
     it("un fallo del modelo no tumba nada: queda en silencio y suelta la palabra", async () => {
