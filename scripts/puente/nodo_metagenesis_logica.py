@@ -30,6 +30,8 @@ import os
 import re
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
+import revisor_bloqueadas_logica as RBL  # PURO; viaja con el nodo (`oracle_nodo.MODULOS_DEL_NODO`), RESC1031C
+
 VERSION = "1"
 
 #: Un nodo late cada `LATIDO_S`; quien lleva `TTL_LIDER_S` sin latir ya no cuenta como vivo.
@@ -1296,6 +1298,17 @@ def reparaciones_superadas(tareas: List[Dict[str, Any]], progreso: Dict[str, Any
     return salida
 
 
+def es_de_alta_capacidad(tid: Any, entrada: Any) -> bool:
+    """PURA. ¿Ya es del carril de alta capacidad? (RESC1031C, sigue a RESC1031A)
+
+    Lo agotado queda `bloqueada` + `alta_capacidad` y solo lo lleva ese carril: ni el rescate de
+    colas-fuente ni el relevo de un aparato perdido lo devuelven al enjambre gratuito. Cuenta la
+    marca del progreso (la de la escalera agotada y la del tope de rescates) y una cadena de más de
+    2 «RT» aunque su entrada aún no esté marcada (el id basta: este medio puede no tener el progreso).
+    La regla es la de `revisor_bloqueadas_logica`, para que no se separen."""
+    return RBL.rescate_agotado(tid) or RBL.en_alta_capacidad(entrada)
+
+
 def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, Any]]]], ids_vivos: set,
                        progreso: Dict[str, Any], asuntos_git: Sequence[str], ahora: float,
                        max_dias: int = 21, tope: int = 12) -> List[Dict[str, Any]]:
@@ -1303,8 +1316,9 @@ def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, A
 
     `colas_fuente`: [(nombre, mtime, tareas)]. Fuera: copias `cola-auto-*`, sueños, colas de más
     de `max_dias`, tareas sin archivos o sin prompt (no son trabajo del enjambre), las que piden
-    visto bueno humano, las cerradas en el progreso o con su id ya en un commit de main, y las
-    que tienen una sucesora (misma cadena) cerrada. Gana la definición más nueva de cada id.
+    visto bueno humano, las cerradas en el progreso o con su id ya en un commit de main, las que
+    tienen una sucesora (misma cadena) cerrada y las del carril de alta capacidad
+    (`es_de_alta_capacidad`). Gana la definición más nueva de cada id.
     """
     try:
         from vigilante_logica import id_en_asuntos, sucesora_integrada  # misma regla que el vigilante
@@ -1349,6 +1363,8 @@ def candidatos_rescate(colas_fuente: Sequence[Tuple[str, float, List[Dict[str, A
                                                 "esperando_aprobacion", "pendiente_aprobacion"):
                 # Las falladas son del revisor de bloqueadas (OPB1011), no de un rescate a ciegas.
                 continue
+            if es_de_alta_capacidad(tid, est):
+                continue  # (RESC1031C) la lleva ese carril: devolverla a una cola viva la saca de él
             if id_en_asuntos(tid, asuntos_git or []) or sucesora_integrada(tid, progreso or {}, asuntos_git or []):
                 continue
             elegidas[tid] = dict(t, origen_rescate=nombre)

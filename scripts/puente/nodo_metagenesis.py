@@ -772,6 +772,29 @@ class Nodo:
         if self.modo == "real" and self.enlace is not None:
             self.enlace.decision(decision)
 
+    def _sin_lo_agotado(self, datos: Dict[str, Any], perdidos: Dict[str, str], necesarias: List[str], raiz: str,
+                        informe: Dict[str, Any], t: float) -> List[str]:
+        """(RESC1031C) Quita del relevo lo que ya es del carril de alta capacidad (RESC1031A).
+
+        Sale de los latidos ANTES de planificar (`plan_relevo` mira solo 8 por aparato y reparte
+        huecos) y deja UNA decisión por tarea. Si este medio no tiene el progreso, basta el id."""
+        progreso = M.leer_json(os.path.join(raiz, "starseed_memory_root", "olas", "progreso.json"), {})
+        progreso = progreso if isinstance(progreso, dict) else {}
+        agotadas: Dict[str, str] = {}  # {id: aparato perdido que la tenía}
+        for n in sorted(perdidos):
+            for e in (datos["latidos"].get(n) or {}).get("en_curso") or []:
+                tid = str(e.get("id") or "") if isinstance(e, dict) else ""
+                if tid and L.es_de_alta_capacidad(tid, progreso.get(tid)):
+                    agotadas.setdefault(tid, n)
+        for tid, de in sorted(agotadas.items()):
+            self._anotar_relevo({"de": de, "id": tid, "motivo": "ya es del carril de alta capacidad"}, None,
+                                "no se releva: la lleva el carril de alta capacidad", informe, t)
+        for n in perdidos:
+            lat = datos["latidos"].get(n) or {}
+            lat["en_curso"] = [e for e in lat.get("en_curso") or []
+                               if not (isinstance(e, dict) and str(e.get("id")) in agotadas)]
+        return [x for x in necesarias if x not in agotadas]
+
     def _relevar(self, nov: Dict[str, Any], vivos: Dict[str, Dict[str, Any]], raiz: str,
                  informe: Dict[str, Any], t: float) -> None:
         """El líder sigue las tareas a medias de un aparato que se fue (contrato §3, `plan_relevo`)."""
@@ -780,6 +803,9 @@ class Nodo:
         necesarias = [str(e.get("id")) for n in perdidos
                       for e in (datos["latidos"].get(n) or {}).get("en_curso") or []
                       if isinstance(e, dict) and e.get("id")]
+        if not necesarias:
+            return
+        necesarias = self._sin_lo_agotado(datos, perdidos, necesarias, raiz, informe, t)
         if not necesarias:
             return
         tareas = self._tareas_para_relevo(raiz, t, necesarias)

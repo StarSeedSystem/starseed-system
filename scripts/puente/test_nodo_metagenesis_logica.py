@@ -4,15 +4,22 @@
 Aquí: la neurona INSOMNE suma `PUNTOS_INSOMNE` de estabilidad para liderar y para recibir
 préstamos, sin disparar por sí sola el relevo ordenado de `MARGEN_RELEVO` y quedando bajo el
 A1 siempre encendido. Nada toca red ni disco: todo son capacidades y latidos de mentira.
+
+(RESC1031C) También: lo agotado (`bloqueada` + `alta_capacidad`, o más de 2 «RT» delante) es del carril
+de alta capacidad y ni el rescate de colas-fuente ni el relevo de un aparato perdido lo devuelven al
+enjambre gratuito. La última clase prueba `Nodo._relevar` con bus, reloj y progreso falsos.
 """
 import os
 import sys
+import types
 import unittest
+from unittest import mock
 
 DIR = os.path.dirname(os.path.abspath(__file__))
 if DIR not in sys.path:
     sys.path.insert(0, DIR)
 
+import nodo_metagenesis as N  # noqa: E402
 import nodo_metagenesis_logica as L  # noqa: E402
 
 T0 = 1_793_520_000.0  # 2026-10-27 ~12:00 UTC
@@ -113,6 +120,72 @@ class TestLiderarYPrestamos(unittest.TestCase):
                  "neurona-bbbbbb": latido_ocioso("neurona-bbbbbb",
                                                  L.MEDIOS["neurona"]["base"] + L.PUNTOS_INSOMNE)}
         self.assertEqual(L.mejor_medio_ocioso(nodos), "neurona-bbbbbb")
+
+
+# ─── RESC1031C · lo agotado es del carril de alta capacidad: ni rescate ni relevo ─────────────
+
+HONDO = "RTRTRTS1010-EV-ORACLE-1acbbb"  # tres «RT» delante: la cadena de rescates se agotó (RESC1031A)
+EN_ALTA = {"estado": "bloqueada", "bloqueante": True, "alta_capacidad": True,
+           "nota": "cadena de rescates agotada: carril de alta capacidad · lleva 3 niveles de rescate"}
+
+
+class TestEsDeAltaCapacidad(unittest.TestCase):
+    def test_la_marca_del_progreso_o_la_cadena_agotada(self):
+        self.assertTrue(L.es_de_alta_capacidad("X1", EN_ALTA))
+        self.assertTrue(L.es_de_alta_capacidad("X1", {"estado": "bloqueada", "bloqueante": True,
+                                                       "alta_capacidad": True}))  # la escalera agotada
+        self.assertTrue(L.es_de_alta_capacidad(HONDO, None))  # aún sin entrada en el progreso
+
+    def test_lo_demas_sigue_su_camino(self):
+        for tid, entrada in (("X1", None), ("X1", "commit"), ("X1", {"estado": "bloqueada"}),
+                             ("RTRTX1b-d1", {"estado": "pendiente"}), ("X1", {"alta_capacidad": "si"})):
+            self.assertFalse(L.es_de_alta_capacidad(tid, entrada), (tid, entrada))
+
+
+class TestRescateSinLoDeAltaCapacidad(unittest.TestCase):
+    def test_no_rescata_lo_que_lleva_el_carril_de_alta_capacidad(self):
+        tareas = [{"id": i, "titulo": i, "archivos": ["src/a.ts"], "prompt": "haz " + i}
+                  for i in ("A1", "A2", "A3", "A4", HONDO)]
+        progreso = {"A2": EN_ALTA, "A3": {"estado": "bloqueada", "alta_capacidad": True},
+                    "A4": {"estado": "bloqueada"}}
+        cands = L.candidatos_rescate([("cola-buena.json", T0 - 3600, tareas)], set(), progreso, [], T0)
+        self.assertEqual([c["id"] for c in cands], ["A1", "A4"])  # A4 sin la marca se rescata como siempre
+
+
+class TestRelevoSinLoAgotado(unittest.TestCase):
+    """`Nodo._relevar` sigue lo que un aparato perdido dejó a medias, salvo lo del carril de alta capacidad."""
+
+    def _vuelta(self, progreso, ids=(HONDO, "T3", "T1", "T2")):
+        prestadas = []
+        tareas = [{"id": i, "titulo": i, "prompt": "haz " + i, "archivos": ["a.py"]} for i in ids]
+        n = N.Nodo(seco=False, sin_red=True, env={}, medir=lambda m, t: {}, ejecutar=lambda *a: ("hecha", "ok"),
+                   reloj=lambda: T0, memoria={"hecho": {}, "nonces": {}, "decisiones": [], "autonomia": True},
+                   persistir=False, huella="huella-prueba", candidatos=lambda raiz: list(tareas))
+        n.yo, n.modo = "a1", "real"
+        n.enlace = types.SimpleNamespace(modo="bus", asignar=lambda *a: True, decision=lambda d: True,
+                                         ultimas_colas=lambda: [])
+        n._prestar_relevo = lambda tid, destino, tarea, motivo, informe, t: prestadas.append(tid) or True
+        salud = {"periodo_s": 300, "contenedor": {"activo": True, "agentes": 2}}  # el A1 tiene 2 huecos
+        mac = {"nodo": "mac-1", "ts": T0 - 3600, "medio": "mac", "modo": "real",
+               "salud": dict(salud, en_curso=[{"id": i, "fase": "escribiendo"} for i in ids])}
+        a1 = {"nodo": "a1", "ts": T0 - 30, "medio": "oracle-a1", "modo": "real", "salud": dict(salud, en_curso=[])}
+        nov = {"latidos": [mac, a1], "bajas": [{"nodo": "mac-1", "ts": T0 - 5, "traspaso": True}],
+               "asignaciones": []}
+        informe = {"acciones": [], "ordenes": [], "avisos": []}
+        with mock.patch.object(N.M, "leer_json", return_value=progreso):
+            n._relevar(nov, {x["nodo"]: x for x in nov["latidos"]}, "/no/existe", informe, T0)
+        return prestadas, informe
+
+    def test_no_sigue_lo_agotado_ni_le_quita_el_hueco_a_otra(self):
+        prestadas, informe = self._vuelta({"T3": EN_ALTA})
+        self.assertEqual(sorted(prestadas), ["T1", "T2"])  # HONDO (por el id) y T3 (por el progreso) quedan fuera
+        quietas = [d["id"] for d in informe["relevo"] if "alta capacidad" in d["resultado"]]
+        self.assertEqual(sorted(quietas), sorted([HONDO, "T3"]))  # una decisión por tarea que no se releva
+
+    def test_si_todo_lo_que_dejo_es_de_alta_capacidad_no_hay_relevo(self):
+        prestadas, informe = self._vuelta({"T3": EN_ALTA}, ids=(HONDO, "T3"))
+        self.assertEqual(prestadas, [])
+        self.assertEqual(len(informe["relevo"]), 2)
 
 
 if __name__ == "__main__":
