@@ -165,6 +165,30 @@ def cadena_viva(tid, progreso):
     return sorted(vivos)
 
 
+def rescatable(archivos_diff, archivos_tarea, id_rama, id_tarea):
+    """PURA: (¿se rescata?, motivo). El diff de la rama ha de tocar la tarea: comparte al menos
+    un archivo con los `archivos` de la tarea y, si la rama termina en `…-<ID>`, ese ID ha de
+    ser el de ESTA tarea (la rama de otra no se rescata nunca para esta)."""
+    dif = {a for a in (archivos_diff or []) if a}
+    tar = {a for a in (archivos_tarea or []) if a}
+    tid = (id_tarea or "").strip().upper()
+    segmento = ((id_rama or "").strip().upper().split("/")[-1])
+    if "-" in segmento:
+        sufijo = segmento.rsplit("-", 1)[-1].strip("/")
+        if sufijo and sufijo != tid:
+            return False, ("la rama termina en %s: es la tarea de otro, no se rescata para %s"
+                           % (sufijo, tid or "esta tarea"))
+    if not tar:
+        return False, "la tarea %s no tiene archivos: no se puede saber si el diff la toca" % (tid or "sin id")
+    if not dif:
+        return False, "el diff de la rama no tiene archivos"
+    comunes = sorted(dif & tar)
+    if not comunes:
+        return False, "el diff de la rama (%d archivos) no toca ninguno de la %d de la tarea" % (
+            len(dif), len(tar))
+    return True, "el diff toca la tarea: %s" % ", ".join(comunes[:3])
+
+
 def regla(n_casos, minimo=MIN_CASOS):
     return "rescatar" if n_casos >= minimo else "archivar"
 
@@ -305,17 +329,18 @@ def _anotar(notas):
 
 
 def _casos_de(rama_ref):
-    """{archivo de prueba: [(título, código)]} nuevos de una rama frente a main."""
+    """({archivo de prueba: [(título, código)]}, TODOS los archivos del diff de la rama)."""
     _, base = T._git(["merge-base", rama_ref, "main"])
     _, nombres = T._git(["diff", "--name-only", base.strip() or "main", rama_ref])
+    todos = [n for n in nombres.splitlines() if n.strip()]
     salida = {}
-    for a in [n for n in nombres.splitlines() if es_prueba(n)]:
+    for a in [n for n in todos if es_prueba(n)]:
         _, txt_r = T._git(["show", "%s:%s" % (rama_ref, a)])
         rc, txt_m = T._git(["show", "main:%s" % a])
         nuevos = casos_nuevos(txt_r, txt_m if rc == 0 else "", a)
         if nuevos:
             salida[a] = nuevos
-    return salida
+    return salida, todos
 
 
 def _consultar_jev(tid, titulo, por_archivo, base):
@@ -351,7 +376,9 @@ def _revisar(aplicar, borrar):
     estado = T._leer_json(T.ESTADO, {}) or {}
     revisadas = set(estado.get("revisadas") or [])
     pendientes = [s for s in estado.get("superadas") or [] if s.get("rama") and s["rama"] not in revisadas]
-    titulos_cola = {tid: (t or {}).get("titulo", "") for tid, (_, t) in T._colas_por_id().items()}
+    datos_cola = T._colas_por_id()
+    titulos_cola = {tid: (t or {}).get("titulo", "") for tid, (_, t) in datos_cola.items()}
+    archivos_cola = {tid: list((t or {}).get("archivos") or []) for tid, (_, t) in datos_cola.items()}
     progreso = T._progreso()
     cola = T._leer_json(COLA_RESCATE, {"ola": OLA_RESCATE, "tareas": []})
     cola = cola if isinstance(cola, dict) else {"ola": OLA_RESCATE, "tareas": cola}
@@ -363,17 +390,21 @@ def _revisar(aplicar, borrar):
         por_rama.setdefault(s["rama"], []).append(s)
     for rama, filas in por_rama.items():
         ref = "refs/remotes/origin/" + rama
-        casos = _casos_de(ref)
+        casos, archivos_diff = _casos_de(ref)
         for s in filas:
             tid = s.get("tid") or ""
             n = sum(len(v) for v in casos.values())
             vivos = cadena_viva(tid, progreso)
+            toca, motivo_toca = rescatable(archivos_diff, archivos_cola.get(tid, []), rama, tid)
             if vivos:
                 base, d = "archivar", {}
                 final, motivo = "archivar", "la cadena sigue viva en %s: ella lleva el trabajo" % ", ".join(vivos[:4])
             elif profundidad_rescate(tid) >= TOPE_RESCATE:
                 base, d = "archivar", {}
                 final, motivo = "archivar", "%s ya es un rescate: no se rescata otra vez (0 de 144 integrados)" % tid
+            elif not toca:
+                base, d = "archivar", {}
+                final, motivo = "archivar", motivo_toca
             else:
                 base = regla(n)
                 d = _consultar_jev(tid, titulos_cola.get(tid, ""), casos, base) if (aplicar and n) else {}

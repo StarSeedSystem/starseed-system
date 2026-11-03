@@ -102,6 +102,26 @@ class Puras(unittest.TestCase):
         self.assertEqual(R.profundidad_rescate(""), 0)
         self.assertGreaterEqual(R.profundidad_rescate(R.id_rescate("OPT1004C", set())), R.TOPE_RESCATE)
 
+    def test_rescatable_solo_si_el_diff_toca_la_tarea(self):
+        # Comparten un archivo y la rama termina en el id de ESTA tarea: se rescata.
+        d, m = R.rescatable(["src/a.ts", "src/b.ts"], ["src/a.ts", "src/c.ts"], "nube/1/ola/X1", "X1")
+        self.assertTrue(d)
+        self.assertIn("src/a.ts", m)
+        # La rama termina en el id de OTRA tarea: no se rescata nunca para esta.
+        d, m = R.rescatable(["src/a.ts"], ["src/a.ts"], "nube/2/proyecto-OPT9", "X1")
+        self.assertFalse(d)
+        self.assertIn("OPT9", m)
+        # Sin archivo común entre diff y tarea: no se rescata.
+        d, m = R.rescatable(["src/otro.ts"], ["src/a.ts"], "nube/1/ola/X1", "X1")
+        self.assertFalse(d)
+        self.assertIn("no toca ninguno", m)
+        # La tarea no declara archivos: no se puede saber si el diff la toca.
+        d, m = R.rescatable(["src/a.ts"], [], "nube/1/ola/X1", "X1")
+        self.assertFalse(d)
+        self.assertIn("no tiene archivos", m)
+        # Diff vacío tampoco.
+        self.assertFalse(R.rescatable([], ["src/a.ts"], "nube/1/ola/X1", "X1")[0])
+
     def test_id_rescate(self):
         self.assertEqual(R.id_rescate("OPT1004C", set()), "RTOPT1004C")
         self.assertEqual(R.id_rescate("LC1004Bd", set()), "RTLC1004B")
