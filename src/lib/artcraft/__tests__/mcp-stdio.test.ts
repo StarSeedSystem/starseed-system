@@ -86,6 +86,14 @@ describe("ClienteMcpStdio", () => {
     transporte.enviar(completo.slice(corte));
     expect(await promesa).toBe(true);
   });
+  it("ignora una respuesta con id desconocido sin contarla como ilegible", async () => {
+    const { transporte, cliente } = montar();
+    transporte.enviar('{"jsonrpc":"2.0","id":77,"result":{"tools":[]}}\n');
+    expect(cliente.ilegibles).toBe(0);
+    const promesa = cliente.listar(1000);
+    transporte.responder(transporte.ultima.id, { ok: true });
+    expect(await promesa).toEqual({ ok: true });
+  });
   it("ignora notificaciones y líneas sin id, y cuenta las ilegibles", async () => {
     const { transporte, cliente } = montar();
     transporte.enviar('{"jsonrpc":"2.0","method":"notifications/message","params":{}}\n');
@@ -135,6 +143,15 @@ describe("ClienteMcpStdio", () => {
     const resultado = await promesa;
     if (!("tipo" in resultado)) throw new Error("se esperaba una imagen");
     expect(resultado.mime).toBe("image/png"); expect(Array.from(resultado.bytes)).toEqual(Array.from(datos));
+  });
+  it("descarta los bloques que no son texto ni imagen sin romper", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("eso", {}, 1000);
+    transporte.responder(transporte.ultima.id, { content: [{ type: "resource", uri: "figcraft://doc" }, { type: "text", text: "solo esto" }] });
+    expect(await promesa).toEqual({ ok: true, texto: "solo esto" });
+  });
+  it("LIMITE_LINEA son los 32 MiB de FigCraft", () => {
+    expect(LIMITE_LINEA).toBe(32 * 1024 * 1024);
   });
   it("convierte un error RPC en excepción tipada", async () => {
     const { transporte, cliente } = montar();
