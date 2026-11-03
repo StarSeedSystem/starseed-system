@@ -23,6 +23,13 @@ const P2 = "persona-2";
 const con = (de: string, texto: string, en: number): TextoLlamada => ({ de, texto, en });
 
 describe("turnos del bot", () => {
+    it("crea el estado inicial limpio para el bot", () => {
+        const e = estadoInicial();
+        expect(e.historial).toEqual([]);
+        expect(e.hablando).toBeNull();
+        expect(e.respondidoHasta).toBe(0);
+    });
+
     it("sin textos no contesta", () => {
         const d = decidirTurno(estadoInicial(), 1000, { botId: BOT });
         expect(d).toEqual({ accion: "esperar", motivo: "nadie ha hablado todavía" });
