@@ -318,6 +318,18 @@ def _casos_de(rama_ref):
     return salida
 
 
+def archivos_diff_comparten(archivos_diff, archivos_tarea, id_rama, id_tarea):
+    """¿Los archivos del diff de la rama comparten al menos uno con los archivos de la tarea?
+    
+    RESTRICCIÓN DE SEGURIDAD: Una rama cuyo ID es de otra tarea no se rescata nunca para esta.
+    """
+    if not archivos_diff or not archivos_tarea:
+        return False
+    if id_rama and id_tarea and id_rama != id_tarea:
+        return False
+    return any(af in archivos_tarea for af in archivos_diff)
+
+
 def _consultar_jev(tid, titulo, por_archivo, base):
     try:
         import decidir
