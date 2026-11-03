@@ -115,6 +115,22 @@ class Puras(unittest.TestCase):
         self.assertIn("Revisadas 2", texto)
         self.assertIn("RTX1 (X1, 4 casos)", texto)
 
+    def test_archivos_diff_comparten_comparten_archivo(self):
+        self.assertTrue(R.archivos_diff_comparten(["a.test.ts", "b.test.ts"], ["a.test.ts", "c.test.py"], "nube/1/ola/X1", "X1"))
+
+    def test_archivos_diff_comparten_no_comparten_archivo(self):
+        self.assertFalse(R.archivos_diff_comparten(["d.test.ts"], ["a.test.ts", "b.test.ts"], "nube/1/ola/X1", "X1"))
+        self.assertFalse(R.archivos_diff_comparten([], ["a.test.ts", "b.test.ts"], "nube/1/ola/X1", "X1"))
+        self.assertFalse(R.archivos_diff_comparten(["a.test.ts"], [], "nube/1/ola/X1", "X1"))
+
+    def test_archivos_diff_comparten_rama_de_otra_tarea(self):
+        self.assertFalse(R.archivos_diff_comparten(["a.test.ts"], ["a.test.ts"], "nube/2/ola/Y2", "X1"))
+        self.assertFalse(R.archivos_diff_comparten(["a.test.ts"], ["a.test.ts"], "RTOPT1004Cb", "LC1004Bd"))
+
+    def test_archivos_diff_comparten_misma_tarea_archivo_comun(self):
+        self.assertTrue(R.archivos_diff_comparten(["a.test.ts", "b.test.ts"], ["a.test.ts", "c.test.py"], "RTOPT1004Cb", "OPT1004C"))
+        self.assertTrue(R.archivos_diff_comparten(["X1a.test.ts"], ["X1a.test.ts"], "nube/1/ola/X1", "X1"))
+
 
 class ArchivarYBorrar(unittest.TestCase):
     """Un origin desnudo con dos ramas nube/*: se archivan, se verifican y solo entonces se borran."""
