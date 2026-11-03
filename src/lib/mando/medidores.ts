@@ -2533,14 +2533,19 @@ export function detalleDeMedidor(
                 };
             });
             // Un `en_curso` sin latido es un estado rancio, y verlo es media reparación.
+            // (1103 · P) Los sueños (análisis «Sueño · área × lente», ids SA…) van aparte y al final: mezclados con el
+            // trabajo parecía que «hay muchos soñando y pocos trabajando».
+            const esSueno = (id: string) => /^SA\d/.test(id) || titulo(id).startsWith("Sueño ·");
             const rancias = Object.entries(d.progreso)
                 .filter(([id, v]) => v?.estado === "en_curso" && !d.latidos.some((l) => l.tarea === id))
                 .map(([id, v]) => ({
                     id,
                     titulo: titulo(id),
-                    estado: "en_curso sin agente",
+                    estado: esSueno(id) ? "sueño sin agente" : "en_curso sin agente",
                     porcentaje: 0,
-                    porque: "figura en curso pero ningún agente late por ella: estado rancio",
+                    porque: esSueno(id)
+                        ? "un sueño (análisis) figura en curso sin agente: su tanda ya no lo lleva; se vuelve a soñar cuando haya sitio"
+                        : "figura en curso pero ningún agente late por ella: estado rancio",
                     desde: v.t,
                     quien: olaDeTarea(d, id),
                     ficha: fichaDeTarea(
@@ -2560,8 +2565,10 @@ export function detalleDeMedidor(
                         ...accionesDeTarea(v.estado),
                     ],
                 }));
-            const todas = [...rancias, ...filas];
-            const medio = mediaDeAvance(todas);
+            const ranciasTrabajo = rancias.filter((r) => !esSueno(r.id));
+            const suenosSueltos = rancias.filter((r) => esSueno(r.id));
+            const todas = [...ranciasTrabajo, ...filas, ...suenosSueltos];
+            const medio = mediaDeAvance([...ranciasTrabajo, ...filas]);
             return {
                 clave,
                 titulo: "Tareas en curso",
@@ -2569,8 +2576,8 @@ export function detalleDeMedidor(
                     filas.length === 0
                         ? "ninguna tarea en curso"
                         : `${filas.length} en marcha · ${d.latidos.length} agente(s) sobre ellas · ${medio} % de avance medio${
-                              rancias.length ? ` · ${rancias.length} rancias` : ""
-                          }`,
+                              ranciasTrabajo.length ? ` · ${ranciasTrabajo.length} rancias` : ""
+                          }${suenosSueltos.length ? ` · ${suenosSueltos.length} sueño(s) sin agente` : ""}`,
                 filas: todas,
                 porcentajeMedio: medio,
                 acciones: [...ACCIONES_ASIGNAR, IR_A("Ver la ramificación", "procesos")],
