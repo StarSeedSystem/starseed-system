@@ -12,6 +12,7 @@ import { ChevronDown, Cloud, Cpu, Layers, RadioTower, Sparkles, Users, type Luci
 
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { AutomejoraCapas } from "@/components/astraura/capas/automejora-capas";
 import { CapasPorEntidad } from "@/components/astraura/capas/capas-por-entidad";
 import { getUnifiedCatalog } from "@/ai/astraura/unified-intelligence";
 import { CAPAS, destinoNivelador, ETIQUETA_CAPA, ETIQUETA_ESTADO, type CapaConciencia, type EstadoCapa } from "@/lib/astraura/capas-conciencia";
@@ -199,6 +200,8 @@ export function PanelCapas({ compacto = false }: { compacto?: boolean }) {
             <p className="flex items-center gap-1.5 text-[10px] text-white/40">
                 <Sparkles className="h-3 w-3 shrink-0" /> Aprendizaje continuo: la capa colectiva se unirá a Oracle próximamente.
             </p>
+
+            <AutomejoraCapas compacto={compacto} />
         </div>
     );
 }
