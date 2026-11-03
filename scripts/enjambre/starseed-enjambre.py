@@ -4132,10 +4132,22 @@ def repo_es_python(cwd):
     return not os.path.exists(os.path.join(cwd, "tsconfig.json"))
 
 
+def _en_la_mac():
+    """(2026-11-02, SUP0211L) ¿Corre este orquestador en la Mac? Las puertas tsc de fuera (GitHub y el A1)
+    solo se usan desde ella. Genesis (`lanzarAqui` de colas.ts y suenos.ts) lo lanza con STARSEED_MEDIO=mando
+    y STARSEED_DONDE=mac; `lanzar-enjambre.sh`, con los dos en «mac». Mirando solo MEDIO == "mac", ninguna
+    tanda lanzada desde Genesis usó nunca esas puertas: en la tanda de sueños del 31-10 hubo 173 fallos
+    «tsc no terminó» en la Mac (8 GB), con el A1 ocioso y GitHub sin usar. La nube lleva DONDE=nube (y también
+    MEDIO=mando) y el A1, DONDE=oracle; y se pide macOS por si alguien copia DONDE=mac a otra máquina."""
+    if os.environ.get("STARSEED_MEDIO") == "mac":
+        return True
+    return os.environ.get("STARSEED_DONDE") == "mac" and sys.platform == "darwin"
+
+
 def _comprobar_en_a1():
     """La función `comprobar` de comprobar_en_a1.py, o None si no se puede usar (TRA1012A).
-    Solo en la Mac: la nube y el A1 mismo ya compilan donde tienen memoria."""
-    if os.environ.get("STARSEED_MEDIO") != "mac":
+    Solo en la Mac (`_en_la_mac`): la nube y el A1 mismo ya compilan donde tienen memoria."""
+    if not _en_la_mac():
         return None
     ruta = os.path.join(ROOT, "scripts", "puente")
     if not os.path.isfile(os.path.join(ruta, "comprobar_en_a1.py")):
@@ -4154,8 +4166,9 @@ TSC_GITHUB_ESPERA_S = int(os.environ.get("STARSEED_TSC_GITHUB_ESPERA_S", "1500")
 
 def _comprobar_en_github():
     """(CAP1026P) La puerta tsc en GitHub Actions (`comprobar_en_github.esperar_tsc`), o None si no aplica.
-    Solo en la Mac (la nube y el A1 compilan donde tienen memoria) y con STARSEED_COMPROBAR_GITHUB ≠ 0."""
-    if os.environ.get("STARSEED_MEDIO") != "mac" or os.environ.get("STARSEED_COMPROBAR_GITHUB", "1") == "0":
+    Solo en la Mac (`_en_la_mac`; la nube y el A1 compilan donde tienen memoria) y con
+    STARSEED_COMPROBAR_GITHUB ≠ 0."""
+    if not _en_la_mac() or os.environ.get("STARSEED_COMPROBAR_GITHUB", "1") == "0":
         return None
     ruta = os.path.join(ROOT, "scripts", "puente")
     if not os.path.isfile(os.path.join(ruta, "comprobar_en_github.py")):

@@ -164,5 +164,57 @@ class TscRemotoTest(unittest.TestCase):
         self.assertEqual(len(locales), 1)
 
 
+class EnLaMacTest(unittest.TestCase):
+    """(2026-11-02, SUP0211L) Las puertas tsc de fuera se usan desde la Mac aunque la tanda la lance Genesis
+    (STARSEED_MEDIO=mando, STARSEED_DONDE=mac). Antes solo con MEDIO=mac: ninguna tanda de Genesis las usó."""
+
+    def entorno(self, medio=None, donde=None, plataforma="darwin"):
+        pila = contextlib.ExitStack()
+        cambios = {k: v for k, v in (("STARSEED_MEDIO", medio), ("STARSEED_DONDE", donde)) if v is not None}
+        pila.enter_context(mock.patch.dict(os.environ, cambios))
+        for k, v in (("STARSEED_MEDIO", medio), ("STARSEED_DONDE", donde)):
+            if v is None:
+                os.environ.pop(k, None)
+        pila.enter_context(mock.patch.object(enjambre.sys, "platform", plataforma))
+        return pila
+
+    def test_quien_es_la_mac(self):
+        casos = [
+            (("mando", "mac", "darwin"), True),    # Genesis: lanzarAqui y suenos.ts
+            (("mac", "mac", "darwin"), True),      # lanzar-enjambre.sh
+            (("mac", None, "linux"), True),        # MEDIO=mac explícito, como antes
+            (("mando", "nube", "linux"), False),   # la nube (lanzador.py)
+            (("oracle", "oracle", "linux"), False),  # el A1
+            (("mando", "mac", "linux"), False),    # DONDE=mac copiado a otra máquina
+            ((None, None, "darwin"), False),       # sin decir dónde corre
+        ]
+        for (medio, donde, plataforma), esperado in casos:
+            with self.subTest(medio=medio, donde=donde, plataforma=plataforma):
+                with self.entorno(medio, donde, plataforma):
+                    self.assertIs(enjambre._en_la_mac(), esperado)
+
+    def test_las_dos_puertas_de_fuera_se_abren_para_genesis(self):
+        tmp = tempfile.mkdtemp(prefix="enj-mac-")
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        puente = os.path.join(tmp, "scripts", "puente")
+        os.makedirs(puente)
+        with open(os.path.join(puente, "comprobar_en_a1.py"), "w", encoding="utf-8") as f:
+            f.write("def comprobar(*a, **k):\n    return 'a1-falso'\n")
+        with open(os.path.join(puente, "comprobar_en_github.py"), "w", encoding="utf-8") as f:
+            f.write("def esperar_tsc(*a):\n    return 'github-falso'\n")
+        for medio, donde, abiertas in (("mando", "mac", True), ("mando", "nube", False)):
+            with self.subTest(medio=medio, donde=donde):
+                with self.entorno(medio, donde), mock.patch.object(enjambre, "ROOT", tmp), \
+                        mock.patch.dict(sys.modules), mock.patch.object(sys, "path", list(sys.path)):
+                    sys.modules.pop("comprobar_en_a1", None)
+                    sys.modules.pop("comprobar_en_github", None)
+                    os.environ.pop("STARSEED_COMPROBAR_GITHUB", None)
+                    a1, gh = enjambre._comprobar_en_a1(), enjambre._comprobar_en_github()
+                    if abiertas:
+                        self.assertEqual(a1(), "a1-falso")
+                        self.assertEqual(gh("base", ["a.ts"], tmp), "github-falso")
+                    else:
+                        self.assertEqual((a1, gh), (None, None))
+
 if __name__ == "__main__":
     unittest.main()
