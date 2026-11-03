@@ -147,19 +147,31 @@ Sobre: `{"t":"est","s":id,"e":evento,"d":json | "x":cifrado,"f":firma}`. Eventos
 Cada mensaje de difusión cuenta una vez por cada conectado que lo recibe. Con N conectados y en régimen
 (rondas cada 5 min): preguntas ≈ 36·N²/h, respuestas ≤ 36·N²/h (en lote suelen ser menos), latidos 120·N/h.
 N = 10 → ≈ 8 400/h (≈ 238 h de estación al mes en el plan gratuito); N = 30 → ≈ 68 000/h (≈ 29 h/mes). Al
-entrar cada persona: unas 16·N. Por enlaces locales no cuesta nada. Para audiencias grandes: el relé propio (§4.3, tarea
-`EV-ORACLE`): no cuenta mensajes de Realtime. Hoy existe el cliente y la lógica de salas; el servidor aún no.
+entrar cada persona: unas 16·N. Por enlaces locales no cuesta nada. Para audiencias grandes: el relé propio (§4.3): no cuenta mensajes de Realtime. El servidor WebSocket ya
+existe (`servicios/estaciones-rele/servidor.mjs`, S1010-EV-ORACLE-1b); falta desplegarlo en el A1 (compose
+y Caddy, solo con la palabra de Alex).
 
 ### 4.3 Relé propio (cliente `canal-rele.ts`, RTS1010-EV-ORACLE-2d · 2026-10-20)
 
 Tercer canal de la estación, **opcional y aditivo**: nunca sustituye a Supabase. Existe para no gastar la cuota
-de Realtime (2 M de mensajes al mes) con audiencias grandes.
+de Realtime (2 M de mensajes al mes) con audiencias grandes. El cliente y el servidor ya existen
+(`canal-rele.ts`, `servicios/estaciones-rele/`); falta desplegar el servidor y probarlo de extremo a extremo.
+
+**El servidor** (`servicios/estaciones-rele/servidor.mjs`, S1010-EV-ORACLE-1b): WebSocket con `ws` en `/ws`
+(tema en la query, `salas.mjs` valida y reparte). Cada 30 s manda un **ping** a todas las conexiones y corta
+(`terminate`) a quien no contestó el del ciclo anterior, así que una conexión muerta no ocupa sitio; un socket
+con **más de 1 MiB pendientes de envío** (`bufferedAmount`) se salta el sobre —es un oyente lento y lo que
+llega es idempotente por `n`, el próximo lo pone al día—. Solo cuenta en su registro (una línea de cifras
+cada 60 s: entradas, rechazadas, mensajes, entregas, saltados) y **nunca registra el contenido, el tema ni la
+URL**. Los errores de conexión (arranque en un puerto ocupado, etc.) salen de proceso para que
+systemd/Docker lo reinicie a la vista. No desplegado aún: compose y Caddy, solo con la palabra de Alex.
+
 
 - **Se activa** con `NEXT_PUBLIC_ESTACIONES_RELE_URL` (`wss://host[:puerto]`, sin ruta, credenciales ni parámetros;
   `ws://` solo en `localhost`/`127.0.0.1`). Sin la variable, o con un valor no válido, no se crea canal y el panel
   no pinta nada: no hay conexión que fingir. `estacion-global.ts` lo engancha en `sintonizar`, tras Supabase y
   antes de `arrancar()`, con el MISMO tema (`temaPublico`/`temaPrivado`).
-- **Protocolo con el servidor** (contrato que debe cumplir ORACLE-1b): el cliente abre
+- **Protocolo con el servidor** (lo que hace `servidor.mjs`): el cliente abre
   `<base>/ws?tema=<tema codificado>`. El servidor solo reparte, a los demás de la misma sala, textos que
   empiezan por `{"t":"est"` y miden como mucho 40 000 (`servicios/estaciones-rele/salas.mjs`: temas
   `^estacion-(vivo|p):[A-Za-z0-9_:-]{8,80}$`, 200 salas, 500 por sala; una conexión vive en UNA sala: `entrar` en otra
@@ -182,7 +194,8 @@ de Realtime (2 M de mensajes al mes) con audiencias grandes.
   el tema va en la URL y, en una privada, es el derivado del token de 128 bits; **el servidor y Caddy no deben
   registrar la query ni guardar mensajes**.
 - **Lo que falta** (no se afirma que funcione de punta a punta hasta que exista): (1) el servidor WebSocket
-  (ORACLE-1b) y su servicio en `deploy/oracle/compose-a1.yml` + Caddyfile (hoy solo está la lógica de salas);
+  (ORACLE-1b) ya está escrito (`servicios/estaciones-rele/servidor.mjs`); falta su servicio en
+  `deploy/oracle/compose-a1.yml` + Caddyfile y desplegarlo, SOLO con la palabra de Alex;
   (2) añadir el host del relé a `connect-src` de `src-tauri/tauri.conf.json` cuando se conozca (la CSP web ya
   permite `wss:`; en la app nativa el canal fallaría con «código 1006» hasta entonces); (3) paridad en el kit
   `integraciones-de-codigo/starseed-link` (su copia de canales es solo Supabase): **no hacer el relé exclusivo
