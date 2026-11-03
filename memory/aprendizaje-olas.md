@@ -4662,3 +4662,24 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-11-03 01:42 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** reasignada · medio nube
+
+**Resultado.** 0 de 7 integradas. 7 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — pruebas en rojo (VAR1021Ac, RESC1031B, SUP0111D). Es 43 % de la ola.
+- 3 tareas se fueron por lo mismo — otra cosa (OPS1031Cb-d1, SGO1031B-d2, SUP0111E). Es 43 % de la ola.
+- openrouter/cohere/north-mini-code:free no integró ninguna de sus 4 tareas.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `VAR1021Ac` — pruebas en rojo: vitest falla (rama conservada)
+- `SGO1031B-d2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/SGO1031B-d2b conservada)
+- `OPS1031Cb-d1` — otra cosa: red caída: $ opencode run --model openrouter/cohere/north-mini-code:free · 2026-11-03 00:49:58 [0m > build · cohere/north-mini-code:free [
+- `RESC1031B` — pruebas en rojo: vitest falla (rama conservada)
+- `SGO1031B-d2` — otra cosa: excepción: [Errno 2] No such file or directory: '/home/starseed/starseed-wt/SGO1031B-d2'
+- `SUP0111D` — pruebas en rojo: vitest falla (rama conservada)
+- `SUP0111E` — otra cosa: excepción: [Errno 2] No such file or directory: '/home/starseed/starseed-wt/SUP0111E'
