@@ -68,12 +68,29 @@ const catalogoReal = JSON.parse(
   readFileSync(join(__dirname, '../../../../../config/referencias-inspiracion.json'), 'utf-8')
 );
 
+// Las 39 entradas de base del catálogo (hasta el 2026-10-25). Pueden llegar más, verificadas.
+const ENTRADAS_BASE = [
+  'higgsfield', 'linearity', 'slopmonster', 'claude-design-blueprint', 'video-claude-design-99',
+  'ai-automation-vault', 'lottiefiles', 'transitions-dev', '60fps', 'kinetics', 'motion-primitives',
+  'claude-video-2', 'brandguidelines', 'deck-gallery', 'logosystem', 'visual-journal', 'rebrand-gallery',
+  'typewolf', 'fonts-in-use', 'whatthefont', 'fontshare', 'flaticon', 'icons8', 'navbar-gallery',
+  'footer-design', 'cta-gallery', '404s-design', 'unsection', 'bentogrids', 'savee', 'mobbin',
+  'refero', 'lista-iamtanzil', 'dont-make-me-think', 'asd-ste100', 'taste-skill', 'frontend-slides',
+  'awesome-design-md', 'onetake',
+];
+
 describe('validarCatalogo', () => {
   it('valida el catálogo real', () => {
     const r = validarCatalogo(catalogoReal);
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.catalogo.entradas.length).toBe(39); // 34 de la lista del 2026-10-18 + Claude Video 2.0 (2026-10-24) + 4 de la ola 1025R (2026-10-25)
+      // (SUP0311A, 2026-11-03) El catálogo crece: el agente de referencias de diseño añade entradas
+      // verificadas (open-design, 2026-11-03). Con `toBe(39)` la CI quedó en rojo y frenó la
+      // autopublicación. Se exige que sigan las 39 de base (34 de la lista del 2026-10-18 + Claude
+      // Video 2.0 del 2026-10-24 + 4 de la ola 1025R del 2026-10-25), sin fijar el total.
+      const ids = new Set(r.catalogo.entradas.map((e) => e.id));
+      expect(ENTRADAS_BASE.filter((id) => !ids.has(id))).toEqual([]);
+      expect(r.catalogo.entradas.length).toBeGreaterThanOrEqual(ENTRADAS_BASE.length);
       expect(r.catalogo.temas.length).toBe(7);
     }
   });
