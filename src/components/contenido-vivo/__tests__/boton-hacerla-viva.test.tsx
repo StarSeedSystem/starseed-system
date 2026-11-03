@@ -4,7 +4,7 @@
  */
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { BotonHacerlaViva, textoPlanVivo } from "../boton-hacerla-viva";
 import type { CotizacionViva } from "@/components/contenido-vivo/panel-contenido-vivo";
 import type { ContextoVivo } from "@/lib/contenido-vivo/rutas";
@@ -73,6 +73,33 @@ describe("Botón Hacerla viva", () => {
     expect(plan).toContain("escena-3d");
     expect(plan).toContain("grafico-vivo");
     expect(screen.queryByRole("region", { name: "Contenido vivo" })).not.toBeInTheDocument();
+  });
+
+  it("vuelve a pulsarlo cierra el panel sin rehacer nada", () => {
+    const anadir = vi.fn();
+    render(<BotonHacerlaViva contexto={contexto({})} anadir={anadir} />);
+    fireEvent.click(screen.getByRole("button", { name: "Hacerla viva" }));
+    expect(screen.getByRole("region", { name: "Contenido vivo" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ocultar el plan" }));
+    expect(screen.queryByRole("region", { name: "Contenido vivo" })).not.toBeInTheDocument();
+    const boton = screen.getByRole("button", { name: "Hacerla viva" });
+    expect(boton).toBeInTheDocument();
+    expect(boton).toHaveAttribute("aria-expanded", "false");
+    expect(anadir).not.toHaveBeenCalled();
+  });
+
+  it("al abrirlo enseña el panel de los tres niveles con su nombre", () => {
+    const anadir = vi.fn();
+    render(<BotonHacerlaViva contexto={contexto({})} anadir={anadir} />);
+    fireEvent.click(screen.getByRole("button", { name: "Hacerla viva" }));
+    const panel = screen.getByRole("region", { name: "Contenido vivo" });
+    expect(within(panel).getByText("Nivel 1 · 3D vivo")).toBeInTheDocument();
+    expect(within(panel).getByText("Nivel 2 · Película e imágenes")).toBeInTheDocument();
+    expect(within(panel).getByText("Nivel 3 · Gráficos vivos")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ocultar el plan" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
   });
 
   it("sin ninguna tarea encendida la cotización va vacía y no añade nada", () => {
