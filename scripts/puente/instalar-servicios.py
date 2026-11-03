@@ -17,6 +17,7 @@ Dos reglas que costaron caras y por eso están aquí y no en la memoria de nadie
 """
 
 import os, re, shutil, subprocess, sys
+from xml.sax.saxutils import escape as _xml_seguro
 
 # Los argumentos de línea solo cuentan al ejecutarlo como guion: las pruebas
 # importan el módulo (se instala al importarse) y su sys.argv no es de aquí.
@@ -483,13 +484,16 @@ def instalar_chatterbox():
         print("  chatterbox   OMITIDO · falta la plantilla %s" % PLANTILLA_CHATTERBOX)
         return
     with open(PLANTILLA_CHATTERBOX, encoding="utf-8") as f:
-        texto = (
-            f.read()
-            .replace("__RAIZ__", RAIZ)
-            .replace("__PYTHON__", PY3)  # padre: lanzador-tcc.py hereda el TCC
-            .replace("__INTERPRETE__", interp)
-            .replace("__HOME__", HOME.rstrip("/"))
-        )
+        texto = f.read()
+    for marca, valor in (
+        ("__RAIZ__", RAIZ),
+        ("__PYTHON__", PY3),  # padre: lanzador-tcc.py hereda el TCC
+        ("__INTERPRETE__", interp),
+        ("__HOME__", HOME.rstrip("/")),
+    ):
+        # XML no admite marcas -- (ni comentario, que ni siquiera admite escapes):
+        # la plantilla las escribe fuera del comentario y aquí se escapa <&>.
+        texto = texto.replace(marca, _xml_seguro(valor))
     ruta = os.path.join(AG, "com.starseed.chatterbox.plist")
     with open(ruta, "w", encoding="utf-8") as f:
         f.write(texto)

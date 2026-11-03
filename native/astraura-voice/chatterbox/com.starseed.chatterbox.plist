@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  StarSeed OS · Chatterbox TTS local (VOZ1024C dejó servidor.py en 127.0.0.1:4505).
-  Plantilla de launchd: instalar-servicios.py sustituye __PYTHON__ (el padre, con el
-  TCC), __INTERPRETE__ (el python con el paquete chatterbox), __RAIZ__ y __HOME__ y
-  copia el resultado a ~/Library/LaunchAgents/com.starseed.chatterbox.plist. Sólo se
-  instala si el paquete «chatterbox» ya está en el intérprete: nunca descarga pesos.
+  StarSeed OS · Chatterbox TTS local (VOZ1024C dejó servidor.py en 127.0.0.1:4505 y
+  SGO1024E lo arranca como servicio launchd). Plantilla: la entrada «chatterbox» de
+  instalar-servicios.py expande aquí las marcas de sustitución y copia el resultado a
+  ~/Library/LaunchAgents/com.starseed.chatterbox.plist. Los comentarios XML no admiten
+  un guion doble, así que las marcas SOLO se escriben en el cuerpo, fuera de aquí.
+  Sólo se instala si el paquete «chatterbox» ya está en el intérprete: nunca descarga pesos.
 -->
 <plist version="1.0"><dict>
   <key>Label</key><string>com.starseed.chatterbox</string>
