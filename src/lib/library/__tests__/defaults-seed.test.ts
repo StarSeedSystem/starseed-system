@@ -8,7 +8,7 @@ import {
 import { FICHAS_REPOS_1025, IDS_SIEMBRA_1025, TANDA_1025_FICHAS } from "../repos-1025";
 import { FICHAS_REPOS_1026, IDS_SIEMBRA_1026, TANDA_1026_FICHAS } from "../repos-1026";
 import { FICHAS_REPOS_1027, IDS_SIEMBRA_1027, TANDA_1027_FICHAS } from "../repos-1027";
-import { IDS_SIEMBRA_1027B } from "../repos-1027b";
+import { FICHAS_REPOS_1027B, IDS_SIEMBRA_1027B } from "../repos-1027b";
 import { IDS_SIEMBRA_1028 } from "../repos-1028";
 
 const SIEMPRE_2A = [
@@ -60,9 +60,17 @@ describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
     for (const id of SIEMPRE_2A) {
       expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
     }
-    // Los `lib-` sembrados son los de la 2.ª tanda más los de las tandas 1025, 1026, 1027, 1027b y 1028 (que llegan de su JSON) y las «siempre» de la 3.ª y 4.ª tanda.
     const deLasTandas = RECOMMENDED_PACKAGE_IDS.filter((id) => id.startsWith("lib-"));
-    const esperados = [...SIEMPRE_2A, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...SIEMPRE_3A, ...SIEMPRE_4A].filter((id) => id.startsWith("lib-"));
+    const esperados = [
+      ...SIEMPRE_2A,
+      ...IDS_SIEMBRA_1025,
+      ...IDS_SIEMBRA_1026,
+      ...IDS_SIEMBRA_1027,
+      ...IDS_SIEMBRA_1027B,
+      ...IDS_SIEMBRA_1028,
+      ...SIEMPRE_3A,
+      ...SIEMPRE_4A,
+    ].filter((id) => id.startsWith("lib-"));
     expect(deLasTandas.sort()).toEqual(Array.from(new Set(esperados)).sort());
   });
 
@@ -275,7 +283,7 @@ describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remac
       seedVersion: SEED_VERSION,
       recommendedIds: RECOMMENDED_PACKAGE_IDS,
       catalog: FICHAS_REPOS_1027.map((f) => ({ id: f.id })),
-      alreadyOffered: [...RECOMMENDED_PACKAGE_IDS], // la tanda ya se le ofreció antes
+      alreadyOffered: [...RECOMMENDED_PACKAGE_IDS],
       installedIds: IDS_SIEMBRA_1027.filter((id) => id !== "lib-openmausbot"),
     });
     expect(plan).not.toContain("lib-openmausbot");
@@ -283,6 +291,36 @@ describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remac
 
   it("ninguna ficha de la tanda es descargable ni comingSoon: instalar solo registra su enlace", () => {
     for (const f of FICHAS_REPOS_1027) {
+      expect(f.comingSoon, f.id).toBeFalsy();
+      expect(f.payload.downloadable, f.id).toBeUndefined();
+      expect(String(f.payload.route ?? ""), f.id).toBe("");
+    }
+  });
+});
+
+describe("defaults-seed · tanda 1027b (Meta^n y Memvid)", () => {
+  const nuevas = IDS_SIEMBRA_1027B;
+
+  it("las 2 fichas de 1027b están en la recomendación", () => {
+    expect(nuevas).toEqual(["lib-meta-n", "lib-memvid"]);
+    for (const id of nuevas) expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
+  });
+
+  it("quien ya tenía la 23 (con 1028 sembrada) recibe solo las 2 nuevas de 1027b", () => {
+    const catalogoIds = [...IDS_SIEMBRA_1028, ...nuevas];
+    const plan = selectSeedIds({
+      currentVersion: 23,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: catalogoIds.map((id) => ({ id })),
+      alreadyOffered: [...IDS_SIEMBRA_1028],
+      installedIds: [],
+    });
+    expect(plan.sort()).toEqual([...nuevas].sort());
+  });
+
+  it("ninguna ficha de la tanda es descargable ni comingSoon: instalar solo registra su enlace", () => {
+    for (const f of FICHAS_REPOS_1027B) {
       expect(f.comingSoon, f.id).toBeFalsy();
       expect(f.payload.downloadable, f.id).toBeUndefined();
       expect(String(f.payload.route ?? ""), f.id).toBe("");
