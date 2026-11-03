@@ -61,6 +61,21 @@ describe("dependencias a partes del revisor de Bloqueadas (PUB1029C)", () => {
             else if (existsSync(rutaProg)) require("node:fs").unlinkSync(rutaProg);
         }
     });
+    it("acepta «-dN» cuando la base está en progreso.json como parte -dN*; rechaza si no existe ni base ni parte", () => {
+        const ra = raizDelProyecto();
+        const rutaProg = path.join(ra, "starseed_memory_root", "olas", "progreso.json");
+        const respaldo = existsSync(rutaProg) ? readFileSync(rutaProg, "utf8") : null;
+        try {
+            require("node:fs").writeFileSync(rutaProg, JSON.stringify({ "ART1025B-d3": { estado: "en_curso" } }), "utf8");
+            const conParte = validarCola("1029-parte", [tarea("X1"), tarea("Y1", ["ART1025B-d3"])]);
+            expect(conParte.errores.filter((e) => e.includes("depende"))).toEqual([]);
+            const sinParte = validarCola("1029-sin-parte", [tarea("Z1"), tarea("W1", ["INV1025J-d2"])]);
+            expect(sinParte.errores.some((e) => e.includes("INV1025J-d2"))).toBe(true);
+        } finally {
+            if (respaldo !== null && respaldo !== undefined) require("node:fs").writeFileSync(rutaProg, respaldo, "utf8");
+            else if (existsSync(rutaProg)) require("node:fs").unlinkSync(rutaProg);
+        }
+    });
 });
 
 describe.skipIf(!COLAS_VIVAS)("colas de la Ola 1025R", () => {

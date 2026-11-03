@@ -336,8 +336,8 @@ export function validarCola(nombre: string, bruto: unknown): { errores: string[]
     for (const t of tareas) {
         for (const dep of t.depende) {
             const base = baseDeParte(dep);
-            // Vale si la dependencia está en la cola, o si su base está en la cola o en progreso.json.
-            if (!ids.has(dep) && !ids.has(base) && !idsProgreso.has(base)) errores.push(`${t.id}: depende de «${dep}», que no está en la cola.`);
+            const enProgresoComoParte = [...idsProgreso].some((id) => id.startsWith(base + "-d"));
+            if (!ids.has(dep) && !ids.has(base) && !idsProgreso.has(base) && !enProgresoComoParte) errores.push(`${t.id}: depende de «${dep}», que no está en la cola.`);
             if (dep === t.id) errores.push(`${t.id}: no puede depender de sí misma.`);
         }
     }
