@@ -72,7 +72,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 24;
+export const SEED_VERSION = 25;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -422,6 +422,12 @@ const IDS_SIEMBRA_1020D: string[] = [
  * unión— para que TODAS las cuentas y neuronas repasen ensureDefaultsSeeded. Los ya
  * ofrecidos no se vuelven a instalar; una desinstalada no vuelve. El remacho no entra a las
  * «manual» y no toca lo que la persona ya decidió, como siempre.
+ *
+ * (SEED_VERSION 25 · Tanda 1027b · Meta^n y Memvid) Añade las dos fichas nuevas con
+ * `preinstalar: "siempre"`: lib-meta-n (automejora recursiva de las capas, Meta^n) y
+ * lib-memvid (cápsulas de memoria, Memvid). Instalar SOLO registra su enlace externo;
+ * nada se descarga, cero clave, cero ejecución en el navegador. Meta^n corre en Docker
+ * sin red; Memvid corre en un servidor propio de Rust.
  */
 export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
   new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...IDS_SIEMBRA_1020C, ...IDS_SIEMBRA_1020D]),

@@ -8,7 +8,7 @@ import {
 import { FICHAS_REPOS_1025, IDS_SIEMBRA_1025, TANDA_1025_FICHAS } from "../repos-1025";
 import { FICHAS_REPOS_1026, IDS_SIEMBRA_1026, TANDA_1026_FICHAS } from "../repos-1026";
 import { FICHAS_REPOS_1027, IDS_SIEMBRA_1027, TANDA_1027_FICHAS } from "../repos-1027";
-import { IDS_SIEMBRA_1027B } from "../repos-1027b";
+import { IDS_SIEMBRA_1027B, FICHAS_REPOS_1027B } from "../repos-1027b";
 import { IDS_SIEMBRA_1028 } from "../repos-1028";
 
 const SIEMPRE_2A = [
@@ -55,8 +55,8 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 }
 
 describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
-  it("la versión está en 24 (remacho del Mausbot) y mantiene las siete «siempre» de la 2.ª tanda", () => {
-    expect(SEED_VERSION).toBe(24);
+  it("la versión está en 25 (tanda 1027b: Meta^n y Memvid) y mantiene las siete «siempre» de la 2.ª tanda", () => {
+    expect(SEED_VERSION).toBe(25);
     for (const id of SIEMPRE_2A) {
       expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
     }
@@ -247,9 +247,9 @@ describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remac
     expect(new Set(RECOMMENDED_PACKAGE_IDS).size).toBe(RECOMMENDED_PACKAGE_IDS.length);
   });
 
-  it("una cuenta nueva recibe las tres y una ya al día con la 23 no recibe nada repetido", () => {
+  it("una cuenta nueva recibe las tres y con la 24 no recibe nada repetido", () => {
     const plan = selectSeedIds({
-      currentVersion: 23,
+      currentVersion: 24,
       seedVersion: SEED_VERSION,
       recommendedIds: RECOMMENDED_PACKAGE_IDS,
       catalog: [...FICHAS_REPOS_1025, ...FICHAS_REPOS_1026, ...FICHAS_REPOS_1027].map((f) => ({ id: f.id, comingSoon: f.comingSoon })),
@@ -271,7 +271,7 @@ describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remac
 
   it("una cuenta que desinstaló una de la tanda no la recupera sola con el remacho", () => {
     const plan = selectSeedIds({
-      currentVersion: 23,
+      currentVersion: 24,
       seedVersion: SEED_VERSION,
       recommendedIds: RECOMMENDED_PACKAGE_IDS,
       catalog: FICHAS_REPOS_1027.map((f) => ({ id: f.id })),
@@ -286,6 +286,47 @@ describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remac
       expect(f.comingSoon, f.id).toBeFalsy();
       expect(f.payload.downloadable, f.id).toBeUndefined();
       expect(String(f.payload.route ?? ""), f.id).toBe("");
+    }
+  });
+});
+
+describe("defaults-seed · tanda 1027b (Meta^n y Memvid)", () => {
+  const nuevas = FICHAS_REPOS_1027B.map((f) => f.id);
+
+  it("las dos ids del JSON quedan en la recomendación y no se repiten", () => {
+    expect([...IDS_SIEMBRA_1027B].sort()).toEqual(["lib-memvid", "lib-meta-n"]);
+    for (const id of nuevas) expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
+    expect(new Set(RECOMMENDED_PACKAGE_IDS).size).toBe(RECOMMENDED_PACKAGE_IDS.length);
+  });
+
+  it("una cuenta con SEED_VERSION 24 recibe solo las dos fichas de 1027b", () => {
+    const todoLoYaOfrecido = [
+      ...SIEMPRE_2A, ...SIEMPRE_3A, ...SIEMPRE_4A,
+      ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1028,
+    ];
+    const plan = selectSeedIds({
+      currentVersion: 24,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: [...FICHAS_REPOS_1025, ...FICHAS_REPOS_1026, ...FICHAS_REPOS_1027, ...FICHAS_REPOS_1027B].map((f) => ({ id: f.id, comingSoon: f.comingSoon })),
+      alreadyOffered: todoLoYaOfrecido,
+      installedIds: [],
+    });
+    expect(plan.sort()).toEqual([...nuevas].sort());
+  });
+
+  it("ninguna ficha de la tanda es descargable ni comingSoon: instalar solo registra su enlace", () => {
+    for (const f of FICHAS_REPOS_1027B) {
+      expect(f.comingSoon, f.id).toBeFalsy();
+      expect(f.payload.downloadable, f.id).toBeUndefined();
+      expect(String(f.payload.route ?? ""), f.id).toBe("");
+    }
+  });
+
+  it("Meta^n y Memvid tienen upstream de GitHub y externalUrl = upstream", () => {
+    for (const p of FICHAS_REPOS_1027B) {
+      expect(String(p.payload.upstream), p.id).toMatch(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/);
+      expect(p.payload.externalUrl, p.id).toBe(p.payload.upstream);
     }
   });
 });
