@@ -155,6 +155,14 @@ describe("servicio-local · servicio hyperframes (vídeo, Ola 1018H)", () => {
     expect(init).toMatchObject({ method: "GET", redirect: "manual", headers: { accept: "application/json" } });
     expect(init.headers.authorization).toBeUndefined();
   });
+  it("una redirección no saca la salud de 127.0.0.1: se pide en modo manual y cuenta como no vivo", async () => {
+    const f = vi.fn<FetchLocal>(async () => resp(302, "otro host"));
+    const r = await sondearServicio(HF, f);
+    expect(r).toMatchObject({ vivo: false, motivo: expect.stringContaining("302") });
+    expect(f.mock.calls).toHaveLength(1);
+    expect(f.mock.calls[0]?.[1]).toMatchObject({ method: "GET", redirect: "manual" });
+    expect(new URL(f.mock.calls[0]![0]).hostname).toBe("127.0.0.1");
+  });
   it("el plazo propio (tiempoMs: 900000) manda en las llamadas: 30 s no corta, 15 min sí", async () => {
     const { reloj, avanzar } = relojFalso();
     let senal: AbortSignal | undefined;
