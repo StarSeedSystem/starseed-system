@@ -58,6 +58,21 @@ describe("/api/mando/imaginacion", () => {
         expect((await (await GET(new Request(URL_RUTA))).json()).propuestas).toHaveLength(3);
         expect((await GET(new Request(`${URL_RUTA}?ambito=..%2Fx`))).status).toBe(400);
     });
+    it("GET trae filtroAstraura (IMG1102D): solo el resumen de HOY; de ayer o con la lista a pelo, null", async () => {
+        const hoy = new Date();
+        const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        const filtro = { fecha: iso(hoy), vistas: 60, entran: 2, filtradas: { "familia repetida": 20, "tipo de archivo": 30, tope: 8 }, autorizacion_inventada: 1, por_id: { x: "entra" }, inventadas: ["x"] };
+        writeFileSync(archivo(), JSON.stringify({ actualizado: new Date().toISOString(), propuestas: [prop("m1")], filtro_astraura: filtro }));
+        const j = JSON.parse(await (await GET(new Request(URL_RUTA))).text());
+        expect(j.filtroAstraura).toEqual({ fecha: iso(hoy), vistas: 60, entran: 2, filtradas: { "familia repetida": 20, "tipo de archivo": 30, tope: 8 }, autorizacionInventada: 1 });
+        expect(JSON.stringify(j.filtroAstraura)).not.toContain("por_id");
+        const ayer = new Date(hoy);
+        ayer.setDate(ayer.getDate() - 1);
+        writeFileSync(archivo(), JSON.stringify({ propuestas: [prop("m1")], filtro_astraura: { ...filtro, fecha: iso(ayer) } }));
+        expect((await (await GET(new Request(URL_RUTA))).json()).filtroAstraura).toBeNull();
+        writeFileSync(archivo(), JSON.stringify([prop("m1")]));
+        expect((await (await GET(new Request(URL_RUTA))).json()).filtroAstraura).toBeNull();
+    });
     it("POST integrar (y su alias aprobar), reimaginar y errores", async () => {
         expect((await post({ accion: "integrar", id: "m1" })).status).toBe(200);
         expect(enDisco()[0].estado).toBe("aprobada");

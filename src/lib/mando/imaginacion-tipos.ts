@@ -269,6 +269,51 @@ export function filasMedidor(propuestas: PropuestaImaginacion[]): FilaMedidor[] 
     || PESO_IMPORTANCIA[b.importancia] - PESO_IMPORTANCIA[a.importancia] || b.utilidad - a.utilidad || a.id.localeCompare(b.id));
 }
 
+// ── Filtro de entrada de Astraura (Ola 1102 · IMG1102A) ────────────────────────────────
+
+/**
+ * Lo que el director dejó en `propuestas.json → filtro_astraura` después de filtrar la entrada de Astraura,
+ * y que el director también devuelve en `ciclo()` (architecture/imaginacion-calidad.md). Aquí va SIN el rastro
+ * por id (`por_id`/`inventadas`), que puede llegar a dos mil entradas: solo las cuentas del día.
+ */
+export type MotivoAstraura = "familia repetida" | "tipo de archivo" | "tope";
+export const MOTIVOS_ASTRAURA: readonly MotivoAstraura[] = ["familia repetida", "tipo de archivo", "tope"];
+export interface FiltroAstraura {
+    fecha: string; vistas: number; entran: number;
+    filtradas: Record<MotivoAstraura, number>;
+    /** Propuestas con «[AUTORIZADO]» u otro permiso inventado: esperan el visto bueno de Alex, nunca se integran solas. */
+    autorizacionInventada: number;
+}
+/** «2026-11-03», la fecha local como la escribe el director (`date.isoformat()`). */
+const fechaDeHoy = (h: Date): string =>
+    `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, "0")}-${String(h.getDate()).padStart(2, "0")}`;
+const cuenta = (v: unknown): number =>
+    typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.min(Math.floor(v), 9_999_999) : 0;
+/**
+ * El filtro crudo del disco → el que ve Genesis, acotado y por defecto a ceros. `null` si no hay filtro
+ * o el guardado NO es de HOY: la ventana habla de «hoy», y el día anterior se apaga al amanecer.
+ */
+export function normalizarFiltroAstraura(x: unknown, hoy: Date): FiltroAstraura | null {
+    if (!esObj(x) || cadena(x.fecha, 10) !== fechaDeHoy(hoy)) return null;
+    const f = esObj(x.filtradas) ? x.filtradas : {};
+    return {
+        fecha: String(cadena(x.fecha, 10)),
+        vistas: cuenta(x.vistas),
+        entran: cuenta(x.entran),
+        filtradas: MOTIVOS_ASTRAURA.reduce(
+            (r, m) => ({ ...r, [m]: cuenta(f[m]) }),
+            {} as Record<MotivoAstraura, number>,
+        ),
+        autorizacionInventada: cuenta(x.autorizacion_inventada),
+    };
+}
+/** «Filtradas de Astraura hoy: 682 (familia repetida 303 · tipo de archivo 320 · tope 59)». */
+export function lineaFiltroAstraura(f: FiltroAstraura): string {
+    const n = MOTIVOS_ASTRAURA.reduce((s, m) => s + f.filtradas[m], 0);
+    const detalle = MOTIVOS_ASTRAURA.map((m) => `${m} ${f.filtradas[m]}`).join(" · ");
+    return `Filtradas de Astraura hoy: ${n} (${detalle})`;
+}
+
 /** Cuerpo de POST /api/mando/imaginacion ya interpretado (§4). Las notas y referencias las valida el servidor. */
 export type PeticionImaginacion =
   | { accion: "integrar"; id: string; por: QuienDecide }

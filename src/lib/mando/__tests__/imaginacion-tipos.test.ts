@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AJUSTES_POR_DEFECTO, ESTADOS_DECIDIBLES, NOMBRE_ESTADO, NOMBRE_FUENTE, ambitoDeLaUrl, decidibles, esAmbito, esDecidible,
   esperaAAlex, filasMedidor, filtrarPorAmbito, interpretarPeticion, leerAmbito, normalizarAmbito, normalizarImportancia, normalizarReferencias,
-  normalizarReimaginacion, reimaginacionesLibres, resumenPastilla, validarAjustes, vetoDecision,
+  normalizarReimaginacion, normalizarFiltroAstraura, lineaFiltroAstraura, reimaginacionesLibres, resumenPastilla, validarAjustes, vetoDecision,
   type EstadoPropuesta,
   type PropuestaImaginacion,
 } from "../imaginacion-tipos";
@@ -241,5 +241,38 @@ describe("lo que escribe el director (IMG1024C) leído en TS", () => {
     expect(ambitoDeLaUrl("?ambito=local")).toBe("metagenesis");
     expect(ambitoDeLaUrl("?nivel=meta&ambito=grupo%3Ag1")).toBe("grupo:g1");
     expect(ambitoDeLaUrl("?ambito=personal")).toBe("personal");
+  });
+});
+
+describe("filtro de entrada de Astraura (Ola 1102 · IMG1102D)", () => {
+  // La forma exacta que escribe el director (`filtrar_astraura`): rastro por id incluido.
+  const filtro = {
+    fecha: "2026-10-22", tope_dia: 3, ventana_dias: 7, vistas: 685, entran: 3,
+    filtradas: { "familia repetida": 303, "tipo de archivo": 320, tope: 59 },
+    autorizacion_inventada: 12, por_id: { x: "entra" }, inventadas: ["x"],
+  };
+  it("normalizar: solo las cuentas de HOY; el rastro por id e inventadas no salen del disco", () => {
+    expect(normalizarFiltroAstraura(filtro, HOY)).toEqual({
+      fecha: "2026-10-22", vistas: 685, entran: 3,
+      filtradas: { "familia repetida": 303, "tipo de archivo": 320, tope: 59 },
+      autorizacionInventada: 12,
+    });
+    expect(normalizarFiltroAstraura(filtro, HOY)).not.toHaveProperty("por_id");
+    expect(normalizarFiltroAstraura(filtro, HOY)).not.toHaveProperty("inventadas");
+  });
+  it("lo de ayer o lo inválido no es «hoy»; los campos raros valen 0", () => {
+    expect(normalizarFiltroAstraura({ ...filtro, fecha: "2026-10-21" }, HOY)).toBeNull();
+    expect(normalizarFiltroAstraura(AYER, HOY)).toBeNull();
+    expect(normalizarFiltroAstraura(null, HOY)).toBeNull();
+    expect(normalizarFiltroAstraura({ fecha: "2026-10-22", vistas: "x", filtradas: "no" }, HOY)).toEqual({
+      fecha: "2026-10-22", vistas: 0, entran: 0,
+      filtradas: { "familia repetida": 0, "tipo de archivo": 0, tope: 0 },
+      autorizacionInventada: 0,
+    });
+  });
+  it("la línea del medidor dice lo filtrado y por qué", () => {
+    const f = normalizarFiltroAstraura(filtro, HOY);
+    expect(lineaFiltroAstraura(f as NonNullable<typeof f>))
+      .toBe("Filtradas de Astraura hoy: 682 (familia repetida 303 · tipo de archivo 320 · tope 59)");
   });
 });
