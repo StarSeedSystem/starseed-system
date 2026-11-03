@@ -109,7 +109,14 @@ class Decisiones(unittest.TestCase):
         self.assertNotEqual(a, C.huella_envio("sha1", "src/x.ts"))
 
     def test_huella_lock_y_pide_instalacion(self):
-        self.assertEqual(C.huella_lock("x")[:10], C.huella_lock("x")[:10])
+        import hashlib
+        texto = "{\"lock\": 1}\n"
+        # mismo formato que el guardián: `sha256sum package-lock.json | cut -c1-16`
+        self.assertEqual(C.huella_lock(texto), hashlib.sha256(texto.encode()).hexdigest()[:16])
+        self.assertEqual(len(C.huella_lock("x")), 16)
+        self.assertEqual(len(C.huella_lock("")), 16)
+        # la huella que deja el guardián (16 hex + salto de línea, ya recortada) no pide reinstalar
+        self.assertFalse(C.pide_instalacion(C.huella_lock(texto), C.huella_lock(texto)))
         self.assertTrue(C.pide_instalacion("", "huevo", existe=True))
         self.assertTrue(C.pide_instalacion("", "huevo", existe=False))
         self.assertTrue(C.pide_instalacion("vieja", "nueva", existe=True))
