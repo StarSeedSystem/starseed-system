@@ -50,6 +50,17 @@ PISTAS = (
 #: Cuánto se aparta tras un agotamiento.
 HORAS = 3.0
 
+#: Lo que dice Codex cuando la cuenta de ChatGPT no admite el modelo (2026-10-23 en
+#: adelante: «The 'gpt-5.6-sol' model is not supported when using Codex with a ChatGPT
+#: account», code «model_not_found»). No es cuota: no vuelve en tres horas.
+PISTAS_SIN_MODELO = (
+    "is not supported when using codex with a chatgpt account",
+    "model_not_found",
+)
+
+#: Cuánto se aparta cuando la cuenta no admite el modelo.
+HORAS_SIN_MODELO = 24
+
 
 def agotado_en(salida):
     """¿Esta salida es un agotamiento de cuota de Codex?
@@ -60,6 +71,16 @@ def agotado_en(salida):
     """
     b = (salida or "").lower()
     return any(p in b for p in PISTAS)
+
+
+def sin_modelo_en(salida):
+    """¿Esta salida dice que la cuenta de ChatGPT no admite el modelo de Codex?
+
+    Distinto de `agotado_en`: aquí reintentar en tres horas no sirve, y cada intento
+    acababa en `sin_cambios` gastando el primer turno de la tarea (DEC1028A, ocho veces).
+    """
+    b = (salida or "").lower()
+    return any(p in b for p in PISTAS_SIN_MODELO)
 
 
 def hasta_cuando(ahora, horas=HORAS):
