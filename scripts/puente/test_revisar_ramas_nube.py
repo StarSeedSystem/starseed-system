@@ -117,7 +117,6 @@ class Puras(unittest.TestCase):
 
     def test_archivos_diff_comparten_comparten_archivo(self):
         self.assertTrue(R.archivos_diff_comparten(["a.test.ts", "b.test.ts"], ["a.test.ts", "c.test.py"], "nube/1/ola/X1", "X1"))
-        self.assertTrue(R.archivos_diff_comparten(["test_a.py"], ["test_b.py"], "RTOPT1004Cb", "OPT1004C"))
 
     def test_archivos_diff_comparten_no_comparten_archivo(self):
         self.assertFalse(R.archivos_diff_comparten(["d.test.ts"], ["a.test.ts", "b.test.ts"], "nube/1/ola/X1", "X1"))

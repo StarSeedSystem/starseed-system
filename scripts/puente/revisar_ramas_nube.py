@@ -325,9 +325,28 @@ def archivos_diff_comparten(archivos_diff, archivos_tarea, id_rama, id_tarea):
     """
     if not archivos_diff or not archivos_tarea:
         return False
-    if id_rama and id_tarea and T.base_de(id_rama) != T.base_de(id_tarea):
+    if id_rama and id_tarea and _extraer_id_de_rama(id_rama) != id_tarea:
         return False
     return any(af in archivos_tarea for af in archivos_diff)
+
+
+def _extraer_id_de_rama(rama):
+    """Extrae el ID base de una rama (ej. nube/1/ola/X1 → X1)."""
+    if not rama:
+        return ""
+    partes = rama.split("/")
+    if not partes:
+        return ""
+    id_parte = partes[-1]
+    # Si es un ID de rescate como RTOPT1004Cb, obtener el base (como `obtenerBaseId` de Genesis)
+    if id_parte.startswith("RT"):
+        # Obtener la base: si es RTOPT1004Cb → OPT1004C (sin el "RT" y la letra del sufijo)
+        if len(id_parte) > 2:
+            sin_rt = id_parte[2:]
+            if len(sin_rt) > 1 and sin_rt[-1] in "bcdefghijklmnopqrstuvwxyz":
+                return sin_rt[:-1]
+            return sin_rt
+    return id_parte
 
 
 def _consultar_jev(tid, titulo, por_archivo, base):
