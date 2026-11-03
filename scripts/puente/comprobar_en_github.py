@@ -101,6 +101,13 @@ def en_vuelo(estado):
     return sum(1 for e in (estado or {}).values() if isinstance(e, dict) and e.get("estado") == "en_curso")
 
 
+def diferir(clave_propia, clave, rapido):
+    """PURA (SUP0211X). ¿La comprobación `clave` deja el borrado de su rama (y, si es un fallo, el detalle)
+    para la primera llamada lenta? Solo si la llamada es rápida (la puerta tsc del orquestador esperando su
+    veredicto) y `clave` no es la de ESTA llamada: la propia se completa siempre."""
+    return bool(rapido) and clave != clave_propia
+
+
 # ── máquina ──
 
 def _git(cwd, args, timeout=180):
@@ -198,7 +205,8 @@ def esperar_tsc(base_sha, cambiados, cwd, esperar_s, dormir=time.sleep, reloj=ti
     fin = inicio + max(0, esperar_s)
     subida = None
     while True:
-        r = comprobar(base_sha, [], cambiados, cwd=cwd)
+        # (SUP0211X) rapido=True: la puerta no paga el borrado de ramas ni el detalle del fallo de ajeno.
+        r = comprobar(base_sha, [], cambiados, cwd=cwd, rapido=True)
         if r is None:
             return None
         if subida is None:
@@ -281,9 +289,24 @@ def _leer_run(run_id):
         return {}
 
 
-def _refrescar(estado, ahora):
+def _refrescar(estado, ahora, clave_propia=None, rapido=False):
     """(CAP1026R) Lee el veredicto de las comprobaciones en curso cuyo run ya acabó, sean de esta base o de otra:
-    guarda «ok»/«fallo» (y borra su rama), olvida las del medio. Así una base vieja no ocupa los sitios."""
+    guarda «ok»/«fallo» (y borra su rama), olvida las del medio. Así una base vieja no ocupa los sitios.
+
+    (SUP0211X) En una llamada rápida (la puerta tsc esperando) el cerrojo de ESTADO no se ocupa minutos:
+    la comprobación de ESTA llamada se completa del todo y para las demás queda marcado lo que falta
+    (`pendiente_borrar` y, si es un fallo, `pendiente_detalle`); la primera llamada lenta (traer_nube)
+    las termina de inmediato, antes de refrescar lo nuevo."""
+    if not rapido:
+        for k, e in list(estado.items()):
+            if not isinstance(e, dict):
+                continue
+            if e.pop("pendiente_borrar", None):
+                _borrar_rama(e.get("rama") or "")
+            if e.get("estado") == "medio":
+                estado.pop(k, None)
+            elif e.get("estado") == "fallo" and e.pop("pendiente_detalle", False) and e.get("run"):
+                e["detalle"] = _detalle_fallo(e["run"])
     for k, e in list(estado.items()):
         if not isinstance(e, dict) or e.get("estado") != "en_curso" or ahora - float(e.get("visto") or 0) < REFRESCO_S:
             continue
@@ -294,15 +317,27 @@ def _refrescar(estado, ahora):
         e["run"] = run
         datos = _leer_run(run)
         est, paso = veredicto(datos, _jobs(run) if datos.get("status") == "completed" else [])
+        ajena = diferir(clave_propia, k, rapido)
         if est in ("ok", "fallo"):
-            e.update(estado=est, paso=paso, detalle=_detalle_fallo(run) if est == "fallo" else "", t=ahora)
-            _borrar_rama(e["rama"])
+            e.update(estado=est, paso=paso, t=ahora)
+            if ajena:
+                e["detalle"] = ""
+                e["pendiente_borrar"] = True
+                if est == "fallo":
+                    e["pendiente_detalle"] = True
+            else:
+                e["detalle"] = _detalle_fallo(run) if est == "fallo" else ""
+                _borrar_rama(e["rama"])
         elif est == "medio":
-            estado.pop(k, None)
-            _borrar_rama(e["rama"])
+            if ajena:
+                e["estado"] = "medio"
+                e["pendiente_borrar"] = True
+            else:
+                estado.pop(k, None)
+                _borrar_rama(e["rama"])
 
 
-def comprobar(base_sha, shas, cambiados, timeout=None, cwd=None, ahora=None):  # noqa: ARG001 — firma de comprobar_en_a1
+def comprobar(base_sha, shas, cambiados, timeout=None, cwd=None, ahora=None, rapido=False):  # noqa: ARG001 — firma de comprobar_en_a1
     if os.environ.get("STARSEED_COMPROBAR_GITHUB", "1") == "0" or not cwd or not os.path.isdir(cwd):
         return None
     rc, arbol = _git(cwd, ["rev-parse", "HEAD^{tree}"], timeout=30)
@@ -321,27 +356,28 @@ def comprobar(base_sha, shas, cambiados, timeout=None, cwd=None, ahora=None):  #
         fcntl.flock(cerrojo, fcntl.LOCK_EX)
         try:
             return _comprobar(arbol.strip(), cabeza.strip(), str(base_sha).strip(), cambiados, cwd,
-                              time.time() if ahora is None else ahora)
+                              time.time() if ahora is None else ahora, rapido=rapido)
         finally:
             fcntl.flock(cerrojo, fcntl.LOCK_UN)
 
 
-def _comprobar(arbol, cabeza, base_sha, cambiados, cwd, ahora):
+def _comprobar(arbol, cabeza, base_sha, cambiados, cwd, ahora, rapido=False):
+    clave = clave_de(base_sha, arbol)  # (SUP0211X) antes de _refrescar: la propia es la que se completa
     crudo = _leer()
     estado = podar(crudo, ahora)
     # (CAP1026R) Lo que caducó sin veredicto deja de ocupar sitio y su rama no se queda en GitHub.
     for k, e in crudo.items():
         if k not in estado and isinstance(e, dict) and e.get("estado") == "en_curso" and e.get("rama"):
             _borrar_rama(e["rama"])
-    _refrescar(estado, ahora)
-    clave = clave_de(base_sha, arbol)
+    # (SUP0211X) Con rapido las ajenas solo se marcan: la propia es la única que se completa aquí.
+    _refrescar(estado, ahora, clave_propia=clave, rapido=rapido)
     e = estado.get(clave)
     parche = None
     if not e:
         # (CAP1026R) El mismo cambio comprobado sobre un main anterior que no tocó lo suyo.
         parche = _parche(cwd, base_sha)
         for otra in estado.values():
-            if isinstance(otra, dict) and otra.get("parche") == parche and parche and \
+            if isinstance(otra, dict) and otra.get("estado") != "medio" and otra.get("parche") == parche and parche and \
                     reutilizable(otra, parche, _movidos(cwd, otra.get("base"), base_sha)):
                 e = otra
                 break

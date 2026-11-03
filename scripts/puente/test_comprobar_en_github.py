@@ -38,6 +38,12 @@ class Puro(unittest.TestCase):
         self.assertEqual(sorted(G.podar(e, T)), ["bueno", "vivo"])
         self.assertEqual(G.en_vuelo(G.podar(e, T)), 1)
 
+    def test_diferir(self):
+        """(SUP0211X) Con rapido solo la entrada AJENA a esta llamada pospone el borrado y el detalle."""
+        self.assertFalse(G.diferir("c1", "c1", True))   # la propia: se completa siempre
+        self.assertTrue(G.diferir("c1", "c2", True))    # ajena: pospone
+        self.assertFalse(G.diferir("c1", "c2", False))  # llamada lenta: nada se difiere
+
 
 class Flujo(unittest.TestCase):
     def setUp(self):
@@ -288,7 +294,7 @@ class LaPuertaDelOrquestadorEspera(unittest.TestCase):
     def _correr(self, respuestas, entrada=None, jobs=None, esperar_s=600):
         seq = list(respuestas)
 
-        def comprobar(base, shas, cambiados, cwd=None):
+        def comprobar(base, shas, cambiados, cwd=None, rapido=False):
             return seq.pop(0) if len(seq) > 1 else seq[0]
         with mock.patch.object(G, "comprobar", comprobar), \
                 mock.patch.object(G, "_entrada", lambda b, c: entrada), \
@@ -306,6 +312,21 @@ class LaPuertaDelOrquestadorEspera(unittest.TestCase):
         r = self._correr([esperando, esperando, (True, "tsc y pruebas en verde en GitHub (run 9)", False)])
         self.assertEqual(r[0], True)
         self.assertEqual(self.dormidas, [G.SONDEO_S, G.SONDEO_S])
+
+    def test_la_puerta_espera_siempre_en_rapido(self):
+        # (SUP0211X) comprobar() recibe rapido=True: la de traer_nube no, la del orquestador sí.
+        recibidos = []
+        seq = [(False, G.ESPERANDO + " (run 1): lanzada", True)]
+
+        def comprobar(base, shas, cambiados, cwd=None, rapido=False):
+            recibidos.append(rapido)
+            return seq[0]
+
+        with mock.patch.object(G, "comprobar", comprobar), \
+                mock.patch.object(G, "_entrada", lambda b, c: None), \
+                mock.patch.object(G, "_jobs", lambda run: []):
+            G.esperar_tsc(BASE, ["src/a.ts"], self.tmp.name, 40, dormir=self._dormir, reloj=self._reloj)
+        self.assertTrue(recibidos and all(recibidos))
 
     def test_el_paso_tsc_en_verde_no_espera_a_las_pruebas(self):
         esperando = (False, G.ESPERANDO + " (run 9, 3 min): en la próxima pasada", True)
@@ -342,7 +363,7 @@ class LaPuertaDelOrquestadorEspera(unittest.TestCase):
         esperando = (False, G.ESPERANDO + " (run ?): lanzada", True)
         llamadas = []
 
-        def comprobar(base, shas, cambiados, cwd=None):
+        def comprobar(base, shas, cambiados, cwd=None, rapido=False):
             if not llamadas:
                 self.t[0] += primera_s
                 llamadas.append(self.t[0])
@@ -376,6 +397,99 @@ class LaPuertaDelOrquestadorEspera(unittest.TestCase):
         self.assertGreaterEqual(G.SIN_RUN_S, 300)
         r = self._lenta(5, run_en_s=270)
         self.assertEqual(r[0], True)
+
+
+class Rapido(Flujo):
+    """(SUP0211X) La puerta tsc con `rapido=True` no puede pasar minutos con el cerrojo de ESTADO tomado
+    (medido el 02-11 23:07: la primera llamada tardó ~4 min, por `git push --delete` (tope 120 s) y
+    `gh run view --log-failed` (tope 90 s) de comprobaciones ajenas). La propia se completa siempre;
+    las demás quedan marcadas (`pendiente_borrar`, `pendiente_detalle` si falla) y las termina la
+    primera llamada lenta (la de traer_nube)."""
+
+    LOG = "puertas\ttsc\terror TS2322"
+
+    def setUp(self):
+        super().setUp()
+        self.vistas_gh = []
+
+    def _guardar(self, datos):
+        with open(self.estado, "w") as f:
+            json.dump(datos, f)
+
+    def _leer(self):
+        with open(self.estado) as f:
+            return json.load(f)
+
+    def _gh(self, log):
+        runs = {81: {"status": "completed", "conclusion": "success"},
+                82: {"status": "completed", "conclusion": "failure",
+                     "pasos": [{"name": "tsc", "conclusion": "failure"}]},
+                83: {"status": "completed", "conclusion": "success"}}
+
+        def gh(args, timeout=60):
+            self.vistas_gh.append(list(args))
+            if args[0] == "run":
+                return 0, log, ""
+            ruta = args[1] if len(args) > 1 else ""
+            if "actions/runs?" in ruta:
+                return 0, "[]", ""
+            if ruta.endswith("/jobs"):
+                run_id = int(ruta.split("/actions/runs/")[-1].split("/")[0])
+                pasos = runs[run_id].get("pasos") or [{"name": "tsc", "conclusion": "success"}]
+                return 0, json.dumps([{"steps": pasos}]), ""
+            run_id = int(ruta.rsplit("/", 1)[-1])
+            return 0, json.dumps({"status": runs[run_id]["status"], "conclusion": runs[run_id].get("conclusion")}), ""
+        return gh
+
+    def _estado(self):
+        """Dos ajenas en curso (81 verde, 82 roja en «tsc») y la propia (83) en curso, vistas vencidas."""
+        propia = G.clave_de(BASE, ARBOL)
+        t = lambda estado, rama, run: {"estado": estado, "rama": rama, "run": run, "t": T, "visto": T}
+        self._guardar({"ok1": t("en_curso", "comprobar/ok/uno", 81),
+                       "fallo2": t("en_curso", "comprobar/fallo/dos", 82),
+                       propia: t("en_curso", "comprobar/propia/x", 83)})
+
+    def _rapida(self):
+        with mock.patch.object(G, "_git", self._git), mock.patch.object(G, "_gh", self._gh(self.LOG)):
+            return G.comprobar(BASE, [], ["src/a.ts"], cwd=self.tmp.name, ahora=T + 600, rapido=True)
+
+    def test_con_rapido_solo_la_propia_se_completa(self):
+        self._estado()
+        ok, detalle, medio = self._rapida()
+        # la propia da su veredicto y borra SU rama; a las ajenas no se les toca el borrado ni su fallo
+        self.assertEqual((ok, medio), (True, False))
+        self.assertIn("run 83", detalle)
+        self.assertEqual(self.borradas, ["comprobar/propia/x"])
+        self.assertFalse(any(args[:2] == ["run", "view"] for args in self.vistas_gh))
+        d = self._leer()
+        self.assertEqual([d["ok1"]["estado"], d["ok1"]["pendiente_borrar"], d["ok1"]["detalle"]],
+                         ["ok", True, ""])
+        self.assertEqual([d["fallo2"]["estado"], d["fallo2"]["pendiente_borrar"], d["fallo2"]["pendiente_detalle"],
+                          d["fallo2"]["detalle"]], ["fallo", True, True, ""])
+
+    def test_la_llamada_lenta_despues_las_completa(self):
+        self._estado()
+        self._rapida()
+        with mock.patch.object(G, "_git", self._git), mock.patch.object(G, "_gh", self._gh(self.LOG)):
+            ok, detalle, medio = G.comprobar(BASE, [], ["src/a.ts"], cwd=self.tmp.name, ahora=T + 700)
+        # las pendientes borraron su rama y el fallo ajeno ya lleva su detalle
+        self.assertEqual((ok, medio), (True, False))
+        self.assertIn("comprobar/ok/uno", self.borradas)
+        self.assertIn("comprobar/fallo/dos", self.borradas)
+        self.assertTrue(any(args[:2] == ["run", "view"] for args in self.vistas_gh))
+        d = self._leer()
+        self.assertEqual([d["fallo2"]["detalle"], "pendiente_borrar" in d["fallo2"], "pendiente_detalle" in d["fallo2"]],
+                         ["error TS2322", False, False])
+        self.assertEqual(self.borradas.count("comprobar/propia/x"), 1)
+
+    def test_sin_rapido_nada_se_difiere_como_antes(self):
+        self._estado()
+        with mock.patch.object(G, "_git", self._git), mock.patch.object(G, "_gh", self._gh(self.LOG)):
+            G.comprobar(BASE, [], ["src/a.ts"], cwd=self.tmp.name, ahora=T + 600)
+        d = self._leer()
+        self.assertEqual(sorted(self.borradas), ["comprobar/fallo/dos", "comprobar/ok/uno", "comprobar/propia/x"])
+        self.assertEqual(d["fallo2"]["detalle"], "error TS2322")
+        self.assertFalse(any("pendiente_borrar" in e or "pendiente_detalle" in e for e in d.values()))
 
 
 class EnTraerNube(unittest.TestCase):
