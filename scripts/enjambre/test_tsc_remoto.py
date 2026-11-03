@@ -216,5 +216,83 @@ class EnLaMacTest(unittest.TestCase):
                     else:
                         self.assertEqual((a1, gh), (None, None))
 
+    def test_la_puerta_del_a1_recarga_cuando_cambia_su_archivo(self):
+        tmp = tempfile.mkdtemp(prefix="enj-recarga-puerta-")
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        puente = os.path.join(tmp, "scripts", "puente")
+        os.makedirs(puente)
+        archivo = os.path.join(puente, "comprobar_en_a1.py")
+        with open(archivo, "w", encoding="utf-8") as f:
+            f.write("def comprobar(*a, **k):\n    return 'a1-vieja'\n")
+        os.utime(archivo, (1000.0, 1000.0))
+        enjambre._MTIMES_PUERTAS.pop("comprobar_en_a1", None)
+        self.addCleanup(enjambre._MTIMES_PUERTAS.pop, "comprobar_en_a1", None)
+        with self.entorno("mando", "mac"), mock.patch.object(enjambre, "ROOT", tmp), \
+                mock.patch.dict(sys.modules), mock.patch.object(sys, "path", list(sys.path)), \
+                mock.patch.object(enjambre, "evento"):
+            sys.modules.pop("comprobar_en_a1", None)
+            self.assertEqual(enjambre._comprobar_en_a1()(), "a1-vieja")  # primera carga
+            with open(archivo, "w", encoding="utf-8") as f:
+                f.write("def comprobar(*a, **k):\n    return 'a1-nueva'\n")
+            os.utime(archivo, (2000.0, 2000.0))
+            self.assertEqual(enjambre._comprobar_en_a1()(), "a1-nueva")  # recargada
+
+
+class RecargaPuertasTest(unittest.TestCase):
+    """(SUP0211V) Las puertas de fuera recargan su módulo cuando cambia su archivo, para que un
+    arreglo en scripts/puente llegue sin reiniciar el orquestador. La decisión es pura y la
+    recarga conserva el módulo viejo si el nuevo no compila."""
+
+    NOMBRE = "puerta_falsa_sup0211v"
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="enj-recarga-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        sys.path.insert(0, self.tmp)  # importlib.reload busca el módulo por su nombre en sys.path
+        self.addCleanup(sys.path.remove, self.tmp)
+        self.ruta = os.path.join(self.tmp, self.NOMBRE + ".py")
+        enjambre._MTIMES_PUERTAS.pop(self.NOMBRE, None)
+        self.addCleanup(enjambre._MTIMES_PUERTAS.pop, self.NOMBRE, None)
+        self.addCleanup(sys.modules.pop, self.NOMBRE, None)
+
+    def _escribir(self, texto, mtime):
+        with open(self.ruta, "w", encoding="utf-8") as f:
+            f.write(texto)
+        os.utime(self.ruta, (mtime, mtime))
+
+    def _cargar(self):
+        return importlib.import_module(self.NOMBRE)
+
+    def _recargar(self, modulo):
+        return enjambre._recargar_si_cambio(self.NOMBRE, self.ruta, modulo)
+
+    def test_hay_que_recargar_es_pura(self):
+        self.assertFalse(enjambre.hay_que_recargar(None, 1.0))
+        self.assertFalse(enjambre.hay_que_recargar(1.0, None))
+        self.assertFalse(enjambre.hay_que_recargar(None, None))
+        self.assertFalse(enjambre.hay_que_recargar(2.0, 2.0))
+        self.assertTrue(enjambre.hay_que_recargar(1.0, 2.0))
+
+    def test_un_cambio_de_mtime_da_la_version_nueva(self):
+        self._escribir("VERSION = 'vieja'\n", 1000.0)
+        modulo = self._recargar(self._cargar())
+        self.assertEqual(modulo.VERSION, "vieja")  # la primera carga solo apunta
+        self.assertEqual(enjambre._MTIMES_PUERTAS[self.NOMBRE], 1000.0)
+        self._escribir("VERSION = 'nueva'\n", 2000.0)
+        modulo = self._recargar(modulo)
+        self.assertEqual(modulo.VERSION, "nueva")
+        self.assertEqual(enjambre._MTIMES_PUERTAS[self.NOMBRE], 2000.0)
+
+    def test_un_archivo_roto_conserva_la_vieja(self):
+        self._escribir("VERSION = 'vieja'\n", 1000.0)
+        modulo = self._recargar(self._cargar())
+        self._escribir("VERSION = (\n", 2000.0)  # sintaxis rota a medias de un commit
+        with mock.patch.object(enjambre, "evento") as aviso:
+            modulo = self._recargar(modulo)
+        self.assertEqual(modulo.VERSION, "vieja")
+        aviso.assert_called_once()
+        self.assertEqual(aviso.call_args.args[0], "aviso")
+
+
 if __name__ == "__main__":
     unittest.main()

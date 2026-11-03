@@ -27,6 +27,7 @@ Tiempos configurables:
 import datetime, hashlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
 import signal
 import tempfile
+import importlib
 import contextlib, fcntl
 
 # La decisión de salud, vencimiento y reparto vive fuera para poder probarla sin lanzar una ola.
@@ -4151,19 +4152,60 @@ def _en_la_mac():
     return os.environ.get("STARSEED_DONDE") == "mac" and sys.platform == "darwin"
 
 
+#: (SUP0211V) mtime del archivo de cada puerta de fuera la última vez que se cargó su módulo.
+#: `orquestador_al_dia.py` solo reinicia al orquestador cuando cambian los .py de scripts/enjambre,
+#: así que un arreglo en scripts/puente no llegaba hasta el siguiente reinicio.
+_MTIMES_PUERTAS = {}
+
+
+def hay_que_recargar(mtime_visto, mtime_ahora):
+    """PURA: ¿cambió el archivo de una puerta desde la última carga? Sin dato en cualquiera de
+    los dos lados (None) no hay nada que comparar y no se recarga; si son iguales, tampoco."""
+    if mtime_visto is None or mtime_ahora is None:
+        return False
+    return mtime_visto != mtime_ahora
+
+
+def _recargar_si_cambio(nombre, ruta, modulo):
+    """Recarga `modulo` (`importlib.reload`) si el mtime de `ruta` cambió desde la última carga.
+    La primera vez solo apunta el mtime. Si la recarga falla (SyntaxError a medias de un commit,
+    OSError o ImportError), se sigue con el módulo que ya estaba y se dice en un aviso: una puerta
+    rota no puede tumbar la tanda. Devuelve el módulo que hay que usar."""
+    try:
+        mtime = os.path.getmtime(ruta)
+    except OSError:
+        return modulo
+    visto = _MTIMES_PUERTAS.get(nombre)
+    if visto is None:
+        _MTIMES_PUERTAS[nombre] = mtime
+        return modulo
+    if not hay_que_recargar(visto, mtime):
+        return modulo
+    try:
+        modulo = importlib.reload(modulo)
+    except (SyntaxError, OSError, ImportError) as exc:
+        _MTIMES_PUERTAS[nombre] = mtime
+        evento("aviso", "-", "no pude recargar %s.py (%s); sigo con el que ya estaba" % (nombre, exc))
+        return modulo
+    _MTIMES_PUERTAS[nombre] = mtime
+    return modulo
+
+
 def _comprobar_en_a1():
     """La función `comprobar` de comprobar_en_a1.py, o None si no se puede usar (TRA1012A).
     Solo en la Mac (`_en_la_mac`): la nube y el A1 mismo ya compilan donde tienen memoria."""
     if not _en_la_mac():
         return None
     ruta = os.path.join(ROOT, "scripts", "puente")
-    if not os.path.isfile(os.path.join(ruta, "comprobar_en_a1.py")):
+    archivo = os.path.join(ruta, "comprobar_en_a1.py")
+    if not os.path.isfile(archivo):
         return None
     if ruta not in sys.path:
         sys.path.insert(0, ruta)
-    from comprobar_en_a1 import comprobar
+    import comprobar_en_a1 as modulo
 
-    return comprobar
+    modulo = _recargar_si_cambio("comprobar_en_a1", archivo, modulo)
+    return modulo.comprobar
 
 
 #: (2026-10-27, CAP1026P) Lo que la puerta tsc de la Mac espera el veredicto de GitHub antes de caer al A1 o a la
@@ -4178,12 +4220,14 @@ def _comprobar_en_github():
     if not _en_la_mac() or os.environ.get("STARSEED_COMPROBAR_GITHUB", "1") == "0":
         return None
     ruta = os.path.join(ROOT, "scripts", "puente")
-    if not os.path.isfile(os.path.join(ruta, "comprobar_en_github.py")):
+    archivo = os.path.join(ruta, "comprobar_en_github.py")
+    if not os.path.isfile(archivo):
         return None
     if ruta not in sys.path:
         sys.path.insert(0, ruta)
     import comprobar_en_github as G
 
+    G = _recargar_si_cambio("comprobar_en_github", archivo, G)
     return lambda base, cambiados, cwd: G.esperar_tsc(base, cambiados, cwd, TSC_GITHUB_ESPERA_S)
 
 
