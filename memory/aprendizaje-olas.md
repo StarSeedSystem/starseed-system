@@ -4693,3 +4693,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTIMG1020Cb-d2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTIMG1020Cb-d2b conservada)
 - `VZF1015M-d1b` — no escribió nada
 - `SGO1031B-d2b` — no escribió nada
+
+## 2026-11-03 20:06 · mg-oracle-1103-1238
+
+**Lo que se pidió.** Ejecutor de intenciones I: crear y editar mundos, ir a destinos, abrir pizarra o llamada
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (RTXR1010R-d3, RTRTRC1013Cb-d3, PUB1029F). Es 50 % de la ola.
+- 3 tareas se fueron por lo mismo — los tipos no compilan (RTCOL1012Ie-d2, MTN1027K, MVD1027H0). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+- freellmapi/auto no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTXR1010R-d3` — no escribió nada
+- `RTRTRC1013Cb-d3` — no escribió nada
+- `RTCOL1012Ie-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTCOL1012Ie-d2 conservada)
+- `PUB1029F` — no escribió nada
+- `MTN1027K` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/MTN1027K conservada)
+- `MVD1027H0` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/MVD1027H0 conservada)
