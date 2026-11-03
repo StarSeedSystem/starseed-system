@@ -83,7 +83,20 @@ TOKEN_DESPLIEGUE = "STARSEED_DESPLIEGUE_GH_TOKEN"
 ENLACE_TOKEN_DESPLIEGUE = (
     "https://github.com/settings/personal-access-tokens/new"
     "?name=starseed-despliegue&description=MetaGenesis+publica+sin+la+Mac"
-    "&target_name=StarSeedSystem&expires_in=90&contents=write&actions=read"
+    "&target_name=StarSeedSystem&expires_in=90&contents=write&actions=read&workflows=write"
+)
+#: (1103 · J) Paso a paso de la página de GitHub: qué repositorio y qué permisos, sin jerga.
+PASOS_TOKEN_DESPLIEGUE = (
+    "En la página de GitHub: "
+    "1) Resource owner: StarSeedSystem. "
+    "2) Expiration: 90 days. "
+    "3) Repository access: «Only select repositories» y elige SOLO starseed-system. "
+    "4) Permissions › Repository permissions: Contents = Read and write (para subir los commits), "
+    "Workflows = Read and write (algunos commits tocan .github/workflows y sin esto GitHub los rechaza), "
+    "Actions = Read-only (para leer si la CI pasó); Metadata = Read-only se pone sola. "
+    "Todo lo demás en «No access» y nada en Account permissions. "
+    "5) «Generate token», cópialo (solo se ve una vez) y pégalo cuando lo pida la orden de la terminal "
+    "(no se ve al escribir; se guarda en la Mac y en el A1, nunca en el repo)."
 )
 #: El guion pide el valor sin enseñarlo (no pasa por la línea de órdenes ni por el historial)
 #: y después lo sube a la bóveda del A1. Es la misma orden que Alex pega en su terminal.
@@ -165,7 +178,7 @@ def accion_token_despliegue(a1_lo_tiene):
         "enlace": ENLACE_TOKEN_DESPLIEGUE,
         "por_que_no_lo_hago_yo": ("es un permiso de tu cuenta de GitHub: solo tú puedes "
                                   "crearlo, y el guion lo pide sin que se vea"),
-        "detalle": "grano fino, solo StarSeedSystem/starseed-system · contents:write · actions:read",
+        "detalle": PASOS_TOKEN_DESPLIEGUE,
         "variable": TOKEN_DESPLIEGUE,
     }
 

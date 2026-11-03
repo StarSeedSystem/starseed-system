@@ -388,3 +388,13 @@ class TokenDeDespliegueDelA1(unittest.TestCase):
                             a1_tiene_token=False)
         self.assertFalse(falta["hecha"])
         self.assertIn("Token de despliegue", falta["titulo"])
+
+
+def test_1103_token_de_despliegue_explica_repo_y_permisos():
+    import importlib.util as _u, os as _o
+    _s = _u.spec_from_file_location("ada1103", _o.path.join(_o.path.dirname(__file__), "acciones-de-alex.py"))
+    m = _u.module_from_spec(_s); _s.loader.exec_module(m)
+    for texto in ("Only select repositories", "starseed-system", "Contents = Read and write",
+                  "Workflows = Read and write", "Actions = Read-only", "No access"):
+        assert texto in m.PASOS_TOKEN_DESPLIEGUE, texto
+    assert "workflows=write" in m.ENLACE_TOKEN_DESPLIEGUE
