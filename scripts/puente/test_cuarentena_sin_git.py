@@ -36,6 +36,14 @@ class Puras(unittest.TestCase):
                          ["/x/esbuild", "src/a.js", "--loader:.js=jsx", "--log-level=error", "--outfile=/dev/null"])
 
 
+class Quieto(unittest.TestCase):
+    def test_solo_lo_que_lleva_veinte_minutos_sin_tocarse(self):
+        self.assertEqual(C.QUIETO_S, 20 * 60)
+        casos = [(AHORA - 60, False), (AHORA - C.QUIETO_S + 1, False), (AHORA - C.QUIETO_S, True),
+                 (AHORA - 6 * 3600, True), (AHORA + 30, False), (None, False)]
+        self.assertEqual([C.quieto(m, AHORA) for m, _ in casos], [e for _, e in casos])
+
+
 class Revisar(unittest.TestCase):
     def setUp(self):
         self.raiz, self.fuera = tempfile.mkdtemp(), tempfile.mkdtemp()  # el repo y SU cuarentena (nunca la del HOME)
@@ -50,10 +58,11 @@ class Revisar(unittest.TestCase):
         self.canal = mock.patch.object(C, "_puente").start()
         self.addCleanup(mock.patch.stopall)
 
-    def escribe(self, ruta, texto):  # con ruta absoluta, `join` se queda con ella
+    def escribe(self, ruta, texto, hace_s=3600):  # con ruta absoluta, `join` se queda con ella
         ruta = os.path.join(self.raiz, ruta)
         os.makedirs(os.path.dirname(ruta), exist_ok=True)
         Path(ruta).write_text(texto, encoding="utf-8")
+        os.utime(ruta, (AHORA - hace_s, AHORA - hace_s))  # (SUP0211N) por defecto, quieto desde hace una hora
 
     def existe(self, ruta):
         return os.path.exists(os.path.join(self.raiz, ruta))
@@ -80,6 +89,15 @@ class Revisar(unittest.TestCase):
         self.assertTrue(all(self.existe("src/" + n) for n in ("versionado.tsx", "ignorado.tsx", "estilos.css", "app/nuevo.tsx")))
         self.assertEqual(C.revisar(self.fuera, AHORA, self.fuera), [])  # ni un repo: no decide nada
         self.canal.return_value.decir.assert_not_called()
+
+    def test_lo_que_alguien_esta_escribiendo_no_se_aparta_hasta_que_se_queda_quieto(self):
+        # (SUP0211N) Un IDE que guarda a medias en este checkout deja un .tsx roto unos segundos o minutos.
+        self.escribe("src/app/a-medias.tsx", "ROTO\n", hace_s=60)
+        self.assertEqual(C.revisar(self.raiz, AHORA, self.fuera), [])
+        self.assertTrue(self.existe("src/app/a-medias.tsx"))
+        self.canal.return_value.decir.assert_not_called()
+        os.utime(os.path.join(self.raiz, "src/app/a-medias.tsx"), (AHORA - C.QUIETO_S, AHORA - C.QUIETO_S))
+        self.assertEqual(C.revisar(self.raiz, AHORA, self.fuera), ["src/app/a-medias.tsx"])
 
     def test_sin_esbuild_o_si_no_llega_a_opinar_no_se_mueve_nada(self):
         self.escribe("src/roto.tsx", "ROTO\n")

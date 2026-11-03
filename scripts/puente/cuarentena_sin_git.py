@@ -26,6 +26,15 @@ CARGADOR = {".ts": "ts", ".tsx": "tsx", ".js": "jsx", ".jsx": "jsx", ".mjs": "js
 CUARENTENA = os.path.expanduser("~/.starseed/cuarentena")
 #: Cada comprobación arranca node: una carpeta enorme sin git, en una Mac cargada, no puede atascar la pasada.
 PRESUPUESTO_S = 90
+#: (2026-11-02, SUP0211N) Solo se aparta lo que lleva este rato sin tocarse. Codex, Cursor o Antigravity escriben en
+#: este mismo checkout, y un IDE que guarda a medias deja un .tsx que no transpila durante segundos o minutos:
+#: apartárselo sería quitarle el archivo de las manos. El del 31-10 estuvo horas; 20 min no lo dejan pasar.
+QUIETO_S = 20 * 60
+
+
+def quieto(mtime, ahora, quieto_s=QUIETO_S):
+    """PURA: ¿lleva el archivo `quieto_s` o más sin cambiar? Sin mtime (no se pudo leer), no: no se decide nada."""
+    return mtime is not None and (ahora - mtime) >= quieto_s
 
 
 def candidatos(lineas):
@@ -94,9 +103,16 @@ def revisar(raiz, ahora=None, cuarentena=CUARENTENA):
         return []
     destino = os.path.join(cuarentena, time.strftime("%Y%m%d-%H%M", time.localtime(ahora)) + "-sin-git")
     limite, movidos = time.time() + PRESUPUESTO_S, []
+    momento = time.time() if ahora is None else ahora
     for ruta in candidatos(r.stdout) if r.returncode == 0 else []:
         if time.time() > limite:
             break
+        try:
+            mtime = os.path.getmtime(os.path.join(raiz, ruta))
+        except OSError:
+            mtime = None
+        if not quieto(mtime, momento):  # (SUP0211N) alguien lo está escribiendo: ni se transpila
+            continue
         if transpila(raiz, ruta) is not False:
             continue
         nuevo = os.path.join(destino, ruta)
