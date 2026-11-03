@@ -163,6 +163,10 @@ for u in /etc/systemd/system/starseed-*.service /etc/systemd/system/starseed-*.t
   esac
 done
 
+# (1103 · V) La huella del paquete instalado: el ciclo del nodo la compara con la de la neurona y reinstala si difiere.
+cp "$PAQ/huella-paquete.txt" "$ESTADO/huella-paquete.txt" 2>/dev/null || true
+chmod 644 "$ESTADO/huella-paquete.txt" 2>/dev/null || true
+
 paso "listo"
 echo "listo" > "$ESTADO/preparar-fase.txt"
 date -u +%FT%TZ > "$ESTADO/preparado.txt"

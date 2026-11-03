@@ -58,6 +58,7 @@ from __future__ import annotations
 
 import calendar
 import fcntl
+import hashlib
 import importlib.util
 import json
 import os
@@ -892,11 +893,75 @@ def _paquete(destino):
     return incluido
 
 
+#: (1103 · V) La huella del paquete viaja con él y preparar-a1.sh la deja en el A1.
+HUELLA_PAQUETE = "huella-paquete.txt"
+#: Como mucho una reinstalación automática cada tanto (el paquete cambia con cada commit del enjambre).
+REINSTALAR_CADA_S = 6 * 3600
+
+
+def huella_de_carpeta(carpeta):
+    """PURA salvo leer: sha256 de las rutas relativas y el contenido de todo lo que hay en `carpeta` (sin la huella)."""
+    h = hashlib.sha256()
+    for base, dirs, archivos in sorted(os.walk(carpeta)):
+        dirs.sort()
+        for a in sorted(archivos):
+            if a == HUELLA_PAQUETE:
+                continue
+            ruta = os.path.join(base, a)
+            h.update(os.path.relpath(ruta, carpeta).encode("utf-8") + b"\0")
+            with open(ruta, "rb") as f:
+                h.update(f.read())
+            h.update(b"\0")
+    return h.hexdigest()[:16]
+
+
+def decidir_reinstalar(local, remota, fase, ultima, ahora, cada_s=REINSTALAR_CADA_S):
+    """PURA (1103 · V). (reinstalar, motivo): el A1 corre otra versión que esta neurona y está libre para recibirla."""
+    if not local:
+        return False, "no pude armar el paquete de esta neurona"
+    if remota == local:
+        return False, "el A1 ya corre esta versión (%s)" % local
+    if str(fase or "") == "cola":
+        return False, "el A1 está con una cola: espero a que la termine"
+    if ultima and ahora - float(ultima) < cada_s:
+        return False, "ya lo reinstalé hace %.0f min (como mucho cada %.0f h)" % ((ahora - float(ultima)) / 60, cada_s / 3600)
+    if not remota:
+        return True, "el A1 no dice qué versión corre (instalación anterior a la huella): le pongo la de esta neurona (%s)" % local
+    return True, "el A1 corre %s y esta neurona %s: lo pongo al día" % (remota, local)
+
+
+def huella_local():
+    with tempfile.TemporaryDirectory(prefix="starseed-huella-") as tmp:
+        carpeta = os.path.join(tmp, "starseed-nodo")
+        os.makedirs(carpeta)
+        _paquete(carpeta)
+        return huella_de_carpeta(carpeta)
+
+
+def reinstalar_si_toca(nodo):
+    """(1103 · V) Lo que hace el ciclo: compara huellas y, si toca, `instalar()` (sin esperar). Nunca lanza."""
+    local = huella_local()
+    rc, remota = ssh("cat %s/%s 2>/dev/null || true" % (ESTADO_A1, HUELLA_PAQUETE), timeout=40)
+    if rc != 0:
+        return {"ok": False, "no": "no pude leer la huella del A1"}
+    datos = _leer(ESTADO, {}) or {}
+    ok, motivo = decidir_reinstalar(local, remota.strip(), (nodo or {}).get("fase"), datos.get("ultima_reinstalacion"),
+                                    time.time())
+    if not ok:
+        return {"ok": True, "no": motivo}
+    datos["ultima_reinstalacion"] = time.time()
+    _escribir(ESTADO, datos)
+    r = instalar(esperar=False)
+    return dict(r, reinstalado=True, motivo=motivo)
+
+
 def instalar(esperar=False, minutos=40):
     with tempfile.TemporaryDirectory(prefix="starseed-nodo-") as tmp:
         carpeta = os.path.join(tmp, "starseed-nodo")
         os.makedirs(carpeta)
         incluido = _paquete(carpeta)
+        with open(os.path.join(carpeta, HUELLA_PAQUETE), "w", encoding="utf-8") as f:
+            f.write(huella_de_carpeta(carpeta) + "\n")
         tgz = os.path.join(tmp, "starseed-nodo.tgz")
         with tarfile.open(tgz, "w:gz") as t:
             t.add(carpeta, arcname="starseed-nodo")
@@ -1463,6 +1528,12 @@ def ciclo(lanzar_si_libre=True, tope=TOPE_DEFECTO):
                     res["main"] = enviar_main(estado_a1)
                 except Exception as e:  # noqa: BLE001 — nunca deja sin traer ni lanzar
                     res["main"] = {"ok": False, "motivo": tachar("%s: %s" % (type(e).__name__, e), _ip())}
+            # (1103 · V) El A1 al día: si corre otra versión del paquete que esta neurona, se reinstala solo.
+            if estado_a1:
+                try:
+                    res["al_dia"] = reinstalar_si_toca(nodo)
+                except Exception as e:  # noqa: BLE001 — ponerlo al día nunca frena el ciclo
+                    res["al_dia"] = {"ok": False, "motivo": tachar("%s: %s" % (type(e).__name__, e), _ip())}
             basura = [x for x in (estado_a1 or {}).get("servicios") or []
                       if x.get("nombre") == "bitnet" and "BASURA" in str(x.get("detalle") or "")]
             if basura:
