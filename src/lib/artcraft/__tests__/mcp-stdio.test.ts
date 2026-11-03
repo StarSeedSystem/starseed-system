@@ -67,6 +67,17 @@ describe("ClienteMcpStdio", () => {
     transporte.responder(transporte.ultima.id, { content: [{ type: "text", text: "ho" }, { type: "text", text: "la" }] });
     expect(await promesa).toEqual({ ok: true, texto: "hola" });
   });
+  it("descarta los bloques que no son texto ni imagen sin romper el resultado", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("x", {}, 1000);
+    transporte.responder(transporte.ultima.id, {
+      content: [
+        { type: "resource", uri: "figcraft://doc" },
+        { type: "text", text: "solo esto" },
+      ],
+    });
+    expect(await promesa).toEqual({ ok: true, texto: "solo esto" });
+  });
   it("empareja respuestas desordenadas", async () => {
     const { transporte, cliente } = montar();
     const p1 = cliente.listar(1000); const id1 = transporte.ultima.id;
@@ -91,6 +102,15 @@ describe("ClienteMcpStdio", () => {
     transporte.enviar(completo.slice(0, corte));
     transporte.enviar(completo.slice(corte));
     expect(await promesa).toBe(true);
+  });
+  it("una respuesta con id numérico sin petición pendiente se ignora y no se cuenta como ilegible", async () => {
+    const { transporte, cliente } = montar();
+    transporte.enviar('{"jsonrpc":"2.0","id":77,"result":{"huérfana":true}}\n');
+    transporte.enviar('{"jsonrpc":"2.0","method":"notifications/message","params":{}}\n');
+    expect(cliente.ilegibles).toBe(0);
+    const promesa = cliente.listar(1000);
+    transporte.responder(transporte.ultima.id, { quedó: "vivo" });
+    expect(await promesa).toEqual({ quedó: "vivo" });
   });
   it("ignora notificaciones y líneas sin id, y cuenta las ilegibles", async () => {
     const { transporte, cliente } = montar();
