@@ -7,6 +7,7 @@
  * El rig de la Trinity (XR1010J) monta aquí sus cuatro nodos cardinales; sin WebXR, misma escena con OrbitControls; `onSessionEnd` vuelve sin perder estado; `offerSession` lo lleva el almacén.
  */
 import { Suspense, useEffect, useRef, useState } from "react";
+import type { Object3D } from "three";
 import { Canvas, useThree } from "@react-three/fiber";
 import { XR, XROrigin, useXR, type XRStore } from "@react-three/xr";
 import { OrbitControls } from "@react-three/drei";
@@ -35,6 +36,9 @@ const OrbeVozDinamico = nextDynamic(() => import("./orbe-voz").then((m) => m.Orb
 
 /** Horizon (XR1010AO): crear, destinos y Biblioteca conectados a la cuenta real; carga perezosa. */
 const HorizonDinamico = nextDynamic(() => import("./horizon-montado").then((m) => m.HorizonMontado), { ssr: false });
+
+/** Comodidad y accesibilidad (XR1010F): viñeta, giros por saltos, aviso de locomoción y subtítulos; carga perezosa. */
+const ComodidadDinamico = nextDynamic(() => import("./comodidad-montado").then((m) => m.ComodidadMontado), { ssr: false });
 
 /** Página declarativa (UiSpec, §3 b escalón 2): la pinta `uispec-uikit`; carga perezosa como el resto. */
 const UiSpec3DDinamico = nextDynamic(() => import("./uispec-uikit").then((m) => m.UiSpec3D), { ssr: false });
@@ -99,6 +103,7 @@ export function EscenaOS({ modo = null }: Props) {
     const [fallo, setFallo] = useState<string | null>(null);
     const [enSesion, setEnSesion] = useState(false);
     const [alturaOjosMedida, setAlturaOjosMedida] = useState<number | null>(null);
+    const [riga, setRiga] = useState<Object3D | null>(null);
     const [pagina, setPagina] = useState<unknown | null>(null);
     const intentadoRef = useRef(false);
     const alturaOjosRef = useRef<{ metros: number } | null>(null);
@@ -154,7 +159,9 @@ export function EscenaOS({ modo = null }: Props) {
                 <ambientLight intensity={0.7} />
                 <Suspense fallback={null}>
                 {almacen !== null && (
-                    <XR store={almacen}><XROrigin /><AlturaOjos refAltura={alturaOjosRef} alMedir={setAlturaOjosMedida} /></XR>
+                    <XR store={almacen}><XROrigin ref={setRiga} /><AlturaOjos refAltura={alturaOjosRef} alMedir={setAlturaOjosMedida} />
+                        <ComodidadDinamico modo={modoTrinity(modoUrl, plan)} almacen={almacen} riga={riga} alturaOjos={alturaOjosMedida ?? 1.7} />
+                    </XR>
                 )}
                     {/* Rig de la Trinity (XR1010J): reemplaza al panel provisional de XR1010G. */}
                     <RigTrinityDinamico
