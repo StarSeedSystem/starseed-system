@@ -39,10 +39,11 @@ describe("dependencias a partes del revisor de Bloqueadas (PUB1029C)", () => {
     it("una parte «-dN» de una tarea de la cola vale; algo inexistente no", () => {
         expect(baseDeParte("ART1025B-d3")).toBe("ART1025B");
         expect(baseDeParte("X-d2b-d1")).toBe("X");
-        const ok = validarCola("1029-prueba", [tarea("A1"), tarea("B1", ["A1-d3"]), tarea("C1", ["A1-d2b"])]);
+        const ok = validarCola("1029-prueba", [tarea("A1"), tarea("B1", ["A1-d3"]), tarea("C1", ["A1-d2b"]), tarea("D1", ["A1-d4x"])]);
         expect(ok.errores.filter((e) => e.includes("depende"))).toEqual([]);
-        const mal = validarCola("1029-prueba", [tarea("A1"), tarea("B1", ["Z9-d3"])]);
+        const mal = validarCola("1029-prueba", [tarea("A1"), tarea("B1", ["Z9-d3"]), tarea("C1", ["D1"])]);
         expect(mal.errores.some((e) => e.includes("Z9-d3"))).toBe(true);
+        expect(mal.errores.some((e) => e.includes("D1"))).toBe(true);
     });
     it("acepta «-dN» si su base está en progreso.json; rechaza si ni base ni dependencia existen", () => {
         const ra = raizDelProyecto();
