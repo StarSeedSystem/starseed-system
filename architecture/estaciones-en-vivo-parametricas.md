@@ -148,9 +148,10 @@ Cada mensaje de difusión cuenta una vez por cada conectado que lo recibe. Con N
 (rondas cada 5 min): preguntas ≈ 36·N²/h, respuestas ≤ 36·N²/h (en lote suelen ser menos), latidos 120·N/h.
 N = 10 → ≈ 8 400/h (≈ 238 h de estación al mes en el plan gratuito); N = 30 → ≈ 68 000/h (≈ 29 h/mes). Al
 entrar cada persona: unas 16·N. Por enlaces locales no cuesta nada. Para audiencias grandes: el relé propio (§4.3, tarea
-`EV-ORACLE`): no cuenta mensajes de Realtime. Hoy existe el cliente y la lógica de salas; el servidor aún no.
+`EV-ORACLE`): no cuenta mensajes de Realtime. Hoy existen el cliente, la lógica de salas y el servidor WebSocket
+(`servicios/estaciones-rele/servidor.mjs`); falta su servicio en el Oracle y probarlo de punta a punta.
 
-### 4.3 Relé propio (cliente `canal-rele.ts`, RTS1010-EV-ORACLE-2d · 2026-10-20)
+### 4.3 Relé propio (cliente `canal-rele.ts` y servidor `servidor.mjs` · RTS1010-EV-ORACLE-2d · 2026-10-20)
 
 Tercer canal de la estación, **opcional y aditivo**: nunca sustituye a Supabase. Existe para no gastar la cuota
 de Realtime (2 M de mensajes al mes) con audiencias grandes.
@@ -159,14 +160,22 @@ de Realtime (2 M de mensajes al mes) con audiencias grandes.
   `ws://` solo en `localhost`/`127.0.0.1`). Sin la variable, o con un valor no válido, no se crea canal y el panel
   no pinta nada: no hay conexión que fingir. `estacion-global.ts` lo engancha en `sintonizar`, tras Supabase y
   antes de `arrancar()`, con el MISMO tema (`temaPublico`/`temaPrivado`).
-- **Protocolo con el servidor** (contrato que debe cumplir ORACLE-1b): el cliente abre
+- **Protocolo con el servidor** (`servidor.mjs`, ORACLE-1b, contra el contrato del cliente): el cliente abre
   `<base>/ws?tema=<tema codificado>`. El servidor solo reparte, a los demás de la misma sala, textos que
   empiezan por `{"t":"est"` y miden como mucho 40 000 (`servicios/estaciones-rele/salas.mjs`: temas
   `^estacion-(vivo|p):[A-Za-z0-9_:-]{8,80}$`, 200 salas, 500 por sala; una conexión vive en UNA sala: `entrar` en otra
   la saca de la anterior y, si la nueva la rechaza, se queda donde estaba — OPF1024G). Cada vez que cambia la sala manda a cada conectado
-  `{"t":"rele","n":N}` con N = conectados contándole a él; el cliente muestra N − 1 y NO entrega ese mensaje a la
-  sesión. Cierres que el cliente entiende: 1008 (sala rechazada: tema no válido o sala llena), 1009 (mensaje
-  demasiado grande), 1013 (saturado); cualquier otro código se muestra tal cual.
+  `{"t":"rele","n":N}` con N = conectados contándole a él (`salas.miembros(tema)`, una foto de la sala); el cliente
+  muestra N − 1 y NO entrega ese mensaje a la sesión. Cierres que el cliente entiende: 1008 (sala rechazada: tema no
+  válido, sala llena o demasiadas salas), 1009 (mensaje demasiado grande), 1013 (saturado); cualquier otro código se
+  muestra tal cual.
+- **El servidor** (`servidor.mjs`): WebSocket con el paquete `ws`, escucha en `HOST`/`PUERTO` (127.0.0.1:8787 por
+  defecto; delante va Caddy con TLS), tope `MAX_CONEXIONES` (5000) y trama máxima 128 KiB (`ws` cierra con 1009).
+  Ping cada 30 s y corta a quien no contestó al anterior; un oyente con más de 1 MiB pendiente se salta el sobre en
+  vez de llenar la memoria (los estados son idempotentes por `n`). Cada minuto escribe SOLO cuentas —conexiones,
+  entradas, rechazadas, mensajes, entregas y saltados—, nunca contenido, tema ni URL. Al apagarse
+  (SIGTERM/SIGINT) cierra con 1001 para que el cliente reconecte solo. Se arranca al ejecutarlo (`node servidor.mjs`,
+  `npm start`) y se prueba con un servidor inyectado (`crearRele`), sin red. Sin claves.
 - **Estado honesto** (`estadoCanalRele()`, el que lee el panel): `conectando` → `abierto` → `error` con motivo
   (`no se pudo abrir o se cortó la conexión con el relé (código 1006); reintenta en 2 s`, `sin respuesta del relé en
   10 s`, `este navegador no trae WebSocket`, `la dirección del relé no es válida`) → `cerrado`. Tras una caída
@@ -181,14 +190,14 @@ de Realtime (2 M de mensajes al mes) con audiencias grandes.
   (AES-GCM con el token); el cliente verifica lo que llega por él igual que lo que llega por Supabase. Privacidad:
   el tema va en la URL y, en una privada, es el derivado del token de 128 bits; **el servidor y Caddy no deben
   registrar la query ni guardar mensajes**.
-- **Lo que falta** (no se afirma que funcione de punta a punta hasta que exista): (1) el servidor WebSocket
-  (ORACLE-1b) y su servicio en `deploy/oracle/compose-a1.yml` + Caddyfile (hoy solo está la lógica de salas);
-  (2) añadir el host del relé a `connect-src` de `src-tauri/tauri.conf.json` cuando se conozca (la CSP web ya
-  permite `wss:`; en la app nativa el canal fallaría con «código 1006» hasta entonces); (3) paridad en el kit
-  `integraciones-de-codigo/starseed-link` (su copia de canales es solo Supabase): **no hacer el relé exclusivo
-  hasta tenerla**; (4) probar de extremo a extremo una estación de Genesis/MetaGenesis/PoliGenesis con el relé
-  activo y anotarlo aquí. Un relé por comunidad/página/entidad (registro de «servidores propios») queda como
-  idea: hoy la dirección es una por despliegue.
+- **Lo que falta** (no se afirma que funcione de punta a punta hasta probarlo): (1) el servicio del servidor en
+  `deploy/oracle/compose-a1.yml` + Caddyfile —el código ya está en `servicios/estaciones-rele/`, el despliegue es
+  SOLO con la palabra de Alex—; (2) añadir el host del relé a `connect-src` de `src-tauri/tauri.conf.json` cuando
+  se conozca (la CSP web ya permite `wss:`; en la app nativa el canal fallaría con «código 1006» hasta entonces);
+  (3) paridad en el kit `integraciones-de-codigo/starseed-link` (su copia de canales es solo Supabase): **no hacer
+  el relé exclusivo hasta tenerla**; (4) probar de extremo a extremo una estación de Genesis/MetaGenesis/PoliGenesis
+  con el relé activo y anotarlo aquí. Un relé por comunidad/página/entidad (registro de «servidores propios») queda
+  como idea: hoy la dirección es una por despliegue.
 - **Trampa evitada**: había un `src/lib/estaciones/salas.ts` huérfano cuyo regex de id (`^[A-Z0-9]{8,}$`)
   rechazaba ~50 % de los ids reales (los que llevan `-` o `_`) (huellas base64url de 22 caracteres que pueden llevar `-` y `_`). Se
   borró. La lógica de salas correcta es `servicios/estaciones-rele/salas.mjs`.
