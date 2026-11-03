@@ -1101,6 +1101,21 @@ class ReponerElAnteriorSiSeCaeElServido(unittest.TestCase):
             with open(os.path.join(self.raiz, dist, nombre), "w", encoding="utf-8") as f:
                 f.write(texto)
 
+    def test_reponer_anterior_toca_no_hace_nada_si_no_caido(self):
+        self.assertFalse(R.reponer_anterior_toca(False, False, True))
+        self.assertFalse(R.reponer_anterior_toca(False, True, True))
+        self.assertFalse(R.reponer_anterior_toca(False, False, False))
+
+    def test_reponer_anterior_toca_no_hace_nada_si_build_entero(self):
+        self.assertFalse(R.reponer_anterior_toca(True, True, True))
+        self.assertFalse(R.reponer_anterior_toca(True, True, False))
+
+    def test_reponer_anterior_toca_no_hace_nada_si_anterior_incompleto(self):
+        self.assertFalse(R.reponer_anterior_toca(True, False, False))
+
+    def test_reponer_anterior_toca_si_caido_y_anterior_entero(self):
+        self.assertTrue(R.reponer_anterior_toca(True, False, True))
+
     def test_la_decision_solo_repone_caido_sin_build_entero_y_con_anterior(self):
         for c, b, a in [(c, b, a) for c in (0, 1) for b in (0, 1) for a in (0, 1)]:
             self.assertIs(R.reponer_anterior_toca(c, b, a), bool(c and not b and a), (c, b, a))
