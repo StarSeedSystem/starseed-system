@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import tempfile
 import sys
@@ -30,6 +31,27 @@ NEXT_PUBLIC_VACIA=
 """
 RAIZ_A1 = C.RAIZ_A1
 ESTADO_OK = '{"pid": 7, "inicio": 1, "rc": 0}\nvivo=0\n'
+
+
+def digest_hex_16(ruta, entorno=None):
+    """Las 16 primeras posiciones del sha256 de un archivo: el formato que escribe el guardián
+    del A1 (`sha256sum package-lock.json | cut -c1-16`).
+
+    PORTABLE (OPS1031Cb-d2): `sha256sum` (GNU/Linux) o `shasum -a 256` (macOS de serie). Si la
+    máquina no tiene ninguna, o la salida viene vacía, devuelve "" y NO lanza: la huella la
+    calcula el A1 (Linux), pero la prueba corre en la Mac y no puede depender de coreutils."""
+    entorno = os.environ if entorno is None else entorno
+    for argv in (["sha256sum", ruta], ["shasum", "-a", "256", ruta]):
+        if not shutil.which(argv[0], path=entorno.get("PATH", "")):
+            continue
+        try:
+            r = subprocess.run(argv, capture_output=True, text=True, env=entorno, timeout=60)
+        except OSError:
+            continue
+        partes = (r.stdout or "").strip().split()
+        if partes:
+            return partes[0][:16]
+    return ""
 
 
 class EnvQueViaja(unittest.TestCase):
@@ -141,6 +163,72 @@ class Decisiones(unittest.TestCase):
             ok, _ = C.se_puede_compilar({}, 999)
             self.assertFalse(ok)
             nv.assert_called_once()
+
+
+class HuellaDelGuardian(unittest.TestCase):
+    """(OPS1031Cb-d2) La huella que el guardián del A1 deja en `node_modules/.huella-lock` y la
+    que calcula `compilar_en_a1` hablan el mismo formato: 16 hex del sha256 del lock. Y la
+    prueba NO depende de `sha256sum` (una Mac estándar no lo trae)."""
+
+    LOCK = "{\"lock\": 1}\n"
+
+    def _lock(self, d):
+        ruta = os.path.join(d, "package-lock.json")
+        with open(ruta, "w", encoding="utf-8") as f:
+            f.write(self.LOCK)
+        return ruta
+
+    def _falso(self, carpeta, nombre, cuerpo):
+        """Un binario de mentira en un PATH de mentira (para probar la portatilidad)."""
+        os.makedirs(carpeta, exist_ok=True)
+        ruta = os.path.join(carpeta, nombre)
+        with open(ruta, "w", encoding="utf-8") as f:
+            f.write("#!/bin/sh\n" + cuerpo + "\n")
+        os.chmod(ruta, 0o755)
+        return carpeta
+
+    def test_huella_lock_formato_guardiana(self):
+        # El vector de sha256 ("abc") fija el formato sin ninguna herramienta de por medio.
+        self.assertEqual(C.huella_lock("abc"), "ba7816bf8f01cfea")
+        self.assertEqual(len(C.huella_lock(self.LOCK)), 16)
+        self.assertTrue(all(c in "0123456789abcdef" for c in C.huella_lock(self.LOCK)))
+        # Y contra la herramienta de verdad (sha256sum en Linux, shasum en macOS): lo mismo.
+        with tempfile.TemporaryDirectory() as d:
+            shell = digest_hex_16(self._lock(d))
+            if not shell:
+                self.skipTest("esta máquina no tiene sha256sum ni shasum")
+            self.assertEqual(shell, C.huella_lock(self.LOCK))
+
+    def test_la_prueba_no_depende_de_coreutils(self):
+        # Sin `sha256sum` NO revienta: usa `shasum -a 256` o se queda con "" (nunca IndexError).
+        with tempfile.TemporaryDirectory() as d:
+            ruta = self._lock(d)
+            vacio = os.path.join(d, "vacio")
+            os.makedirs(vacio)
+            self.assertEqual(digest_hex_16(ruta, dict(os.environ, PATH=vacio)), "")
+            # Con `shasum` de mentira (macOS) el digest sale igual: la alternativa funciona
+            # y se recorta a 16 como hace el guardián (`stdout[:16]`).
+            solo_shasum = self._falso(os.path.join(d, "solo_shasum"), "shasum",
+                                      "printf '0123456789abcdef0123456789abcdef  package-lock.json\\n'")
+            self.assertEqual(digest_hex_16(ruta, dict(os.environ, PATH=solo_shasum)), "0123456789abcdef")
+            # Una herramienta que no dice nada: "" y ninguna excepción (el bloqueo de la revisión).
+            mudo = self._falso(os.path.join(d, "mudo"), "sha256sum", "exit 1")
+            self.assertEqual(digest_hex_16(ruta, dict(os.environ, PATH=mudo)), "")
+
+    def test_el_guardian_y_el_compilador_no_se_piden_reinstalar(self):
+        # La huella que deja el guardián (16 hex, sin salto) y la que deja `orden_marcar_lock`
+        # (16 hex + salto) valen lo mismo al leerla: nadie repite `npm ci` en bucle.
+        with tempfile.TemporaryDirectory() as d:
+            ruta = self._lock(d)
+            huella = C.huella_lock(self.LOCK)
+            marca = os.path.join(d, ".huella-lock")
+            for contenido in (huella, huella + "\n"):
+                with open(marca, "w", encoding="utf-8") as f:
+                    f.write(contenido)
+                with open(marca, encoding="utf-8") as f:
+                    instalada = f.read().strip()
+                self.assertFalse(C.pide_instalacion(instalada, huella), contenido)
+                self.assertFalse(C.pide_instalacion(instalada, C.huella_lock(self.LOCK)), contenido)
 
 
 class Cola(unittest.TestCase):
