@@ -218,6 +218,7 @@ export const SYNCED_KEYS = [
     "starseed.recursos-ia.v1", // (2026-10-23) dónde se guarda/procesa cada modelo, archivo, carpeta y memoria: viaja con la cuenta; nunca lleva secretos
     "starseed.agentes-red.bloqueo.v1", // (Ola 1025U · U3) qué bots de IA ve esta persona: bots bloqueados, modo general, por entidad y por publicación
     "starseed.traduccion.v1", // (TRD1020D · Ola 1020U) idioma de lectura y autotraducción por contexto de cada perfil (src/lib/traduccion/preferencias.ts)
+    "starseed.capas.directivas.v1", // (MTN1027C · Meta^n) directivas de automejora de las capas: viajan con la cuenta (astraura/capas/directivas-almacen.ts)
 ] as const;
 
 /**

@@ -8,10 +8,10 @@
  */
 import type { ArchivoDirectivas, DirectivaCapa } from "./directivas";
 
+export type RegistroDirectivas = Record<string, ArchivoDirectivas>;
+
 export const CLAVE_DIRECTIVAS = "starseed.capas.directivas.v1";
 export const EVENTO_DIRECTIVAS = "starseed:capas-directivas";
-
-export type RegistroDirectivas = Record<string, ArchivoDirectivas>;
 
 const esObjeto = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -21,12 +21,11 @@ const ESTADOS = new Set<string>(["activa", "propuesta", "anterior", "retirada"])
 /** Sanea una directiva del historial: los valores desconocidos se caen, nunca explotan. */
 function normalizarDirectiva(v: unknown): DirectivaCapa | null {
   if (!esObjeto(v)) return null;
-  const esTexto = (x: unknown): x is string => typeof x === "string";
   const num = (x: unknown): number => (typeof x === "number" && Number.isFinite(x) ? x : 0);
   if (
     typeof v.version !== "number" || !Number.isFinite(v.version) ||
-    !esTexto(v.texto) || !esTexto(v.fecha) || !esTexto(v.origen) ||
-    !ESTADOS.has(String(v.estado))
+    typeof v.texto !== "string" || typeof v.fecha !== "string" ||
+    typeof v.origen !== "string" || !ESTADOS.has(String(v.estado))
   ) return null;
   const d: DirectivaCapa = {
     capa: typeof v.capa === "string" ? v.capa : "",
@@ -68,10 +67,9 @@ export function normalizarRegistroDirectivas(valor: unknown): RegistroDirectivas
 }
 
 /**
- * Puerta de llegada (MTN1027C): un archivo solo entra si su versión activa es
- * MÁS NUEVA que la actual, o si con la misma activa cambió el historial
- * (propuesta nueva, retiro, vuelta atrás). Un gemelo idéntico o una versión
- * vieja no toca la pestaña que ya lo tiene.
+ * Puerta de llegada (MTN1027C): un archivo solo entra si su versión activa es MÁS NUEVA
+ * que la actual, o si cambió el historial (propuesta nueva, retiro, vuelta atrás). Un
+ * gemelo idéntico o una versión vieja no toca la pestaña que ya lo tiene.
  */
 export function debeGuardarDirectiva(
   actual: ArchivoDirectivas | undefined,
@@ -80,9 +78,8 @@ export function debeGuardarDirectiva(
   if (!nuevo) return false;
   if (!actual) return true;
   const activaMasNueva =
-    nuevo.activa !== null &&
-    (actual.activa === null || nuevo.activa > actual.activa);
-  // Margen JSON: el historial viaja saneado en ambos lados, así que basta compararlo entero.
+    nuevo.activa !== null && (actual.activa === null || nuevo.activa > actual.activa);
+  // El historial viaja saneado en ambos lados: basta compararlo entero en JSON.
   return activaMasNueva || JSON.stringify(actual.historial) !== JSON.stringify(nuevo.historial);
 }
 
