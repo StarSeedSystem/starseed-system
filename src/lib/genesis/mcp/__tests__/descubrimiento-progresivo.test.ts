@@ -329,6 +329,7 @@ describe("envolverProgresivo · metaherramientas", () => {
     const r = await ejecutar!.ejecutar({ nombre: "que_lanza", argumentos: {} });
     expect(r.esError).toBe(true);
     expect(r.contenido[0].texto).toBe("La herramienta falló.");
+    expect(r.contenido[0].texto).not.toContain("explosión interna");
   });
 
   it("el ctx llega a la herramienta cuando hay > umbral", async () => {
@@ -373,6 +374,16 @@ describe("envolverProgresivo · el filtro permitida", () => {
     const resultado = envolverProgresivo(herramientasFalsas, { permitida, umbral: 10 });
     expect(resultado).toHaveLength(4);
     expect(resultado.map((h) => h.nombre)).not.toContain("tareas_crear");
+  });
+
+  it("con el umbral cruzado, la herramienta filtrada no aparece en descubrir", async () => {
+    const resultado = envolverProgresivo(herramientasFalsas, { permitida, umbral: 3 });
+    const descubrir = resultado.find((h) => h.nombre === "descubrir_herramientas");
+    const r = await descubrir!.ejecutar({ consulta: "tareas crear", limite: 10 });
+    const parsed = JSON.parse(primerTexto(r));
+    const nombres = parsed.resultados.map((f: { nombre: string }) => f.nombre);
+    expect(nombres).not.toContain("tareas_crear");
+    expect(nombres).toContain("tareas_listar");
   });
 
   it("con el umbral cruzado, la herramienta filtrada es desconocida en detalle", async () => {
