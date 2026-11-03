@@ -181,6 +181,18 @@ describe("decidirHabilidad", () => {
     expect(bloqueHabilidad(respuesta, "reflejo")).not.toBe("");
     expect(bloqueHabilidad(respuesta, "memoria")).toBe("");
   });
+
+  it("arma la choice de Laya con el «cuando» de cada habilidad y «ninguna» al final", async () => {
+    let cuerpo: unknown;
+    const transporte = async (url: string | URL | Request, init?: RequestInit) => {
+      cuerpo = JSON.parse(String(init?.body)) as unknown;
+      return respuestaHabilidad("tdd", 0.71);
+    };
+    await decidirHabilidad("escribe primero los tests", transporte);
+    expect((cuerpo as any).questions.habilidad.type).toBe("choice");
+    expect((cuerpo as any).questions.habilidad.instructions).toContain("habilidad");
+    expect((cuerpo as any).questions.habilidad.criteria.ninguna).toContain("Ninguna habilidad");
+  });
 });
 
 describe("planDeDecision con Laya local", () => {
