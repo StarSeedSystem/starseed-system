@@ -24,6 +24,13 @@ class LeerModoTests(unittest.TestCase):
         self.assertEqual(leer_modo("{roto"), "pantalla")
         self.assertEqual(leer_modo(""), "pantalla")
 
+    def test_json_valido_que_no_es_dict_enciende_pantalla(self):
+        # Rama nube/41371892695: un JSON bien formado pero no-dict no debe
+        # colarse como ajuste; por defecto enciende la pantalla.
+        for texto in ("[1]", "null", '"hola"', "42"):
+            with self.subTest(texto=texto):
+                self.assertEqual(leer_modo(texto), "pantalla")
+
     def test_compatibilidad_activa(self):
         self.assertIsNone(leer_modo(json.dumps({"activa": False})))
         self.assertEqual(leer_modo(json.dumps({"activa": True})), "pantalla")
@@ -53,7 +60,10 @@ class ConstruirOrdenTests(unittest.TestCase):
     def test_linux_sin_keepalive_inhibe_sueno(self):
         orden = construir_orden("linux", "sistema", 42, False) or []
         self.assertEqual(orden[0], "systemd-inhibit")
-        self.assertIn("--what=sleep:idle", orden)
+        # El inhibidor bloquea solo el sueño y la parada por inactividad
+        # (rescate de la rama nube/41371892695).
+        for esperada in ("--what=sleep:idle", "--mode=block", "sleep", "infinity"):
+            self.assertIn(esperada, orden)
 
     def test_sin_herramienta_o_apagado(self):
         self.assertIsNone(construir_orden("win32", "sistema", 42, False))
@@ -128,6 +138,17 @@ class CicloTests(unittest.TestCase):
         servicio, popen, _ = servicio_simulado()
         servicio.ciclo("{roto")
         popen.assert_called_once()
+
+    def test_sin_herramienta_registra_una_vez_y_no_lanza_nada(self):
+        # Rama nube/41371892695: sin keepalive ni caffeinate ni systemd-inhibit
+        # no se lanza nada y el estado se escribe una sola vez, no en cada ciclo.
+        servicio, popen, escritos = servicio_simulado(plataforma="win32")
+        servicio.ciclo(ajuste("pantalla"))
+        servicio.ciclo(ajuste("pantalla"))
+        popen.assert_not_called()
+        self.assertEqual(
+            escritos, [{"modo": None, "herramienta": None, "pid": 42}]
+        )
 
     def test_nunca_usa_pkill(self):
         servicio, popen, _ = servicio_simulado()
