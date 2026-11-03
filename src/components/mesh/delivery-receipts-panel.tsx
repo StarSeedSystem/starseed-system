@@ -61,8 +61,9 @@ export function DeliveryReceiptsPanel({ recibos, maximo = 6 }: DeliveryReceiptsP
 // ── Traducción del recibo del mesh al recibo único del modelo ──
 
 /** Traduce un recibo de entrega del mesh a un `Recibo` del modelo único:
- *  `desdeEntregaMesh` decide estado, medio y ruta de forma monótona. Pura. */
-export function reciboDeEntrega(r: DeliveryReceipt): Recibo {
+ *  `desdeEntregaMesh` decide estado, medio y ruta de forma monótona. Pura y
+ *  privada: el contrato solo pide exportado el panel. */
+function reciboDeEntrega(r: DeliveryReceipt): Recibo {
   const ev = desdeEntregaMesh({
     status: r.status,
     hops: r.hops.map((h) => ({ via: MEDIO_DE_VIA[h.via], status: h.status })),
@@ -79,8 +80,9 @@ export function reciboDeEntrega(r: DeliveryReceipt): Recibo {
   };
 }
 
-/** Hora legible (hh:mm:ss) del recibo para la fila. */
-export function horaLegal(ms: number): string {
+/** Hora legible (hh:mm:ss) del recibo para la fila. Solo vive aquí: ni el
+ *  contrato ni Señales la piden, y exportarla dejó una superficie muerta. */
+function horaLegal(ms: number): string {
   const d = new Date(ms);
   const dos = (n: number) => String(n).padStart(2, '0');
   return `${dos(d.getHours())}:${dos(d.getMinutes())}:${dos(d.getSeconds())}`;

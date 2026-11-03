@@ -108,6 +108,8 @@ export const SYNCED_KEYS = [
      "starseed.astraura.usercontext.v1", // "Aurora conoce mi contexto" (on/off) + nivel por defecto (breve/completo)
     // ── Ola 1003 · capas de conciencia por entidad (personalidad/agente), local preferente ──
     "starseed.astraura.capas-entidad.v1", // capas por entidad — astraura/capas-entidad.ts + use-capas-entidad.ts
+    // ── Directivas de automejora Meta^n por capa (MTN1027C · lib/astraura/capas/directivas-almacen.ts) ──
+    "starseed.capas.directivas.v1", // directivas aprendidas y activas de cada capa de conciencia
     // ── Personalidades de Aurora (Adenda 63 · lib/aurora/personalities.ts) ────
     "starseed.aurora.personalities.v1",      // personalidades instaladas/creadas (archivos de configuración compartibles)
     "starseed.aurora.personality.active.v1", // asignaciones por contexto (global/sección/chat/cerebro)
@@ -218,7 +220,6 @@ export const SYNCED_KEYS = [
     "starseed.recursos-ia.v1", // (2026-10-23) dónde se guarda/procesa cada modelo, archivo, carpeta y memoria: viaja con la cuenta; nunca lleva secretos
     "starseed.agentes-red.bloqueo.v1", // (Ola 1025U · U3) qué bots de IA ve esta persona: bots bloqueados, modo general, por entidad y por publicación
     "starseed.traduccion.v1", // (TRD1020D · Ola 1020U) idioma de lectura y autotraducción por contexto de cada perfil (src/lib/traduccion/preferencias.ts)
-    "starseed.capas.directivas.v1", // (MTN1027C · Meta^n) directivas de automejora de las capas: viajan con la cuenta (astraura/capas/directivas-almacen.ts)
 ] as const;
 
 /**
