@@ -4693,3 +4693,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTIMG1020Cb-d2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTIMG1020Cb-d2b conservada)
 - `VZF1015M-d1b` — no escribió nada
 - `SGO1031B-d2b` — no escribió nada
+
+## 2026-11-03 13:05 · mg-oracle-1103-0540
+
+**Lo que se pidió.** Guardia sin node:* también para /metagenesis
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — no escribió nada (RTS1010-MGR2b, RTCPZ1025F, MBT1027C2c-d1). Es 75 % de la ola.
+- sin modelo anotado no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTS1010-MGR2b` — no escribió nada
+- `RTCPZ1025F` — no escribió nada
+- `RTAV1011C` — otra cosa: ningún proveedor respondió (todos caídos)
+- `MBT1027C2c-d1` — no escribió nada
