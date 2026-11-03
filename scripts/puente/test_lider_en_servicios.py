@@ -56,6 +56,11 @@ class DecidirLider(unittest.TestCase):
             self.assertIn("sigo en local", porque)
 
     def test_con_la_eleccion_real_de_ind1029b(self):
+        # (1103) Sin medir ESTA máquina: el ahogo real de la Mac (swap > 90 %) no decide una prueba pura.
+        import unittest.mock as _mk
+        _p = _mk.patch.object(LD, "_ahogo", lambda *a, **k: None)
+        _p.start()
+        self.addCleanup(_p.stop)
         decide = lambda yo, datos: A.decidir_lider(LD.soy_lider(yo, T0, PuertaFalsa(datos)), T0)[0]
         self.assertFalse(decide(MAC, arriendo(A1, T0 + 100)))  # dirige el A1: la Mac mira
         self.assertTrue(decide(A1, arriendo(A1, T0 + 100)))    # el A1 lee su propio arriendo
@@ -168,3 +173,15 @@ class Autopublicacion(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AhogadaVeElArriendo1103(unittest.TestCase):
+    def test_ahogada_espera_si_dirige_el_a1_y_sigue_si_no_dirige_nadie(self):
+        import unittest.mock as _mk
+        with _mk.patch.object(LD, "_ahogo", lambda *a, **k: "ahogada: swap 95 %"):
+            l = LD.soy_lider(MAC, T0, PuertaFalsa(arriendo(A1, T0 + 100)))
+            self.assertFalse(l["soy"])
+            self.assertEqual(l["arriendo"]["dueno"], A1)
+            self.assertFalse(A.decidir_lider(l, T0)[0])          # dirige el A1: la Mac ahogada mira
+            l = LD.soy_lider(MAC, T0, PuertaFalsa(arriendo(A1, T0 - 30)))
+            self.assertTrue(A.decidir_lider(l, T0)[0])           # el A1 cayó: nadie se queda parado

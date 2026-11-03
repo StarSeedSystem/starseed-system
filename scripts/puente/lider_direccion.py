@@ -75,12 +75,15 @@ def soy_lider(neurona=None, ahora=None, puerta=None):
     neurona = neurona or mismo_id()
     p = puerta if puerta is not None else _puerta()
     abierta = p is not None and p.configurada() and p.disponible()
+    # (1103) El arriendo se lee SIEMPRE que haya puerta: ahogada, la neurona no lo toma, pero tiene que saber si
+    # dirige el A1 (entonces espera) o nadie (entonces sigue en local). Antes volvía `arriendo: None` y la
+    # autocuración, sin arriendo que mirar, seguía dirigiendo en la Mac ahogada a la vez que el A1.
+    a = _leer_arriendo(p) if abierta else None
     dejo = _ahogo() or (None if abierta else _sin_puerta(ahora))
     if dejo:
-        return {"soy": False, "motivo": dejo, "arriendo": None}
+        return {"soy": False, "motivo": dejo, "arriendo": a}
     if not abierta:
         return {"soy": True, "motivo": "sin puerta o sin red: líder en local", "arriendo": None}
-    a = _leer_arriendo(p)
     d = decidir(a, neurona, ahora)
     return {"soy": bool(d.get("soy")) and not bool(d.get("actuar")), "motivo": d["motivo"], "arriendo": a}
 
