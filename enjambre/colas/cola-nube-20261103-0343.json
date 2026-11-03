@@ -1,0 +1,28 @@
+{
+ "ola": "nube-20261103",
+ "tareas": [
+  {
+   "id": "MTN1027L2",
+   "ola": "1027N · Automejora recursiva (Meta^n)",
+   "titulo": "Biblioteca · registrar la tanda 1027b en el catálogo, la siembra y las actualizaciones",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/defaults-seed.ts",
+    "src/app/api/library/actualizaciones/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Meta^n (minnesotanlp/meta-n, MIT) «para todo el automejoramiento de cada capa de conciencia mesh automejorable de toda Astraura, con Colibri y los demás sistemas locales y mesh autoadaptables». Contrato: `architecture/automejora-meta-n.md` (léelo entero, sobre todo §3: Meta^n PROPONE dentro de una caja Docker sin red ni claves; el juez de StarSeed decide fuera de la caja sin ejecutar nada suyo; las funciones de ayuda nunca se cargan en caliente). Lo que hace falta de Meta^n está en `integraciones-de-codigo/meta-n/README-starseed.md`.\n\nComo hizo MBT1027O con la tanda 1027: registra `FICHAS_REPOS_1027B` donde se registran las de 1027, sus ids en la siembra (sube `SEED_VERSION` en 1) y en `fichasIaConUpstreamGitHub([...])` de la ruta de actualizaciones.",
+   "revisor_quitadas": [
+    "MBT1027O"
+   ],
+   "dependencias_ya_en_main": [
+    "MTN1027L"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1102-222938.json": [
+   "MTN1027L2"
+  ]
+ }
+}
