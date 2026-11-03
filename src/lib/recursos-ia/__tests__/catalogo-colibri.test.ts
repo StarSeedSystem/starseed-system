@@ -87,3 +87,44 @@ describe("modelosDeCapas · runtime colibri", () => {
         expect(capasDe([{ capa: "razon", runtime: "colibri", modelo: "X" }])).toHaveLength(0);
     });
 });
+
+describe("modelosDeCapas · juicio y razon", () => {
+    const LAYA: Entrada = {
+        id: "colibri-laya",
+        capa: "juicio",
+        modelo: "Laya (Convai Innovations)",
+        runtime: "colibri",
+        formato: "safetensors",
+        tamano_bytes: 870_000_000,
+        ram_min_mb: 1740,
+        estado: "por-verificar",
+        medios: ["nativo", "servidor"],
+    };
+
+    const QWEN: Entrada = {
+        id: "colibri-qwen3-coder-30b",
+        capa: "razon",
+        modelo: "Qwen3-Coder-30B-A3B (int4)",
+        runtime: "colibri",
+        formato: "safetensors",
+        parametros: "30 B",
+        tamano_bytes: 19_865_000_000,
+        ram_min_mb: 8192,
+        estado: "por-verificar",
+        medios: ["servidor"],
+    };
+
+    const dosModelos = capasDe([LAYA, QWEN]);
+    const laya = dosModelos.find((m) => m.id === "colibri-laya")!;
+    const qwen = dosModelos.find((m) => m.id === "colibri-qwen3-coder-30b")!;
+
+    it("laya (juicio) → decision; qwen (razon) → texto/razon/codigo", () => {
+        expect(laya.capacidades.sort()).toEqual(["decision"]);
+        expect(qwen.capacidades.sort()).toEqual(["codigo", "razon", "texto"]);
+    });
+
+    it("laya tiene medios nativo y servidor; qwen solo servidor", () => {
+        expect(laya.medios.sort()).toEqual(["nativo", "servidor"].sort());
+        expect(qwen.medios).toEqual(["servidor"]);
+    });
+});

@@ -151,6 +151,14 @@ describe("estimarCoste y necesitaConfirmacion", () => {
     const mp4 = estimarCoste(valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }], [{ tipo: "render_mp4", ancho: 320, alto: 240, fps: 12, desde: 0, hasta: 60, muestras: 16, motor: "workbench" }])));
     expect(mp4.segundos).toBeCloseTo((320 * 240 * 16 * 61) / 350000, 2);
   });
+  it("estima segundos con píxeles, muestras, fotogramas y motor", () => {
+    const t = valido(conEscena([{ op: "primitiva", tipo: "cubo", nombre: "c", tam: 1 }], [{ tipo: "render_png", ancho: 800, alto: 600, muestras: 32, motor: "cycles-cpu" }]));
+    expect(estimarCoste(t).segundos).toBeCloseTo((800 * 600 * 32) / 120000, 2);
+  });
+  it("el perfil ligero no pide confirmación en estándar ni ligero", () => {
+    expect(necesitaConfirmacion(valido(base()), "ligero")).toBe(false);
+    expect(necesitaConfirmacion(valido(base()), "estandar")).toBe(false);
+  });
   it("pide confirmación por ámbito, importar, final y coste sobre el perfil ligero", () => {
     expect(necesitaConfirmacion(valido(base()), "ligero")).toBe(false);
     expect(necesitaConfirmacion(valido(base()), "estandar")).toBe(false);
