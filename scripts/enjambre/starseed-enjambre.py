@@ -25,7 +25,7 @@ Tiempos configurables:
 """
 
 import datetime, hashlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
-import signal
+import importlib, signal
 import tempfile
 import contextlib, fcntl
 
@@ -4151,19 +4151,54 @@ def _en_la_mac():
     return os.environ.get("STARSEED_DONDE") == "mac" and sys.platform == "darwin"
 
 
+#: (SUP0211V) El mtime visto de cada módulo de scripts/puente que usan las puertas tsc de fuera:
+#: la primera carga solo lo apunta. Los .py de scripts/enjambre reinician el orquestador, los de
+#: scripts/puente no, así que un arreglo de esas puertas (SUP0211U) no le llegaba hasta el
+#: próximo reinicio; ahora se recargan en cuanto su archivo cambia en main.
+_MTIMES_PUENTE = {}
+
+
+def hay_que_recargar(mtime_visto, mtime_ahora):
+    """(SUP0211V) PURA: ¿cambió el archivo desde la última carga? False si alguno es None o son iguales."""
+    if mtime_visto is None or mtime_ahora is None:
+        return False
+    return mtime_visto != mtime_ahora
+
+
+def _modulo_puente(nombre):
+    """(SUP0211V) El módulo `nombre` de scripts/puente, recargado si su archivo cambió desde la
+    última carga. Fallo de la recarga (SyntaxError de un commit a medias, OSError): se sigue con
+    el módulo que ya estaba y se avisa con un evento. None si el archivo no existe."""
+    ruta = os.path.join(ROOT, "scripts", "puente", nombre + ".py")
+    if not os.path.isfile(ruta):
+        return None
+    if os.path.dirname(ruta) not in sys.path:
+        sys.path.insert(0, os.path.dirname(ruta))
+    mtime = os.path.getmtime(ruta)
+    viejo = sys.modules.get(nombre)
+    if viejo is None or hay_que_recargar(_MTIMES_PUENTE.get(nombre), mtime):
+        try:
+            modulo = importlib.import_module(nombre) if viejo is None else importlib.reload(viejo)
+            _MTIMES_PUENTE[nombre] = mtime
+        except Exception as exc:  # noqa: BLE001 — commit a medias: se sigue con lo que hay
+            modulo = viejo
+            if viejo is not None:
+                evento("aviso", "-", "recarga de %s falló (%s): sigue el módulo de la última carga" % (nombre, exc))
+    else:
+        modulo = viejo
+    return modulo
+
+
 def _comprobar_en_a1():
     """La función `comprobar` de comprobar_en_a1.py, o None si no se puede usar (TRA1012A).
-    Solo en la Mac (`_en_la_mac`): la nube y el A1 mismo ya compilan donde tienen memoria."""
+    Solo en la Mac (`_en_la_mac`): la nube y el A1 mismo ya compilan donde tienen memoria.
+    (SUP0211V) El módulo se recarga si su archivo cambió en main, sin esperar reinicio."""
     if not _en_la_mac():
         return None
-    ruta = os.path.join(ROOT, "scripts", "puente")
-    if not os.path.isfile(os.path.join(ruta, "comprobar_en_a1.py")):
+    A = _modulo_puente("comprobar_en_a1")
+    if A is None:
         return None
-    if ruta not in sys.path:
-        sys.path.insert(0, ruta)
-    from comprobar_en_a1 import comprobar
-
-    return comprobar
+    return A.comprobar
 
 
 #: (2026-10-27, CAP1026P) Lo que la puerta tsc de la Mac espera el veredicto de GitHub antes de caer al A1 o a la
@@ -4174,16 +4209,12 @@ TSC_GITHUB_ESPERA_S = int(os.environ.get("STARSEED_TSC_GITHUB_ESPERA_S", "1500")
 def _comprobar_en_github():
     """(CAP1026P) La puerta tsc en GitHub Actions (`comprobar_en_github.esperar_tsc`), o None si no aplica.
     Solo en la Mac (`_en_la_mac`; la nube y el A1 compilan donde tienen memoria) y con
-    STARSEED_COMPROBAR_GITHUB ≠ 0."""
+    STARSEED_COMPROBAR_GITHUB ≠ 0. (SUP0211V) El módulo se recarga si su archivo cambió."""
     if not _en_la_mac() or os.environ.get("STARSEED_COMPROBAR_GITHUB", "1") == "0":
         return None
-    ruta = os.path.join(ROOT, "scripts", "puente")
-    if not os.path.isfile(os.path.join(ruta, "comprobar_en_github.py")):
+    G = _modulo_puente("comprobar_en_github")
+    if G is None:
         return None
-    if ruta not in sys.path:
-        sys.path.insert(0, ruta)
-    import comprobar_en_github as G
-
     return lambda base, cambiados, cwd: G.esperar_tsc(base, cambiados, cwd, TSC_GITHUB_ESPERA_S)
 
 

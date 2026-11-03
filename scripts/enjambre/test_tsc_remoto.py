@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -215,6 +216,74 @@ class EnLaMacTest(unittest.TestCase):
                         self.assertEqual(gh("base", ["a.ts"], tmp), "github-falso")
                     else:
                         self.assertEqual((a1, gh), (None, None))
+
+class RecargaPuentesTest(unittest.TestCase):
+    """(2026-11-03, SUP0211V) El orquestador solo se reinicia cuando cambian los .py de
+    scripts/enjambre, así que un arreglo de las puertas tsc en scripts/puente (SUP0211U) no le
+    llegaba hasta el próximo reinicio. Aquí: la decisión pura de recarga y, con un módulo falso
+    en un directorio temporal, que un cambio de mtime da la versión nueva y un archivo roto
+    conserva la versión vieja (con su aviso)."""
+
+    NOMBRE = "comprobar_en_a1"
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="enj-recarga-")
+        self.archivo = os.path.join(self.tmp, "scripts", "puente", self.NOMBRE + ".py")
+        os.makedirs(os.path.dirname(self.archivo))
+        self.avisos = []
+        self._despues()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        self._despues()
+
+    def _despues(self):
+        sys.modules.pop(self.NOMBRE, None)
+        enjambre._MTIMES_PUENTE.pop(self.NOMBRE, None)
+
+    def _escribir(self, contenido, mtime=None):
+        with open(self.archivo, "w", encoding="utf-8") as f:
+            f.write(contenido)
+        if mtime is not None:
+            os.utime(self.archivo, (mtime, mtime))
+
+    def _llamar(self):
+        """Las puertas solo se abren en la Mac; aquí se fuerza ese entorno con módulos falsos."""
+        with mock.patch.dict(os.environ, {"STARSEED_MEDIO": "mac"}), \
+                mock.patch.object(enjambre, "ROOT", self.tmp), \
+                mock.patch.object(enjambre, "evento", lambda *a, **k: self.avisos.append(a)), \
+                mock.patch.object(sys, "path", list(sys.path)):
+            return enjambre._comprobar_en_a1()
+
+    def test_hay_que_recargar_es_pura(self):
+        f = enjambre.hay_que_recargar
+        self.assertFalse(f(None, 5.0))
+        self.assertFalse(f(5.0, None))
+        self.assertFalse(f(5.0, 5.0))
+        self.assertTrue(f(5.0, 6.0))
+        self.assertTrue(f(6.0, 5.0))
+
+    def test_cambio_de_mtime_da_la_version_nueva(self):
+        self._escribir("def comprobar(*a, **k):\n    return 'v1'\n")
+        fn = self._llamar()
+        self.assertEqual(fn(), "v1")  # la primera carga solo apunta el mtime
+        self.assertEqual(enjambre._MTIMES_PUENTE[self.NOMBRE], os.path.getmtime(self.archivo))
+        self._escribir("def comprobar(*a, **k):\n    return 'v2'\n", mtime=time.time() + 30)
+        self.assertEqual(self._llamar()(), "v2")  # recargado sin reiniciar nada
+
+    def test_archivo_roto_conserva_la_version_vieja_y_avisa(self):
+        self._escribir("def comprobar(*a, **k):\n    return 'v1'\n")
+        self.assertEqual(self._llamar()(), "v1")
+        self._escribir("def comprobar(\n", mtime=time.time() + 60)
+        self.assertEqual(self._llamar()(), "v1")  # SyntaxError a medias: sigue lo que ya estaba
+        self.assertEqual(self.avisos[0][0], "aviso")
+        self.assertEqual(self.avisos[0][1], "-")
+
+    def test_mtime_igual_no_recarga_ni_avisa(self):
+        self._escribir("def comprobar(*a, **k):\n    return 'v1'\n")
+        self.assertEqual(self._llamar()(), "v1")
+        self.assertEqual(self._llamar()(), "v1")
+        self.assertEqual(self.avisos, [])  # mtime igual: sin recarga y sin aviso
 
 if __name__ == "__main__":
     unittest.main()
