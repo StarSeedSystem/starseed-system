@@ -9261,11 +9261,24 @@ def tope_de_analisis(tareas, codigo_esperando=0, presion=False):
     return _ceder_al_trabajo(tope, codigo_esperando, presion)
 
 
+def _suenos_con_trabajo_ajuste():
+    """(1103 · O) «Sueños a la vez con trabajo esperando» de Genesis › Director › Ajustes; la variable de entorno manda."""
+    env = os.environ.get("STARSEED_SUENOS_CON_TRABAJO")
+    if env not in (None, ""):
+        return env
+    try:
+        with open(os.path.join(MEM, "mando", "director-config.json"), encoding="utf-8") as f:
+            v = json.load(f).get("suenos_con_trabajo")
+        return str(max(0, min(12, int(v)))) if isinstance(v, int) and not isinstance(v, bool) else None
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
 def _ceder_al_trabajo(tope, codigo_esperando, presion):
     """(1103) Los sueños ceden al trabajo (`analista.ceder_al_trabajo`); sin el módulo, como antes."""
     if _analista is None or not hasattr(_analista, "ceder_al_trabajo"):
         return tope
-    return _analista.ceder_al_trabajo(tope, codigo_esperando, presion, os.environ.get("STARSEED_SUENOS_CON_TRABAJO"))
+    return _analista.ceder_al_trabajo(tope, codigo_esperando, presion, _suenos_con_trabajo_ajuste())
 
 
 # ── director ────────────────────────────────────────────────────────────────

@@ -56,6 +56,10 @@ export interface ConfigDirector {
     proveedores_apartados: string[];
     aviso_checkin: boolean;
     disco_min_gb: number;
+    /** (1103 · O) Sueños a la vez cuando hay código esperando sitio. */
+    suenos_con_trabajo: number;
+    /** (1103 · O) Reaperturas extra de lo que la nube devolvió sin que nadie lo intentara. */
+    reaperturas_sin_intento: number;
     optimizador: OptimizadorConfig;
     diseno: DisenoConfig;
     produccion: ProduccionConfig;
@@ -72,6 +76,8 @@ export const DEFAULTS: ConfigDirector = {
     proveedores_apartados: [],
     aviso_checkin: true,
     disco_min_gb: 5,
+    suenos_con_trabajo: 1,
+    reaperturas_sin_intento: 2,
     optimizador: {
         activo: true,
         modo: "actuar",
@@ -106,6 +112,7 @@ export const DEFAULTS: ConfigDirector = {
 const CLAVES_ENTERO = [
     "espera_aprobacion_min", "intervalo_s", "trabajadores",
     "tope_por_relanzamiento", "reintentos_por_pasada", "disco_min_gb",
+    "suenos_con_trabajo", "reaperturas_sin_intento",
 ] as const;
 
 function esObjeto(v: unknown): v is Record<string, unknown> {
@@ -321,6 +328,8 @@ export function fusionar(base: ConfigDirector, parcial: unknown): ConfigDirector
         proveedores_apartados: esListaCadenas(obj.proveedores_apartados) ? obj.proveedores_apartados : base.proveedores_apartados.slice(),
         aviso_checkin: typeof obj.aviso_checkin === "boolean" ? obj.aviso_checkin : base.aviso_checkin,
         disco_min_gb: esEnteroNoNegativo(obj.disco_min_gb) ? obj.disco_min_gb : base.disco_min_gb,
+        suenos_con_trabajo: esEnteroNoNegativo(obj.suenos_con_trabajo) ? obj.suenos_con_trabajo : base.suenos_con_trabajo,
+        reaperturas_sin_intento: esEnteroNoNegativo(obj.reaperturas_sin_intento) ? obj.reaperturas_sin_intento : base.reaperturas_sin_intento,
         optimizador: fusionarOptimizador(base.optimizador, obj.optimizador),
         diseno: fusionarDiseno(base.diseno, obj.diseno),
         produccion: fusionarProduccion(base.produccion, obj.produccion),

@@ -9,6 +9,7 @@ export interface TextosNumericos {
     espera_aprobacion_min: string; intervalo_s: string; trabajadores: string;
     tope_por_relanzamiento: string; reintentos_por_pasada: string; disco_min_gb: string;
     tope_haiku_dia: string; tope_sonnet_dia: string;
+    suenos_con_trabajo: string; reaperturas_sin_intento: string;
 }
 export interface CampoNumerico { clave: keyof TextosNumericos; etiqueta: string; ayuda: string }
 
@@ -21,6 +22,8 @@ export const CAMPOS_NUMERICOS: CampoNumerico[] = [
     { clave: "disco_min_gb", etiqueta: "Disco mínimo libre (GB)", ayuda: "Por debajo de este límite, el vigilante deja de relanzar." },
     { clave: "tope_haiku_dia", etiqueta: "Tope haiku/día (escalada)", ayuda: "Tareas escaladas al Claude barato permitidas por día." },
     { clave: "tope_sonnet_dia", etiqueta: "Tope sonnet/día (escalada)", ayuda: "Tareas escaladas al Claude medio permitidas por día." },
+    { clave: "suenos_con_trabajo", etiqueta: "Sueños a la vez con trabajo esperando", ayuda: "Cuando hay tareas de código esperando un agente, cuántos sueños (análisis) pueden ir a la vez. 0 = ninguno hasta que se acabe el trabajo." },
+    { clave: "reaperturas_sin_intento", etiqueta: "Reaperturas de lo no intentado", ayuda: "Veces extra (en dos días) que se reabre una tarea que la nube devolvió sin que ningún agente llegara a intentarla." },
 ];
 const CLAVES_ESCALADA = new Set<keyof TextosNumericos>(["tope_haiku_dia", "tope_sonnet_dia"]);
 
@@ -31,6 +34,7 @@ export function textosDeConfig(c: ConfigDirector): TextosNumericos {
         trabajadores: String(c.trabajadores), tope_por_relanzamiento: String(c.tope_por_relanzamiento),
         reintentos_por_pasada: String(c.reintentos_por_pasada), disco_min_gb: String(c.disco_min_gb),
         tope_haiku_dia: String(c.escalada.tope_haiku_dia), tope_sonnet_dia: String(c.escalada.tope_sonnet_dia),
+        suenos_con_trabajo: String(c.suenos_con_trabajo), reaperturas_sin_intento: String(c.reaperturas_sin_intento),
     };
 }
 

@@ -165,11 +165,24 @@ def sin_intento(nota):
     return any(n.startswith(p) for p in NOTAS_SIN_INTENTO)
 
 
-def puede_reabrir_tarea(marcas, ahora, nota=""):
-    """PURA (1103). `puede_reabrir`, con más margen para lo que volvió sin intentarse."""
+def reaperturas_sin_intento_ajuste(ruta=None):
+    """(1103 · O) «Reaperturas de lo no intentado» de Genesis › Director › Ajustes (0-6); sin dato, el valor por defecto."""
+    ruta = ruta or os.path.join(RAIZ, "starseed_memory_root", "mando", "director-config.json")
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            v = json.load(f).get("reaperturas_sin_intento")
+        if isinstance(v, int) and not isinstance(v, bool):
+            return max(0, min(6, v))
+    except (OSError, ValueError, AttributeError):
+        pass
+    return REAPERTURAS_SIN_INTENTO_EXTRA
+
+
+def puede_reabrir_tarea(marcas, ahora, nota="", extra=None):
+    """PURA salvo `extra=None` (1103). `puede_reabrir`, con más margen para lo que volvió sin intentarse."""
     if sin_intento(nota):
-        return puede_reabrir(marcas, ahora, espera_s=REABRIR_SIN_INTENTO_ESPERA_S,
-                             maximo=REAPERTURAS_MAX + REAPERTURAS_SIN_INTENTO_EXTRA)
+        extra = reaperturas_sin_intento_ajuste() if extra is None else extra
+        return puede_reabrir(marcas, ahora, espera_s=REABRIR_SIN_INTENTO_ESPERA_S, maximo=REAPERTURAS_MAX + int(extra))
     return puede_reabrir(marcas, ahora)
 
 

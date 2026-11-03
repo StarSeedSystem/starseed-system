@@ -13,6 +13,8 @@ describe("DEFAULTS", () => {
             proveedores_apartados: [],
             aviso_checkin: true,
             disco_min_gb: 5,
+            suenos_con_trabajo: 1,
+            reaperturas_sin_intento: 2,
             optimizador: {
                 activo: true,
                 modo: "actuar",

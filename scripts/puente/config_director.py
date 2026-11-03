@@ -61,6 +61,9 @@ DEFAULTS = {
     "aviso_checkin": True,
     "pausado": False,
     "disco_min_gb": 5,
+    # (1103 · O) Sueños a la vez cuando hay código esperando sitio, y reaperturas extra de lo que la nube devolvió sin intentar.
+    "suenos_con_trabajo": 1,
+    "reaperturas_sin_intento": 2,
     "prioridad": dict(PESOS),
     "optimizador": {
         "activo": True,
@@ -116,6 +119,8 @@ CLAVES_ENTERO = {
     "tope_por_relanzamiento",
     "reintentos_por_pasada",
     "disco_min_gb",
+    "suenos_con_trabajo",
+    "reaperturas_sin_intento",
 }
 CLAVES_LISTA_STR = {"proveedores_apartados"}
 CLAVES_BOOL = {"aviso_checkin", "pausado"}

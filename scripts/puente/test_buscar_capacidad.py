@@ -788,3 +788,18 @@ def test_1103_prioridad_y_sin_intento():
     plan = B.plan_nube([], ["T1", "T2"], 0, None, {"T1": dos, "T2": dos}, ahora, listas_mac=10, tope_mac=2,
                        tope_runs=2, por_run=6, notas={"T1": "devuelta de la nube: su run terminó"})
     assert plan["reabrir"] == ["T1"] and plan["lanzar"] == 1
+
+
+def test_1103_o_reaperturas_sin_intento_desde_ajustes(tmp_path):
+    import json as _j, os as _o, sys as _s
+    _s.path.insert(0, _o.path.dirname(_o.path.abspath(__file__)))
+    import buscar_capacidad as B
+    c = tmp_path / "director-config.json"
+    c.write_text(_j.dumps({"reaperturas_sin_intento": 0}))
+    assert B.reaperturas_sin_intento_ajuste(str(c)) == 0
+    c.write_text(_j.dumps({"reaperturas_sin_intento": 99}))
+    assert B.reaperturas_sin_intento_ajuste(str(c)) == 6
+    assert B.reaperturas_sin_intento_ajuste(str(tmp_path / "no")) == B.REAPERTURAS_SIN_INTENTO_EXTRA
+    dos = [100_000.0 - 7200, 100_000.0 - 5000]
+    assert not B.puede_reabrir_tarea(dos, 100_000.0, "devuelta de la nube: su run terminó", extra=0)
+    assert B.puede_reabrir_tarea(dos, 100_000.0, "devuelta de la nube: su run terminó", extra=1)
