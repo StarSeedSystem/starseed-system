@@ -239,8 +239,40 @@ def elegir_por_tarea(entradas):
 
 
 def base_de(tid):
-    """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` de Genesis)."""
-    return tid[:-1] if re.search(r"[A-Z0-9][b-z]$", tid) else tid
+    """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` de Genesis).
+
+    Reglas:
+    - Sufijo de derivación: `-d` seguido de dígitos y minúsculas opcionales (ej. `-d1`, `-d2b`)
+    - IDs con prefijo RT:
+      * `RT...Xy` (mayúscula + minúscula al final, sin dígito entre medias) -> NO es sufijo de rescate (ej. `RTESP1011Bb`)
+      * `RT...X1y` (mayúscula + dígito + minúscula al final, con dígitos previos) -> SÍ es sufijo (ej. `RTOPO1011T1b`)
+      * `RT...1y` (solo dígito + minúscula al final, sin mayúscula antes) -> NO es sufijo (ej. `RTRTX1b`)
+    - IDs normales (patrón base: dos letras + dígitos + una mayúscula):
+      * `XX####Xy` o `XX####X1y` -> SÍ es sufijo de rescate (ej. `LC1004Bc`, `LC1004B1c`)
+      * Otros patrones -> NO es sufijo (ej. `X1A1b`, `MC1013TCc`)
+    """
+    if not tid:
+        return tid
+    # 1) Derivación: -dN / -dNb
+    m = re.search(r"-d\d+[a-z]*$", tid)
+    if m:
+        return tid[:m.start()]
+    # 2) Prefijo RT: estructura especial
+    if tid.startswith("RT"):
+        # RT...Xy (mayúscula + minúscula al final, sin dígito entre medias) -> NO es sufijo
+        if re.search(r"[A-Z][b-z]$", tid) and not re.search(r"\d[b-z]$", tid):
+            return tid
+        # RT...X1y (mayúscula + dígito + minúscula, con secuencia de dígitos antes) -> SÍ es sufijo
+        if re.search(r"[A-Z]\d[b-z]$", tid) and re.search(r"\d{2,}[A-Z]\d[b-z]$", tid):
+            return tid[:-1]
+        # RT...1y (solo dígito + minúscula al final, sin mayúscula antes) -> NO es sufijo
+        return tid
+    # 3) IDs normales con patrón base estándar (dos letras + dígitos + mayúscula)
+    #    XX####Xy  o  XX####X1y
+    if re.match(r"^[A-Z]{2}\d+[A-Z](\d)?[b-z]$", tid):
+        return tid[:-1]
+    # 4) Otros patrones: no es sufijo de rescate conocido
+    return tid
 
 
 def siguiente_id(tid, conocidos):

@@ -120,6 +120,18 @@ class Sucesor(unittest.TestCase):
         self.assertEqual(T.siguiente_id("LC1004B", {"LC1004B", "LC1004Bb", "LC1004Bc"}), "LC1004Bd")
         self.assertEqual(T.siguiente_id("SB1004A", {"SB1004A", "SB1004Ab", "OTRA"}), "SB1004Ac")
 
+    def test_base_de_ids_con_minusculas_finales_que_no_son_sufijos(self):
+        # IDs de rescate (RT...) cuya última minúscula es parte del id, no sufijo de rescate
+        self.assertEqual(T.base_de("RTESP1011Bb"), "RTESP1011Bb")
+        self.assertEqual(T.base_de("RTOPO1011T1b"), "RTOPO1011T1")
+        self.assertEqual(T.base_de("RTRTX1b"), "RTRTX1b")
+        # IDs con derivación -dN / -dNb
+        self.assertEqual(T.base_de("SGO1031B-d1"), "SGO1031B")
+        self.assertEqual(T.base_de("SGO1031B-d2b"), "SGO1031B")
+        # IDs cuya última letra es minúscula pero es parte del id original
+        self.assertEqual(T.base_de("MC1013TCc"), "MC1013TCc")
+        self.assertEqual(T.base_de("X1A1b"), "X1A1b")
+
     def test_tarea_reparacion_continua_desde_la_rama(self):
         original = {"id": "LC1004B", "ola": "Ola 1004L", "titulo": "Límites", "archivos": ["a.ts"],
                     "depende": ["LC1004A"], "prompt": "Haz X.", "estado": "fallo_tests", "modelo": "nim/kimi"}
