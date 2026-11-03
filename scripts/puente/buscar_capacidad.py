@@ -1056,12 +1056,20 @@ def buscar(aplicar=False, sondear_medios=True, mac=True, origen="boton", ahora=N
         # 2 · Nube
         nube = reunir_nube(ahora, estado_mac)
         # 2a · Cloudroom (CRM1024I): antes que GitHub Actions, para que lo que coja no se reparta dos veces.
-        sumadas_cr, linea_cr, ids_cr = cloudroom(aplicar, nube["clases"].get("elegibles") or [], ahora)
+        # (1103 · T) Cloudroom es otro medio, con su propia rueda de modelos: también le valen las agotadas (las que los
+        # escritores gratuitos de GitHub ya probaron tres veces), detrás de las elegibles y por prioridad.
+        para_cr = list(nube["clases"].get("elegibles") or [])
+        _traer_cr = set(nube.get("por_traer") or ())
+        para_cr += [t for t in ordenar_por_prioridad([t for t in nube["clases"].get("agotada") or [] if t not in _traer_cr],
+                                                     nube.get("dependientes") or {}, nube.get("capacidad") or ())
+                    if t not in para_cr]
+        sumadas_cr, linea_cr, ids_cr = cloudroom(aplicar, para_cr, ahora)
         if sumadas_cr:
             sumados += sumadas_cr
             hechas.append("Cloudroom: %d hilo(s) en la nube (%s)" % (sumadas_cr, ", ".join(ids_cr)))
         if ids_cr:
             nube["clases"]["elegibles"] = [t for t in nube["clases"].get("elegibles") or [] if t not in ids_cr]
+            nube["clases"]["agotada"] = [t for t in nube["clases"].get("agotada") or [] if t not in ids_cr]
         vivos = nube["runs"] + en_camino(estado_prev, ahora)
         reaperturas = RN.leer_reaperturas(ahora)
         # (2026-10-10, CAP1010) El tope crece con el trabajo y con los escritores vivos que
