@@ -136,7 +136,22 @@ describe("servicio-local · hyperframes en los servicios locales conocidos", () 
     expect(destino.hostname).toBe("127.0.0.1");
     expect(Number(destino.port)).toBe(4490);
     expect(destino.pathname).toBe("/health");
-    expect(init).toMatchObject({ method: "GET" });
+    expect(init).toMatchObject({ method: "GET", redirect: "manual" });
     expect(init.headers.authorization).toBeUndefined();
+    expect(SERVICIOS_CONOCIDOS).toHaveLength(3); // nada más cambió
+  });
+  it("un plazo propio mayor que el defecto manda: 30 s no corta, 15 min sí", async () => {
+    const { reloj, avanzar } = relojFalso();
+    let senal: AbortSignal | undefined;
+    const colgado: FetchLocal = (_u, i) => {
+      senal = i.signal;
+      return new Promise((_, rej) => i.signal.addEventListener("abort", () => rej(new Error("abortado"))));
+    };
+    const p = llamarServicio({ ...DEF, tiempoMs: 900_000 }, "/render", {}, colgado, { ...conToken(), reloj });
+    avanzar(30_000); // el plazo por defecto (30 s) pasaría: aún no corta
+    expect(senal?.aborted).toBe(false);
+    avanzar(870_000); // total 900.000 ms
+    expect(await p).toMatchObject({ ok: false, fallo: "tiempo", ms: 900_000 });
+    expect(senal?.aborted).toBe(true);
   });
 });
