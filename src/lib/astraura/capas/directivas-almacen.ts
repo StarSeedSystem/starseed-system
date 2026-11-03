@@ -9,8 +9,15 @@ export const DIRECTIVAS_KEY = "starseed.capas.directivas.v1";
 /** Evento emitido cuando se actualizan las directivas de una capa. */
 export const DIRECTIVAS_EVENT = "starseed:capas-directivas";
 
+/** Alias usados por realtime-sync.ts y el resto del código que espera estos nombres. */
+export const CLAVE_DIRECTIVAS = DIRECTIVAS_KEY;
+export const EVENTO_DIRECTIVAS = DIRECTIVAS_EVENT;
+
 /** `Record<capa, ArchivoDirectivas>`: todo lo guardado, por capa. */
 export type MapaDirectivas = Record<string, ArchivoDirectivas>;
+
+/** Alias para compatibilidad con código que usa RegistroDirectivas. */
+export type RegistroDirectivas = MapaDirectivas;
 
 const ESTADOS = ["activa", "propuesta", "anterior", "retirada"] as const;
 
@@ -114,6 +121,9 @@ export function debeGuardarDirectivas(
   // El historial viaja saneado en ambos lados: basta compararlo entero en JSON.
   return activaMasNueva || JSON.stringify(actual.historial) !== JSON.stringify(nuevo.historial);
 }
+
+/** Alias singular para compatibilidad con código que usa debeGuardarDirectiva. */
+export const debeGuardarDirectiva = debeGuardarDirectivas;
 
 /** Guarda las directivas de una capa si aportan algo nuevo y avisa del cambio. */
 export async function guardarDirectivas(
