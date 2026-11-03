@@ -83,6 +83,7 @@ const casos: Array<[string, Perfil | null, VozNeurona | null, AuroraVoiceEngine 
   ["voiceStyle en modo auto, sin neurona", auto("bark"), null, null, "bark"],
   ["motor desconocido en la neurona: hereda de la personalidad", fija("vibevoice"), { motor: "nope" }, null, "vibevoice"],
   ["la neurona solo fija la vía local: pin por defecto local", auto(), { modo: "local" }, null, "omnivoice"],
+  ["la neurona solo fija fastweb: pin por defecto fastweb", auto(), { modo: "fastweb" }, null, "voxcpm"],
   ["nadie elige: pin por defecto de la neurona", auto(), null, null, "openvoice2"],
   [
     "SGO1031B · nadie fija motor y la cuenta elige vibevoice: la cuenta no es pin (el pin por defecto suena primero)",
@@ -97,6 +98,48 @@ const casos: Array<[string, Perfil | null, VozNeurona | null, AuroraVoiceEngine 
     { motor: "vibevoice" },
     null,
     "openvoice2",
+  ],
+  [
+    "SGO1031B · cuenta elige openvoice2 (coincide con pin por defecto)",
+    auto(),
+    null,
+    "openvoice2",
+    "openvoice2",
+  ],
+  [
+    "SGO1031B · cuenta elige omnivoice sin preferencia de neurona: pin por defecto openvoice2 gana",
+    auto(),
+    null,
+    "omnivoice",
+    "openvoice2",
+  ],
+  [
+    "personalidad fija (motorVoz) + neurona prefiere local: gana la personalidad",
+    fija("vibevoice"),
+    { modo: "local" },
+    null,
+    "vibevoice",
+  ],
+  [
+    "personalidad fija (motorVoz) + cuenta elige omnivoice: gana la personalidad",
+    fija("vibevoice"),
+    null,
+    "omnivoice",
+    "vibevoice",
+  ],
+  [
+    "voiceStyle auto + neurona prefiere local: voiceStyle gana (orden de precedencia)",
+    auto("bark"),
+    { modo: "local" },
+    null,
+    "bark",
+  ],
+  [
+    "voiceStyle auto + neurona prefiere fastweb: voiceStyle gana (orden de precedencia)",
+    auto("bark"),
+    { modo: "fastweb" },
+    null,
+    "bark",
   ],
 ];
 
