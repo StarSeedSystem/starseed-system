@@ -189,8 +189,11 @@ def _consejo_jev(p):
         import decidir
         estado = {k: p.get(k) for k in ("titulo", "fuente", "tipo", "archivos", "utilidad", "importancia", "motivo")}
         estado["cuerpo"] = str(p.get("cuerpo") or "")[:1500]
-        d = decidir.consultar("si-no", estado, "¿Debe StarSeed integrar SOLA esta propuesta de la imaginación, sin que "
-                              "Alex la mire? Sí = integrarla.", regla="sí", quien="director-autodesarrollo",
+        # (1103) Se pregunta por el MÉRITO. Antes: «¿integrarla SOLA, sin que Alex la mire?», y un modelo casi siempre dice
+        # «no» (p ≈ 0,92 en las 23 buenas del 02-11). Lo de Alex, lo alto y lo crítico ya lo apartan las reglas antes.
+        d = decidir.consultar("si-no", estado, "¿Esta propuesta de la imaginación es concreta y útil para StarSeed, y la puede "
+                              "hacer el enjambre con sus puertas (tsc, pruebas y revisión)? Responde «no» solo si es ruido, "
+                              "repetida, inventada o dañina. Sí = es buena.", regla="sí", quien="director-autodesarrollo",
                               dominio="imaginacion", espera_turno=5)
     except Exception:
         return None

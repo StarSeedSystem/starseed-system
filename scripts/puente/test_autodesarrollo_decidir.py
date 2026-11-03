@@ -598,3 +598,16 @@ class Ola1102ATest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Ola1103FTest(unittest.TestCase):
+    def test_verbos_de_los_suenos_profundos(self):
+        existe = lambda r: True
+        for titulo in ("Limitar iteraciones en generación de nombres únicos", "Distinguir errores de red de indisponibilidad",
+                       "Tratar los errores devueltos por Supabase", "Sustituir la espera fija por una condición observable",
+                       "Etiquetar los controles de carga del perfil", "Manejar errores de guardado de persona"):
+            ok, motivo = D.es_accionable({"titulo": titulo, "archivos": ["src/a.ts"]}, existe)
+            self.assertTrue(ok, (titulo, motivo))
+
+    def test_reglas_1103(self):
+        self.assertTrue(D.firma({}).startswith("1103A|"))

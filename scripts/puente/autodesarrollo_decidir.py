@@ -13,7 +13,9 @@ import json, re, unicodedata
 from typing import Callable, Dict, Optional, Tuple
 Existe = Callable[[str], bool]; UMBRAL_UTIL = 0.6
 VERIFICACION = {"verificado": 1.0, "ajustado": 0.8, "sin verificar": 0.4, "sin dato": 0.6}
-VERBOS = ("anadir", "agregar", "crear", "implementar", "arreglar", "corregir", "migrar", "renombrar", "eliminar", "borrar", "quitar", "documentar", "actualizar", "cablear", "optimizar", "proteger", "validar", "sincronizar", "unificar", "ajustar", "mejorar", "integrar", "evitar", "exportar", "importar", "depurar", "medir", "cambiar", "aplicar", "normalizar", "programar", "revisar", "comprobar", "verificar", "probar")
+VERBOS = ("anadir", "agregar", "crear", "implementar", "arreglar", "corregir", "migrar", "renombrar", "eliminar", "borrar", "quitar", "documentar", "actualizar", "cablear", "optimizar", "proteger", "validar", "sincronizar", "unificar", "ajustar", "mejorar", "integrar", "evitar", "exportar", "importar", "depurar", "medir", "cambiar", "aplicar", "normalizar", "programar", "revisar", "comprobar", "verificar", "probar",
+          # (1103) Los verbos con que titulan los sueños profundos: sin ellos caían en «pregunta».
+          "limitar", "acotar", "distinguir", "separar", "manejar", "tratar", "capturar", "sustituir", "reemplazar", "etiquetar", "reducir", "simplificar", "endurecer", "mover", "extraer", "dividir", "partir", "reutilizar", "centralizar", "parametrizar", "configurar", "consolidar", "deduplicar", "refactorizar", "registrar", "mostrar", "ensenar", "permitir", "impedir", "bloquear", "cachear", "reintentar", "asegurar", "garantizar", "detectar", "avisar", "cerrar", "abrir", "completar", "conectar", "desacoplar", "marcar", "ordenar", "filtrar")
 RESERVADOS = ("publicar", "publicacion", "desplegar", "deploy", "vercel", "contrasena", "clave", "credencial", "decision de alex", "decide alex", "que alex decida", "preguntar a alex", "avisar a alex", "eleccion de alex")
 CUENTAS = re.compile(r"\b(crear|borrar|eliminar|gestionar|cerrar|abrir|cambiar)\s+(la\s+|las\s+)?cuentas?\b|\bcuentas?\s+(de\s+alex|de\s+usuario|bancarias?|de\s+pago)\b")
 #: Ola 1102 (IMG1102A): un GASTO de verdad: pagar, comprar, contratar o suscribirse; una compra, un pago, un importe, una
@@ -206,7 +208,7 @@ VIAS = ("codigo", "astraura", "entregable")
 #: Lo que espera una decisión (para las duplicadas): nunca lo que ya decidió Alex ni lo que está en vuelo.
 PENDIENTES = ("nueva", "pregunta", "esperando-aprobacion", "autodesarrollo")
 #: Versión de las reglas: entra en la firma, así lo pendiente se vuelve a decidir cuando cambian.
-REGLAS = "1102A"
+REGLAS = "1103A"
 #: Reimaginaciones nuevas del automático por ciclo (el director corre cada 15 min) y en vuelo a la vez:
 #: así 230 propuestas no salen de golpe hacia los modelos gratuitos. Lo de Alex no cuenta: se hace siempre.
 TOPE_POR_CICLO, MAX_EN_VUELO = 12, 24
