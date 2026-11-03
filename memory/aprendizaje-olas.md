@@ -4662,3 +4662,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-11-03 10:21 · mg-oracle-1103-0224
+
+**Lo que se pidió.** artcraft
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — otra cosa (PUB1029C-d2, RTPM1010F2Hc-d2, PUB1029F, RTRESC1031D, IMG1102D, RTCOL1012Ie-d2). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `PUB1029C-d2` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTPM1010F2Hc-d2` — otra cosa: ningún proveedor respondió (todos caídos)
+- `PUB1029F` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTRESC1031D` — otra cosa: ningún proveedor respondió (todos caídos)
+- `IMG1102D` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTCOL1012Ie-d2` — otra cosa: ningún proveedor respondió (todos caídos)
