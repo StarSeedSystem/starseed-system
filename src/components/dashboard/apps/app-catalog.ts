@@ -29,6 +29,8 @@ import {
     Atom,
     // 2026-10-23: Convertir archivos (Filee).
     Replace,
+    // Tanda 1027b: Meta^n y Memvid.
+    Repeat, Film,
 } from "lucide-react";
 import type { StarseedApp, LauncherCollection } from "./launcher-types";
 

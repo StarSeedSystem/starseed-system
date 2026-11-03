@@ -15,7 +15,7 @@ import {
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, Rss, AudioLines, Cast, Gauge,
   Smile, FlaskConical, BookUser, FileText, Table2, Gamepad2, Box, Glasses,
-  Atom,
+  Atom, Repeat, Film,
 } from 'lucide-react';
 // Garantía de botones predeterminados con la VERSIÓN DENTRO DEL PAYLOAD
 // (Adenda 149 · tanda 3). El módulo es puro y sin dependencias: lo comparten
@@ -88,7 +88,9 @@ export type DockIconKey =
   // ── Apps en vivo (2026-09-28) ──
   | 'FileText' | 'Table2' | 'Gamepad2' | 'Box' | 'Glasses' | 'Cast'
   // ── Protomolécula (Ola 1010P) ──
-  | 'Atom';
+  | 'Atom'
+  // ── Tanda 1027b: Meta^n y Memvid ──
+  | 'Repeat' | 'Film';
 
 /**
  * Mapa iconKey → componente de lucide-react. Fuente ÚNICA de verdad: la usan
@@ -103,6 +105,7 @@ export const DOCK_ICON_MAP: Record<DockIconKey, React.ComponentType<{ className?
   CalendarClock, GitBranch, Sparkles, Zap, Wrench, Plug, Eye, HardDrive, Boxes,
   Camera, Images, RadioTower, Antenna, Radio, Rss, AudioLines, Gauge, Smile,
   FlaskConical, BookUser, FileText, Table2, Gamepad2, Box, Glasses, Cast, Atom,
+  Repeat, Film,
 };
 
 /** Icono de respaldo defensivo (DOCK_ICON_MAP es total: no debería usarse). */
