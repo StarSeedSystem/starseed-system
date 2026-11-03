@@ -953,6 +953,24 @@ function applyRemoteChanges(
                 if (norm.changed) { merged = norm.value; repaired = true; }
             }
 
+            /* ── DIRECTIVAS (MTN1027C · Meta^n): sanear ANTES de escribir ──────
+             * El registro de directivas (`starseed.capas.directivas.v1`) se aplica
+             * aquí TAL CUAL llega. igual que con el dock, un valor torcido de la
+             * cuenta (claves ajenas, directivas con versión infinita o estados
+             * desconocidos) quedaría persistido con esa basura. Pasa por la MISMA
+             * normalización pura que usa el almacén (`normalizarRegistroDirectivas`)
+             * y lo que se caiga del saneado se marca como reparado para volver a
+             * subir lo ya limpio. */
+            if (key === CLAVE_DIRECTIVAS) {
+                const crudo: unknown =
+                    typeof merged === "string" ? JSON.parse(merged) : merged;
+                const saneado = normalizarRegistroDirectivas(crudo);
+                if (JSON.stringify(crudo) !== JSON.stringify(saneado)) {
+                    merged = saneado;
+                    repaired = true;
+                }
+            }
+
             const serialized = serializeForStorage(merged);
             if (localStorage.getItem(key) === serialized) {
                 // Sin cambio real, pero sí adoptamos la marca remota (converge).
