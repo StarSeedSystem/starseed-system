@@ -150,3 +150,17 @@ class AjustesAuto(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_1103_presion_de_la_mac_no_frena_si_hay_sitio_fuera():
+    import os as _o, sys as _s
+    _s.path.insert(0, _o.path.dirname(_o.path.abspath(__file__)))
+    from datetime import datetime as _dt
+    import autodesarrollo_logica as _L
+    h = {"modo": "inteligente"}
+    noche = _dt(2026, 11, 2, 3, 0)
+    cap = {"huecos_mac": 0, "huecos_a1": 0, "huecos_nube": 0, "proveedores_con_cupo": 2, "presion_mac": 2}
+    assert _L.toca_ejecutar(noche, h, cap)[0] is False
+    cap["huecos_nube"] = 12
+    ok, motivo = _L.toca_ejecutar(noche, h, cap)
+    assert ok is True, motivo

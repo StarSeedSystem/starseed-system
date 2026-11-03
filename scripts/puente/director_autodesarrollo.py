@@ -12,7 +12,7 @@ Decidir se hace y se escribe siempre (no cuesta memoria); lanzar trabajo, solo c
 lanzadores, Jev, Astraura y agentes por parámetro (las pruebas no lanzan nada real); escrituras atómicas
 (tmp + os.replace) y cerrojo propio."""
 from __future__ import annotations
-import argparse, fcntl, json, os, shutil, subprocess, sys, tempfile, urllib.error, urllib.request
+import argparse, fcntl, json, os, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
 from collections import Counter
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -62,14 +62,47 @@ def cerrojo(ruta):
         finally: fcntl.flock(f, fcntl.LOCK_UN)
 
 
-def medir_capacidad(home):
-    """Gobernador + salud de proveedores. Claves no halladas = sin dato (None): nunca se inventa.
-    El A1 y la nube no se miden aquí: cuentan 0 huecos."""
+#: (1103) El inventario de medios que mide `contenedores_nube` (Genesis › Contenedores); vale si tiene < 45 min.
+CONTENEDORES = os.path.join(RAIZ, "starseed_memory_root", "mando", "contenedores.json")
+CONTENEDORES_VIGENTE_S = 45 * 60
+#: Medios cuyos agentes libres cuentan como sitio fuera de la Mac (Claude en la nube no: necesita al CLI con sesión).
+MEDIOS_NUBE, MEDIO_A1 = ("nube-gh", "cloudroom"), "oracle"
+
+
+def huecos_fuera(inventario, ahora=None, vigente_s=CONTENEDORES_VIGENTE_S, mtime=None):
+    """PURA (1103). (huecos_a1, huecos_nube) del inventario de contenedores; (0, 0) si falta o está viejo."""
+    ahora = time.time() if ahora is None else ahora
+    if not isinstance(inventario, dict) or (mtime is not None and ahora - mtime > vigente_s):
+        return 0, 0
+    a1 = nube = 0
+    for m in inventario.get("contenedores") or []:
+        if not isinstance(m, dict) or m.get("estado") not in ("listo", "usable"):
+            continue
+        libres = max(0, int(m.get("agentes_libres") or 0))
+        if m.get("id") == MEDIO_A1:
+            a1 += libres
+        elif m.get("id") in MEDIOS_NUBE:
+            nube += libres
+    return a1, nube
+
+
+def medir_capacidad(home, contenedores=None):
+    """Gobernador + salud de proveedores + (1103) el sitio libre del A1 y la nube según el inventario de
+    contenedores. Claves no halladas = sin dato (None): nunca se inventa. Con un `home` de pruebas y sin
+    `contenedores`, el A1 y la nube cuentan 0 (no se lee el inventario real)."""
     g, s = _json(os.path.join(home, "gobernador.json"), None), _json(os.path.join(home, "salud-proveedores.json"), None)
     if not isinstance(g, dict) or not isinstance(g.get("maximo"), int) or not isinstance(s, dict): return None
     ocupados = g.get("trabajando", g.get("en_curso", 0)) or 0
     vivos = [k for k, v in s.items() if isinstance(v, dict) and not (v.get("caido") or v.get("estado") in ("caido", "caído", "sin_cupo"))]
-    return {"huecos_mac": max(0, g["maximo"] - ocupados), "huecos_a1": 0, "huecos_nube": 0,
+    if contenedores is None and os.path.realpath(home) == os.path.realpath(os.path.expanduser("~/.starseed")):
+        contenedores = CONTENEDORES
+    a1 = nube = 0
+    if contenedores and os.path.exists(contenedores):
+        try:
+            a1, nube = huecos_fuera(_json(contenedores, None), mtime=os.path.getmtime(contenedores))
+        except OSError:
+            a1 = nube = 0
+    return {"huecos_mac": max(0, g["maximo"] - ocupados), "huecos_a1": a1, "huecos_nube": nube,
             "proveedores_con_cupo": len(vivos), "presion_mac": g.get("presion") or 0}
 
 

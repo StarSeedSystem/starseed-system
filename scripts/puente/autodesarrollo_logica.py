@@ -122,8 +122,10 @@ def toca_ejecutar(ahora: datetime, horario, capacidad):
         return False, "no hay huecos libres en la Mac, el A1 ni la nube"
     if (c.get("proveedores_con_cupo") or 0) <= 0:
         return False, "ningún proveedor tiene cupo"
-    if (c.get("presion_mac") or 0) >= 2:
-        return False, "la Mac tiene presión de memoria"
+    # (1103) La presión de la Mac solo frena si todo el sitio libre es de la Mac: lo encargado lo coge la nube o el A1.
+    fuera = sum(max(0, c.get(k) or 0) for k in ("huecos_a1", "huecos_nube"))
+    if (c.get("presion_mac") or 0) >= 2 and fuera <= 0:
+        return False, "la Mac tiene presión de memoria y no hay sitio libre en el A1 ni en la nube"
     if 7 <= ahora.hour < 22 and huecos < 2:
         return False, "de día se espera a tener al menos 2 huecos (se prefiere la noche)"
     return True, f"hay capacidad libre ({huecos} huecos)"

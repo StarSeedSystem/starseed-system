@@ -544,3 +544,24 @@ def test_piezas_direccion_incluye_director():
     assert "director" in nombres
     assert any("director_autodesarrollo.py" in p[1] for p in piezas)
 
+
+
+def test_1103_huecos_fuera_del_inventario(tmp_path):
+    import json as _j, os as _o, sys as _s, time as _t
+    _s.path.insert(0, _o.path.dirname(_o.path.abspath(__file__)))
+    import director_autodesarrollo as _D
+    inv = {"contenedores": [
+        {"id": "nube-gh", "estado": "usable", "agentes_libres": 24},
+        {"id": "oracle", "estado": "listo", "agentes_libres": 2},
+        {"id": "claude-nube", "estado": "listo", "agentes_libres": 4},
+        {"id": "cloudroom", "estado": "no_disponible", "agentes_libres": 5}]}
+    assert _D.huecos_fuera(inv, ahora=1000, mtime=900) == (2, 24)
+    assert _D.huecos_fuera(inv, ahora=10_000, mtime=10) == (0, 0)
+    assert _D.huecos_fuera(None) == (0, 0)
+    (tmp_path / "gobernador.json").write_text(_j.dumps({"maximo": 2, "trabajando": 2, "presion": 2}))
+    (tmp_path / "salud-proveedores.json").write_text(_j.dumps({"nim": {"estado": "ok"}}))
+    c = tmp_path / "contenedores.json"
+    c.write_text(_j.dumps(inv))
+    cap = _D.medir_capacidad(str(tmp_path), contenedores=str(c))
+    assert cap["huecos_nube"] == 24 and cap["huecos_a1"] == 2 and cap["huecos_mac"] == 0
+    assert _D.medir_capacidad(str(tmp_path))["huecos_nube"] == 0   # home de pruebas: no lee el inventario real
