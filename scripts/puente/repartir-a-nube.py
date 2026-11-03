@@ -230,7 +230,7 @@ def main():
     # el progreso de esas tareas puede decir «pendiente» un rato (lo pisa la foto de la Mac hasta
     # que procesa el «soltar») y se mandaban a dos o tres jobs seguidos.
     ahora_ts = datetime.datetime.now().timestamp()
-    vuelo = RN.en_vuelo(RN.leer_colas_nube(DESTINO_DIR, ahora_ts), ahora_ts)
+    vuelo = RN.en_vuelo(RN.leer_colas_nube(DESTINO_DIR, ahora_ts), ahora_ts, progreso=progreso)
     if vuelo:
         print("[reparto] en vuelo en la nube (colas de la última hora y cuarto): %d tarea(s), no se reenvían"
               % len(vuelo))

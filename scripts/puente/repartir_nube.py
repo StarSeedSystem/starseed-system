@@ -312,7 +312,23 @@ def sin_lo_de_la_mac(colas, tanda_ids, cedibles=(), ajenas=()):
 EN_VUELO_S = 75 * 60
 
 
-def en_vuelo(colas_nube, ahora_ts, ventana_s=EN_VUELO_S):
+#: (1103 · I) Lo que dice que la tarea YA volvió de la nube (o se cerró): ya no está en vuelo.
+NOTAS_DE_VUELTA = ("devuelta de la nube", "devuelta del carril", "traída de la nube", "reparación desde la nube",
+                   "el carril en la nube no dio sesión")
+ESTADOS_DE_VUELTA = ("commit", "integrada", "sustituida", "descartada", "rechazada", "informe")
+
+
+def ya_volvio(entrada):
+    """PURA (1103 · I). ¿La entrada de progreso dice que la tarea ya volvió de la nube o se cerró?"""
+    if not isinstance(entrada, dict):
+        return False
+    if str(entrada.get("estado") or "") in ESTADOS_DE_VUELTA:
+        return True
+    nota = str(entrada.get("nota") or "").strip().lower()
+    return any(nota.startswith(n) for n in NOTAS_DE_VUELTA)
+
+
+def en_vuelo(colas_nube, ahora_ts, ventana_s=EN_VUELO_S, progreso=None):
     """PURA (CAP1026E): ids de las colas `cola-nube-AAAAMMDD-HHMM*` mandadas hace menos de `ventana_s`.
 
     MEDIDO el 26-10 entre las 12:04 y las 12:08 (hora de la Mac): «Buscar más capacidad» lanzó 8 jobs
@@ -336,6 +352,8 @@ def en_vuelo(colas_nube, ahora_ts, ventana_s=EN_VUELO_S):
             continue
         if -120 <= ahora_ts - cuando < ventana_s:
             salida.update(str(i) for i in ids or [] if i)
+    if progreso:  # (1103 · I) lo que ya volvió (su job terminó) no sigue en vuelo
+        salida = {i for i in salida if not ya_volvio(progreso.get(i))}
     return salida
 
 
