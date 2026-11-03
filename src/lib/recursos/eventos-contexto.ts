@@ -127,12 +127,12 @@ export function generarIdEvento(nodoId: string): string {
   return `evt_${Date.now()}_${nodoId}_${Math.random().toString(36).slice(2)}`;
 }
 
-export function eventoBase(opts: { tipo: string; cuerpo?: unknown; nodoId: string; desfaseMs?: number; ahora: () => number }): EventoContexto {
+export function eventoBase(opts: { tipo: string; cuerpo?: unknown; nodoId: string; desfaseMs?: number; ahora?: () => number }): EventoContexto {
   return {
     id: generarIdEvento(opts.nodoId),
     tipo: opts.tipo,
     cuerpo: opts.cuerpo,
-    t: opts.ahora(),
+    t: opts.ahora ? opts.ahora() : Date.now(),
     nodoId: opts.nodoId,
     desfaseMs: opts.desfaseMs,
   };
