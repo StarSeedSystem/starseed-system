@@ -86,6 +86,23 @@ def huecos_fuera(inventario, ahora=None, vigente_s=CONTENEDORES_VIGENTE_S, mtime
     return a1, nube
 
 
+def ultima_profunda(carpeta, ahora, dias=7):
+    """(1103) (fecha, consolidado) de la sesión de sueños profundos consolidada más reciente de los últimos `dias`
+    (las sesiones se fechan el día que empiezan y se consolidan días después); ("", {}) si no hay."""
+    try:
+        nombres = sorted((n for n in os.listdir(carpeta) if len(n) == 10 and n[4] == "-" and n[7] == "-"), reverse=True)
+    except OSError:
+        return "", {}
+    limite = (ahora - timedelta(days=dias)).strftime("%Y-%m-%d")
+    for n in nombres:
+        if n < limite:
+            break
+        c = _json(os.path.join(carpeta, n, "consolidado.json"), None)
+        if isinstance(c, (dict, list)) and c:
+            return n, c
+    return "", {}
+
+
 def medir_capacidad(home, contenedores=None):
     """Gobernador + salud de proveedores + (1103) el sitio libre del A1 y la nube según el inventario de
     contenedores. Claves no halladas = sin dato (None): nunca se inventa. Con un `home` de pruebas y sin
@@ -439,8 +456,11 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         if "diaria" not in d and f["diaria"]:
             try: d["diaria"] = open(os.path.join(mem, "dream", f"sugerencias-{hoy}.md"), encoding="utf-8").read()
             except OSError: pass
+        fecha_profunda = hoy
         if "profunda" not in d and f["profunda"]:
-            d["profunda"] = _json(os.path.join(mem, "dream", "profundo", hoy, "consolidado.json"), {})
+            # (1103) La última sesión consolidada de la semana, con SU fecha (antes solo la de HOY: nunca entraba).
+            fp, d["profunda"] = ultima_profunda(os.path.join(mem, "dream", "profundo"), ahora)
+            fecha_profunda = fp or hoy
         if "astraura" not in d and f["astraura"]: d["astraura"] = _astraura()
         if "agentes" not in d and f["agentes"]: d["agentes"] = leer_agentes(mem)
         pr = os.path.join(mem, "imaginacion", "propuestas.json")
@@ -451,7 +471,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         if astr:  # Ola 1102 (IMG1102A): el filtro de entrada de Astraura decide antes de crear la propuesta
             astr, filtro = AF.filtrar_astraura(astr, previas.values(), hoy, crudo.get("filtro_astraura") if isinstance(crudo, dict) else None)
         nuevas = (AF.de_diaria(d.get("diaria", ""), hoy, claves) if f["diaria"] else []) + \
-                 (AF.de_profunda(d.get("profunda") or {}, hoy, claves) if f["profunda"] else []) + astr + \
+                 (AF.de_profunda(d.get("profunda") or {}, fecha_profunda, claves) if f["profunda"] else []) + astr + \
                  (AF.de_directores(d.get("directores") or {}, hoy, claves) if f["directores"] else []) + \
                  (AF.de_agentes(d.get("agentes") or {}, hoy, claves, AR.esperadas(previas.values())) if f["agentes"] else [])
         existe = existe_ruta or (lambda r: os.path.isfile(r if os.path.isabs(r) else os.path.join(raiz, r)))

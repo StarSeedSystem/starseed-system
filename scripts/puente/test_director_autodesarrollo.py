@@ -565,3 +565,18 @@ def test_1103_huecos_fuera_del_inventario(tmp_path):
     cap = _D.medir_capacidad(str(tmp_path), contenedores=str(c))
     assert cap["huecos_nube"] == 24 and cap["huecos_a1"] == 2 and cap["huecos_mac"] == 0
     assert _D.medir_capacidad(str(tmp_path))["huecos_nube"] == 0   # home de pruebas: no lee el inventario real
+
+
+def test_1103_ultima_profunda_de_la_semana(tmp_path):
+    import json as _j, os as _o, sys as _s
+    from datetime import datetime as _dt
+    _s.path.insert(0, _o.path.dirname(_o.path.abspath(__file__)))
+    import director_autodesarrollo as _D
+    for fecha, top in (("2026-10-20", [{"titulo": "vieja"}]), ("2026-10-31", [{"titulo": "de la sesión"}]), ("2026-11-01", None)):
+        (tmp_path / fecha).mkdir()
+        if top is not None:
+            (tmp_path / fecha / "consolidado.json").write_text(_j.dumps({"top": top}))
+    fecha, c = _D.ultima_profunda(str(tmp_path), _dt(2026, 11, 2, 20, 0))
+    assert fecha == "2026-10-31" and c["top"][0]["titulo"] == "de la sesión"
+    assert _D.ultima_profunda(str(tmp_path), _dt(2026, 11, 20, 0, 0)) == ("", {})
+    assert _D.ultima_profunda(str(tmp_path / "no-existe"), _dt(2026, 11, 2)) == ("", {})
