@@ -24,7 +24,7 @@ import { pedirPermisosEnSecuencia } from "@/lib/aurora/senses/request-permission
 import { visorBloqueaPermisos } from "@/lib/senses/senses";
 import { PermisosDispositivoPanel } from "@/components/senses/permisos-dispositivo";
 import { thisDeviceId, setNeuronName } from "@/lib/neurons/neurons";
-import { saveOnboarding } from "@/lib/onboarding/onboarding";
+import { saveOnboarding, esCorreoValido, normalizarCorreo, MAX_LONGITUD_CORREO } from "@/lib/onboarding/onboarding";
 import { marcarNeuronaConfigurada } from "@/lib/onboarding/primer-arranque";
 import { hayDireccionPublica, AVISO_SIN_DOMINIO } from "@/lib/mail/direccion-publica";
 import { estadoCorreo, type EstadoCorreo } from "@/lib/mail/estado-correo";
@@ -382,8 +382,8 @@ export function CorreosVinculados({
   useEffect(() => { void cargar(); }, [cargar]);
 
   const vincular = useCallback(async () => {
-    const addr = nuevo.trim().toLowerCase();
-    if (!addr.includes("@")) { setNota("Escribe un correo válido."); return; }
+    const addr = normalizarCorreo(nuevo);
+    if (!esCorreoValido(addr)) { setNota("Escribe un correo válido."); return; }
     setOcupado(true);
     setNota(null);
     try {
@@ -543,6 +543,7 @@ export function CorreosVinculados({
           <div className="flex gap-2 pt-1">
             <Input
               value={nuevo}
+              maxLength={MAX_LONGITUD_CORREO}
               onChange={(e) => setNuevo(e.target.value)}
               placeholder="vincular-otro@correo.com (opcional)"
               type="email"

@@ -444,6 +444,31 @@ export function isValidStarseedAddress(address: string): boolean {
   return LOCALPART_RE.test(local);
 }
 
+/** (SP102411) Longitud máxima de un correo (RFC 5321: 254 en total, 64 la parte local). */
+export const MAX_LONGITUD_CORREO = 254;
+const CORREO_RE = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
+
+/** Normaliza un correo antes de validarlo o guardarlo: sin espacios y en minúsculas. */
+export function normalizarCorreo(input: string): string {
+  return (input || "").trim().toLowerCase();
+}
+
+/**
+ * (SP102411) Validador ÚNICO de correo para todo el rito (recuperación, vincular,
+ * invitado → cuenta). Un correo de recuperación mal formado deja la cuenta sin
+ * forma de recuperarse, así que no basta con «tiene @»: formato, longitudes y
+ * un dominio con punto, sin puntos al borde ni dobles.
+ */
+export function esCorreoValido(input: string): boolean {
+  const c = normalizarCorreo(input);
+  if (!c || c.length > MAX_LONGITUD_CORREO) return false;
+  const arroba = c.lastIndexOf("@");
+  const local = c.slice(0, arroba);
+  if (arroba < 1 || local.length > 64) return false;
+  if (local.startsWith(".") || local.endsWith(".") || c.includes("..")) return false;
+  return CORREO_RE.test(c);
+}
+
 /**
  * Sugiere variantes de dirección @star.seed a partir del @handle y el nombre.
  * Ej: handle@star.seed, nombre.apellido@star.seed, n.apellido@star.seed,
@@ -593,6 +618,10 @@ export async function getStarseedIdentity(): Promise<StarseedIdentity | null> {
 export async function setRecovery(
   cfg: RecoveryConfig,
 ): Promise<{ ok: boolean; error?: string }> {
+  if (cfg.email !== undefined) {
+    if (!esCorreoValido(cfg.email)) return { ok: false, error: "El correo de recuperación no es válido." };
+    cfg = { ...cfg, email: normalizarCorreo(cfg.email) };
+  }
   const owner = await uid();
   if (!owner) return { ok: false, error: "Necesitas iniciar sesión." };
   try {

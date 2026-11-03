@@ -72,6 +72,9 @@ import {
   isEmailAvailable,
   isValidStarseedAddress,
   claimStarseedEmail,
+  esCorreoValido,
+  normalizarCorreo,
+  MAX_LONGITUD_CORREO,
   getStarseedIdentity,
   setRecovery,
   requestVerification,
@@ -496,8 +499,9 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
   // Supabase enlaza el correo al MISMO usuario (mismo user.id), así que el
   // invitado conserva su identidad, @handle y datos al confirmar el enlace.
   const upgradeGuest = useCallback(async () => {
-    const addr = upgradeEmail.trim();
+    const addr = normalizarCorreo(upgradeEmail);
     if (!addr) { toast.error("Escribe un correo para tu cuenta."); return; }
+    if (!esCorreoValido(addr)) { toast.error("Escribe un correo válido."); return; }
     setUpgradeBusy(true);
     try {
       const sb = createClient();
@@ -701,6 +705,7 @@ export default function OnboardingWizard({ onClose }: { onClose?: () => void }) 
           <Input
             type="email"
             value={upgradeEmail}
+            maxLength={MAX_LONGITUD_CORREO}
             onChange={(e) => setUpgradeEmail(e.target.value)}
             placeholder="tu@correo.com"
             className="bg-white/5"
