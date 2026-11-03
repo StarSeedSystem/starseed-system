@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AJUSTES_POR_DEFECTO, ESTADOS_DECIDIBLES, NOMBRE_ESTADO, NOMBRE_FUENTE, ambitoDeLaUrl, decidibles, esAmbito, esDecidible,
   esperaAAlex, filasMedidor, filtrarPorAmbito, interpretarPeticion, leerAmbito, normalizarAmbito, normalizarImportancia, normalizarReferencias,
-  normalizarReimaginacion, reimaginacionesLibres, resumenPastilla, validarAjustes, vetoDecision,
+  normalizarReimaginacion, reimaginacionesLibres, resumenFiltroAstraura, resumenPastilla, validarAjustes, vetoDecision,
   type EstadoPropuesta,
   type PropuestaImaginacion,
 } from "../imaginacion-tipos";
@@ -241,5 +241,31 @@ describe("lo que escribe el director (IMG1024C) leído en TS", () => {
     expect(ambitoDeLaUrl("?ambito=local")).toBe("metagenesis");
     expect(ambitoDeLaUrl("?nivel=meta&ambito=grupo%3Ag1")).toBe("grupo:g1");
     expect(ambitoDeLaUrl("?ambito=personal")).toBe("personal");
+  });
+});
+
+// Ola 1102 · IMG1102D: la clave `filtro_astraura` de `propuestas.json` (el medidor del filtro de
+// entrada de Astraura, contrato `architecture/imaginacion-calidad.md` §1) en línea lista para pintar.
+describe("resumenFiltroAstraura", () => {
+  it("arma la línea con las tres cuentas, la fecha y lo demás lo acota o descarta", () => {
+    const r = resumenFiltroAstraura({
+      fecha: "2026-11-01T03:00:00Z", tope_dia: 3, ventana_dias: 7, vistas: 684, entran: 2,
+      filtradas: { "familia repetida": 303, "tipo de archivo": 320, tope: 59, desconocido: 9 },
+      autorizacion_inventada: 12, por_id: { x: "entra" }, inventadas: ["x"],
+    });
+    expect(r).not.toBeNull();
+    expect(r).toEqual({
+      fecha: "2026-11-01", vistas: 684, entran: 2,
+      filtradas: { "familia repetida": 303, "tipo de archivo": 320, tope: 59 },
+      autorizacionInventada: 12,
+      texto: "Filtradas de Astraura hoy: 682 (familia 303 · tipo 320 · tope 59)",
+    });
+  });
+  it("lo que no es un número natural vale 0, y sin objeto no hay qué pintar", () => {
+    expect(resumenFiltroAstraura(null)).toBeNull();
+    expect(resumenFiltroAstraura([])).toBeNull();
+    expect(resumenFiltroAstraura("x")).toBeNull();
+    expect(resumenFiltroAstraura({ filtradas: { "familia repetida": -5, "tipo de archivo": "dos y pico", tope: 2.4 } }))
+      .toMatchObject({ filtradas: { "familia repetida": 0, "tipo de archivo": 0, tope: 2 }, texto: "Filtradas de Astraura hoy: 2 (familia 0 · tipo 0 · tope 2)" });
   });
 });

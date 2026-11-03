@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AJUSTES_POR_DEFECTO } from "@/lib/mando/imaginacion-tipos";
 import {
-    aprobar, guardarAjustes, integrar, itemAstraura, leerAjustes, leerPropuestas, lote, normalizarPropuesta,
+    aprobar, guardarAjustes, integrar, itemAstraura, leerAjustes, leerPropuestas, leerPropuestasYFiltro, lote, normalizarPropuesta,
     posponer, posponerHasta, rechazar, reimaginar, rutasImaginacion,
 } from "@/lib/mando/imaginacion-servidor";
 
@@ -66,6 +66,20 @@ describe("acciones sobre el disco", () => {
     it("sin archivos: lista vacía y ajustes de defecto", async () => {
         expect(await leerPropuestas(lugar())).toEqual([]);
         expect(await leerAjustes(lugar())).toEqual(AJUSTES_POR_DEFECTO);
+    });
+    // Ola 1102 · IMG1102D: la raíz del JSON también guarda `filtro_astraura` (el medidor del filtro de
+    // Astraura): leerPropuestasYFiltro lo trae con la lista, y si no está o es nulo VA.C.A. sin inventar.
+    it("leerPropuestasYFiltro: la lista normalizada y lo aparte de la raíz, con UNA lectura", async () => {
+        sembrar({ propuestas: [astraura], filtro_astraura: { fecha: "2026-11-01", tope_dia: 3, vistas: 5, entran: 2, filtradas: { "familia repetida": 1, "tipo de archivo": 2, tope: 0 }, autorizacion_inventada: 1, por_id: {} } });
+        const { propuestas, filtro } = await leerPropuestasYFiltro(lugar());
+        expect(propuestas).toHaveLength(1);
+        expect(filtro).toMatchObject({ vistas: 5, entran: 2, filtradas: { "familia repetida": 1, "tipo de archivo": 2, tope: 0 }, autorizacion_inventada: 1 });
+        sembrar({ propuestas: [astraura] });
+        expect((await leerPropuestasYFiltro(lugar())).filtro).toBeUndefined();
+        sembrar([astraura]);
+        expect((await leerPropuestasYFiltro(lugar())).filtro).toBeUndefined();
+        sembrar({ propuestas: [astraura], filtro_astraura: null });
+        expect((await leerPropuestasYFiltro(lugar())).filtro).toBeNull();
     });
     it("Astraura con el backend dormido: error honesto y el archivo queda igual", async () => {
         sembrar([astraura]);

@@ -334,6 +334,39 @@ describe("PanelImaginacion", () => {
         expect(screen.getByRole("button", { name: "Guardar umbral y tope" })).toBeDisabled();
     });
 
+    it("enseña lo filtrado de Astraura y por qué; sin esa clave no pinta nada (Ola 1102 · IMG1102D)", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () =>
+                new Response(
+                    JSON.stringify({
+                        propuestas: [prop({ id: "a1" })], ajustes: AJUSTES_POR_DEFECTO, resumen: {},
+                        filtro: {
+                            fecha: "2026-11-02", vistas: 10, entran: 1,
+                            filtradas: { "familia repetida": 5, "tipo de archivo": 3, tope: 1 },
+                            autorizacionInventada: 2,
+                            texto: "Filtradas de Astraura hoy: 9 (familia 5 · tipo 3 · tope 1)",
+                        },
+                    }),
+                    { status: 200, headers: { "Content-Type": "application/json" } },
+                ),
+            ),
+        );
+        render(<PanelImaginacion ambito="metagenesis" />);
+        const linea = await screen.findByTestId("imaginacion-filtro-astraura");
+        expect(linea).toHaveTextContent("Filtradas de Astraura hoy: 9 (familia 5 · tipo 3 · tope 1)");
+        expect(linea).toHaveAttribute("title", expect.stringContaining("Familia repetida"));
+        await screen.findByTestId("propuesta-a1");
+        cleanup();
+        vi.unstubAllGlobals();
+
+        // Sin la clave (ungüento viejo del filtro… o un JSON sin el medidor) no se pinta.
+        servidor([], sinPost);
+        render(<PanelImaginacion ambito="metagenesis" />);
+        await screen.findByTestId("panel-imaginacion");
+        expect(screen.queryByTestId("imaginacion-filtro-astraura")).toBeNull();
+    });
+
     it("si la lectura falla lo dice; un ámbito sin propuestas lo dice con su nombre y enlaza los demás", async () => {
         vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "No se pudieron leer las propuestas." }), { status: 500 })));
         render(<PanelImaginacion ambito="metagenesis" />);

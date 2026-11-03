@@ -33,6 +33,7 @@ import { Switch } from "@/components/ui/switch";
 // de los botones de código.
 import { PanelAlcance } from "@/components/mando/panel-alcance";
 import {
+    AYUDA_FILTRO_ASTRAURA,
     MAX_REFERENCIAS,
     MAX_REIMAGINACIONES,
     NOMBRE_ESTADO,
@@ -55,6 +56,7 @@ import {
     type PropuestaNormalizada,
     type ReferenciaPropuesta,
     type TipoPropuesta,
+    type FiltroAstraura,
 } from "@/lib/mando/imaginacion-tipos";
 import { nombreDeAmbito } from "@/lib/mando/medidores";
 
@@ -119,7 +121,7 @@ const dominio = (u: string) => {
 
 // ── Datos y red ─────────────────────────────────────────────────────────────────────────────────────
 
-interface DatosImaginacion { propuestas: PropuestaNormalizada[]; ajustes: AjustesAutodesarrollo }
+interface DatosImaginacion { propuestas: PropuestaNormalizada[]; ajustes: AjustesAutodesarrollo; filtro?: FiltroAstraura | null }
 interface ResultadoId { id: string; ok: boolean; error?: string }
 interface RespuestaPost { ok?: boolean; error?: string; propuesta?: PropuestaNormalizada; resultados?: ResultadoId[]; ajustes?: AjustesAutodesarrollo }
 type Envio = { ok: boolean; status: number; datos: RespuestaPost };
@@ -828,7 +830,7 @@ export function PanelImaginacion({
                 setErrorLectura(d?.error ?? `No se pudieron leer las propuestas (HTTP ${r.status}).`);
                 return;
             }
-            setDatos({ propuestas: d.propuestas, ajustes: d.ajustes });
+            setDatos({ propuestas: d.propuestas, ajustes: d.ajustes, filtro: d.filtro ?? null });
             setErrorLectura(null);
             // La selección solo guarda lo que sigue esperando decisión (lo fallido de un lote, sí).
             const siguen = new Set(d.propuestas.filter((p) => esDecidible(p.estado)).map((p) => p.id));
@@ -984,6 +986,16 @@ export function PanelImaginacion({
             </p>
 
             {datos ? <AjustesAutomatico auto={datos.ajustes.auto} alGuardar={guardarAuto} /> : null}
+
+            {datos?.filtro ? (
+                <p
+                    data-testid="imaginacion-filtro-astraura"
+                    title={AYUDA_FILTRO_ASTRAURA}
+                    className="mc-centrado rounded-lg border border-violet-300/20 bg-violet-400/5 px-3 py-1.5 text-[11px] text-white/85"
+                >
+                    {datos.filtro.texto}
+                </p>
+            ) : null}
 
             {errorLectura ? (
                 <p role="alert" className="mc-centrado rounded-lg border border-rose-300/30 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">

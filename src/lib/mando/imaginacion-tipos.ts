@@ -245,6 +245,34 @@ export function resumenPastilla(propuestas: PropuestaImaginacion[], hoy: Date): 
   return { texto: `${espera.length} por decidir · ${reimaginando} reimaginando · ${integradasHoy} integradas hoy`, tono, porDecidir: espera.length, reimaginando, integradasHoy };
 }
 
+export const MOTIVOS_FILTRO = ["familia repetida", "tipo de archivo", "tope"] as const;
+export type MotivoFiltroAstraura = (typeof MOTIVOS_FILTRO)[number];
+/** El medidor del filtro de entrada de Astraura (Ola 1102 · IMG1102A): la clave `filtro_astraura` de
+ * `propuestas.json` o lo que el director trae en `ciclo()`. Contrato: architecture/imaginacion-calidad.md §1. */
+export interface FiltroAstraura {
+  fecha: string; vistas: number; entran: number; filtradas: Record<MotivoFiltroAstraura, number>;
+  autorizacionInventada: number;
+  /** La línea lista para el panel de Imaginación: «Filtradas de Astraura hoy: N (…)». */
+  texto: string;
+}
+/** Por qué se quedaron fuera (para el title del panel). */
+export const AYUDA_FILTRO_ASTRAURA = "Familia repetida: otra de la misma idea sigue abierta, descartada, rechazada o agrupada (últimos 7 días). Tipo de archivo: NEON/SIMD sin un archivo C, C++, Rust, Zig o un kernel donde aplicar. Tope: ya entraron 3 de Astraura hoy.";
+
+/** El medidor del filtro, acotado y con su línea; `null` si lo que llegó no es lo esperado. PURA. */
+export function resumenFiltroAstraura(crudo: unknown): FiltroAstraura | null {
+  if (!esObj(crudo)) return null;
+  const f = esObj(crudo.filtradas) ? crudo.filtradas : {};
+  const filtradas = Object.fromEntries(MOTIVOS_FILTRO.map((m) => [m, cuentaFiltro(f[m])])) as Record<MotivoFiltroAstraura, number>;
+  const total = MOTIVOS_FILTRO.reduce((n, m) => n + filtradas[m], 0);
+  return {
+    fecha: typeof crudo.fecha === "string" ? crudo.fecha.slice(0, 10) : "",
+    vistas: cuentaFiltro(crudo.vistas), entran: cuentaFiltro(crudo.entran), filtradas,
+    autorizacionInventada: cuentaFiltro(crudo.autorizacion_inventada),
+    texto: `Filtradas de Astraura hoy: ${total} (familia ${filtradas["familia repetida"]} · tipo ${filtradas["tipo de archivo"]} · tope ${filtradas.tope})`,
+  };
+}
+const cuentaFiltro = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
+
 /** «aprobar» se conserva por compatibilidad (la API lo acepta); las filas ofrecen «integrar», que es lo mismo. */
 export type AccionPropuesta = "integrar" | "aprobar" | "reimaginar" | "rechazar" | "posponer" | "ver-origen";
 export interface FilaMedidor {
