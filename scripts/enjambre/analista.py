@@ -162,6 +162,8 @@ RECLAMO_CADUCA_S = 3 * 3600
 # (2026-09-29) 8 y no 5: los sueños solo hacen HTTP y ahora se reparten por turnos entre toda
 # la flota viva; el tope real es el cupo por minuto de cada proveedor, no el hierro.
 TOPE_ANALISIS_POR_DEFECTO = 8
+#: (1103) Sueños a la vez cuando hay código esperando sitio o la máquina va bajo presión (STARSEED_SUENOS_CON_TRABAJO).
+TOPE_SUENOS_CON_TRABAJO = 1
 SECCIONES = ("mejora", "riesgo", "idea")
 
 # ─────────────────────────────── flota gratuita ───────────────────────────────
@@ -247,6 +249,20 @@ def estimar_tokens(texto):
 
 def es_analisis(t):
     return isinstance(t, dict) and str(t.get("tipo") or "").strip().lower() == "analisis"
+
+
+def ceder_al_trabajo(tope, codigo_esperando=0, presion=False, env_valor=None):
+    """PURA (1103). El trabajo va antes que los sueños: con tareas de código esperando un trabajador o la máquina
+    bajo presión (el gobernador bajó su tope), como mucho `STARSEED_SUENOS_CON_TRABAJO` (1) sueño a la vez.
+    Medido el 02-11: 8 sueños analizando 60-90 min cada uno y 1 agente de código, con 137 MB de RAM pura."""
+    try:
+        con_trabajo = int(env_valor) if env_valor not in (None, "") else TOPE_SUENOS_CON_TRABAJO
+    except (TypeError, ValueError):
+        con_trabajo = TOPE_SUENOS_CON_TRABAJO
+    tope = max(0, int(tope or 0))
+    if int(codigo_esperando or 0) > 0 or presion:
+        return min(tope, max(0, con_trabajo))
+    return tope
 
 
 def tope_analisis(tareas=(), env_valor=None, libre_mb=None, defecto=TOPE_ANALISIS_POR_DEFECTO):

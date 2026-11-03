@@ -9211,20 +9211,27 @@ def _es_analisis(t):
 _TOPE_AN = {"leido": 0.0, "tope": None}
 
 
-def tope_de_analisis(tareas):
+def tope_de_analisis(tareas, codigo_esperando=0, presion=False):
     """Cuántos sueños (tareas de análisis) a la vez. Solo HTTP: no comparten el tope de los
     agentes de código ni el del gobernador, pero la RAM libre sí los recorta (< 400 MB → la
     mitad). Se recalcula como mucho cada 20 s (memoria_libre_mb lanza vm_stat en la Mac)."""
     ahora_s = time.time()
     if _TOPE_AN["tope"] is not None and ahora_s - _TOPE_AN["leido"] < 20:
-        return _TOPE_AN["tope"]
+        return _ceder_al_trabajo(_TOPE_AN["tope"], codigo_esperando, presion)
     env = os.environ.get("STARSEED_TOPE_ANALISIS")
     if _analista is not None:
         tope = _analista.tope_analisis(tareas, env, memoria_libre_mb())
     else:
         tope = 1
     _TOPE_AN.update(leido=ahora_s, tope=tope)
-    return tope
+    return _ceder_al_trabajo(tope, codigo_esperando, presion)
+
+
+def _ceder_al_trabajo(tope, codigo_esperando, presion):
+    """(1103) Los sueños ceden al trabajo (`analista.ceder_al_trabajo`); sin el módulo, como antes."""
+    if _analista is None or not hasattr(_analista, "ceder_al_trabajo"):
+        return tope
+    return _analista.ceder_al_trabajo(tope, codigo_esperando, presion, os.environ.get("STARSEED_SUENOS_CON_TRABAJO"))
 
 
 # ── director ────────────────────────────────────────────────────────────────
@@ -9373,8 +9380,13 @@ def main():
         # worktree ni puertas, así que no ocupan los huecos de los agentes de código.
         n_analisis = sum(1 for x in activos if _es_analisis(TAREAS_POR_ID.get(x)))
         n_codigo = len(activos) - n_analisis
+        # (1103) Con el código lleno y tareas de código esperando, o el gobernador por debajo de su máximo, los sueños
+        # ceden: como mucho uno a la vez (`analista.ceder_al_trabajo`).
+        codigo_esperando = (
+            sum(1 for x in pendientes.values() if not _es_analisis(x)) if n_codigo >= tope else 0
+        )
         tope_an = (
-            tope_de_analisis(list(TAREAS_POR_ID.values()))
+            tope_de_analisis(list(TAREAS_POR_ID.values()), codigo_esperando, tope < workers)
             if any(_es_analisis(x) for x in pendientes.values())
             else 0
         )

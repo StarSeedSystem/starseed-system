@@ -763,3 +763,14 @@ class Orquestador(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CederAlTrabajo1103(unittest.TestCase):
+    def test_los_suenos_ceden_al_trabajo(self):
+        import analista as AN
+        self.assertEqual(AN.ceder_al_trabajo(8), 8)
+        self.assertEqual(AN.ceder_al_trabajo(8, codigo_esperando=3), 1)
+        self.assertEqual(AN.ceder_al_trabajo(8, presion=True), 1)
+        self.assertEqual(AN.ceder_al_trabajo(8, codigo_esperando=1, env_valor="0"), 0)
+        self.assertEqual(AN.ceder_al_trabajo(8, codigo_esperando=1, env_valor="x"), 1)
+        self.assertEqual(AN.ceder_al_trabajo(0, codigo_esperando=1), 0)
