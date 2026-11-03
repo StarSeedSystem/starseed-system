@@ -259,6 +259,44 @@ def pendientes_totales():
     return n
 
 
+def cambios_de_progreso(antes, despues):
+    """PURA (1103 · N). Las entradas de `despues` que no son iguales en `antes`."""
+    antes = antes if isinstance(antes, dict) else {}
+    return {k: v for k, v in (despues if isinstance(despues, dict) else {}).items() if antes.get(k) != v}
+
+
+def guardar_cambios_progreso(ruta, antes, despues, cerrojo=None, intentos=40, pausa_s=0.25):
+    """(1103 · N) Escribe en progreso.json SOLO lo que cambió, sobre la versión de AHORA, con el cerrojo del progreso
+    (el mismo del orquestador, el reparto y el revisor) y os.replace. Devuelve cuántas entradas escribió."""
+    cambiadas = cambios_de_progreso(antes, despues)
+    if not cambiadas:
+        return 0
+    if cerrojo is None:
+        import suenos
+
+        cerrojo = suenos.cerrojo_progreso
+    with cerrojo():
+        fresco = None
+        for _ in range(max(1, intentos)):
+            try:
+                with open(ruta, encoding="utf-8") as f:
+                    fresco = json.load(f)
+                break
+            except FileNotFoundError:
+                fresco = {}
+                break
+            except (OSError, ValueError):
+                time.sleep(pausa_s)
+        if not isinstance(fresco, dict):
+            return 0  # no se pudo leer entero: mejor no escribir que pisar
+        fresco.update(cambiadas)
+        tmp = "%s.tmp-%d" % (ruta, os.getpid())
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(fresco, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, ruta)
+    return len(cambiadas)
+
+
 def reconciliar_estados():
     """Cierra en_curso rancios, marca commit lo que ya está en main y desbloquea a sus
     dependientes. Ver reconciliar_progreso.py: sin esto Genesis cuenta mentiras."""
@@ -274,16 +312,15 @@ def reconciliar_estados():
             text=True,
             timeout=30,
         ).stdout.splitlines()
+        antes = progreso()
         nuevo, cambios = reconciliar(
-            progreso(),
+            dict(antes),
             asuntos,
             orquestador_vivo(),
             ids_en_colas=ids_de_colas_fuente(OLAS),
         )
         if cambios:
-            json.dump(
-                nuevo, open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1
-            )
+            guardar_cambios_progreso(ruta, antes, nuevo)  # (1103 · N) solo lo cambiado, con cerrojo y os.replace
             _p.decir(
                 "reconciliado progreso.json (%d): %s%s"
                 % (
@@ -588,14 +625,13 @@ def reintentar_sin_cambios(apartados=None, tope=3):
             timeout=30,
         ).stdout.splitlines()
         p = progreso()
+        antes = dict(p)
         elegidas = candidatas(p, asuntos, modelos, salud=salud, ahora=ahora)[:tope]
         for tid, modelo in elegidas:
             p = marcar(p, tid, modelo)
         if elegidas:
             ruta = os.path.join(OLAS, "progreso.json")
-            json.dump(
-                p, open(ruta, "w", encoding="utf-8"), ensure_ascii=False, indent=1
-            )
+            guardar_cambios_progreso(ruta, antes, p)  # (1103 · N) solo lo cambiado, con cerrojo y os.replace
             _p.decir(
                 "reintento de sin_cambios con otro proveedor: %s"
                 % ", ".join("%s→%s" % (t, m) for t, m in elegidas),
