@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   ESQUEMA_VARIACIONES_BUSCAR,
+  ORDENES_VARIACIONES,
   type ListarVariaciones,
   crearHerramientaVariaciones,
   ejecutarVariacionesBuscar,
@@ -31,6 +32,14 @@ describe("variaciones_buscar · esquema y argumentos", () => {
     expect(ESQUEMA_VARIACIONES_BUSCAR.required).toEqual(["clave"]);
     expect(Object.keys(ESQUEMA_VARIACIONES_BUSCAR.properties)).toEqual(["clave", "buscar", "orden"]);
     expect(ESQUEMA_VARIACIONES_BUSCAR.properties.orden.enum).toContain("valoradas");
+  });
+
+  it("declara el vocabulario de órdenes cerrado y una descripción con contenido", () => {
+    expect(variaciones_buscar.descripcion.length).toBeGreaterThan(10);
+    expect(ORDENES_VARIACIONES).toContain("aurora");
+    expect(ORDENES_VARIACIONES).toHaveLength(6);
+    expect((ESQUEMA_VARIACIONES_BUSCAR.properties.orden as { enum: readonly string[] }).enum)
+      .toEqual(ORDENES_VARIACIONES);
   });
 
   it("lee la clave, recorta la búsqueda y acepta solo órdenes conocidos", () => {
@@ -94,6 +103,26 @@ describe("variaciones_buscar · manejador", () => {
     const rota = await ejecutarVariacionesBuscar(async () => { throw new Error("fetch failed"); }, { clave: "widget:clima" });
     expect(texto(rota)).toContain("fetch failed");
     expect(rota.esError).toBe(true);
+  });
+
+  it("rechaza clave no string, solo espacios o sin id, sin tocar la capa de datos", async () => {
+    const listar = async () => {
+      throw new Error("la capa de datos no debe llamarse");
+    };
+    for (const clave of [undefined, "   ", "widget"]) {
+      const r = await ejecutarVariacionesBuscar(listar, { clave });
+      expect(r.esError).toBe(true);
+      expect(texto(r)).toContain("Error: Clave");
+    }
+  });
+
+  it("rechaza un orden fuera del vocabulario, sin tocar la capa de datos, y lo explica", async () => {
+    const listar = async () => {
+      throw new Error("la capa de datos no debe llamarse");
+    };
+    const r = await ejecutarVariacionesBuscar(listar, { clave: "widget:clima", orden: "mas_vistas" });
+    expect(r.esError).toBe(true);
+    expect(texto(r)).toContain("no es un orden (aurora, novedades");
   });
 
   it("la fábrica recorta la clave y la búsqueda antes de llamar a la capa inyectada", async () => {
