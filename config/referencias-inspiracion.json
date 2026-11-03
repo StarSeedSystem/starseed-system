@@ -1499,6 +1499,31 @@
    "og_imagen": null,
    "verificado": "2026-10-25",
    "sin_verificar": []
-  }
- ]
+}
+,{
+   "id": "open-design",
+   "nombre": "OpenDesign",
+   "url": "https://github.com/nexu-io/open-design",
+   "tema": "ia-diseno",
+   "subtema": null,
+   "que_es": "The 1st Collaborative AI Design Agent Workspace. Local-first and open source. Create motion, prototypes, websites, apps, dashboards, presentations, images, and videos with your team and AI agents.",
+   "tipo": "codigo-abierto",
+   "acceso": "libre",
+   "clase_uso": "reutilizable",
+   "condiciones": "Licencia Apache 2.0: uso gratuito, modificación y distribución con atribución del copyright y aviso de licencia. No se permite usar el nombre del autor para promover derivados sin permiso.",
+   "canales": ["github"],
+   "prohibido": [],
+   "actualizacion": [
+     {
+       "tipo": "github",
+       "ref": "nexu-io/open-design"
+     }
+   ],
+   "integracion": [],
+   "terminos": "https://github.com/nexu-io/open-design/blob/main/LICENSE",
+   "og_imagen": null,
+   "verificado": "2026-11-03",
+   "sin_verificar": []
+ }
+]
 }
