@@ -189,9 +189,69 @@ def tsc_huerfanos(filas):
     return [p for p, (_, args) in tabla.items() if es_tsc(args) and _tsc_sin_agente(tabla, p)]
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# (2026-11-03, SUP0211F) EL CLIENTE `codegraph serve --mcp` DE UN AGENTE QUE YA MURIÓ
+#
+# El 01-11, con la Mac de 8 GB en swap al 87 % y carga 46, seguía vivo un `node …/codegraph serve --mcp
+# --path <main> --no-watch` con ppid 1: el opencode que lo abrió como servidor MCP ya había muerto y nadie
+# le hablará más. Es el CLIENTE (lanzador y proxy): lleva el `--no-watch` que le pasa el anfitrión
+# (architecture/repos-3d-oido-agentes-1023.md §2) y de él cuelgan el ejecutable de node del paquete y el
+# `node -e` que lo vigila: se cortan juntos. Cuenta la ORDEN (node + guion codegraph + `serve` + `--mcp`),
+# no la palabra: ni un prompt que nombre codegraph ni `codegraph sync` (el trabajo de launchd
+# com.starseed.codegraph-sync, cada 15 min, con ppid 1 por diseño).
+#
+# OJO: hay OTRO `serve --mcp`, el DEMONIO compartido del proyecto (`.codegraph/daemon.pid`; N sesiones lo usan
+# por un socket). Se lanza aparte y en su propia sesión a propósito («deliberately outlives every individual
+# client», daemon.js): en cuanto se va el proxy que lo lanzó queda con ppid 1, y se apaga solo a los 5 min
+# sin clientes. Codegraph lo relanza con `serve --mcp --path <raíz>` fijo (spawnDetachedDaemon): sin
+# `--no-watch`, que viaja como variable de entorno. Cortarlo con clientes vivos les rompería el servicio y
+# se relanzaría sin parar. Medido el 03-11: el único `serve --mcp` con ppid 1 de la Mac era ese demonio (el
+# `daemon.pid` del proyecto apuntaba a él y su daemon.log seguía escribiendo), no un huérfano.
+# ─────────────────────────────────────────────────────────────────────────────
+def es_codegraph_serve_mcp(args):
+    """¿La orden es `codegraph serve --mcp` (suelto, o `node [opciones] …/codegraph[.js] serve --mcp`)?"""
+    piezas = (args or "").split()
+    i = 0
+    if piezas and piezas[0].rsplit("/", 1)[-1] == "node":
+        i = 1
+        while i < len(piezas) and piezas[i].startswith("-"):
+            if piezas[i] in ("-e", "-p", "--eval", "--print"):
+                return False                # guion en línea: lo que sigue es texto, no un programa
+            i += 1
+    if i >= len(piezas) or piezas[i].rsplit("/", 1)[-1] not in ("codegraph", "codegraph.js"):
+        return False
+    return piezas[i + 1:i + 2] == ["serve"] and "--mcp" in piezas[i + 2:]
+
+
+def es_demonio_codegraph(args):
+    """¿Es el demonio compartido? El mismo `serve --mcp`, pero sin el `--no-watch` de los clientes."""
+    return es_codegraph_serve_mcp(args) and "--no-watch" not in (args or "").split()
+
+
+def codegraph_huerfanos(filas):
+    """Pids de cada cliente `codegraph serve --mcp` adoptado por init (su agente ya murió) y de todo lo que
+    cuelga de él. Nunca el demonio compartido (acaba con ppid 1 por diseño), aunque lo haya lanzado ese cliente.
+
+    `filas`: (pid, ppid, args) como da `ps -eo pid=,ppid=,args=`. Salen en el orden en que llegaron."""
+    tabla = _tabla(filas)
+    hijos = {}
+    for pid, (ppid, _) in tabla.items():
+        hijos.setdefault(ppid, []).append(pid)
+    pendientes = [p for p, (ppid, args) in tabla.items()
+                  if ppid == 1 and es_codegraph_serve_mcp(args) and not es_demonio_codegraph(args)]
+    fuera = set(pendientes)
+    while pendientes:                       # baja por el árbol: hijos, nietos… menos el demonio que lanzó el proxy
+        for hijo in hijos.get(pendientes.pop(), ()):
+            if hijo > 1 and hijo not in fuera and not es_demonio_codegraph(tabla[hijo][1]):
+                fuera.add(hijo)
+                pendientes.append(hijo)
+    return [p for p in tabla if p in fuera]
+
+
 def trabajadores_huerfanos(filas):
     """Pids de lo que ya no sirve a nadie y retiene RAM: los trabajadores de vitest adoptados por
-    init (su vitest ya murió) y, desde SUP0111K, el árbol de un tsc sin agente (`tsc_huerfanos`).
+    init (su vitest ya murió), el árbol de un tsc sin agente (`tsc_huerfanos`, SUP0111K) y el de un
+    cliente `codegraph serve --mcp` sin agente (`codegraph_huerfanos`, SUP0211F).
 
     `filas`: (pid, ppid, args) como da `ps -eo pid=,ppid=,args=`."""
     filas = list(filas or ())               # se recorre más de una vez
@@ -204,7 +264,7 @@ def trabajadores_huerfanos(filas):
             continue
         if ppid == 1 and es_trabajador_de_puerta(args) and pid not in fuera:
             fuera.append(pid)
-    for pid in tsc_huerfanos(filas):
+    for pid in tsc_huerfanos(filas) + codegraph_huerfanos(filas):
         if pid not in fuera:
             fuera.append(pid)
     return fuera

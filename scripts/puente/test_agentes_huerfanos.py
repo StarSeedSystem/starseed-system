@@ -168,5 +168,74 @@ class TscHuerfanos(unittest.TestCase):
         self.assertEqual(A.tsc_huerfanos(filas), [])
 
 
+class CodegraphHuerfanos(unittest.TestCase):
+    """(SUP0211F) El cliente `codegraph serve --mcp` que sobrevivió a su opencode (01-11: swap al 87 %, carga 46)."""
+
+    PAQUETE = "/Users/alex/.local/lib/node_modules/@colbymchenry/codegraph/node_modules/@colbymchenry/codegraph-darwin-arm64"
+    NODE = PAQUETE + "/node --liftoff-only --disable-warning=ExperimentalWarning " + PAQUETE + "/lib/dist/bin/codegraph.js "
+    LANZADOR = "node /Users/alex/.local/bin/codegraph serve --mcp --path /repo --no-watch"   # lo que abre el anfitrión
+    PROXY = NODE + "serve --mcp --path /repo --no-watch"                                    # lo relanza el lanzador
+    DEMONIO = NODE + "serve --mcp --path /repo"          # lo lanza el proxy aparte, en su sesión: sin --no-watch
+    SYNC = "node /Users/alex/.local/bin/codegraph sync /repo"
+    # `ps` enseña los saltos de línea del guion de `node -e` como \012
+    VIGILA = PAQUETE + r"/node -e \012const fs = require('fs');\012const parentPid = Number(process.argv[1]);"
+
+    def arbol(self, padre):
+        """Lanzador → proxy (+ su vigilante) → demonio compartido (+ su vigilante), este lanzado por el proxy."""
+        return [(900, padre, self.LANZADOR), (901, 900, self.PROXY), (902, 901, self.VIGILA),
+                (903, 901, self.DEMONIO), (904, 903, self.VIGILA)]
+
+    def test_el_caso_del_01_11_el_cliente_adoptado_por_init_con_lo_suyo_pero_sin_el_demonio(self):
+        self.assertEqual(A.codegraph_huerfanos(self.arbol(1)), [900, 901, 902])
+        sin_lanzador = [(f[0], 1 if f[0] == 901 else f[1], f[2]) for f in self.arbol(1)[1:]]
+        self.assertEqual(A.codegraph_huerfanos(sin_lanzador), [901, 902])
+        self.assertEqual(A.codegraph_huerfanos([("950", "1", self.LANZADOR)]), [950])   # como llegan del guardia
+
+    def test_el_demonio_compartido_tiene_ppid_1_por_diseno_y_no_se_toca(self):
+        # El que había vivo al medir: ppid 1, `serve --mcp` sin --no-watch, con su `node -e` vigilante.
+        demonio = [(910, 1, self.DEMONIO), (911, 910, self.VIGILA)]
+        self.assertEqual(A.codegraph_huerfanos(demonio), [])
+        vivo = [(850, 800, OPENCODE), (851, 850, self.LANZADOR), (852, 851, self.PROXY)]
+        self.assertEqual(A.codegraph_huerfanos(demonio + vivo), [])
+
+    def test_el_sync_de_launchd_no_se_toca(self):
+        filas = [(920, 1, self.SYNC), (921, 920, self.NODE + "sync /repo")]
+        self.assertEqual(A.codegraph_huerfanos(filas), [])
+
+    def test_un_cliente_con_su_opencode_vivo_no_se_toca_y_el_huerfano_si(self):
+        viva = [(850, 800, OPENCODE), (851, 850, self.LANZADOR), (852, 851, self.PROXY), (853, 852, self.VIGILA)]
+        self.assertEqual(A.codegraph_huerfanos(viva), [])
+        self.assertEqual(A.codegraph_huerfanos(viva + self.arbol(1)), [900, 901, 902])
+
+    def test_un_programa_que_solo_nombra_codegraph_no_se_toca(self):
+        filas = [(930, 1, OPENCODE + " usa codegraph serve --mcp --path /repo --no-watch"),
+                 (931, 1, "grep -r codegraph serve --mcp /repo"), (932, 1, "tail -f /tmp/starseed-codegraph-sync.log"),
+                 (933, 1, "node /repo/scripts/codegraph-notas.js serve --mcp --no-watch"), (934, 1, self.VIGILA),
+                 (935, 1, "node -e codegraph serve --mcp --no-watch")]
+        self.assertEqual(A.codegraph_huerfanos(filas), [])
+
+    def test_reconoce_la_orden_y_distingue_al_demonio(self):
+        for si in (self.LANZADOR, self.PROXY, self.DEMONIO, "codegraph serve --mcp --path /repo"):
+            self.assertTrue(A.es_codegraph_serve_mcp(si), si)
+        for no in (self.SYNC, self.NODE + "sync /repo", "", None, "node /Users/alex/.local/bin/codegraph serve --path /repo",
+                   "node /Users/alex/.local/bin/codegraph sync --mcp /repo"):   # el subcomando manda, no solo --mcp
+            self.assertFalse(A.es_codegraph_serve_mcp(no), no)
+        self.assertTrue(A.es_demonio_codegraph(self.DEMONIO))
+        self.assertFalse(any(A.es_demonio_codegraph(c) for c in (self.LANZADOR, self.PROXY, self.SYNC, None)))
+
+    def test_trabajadores_huerfanos_lo_incluye_sin_repetir(self):
+        filas = [(39558, 1, "node (vitest 2)"), (2004, 1, "npm exec tsc --noEmit")] + self.arbol(1)
+        esperado = [39558, 2004, 900, 901, 902]
+        self.assertEqual(A.trabajadores_huerfanos(filas), esperado)
+        self.assertEqual(A.trabajadores_huerfanos(iter(filas + filas)), esperado)
+        self.assertEqual(A.trabajadores_huerfanos([(920, 1, self.SYNC), (910, 1, self.DEMONIO)] + self.arbol(850)), [])
+
+    def test_filas_rotas_ciclos_y_tabla_absurda_no_revientan(self):
+        filas = [None, ("x", 1, self.LANZADOR), (1, 2), (10, 11, self.LANZADOR), (11, 10, self.LANZADOR)]
+        self.assertEqual(A.codegraph_huerfanos(filas), [])
+        absurda = [(900, 1, self.LANZADOR), (1, 900, "/sbin/launchd"), (777, 1, "/usr/sbin/cfprefsd")]
+        self.assertEqual(A.codegraph_huerfanos(absurda), [900])   # init nunca cuelga de nadie: no arrastra a sus hijos
+
+
 if __name__ == "__main__":
     unittest.main()
