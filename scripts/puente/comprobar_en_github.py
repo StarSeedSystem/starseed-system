@@ -19,6 +19,9 @@ Cómo, sin tocar main ni gastar nada:
    gastado); la siguiente lee el veredicto, guardado por (base, árbol) en `~/.starseed/comprobar-github.json`, y
    borra la rama. Un fallo en tsc o en las pruebas es de la tarea; uno en checkout, dependencias o el propio runner
    es del medio y se repite.
+   (SUP0211X, 02-11) La puerta tsc del orquestador (`esperar_tsc`) espera con `rapido=True`: lee el veredicto de
+   todas pero deja el borrado de ramas ajenas y el detalle de sus fallos para la próxima llamada lenta
+   (`traer_nube`), que en la primera pasada de esa noche tardó ~4 min con el cerrojo de ESTADO tomado.
 Devuelve `(ok, detalle, del_medio)` como `comprobar_en_a1`, o None si aquí no aplica (sin repo en `cwd`,
 desactivado con STARSEED_COMPROBAR_GITHUB=0): entonces `traer_nube` sigue como antes (A1, luego la Mac).
 Nunca imprime claves: el job no tiene ninguna.
@@ -99,6 +102,13 @@ def podar(estado, ahora):
 
 def en_vuelo(estado):
     return sum(1 for e in (estado or {}).values() if isinstance(e, dict) and e.get("estado") == "en_curso")
+
+
+def diferir(clave_propia, clave, rapido):
+    """PURA (SUP0211X). ¿El borrado de la rama (y el detalle del fallo) de esta comprobación se deja para la
+    próxima llamada lenta? En una llamada rápida solo la entrada propia se completa: las demás solo leen su
+    veredicto (así `en_vuelo` no cuenta lo que ya acabó) y no entorpecen la espera de la puerta tsc."""
+    return bool(rapido) and clave != clave_propia
 
 
 # ── máquina ──
@@ -198,7 +208,7 @@ def esperar_tsc(base_sha, cambiados, cwd, esperar_s, dormir=time.sleep, reloj=ti
     fin = inicio + max(0, esperar_s)
     subida = None
     while True:
-        r = comprobar(base_sha, [], cambiados, cwd=cwd)
+        r = comprobar(base_sha, [], cambiados, cwd=cwd, rapido=True)
         if r is None:
             return None
         if subida is None:
@@ -281,11 +291,27 @@ def _leer_run(run_id):
         return {}
 
 
-def _refrescar(estado, ahora):
+def _refrescar(estado, ahora, clave_propia="", rapido=False):
     """(CAP1026R) Lee el veredicto de las comprobaciones en curso cuyo run ya acabó, sean de esta base o de otra:
-    guarda «ok»/«fallo» (y borra su rama), olvida las del medio. Así una base vieja no ocupa los sitios."""
+    guarda «ok»/«fallo» (y borra su rama), olvida las del medio. Así una base vieja no ocupa los sitios.
+
+    (SUP0211X) Con rapido=True (la puerta tsc del orquestador esperando) TODAS se leen igual, pero lo caro de las
+    ajenas — borrar la rama y traer el detalle del fallo — se deja para la próxima llamada lenta: se marcan con
+    «pendiente_borrar» (y «pendiente_detalle», si es un fallo). La propia se completa siempre (su detalle es el
+    veredicto que se espera). Una llamada sin rapido remata primero lo pendiente."""
     for k, e in list(estado.items()):
-        if not isinstance(e, dict) or e.get("estado") != "en_curso" or ahora - float(e.get("visto") or 0) < REFRESCO_S:
+        if not isinstance(e, dict):
+            continue
+        if e.get("pendiente_borrar") or e.get("pendiente_detalle"):
+            if not diferir(clave_propia, k, rapido):
+                if e.pop("pendiente_borrar", None):
+                    _borrar_rama(e.get("rama") or "")
+                if e.pop("pendiente_detalle", None):
+                    e["detalle"] = _detalle_fallo(e.get("run") or "")
+                if e.get("estado") == "medio":  # era del medio: ahora sí se olvida
+                    estado.pop(k, None)
+            continue
+        if e.get("estado") != "en_curso" or ahora - float(e.get("visto") or 0) < REFRESCO_S:
             continue
         e["visto"] = ahora
         run = e.get("run") or (_run_de_rama(e.get("rama") or "") or {}).get("id")
@@ -295,14 +321,25 @@ def _refrescar(estado, ahora):
         datos = _leer_run(run)
         est, paso = veredicto(datos, _jobs(run) if datos.get("status") == "completed" else [])
         if est in ("ok", "fallo"):
-            e.update(estado=est, paso=paso, detalle=_detalle_fallo(run) if est == "fallo" else "", t=ahora)
-            _borrar_rama(e["rama"])
+            e.update(estado=est, paso=paso, t=ahora)
+            if diferir(clave_propia, k, rapido):
+                e["pendiente_borrar"] = True  # (SUP0211X) el borrado y el detalle, para la llamada lenta
+                if est == "fallo":
+                    e["pendiente_detalle"] = True
+                    e["detalle"] = ""
+            else:
+                e["detalle"] = _detalle_fallo(run) if est == "fallo" else ""
+                _borrar_rama(e["rama"])
         elif est == "medio":
-            estado.pop(k, None)
-            _borrar_rama(e["rama"])
+            if diferir(clave_propia, k, rapido):
+                e["estado"] = "medio"  # (SUP0211X) ya libera sitio; su rama se borra en la llamada lenta
+                e["pendiente_borrar"] = True
+            else:
+                estado.pop(k, None)
+                _borrar_rama(e["rama"])
 
 
-def comprobar(base_sha, shas, cambiados, timeout=None, cwd=None, ahora=None):  # noqa: ARG001 — firma de comprobar_en_a1
+def comprobar(base_sha, shas, cambiados, timeout=None, cwd=None, ahora=None, rapido=False):  # noqa: ARG001 — firma de comprobar_en_a1
     if os.environ.get("STARSEED_COMPROBAR_GITHUB", "1") == "0" or not cwd or not os.path.isdir(cwd):
         return None
     rc, arbol = _git(cwd, ["rev-parse", "HEAD^{tree}"], timeout=30)
@@ -321,20 +358,23 @@ def comprobar(base_sha, shas, cambiados, timeout=None, cwd=None, ahora=None):  #
         fcntl.flock(cerrojo, fcntl.LOCK_EX)
         try:
             return _comprobar(arbol.strip(), cabeza.strip(), str(base_sha).strip(), cambiados, cwd,
-                              time.time() if ahora is None else ahora)
+                              time.time() if ahora is None else ahora, rapido)
         finally:
             fcntl.flock(cerrojo, fcntl.LOCK_UN)
 
 
-def _comprobar(arbol, cabeza, base_sha, cambiados, cwd, ahora):
+def _comprobar(arbol, cabeza, base_sha, cambiados, cwd, ahora, rapido=False):
+    clave = clave_de(base_sha, arbol)
     crudo = _leer()
     estado = podar(crudo, ahora)
     # (CAP1026R) Lo que caducó sin veredicto deja de ocupar sitio y su rama no se queda en GitHub.
     for k, e in crudo.items():
         if k not in estado and isinstance(e, dict) and e.get("estado") == "en_curso" and e.get("rama"):
-            _borrar_rama(e["rama"])
-    _refrescar(estado, ahora)
-    clave = clave_de(base_sha, arbol)
+            if diferir(clave, k, rapido):  # (SUP0211X) su rama se borra en la próxima llamada lenta
+                estado[k] = dict(e, estado="medio", pendiente_borrar=True)
+            else:
+                _borrar_rama(e["rama"])
+    _refrescar(estado, ahora, clave, rapido)
     e = estado.get(clave)
     parche = None
     if not e:

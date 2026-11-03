@@ -266,6 +266,97 @@ class MainSeMueve(unittest.TestCase):
         self.assertIn("comprobar/v/1", self.borradas)
 
 
+class Rapido(unittest.TestCase):
+    """(SUP0211X, 02-11 23:07) La puerta tsc del orquestador espera con rapido=True: las ajenas dejan su
+    borrado de rama (y su detalle de fallo) para la próxima llamada lenta; la propia se completa siempre."""
+
+    def test_diferir(self):
+        self.assertFalse(G.diferir("a", "a", True))  # la propia: se completa siempre
+        self.assertFalse(G.diferir("a", "b", False))  # llamada lenta: nada se difiere
+        self.assertTrue(G.diferir("a", "b", True))  # ajena en una llamada rápida: se difiere
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.estado = os.path.join(self.tmp.name, "comprobar-github.json")
+        for x in (mock.patch.object(G, "ESTADO", self.estado), mock.patch.object(G.time, "sleep", lambda s: None)):
+            x.start()
+            self.addCleanup(x.stop)
+        self.empujes, self.borradas, self.vistos = [], [], []
+
+    def _git(self, cwd, args, timeout=180):
+        if args[:2] == ["rev-parse", "HEAD^{tree}"]:
+            return 0, ARBOL + "\n"
+        if args[:2] == ["rev-parse", "HEAD"]:
+            return 0, CABEZA + "\n"
+        if args[:3] == ["remote", "get-url", "origin"]:
+            return 0, "https://github.com/StarSeedSystem/starseed-system.git\n"
+        if args[:1] == ["push"]:
+            (self.borradas if "--delete" in args else self.empujes).append(args[-1])
+            return 0, ""
+        return 1, "?"
+
+    def _gh(self, run):
+        def gh(args, timeout=60):
+            ruta = args[1] if len(args) > 1 else ""
+            if "actions/runs?" in ruta:
+                return 0, json.dumps([dict(run, name="comprobar-nube")]), ""
+            if ruta.endswith("/jobs"):
+                return 0, json.dumps([{"steps": [{"name": "tsc", "conclusion": run.get("paso_falla", "success")}]}]), ""
+            if "actions/runs/" in ruta:
+                return 0, json.dumps({"status": run["status"], "conclusion": run.get("conclusion")}), ""
+            if args[:2] == ["run", "view"]:
+                self.vistos.append(ruta)
+                return 0, "puertas\ttsc\terror TS2322: Type 'x' is not assignable", ""
+            return 1, "", "?"
+        return gh
+
+    def test_rapido_no_borra_rama_ajena_y_la_marca(self):
+        ajena = {"estado": "en_curso", "rama": "comprobar/otra/1", "run": 55, "t": T, "visto": T - 600}
+        with open(self.estado, "w") as f:
+            json.dump({"otra": ajena}, f)
+        with mock.patch.object(G, "_git", self._git), \
+                mock.patch.object(G, "_gh", self._gh({"id": 55, "status": "completed", "conclusion": "success"})):
+            G.comprobar(BASE, [], ["src/a.ts"], cwd=self.tmp.name, ahora=T + 900, rapido=True)
+        self.assertEqual(self.borradas, [])  # nada se borra mientras la puerta espera
+        self.assertEqual(len(self.empujes), 1)  # la propia sí se lanzó
+        with open(self.estado) as f:
+            d = json.load(f)
+        e = d["otra"]
+        self.assertEqual(e["estado"], "ok")
+        self.assertTrue(e["pendiente_borrar"])
+
+    def test_rapido_difiere_tambien_el_detalle_del_fallo(self):
+        ajena = {"estado": "en_curso", "rama": "comprobar/otra/2", "run": 56, "t": T, "visto": T - 600}
+        with open(self.estado, "w") as f:
+            json.dump({"otra": ajena}, f)
+        run = {"id": 56, "status": "completed", "conclusion": "failure", "paso_falla": "failure"}
+        with mock.patch.object(G, "_git", self._git), mock.patch.object(G, "_gh", self._gh(run)):
+            G.comprobar(BASE, [], ["src/a.ts"], cwd=self.tmp.name, ahora=T + 900, rapido=True)
+        self.assertEqual(self.vistos, [])  # ni gh log-failed: eso lo paga la llamada lenta
+        with open(self.estado) as f:
+            d = json.load(f)
+        e = d["otra"]
+        self.assertEqual(e["estado"], "fallo")
+        self.assertTrue(e["pendiente_detalle"])
+
+    def test_una_llamada_normal_completa_lo_pendiente(self):
+        ajena = {"estado": "fallo", "paso": "tsc", "rama": "comprobar/otra/3", "run": 57, "t": T,
+                 "visto": T - 600, "detalle": "", "pendiente_borrar": True, "pendiente_detalle": True}
+        with open(self.estado, "w") as f:
+            json.dump({"otra": ajena}, f)
+        with mock.patch.object(G, "_git", self._git), \
+                mock.patch.object(G, "_gh", self._gh({"id": 57, "status": "completed", "conclusion": "success"})):
+            G.comprobar(BASE, [], ["src/a.ts"], cwd=self.tmp.name, ahora=T + 900)
+        self.assertIn("comprobar/otra/3", self.borradas)
+        with open(self.estado) as f:
+            d = json.load(f)
+        e = d["otra"]
+        self.assertFalse(e.get("pendiente_borrar"))
+        self.assertFalse(e.get("pendiente_detalle"))
+        self.assertIn("TS2322", e.get("detalle") or "")
+
+
 class LaPuertaDelOrquestadorEspera(unittest.TestCase):
     """(CAP1026P) La puerta tsc del orquestador de la Mac: lanza en GitHub y ESPERA el veredicto del paso tsc."""
 
@@ -288,7 +379,7 @@ class LaPuertaDelOrquestadorEspera(unittest.TestCase):
     def _correr(self, respuestas, entrada=None, jobs=None, esperar_s=600):
         seq = list(respuestas)
 
-        def comprobar(base, shas, cambiados, cwd=None):
+        def comprobar(base, shas, cambiados, cwd=None, rapido=False):
             return seq.pop(0) if len(seq) > 1 else seq[0]
         with mock.patch.object(G, "comprobar", comprobar), \
                 mock.patch.object(G, "_entrada", lambda b, c: entrada), \
@@ -342,7 +433,7 @@ class LaPuertaDelOrquestadorEspera(unittest.TestCase):
         esperando = (False, G.ESPERANDO + " (run ?): lanzada", True)
         llamadas = []
 
-        def comprobar(base, shas, cambiados, cwd=None):
+        def comprobar(base, shas, cambiados, cwd=None, rapido=False):
             if not llamadas:
                 self.t[0] += primera_s
                 llamadas.append(self.t[0])
