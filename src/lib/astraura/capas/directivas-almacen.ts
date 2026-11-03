@@ -66,14 +66,16 @@ export function leerDirectivas(capa: string): ArchivoDirectivas | null {
   return leerRegistro()[capa] ?? null;
 }
 
-/** ¿El archivo que llega aporta algo nuevo (activa distinta u historial cambiado)? */
-const aporta = (nuevo: ArchivoDirectivas, previo: ArchivoDirectivas | undefined): boolean =>
-  !previo ||
-  nuevo.activa !== previo.activa ||
-  JSON.stringify(nuevo.historial) !== JSON.stringify(previo.historial);
+/** ¿El archivo que llega gana al guardado (activa más nueva o historial distinto)? */
+const aporta = (nuevo: ArchivoDirectivas, previo: ArchivoDirectivas | undefined): boolean => {
+  if (!previo) return true;
+  const masNueva =
+    nuevo.activa !== null && (previo.activa === null || nuevo.activa > previo.activa);
+  return masNueva || JSON.stringify(nuevo.historial) !== JSON.stringify(previo.historial);
+};
 
 /**
- * Guarda el archivo de una capa si su versión activa cambió o el historial es otro.
+ * Guarda el archivo de una capa si su versión activa es más nueva o el historial es otro.
  * Devuelve true solo cuando escribió y emitió `DIRECTIVAS_EVENT`.
  */
 export function guardarDirectivas(capa: string, archivo: ArchivoDirectivas): boolean {
