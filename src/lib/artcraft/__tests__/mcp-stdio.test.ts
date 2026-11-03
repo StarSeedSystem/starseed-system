@@ -36,6 +36,12 @@ describe("trocearLineas", () => {
   });
 });
 
+describe("LIMITE_LINEA", () => {
+  it("son los 32 MiB de FigCraft", () => {
+    expect(LIMITE_LINEA).toBe(32 * 1024 * 1024);
+  });
+});
+
 describe("ClienteMcpStdio", () => {
   it("hace el handshake y manda initialized", async () => {
     const { transporte, cliente } = montar();
@@ -135,6 +141,20 @@ describe("ClienteMcpStdio", () => {
     const resultado = await promesa;
     if (!("tipo" in resultado)) throw new Error("se esperaba una imagen");
     expect(resultado.mime).toBe("image/png"); expect(Array.from(resultado.bytes)).toEqual(Array.from(datos));
+  });
+  it("descarta los bloques que no son texto sin romper la llamada", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("eso", {}, 1000);
+    transporte.responder(transporte.ultima.id, { content: [{ type: "resource", uri: "figcraft://doc" }, { type: "text", text: "solo esto" }] });
+    expect(await promesa).toEqual({ ok: true, texto: "solo esto" });
+  });
+  it("ignora la respuesta de un id desconocido y sigue atendiendo", async () => {
+    const { transporte, cliente } = montar();
+    transporte.enviar('{"jsonrpc":"2.0","id":77,"result":{"tools":[]}}\n');
+    const promesa = cliente.listar(1000);
+    transporte.responder(transporte.ultima.id, { tools: [{ name: "get_cell" }] });
+    expect(await promesa).toEqual({ tools: [{ name: "get_cell" }] });
+    expect(cliente.ilegibles).toBe(0);
   });
   it("convierte un error RPC en excepción tipada", async () => {
     const { transporte, cliente } = montar();
