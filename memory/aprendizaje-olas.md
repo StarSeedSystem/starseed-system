@@ -4662,3 +4662,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-11-03 04:28 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** add/add
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (IND1029Abs, OPS1031Cb-d1b). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RESC1031Bb-d1` — pruebas en rojo: vitest falla (rama conservada)
+- `IND1029Abs` — otra cosa: ningún proveedor respondió (does not exist)
+- `OPS1031Cb-d1b` — otra cosa: excepción: 'utf-8' codec can't decode byte 0xa7 in position 0: invalid start byte
+- `RTINF1025Dc` — no escribió nada
