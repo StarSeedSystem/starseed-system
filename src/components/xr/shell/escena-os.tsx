@@ -18,6 +18,8 @@ import { useCalidadDinamica } from "./use-calidad-dinamica";
 import { leerMundo } from "@/lib/vivo/xr-mundo";
 import type { MundoSpec } from "@/lib/xr/mundo-tipos";
 import type { ContextoAcciones } from "./acciones-xr";
+import type { Controlador } from "@/lib/protomolecula/controlador";
+import type { CandidatoParametro } from "@/lib/protomolecula/tipos";
 import { refSalaDeUrl } from "./ejecutor-mundo";
 import type { ModoXR } from "@/lib/xr/tipos";
 import { CRISTAL } from "@/lib/xr/tokens-3d";
@@ -102,6 +104,8 @@ export function EscenaOS({ modo = null }: Props) {
     const [mundo, setMundo] = useState<MundoSpec | null>(null);
     const [mundoRefId, setMundoRefId] = useState<string | null>(null);
     const [menuAbierto, setMenuAbierto] = useState(false);
+    const [controlador, setControlador] = useState<Controlador | null>(null);
+    const [candidatos, setCandidatos] = useState<readonly CandidatoParametro[]>([]);
     const intentadoRef = useRef(false);
     const alturaOjosRef = useRef<{ metros: number } | null>(null);
     const { nivel: calidadNivel, cambio, aviso } = useCalidadDinamica();
@@ -113,6 +117,22 @@ export function EscenaOS({ modo = null }: Props) {
         let vivo = true;
         setMundoRefId(refId);
         void leerMundo(refId).then((m) => { if (vivo) setMundo(m); });
+        return () => { vivo = false; };
+    }, []);
+
+    // Protomolécula (XR1010AP): si hay un controlador activo, Horizon pinta sus parámetros reales.
+    useEffect(() => {
+        let vivo = true;
+        void (async () => {
+            try {
+                const { controladorActivo } = await import("@/lib/protomolecula/controlador-activo");
+                const c = controladorActivo();
+                if (!vivo || !c) return;
+                const { candidatosDe } = await import("@/lib/protomolecula/registro-atomos");
+                setControlador(c);
+                setCandidatos(candidatosDe(c.obtener().molecula));
+            } catch { /* sin controlador: Parametros3D se omite */ }
+        })();
         return () => { vivo = false; };
     }, []);
 
@@ -188,6 +208,8 @@ export function EscenaOS({ modo = null }: Props) {
                                 pagina={pagina}
                                 acciones={acciones}
                                 menuAbierto={menuAbierto}
+                                controlador={controlador}
+                                candidatos={candidatos}
                             />
                         </group>
                     </XR>

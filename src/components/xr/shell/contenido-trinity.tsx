@@ -91,7 +91,7 @@ export function MontajeTrinity(p: PropsMontajeTrinity) {
                     {hay("pantallas") && mundo.pizarras.map((pizarra) => <Pizarra3D key={pizarra.id} pizarra={pizarra} sala={null} usuarioId={p.yo ?? null} />)}
                 </>
             )}
-            {hay("audio") && <CapaAudio nivel={nivel} salaId={mundo?.nombre ?? "xr-os"} jugadores={p.jugadores ?? []} />}
+            {hay("audio") && <CapaAudio nivel={nivel} salaId={p.mundoRefId ?? mundo?.nombre ?? "xr-os"} jugadores={p.jugadores ?? []} />}
             {hay("presencia") && p.conexion && p.yo && <CapaPresencia yo={p.yo} conexion={p.conexion} jugadores={p.jugadores ?? []} nivel={nivel} />}
         </NivelCalidadContext.Provider>
     );
