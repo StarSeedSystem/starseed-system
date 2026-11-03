@@ -326,7 +326,11 @@ except Exception:  # sin el módulo, se comporta como antes
             return False
 
         @staticmethod
-        def anotar(motivo=""):
+        def sin_modelo_en(salida):
+            return False
+
+        @staticmethod
+        def anotar(motivo="", horas=3.0):
             return 0
 
 
@@ -7827,6 +7831,29 @@ def ejecutar(t, intento=1):
                 "Codex sin cuota de ChatGPT: fuera de la rotación %d min "
                 "(las demás tareas ya no lo intentan)" % minutos,
             )
+        # (2026-10-28) La cuenta de ChatGPT no admite el modelo pedido (igual con
+        # todo modelo): no es cuota, no se arregla esperando. Se aparta 24 h y se
+        # sale SIN contar intento, como una pasarela caída — si no, cada tarea
+        # gasta su primer intento con Codex y vuelve `sin_cambios` (DEC1028A, 8 veces).
+        elif modelo in MODELOS_CODEX and _cupo_codex.sin_modelo_en(out):
+            try:
+                minutos = _cupo_codex.anotar(
+                    "cuenta de ChatGPT sin Codex para %s" % modelo,
+                    horas=_cupo_codex.HORAS_SIN_MODELO,
+                )
+            except Exception:
+                minutos = 0
+            for _m in list(MODELOS_CODEX):
+                if _m in MODELOS:
+                    MODELOS.remove(_m)
+            evento(
+                "proveedor_caido",
+                tid,
+                "%s no admitido con la cuenta de ChatGPT: fuera de la rotación "
+                "%d h, sin gastar intento (las demás tareas ya no lo intentan)"
+                % (modelo, minutos // 60),
+            )
+            continue
         if apartar_si_pide_pago(tid, modelo, out):
             continue
         pista = fallo_de_proveedor(out)

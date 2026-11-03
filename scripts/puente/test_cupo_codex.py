@@ -13,12 +13,29 @@ import cupo_codex as C
 REAL = ("ERROR: You've hit your usage limit. Upgrade to Pro "
         "(https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage")
 
+#: Literal del log del 2026-10-23 (206 sesiones, siempre igual con -m gpt-5.6-sol y -m gpt-5.5).
+REAL_SIN_MODELO = (
+    '{"status":400, "error":{"message":"The \'gpt-5.6-sol\' model is not supported '
+    'when using Codex with a ChatGPT account."}, "code":"model_not_found"}'
+)
+
 AHORA = 1_700_000_000.0
 
 
 class TestDeteccion(unittest.TestCase):
     def test_la_salida_real_de_hoy(self):
         self.assertTrue(C.agotado_en(REAL))
+
+    def test_la_salida_real_sin_modelo(self):
+        self.assertTrue(C.sin_modelo_en(REAL_SIN_MODELO))
+
+    def test_sin_modelo_no_confunde_con_cuota(self):
+        # Dos reacciones opuestas: cuota → esperar 3 h; sin modelo → 24 h fuera.
+        self.assertFalse(C.sin_modelo_en(REAL))
+        self.assertFalse(C.agotado_en(REAL_SIN_MODELO))
+
+    def test_horas_sin_modelo(self):
+        self.assertEqual(C.HORAS_SIN_MODELO, 24)
 
     def test_no_confunde_otros_errores(self):
         # Mismo código de salida, reacción opuesta: aquí hay que cambiar de
