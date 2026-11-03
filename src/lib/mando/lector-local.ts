@@ -191,15 +191,40 @@ export async function leerProgreso(): Promise<Record<string, unknown>> {
 }
 
 /** Colas de olas: todos los `olas/cola-*.json` → `TareaOla[]`. */
+/**
+ * (1103 · R) Tareas de cada cola, recordadas por su mtime y su tamaño: los medidores refrescan cada pocos segundos y
+ * antes parseaban TODAS las colas (28, una de 7 MB) en cada refresco. Se devuelven copias: nadie toca la caché.
+ */
+const CACHE_COLAS = new Map<string, { mtimeMs: number; size: number; tareas: TareaOla[] }>();
+
 export async function leerColas(): Promise<TareaOla[]> {
     const dirOlas = await directorioOlas();
     const nombres = await listarArchivos(dirOlas, "cola-");
     const tareas: TareaOla[] = [];
+    const vistas = new Set<string>();
 
     for (const nombre of nombres) {
-        const crudo = await leerJson(`${dirOlas}/${nombre}`);
-        tareas.push(...tareasDeCola(crudo, nombre));
+        const relativa = `${dirOlas}/${nombre}`;
+        vistas.add(relativa);
+        let marca: { mtimeMs: number; size: number } | null = null;
+        try {
+            const s = await stat(path.join(RAÍZ, relativa));
+            marca = { mtimeMs: s.mtimeMs, size: s.size };
+        } catch {
+            marca = null;
+        }
+        const previa = CACHE_COLAS.get(relativa);
+        if (marca && previa && previa.mtimeMs === marca.mtimeMs && previa.size === marca.size) {
+            tareas.push(...previa.tareas.map((t) => ({ ...t })));
+            continue;
+        }
+        const crudo = await leerJson(relativa);
+        const deCola = tareasDeCola(crudo, nombre);
+        if (marca && crudo !== null) CACHE_COLAS.set(relativa, { ...marca, tareas: deCola.map((t) => ({ ...t })) });
+        else CACHE_COLAS.delete(relativa);
+        tareas.push(...deCola);
     }
+    for (const r of [...CACHE_COLAS.keys()]) if (!vistas.has(r)) CACHE_COLAS.delete(r);
 
     return tareas;
 }
