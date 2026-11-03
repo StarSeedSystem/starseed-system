@@ -6949,6 +6949,34 @@ def foto_enjambre(vivas_txt):
     }
 
 
+def segundos_de_etime(texto):
+    """`etime` de ps (`[[dd-]hh:]mm:ss`) a segundos; None si no se entiende.
+
+    Por qué no `etimes`: el ps de macOS no tiene esa palabra (imprime «keyword not
+    found» y deja la fila sin el número), mientras `etime` existe en macOS y Linux.
+    La conversión va aparte y pura para poder probarla sin tocar procesos (SUP0211R)."""
+    if not isinstance(texto, str):
+        return None
+    t = texto.strip()
+    dias = 0
+    if "-" in t:
+        dias_txt, _, t = t.partition("-")
+        if not dias_txt.isdigit():
+            return None
+        dias = int(dias_txt)
+    partes = t.split(":")
+    if len(partes) not in (2, 3) or not all(
+        p.isdigit() and p.isascii() for p in partes
+    ):
+        return None
+    nums = [int(p) for p in partes]
+    hh = nums[0] if len(nums) == 3 else 0
+    mm, ss = nums[-2], nums[-1]
+    if mm >= 60 or ss >= 60:
+        return None
+    return dias * 86400 + hh * 3600 + mm * 60 + ss
+
+
 def _barrer_tsc_huerfanos():
     """Cada 60 s: mata `node …/bin/tsc` huérfanos (padre muerto o > 20 min) y limpia un
     `pesado.lock` con dueño muerto (2026-09-07, Ola 261, P6b). Por qué: un opencode
@@ -6956,7 +6984,7 @@ def _barrer_tsc_huerfanos():
     bloqueando el turno del resto de la máquina."""
     try:
         p = subprocess.run(
-            ["ps", "-eo", "pid,ppid,etimes,args"],
+            ["ps", "-eo", "pid,ppid,etime,args"],
             capture_output=True,
             text=True,
             timeout=15,
@@ -6969,17 +6997,23 @@ def _barrer_tsc_huerfanos():
             if len(partes) < 4:
                 continue
             try:
-                pid, ppid, etimes = int(partes[0]), int(partes[1]), int(partes[2])
+                pid, ppid = int(partes[0]), int(partes[1])
             except ValueError:
+                continue
+            # `etime` en vez de `etimes`: macOS no tiene la segunda forma. Una fila sin
+            # tiempo claro (columna ausente, «keyword not found») no se toca.
+            etime_s = segundos_de_etime(partes[2])
+            if etime_s is None:
                 continue
             if pid == ahora_pid:
                 continue
-            if not _pid_vivo(ppid) or etimes > 20 * 60:
+            if not _pid_vivo(ppid) or etime_s > 20 * 60:
                 try:
                     evento(
                         "aviso",
                         "",
-                        "tsc huérfano eliminado (pid %d, %d min)" % (pid, etimes // 60),
+                        "tsc huérfano eliminado (pid %d, %d min)"
+                        % (pid, etime_s // 60),
                     )
                     os.kill(pid, signal.SIGKILL)
                 except Exception:
