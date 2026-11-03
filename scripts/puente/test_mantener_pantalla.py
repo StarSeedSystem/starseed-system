@@ -24,6 +24,12 @@ class LeerModoTests(unittest.TestCase):
         self.assertEqual(leer_modo("{roto"), "pantalla")
         self.assertEqual(leer_modo(""), "pantalla")
 
+    def test_json_valido_que_no_es_objeto_enciende_pantalla(self):
+        # Rescate RTKAL1101A: una lista, un número o null son JSON válido pero
+        # no un ajuste; valen "pantalla", igual que roto o vacío.
+        for texto in ("[1]", "42", "null"):
+            self.assertEqual(leer_modo(texto), "pantalla")
+
     def test_compatibilidad_activa(self):
         self.assertIsNone(leer_modo(json.dumps({"activa": False})))
         self.assertEqual(leer_modo(json.dumps({"activa": True})), "pantalla")
