@@ -30,6 +30,9 @@ export type ModoSesion = "vr-inmersivo" | "ar-passthrough" | "ar-mano";
 /** El rig de la Trinity (XR1010J): uikit y three se cargan solo al entrar en /xr/os, nunca en el layout raíz. */
 const RigTrinityDinamico = nextDynamic(() => import("./rig-trinity").then((m) => m.RigTrinity), { ssr: false });
 
+/** Comodidad (XR1010AF): viñeta, giro por saltos y subtítulos alrededor del rig; XR1010AS le trae la última frase. */
+const ComodidadDinamico = nextDynamic(() => import("./comodidad").then((m) => m.Comodidad), { ssr: false });
+
 /** Zenith (XR1010O) con la voz de XR1010P enganchada por su puente `pipeline`; carga perezosa también. */
 const OrbeVozDinamico = nextDynamic(() => import("./orbe-voz").then((m) => m.OrbeVoz), { ssr: false });
 
@@ -156,13 +159,16 @@ export function EscenaOS({ modo = null }: Props) {
                 {almacen !== null && (
                     <XR store={almacen}><XROrigin /><AlturaOjos refAltura={alturaOjosRef} alMedir={setAlturaOjosMedida} /></XR>
                 )}
-                    {/* Rig de la Trinity (XR1010J): reemplaza al panel provisional de XR1010G. */}
-                    <RigTrinityDinamico
-                        modo={modoTrinity(modoUrl, plan)}
-                        nivel={calidadNivel}
-                        alturaOjosMedida={alturaOjosMedida}
-                        contenido={{ zenith: <OrbeVozDinamico />, horizon: <HorizonDinamico />, logic: pagina !== null ? <UiSpec3DDinamico spec={pagina} /> : null }}
-                    />
+                    {/* Comodidad (XR1010AF): la viñeta, el giro por saltos y los subtítulos envuelven al rig,
+                        para que los saltos de giro lo lleven consigo. La última frase la trae XR1010AS. */}
+                    <ComodidadDinamico alturaOjos={alturaOjosMedida ?? undefined}>
+                        <RigTrinityDinamico
+                            modo={modoTrinity(modoUrl, plan)}
+                            nivel={calidadNivel}
+                            alturaOjosMedida={alturaOjosMedida}
+                            contenido={{ zenith: <OrbeVozDinamico />, horizon: <HorizonDinamico />, logic: pagina !== null ? <UiSpec3DDinamico spec={pagina} /> : null }}
+                        />
+                    </ComodidadDinamico>
                     {!enSesion && <OrbitControls />}
                 </Suspense>
             </Canvas>
