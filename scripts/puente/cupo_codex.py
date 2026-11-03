@@ -62,6 +62,30 @@ def agotado_en(salida):
     return any(p in b for p in PISTAS)
 
 
+#: Lo que dice la CLI de Codex cuando la cuenta de ChatGPT no puede usar el
+#: modelo que le toca (desde el 2026-10-23 20:55, con gpt-5.6-sol y con
+#: gpt-5.5). Es un 400 que NO es cuota: no se compone con esperar 3 h.
+PISTAS_SIN_MODELO = (
+    "is not supported when using codex with a chatgpt account",
+    "model_not_found",
+)
+
+#: Cuánto se aparta tras un «modelo no admitido»: la cuenta entera pierde a
+#: Codex de 24 h en 24 h, no solo un modelo.
+HORAS_SIN_MODELO = 24.0
+
+
+def sin_modelo_en(salida):
+    """¿Esta salida es «modelo no admitido con la cuenta de ChatGPT»?
+
+    Hermana de `agotado_en`, con el horizonte en un día y la salida directa de
+    la rotación: reintentar con otro modelo de Codex solo encuentra el mismo
+    400, y cada tarea que lo prueba pierde ahí su primer intento.
+    """
+    b = (salida or "").lower()
+    return any(p in b for p in PISTAS_SIN_MODELO)
+
+
 def hasta_cuando(ahora, horas=HORAS):
     """El epoch hasta el que conviene no intentarlo."""
     return float(ahora) + float(horas) * 3600.0
