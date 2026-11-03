@@ -1105,6 +1105,21 @@ class ReponerElAnteriorSiSeCaeElServido(unittest.TestCase):
         for c, b, a in [(c, b, a) for c in (0, 1) for b in (0, 1) for a in (0, 1)]:
             self.assertIs(R.reponer_anterior_toca(c, b, a), bool(c and not b and a), (c, b, a))
 
+    def test_reponer_anterior_toca_no_hace_nada_si_no_caido(self):
+        self.assertFalse(R.reponer_anterior_toca(False, False, True))
+        self.assertFalse(R.reponer_anterior_toca(False, True, True))
+        self.assertFalse(R.reponer_anterior_toca(False, False, False))
+
+    def test_reponer_anterior_toca_no_hace_nada_si_build_entero(self):
+        self.assertFalse(R.reponer_anterior_toca(True, True, True))
+        self.assertFalse(R.reponer_anterior_toca(True, True, False))
+
+    def test_reponer_anterior_toca_no_hace_nada_si_anterior_incompleto(self):
+        self.assertFalse(R.reponer_anterior_toca(True, False, False))
+
+    def test_reponer_anterior_toca_si_caido_y_anterior_entero(self):
+        self.assertTrue(R.reponer_anterior_toca(True, False, True))
+
     def test_el_anterior_esta_entero_con_build_id_y_manifiesto(self):
         self.assertFalse(R.anterior_entero(self.raiz))
         self._dist(R.ANTERIOR, {"BUILD_ID": "x"})
