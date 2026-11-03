@@ -238,15 +238,37 @@ def elegir_por_tarea(entradas):
     return salida
 
 
+def _nodo_de(tid):
+    """PURA: el NODO de la cadena sin la ÚLTIMA letra de reintento (`LC1004Bc` → `LC1004B`,
+    `X-d1b` → `X-d1`); un id que acaba en cifra (`X-d1`) ya es un nodo. Con esta se NOMBRAN
+    los sucesores (`siguiente_id`) y se miran las cadenas (`sucesores_en_cadena`), porque
+    cada derivación (`X-d1`) tiene su propia tanda de letras y no es la de su raíz."""
+    t = str(tid or "")
+    if len(t) > 1 and t[-1] in "bcdefghijklmnopqrstuvwxyz" and (t[-2].isdigit() or t[-2].isupper()):
+        return t[:-1]
+    return t
+
+
 def base_de(tid):
-    """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` de Genesis)."""
-    return tid[:-1] if re.search(r"[A-Z0-9][b-z]$", tid) else tid
+    """PURA: la RAÍZ de la cadena de reintentos (como `obtenerBaseId` de Genesis y
+    `base_de_tarea` de nodo_metagenesis). (RESC1031D) Antes se cortaba letra a letra: los ids
+    de derivación salían mal (`SGO1031B-d1` entero, `RTESP1011Bd-d2b` → `RTESP1011Bd-d2`, que
+    NO existe), `id_rescate` y `cadena_viva` (revisar_ramas_nube) los trataban como una cadena
+    ajena a la de la propia tarea y salían rescates y sucesoras duplicadas. Ahora el sufijo de
+    derivación se corta ENTERO, de una pieza, y detrás una sola letra de reintento; los
+    prefijos de rescate `RT` no se tocan: «RTESP1011Bb» → «RTESP1011B», «SGO1031B-d1» →
+    «SGO1031B», «MC1013TCc» → «MC1013TC», «CPA1007Kb-d1b» → «CPA1007K»."""
+    t = str(tid or "")
+    m = re.search(r"-d\d+[a-z]?$", t)
+    if m:
+        t = t[:m.start()]
+    return _nodo_de(t)
 
 
 def siguiente_id(tid, conocidos):
     """PURA: el siguiente sucesor libre de la cadena (`LC1004B` → `LC1004Bb`, o la letra que
     siga a la última que exista)."""
-    base = base_de(tid)
+    base = _nodo_de(tid)
     letras = [i[-1] for i in conocidos if len(i) == len(base) + 1 and i.startswith(base) and i[-1] in "bcdefghijklmnopqrstuvwxyz"]
     letra = chr(max(ord(x) for x in letras) + 1) if letras else "b"
     if letra > "z":
@@ -259,7 +281,7 @@ REPARACIONES_MAX = 3
 
 def sucesores_en_cadena(tid, progreso):
     """PURA: los sucesores (`Xb`, `Xc`…) que ya existen en la cadena de `tid`, en orden."""
-    base = base_de(tid)
+    base = _nodo_de(tid)
     return sorted(k for k in (progreso or {}) if k != base and len(k) == len(base) + 1
                   and k.startswith(base) and k[-1] in "bcdefghijklmnopqrstuvwxyz")
 

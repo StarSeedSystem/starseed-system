@@ -424,3 +424,50 @@ class RevisarConReasignadas(unittest.TestCase):
     def test_la_rama_del_mismo_run_espera_sin_preguntar(self):
         self.assertEqual(self._plan("VZF1015Q", "nube/39588171249", "completed"), {"VZF1015Q": "esperar"})
         self.assertEqual(self.preguntados, [])
+
+
+class BaseDeLaCadena(unittest.TestCase):
+    """(RESC1031D) `base_de` da la RAÍZ de la cadena: el sufijo de derivación (`-d1`, `-d2b`)
+    se corta ENTEIRO, de una pieza, y detrás una sola letra de reintento; los prefijos `RT`
+    no se tocan. El NOMBRADO (`siguiente_id`, `sucesores_en_cadena`) sigue el NODO de la
+    derivación (`X-d1`, `X-d1b`… es su propia cadena), no la raíz."""
+
+    def test_los_ids_del_parte(self):
+        self.assertEqual(T.base_de("RTESP1011Bb"), "RTESP1011B")
+        self.assertEqual(T.base_de("SGO1031B-d1"), "SGO1031B")
+        self.assertEqual(T.base_de("MC1013TCc"), "MC1013TC")
+
+    def test_una_derivacion_se_corta_de_una_pieza(self):
+        # Antes: `CPA1007Kb-d1b` → `CPA1007Kb-d1`, `RTESP1011Bd-d2b` → `RTESP1011Bd-d2`
+        # (ids que NO existen) y `SGO1031B-d1` entero: los derivados no juntaban con la
+        # cadena de su tarea y salían rescates y sucesoras duplicadas.
+        self.assertEqual(T.base_de("CPA1007Kb-d1b"), "CPA1007K")
+        self.assertEqual(T.base_de("RTESP1011Bd-d2b"), "RTESP1011B")
+        self.assertEqual(T.base_de("X-d1"), "X")
+        self.assertEqual(T.base_de("Xb-d2b"), "X")
+        self.assertEqual(T.base_de("RTGN1010A-d3d-d3b"), "RTGN1010A-d3")
+
+    def test_la_letra_de_reintento_del_nodo_tambien_sale(self):
+        self.assertEqual(T.base_de("RTESP1011Bd"), "RTESP1011B")
+        self.assertEqual(T.base_de("RTESP1011Bd-d2c"), "RTESP1011B")
+        self.assertEqual(T.base_de("LC1004Bc"), "LC1004B")
+
+    def test_toda_la_cadena_de_una_tarea_converge_en_su_raiz(self):
+        for k in ("RTESP1011Bb", "RTESP1011Bd", "RTESP1011Bd-d1", "RTESP1011Bd-d2b", "RTESP1011Bd-d2d"):
+            self.assertEqual(T.base_de(k), "RTESP1011B", k)
+
+    def test_lo_que_no_se_puede_saber_no_se_corta(self):
+        self.assertEqual(T.base_de("MC1013TC"), "MC1013TC")
+        self.assertEqual(T.base_de("OPT1004C"), "OPT1004C")
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1a"), "S1010-EV-ORACLE-1a")
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1ab"), "S1010-EV-ORACLE-1ab")
+        self.assertEqual(T.base_de(""), "")
+        self.assertEqual(T.base_de(None), "")
+
+    def test_el_nombrado_del_derivado_sigue_su_nodo(self):
+        self.assertEqual(T.siguiente_id("SGO1031B-d1", {"SGO1031B"}), "SGO1031B-d1b")
+        self.assertEqual(T.siguiente_id("RTESP1011Bd-d2b",
+                                        {"RTESP1011Bd-d2b", "RTESP1011Bd-d2d"}), "RTESP1011Bd-d2e")
+        self.assertEqual(T.sucesores_en_cadena("RTESP1011Bd-d2c",
+                                               {"RTESP1011Bd-d2b": {}, "RTESP1011Bd-d2d": {}}),
+                         ["RTESP1011Bd-d2b", "RTESP1011Bd-d2d"])
