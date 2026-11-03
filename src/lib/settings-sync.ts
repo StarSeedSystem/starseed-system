@@ -41,6 +41,8 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
 // NORMALIZA con su propio módulo: valor de cuenta roto → la de fábrica, nunca basura.
 import { CLAVE_MAUSBOT, normalizarConfigMausbot } from "@/lib/mausbot/config";
 import { CLAVE_DISENOS } from "@/lib/mausbot/disenos";
+// (MVD1027H0 · Memvid) El encendido de cápsula por sujeto viaja con la cuenta.
+import { CLAVE_CAPSULAS } from "@/lib/memorias/capsulas-ajustes";
 
 /** Claves de preferencia que viajan con la cuenta. Aditivo: ampliar sin migración. */
 export const SYNCED_KEYS = [
@@ -219,6 +221,7 @@ export const SYNCED_KEYS = [
     "starseed.agentes-red.bloqueo.v1", // (Ola 1025U · U3) qué bots de IA ve esta persona: bots bloqueados, modo general, por entidad y por publicación
     "starseed.traduccion.v1", // (TRD1020D · Ola 1020U) idioma de lectura y autotraducción por contexto de cada perfil (src/lib/traduccion/preferencias.ts)
     "starseed.capas.directivas.v1", // (MTN1027C · Meta^n) directivas de automejora de las capas: viajan con la cuenta (astraura/capas/directivas-almacen.ts)
+    CLAVE_CAPSULAS, // (MVD1027H0 · Memvid) qué sujetos tienen cápsula de memoria encendida: viaja con la cuenta (memorias/capsulas-ajustes.ts)
 ] as const;
 
 /**

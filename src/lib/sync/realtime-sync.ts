@@ -83,11 +83,14 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
  // (MTN1027C · Meta^n) Las directivas de automejora de las capas viajan con la cuenta
  // (astraura/capas/directivas-almacen.ts); al llegar de otro medio suena su evento propio
  // y lo que baja se SANEA con `normalizarRegistroDirectivas` antes de escribirse (abajo).
- import {
-     CLAVE_DIRECTIVAS,
-     EVENTO_DIRECTIVAS,
-     normalizarRegistroDirectivas,
- } from "@/lib/astraura/capas/directivas-almacen";
+  import {
+      CLAVE_DIRECTIVAS,
+      EVENTO_DIRECTIVAS,
+      normalizarRegistroDirectivas,
+  } from "@/lib/astraura/capas/directivas-almacen";
+ // (MVD1027H0 · Memvid) El encendido de cápsula por sujeto viaja con la cuenta;
+ // al llegar de otro medio suena su evento propio (capsulas-ajustes.ts).
+ import { CLAVE_CAPSULAS, EVENTO_CAPSULAS } from "@/lib/memorias/capsulas-ajustes";
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
@@ -174,7 +177,10 @@ const EVENT_BY_KEY: Record<string, string[]> = {
  //  src/lib/mausbot/config.ts); el mismo evento sirve para el valor que llega de otro dispositivo.
  "starseed.mausbot.v1": [EVENTO_MAUSBOT],
  // (MTN1027C · Meta^n) Directivas de automejora de las capas: viajan con la cuenta.
+ // (MTN1027C · Meta^n) Directivas de automejora de las capas: viajan con la cuenta.
  "starseed.capas.directivas.v1": [EVENTO_DIRECTIVAS],
+ // (MVD1027H0 · Memvid) Encendido de cápsula por sujeto: viajan con la cuenta.
+ CLAVE_CAPSULAS: [EVENTO_CAPSULAS],
  "starseed.aurora.chatlog.v1": ["starseed:aurora-chatlog"],
     "starseed.aurora.orb.pos.v1": ["starseed:aurora-orb-visibility"],
     "starseed.perf.v1": ["starseed:perf-changed"],
