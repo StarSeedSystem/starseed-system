@@ -118,6 +118,31 @@ class DirectorTest(unittest.TestCase):
         self.assertEqual([a for a in llamadas if a != "**args"], [])
         self.assertEqual(src.count("home=self.home, raiz=self.raiz"), src.count("return D.ciclo(**args)"))
 
+    def test_1103_arriendo_ajeno_vigente_el_director_espera(self):
+        """(SUP0311C) `decidir_lider` espera segundos (epoch): `float(datetime)` lanza TypeError y el
+        autodesarrollo encargaba aunque el A1 tuviera el arriendo vigente (su nodo también corre este
+        director: encargos repetidos). Con arriendo vigente de otra neurona no toca ejecutar."""
+        import unittest.mock as mock
+        lider = {"soy": False, "motivo": "tomado: libre", "arriendo": {"dueno": "a1", "caduca": NOCHE.timestamp() + 600}}
+        with mock.patch("lider_direccion.soy_lider", return_value=lider):
+            r = self.correr()
+        self.assertFalse(r["toca_ejecutar"])
+        self.assertIn("no soy líder", r["motivo_toca"])
+        self.assertIn("espera: dirige a1", r["motivo_toca"])
+
+    def test_1103_arriendo_caducado_vuelve_a_encargar(self):
+        import unittest.mock as mock
+        caducado = {"soy": False, "motivo": "tomado: libre", "arriendo": {"dueno": "a1", "caduca": NOCHE.timestamp() - 600}}
+        with mock.patch("lider_direccion.soy_lider", return_value=caducado):
+            r = self.correr()
+        self.assertTrue(r["toca_ejecutar"])
+
+    def test_1103_sin_arriendo_ninguno_encarga(self):
+        import unittest.mock as mock
+        with mock.patch("lider_direccion.soy_lider", return_value={"soy": False, "motivo": "tomado: libre"}):
+            r = self.correr()
+        self.assertTrue(r["toca_ejecutar"])
+
     def test_ciclo_con_datos_inyectados_recolecta_propuestas(self):
         datos_diaria = "## mejoras detectadas\n1. **Arreglar el lector** — corregir error de lectura"
         res = self.correr(datos={"diaria": datos_diaria, "profunda": {}, "astraura": {}, "directores": {}})
