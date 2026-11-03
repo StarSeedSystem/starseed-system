@@ -99,11 +99,24 @@ class DirectorTest(unittest.TestCase):
         self.assertIn("ninguno", motivo)
 
     def test_ciclo_seco_no_lanza_y_devuelve_resultado(self):
-        res = D.ciclo(seco=True, ahora=datetime(2026, 10, 23, 3, 0), capacidad={"huecos_mac": 1, "huecos_a1": 0, "huecos_nube": 0, "proveedores_con_cupo": 2, "presion_mac": 0}, lanzador_diario=self.lanzador_vacio, lanzador_profundo=self.lanzador_vacio, datos={"diaria": "## mejoras detectadas\n1. **Arreglar el lector**", "profunda": {}, "astraura": {}, "directores": {}})
+        # (SUP0311B, 2026-11-03) Llamando al ciclo sin home ni raiz la prueba usaba ~/.starseed (su cerrojo y sus
+        # ajustes): si el director vivo estaba a media pasada daba «otro ciclo en marcha» y la puerta de
+        # la autopublicación vetó 51ec29440 por «pruebas del puente en rojo». `correr` usa el temporal.
+        res = self.correr(seco=True, ahora=datetime(2026, 10, 23, 3, 0), capacidad={"huecos_mac": 1, "huecos_a1": 0, "huecos_nube": 0, "proveedores_con_cupo": 2, "presion_mac": 0}, lanzador_diario=self.lanzador_vacio, lanzador_profundo=self.lanzador_vacio, datos={"diaria": "## mejoras detectadas\n1. **Arreglar el lector**", "profunda": {}, "astraura": {}, "directores": {}})
         # Con seco, toca ejecutar (hay capacidad) pero no lanza
         self.assertTrue(res["toca_ejecutar"])
         self.assertEqual(res["lanzado"], [])
         self.assertIn("motivo_toca", res)
+
+    def test_ninguna_prueba_usa_el_home_vivo(self):
+        """(SUP0311B) En este archivo el ciclo solo se llama desde los `correr` (home y raiz temporales):
+        el cerrojo, los ajustes y el estado de ~/.starseed son del director vivo."""
+        import re
+        src = open(os.path.abspath(__file__), encoding="utf-8").read()
+        llamadas = re.findall(r"\bD\.ciclo\(([^)]*)\)", src)
+        self.assertTrue(llamadas)
+        self.assertEqual([a for a in llamadas if a != "**args"], [])
+        self.assertEqual(src.count("home=self.home, raiz=self.raiz"), src.count("return D.ciclo(**args)"))
 
     def test_ciclo_con_datos_inyectados_recolecta_propuestas(self):
         datos_diaria = "## mejoras detectadas\n1. **Arreglar el lector** — corregir error de lectura"
