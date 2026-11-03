@@ -148,7 +148,9 @@ Cada mensaje de difusión cuenta una vez por cada conectado que lo recibe. Con N
 (rondas cada 5 min): preguntas ≈ 36·N²/h, respuestas ≤ 36·N²/h (en lote suelen ser menos), latidos 120·N/h.
 N = 10 → ≈ 8 400/h (≈ 238 h de estación al mes en el plan gratuito); N = 30 → ≈ 68 000/h (≈ 29 h/mes). Al
 entrar cada persona: unas 16·N. Por enlaces locales no cuesta nada. Para audiencias grandes: el relé propio (§4.3, tarea
-`EV-ORACLE`): no cuenta mensajes de Realtime. Hoy existe el cliente y la lógica de salas; el servidor aún no.
+`EV-ORACLE`): no cuenta mensajes de Realtime. El código está en main: cliente (`canal-rele.ts`), salas (`salas.mjs`, con
+`miembros(tema)`) y servidor (`servicios/estaciones-rele/servidor.mjs`, CAD1031A); falta solo el despliegue (compose y
+Caddy, SOLO con la palabra de Alex).
 
 ### 4.3 Relé propio (cliente `canal-rele.ts`, RTS1010-EV-ORACLE-2d · 2026-10-20)
 
@@ -181,8 +183,19 @@ de Realtime (2 M de mensajes al mes) con audiencias grandes.
   (AES-GCM con el token); el cliente verifica lo que llega por él igual que lo que llega por Supabase. Privacidad:
   el tema va en la URL y, en una privada, es el derivado del token de 128 bits; **el servidor y Caddy no deben
   registrar la query ni guardar mensajes**.
-- **Lo que falta** (no se afirma que funcione de punta a punta hasta que exista): (1) el servidor WebSocket
-  (ORACLE-1b) y su servicio en `deploy/oracle/compose-a1.yml` + Caddyfile (hoy solo está la lógica de salas);
+- **El servidor ya está en main** (`servicios/estaciones-rele/servidor.mjs`, ORACLE-1b · CAD1031A, 2026-10-31):
+  `ws` en `/ws` con `maxPayload` 128 KiB (una trama de más y cierra con 1009) y saturación propia: por encima de
+  `MAX_CONEXIONES` (5000, `.env`) cierra con 1013. Ligero por diseño: **ping cada 30 s** — quien no contestó el
+  ping anterior se corta con `terminate()` (su cierre lo saca de la sala y esta se reanuncia) y un oyente con
+  **más de 1 MiB pendiente** no recibe ese sobre (`bufferedAmount`; los sobres son idempotentes por `n`, así que
+  el próximo lo pone al día). Cuentas cada 60 s (entradas, rechazadas, mensajes, entregas, saltados: números,
+  nunca contenido ni temas) y apagado con cierre 1001 «el relé se reinicia», que el cliente entiende como una
+  caída y reconecta con su espera creciente. Para contar y anunciar la sala usa `miembros(tema)` (`salas.mjs`),
+  que devuelve una COPIA: los cierres de los conectados que recorre no rompen el bucle. Privacidad como el
+  cliente: no registra contenido, tema ni URL.
+- **Lo que falta** (no se afirma que funcione de punta a punta hasta que exista): (1) el servicio del relé en
+  `deploy/oracle/compose-a1.yml` + Caddyfile — SOLO con la palabra de Alex (el servidor ya está en main,
+  `servidor.mjs`, que sale con error si el puerto falla para que systemd/Docker lo reinicie);
   (2) añadir el host del relé a `connect-src` de `src-tauri/tauri.conf.json` cuando se conozca (la CSP web ya
   permite `wss:`; en la app nativa el canal fallaría con «código 1006» hasta entonces); (3) paridad en el kit
   `integraciones-de-codigo/starseed-link` (su copia de canales es solo Supabase): **no hacer el relé exclusivo
