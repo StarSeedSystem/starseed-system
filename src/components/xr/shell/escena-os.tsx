@@ -42,6 +42,9 @@ const HorizonDinamico = nextDynamic(() => import("./horizon-montado").then((m) =
 /** Página declarativa (UiSpec, §3 b escalón 2): la pinta `uispec-uikit`; carga perezosa como el resto. */
 const UiSpec3DDinamico = nextDynamic(() => import("./uispec-uikit").then((m) => m.UiSpec3D), { ssr: false });
 
+/** Logic (XR1010AG): control de calidad, comodidad, entrada, privacidad y conexiones; carga perezosa. */
+const NodoLogicDinamico = nextDynamic(() => import("./nodo-logic").then((m) => m.NodoLogic), { ssr: false });
+
 export interface CapaUiSpec { forma?: string; uiSpec?: unknown }
 
 /** El UiSpec del ÚLTIMO widget de capa (lo publica Astraura): la página declarativa que toca pintar. */
@@ -166,7 +169,13 @@ export function EscenaOS({ modo = null }: Props) {
                             modo={modoTrinity(modoUrl, plan)}
                             nivel={calidadNivel}
                             alturaOjosMedida={alturaOjosMedida}
-                            contenido={{ zenith: <OrbeVozDinamico />, horizon: <HorizonDinamico />, logic: pagina !== null ? <UiSpec3DDinamico spec={pagina} /> : null }}
+                            contenido={{
+                                zenith: <OrbeVozDinamico />,
+                                horizon: <HorizonDinamico />,
+                                logic: pagina !== null
+                                    ? <UiSpec3DDinamico spec={pagina} />
+                                    : <NodoLogicDinamico nivelActual={calidadNivel} motivoCambio={aviso || null} entrada={capacidades.entradas[0] ?? "mandos"} />,
+                            }}
                         />
                     </group>
                     {/* Comodidad (XR1010AF): aquí se APLICA el confort (§3 j), no solo se exporta. */}
