@@ -36,6 +36,12 @@ describe("trocearLineas", () => {
   });
 });
 
+describe("LIMITE_LINEA", () => {
+  it("son los 32 MiB de FigCraft", () => {
+    expect(LIMITE_LINEA).toBe(32 * 1024 * 1024);
+  });
+});
+
 describe("ClienteMcpStdio", () => {
   it("hace el handshake y manda initialized", async () => {
     const { transporte, cliente } = montar();
@@ -60,6 +66,12 @@ describe("ClienteMcpStdio", () => {
     expect(transporte.ultima.params).toEqual({ name: "x", arguments: { a: 1 } });
     transporte.responder(transporte.ultima.id, { content: [{ type: "text", text: "ho" }, { type: "text", text: "la" }] });
     expect(await promesa).toEqual({ ok: true, texto: "hola" });
+  });
+  it("descarta bloques que no son de texto sin romper", async () => {
+    const { transporte, cliente } = montar();
+    const promesa = cliente.llamar("eso", {}, 1000);
+    transporte.responder(transporte.ultima.id, { content: [{ type: "resource", uri: "figcraft://doc" }, { type: "text", text: "solo esto" }] });
+    expect(await promesa).toEqual({ ok: true, texto: "solo esto" });
   });
   it("empareja respuestas desordenadas", async () => {
     const { transporte, cliente } = montar();
@@ -95,6 +107,15 @@ describe("ClienteMcpStdio", () => {
     const promesa = cliente.listar(1000);
     transporte.responder(transporte.ultima.id, { ok: true });
     expect(await promesa).toEqual({ ok: true });
+  });
+  it("ignora una respuesta de id desconocido sin contarla como ilegible", async () => {
+    const { transporte, cliente } = montar();
+    transporte.enviar('{"jsonrpc":"2.0","method":"tools/list_changed"}\n');
+    transporte.enviar('{"jsonrpc":"2.0","id":77,"result":{"tools":[]}}\n');
+    const promesa = cliente.listar(1000);
+    transporte.responder(transporte.ultima.id, { tools: [{ name: "get_cell" }] });
+    expect(await promesa).toEqual({ tools: [{ name: "get_cell" }] });
+    expect(cliente.ilegibles).toBe(0);
   });
   it("falla con tiempo agotado", async () => {
     const { reloj, cliente } = montar();
