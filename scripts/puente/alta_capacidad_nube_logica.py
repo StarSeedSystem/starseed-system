@@ -295,6 +295,9 @@ def candidatas(colas, progreso, registro, historial=None, ahora=None):
                 continue
             if t.get("privada") or tid in en_registro:
                 continue
+            # (1103 · Z) Los sueños (`tipo: analisis`) son para los modelos gratuitos: nunca una sesión de Claude.
+            if str(t.get("tipo") or "").strip().lower() == "analisis":
+                continue
             depende = t.get("depende") or []
             if isinstance(depende, str):
                 depende = [depende]
