@@ -287,13 +287,17 @@ class LaPuertaDelOrquestadorEspera(unittest.TestCase):
 
     def _correr(self, respuestas, entrada=None, jobs=None, esperar_s=600):
         seq = list(respuestas)
+        con_rapido = []
 
-        def comprobar(base, shas, cambiados, cwd=None):
+        def comprobar(base, shas, cambiados, cwd=None, rapido=False):
+            con_rapido.append(rapido)
             return seq.pop(0) if len(seq) > 1 else seq[0]
         with mock.patch.object(G, "comprobar", comprobar), \
                 mock.patch.object(G, "_entrada", lambda b, c: entrada), \
                 mock.patch.object(G, "_jobs", lambda run: jobs or []):
-            return G.esperar_tsc(BASE, ["src/a.ts"], self.tmp.name, esperar_s, dormir=self._dormir, reloj=self._reloj)
+            r = G.esperar_tsc(BASE, ["src/a.ts"], self.tmp.name, esperar_s, dormir=self._dormir, reloj=self._reloj)
+        self.assertTrue(con_rapido and all(con_rapido))  # la puerta del orquestador siempre pide rapido
+        return r
 
     def test_paso_tsc(self):
         self.assertEqual(G.paso_tsc([{"steps": [{"name": "tsc", "conclusion": "success"}]}]), "success")
@@ -342,10 +346,11 @@ class LaPuertaDelOrquestadorEspera(unittest.TestCase):
         esperando = (False, G.ESPERANDO + " (run ?): lanzada", True)
         llamadas = []
 
-        def comprobar(base, shas, cambiados, cwd=None):
+        def comprobar(base, shas, cambiados, cwd=None, rapido=False):
             if not llamadas:
                 self.t[0] += primera_s
                 llamadas.append(self.t[0])
+            self.assertTrue(rapido)  # (SUP0211X) la puerta espera en modo rápido
             return esperando
 
         def entrada(b, c):
@@ -376,6 +381,118 @@ class LaPuertaDelOrquestadorEspera(unittest.TestCase):
         self.assertGreaterEqual(G.SIN_RUN_S, 300)
         r = self._lenta(5, run_en_s=270)
         self.assertEqual(r[0], True)
+
+
+class Diferir(unittest.TestCase):
+    """(SUP0211X) La regla pura de qué se difiere en una llamada rápida."""
+
+    def test_diferir(self):
+        self.assertFalse(G.diferir("a", "a", True))  # la propia se completa siempre
+        self.assertFalse(G.diferir("a", "b", False))  # llamada lenta: nada se difiere
+        self.assertTrue(G.diferir("a", "b", True))  # la ajena, en una rápida, sí
+
+
+class Rapida(unittest.TestCase):
+    """(SUP0211X) La puerta tsc del orquestador (rapido=True) no paga el refresco de las demás (medido el 02-11:
+    ~4 min con el cerrojo tomado entre `_borrar_rama`, tope 120 s, y `_detalle_fallo`, tope 90 s, de ajenas)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.estado = os.path.join(self.tmp.name, "comprobar-github.json")
+        self.p = [mock.patch.object(G, "ESTADO", self.estado), mock.patch.object(G.time, "sleep", lambda s: None)]
+        for x in self.p:
+            x.start()
+            self.addCleanup(x.stop)
+        self.empujes, self.borradas, self.gh_llamadas = [], [], []
+        self.runs = {77: {"status": "completed", "conclusion": "success"},
+                     100: {"status": "completed", "conclusion": "success"},
+                     101: {"status": "completed", "conclusion": "failure"}}
+
+    def _guardar(self, datos):
+        with open(self.estado, "w") as f:
+            json.dump(datos, f)
+
+    def _git(self, cwd, args, timeout=180):
+        if args[:2] == ["rev-parse", "HEAD^{tree}"]:
+            return 0, ARBOL + "\n"
+        if args[:2] == ["rev-parse", "HEAD"]:
+            return 0, CABEZA + "\n"
+        if args[:3] == ["remote", "get-url", "origin"]:
+            return 0, "https://github.com/StarSeedSystem/starseed-system.git\n"
+        if args[:1] == ["push"]:
+            (self.borradas if "--delete" in args else self.empujes).append(args[-1])
+            return 0, ""
+        return 1, "?"
+
+    def _gh(self, args, timeout=60):
+        ruta = args[1] if len(args) > 1 else ""
+        self.gh_llamadas.append("%s %s" % tuple(args[:2]) if len(args) > 1 else args[0])
+        if args[:1] == ["run"]:
+            return 0, "puertas\ttsc\terror TS2322: Type 'x' is not assignable", ""
+        if ruta.endswith("/jobs"):
+            rid = int(ruta.rsplit("/", 2)[-2])
+            concl = "failure" if rid == 101 else "success"
+            return 0, json.dumps([{"steps": [{"name": "tsc", "conclusion": concl}]}]), ""
+        if "actions/runs/" in ruta:
+            return 0, json.dumps(self.runs[int(ruta.rsplit("/", 1)[-1])]), ""
+        return 1, "", "?"
+
+    def test_rapida_deja_las_ajenas_a_medias_y_la_propia_completa(self):
+        propia = G.rama_para(BASE, ARBOL)
+        self._guardar({G.clave_de(BASE, ARBOL): {"estado": "en_curso", "rama": propia, "run": 77, "t": T, "visto": T},
+                       "otro1": {"estado": "en_curso", "rama": "comprobar/x/1", "run": 100, "t": T, "visto": T},
+                       "otro2": {"estado": "en_curso", "rama": "comprobar/x/2", "run": 101, "t": T, "visto": T}})
+        with mock.patch.object(G, "_git", self._git), mock.patch.object(G, "_gh", self._gh):
+            ok, detalle, medio = G.comprobar(BASE, [], ["src/a.ts"], cwd=self.tmp.name, ahora=T + 600, rapido=True)
+        self.assertEqual((ok, medio), (True, False))
+        self.assertIn("run 77", detalle)
+        self.assertEqual(self.borradas, [propia])  # ninguna rama ajena se borra
+        self.assertNotIn("run view", self.gh_llamadas)  # y ningún `gh run view` (tope 90 s)
+        with open(self.estado) as f:
+            d = json.load(f)
+        self.assertEqual(d["otro1"]["estado"], "ok")
+        self.assertTrue(d["otro1"]["pendiente_borrar"])
+        self.assertNotIn("pendiente_detalle", d["otro1"])
+        fallo = d["otro2"]
+        self.assertEqual((fallo["estado"], fallo["paso"]), ("fallo", "tsc"))
+        self.assertTrue(fallo["pendiente_borrar"])
+        self.assertTrue(fallo["pendiente_detalle"])
+        self.assertEqual(fallo.get("detalle", ""), "")  # el detalle, en la lenta
+        self.assertEqual(sum(1 for e in d.values() if e.get("estado") == "en_curso"), 0)
+
+    def test_lenta_siguiente_acaba_las_pendientes(self):
+        self._guardar({G.clave_de(BASE, ARBOL): {"estado": "ok", "rama": G.rama_para(BASE, ARBOL), "run": 77, "t": T, "visto": T},
+                       "otro1": {"estado": "ok", "rama": "comprobar/x/1", "run": 100, "t": T, "visto": T,
+                                 "pendiente_borrar": True},
+                       "otro2": {"estado": "fallo", "rama": "comprobar/x/2", "run": 101, "t": T, "visto": T,
+                                 "paso": "tsc", "pendiente_borrar": True, "pendiente_detalle": True}})
+        with mock.patch.object(G, "_git", self._git), mock.patch.object(G, "_gh", self._gh):
+            ok, detalle, medio = G.comprobar(BASE, [], ["src/a.ts"], cwd=self.tmp.name, ahora=T + 600)
+        self.assertEqual((ok, medio), (True, False))
+        self.assertEqual(sorted(self.borradas), ["comprobar/x/1", "comprobar/x/2"])  # la propia ya no tenía rama
+        self.assertIn("run view", self.gh_llamadas)
+        with open(self.estado) as f:
+            d = json.load(f)
+        self.assertEqual(d["otro2"]["detalle"], "error TS2322: Type 'x' is not assignable")
+        self.assertNotIn("pendiente_borrar", d["otro2"])
+        self.assertNotIn("pendiente_detalle", d["otro2"])
+        self.assertNotIn("pendiente_borrar", d["otro1"])
+
+    def test_una_en_curso_ajena_no_cuenta_como_en_marcha_si_su_run_ya_acabo(self):
+        # La propia no existe aún: el tope de sitios se juzga tras refrescar. Sin rapido las 6 acabadas son «en
+        # marcha» («ya hay 6 comprobaciones»); se leen, quedan a medias y el sitio queda libre sin borrar ramas.
+        self._guardar({"lleno%d" % i: {"estado": "en_curso", "rama": "comprobar/z/%d" % i, "run": 100,
+                                       "t": T, "visto": T} for i in range(G.MAX_EN_VUELO)})
+        with mock.patch.object(G, "_git", self._git), mock.patch.object(G, "_gh", self._gh):
+            ok, detalle, medio = G.comprobar(BASE, [], ["src/a.ts"], cwd=self.tmp.name, ahora=T + 600, rapido=True)
+        self.assertNotIn("ya hay", detalle)
+        self.assertEqual(len(self.empujes), 1)  # la de esta llamada sí se lanzó
+        self.assertEqual(self.borradas, [])
+        with open(self.estado) as f:
+            d = json.load(f)
+        self.assertEqual(sum(1 for e in d.values() if e.get("estado") == "ok" and e.get("pendiente_borrar")),
+                         G.MAX_EN_VUELO)
 
 
 class EnTraerNube(unittest.TestCase):
