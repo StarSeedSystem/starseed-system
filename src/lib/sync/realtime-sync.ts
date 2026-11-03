@@ -80,14 +80,16 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
 // (Ola MBT1027) El Mausbot guarda su config con su propio evento (EVENTO_MAUSBOT,
  //  src/lib/mausbot/config.ts); el valor que llega de otro dispositivo usa el mismo evento.
  import { EVENTO_MAUSBOT } from "@/lib/mausbot/config";
- // (MTN1027C · Meta^n) Las directivas de automejora de las capas viajan con la cuenta
- // (astraura/capas/directivas-almacen.ts); al llegar de otro medio suena su evento propio
- // y lo que baja se SANEA con `normalizarRegistroDirectivas` antes de escribirse (abajo).
- import {
-     CLAVE_DIRECTIVAS,
-     EVENTO_DIRECTIVAS,
-     normalizarRegistroDirectivas,
- } from "@/lib/astraura/capas/directivas-almacen";
+// (MTN1027C · Meta^n) Las directivas de automejora de las capas viajan con la cuenta
+// (astraura/capas/directivas-almacen.ts); al llegar de otro medio suena su evento propio
+// y lo que baja se SANEA con `normalizarRegistroDirectivas` antes de escribirse (abajo).
+import {
+    CLAVE_DIRECTIVAS,
+    EVENTO_DIRECTIVAS,
+    normalizarRegistroDirectivas,
+} from "@/lib/astraura/capas/directivas-almacen";
+// (MVD1027H0 · H0) Qué sujetos tienen cápsula Memvid encendida (capsulas-ajustes.ts).
+import { CAPSULAS_KEY, CAPSULAS_EVENT, normalizarSujetosCapsulas } from "@/lib/memorias/capsulas-ajustes";
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
@@ -175,6 +177,8 @@ const EVENT_BY_KEY: Record<string, string[]> = {
  "starseed.mausbot.v1": [EVENTO_MAUSBOT],
  // (MTN1027C · Meta^n) Directivas de automejora de las capas: viajan con la cuenta.
  "starseed.capas.directivas.v1": [EVENTO_DIRECTIVAS],
+ // (MVD1027H0 · H0) Qué sujetos tienen cápsula Memvid: viaja con la cuenta.
+ "starseed.memorias.capsulas.v1": [CAPSULAS_EVENT],
  "starseed.aurora.chatlog.v1": ["starseed:aurora-chatlog"],
     "starseed.aurora.orb.pos.v1": ["starseed:aurora-orb-visibility"],
     "starseed.perf.v1": ["starseed:perf-changed"],
@@ -966,6 +970,23 @@ function applyRemoteChanges(
                 const crudo: unknown =
                     typeof merged === "string" ? JSON.parse(merged) : merged;
                 const saneado = normalizarRegistroDirectivas(crudo);
+                if (JSON.stringify(crudo) !== JSON.stringify(saneado)) {
+                    merged = saneado;
+                    repaired = true;
+                }
+            }
+
+            /* ── CÁPSULAS MEMVID (MVD1027H0 · H0): sanear ANTES de escribir ─────
+             * El registro de cápsulas (`starseed.memorias.capsulas.v1`) se aplica
+             * aquí TAL CUAL llega. Un valor torcido de la cuenta (versión ajena,
+             * sujetos no booleanos, estructura rota) quedaría persistido con esa
+             * basura. Pasa por la MISMA normalización pura que usa el almacén
+             * (`normalizarSujetosCapsulas`) y lo que se caiga del saneado se marca
+             * como reparado para volver a subir lo ya limpio. */
+            if (key === CAPSULAS_KEY) {
+                const crudo: unknown =
+                    typeof merged === "string" ? JSON.parse(merged) : merged;
+                const saneado = normalizarSujetosCapsulas(crudo);
                 if (JSON.stringify(crudo) !== JSON.stringify(saneado)) {
                     merged = saneado;
                     repaired = true;
