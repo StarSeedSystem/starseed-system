@@ -4693,3 +4693,23 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTIMG1020Cb-d2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTIMG1020Cb-d2b conservada)
 - `VZF1015M-d1b` — no escribió nada
 - `SGO1031B-d2b` — no escribió nada
+
+## 2026-11-03 15:44 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** para todo el automejoramiento de cada capa de conciencia mesh automejorable de toda Astraura, con Colibri y los demás sistemas locales y mesh autoadaptables
+
+**Resultado.** 0 de 7 integradas. 7 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — otra cosa (RTSUP0111Db, RTCVV1028Kb, MTN1027J, MVD1027I). Es 57 % de la ola.
+- 3 tareas se fueron por lo mismo — no escribió nada (SGO1031B-d3, MTN1027Cd, RTXR1010AMb). Es 43 % de la ola.
+- sin modelo anotado no integró ninguna de sus 7 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `SGO1031B-d3` — no escribió nada
+- `MTN1027Cd` — no escribió nada
+- `RTXR1010AMb` — no escribió nada
+- `RTSUP0111Db` — otra cosa: ningún proveedor respondió (todos caídos)
+- `RTCVV1028Kb` — otra cosa: ningún proveedor respondió (todos caídos)
+- `MTN1027J` — otra cosa: ningún proveedor respondió (todos caídos)
+- `MVD1027I` — otra cosa: ningún proveedor respondió (todos caídos)
