@@ -90,7 +90,7 @@ import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaul
   } from "@/lib/astraura/capas/directivas-almacen";
  // (MVD1027H0 · Memvid) El encendido de cápsula por sujeto viaja con la cuenta;
  // al llegar de otro medio suena su evento propio (capsulas-ajustes.ts).
- import { CLAVE_CAPSULAS, EVENTO_CAPSULAS } from "@/lib/memorias/capsulas-ajustes";
+ import { CLAVE_CAPSULAS, EVENTO_CAPSULAS, normalizarRegistroCapsulas } from "@/lib/memorias/capsulas-ajustes";
 // Adenda 69 · A: ÚNICA puerta de escritura a `user_settings.prefs`. Manda solo
 // el parche y Postgres lo funde de forma atómica. Sustituye al `upsert` de la
 // columna entera, que borraba las claves de los demás módulos (ver user-prefs.ts).
@@ -176,7 +176,6 @@ const EVENT_BY_KEY: Record<string, string[]> = {
 // (Ola MBT1027) El Mausbot ya emite su evento propio al guardar (EVENTO_MAUSBOT,
  //  src/lib/mausbot/config.ts); el mismo evento sirve para el valor que llega de otro dispositivo.
  "starseed.mausbot.v1": [EVENTO_MAUSBOT],
- // (MTN1027C · Meta^n) Directivas de automejora de las capas: viajan con la cuenta.
  // (MTN1027C · Meta^n) Directivas de automejora de las capas: viajan con la cuenta.
  "starseed.capas.directivas.v1": [EVENTO_DIRECTIVAS],
  // (MVD1027H0 · Memvid) Encendido de cápsula por sujeto: viajan con la cuenta.
@@ -972,6 +971,24 @@ function applyRemoteChanges(
                 const crudo: unknown =
                     typeof merged === "string" ? JSON.parse(merged) : merged;
                 const saneado = normalizarRegistroDirectivas(crudo);
+                if (JSON.stringify(crudo) !== JSON.stringify(saneado)) {
+                    merged = saneado;
+                    repaired = true;
+                }
+            }
+
+            /* ── CÁPSULAS (MVD1027H0 · Memvid): sanear ANTES de escribir ────────
+             * Igual que el dock y las directivas: el encendido por sujeto
+             * (`starseed.memorias.capsulas.v1`) se aplica aquí TAL CUAL llega,
+             * y un valor torcido de la cuenta (claves sin «tipo:id», encendidos
+             * que no son booleanos, sin la v) quedaría persistido con esa
+             * basura. Pasa por la MISMA normalización pura que usa el ajuste
+             * (`normalizarRegistroCapsulas`); lo que se caiga del saneado se
+             * marca como reparado para volver a subir lo ya limpio. */
+            if (key === CLAVE_CAPSULAS) {
+                const crudo: unknown =
+                    typeof merged === "string" ? JSON.parse(merged) : merged;
+                const saneado = normalizarRegistroCapsulas(crudo) ?? { v: 1 as const, sujetos: {} };
                 if (JSON.stringify(crudo) !== JSON.stringify(saneado)) {
                     merged = saneado;
                     repaired = true;
