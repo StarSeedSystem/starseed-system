@@ -4662,3 +4662,21 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RIA1023F` — los tipos no compilan: 9 errores tsc (rama ola/RIA1023F conservada)
 - `RIA1023B` — otra cosa: sin decisión en 0 h; rama ola/RIA1023B conservada
 - `APM1017T` — los tipos no compilan: 22 errores tsc (rama ola/APM1017T conservada)
+
+## 2026-11-03 06:08 · mg-oracle-1102-2340
+
+**Lo que se pidió.** La orbe del bot puede ser su avatar 3D: emoción, voz y movimiento
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — no escribió nada (RTAV1011C, RTCPZ1025F, RTS1010-MGR2b, RTRTS1010-TU-LL1cobjbbb-d2, RTBLD1025C-d3b-d2, MBT1027C2c-d1). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 6 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTAV1011C` — no escribió nada
+- `RTCPZ1025F` — no escribió nada
+- `RTS1010-MGR2b` — no escribió nada
+- `RTRTS1010-TU-LL1cobjbbb-d2` — no escribió nada
+- `RTBLD1025C-d3b-d2` — no escribió nada
+- `MBT1027C2c-d1` — no escribió nada
