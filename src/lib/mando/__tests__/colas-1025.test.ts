@@ -19,6 +19,15 @@ const TAREAS_ESPERADAS: Record<(typeof GRUPOS)[number], number> = {
     agentes: 5, artcraft: 12, blender: 10, capas: 10, cloudflare: 2, diseno: 9, infra: 10, investigacion: 17, libreria: 2,
 };
 
+/**
+ * (2026-11-02, SUP0211O) La ola se cerró. `higiene_colas` MUEVE las colas cerradas a `colas-fuente/` (que git ignora)
+ * y SUP0211K sacó del índice estas nueve, que REP1025A había versionado: su traslado dejaba `main` sucio y el
+ * orquestador no habría vuelto a arrancar. Sin ellas en `olas/` el enjambre ya no tiene nada de esta ola que lanzar,
+ * así que no hay nada que validar y el bloque se salta (en CI no están). Las skills del contrato se siguen
+ * comprobando aparte.
+ */
+const COLAS_VIVAS = GRUPOS.every((g) => existsSync(path.join(OLAS, `cola-${g}-1025.json`)));
+
 interface Tarea { id: string; ola: string; titulo: string; archivos: string[]; depende: string[]; prompt: string }
 
 function leer(grupo: string): Tarea[] {
@@ -54,7 +63,7 @@ describe("dependencias a partes del revisor de Bloqueadas (PUB1029C)", () => {
     });
 });
 
-describe("colas de la Ola 1025R", () => {
+describe.skipIf(!COLAS_VIVAS)("colas de la Ola 1025R", () => {
     it("están las nueve colas, con el número de tareas que dejaron sus grupos", () => {
         for (const g of GRUPOS) {
             expect(existsSync(path.join(OLAS, `cola-${g}-1025.json`)), g).toBe(true);
@@ -111,6 +120,9 @@ describe("colas de la Ola 1025R", () => {
         }
     });
 
+});
+
+describe("contrato de la Ola 1025R", () => {
     it("las skills del contrato existen donde los agentes las buscan (.agent/skills) y las de diseño también en vendor/habilidades", () => {
         for (const s of ["agent-reach", "inbox-zero", "coop-qa", "coop-sync-testing", "spacedrive-cli", "design-taste-frontend", "frontend-slides", "awesome-design-md"]) {
             // `inbox-zero` trae sus dos SKILL.md en subcarpetas (`mcp/` y `api/`); las demás, uno en la raíz.
