@@ -55,7 +55,7 @@ export function NodoLogic(props: PropsNodoLogic) {
     const [pestana, setPestana] = useState<Pestana>("calidad");
     const set = (p: Partial<PreferenciasConfort>) => setConfort({ ...c, ...p });
     const ahora = Date.now();
-    const nivel = props.nivelActual ?? (calidad.modo === "auto" ? "media" : calidad.modo);
+    const nivel = calidad.modo === "auto" ? (props.nivelActual ?? "media") : calidad.modo;
     const transporte = props.sala ? elegirTransporte(props.sala, props.alcanzabilidad ?? { internet: true, servidorPrivado: false, malla: false }) : null;
     const vigentes = (props.consentimientos ?? []).filter((x) => consentimientoVigente(x, ahora));
     const abrirServidores = props.alAbrirServidores ?? (() => window.location.assign("/servidores"));
