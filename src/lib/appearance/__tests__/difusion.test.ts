@@ -46,6 +46,13 @@ describe("veloDifusion", () => {
     expect(veloDifusion(d({ modo: "blanco", opacidad: 3 }))).toBe("rgba(255, 255, 255, 1)");
     expect(veloDifusion(d({ modo: "blanco", opacidad: -2 }))).toBeUndefined();
   });
+
+  it("opacidad no numérica → usa 1 por defecto", () => {
+    expect(veloDifusion(d({ modo: "blanco", opacidad: NaN as unknown as number }))).toBe("rgba(255, 255, 255, 1)");
+    expect(veloDifusion(d({ modo: "negro", opacidad: "0.5" as unknown as number }))).toBe("rgba(0, 0, 0, 1)");
+    expect(veloDifusion(d({ modo: "tono", tono: "#ff0000", opacidad: null as unknown as number }))).toBe("color-mix(in srgb, #ff0000 100%, transparent)");
+    expect(veloDifusion(d({ modo: "desenfoque", opacidad: undefined as unknown as number }))).toBe("rgba(255, 255, 255, 0.12)");
+  });
 });
 
 describe("texturaDifusion", () => {
@@ -77,6 +84,12 @@ describe("estiloDifusion", () => {
       .toBe(`blur(${MAX_DESENFOQUE_PX}px)`);
   });
 
+  it("modo desenfoque sin desenfoquePx → sin blur (0 por defecto)", () => {
+    const e = estiloDifusion(d({ modo: "desenfoque" }));
+    expect(e.backdropFilter).toBeUndefined();
+    expect(e.WebkitBackdropFilter).toBeUndefined();
+  });
+
   it("modo tono → color de fondo con el tono mezclado", () => {
     const e = estiloDifusion(d({ modo: "tono", tono: "#1d4ed8", opacidad: 0.7 }));
     expect(e.backgroundColor).toBe("color-mix(in srgb, #1d4ed8 70%, transparent)");
@@ -89,6 +102,16 @@ describe("estiloDifusion", () => {
     const n = estiloDifusion(d({ modo: "negro", opacidad: 0.8, textura: "papel" }));
     expect(n.backgroundColor).toBe("rgba(0, 0, 0, 0.8)");
     expect(n.backgroundSize).toBe("233px 233px");
+  });
+
+  it("modo tono sin tono → color de fondo con blanco mezclado (saneado defensivo)", () => {
+    const e = estiloDifusion(d({ modo: "tono", opacidad: 1 }));
+    expect(e.backgroundColor).toBe("color-mix(in srgb, #ffffff 100%, transparent)");
+  });
+
+  it("modo blanco sin opacidad definida → usa 1 por defecto", () => {
+    const e = estiloDifusion(d({ modo: "blanco" }));
+    expect(e.backgroundColor).toBe("rgba(255, 255, 255, 1)");
   });
 });
 
