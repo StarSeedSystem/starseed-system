@@ -1,0 +1,99 @@
+{
+ "ola": "nube-20261102",
+ "tareas": [
+  {
+   "id": "RTHFR1018Hd",
+   "ola": "Rescate de las ramas de la nube",
+   "depende": [],
+   "titulo": "Rescate de pruebas · Protomolécula · el servicio hyperframes en los servicios locales conocidos",
+   "archivos": [
+    "src/lib/protomolecula/__tests__/servicio-local.test.ts"
+   ],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea HFR1018Hb («Protomolécula · el servicio hyperframes en los servicios locales conocidos») se hizo en main por otro camino; su rama nube/41518451047 queda archivada en `refs/archivo/nube/41518451047` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.88)\n\nTU TAREA (RTHFR1018Hd · solo estos archivos: src/lib/protomolecula/__tests__/servicio-local.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/lib/protomolecula/__tests__/servicio-local.test.ts\n  it(\"la definición es la del contrato: puerto 4490, salud en /salud y plazo propio de 15 min\", () => {\n    expect(HF).toEqual({ id: \"hyperframes\", nombre: \"HyperFrames\", puerto: 4490, rutaSalud: \"/salud\", tiempoMs: 900_000 });\n    expect(validarDefinicion(HF)).toBeNull();\n    expect(SERVICIOS_CONOCIDOS).toHaveLength(3); // nada más cambió\n  });\n\n# src/lib/protomolecula/__tests__/servicio-local.test.ts\n  it(\"la salud se consulta SOLO en 127.0.0.1:4490/salud, con GET y sin exigir el token\", async () => {\n    const f = vi.fn<FetchLocal>(async () => resp(200, '{\"ok\":true}'));\n    expect((await sondearServicio(HF, f, { leerVariable: () => undefined })).vivo).toBe(true);\n    expect(f.mock.calls).toHaveLength(1);\n    const [url, init] = f.mock.calls[0] as [string, PeticionLocal];\n    expect(url).toBe(\"http://127.0.0.1:4490/salud\");\n    const destino = new URL(url);\n    expect(destino.hostname).toBe(\"127.0.0.1\");\n    expect(Number(destino.port)).toBe(4490);\n    expect(init).toMatchObject({ method: \"GET\", redirect: \"manual\", headers: { accept: \"application/json\" } });\n    expect(init.headers.authorization).toBeUndefined();\n  });\n\n# src/lib/protomolecula/__tests__/servicio-local.test.ts\n  it(\"el plazo propio (tiempoMs: 900000) manda en las llamadas: 30 s no corta, 15 min sí\", async () => {\n    const { reloj, avanzar } = relojFalso();\n    let senal: AbortSignal | undefined;\n    const colgado: FetchLocal = (_u, i) => {\n      senal = i.signal;\n      return new Promise((_, rej) => i.signal.addEventListener(\"abort\", () => rej(new Error(\"abortado\"))));\n    };\n    const p = llamarServicio(HF, \"/render\", {}, colgado, { reloj });\n    avanzar(30_000); // el plazo por defecto pasaría: aún no corta\n    expect(senal?.aborted).toBe(false);\n    avanzar(870_000); // total 900.000 ms\n    expect(await p).toMatchObject({ ok: false, fallo: \"tiempo\", ms: 900_000 });\n    expect(senal?.aborted).toBe(true);\n  });\n```",
+   "origen": {
+    "revision": "revisar_ramas_nube",
+    "tarea": "HFR1018Hb",
+    "rama": "nube/41518451047"
+   }
+  },
+  {
+   "ola": "Rescate de las ramas de la nube",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261021-075038-RTRTRC1013Cc",
+   "id": "RTRTRC1013Cd-d2",
+   "titulo": "Rescate de pruebas · Rescate de pruebas · Relevo entre cuentas: recoger lo que otra cuenta me dejó y retirarlo al leerlo (parte 2 de 2)",
+   "archivos": [
+    "src/lib/metagenesis/__tests__/remoto-nodos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea RTRC1013Cd («Rescate de pruebas · Relevo entre cuentas: recoger lo que otra cuenta me dejó y retirarlo al leerlo») se hizo en main por otro camino; su rama nube/38773108654 queda archivada en `refs/archivo/nube/38773108654` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.82)\n\nTU TAREA (RTRTRC1013C · solo estos archivos: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"sin trabajo en curso, el botón de desconectar está deshabilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: false, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toBe(\"No tiene trabajo en curso: puedes apagarlo sin más.\");\n        expect(b.desconectar.confirmar).toBe(false);\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"con contenedor activo y sin trabajo en curso, el botón de desconectar está habilitado\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 0, contenedor: { activo: true, agentes: 3, apto: true, motivo: \"\" } });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.contenedor).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Dejar de usar como contenedor\" });\n    });\n\n# src/components/metagenesis/__tests__/colmena-botones.test.tsx\n    it(\"mostrar botón de desconectar cuando hay trabajo en curso con 1 agente\", () => {\n        const b = botonesNeurona({ nodo: \"mac-a1b2c3\", vivo: true, so: \"macos\", enCurso: 1 });\n        expect(b.desconectar).toMatchObject({ visible: true, habilitado: true, etiqueta: \"Desconectar\" });\n        expect(b.desconectar.explica).toContain(\"1 agente\");\n        expect(b.desconectar.confirmar).toBe(true);\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"cada estado mapea al texto correcto\", () => {\n        const estados = {\n            pendiente: \"esperando a un nodo\",\n            tomada: \"la tiene un nodo\",\n            hecha: \"hecha\",\n            en_marcha: \"en marcha\",\n            seca: \"solo simulada (nodo en prueba)\",\n            nada: \"no hacía falta\",\n            rechazada: \"rechazada\",\n            fallo: \"falló\",\n            caducada: \"nadie la recogió a tiempo\",\n        };\n        Object.entries(estados).forEach(([estado, esperado]) => {\n            expect(textoEstadoOrden(estado)).toBe(esperado);\n        });\n    });\n\n# src/lib/metagenesis/__tests__/remoto-nodos.test.ts\n    it(\"estado desconocido se devuelve tal cual\", () => {\n        expect(textoEstadoOrden(\"estado-unknown\")).toBe(\"estado-unknown\");\n    });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261021-075038-RTRTRC1013Cc`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261021-075038-RTRTRC1013Cc:refs/remotes/origin/nube/a1-20261021-075038-RTRTRC1013Cc\"` y `git cherry-pick --no-commit 5c6bf37c2096 3dbe2a8277a7 9db090309458 1545499892e4 9fa5267d6161 0e2120e516f0`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts.\nSi la rama no aporta nada que main no tenga ya (con ese nombre o con otro), responde `NO APLICA: <motivo>` y para: no inventes trabajo. ANTES de responderlo, deshaz todo lo que trajo el paso 1 con `git reset -q --hard main` (vuelve a main: borra los archivos preparados y también los commits de punto de control que el vigilante ya haya hecho con ese trabajo; `reset --hard HEAD` no basta) y comprueba DOS cosas: que `git status --porcelain` no imprime nada y que `git rev-list --count main..HEAD` da 0. El orquestador solo da la tarea por «sin cambios» con las dos; si queda algo preparado o la rama lleva commits por delante de main, la trata como una escritura, la pasa por las puertas y vuelve a pedir reparación.\nSi aporta algo, déjalo con tsc y las pruebas en verde y quédate solo con los archivos de esta tarea (src/components/metagenesis/__tests__/colmena-botones.test.tsx, src/lib/metagenesis/__tests__/remoto-nodos.test.ts): el paso 1 puede traer los de otra tarea (el «Archivos que tocó» de arriba es de la rama, no de la tarea); devuélvelos a como estaban en main (`git rm -rqf --ignore-unmatch -- <ruta>` si eran nuevos, `git checkout main -- <ruta>` si ya existían; no `git checkout HEAD`: el punto de control ya puede llevar la versión de la nube).\n\n## PARTE 2 DE 2 (la dirección dividió RTRTRC1013Cd: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/metagenesis/__tests__/remoto-nodos.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "RTRTRC1013Cd",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "revisor_quitadas": [
+    "RTRTRC1013Cd-d1"
+   ]
+  },
+  {
+   "id": "PUB1029F",
+   "ola": "1029 · CI de producción en verde",
+   "depende": [],
+   "titulo": "Guía de la red · la tarjeta /library vuelve a abrir la explicación real de la Biblioteca",
+   "archivos": [
+    "src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta (corre la prueba citada: si ya pasa, responde NO APLICA y no toques nada).\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de cadenas con forma de clave en código ni pruebas.\n\nContexto (2026-10-29): la autopublicación, parada desde el 25-10, ya pasa el detector de secretos y las 3.627 pruebas del puente, pero el CI de GitHub (run 40821862697, candidato c339920f7) falla en Vitest con 6 de 17.056 pruebas. Mientras haya una en rojo, nada se publica. Arregla la causa, no la prueba, salvo que la prueba sea la que quedó vieja (dilo en tu respuesta).\n\nFalla `areas-explicadas-temas.test.tsx` («la tarjeta /library abre la explicación real de la Biblioteca»): busca el texto «La biblioteca universal de la red», que ya no existe en `src` (lo cambiaron las partes GUI1021Gb del 28-10). Mira qué texto explica hoy la Biblioteca en la guía: si la tarjeta sigue abriendo la explicación correcta, actualiza la prueba al texto nuevo; si abre otra cosa o nada, arregla la tarjeta (añade su archivo a la tarea).",
+   "revisor_quitadas": [
+    "PUB1029E"
+   ]
+  },
+  {
+   "id": "RESC1031D",
+   "titulo": "Rescates · traer_nube.base_de con ids que acaban en minúscula",
+   "archivos": [
+    "scripts/puente/traer_nube.py",
+    "scripts/puente/test_traer_nube.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\n`traer_nube.base_de(tid)` corta mal los ids cuyo final es una minúscula de la propia tarea (p. ej. `RTESP1011Bb`, `SGO1031B-d1`, `MC1013TCc`): distingue el sufijo de rescate/derivación (`-d1`, `-d2b`, prefijos `RT`) de la letra que forma parte del id. Pruebas con esos casos y los que ya existen.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "CAD1031B",
+   "titulo": "Relé de estaciones · documentar miembros(tema) y el servidor WebSocket",
+   "archivos": [
+    "architecture/estaciones-en-vivo-parametricas.md",
+    "src/lib/estaciones/canal-rele.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nCAD1031A (d3ecc616d y e091828ab) añadió `miembros(tema)` en `servicios/estaciones-rele/salas.mjs` y el servidor WebSocket `servicios/estaciones-rele/servidor.mjs` (ping cada 30 s, corte de quien no contesta, oyente con más de 1 MiB pendiente se salta). Actualiza §4.1 y §4.3 de la arquitectura y la cabecera de `canal-rele.ts` para que digan lo que hay. Solo documentación: el despliegue (compose y Caddy) es SOLO con la palabra de Alex, no lo toques.",
+   "ola": "0111 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "MVD1027C",
+   "ola": "1027V · Cápsulas de memoria (Memvid)",
+   "titulo": "Memvid · el servidor de cápsulas en Rust",
+   "archivos": [
+    "native/memvid-servidor/Cargo.toml",
+    "native/memvid-servidor/src/main.rs",
+    "native/memvid-servidor/src/capsulas.rs"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Memvid (memvid/memvid, Apache-2.0) «en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda». Contrato: `architecture/memvid-capsulas.md` (léelo entero). Firmas del núcleo Rust en `integraciones-de-codigo/memvid/README-starseed.md`. Reglas: núcleo en Rust en un servidor propio (127.0.0.1:4490, token en `~/.starseed/memvid.token`), nunca el SDK de Node, nunca cuenta ni tickets de memvid.com, 50 MB por cápsula y se reparte, alcance de `src/lib/nucleo/alcance-memoria.ts`, personal y perfil cifradas.\n\nCrate binario `memvid-servidor` (edition 2024) con las dependencias EXACTAS de `integraciones-de-codigo/memvid/README-starseed.md` (memvid-core =2.0.140 sin features por defecto y con lex, temporal_track y encryption; tiny_http; serde; serde_json). `main.rs`: escucha en 127.0.0.1:4490 (puerto de `STARSEED_MEMVID_PUERTO`), lee el token de `~/.starseed/memvid.token` (si no existe lo crea con 32 bytes aleatorios de `/dev/urandom` en hex y permisos 0600) y rechaza con 403 sin `X-StarSeed-Token` correcto, con `Host` distinto de `127.0.0.1:<puerto>` o con `Origin`. Rutas del contrato §4 (`/salud`, `/capsulas/<nombre>/{poner,buscar,estado,linea}`). `capsulas.rs`: valida `<nombre>` (`^[a-z0-9-]+\\.mv2e?$`), abre o crea en `STARSEED_MEMVID_DIR` (por defecto `~/.starseed/memvid/`), descifra las `.mv2e` a `abiertas/` (0700) con la clave de `~/.starseed/memvid.claves` (JSON nombre → clave) y las vuelve a cifrar tras cada `commit`; `CapacityExceeded` → 507 con `{necesita_nueva_parte: true}`. Un `#[cfg(test)]` que crea una cápsula en un directorio temporal, pone dos textos, busca y lee la línea del tiempo.",
+   "dependencias_ya_en_main": [
+    "MVD1027C2"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1102-222938.json": [
+   "MVD1027C",
+   "PUB1029F",
+   "RTRTRC1013Cd-d2",
+   "CAD1031B",
+   "RESC1031D"
+  ]
+ }
+}
