@@ -88,4 +88,24 @@ describe("sugerirVariaciones", () => {
     const resultado = await sugerirVariaciones("tema:cristal", { payloadCapturado: {}, adn }, { enrutar });
     expect(resultado).toHaveLength(3);
   });
+
+  it("mide las pruebas automáticas del ADN sobre el payload y descarta las que no cumplen", async () => {
+    const casos = [
+      { comprobacion: "texto >=28px", payload: { texto: 32 }, pasa: true },
+      { comprobacion: "texto >=28px", payload: { texto: 20 }, pasa: false },
+      { comprobacion: "cuerpo <=65 caracteres", payload: { cuerpo: "Una línea normal con espacios y acentos" }, pasa: true },
+      { comprobacion: "cuerpo <=65 caracteres", payload: { cuerpo: "Una línea mucho más larga que se pasa del límite permitido por el ADN del contexto" }, pasa: false },
+      { comprobacion: "dianas >=44px", payload: { dianas: 44 }, pasa: true },
+      { comprobacion: "dianas >=44px", payload: { dianas: 30 }, pasa: false },
+    ];
+    for (const caso of casos) {
+      const adnCaso: AdnContexto = {
+        meta: { slug: "astraura" },
+        pruebas: [{ id: "p", comprobacion: caso.comprobacion, auto: true }],
+      };
+      const enrutar = async () => [{ titulo: "Candidata", payload: caso.payload }];
+      const resultado = await sugerirVariaciones("widget:clima", { payloadCapturado: {}, adn: adnCaso }, { enrutar });
+      expect(resultado).toHaveLength(caso.pasa ? 1 : 0);
+    }
+  });
 });
