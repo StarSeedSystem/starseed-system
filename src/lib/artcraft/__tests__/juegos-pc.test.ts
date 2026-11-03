@@ -12,6 +12,7 @@ import {
 } from "../juegos-pc";
 import { herramientaPorId } from "../../protomolecula/catalogo-herramientas";
 import type { HerramientaProto } from "../../protomolecula/catalogo-herramientas";
+import { rare as rareFn } from "../rare";
 
 type EntradaPlan = Parameters<typeof planificarJuegoPc>[0];
 const NEURONA_A: EntradaPlan["neurona"] = { sistema: "macos", tienePantalla: true, binarioRare: true, gpu: true, memoriaMB: 16384 };
@@ -239,5 +240,37 @@ describe("Rare: ficha viva del catálogo, programa aparte y credenciales de Epic
     expect(ficha.actualizacion.ref).toBe("RareDevs/Rare");
     expect(ficha.actualizacion.filtro).toBeTruthy();
     expect(ficha.actualizacion.ultimaVersion).toMatch(new RegExp(ficha.actualizacion.filtro as string));
+  });
+});
+
+describe("artcraft · rare (módulo puro)", () => {
+  it("solo se actualiza desde github.com/RareDevs/Rare", () => {
+    const h = rareFn();
+    expect(h.codigo).toBe("https://github.com/RareDevs/Rare");
+    expect(h.actualizacion).toMatchObject({ fuente: "github-tags", ref: "RareDevs/Rare" });
+    expect(h.actualizacion.filtro).toBeTruthy();
+    expect(h.actualizacion.ultimaVersion).toMatch(new RegExp(h.actualizacion.filtro as string));
+  });
+
+  it("nombra raredevs.github.io (wring) y ProtonDB entre las descargas remotas bloqueadas", () => {
+    const avisos = (rareFn().avisos ?? []).join(" ");
+    expect(avisos).toContain("raredevs.github.io/wring");
+    expect(avisos).toContain("ProtonDB");
+    expect(avisos).toMatch(/bloquea o se aloja con SHA fijado/);
+  });
+
+  it("deja la sesión de Epic por persona en LEGENDARY_CONFIG_PATH con permisos 0700", () => {
+    const notas = rareFn().control.notas;
+    expect(notas).toContain("LEGENDARY_CONFIG_PATH");
+    expect(notas).toContain("0700");
+    expect(notas.join(" ")).toMatch(/por persona/);
+    expect(notas.join(" ")).toMatch(/nunca/);
+  });
+
+  it("no expone campos de la sesión de Epic en la ficha publicada", () => {
+    const texto = JSON.stringify(rareFn());
+    for (const campo of ["access_token", "refresh_token", "account_id", "exchange_code"]) {
+      expect(texto).not.toContain(campo);
+    }
   });
 });
