@@ -517,6 +517,49 @@ describe("TarjetaNodo · botones de la colmena (COL1012I)", () => {
     });
     afterEach(() => cleanup());
 
+    // ── Casos rescatados de la rama nube (RTCOL1012Ie) ──────────────────────────────────────────────────
+
+    it("muestra el botón de desconectar cuando hay trabajo en curso", async () => {
+        estado.lectura = lectura([nodo({ relevo: true, enCurso: [tarea("task-1", 5 * 60_000)] })]);
+        pintar();
+        const boton = await screen.findByTestId(id("desconectar"));
+        expect(boton).toBeInTheDocument();
+        expect(boton).toHaveTextContent("Desconectar");
+        expect(boton).not.toBeDisabled();
+    });
+
+    it("muestra el botón de usar como contenedor cuando el nodo puede ser contenedor", async () => {
+        estado.lectura = lectura([nodo({ relevo: true, contenedor: { activo: false, agentes: 2, apto: true, motivo: "Listo para trabajar" } })]);
+        pintar();
+        const boton = await screen.findByTestId(id("contenedor"));
+        expect(boton).toBeInTheDocument();
+        expect(boton).toHaveTextContent("Usar como contenedor (2 agentes)");
+        expect(boton).not.toBeDisabled();
+    });
+
+    it("muestra la línea de información bajo el nombre del nodo", async () => {
+        estado.lectura = lectura([nodo({
+            relevo: true,
+            enCurso: [tarea("task-1", 5 * 60_000)],
+            contenedor: { activo: true, agentes: 2, apto: true, motivo: "Listo para trabajar" },
+        })]);
+        pintar();
+        const info = await screen.findByTestId(id("info"));
+        expect(info).toBeInTheDocument();
+        expect(info).toHaveTextContent("2 agentes · contenedor activo");
+        expect(info).toHaveTextContent("1 tarea en curso");
+    });
+
+    it("muestra información de tarea a medias cuando existe", async () => {
+        estado.lectura = lectura([nodo({
+            relevo: true,
+            enCurso: [tarea("task-1", 5 * 60_000)],
+        })]);
+        pintar();
+        const tiempoInfo = await screen.findByText(/Último punto de control hace 5 min/);
+        expect(tiempoInfo).toBeInTheDocument();
+    });
+
     // ── hoy: el traspaso y el reparto NO están cableados (relevo=false): ningún botón finge ───────────────
     it("sin traspaso: Desconectar se ve pero no se pulsa, y la razón está a la vista (no solo en el title)", async () => {
         estado.lectura = lectura([nodo({ enCurso: [tarea("task-1", 5 * 60_000)] })]);
