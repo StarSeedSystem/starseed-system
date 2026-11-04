@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AJUSTES_POR_DEFECTO, ESTADOS_DECIDIBLES, NOMBRE_ESTADO, NOMBRE_FUENTE, ambitoDeLaUrl, decidibles, esAmbito, esDecidible,
   esperaAAlex, filasMedidor, filtrarPorAmbito, interpretarPeticion, leerAmbito, normalizarAmbito, normalizarImportancia, normalizarReferencias,
-  normalizarReimaginacion, reimaginacionesLibres, resumenPastilla, validarAjustes, vetoDecision,
+  normalizarFiltroAstraura, normalizarReimaginacion, reimaginacionesLibres, resumenFiltroAstraura, resumenPastilla, validarAjustes, vetoDecision,
   type EstadoPropuesta,
   type PropuestaImaginacion,
 } from "../imaginacion-tipos";
@@ -241,5 +241,36 @@ describe("lo que escribe el director (IMG1024C) leído en TS", () => {
     expect(ambitoDeLaUrl("?ambito=local")).toBe("metagenesis");
     expect(ambitoDeLaUrl("?nivel=meta&ambito=grupo%3Ag1")).toBe("grupo:g1");
     expect(ambitoDeLaUrl("?ambito=personal")).toBe("personal");
+  });
+});
+
+describe("filtro de entrada de Astraura (IMG1102D)", () => {
+  const crudo = {
+    fecha: "2026-11-02", tope_dia: 3, ventana_dias: 7, vistas: 690, entran: 8,
+    filtradas: { "familia repetida": 303, "tipo de archivo": 320, tope: 59 },
+    autorizacion_inventada: 4, por_id: { "astraura:x": "tope" }, inventadas: ["astraura:y"],
+  };
+  it("lee la cuenta del director y descarta lo que no es número, el rastro y las rutas", () => {
+    const f = normalizarFiltroAstraura(crudo);
+    expect(f).toEqual({
+      fecha: "2026-11-02", vistas: 690, entran: 8,
+      filtradas: { familiaRepetida: 303, tipoDeArchivo: 320, tope: 59 }, autorizacionInventada: 4,
+    });
+    expect(JSON.stringify(f)).not.toContain("por_id");
+    expect(JSON.stringify(f)).not.toContain("astraura:x");
+    expect(normalizarFiltroAstraura({ ...crudo, vistas: "690", filtradas: { "familia repetida": -2, "tipo de archivo": 3.9, tope: null } }))
+      .toMatchObject({ vistas: 0, filtradas: { familiaRepetida: 0, tipoDeArchivo: 3, tope: 0 } });
+  });
+  it("sin filtro (lista antigua, objeto vacío o basura) devuelve null y no pinta nada", () => {
+    for (const x of [null, undefined, [], "x", 4, {}, { filtradas: {} }]) {
+      expect(normalizarFiltroAstraura(x)).toBeNull();
+      expect(resumenFiltroAstraura(normalizarFiltroAstraura(x))).toBe("");
+    }
+  });
+  it("la línea dice el total y el motivo de cada descarte; si es de otro día, no lo llama «hoy»", () => {
+    const f = normalizarFiltroAstraura(crudo);
+    expect(resumenFiltroAstraura(f)).toBe("Filtradas de Astraura hoy: 682 (familia 303 · tipo 320 · tope 59)");
+    expect(resumenFiltroAstraura(f, "2026-11-02")).toBe("Filtradas de Astraura hoy: 682 (familia 303 · tipo 320 · tope 59)");
+    expect(resumenFiltroAstraura(f, "2026-11-03")).toBe("Filtradas de Astraura el 2026-11-02: 682 (familia 303 · tipo 320 · tope 59)");
   });
 });

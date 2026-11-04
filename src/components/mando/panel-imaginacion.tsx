@@ -43,12 +43,15 @@ import {
     esDecidible,
     esperaAAlex,
     filasMedidor,
+    normalizarFiltroAstraura,
     normalizarReferencias,
+    resumenFiltroAstraura,
     vetoReimaginar,
     type AjustesAuto,
     type AjustesAutodesarrollo,
     type AmbitoPropuesta,
     type EstadoPropuesta,
+    type FiltroAstraura,
     type FuentePropuesta,
     type HacerLote,
     type ImportanciaPropuesta,
@@ -119,7 +122,8 @@ const dominio = (u: string) => {
 
 // ── Datos y red ─────────────────────────────────────────────────────────────────────────────────────
 
-interface DatosImaginacion { propuestas: PropuestaNormalizada[]; ajustes: AjustesAutodesarrollo }
+interface DatosImaginacion { propuestas: PropuestaNormalizada[]; ajustes: AjustesAutodesarrollo; filtroAstraura: FiltroAstraura | null }
+interface RespuestaGet { propuestas?: PropuestaNormalizada[]; ajustes?: AjustesAutodesarrollo; filtroAstraura?: unknown; error?: string }
 interface ResultadoId { id: string; ok: boolean; error?: string }
 interface RespuestaPost { ok?: boolean; error?: string; propuesta?: PropuestaNormalizada; resultados?: ResultadoId[]; ajustes?: AjustesAutodesarrollo }
 type Envio = { ok: boolean; status: number; datos: RespuestaPost };
@@ -823,12 +827,12 @@ export function PanelImaginacion({
     const cargar = useCallback(async () => {
         try {
             const r = await fetch(`/api/mando/imaginacion?ambito=${encodeURIComponent(ambito)}`, { cache: "no-store" });
-            const d = (await r.json().catch(() => null)) as (DatosImaginacion & { error?: string }) | null;
-            if (!r.ok || !d || !Array.isArray(d.propuestas)) {
+            const d = (await r.json().catch(() => null)) as RespuestaGet | null;
+            if (!r.ok || !d || !Array.isArray(d.propuestas) || !d.ajustes) {
                 setErrorLectura(d?.error ?? `No se pudieron leer las propuestas (HTTP ${r.status}).`);
                 return;
             }
-            setDatos({ propuestas: d.propuestas, ajustes: d.ajustes });
+            setDatos({ propuestas: d.propuestas, ajustes: d.ajustes, filtroAstraura: normalizarFiltroAstraura(d.filtroAstraura) });
             setErrorLectura(null);
             // La selección solo guarda lo que sigue esperando decisión (lo fallido de un lote, sí).
             const siguen = new Set(d.propuestas.filter((p) => esDecidible(p.estado)).map((p) => p.id));
@@ -984,6 +988,16 @@ export function PanelImaginacion({
             </p>
 
             {datos ? <AjustesAutomatico auto={datos.ajustes.auto} alGuardar={guardarAuto} /> : null}
+
+            {datos && resumenFiltroAstraura(datos.filtroAstraura, new Date().toISOString().slice(0, 10)) ? (
+                <p
+                    data-testid="imaginacion-filtro-astraura"
+                    className="mc-centrado flex flex-wrap items-center justify-center gap-x-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] text-white/80"
+                >
+                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-cyan-200" aria-hidden />
+                    {resumenFiltroAstraura(datos.filtroAstraura, new Date().toISOString().slice(0, 10))}
+                </p>
+            ) : null}
 
             {errorLectura ? (
                 <p role="alert" className="mc-centrado rounded-lg border border-rose-300/30 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">

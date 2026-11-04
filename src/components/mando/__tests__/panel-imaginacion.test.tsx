@@ -19,7 +19,11 @@ type Cuerpo = Record<string, unknown>;
 type Respuesta = { status?: number; json: unknown };
 
 /** Un servidor de mentira: GET devuelve el estado actual; POST pasa por `manejar` (que puede cambiarlo). */
-function servidor(inicial: PropuestaNormalizada[], manejar: (c: Cuerpo, estado: { propuestas: PropuestaNormalizada[]; ajustes: AjustesAutodesarrollo }) => Respuesta) {
+function servidor(
+    inicial: PropuestaNormalizada[],
+    manejar: (c: Cuerpo, estado: { propuestas: PropuestaNormalizada[]; ajustes: AjustesAutodesarrollo }) => Respuesta,
+    filtro: unknown = null,
+) {
     const estado = { propuestas: structuredClone(inicial), ajustes: structuredClone(AJUSTES_POR_DEFECTO) };
     const posts: Cuerpo[] = [];
     const gets: string[] = [];
@@ -33,7 +37,7 @@ function servidor(inicial: PropuestaNormalizada[], manejar: (c: Cuerpo, estado: 
                 return new Response(JSON.stringify(r.json), { status: r.status ?? 200, headers: { "Content-Type": "application/json" } });
             }
             gets.push(url);
-            return new Response(JSON.stringify({ propuestas: estado.propuestas, ajustes: estado.ajustes, resumen: {} }), {
+            return new Response(JSON.stringify({ propuestas: estado.propuestas, ajustes: estado.ajustes, filtroAstraura: filtro, resumen: {} }), {
                 status: 200,
                 headers: { "Content-Type": "application/json" },
             });
@@ -346,5 +350,29 @@ describe("PanelImaginacion", () => {
         expect(await screen.findByText("Sin propuestas de la imaginación en página p1.")).toBeInTheDocument();
         expect(screen.getByRole("link", { name: "MetaGenesis (3)" })).toBeInTheDocument();
         expect(screen.getByRole("link", { name: "Volver al pulso de MetaGenesis" })).toBeInTheDocument();
+    });
+
+    it("IMG1102D: enseña lo que filtró Astraura hoy y por qué, sin llamar «hoy» a un resumen viejo", async () => {
+        const hoy = new Date().toISOString().slice(0, 10);
+        const filtro = {
+            fecha: hoy, vistas: 690, entran: 8,
+            filtradas: { "familia repetida": 303, "tipo de archivo": 320, tope: 59 }, autorizacion_inventada: 0,
+        };
+        servidor([], sinPost, filtro);
+        render(<PanelImaginacion ambito="metagenesis" />);
+        expect(await screen.findByTestId("imaginacion-filtro-astraura"))
+            .toHaveTextContent("Filtradas de Astraura hoy: 682 (familia 303 · tipo 320 · tope 59)");
+        cleanup();
+
+        servidor([], sinPost, { ...filtro, fecha: "2026-11-01" });
+        render(<PanelImaginacion ambito="metagenesis" />);
+        expect(await screen.findByTestId("imaginacion-filtro-astraura"))
+            .toHaveTextContent("Filtradas de Astraura el 2026-11-01: 682 (familia 303 · tipo 320 · tope 59)");
+        cleanup();
+
+        servidor([], sinPost);
+        render(<PanelImaginacion ambito="metagenesis" />);
+        await screen.findByText("Sin propuestas de la imaginación en MetaGenesis.");
+        expect(screen.queryByTestId("imaginacion-filtro-astraura")).toBeNull();
     });
 });

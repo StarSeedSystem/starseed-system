@@ -323,3 +323,56 @@ export function interpretarPeticion(cuerpo: unknown): PeticionImaginacion | { er
   const veto = vetoReimaginar(notas, cuerpo.referencias);
   return veto ? { error: veto } : { accion: "reimaginar", id, notas, referencias: cuerpo.referencias, por };
 }
+
+/**
+ * Lo que dejó el filtro de entrada de Astraura en `propuestas.json → filtro_astraura` (Ola 1102 · IMG1102A).
+ * Cuenta por id y por día: «vistas» es lo que pasó por el filtro, «entran» lo que se convirtió en propuesta y
+ * «filtradas» el motivo de cada descarte. No lleva rutas ni claves: se puede enseñar tal cual en Genesis.
+ */
+export interface FiltroAstraura {
+  fecha: string;
+  vistas: number;
+  entran: number;
+  filtradas: { familiaRepetida: number; tipoDeArchivo: number; tope: number };
+  autorizacionInventada: number;
+}
+const cuentaFiltro = (v: unknown): number =>
+  typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+const objetoFiltro = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * El resumen del filtro tal como lo escribe el director, saneado: solo números, fecha y sus tres motivos.
+ * `null` cuando no hay filtro que enseñar (lista antigua, objeto vacío o basura). PURA.
+ */
+export function normalizarFiltroAstraura(x: unknown): FiltroAstraura | null {
+  if (!objetoFiltro(x)) return null;
+  const f = objetoFiltro(x.filtradas) ? x.filtradas : {};
+  const filtradas = {
+    familiaRepetida: cuentaFiltro(f["familia repetida"]),
+    tipoDeArchivo: cuentaFiltro(f["tipo de archivo"]),
+    tope: cuentaFiltro(f.tope),
+  };
+  const filtro: FiltroAstraura = {
+    fecha: typeof x.fecha === "string" ? x.fecha.slice(0, 10) : "",
+    vistas: cuentaFiltro(x.vistas),
+    entran: cuentaFiltro(x.entran),
+    filtradas,
+    autorizacionInventada: cuentaFiltro(x.autorizacion_inventada),
+  };
+  const hay = filtro.fecha || filtro.vistas || filtro.entran || filtro.autorizacionInventada
+    || filtradas.familiaRepetida || filtradas.tipoDeArchivo || filtradas.tope;
+  return hay ? filtro : null;
+}
+
+/**
+ * «Filtradas de Astraura hoy: N (familia X · tipo Y · tope Z)» o «» si no hay filtro. Si el resumen es de
+ * otro día (el ciclo aún no lo ha renovado), lo dice con su fecha en vez de llamarlo «hoy». PURA.
+ */
+export function resumenFiltroAstraura(f: FiltroAstraura | null | undefined, hoy = ""): string {
+  if (!f) return "";
+  const { familiaRepetida, tipoDeArchivo, tope } = f.filtradas;
+  const total = familiaRepetida + tipoDeArchivo + tope;
+  const cuando = hoy && f.fecha && f.fecha !== hoy ? `el ${f.fecha}` : "hoy";
+  return `Filtradas de Astraura ${cuando}: ${total} (familia ${familiaRepetida} · tipo ${tipoDeArchivo} · tope ${tope})`;
+}

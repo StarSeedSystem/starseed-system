@@ -19,9 +19,11 @@
  * escritura son genéricos. Lo auxiliar vive en `src/lib/mando/imaginacion-*`.
  */
 
+import { readFile } from "node:fs/promises";
+
 import { guardianMando } from "@/lib/mando/guardian";
-import { filtrarPorAmbito, interpretarPeticion, leerAmbito, resumenPastilla } from "@/lib/mando/imaginacion-tipos";
-import { aprobar, guardarAjustes, leerAjustes, leerPropuestas, lote, posponer, rechazar, reimaginar, type Resultado } from "@/lib/mando/imaginacion-servidor";
+import { filtrarPorAmbito, interpretarPeticion, leerAmbito, normalizarFiltroAstraura, resumenPastilla } from "@/lib/mando/imaginacion-tipos";
+import { aprobar, guardarAjustes, leerAjustes, leerPropuestas, lote, posponer, rechazar, reimaginar, rutasImaginacion, type Resultado } from "@/lib/mando/imaginacion-servidor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,15 +31,25 @@ export const dynamic = "force-dynamic";
 const SIN_CACHE = { "Cache-Control": "no-store" };
 const responder = (cuerpo: unknown, status = 200) => Response.json(cuerpo, { status, headers: SIN_CACHE });
 
+/** El `filtro_astraura` del archivo (solo la cuenta saneada; nunca `por_id` ni rutas). Si no hay, null. */
+async function leerFiltroAstraura() {
+    try {
+        const crudo = JSON.parse(await readFile(rutasImaginacion().propuestas, "utf-8")) as unknown;
+        return normalizarFiltroAstraura(typeof crudo === "object" && crudo !== null && !Array.isArray(crudo) ? (crudo as Record<string, unknown>).filtro_astraura : null);
+    } catch {
+        return null;
+    }
+}
+
 export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
     const ambito = leerAmbito(new URL(peticion.url).searchParams.get("ambito"));
     if (ambito === null) return responder({ error: "Ámbito desconocido: usa metagenesis, personal, grupo:<id> o pagina:<id>." }, 400);
     try {
-        const [todas, ajustes] = await Promise.all([leerPropuestas(), leerAjustes()]);
+        const [todas, ajustes, filtroAstraura] = await Promise.all([leerPropuestas(), leerAjustes(), leerFiltroAstraura()]);
         const propuestas = filtrarPorAmbito(todas, ambito);
-        return responder({ propuestas, ajustes, resumen: resumenPastilla(propuestas, new Date()), actualizadoEn: new Date().toISOString() });
+        return responder({ propuestas, ajustes, filtroAstraura, resumen: resumenPastilla(propuestas, new Date()), actualizadoEn: new Date().toISOString() });
     } catch {
         return responder({ error: "No se pudieron leer las propuestas." }, 500);
     }
