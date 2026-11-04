@@ -175,6 +175,7 @@ const nextConfig: NextConfig = {
       `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://esm.run https://cdnjs.cloudflare.com https://apis.google.com https://accounts.google.com`,
       `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com`,
       `font-src 'self' data: https:`,
+      `media-src 'self' blob: data:`,
       // (Adenda 153) Loopback explícito: el sistema primario Astraura 1.58-bit
       // (127.0.0.1:8000), Ollama (11434), LM Studio (1234) y OmniVoice (4444)
       // viven en la propia neurona y se llaman por http/ws desde el OS en https.
