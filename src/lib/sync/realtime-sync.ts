@@ -897,6 +897,23 @@ function serializeForStorage(value: unknown): string {
 }
 
 /**
+ * Serialización ESTABLE de un valor JSON: claves ordenadas y determinista.
+ * Se usa para comparar lo que llega de la cuenta con lo que dejaría el saneo
+ * sin que el orden de claves del jsonb engañe (Postgres lo reordena).
+ */
+export function jsonEstable(valor: unknown): string {
+    if (Array.isArray(valor)) return `[${valor.map(jsonEstable).join(",")}]`;
+    if (valor && typeof valor === "object") {
+        const pares = Object
+            .entries(valor as Record<string, unknown>)
+            .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+            .map(([k, v]) => `${JSON.stringify(k)}:${jsonEstable(v)}`);
+        return `{${pares.join(",")}}`;
+    }
+    return JSON.stringify(valor);
+}
+
+/**
  * Aplica los cambios que llegan de la cuenta (otro dispositivo o el arranque).
  * `remoteMeta` trae las marcas LWW: una clave remota MÁS VIEJA que la local
  * NUNCA se aplica (ese era el riesgo real de pisar trabajo reciente).
@@ -959,18 +976,21 @@ function applyRemoteChanges(
             }
 
             /* ── DIRECTIVAS (MTN1027C · Meta^n): sanear ANTES de escribir ──────
-             * El registro de directivas (`starseed.capas.directivas.v1`) se aplica
-             * aquí TAL CUAL llega. igual que con el dock, un valor torcido de la
-             * cuenta (claves ajenas, directivas con versión infinita o estados
-             * desconocidos) quedaría persistido con esa basura. Pasa por la MISMA
-             * normalización pura que usa el almacén (`normalizarRegistroDirectivas`)
-             * y lo que se caiga del saneado se marca como reparado para volver a
-             * subir lo ya limpio. */
+             * El registro de directivas (`starseed.capas.directivas.v1`) no se
+             * aplica aquí TAL CUAL llega: igual que con el dock, un valor torcido
+             * de la cuenta (claves ajenas, directivas con versión infinita o
+             * estados desconocidos) quedaría persistido con esa basura. Pasa por
+             * la MISMA normalización pura que usa el almacén
+             * (`normalizarRegistroDirectivas`) y lo que se caiga del saneado se
+             * marca como reparado para volver a subir lo ya limpio. La
+             * comparación es ESTABLE (`jsonEstable`): el jsonb de Postgres
+             * reordena claves y una comparación de `JSON.stringify` a secas
+             * re-marcaría como torcido un registro válido solo por el orden. */
             if (key === CLAVE_DIRECTIVAS) {
                 const crudo: unknown =
                     typeof merged === "string" ? JSON.parse(merged) : merged;
                 const saneado = normalizarRegistroDirectivas(crudo);
-                if (JSON.stringify(crudo) !== JSON.stringify(saneado)) {
+                if (jsonEstable(crudo) !== jsonEstable(saneado)) {
                     merged = saneado;
                     repaired = true;
                 }
