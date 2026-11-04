@@ -1,0 +1,70 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "ola": "1102 · Imaginación útil",
+   "importancia": "",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261104-025700-IMG1102D",
+   "id": "IMG1102Db-d2",
+   "titulo": "Medidor de Imaginación · enseña lo filtrado de Astraura y por qué (parte 2 de 2)",
+   "archivos": [
+    "src/components/mando/imaginacion-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; funciones PURAS con pruebas; nunca la IP del A1.\n\nContexto: el 02-11 se integraron IMG1102A (1718e5272, 0545f728f: filtro de entrada de Astraura, gasto de verdad, carril de bajo riesgo ≥ 0,6 para investigación/diseño/contenido, autorizaciones inventadas) e IMG1102B (884bfff4f, d949a5e8f: `imaginacion_contexto.py` + `imaginacion_plantilla.py` enganchados en referencias de diseño y la diaria), y d20fe1c80 (el ciclo del director ya no muere si Telegram tarda). Contrato: `architecture/imaginacion-calidad.md`.\n\n`propuestas.json → filtro_astraura` (familia repetida, tipo de archivo, tope, autorizaciones inventadas) y `ciclo()` ya lo devuelven. Píntalo en la ventana de Imaginación (busca el componente real con grep) como una línea «Filtradas de Astraura hoy: N (familia X · tipo Y · tope Z)». vitest.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261104-025700-IMG1102D`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261104-025700-IMG1102D:refs/remotes/origin/nube/a1-20261104-025700-IMG1102D\"` y `git cherry-pick --no-commit 82ca44fb8c2a 4bb74e08e2e8`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/mando/imaginacion-panel.tsx, src/lib/mando/__tests__/imaginacion.test.ts, src/lib/mando/imaginacion-tipos.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió IMG1102Db: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/components/mando/imaginacion-panel.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG1102Db",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "revisor_quitadas": [
+    "IMG1102Db-d1"
+   ]
+  },
+  {
+   "id": "CTR1104K",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Imaginación · «clave» de «un paso clave» ya no se confunde con una clave secreta",
+   "archivos": [
+    "scripts/puente/autodesarrollo_decidir.py",
+    "scripts/puente/test_autodesarrollo_reservados_1104.py"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/imaginacion-calidad.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3: «clave» en `RESERVADOS` también significa «importante» («un paso clave»), y «Arreglar el ciclo de vida del orquestador» sigue yendo a «pregunta». Haz que «clave» solo cuente cuando hable de un secreto (clave de API, secreta, privada, de acceso, SSH, token, contraseña) y no en «paso clave», «punto clave», «clave para», «es clave». Pruebas con ejemplos de los dos lados."
+  },
+  {
+   "id": "CTR1104S",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Astraura · detectAvailability sondea las fuentes en paralelo",
+   "archivos": [
+    "src/ai/astraura/availability.ts",
+    "src/ai/astraura/__tests__/availability-paralelo.test.ts"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/astraura-158-sistema-primario.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§«Pendiente / no hecho en esta ola»: el bucle de sondeo de `detectAvailability()` sigue secuencial entre fuentes. Hazlo en paralelo (cada sonda con su tope, una que tarda no frena a las demás) conservando el orden de preferencia del resultado. Prueba con sondas simuladas: el tiempo total es el de la más lenta, no la suma, y el orden no cambia."
+  },
+  {
+   "id": "CTR1104U",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Estudio MetaGeminis · subtítulos .vtt y .srt desde los beats del guion",
+   "archivos": [
+    "scripts/sociales/estudio/subtitulos.py",
+    "scripts/sociales/estudio/test_subtitulos.py"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/metageminis-estudio.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§12 `EST-SUBTITULOS`: genera `.vtt` y `.srt` a partir de los beats (inicio, fin, texto) que ya usa el estudio (mira `manifiesto.py`/`nucleo.py`). Puro y probado; quemarlos con ffmpeg solo si ffmpeg está y como función aparte."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-122653.json": [
+   "IMG1102Db-d2",
+   "CTR1104S",
+   "CTR1104U",
+   "CTR1104K"
+  ]
+ }
+}
