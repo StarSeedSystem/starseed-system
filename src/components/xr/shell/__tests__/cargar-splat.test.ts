@@ -3,7 +3,7 @@
  * Todo puro: el descargador y el constructor de Spark se inyectan, así que no hay red,
  * ni disco, ni WebGL. Los motivos se comprueban tal como los lee la persona.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ObjetoMundo } from "../../../../lib/xr/mundo-tipos";
 import {
     cargarSplat,
@@ -123,5 +123,39 @@ describe("cargarSplat", () => {
         const opciones = MallaFalsa.ultima as OpcionesSplatMesh | null;
         expect(opciones).toMatchObject({ url: URL, maxSplats: 3_000_000 });
         expect(opciones?.fileBytes).toBeInstanceOf(ArrayBuffer);
+    });
+
+    it("sin maxSplats usa el presupuesto del nivel alta", async () => {
+        MallaFalsa.ultima = null;
+        await cargarSplat(URL, { SplatMesh: MallaFalsa, pedirBytes: async () => new ArrayBuffer(16) });
+        expect(MallaFalsa.ultima).toMatchObject({ maxSplats: presupuestoSplat("alta") });
+    });
+});
+
+describe("cargarSplat · descarga por defecto (fetch)", () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("un Content-Length por encima del tope se rechaza sin construir la malla", async () => {
+        let construida = false;
+        class Espia { constructor() { construida = true; } }
+        vi.stubGlobal("fetch", async () => new Response(null, { headers: { "content-length": String(MAX_BYTES_SPLAT + 1) } }));
+        const r = await cargarSplat(URL, { SplatMesh: Espia });
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.motivo).toContain(MOTIVO_SPLAT_GRANDE);
+        expect(construida).toBe(false);
+    });
+
+    it("una respuesta HTTP de error devuelve el código en el motivo", async () => {
+        vi.stubGlobal("fetch", async () => new Response("no", { status: 404 }));
+        const r = await cargarSplat(URL, { SplatMesh: MallaFalsa });
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.motivo).toContain("404");
+    });
+
+    it("una descarga correcta construye la malla y cuenta los bytes", async () => {
+        vi.stubGlobal("fetch", async () => new Response(new Uint8Array(32)));
+        const r = await cargarSplat(URL, { SplatMesh: MallaFalsa });
+        expect(r.ok).toBe(true);
+        if (r.ok) expect(r.bytes).toBe(32);
     });
 });
