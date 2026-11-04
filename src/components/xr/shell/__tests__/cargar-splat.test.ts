@@ -10,6 +10,7 @@ import {
     MAX_BYTES_SPLAT,
     MOTIVO_SPLAT_GRANDE,
     MOTIVO_URL_INSEGURA,
+    marcadorSplat,
     presupuestoSplat,
     puedeUsarSplat,
     urlSplatDeObjeto,
@@ -99,6 +100,22 @@ describe("cargarSplat", () => {
         });
         expect(resultado.ok).toBe(false);
         if (!resultado.ok) expect(resultado.motivo).toContain("WebGL no disponible");
+    });
+
+    it("marcadorSplat: nivel bajo, sin enlace, o listo", () => {
+        expect(marcadorSplat("media", URL)).toBe("Este objeto necesita un aparato más potente.");
+        expect(marcadorSplat("alta", undefined)).toBe("Este splat de la Biblioteca todavía no tiene enlace de descarga.");
+        expect(marcadorSplat("maxima", URL)).toBeNull();
+    });
+
+    it("sin nivel no fija maxSplats", async () => {
+        MallaFalsa.ultima = null;
+        await cargarSplat(URL, {
+            SplatMesh: MallaFalsa,
+            pedirBytes: async () => new ArrayBuffer(128),
+        });
+        const opciones = MallaFalsa.ultima as OpcionesSplatMesh | null;
+        expect(opciones?.maxSplats).toBeUndefined();
     });
 
     it("una URL insegura se rechaza antes de pedir un solo byte", async () => {

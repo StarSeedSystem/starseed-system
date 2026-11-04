@@ -9,7 +9,14 @@ import type { NivelCalidad } from "../../../lib/xr/tipos";
 
 /** 60 MB es el tope de un splat que un visor autónomo puede descargar sin ahogarse. */
 export const MAX_BYTES_SPLAT = 60 * 1024 * 1024;
-export const TEXTO_SIN_SPLAT = "Este objeto necesita un aparato más potente";
+export const TEXTO_SIN_SPLAT = "Este objeto necesita un aparato más potente.";
+export const TEXTO_FALTA_ENLACE = "Este splat de la Biblioteca todavía no tiene enlace de descarga.";
+
+export function marcadorSplat(nivel: NivelCalidad, url: string | undefined): string | null {
+    if (!puedeUsarSplat(nivel)) return TEXTO_SIN_SPLAT;
+    if (!url) return TEXTO_FALTA_ENLACE;
+    return null;
+}
 export const MOTIVO_URL_INSEGURA = "El enlace del splat no es válido: debe ser https y no llevar credenciales.";
 export const MOTIVO_SPLAT_GRANDE = "El archivo del splat pasa de 60 MB y no se puede cargar en el visor.";
 export const MOTIVO_DESCARGA = "No se pudo descargar el archivo del splat.";
@@ -99,7 +106,7 @@ const motivoDeError = (error: unknown): string =>
 export async function cargarSplat(url: string, opciones: OpcionesCargaSplat = {}): Promise<ResultadoCargaSplat> {
     if (!urlSplatSegura(url)) return { ok: false, motivo: MOTIVO_URL_INSEGURA };
     const maxBytes = opciones.maxBytes ?? MAX_BYTES_SPLAT;
-    const maxSplats = opciones.maxSplats ?? presupuestoSplat("alta");
+    const maxSplats = opciones.maxSplats;
     let bytes: ArrayBuffer;
     try {
         bytes = opciones.pedirBytes ? await opciones.pedirBytes(url) : await descargarBytes(url, maxBytes);
