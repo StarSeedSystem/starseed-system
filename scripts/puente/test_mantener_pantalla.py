@@ -151,6 +151,18 @@ class CicloTests(unittest.TestCase):
         )
         self.assertFalse(servicio.hijo_vivo())
 
+    def test_sin_herramienta_avisa_una_vez_y_no_lanza_nada(self):
+        # Rescate RTKAL1101A: con una plataforma sin herramienta (p. ej. win32),
+        # un ajuste ACTIVO no lanza nada y el estado apagado se escribe una
+        # sola vez (el segundo ciclo repite el mismo estado y no escribe).
+        servicio, popen, escritos = servicio_simulado(plataforma="win32")
+        servicio.ciclo(ajuste("pantalla"))
+        servicio.ciclo(ajuste("pantalla"))
+        popen.assert_not_called()
+        self.assertEqual(
+            escritos, [{"modo": None, "herramienta": None, "pid": 42}]
+        )
+
     def test_nunca_usa_pkill(self):
         servicio, popen, _ = servicio_simulado()
         servicio.ciclo(ajuste("pantalla"))
