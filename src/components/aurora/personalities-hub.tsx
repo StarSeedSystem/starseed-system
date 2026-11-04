@@ -47,6 +47,8 @@ import {
 import { PersonalitiesPanel } from "@/components/aurora/personalities-panel";
 import { PanelAvatarPersonalidad } from "@/components/settings/aurora/panel-avatar-personalidad";
 import { MeshStatusChip } from "@/components/mesh/mesh-status-chip";
+import { CapsulaAjustes } from "@/components/memorias/capsula-ajustes";
+import type { TipoSujeto } from "@/lib/memorias/capsulas";
 import {
   listPersonalityProfiles,
   getPersonalityAssignments,
@@ -195,6 +197,66 @@ function MeshRulesRow({
         </label>
       </div>
     </div>
+  );
+}
+
+/* ── Cápsulas de memoria por personalidad ─────────────────────────────────────── */
+
+function CapsulasPorPersonalidad({ profiles }: { profiles: PersonalityProfile[] }) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (profiles.length > 0 && !selectedId) {
+      setSelectedId(profiles[0].id);
+    }
+  }, [profiles, selectedId]);
+
+  const selectedProfile = profiles.find((p) => p.id === selectedId);
+
+  return (
+    <Card className="border-white/10 bg-black/20">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Sparkles className="h-4 w-4 text-fuchsia-300" /> Memoria en cápsula (Memvid)
+        </CardTitle>
+        <CardDescription>
+          Cada personalidad puede tener su propia cápsula de memoria Memvid (archivo .mv2/.mv2e).
+          Activada por sujeto; personal y perfil van cifradas obligatoriamente. 50 MB por cápsula.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {profiles.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-white/10 px-4 py-5 text-center text-sm text-white/40">
+            Crea personalidades arriba para configurar su memoria en cápsula.
+          </p>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-1.5">
+              {profiles.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setSelectedId(p.id)}
+                  className={cn(
+                    "cursor-pointer rounded-full border px-3 py-1 text-[11px] transition-all duration-200 flex items-center gap-1.5",
+                    selectedId === p.id
+                      ? "border-fuchsia-400/60 bg-fuchsia-400/15 text-white font-medium ring-1 ring-fuchsia-400/30"
+                      : "border-white/10 bg-white/[0.02] text-white/70 hover:bg-white/[0.06]"
+                  )}
+                >
+                  <span>{p.name}</span>
+                </button>
+              ))}
+            </div>
+            {selectedProfile && (
+              <CapsulaAjustes
+                sujeto={{ tipo: "personalidad" as TipoSujeto, id: selectedProfile.id }}
+              />
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -360,6 +422,9 @@ export function PersonalitiesHub() {
 
       {/* 2B · Avatar y movimiento por personalidad */}
       <PanelAvatarPersonalidad />
+
+      {/* 2C · Memoria en cápsula por personalidad */}
+      <CapsulasPorPersonalidad profiles={profiles} />
 
       {/* 3 · Reglas mesh por neurona */}
       <Card className="border-white/10 bg-black/20">
