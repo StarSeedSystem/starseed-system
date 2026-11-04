@@ -3,7 +3,7 @@
  * Todo puro: el descargador y el constructor de Spark se inyectan, así que no hay red,
  * ni disco, ni WebGL. Los motivos se comprueban tal como los lee la persona.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ObjetoMundo } from "../../../../lib/xr/mundo-tipos";
 import {
     cargarSplat,
@@ -16,6 +16,10 @@ import {
     urlSplatSegura,
     type OpcionesSplatMesh,
 } from "../cargar-splat";
+
+afterEach(() => {
+    vi.unstubAllGlobals();
+});
 
 class MallaFalsa {
     static ultima: OpcionesSplatMesh | null = null;
@@ -89,6 +93,16 @@ describe("cargarSplat", () => {
         if (!resultado.ok) expect(resultado.motivo).toContain("sin red");
     });
 
+    it("una respuesta con Content-Length enorme se rechaza antes de descargar nada", async () => {
+        vi.stubGlobal(
+            "fetch",
+            async () => new Response(null, { headers: { "Content-Length": String(MAX_BYTES_SPLAT + 1) } }),
+        );
+        const resultado = await cargarSplat(URL, { SplatMesh: MallaFalsa });
+        expect(resultado.ok).toBe(false);
+        if (!resultado.ok) expect(resultado.motivo).toContain("60 MB");
+    });
+
     it("si el cargador falso lanza al construir, devuelve { ok:false }", async () => {
         class SplatQueFalla {
             constructor() { throw new Error("WebGL no disponible"); }
@@ -123,5 +137,16 @@ describe("cargarSplat", () => {
         const opciones = MallaFalsa.ultima as OpcionesSplatMesh | null;
         expect(opciones).toMatchObject({ url: URL, maxSplats: 3_000_000 });
         expect(opciones?.fileBytes).toBeInstanceOf(ArrayBuffer);
+    });
+
+    it("sin maxSplats usa el presupuesto del nivel alta por defecto", async () => {
+        MallaFalsa.ultima = null;
+        const resultado = await cargarSplat(URL, {
+            SplatMesh: MallaFalsa,
+            pedirBytes: async () => new ArrayBuffer(64),
+        });
+        expect(resultado.ok).toBe(true);
+        const opciones = MallaFalsa.ultima as OpcionesSplatMesh | null;
+        expect(opciones?.maxSplats).toBe(presupuestoSplat("alta"));
     });
 });
