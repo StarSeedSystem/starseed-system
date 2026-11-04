@@ -1,0 +1,28 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "ola": "1102 · Imaginación útil",
+   "importancia": "",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261104-025700-IMG1102D",
+   "id": "IMG1102Db-d1",
+   "titulo": "Medidor de Imaginación · enseña lo filtrado de Astraura y por qué (parte 1 de 2)",
+   "archivos": [
+    "src/lib/mando/imaginacion-tipos.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; funciones PURAS con pruebas; nunca la IP del A1.\n\nContexto: el 02-11 se integraron IMG1102A (1718e5272, 0545f728f: filtro de entrada de Astraura, gasto de verdad, carril de bajo riesgo ≥ 0,6 para investigación/diseño/contenido, autorizaciones inventadas) e IMG1102B (884bfff4f, d949a5e8f: `imaginacion_contexto.py` + `imaginacion_plantilla.py` enganchados en referencias de diseño y la diaria), y d20fe1c80 (el ciclo del director ya no muere si Telegram tarda). Contrato: `architecture/imaginacion-calidad.md`.\n\n`propuestas.json → filtro_astraura` (familia repetida, tipo de archivo, tope, autorizaciones inventadas) y `ciclo()` ya lo devuelven. Píntalo en la ventana de Imaginación (busca el componente real con grep) como una línea «Filtradas de Astraura hoy: N (familia X · tipo Y · tope Z)». vitest.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261104-025700-IMG1102D`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261104-025700-IMG1102D:refs/remotes/origin/nube/a1-20261104-025700-IMG1102D\"` y `git cherry-pick --no-commit 82ca44fb8c2a 4bb74e08e2e8`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/mando/imaginacion-panel.tsx, src/lib/mando/__tests__/imaginacion.test.ts, src/lib/mando/imaginacion-tipos.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió IMG1102Db: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/mando/imaginacion-tipos.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG1102Db",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-025236.json": [
+   "IMG1102Db-d1"
+  ]
+ }
+}
