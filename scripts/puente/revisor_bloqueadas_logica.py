@@ -244,11 +244,20 @@ def es_sucesora(k: Any, tid: Any, tareas: Optional[Dict[str, Any]] = None) -> bo
     k, tid = str(k or ""), str(tid or "")
     if not k or not tid or k <= tid:
         return False
+    tk = (tareas or {}).get(k) or {}
+    # (SUP0311G, 03-11) Quien DEPENDE de `tid` no la rehace, se llame como se llame. VST1018Ib
+    # («Voz · paquetes .ovsvoice», depende de VST1018I «lector ZIP») pasaba por sucesora por el
+    # sufijo «b»: el 19-10 el revisor cerró VST1018I «sustituida» por ella, y VST1018Ib se quedó
+    # esperándose a sí misma dos semanas.
+    opcionales = tk.get("depende_opcional") or []
+    if isinstance(opcionales, str):
+        opcionales = [opcionales]
+    if tid in _deps(tk) or tid in [str(x) for x in opcionales]:
+        return False
     if k.startswith(tid):
         return bool(re.fullmatch(r"[a-z]{1,2}|-d\d+[a-z]?", k[len(tid):]))
     if base_de_cadena(k) != base_de_cadena(tid) or base_de_cadena(tid) == tid:
         return False
-    tk = (tareas or {}).get(k) or {}
     tt = (tareas or {}).get(tid) or {}
     if _norma(tk.get("titulo")) and _norma(tk.get("titulo")) == _norma(tt.get("titulo")):
         return True

@@ -88,6 +88,23 @@ class Cadenas(unittest.TestCase):
         self.assertEqual(e, "cumplida")
         self.assertIn("X1b", por)
 
+    def test_quien_depende_no_es_sucesora_aunque_se_llame_igual(self):
+        # (SUP0311G, 03-11) VST1018Ib («paquetes .ovsvoice») depende de VST1018I («lector ZIP»). Por
+        # el sufijo «b» pasaba por su sucesora: el 19-10 VST1018I se cerró «sustituida» por ella y
+        # VST1018Ib se quedó esperándose a sí misma.
+        i = T("VST1018I", titulo="Archivos · lector ZIP", archivos=["src/lib/files/zip-lector.ts"])
+        ib = T("VST1018Ib", ["VST1018I"], titulo="Voz · paquetes .ovsvoice", archivos=["src/lib/aurora/ovsvoice.ts"])
+        tareas = {t["id"]: t for t in (i, ib)}
+        self.assertFalse(L.es_sucesora("VST1018Ib", "VST1018I", tareas))
+        self.assertTrue(L.es_sucesora("VST1018Ib", "VST1018I", {"VST1018I": i}))  # sin depender, la regla de siempre
+        prog = {"VST1018I": {"estado": "fallo_tsc", "nota": "2 errores tsc", "t": _t(60)}}
+        dec = L.decidir(foto([i, ib], prog))
+        self.assertFalse([a for a in acciones_de(dec, "VST1018I") if a["accion"] == "ceder"])
+        self.assertEqual(dec["en_cadena"]["VST1018Ib"]["raiz"], "VST1018I")
+        # Y ya cerrada «sustituida» por error: para su dependiente es una dependencia muerta, no viva.
+        prog = {"VST1018I": {"estado": "sustituida", "sustituida_por": "VST1018Ib"}}
+        self.assertEqual(L.estado_de_dependencia("VST1018I", prog, tareas, [])[0], "muerta")
+
     def test_dependencia_rechazada_sin_sucesora_se_relaja(self):
         tareas = [T("Y1", ["X1"])]
         prog = {"X1": {"estado": "rechazada"}}
