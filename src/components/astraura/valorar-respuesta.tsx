@@ -19,6 +19,8 @@ export interface ValorarRespuestaProps {
   /** Ámbito de la conversación (perfil, página, comunidad…). */
   ambito?: string;
   capa?: Capa;
+  /** Motor de voz que habló la respuesta. */
+  motorVoz?: string;
   /** Modelo que respondió (si se conoce). */
   modelo?: string;
   /** Herramientas que usó la respuesta y si acertaron, si las hubo. */
