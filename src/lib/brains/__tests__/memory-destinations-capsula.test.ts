@@ -48,6 +48,15 @@ describe("normalizeMemoryDestinations · destino cápsula (MVD1027E)", () => {
   it("una cápsula con enabled fuera de boolean sale apagada, no rota", () => {
     expect(normalizeMemoryDestinations({ capsula: { enabled: "sí" } }).capsula.enabled).toBe(false);
   });
+
+  it("conserva la ultimaSincronia cuando la cápsula está apagada", () => {
+    const ultima = "2026-10-27T00:00:00.000Z";
+    const destinos = normalizeMemoryDestinations({
+      capsula: { enabled: false, ultimaSincronia: ultima },
+    });
+    expect(destinos.capsula.enabled).toBe(false);
+    expect(destinos.capsula.ultimaSincronia).toBe(ultima);
+  });
 });
 
 describe("huellaCapsula · SHA-256", () => {
