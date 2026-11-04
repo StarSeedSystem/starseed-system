@@ -78,8 +78,8 @@ import { activeProfileId } from "@/lib/profiles/profiles";
 // dependencias a propósito — no arrastra el catálogo de iconos a este bundle.
 import { DOCK_STORAGE_KEY, normalizeDockSyncValue } from "@/lib/dock/dock-defaults";
 // (Ola MBT1027) El Mausbot guarda su config con su propio evento (EVENTO_MAUSBOT,
- //  src/lib/mausbot/config.ts); el valor que llega de otro dispositivo usa el mismo evento.
- import { EVENTO_MAUSBOT } from "@/lib/mausbot/config";
+//  src/lib/mausbot/config.ts); el valor que llega de otro dispositivo usa el mismo evento.
+import { EVENTO_MAUSBOT } from "@/lib/mausbot/config";
 // (MTN1027C · Meta^n) Las directivas de automejora de las capas viajan con la cuenta
 // (astraura/capas/directivas-almacen.ts); al llegar de otro medio suena su evento propio
 // y lo que baja se SANEA con `normalizarRegistroDirectivas` antes de escribirse (abajo).
@@ -169,12 +169,12 @@ interface BroadcastPayload {
 // ── Mapeo clave → evento(s) concretos que cada store ya escucha ─────────────
 // (storage NO se dispara en el propio documento; hay que replicar el evento
 // custom que cada store usa para refrescar su UI en la MISMA pestaña).
-const EVENT_BY_KEY: Record<string, string[]> = {
+export const EVENT_BY_KEY: Record<string, string[]> = {
     "starseed.desktops.v1": ["starseed:desktops"],
     "starseed.cursorfx.v1": ["starseed:cursorfx"],
-// (Ola MBT1027) El Mausbot ya emite su evento propio al guardar (EVENTO_MAUSBOT,
- //  src/lib/mausbot/config.ts); el mismo evento sirve para el valor que llega de otro dispositivo.
- "starseed.mausbot.v1": [EVENTO_MAUSBOT],
+    // (Ola MBT1027) El Mausbot ya emite su evento propio al guardar (EVENTO_MAUSBOT,
+    //  src/lib/mausbot/config.ts); el mismo evento sirve para el valor que llega de otro dispositivo.
+    "starseed.mausbot.v1": [EVENTO_MAUSBOT],
  // (MTN1027C · Meta^n) Directivas de automejora de las capas: viajan con la cuenta.
  "starseed.capas.directivas.v1": [EVENTO_DIRECTIVAS],
  // (MVD1027H0 · H0) Qué sujetos tienen cápsula Memvid: viaja con la cuenta.

@@ -14,7 +14,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { NEVER_SYNCED_KEYS, SYNCED_KEYS, esClaveFusionable, isNeverSyncedKey } from "@/lib/settings-sync";
-import { isSyncedKey } from "@/lib/sync/realtime-sync";
+import { EVENT_BY_KEY, isSyncedKey } from "@/lib/sync/realtime-sync";
+import { CLAVE_MAUSBOT, EVENTO_MAUSBOT } from "@/lib/mausbot/config";
 import { AVISOS_KEY } from "@/lib/sync/avisos-cuenta";
 
 /** Preferencias de usuario que esta auditoría añadió a la cuenta. */
@@ -101,6 +102,17 @@ describe("SYNCED_KEYS · política de persistencia", () => {
     it("ninguna clave sincronizada tiene nombre de secreto (salvo excepciones justificadas)", () => {
         const sospechosas = (SYNCED_KEYS as readonly string[]).filter((k) => NOMBRE_SENSIBLE.test(k) && !(k in NOMBRE_SENSIBLE_PERMITIDO));
         expect(sospechosas).toEqual([]);
+    });
+});
+
+describe("Mausbot · la configuración viaja con la cuenta", () => {
+    it("su clave está en SYNCED_KEYS y el motor la trata como sincronizada", () => {
+        expect((SYNCED_KEYS as readonly string[]).includes(CLAVE_MAUSBOT)).toBe(true);
+        expect(isSyncedKey(CLAVE_MAUSBOT)).toBe(true);
+    });
+
+    it("al llegar de otro medio se avisa con su propio evento", () => {
+        expect(EVENT_BY_KEY[CLAVE_MAUSBOT]).toContain(EVENTO_MAUSBOT);
     });
 });
 
