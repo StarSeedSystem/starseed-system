@@ -23,7 +23,7 @@ const SELECT = "h-9 w-full cursor-pointer rounded-md border border-white/15 bg-b
 const AUTO = "auto";
 const nombreServidor = (s: BrainServer, i: number) => s.name?.trim() || `Servidor ${i + 1}`;
 const claseDe = (p: AjustesObjetivo["privacidad"]): Dato["clase"] => (p === "publico" ? "publico" : p === "privado" ? "privado" : "interno");
-const tipoDe = (id: string): DestinoAlmacen["tipo"] => (id === "local" || id === "p2p" ? "aparato" : id === "starseed" ? "cerebro" : "servidor");
+const tipoDe = (id: string): DestinoAlmacen["tipo"] => (id === "local" || id === "p2p" ? "aparato" : id === "starseed" || id === "capsula" ? "cerebro" : "servidor");
 export function AjustesMedios({ valor, onCambio, cerebro, privacidad, nivel }: AjustesMediosProps) {
   const [neuronas, setNeuronas] = useState<Neuron[]>([]);
   const [destinos, setDestinos] = useState<MemoryDestinationsConfig>(() => getMemoryDestinations(cerebro));
@@ -44,13 +44,14 @@ export function AjustesMedios({ valor, onCambio, cerebro, privacidad, nivel }: A
     { id: "starseed", texto: "StarSeed", activo: destinos.starseed.enabled, fijo: false, detalle: "El almacén StarSeed de tu cuenta." },
     ...destinos.external.map((e) => ({ id: e.id, texto: e.label, activo: true, fijo: true, detalle: `Destino externo · ${e.url}` })),
     { id: "p2p", texto: destinos.p2p.label ? `Syncthing · ${destinos.p2p.label}` : "Syncthing (P2P)", activo: destinos.p2p.enabled, fijo: false, detalle: "Espejo por Syncthing entre tus aparatos." },
+    { id: "capsula", texto: "Cápsula Memvid", activo: destinos.capsula.enabled, fijo: false, detalle: "Cápsula de memoria (.mv2) en el servidor de la neurona (127.0.0.1:4490)." },
   ];
   const seleccion = valor.medios.almacenamiento.length > 0 ? valor.medios.almacenamiento : filas.filter((f) => f.activo).map((f) => f.id);
   const { guardar, descartados } = destinosDe({ clase: claseDe(privacidad) }, {
     politicaContexto: filas.map((f) => f.id),
     disponibles: filas.map((f) => ({ id: f.id, tipo: tipoDe(f.id), motor: f.id === "local" ? "local" : f.id, publico: false })),
     elegidosPorDato: seleccion,
-    motoresReales: ["starseed", "external", "p2p"],
+    motoresReales: ["starseed", "external", "p2p", "capsula"],
   });
   const motivo = new Map(descartados.map((d) => [d.id, d.motivo]));
   const cambiarCapacidad = (capacidad: Capacidad, id: string) => onCambio({ medios: { ...valor.medios, capacidades: { ...valor.medios.capacidades, [capacidad]: id } } });
@@ -63,11 +64,12 @@ export function AjustesMedios({ valor, onCambio, cerebro, privacidad, nivel }: A
       ...destinos,
       starseed: { enabled: nueva.includes("starseed") },
       p2p: { ...destinos.p2p, enabled: nueva.includes("p2p") },
+      capsula: { ...destinos.capsula, enabled: nueva.includes("capsula") },
     };
     setDestinos(siguiente);
     const guardado = await setMemoryDestinations(
       { ...cerebro, config: { ...cerebro.config, memoryDestinations: siguiente } },
-      { starseed: siguiente.starseed, p2p: siguiente.p2p },
+      { starseed: siguiente.starseed, p2p: siguiente.p2p, capsula: siguiente.capsula },
     );
     if (!guardado) setError("No se pudieron guardar los destinos de memoria; se guardarán al pulsar Guardar.");
   };

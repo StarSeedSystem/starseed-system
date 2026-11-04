@@ -25,6 +25,7 @@ import type { EntityRef } from "@/lib/sync/entity-state";
 // Señales y conectividad POR ENTIDAD (Adenda 100): reutiliza el panel compartido
 // y persiste en entity_state (clave "connectivity"). Sección opcional del diálogo.
 import { EntityConnectivityConfig } from "@/components/connectivity/entity-connectivity-config";
+import { GrupoAjustesCapsula } from "@/components/group/grupo-ajustes-capsula";
 // Catálogo + Mezclador de temas (theme-engine.ts): listThemes() incluye los
 // ~24 builtin MÁS los personalizados del usuario (incl. mezclas guardadas
 // como tema desde el Mezclador) — el mismo selector sirve para ambos.
@@ -173,6 +174,13 @@ export function EntityLayoutEditor({
                             <Separator />
                             {/* Señales y conectividad por entidad (entity_state 'connectivity') */}
                             <EntityConnectivityConfig entityRef={entityRef} />
+                            {/* Memoria en cápsula para grupos y comunidades (MVD1027H2) */}
+                            {(entityRef.kind === "group" || entityRef.kind === "community") && (
+                              <>
+                                <Separator />
+                                <GrupoAjustesCapsula grupoId={entityRef.id} tipo={entityRef.kind === "group" ? "grupo" : "comunidad"} />
+                              </>
+                            )}
                         </>
                     )}
 
