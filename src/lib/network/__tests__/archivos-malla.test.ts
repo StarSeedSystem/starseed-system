@@ -283,7 +283,7 @@ describe("crearMotorArchivos — extremo a extremo", () => {
     expect(Math.max(...indicesEnviados)).toBe(CANCELAR_TRAS_INDICE);
   });
 
-  it("reanuda tras una desconexión simulada: no reenvía desde 0, retoma en el último trozo confirmado", async () => {
+it("reanuda tras una desconexión simulada: no reenvía desde 0, retoma en el último trozo confirmado (reintento automático)", async () => {
     const par = crearParEnMemoria();
     // Envuelve el envío de A: dejar pasar los trozos 0,1,2 y CORTAR el enlace
     // justo después (determinista — nada de temporizadores/carreras).
@@ -310,17 +310,17 @@ describe("crearMotorArchivos — extremo a extremo", () => {
     const archivo = new Blob([contenido]);
     const r = await motorA.enviarArchivo(par.canalParaA, archivo, "resume.bin", { tipo: "dispositivo", id: "b" });
 
-    await esperarHasta(() => faseFinal(motorA.estadoDe(r.id)) === "error");
+    // Con reintento automático, el remitente entra en "reintentando" (no "error" inmediato)
+    await esperarHasta(() => {
+      const fase = motorA.estadoDe(r.id)?.fase;
+      return fase === "reintentando" || fase === "error";
+    });
     const progresoReceptorAntes = motorB.estadoDe(r.id)?.progreso ?? 0;
     expect(progresoReceptorAntes).toBe(CORTAR_TRAS_INDICE + 1); // 0,1,2 confirmados por el receptor
 
-    // "Reconecta" y reintenta con el MISMO id de transferencia.
+    // "Reconecta": la transferencia debe completarse AUTOMÁTICAMENTE sin intervención manual
     par.conectado.ab = true;
     par.vistoAaB.length = 0; // solo nos interesan los mensajes de la reanudación
-    const archivoOriginal = motorA.archivoDeEnvio(r.id) as Blob;
-    expect(archivoOriginal).toBeDefined();
-    const r2 = await motorA.enviarArchivo(par.canalParaA, archivoOriginal, "resume.bin", { tipo: "dispositivo", id: "b" }, { idTransferencia: r.id });
-    expect(r2.id).toBe(r.id);
 
     await esperarHasta(() => faseFinal(motorB.estadoDe(r.id)) === "completada");
     await esperarHasta(() => faseFinal(motorA.estadoDe(r.id)) === "completada");
