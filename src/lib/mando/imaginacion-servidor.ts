@@ -75,15 +75,23 @@ async function escribirAtomico(ruta: string, datos: unknown): Promise<void> {
     await writeFile(temporal, `${JSON.stringify(datos, null, 2)}\n`, "utf-8");
     await rename(temporal, ruta);
 }
-/** Lista cruda (con los campos del director: origen, cita…) y cómo volver a guardarla con su forma. */
+/** Lista cruda (con los campos del director: origen, cita…), lo aparte de la raíz y cómo volver a guardarla. */
 async function leerCrudas(lugar: Lugar) {
     const crudo = await leerJson(rutasImaginacion(lugar).propuestas);
     const lista = Array.isArray(crudo) ? crudo : esObj(crudo) && Array.isArray(crudo.propuestas) ? crudo.propuestas : [];
     const guardar = (l: unknown[]) => escribirAtomico(rutasImaginacion(lugar).propuestas, esObj(crudo) ? { ...crudo, propuestas: l } : l);
-    return { lista: lista as unknown[], guardar };
+    return { lista: lista as unknown[], crudo, guardar };
 }
-export const leerPropuestas = async (lugar: Lugar = {}): Promise<PropuestaVisible[]> =>
-    (await leerCrudas(lugar)).lista.map(normalizarPropuesta).filter((p): p is PropuestaVisible => p !== null);
+/**
+ * Una sola lectura de `propuestas.json`: la lista normalizada y lo que la raíz guarda aparte de la lista
+ * (p. ej. `filtro_astraura`, Ola 1102 · IMG1102A). El filtro crudo sale tal cual: lo acota quien lo pinta.
+ */
+export async function leerPropuestasYFiltro(lugar: Lugar = {}): Promise<{ propuestas: PropuestaVisible[]; filtro: unknown }> {
+    const { lista, crudo } = await leerCrudas(lugar);
+    const propuestas = lista.map(normalizarPropuesta).filter((p): p is PropuestaVisible => p !== null);
+    return { propuestas, filtro: esObj(crudo) ? crudo.filtro_astraura : undefined };
+}
+export const leerPropuestas = async (lugar: Lugar = {}): Promise<PropuestaVisible[]> => (await leerPropuestasYFiltro(lugar)).propuestas;
 
 /** Los cambios comunes de una decisión, o el error honesto si sus datos no valen (antes de leer nada). PURA. */
 function cambiosDe(hacer: HacerDecision, datos: DatosDecision, ahora: Date, por: QuienDecide): { cambios: Crudo } | { error: string } {

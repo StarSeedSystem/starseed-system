@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AJUSTES_POR_DEFECTO, ESTADOS_DECIDIBLES, NOMBRE_ESTADO, NOMBRE_FUENTE, ambitoDeLaUrl, decidibles, esAmbito, esDecidible,
   esperaAAlex, filasMedidor, filtrarPorAmbito, interpretarPeticion, leerAmbito, normalizarAmbito, normalizarImportancia, normalizarReferencias,
-  normalizarReimaginacion, reimaginacionesLibres, resumenPastilla, validarAjustes, vetoDecision,
+  normalizarReimaginacion, reimaginacionesLibres, resumenFiltroAstraura, resumenPastilla, validarAjustes, vetoDecision,
   type EstadoPropuesta,
   type PropuestaImaginacion,
 } from "../imaginacion-tipos";
@@ -142,6 +142,26 @@ describe("resumenPastilla", () => {
     const ps = [...monton("descartada", 404, "d"), ...monton("pregunta", 34, "q"), ...monton("esperando-aprobacion", 11, "e"), prop({ id: "r", estado: "reimaginada" })];
     expect(resumenPastilla(ps, HOY).porDecidir).toBe(45);
     expect(decidibles(ps)).toHaveLength(449); // el servidor no cambia: lo decidible sigue completo
+  });
+});
+
+describe("resumenFiltroAstraura", () => {
+  it("pinta la línea del filtro con los tres motivos y su total", () => {
+    const f = resumenFiltroAstraura({
+      fecha: "2026-11-02T12:00:00Z", vistas: 690, entran: 8,
+      filtradas: { "familia repetida": 303, "tipo de archivo": 320, tope: 59 }, autorizacion_inventada: 4,
+    });
+    expect(f).toMatchObject({
+      fecha: "2026-11-02", vistas: 690, entran: 8, autorizacionInventada: 4,
+      filtradas: { "familia repetida": 303, "tipo de archivo": 320, tope: 59 },
+      texto: "Filtradas de Astraura hoy: 682 (familia 303 · tipo 320 · tope 59)",
+    });
+  });
+  it("no inventa: basura, negativos y decimales vuelven a cero; sin objeto, null", () => {
+    expect(resumenFiltroAstraura(null)).toBeNull();
+    expect(resumenFiltroAstraura("x")).toBeNull();
+    expect(resumenFiltroAstraura({ filtradas: { "familia repetida": -2, "tipo de archivo": "9", tope: 3.7 } }))
+      .toMatchObject({ vistas: 0, entran: 0, autorizacionInventada: 0, filtradas: { "familia repetida": 0, "tipo de archivo": 0, tope: 3 }, texto: "Filtradas de Astraura hoy: 3 (familia 0 · tipo 0 · tope 3)" });
   });
 });
 

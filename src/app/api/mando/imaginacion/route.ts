@@ -5,7 +5,9 @@
  * rechazar, posponer, decidir en lote y los ajustes (con el automático).
  * Contrato `architecture/imaginacion-autodesarrollo.md` §6 y el de la Ola 1024I §4.
  *
- * GET  `?ambito=<a>` (por defecto todos) → `{ propuestas, ajustes, resumen, actualizadoEn }`.
+ * GET  `?ambito=<a>` (por defecto todos) → `{ propuestas, ajustes, resumen, filtro, actualizadoEn }`
+ *      donde `filtro` es el medidor del filtro de Astraura (Ola 1102 · IMG1102A, `filtro_astraura`)
+ *      ya acotado y con su línea para pintar, o `null` si el JSON no lo trae.
  * POST → `{ accion: "integrar" | "aprobar", id }`        «aprobada»; si es de Astraura, se aplica en su backend 1.58
  *        `{ accion: "reimaginar", id, notas, referencias? }` notas o al menos una referencia https
  *        `{ accion: "rechazar", id, motivo? }`
@@ -20,8 +22,8 @@
  */
 
 import { guardianMando } from "@/lib/mando/guardian";
-import { filtrarPorAmbito, interpretarPeticion, leerAmbito, resumenPastilla } from "@/lib/mando/imaginacion-tipos";
-import { aprobar, guardarAjustes, leerAjustes, leerPropuestas, lote, posponer, rechazar, reimaginar, type Resultado } from "@/lib/mando/imaginacion-servidor";
+import { filtrarPorAmbito, interpretarPeticion, leerAmbito, resumenFiltroAstraura, resumenPastilla } from "@/lib/mando/imaginacion-tipos";
+import { aprobar, guardarAjustes, leerAjustes, leerPropuestasYFiltro, lote, posponer, rechazar, reimaginar, type Resultado } from "@/lib/mando/imaginacion-servidor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,9 +37,17 @@ export async function GET(peticion: Request): Promise<Response> {
     const ambito = leerAmbito(new URL(peticion.url).searchParams.get("ambito"));
     if (ambito === null) return responder({ error: "Ámbito desconocido: usa metagenesis, personal, grupo:<id> o pagina:<id>." }, 400);
     try {
-        const [todas, ajustes] = await Promise.all([leerPropuestas(), leerAjustes()]);
-        const propuestas = filtrarPorAmbito(todas, ambito);
-        return responder({ propuestas, ajustes, resumen: resumenPastilla(propuestas, new Date()), actualizadoEn: new Date().toISOString() });
+        // Ola 1102 · IMG1102D: el filtro de entrada de Astraura (`propuestas.json → filtro_astraura`)
+        // sale con el resto, ya acotado y con su línea; `null` si el JSON no lo trae (sin inventar).
+        const [{ propuestas, filtro: crudoFiltro }, ajustes] = await Promise.all([leerPropuestasYFiltro(), leerAjustes()]);
+        const enAmbito = filtrarPorAmbito(propuestas, ambito);
+        return responder({
+            propuestas: enAmbito,
+            ajustes,
+            resumen: resumenPastilla(enAmbito, new Date()),
+            filtro: resumenFiltroAstraura(crudoFiltro),
+            actualizadoEn: new Date().toISOString(),
+        });
     } catch {
         return responder({ error: "No se pudieron leer las propuestas." }, 500);
     }

@@ -19,7 +19,11 @@ type Cuerpo = Record<string, unknown>;
 type Respuesta = { status?: number; json: unknown };
 
 /** Un servidor de mentira: GET devuelve el estado actual; POST pasa por `manejar` (que puede cambiarlo). */
-function servidor(inicial: PropuestaNormalizada[], manejar: (c: Cuerpo, estado: { propuestas: PropuestaNormalizada[]; ajustes: AjustesAutodesarrollo }) => Respuesta) {
+function servidor(
+    inicial: PropuestaNormalizada[],
+    manejar: (c: Cuerpo, estado: { propuestas: PropuestaNormalizada[]; ajustes: AjustesAutodesarrollo }) => Respuesta,
+    filtro?: unknown,
+) {
     const estado = { propuestas: structuredClone(inicial), ajustes: structuredClone(AJUSTES_POR_DEFECTO) };
     const posts: Cuerpo[] = [];
     const gets: string[] = [];
@@ -33,7 +37,7 @@ function servidor(inicial: PropuestaNormalizada[], manejar: (c: Cuerpo, estado: 
                 return new Response(JSON.stringify(r.json), { status: r.status ?? 200, headers: { "Content-Type": "application/json" } });
             }
             gets.push(url);
-            return new Response(JSON.stringify({ propuestas: estado.propuestas, ajustes: estado.ajustes, resumen: {} }), {
+            return new Response(JSON.stringify({ propuestas: estado.propuestas, ajustes: estado.ajustes, resumen: {}, ...(filtro === undefined ? {} : { filtro }) }), {
                 status: 200,
                 headers: { "Content-Type": "application/json" },
             });
@@ -332,6 +336,25 @@ describe("PanelImaginacion", () => {
         fireEvent.change(screen.getByLabelText("Tope de reimaginaciones"), { target: { value: "40" } });
         expect(screen.getByRole("alert")).toHaveTextContent("El tope va de 0 a 10.");
         expect(screen.getByRole("button", { name: "Guardar umbral y tope" })).toBeDisabled();
+    });
+
+    it("enseña lo que filtró Astraura hoy y por qué, y calla si el JSON no trae el filtro", async () => {
+        servidor([], sinPost, {
+            fecha: "2026-11-02", vistas: 690, entran: 8,
+            filtradas: { "familia repetida": 303, "tipo de archivo": 320, tope: 59 }, autorizacionInventada: 4,
+            texto: "Filtradas de Astraura hoy: 682 (familia 303 · tipo 320 · tope 59)",
+        });
+        render(<PanelImaginacion ambito="metagenesis" />);
+        const linea = await screen.findByTestId("imaginacion-filtro-astraura");
+        expect(linea).toHaveTextContent("Filtradas de Astraura hoy: 682 (familia 303 · tipo 320 · tope 59)");
+        expect(linea).toHaveAttribute("title", expect.stringContaining("Familia repetida"));
+        cleanup();
+        vi.unstubAllGlobals();
+
+        servidor([], sinPost);
+        render(<PanelImaginacion ambito="metagenesis" />);
+        expect(await screen.findByText("Sin propuestas de la imaginación en MetaGenesis.")).toBeInTheDocument();
+        expect(screen.queryByTestId("imaginacion-filtro-astraura")).toBeNull();
     });
 
     it("si la lectura falla lo dice; un ámbito sin propuestas lo dice con su nombre y enlaza los demás", async () => {
