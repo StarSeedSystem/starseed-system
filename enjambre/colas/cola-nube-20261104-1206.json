@@ -1,0 +1,19 @@
+{
+ "ola": "oracle-20261104",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "CTR1104D",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Llmfit · el panel de modelos de la neurona enseña GB y tok/s",
+   "archivos": [
+    "src/lib/astraura/cifras-modelo.ts",
+    "src/lib/astraura/__tests__/cifras-modelo.test.ts",
+    "src/components/neurons/neuron-models-panel.tsx"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/recomendador-modelos-llmfit.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§9 y §14.2: junto a la insignia cualitativa de `neuron-models-panel.tsx`, las cifras de `src/ai/astraura/model-fit.ts` (memoria necesaria en GB y tok/s estimados). Saca el formateo a `cifras-modelo.ts` (puro: número → texto «3,2 GB · ~18 tok/s», «sin dato» si falta) con su prueba; el panel solo lo pinta."
+  }
+ ]
+}
