@@ -26,6 +26,10 @@ import {
   recommendModels, type NeuronRecommendation, type Recommendation, type KindRecommendation,
 } from "@/ai/astraura/model-recommend";
 import {
+  scoutModels, type ModelRecommendation,
+} from "@/ai/astraura/model-scout";
+import { formatearCifrasModelo } from "@/lib/astraura/cifras-modelo";
+import {
   describeReq, describeCaps, tierLabel, runsRemotely, type ModelSpec, type FitLevel,
 } from "@/ai/astraura/model-requirements";
 import { ModelDownloadsPanel } from "@/components/neurons/model-downloads-panel";
@@ -112,7 +116,7 @@ function FitBadge({ level }: { level: FitLevel }) {
   return <span className={cn("rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide", m.cls)}>{m.label}</span>;
 }
 
-function ModelRow({ rec, caps, best }: { rec: Recommendation; caps: NeuronCapabilities; best?: boolean }) {
+function ModelRow({ rec, caps, best, quant }: { rec: Recommendation; caps: NeuronCapabilities; best?: boolean; quant?: ModelRecommendation }) {
   const [test, setTest] = useState<TestState>({ state: "idle" });
   const access = ACCESS_META[rec.spec.access] ?? ACCESS_META.local;
   const run = async () => {
@@ -120,12 +124,14 @@ function ModelRow({ rec, caps, best }: { rec: Recommendation; caps: NeuronCapabi
     const r = await testSpec(rec.spec, caps);
     setTest({ state: r.ok ? "ok" : "fail", msg: r.msg });
   };
+  const cifras = quant ? formatearCifrasModelo({ gb: quant.requiredGb, tokS: quant.estTps }) : null;
   return (
     <div className={cn("rounded-xl border px-3 py-2.5 transition-colors", best ? "border-cyan-400/30 bg-cyan-500/[0.06]" : "border-white/10 bg-white/[0.03]")}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[12px] font-semibold text-white/90">{rec.spec.label}</span>
         <span className={cn("rounded-full border px-1.5 py-0.5 text-[9px] font-medium", access.cls)}>{access.label}</span>
         <FitBadge level={rec.fit.level} />
+        {cifras && <span className="text-[9px] text-white/50">{cifras}</span>}
         {best && <span className="rounded-full bg-cyan-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-cyan-100">Recomendado</span>}
         {rec.availableNow ? (
           <span className="ml-auto inline-flex items-center gap-1 text-[9px] text-emerald-300/80"><CheckCircle2 className="h-3 w-3" /> disponible</span>
@@ -151,18 +157,18 @@ function ModelRow({ rec, caps, best }: { rec: Recommendation; caps: NeuronCapabi
   );
 }
 
-function KindSection({ title, icon, kind, caps, scoutKind }: { title: string; icon: React.ReactNode; kind: KindRecommendation; caps: NeuronCapabilities; scoutKind: "llm" | "voz" }) {
+function KindSection({ title, icon, kind, caps, scoutKind, quantMap }: { title: string; icon: React.ReactNode; kind: KindRecommendation; caps: NeuronCapabilities; scoutKind: "llm" | "voz"; quantMap: Map<string, ModelRecommendation> }) {
   const [open, setOpen] = useState(false);
   const [scout, setScout] = useState(false);
   const rest = useMemo(() => kind.ranked.filter((r) => r.spec.id !== kind.best.spec.id), [kind]);
   return (
     <div className="space-y-2">
       <p className="flex items-center gap-2 text-[12px] font-semibold text-white/85">{icon} {title}</p>
-      <ModelRow rec={kind.best} caps={caps} best />
+      <ModelRow rec={kind.best} caps={caps} best quant={quantMap.get(kind.best.spec.id)} />
       {kind.bestLocal && kind.bestLocal.spec.id !== kind.best.spec.id && (
         <div>
           <p className="mb-1 px-0.5 text-[9px] uppercase tracking-wide text-white/35">Mejor opción local (al instalar la app)</p>
-          <ModelRow rec={kind.bestLocal} caps={caps} />
+          <ModelRow rec={kind.bestLocal} caps={caps} quant={quantMap.get(kind.bestLocal.spec.id)} />
         </div>
       )}
       <div className="flex flex-wrap items-center gap-3">
@@ -184,7 +190,7 @@ function KindSection({ title, icon, kind, caps, scoutKind }: { title: string; ic
           <BarChart3 className="h-3 w-3" /> {scout ? "Ocultar análisis cuantitativo" : "Ver análisis cuantitativo"}
         </button>
       </div>
-      {open && <div className="space-y-1.5">{rest.map((r) => <ModelRow key={r.spec.id} rec={r} caps={caps} />)}</div>}
+      {open && <div className="space-y-1.5">{rest.map((r) => <ModelRow key={r.spec.id} rec={r} caps={caps} quant={quantMap.get(r.spec.id)} />)}</div>}
       {scout && (
         <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/[0.04] p-2">
           <ModelScoutPanel kind={scoutKind} />
@@ -197,6 +203,7 @@ function KindSection({ title, icon, kind, caps, scoutKind }: { title: string; ic
 export function NeuronModelsPanel({ embedded = false }: { embedded?: boolean }) {
   const [caps, setCaps] = useState<NeuronCapabilities | null>(null);
   const [rec, setRec] = useState<NeuronRecommendation | null>(null);
+  const [quantMap, setQuantMap] = useState<Map<string, ModelRecommendation>>(new Map());
 
   useEffect(() => {
     let alive = true;
@@ -204,7 +211,18 @@ export function NeuronModelsPanel({ embedded = false }: { embedded?: boolean }) 
       const c = await detectCapabilities();
       if (!alive) return;
       setCaps(c);
-      setRec(recommendModels(c, { osInstalled: !!c.installedApp }));
+      const qualitative = recommendModels(c, { osInstalled: !!c.installedApp });
+      setRec(qualitative);
+      // Cifras cuantitativas (GB, tok/s) para mostrar junto al badge cualitativo.
+      try {
+        const scout = scoutModels(c, { limit: 20 });
+        const map = new Map<string, ModelRecommendation>();
+        for (const r of scout.best) map.set(r.spec.id, r);
+        for (const r of scout.current) map.set(r.spec.id, r);
+        if (alive) setQuantMap(map);
+      } catch {
+        if (alive) setQuantMap(new Map());
+      }
     })();
     return () => { alive = false; };
   }, []);
@@ -257,8 +275,8 @@ export function NeuronModelsPanel({ embedded = false }: { embedded?: boolean }) 
 
       {rec && caps && (
         <>
-          <KindSection title="Modelo de lenguaje (Astraura · OpenRouter/local)" icon={<Brain className="h-4 w-4 text-violet-300" />} kind={rec.llm} caps={caps} scoutKind="llm" />
-          <KindSection title="Voz (OmniVoice)" icon={<Mic className="h-4 w-4 text-fuchsia-300" />} kind={rec.voz} caps={caps} scoutKind="voz" />
+          <KindSection title="Modelo de lenguaje (Astraura · OpenRouter/local)" icon={<Brain className="h-4 w-4 text-violet-300" />} kind={rec.llm} caps={caps} scoutKind="llm" quantMap={quantMap} />
+          <KindSection title="Voz (OmniVoice)" icon={<Mic className="h-4 w-4 text-fuchsia-300" />} kind={rec.voz} caps={caps} scoutKind="voz" quantMap={quantMap} />
         </>
       )}
 
