@@ -203,7 +203,7 @@ const cadena = (v: unknown, max: number) => (typeof v === "string" ? v.trim().sl
 
 function franja(f: unknown): FranjaHoraria | null {
   if (!esObj(f) || !Array.isArray(f.dias)) return null;
-  const dias = [...new Set(f.dias.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6))].sort((a, b) => a - b);
+  const dias = Array.from(new Set(f.dias.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6))).sort((a, b) => a - b);
   const { desde, hasta } = f;
   if (!dias.length || typeof desde !== "string" || typeof hasta !== "string") return null;
   if (!HORA.test(desde) || !HORA.test(hasta) || desde === hasta) return null;
@@ -406,7 +406,7 @@ export function interpretarPeticion(cuerpo: unknown): PeticionImaginacion | { er
     let ids: string[] | "pendientes";
     if (cuerpo.ids === "pendientes") ids = "pendientes";
     else if (Array.isArray(cuerpo.ids) && cuerpo.ids.every((x) => typeof x === "string")) {
-      ids = [...new Set((cuerpo.ids as string[]).map((x) => x.trim()).filter(Boolean))];
+      ids = Array.from(new Set((cuerpo.ids as string[]).map((x) => x.trim()).filter(Boolean)));
       if (!ids.length) return { error: "El lote no trae ids." };
       if (ids.length > MAX_LOTE) return { error: `Como mucho ${MAX_LOTE} propuestas por lote.` };
     } else return { error: "«ids» es una lista de ids o «pendientes»." };
