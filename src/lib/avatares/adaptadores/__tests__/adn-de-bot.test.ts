@@ -39,6 +39,12 @@ describe("adnDeBot: la referencia manda y el ADN por defecto conserva la orbe", 
     expect(adn.visibilidad).toBe("privado");
   });
 
+  it("el ADN por defecto hereda el nombre del bot y deja el aura ligada a la emoción", () => {
+    const adn = adnDeBot(botDe());
+    expect(adn.nombre).toBe("Semilla");
+    expect(adn.aura.ligadaEmocion).toBe(true);
+  });
+
   it("si el ADN guardado es válido y de este bot, se reutiliza tal cual", () => {
     const guardado = { ...adnPorDefecto("adn-bot-1", "Semilla", { tipo: "bot", id: "bot-1" }, 190), rev: 7 };
     expect(adnDeBot(botDe(), guardado).rev).toBe(7);
