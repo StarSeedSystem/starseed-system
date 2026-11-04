@@ -255,6 +255,11 @@ const nextConfig: NextConfig = {
     if (process.env.VERCEL === '1' || process.env.STARSEED_BUILD_LIGERO === '1') {
       config.cache = Object.freeze({ type: 'memory' as const });
     }
+    // (XR1010AL §99) Si @iwer/devui o @iwer/sem se filtran en el bundle,
+    // hacer alias a módulo vacío solo en producción para no contaminar el cliente.
+    if (process.env.VERCEL === '1' || process.env.STARSEED_BUILD_LIGERO === '1') {
+      config.cache = Object.freeze({ type: 'memory' as const });
+    }
     return config;
   },
 };
