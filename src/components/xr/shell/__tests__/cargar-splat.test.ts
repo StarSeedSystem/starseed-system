@@ -124,4 +124,19 @@ describe("cargarSplat", () => {
         expect(opciones).toMatchObject({ url: URL, maxSplats: 3_000_000 });
         expect(opciones?.fileBytes).toBeInstanceOf(ArrayBuffer);
     });
+
+    it("si initialized rechaza, devuelve { ok:false } con el motivo", async () => {
+        class SplatConInitializedQueFalla {
+            initialized: Promise<unknown>;
+            constructor() {
+                this.initialized = Promise.reject(new Error("formato desconocido"));
+            }
+        }
+        const resultado = await cargarSplat(URL, {
+            SplatMesh: SplatConInitializedQueFalla,
+            pedirBytes: async () => new ArrayBuffer(64),
+        });
+        expect(resultado.ok).toBe(false);
+        if (!resultado.ok) expect(resultado.motivo).toContain("formato desconocido");
+    });
 });
