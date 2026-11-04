@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "id": "VST1018Ib",
+   "ola": "Ola 1018V · Voz de Astraura + VoiceStudio: motores libres, licencia por contexto, clonación con permiso e instantánea en cada neurona",
+   "titulo": "Voz · paquetes .ovsvoice: importar y exportar perfiles de voz de VoiceStudio",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/ovsvoice.ts",
+    "src/lib/aurora/voz-starseed/__tests__/ovsvoice.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Formato del §1 del contrato (manifest.json format \"ovsvoice\", schema_version 1, persona, engine, license.spdx, tags, preview, members; consent.json opcional; audios ref_audio, locked_audio, consent_audio, preview). `importarOvsvoice(bytes)` usa zip-lector.ts (límite 100 MB) y devuelve un perfil de voz nuestro + licencia normalizada (lista blanca del contrato; desconocida → LicenseRef-VoiceStudio-Personal → clase personal) + consentimiento como ORIENTATIVO (nunca marca «voz propia verificada» por el archivo). `exportarOvsvoice(perfil)` usa `buildZipBlob` de simple-zip.ts. Pruebas de ida y vuelta y de licencia no comercial. Contrato: architecture/voz-voicestudio.md (léelo entero antes de empezar) y los que amplía (voz-fusionada-astraura.md, vigia-modelos.md, apps-en-la-malla.md). Reglas: como mucho 120 líneas nuevas por archivo; no toques archivos fuera de la lista; módulos PUROS siempre que se pueda (red, disco, reloj y audio inyectables); pruebas sin red, sin micrófono ni altavoz y sin procesos; nada de `any`; nunca valores de claves (solo el nombre `OMNIVOICE_API_KEY`), IPs ni rutas absolutas en mensajes; nada no comercial (clase «personal») como opción por defecto ni en contextos grupo/comunidad/público/comercial; el audio de una persona nunca sale de sus neuronas sin permiso; comentarios y textos en español con acentos.",
+   "revisor_quitadas": [
+    "VST1018I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-025236.json": [
+   "VST1018Ib"
+  ]
+ }
+}
