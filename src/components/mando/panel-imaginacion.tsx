@@ -45,6 +45,8 @@ import {
     filasMedidor,
     normalizarReferencias,
     vetoReimaginar,
+    filtroAstraura,
+    etiquetaMedidorAstraura,
     type AjustesAuto,
     type AjustesAutodesarrollo,
     type AmbitoPropuesta,
@@ -982,6 +984,18 @@ export function PanelImaginacion({
                     Releer
                 </button>
             </p>
+
+            {datos && propuestas.length > 0 && (() => {
+                const hoy = new Date().toISOString().split("T")[0];
+                const deAstraura = propuestas.filter((p) => p.fuente === "astraura");
+                if (deAstraura.length === 0) return null;
+                const filtro = filtroAstraura(deAstraura, hoy);
+                return (
+                    <p className="mc-centrado text-[11px] text-violet-200" data-testid="imaginacion-filtro-astraura">
+                        {etiquetaMedidorAstraura(filtro)}
+                    </p>
+                );
+            })()}
 
             {datos ? <AjustesAutomatico auto={datos.ajustes.auto} alGuardar={guardarAuto} /> : null}
 
