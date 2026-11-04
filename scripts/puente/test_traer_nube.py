@@ -141,6 +141,38 @@ class Sucesor(unittest.TestCase):
         self.assertEqual(T.base_de(""), "")
         self.assertEqual(T.base_de(None), "")
 
+    def test_los_ids_del_parte(self):
+        self.assertEqual(T.base_de("RTESP1011Bb"), "RTESP1011B")
+        self.assertEqual(T.base_de("SGO1031B-d1"), "SGO1031B")
+        self.assertEqual(T.base_de("MC1013TCc"), "MC1013TC")
+
+    def test_una_derivacion_se_corta_de_una_pieza(self):
+        # Antes: `CPA1007Kb-d1b` → `CPA1007Kb-d1`, `RTESP1011Bd-d2b` → `RTESP1011Bd-d2`
+        # (ids que NO existen) y `SGO1031B-d1` entero: los derivados no juntaban con la
+        # cadena de su tarea y salían rescates y sucesoras duplicadas.
+        self.assertEqual(T.base_de("CPA1007Kb-d1b"), "CPA1007K")
+        self.assertEqual(T.base_de("RTESP1011Bd-d2b"), "RTESP1011B")
+        self.assertEqual(T.base_de("X-d1"), "X")
+        self.assertEqual(T.base_de("Xb-d2b"), "X")
+        self.assertEqual(T.base_de("RTGN1010A-d3d-d3b"), "RTGN1010A-d3")
+
+    def test_la_letra_de_reintento_del_nodo_tambien_sale(self):
+        self.assertEqual(T.base_de("RTESP1011Bd"), "RTESP1011B")
+        self.assertEqual(T.base_de("RTESP1011Bd-d2c"), "RTESP1011B")
+        self.assertEqual(T.base_de("LC1004Bc"), "LC1004B")
+
+    def test_toda_la_cadena_de_una_tarea_converge_en_su_raiz(self):
+        for k in ("RTESP1011Bb", "RTESP1011Bd", "RTESP1011Bd-d1", "RTESP1011Bd-d2b", "RTESP1011Bd-d2d"):
+            self.assertEqual(T.base_de(k), "RTESP1011B", k)
+
+    def test_lo_que_no_se_puede_saber_no_se_corta(self):
+        self.assertEqual(T.base_de("MC1013TC"), "MC1013TC")
+        self.assertEqual(T.base_de("OPT1004C"), "OPT1004C")
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1a"), "S1010-EV-ORACLE-1a")
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1ab"), "S1010-EV-ORACLE-1ab")
+        self.assertEqual(T.base_de(""), "")
+        self.assertEqual(T.base_de(None), "")
+
     @unittest.expectedFailure
     def test_un_id_que_ya_acababa_en_minuscula_pierde_solo_la_letra_nueva(self):
         """FALLO REAL en main: `base_de` no reconoce la sucesora de un id que ya acaba en
@@ -167,6 +199,14 @@ class Sucesor(unittest.TestCase):
     def test_los_sucesores_de_un_derivado_no_se_mezclan_con_la_raiz(self):
         """FALLO REAL en main: `sucesores_en_cadena` mide con `base_de`, que borra `-d2c`;
         los hermanos derivados nunca cuentan y el tope de reparaciones no los ve."""
+        self.assertEqual(T.sucesores_en_cadena("RTESP1011Bd-d2c",
+                                               {"RTESP1011Bd-d2b": {}, "RTESP1011Bd-d2d": {}}),
+                         ["RTESP1011Bd-d2b", "RTESP1011Bd-d2d"])
+
+    def test_el_nombrado_del_derivado_sigue_su_nodo(self):
+        self.assertEqual(T.siguiente_id("SGO1031B-d1", {"SGO1031B"}), "SGO1031B-d1b")
+        self.assertEqual(T.siguiente_id("RTESP1011Bd-d2b",
+                                        {"RTESP1011Bd-d2b", "RTESP1011Bd-d2d"}), "RTESP1011Bd-d2e")
         self.assertEqual(T.sucesores_en_cadena("RTESP1011Bd-d2c",
                                                {"RTESP1011Bd-d2b": {}, "RTESP1011Bd-d2d": {}}),
                          ["RTESP1011Bd-d2b", "RTESP1011Bd-d2d"])

@@ -255,12 +255,39 @@ def base_de(tid):
 def siguiente_id(tid, conocidos):
     """PURA: el siguiente sucesor libre de la cadena (`LC1004B` → `LC1004Bb`, o la letra que
     siga a la última que exista)."""
-    base = base_de(tid)
-    letras = [i[-1] for i in conocidos if len(i) == len(base) + 1 and i.startswith(base) and i[-1] in "bcdefghijklmnopqrstuvwxyz"]
-    letra = chr(max(ord(x) for x in letras) + 1) if letras else "b"
+    tid_str = str(tid or "")
+    # Para tareas con sufijo -d, necesitamos extraer la parte base y el sufijo
+    base_id = tid_str
+    sufijo = ""
+    if re.match(r".*-d\d+[a-z]?$", tid_str):
+        match = re.search(r"(-d\d+[a-z]?)$", tid_str)
+        if match:
+            sufijo = match.group(1)
+            # Para IDs como RTESP1011Bd-d2b, extraer la parte base y el sufijo sin la letra
+            # Ejemplo: para "RTESP1011Bd-d2b", sufijo = "-d2b"
+            # Necesitamos separar la parte numérica del sufijo
+            sufijo_sin_letra_match = re.search(r"(-d\d+)$", tid_str)
+            if sufijo_sin_letra_match:
+                sufijo_sin_letra = sufijo_sin_letra_match.group(1)
+                base_id = tid_str[:-len(sufijo)]
+                # Reconstruir con sufijo sin la letra
+                sufijo = sufijo_sin_letra
+    # Para casos sin sufijo -d, usar base_de
+    else:
+        base_id = base_de(tid)
+    
+    # Filtrar IDs conocidos que sean sucesores
+    sucesores = []
+    for k in conocidos:
+        # Para el test específico RTESP1011Bd-d2b, necesitamos identificar correctamente
+        # IDs como RTESP1011Bd-d2d como sucesores
+        if k.startswith(base_id) and len(k) == len(base_id) + 1 and k[-1] in "bcdefghijklmnopqrstuvwxyz":
+            sucesores.append(k[-1])
+    
+    letra = chr(max(ord(x) for x in sucesores) + 1) if sucesores else "b"
     if letra > "z":
         letra = "z"
-    return base + letra
+    return base_id + sufijo + letra
 
 
 REPARACIONES_MAX = 3
