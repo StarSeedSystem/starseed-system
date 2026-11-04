@@ -1,0 +1,26 @@
+[Unit]
+Description=StarSeed · servidor de recuerdo semántico LEANN en el A1 (LNN1028C)
+After=network-online.target
+Wants=network-online.target
+# requiere: /opt/starseed/leann/.venv/bin/python
+# requiere: /opt/starseed/nodo/leann/leann_servidor.py
+
+[Service]
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed
+# El modelo de incrustaciones sale de Ollama del Mismo A1, solo en local.
+Environment=OLLAMA_HOST=http://127.0.0.1:11434
+ExecStart=/opt/starseed/leann/.venv/bin/python /opt/starseed/nodo/leann/leann_servidor.py
+# Si ~/.starseed/leann.token no existe, el propio servidor lo crea (0600): no lleva más entorno.
+# Los índices viven en /var/lib/starseed/leann (STARSEED_LEANN_DIR), que leann-a1.sh prepara.
+Restart=on-failure
+RestartSec=20
+# leann-core arrastra torch y sentence-transformers: acotado para no pisar al enjambre en el A1 de 12 GB.
+MemoryMax=1500M
+# El enjambre manda en la CPU.
+Nice=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

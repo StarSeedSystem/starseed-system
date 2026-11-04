@@ -47,10 +47,15 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
   automejora enviar|traer
                          la Mac manda sus experiencias al A1 o trae lo que propuso la noche
                          (MTN1027H2); el ciclo lo hace solo una vez al día tras 02:00/06:00 UTC.
-  hermes [--aplicar]     instala el gateway de Hermes en el A1 (instalador oficial, config con
-                         `freellmapi/auto` y el MCP `starseed-director`, sin claves). Telegram
-                         va en encuesta solo en el líder: dos encuestas del mismo bot se pisan.
-                         Sin `--aplicar` solo enseña el plan.
+   hermes [--aplicar]     instala el gateway de Hermes en el A1 (instalador oficial, config con
+                          `freellmapi/auto` y el MCP `starseed-director`, sin claves). Telegram
+                          va en encuesta solo en el líder: dos encuestas del mismo bot se pisan.
+                          Sin `--aplicar` solo enseña el plan.
+   leann [--aplicar]      el recuerdo semántico LEANN en el A1 (LNN1028C): venv con leann==0.3.8,
+                          Ollama con qwen3-embedding:0.6b tras comprobar su Apache-2.0 y
+                          starseed-leann.service (127.0.0.1:4495 con token). Sin `--aplicar` solo
+                          enseña el plan: la primera corrida baja ~1,5–2 GB (torch) y SOLO con el
+                          visto bueno de Alex. Sin el servidor, el recuerdo sigue con Memvid.
 
 Reglas: Oracle SOLO Always Free (esto no crea nada en Oracle); nada se publica (main no se toca:
 solo ramas `colas/oracle-*` y `nube/a1-*`, como la nube de GitHub); ninguna IP, clave ni OCID se
@@ -178,6 +183,18 @@ MEMVID_SERVIDOR_A1 = "/home/starseed/memvid-servidor"
 MEMVID_BINARIO_A1 = os.path.join(MEMVID_SERVIDOR_A1, "target", "release", "memvid-servidor")
 MEMVID_SERVICIO_A1 = "/etc/systemd/system/starseed-memvid.service"
 MEMVID_CARGO_A1 = "/home/starseed/.cargo/bin/cargo"
+
+#: (LNN1028C) Recuerdo semántico LEANN en el A1 (contrato: architecture/leann-recuerdo-semantico.md).
+#: El venv con leann==0.3.8, el modelo con licencia comprobada y el entorno de Ollama los deja
+#: ejecutar `leann-a1.sh` EN el A1 (idempotente, como ollama-a1.sh, que ese Guion invoca); el
+#: código del servidor viaja con el paquete a `leann/` (ver `_paquete`) y la unidad del repo SOLO
+#: se instala cuando ese venv ya existe (su guardia `# requiere:`). Escucha SIEMPRE 127.0.0.1:4495.
+UNIDAD_LEANN = os.path.join(os.path.dirname(os.path.dirname(DIRECTORIO)), "deploy", "oracle",
+                            "nodo", "systemd", "starseed-leann.service")
+LEANN_SH_REPO = os.path.join(os.path.dirname(os.path.dirname(DIRECTORIO)), "deploy", "oracle",
+                             "nodo", "leann-a1.sh")
+LEANN_SH_A1 = "/opt/starseed/nodo/leann-a1.sh"
+LEANN_SERVICIO_A1 = "/etc/systemd/system/starseed-leann.service"
 
 
 # ── decisiones (puras) ──────────────────────────────────────────────────────────────────────────
@@ -874,6 +891,12 @@ def _paquete(destino):
     for rel in ("scripts/puente/automejora_logica.py", "scripts/puente/automejora_pasarela.py",
                 "scripts/puente/automejora_nodo.py"):
         poner(fuente(rel), os.path.join("automejora", os.path.basename(rel)))
+    # (LNN1028C) El recuerdo semántico: servidor, gestión de índices y fusión con Memvid viajan a
+    # `leann/` en /opt/starseed/nodo (los sirve starseed-leann.service; el venv lo deja
+    # `leann-a1.sh`). Con `fuente` manda la versión más nueva; `poner` salta lo que falte.
+    for rel in ("scripts/puente/leann_servidor.py", "scripts/puente/leann_indices.py",
+                "scripts/puente/fusion_recuerdos.py"):
+        poner(fuente(rel), os.path.join("leann", os.path.basename(rel)))
     try:
         with open(fuente("scripts/puente/automejora_pasarela.py"), encoding="utf-8") as f:
             texto_pasarela = f.read()
@@ -1766,6 +1789,57 @@ def memvid(aplicar=False, origen=None):
     return res
 
 
+def plan_leann():
+    """PURA (LNN1028C). El plan de `leann`, sin ejecutar nada: la descarga grande (leann-core
+    arrastra torch, ~1,5–2 GB) SIEMPRE se enseña primero y al aplicar pide el visto bueno."""
+    return [
+        {"que": "subir", "de": "deploy/oracle/nodo/leann-a1.sh", "a": LEANN_SH_A1,
+         "porque": "el instalador idempotente, junto a ollama-a1.sh"},
+        {"que": "ejecutar", "orden": "sudo bash " + LEANN_SH_A1,
+         "porque": "venv con leann==0.3.8, Ollama con qwen3-embedding:0.6b tras comprobar su "
+                   "Apache-2.0 y su servicio con KEEP_ALIVE=2m y un solo modelo cargado"},
+        {"que": "instalar", "ruta": LEANN_SERVICIO_A1,
+         "porque": "unidad: starseed, OLLAMA_HOST local, MemoryMax=1500M, Nice=10, Restart=on-failure"},
+        {"que": "recargar", "orden": "sudo systemctl daemon-reload", "porque": "systemd lee la unidad"},
+        {"que": "arrancar", "orden": "sudo systemctl enable --now starseed-leann",
+         "porque": "el recuerdo semántico va SIEMPRE encendido en 127.0.0.1:4495, con token"},
+    ]
+
+
+def leann(aplicar=False):
+    """(LNN1028C) Instala o pone al día LEANN en el A1: venv con leann==0.3.8, el modelo de
+    incrustaciones con su licencia comprobada antes de dejarlo y starseed-leann.service
+    atendiendo en 127.0.0.1:4495 con token. Sin `--aplicar` solo enseña el plan; la primera corrida baja
+    ~1,5–2 GB (torch y sentence-transformers): solo con el visto bueno de Alex, como `colibri`."""
+    try:
+        with open(UNIDAD_LEANN, encoding="utf-8") as f:
+            unidad = f.read()
+    except OSError:
+        return {"ok": False, "motivo": "falta %s en el repo" % os.path.basename(UNIDAD_LEANN)}
+    try:
+        with open(LEANN_SH_REPO, encoding="utf-8") as f:
+            guion = f.read()
+    except OSError:
+        return {"ok": False, "motivo": "falta deploy/oracle/nodo/leann-a1.sh en el repo"}
+    if not aplicar:
+        return {"ok": True, "aplicado": False, "pasos": plan_leann()}
+    res = {"ok": True, "aplicado": True, "hecho": []}
+    for nombre, llamar in (
+        ("subir instalador", lambda: _poner_en_a1(guion, LEANN_SH_A1, modo=0o755)),
+        ("ejecutar instalador", lambda: ssh("sudo bash " + LEANN_SH_A1, timeout=3600)),
+        ("instalar unidad", lambda: _poner_en_a1(unidad, LEANN_SERVICIO_A1)),
+        ("arrancar servicio",
+         lambda: ssh("sudo systemctl daemon-reload && sudo systemctl enable --now starseed-leann",
+                     timeout=120)),
+    ):
+        rc, salida = llamar()
+        res["hecho"].append({"que": nombre, "ok": rc == 0, "detalle": "" if rc == 0 else salida.strip()[-160:]})
+        res["ok"] = res["ok"] and rc == 0
+        if rc != 0:
+            return res
+    return res
+
+
 def freellmapi():
     """(2026-10-13) Instala o pone al día FreeLLMAPI en el A1, SOLO en 127.0.0.1:3001
     (`a1_freellmapi.py`, que corre allí como root). Antes deja las claves al día (`claves()`): el
@@ -1818,6 +1892,8 @@ def main(argv):
         r = colibri(aplicar="--aplicar" in argv, carpeta=carpeta)
     elif orden == "memvid":
         r = memvid(aplicar="--aplicar" in argv)
+    elif orden == "leann":
+        r = leann(aplicar="--aplicar" in argv)
     elif orden == "hermes":
         r = hermes(aplicar="--aplicar" in argv)
     elif orden == "freellmapi":

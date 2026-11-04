@@ -311,5 +311,52 @@ class ModulosDelNodo(unittest.TestCase):
                         self.assertIn(m.group(1), viajan, "%s importa %s al arrancar" % (nombre, m.group(1)))
 
 
+class Leann(unittest.TestCase):
+    """(LNN1028C) La orden `leann`, sin ssh: el plan se enseña primero y el paquete lleva lo suyo."""
+
+    def test_el_plan_se_muestra_y_no_arranca_nada(self):
+        r = N.leann(aplicar=False)
+        self.assertTrue(r["ok"])
+        self.assertFalse(r["aplicado"])
+        texto = " ".join(str(p.get("orden") or "") for p in r["pasos"])
+        self.assertIn("leann-a1.sh", texto)
+        self.assertIn("starseed-leann", texto)
+        self.assertNotIn("&", texto)  # nada de fondo: es solo un plan para leer
+
+    def test_la_unidad_solo_nace_con_el_venv_y_va_acotada(self):
+        """La guardia `# requiere:` del venv ve preparar-a1.sh: sin él, la unidad no se instala."""
+        self.assertTrue(os.path.exists(N.UNIDAD_LEANN))
+        with open(N.UNIDAD_LEANN, encoding="utf-8") as f:
+            u = f.read()
+        self.assertIn("# requiere: /opt/starseed/leann/.venv/bin/python", u)
+        for linea_prohibida in ("0.0.0.0", "MemoryMax=3000M"):
+            self.assertNotIn(linea_prohibida, u)
+        for obligatoria in ("User=starseed", "OLLAMA_HOST=http://127.0.0.1:11434",
+                            "MemoryMax=1500M", "Nice=10", "Restart=on-failure"):
+            self.assertIn(obligatoria, u)
+
+    def test_el_instalador_comprueba_la_licencia_antes_de_dejarlo(self):
+        self.assertTrue(os.path.exists(N.LEANN_SH_REPO))
+        with open(N.LEANN_SH_REPO, encoding="utf-8") as f:
+            guion = f.read()
+        licencia = guion.split("exit 1")[0]
+        self.assertIn("--license", licencia)
+        self.assertIn("Apache", licencia)
+        self.assertIn('ollama rm', licencia)  # no Apache → se quita el modelo y nada queda instalado
+        self.assertIn("leann==0.3.8", guion)
+        self.assertIn("OLLAMA_KEEP_ALIVE=2m", guion)
+        self.assertIn("OLLAMA_MAX_LOADED_MODELS=1", guion)
+
+    def test_el_paquete_lleva_el_servidor_con_lo_que_usa(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory(prefix="leann-paq-") as tmp:
+            carpeta = os.path.join(tmp, "starseed-nodo")
+            os.makedirs(carpeta)
+            incluido = N._paquete(carpeta)
+        for rel in ("leann/leann_servidor.py", "leann/leann_indices.py", "leann/fusion_recuerdos.py"):
+            self.assertIn(rel, incluido, "%s no viaja" % rel)
+
+
 if __name__ == "__main__":
     unittest.main()
