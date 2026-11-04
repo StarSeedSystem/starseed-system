@@ -51,6 +51,7 @@ import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
 import { ensureMesh, getSharedMesh, capaMeshCompartiendo, setupConcienciaSync } from "@/lib/network/lan-sync";
 import type { MeshHandle, PeerSnapshot, PeerState } from "@/lib/network/webrtc-mesh";
 import { resumirRuta, type RutaEnlace } from "@/lib/network/estadisticas-enlace";
+import { resumenIce, type ResumenIce } from "@/lib/network/estadisticas-ice";
 import { preferenciaCapasGuardada, type PreferenciaCapas } from "@/lib/astraura/capas-conciencia";
 import { paginaEsLocal } from "@/lib/astraura/destino-local";
 import { urlPuenteLocal } from "@/ai/providers/astraura-158";
@@ -512,7 +513,7 @@ export interface DispositivoMallaRow {
   online: boolean;
   esEsteDispositivo: boolean;
   ultimoVisto?: string;
-  enlace: { estado: EstadoEnlace; motivo?: string; latenciaMs?: number; ruta?: RutaEnlace };
+  enlace: { estado: EstadoEnlace; motivo?: string; latenciaMs?: number; ruta?: RutaEnlace; ice?: ResumenIce };
   ficha?: FichaDispositivo;
 }
 
@@ -632,6 +633,7 @@ export function useMallaNeuronas(deps?: {
   const [fichas, setFichas] = useState<Record<string, FichaDispositivo>>({});
   const [latencias, setLatencias] = useState<Record<string, number>>({});
   const [rutas, setRutas] = useState<Record<string, RutaEnlace>>({});
+  const [hielos, setHielos] = useState<Record<string, ResumenIce>>({});
   const [cercanas, setCercanas] = useState<FaroCercano[]>(deps?.getNearbyNow?.() ?? []);
   const [loading, setLoading] = useState(true);
 
@@ -799,13 +801,16 @@ export function useMallaNeuronas(deps?: {
         const at = Date.now();
         hbSentAtRef.current.set(p.deviceId, at);
         mesh.sendToPeer(p.deviceId, JSON.stringify({ t: MSG_HB, at } satisfies MensajeHb));
-        try {
-          const stats = await mesh.getStats?.(p.deviceId);
-          if (stats) {
-            const ruta = resumirRuta(stats, Date.now());
-            setRutas((prev) => ({ ...prev, [p.deviceId]: ruta }));
-          }
-        } catch {
+try {
+            const stats = await mesh.getStats?.(p.deviceId);
+            if (stats) {
+              const ahora = Date.now();
+              const ruta = resumirRuta(stats, ahora);
+              setRutas((prev) => ({ ...prev, [p.deviceId]: ruta }));
+              const hielo = resumenIce(stats, ahora);
+              setHielos((prev) => ({ ...prev, [p.deviceId]: hielo }));
+            }
+          } catch {
           /* conserva la última medición real si este sondeo falla */
         }
       }
@@ -881,6 +886,7 @@ export function useMallaNeuronas(deps?: {
       if (enlace.estado === "conectado" && syncId) {
         enlace.ruta = rutas[syncId];
         enlace.latenciaMs = latencias[syncId] ?? rutas[syncId]?.rttMs ?? undefined;
+        enlace.ice = hielos[syncId];
       }
       return {
         neuronId: n.id,
@@ -896,7 +902,7 @@ export function useMallaNeuronas(deps?: {
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [neuronas, peers, fichas, latencias, rutas]);
+  }, [neuronas, peers, fichas, latencias, rutas, hielos]);
 
   const cercanasRows = useMemo<NeuronaCercanaRow[]>(() => {
     const cutoff = Date.now() - BEACON_CONSIDERADO_RECIENTE_MS;

@@ -298,6 +298,7 @@ function EnlaceBadge({ enlace }: { enlace: DispositivoMallaRow["enlace"] }) {
       <Badge variant="outline" className="gap-1 border-emerald-400/50 text-[9px] text-emerald-300">
         <Wifi className="h-3 w-3" /> conectado{typeof enlace.latenciaMs === "number" ? ` · ${enlace.latenciaMs} ms` : ""}
         {enlace.ruta ? ` · ${etiquetaRuta(enlace.ruta.clase)}` : ""}
+        {enlace.ice?.clasificacion ? ` · ${enlace.ice.clasificacion}` : ""}
       </Badge>
     );
   }
