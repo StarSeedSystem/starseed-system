@@ -176,9 +176,6 @@ class YaLoHiceMideLaPasarelaAhora(unittest.TestCase):
         self.assertEqual(despues[1], antes[1])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 class AvisarAUnArchivoNoEsAvisar(unittest.TestCase):
     """(2026-09-22) Alex: «el "te toca a ti" no me ha avisado del fichaje de la api ni de nada».
 
@@ -410,3 +407,104 @@ def test_1103_el_token_se_busca_donde_lo_deja_oracle_claves():
         return 0, "SI\n"
     assert m.a1_tiene_clave(ssh=ssh) is True
     assert "/etc/starseed/direccion.env" in vistas[0] and "[ -e" not in vistas[0]
+
+
+class CodexCuentaChatGPT(unittest.TestCase):
+    """DEC1028D: la cuenta de ChatGPT ya no deja usar Codex (model_not_found)."""
+
+    def setUp(self):
+        import tempfile
+        self.dir = tempfile.mkdtemp()
+        self.antes = A.cupo_codex.RUTA
+        A.cupo_codex.RUTA = os.path.join(self.dir, "codex-cupo.json")
+
+    def tearDown(self):
+        A.cupo_codex.RUTA = self.antes
+
+    def _marcar(self, motivo, horas=24):
+        return A.cupo_codex.anotar(motivo=motivo, ruta=A.cupo_codex.RUTA, horas=horas)
+
+    def test_si_marca_vigente_cuenta_chatgpt_sin_codex_sale_accion(self):
+        self._marcar("cuenta de ChatGPT sin Codex: gpt-5.6-sol model_not_found")
+        acciones = A.construir_acciones([], A.TODOS, A.CATALOGO)
+        codex = [a for a in acciones if a["id"] == "codex-cuenta"]
+        self.assertEqual(1, len(codex))
+        a = codex[0]
+        self.assertEqual(a["urgencia"], "media")
+        self.assertIn("Codex", a["titulo"])
+        self.assertIn("ChatGPT", a["por_que"])
+        self.assertIn("2026-10-23", a["por_que"])
+        self.assertIn("chatgpt.com/#settings/Account", a["enlace"])
+        self.assertEqual(a["comando"], "")
+        self.assertIn("tu cuenta y tu suscripción", a["por_que_no_lo_hago_yo"])
+
+    def test_si_marca_vigente_es_cuota_normal_NO_sale_codex_cuenta(self):
+        self._marcar("cuota agotada: You've hit your usage limit", horas=3)
+        acciones = A.construir_acciones([], A.TODOS, A.CATALOGO)
+        self.assertNotIn("codex-cuenta", [a["id"] for a in acciones])
+
+    def test_si_marca_expirada_NO_sale(self):
+        self._marcar("cuenta de ChatGPT sin Codex: modelo no soportado", horas=0.0001)
+        import time
+        time.sleep(0.01)
+        acciones = A.construir_acciones([], A.TODOS, A.CATALOGO)
+        self.assertNotIn("codex-cuenta", [a["id"] for a in acciones])
+
+    def test_si_no_hay_marca_NO_sale(self):
+        acciones = A.construir_acciones([], A.TODOS, A.CATALOGO)
+        self.assertNotIn("codex-cuenta", [a["id"] for a in acciones])
+
+    def test_si_marca_sin_motivo_NO_sale(self):
+        self._marcar("")
+        acciones = A.construir_acciones([], A.TODOS, A.CATALOGO)
+        self.assertNotIn("codex-cuenta", [a["id"] for a in acciones])
+
+    def test_motivo_case_insensitive(self):
+        self._marcar("CUENTA DE CHATGPT SIN CODEX: model_not_found")
+        acciones = A.construir_acciones([], A.TODOS, A.CATALOGO)
+        self.assertIn("codex-cuenta", [a["id"] for a in acciones])
+
+    def test_la_accion_va_despues_de_lo_urgente_y_antes_de_baja(self):
+        self._marcar("cuenta de ChatGPT sin Codex: gpt-5.6-sol no soportado")
+        acciones = A.construir_acciones([], [], A.CATALOGO, entorno={})
+        ids = [a["id"] for a in acciones]
+        self.assertLess(ids.index("canal-de-avisos-sin-configurar"), ids.index("codex-cuenta"))
+        # github-secretos con urgencia baja puede no aparecer si no hay faltantes
+        # pero codex-cuenta debe estar antes de cualquier cosa de urgencia baja
+
+    def test_verificar_recomprueba_y_dice_hecha_si_marca_expirada(self):
+        self._marcar("cuenta de ChatGPT sin Codex: modelo no soportado", horas=0.0001)
+        import time
+        time.sleep(0.01)
+        r = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=A.TODOS,
+                        entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"})
+        self.assertTrue(r["hecha"])
+        self.assertIn("ya no hace falta", r["detalle"])
+
+    def test_verificar_dice_pendiente_si_marca_vigente(self):
+        self._marcar("cuenta de ChatGPT sin Codex: model_not_found")
+        r = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=A.TODOS,
+                        entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"})
+        self.assertFalse(r["hecha"])
+        self.assertIn("sigue pendiente", r["detalle"])
+
+
+def test_DEC1028D_codex_cuenta_titulo_y_detalle():
+    import importlib.util as _u, os as _o, tempfile
+    _s = _u.spec_from_file_location("ada1028d", _o.path.join(_o.path.dirname(__file__), "acciones-de-alex.py"))
+    m = _u.module_from_spec(_s); _s.loader.exec_module(m)
+    dir = tempfile.mkdtemp()
+    m.cupo_codex.RUTA = _o.path.join(dir, "codex-cupo.json")
+    m.cupo_codex.anotar("cuenta de ChatGPT sin Codex: gpt-5.6-sol model_not_found", ruta=m.cupo_codex.RUTA)
+    acciones = m.construir_acciones([], m.TODOS, m.CATALOGO)
+    a = next(x for x in acciones if x["id"] == "codex-cuenta")
+    assert "Codex: tu cuenta de ChatGPT ya no deja usarlo" == a["titulo"]
+    assert "desde 2026-10-23" in a["por_que"]
+    assert "npm i -g @openai/codex" in a["detalle"]
+    assert "codex login" in a["detalle"]
+    assert a["comando"] == ""
+    assert a["enlace"] == "https://chatgpt.com/#settings/Account"
+
+
+if __name__ == "__main__":
+    unittest.main()

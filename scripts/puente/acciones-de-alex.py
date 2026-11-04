@@ -35,6 +35,15 @@ _spec = importlib.util.spec_from_file_location(
 _pas = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_pas)
 
+#: (DEC1028D) Cuota/acceso de Codex: lee la marca guardada por cupo_codex.py
+try:
+    _spec_codex = importlib.util.spec_from_file_location(
+        "cupo_codex", os.path.join(os.path.dirname(os.path.abspath(__file__)), "cupo_codex.py"))
+    _codex = importlib.util.module_from_spec(_spec_codex)
+    _spec_codex.loader.exec_module(_codex)
+except Exception:  # noqa: BLE001 — sin cupo_codex no hay acción de codex
+    _codex = None
+
 #: Los nombres que el workflow de la nube lee. Solo NOMBRES, jamás un valor.
 #:
 #: (2026-09-21) Esta lista estaba ESCRITA DOS VECES —aquí y en `nube-gh.py`— y las dos
@@ -184,6 +193,39 @@ def accion_token_despliegue(a1_lo_tiene):
         "variable": TOKEN_DESPLIEGUE,
     }
 
+
+def accion_codex_cuenta():
+    """PURA: la acción de Codex con cuenta de ChatGPT que no lo admite.
+
+    Lee la marca de `cupo_codex.leer()`. Si hay una marca vigente cuyo motivo empieza por
+    «cuenta de ChatGPT sin Codex» (case-insensitive), devuelve la acción. En cualquier otro
+    caso (sin marca, marca expirada, motivo distinto), devuelve None.
+    """
+    if _codex is None:
+        return None
+    marca = _codex.leer()
+    if not _codex.sigue_agotado(marca, __import__("time").time()):
+        return None
+    motivo = str(marca.get("motivo") or "").lower()
+    if not motivo.startswith("cuenta de chatgpt sin codex"):
+        return None
+    return {
+        "id": "codex-cuenta",
+        "titulo": "Codex: tu cuenta de ChatGPT ya no deja usarlo",
+        "por_que": ("desde 2026-10-23 cada intento de Codex devuelve "
+                    "«model not supported when using Codex with a ChatGPT account»; "
+                    "el enjambre lo ha apartado y sigue con los demás"),
+        "urgencia": "media",
+        "comando": "",
+        "enlace": "https://chatgpt.com/#settings/Account",
+        "por_que_no_lo_hago_yo": "es tu cuenta y tu suscripción",
+        "detalle": ("Pasos:\n"
+                    "1) Abre chatgpt.com › Ajustes › Plan y verifica si la suscripción sigue activa.\n"
+                    "2) Si lo está, actualiza la CLI: `npm i -g @openai/codex`.\n"
+                    "3) Vuelve a entrar con `codex login`."),
+        "variable": None,
+    }
+
 #: Qué estados de pasarela necesitan a un humano, y con qué urgencia. `sin_cupo` NO está:
 #: una cuota se repone sola y mandarle a hacer algo por eso es hacerle perder el tiempo.
 ESTADOS_HUMANOS = {
@@ -275,6 +317,12 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1
     sin_canal = accion_sin_canal(entorno) if entorno is not None else None
     if sin_canal:
         acciones.append(sin_canal)
+
+    # (DEC1028D) Codex con cuenta de ChatGPT que no admite el modelo: no es cuota, no vuelve
+    # en 3 horas. La acción sale si hay marca vigente con ese motivo.
+    codex_cuenta = accion_codex_cuenta()
+    if codex_cuenta:
+        acciones.append(codex_cuenta)
 
     faltan = sorted(CLAVES_DEL_ENJAMBRE - set(secretos_repo or []))
     # (2026-10-28, DEC1028A) Alex: «¿lo de github-secretos se debe hacer?». Si solo faltan claves de repuesto
