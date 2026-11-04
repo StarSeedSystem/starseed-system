@@ -24,6 +24,13 @@ class LeerModoTests(unittest.TestCase):
         self.assertEqual(leer_modo("{roto"), "pantalla")
         self.assertEqual(leer_modo(""), "pantalla")
 
+    def test_no_dict_enciende_pantalla(self):
+        # Rescate RTKAL1101A: una lista, un número o `null` encienden "pantalla"
+        # igual que el JSON roto (no diálogo dict ⇒ ajuste por defecto).
+        self.assertEqual(leer_modo("[1]"), "pantalla")
+        self.assertEqual(leer_modo("42"), "pantalla")
+        self.assertEqual(leer_modo("null"), "pantalla")
+
     def test_compatibilidad_activa(self):
         self.assertIsNone(leer_modo(json.dumps({"activa": False})))
         self.assertEqual(leer_modo(json.dumps({"activa": True})), "pantalla")
@@ -51,9 +58,13 @@ class ConstruirOrdenTests(unittest.TestCase):
         )
 
     def test_linux_sin_keepalive_inhibe_sueno(self):
-        orden = construir_orden("linux", "sistema", 42, False) or []
-        self.assertEqual(orden[0], "systemd-inhibit")
-        self.assertIn("--what=sleep:idle", orden)
+        # Rescate RTKAL1101A: la orden completa del inhibidor, con sleep infinity
+        # al final (el hijo que el servicio vigila y termina).
+        self.assertEqual(
+            construir_orden("linux", "sistema", 42, False),
+            ["systemd-inhibit", "--what=sleep:idle", "--mode=block",
+             "--why=StarSeed OS mantiene procesos vivos", "sleep", "infinity"],
+        )
 
     def test_sin_herramienta_o_apagado(self):
         self.assertIsNone(construir_orden("win32", "sistema", 42, False))
@@ -128,6 +139,17 @@ class CicloTests(unittest.TestCase):
         servicio, popen, _ = servicio_simulado()
         servicio.ciclo("{roto")
         popen.assert_called_once()
+
+    def test_apagado_sin_hijo_previo_no_lanza_nada(self):
+        # Rescate RTKAL1101A: apagar cuando nunca hubo hijo solo escribe el
+        # estado apagado; no lanza proceso ni muere.
+        servicio, popen, escritos = servicio_simulado()
+        servicio.ciclo(json.dumps({"activa": False}))
+        popen.assert_not_called()
+        self.assertEqual(
+            escritos, [{"modo": None, "herramienta": None, "pid": 42}]
+        )
+        self.assertFalse(servicio.hijo_vivo())
 
     def test_nunca_usa_pkill(self):
         servicio, popen, _ = servicio_simulado()

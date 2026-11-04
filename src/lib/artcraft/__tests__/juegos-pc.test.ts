@@ -165,6 +165,13 @@ describe("esUrlPermitidaRare · solo releases oficiales, descargas remotas bloqu
       "https://github.com:8443/RareDevs/Rare/releases/latest",
     ]) expect(esUrlPermitidaRare(u), u).toBe(false);
   });
+  it("SUP0111H · ruta con @, host IPv6 y contrabarra a mitad de ruta quedan fuera", () => {
+    for (const u of [
+      "https://github.com/RareDevs/Rare/releases@evil.com/1",
+      "https://[::1]/RareDevs/Rare/releases/1",
+      "https://github.com/RareDevs/Rare/releases/..\\evil/x",
+    ]) expect(esUrlPermitidaRare(u), u).toBe(false);
+  });
   it("SUP0111H · URL inválida, con barra invertida o protocolo que no es https: false", () => {
     for (const u of [
       "no es una url", "://", "https://", "https://github.com",
