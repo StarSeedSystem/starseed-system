@@ -111,6 +111,26 @@ describe("cargarSplat", () => {
         expect(resultado).toEqual({ ok: false, motivo: MOTIVO_URL_INSEGURA });
     });
 
+    it("sin maxBytes aplica el tope de 60 MB de MAX_BYTES_SPLAT", async () => {
+        const resultado = await cargarSplat(URL, {
+            SplatMesh: MallaFalsa,
+            pedirBytes: async () => new ArrayBuffer(MAX_BYTES_SPLAT + 1),
+        });
+        expect(resultado).toEqual({ ok: false, motivo: MOTIVO_SPLAT_GRANDE });
+    });
+
+    it("sin maxSplats el presupuesto por defecto es el del nivel alta", async () => {
+        MallaFalsa.ultima = null;
+        const resultado = await cargarSplat(URL, {
+            SplatMesh: MallaFalsa,
+            pedirBytes: async () => new ArrayBuffer(128),
+        });
+        expect(resultado.ok).toBe(true);
+        const opciones = MallaFalsa.ultima as OpcionesSplatMesh | null;
+        expect(opciones?.maxSplats).toBe(presupuestoSplat("alta"));
+        expect(opciones?.maxSplats).toBe(1_500_000);
+    });
+
     it("con url y bytes válidos crea la malla con el presupuesto del nivel", async () => {
         MallaFalsa.ultima = null;
         const resultado = await cargarSplat(URL, {
