@@ -252,10 +252,30 @@ def base_de(tid):
     return t
 
 
+def _base_nodo(tid):
+    """PURA: la base del nodo raíz de una cadena de reintentos.
+    Para `X-d1` → `X-d1` (el nodo raíz, no corta más). Para `X` o `Xb` → `X`.
+    Un ID con `-d<N>` es un nodo derivado; su base es el ID sin la letra sucesora.
+    """
+    t = str(tid or "")
+    m_d = re.match(r"^(.+?)-d(\d+)([a-z]?)$", t)
+    if not m_d:
+        return base_de(tid)
+    base_sin_letra = m_d.group(1)
+    numero_d = int(m_d.group(2))
+    letra_extra = m_d.group(3)
+    if letra_extra:
+        return base_sin_letra + "-d" + str(numero_d)
+    m_d2 = re.match(r"^(.+?)-d(\d+)$", t)
+    if m_d2:
+        return t
+    return base_de(tid)
+
+
 def siguiente_id(tid, conocidos):
     """PURA: el siguiente sucesor libre de la cadena (`LC1004B` → `LC1004Bb`, o la letra que
     siga a la última que exista)."""
-    base = base_de(tid)
+    base = _base_nodo(tid)
     letras = [i[-1] for i in conocidos if len(i) == len(base) + 1 and i.startswith(base) and i[-1] in "bcdefghijklmnopqrstuvwxyz"]
     letra = chr(max(ord(x) for x in letras) + 1) if letras else "b"
     if letra > "z":
@@ -268,7 +288,7 @@ REPARACIONES_MAX = 3
 
 def sucesores_en_cadena(tid, progreso):
     """PURA: los sucesores (`Xb`, `Xc`…) que ya existen en la cadena de `tid`, en orden."""
-    base = base_de(tid)
+    base = _base_nodo(tid)
     return sorted(k for k in (progreso or {}) if k != base and len(k) == len(base) + 1
                   and k.startswith(base) and k[-1] in "bcdefghijklmnopqrstuvwxyz")
 
