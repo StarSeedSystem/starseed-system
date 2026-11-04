@@ -4693,3 +4693,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTIMG1020Cb-d2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTIMG1020Cb-d2b conservada)
 - `VZF1015M-d1b` — no escribió nada
 - `SGO1031B-d2b` — no escribió nada
+
+## 2026-11-04 07:55 · mg-oracle-1103-2329
+
+**Lo que se pidió.** en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — los tipos no compilan (MVD1027H-d2, MTN1027Cb-d3, MVD1027F-d2). Es 75 % de la ola.
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `MVD1027H-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/MVD1027H-d2 conservada)
+- `RTRESC1031D` — pruebas en rojo: vitest falla (rama conservada)
+- `MTN1027Cb-d3` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/MTN1027Cb-d3 conservada)
+- `MVD1027F-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/MVD1027F-d2 conservada)
