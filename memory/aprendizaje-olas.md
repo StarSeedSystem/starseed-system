@@ -4693,3 +4693,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTIMG1020Cb-d2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTIMG1020Cb-d2b conservada)
 - `VZF1015M-d1b` — no escribió nada
 - `SGO1031B-d2b` — no escribió nada
+
+## 2026-11-04 08:29 · mg-oracle-1104-0202
+
+**Lo que se pidió.** Planificador de fusiones de modelos: PEFT, mergekit externo o ensamble de sistema, según compatibilidad real
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (RTCPZ1025F, RTCOL1012Ie-d2). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTCPZ1025F` — no escribió nada
+- `RTCOL1012Ie-d2` — no escribió nada
