@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { FUNCIONES_XR } from "@/lib/xr/tipos";
 import { opcionesAlmacenXR } from "@/components/xr/shell/almacen-xr";
+import { PERFILES } from "@/lib/xr/calidad-perfiles";
+import type { CapacidadesXR } from "@/lib/xr/capacidades";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -10,12 +12,12 @@ function leerArchivo(ruta: string): string {
 
 describe("Guardia XR1010AL — reglas mínimas del contrato", () => {
   describe("(1) emulate: solo false o con ?emulador=1", () => {
-    const datosBase = {
-      perfil: { nivel: "alta" as const, foveacion: 0.3, frameRate: 90, escala: 1.15, refresh: 120 },
+    const datosBase: { perfil: typeof PERFILES.alta; capacidades: CapacidadesXR } = {
+      perfil: PERFILES.alta,
       capacidades: {
-        plataforma: "quest" as const, visor: true, modos: ["vr-inmersivo"] as const,
-        recomendado: "vr-inmersivo" as const, entradas: ["mandos"] as const,
-        funciones: FUNCIONES_XR, ofrecerSesion: true, motivos: [], avisos: []
+        plataforma: "quest", visor: true, modos: ["vr-inmersivo"],
+        recomendado: "vr-inmersivo", entradas: ["mandos"],
+        funciones: [...FUNCIONES_XR], ofrecerSesion: true, motivos: [], avisos: []
       },
     };
 
