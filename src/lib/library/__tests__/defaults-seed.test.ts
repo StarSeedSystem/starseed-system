@@ -55,8 +55,8 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 }
 
 describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
-  it("la versión está en 24 (remacho del Mausbot) y mantiene las siete «siempre» de la 2.ª tanda", () => {
-    expect(SEED_VERSION).toBe(24);
+  it("la versión está en 25 (suma el remacho del Mausbot y la tanda 1028 de LEANN) y mantiene las siete «siempre» de la 2.ª tanda", () => {
+    expect(SEED_VERSION).toBe(25);
     for (const id of SIEMPRE_2A) {
       expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
     }
