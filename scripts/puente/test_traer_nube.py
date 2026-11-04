@@ -180,6 +180,11 @@ class Sucesor(unittest.TestCase):
                                                {"RTESP1011Bd-d2b": {}, "RTESP1011Bd-d2d": {}}),
                          ["RTESP1011Bd-d2b", "RTESP1011Bd-d2d"])
 
+    def test_toda_la_cadena_de_una_tarea_converge_en_su_raiz(self):
+        """Todos los variantes de una tarea (sucesoras y derivadas) convergen en su raíz."""
+        for k in ("RTESP1011Bb", "RTESP1011Bd", "RTESP1011Bd-d1", "RTESP1011Bd-d2b", "RTESP1011Bd-d2d"):
+            self.assertEqual(T.base_de(k), "RTESP1011B", k)
+
     def test_tarea_reparacion_continua_desde_la_rama(self):
         original = {"id": "LC1004B", "ola": "Ola 1004L", "titulo": "Límites", "archivos": ["a.ts"],
                     "depende": ["LC1004A"], "prompt": "Haz X.", "estado": "fallo_tests", "modelo": "nim/kimi"}
