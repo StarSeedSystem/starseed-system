@@ -1,4 +1,4 @@
-// Recuerdos de las cápsulas Memvid en Astraura (MVD1027F-d1c, parte 1) —
+// Recuerdos de las cápsulas Memvid y LEANN en Astraura (MVD1027F-d1c, LNN1028F) —
 // módulo PURO: sin red, sin disco, sin procesos. Solo lógica de búsqueda,
 // filtrado por alcance y detección de fuga. La E/S real (fetch a /api/memorias/capsulas)
 // se inyecta como dependencia para que sea testeable.
@@ -15,6 +15,14 @@ import {
   type ActorMemoria,
   type AlcanceMemoria,
 } from "@/lib/nucleo/alcance-memoria";
+import {
+  buscarLeann,
+  type AciertoLeann,
+} from "@/lib/memorias/leann-cliente";
+import {
+  buscar,
+  type AciertoMemvid,
+} from "@/lib/memorias/memvid-cliente";
 
 export interface AciertoCapsula {
   titulo: string;
