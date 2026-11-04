@@ -25,9 +25,9 @@ describe("detectAvailability (paralelo)", () => {
     let resolveMedia: () => void;
     let resolveLenta: () => void;
 
-    const promRápida = new Promise<never>(r => { resolveRápida = r; });
-    const promMedia = new Promise<never>(r => { resolveMedia = r; });
-    const promLenta = new Promise<never>(r => { resolveLenta = r; });
+    const promRápida = new Promise<never>(r => { resolveRápida = r as unknown as () => void; });
+    const promMedia = new Promise<never>(r => { resolveMedia = r as unknown as () => void; });
+    const promLenta = new Promise<never>(r => { resolveLenta = r as unknown as () => void; });
 
     (globalThis as any).window = {
       navigator: { onLine: true },
