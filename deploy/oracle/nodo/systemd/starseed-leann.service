@@ -1,0 +1,29 @@
+[Unit]
+Description=StarSeed · recuerdo semántico LEANN en 127.0.0.1:4495 (LNN1028)
+After=network-online.target
+Wants=network-online.target
+# requiere: /opt/starseed/leann/.venv/bin/python
+#
+# LEANN (StarTrail-org, MIT) da el recuerdo por significado de Astraura: lo sirve
+# leann_servidor.py propio —con token en ~/.starseed/leann.token (0600)— y no el servidor HTTP
+# de LEANN (sin autenticar). Las incrustaciones salen de Ollama local (OLLAMA_HOST);
+# las carpetas de índices las crea systemd en /var/lib/starseed/leann. Sin esta unidad el
+# recuerdo sigue con Memvid (BM25 y tiempo) y nada falla (architecture/leann-recuerdo-semantico.md).
+
+[Service]
+Type=simple
+User=starseed
+Group=starseed
+ExecStart=/opt/starseed/leann/.venv/bin/python /opt/starseed/nodo/leann/leann_servidor.py
+Environment=OLLAMA_HOST=http://127.0.0.1:11434
+StateDirectory=starseed/leann
+StateDirectoryMode=0700
+Restart=on-failure
+RestartSec=20
+# El A1 comparte RAM y CPU con BitNet, FreeLLMAPI y el enjambre: techo suave y prioridad baja.
+MemoryMax=1500M
+Nice=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

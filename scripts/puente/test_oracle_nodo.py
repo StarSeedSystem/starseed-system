@@ -311,5 +311,51 @@ class ModulosDelNodo(unittest.TestCase):
                         self.assertIn(m.group(1), viajan, "%s importa %s al arrancar" % (nombre, m.group(1)))
 
 
+class Leann(unittest.TestCase):
+    """(LNN1028C) El recuerdo semántico (LEANN) en el A1: plan y paquete, sin ssh."""
+
+    @classmethod
+    def setUpClass(cls):
+        """El corredor puede poner STARSEED_ROOT fuera de este árbol (aquí apunta a otro
+        checkout viejo, que ni siquiera tiene leann_servidor.py): el módulo se recoloca a la
+        raíz que sale de su propio __file__, y con ella las rutas LEANN y el FUENTE."""
+        raiz = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        N.RAIZ = N.FUENTE = raiz
+        N.LEANN_INSTALADOR = os.path.join(raiz, "deploy", "oracle", "nodo", "leann-a1.sh")
+        N.LEANN_UNIDAD = os.path.join(raiz, "deploy", "oracle", "nodo", "systemd", "starseed-leann.service")
+
+    def test_plan_fijado_licencia_unidad(self):
+        import json
+
+        texto = json.dumps(N.plan_leann(), ensure_ascii=False)
+        self.assertIn("leann==0.3.8", texto)
+        self.assertIn("qwen3-embedding:0.6b", texto)
+        self.assertIn("Apache", texto)  # licencia comprobada antes de darlo por bueno
+        self.assertIn("OLLAMA_KEEP_ALIVE=2m", texto)
+        self.assertIn("enable --now starseed-leann", texto)
+        self.assertNotIn("0.0.0.0", texto)
+
+    def test_la_unidad_exige_el_venv_y_es_del_usuario_del_servicio(self):
+        with open(N.LEANN_UNIDAD, encoding="utf-8") as f:
+            unidad = f.read()
+        self.assertIn("# requiere: /opt/starseed/leann/.venv/bin/python", unidad)
+        self.assertIn("User=starseed", unidad)
+        self.assertIn("MemoryMax=1500M", unidad)
+        self.assertIn("Nice=10", unidad)
+        self.assertIn("Restart=on-failure", unidad)
+        self.assertIn("OLLAMA_HOST=http://127.0.0.1:11434", unidad)
+        self.assertNotIn("0.0.0.0", unidad)
+
+    def test_el_paquete_lleva_servidor_hermanos_e_instalador(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            incluido = N._paquete(tmp)
+            for rel in ("leann/leann_servidor.py", "leann/leann_indices.py", "leann/fusion_recuerdos.py",
+                        "leann-a1.sh"):
+                self.assertIn(rel, incluido)
+                self.assertTrue(os.path.exists(os.path.join(tmp, rel)), rel)
+
+
 if __name__ == "__main__":
     unittest.main()
