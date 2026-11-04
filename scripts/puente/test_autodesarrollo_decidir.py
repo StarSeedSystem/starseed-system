@@ -496,6 +496,24 @@ class TokenSoloComoCredencial(unittest.TestCase):
             self.assertTrue(D.es_de_alex({"titulo": t, "cuerpo": ""}), t)
 
 
+class ClaveSoloComoSecreto(unittest.TestCase):
+    """Ola 1104K: «clave» a secas marcaba «de Alex» frases como «paso clave», «punto clave», «clave para».
+    Solo cuenta como secreto con su contexto: «clave de acceso», «clave secreta», «clave privada»,
+    «clave api», «clave ssh», «clave token», «clave contraseña», «clave en el entorno»."""
+
+    def test_clave_que_no_es_secreto(self):
+        for t in ("Un paso clave para la migración", "El punto clave del diseño", "Esto es clave para el rendimiento",
+                  "La clave está en la simplicidad", "Paso clave: validar la entrada", "Punto clave de la arquitectura"):
+            self.assertEqual(D.es_de_alex({"titulo": t, "cuerpo": ""}), "", t)
+
+    def test_clave_que_si_es_secreto(self):
+        for t in ("Rotar la clave de acceso de la API", "Guardar la clave secreta en el entorno",
+                  "Cambiar la clave privada del servidor", "Actualizar la clave api de Vercel",
+                  "Configurar la clave ssh para el deploy", "Proteger la clave token del modelo",
+                  "La clave contraseña no debe ir en el código", "Guardar la clave en el entorno"):
+            self.assertTrue(D.es_de_alex({"titulo": t, "cuerpo": ""}), t)
+
+
 # ─────────────── Ola 1102 · IMG1102A: el gasto de verdad, el carril de bajo riesgo y las autorizaciones inventadas ───────────────
 # Cuerpos y títulos sacados de starseed_memory_root/imaginacion/propuestas.json (medido el 01-11).
 CATALOGO = "config/referencias-inspiracion.json"

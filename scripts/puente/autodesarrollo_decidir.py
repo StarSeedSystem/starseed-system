@@ -16,7 +16,7 @@ VERIFICACION = {"verificado": 1.0, "ajustado": 0.8, "sin verificar": 0.4, "sin d
 VERBOS = ("anadir", "agregar", "crear", "implementar", "arreglar", "corregir", "migrar", "renombrar", "eliminar", "borrar", "quitar", "documentar", "actualizar", "cablear", "optimizar", "proteger", "validar", "sincronizar", "unificar", "ajustar", "mejorar", "integrar", "evitar", "exportar", "importar", "depurar", "medir", "cambiar", "aplicar", "normalizar", "programar", "revisar", "comprobar", "verificar", "probar",
           # (1103) Los verbos con que titulan los sueños profundos: sin ellos caían en «pregunta».
           "limitar", "acotar", "distinguir", "separar", "manejar", "tratar", "capturar", "sustituir", "reemplazar", "etiquetar", "reducir", "simplificar", "endurecer", "mover", "extraer", "dividir", "partir", "reutilizar", "centralizar", "parametrizar", "configurar", "consolidar", "deduplicar", "refactorizar", "registrar", "mostrar", "ensenar", "permitir", "impedir", "bloquear", "cachear", "reintentar", "asegurar", "garantizar", "detectar", "avisar", "cerrar", "abrir", "completar", "conectar", "desacoplar", "marcar", "ordenar", "filtrar")
-RESERVADOS = ("publicar", "publicacion", "desplegar", "deploy", "vercel", "contrasena", "clave", "credencial", "decision de alex", "decide alex", "que alex decida", "preguntar a alex", "avisar a alex", "eleccion de alex")
+RESERVADOS = ("publicar", "publicacion", "desplegar", "deploy", "vercel", "contrasena", "credencial", "decision de alex", "decide alex", "que alex decida", "preguntar a alex", "avisar a alex", "eleccion de alex")
 CUENTAS = re.compile(r"\b(crear|borrar|eliminar|gestionar|cerrar|abrir|cambiar)\s+(la\s+|las\s+)?cuentas?\b|\bcuentas?\s+(de\s+alex|de\s+usuario|bancarias?|de\s+pago)\b")
 #: Ola 1102 (IMG1102A): un GASTO de verdad: pagar, comprar, contratar o suscribirse; una compra, un pago, un importe, una
 #: tarjeta, una factura o algo «de pago» que se usa (créditos, plan, modelo, API…). «pago» suelto ya no basta: «acceso
@@ -39,6 +39,11 @@ SECRETOS = re.compile(r"credencial|credential|password|passwd|contrasena|api[_-]
                       # no son de Alex; «token de acceso», «API token», «GITHUB_TOKEN» o «bearer» sí.
                       r"|\b(?:access|api|auth|bearer|refresh|personal|secret)[ _-]?tokens?\b|\b[a-z0-9]+_tokens?\b"
                       r"|\btokens?\s+(?:de|del)\s+(?:acceso|api|autenticacion|github|vercel|supabase|cuenta|sesion|usuario)\b"
+                      # «clave» solo como credencial (Ola 1104K): «paso clave», «punto clave», «clave para», «es clave»
+                      # no son secretos; «clave de acceso», «clave secreta», «clave privada», «clave api», «clave ssh»,
+                      # «clave token», «clave contraseña», «clave en el entorno» sí.
+                      r"|\bclaves?\s+(?:de|del)?\s*(?:acceso|api|ssh|secreta|privada|publica|p[úu]blica|token|contraseña)\b"
+                      r"|\bclaves?\s+en\s+el\s+entorno\b"
                       r"|\bbearer\b")
 CRITICAS = ("src/lib/nucleo", "identidad", "cuentas", "permisos", "sharing/access", "gobernanza", "voto", "claves", "seguridad", "supabase/migrations", ".github/", "scripts/puente/autopublicar.py", "scripts/puente/publicar.py", "scripts/puente/instalar-servicios.py")
 def _norm(v):
