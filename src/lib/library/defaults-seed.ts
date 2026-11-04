@@ -72,7 +72,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 24;
+export const SEED_VERSION = 25;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -422,6 +422,13 @@ const IDS_SIEMBRA_1020D: string[] = [
  * unión— para que TODAS las cuentas y neuronas repasen ensureDefaultsSeeded. Los ya
  * ofrecidos no se vuelven a instalar; una desinstalada no vuelve. El remacho no entra a las
  * «manual» y no toca lo que la persona ya decidió, como siempre.
+ *
+ * (SEED_VERSION 25 · Ola 1027b · MTN1027L2) REGISTRO DE LA TANDA 1027B: Meta^n y Memvid,
+ * los dos con `preinstalar: "siempre"` en `config/repos-libreria-1027b.json` (módulo puro
+ * `repos-1027b.ts`). Instalar SOLO registra el enlace; Meta^n propone dentro de una caja
+ * Docker sin red y el juez de StarSeed decide fuera, y Memvid corre en un servidor propio
+ * sin telemetría. La activación la decide la persona y está explicada en `aviso`. La versión
+ * sube para que TODAS las cuentas y neuronas reciban estas dos fichas en la siembra.
  */
 export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
   new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...IDS_SIEMBRA_1020C, ...IDS_SIEMBRA_1020D]),

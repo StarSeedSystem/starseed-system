@@ -55,8 +55,8 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 }
 
 describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
-  it("la versión está en 24 (remacho del Mausbot) y mantiene las siete «siempre» de la 2.ª tanda", () => {
-    expect(SEED_VERSION).toBe(24);
+  it("la versión está en 25 (registro de la tanda 1027b) y mantiene las siete «siempre» de la 2.ª tanda", () => {
+    expect(SEED_VERSION).toBe(25);
     for (const id of SIEMPRE_2A) {
       expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
     }
@@ -237,7 +237,7 @@ describe("defaults-seed · tanda 1026 (Open-Higgsfield-AI, WeKnora, OpenProject 
   });
 });
 
-describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remacho 24", () => {
+describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remacho 24 + tanda 1027b", () => {
   const nuevas = FICHAS_REPOS_1027.map((f) => f.id);
 
   it("los tres ids del JSON quedan en la recomendación, uno por ficha y sin repetir", () => {
@@ -287,5 +287,28 @@ describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remac
       expect(f.payload.downloadable, f.id).toBeUndefined();
       expect(String(f.payload.route ?? ""), f.id).toBe("");
     }
+  });
+});
+
+describe("defaults-seed · tanda 1027b (Meta^n y Memvid)", () => {
+  const nuevas = IDS_SIEMBRA_1027B;
+
+  it("sube la versión a 25 y añade las 2 fichas de 1027b", () => {
+    expect(SEED_VERSION).toBe(25);
+    expect(nuevas).toEqual(["lib-meta-n", "lib-memvid"]);
+    for (const id of nuevas) expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
+  });
+
+  it("quien ya tenía la 24 (con 1027 sembrada) recibe solo las 2 nuevas de 1027b", () => {
+    const catalogoIds = [...IDS_SIEMBRA_1027, ...nuevas];
+    const plan = selectSeedIds({
+      currentVersion: 24,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: catalogoIds.map((id) => ({ id })),
+      alreadyOffered: [...IDS_SIEMBRA_1027],
+      installedIds: [],
+    });
+    expect(plan.sort()).toEqual([...nuevas].sort());
   });
 });
