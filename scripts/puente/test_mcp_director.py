@@ -340,7 +340,15 @@ class PruebasProduccion(unittest.TestCase):
         self.assertIn("No hay candidatos", texto)
 
 
+#: (SUP0311E) Tope para que el proceso real conteste `initialize` (antes 5 s, rojo suelto con la Mac cargada).
+PLAZO_PROCESO_REAL_S = 30
+
+
 class PruebaProcesoReal(unittest.TestCase):
+    def test_plazo_del_proceso_real_aguanta_una_mac_cargada(self):
+        # (SUP0311E) El 03-11 a las 16:48 falló con 5 s («el servidor no respondió en 5 segundos»).
+        self.assertGreaterEqual(PLAZO_PROCESO_REAL_S, 30)
+
     def test_initialize_por_stdio_en_proceso_real(self):
         with tempfile.TemporaryDirectory() as tmp:
             entorno = dict(os.environ, STARSEED_ROOT=tmp)
@@ -361,8 +369,12 @@ class PruebaProcesoReal(unittest.TestCase):
                 }
                 proc.stdin.write(json.dumps(peticion) + "\n")
                 proc.stdin.flush()
-                listo, _, _ = select.select([proc.stdout], [], [], 5.0)
-                self.assertTrue(listo, "el servidor no respondió en 5 segundos")
+                # (SUP0311E, 03-11) 5 s no bastaban con la Mac a carga 35-57 mientras la autopublicación
+                # corre las 4610 pruebas del puente: a las 16:48 este rojo suelto frenó la publicación.
+                # `select` vuelve en cuanto hay respuesta (medido: 0,4-1,1 s), así que el plazo largo
+                # solo cuenta cuando la máquina va ahogada; un servidor que no contesta sigue fallando.
+                listo, _, _ = select.select([proc.stdout], [], [], PLAZO_PROCESO_REAL_S)
+                self.assertTrue(listo, "el servidor no respondió en %d segundos" % PLAZO_PROCESO_REAL_S)
                 linea = proc.stdout.readline()
                 respuesta = json.loads(linea)
                 self.assertEqual(respuesta["id"], 1)
