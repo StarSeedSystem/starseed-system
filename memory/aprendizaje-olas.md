@@ -4707,3 +4707,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTART1025M-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTART1025M-d2 conservada)
 - `PUB1029F` — no escribió nada
 - `RTS1010-MGR2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTS1010-MGR2b conservada)
+
+## 2026-11-04 17:29 · mg-oracle-1104-1020
+
+**Lo que se pidió.** la tarjeta /library abre la explicación real de la Biblioteca
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (IMG1102Db-d1, RTVZF1015Tc). Es 67 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `PUB1029F` — no escribió nada
+- `IMG1102Db-d1` — los tipos no compilan: 1 errores tsc (rama ola/IMG1102Db-d1 conservada)
+- `RTVZF1015Tc` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTVZF1015Tc conservada)
