@@ -1,9 +1,10 @@
 /**
  * XR1010AM · splats gaussianos: nivel, presupuesto, seguridad de URL y carga perezosa.
- * Todo puro: el descargador y el constructor de Spark se inyectan, así que no hay red,
- * ni disco, ni WebGL. Los motivos se comprueban tal como los lee la persona.
+ * Sin red, disco ni WebGL: el constructor de Spark y el lector de bytes se inyectan, y
+ * el descargador propio se prueba con un `fetch` falso. Los motivos se comprueban tal
+ * como los lee la persona.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ObjetoMundo } from "../../../../lib/xr/mundo-tipos";
 import {
     cargarSplat,
@@ -70,6 +71,10 @@ describe("urlSplatDeObjeto", () => {
 });
 
 describe("cargarSplat", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
     it("un archivo por encima del tope no se carga y lo explica", async () => {
         const resultado = await cargarSplat(URL, {
             SplatMesh: MallaFalsa,
@@ -78,6 +83,31 @@ describe("cargarSplat", () => {
         });
         expect(resultado).toEqual({ ok: false, motivo: MOTIVO_SPLAT_GRANDE });
         expect(MAX_BYTES_SPLAT).toBe(60 * 1024 * 1024);
+    });
+
+    it("sin tope explícito, un archivo de más de 60 MB se rechaza con el motivo del tamaño", async () => {
+        MallaFalsa.ultima = null;
+        const resultado = await cargarSplat(URL, {
+            SplatMesh: MallaFalsa,
+            pedirBytes: async () => new ArrayBuffer(65 * 1024 * 1024),
+        });
+        expect(resultado.ok).toBe(false);
+        if (!resultado.ok) expect(resultado.motivo).toBe(MOTIVO_SPLAT_GRANDE);
+        expect(MallaFalsa.ultima).toBeNull();
+    });
+
+    it("el servidor que anuncia un Content-Length enorme se rechaza antes de construir la malla", async () => {
+        MallaFalsa.ultima = null;
+        let peticiones = 0;
+        vi.stubGlobal("fetch", async () => {
+            peticiones += 1;
+            return new Response(null, { headers: { "content-length": String(MAX_BYTES_SPLAT + 1) } });
+        });
+        const resultado = await cargarSplat(URL, { SplatMesh: MallaFalsa });
+        expect(resultado.ok).toBe(false);
+        if (!resultado.ok) expect(resultado.motivo).toContain("60 MB");
+        expect(peticiones).toBe(1);
+        expect(MallaFalsa.ultima).toBeNull();
     });
 
     it("si el descargador lanza, devuelve motivo en vez de propagar la excepción", async () => {
@@ -123,5 +153,16 @@ describe("cargarSplat", () => {
         const opciones = MallaFalsa.ultima as OpcionesSplatMesh | null;
         expect(opciones).toMatchObject({ url: URL, maxSplats: 3_000_000 });
         expect(opciones?.fileBytes).toBeInstanceOf(ArrayBuffer);
+    });
+
+    it("sin presupuesto explícito, la malla nace con el presupuesto de alta", async () => {
+        MallaFalsa.ultima = null;
+        const resultado = await cargarSplat(URL, {
+            SplatMesh: MallaFalsa,
+            pedirBytes: async () => new ArrayBuffer(64),
+        });
+        const opciones = MallaFalsa.ultima as OpcionesSplatMesh | null;
+        expect(resultado.ok).toBe(true);
+        expect(opciones?.maxSplats).toBe(presupuestoSplat("alta"));
     });
 });
