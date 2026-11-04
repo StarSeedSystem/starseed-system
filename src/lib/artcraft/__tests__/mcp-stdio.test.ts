@@ -31,6 +31,11 @@ describe("trocearLineas", () => {
     expect(trocearLineas("", "a\nb\nc")).toEqual({ lineas: ["a", "b"], resto: "c" });
   });
 
+  it("sin ningún salto deja todo como resto y lo reensambla con el trozo siguiente", () => {
+    expect(trocearLineas("", "ab")).toEqual({ lineas: [], resto: "ab" });
+    expect(trocearLineas("ab", "cd\nef\n")).toEqual({ lineas: ["abcd", "ef"], resto: "" });
+  });
+
   it("ignora \\r final y líneas vacías", () => {
     expect(trocearLineas("", "a\r\n\r\nb\n")).toEqual({ lineas: ["a", "b"], resto: "" });
   });
