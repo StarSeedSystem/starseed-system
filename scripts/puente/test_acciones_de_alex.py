@@ -390,6 +390,66 @@ class TokenDeDespliegueDelA1(unittest.TestCase):
         self.assertIn("Token de despliegue", falta["titulo"])
 
 
+class CodexYaNosDejaEscribir(unittest.TestCase):
+    """(DEC1028D) Desde el 2026-10-23 cada llamada de Codex devuelve «model not supported
+    when using Codex with a ChatGPT account». No es cuota: no vuelve en tres horas, y seguir
+    en la rotación gasta el primer intento de cada tarea (DEC1028A, ocho `sin_cambios`).
+    El enjambre lo aparta con `cupo_codex` y aquí se le dice a Alex que es su cuenta."""
+
+    MARCA = {"hasta": 999999999999, "desde": "2026-10-23 20:55:00",
+             "motivo": "cuenta de ChatGPT sin Codex: model_not_found en cada intento"}
+
+    def test_marca_sincodex_vigente_saca_la_accion(self):
+        a = A.accion_codex_cuenta(self.MARCA, ahora=0)
+        self.assertIsNotNone(a)
+        self.assertEqual("codex-cuenta", a["id"])
+        self.assertEqual("media", a["urgencia"])
+        self.assertIn("ya no deja usarlo", a["titulo"])
+        self.assertIn("2026-10-23 20:55:00", a["por_que"])
+        self.assertIn("model not supported", a["por_que"])
+        self.assertIn("Ajustes › Plan", a["detalle"])
+        self.assertIn("npm i -g @openai/codex", a["detalle"])
+        self.assertIn("codex login", a["detalle"])
+        self.assertEqual("https://chatgpt.com/#settings/Account", a["enlace"])
+        self.assertEqual("", a["comando"])
+        self.assertTrue(a["por_que_no_lo_hago_yo"])
+
+    def test_marca_de_cuota_normal_no_saca_nada(self):
+        marca = {"hasta": 999999999999, "desde": "2026-10-23 20:55:00",
+                 "motivo": "cuota agotada: usage limit"}
+        self.assertIsNone(A.accion_codex_cuenta(marca, ahora=0))
+
+    def test_marca_caducada_no_saca_nada(self):
+        self.assertIsNone(A.accion_codex_cuenta(self.MARCA, ahora=1000000000000))
+
+    def test_marca_ilegible_no_saca_nada(self):
+        self.assertIsNone(A.accion_codex_cuenta(None, ahora=0))
+        self.assertIsNone(A.accion_codex_cuenta("cuenta de ChatGPT sin Codex", ahora=0))
+
+    def test_entra_en_la_lista_solo_con_marca(self):
+        con = A.construir_acciones([], TODOS, CATALOGO, marca_codex=self.MARCA, ahora=0)
+        self.assertIn("codex-cuenta", [x["id"] for x in con])
+        sin = A.construir_acciones([], TODOS, CATALOGO, marca_codex=None, ahora=0)
+        self.assertNotIn("codex-cuenta", [x["id"] for x in sin])
+        nula = A.construir_acciones([], TODOS, CATALOGO, marca_codex={"sin": "vigencia"}, ahora=0)
+        self.assertNotIn("codex-cuenta", [x["id"] for x in nula])
+
+    def test_verificar_reconstruye_la_accion(self):
+        r = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=TODOS,
+                        entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"},
+                        marca_codex=self.MARCA, ahora=0)
+        self.assertFalse(r["hecha"])
+        self.assertIn("ChatGPT", r["titulo"])
+        vivas = A.verificar(None, pasarelas=[], secretos_repo=TODOS,
+                            entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"},
+                            marca_codex=self.MARCA, ahora=0)
+        self.assertIn("codex-cuenta", [a["id"] for a in vivas["acciones"]])
+        fuera = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=TODOS,
+                            entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"},
+                            marca_codex={"hasta": 1.0, "motivo": "cuenta de ChatGPT sin Codex: x"})
+        self.assertTrue(fuera["hecha"])
+
+
 def test_1103_token_de_despliegue_explica_repo_y_permisos():
     import importlib.util as _u, os as _o
     _s = _u.spec_from_file_location("ada1103", _o.path.join(_o.path.dirname(__file__), "acciones-de-alex.py"))

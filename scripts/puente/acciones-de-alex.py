@@ -105,6 +105,19 @@ COMANDO_TOKEN_DESPLIEGUE = (
     "python3 scripts/puente/oracle_claves.py starseed-a1 %s" % (TOKEN_DESPLIEGUE, TOKEN_DESPLIEGUE)
 )
 
+try:
+    _spec_cupo = importlib.util.spec_from_file_location(
+        "cupo_codex", os.path.join(os.path.dirname(os.path.abspath(__file__)), "cupo_codex.py"))
+    _cupo = importlib.util.module_from_spec(_spec_cupo)
+    _spec_cupo.loader.exec_module(_cupo)
+except Exception:  # noqa: BLE001 — sin cupo_codex no hay acción que mirar
+    _cupo = None
+
+#: Prefijo exacto del motivo con el que el enjambre aparta a Codex por cuenta, no por cuota
+#: (2026-10-23: «The 'gpt-5.6-sol' model is not supported when using Codex with a
+#: ChatGPT account», code «model_not_found»). Una cuota normal no genera acción.
+MOTIVO_SIN_MODELO = "cuenta de ChatGPT sin Codex"
+
 
 def _nombre_valido(nombre):
     """PURA: solo NOMBRES de variable ([A-Z][A-Z0-9_]*), nunca un valor ni una cadena rara."""
@@ -184,8 +197,43 @@ def accion_token_despliegue(a1_lo_tiene):
         "variable": TOKEN_DESPLIEGUE,
     }
 
-#: Qué estados de pasarela necesitan a un humano, y con qué urgencia. `sin_cupo` NO está:
-#: una cuota se repone sola y mandarle a hacer algo por eso es hacerle perder el tiempo.
+DETALLE_CODEX_CUENTA = (
+    "En chatgpt.com › Ajustes › Plan: mira si la suscripción sigue activa y que el plan "
+    "incluya Codex. Si lo está, actualiza la CLI con `npm i -g @openai/codex` y vuelve a "
+    "entrar con `codex login`. Si al volver sigue el mismo aviso en Codex, el enjambre "
+    "vuelve a apartarlo 24 h más y la acción reaparece."
+)
+
+
+def accion_codex_cuenta(marca, ahora=None):
+    """PURA: la acción de «tu cuenta de ChatGPT ya no deja usar Codex», o None.
+
+    Solo entra si `cupo_codex` tiene una marca VIGENTE (no caducada) cuyo motivo empieza
+    por «cuenta de ChatGPT sin Codex»: eso no es cuota, no se repone sola, y mientras siga
+    así cada tarea gasta su primer intento con él (DEC1028A lo hizo ocho veces). Sin
+    marca, con marca caducada o con un motivo de cuota normal: None, nada cambia.
+    """
+    if _cupo is None or ahora is None:
+        return None
+    if not _cupo.sigue_agotado(marca, ahora):
+        return None
+    if not str((marca or {}).get("motivo") or "").startswith(MOTIVO_SIN_MODELO):
+        return None
+    return {
+        "id": "codex-cuenta",
+        "titulo": "Codex: tu cuenta de ChatGPT ya no deja usarlo",
+        "por_que": ("desde %s cada intento devuelve “model not supported when using Codex "
+                    "with a ChatGPT account”; el enjambre lo ha apartado y sigue con los demás"
+                    % str(marca.get("desde") or "?")),
+        "urgencia": "media",
+        "comando": "",
+        "enlace": "https://chatgpt.com/#settings/Account",
+        "por_que_no_lo_hago_yo": "es tu cuenta y tu suscripción",
+        "detalle": DETALLE_CODEX_CUENTA,
+    }
+
+
+#: Qué estados de pasarela necesitan a un humano, y con qué urgencia. `sin_cupo` NO está:#: una cuota se repone sola y mandarle a hacer algo por eso es hacerle perder el tiempo.
 ESTADOS_HUMANOS = {
     _pas.FICHAJE: ("alta", "exige un fichaje diario en su web; sin él, cada tarea que caiga ahí vuelve sin cambios"),
     _pas.SIN_CLAVE: ("alta", "la clave falta, caducó o fue revocada: hay que renovarla"),
@@ -256,14 +304,21 @@ def accion_sin_canal(entorno):
     }
 
 
-def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_tiene_token=None):
+def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_tiene_token=None,
+                       marca_codex=None, ahora=None):
     """Función PURA: la lista de acciones, ordenada por urgencia. Sin red, sin disco.
 
     `a1_tiene_token` llega ya medido (True/False/None): aquí no se sale a la red. Con None
-    la acción del token no aparece, porque no hay prueba de que falte.
+    la acción del token no aparece, porque no hay prueba de que falte. `marca_codex` es la
+    marca de `cupo_codex.leer()` ya leída (y `ahora` para juzgar su vigencia): si no llega,
+    no se lee del disco y la acción de Codex no entra.
     """
     catalogo = catalogo if catalogo is not None else _pas.CATALOGO
     acciones = []
+
+    cuenta = accion_codex_cuenta(marca_codex, ahora)
+    if cuenta:
+        acciones.append(cuenta)
 
     token = accion_token_despliegue(a1_tiene_token)
     if token:
@@ -467,7 +522,7 @@ def resondear(clave, segundos=20):
 
 
 def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, medir=None,
-              a1_tiene_token=None):
+              a1_tiene_token=None, marca_codex=None, ahora=None):
     """¿Sigue haciendo falta esa accion? Vuelve a MEDIR, no consulta un archivo viejo.
 
     (2026-09-21, pedido por Alex) «en Genesis en su ventana debe haber un boton
@@ -486,6 +541,12 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
     # Genesis: si no, «Ya lo hice» decía «hecho» y la tarjeta seguía ahí hasta la siguiente
     # vuelta del director (hasta 3 min), que es otra forma de no creerse el botón.
     real = pasarelas is None and secretos_repo is None
+    # (DEC1028D) La marca de Codex también se vuelve a LEER en una comprobación real: si
+    # Alex arregló la cuenta, y mientras la marca siga vigente, la tarjeta no se va sola.
+    if marca_codex is None and real and _cupo is not None:
+        marca_codex = _cupo.leer()
+    if ahora is None:
+        ahora = __import__("time").time()
     # Si la acción es de una pasarela, se MIDE de nuevo esa pasarela antes de nada.
     # `medir` se inyecta en las pruebas; por defecto es la sonda real.
     medida = None
@@ -508,6 +569,7 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
         pasarelas, secretos_repo,
         entorno=entorno if entorno is not None else _entorno_con_env(),
         a1_tiene_token=a1_tiene_token,
+        marca_codex=marca_codex, ahora=ahora,
     )
     por_id = {a["id"]: a for a in vivas}
     momento = __import__("time").strftime("%Y-%m-%d %H:%M:%S")
@@ -566,7 +628,9 @@ def main():
         print(json.dumps(verificar(cual), ensure_ascii=False, indent=1))
         return 0
     acciones = construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env(),
-                                  a1_tiene_token=a1_tiene_clave())
+                                  a1_tiene_token=a1_tiene_clave(),
+                                  marca_codex=_cupo.leer() if _cupo is not None else None,
+                                  ahora=__import__("time").time())
     datos = {"generado": __import__("time").strftime("%Y-%m-%d %H:%M"), "acciones": acciones}
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
     json.dump(datos, open(SALIDA, "w"), ensure_ascii=False, indent=1)
