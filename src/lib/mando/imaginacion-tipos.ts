@@ -80,11 +80,120 @@ export const MAX_LOTE = 500;
 /** Como en Python (`autodesarrollo_logica.UMBRAL_MINIMO`): el umbral del automático nunca baja del suelo de §5.4. */
 export const UMBRAL_MINIMO = 0.6;
 export const MAX_REIMAGINACIONES = 10;
-/** «crítica» se escribe con acento; «critica» sin él (o en mayúsculas) es la misma, nunca «media». */
-export function normalizarImportancia(x: unknown): ImportanciaPropuesta {
-  const t = typeof x === "string" ? x.trim().toLowerCase().normalize("NFC") : "";
-  if (t === "critica" || t === "crítica") return "crítica";
-  return (IMPORTANCIAS_PROPUESTA as string[]).includes(t) ? (t as ImportanciaPropuesta) : "media";
+  /** «crítica» se escribe con acento; «critica» sin él (o en mayúsculas) es la misma, nunca «media». */
+  export function normalizarImportancia(x: unknown): ImportanciaPropuesta {
+    const t = typeof x === "string" ? x.trim().toLowerCase().normalize("NFC") : "";
+    if (t === "critica" || t === "crítica") return "crítica";
+    return (IMPORTANCIAS_PROPUESTA as string[]).includes(t) ? (t as ImportanciaPropuesta) : "media";
+  }
+
+/** Filtro de entrada de Astraura (Ola 1102A) aplicado antes de crear una propuesta. Aplica tres filtros en orden. */
+export interface FiltrosAstraura {
+  fecha: string;
+  vistas: number;
+  entran: number;
+  filtradas: {
+    tipoArchivo: { entrada: number; descartada: number };
+    familiaRepetida: { entrada: number; descartada: number };
+    tope: { entrada: number; descartada: number };
+  };
+  autorizacionInventada: boolean;
+}
+
+/** Familia de un título sin «[AUTORIZADO]», emojis, símbolos, ni acentos. */
+export function familiaAstraura(titulo: string): string {
+  const limpio = titulo.toLowerCase()
+    .replace(/⚡ \[AUTORIZADO\]|✅ Permiso Concedido|✨ Auto-Mejora Aplicada/gi, "")
+    .replace(/[#*`_|_{}[\]()>+!~@#$%^&*:;,.]/g, "")
+    .replace(/[áéíóúàèìòù]/g, (m) => ({ á: "a", é: "e", í: "i", ó: "o", ú: "u", à: "a", è: "e", ì: "i", ò: "o", ù: "u" }[m] || m))
+    .replace(/para ([\w-]+)(?:\s*[\-:]+\s*[\w-]+)/g, "$1")
+    .trim();
+  const palabras = limpio.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .match(/[a-zñ]+/g) || [];
+  return palabras.slice(0, 3).join(" ");
+}
+
+/** El tipo de archivo debe ser NEON o SIMD solo para C, C++, Rust, Zig o kernel, y nunca si apunta a .sh, .json, .md, Dockerfile o credenciales. */
+export function filtrarPorTipoArchivo(archivos: string[]): { entrada: number; descartada: number } {
+  const extensionesValidas = new Set([".c", ".cpp", ".cc", ".cxx", ".c++", ".h", ".hpp", ".hxx", ".h++", ".rs", ".zig", ".asm", ".s", ".kernel", ".cl", ".cu", ".proto"]);
+  const permitidos = archivos.filter((f) => {
+    const nombre = f.toLowerCase();
+    if (!nombre.match(/^\w+(\.[a-zA-Z0-9]+)+$/)) return false;
+    const ext = "." + nombre.split(".").pop();
+    if (ext === ".sh" || ext === ".json" || ext === ".md" || ext === ".md" || nombre.includes("dockerfile") || nombre.match(/\.env|\.credential|\.key|\.pem|\.crt|\.p12|p12/)) return false;
+    return extensionesValidas.has(ext);
+  });
+  const descartadas = archivos.length - permitidos.length;
+  return { entrada: permitidos.length, descartada: descartadas };
+}
+
+/** Familia repetida: como mucho 1 por familia y día; si la familia ya salió en los últimos 7 días, descartada. */
+export function filtrarPorFamiliaRepetida(propuestas: PropuestaImaginacion[], fecha: string): { entrada: number; descartada: number } {
+  const hace7 = new Date(fecha);
+  hace7.setDate(hace7.getDate() - 7);
+  const recientes = propuestas.filter((p) => {
+    const t = new Date(p.t);
+    return t >= hace7 && t <= new Date(fecha);
+  });
+  const familias = recientes.map((p) => familiaAstraura(p.titulo)).filter(Boolean);
+  const cont = new Map<string, number>();
+  for (const f of familias) cont.set(f, (cont.get(f) || 0) + 1);
+  const duplicadas = Object.values(cont).filter((c) => c > 1).length;
+  const descartadas = duplicadas;
+  const entrada = duplicadas > 0 ? propuestas.length - descartadas : propuestas.length;
+  return { entrada, descartada: descartadas };
+}
+
+/** Tope: como mucho 3 propuestas por día. */
+export function filtrarPorTope(propuestas: PropuestaImaginacion[], fecha: string): { entrada: number; descartada: number } {
+  const hoy = new Date(fecha);
+  hoy.setHours(0, 0, 0, 0);
+  const finales = propuestas.filter((p) => {
+    const t = new Date(p.t);
+    return t >= hoy && t < new Date(hoy.getTime() + 24 * 60 * 60 * 1000);
+  });
+  const entrada = Math.min(finales.length, 3);
+  const descartada = finales.length - entrada;
+  return { entrada, descartada };
+}
+
+/** Autorización inventada: se detecta por prefijos como «[AUTORIZADO]» en el título o cuerpo. */
+export function tieneAutorizacionInventada(propuesta: PropuestaImaginacion): boolean {
+  const titulo = (propuesta.titulo || "").toLowerCase();
+  const cuerpo = (propuesta.cuerpo || "").toLowerCase();
+  return titulo.includes("[autorizado]") || titulo.includes("permiso concedido") || cuerpo.includes("[autorizado]") || cuerpo.includes("permiso concedido") || cuerpo.includes("autorizada por");
+}
+
+/** Aplica todos los filtros de Astraura a un conjunto de propuestas y devuelve un resumen del filtrado. */
+export function filtroAstraura(propuestas: PropuestaImaginacion[], fecha: string): FiltrosAstraura {
+  const tipoArchivo = filtrarPorTipoArchivo(propuestas.map((p) => p.titulo));
+  const familiaRepetida = filtrarPorFamiliaRepetida(propuestas, fecha);
+  const tope = filtrarPorTope(propuestas, fecha);
+  const conAuth = propuestas.filter((p) => tieneAutorizacionInventada(p)).length;
+  const totalSalen = propuestas.length - tipoArchivo.descartada - familiaRepetida.descartada - tope.descartada;
+  return {
+    fecha,
+    vistas: propuestas.length,
+    entran: totalSalen,
+    filtradas: {
+      tipoArchivo,
+      familiaRepetida,
+      tope,
+    },
+    autorizacionInventada: conAuth > 0,
+  };
+}
+
+/** Muestra para el medidor: «Filtradas de Astraura hoy: N (familia X · tipo Y · tope Z)». */
+export function etiquetaMedidorAstraura(filtro: FiltrosAstraura): string {
+  const { entran, filtradas } = filtro;
+  const topeDesc = filtradas.tope.descartada;
+  const topeX = topeDesc > 0 ? 3 - topeDesc : 3;
+  const familiaDesc = filtradas.familiaRepetida.descartada;
+  const familiaX = familiaDesc > 0 ? "1" : "0";
+  const tipoDesc = filtradas.tipoArchivo.descartada;
+  const tipoY = tipoDesc > 0 ? "1" : "0";
+  return `Filtradas de Astraura hoy: ${entran} (familia ${familiaX} · tipo ${tipoY} · tope ${topeX})`;
 }
 
 export const AJUSTES_POR_DEFECTO: AjustesAutodesarrollo = {
@@ -104,7 +213,7 @@ const cadena = (v: unknown, max: number) => (typeof v === "string" ? v.trim().sl
 
 function franja(f: unknown): FranjaHoraria | null {
   if (!esObj(f) || !Array.isArray(f.dias)) return null;
-  const dias = [...new Set(f.dias.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6))].sort((a, b) => a - b);
+  const dias = Array.from(new Set(f.dias.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6))).sort((a, b) => a - b);
   const { desde, hasta } = f;
   if (!dias.length || typeof desde !== "string" || typeof hasta !== "string") return null;
   if (!HORA.test(desde) || !HORA.test(hasta) || desde === hasta) return null;
@@ -307,7 +416,7 @@ export function interpretarPeticion(cuerpo: unknown): PeticionImaginacion | { er
     let ids: string[] | "pendientes";
     if (cuerpo.ids === "pendientes") ids = "pendientes";
     else if (Array.isArray(cuerpo.ids) && cuerpo.ids.every((x) => typeof x === "string")) {
-      ids = [...new Set((cuerpo.ids as string[]).map((x) => x.trim()).filter(Boolean))];
+      ids = Array.from(new Set((cuerpo.ids as string[]).map((x) => x.trim()).filter(Boolean)));
       if (!ids.length) return { error: "El lote no trae ids." };
       if (ids.length > MAX_LOTE) return { error: `Como mucho ${MAX_LOTE} propuestas por lote.` };
     } else return { error: "«ids» es una lista de ids o «pendientes»." };
