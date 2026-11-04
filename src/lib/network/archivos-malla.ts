@@ -645,6 +645,7 @@ export type FaseTransferencia =
   | "pendiente-aceptar"
   | "esperando-aceptacion"
   | "transfiriendo"
+  | "reintentando"
   | "verificando"
   | "completada"
   | "rechazada"
@@ -678,9 +679,34 @@ export interface OfertaEntranteInfo {
   origen?: string;
 }
 
+/** Política de reintento automático para envíos que fallan. */
+export interface PoliticaReintento {
+  /** Número máximo de intentos de reintento (además del intento inicial). Por defecto 5. */
+  maxIntentos?: number;
+  /** Espera base en ms para el backoff exponencial. Por defecto 500 ms. */
+  esperaBaseMs?: number;
+  /** Factor de multiplicación por intento (exponencial). Por defecto 2. */
+  factorBackoff?: number;
+  /** Jitter aleatorio ± (ms) para evitar sincronización. Por defecto 100 ms. */
+  jitterMs?: number;
+  /** Tiempo máximo de espera entre reintentos (techo). Por defecto 30 000 ms. */
+  esperaMaximaMs?: number;
+}
+
+/** Política de reintento por defecto: 5 intentos, backoff exponencial 500ms * 2^n + jitter. */
+export const POLITICA_REINTENTO_POR_DEFECTO: Required<PoliticaReintento> = {
+  maxIntentos: 5,
+  esperaBaseMs: 500,
+  factorBackoff: 2,
+  jitterMs: 100,
+  esperaMaximaMs: 30_000,
+};
+
 export interface ConfigMotorArchivos {
   almacen?: AlmacenTrozos;
   politica?: PoliticaRecepcion;
+  /** Política de reintento automático para envíos. Por defecto: 5 intentos con backoff exponencial. */
+  reintento?: PoliticaReintento;
   /** Se dispara cuando una oferta entrante necesita confirmación humana (fase "preguntar"). */
   onOfertaEntrante?: (oferta: OfertaEntranteInfo) => void;
   onProgreso?: (estado: EstadoTransferencia) => void;
@@ -754,8 +780,10 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
   const UMBRAL_BUFFER = config.umbralBufferAlto ?? 1_048_576;
   const AVISO_BYTES = config.limiteAvisoBytes ?? 500 * 1024 * 1024;
   const MAX_BYTES = config.limiteMaxBytes ?? 4 * 1024 * 1024 * 1024;
+  const reintentoConfig = { ...POLITICA_REINTENTO_POR_DEFECTO, ...config.reintento };
 
   const canalPorId = new Map<string, CanalArchivos>();
+  const intentosReintento = new Map<string, number>();
   const archivosEnvio = new Map<string, Blob>();
   const desdePorId = new Map<string, number>();
   const hashesEsperados = new Map<string, string>();
@@ -924,7 +952,8 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     actualizarFase(id, "transfiriendo");
     const desde = desdePorId.get(id) ?? 0;
     const modo = modoPorId.get(id) ?? "base64";
-    for (let i = desde; i < estado.trozos; i++) {
+    let i = desde;
+    while (i < estado.trozos) {
       if (cancelados.has(id)) {
         actualizarFase(id, "cancelada");
         return;
@@ -950,10 +979,28 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
         enviado = canal.enviar(JSON.stringify(msg));
       }
       if (!enviado) {
-        actualizarFase(id, "error", "No se pudo enviar el trozo: el canal está caído. Puedes reintentar; se reanuda desde el último trozo confirmado.");
-        return;
+        // Fallo de envío: iniciar reintento con backoff exponencial
+        const intentoActual = intentosReintento.get(id) ?? 0;
+        if (intentoActual >= reintentoConfig.maxIntentos) {
+          actualizarFase(id, "error", `No se pudo enviar el trozo ${i} tras ${reintentoConfig.maxIntentos} reintentos: el canal no recupera.`);
+          intentosReintento.delete(id);
+          return;
+        }
+        const espera = Math.min(
+          reintentoConfig.esperaBaseMs * Math.pow(reintentoConfig.factorBackoff, intentoActual) +
+            (Math.random() * 2 - 1) * reintentoConfig.jitterMs,
+          reintentoConfig.esperaMaximaMs,
+        );
+        intentosReintento.set(id, intentoActual + 1);
+        actualizarFase(id, "reintentando", `Fallo en trozo ${i}. Reintento ${intentoActual + 1}/${reintentoConfig.maxIntentos} en ${Math.round(espera)} ms…`);
+        await esperar(Math.max(0, espera));
+        // No incrementamos i: reintentamos el mismo trozo
+        continue;
       }
+      // Envío exitoso: resetear contador de reintentos para este id
+      intentosReintento.delete(id);
       actualizarProgreso(id, i + 1);
+      i++;
     }
     if (!cancelados.has(id)) {
       canal.enviar(JSON.stringify({ t: "archivo.fin", id } satisfies MsgFin));
@@ -968,6 +1015,8 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     if (msg.modo) {
       modoPorId.set(msg.id, msg.modo);
     }
+    // Reanudación: limpiar contador de reintentos previos
+    intentosReintento.delete(msg.id);
     void transmitir(msg.id);
   }
 
@@ -975,6 +1024,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     actualizarFase(msg.id, "rechazada", msg.motivo);
     archivosEnvio.delete(msg.id);
     canalPorId.delete(msg.id);
+    intentosReintento.delete(msg.id);
   }
 
   function manejarOk(msg: MsgOk): void {
@@ -982,11 +1032,13 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     archivosEnvio.delete(msg.id);
     canalPorId.delete(msg.id);
     desdePorId.delete(msg.id);
+    intentosReintento.delete(msg.id);
   }
 
   function manejarErrorRemoto(msg: MsgError): void {
     actualizarFase(msg.id, "error", msg.motivo);
     archivosEnvio.delete(msg.id);
+    intentosReintento.delete(msg.id);
   }
 
   /* ---------------- receptor ---------------- */
@@ -1196,6 +1248,7 @@ export function crearMotorArchivos(config: ConfigMotorArchivos = {}): MotorArchi
     const canal = canalPorId.get(id);
     canal?.enviar(JSON.stringify({ t: "archivo.cancelar", id } satisfies MsgCancelar));
     actualizarFase(id, "cancelada");
+    intentosReintento.delete(id);
   }
 
   /* ---------------- despacho ---------------- */
