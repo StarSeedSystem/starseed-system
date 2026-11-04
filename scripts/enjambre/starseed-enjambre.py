@@ -1884,6 +1884,30 @@ except Exception:  # sin el módulo, se comporta como antes: bloquear siempre
                  "%s (%s)" % (i, e) for i, e in zip(ids, estados) if e != "commit"
              )
 
+
+def estados_de_dependencias(ids, prog=None, tareas=None, para=None):
+    """Los estados con los que espera `para`: los de la CADENA de cada dependencia (SUP0311F).
+
+    (03-11) XR1010AL esperaba a XR1010G-d3, «sustituida» porque su encargo entró en main con
+    XR1010G-d3b. El revisor de bloqueadas sigue la cadena y la reabría; aquí se miraba el id
+    suelto y se volvía a quedar «esperando a que se integre: XR1010G-d3 (sustituida)». Ahora los
+    dos usan la misma regla (`espera_de_dependencias.estado_efectivo`). Sin ella, como antes."""
+    prog = PROG if prog is None else prog
+    tareas = TAREAS_POR_ID if tareas is None else tareas
+    efectivo = getattr(_espera_dep, "estado_efectivo", None)
+    salida = []
+    for d in list(ids or []):
+        if efectivo is not None:
+            try:
+                salida.append(efectivo(d, prog, tareas=tareas, para=para))
+                continue
+            except Exception:  # noqa: BLE001 — una cadena rara nunca para la tanda
+                pass
+        entrada = prog.get(d) if isinstance(prog, dict) else None
+        salida.append(entrada.get("estado") if isinstance(entrada, dict) else None)
+    return salida
+
+
 try:
     _rp = os.path.join(ROOT, "scripts", "puente")
     if _rp not in sys.path:
@@ -9551,7 +9575,8 @@ def main():
             # ya no trabaja nadie, entonces sí es bloqueo. Ver
             # scripts/puente/espera_de_dependencias.py.
             _ids_dep = list(t.get("depende") or [])
-            _est_dep = [PROG.get(d, {}).get("estado") for d in _ids_dep]
+            # (SUP0311F) El estado de la CADENA de cada dependencia, como el revisor de bloqueadas.
+            _est_dep = estados_de_dependencias(_ids_dep, para=tid)
             _v = _espera_dep.veredicto(_est_dep, hay_alguien_trabajando=bool(activos))
             if _v == "espera":
                 nota = _espera_dep.motivo(_ids_dep, _est_dep, _v)

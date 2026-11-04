@@ -35,11 +35,49 @@ no puede resolverse sola. Entonces es bloqueo.
 Todo aquí es puro: estados de texto, sin disco ni reloj.
 """
 
-#: Estados de los que una dependencia ya no sale por sí sola.
-MUERTOS = ("rechazada", "bloqueante", "bloqueada", "cancelada")
+#: Estados de los que una dependencia ya no sale por sí sola. (SUP0311F) «sustituida» y
+#: «descartada» solo llegan aquí cuando su cadena no sigue: ver `estado_efectivo`.
+MUERTOS = ("rechazada", "bloqueante", "bloqueada", "cancelada", "sustituida", "descartada")
 
 #: Estados que cuentan como dependencia cumplida.
 CUMPLIDOS = ("commit", "integrada", "hecho", "hecha")
+
+
+def estado_efectivo(dep, progreso, tareas=None, para=None):
+    """El estado con el que cuenta la espera de UNA dependencia (SUP0311F, 03-11).
+
+    «sustituida» no es el final para quien espera: su trabajo sigue en una sucesora (X → Xb,
+    X → X-d1…) o ya está en main. Aquí se sigue la cadena con la MISMA regla que el revisor de
+    bloqueadas (`revisor_bloqueadas_logica.sucesora`), para que los dos digan lo mismo:
+
+      · alguna sucesora integrada → «integrada» (cumplida);
+      · una sucesora viva         → el estado de esa sucesora (se espera a ella);
+      · sin sucesora, o la única es la propia tarea que espera → «sustituida» (muerta: el
+        revisor suelta la dependencia).
+
+    «informe» cuenta como cumplida, también como en el revisor. El resto, tal cual.
+
+    Medido el 03-11: XR1010AL esperaba a XR1010G-d3, «sustituida» porque el mismo encargo entró en
+    main con XR1010G-d3b. El revisor la veía lista y la reabría; el orquestador la volvía a dejar
+    «esperando a que se integre: XR1010G-d3 (sustituida)». Ida y vuelta, y la tarea nunca corría.
+    """
+    entrada = (progreso or {}).get(dep)
+    estado = entrada.get("estado") if isinstance(entrada, dict) else None
+    if estado == "informe":
+        return "integrada"
+    if estado != "sustituida":
+        return estado
+    try:
+        import revisor_bloqueadas_logica as _revisor
+    except Exception:  # sin el revisor a mano, como antes
+        return estado
+    suc, como = _revisor.sucesora(str(dep), progreso or {}, tareas or {})
+    if como == "integrada":
+        return "integrada"
+    if como == "viva" and suc and suc != para:
+        viva = (progreso or {}).get(suc)
+        return (viva.get("estado") if isinstance(viva, dict) else None) or "pendiente"
+    return estado
 
 
 def cumplida(estado):
