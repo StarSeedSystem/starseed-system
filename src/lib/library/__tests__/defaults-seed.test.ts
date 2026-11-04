@@ -55,11 +55,7 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 }
 
 describe("defaults-seed · 2.ª tanda con «preinstalar: siempre»", () => {
-<<<<<<< HEAD
   it("la versión está en 24 (remacho del Mausbot) y mantiene las siete «siempre» de la 2.ª tanda", () => {
-=======
-  it("sube la versión (24) y mantiene las siete «siempre» de la 2.ª tanda", () => {
->>>>>>> 9bfb11b90 (salvavidas · MTN1027L2: trabajo del agente antes de las puertas (tsc / vitest))
     expect(SEED_VERSION).toBe(24);
     for (const id of SIEMPRE_2A) {
       expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
@@ -241,7 +237,6 @@ describe("defaults-seed · tanda 1026 (Open-Higgsfield-AI, WeKnora, OpenProject 
   });
 });
 
-<<<<<<< HEAD
 describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remacho 24", () => {
   const nuevas = FICHAS_REPOS_1027.map((f) => f.id);
 
@@ -253,24 +248,10 @@ describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remac
   });
 
   it("una cuenta nueva recibe las tres y una ya al día con la 23 no recibe nada repetido", () => {
-=======
-describe("defaults-seed · tanda 1027b (Meta^n y Memvid)", () => {
-  const nuevas = IDS_SIEMBRA_1027B;
-
-  it("sube la versión a 24 y añade las 2 fichas de 1027b", () => {
-    expect(SEED_VERSION).toBe(24);
-    expect(nuevas).toEqual(["lib-meta-n", "lib-memvid"]);
-    for (const id of nuevas) expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
-  });
-
-  it("quien ya tenía la 23 (con 1028 sembrada) recibe solo las 2 nuevas de 1027b", () => {
-    const catalogoIds = [...IDS_SIEMBRA_1028, ...nuevas];
->>>>>>> 9bfb11b90 (salvavidas · MTN1027L2: trabajo del agente antes de las puertas (tsc / vitest))
     const plan = selectSeedIds({
       currentVersion: 23,
       seedVersion: SEED_VERSION,
       recommendedIds: RECOMMENDED_PACKAGE_IDS,
-<<<<<<< HEAD
       catalog: [...FICHAS_REPOS_1025, ...FICHAS_REPOS_1026, ...FICHAS_REPOS_1027].map((f) => ({ id: f.id, comingSoon: f.comingSoon })),
       alreadyOffered: [...RECOMMENDED_PACKAGE_IDS],
       installedIds: [...RECOMMENDED_PACKAGE_IDS],
@@ -306,12 +287,5 @@ describe("defaults-seed · tanda 1027b (Meta^n y Memvid)", () => {
       expect(f.payload.downloadable, f.id).toBeUndefined();
       expect(String(f.payload.route ?? ""), f.id).toBe("");
     }
-=======
-      catalog: catalogoIds.map((id) => ({ id })),
-      alreadyOffered: [...IDS_SIEMBRA_1028],
-      installedIds: [],
-    });
-    expect(plan.sort()).toEqual([...nuevas].sort());
->>>>>>> 9bfb11b90 (salvavidas · MTN1027L2: trabajo del agente antes de las puertas (tsc / vitest))
   });
 });
