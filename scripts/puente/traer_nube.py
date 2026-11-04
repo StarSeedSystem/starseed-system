@@ -599,6 +599,13 @@ def _actualizar_progreso(cambios):
 
 #: Carpeta donde se comprueba lo que llega de la nube ANTES de tocar main (ver `_traer`).
 CARPETA_COMPROBAR = os.path.join(os.path.dirname(RAIZ), "starseed-wt", "_traer")
+
+#: (SUP0411F) Plazo del `worktree add` de esa carpeta (antes 300 s). El 04-11, con la Mac a carga 50–60, el
+#: checkout de los ~8 300 archivos pasó de 300 s y RTXR1010AMb-d1 se quedó fuera de main con su trabajo de la
+#: nube ya en verde («no pude preparar la carpeta de comprobación: TimeoutExpired»). Cada pasada empieza de cero
+#: (`_soltar_carpeta`), así que el plazo ha de bastar para el checkout entero.
+PLAZO_CARPETA_S = int(os.environ.get("STARSEED_TRAER_CARPETA_S", "900"))
+
 #: tsc con memoria propia y sin revisar las librerías (como la puerta del orquestador y tsc-turno.sh).
 #: (2026-10-12) Sin esto `npx tsc --noEmit` moría en la Mac de 8 GB con «JavaScript heap out of memory»
 #: (el registro solo enseñaba `node::LoadEnvironment…`) y TODO lo que traía la nube iba a «reparar».
@@ -792,7 +799,7 @@ def _traer(fila, espera_integrar_s=60):
     wt = os.path.join(CARPETA_COMPROBAR, re.sub(r"[^A-Za-z0-9._-]", "-", str(fila["tid"])))
     _soltar_carpeta(wt)
     os.makedirs(CARPETA_COMPROBAR, exist_ok=True)
-    rc, salida = _git(["worktree", "add", "-q", "--detach", wt, orig], timeout=300)
+    rc, salida = _git(["worktree", "add", "-q", "--detach", wt, orig], timeout=PLAZO_CARPETA_S)
     if rc != 0:
         return False, "no pude preparar la carpeta de comprobación: " + salida.strip()[-200:], True
     try:
