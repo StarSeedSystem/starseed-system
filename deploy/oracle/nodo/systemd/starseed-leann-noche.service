@@ -1,0 +1,30 @@
+[Unit]
+Description=StarSeed · pasada nocturna de LEANN: pendientes, compactado e índice del repo (LNN1028D3)
+After=network-online.target
+Wants=network-online.target
+# requiere: /opt/starseed/leann/.venv/bin/python
+# requiere: /opt/starseed/nodo/leann/leann_indices.py
+# temporizado
+#
+# Recoge los pendientes que dejó el día (cápsulas que no encontraron el servidor), compacta los
+# índices y reconstruye `repo-starseed` solo si cambió la cabeza del checkout. Va después de
+# Meta^n (03:40) para compartir la franja nocturna con un trabajador menos. Sin esta unidad el
+# recuerdo sigue con Memvid y nada falla (architecture/leann-recuerdo-semantico.md §3 y §4).
+
+[Service]
+Type=oneshot
+User=starseed
+Group=starseed
+WorkingDirectory=/opt/starseed/nodo/leann
+Environment=OLLAMA_HOST=http://127.0.0.1:11434 PYTHONUNBUFFERED=1
+# El checkout de solo lectura del A1 es la raíz del índice del repo (no /opt/starseed, que es
+# donde caería por defecto al vivir el guion en /opt/starseed/nodo/leann).
+Environment=STARSEED_REPO_RAIZ=/home/starseed/starseed-system
+StateDirectory=starseed/leann
+StateDirectoryMode=0700
+ExecStart=/opt/starseed/leann/.venv/bin/python /opt/starseed/nodo/leann/leann_indices.py noche
+# Una noche completa puede incluir la reconstrucción del índice del repo (incrustaciones).
+TimeoutStartSec=5400
+MemoryMax=1500M
+Nice=15
+NoNewPrivileges=true
