@@ -215,13 +215,23 @@ def test_1103_lento_no_es_caido():
 def test_1103_orquestador_al_dia_entra_en_la_pasada():
     import os as _o, sys as _s
     _s.path.insert(0, _o.path.dirname(_o.path.abspath(__file__)))
+    import tempfile as _t
     import autocuracion_mando as A
     llamado = []
-    r = A.revisar(ahora=1_000_000.0, sondear_fn=lambda: True, reiniciar_fn=lambda: None, limpiar_fn=lambda ids: {},
+    # (1104 · AE) Nunca el estado vivo de la autocuración: un temporal, restaurado al acabar.
+    _antes, A.ESTADO = A.ESTADO, _o.path.join(_t.mkdtemp(), "autocuracion.json")
+    try:
+        r = _revisar_1103(A, llamado)
+    finally:
+        A.ESTADO = _antes
+    assert llamado == [1]
+    assert any("orquestador: instalado" in h for h in r.get("hechos") or [])
+
+
+def _revisar_1103(A, llamado):
+    return A.revisar(ahora=1_000_000.0, sondear_fn=lambda: True, reiniciar_fn=lambda: None, limpiar_fn=lambda ids: {},
                   libre_fn=lambda: 50.0, avisar_fn=lambda m: None, dormir=lambda s: None, asignar_fn=lambda: {},
                   buscar_fn=lambda: {}, traer_fn=lambda: None, servicios_fn=lambda: {}, medidores_fn=lambda a: [],
                   worktrees_fn=lambda: {}, reparar_fn=lambda: None, explabs_fn=lambda: None, relevo_fn=lambda: None,
                   a1_fn=lambda: None, lider_fn=lambda: {"soy": True}, forzar=True,
                   orquestador_fn=lambda: llamado.append(1) or {"hechos": ["instalado: 1 archivo(s)"]})
-    assert llamado == [1]
-    assert any("orquestador: instalado" in h for h in r.get("hechos") or [])
