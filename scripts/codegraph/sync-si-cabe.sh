@@ -26,7 +26,7 @@ if [ -f "$ESTADO" ]; then
     diff=$((inicio - ultimo))
     if [ "$diff" -lt "$ESPERA" ]; then
       min=$((diff / 60))
-      echo "$(date '+%F %T') codegraph sync: la última pasada se cortó hace $min min → me salto esta"
+      echo "$(date '+%F %T') codegraph sync: la última pasada se cortó hace $min min → me salgo esta"
       exit 0
     fi
   fi

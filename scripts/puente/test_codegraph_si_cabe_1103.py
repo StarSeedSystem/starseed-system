@@ -92,7 +92,7 @@ def test_corte_deja_marca_y_siguiente_salta():
         assert len(lineas2) == 1, f"El falso codegraph no debió ejecutarse en la segunda pasada, se ejecutó {len(lineas2)}"
 
         # Verificar mensaje de salto en stdout
-        assert "me salto esta" in r2.stdout or "me salto esta" in r2.stderr
+        assert "me salgo esta" in r2.stdout or "me salgo esta" in r2.stderr
 
 
 def test_espera_cero_vuelve_a_lanzar():
