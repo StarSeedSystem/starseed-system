@@ -4707,3 +4707,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTART1025M-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTART1025M-d2 conservada)
 - `PUB1029F` — no escribió nada
 - `RTS1010-MGR2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTS1010-MGR2b conservada)
+
+## 2026-11-04 21:04 · mg-oracle-1104-1419
+
+**Lo que se pidió.** en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `MVD1027Fb` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/MVD1027Fb conservada)
