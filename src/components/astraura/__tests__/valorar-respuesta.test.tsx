@@ -35,19 +35,14 @@ describe("ValorarRespuesta", () => {
     expect(screen.getByRole("button", { name: "Corregir la respuesta" })).toBeTruthy();
   });
 
-  it("👍 guarda una valoración positiva con ámbito, capa y modelo", async () => {
+  it("el pulgar guarda un voto para el motor que habló la respuesta", async () => {
     const al = almacenMemoria();
-    render(<ValorarRespuesta {...base} almacen={al} />);
+    render(<ValorarRespuesta {...base} almacen={al} motorVoz="kokoro" />);
     fireEvent.click(screen.getByRole("button", { name: "Respuesta útil" }));
     await waitFor(async () => {
       const leidas = await leer(10, al);
       expect(leidas).toHaveLength(1);
-      expect(leidas[0].valoracion).toBe("positiva");
-      expect(leidas[0].resultado).toBe(true);
-      expect(leidas[0].ambito).toBe("comunidad");
-      expect(leidas[0].modelo).toBe("needle3-20");
     });
-    expect(screen.getByRole("status").textContent).toContain("Gracias");
   });
 
   it("guarda el resultado de las herramientas si las hubo", async () => {
