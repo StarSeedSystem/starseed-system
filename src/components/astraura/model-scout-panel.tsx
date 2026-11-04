@@ -38,6 +38,10 @@ import {
   type PersonaNeuronOverrides,
 } from "@/lib/astraura/neuron-persona-store";
 import { playSystemChime } from "@/lib/astraura/system-chime";
+import { listInstalledModels } from "@/ai/astraura/installed-models";
+import { effectiveOrder } from "@/lib/astraura/model-preferences";
+import { getVoiceEngine } from "@/lib/aurora/tts-oss/voice-config";
+import { modelosUsados } from "@/lib/astraura/modelos-usados";
 
 const VERDICT_STYLE: Record<string, { label: string; cls: string }> = {
   perfecto: { label: "Perfecto", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
@@ -202,11 +206,16 @@ export function ModelScoutPanel({ kind = "llm", personaId, deviceId }: ModelScou
   const result = useMemo(() => {
     if (!caps) return null;
     try {
-      return scoutModels(caps, { kind, limit: 4 });
+      const usedModelIds = modelosUsados({
+        instalados: listInstalledModels(),
+        preferencias: effectiveOrder({ neuronId: deviceId || thisDeviceId() }),
+        voz: getVoiceEngine(),
+      });
+      return scoutModels(caps, { kind, limit: 4, usedModelIds });
     } catch {
       return null;
     }
-  }, [caps, kind]);
+  }, [caps, kind, deviceId]);
 
   useEffect(() => {
     if (!caps || !result) return;
