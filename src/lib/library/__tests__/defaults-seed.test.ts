@@ -289,3 +289,26 @@ describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remac
     }
   });
 });
+
+describe("defaults-seed · tanda 1027b (Meta^n y Memvid)", () => {
+  const nuevas = IDS_SIEMBRA_1027B;
+
+  it("sube la versión a 24 y añade las 2 fichas de 1027b", () => {
+    expect(SEED_VERSION).toBe(24);
+    expect(nuevas).toEqual(["lib-meta-n", "lib-memvid"]);
+    for (const id of nuevas) expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
+  });
+
+  it("quien ya tenía la 23 (con 1028 sembrada) recibe solo las 2 nuevas de 1027b", () => {
+    const catalogoIds = [...IDS_SIEMBRA_1028, ...nuevas];
+    const plan = selectSeedIds({
+      currentVersion: 23,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: catalogoIds.map((id) => ({ id })),
+      alreadyOffered: [...IDS_SIEMBRA_1028],
+      installedIds: [],
+    });
+    expect(plan.sort()).toEqual([...nuevas].sort());
+  });
+});
