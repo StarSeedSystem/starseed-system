@@ -390,6 +390,72 @@ class TokenDeDespliegueDelA1(unittest.TestCase):
         self.assertIn("Token de despliegue", falta["titulo"])
 
 
+class CodexSinModelo(unittest.TestCase):
+    """(DEC1028D) Desde el 2026-10-23 todas las llamadas de Codex devuelven «model_not_found»
+    con una cuenta de ChatGPT: no es cuota, no vuelve en 3 h. `cupo_codex` lo aparta 24 h,
+    pero a Alex nadie se lo decía y el enjambre gastaba el primer intento de cada tarea."""
+
+    AHORA = 1_800_000_000.0
+    MARCA = {
+        "hasta": AHORA + 86_400.0,
+        "desde": "2026-10-23 20:55:00",
+        "motivo": "cuenta de ChatGPT sin Codex: model_not_found en gpt-5.6-sol",
+    }
+
+    def test_marca_vigente_saca_la_accion(self):
+        a = A.accion_codex_cuenta(self.MARCA, ahora=self.AHORA)
+        self.assertEqual("codex-cuenta", a["id"])
+        self.assertEqual("media", a["urgencia"])
+        self.assertIn("tu cuenta de ChatGPT ya no deja usarlo", a["titulo"])
+        self.assertIn("2026-10-23 20:55:00", a["por_que"])
+        self.assertIn("model not supported when using Codex with a ChatGPT account", a["por_que"])
+        self.assertIn("el enjambre lo ha apartado y sigue con los demás", a["por_que"])
+
+    def test_la_accion_trae_enlace_y_pasos_nunca_una_orden(self):
+        a = A.accion_codex_cuenta(self.MARCA, ahora=self.AHORA)
+        self.assertEqual("https://chatgpt.com/#settings/Account", a["enlace"])
+        self.assertEqual("", a["comando"])
+        self.assertEqual("es tu cuenta y tu suscripción", a["por_que_no_lo_hago_yo"])
+        self.assertIn("Ajustes", a["detalle"])
+        self.assertIn("npm i -g @openai/codex", a["detalle"])
+        self.assertIn("codex login", a["detalle"])
+
+    def test_otro_motivo_no_saca_la_accion(self):
+        marca = dict(self.MARCA, motivo="cuota agotada: you've hit your usage limit")
+        self.assertIsNone(A.accion_codex_cuenta(marca, ahora=self.AHORA))
+
+    def test_marca_caducada_no_saca_la_accion(self):
+        self.assertIsNone(A.accion_codex_cuenta(
+            dict(self.MARCA, hasta=self.AHORA - 1.0), ahora=self.AHORA))
+
+    def test_marca_ilegible_no_saca_nada(self):
+        self.assertIsNone(A.accion_codex_cuenta(None, ahora=self.AHORA))
+        self.assertIsNone(A.accion_codex_cuenta("texto", ahora=self.AHORA))
+
+    def test_entra_en_la_lista_y_no_estorba_sin_marca(self):
+        con = A.construir_acciones([], TODOS, CATALOGO, cupo_marca=self.MARCA)
+        self.assertIn("codex-cuenta", [x["id"] for x in con])
+        sin = A.construir_acciones([], TODOS, CATALOGO)
+        self.assertNotIn("codex-cuenta", [x["id"] for x in sin])
+
+    def test_lo_media_va_despues_de_lo_urgente(self):
+        acciones = A.construir_acciones([], TODOS, CATALOGO, entorno={},
+                                        a1_tiene_token=False, cupo_marca=self.MARCA)
+        ids = [x["id"] for x in acciones]
+        self.assertLess(ids.index("canal-de-avisos-sin-configurar"), ids.index("codex-cuenta"))
+
+    def test_verificar_recomprueba_la_marca(self):
+        hecho = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=TODOS, cupo_marca=self.MARCA,
+                            a1_tiene_token=True)
+        self.assertFalse(hecho["hecha"])
+        self.assertIn("Ajustes", hecho["detalle"])
+        self.assertIn("npm i -g @openai/codex", hecho["detalle"])
+        caducada = dict(self.MARCA, hasta=1_000_000.0)
+        hecha = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=TODOS, cupo_marca=caducada,
+                            a1_tiene_token=True)
+        self.assertTrue(hecha["hecha"])
+
+
 def test_1103_token_de_despliegue_explica_repo_y_permisos():
     import importlib.util as _u, os as _o
     _s = _u.spec_from_file_location("ada1103", _o.path.join(_o.path.dirname(__file__), "acciones-de-alex.py"))
