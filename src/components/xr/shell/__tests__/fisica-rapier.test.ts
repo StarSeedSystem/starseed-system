@@ -21,8 +21,15 @@ function mundo(o: { gravedad?: number; suelo?: boolean; objetos?: ObjetoMundo[];
         portales: [], zonas: [], pizarras: [], pantallas: [], reglas: [],
     };
 }
-function rapierFalso(): Rapier {
-    const d = () => { const o: Record<string, unknown> = {}; for (const k of ["setTranslation", "setRotation", "setMass", "setRestitution", "setFriction", "setActiveEvents"]) o[k] = () => o; return o; };
+interface RotacionRapier { x: number; y: number; z: number; w: number }
+/** El mismo Rapier de mentira, pero guardando la rotación que se le pasa a cada cuerpo. */
+function rapierFalso(rotaciones?: RotacionRapier[]): Rapier {
+    const d = () => {
+        const o: Record<string, unknown> = {};
+        for (const k of ["setTranslation", "setMass", "setRestitution", "setFriction", "setActiveEvents"]) o[k] = () => o;
+        o.setRotation = (r: RotacionRapier) => { rotaciones?.push(r); return o; };
+        return o;
+    };
     let h = 0;
     const cuerpo = () => ({ translation: () => ({ x: 0, y: 0, z: 0 }), rotation: () => ({ x: 0, y: 0, z: 0, w: 1 }), setTranslation() {}, applyImpulse() {} });
     return {
@@ -110,5 +117,19 @@ describe("física Rapier", () => {
     it.skipIf(cargado)("con RAPIER falso el recorte también respeta cuerposMax", () => {
         const objetos = Array.from({ length: 30 }, (_, i) => objeto(`o${i}`, [i, 0, 0]));
         expect(crearMundoFisico(rapierFalso(), mundo({ objetos }), "minima").cuerpos.size).toBe(20);
+    });
+    it("la rotación del objeto llega a Rapier como cuaternión", () => {
+        const rotaciones: RotacionRapier[] = [];
+        const objetos: ObjetoMundo[] = [
+            { ...objeto("quieto", [0, 0, 0]), rot: [0, 0, 0] },
+            { ...objeto("girado", [1, 0, 0]), rot: [0, Math.PI / 2, 0] },
+        ];
+        crearMundoFisico(rapierFalso(rotaciones), mundo({ objetos }), "minima");
+        expect(rotaciones).toHaveLength(2);
+        const [identidad, medioGiro] = rotaciones;
+        expect(identidad.x).toBeCloseTo(0, 6); expect(identidad.y).toBeCloseTo(0, 6);
+        expect(identidad.z).toBeCloseTo(0, 6); expect(identidad.w).toBeCloseTo(1, 6);
+        expect(medioGiro.x).toBeCloseTo(0, 6); expect(medioGiro.y).toBeCloseTo(Math.SQRT1_2, 6);
+        expect(medioGiro.z).toBeCloseTo(0, 6); expect(medioGiro.w).toBeCloseTo(Math.SQRT1_2, 6);
     });
 });
