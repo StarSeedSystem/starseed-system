@@ -97,6 +97,7 @@ import {
 import { VOICE_ENGINE_REGISTRY } from "@/lib/aurora/tts-oss/engine-registry";
 import { cn } from "@/lib/utils";
 import { AjusteBotsIA } from "@/components/agentes-red/ajuste-bots-ia";
+import { PerfilAjustesCapsula } from "@/components/profile/perfil-ajustes-capsula";
 // Variaciones públicas (Ola 1019V · tarea W): cada panel de Ajustes lleva su
 // clave canónica `ajuste:<id>` (contrato: architecture/variaciones-publicas.md
 // §2). Las claves salen de los registros, no se inventan aquí: `claveDeAjuste`
@@ -881,6 +882,13 @@ function CuentaContent() {
 
         {/* (Ola 1025U · U3) Qué bots de IA ves: regla general y bots bloqueados uno a uno */}
         <AjusteBotsIA />
+
+        {/* Memoria en cápsula para el perfil activo (MVD1027H2) */}
+        {profile?.id && (
+          <ConClave clave={claveDeAjuste("memoria-capsula-perfil")}>
+            <PerfilAjustesCapsula perfilId={profile.id} />
+          </ConClave>
+        )}
 
         {/* Claves de variaciones públicas: export-import → ajuste:export-import,
             privacidad → ajuste:privacidad (ids del índice del buscador). */}
