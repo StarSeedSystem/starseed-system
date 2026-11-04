@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261103",
+ "tareas": [
+  {
+   "id": "LNN1028D3",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "LEANN · servicio y temporizador de la pasada nocturna",
+   "archivos": [
+    "deploy/oracle/nodo/systemd/starseed-leann-noche.service",
+    "deploy/oracle/nodo/systemd/starseed-leann-noche.timer"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nComo `starseed-metageminis.service` y su `.timer` (léelos): oneshot, usuario starseed, `ExecStart=/opt/starseed/leann/.venv/bin/python /opt/starseed/nodo/leann/leann_indices.py noche`, `Environment=OLLAMA_HOST=http://127.0.0.1:11434`, `MemoryMax=1500M`, `Nice=15`, `TimeoutStartSec=5400`, `# requiere: /opt/starseed/leann/.venv/bin/python` y `# temporizado`. Temporizador `OnCalendar=*-*-* 04:30:00`, `RandomizedDelaySec=10min`, `Persistent=true` (después de Meta^n, en la misma franja con un trabajador menos).",
+   "dependencias_ya_en_main": [
+    "LNN1028D",
+    "LNN1028C"
+   ]
+  }
+ ]
+}
