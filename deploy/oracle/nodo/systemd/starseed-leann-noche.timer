@@ -1,0 +1,14 @@
+[Unit]
+Description=StarSeed · pasada nocturna de LEANN cada madrugada a las 04:30 (LNN1028D3)
+# requiere: /opt/starseed/nodo/leann/leann_indices.py
+
+[Timer]
+# Por calendario y no «24 h después de la última vez»: al reinstalar la unidad se pierde esa marca
+# y el temporizador se quedaba sin próxima vuelta (medido con MetaGeminis el 2026-10-10).
+# Después de Meta^n (03:40 + 15 min), en la misma franja nocturna con un trabajador menos.
+OnCalendar=*-*-* 04:30:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
