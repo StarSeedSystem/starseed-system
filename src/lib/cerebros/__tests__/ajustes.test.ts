@@ -587,18 +587,47 @@ describe("ajustes del cerebro", () => {
 
        // Ambos deben ser iguales al cerebro porque las memorias/carpetas están vacías
        expect(resultadoMem).toEqual(ajustes.cerebro);
-       expect(resultadoCarp).toEqual(ajustes.cerebro);
-     });
+      expect(resultadoCarp).toEqual(ajustes.cerebro);
+    });
 
-     it("hereda del cerebro y sobrescribe con memoria (solo privacidad)", () => {
-       const ajustes: AjustesCerebro = {
-         cerebro: { privacidad: "privado", cifradoLocal: false, medios: { capacidades: {}, almacenamiento: ["local"] }, sync: { direccion: "ambas", auto: true, destinos: [] }, acceso: [] },
-         memorias: { "m1.md": { privacidad: "grupo" } },
-         carpetas: {},
-       };
-       const eff = ajustesEfectivos(ajustes, { tipo: "memoria", id: "m1.md" });
-       expect(eff.privacidad).toBe("grupo");
-       expect(eff.medios.almacenamiento).toContain("local");
-     });
-   });
- });
+    it("hereda del cerebro y sobrescribe con memoria (solo privacidad)", () => {
+      const ajustes: AjustesCerebro = {
+        cerebro: { privacidad: "privado", cifradoLocal: false, medios: { capacidades: {}, almacenamiento: ["local"] }, sync: { direccion: "ambas", auto: true, destinos: [] }, acceso: [] },
+        memorias: { "m1.md": { privacidad: "grupo" } },
+        carpetas: {},
+      };
+      const eff = ajustesEfectivos(ajustes, { tipo: "memoria", id: "m1.md" });
+      expect(eff.privacidad).toBe("grupo");
+      expect(eff.medios.almacenamiento).toContain("local");
+    });
+    
+    it("debe combinar ajustes múltiples para el cerebro (conAjustes)", () => {
+      const configBase: Record<string, unknown> = {};
+      const paso1 = conAjustes(configBase, { tipo: "cerebro" }, { privacidad: "publico" });
+      const resultado = conAjustes(paso1, { tipo: "cerebro" }, {
+        cifradoLocal: true,
+        medios: { capacidades: { texto: "texto-rapido" }, almacenamiento: [] }
+      });
+      expect(resultado.ajustes).toEqual({
+        cerebro: {
+          privacidad: "publico",
+          cifradoLocal: true,
+          medios: { capacidades: { texto: "texto-rapido" }, almacenamiento: [] }
+        }
+      });
+    });
+
+    it("debe guardar solo diferencias para memorias (conAjustes)", () => {
+      const configBase: Record<string, unknown> = {};
+      const configConCerebro = conAjustes(configBase, { tipo: "cerebro" }, {
+        privacidad: "privado", cifradoLocal: false, medios: { capacidades: {}, almacenamiento: [] }, sync: { direccion: "ambas", auto: true, destinos: [] }, acceso: []
+      });
+      let resultado = conAjustes(configConCerebro, { tipo: "memoria", id: "mem1" }, { privacidad: "publico" });
+      expect(resultado.ajustes).toEqual({
+        cerebro: { privacidad: "privado", cifradoLocal: false, medios: { capacidades: {}, almacenamiento: [] }, sync: { direccion: "ambas", auto: true, destinos: [] }, acceso: [] },
+        memorias: { mem1: { privacidad: "publico" } }
+      });
+    });
+  });
+});
+
