@@ -1,0 +1,24 @@
+[Unit]
+Description=StarSeed · servidor de recuerdo semántico LEANN en el A1 (LNN1028C)
+After=network-online.target ollama.service
+Wants=network-online.target
+# requiere: /opt/starseed/leann/.venv/bin/python
+
+[Service]
+User=starseed
+Group=starseed
+WorkingDirectory=/home/starseed
+# Solo en local: el servidor escucha en 127.0.0.1:4495 y comparte el Ollama de 127.0.0.1:11434.
+Environment=OLLAMA_HOST=http://127.0.0.1:11434
+ExecStart=/opt/starseed/leann/.venv/bin/python /opt/starseed/nodo/leann/leann_servidor.py
+# Si el índice o el modelo fallan al arrancar, no debe reiniciar en bucle.
+Restart=on-failure
+RestartSec=20
+# Los índices son pequeños y el grafo se recalcula al buscar: no debe pisar al enjambre en 12 GB.
+MemoryMax=1500M
+# El enjambre manda en la CPU.
+Nice=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
