@@ -24,7 +24,7 @@ Tiempos configurables:
   · STARSEED_COLGADO_S — sin crecer en bytes reales del worktree se considera colgado (300 s).
 """
 
-import datetime, hashlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
+import datetime, hashlib, importlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
 import signal
 import tempfile
 import contextlib, fcntl
@@ -4175,6 +4175,55 @@ def _en_la_mac():
     return os.environ.get("STARSEED_DONDE") == "mac" and sys.platform == "darwin"
 
 
+#: (SUP0211V) mtime con el que este orquestador cargó cada módulo de puerta: {nombre: mtime}.
+_MTIMES_PUERTAS = {}
+
+
+def hay_que_recargar(mtime_visto, mtime_ahora):
+    """PURA. ¿Cambió el archivo del módulo desde la última carga?
+
+    False si falta cualquiera de los dos mtimes (no se puede afirmar que cambió) o si son iguales:
+    la primera carga solo apunta el mtime, no recarga lo que el intérprete ya tiene."""
+    if mtime_visto is None or mtime_ahora is None:
+        return False
+    return mtime_visto != mtime_ahora
+
+
+def _modulo_de_puerta(nombre, ruta):
+    """Importa o recarga `nombre` desde `ruta` cuando su mtime cambió (SUP0211V).
+
+    `orquestador_al_dia.py` solo reinicia el orquestador si cambian los .py de scripts/enjambre,
+    así que un arreglo de estas puertas no llegaba a la tanda en marcha. Si la recarga falla
+    (SyntaxError de un commit a medias, OSError), se sigue con el módulo que ya estaba y se avisa:
+    la puerta no puede tumbar la tarea por un archivo a medio escribir."""
+    if ruta not in sys.path:
+        sys.path.insert(0, ruta)
+    archivo = os.path.join(ruta, nombre + ".py")
+    ahora = None
+    try:
+        ahora = os.path.getmtime(archivo)
+    except OSError:
+        pass
+    modulo = sys.modules.get(nombre)
+    if modulo is None:
+        modulo = importlib.import_module(nombre)
+        _MTIMES_PUERTAS[nombre] = ahora
+        return modulo
+    visto = _MTIMES_PUERTAS.get(nombre)
+    if visto is None or not hay_que_recargar(visto, ahora):
+        _MTIMES_PUERTAS[nombre] = ahora
+        return modulo
+    try:
+        modulo = importlib.reload(modulo)
+    except Exception as e:  # noqa: BLE001 — un commit roto no puede tumbar la puerta
+        evento("aviso", "-", "puerta tsc: no pude recargar %s.py (%s); sigo con el cargado" % (
+            nombre, str(e)[:120]))
+        _MTIMES_PUERTAS[nombre] = ahora
+        return sys.modules.get(nombre)
+    _MTIMES_PUERTAS[nombre] = ahora
+    return modulo
+
+
 def _comprobar_en_a1():
     """La función `comprobar` de comprobar_en_a1.py, o None si no se puede usar (TRA1012A).
     Solo en la Mac (`_en_la_mac`): la nube y el A1 mismo ya compilan donde tienen memoria."""
@@ -4183,11 +4232,8 @@ def _comprobar_en_a1():
     ruta = os.path.join(ROOT, "scripts", "puente")
     if not os.path.isfile(os.path.join(ruta, "comprobar_en_a1.py")):
         return None
-    if ruta not in sys.path:
-        sys.path.insert(0, ruta)
-    from comprobar_en_a1 import comprobar
-
-    return comprobar
+    modulo = _modulo_de_puerta("comprobar_en_a1", ruta)
+    return modulo.comprobar
 
 
 #: (2026-10-27, CAP1026P) Lo que la puerta tsc de la Mac espera el veredicto de GitHub antes de caer al A1 o a la
@@ -4204,9 +4250,7 @@ def _comprobar_en_github():
     ruta = os.path.join(ROOT, "scripts", "puente")
     if not os.path.isfile(os.path.join(ruta, "comprobar_en_github.py")):
         return None
-    if ruta not in sys.path:
-        sys.path.insert(0, ruta)
-    import comprobar_en_github as G
+    G = _modulo_de_puerta("comprobar_en_github", ruta)
 
     return lambda base, cambiados, cwd: G.esperar_tsc(base, cambiados, cwd, TSC_GITHUB_ESPERA_S)
 

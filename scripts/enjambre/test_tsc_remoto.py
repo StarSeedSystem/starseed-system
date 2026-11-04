@@ -216,5 +216,70 @@ class EnLaMacTest(unittest.TestCase):
                     else:
                         self.assertEqual((a1, gh), (None, None))
 
+class RecargaDePuertasTest(unittest.TestCase):
+    """(SUP0211V) Las puertas tsc recargan su módulo cuando cambia su mtime: un arreglo en
+    scripts/puente llega a la tanda en marcha sin esperar al reinicio del orquestador."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="enj-recarga-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.puente = os.path.join(self.tmp, "scripts", "puente")
+        os.makedirs(self.puente)
+
+    def _ruta(self, nombre):
+        return os.path.join(self.puente, nombre + ".py")
+
+    def _escribir(self, nombre, devuelve, roto=False):
+        with open(self._ruta(nombre), "w", encoding="utf-8") as f:
+            if roto:
+                f.write("def comprobar(:\n")
+            elif nombre == "comprobar_en_a1":
+                f.write("def comprobar(*a, **k):\n    return %r\n" % devuelve)
+            else:
+                f.write("def esperar_tsc(*a):\n    return %r\n" % devuelve)
+
+    def _adelantar(self, nombre, segundos=2):
+        ruta = self._ruta(nombre)
+        st = os.stat(ruta)
+        os.utime(ruta, (st.st_atime, st.st_mtime + segundos))
+
+    def _abrir(self):
+        pila = contextlib.ExitStack()
+        pila.enter_context(mock.patch.object(enjambre, "ROOT", self.tmp))
+        pila.enter_context(mock.patch.object(enjambre, "_en_la_mac", return_value=True))
+        pila.enter_context(mock.patch.dict(enjambre._MTIMES_PUERTAS, clear=True))
+        pila.enter_context(mock.patch.dict(sys.modules))
+        pila.enter_context(mock.patch.object(sys, "path", list(sys.path)))
+        evento = pila.enter_context(mock.patch.object(enjambre, "evento"))
+        os.environ.pop("STARSEED_COMPROBAR_GITHUB", None)
+        for nombre in ("comprobar_en_a1", "comprobar_en_github"):
+            sys.modules.pop(nombre, None)
+        return pila, evento
+
+    def test_la_funcion_pura_solo_recarga_con_mtime_distinto(self):
+        self.assertFalse(enjambre.hay_que_recargar(None, 1.0))
+        self.assertFalse(enjambre.hay_que_recargar(1.0, None))
+        self.assertFalse(enjambre.hay_que_recargar(1.0, 1.0))
+        self.assertTrue(enjambre.hay_que_recargar(1.0, 2.0))
+
+    def test_un_mtime_nuevo_da_la_version_nueva(self):
+        self._escribir("comprobar_en_a1", "vieja")
+        with self._abrir()[0]:
+            self.assertEqual(enjambre._comprobar_en_a1()(), "vieja")
+            self._escribir("comprobar_en_a1", "nueva")
+            self._adelantar("comprobar_en_a1")
+            self.assertEqual(enjambre._comprobar_en_a1()(), "nueva")
+
+    def test_un_archivo_roto_conserva_la_version_vieja(self):
+        self._escribir("comprobar_en_a1", "vieja")
+        pila, evento = self._abrir()
+        with pila:
+            self.assertEqual(enjambre._comprobar_en_a1()(), "vieja")
+            self._escribir("comprobar_en_a1", None, roto=True)
+            self._adelantar("comprobar_en_a1")
+            self.assertEqual(enjambre._comprobar_en_a1()(), "vieja")
+        self.assertIn("aviso", evento.call_args.args)
+
+
 if __name__ == "__main__":
     unittest.main()
