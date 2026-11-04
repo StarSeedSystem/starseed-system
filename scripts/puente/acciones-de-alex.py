@@ -256,14 +256,60 @@ def accion_sin_canal(entorno):
     }
 
 
-def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_tiene_token=None):
+def accion_codigo_cuenta(cupo_codex_marca=None):
+    """PURA: la acción de la cuenta de ChatGPT sin Codex, si la marca lo indica.
+
+    (DEC1028D) Si Codex falla con 'model not supported', el enjambre lo ha apartado
+    24h y hay que informar a Alex. La marca llega de `cupo_codex.leer()`.
+    Sólo sale si el motivo empieza por «cuenta de ChatGPT sin Codex».
+    """
+    import time as _t
+    if not cupo_codex_marca:
+        return None
+    motivo = str(cupo_codex_marca.get("motivo") or "")
+    if not motivo.startswith("cuenta de ChatGPT sin Codex"):
+        return None
+    try:
+        hasta = float(cupo_codex_marca.get("hasta") or 0)
+        desde = cupo_codex_marca.get("desde") or ""
+        if _t.time() >= hasta:
+            return None
+    except (TypeError, ValueError):
+        return None
+    desde_val = desde if desde else "la cuota"
+    return {
+        "id": "codex-cuenta",
+        "titulo": "Codex: tu cuenta de ChatGPT ya no deja usarlo",
+        "por_que": ("desde %s cada intento devuelve \"model not supported when using "
+                    "Codex con una cuenta de ChatGPT\"; el enjambre lo ha apartado y sigue "
+                    "con los demás" % desde_val),
+        "urgencia": "media",
+        "comando": "",
+        "enlace": "https://chatgpt.com/#settings/Account",
+        "por_que_no_lo_hago_yo": "es tu cuenta y tu suscripción",
+        "detalle": (
+            "mirar en chatgpt.com › Ajustes › Plan si la suscripción sigue activa; "
+            "si lo está, actualizar la CLI con `npm i -g @openai/codex` y volver a "
+            "entrar con `codex login`"
+        ),
+    }
+
+
+def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_tiene_token=None,
+                       cupo_codex_marca=None):
     """Función PURA: la lista de acciones, ordenada por urgencia. Sin red, sin disco.
 
     `a1_tiene_token` llega ya medido (True/False/None): aquí no se sale a la red. Con None
     la acción del token no aparece, porque no hay prueba de que falte.
+    `cupo_codex_marca` llega ya medido (dict or None): la acción Codex solo sale si la
+    marca está vigente y su motivo empieza por «cuenta de ChatGPT sin Codex».
     """
     catalogo = catalogo if catalogo is not None else _pas.CATALOGO
     acciones = []
+
+    codex = accion_codigo_cuenta(cupo_codex_marca)
+    if codex:
+        acciones.append(codex)
 
     token = accion_token_despliegue(a1_tiene_token)
     if token:
@@ -467,7 +513,7 @@ def resondear(clave, segundos=20):
 
 
 def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, medir=None,
-              a1_tiene_token=None):
+              a1_tiene_token=None, cupo_codex_marca=None):
     """¿Sigue haciendo falta esa accion? Vuelve a MEDIR, no consulta un archivo viejo.
 
     (2026-09-21, pedido por Alex) «en Genesis en su ventana debe haber un boton
@@ -482,6 +528,16 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
     Devuelve {id, hecha, titulo, detalle, comprobado, quedan}. Sin `id_accion`, informa de
     todas.
     """
+    if cupo_codex_marca is None and id_accion == "codex-cuenta":
+        try:
+            import importlib.util as _u
+            ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cupo_codex.py")
+            spec = _u.spec_from_file_location("cupo_codex", ruta)
+            cc = _u.module_from_spec(spec)
+            spec.loader.exec_module(cc)
+            cupo_codex_marca = cc.leer()
+        except Exception:
+            cupo_codex_marca = {}
     # Solo en una comprobación de verdad (sin datos inyectados) se reescribe la lista que pinta
     # Genesis: si no, «Ya lo hice» decía «hecho» y la tarjeta seguía ahí hasta la siguiente
     # vuelta del director (hasta 3 min), que es otra forma de no creerse el botón.
@@ -508,6 +564,7 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
         pasarelas, secretos_repo,
         entorno=entorno if entorno is not None else _entorno_con_env(),
         a1_tiene_token=a1_tiene_token,
+        cupo_codex_marca=cupo_codex_marca,
     )
     por_id = {a["id"]: a for a in vivas}
     momento = __import__("time").strftime("%Y-%m-%d %H:%M:%S")
@@ -565,8 +622,18 @@ def main():
         cual = sys.argv[i + 1] if len(sys.argv) > i + 1 else None
         print(json.dumps(verificar(cual), ensure_ascii=False, indent=1))
         return 0
+    try:
+        import importlib.util as _u
+        ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cupo_codex.py")
+        spec = _u.spec_from_file_location("cupo_codex", ruta)
+        cc = _u.module_from_spec(spec)
+        spec.loader.exec_module(cc)
+        cupo_marca = cc.leer()
+    except Exception:
+        cupo_marca = {}
     acciones = construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env(),
-                                  a1_tiene_token=a1_tiene_clave())
+                                  a1_tiene_token=a1_tiene_clave(),
+                                  cupo_codex_marca=cupo_marca)
     datos = {"generado": __import__("time").strftime("%Y-%m-%d %H:%M"), "acciones": acciones}
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
     json.dump(datos, open(SALIDA, "w"), ensure_ascii=False, indent=1)

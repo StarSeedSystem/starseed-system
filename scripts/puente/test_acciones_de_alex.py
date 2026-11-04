@@ -410,3 +410,67 @@ def test_1103_el_token_se_busca_donde_lo_deja_oracle_claves():
         return 0, "SI\n"
     assert m.a1_tiene_clave(ssh=ssh) is True
     assert "/etc/starseed/direccion.env" in vistas[0] and "[ -e" not in vistas[0]
+
+
+class CodexCuenta(unittest.TestCase):
+    """DEC1028D: si la cuenta de ChatGPT no deja usar Codex, avisar a Alex."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util as _u, os as _o
+        ruta = _o.path.join(_o.path.dirname(__file__), "cupo_codex.py")
+        spec = _u.spec_from_file_location("cupo_codex", ruta)
+        cls.cc = _u.module_from_spec(spec)
+        spec.loader.exec_module(cls.cc)
+
+    def test_si_hay_marca_vigente_cuenta_chatgpt_sale_accion(self):
+        marca = {"hasta": self.cc.hasta_cuando(self.cc.time.time() + 100, horas=self.cc.HORAS_SIN_MODELO),
+                 "motivo": "cuenta de ChatGPT sin Codex: gpt-5.6-sol no soportado"}
+        a = A.construir_acciones([], A.CLAVES_DEL_ENJAMBRE, CATALOGO,
+                                 cupo_codex_marca=marca)
+        self.assertIn("codex-cuenta", [x["id"] for x in a])
+
+    def test_si_marca_es_agotamiento_normal_no_sale_codex_cuenta(self):
+        marca = {"hasta": self.cc.hasta_cuando(self.cc.time.time() + 100, horas=self.cc.HORAS),
+                 "motivo": "cuota agotada"}
+        a = A.construir_acciones([], A.CLAVES_DEL_ENJAMBRE, CATALOGO,
+                                 cupo_codex_marca=marca)
+        self.assertNotIn("codex-cuenta", [x["id"] for x in a])
+
+    def test_si_no_hay_marca_o_expirada_no_sale(self):
+        a = A.construir_acciones([], A.CLAVES_DEL_ENJAMBRE, CATALOGO,
+                                 cupo_codex_marca={})
+        self.assertNotIn("codex-cuenta", [x["id"] for x in a])
+        a = A.construir_acciones([], A.CLAVES_DEL_ENJAMBRE, CATALOGO,
+                                 cupo_codex_marca=None)
+        self.assertNotIn("codex-cuenta", [x["id"] for x in a])
+
+    def test_accion_tiene_enlace_y_pasos(self):
+        marca = {"hasta": self.cc.hasta_cuando(self.cc.time.time() + 100, horas=self.cc.HORAS_SIN_MODELO),
+                 "motivo": "cuenta de ChatGPT sin Codex: modelo no soportado",
+                 "desde": "2026-10-28 10:00"}
+        a = [x for x in A.construir_acciones([], A.CLAVES_DEL_ENJAMBRE, CATALOGO,
+                                              cupo_codex_marca=marca)
+             if x["id"] == "codex-cuenta"][0]
+        self.assertEqual(a["urgencia"], "media")
+        self.assertIn("chatgpt.com", a["enlace"])
+        self.assertIn("npm i -g @openai/codex", a["detalle"])
+        self.assertIn("codex login", a["detalle"])
+        self.assertEqual(a["comando"], "")
+        self.assertIn("tu cuenta y tu suscripción", a["por_que_no_lo_hago_yo"])
+        self.assertIn("2026-10-28 10:00", a["por_que"])
+
+    def test_verificar_codex_cuenta_lee_cupo_si_no_le_cubro(self):
+        marca = {"hasta": self.cc.hasta_cuando(self.cc.time.time() + 100, horas=self.cc.HORAS_SIN_MODELO),
+                 "motivo": "cuenta de ChatGPT sin Codex: modelo no soportado",
+                 "desde": "2026-10-28 10:00"}
+        r = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=set(A.CLAVES_DEL_ENJAMBRE),
+                        entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"},
+                        cupo_codex_marca=marca)
+        self.assertFalse(r["hecha"])
+
+    def test_verificar_codex_cuenta_cuando_esta_hecho(self):
+        r = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=set(A.CLAVES_DEL_ENJAMBRE),
+                        entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"},
+                        cupo_codex_marca={})
+        self.assertTrue(r["hecha"])
