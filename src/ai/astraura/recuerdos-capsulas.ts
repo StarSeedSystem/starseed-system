@@ -97,7 +97,6 @@ export async function recordarDeCapsulas(opts: RecordarOpciones): Promise<string
     for (const capsula of capsulas) {
       if (todos.length >= MAX_FRAGMENTOS) break;
       if (caracteresTotales >= MAX_CARACTERES) break;
-      if (contexto.signal?.aborted) break;
 
       const aciertos = await buscar(capsula.sujeto, textoConsulta, K_POR_CAPSULA);
       if (!aciertos || aciertos.length === 0) continue;
