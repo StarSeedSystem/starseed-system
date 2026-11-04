@@ -26,6 +26,15 @@ import re
 import subprocess
 import sys
 
+# cupo_codex: para detectar si la cuenta de ChatGPT no admite Codex
+try:
+    _spec_cupo = importlib.util.spec_from_file_location(
+        "cupo_codex", os.path.join(os.path.dirname(os.path.abspath(__file__)), "cupo_codex.py"))
+    _cupo = importlib.util.module_from_spec(_spec_cupo)
+    _spec_cupo.loader.exec_module(_cupo)
+except Exception:
+    _cupo = None
+
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 INFORME = os.path.expanduser("~/.starseed/pasarelas-informe.json")
 SALIDA = os.path.join(RAIZ, "starseed_memory_root", "mando", "acciones-de-alex.json")
@@ -256,11 +265,59 @@ def accion_sin_canal(entorno):
     }
 
 
-def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_tiene_token=None):
+def accion_codex_cuenta(ahora=None):
+    """PURA: la acción que aparece cuando la cuenta de ChatGPT no admite Codex.
+
+    Se lee `cupo_codex.leer()` y si hay una marca vigente cuyo `motivo` empieza por
+    "cuenta de ChatGPT sin Codex", se devuelve la acción. Si no hay marca, o la marca
+    es por cuota agotada, o está vencida, se devuelve None.
+
+    `ahora` es opcional y solo se usa en pruebas para simular el tiempo actual.
+    """
+    if _cupo is None:
+        return None
+    marca = _cupo.leer()
+    if not marca:
+        return None
+    if ahora is None:
+        ahora = __import__("time").time()
+    if not _cupo.sigue_agotado(marca, ahora):
+        return None
+    motivo = str(marca.get("motivo") or "")
+    if not motivo.lower().startswith("cuenta de chatgpt sin codex"):
+        return None
+    desde = marca.get("desde", "")
+    return {
+        "id": "codex-cuenta",
+        "titulo": "Codex: tu cuenta de ChatGPT ya no deja usarlo",
+        "por_que": (
+            "desde %s cada intento devuelve \"model not supported when using Codex "
+            "with a ChatGPT account\"; el enjambre lo ha apartado y sigue con los demás"
+            % desde
+        ),
+        "urgencia": "media",
+        "comando": "",
+        "enlace": "https://chatgpt.com/#settings/Account",
+        "por_que_no_lo_hago_yo": "es tu cuenta y tu suscripción",
+        "detalle": (
+            "1) Abre https://chatgpt.com/#settings/Account y mira en Ajustes › Plan "
+            "si la suscripción sigue activa.\n"
+            "2) Si lo está, actualiza la CLI: `npm i -g @openai/codex` y vuelve a entrar "
+            "con `codex login`.\n"
+            "3) Si el problema persiste, la cuenta de ChatGPT no da acceso a Codex: "
+            "el enjambre seguirá sin él."
+        ),
+        "variable": None,
+    }
+
+
+def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_tiene_token=None, ahora=None):
     """Función PURA: la lista de acciones, ordenada por urgencia. Sin red, sin disco.
 
     `a1_tiene_token` llega ya medido (True/False/None): aquí no se sale a la red. Con None
     la acción del token no aparece, porque no hay prueba de que falte.
+
+    `ahora` es opcional y solo se usa en pruebas para simular el tiempo actual.
     """
     catalogo = catalogo if catalogo is not None else _pas.CATALOGO
     acciones = []
@@ -275,6 +332,11 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1
     sin_canal = accion_sin_canal(entorno) if entorno is not None else None
     if sin_canal:
         acciones.append(sin_canal)
+
+    # codex-cuenta: no depende del entorno, es un estado global de la máquina
+    codex_cuenta = accion_codex_cuenta(ahora)
+    if codex_cuenta:
+        acciones.append(codex_cuenta)
 
     faltan = sorted(CLAVES_DEL_ENJAMBRE - set(secretos_repo or []))
     # (2026-10-28, DEC1028A) Alex: «¿lo de github-secretos se debe hacer?». Si solo faltan claves de repuesto
@@ -467,7 +529,7 @@ def resondear(clave, segundos=20):
 
 
 def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, medir=None,
-              a1_tiene_token=None):
+              a1_tiene_token=None, ahora=None):
     """¿Sigue haciendo falta esa accion? Vuelve a MEDIR, no consulta un archivo viejo.
 
     (2026-09-21, pedido por Alex) «en Genesis en su ventana debe haber un boton
@@ -481,6 +543,8 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
 
     Devuelve {id, hecha, titulo, detalle, comprobado, quedan}. Sin `id_accion`, informa de
     todas.
+
+    `ahora` es opcional y solo se usa en pruebas para simular el tiempo actual.
     """
     # Solo en una comprobación de verdad (sin datos inyectados) se reescribe la lista que pinta
     # Genesis: si no, «Ya lo hice» decía «hecho» y la tarjeta seguía ahí hasta la siguiente
@@ -508,6 +572,7 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
         pasarelas, secretos_repo,
         entorno=entorno if entorno is not None else _entorno_con_env(),
         a1_tiene_token=a1_tiene_token,
+        ahora=ahora,
     )
     por_id = {a["id"]: a for a in vivas}
     momento = __import__("time").strftime("%Y-%m-%d %H:%M:%S")

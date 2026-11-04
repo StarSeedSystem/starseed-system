@@ -9,6 +9,12 @@ _spec = importlib.util.spec_from_file_location("acciones_de_alex", _ruta)
 A = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(A)
 
+# Import cupo_codex for testing
+_ruta_cupo = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cupo_codex.py")
+_spec_cupo = importlib.util.spec_from_file_location("cupo_codex", _ruta_cupo)
+cupo_codex = importlib.util.module_from_spec(_spec_cupo)
+_spec_cupo.loader.exec_module(cupo_codex)
+
 CATALOGO = {
     "apinex": {"nombre": "apinex", "enlace": "https://apinex.bond/airdrop?tab=quests",
                "nota": "Sus modelos gratis exigen un fichaje diario."},
@@ -410,3 +416,68 @@ def test_1103_el_token_se_busca_donde_lo_deja_oracle_claves():
         return 0, "SI\n"
     assert m.a1_tiene_clave(ssh=ssh) is True
     assert "/etc/starseed/direccion.env" in vistas[0] and "[ -e" not in vistas[0]
+
+
+class CodexCuenta(unittest.TestCase):
+    """La acción codex-cuenta aparece cuando la cuenta de ChatGPT no admite Codex."""
+
+    def setUp(self):
+        # Patch the _cupo module inside A (acciones_de_alex) which is what construir_acciones uses
+        self.antes_ruta = A._cupo.RUTA if A._cupo else None
+        import tempfile
+        self.dir = tempfile.mkdtemp()
+        if A._cupo:
+            A._cupo.RUTA = os.path.join(self.dir, "codex-cupo.json")
+
+    def tearDown(self):
+        if A._cupo and self.antes_ruta is not None:
+            A._cupo.RUTA = self.antes_ruta
+
+    def test_sin_marca_no_sale_accion(self):
+        # cupo_codex.leer() devuelve {} si no hay archivo
+        a = A.construir_acciones([], TODOS, CATALOGO)
+        self.assertNotIn("codex-cuenta", [x["id"] for x in a])
+
+    def test_marca_cuota_agotada_no_sale_accion(self):
+        # Motivo de cuota agotada NO dispara la acción codex-cuenta
+        A._cupo.anotar("cuota agotada: You've hit your usage limit", ahora=1000000000.0, horas=3)
+        a = A.construir_acciones([], TODOS, CATALOGO)
+        self.assertNotIn("codex-cuenta", [x["id"] for x in a])
+
+    def test_marca_cuenta_chatgpt_sin_codex_sale_accion(self):
+        # Motivo que empieza con "cuenta de ChatGPT sin Codex" SÍ dispara la acción
+        A._cupo.anotar("cuenta de ChatGPT sin Codex: The 'gpt-5.6-sol' model is not supported when using Codex with a ChatGPT account",
+                       ahora=1000000000.0, horas=24)
+        a = A.construir_acciones([], TODOS, CATALOGO, ahora=1000000000.0)
+        codex_acciones = [x for x in a if x["id"] == "codex-cuenta"]
+        self.assertEqual(1, len(codex_acciones))
+        accion = codex_acciones[0]
+        self.assertEqual("Codex: tu cuenta de ChatGPT ya no deja usarlo", accion["titulo"])
+        self.assertEqual("media", accion["urgencia"])
+        self.assertIn("desde 2001-09-08", accion["por_que"])  # 1000000000 = 2001-09-08/09 según zona horaria
+        self.assertIn("model not supported when using Codex with a ChatGPT account", accion["por_que"])
+        self.assertIn("el enjambre lo ha apartado y sigue con los demás", accion["por_que"])
+        self.assertEqual("https://chatgpt.com/#settings/Account", accion["enlace"])
+        self.assertEqual("", accion["comando"])  # comando vacío
+        self.assertIn("chatgpt.com", accion["detalle"])
+        self.assertIn("Ajustes › Plan", accion["detalle"])
+        self.assertIn("npm i -g @openai/codex", accion["detalle"])
+        self.assertIn("codex login", accion["detalle"])
+        self.assertEqual("es tu cuenta y tu suscripción", accion["por_que_no_lo_hago_yo"])
+
+    def test_marca_vencida_no_sale_accion(self):
+        # Marca antigua (ya vencida) no dispara la acción
+        A._cupo.anotar("cuenta de ChatGPT sin Codex: modelo no soportado",
+                       ahora=1000000000.0, horas=1)  # 1 hora, ya pasó
+        # Avanzar el tiempo simulado para que la marca esté vencida
+        import time
+        a = A.construir_acciones([], TODOS, CATALOGO, ahora=1000003600.0)  # 1 hora después
+        self.assertNotIn("codex-cuenta", [x["id"] for x in a])
+
+    def test_codex_cuenta_va_despues_de_lo_urgente(self):
+        A._cupo.anotar("cuenta de ChatGPT sin Codex: modelo no soportado",
+                       ahora=1000000000.0, horas=24)
+        acciones = A.construir_acciones([], [], CATALOGO, entorno={}, ahora=1000000000.0)
+        ids = [x["id"] for x in acciones]
+        # canal-de-avisos-sin-configurar es urgencia "alta", codex-cuenta es "media"
+        self.assertLess(ids.index("canal-de-avisos-sin-configurar"), ids.index("codex-cuenta"))
