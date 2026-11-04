@@ -16,7 +16,7 @@ VERIFICACION = {"verificado": 1.0, "ajustado": 0.8, "sin verificar": 0.4, "sin d
 VERBOS = ("anadir", "agregar", "crear", "implementar", "arreglar", "corregir", "migrar", "renombrar", "eliminar", "borrar", "quitar", "documentar", "actualizar", "cablear", "optimizar", "proteger", "validar", "sincronizar", "unificar", "ajustar", "mejorar", "integrar", "evitar", "exportar", "importar", "depurar", "medir", "cambiar", "aplicar", "normalizar", "programar", "revisar", "comprobar", "verificar", "probar",
           # (1103) Los verbos con que titulan los sueños profundos: sin ellos caían en «pregunta».
           "limitar", "acotar", "distinguir", "separar", "manejar", "tratar", "capturar", "sustituir", "reemplazar", "etiquetar", "reducir", "simplificar", "endurecer", "mover", "extraer", "dividir", "partir", "reutilizar", "centralizar", "parametrizar", "configurar", "consolidar", "deduplicar", "refactorizar", "registrar", "mostrar", "ensenar", "permitir", "impedir", "bloquear", "cachear", "reintentar", "asegurar", "garantizar", "detectar", "avisar", "cerrar", "abrir", "completar", "conectar", "desacoplar", "marcar", "ordenar", "filtrar")
-RESERVADOS = ("publicar", "publicacion", "desplegar", "deploy", "vercel", "contrasena", "clave", "credencial", "decision de alex", "decide alex", "que alex decida", "preguntar a alex", "avisar a alex", "eleccion de alex")
+RESERVADOS = ("publicar", "publicacion", "desplegar", "deploy", "vercel", "contrasena", "credencial", "decision de alex", "decide alex", "que alex decida", "preguntar a alex", "avisar a alex", "eleccion de alex")
 CUENTAS = re.compile(r"\b(crear|borrar|eliminar|gestionar|cerrar|abrir|cambiar)\s+(la\s+|las\s+)?cuentas?\b|\bcuentas?\s+(de\s+alex|de\s+usuario|bancarias?|de\s+pago)\b")
 #: Ola 1102 (IMG1102A): un GASTO de verdad: pagar, comprar, contratar o suscribirse; una compra, un pago, un importe, una
 #: tarjeta, una factura o algo «de pago» que se usa (créditos, plan, modelo, API…). «pago» suelto ya no basta: «acceso
@@ -35,6 +35,12 @@ _CANDIDATA = re.compile(r"^\s*candidata al catalogo de referencias\b")
 _DIRECCION_WEB = re.compile(r"(?:https?://)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:/[^\s,;)\]`'\"]*)?")
 #: Credenciales escritas de cualquier forma (también dentro de un nombre de archivo: «r2_credentials.json»).
 SECRETOS = re.compile(r"credencial|credential|password|passwd|contrasena|api[_-]?key|private[_-]?key"
+                      # «clave» como secreto: «clave de API», «clave secreta», «clave privada», «clave de acceso»,
+                      # «clave SSH», «clave token», «clave contraseña». Verbos de manejo de secretos: «guardar la clave»,
+                      # «rotar la clave», «cambiar la clave», «proteger la clave», «mover la clave», «actualizar la clave».
+                      # No «paso clave», «punto clave», «clave para», «es clave».
+                      r"|\bclave\s+(?:de\s+)?(?:api|secreta|privada|acceso|ssh|token|contraseña)\b"
+                      r"|\b(?:guardar|rotar|cambiar|proteger|mover|actualizar|renovar|generar|crear)\s+la?\s+clave\b"
                       # «token» solo como credencial (Ola 1025S): «quitar ese token del sandbox» o «tokens del modelo»
                       # no son de Alex; «token de acceso», «API token», «GITHUB_TOKEN» o «bearer» sí.
                       r"|\b(?:access|api|auth|bearer|refresh|personal|secret)[ _-]?tokens?\b|\b[a-z0-9]+_tokens?\b"
