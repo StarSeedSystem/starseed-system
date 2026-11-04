@@ -3,8 +3,9 @@
  * Editor de un bot personal (BOT1011I1 · contrato architecture/astraura-bots.md §13).
  * Nombre, cuerpo (FORMAS_CUERPO; las 3D como «próximamente»), rasgos con vista
  * previa de `instruccionesDeTono`, sentidos (los íntimos avisan del permiso
- * individual), el nivel de acción con su explicación y LA VOZ (VZR1011E:
- * <EditorVozBot />). Solo presenta; la persistencia la hace el panel con
+ * individual), el nivel de acción con su explicación, LA VOZ (VZR1011E:
+ * <EditorVozBot />) y la MEMORIA EN CÁPSULA (MVD1027H: <CapsulaAjustes />, una
+ * cápsula por bot). Solo presenta; la persistencia la hace el panel con
  * `guardarBots` — el perfil de voz se guarda CON el bot y viaja con su sincronía.
  */
 import { useState } from "react";
@@ -23,6 +24,7 @@ import { normalizarVozBot, vozBotDefecto, type VozBot } from "@/lib/astraura-bot
 import { EditorVozBot } from "./voz-bot-editor";
 import { esFormaAvatar3d, refAdnDeBot } from "@/lib/avatares/adaptadores/adn-de-bot";
 import SelectorAvatar3d from "@/components/avatares/selector-avatar-3d";
+import { CapsulaAjustes } from "@/components/memorias/capsula-ajustes";
 
 /** Formas que aún no tienen renderizador: se anuncian y no se ofrecen elegir. */
 const FORMAS_PROXIMAS: readonly FormaCuerpo[] = ["avatar-3d", "vrm"];
@@ -152,6 +154,7 @@ export function EditorBot({ bot, nivel: nivelInicial, onGuardar, onCerrar }: Edi
           {NIVELES.find((n) => n.id === nivel)?.ayuda}
         </span>
       </label>
+      <CapsulaAjustes sujeto={{ tipo: "bot", id: bot.id }} />
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onCerrar}
           className="cursor-pointer rounded-md border border-border px-3 py-1.5 transition-colors duration-200 hover:bg-muted">

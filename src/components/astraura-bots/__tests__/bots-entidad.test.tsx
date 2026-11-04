@@ -16,6 +16,10 @@ vi.mock("@/utils/supabase/client", () => ({
 vi.mock("@/components/avatares/cuerpo-3d-bot", () => ({
   Cuerpo3dBot: ({ bot }: { bot: { id: string } }) => <span data-testid="cuerpo-3d" data-bot={bot.id} />,
 }));
+/** Los ajustes de cápsula traen UI de shadcn que pide el AppearanceProvider que no hay en jsdom. */
+vi.mock("@/components/memorias/capsula-ajustes", () => ({
+  CapsulaAjustes: () => <div data-testid="capsula-ajustes" />,
+}));
 
 import { BotsEntidad, botDeFila, type ServiciosBots } from "../bots-entidad";
 const ENTIDAD = { tipo: "grupo" as const, id: "g-1", slug: "huerto", nombre: "Huerto" };

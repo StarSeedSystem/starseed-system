@@ -23,6 +23,10 @@ vi.mock("@/components/ui/card", () => ({
 vi.mock("@/components/ui/badge", () => ({
   Badge: (p: { children?: React.ReactNode }) => <span>{p.children}</span>,
 }));
+/** Los ajustes de cápsula traen UI de shadcn que pide el AppearanceProvider que no hay en jsdom. */
+vi.mock("@/components/memorias/capsula-ajustes", () => ({
+  CapsulaAjustes: () => <div data-testid="capsula-ajustes" />,
+}));
 import * as React from "react";
 
 const PROPS = { perfilId: "perfil-1", cuentaId: "cuenta-1" };
