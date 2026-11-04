@@ -4693,3 +4693,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTIMG1020Cb-d2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTIMG1020Cb-d2b conservada)
 - `VZF1015M-d1b` — no escribió nada
 - `SGO1031B-d2b` — no escribió nada
+
+## 2026-11-04 02:56 · mg-oracle-1103-1943
+
+**Lo que se pidió.** Filtradas de Astraura hoy: N (familia X · tipo Y · tope Z)
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — los tipos no compilan (IMG1102D, RTXR1010R-d3, MBT1027C2c-d2). Es 100 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `IMG1102D` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/IMG1102D conservada)
+- `RTXR1010R-d3` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTXR1010R-d3 conservada)
+- `MBT1027C2c-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/MBT1027C2c-d2 conservada)
