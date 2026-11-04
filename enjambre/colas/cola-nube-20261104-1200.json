@@ -1,0 +1,74 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "id": "CTR1104J",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Imaginación · el medidor enseña el filtro de Astraura de cada propuesta",
+   "archivos": [
+    "src/lib/mando/imaginacion-servidor.ts",
+    "src/lib/mando/__tests__/imaginacion-filtro-astraura.test.ts"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/imaginacion-calidad.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3: que el medidor de Imaginación de Genesis enseñe `filtro_astraura` de cada propuesta (ya se conserva al guardar). Añade el dato a lo que devuelve el servidor del medidor y su prueba con una propuesta de ejemplo."
+  },
+  {
+   "id": "CTR1104K",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Imaginación · «clave» de «un paso clave» ya no se confunde con una clave secreta",
+   "archivos": [
+    "scripts/puente/autodesarrollo_decidir.py",
+    "scripts/puente/test_autodesarrollo_reservados_1104.py"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/imaginacion-calidad.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3: «clave» en `RESERVADOS` también significa «importante» («un paso clave»), y «Arreglar el ciclo de vida del orquestador» sigue yendo a «pregunta». Haz que «clave» solo cuente cuando hable de un secreto (clave de API, secreta, privada, de acceso, SSH, token, contraseña) y no en «paso clave», «punto clave», «clave para», «es clave». Pruebas con ejemplos de los dos lados."
+  },
+  {
+   "id": "CTR1104L",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Archivos por la malla · el remitente reintenta solo tras un corte, con el mismo idTransferencia",
+   "archivos": [
+    "src/lib/network/archivos-malla.ts",
+    "src/lib/network/__tests__/archivos-malla-reintento.test.ts"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/archivos-malla-p2p.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§11: hoy el remitente marca `error` en cuanto un `enviar()` falla y el reintento depende del botón de la UI. Añade una política pura de reintento (espera creciente, tope de intentos, reanuda desde el último trozo confirmado con el mismo `idTransferencia`) y úsala en el envío. Prueba con el par en memoria (`crearParEnMemoria`): un corte a mitad termina entregado sin intervención."
+  },
+  {
+   "id": "CTR1104M",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Malla · estadísticas de la conexión por tipo de candidato ICE (host, srflx, relay)",
+   "archivos": [
+    "src/lib/network/estadisticas-ice.ts",
+    "src/lib/network/__tests__/estadisticas-ice.test.ts"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/malla-neuronas-autovinculo.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§8: «Estadísticas por tipo de candidato (host/srflx/relay): no implementado». Escribe `resumenIce(reporte)` puro que, de un reporte con la forma de `RTCStatsReport` (pares `candidate-pair` y `local-candidate`/`remote-candidate`), diga el par elegido, su tipo (directo en la red, por NAT o retransmitido), RTT y bytes. Sin cablear en esta tarea."
+  },
+  {
+   "id": "CTR1104N",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Llamadas · elegir los canales directos cuando no hay red hacia Supabase (puro)",
+   "archivos": [
+    "src/lib/llamadas/canales-directos.ts",
+    "src/lib/llamadas/__tests__/canales-directos.test.ts"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/transporte-universal-sin-internet.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§6: el motor de llamadas ya admite `canalesDirectos`. Escribe la decisión pura `canalesParaLlamada({ hayRedSupabase, enlaces, tema })`: sin red hacia Supabase devuelve los enlaces locales vivos (hasta `MAX_DIRECTOS`, marcados `directo`) y el texto «por enlace directo (misma red)»; con red, lo de siempre; sin nada, el motivo que dice el contrato."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-025236.json": [
+   "CTR1104N",
+   "CTR1104J",
+   "CTR1104L",
+   "CTR1104M",
+   "CTR1104K"
+  ]
+ }
+}
