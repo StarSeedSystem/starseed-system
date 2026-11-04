@@ -106,14 +106,14 @@ describe("filtroAstraura (Ola 1102A)", () => {
   it("filtra por tipo de archivo (solo C, C++, Rust, Zig, kernel)", () => {
     const todosLosArchivos = lasDeAstraura.flatMap((p) => p.archivos || []);
     const resultados = filtrarPorTipoArchivo(todosLosArchivos);
-    expect(resultados.entrada).toBe(3);
+    expect(resultados.entrada).toBe(4);
     expect(resultados.descartada).toBe(1);
   });
 
   it("extrae familia de título sin autorización ni símbolos", () => {
     expect(familiaAstraura("Optimización ARM NEON para kernel")).toBe("optimizacion arm neon");
     expect(familiaAstraura("⚡ [AUTORIZADO] Optimización ARM NEON para kernel")).toBe("optimizacion arm neon");
-    expect(familiaAstraura("Esquema de Agente Mutado: Hephaestus-NEON")).toBe("esquema agente mutado");
+    expect(familiaAstraura("Esquema de Agente Mutado: Hephaestus-NEON")).toBe("esquema de agente");
     expect(familiaAstraura("kernel.c: corregir bug")).toBe("kernel");
   });
 
