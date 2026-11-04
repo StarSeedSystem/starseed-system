@@ -58,6 +58,8 @@ describe("guardias del paquete XR", () => {
 
     it("(2) emulate solo vive en almacen-xr.ts y queda apagado fuera de desarrollo", () => {
         const src = sinComentarios(leer(path.join(SRC, "components/xr/shell/almacen-xr.ts")));
+        const conEmulate = archivos(SRC).filter((f) => !esPrueba(f) && /\bemulate\s*:/.test(sinComentarios(leer(f)))).map(rel);
+        expect(conEmulate).toEqual(["src/components/xr/shell/almacen-xr.ts"]);
         expect(src.match(/\bemulate\s*:/g)).toHaveLength(1);
         expect(src).toMatch(/emulate\s*:\s*emuladorPermitido\([^)]*\)\s*\?[\s\S]{0,90}?:\s*false/);
         expect(src).toMatch(/function emuladorPermitido[\s\S]{0,240}?!produccion[\s\S]{0,120}?=== "1"/);
