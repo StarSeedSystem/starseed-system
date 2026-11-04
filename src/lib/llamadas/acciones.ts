@@ -23,8 +23,11 @@ import { TEXTO_TIPO } from "@/lib/llamadas/formato";
 import { clasificarErrorSesion, MENSAJE_SESION } from "@/lib/llamadas/errores";
 import { registrarFinLlamada } from "@/lib/llamadas/registro";
 import { abrirCanalLlamada } from "@/lib/llamadas/senalizacion";
-import { obtenerIceServidores } from "@/lib/llamadas/ice";
+import { obtenerIceServidores, type FuenteIce } from "@/lib/llamadas/ice";
 import { temaLlamada } from "@/lib/llamadas/temas";
+import { enlacesLocalesVivos } from "@/lib/malla/registro-enlaces-locales";
+import { abrirCanalLlamadaPorEnlace } from "@/lib/llamadas/canal-enlace-local";
+import { canalesParaLlamada } from "@/lib/llamadas/canales-directos";
 import { olvidarTemaSesion, resolverTemaSesion } from "@/lib/llamadas/resolver-tema";
 import { sanearNombre, urlAvatarSegura } from "@/lib/llamadas/presencia";
 import {
@@ -123,6 +126,9 @@ export async function empezarLlamada(o: { hiloId: string; tipo: TipoLlamada; tit
         toast.error(mensajeCrear(error));
         return false;
     }
+    const hayRedSupabase = ice.fuente !== "stun";
+    const enlaces = enlacesLocalesVivos();
+    const decision = canalesParaLlamada({ hayRedSupabase, enlaces, tema: temaLlamada(sesion.id) });
     const adjunto = crearAdjuntoLlamada(o.tipo, sesion.id);
     const msg = await sendMessage(o.hiloId, { body: TEXTO_TIPO[o.tipo].nombre, attachments: [adjunto] });
     if (!msg) {
@@ -146,6 +152,9 @@ export async function empezarLlamada(o: { hiloId: string; tipo: TipoLlamada; tit
         // Recién creada en modo chat: el canal de miembros.
         tema: temaLlamada(sesionId),
         resolverTema: () => resolverTemaSesion("llamada", sesionId, { fresco: true }),
+        canalesDirectos: decision.enlaces.length > 0
+            ? () => decision.enlaces.map((e) => abrirCanalLlamadaPorEnlace(e, sesionId, clavePestana(yo.base)))
+            : undefined,
 
     });
     await motor.prepararMedios({ audio: true, video: conVideo, stream: medios.stream });
@@ -198,6 +207,9 @@ export async function unirseALlamada(o: {
     const conVideo = o.camara ?? o.tipo === "video";
     const [ice, tema] = await Promise.all([obtenerIceServidores(), resolverTemaSesion("llamada", o.sesionId, { token: o.token, fresco: true })]);
     if (!tema) return "Este enlace de llamada no es válido.";
+    const hayRedSupabase = ice.fuente !== "stun";
+    const enlaces = enlacesLocalesVivos();
+    const decision = canalesParaLlamada({ hayRedSupabase, enlaces, tema });
     const motor = new MotorLlamada({
         sesionId: o.sesionId,
         yo,
@@ -206,6 +218,9 @@ export async function unirseALlamada(o: {
         hayTurn: ice.turn,
         tema,
         resolverTema: () => resolverTemaSesion("llamada", o.sesionId, { token: o.token, fresco: true }),
+        canalesDirectos: decision.enlaces.length > 0
+            ? () => decision.enlaces.map((e) => abrirCanalLlamadaPorEnlace(e, o.sesionId, clavePestana(yo.base)))
+            : undefined,
 
     });
     if (o.stream) {
