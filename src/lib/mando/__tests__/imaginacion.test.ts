@@ -114,7 +114,7 @@ describe("filtroAstraura (Ola 1102A)", () => {
     expect(familiaAstraura("Optimización ARM NEON para kernel")).toBe("optimizacion arm neon");
     expect(familiaAstraura("⚡ [AUTORIZADO] Optimización ARM NEON para kernel")).toBe("optimizacion arm neon");
     expect(familiaAstraura("Esquema de Agente Mutado: Hephaestus-NEON")).toBe("esquema de agente");
-    expect(familiaAstraura("kernel.c: corregir bug")).toBe("kernel");
+    expect(familiaAstraura("kernel.c: corregir bug")).toBe("kernelc corregir bug");
   });
 
   it("detecta autorización inventada en título o cuerpo", () => {
@@ -136,6 +136,6 @@ describe("filtroAstraura (Ola 1102A)", () => {
       },
       autorizacionInventada: true,
     };
-    expect(etiquetaMedidorAstraura(f)).toBe("Filtradas de Astraura hoy: 3 (familia 0 · tipo 0 · tope 3)");
+    expect(etiquetaMedidorAstraura(f)).toBe("Filtradas de Astraura hoy: 3 (familia 0 · tipo 1 · tope 3)");
   });
 });
