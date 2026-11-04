@@ -68,6 +68,7 @@ import {
   Lock,
   Globe,
   Users,
+  Database,
   type LucideIcon,
 } from "lucide-react";
 // Adenda 149 · qué personalidades usan el cerebro activo: el dato ya viaja en
@@ -82,6 +83,8 @@ import { openAstrauraConfig } from "@/lib/astraura/config-ui";
 import { ShareAccessDialog } from "@/components/sharing/share-access-dialog";
 // Enviar a… (DESTINOS · Adenda 66 §5): distinto de permisos.
 import { ShareToDialog } from "@/components/sharing/share-to-dialog";
+// Cápsula Memvid (MVD1027H2): ajustes de la cápsula del cerebro.
+import { CapsulaAjustes } from "@/components/memorias/capsula-ajustes";
 
 export default function CerebroHub() {
   const { rows: brains, loading, reload } = useRealtimeRows<Brain>(
@@ -98,6 +101,7 @@ export default function CerebroHub() {
   const [fusionOpen, setFusionOpen] = useState(false);
   const [telepatiaOpen, setTelepatiaOpen] = useState(false);
   const [ajustesOpen, setAjustesOpen] = useState(false);
+  const [capsulaOpen, setCapsulaOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [compartidos, setCompartidos] = useState<(Brain & { compartido: true })[]>([]);
 
@@ -410,6 +414,16 @@ export default function CerebroHub() {
                     <Button
                       size="sm"
                       variant="outline"
+                      className="gap-1.5 border-fuchsia-500/30 text-fuchsia-100 cursor-pointer whitespace-normal h-auto"
+                      onClick={() => setCapsulaOpen(true)}
+                      title={`Cápsula Memvid de «${activeBrain.name}»: memoria persistente, línea del tiempo y cifrado`}
+                    >
+                      <Database className="w-4 h-4" />
+                      Cápsula
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
                       className="gap-1.5 border-cyan-500/30 text-cyan-100 cursor-pointer whitespace-normal h-auto"
                       onClick={() => setShareOpen(true)}
                       title={`Compartir «${activeBrain.name}» (total o por ramas)`}
@@ -534,6 +548,17 @@ export default function CerebroHub() {
           cerebros={brains}
           onHecho={() => void reload()}
         />
+      )}
+      {capsulaOpen && activeBrain && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-black/95 p-4 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-cyan-50">Cápsula Memvid · «{activeBrain.name}»</h3>
+              <button onClick={() => setCapsulaOpen(false)} className="text-white/50 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <CapsulaAjustes sujeto={{ tipo: "cerebro", id: activeBrain.id }} />
+          </div>
+        </div>
       )}
 
       {/* ── Compartir cerebro: modelo universal con acceso parcial por ramas ── */}
