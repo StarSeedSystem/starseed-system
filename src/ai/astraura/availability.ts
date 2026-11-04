@@ -386,9 +386,9 @@ export function astraura158LocalDisabled(): boolean {
  */
 export async function detectAvailability(fast = false): Promise<SourceAvailability[]> {
   const configs = typeof window === "undefined" ? [] : loadConfigs();
-  const out: SourceAvailability[] = [];
+  const catalog = getUnifiedCatalog();
 
-  for (const source of getUnifiedCatalog()) {
+  const promises = catalog.map(async (source) => {
     const userConfig = userConfigForSource(source, configs);
 
     // ── MODELOS DESCARGABLES (opt-in): NUNCA "ready" salvo que el usuario los
@@ -401,15 +401,14 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
         source.baseUrl === "builtin://chrome-ai"
           ? (typeof window !== "undefined" && !!(window as any).LanguageModel)
           : webgpuAvailable();
-      out.push({
+      return {
         source,
         ready: installed && hasEngine,
         userConfig,
         reason: !hasEngine
           ? (source.baseUrl === "builtin://chrome-ai" ? "Este navegador no trae la Prompt API (Chrome 148+)." : "Sin WebGPU en este navegador.")
           : installed ? undefined : "Modelo local disponible — instálalo (opcional) para usarlo.",
-      });
-      continue;
+      };
     }
     // ── OmniRoute (proxy local, jul-2026): opt-in explícito vía
     //    IntelligenceSettings.omniRoute — nunca se sondea solo, a diferencia
@@ -423,16 +422,14 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
         if (settings.omniRoute) cfg = settings.omniRoute;
       } catch { /* defensivo: sin ajuste guardado, se trata como deshabilitado */ }
       if (!cfg.enabled) {
-        out.push({ source, ready: false, userConfig, reason: "Desactivado (actívalo en Ajustes → Inteligencia si tienes OmniRoute corriendo)." });
-        continue;
+        return { source, ready: false, userConfig, reason: "Desactivado (actívalo en Ajustes → Inteligencia si tienes OmniRoute corriendo)." };
       }
       const endpoint = (cfg.endpoint || source.baseUrl.replace(/\/v1$/, "")).replace(/\/+$/, "");
       const ok = fast ? true : await probe(`${endpoint}/v1/models`);
-      out.push({
+      return {
         source, ready: ok, userConfig,
         reason: ok ? undefined : `OmniRoute no responde en ${endpoint} (¿está corriendo?).`,
-      });
-      continue;
+      };
     }
     // ── ASTRAURA 1.58-BIT (Adenda 153 · Ola 278 · G5 2026-09-26): sonda HONESTA
     //    y LIGERA. La LOCAL usa `/api/ping` (< 5 ms) con fallback a
@@ -447,8 +444,7 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
       const endpoint = astraura158EndpointFor(source, userConfig);
       const isLocal = source.id === "astraura-158-local";
       if (isLocal && astraura158LocalDisabled()) {
-        out.push({ source, ready: false, userConfig, reason: "Desactivada en esta neurona (Sistemas de Astraura → Astraura 1.58)." });
-        continue;
+        return { source, ready: false, userConfig, reason: "Desactivada en esta neurona (Sistemas de Astraura → Astraura 1.58)." };
       }
       let ready: boolean;
       let reason: string | undefined;
@@ -478,15 +474,14 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
         // sondeado nunca (G5).
         lastNubeAstrauraKnown = { at: Date.now(), ready, reason };
       }
-      out.push({
+      return {
         source, ready, userConfig,
         reason: ready
           ? reason
           : isLocal
             ? `El backend Astraura 1.58 no responde en ${endpoint} (¿está arrancado? ./install_and_run.sh).`
             : "La nube de Astraura 1.58 no responde ahora (¿arrancando en frío?); se usan los sistemas secundarios.",
-      });
-      continue;
+      };
     }
     // ── ASTRAURA 1.58 POR LA MALLA P2P (Ola 367): lista solo si algún peer de
     //    la MISMA cuenta, conectado ahora mismo, anuncia `sirveAstraura` en su
@@ -495,13 +490,12 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
     //    degrada honestamente a "sin servidor".
     if (source.providerId === "astraura-158-malla") {
       const servidores = servidoresAstrauraMalla();
-      out.push({
+      return {
         source,
         ready: servidores.length > 0,
         userConfig,
         reason: servidores.length > 0 ? undefined : "Ninguna neurona de tu malla ofrece Astraura ahora.",
-      });
-      continue;
+      };
     }
     // ── IA POR LA MALLA P2P, GENÉRICA (Ola 368): nunca entra en el ranking
     //    automático de `rankCandidates` — se marca `ready:false` a propósito.
@@ -510,24 +504,22 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
     //    construidos a mano con `findSource(IA_MALLA_SOURCE_ID)`. Sigue en el
     //    catálogo (y en este listado) para que la UI y `findSource` la vean.
     if (source.providerId === "ia-malla") {
-      out.push({
+      return {
         source,
         ready: false,
         userConfig,
         reason: "Solo se usa como pin de la malla o último recurso (ver capas → mesh).",
-      });
-      continue;
+      };
     }
     if (source.tier === "local") {
       const probeUrl = source.id === "ollama-local"
         ? "http://localhost:11434/api/tags"
         : `${source.baseUrl}/models`;
       const ok = fast ? !!userConfig : await probe(probeUrl);
-      out.push({
+      return {
         source, ready: ok, userConfig,
         reason: ok ? undefined : `${source.label} no responde en este dispositivo.`,
-      });
-      continue;
+      };
     }
     if (!source.requiresKey) {
       // Instant cloud SIN CLAVE (Pollinations, OVHcloud anónimo, LLM7): la red
@@ -535,16 +527,17 @@ export async function detectAvailability(fast = false): Promise<SourceAvailabili
       // `keyOptional` = si el usuario añadió una clave, se usa para subir
       // límites, pero JAMÁS es requisito para que la fuente esté disponible.
       const online = typeof navigator === "undefined" ? false : navigator.onLine !== false;
-      out.push({ source, ready: online, userConfig, reason: online ? undefined : "Sin conexión." });
-      continue;
+      return { source, ready: online, userConfig, reason: online ? undefined : "Sin conexión." };
     }
     // free-key / paid: listo si el usuario tiene una config habilitada con clave.
     const ok = !!userConfig && (!!userConfig.encryptedKey || !source.requiresKey);
-    out.push({
+    return {
       source, ready: ok, userConfig,
       reason: ok ? undefined : `Necesita clave gratuita (${source.getKeyUrl ?? "ver ajustes"}).`,
-    });
-  }
+    };
+  });
+
+  const out = await Promise.all(promises);
   // (Ola 368) Efecto secundario BARATO: publica los ids `ready` de ESTA pasada
   // para que la ficha de la malla de neuronas (`fuentesServibles`) los lea
   // síncronamente sin sondear de nuevo — ver `ready-sources-snapshot.ts`.
