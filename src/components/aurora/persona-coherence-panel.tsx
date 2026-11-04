@@ -20,7 +20,8 @@ import {
 } from "@/lib/aurora/persona-coherence";
 import { LANG_OPTIONS } from "@/lib/aurora/lang-detect";
 import { getVoiceEngine, type AuroraVoiceEngine } from "@/lib/aurora/tts-oss/voice-config";
-import { getActivePersonality, patchPersonalityVoice } from "@/lib/aurora/personalities";
+import { getActivePersonality, savePersonalityProfile } from "@/lib/aurora/personalities";
+import { aplicarPersonaAlPerfil } from "@/lib/aurora/aplicar-persona-perfil";
 import { UserCheck } from "lucide-react";
 
 const ENGINE_LABELS: Partial<Record<AuroraVoiceEngine, string>> = {
@@ -59,14 +60,7 @@ export function PersonaCoherencePanel({ embedded = false }: { embedded?: boolean
   const applyToActive = useCallback(() => {
     const active = getActivePersonality();
     if (!active) { setSavedTo("__none__"); return; }
-    patchPersonalityVoice(active.id, {
-      tone: persona.tone,
-      emotion: persona.emotion,
-      rate: persona.rate,
-      pitch: persona.pitch,
-      energy: persona.energy,
-      audioRef: persona.audioRefId ? { kind: "builtin", voiceId: persona.audioRefId, label: persona.name } : undefined,
-    });
+    try { savePersonalityProfile(aplicarPersonaAlPerfil(active, persona)); } catch { /* */ }
     setSavedTo(active.name || "personalidad activa");
   }, [persona]);
 
