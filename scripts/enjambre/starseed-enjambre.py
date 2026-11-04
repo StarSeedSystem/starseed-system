@@ -4248,6 +4248,41 @@ def _sin_foto(tid, paso, rc):
     return None
 
 
+#: (SUP0411C) {worktree: (árbol, detalle)} del último verde de GitHub en la puerta tsc. GitHub pasa tsc Y
+#: `vitest related` de los .ts/.tsx cambiados sobre ESE árbol (comprobar-nube.yml): si después vitest no
+#: termina en la Mac, ese verde vale para el mismo árbol (`_vitest_con_github`). Cualquier puerta tsc nueva
+#: del worktree lo borra antes de empezar.
+_VERDE_GITHUB = {}
+
+
+def _foto_del_arbol(cwd, tid):
+    """(SUP0411A, SUP0411C) El árbol del worktree TAL COMO ESTÁ, con lo sin commitear, hecho con un índice aparte
+    (no toca el del agente) que nace copiado del suyo. (árbol, None), o (None, (paso, rc)) si un paso falla."""
+    indice = os.path.join(tempfile.gettempdir(), "enj-a1-idx-%s-%d" % (tid, os.getpid()))
+    env = dict(os.environ, GIT_INDEX_FILE=indice)
+    try:
+        # (SUP0411A) El índice de la foto nace copiado del del agente, con sus datos de stat: `git add -A`
+        # solo vuelve a leer lo que cambió. Con `read-tree HEAD` nacía sin ellos y git rehasheaba los
+        # ~8 300 archivos del worktree (104 MB); con la Mac a carga 50 eso no cabía en 120 s.
+        if not _copiar_indice(cwd, indice):
+            rc, _ = sh(["git", "read-tree", "HEAD"], cwd=cwd, timeout=120, env=env)
+            if rc != 0:
+                return None, ("git read-tree", rc)
+        # (SUP0411A) Antes no se miraba su código: cortado por el plazo, la foto salía a medias (HEAD
+        # y parte de los cambios) y GitHub o el A1 daban su veredicto sobre otro árbol.
+        rc, _ = sh(["git", "add", "-A"], cwd=cwd, timeout=300, env=env)
+        if rc != 0:
+            return None, ("git add -A", rc)
+        rc, arbol = sh(["git", "write-tree"], cwd=cwd, timeout=60, env=env)
+        arbol = (arbol or "").strip()
+        if rc != 0 or not arbol:
+            return None, ("git write-tree", rc)
+        return arbol, None
+    finally:
+        with contextlib.suppress(OSError):
+            os.remove(indice)
+
+
 def tsc_en_a1(cwd, log=None, comprobar=None, en_github=None):
     """Puerta tsc fuera de la Mac: primero GitHub Actions (CAP1026P), luego el A1. Devuelve (rc, errores) si
     uno de los dos dio verde o rojo y None si hay que compilar aquí (no es la Mac, ninguno responde o están
@@ -4263,6 +4298,8 @@ def tsc_en_a1(cwd, log=None, comprobar=None, en_github=None):
     if comprobar is None and en_github is None:
         return None
     tid = os.path.basename(cwd.rstrip("/"))
+    # (SUP0411C) Un verde de GitHub de una puerta anterior ya no dice nada del árbol de ahora.
+    _VERDE_GITHUB.pop(os.path.realpath(cwd), None)
     inicio = time.time()
     snap = None
     try:
@@ -4273,32 +4310,13 @@ def tsc_en_a1(cwd, log=None, comprobar=None, en_github=None):
         # El worktree llega a esta puerta SIN commitear (el commit va después de tsc): el A1 solo ve
         # commits, así que se hace una foto del árbol (índice aparte: no toca el del agente) en un
         # worktree desacoplado y temporal.
-        indice = os.path.join(tempfile.gettempdir(), "enj-a1-idx-%s-%d" % (tid, os.getpid()))
-        env = dict(os.environ, GIT_INDEX_FILE=indice)
-        try:
-            # (SUP0411A) El índice de la foto nace copiado del del agente, con sus datos de stat: `git add -A`
-            # solo vuelve a leer lo que cambió. Con `read-tree HEAD` nacía sin ellos y git rehasheaba los
-            # ~8 300 archivos del worktree (104 MB); con la Mac a carga 50 eso no cabía en 120 s.
-            if not _copiar_indice(cwd, indice):
-                rc, _ = sh(["git", "read-tree", "HEAD"], cwd=cwd, timeout=120, env=env)
-                if rc != 0:
-                    return _sin_foto(tid, "git read-tree", rc)
-            # (SUP0411A) Antes no se miraba su código: cortado por el plazo, la foto salía a medias (HEAD
-            # y parte de los cambios) y GitHub o el A1 daban su veredicto sobre otro árbol.
-            rc, _ = sh(["git", "add", "-A"], cwd=cwd, timeout=300, env=env)
-            if rc != 0:
-                return _sin_foto(tid, "git add -A", rc)
-            rc, arbol = sh(["git", "write-tree"], cwd=cwd, timeout=60, env=env)
-            arbol = arbol.strip()
-            if rc != 0 or not arbol:
-                return _sin_foto(tid, "git write-tree", rc)
-            rc, snap = sh(["git", "commit-tree", arbol, "-p", "HEAD", "-m", "snapshot tsc A1"], cwd=cwd, timeout=60)
-            snap = snap.strip()
-            if rc != 0 or not snap:
-                return _sin_foto(tid, "git commit-tree", rc)
-        finally:
-            with contextlib.suppress(OSError):
-                os.remove(indice)
+        arbol, fallo = _foto_del_arbol(cwd, tid)
+        if fallo:
+            return _sin_foto(tid, *fallo)
+        rc, snap = sh(["git", "commit-tree", arbol, "-p", "HEAD", "-m", "snapshot tsc A1"], cwd=cwd, timeout=60)
+        snap = snap.strip()
+        if rc != 0 or not snap:
+            return _sin_foto(tid, "git commit-tree", rc)
         _, nombres = sh(["git", "diff", "--name-only", base, snap], cwd=cwd, timeout=60)
         cambiados = [l.strip() for l in nombres.splitlines() if l.strip()]
         tmp = tempfile.mkdtemp(prefix="enj-a1-")
@@ -4327,6 +4345,8 @@ def tsc_en_a1(cwd, log=None, comprobar=None, en_github=None):
                     ok_gh, detalle_gh = gh
                     evento("aviso", tid, "puerta tsc: GitHub (%.0f s) %s · %s" % (
                         time.time() - inicio_gh, "en verde" if ok_gh else "en rojo", str(detalle_gh)[:160]))
+                    if ok_gh:
+                        _VERDE_GITHUB[os.path.realpath(cwd)] = (arbol, str(detalle_gh)[:160])
                     return (0, []) if ok_gh else (1, errores_de_a1(detalle_gh))
                 evento("aviso", tid, "puerta tsc: GitHub sin veredicto en %.0f s → A1 o Mac" % (time.time() - inicio_gh))
             if comprobar is None:
@@ -4645,6 +4665,84 @@ def _orden_de_vitest(cwd, tocados):
         return "npx vitest run src/lib/__tests__"
 
 
+#: (SUP0411C) Un vitest que se pasa de su plazo no es un vitest en rojo: es la Mac sin aire. La nota lleva
+#: «no terminó» y `revisor_bloqueadas_logica.clase_de_fallo` la lee como «medio:tiempo» (no gasta intento).
+VITEST_SIN_TERMINAR = "vitest no terminó"
+
+
+def vitest_sin_terminar(rc, salida):
+    """PURA (SUP0411C): ¿la puerta de vitest acabó por el plazo (`sh` → 124 y «TIMEOUT …») sin veredicto?
+
+    (04-11, medido) Con la Mac a carga 50–60 `npx vitest run src/lib/__tests__ …` (123 archivos) daba
+    «TIMEOUT 600s» en CADA tarea. La puerta lo tomaba por pruebas en rojo: pedía al modelo «corregir» unas
+    pruebas que no fallaban (900 s más), repetía los 600 s y cerraba «vitest sigue fallando». En 9 h el
+    orquestador no integró nada (MTN1027L2d, RTVZF1015Tc, MVD1027Fb, MTN1027Cb-d3…)."""
+    return rc != 0 and str(salida or "").startswith("TIMEOUT")
+
+
+def _parar_si_vitest_sin_terminar(tid, rc, salida, modelo, t0, tras_reparacion=False):
+    """(SUP0411C) Como con tsc: un vitest que no terminó no se «repara» escribiendo código. Si es el caso, deja
+    la tarea en «fallo_tests» con su motivo («no terminó»: medio:tiempo para el revisor, que la devuelve sin
+    gastar intento), conserva rama y worktree y devuelve True. Si no, no toca nada y devuelve False."""
+    if not vitest_sin_terminar(rc, salida):
+        return False
+    nota = "%s (%s%s): la Mac no da abasto, no es un fallo de la tarea" % (
+        VITEST_SIN_TERMINAR, str(salida or "").splitlines()[0][:40], ", tras la reparación" if tras_reparacion else "")
+    paso(tid, "tests", resultado="sin_terminar", reparacion=bool(tras_reparacion))
+    set_estado(tid, estado="fallo_tests", modelo=modelo, segundos=int(time.time() - t0),
+               nota=nota + " (rama conservada)")
+    evento("fallo", tid, nota + "; rama ola/%s conservada" % tid)
+    limpiar_worktree(tid, borrar_rama=False)
+    return True
+
+
+#: (SUP0411C) Lo que `vitest related` de GitHub (comprobar-nube.yml, paso «pruebas TS») cubre: los .ts/.tsx de
+#: src/. Lo de scripts/ (.py) lo cubren aquí las puertas de Python, que siguen corriendo después.
+def cubre_github(tocados):
+    """PURA (SUP0411C): ¿todo lo que tocó la tarea lo cubre el verde de GitHub (tsc + vitest related de los
+    .ts/.tsx de src/)? Un JSON, un .md, una hoja de estilos o package.json pueden romper pruebas que los leen
+    sin importarlos (colas-1025.test.ts leía las colas): con ellos, no."""
+    tocados = [str(t or "").strip() for t in (tocados or []) if str(t or "").strip()]
+    if not tocados:
+        return False
+    return all((t.startswith("src/") and t.endswith((".ts", ".tsx"))) or (t.startswith("scripts/") and t.endswith(".py"))
+               for t in tocados)
+
+
+def _vitest_con_github(cwd, tocados, log):
+    """(SUP0411C) Tras un vitest que no terminó: si GitHub dio verde (tsc + vitest related) a ESTE mismo árbol en
+    la puerta tsc y todo lo tocado lo cubre (`cubre_github`), aquí solo corren las pruebas que GitHub no ve: las
+    guardas del paquete del navegador y las que la tarea toca fuera de src/lib/__tests__ (`alcance_pruebas`).
+    (rc, salida), o None si el verde de GitHub no vale para este árbol."""
+    tid = os.path.basename(cwd.rstrip("/"))
+    verde = _VERDE_GITHUB.get(os.path.realpath(cwd))
+    if not verde or not cubre_github([t for t in (tocados or []) if not es_archivo_basura(t)]):
+        return None
+    arbol_gh, detalle = verde
+    arbol, fallo = _foto_del_arbol(cwd, tid)
+    if fallo or arbol != arbol_gh:
+        return None
+    extras = []
+    try:
+        ruta_puente = os.path.join(ROOT, "scripts", "puente")
+        if ruta_puente not in sys.path:
+            sys.path.insert(0, ruta_puente)
+        import alcance_pruebas
+
+        extras = alcance_pruebas.pruebas_a_sumar(tocados, lambda r: os.path.isfile(os.path.join(cwd, r)))
+    except Exception:  # noqa: BLE001 — sin el módulo, las guardas de siempre
+        extras = [g for g in ("src/lib/genesis/__tests__/sin-node-en-cliente.test.ts",
+                              "src/lib/mando/__tests__/sin-node-en-cliente.test.ts")
+                  if os.path.isfile(os.path.join(cwd, g))]
+    if extras:
+        rc, out = sh(["npx", "vitest", "run"] + list(extras), cwd=cwd, timeout=600, env=ENV_TSC, log=log)
+        if rc != 0:
+            return rc, out
+    evento("aviso", tid, "puerta vitest: la Mac no terminó src/lib/__tests__ en 600 s; GitHub pasó tsc y vitest "
+           "related de este mismo árbol (%s) y aquí pasan %d más → vale" % (detalle[:100], len(extras)))
+    return 0, "vitest: GitHub en verde para este árbol (%s); aquí %d en verde" % (detalle[:100], len(extras))
+
+
 def vitest(cwd, log):
     if repo_es_python(cwd):
         # pytest solo si el repo trae carpeta de tests propia (no las de terceros en BitNet/).
@@ -4677,6 +4775,13 @@ def vitest(cwd, log):
             env=ENV_TSC,
             log=log,
         )
+        # (SUP0411C) Sin terminar no es rojo: el verde de GitHub de este mismo árbol, si lo hay; si no, se
+        # devuelve tal cual («TIMEOUT …») y quien llama no lo «repara» (`vitest_sin_terminar`).
+        if vitest_sin_terminar(rc, out):
+            con_github = _vitest_con_github(cwd, tocados, log)
+            if con_github is None or vitest_sin_terminar(*con_github):
+                return rc, out
+            rc, out = con_github
         # (2026-09-07, Ola 271, P9C) Si la ola tocó scripts del enjambre, sus tests de
         # pytest también son puerta: P9B se integró (77f7bca) con dos fallos vivos en
         # scripts/enjambre porque aquí solo corría vitest. Se suma el rc: cualquier fallo
@@ -8401,6 +8506,8 @@ def ejecutar(t, intento=1):
     rc, vout = vitest(wt, log)
     if rc == 0:
         paso(tid, "tests", resultado="ok", reparacion=False)
+    if _parar_si_vitest_sin_terminar(tid, rc, vout, modelo_ok, t0):
+        return
     if rc != 0:
         evento("aviso", tid, "vitest falló → reparación")
         latir(tid, "escribiendo", modelo=modelo_ok)
@@ -8414,6 +8521,9 @@ def ejecutar(t, intento=1):
             tid=tid,
         )
         rc, vout = vitest(wt, log)
+        # (SUP0411C) Si la vuelta tras la reparación no terminó, no hay veredicto: «no terminó» (medio:tiempo).
+        if _parar_si_vitest_sin_terminar(tid, rc, vout, modelo_ok, t0, tras_reparacion=True):
+            return
         paso(tid, "tests", resultado="ok" if rc == 0 else "falla", reparacion=True)
         if rc != 0:
             set_estado(
