@@ -140,6 +140,15 @@ class Sucesor(unittest.TestCase):
         # Sin id no hay cadena que cortar.
         self.assertEqual(T.base_de(""), "")
         self.assertEqual(T.base_de(None), "")
+        # Casos adicionales de la rama nube/41579697472 (RESC1031D)
+        self.assertEqual(T.base_de("MC1013TCc"), "MC1013TC")
+        self.assertEqual(T.base_de("X-d1"), "X")
+        self.assertEqual(T.base_de("Xb-d2b"), "X")
+        self.assertEqual(T.base_de("RTGN1010A-d3d-d3b"), "RTGN1010A-d3")
+        self.assertEqual(T.base_de("RTESP1011Bd"), "RTESP1011B")
+        self.assertEqual(T.base_de("RTESP1011Bd-d2c"), "RTESP1011B")
+        self.assertEqual(T.base_de("MC1013TC"), "MC1013TC")
+        self.assertEqual(T.base_de("OPT1004C"), "OPT1004C")
 
     @unittest.expectedFailure
     def test_un_id_que_ya_acababa_en_minuscula_pierde_solo_la_letra_nueva(self):
