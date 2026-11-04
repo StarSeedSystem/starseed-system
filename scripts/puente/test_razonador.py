@@ -16,7 +16,10 @@ class Base(unittest.TestCase):
         experiencias.RUTA = os.path.join(self._dir, "exp.jsonl")
         experiencias.COPIA_DIR = os.path.join(self._dir, "copia")
         jev.CACHE = os.path.join(self._dir, "cache.json"); jev.USO = os.path.join(self._dir, "uso.json")
-        jev.TRANSPORTE = None; jev.TRANSPORTE_LOCALES = None
+        # (2026-11-04) None = el urllib real: con un Colibri vivo en 4480 interceptaba la
+        # decisión antes del transporte maquetado. Bloquear la capa local SIEMPRE.
+        jev.TRANSPORTE_LOCALES = lambda e, c, t: None
+        jev.TRANSPORTE = None
         os.environ["STARSEED_JEV"] = "0"
         os.environ["STARSEED_LAYA_URL"] = "http://127.0.0.1:1"
         jev.TRANSPORTE_NEEDLE = None; jev.TRANSPORTE_BITNET = None

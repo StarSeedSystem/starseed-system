@@ -266,6 +266,10 @@ class Flujo(unittest.TestCase):
         self.listo = mock.patch.object(C.RM, "marcar_listo").start()
         self.reiniciar = mock.patch.object(C.RM, "reiniciar_mando").start()
         self.huerfano = mock.patch.object(C.RM, "_leer_estado", return_value={}).start()
+        # (2026-11-04) La invariante «el árbol de build no es el repo del A1» depende de que
+        # STARSEED_ROOT apunte a otro sitio que REPO_A1; en el A1 coinciden. Lo maquetamos
+        # para que la prueba diga lo mismo en cualquier máquina que la lance.
+        mock.patch.object(C.oracle_nodo, "REPO_A1", "/srv/starseed-system-repo").start()
         mock.patch.object(C, "SONDEO_S", 0).start()  # SUP0111E: el sondeo del guion no duerme
 
     def tearDown(self):
