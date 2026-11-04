@@ -109,7 +109,14 @@ export async function cargarSplat(url: string, opciones: OpcionesCargaSplat = {}
     if (bytes.byteLength > maxBytes) return { ok: false, motivo: MOTIVO_SPLAT_GRANDE };
     try {
         const Constructor = opciones.SplatMesh ?? (await importarSpark());
-        const malla = new Constructor({ url, fileBytes: bytes, maxSplats });
+        const malla = new Constructor({ url, fileBytes: bytes, maxSplats }) as MallaSplat & { initialized?: Promise<unknown> };
+        if (malla.initialized) {
+            try {
+                await malla.initialized;
+            } catch (error) {
+                return { ok: false, motivo: `No se pudo inicializar el splat: ${motivoDeError(error)}` };
+            }
+        }
         return { ok: true, malla, bytes: bytes.byteLength };
     } catch (error) {
         return { ok: false, motivo: `No se pudo preparar el splat: ${motivoDeError(error)}` };
