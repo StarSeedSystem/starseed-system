@@ -216,5 +216,64 @@ class EnLaMacTest(unittest.TestCase):
                     else:
                         self.assertEqual((a1, gh), (None, None))
 
+class RecargaDePuertasTest(unittest.TestCase):
+    """(SUP0211V) Las puertas de fuera recargan su módulo si el .py cambió en disco.
+
+    `orquestador_al_dia.py` solo reinicia el orquestador cuando cambian los .py de
+    scripts/enjambre, así que un arreglo de comprobar_en_github/a1 (como SUP0211U) no
+    llegaba hasta el próximo reinicio. Un módulo falso en un directorio temporal prueba
+    que un mtime nuevo da la versión nueva y que un archivo roto conserva la vieja."""
+
+    def test_decision_pura(self):
+        casos = [
+            (None, 10.0, False),
+            (10.0, None, False),
+            (None, None, False),
+            (10.0, 10.0, False),
+            (10.0, 11.0, True),
+        ]
+        for visto, ahora, esperado in casos:
+            with self.subTest(visto=visto, ahora=ahora):
+                self.assertIs(enjambre.hay_que_recargar(visto, ahora), esperado)
+
+    def _escribir(self, ruta, cuerpo, cuando):
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        with open(ruta, "w", encoding="utf-8") as f:
+            f.write(cuerpo)
+        os.utime(ruta, (cuando, cuando))
+
+    def _cuerpo(self, nombre, version):
+        if nombre == "comprobar_en_a1":
+            return "def comprobar():\n    return %r\n" % version
+        return "def esperar_tsc(base, cambiados, cwd, espera):\n    return %r\n" % version
+
+    def _llamar(self, nombre):
+        if nombre == "comprobar_en_a1":
+            return enjambre._comprobar_en_a1()()
+        return enjambre._comprobar_en_github()("main", [], os.getcwd())
+
+    def test_un_cambio_de_mtime_da_la_nueva_y_un_archivo_roto_conserva_la_vieja(self):
+        for nombre in ("comprobar_en_a1", "comprobar_en_github"):
+            with self.subTest(puerta=nombre):
+                tmp = tempfile.mkdtemp(prefix="enj-recarga-")
+                self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+                ruta = os.path.join(tmp, "scripts", "puente", nombre + ".py")
+                with contextlib.ExitStack() as pila:
+                    pila.enter_context(mock.patch.object(enjambre, "ROOT", tmp))
+                    pila.enter_context(mock.patch.object(enjambre, "_en_la_mac", return_value=True))
+                    pila.enter_context(mock.patch.dict(sys.modules))
+                    pila.enter_context(mock.patch.object(sys, "path", list(sys.path)))
+                    pila.enter_context(mock.patch.dict(enjambre._VISTOS_MTIME, {}, clear=True))
+                    pila.enter_context(mock.patch.object(enjambre, "evento"))
+                    sys.modules.pop(nombre, None)
+                    self._escribir(ruta, self._cuerpo(nombre, "v1"), 1000)
+                    self.assertEqual(self._llamar(nombre), "v1")
+                    self._escribir(ruta, self._cuerpo(nombre, "v2"), 2000)
+                    self.assertEqual(self._llamar(nombre), "v2")
+                    # Commit a medias: SyntaxError. Se sigue con la versión que ya estaba.
+                    self._escribir(ruta, "def roto(:\n", 3000)
+                    self.assertEqual(self._llamar(nombre), "v2")
+
+
 if __name__ == "__main__":
     unittest.main()

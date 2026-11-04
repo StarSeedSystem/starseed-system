@@ -24,7 +24,7 @@ Tiempos configurables:
   · STARSEED_COLGADO_S — sin crecer en bytes reales del worktree se considera colgado (300 s).
 """
 
-import datetime, hashlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
+import datetime, hashlib, importlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
 import signal
 import tempfile
 import contextlib, fcntl
@@ -4181,6 +4181,53 @@ def _en_la_mac():
     return os.environ.get("STARSEED_DONDE") == "mac" and sys.platform == "darwin"
 
 
+#: (SUP0211V) Módulo -> mtime de la última carga (o intento), para recargarlo si cambia.
+_VISTOS_MTIME = {}
+
+
+def hay_que_recargar(mtime_visto, mtime_ahora):
+    """PURA. ¿Cambió el .py desde la última carga? Sin mtime de antes o de ahora, no se toca."""
+    if mtime_visto is None or mtime_ahora is None:
+        return False
+    return mtime_visto != mtime_ahora
+
+
+def _modulo_del_puente(nombre, ruta):
+    """Importa o RECARGA un módulo de scripts/puente cuando su .py cambió en disco.
+
+    (SUP0211V) El orquestador vive horas y `orquestador_al_dia.py` solo lo reinicia cuando
+    cambian los .py de scripts/enjambre: sin esto, un arreglo de comprobar_en_github/a1
+    (como SUP0211U) no le llegaba hasta el próximo reinicio. La primera carga solo apunta
+    el mtime. Si la recarga falla (un commit a medias, el archivo desaparece), se sigue con
+    el módulo que ya estaba y se avisa."""
+    try:
+        ahora = os.path.getmtime(ruta)
+    except OSError:
+        ahora = None
+    visto = _VISTOS_MTIME.get(nombre)
+    modulo = sys.modules.get(nombre)
+    if modulo is None:
+        modulo = importlib.import_module(nombre)
+        _VISTOS_MTIME[nombre] = ahora
+        return modulo
+    if visto is None:  # venía importado de antes: la primera vez solo se apunta
+        _VISTOS_MTIME[nombre] = ahora
+        return modulo
+    if not hay_que_recargar(visto, ahora):
+        return modulo
+    try:
+        modulo = importlib.reload(modulo)
+    except Exception as e:  # noqa: BLE001 — se sigue con la versión ya cargada
+        evento(
+            "aviso",
+            "-",
+            "no pude recargar %s.py (%s): sigo con la versión cargada"
+            % (nombre, str(e)[:120]),
+        )
+    _VISTOS_MTIME[nombre] = ahora
+    return modulo
+
+
 def _comprobar_en_a1():
     """La función `comprobar` de comprobar_en_a1.py, o None si no se puede usar (TRA1012A).
     Solo en la Mac (`_en_la_mac`): la nube y el A1 mismo ya compilan donde tienen memoria."""
@@ -4191,9 +4238,9 @@ def _comprobar_en_a1():
         return None
     if ruta not in sys.path:
         sys.path.insert(0, ruta)
-    from comprobar_en_a1 import comprobar
+    modulo = _modulo_del_puente("comprobar_en_a1", os.path.join(ruta, "comprobar_en_a1.py"))
 
-    return comprobar
+    return modulo.comprobar
 
 
 #: (2026-10-27, CAP1026P) Lo que la puerta tsc de la Mac espera el veredicto de GitHub antes de caer al A1 o a la
@@ -4212,9 +4259,13 @@ def _comprobar_en_github():
         return None
     if ruta not in sys.path:
         sys.path.insert(0, ruta)
-    import comprobar_en_github as G
+    modulo = _modulo_del_puente(
+        "comprobar_en_github", os.path.join(ruta, "comprobar_en_github.py")
+    )
 
-    return lambda base, cambiados, cwd: G.esperar_tsc(base, cambiados, cwd, TSC_GITHUB_ESPERA_S)
+    return lambda base, cambiados, cwd: modulo.esperar_tsc(
+        base, cambiados, cwd, TSC_GITHUB_ESPERA_S
+    )
 
 
 def errores_de_a1(detalle):
