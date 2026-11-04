@@ -347,4 +347,56 @@ describe("PanelImaginacion", () => {
         expect(screen.getByRole("link", { name: "MetaGenesis (3)" })).toBeInTheDocument();
         expect(screen.getByRole("link", { name: "Volver al pulso de MetaGenesis" })).toBeInTheDocument();
     });
+
+    it("muestra la etiqueta del filtro de Astraura con el formato correcto", async () => {
+        const hoy = new Date().toISOString().split("T")[0];
+        const propuestasConAstraura: PropuestaNormalizada[] = [
+            prop({
+                id: "a1",
+                fuente: "astraura",
+                titulo: "Optimización ARM NEON para kernel",
+                archivos: ["kernel.c"],
+                t: hoy + "T10:00:00Z",
+            }),
+            prop({
+                id: "a2",
+                fuente: "astraura",
+                titulo: "⚡ [AUTORIZADO] Optimización ARM NEON para kernel",
+                archivos: ["kernel.rs"],
+                t: hoy + "T11:00:00Z",
+            }),
+            prop({
+                id: "a3",
+                fuente: "astraura",
+                titulo: "Esquema de Agente Mutado: Hephaestus-NEON",
+                archivos: ["schema.rs"],
+                t: hoy + "T12:00:00Z",
+            }),
+            prop({
+                id: "a4",
+                fuente: "astraura",
+                titulo: "Otro kernel NEON: kernel",
+                archivos: ["kernel.c"],
+                t: hoy + "T13:00:00Z",
+            }),
+            prop({ id: "otra", fuente: "agentes", titulo: "Propuesta de agente" }),
+        ];
+        const { posts } = servidor(propuestasConAstraura, sinPost);
+        render(<PanelImaginacion ambito="metagenesis" />);
+        await screen.findByTestId("imaginacion-filtro-astraura");
+        const etiqueta = screen.getByTestId("imaginacion-filtro-astraura");
+        expect(etiqueta).toHaveTextContent("Filtradas de Astraura hoy:");
+        expect(etiqueta).toHaveTextContent("familia");
+        expect(etiqueta).toHaveTextContent("tipo");
+        expect(etiqueta).toHaveTextContent("tope");
+        expect(posts).toHaveLength(0);
+    });
+
+    it("no muestra la etiqueta del filtro de Astraura si no hay propuestas de Astraura", async () => {
+        const { posts } = servidor([prop({ id: "a1", fuente: "agentes" }), prop({ id: "a2", fuente: "diaria" })], sinPost);
+        render(<PanelImaginacion ambito="metagenesis" />);
+        await screen.findByTestId("propuesta-a1");
+        expect(screen.queryByTestId("imaginacion-filtro-astraura")).toBeNull();
+        expect(posts).toHaveLength(0);
+    });
 });
