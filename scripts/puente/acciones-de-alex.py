@@ -44,6 +44,9 @@ try:
 except Exception:  # noqa: BLE001 — sin cupo_codex no hay acción de codex
     _codex = None
 
+#: Expuesto para tests y uso directo
+cupo_codex = _codex
+
 #: Los nombres que el workflow de la nube lee. Solo NOMBRES, jamás un valor.
 #:
 #: (2026-09-21) Esta lista estaba ESCRITA DOS VECES —aquí y en `nube-gh.py`— y las dos

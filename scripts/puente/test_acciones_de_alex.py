@@ -426,7 +426,7 @@ class CodexCuentaChatGPT(unittest.TestCase):
 
     def test_si_marca_vigente_cuenta_chatgpt_sin_codex_sale_accion(self):
         self._marcar("cuenta de ChatGPT sin Codex: gpt-5.6-sol model_not_found")
-        acciones = A.construir_acciones([], A.TODOS, A.CATALOGO)
+        acciones = A.construir_acciones([], TODOS, CATALOGO)
         codex = [a for a in acciones if a["id"] == "codex-cuenta"]
         self.assertEqual(1, len(codex))
         a = codex[0]
@@ -440,53 +440,53 @@ class CodexCuentaChatGPT(unittest.TestCase):
 
     def test_si_marca_vigente_es_cuota_normal_NO_sale_codex_cuenta(self):
         self._marcar("cuota agotada: You've hit your usage limit", horas=3)
-        acciones = A.construir_acciones([], A.TODOS, A.CATALOGO)
+        acciones = A.construir_acciones([], TODOS, CATALOGO)
         self.assertNotIn("codex-cuenta", [a["id"] for a in acciones])
 
     def test_si_marca_expirada_NO_sale(self):
-        self._marcar("cuenta de ChatGPT sin Codex: modelo no soportado", horas=0.0001)
+        self._marcar("cuenta de ChatGPT sin Codex: modelo no soportado", horas=0)
         import time
         time.sleep(0.01)
-        acciones = A.construir_acciones([], A.TODOS, A.CATALOGO)
+        acciones = A.construir_acciones([], TODOS, CATALOGO)
         self.assertNotIn("codex-cuenta", [a["id"] for a in acciones])
 
     def test_si_no_hay_marca_NO_sale(self):
-        acciones = A.construir_acciones([], A.TODOS, A.CATALOGO)
+        acciones = A.construir_acciones([], TODOS, CATALOGO)
         self.assertNotIn("codex-cuenta", [a["id"] for a in acciones])
 
     def test_si_marca_sin_motivo_NO_sale(self):
         self._marcar("")
-        acciones = A.construir_acciones([], A.TODOS, A.CATALOGO)
+        acciones = A.construir_acciones([], TODOS, CATALOGO)
         self.assertNotIn("codex-cuenta", [a["id"] for a in acciones])
 
     def test_motivo_case_insensitive(self):
         self._marcar("CUENTA DE CHATGPT SIN CODEX: model_not_found")
-        acciones = A.construir_acciones([], A.TODOS, A.CATALOGO)
+        acciones = A.construir_acciones([], TODOS, CATALOGO)
         self.assertIn("codex-cuenta", [a["id"] for a in acciones])
 
     def test_la_accion_va_despues_de_lo_urgente_y_antes_de_baja(self):
         self._marcar("cuenta de ChatGPT sin Codex: gpt-5.6-sol no soportado")
-        acciones = A.construir_acciones([], [], A.CATALOGO, entorno={})
+        acciones = A.construir_acciones([], [], CATALOGO, entorno={})
         ids = [a["id"] for a in acciones]
         self.assertLess(ids.index("canal-de-avisos-sin-configurar"), ids.index("codex-cuenta"))
         # github-secretos con urgencia baja puede no aparecer si no hay faltantes
         # pero codex-cuenta debe estar antes de cualquier cosa de urgencia baja
 
     def test_verificar_recomprueba_y_dice_hecha_si_marca_expirada(self):
-        self._marcar("cuenta de ChatGPT sin Codex: modelo no soportado", horas=0.0001)
+        self._marcar("cuenta de ChatGPT sin Codex: modelo no soportado", horas=0)
         import time
         time.sleep(0.01)
-        r = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=A.TODOS,
+        r = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=TODOS,
                         entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"})
         self.assertTrue(r["hecha"])
         self.assertIn("ya no hace falta", r["detalle"])
 
     def test_verificar_dice_pendiente_si_marca_vigente(self):
         self._marcar("cuenta de ChatGPT sin Codex: model_not_found")
-        r = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=A.TODOS,
+        r = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=TODOS,
                         entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"})
         self.assertFalse(r["hecha"])
-        self.assertIn("sigue pendiente", r["detalle"])
+        self.assertIn("npm i -g @openai/codex", r["detalle"])
 
 
 def test_DEC1028D_codex_cuenta_titulo_y_detalle():
@@ -496,7 +496,13 @@ def test_DEC1028D_codex_cuenta_titulo_y_detalle():
     dir = tempfile.mkdtemp()
     m.cupo_codex.RUTA = _o.path.join(dir, "codex-cupo.json")
     m.cupo_codex.anotar("cuenta de ChatGPT sin Codex: gpt-5.6-sol model_not_found", ruta=m.cupo_codex.RUTA)
-    acciones = m.construir_acciones([], m.TODOS, m.CATALOGO)
+    # Usar CLAVES_DEL_ENJAMBRE del módulo y CATALOGO local (replicado aquí para la prueba)
+    _CATALOGO = {
+        "apinex": {"nombre": "apinex", "enlace": "https://apinex.bond/airdrop?tab=quests",
+                   "nota": "Sus modelos gratis exigen un fichaje diario."},
+        "groq": {"nombre": "Groq", "enlace": "https://console.groq.com/keys", "nota": "Cuota por minuto."},
+    }
+    acciones = m.construir_acciones([], m.CLAVES_DEL_ENJAMBRE, _CATALOGO)
     a = next(x for x in acciones if x["id"] == "codex-cuenta")
     assert "Codex: tu cuenta de ChatGPT ya no deja usarlo" == a["titulo"]
     assert "desde 2026-10-23" in a["por_que"]

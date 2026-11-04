@@ -113,7 +113,9 @@ def minutos_restantes(marca, ahora):
 # ── la parte que toca el disco ──────────────────────────────────────────────
 
 
-def leer(ruta=RUTA):
+def leer(ruta=None):
+    if ruta is None:
+        ruta = RUTA
     try:
         with open(ruta, encoding="utf-8") as f:
             d = json.load(f)
@@ -122,8 +124,10 @@ def leer(ruta=RUTA):
         return {}
 
 
-def anotar(motivo="", ruta=RUTA, ahora=None, horas=HORAS):
+def anotar(motivo="", ruta=None, ahora=None, horas=HORAS):
     """Guarda que Codex está agotado. Devuelve los minutos que se aparta."""
+    if ruta is None:
+        ruta = RUTA
     ahora = time.time() if ahora is None else ahora
     hasta = hasta_cuando(ahora, horas)
     marca = {
@@ -143,6 +147,8 @@ def anotar(motivo="", ruta=RUTA, ahora=None, horas=HORAS):
     return minutos_restantes(marca, ahora)
 
 
-def puede_escribir(ruta=RUTA, ahora=None):
+def puede_escribir(ruta=None, ahora=None):
     """¿Tiene sentido darle un turno a Codex ahora mismo?"""
+    if ruta is None:
+        ruta = RUTA
     return not sigue_agotado(leer(ruta), time.time() if ahora is None else ahora)
