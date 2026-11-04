@@ -28,6 +28,7 @@ import datetime, hashlib, json, os, re, subprocess, sys, threading, time, urllib
 import signal
 import tempfile
 import contextlib, fcntl
+import importlib
 
 # La decisión de salud, vencimiento y reparto vive fuera para poder probarla sin lanzar una ola.
 DIRECTORIO_ENJAMBRE = os.path.dirname(os.path.abspath(__file__))
@@ -158,6 +159,13 @@ def heap_tsc_mb(node_options, defecto=2560):
     envío a la nube y acababan «agotadas»: la nube se quedó sin nada que coger."""
     m = re.search(r"--max-old-space-size[= ](\d+)", node_options or "")
     return max(defecto, int(m.group(1))) if m else defecto
+
+
+def hay_que_recargar(mtime_visto, mtime_ahora):
+    """PURA. True si el módulo cambió desde la última carga (mtime distinto y ninguno es None)."""
+    if mtime_visto is None or mtime_ahora is None:
+        return False
+    return mtime_visto != mtime_ahora
 
 
 #: Lo que se pide en el reintento por memoria: nunca menos de 3584 ni menos que el del medio.
@@ -716,6 +724,9 @@ def apartar_colgados_al_arrancar():
 
 _CATALOGOS_CACHE = {}  # proveedor -> (epoch, set de ids o None si falló la consulta)
 _ANTHROPIC_ORDENADOS = []
+# Módulos de comprobación remota y sus mtimes vistos para recarga automática.
+_COMO_A1 = {"modulo": None, "mtime": None}
+_COMO_GITHUB = {"modulo": None, "mtime": None}
 
 
 def _cabeceras_api(prov, key, contenido=False):
@@ -4183,17 +4194,43 @@ def _en_la_mac():
 
 def _comprobar_en_a1():
     """La función `comprobar` de comprobar_en_a1.py, o None si no se puede usar (TRA1012A).
-    Solo en la Mac (`_en_la_mac`): la nube y el A1 mismo ya compilan donde tienen memoria."""
+    Solo en la Mac (`_en_la_mac`): la nube y el A1 mismo ya compilan donde tienen memoria.
+    Recarga el módulo si su mtime cambió desde la última carga."""
     if not _en_la_mac():
         return None
     ruta = os.path.join(ROOT, "scripts", "puente")
-    if not os.path.isfile(os.path.join(ruta, "comprobar_en_a1.py")):
+    archivo = os.path.join(ruta, "comprobar_en_a1.py")
+    if not os.path.isfile(archivo):
         return None
     if ruta not in sys.path:
         sys.path.insert(0, ruta)
-    from comprobar_en_a1 import comprobar
-
-    return comprobar
+    try:
+        mtime = os.path.getmtime(archivo)
+    except OSError:
+        mtime = None
+    if _COMO_A1["modulo"] is not None and not hay_que_recargar(_COMO_A1["mtime"], mtime):
+        return _COMO_A1["modulo"].comprobar
+    try:
+        importlib.invalidate_caches()
+        # Limpiar __pycache__ para forzar recompilaión desde fuente
+        pycache = os.path.join(ruta, "__pycache__")
+        if os.path.isdir(pycache):
+            shutil.rmtree(pycache, ignore_errors=True)
+        # Guardar referencia al módulo anterior antes de limpiar
+        modulo_anterior = _COMO_A1["modulo"]
+        if modulo_anterior is not None:
+            sys.modules.pop("comprobar_en_a1", None)
+            _COMO_A1["modulo"] = None
+        from comprobar_en_a1 import comprobar
+        _COMO_A1["modulo"] = sys.modules["comprobar_en_a1"]
+        _COMO_A1["mtime"] = mtime
+        return comprobar
+    except (SyntaxError, OSError) as e:
+        evento("aviso", "-", "recarga de comprobar_en_a1 falló, se usa la versión anterior: %s" % e)
+        if modulo_anterior is not None:
+            _COMO_A1["modulo"] = modulo_anterior
+            return modulo_anterior.comprobar
+        return None
 
 
 #: (2026-10-27, CAP1026P) Lo que la puerta tsc de la Mac espera el veredicto de GitHub antes de caer al A1 o a la
@@ -4204,17 +4241,44 @@ TSC_GITHUB_ESPERA_S = int(os.environ.get("STARSEED_TSC_GITHUB_ESPERA_S", "1500")
 def _comprobar_en_github():
     """(CAP1026P) La puerta tsc en GitHub Actions (`comprobar_en_github.esperar_tsc`), o None si no aplica.
     Solo en la Mac (`_en_la_mac`; la nube y el A1 compilan donde tienen memoria) y con
-    STARSEED_COMPROBAR_GITHUB ≠ 0."""
+    STARSEED_COMPROBAR_GITHUB ≠ 0. Recarga el módulo si su mtime cambió desde la última carga."""
     if not _en_la_mac() or os.environ.get("STARSEED_COMPROBAR_GITHUB", "1") == "0":
         return None
     ruta = os.path.join(ROOT, "scripts", "puente")
-    if not os.path.isfile(os.path.join(ruta, "comprobar_en_github.py")):
+    archivo = os.path.join(ruta, "comprobar_en_github.py")
+    if not os.path.isfile(archivo):
         return None
     if ruta not in sys.path:
         sys.path.insert(0, ruta)
-    import comprobar_en_github as G
-
-    return lambda base, cambiados, cwd: G.esperar_tsc(base, cambiados, cwd, TSC_GITHUB_ESPERA_S)
+    try:
+        mtime = os.path.getmtime(archivo)
+    except OSError:
+        mtime = None
+    if _COMO_GITHUB["modulo"] is not None and not hay_que_recargar(_COMO_GITHUB["mtime"], mtime):
+        G = _COMO_GITHUB["modulo"]
+        return lambda base, cambiados, cwd: G.esperar_tsc(base, cambiados, cwd, TSC_GITHUB_ESPERA_S)
+    try:
+        importlib.invalidate_caches()
+        # Limpiar __pycache__ para forzar recompilaión desde fuente
+        pycache = os.path.join(ruta, "__pycache__")
+        if os.path.isdir(pycache):
+            shutil.rmtree(pycache, ignore_errors=True)
+        # Guardar referencia al módulo anterior antes de limpiar
+        modulo_anterior = _COMO_GITHUB["modulo"]
+        if modulo_anterior is not None:
+            sys.modules.pop("comprobar_en_github", None)
+            _COMO_GITHUB["modulo"] = None
+        import comprobar_en_github as G
+        _COMO_GITHUB["modulo"] = sys.modules["comprobar_en_github"]
+        _COMO_GITHUB["mtime"] = mtime
+        return lambda base, cambiados, cwd: G.esperar_tsc(base, cambiados, cwd, TSC_GITHUB_ESPERA_S)
+    except (SyntaxError, OSError) as e:
+        evento("aviso", "-", "recarga de comprobar_en_github falló, se usa la versión anterior: %s" % e)
+        if modulo_anterior is not None:
+            _COMO_GITHUB["modulo"] = modulo_anterior
+            G = modulo_anterior
+            return lambda base, cambiados, cwd: G.esperar_tsc(base, cambiados, cwd, TSC_GITHUB_ESPERA_S)
+        return None
 
 
 def errores_de_a1(detalle):

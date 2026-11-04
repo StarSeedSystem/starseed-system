@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -215,6 +216,143 @@ class EnLaMacTest(unittest.TestCase):
                         self.assertEqual(gh("base", ["a.ts"], tmp), "github-falso")
                     else:
                         self.assertEqual((a1, gh), (None, None))
+
+
+class HayQueRecargarTest(unittest.TestCase):
+    """Pruebas de la función pura `hay_que_recargar`."""
+
+    def test_none_visto_false(self):
+        self.assertFalse(enjambre.hay_que_recargar(None, 123.0))
+
+    def test_none_ahora_false(self):
+        self.assertFalse(enjambre.hay_que_recargar(123.0, None))
+
+    def test_ambos_none_false(self):
+        self.assertFalse(enjambre.hay_que_recargar(None, None))
+
+    def test_iguales_false(self):
+        self.assertFalse(enjambre.hay_que_recargar(123.0, 123.0))
+
+    def test_distintos_true(self):
+        self.assertTrue(enjambre.hay_que_recargar(123.0, 124.0))
+
+
+class RecargaModuloTest(unittest.TestCase):
+    """Pruebas de recarga automática de los módulos de comprobación remota."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="enj-recarga-")
+        self.puente = os.path.join(self.tmp, "scripts", "puente")
+        os.makedirs(self.puente)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _escribir_modulo(self, nombre, contenido):
+        with open(os.path.join(self.puente, nombre), "w", encoding="utf-8") as f:
+            f.write(contenido)
+
+    def _cargar_orquestador(self, root=None):
+        """Carga el orquestador con ROOT apuntando a self.tmp."""
+        root = root or self.tmp
+        # No parchear sys.modules globalmente: solo limpiar los módulos específicos
+        sys.modules.pop("comprobar_en_a1", None)
+        sys.modules.pop("comprobar_en_github", None)
+        # Reiniciar los caches del orquestador
+        enjambre._COMO_A1["modulo"] = None
+        enjambre._COMO_A1["mtime"] = None
+        enjambre._COMO_GITHUB["modulo"] = None
+        enjambre._COMO_GITHUB["mtime"] = None
+        with mock.patch.object(enjambre, "ROOT", root), \
+             mock.patch.object(sys, "path", list(sys.path)), \
+             mock.patch.dict(os.environ, {"STARSEED_MEDIO": "mac", "STARSEED_DONDE": "mac"}), \
+             mock.patch.object(enjambre.sys, "platform", "darwin"):
+            a1 = enjambre._comprobar_en_a1()
+            gh = enjambre._comprobar_en_github()
+        return a1, gh
+
+    def test_recarga_a1_cambio_mtime(self):
+        """Un cambio en el mtime de comprobar_en_a1.py devuelve la versión nueva."""
+        self._escribir_modulo("comprobar_en_a1.py", "def comprobar(*a, **k):\n    return 'v1'\n")
+        self._escribir_modulo("comprobar_en_github.py", "def esperar_tsc(*a, **k):\n    return 'gh-v1'\n")
+
+        a1, gh = self._cargar_orquestador()
+        self.assertEqual(a1(), "v1")
+
+        # Cambiar el archivo y esperar a que el mtime sea distinto
+        time.sleep(0.01)
+        self._escribir_modulo("comprobar_en_a1.py", "def comprobar(*a, **k):\n    return 'v2'\n")
+
+        # Segunda llamada debe recargar y devolver la versión nueva
+        with mock.patch.dict(os.environ, {"STARSEED_MEDIO": "mac", "STARSEED_DONDE": "mac"}), \
+             mock.patch.object(enjambre.sys, "platform", "darwin"), \
+             mock.patch.object(enjambre, "ROOT", self.tmp):
+            a1_nuevo = enjambre._comprobar_en_a1()
+
+        self.assertEqual(a1_nuevo(), "v2")
+
+    def test_recarga_github_cambio_mtime(self):
+        """Un cambio en el mtime de comprobar_en_github.py devuelve la versión nueva."""
+        self._escribir_modulo("comprobar_en_a1.py", "def comprobar(*a, **k):\n    return 'a1-v1'\n")
+        self._escribir_modulo("comprobar_en_github.py", "def esperar_tsc(*a, **k):\n    return 'gh-v1'\n")
+
+        a1, gh = self._cargar_orquestador()
+        self.assertEqual(gh("base", ["a.ts"], self.tmp), "gh-v1")
+
+        time.sleep(0.01)
+        self._escribir_modulo("comprobar_en_github.py", "def esperar_tsc(*a, **k):\n    return 'gh-v2'\n")
+
+        with mock.patch.dict(os.environ, {"STARSEED_MEDIO": "mac", "STARSEED_DONDE": "mac"}), \
+             mock.patch.object(enjambre.sys, "platform", "darwin"), \
+             mock.patch.object(enjambre, "ROOT", self.tmp):
+            _, gh_nuevo = enjambre._comprobar_en_a1(), enjambre._comprobar_en_github()
+
+        self.assertEqual(gh_nuevo("base", ["a.ts"], self.tmp), "gh-v2")
+
+    def test_archivo_roto_conserva_version_anterior(self):
+        """Si la recarga falla (SyntaxError), se conserva la versión anterior."""
+        self._escribir_modulo("comprobar_en_a1.py", "def comprobar(*a, **k):\n    return 'v1'\n")
+        self._escribir_modulo("comprobar_en_github.py", "def esperar_tsc(*a, **k):\n    return 'gh-v1'\n")
+
+        a1, _ = self._cargar_orquestador()
+        self.assertEqual(a1(), "v1")
+
+        # Escribir archivo con error de sintaxis
+        time.sleep(0.01)
+        self._escribir_modulo("comprobar_en_a1.py", "def comprobar(*a, **k):\n    return 'v2'\n   SyntaxError\n")
+
+        with mock.patch.dict(os.environ, {"STARSEED_MEDIO": "mac", "STARSEED_DONDE": "mac"}), \
+             mock.patch.object(enjambre.sys, "platform", "darwin"), \
+             mock.patch.object(enjambre, "ROOT", self.tmp), \
+             mock.patch.object(enjambre, "evento") as mock_evento:
+            a1_roto = enjambre._comprobar_en_a1()
+
+        # Debe devolver la versión anterior
+        self.assertEqual(a1_roto(), "v1")
+        # Debe haber emitido un aviso
+        self.assertTrue(any("recarga de comprobar_en_a1 falló" in str(c) for c in mock_evento.call_args_list))
+
+    def test_sin_archivo_previo_falla_silenciosa(self):
+        """Si no hay versión anterior y la carga falla, devuelve None."""
+        self._escribir_modulo("comprobar_en_a1.py", "def comprobar(*a, **k):\n    return 'v1'\n")
+        self._escribir_modulo("comprobar_en_github.py", "def esperar_tsc(*a, **k):\n    return 'gh-v1'\n")
+
+        with mock.patch.dict(os.environ, {"STARSEED_MEDIO": "mac", "STARSEED_DONDE": "mac"}), \
+             mock.patch.object(enjambre.sys, "platform", "darwin"), \
+             mock.patch.object(enjambre, "ROOT", self.tmp), \
+             mock.patch.dict(sys.modules), \
+             mock.patch.object(sys, "path", list(sys.path)), \
+             mock.patch.object(enjambre, "evento"):
+            sys.modules.pop("comprobar_en_a1", None)
+            sys.modules.pop("comprobar_en_github", None)
+            enjambre._COMO_A1["modulo"] = None
+            enjambre._COMO_A1["mtime"] = None
+            # Archivo con error de sintaxis desde el principio
+            self._escribir_modulo("comprobar_en_a1.py", "esto es código inválido\n")
+            a1 = enjambre._comprobar_en_a1()
+
+        self.assertIsNone(a1)
+
 
 if __name__ == "__main__":
     unittest.main()
