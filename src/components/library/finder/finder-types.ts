@@ -9,6 +9,15 @@
 import type { EntityLibraryDoc, LibraryFolder, SavedItem, ItemACL } from "@/lib/library/entity-library";
 import { resolveBranchOrigin } from "@/lib/library/entity-library";
 import type { EntityRef } from "@/lib/sync/entity-state";
+import {
+    computeEffectiveAccess,
+    libraryResourceRef,
+    type EffectiveAccess,
+    type ResourceRef,
+    type AccessScope,
+    type AccessGrant,
+    type GranteeKind,
+} from "@/lib/sharing/access";
 
 /** Modo de visualización del Finder. */
 export type FinderViewMode = "iconos" | "lista" | "columnas";
@@ -152,8 +161,9 @@ export function canWrite(acl: ItemACL | undefined, ctx: AclViewerContext): boole
 
 /* ── Herencia (Adenda 66 §3): biblioteca → folder → archivo ───────────────────
  * Un nodo sin ACL PROPIA se rige por la del primer ancestro que la tenga
- * (folder padre → … → biblioteca). La ACL propia SIEMPRE gana. Gemelo en
- * cliente de `es_doc_acl_allows()` en la BD.
+ * (folder padre → … → biblioteca). La ACL propia SIEMPRE gana.
+ * Usa el resolvedor puro `computeEffectiveAccess` de access.ts (gemelo en cliente
+ * de la función BD `es_doc_acl_allows`).
  */
 
 /** ¿Este nodo tiene ACL PROPIA (v3 con ámbito/grants, o v2 con listas no vacías)? */
@@ -164,48 +174,63 @@ export function aclIsOwn(acl: ItemACL | undefined): boolean {
     return (acl.read?.length ?? 0) > 0 || (acl.write?.length ?? 0) > 0;
 }
 
-/** ACL EFECTIVA de un folder: la suya, o la heredada (ancestros → biblioteca). */
-export function effectiveAclForFolder(doc: EntityLibraryDoc, folderId: string | null): ItemACL | undefined {
-    const byId = new Map(doc.folders.map((f) => [f.id, f] as const));
-    const seen = new Set<string>();
-    let cursor = folderId;
-    while (cursor) {
-        if (seen.has(cursor)) break;
-        seen.add(cursor);
-        const f = byId.get(cursor);
-        if (!f) break;
-        if (aclIsOwn(f.acl)) return f.acl;
-        cursor = f.parentId;
-    }
-    return aclIsOwn(doc.acl) ? doc.acl : undefined;
+/** Convierte EffectiveAccess (scope + grants) a forma compatible con aclAllows. */
+function effectiveAccessToAclLike(eff: EffectiveAccess): ItemACL {
+    return { scope: eff.scope, grants: eff.grants as unknown as ItemACL["grants"], read: [], write: [] };
 }
 
-/** ACL EFECTIVA de un ítem: la suya, o la de su folder (o la de la biblioteca). */
-export function effectiveAclForItem(doc: EntityLibraryDoc, item: SavedItem): ItemACL | undefined {
-    if (aclIsOwn(item.acl)) return item.acl;
-    return effectiveAclForFolder(doc, item.folderId ?? null);
+/** ResourceRef para un folder de la biblioteca. */
+function folderResourceRef(entityRef: EntityRef, folderId: string): ResourceRef {
+    return { type: "folder", id: folderId, libraryRef: entityRef };
 }
 
-export function canReadItem(doc: EntityLibraryDoc, item: SavedItem, ctx: AclViewerContext): boolean {
-    return canRead(effectiveAclForItem(doc, item), ctx);
+/** ResourceRef para un ítem (archivo) de la biblioteca. */
+function itemResourceRef(entityRef: EntityRef, itemId: string): ResourceRef {
+    return { type: "file", id: itemId, libraryRef: entityRef };
 }
-export function canWriteItem(doc: EntityLibraryDoc, item: SavedItem, ctx: AclViewerContext): boolean {
-    return canWrite(effectiveAclForItem(doc, item), ctx);
+
+/** ResourceRef para la biblioteca raíz. */
+function libraryRootRef(entityRef: EntityRef): ResourceRef {
+    return libraryResourceRef(entityRef);
 }
-export function canReadFolder(doc: EntityLibraryDoc, folder: LibraryFolder, ctx: AclViewerContext): boolean {
-    return canRead(aclIsOwn(folder.acl) ? folder.acl : effectiveAclForFolder(doc, folder.parentId), ctx);
+
+/** Acceso efectivo (con herencia) para un folder usando computeEffectiveAccess. */
+export function effectiveAccessForFolder(doc: EntityLibraryDoc, entityRef: EntityRef, folderId: string | null): EffectiveAccess {
+    if (!folderId) return computeEffectiveAccess(doc, libraryRootRef(entityRef));
+    return computeEffectiveAccess(doc, folderResourceRef(entityRef, folderId));
 }
-export function canWriteFolder(doc: EntityLibraryDoc, folder: LibraryFolder, ctx: AclViewerContext): boolean {
-    return canWrite(aclIsOwn(folder.acl) ? folder.acl : effectiveAclForFolder(doc, folder.parentId), ctx);
+
+/** Acceso efectivo (con herencia) para un ítem usando computeEffectiveAccess. */
+export function effectiveAccessForItem(doc: EntityLibraryDoc, entityRef: EntityRef, item: SavedItem): EffectiveAccess {
+    return computeEffectiveAccess(doc, itemResourceRef(entityRef, item.id));
+}
+
+export function canReadItem(doc: EntityLibraryDoc, entityRef: EntityRef, item: SavedItem, ctx: AclViewerContext): boolean {
+    return canRead(effectiveAccessToAclLike(effectiveAccessForItem(doc, entityRef, item)), ctx);
+}
+export function canWriteItem(doc: EntityLibraryDoc, entityRef: EntityRef, item: SavedItem, ctx: AclViewerContext): boolean {
+    return canWrite(effectiveAccessToAclLike(effectiveAccessForItem(doc, entityRef, item)), ctx);
+}
+export function canReadFolder(doc: EntityLibraryDoc, entityRef: EntityRef, folder: LibraryFolder, ctx: AclViewerContext): boolean {
+    const eff = folder.acl && aclIsOwn(folder.acl)
+        ? { scope: folder.acl.scope as AccessScope, grants: folder.acl.grants as AccessGrant[], read: [], write: [] } as ItemACL
+        : effectiveAccessToAclLike(effectiveAccessForFolder(doc, entityRef, folder.parentId));
+    return canRead(eff, ctx);
+}
+export function canWriteFolder(doc: EntityLibraryDoc, entityRef: EntityRef, folder: LibraryFolder, ctx: AclViewerContext): boolean {
+    const eff = folder.acl && aclIsOwn(folder.acl)
+        ? { scope: folder.acl.scope as AccessScope, grants: folder.acl.grants as AccessGrant[], read: [], write: [] } as ItemACL
+        : effectiveAccessToAclLike(effectiveAccessForFolder(doc, entityRef, folder.parentId));
+    return canWrite(eff, ctx);
 }
 
 /** Filtra items/folders visibles para el contexto dado (lectura restringida, CON herencia). */
-export function visibleFor(doc: EntityLibraryDoc, ctx: AclViewerContext): EntityLibraryDoc {
+export function visibleFor(doc: EntityLibraryDoc, entityRef: EntityRef, ctx: AclViewerContext): EntityLibraryDoc {
     if (ctx.isOwner) return doc;
     return {
         ...doc,
-        items: doc.items.filter((it) => canReadItem(doc, it, ctx)),
-        folders: doc.folders.filter((f) => canReadFolder(doc, f, ctx)),
+        items: doc.items.filter((it) => canReadItem(doc, entityRef, it, ctx)),
+        folders: doc.folders.filter((f) => canReadFolder(doc, entityRef, f, ctx)),
     };
 }
 
