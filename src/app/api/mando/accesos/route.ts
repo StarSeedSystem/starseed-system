@@ -11,7 +11,7 @@
 import { rename, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { guardianMando } from "@/lib/mando/guardian";
-import { esPeticionDeEstaMaquina as esDespliegueLocal } from "@/lib/seguridad/misma-maquina"; // (2026-10-10) solo la propia máquina cuenta como dueña local
+import { esPeticionDeEstaMaquina } from "@/lib/seguridad/misma-maquina";
 import { leerEstadoDeIdes } from "@/lib/mando/ides";
 import { DESARROLLADORES_INICIALES, puede, rolDe,
     type Capacidad, type Invitacion, type Genesis, type Rol } from "@/lib/mando/permisos";
@@ -49,10 +49,7 @@ async function guardarRegistro(r: RegistroAccesos): Promise<void> {
 }
 /** Correo de quien pide: sesión verificada, nunca lo que diga el cliente. */
 async function correoQuePide(req: Request, dueno: string): Promise<string> {
-    // En desarrollo y despliegue local se devuelve el dueño; en producción real
-    // esDespliegueLocal nunca es verdadero porque VERCEL=1 fuerza false y el host
-    // se decide por servidor, no por cabeceras forjables por el cliente.
-    if (process.env.NODE_ENV !== "production" || esDespliegueLocal(req)) return dueno;
+    if (process.env.NODE_ENV !== "production" || esPeticionDeEstaMaquina(req)) return dueno;
     const { createClient } = await import("@/utils/supabase/server");
     const supabase = await createClient();
     const { data, error } = await supabase.auth.getUser();

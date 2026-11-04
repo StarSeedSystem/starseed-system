@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { guardianMando } from "@/lib/mando/guardian";
 import { AMBITO_LOCAL } from "@/lib/mando/ambito";
-import { esPeticionDeEstaMaquina as esDespliegueLocal } from "@/lib/seguridad/misma-maquina"; // (2026-10-10) solo la propia máquina cuenta como dueña local
+import { esPeticionDeEstaMaquina } from "@/lib/seguridad/misma-maquina";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   if (veto) return veto;
 
   const bandera = process.env.STARSEED_MANDO_TODOS === "1";
-  const esLocal = esDespliegueLocal(request);
+  const esLocal = esPeticionDeEstaMaquina(request);
   if (!bandera || esLocal) {
     return Response.json([AMBITO_LOCAL]);
   }
