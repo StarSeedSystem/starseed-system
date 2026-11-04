@@ -41,8 +41,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
-  copiarEstadoLocalACuenta, decidirArranque, getStartupState, sellarCatalogoVisto,
-  subscribeStartupOpen, openStartupUpdates, snoozeUpdates, type DecisionArranque,
+  copiarEstadoLocalACuenta, decidirArranque, decidirArranqueConScout, getStartupState, sellarCatalogoVisto,
+  subscribeStartupOpen, openStartupUpdates, snoozeUpdates, markUpdatesSeenConScout, marcarScoutVisto, type DecisionArranque,
 } from "@/lib/astraura/startup-updates";
 import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
 import { isSetupPending, subscribeSetup, markSetupDone } from "@/lib/aurora/setup-config";
@@ -163,10 +163,15 @@ export function StartupUpdatesModal() {
     // así ni este medio ni los demás lo repiten; «Ver» abre la ventana con el detalle. Espera a que
     // el rito/la guía dejen el primer plano, como la ventana grande.
     const mostrarAvisoNovedades = (d: Extract<DecisionArranque, { accion: "aviso" }>) => {
-      sellarCatalogoVisto(d.firma);
+      if (d.motivo === "novedades") sellarCatalogoVisto(d.firma);
+      else if (d.motivo === "novedades-scout") marcarScoutVisto();
       const partes: string[] = [];
-      if (d.modelos > 0) partes.push(`${d.modelos} ${d.modelos === 1 ? "modelo nuevo" : "modelos nuevos"}`);
-      if (d.fuentes > 0) partes.push(`${d.fuentes} ${d.fuentes === 1 ? "fuente nueva" : "fuentes nuevas"}`);
+      if (d.motivo === "novedades") {
+        if (d.modelos > 0) partes.push(`${d.modelos} ${d.modelos === 1 ? "modelo nuevo" : "modelos nuevos"}`);
+        if (d.fuentes > 0) partes.push(`${d.fuentes} ${d.fuentes === 1 ? "fuente nueva" : "fuentes nuevas"}`);
+      } else if (d.motivo === "novedades-scout") {
+        partes.push("hay recomendaciones de modelos mejor ajustadas a tu hardware");
+      }
       const lanzar = () => {
         try {
           toast("Astraura tiene novedades", {
@@ -182,21 +187,22 @@ export function StartupUpdatesModal() {
     };
     // La decisión de arranque, ya con la cuenta bajada. Copia primero lo que un medio antiguo
     // tenía «visto» en local (así los demás medios lo heredan) y decide con el estado unificado.
-    const decidirYActuar = () => {
+    const decidirYActuar = async () => {
       if (cerradaPorUsuarioRef.current) return;
       try {
         copiarEstadoLocalACuenta();
-        const d = decidirArranque();
+        const d = await decidirArranqueConScout();
         if (d.accion === "ventana") abrirConCortesia();
         else if (d.accion === "aviso") mostrarAvisoNovedades(d);
         else if (d.sellar) sellarCatalogoVisto(d.sellar);
       } catch { /* si falla el gate, no se abre nada: mejor callar que reabrir */ }
     };
     /** ¿Toca la ventana grande ahora? (con la cuenta ya bajada) */
-    const tocaVentana = () => {
+    const tocaVentana = async () => {
       try {
         copiarEstadoLocalACuenta();
-        return decidirArranque().accion === "ventana";
+        const d = await decidirArranqueConScout();
+        return d.accion === "ventana";
       } catch { return false; }
     };
     // (Ola 247 · 2026-09-05) Relevo directo del rito: si la máquina de estados
@@ -225,7 +231,7 @@ export function StartupUpdatesModal() {
               if (isSetupPending()) return; // sigue pendiente: esperar al siguiente evento
               offSetup?.();
               offSetup = null;
-              t2 = setTimeout(decidirYActuar, 800);
+              t2 = setTimeout(() => { decidirYActuar(); }, 800);
             } catch { /* */ }
           });
           // RED DE SEGURIDAD (garantía de aparición por neurona): el Centro solo
@@ -233,11 +239,11 @@ export function StartupUpdatesModal() {
           // pero NO está en pantalla (marcador `data-aurora-setup-center`), la
           // ventana se abre igualmente — el único caso que se evita es el
           // solape REAL de dos modales, no la sesión entera (fix pedido por Alex).
-          tFallback = setTimeout(() => {
+          tFallback = setTimeout(async () => {
             try {
               if (!isSetupPending()) return; // el flujo por evento ya se encarga
               const centerOnScreen = !!document.querySelector("[data-aurora-setup-center]");
-              if (!centerOnScreen && tocaVentana()) {
+              if (!centerOnScreen && await tocaVentana()) {
                 offSetup?.();
                 offSetup = null;
                 decidirYActuar();
@@ -314,7 +320,7 @@ export function StartupUpdatesModal() {
       <AstrauraOmniVoiceConfig
         variant="modal"
         initialSection="astraura"
-        onApply={() => { cerrarDefinitivo(); lanzarGuiaPendiente(); }}
+        onApply={async () => { await markUpdatesSeenConScout(); cerrarDefinitivo(); lanzarGuiaPendiente(); }}
         onDismiss={cerrarSinAplicar}
       />
     </div>
