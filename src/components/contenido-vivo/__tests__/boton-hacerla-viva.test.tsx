@@ -95,4 +95,14 @@ describe("Botón Hacerla viva", () => {
     fireEvent.click(screen.getByRole("button", { name: "Generar" }));
     expect(anadir).not.toHaveBeenCalled();
   });
+
+  it("vuelve a pulsarlo cierra el panel sin rehacer nada", () => {
+    const anadir = vi.fn();
+    render(<BotonHacerlaViva contexto={contexto({})} anadir={anadir} />);
+    fireEvent.click(screen.getByRole("button", { name: "Hacerla viva" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ocultar el plan" }));
+    expect(screen.queryByRole("region", { name: "Contenido vivo" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hacerla viva" })).toBeInTheDocument();
+    expect(anadir).not.toHaveBeenCalled();
+  });
 });
