@@ -23,7 +23,6 @@ SHA_RE = re.compile(r"sha-?256\s*[:=]?\s*([0-9a-fA-F]{64})", re.I)
 
 
 def _gh(args, gh="gh"):
-    """Una orden de gh fallida corta aquí: nada se instala a ciegas."""
     r = subprocess.run([gh] + args, capture_output=True, text=True, timeout=900)
     if r.returncode != 0:
         raise SystemExit("gh %s falló: %s" % (" ".join(args), (r.stderr or r.stdout).strip()[:200]))
@@ -31,7 +30,6 @@ def _gh(args, gh="gh"):
 
 
 def elegir_run(listado_json):
-    """El de `gh run list --json` más nuevo con conclusion «success»."""
     verde = [r.get("databaseId") for r in json.loads(listado_json) if r.get("conclusion") == "success"]
     if not verde:
         raise SystemExit("ningún run verde de %s: lance el job primero" % WORKFLOW)
@@ -39,7 +37,6 @@ def elegir_run(listado_json):
 
 
 def sha_del_resumen(texto):
-    """La huella que el job compiló imprime en su resumen (línea SHA-256: …)."""
     m = SHA_RE.search(texto or "")
     if not m:
         raise SystemExit("el resumen del run no trae una huella sha256")
@@ -53,14 +50,12 @@ def sha256(ruta):
             huella.update(trozo)
     return huella.hexdigest()
 
-
 def binario_de(directorio):
-    """El binario dentro del artefacto descargado (el artefacto solo trae uno)."""
+    """El binario dentro del artefacto descargado; el artefacto solo trae uno."""
     nombres = [n for _, _, ns in os.walk(directorio) for n in ns]
     if not nombres:
         raise SystemExit("el artefacto %s vino sin el binario" % ARTEFACTO)
     return os.path.join(directorio, nombres[0])
-
 
 def cuerpo_plist(binario):
     """El esqueleto de los plist de `instalar-servicios.py` (KeepAlive, PATH con ~/.local/bin)."""
