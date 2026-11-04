@@ -143,7 +143,7 @@ describe("recordarDeCapsulas", () => {
   });
 
   describe("límites: MAX_FRAGMENTOS (6) y MAX_CARACTERES (1500)", () => {
-    it("respeta el límite de 6 fragmentos totales", async () => {
+    it("respeta el límite de K_POR_CAPSULA (4) por cápsula", async () => {
       const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
       const fragmentos = Array.from({ length: 10 }, (_, i) => ({
         titulo: `R${i}`,
@@ -161,8 +161,9 @@ describe("recordarDeCapsulas", () => {
       const r = await recordarDeCapsulas(opts);
 
       const lineas = r.split("\n");
-      expect(lineas.length).toBe(7); // cabecera + 6 fragmentos
-      expect(r).not.toContain("Fragmento número 6");
+      expect(lineas.length).toBe(5); // cabecera + 4 fragmentos (K_POR_CAPSULA)
+      expect(r).toContain("Fragmento número 3");
+      expect(r).not.toContain("Fragmento número 4");
     });
 
     it("respeta el límite de 1500 caracteres totales", async () => {
@@ -187,7 +188,7 @@ describe("recordarDeCapsulas", () => {
       expect(soloTexto.length).toBeLessThanOrEqual(1500);
     });
 
-    it("para al alcanzar cualquiera de los dos límites", async () => {
+    it("para al alcanzar el límite de caracteres (MAX_CARACTERES = 1500)", async () => {
       const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
       aciertos.set("personalidad-aurora", [
         { titulo: "R1", texto: "A".repeat(800), alcance: "personal" },
@@ -203,7 +204,7 @@ describe("recordarDeCapsulas", () => {
       const r = await recordarDeCapsulas(opts);
 
       const lineas = r.split("\n");
-      expect(lineas.length).toBe(3); // cabecera + 2 fragmentos (1500 aprox)
+      expect(lineas.length).toBe(2); // cabecera + 1 fragmento (800 + 800 > 1500)
     });
   });
 
