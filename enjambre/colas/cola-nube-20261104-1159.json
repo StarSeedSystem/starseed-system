@@ -1,0 +1,72 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "id": "CTR1104B",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Centro de control · la CSP admite las vistas previas blob: (media-src)",
+   "archivos": [
+    "next.config.ts"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/centro-control-logic.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§6: la CSP de `next.config.ts` está en Report-Only y no define `media-src`: la vista previa `blob:` del centro de control caería en `default-src 'self'` al pasar a forzar. Añade `media-src 'self' blob: data:` a la política sin tocar las demás directivas ni el modo Report-Only. Si hay una prueba de la cabecera, ajústala; si no, basta con el cambio."
+  },
+  {
+   "id": "CTR1104T",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Actualizaciones · /version.json lleva la versión del OS además del build",
+   "archivos": [
+    "scripts/gen-version.mjs"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/actualizaciones-por-capas-sop.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§4: «`/version.json` sin `OS_VERSION`: la interfaz se compara por build id». Añade `version` (la de `package.json`) a lo que escribe `gen-version.mjs`, sin quitar `build`, `at`, `sha` ni `rama`. Comprueba ejecutando el guion en un directorio temporal."
+  },
+  {
+   "id": "CTR1104E",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Llmfit · los modelos que usa cada neurona (usedModelIds) salen de un helper puro",
+   "archivos": [
+    "src/lib/astraura/modelos-usados.ts",
+    "src/lib/astraura/__tests__/modelos-usados.test.ts"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/recomendador-modelos-llmfit.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§14.6: hoy `usedModelIds` lo calcula cada llamador. Escribe `modelosUsados({ instalados, preferencias, voz })` que reciba lo que dan `listInstalledModels()` (`src/ai/astraura/installed-models.ts`), `model-preferences.ts` y la config de voz, y devuelva los ids sin duplicados y en orden estable. Solo el helper y su prueba (no cambies a los llamadores en esta tarea)."
+  },
+  {
+   "id": "CTR1104G",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Ventana de inicio · con autoUpdate encendido se aplica sola la mejor selección nueva",
+   "archivos": [
+    "src/lib/astraura/auto-actualizar-modelos.ts",
+    "src/lib/astraura/__tests__/auto-actualizar-modelos.test.ts"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/ventana-inicio-actualizaciones.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§«Pendiente»: «Auto-actualización efectiva (cuando `autoUpdate` está ON) aplicando el nuevo top sin intervención». Escribe la decisión pura `queAplicar({ autoUpdate, seleccionActual, topNuevo, vistos })` → qué cambiar (o nada) y por qué; nunca cambia lo que la persona fijó a mano. Solo la decisión y su prueba."
+  },
+  {
+   "id": "CTR1104H",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Astraura · capacidad «av-gen» (imagen, vídeo y audio) en las habilidades",
+   "archivos": [
+    "src/ai/astraura/skills.ts",
+    "src/ai/astraura/__tests__/skills-av-gen.test.ts"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/generacion-audiovisual-astraura.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§9 (a): añade a `SKILL_CAPABILITIES` la capacidad `av-gen` tal como la describe el contrato (id, label, systemPrompt, routing, skillIds `aurora-av-gen`, packageIds `iatool-media-gen`), con el texto honesto: imagen siempre (motor gratis), voz del propio texto, vídeo solo con servicio propio conectado. Prueba: la capacidad existe y su prompt no promete vídeo gratis."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-025236.json": [
+   "CTR1104H",
+   "CTR1104B",
+   "CTR1104T",
+   "CTR1104E",
+   "CTR1104G"
+  ]
+ }
+}
