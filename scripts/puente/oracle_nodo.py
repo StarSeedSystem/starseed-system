@@ -48,6 +48,8 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
                          `freellmapi/auto` y el MCP `starseed-director`, sin claves). Telegram
                          va en encuesta solo en el líder: dos encuestas del mismo bot se pisan.
                          Sin `--aplicar` solo enseña el plan.
+  memvid [--aplicar]     copia native/memvid-servidor al A1 y lo compila con el cargo de
+                         starseed (MVD1027I). Sin `--aplicar` solo enseña el plan y no toca SSH.
 
 Reglas: Oracle SOLO Always Free (esto no crea nada en Oracle); nada se publica (main no se toca:
 solo ramas `colas/oracle-*` y `nube/a1-*`, como la nube de GitHub); ninguna IP, clave ni OCID se
@@ -164,6 +166,13 @@ COLIBRI_REPO_A1 = "/home/starseed/colibri"
 COLIBRI_MODELOS_A1 = "/home/starseed/colibri-modelos"
 COLIBRI_MODELO = "colibri-laya"
 COLIBRI_MODELO_A1 = os.path.join(COLIBRI_MODELOS_A1, "laya")
+#: (MVD1027I) Memvid: el núcleo en Rust en un servidor propio (127.0.0.1:4490), nunca el SDK
+#: de Node. Se compila en el A1 con el cargo que ya tiene el usuario starseed y lo sirve
+#: `starseed-memvid.service`; las cápsulas viven en su carpeta, fuera del repo.
+MEMVID_CARPETA_A1 = "/home/starseed/memvid-servidor"
+MEMVID_CARGO_A1 = "/home/starseed/.cargo/bin/cargo"
+MEMVID_DIR_A1 = "/var/lib/starseed/memvid"
+MEMVID_FUENTE = os.path.join(RAIZ, "native", "memvid-servidor")
 
 
 # ── decisiones (puras) ──────────────────────────────────────────────────────────────────────────
@@ -1695,6 +1704,49 @@ def colibri(aplicar=False, carpeta=COLIBRI_MODELOS_A1):
     return res
 
 
+def plan_memvid(fuente=MEMVID_FUENTE, destino=MEMVID_CARPETA_A1):
+    """PURA (MVD1027I). Copiar el servidor Rust de Memvid al A1 y compilarlo con su cargo, como
+    starseed; nada se ejecuta. Nunca el SDK de Node ni nada de memvid.com (contrato §4)."""
+    return [
+        {"que": "copiar", "origen": fuente, "destino": destino,
+         "porque": "lleva native/memvid-servidor (núcleo en Rust, Apache-2.0) a la ruta de la unidad"},
+        {"que": "compilar", "cwd": destino, "args": [MEMVID_CARGO_A1, "build", "--release"],
+         "porque": "compila el binario que arranca starseed-memvid.service con el cargo del A1"},
+    ]
+
+
+def _tar_de_carpeta(carpeta):
+    """Empaqueta una carpeta local para enviarla por SSH; el tar lleva su propio nombre."""
+    with tempfile.TemporaryDirectory(prefix="starseed-memvid-") as tmp:
+        paquete = os.path.join(tmp, "paquete.tgz")
+        with tarfile.open(paquete, "w:gz") as t:
+            t.add(carpeta, arcname=os.path.basename(carpeta))
+        with open(paquete, "rb") as f:
+            return f.read()
+
+
+def memvid(aplicar=False, fuente=MEMVID_FUENTE, destino=MEMVID_CARPETA_A1):
+    """(MVD1027I) Prepara el servidor de cápsulas Memvid en el A1: copia `native/memvid-servidor`
+    y lo compila como starseed. Sin `aplicar` solo enseña el plan; con él corre por SSH."""
+    plan = plan_memvid(fuente, destino)
+    res = {"ok": True, "aplicado": bool(aplicar), "pasos": plan}
+    if not aplicar:
+        return res
+    if not os.path.isdir(fuente):
+        return dict(res, ok=False, motivo="no está native/memvid-servidor en esta neurona")
+    rc, salida = _ssh_bytes(
+        "sudo -u starseed sh -c 'mkdir -p %s && tar -xzf - -C %s'"
+        % (destino, os.path.dirname(destino)), _tar_de_carpeta(fuente), timeout=600)
+    if rc != 0:
+        return dict(res, ok=False, motivo="no pude copiarlo al A1: %s" % salida.strip()[-200:])
+    compilar = [p for p in plan if p["que"] == "compilar"][0]
+    rc, salida = ssh("sudo -u starseed sh -c 'cd %s && exec %s'"
+                     % (destino, " ".join(compilar["args"])), timeout=3600)
+    res["ok"] = rc == 0
+    res["pasos"] = ([l for l in salida.splitlines() if l.strip()] or [])[-8:]
+    return res
+
+
 def freellmapi():
     """(2026-10-13) Instala o pone al día FreeLLMAPI en el A1, SOLO en 127.0.0.1:3001
     (`a1_freellmapi.py`, que corre allí como root). Antes deja las claves al día (`claves()`): el
@@ -1747,6 +1799,8 @@ def main(argv):
         r = colibri(aplicar="--aplicar" in argv, carpeta=carpeta)
     elif orden == "hermes":
         r = hermes(aplicar="--aplicar" in argv)
+    elif orden == "memvid":
+        r = memvid(aplicar="--aplicar" in argv)
     elif orden == "freellmapi":
         r = freellmapi()
     elif orden == "probar-bitnet":
