@@ -5241,6 +5241,55 @@ def alcance_tarea(t, wt):
     return {"pedidos": orden, "tocados": tocados, "faltan": faltan, "extra": extra}
 
 
+#: (SUP0411D) Plazo de `git worktree add` (antes 120 s). Si aun así se corta, `_completar_add_cortado` sigue.
+WORKTREE_ADD_S = int(os.environ.get("STARSEED_WORKTREE_ADD_S", "600"))
+
+
+def _add_cortado(wt):
+    """(SUP0411D) ¿Su registro sigue «locked» con motivo «initializing»? Es lo que deja un `git worktree add`
+    cortado (el plazo de `sh` mata a git a mitad del checkout): la carpeta a medias y sin índice. El 04-11
+    MVD1027F-d3b tenía 3 025 de 8 289 archivos y un índice de 65 bytes, y `worktree()` la daba por buena:
+    la tarea corría tsc y vitest sobre un árbol al que le faltaba casi todo."""
+    rc, gd = sh(["git", "rev-parse", "--git-dir"], cwd=wt, timeout=30)
+    gd = (gd or "").strip()
+    if rc != 0 or not gd:
+        return False
+    if not os.path.isabs(gd):
+        gd = os.path.join(wt, gd)
+    try:
+        with open(os.path.join(gd, "locked"), encoding="utf-8") as f:
+            return f.read().strip() == "initializing"
+    except OSError:
+        return False
+
+
+def _completar_add_cortado(tid, wt):
+    """(SUP0411D) Termina un `worktree add` cortado SIN pisar nada. Si al índice le faltan entradas de HEAD, se
+    rehace desde HEAD (no toca archivos); luego `checkout-index` escribe SOLO los que faltan (sin -f no pisa
+    los que ya están, aunque el agente los haya cambiado) y se quita el bloqueo. Su rc no vale de veredicto
+    («already exists» sale ≠ 0): lo que cuenta es que `ls-files --deleted` quede vacío. Si el plazo vuelve a
+    cortar, RuntimeError («worktree: …», medio:worktree) y la vuelta siguiente sigue donde quedó."""
+    # Los textos dicen «no se pudo preparar worktree»: `clase_de_fallo` los lee como medio:worktree.
+    rc_i, en_indice = sh(["git", "ls-files"], cwd=wt, timeout=120)
+    rc_h, en_head = sh(["git", "ls-tree", "-r", "--name-only", "HEAD"], cwd=wt, timeout=120)
+    if rc_i != 0 or rc_h != 0:
+        raise RuntimeError("no se pudo preparar worktree (add cortado: no pude leer su índice); "
+                           "rama y archivos conservados")
+    if set(en_head.splitlines()) - set(en_indice.splitlines()):
+        rc, _ = sh(["git", "read-tree", "HEAD"], cwd=wt, timeout=300)
+        if rc != 0:
+            raise RuntimeError("no se pudo preparar worktree (add cortado: no pude rehacer su índice, rc=%s); "
+                               "rama y archivos conservados" % rc)
+    sh(["git", "checkout-index", "-a", "-q", "-u"], cwd=wt, timeout=WORKTREE_ADD_S)
+    rc, faltan = sh(["git", "ls-files", "--deleted"], cwd=wt, timeout=120)
+    faltan = [l for l in (faltan or "").splitlines() if l.strip()]
+    if rc != 0 or faltan:
+        raise RuntimeError("no se pudo preparar worktree (add cortado: aún faltan %s archivo(s), sigue en la "
+                           "próxima vuelta); rama y archivos conservados" % (len(faltan) if rc == 0 else "?"))
+    sh(["git", "worktree", "unlock", wt], cwd=ROOT, timeout=60)
+    evento("aviso", tid, "worktree: el «add» anterior quedó cortado; terminado sin pisar nada")
+
+
 def worktree(tid):
     """Reutiliza trabajo válido; nunca destruye cambios para preparar una tarea."""
     if not isinstance(tid, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", tid):
@@ -5271,6 +5320,9 @@ def worktree(tid):
         rc, actual = sh(["git", "symbolic-ref", "--short", "HEAD"], cwd=wt, timeout=30)
         if comunes[0] != comunes[1] or rc or actual.strip() != rama:
             raise RuntimeError("repositorio o rama ajenos: worktree conservado")
+        # (SUP0411D) Un `worktree add` cortado deja la carpeta a medias: se termina antes de usarla.
+        if _add_cortado(wt):
+            _completar_add_cortado(tid, wt)
     else:
         rc, _ = sh(
             ["git", "show-ref", "--verify", "--quiet", "refs/heads/" + rama],
@@ -5284,8 +5336,13 @@ def worktree(tid):
             if rc == 0
             else ["git", "worktree", "add", "-b", rama, wt, "HEAD"]
         )
-        rc, out = sh(orden, cwd=ROOT, timeout=120)
-        if rc != 0:
+        # (SUP0411D) 120 s no daban para sacar los ~8 300 archivos con la Mac a carga 50–60 (MVD1027F-d3,
+        # MVD1027F-d3b, IMG1102Db y LNN1028I2 quedaron «locked: initializing»). Más plazo y, si aun así se
+        # corta, se termina aquí mismo lo que quedó (cada vuelta avanza; no se empieza de cero).
+        rc, out = sh(orden, cwd=ROOT, timeout=WORKTREE_ADD_S)
+        if rc != 0 and os.path.isfile(os.path.join(wt, ".git")) and _add_cortado(wt):
+            _completar_add_cortado(tid, wt)
+        elif rc != 0:
             raise RuntimeError(
                 "no se pudo preparar worktree; rama y archivos conservados"
             )
