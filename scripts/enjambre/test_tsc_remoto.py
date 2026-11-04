@@ -163,6 +163,80 @@ class TscRemotoTest(unittest.TestCase):
             self.assertEqual(enjambre.tsc(self.wt, self.log), (0, []))
         self.assertEqual(len(locales), 1)
 
+    # ── (SUP0411A) La foto del árbol: rápida, entera, y si falla lo dice ──
+    def test_la_foto_va_sin_checkout_y_lleva_lo_sin_commitear(self):
+        """GitHub y el A1 solo leen commits: el worktree de la foto no saca los archivos. El checkout
+        entero pasaba de 120 s con la Mac a carga 50 y la puerta caía callada al tsc de la Mac."""
+        vistos = []
+
+        def en_github(base, cambiados, cwd):
+            vistos.append((sorted(os.listdir(cwd)), subprocess.run(
+                ["git", "show", "HEAD:a.ts"], cwd=cwd, capture_output=True, text=True).stdout))
+            return True, "tsc en verde en GitHub (run 9)"
+
+        doble_sh, locales, peticiones, comprobar = self._dobles((True, "no", False))
+        with self._pila(doble_sh, comprobar, en_github):
+            self.assertEqual(enjambre.tsc(self.wt, self.log), (0, []))
+        self.assertEqual(vistos, [([".git"], "// cambio de la tarea\n")])
+        self.assertEqual((locales, peticiones), ([], []))
+        lista = subprocess.run(["git", "worktree", "list"], cwd=self.wt, capture_output=True, text=True).stdout
+        self.assertNotIn("enj-a1-", lista)  # la foto se quita al acabar, también sin checkout
+
+    def test_la_foto_parte_del_indice_del_agente(self):
+        """Lo que el agente añadió a la fuerza (aunque lo ignore .gitignore) va en su commit: también en la
+        foto. Con `read-tree HEAD` el índice nacía sin ello (y sin datos de stat: git rehasheaba todo)."""
+        with open(os.path.join(self.wt, ".gitignore"), "w", encoding="utf-8") as f:
+            f.write("gen.ts\n")
+        self._git("add", ".gitignore")
+        self._git("commit", "-qm", "ignora gen.ts")
+        with open(os.path.join(self.wt, "gen.ts"), "w", encoding="utf-8") as f:
+            f.write("export const g = 1\n")
+        self._git("add", "-f", "gen.ts")
+        en_github, llamadas = self._github((True, "verde"))
+        doble_sh, _, _, comprobar = self._dobles((True, "no", False))
+        with self._pila(doble_sh, comprobar, en_github):
+            self.assertEqual(enjambre.tsc(self.wt, self.log), (0, []))
+        self.assertEqual(sorted(llamadas[0][1]), ["a.ts", "gen.ts"])
+
+    def _con_fallo(self, trozo):
+        """`sh` doble que da 124 (plazo agotado) a la orden de git que contiene `trozo`."""
+        doble_sh, locales, peticiones, comprobar = self._dobles((True, "no debería llamarme", False))
+
+        def sh_con_fallo(cmd, cwd=None, timeout=120, env=None, log=None):
+            texto = cmd if isinstance(cmd, str) else " ".join(cmd)
+            if texto.startswith("git") and trozo in texto:
+                if trozo == "worktree add":
+                    # Como un `git worktree add` cortado por el plazo: corre y queda «locked: initializing».
+                    doble_sh(cmd, cwd=cwd, timeout=timeout, env=env, log=log)
+                    subprocess.run(["git", "worktree", "lock", "--reason", "initializing", cmd[-2]], cwd=cwd,
+                                   capture_output=True, text=True)
+                return 124, ""
+            return doble_sh(cmd, cwd=cwd, timeout=timeout, env=env, log=log)
+        return sh_con_fallo, locales, peticiones, comprobar
+
+    def _avisos(self):
+        return [str(c.args[2]) for c in enjambre.evento.call_args_list if len(c.args) > 2]
+
+    def test_git_add_cortado_no_manda_una_foto_a_medias(self):
+        sh_con_fallo, locales, peticiones, comprobar = self._con_fallo("add -A")
+        en_github, llamadas = self._github((True, "no debería llamarme"))
+        with self._pila(sh_con_fallo, comprobar, en_github):
+            self.assertEqual(enjambre.tsc(self.wt, self.log), (0, []))
+            avisos = self._avisos()
+        self.assertEqual((llamadas, peticiones, len(locales)), ([], [], 1))
+        self.assertTrue(any("sin foto" in a and "add -A" in a for a in avisos), avisos)
+
+    def test_worktree_de_la_foto_que_falla_lo_dice_y_no_deja_registro(self):
+        sh_con_fallo, locales, peticiones, comprobar = self._con_fallo("worktree add")
+        en_github, llamadas = self._github((True, "no debería llamarme"))
+        with self._pila(sh_con_fallo, comprobar, en_github):
+            self.assertEqual(enjambre.tsc(self.wt, self.log), (0, []))
+            avisos = self._avisos()
+        self.assertEqual((llamadas, peticiones, len(locales)), ([], [], 1))
+        self.assertTrue(any("sin foto" in a and "worktree add" in a for a in avisos), avisos)
+        lista = subprocess.run(["git", "worktree", "list"], cwd=self.wt, capture_output=True, text=True).stdout
+        self.assertNotIn("enj-a1-", lista)
+
 
 class EnLaMacTest(unittest.TestCase):
     """(2026-11-02, SUP0211L) Las puertas tsc de fuera se usan desde la Mac aunque la tanda la lance Genesis

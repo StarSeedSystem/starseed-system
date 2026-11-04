@@ -129,6 +129,17 @@ def _git_en(cwd, args, timeout=300):
         return 1, "%s: %s" % (type(e).__name__, e)
 
 
+def _existe_en(cwd):
+    """(SUP0411A) ¿Está `r` en la carpeta? Si no está en disco, se mira su HEAD: la puerta tsc del
+    orquestador manda un worktree sin checkout (solo hacen falta commits) y sin esto el A1 no pasaba las
+    pruebas de Python de lo cambiado."""
+    def existe(r):
+        if os.path.exists(os.path.join(cwd, r)):
+            return True
+        return _git_en(cwd, ["cat-file", "-e", "HEAD:" + r], timeout=30)[0] == 0
+    return existe
+
+
 def comprobar(base_sha, shas, cambiados, timeout=900, cwd=None):
     """(ok, detalle, del_medio). `cwd` es la carpeta de comprobación de traer_nube con `HEAD` ya
     cherry-pickeado; sin ella no hay nada que mandar."""
@@ -166,7 +177,7 @@ def comprobar(base_sha, shas, cambiados, timeout=900, cwd=None):
                                             % (BASE_A1, destino, destino, destino), datos, timeout=300)
         if rc != 0:
             return False, "A1: no pude dejar el paquete: " + salida.strip()[-200:], True
-    pet = peticion(id_, cabeza, [prerreq], cambiados, lambda r: os.path.exists(os.path.join(cwd, r)), timeout)
+    pet = peticion(id_, cabeza, [prerreq], cambiados, _existe_en(cwd), timeout)
     pet["sin_paquete"] = sin_paquete
     try:
         with open(REMOTO, encoding="utf-8") as f:

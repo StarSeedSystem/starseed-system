@@ -4226,6 +4226,28 @@ def errores_de_a1(detalle):
     return lineas
 
 
+def _copiar_indice(cwd, destino):
+    """(SUP0411A) Copia el índice del worktree del agente a `destino` (la foto lo usa de partida). False si
+    no se pudo: entonces la foto parte de `read-tree HEAD`, como antes."""
+    try:
+        rc, ruta = sh(["git", "rev-parse", "--git-path", "index"], cwd=cwd, timeout=30)
+        ruta = ruta.strip()
+        if rc != 0 or not ruta:
+            return False
+        if not os.path.isabs(ruta):
+            ruta = os.path.join(cwd, ruta)
+        shutil.copyfile(ruta, destino)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def _sin_foto(tid, paso, rc):
+    """(SUP0411A) La foto del árbol no se pudo hacer: se dice (antes la puerta caía callada al tsc de la Mac)."""
+    evento("aviso", tid, "puerta tsc: sin foto del árbol (%s, rc=%s) → tsc en la Mac" % (paso, rc))
+    return None
+
+
 def tsc_en_a1(cwd, log=None, comprobar=None, en_github=None):
     """Puerta tsc fuera de la Mac: primero GitHub Actions (CAP1026P), luego el A1. Devuelve (rc, errores) si
     uno de los dos dio verde o rojo y None si hay que compilar aquí (no es la Mac, ninguno responde o están
@@ -4251,27 +4273,44 @@ def tsc_en_a1(cwd, log=None, comprobar=None, en_github=None):
         # El worktree llega a esta puerta SIN commitear (el commit va después de tsc): el A1 solo ve
         # commits, así que se hace una foto del árbol (índice aparte: no toca el del agente) en un
         # worktree desacoplado y temporal.
-        env = dict(os.environ, GIT_INDEX_FILE=os.path.join(tempfile.gettempdir(), "enj-a1-idx-%s-%d" % (tid, os.getpid())))
+        indice = os.path.join(tempfile.gettempdir(), "enj-a1-idx-%s-%d" % (tid, os.getpid()))
+        env = dict(os.environ, GIT_INDEX_FILE=indice)
         try:
-            rc, _ = sh("git read-tree HEAD && git add -A", cwd=cwd, timeout=120, env=env)
+            # (SUP0411A) El índice de la foto nace copiado del del agente, con sus datos de stat: `git add -A`
+            # solo vuelve a leer lo que cambió. Con `read-tree HEAD` nacía sin ellos y git rehasheaba los
+            # ~8 300 archivos del worktree (104 MB); con la Mac a carga 50 eso no cabía en 120 s.
+            if not _copiar_indice(cwd, indice):
+                rc, _ = sh(["git", "read-tree", "HEAD"], cwd=cwd, timeout=120, env=env)
+                if rc != 0:
+                    return _sin_foto(tid, "git read-tree", rc)
+            # (SUP0411A) Antes no se miraba su código: cortado por el plazo, la foto salía a medias (HEAD
+            # y parte de los cambios) y GitHub o el A1 daban su veredicto sobre otro árbol.
+            rc, _ = sh(["git", "add", "-A"], cwd=cwd, timeout=300, env=env)
+            if rc != 0:
+                return _sin_foto(tid, "git add -A", rc)
             rc, arbol = sh(["git", "write-tree"], cwd=cwd, timeout=60, env=env)
             arbol = arbol.strip()
             if rc != 0 or not arbol:
-                return None
+                return _sin_foto(tid, "git write-tree", rc)
             rc, snap = sh(["git", "commit-tree", arbol, "-p", "HEAD", "-m", "snapshot tsc A1"], cwd=cwd, timeout=60)
             snap = snap.strip()
             if rc != 0 or not snap:
-                return None
+                return _sin_foto(tid, "git commit-tree", rc)
         finally:
             with contextlib.suppress(OSError):
-                os.remove(env["GIT_INDEX_FILE"])
+                os.remove(indice)
         _, nombres = sh(["git", "diff", "--name-only", base, snap], cwd=cwd, timeout=60)
         cambiados = [l.strip() for l in nombres.splitlines() if l.strip()]
         tmp = tempfile.mkdtemp(prefix="enj-a1-")
-        rc, _ = sh(["git", "worktree", "add", "--detach", tmp, snap], cwd=cwd, timeout=120)
+        # (SUP0411A) Sin checkout: GitHub y el A1 solo leen commits (rev-parse, diff, push, bundle). El
+        # checkout entero pasó de los 120 s con la Mac a carga 50 (03-11, 17:48 y 22:56): MVD1027H-d2
+        # cayó callada al tsc de la Mac (2 × 900 s) y salió «tsc no terminó».
+        rc, _ = sh(["git", "worktree", "add", "--detach", "--no-checkout", tmp, snap], cwd=cwd, timeout=120)
         if rc != 0:
+            # Cortado a medias, git deja su registro «locked: initializing»: fuera, con su carpeta.
+            sh(["git", "worktree", "remove", "--force", "--force", tmp], cwd=cwd, timeout=60)
             shutil.rmtree(tmp, ignore_errors=True)
-            return None
+            return _sin_foto(tid, "git worktree add", rc)
         try:
             if en_github is not None:
                 inicio_gh = time.time()

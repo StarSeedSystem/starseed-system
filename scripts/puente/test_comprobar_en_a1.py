@@ -126,6 +126,32 @@ class ComprobarConSshSimulado(unittest.TestCase):
         self.assertTrue(medio)
         subir.assert_not_called()
 
+    def test_sin_checkout_encuentra_las_pruebas_del_puente_en_head(self):
+        """(SUP0411A) La puerta tsc del orquestador manda un worktree sin checkout: las pruebas de Python
+        de lo cambiado se buscan también en su HEAD, no solo en disco."""
+        os.makedirs(os.path.join(self.tmp, "scripts", "puente"))
+        for nombre in ("b.py", "test_b.py"):
+            with open(os.path.join(self.tmp, "scripts", "puente", nombre), "w") as f:
+                f.write("x = 1\n")
+        _git(self.tmp, "add", ".")
+        _git(self.tmp, "commit", "-qm", "c3")
+        foto = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, foto, True)
+        _git(self.tmp, "worktree", "add", "--detach", "--no-checkout", foto, "HEAD")
+        pedidos = []
+
+        def ssh(orden, entrada=None, timeout=120):
+            pedidos.append(json.loads(orden.split(" - ", 1)[1].strip("'")))
+            return 0, "@@RESULTADO " + json.dumps({"medio": "", "pasos": [{"paso": "pytest", "rc": 0, "s": 1}]})
+
+        with mock.patch.object(C.oracle_nodo, "estado", return_value=({"fase": "cola", "main_mac": {"sha": self.base}}, {}, [])), \
+                mock.patch.object(C.oracle_nodo, "_ssh_bytes", return_value=(0, "")), \
+                mock.patch.object(C.oracle_nodo, "ssh", side_effect=ssh):
+            ok, detalle, medio = C.comprobar(self.base, [], ["scripts/puente/b.py"], cwd=foto)
+        self.assertEqual((ok, medio), (True, False), detalle)
+        self.assertEqual(os.listdir(foto), [".git"])  # nada en disco
+        self.assertEqual(pedidos[0]["py"], ["scripts/puente/test_b.py"])
+
 
 class Remoto(unittest.TestCase):
     """El guion que corre en el A1, de punta a punta sobre repos de prueba (sin npx ni /proc)."""
