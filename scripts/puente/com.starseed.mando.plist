@@ -2,7 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>com.starseed.mando</string>
+  <!-- (SUP0311D) python3 con lanzador-tcc.py y el shell de hijo: launchd no deja a /bin/zsh leer
+       un guion dentro de ~/Documents (TCC). Ver scripts/puente/lanzador-tcc.py. -->
   <key>ProgramArguments</key><array>
+    <string>/opt/homebrew/bin/python3</string>
+    <string>/Users/alex/Documents/starseed-os-main/scripts/puente/lanzador-tcc.py</string>
+    <string>--cwd</string>
+    <string>/Users/alex/Documents/starseed-os-main</string>
+    <string>--</string>
     <string>/bin/zsh</string>
     <string>/Users/alex/Documents/starseed-os-main/scripts/puente/arrancar-mando.sh</string>
   </array>

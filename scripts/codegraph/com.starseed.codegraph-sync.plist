@@ -3,13 +3,21 @@
 <!-- CodeGraph (colbymchenry/codegraph, MIT): pone al día el índice de main cada 15 min para el
      contexto de los agentes (MCP con la opción path a main y sin watch). Telemetría apagada.
      Instalar: cp a ~/Library/LaunchAgents y `launchctl bootstrap gui/$(id -u) <plist>`.
-     Contrato: architecture/repos-3d-oido-agentes-1023.md §2. -->
+     Contrato: architecture/repos-3d-oido-agentes-1023.md §2.
+     (SUP0311D) El programa del servicio es python3 con lanzador-tcc.py, no /bin/bash: macOS (TCC)
+     no deja a /bin/bash leer un guion dentro de ~/Documents («Operation not permitted»), y el
+     permiso de disco de python3 sí lo heredan sus hijos. Ver scripts/puente/lanzador-tcc.py. -->
 <plist version="1.0">
 <dict>
     <key>Label</key>
     <string>com.starseed.codegraph-sync</string>
     <key>ProgramArguments</key>
     <array>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>/Users/alex/Documents/starseed-os-main/scripts/puente/lanzador-tcc.py</string>
+        <string>--cwd</string>
+        <string>/Users/alex/Documents/starseed-os-main</string>
+        <string>--</string>
         <string>/bin/bash</string>
         <string>/Users/alex/Documents/starseed-os-main/scripts/codegraph/sync-si-cabe.sh</string>
         <string>/Users/alex/Documents/starseed-os-main</string>
