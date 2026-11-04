@@ -51,6 +51,11 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
                          `freellmapi/auto` y el MCP `starseed-director`, sin claves). Telegram
                          va en encuesta solo en el líder: dos encuestas del mismo bot se pisan.
                          Sin `--aplicar` solo enseña el plan.
+  leann [--aplicar]      el recuerdo semántico LEANN en el A1 (LNN1028C): venv de starseed con
+                          leann==0.3.8, el modelo qwen3-embedding con su licencia comprobada y
+                          starseed-leann.service en 127.0.0.1:4495. Sin `--aplicar` solo enseña
+                          el plan; sin el servidor el recuerdo sigue con Memvid y nada falla.
+
 
 Reglas: Oracle SOLO Always Free (esto no crea nada en Oracle); nada se publica (main no se toca:
 solo ramas `colas/oracle-*` y `nube/a1-*`, como la nube de GitHub); ninguna IP, clave ni OCID se
@@ -178,6 +183,21 @@ MEMVID_SERVIDOR_A1 = "/home/starseed/memvid-servidor"
 MEMVID_BINARIO_A1 = os.path.join(MEMVID_SERVIDOR_A1, "target", "release", "memvid-servidor")
 MEMVID_SERVICIO_A1 = "/etc/systemd/system/starseed-memvid.service"
 MEMVID_CARGO_A1 = "/home/starseed/.cargo/bin/cargo"
+MEMVID_DIR_A1 = "/var/lib/starseed/memvid"
+MEMVID_FUENTE = os.path.join(RAIZ, "native", "memvid-servidor")
+#: (LNN1028C) LEANN, el recuerdo semántico (StarTrail-org, MIT): SOLO en el A1 —en la Mac no
+#: (~1,5–2 GB)—; lo sirve starseed-leann.service en 127.0.0.1:4495 con token. Fijado 0.3.8; el
+#: modelo qwen3-embedding por Ollama entra solo tras comprobar su licencia Apache-2.0. Sin el
+#: servidor, el recuerdo sigue con Memvid y nada falla (architecture/leann-recuerdo-semantico.md).
+LEANN_VERSION = "0.3.8"
+LEANN_MODELO = "qwen3-embedding:0.6b"
+LEANN_VENV_A1 = "/opt/starseed/leann/.venv"
+LEANN_CARPETA_A1 = "/opt/starseed/nodo/leann"
+SERVICIO_LEANN_A1 = "/etc/systemd/system/starseed-leann.service"
+LEANN_INSTALADOR = os.path.join(RAIZ, "deploy", "oracle", "nodo", "leann-a1.sh")
+LEANN_UNIDAD = os.path.join(RAIZ, "deploy", "oracle", "nodo", "systemd", "starseed-leann.service")
+#: Los módulos que viajan con el paquete a `leann/` junto al servidor (mismas rutas allí).
+LEANN_FUENTES = ("leann_servidor.py", "leann_indices.py", "fusion_recuerdos.py")
 
 
 # ── decisiones (puras) ──────────────────────────────────────────────────────────────────────────
@@ -881,6 +901,11 @@ def _paquete(destino):
         texto_pasarela = ""
     if re.search(r"^\s*(?:import|from)\s+freellmapi_clave\b", texto_pasarela, re.M):
         poner(fuente("scripts/puente/freellmapi_clave.py"), "automejora/freellmapi_clave.py")
+    # (LNN1028C) LEANN: el servidor mkde recuerdo y sus hermanos viajan a `leann/` (la ruta que
+    # espera la unidad: /opt/starseed/nodo/leann/). `leann_indices.py` y `fusion_recuerdos.py`
+    # viajan si existen (sus olas pueden no haberse integrado: sin ellos el servidor solo busca).
+    for rel in LEANN_FUENTES:
+        poner(fuente(os.path.join("scripts", "puente", rel)), os.path.join("leann", rel))
     poner(fuente("deploy/nube/opencode.json"), "opencode.json")
     poner(fuente("scripts/puente/oracle_a1.py"), "oracle_a1.py")
     enj = os.path.join(RAIZ, "scripts", "enjambre")
@@ -1766,6 +1791,76 @@ def memvid(aplicar=False, origen=None):
     return res
 
 
+def plan_leann():
+    """PURA (LNN1028C). El plan de la orden `leann`: venv de starseed con leann==0.3.8, el modelo
+    de incrustaciones con su licencia Apache-2.0 comprobada ANTES de darlo por bueno y la unidad
+    systemd. Nada se ejecuta: solo enseñarlo (Genesis y Alex)."""
+    return [
+        {"que": "instalar", "orden": "bash leann-a1.sh",
+         "porque": "venv en %s con leann==%s; modelo %s con licencia Apache-2.0 comprobada antes de "
+                   "dejarlo; OLLAMA_KEEP_ALIVE=2m y OLLAMA_MAX_LOADED_MODELS=1 en el servicio de Ollama"
+                   % (LEANN_VENV_A1, LEANN_VERSION, LEANN_MODELO)},
+        {"que": "instalar", "ruta": SERVICIO_LEANN_A1,
+         "porque": "unidad del servidor de recuerdo (%s) en 127.0.0.1 con token y MemoryMax=1500M"
+                   % LEANN_CARPETA_A1},
+        {"que": "arrancar", "orden": "sudo systemctl enable --now starseed-leann",
+         "porque": "recuerdo por significado en el A1; sin él el recuerdo sigue con Memvid y nada falla"},
+    ]
+
+
+def leann(aplicar=False):
+    """(LNN1028C) LEANN en el A1: instala el venv y el modelo con `leann-a1.sh` (idempotente,
+    como ollama-a1.sh) y deja `starseed-leann.service` andando. Sin `aplicar` solo enseña el
+    plan y no toca SSH; con él corre por SSH, como freellmapi."""
+    res = {"ok": True, "aplicado": bool(aplicar), "pasos": plan_leann()}
+    try:
+        with open(LEANN_INSTALADOR, encoding="utf-8") as f:
+            instalador = f.read()
+        with open(LEANN_UNIDAD, encoding="utf-8") as f:
+            unidad = f.read()
+    except OSError as e:
+        return dict(res, ok=False, motivo="falta %s en el repo" % os.path.basename(e.filename or ""))
+    if not aplicar:
+        return res
+    res["hecho"] = []
+
+    def apuntar(que, rc, salida):
+        res["ok"] = res["ok"] and rc == 0
+        res["hecho"].append({"que": que, "ok": rc == 0,
+                             "detalle": "" if rc == 0 else salida.strip()[-160:]})
+
+    def fuente(nombre):
+        """La versión de FUENTE si existe; si no, la del repo (lo mismo que en `_paquete`)."""
+        c = os.path.join(FUENTE, "scripts", "puente", nombre)
+        return c if os.path.exists(c) else os.path.join(RAIZ, "scripts", "puente", nombre)
+
+    rc, salida = _poner_en_a1(instalador, "/opt/starseed/nodo/leann-a1.sh")
+    apuntar("copiar leann-a1.sh", rc, salida)
+    if not res["ok"]:
+        return res
+    rc, salida = ssh("sudo bash /opt/starseed/nodo/leann-a1.sh", timeout=3600)
+    apuntar("venv %s con leann==%s y modelo con licencia" % (LEANN_VENV_A1, LEANN_VERSION), rc, salida)
+    if not res["ok"]:
+        return res
+    for nombre in LEANN_FUENTES:
+        ruta = fuente(nombre)
+        if not os.path.exists(ruta):
+            continue
+        try:
+            with open(ruta, encoding="utf-8") as f:
+                contenido = f.read()
+        except OSError:
+            continue
+        rc2, salida2 = _poner_en_a1(contenido, os.path.join(LEANN_CARPETA_A1, nombre), dueno="starseed")
+        apuntar("copiar %s" % nombre, rc2, salida2)
+    rc, salida = _poner_en_a1(unidad, SERVICIO_LEANN_A1)
+    apuntar("instalar unidad", rc, salida)
+    rc, salida = ssh("sudo systemctl daemon-reload && sudo systemctl enable --now %s"
+                     % os.path.basename(SERVICIO_LEANN_A1), timeout=120)
+    apuntar("arrancar el servicio", rc, salida)
+    return res
+
+
 def freellmapi():
     """(2026-10-13) Instala o pone al día FreeLLMAPI en el A1, SOLO en 127.0.0.1:3001
     (`a1_freellmapi.py`, que corre allí como root). Antes deja las claves al día (`claves()`): el
@@ -1820,6 +1915,8 @@ def main(argv):
         r = memvid(aplicar="--aplicar" in argv)
     elif orden == "hermes":
         r = hermes(aplicar="--aplicar" in argv)
+    elif orden == "leann":
+        r = leann(aplicar="--aplicar" in argv)
     elif orden == "freellmapi":
         r = freellmapi()
     elif orden == "probar-bitnet":
