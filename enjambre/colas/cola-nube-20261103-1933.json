@@ -1,0 +1,48 @@
+{
+ "ola": "nube-20261103",
+ "tareas": [
+  {
+   "id": "LNN1028I2",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "Biblioteca · registrar la tanda 1028",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/defaults-seed.ts",
+    "src/app/api/library/actualizaciones/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nComo MTN1027L2 con la 1027b: `FICHAS_REPOS_1028` en el catálogo, sus ids en la siembra (sube `SEED_VERSION` en 1) y en `fichasIaConUpstreamGitHub([...])`.",
+   "revisor_quitadas": [
+    "MTN1027L2"
+   ],
+   "dependencias_ya_en_main": [
+    "LNN1028I"
+   ]
+  },
+  {
+   "id": "XR1010AL",
+   "ola": "Ola 1010X · StarSeed XR: el OS en visores de AR/VR (entrada automática, Trinity espacial, menús 3D, voz de Astraura, mundos, P2P, calidad automática)",
+   "titulo": "Guardas finales y medición del paquete: nada pesado en el layout raíz, sin duplicados ni cámara",
+   "archivos": [
+    "src/components/xr/shell/__tests__/guardias.test.ts",
+    "scripts/xr/medir-paquete.mjs",
+    "next.config.ts"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/starseed-xr.md`. Léelo ENTERO antes de empezar: es la fuente de verdad. §2 lista lo que YA existe, con rutas: se reutiliza y se amplía, nunca se duplica; §3 (a)–(o) son las reglas del área y §1 la investigación fechada (qué existe y qué NO en cada visor). El núcleo puro YA está escrito y probado (214 pruebas) y NO se modifica: `src/lib/xr/{tipos,capacidades,calidad,calidad-perfiles,espacio-trinity,tokens-3d,transiciones,mundo-tipos,mundo-reglas,mundo-saneo,mundo-spec,intenciones-tipos,intenciones-ref,intenciones-destinos,intenciones-clausulas,intenciones-voz,confort,privacidad,vinculos-xr}.ts` (ábrelos y usa sus nombres reales; la tabla del inicio de §3 dice qué da cada uno). Petición de Alex (2026-10-10): StarSeed OS instalable y usable en gafas de AR/VR de todo tipo (Meta Quest, SteamVR, Android XR, Vision Pro, Pico…) o en cualquier navegador con WebXR; se abre solo en su formato (VR o AR); todo el sistema en 3D con el mismo diseño, funciones y estilo; menús 3D completos con animaciones y transiciones autoadaptables; calidad fijada sola por aparato; Astraura y la Protomolécula incluidas, con voz («crea un mundo virtual… e invita a este grupo de amigos», «súbelo a la Biblioteca / a una estación / a una publicación / a un mensaje»); servidores y estaciones públicos o privados como destinos; herramientas configurables para construir entornos, también en pizarras y llamadas.\nPRECONDICIÓN (compruébala PRIMERO con `ls`): tu worktree debería traer `architecture/starseed-xr.md` y los módulos de `src/lib/xr/` de arriba. Los escribió Claude y llegan a `main` por una integración aparte; si TODAVÍA no están, NO los recrees ni los reconstruyas de memoria (chocarían con los reales al integrar y dejarían `main` con dos versiones del núcleo) y NO edites ningún archivo del núcleo para que un import resuelva: escribe SOLO tus archivos, con los nombres y firmas de este prompt, y si las puertas fallan únicamente porque falta el núcleo, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: núcleo XR en main» para que el director la reencole cuando llegue.\nReglas de la casa (`memory/workflow-actual.md` y CLAUDE.md): el silencio no es aprobación; integrado no es aplicado (termina comprobando con grep que tu pieza se usa FUERA de su propia prueba, o di en tu última línea qué tarea posterior la cablea); si una prueba falla se arregla el código, no la prueba. Editable sí, ejecutable no: nada de eval, new Function ni import dinámico de código ajeno; lo de terceros solo en iframe con sandbox y postMessage de origen verificado, WASM en un Worker, app nativa o servicio aparte. Nada de `node:*` en código que llegue al navegador. Claves solo por NOMBRE de variable. Pruebas sin red, sin hardware y sin WebGL: lo del navegador se inyecta; los `*.test.ts` corren en node y los `*.test.tsx` en jsdom; el lienzo 3D (three/R3F/uikit) se simula con `vi.mock` como hace `src/components/vivo/espacial/__tests__/escena-compartida.test.tsx`; los componentes de R3F son cascarones finos y su LÓGICA vive en funciones puras que sí se prueban. Español claro en toda cadena visible; un botón sin efecto real no se pinta: se muestra «próximamente: <motivo>». Dependencias: NO ejecutes `npm install` salvo que tu tarea sea XR1010A; las 7 dependencias XR (§3 n) las añade esa tarea con el visto bueno de Alex; si tu tarea las necesita y `node_modules` no las trae, deja tu pieza escrita y di en tu última línea «PENDIENTE-DE: XR1010A (dependencias XR)». El layout raíz no carga motores pesados: three/uikit/rapier/vrm/spark solo dentro de `src/components/xr/shell/**` y de la ruta `/xr/os` (carga perezosa con `next/dynamic` sin SSR o `import()` dentro de una función). Privacidad (§3 k): nunca pidas la función `camera-access`; la cámara del passthrough y el mapa de la habitación no salen del aparato. Máximo 3 archivos y 120 líneas por archivo; si tocas un archivo existente grande añade lo mínimo (≤ 30 líneas) y pon la lógica en un archivo nuevo; NUNCA reescribas un archivo existente entero. Migra lo persistido si cambias un valor por defecto. Honestidad: no digas que algo «se ve bien» o «funciona en el visor»: di que pasan tsc y vitest; solo Alex lo comprueba con un visor, en `/xr/diagnostico` (tarea XR1010AI). Al terminar, las puertas tsc y vitest de tus archivos en verde.\n\nTU TAREA (XR1010AL): Contrato §0, §1.3 y §3 (k). Esta tarea no añade funciones: las VIGILA. `guardias.test.ts` (node, lee el código fuente): (1) ningún archivo de `src/**` pide la función `camera-access` (busca la cadena en todo `src/` salvo en este test y en los comentarios del contrato); (2) `emulate:` solo aparece con `false`/condicionado a desarrollo en `almacen-xr.ts`; (3) el grafo estático de imports que cuelga de `src/app/(app)/app-globals.tsx` hacia `entrada-global.tsx` NO alcanza `three`, `@react-three/*`, `@pmndrs/*`, `@dimforge/*`, `@pixiv/*` ni `@sparkjsdev/*` (recorre los imports relativos y de alias `@/`; los `import()` y `next/dynamic` no cuentan); (4) ningún archivo de `src/lib/xr/**` ni de `src/components/xr/shell/**` importa `node:*`; (5) cada módulo de `src/components/xr/shell/*.ts(x)` y cada `src/lib/xr/*.ts` nuevo es importado por al menos un archivo que no sea su propia prueba (INTEGRADO NO ES APLICADO: lista los que no y falla con sus nombres; excluye `tipos.ts`); (6) ningún archivo de `src/lib/xr/` pasa de 200 líneas (ya lo hace `pureza.test.ts`; aquí solo `shell/` pasa de 120). `scripts/xr/medir-paquete.mjs` (Node ESM, ≤ 120 líneas): con una build ya hecha (`.next/`), lee `.next/build-manifest.json` y el `app-build-manifest.json` y imprime, para `/xr/os` y para una ruta cualquiera del grupo `(app)`, los kB de JS del primer cargado; avisa si el JS inicial del layout raíz subió respecto a una línea base guardada en `starseed_memory_root/xr/paquete-base.json` (la crea la primera vez) o si aparece `@iwer/devui`/`three@0.165` en los chunks (busca por nombre en los `.js`). NO ejecuta `next build` (con el enjambre vivo no se compila). `next.config.ts` (≤ 30 líneas): SOLO si `medir-paquete` demuestra que `@iwer/devui` entra en el paquete de producción, añade un alias a un módulo vacío para producción (`webpack.resolve.alias` condicionado a `!dev`); si no hay evidencia, NO lo toques y di que no hizo falta. Integración: ejecutable con `npx vitest run src/components/xr/shell`; di en tu última línea cómo se mide el paquete tras la siguiente `next build`.",
+   "dependencias_ya_en_main": [
+    "XR1010F",
+    "XR1010G-d3",
+    "XR1010AG",
+    "XR1010AI",
+    "XR1010AS"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1103-165243.json": [
+   "LNN1028I2",
+   "XR1010AL"
+  ]
+ }
+}
