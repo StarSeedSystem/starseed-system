@@ -141,6 +141,13 @@ class Sucesor(unittest.TestCase):
         self.assertEqual(T.base_de(""), "")
         self.assertEqual(T.base_de(None), "")
 
+    def test_toda_la_cadena_de_una_tarea_converge_en_su_raiz(self):
+        # Rescate RESC1031D: la raíz, la letra de reintento del nodo y cada derivado
+        # (`-d1`, `-d2b`, `-d2d`) tienen que desembocar en el mismo id base.
+        for k in ("RTESP1011Bb", "RTESP1011Bd", "RTESP1011Bd-d1",
+                  "RTESP1011Bd-d2b", "RTESP1011Bd-d2d"):
+            self.assertEqual(T.base_de(k), "RTESP1011B", k)
+
     @unittest.expectedFailure
     def test_un_id_que_ya_acababa_en_minuscula_pierde_solo_la_letra_nueva(self):
         """FALLO REAL en main: `base_de` no reconoce la sucesora de un id que ya acaba en
