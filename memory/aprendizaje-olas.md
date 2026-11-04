@@ -4693,3 +4693,25 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTIMG1020Cb-d2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTIMG1020Cb-d2b conservada)
 - `VZF1015M-d1b` — no escribió nada
 - `SGO1031B-d2b` — no escribió nada
+
+## 2026-11-04 00:04 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** Rescate de pruebas · Rescate de pruebas · Rescate de pruebas · Relé de estaciones (lógica pura de salas) con pruebas
+
+**Resultado.** 0 de 8 integradas. 8 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — no escribió nada (XR1010ANb, RTRTRTS1010-EV-ORACLE-1acbbbbbbbbbb, RTOPS1024Bc, RTRTRTRTCOL1012Bdsbbbbbc-d2d, RTAV1011Id). Es 62 % de la ola.
+- 3 tareas se fueron por lo mismo — los tipos no compilan (RTRTRTRTS1010-EV-ORACLE-1abcb-d3b, MC1013TCb, RTRTRTS1010-EV-ORACLE-1accbbbbbbbbb). Es 38 % de la ola.
+- sin modelo anotado no integró ninguna de sus 5 tareas.
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTRTRTRTS1010-EV-ORACLE-1abcb-d3b` — los tipos no compilan: tsc no terminó (se pasó de tiempo): la puerta no da el visto bueno sin un tsc completo (rama ola/RTRTRTRTS1010-EV-ORACLE-1abcb-d3b conservad
+- `MC1013TCb` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/MC1013TCb conservada)
+- `XR1010ANb` — no escribió nada
+- `RTRTRTS1010-EV-ORACLE-1acbbbbbbbbbb` — no escribió nada
+- `RTOPS1024Bc` — no escribió nada
+- `RTRTRTRTCOL1012Bdsbbbbbc-d2d` — no escribió nada
+- `RTRTRTS1010-EV-ORACLE-1accbbbbbbbbb` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTRTRTS1010-EV-ORACLE-1accbbbbbbbbb conservada)
+- `RTAV1011Id` — no escribió nada
