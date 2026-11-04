@@ -8,7 +8,7 @@
  */
 
 import { useMemo } from "react";
-import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, Ban, Link2, RefreshCw } from "lucide-react";
+import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, Ban, Link2, RefreshCw, Server, HardDrive, Globe, Cpu } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -17,6 +17,7 @@ import { normalizarVinculos, type VinculoTelepatico } from "@/lib/cerebros/telep
 import { normalizeMemoryDestinations } from "@/lib/brains/memory-destinations";
 import type { Brain } from "@/lib/brains/brains";
 import { MarcaAplicacion } from "@/components/cerebro/ajustes-seguridad";
+import { Database } from "lucide-react";
 
 type Sync = AjustesObjetivo["sync"];
 // Nadie lee aún config.ajustes.sync (dirección, auto ni destinos): el cableado va con syncBrainMemoryNow.
@@ -58,10 +59,11 @@ export function AjustesSync({ valor, onCambio, cerebro, onAbrirTelepatia }: Ajus
   const destinos = useMemo(() => {
     const d = normalizeMemoryDestinations(cerebro.config?.memoryDestinations);
     return [
-      { id: "local", texto: "Este aparato", activo: d.local.enabled },
-      { id: "starseed", texto: "StarSeed", activo: d.starseed.enabled },
-      ...d.external.map((e) => ({ id: e.id, texto: e.label, activo: true })),
-      { id: "p2p", texto: d.p2p.label ? `Syncthing · ${d.p2p.label}` : "Syncthing (P2P)", activo: d.p2p.enabled },
+      { id: "local", texto: "Este aparato", activo: d.local.enabled, Icono: HardDrive },
+      { id: "starseed", texto: "StarSeed", activo: d.starseed.enabled, Icono: Globe },
+      ...d.external.map((e) => ({ id: e.id, texto: e.label, activo: true, Icono: Server })),
+      { id: "p2p", texto: d.p2p.label ? `Syncthing · ${d.p2p.label}` : "Syncthing (P2P)", activo: d.p2p.enabled, Icono: Cpu },
+      { id: "capsula", texto: "Cápsula Memvid", activo: d.capsula.enabled, Icono: Database },
     ];
   }, [cerebro.config]);
   const alternar = (id: string) => cambiar({ destinos: sync.destinos.includes(id) ? sync.destinos.filter((x) => x !== id) : [...sync.destinos, id] });
@@ -90,7 +92,8 @@ export function AjustesSync({ valor, onCambio, cerebro, onAbrirTelepatia }: Ajus
         <p className="text-xs text-white/60">Los destinos de memoria de este cerebro. Elige a cuáles va esta sincronización.</p>
         <div className="flex flex-wrap gap-2">
           {destinos.map((d) => (
-            <Button key={d.id} type="button" size="sm" variant={sync.destinos.includes(d.id) ? "default" : "outline"} className="h-auto whitespace-normal py-1.5" aria-pressed={sync.destinos.includes(d.id)} disabled={!d.activo} title={d.activo ? d.texto : `${d.texto}: apagado en los destinos del cerebro`} onClick={() => alternar(d.id)}>
+            <Button key={d.id} type="button" size="sm" variant={sync.destinos.includes(d.id) ? "default" : "outline"} className="h-auto whitespace-normal py-1.5 gap-1.5" aria-pressed={sync.destinos.includes(d.id)} disabled={!d.activo} title={d.activo ? d.texto : `${d.texto}: apagado en los destinos del cerebro`} onClick={() => alternar(d.id)}>
+              {d.Icono && <d.Icono className="h-3.5 w-3.5" />}
               {d.texto}{d.activo ? "" : " · apagado"}
             </Button>
           ))}
