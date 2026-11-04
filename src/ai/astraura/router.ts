@@ -61,6 +61,8 @@ import { localPrimeroDelta, migrarLocalPrimero } from "./local-primero";
 // (Ola 1018L · Tarea F) Refinado de dificultad con Laya: capa PURA, import sin
 // ciclo (router-laya solo importa TIPOS del router, borrados en runtime).
 import { refinarConLaya, type RespuestasLaya } from "./router-laya";
+// (MVD1027F-d2) Recuerdos de cápsulas Memvid
+import { recordarDeCapsulas } from "./recuerdos-capsulas";
 import { findOssService } from "@/lib/services/oss-services";
 // Personalidad activa (Adenda 63 §11): bloque de system prompt compilado desde
 // la personalidad resuelta por contexto (chat > cerebro > sección > global).
@@ -1513,6 +1515,48 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
     if (cc.memoryScope) parts.push(`Alcance de memoria para este chat: ${cc.memoryScope}.`);
     if (parts.length) chatCfgNote = "CONFIGURACIÓN DE ESTE CHAT (Astraura):\n" + parts.join("\n");
   }
+  // ── Recuerdos de cápsulas Memvid (MVD1027F-d2) ─────────────────────────────
+  // Se ejecutan junto a chatCfgNote: solo si memoryScope del chat no es "personal",
+  // con límite de 800 ms y sin bloquear el flujo si falla.
+  let memvidRecuerdos = "";
+  try {
+    if (!req.soloAgente && cc?.memoryScope !== "personal") {
+      const userConsulta = [...req.messages].reverse().find((m) => m.role === "user")?.content ?? "";
+      if (userConsulta.trim().length > 0) {
+        const contextoCapsulas = {
+          perfilId: undefined as string | undefined,
+          personalidadId: persona?.id,
+          agenteId: req.agentId,
+          cerebroId: req.brainId,
+          paginaId: undefined as string | undefined,
+          grupoId: undefined as string | undefined,
+        } as const;
+        const actor = { tipo: "usuario" as const };
+        const buscarCapsula = async (sujeto: { tipo: string; id: string }, consulta: string, k: number) => {
+          try {
+            const res = await fetch("/api/memorias/capsulas", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ accion: "buscar", sujeto: `${sujeto.tipo}:${sujeto.id}`, consulta, k }),
+            });
+            if (!res.ok) return [];
+            const data = await res.json().catch(() => null);
+            const aciertos = data?.ok ? (data.aciertos as Array<{ titulo: string; texto: string; uri?: string; ts?: number }>) ?? [] : [];
+            return aciertos.map((a) => ({ ...a, alcance: "personal" as const, sujeto }));
+          } catch {
+            return [];
+          }
+        };
+        memvidRecuerdos = await recordarDeCapsulas({
+          contexto: { ...contextoCapsulas, actor },
+          consulta: userConsulta,
+          buscar: buscarCapsula,
+          memoryScope: cc?.memoryScope,
+          timeoutMs: 800,
+        }).catch(() => "");
+      }
+    }
+  } catch { /* defensivo: sin recuerdos, Aurora sigue igual */ }
   // ── Directiva activa de automejora Meta^n (MTN1027) ────────────────────────
   // Capa elegida por el planificador si está a mano; si no, "palabra" (contrato).
   // Va DESPUÉS de las reglas y permisos, nunca antes (architecture/automejora-meta-n.md §4).
@@ -1528,7 +1572,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // `voiceStateText` va ANTES que `capText` (capacidades/skills): así la
   // verdad del estado de voz tiene prioridad sobre el texto de las skills de
   // voz (que ahora hablan en general de motores opcionales, nunca del activo).
-  const brainExtra = [personaText, ctxText, voiceStateText, capText, userCtxText, chatCfgNote, directivaTexto]
+  const brainExtra = [personaText, ctxText, voiceStateText, capText, userCtxText, chatCfgNote, memvidRecuerdos, directivaTexto]
     .filter(Boolean)
     .join("\n\n");
   const messages = brainExtra ? mergeSystemPrompt(req.messages, brainExtra) : req.messages;
