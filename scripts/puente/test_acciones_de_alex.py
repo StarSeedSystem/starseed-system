@@ -2,7 +2,10 @@
 """Qué entra —y qué NO— en la lista de acciones que solo puede hacer Alex."""
 import importlib.util
 import os
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 _ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "acciones-de-alex.py")
 _spec = importlib.util.spec_from_file_location("acciones_de_alex", _ruta)
@@ -410,3 +413,68 @@ def test_1103_el_token_se_busca_donde_lo_deja_oracle_claves():
         return 0, "SI\n"
     assert m.a1_tiene_clave(ssh=ssh) is True
     assert "/etc/starseed/direccion.env" in vistas[0] and "[ -e" not in vistas[0]
+
+
+class CodexCuentaSinModelo(unittest.TestCase):
+    """DEC1028D: acción para cuando Codex no funciona por cuota de ChatGPT.
+    
+    Desde el 2026-10-23, cada intento con Codex devuelve "model not supported when
+    using Codex with a ChatGPT account". El enjambre lo ha apartado y sigue con
+    los demás modelos gratuitos. Alex necesita actualizar la CLI o revisar la suscripción."""
+
+    def test_no_hay_marca_no_hay_accion(self):
+        accion = A.accion_codigo_cuenta()
+        self.assertIsNone(accion)
+
+    def test_marca_de_cuenta_sin_codex_si(self):
+        import tempfile
+        import cupo_codex as C
+        tmp = tempfile.mkdtemp()
+        try:
+            ruta = os.path.join(tmp, "codex-cupo.json")
+            marca = {
+                "hasta": 1_000_000_000 + 26 * 3600,
+                "desde": "2026-10-23 20:55",
+                "motivo": "cuenta de ChatGPT sin Codex",
+            }
+            with open(ruta, "w") as f:
+                import json
+                json.dump(marca, f)
+            orig_ruta = C.RUTA
+            C.RUTA = ruta
+            accion = A.accion_codigo_cuenta()
+            self.assertIsNotNone(accion)
+            self.assertEqual(accion["id"], "codex-cuenta")
+            self.assertEqual(accion["urgencia"], "media")
+            self.assertIn("chatgpt.com", accion["enlace"])
+            self.assertEqual(accion["comando"], "")
+            self.assertEqual(accion["por_que_no_lo_hago_yo"], "es tu cuenta y tu suscripción")
+            self.assertIn("npm i -g @openai/codex", accion["detalle"])
+            self.assertIn("desde", accion["por_que"])
+            C.RUTA = orig_ruta
+        finally:
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_marca_de_otro_motivo_no_hay_accion(self):
+        import tempfile
+        import cupo_codex as C
+        tmp = tempfile.mkdtemp()
+        try:
+            ruta = os.path.join(tmp, "codex-cupo.json")
+            marca = {
+                "hasta": 1_000_000_000 + 26 * 3600,
+                "desde": "2026-10-23 20:55",
+                "motivo": "cuota de ChatGPT agotada",
+            }
+            with open(ruta, "w") as f:
+                import json
+                json.dump(marca, f)
+            orig_ruta = C.RUTA
+            C.RUTA = ruta
+            accion = A.accion_codigo_cuenta()
+            self.assertIsNone(accion)
+            C.RUTA = orig_ruta
+        finally:
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)

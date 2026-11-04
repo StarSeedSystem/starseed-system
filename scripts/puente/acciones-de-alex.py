@@ -197,13 +197,40 @@ ESTADOS_HUMANOS = {
 }
 
 
+def accion_codigo_cuenta():
+    """PURA: acción para Codex cuando la cuenta de ChatGPT no admite el modelo.
+    
+    Desde el 2026-10-23, cada intento con Codex devuelve "model not supported when
+    using Codex with a ChatGPT account". El enjambre lo ha apartado y sigue con los
+    demás modelos gratuitos.
+    """
+    try:
+        cupo = importlib.import_module("cupo_codex")
+    except ImportError:
+        return None
+    marca = cupo.leer(cupo.RUTA)
+    if not isinstance(marca, dict):
+        return None
+    motivo = str(marca.get("motivo", "") or "")
+    if not motivo.startswith("cuenta de ChatGPT sin Codex"):
+        return None
+    desde = str(marca.get("desde", ""))
+    return {
+        "id": "codex-cuenta",
+        "titulo": "Codex: tu cuenta de ChatGPT ya no deja usarlo",
+        "por_que": "desde %s cada intento devuelve \"model not supported when using Codex with a ChatGPT account\"; el enjambre lo ha apartado y sigue con los demás" % desde,
+        "urgencia": "media",
+        "detalle": "mirar en chatgpt.com › Ajustes › Plan si la suscripción sigue activa; si lo está, actualizar la CLI con `npm i -g @openai/codex` y volver a entrar con `codex login`",
+        "enlace": "https://chatgpt.com/#settings/Account",
+        "comando": "",
+        "por_que_no_lo_hago_yo": "es tu cuenta y tu suscripción",
+    }
+
+
 def _entorno_con_env():
     """El entorno del proceso MÁS `~/.starseed/env`, que es donde viven de verdad las
     variables del enjambre: el director corre desde launchd y no las hereda."""
     datos = dict(os.environ)
-    # Los MISMOS sitios de los que tiran los servicios. El de Telegram arranca con
-    # `source ~/.hermes/.env` (ver com.starseed.telegram.plist), así que mirar solo
-    # `~/.starseed/env` daba una falsa alarma: decía que no había canal habiéndolo.
     for archivo in ("~/.starseed/env", "~/.hermes/.env"):
         try:
             with open(os.path.expanduser(archivo), encoding="utf-8") as f:
@@ -317,13 +344,11 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1
             continue
         clave = str(p.get("clave") or "")
         info = catalogo.get(clave) or {}
-        # CAIDA necesita racha
         if estado == _pas.CAIDA:
             caidas = int(p.get("caidas_seguidas") or 0)
             caida_desde = str(p.get("caida_desde") or "")
             if not caidas or not caida_desde:
                 continue
-            # comprobar >=3 pruebas y >=6h
             from datetime import datetime, timedelta
             try:
                 desde_dt = datetime.strptime(caida_desde, "%Y-%m-%d %H:%M")
@@ -363,6 +388,10 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1
                                       else "Claude no teclea claves de terceros; el guion las pide sin que se vean"),
             "detalle": "http %s · modelo %s" % (p.get("http"), p.get("modelo")),
         })
+
+    codex_accion = accion_codigo_cuenta()
+    if codex_accion:
+        acciones.append(codex_accion)
 
     orden = {"alta": 0, "media": 1, "baja": 2}
     acciones.sort(key=lambda a: (orden.get(a["urgencia"], 9), a["id"]))
