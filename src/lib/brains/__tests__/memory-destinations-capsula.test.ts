@@ -101,6 +101,14 @@ describe("planCapsulaCerebro · solo archivos nuevos o cambiados", () => {
     expect((await planCapsulaCerebro("cerebro-1", [])).enviar).toEqual([]);
     expect((await planCapsulaCerebro("cerebro-1", null)).enviar).toEqual([]);
   });
+
+  it("archivo con contenido vacío o solo espacios no se incluye", async () => {
+    const plan = await planCapsulaCerebro("cerebro-1", [
+      { name: "vacio.md", content: "" },
+      { name: "espacios.md", content: "   " },
+    ]);
+    expect(plan.enviar).toEqual([]);
+  });
 });
 
 describe("uriCapsula", () => {
