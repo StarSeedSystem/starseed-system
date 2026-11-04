@@ -442,6 +442,8 @@ export const RECOMMENDED_FREE_SOURCES: string[] = [
 
 /* ─────────────────────── Estado de la siembra ─────────────────────── */
 
+/** La versión de la siembra incluye ahora a Meta^n y Memvid (1027b). */
+
 interface SeedState {
   /** Última versión de siembra aplicada en este dispositivo/cuenta. */
   version: number;
