@@ -4,10 +4,18 @@ import type { EnlaceLocalVivo } from "@/lib/malla/registro-enlaces-locales";
 
 const MAX_DIRECTOS = 7;
 
+export type TipoCanalDirecto = "directo" | "privado" | "ninguno";
+
 export interface CanalesDecision {
   enlaces: EnlaceLocalVivo[];
   texto: string;
   motivo?: string;
+}
+
+export function tipoCanalesDirectos(decision: CanalesDecision, hayRedSupabase: boolean): TipoCanalDirecto {
+  if (decision.enlaces.length === 0) return "ninguno";
+  if (!hayRedSupabase) return "directo";
+  return "privado";
 }
 
 export function canalesParaLlamada({
