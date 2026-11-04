@@ -1,0 +1,67 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "id": "CTR1104K",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Imaginación · «clave» de «un paso clave» ya no se confunde con una clave secreta",
+   "archivos": [
+    "scripts/puente/autodesarrollo_decidir.py",
+    "scripts/puente/test_autodesarrollo_reservados_1104.py"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/imaginacion-calidad.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3: «clave» en `RESERVADOS` también significa «importante» («un paso clave»), y «Arreglar el ciclo de vida del orquestador» sigue yendo a «pregunta». Haz que «clave» solo cuente cuando hable de un secreto (clave de API, secreta, privada, de acceso, SSH, token, contraseña) y no en «paso clave», «punto clave», «clave para», «es clave». Pruebas con ejemplos de los dos lados."
+  },
+  {
+   "id": "CTR1104S",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Astraura · detectAvailability sondea las fuentes en paralelo",
+   "archivos": [
+    "src/ai/astraura/availability.ts",
+    "src/ai/astraura/__tests__/availability-paralelo.test.ts"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/astraura-158-sistema-primario.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§«Pendiente / no hecho en esta ola»: el bucle de sondeo de `detectAvailability()` sigue secuencial entre fuentes. Hazlo en paralelo (cada sonda con su tope, una que tarda no frena a las demás) conservando el orden de preferencia del resultado. Prueba con sondas simuladas: el tiempo total es el de la más lenta, no la suma, y el orden no cambia."
+  },
+  {
+   "id": "CTR1104U",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Estudio MetaGeminis · subtítulos .vtt y .srt desde los beats del guion",
+   "archivos": [
+    "scripts/sociales/estudio/subtitulos.py",
+    "scripts/sociales/estudio/test_subtitulos.py"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/metageminis-estudio.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§12 `EST-SUBTITULOS`: genera `.vtt` y `.srt` a partir de los beats (inicio, fin, texto) que ya usa el estudio (mira `manifiesto.py`/`nucleo.py`). Puro y probado; quemarlos con ffmpeg solo si ffmpeg está y como función aparte."
+  },
+  {
+   "id": "LNN1028I2",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "Biblioteca · registrar la tanda 1028",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/defaults-seed.ts",
+    "src/app/api/library/actualizaciones/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nComo MTN1027L2 con la 1027b: `FICHAS_REPOS_1028` en el catálogo, sus ids en la siembra (sube `SEED_VERSION` en 1) y en `fichasIaConUpstreamGitHub([...])`.",
+   "revisor_quitadas": [
+    "MTN1027L2"
+   ],
+   "dependencias_ya_en_main": [
+    "LNN1028I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-122653.json": [
+   "LNN1028I2",
+   "CTR1104S",
+   "CTR1104U",
+   "CTR1104K"
+  ]
+ }
+}
