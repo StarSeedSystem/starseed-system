@@ -11,6 +11,8 @@ import {
     contratoDe1028,
     iconoDeLaBiblioteca1028,
 } from "../repos-1028";
+import { allPackages, findPackage } from "../packages";
+import { IDS_SIEMBRA_1025 } from "../defaults-seed";
 
 const porId = (id: string) => FICHAS_REPOS_1028.find((p) => p.id === id)!;
 
@@ -70,5 +72,32 @@ describe("tanda 1028 · canal de versión", () => {
 
     it("lo que Alex debe decidir está explicado en el JSON (hoy: nada pendiente)", () => {
         for (const texto of DECISIONES_1028) expect(texto.length).toBeGreaterThan(20);
+    });
+});
+
+describe("tanda 1028 · integración con packages.ts", () => {
+    it("lib-leann está incluido en allPackages()", () => {
+        const paquetes = allPackages();
+        expect(paquetes.some((p) => p.id === "lib-leann")).toBe(true);
+    });
+
+    it("findPackage encuentra lib-leann con el kind correcto", () => {
+        const pkg = findPackage("lib-leann");
+        expect(pkg).toBeDefined();
+        expect(pkg?.kind).toBe("ai-source");
+        expect(pkg?.payload.catalogSourceId).toBeUndefined();
+        expect(pkg?.payload.route).toBeUndefined();
+    });
+
+    it("IDS_SIEMBRA_1028 está incluido en RECOMMENDED_PACKAGE_IDS de defaults-seed", () => {
+        const paquetes = allPackages();
+        const catalog = paquetes.map((p) => ({ id: p.id, comingSoon: p.comingSoon }));
+        const porId = (id: string) => paquetes.find((p) => p.id === id);
+        const libLeann = porId("lib-leann");
+        expect(libLeann).toBeDefined();
+        for (const id of IDS_SIEMBRA_1028) {
+            expect(porId(id)).toBeDefined();
+            expect(porId(id)?.comingSoon).toBeFalsy();
+        }
     });
 });
