@@ -184,6 +184,43 @@ def accion_token_despliegue(a1_lo_tiene):
         "variable": TOKEN_DESPLIEGUE,
     }
 
+
+def accion_codex_cuenta(marca):
+    """PURA: acción cuando Codex está apartado por cuenta de ChatGPT sin soporte.
+
+    `marca` es el dict leído de cupo_codex (puede ser None). Solo entra si el motivo
+    empieza por «cuenta de ChatGPT sin Codex» y la marca está vigente.
+    """
+    if not isinstance(marca, dict):
+        return None
+    motivo = str(marca.get("motivo") or "")
+    if not motivo.startswith("cuenta de ChatGPT sin Codex"):
+        return None
+    # La marca es vigente si tiene 'hasta' en el futuro; si no hay 'hasta', se asume vigente
+    # para no pedir algo que quizá ya expiró.
+    try:
+        from cupo_codex import sigue_agotado
+        import time as _t
+        ahora = _t.time()
+        if not sigue_agotado(marca, ahora):
+            return None
+    except Exception:
+        # Si no se puede importar o comprobar, no se pide a ciegas
+        return None
+    desde = marca.get("desde", "")
+    return {
+        "id": "codex-cuenta",
+        "titulo": "Codex: tu cuenta de ChatGPT ya no deja usarlo",
+        "por_que": ("desde %s cada intento devuelve \"model not supported when using Codex with a ChatGPT account\"; "
+                    "el enjambre lo ha apartado y sigue con los demás" % desde),
+        "urgencia": "media",
+        "comando": "",
+        "enlace": "https://chatgpt.com/#settings/Account",
+        "por_que_no_lo_hago_yo": "es tu cuenta y tu suscripción",
+        "detalle": ("En chatgpt.com › Ajustes › Plan comprueba si la suscripción sigue activa. "
+                    "Si lo está, actualiza la CLI con `npm i -g @openai/codex` y vuelve a entrar con `codex login`."),
+    }
+
 #: Qué estados de pasarela necesitan a un humano, y con qué urgencia. `sin_cupo` NO está:
 #: una cuota se repone sola y mandarle a hacer algo por eso es hacerle perder el tiempo.
 ESTADOS_HUMANOS = {
@@ -256,7 +293,7 @@ def accion_sin_canal(entorno):
     }
 
 
-def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_tiene_token=None):
+def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_tiene_token=None, cupo_codex_marca=None):
     """Función PURA: la lista de acciones, ordenada por urgencia. Sin red, sin disco.
 
     `a1_tiene_token` llega ya medido (True/False/None): aquí no se sale a la red. Con None
@@ -268,6 +305,10 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1
     token = accion_token_despliegue(a1_tiene_token)
     if token:
         acciones.append(token)
+
+    codex = accion_codex_cuenta(cupo_codex_marca)
+    if codex:
+        acciones.append(codex)
 
     # El canal de avisos es una preocupación aparte de la lista de tareas: solo se mira
     # cuando quien llama pasa un entorno. Así esta función sigue siendo pura y quien solo
@@ -467,7 +508,7 @@ def resondear(clave, segundos=20):
 
 
 def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, medir=None,
-              a1_tiene_token=None):
+              a1_tiene_token=None, cupo_codex_marca=None):
     """¿Sigue haciendo falta esa accion? Vuelve a MEDIR, no consulta un archivo viejo.
 
     (2026-09-21, pedido por Alex) «en Genesis en su ventana debe haber un boton
@@ -500,14 +541,22 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
     # «Ya lo hice», la tarjeta desaparece solo cuando el token está de verdad allí.
     if a1_tiene_token is None and real:
         a1_tiene_token = a1_tiene_clave()
+    # Codex también se vuelve a comprobar: si la marca ya expiró, la acción desaparece.
+    if cupo_codex_marca is None and real:
+        try:
+            import cupo_codex
+            cupo_codex_marca = cupo_codex.leer()
+        except Exception:
+            cupo_codex_marca = None
     # (2026-09-22) Sin el entorno, `canal-de-avisos-sin-configurar` no se reconstruía y el
-    # botón «Ya lo hice» contestaba «ya no hace falta» para algo que seguía sin arreglar.
+    # botón «Ya lo hice» contestaba «ya no hace falta» para algo que seguía sin arreglarse.
     # Un botón que dice que algo está hecho porque él mismo no sabe mirarlo es justo la
     # forma de mentir que llevamos toda la sesión quitando.
     vivas = construir_acciones(
         pasarelas, secretos_repo,
         entorno=entorno if entorno is not None else _entorno_con_env(),
         a1_tiene_token=a1_tiene_token,
+        cupo_codex_marca=cupo_codex_marca,
     )
     por_id = {a["id"]: a for a in vivas}
     momento = __import__("time").strftime("%Y-%m-%d %H:%M:%S")
@@ -565,8 +614,14 @@ def main():
         cual = sys.argv[i + 1] if len(sys.argv) > i + 1 else None
         print(json.dumps(verificar(cual), ensure_ascii=False, indent=1))
         return 0
+    # Leer marca de cupo_codex si existe
+    try:
+        import cupo_codex
+        cupo_marca = cupo_codex.leer()
+    except Exception:
+        cupo_marca = None
     acciones = construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env(),
-                                  a1_tiene_token=a1_tiene_clave())
+                                  a1_tiene_token=a1_tiene_clave(), cupo_codex_marca=cupo_marca)
     datos = {"generado": __import__("time").strftime("%Y-%m-%d %H:%M"), "acciones": acciones}
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
     json.dump(datos, open(SALIDA, "w"), ensure_ascii=False, indent=1)

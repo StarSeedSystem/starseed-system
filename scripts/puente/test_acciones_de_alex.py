@@ -410,3 +410,46 @@ def test_1103_el_token_se_busca_donde_lo_deja_oracle_claves():
         return 0, "SI\n"
     assert m.a1_tiene_clave(ssh=ssh) is True
     assert "/etc/starseed/direccion.env" in vistas[0] and "[ -e" not in vistas[0]
+
+
+class CodexCuentaChatGPT(unittest.TestCase):
+    """(DEC1028D) Codex: cuenta de ChatGPT sin soporte al modelo."""
+    
+    def test_no_se_pide_si_no_hay_marca(self):
+        a = A.accion_codex_cuenta(None)
+        self.assertIsNone(a)
+    
+    def test_no_se_pide_si_la_marca_es_de_otra_cosa(self):
+        marca = {"motivo": "cuota agotada", "desde": "2026-10-28 00:00:00"}
+        a = A.accion_codex_cuenta(marca)
+        self.assertIsNone(a)
+    
+    def test_sale_con_titulo_enlace_y_urgencia_media(self):
+        marca = {"motivo": "cuenta de ChatGPT sin Codex para gpt-5.6-sol", "desde": "2026-10-28 20:55:00", "hasta": 9999999999}
+        a = A.accion_codex_cuenta(marca)
+        self.assertIsNotNone(a)
+        self.assertEqual(a["id"], "codex-cuenta")
+        self.assertEqual(a["urgencia"], "media")
+        self.assertIn("Codex: tu cuenta", a["titulo"])
+        self.assertIn("ChatGPT", a["titulo"])
+        self.assertIn("chatgpt.com", a["enlace"])
+        self.assertIn("settings/Account", a["enlace"])
+        self.assertEqual(a["comando"], "")
+        self.assertIn("es tu cuenta y tu suscripción", a["por_que_no_lo_hago_yo"])
+        self.assertIn("2026-10-28 20:55:00", a["por_que"])
+        self.assertIn("model not supported", a["por_que"])
+        self.assertIn("Ajustes", a["detalle"])
+        self.assertIn("npm i -g @openai/codex", a["detalle"])
+        self.assertIn("codex login", a["detalle"])
+    
+    def test_entra_en_construir_acciones(self):
+        marca = {"motivo": "cuenta de ChatGPT sin Codex", "desde": "2026-10-28 20:55:00", "hasta": 9999999999}
+        acciones = A.construir_acciones([], [], catalogo={}, cupo_codex_marca=marca)
+        ids = [x["id"] for x in acciones]
+        self.assertIn("codex-cuenta", ids)
+    
+    def test_no_entra_si_la_marca_aun_no_vigente(self):
+        marca = {"motivo": "cuenta de ChatGPT sin Codex", "desde": "2026-10-28 20:55:00", "hasta": 0}
+        acciones = A.construir_acciones([], [], catalogo={}, cupo_codex_marca=marca)
+        ids = [x["id"] for x in acciones]
+        self.assertNotIn("codex-cuenta", ids)
