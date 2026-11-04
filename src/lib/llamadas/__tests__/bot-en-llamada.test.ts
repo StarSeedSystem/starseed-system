@@ -107,6 +107,29 @@ describe("servidor de voz de la sesión", () => {
         expect(elegirServidorVoz(cands, "vigente")).toBe("vigente");
         expect(elegirServidorVoz(cands, "vigente", { margenMs: 50 })).toBe("mejor");
     });
+
+    it("releva al vigente en cuanto deja de ser fiable, aunque sea el más rápido", () => {
+        const vigente = { id: "vigente", latenciaMs: 100, ramLibreGB: 4, confianza: true };
+        const relevo = { id: "relevo", latenciaMs: 190, ramLibreGB: 4, confianza: true };
+        expect(elegirServidorVoz([{ ...vigente, confianza: false }, relevo], "vigente")).toBe("relevo");
+        expect(elegirServidorVoz([{ ...vigente, ramLibreGB: 0.1 }, relevo], "vigente")).toBe("relevo");
+    });
+
+    it("devuelve null si ningún servidor está disponible", () => {
+        const solosCaidos = [
+            { id: "caido1", latenciaMs: 0, ramLibreGB: 4, confianza: false },
+            { id: "caido2", latenciaMs: 0, ramLibreGB: 4, confianza: false },
+        ];
+        expect(elegirServidorVoz(solosCaidos, null)).toBeNull();
+    });
+
+    it("ignora el timbreId para la elección cuando hay candidatos disponibles", () => {
+        const candidatos = [
+            { id: "local", latenciaMs: 50, ramLibreGB: 4, confianza: true },
+            { id: "remoto", latenciaMs: 100, ramLibreGB: 8, confianza: true },
+        ];
+        expect(elegirServidorVoz(candidatos, "otro-timbre")).toBe("local");
+    });
 });
 
 describe("enganche del bot", () => {
