@@ -1,0 +1,40 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "id": "SUP0411B",
+   "titulo": "codegraph · tras un sync cortado por el tope, esperar unas horas y correr con QoS de fondo",
+   "archivos": [
+    "scripts/codegraph/sync-si-cabe.sh",
+    "scripts/puente/test_codegraph_si_cabe_1103.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nMedido el 03-11 (carga 53–75 y 6,2 GB de swap en la Mac de 8 GB): desde las 18:15 el sync de codegraph que lanza launchd cada 15 min (`scripts/codegraph/sync-si-cabe.sh`) se cortó por su tope de 1200 s en cada pasada (18:35, 19:27, 20:20, 21:45, 22:39 y 23:15). Escanea y parsea («Already up to date»), pero la fase «Resolving refs… Linking dynamic dispatch…» no cabe en 20 min y la pasada siguiente vuelve a empezar: ~20 min de CPU cada ~50 min para nada, con la Mac ahogada. Arreglo SOLO en sync-si-cabe.sh: (1) cuando corta un sync, escribe la hora (segundos de época) en el archivo de estado `${CODEGRAPH_ESTADO:-$HOME/.starseed/codegraph-sync-corte}`; al empezar, si ese archivo dice que el último corte fue hace menos de `${CODEGRAPH_ESPERA_S:-21600}` segundos, escribe en el registro «AAAA-MM-DD HH:MM:SS codegraph sync: la última pasada se cortó hace N min → me salto esta» y sale con 0 sin lanzar codegraph; un sync que acaba con 0 escribe 0 en el archivo (no lo borres). (2) Lanza codegraph con `/usr/sbin/taskpolicy -b` delante cuando ese programa existe (QoS de fondo de macOS: núcleos de eficiencia y E/S frenada); el corte por tope debe seguir matando al proceso de verdad. (3) `CODEGRAPH_BIN` (por defecto /Users/alex/.local/bin/codegraph) y `CODEGRAPH_NIVEL_PRESION` (por defecto lo que diga `sysctl -n kern.memorystatus_vm_pressure_level`), para poder probarlo. No cambies el plist ni el tope por defecto de 1200 s, ni el salto por presión de memoria ≥ 2. Pruebas nuevas en test_codegraph_si_cabe_1103.py que corren el guion de verdad con `bash`, un codegraph FALSO (un guion en un temporal que duerme 30 s o sale 0 al momento), CODEGRAPH_TOPE_S=1, CODEGRAPH_NIVEL_PRESION=1 y CODEGRAPH_ESTADO en un temporal: un corte deja la hora en el estado; la pasada siguiente se salta sin lanzar el falso (el falso apunta en un archivo cada vez que corre); con CODEGRAPH_ESPERA_S=0 vuelve a lanzarlo; un sync que sale 0 deja 0 en el estado. Plazos holgados (la Mac va a carga 50): ninguna espera de la prueba por debajo de 20 s. Las nuevas deben fallar sin el arreglo; las que ya hay deben seguir en verde.",
+   "ola": "0411 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "LNN1028I2",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "Biblioteca · registrar la tanda 1028",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/defaults-seed.ts",
+    "src/app/api/library/actualizaciones/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nComo MTN1027L2 con la 1027b: `FICHAS_REPOS_1028` en el catálogo, sus ids en la siembra (sube `SEED_VERSION` en 1) y en `fichasIaConUpstreamGitHub([...])`.",
+   "revisor_quitadas": [
+    "MTN1027L2"
+   ],
+   "dependencias_ya_en_main": [
+    "LNN1028I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-025236.json": [
+   "LNN1028I2",
+   "SUP0411B"
+  ]
+ }
+}
