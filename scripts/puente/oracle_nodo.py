@@ -36,6 +36,9 @@ la llave SSH (`~/.ssh/starseed_oracle_ed25519`) y la sesión de GitHub hace con 
   colibri [--aplicar]    prepara Colibri con Laya en el A1 (CLB1027): sin `--aplicar` solo enseña
                          el plan de `colibri_nodo.plan_instalacion`; con él lo corre por SSH.
                          Instalar (GB de descarga) SIEMPRE necesita el visto bueno de Alex.
+  memvid [--aplicar]     (MVD1027I) copia `native/memvid-servidor` al A1 y lo compila con su cargo
+                         como starseed; sin `--aplicar` solo enseña el plan. La unidad
+                         `starseed-memvid.service` (127.0.0.1:4490) espera al binario.
     direccion [--aplicar]  deja en el A1 `starseed-direccion.service` y su arranque: orquestador,
                           autocuración, autopublicación y cartero solo con el arriendo de líder.
                           Sin `--aplicar` solo enseña el plan; no arranca nada que ya esté vivo.
@@ -164,6 +167,13 @@ COLIBRI_REPO_A1 = "/home/starseed/colibri"
 COLIBRI_MODELOS_A1 = "/home/starseed/colibri-modelos"
 COLIBRI_MODELO = "colibri-laya"
 COLIBRI_MODELO_A1 = os.path.join(COLIBRI_MODELOS_A1, "laya")
+
+#: (MVD1027I) Servidor de cápsulas Memvid en el A1 (architecture/memvid-capsulas.md §4): el código
+#: va de la Mac a esta carpeta y se compila con el cargo que el A1 ya tiene (medido).
+MEMVID_FUENTE = "native/memvid-servidor"
+MEMVID_DIR_A1 = "/home/starseed/memvid-servidor"
+MEMVID_CARGO_A1 = "/home/starseed/.cargo/bin/cargo"
+MEMVID_DATOS_A1 = "/var/lib/starseed/memvid"
 
 
 # ── decisiones (puras) ──────────────────────────────────────────────────────────────────────────
@@ -619,7 +629,7 @@ def plan_direccion(activo=False, raiz=RAIZ_DIRECCION_A1):
 #: (OPS1031B) Unidades del A1 que la dirección JAMÁS para: servicios de otros medios, que se
 #: abstienen solos (IND1029Cb) y no dependen del arriendo de dirección.
 UNIDADES_AJENAS_DIRECCION = (
-    "starseed-bitnet", "starseed-colibri", "a1-freellmapi", "starseed-puerta-datos",
+    "starseed-bitnet", "starseed-colibri", "starseed-memvid", "a1-freellmapi", "starseed-puerta-datos",
     "starseed-metagenesis", "starseed-medio", "starseed-genesis", "starseed-metageminis",
     "starseed-automejora", "starseed-vigia-modelos",
 )
@@ -1695,6 +1705,64 @@ def colibri(aplicar=False, carpeta=COLIBRI_MODELOS_A1):
     return res
 
 
+def plan_memvid():
+    """PURA. (MVD1027I) Los pasos para dejar el servidor de cápsulas en el A1, sin ejecutar nada:
+    carpetas, copia del código (sin `target/`), `cargo build --release` como starseed y la carpeta
+    de cápsulas de la unidad. Ninguno arranca el servicio ni lleva claves: el token lo crea el
+    propio servidor en ~/.starseed/memvid.token del usuario starseed."""
+    como = ["sudo", "-u", "starseed"]
+    return [
+        {"porque": "carpeta del código, del usuario starseed",
+         "args": como + ["mkdir", "-p", MEMVID_DIR_A1]},
+        {"porque": "copiar %s (sin target/) a %s" % (MEMVID_FUENTE, MEMVID_DIR_A1), "copiar": True,
+         "args": como + ["tar", "-xzf", "-", "-C", MEMVID_DIR_A1]},
+        {"porque": "compilar el binario que pide la unidad",
+         "args": como + ["env", "MEMVID_TELEMETRY=0", MEMVID_CARGO_A1, "build", "--release",
+                         "--manifest-path", MEMVID_DIR_A1 + "/Cargo.toml"]},
+        {"porque": "carpeta de cápsulas de la unidad (STARSEED_MEMVID_DIR), solo para starseed",
+         "args": ["sudo", "install", "-d", "-o", "starseed", "-g", "starseed", "-m", "700", MEMVID_DATOS_A1]},
+    ]
+
+
+def _tar_memvid():
+    """bytes del tar.gz de `native/memvid-servidor` sin `target/`, o None si no está en este repo."""
+    import io as _io
+    import tarfile
+    origen = os.path.join(RAIZ, MEMVID_FUENTE)
+    if not os.path.isfile(os.path.join(origen, "Cargo.toml")):
+        return None
+    buf = _io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        tar.add(origen, arcname=".", filter=lambda m: None if m.name == "./target" or m.name.startswith("./target/") else m)
+    return buf.getvalue()
+
+
+def memvid(aplicar=False):
+    """(MVD1027I) Copia y compila el servidor de cápsulas en el A1. Sin `aplicar` solo enseña el
+    plan (y no llama a SSH); con él corre los pasos por SSH, como FreeLLMAPI, y para al primer fallo."""
+    import shlex
+    plan = plan_memvid()
+    res = {"ok": True, "aplicado": bool(aplicar),
+           "pasos": [{"porque": p["porque"], "args": p["args"]} for p in plan]}
+    if not aplicar:
+        return res
+    datos = _tar_memvid()
+    if datos is None:
+        return dict(res, ok=False, motivo="falta %s en este repo" % MEMVID_FUENTE)
+    hechos = []
+    for i, paso in enumerate(plan, 1):
+        orden = shlex.join(paso["args"])
+        if paso.get("copiar"):
+            rc, salida = _ssh_bytes(orden, datos, timeout=600)
+        else:
+            rc, salida = ssh(orden, timeout=3600)
+        hechos.append("[memvid] paso %d/%d (%s): rc %d" % (i, len(plan), paso["porque"], rc))
+        if rc != 0:
+            hechos.extend(salida.strip().splitlines()[-6:])
+            return dict(res, ok=False, pasos=hechos)
+    return dict(res, pasos=hechos + ["[memvid] listo: falta `systemctl enable --now starseed-memvid`"])
+
+
 def freellmapi():
     """(2026-10-13) Instala o pone al día FreeLLMAPI en el A1, SOLO en 127.0.0.1:3001
     (`a1_freellmapi.py`, que corre allí como root). Antes deja las claves al día (`claves()`): el
@@ -1745,6 +1813,8 @@ def main(argv):
         i = argv.index("--carpeta") if "--carpeta" in argv else -1
         carpeta = argv[i + 1] if 0 <= i < len(argv) - 1 else COLIBRI_MODELOS_A1
         r = colibri(aplicar="--aplicar" in argv, carpeta=carpeta)
+    elif orden == "memvid":
+        r = memvid(aplicar="--aplicar" in argv)
     elif orden == "hermes":
         r = hermes(aplicar="--aplicar" in argv)
     elif orden == "freellmapi":
