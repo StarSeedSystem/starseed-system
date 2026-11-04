@@ -10,6 +10,7 @@ import {
 import {
   filtrarParaAlcance,
   detectarFuga,
+  alcanceVisiblePara,
   type FragmentoMemoria,
   type ActorMemoria,
   type AlcanceMemoria,
