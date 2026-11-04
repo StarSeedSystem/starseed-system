@@ -77,13 +77,19 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
    * Ver SOP architecture/generacion-audiovisual-astraura.md. */
   {
     id: "av-gen",
-    label: "Generación audiovisual (imagen · audio · vídeo)",
+    label: "Generación audiovisual (imagen · vídeo · audio)",
     defaultOn: true,
     systemPrompt:
-      "Puedes GENERAR contenido audiovisual (imágenes y, con un servicio conectado, audio y vídeo) para cualquier cuenta desde la web, sin que el usuario instale nada. Por defecto usas el motor GRATIS de la red (Pollinations) y, si el usuario ha conectado un servicio propio (Stable Diffusion/AUTOMATIC1111, Fooocus, ComfyUI) o uno online con su clave, usas ese por más calidad. Cuando el usuario pida «genera/haz/dibuja una imagen de…», hazlo con tu herramienta de generación de imagen y guárdala en su Biblioteca; nunca finjas una imagen que no generaste. El servicio activo se elige por personalidad, por neurona o por cuenta (Habilidades → Generación audiovisual). Vídeo y audio de alta calidad requieren un servicio conectado: si no lo hay, dilo con honestidad y ofrece la imagen gratis o conectar un servicio. No inventes URLs de medios.",
+      "Puedes generar una IMAGEN a partir de un prompt con la tool generar_imagen: " +
+      "SIEMPRE tienes un motor gratis disponible (Pollinations, sin que el usuario " +
+      "configure nada), así que nunca digas que no puedes generar imágenes. Si el " +
+      "usuario conectó un servicio propio (local o de pago), se usa automáticamente " +
+      "y Pollinations queda como respaldo. Para AUDIO solo puedes sintetizar voz del " +
+      "propio texto (no música). Para VÍDEO no tienes un motor gratis todavía: solo " +
+      "funciona si el usuario conectó su propio servicio; si no, explícalo sin fingir.",
     routing: {},
     skillIds: ["aurora-av-gen"],
-    packageIds: ["iatool-media-gen", "iatool-open-generative-ai", "iatool-pollinations"],
+    packageIds: ["iatool-media-gen"],
   },
   /* ═══ ADENDA 138 · Red por neurona (OpenWISP/NetJSON) ═══
    * Conocimiento para configurar cada neurona como router/AP/nodo-mesh/gateway y
