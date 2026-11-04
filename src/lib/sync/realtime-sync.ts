@@ -174,8 +174,9 @@ const EVENT_BY_KEY: Record<string, string[]> = {
     "starseed.cursorfx.v1": ["starseed:cursorfx"],
 // (Ola MBT1027) El Mausbot ya emite su evento propio al guardar (EVENTO_MAUSBOT,
  //  src/lib/mausbot/config.ts); el mismo evento sirve para el valor que llega de otro dispositivo.
- "starseed.mausbot.v1": [EVENTO_MAUSBOT],
- // (MTN1027C · Meta^n) Directivas de automejora de las capas: viajan con la cuenta.
+  "starseed.mausbot.v1": [EVENTO_MAUSBOT],
+  "starseed.mausbot.disenes.v1": [EVENTO_MAUSBOT],
+  // (MTN1027C · Meta^n) Directivas de automejora de las capas: viajan con la cuenta.
  "starseed.capas.directivas.v1": [EVENTO_DIRECTIVAS],
  // (MVD1027H0 · H0) Qué sujetos tienen cápsula Memvid: viaja con la cuenta.
  "starseed.memorias.capsulas.v1": [CAPSULAS_EVENT],
@@ -281,7 +282,7 @@ const EVENT_BY_PREFIX: Array<{ prefix: string; events: string[] }> = [
     { prefix: "starseed.agentes-red.perfil.", events: ["starseed:agentes-red-perfil"] },
 ];
 
-function eventsForKey(key: string): string[] {
+export function eventsForKey(key: string): string[] {
     const events = new Set<string>();
     const exact = EVENT_BY_KEY[key];
     if (exact) {
