@@ -25,6 +25,7 @@ Tiempos configurables:
 """
 
 import datetime, hashlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
+import importlib
 import signal
 import tempfile
 import contextlib, fcntl
@@ -4181,19 +4182,59 @@ def _en_la_mac():
     return os.environ.get("STARSEED_DONDE") == "mac" and sys.platform == "darwin"
 
 
+#: (2026-11-04, SUP0211V) mtime visto por el orquestador vivo de cada archivo de puerta en
+#: scripts/puente. `orquestador_al_dia.py` solo lo reinicia cuando cambian los .py de
+#: scripts/enjambre, así que un arreglo de esas puertas no le llegaba hasta el próximo reinicio.
+MTIMES_PUERTAS = {}
+
+
+def hay_que_recargar(mtime_visto, mtime_ahora):
+    """PURAS (SUP0211V): ¿cambió el archivo de la puerta desde la última carga? Ninguno de los
+    dos con certificado (None) no decide, y el mismo mtime tampoco."""
+    if mtime_visto is None or mtime_ahora is None:
+        return False
+    return mtime_visto != mtime_ahora
+
+
+def _modulo_de_puerta(nombre, archivo):
+    """(SUP0211V) El módulo `nombre` de scripts/puente AL DÍA: si su mtime cambió desde la última
+    carga (o desde el arranque, si era la primera) se recarga y ahí queda apuntado el mtime
+    nuevo. Si la recarga falla (SyntaxError a medias de un commit, OSError), se sigue con el
+    módulo que ya estaba, se queda el mtime visto (no reintenta con cada llamada) y se dice en
+    un evento('aviso', '-', …). Devuelve el módulo, o None si el archivo no está."""
+    carpeta = os.path.join(ROOT, "scripts", "puente")
+    ruta = os.path.join(carpeta, archivo)
+    if not os.path.isfile(ruta):
+        return None
+    try:
+        mtime_ahora = os.path.getmtime(ruta)
+    except OSError:
+        mtime_ahora = None
+    if carpeta not in sys.path:
+        sys.path.insert(0, carpeta)
+    cargado = sys.modules.get(nombre)
+    visto = MTIMES_PUERTAS.get(nombre)
+    if cargado is not None and visto is not None and hay_que_recargar(visto, mtime_ahora):
+        try:
+            cargado = importlib.reload(cargado)
+        except Exception as e:  # noqa: BLE001 — SyntaxError/OSError a medias: se sigue con la cargada
+            evento("aviso", "-", "puerta tsc: %s no recargó, sigo con la cargada (%s)" % (archivo, str(e)[:120]))
+    MTIMES_PUERTAS[nombre] = mtime_ahora
+    if cargado is not None:
+        return cargado
+    return importlib.import_module(nombre)
+
+
 def _comprobar_en_a1():
     """La función `comprobar` de comprobar_en_a1.py, o None si no se puede usar (TRA1012A).
-    Solo en la Mac (`_en_la_mac`): la nube y el A1 mismo ya compilan donde tienen memoria."""
+    Solo en la Mac (`_en_la_mac`): la nube y el A1 mismo ya compilan donde tienen memoria.
+    (SUP0211V) el módulo se recarga si su archivo cambió: no espera al reinicio del orquestador."""
     if not _en_la_mac():
         return None
-    ruta = os.path.join(ROOT, "scripts", "puente")
-    if not os.path.isfile(os.path.join(ruta, "comprobar_en_a1.py")):
+    A1 = _modulo_de_puerta("comprobar_en_a1", "comprobar_en_a1.py")
+    if A1 is None:
         return None
-    if ruta not in sys.path:
-        sys.path.insert(0, ruta)
-    from comprobar_en_a1 import comprobar
-
-    return comprobar
+    return A1.comprobar
 
 
 #: (2026-10-27, CAP1026P) Lo que la puerta tsc de la Mac espera el veredicto de GitHub antes de caer al A1 o a la
@@ -4204,16 +4245,12 @@ TSC_GITHUB_ESPERA_S = int(os.environ.get("STARSEED_TSC_GITHUB_ESPERA_S", "1500")
 def _comprobar_en_github():
     """(CAP1026P) La puerta tsc en GitHub Actions (`comprobar_en_github.esperar_tsc`), o None si no aplica.
     Solo en la Mac (`_en_la_mac`; la nube y el A1 compilan donde tienen memoria) y con
-    STARSEED_COMPROBAR_GITHUB ≠ 0."""
+    STARSEED_COMPROBAR_GITHUB ≠ 0. (SUP0211V) el módulo se recarga si su archivo cambió."""
     if not _en_la_mac() or os.environ.get("STARSEED_COMPROBAR_GITHUB", "1") == "0":
         return None
-    ruta = os.path.join(ROOT, "scripts", "puente")
-    if not os.path.isfile(os.path.join(ruta, "comprobar_en_github.py")):
+    G = _modulo_de_puerta("comprobar_en_github", "comprobar_en_github.py")
+    if G is None:
         return None
-    if ruta not in sys.path:
-        sys.path.insert(0, ruta)
-    import comprobar_en_github as G
-
     return lambda base, cambiados, cwd: G.esperar_tsc(base, cambiados, cwd, TSC_GITHUB_ESPERA_S)
 
 

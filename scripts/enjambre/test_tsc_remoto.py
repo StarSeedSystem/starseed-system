@@ -216,5 +216,77 @@ class EnLaMacTest(unittest.TestCase):
                     else:
                         self.assertEqual((a1, gh), (None, None))
 
+class RecargaPuertasTest(unittest.TestCase):
+    """(2026-11-04, SUP0211V) Las puertas tsc de fuera importan `comprobar_en_a1` y
+    `comprobar_en_github` UNA vez y el orquestador no pasa por aquí hasta que
+    orquestador_al_dia.py lo reinicia (solo cuando cambian los .py de scripts/enjambre): un
+    arreglo de la puerta hecho en scripts/puente no le llegaba hasta el próximo reinicio.
+    Ahora recargan si el mtime del archivo cambió desde la última carga."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="enj-recarga-")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.puente = os.path.join(self.tmp, "scripts", "puente")  # la carpeta que mira ROOT
+        os.makedirs(self.puente)
+        self.ruta = os.path.join(self.puente, "comprobar_en_a1.py")
+        self._escribir("def comprobar(*a, **k):\n    return 'v1'\n", 1_000_000_000.0)
+    def _escribir(self, texto, mtime):
+        with open(self.ruta, "w", encoding="utf-8") as f:
+            f.write(texto)
+        os.utime(self.ruta, (mtime, mtime))
+
+    @contextlib.contextmanager
+    def entorno(self, mac=True):
+        """La puerta en modo Mac, ROOT apuntando a un directorio temporal y los avisos anotados."""
+        def _evento(tipo, tarea, texto, datos=None):
+            avisos.append((tipo, tarea, texto))
+        pila = contextlib.ExitStack()
+        cambios = {"STARSEED_MEDIO": "mac"} if mac else {}
+        pila.enter_context(mock.patch.dict(os.environ, cambios))
+        if not mac:
+            os.environ.pop("STARSEED_MEDIO", None)
+        pila.enter_context(mock.patch.object(enjambre, "ROOT", self.tmp))
+        avisos = []
+        pila.enter_context(mock.patch.object(enjambre, "evento", _evento))
+        pila.enter_context(mock.patch.dict(sys.modules))
+        pila.enter_context(mock.patch.object(sys, "path", list(sys.path)))
+        with pila:
+            sys.modules.pop("comprobar_en_a1", None)
+            sys.modules.pop("comprobar_en_github", None)
+            enjambre.MTIMES_PUERTAS.pop("comprobar_en_a1", None)
+            yield avisos
+
+    def test_hay_que_recargar_es_pura(self):
+        """NONE no decide y el mismo mtime tampoco; distinto (va o vuelve) sí."""
+        self.assertIs(enjambre.hay_que_recargar(None, 5.0), False)
+        self.assertIs(enjambre.hay_que_recargar(5.0, None), False)
+        self.assertIs(enjambre.hay_que_recargar(None, None), False)
+        self.assertIs(enjambre.hay_que_recargar(5.0, 5.0), False)
+        self.assertIs(enjambre.hay_que_recargar(5.0, 6.0), True)
+        self.assertIs(enjambre.hay_que_recargar(6.0, 5.0), True)
+
+    def test_cambio_de_mtime_da_la_version_nueva(self):
+        with self.entorno():
+            a1 = enjambre._comprobar_en_a1()
+            self.assertEqual(a1(), "v1")  # primera carga: solo apunta el mtime
+            self._escribir("def comprobar(*a, **k):\n    return 'v2'\n", 2_000_000_000.0)
+            self.assertEqual(enjambre._comprobar_en_a1()(), "v2")
+
+    def test_archivo_roto_conserva_la_version_vieja(self):
+        """SyntaxError a medias de un commit: se sigue con el módulo que ya estaba y se avisa una vez."""
+        with self.entorno() as avisos:
+            self.assertEqual(enjambre._comprobar_en_a1()(), "v1")
+            self._escribir("def comprobar(\n", 3_000_000_000.0)  # SyntaxError a medias
+            self.assertEqual(enjambre._comprobar_en_a1()(), "v1")
+            self.assertEqual(enjambre._comprobar_en_a1()(), "v1")  # ni reintenta con cada llamada
+            de_puerta = [txt for t, _, txt in avisos if t == "aviso" and "comprobar_en_a1" in txt]
+        self.assertEqual(len(de_puerta), 1)  # el aviso no se repite: queda el mtime visto
+
+    def test_sin_subir_de_montana_nada_recarga(self):
+        """Sin MEDIO=mac la puerta no abre: ni carga ni recarga (comportamiento de antes)."""
+        with self.entorno(mac=False):
+            self.assertIs(enjambre._comprobar_en_a1(), None)
+
+
 if __name__ == "__main__":
     unittest.main()
