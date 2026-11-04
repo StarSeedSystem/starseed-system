@@ -35,6 +35,13 @@ def test_decidir_reinstalar():
     assert not ok and "compilando" in motivo
 
 
+def test_decidir_poda_de_la_cache_del_a1():
+    assert N.decidir_poda(5.0, "")[0]
+    assert not N.decidir_poda(12.0, "")[0]
+    assert not N.decidir_poda(5.0, "1234")[0]
+    assert not N.decidir_poda(None, "")[0]
+
+
 def test_preparar_deja_la_huella():
     raiz = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
     texto = open(os.path.join(raiz, "deploy", "oracle", "nodo", "preparar-a1.sh"), encoding="utf-8").read()

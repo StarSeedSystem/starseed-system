@@ -400,6 +400,13 @@ def _orquestador_al_dia():
     return OD.revisar(aplicar=True)
 
 
+def _servicios_al_dia():
+    """(1104 · AC) Los servicios de launchd de larga vida, relanzados cuando corren código viejo."""
+    import servicios_al_dia as SD
+
+    return SD.revisar(aplicar=True)
+
+
 def sondear(url=None, tope_s=TOPE_SONDA_S):
     """True si Genesis contesta 2xx a una lectura ligera."""
     try:
@@ -998,6 +1005,13 @@ def revisar(ahora=None, sondear_fn=sondear, reiniciar_fn=_reiniciar, limpiar_fn=
                 hechos.append("orquestador: %s" % h)
         except Exception as e:
             hechos.append("no pude poner al día el orquestador: %s: %s" % (type(e).__name__, e))
+        # (1104 · AC) Y los demás directores de larga vida: el 04-11 trece llevaban el código del 29-10.
+        if od_fn is _orquestador_al_dia:
+            try:
+                for h in (_servicios_al_dia() or {}).get("hechos") or []:
+                    hechos.append("servicios: %s" % h)
+            except Exception as e:
+                hechos.append("no pude poner al día los servicios: %s: %s" % (type(e).__name__, e))
 
     # Marcas viejas de «sin cupo» que el medidor de crédito desmiente (cada pasada; gratis).
     try:

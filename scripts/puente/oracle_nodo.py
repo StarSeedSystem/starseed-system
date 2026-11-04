@@ -972,6 +972,36 @@ def decidir_reinstalar(local, remota, fase, ultima, ahora, cada_s=REINSTALAR_CAD
     return True, "el A1 corre %s y esta neurona %s: lo pongo al día" % (remota, local)
 
 
+#: (1104 · AC) Por debajo de esto el ciclo poda la caché de `next build` del A1 (se rehace en la próxima build).
+PODAR_CACHE_GB = 8.0
+CACHE_A1 = "/home/starseed/starseed-system/.next/cache"
+
+
+def decidir_poda(libre_gb, ocupado="", umbral_gb=PODAR_CACHE_GB):
+    """PURA (1104 · AC). (podar, motivo) de la caché de next build del A1 según su disco libre."""
+    try:
+        libre = float(libre_gb)
+    except (TypeError, ValueError):
+        return False, "no sé cuánto disco le queda al A1"
+    if libre >= umbral_gb:
+        return False, "al A1 le quedan %.1f GB de disco" % libre
+    if str(ocupado or "").strip():
+        return False, "al A1 le quedan %.1f GB, pero está compilando o comprobando: espero" % libre
+    return True, "al A1 le quedan %.1f GB (< %.0f): podo la caché de next build (se rehace sola)" % (libre, umbral_gb)
+
+
+def podar_cache_si_toca(nodo):
+    """(1104 · AC) Lo que hace el ciclo con el disco del A1. Nunca lanza."""
+    rc, ocupado = ssh("pgrep -f '[n]ext build|[v]itest run|[t]sc --noEmit|[n]pm ci' | head -1", timeout=40)
+    if rc not in (0, 1):
+        return {"ok": False, "no": "no pude mirar el A1"}
+    ok, motivo = decidir_poda((nodo or {}).get("disco_libre_gb"), ocupado.strip())
+    if not ok:
+        return {"ok": True, "no": motivo}
+    rc, salida = ssh("sudo -u starseed rm -rf %s && df -h /home/starseed | tail -1" % CACHE_A1, timeout=120)
+    return {"ok": rc == 0, "podado": rc == 0, "motivo": motivo, "salida": salida.strip()[-120:]}
+
+
 def huella_local():
     with tempfile.TemporaryDirectory(prefix="starseed-huella-") as tmp:
         carpeta = os.path.join(tmp, "starseed-nodo")
@@ -1578,6 +1608,10 @@ def ciclo(lanzar_si_libre=True, tope=TOPE_DEFECTO):
                     res["al_dia"] = reinstalar_si_toca(nodo)
                 except Exception as e:  # noqa: BLE001 — ponerlo al día nunca frena el ciclo
                     res["al_dia"] = {"ok": False, "motivo": tachar("%s: %s" % (type(e).__name__, e), _ip())}
+                try:
+                    res["disco"] = podar_cache_si_toca(nodo)
+                except Exception as e:  # noqa: BLE001 — el disco nunca frena el ciclo
+                    res["disco"] = {"ok": False, "motivo": tachar("%s: %s" % (type(e).__name__, e), _ip())}
             basura = [x for x in (estado_a1 or {}).get("servicios") or []
                       if x.get("nombre") == "bitnet" and "BASURA" in str(x.get("detalle") or "")]
             if basura:
