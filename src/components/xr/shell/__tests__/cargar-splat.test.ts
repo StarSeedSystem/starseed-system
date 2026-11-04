@@ -124,4 +124,13 @@ describe("cargarSplat", () => {
         expect(opciones).toMatchObject({ url: URL, maxSplats: 3_000_000 });
         expect(opciones?.fileBytes).toBeInstanceOf(ArrayBuffer);
     });
+
+    it("archivo de 65 MB se rechaza con motivo 60 MB", async () => {
+        const r = await cargarSplat(URL, {
+            SplatMesh: MallaFalsa,
+            pedirBytes: async () => new ArrayBuffer(65 * 1024 * 1024),
+        });
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.motivo).toContain("60 MB");
+    });
 });
