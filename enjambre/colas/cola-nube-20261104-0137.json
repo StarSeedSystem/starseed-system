@@ -1,0 +1,60 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "ola": "1027M · Mausbot de Astraura",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261031-204652-MBT1027C2b",
+   "id": "MBT1027C2c-d2",
+   "titulo": "Mausbot · su configuración viaja con la cuenta (parte 2 de 2)",
+   "archivos": [
+    "src/lib/sync/realtime-sync.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): «agrega para el funcionamiento del cursor en computadoras este bot (milind-soni/OpenMausBot) pero fusionado con Astraura, completamente configurable y personalizable; en el Exocórtex un switch de encendido/apagado del mausbot; ajustable a cualquiera de las personalidades y diseños de cursor ilimitados; enlazado con la Protomolécula y todos los medios de Astraura incluyendo la orbe y el Exocórtex; con acceso a todo el OS que cada usuario configure para su perfil o neurona». Contrato: `architecture/mausbot-astraura.md` (léelo entero). Piezas de referencia de OpenMausBot (Apache-2.0, NO se importan ni compilan): `integraciones-de-codigo/openmausbot/` (README-starseed.md dice qué es cada una). Todo archivo que adapte algo de ahí lleva en su cabecera: «Adaptado de OpenMausBot (Copyright 2026 Milind Soni y colaboradores, Apache-2.0): <archivo de origen>.»\n\nAñade `starseed.mausbot.v1` a `SYNCED_KEYS` (`src/lib/settings-sync.ts`) y su evento `starseed:mausbot` a `EVENT_BY_KEY` (`src/lib/sync/realtime-sync.ts`), igual que `starseed.aurora.always-on`. Nada más. Corre las pruebas existentes de esos módulos.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261031-204652-MBT1027C2b`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261031-204652-MBT1027C2b:refs/remotes/origin/nube/a1-20261031-204652-MBT1027C2b\"` y `git cherry-pick --no-commit 00e9ea06ee16 4061c43e90eb 475cbefef81b 8b86c1843912 c0d7c3d41d7a`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/settings-sync.ts, src/lib/sync/realtime-sync.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió MBT1027C2c: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/sync/realtime-sync.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MBT1027C2c",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "revisor_quitadas": [
+    "MBT1027C2c-d1"
+   ]
+  },
+  {
+   "id": "SUP0411B",
+   "titulo": "codegraph · tras un sync cortado por el tope, esperar unas horas y correr con QoS de fondo",
+   "archivos": [
+    "scripts/codegraph/sync-si-cabe.sh",
+    "scripts/puente/test_codegraph_si_cabe_1103.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nMedido el 03-11 (carga 53–75 y 6,2 GB de swap en la Mac de 8 GB): desde las 18:15 el sync de codegraph que lanza launchd cada 15 min (`scripts/codegraph/sync-si-cabe.sh`) se cortó por su tope de 1200 s en cada pasada (18:35, 19:27, 20:20, 21:45, 22:39 y 23:15). Escanea y parsea («Already up to date»), pero la fase «Resolving refs… Linking dynamic dispatch…» no cabe en 20 min y la pasada siguiente vuelve a empezar: ~20 min de CPU cada ~50 min para nada, con la Mac ahogada. Arreglo SOLO en sync-si-cabe.sh: (1) cuando corta un sync, escribe la hora (segundos de época) en el archivo de estado `${CODEGRAPH_ESTADO:-$HOME/.starseed/codegraph-sync-corte}`; al empezar, si ese archivo dice que el último corte fue hace menos de `${CODEGRAPH_ESPERA_S:-21600}` segundos, escribe en el registro «AAAA-MM-DD HH:MM:SS codegraph sync: la última pasada se cortó hace N min → me salto esta» y sale con 0 sin lanzar codegraph; un sync que acaba con 0 escribe 0 en el archivo (no lo borres). (2) Lanza codegraph con `/usr/sbin/taskpolicy -b` delante cuando ese programa existe (QoS de fondo de macOS: núcleos de eficiencia y E/S frenada); el corte por tope debe seguir matando al proceso de verdad. (3) `CODEGRAPH_BIN` (por defecto /Users/alex/.local/bin/codegraph) y `CODEGRAPH_NIVEL_PRESION` (por defecto lo que diga `sysctl -n kern.memorystatus_vm_pressure_level`), para poder probarlo. No cambies el plist ni el tope por defecto de 1200 s, ni el salto por presión de memoria ≥ 2. Pruebas nuevas en test_codegraph_si_cabe_1103.py que corren el guion de verdad con `bash`, un codegraph FALSO (un guion en un temporal que duerme 30 s o sale 0 al momento), CODEGRAPH_TOPE_S=1, CODEGRAPH_NIVEL_PRESION=1 y CODEGRAPH_ESTADO en un temporal: un corte deja la hora en el estado; la pasada siguiente se salta sin lanzar el falso (el falso apunta en un archivo cada vez que corre); con CODEGRAPH_ESPERA_S=0 vuelve a lanzarlo; un sync que sale 0 deja 0 en el estado. Plazos holgados (la Mac va a carga 50): ninguna espera de la prueba por debajo de 20 s. Las nuevas deben fallar sin el arreglo; las que ya hay deben seguir en verde.",
+   "ola": "0411 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "DEC1028D",
+   "ola": "1028 · Decisiones de Alex aprobadas",
+   "depende": [],
+   "titulo": "Te toca a ti · avisar cuando la cuenta de ChatGPT ya no deja usar Codex",
+   "archivos": [
+    "scripts/puente/acciones-de-alex.py",
+    "scripts/puente/test_acciones_de_alex.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en el código, en las pruebas ni en lo que imprimas.\n\nContexto (medido el 2026-10-28 por Claude, supervisor): desde el 2026-10-23 20:55 TODAS las llamadas de Codex en la Mac fallan con `{\"status\":400, ... \"message\":\"The 'gpt-5.6-sol' model is not supported when using Codex with a ChatGPT account.\",\"code\":\"model_not_found\"}` (206 sesiones en `~/.codex/sessions`; con `-m gpt-5.5` pasa lo mismo). `cupo_codex.agotado_en` solo reconoce la cuota agotada, así que Codex sigue en la rotación: cada tarea gasta su primer intento con él y acaba en `sin_cambios` (DEC1028A lo hizo 8 veces). Hoy se apartó a mano 24 h con `cupo_codex.anotar`.\n\nEn `acciones-de-alex.py`, si `cupo_codex.leer()` tiene una marca vigente cuyo motivo empieza por «cuenta de ChatGPT sin Codex», añade la acción `codex-cuenta` (urgencia «media»): título «Codex: tu cuenta de ChatGPT ya no deja usarlo», por qué «desde <desde> cada intento devuelve “model not supported when using Codex with a ChatGPT account”; el enjambre lo ha apartado y sigue con los demás», detalle con los pasos (mirar en chatgpt.com › Ajustes › Plan si la suscripción sigue activa; si lo está, actualizar la CLI con `npm i -g @openai/codex` y volver a entrar con `codex login`), `enlace` `https://chatgpt.com/#settings/Account` y `comando` vacío (no hay nada que pegar), `por_que_no_lo_hago_yo` «es tu cuenta y tu suscripción». Sin marca así, nada cambia. Pruebas.",
+   "revisor_quitadas": [
+    "DEC1028Ac"
+   ],
+   "dependencias_ya_en_main": [
+    "DEC1028C"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1103-202450.json": [
+   "DEC1028D",
+   "MBT1027C2c-d2",
+   "SUP0411B"
+  ]
+ }
+}
