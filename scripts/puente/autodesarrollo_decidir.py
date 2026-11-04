@@ -16,7 +16,7 @@ VERIFICACION = {"verificado": 1.0, "ajustado": 0.8, "sin verificar": 0.4, "sin d
 VERBOS = ("anadir", "agregar", "crear", "implementar", "arreglar", "corregir", "migrar", "renombrar", "eliminar", "borrar", "quitar", "documentar", "actualizar", "cablear", "optimizar", "proteger", "validar", "sincronizar", "unificar", "ajustar", "mejorar", "integrar", "evitar", "exportar", "importar", "depurar", "medir", "cambiar", "aplicar", "normalizar", "programar", "revisar", "comprobar", "verificar", "probar",
           # (1103) Los verbos con que titulan los sueños profundos: sin ellos caían en «pregunta».
           "limitar", "acotar", "distinguir", "separar", "manejar", "tratar", "capturar", "sustituir", "reemplazar", "etiquetar", "reducir", "simplificar", "endurecer", "mover", "extraer", "dividir", "partir", "reutilizar", "centralizar", "parametrizar", "configurar", "consolidar", "deduplicar", "refactorizar", "registrar", "mostrar", "ensenar", "permitir", "impedir", "bloquear", "cachear", "reintentar", "asegurar", "garantizar", "detectar", "avisar", "cerrar", "abrir", "completar", "conectar", "desacoplar", "marcar", "ordenar", "filtrar")
-RESERVADOS = ("publicar", "publicacion", "desplegar", "deploy", "vercel", "contrasena", "clave", "credencial", "decision de alex", "decide alex", "que alex decida", "preguntar a alex", "avisar a alex", "eleccion de alex")
+RESERVADOS = ("publicar", "publicacion", "desplegar", "deploy", "vercel", "contrasena", "credencial", "decision de alex", "decide alex", "que alex decida", "preguntar a alex", "avisar a alex", "eleccion de alex")
 CUENTAS = re.compile(r"\b(crear|borrar|eliminar|gestionar|cerrar|abrir|cambiar)\s+(la\s+|las\s+)?cuentas?\b|\bcuentas?\s+(de\s+alex|de\s+usuario|bancarias?|de\s+pago)\b")
 #: Ola 1102 (IMG1102A): un GASTO de verdad: pagar, comprar, contratar o suscribirse; una compra, un pago, un importe, una
 #: tarjeta, una factura o algo «de pago» que se usa (créditos, plan, modelo, API…). «pago» suelto ya no basta: «acceso
@@ -40,6 +40,10 @@ SECRETOS = re.compile(r"credencial|credential|password|passwd|contrasena|api[_-]
                       r"|\b(?:access|api|auth|bearer|refresh|personal|secret)[ _-]?tokens?\b|\b[a-z0-9]+_tokens?\b"
                       r"|\btokens?\s+(?:de|del)\s+(?:acceso|api|autenticacion|github|vercel|supabase|cuenta|sesion|usuario)\b"
                       r"|\bbearer\b")
+#: «clave» solo como secreto (Ola 1104K): «clave de API», «clave secreta», «clave privada», «clave de acceso», «clave SSH»;
+#: «paso clave», «punto clave», «clave para», «es clave» no cuentan.
+CLAVE_SECRETA = re.compile(r"\bclave\b", re.I)
+CLAVE_NO_SECRETA = re.compile(r"\b(?:paso|punto)\s+clave\b|\bclave\s+para\b|\bes\s+clave\b", re.I)
 CRITICAS = ("src/lib/nucleo", "identidad", "cuentas", "permisos", "sharing/access", "gobernanza", "voto", "claves", "seguridad", "supabase/migrations", ".github/", "scripts/puente/autopublicar.py", "scripts/puente/publicar.py", "scripts/puente/instalar-servicios.py")
 def _norm(v):
     t = unicodedata.normalize("NFKD", str(v or "").lower())
@@ -74,6 +78,8 @@ def es_de_alex(p: Dict) -> str:
     gasto = GASTO.search(texto)
     if gasto: return f"no accionable por el enjambre (gasto: {gasto.group(0).strip()}): es de Alex → pregunta"
     if CUENTAS.search(texto): return "no accionable por el enjambre (cuentas): es de Alex → pregunta"
+    if not CLAVE_NO_SECRETA.search(texto) and CLAVE_SECRETA.search(texto):
+        return "no accionable por el enjambre (clave secreta): es de Alex → pregunta"
     if SECRETOS.search(texto): return "no accionable por el enjambre (credenciales): es de Alex → pregunta"
     return ""
 
