@@ -342,7 +342,6 @@ describe("PanelImaginacion", () => {
         servidor([], sinPost, {
             fecha: "2026-11-02", vistas: 690, entran: 8,
             filtradas: { "familia repetida": 303, "tipo de archivo": 320, tope: 59 }, autorizacionInventada: 4,
-            texto: "Filtradas de Astraura hoy: 682 (familia 303 · tipo 320 · tope 59)",
         });
         render(<PanelImaginacion ambito="metagenesis" />);
         const linea = await screen.findByTestId("imaginacion-filtro-astraura");

@@ -36,6 +36,7 @@ import {
     AYUDA_FILTRO_ASTRAURA,
     MAX_REFERENCIAS,
     MAX_REIMAGINACIONES,
+    MOTIVOS_FILTRO,
     NOMBRE_ESTADO,
     NOMBRE_FUENTE,
     NOMBRE_TIPO,
@@ -107,6 +108,11 @@ export function cuando(iso: string | undefined, ahora: Date = new Date()): strin
     if (!d || Number.isNaN(d.getTime())) return "";
     const hora = `a las ${dos(d.getHours())}:${dos(d.getMinutes())}`;
     return d.toDateString() === ahora.toDateString() ? hora : `el ${dos(d.getDate())}/${dos(d.getMonth() + 1)} ${hora}`;
+}
+/** «Filtradas de Astraura hoy: N (familia X · tipo Y · tope Z)» con la cuenta que dejó el filtro. PURA. */
+function lineaFiltroAstraura(filtro: FiltroAstraura): string {
+    const [familia, tipo, tope] = MOTIVOS_FILTRO.map((m) => filtro.filtradas[m]);
+    return `Filtradas de Astraura hoy: ${familia + tipo + tope} (familia ${familia} · tipo ${tipo} · tope ${tope})`;
 }
 const coma = (n: number) => n.toFixed(2).replace(".", ",");
 const idDom = (id: string) => `imaginacion-${id.replace(/[^A-Za-z0-9_-]/g, "_")}`;
@@ -993,7 +999,7 @@ export function PanelImaginacion({
                     title={AYUDA_FILTRO_ASTRAURA}
                     className="mc-centrado rounded-lg border border-violet-300/20 bg-violet-400/5 px-3 py-1.5 text-[11px] text-white/85"
                 >
-                    {datos.filtro.texto}
+                    {lineaFiltroAstraura(datos.filtro)}
                 </p>
             ) : null}
 
