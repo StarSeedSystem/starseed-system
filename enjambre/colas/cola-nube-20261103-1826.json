@@ -1,0 +1,73 @@
+{
+ "ola": "nube-20261103",
+ "tareas": [
+  {
+   "id": "IMG1102D",
+   "ola": "1102 · Imaginación útil",
+   "importancia": "",
+   "depende": [],
+   "titulo": "Medidor de Imaginación · enseña lo filtrado de Astraura y por qué",
+   "archivos": [
+    "src/lib/mando/imaginacion-tipos.ts",
+    "src/components/mando/imaginacion-panel.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: ≤ 3 archivos, ≤ 120 líneas por archivo; funciones PURAS con pruebas; nunca la IP del A1.\n\nContexto: el 02-11 se integraron IMG1102A (1718e5272, 0545f728f: filtro de entrada de Astraura, gasto de verdad, carril de bajo riesgo ≥ 0,6 para investigación/diseño/contenido, autorizaciones inventadas) e IMG1102B (884bfff4f, d949a5e8f: `imaginacion_contexto.py` + `imaginacion_plantilla.py` enganchados en referencias de diseño y la diaria), y d20fe1c80 (el ciclo del director ya no muere si Telegram tarda). Contrato: `architecture/imaginacion-calidad.md`.\n\n`propuestas.json → filtro_astraura` (familia repetida, tipo de archivo, tope, autorizaciones inventadas) y `ciclo()` ya lo devuelven. Píntalo en la ventana de Imaginación (busca el componente real con grep) como una línea «Filtradas de Astraura hoy: N (familia X · tipo Y · tope Z)». vitest."
+  },
+  {
+   "id": "MVD1027I",
+   "ola": "1027V · Cápsulas de memoria (Memvid)",
+   "titulo": "A1 · servicio del servidor de cápsulas y su compilación",
+   "archivos": [
+    "deploy/oracle/nodo/systemd/starseed-memvid.service",
+    "scripts/puente/oracle_nodo.py",
+    "scripts/puente/test_oracle_nodo_memvid.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Memvid (memvid/memvid, Apache-2.0) «en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda». Contrato: `architecture/memvid-capsulas.md` (léelo entero). Firmas del núcleo Rust en `integraciones-de-codigo/memvid/README-starseed.md`. Reglas: núcleo en Rust en un servidor propio (127.0.0.1:4490, token en `~/.starseed/memvid.token`), nunca el SDK de Node, nunca cuenta ni tickets de memvid.com, 50 MB por cápsula y se reparte, alcance de `src/lib/nucleo/alcance-memoria.ts`, personal y perfil cifradas.\n\nUnidad (usuario starseed, `ExecStart=/home/starseed/memvid-servidor/target/release/memvid-servidor`, `Environment=STARSEED_MEMVID_DIR=/var/lib/starseed/memvid`, `Restart=on-failure`, `MemoryMax=512M`, `Nice=10`) con `# requiere: /home/starseed/memvid-servidor/target/release/memvid-servidor`. En `oracle_nodo.py` orden `memvid`: sin `--aplicar` enseña el plan (copiar `native/memvid-servidor` a `/home/starseed/memvid-servidor` y `cargo build --release` con `/home/starseed/.cargo/bin/cargo` como starseed); con `--aplicar` lo corre por `ssh` como `freellmapi`. Pruebas del plan y de que sin `--aplicar` no se llama a ssh.",
+   "dependencias_ya_en_main": [
+    "MVD1027C",
+    "MTN1027H2"
+   ]
+  },
+  {
+   "id": "MVD1027J",
+   "ola": "1027V · Cápsulas de memoria (Memvid)",
+   "titulo": "Mac · el binario del servidor de cápsulas compilado en GitHub Actions",
+   "archivos": [
+    ".github/workflows/memvid-servidor.yml",
+    "scripts/puente/instalar_memvid.py",
+    "scripts/puente/test_instalar_memvid.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Memvid (memvid/memvid, Apache-2.0) «en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda». Contrato: `architecture/memvid-capsulas.md` (léelo entero). Firmas del núcleo Rust en `integraciones-de-codigo/memvid/README-starseed.md`. Reglas: núcleo en Rust en un servidor propio (127.0.0.1:4490, token en `~/.starseed/memvid.token`), nunca el SDK de Node, nunca cuenta ni tickets de memvid.com, 50 MB por cápsula y se reparte, alcance de `src/lib/nucleo/alcance-memoria.ts`, personal y perfil cifradas.\n\nWorkflow `workflow_dispatch` (y `push` a ramas `comprobar/**` que toquen `native/memvid-servidor/**`) en `macos-14` (arm64): `cargo build --release` y `actions/upload-artifact` del binario como `memvid-servidor-darwin-arm64` (artefacto del run, 14 días; NO release ni publicación). Sin secretos. `instalar_memvid.py`: con `gh run list --workflow memvid-servidor.yml` y `gh run download` baja el último artefacto verde, comprueba su SHA-256 contra el que el job imprime en su resumen, lo deja en `~/.local/bin/memvid-servidor` (0755) y escribe un `~/Library/LaunchAgents/com.starseed.memvid.plist` (como los plist de `scripts/puente/`); `--plan` solo enseña lo que haría. Pruebas con `gh` falso.",
+   "dependencias_ya_en_main": [
+    "MVD1027C"
+   ]
+  },
+  {
+   "id": "LNN1028C",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "LEANN · instalación en el A1, su servicio y la orden de oracle_nodo",
+   "archivos": [
+    "deploy/oracle/nodo/leann-a1.sh",
+    "deploy/oracle/nodo/systemd/starseed-leann.service",
+    "scripts/puente/oracle_nodo.py"
+   ],
+   "depende": [
+    "MVD1027I"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\n`leann-a1.sh` (idempotente, como `deploy/oracle/nodo/ollama-a1.sh`, léelo): crea `/opt/starseed/leann/.venv` e instala `leann==0.3.8`; comprueba con `ollama show qwen3-embedding:0.6b --license` que es Apache-2.0 ANTES de dejarlo y lo baja con `bash ollama-a1.sh qwen3-embedding:0.6b`; pone `OLLAMA_KEEP_ALIVE=2m` y `OLLAMA_MAX_LOADED_MODELS=1` en el entorno del servicio de Ollama. Unidad `starseed-leann.service` (usuario starseed, `ExecStart=/opt/starseed/leann/.venv/bin/python /opt/starseed/nodo/leann/leann_servidor.py`, `Environment=OLLAMA_HOST=http://127.0.0.1:11434`, `MemoryMax=1500M`, `Nice=10`, `Restart=on-failure`) con `# requiere: /opt/starseed/leann/.venv/bin/python`. En `oracle_nodo.py`: `_paquete` copia `leann_servidor.py`, `leann_indices.py` (si existe) y `fusion_recuerdos.py` a `leann/`; orden `leann` que sin `--aplicar` enseña el plan y con `--aplicar` corre `leann-a1.sh` en el A1 por `ssh` (como `freellmapi`). Prueba del plan y del paquete, sin ssh.",
+   "dependencias_ya_en_main": [
+    "LNN1028B"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1103-165243.json": [
+   "MVD1027I",
+   "LNN1028C",
+   "MVD1027J",
+   "IMG1102D"
+  ]
+ }
+}
