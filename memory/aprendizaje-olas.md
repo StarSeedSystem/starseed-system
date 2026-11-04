@@ -4707,3 +4707,13 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTART1025M-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTART1025M-d2 conservada)
 - `PUB1029F` — no escribió nada
 - `RTS1010-MGR2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTS1010-MGR2b conservada)
+
+## 2026-11-04 22:40 · mg-oracle-1104-1549
+
+**Lo que se pidió.** Planificador de fusiones de modelos: PEFT, mergekit externo o ensamble de sistema, según compatibilidad real
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RTCPZ1025F` — no escribió nada
+- `CTR1104F` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/CTR1104F conservada)
