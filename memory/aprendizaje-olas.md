@@ -4707,3 +4707,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTART1025M-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTART1025M-d2 conservada)
 - `PUB1029F` — no escribió nada
 - `RTS1010-MGR2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTS1010-MGR2b conservada)
+
+## 2026-11-04 09:37 · mg-oracle-1104-0232
+
+**Lo que se pidió.** Llamadas grupales con bots: cada uno se transcribe en su neurona, el bot contesta con voz en la llamada
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (RTVZF1015Tb, RTXR1010AMb-d1). Es 67 % de la ola.
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTVZF1015Tb` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTVZF1015Tb conservada)
+- `RTXR1010AMb-d1` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTXR1010AMb-d1 conservada)
+- `MBT1027C2d` — otra cosa: ningún proveedor respondió (does not exist)
