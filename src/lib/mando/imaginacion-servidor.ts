@@ -15,7 +15,7 @@ import {
     ESTADOS_PROPUESTA, NOMBRE_FUENTE, TIPOS_PROPUESTA, esDecidible, leerAmbito, normalizarAmbito, normalizarImportancia,
     normalizarReferencias, normalizarReimaginacion, validarAjustes, vetoDecision, vetoReimaginar,
     type AjustesAutodesarrollo, type EstadoPropuesta, type FuentePropuesta, type HacerDecision, type HacerLote,
-    type PropuestaNormalizada, type QuienDecide, type TipoPropuesta,
+    type PropuestaNormalizada, type QuienDecide, type TipoPropuesta, type FiltroAstraura,
 } from "@/lib/mando/imaginacion-tipos";
 
 export type PropuestaVisible = PropuestaNormalizada;
@@ -82,6 +82,16 @@ async function leerCrudas(lugar: Lugar) {
     const guardar = (l: unknown[]) => escribirAtomico(rutasImaginacion(lugar).propuestas, esObj(crudo) ? { ...crudo, propuestas: l } : l);
     return { lista: lista as unknown[], guardar };
 }
+
+/** Lee el archivo crudo y devuelve también el `filtro_astraura` si existe en el envoltorio. PURA en la lectura. */
+export async function leerPropuestasConFiltro(lugar: Lugar = {}): Promise<{ propuestas: PropuestaVisible[]; filtro_astraura?: FiltroAstraura }> {
+    const crudo = await leerJson(rutasImaginacion(lugar).propuestas);
+    const lista = Array.isArray(crudo) ? crudo : esObj(crudo) && Array.isArray(crudo.propuestas) ? crudo.propuestas : [];
+    const propuestas = lista.map(normalizarPropuesta).filter((p): p is PropuestaVisible => p !== null);
+    const filtro = esObj(crudo) && crudo.filtro_astraura ? crudo.filtro_astraura as FiltroAstraura : undefined;
+    return { propuestas, filtro_astraura: filtro };
+}
+
 export const leerPropuestas = async (lugar: Lugar = {}): Promise<PropuestaVisible[]> =>
     (await leerCrudas(lugar)).lista.map(normalizarPropuesta).filter((p): p is PropuestaVisible => p !== null);
 

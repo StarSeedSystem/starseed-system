@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AJUSTES_POR_DEFECTO } from "@/lib/mando/imaginacion-tipos";
 import {
-    aprobar, guardarAjustes, integrar, itemAstraura, leerAjustes, leerPropuestas, lote, normalizarPropuesta,
+    aprobar, guardarAjustes, integrar, itemAstraura, leerAjustes, leerPropuestas, leerPropuestasConFiltro, lote, normalizarPropuesta,
     posponer, posponerHasta, rechazar, reimaginar, rutasImaginacion,
 } from "@/lib/mando/imaginacion-servidor";
 
@@ -59,6 +59,41 @@ describe("lo puro", () => {
         expect(itemAstraura(base({ fuente: "astraura" }))).toBeNull();
         expect(posponerHasta(0, 24)).toBe("1970-01-02T00:00:00.000Z");
         expect(posponerHasta(0, 9_999)).toBe(posponerHasta(0, 720));
+    });
+});
+
+describe("leerPropuestasConFiltro", () => {
+    const filtroEjemplo = {
+        fecha: "2026-11-04",
+        tope_dia: 3,
+        ventana_dias: 7,
+        vistas: 10,
+        entran: 2,
+        filtradas: { "familia repetida": 5, "tipo de archivo": 3, tope: 0 },
+        autorizacion_inventada: 1,
+    };
+    it("devuelve propuestas y filtro_astraura cuando está en el envoltorio", async () => {
+        sembrar({ version: 1, propuestas: [base({ id: "p1" })], filtro_astraura: filtroEjemplo });
+        const r = await leerPropuestasConFiltro(lugar());
+        expect(r.propuestas).toHaveLength(1);
+        expect(r.filtro_astraura).toEqual(filtroEjemplo);
+    });
+    it("sin filtro_astraura en el envoltorio → undefined", async () => {
+        sembrar({ version: 1, propuestas: [base({ id: "p1" })] });
+        const r = await leerPropuestasConFiltro(lugar());
+        expect(r.propuestas).toHaveLength(1);
+        expect(r.filtro_astraura).toBeUndefined();
+    });
+    it("sin envoltorio (array directo) → undefined", async () => {
+        sembrar([base({ id: "p1" })]);
+        const r = await leerPropuestasConFiltro(lugar());
+        expect(r.propuestas).toHaveLength(1);
+        expect(r.filtro_astraura).toBeUndefined();
+    });
+    it("sin archivos → lista vacía y filtro undefined", async () => {
+        const r = await leerPropuestasConFiltro(lugar());
+        expect(r.propuestas).toEqual([]);
+        expect(r.filtro_astraura).toBeUndefined();
     });
 });
 

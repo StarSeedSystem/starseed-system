@@ -65,7 +65,7 @@ import { discoParaMedidor, medirMemoriaMedidor } from "@/lib/mando/memoria-medid
 import { leerPendientes } from "@/lib/mando/publicaciones";
 import { crearReunionCompartida } from "@/lib/mando/reunion-compartida";
 import { esOpcionAlex, idDeTareaValido, type EstadoRevisorBloqueadas } from "@/lib/mando/bloqueadas";
-import { leerAjustes, leerPropuestas } from "@/lib/mando/imaginacion-servidor";
+import { leerAjustes, leerPropuestas, leerPropuestasConFiltro } from "@/lib/mando/imaginacion-servidor";
 import { leerAmbito, type AmbitoPropuesta } from "@/lib/mando/imaginacion-tipos";
 
 export const runtime = "nodejs";
@@ -126,15 +126,16 @@ async function leerRevisorBloqueadas(): Promise<EstadoRevisorBloqueadas | null> 
 }
 
 /**
- * (IMG1024B) Lo que necesita el medidor «Imaginación»: TODAS las propuestas (para contar lo que espera
- * en otros ámbitos) y los ajustes, con el ámbito pedido. Protegido: si algo falla, `null` y la pastilla
- * dice «sin datos»; nunca una cifra inventada. Las propuestas y ajustes salen de los mismos lectores que
- * `/api/mando/imaginacion`, así que la pastilla y el panel no pueden discrepar.
+ * Lo que necesita el medidor «Imaginación»: propuestas (para la pastilla, filas y lo que espera
+ * en otros ámbitos), ajustes y el `filtro_astraura` del día, con el ámbito pedido. Protegido:
+ * si algo falla, `null` y la pastilla dice «sin datos»; nunca una cifra inventada. Las propuestas
+ * y ajustes salen de los mismos lectores que `/api/mando/imaginacion`, así que la pastilla y el
+ * panel no pueden discrepar.
  */
 async function leerImaginacion(ambito: AmbitoPropuesta | "todos"): Promise<DatosMedidores["imaginacion"]> {
     try {
-        const [propuestas, ajustes] = await Promise.all([leerPropuestas(), leerAjustes()]);
-        return { propuestas, ajustes, ambito };
+        const [{ propuestas, filtro_astraura }, ajustes] = await Promise.all([leerPropuestasConFiltro(), leerAjustes()]);
+        return { propuestas, ajustes, ambito, filtro_astraura };
     } catch {
         return null;
     }
