@@ -140,6 +140,10 @@ class Sucesor(unittest.TestCase):
         # Sin id no hay cadena que cortar.
         self.assertEqual(T.base_de(""), "")
         self.assertEqual(T.base_de(None), "")
+        # (rama nube/41579697472) La derivación también se corta cuando la base es mínima:
+        # un id de una sola letra no se queda a medias ni arrastra su letra sucesora.
+        self.assertEqual(T.base_de("X-d1"), "X")
+        self.assertEqual(T.base_de("Xb-d2b"), "X")
 
     @unittest.expectedFailure
     def test_un_id_que_ya_acababa_en_minuscula_pierde_solo_la_letra_nueva(self):
