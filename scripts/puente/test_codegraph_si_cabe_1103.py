@@ -11,6 +11,11 @@ import time
 
 RAIZ = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 GUION = os.path.join(RAIZ, "scripts", "codegraph", "sync-si-cabe.sh")
+# (Supervisión 1104b) Con la Mac a carga 50–60 el codegraph falso, lanzado con `taskpolicy -b`, tardaba más de
+# 1 s en arrancar: el vigilante lo cortaba antes de que escribiera su línea (FileNotFoundError, 2 de 3 vueltas).
+# El tope de las pruebas deja tiempo a que arranque, y el plazo de cada vuelta aguanta la Mac cargada.
+TOPE_PRUEBA = "10"
+PLAZO_PRUEBA = 90
 
 
 def test_guion_y_plist():
@@ -37,7 +42,7 @@ def _escribir_falso_codegraph(ruta_bin, comportamiento, registro_ejecuciones):
         f.write(f"""#!/bin/bash
 echo "$(date +%s) codegraph-falso {comportamiento} pid=$$" >> "{registro_ejecuciones}"
 if [ "{comportamiento}" = "duerme" ]; then
-  sleep 30
+  sleep 120
 fi
 exit 0
 """)
@@ -57,7 +62,7 @@ def test_corte_deja_marca_y_siguiente_salta():
 
         env = os.environ.copy()
         env.update({
-            "CODEGRAPH_TOPE_S": "1",
+            "CODEGRAPH_TOPE_S": TOPE_PRUEBA,
             "CODEGRAPH_ESPERA_S": "21600",
             "CODEGRAPH_ESTADO": estado,
             "CODEGRAPH_BIN": bin_falso,
@@ -66,7 +71,7 @@ def test_corte_deja_marca_y_siguiente_salta():
         })
 
         # Primera pasada: se corta por tope (1s) → debe escribir timestamp en estado
-        r1 = subprocess.run(["bash", GUION, raiz_falsa], env=env, capture_output=True, text=True, timeout=30)
+        r1 = subprocess.run(["bash", GUION, raiz_falsa], env=env, capture_output=True, text=True, timeout=PLAZO_PRUEBA)
         assert r1.returncode != 0, "La primera pasada debía ser cortada (returncode != 0)"
 
         # Verificar que se escribió timestamp (>0) en el archivo de estado
@@ -82,7 +87,7 @@ def test_corte_deja_marca_y_siguiente_salta():
         assert len(lineas1) == 1, f"El falso codegraph debió ejecutarse 1 vez, se ejecutó {len(lineas1)}"
 
         # Segunda pasada (inmediata): debe saltarse sin lanzar el falso
-        r2 = subprocess.run(["bash", GUION, raiz_falsa], env=env, capture_output=True, text=True, timeout=10)
+        r2 = subprocess.run(["bash", GUION, raiz_falsa], env=env, capture_output=True, text=True, timeout=PLAZO_PRUEBA)
         assert r2.returncode == 0, "La segunda pasada debe salir con 0 (salto)"
 
         # Verificar que el falso NO se ejecutó de nuevo
@@ -108,7 +113,7 @@ def test_espera_cero_vuelve_a_lanzar():
 
         env = os.environ.copy()
         env.update({
-            "CODEGRAPH_TOPE_S": "1",
+            "CODEGRAPH_TOPE_S": TOPE_PRUEBA,
             "CODEGRAPH_ESPERA_S": "0",
             "CODEGRAPH_ESTADO": estado,
             "CODEGRAPH_BIN": bin_falso,
@@ -117,7 +122,7 @@ def test_espera_cero_vuelve_a_lanzar():
         })
 
         # Primera pasada: se corta por tope
-        r1 = subprocess.run(["bash", GUION, raiz_falsa], env=env, capture_output=True, text=True, timeout=30)
+        r1 = subprocess.run(["bash", GUION, raiz_falsa], env=env, capture_output=True, text=True, timeout=PLAZO_PRUEBA)
         assert r1.returncode != 0
 
         time.sleep(0.5)
@@ -126,7 +131,7 @@ def test_espera_cero_vuelve_a_lanzar():
         assert len(lineas1) == 1
 
         # Segunda pasada con ESPERA_S=0: debe volver a lanzar el falso (y cortarlo de nuevo)
-        r2 = subprocess.run(["bash", GUION, raiz_falsa], env=env, capture_output=True, text=True, timeout=30)
+        r2 = subprocess.run(["bash", GUION, raiz_falsa], env=env, capture_output=True, text=True, timeout=PLAZO_PRUEBA)
         assert r2.returncode != 0
 
         time.sleep(0.5)
@@ -148,7 +153,7 @@ def test_sync_exitoso_deja_cero_en_estado():
 
         env = os.environ.copy()
         env.update({
-            "CODEGRAPH_TOPE_S": "2",
+            "CODEGRAPH_TOPE_S": TOPE_PRUEBA,
             "CODEGRAPH_ESPERA_S": "21600",
             "CODEGRAPH_ESTADO": estado,
             "CODEGRAPH_BIN": bin_falso,
@@ -157,7 +162,7 @@ def test_sync_exitoso_deja_cero_en_estado():
         })
 
         # Ejecutar sync que termina bien
-        r = subprocess.run(["bash", GUION, raiz_falsa], env=env, capture_output=True, text=True, timeout=15)
+        r = subprocess.run(["bash", GUION, raiz_falsa], env=env, capture_output=True, text=True, timeout=PLAZO_PRUEBA)
         assert r.returncode == 0, f"Sync exitoso debe retornar 0, retornó {r.returncode}: {r.stderr}"
 
         # Verificar que el estado es 0
