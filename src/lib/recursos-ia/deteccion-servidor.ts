@@ -37,6 +37,13 @@ const GIB = 1024 ** 3;
 export const TOPE_ORDEN_MS = 7_000;
 /** Tope de toda la detección (ms): por debajo de los 15 s que espera el navegador. */
 export const TOPE_TOTAL_MS = 11_000;
+/**
+ * Tope de cada sondeo de servidor (ms). (medido 03-11, Mac con carga 37) Con 1,5 s, `curl` daba
+ * 401/200 en menos de 0,1 s y el sondeo los marcó a todos «apagados»: con la Mac ahogada el bucle
+ * de Node no atiende el fetch a tiempo. 4 s evita el falso apagado sin pasarse del tope total
+ * (4 s de sondeos + 7 s de órdenes = TOPE_TOTAL_MS).
+ */
+export const TOPE_SERVIDOR_MS = 4_000;
 /** Vida de la caché en memoria (ms). */
 export const CACHE_MS = 60_000;
 /** Volúmenes más pequeños no sirven para modelos y solo ensucian (EFI, montajes de 10 MB…). */
@@ -580,7 +587,7 @@ export interface DependenciasDeteccion {
     correr: (orden: string, args: string[]) => Promise<SalidaOrden>;
     leer: (ruta: string) => Promise<string>;
     existe: (ruta: string) => Promise<boolean>;
-    /** GET con tope de 1,5 s; rechaza si no contesta. */
+    /** GET del bucle local, con tope de `TOPE_SERVIDOR_MS`; rechaza si no contesta. */
     pedir: (url: string) => Promise<{ status: number; cuerpo: string }>;
     /** Libre/total de un montaje (statfs), para cuando lsblk/df no lo dan. */
     espacio?: (montaje: string) => Promise<{ totalBytes: number; libreBytes: number }>;
@@ -624,7 +631,12 @@ async function intentar<T>(f: () => Promise<T>): Promise<T | null> {
 async function sondearServidores(dep: DependenciasDeteccion, a: Acumulado): Promise<void> {
     await Promise.all(
         SERVIDORES_IA.map(async (def) => {
-            const r = await intentar(() => dep.pedir(`${def.base}${def.ruta}`));
+            // Cada fetch compite con su propio tope: si el bucle de Node está ahogado, el sondeo
+            // tampoco se queda colgado y sale `ok: false` por el tope, no por creerlo apagado.
+            const r = await intentar(async () => {
+                const respuesta = await Promise.race([dep.pedir(`${def.base}${def.ruta}`), dormir(TOPE_SERVIDOR_MS)]);
+                return respuesta === "plazo" ? null : respuesta;
+            });
             const v = r ? interpretarServidor(def, r.status, r.cuerpo) : { ok: false };
             a.servidores.push({ id: def.id, url: def.base, ok: v.ok, ...(v.modelos ? { modelos: v.modelos } : {}) });
         }),
@@ -656,7 +668,9 @@ async function herramienta(dep: DependenciasDeteccion, a: Acumulado, h: Herramie
 }
 
 async function detectarMac(dep: DependenciasDeteccion, a: Acumulado): Promise<void> {
-    const tareas: Promise<unknown>[] = [];
+    // El sondeo de servidores va PRIMERO: sus fetch no deben esperar detrás de los procesos pesados.
+    const sondeos = sondearServidores(dep, a);
+    const tareas: Promise<unknown>[] = [sondeos];
     tareas.push(
         intentar(() => dep.correr("sw_vers", [])).then((r) => {
             const so = r ? soDeSwVers(r.stdout) : null;
@@ -716,7 +730,6 @@ async function detectarMac(dep: DependenciasDeteccion, a: Acumulado): Promise<vo
         }),
         buscarEjecutables(dep, a),
         buscarCarpetas(dep, a),
-        sondearServidores(dep, a),
     );
     await Promise.all(tareas);
     // SIMD: NEON es parte de arm64; en Intel se mide.
@@ -758,6 +771,8 @@ async function volumenesMac(dep: DependenciasDeteccion, a: Acumulado): Promise<v
 }
 
 async function detectarLinux(dep: DependenciasDeteccion, a: Acumulado): Promise<void> {
+    // El sondeo va antes que la lista (ver detectarMac): sus fetch no esperan detrás de procesos.
+    const sondeos = sondearServidores(dep, a);
     await Promise.all([
         intentar(() => dep.leer("/etc/os-release")).then((t) => {
             a.so = t ? soDeOsRelease(t) : "Linux";
@@ -789,7 +804,7 @@ async function detectarLinux(dep: DependenciasDeteccion, a: Acumulado): Promise<
         herramienta(dep, a, "clang", "clang", ["--version"]),
         buscarEjecutables(dep, a),
         buscarCarpetas(dep, a),
-        sondearServidores(dep, a),
+        sondeos,
     ]);
 }
 
@@ -905,7 +920,7 @@ function dependenciasReales(): DependenciasDeteccion {
         pedir: async (url) => {
             // Defensa en profundidad: esta función solo habla con el bucle local.
             if (!/^http:\/\/127\.0\.0\.1:\d+\//.test(url)) throw new Error("solo bucle local");
-            const r = await fetch(url, { signal: AbortSignal.timeout(1_500), cache: "no-store", redirect: "manual" });
+            const r = await fetch(url, { signal: AbortSignal.timeout(TOPE_SERVIDOR_MS), cache: "no-store", redirect: "manual" });
             return { status: r.status, cuerpo: (await r.text()).slice(0, 400_000) };
         },
         espacio: async (montaje) => {

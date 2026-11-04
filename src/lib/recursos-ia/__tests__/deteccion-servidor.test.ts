@@ -2,7 +2,7 @@
  * Parsers de la detección de la máquina con salidas REALES de la Mac M1 de Alex (2026-10-23) y
  * fixtures realistas de un SSD externo USB, una caja Thunderbolt y un Linux con NVIDIA.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
     arquitecturaDe,
@@ -24,6 +24,7 @@ import {
     soDeOsRelease,
     soDeSwVers,
     sysctlMac,
+    TOPE_SERVIDOR_MS,
     volumenMac,
     volumenesDeLsblk,
     type DependenciasDeteccion,
@@ -303,6 +304,98 @@ describe("servidores y runtimes", () => {
     it("sinHome cambia el home por ~ también dentro de frases", () => {
         expect(sinHome("no se pudo leer /Users/alex/turbo-fieldfare", "/Users/alex")).toBe("no se pudo leer ~/turbo-fieldfare");
         expect(sinHome("/Volumes/SSD", "/")).toBe("/Volumes/SSD");
+    });
+});
+
+/**
+ * Medido el 03-11 a las 17:38 (Mac con carga 37): `/api/recursos-ia/detectar` reportó los 5
+ * servidores «apagados» en 11 s mientras `curl` los daba vivos en menos de 0,1 s — el sondeo
+ * tomaba 1,5 s y el fetch no era atendido por un bucle ahogado. Aquí: los sondeos arrancan
+ * antes que las órdenes y cada fetch tiene su propio tope de 4 s (TOPE_SERVIDOR_MS).
+ */
+describe("sondeo de servidores · tope propio y arranque primero", () => {
+    it("TOPE_SERVIDOR_MS ≥ 4000 (los 1,5 s no llegan con la Mac cargada)", () => {
+        expect(TOPE_SERVIDOR_MS).toBeGreaterThanOrEqual(4_000);
+    });
+
+    it("sondearServidores arranca antes que las órdenes (Mac y Linux)", async () => {
+        const base = depMac();
+        const llamadas: string[] = [];
+        await detectarMaquinaCon({
+            ...depMac(),
+            pedir: (url) => {
+                llamadas.push("pedir");
+                return base.pedir(url);
+            },
+            correr: (o, a) => {
+                llamadas.push([o, ...a].join(" "));
+                return base.correr(o, a);
+            },
+        });
+        // Los 5 fetch de SERVIDORES_IA se lanzan en el primer impulso, antes de cualquier orden.
+        expect(llamadas.slice(0, 5).every((l) => l === "pedir")).toBe(true);
+        expect(llamadas.findIndex((l) => l !== "pedir")).toBeGreaterThanOrEqual(5);
+        const linux: string[] = [];
+        await detectarMaquinaCon({
+            ...depMac(),
+            plataforma: "linux",
+            home: "/home/alex",
+            host: "taller",
+            pedir: () => {
+                linux.push("pedir");
+                return Promise.reject(new Error("no"));
+            },
+            correr: (o, a) => {
+                linux.push([o, ...a].join(" "));
+                return Promise.reject(new Error("no"));
+            },
+        });
+        expect(linux.slice(0, 5).every((l) => l === "pedir")).toBe(true);
+    });
+
+    it("un pedir que tarda 2 s (dentro del tope) cuenta como vivo", async () => {
+        // Escapatoria con temporizador REAL (creado antes de fingir el tiempo) para que, si la
+        // detección se cuelga, la prueba falle rápido y devuelva los temporizadores falsos.
+        const escapatoria = new Promise<never>((_, rechazo) =>
+            setTimeout(() => rechazo(new Error("la detección no terminó a tiempo")), 5_000),
+        );
+        vi.useFakeTimers();
+        try {
+            const dep = depMac({
+                plazoMs: 30_000,
+                pedir: (url) =>
+                    url === "http://127.0.0.1:11434/api/tags"
+                        ? new Promise((res) => setTimeout(() => res({ status: 200, cuerpo: JSON.stringify({ models: [{ name: "qwen3:4b" }] }) }), 2_000))
+                        : Promise.reject(new Error("ECONNREFUSED")),
+            });
+            const promesa = detectarMaquinaCon(dep);
+            await vi.advanceTimersByTimeAsync(2_000);
+            const m = await Promise.race([promesa, escapatoria]);
+            expect(m.servidoresIA.find((s) => s.id === "ollama")).toMatchObject({ ok: true, modelos: ["qwen3:4b"] });
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("un pedir que no contesta en TOPE_SERVIDOR_MS sale ok: false, sin colgar la detección", async () => {
+        const escapatoria = new Promise<never>((_, rechazo) =>
+            setTimeout(() => rechazo(new Error("la detección no terminó a tiempo")), 5_000),
+        );
+        vi.useFakeTimers();
+        try {
+            const dep = depMac({
+                plazoMs: 30_000,
+                pedir: (url) =>
+                    url === "http://127.0.0.1:11434/api/tags" ? new Promise(() => {}) : Promise.reject(new Error("ECONNREFUSED")),
+            });
+            const promesa = detectarMaquinaCon(dep);
+            await vi.advanceTimersByTimeAsync(TOPE_SERVIDOR_MS + 100);
+            const m = await Promise.race([promesa, escapatoria]);
+            expect(m.servidoresIA.find((s) => s.id === "ollama")?.ok).toBe(false);
+            expect(m.avisos.some((a) => a.includes("se cortó"))).toBe(false);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
 
