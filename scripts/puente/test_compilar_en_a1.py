@@ -253,6 +253,13 @@ class Flujo(unittest.TestCase):
             f.write("id-bueno")
         self.raiz = raiz
         self.mandado = []
+        mock.patch.dict(os.environ, {"STARSEED_ROOT_A1": "/home/starseed/starseed-os-main"}).start()
+        import importlib
+        importlib.reload(C)
+        importlib.reload(C.RM)
+        importlib.reload(C.oracle_nodo)
+        global RAIZ_A1
+        RAIZ_A1 = C.RAIZ_A1
         self.getu = mock.patch.object(C.oracle_nodo, "_ip", return_value=IP).start()
         self.estado = mock.patch.object(
             C.oracle_nodo, "estado", return_value=({}, {}, [])).start()
