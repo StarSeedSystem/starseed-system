@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * ModelScoutNotifier — notificador de novedades del explorador de modelos (Adenda 138).
+ * Escucha la firma del scout de modelos y avisa UNA vez cuando hay una firma nueva,
+ * espejo del patrón de ModelDownloadNotifier. No monta en ninguna página en esta ola;
+ * se integra más adelante en startup-updates-modal.tsx o neuron-models-panel.tsx.
+ */
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { scoutSignature, hasNewScoutFindings, markScoutSeen } from "@/ai/astraura/model-scout";

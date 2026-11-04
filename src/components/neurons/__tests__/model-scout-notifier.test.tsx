@@ -26,16 +26,15 @@ vi.mock("sonner", () => ({
   },
 }));
 
-vi.stubGlobal("addEventListener", vi.fn());
-vi.stubGlobal("removeEventListener", vi.fn());
-
 describe("ModelScoutNotifier", () => {
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.resetAllMocks();
   });
 
   beforeEach(() => {
+    vi.useFakeTimers();
     mockDetectCapabilities.mockResolvedValue({
       platform: "macOS",
       cores: 8,
@@ -50,7 +49,7 @@ describe("ModelScoutNotifier", () => {
     mockHasNewScoutFindings.mockReturnValue(true);
 
     render(<ModelScoutNotifier />);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await vi.runAllTimersAsync();
 
     expect(mockDetectCapabilities).toHaveBeenCalled();
     expect(mockScoutSignature).toHaveBeenCalled();
@@ -68,7 +67,7 @@ describe("ModelScoutNotifier", () => {
     mockHasNewScoutFindings.mockReturnValue(false);
 
     render(<ModelScoutNotifier />);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await vi.runAllTimersAsync();
 
     expect(mockDetectCapabilities).toHaveBeenCalled();
     expect(mockScoutSignature).toHaveBeenCalled();
@@ -77,26 +76,35 @@ describe("ModelScoutNotifier", () => {
     expect(mockToast).not.toHaveBeenCalled();
   });
 
-  it("no vuelve a avisar con la misma firma", async () => {
-    localStorage.setItem("starseed.astraura.scout.sig.v1", "abc123");
+  it("no vuelve a avisar cuando la firma coincide con la guardada", async () => {
+    const existingSig = "existingSig456";
+    localStorage.setItem("starseed.astraura.scout.sig.v1", existingSig);
+    mockScoutSignature.mockReturnValue(existingSig);
     mockHasNewScoutFindings.mockReturnValue(false);
 
     render(<ModelScoutNotifier />);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await vi.runAllTimersAsync();
 
-    expect(mockHasNewScoutFindings).not.toHaveBeenCalledWith("abc123");
+    expect(mockScoutSignature).toHaveBeenCalledWith(
+      expect.objectContaining({ platform: "macOS", cores: 8, memoryGb: 16 }),
+      expect.any(Number),
+    );
+    expect(mockHasNewScoutFindings).toHaveBeenCalledWith(existingSig);
+    expect(mockToast).not.toHaveBeenCalled();
   });
 
   it("actualiza la firma cuando cambia el hardware", async () => {
-    localStorage.setItem("starseed.astraura.scout.sig.v1", "oldSig456");
+    const oldSig = "oldSig456";
+    localStorage.setItem("starseed.astraura.scout.sig.v1", oldSig);
     mockScoutSignature.mockReturnValue("newSig789");
     mockHasNewScoutFindings.mockReturnValue(true);
 
     render(<ModelScoutNotifier />);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await vi.runAllTimersAsync();
 
     expect(mockScoutSignature).toHaveBeenCalled();
     expect(mockHasNewScoutFindings).toHaveBeenCalledWith("newSig789");
     expect(mockMarkScoutSeen).toHaveBeenCalledWith("newSig789");
+    expect(mockToast).toHaveBeenCalled();
   });
 });
