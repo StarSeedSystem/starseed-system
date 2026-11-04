@@ -132,6 +132,13 @@ describe("enganche del bot", () => {
         };
     };
 
+    it("crea el estado inicial limpio para el bot", () => {
+        const e = estadoInicial();
+        expect(e.historial).toEqual([]);
+        expect(e.hablando).toBeNull();
+        expect(e.respondidoHasta).toBe(0);
+    });
+
     it("tras el silencio responde y publica su texto por el canal", async () => {
         const s = servicios();
         const bot = engancharBot({ botId: BOT, servicios: s.servicios });
@@ -157,6 +164,21 @@ describe("enganche del bot", () => {
         expect(s.cortes()).toBe(1);
         expect(bot.estado().hablando).toBeNull();
         s.terminarHabla();
+    });
+
+    it("si el cerebro calla no publica nada ni repite la pregunta en el siguiente tick", async () => {
+        const s = servicios();
+        const callado = { ...s.servicios, responder: async () => "" };
+        const bot = engancharBot({ botId: BOT, servicios: callado });
+        bot.recibir(con(P1, "¿sigues ahí?", 1000));
+        bot.tictac(1000 + SILENCIO_MS);
+        await new Promise((r) => setTimeout(r, 5));
+        expect(s.publicados).toHaveLength(0);
+        expect(bot.estado().hablando).toBeNull();
+        bot.tictac(1000 + SILENCIO_MS * 4);
+        await new Promise((r) => setTimeout(r, 5));
+        expect(s.publicados).toHaveLength(0);
+        expect(bot.estado().hablando).toBeNull();
     });
 
     it("un fallo del modelo no tumba nada: queda en silencio y suelta la palabra", async () => {
