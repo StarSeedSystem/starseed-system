@@ -39,6 +39,16 @@ export interface PropuestaImaginacion {
 export type PropuestaNormalizada = PropuestaImaginacion & Required<Pick<PropuestaImaginacion, "tipo" | "ambito" | "referencias" | "version">>;
 
 export interface FranjaHoraria { dias: number[]; desde: string; hasta: string }
+/** Resumen del filtro de entrada de Astraura (Ola 1102 · IMG1102A): qué pasó con las propuestas de Astraura hoy. */
+export interface FiltroAstraura {
+  fecha: string;
+  tope_dia: number;
+  ventana_dias: number;
+  vistas: number;
+  entran: number;
+  filtradas: { "familia repetida": number; "tipo de archivo": number; tope: number };
+  autorizacion_inventada: number;
+}
 /** El botón «Aprobación y reimaginación automática» (§3). Alta y crítica NUNCA se aprueban solas. */
 export interface AjustesAuto { aprobar: boolean; reimaginar: boolean; umbral: number; max_reimaginaciones: number }
 export interface AjustesAutodesarrollo {

@@ -40,6 +40,7 @@ import {
     type AjustesAuto,
     type AjustesAutodesarrollo,
     type AmbitoPropuesta,
+    type FiltroAstraura,
     type PropuestaImaginacion,
 } from "./imaginacion-tipos";
 
@@ -215,6 +216,8 @@ export interface ResumenImaginacionMedidor {
     auto?: AjustesAuto;
     /** Lo decidible que espera en OTROS ámbitos (solo para enlazarlo; nunca se suma aquí). */
     otrosAmbitos: { ambito: AmbitoPropuesta; decidibles: number }[];
+    /** (IMG1102A) Resumen del filtro de entrada de Astraura de hoy. */
+    filtro_astraura?: FiltroAstraura;
 }
 
 /** Estados que ya terminaron: nada de lo que hay aquí se descarta ni se reintenta. */
@@ -1555,6 +1558,7 @@ export interface DatosMedidores {
         propuestas: PropuestaImaginacion[];
         ajustes: AjustesAutodesarrollo;
         ambito: AmbitoPropuesta | "todos";
+        filtro_astraura?: FiltroAstraura;
     } | null;
 }
 
@@ -2140,6 +2144,7 @@ export function pastillaImaginacion(
         ambito: datos.ambito, hayDatos: true, total: propias.length, porDecidir: r.porDecidir,
         decidibles: decidibles(propias).length, reimaginando: r.reimaginando, integradasHoy: r.integradasHoy,
         auto: datos.ajustes.auto,
+        filtro_astraura: datos.filtro_astraura,
         otrosAmbitos: [...otros.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([ambito, n]) => ({ ambito, decidibles: n })),
     };
     if (!propias.length) {
