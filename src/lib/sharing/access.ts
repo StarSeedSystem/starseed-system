@@ -850,6 +850,65 @@ export async function getEffectiveAccess(ref: ResourceRef): Promise<EffectiveAcc
 }
 
 /**
+ * Resolvedor PURO de acceso efectivo (sin red, sin disco, sin localStorage).
+ * Recibe el documento de biblioteca ya cargado y la referencia del nodo,
+ * y devuelve el acceso efectivo caminando la cadena de herencia:
+ * archivo → folder padre → folders ancestros → biblioteca (raíz).
+ * Si ningún nodo en la cadena tiene ACL propia, devuelve el default `account`.
+ */
+export function computeEffectiveAccess(doc: EntityLibraryDoc, ref: ResourceRef): EffectiveAccess {
+    if (!isLibraryResource(ref) || !ref.libraryRef) {
+        return { ...defaultAccess(), own: true, inheritedFrom: null };
+    }
+    const nodeAcl = getNodeAclFromDoc(doc, ref);
+    if (aclIsOwn(nodeAcl)) {
+        const access = aclToAccess(nodeAcl) ?? defaultAccess();
+        return { ...access, own: true, inheritedFrom: null };
+    }
+    const seen = new Set<string>([resourceKey(ref)]);
+    let cursor = getParentRefFromDoc(doc, ref);
+    while (cursor) {
+        if (seen.has(resourceKey(cursor))) break;
+        seen.add(resourceKey(cursor));
+        const parentAcl = getNodeAclFromDoc(doc, cursor);
+        if (aclIsOwn(parentAcl)) {
+            const access = aclToAccess(parentAcl) ?? defaultAccess();
+            return {
+                ...access,
+                spaceId: null,
+                own: false,
+                inheritedFrom: cursor,
+                inheritedFromLabel: cursor.type === "library" ? "Biblioteca" : (cursor.title ?? "Folder"),
+            };
+        }
+        cursor = getParentRefFromDoc(doc, cursor);
+    }
+    return { ...defaultAccess(), own: false, inheritedFrom: null, inheritedFromLabel: "Biblioteca" };
+}
+
+/** Obtiene el ACL de un nodo (biblioteca/folder/archivo) directamente del documento. */
+function getNodeAclFromDoc(doc: EntityLibraryDoc, ref: ResourceRef): ItemACL | undefined {
+    if (ref.type === "library") return doc.acl;
+    if (ref.type === "folder") return doc.folders.find((f) => f.id === ref.id)?.acl;
+    if (ref.type === "file") return doc.items.find((it) => it.id === ref.id)?.acl;
+    return undefined;
+}
+
+/** Obtiene la referencia del nodo padre directamente del documento. */
+function getParentRefFromDoc(doc: EntityLibraryDoc, ref: ResourceRef): ResourceRef | null {
+    if (!isLibraryResource(ref) || !ref.libraryRef || ref.type === "library") return null;
+    const parentFolderId =
+        ref.type === "file"
+            ? (doc.items.find((it) => it.id === ref.id)?.folderId ?? null)
+            : (doc.folders.find((f) => f.id === ref.id)?.parentId ?? null);
+    if (parentFolderId) {
+        const folder = doc.folders.find((f) => f.id === parentFolderId);
+        return { type: "folder", id: parentFolderId, libraryRef: ref.libraryRef, ownerId: ref.ownerId, title: folder?.name };
+    }
+    return libraryResourceRef(ref.libraryRef, ref.title);
+}
+
+/**
  * «Dejar de heredar»: copia el acceso EFECTIVO como ACL propia del nodo. A
  * partir de aquí el nodo decide por sí mismo (los cambios del padre ya no le
  * afectan).
