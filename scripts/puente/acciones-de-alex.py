@@ -26,6 +26,15 @@ import re
 import subprocess
 import sys
 
+#: (DEC1028D) Codex con cuenta de ChatGPT que no admite el modelo.
+try:
+    _spec_codex = importlib.util.spec_from_file_location(
+        "cupo_codex", os.path.join(os.path.dirname(os.path.abspath(__file__)), "cupo_codex.py"))
+    _cupo = importlib.util.module_from_spec(_spec_codex)
+    _spec_codex.loader.exec_module(_cupo)
+except Exception:  # noqa: BLE001 — si falla, la acción no sale
+    _cupo = None
+
 RAIZ = os.environ.get("STARSEED_ROOT") or "/Users/alex/Documents/starseed-os-main"
 INFORME = os.path.expanduser("~/.starseed/pasarelas-informe.json")
 SALIDA = os.path.join(RAIZ, "starseed_memory_root", "mando", "acciones-de-alex.json")
@@ -256,7 +265,46 @@ def accion_sin_canal(entorno):
     }
 
 
-def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_tiene_token=None):
+def accion_codex_cuenta(marca):
+    """PURA: la acción de Codex con cuenta de ChatGPT que no admite el modelo.
+
+    `marca` es lo que devuelve `cupo_codex.leer()` (un dict o {}). Si la marca es vigente
+    y su motivo empieza por "cuenta de ChatGPT sin Codex", devuelve la acción. En cualquier
+    otro caso (sin marca, vencida, otro motivo, módulo no disponible), devuelve None.
+    """
+    if not _cupo:
+        return None
+    if not isinstance(marca, dict) or not marca:
+        return None
+    if not _cupo.sigue_agotado(marca, __import__("time").time()):
+        return None
+    motivo = str(marca.get("motivo") or "")
+    if not motivo.startswith("cuenta de ChatGPT sin Codex"):
+        return None
+    desde = marca.get("desde") or ""
+    return {
+        "id": "codex-cuenta",
+        "titulo": "Codex: tu cuenta de ChatGPT ya no deja usarlo",
+        "por_que": (
+            "desde %s cada intento devuelve \"model not supported when using Codex with a "
+            "ChatGPT account\"; el enjambre lo ha apartado y sigue con los demás" % desde
+        ),
+        "urgencia": "media",
+        "comando": "",
+        "enlace": "https://chatgpt.com/#settings/Account",
+        "por_que_no_lo_hago_yo": "es tu cuenta y tu suscripción",
+        "detalle": (
+            "Pasos:\n"
+            "1) Abre https://chatgpt.com/#settings/Account y mira en Plan si la suscripción sigue activa.\n"
+            "2) Si lo está, actualiza la CLI: `npm i -g @openai/codex`.\n"
+            "3) Vuelve a entrar: `codex login`."
+        ),
+        "variable": None,
+    }
+
+
+def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_tiene_token=None,
+                       cupo_codex_marca=None):
     """Función PURA: la lista de acciones, ordenada por urgencia. Sin red, sin disco.
 
     `a1_tiene_token` llega ya medido (True/False/None): aquí no se sale a la red. Con None
@@ -275,6 +323,11 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1
     sin_canal = accion_sin_canal(entorno) if entorno is not None else None
     if sin_canal:
         acciones.append(sin_canal)
+
+    # Codex con cuenta de ChatGPT que no admite el modelo (DEC1028D).
+    codex_cuenta = accion_codex_cuenta(cupo_codex_marca)
+    if codex_cuenta:
+        acciones.append(codex_cuenta)
 
     faltan = sorted(CLAVES_DEL_ENJAMBRE - set(secretos_repo or []))
     # (2026-10-28, DEC1028A) Alex: «¿lo de github-secretos se debe hacer?». Si solo faltan claves de repuesto
@@ -467,7 +520,7 @@ def resondear(clave, segundos=20):
 
 
 def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, medir=None,
-              a1_tiene_token=None):
+              a1_tiene_token=None, cupo_codex_marca=None):
     """¿Sigue haciendo falta esa accion? Vuelve a MEDIR, no consulta un archivo viejo.
 
     (2026-09-21, pedido por Alex) «en Genesis en su ventana debe haber un boton
@@ -500,6 +553,10 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
     # «Ya lo hice», la tarjeta desaparece solo cuando el token está de verdad allí.
     if a1_tiene_token is None and real:
         a1_tiene_token = a1_tiene_clave()
+    # Codex con cuenta de ChatGPT que no admite el modelo (DEC1028D): si Alex pulse «Ya lo hice»,
+    # la tarjeta desaparece solo cuando la marca ya no es vigente.
+    if cupo_codex_marca is None and real and _cupo:
+        cupo_codex_marca = _cupo.leer()
     # (2026-09-22) Sin el entorno, `canal-de-avisos-sin-configurar` no se reconstruía y el
     # botón «Ya lo hice» contestaba «ya no hace falta» para algo que seguía sin arreglar.
     # Un botón que dice que algo está hecho porque él mismo no sabe mirarlo es justo la
@@ -508,6 +565,7 @@ def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, 
         pasarelas, secretos_repo,
         entorno=entorno if entorno is not None else _entorno_con_env(),
         a1_tiene_token=a1_tiene_token,
+        cupo_codex_marca=cupo_codex_marca,
     )
     por_id = {a["id"]: a for a in vivas}
     momento = __import__("time").strftime("%Y-%m-%d %H:%M:%S")
@@ -565,8 +623,9 @@ def main():
         cual = sys.argv[i + 1] if len(sys.argv) > i + 1 else None
         print(json.dumps(verificar(cual), ensure_ascii=False, indent=1))
         return 0
+    cupo_marca = _cupo.leer() if _cupo else {}
     acciones = construir_acciones(_pasarelas(), _secretos(), entorno=_entorno_con_env(),
-                                  a1_tiene_token=a1_tiene_clave())
+                                  a1_tiene_token=a1_tiene_clave(), cupo_codex_marca=cupo_marca)
     datos = {"generado": __import__("time").strftime("%Y-%m-%d %H:%M"), "acciones": acciones}
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
     json.dump(datos, open(SALIDA, "w"), ensure_ascii=False, indent=1)

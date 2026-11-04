@@ -2,6 +2,7 @@
 """Qué entra —y qué NO— en la lista de acciones que solo puede hacer Alex."""
 import importlib.util
 import os
+import time
 import unittest
 
 _ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "acciones-de-alex.py")
@@ -410,3 +411,110 @@ def test_1103_el_token_se_busca_donde_lo_deja_oracle_claves():
         return 0, "SI\n"
     assert m.a1_tiene_clave(ssh=ssh) is True
     assert "/etc/starseed/direccion.env" in vistas[0] and "[ -e" not in vistas[0]
+
+
+class CodexCuentaChatGPT(unittest.TestCase):
+    """DEC1028D: la cuenta de ChatGPT no admite Codex → acción para que Alex lo arregle."""
+
+    def setUp(self):
+        import json, tempfile
+        self.dir = tempfile.mkdtemp()
+        # Parchear la ruta del archivo de cupo de codex
+        import scripts.puente.cupo_codex as cupo_mod
+        self.antes_ruta = cupo_mod.RUTA
+        cupo_mod.RUTA = os.path.join(self.dir, "codex-cupo.json")
+
+    def tearDown(self):
+        import scripts.puente.cupo_codex as cupo_mod
+        cupo_mod.RUTA = self.antes_ruta
+
+    def _marca_sin_modelo(self, desde=None, motivo="cuenta de ChatGPT sin Codex"):
+        """Crea una marca válida de 'sin modelo' en el archivo de cupo."""
+        import scripts.puente.cupo_codex as cupo_mod
+        ahora = time.time() if desde is None else time.mktime(time.strptime(desde, "%Y-%m-%d %H:%M:%S"))
+        cupo_mod.anotar(motivo=motivo, ahora=ahora, horas=cupo_mod.HORAS_SIN_MODELO, ruta=cupo_mod.RUTA)
+        return cupo_mod.leer(ruta=cupo_mod.RUTA)
+
+    def test_sin_marca_no_sale_accion(self):
+        a = A.construir_acciones([], TODOS, CATALOGO, cupo_codex_marca={})
+        self.assertNotIn("codex-cuenta", [x["id"] for x in a])
+
+    def test_marca_vigente_sin_modelo_sale_accion(self):
+        marca = self._marca_sin_modelo()
+        a = A.construir_acciones([], TODOS, CATALOGO, cupo_codex_marca=marca)
+        ids = [x["id"] for x in a]
+        self.assertIn("codex-cuenta", ids)
+        accion = next(x for x in a if x["id"] == "codex-cuenta")
+        self.assertEqual(accion["urgencia"], "media")
+        self.assertEqual(accion["titulo"], "Codex: tu cuenta de ChatGPT ya no deja usarlo")
+        self.assertIn("model not supported when using Codex with a ChatGPT account", accion["por_que"])
+        self.assertIn("chatgpt.com/#settings/Account", accion["enlace"])
+        self.assertEqual(accion["comando"], "")
+        self.assertEqual(accion["por_que_no_lo_hago_yo"], "es tu cuenta y tu suscripción")
+        self.assertIn("npm i -g @openai/codex", accion["detalle"])
+        self.assertIn("codex login", accion["detalle"])
+
+    def test_marca_vencida_no_sale_accion(self):
+        # Marca de hace 25 horas (HORAS_SIN_MODELO = 24)
+        marca = self._marca_sin_modelo(desde="2026-10-27 00:00:00")
+        a = A.construir_acciones([], TODOS, CATALOGO, cupo_codex_marca=marca)
+        self.assertNotIn("codex-cuenta", [x["id"] for x in a])
+
+    def test_marca_otro_motivo_no_sale_accion(self):
+        import scripts.puente.cupo_codex as cupo_mod
+        cupo_mod.anotar(motivo="cuota agotada", ahora=time.time(), horas=cupo_mod.HORAS, ruta=cupo_mod.RUTA)
+        marca = cupo_mod.leer(ruta=cupo_mod.RUTA)
+        a = A.construir_acciones([], TODOS, CATALOGO, cupo_codex_marca=marca)
+        self.assertNotIn("codex-cuenta", [x["id"] for x in a])
+
+    def test_marca_malformada_no_rompe(self):
+        import json
+        import scripts.puente.cupo_codex as cupo_mod
+        with open(os.path.join(self.dir, "codex-cupo.json"), "w") as f:
+            json.dump({"hasta": "no-es-numero"}, f)
+        marca = cupo_mod.leer(ruta=cupo_mod.RUTA)
+        a = A.construir_acciones([], TODOS, CATALOGO, cupo_codex_marca=marca)
+        self.assertNotIn("codex-cuenta", [x["id"] for x in a])
+
+
+class VerificarCodexCuenta(unittest.TestCase):
+    """DEC1028D: el botón «verificar» también comprueba la marca de Codex."""
+
+    def test_verificar_codex_cuenta_marca_vigente_sigue_pendiente(self):
+        import scripts.puente.cupo_codex as cupo_mod
+        marca = cupo_mod.leer()
+        # Simular marca vigente con el motivo correcto
+        marca_vigente = {
+            "hasta": cupo_mod.hasta_cuando(cupo_mod.time.time(), cupo_mod.HORAS_SIN_MODELO),
+            "desde": "2026-10-28 12:00:00",
+            "motivo": "cuenta de ChatGPT sin Codex",
+        }
+        r = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=TODOS,
+                        entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"},
+                        cupo_codex_marca=marca_vigente)
+        self.assertFalse(r["hecha"])
+        self.assertIn("codex-cuenta", r["id"])
+
+    def test_verificar_codex_cuenta_marca_vencida_hecha(self):
+        marca_vencida = {
+            "hasta": 0,  # vencida
+            "desde": "2026-10-27 00:00:00",
+            "motivo": "cuenta de ChatGPT sin Codex",
+        }
+        r = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=TODOS,
+                        entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"},
+                        cupo_codex_marca=marca_vencida)
+        self.assertTrue(r["hecha"])
+        self.assertIn("ya no hace falta", r["detalle"])
+
+    def test_verificar_codex_cuenta_otro_motivo_hecha(self):
+        marca_otro = {
+            "hasta": 9999999999,  # vigente
+            "desde": "2026-10-28 12:00:00",
+            "motivo": "cuota agotada",
+        }
+        r = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=TODOS,
+                        entorno={"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"},
+                        cupo_codex_marca=marca_otro)
+        self.assertTrue(r["hecha"])
+        self.assertIn("ya no hace falta", r["detalle"])
