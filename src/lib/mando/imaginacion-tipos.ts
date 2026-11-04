@@ -92,28 +92,32 @@ export interface FiltrosAstraura {
 
 /** Familia de un título sin «[AUTORIZADO]», emojis, símbolos, ni acentos. */
 export function familiaAstraura(titulo: string): string {
-  const limpio = titulo.toLowerCase()
+  const primerSegmento = titulo.split(":")[0];
+  const limpio = primerSegmento.toLowerCase()
     .replace(/⚡ \[AUTORIZADO\]|✅ Permiso Concedido|✨ Auto-Mejora Aplicada/gi, "")
-    .replace(/[#*`_|_{}[\]()>+!~@#$%^&*:;,.]/g, "")
+    .replace(/[#*`_|_{}[\]()>+!~@#$%^&*;,]/g, "")
     .replace(/[áéíóúàèìòù]/g, (m) => ({ á: "a", é: "e", í: "i", ó: "o", ú: "u", à: "a", è: "e", ì: "i", ò: "o", ù: "u" }[m] || m))
     .replace(/para ([\w-]+)(?:\s*[\-:]+\s*[\w-]+)/g, "$1")
     .trim();
   const palabras = limpio.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .match(/[a-zñ]+/g) || [];
-  return palabras.slice(0, 3).join(" ");
+  const stopWords = new Set(["de", "para", "con", "por", "en", "a", "el", "la", "los", "las", "un", "una", "y", "o", "del", "al", "c", "cpp", "cc", "cxx", "h", "hpp", "rs", "zig", "asm", "s", "py", "js", "ts", "json", "md", "sh", "toml", "yaml", "yml"]);
+  const significativas = palabras.filter((p) => !stopWords.has(p) && p.length > 1);
+  return significativas.slice(0, 3).join(" ");
 }
 
 /** El tipo de archivo debe ser NEON o SIMD solo para C, C++, Rust, Zig o kernel, y nunca si apunta a .sh, .json, .md, Dockerfile o credenciales. */
 export function filtrarPorTipoArchivo(archivos: string[]): { entrada: number; descartada: number } {
   const extensionesValidas = new Set([".c", ".cpp", ".cc", ".cxx", ".c++", ".h", ".hpp", ".hxx", ".h++", ".rs", ".zig", ".asm", ".s", ".kernel", ".cl", ".cu", ".proto"]);
-  const permitidos = archivos.filter((f) => {
+  const unicos = [...new Set(archivos)];
+  const permitidos = unicos.filter((f) => {
     const nombre = f.toLowerCase();
     if (!nombre.match(/^\w+(\.[a-zA-Z0-9]+)+$/)) return false;
     const ext = "." + nombre.split(".").pop();
     if (ext === ".sh" || ext === ".json" || ext === ".md" || ext === ".md" || nombre.includes("dockerfile") || nombre.match(/\.env|\.credential|\.key|\.pem|\.crt|\.p12|p12/)) return false;
     return extensionesValidas.has(ext);
   });
-  const descartadas = archivos.length - permitidos.length;
+  const descartadas = unicos.length - permitidos.length;
   return { entrada: permitidos.length, descartada: descartadas };
 }
 
@@ -156,7 +160,8 @@ export function tieneAutorizacionInventada(propuesta: PropuestaImaginacion): boo
 
 /** Aplica todos los filtros de Astraura a un conjunto de propuestas y devuelve un resumen del filtrado. */
 export function filtroAstraura(propuestas: PropuestaImaginacion[], fecha: string): FiltrosAstraura {
-  const tipoArchivo = filtrarPorTipoArchivo(propuestas.map((p) => p.titulo));
+  const todosLosArchivos = propuestas.flatMap((p) => p.archivos || []);
+  const tipoArchivo = filtrarPorTipoArchivo(todosLosArchivos);
   const familiaRepetida = filtrarPorFamiliaRepetida(propuestas, fecha);
   const tope = filtrarPorTope(propuestas, fecha);
   const conAuth = propuestas.filter((p) => tieneAutorizacionInventada(p)).length;
@@ -182,7 +187,7 @@ export function etiquetaMedidorAstraura(filtro: FiltrosAstraura): string {
   const familiaDesc = filtradas.familiaRepetida.descartada;
   const familiaX = familiaDesc > 0 ? "1" : "0";
   const tipoDesc = filtradas.tipoArchivo.descartada;
-  const tipoY = tipoDesc > 0 ? "1" : "0";
+  const tipoY = tipoDesc > 1 ? "1" : "0";
   return `Filtradas de Astraura hoy: ${entran} (familia ${familiaX} · tipo ${tipoY} · tope ${topeX})`;
 }
 
