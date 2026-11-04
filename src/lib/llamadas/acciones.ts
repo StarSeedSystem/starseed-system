@@ -28,6 +28,7 @@ import { temaLlamada } from "@/lib/llamadas/temas";
 import { enlacesLocalesVivos } from "@/lib/malla/registro-enlaces-locales";
 import { abrirCanalLlamadaPorEnlace } from "@/lib/llamadas/canal-enlace-local";
 import { canalesParaLlamada } from "@/lib/llamadas/canales-directos";
+import { iceParaCanal, tipoCanalDirecto } from "@/lib/llamadas/decision-ice";
 import { olvidarTemaSesion, resolverTemaSesion } from "@/lib/llamadas/resolver-tema";
 import { sanearNombre, urlAvatarSegura } from "@/lib/llamadas/presencia";
 import {
@@ -143,13 +144,14 @@ export async function empezarLlamada(o: { hiloId: string; tipo: TipoLlamada; tit
     }
     const unoAUno = miembros.length <= 2;
     const sesionId = sesion.id;
+    const tipoCanal = tipoCanalDirecto(decision, hayRedSupabase);
+    const iceServidores = tipoCanal === "directo" ? [] : ice.iceServers;
     const motor = new MotorLlamada({
         sesionId,
         yo,
         colgarAlQuedarSolo: unoAUno,
-        iceServers: ice.iceServers,
-        hayTurn: ice.turn,
-        // Recién creada en modo chat: el canal de miembros.
+        iceServers: iceServidores,
+        hayTurn: ice.turn && tipoCanal !== "directo",
         tema: temaLlamada(sesionId),
         resolverTema: () => resolverTemaSesion("llamada", sesionId, { fresco: true }),
         canalesDirectos: decision.enlaces.length > 0
@@ -210,12 +212,14 @@ export async function unirseALlamada(o: {
     const hayRedSupabase = ice.fuente !== "stun";
     const enlaces = enlacesLocalesVivos();
     const decision = canalesParaLlamada({ hayRedSupabase, enlaces, tema });
+    const tipoCanal = tipoCanalDirecto(decision, hayRedSupabase);
+    const iceServidores = tipoCanal === "directo" ? [] : ice.iceServers;
     const motor = new MotorLlamada({
         sesionId: o.sesionId,
         yo,
         colgarAlQuedarSolo: !!o.unoAUno,
-        iceServers: ice.iceServers,
-        hayTurn: ice.turn,
+        iceServers: iceServidores,
+        hayTurn: ice.turn && tipoCanal !== "directo",
         tema,
         resolverTema: () => resolverTemaSesion("llamada", o.sesionId, { token: o.token, fresco: true }),
         canalesDirectos: decision.enlaces.length > 0
