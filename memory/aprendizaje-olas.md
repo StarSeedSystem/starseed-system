@@ -4693,3 +4693,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTIMG1020Cb-d2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTIMG1020Cb-d2b conservada)
 - `VZF1015M-d1b` — no escribió nada
 - `SGO1031B-d2b` — no escribió nada
+
+## 2026-11-04 01:41 · mg-oracle-1103-1818
+
+**Lo que se pidió.** Splats gaussianos con Spark en mundos de nivel alto
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RTXR1010AMb` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTXR1010AMb conservada)
