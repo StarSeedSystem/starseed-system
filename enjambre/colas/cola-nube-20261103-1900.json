@@ -1,0 +1,44 @@
+{
+ "ola": "nube-20261103",
+ "tareas": [
+  {
+   "id": "DEC1028D",
+   "ola": "1028 · Decisiones de Alex aprobadas",
+   "depende": [],
+   "titulo": "Te toca a ti · avisar cuando la cuenta de ChatGPT ya no deja usar Codex",
+   "archivos": [
+    "scripts/puente/acciones-de-alex.py",
+    "scripts/puente/test_acciones_de_alex.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni valores de claves en el código, en las pruebas ni en lo que imprimas.\n\nContexto (medido el 2026-10-28 por Claude, supervisor): desde el 2026-10-23 20:55 TODAS las llamadas de Codex en la Mac fallan con `{\"status\":400, ... \"message\":\"The 'gpt-5.6-sol' model is not supported when using Codex with a ChatGPT account.\",\"code\":\"model_not_found\"}` (206 sesiones en `~/.codex/sessions`; con `-m gpt-5.5` pasa lo mismo). `cupo_codex.agotado_en` solo reconoce la cuota agotada, así que Codex sigue en la rotación: cada tarea gasta su primer intento con él y acaba en `sin_cambios` (DEC1028A lo hizo 8 veces). Hoy se apartó a mano 24 h con `cupo_codex.anotar`.\n\nEn `acciones-de-alex.py`, si `cupo_codex.leer()` tiene una marca vigente cuyo motivo empieza por «cuenta de ChatGPT sin Codex», añade la acción `codex-cuenta` (urgencia «media»): título «Codex: tu cuenta de ChatGPT ya no deja usarlo», por qué «desde <desde> cada intento devuelve “model not supported when using Codex with a ChatGPT account”; el enjambre lo ha apartado y sigue con los demás», detalle con los pasos (mirar en chatgpt.com › Ajustes › Plan si la suscripción sigue activa; si lo está, actualizar la CLI con `npm i -g @openai/codex` y volver a entrar con `codex login`), `enlace` `https://chatgpt.com/#settings/Account` y `comando` vacío (no hay nada que pegar), `por_que_no_lo_hago_yo` «es tu cuenta y tu suscripción». Sin marca así, nada cambia. Pruebas.",
+   "revisor_quitadas": [
+    "DEC1028Ac"
+   ],
+   "dependencias_ya_en_main": [
+    "DEC1028C"
+   ]
+  },
+  {
+   "id": "LNN1028C",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "LEANN · instalación en el A1, su servicio y la orden de oracle_nodo",
+   "archivos": [
+    "deploy/oracle/nodo/leann-a1.sh",
+    "deploy/oracle/nodo/systemd/starseed-leann.service",
+    "scripts/puente/oracle_nodo.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\n`leann-a1.sh` (idempotente, como `deploy/oracle/nodo/ollama-a1.sh`, léelo): crea `/opt/starseed/leann/.venv` e instala `leann==0.3.8`; comprueba con `ollama show qwen3-embedding:0.6b --license` que es Apache-2.0 ANTES de dejarlo y lo baja con `bash ollama-a1.sh qwen3-embedding:0.6b`; pone `OLLAMA_KEEP_ALIVE=2m` y `OLLAMA_MAX_LOADED_MODELS=1` en el entorno del servicio de Ollama. Unidad `starseed-leann.service` (usuario starseed, `ExecStart=/opt/starseed/leann/.venv/bin/python /opt/starseed/nodo/leann/leann_servidor.py`, `Environment=OLLAMA_HOST=http://127.0.0.1:11434`, `MemoryMax=1500M`, `Nice=10`, `Restart=on-failure`) con `# requiere: /opt/starseed/leann/.venv/bin/python`. En `oracle_nodo.py`: `_paquete` copia `leann_servidor.py`, `leann_indices.py` (si existe) y `fusion_recuerdos.py` a `leann/`; orden `leann` que sin `--aplicar` enseña el plan y con `--aplicar` corre `leann-a1.sh` en el A1 por `ssh` (como `freellmapi`). Prueba del plan y del paquete, sin ssh.",
+   "dependencias_ya_en_main": [
+    "LNN1028B",
+    "MVD1027I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1103-165243.json": [
+   "LNN1028C",
+   "DEC1028D"
+  ]
+ }
+}
