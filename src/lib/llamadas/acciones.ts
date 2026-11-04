@@ -143,12 +143,14 @@ export async function empezarLlamada(o: { hiloId: string; tipo: TipoLlamada; tit
     }
     const unoAUno = miembros.length <= 2;
     const sesionId = sesion.id;
+    const sinRed = !hayRedSupabase;
+    const usaDirectosSinRed = sinRed && decision.enlaces.length > 0;
     const motor = new MotorLlamada({
         sesionId,
         yo,
         colgarAlQuedarSolo: unoAUno,
-        iceServers: ice.iceServers,
-        hayTurn: ice.turn,
+        iceServers: usaDirectosSinRed ? [] : ice.iceServers,
+        hayTurn: usaDirectosSinRed ? false : ice.turn,
         // Recién creada en modo chat: el canal de miembros.
         tema: temaLlamada(sesionId),
         resolverTema: () => resolverTemaSesion("llamada", sesionId, { fresco: true }),
@@ -210,12 +212,14 @@ export async function unirseALlamada(o: {
     const hayRedSupabase = ice.fuente !== "stun";
     const enlaces = enlacesLocalesVivos();
     const decision = canalesParaLlamada({ hayRedSupabase, enlaces, tema });
+    const sinRed = !hayRedSupabase;
+    const usaDirectosSinRed = sinRed && decision.enlaces.length > 0;
     const motor = new MotorLlamada({
         sesionId: o.sesionId,
         yo,
         colgarAlQuedarSolo: !!o.unoAUno,
-        iceServers: ice.iceServers,
-        hayTurn: ice.turn,
+        iceServers: usaDirectosSinRed ? [] : ice.iceServers,
+        hayTurn: usaDirectosSinRed ? false : ice.turn,
         tema,
         resolverTema: () => resolverTemaSesion("llamada", o.sesionId, { token: o.token, fresco: true }),
         canalesDirectos: decision.enlaces.length > 0
