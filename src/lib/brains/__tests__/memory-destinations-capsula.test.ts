@@ -48,6 +48,15 @@ describe("normalizeMemoryDestinations · destino cápsula (MVD1027E)", () => {
   it("una cápsula con enabled fuera de boolean sale apagada, no rota", () => {
     expect(normalizeMemoryDestinations({ capsula: { enabled: "sí" } }).capsula.enabled).toBe(false);
   });
+
+  it("conserva la ultimaSincronia cuando la cápsula está apagada", () => {
+    const ultima = "2026-10-27T00:00:00.000Z";
+    const destinos = normalizeMemoryDestinations({
+      capsula: { enabled: false, ultimaSincronia: ultima },
+    });
+    expect(destinos.capsula.enabled).toBe(false);
+    expect(destinos.capsula.ultimaSincronia).toBe(ultima);
+  });
 });
 
 describe("huellaCapsula · SHA-256", () => {
@@ -91,6 +100,14 @@ describe("planCapsulaCerebro · solo archivos nuevos o cambiados", () => {
   it("sin archivos o sin contenido no hay nada que enviar", async () => {
     expect((await planCapsulaCerebro("cerebro-1", [])).enviar).toEqual([]);
     expect((await planCapsulaCerebro("cerebro-1", null)).enviar).toEqual([]);
+  });
+
+  it("archivo con contenido vacío o solo espacios no se incluye", async () => {
+    const plan = await planCapsulaCerebro("cerebro-1", [
+      { name: "vacio.md", content: "" },
+      { name: "espacios.md", content: "   " },
+    ]);
+    expect(plan.enviar).toEqual([]);
   });
 });
 
