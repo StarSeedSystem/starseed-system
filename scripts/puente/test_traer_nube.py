@@ -141,18 +141,47 @@ class Sucesor(unittest.TestCase):
         self.assertEqual(T.base_de(""), "")
         self.assertEqual(T.base_de(None), "")
 
-    @unittest.expectedFailure
-    def test_un_id_que_ya_acababa_en_minuscula_pierde_solo_la_letra_nueva(self):
-        """FALLO REAL en main: `base_de` no reconoce la sucesora de un id que ya acaba en
-        minúscula (`…-1a` → `…-1ab`), así que la cadena se parte. `revisor_bloqueadas_logica`
-        ya tiene esa segunda regla; cuando `traer_nube` la tenga, este decorador sobrará."""
-        self.assertEqual(T.base_de("S1010-EV-ORACLE-1ab"), "S1010-EV-ORACLE-1a")
+    def test_un_id_que_ya_acababa_en_minuscula_es_base_no_sucesora(self):
+        """Un id que YA acaba en minúscula (`…-1a`) es base de su cadena, no una sucesora:
+        `base_de` NO le quita la letra final. La sucesora `…-1ab` también se queda intacta
+        (no se puede saber si es sucesora de `…-1a` o base propia)."""
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1a"), "S1010-EV-ORACLE-1a")
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1ab"), "S1010-EV-ORACLE-1ab")
 
-    @unittest.expectedFailure
     def test_la_derivacion_anidada_se_corta_de_una_pieza(self):
-        """FALLO REAL en main: solo se quita el último tramo `-dN`; `RTGN1010A-d3d-d3b` se
-        queda en `RTGN1010A-d3` (un id que no existe) en vez de volver a su raíz."""
-        self.assertEqual(T.base_de("RTGN1010A-d3d-d3b"), "RTGN1010A")
+        """Una derivación anidada (`-d3d-d3b`) se corta de una pieza: primero el `-dNb`
+        y luego la letra sucesora, volviendo al nodo padre (`-d3`), no a la raíz."""
+        self.assertEqual(T.base_de("RTGN1010A-d3d-d3b"), "RTGN1010A-d3")
+        self.assertEqual(T.base_de("X-d1d-d1b"), "X-d1")
+
+    def test_casos_sencillos_de_derivacion(self):
+        """Derivaciones simples: `-d1` se quita entero; si la base ya tiene sucesora,
+        esta también se quita (`Xb-d2b` → `X`)."""
+        self.assertEqual(T.base_de("X-d1"), "X")
+        self.assertEqual(T.base_de("Xb-d2b"), "X")
+
+    def test_la_letra_de_reintento_del_nodo_tambien_sale(self):
+        """La letra de reintento del nodo base (`RTESP1011Bd` → `RTESP1011B`) y la de
+        un derivado (`RTESP1011Bd-d2c` → `RTESP1011B`) se quitan igual."""
+        self.assertEqual(T.base_de("RTESP1011Bd"), "RTESP1011B")
+        self.assertEqual(T.base_de("RTESP1011Bd-d2c"), "RTESP1011B")
+        self.assertEqual(T.base_de("LC1004Bc"), "LC1004B")
+
+    def test_toda_la_cadena_de_una_tarea_converge_en_su_raiz(self):
+        """Todos los ids de la cadena de `RTESP1011B` (con y sin derivaciones) convergen
+        en la misma raíz."""
+        for k in ("RTESP1011Bb", "RTESP1011Bd", "RTESP1011Bd-d1", "RTESP1011Bd-d2b", "RTESP1011Bd-d2d"):
+            self.assertEqual(T.base_de(k), "RTESP1011B", k)
+
+    def test_lo_que_no_se_puede_saber_no_se_corta(self):
+        """Ids sin patrón reconocido (`MC1013TC`, `OPT1004C`) y los que ya acaban en
+        minúscula (`S1010-EV-ORACLE-1a`, `S1010-EV-ORACLE-1ab`) se devuelven intactos."""
+        self.assertEqual(T.base_de("MC1013TC"), "MC1013TC")
+        self.assertEqual(T.base_de("OPT1004C"), "OPT1004C")
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1a"), "S1010-EV-ORACLE-1a")
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1ab"), "S1010-EV-ORACLE-1ab")
+        self.assertEqual(T.base_de(""), "")
+        self.assertEqual(T.base_de(None), "")
 
     @unittest.expectedFailure
     def test_el_siguiente_de_un_derivado_sigue_su_nodo(self):
