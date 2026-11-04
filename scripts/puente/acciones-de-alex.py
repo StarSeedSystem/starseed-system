@@ -35,6 +35,14 @@ _spec = importlib.util.spec_from_file_location(
 _pas = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_pas)
 
+#: (DEC1028D, 2026-10-28) La marca de «Codex apartado» la escribe el enjambre vía
+#: `cupo_codex.py` (solo json/os/time, sin red). Aquí solo se LEE: si sigue vigente y
+#: su motivo empieza por «cuenta de ChatGPT sin Codex», la cuenta pide mano de Alex.
+_spec_cupo = importlib.util.spec_from_file_location(
+    "cupo_codex", os.path.join(os.path.dirname(os.path.abspath(__file__)), "cupo_codex.py"))
+_cupo = importlib.util.module_from_spec(_spec_cupo)
+_spec_cupo.loader.exec_module(_cupo)
+
 #: Los nombres que el workflow de la nube lee. Solo NOMBRES, jamás un valor.
 #:
 #: (2026-09-21) Esta lista estaba ESCRITA DOS VECES —aquí y en `nube-gh.py`— y las dos
@@ -184,6 +192,45 @@ def accion_token_despliegue(a1_lo_tiene):
         "variable": TOKEN_DESPLIEGUE,
     }
 
+#: (DEC1028D, 2026-10-28) Desde el 2026-10-23 la CLI de Codex devuelve «model is not
+#: supported when using Codex with a ChatGPT account» en CADA llamada: no es cuota, no
+#: vuelve en tres horas. El enjambre lo aparta 24 h con `cupo_codex` y sigue con los
+#: demás, pero Alex no se entera: cada tarea nueva gastaba su primer intento con Codex
+#: (DEC1028A lo hizo ocho veces). Esto le avisa SOLO mientras la marca siga vigente.
+PREFIJO_MOTIVO_SIN_MODELO = "cuenta de ChatGPT sin Codex"
+
+
+def accion_codex_cuenta(marca, ahora=None):
+    """PURA: la acción de la cuenta de ChatGPT, solo si el apartamiento de Codex sigue vivo.
+
+    `marca` es el dict que `cupo_codex.leer()` guarda en `~/.starseed/codex-cupo.json`.
+    Sin marca vigente cuyo motivo empiece por «cuenta de ChatGPT sin Codex», None: ni la
+    cuota agotada corriente ni un archivo corrupto se le piden a Alex.
+    """
+    if ahora is None:
+        ahora = __import__("time").time()
+    if not _cupo.sigue_agotado(marca, ahora):
+        return None
+    motivo = str((marca or {}).get("motivo") or "")
+    if not motivo.startswith(PREFIJO_MOTIVO_SIN_MODELO):
+        return None
+    desde = str((marca or {}).get("desde") or "el 2026-10-23")
+    return {
+        "id": "codex-cuenta",
+        "titulo": "Codex: tu cuenta de ChatGPT ya no deja usarlo",
+        "por_que": ("desde %s cada intento devuelve “model not supported when using "
+                    "Codex with a ChatGPT account”; el enjambre lo ha apartado y "
+                    "sigue con los demás" % desde),
+        "urgencia": "media",
+        "comando": "",
+        "enlace": "https://chatgpt.com/#settings/Account",
+        "por_que_no_lo_hago_yo": "es tu cuenta y tu suscripción",
+        "detalle": ("mira en chatgpt.com › Ajustes › Plan si la suscripción sigue activa; "
+                    "si lo está, actualiza la CLI con `npm i -g @openai/codex` y "
+                    "vuelve a entrar con `codex login`"),
+    }
+
+
 #: Qué estados de pasarela necesitan a un humano, y con qué urgencia. `sin_cupo` NO está:
 #: una cuota se repone sola y mandarle a hacer algo por eso es hacerle perder el tiempo.
 ESTADOS_HUMANOS = {
@@ -256,11 +303,13 @@ def accion_sin_canal(entorno):
     }
 
 
-def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_tiene_token=None):
+def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1_tiene_token=None,
+                       codex=None, ahora=None):
     """Función PURA: la lista de acciones, ordenada por urgencia. Sin red, sin disco.
 
     `a1_tiene_token` llega ya medido (True/False/None): aquí no se sale a la red. Con None
-    la acción del token no aparece, porque no hay prueba de que falte.
+    la acción del token no aparece, porque no hay prueba de que falte. Con `codex` pasa lo
+    mismo: es la marca que `cupo_codex.leer()` ya leyó del disco, y sin ella no se pide.
     """
     catalogo = catalogo if catalogo is not None else _pas.CATALOGO
     acciones = []
@@ -268,6 +317,10 @@ def construir_acciones(pasarelas, secretos_repo, catalogo=None, entorno=None, a1
     token = accion_token_despliegue(a1_tiene_token)
     if token:
         acciones.append(token)
+
+    codex_marca = accion_codex_cuenta(codex, ahora=ahora)
+    if codex_marca:
+        acciones.append(codex_marca)
 
     # El canal de avisos es una preocupación aparte de la lista de tareas: solo se mira
     # cuando quien llama pasa un entorno. Así esta función sigue siendo pura y quien solo
@@ -467,7 +520,7 @@ def resondear(clave, segundos=20):
 
 
 def verificar(id_accion=None, pasarelas=None, secretos_repo=None, entorno=None, medir=None,
-              a1_tiene_token=None):
+              a1_tiene_token=None, codex=None, ahora=None):
     """¿Sigue haciendo falta esa accion? Vuelve a MEDIR, no consulta un archivo viejo.
 
     (2026-09-21, pedido por Alex) «en Genesis en su ventana debe haber un boton

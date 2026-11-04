@@ -311,6 +311,57 @@ class RachaDeCaida(unittest.TestCase):
         self.assertEqual(r["caida_desde"], "2026-10-28 01:00")
 
 
+class CuentaDeChatGPTSinCodex(unittest.TestCase):
+    """(DEC1028D, 2026-10-28) Desde el 2026-10-23 CADA llamada de Codex devuelve
+    «model_not_found»: no es cuota, no vuelve en tres horas. El enjambre lo aparta 24 h
+    con `cupo_codex.anotar("cuenta de ChatGPT sin Codex…")`, y esta lista debe avisarle
+    a Alex MIENTRAS la marca siga vigente — no para siempre, no cuando ya venció."""
+
+    HASTA = 1900000000.0
+    MARCA = {"hasta": HASTA, "desde": "2026-10-23 20:55:00",
+             "motivo": "cuenta de ChatGPT sin Codex para gpt-5.6-sol"}
+    ENTORNO = {"TELEGRAM_BOT_TOKEN": "x", "TELEGRAM_CHAT_ID": "y"}
+
+    def test_con_marca_vigente_sale_la_accion(self):
+        a = A.accion_codex_cuenta(self.MARCA, ahora=self.HASTA - 60)
+        self.assertEqual("codex-cuenta", a["id"])
+        self.assertEqual("media", a["urgencia"])
+        self.assertIn("ya no deja usarlo", a["titulo"])
+        self.assertIn("2026-10-23 20:55", a["por_que"])
+        self.assertIn("model_not_found", a["por_que"])
+        self.assertIn("chatgpt.com/#settings", a["enlace"])
+        self.assertEqual("", a["comando"])
+        self.assertIn("npm i -g @openai/codex", a["detalle"])
+        self.assertIn("codex login", a["detalle"])
+        self.assertEqual("es tu cuenta y tu suscripción", a["por_que_no_lo_hago_yo"])
+
+    def test_marca_vencida_no_pide_nada(self):
+        self.assertIsNone(A.accion_codex_cuenta(self.MARCA, ahora=self.HASTA + 60))
+
+    def test_cuota_agotada_corriente_NO_la_pide(self):
+        marca = {"hasta": self.HASTA, "motivo": "agotó su cuota: 3 h"}
+        self.assertIsNone(A.accion_codex_cuenta(marca, ahora=self.HASTA - 60))
+
+    def test_sin_marca_nada(self):
+        self.assertIsNone(A.accion_codex_cuenta(None))
+        self.assertIsNone(A.accion_codex_cuenta({}))
+
+    def test_entra_en_la_lista_solo_con_la_marca_vigente(self):
+        viva = A.construir_acciones([], TODOS, CATALOGO, codex=self.MARCA, ahora=self.HASTA - 60)
+        self.assertIn("codex-cuenta", [x["id"] for x in viva])
+        vencida = A.construir_acciones([], TODOS, CATALOGO, codex=self.MARCA, ahora=self.HASTA + 60)
+        self.assertNotIn("codex-cuenta", [x["id"] for x in vencida])
+
+    def test_verificar_la_da_por_hecha_cuando_la_marca_vencio(self):
+        hecho = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=TODOS,
+                            codex=self.MARCA, entorno=self.ENTORNO, ahora=self.HASTA + 60)
+        self.assertTrue(hecho["hecha"])
+        pendiente = A.verificar("codex-cuenta", pasarelas=[], secretos_repo=TODOS,
+                                codex=self.MARCA, entorno=self.ENTORNO, ahora=self.HASTA - 60)
+        self.assertFalse(pendiente["hecha"])
+        self.assertIn("ya no deja usarlo", pendiente["titulo"])
+
+
 class TokenDeDespliegueDelA1(unittest.TestCase):
     """(IND1029I, 2026-10-30) Publicar sin la Mac: el líder del A1 empuja sus commits con un
     token de grano fino. Alex lo crea UNA vez; la acción sale solo si la bóveda del A1 no lo
