@@ -383,177 +383,186 @@ export function astraura158LocalDisabled(): boolean {
 /**
  * Calcula la disponibilidad de TODAS las fuentes del catálogo.
  * `fast=true` evita sondas de red (solo claves + capacidades del navegador).
+ *
+ * (Ola 368) Sondas en PARALELO: cada fuente se sondea concurrentemente;
+ * el tiempo total es el de la más lenta, no la suma. El orden de resultados
+ * se mantiene por el orden de preferencia del catálogo.
  */
 export async function detectAvailability(fast = false): Promise<SourceAvailability[]> {
   const configs = typeof window === "undefined" ? [] : loadConfigs();
-  const out: SourceAvailability[] = [];
+  const catalog = getUnifiedCatalog();
 
-  for (const source of getUnifiedCatalog()) {
+  interface ProbeJob {
+    source: CatalogSource;
+    userConfig?: ProviderConfig;
+    compute(): Promise<{ ready: boolean; reason?: string }>;
+  }
+
+  const jobs: ProbeJob[] = catalog.map((source) => {
     const userConfig = userConfigForSource(source, configs);
 
-    // ── MODELOS DESCARGABLES (opt-in): NUNCA "ready" salvo que el usuario los
-    //    haya INSTALADO. Así el router jamás dispara una descarga enorme solo y
-    //    Aurora usa la mejor alternativa gratis mientras. El modal de instalación
-    //    se ofrece aparte (installed-models + install-model-modal).
     if (isDownloadableSource(source.id)) {
-      const installed = isModelInstalled(source.id);
-      const hasEngine =
-        source.baseUrl === "builtin://chrome-ai"
-          ? (typeof window !== "undefined" && !!(window as any).LanguageModel)
-          : webgpuAvailable();
-      out.push({
+      return {
         source,
-        ready: installed && hasEngine,
         userConfig,
-        reason: !hasEngine
-          ? (source.baseUrl === "builtin://chrome-ai" ? "Este navegador no trae la Prompt API (Chrome 148+)." : "Sin WebGPU en este navegador.")
-          : installed ? undefined : "Modelo local disponible — instálalo (opcional) para usarlo.",
-      });
-      continue;
+        async compute() {
+          const installed = isModelInstalled(source.id);
+          const hasEngine =
+            source.baseUrl === "builtin://chrome-ai"
+              ? (typeof window !== "undefined" && !!(window as any).LanguageModel)
+              : webgpuAvailable();
+          return {
+            ready: installed && hasEngine,
+            reason: !hasEngine
+              ? (source.baseUrl === "builtin://chrome-ai" ? "Este navegador no trae la Prompt API (Chrome 148+)." : "Sin WebGPU en este navegador.")
+              : installed ? undefined : "Modelo local disponible — instálalo (opcional) para usarlo.",
+          };
+        },
+      };
     }
-    // ── OmniRoute (proxy local, jul-2026): opt-in explícito vía
-    //    IntelligenceSettings.omniRoute — nunca se sondea solo, a diferencia
-    //    del resto de fuentes "local", porque requiere que el usuario active la
-    //    capa a propósito (documentado en architecture/astraura-inteligencia.md §15.4).
+
     if (source.id === "omniroute-local") {
-      let cfg: { enabled: boolean; endpoint: string } = { enabled: false, endpoint: source.baseUrl.replace(/\/v1$/, "") };
-      try {
-        const router = await import("./router");
-        const settings = router.getIntelligenceSettings();
-        if (settings.omniRoute) cfg = settings.omniRoute;
-      } catch { /* defensivo: sin ajuste guardado, se trata como deshabilitado */ }
-      if (!cfg.enabled) {
-        out.push({ source, ready: false, userConfig, reason: "Desactivado (actívalo en Ajustes → Inteligencia si tienes OmniRoute corriendo)." });
-        continue;
-      }
-      const endpoint = (cfg.endpoint || source.baseUrl.replace(/\/v1$/, "")).replace(/\/+$/, "");
-      const ok = fast ? true : await probe(`${endpoint}/v1/models`);
-      out.push({
-        source, ready: ok, userConfig,
-        reason: ok ? undefined : `OmniRoute no responde en ${endpoint} (¿está corriendo?).`,
-      });
-      continue;
+      return {
+        source,
+        userConfig,
+        async compute() {
+          let cfg: { enabled: boolean; endpoint: string } = { enabled: false, endpoint: source.baseUrl.replace(/\/v1$/, "") };
+          try {
+            const router = await import("./router");
+            const settings = router.getIntelligenceSettings();
+            if (settings.omniRoute) cfg = settings.omniRoute;
+          } catch { /* defensivo: sin ajuste guardado, se trata como deshabilitado */ }
+          if (!cfg.enabled) {
+            return { ready: false, reason: "Desactivado (actívalo en Ajustes → Inteligencia si tienes OmniRoute corriendo)." };
+          }
+          const endpoint = (cfg.endpoint || source.baseUrl.replace(/\/v1$/, "")).replace(/\/+$/, "");
+          const ok = fast ? true : await probe(`${endpoint}/v1/models`);
+          return { ready: ok, reason: ok ? undefined : `OmniRoute no responde en ${endpoint} (¿está corriendo?).` };
+        },
+      };
     }
-    // ── ASTRAURA 1.58-BIT (Adenda 153 · Ola 278 · G5 2026-09-26): sonda HONESTA
-    //    y LIGERA. La LOCAL usa `/api/ping` (< 5 ms) con fallback a
-    //    `/api/bitnet/estado` (3 ms) si el backend es anterior (404); la NUBE
-    //    usa TAMBIÉN `/api/ping` (4 s, por el túnel de la Mac) — ya NO
-    //    `/api/status` (8,7 s medidos por el túnel: convertía un backend vivo
-    //    en «no responde» sin necesidad) — y, si responde, `GET /api/cola`
-    //    para no marcar lista una nube que el propio backend dice que está
-    //    ocupada (`admite:false`). Si no responde, NO está lista: ese turno va
-    //    a los secundarios y se re-sondea al expirar el TTL.
+
     if (source.providerId === "astraura-158") {
-      const endpoint = astraura158EndpointFor(source, userConfig);
-      const isLocal = source.id === "astraura-158-local";
-      if (isLocal && astraura158LocalDisabled()) {
-        out.push({ source, ready: false, userConfig, reason: "Desactivada en esta neurona (Sistemas de Astraura → Astraura 1.58)." });
-        continue;
-      }
-      let ready: boolean;
-      let reason: string | undefined;
-      if (fast) {
-        ready = isLocal ? !!userConfig : true;
-      } else if (isLocal) {
-        const r = await probeAstraura158Local(endpoint);
-        ready = r.ready;
-        reason = r.reason;
-        // (Ola 278 · OS3) Si la sonda llegó a la neurona a través del proxy del
-        // OS (el navegador bloquea 127.0.0.1), se anota para que Genesis y el
-        // chat lo enseñen y no parezca un fallo del backend.
-        if (r.via === "proxy") {
-          reason = ["Astraura 1.58 responde vía el servidor del OS (el navegador bloquea 127.0.0.1).", reason]
-            .filter(Boolean)
-            .join(" · ");
-        }
-        // Guarda la última disponibilidad conocida (memoria de módulo) para que
-        // `detectAvailabilitySafe` la conserve si el tope global salta.
-        lastLocalAstrauraKnown = { at: Date.now(), ready, reason };
-      } else {
-        const r = await probeAstraura158Nube(endpoint);
-        ready = r.ready;
-        reason = r.reason;
-        // Igual que con la local (arriba): memoria de módulo para que el tope
-        // global de `detectAvailabilitySafe` no tenga que fingir sin haber
-        // sondeado nunca (G5).
-        lastNubeAstrauraKnown = { at: Date.now(), ready, reason };
-      }
-      out.push({
-        source, ready, userConfig,
-        reason: ready
-          ? reason
-          : isLocal
-            ? `El backend Astraura 1.58 no responde en ${endpoint} (¿está arrancado? ./install_and_run.sh).`
-            : "La nube de Astraura 1.58 no responde ahora (¿arrancando en frío?); se usan los sistemas secundarios.",
-      });
-      continue;
+      return {
+        source,
+        userConfig,
+        async compute() {
+          const endpoint = astraura158EndpointFor(source, userConfig);
+          const isLocal = source.id === "astraura-158-local";
+          if (isLocal && astraura158LocalDisabled()) {
+            return { ready: false, reason: "Desactivada en esta neurona (Sistemas de Astraura → Astraura 1.58)." };
+          }
+          let ready: boolean;
+          let reason: string | undefined;
+          if (fast) {
+            ready = isLocal ? !!userConfig : true;
+          } else if (isLocal) {
+            const r = await probeAstraura158Local(endpoint);
+            ready = r.ready;
+            reason = r.reason;
+            if (r.via === "proxy") {
+              reason = ["Astraura 1.58 responde vía el servidor del OS (el navegador bloquea 127.0.0.1).", reason]
+                .filter(Boolean)
+                .join(" · ");
+            }
+            lastLocalAstrauraKnown = { at: Date.now(), ready, reason };
+          } else {
+            const r = await probeAstraura158Nube(endpoint);
+            ready = r.ready;
+            reason = r.reason;
+            lastNubeAstrauraKnown = { at: Date.now(), ready, reason };
+          }
+          return {
+            ready,
+            reason: ready
+              ? reason
+              : isLocal
+                ? `El backend Astraura 1.58 no responde en ${endpoint} (¿está arrancado? ./install_and_run.sh).`
+                : "La nube de Astraura 1.58 no responde ahora (¿arrancando en frío?); se usan los sistemas secundarios.",
+          };
+        },
+      };
     }
-    // ── ASTRAURA 1.58 POR LA MALLA P2P (Ola 367): lista solo si algún peer de
-    //    la MISMA cuenta, conectado ahora mismo, anuncia `sirveAstraura` en su
-    //    ficha. Lectura síncrona (sin sondear red): el motor de la malla ya
-    //    mantiene ese estado publicado; sin `MallaNeuronasMount` montado
-    //    degrada honestamente a "sin servidor".
+
     if (source.providerId === "astraura-158-malla") {
-      const servidores = servidoresAstrauraMalla();
-      out.push({
+      return {
         source,
-        ready: servidores.length > 0,
         userConfig,
-        reason: servidores.length > 0 ? undefined : "Ninguna neurona de tu malla ofrece Astraura ahora.",
-      });
-      continue;
+        compute() {
+          const servidores = servidoresAstrauraMalla();
+          return Promise.resolve({
+            ready: servidores.length > 0,
+            reason: servidores.length > 0 ? undefined : "Ninguna neurona de tu malla ofrece Astraura ahora.",
+          });
+        },
+      };
     }
-    // ── IA POR LA MALLA P2P, GENÉRICA (Ola 368): nunca entra en el ranking
-    //    automático de `rankCandidates` — se marca `ready:false` a propósito.
-    //    Solo se usa como candidato MANUAL en los dos casos que documenta
-    //    `router.ts` (pin no listo aquí servido por un peer / último recurso),
-    //    construidos a mano con `findSource(IA_MALLA_SOURCE_ID)`. Sigue en el
-    //    catálogo (y en este listado) para que la UI y `findSource` la vean.
+
     if (source.providerId === "ia-malla") {
-      out.push({
+      return {
         source,
-        ready: false,
         userConfig,
-        reason: "Solo se usa como pin de la malla o último recurso (ver capas → mesh).",
-      });
-      continue;
+        compute() {
+          return Promise.resolve({
+            ready: false,
+            reason: "Solo se usa como pin de la malla o último recurso (ver capas → mesh).",
+          });
+        },
+      };
     }
+
     if (source.tier === "local") {
-      const probeUrl = source.id === "ollama-local"
-        ? "http://localhost:11434/api/tags"
-        : `${source.baseUrl}/models`;
-      const ok = fast ? !!userConfig : await probe(probeUrl);
-      out.push({
-        source, ready: ok, userConfig,
-        reason: ok ? undefined : `${source.label} no responde en este dispositivo.`,
-      });
-      continue;
+      return {
+        source,
+        userConfig,
+        async compute() {
+          const probeUrl = source.id === "ollama-local"
+            ? "http://localhost:11434/api/tags"
+            : `${source.baseUrl}/models`;
+          const ok = fast ? !!userConfig : await probe(probeUrl);
+          return { ready: ok, reason: ok ? undefined : `${source.label} no responde en este dispositivo.` };
+        },
+      };
     }
+
     if (!source.requiresKey) {
-      // Instant cloud SIN CLAVE (Pollinations, OVHcloud anónimo, LLM7): la red
-      // de seguridad universal. Siempre listas salvo que estemos offline.
-      // `keyOptional` = si el usuario añadió una clave, se usa para subir
-      // límites, pero JAMÁS es requisito para que la fuente esté disponible.
-      const online = typeof navigator === "undefined" ? false : navigator.onLine !== false;
-      out.push({ source, ready: online, userConfig, reason: online ? undefined : "Sin conexión." });
-      continue;
+      return {
+        source,
+        userConfig,
+        compute() {
+          const online = typeof navigator === "undefined" ? false : navigator.onLine !== false;
+          return Promise.resolve({ ready: online, reason: online ? undefined : "Sin conexión." });
+        },
+      };
     }
-    // free-key / paid: listo si el usuario tiene una config habilitada con clave.
-    const ok = !!userConfig && (!!userConfig.encryptedKey || !source.requiresKey);
-    out.push({
-      source, ready: ok, userConfig,
-      reason: ok ? undefined : `Necesita clave gratuita (${source.getKeyUrl ?? "ver ajustes"}).`,
-    });
-  }
+
+    return {
+      source,
+      userConfig,
+      compute() {
+        const ok = !!userConfig && (!!userConfig.encryptedKey || !source.requiresKey);
+        return Promise.resolve({
+          ready: ok,
+          reason: ok ? undefined : `Necesita clave gratuita (${source.getKeyUrl ?? "ver ajustes"}).`,
+        });
+      },
+    };
+  });
+
+  const resultados = await Promise.all(jobs.map(async (job) => {
+    const r = await job.compute();
+    return { source: job.source, ready: r.ready, userConfig: job.userConfig, reason: r.reason };
+  }));
+
   // (Ola 368) Efecto secundario BARATO: publica los ids `ready` de ESTA pasada
   // para que la ficha de la malla de neuronas (`fuentesServibles`) los lea
   // síncronamente sin sondear de nuevo — ver `ready-sources-snapshot.ts`.
   try {
-    publicarFuentesListas(out.filter((a) => a.ready).map((a) => a.source.id));
+    publicarFuentesListas(resultados.filter((a) => a.ready).map((a) => a.source.id));
   } catch {
     /* noop: nunca debe tumbar la disponibilidad por esto */
   }
-  return out;
+  return resultados;
 }
 
 // (Ola 278 · OS1) Memoria de módulo: última disponibilidad conocida de la fuente
