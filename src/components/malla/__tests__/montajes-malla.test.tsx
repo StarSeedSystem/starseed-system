@@ -209,7 +209,8 @@ describe("PermisosAntenas — inventario honesto por plataforma", () => {
       geolocation: {},
     });
     
-    const webBluetoothSection = screen.getByText("Web Bluetooth").parentElement!;
+    const listaPermisos = screen.getByTestId("lista-permisos");
+    const webBluetoothSection = within(listaPermisos).getByText("Web Bluetooth").parentElement!;
     expect(within(webBluetoothSection).getByText("Disponible: Sí")).toBeInTheDocument();
   });
 
@@ -221,7 +222,8 @@ describe("PermisosAntenas — inventario honesto por plataforma", () => {
       geolocation: {},
     });
     
-    const webNFCSection = screen.getByText("Web NFC").parentElement!;
+    const listaPermisos = screen.getByTestId("lista-permisos");
+    const webNFCSection = within(listaPermisos).getByText("Web NFC").parentElement!;
     expect(within(webNFCSection).getByText("Disponible: No")).toBeInTheDocument();
     expect(within(webNFCSection).getByText(/Disponible solo en Android/)).toBeInTheDocument();
   });
@@ -235,7 +237,8 @@ describe("PermisosAntenas — inventario honesto por plataforma", () => {
       localStorageItems: { "permiso_Web Bluetooth": "true" },
     });
     
-    const webBluetoothSection = screen.getByText("Web Bluetooth").parentElement!;
+    const listaPermisos = screen.getByTestId("lista-permisos");
+    const webBluetoothSection = within(listaPermisos).getByText("Web Bluetooth").parentElement!;
     expect(within(webBluetoothSection).getByText(/Permitido/)).toBeInTheDocument();
   });
 
@@ -249,7 +252,8 @@ describe("PermisosAntenas — inventario honesto por plataforma", () => {
       geolocation: {},
     });
     
-    const webBluetoothSection = screen.getByText("Web Bluetooth").parentElement!;
+    const listaPermisos = screen.getByTestId("lista-permisos");
+    const webBluetoothSection = within(listaPermisos).getByText("Web Bluetooth").parentElement!;
     const botonPermitir = within(webBluetoothSection).getByRole("button", { name: /Permitir/ });
     await act(async () => {
       fireEvent.click(botonPermitir);
