@@ -18,12 +18,12 @@ if [ "$NIVEL_PRESION" -ge 2 ]; then
   exit 0
 fi
 
-ahora=$(date +%s)
+inicio=$(date +%s)
 if [ -f "$ESTADO" ]; then
   ultimo=$(cat "$ESTADO" 2>/dev/null || echo 0)
   case "$ultimo" in ''|*[!0-9]*) ultimo=0 ;; esac
   if [ "$ultimo" -gt 0 ]; then
-    diff=$((ahora - ultimo))
+    diff=$((inicio - ultimo))
     if [ "$diff" -lt "$ESPERA" ]; then
       min=$((diff / 60))
       echo "$(date '+%F %T') codegraph sync: la última pasada se cortó hace $min min → me salto esta"
@@ -47,6 +47,16 @@ hijo=$!
 vigia=$!
 wait "$hijo"; rc=$?
 kill "$vigia" 2>/dev/null
+
+# Si el vigilante escribió un timestamp durante esta ejecución (timeout), no sobrescribir con 0 y salir con error
+if [ -f "$ESTADO" ]; then
+  corte=$(cat "$ESTADO" 2>/dev/null || echo 0)
+  case "$corte" in ''|*[!0-9]*) corte=0 ;; esac
+  if [ "$corte" -ge "$inicio" ]; then
+    exit 1
+  fi
+fi
+
 if [ "$rc" -eq 0 ]; then
   echo 0 > "$ESTADO"
 fi
