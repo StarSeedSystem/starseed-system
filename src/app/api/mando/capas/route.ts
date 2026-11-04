@@ -7,22 +7,23 @@
  *        (`~/.starseed/capacidades-nodos.json`, si existe) + último banco
  *        (`~/.starseed/capas-banco.json`, si existe). Cada computación vive en
  *        `src/lib/mando/capas-red.ts` (puro).
- * POST → `{ accion: "comprobar" | "banco" }` lanza `capas_renovar.py --json`
- *        o `capas_banco.py` DESACOPLADOS (mismo patrón que
- *        `lanzarPasadaAutopublicar` de `/api/mando/produccion`).
+ * POST → `{ accion: "comprobar" | "banco" | "mandar-propuesta" }` lanza
+ *        `capas_renovar.py --json`, `capas_banco.py` o manda una propuesta
+ *        de automejora a la cola del enjambre.
  *
  * ⚠️ Solo local (`guardianMando`). Jamás devuelve rutas del disco ni claves.
  */
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { guardianMando } from "@/lib/mando/guardian";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import { construirResumenRed, leerBanco, leerCatalogoCapas, leerNuevas } from "@/lib/mando/capas-red";
+import { leerPropuestasAutomejora, crearTareaParaCola, type PropuestaAutomejora, type PropuestaArchivo } from "@/lib/mando/automejora-propuestas";
 import type { CapacidadesNodo } from "@/lib/network/capacidades-nodo";
 
 export const runtime = "nodejs";
