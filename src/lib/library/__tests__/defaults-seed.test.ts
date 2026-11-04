@@ -8,7 +8,7 @@ import {
 import { FICHAS_REPOS_1025, IDS_SIEMBRA_1025, TANDA_1025_FICHAS } from "../repos-1025";
 import { FICHAS_REPOS_1026, IDS_SIEMBRA_1026, TANDA_1026_FICHAS } from "../repos-1026";
 import { FICHAS_REPOS_1027, IDS_SIEMBRA_1027, TANDA_1027_FICHAS } from "../repos-1027";
-import { IDS_SIEMBRA_1027B } from "../repos-1027b";
+import { IDS_SIEMBRA_1027B, TANDA_1027B_FICHAS, FICHAS_REPOS_1027B } from "../repos-1027b";
 import { IDS_SIEMBRA_1028 } from "../repos-1028";
 
 const SIEMPRE_2A = [
@@ -283,6 +283,49 @@ describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remac
 
   it("ninguna ficha de la tanda es descargable ni comingSoon: instalar solo registra su enlace", () => {
     for (const f of FICHAS_REPOS_1027) {
+      expect(f.comingSoon, f.id).toBeFalsy();
+      expect(f.payload.downloadable, f.id).toBeUndefined();
+      expect(String(f.payload.route ?? ""), f.id).toBe("");
+    }
+  });
+});
+
+describe("defaults-seed · tanda 1027b (Meta^n y Memvid) · remacho 24", () => {
+  const nuevas = FICHAS_REPOS_1027B.map((f) => f.id);
+
+  it("las dos fichas del JSON quedan en la recomendación, una por ficha y sin repetir", () => {
+    expect(TANDA_1027B_FICHAS).toHaveLength(2);
+    expect([...IDS_SIEMBRA_1027B].sort()).toEqual(["lib-memvid", "lib-meta-n"]);
+    for (const id of nuevas) expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
+    expect(new Set(RECOMMENDED_PACKAGE_IDS).size).toBe(RECOMMENDED_PACKAGE_IDS.length);
+  });
+
+  it("una cuenta con versión 23 recibe solo las dos nuevas fichas de la tanda 1027b", () => {
+    const plan = selectSeedIds({
+      currentVersion: 23,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: [...FICHAS_REPOS_1025, ...FICHAS_REPOS_1026, ...FICHAS_REPOS_1027, ...FICHAS_REPOS_1027B].map((f) => ({ id: f.id, comingSoon: f.comingSoon })),
+      alreadyOffered: [...RECOMMENDED_PACKAGE_IDS.filter((id) => !nuevas.includes(id))],
+      installedIds: [],
+    });
+    expect(plan.sort()).toEqual([...nuevas].sort());
+  });
+
+  it("una cuenta que desinstaló una de la tanda 1027b no la recupera sola", () => {
+    const plan = selectSeedIds({
+      currentVersion: 23,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: FICHAS_REPOS_1027B.map((f) => ({ id: f.id })),
+      alreadyOffered: [...RECOMMENDED_PACKAGE_IDS],
+      installedIds: IDS_SIEMBRA_1027B.filter((id) => id !== "lib-meta-n"),
+    });
+    expect(plan).not.toContain("lib-meta-n");
+  });
+
+  it("ninguna ficha de la tanda es descargable ni comingSoon: instalar solo registra su enlace", () => {
+    for (const f of FICHAS_REPOS_1027B) {
       expect(f.comingSoon, f.id).toBeFalsy();
       expect(f.payload.downloadable, f.id).toBeUndefined();
       expect(String(f.payload.route ?? ""), f.id).toBe("");
