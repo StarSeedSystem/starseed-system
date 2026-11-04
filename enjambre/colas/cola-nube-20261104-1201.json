@@ -1,0 +1,74 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "id": "CTR1104P",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Memorias · el tipo memory_root y el lector de memory.manifest.json (puro)",
+   "archivos": [
+    "src/lib/memorias/memory-root.ts",
+    "src/lib/memorias/__tests__/memory-root.test.ts"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/memoria-cerebros-sync.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§«Pendiente de implementar»: el tipo `memory_root` (raíz + ramas) y el lector de `memory.manifest.json` que valida y normaliza (entradas con `hash`, `scope`, ruta relativa; lo que no se entiende se descarta con su motivo, nunca lanza)."
+  },
+  {
+   "id": "CTR1104R",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Permisos · ACL heredable de biblioteca, carpeta y archivo con la regla cuenta↔perfiles",
+   "archivos": [
+    "src/lib/sharing/access.ts",
+    "src/lib/sharing/__tests__/acl-heredable.test.ts"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/folders-permisos-publicaciones.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3: amplía `ResourceRef` a `library|folder|file` con ACL propia y HEREDABLE (el hijo hereda si no define la suya) y la regla obligatoria: conceder a un perfil concede a todos los perfiles de su cuenta y a la inversa. Solo el resolvedor puro en el cliente (la función de la base de datos es otra tarea) y sus pruebas."
+  },
+  {
+   "id": "CTR1104S",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Astraura · detectAvailability sondea las fuentes en paralelo",
+   "archivos": [
+    "src/ai/astraura/availability.ts",
+    "src/ai/astraura/__tests__/availability-paralelo.test.ts"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/astraura-158-sistema-primario.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§«Pendiente / no hecho en esta ola»: el bucle de sondeo de `detectAvailability()` sigue secuencial entre fuentes. Hazlo en paralelo (cada sonda con su tope, una que tarda no frena a las demás) conservando el orden de preferencia del resultado. Prueba con sondas simuladas: el tiempo total es el de la más lenta, no la suma, y el orden no cambia."
+  },
+  {
+   "id": "CTR1104U",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Estudio MetaGeminis · subtítulos .vtt y .srt desde los beats del guion",
+   "archivos": [
+    "scripts/sociales/estudio/subtitulos.py",
+    "scripts/sociales/estudio/test_subtitulos.py"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/metageminis-estudio.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§12 `EST-SUBTITULOS`: genera `.vtt` y `.srt` a partir de los beats (inicio, fin, texto) que ya usa el estudio (mira `manifiesto.py`/`nucleo.py`). Puro y probado; quemarlos con ffmpeg solo si ffmpeg está y como función aparte."
+  },
+  {
+   "id": "CTR1104V",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Estudio MetaGeminis · enlaces con utm_* por medio y estilo, verificados",
+   "archivos": [
+    "scripts/sociales/estudio/utm.py",
+    "scripts/sociales/estudio/test_utm.py"
+   ],
+   "depende": [],
+   "origen": "contratos-pendientes",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/metageminis-estudio.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§12 `EST-UTM`: arma los enlaces con `utm_source` (medio), `utm_medium`, `utm_campaign` y `utm_content` (estilo) sin romper los parámetros que ya traiga la URL, y verifica que no hay duplicados ni espacios. Puro y probado."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-025236.json": [
+   "CTR1104P",
+   "CTR1104R",
+   "CTR1104S",
+   "CTR1104U",
+   "CTR1104V"
+  ]
+ }
+}
