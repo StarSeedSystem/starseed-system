@@ -1,0 +1,22 @@
+{
+ "ola": "oracle-20261104",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "LNN1028F",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "Astraura · «recordar» funde Memvid y LEANN (y pregunta antes si hace falta)",
+   "archivos": [
+    "src/ai/astraura/recuerdos-capsulas.ts",
+    "src/ai/astraura/__tests__/recordar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nEn `recuerdos-capsulas.ts` (de MVD1027F) añade `recordar(contexto, consulta)` y deja `recordarDeCapsulas` como alias: por cada cápsula de `capsulasParaContexto`, A LA VEZ `buscar` de Memvid y `buscarLeann` (filtros `{alcance: {in: alcanceVisiblePara(actor)}}`, `pesoVector = pesoVectorPara(consulta)`), luego `fundirRecuerdos`, `filtrarParaAlcance` y, si el modelo es de la nube, `detectarFuga`. Si la consulta es de menos de 4 palabras y sin pregunta, no busca (barato). Tope total 900 ms; lo que llegue tarde no entra. Pruebas: los dos responden, solo uno, ninguno.",
+   "dependencias_ya_en_main": [
+    "MVD1027F-d3",
+    "LNN1028A",
+    "LNN1028D2"
+   ]
+  }
+ ]
+}
