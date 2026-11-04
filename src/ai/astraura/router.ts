@@ -22,6 +22,7 @@
 import { chat, type ChatRequest } from "@/ai/client/chat";
 import { decryptKey } from "@/ai/client/keyStorage";
 import type { ChatMessage, ChatResponse } from "@/ai/providers/types";
+import type { SujetoMemoria } from "@/lib/memorias/capsulas";
 import {
   FREE_CATALOG,
   TASK_LABELS,
@@ -1532,7 +1533,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
           grupoId: undefined as string | undefined,
         } as const;
         const actor = { tipo: "usuario" as const };
-        const buscarCapsula = async (sujeto: { tipo: string; id: string }, consulta: string, k: number) => {
+        const buscarCapsula = async (sujeto: SujetoMemoria, consulta: string, k: number) => {
           try {
             const res = await fetch("/api/memorias/capsulas", {
               method: "POST",
