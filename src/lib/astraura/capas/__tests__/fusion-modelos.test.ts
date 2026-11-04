@@ -172,4 +172,51 @@ describe("planFusion", () => {
     expect(plan.motivo).toContain("PEFT exige el mismo modelo base");
     expect(plan.bloqueos.some((b) => b.includes("modelos base distintos"))).toBe(true);
   });
+
+  it("privado + público ⇒ ninguna", () => {
+    const plan = planFusion([
+      CON_AJUSTES({ id: "p1", ambito: "privado" }),
+      CON_AJUSTES({ id: "p2", ambito: "publico" }),
+    ]);
+    expect(plan.estrategia).toBe("ninguna");
+    expect(plan.bloqueos).toContain("lo privado no se mezcla con lo público ni con lo de otra persona");
+  });
+
+  it("2 adaptadores ⇒ linear", () => {
+    const base = { tipo: "adaptador" as const, baseId: "Qwen/Qwen3-2B" };
+    const plan = planFusion([CON_AJUSTES({ ...base, id: "a1" }), CON_AJUSTES({ ...base, id: "a2" })]);
+    expect(plan.estrategia).toBe("adaptadores-ponderados");
+    expect(plan.herramienta).toBe("peft");
+    expect(plan.metodo).toBe("linear");
+    expect(plan.pasos.some((paso) => paso.includes("add_weighted_adapter"))).toBe(true);
+  });
+
+  it("3 ⇒ ties", () => {
+    const base = { tipo: "adaptador" as const, baseId: "Qwen/Qwen3-2B" };
+    const grupo = ["a1", "a2", "a3"].map((id) => CON_AJUSTES({ ...base, id }));
+    const plan = planFusion(grupo);
+    expect(plan.metodo).toBe("ties");
+    expect(plan.pasos.some((paso) => paso.includes("densidad 0,5"))).toBe(true);
+    expect(plan.pasos.some((paso) => paso.includes("capas_banco"))).toBe(true);
+  });
+
+  it("Needle + BitNet ⇒ ensamble", () => {
+    const plan = planFusion([
+      CON_AJUSTES({ id: "n1", arquitectura: "needle-3", parametrosB: 0.02 }),
+      CON_AJUSTES({ id: "b1", arquitectura: "BitNet-1.58", parametrosB: 2 }),
+    ]);
+    expect(plan.estrategia).toBe("ensamble-sistema");
+    expect(plan.herramienta).toBe("sistema");
+    expect(plan.motivo).toContain("no hay fusión de pesos");
+    expect(plan.bloqueos.some((b) => b.includes("needle finetune"))).toBe(true);
+  });
+
+  it("privado + público ⇒ ninguna", () => {
+    const plan = planFusion([
+      CON_AJUSTES({ id: "p1", ambito: "privado" }),
+      CON_AJUSTES({ id: "p2", ambito: "publico" }),
+    ]);
+    expect(plan.estrategia).toBe("ninguna");
+    expect(plan.bloqueos).toContain("lo privado no se mezcla con lo público ni con lo de otra persona");
+  });
 });
