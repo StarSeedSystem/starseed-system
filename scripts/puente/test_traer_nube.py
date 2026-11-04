@@ -148,6 +148,12 @@ class Sucesor(unittest.TestCase):
                   "RTESP1011Bd-d2b", "RTESP1011Bd-d2d"):
             self.assertEqual(T.base_de(k), "RTESP1011B", k)
 
+    def test_los_ids_minimos_no_rompen_el_corte(self):
+        # Rescatado de nube/41579697472 (RESC1031D): con un id de una sola letra el corte
+        # del sufijo no deja nada vacío, y la letra sucesora detrás de una mayúscula también sale.
+        self.assertEqual(T.base_de("X-d1"), "X")
+        self.assertEqual(T.base_de("Xb-d2b"), "X")
+
     @unittest.expectedFailure
     def test_un_id_que_ya_acababa_en_minuscula_pierde_solo_la_letra_nueva(self):
         """FALLO REAL en main: `base_de` no reconoce la sucesora de un id que ya acaba en
