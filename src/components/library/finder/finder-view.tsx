@@ -51,7 +51,7 @@ import {
     folderPath, folderSubtreeIds, sortItems, sortFolders,
     readClipboard, writeClipboard, clearClipboard, deepLinkFor, deepLinkForFolder,
     type AclViewerContext, canWrite as aclCanWrite,
-    canReadItem, canWriteItem, canReadFolder, canWriteFolder,
+    canReadItem, canWriteItem, canReadFolder, canWriteFolder, visibleFor,
 } from "./finder-types";
 // Compartir universal (Adenda 63 §5) + PERMISOS POR NODO con HERENCIA (Adenda 66
 // §3-§4): ámbito + roles por biblioteca/folder/archivo; espeja la ACL embebida
@@ -232,7 +232,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
     }, [doc.items]);
 
     const filteredItems = useMemo(() => {
-        let items: SavedItem[] = ctx.isOwner ? doc.items : doc.items.filter((it) => canReadItem(doc, it, ctx));
+        let items: SavedItem[] = ctx.isOwner ? doc.items : doc.items.filter((it) => canReadItem(doc, entityRef, it, ctx));
         if (activeFolder !== null) items = items.filter((it) => (it.folderId ?? null) === activeFolder);
         if (typeFilter !== "todos") items = items.filter((it) => it.type === typeFilter);
         const q = query.trim().toLowerCase();
@@ -245,12 +245,12 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
             );
         }
         return sortItems(items, sort);
-    }, [doc, activeFolder, typeFilter, query, sort, ctx]);
+    }, [doc, entityRef, activeFolder, typeFilter, query, sort, ctx]);
 
     const visibleFolders = useMemo(() => {
-        const list = ctx.isOwner ? doc.folders : doc.folders.filter((f) => canReadFolder(doc, f, ctx));
+        const list = ctx.isOwner ? doc.folders : doc.folders.filter((f) => canReadFolder(doc, entityRef, f, ctx));
         return sortFolders(list, sort === "tipo" ? "nombre" : sort);
-    }, [doc, sort, ctx]);
+    }, [doc, entityRef, sort, ctx]);
 
     const breadcrumbPath = useMemo(() => folderPath(visibleFolders, activeFolder), [visibleFolders, activeFolder]);
 
@@ -268,8 +268,8 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
     const currentWriteAllowed = useMemo(() => {
         if (ctx.isOwner) return true;
         const f = activeFolder ? doc.folders.find((x) => x.id === activeFolder) : null;
-        return f ? canWriteFolder(doc, f, ctx) : aclCanWrite(doc.acl, ctx);
-    }, [doc, activeFolder, ctx]);
+        return f ? canWriteFolder(doc, entityRef, f, ctx) : aclCanWrite(doc.acl, ctx);
+    }, [doc, entityRef, activeFolder, ctx]);
 
     // ── Selección ────────────────────────────────────────────────────────────
 
@@ -763,12 +763,12 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
         if (menu.payload.kind === "item") {
             const item = itemsById.get(menu.payload.id);
             if (!item) return null;
-            return { kind: "item", id: item.id, canWrite: ctx.isOwner || canWriteItem(doc, item, ctx), isAlias: item.type === "alias" };
+            return { kind: "item", id: item.id, canWrite: ctx.isOwner || canWriteItem(doc, entityRef, item, ctx), isAlias: item.type === "alias" };
         }
         const folder = doc.folders.find((f) => f.id === menu.payload.id);
         if (!folder) return null;
-        return { kind: "folder", id: folder.id, canWrite: ctx.isOwner || canWriteFolder(doc, folder, ctx) };
-    }, [menu, itemsById, doc, ctx]);
+        return { kind: "folder", id: folder.id, canWrite: ctx.isOwner || canWriteFolder(doc, entityRef, folder, ctx) };
+    }, [menu, itemsById, doc, entityRef, ctx]);
 
     // ── Filee (2026-10-23): «Convertir a…» del archivo del menú ─────────────
     // El resultado se sube a tus archivos y se guarda en la misma carpeta que el original.
@@ -1010,7 +1010,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                             folders={visibleFolders}
                             itemsByFolder={(folderId) =>
                                 sortItems(
-                                    doc.items.filter((it) => (ctx.isOwner || canReadItem(doc, it, ctx)) && (it.folderId ?? null) === folderId && (typeFilter === "todos" || it.type === typeFilter)),
+                                    doc.items.filter((it) => (ctx.isOwner || canReadItem(doc, entityRef, it, ctx)) && (it.folderId ?? null) === folderId && (typeFilter === "todos" || it.type === typeFilter)),
                                     sort,
                                 )
                             }
@@ -1063,18 +1063,18 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                             }}
                         >
                             {filteredItems.map((item) => (
-                                <ItemCard
-                                    key={item.id}
-                                    item={item}
-                                    layout={viewMode === "lista" ? "lista" : "iconos"}
-                                    accent={accent}
-                                    selected={selectedIds.has(item.id)}
-                                    readOnly={!ctx.isOwner && !canWriteItem(doc, item, ctx)}
-                                    onSelect={(e) => toggleSelect(e, item.id)}
-                                    onOpen={() => handleOpenItem(item)}
-                                    onDragStartExtra={dragSelectionIds}
-                                    {...bind({ kind: "item", id: item.id })}
-                                />
+<ItemCard
+                                key={item.id}
+                                item={item}
+                                layout={viewMode === "lista" ? "lista" : "iconos"}
+                                accent={accent}
+                                selected={selectedIds.has(item.id)}
+                                readOnly={!ctx.isOwner && !canWriteItem(doc, entityRef, item, ctx)}
+                                onSelect={(e) => toggleSelect(e, item.id)}
+                                onOpen={() => handleOpenItem(item)}
+                                onDragStartExtra={dragSelectionIds}
+                                {...bind({ kind: "item", id: item.id })}
+                            />
                             ))}
                         </div>
                     )}
