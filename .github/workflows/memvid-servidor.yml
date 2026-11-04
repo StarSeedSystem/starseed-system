@@ -1,0 +1,61 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Memvid · servidor de cápsulas para la Mac (MVD1027J · tarea J)
+# ---------------------------------------------------------------------------
+# La Mac no tiene Rust (medido, contrato `architecture/memvid-capsulas.md` §4):
+# este job compila el binario `darwin-arm64` del servidor `native/memvid-servidor`
+# y lo deja como ARTEFACTO del run (14 días de retención). No es un Release ni
+# PUBLICACIÓN alguna: quien lo baja es `scripts/puente/instalar_memvid.py`, en la
+# Mac, con `gh run list` + `gh run download`, comprobando el SHA-256 que este job
+# imprime en su resumen. Sin secretos, sin publicación, sin cuenta de memvid.com.
+# ═══════════════════════════════════════════════════════════════════════════
+
+name: Memvid · servidor de cápsulas (Mac)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "comprobar/**"
+    paths:
+      - "native/memvid-servidor/**"
+      - ".github/workflows/memvid-servidor.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compilar:
+    name: cargo build --release (darwin-arm64)
+    runs-on: macos-14
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Rust estable (aarch64-apple-darwin)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Caché de Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "native/memvid-servidor -> target"
+
+      - name: Compilar el servidor de cápsulas
+        run: cargo build --release --manifest-path native/memvid-servidor/Cargo.toml
+
+      - name: SHA-256 del binario
+        working-directory: native/memvid-servidor/target/release
+        run: |
+          # La huella queda en el resumen Y en el log del run: es la que
+          # `instalar_memvid.py` comprobara contra el artefacto descargado.
+          HUELLA=$(shasum -a 256 memvid-servidor | cut -d' ' -f1)
+          echo "SHA-256: $HUELLA"
+          echo "SHA-256 del binario memvid-servidor: $HUELLA" >> "$GITHUB_STEP_SUMMARY"
+          echo "sha256=$HUELLA" >> "$GITHUB_OUTPUT"
+
+      - name: Subir el binario como artefacto del run (NO es una release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: memvid-servidor-darwin-arm64
+          path: native/memvid-servidor/target/release/memvid-servidor
+          if-no-files-found: error
+          retention-days: 14
