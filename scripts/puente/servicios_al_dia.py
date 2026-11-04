@@ -36,8 +36,9 @@ ESTADO = os.path.expanduser("~/.starseed/servicios-al-dia.json")
 MANDO = os.path.join(RAIZ, "starseed_memory_root", "mando")
 #: Los servicios de larga vida que se ponen al día solos (sin vigilante, mando, túneles ni voz).
 #: En orden de importancia: los primeros se ponen al día antes cuando hay más que `MAX_POR_PASADA`.
-SERVICIOS = ("revisor", "nube", "director", "nodo-metagenesis", "vigia", "guardia", "reconstruir", "produccion",
-             "acciones", "tokens", "telegram", "cartero", "eco", "flujos", "pantalla", "laya")
+#: El vigía va el ÚLTIMO: la autocuración corre dentro de él y relanzarlo corta la pasada.
+SERVICIOS = ("revisor", "nube", "director", "nodo-metagenesis", "guardia", "reconstruir", "produccion",
+             "acciones", "tokens", "telegram", "cartero", "eco", "flujos", "pantalla", "laya", "vigia")
 GRACIA_S = 10 * 60
 REINICIO_MINIMO_S = 6 * 3600
 MAX_POR_PASADA = 4
@@ -102,14 +103,32 @@ def _guion(nombre):
     return None
 
 
+def cierre(inicial, imports_de, niveles=2):
+    """PURA. Los módulos alcanzables desde `inicial` en `niveles` saltos de import (`imports_de(nombre) -> [nombres]`)."""
+    vistos, frontera = {inicial}, [inicial]
+    for _ in range(niveles):
+        siguiente = []
+        for n in frontera:
+            for m in imports_de(n):
+                if m not in vistos:
+                    vistos.add(m)
+                    siguiente.append(m)
+        frontera = siguiente
+    return vistos
+
+
 def _cambio(guion):
     carpeta = os.path.dirname(guion)
     existentes = {f[:-3] for f in os.listdir(carpeta) if f.endswith(".py")}
-    try:
-        texto = open(guion, encoding="utf-8").read()
-    except OSError:
-        return None
-    rutas = [guion] + [os.path.join(carpeta, m + ".py") for m in modulos_de(texto, existentes)]
+
+    def imports_de(nombre):
+        try:
+            return modulos_de(open(os.path.join(carpeta, nombre + ".py"), encoding="utf-8").read(), existentes)
+        except OSError:
+            return []
+
+    nombres = cierre(os.path.basename(guion)[:-3], imports_de)
+    rutas = [os.path.join(carpeta, n + ".py") for n in nombres]
     return max(os.path.getmtime(r) for r in rutas if os.path.exists(r))
 
 
@@ -146,6 +165,16 @@ def _ocupados():
     return ocupados
 
 
+def _guardar(estado):
+    try:
+        os.makedirs(os.path.dirname(ESTADO), exist_ok=True)
+        with open(ESTADO + ".tmp", "w", encoding="utf-8") as f:
+            json.dump(estado, f, ensure_ascii=False, indent=1)
+        os.replace(ESTADO + ".tmp", ESTADO)
+    except OSError:
+        pass
+
+
 def revisar(aplicar=True, ahora=None):
     """Una pasada: {"hechos": [...], "reiniciados": [...], "esperan": [...]}. Nunca lanza."""
     ahora = time.time() if ahora is None else ahora
@@ -164,21 +193,15 @@ def revisar(aplicar=True, ahora=None):
     reiniciar, esperan = decidir(servicios, ahora, estado.get("ultimos") or {}, _ocupados())
     hechos = []
     for nombre in reiniciar if aplicar else []:
+        # El estado se guarda ANTES: si el relanzado es el que corre esta pasada (el vigía), no se pierde.
+        estado.setdefault("ultimos", {})[nombre] = ahora
+        _guardar(estado)
         r = subprocess.run(["launchctl", "kickstart", "-k", "gui/%d/com.starseed.%s" % (os.getuid(), nombre)],
                            capture_output=True, text=True, timeout=30)
         if r.returncode == 0:
-            estado.setdefault("ultimos", {})[nombre] = ahora
             hechos.append("%s relanzado con el código nuevo (corría el de antes del último cambio)" % nombre)
         else:
             hechos.append("no pude relanzar %s: %s" % (nombre, (r.stderr or r.stdout or "").strip()[-160:]))
-    if aplicar and reiniciar:
-        try:
-            os.makedirs(os.path.dirname(ESTADO), exist_ok=True)
-            with open(ESTADO + ".tmp", "w", encoding="utf-8") as f:
-                json.dump(estado, f, ensure_ascii=False, indent=1)
-            os.replace(ESTADO + ".tmp", ESTADO)
-        except OSError:
-            pass
     return {"hechos": hechos, "reiniciados": reiniciar if aplicar else [], "por_reiniciar": reiniciar,
             "esperan": esperan}
 

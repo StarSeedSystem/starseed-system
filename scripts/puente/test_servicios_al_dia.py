@@ -37,3 +37,11 @@ def test_decidir_tope_por_pasada_en_orden_de_importancia():
     assert reiniciar == list(S.SERVICIOS[:S.MAX_POR_PASADA])
     assert len(esperan) == len(S.SERVICIOS) - S.MAX_POR_PASADA
     assert "vigilante" not in S.SERVICIOS and "mando" not in S.SERVICIOS
+
+
+def test_cierre_dos_niveles():
+    grafo = {"vigia_medidores": ["autocuracion_mando"], "autocuracion_mando": ["servicios_al_dia", "orquestador_al_dia"],
+             "servicios_al_dia": ["orquestador_al_dia"], "orquestador_al_dia": ["suenos"]}
+    alcanzables = S.cierre("vigia_medidores", lambda n: grafo.get(n, []))
+    assert alcanzables == {"vigia_medidores", "autocuracion_mando", "servicios_al_dia", "orquestador_al_dia"}
+    assert S.SERVICIOS[-1] == "vigia"
