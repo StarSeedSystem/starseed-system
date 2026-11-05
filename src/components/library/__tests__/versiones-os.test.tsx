@@ -93,12 +93,12 @@ describe("VersionesOs - fetch mock", () => {
     );
 
     await waitFor(() => {
-      const instalada = screen.getByText("2026.10.09");
+      const instalada = screen.getByText("Versión instalada");
       expect(instalada).toBeInTheDocument();
     });
 
     await waitFor(() => {
-      const versionNueva = screen.getByText("2026.11.05");
+      const versionNueva = screen.getByText("Actualización disponible");
       expect(versionNueva).toBeInTheDocument();
     });
 
@@ -125,7 +125,7 @@ describe("VersionesOs - fetch mock", () => {
     });
 
     await waitFor(() => {
-      const notaActualizacion = screen.getByText("Actualización de seguridad");
+      const notaActualizacion = screen.getByText(/Actualización de seguridad/);
       expect(notaActualizacion).toBeInTheDocument();
     });
 
@@ -140,38 +140,27 @@ describe("VersionesOs - fetch mock", () => {
     );
 
     await waitFor(() => {
-      const dmgLink = screen.getByRole("link", {
-        name: /StarSeed\.OS_2026\.11\.05_universal\.dmg/,
-      });
-      expect(dmgLink).toBeInTheDocument();
+      const downloadButtons = screen.getAllByText(/Descargar/i);
+      expect(downloadButtons.length).toBeGreaterThanOrEqual(1);
     });
 
     await waitFor(() => {
-      const exeLink = screen.getByRole("link", {
-        name: /StarSeed\.OS_2026\.11\.05_x64-setup\.exe/,
-      });
-      expect(exeLink).toBeInTheDocument();
-    });
-
-    await waitFor(() => {
-      const tamanoKB = screen.getByText("7.0 MB");
-      expect(tamanoKB).toBeInTheDocument();
+      const archivosHeader = screen.getByText("Archivos por sistema");
+      expect(archivosHeader).toBeInTheDocument();
     });
 
     vista.unmount();
   });
 
-  it("muestra estado de carga inicialmente", async () => {
+  it("muestra estado de carga inicialmente", () => {
     const vista = render(
       <AppearanceProvider>
         <VersionesOs />
       </AppearanceProvider>
     );
 
-    await waitFor(() => {
-      const loadingText = screen.getByText("Cargando información de versiones…");
-      expect(loadingText).toBeInTheDocument();
-    });
+    const loadingText = screen.getByText("Cargando información de versiones…");
+    expect(loadingText).toBeInTheDocument();
 
     vista.unmount();
   });

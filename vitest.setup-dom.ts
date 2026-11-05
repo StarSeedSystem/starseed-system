@@ -12,6 +12,9 @@
  */
 if (typeof document !== "undefined") {
   const { configure } = await import("@testing-library/react");
+  const { expect: vitestExpect } = await import("vitest");
+  globalThis.expect = vitestExpect;
+  await import("@testing-library/jest-dom");
   configure({ asyncUtilTimeout: 5000 });
 }
 

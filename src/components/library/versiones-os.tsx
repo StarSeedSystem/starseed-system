@@ -5,7 +5,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowUpRightDots, Loader2, ExternalLink, Search } from "lucide-react";
+import { ArrowUpRight, Loader2, ExternalLink, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
 import { useSearchParams } from "next/navigation";
@@ -152,7 +152,7 @@ export function VersionesOs() {
               window.dispatchEvent(new CustomEvent("starseed:actualizar-version", { detail: { version: disponible.version } }));
             }}
           >
-            <ArrowUpRightDots className="h-4 w-4 mr-2" /> Actualizar
+            <ArrowUpRight className="h-4 w-4 mr-2" /> Actualizar
           </Button>
         )}
       </GlassCard>
