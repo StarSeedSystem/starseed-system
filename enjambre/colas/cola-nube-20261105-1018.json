@@ -1,0 +1,75 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "ola": "1105V · Centro de Versiones",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261105-053158-VER1105F",
+   "id": "VER1105Fb-d3",
+   "titulo": "Versiones publicadas · /api/os/versiones (pública) para la Librería y los avisos (parte 3 de 3)",
+   "archivos": [
+    "src/lib/version/__tests__/versiones-publicadas.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\n§5. `versiones-publicadas.ts` PURO: `desdeReleases(json)` → versiones {version, fecha, notas, url, archivos por sistema (os/nexus/cafe) y por SO (macos/windows/linux/android/ios) con nombre, tamaño y URL}, sin borradores ni prereleases, la más nueva primero; reutiliza `PREFIJOS_SISTEMA` y la forma de `nativeInstallerAssets` de `src/lib/version/os-release.ts`. La ruta (pública, `runtime nodejs`, sin guardián) hace UNA consulta a `https://api.github.com/repos/StarSeedSystem/starseed-system/releases?per_page=20` con `Authorization` solo si existe `process.env.GITHUB_TOKEN` (nunca se escribe en respuestas ni logs), caché en memoria 10 min (1 min si falla) y, si GitHub falla, devuelve la última buena o la versión de `os-release.ts` con `aviso`. Pruebas de `desdeReleases` con un JSON de ejemplo (borrador fuera, tamaños, orden).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261105-053158-VER1105F`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261105-053158-VER1105F:refs/remotes/origin/nube/a1-20261105-053158-VER1105F\"` y `git cherry-pick --no-commit 09e3c3c0d18c 6898f829477e 9b739c8a0568`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/app/api/os/versiones/__tests__/route.test.ts, src/app/api/os/versiones/route.ts, src/lib/version/__tests__/versiones-publicadas.test.ts, src/lib/version/versiones-publicadas.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 3 DE 3 (la dirección dividió VER1105Fb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/version/__tests__/versiones-publicadas.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "VER1105Fb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "revisor_quitadas": [
+    "VER1105Fb-d2"
+   ]
+  },
+  {
+   "ola": "1104R · Repos nativos",
+   "origen": "repos-1104",
+   "id": "RPO1104T-d2",
+   "titulo": "EGM · la Protomolécula pasa sus creaciones por los peces y guarda las lecciones en el cerebro (parte 2 de 2)",
+   "archivos": [
+    "src/lib/protomolecula/__tests__/revision-peces.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2 «Dónde corre por defecto». `revisarCreacion({ creacion, perfil, ajustes, llamar, modelos, guardar })`: si `debeRevisarConPeces(ajustes, \"creacion\")`, llama a `revisarConPeces` y, con lo que el elefante resuelve, `leccionesDe` → `guardar(lecciones)` (inyectado; en producción `createBrainMemory`). Devuelve `{ objeciones, veredicto, lecciones }`. Luego busca dónde la Protomolécula entrega una creación (grep en `src/lib/protomolecula/accion-agente.ts`) y, si hay un punto único, llama ahí (3.er archivo); si no, déjalo listo y dilo. Pruebas con todo simulado.\n\n## PARTE 2 DE 2 (la dirección dividió RPO1104T: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/protomolecula/__tests__/revision-peces.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "RPO1104T",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "RPO1104T-d1"
+   ]
+  },
+  {
+   "ola": "1027N · Automejora recursiva (Meta^n)",
+   "revisor_quitadas": [
+    "MBT1027C2",
+    "MTN1027Cb-d2"
+   ],
+   "dependencias_ya_en_main": [
+    "MTN1027B"
+   ],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261101-221006-MTN1027C",
+   "id": "MTN1027Cb-d3",
+   "titulo": "Capas · las directivas viajan con la cuenta (parte 3 de 3)",
+   "archivos": [
+    "src/lib/sync/realtime-sync.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Meta^n (minnesotanlp/meta-n, MIT) «para todo el automejoramiento de cada capa de conciencia mesh automejorable de toda Astraura, con Colibri y los demás sistemas locales y mesh autoadaptables». Contrato: `architecture/automejora-meta-n.md` (léelo entero, sobre todo §3: Meta^n PROPONE dentro de una caja Docker sin red ni claves; el juez de StarSeed decide fuera de la caja sin ejecutar nada suyo; las funciones de ayuda nunca se cargan en caliente). Lo que hace falta de Meta^n está en `integraciones-de-codigo/meta-n/README-starseed.md`.\n\n`directivas-almacen.ts` (cliente, sin `node:*`): clave `starseed.capas.directivas.v1` = `Record<capa, ArchivoDirectivas>`, evento `starseed:capas-directivas`, `leerDirectivas()`, `guardarDirectivas(capa, archivo)` (solo si su versión activa es más nueva o cambió el historial), `directivaActiva(capa)`; lectura defensiva y try/catch en localStorage. Añade la clave a `SYNCED_KEYS` y el evento a `EVENT_BY_KEY`, como se hizo con `starseed.mausbot.v1`.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261101-221006-MTN1027C`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261101-221006-MTN1027C:refs/remotes/origin/nube/a1-20261101-221006-MTN1027C\"` y `git cherry-pick --no-commit e163caad1205 c0633b0e025e aed074f016e2 1b671793941a f805f314cbc8`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/providers/astraura-158-malla.ts, src/ai/providers/astraura-158.ts, src/lib/astraura/capas/__tests__/directivas-almacen.test.ts, src/lib/astraura/capas/directivas-almacen.ts, src/lib/settings-sync.ts, src/lib/sync/realtime-sync.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 3 DE 3 (la dirección dividió MTN1027Cb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/sync/realtime-sync.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "MTN1027Cb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1105-025623.json": [
+   "MTN1027Cb-d3",
+   "VER1105Fb-d3",
+   "RPO1104T-d2"
+  ]
+ }
+}
