@@ -393,6 +393,7 @@ async function hablarPorNube(texto: string, timbre: Timbre, alEmpezar?: () => vo
 
     const ml = await import("@/lib/aurora/motor-local");
     let primerExitoso = false;
+    let trozosExitosos = 0;
 
     for (const trozo of trozos) {
         let resp: Response;
@@ -433,14 +434,17 @@ async function hablarPorNube(texto: string, timbre: Timbre, alEmpezar?: () => vo
         }
         const blob = await resp.blob();
         if (!blob.size) continue;
-        if (!primerExitoso) {
-            try { alEmpezar?.(); } catch { /* el aviso no puede romper */ }
-            primerExitoso = true;
-        }
+        
         const reproducido = await ml.reproducirLocal(blob);
-        if (!reproducido) continue;
+        if (reproducido) {
+            if (!primerExitoso) {
+                try { alEmpezar?.(); } catch { /* el aviso no puede romper */ }
+                primerExitoso = true;
+            }
+            trozosExitosos++;
+        }
     }
-    return primerExitoso;
+    return trozosExitosos > 0;
 }
 
 /** Habla por el nivel ligero: Kokoro WASM en el navegador (`tts-oss/kokoro.ts`). */
