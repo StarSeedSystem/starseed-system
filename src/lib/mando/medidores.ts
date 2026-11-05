@@ -43,6 +43,7 @@ import {
     type FiltroAstraura,
     type PropuestaImaginacion,
 } from "./imaginacion-tipos";
+import type { LanzamientoEstado } from "./lanzamientos-tipos";
 
 export type ClaveMedidor =
     | "en-curso"
@@ -75,7 +76,8 @@ export type ClaveMedidor =
     // (2026-10-24, Ola 1024I · IMG1024B) Alex: «en el pulso de MetaGenesis y de los demás Genesis
     // añade un medidor de lo que sale de los procesos imaginativos… con botones para integrar o
     // reimaginar». Sustituye a IMN1021H/J (architecture/imaginacion-autodesarrollo.md §6).
-    | "imaginacion";
+    | "imaginacion"
+    | "versiones";
 
 export type ClaseAccion =
     | "descartar"
@@ -1560,6 +1562,8 @@ export interface DatosMedidores {
         ambito: AmbitoPropuesta | "todos";
         filtro_astraura?: FiltroAstraura;
     } | null;
+    /** Estado del director de lanzamientos (`~/.starseed/produccion/lanzamientos-estado.json`). */
+    lanzamientos?: LanzamientoEstado | null;
 }
 
 const FASE_VERIFICANDO: Record<string, string> = {
@@ -3162,6 +3166,56 @@ export function detalleDeMedidor(
             };
         }
 
+        case "versiones": {
+            const estado = d.lanzamientos;
+            if (!estado) {
+                return {
+                    clave,
+                    titulo: "Versiones",
+                    resumen: "sin estado del director de lanzamientos",
+                    filas: [],
+                    acciones: [],
+                    vacio: "No se pudo leer el estado de lanzamientos.",
+                };
+            }
+            const mediosPanel = [
+                { id: "web", titulo: "Sitio web oficial" },
+                { id: "pwa", titulo: "App web instalable (PWA)" },
+                { id: "macos", titulo: "macOS" },
+                { id: "windows", titulo: "Windows" },
+                { id: "linux", titulo: "Linux" },
+                { id: "android", titulo: "Android" },
+                { id: "ios", titulo: "iOS" },
+                { id: "canales", titulo: "Canales del actualizador" },
+                { id: "libreria", titulo: "Librería de StarSeed OS" },
+            ];
+            const filas: FilaMedidor[] = mediosPanel.map((m) => {
+                const info = estado.medios?.[m.id] ?? { estado: "no-disponible", faltan: [], pequenos: [] };
+                const porque = info.faltan?.length
+                    ? `Faltan: ${info.faltan.join(", ")}`
+                    : info.pequenos?.length
+                    ? "Archivos demasiado pequeños"
+                    : info.estado === "al-dia"
+                    ? "Al día"
+                    : info.estado;
+                return {
+                    id: m.id,
+                    titulo: m.titulo,
+                    estado: info.estado,
+                    porque,
+                    acciones: [],
+                };
+            });
+            return {
+                clave,
+                titulo: "Versiones",
+                resumen: `${estado.fase} · ${estado.detalle || ""}`.trim(),
+                filas,
+                acciones: [],
+                vacio: "No hay medios de versiones.",
+            };
+        }
+
         case "ola-activa":
         default: {
             const filas = filasDeOlasActivas(d, d.repoGitHub);
@@ -3204,6 +3258,7 @@ export const ORDEN_POR_DEFECTO: ClaveMedidor[] = [
     "bloqueadas",
     "en-cadena",
     "sin-publicar",
+    "versiones",
     "proveedores",
     "memoria",
     "disco",

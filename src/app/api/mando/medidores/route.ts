@@ -67,6 +67,7 @@ import { crearReunionCompartida } from "@/lib/mando/reunion-compartida";
 import { esOpcionAlex, idDeTareaValido, type EstadoRevisorBloqueadas } from "@/lib/mando/bloqueadas";
 import { leerAjustes, leerPropuestas, leerPropuestasConFiltro } from "@/lib/mando/imaginacion-servidor";
 import { leerAmbito, type AmbitoPropuesta } from "@/lib/mando/imaginacion-tipos";
+import type { LanzamientoEstado } from "@/lib/mando/lanzamientos-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -975,6 +976,20 @@ export async function GET(peticion: Request): Promise<Response> {
         const creditosPago = await leerCreditosPago().catch(() => null);
         return Response.json(
             { detalle: detalleDeMedidor(clave, { creditosPago }), generadoEn: new Date().toISOString() },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
+    if (clave === "versiones") {
+        const rutaEstado = path.join(os.homedir(), ".starseed", "produccion", "lanzamientos-estado.json");
+        let lanzamientos: LanzamientoEstado | null = null;
+        try {
+            const crudo = await readFile(rutaEstado, "utf-8");
+            lanzamientos = JSON.parse(crudo) as LanzamientoEstado;
+        } catch {
+            lanzamientos = null;
+        }
+        return Response.json(
+            { detalle: detalleDeMedidor(clave, { lanzamientos }), generadoEn: new Date().toISOString() },
             { headers: { "Cache-Control": "no-store" } },
         );
     }
