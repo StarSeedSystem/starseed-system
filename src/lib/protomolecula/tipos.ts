@@ -125,7 +125,7 @@ export interface ReferenciaEntidad {
   version?: string;
 }
 
-export type TipoCapa = "escena3d" | "linea-tiempo" | "grafo-audio" | "lienzo2d" | "codigo" | "datos";
+export type TipoCapa = "escena3d" | "linea-tiempo" | "grafo-audio" | "lienzo2d" | "codigo" | "datos" | "respuesta-viva";
 export interface Capa {
   id: string;
   tipo: TipoCapa;

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-    serializarBloque, leerBloque, avisosDePublicacion, esMoleculaValidaNucleo, MAX_BLOQUE_BYTES,
+    serializarBloque, leerBloque, avisosDePublicacion, esMoleculaValidaNucleo, MAX_BLOQUE_BYTES, CAPA_RESPUESTA_VIVA
 } from "../bloque-protomolecula";
 import { isRichBlock, parseBlocks, serializeBlock } from "@/lib/creation/post-blocks";
 import type { Ambito, Capa, Molecula } from "../tipos";
@@ -9,6 +9,14 @@ function moleculaDePrueba(): Molecula {
     return {
         id: "mol-1", titulo: "Molécula de prueba", ambito: "personal",
         capas: [], atomos: [], valores: {}, version: 1, creadaEn: 1000, actualizadaEn: 1000,
+    };
+}
+
+// Prueba para respuesta-viva
+export function moleculaConRespuestaViva(): Molecula {
+    return {
+        id: "mol-respuesta-viva", titulo: "Molécula con Respuesta Viva", ambito: "personal",
+        capas: [CAPA_RESPUESTA_VIVA], atomos: [], valores: {}, version: 1, creadaEn: 1000, actualizadaEn: 1000,
     };
 }
 function capaConReferencia(): Capa {
