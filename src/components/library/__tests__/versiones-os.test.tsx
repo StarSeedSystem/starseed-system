@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 
-// Mock next/navigation for useSearchParams y usePathname - MUST be before component import
+// Mock next/navigation for useSearchParams - MUST be before component import
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(), usePathname: () => "/" }));
 
 // Mock fetch global antes de cada test - MUST be before component import
@@ -14,56 +14,70 @@ beforeAll(() => {
       if (url.includes("/api/os/versiones")) {
         return new Response(
           JSON.stringify({
-            version: "2026.11.05",
-            fecha: "2026-11-05",
-            notas: "Actualización de seguridad y nuevas features",
-            url: "https://github.com/StarSeedSystem/starseed-system/releases/tag/v2026.11.05",
-            archivos: {
-              os: [
-                {
-                  nombre: "StarSeed.OS_2026.11.05_universal.dmg",
-                  browser_download_url:
-                    "https://github.com/StarSeedSystem/starseed-system/releases/download/v2026.11.05/StarSeed.OS_2026.11.05_universal.dmg",
-                  size: 7_025_536,
+            versiones: [
+              {
+                version: "v2026.11.05",
+                fecha: "2026-11-05",
+                notas: "Actualización de seguridad y nuevas features",
+                url: "https://github.com/StarSeedSystem/starseed-system/releases/tag/v2026.11.05",
+                archivos: {
+                  os: {
+                    macos: [
+                      {
+                        nombre: "StarSeed.OS_2026.11.05_universal.dmg",
+                        browser_download_url:
+                          "https://github.com/StarSeedSystem/starseed-system/releases/download/v2026.11.05/StarSeed.OS_2026.11.05_universal.dmg",
+                        size: 7_025_536,
+                      },
+                    ],
+                    windows: [
+                      {
+                        nombre: "StarSeed.OS_2026.11.05_x64-setup.exe",
+                        browser_download_url:
+                          "https://github.com/StarSeedSystem/starseed-system/releases/download/v2026.11.05/StarSeed.OS_2026.11.05_x64-setup.exe",
+                        size: 2_516_582,
+                      },
+                      {
+                        nombre: "StarSeed.OS_2026.11.05_x64_en-US.msi",
+                        browser_download_url:
+                          "https://github.com/StarSeedSystem/starseed-system/releases/download/v2026.11.05/StarSeed.OS_2026.11.05_x64_en-US.msi",
+                        size: 3_460_352,
+                      },
+                    ],
+                    linux: [
+                      {
+                        nombre: "StarSeed.OS_2026.11.05_amd64.AppImage",
+                        browser_download_url:
+                          "https://github.com/StarSeedSystem/starseed-system/releases/download/v2026.11.05/StarSeed.OS_2026.11.05_amd64.AppImage",
+                        size: 81_800_000,
+                      },
+                      {
+                        nombre: "StarSeed.OS_2026.11.05_amd64.deb",
+                        browser_download_url:
+                          "https://github.com/StarSeedSystem/starseed-system/releases/download/v2026.11.05/StarSeed.OS_2026.11.05_amd64.deb",
+                        size: 3_774_874,
+                      },
+                      {
+                        nombre: "StarSeed.OS_2026.11.05-1.x86_64.rpm",
+                        browser_download_url:
+                          "https://github.com/StarSeedSystem/starseed-system/releases/download/v2026.11.05/StarSeed.OS_2026.11.05-1.x86_64.rpm",
+                        size: 3_774_874,
+                      },
+                    ],
+                    android: [
+                      {
+                        nombre: "StarSeed-os-2026.11.05.apk",
+                        browser_download_url:
+                          "https://github.com/StarSeedSystem/starseed-system/releases/download/v2026.11.05/StarSeed-os-2026.11.05.apk",
+                        size: 28_665_472,
+                      },
+                    ],
+                    ios: [],
+                  },
                 },
-                {
-                  nombre: "StarSeed.OS_2026.11.05_x64-setup.exe",
-                  browser_download_url:
-                    "https://github.com/StarSeedSystem/starseed-system/releases/download/v2026.11.05/StarSeed.OS_2026.11.05_x64-setup.exe",
-                  size: 2_516_582,
-                },
-                {
-                  nombre: "StarSeed.OS_2026.11.05_x64_en-US.msi",
-                  browser_download_url:
-                    "https://github.com/StarSeedSystem/starseed-system/releases/download/v2026.11.05/StarSeed.OS_2026.11.05_x64_en-US.msi",
-                  size: 3_460_352,
-                },
-                {
-                  nombre: "StarSeed.OS_2026.11.05_amd64.AppImage",
-                  browser_download_url:
-                    "https://github.com/StarSeedSystem/starseed-system/releases/download/v2026.11.05/StarSeed.OS_2026.11.05_amd64.AppImage",
-                  size: 81_800_000,
-                },
-                {
-                  nombre: "StarSeed.OS_2026.11.05_amd64.deb",
-                  browser_download_url:
-                    "https://github.com/StarSeedSystem/starseed-system/releases/download/v2026.11.05/StarSeed.OS_2026.11.05_amd64.deb",
-                  size: 3_774_874,
-                },
-                {
-                  nombre: "StarSeed.OS_2026.11.05-1.x86_64.rpm",
-                  browser_download_url:
-                    "https://github.com/StarSeedSystem/starseed-system/releases/download/v2026.11.05/StarSeed.OS_2026.11.05-1.x86_64.rpm",
-                  size: 3_774_874,
-                },
-                {
-                  nombre: "StarSeed-os-2026.11.05.apk",
-                  browser_download_url:
-                    "https://github.com/StarSeedSystem/starseed-system/releases/download/v2026.11.05/StarSeed-os-2026.11.05.apk",
-                  size: 28_665_472,
-                },
-              ],
-            },
+              },
+            ],
+            generadoEn: new Date().toISOString(),
           }),
           {
             headers: {
@@ -90,7 +104,7 @@ describe("VersionesOs - fetch mock", () => {
     const vista = render(
       <AppearanceProvider>
         <VersionesOs />
-      </AppearanceProvider>
+      </AppearanceProvider>,
     );
 
     await waitFor(() => {
@@ -117,7 +131,7 @@ describe("VersionesOs - fetch mock", () => {
     const vista = render(
       <AppearanceProvider>
         <VersionesOs />
-      </AppearanceProvider>
+      </AppearanceProvider>,
     );
 
     await waitFor(() => {
@@ -137,7 +151,7 @@ describe("VersionesOs - fetch mock", () => {
     const vista = render(
       <AppearanceProvider>
         <VersionesOs />
-      </AppearanceProvider>
+      </AppearanceProvider>,
     );
 
     await waitFor(() => {
@@ -157,11 +171,36 @@ describe("VersionesOs - fetch mock", () => {
     const vista = render(
       <AppearanceProvider>
         <VersionesOs />
-      </AppearanceProvider>
+      </AppearanceProvider>,
     );
 
     const loadingText = screen.getByText("Cargando información de versiones…");
     expect(loadingText).toBeInTheDocument();
+
+    vista.unmount();
+  });
+
+  it("muestra requisitos y permisos por sistema", async () => {
+    const vista = render(
+      <AppearanceProvider>
+        <VersionesOs />
+      </AppearanceProvider>,
+    );
+
+    await waitFor(() => {
+      const requisitosHeader = screen.getByText("Requisitos y permisos por sistema");
+      expect(requisitosHeader).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      const macos = screen.getByText("macOS");
+      expect(macos).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      const windows = screen.getByText("Windows");
+      expect(windows).toBeInTheDocument();
+    });
 
     vista.unmount();
   });
