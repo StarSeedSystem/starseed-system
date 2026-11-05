@@ -126,6 +126,49 @@ class DirectorTest(unittest.TestCase):
         props_file = os.path.join(self.raiz, "starseed_memory_root", "imaginacion", "propuestas.json")
         self.assertTrue(os.path.isfile(props_file))
 
+    def test_liderazgo_con_arriendo_vigente_de_otra_neurona_no_ejecuta(self):
+        """Con un arriendo vigente de otra neurona, toca_ejecutar es False y motivo_toca dice 'no soy líder'."""
+        from unittest.mock import patch
+        ahora_ts = NOCHE.timestamp()
+        with patch("lider_direccion.soy_lider", return_value={
+            "soy": False,
+            "arriendo": {"dueno": "a1", "caduca": ahora_ts + 600}
+        }):
+            r = self.correr()
+        self.assertFalse(r["toca_ejecutar"])
+        self.assertIn("no soy líder", r["motivo_toca"])
+
+    def test_liderazgo_con_arriendo_caducado_ejecuta(self):
+        """Con el arriendo caducado (caduca < ahora), toca_ejecutar es True."""
+        from unittest.mock import patch
+        ahora_ts = NOCHE.timestamp()
+        with patch("lider_direccion.soy_lider", return_value={
+            "soy": False,
+            "arriendo": {"dueno": "a1", "caduca": ahora_ts - 100}
+        }):
+            r = self.correr()
+        self.assertTrue(r["toca_ejecutar"])
+
+    def test_liderazgo_sin_arriendo_ejecuta(self):
+        """Sin arriendo, toca_ejecutar es True."""
+        from unittest.mock import patch
+        with patch("lider_direccion.soy_lider", return_value={
+            "soy": False,
+            "arriendo": {}
+        }):
+            r = self.correr()
+        self.assertTrue(r["toca_ejecutar"])
+
+    def test_liderazgo_soy_lider_ejecuta(self):
+        """Si soy el líder (soy=True), toca_ejecutar es True."""
+        from unittest.mock import patch
+        with patch("lider_direccion.soy_lider", return_value={
+            "soy": True,
+            "motivo": "líder de dirección"
+        }):
+            r = self.correr()
+        self.assertTrue(r["toca_ejecutar"])
+
 
 class Imaginacion1024Test(unittest.TestCase):
     """Ola 1024I · IMG1024C: fuente «agentes», automático, reimaginación y agente de referencias."""
