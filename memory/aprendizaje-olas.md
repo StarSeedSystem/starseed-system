@@ -4727,3 +4727,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** clave
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-05 14:48 · mg-oracle-1105-0806
+
+**Lo que se pidió.** Plan en Genesis
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (RPO1104N-d2, PUB1029F). Es 67 % de la ola.
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RPO1104N-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RPO1104N-d2 conservada)
+- `VER1105Ib-d2` — no escribió nada
+- `PUB1029F` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/PUB1029F conservada)
