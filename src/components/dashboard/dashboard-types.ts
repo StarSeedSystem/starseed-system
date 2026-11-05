@@ -117,7 +117,9 @@ export type WidgetType =
     // ── Protomolécula (ola 1010P) ──
     | 'PROTOMOLECULA'         // Creatividad — función universal de creación y edición (átomos con parámetros, dictado en tiempo real)
     // ── Vídeo con HyperFrames (ola 1018H) ──
-    | 'ESTUDIO_VIDEO';        // Creatividad — estudio de vídeo (capas, línea de tiempo y vista previa con el servicio local)
+    | 'ESTUDIO_VIDEO',      // Creatividad: estudio de vídeo (capas, línea de tiempo y vista previa con el servicio local)
+    | 'RESPUESTA_VIVA',   // OpenUI: widget que renderiza contenido OpenUI Lang (respuesta viva)
+}
 
 /**
  * Tipo de dispositivo objetivo de un tablero (pantalla principal adaptativa).

@@ -1,6 +1,6 @@
 "use client";
 /**
- * Registro de los widgets libres (Ola 383). Con el marco «libre» (el de fábrica), los tipos
+ * Registro de los widgets libre (Ola 383). Con el marco «libre» (el de fábrica), los tipos
  * que ya tienen su diseño sin caja se pintan con él; el resto sigue con su widget de siempre
  * dentro de un WidgetShell sin marco (FL6). Cada familia se carga a demanda: el dashboard no
  * paga por los diseños que no usa.
@@ -18,6 +18,7 @@ const EstadoSistemaLibre = dynamic(() => import("./familias/estado-sistema-libre
 const EventosLibre = dynamic(() => import("./familias/eventos-libre").then((m) => m.EventosLibre), { ssr: false, loading: cargando });
 const TareasLibre = dynamic(() => import("./familias/tareas-libre").then((m) => m.TareasLibre), { ssr: false, loading: cargando });
 const AstrauraLibre = dynamic(() => import("./familias/astraura-libre").then((m) => m.AstrauraLibre), { ssr: false, loading: cargando });
+const RespuestaVivaLibre = dynamic(() => import("./familias/respuesta-viva-libre").then((m) => m.RespuestaVivaLibre), { ssr: false, loading: cargando });
 
 /** Tipos que ya tienen diseño libre propio. */
 export const TIPOS_CON_DISENO_LIBRE = [
@@ -36,6 +37,7 @@ export function widgetLibre(widget: DashboardWidget, onUpdateSettings?: (patch: 
         case "MY_EVENTS": return <EventosLibre />;
         case "TASKS_QUICK": return <TareasLibre />;
         case "AURORA_LAST": return <AstrauraLibre />;
+        case "RESPUESTA_VIVA": return <RespuestaVivaLibre widget={widget} />;
         default: return null;
     }
 }
