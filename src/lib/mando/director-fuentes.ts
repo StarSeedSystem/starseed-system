@@ -142,42 +142,28 @@ export async function leerCanal(raiz: string, n = 60, maxBytes = 1_048_576): Pro
     try {
         fh = await open(ruta, "r");
         const { size } = await fh.stat();
-        console.log("DEBUG leerCanal: size=", size, "maxBytes=", maxBytes);
         const inicio = Math.max(0, size - maxBytes);
         const bufer = Buffer.alloc(size - inicio);
-        const { bytesRead } = await fh.read(bufer, 0, bufer.length, inicio);
-        console.log("DEBUG leerCanal: bytesRead=", bytesRead, "buffer.length=", bufer.length);
+        await fh.read(bufer, 0, bufer.length, inicio);
         await fh.close();
         fh = null;
-        let texto = bufer.toString("utf8");
-        console.log("DEBUG leerCanal: texto=", JSON.stringify(texto));
+        let txt = bufer.toString("utf8");
         if (inicio > 0) {
-            const corte = texto.indexOf("\n");
-            texto = corte === -1 ? "" : texto.slice(corte + 1);
+            const corte = txt.indexOf("\n");
+            txt = corte === -1 ? "" : txt.slice(corte + 1);
         }
-        const lineas = texto.split("\n").filter((l) => l.trim()).slice(-n);
-        console.log("DEBUG leerCanal: lineas=", lineas);
+        const lineas = txt.split("\n").filter((l) => l.trim()).slice(-n);
         const mensajes: MensajeCanal[] = [];
         for (const linea of lineas) {
             try {
-                const parsed = JSON.parse(linea);
-                console.log("DEBUG leerCanal: parsed=", parsed);
-                const d = objeto(parsed);
-                console.log("DEBUG leerCanal: d=", d);
-                const q = texto(d.quien);
-                const tx = texto(d.texto);
-                const h = fechaSeg(d.epoch) ?? texto(d.t);
-                console.log("DEBUG leerCanal: quien=", q, "texto=", tx, "hora=", h);
-                mensajes.push({ quien: q, texto: tx, hora: h });
-            } catch (e) {
-                console.log("DEBUG leerCanal: parse error for line:", linea, "error:", e);
+                const d = objeto(JSON.parse(linea));
+                mensajes.push({ quien: texto(d.quien), texto: texto(d.texto), hora: fechaSeg(d.epoch) ?? texto(d.t) });
+            } catch {
                 // línea corrupta: se ignora
             }
         }
-        console.log("DEBUG leerCanal: mensajes=", mensajes);
         return mensajes;
-    } catch (e) {
-        console.log("DEBUG leerCanal: error=", e);
+    } catch {
         if (fh) await fh.close().catch(() => {});
         return [];
     }

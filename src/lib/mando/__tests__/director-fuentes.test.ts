@@ -73,24 +73,6 @@ describe("director-fuentes", () => {
     });
 
     it("leerCanal ignora la línea malformada y conserva las válidas en orden", async () => {
-        const fs = await import("node:fs/promises");
-        const canalPath = path.join(raiz, "starseed_memory_root", "mando", "canal.jsonl");
-        const exists = await fs.access(canalPath).then(() => true).catch(() => false);
-        console.log("DEBUG: File exists:", exists, "Path:", canalPath);
-        
-        // Debug: read the file directly
-        const fh = await fs.open(canalPath, "r");
-        const { size } = await fh.stat();
-        console.log("DEBUG: File size:", size);
-        const bufer = Buffer.alloc(size);
-        const { bytesRead } = await fh.read(bufer, 0, size, 0);
-        console.log("DEBUG: Bytes read:", bytesRead);
-        await fh.close();
-        const texto = bufer.toString("utf8");
-        console.log("DEBUG: File content:", JSON.stringify(texto));
-        const lineas = texto.split("\n").filter((l) => l.trim());
-        console.log("DEBUG: Lines:", lineas);
-        
         const canal = await leerCanal(raiz, 60);
         expect(canal).toHaveLength(2);
         expect(canal[0]).toEqual({ quien: "director", texto: "hola", hora: 1_800_000_000 });
