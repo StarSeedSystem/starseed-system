@@ -44,6 +44,19 @@ import {
     type PropuestaImaginacion,
 } from "./imaginacion-tipos";
 
+/** Medios del Centro de Versiones, en su orden (contrato architecture/centro-versiones-1105.md §1). */
+export const MEDIOS_VERSIONES: readonly [string, string][] = [
+    ["web", "Sitio web oficial"],
+    ["pwa", "App web instalable (PWA)"],
+    ["macos", "macOS"],
+    ["windows", "Windows"],
+    ["linux", "Linux"],
+    ["android", "Android"],
+    ["ios", "iOS"],
+    ["canales", "Canales del actualizador"],
+    ["libreria", "Librería de StarSeed OS"],
+] as const;
+
 export type ClaveMedidor =
     | "en-curso"
     | "agentes"
@@ -75,7 +88,9 @@ export type ClaveMedidor =
     // (2026-10-24, Ola 1024I · IMG1024B) Alex: «en el pulso de MetaGenesis y de los demás Genesis
     // añade un medidor de lo que sale de los procesos imaginativos… con botones para integrar o
     // reimaginar». Sustituye a IMN1021H/J (architecture/imaginacion-autodesarrollo.md §6).
-    | "imaginacion";
+    | "imaginacion"
+    // (2026-11-05, VER1105D) Centro de Versiones: versión publicada, versión en curso y tono.
+    | "versiones";
 
 export type ClaseAccion =
     | "descartar"
@@ -196,6 +211,8 @@ export interface DetalleMedidor {
     bloqueadas?: ResumenBloqueadas;
     /** (IMG1024B) Solo en «Imaginación»: la pastilla, el ámbito, el automático y lo que espera en otros ámbitos. */
     imaginacion?: ResumenImaginacionMedidor;
+    /** (2026-11-05, VER1105D) Tono de la pastilla: normal · aviso · peligro. */
+    tono?: "normal" | "aviso" | "peligro";
 }
 
 /** La pastilla «Imaginación» y lo que necesita su panel, calculado en un solo sitio (puro). */
@@ -1560,6 +1577,21 @@ export interface DatosMedidores {
         ambito: AmbitoPropuesta | "todos";
         filtro_astraura?: FiltroAstraura;
     } | null;
+    /** (2026-11-05, VER1105D) Estado del director de lanzamientos (Centro de Versiones).
+     *  Lo lee la ruta desde `~/.starseed/produccion/lanzamientos-estado.json`. */
+    lanzamientosEstado?: {
+        fase: string;
+        detalle?: string;
+        version?: string;
+        pasos?: { fase: string; t: number; detalle?: string }[];
+        jobs?: { medio: string; job: string; estado: string; url?: string; inicio?: string; fin?: string }[];
+        medios?: Record<string, { estado: string; faltan?: string[]; pequenos?: string[] }>;
+        run_url?: string;
+        release_url?: string;
+        historial?: { t: number; tipo: string; version?: string }[];
+        pausado?: boolean;
+        tono?: "normal" | "aviso" | "peligro";
+    } | null;
 }
 
 const FASE_VERIFICANDO: Record<string, string> = {
@@ -2304,6 +2336,67 @@ export function detalleDeMedidor(
                     ...(filasAstraura.length ? [IR_A("Publicar Astraura 1.58 (Commits pendientes)", "commits#publicar-astraura")] : []),
                 ],
                 vacio: "No hay nada sin publicar: la rama está igual que el remoto.",
+            };
+        }
+
+        case "versiones": {
+            const estado = d.lanzamientosEstado;
+            if (!estado) {
+                return {
+                    clave,
+                    titulo: "Versiones",
+                    resumen: "sin datos del director de lanzamientos",
+                    filas: [],
+                    acciones: [IR_A("Ver Centro de Versiones", "lanzamientos")],
+                    aviso: "No se pudo leer el estado de lanzamientos. ¿Corre el director?",
+                    vacio: "Sin estado del director de lanzamientos.",
+                };
+            }
+            const fase = estado.fase ?? "esperando-lista";
+            const versionPublicada = estado.historial?.find((h) => h.tipo === "lanzado")?.version ?? "—";
+            const versionEnCurso = estado.version ?? "—";
+            const tono = estado.tono ?? "normal";
+            const medios = estado.medios ?? {};
+            const pasos = estado.pasos ?? [];
+
+            const filas: FilaMedidor[] = Object.entries(medios).map(([medio, m]: [string, any]) => {
+                const etiqueta = MEDIOS_VERSIONES.find(([k]) => k === medio)?.[1] ?? medio;
+                const estadoMedio = m?.estado ?? "desconocido";
+                const faltan = m?.faltan ?? [];
+                const pequenos = m?.pequenos ?? [];
+                let porque = `${estadoMedio}`;
+                if (faltan.length) porque += ` · faltan: ${faltan.join(", ")}`;
+                if (pequenos.length) porque += ` · pequeños: ${pequenos.join(", ")}`;
+                const esIosNoDisponible = medio === "ios" && estadoMedio === "no-disponible";
+                if (esIosNoDisponible) {
+                    porque += ` (sin cuenta de Apple Developer)`;
+                }
+                return {
+                    id: medio,
+                    titulo: etiqueta,
+                    estado: estadoMedio,
+                    porque,
+                    ficha: [
+                        { etiqueta: "Medio", valor: etiqueta },
+                        { etiqueta: "Estado", valor: estadoMedio },
+                        ...(faltan.length ? [{ etiqueta: "Faltan", valor: faltan.join(", "), aviso: true }] : []),
+                        ...(pequenos.length ? [{ etiqueta: "Tamaño insuficiente", valor: pequenos.join(", "), aviso: true }] : []),
+                        ...(esIosNoDisponible ? [{ etiqueta: "No disponible", valor: "sin cuenta de Apple Developer", aviso: true }] : []),
+                    ],
+                    acciones: [],
+                };
+            });
+
+            const resumen = `publicada: v${versionPublicada} · en curso: v${versionEnCurso} · ${fase}${pasos.length ? ` · paso: ${pasos[pasos.length - 1]?.detalle?.slice(0, 60)}` : ""}`;
+
+            return {
+                clave,
+                titulo: "Versiones",
+                resumen,
+                filas,
+                acciones: [IR_A("Ver Centro de Versiones", "lanzamientos")],
+                tono,
+                vacio: "Sin medios en el estado del director.",
             };
         }
 
@@ -3204,6 +3297,7 @@ export const ORDEN_POR_DEFECTO: ClaveMedidor[] = [
     "bloqueadas",
     "en-cadena",
     "sin-publicar",
+    "versiones",
     "proveedores",
     "memoria",
     "disco",

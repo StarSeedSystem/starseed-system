@@ -101,6 +101,19 @@ async function leerAutopublicacion(): Promise<DatosMedidores["autopublicacion"]>
     };
 }
 
+/** (2026-11-05, VER1105D) Estado del director de lanzamientos (Centro de Versiones).
+ *  Lee `~/.starseed/produccion/lanzamientos-estado.json` — el mismo archivo que usa
+ *  `director_lanzamientos.py` y la API `/api/mando/lanzamientos`. */
+async function leerLanzamientosEstado(): Promise<any> {
+    try {
+        const crudo = await readFile(path.join(os.homedir(), ".starseed", "produccion", "lanzamientos-estado.json"), "utf8");
+        const d = JSON.parse(crudo);
+        return d && typeof d === "object" ? d : null;
+    } catch {
+        return null;
+    }
+}
+
 /** (2026-10-10, OPB1011) La última pasada del revisor automático de bloqueadas. Solo lo que pinta
  *  Genesis: cadenas, transformadas de hoy, decisiones de Alex y cuentas (nunca la memoria entera). */
 async function leerRevisorBloqueadas(): Promise<EstadoRevisorBloqueadas | null> {
@@ -975,6 +988,15 @@ export async function GET(peticion: Request): Promise<Response> {
         const creditosPago = await leerCreditosPago().catch(() => null);
         return Response.json(
             { detalle: detalleDeMedidor(clave, { creditosPago }), generadoEn: new Date().toISOString() },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
+    // (2026-11-05, VER1105D) Centro de Versiones: lee el estado del director de lanzamientos
+    // (mismo archivo que la API de lanzamientos) y devuelve el detalle del medidor.
+    if (clave === "versiones") {
+        const estado = await leerLanzamientosEstado().catch(() => null);
+        return Response.json(
+            { detalle: detalleDeMedidor(clave, { lanzamientosEstado: estado }), generadoEn: new Date().toISOString() },
             { headers: { "Cache-Control": "no-store" } },
         );
     }
