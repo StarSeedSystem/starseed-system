@@ -31,13 +31,8 @@ function votoValido(x: unknown): VotoVoz | null {
 }
 
 function recortarVotos(votados: VotoVoz[]): VotoVoz[] {
-<<<<<<< HEAD
   const ordenados = [...votados].sort((a, b) => a.timestamp - b.timestamp);
   return ordenados.slice(-MAX_VOTOS_TOTAL);
-=======
-  const ordenados = [...votados].sort((a, b) => b.timestamp - a.timestamp);
-  return ordenados.slice(0, MAX_VOTOS_TOTAL);
->>>>>>> c4addb3af (salvavidas · RTCVV1028Kb-d3: trabajo del agente antes de las puertas (tsc / vitest))
 }
 
 export function anotarVoto(p: { motor: string; voto: number }, deps: DepsVotos): boolean {
