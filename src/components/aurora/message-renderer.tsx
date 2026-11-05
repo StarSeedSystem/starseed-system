@@ -41,6 +41,8 @@ import { PanelProtomolecula } from "@/components/protomolecula/panel-protomolecu
 import { almacenNavegador, guardarMolecula } from "@/lib/protomolecula/almacen-moleculas";
 import { crearControlador } from "@/lib/protomolecula/controlador";
 import { moleculaDeFence } from "@/lib/protomolecula/fence-mensaje";
+import { pareceOpenUI, contieneComponenteOpenUI } from "@/lib/openui/detectar";
+import { RespuestaViva } from "@/components/openui/respuesta-viva";
 
 
 /* ═══════════════════════════ Sanitización HTML/SVG ═══════════════════════════
@@ -587,6 +589,15 @@ export interface MessageRendererProps {
  * ante cualquier fallo de parseo, cae a texto plano con saltos de línea.
  */
 export function MessageRenderer({ text, compact = false, media = true, className, personalityId }: MessageRendererProps) {
+  const esOpenUI = useMemo(() => pareceOpenUI(text || "") || contieneComponenteOpenUI(text || ""), [text]);
+  if (esOpenUI) {
+    return (
+      <div className={cn("min-w-0", className)}>
+        <RespuestaViva texto={text || ""} enCurso={false} />
+        {media && <MessageMedia text={text} compact={compact} />}
+      </div>
+    );
+  }
   const segments = useMemo(() => {
     try { return splitSegments(text || ""); } catch { return [{ kind: "prose", text: text || "" } as Segment]; }
   }, [text]);
