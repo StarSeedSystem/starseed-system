@@ -1,0 +1,105 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "ola": "1105V · Centro de Versiones",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261105-053158-VER1105I",
+   "id": "VER1105Ib-d1",
+   "titulo": "Actualizaciones · ¿hay versión nueva en ESTE medio? (detección y comparación, puro) (parte 1 de 2)",
+   "archivos": [
+    "src/lib/actualizaciones/version-por-medio.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\n§5. `medioActual(entorno)` PURO a partir de banderas que recibe (Tauri presente, plataforma Android/iOS/escritorio, modo standalone de PWA) → `web` · `pwa` · `escritorio` · `android` · `ios`; `hayActualizacion({medio, instalada, publicada})` con `compararVersiones`/`esVersionMasNueva` de `src/lib/version/os-release.ts` (para web/PWA compara el sha de `/version.json`); y `leerInstalada()` (cliente) que obtiene la versión nativa con `getVersion` de `@tauri-apps/api/app` si existe (import dinámico con try/catch) o el build de `/version.json`. Pruebas de cada medio.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261105-053158-VER1105I`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261105-053158-VER1105I:refs/remotes/origin/nube/a1-20261105-053158-VER1105I\"` y `git cherry-pick --no-commit 7c1aaf025220 c06e8467e464 ed2e929df025`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/actualizaciones/__tests__/version-por-medio.test.ts, src/lib/actualizaciones/version-por-medio.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió VER1105Ib: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/actualizaciones/version-por-medio.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "VER1105Ib",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  },
+  {
+   "id": "VOZ1105D",
+   "ola": "1105W · Voz estable",
+   "titulo": "Oído móvil sin nube · cablear la decisión en el reconocedor (engine.ts)",
+   "archivos": [
+    "src/lib/aurora/engine.ts"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3. En `buildRecognition` (móvil) usa `elegirOidoMovil` de `oido-movil.ts`: `whisper-web` → la escucha por tramos de `oss-stt.ts` si su modelo ya está descargado (busca cómo lo sabe `opt-in.ts`); y en el `onend` del reconocedor del navegador en móvil, `debeReiniciarNavegador` decide si se reinicia ya o se espera. Cambios mínimos y localizados.",
+   "dependencias_ya_en_main": [
+    "VOZ1105C"
+   ]
+  },
+  {
+   "id": "PUB1029F",
+   "ola": "1029 · CI de producción en verde",
+   "depende": [],
+   "titulo": "Guía de la red · la tarjeta /library vuelve a abrir la explicación real de la Biblioteca",
+   "archivos": [
+    "src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta (corre la prueba citada: si ya pasa, responde NO APLICA y no toques nada).\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de cadenas con forma de clave en código ni pruebas.\n\nContexto (2026-10-29): la autopublicación, parada desde el 25-10, ya pasa el detector de secretos y las 3.627 pruebas del puente, pero el CI de GitHub (run 40821862697, candidato c339920f7) falla en Vitest con 6 de 17.056 pruebas. Mientras haya una en rojo, nada se publica. Arregla la causa, no la prueba, salvo que la prueba sea la que quedó vieja (dilo en tu respuesta).\n\nFalla `areas-explicadas-temas.test.tsx` («la tarjeta /library abre la explicación real de la Biblioteca»): busca el texto «La biblioteca universal de la red», que ya no existe en `src` (lo cambiaron las partes GUI1021Gb del 28-10). Mira qué texto explica hoy la Biblioteca en la guía: si la tarjeta sigue abriendo la explicación correcta, actualiza la prueba al texto nuevo; si abre otra cosa o nada, arregla la tarjeta (añade su archivo a la tarea).",
+   "revisor_quitadas": [
+    "PUB1029E"
+   ]
+  },
+  {
+   "id": "VOZ1105A",
+   "ola": "1105W · Voz estable",
+   "titulo": "Voz StarSeed · la nube y la voz del sistema hablan el mensaje ENTERO, por trozos",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/motor.ts",
+    "src/lib/aurora/voz-starseed/__tests__/motor-trozos.test.ts"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3. En `hablarPorNube`: parte el texto con `trocearTexto(texto, 500)` de `src/lib/voces/trocear.ts` (la ruta `/api/voz/nube` corta a 600) y pide los trozos en orden, pidiendo el siguiente mientras suena el actual; si un trozo falla, reintenta una vez y si no, devuelve false para ESE resto (el llamador sigue con su siguiente nivel) — nunca calla a media frase sin decirlo. En `hablarPorSistema`: una utterance por trozo (≤ 200) en fila, sin `cancel()` entre trozos. Prueba con fetch y speechSynthesis simulados: un texto de 1500 caracteres pide 3–4 trozos en orden."
+  },
+  {
+   "id": "RPO1104J",
+   "ola": "1104R · Repos nativos",
+   "titulo": "OpenUI · el prompt de sistema de Astraura incluye la biblioteca cuando la interfaz no es «solo texto»",
+   "archivos": [
+    "src/lib/openui/prompt-astraura.ts",
+    "src/lib/openui/__tests__/prompt-astraura.test.ts"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\nSi `@openuidev/react-lang` no está en `package.json`, responde BLOQUEADA: «falta 1104 · AG» y no toques nada. Lee antes el README y los `.d.ts` de `node_modules/@openuidev/react-lang` (y de `@openuidev/lang-core`): usa su API real, no la inventes. §3. `conInterfazViva(promptBase, ajustes)` PURO: añade `promptDeSistema()` de la biblioteca cuando `ajustes.interfaz` no es `texto`, con la instrucción de usar OpenUI Lang solo si la respuesta tiene datos, pasos o comparaciones. Luego encuentra dónde se arma el prompt de sistema de Astraura (grep `systemPrompt` en `src/ai/astraura` y `src/lib/astraura`) y llama ahí a `conInterfazViva` (3.er archivo). Prueba del helper.",
+   "dependencias_ya_en_main": [
+    "RPO1104F",
+    "RPO1104G"
+   ]
+  },
+  {
+   "id": "LNN1028I2",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "Biblioteca · registrar la tanda 1028",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/defaults-seed.ts",
+    "src/app/api/library/actualizaciones/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nComo MTN1027L2 con la 1027b: `FICHAS_REPOS_1028` en el catálogo, sus ids en la siembra (sube `SEED_VERSION` en 1) y en `fichasIaConUpstreamGitHub([...])`.",
+   "revisor_quitadas": [
+    "MTN1027L2"
+   ],
+   "dependencias_ya_en_main": [
+    "LNN1028I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1105-025623.json": [
+   "VER1105Ib-d1",
+   "VOZ1105A",
+   "LNN1028I2",
+   "PUB1029F",
+   "VOZ1105D",
+   "RPO1104J"
+  ]
+ }
+}
