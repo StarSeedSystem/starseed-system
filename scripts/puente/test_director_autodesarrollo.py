@@ -98,6 +98,35 @@ class DirectorTest(unittest.TestCase):
         self.assertEqual(valor, 0.0)
         self.assertIn("ninguno", motivo)
 
+    def test_liderazgo_con_arriendo_vigente_de_otra_neurona_no_ejecuta(self):
+        """Con un arriendo vigente de otra neurona, toca_ejecutar es False y motivo_toca dice 'no soy líder'."""
+        from unittest.mock import patch
+        with patch("lider_direccion.soy_lider", return_value={
+            "soy": False,
+            "arriendo": {"dueno": "a1", "caduca": NOCHE.timestamp() + 600}
+        }):
+            r = self.correr()
+            self.assertFalse(r["toca_ejecutar"])
+            self.assertIn("no soy líder", r["motivo_toca"])
+            self.assertIn("a1", r["motivo_toca"])
+
+    def test_liderazgo_con_arriendo_caducado_ejecuta(self):
+        """Con un arriendo caducado (caduca < NOCHE.timestamp()), toca_ejecutar es True."""
+        from unittest.mock import patch
+        with patch("lider_direccion.soy_lider", return_value={
+            "soy": False,
+            "arriendo": {"dueno": "a1", "caduca": NOCHE.timestamp() - 100}
+        }):
+            r = self.correr()
+            self.assertTrue(r["toca_ejecutar"])
+
+    def test_liderazgo_sin_arriendo_ejecuta(self):
+        """Sin arriendo (lider_info es None o sin arriendo), toca_ejecutar es True."""
+        from unittest.mock import patch
+        with patch("lider_direccion.soy_lider", return_value={"soy": True, "motivo": "líder en local"}):
+            r = self.correr()
+            self.assertTrue(r["toca_ejecutar"])
+
     def test_ciclo_seco_no_lanza_y_devuelve_resultado(self):
         # (SUP0311B, 2026-11-03) Llamando al ciclo sin home ni raiz la prueba usaba ~/.starseed (su cerrojo y sus
         # ajustes): si el director vivo estaba a media pasada daba «otro ciclo en marcha» y la puerta de
