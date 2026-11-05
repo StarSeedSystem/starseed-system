@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CAPAS_PUBLICAS_CONOCIDAS, REQUISITOS_SERVICIO, SERVICIOS_INSTALADOS, colocarServicio } from "../servicios-pesados";
+import { CAPAS_PUBLICAS_CONOCIDAS, REQUISITOS_SERVICIO, SERVICIOS_INSTALADOS, colocarServicio, dondeRecomendar } from "../servicios-pesados";
 import type { Contexto, RequisitosServicio } from "../servicios-pesados";
 import type { OfertaNeurona } from "../oferta";
 
@@ -14,8 +14,8 @@ const ctx = (c: Partial<Contexto> = {}): Contexto => ({ cuentaId: "yo", ...c });
 const publica = (nodoId: string): OfertaNeurona => oferta({ nodoId, cuentaId: "otra", presta: { cuenta: false, grupos: [], publico: true, topes: { cpuPct: 100, ramMb: 8192, discoMb: 0, soloCargando: false } } });
 
 describe("catálogo verificado", () => {
-  it("declara los seis servicios con los datos del catálogo", () => {
-    expect(Object.keys(REQUISITOS_SERVICIO).sort()).toEqual(["archivebox", "comfyui", "coolify", "libretranslate", "openhands-agent-server", "stirling-pdf"]);
+  it("declara los siete servicios con los datos del catálogo", () => {
+    expect(Object.keys(REQUISITOS_SERVICIO).sort()).toEqual(["archivebox", "comfyui", "coolify", "deeptutor", "libretranslate", "openhands-agent-server", "stirling-pdf"]);
     expect(REQUISITOS_SERVICIO.comfyui).toMatchObject({ ram_gb: 8, vram_gb: 4, gpu: "recomendada" });
     expect(REQUISITOS_SERVICIO.libretranslate).toMatchObject({ ram_gb: null, ramMedidaMb: 711 });
     expect(REQUISITOS_SERVICIO["stirling-pdf"].ramMedidaMb).toBe(1434);
@@ -26,13 +26,19 @@ describe("catálogo verificado", () => {
     expect(REQUISITOS_SERVICIO["openhands-agent-server"].arquitecturas).toContain("arm64");
     expect(REQUISITOS_SERVICIO.coolify).toMatchObject({ ram_gb: null, ramMedidaMb: null, vram_gb: null, gpu: "no", so: ["linux"], medido: null });
   });
-  it("instala cinco servicios del A1 en 127.0.0.1 bajo demanda", () => {
+  it("DeepTutor tiene 4 GB, sin GPU, arm64/amd64, macOS/Windows/Linux, puerto 3782", () => {
+    expect(REQUISITOS_SERVICIO.deeptutor).toMatchObject({ ram_gb: 4, gpu: "no", arquitecturas: ["arm64", "amd64"], so: ["macos", "windows", "linux"], docker: "opcional" });
+    expect(REQUISITOS_SERVICIO.deeptutor.fuente).toContain("lib-deeptutor");
+    expect(REQUISITOS_SERVICIO.deeptutor.fuente).toContain("3782");
+  });
+  it("instala cinco servicios del A1 en 127.0.0.1 bajo demanda (DeepTutor no se instala)", () => {
     expect(SERVICIOS_INSTALADOS.libretranslate?.puerto).toBe(5000);
     expect(SERVICIOS_INSTALADOS["stirling-pdf"]?.puerto).toBe(8180);
     expect(SERVICIOS_INSTALADOS.archivebox?.puerto).toBe(8001);
     expect(SERVICIOS_INSTALADOS.comfyui?.puerto).toBe(8188);
     expect(SERVICIOS_INSTALADOS["openhands-agent-server"]?.puerto).toBe(8010);
     expect(SERVICIOS_INSTALADOS.coolify).toBeUndefined();
+    expect(SERVICIOS_INSTALADOS.deeptutor).toBeUndefined();
     for (const s of Object.values(SERVICIOS_INSTALADOS)) expect([s?.host, s?.apagaSinUsoMin]).toEqual(["127.0.0.1", 15]);
   });
   it("conoce las capas públicas y su estado", () => {
@@ -126,5 +132,35 @@ describe("capas públicas", () => {
     expect(r.motivo).toContain("Cloud Run: facturación de Google desactivada desde el 2026-09-25");
     expect(r.motivo).toContain("solo con permiso de la persona");
     expect(r.motivo).toContain("cola sin prisa");
+  });
+});
+
+describe("DeepTutor (recomendado, no instalado)", () => {
+  it("una neurona con 8 GB la recomienda", () => {
+    const r = dondeRecomendar("deeptutor", [oferta({ nodoId: "nube8", computo: { nucleos: 8, ramLibreMb: 8192, gpu: false, vramMb: undefined, motores: [] } })], ctx());
+    expect(r.some((x) => x.donde.tipo === "cuenta" && x.donde.id === "nube8")).toBe(true);
+  });
+  it("una neurona con 2 GB no la recomienda", () => {
+    const r = dondeRecomendar("deeptutor", [oferta({ nodoId: "nube2", computo: { nucleos: 4, ramLibreMb: 2048, gpu: false, vramMb: undefined, motores: [] } })], ctx());
+    expect(r.some((x) => x.donde.tipo === "cuenta" && x.donde.id === "nube2")).toBe(false);
+  });
+it("el A1 sale solo como recomendación con el motivo de Alex", () => {
+    const r = dondeRecomendar("deeptutor", [], ctx());
+    const a1 = r.find((x) => x.donde.tipo === "capa-publica" && x.donde.id === "oracle-a1");
+    expect(a1).toBeDefined();
+    expect(a1!.motivo).toContain("recomendado en el A1 cuando su disco tenga margen (decisión de Alex: hoy no)");
+  });
+  it("colocarServicio('deeptutor', …) no devuelve el A1", () => {
+    const r = colocarServicio("deeptutor", [], ctx());
+    expect(r.donde).not.toEqual({ tipo: "capa-publica", id: "oracle-a1" });
+    expect(r.donde.tipo).toBe("ninguno");
+  });
+  it("los seis servicios de siempre no cambian su colocación", () => {
+    expect(colocarServicio("libretranslate", [], ctx()).donde).toEqual({ tipo: "capa-publica", id: "oracle-a1" });
+    expect(colocarServicio("comfyui", [], ctx()).donde).toEqual({ tipo: "capa-publica", id: "oracle-a1" });
+    expect(colocarServicio("archivebox", [], ctx()).donde).toEqual({ tipo: "capa-publica", id: "oracle-a1" });
+    expect(colocarServicio("stirling-pdf", [], ctx()).donde).toEqual({ tipo: "capa-publica", id: "oracle-a1" });
+    expect(colocarServicio("openhands-agent-server", [], ctx()).donde).toEqual({ tipo: "capa-publica", id: "oracle-a1" });
+    expect(colocarServicio("coolify", [], ctx()).donde).toEqual({ tipo: "capa-publica", id: "oracle-a1" });
   });
 });

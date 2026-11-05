@@ -4,8 +4,9 @@ import { planificar, type OfertaNeurona, type Peticion } from "./oferta";
 export type TipoDestino = "aparato" | "cuenta" | "cerebro" | "malla" | "capa-publica" | "web-gratis" | "ninguno";
 export type Destino = { tipo: TipoDestino; id?: string };
 export type Colocacion = { donde: Destino; motivo: string; respaldo?: Destino; falta: string[] };
+export type Recomendacion = { donde: Destino; motivo: string };
 export type Gpu = "no" | "opcional" | "recomendada" | "necesaria";
-export type ServicioId = "comfyui" | "libretranslate" | "stirling-pdf" | "archivebox" | "openhands-agent-server" | "coolify";
+export type ServicioId = "comfyui" | "libretranslate" | "stirling-pdf" | "archivebox" | "openhands-agent-server" | "coolify" | "deeptutor";
 export type RequisitosServicio = { id: ServicioId; nombre: string; ram_gb: number | null; ramMedidaMb: number | null; vram_gb: number | null; gpu: Gpu; docker: string; arquitecturas: string[]; so: string[]; fuente: string; medido: string | null };
 export type Contexto = { cuentaId: string; grupos?: string[]; aparatoId?: string; servidoresCerebro?: string[]; privado?: boolean; enjambreEscribiendo?: boolean; presionMemoria?: "ok" | "aviso"; arquitecturas?: Record<string, string>; ofertasMedidas?: string[]; permisoEspaciosHf?: boolean; t?: number };
 export type CapaPublica = { id: string; nombre: string; estado: "activa" | "inactiva" | "con-permiso"; ocpu: number | null; ramMb: number | null; arquitectura: string; gpu: boolean; motivo: string };
@@ -13,6 +14,7 @@ export type ServicioInstalado = { servicio: ServicioId; host: "127.0.0.1"; puert
 const QUE_1020D: Record<ServicioId, string> = {
   comfyui: "lib-comfyui", libretranslate: "lib-libretranslate", "stirling-pdf": "lib-stirling-pdf",
   archivebox: "lib-archivebox", "openhands-agent-server": "lib-openhands", coolify: "lib-coolify",
+  deeptutor: "lib-deeptutor",
 };
 const GPUS_VALIDAS: Gpu[] = ["no", "opcional", "recomendada", "necesaria"];
 const SIN_REQUISITO: RequisitosParciales = {};
@@ -34,6 +36,7 @@ export const REQUISITOS_SERVICIO: Record<ServicioId, RequisitosServicio> = {
   archivebox: r("archivebox", "ArchiveBox", { medido: "tiempo por página: 1 min 16 s; RAM sin medir (A1, 2026-10-20)" }),
   "openhands-agent-server": r("openhands-agent-server", "OpenHands Agent Server"),
   coolify: r("coolify", "Coolify"),
+  deeptutor: r("deeptutor", "DeepTutor", { ram_gb: 4, gpu: "no", docker: "opcional", arquitecturas: ["arm64", "amd64"], so: ["macos", "windows", "linux"], fuente: "ficha lib-deeptutor config/repos-libreria-1104.json, puerto 3782" }),
 };
 export const CAPAS_PUBLICAS_CONOCIDAS: CapaPublica[] = [
   { id: "oracle-a1", nombre: "el A1", estado: "activa", ocpu: 2, ramMb: 12288, arquitectura: "arm64", gpu: false, motivo: "encendida 24/7, sin GPU" },
@@ -96,6 +99,7 @@ export function colocarServicio(servicio: ServicioId | RequisitosServicio, ofert
     capas.push(capa);
   }
   if (!privado) for (const capa of capas) {
+    if (req.id === "deeptutor" && capa.id === "oracle-a1") continue;
     if (!req.arquitecturas.includes(capa.arquitectura)) { anotar(`medir ${capa.arquitectura} en ${capa.nombre}`); continue; }
     if (ramMb == null && capa.ramMb == null) { faltaMedida = true; continue; }
     const plan = planificar(pedido, [ofertaDeCapa(capa, contexto.t ?? 0)]);
@@ -134,4 +138,69 @@ export function colocarServicio(servicio: ServicioId | RequisitosServicio, ofert
   const salida: Colocacion = { donde: primero, motivo, falta };
   if (encontrados.length > 1) salida.respaldo = encontrados[1];
   return salida;
+}
+
+export function dondeRecomendar(servicio: ServicioId | RequisitosServicio, ofertas: OfertaNeurona[], contexto: Contexto): Recomendacion[] {
+  const req = typeof servicio === "string" ? REQUISITOS_SERVICIO[servicio] : servicio;
+  if (!req) return [{ donde: { tipo: "ninguno" }, motivo: `No hay requisitos para «${servicio}»` }];
+  const ramMb = req.ram_gb != null ? req.ram_gb * 1024 : req.ramMedidaMb;
+  const gpuNecesaria = req.gpu === "necesaria";
+  const privado = contexto.privado === true;
+  const servidores = new Set(contexto.servidoresCerebro ?? []);
+  const medidas = new Set(contexto.ofertasMedidas ?? []);
+  const tomadas = new Set<string>();
+  const recomendaciones: Recomendacion[] = [];
+  const falta: string[] = [];
+  const motivosCapas: string[] = [];
+  let faltaMedida = false;
+  const pedido: Peticion = { cuentaId: contexto.cuentaId, grupos: contexto.grupos ?? [], computo: { ramLibreMbMin: ramMb ?? 0, gpu: gpuNecesaria || undefined, vramMbMin: gpuNecesaria && req.vram_gb != null ? req.vram_gb * 1024 : undefined } };
+  const anotar = (texto: string) => { if (!falta.includes(texto)) falta.push(texto); };
+  const buscarYRecomendar = (bucket: OfertaNeurona[], tipo: "cuenta" | "cerebro" | "malla") => {
+    const validas = bucket.filter((o) => {
+      if (tomadas.has(o.nodoId)) return false;
+      const arq = contexto.arquitecturas?.[o.nodoId];
+      if (arq && !req.arquitecturas.includes(arq)) { anotar(`medir ${arq} en ${o.nodoId}`); return false; }
+      if (ramMb == null && !medidas.has(o.nodoId)) { faltaMedida = true; return false; }
+      return true;
+    });
+    const plan = planificar(pedido, validas);
+    for (const p of plan) {
+      if (!tomadas.has(p.ofertaId)) {
+        tomadas.add(p.ofertaId);
+        const motivoBase = {
+          cuenta: `«${req.nombre}» cabe en una neurona de la misma cuenta`,
+          cerebro: `«${req.nombre}» cabe en un servidor del cerebro`,
+          malla: `«${req.nombre}» cabe en un vecino de la malla que presta en público`,
+        }[tipo] ?? `«${req.nombre}» cabe en ${tipo}`;
+        recomendaciones.push({ donde: { tipo, id: p.ofertaId }, motivo: motivoBase });
+      }
+    }
+  };
+  buscarYRecomendar(ofertas.filter((o) => o.cuentaId === contexto.cuentaId), "cuenta");
+  buscarYRecomendar(ofertas.filter((o) => servidores.has(o.nodoId)), "cerebro");
+  if (!privado) buscarYRecomendar(ofertas.filter((o) => o.presta.publico), "malla");
+  const capas: CapaPublica[] = [];
+  for (const capa of CAPAS_PUBLICAS_CONOCIDAS) {
+    if (tomadas.has(capa.id)) continue;
+    if (capa.estado === "inactiva") { motivosCapas.push(`${capa.nombre}: ${capa.motivo}`); continue; }
+    if (capa.estado === "con-permiso" && !contexto.permisoEspaciosHf) { motivosCapas.push(`${capa.nombre}: ${capa.motivo}`); continue; }
+    capas.push(capa);
+  }
+  if (!privado) for (const capa of capas) {
+    if (!req.arquitecturas.includes(capa.arquitectura)) { anotar(`medir ${capa.arquitectura} en ${capa.nombre}`); continue; }
+    if (ramMb == null && capa.ramMb == null) { faltaMedida = true; continue; }
+    const plan = planificar(pedido, [ofertaDeCapa(capa, contexto.t ?? 0)]);
+    if (plan.length > 0) {
+      tomadas.add(capa.id);
+      let motivo = `«${req.nombre}» cabe en la capa pública ${capa.nombre}`;
+      if (req.id === "deeptutor" && capa.id === "oracle-a1") {
+        motivo = `«${req.nombre}» recomendado en el A1 cuando su disco tenga margen (decisión de Alex: hoy no)`;
+      }
+      recomendaciones.push({ donde: { tipo: "capa-publica", id: capa.id }, motivo });
+    }
+  }
+  if (ramMb == null && recomendaciones.length > 0) {
+    for (const r of recomendaciones) r.motivo += "; a medir el consumo real del servicio";
+  }
+  return recomendaciones;
 }
