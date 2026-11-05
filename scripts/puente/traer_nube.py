@@ -242,10 +242,13 @@ def base_de(tid):
     """PURA: el id base de una cadena de reintentos (como `obtenerBaseId` de Genesis).
     Distingue el sufijo de rescate/derivación (`-d1`, `-d2b`, etc.) de la letra que forma parte del id."""
     t = str(tid or "")
-    # 1. Quitar sufijo de rescate/derivación -d<N>[a-z]?
-    m = re.match(r"^(.+?)-d\d+[a-z]?$", t)
-    if m:
-        t = m.group(1)
+    # 1. Quitar sufijo de rescate/derivación -d<N>[a-z]? (repetir hasta no quedar ninguno)
+    while True:
+        m = re.match(r"^(.+?)-d\d+[a-z]?$", t)
+        if m:
+            t = m.group(1)
+        else:
+            break
     # 2. Quitar letras sucesoras minúsculas al final (b-z precedidas por mayúscula o dígito)
     while len(t) > 1 and t[-1] in "bcdefghijklmnopqrstuvwxyz" and (t[-2].isdigit() or t[-2].isupper()):
         t = t[:-1]
@@ -255,6 +258,23 @@ def base_de(tid):
 def siguiente_id(tid, conocidos):
     """PURA: el siguiente sucesor libre de la cadena (`LC1004B` → `LC1004Bb`, o la letra que
     siga a la última que exista)."""
+    # Para un derivado como `SGO1031B-d1`, encontrar sucesores que preserven su parte derivada:
+    # buscar en conocidos IDs que empiecen con `tid` (no solo la base) y que son el siguiente en la serie
+    # Derivado de `SGO1031B-d1` → siguiente es `SGO1031B-d1b`, no `SGO1031Bb`
+    # Un derivado tiene la forma base-dN donde N es un dígito y opcionalmente una letra
+    import re
+    derivado_match = re.match(r'^(.+?)-d\d+[a-z]?$', tid)
+    if derivado_match:
+        derivado = tid
+        # buscar conocidos IDs que empiecen con este derivado exacto
+        derivados = [i for i in conocidos if i.startswith(derivado)]
+        if derivados:
+            letras = [i[-1] for i in derivados if i[-1] in "bcdefghijklmnopqrstuvwxyz"]
+            letra = chr(max(ord(x) for x in letras) + 1) if letras else "b"
+            if letra > "z":
+                letra = "z"
+            return derivado + letra
+    
     base = base_de(tid)
     letras = [i[-1] for i in conocidos if len(i) == len(base) + 1 and i.startswith(base) and i[-1] in "bcdefghijklmnopqrstuvwxyz"]
     letra = chr(max(ord(x) for x in letras) + 1) if letras else "b"
@@ -268,7 +288,15 @@ REPARACIONES_MAX = 3
 
 def sucesores_en_cadena(tid, progreso):
     """PURA: los sucesores (`Xb`, `Xc`…) que ya existen en la cadena de `tid`, en orden."""
+    # Para un ID derivado como `RTESP1011Bd-d2c`, encontrar sucesores que preserven su parte derivada:
+    # buscar IDs que empiecen con el parent base (RTESP1011Bd), no solo la base final (RTESP1011B)
     base = base_de(tid)
+    m = re.match(r"^(.+?)-d\d+[a-z]?$", tid)
+    if m:
+        # Este es un ID derivado, usar el parent base (sin el último sufijo derivado)
+        parent_base = m.group(1)
+        return sorted(k for k in (progreso or {}) if k != parent_base and len(k) == len(parent_base) + 1
+                      and k.startswith(parent_base) and k[-1] in "bcdefghijklmnopqrstuvwxyz")
     return sorted(k for k in (progreso or {}) if k != base and len(k) == len(base) + 1
                   and k.startswith(base) and k[-1] in "bcdefghijklmnopqrstuvwxyz")
 
