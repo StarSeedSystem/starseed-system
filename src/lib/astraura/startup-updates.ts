@@ -28,8 +28,9 @@
  */
 
 import { safeGet, safeSet } from "@/lib/safe-storage";
-import { ALL_LLM_SPECS, ALL_VOICE_SPECS } from "@/ai/astraura/model-requirements";
+import { ALL_LLM_SPECS, ALL_VOICE_SPECS, catalogIds } from "@/ai/astraura/model-requirements";
 import { INTEGRATIONS, REGISTRY_REVIEWED, type Integration } from "@/lib/integrations/integration-registry";
+import { scoutSignature, hasNewScoutFindings, markScoutSeen, type NeuronCapabilities, ALL_LLM_SPECS as LLM_SPECS, ALL_VOICE_SPECS as VOICE_SPECS } from "@/ai/astraura/model-scout";
 // (A149 · olas) Configuración PENDIENTE de la neurona: la elección de voz vive
 // en su propia clave por dispositivo. Módulo liviano (localStorage), sin ciclos.
 import { readNeuronVoiceChoice, neuronVoiceChoiceIsStale } from "@/lib/aurora/tts-oss/neuron-voice-constants";
@@ -40,6 +41,8 @@ import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 export const STARTUP_UPDATES_KEY = "starseed.astraura.startup.v1";
 export const STARTUP_UPDATES_EVENT = "starseed:astraura-startup";
 export const STARTUP_OPEN_EVENT = "starseed:open-astraura-startup";
+
+export const SCOUT_SIGNATURE_KEY = "starseed.astraura.scout.sig.v1";
 
 export type StartupStrategy = "auto" | "local" | "servidor";
 
@@ -61,12 +64,17 @@ export interface StartupState {
 export const DEFAULT_STARTUP: StartupState = { autoUpdate: true, strategy: "auto" };
 
 /** Ids del catálogo actual con prefijo de tipo (L:llm · V:voz · I:integración). */
+/** Ids del catálogo actual con prefijo de tipo (L:llm · V:voz · I:integración). */
 export function catalogIds(): string[] {
   return [
     ...ALL_LLM_SPECS.map((s) => "L:" + s.id),
     ...ALL_VOICE_SPECS.map((s) => "V:" + s.id),
     ...INTEGRATIONS.map((i) => "I:" + i.id),
   ].sort();
+}
+
+export function catalogLen(): number {
+  return catalogIds().length;
 }
 
 function hash(s: string): string {
@@ -363,4 +371,22 @@ export function subscribeStartupOpen(cb: () => void): () => void {
   const h = () => cb();
   window.addEventListener(STARTUP_OPEN_EVENT, h);
   return () => window.removeEventListener(STARTUP_OPEN_EVENT, h);
+}
+
+export { scoutSignature, hasNewScoutFindings, markScoutSeen };
+export type { NeuronCapabilities };
+
+export function decidirSegunScout(caps: NeuronCapabilities): { accion: "aviso-scout"; resumen: string } | { accion: "nada" } {
+  try {
+    const sig = scoutSignature(caps, catalogLen());
+    if (hasNewScoutFindings(sig)) {
+      const { tier, best, current, hasBetter, summary } = (await import("./scout-models-fallback")).scoutModelsFallback
+        ? await import("./scout-models-fallback").scoutModelsFallback(caps)
+        : { summary: `Tu equipo puede con mejores modelos. Revisa la pestaña Astraura.` };
+      return { accion: "aviso-scout", resumen: summary };
+    }
+    return { accion: "nada" };
+  } catch {
+    return { accion: "nada" };
+  }
 }
