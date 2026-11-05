@@ -62,6 +62,11 @@ export default defineConfig({
       TZ: "UTC",
       // Ver el comentario de arriba: ninguna prueba puede tocar las colas del enjambre.
       STARSEED_ROOT: raizDePruebas,
+      // (1105) La ruta de actualizaciones de la Biblioteca consulta en una sola pasada todo lo que las
+      // pruebas simulan y no lee ni escribe lo sabido en el temporal (lo del `next start` de la Mac no se
+      // mezcla con las pruebas). En producción sigue el lote rotatorio (RPO1104Ub).
+      STARSEED_LOTE_ACTUALIZACIONES: "100000",
+      STARSEED_ACTUALIZACIONES_SIN_DISCO: "1",
     },
     // ⚠️ VERSIÓN DE NODE (2026-09-14). Esta suite necesita Node ≥ 20.19 — está
     // en `.nvmrc` y en `engines` de package.json. Con el Node v20.17 que había

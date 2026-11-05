@@ -72,6 +72,29 @@ export function loteAConsultar(
     return [...nuevos, ...viejos.map((v) => v.id)].slice(0, maxLote);
 }
 
+/** Topes de serie del lote (GitHub da 60 consultas por hora sin token y 5000 con él). */
+export interface TopesLote {
+    sinToken: number;
+    conToken: number;
+}
+
+/**
+ * Tope del lote de esta pasada. `forzado` (la variable `STARSEED_LOTE_ACTUALIZACIONES`) manda si es
+ * un entero positivo escrito tal cual; si no, `conToken` con token y `sinToken` sin él.
+ */
+export function topeDelLote(
+    forzado: string | undefined,
+    conToken: boolean,
+    topes: TopesLote = { sinToken: 40, conToken: 300 },
+): number {
+    const texto = (forzado ?? "").trim();
+    if (/^\d+$/.test(texto)) {
+        const n = Number.parseInt(texto, 10);
+        if (n > 0) return n;
+    }
+    return conToken ? topes.conToken : topes.sinToken;
+}
+
 /**
  * Guarda por id `{ remota, fecha, t }` lo leído en la pasada sin mutar lo que
  * ya se sabía. Una remota buena NUNCA se borra por un fallo (`remota: null`):

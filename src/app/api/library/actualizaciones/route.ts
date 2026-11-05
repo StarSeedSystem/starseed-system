@@ -28,6 +28,7 @@ import {
 import {
     loteAConsultar,
     fusionar,
+    topeDelLote,
     type ConocidasActualizacion,
     type ResultadoConsulta,
 } from "@/lib/library/rotacion-actualizaciones";
@@ -94,11 +95,21 @@ const EDAD_MIN_MS = 15 * 60 * 1000;
 const LOTE_SIN_TOKEN = 40;
 const LOTE_CON_TOKEN = 300;
 const CONCURRENCIA = 6;
-const RUTA_CONOCIDAS = path.join(os.tmpdir(), "starseed-actualizaciones-biblioteca.json");
+// La ruta del temporal se calcula al usarla (no al importar): con el disco apagado no se toca `os`.
+function rutaConocidas(): string {
+    return path.join(os.tmpdir(), "starseed-actualizaciones-biblioteca.json");
+}
+
+/** `STARSEED_ACTUALIZACIONES_SIN_DISCO=1`: lo sabido vive solo en memoria. Las pruebas parten de cero y no
+ *  leen lo que guardó en el temporal el `next start` de la Mac. */
+function sinDisco(): boolean {
+    return process.env.STARSEED_ACTUALIZACIONES_SIN_DISCO === "1";
+}
 
 function cargarConocidas(): ConocidasActualizacion {
+    if (sinDisco()) return {};
     try {
-        const leído: unknown = JSON.parse(readFileSync(RUTA_CONOCIDAS, "utf8"));
+        const leído: unknown = JSON.parse(readFileSync(rutaConocidas(), "utf8"));
         return typeof leído === "object" && leído !== null && !Array.isArray(leído)
             ? (leído as ConocidasActualizacion)
             : {};
@@ -107,15 +118,17 @@ function cargarConocidas(): ConocidasActualizacion {
     }
 }
 
-function guardarConocidas(): void {
+function guardarConocidas(sabidas: ConocidasActualizacion): void {
+    if (sinDisco()) return;
     try {
-        writeFileSync(RUTA_CONOCIDAS, JSON.stringify(conocidas), "utf8");
+        writeFileSync(rutaConocidas(), JSON.stringify(sabidas), "utf8");
     } catch {
         // En Vercel puede no haber disco escribible: la memoria basta.
     }
 }
 
-let conocidas: ConocidasActualizacion = cargarConocidas();
+// Se carga en la primera pasada (no al importar): así manda la variable de entorno de ese momento.
+let conocidas: ConocidasActualizacion | null = null;
 
 /* ── Consulta de un upstream ── */
 
@@ -258,8 +271,12 @@ export async function GET(): Promise<Response> {
             }))
             .concat(fuentesProtomolecula());
         // Solo se consulta el lote rotatorio; del resto se devuelve lo último bueno.
-        const idsLote = loteAConsultar(entradas, conocidas, ahora, {
-            maxLote: process.env.GITHUB_TOKEN ? LOTE_CON_TOKEN : LOTE_SIN_TOKEN,
+        const previas = conocidas ?? cargarConocidas();
+        const idsLote = loteAConsultar(entradas, previas, ahora, {
+            maxLote: topeDelLote(process.env.STARSEED_LOTE_ACTUALIZACIONES, Boolean(process.env.GITHUB_TOKEN), {
+                sinToken: LOTE_SIN_TOKEN,
+                conToken: LOTE_CON_TOKEN,
+            }),
             edadMinMs: EDAD_MIN_MS,
         });
         const porId = new Set(idsLote);
@@ -270,10 +287,11 @@ export async function GET(): Promise<Response> {
             remota: leída.remota,
             fecha: leída.fecha,
         }));
-        conocidas = fusionar(conocidas, resultados, ahora);
-        guardarConocidas();
+        const sabidas = fusionar(previas, resultados, ahora);
+        conocidas = sabidas;
+        guardarConocidas(sabidas);
         const fuentes = entradas.map((entrada): FuenteActualizacion => {
-            const guardada = conocidas[entrada.id];
+            const guardada = sabidas[entrada.id];
             const leída = leídas.get(entrada.id);
             const patronTag = entrada.payload?.patronTag;
             const avisoPatron =

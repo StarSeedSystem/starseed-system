@@ -4,6 +4,7 @@ import { describe, it, expect } from "vitest";
 import {
     loteAConsultar,
     fusionar,
+    topeDelLote,
     type ConocidasActualizacion,
 } from "../rotacion-actualizaciones";
 
@@ -82,5 +83,30 @@ describe("fusionar", () => {
         const fusionada = fusionar(conocidas, [{ id: "a", remota: "v1", fecha: null }], AHORA);
         expect(fusionada.b).toEqual(conocidas.b);
         expect(fusionada.a.remota).toBe("v1");
+    });
+});
+
+describe("topeDelLote (Ola 1105)", () => {
+    it("sin variable: 40 sin token y 300 con token", () => {
+        expect(topeDelLote(undefined, false)).toBe(40);
+        expect(topeDelLote(undefined, true)).toBe(300);
+        expect(topeDelLote("", true)).toBe(300);
+    });
+
+    it("la variable manda si es un entero positivo", () => {
+        expect(topeDelLote("100000", false)).toBe(100000);
+        expect(topeDelLote(" 12 ", true)).toBe(12);
+    });
+
+    it("un valor raro no cuenta y quedan los de serie", () => {
+        for (const valor of ["0", "-5", "abc", "40x", "1.5"]) {
+            expect(topeDelLote(valor, false)).toBe(40);
+            expect(topeDelLote(valor, true)).toBe(300);
+        }
+    });
+
+    it("respeta otros topes de serie", () => {
+        expect(topeDelLote(undefined, false, { sinToken: 7, conToken: 9 })).toBe(7);
+        expect(topeDelLote(undefined, true, { sinToken: 7, conToken: 9 })).toBe(9);
     });
 });
