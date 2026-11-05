@@ -23,6 +23,7 @@ import { normalizarVozBot, vozBotDefecto, type VozBot } from "@/lib/astraura-bot
 import { EditorVozBot } from "./voz-bot-editor";
 import { esFormaAvatar3d, refAdnDeBot } from "@/lib/avatares/adaptadores/adn-de-bot";
 import SelectorAvatar3d from "@/components/avatares/selector-avatar-3d";
+import { CapsulaAjustes } from "@/components/memorias/capsula-ajustes";
 
 /** Formas que aún no tienen renderizador: se anuncian y no se ofrecen elegir. */
 const FORMAS_PROXIMAS: readonly FormaCuerpo[] = ["avatar-3d", "vrm"];
@@ -152,6 +153,7 @@ export function EditorBot({ bot, nivel: nivelInicial, onGuardar, onCerrar }: Edi
           {NIVELES.find((n) => n.id === nivel)?.ayuda}
         </span>
       </label>
+      <CapsulaAjustes sujeto={{ tipo: "bot", id: bot.id }} />
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onCerrar}
           className="cursor-pointer rounded-md border border-border px-3 py-1.5 transition-colors duration-200 hover:bg-muted">
