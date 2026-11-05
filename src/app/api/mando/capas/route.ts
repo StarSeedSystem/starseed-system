@@ -24,10 +24,7 @@ import { guardianMando } from "@/lib/mando/guardian";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import { construirResumenRed, leerBanco, leerCatalogoCapas, leerNuevas } from "@/lib/mando/capas-red";
 import { leerPropuestasAutomejora, crearTareaParaCola, type PropuestaAutomejora, type PropuestaArchivo } from "@/lib/mando/automejora-propuestas";
-<<<<<<< HEAD
 import { leerUltimaNoche, leerPropuestasArchivo, type UltimaNoche, type PropuestaAutomejoraArchivo } from "@/lib/mando/automejora-noche";
-=======
->>>>>>> 77add9baa (salvavidas · MTN1027K2: trabajo del agente antes de las puertas (tsc / vitest))
 import type { CapacidadesNodo } from "@/lib/network/capacidades-nodo";
 
 export const runtime = "nodejs";
