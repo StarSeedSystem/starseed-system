@@ -12,6 +12,12 @@ export interface OidoMovilInfo {
   motivo: string;
 }
 
+export interface OpcionesOidoParaReconocer {
+  esMovil: boolean;
+  nube: boolean;
+  whisperListo: boolean;
+}
+
 export interface OpcionesElegirOidoMovil {
   nube: boolean;
   whisperDescargado: boolean;
@@ -35,6 +41,14 @@ export function elegirOidoMovil(opts: OpcionesElegirOidoMovil): OidoMovilInfo {
     return { motor: 'navegador-por-voz', motivo: 'reconocedor por voz en navegador' };
   }
   return { motor: 'navegador', motivo: 'oído navegador por defecto' };
+}
+
+export function oidoParaReconocer({ esMovil, nube, whisperListo }: { esMovil: boolean; nube: boolean; whisperListo: boolean }): "nube" | "whisper-web" | "navegador" {
+  if (esMovil) {
+    if (nube) return "nube";
+    if (whisperListo) return "whisper-web";
+  }
+  return "navegador";
 }
 
 export function debeReiniciarNavegador(opts: OpcionesDebeReiniciarNavegador): boolean {

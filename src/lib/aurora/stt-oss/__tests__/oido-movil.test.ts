@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { elegirOidoMovil, debeReiniciarNavegador } from "../oido-movil";
+import { elegirOidoMovil, debeReiniciarNavegador, oidoParaReconocer } from "../oido-movil";
 
 describe("elegirOidoMovil", () => {
   it("prefiere nube cuando está activado", () => {
@@ -24,6 +24,33 @@ describe("elegirOidoMovil", () => {
     const r = elegirOidoMovil({ nube: false, whisperDescargado: false, navegador: false });
     expect(r.motor).toBe('navegador');
     expect(r.motivo).toContain('por defecto');
+  });
+});
+
+describe("oidoParaReconocer", () => {
+  it("escritorio sin nube ni whisper -> navegador", () => {
+    expect(oidoParaReconocer({ esMovil: false, nube: false, whisperListo: false })).toBe("navegador");
+  });
+  it("escritorio con nube -> navegador", () => {
+    expect(oidoParaReconocer({ esMovil: false, nube: true, whisperListo: false })).toBe("navegador");
+  });
+  it("escritorio con whisper -> navegador", () => {
+    expect(oidoParaReconocer({ esMovil: false, nube: false, whisperListo: true })).toBe("navegador");
+  });
+  it("escritorio con nube y whisper -> navegador", () => {
+    expect(oidoParaReconocer({ esMovil: false, nube: true, whisperListo: true })).toBe("navegador");
+  });
+  it("móvil sin nube ni whisper -> navegador", () => {
+    expect(oidoParaReconocer({ esMovil: true, nube: false, whisperListo: false })).toBe("navegador");
+  });
+  it("móvil con nube -> nube", () => {
+    expect(oidoParaReconocer({ esMovil: true, nube: true, whisperListo: false })).toBe("nube");
+  });
+  it("móvil con whisper -> whisper-web", () => {
+    expect(oidoParaReconocer({ esMovil: true, nube: false, whisperListo: true })).toBe("whisper-web");
+  });
+  it("móvil con nube y whisper -> nube (prioridad nube)", () => {
+    expect(oidoParaReconocer({ esMovil: true, nube: true, whisperListo: true })).toBe("nube");
   });
 });
 

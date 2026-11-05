@@ -353,6 +353,48 @@ export function isModelReady(modelId?: OssSttModelId): boolean {
   return true;
 }
 
+/**
+ * transcribirTramo — Transcribe un tramo de audio PCM (Float32 mono, a `rate` Hz)
+ * reutilizando el MISMO pipeline que usa la sesión por segmentos.
+ * - Si el modelo no está cargado (`isModelReady()` = false) devuelve null SIN cargar nada.
+ * - Remuestra a 16 kHz si hace falta (como `transcribeSegment` interno).
+ * - Nunca lanza: devuelve null en cualquier error.
+ */
+export async function transcribirTramo(pcm: Float32Array, rate: number, idioma?: string): Promise<string | null> {
+  const modelId = getOssSttModel();
+  if (!isModelReady(modelId)) return null;
+
+  const asr = await pipelinePromise.catch(() => null);
+  if (!asr) return null;
+
+  let audio = pcm;
+  if (rate !== TARGET_SAMPLE_RATE) {
+    try {
+      audio = resampleLinear(pcm, rate, TARGET_SAMPLE_RATE);
+    } catch {
+      audio = pcm;
+    }
+  }
+
+  const effectiveLang = idioma || getOssSttLangCode();
+  try {
+    const out: any = await asr(audio, {
+      language: effectiveLang || undefined,
+      task: "transcribe",
+      chunk_length_s: 30,
+      stride_length_s: 5,
+      do_sample: false,
+    });
+    const raw = typeof out?.text === "string" ? out.text : "";
+    // Limpieza ligera (igual que en transcribeSegment)
+    let text = raw.trim();
+    text = text.replace(/^\s*[\[(][^\])]*[\])]\s*/g, "").trim();
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Captura + VAD + transcripción por segmentos ──────────────────────────────
 
 // Estado de la sesión de captura activa (una a la vez; simple y suficiente).
