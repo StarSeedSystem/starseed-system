@@ -4721,3 +4721,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTXR1010AMb-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTXR1010AMb-d2 conservada)
 - `IMG1102Db-d2` — los tipos no compilan: 1 errores tsc (rama ola/IMG1102Db-d2 conservada)
+
+## 2026-11-05 06:27 · mg-oracle-1104-2340
+
+**Lo que se pidió.** clave
+
+**Resultado.** 1 de 1 integradas.
