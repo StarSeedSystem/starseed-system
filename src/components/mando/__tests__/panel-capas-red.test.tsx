@@ -196,4 +196,28 @@ describe("PanelCapasRed", () => {
     // 3. recarga después de la acción (GET)
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
+
+  it("enseña la última noche y manda una propuesta al enjambre", async () => {
+    const conPropuestas = {
+      catalogo: DATOS_FAKE.catalogo,
+      noche: { fecha: "2026-10-30", donde: "A1", llamadas: 12, propuso: "Comprueba el dato", aprobadas: 1, propuestas: 2, tareas: 1 },
+      propuestas: [{
+        archivo: "2026-10-30.json", id: "AMJ1", capa: "juicio", titulo: "Ayuda de juicio",
+        descripcion: "Implementa la ayuda", fecha: "2026-10-30",
+        archivos: ["scripts/puente/ayudantes_juicio.py"], enviada: false, descartada: false,
+      }],
+    } as unknown as RespuestaCapas;
+    simularApi(conPropuestas);
+    const fetchMock = vi.mocked(fetch);
+    render(<AppearanceProvider><PanelCapasRed /></AppearanceProvider>);
+    expect(await screen.findByText(/Última noche/)).toBeInTheDocument();
+    expect(screen.getByText(/corrió en A1/)).toBeInTheDocument();
+    expect(screen.getByText(/Ayuda de juicio/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /mandar al enjambre/i }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/mando/capas", expect.objectContaining({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accion: "mandar-propuesta", archivo: "2026-10-30.json", id: "AMJ1" }),
+    }));
+  });
 });

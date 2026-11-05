@@ -14,25 +14,47 @@ import { AlertTriangle, CheckCircle2, Loader2, ShieldAlert } from "lucide-react"
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-/** Forma de la respuesta del API /api/mando/capas. */
+import type { NocheAutomejora } from "@/lib/astraura/capas/automejora";
+import type { PropuestaAutomejora } from "@/lib/mando/propuestas-automejora";
+
+interface BancoVista { tokS?: number | null; latenciaMs?: number | null; acierto?: number | null; fecha?: string | null }
+interface FilaCapa {
+  id: string; version?: string | null; estado?: string; dispositivos?: number | null;
+  servidores?: number | null; espejos?: number | string[] | null; banco?: string | BancoVista | null;
+}
+
+/** Forma de la respuesta del API /api/mando/capas (tolera también la vieja). */
 interface RespuestaCapas {
-  catalogo: Array<{
-    id: string;
-    version: string;
-    estado: "recomendado" | "respaldo" | "nuevo";
-    dispositivos: number;
-    servidores: number;
-    espejos: number;
-    banco: string; // último resultado del banco
-    aprendizaje: string; // último ciclo de aprendizaje
-  }>;
-  /** Estado de los espejos (por ejemplo, { ok: true, mensaje: "Todos sincronizados" }) */
-  espejos: {
-    ok: boolean;
-    mensaje: string;
-  };
+  filas?: FilaCapa[]; catalogo?: FilaCapa[];
+  nuevas?: Array<{ repo: string; estado?: string | null; lastModified?: string | null }>;
+  actualizado?: string | null; noche?: NocheAutomejora | null; propuestas?: PropuestaAutomejora[];
+  espejos?: { ok: boolean; mensaje: string };
+}
+
+const filasDe = (r: RespuestaCapas): FilaCapa[] => r.filas ?? r.catalogo ?? [];
+
+const estadoLegible = (estado: string | undefined): string =>
+  estado === "recomendado" ? "Recomendado" : estado === "respaldo" ? "Respaldo"
+    : estado === "nuevo" || estado === "en-banco" ? "Nuevo en banco" : estado ?? "desconocido";
+
+const numeroLegible = (v: number | null | undefined): string | number =>
+  typeof v === "number" && v > 0 ? v : "sin medir";
+
+const espejosLegibles = (v: number | string[] | null | undefined): string | number =>
+  Array.isArray(v) ? (v.length > 0 ? v.length : "sin medir") : numeroLegible(v);
+
+function bancoLegible(banco: string | BancoVista | null | undefined): string {
+  if (typeof banco === "string") return banco || "sin datos";
+  if (!banco) return "sin datos";
+  const partes = [
+    typeof banco.tokS === "number" ? `${banco.tokS} tok/s` : "",
+    typeof banco.latenciaMs === "number" ? `${banco.latenciaMs} ms` : "",
+    typeof banco.acierto === "number" ? `${Math.round(banco.acierto * 100)} % acierto` : "",
+    banco.fecha ?? "",
+  ].filter(Boolean);
+  return partes.length > 0 ? partes.join(" · ") : "sin datos";
 }
 
 /** Componente principal del panel. */
@@ -83,6 +105,23 @@ export function PanelCapasRed() {
       }
       // Recargar los datos después de la acción
       void cargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error desconocido.");
+    } finally {
+      setCargando(false);
+    }
+  }, [cargar]);
+
+  const accionPropuesta = useCallback(async (accion: "mandar-propuesta" | "descartar-propuesta", archivo: string, id: string) => {
+    setCargando(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/mando/capas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion, archivo, id }) });
+      if (!r.ok) {
+        setError(accion === "mandar-propuesta" ? `No se pudo mandar la propuesta (HTTP ${r.status}).` : `No se pudo descartar la propuesta (HTTP ${r.status}).`);
+        return;
+      }
+      await cargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error desconocido.");
     } finally {
@@ -170,41 +209,35 @@ export function PanelCapasRed() {
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
-              <TableHead>
+              <TableHeader>
                 <TableRow>
-                  <TableCell>Capa</TableCell>
-                  <TableCell>Versión</TableCell>
-                  <TableCell>Estado</TableCell>
-                  <TableCell>Dispositivos</TableCell>
-                  <TableCell>Servidores</TableCell>
-                  <TableCell>Espejos</TableCell>
-                  <TableCell>Último banco</TableCell>
+                  <TableHead>Capa</TableHead>
+                  <TableHead>Versión</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Dispositivos</TableHead>
+                  <TableHead>Servidores</TableHead>
+                  <TableHead>Espejos</TableHead>
+                  <TableHead>Último banco</TableHead>
                 </TableRow>
-              </TableHead>
+              </TableHeader>
               <TableBody>
-                {respuesta.catalogo.map((capa) => (
+                {filasDe(respuesta).map((capa) => (
                   <TableRow key={capa.id} data-testid={`capa-${capa.id}`}>
                     <TableCell>{capa.id}</TableCell>
-                    <TableCell>{capa.version}</TableCell>
+                    <TableCell>{capa.version ?? "sin versión"}</TableCell>
                     <TableCell>
                       {capa.estado === "recomendado" ? (
                         <span className="text-emerald-200">Recomendado</span>
                       ) : capa.estado === "respaldo" ? (
                         <span className="text-amber-200">Respaldo</span>
                       ) : (
-                        <span className="text-rose-200">Nuevo en banco</span>
+                        <span className="text-rose-200">{estadoLegible(capa.estado)}</span>
                       )}
                     </TableCell>
-                    <TableCell>
-                      {capa.dispositivos > 0 ? capa.dispositivos : "sin medir"}
-                    </TableCell>
-                    <TableCell>
-                      {capa.servidores > 0 ? capa.servidores : "sin medir"}
-                    </TableCell>
-                    <TableCell>
-                      {capa.espejos > 0 ? capa.espejos : "sin medir"}
-                    </TableCell>
-                    <TableCell>{capa.banco || "sin datos"}</TableCell>
+                    <TableCell>{numeroLegible(capa.dispositivos)}</TableCell>
+                    <TableCell>{numeroLegible(capa.servidores)}</TableCell>
+                    <TableCell>{espejosLegibles(capa.espejos)}</TableCell>
+                    <TableCell>{bancoLegible(capa.banco)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -213,11 +246,11 @@ export function PanelCapasRed() {
         </CardContent>
       </Card>
 
-      {/* Estado de los espejos */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Estado de los espejos</CardTitle>
-        </CardHeader>
+      {respuesta.espejos && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Estado de los espejos</CardTitle>
+          </CardHeader>
           <CardContent>
             <p data-testid="espejos-mensaje" className="text-sm text-white/70">
               {respuesta.espejos.mensaje}
@@ -234,18 +267,45 @@ export function PanelCapasRed() {
               </span>
             )}
           </CardContent>
+        </Card>
+      )}
+
+      <Card data-testid="ultima-noche">
+        <CardHeader><CardTitle>Última noche</CardTitle></CardHeader>
+        <CardContent>
+          {respuesta.noche ? (
+            <div className="flex flex-col gap-1 text-sm text-white/70">
+              <span>{respuesta.noche.fecha}{respuesta.noche.donde ? ` · corrió en ${respuesta.noche.donde}` : ""}{` · ${respuesta.noche.llamadas} llamadas`}</span>
+              {respuesta.noche.propuso && <span className="italic text-white/60">Propuso: «{respuesta.noche.propuso}»</span>}
+              <span>Juez: aprobó {respuesta.noche.aprobadas} de {respuesta.noche.propuestas} pautas{respuesta.noche.tareas > 0 ? ` · ${respuesta.noche.tareas} tareas de código al enjambre` : ""}</span>
+            </div>
+          ) : <p className="text-sm text-white/60">Aún no ha corrido.</p>}
+        </CardContent>
       </Card>
 
-      {/* Nota sobre el aprendizaje por ámbito */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Aprendizaje por ámbito</CardTitle>
-        </CardHeader>
+      <Card data-testid="propuestas-automejora">
+        <CardHeader><CardTitle>Propuestas de la automejora</CardTitle></CardHeader>
         <CardContent>
-          <p className="text-sm text-white/70">
-            Los ciclos de aprendizaje por ámbito se muestran en el detalle de cada capa.
-            Consulte el banco de pruebas para validar nuevos adaptadores.
-          </p>
+          {(respuesta.propuestas ?? []).length === 0 ? (
+            <p className="text-sm text-white/60">No hay propuestas pendientes.</p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {(respuesta.propuestas ?? []).map((p) => (
+                <li key={`${p.archivo}-${p.id}`} data-testid={`propuesta-${p.id}`} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-white/10 p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-white">{p.titulo}</p>
+                    <p className="text-xs text-white/50">{p.capa} · {p.fecha ?? "sin fecha"}{p.enviada ? " · enviada al enjambre" : p.descartada ? " · descartada" : ""}</p>
+                    {p.descripcion && <p className="mt-1 text-xs text-white/70">{p.descripcion}</p>}
+                    {p.archivos.length > 0 && <p className="mt-1 break-all text-xs text-white/40">{p.archivos.join(" · ")}</p>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button type="button" size="sm" onClick={() => void accionPropuesta("mandar-propuesta", p.archivo, p.id)} disabled={cargando || p.enviada || p.descartada}>Mandar al enjambre</Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => void accionPropuesta("descartar-propuesta", p.archivo, p.id)} disabled={cargando || p.enviada || p.descartada}>Descartar</Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </CardContent>
       </Card>
     </div>
