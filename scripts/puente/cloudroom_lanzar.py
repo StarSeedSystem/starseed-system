@@ -55,6 +55,8 @@ MAX_VIVOS = 3
 REPETIR_TRAS_H, MAX_POR_TAREA = 24, 2
 #: Sin rama ni hilo terminado en 12 h, la tarea vuelve al enjambre.
 GRACIA_H = 12
+#: Un hilo «trabajando» SIN EMPEZAR (ni salida ni rama) devuelve su tarea en 2 h.
+GRACIA_SIN_EMPEZAR_H = 2
 #: Un hilo «terminado» recién abierto puede no haber empezado: el diff-patch espera 10 min.
 MIN_PARCHE_S = 600
 #: El agente trabaja solo en su sandbox: tiene que correr npm, tsc, pruebas y `git push` sin pedir permiso.
@@ -400,13 +402,15 @@ def _prestada(progreso, tid):
     return isinstance(e, dict) and e.get("estado") == "reasignada" and e.get("medio") == MEDIO
 
 
-def decidir(fila, ramas, hilos, progreso, ahora, gracia_h=GRACIA_H):
+def decidir(fila, ramas, hilos, progreso, ahora, gracia_h=GRACIA_H, gracia_sin_empezar_h=GRACIA_SIN_EMPEZAR_H):
     """PURA: qué hacer con un hilo abierto: «traer» | «parche» | «devolver» | «medio» | «esperar» | «olvidar».
 
     `ramas`: las `nube/cr-*` del remoto (None si no se pudieron leer: entonces solo se espera, para no
     subir un parche encima de una rama que quizá ya existe). `hilos`: {id: hilo} o None. Un hilo
     terminado que dice que su sandbox no tenía el repo va igual al diff-patch (nada se tira sin
-    mirar), sin esperar los 10 min; si el diff-patch ya falló 3 veces, «medio»: vuelve sin gastarse."""
+    mirar), sin esperar los 10 min; si el diff-patch ya falló 3 veces, «medio»: vuelve sin gastarse.
+    Un hilo «trabajando» SIN EMPEZAR (ni salida ni rama) devuelve su tarea en `gracia_sin_empezar_h` h;
+    uno que YA ESCRIBE sigue con `gracia_h` (12 h)."""
     tid = str(fila["tarea"])
     if not _prestada(progreso, tid):
         return "olvidar"
@@ -422,6 +426,10 @@ def decidir(fila, ramas, hilos, progreso, ahora, gracia_h=GRACIA_H):
             return FALLO_MEDIO if medio_roto else "devolver"
         if edad >= MIN_PARCHE_S or medio_roto:
             return "parche"
+    if hilos is not None and estado_hilo(hilo) == "trabajando":
+        sin_empezar = not texto_final(hilo)
+        if sin_empezar:
+            return "devolver" if edad > gracia_sin_empezar_h * 3600 else "esperar"
     return "devolver" if edad > gracia_h * 3600 else "esperar"
 
 
@@ -844,7 +852,7 @@ def seguir(aplicar=True, ahora=None, run=subprocess.run, traer=traer_en_fondo, c
     hilos = hilos_por_id(datos) if datos is not None else None
     if hilos is None and filas:
         res["errores"].append("no pude listar los hilos (%s)" % err)
-    acciones = {str(f["tarea"]): decidir(f, ramas, hilos, progreso, ahora) for f in filas}
+    acciones = {str(f["tarea"]): decidir(f, ramas, hilos, progreso, ahora, gracia_sin_empezar_h=GRACIA_SIN_EMPEZAR_H) for f in filas}
     # (CRM1024K) Los parados por un corte del proveedor o de su modelo se reanudan, no se pierden.
     cortes = {}
     for f in filas:
