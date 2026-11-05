@@ -31,15 +31,9 @@ import {
   etiquetaBuild,
   formatearFechaBuild,
 } from "@/lib/version/os-release";
-import {
-  CheckCircle2,
-  Clock,
-  Download,
-  ExternalLink,
-  Info,
-  MonitorSmartphone,
-  Package,
-} from "lucide-react";
+import { VersionesOS } from "@/components/library/versiones-os";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Info, Download, Clock, CheckCircle2, Package, MonitorSmartphone, ExternalLink } from "lucide-react";
 
 const CANAL_LABEL: Record<typeof OS_CANAL, string> = {
   alpha: "Alpha",
@@ -66,7 +60,7 @@ function useMovimientoReducido(): boolean {
   return reducido;
 }
 
-export function FranjaDescargaOs({ onAbrirFicha }: { onAbrirFicha: () => void }) {
+export function FranjaDescargaOs({ onAbrirFicha }: { onAbrirFicha?: () => void }) {
   const reducido = useMovimientoReducido();
   // El mismo plan que ejecuta el botón: lo que aquí se anuncia es lo que se descargará.
   const { plan, release, cargando } = useInstalarOS();
@@ -201,22 +195,29 @@ export function FranjaDescargaOs({ onAbrirFicha }: { onAbrirFicha: () => void })
 
         {/* Acciones: ficha (botón grande), instalación PWA real y web oficial */}
         <div className="flex w-full shrink-0 flex-col gap-3 lg:w-80">
-          <Button
-            type="button"
-            size="lg"
-            onClick={onAbrirFicha}
-            title="Ficha completa del OS: versiones, notas y enlaces oficiales"
-            className={cn(
-              "h-14 w-full cursor-pointer gap-2 px-6 text-base font-bold",
-              "bg-emerald-400 text-emerald-950 shadow-lg shadow-emerald-500/30",
-              "hover:bg-emerald-300 focus-visible:ring-2 focus-visible:ring-emerald-200",
-              !reducido && "hover:-translate-y-0.5",
-            )}
-            style={{ transition: `transform ${transicion}, background-color ${transicion}` }}
-            data-testid="boton-informacion-versiones"
-          >
-            <Info className="h-5 w-5 shrink-0" /> Información y versiones
-          </Button>
+          <Dialog>
+    <DialogTrigger asChild>
+              <Button
+                type="button"
+                size="lg"
+                onClick={onAbrirFicha}
+                title="Ficha completa del OS: versiones, notas y enlaces oficiales"
+                className={cn(
+                  "h-14 w-full cursor-pointer gap-2 px-6 text-base font-bold",
+                  "bg-emerald-400 text-emerald-950 shadow-lg shadow-emerald-500/30",
+                  "hover:bg-emerald-300 focus-visible:ring-2 focus-visible:ring-emerald-200",
+                  !reducido && "hover:-translate-y-0.5",
+                )}
+                style={{ transition: `transform ${transicion}, background-color ${transicion}` }}
+                data-testid="boton-informacion-versiones"
+              >
+                <Info className="h-5 w-5 shrink-0" /> Información y versiones
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-3xl">
+              <VersionesOS />
+            </DialogContent>
+          </Dialog>
           <InstallButton className="w-full" />
           <a
             href={OS_WEB_URL}
