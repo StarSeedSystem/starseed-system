@@ -6,7 +6,7 @@
  * dependencia (`buscar`) para que sea testeable. Sin red, sin disco, sin procesos.
  */
 import { describe, expect, it, vi } from "vitest";
-import { recordarDeCapsulas, type RecordarOpciones, type BuscarCapsulaFn } from "@/ai/astraura/recuerdos-capsulas";
+import { recordarDeCapsulas, type RecordarOpciones, type AciertoCapsula, type BuscarCapsulaFn } from "@/ai/astraura/recuerdos-capsulas";
 import { type ContextoCapsulas, type SujetoMemoria, capsulaDe } from "@/lib/memorias/capsulas";
 import { type ActorMemoria, type AlcanceMemoria } from "@/lib/nucleo/alcance-memoria";
 
@@ -324,8 +324,8 @@ describe("recordarDeCapsulas", () => {
     });
   });
 
-  describe("detección de fuga (esModeloNube = true)", () => {
-    it("marca [FUGA DETECTADA] cuando hay coincidencia ≥ 40 chars con fragmento personal", async () => {
+  describe("detección de fuga y supresión de lo personal (esModeloNube = true)", () => {
+    it("devuelve «» cuando todo lo encontrado es personal y el modelo es de la nube", async () => {
       const textoSecreto = "La contraseña del servidor es supersecreta123 y no se la digas a nadie.";
       const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
       aciertos.set("personalidad-aurora", [
@@ -341,10 +341,33 @@ describe("recordarDeCapsulas", () => {
       };
       const r = await recordarDeCapsulas(opts);
 
-      expect(r).toContain("[FUGA DETECTADA]");
+      expect(r).toBe("");
     });
 
-    it("NO marca fuga cuando el modelo NO es de la nube", async () => {
+    it("con modelo de nube quita lo personal del bloque pero conserva lo público", async () => {
+      const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
+      aciertos.set("personalidad-aurora", [
+        { titulo: "Secreto", texto: "Clave: abc123", alcance: "personal" }, // < 40 chars: no fuga
+      ]);
+      aciertos.set("pagina-web", [
+        { titulo: "Público", texto: "Página pública del trimestre", alcance: "publica" },
+      ]);
+
+      const buscar = crearBuscarFake(aciertos);
+      const opts: RecordarOpciones = {
+        consulta: "clave",
+        contexto: contextoBase,
+        buscar,
+        esModeloNube: true,
+      };
+      const r = await recordarDeCapsulas(opts);
+
+      expect(r).toContain("Página pública del trimestre");
+      expect(r).not.toContain("Clave");
+      expect(r).not.toContain("[FUGA DETECTADA]"); // el prefijo viejo ya no existe
+    });
+
+    it("sin modelo de nube lo personal se conserva tal cual", async () => {
       const textoSecreto = "La contraseña del servidor es supersecreta123 y no se la digas a nadie.";
       const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
       aciertos.set("personalidad-aurora", [
@@ -360,10 +383,32 @@ describe("recordarDeCapsulas", () => {
       };
       const r = await recordarDeCapsulas(opts);
 
-      expect(r).not.toContain("[FUGA DETECTADA]");
+      expect(r).toContain("supersecreta123");
     });
 
-    it("NO marca fuga cuando no hay fragmentos de alcance 'personal' en los resultados", async () => {
+    it("vuelve «» si un fragmento público copia ≥ 40 caracteres de uno personal (fuga real)", async () => {
+      const secreto = "La contraseña del servidor es supersecreta123 y no se la digas a nadie.";
+      const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
+      aciertos.set("personalidad-aurora", [
+        { titulo: "Secreto", texto: secreto, alcance: "personal" },
+      ]);
+      aciertos.set("grupo-equipo", [
+        { titulo: "Pegado", texto: `Aviso general: ${secreto}`, alcance: "grupo" },
+      ]);
+
+      const buscar = crearBuscarFake(aciertos);
+      const opts: RecordarOpciones = {
+        consulta: "contraseña",
+        contexto: contextoBase,
+        buscar,
+        esModeloNube: true,
+      };
+      const r = await recordarDeCapsulas(opts);
+
+      expect(r).toBe("");
+    });
+
+    it("sin fragmentos personales no hay fuga posible aunque el modelo sea de la nube", async () => {
       const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
       aciertos.set("grupo-equipo", [
         { titulo: "Público", texto: "Reunión del equipo el martes a las 10.", alcance: "grupo" },
@@ -378,25 +423,7 @@ describe("recordarDeCapsulas", () => {
       };
       const r = await recordarDeCapsulas(opts);
 
-      expect(r).not.toContain("[FUGA DETECTADA]");
-    });
-
-    it("fuga detectada solo con coincidencia ≥ MINIMO_FUGA (40 chars)", async () => {
-      const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
-      aciertos.set("personalidad-aurora", [
-        { titulo: "Corto", texto: "Clave: abc123", alcance: "personal" }, // < 40 chars
-      ]);
-
-      const buscar = crearBuscarFake(aciertos);
-      const opts: RecordarOpciones = {
-        consulta: "clave",
-        contexto: contextoBase,
-        buscar,
-        esModeloNube: true,
-      };
-      const r = await recordarDeCapsulas(opts);
-
-      expect(r).not.toContain("[FUGA DETECTADA]");
+      expect(r).toContain("Reunión del equipo el martes a las 10.");
     });
   });
 
@@ -427,6 +454,21 @@ describe("recordarDeCapsulas", () => {
       };
       const r = await recordarDeCapsulas(opts);
       expect(r).toBe("");
+    });
+
+    it("se rinde tras el tope total ante un buscador que cuelga para siempre", async () => {
+      const buscar = vi.fn(() => new Promise<AciertoCapsula[] | null>(() => {}));
+      const comenzo = Date.now();
+      const opts: RecordarOpciones = {
+        consulta: "colgado",
+        contexto: contextoBase,
+        buscar,
+        timeoutMs: 40,
+      };
+      const r = await recordarDeCapsulas(opts);
+      expect(r).toBe("");
+      expect(Date.now() - comenzo).toBeLessThan(5000);
+      expect(buscar).toHaveBeenCalled();
     });
 
     it("usa timeoutMs personalizado (por defecto 800ms)", async () => {
