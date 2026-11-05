@@ -36,6 +36,9 @@ import { readNeuronVoiceChoice, neuronVoiceChoiceIsStale } from "@/lib/aurora/tt
 // (2026-09-29 · persistencia entre medios) El «visto/hecho/luego» va con la cuenta.
 import { avisoResuelto, estadoAviso, marcarAviso, olvidarAviso } from "@/lib/sync/avisos-cuenta";
 import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
+// (CTR1104Cc) Firma de novedades del explorador de modelos (llmfit)
+import { scoutSignature, hasNewScoutFindings, markScoutSeen } from "@/ai/astraura/model-scout";
+import { detectCapabilities, type NeuronCapabilities } from "@/lib/neurons/neurons";
 
 export const STARTUP_UPDATES_KEY = "starseed.astraura.startup.v1";
 export const STARTUP_UPDATES_EVENT = "starseed:astraura-startup";
@@ -268,13 +271,14 @@ const NEURON_PERSONA_STORAGE_KEY = "starseed.astraura.neuron-persona.v1";
  *   · primera configuración sin hacer, o algo que de verdad pide acción → ventana grande;
  *   · solo cambió el catálogo (modelos/fuentes nuevos) → aviso pequeño no bloqueante;
  *   · firma cambiada pero sin nada nuevo que contar → nada, y se sella (`sellar`).
+ *   · (CTR1104Cc) firma del explorador de modelos (llmfit) nueva → ventana grande con novedades.
  */
 export type DecisionArranque =
-  | { accion: "ventana"; motivo: "primera-vez" | "pendiente"; pendientes: PendingConfigItem[] }
+  | { accion: "ventana"; motivo: "primera-vez" | "pendiente" | "novedades"; pendientes?: PendingConfigItem[]; modelos?: number; fuentes?: number; firma?: string }
   | { accion: "aviso"; motivo: "novedades"; modelos: number; fuentes: number; firma: string }
   | { accion: "nada"; motivo: "pospuesto" | "al-dia"; sellar?: string };
 
-export function decidirArranque(now = Date.now()): DecisionArranque {
+export function decidirArranque(now = Date.now(), caps?: NeuronCapabilities): DecisionArranque {
   const st = getStartupState();
   if (st.snoozeUntil && st.snoozeUntil > now) return { accion: "nada", motivo: "pospuesto" };
   if (!st.firstRunDone) return { accion: "ventana", motivo: "primera-vez", pendientes: pendingConfiguration() };
@@ -288,6 +292,14 @@ export function decidirArranque(now = Date.now()): DecisionArranque {
     if (modelos + fuentes > 0) return { accion: "aviso", motivo: "novedades", modelos, fuentes, firma };
     return { accion: "nada", motivo: "al-dia", sellar: firma };
   }
+  // (CTR1104Cc) Comprobar firma del explorador de modelos (llmfit)
+  if (caps) {
+    const catalogLen = catalogIds().length;
+    const sigScout = scoutSignature(caps, catalogLen);
+    if (hasNewScoutFindings(sigScout)) {
+      return { accion: "ventana", motivo: "novedades", modelos: 0, fuentes: 0, firma: sigScout };
+    }
+  }
   return { accion: "nada", motivo: "al-dia" };
 }
 
@@ -295,8 +307,8 @@ export function decidirArranque(now = Date.now()): DecisionArranque {
  * ¿Debe mostrarse la VENTANA GRANDE ahora? (Compatibilidad: lo consulta, por ejemplo, la voz
  * para no abrirse encima.) Un cambio de catálogo ya NO la abre: eso es un aviso pequeño.
  */
-export function shouldShowUpdates(now = Date.now()): boolean {
-  try { return decidirArranque(now).accion === "ventana"; } catch { return false; }
+export function shouldShowUpdates(now = Date.now(), caps?: NeuronCapabilities): boolean {
+  try { return decidirArranque(now, caps).accion === "ventana"; } catch { return false; }
 }
 
 /**

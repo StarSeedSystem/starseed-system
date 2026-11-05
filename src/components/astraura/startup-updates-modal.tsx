@@ -53,9 +53,13 @@ import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { acentoDeIndice, clasesAcento } from "@/lib/ui/acentos";
 import { cn } from "@/lib/utils";
+import { detectCapabilities, type NeuronCapabilities } from "@/lib/neurons/neurons";
+import { markScoutSeen, scoutSignature } from "@/ai/astraura/model-scout";
+import { ALL_LLM_SPECS, ALL_VOICE_SPECS } from "@/ai/astraura/model-requirements";
 
 export function StartupUpdatesModal() {
   const [open, setOpen] = useState(false);
+  const [caps, setCaps] = useState<NeuronCapabilities | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // (Adenda 192) Cortesía con el rito/guía: manual = nunca replegar; espera viva.
   const manualRef = useRef(false);
@@ -70,6 +74,18 @@ export function StartupUpdatesModal() {
   // y una única vez en esta sesión.
   const etapaAtendidaRef = useRef<string | null>(null);
   useEffect(() => () => { esperaRef.current?.(); }, []); // solo al desmontar
+
+  // Detectar capacidades para la firma del scout (CTR1104Cc)
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const c = await detectCapabilities();
+        if (alive) setCaps(c);
+      } catch { /* noop */ }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   /**
    * (Ola 247 · 2026-09-05) Al CERRAR esta ventana avanza el rito hacia el
@@ -112,11 +128,11 @@ export function StartupUpdatesModal() {
     try {
       const st = getStartupState();
       const pospuesta = !!st.snoozeUntil && st.snoozeUntil > Date.now();
-      if (!pospuesta && decidirArranque().accion === "ventana") snoozeUpdates();
+      if (!pospuesta && decidirArranque(Date.now(), caps ?? undefined).accion === "ventana") snoozeUpdates();
     } catch { /* cerrar nunca falla */ }
     cerrarDefinitivo();
     lanzarGuiaPendiente();
-  }, [cerrarDefinitivo, lanzarGuiaPendiente]);
+  }, [caps, cerrarDefinitivo, lanzarGuiaPendiente]);
 
   // Foco inicial + trampa de Tab + Escape (patrón de la Adenda 137).
   useModalA11y({ open, onClose: remindLater, containerRef });
@@ -186,7 +202,13 @@ export function StartupUpdatesModal() {
       if (cerradaPorUsuarioRef.current) return;
       try {
         copiarEstadoLocalACuenta();
-        const d = decidirArranque();
+        const d = decidirArranque(Date.now(), caps ?? undefined);
+        // (CTR1104Cc) Si la ventana se abre por firma de scout nueva, marcarla como vista
+        if (d.accion === "ventana" && d.motivo === "novedades" && caps && "firma" in d && d.firma) {
+          const catalogLen = ALL_LLM_SPECS.length + ALL_VOICE_SPECS.length;
+          const sigScout = scoutSignature(caps, catalogLen);
+          if (sigScout === d.firma) markScoutSeen(sigScout);
+        }
         if (d.accion === "ventana") abrirConCortesia();
         else if (d.accion === "aviso") mostrarAvisoNovedades(d);
         else if (d.sellar) sellarCatalogoVisto(d.sellar);
@@ -196,7 +218,7 @@ export function StartupUpdatesModal() {
     const tocaVentana = () => {
       try {
         copiarEstadoLocalACuenta();
-        return decidirArranque().accion === "ventana";
+        return decidirArranque(Date.now(), caps ?? undefined).accion === "ventana";
       } catch { return false; }
     };
     // (Ola 247 · 2026-09-05) Relevo directo del rito: si la máquina de estados
