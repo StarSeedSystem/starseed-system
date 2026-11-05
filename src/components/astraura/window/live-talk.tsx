@@ -26,8 +26,14 @@ import { ASTRAURA_158_CLOUD_SOURCE_ID, ASTRAURA_158_LOCAL_SOURCE_ID } from "@/ai
 import { ASTRAURA_158_MODEL_PREFIX, ASTRAURA_158_PERSONAS, persona158For } from "@/ai/providers/astraura-158";
 import type { Astraura158Target } from "@/lib/astraura/astraura-158-client";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
-import { RespuestaViva } from "@/components/openui/respuesta-viva";
+import { MensajeAsistente } from "@/components/openui/mensaje-asistente";
 import { debeUsarInterfazViva } from "@/lib/astraura/ajustes-respuesta";
+"use client";
+import type { AjustesPerfilRespuesta } from "@/lib/astraura/ajustes-respuesta";
+import type { ActionEvent } from "@openuidev/react-lang";
+import type { MensajeAsistente } from "@/components/openui/mensaje-asistente";
+import type { RespuestaViva } from "@/components/openui/respuesta-viva";
+import type { debeUsarInterfazViva } from "@/lib/astraura/ajustes-respuesta";
 import { BTN, BTN_PRIMARY, Empty, INPUT, LABEL, MONO } from "@/components/astraura/s158/shared";
 import type { Astraura158EntityKind } from "./astraura-158-window-bus";
 
@@ -222,7 +228,6 @@ export function LiveTalk({ kind, id, name, personaId, contextLines, target, clas
   texto={t.text}
   enCurso={false}
   ajustesPerfil={ajustesPerfil}
-  onAccion={onAccion}
 />
             {t.notice && (
               <p className="mt-1.5 flex items-start gap-1 border-t border-amber-400/20 pt-1.5 text-[10px] leading-snug text-amber-200/85">

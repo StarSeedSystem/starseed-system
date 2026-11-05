@@ -2,6 +2,8 @@
 
 import { RespuestaViva } from "./respuesta-viva";
 import { debeUsarInterfazViva } from "@/lib/astraura/ajustes-respuesta";
+import type { AjustesPerfilRespuesta } from "@/lib/astraura/ajustes-respuesta";
+import type { ActionEvent } from "@openuidev/react-lang";
 
 interface MensajeAsistenteProps {
   texto: string;
