@@ -290,5 +290,26 @@ class EnLaMacTest(unittest.TestCase):
                     else:
                         self.assertEqual((a1, gh), (None, None))
 
+class RecargaModuloTest(unittest.TestCase):
+    """(SUP0211V) _comprobar_en_github y _comprobar_en_a1 deben recargar módulos cuando cambian en main."""
+
+    def test_hay_que_recargar_falso_si_ambos_none(self):
+        self.assertIs(enjambre.hay_que_recargar(None, None), False)
+
+    def test_hay_que_recargar_falso_si_mtime_es_mismo(self):
+        mtime = 1234567890.0
+        self.assertIs(enjambre.hay_que_recargar(mtime, mtime), False)
+
+    def test_hay_que_recargar_true_si_mtime_cambio(self):
+        visto = 1234567890.0
+        ahora = 1234567891.0
+        self.assertIs(enjambre.hay_que_recargar(visto, ahora), True)
+
+    def test_hay_que_recargar_false_si_mtime_viejo(self):
+        visto = 1234567891.0
+        ahora = 1234567890.0
+        self.assertIs(enjambre.hay_que_recargar(visto, ahora), False)
+
+
 if __name__ == "__main__":
     unittest.main()
