@@ -75,7 +75,8 @@ export type ClaveMedidor =
     // (2026-10-24, Ola 1024I · IMG1024B) Alex: «en el pulso de MetaGenesis y de los demás Genesis
     // añade un medidor de lo que sale de los procesos imaginativos… con botones para integrar o
     // reimaginar». Sustituye a IMN1021H/J (architecture/imaginacion-autodesarrollo.md §6).
-    | "imaginacion";
+    | "imaginacion"
+    | "versiones";
 
 export type ClaseAccion =
     | "descartar"

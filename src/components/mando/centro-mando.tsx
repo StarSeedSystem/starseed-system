@@ -23,6 +23,7 @@ import { BrainCircuit, CircleDashed, CircleDollarSign, Clock3, Copy, ExternalLin
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MenuListaMovil } from "@/components/ui/menu-lista-movil";
 import type { EstadoMando, ProveedorUso } from "@/lib/mando/tipos";
+import type { LanzamientoEstado } from "@/lib/mando/lanzamientos-tipos";
 import { flotaConocida } from "@/lib/mando/flota";
 import "@/components/mando/mando-cristal.css";
 // (2026-10-29 · UIG1029D) Ventanas plegables: cada panel de cada pestaña se pliega
@@ -281,8 +282,9 @@ const LUGAR_EN_PULSO: Record<string, [GrupoPulso, number]> = {
     imaginacion: ["trabajo", 7],
     integradas: ["entrega", 0],
     "sin-publicar": ["entrega", 1],
-    "Tu visto bueno": ["entrega", 2],
-    "Te toca a ti": ["entrega", 3],
+    versiones: ["entrega", 2],
+    "Tu visto bueno": ["entrega", 3],
+    "Te toca a ti": ["entrega", 4],
     proveedores: ["modelos", 0],
     tokens: ["modelos", 1],
     Jev: ["modelos", 2],
@@ -955,6 +957,7 @@ export function CentroMando() {
     const [actualizandoCreditos, setActualizandoCreditos] = useState(false);
     // Panel "Te toca a ti" (AX1): separado de los medidores estándar.
     const [accionesAlexAbierto, setAccionesAlexAbierto] = useState(false);
+    const [lanzamientoEstado, setLanzamientoEstado] = useState<LanzamientoEstado | null>(null);
 
     // Un solo origen de verdad para los medidores "listas" y "bloqueadas" (Ola 337 · MND2).
     // POR QUÉ: La cifra de la pastilla y el detalle al abrirla DEBEN salir del mismo sitio
@@ -1309,6 +1312,37 @@ export function CentroMando() {
             document.removeEventListener("visibilitychange", alVolver);
         };
     }, [cargarMedidoresResumen]);
+
+    useEffect(() => {
+        let vivo = true;
+        const cargarLanzamiento = async () => {
+            if (!vivo) return;
+            if (document.visibilityState === "hidden") return;
+            try {
+                const r = await fetch("/api/mando/lanzamientos", { cache: "no-store" });
+                if (!r.ok) {
+                    setLanzamientoEstado(null);
+                    return;
+                }
+                const cuerpo = await r.json();
+                const estado = (cuerpo.estado ?? cuerpo) as LanzamientoEstado;
+                if (vivo) setLanzamientoEstado(estado);
+            } catch {
+                if (vivo) setLanzamientoEstado(null);
+            }
+        };
+        void cargarLanzamiento();
+        const cada = window.setInterval(() => void cargarLanzamiento(), 20_000);
+        const alVolver = () => {
+            if (document.visibilityState === "visible") void cargarLanzamiento();
+        };
+        document.addEventListener("visibilitychange", alVolver);
+        return () => {
+            vivo = false;
+            window.clearInterval(cada);
+            document.removeEventListener("visibilitychange", alVolver);
+        };
+    }, []);
 
     const alCambiarPestana = useCallback((id: string) => {
         const segura = (PESTANAS.some((p) => p.id === id) ? id : "procesos") as IdPestana;
@@ -2127,11 +2161,28 @@ export function CentroMando() {
                                       ? "la última publicación falló · ábrelo para ver por qué"
                                       : sinPublicar
                                       ? `OS ${sinPublicar.os} · Astraura ${sinPublicar.astraura}`
-                                      : "solo OS",
-                                cargando: Boolean(publicando),
-                            },
-                            {
-                                clave: "proveedores" as const,
+                                       : "solo OS",
+                                 cargando: Boolean(publicando),
+                             },
+                             {
+                                 clave: "versiones" as const,
+                                 titulo: "Versiones",
+                                 valor: lanzamientoEstado?.version
+                                     ? lanzamientoEstado.version
+                                     : lanzamientoEstado
+                                       ? "v… en curso"
+                                       : "—",
+                                  tono: (lanzamientoEstado?.tono === "peligro"
+                                      ? "peligro"
+                                      : lanzamientoEstado?.tono === "aviso"
+                                        ? "aviso"
+                                        : lanzamientoEstado?.tono === "ok"
+                                          ? "ok"
+                                          : "normal") as TonoMedidor,
+                                 detalle: lanzamientoEstado?.detalle ?? "leyendo estado del lanzamiento…",
+                             },
+                             {
+                                 clave: "proveedores" as const,
                                 // (2026-10-09) «Proveedores agotados 10» contaba lo que NO hay. Lo que
                                 // decide si el enjambre escribe es cuántos modelos tienen cupo.
                                 titulo: "Modelos con cupo",
