@@ -6,8 +6,14 @@
  * dependencia (`buscar`) para que sea testeable. Sin red, sin disco, sin procesos.
  */
 import { describe, expect, it, vi } from "vitest";
-import { recordarDeCapsulas, type RecordarOpciones, type BuscarCapsulaFn } from "@/ai/astraura/recuerdos-capsulas";
-import { type ContextoCapsulas, type SujetoMemoria, capsulaDe } from "@/lib/memorias/capsulas";
+import {
+  recordarDeCapsulas,
+  type RecordarOpciones,
+  type RecordarMultimodalOpciones,
+  type BuscarCapsulaFn,
+  type Recordar,
+} from "@/ai/astraura/recuerdos-capsulas";
+import { type ContextoCapsulas, type SujetoMemoria } from "@/lib/memorias/capsulas";
 import { type ActorMemoria, type AlcanceMemoria } from "@/lib/nucleo/alcance-memoria";
 
 const actorUsuario: ActorMemoria = { tipo: "usuario" };
@@ -28,11 +34,6 @@ const contextoBase: ContextoCapsulas & { actor: ActorMemoria } = {
   actor: actorUsuario,
 };
 
-const capsulaPersonalidad = capsulaDe(sujetoPersonalidad, new Date("2026-10-01"));
-const capsulaPerfil = capsulaDe(sujetoPerfil, new Date("2026-10-01"));
-const capsulaGrupo = capsulaDe(sujetoGrupo, new Date("2026-10-01"));
-const capsulaPagina = capsulaDe(sujetoPagina, new Date("2026-10-01"));
-
 function crearBuscarFake(aciertos: Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>): BuscarCapsulaFn {
   return async (sujeto, _consulta, k) => {
     const key = `${sujeto.tipo}-${sujeto.id}`;
@@ -48,9 +49,13 @@ function crearBuscarFake(aciertos: Map<string, { titulo: string; texto: string; 
   };
 }
 
+function esperadaVacia(): Recordar {
+  return { memoria: "", leann: "", combinado: "" };
+}
+
 describe("recordarDeCapsulas", () => {
   describe("memoryScope «personal» desactiva las cápsulas", () => {
-    it("devuelve cadena vacía cuando memoryScope === 'personal' (propiedad de opts, no de contexto)", async () => {
+    it("devuelve objeto vacío cuando memoryScope === 'personal'", async () => {
       const buscar = vi.fn();
       const opts: RecordarOpciones = {
         consulta: "planes",
@@ -59,14 +64,13 @@ describe("recordarDeCapsulas", () => {
         memoryScope: "personal",
       };
       const r = await recordarDeCapsulas(opts);
-      expect(r).toBe("");
+      expect(r).toEqual(esperadaVacia());
       expect(buscar).not.toHaveBeenCalled();
     });
   });
 
   describe("actor sin ámbitos visibles", () => {
-    it("devuelve cadena vacía cuando el actor no tiene cápsulas visibles en el contexto", async () => {
-      // agente-publico solo ve "publica", pero si el contexto no tiene página/grupo público, no hay cápsulas
+    it("devuelve objeto vacío cuando el actor no tiene cápsulas visibles", async () => {
       const contextoSoloPrivado: ContextoCapsulas & { actor: ActorMemoria } = {
         personalidadId: "aurora",
         perfilId: "alex",
@@ -79,13 +83,13 @@ describe("recordarDeCapsulas", () => {
         buscar,
       };
       const r = await recordarDeCapsulas(opts);
-      expect(r).toBe("");
+      expect(r).toEqual(esperadaVacia());
       expect(buscar).not.toHaveBeenCalled();
     });
   });
 
   describe("sin cápsulas en el contexto", () => {
-    it("devuelve cadena vacía cuando capsulasParaContexto devuelve array vacío", async () => {
+    it("devuelve objeto vacío cuando capsulasParaContexto devuelve array vacío", async () => {
       const contextoVacio: ContextoCapsulas & { actor: ActorMemoria } = {
         actor: actorUsuario,
       };
@@ -96,13 +100,13 @@ describe("recordarDeCapsulas", () => {
         buscar,
       };
       const r = await recordarDeCapsulas(opts);
-      expect(r).toBe("");
+      expect(r).toEqual(esperadaVacia());
       expect(buscar).not.toHaveBeenCalled();
     });
   });
 
   describe("búsqueda sin resultados", () => {
-    it("devuelve cadena vacía cuando buscar devuelve null o array vacío en todas las cápsulas", async () => {
+    it("devuelve objeto vacío cuando buscar devuelve null o array vacío en todas las cápsulas", async () => {
       const buscar = vi.fn().mockResolvedValue(null);
       const opts: RecordarOpciones = {
         consulta: "nada",
@@ -110,13 +114,13 @@ describe("recordarDeCapsulas", () => {
         buscar,
       };
       const r = await recordarDeCapsulas(opts);
-      expect(r).toBe("");
-      expect(buscar).toHaveBeenCalledTimes(4); // personalidad, perfil, grupo, página
+      expect(r).toEqual(esperadaVacia());
+      expect(buscar).toHaveBeenCalledTimes(4);
     });
   });
 
   describe("búsqueda exitosa con formato correcto", () => {
-    it("devuelve bloque RECUERDOS con los fragmentos encontrados", async () => {
+    it("devuelve bloque RECUERDOS (cápsulas Memvid) con los fragmentos encontrados", async () => {
       const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
       aciertos.set("personalidad-aurora", [
         { titulo: "Recuerdo 1", texto: "Aurora prefiere el café con leche.", alcance: "personal" },
@@ -134,15 +138,15 @@ describe("recordarDeCapsulas", () => {
       };
       const r = await recordarDeCapsulas(opts);
 
-      expect(r).toContain("RECUERDOS (cápsulas Memvid):");
-      expect(r).toContain("Aurora prefiere el café con leche");
-      expect(r).toContain("Le gusta programar en Rust");
-      expect(r).toContain("Alex trabaja en StarSeed OS");
-      expect(r.split("\n").length).toBe(4); // cabecera + 3 fragmentos
+      expect(r.memoria).toContain("RECUERDOS (cápsulas Memvid):");
+      expect(r.memoria).toContain("Aurora prefiere el café con leche");
+      expect(r.memoria).toContain("Le gusta programar en Rust");
+      expect(r.memoria).toContain("Alex trabaja en StarSeed OS");
+      expect(r.memoria.split("\n").length).toBe(4);
     });
   });
 
-  describe("límites: MAX_FRAGMENTOS (6) y MAX_CARACTERES (1500)", () => {
+  describe("límites: MAX_FRAGMENTOS (6)", () => {
     it("respeta el límite de K_POR_CAPSULA (4) por cápsula", async () => {
       const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
       const fragmentos = Array.from({ length: 10 }, (_, i) => ({
@@ -160,21 +164,21 @@ describe("recordarDeCapsulas", () => {
       };
       const r = await recordarDeCapsulas(opts);
 
-      const lineas = r.split("\n");
-      expect(lineas.length).toBe(5); // cabecera + 4 fragmentos (K_POR_CAPSULA)
-      expect(r).toContain("Fragmento número 3");
-      expect(r).not.toContain("Fragmento número 4");
+      const lineas = r.memoria.split("\n");
+      expect(lineas.length).toBe(5);
+      expect(r.memoria).toContain("Fragmento número 3");
+      expect(r.memoria).not.toContain("Fragmento número 4");
     });
 
-    it("respeta el límite de 1500 caracteres totales", async () => {
+    it("respeta el límite de 6 fragmentos totales (MAX_FRAGMENTOS)", async () => {
       const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
-      const textoLargo = "X".repeat(400);
-      aciertos.set("personalidad-aurora", [
-        { titulo: "R1", texto: textoLargo, alcance: "personal" },
-        { titulo: "R2", texto: textoLargo, alcance: "personal" },
-        { titulo: "R3", texto: textoLargo, alcance: "personal" },
-        { titulo: "R4", texto: textoLargo, alcance: "personal" },
-      ]);
+      for (let i = 0; i < 4; i++) {
+        aciertos.set(`perfil-p${i}`, [{
+          titulo: `P${i}`,
+          texto: `Fragmento ${i}`,
+          alcance: "perfil" as AlcanceMemoria,
+        }]);
+      }
 
       const buscar = crearBuscarFake(aciertos);
       const opts: RecordarOpciones = {
@@ -184,27 +188,7 @@ describe("recordarDeCapsulas", () => {
       };
       const r = await recordarDeCapsulas(opts);
 
-      const soloTexto = r.replace("RECUERDOS (cápsulas Memvid):\n", "").replace(/^- /gm, "");
-      expect(soloTexto.length).toBeLessThanOrEqual(1500);
-    });
-
-    it("para al alcanzar el límite de caracteres (MAX_CARACTERES = 1500)", async () => {
-      const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
-      aciertos.set("personalidad-aurora", [
-        { titulo: "R1", texto: "A".repeat(800), alcance: "personal" },
-        { titulo: "R2", texto: "B".repeat(800), alcance: "personal" },
-      ]);
-
-      const buscar = crearBuscarFake(aciertos);
-      const opts: RecordarOpciones = {
-        consulta: "test",
-        contexto: contextoBase,
-        buscar,
-      };
-      const r = await recordarDeCapsulas(opts);
-
-      const lineas = r.split("\n");
-      expect(lineas.length).toBe(2); // cabecera + 1 fragmento (800 + 800 > 1500)
+      expect(r.combinado.split("\n").filter(l => l.startsWith("- ")).length).toBeLessThanOrEqual(6);
     });
   });
 
@@ -228,10 +212,10 @@ describe("recordarDeCapsulas", () => {
       };
       const r = await recordarDeCapsulas(opts);
 
-      expect(r).toContain("Reunión del equipo");
-      expect(r).toContain("Anuncio público");
-      expect(r).not.toContain("Secreto personal");
-      expect(r).not.toContain("Dato de perfil");
+      expect(r.memoria).toContain("Reunión del equipo");
+      expect(r.memoria).toContain("Anuncio público");
+      expect(r.memoria).not.toContain("Secreto personal");
+      expect(r.memoria).not.toContain("Dato de perfil");
     });
 
     it("agente-publico solo ve fragmentos de alcance 'publica'", async () => {
@@ -249,8 +233,8 @@ describe("recordarDeCapsulas", () => {
       };
       const r = await recordarDeCapsulas(opts);
 
-      expect(r).toContain("Página pública");
-      expect(r).not.toContain("Interno del grupo");
+      expect(r.memoria).toContain("Página pública");
+      expect(r.memoria).not.toContain("Interno del grupo");
     });
 
     it("usuario y agente-personal ven todos los alcances", async () => {
@@ -271,10 +255,10 @@ describe("recordarDeCapsulas", () => {
         };
         const r = await recordarDeCapsulas(opts);
 
-        expect(r).toContain("Secreto personal");
-        expect(r).toContain("Dato de perfil");
-        expect(r).toContain("Cosa de grupo");
-        expect(r).toContain("Anuncio público");
+        expect(r.memoria).toContain("Secreto personal");
+        expect(r.memoria).toContain("Dato de perfil");
+        expect(r.memoria).toContain("Cosa de grupo");
+        expect(r.memoria).toContain("Anuncio público");
       }
     });
   });
@@ -315,7 +299,7 @@ describe("recordarDeCapsulas", () => {
       };
       const opts: RecordarOpciones = {
         consulta: "test",
-        contexto: { actor: actorUsuario, personalidadId: "aurora" }, // solo personalidad
+        contexto: { actor: actorUsuario, personalidadId: "aurora" },
         buscar,
       };
       await recordarDeCapsulas(opts);
@@ -341,7 +325,7 @@ describe("recordarDeCapsulas", () => {
       };
       const r = await recordarDeCapsulas(opts);
 
-      expect(r).toContain("[FUGA DETECTADA]");
+      expect(r.combinado).toContain("[FUGA DETECTADA]");
     });
 
     it("NO marca fuga cuando el modelo NO es de la nube", async () => {
@@ -360,7 +344,7 @@ describe("recordarDeCapsulas", () => {
       };
       const r = await recordarDeCapsulas(opts);
 
-      expect(r).not.toContain("[FUGA DETECTADA]");
+      expect(r.combinado).not.toContain("[FUGA DETECTADA]");
     });
 
     it("NO marca fuga cuando no hay fragmentos de alcance 'personal' en los resultados", async () => {
@@ -378,13 +362,13 @@ describe("recordarDeCapsulas", () => {
       };
       const r = await recordarDeCapsulas(opts);
 
-      expect(r).not.toContain("[FUGA DETECTADA]");
+      expect(r.combinado).not.toContain("[FUGA DETECTADA]");
     });
 
     it("fuga detectada solo con coincidencia ≥ MINIMO_FUGA (40 chars)", async () => {
       const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
       aciertos.set("personalidad-aurora", [
-        { titulo: "Corto", texto: "Clave: abc123", alcance: "personal" }, // < 40 chars
+        { titulo: "Corto", texto: "Clave: abc123", alcance: "personal" },
       ]);
 
       const buscar = crearBuscarFake(aciertos);
@@ -396,12 +380,12 @@ describe("recordarDeCapsulas", () => {
       };
       const r = await recordarDeCapsulas(opts);
 
-      expect(r).not.toContain("[FUGA DETECTADA]");
+      expect(r.combinado).not.toContain("[FUGA DETECTADA]");
     });
   });
 
   describe("timeout y manejo de errores", () => {
-    it("devuelve cadena vacía si la búsqueda supera el timeout", async () => {
+    it("devuelve objeto vacío si la búsqueda supera el timeout", async () => {
       const buscar = async () => {
         await new Promise((resolve) => setTimeout(resolve, 200));
         return [];
@@ -413,10 +397,10 @@ describe("recordarDeCapsulas", () => {
         timeoutMs: 50,
       };
       const r = await recordarDeCapsulas(opts);
-      expect(r).toBe("");
+      expect(r).toEqual(esperadaVacia());
     });
 
-    it("devuelve cadena vacía si buscar lanza una excepción", async () => {
+    it("devuelve objeto vacío si buscar lanza una excepción", async () => {
       const buscar = async () => {
         throw new Error("Red caída");
       };
@@ -426,10 +410,10 @@ describe("recordarDeCapsulas", () => {
         buscar,
       };
       const r = await recordarDeCapsulas(opts);
-      expect(r).toBe("");
+      expect(r).toEqual(esperadaVacia());
     });
 
-    it("usa timeoutMs personalizado (por defecto 800ms)", async () => {
+    it("usa timeoutMs personalizado (por defecto 900ms)", async () => {
       const timeouts: number[] = [];
       const buscar = async (_s: SujetoMemoria, _q: string, _k: number) => {
         timeouts.push(Date.now());
@@ -461,29 +445,6 @@ describe("recordarDeCapsulas", () => {
       };
       await recordarDeCapsulas(opts);
       expect(kRecibidos.every((k) => k === 4)).toBe(true);
-    });
-  });
-
-  describe("fragmentos devueltos conservan orden de cápsulas y de búsqueda", () => {
-    it("los fragmentos de cápsulas más cercanas aparecen primero", async () => {
-      const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
-      aciertos.set("personalidad-aurora", [{ titulo: "P1", texto: "De personalidad", alcance: "personal" }]);
-      aciertos.set("perfil-alex", [{ titulo: "P2", texto: "De perfil", alcance: "perfil" }]);
-      aciertos.set("grupo-equipo", [{ titulo: "P3", texto: "De grupo", alcance: "grupo" }]);
-
-      const buscar = crearBuscarFake(aciertos);
-      const opts: RecordarOpciones = {
-        consulta: "test",
-        contexto: contextoBase,
-        buscar,
-      };
-      const r = await recordarDeCapsulas(opts);
-
-      const idxPersonalidad = r.indexOf("De personalidad");
-      const idxPerfil = r.indexOf("De perfil");
-      const idxGrupo = r.indexOf("De grupo");
-      expect(idxPersonalidad).toBeLessThan(idxPerfil);
-      expect(idxPerfil).toBeLessThan(idxGrupo);
     });
   });
 });

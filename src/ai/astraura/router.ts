@@ -1548,13 +1548,15 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
             return [];
           }
         };
-        memvidRecuerdos = await recordarDeCapsulas({
-          contexto: { ...contextoCapsulas, actor },
+        const resultado = await recordarDeCapsulas({
           consulta: userConsulta,
+          contexto: { ...contextoCapsulas, actor },
           buscar: buscarCapsula,
+          esModeloNube: false,
           memoryScope: cc?.memoryScope,
           timeoutMs: 800,
-        }).catch(() => "");
+        }).catch(() => ({ memoria: "", leann: "", combinado: "" }));
+        memvidRecuerdos = resultado.combinado;
       }
     }
   } catch { /* defensivo: sin recuerdos, Aurora sigue igual */ }
