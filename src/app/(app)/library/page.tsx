@@ -110,6 +110,7 @@ import { LibraryUpdatesPanel } from "@/components/library/library-updates-panel"
 import { AppFilePage, type LibraryDetailItem } from "@/components/library/app-file-page";
 import { LibraryCatalog, starseedAppToDetail } from "@/components/library/library-catalog";
 import { FranjaDescargaOs } from "@/components/library/franja-descarga-os";
+import { VersionesOs } from "@/components/library/versiones-os";
 import { InstalledServicesPanel } from "@/components/library/installed-services-panel";
 // ── Tienda viva de paquetes (estilo Cydia) — motor en lib/library/packages ──
 import { PackageStore, type StoreSection } from "@/components/library/package-store";
@@ -1601,10 +1602,12 @@ function LibraryContent() {
   // Ficha detallada (App Store / Play Store) — modal.
   const [detailItem, setDetailItem] = useState<LibraryDetailItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [showVersionesOs, setShowVersionesOs] = useState(false);
 
   const openDetail = (item: LibraryDetailItem) => {
     setDetailItem(item);
     setDetailOpen(true);
+    setShowVersionesOs(item.id === "starseed-os");
   };
 
   // Reacciona a cambios de query (?view / ?tab / ?area) sin recargar.
@@ -1864,6 +1867,7 @@ function LibraryContent() {
 
       {/* Ficha detallada tipo App Store / Play Store (visible en ambas áreas) */}
       <AppFilePage item={detailItem} open={detailOpen} onOpenChange={setDetailOpen} />
+      {showVersionesOs && detailOpen && <VersionesOs />}
     </div>
   );
 }
