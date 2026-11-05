@@ -139,3 +139,7 @@ servicios/*/node_modules/
 
 # (2026-11-02, SUP0211K) Caché de la CLI de Supabase (la última versión vista): ensuciaba main.
 supabase/.temp/cli-latest
+
+# (1105 · JS) Nunca JS compilado junto al TypeScript de src/: Vite resuelve `.js` antes que `.ts` y la copia
+# compilada (CommonJS, con require de alias `@/`) tumba todas las suites que importan ese módulo.
+src/**/*.js
