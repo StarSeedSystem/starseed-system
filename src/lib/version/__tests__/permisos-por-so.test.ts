@@ -49,7 +49,7 @@ describe("permisos-por-so: validez del JSON", () => {
       const config = permisosDe(so) as ConfigSO;
       expect(config.noPermiteSistema).toBeDefined();
       expect(Array.isArray(config.noPermiteSistema)).toBe(true);
-      expect(config.noPermiteSistema.length).toBeGreaterThan(0);
+      expect(config.noPermiteSistema!.length).toBeGreaterThan(0);
     }
   });
 
