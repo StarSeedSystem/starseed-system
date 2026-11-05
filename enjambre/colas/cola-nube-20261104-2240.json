@@ -1,0 +1,30 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261104-193945-LNN1028F",
+   "id": "LNN1028Fb-d2",
+   "titulo": "Astraura · «recordar» funde Memvid y LEANN (y pregunta antes si hace falta) (parte 2 de 2)",
+   "archivos": [
+    "src/ai/astraura/__tests__/recordar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nEn `recuerdos-capsulas.ts` (de MVD1027F) añade `recordar(contexto, consulta)` y deja `recordarDeCapsulas` como alias: por cada cápsula de `capsulasParaContexto`, A LA VEZ `buscar` de Memvid y `buscarLeann` (filtros `{alcance: {in: alcanceVisiblePara(actor)}}`, `pesoVector = pesoVectorPara(consulta)`), luego `fundirRecuerdos`, `filtrarParaAlcance` y, si el modelo es de la nube, `detectarFuga`. Si la consulta es de menos de 4 palabras y sin pregunta, no busca (barato). Tope total 900 ms; lo que llegue tarde no entra. Pruebas: los dos responden, solo uno, ninguno.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261104-193945-LNN1028F`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261104-193945-LNN1028F:refs/remotes/origin/nube/a1-20261104-193945-LNN1028F\"` y `git cherry-pick --no-commit d0a2fd7f80df 8230fcc92004`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/recuerdos-capsulas.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió LNN1028Fb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/ai/astraura/__tests__/recordar.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "LNN1028Fb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "revisor_quitadas": [
+    "LNN1028Fb-d1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-183516.json": [
+   "LNN1028Fb-d2"
+  ]
+ }
+}
