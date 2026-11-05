@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-    serializarBloque, leerBloque, avisosDePublicacion, esMoleculaValidaNucleo, MAX_BLOQUE_BYTES,
+    serializarBloque, leerBloque, avisosDePublicacion, esMoleculaValidaNucleo, MAX_BLOQUE_BYTES, CAPA_RESPUESTA_VIVA,
 } from "../bloque-protomolecula";
 import { isRichBlock, parseBlocks, serializeBlock } from "@/lib/creation/post-blocks";
 import type { Ambito, Capa, Molecula } from "../tipos";
