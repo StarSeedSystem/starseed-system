@@ -106,6 +106,10 @@ jobs:
           # el run que la validó. Para darla de baja ante una release rota, basta
           # volver al número anterior.
           npm install -g opencode-ai@1.18.33 --no-audit --no-fund --loglevel=error
+          # (1104 · AJ) La puerta de Python del enjambre necesita pytest y la imagen no lo trae:
+          # las tareas de Python volvían con «sin pytest instalado» (RPO1104D, 04-11). Versión fija.
+          python3 -m pip install --quiet --user --break-system-packages pytest==8.3.5 \
+            || python3 -m pip install --quiet --user pytest==8.3.5
           # El contexto `runner` no existe en el `env:` de un job (GitHub tumba el archivo
           # entero al validarlo: run 35547727552, 0 s, 0 jobs). $RUNNER_TEMP sí existe aquí.
           export STARSEED_WT="$RUNNER_TEMP/starseed-wt"
