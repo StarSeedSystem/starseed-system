@@ -1,0 +1,38 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "id": "VOZ1105E",
+   "ola": "1105W · Voz estable",
+   "titulo": "Ajustes de voz · interruptor «Oído en la nube» y qué oído y qué voz suenan ahora",
+   "archivos": [
+    "src/components/settings/aurora/voice-oss-panel.tsx",
+    "src/components/settings/aurora/__tests__/oido-nube-ajuste.test.tsx"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2 y §3. En el panel de voz que ya existe, añade el interruptor «Oído en la nube (Groq Whisper o Gemini)» que guarda `localStorage[\"starseed.oido.nube\"]` (\"0\" apagado; por defecto encendido) con una línea honesta: el audio de cada tramo se manda a transcribir y no se guarda. Y una línea de estado: qué oído usa este dispositivo y qué voz habló la última vez (busca `recordarMotorQueSono` y `medidas-voz.ts`). Prueba de render y del interruptor."
+  },
+  {
+   "id": "RPO1104L",
+   "ola": "1104R · Repos nativos",
+   "titulo": "OpenUI · widget «Respuesta viva» para escritorios y páginas de publicación",
+   "archivos": [
+    "src/components/openui/widget-respuesta-viva.tsx",
+    "src/components/openui/__tests__/widget-respuesta-viva.test.tsx"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\nSi `@openuidev/react-lang` no está en `package.json`, responde BLOQUEADA: «falta 1104 · AG» y no toques nada. Lee antes el README y los `.d.ts` de `node_modules/@openuidev/react-lang` (y de `@openuidev/lang-core`): usa su API real, no la inventes. §3. Un widget que pinta un contenido OpenUI Lang guardado con `RespuestaViva`, registrado en el registro de widgets que ya existe (búscalo: grep `registerWidget\\|WIDGETS` en `src/lib/widgets` y `src/components/widgets-libres`); el registro cuenta como 3.er archivo. Prueba de render con un contenido de ejemplo.",
+   "dependencias_ya_en_main": [
+    "RPO1104H"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1105-025623.json": [
+   "VOZ1105E",
+   "RPO1104L"
+  ]
+ }
+}
