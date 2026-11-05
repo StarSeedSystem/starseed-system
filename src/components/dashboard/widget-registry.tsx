@@ -98,6 +98,8 @@ import {
     RegenTracerWidget,
 } from "@/components/dashboard/widgets/gen3";
 
+import { WidgetRespuestaViva } from "@/components/openui/widget-respuesta-viva";
+
 // Cuarta generación — cobertura final del catálogo
 import {
     ElderCouncilWidget,
@@ -619,6 +621,10 @@ function cuerpoClasico(
         // ── Referencias e inspiración (ola 1018R): widget «Inspiración» ──
         case TIPO_INSPIRACION:
             return <WidgetInspiracionConectado widget={widget} />;
+
+        // ── OpenUI (Respuesta viva) ──
+        case "RESPUESTA_VIVA":
+            return <WidgetRespuestaViva widget={widget} onUpdateSettings={onUpdateSettings} />;
 
         default:
             return (

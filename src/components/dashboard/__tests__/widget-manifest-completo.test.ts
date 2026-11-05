@@ -55,12 +55,16 @@ const TODOS_LOS_TIPOS: WidgetType[] = [
     "MY_EVENTS", "MY_GROUPS", "COMMUNITIES", "FEDERATED_ENTITIES",
     "MEMORIES", "BRAINS", "VAULTS", "DOCUMENTS", "RECENT_GALLERY",
     "CAMERA_QUICK", "AI_GENERATED",
-    // ── Sexta oleada ──
-    "CLOCK_DATE", "TASKS_QUICK", "QUICK_NOTES", "AURORA_LAST", "BADGES",
-    "NETWORK_FEED_MINI",
-    // ── Protomolécula (ola 1010P) ──
-    "PROTOMOLECULA",
-];
+// ── Sexta oleada ──
+     "CLOCK_DATE", "TASKS_QUICK", "QUICK_NOTES", "AURORA_LAST", "BADGES",
+     "NETWORK_FEED_MINI",
+     // ── Protomolécula (ola 1010P) ──
+     "PROTOMOLECULA",
+     // ── Vídeo con HyperFrames (ola 1018H) ──
+     "ESTUDIO_VIDEO",
+     // ── OpenUI (Respuesta viva) ──
+     "RESPUESTA_VIVA",
+ ];
 
 describe("WIDGET_MANIFEST completitud", () => {
     it("todo WidgetType tiene entrada en el manifiesto (ningún huérfano)", () => {
