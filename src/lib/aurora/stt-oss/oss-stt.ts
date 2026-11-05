@@ -364,7 +364,7 @@ export async function transcribirTramo(pcm: Float32Array, rate: number, idioma?:
   const modelId = getOssSttModel();
   if (!isModelReady(modelId)) return null;
 
-  const asr = await pipelinePromise.catch(() => null);
+  const asr = await (pipelinePromise || Promise.resolve(null)).catch(() => null);
   if (!asr) return null;
 
   let audio = pcm;
