@@ -1,0 +1,52 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "id": "VOZ1105E",
+   "ola": "1105W · Voz estable",
+   "titulo": "Ajustes de voz · interruptor «Oído en la nube» y qué oído y qué voz suenan ahora",
+   "archivos": [
+    "src/components/settings/aurora/voice-oss-panel.tsx",
+    "src/components/settings/aurora/__tests__/oido-nube-ajuste.test.tsx"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2 y §3. En el panel de voz que ya existe, añade el interruptor «Oído en la nube (Groq Whisper o Gemini)» que guarda `localStorage[\"starseed.oido.nube\"]` (\"0\" apagado; por defecto encendido) con una línea honesta: el audio de cada tramo se manda a transcribir y no se guarda. Y una línea de estado: qué oído usa este dispositivo y qué voz habló la última vez (busca `recordarMotorQueSono` y `medidas-voz.ts`). Prueba de render y del interruptor."
+  },
+  {
+   "id": "VER1105L",
+   "ola": "1105V · Centro de Versiones",
+   "titulo": "Actualizaciones · Android: descargar el .apk de la misma firma y abrir el instalador",
+   "archivos": [
+    "src/lib/nativa/actualizador-android.ts",
+    "src/lib/nativa/__tests__/actualizador-android.test.ts"
+   ],
+   "depende": [],
+   "origen": "centro-versiones",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\n§5. Primero la vía simple: con la URL del .apk de la versión nueva (de `/api/os/versiones`), ábrela con el abridor del sistema que ya declaran las capabilities (`opener`/`shell` open; búscalo en `native/src-tauri/capabilities/` y `Cargo.toml`): Android descarga y ofrece instalar, y al ser la misma firma conserva los datos. Si no hay abridor declarado, responde BLOQUEADA explicando qué permiso falta. Pruebas con el abridor simulado."
+  },
+  {
+   "id": "RPO1104H",
+   "ola": "1104R · Repos nativos",
+   "titulo": "OpenUI · RespuestaViva: pinta OpenUI Lang en streaming y, si no es válido, el texto tal cual",
+   "archivos": [
+    "src/lib/openui/detectar.ts",
+    "src/components/openui/respuesta-viva.tsx",
+    "src/components/openui/__tests__/respuesta-viva.test.tsx"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\nSi `@openuidev/react-lang` no está en `package.json`, responde BLOQUEADA: «falta 1104 · AG» y no toques nada. Lee antes el README y los `.d.ts` de `node_modules/@openuidev/react-lang` (y de `@openuidev/lang-core`): usa su API real, no la inventes. §3 «Renderer». `detectar.ts` PURO: `pareceOpenUI(texto)` (heurística barata sobre la sintaxis real de OpenUI Lang). `RespuestaViva({ texto, enCurso, onAccion })`: usa el `Renderer` de `@openuidev/react-lang` con la biblioteca de `src/lib/openui/biblioteca.tsx`; si `pareceOpenUI` es falso o el renderer falla (error boundary), pinta el texto como hoy. Prueba: texto normal → texto; OpenUI válido → componentes; OpenUI roto → texto, sin lanzar.",
+   "dependencias_ya_en_main": [
+    "RPO1104G"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-183516.json": [
+   "RPO1104H",
+   "VER1105L",
+   "VOZ1105E"
+  ]
+ }
+}
