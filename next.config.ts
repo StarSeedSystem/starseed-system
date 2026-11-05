@@ -39,6 +39,11 @@ const nextConfig: NextConfig = {
       './integraciones-de-codigo/**', './hermes-integration/**', './theme-antigravity-flux/**', './queue/**',
       './.github/**',
     ],
+    // Exclude chunks with unwanted dependencies to prevent growth
+    '/xr/**': [
+      './node_modules/@iwer/devui/**',
+      './node_modules/three@0.165/**',
+    ],
   },
   transpilePackages: ['@splinetool/react-spline'],
   experimental: {
@@ -254,6 +259,10 @@ const nextConfig: NextConfig = {
         __dirname,
         'node_modules/@splinetool/react-spline/dist/react-spline.js'
       ),
+      // Exclude @iwer/devui and three@0.165 in non-development to prevent chunk bloat
+      // (risk documented in architecture/starseed-xr.md §1.3)
+      '@iwer/devui': process.env.NODE_ENV === 'development' ? path.resolve(__dirname, 'node_modules/@iwer/devui') : false,
+      'three@0.165': process.env.NODE_ENV === 'development' ? path.resolve(__dirname, 'node_modules/three') : false,
     };
     if (isServer) {
       config.externals = [...(config.externals ?? []), 'sqlite3', 'sqlite-vec'];

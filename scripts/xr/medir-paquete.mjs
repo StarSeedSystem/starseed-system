@@ -28,7 +28,8 @@ function chunkSizes(buildManifest, chunkNames) {
   let total = 0;
   const chunks = buildManifest.pages || {};
   for (const name of chunkNames) {
-    const files = chunks[name] || [];
+    // Support both leading slash and no-leading slash routes
+    const files = chunks[name] || chunks[name.replace(/^\//, "")] || [];
     for (const f of files) {
       if (f.endsWith(".js")) {
         const full = join(NEXT_DIR, f);
