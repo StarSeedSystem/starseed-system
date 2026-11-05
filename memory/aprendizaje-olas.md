@@ -4727,3 +4727,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** clave
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-05 11:44 · mg-oracle-1105-0426
+
+**Lo que se pidió.** pruebas TS
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — los tipos no compilan (VOZ1105Ab, RPO1104K, RPO1104I). Es 75 % de la ola.
+- opencode/minimax-m3.1-flash-free no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `VOZ1105Ab` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VOZ1105Ab conservada)
+- `RPO1104L` — no escribió nada
+- `RPO1104K` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RPO1104K conservada)
+- `RPO1104I` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RPO1104I conservada)
