@@ -23,6 +23,9 @@
  */
 
 import { computeSuggestions, type Suggestion } from "@/ai/astraura/autonomy";
+import { hayActualizacion } from "@/lib/actualizaciones/version-por-medio";
+import { leerInstalada, versionPublicada } from "@/lib/actualizaciones/version-por-medio";
+import { medioActual } from "@/lib/actualizaciones/version-por-medio";
 
 /* ─────────────────────── Constantes de release ─────────────────────── */
 
@@ -31,7 +34,7 @@ import { computeSuggestions, type Suggestion } from "@/ai/astraura/autonomy";
  * si NO coincide con la última vista por el usuario, se genera el aviso
  * "hay una actualización importante del sistema".
  */
-export const CURRENT_RELEASE = "2026-10-09-os-0.3.0";
+export const CURRENT_RELEASE = "2026.10.09";
 
 /** Clave de "avisos ya vistos" (viaja con la cuenta vía SYNCED_KEYS). */
 export const SEEN_KEY = "starseed.updates.seen.v1";
@@ -177,16 +180,22 @@ export async function getPendingNotifications(context?: string): Promise<UpdateN
   const out: UpdateNotification[] = [];
   const seen = readSeen();
 
-  // (a) Actualización del sistema: hay versión nueva si la release vista difiere.
-  if (seen.release !== CURRENT_RELEASE) {
+  // (a) Actualización del sistema: hay versión nueva si el medio tiene actualización disponible.
+  const medio = medioActual();
+  const publicada = versionPublicada(medio);
+  const instalada = await leerInstalada();
+
+  const hayVersion = await hayActualizacion({ medio, instalada, publicada });
+
+  if (hayVersion) {
     const id = updateAppId();
     if (!isSeen(id)) {
       out.push({
         id,
         kind: "update-app",
-        title: "StarSeed OS 0.3.0: apps que se actualizan solas, Genesis y Estaciones",
+        title: `StarSeed OS ${publicada}: actualización disponible`,
         detail:
-          "StarSeed OS, Nexus y Café tienen app para macOS, Windows, Linux y Android, y la de escritorio se actualiza sola. Genesis llega a personas, grupos y comunidades. Nuevas Estaciones con transmisiones en directo. Las capas de Astraura se eligen por tarea y por dispositivo. En el navegador basta con recargar.",
+          "Hay una versión más reciente disponible. Recarga la página o actualiza la app nativa para incorporar los cambios.",
         priority: 10,
       });
     }
