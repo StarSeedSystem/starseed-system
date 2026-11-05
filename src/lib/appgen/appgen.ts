@@ -40,6 +40,7 @@ export interface GeneratedApp {
   files: AppFile[];
   meta: AppMeta;
   shared: boolean;
+  destino?: string; // Destino de despliegue (ej: "nativa-macos", "web", etc.)
   created_at?: string;
   updated_at?: string;
 }
@@ -53,6 +54,15 @@ export interface AppMeta {
   plugins?: string[];
   /** Conexiones declaradas (APIs, datos, servicios). */
   connections?: string[];
+  /** Requisitos para apps nativas (macOS, iOS, etc.). */
+  requisitosNativos?: {
+    xcode: boolean;
+    swift: string;
+    swiftUI: boolean;
+    swiftData: boolean;
+    macOS: string;
+    [k: string]: unknown;
+  };
   /** Cualquier extra. */
   [k: string]: unknown;
 }
@@ -150,14 +160,15 @@ const STARTER_HTML = `<!doctype html>
 </body>
 </html>`;
 
-export function newApp(name = "Nueva app", owner: string | null = null): GeneratedApp {
+export function newApp(name = "Nueva app", owner: string | null = null, destino?: string): GeneratedApp {
   return {
     id: uid(),
     owner,
     name,
     files: [{ path: "index.html", content: STARTER_HTML, language: "html" }],
-    meta: { spec: "", notes: "", plugins: [], connections: [] },
+    meta: { spec: "", notes: "", plugins: [], connections: [], requisitosNativos: destino === "nativa-macos" ? requisitosNativos() : undefined },
     shared: false,
+    destino,
   };
 }
 
@@ -688,4 +699,104 @@ export function appShareRef(app: GeneratedApp): AppShareRef {
     name: app.name,
     url: `/app/${app.id}`,
   };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Destino nativa-macos (BAMA)
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Requisitos para apps nativas de macOS usando BAMA.
+ * Devuelve los requisitos mínimos necesarios para construir la app nativa.
+ */
+export function requisitosNativos() {
+  return {
+    xcode: true,
+    swift: "6.2",
+    swiftUI: true,
+    swiftData: true,
+    macOS: "26",
+  };
+}
+
+/**
+ * Genera el plan BAMA para una app nativa de macOS.
+ * Este plan se guarda como proyecto de la Librería en vez de construir cuando falta Xcode.
+ */
+export function planBama(app: GeneratedApp): string {
+  const req = requisitosNativos();
+  const swiftFiles = app.files.filter((f) => f.path.toLowerCase().endsWith(".swift")).length;
+
+  return `Plan de app nativa macOS (BAMA) para ${app.name}:
+
+1. Requisitos:
+   - Xcode ${req.swift} o superior
+   - macOS ${req.macOS} o superior
+   - Swift ${req.swift}
+   - SwiftUI: ${req.swiftUI ? "Sí" : "No"}
+   - SwiftData: ${req.swiftData ? "Sí" : "No"}
+
+2. Estructura del proyecto:
+   - ${app.files.length} archivos totales
+   - ${swiftFiles} archivos Swift
+
+3. Notas:
+   ${app.meta.notes || "Ninguna nota adicional"}
+
+4. Plugins:
+   ${app.meta.plugins?.join(", ") || "Ninguno"}
+
+5. Conexiones:
+   ${app.meta.connections?.join(", ") || "Ninguna"}
+
+6. Destino: nativa-macos
+
+---
+Plan generado por StarSeed OS · Estudio de Apps con IA
+Guárdalo como proyecto en la Librería (no se construye hasta que haya Xcode disponible).
+`;
+}
+
+/**
+ * Genera la app con un destino específico (ej: "nativa-macos").
+ * Si el destino es "nativa-macos", añade el plan BAMA como archivo PLAN-BAMA.md.
+ */
+export async function generateWithDestino(
+  spec: string,
+  currentFiles: AppFile[] = [],
+  opts: GenerateOptions = {},
+  destino?: string,
+): Promise<GenerateResult> {
+  const messages = genPrompt(spec, currentFiles);
+  const r = await chat({
+    messages,
+    temperature: 0.3,
+    signal: opts.signal,
+    onChunk: opts.onChunk,
+  });
+  const result = parseGenerated(r.text);
+
+  if (destino === "nativa-macos") {
+    const tempApp: GeneratedApp = {
+      id: "temp",
+      owner: null,
+      name: "App nativa",
+      files: result.files,
+      meta: {
+        spec,
+        notes: result.notes,
+        plugins: [],
+        connections: [],
+        requisitosNativos: requisitosNativos(),
+      },
+      shared: false,
+    };
+    result.files.push({
+      path: "PLAN-BAMA.md",
+      content: planBama(tempApp),
+      language: "markdown",
+    });
+  }
+
+  return result;
 }
