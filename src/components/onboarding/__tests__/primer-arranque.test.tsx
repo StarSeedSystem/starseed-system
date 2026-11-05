@@ -189,15 +189,13 @@ describe("PrimerArranque · sin sesión", () => {
         primera.unmount();
 
         montar();
-        await pausa();
-        expect(screen.queryByTestId("ventana-bienvenida")).toBeNull();
+        await waitFor(() => expect(screen.queryByTestId("ventana-bienvenida")).toBeNull());
     });
 
     it("se puede abrir a mano aunque se hubiera saltado", async () => {
         window.localStorage.setItem("starseed.primer-arranque.saltado.v1", "1");
         montar();
-        await pausa();
-        expect(screen.queryByTestId("ventana-bienvenida")).toBeNull();
+        await waitFor(() => expect(screen.queryByTestId("ventana-bienvenida")).toBeNull());
         act(() => {
             window.dispatchEvent(new CustomEvent("starseed:abrir-primer-arranque", { detail: { paso: "acceso" } }));
         });
