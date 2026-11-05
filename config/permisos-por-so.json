@@ -1,0 +1,107 @@
+{
+  "esquema": 1,
+  "actualizado": "2026-11-05",
+  "contrato": "architecture/centro-versiones-1105.md",
+  "descripcion": "Lo que StarSeed OS declara y pide en cada sistema, copiado de native/src-tauri/capabilities/*.json, native/src-tauri/Info.plist, el AndroidManifest que genera native/src-tauri/build.rs y architecture/apps-nativas-segundo-plano.md §7. Nada de aquí se inventa: cada permiso y cada límite tiene su archivo de origen.",
+  "conceden": {
+    "al-instalar": "La app lo declara y el sistema lo concede al instalar y abrirla; no hay diálogo aparte.",
+    "al-primer-uso": "El sistema pregunta la primera vez que se usa esa función.",
+    "en-ajustes": "Se activa o desactiva desde los ajustes del sistema o de la app."
+  },
+  "permisos": [
+    {"ids": ["core:default", "core:app:default", "core:window:default", "core:webview:default", "core:event:default", "core:path:default", "core:resources:default", "core:menu:default", "core:tray:default"], "texto": "Lo básico de la ventana: eventos, rutas, menú, bandeja y recursos de la app.", "concede": "al-instalar", "sistemas": ["macos", "windows", "linux", "android", "ios"]},
+    {"ids": ["core:window:allow-set-title", "core:window:allow-minimize", "core:window:allow-maximize", "core:window:allow-unmaximize", "core:window:allow-close", "core:window:allow-start-dragging"], "texto": "Mover, minimizar, maximizar y cerrar la ventana de StarSeed.", "concede": "al-instalar", "sistemas": ["macos", "windows", "linux", "android", "ios"]},
+    {"ids": ["shell:allow-execute"], "texto": "Ejecutar órdenes en una terminal (sh, bash, cmd o PowerShell) con tus permisos.", "concede": "al-instalar", "sistemas": ["macos", "windows", "linux", "android", "ios"]},
+    {"ids": ["shell:allow-spawn", "shell:allow-kill", "shell:allow-stdin-write", "shell:allow-open"], "texto": "Lanzar procesos, escribirles, cerrarlos y abrir enlaces o archivos.", "concede": "al-instalar", "sistemas": ["macos", "windows", "linux", "android", "ios"]},
+    {"ids": ["fs:allow-read-text-file", "fs:allow-read-dir", "fs:default"], "texto": "Leer archivos y carpetas de tu carpeta personal.", "concede": "al-instalar", "sistemas": ["macos", "windows", "linux", "android", "ios"]},
+    {"ids": ["fs:allow-write-text-file", "fs:allow-mkdir", "fs:scope"], "texto": "Escribir archivos y crear carpetas dentro de tu carpeta personal.", "concede": "al-instalar", "sistemas": ["macos", "windows", "linux", "android", "ios"]},
+    {"ids": ["os:allow-platform", "os:allow-version", "os:allow-os-type", "os:allow-family", "os:allow-arch", "os:allow-hostname", "os:allow-locale", "os:allow-exe-extension"], "texto": "Saber qué sistema, arquitectura, idioma y equipo eres, para adaptar la app.", "concede": "al-instalar", "sistemas": ["macos", "windows", "linux", "android", "ios"]},
+    {"ids": ["process:allow-exit", "process:allow-restart"], "texto": "Cerrar y reiniciar la app cuando tú lo pidas.", "concede": "al-instalar", "sistemas": ["macos", "windows", "linux", "android", "ios"]},
+    {"ids": ["notification:default", "notification:allow-notify", "notification:allow-request-permission", "notification:allow-is-permission-granted"], "texto": "Enviarte avisos y consultar si los has permitido.", "concede": "al-primer-uso", "sistemas": ["macos", "windows", "linux", "android", "ios"]},
+    {"ids": ["dialog:default", "dialog:allow-open", "dialog:allow-save", "dialog:allow-message", "dialog:allow-ask", "dialog:allow-confirm"], "texto": "Abrir y guardar archivos y pedirte confirmación con diálogos del sistema.", "concede": "al-instalar", "sistemas": ["macos", "windows", "linux", "android", "ios"]},
+    {"ids": ["deep-link:default"], "texto": "Abrir StarSeed al pulsar un enlace starseed://.", "concede": "al-instalar", "sistemas": ["macos", "windows", "linux", "android", "ios"]},
+    {"ids": ["autostart:default", "autostart:allow-enable", "autostart:allow-disable", "autostart:allow-is-enabled"], "texto": "Arrancar StarSeed con el sistema, si tú lo activas.", "concede": "en-ajustes", "sistemas": ["macos", "windows", "linux"]},
+    {"ids": ["updater:default", "updater:allow-check", "updater:allow-download-and-install"], "texto": "Buscar, descargar e instalar actualizaciones firmadas del cascarón nativo.", "concede": "al-instalar", "sistemas": ["macos", "windows", "linux"]},
+    {"ids": ["NSLocalNetworkUsageDescription"], "texto": "StarSeed anuncia y escucha a tus otras neuronas en esta red, también sin internet, para enlazarlas entre sí.", "concede": "al-primer-uso", "sistemas": ["macos"]},
+    {"ids": ["TCC:Escritorio", "TCC:Documentos", "TCC:Descargas", "TCC:Discos externos"], "texto": "Acceder a tu Escritorio, Documentos, Descargas y discos externos; el permiso del sistema se pide la primera vez.", "concede": "al-primer-uso", "sistemas": ["macos"]},
+    {"ids": ["firewall:UDP 47070"], "texto": "Permitir el faro Wi-Fi local en redes privadas; Windows enseña el aviso del Firewall la primera vez.", "concede": "al-primer-uso", "sistemas": ["windows"]},
+    {"ids": ["linux:grupo-dialout"], "texto": "Estar en el grupo dialout para abrir una radio LoRa por puerto serie (sudo usermod -aG dialout $USER).", "concede": "en-ajustes", "sistemas": ["linux"]},
+    {"ids": ["android.permission.FOREGROUND_SERVICE", "android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE", "android.permission.FOREGROUND_SERVICE_DATA_SYNC"], "texto": "Mantener vivas las antenas con la app cerrada mediante un servicio en primer plano de tipo connectedDevice.", "concede": "al-instalar", "sistemas": ["android"]},
+    {"ids": ["android.permission.CHANGE_WIFI_MULTICAST_STATE", "android.permission.ACCESS_NETWORK_STATE", "android.permission.ACCESS_WIFI_STATE"], "texto": "Recibir los faros de otras neuronas en la red local y saber si hay Wi-Fi y red.", "concede": "al-instalar", "sistemas": ["android"]},
+    {"ids": ["android.permission.POST_NOTIFICATIONS"], "texto": "Mostrar la notificación fija del servicio de antenas; se pide al usarlo por primera vez.", "concede": "al-primer-uso", "sistemas": ["android"]},
+    {"ids": ["android.permission.RECEIVE_BOOT_COMPLETED", "android.permission.INTERNET"], "texto": "Arrancar las antenas al encender el aparato y acceder a Internet.", "concede": "al-instalar", "sistemas": ["android"]},
+    {"ids": ["android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"], "texto": "Pedir que Android no duerma las antenas; solo se abre el diálogo si pulsas el botón.", "concede": "en-ajustes", "sistemas": ["android"]},
+    {"ids": ["browser:notificaciones"], "texto": "Permiso del navegador para los avisos de actualización de la PWA.", "concede": "al-primer-uso", "sistemas": ["web"]}
+  ],
+  "sistemas": {
+    "macos": {
+      "nombre": "macOS",
+      "versionMinima": "10.15",
+      "arquitecturas": ["Apple Silicon (aarch64-apple-darwin)", "Intel (x86_64-apple-darwin)"],
+      "instaladores": [".dmg universal", ".app.tar.gz + .sig para el updater"],
+      "noPermite": [
+        "Sin cuenta Apple Developer no hay firma ni notarización: la primera vez se abre con clic derecho → Abrir.",
+        "No está en App Sandbox ni se distribuye por la Mac App Store.",
+        "El WebView de macOS (WKWebView) no expone Web Serial ni Web Bluetooth: las radios van por el puente serie nativo."
+      ]
+    },
+    "windows": {
+      "nombre": "Windows",
+      "versionMinima": "No declarada en native/; el CI compila en windows-latest",
+      "arquitecturas": ["x64"],
+      "instaladores": [".msi", "-setup.exe (NSIS)"],
+      "noPermite": [
+        "Sin certificado Authenticode, Windows enseña SmartScreen al abrir el instalador.",
+        "WebView2 no expone Web Serial ni Web Bluetooth.",
+        "El puente serie nativo para radios LoRa todavía no existe en Windows (serialport pendiente)."
+      ]
+    },
+    "linux": {
+      "nombre": "Linux",
+      "versionMinima": "Ubuntu 22.04 (runner del CI)",
+      "arquitecturas": ["x64 (amd64)"],
+      "instaladores": [".AppImage", ".deb", ".rpm"],
+      "noPermite": [
+        "Sin libayatana-appindicator3 no hay bandeja: cerrar la ventana sale del todo.",
+        "Para una radio por puerto serie hay que estar en el grupo dialout.",
+        "El CI solo compila x64 en Ubuntu 22.04: no hay artefacto ARM64.",
+        "WebKitGTK no trae Web Serial ni Web Bluetooth."
+      ]
+    },
+    "android": {
+      "nombre": "Android",
+      "versionMinima": "Android 14 · API 34 (plataforma del build)",
+      "arquitecturas": ["aarch64", "armv7", "i686", "x86_64"],
+      "instaladores": [".apk firmado con el keystore propio"],
+      "noPermite": [
+        "No hay updater de Tauri: la actualización se descarga como .apk de la misma firma y Android la instala.",
+        "Android 15 limita dataSync a 6 h cada 24 h; por eso el servicio continuo usa connectedDevice.",
+        "Doze puede dormir la CPU si no se excluye la app de la optimización de batería.",
+        "Bluetooth y USB para radios siguen pendientes.",
+        "Fuera de Google Play: se instala con orígenes desconocidos activado."
+      ]
+    },
+    "ios": {
+      "nombre": "iOS",
+      "versionMinima": "Sin app nativa: iPhone y iPad usan la PWA",
+      "arquitecturas": ["aarch64 (dispositivo)", "aarch64/x86_64 (simulador)"],
+      "instaladores": [".ipa sin firma (best-effort; solo para re-firmar con AltStore/Sideloadly)"],
+      "noPermite": [
+        "Sin cuenta Apple Developer no hay app nativa: el .ipa sale sin firma y no se instala directamente.",
+        "No hay nada vivo en segundo plano.",
+        "Sin canal de actualización nativo: se actualiza la PWA."
+      ]
+    },
+    "web": {
+      "nombre": "Web / PWA",
+      "versionMinima": "Navegador con service worker (PWA)",
+      "arquitecturas": ["No aplica: se ejecuta en el navegador"],
+      "instaladores": ["Manifiesto PWA + service worker; /version.json sirve el sha"],
+      "noPermite": [
+        "Un navegador no puede abrir una terminal ni controlar el sistema: eso solo lo hace la app nativa instalada.",
+        "No mantiene antenas ni procesos con la pestaña cerrada.",
+        "La actualización es del service worker, no del paquete nativo."
+      ]
+    }
+  }
+}
