@@ -128,3 +128,35 @@ describe("capas públicas", () => {
     expect(r.motivo).toContain("cola sin prisa");
   });
 });
+import { deeptutor, dondeRecomendar, REQUISITOS_DEEPTUTOR } from "../servicios-pesados";
+describe("deeptutor", () => {
+  it("tiene 4 GB de RAM, sin GPU, porta 3782", () => {
+    expect(REQUISITOS_DEEPTUTOR).toMatchObject({ ram_gb: 4, vram_gb: null, gpu: "no", puerto: 3782 });
+  });
+  describe("dondeRecomendar", () => {
+    it("una neurona con 8 GB lo recomienda", () => {
+      const neurona = oferta({ nodoId: "n1", computo: { nucleos: 4, ramLibreMb: 8192, gpu: false, vramMb: undefined, motores: [] } });
+      const r = dondeRecomendar(deeptutor, [neurona], ctx());
+      expect(r).toEqual([{ donde: { tipo: "cuenta", id: "n1" }, motivo: "«DeepTutor» cabe en una neurona de la misma cuenta" }]);
+    });
+    it("una neurona con 2 GB no lo recomienda", () => {
+      const neurona = oferta({ nodoId: "n1", computo: { nucleos: 2, ramLibreMb: 2048, gpu: false, vramMb: undefined, motores: [] } });
+      const r = dondeRecomendar(deeptutor, [neurona], ctx());
+      expect(r).toEqual([]);
+    });
+    it("el A1 sale solo como recomendación con motivo de margen de disco", () => {
+      const r = dondeRecomendar(deeptutor, [], ctx());
+      expect(r).toEqual([{ donde: { tipo: "capa-publica", id: "oracle-a1" }, motivo: "recomendado cuando su disco tenga margen (decisión de Alex: hoy no)" }]);
+    });
+  });
+  describe("colocarServicio", () => {
+    it("no instala deeptutor en el A1", () => {
+      const r = colocarServicio("deeptutor", [], ctx());
+      expect(r.donde.tipo).toBe("capa-publica");
+      expect(r.donde.id).toBe("oracle-a1");
+    });
+    it("los seis servicios de siempre no cambian", () => {
+      expect(Object.keys(REQUISITOS_SERVICIO).sort()).toEqual(["archivebox", "comfyui", "coolify", "deeptutor", "libretranslate", "openhands-agent-server", "stirling-pdf"]);
+    });
+  });
+});
