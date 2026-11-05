@@ -71,6 +71,7 @@ import {
 import { normalizarParaVoz } from "@/lib/voces/normalizar-es";
 import { motorRecomendado, Plataforma, MOTORES_VOZ } from "../catalogo-voces";
 import { motoresPermitidos, type MotorInfo, type ContextoLicenciaVoz } from "./licencia-voz";
+import { trocearTexto } from "@/lib/voces/trocear";
 function detectarPlataforma(): Plataforma {
     if (typeof window === "undefined") return "web";
     const ua = navigator.userAgent;
@@ -380,28 +381,40 @@ async function hablarPorLocal(texto: string, timbre: Timbre, alEmpezar?: () => v
  */
 async function hablarPorNube(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
     try {
-        let resp: Response;
-        try {
-            resp = await fetch("/api/voz/nube", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    texto,
-                    genero: timbre.genero,
-                    velocidad: timbre.local.speed,
-                }),
-                signal: AbortSignal.timeout(25_000),
-                cache: "no-store",
-            });
-        } catch {
-            return false; // red caída o timeout: se baja de nivel
-        }
-        if (!resp.ok) return false;
-        const blob = await resp.blob();
-        if (!blob.size) return false;
-        try { alEmpezar?.(); } catch { /* el aviso no puede romper */ }
+        const trozos = trocearTexto(texto, 500);
         const ml = await import("@/lib/aurora/motor-local");
-        return await ml.reproducirLocal(blob);
+        let primero = true;
+        for (const trozo of trozos) {
+            let ok = false;
+            for (let intento = 0; intento < 2 && !ok; intento++) {
+                try {
+                    const resp = await fetch("/api/voz/nube", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            texto: trozo,
+                            genero: timbre.genero,
+                            velocidad: timbre.local.speed,
+                        }),
+                        signal: AbortSignal.timeout(25_000),
+                        cache: "no-store",
+                    });
+                    if (!resp.ok) continue;
+                    const blob = await resp.blob();
+                    if (!blob.size) continue;
+                    if (primero) {
+                        try { alEmpezar?.(); } catch { /* */ }
+                        primero = false;
+                    }
+                    await ml.reproducirLocal(blob);
+                    ok = true;
+                } catch {
+                    continue;
+                }
+            }
+            if (!ok) return false;
+        }
+        return true;
     } catch {
         return false;
     }
@@ -431,13 +444,19 @@ async function hablarPorSistema(texto: string, timbre: Timbre, alEmpezar?: () =>
         const synth = window.speechSynthesis;
         if (!synth) return false;
         const p = parametrosPorNivel(timbre, "minima");
-        const u = new SpeechSynthesisUtterance(texto);
-        u.pitch = p.via === "sistema" ? p.pitch : timbre.sistema.pitch;
-        u.rate = p.via === "sistema" ? p.rate : timbre.sistema.rate;
-        u.lang = "es-ES";
-        if (alEmpezar) u.onstart = () => { try { alEmpezar(); } catch { /* */ } };
-        synth.cancel();
-        synth.speak(u);
+        const trozos = trocearTexto(texto, 200);
+        let primero = true;
+        for (const trozo of trozos) {
+            const u = new SpeechSynthesisUtterance(trozo);
+            u.pitch = p.via === "sistema" ? p.pitch : timbre.sistema.pitch;
+            u.rate = p.via === "sistema" ? p.rate : timbre.sistema.rate;
+            u.lang = "es-ES";
+            if (primero && alEmpezar) {
+                u.onstart = () => { try { alEmpezar(); } catch { /* */ } };
+                primero = false;
+            }
+            synth.speak(u);
+        }
         return true;
     } catch {
         return false;
