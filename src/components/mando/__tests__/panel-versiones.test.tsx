@@ -44,8 +44,8 @@ const estadoConLanzamiento: LanzamientoEstado = {
         { fase: "compilando", t: 1700000400000, detalle: "compilando v0.4.0 en GitHub" },
     ],
     jobs: [
-        { medio: "macos", job: "macos-latest", estado: "en-curso", url: "https://github.com/.../jobs/1", inicio: "2026-11-05T10:00:00Z", fin: null },
-        { medio: "windows", job: "windows-latest", estado: "en-cola", url: "https://github.com/.../jobs/2", inicio: null, fin: null },
+        { medio: "macos", job: "macos-latest", estado: "en-curso", url: "https://github.com/.../jobs/1", inicio: "2026-11-05T10:00:00Z", fin: "" },
+        { medio: "windows", job: "windows-latest", estado: "en-cola", url: "https://github.com/.../jobs/2", inicio: "", fin: "" },
         { medio: "linux", job: "ubuntu-latest", estado: "ok", url: "https://github.com/.../jobs/3", inicio: "2026-11-05T10:00:00Z", fin: "2026-11-05T10:05:00Z" },
     ],
     medios: {
@@ -151,8 +151,8 @@ describe("PanelVersiones", () => {
         await esperarCarga();
         // Encontrar el botón dentro de la fila de macOS usando el heading como ancla
         const headingMacos = await screen.findByRole("heading", { name: /macOS/i });
-        const filaMacos = headingMacos.closest("div[class*='rounded-lg']");
-        const boton = within(filaMacos!).getByRole("button", { name: /generar\/actualizar/i });
+        const filaMacos = headingMacos.closest("div[class*='rounded-lg']") as HTMLElement;
+        const boton = within(filaMacos).getByRole("button", { name: /generar\/actualizar/i });
         fireEvent.click(boton);
         await waitFor(() => {
             const post = pedidos.find((p) => p.metodo === "POST");
