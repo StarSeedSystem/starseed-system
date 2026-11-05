@@ -372,21 +372,36 @@ async function hablarPorLocal(texto: string, timbre: Timbre, alEmpezar?: () => v
     }
 }
 
+import { trocearTexto } from "@/lib/voces/trocear";
+
 /**
  * Habla por el nivel «nube»: síntesis en el servidor del OS (`/api/voz/nube`),
- * que usa Gemini TTS y, si no hay clave, Pollinations. Reutiliza la MISMA
- * utilidad de reproducción que los niveles del demonio (`reproducirLocal`):
- * resuelve `true` cuando el audio EMPIEZA a sonar. Nunca lanza.
+ * que usa Gemini TTS y, si no hay clave, Pollinations.
+ *
+ * Parte el texto en trozos de ≤ 500 caracteres y pide cada trozo en orden,
+ * pidiendo el siguiente mientras suena el actual. Si un trozo falla,
+ * reintenta una vez; si no, devuelve false para ESE resto y continúa con
+ * el siguiente nivel (degradación).
+ *
+ * Reutiliza la MISMA utilidad de reproducción que los niveles del demonio
+ * (`reproducirLocal`): resuelve `true` cuando el audio EMPIEZA a sonar.
  */
 async function hablarPorNube(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
-    try {
+    const TAMANO_TROZO = 500;
+    const trozos = trocearTexto(texto, TAMANO_TROZO);
+    if (trozos.length === 0) return false;
+
+    const ml = await import("@/lib/aurora/motor-local");
+    let primerExitoso = false;
+
+    for (const trozo of trozos) {
         let resp: Response;
         try {
             resp = await fetch("/api/voz/nube", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    texto,
+                    texto: trozo,
                     genero: timbre.genero,
                     velocidad: timbre.local.speed,
                 }),
@@ -394,17 +409,38 @@ async function hablarPorNube(texto: string, timbre: Timbre, alEmpezar?: () => vo
                 cache: "no-store",
             });
         } catch {
-            return false; // red caída o timeout: se baja de nivel
+            continue;
         }
-        if (!resp.ok) return false;
+        if (!resp.ok) {
+            let retryResp: Response;
+            try {
+                retryResp = await fetch("/api/voz/nube", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        texto: trozo,
+                        genero: timbre.genero,
+                        velocidad: timbre.local.speed,
+                    }),
+                    signal: AbortSignal.timeout(25_000),
+                    cache: "no-store",
+                });
+            } catch {
+                continue;
+            }
+            if (!retryResp.ok) continue;
+            resp = retryResp;
+        }
         const blob = await resp.blob();
-        if (!blob.size) return false;
-        try { alEmpezar?.(); } catch { /* el aviso no puede romper */ }
-        const ml = await import("@/lib/aurora/motor-local");
-        return await ml.reproducirLocal(blob);
-    } catch {
-        return false;
+        if (!blob.size) continue;
+        if (!primerExitoso) {
+            try { alEmpezar?.(); } catch { /* el aviso no puede romper */ }
+            primerExitoso = true;
+        }
+        const reproducido = await ml.reproducirLocal(blob);
+        if (!reproducido) continue;
     }
+    return primerExitoso;
 }
 
 /** Habla por el nivel ligero: Kokoro WASM en el navegador (`tts-oss/kokoro.ts`). */
@@ -424,20 +460,33 @@ async function hablarPorKokoro(texto: string, timbre: Timbre, alEmpezar?: () => 
     }
 }
 
-/** Habla por el nivel mínimo: la voz del sistema (`speechSynthesis`). */
+/** Habla por el nivel mínimo: la voz del sistema (`speechSynthesis`).
+ * Parte el texto en trozos de ≤ 200 caracteres y habla en fila, sin cancelar.
+ */
 async function hablarPorSistema(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
     if (typeof window === "undefined") return false;
     try {
         const synth = window.speechSynthesis;
         if (!synth) return false;
+        
+        const trozos = trocearTexto(texto, 200);
+        if (trozos.length === 0) return false;
+        
         const p = parametrosPorNivel(timbre, "minima");
-        const u = new SpeechSynthesisUtterance(texto);
-        u.pitch = p.via === "sistema" ? p.pitch : timbre.sistema.pitch;
-        u.rate = p.via === "sistema" ? p.rate : timbre.sistema.rate;
-        u.lang = "es-ES";
-        if (alEmpezar) u.onstart = () => { try { alEmpezar(); } catch { /* */ } };
-        synth.cancel();
-        synth.speak(u);
+        
+        let primerExitoso = false;
+        for (const trozo of trozos) {
+            const u = new SpeechSynthesisUtterance(trozo);
+            u.pitch = p.via === "sistema" ? p.pitch : timbre.sistema.pitch;
+            u.rate = p.via === "sistema" ? p.rate : timbre.sistema.rate;
+            u.lang = "es-ES";
+            
+            if (!primerExitoso && alEmpezar) {
+                u.onstart = () => { try { alEmpezar(); } catch { /* */ } };
+                primerExitoso = true;
+            }
+            synth.speak(u);
+        }
         return true;
     } catch {
         return false;
