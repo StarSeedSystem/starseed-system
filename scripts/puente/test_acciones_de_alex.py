@@ -2,6 +2,7 @@
 """Qué entra —y qué NO— en la lista de acciones que solo puede hacer Alex."""
 import importlib.util
 import os
+import time
 import unittest
 
 _ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "acciones-de-alex.py")
@@ -454,7 +455,10 @@ class CodexCuenta(unittest.TestCase):
         accion = codex_acciones[0]
         self.assertEqual("Codex: tu cuenta de ChatGPT ya no deja usarlo", accion["titulo"])
         self.assertEqual("media", accion["urgencia"])
-        self.assertIn("desde 2001-09-08", accion["por_que"])  # 1000000000 = 2001-09-08/09 según zona horaria
+        # 1000000000 cae en 2001-09-08 o 09 según la zona horaria: la marca se escribe
+        # en hora local, así que el día esperado también se calcula en hora local.
+        esperado = time.strftime("%Y-%m-%d", time.localtime(1000000000.0))
+        self.assertIn("desde %s" % esperado, accion["por_que"])
         self.assertIn("model not supported when using Codex with a ChatGPT account", accion["por_que"])
         self.assertIn("el enjambre lo ha apartado y sigue con los demás", accion["por_que"])
         self.assertEqual("https://chatgpt.com/#settings/Account", accion["enlace"])
