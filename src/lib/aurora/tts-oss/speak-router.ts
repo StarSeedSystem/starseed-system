@@ -762,3 +762,21 @@ export async function stopConfiguredEngine(): Promise<void> {
     /* */
   }
 }
+
+/**
+ * Texto restante tras haber sonado `spokenChunks` trozos del mensaje.
+ * Pura: planifica los trozos y devuelve la concatenación de los no sonados.
+ * Sirve para reanudar con el siguiente eslabón cuando un motor troceado
+ * empezó y se cortó a mitad (VOZ1105B). Sin troceo, devuelve el texto completo.
+ */
+export function remainingTextAfterChunks(text: string, spokenChunks: number): string {
+  try {
+    const { planVoiceChunks } = require("@/lib/aurora/tts-oss/neural-tts");
+    const chunks = planVoiceChunks(text, { first: 40, rest: 40 });
+    if (!chunks.length || spokenChunks >= chunks.length) return "";
+    const remaining = chunks.slice(spokenChunks);
+    return remaining.join(" ").trim();
+  } catch {
+    return text;
+  }
+}
