@@ -420,6 +420,13 @@ export const AVAILABLE_WIDGETS: WidgetDefinition[] = [
         primaryCategory: 'archivos', secondaryCategories: ['sistema'],
         tags: ['archivos', 'documentos', 'almacenes', 'ficheros', 'real'],
     },
+    {
+        type: 'RESPUESTA_VIVA', title: 'Respuesta viva',
+        description: 'Widget de respuesta viva para escritorios y páginas de publicación, basado en contenido OpenUI Lang.',
+        icon: <MessageSquare className="h-5 w-5 text-indigo-400" />,
+        primaryCategory: 'ia', secondaryCategories: ['social', 'productividad'],
+        tags: ['respuesta', 'viva', 'openui', 'lang', 'ia'], isPopular: true,
+    },
     // ── Sexta oleada: rediseño de widgets predeterminados (2026-07) ──
     {
         type: 'CLOCK_DATE', title: 'Reloj y Fecha',
