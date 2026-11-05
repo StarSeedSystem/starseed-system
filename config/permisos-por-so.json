@@ -1,0 +1,924 @@
+{
+  "macos": {
+    "versionMinima": "10.15",
+    "arquitecturas": [
+      "arm64",
+      "x86_64"
+    ],
+    "permisos": [
+      {
+        "id": "core:default",
+        "texto": "Permiso Tauri core:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:app:default",
+        "texto": "Permiso Tauri core:app:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:default",
+        "texto": "Permiso Tauri core:window:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:webview:default",
+        "texto": "Permiso Tauri core:webview:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:event:default",
+        "texto": "Permiso Tauri core:event:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:path:default",
+        "texto": "Permiso Tauri core:path:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:resources:default",
+        "texto": "Permiso Tauri core:resources:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:menu:default",
+        "texto": "Permiso Tauri core:menu:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:tray:default",
+        "texto": "Permiso Tauri core:tray:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-set-title",
+        "texto": "Permiso Tauri core:window:allow-set-title",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-minimize",
+        "texto": "Permiso Tauri core:window:allow-minimize",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-maximize",
+        "texto": "Permiso Tauri core:window:allow-maximize",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-unmaximize",
+        "texto": "Permiso Tauri core:window:allow-unmaximize",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-close",
+        "texto": "Permiso Tauri core:window:allow-close",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-start-dragging",
+        "texto": "Permiso Tauri core:window:allow-start-dragging",
+        "como": "al instalar"
+      },
+      {
+        "id": "shell:allow-execute",
+        "texto": "Permiso Tauri shell:allow-execute",
+        "como": "al instalar"
+      },
+      {
+        "id": "shell:allow-spawn",
+        "texto": "Permiso Tauri shell:allow-spawn",
+        "como": "al instalar"
+      },
+      {
+        "id": "shell:allow-kill",
+        "texto": "Permiso Tauri shell:allow-kill",
+        "como": "al instalar"
+      },
+      {
+        "id": "shell:allow-stdin-write",
+        "texto": "Permiso Tauri shell:allow-stdin-write",
+        "como": "al instalar"
+      },
+      {
+        "id": "shell:allow-open",
+        "texto": "Permiso Tauri shell:allow-open",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:allow-read-text-file",
+        "texto": "Permiso Tauri fs:allow-read-text-file",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:allow-write-text-file",
+        "texto": "Permiso Tauri fs:allow-write-text-file",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:allow-read-dir",
+        "texto": "Permiso Tauri fs:allow-read-dir",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:allow-mkdir",
+        "texto": "Permiso Tauri fs:allow-mkdir",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:scope",
+        "texto": "Permiso Tauri fs:scope",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:default",
+        "texto": "Permiso Tauri fs:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-platform",
+        "texto": "Permiso Tauri os:allow-platform",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-version",
+        "texto": "Permiso Tauri os:allow-version",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-os-type",
+        "texto": "Permiso Tauri os:allow-os-type",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-family",
+        "texto": "Permiso Tauri os:allow-family",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-arch",
+        "texto": "Permiso Tauri os:allow-arch",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-hostname",
+        "texto": "Permiso Tauri os:allow-hostname",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-locale",
+        "texto": "Permiso Tauri os:allow-locale",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-exe-extension",
+        "texto": "Permiso Tauri os:allow-exe-extension",
+        "como": "al instalar"
+      },
+      {
+        "id": "process:allow-exit",
+        "texto": "Permiso Tauri process:allow-exit",
+        "como": "al instalar"
+      },
+      {
+        "id": "process:allow-restart",
+        "texto": "Permiso Tauri process:allow-restart",
+        "como": "al instalar"
+      },
+      {
+        "id": "notification:default",
+        "texto": "Permiso Tauri notification:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "notification:allow-notify",
+        "texto": "Permiso Tauri notification:allow-notify",
+        "como": "al instalar"
+      },
+      {
+        "id": "notification:allow-request-permission",
+        "texto": "Permiso Tauri notification:allow-request-permission",
+        "como": "al instalar"
+      },
+      {
+        "id": "notification:allow-is-permission-granted",
+        "texto": "Permiso Tauri notification:allow-is-permission-granted",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:default",
+        "texto": "Permiso Tauri dialog:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:allow-open",
+        "texto": "Permiso Tauri dialog:allow-open",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:allow-save",
+        "texto": "Permiso Tauri dialog:allow-save",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:allow-message",
+        "texto": "Permiso Tauri dialog:allow-message",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:allow-ask",
+        "texto": "Permiso Tauri dialog:allow-ask",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:allow-confirm",
+        "texto": "Permiso Tauri dialog:allow-confirm",
+        "como": "al instalar"
+      },
+      {
+        "id": "deep-link:default",
+        "texto": "Permiso Tauri deep-link:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "autostart:default",
+        "texto": "Permiso Tauri autostart:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "autostart:allow-enable",
+        "texto": "Permiso Tauri autostart:allow-enable",
+        "como": "al instalar"
+      },
+      {
+        "id": "autostart:allow-disable",
+        "texto": "Permiso Tauri autostart:allow-disable",
+        "como": "al instalar"
+      },
+      {
+        "id": "autostart:allow-is-enabled",
+        "texto": "Permiso Tauri autostart:allow-is-enabled",
+        "como": "al instalar"
+      },
+      {
+        "id": "updater:default",
+        "texto": "Permiso Tauri updater:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "updater:allow-check",
+        "texto": "Permiso Tauri updater:allow-check",
+        "como": "al instalar"
+      },
+      {
+        "id": "updater:allow-download-and-install",
+        "texto": "Permiso Tauri updater:allow-download-and-install",
+        "como": "al instalar"
+      }
+    ],
+    "noPermite": [
+      "Bluetooth nativo sin plugin",
+      "Web Serial en WebView"
+    ]
+  },
+  "windows": {
+    "versionMinima": "10",
+    "arquitecturas": [
+      "x86_64"
+    ],
+    "permisos": [
+      {
+        "id": "core:default",
+        "texto": "Permiso Tauri core:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:app:default",
+        "texto": "Permiso Tauri core:app:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:default",
+        "texto": "Permiso Tauri core:window:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:webview:default",
+        "texto": "Permiso Tauri core:webview:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:event:default",
+        "texto": "Permiso Tauri core:event:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:path:default",
+        "texto": "Permiso Tauri core:path:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:resources:default",
+        "texto": "Permiso Tauri core:resources:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:menu:default",
+        "texto": "Permiso Tauri core:menu:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:tray:default",
+        "texto": "Permiso Tauri core:tray:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-set-title",
+        "texto": "Permiso Tauri core:window:allow-set-title",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-minimize",
+        "texto": "Permiso Tauri core:window:allow-minimize",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-maximize",
+        "texto": "Permiso Tauri core:window:allow-maximize",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-unmaximize",
+        "texto": "Permiso Tauri core:window:allow-unmaximize",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-close",
+        "texto": "Permiso Tauri core:window:allow-close",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-start-dragging",
+        "texto": "Permiso Tauri core:window:allow-start-dragging",
+        "como": "al instalar"
+      },
+      {
+        "id": "shell:allow-execute",
+        "texto": "Permiso Tauri shell:allow-execute",
+        "como": "al instalar"
+      },
+      {
+        "id": "shell:allow-spawn",
+        "texto": "Permiso Tauri shell:allow-spawn",
+        "como": "al instalar"
+      },
+      {
+        "id": "shell:allow-kill",
+        "texto": "Permiso Tauri shell:allow-kill",
+        "como": "al instalar"
+      },
+      {
+        "id": "shell:allow-stdin-write",
+        "texto": "Permiso Tauri shell:allow-stdin-write",
+        "como": "al instalar"
+      },
+      {
+        "id": "shell:allow-open",
+        "texto": "Permiso Tauri shell:allow-open",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:allow-read-text-file",
+        "texto": "Permiso Tauri fs:allow-read-text-file",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:allow-write-text-file",
+        "texto": "Permiso Tauri fs:allow-write-text-file",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:allow-read-dir",
+        "texto": "Permiso Tauri fs:allow-read-dir",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:allow-mkdir",
+        "texto": "Permiso Tauri fs:allow-mkdir",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:scope",
+        "texto": "Permiso Tauri fs:scope",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:default",
+        "texto": "Permiso Tauri fs:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-platform",
+        "texto": "Permiso Tauri os:allow-platform",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-version",
+        "texto": "Permiso Tauri os:allow-version",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-os-type",
+        "texto": "Permiso Tauri os:allow-os-type",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-family",
+        "texto": "Permiso Tauri os:allow-family",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-arch",
+        "texto": "Permiso Tauri os:allow-arch",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-hostname",
+        "texto": "Permiso Tauri os:allow-hostname",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-locale",
+        "texto": "Permiso Tauri os:allow-locale",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-exe-extension",
+        "texto": "Permiso Tauri os:allow-exe-extension",
+        "como": "al instalar"
+      },
+      {
+        "id": "process:allow-exit",
+        "texto": "Permiso Tauri process:allow-exit",
+        "como": "al instalar"
+      },
+      {
+        "id": "process:allow-restart",
+        "texto": "Permiso Tauri process:allow-restart",
+        "como": "al instalar"
+      },
+      {
+        "id": "notification:default",
+        "texto": "Permiso Tauri notification:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "notification:allow-notify",
+        "texto": "Permiso Tauri notification:allow-notify",
+        "como": "al instalar"
+      },
+      {
+        "id": "notification:allow-request-permission",
+        "texto": "Permiso Tauri notification:allow-request-permission",
+        "como": "al instalar"
+      },
+      {
+        "id": "notification:allow-is-permission-granted",
+        "texto": "Permiso Tauri notification:allow-is-permission-granted",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:default",
+        "texto": "Permiso Tauri dialog:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:allow-open",
+        "texto": "Permiso Tauri dialog:allow-open",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:allow-save",
+        "texto": "Permiso Tauri dialog:allow-save",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:allow-message",
+        "texto": "Permiso Tauri dialog:allow-message",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:allow-ask",
+        "texto": "Permiso Tauri dialog:allow-ask",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:allow-confirm",
+        "texto": "Permiso Tauri dialog:allow-confirm",
+        "como": "al instalar"
+      },
+      {
+        "id": "deep-link:default",
+        "texto": "Permiso Tauri deep-link:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "autostart:default",
+        "texto": "Permiso Tauri autostart:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "autostart:allow-enable",
+        "texto": "Permiso Tauri autostart:allow-enable",
+        "como": "al instalar"
+      },
+      {
+        "id": "autostart:allow-disable",
+        "texto": "Permiso Tauri autostart:allow-disable",
+        "como": "al instalar"
+      },
+      {
+        "id": "autostart:allow-is-enabled",
+        "texto": "Permiso Tauri autostart:allow-is-enabled",
+        "como": "al instalar"
+      },
+      {
+        "id": "updater:default",
+        "texto": "Permiso Tauri updater:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "updater:allow-check",
+        "texto": "Permiso Tauri updater:allow-check",
+        "como": "al instalar"
+      },
+      {
+        "id": "updater:allow-download-and-install",
+        "texto": "Permiso Tauri updater:allow-download-and-install",
+        "como": "al instalar"
+      }
+    ],
+    "noPermite": [
+      "Autoarranque sin registro"
+    ]
+  },
+  "linux": {
+    "versionMinima": "5.0",
+    "arquitecturas": [
+      "x86_64",
+      "arm64"
+    ],
+    "permisos": [
+      {
+        "id": "core:default",
+        "texto": "Permiso Tauri core:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:app:default",
+        "texto": "Permiso Tauri core:app:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:default",
+        "texto": "Permiso Tauri core:window:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:webview:default",
+        "texto": "Permiso Tauri core:webview:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:event:default",
+        "texto": "Permiso Tauri core:event:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:path:default",
+        "texto": "Permiso Tauri core:path:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:resources:default",
+        "texto": "Permiso Tauri core:resources:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:menu:default",
+        "texto": "Permiso Tauri core:menu:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:tray:default",
+        "texto": "Permiso Tauri core:tray:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-set-title",
+        "texto": "Permiso Tauri core:window:allow-set-title",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-minimize",
+        "texto": "Permiso Tauri core:window:allow-minimize",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-maximize",
+        "texto": "Permiso Tauri core:window:allow-maximize",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-unmaximize",
+        "texto": "Permiso Tauri core:window:allow-unmaximize",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-close",
+        "texto": "Permiso Tauri core:window:allow-close",
+        "como": "al instalar"
+      },
+      {
+        "id": "core:window:allow-start-dragging",
+        "texto": "Permiso Tauri core:window:allow-start-dragging",
+        "como": "al instalar"
+      },
+      {
+        "id": "shell:allow-execute",
+        "texto": "Permiso Tauri shell:allow-execute",
+        "como": "al instalar"
+      },
+      {
+        "id": "shell:allow-spawn",
+        "texto": "Permiso Tauri shell:allow-spawn",
+        "como": "al instalar"
+      },
+      {
+        "id": "shell:allow-kill",
+        "texto": "Permiso Tauri shell:allow-kill",
+        "como": "al instalar"
+      },
+      {
+        "id": "shell:allow-stdin-write",
+        "texto": "Permiso Tauri shell:allow-stdin-write",
+        "como": "al instalar"
+      },
+      {
+        "id": "shell:allow-open",
+        "texto": "Permiso Tauri shell:allow-open",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:allow-read-text-file",
+        "texto": "Permiso Tauri fs:allow-read-text-file",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:allow-write-text-file",
+        "texto": "Permiso Tauri fs:allow-write-text-file",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:allow-read-dir",
+        "texto": "Permiso Tauri fs:allow-read-dir",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:allow-mkdir",
+        "texto": "Permiso Tauri fs:allow-mkdir",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:scope",
+        "texto": "Permiso Tauri fs:scope",
+        "como": "al instalar"
+      },
+      {
+        "id": "fs:default",
+        "texto": "Permiso Tauri fs:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-platform",
+        "texto": "Permiso Tauri os:allow-platform",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-version",
+        "texto": "Permiso Tauri os:allow-version",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-os-type",
+        "texto": "Permiso Tauri os:allow-os-type",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-family",
+        "texto": "Permiso Tauri os:allow-family",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-arch",
+        "texto": "Permiso Tauri os:allow-arch",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-hostname",
+        "texto": "Permiso Tauri os:allow-hostname",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-locale",
+        "texto": "Permiso Tauri os:allow-locale",
+        "como": "al instalar"
+      },
+      {
+        "id": "os:allow-exe-extension",
+        "texto": "Permiso Tauri os:allow-exe-extension",
+        "como": "al instalar"
+      },
+      {
+        "id": "process:allow-exit",
+        "texto": "Permiso Tauri process:allow-exit",
+        "como": "al instalar"
+      },
+      {
+        "id": "process:allow-restart",
+        "texto": "Permiso Tauri process:allow-restart",
+        "como": "al instalar"
+      },
+      {
+        "id": "notification:default",
+        "texto": "Permiso Tauri notification:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "notification:allow-notify",
+        "texto": "Permiso Tauri notification:allow-notify",
+        "como": "al instalar"
+      },
+      {
+        "id": "notification:allow-request-permission",
+        "texto": "Permiso Tauri notification:allow-request-permission",
+        "como": "al instalar"
+      },
+      {
+        "id": "notification:allow-is-permission-granted",
+        "texto": "Permiso Tauri notification:allow-is-permission-granted",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:default",
+        "texto": "Permiso Tauri dialog:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:allow-open",
+        "texto": "Permiso Tauri dialog:allow-open",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:allow-save",
+        "texto": "Permiso Tauri dialog:allow-save",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:allow-message",
+        "texto": "Permiso Tauri dialog:allow-message",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:allow-ask",
+        "texto": "Permiso Tauri dialog:allow-ask",
+        "como": "al instalar"
+      },
+      {
+        "id": "dialog:allow-confirm",
+        "texto": "Permiso Tauri dialog:allow-confirm",
+        "como": "al instalar"
+      },
+      {
+        "id": "deep-link:default",
+        "texto": "Permiso Tauri deep-link:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "autostart:default",
+        "texto": "Permiso Tauri autostart:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "autostart:allow-enable",
+        "texto": "Permiso Tauri autostart:allow-enable",
+        "como": "al instalar"
+      },
+      {
+        "id": "autostart:allow-disable",
+        "texto": "Permiso Tauri autostart:allow-disable",
+        "como": "al instalar"
+      },
+      {
+        "id": "autostart:allow-is-enabled",
+        "texto": "Permiso Tauri autostart:allow-is-enabled",
+        "como": "al instalar"
+      },
+      {
+        "id": "updater:default",
+        "texto": "Permiso Tauri updater:default",
+        "como": "al instalar"
+      },
+      {
+        "id": "updater:allow-check",
+        "texto": "Permiso Tauri updater:allow-check",
+        "como": "al instalar"
+      },
+      {
+        "id": "updater:allow-download-and-install",
+        "texto": "Permiso Tauri updater:allow-download-and-install",
+        "como": "al instalar"
+      }
+    ],
+    "noPermite": []
+  },
+  "android": {
+    "versionMinima": "6.0",
+    "arquitecturas": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86",
+      "x86_64"
+    ],
+    "permisos": [
+      {
+        "id": "FOREGROUND_SERVICE",
+        "texto": "Servicio en primer plano para antenas",
+        "como": "al primer uso"
+      },
+      {
+        "id": "FOREGROUND_SERVICE_CONNECTED_DEVICE",
+        "texto": "Servicio conectado para antenas",
+        "como": "al instalar"
+      },
+      {
+        "id": "FOREGROUND_SERVICE_DATA_SYNC",
+        "texto": "Sincronización de datos en segundo plano",
+        "como": "al instalar"
+      },
+      {
+        "id": "CHANGE_WIFI_MULTICAST_STATE",
+        "texto": "Escuchar faros Wi-Fi multicast",
+        "como": "al primer uso"
+      },
+      {
+        "id": "ACCESS_NETWORK_STATE",
+        "texto": "Ver estado de red",
+        "como": "al instalar"
+      },
+      {
+        "id": "ACCESS_WIFI_STATE",
+        "texto": "Ver estado Wi-Fi",
+        "como": "al instalar"
+      },
+      {
+        "id": "POST_NOTIFICATIONS",
+        "texto": "Mostrar notificaciones de actualización",
+        "como": "al primer uso"
+      },
+      {
+        "id": "RECEIVE_BOOT_COMPLETED",
+        "texto": "Arrancar al encender",
+        "como": "al instalar"
+      },
+      {
+        "id": "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+        "texto": "Excluir de optimización de batería",
+        "como": "en ajustes"
+      }
+    ],
+    "noPermite": [
+      "Web Serial",
+      "Web Bluetooth"
+    ]
+  },
+  "ios": {
+    "versionMinima": "",
+    "arquitecturas": [],
+    "permisos": [],
+    "noPermite": [
+      "App nativa no disponible, se usa PWA"
+    ]
+  },
+  "web": {
+    "versionMinima": "",
+    "arquitecturas": [],
+    "permisos": [],
+    "noPermite": [
+      "Acceso al sistema de archivos",
+      "Terminal",
+      "Autoarranque"
+    ]
+  }
+}
