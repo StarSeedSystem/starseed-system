@@ -40,6 +40,7 @@ import {
   type GithubReleaseMin,
   type CacheReleaseAndroid,
 } from "@/lib/pwa/actualizacion-nativa-logica";
+import { verificarPermisoAbrir, abrirInstaladorAndroid } from "@/lib/nativa/actualizador-android";
 
 const EVENTO_ACTUALIZACION = "starseed://actualizacion";
 const CACHE_KEY_ANDROID = "starseed.native.android-release.v1";
@@ -239,9 +240,16 @@ export function ActualizacionNativa() {
 
   // ── Android: aviso de .apk nuevo disponible ──
   if (androidAviso) {
+    const abrirInstalador = async () => {
+      const tauri = leerTauriGlobal();
+      const permiso = verificarPermisoAbrir(['shell:allow-open']);
+      if (!permiso.ok) return;
+      await abrirInstaladorAndroid(androidAviso.href, tauri as any);
+    };
     return (
-      <a
-        href={androidAviso.href}
+      <button
+        type="button"
+        onClick={() => { void abrirInstalador(); }}
         role="status"
         data-testid="actualizacion-nativa-android"
         className="fixed inset-x-0 bottom-4 z-[120] mx-auto flex w-[min(92vw,420px)] cursor-pointer items-center gap-3 rounded-2xl border border-white/10 bg-[#0b0f16]/95 px-4 py-3 shadow-2xl backdrop-blur-xl transition-opacity duration-200 hover:opacity-95"
@@ -250,7 +258,7 @@ export function ActualizacionNativa() {
         <p className="min-w-0 flex-1 text-[13px] font-medium text-white/90">
           Nueva versión {androidAviso.version}: descargar e instalar
         </p>
-      </a>
+      </button>
     );
   }
 

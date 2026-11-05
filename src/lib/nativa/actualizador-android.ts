@@ -39,7 +39,7 @@ export async function abrirInstaladorAndroid(url: string, tauri: TauriAndroid | 
   }
   try {
     const res = tauri.shell.open(url);
-    const ok = typeof res?.then === "function" ? await res : Boolean(res);
+    const ok = res instanceof Promise ? await res : Boolean(res);
     return ok ? { ok: true } : { ok: false, motivo: "El abridor del sistema rechazó la URL." };
   } catch (e) {
     const motivo = e instanceof Error ? e.message : "Error al abrir instalador.";
