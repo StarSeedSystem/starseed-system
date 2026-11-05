@@ -25,7 +25,6 @@ function capaDeRespuestaViva(): Capa {
     };
 }
 
-// Prueba para respuesta-viva
 export function moleculaConRespuestaViva(): Molecula {
     return {
         id: "mol-respuesta-viva", titulo: "Molécula con Respuesta Viva", ambito: "personal",
