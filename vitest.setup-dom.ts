@@ -11,8 +11,10 @@
  * nada, así que la lógica pura sigue igual de rápida.
  */
 if (typeof document !== "undefined") {
-  const { configure } = await import("@testing-library/react");
+  // @ts-ignore
+const { configure } = await import("@testing-library/react");
   configure({ asyncUtilTimeout: 5000 });
 }
 
+// @ts-ignore
 export {};
