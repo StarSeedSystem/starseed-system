@@ -135,6 +135,12 @@ import {
 } from "@/lib/aurora/tts-oss/kokoro";
 import { KITTEN_STATUS } from "@/lib/aurora/tts-oss/kitten";
 import {
+  oidoNubeEncendido,
+  fijarOidoNube,
+  type EstadoOidoNube,
+  obtenerEstadoOidoNube,
+} from "@/lib/aurora/stt-oss/oido-nube-ajuste";
+import {
   OSS_TTS_VOICES,
   KOKORO_APPROX_SIZE,
   type OssTtsLoadProgress,
@@ -207,6 +213,31 @@ export function VoiceOssPanel({ className }: { className?: string }) {
   const [ov2Status, setOv2Status] = useState<string>("");
   const [ov2Buscando, setOv2Buscando] = useState(false);
   const [ov2Descubierto, setOv2Descubierto] = useState<string>("");
+
+  // ── Oído en la nube (interruptor + estado) ──
+  const [oidenube, setOidenNube] = useState<EstadoOidoNube>({
+    encendido: true,
+    motorHabla: null,
+    oido: "navegador",
+    nombreMotor: "",
+  });
+
+  // Cargar estado del oído al montar
+  useEffect(() => {
+    const estado: EstadoOidoNube = {
+      encendido: oidoNubeEncendido({
+        leerLS: (k) => typeof window !== "undefined" ? window.localStorage.getItem(k) : null,
+        escribirLS: () => {},
+        leerMedidas: () => [],
+        vozMedida: () => undefined,
+        ahora: () => Date.now(),
+      }),
+      motorHabla: null,
+      oido: "navegador",
+      nombreMotor: "",
+    };
+    setOidenNube(estado);
+  }, []);
 
   const mountedRef = useRef(true);
 
@@ -416,6 +447,16 @@ export function VoiceOssPanel({ className }: { className?: string }) {
         /* */
       }
     };
+  }, []);
+
+  // Escuchar cambios de motor que sonó (evento del speak-router)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const manejar = (e: Event) => {
+      setOidenNube(obtenerEstadoOidoNube());
+    };
+    window.addEventListener("starseed:voz-motor-vivo", manejar);
+    return () => window.removeEventListener("starseed:voz-motor-vivo", manejar);
   }, []);
 
   // Ping de disponibilidad de UN motor por endpoint (caché 60 s en neural-tts).
@@ -915,6 +956,40 @@ export function VoiceOssPanel({ className }: { className?: string }) {
           </span>
         </div>
         {omniStatus && <p className="text-[11px] text-foreground/60">{omniStatus}</p>}
+      </div>
+
+      {/* ── Oído en la nube (interruptor + línea de estado) ── */}
+      <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.02] p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Mic className="w-4 h-4 text-sky-300" />
+            <span className="text-sm font-medium text-foreground/90">Oído en la nube</span>
+            <span className="text-[10px] text-muted-foreground">
+              ({oidenube.oido === "nube" ? "Groq Whisper/Gemini" : "Navegador"})
+            </span>
+          </div>
+          <label className="flex items-center gap-2 text-[11px] text-foreground/75 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={oidenube.encendido}
+              onChange={(e) => {
+                fijarOidoNube(e.target.checked);
+                setOidenNube(obtenerEstadoOidoNube());
+              }}
+              className="accent-sky-300"
+            />
+            <span>Encendido</span>
+          </label>
+        </div>
+        <p className="text-[11px] text-muted-foreground leading-snug">
+          {oidenube.motorHabla
+            ? `Última voz: ${oidenube.nombreMotor} (${oidenube.oido === "nube" ? "nube" : "navegador"}).`
+            : "Sin voz previa. El audio se envía a transcribir y no se guarda."}
+        </p>
+        <p className="text-[10px] text-muted-foreground/60">
+          Se activa por defecto. Al usarlo, cada tramo de audio se envía a Groq Whisper o Gemini
+          para transcribir — nunca se guarda.
+        </p>
       </div>
 
       {/* ── OpenVoice 2 · MOTOR de nube del sistema OmniVoice (sin instalar) ──── */}
