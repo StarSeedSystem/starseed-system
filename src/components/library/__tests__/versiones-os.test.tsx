@@ -78,6 +78,9 @@ afterAll(() => {
   vi.restoreAllMocks();
 });
 
+// Mock next/navigation for useSearchParams y usePathname
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(), usePathname: () => "/" }));
+
 import { VersionesOs } from "../versiones-os";
 import { AppearanceProvider } from "@/context/appearance-context";
 
