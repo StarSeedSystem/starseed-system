@@ -86,4 +86,3 @@ export function decidirActualizacionAndroid(
   };
 }
 
-export type { GithubReleaseAssetMin, GithubReleaseMin, DecisionAndroid };
