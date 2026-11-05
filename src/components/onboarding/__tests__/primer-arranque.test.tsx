@@ -202,8 +202,6 @@ it("se puede abrir a mano aunque se hubiera saltado", async () => {
         });
         await screen.findByRole("heading", { name: "Crea tu cuenta o entra" });
     });
-        await screen.findByRole("heading", { name: "Crea tu cuenta o entra" });
-    });
 
     it("en una web normal solo aparece el aviso discreto, que abre la misma ventana", async () => {
         est.nativa = false;
@@ -230,7 +228,7 @@ it("se puede abrir a mano aunque se hubiera saltado", async () => {
     it("el evento de abrir a mano puede pedir la pestaña «Entrar»", async () => {
         window.localStorage.setItem("starseed.primer-arranque.saltado.v1", "1");
         montar();
-        await pausa();
+        await screen.findByRole("heading", { name: "Crea tu cuenta o entra" });
         act(() => {
             window.dispatchEvent(new CustomEvent("starseed:abrir-primer-arranque", { detail: { paso: "acceso", pestana: "signin" } }));
         });
@@ -254,8 +252,7 @@ it("se puede abrir a mano aunque se hubiera saltado", async () => {
             soltar = registrarPuerta();
         });
         montar();
-        await pausa(150);
-        expect(screen.queryByTestId("aviso-bienvenida-web")).toBeNull();
+        await waitFor(() => expect(screen.queryByTestId("aviso-bienvenida-web")).toBeNull());
         act(() => soltar());
         await screen.findByTestId("aviso-bienvenida-web");
     });
@@ -266,8 +263,7 @@ it("se puede abrir a mano aunque se hubiera saltado", async () => {
             registrarPuerta();
         });
         montar();
-        await pausa(150);
-        expect(screen.queryByTestId("ventana-bienvenida")).toBeNull();
+        await waitFor(() => expect(screen.queryByTestId("ventana-bienvenida")).toBeNull());
         // Pero a mano (los botones de la puerta) sí se abre.
         act(() => {
             window.dispatchEvent(new CustomEvent("starseed:abrir-primer-arranque", { detail: { paso: "intro" } }));
@@ -294,22 +290,19 @@ it("se puede abrir a mano aunque se hubiera saltado", async () => {
         est.nativa = false;
         est.ruta = "/login"; // ruta con su propio acceso: no abre nada
         const { rerender } = montar();
-        await pausa(100);
-        expect(screen.queryByTestId("aviso-bienvenida-web")).toBeNull();
+        await waitFor(() => expect(screen.queryByTestId("aviso-bienvenida-web")).toBeNull());
         // La puerta (otro componente) marca «saltada» y navega.
         window.localStorage.setItem("starseed.primer-arranque.saltado.v1", "1");
         est.ruta = "/escritorios";
         rerender(arranque());
-        await pausa(150);
-        expect(screen.queryByTestId("aviso-bienvenida-web")).toBeNull();
+        await waitFor(() => expect(screen.queryByTestId("aviso-bienvenida-web")).toBeNull());
         expect(screen.queryByTestId("ventana-bienvenida")).toBeNull();
     });
 
     it("en la consola de Genesis no abre nada", async () => {
         est.ruta = "/mando";
         montar();
-        await pausa();
-        expect(screen.queryByTestId("ventana-bienvenida")).toBeNull();
+        await waitFor(() => expect(screen.queryByTestId("ventana-bienvenida")).toBeNull());
     });
 
     it("al entrar con una cuenta se retira la bienvenida", async () => {
@@ -374,8 +367,7 @@ describe("PrimerArranque · con cuenta", () => {
         cleanup();
         window.sessionStorage.clear();
         montar();
-        await pausa(200);
-        expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull();
+        await waitFor(() => expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull());
     });
 
     it("«Más tarde» de OTRA neurona no pospone a esta", async () => {
@@ -391,8 +383,7 @@ describe("PrimerArranque · con cuenta", () => {
     it("mientras la cuenta no esté bajada NO abre los ajustes; al bajar, decide con lo que ya sabe la cuenta", async () => {
         est.cuentaFiable = false;
         montar();
-        await pausa(200);
-        expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull();
+        await waitFor(() => expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull());
         expect(est.esperasCuenta.length).toBe(1); // esperando a la cuenta, sin sondear
         // La cuenta baja y resulta que esta neurona ya estaba configurada.
         window.localStorage.setItem(
@@ -404,14 +395,13 @@ describe("PrimerArranque · con cuenta", () => {
         await act(async () => {
             est.esperasCuenta.forEach((f) => f());
         });
-        await pausa(200);
-        expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull();
+        await waitFor(() => expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull());
     });
 
     it("con la cuenta bajada y sin nada suyo, sí abre los ajustes al volver la cuenta", async () => {
         est.cuentaFiable = false;
         montar();
-        await pausa(100);
+        await waitFor(() => expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull());
         est.cuentaFiable = true;
         await act(async () => {
             est.esperasCuenta.forEach((f) => f());
@@ -426,15 +416,13 @@ describe("PrimerArranque · con cuenta", () => {
         );
         _reiniciarCacheAvisosParaPruebas();
         montar();
-        await pausa(200);
-        expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull();
+        await waitFor(() => expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull());
     });
 
     it("una marca local antigua de «configurada» se respeta y se copia a la cuenta", async () => {
         window.localStorage.setItem("starseed.neuron.setup.v1", "1");
         montar();
-        await pausa(200);
-        expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull();
+        await waitFor(() => expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull());
         expect(estadoAviso(AVISO_NEURONA_CONFIGURADA, { neurona: "dispositivo-1" }).estado).toBe("hecho");
     });
 
@@ -458,15 +446,13 @@ describe("PrimerArranque · con cuenta", () => {
         est.fila = { id: "dispositivo-1", name: "Mac de Ana", created_at: "2026-01-01T00:00:00Z" };
         window.localStorage.setItem("starseed.neurons.prefs.v1", JSON.stringify({ names: { "dispositivo-1": "Mac de Ana" } }));
         montar();
-        await pausa();
-        expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull();
+        await waitFor(() => expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull());
         expect(screen.queryByTestId("ventana-bienvenida")).toBeNull();
     });
 
     it("una cuenta recién creada sin perfil la deja al asistente de alta", async () => {
         est.perfil = null;
         montar();
-        await pausa();
-        expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull();
+        await waitFor(() => expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull());
     });
 });
