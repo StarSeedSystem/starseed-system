@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 vi.mock("server-only", () => ({}));
+<<<<<<< HEAD
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+=======
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, open, stat } from "node:fs/promises";
+>>>>>>> 3d5c2ea6b (salvavidas · SUP0411K: trabajo del agente antes de las puertas (tsc / vitest))
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { MensajeCanal } from "@/lib/mando/director-datos";
