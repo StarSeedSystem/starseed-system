@@ -363,6 +363,40 @@ type LinkOutcome =
   | "declined"; // no pudo ni empezar → probar el siguiente eslabón
 
 /**
+ * (VOZ1105B) Lo que devuelve un eslabón al router: el estado y —solo cuando
+ * empezó a sonar y se cortó informe cuántos trozos sonaron— el TEXTO que
+ * NO llegó a sonar, para que el router lo diga con el siguiente eslabón
+ * (contrato `voz-estable-1105.md` §3/§4: terminar el mensaje manda).
+ */
+interface LinkResultado {
+  estado: LinkOutcome;
+  /** Texto restante (trozos aún sin sonar); solo en "started" con progreso. */
+  restante?: string;
+}
+
+/**
+ * restoTrasCorte — dado el PLAN de trozos de un mensaje y cuántos llegaron a
+ * sonar antes de un corte, devuelve el texto que AÚN no se dijo. Los trozos ya
+ * sonados se descartan; el resto se une con espacios (el plan ya respetaba
+ * cortes de frase). Devuelve null si no hay resto real: plan vacío, sonados
+ * inválidos, ninguno o TODOS (nada que relevar) — el router mantiene entonces
+ * el comportamiento de siempre. PURA y testeable; nunca lanza.
+ */
+export function restoTrasCorte(
+  trozos: readonly string[],
+  sonados: number,
+): string | null {
+  try {
+    const plan = (trozos || []).map((t) => (t || "").trim()).filter(Boolean);
+    const n = Math.floor(sonados);
+    if (!plan.length || !Number.isFinite(n) || n <= 0 || n >= plan.length) return null;
+    return plan.slice(n).join(" ").trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * ¿Hay un motor OSS/neural activo Y disponible para hablar YA (sin descargar
  * por sorpresa)? Úsalo para decidir rápido si merece la pena delegar.
  *
@@ -431,7 +465,7 @@ async function runLink(
   opts: ConfiguredSpeakOptions,
   /** Idioma REAL detectado en `text` (solo si `detectSpokenLang` fue CONFIABLE). */
   detectedLang?: string,
-): Promise<LinkOutcome> {
+): Promise<LinkResultado> {
   let started = false;
   // (VOZ1024A) Primer sonido de ESTE eslabón, desde que se le pide la locución. Chatterbox
   // ya anota el suyo dentro de `chatterbox.ts`: aquí no se cuenta dos veces.
@@ -466,8 +500,8 @@ async function runLink(
       !!getEngineSettings("voicebox").endpoint;
     if (manualConfigured) {
       const audio = await neuralSpeak("voicebox", text, { ...safe });
-      if (audio) return "spoke";
-      return started ? "started" : "declined";
+      if (audio) return { estado: "spoke" };
+      return { estado: started ? "started" : "declined" };
     }
     // Ruta híbrida (sin endpoint manual): delega al OpenVoiceHybridRouter.
     const { OpenVoiceHybridRouter, resolveVoiceboxPersonality } = await import(
@@ -484,7 +518,7 @@ async function runLink(
           onStart: safe.onStart,
           onEnd: safe.onEnd,
         });
-        if (viaMixer) return "spoke";
+        if (viaMixer) return { estado: "spoke" };
       } catch {
         /* mixer no disponible → clásico */
       }
@@ -497,13 +531,13 @@ async function runLink(
         safe.onStart();
         await audio.play().catch(() => null);
         safe.onEnd();
-        return "spoke";
+        return { estado: "spoke" };
       } catch {
-        return "declined";
+        return { estado: "declined" };
       }
     }
     // Sin app local ni API Key → la cadena continúa con OpenVoice web (default).
-    return "declined";
+    return { estado: "declined" };
   }
 
   if (link === "xai") {
@@ -521,18 +555,18 @@ async function runLink(
       onEnd: safe.onEnd,
       onError: safe.onError,
     });
-    if (ok) return "spoke";
-    return started ? "started" : "declined";
+    if (ok) return { estado: "spoke" };
+    return { estado: started ? "started" : "declined" };
   }
 
   if (isNeuralEngine(link)) {
     const { neuralSpeak, neuralEngineConfigured, pingNeuralEngine } = await import(
       "@/lib/aurora/tts-oss/neural-tts"
     );
-    if (!neuralEngineConfigured(link)) return "declined";
+    if (!neuralEngineConfigured(link)) return { estado: "declined" };
     if (MOTORES_CON_SALUD_PREVIA.has(link)) {
       const salud = await pingNeuralEngine(link).catch(() => "unreachable" as const);
-      if (salud !== "ok") return "declined"; // apagado: sin error visible, siguiente eslabón
+      if (salud !== "ok") return { estado: "declined" }; // apagado: sin error visible, siguiente eslabón
     }
     // AUTO-DETECCIÓN DE IDIOMA: con detección CONFIABLE, anulamos aquí el
     // `lang` persistido de ESTE motor solo para esta locución (el timbre/voz
@@ -549,18 +583,32 @@ async function runLink(
     // etiqueta el texto suelto como Speaker 0.
     const speakText =
       link === "vibevoice" && opts.multiSpeakerScript ? opts.multiSpeakerScript : text;
-    const audio = await neuralSpeak(link, speakText, { ...safe, settings: settingsOverride });
-    if (audio) return "spoke";
-    return started ? "started" : "declined";
+    // (VOZ1105B) Si el motor trocea el mensaje y se corta a mitad, informa el
+    // progreso (trozos sonados / plan); del plan calculamos el TEXTO RESTANTE
+    // para que el router lo haga decir con el siguiente eslabón. Sin informe,
+    // el router cierra el turno como siempre (comportamiento de hoy).
+    let restante: string | undefined;
+    const audio = await neuralSpeak(link, speakText, {
+      ...safe,
+      settings: settingsOverride,
+      onProgreso: (p) => {
+        try {
+          restante = restoTrasCorte(p.trozos, p.sonados) ?? undefined;
+        } catch { /* */ }
+      },
+    });
+    if (audio) return { estado: "spoke" };
+    if (started && restante) return { estado: "started", restante };
+    return { estado: started ? "started" : "declined" };
   }
 
   if (link === "kokoro") {
     const { kokoroAvailable, kokoroModelReady, kokoroSpeak } = await import(
       "@/lib/aurora/tts-oss/kokoro"
     );
-    if (!kokoroAvailable()) return "declined";
+    if (!kokoroAvailable()) return { estado: "declined" };
     // Sin autoDownload y sin modelo listo → no bloqueamos a Aurora; siguiente.
-    if (!kokoroModelReady() && !cfg.autoDownload) return "declined";
+    if (!kokoroModelReady() && !cfg.autoDownload) return { estado: "declined" };
     // Velocidad desde el estilo emocional vivo (Kokoro acepta speed).
     let speed: number | undefined;
     try {
@@ -573,19 +621,19 @@ async function runLink(
       autoDownload: !!cfg.autoDownload,
       ...safe,
     });
-    if (audio) return "spoke";
-    return started ? "started" : "declined";
+    if (audio) return { estado: "spoke" };
+    return { estado: started ? "started" : "declined" };
   }
 
   if (link === "kitten") {
     const { kittenAvailable, kittenSpeak } = await import("@/lib/aurora/tts-oss/kitten");
-    if (!kittenAvailable()) return "declined"; // stub honesto: hoy siempre false
+    if (!kittenAvailable()) return { estado: "declined" }; // stub honesto: hoy siempre false
     const audio = await kittenSpeak(text, { voice: cfg.voice, ...safe });
-    if (audio) return "spoke";
-    return started ? "started" : "declined";
+    if (audio) return { estado: "spoke" };
+    return { estado: started ? "started" : "declined" };
   }
 
-  return "declined";
+  return { estado: "declined" };
 }
 
 /**
@@ -703,21 +751,37 @@ export async function speakWithConfiguredEngine(
     // así que el arranque rápido se consigue por el otro lado: PRIMER TROZO MÁS
     // CORTO y prefetch encadenado (ver `neural-tts.ts::planVoiceChunks` y
     // `playSequentialViaMixer`), sin tocar la voz. El cambio de motor solo
-    // ocurre cuando el actual FALLA de verdad, y nunca a mitad de locución ya
-    // empezada (`allowFamilyFailover`).
+    // ocurre cuando el actual FALLA de verdad. (VOZ1105B, contrato
+    // `voz-estable-1105.md` §3/§4): si un motor empezó a sonar y se CORTÓ a
+    // mitad informando su progreso, el RESTO del mensaje SÍ sigue con el
+    // siguiente eslabón — terminar el mensaje manda sobre el timbre; sin
+    // progreso, el turno se cierra como siempre.
+    let pendiente = clean;
     for (const link of orderedChain) {
       // Cada eslabón envuelto: nunca lanzar sin capturar en cadenas de failover.
-      const outcome = await Promise.resolve()
-        .then(() => runLink(link, clean, cfg, wrappedOpts, detectedLang))
-        .catch((): LinkOutcome => "declined");
-      if (outcome === "spoke") { recordarMotorQueSono(link); return true; }
-      if (outcome === "started") {
+      // El resto ya no lleva guion multi-locutor (los trozos son texto limpio).
+      const intento =
+        pendiente === clean
+          ? wrappedOpts
+          : { ...wrappedOpts, multiSpeakerScript: undefined };
+      const resultado = await Promise.resolve()
+        .then(() => runLink(link, pendiente, cfg, intento, detectedLang))
+        .catch((): LinkResultado => ({ estado: "declined" }));
+      if (resultado.estado === "spoke") {
         recordarMotorQueSono(link);
-        // Llegó a sonar y se cortó: el turno YA se consumió; re-hablar el mismo
-        // texto con otro motor duplicaría la locución. Turno cerrado con dignidad.
         return true;
       }
-      // "declined" → siguiente eslabón de la cadena.
+      if (resultado.estado === "started") {
+        recordarMotorQueSono(link);
+        if (!resultado.restante) return true;
+        // Llegó a sonar (N de M trozos) y se cortó CON progreso: el texto que
+        // no sonó sigue con el SIGUIENTE eslabón de la cadena.
+        pendiente = resultado.restante;
+        continue;
+      }
+      // Llegó a sonar y se cortó SIN progreso: el turno YA se consumió;
+      // re-hablar ciegamente duplicaría la locución. Cerrado con dignidad.
+      // ("declined" → siguiente eslabón de la cadena.)
     }
     return false; // suelo garantizado: voz del navegador (mejor rankeada).
   } finally {

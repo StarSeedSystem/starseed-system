@@ -1211,12 +1211,29 @@ function liveEmotionPlaybackMod(): { rate: number; volume: number } | null {
   }
 }
 
+/**
+ * (VOZ1105B) Progreso de un mensaje TROCEADO que empezó a sonar y se cortó:
+ * cuántos trozos llegaron a sonar y cuál era el plan completo. Solo se informa
+ * en un corte a mitad (0 o todos ⇒ nada que relevar); el router de la cadena lo
+ * usa para que el SIGUIENTE eslabón diga el resto.
+ */
+export interface ProgresoTrozos {
+  /** Trozos que efectivamente llegaron a sonar antes del corte. */
+  sonados: number;
+  /** Trozos del plan completo del mensaje. */
+  total: number;
+  /** Plan completo de trozos (para calcular el texto restante). */
+  trozos: readonly string[];
+}
+
 export interface NeuralSpeakOptions {
   /** Config del motor (por defecto, la persistida en la clave unificada). */
   settings?: NeuralEngineSettings;
   onStart?: () => void;
   onEnd?: () => void;
   onError?: (message: string) => void;
+  /** (VOZ1105B) Corte a mitad de un mensaje troceado: lo dicho, dicho está… */
+  onProgreso?: (p: ProgresoTrozos) => void;
 }
 
 /**
@@ -1478,7 +1495,13 @@ const CONTINUOUS_OVERLAP_MS = 280;
 async function playSequentialViaMixer(
   provider: (i: number) => Promise<Blob | null>,
   count: number,
-  opts: { onStart?: () => void; onError?: (m: string) => void; onChunk?: (i: number, blob: Blob) => void } = {},
+  opts: {
+    onStart?: () => void;
+    onError?: (m: string) => void;
+    onChunk?: (i: number, blob: Blob) => void;
+    /** (VOZ1105B) Corte a mitad: trozos que llegaron a sonar. */
+    onProgreso?: (sonados: number) => void;
+  } = {},
 ): Promise<boolean> {
   try {
     const mixer = await import("@/lib/aurora/tts-oss/omnivoice-mixer");
@@ -1488,6 +1511,8 @@ async function playSequentialViaMixer(
     const LEAD_SEC = 0.6;
     let started = false;
     let aborted = false;
+    /** (VOZ1105B) Trozos agendados con éxito (suenan en el reloj del mixer). */
+    let sonados = 0;
     /** Despierta la espera en curso al cortar (para que `onEnd` no llegue tarde). */
     let wakeFromWait: (() => void) | null = null;
     // El stop global corta el mixer (stopMixer, vía stopConfiguredEngine) y
@@ -1556,6 +1581,7 @@ async function playSequentialViaMixer(
         started = true;
         try { opts.onStart?.(); } catch { /* */ }
       }
+      sonados++; // agendado: sonará en el reloj de WebAudio (VOZ1105B)
       lastEndAt = res.endAt;
       nextAt = Math.max(0, res.endAt - CROSS_MS / 1000);
       if (i + 1 < count) {
@@ -1564,6 +1590,13 @@ async function playSequentialViaMixer(
         const waitSec = Math.max(0, res.endAt - mixer.mixerNow() - LEAD_SEC);
         await sleep(waitSec * 1000);
       }
+    }
+    // (VOZ1105B) Corte a mitad (un trozo posterior falló y cerramos con
+    // dignidad): informamos cuántos llegaron a sonar para que el router diga el
+    // RESTO con el siguiente eslabón. El corte MANUAL (aborted) no releva: el
+    // usuario paró a propósito. Sin esto, el resto del mensaje se callaba.
+    if (started && sonados < count) {
+      try { opts.onProgreso?.(sonados); } catch { /* */ }
     }
     // Esperar al final REAL del último trozo agendado (para que el `onEnd` del
     // llamador —glow del orbe, reanudar micrófono— caiga cuando de verdad calla).
@@ -1578,7 +1611,13 @@ async function playSequentialViaMixer(
 async function playSequentialContinuous(
   provider: (i: number) => Promise<Blob | null>,
   count: number,
-  opts: { onStart?: () => void; onError?: (m: string) => void; onChunk?: (i: number, blob: Blob) => void } = {},
+  opts: {
+    onStart?: () => void;
+    onError?: (m: string) => void;
+    onChunk?: (i: number, blob: Blob) => void;
+    /** (VOZ1105B) Corte a mitad: trozos que llegaron a sonar. */
+    onProgreso?: (sonados: number) => void;
+  } = {},
 ): Promise<HTMLAudioElement | null> {
   if (count <= 0) return null;
 
@@ -1592,6 +1631,20 @@ async function playSequentialContinuous(
     let settled = false;
     let firstAudio: HTMLAudioElement | null = null;
     let aborted = false;
+    /** (VOZ1105B) Trozos que llegaron a sonar antes de cerrar la reproducción. */
+    let sonados = 0;
+    /**
+     * Cierra la reproducción UNA sola vez; si fue un corte a MITAD (empezó,
+     * no llegó a count), informa el progreso para que el router diga el resto.
+     */
+    const finish = (v: HTMLAudioElement | null) => {
+      if (settled) return;
+      settled = true;
+      if (sonados > 0 && sonados < count) {
+        try { opts.onProgreso?.(sonados); } catch { /* */ }
+      }
+      resolve(v);
+    };
     // Prefetch por índice CORRECTO (Adenda 98 fix): sembramos el trozo 0 antes
     // del primer playAt y, al entrar en cada índice, ya tenemos su blob listo y
     // disparamos el prefetch del siguiente. Antes se perdía el trozo 1 y, en el
@@ -1611,7 +1664,7 @@ async function playSequentialContinuous(
 
     const playAt = (i: number) => {
       if (aborted || i >= count) {
-        if (!settled) { settled = true; resolve(firstAudio); }
+        finish(firstAudio);
         return;
       }
       // El blob de ESTE trozo ya está sembrado (i=0 antes del bucle; i>0 por el
@@ -1626,9 +1679,9 @@ async function playSequentialContinuous(
           // Este trozo falló: si es el primero, rendirse; si no, cerrar con dignidad.
           if (i === 0) {
             try { opts.onError?.("Fallo al sintetizar el audio del motor neural."); } catch { /* */ }
-            if (!settled) { settled = true; resolve(null); }
-          } else if (!settled) {
-            settled = true; resolve(firstAudio);
+            finish(null);
+          } else {
+            finish(firstAudio);
           }
           return;
         }
@@ -1675,25 +1728,26 @@ async function playSequentialContinuous(
             if (idx >= 0) active.splice(idx, 1);
             if (i === 0) {
               try { opts.onError?.("Fallo al reproducir el audio del motor neural."); } catch { /* */ }
-              if (!settled) { settled = true; resolve(null); }
+              finish(null);
             } else {
               startNext();
             }
           };
           try { opts.onStart?.(); } catch { /* */ }
+          sonados++; // este trozo ya está sonando (VOZ1105B)
           const p = audio.play();
           if (p && typeof (p as Promise<void>).catch === "function") {
             (p as Promise<void>).catch(() => {
               if (i === 0) {
                 try { opts.onError?.("El navegador bloqueó la reproducción (requiere gesto)."); } catch { /* */ }
-                if (!settled) { settled = true; resolve(null); }
+                finish(null);
               }
             });
           }
         } catch {
           if (i === 0) {
             try { opts.onError?.("Fallo al reproducir el audio del motor neural."); } catch { /* */ }
-            if (!settled) { settled = true; resolve(null); }
+            finish(null);
           } else {
             startNext();
           }
@@ -2023,6 +2077,13 @@ async function neuralSpeakChunked(
       onError: opts.onError,
       onChunk: (i, blob) =>
         void emitVoiceNote({ textHash: fullHash, chunkIndex: i, chunkCount: chunks.length, engine, blob }),
+      // (VOZ1105B) Corte a mitad con trozos aún sin sonar: el plan COMPLETO
+      // viaja con el progreso para que el router calcule el texto restante.
+      onProgreso: (sonados) => {
+        try {
+          opts.onProgreso?.({ sonados, total: chunks.length, trozos: chunks });
+        } catch { /* */ }
+      },
     },
   ).then((audio) => {
     clearVoiceIdentity(identity.token); // fin del mensaje: identidad descongelada
