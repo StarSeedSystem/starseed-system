@@ -276,6 +276,29 @@ def _fallos_y_nota(informes, diff, umbral):
     return nota, fallos, all(r.get("aprobado") for r in resultados)
 
 
+def _rubrica_motionsites():
+    """Lee config/referencias-diseno/motionsites.json si existe y devuelve el bloque
+    de rúbrica como texto para añadir como segunda lista de comprobación. Solo lectura,
+    sin red. Devuelve cadena vacía si no existe o está vacío."""
+    ruta = os.path.join(RAIZ, "config", "referencias-diseno", "motionsites.json")
+    try:
+        with open(ruta, encoding="utf-8") as fh:
+            datos = json.load(fh)
+        rubrica = datos.get("rubrica") if isinstance(datos, dict) else None
+        if not isinstance(rubrica, list) or not rubrica:
+            return ""
+        lineas = []
+        for item in rubrica:
+            pregunta = item.get("pregunta") if isinstance(item, dict) else None
+            if isinstance(pregunta, str) and pregunta.strip():
+                lineas.append("- " + pregunta.strip())
+        if not lineas:
+            return ""
+        return "\n\nRúbrica MotionSites (segunda lista de comprobación):\n" + "\n".join(lineas)
+    except Exception:
+        return ""
+
+
 def _fase_verificacion(deps, tareas, progreso, estado, cfg, resumen, seco, ahora):
     """§1.2: al `commit` de una tarea de interfaz, verificar sus rutas. Con nota
     baja, los arreglos concretos llegan al agente y al revisor (mismo buzón:
@@ -323,11 +346,11 @@ def _fase_verificacion(deps, tareas, progreso, estado, cfg, resumen, seco, ahora
         if not aprobado:
             arreglos = "\n".join("- %s" % f.get("arreglo", f.get("tipo", "?"))
                                  for f in fallos[:10])
-            deps["anotar"](
-                tid,
-                "Diseño (%s): nota %d/100 con umbral %d. Arreglos concretos:\n%s"
-                % (", ".join(rutas), nota, umbral, arreglos or "- sin detalle"),
-            )
+            base = "Diseño (%s): nota %d/100 con umbral %d. Arreglos concretos:\n%s" % (
+                ", ".join(rutas), nota, umbral, arreglos or "- sin detalle")
+            rubrica_txt = _rubrica_motionsites()
+            texto = base + rubrica_txt
+            deps["anotar"](tid, texto)
             aviso = "Diseño: %s no llega al umbral (%d/%d, umbral %d). Arreglos anotados al agente y al revisor." % (
                 tid, nota, 100, umbral)
             deps["publicar"](aviso, tipo="aviso")
