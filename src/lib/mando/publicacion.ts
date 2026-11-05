@@ -12,7 +12,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { open, readFile, writeFile, mkdir, stat } from "node:fs/promises";
 import { promisify } from "node:util";
 import path from "node:path";
 
@@ -67,6 +67,9 @@ const ARCHIVO_MANIFIESTO = path.join("starseed_memory_root", "relevo", "publicac
 /** Ruta relativa del archivo de eventos de las olas (comprobaciones). */
 const ARCHIVO_EVENTOS = path.join("starseed_memory_root", "olas", "eventos.jsonl");
 
+/** Lo que `interpretarComprobaciones` sabe de tsc y vitest (null = ninguna verificación aún). */
+export type EstadoVerificaciones = { tsc: "ok" | "falla" | null; vitest: "ok" | "falla" | null };
+
 /**
  * Función pura: cuenta las áreas tocadas a partir de una lista de rutas git
  * (`git diff … --name-only`). El área es el primer segmento bajo `src/`;
@@ -98,12 +101,14 @@ export function olaDeAsunto(asunto: string): string | undefined {
  * de tsc y vitest a partir del ÚLTIMO evento `verificado`/`verificacion_fallida`.
  * Por línea: el tipo del evento está en `tipo`; el test o la puerta en `texto`/`tarea`.
  * Devuelve `null` si ninguna línea es una verificación (→ «desconocido» arriba).
+ * Con `previo` sigue desde lo ya leído (el lector incremental de abajo lo usa así).
  */
 export function interpretarComprobaciones(
     lineas: string[],
-): { tsc: "ok" | "falla" | null; vitest: "ok" | "falla" | null } {
-    let tsc: "ok" | "falla" | null = null;
-    let vitest: "ok" | "falla" | null = null;
+    previo?: EstadoVerificaciones,
+): EstadoVerificaciones {
+    let tsc: "ok" | "falla" | null = previo?.tsc ?? null;
+    let vitest: "ok" | "falla" | null = previo?.vitest ?? null;
     for (const linea of lineas) {
         const bruta = linea.trim();
         if (!bruta) continue;
@@ -126,6 +131,128 @@ export function interpretarComprobaciones(
     }
     return { tsc, vitest };
 }
+
+// ─── Lector incremental de eventos.jsonl (SUP0511A, 05-11) ───────────────────
+// POR QUÉ. `leerComprobaciones` hacía `readFile` de `eventos.jsonl` ENTERO (31,5 MB el 05-11,
+// y crece cada día), lo partía en ~200 000 líneas y hacía un `JSON.parse` de cada una para
+// encontrar el último `verificado` (del 09-10). `/metagenesis` pide `/api/mando/publicacion`
+// cada 30 s por cliente abierto: con eso el montón de Genesis subía de 392 a 1085 MB en un
+// minuto (`large_object_space` de 108 a 705 MB) y next-server murió seis veces entre el 04-11
+// y el 05-11 con «Reached heap limit». Regla de la supervisión: un registro que crece no se
+// lee entero; se lee lo añadido.
+// QUÉ HACE. Lee por trozos (1 MB) solo lo añadido desde la última vez, en bytes; solo decodifica
+// y parsea las líneas que contienen «verifica» (las únicas que pueden ser `verificado` o
+// `verificacion_fallida`); guarda la línea a medias del final hasta que se complete y vuelve a
+// empezar si el archivo encoge o es otro (rotado). El resultado es el mismo que interpretar el
+// archivo entero de una vez.
+
+/** Tamaño de cada lectura de `eventos.jsonl`. */
+const TROZO_EVENTOS = 1024 * 1024;
+/** Una línea a medias más larga que esto no es un evento: se descarta en vez de crecer. */
+const MAX_LINEA_A_MEDIAS = 1024 * 1024;
+const SALTO = 0x0a;
+const MARCA_VERIFICA = Buffer.from("verifica", "utf8");
+
+/** PURA: las líneas completas de `bloque` (sin el salto final) que contienen «verifica». */
+export function lineasConVerificacion(bloque: Buffer): string[] {
+    const lineas: string[] = [];
+    let desde = 0;
+    while (desde < bloque.length) {
+        const i = bloque.indexOf(MARCA_VERIFICA, desde);
+        if (i < 0) break;
+        const inicio = i > 0 ? bloque.lastIndexOf(SALTO, i - 1) + 1 : 0;
+        let fin = bloque.indexOf(SALTO, i);
+        if (fin < 0) fin = bloque.length;
+        lineas.push(bloque.subarray(inicio, fin).toString("utf8"));
+        desde = fin + 1;
+    }
+    return lineas;
+}
+
+/** Lo que el lector recuerda entre llamadas. */
+type MemoriaEventos = {
+    ruta: string;
+    ino: number;
+    offset: number;
+    /** Los primeros bytes del archivo: si cambian, lo reescribieron y se lee desde el principio. */
+    cabeza: Buffer;
+    aMedias: Buffer;
+    estado: EstadoVerificaciones;
+};
+
+const BYTES_CABEZA = 256;
+
+function memoriaNueva(ruta: string, ino: number): MemoriaEventos {
+    return { ruta, ino, offset: 0, cabeza: Buffer.alloc(0), aMedias: Buffer.alloc(0), estado: { tsc: null, vitest: null } };
+}
+
+/**
+ * Crea un lector de verificaciones de un `eventos.jsonl` que solo lee lo añadido desde la
+ * llamada anterior. Lanza si el archivo no existe (quien llama lo traduce a «desconocido»).
+ * Las llamadas a la vez comparten la misma lectura. `trozo` solo lo cambian las pruebas.
+ */
+export function crearLectorVerificaciones(
+    opciones: { trozo?: number } = {},
+): (ruta: string) => Promise<EstadoVerificaciones> {
+    const trozo = Math.max(16, opciones.trozo ?? TROZO_EVENTOS);
+    let memoria: MemoriaEventos | null = null;
+    let enVuelo: { ruta: string; promesa: Promise<EstadoVerificaciones> } | null = null;
+
+    async function leer(ruta: string): Promise<EstadoVerificaciones> {
+        const info = await stat(ruta);
+        const ino = Number(info.ino);
+        let actual: MemoriaEventos =
+            memoria && memoria.ruta === ruta && memoria.ino === ino && info.size >= memoria.offset
+                ? memoria
+                : memoriaNueva(ruta, ino);
+        if (info.size === actual.offset) {
+            memoria = actual;
+            return actual.estado;
+        }
+        const archivo = await open(ruta, "r");
+        try {
+            if (actual.offset > 0 && actual.cabeza.length > 0) {
+                const vista = Buffer.alloc(actual.cabeza.length);
+                const { bytesRead } = await archivo.read(vista, 0, vista.length, 0);
+                if (bytesRead !== vista.length || !vista.equals(actual.cabeza)) actual = memoriaNueva(ruta, ino);
+            }
+            const buffer = Buffer.allocUnsafe(trozo);
+            let { offset, cabeza, aMedias, estado } = actual;
+            while (offset < info.size) {
+                const { bytesRead } = await archivo.read(buffer, 0, Math.min(trozo, info.size - offset), offset);
+                if (bytesRead <= 0) break;
+                if (offset === 0) cabeza = Buffer.from(buffer.subarray(0, Math.min(bytesRead, BYTES_CABEZA)));
+                offset += bytesRead;
+                const leido = buffer.subarray(0, bytesRead);
+                const bloque = aMedias.length > 0 ? Buffer.concat([aMedias, leido]) : leido;
+                const ultimoSalto = bloque.lastIndexOf(SALTO);
+                const resto = ultimoSalto < 0 ? bloque : bloque.subarray(ultimoSalto + 1);
+                if (ultimoSalto >= 0) {
+                    estado = interpretarComprobaciones(lineasConVerificacion(bloque.subarray(0, ultimoSalto)), estado);
+                }
+                // Copia: `buffer` se reutiliza en la vuelta siguiente.
+                aMedias = resto.length > MAX_LINEA_A_MEDIAS ? Buffer.alloc(0) : Buffer.from(resto);
+            }
+            memoria = { ruta, ino, offset, cabeza, aMedias, estado };
+            return estado;
+        } finally {
+            await archivo.close();
+        }
+    }
+
+    return (ruta: string) => {
+        if (enVuelo && enVuelo.ruta === ruta) return enVuelo.promesa;
+        const anterior = enVuelo?.promesa;
+        const promesa = (anterior ? anterior.catch(() => null).then(() => leer(ruta)) : leer(ruta)).finally(() => {
+            if (enVuelo?.promesa === promesa) enVuelo = null;
+        });
+        enVuelo = { ruta, promesa };
+        return promesa;
+    };
+}
+
+/** El lector de Genesis: uno por proceso, así cada petición solo lee lo añadido. */
+const lectorVerificaciones = crearLectorVerificaciones();
 
 /** Ejecuta una orden `git` de solo lectura con tope de 15 s; devuelve `stdout` o `""`. */
 async function git(args: string[]): Promise<string> {
@@ -157,14 +284,16 @@ async function obtenerRevisionesBloqueantes(): Promise<number> {
     return 0;
 }
 
-/** Lee el último `verificado`/`verificacion_fallida` de `eventos.jsonl` y traduce a comprobaciones. */
+/**
+ * Lee el último `verificado`/`verificacion_fallida` de `eventos.jsonl` y traduce a comprobaciones.
+ * (SUP0511A) Nunca lo lee entero: el lector incremental solo lee lo añadido desde la última vez.
+ */
 async function leerComprobaciones(): Promise<Comprobaciones> {
     let resultado = { tsc: "desconocido", vitest: "desconocido" } as Comprobaciones;
     // Las revisiones bloqueantes se leen aparte (archivo de texto, no el jsonl).
     const bloqueantes = await obtenerRevisionesBloqueantes();
     try {
-        const crudo = await readFile(path.join(raizDelProyecto(), ARCHIVO_EVENTOS), "utf8");
-        const interpretado = interpretarComprobaciones(crudo.split("\n"));
+        const interpretado = await lectorVerificaciones(path.join(raizDelProyecto(), ARCHIVO_EVENTOS));
         resultado = {
             tsc: interpretado.tsc ?? "desconocido",
             vitest: interpretado.vitest ?? "desconocido",
