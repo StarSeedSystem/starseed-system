@@ -62,6 +62,15 @@ export type TipoRespuesta =
 
 export type TiempoMaximo = "5s" | "15s" | "30s" | "1min" | "3min" | "sin_limite";
 
+/** EGM (Ola 1104): cuándo revisar con peces las respuestas largas y creaciones. */
+export type RevisionPeces = "creaciones" | "siempre" | "nunca";
+
+/** OpenUI (Ola 1104): interfaz viva en la respuesta, texto plano o automático. */
+export type InterfazRespuesta = "auto" | "viva" | "texto";
+
+/** Qué tipo de trabajo es el turno (para `debeRevisarConPeces`). */
+export type TipoDeTarea = "charla" | "app" | "pagina" | "publicacion" | "plan" | "otro";
+
 /** Un control con su PROPIO interruptor «Automático» (Adenda «Más ajustes»). */
 export interface ControlAjuste<T> {
   /** true (por defecto) = ignora `valor`, este control no aporta nada. */
@@ -75,6 +84,17 @@ export interface AjustesManualRespuesta {
   esfuerzo: ControlAjuste<NivelEsfuerzo>;
   tipo: ControlAjuste<TipoRespuesta>;
   tiempo: ControlAjuste<TiempoMaximo>;
+  /** EGM (Ola 1104). `undefined` = "creaciones" (por defecto). */
+  revisionPeces?: RevisionPeces;
+  /** OpenUI (Ola 1104). `undefined` = "auto" (por defecto). */
+  interfaz?: InterfazRespuesta;
+}
+
+/** Contexto de la respuesta para decidir la interfaz (Ola 1104 · OpenUI). */
+export interface ContextoInterfaz {
+  tieneDatos: boolean;
+  tienePasos: boolean;
+  tieneComparacion: boolean;
 }
 
 /** Contexto opcional del turno — reservado para matices futuros (p.ej. si la
@@ -199,12 +219,20 @@ export const TIEMPOS_MAXIMOS: Readonly<Record<TiempoMaximo, TiempoMaximoDef>> = 
 
 // ── Valores por defecto ──────────────────────────────────────────────────────
 
+/** Valor por defecto de `revisionPeces` (Ola 1104 · EGM): revisar creaciones. */
+export const REVISION_PECES_POR_DEFECTO: RevisionPeces = "creaciones";
+
+/** Valor por defecto de `interfaz` (Ola 1104 · OpenUI): decidir por contexto. */
+export const INTERFAZ_POR_DEFECTO: InterfazRespuesta = "auto";
+
 /** Los tres controles en «Automático» — estado inicial del popover. */
 export function ajustesAutomaticosPorDefecto(): AjustesManualRespuesta {
   return {
     esfuerzo: { auto: true, valor: "equilibrado" },
     tipo: { auto: true, valor: "auto" },
     tiempo: { auto: true, valor: "30s" },
+    revisionPeces: REVISION_PECES_POR_DEFECTO,
+    interfaz: INTERFAZ_POR_DEFECTO,
   };
 }
 
@@ -274,3 +302,49 @@ export function resolverAjustes(
 }
 
 export default resolverAjustes;
+
+// ── Decisiones puras Ola 1104 ────────────────────────────────────────────────
+
+/**
+ * EGM (Ola 1104): determina si una respuesta debe revisarse con peces.
+ *
+ * - "creaciones": solo apps, páginas, publicaciones y planes
+ * - "siempre": todo tipo de tarea
+ * - "nunca": nunca revisar con peces
+ *
+ * @param ajustes ajustes de respuesta del usuario (puede incluir `revisionPeces`)
+ * @param tipoDeTarea tipo de tarea del turno actual
+ */
+export function debeRevisarConPeces(
+  ajustes: AjustesManualRespuesta,
+  tipoDeTarea: TipoDeTarea,
+): boolean {
+  const revision = ajustes.revisionPeces ?? REVISION_PECES_POR_DEFECTO;
+  if (revision === "nunca") return false;
+  if (revision === "siempre") return true;
+  if (revision === "creaciones") {
+    const creaciones: TipoDeTarea[] = ["app", "pagina", "publicacion", "plan"];
+    return creaciones.includes(tipoDeTarea);
+  }
+  return false;
+}
+
+/**
+ * OpenUI (Ola 1104): determina si usar interfaz viva (componentes OpenUI) o texto plano.
+ *
+ * - "auto": decidir por contexto (tiene datos, pasos o comparación)
+ * - "viva": siempre usar interfaz viva
+ * - "texto": siempre texto plano
+ *
+ * @param ajustes ajustes de respuesta del usuario (puede incluir `interfaz`)
+ * @param contexto información sobre los datos del turno
+ */
+export function debeUsarInterfazViva(
+  ajustes: AjustesManualRespuesta,
+  contexto: ContextoInterfaz,
+): boolean {
+  const interfaz = ajustes.interfaz ?? INTERFAZ_POR_DEFECTO;
+  if (interfaz === "viva") return true;
+  if (interfaz === "texto") return false;
+  return contexto.tieneDatos || contexto.tienePasos || contexto.tieneComparacion;
+}
