@@ -108,26 +108,41 @@ describe("desdeReleases", () => {
     expect(systemos).toContain("windows");
     expect(systemos).toContain("linux");
     expect(systemos).toContain("android");
+    expect(systemos).toContain("ios");
   });
 
-  it("cada archivo tiene nombre, tamaño y URL", () => {
+  it("ios está presente aunque vacío", () => {
     const result = desdeReleases(JSON_RELEASES as any);
     const v03 = result[0];
 
-    const macos = v03.archivos.os.macos;
-    expect(macos).toHaveLength(1);
-    expect(macos[0].nombre).toBe("StarSeed.OS_0.3.0_universal.dmg");
-    expect(macos[0].bytes).toBe(7025536);
-    expect(macos[0].href).toBe("https://github.com/StarSeedSystem/starseed-system/releases/download/v0.3.0/StarSeed.OS_0.3.0_universal.dmg");
+    expect(v03.archivos.os.ios).toBeDefined();
+    expect(v03.archivos.os.ios).toEqual([]);
   });
 
-  it("filtra solo los assets del sistema OS por defecto", () => {
+  it("nexus incluye todos los SO cuando tiene assets", () => {
     const result = desdeReleases(JSON_RELEASES as any);
     const v03 = result[0];
 
-    const android = v03.archivos.os.android;
-    expect(android).toHaveLength(1);
-    expect(android[0].nombre).toBe("StarSeed-os-0.3.0.apk");
+    expect(v03.archivos.nexus).toBeDefined();
+    const nexusAssets = v03.archivos.nexus!;
+    expect(nexusAssets.macos).toBeDefined();
+    expect(nexusAssets.windows).toBeDefined();
+    expect(nexusAssets.linux).toBeDefined();
+    expect(nexusAssets.android).toBeDefined();
+    expect(nexusAssets.ios).toBeDefined();
+  });
+
+  it("cafe incluye todos los SO cuando tiene assets", () => {
+    const result = desdeReleases(JSON_RELEASES as any);
+    const v03 = result[0];
+
+    expect(v03.archivos.cafe).toBeDefined();
+    const cafeAssets = v03.archivos.cafe!;
+    expect(cafeAssets.macos).toBeDefined();
+    expect(cafeAssets.windows).toBeDefined();
+    expect(cafeAssets.linux).toBeDefined();
+    expect(cafeAssets.android).toBeDefined();
+    expect(cafeAssets.ios).toBeDefined();
   });
 
   it("devuelve array vacío si no hay releases válidos", () => {

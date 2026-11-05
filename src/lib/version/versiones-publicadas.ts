@@ -128,14 +128,34 @@ export function desdeReleases(json: ReleaseGithub[]): VersionPublicada[] {
       fecha: parsearFecha(r.published_at),
       notas: r.body || "",
       url: r.html_url,
-      archivos: { os: archivosOS },
+      archivos: {
+        os: {
+          macos: archivosOS.macos,
+          windows: archivosOS.windows,
+          linux: archivosOS.linux,
+          android: archivosOS.android,
+          ios: archivosOS.ios,
+        },
+      },
     };
 
     if (archivosNexus.macos.length > 0 || archivosNexus.android.length > 0) {
-      release.archivos.nexus = archivosNexus;
+      release.archivos.nexus = {
+        macos: archivosNexus.macos,
+        windows: archivosNexus.windows,
+        linux: archivosNexus.linux,
+        android: archivosNexus.android,
+        ios: archivosNexus.ios,
+      };
     }
     if (archivosCafe.macos.length > 0 || archivosCafe.android.length > 0) {
-      release.archivos.cafe = archivosCafe;
+      release.archivos.cafe = {
+        macos: archivosCafe.macos,
+        windows: archivosCafe.windows,
+        linux: archivosCafe.linux,
+        android: archivosCafe.android,
+        ios: archivosCafe.ios,
+      };
     }
 
     resultado.push(release);
