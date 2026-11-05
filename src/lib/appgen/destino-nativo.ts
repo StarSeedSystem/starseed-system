@@ -10,6 +10,8 @@
  * del plugin se DEVUELVEN como datos, nunca se ejecutan aquí.
  */
 
+import type { DeteccionMaquina } from "@/lib/recursos-ia/deteccion-tipos";
+
 // ───────────────────────────────────────────────────────────────────────────
 // Tipos
 // ───────────────────────────────────────────────────────────────────────────
@@ -124,5 +126,43 @@ export function planBama(app: AppBama): PlanBama {
     historias,
     kitDisenoTokens: TOKENS_TRINITY.map((o) => ({ ...o })),
     notas,
+  };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Cableado: del sondeo de la neurona (`/api/recursos-ia/detectar`) a la entrada
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Convierte «macOS 26.3.1» en sistema + versión (normaliza las variantes de macOS). PURA. */
+function sistemaYVersion(so: string): { so: string; versionSo: string } {
+  const limpio = so.trim();
+  const corte = limpio.lastIndexOf(" ");
+  const nombre = corte > 0 ? limpio.slice(0, corte) : limpio;
+  const version = corte > 0 ? limpio.slice(corte + 1) : "";
+  return { so: /^mac\s?os\s?x?$|^macos$/i.test(nombre) ? "macOS" : nombre, versionSo: version };
+}
+
+function versionDe(herramientas: string[], prefijo: string): string {
+  const h = herramientas.find((x) => x.startsWith(prefijo));
+  return h ? h.slice(prefijo.length) : "";
+}
+
+/**
+ * Del sondeo de la máquina (`DeteccionMaquina` de `/api/recursos-ia/detectar`) a la
+ * entrada de `requisitosNativos`: sistema y versión de `so`, Xcode y Swift de
+ * `herramientas` («xcode-26», «swift-6.0.2»; sin «xcode-…» = solo Command Line Tools)
+ * y el mayor disco LIBRE de los volúmenes internos, si hay. PURA.
+ */
+export function entradaDesdeDeteccion(m: DeteccionMaquina): EntradaRequisitosNativos {
+  const { so, versionSo } = sistemaYVersion(m.so);
+  const internos = m.volumenes.filter((v) => !v.externo);
+  const mirar = internos.length ? internos : m.volumenes;
+  const discoLibreGb = mirar.length ? Math.max(...mirar.map((v) => v.libreGb)) : 0;
+  return {
+    so,
+    versionSo,
+    xcode: versionDe(m.herramientas, "xcode-"),
+    swift: versionDe(m.herramientas, "swift-"),
+    discoLibreGb,
   };
 }

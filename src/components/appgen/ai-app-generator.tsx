@@ -80,6 +80,13 @@ import {
   appShareRef,
 } from "@/lib/appgen/appgen";
 
+import {
+  DESTINO_NATIVO, entradaDesdeDeteccion, planBama, requisitosNativos,
+  type PlanBama, type ResultadoRequisitosNativos,
+} from "@/lib/appgen/destino-nativo";
+import { esDeteccionMaquina } from "@/lib/recursos-ia/deteccion-tipos";
+import { myLibraryDestinations, saveItem } from "@/lib/library/entity-library";
+
 import { createClient } from "@/utils/supabase/client";
 import { listBrains, type Brain, type BrainServer } from "@/lib/brains/brains";
 import { serversForBrain, listServers } from "@/lib/brains/servers";
@@ -122,6 +129,12 @@ function buildTree(files: AppFile[]): TreeNode {
   return root;
 }
 
+// Destinos de generación (contrato §4: BAMA planifica, instalar Xcode decide Alex).
+const DESTINOS: ReadonlyArray<readonly ["web" | "bama", string]> = [
+  ["web", "Web"],
+  ["bama", DESTINO_NATIVO],
+];
+
 // ────────────────────────────────────────────────────────────────────────────
 // Componente principal
 // ────────────────────────────────────────────────────────────────────────────
@@ -143,6 +156,10 @@ export default function AiAppGenerator() {
 
   const [newPath, setNewPath] = useState("");
   const [pluginDraft, setPluginDraft] = useState("");
+  const [destino, setDestino] = useState<"web" | "bama">("web");
+  const [plan, setPlan] = useState<PlanBama | null>(null);
+  const [requiBama, setRequiBama] = useState<ResultadoRequisitosNativos | null>(null);
+  const [bamaBusy, setBamaBusy] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -313,6 +330,63 @@ export default function AiAppGenerator() {
     abortRef.current?.abort();
     setBusy(null);
   }, []);
+
+  // Destino nativo (BAMA): paquete de planificación puro, sin ejecutar nada; requisitos por el sondeo de la neurona.
+  const runBama = useCallback(async () => {
+    if (bamaBusy) return;
+    setBamaBusy(true);
+    const t = toast.loading("Preparando el paquete de planificación de BAMA…");
+    try {
+      const paginas = app.files
+        .filter((f) => /\.html?$/i.test(f.path) && !/^index\.html?$/i.test(f.path))
+        .map((f) => basename(f.path).replace(/\.html?$/i, ""));
+      if (!spec.trim() && paginas.length === 0) {
+        toast.error("Describe la app o crea pantallas HTML antes de planificar");
+        return;
+      }
+      let requi: ResultadoRequisitosNativos | null = null;
+      try {
+        const res = await fetch("/api/recursos-ia/detectar?fresh=1");
+        const j: unknown = res.ok ? await res.json() : null;
+        const maquina: unknown = (j as { maquina?: unknown } | null)?.maquina;
+        if (esDeteccionMaquina(maquina)) requi = requisitosNativos(entradaDesdeDeteccion(maquina));
+      } catch { /* sin servidor local el navegador no puede sondear la Mac */ }
+      const planNuevo = planBama({
+        nombre: app.name || "App nativa",
+        descripcion: spec.trim() || app.meta.spec || "",
+        pantallas: paginas.length ? paginas : ["Pantalla principal"],
+      });
+      setPlan(planNuevo);
+      setRequiBama(requi);
+      setApp((prev) => ({ ...prev, meta: { ...prev.meta, bama: planNuevo } }));
+      // Guarda el paquete como proyecto de la Biblioteca (contrato §4).
+      let guardado = "Sin sesión: queda en «Mis apps»";
+      const dests = await myLibraryDestinations();
+      if (dests.length) {
+        const r = await saveItem(
+          dests[0].ref,
+          {
+            type: "file",
+            title: `${planNuevo.destino} · ${app.name || "App"}`,
+            content: JSON.stringify(planNuevo, null, 2),
+            mime: "application/json",
+            description: "Paquete de planificación de BAMA: pantallas, historias y kit Trinity en SwiftUI.",
+            tags: ["bama", "ola-1104", "app-nativa"],
+          },
+          null,
+        );
+        if (r.ok) guardado = `Plan guardado en ${dests[0].label}`;
+      }
+      const estado = requi
+        ? requi.puedeConstruir ? "Construcción lista" : `Construir: no · Falta ${requi.faltan.join(", ")}`
+        : "Requisitos: se miden en la neurona con servidor local";
+      toast.success("Paquete de BAMA listo", { id: t, description: `${estado} · ${guardado}` });
+    } catch (err) {
+      toast.error("No se pudo preparar el paquete", { id: t, description: (err as Error)?.message });
+    } finally {
+      setBamaBusy(false);
+    }
+  }, [bamaBusy, app.files, app.name, app.meta.spec, spec]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // Persistencia (Supabase)
@@ -685,6 +759,18 @@ export default function AiAppGenerator() {
           <Badge variant="outline" className="border-white/15 text-[10px] text-white/60">
             {app.files.length} archivo{app.files.length === 1 ? "" : "s"}
           </Badge>
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] text-white/55">Destino:</span>
+            {DESTINOS.map(([id, nombre]) => (
+              <button
+                key={id}
+                onClick={() => setDestino(id)}
+                className={cn("cursor-pointer rounded-md border px-2 py-0.5 text-[11px] transition", destino === id ? "border-indigo-400/50 bg-indigo-500/20 text-indigo-50" : "border-white/10 bg-white/[0.02] text-white/60 hover:bg-white/5")}
+              >
+                {nombre}
+              </button>
+            ))}
+          </div>
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
             <Input
               value={app.name}
@@ -720,17 +806,17 @@ export default function AiAppGenerator() {
             ) : (
               <>
                 <Button
-                  onClick={() => runGenerate("gen")}
+                  onClick={() => (destino === "bama" ? void runBama() : runGenerate("gen"))}
                   className="h-full min-h-[44px] flex-1 gap-2 bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white hover:opacity-90"
                   disabled={!!busy}
                 >
-                  <Wand2 className="h-4 w-4" /> Generar
+                  <Wand2 className="h-4 w-4" /> {destino === "bama" ? "Planificar" : "Generar"}
                 </Button>
                 <Button
                   onClick={() => runGenerate("refine")}
                   variant="outline"
                   className="h-full min-h-[44px] flex-1 gap-2 border-white/15 text-white/80"
-                  disabled={!!busy}
+                  disabled={!!busy || destino === "bama"}
                 >
                   <RefreshCcw className="h-4 w-4" /> Refinar
                 </Button>
@@ -789,6 +875,33 @@ export default function AiAppGenerator() {
               ))}
             </ul>
           )}
+        </div>
+      )}
+
+      {/* Paquete de planificación BAMA (destino nativo) */}
+      {plan && (
+        <div className="rounded-2xl border border-cyan-400/20 bg-black/30 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Rocket className="h-4 w-4 text-cyan-300" />
+            <span className="text-xs font-semibold text-white/80">Plan de {plan.destino}</span>
+            <span className="ml-auto text-[10px] text-white/40">Planificar siempre se puede; instalar Xcode es decisión de Alex.</span>
+          </div>
+          <p className="mt-2 text-[11px] text-white/60">
+            <b>Pantallas a clonar:</b> {plan.pantallasClonar.join(" · ")}
+          </p>
+          <p className="text-[11px] text-white/60"><b>Historias ({plan.historias.length}):</b> {plan.historias.map((h) => h.titulo).join(" · ")}</p>
+          <p className="text-[11px] text-white/60">
+            <b>Requisitos:</b> {requiBama ? (requiBama.puedeConstruir ? "construcción lista (macOS 26 · Xcode 26)" : `construir no, falta ${requiBama.faltan.join(", ")}; planificar sí`) : "se miden en la neurona con servidor local (Genesis en la Mac)"}
+          </p>
+          <p className="text-[11px] text-white/60"><b>Kit Trinity → SwiftUI:</b> {plan.kitDisenoTokens.map((k) => `${k.trinity} → ${k.swiftui} (${k.hex})`).join(" · ")}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {plan.comandos.map((c) => (
+              <code key={c} className="max-w-full truncate rounded bg-black/40 px-1.5 py-0.5 font-mono text-[10px] text-cyan-50">{c}</code>
+            ))}
+            <Button size="sm" variant="outline" className="h-7 cursor-pointer gap-1 border-cyan-400/30 text-[11px] text-cyan-100" onClick={() => copyText(plan.comandos.join("\n"), "Comandos copiados")}>
+              <Copy className="h-3 w-3" /> Copiar comandos
+            </Button>
+          </div>
         </div>
       )}
 
