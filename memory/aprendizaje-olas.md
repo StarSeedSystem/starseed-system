@@ -4707,3 +4707,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RTART1025M-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTART1025M-d2 conservada)
 - `PUB1029F` — no escribió nada
 - `RTS1010-MGR2b` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTS1010-MGR2b conservada)
+
+## 2026-11-05 01:21 · mg-oracle-1104-1811
+
+**Lo que se pidió.** Splats gaussianos con Spark en mundos de nivel alto
+
+**Resultado.** 1 de 3 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (RTXR1010AMb-d2, IMG1102Db-d2). Es 67 % de la ola.
+- openrouter/cohere/north-mini-code:free no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTXR1010AMb-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTXR1010AMb-d2 conservada)
+- `IMG1102Db-d2` — los tipos no compilan: 1 errores tsc (rama ola/IMG1102Db-d2 conservada)
