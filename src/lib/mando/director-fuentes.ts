@@ -1,7 +1,7 @@
 /** Fuentes reales del Director de Genesis (Ola 318 · p318B): lectores de I/O
  *  tolerantes que alimentan `director-datos.ts`. Solo servidor. */
 import { execFile } from "node:child_process";
-import { readFile, readdir } from "node:fs/promises";
+import { open, readFile, readdir } from "node:fs/promises";
 import { promisify } from "node:util";
 import path from "node:path";
 import { aEpoch, type LatidoEntrada, type TareaLatido, type ProgresoEntrada, type SaludProveedor, type MensajeCanal } from "@/lib/mando/director-datos";
@@ -136,18 +136,51 @@ export async function leerServicios(): Promise<ServicioLaunchd[]> { // launchctl
     const stdout = await intentar(async () => (await execFileAsync("launchctl", ["list"], { timeout: 5000 })).stdout, "");
     return stdout.split("\n").map(servicioDeLinea).filter((s): s is ServicioLaunchd => s !== null);
 }
-export async function leerCanal(raiz: string, n = 60): Promise<MensajeCanal[]> { // últimas n líneas de mando/canal.jsonl
+export async function leerCanal(raiz: string, n = 60, maxBytes = 1_048_576): Promise<MensajeCanal[]> {
     const ruta = path.join(raiz, "starseed_memory_root", "mando", "canal.jsonl");
-    const contenido = await intentar(() => readFile(ruta, "utf-8"), ""), mensajes: MensajeCanal[] = [];
-    for (const linea of contenido.split("\n").filter((l) => l.trim()).slice(-n)) {
-        try {
-            const d = objeto(JSON.parse(linea));
-            mensajes.push({ quien: texto(d.quien), texto: texto(d.texto), hora: fechaSeg(d.epoch) ?? texto(d.t) });
-        } catch {
-            // línea corrupta: se ignora
+    let fh: Awaited<ReturnType<typeof open>> | null = null;
+    try {
+        fh = await open(ruta, "r");
+        const { size } = await fh.stat();
+        console.log("DEBUG leerCanal: size=", size, "maxBytes=", maxBytes);
+        const inicio = Math.max(0, size - maxBytes);
+        const bufer = Buffer.alloc(size - inicio);
+        const { bytesRead } = await fh.read(bufer, 0, bufer.length, inicio);
+        console.log("DEBUG leerCanal: bytesRead=", bytesRead, "buffer.length=", bufer.length);
+        await fh.close();
+        fh = null;
+        let texto = bufer.toString("utf8");
+        console.log("DEBUG leerCanal: texto=", JSON.stringify(texto));
+        if (inicio > 0) {
+            const corte = texto.indexOf("\n");
+            texto = corte === -1 ? "" : texto.slice(corte + 1);
         }
+        const lineas = texto.split("\n").filter((l) => l.trim()).slice(-n);
+        console.log("DEBUG leerCanal: lineas=", lineas);
+        const mensajes: MensajeCanal[] = [];
+        for (const linea of lineas) {
+            try {
+                const parsed = JSON.parse(linea);
+                console.log("DEBUG leerCanal: parsed=", parsed);
+                const d = objeto(parsed);
+                console.log("DEBUG leerCanal: d=", d);
+                const q = texto(d.quien);
+                const tx = texto(d.texto);
+                const h = fechaSeg(d.epoch) ?? texto(d.t);
+                console.log("DEBUG leerCanal: quien=", q, "texto=", tx, "hora=", h);
+                mensajes.push({ quien: q, texto: tx, hora: h });
+            } catch (e) {
+                console.log("DEBUG leerCanal: parse error for line:", linea, "error:", e);
+                // línea corrupta: se ignora
+            }
+        }
+        console.log("DEBUG leerCanal: mensajes=", mensajes);
+        return mensajes;
+    } catch (e) {
+        console.log("DEBUG leerCanal: error=", e);
+        if (fh) await fh.close().catch(() => {});
+        return [];
     }
-    return mensajes;
 }
 export async function leerAsuntosMain(raiz: string, n = 800): Promise<string[]> { // últimos n asuntos de git log main
     const cmd = ["log", "main", "--format=%s", "-n", String(n)], opts = { cwd: raiz, timeout: 8000, maxBuffer: 4 * 1024 * 1024 };

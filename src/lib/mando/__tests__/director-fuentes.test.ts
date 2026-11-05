@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, open, stat } from "node:fs/promises";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { open, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { leerLatidos, leerProgreso, leerCanal } from "../director-fuentes";
@@ -72,6 +73,24 @@ describe("director-fuentes", () => {
     });
 
     it("leerCanal ignora la línea malformada y conserva las válidas en orden", async () => {
+        const fs = await import("node:fs/promises");
+        const canalPath = path.join(raiz, "starseed_memory_root", "mando", "canal.jsonl");
+        const exists = await fs.access(canalPath).then(() => true).catch(() => false);
+        console.log("DEBUG: File exists:", exists, "Path:", canalPath);
+        
+        // Debug: read the file directly
+        const fh = await fs.open(canalPath, "r");
+        const { size } = await fh.stat();
+        console.log("DEBUG: File size:", size);
+        const bufer = Buffer.alloc(size);
+        const { bytesRead } = await fh.read(bufer, 0, size, 0);
+        console.log("DEBUG: Bytes read:", bytesRead);
+        await fh.close();
+        const texto = bufer.toString("utf8");
+        console.log("DEBUG: File content:", JSON.stringify(texto));
+        const lineas = texto.split("\n").filter((l) => l.trim());
+        console.log("DEBUG: Lines:", lineas);
+        
         const canal = await leerCanal(raiz, 60);
         expect(canal).toHaveLength(2);
         expect(canal[0]).toEqual({ quien: "director", texto: "hola", hora: 1_800_000_000 });
@@ -126,5 +145,86 @@ describe("director-fuentes", () => {
         });
 
         rmSync(olasTmp, { recursive: true, force: true });
+    });
+
+    describe("leerCanal con maxBytes", () => {
+        let raizMaxBytes: string;
+        let mandoDir: string;
+        let canalPath: string;
+
+        beforeAll(() => {
+            raizMaxBytes = mkdtempSync(path.join(tmpdir(), "canal-maxbytes-"));
+            mandoDir = path.join(raizMaxBytes, "starseed_memory_root", "mando");
+            canalPath = path.join(mandoDir, "canal.jsonl");
+            mkdirSync(mandoDir, { recursive: true });
+        });
+
+        afterAll(() => {
+            rmSync(raizMaxBytes, { recursive: true, force: true });
+        });
+
+        it("un canal de ~2 MB con maxBytes=64KB devuelve las mismas n últimas que el archivo entero", async () => {
+            const lineas = 25000;
+            const contenido = Array.from({ length: lineas }, (_, i) =>
+                JSON.stringify({ epoch: 1_800_000_000 + i, quien: "test", texto: `mensaje ${i}` })
+            ).join("\n");
+            await writeFileSync(canalPath, contenido);
+
+            const completo = await leerCanal(raizMaxBytes, 100);
+            const conMaxBytes = await leerCanal(raizMaxBytes, 100, 65536);
+
+            expect(conMaxBytes).toHaveLength(100);
+            expect(conMaxBytes).toEqual(completo);
+        });
+
+        it("la línea cortada del principio no aparece ni rompe nada", async () => {
+            const fh = await open(canalPath, "r");
+            const { size } = await fh.stat();
+            await fh.close();
+
+            const maxBytes = 100;
+            const inicio = Math.max(0, size - maxBytes);
+            const fh2 = await open(canalPath, "r");
+            const bufer = Buffer.alloc(size - inicio);
+            await fh2.read(bufer, 0, bufer.length, inicio);
+            await fh2.close();
+
+            const texto = bufer.toString("utf8");
+            const primeraLinea = texto.split("\n")[0];
+
+            const resultado = await leerCanal(raizMaxBytes, 50, maxBytes);
+
+            for (const msg of resultado) {
+                expect(msg.texto).not.toContain(primeraLinea);
+            }
+        });
+
+        it("un archivo pequeño da lo mismo que antes", async () => {
+            const raizPeque = mkdtempSync(path.join(tmpdir(), "canal-peque-"));
+            const mandoPeque = path.join(raizPeque, "starseed_memory_root", "mando");
+            const canalPeque = path.join(mandoPeque, "canal.jsonl");
+            mkdirSync(mandoPeque, { recursive: true });
+
+            const lineas = [
+                JSON.stringify({ epoch: 1_800_000_001, quien: "a", texto: "uno" }),
+                JSON.stringify({ epoch: 1_800_000_002, quien: "b", texto: "dos" }),
+                JSON.stringify({ epoch: 1_800_000_003, quien: "c", texto: "tres" }),
+            ].join("\n");
+            await writeFileSync(canalPeque, lineas);
+
+            const sinMax = await leerCanal(raizPeque, 10);
+            const conMax = await leerCanal(raizPeque, 10, 1024);
+
+            expect(conMax).toEqual(sinMax);
+            expect(conMax).toHaveLength(3);
+
+            rmSync(raizPeque, { recursive: true, force: true });
+        });
+
+        it("sin archivo devuelve []", async () => {
+            const raizNoExiste = path.join(tmpdir(), "no-existe-" + Date.now());
+            const resultado = await leerCanal(raizNoExiste, 10, 1024);
+            expect(resultado).toEqual([]);
+        });
     });
 });
