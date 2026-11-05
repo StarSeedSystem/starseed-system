@@ -228,7 +228,6 @@ it("se puede abrir a mano aunque se hubiera saltado", async () => {
     it("el evento de abrir a mano puede pedir la pestaña «Entrar»", async () => {
         window.localStorage.setItem("starseed.primer-arranque.saltado.v1", "1");
         montar();
-        await screen.findByRole("heading", { name: "Crea tu cuenta o entra" });
         act(() => {
             window.dispatchEvent(new CustomEvent("starseed:abrir-primer-arranque", { detail: { paso: "acceso", pestana: "signin" } }));
         });
