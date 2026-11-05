@@ -8,6 +8,7 @@ import {
   type ContextoCapsulas,
   type SujetoMemoria,
 } from "@/lib/memorias/capsulas";
+import { pesoVectorPara } from "@/lib/memorias/fusion-recuerdos";
 import {
   filtrarParaAlcance,
   detectarFuga,
@@ -20,6 +21,7 @@ import {
 // Re-exports para tests y uso externo
 export { alcanceVisiblePara, type AlcanceMemoria } from "@/lib/nucleo/alcance-memoria";
 export { alcanceDe } from "@/lib/memorias/capsulas";
+export { pesoVectorPara } from "@/lib/memorias/fusion-recuerdos";
 
 /** Acierto de Memvid (palabras clave + tiempo). */
 export interface AciertoMemvid {
@@ -203,7 +205,7 @@ export async function recordar(opts: RecordarMultimodalOpciones): Promise<Record
     esModeloNube = false,
     timeoutMs = 900,
     memoryScope,
-    pesoVector = PESO_VECTOR_POR_DEFECTO,
+    pesoVector = pesoVectorPara(consulta),
   } = opts;
 
   if (consulta.split(/\s+/).length < 4 && !consulta.includes("?")) {
