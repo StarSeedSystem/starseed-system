@@ -43,6 +43,7 @@ import { AccountProvider } from "@/context/account-context";
 
 import { OmniDock } from "@/components/layout/omni-dock";
 import { AvisoActualizacion } from "@/components/actualizaciones/aviso-actualizacion";
+import { UpdateBanner } from "@/components/pwa/update-banner";
 import { EntornoMontaje } from "@/components/entorno/entorno-montaje";
 import { BloqueoMontaje } from "@/components/bloqueo/bloqueo-montaje";
 import { SoloFueraDeConsola, SoloFueraDeMinima } from "@/components/layout/solo-fuera-de-consola";
@@ -271,6 +272,7 @@ export default function RootLayout({
             Defensivo y sin UI; se omite en dev salvo NEXT_PUBLIC_ENABLE_SW=1. */}
         <RegisterSW />
         <ActualizacionNativa />
+        <UpdateBanner />
         <AvisoActualizacion />
         {/* Núcleo intocable cableado en el ARRANQUE: deja registrados los dos
             guardianes (UiSpec + invariantes) que revisan cualquier paquete
