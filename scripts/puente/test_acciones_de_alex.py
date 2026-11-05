@@ -474,7 +474,7 @@ class CodexCuenta(unittest.TestCase):
         accion = codex_acciones[0]
         self.assertEqual("Codex: tu cuenta de ChatGPT ya no deja usarlo", accion["titulo"])
         self.assertEqual("media", accion["urgencia"])
-        self.assertTrue(any(d in accion["por_que"] for d in ("2001-09-08", "2001-09-09")),
+        self.assertTrue(any(d in accion["por_que"] for d in ("2001-09-08", "2001-09-09")),  # 1000000000 = 2001-09-09 01:46:40 UTC
                     f"por_que no tiene la fecha: {accion['por_que']}")
         self.assertIn("model not supported when using Codex with a ChatGPT account", accion["por_que"])
         self.assertIn("el enjambre lo ha apartado y sigue con los demás", accion["por_que"])
