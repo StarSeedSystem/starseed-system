@@ -1,0 +1,44 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "id": "VER1105M",
+   "ola": "1105V · Centro de Versiones",
+   "titulo": "Actualizaciones · montar el aviso en toda la app",
+   "archivos": [
+    "src/app/layout.tsx"
+   ],
+   "depende": [],
+   "origen": "centro-versiones",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\n§5. Monta `<AvisoActualizacion />` junto a `UpdateBanner` en `src/app/layout.tsx` (mismo patrón, cliente, sin bloquear el primer pintado). Solo ese cambio.",
+   "dependencias_ya_en_main": [
+    "VER1105Jc"
+   ]
+  },
+  {
+   "id": "CRM1105A",
+   "ola": "1105C · Capacidad de Cloudroom",
+   "titulo": "Cloudroom · un hilo que no empieza en 2 h devuelve su tarea y suelta el hueco del proveedor",
+   "archivos": [
+    "scripts/puente/cloudroom_lanzar.py",
+    "scripts/puente/test_cloudroom_lanzar.py"
+   ],
+   "depende": [],
+   "origen": "capacidad",
+   "importancia": "capacidad",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nMedido el 05-11 19:30 UTC: Cloudroom no lanzaba nada porque dos hilos (CTR1104Cc-d1 y CTR1104Ub-d2, glm-5.3) llevaban 634 min «esperando modelo · sin empezar» y ocupaban los 2 hilos a la vez del proveedor gratuito (nvidia). `decidir` en `scripts/puente/cloudroom_lanzar.py` solo devuelve un hilo vivo a las `GRACIA_H` = 12 h, trabaje o no.\n1) Añade `GRACIA_SIN_EMPEZAR_H = 2` y, en `decidir`, devuelve («devolver») el hilo que sigue SIN EMPEZAR (ni salida ni rama, en el estado que `medidor_cloudroom.py` pinta como «esperando modelo · sin empezar»: léelo y reutiliza su clasificación, no la dupliques) pasadas esas 2 h, después de los `MAX_REANUDAR` intentos de reanudar que ya existen. Un hilo que ya escribe sigue con sus 12 h.\n2) Pruebas en `scripts/puente/test_cloudroom_lanzar.py`: sin empezar 2,5 h → devolver; sin empezar 1 h → esperar; escribiendo 10 h → esperar; y lo de siempre (rama → traer, terminado → parche) igual.\nPrueba solo `scripts/puente/test_cloudroom*.py` y `test_medidor_cloudroom.py`."
+  },
+  {
+   "id": "DPT1105A",
+   "ola": "1105D · DeepTutor recomendado",
+   "titulo": "DeepTutor · opción recomendada en las neuronas y servidores que lo soportan (nunca instalado solo)",
+   "archivos": [
+    "src/lib/recursos/servicios-pesados.ts",
+    "src/lib/recursos/__tests__/servicios-pesados.test.ts"
+   ],
+   "depende": [],
+   "origen": "biblioteca",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: la ficha `lib-deeptutor` de `config/repos-libreria-1104.json` (sus `requisitos` y su `aviso`) y `architecture/repos-libreria-1104.md`. Decisión de Alex (2026-11-05): DeepTutor NO se instala en el A1 por ahora, pero queda como opción RECOMENDADA en los dispositivos y servidores privados y públicos de StarSeed donde sus capacidades lo permitan.\n1) En `src/lib/recursos/servicios-pesados.ts` (léelo entero, y `./oferta`) añade el servicio `deeptutor` («DeepTutor»: 4 GB de RAM, sin GPU, arm64/amd64, macOS/Windows/Linux, puerto 3782, fuente la ficha lib-deeptutor) SIN entrada en `SERVICIOS_INSTALADOS`: no se instala ni se enciende solo en ningún sitio. Añade la función PURA `dondeRecomendar(servicio, ofertas, contexto)` → `{ donde: Destino; motivo: string }[]` con cada neurona, servidor de la cuenta, nodo de la malla o capa pública activa que cumple los requisitos (primero los de la cuenta, luego la malla y las capas públicas), reutilizando lo que ya hacen `colocarServicio` y `planificar` (no dupliques la comparación de RAM/arquitectura). Para `deeptutor` el A1 (`oracle-a1`) sale solo con el motivo «recomendado cuando su disco tenga margen (decisión de Alex: hoy no)» y `colocarServicio` NUNCA lo elige para él.\n2) Pruebas en `src/lib/recursos/__tests__/servicios-pesados.test.ts`: una neurona con 8 GB la recomienda, una con 2 GB no, el A1 sale solo como recomendación con ese motivo, `colocarServicio('deeptutor', …)` no devuelve el A1, y los seis servicios de siempre no cambian.\nPrueba solo `src/lib/recursos/`."
+  }
+ ]
+}
