@@ -1,0 +1,18 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "id": "RPO1104U",
+   "ola": "1104R · Repos nativos",
+   "titulo": "Biblioteca · el seguimiento de versiones deja de estar ciego (lote rotatorio, memoria y token opcional)",
+   "archivos": [
+    "src/lib/library/rotacion-actualizaciones.ts",
+    "src/lib/library/__tests__/rotacion-actualizaciones.test.ts",
+    "src/app/api/library/actualizaciones/route.ts"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (§7 Comprobación) y `src/app/api/library/actualizaciones/route.ts` (léelos enteros antes de escribir).\n\nProblema medido el 04-11 en localhost:9002: de 310 fuentes, 269 salen «desconocida». La ruta lanza las 310 consultas a api.github.com A LA VEZ, sin token y con un tope total de 8 s, y GitHub solo da 60 consultas por hora sin token. Arreglo:\n1) `src/lib/library/rotacion-actualizaciones.ts` PURO: `loteAConsultar(entradas, conocidas, ahora, { maxLote, edadMinMs })` → los ids a consultar en esta pasada: primero los nunca vistos, luego los más viejos, como mucho `maxLote` (40 sin token); `fusionar(conocidas, resultados, ahora)` → guarda por id { remota, fecha, t } y NUNCA borra una remota buena por un fallo.\n2) En la ruta: consulta solo el lote, con concurrencia 6 (no 310 a la vez); para lo demás devuelve lo último conocido (estado calculado con `compararVersiones`). `conocidas` vive en memoria del módulo y se guarda, si se puede, en `path.join(os.tmpdir(), \"starseed-actualizaciones-biblioteca.json\")` (try/catch: en Vercel puede no haber disco y no pasa nada). Si GitHub responde 403/429 con `x-ratelimit-remaining: 0`, corta el lote y lo dice en `aviso`.\n3) Si existe `process.env.GITHUB_TOKEN`, manda `Authorization: Bearer` y sube `maxLote` a 300; el token NUNCA se escribe en logs, respuestas ni errores. Sin token todo funciona igual, solo más despacio.\nPruebas puras del lote y la fusión (orden, tope, no perder lo bueno)."
+  }
+ ]
+}
