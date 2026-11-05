@@ -3,7 +3,7 @@
 
 import type { ArchivoDirectivas, DirectivaCapa } from "./directivas";
 
-/** Clave de localStorage de las directivas por capa (viaja con la cuenta). */
+/** Clave de localStorage donde se guardan las directivas por capa. */
 export const DIRECTIVAS_KEY = "starseed.capas.directivas.v1";
 
 /** Evento emitido cuando se actualizan las directivas de una capa. */
