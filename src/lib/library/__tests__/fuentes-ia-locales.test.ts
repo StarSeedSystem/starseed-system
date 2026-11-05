@@ -70,6 +70,7 @@ describe("comprobación automática de versión", () => {
     });
 
     it("la ruta de actualizaciones la incluye y lee su último commit", async () => {
+        vi.resetModules();
         const fetchFalso = vi.fn(async (url: string) => {
             if (url.includes("drumih/turbo-fieldfare")) {
                 return new Response(JSON.stringify([{ sha: "abcdef1234567", commit: { committer: { date: "2026-10-20T10:00:00Z" } } }]), { status: 200 });
@@ -83,7 +84,7 @@ describe("comprobación automática de versión", () => {
             const entrada = datos.fuentes.find((f) => f.id === "ai-turbo-fieldfare");
             expect(entrada).toBeDefined();
             expect(entrada!.upstream).toBe("https://github.com/drumih/turbo-fieldfare");
-            expect(entrada!.remota).toBe("abcdef1");
+            expect(entrada!.remota).toBe("abcdef1234567");
             expect(entrada!.fecha).toBe("2026-10-20T10:00:00Z");
             // Las fuentes de decisiones siguen dentro, una sola vez cada una.
             const ids = datos.fuentes.map((f) => f.id);
