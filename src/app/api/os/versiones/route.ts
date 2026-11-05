@@ -5,16 +5,10 @@ const REPO = "StarSeedSystem/starseed-system";
 const URL_RELEASES = `https://api.github.com/repos/${REPO}/releases?per_page=20`;
 
 const CACHE_MS = 10 * 60 * 1000;
-const CACHE_FALLBACK_MS = 60 * 1000;
+const CACHE_FALLBACK_MS = 60 * 60 * 1000;
 
-interface CacheReleases {
-  datos: ReleaseGithub[];
-  generado: number;
-  githubFallido: boolean;
-}
-
-let cache: CacheReleases | null = null;
-let ultimaBuena: ReleaseGithub[] | null = null;
+let cache: { datos: ReleaseGithub[] | null; generado: number } | null = null;
+let cacheFallido: { datos: ReleaseGithub[] | null; generado: number } | null = null;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,9 +16,9 @@ export const dynamic = "force-dynamic";
 async function obtenerReleases(): Promise<{ releases: ReleaseGithub[]; githubFallido: boolean }> {
   const ahora = Date.now();
   if (cache) {
-    const duracion = cache.githubFallido ? CACHE_FALLBACK_MS : CACHE_MS;
+    const duracion = cacheFallido ? CACHE_FALLBACK_MS : CACHE_MS;
     if (ahora - cache.generado < duracion) {
-      return { releases: cache.datos, githubFallido: cache.githubFallido };
+      return { releases: cache.datos ?? [], githubFallido: false };
     }
   }
 
@@ -37,27 +31,30 @@ async function obtenerReleases(): Promise<{ releases: ReleaseGithub[]; githubFal
     const resp = await fetch(URL_RELEASES, { headers });
 
     if (!resp.ok) {
-      return guardarFallo(ahora);
+      if (cacheFallido && ahora - cacheFallido.generado < CACHE_FALLBACK_MS && cacheFallido.datos) {
+        return { releases: cacheFallido.datos, githubFallido: true };
+      }
+      return { releases: [], githubFallido: true };
     }
 
     const json = (await resp.json()) as unknown;
     if (!Array.isArray(json)) {
-      return guardarFallo(ahora);
+      if (cacheFallido && cacheFallido.datos) {
+        return { releases: cacheFallido.datos, githubFallido: true };
+      }
+      return { releases: [], githubFallido: true };
     }
 
     const releases = json as ReleaseGithub[];
-    cache = { datos: releases, generado: ahora, githubFallido: false };
-    ultimaBuena = releases;
+    cache = { datos: releases, generado: ahora };
+    cacheFallido = null;
     return { releases, githubFallido: false };
   } catch {
-    return guardarFallo(ahora);
+    if (cacheFallido && cacheFallido.datos && ahora - cacheFallido.generado < CACHE_FALLBACK_MS) {
+      return { releases: cacheFallido.datos, githubFallido: true };
+    }
+    return { releases: [], githubFallido: true };
   }
-}
-
-function guardarFallo(ahora: number): { releases: ReleaseGithub[]; githubFallido: true } {
-  const releases = ultimaBuena ?? [];
-  cache = { datos: releases, generado: ahora, githubFallido: true };
-  return { releases, githubFallido: true };
 }
 
 export async function GET(): Promise<Response> {
@@ -66,13 +63,10 @@ export async function GET(): Promise<Response> {
   let versiones = desdeReleases(releases);
   let aviso: string | undefined;
 
-  if (versiones.length === 0) {
+  if (githubFallido || versiones.length === 0) {
+    cacheFallido = { datos: releases, generado: Date.now() };
     versiones = [desdeReleasesFallback(OS_VERSION, OS_FECHA, `${OS_NOTAS} (aviso: datos de fallback)`)];
-    aviso = githubFallido
-      ? "GitHub no disponible: se usó el fallback con la versión actual"
-      : "No hay versiones publicadas: se usó el fallback con la versión actual";
-  } else if (githubFallido) {
-    aviso = "GitHub no disponible: se usó la última versión publicada conocida";
+    aviso = "GitHub no disponible: se usó el fallback con la versión actual";
   }
 
   const respuesta = {

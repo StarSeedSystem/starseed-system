@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-<<<<<<< HEAD
 import { desdeReleases, desdeReleasesFallback, tipoVersion } from "../versiones-publicadas";
-=======
-import { desdeReleases, tipoVersion } from "../versiones-publicadas";
->>>>>>> 09e3c3c0d (salvavidas · VER1105F: trabajo del agente antes de las puertas (tsc / vitest))
 
 const JSON_RELEASES = [
   {
@@ -18,7 +14,7 @@ const JSON_RELEASES = [
     assets: [
       { name: "StarSeed.OS_0.3.0_universal.dmg", browser_download_url: "https://github.com/StarSeedSystem/starseed-system/releases/download/v0.3.0/StarSeed.OS_0.3.0_universal.dmg", size: 7025536 },
       { name: "StarSeed.OS_0.3.0_x64-setup.exe", browser_download_url: "https://github.com/StarSeedSystem/starseed-system/releases/download/v0.3.0/StarSeed.OS_0.3.0_x64-setup.exe", size: 2516582 },
-      { name: "StarSeed.OS_0.3.0_x64_en-US.msi", browser_download_url: "https://github.com/StarSeedSystem/starseed-system/releases/download/v0.3.0/StarSeed.OS_0.3.0_x64_en-US.msi", size: 3460352 },
+      { name: "StarSeed.OS_0.3.0_x64_en-US.msi", browser_download_url: "https://github.com/StarSeedSystem/starseed-system/releases/download/v0.3.0/StarSeed.OS_0.3.0_x64-en-US.msi", size: 3460352 },
       { name: "StarSeed.OS_0.3.0_amd64.AppImage", browser_download_url: "https://github.com/StarSeedSystem/starseed-system/releases/download/v0.3.0/StarSeed.OS_0.3.0_amd64.AppImage", size: 81800000 },
       { name: "StarSeed.OS_0.3.0_amd64.deb", browser_download_url: "https://github.com/StarSeedSystem/starseed-system/releases/download/v0.3.0/StarSeed.OS_0.3.0_amd64.deb", size: 3774874 },
       { name: "StarSeed.OS-0.3.0-1.x86_64.rpm", browser_download_url: "https://github.com/StarSeedSystem/starseed-system/releases/download/v0.3.0/StarSeed.OS-0.3.0-1.x86_64.rpm", size: 3774874 },
@@ -112,7 +108,6 @@ describe("desdeReleases", () => {
     expect(systemos).toContain("windows");
     expect(systemos).toContain("linux");
     expect(systemos).toContain("android");
-<<<<<<< HEAD
     expect(systemos).toContain("ios");
   });
 
@@ -148,7 +143,6 @@ describe("desdeReleases", () => {
     expect(cafeAssets.linux).toBeDefined();
     expect(cafeAssets.android).toBeDefined();
     expect(cafeAssets.ios).toBeDefined();
-=======
   });
 
   it("cada archivo tiene nombre, tamaño y URL", () => {
@@ -169,7 +163,6 @@ describe("desdeReleases", () => {
     const android = v03.archivos.os.android;
     expect(android).toHaveLength(1);
     expect(android[0].nombre).toBe("StarSeed-os-0.3.0.apk");
->>>>>>> 09e3c3c0d (salvavidas · VER1105F: trabajo del agente antes de las puertas (tsc / vitest))
   });
 
   it("devuelve array vacío si no hay releases válidos", () => {
@@ -223,7 +216,6 @@ describe("tipoVersion", () => {
     expect(tipoVersion("Astraura-1.6.0-arm64-mac.dmg")).toBeNull();
     expect(tipoVersion("Audiomorphic_v1.2.0.apk")).toBeNull();
   });
-<<<<<<< HEAD
 });
 
 describe("desdeReleasesFallback", () => {
@@ -259,6 +251,4 @@ describe("desdeReleasesFallback", () => {
     expect(result.version).toBe("v0.3.0");
     expect(result.url).toBe("https://github.com/StarSeedSystem/starseed-system/releases/tag/v0.3.0");
   });
-=======
->>>>>>> 09e3c3c0d (salvavidas · VER1105F: trabajo del agente antes de las puertas (tsc / vitest))
 });

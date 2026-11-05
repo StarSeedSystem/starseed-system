@@ -1,6 +1,4 @@
-import { PREFIJOS_SISTEMA, SistemaNativo } from "./os-release";
-
-export type { SistemaNativo };
+export type SistemaNativo = "os" | "nexus" | "cafe";
 
 export interface ArchivoPorSO {
   nombre: string;
@@ -32,16 +30,6 @@ interface AssetRaw {
   name: string;
   browser_download_url: string;
   size: number;
-}
-
-export interface ReleaseGithub {
-  tag_name: string;
-  published_at: string;
-  html_url: string;
-  body: string;
-  draft?: boolean;
-  prerelease?: boolean;
-  assets: AssetRaw[];
 }
 
 function parsearFecha(iso: string): string {
@@ -177,8 +165,8 @@ export function desdeReleasesFallback(
 
   const href = (filename: string) => `${base}/${tag}/${filename}`;
 
-  const P = PREFIJOS_SISTEMA.os.escritorio;
-  const A = PREFIJOS_SISTEMA.os.apk;
+  const P = "StarSeed.OS";
+  const A = "StarSeed-os";
 
   const osAssets: ReleasePorSistema = {
     macos: [
