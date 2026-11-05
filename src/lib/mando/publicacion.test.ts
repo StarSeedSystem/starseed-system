@@ -1,6 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
+import { mkdtempSync, writeFileSync, unlinkSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
-import { contarAreas, olaDeAsunto, interpretarComprobaciones } from "@/lib/mando/publicacion";
+import {
+    contarAreas,
+    olaDeAsunto,
+    interpretarComprobaciones,
+    avanzarComprobaciones,
+    leerComprobacionesDe,
+    bytesLeidosUltimaVez,
+} from "@/lib/mando/publicacion";
 
 describe("contarAreas", () => {
     it("agrupa las rutas por su primer segmento bajo src/", () => {
