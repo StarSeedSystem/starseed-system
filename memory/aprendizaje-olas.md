@@ -4727,3 +4727,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** clave
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-05 21:33 · mg-oracle-1105-1413
+
+**Lo que se pidió.** add/add
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 3 tareas se fueron por lo mismo — los tipos no compilan (IMG-agentes-reimaginada-profunda-sustituir-l, VER1105Fb-d2, VER1105Gb-d2). Es 75 % de la ola.
+- freellmapi/auto no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `IMG-agentes-reimaginada-profunda-sustituir-l` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/IMG-agentes-reimaginada-profunda-sustituir-l cons
+- `VER1105Fb-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VER1105Fb-d2 conservada)
+- `RPO1104N-d2` — no escribió nada
+- `VER1105Gb-d2` — los tipos no compilan: 174 errores tsc (rama ola/VER1105Gb-d2 conservada)
