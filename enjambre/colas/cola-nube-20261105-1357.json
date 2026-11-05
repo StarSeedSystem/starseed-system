@@ -1,0 +1,59 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "id": "VOZ1105G",
+   "ola": "1105W · Voz estable",
+   "titulo": "Oído móvil sin nube · el reconocedor usa el Whisper del navegador por tramos (engine.ts)",
+   "archivos": [
+    "src/lib/aurora/engine.ts"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3. Lo que falta de VOZ1105D. La regla de reinicio del navegador en móvil YA está (commit «VOZ1105D»: `ciclosMudosRef` + `debeReiniciarNavegador` en el `onend` de `buildRecognition`): no la toques. Falta el oído Whisper del navegador en MÓVIL cuando no hay oído en la nube.\n(Antes VOZ1105Dc: el revisor la cerró por error al confundirla con VOZ1105D, que solo hizo la regla de reinicio.) Usa lo que dejó VOZ1105Db (ya en main): `oidoParaReconocer` (oido-movil.ts) y `transcribirTramo` (oss-stt.ts). En `buildRecognition` de `src/lib/aurora/engine.ts` ya se calcula `elegirOidoMovilRes` y NO se usa, y `whisperDescargado` mira las medidas, no el modelo: cámbialo por `oidoParaReconocer({ esMovil: isMobileDevice(), nube: oidoNubeListoYa(), whisperListo })`, con `whisperListo` = la persona activó el oído open-source (léelo en `opt-in.ts`) Y `isModelReady()`. Si da \"whisper-web\": `return buildEscuchaFusionado(\"whisper-web\")` (la misma línea estable por tramos que la nube, sin pitidos) y, en su `transcribir`, para `peticion.motor === \"whisper-web\"` llama a `transcribirTramo(tramo.pcm, tramo.rate, peticion.idioma)` con import dinámico de `oss-stt` (es pesado); en `elegir`, con motorId \"whisper-web\" devuelve `{ motor: \"whisper-web\" }` como ya hace con \"nube\". Quita `elegirOidoMovilRes` si deja de usarse. Cambios mínimos y localizados, sin reformatear.\nPrueba solo `src/lib/aurora/stt-oss/`.",
+   "dependencias_ya_en_main": [
+    "VOZ1105Db"
+   ]
+  },
+  {
+   "id": "VER1105H",
+   "ola": "1105V · Centro de Versiones",
+   "titulo": "Librería · ficha «StarSeed OS · versiones» con el historial y la descarga de cada sistema",
+   "archivos": [
+    "src/components/library/versiones-os.tsx",
+    "src/components/library/__tests__/versiones-os.test.tsx"
+   ],
+   "depende": [],
+   "origen": "centro-versiones",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\n§5. Componente que lee `/api/os/versiones` y enseña, como una app profesional: la versión instalada en este medio y la nueva (si la hay) con «Actualizar»; el historial (versión, fecha, notas); por sistema y SO los archivos con tamaño y enlace; requisitos y permisos de `permisosDe(so)`. Móvil y escritorio. Luego móntalo dentro de la ventana «Información y versiones» que ya abre `src/components/library/franja-descarga-os.tsx` (3.er archivo, cambio mínimo). Prueba con fetch simulado.",
+   "revisor_quitadas": [
+    "VER1105F",
+    "VER1105G",
+    "VER1105I"
+   ]
+  },
+  {
+   "id": "VER1105D",
+   "ola": "1105V · Centro de Versiones",
+   "titulo": "Centro de Versiones · el medidor «versiones» (clave, orden y filas del medidor)",
+   "archivos": [
+    "src/lib/mando/medidores.ts",
+    "src/app/api/mando/medidores/route.ts",
+    "src/lib/mando/__tests__/medidor-versiones.test.ts"
+   ],
+   "depende": [],
+   "origen": "centro-versiones",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\n§4 «Pastilla». Añade `\"versiones\"` a `ClaveMedidor` y a `ORDEN_POR_DEFECTO` (detrás de `sin-publicar`) en `medidores.ts`, y en la ruta de medidores el caso `clave=versiones` que lee el estado del director (mismo archivo que la API de lanzamientos) y devuelve el detalle del medidor con el patrón de los demás (resumen = fase y detalle; una fila por medio con `filasDeMedios`). Cambios mínimos en esos dos archivos grandes: no reformatees nada. Prueba del caso nuevo.",
+   "dependencias_ya_en_main": [
+    "VER1105A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1105-135510.json": [
+   "VOZ1105G",
+   "VER1105H",
+   "VER1105D"
+  ]
+ }
+}
