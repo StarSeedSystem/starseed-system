@@ -1,16 +1,17 @@
 "use client";
 
 /**
- * Panel de capas de Genesis (Ola ???)
+ * Panel de capas de Genesis (Ola K2)
  * ─────────────────────────────────────────────────────────────────────────────
  * Muestra el catálogo de capas, su estado, dispositivos, espejos, banco y aprendizaje.
- * 
+ * También muestra la última noche de automejora y las propuestas pendientes.
+ *
  * Solo tiene sentido en local: las rutas `/api/mando/*` responden 404 en el
  * despliegue público. Si eso ocurre, el aviso lo dice claro.
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, ShieldAlert, Clock, Send, Trash2, FileText, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +34,55 @@ interface RespuestaCapas {
     ok: boolean;
     mensaje: string;
   };
+  /** Última noche de automejora */
+  ultimaNoche: {
+    fecha: string;
+    traido: number;
+    motivo: string;
+    directivas: Array<{
+      capa: string;
+      version: number | null;
+      estado: string;
+    }>;
+    propuestas: Array<{
+      id: string;
+      capa: string;
+      description: string;
+      archivos: string[];
+      prompt_inicio: string;
+      referencia_funcion: string;
+      enviada?: boolean;
+    }>;
+    errores?: Array<{ capa: string; motivo: string }>;
+    sin_juez?: Array<{ capa: string; motivo: string }>;
+    aplicadas?: Array<{ capa: string; version: number | null; estado: string }>;
+  } | null;
+  /** Propuestas de automejora por archivo de fecha */
+  propuestas: Array<{
+    fecha: string;
+    origen: string;
+    propuestas: Array<{
+      id: string;
+      capa: string;
+      description: string;
+      archivos: string[];
+      prompt_inicio: string;
+      referencia_funcion: string;
+      enviada?: boolean;
+    }>;
+  }>;
+}
+
+interface PropuestaItem {
+  archivo: string;
+  fecha: string;
+  id: string;
+  capa: string;
+  description: string;
+  archivos: string[];
+  prompt_inicio: string;
+  referencia_funcion: string;
+  enviada: boolean;
 }
 
 /** Componente principal del panel. */
@@ -41,6 +91,7 @@ export function PanelCapasRed() {
   const [soloLocal, setSoloLocal] = useState(false);
   const [respuesta, setRespuesta] = useState<RespuestaCapas | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [propuestasAplanadas, setPropuestasAplanadas] = useState<PropuestaItem[]>([]);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -57,6 +108,14 @@ export function PanelCapasRed() {
       }
       const datos = (await r.json()) as RespuestaCapas;
       setRespuesta(datos);
+      // Aplanar propuestas para la tabla
+      const aplanadas: PropuestaItem[] = [];
+      for (const pa of datos.propuestas ?? []) {
+        for (const p of pa.propuestas ?? []) {
+          aplanadas.push({ archivo: pa.fecha + ".json", fecha: pa.fecha, ...p });
+        }
+      }
+      setPropuestasAplanadas(aplanadas);
     } catch {
       setSoloLocal(true);
     } finally {
@@ -82,6 +141,51 @@ export function PanelCapasRed() {
         return;
       }
       // Recargar los datos después de la acción
+      void cargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error desconocido.");
+    } finally {
+      setCargando(false);
+    }
+  }, [cargar]);
+
+  const mandarPropuesta = useCallback(async (archivo: string, id: string) => {
+    setCargando(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/mando/capas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accion: "mandar-propuesta", archivo, id }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ error: "Error desconocido" }));
+        setError(err.error ?? `No se pudo mandar la propuesta (HTTP ${r.status}).`);
+        return;
+      }
+      void cargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error desconocido.");
+    } finally {
+      setCargando(false);
+    }
+  }, [cargar]);
+
+  const descartarPropuesta = useCallback(async (archivo: string, id: string) => {
+    if (!confirm("¿Descartar esta propuesta de automejora? No se puede deshacer.")) return;
+    setCargando(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/mando/capas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accion: "descartar", archivo, id }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ error: "Error desconocido" }));
+        setError(err.error ?? `No se pudo descartar la propuesta (HTTP ${r.status}).`);
+        return;
+      }
       void cargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error desconocido.");
@@ -161,6 +265,194 @@ export function PanelCapasRed() {
           </Button>
         </div>
       </header>
+
+      {/* Última noche de automejora */}
+      {respuesta.ultimaNoche && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              Última noche de automejora
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap items-center gap-3 text-sm text-white/70">
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" aria-hidden />
+                <strong>Fecha:</strong> {respuesta.ultimaNoche.fecha}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" aria-hidden />
+                <strong>Traída:</strong> {new Date(respuesta.ultimaNoche.traido).toLocaleString()}
+              </span>
+              <span className="flex items-center gap-1">
+                <strong>Motivo:</strong> {respuesta.ultimaNoche.motivo}
+              </span>
+            </div>
+
+            {respuesta.ultimaNoche.directivas.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-white/80 mb-2">Directivas propuestas</h4>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {respuesta.ultimaNoche.directivas.map((d, i) => (
+                    <div
+                      key={i}
+                      className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm"
+                    >
+                      <p className="font-medium text-white">{d.capa}</p>
+                      <p className="text-white/60">v{d.version ?? "—"} · {d.estado}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {respuesta.ultimaNoche.aplicadas && respuesta.ultimaNoche.aplicadas.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-white/80 mb-2">Aplicadas por el juez</h4>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {respuesta.ultimaNoche.aplicadas.map((a, i) => (
+                    <div
+                      key={i}
+                      className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-3 text-sm"
+                    >
+                      <p className="font-medium text-emerald-200">{a.capa}</p>
+                      <p className="text-white/60">v{a.version ?? "—"} · {a.estado}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(respuesta.ultimaNoche.errores?.length ?? 0) > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-rose-200 mb-2">Errores</h4>
+                <ul className="space-y-1 text-sm text-rose-200">
+                  {respuesta.ultimaNoche.errores!.map((e, i) => (
+                    <li key={i} className="flex items-center gap-2">
+                      <AlertTriangle className="h-3 w-3 shrink-0" />
+                      <span>{e.capa}: {e.motivo}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {(respuesta.ultimaNoche.sin_juez?.length ?? 0) > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-amber-200 mb-2">Sin juez</h4>
+                <ul className="space-y-1 text-sm text-amber-200">
+                  {respuesta.ultimaNoche.sin_juez!.map((s, i) => (
+                    <li key={i} className="flex items-center gap-2">
+                      <AlertTriangle className="h-3 w-3 shrink-0" />
+                      <span>{s.capa}: {s.motivo}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Propuestas de automejora pendientes */}
+      {propuestasAplanadas.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Propuestas de automejora pendientes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>ID</TableCell>
+                    <TableCell>Capa</TableCell>
+                    <TableCell className="max-w-[300px]">Descripción</TableCell>
+                    <TableCell>Archivos</TableCell>
+                    <TableCell>Función ref.</TableCell>
+                    <TableCell>Estado</TableCell>
+                    <TableCell className="w-[160px]">Acciones</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {propuestasAplanadas.map((p) => (
+                    <TableRow key={p.id} data-testid={`propuesta-${p.id}`}>
+                      <TableCell className="font-mono text-xs">{p.id}</TableCell>
+                      <TableCell>{p.capa}</TableCell>
+                      <TableCell className="max-w-[300px] truncate">{p.description}</TableCell>
+                      <TableCell className="text-xs font-mono">
+                        {p.archivos.join(", ") || "—"}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{p.referencia_funcion || "—"}</TableCell>
+                      <TableCell>
+                        {p.enviada ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-200 text-xs">
+                            <CheckCircle2 className="h-3 w-3" aria-hidden />
+                            Enviada al enjambre
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-amber-200 text-xs">
+                            <Clock className="h-3 w-3" aria-hidden />
+                            Pendiente
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          {!p.enviada && (
+                            <Button
+                              type="button"
+                              variant="default"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => void mandarPropuesta(p.archivo, p.id)}
+                              disabled={cargando}
+                              title="Mandar al enjambre"
+                            >
+                              <Send className="h-4 w-4" aria-hidden />
+                            </Button>
+                          )}
+                          {!p.enviada && (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => void descartarPropuesta(p.archivo, p.id)}
+                              disabled={cargando}
+                              title="Descartar"
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden />
+                            </Button>
+                          )}
+                          {p.enviada && (
+                            <span className="text-xs text-white/50">Enviada</span>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {propuestasAplanadas.length === 0 && respuesta.ultimaNoche && (
+        <Card>
+          <CardContent className="py-6 text-center">
+            <FileText className="h-8 w-8 mx-auto text-white/30 mb-2" />
+            <p className="text-sm text-white/60">
+              No hay propuestas de automejora pendientes.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Catálogo de capas */}
       <Card>
