@@ -125,4 +125,23 @@ describe("OtrosSistemasOS", () => {
         expect(hrefs).not.toContain(`${BASE}/StarSeed-nexus-0.3.0.apk`);
         expect(hrefs).toContain("https://github.com/StarSeedSystem/starseed-system/releases/latest");
     });
+
+    it("enseña los requisitos y los permisos declarados por sistema con la fuente única", () => {
+        render(<OtrosSistemasOS release={est.release} />);
+        const nativos = ["macos", "windows", "linux", "android"];
+        for (const sistema of nativos) {
+            expect(screen.getByTestId(`permisos-os-${sistema}`)).toBeTruthy();
+        }
+        const macos = screen.getByTestId("permisos-os-macos");
+        expect(macos.textContent).toContain("macOS 10.15");
+        expect(macos.textContent).toContain("clic derecho");
+        expect(screen.getAllByText(/Notificaciones/).length).toBeGreaterThan(0);
+    });
+
+    it("los sistemas sin archivos nativos (iOS, web) también declaran su verdad", () => {
+        render(<OtrosSistemasOS release={est.release} />);
+        const ios = screen.getByTestId("permisos-os-ios");
+        expect(ios.textContent).toContain("iPhone y iPad");
+        expect(screen.getByTestId("permisos-os-web").textContent).toContain("Un navegador no puede ejecutar comandos");
+    });
 });

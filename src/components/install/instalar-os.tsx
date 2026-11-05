@@ -19,6 +19,7 @@ import { CheckCircle2, Download, ExternalLink, Loader2, MonitorSmartphone, Packa
 import { cn } from "@/lib/utils";
 import { tamanoLegible, type ReleaseOficial } from "@/lib/apps-oficiales/apps-oficiales";
 import { useUltimaVersion } from "@/lib/apps-oficiales/ultima-version";
+import { SO_PERMISOS, permisosDe, type SoPermisos } from "@/lib/version/permisos-por-so";
 import { useInstalarOS, type ResultadoInstalarOS } from "@/lib/install/instalar-os";
 import { instaladoresPorSistema, OS_APP_ID, OS_RELEASES_ULTIMA_URL, PASOS_IOS } from "@/lib/install/instalar-os-logica";
 
@@ -164,6 +165,54 @@ export function BotonInstalarOS({ className, compacto, conOtrosSistemas, onResul
     );
 }
 
+/** Etiquetas de sistemas para los permisos: los nativos ya tienen las del bloque de arriba. */
+const ETIQUETAS_SO: Record<SoPermisos, string> = {
+    macos: "macOS",
+    windows: "Windows",
+    linux: "Linux",
+    android: "Android",
+    ios: "iPhone o iPad (app web)",
+    web: "Navegador (versión web)",
+};
+
+/**
+ * Los requisitos y los permisos DECLARADOS de un sistema: sale TODO de
+ * config/permisos-por-so.json (fuente única, contrato centro-versiones-1105 §5-§6),
+ * vía permisos-por-so.ts. Nada se pide a la persona sin decir antes qué pide el
+ * sistema y cómo se concede (al instalar, al primer uso, en ajustes).
+ */
+function RequisitosPermisosOS({ sistema, etiqueta }: { sistema: SoPermisos; etiqueta: string }) {
+    const p = permisosDe(sistema);
+    if (!p) return null;
+    return (
+        <li className="min-w-0 rounded-lg border border-white/10 bg-black/20 p-2.5" data-testid={`permisos-os-${sistema}`}>
+            <p className="text-[11px] font-semibold text-white/85">{etiqueta}</p>
+            <p className="mt-0.5 text-[11px] leading-snug text-white/60">
+                Requisitos: {p.desde} · {p.arquitecturas.join(" · ")}
+            </p>
+            <ul className="mt-1 flex flex-col gap-1">
+                {p.permisos.map((g) => (
+                    <li key={g.texto} className="text-[11px] leading-snug text-white/70">
+                        <span className="mr-1 rounded-full border border-white/10 bg-white/[0.06] px-1.5 font-medium text-emerald-200">
+                            {g.cuando}
+                        </span>
+                        {g.texto}
+                    </li>
+                ))}
+                {p.permisosOS.map((o) => (
+                    <li key={o.identificador} className="text-[11px] leading-snug text-white/70">
+                        <span className="mr-1 rounded-full border border-white/10 bg-white/[0.06] px-1.5 font-medium text-emerald-200">
+                            {o.cuando}
+                        </span>
+                        {o.texto}
+                    </li>
+                ))}
+            </ul>
+            {p.noPermite.length > 0 && <p className="mt-1 text-[11px] text-amber-200/90">{p.noPermite.join(" ")}</p>}
+        </li>
+    );
+}
+
 /**
  * Los archivos del OS de la última versión, por sistema, con enlace directo. Lee el mismo
  * release que el botón (la caché compartida evita una segunda petición a GitHub).
@@ -200,6 +249,21 @@ export function OtrosSistemasOS({ release, className }: { release?: ReleaseOfici
                 ))}
                 <li className="text-white/70 sm:col-span-2">iPhone o iPad: instala la web desde Safari (Compartir → «Añadir a pantalla de inicio»).</li>
             </ul>
+            {/* Requisitos y permisos por sistema (contrato §5): lo que declara cada SO y cómo
+                lo concede la persona. Cerrado para no tapar la descarga, abierto a un toque. */}
+            <details className="mt-2 rounded-xl border border-white/10 bg-white/[0.03] p-3" data-testid="permisos-por-so">
+                <summary className="cursor-pointer text-[11px] font-semibold text-white/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300">
+                    Requisitos y permisos de cada sistema
+                </summary>
+                <ul className="mt-2 grid gap-2 sm:grid-cols-2" aria-label="Requisitos y permisos por sistema">
+                    {grupos.map((g) => (
+                        <RequisitosPermisosOS key={g.sistema} sistema={g.sistema} etiqueta={g.etiqueta} />
+                    ))}
+                    {SO_PERMISOS.filter((s) => !grupos.some((g) => g.sistema === s)).map((s) => (
+                        <RequisitosPermisosOS key={s} sistema={s} etiqueta={ETIQUETAS_SO[s]} />
+                    ))}
+                </ul>
+            </details>
             <p className="mt-2">
                 <Enlace href={OS_RELEASES_ULTIMA_URL}>
                     Todas las versiones en GitHub <ExternalLink className="h-3 w-3" aria-hidden />
