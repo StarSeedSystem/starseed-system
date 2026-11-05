@@ -1,0 +1,75 @@
+export type Medio = "web" | "pwa" | "escritorio" | "android" | "ios";
+
+export interface EntornoDeteccion {
+  tauriPresente?: boolean;
+  plataforma?: "android" | "ios" | "desktop";
+  modoStandalone?: boolean;
+}
+
+export function medioActual(env: EntornoDeteccion): Medio {
+  if (env.tauriPresente) {
+    switch (env.plataforma) {
+      case "android":
+        return "android";
+      case "ios":
+        return "ios";
+      case "desktop":
+        return "escritorio";
+      default:
+        return "escritorio";
+    }
+  }
+  if (env.modoStandalone) {
+    return "pwa";
+  }
+  return "web";
+}
+
+interface HayActualizacionParams {
+  medio: Medio;
+  instalada: string | null | undefined;
+  publicada: string | null | undefined;
+}
+
+import { esVersionMasNueva } from "@/lib/version/os-release";
+
+export function hayActualizacion({ medio, instalada, publicada }: HayActualizacionParams): boolean {
+  if (!instalada || !publicada) return false;
+  if (medio === "web" || medio === "pwa") {
+    return instalada !== publicada;
+  }
+  return esVersionMasNueva(publicada, instalada);
+}
+
+export async function leerInstalada(): Promise<{ medio: Medio; version: string | null }> {
+  const env: EntornoDeteccion = {
+    tauriPresente: typeof window !== "undefined" && !!(window as any).__TAURI__,
+    plataforma: typeof navigator !== "undefined" && /android/i.test(navigator.userAgent)
+      ? "android"
+      : typeof navigator !== "undefined" && /iphone|ipad/i.test(navigator.userAgent)
+      ? "ios"
+      : "desktop",
+    modoStandalone: typeof window !== "undefined" && window.matchMedia && window.matchMedia("(display-mode: standalone)").matches,
+  };
+  const medio = medioActual(env);
+  try {
+    if (env.tauriPresente) {
+      const { app } = await import("@tauri-apps/api/app");
+      const version = await app.getVersion();
+      return { medio, version };
+    }
+  } catch {
+    // sin Tauri o sin permiso
+  }
+  try {
+    const res = await fetch("/version.json", { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      const version = typeof data?.build === "string" ? data.build : null;
+      return { medio, version };
+    }
+  } catch {
+    // sin conexión
+  }
+  return { medio, version: null };
+}
