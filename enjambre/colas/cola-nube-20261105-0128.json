@@ -1,0 +1,105 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261104-193945-LNN1028F",
+   "id": "LNN1028Fb-d2",
+   "titulo": "Astraura · «recordar» funde Memvid y LEANN (y pregunta antes si hace falta) (parte 2 de 2)",
+   "archivos": [
+    "src/ai/astraura/__tests__/recordar.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nEn `recuerdos-capsulas.ts` (de MVD1027F) añade `recordar(contexto, consulta)` y deja `recordarDeCapsulas` como alias: por cada cápsula de `capsulasParaContexto`, A LA VEZ `buscar` de Memvid y `buscarLeann` (filtros `{alcance: {in: alcanceVisiblePara(actor)}}`, `pesoVector = pesoVectorPara(consulta)`), luego `fundirRecuerdos`, `filtrarParaAlcance` y, si el modelo es de la nube, `detectarFuga`. Si la consulta es de menos de 4 palabras y sin pregunta, no busca (barato). Tope total 900 ms; lo que llegue tarde no entra. Pruebas: los dos responden, solo uno, ninguno.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261104-193945-LNN1028F`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261104-193945-LNN1028F:refs/remotes/origin/nube/a1-20261104-193945-LNN1028F\"` y `git cherry-pick --no-commit d0a2fd7f80df 8230fcc92004`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/recuerdos-capsulas.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió LNN1028Fb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/ai/astraura/__tests__/recordar.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "LNN1028Fb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "revisor_quitadas": [
+    "LNN1028Fb-d1"
+   ]
+  },
+  {
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "id": "LNN1028Fc",
+   "titulo": "Astraura · «recordar» funde Memvid y LEANN (y pregunta antes si hace falta) (parte 1 de 2)",
+   "archivos": [
+    "src/ai/astraura/recuerdos-capsulas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nEn `recuerdos-capsulas.ts` (de MVD1027F) añade `recordar(contexto, consulta)` y deja `recordarDeCapsulas` como alias: por cada cápsula de `capsulasParaContexto`, A LA VEZ `buscar` de Memvid y `buscarLeann` (filtros `{alcance: {in: alcanceVisiblePara(actor)}}`, `pesoVector = pesoVectorPara(consulta)`), luego `fundirRecuerdos`, `filtrarParaAlcance` y, si el modelo es de la nube, `detectarFuga`. Si la consulta es de menos de 4 palabras y sin pregunta, no busca (barato). Tope total 900 ms; lo que llegue tarde no entra. Pruebas: los dos responden, solo uno, ninguno.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41949049014`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41949049014:refs/remotes/origin/nube/41949049014\"` y `git cherry-pick --no-commit 045a8805803e`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/__tests__/recuerdos-capsulas.test.ts, src/ai/astraura/recuerdos-capsulas.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "LNN1028Fb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41949049014",
+   "dependencias_ya_en_main": [
+    "MVD1027F-d3",
+    "LNN1028A",
+    "LNN1028D2"
+   ]
+  },
+  {
+   "id": "VER1105N",
+   "ola": "1105V · Centro de Versiones",
+   "titulo": "Centro de Versiones · guía de usuario y de desarrollo de las actualizaciones",
+   "archivos": [
+    "docs/actualizaciones-y-versiones.md"
+   ],
+   "depende": [],
+   "origen": "centro-versiones",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\nEscribe la guía (español, clara, con pasos): cómo se lanza una versión desde MetaGenesis (§2 y §4), qué hace cada botón, qué ve cada medio instalado y cómo se actualiza cada SO (§5), qué permisos pide cada sistema (§6), qué pasa si algo falla y qué sigue siendo de Alex (§7). Basada SOLO en el contrato y en el código que exista; nada inventado."
+  },
+  {
+   "id": "PUB1029F",
+   "ola": "1029 · CI de producción en verde",
+   "depende": [],
+   "titulo": "Guía de la red · la tarjeta /library vuelve a abrir la explicación real de la Biblioteca",
+   "archivos": [
+    "src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta (corre la prueba citada: si ya pasa, responde NO APLICA y no toques nada).\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de cadenas con forma de clave en código ni pruebas.\n\nContexto (2026-10-29): la autopublicación, parada desde el 25-10, ya pasa el detector de secretos y las 3.627 pruebas del puente, pero el CI de GitHub (run 40821862697, candidato c339920f7) falla en Vitest con 6 de 17.056 pruebas. Mientras haya una en rojo, nada se publica. Arregla la causa, no la prueba, salvo que la prueba sea la que quedó vieja (dilo en tu respuesta).\n\nFalla `areas-explicadas-temas.test.tsx` («la tarjeta /library abre la explicación real de la Biblioteca»): busca el texto «La biblioteca universal de la red», que ya no existe en `src` (lo cambiaron las partes GUI1021Gb del 28-10). Mira qué texto explica hoy la Biblioteca en la guía: si la tarjeta sigue abriendo la explicación correcta, actualiza la prueba al texto nuevo; si abre otra cosa o nada, arregla la tarjeta (añade su archivo a la tarea).",
+   "revisor_quitadas": [
+    "PUB1029E"
+   ]
+  },
+  {
+   "id": "VOZ1105A",
+   "ola": "1105W · Voz estable",
+   "titulo": "Voz StarSeed · la nube y la voz del sistema hablan el mensaje ENTERO, por trozos",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/motor.ts",
+    "src/lib/aurora/voz-starseed/__tests__/motor-trozos.test.ts"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3. En `hablarPorNube`: parte el texto con `trocearTexto(texto, 500)` de `src/lib/voces/trocear.ts` (la ruta `/api/voz/nube` corta a 600) y pide los trozos en orden, pidiendo el siguiente mientras suena el actual; si un trozo falla, reintenta una vez y si no, devuelve false para ESE resto (el llamador sigue con su siguiente nivel) — nunca calla a media frase sin decirlo. En `hablarPorSistema`: una utterance por trozo (≤ 200) en fila, sin `cancel()` entre trozos. Prueba con fetch y speechSynthesis simulados: un texto de 1500 caracteres pide 3–4 trozos en orden."
+  },
+  {
+   "id": "VOZ1105B",
+   "ola": "1105W · Voz estable",
+   "titulo": "OmniVoice · si un motor empieza y falla a mitad, el resto del mensaje sigue con el siguiente",
+   "archivos": [
+    "src/lib/aurora/tts-oss/speak-router.ts",
+    "src/lib/aurora/tts-oss/__tests__/speak-router-resto.test.ts"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3 y §4 regla 1. Hoy, cuando un eslabón devuelve «started» (empezó y se cortó), `speakWithConfiguredEngine` cierra el turno y el resto del mensaje NO se dice. Haz que los eslabones que trocean informen cuántos trozos llegaron a sonar (busca `planVoiceChunks` y `playSequentialViaMixer` en `neural-tts.ts`; si hace falta un 3.er archivo, ese) y que el router hable el RESTO con el siguiente eslabón de la cadena. Sin información de progreso, deja el comportamiento de hoy. Prueba con eslabones simulados: el primero suena 2 de 5 trozos y falla → el segundo dice los 3 restantes."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-183516.json": [
+   "LNN1028Fc",
+   "VOZ1105A",
+   "VOZ1105B",
+   "LNN1028Fb-d2",
+   "VER1105N",
+   "PUB1029F"
+  ]
+ }
+}
