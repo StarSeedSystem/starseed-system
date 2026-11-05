@@ -25,7 +25,9 @@ import type { ChatMessage } from "@/ai/providers/types";
 import { ASTRAURA_158_CLOUD_SOURCE_ID, ASTRAURA_158_LOCAL_SOURCE_ID } from "@/ai/astraura/free-catalog";
 import { ASTRAURA_158_MODEL_PREFIX, ASTRAURA_158_PERSONAS, persona158For } from "@/ai/providers/astraura-158";
 import type { Astraura158Target } from "@/lib/astraura/astraura-158-client";
-import { MessageRenderer } from "@/components/aurora/message-renderer";
+import { MensajeAsistente } from "@/components/openui/mensaje-asistente";
+import type { AjustesPerfilRespuesta } from "@/lib/astraura/ajustes-respuesta";
+import { debeUsarInterfazViva } from "@/lib/astraura/ajustes-respuesta";
 import { BTN, BTN_PRIMARY, Empty, INPUT, LABEL, MONO } from "@/components/astraura/s158/shared";
 import type { Astraura158EntityKind } from "./astraura-158-window-bus";
 
@@ -94,6 +96,14 @@ function buildSystemPrompt(
 export function LiveTalk({ kind, id, name, personaId, contextLines, target, className }: LiveTalkProps) {
   const persona = useMemo(() => resolveLiveTalkPersona(personaId, name), [personaId, name]);
   const personaMeta = useMemo(() => ASTRAURA_158_PERSONAS.find((p) => p.id === persona), [persona]);
+
+  const ajustesPerfil = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("ajustesPerfilRespuesta") || "{}");
+    } catch {
+      return {};
+    }
+  }, []);
 
   const [turns, setTurns] = useState<LiveTalkTurn[]>([]);
   const [input, setInput] = useState("");
@@ -206,7 +216,15 @@ export function LiveTalk({ kind, id, name, personaId, contextLines, target, clas
                 : "mr-auto rounded-tl-sm border-cyan-400/20 bg-cyan-500/[0.05] text-white/90",
             )}
           >
-            <MessageRenderer text={t.text} compact={t.role === "user"} personalityId={personaMeta?.id} />
+            {t.role === "assistant" ? (
+              <MensajeAsistente
+                texto={t.text}
+                enCurso={false}
+                ajustesPerfil={ajustesPerfil}
+              />
+            ) : (
+              <MessageRenderer text={t.text} compact personalityId={personaMeta?.id} />
+            )}
             {t.notice && (
               <p className="mt-1.5 flex items-start gap-1 border-t border-amber-400/20 pt-1.5 text-[10px] leading-snug text-amber-200/85">
                 <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" /> {t.notice}
@@ -217,7 +235,11 @@ export function LiveTalk({ kind, id, name, personaId, contextLines, target, clas
         {busy && (
           <div className="mr-auto max-w-[88%] rounded-2xl rounded-tl-sm border border-cyan-400/20 bg-cyan-500/[0.05] px-3 py-2 text-[12.5px] text-white/90">
             {streamText ? (
-              <MessageRenderer text={streamText} compact />
+              <MensajeAsistente
+                texto={streamText}
+                enCurso={true}
+                ajustesPerfil={ajustesPerfil}
+              />
             ) : (
               <p className="flex items-center gap-1.5 text-white/55">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Pensando…
