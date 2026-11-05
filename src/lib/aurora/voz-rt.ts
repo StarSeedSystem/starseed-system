@@ -188,6 +188,9 @@ class VozRT {
         return { medidas: { ...this.medidas }, ritmo: ritmoProduccion(this.medidas), colchon: colchonObjetivo(this.medidas) };
     }
 
+    /** (1105 · VOZ) Desde cuándo este equipo no llega a tiempo real (0 = sí llega). */
+    private lentoDesde = 0;
+
     /** ¿Está el servidor de voz en tiempo real listo? Cacheado 10 s. Nunca lanza. */
     async disponible(): Promise<boolean> {
         if (typeof window === "undefined") return false;
@@ -207,8 +210,19 @@ class VozRT {
             const t = setTimeout(() => ctrl.abort(), 2500);
             const r = await fetch(`${BASE}/status`, { cache: "no-store", signal: ctrl.signal });
             clearTimeout(t);
-            const j = (await r.json()) as { listo?: boolean };
+            const j = (await r.json()) as { listo?: boolean; rtf?: number | null };
             v = r.ok && !!j.listo;
+            // (1105 · VOZ) Si este equipo no llega a tiempo real (Mac cargada: RTF 3,2 y pasos 6→4 el 04-11),
+            // la voz «en tiempo real» deja huecos, baja de calidad y no termina los mensajes largos: cede
+            // el turno al motor instantáneo. Cada 20 min se le da UNA oportunidad para volver a medir.
+            const rtf = Math.max(Number(j.rtf) || 0, Number(this.medidas.rtf) || 0);
+            if (v && rtf > 1.1) {
+                if (!this.lentoDesde) this.lentoDesde = Date.now();
+                if (Date.now() - this.lentoDesde < 20 * 60_000) v = false;
+                else this.lentoDesde = Date.now();
+            } else if (v) {
+                this.lentoDesde = 0;
+            }
         } catch {
             v = false;
         }

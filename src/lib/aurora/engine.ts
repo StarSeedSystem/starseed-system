@@ -114,6 +114,9 @@ import {
 } from "@/lib/aurora/sentidos/contexto-oido";
 import { getActiveSenses } from "@/lib/senses/senses";
 import { medidasOido } from "@/lib/aurora/stt-oss/medidas-oido";
+import { crearTurnoNatural } from "@/lib/aurora/turno-natural";
+import { oidoNubeDisponible, oidoNubeListoYa } from "@/lib/aurora/stt-oss/oido-nube";
+import { trocearTexto } from "@/lib/voces/trocear";
 import { cronometroHabla, cronometroOido, leerMedidas } from "@/lib/aurora/medidas-voz";
 import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 
@@ -511,6 +514,14 @@ function releaseRecognition(rec: any): void {
  * entra en loop. El canal del micrófono NO se reinicia; solo se ignora el audio
  * propio.
  */
+/** (1105 · VOZ) Generación de la fila de trozos de la voz del navegador. Callar la sube: así ninguna
+ *  fila vieja sigue hablando (Safari dispara `onend`, no `onerror`, al cancelar). */
+let genHablaNavegador = 0;
+function cancelarNavegador(): void {
+  genHablaNavegador++;
+  try { window.speechSynthesis.cancel(); } catch { /* */ }
+}
+
 let ttsSpeakingGlobal = false;
 let ttsGuardUntilGlobal = 0;
 /**
@@ -1007,32 +1018,52 @@ export function useAuroraEngine(): AuroraEngine {
     }
 
     try {
-      window.speechSynthesis.cancel();
-      const u = resolveBrowserUtterance(clean, p);
-      u.onstart = () => {
-        setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
-        markTtsSpeaking(true); // anti-eco GLOBAL: ignora la voz propia
+      // (1105 · VOZ) POR TROZOS: un mensaje largo en UNA sola utterance se cortaba (Chrome para a los ~15 s y
+      // el vigilante de 30 s reabría el micro a media frase, que en Android corta la voz). Ahora cada frase es
+      // su utterance, en fila, y el turno se cierra al acabar la ÚLTIMA. Un vigilante POR TROZO cubre el bug de
+      // Chrome en que `onend` no llega, sin cortar nunca un mensaje largo.
+      cancelarNavegador();
+      const trozos = trocearTexto(clean, 200);
+      const miGen = ++genHablaNavegador;
+      let indice = 0;
+      const siguiente = (): void => {
+        if (miGen !== genHablaNavegador) return;
+        if (indice >= trozos.length) { finishTts(); return; }
+        const texto = trozos[indice++];
+        const u = resolveBrowserUtterance(texto, p);
+        u.onstart = () => {
+          setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
+          markTtsSpeaking(true); // anti-eco GLOBAL: ignora la voz propia
+        };
+        // Cada límite de palabra/frase impulsa el latido del glow del Orbe.
+        u.onboundary = () => emitAuroraSpeak("boundary");
+        u.onend = () => { if (miGen === genHablaNavegador) siguiente(); };
+        u.onerror = (ev: SpeechSynthesisErrorEvent) => {
+          if (miGen !== genHablaNavegador) return;
+          // «interrupted/canceled»: alguien calló a Astraura a propósito; la fila no sigue.
+          if (ev?.error === "interrupted" || ev?.error === "canceled") { finishTts(); return; }
+          siguiente();
+        };
+        if (ttsWatchdogRef.current) clearTimeout(ttsWatchdogRef.current);
+        const vigilar = () => {
+          ttsWatchdogRef.current = setTimeout(() => {
+            if (miGen !== genHablaNavegador) return;
+            // `onend` no llegó: si ya no suena nada, sigue con el siguiente trozo; si suena, espera más.
+            if (!window.speechSynthesis.speaking) siguiente(); else vigilar();
+          }, 2500 + texto.length * 90);
+        };
+        vigilar();
+        window.speechSynthesis.speak(u);
       };
-      // Cada límite de palabra/frase impulsa el latido del glow del Orbe.
-      u.onboundary = () => emitAuroraSpeak("boundary");
-      u.onend = () => { finishTts(); };
-      u.onerror = () => { finishTts(); };
       // Abre la ventana anti-eco YA (antes de onstart) para cubrir el arranque
       // del habla: el micrófono no debe procesar ni el primer fonema propio.
       markTtsSpeaking(true);
       // MEDIO-DÚPLEX: DETÉN el micrófono mientras Aurora habla (no basta con
       // ignorar; hay que dejar de escuchar para que no se oiga a sí misma).
-      // Invalida la generación para que el onend del reconocimiento abortado NO
-      // reinicie (lo reanudará finishTts al terminar el habla).
       pausedForTtsRef.current = true;
       recGenRef.current++;
       try { recognitionRef.current?.abort?.(); } catch { /* */ }
-      // Watchdog: si `utterance.onend` no dispara (bug conocido de Chrome con
-      // textos largos), reanuda igualmente tras una duración estimada.
-      if (ttsWatchdogRef.current) clearTimeout(ttsWatchdogRef.current);
-      const estMs = Math.min(30000, 1600 + clean.length * 80);
-      ttsWatchdogRef.current = setTimeout(() => { finishTts(); }, estMs);
-      window.speechSynthesis.speak(u);
+      siguiente();
       setPaused(false);
     } catch {
       finishTts();
@@ -1086,7 +1117,7 @@ export function useAuroraEngine(): AuroraEngine {
             cortar: true,
             onInicio: () => {
               handedOff = true;
-              try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
+              try { if (typeof window.speechSynthesis !== "undefined") cancelarNavegador(); } catch { /* */ }
               setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
               markTtsSpeaking(true);
               pausedForTtsRef.current = true;
@@ -1107,7 +1138,7 @@ export function useAuroraEngine(): AuroraEngine {
           onStart: () => {
             handedOff = true;
             // Corta cualquier voz nativa por si acaso (una sola voz a la vez).
-            try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
+            try { if (typeof window.speechSynthesis !== "undefined") cancelarNavegador(); } catch { /* */ }
             setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
             // Anti-eco GLOBAL + medio-dúplex: deja de escuchar mientras habla.
             markTtsSpeaking(true);
@@ -1379,7 +1410,7 @@ export function useAuroraEngine(): AuroraEngine {
     if (!ttsQueueBusyRef.current) {
       const aRT = decirRTYa(cleanChain || clean, p?.id, {
         onInicio: () => {
-          try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
+          try { if (typeof window.speechSynthesis !== "undefined") cancelarNavegador(); } catch { /* */ }
           setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
           markTtsSpeaking(true);
           pausedForTtsRef.current = true;
@@ -1502,7 +1533,7 @@ export function useAuroraEngine(): AuroraEngine {
     ttsQueueGenRef.current++;
     ttsQueueRef.current = [];
     ttsQueueBusyRef.current = false;
-    try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
+    try { if (typeof window.speechSynthesis !== "undefined") cancelarNavegador(); } catch { /* */ }
     // También corta cualquier voz OSS en curso (Kokoro/Kitten) y la neuronal local. Fire-and-forget.
     void import("@/lib/aurora/tts-oss/speak-router")
       .then((m) => m.stopConfiguredEngine())
@@ -1877,7 +1908,7 @@ export function useAuroraEngine(): AuroraEngine {
             persona: { id: p.id || p.name || "astraura", nombre: p.name || "Astraura" },
             onInicioVoz: () => {
               setThinking(false);
-              try { if (typeof window.speechSynthesis !== "undefined") window.speechSynthesis.cancel(); } catch { /* */ }
+              try { if (typeof window.speechSynthesis !== "undefined") cancelarNavegador(); } catch { /* */ }
               setSpeaking(true); setPaused(pausedRef.current); emitAuroraSpeak("start");
               // Medio-dúplex: el micrófono no escucha a Aurora mientras habla.
               markTtsSpeaking(true);
@@ -2100,6 +2131,30 @@ export function useAuroraEngine(): AuroraEngine {
   //
   // `keepAliveRef` distingue una parada deliberada (stop) de un fin natural de
   // sesión (que reanudamos).
+  // (1105 · VOZ) TURNO NATURAL: lo dicho se junta hasta que la persona termina de explicar.
+  const turnoVozRef = useRef(crearTurnoNatural());
+  const turnoVozTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const turnoVozCerrarRef = useRef<() => void>(() => {});
+  const programarCierreTurno = useCallback((cerrar: () => void) => {
+    turnoVozCerrarRef.current = cerrar;
+    if (turnoVozTimerRef.current) clearTimeout(turnoVozTimerRef.current);
+    const mirar = () => {
+      turnoVozTimerRef.current = null;
+      const ahora = Date.now();
+      if (turnoVozRef.current.vacio()) return;
+      if (turnoVozRef.current.debeCerrar(ahora)) { turnoVozCerrarRef.current(); return; }
+      turnoVozTimerRef.current = setTimeout(mirar, turnoVozRef.current.faltaMs(ahora));
+    };
+    turnoVozTimerRef.current = setTimeout(mirar, turnoVozRef.current.faltaMs(Date.now()));
+  }, []);
+  /** La persona sigue hablando (voz o parcial): aplaza el cierre del turno pendiente. */
+  const sigueHablando = useCallback(() => {
+    turnoVozRef.current.actividad(Date.now());
+    if (!turnoVozRef.current.vacio()) programarCierreTurno(turnoVozCerrarRef.current);
+  }, [programarCierreTurno]);
+  // El oído en la nube se pregunta una vez al montar (el móvil lo necesita en el primer toque).
+  useEffect(() => { void oidoNubeDisponible(); }, []);
+
   const buildRecognition = useCallback(() => {
     if (typeof window === "undefined") return null;
     // Elector del oído (contrato voz-fusionada-astraura.md §3): Phonon-2 es el
@@ -2116,6 +2171,9 @@ export function useAuroraEngine(): AuroraEngine {
       medidas: medidasOidoDeEstaNeurona(langVoz),
     });
     if (eleccionOido.motor === "phonon-2") return buildFlujoOido();
+    // (1105 · VOZ) MÓVIL: una línea de micrófono estable con oído por tramos en la nube. El reconocedor
+    // del navegador termina tras cada frase o silencio y, al reiniciarlo, Android PITA en bucle.
+    if (isMobileDevice() && oidoNubeListoYa()) return buildEscuchaFusionado("nube");
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     // (VZF1015G) FUSIÓN DEL OÍDO (§3): el camino por tramos con elector entra
     // cuando NO hay reconocimiento en el navegador, o cuando un motor local/
@@ -2299,7 +2357,10 @@ export function useAuroraEngine(): AuroraEngine {
 
       // ── MODO ACTIVO (engaged): conversación normal ──
       touchEngagedRef.current(); // reinicia el temporizador de inactividad
-      if (interimText) setInterim(interimText);
+      if (interimText) {
+        sigueHablando();
+        setInterim(turnoVozRef.current.vacio() ? interimText : `${turnoVozRef.current.texto()} ${interimText}`);
+      }
       if (finalText) {
         setInterim("");
         // ANTI-ECO TARDÍO (2026-09-27): la cola de su propia voz puede llegar
@@ -2319,8 +2380,19 @@ export function useAuroraEngine(): AuroraEngine {
         // Aurora sin que el micro capte ruido ni se reinicie la escucha a mitad
         // de su respuesta. Se reactiva sola al terminar el habla (finishTts) o
         // si el usuario vuelve a pulsar hablar / interrumpe con un nuevo mensaje.
-        try { rec.stop(); } catch { /* */ }
-        void runCommandRef.current(corrected);
+        // (1105 · VOZ) TURNO NATURAL: no se manda en la primera pausa para respirar; se junta lo dicho hasta
+        // que la persona termina de explicar (turno-natural.ts) y entonces se responde.
+        turnoVozRef.current.agregar(corrected, Date.now());
+        setInterim(turnoVozRef.current.texto());
+        programarCierreTurno(() => {
+          const dicho = turnoVozRef.current.texto();
+          turnoVozRef.current.reiniciar();
+          setInterim("");
+          if (!dicho) return;
+          // MEDIO-DÚPLEX: suelta el micro para responder; se reactiva al terminar el habla (finishTts).
+          try { rec.stop(); } catch { /* */ }
+          void runCommandRef.current(dicho);
+        });
       }
     };
     return rec;
@@ -2424,7 +2496,10 @@ export function useAuroraEngine(): AuroraEngine {
       }
       // ACTIVO: conversación normal.
       touchEngagedRef.current();
-      if (interimText) setInterim(interimText);
+      if (interimText) {
+        sigueHablando(); // (1105 · VOZ) hay voz: el turno pendiente espera
+        setInterim(turnoVozRef.current.vacio() ? interimText : `${turnoVozRef.current.texto()} ${interimText}`);
+      }
       if (finalText) {
         setInterim("");
         if (esEcoPropio(finalText, Date.now())) return; // ANTI-ECO TARDÍO
@@ -2434,8 +2509,17 @@ export function useAuroraEngine(): AuroraEngine {
         };
         let corrected = finalText;
         try { corrected = normalizeStarseedTerms(finalText); } catch { corrected = finalText; }
-        try { rec.stop(); } catch { /* */ } // medio-dúplex: suelta el micro YA
-        void runCommandRef.current(corrected);
+        // (1105 · VOZ) TURNO NATURAL también en el oído en flujo.
+        turnoVozRef.current.agregar(corrected, Date.now());
+        setInterim(turnoVozRef.current.texto());
+        programarCierreTurno(() => {
+          const dicho = turnoVozRef.current.texto();
+          turnoVozRef.current.reiniciar();
+          setInterim("");
+          if (!dicho) return;
+          try { rec.stop(); } catch { /* */ } // medio-dúplex: suelta el micro para responder
+          void runCommandRef.current(dicho);
+        });
       }
     };
 
@@ -2661,7 +2745,12 @@ export function useAuroraEngine(): AuroraEngine {
     const entregar = (textoFinal: string, pista: string) => {
       if (gen !== recGenRef.current || ttsGuardActive()) return; // ANTI-ECO GLOBAL
       if (textoFinal) { sawResult = true; sttRestartsRef.current = 0; oidoMedido.final(); }
-      if (pista) { oidoMedido.oyendo(); if (engagedRef.current) setInterim(pista); return; }
+      if (pista) {
+        oidoMedido.oyendo();
+        sigueHablando(); // (1105 · VOZ) hay voz: el turno pendiente espera
+        if (engagedRef.current) setInterim(turnoVozRef.current.vacio() ? pista : `${turnoVozRef.current.texto()} ${pista}`);
+        return;
+      }
       if (!engagedRef.current) { // PASIVO: solo "aurora" enciende (y ejecuta lo que traiga)
         if (containsWake(textoFinal)) {
           engageNowRef.current();
@@ -2678,8 +2767,17 @@ export function useAuroraEngine(): AuroraEngine {
       };
       let corregido = textoFinal;
       try { corregido = normalizeStarseedTerms(textoFinal); } catch { corregido = textoFinal; }
-      try { rec.stop(); } catch { /* */ } // medio-dúplex: suelta el micro YA
-      void runCommandRef.current(corregido);
+      // (1105 · VOZ) TURNO NATURAL: la línea sigue abierta entre tramos; se responde cuando termina.
+      turnoVozRef.current.agregar(corregido, Date.now());
+      setInterim(turnoVozRef.current.texto());
+      programarCierreTurno(() => {
+        const dicho = turnoVozRef.current.texto();
+        turnoVozRef.current.reiniciar();
+        setInterim("");
+        if (!dicho) return;
+        try { rec.stop(); } catch { /* */ } // medio-dúplex: suelta el micro para responder
+        void runCommandRef.current(dicho);
+      });
     };
 
     const rec: SpeechRecognitionLike = {
@@ -2730,7 +2828,7 @@ export function useAuroraEngine(): AuroraEngine {
           mudo.connect(audioCtx.destination);
           sesionOido = escucharFusionado({
             obtenerAudio: () => new Promise<FragmentoOido | null>((resolver) => { relevo = resolver; }),
-            elegir: (idioma) => elegirOido({
+            elegir: (idioma) => motorId === "nube" ? { motor: "nube" } : elegirOido({
               idioma: idioma || idiomaBaseDeVoz(langVoz),
               disponibles: MOTORES_OIDO.filter(
                 (m) => m.id !== "navegador" && !(m.id === "phonon-2" && phononCaidoRef.current),
@@ -2740,6 +2838,10 @@ export function useAuroraEngine(): AuroraEngine {
             }),
             transcribir: async (tramo, peticion) => {
               const blob = new Blob([tramoAWav(tramo.pcm, tramo.rate)], { type: "audio/wav" });
+              if (peticion.motor === "nube") { // (1105 · VOZ) oído por tramos en la nube
+                const { transcribirNube } = await import("@/lib/aurora/stt-oss/oido-nube");
+                return transcribirNube(tramo.pcm, tramo.rate, peticion.idioma);
+              }
               if (peticion.motor === "vibeasr-158") { // el oído 1.58 del demonio
                 const { transcribirLocal } = await import("@/lib/aurora/stt-oss/vibeasr-local");
                 return (await transcribirLocal(blob)).texto;
@@ -2839,7 +2941,7 @@ export function useAuroraEngine(): AuroraEngine {
   useEffect(() => {
     cortarBucleRef.current = (motivo?: string) => {
       try { vozRT().detener(); } catch { /* */ }
-      try { if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel(); } catch { /* */ }
+      try { if (typeof window !== "undefined" && window.speechSynthesis) cancelarNavegador(); } catch { /* */ }
       finishTts();
       pausedForTtsRef.current = false;
       bucleVoz.reiniciar();
