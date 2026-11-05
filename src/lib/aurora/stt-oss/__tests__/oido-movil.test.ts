@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { elegirOidoMovil, debeReiniciarNavegador, oidoParaReconocer } from "../oido-movil";
+import { elegirOidoMovil, debeReiniciarNavegador, oidoParaReconocer, whisperListoParaOido } from "../oido-movil";
 
 describe("elegirOidoMovil", () => {
   it("prefiere nube cuando está activado", () => {
@@ -51,6 +51,18 @@ describe("oidoParaReconocer", () => {
   });
   it("móvil con nube y whisper -> nube (prioridad nube)", () => {
     expect(oidoParaReconocer({ esMovil: true, nube: true, whisperListo: true })).toBe("nube");
+  });
+});
+
+describe("whisperListoParaOido", () => {
+  it("no cuenta si la persona no activó el oído open-source", () => {
+    expect(whisperListoParaOido({ optIn: false, modeloListo: true })).toBe(false);
+  });
+  it("no cuenta si el modelo no está cargado en el navegador", () => {
+    expect(whisperListoParaOido({ optIn: true, modeloListo: false })).toBe(false);
+  });
+  it("cuenta solo con opt-in Y modelo ya cargado", () => {
+    expect(whisperListoParaOido({ optIn: true, modeloListo: true })).toBe(true);
   });
 });
 
