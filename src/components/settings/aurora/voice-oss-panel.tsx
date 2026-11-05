@@ -139,6 +139,8 @@ import {
   KOKORO_APPROX_SIZE,
   type OssTtsLoadProgress,
 } from "@/lib/aurora/tts-oss";
+import { CLAVE_APAGADO, oidoNubeListoYa } from "@/lib/aurora/stt-oss/oido-nube";
+import { motorQueSono } from "@/lib/aurora/tts-oss/speak-router";
 
 /** Frase de prueba (español, para lucir el mejor acento de cada motor). */
 const SAMPLE_ES = "Hola, soy Aurora. Esta es mi voz local, gratuita y privada.";
@@ -207,6 +209,17 @@ export function VoiceOssPanel({ className }: { className?: string }) {
   const [ov2Status, setOv2Status] = useState<string>("");
   const [ov2Buscando, setOv2Buscando] = useState(false);
   const [ov2Descubierto, setOv2Descubierto] = useState<string>("");
+
+  // ── Oído en la nube (Groq Whisper / Gemini) ──
+  const [oidoNubeActivo, setOidoNubeActivo] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try { return window.localStorage.getItem(CLAVE_APAGADO) !== "0"; } catch { return true; }
+  });
+  const [oidoActual, setOidoActual] = useState<string>("navegador");
+  const [ultimaVoz, setUltimaVoz] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { return window.localStorage.getItem("starseed.aurora.voice.motor-vivo.v1"); } catch { return null; }
+  });
 
   const mountedRef = useRef(true);
 
@@ -418,6 +431,59 @@ export function VoiceOssPanel({ className }: { className?: string }) {
     };
   }, []);
 
+  // ── Oído en la nube: interruptor + sincronía con localStorage ──
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === CLAVE_APAGADO) {
+        const activo = e.newValue !== "0";
+        setOidoNubeActivo(activo);
+      }
+    };
+    const onLocal = () => {
+      try {
+        const activo = window.localStorage.getItem(CLAVE_APAGADO) !== "0";
+        setOidoNubeActivo(activo);
+      } catch { /* */ }
+    };
+    try {
+      window.addEventListener("storage", onStorage);
+      window.addEventListener("starseed:oido-nube", onLocal as EventListener);
+    } catch { /* */ }
+    return () => {
+      try {
+        window.removeEventListener("storage", onStorage);
+        window.removeEventListener("starseed:oido-nube", onLocal as EventListener);
+      } catch { /* */ }
+    };
+  }, []);
+
+  // ── Estado: qué oído usa este dispositivo y qué voz habló la última vez ──
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let vivo = true;
+    const actualizarEstado = () => {
+      if (!vivo) return;
+      // Qué oído usa este dispositivo: si el interruptor está ON y la nube está lista → "nube (Groq/Gemini)"
+      // si no → "navegador" (o el que elija el elector)
+      let oido = "navegador";
+      if (oidoNubeActivo && oidoNubeListoYa()) oido = "nube (Groq Whisper / Gemini)";
+      setOidoActual(oido);
+
+      // Qué voz habló la última vez
+      const motor = motorQueSono();
+      setUltimaVoz(motor);
+    };
+    actualizarEstado();
+    // Reaccionar a eventos de voz
+    const handlerVoz = () => actualizarEstado();
+    try { window.addEventListener("starseed:voz-motor-vivo", handlerVoz); } catch { /* */ }
+    return () => {
+      vivo = false;
+      try { window.removeEventListener("starseed:voz-motor-vivo", handlerVoz); } catch { /* */ }
+    };
+  }, [oidoNubeActivo]);
+
   // Ping de disponibilidad de UN motor por endpoint (caché 60 s en neural-tts).
   const refreshPing = useCallback(async (id: NeuralVoiceEngine, force = false) => {
     const s = getEngineSettings(id);
@@ -579,6 +645,16 @@ export function VoiceOssPanel({ className }: { className?: string }) {
     } catch {
       /* */
     }
+  }, []);
+
+  // ── Oído en la nube: interruptor ──
+  const onToggleOidoNube = useCallback((activo: boolean) => {
+    setOidoNubeActivo(activo);
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(CLAVE_APAGADO, activo ? "1" : "0");
+      window.dispatchEvent(new CustomEvent("starseed:oido-nube", { detail: activo }));
+    } catch { /* */ }
   }, []);
 
   // ── Probar / detener ──
@@ -826,6 +902,45 @@ export function VoiceOssPanel({ className }: { className?: string }) {
       {/* Voz por NEURONA (Adenda 87): elección nube/local de ESTE dispositivo.
           Equivalente a la tarjeta de la sección de Neuronas — misma lógica. */}
       <NeuronVoiceChoice />
+
+      {/* ── Oído en la nube (Groq Whisper / Gemini) ── */}
+      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Mic className="w-4 h-4 text-sky-300" />
+          <span className="text-sm font-medium text-foreground/90">Oído en la nube (Groq Whisper / Gemini)</span>
+        </div>
+        <p className="text-[11px] text-amber-200/90">
+          El audio de cada tramo se manda a transcribir y no se guarda.
+        </p>
+        <label className="flex items-center gap-2 text-[11px] text-foreground/75 cursor-pointer">
+          <input
+            type="checkbox"
+            role="switch"
+            aria-label="Oído en la nube (Groq Whisper / Gemini)"
+            className="accent-sky-300"
+            checked={oidoNubeActivo}
+            onChange={(e) => onToggleOidoNube(e.target.checked)}
+          />
+          <span>{oidoNubeActivo ? "Activado" : "Desactivado"}</span>
+        </label>
+      </div>
+
+      {/* ── Estado del oído y la voz ── */}
+      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-1.5">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Estado actual</div>
+        <div className="flex items-center gap-2 text-[11px] text-foreground/80">
+          <Mic className="w-3.5 h-3.5 text-sky-300 shrink-0" />
+          <span>Oído activo: <b>{oidoActual}</b></span>
+        </div>
+        <div className="flex items-center gap-2 text-[11px] text-foreground/80">
+          <Volume2 className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+          {ultimaVoz ? (
+            <span>Última voz: <b>{ultimaVoz}</b></span>
+          ) : (
+            <span className="text-muted-foreground">Última voz: <b>aún no ha habido voz</b></span>
+          )}
+        </div>
+      </div>
 
       {/* ── OmniVoice k2-fsa · motor por defecto (híbrido · CERO config) ────── */}
       <div className="rounded-xl border border-[#7fb8ff]/25 bg-[#7fb8ff]/[0.05] p-3 space-y-2.5">

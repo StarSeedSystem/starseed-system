@@ -13,6 +13,13 @@
 if (typeof document !== "undefined") {
   const { configure } = await import("@testing-library/react");
   configure({ asyncUtilTimeout: 5000 });
+
+  // Mock de ResizeObserver para Radix UI (2026-11-05)
+  global.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
 }
 
 export {};
