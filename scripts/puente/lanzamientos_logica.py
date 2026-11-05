@@ -174,18 +174,45 @@ def clasificar_fallo(log):
     return "reintentar", "sin causa reconocible en el log"
 
 
+_ID_EN_NOTA = re.compile(r"\b([A-Z]{1,7}\d{3,5}[A-Za-z0-9-]*)\b")
+_RAIZ_ID = re.compile(r"^([A-Z]{1,7}\d{3,5}[A-Z])")
+_SUFIJO_SUCESOR = re.compile(r"^(?:[b-z]|-d\d+)$")
+
+
+def sucesores(tid, progreso, ids_en_main=()):
+    """Las tareas que continúan a `tid` cuando quedó «sustituida»: las que nombra su nota («continúa como
+    VER1105Lb», «dividida en VER1105Fb-d1, VER1105Fb-d2») y, si la nota no dice nada, las que llevan su id
+    más una letra o un «-dN» (VER1105L → VER1105Lb; VER1105Fb → VER1105Fb-d1)."""
+    entrada = (progreso or {}).get(tid) or {}
+    raiz = _RAIZ_ID.match(tid or "")
+    raiz = raiz.group(1) if raiz else tid
+    en_nota = {x for x in _ID_EN_NOTA.findall(str(entrada.get("nota") or ""))
+               if x != tid and x.startswith(raiz) and not tid.startswith(x)}
+    if en_nota:
+        return sorted(en_nota)
+    conocidos = set(progreso or {}) | set(ids_en_main or ())
+    return sorted(x for x in conocidos if x != tid and x.startswith(tid) and _SUFIJO_SUCESOR.match(x[len(tid):]))
+
+
+def tarea_hecha(tid, progreso, ids_en_main, _vistos=None):
+    """¿`tid` está en main, descartada, o «sustituida» por sucesores que lo están todos? (§2.1)"""
+    vistos = set(_vistos or ())
+    if tid in vistos:
+        return False
+    vistos.add(tid)
+    est = ((progreso or {}).get(tid) or {}).get("estado")
+    if est in ("descartada", "no-aplica", "no_aplica") or tid in ids_en_main:
+        return True
+    if est != "sustituida":
+        return False
+    hijos = sucesores(tid, progreso, ids_en_main)
+    return bool(hijos) and all(tarea_hecha(h, progreso, ids_en_main, vistos) for h in hijos)
+
+
 def lista_terminada(tareas, progreso, ids_en_main):
-    """¿La lista de tareas está terminada? Cada tarea integrada EN MAIN o descartada (§2.1).
-    → (terminada, pendientes)."""
-    pendientes = []
-    for t in tareas or []:
-        tid = t.get("id")
-        est = ((progreso or {}).get(tid) or {}).get("estado")
-        if est in ("descartada", "no-aplica", "no_aplica"):
-            continue
-        if tid in ids_en_main:
-            continue
-        pendientes.append(tid)
+    """¿La lista de tareas está terminada? Cada tarea integrada EN MAIN o descartada (§2.1), siguiendo
+    las cadenas «sustituida» hasta sus sucesores. → (terminada, pendientes)."""
+    pendientes = [t.get("id") for t in tareas or [] if not tarea_hecha(t.get("id"), progreso, ids_en_main)]
     return (not pendientes and bool(tareas)), pendientes
 
 

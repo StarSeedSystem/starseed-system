@@ -116,6 +116,28 @@ class Puertas(unittest.TestCase):
         self.assertEqual(L.lista_terminada(tareas, prog, {"VER1105A", "VER1105B"}), (True, []))
         self.assertEqual(L.lista_terminada([], {}, set()), (False, []))
 
+    def test_lista_sigue_las_sustituidas(self):
+        tareas = [{"id": "VER1105L"}, {"id": "VER1105F"}]
+        prog = {
+            "VER1105L": {"estado": "sustituida", "nota": "continúa como VER1105Lb desde la rama nube/a1-1-VER1105L"},
+            "VER1105Lb": {"estado": "commit"},
+            "VER1105F": {"estado": "sustituida", "nota": "continúa como VER1105Fb desde la rama nube/a1-2-VER1105F"},
+            "VER1105Fb": {"estado": "sustituida", "nota": "revisor: dividida en VER1105Fb-d1, VER1105Fb-d2"},
+        }
+        self.assertEqual(L.sucesores("VER1105Fb", prog), ["VER1105Fb-d1", "VER1105Fb-d2"])
+        # Lb en main termina L; F espera a sus dos trozos.
+        self.assertEqual(L.lista_terminada(tareas, prog, {"VER1105Lb", "VER1105Fb-d1"}), (False, ["VER1105F"]))
+        self.assertEqual(L.lista_terminada(tareas, prog, {"VER1105Lb", "VER1105Fb-d1", "VER1105Fb-d2"}), (True, []))
+        # Cadena L → Lb → Lc por las notas.
+        prog2 = dict(prog, VER1105Lb={"estado": "sustituida", "nota": "continúa como VER1105Lc (traer_nube)"})
+        self.assertFalse(L.tarea_hecha("VER1105L", prog2, set()))
+        self.assertTrue(L.tarea_hecha("VER1105L", prog2, {"VER1105Lc"}))
+        # Sin nota: el sufijo (una letra o «-dN»); sustituida sin sucesores no cuenta como hecha.
+        self.assertTrue(L.tarea_hecha("VER1105G", {"VER1105G": {"estado": "sustituida"}}, {"VER1105Gb"}))
+        self.assertFalse(L.tarea_hecha("VER1105G", {"VER1105G": {"estado": "sustituida"}}, set()))
+        # Una tarea «commit» que aún no está en origin/main no cuenta.
+        self.assertFalse(L.tarea_hecha("VER1105A", {"VER1105A": {"estado": "commit"}}, set()))
+
     def test_publicado(self):
         h, b = "a" * 40, "b" * 40
         self.assertEqual(L.ultimo_publicado({"fase": "publicado", "sha": h}), h)
