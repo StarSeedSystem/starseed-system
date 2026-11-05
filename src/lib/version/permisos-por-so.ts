@@ -35,4 +35,3 @@ export function validarPermisoEnJson(nombre: string): boolean {
   return identificadores.has(nombre);
 }
 
-export type { ConfigSO, PermisoSO, SistemaOperativo };
