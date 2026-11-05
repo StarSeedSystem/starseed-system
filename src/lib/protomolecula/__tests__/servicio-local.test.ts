@@ -56,19 +56,33 @@ describe("servicio-local · llamadas a 127.0.0.1", () => {
     expect(await p).toMatchObject({ ok: false, fallo: "tiempo", ms: 5_000 });
     expect(senal?.aborted).toBe(true); expect(timers).toHaveLength(0);
   });
-  it("el plazo propio de la definición manda sobre el de fábrica: 30 s no corta, 15 min sí", async () => {
+  it("un plazo propio mayor que el de por defecto no se recorta: 30 s no corta, 15 min sí", async () => {
     const { reloj, avanzar } = relojFalso();
     let senal: AbortSignal | undefined;
-    const colgado: FetchLocal = (_u, i) => {
-      senal = i.signal;
-      return new Promise((_, rej) => i.signal.addEventListener("abort", () => rej(new Error("abortado"))));
-    };
+    const colgado: FetchLocal = (_u, i) => { senal = i.signal; return new Promise((_, rej) => i.signal.addEventListener("abort", () => rej(new Error("abortado")))); };
     const p = llamarServicio({ ...DEF, tiempoMs: 900_000 }, "/render", {}, colgado, { ...conToken(), reloj });
-    avanzar(30_000); // el plazo de fábrica (TIEMPO_MS) habría cortado aquí: un plazo propio más largo no se recorta
+    avanzar(30_000); // el plazo por defecto (30 s) ya habría vencido: no debe cortar
     expect(senal?.aborted).toBe(false);
-    avanzar(870_000); // total de 900.000 ms desde el inicio
+    avanzar(870_000); // total 900.000 ms
     expect(await p).toMatchObject({ ok: false, fallo: "tiempo", ms: 900_000 });
     expect(senal?.aborted).toBe(true);
+  });
+
+  it("definición válida y salud solo en 127.0.0.1:4490 con la ruta de salud declarada", async () => {
+    const hf = SERVICIOS_CONOCIDOS.find((d) => d.id === "hyperframes");
+    expect(hf).toEqual({ id: "hyperframes", nombre: "HyperFrames", puerto: 4490, rutaSalud: "/salud", tiempoMs: 900_000 });
+    expect(validarDefinicion(hf!)).toBeNull();
+    const f = vi.fn<FetchLocal>(async () => resp(200, '{"vivo":true}'));
+    const s = await sondearServicio(hf!, f, { leerVariable: () => undefined });
+    expect(s).toMatchObject({ vivo: true });
+    expect(f.mock.calls).toHaveLength(1);
+    const [url, init] = f.mock.calls[0] as [string, PeticionLocal];
+    const destino = new URL(url);
+    expect(destino.hostname).toBe("127.0.0.1");
+    expect(Number(destino.port)).toBe(4490);
+    expect(destino.pathname).toBe("/salud");
+    expect(init).toMatchObject({ method: "GET", redirect: "manual", headers: { accept: "application/json" } });
+    expect(init.headers.authorization).toBeUndefined();
   });
   it("tiempo agotado también mientras se lee un cuerpo que nunca acaba", async () => {
     const { reloj, avanzar } = relojFalso();
