@@ -1,0 +1,84 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261104-193945-LNN1028F",
+   "id": "LNN1028Fb-d1",
+   "titulo": "Astraura · «recordar» funde Memvid y LEANN (y pregunta antes si hace falta) (parte 1 de 2)",
+   "archivos": [
+    "src/ai/astraura/recuerdos-capsulas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nEn `recuerdos-capsulas.ts` (de MVD1027F) añade `recordar(contexto, consulta)` y deja `recordarDeCapsulas` como alias: por cada cápsula de `capsulasParaContexto`, A LA VEZ `buscar` de Memvid y `buscarLeann` (filtros `{alcance: {in: alcanceVisiblePara(actor)}}`, `pesoVector = pesoVectorPara(consulta)`), luego `fundirRecuerdos`, `filtrarParaAlcance` y, si el modelo es de la nube, `detectarFuga`. Si la consulta es de menos de 4 palabras y sin pregunta, no busca (barato). Tope total 900 ms; lo que llegue tarde no entra. Pruebas: los dos responden, solo uno, ninguno.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261104-193945-LNN1028F`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261104-193945-LNN1028F:refs/remotes/origin/nube/a1-20261104-193945-LNN1028F\"` y `git cherry-pick --no-commit d0a2fd7f80df 8230fcc92004`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/recuerdos-capsulas.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió LNN1028Fb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/ai/astraura/recuerdos-capsulas.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "LNN1028Fb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "MVD1027F-d3",
+    "LNN1028A",
+    "LNN1028D2"
+   ]
+  },
+  {
+   "id": "RPO1104A",
+   "ola": "1104R · Repos nativos",
+   "titulo": "EGM · peces: el revisor sin contexto (prompt, lectura de objeciones y veredicto)",
+   "archivos": [
+    "src/lib/agents/egm/peces.ts",
+    "src/lib/agents/egm/__tests__/peces.test.ts"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2. Módulo PURO: `promptDePez(artefacto, tipo)` devuelve el prompt de un revisor que NO ve contexto (solo el artefacto y su tipo: respuesta, plan, ola, página, app) y debe contestar una objeción por línea con su gravedad `bloquea` · `importa` · `menor`; `leerObjeciones(texto)` → `{ gravedad, texto }[]` tolerante (ignora líneas sin gravedad, quita duplicados); `veredicto(objeciones)` → `{ pasa, bloqueantes }` (pasa si no hay `bloquea`). Pruebas con textos reales de modelo, con ruido."
+  },
+  {
+   "id": "RPO1104D",
+   "ola": "1104R · Repos nativos",
+   "titulo": "EGM · egm_revision.py: los peces para las direcciones (Python)",
+   "archivos": [
+    "scripts/puente/egm_revision.py",
+    "scripts/puente/test_egm_revision.py"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2 (direcciones). Python 3 sin dependencias nuevas: `prompt_de_pez(artefacto, tipo)`, `leer_objeciones(texto)`, `ola_pasa(objeciones)` PURAS, y `revisar(artefacto, tipo, llamar, modelos, n=2)` con `llamar` inyectado. Para llamar de verdad reutiliza cómo llaman hoy los directores a los modelos gratuitos (búscalo: `grep -n \"def \" scripts/puente/director_suenos.py scripts/puente/imaginacion_contexto.py scripts/puente/motores_director.py`); no escribas un cliente nuevo. Mismo formato de objeciones que `src/lib/agents/egm/peces.ts` si ya existe. pytest con `llamar` simulado."
+  },
+  {
+   "id": "RPO1104F",
+   "ola": "1104R · Repos nativos",
+   "titulo": "Ajustes de respuesta · revisión con peces e interfaz viva (decisiones puras)",
+   "archivos": [
+    "src/lib/astraura/ajustes-respuesta.ts",
+    "src/lib/astraura/__tests__/ajustes-respuesta-1104.test.ts"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2 y §3 «Ajustes». Añade a los ajustes de respuesta (sin romper los que hay) `revisionPeces: \"creaciones\" | \"siempre\" | \"nunca\"` (por defecto `creaciones`) e `interfaz: \"auto\" | \"viva\" | \"texto\"` (por defecto `auto`), y dos decisiones PURAS: `debeRevisarConPeces(ajustes, tipoDeTarea)` (creaciones = apps, páginas, publicaciones, planes; charla no) y `debeUsarInterfazViva(ajustes, { tieneDatos, tienePasos, tieneComparacion })`. Pruebas de cada combinación y de los valores por defecto."
+  },
+  {
+   "id": "RPO1104G",
+   "ola": "1104R · Repos nativos",
+   "titulo": "OpenUI · la biblioteca de componentes StarSeed (Trinity) y su prompt de sistema",
+   "archivos": [
+    "src/lib/openui/biblioteca.tsx",
+    "src/lib/openui/__tests__/biblioteca.test.tsx"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\nSi `@openuidev/react-lang` no está en `package.json`, responde BLOQUEADA: «falta 1104 · AG» y no toques nada. Lee antes el README y los `.d.ts` de `node_modules/@openuidev/react-lang` (y de `@openuidev/lang-core`): usa su API real, no la inventes. §3. Define con la API de OpenUI (componentes con props en Zod) la biblioteca StarSeed: Tarjeta, Tabla, Pasos, Comparación, LíneaDeTiempo, Lista y Acción (un botón que solo emite un evento con un id de acción; nunca ejecuta nada). Estilo Trinity con los componentes de `src/components/ui/` que ya existen (GlassCard…). Exporta la biblioteca y `promptDeSistema()` generado DESDE la biblioteca (no a mano). Prueba: la biblioteca tiene los 7 componentes y el prompt los nombra."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-183516.json": [
+   "RPO1104D",
+   "RPO1104G",
+   "RPO1104F",
+   "RPO1104A",
+   "LNN1028Fb-d1"
+  ]
+ }
+}
