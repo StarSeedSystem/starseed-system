@@ -75,7 +75,9 @@ export type ClaveMedidor =
     // (2026-10-24, Ola 1024I · IMG1024B) Alex: «en el pulso de MetaGenesis y de los demás Genesis
     // añade un medidor de lo que sale de los procesos imaginativos… con botones para integrar o
     // reimaginar». Sustituye a IMN1021H/J (architecture/imaginacion-autodesarrollo.md §6).
-    | "imaginacion";
+    | "imaginacion"
+    // (2026-11-05) Centro de Versiones: versión publicada, versión en curso y panel de medios.
+    | "versiones";
 
 export type ClaseAccion =
     | "descartar"
@@ -1559,6 +1561,21 @@ export interface DatosMedidores {
         ajustes: AjustesAutodesarrollo;
         ambito: AmbitoPropuesta | "todos";
         filtro_astraura?: FiltroAstraura;
+    } | null;
+    /** (2026-11-05) Estado del director de lanzamientos para el medidor «Versiones».
+     *  Lo lee la ruta desde `~/.starseed/produccion/lanzamientos-estado.json`. */
+    lanzamientos?: {
+        fase?: string;
+        detalle?: string;
+        version?: string;
+        pasos: { fase: string; t: number; detalle: string }[];
+        jobs: { medio: string; job: string; estado: string; url?: string; inicio?: string; fin?: string }[];
+        medios: Record<string, { estado?: string; faltan: string[]; pequenos: string[] }>;
+        run_url?: string;
+        release_url?: string;
+        historial: unknown[];
+        pausado?: boolean;
+        tono?: string;
     } | null;
 }
 
@@ -3162,6 +3179,105 @@ export function detalleDeMedidor(
             };
         }
 
+        case "versiones": {
+            const lz = d.lanzamientos;
+            if (!lz) {
+                return {
+                    clave,
+                    titulo: "Versiones",
+                    resumen: "sin lanzamiento en curso",
+                    filas: [],
+                    acciones: [IR_A("Ver lanzamientos", "lanzamientos")],
+                    vacio: "No hay estado de lanzamientos: el director aún no ha corrido.",
+                };
+            }
+            const fase = lz.fase ?? "esperando-lista";
+            const version = lz.version;
+            const tono = lz.tono ?? "normal";
+            const medios = lz.medios ?? {};
+            const jobs = lz.jobs ?? [];
+            const pasos = lz.pasos ?? [];
+            const runUrl = lz.run_url;
+            const releaseUrl = lz.release_url;
+
+            const ordenMedios = ["web", "pwa", "macos", "windows", "linux", "android", "ios", "canales", "libreria"] as const;
+            const filas: FilaMedidor[] = [];
+
+            // Fila del lanzamiento en curso
+            if (version && fase !== "esperando-lista" && fase !== "lanzado") {
+                const fichaLanzamiento: DatoDeFicha[] = [
+                    { etiqueta: "Versión", valor: version },
+                    { etiqueta: "Fase", valor: fase },
+                    { etiqueta: "Detalle", valor: lz.detalle ?? "" },
+                    ...(runUrl ? [{ etiqueta: "Run", valor: runUrl, enlace: runUrl }] : []),
+                    ...(releaseUrl ? [{ etiqueta: "Release", valor: releaseUrl, enlace: releaseUrl }] : []),
+                ];
+                for (let i = 0; i < pasos.length; i++) {
+                    const p = pasos[i];
+                    const cuando = p.t ? new Date(p.t).toLocaleString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
+                    fichaLanzamiento.push({ etiqueta: `Paso ${i + 1}`, valor: `${p.fase} · ${p.detalle}${cuando ? ` (${cuando})` : ""}` });
+                }
+                filas.push({
+                    id: "lanzamiento",
+                    titulo: `Lanzamiento v${version}`,
+                    estado: fase,
+                    etapa: fase,
+                    porque: lz.detalle ?? "",
+                    ficha: fichaLanzamiento,
+                    acciones: [],
+                });
+            }
+
+            // Una fila por medio
+            for (const medio of ordenMedios) {
+                const m = medios[medio];
+                if (!m) continue;
+                const estado = m.estado ?? "desconocido";
+                const faltan = m.faltan ?? [];
+                const pequenos = m.pequenos ?? [];
+                const jobsDelMedio = jobs.filter((j) => j.medio === medio);
+                const ficha: DatoDeFicha[] = [
+                    { etiqueta: "Estado", valor: estado },
+                    ...(faltan.length ? [{ etiqueta: "Faltan", valor: faltan.join(", "), aviso: true }] : []),
+                    ...(pequenos.length ? [{ etiqueta: "Tamaño insuficiente", valor: pequenos.join(", "), aviso: true }] : []),
+                ];
+                for (const job of jobsDelMedio) {
+                    const inicio = job.inicio ? new Date(job.inicio).toLocaleString("es-ES", { hour: "2-digit", minute: "2-digit" }) : "";
+                    const fin = job.fin ? new Date(job.fin).toLocaleString("es-ES", { hour: "2-digit", minute: "2-digit" }) : "";
+                    ficha.push({
+                        etiqueta: "Job",
+                        valor: `${job.job} · ${job.estado}${inicio ? ` · ${inicio}` : ""}${fin ? ` – ${fin}` : ""}`,
+                        enlace: job.url,
+                    });
+                }
+                filas.push({
+                    id: medio,
+                    titulo: medio === "web" ? "Sitio web oficial" : medio === "pwa" ? "App web instalable (PWA)" : medio === "canales" ? "Canales del actualizador" : medio === "libreria" ? "Librería de StarSeed OS" : medio.charAt(0).toUpperCase() + medio.slice(1),
+                    estado,
+                    etapa: estado,
+                    porque: faltan.length ? `faltan: ${faltan.join(", ")}` : pequenos.length ? `tamaño insuficiente: ${pequenos.join(", ")}` : estado === "atascado" ? "archivos atascados" : "al día",
+                    ficha,
+                    acciones: [],
+                });
+            }
+
+            const resumenTexto = version
+                ? `v${version} · ${fase}${lz.detalle ? ` · ${lz.detalle}` : ""}`
+                : `sin versión · ${fase}${lz.detalle ? ` · ${lz.detalle}` : ""}`;
+
+            return {
+                clave,
+                titulo: "Versiones",
+                resumen: resumenTexto,
+                filas,
+                acciones: [
+                    IR_A("Ver lanzamientos", "lanzamientos"),
+                    ...(fase === "atascado" ? [{ clase: "ir-a" as const, texto: "Reintentar paso", destino: "lanzamientos", destructiva: false }] : []),
+                ],
+                vacio: "No hay medios en el estado de lanzamiento.",
+            };
+        }
+
         case "ola-activa":
         default: {
             const filas = filasDeOlasActivas(d, d.repoGitHub);
@@ -3204,6 +3320,8 @@ export const ORDEN_POR_DEFECTO: ClaveMedidor[] = [
     "bloqueadas",
     "en-cadena",
     "sin-publicar",
+    // (2026-11-05) Centro de Versiones: va detrás de «sin-publicar» en el pulso de MetaGenesis.
+    "versiones",
     "proveedores",
     "memoria",
     "disco",

@@ -101,6 +101,49 @@ async function leerAutopublicacion(): Promise<DatosMedidores["autopublicacion"]>
     };
 }
 
+/** (2026-11-05) Estado del director de lanzamientos para el medidor «Versiones».
+ *  Lee `~/.starseed/produccion/lanzamientos-estado.json`. */
+async function leerLanzamientos(): Promise<DatosMedidores["lanzamientos"]> {
+    try {
+        const carpeta = path.join(os.homedir(), ".starseed", "produccion");
+        const crudo = await readFile(path.join(carpeta, "lanzamientos-estado.json"), "utf8");
+        const e = JSON.parse(crudo) as Record<string, unknown>;
+        if (!e || typeof e !== "object") return null;
+        return {
+            fase: typeof e.fase === "string" ? e.fase : undefined,
+            detalle: typeof e.detalle === "string" ? e.detalle : undefined,
+            version: typeof e.version === "string" ? e.version : undefined,
+            pasos: Array.isArray(e.pasos) ? e.pasos.map((p) => ({
+                fase: typeof p.fase === "string" ? p.fase : "",
+                t: typeof p.t === "number" ? p.t : 0,
+                detalle: typeof p.detalle === "string" ? p.detalle : "",
+            })) : [],
+            jobs: Array.isArray(e.jobs) ? e.jobs.map((j) => ({
+                medio: typeof j.medio === "string" ? j.medio : "",
+                job: typeof j.job === "string" ? j.job : "",
+                estado: typeof j.estado === "string" ? j.estado : "",
+                url: typeof j.url === "string" ? j.url : undefined,
+                inicio: typeof j.inicio === "string" ? j.inicio : undefined,
+                fin: typeof j.fin === "string" ? j.fin : undefined,
+            })) : [],
+            medios: e.medios && typeof e.medios === "object"
+                ? Object.fromEntries(Object.entries(e.medios).map(([k, v]) => [k, v && typeof v === "object" ? {
+                    estado: typeof (v as Record<string, unknown>).estado === "string" ? (v as Record<string, unknown>).estado : undefined,
+                    faltan: Array.isArray((v as Record<string, unknown>).faltan) ? (v as Record<string, unknown>).faltan.filter((x): x is string => typeof x === "string") : [],
+                    pequenos: Array.isArray((v as Record<string, unknown>).pequenos) ? (v as Record<string, unknown>).pequenos.filter((x): x is string => typeof x === "string") : [],
+                } : { estado: undefined, faltan: [], pequenos: [] }])) as Record<string, { estado?: string; faltan: string[]; pequenos: string[] }>
+                : {},
+            run_url: typeof e.run_url === "string" ? e.run_url : undefined,
+            release_url: typeof e.release_url === "string" ? e.release_url : undefined,
+            historial: Array.isArray(e.historial) ? e.historial.slice(-30) : [],
+            pausado: typeof e.pausado === "boolean" ? e.pausado : undefined,
+            tono: typeof e.tono === "string" ? e.tono : undefined,
+        };
+    } catch {
+        return null;
+    }
+}
+
 /** (2026-10-10, OPB1011) La última pasada del revisor automático de bloqueadas. Solo lo que pinta
  *  Genesis: cadenas, transformadas de hoy, decisiones de Alex y cuentas (nunca la memoria entera). */
 async function leerRevisorBloqueadas(): Promise<EstadoRevisorBloqueadas | null> {
@@ -975,6 +1018,15 @@ export async function GET(peticion: Request): Promise<Response> {
         const creditosPago = await leerCreditosPago().catch(() => null);
         return Response.json(
             { detalle: detalleDeMedidor(clave, { creditosPago }), generadoEn: new Date().toISOString() },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
+    // (2026-11-05) Centro de Versiones: lee el estado del director de lanzamientos
+    // (mismo archivo que la API de lanzamientos) sin pasar por la reunión compartida.
+    if (clave === "versiones") {
+        const lanzamientos = await leerLanzamientos().catch(() => null);
+        return Response.json(
+            { detalle: detalleDeMedidor(clave, { lanzamientos }), generadoEn: new Date().toISOString() },
             { headers: { "Cache-Control": "no-store" } },
         );
     }
