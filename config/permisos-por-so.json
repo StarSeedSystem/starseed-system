@@ -1,0 +1,87 @@
+{
+  "$doc": "Fuente ÚNICA de los permisos que declara StarSeed OS por sistema (contrato architecture/centro-versiones-1105.md §6: se declara TODO lo que el OS usa y lo concede la persona, nunca la app). Todo lo que hay aquí sale de los archivos reales del repositorio: native/src-tauri/capabilities/default.json y desktop.json (identificadores de Tauri, con sus plataformas en minúscula), native/src-tauri/Info.plist, native/src-tauri/tauri.conf.json (minimumSystemVersion), .github/workflows/native-build.yml (targets, host y SDK de cada job) y architecture/apps-nativas-segundo-plano.md §7 (orden de concesión sin ilusiones). Nada inventado: si un SO lleva algo nuevo, se declara aquí también.",
+  "cuando-valores": ["al instalar", "al primer uso", "en ajustes"],
+  "grupos": [
+    { "ids": ["core:default", "core:app:default", "core:window:default", "core:webview:default", "core:event:default", "core:path:default", "core:resources:default", "core:menu:default", "core:tray:default", "core:window:allow-set-title", "core:window:allow-minimize", "core:window:allow-maximize", "core:window:allow-unmaximize", "core:window:allow-close", "core:window:allow-start-dragging"],
+      "texto": "Núcleo de la app nativa: eventos internos, rutas y recursos de Tauri, ventana (título, minimizar, maximizar, cerrar, arrastrar), menú y bandeja con salida visible «Salir del todo» (apps-nativas-segundo-plano.md §7.4).",
+      "cuando": "al instalar", "plataformas": ["macos", "windows", "linux", "android", "ios"] },
+    { "ids": ["shell:allow-execute", "shell:allow-spawn", "shell:allow-kill", "shell:allow-stdin-write", "shell:allow-open"],
+      "texto": "Terminal y procesos del dispositivo tras la instalación nativa: ejecuta sh y bash (macOS y Linux), cmd y powershell (Windows) con lo que la web remota autorizada valide; además abre enlaces.",
+      "cuando": "al instalar", "plataformas": ["macos", "windows", "linux", "android", "ios"] },
+    { "ids": ["fs:default", "fs:scope", "fs:allow-read-text-file", "fs:allow-write-text-file", "fs:allow-read-dir", "fs:allow-mkdir"],
+      "texto": "Archivos de texto del dispositivo: escribir y crear carpetas en tu carpeta de usuario, la app y descargas; leer también fuera de ellas (el alcance lo delimita fs:scope).",
+      "cuando": "al instalar", "plataformas": ["macos", "windows", "linux", "android", "ios"] },
+    { "ids": ["os:allow-platform", "os:allow-version", "os:allow-os-type", "os:allow-family", "os:allow-arch", "os:allow-hostname", "os:allow-locale", "os:allow-exe-extension"],
+      "texto": "Información del sistema: plataforma, versión, tipo y familia, arquitectura, nombre del equipo, idioma y extensión de ejecutables (para elegir la capa y el dispositivo que tocan).",
+      "cuando": "al instalar", "plataformas": ["macos", "windows", "linux", "android", "ios"] },
+    { "ids": ["process:allow-exit", "process:allow-restart"],
+      "texto": "Salir del todo y reiniciar la app nativa.",
+      "cuando": "al instalar", "plataformas": ["macos", "windows", "linux", "android", "ios"] },
+    { "ids": ["notification:default", "notification:allow-notify", "notification:allow-request-permission", "notification:allow-is-permission-granted"],
+      "texto": "Notificaciones: enseña «StarSeed · antenas», pide el permiso y conoce su estado real (se concede al primer uso y luego se ve en ajustes; apps-nativas-segundo-plano.md §7.3).",
+      "cuando": "al primer uso", "plataformas": ["macos", "windows", "linux", "android", "ios"] },
+    { "ids": ["dialog:default", "dialog:allow-open", "dialog:allow-save", "dialog:allow-message", "dialog:allow-ask", "dialog:allow-confirm"],
+      "texto": "Diálogos del sistema: abrir y guardar archivos, preguntas, avisos y confirmaciones.",
+      "cuando": "al primer uso", "plataformas": ["macos", "windows", "linux", "android", "ios"] },
+    { "ids": ["deep-link:default"],
+      "texto": "Enlaces que abren StarSeed (deep links) desde otras apps o desde el navegador.",
+      "cuando": "al primer uso", "plataformas": ["macos", "windows", "linux", "android", "ios"] },
+    { "ids": ["autostart:default", "autostart:allow-enable", "autostart:allow-disable", "autostart:allow-is-enabled"],
+      "texto": "Arranque al encender el equipo: se activa o se quita en ajustes (capability solo de escritorio; el plugin no existe en móvil).",
+      "cuando": "en ajustes", "plataformas": ["macos", "windows", "linux"] },
+    { "ids": ["updater:default", "updater:allow-check", "updater:allow-download-and-install"],
+      "texto": "Actualización in-app: comprobar el canal del sistema, descargar e instalar sin salir de la app (plugin solo de escritorio, con la firma propia del canal).",
+      "cuando": "al instalar", "plataformas": ["macos", "windows", "linux"] }
+  ],
+  "sistemas": {
+    "macos": {
+      "desde": "macOS 10.15 (minimumSystemVersion de tauri.conf.json)",
+      "arquitecturas": ["aarch64 (Apple Silicon)", "x86_64 (Intel): un solo .dmg universal compuesto con los targets aarch64-apple-darwin y x86_64-apple-darwin"],
+      "declara-os": [
+        { "fuente": "Info.plist", "identificador": "NSLocalNetworkUsageDescription", "texto": "StarSeed anuncia y escucha a tus otras neuronas en esta red, también sin internet, para enlazarlas entre sí.", "cuando": "al primer uso" }
+      ],
+      "no-permite": [
+        "Sin cuenta de Apple (de pago, §7 del contrato) no hay notarización: la primera vez hay que abrirla con «clic derecho → Abrir» (comentario de native-build.yml).",
+        "Sin notarización no lleva el sello de Apple: la firma propia basta para que el updater instale, no pasa la validación automática de la tienda."
+      ]
+    },
+    "windows": {
+      "desde": "Windows x64 (el CI compila en windows-latest; el repositorio no declara una versión mínima)",
+      "arquitecturas": ["x86_64 (host del CI windows-latest, un solo job)"],
+      "no-permite": [
+        "Sin certificado de Windows (de pago, §7 del contrato) SmartScreen avisa al instalar el .exe: hay que darle a «Más información → Ejecutar de todas formas».",
+        "No hay compilación de ARM: el job de Windows es x64."
+      ]
+    },
+    "linux": {
+      "desde": "Ubuntu 22.04 (el CI compila allí; el repositorio no declara una versión mínima)",
+      "arquitecturas": ["x86_64 (amd64) sin compilación de ARM: native-build.yml no tiene job de Linux ARM"],
+      "no-permite": [
+        "Sin centro de permisos del SO: lo que pide el .deb o el .rpm lo gestiona el instalador; el resto lo delimitan las capabilities de Tauri."
+      ]
+    },
+    "android": {
+      "desde": "API 34 / Android 14 (el CI instala «platforms;android-34»)",
+      "arquitecturas": ["aarch64", "armv7", "i686", "x86_64 (targets del job android)"],
+      "no-permite": [
+        "No hay AndroidManifest versionado: «cargo tauri android init» lo genera; los permisos del segundo plano escrito en native/src-tauri/android (notificaciones, servicio en primer plano de antenas, multicast wifi) se declaran solo en el manifiesto generado, fuera del repositorio: aquí va lo que sí está versionado.",
+        "Faro sin garantía si tu Android no tiene pantalla de batería (ArranqueStarSeed.kt): se anuncia «apagado por ti», no se fuerza; orden de concesión: notificaciones primero, batería solo si quieres faros, Bluetooth solo al abrir la radio (apps-nativas-segundo-plano.md §7.3)."
+      ]
+    },
+    "ios": {
+      "desde": "sin versión mínima: la .ipa del CI sale sin ejecutable («best-effort» vacío)",
+      "arquitecturas": ["aarch64 y x86_64-apple-ios-sim (targets del job iOS)"],
+      "no-permite": [
+        "iOS no permite instalar una .ipa sin firma de Apple (comentario del propio native-build.yml): en iPhone y iPad se usa la PWA.",
+        "Sin cuenta de Apple (de pago, §7 del contrato) no hay instalación nativa."
+      ]
+    },
+    "web": {
+      "desde": "navegador moderno con service worker (PWA)",
+      "arquitecturas": ["las tres webs autorizadas por la capability: starseed-os, starseed-nexus y starseed-cafe .vercel.app"],
+      "no-permite": [
+        "Un navegador no puede ejecutar comandos, matar procesos ni leer tu disco: el control profundo del dispositivo solo existe en el cuerpo nativo (capability default.json)."
+      ]
+    }
+  }
+}
