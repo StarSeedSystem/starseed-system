@@ -37,10 +37,10 @@ function crearBuscarFake(aciertos: Map<string, { titulo: string; texto: string; 
   return async (sujeto, _consulta, k) => {
     const key = `${sujeto.tipo}-${sujeto.id}`;
     const lista = aciertos.get(key) ?? [];
-    return lista.slice(0, k).map((a) => ({
+    return lista.slice(0, k).map((a, i) => ({
       titulo: a.titulo,
       texto: a.texto,
-      uri: `mv2://${sujeto.tipo}/${sujeto.id}/1`,
+      uri: `mv2://${sujeto.tipo}/${sujeto.id}/${i + 1}`,
       ts: Date.now(),
       alcance: a.alcance,
       sujeto,

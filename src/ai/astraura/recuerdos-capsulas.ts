@@ -90,12 +90,6 @@ const TOPE_POR_DEFECTO = 900;
 
 const ALCANCES: readonly AlcanceMemoria[] = ["personal", "perfil", "grupo", "publica"];
 
-/** Barato primero: una consulta de menos de 4 palabras y sin pregunta no busca. */
-function consultaValeLaPena(consulta: string): boolean {
-  const palabras = consulta.trim().split(/\s+/).filter(Boolean);
-  return palabras.length >= 4 || /[?¿]/.test(consulta);
-}
-
 /** Normaliza el alcance que llega en los metadatos de LEANN; si no vale, el de la cápsula. */
 function alcanceValido(valor: unknown, porDefecto: AlcanceMemoria): AlcanceMemoria {
   return typeof valor === "string" && (ALCANCES as readonly string[]).includes(valor)
@@ -169,7 +163,6 @@ async function recordarImpl(
   } = opciones;
 
   if (memoryScope === "personal") return "";
-  if (!consultaValeLaPena(consulta)) return "";
 
   const actor = contexto.actor;
   const permitidos = alcanceVisiblePara(actor);
