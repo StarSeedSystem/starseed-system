@@ -34,12 +34,11 @@ import {
   debeMostrarToast,
   esAndroidTauri,
   cacheReleaseValida,
-  elegirApkAndroid,
-  hayNuevaVersionAndroid,
   type EstadoActualizacionNativa,
   type GithubReleaseMin,
   type CacheReleaseAndroid,
 } from "@/lib/pwa/actualizacion-nativa-logica";
+import { decidirActualizacionAndroid } from "@/lib/nativa/actualizador-android";
 
 const EVENTO_ACTUALIZACION = "starseed://actualizacion";
 const CACHE_KEY_ANDROID = "starseed.native.android-release.v1";
@@ -164,9 +163,9 @@ export function ActualizacionNativa() {
         }
         if (cancelado) return;
 
-        if (hayNuevaVersionAndroid(instalada, release)) {
-          const apk = elegirApkAndroid(release);
-          if (apk) setAndroidAviso({ version: apk.version, href: apk.href });
+        const decision = decidirActualizacionAndroid(instalada, release);
+        if (decision.hayNuevaVersion && decision.href && decision.version) {
+          setAndroidAviso({ version: decision.version, href: decision.href });
         }
       } catch {
         /* nunca rompe la app */
