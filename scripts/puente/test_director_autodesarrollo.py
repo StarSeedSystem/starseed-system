@@ -126,6 +126,25 @@ class DirectorTest(unittest.TestCase):
         props_file = os.path.join(self.raiz, "starseed_memory_root", "imaginacion", "propuestas.json")
         self.assertTrue(os.path.isfile(props_file))
 
+    def _con_lider(self, lider):
+        from unittest.mock import patch
+        with patch("lider_direccion.soy_lider", return_value=lider):
+            return self.correr()
+
+    def test_arriendo_vigente_de_otra_neurona_no_encarga_en_la_mac(self):
+        """(SUP0311C) `decidir_lider` espera segundos epoch: con un datetime daba el arriendo por caducado y la
+        Mac encargaba a la vez que el A1, duplicando encargos."""
+        r = self._con_lider({"soy": False, "arriendo": {"dueno": "a1", "caduca": NOCHE.timestamp() + 600}})
+        self.assertFalse(r["toca_ejecutar"])
+        self.assertIn("no soy líder", r["motivo_toca"])
+        self.assertEqual(self.llamadas, [])
+
+    def test_arriendo_caducado_o_sin_arriendo_sigue_en_local(self):
+        caducado = self._con_lider({"soy": False, "arriendo": {"dueno": "a1", "caduca": NOCHE.timestamp() - 600}})
+        self.assertTrue(caducado["toca_ejecutar"])
+        sin = self._con_lider({"soy": False, "arriendo": None})
+        self.assertTrue(sin["toca_ejecutar"])
+
 
 class Imaginacion1024Test(unittest.TestCase):
     """Ola 1024I · IMG1024C: fuente «agentes», automático, reimaginación y agente de referencias."""

@@ -427,7 +427,9 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         except Exception:
             lider_info = None
         try:
-            dirijo, porque_lider = AC.decidir_lider(lider_info, ahora)
+            # (SUP0311C) `decidir_lider` compara el arriendo con segundos epoch; con un datetime, `float(ahora)`
+            # lanzaba TypeError y daba por caducado un arriendo vigente de otra neurona (encargos duplicados).
+            dirijo, porque_lider = AC.decidir_lider(lider_info, ahora.timestamp())
         except Exception:
             dirijo, porque_lider = False, "error al decidir liderazgo"
         if toca and not dirijo:
