@@ -1,0 +1,76 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "ola": "1105V · Centro de Versiones",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261105-053158-VER1105F",
+   "id": "VER1105Fb-d1",
+   "titulo": "Versiones publicadas · /api/os/versiones (pública) para la Librería y los avisos (parte 1 de 3)",
+   "archivos": [
+    "src/lib/version/versiones-publicadas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\n§5. `versiones-publicadas.ts` PURO: `desdeReleases(json)` → versiones {version, fecha, notas, url, archivos por sistema (os/nexus/cafe) y por SO (macos/windows/linux/android/ios) con nombre, tamaño y URL}, sin borradores ni prereleases, la más nueva primero; reutiliza `PREFIJOS_SISTEMA` y la forma de `nativeInstallerAssets` de `src/lib/version/os-release.ts`. La ruta (pública, `runtime nodejs`, sin guardián) hace UNA consulta a `https://api.github.com/repos/StarSeedSystem/starseed-system/releases?per_page=20` con `Authorization` solo si existe `process.env.GITHUB_TOKEN` (nunca se escribe en respuestas ni logs), caché en memoria 10 min (1 min si falla) y, si GitHub falla, devuelve la última buena o la versión de `os-release.ts` con `aviso`. Pruebas de `desdeReleases` con un JSON de ejemplo (borrador fuera, tamaños, orden).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261105-053158-VER1105F`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261105-053158-VER1105F:refs/remotes/origin/nube/a1-20261105-053158-VER1105F\"` y `git cherry-pick --no-commit 09e3c3c0d18c 6898f829477e 9b739c8a0568`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/app/api/os/versiones/__tests__/route.test.ts, src/app/api/os/versiones/route.ts, src/lib/version/__tests__/versiones-publicadas.test.ts, src/lib/version/versiones-publicadas.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 3 (la dirección dividió VER1105Fb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/version/versiones-publicadas.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "VER1105Fb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  },
+  {
+   "id": "PUB1029F",
+   "ola": "1029 · CI de producción en verde",
+   "depende": [],
+   "titulo": "Guía de la red · la tarjeta /library vuelve a abrir la explicación real de la Biblioteca",
+   "archivos": [
+    "src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta (corre la prueba citada: si ya pasa, responde NO APLICA y no toques nada).\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de cadenas con forma de clave en código ni pruebas.\n\nContexto (2026-10-29): la autopublicación, parada desde el 25-10, ya pasa el detector de secretos y las 3.627 pruebas del puente, pero el CI de GitHub (run 40821862697, candidato c339920f7) falla en Vitest con 6 de 17.056 pruebas. Mientras haya una en rojo, nada se publica. Arregla la causa, no la prueba, salvo que la prueba sea la que quedó vieja (dilo en tu respuesta).\n\nFalla `areas-explicadas-temas.test.tsx` («la tarjeta /library abre la explicación real de la Biblioteca»): busca el texto «La biblioteca universal de la red», que ya no existe en `src` (lo cambiaron las partes GUI1021Gb del 28-10). Mira qué texto explica hoy la Biblioteca en la guía: si la tarjeta sigue abriendo la explicación correcta, actualiza la prueba al texto nuevo; si abre otra cosa o nada, arregla la tarjeta (añade su archivo a la tarea).",
+   "revisor_quitadas": [
+    "PUB1029E"
+   ]
+  },
+  {
+   "id": "RPO1104H",
+   "ola": "1104R · Repos nativos",
+   "titulo": "OpenUI · RespuestaViva: pinta OpenUI Lang en streaming y, si no es válido, el texto tal cual",
+   "archivos": [
+    "src/lib/openui/detectar.ts",
+    "src/components/openui/respuesta-viva.tsx",
+    "src/components/openui/__tests__/respuesta-viva.test.tsx"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\nSi `@openuidev/react-lang` no está en `package.json`, responde BLOQUEADA: «falta 1104 · AG» y no toques nada. Lee antes el README y los `.d.ts` de `node_modules/@openuidev/react-lang` (y de `@openuidev/lang-core`): usa su API real, no la inventes. §3 «Renderer». `detectar.ts` PURO: `pareceOpenUI(texto)` (heurística barata sobre la sintaxis real de OpenUI Lang). `RespuestaViva({ texto, enCurso, onAccion })`: usa el `Renderer` de `@openuidev/react-lang` con la biblioteca de `src/lib/openui/biblioteca.tsx`; si `pareceOpenUI` es falso o el renderer falla (error boundary), pinta el texto como hoy. Prueba: texto normal → texto; OpenUI válido → componentes; OpenUI roto → texto, sin lanzar.",
+   "dependencias_ya_en_main": [
+    "RPO1104G"
+   ]
+  },
+  {
+   "id": "LNN1028I2",
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "titulo": "Biblioteca · registrar la tanda 1028",
+   "archivos": [
+    "src/lib/library/packages.ts",
+    "src/lib/library/defaults-seed.ts",
+    "src/app/api/library/actualizaciones/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nComo MTN1027L2 con la 1027b: `FICHAS_REPOS_1028` en el catálogo, sus ids en la siembra (sube `SEED_VERSION` en 1) y en `fichasIaConUpstreamGitHub([...])`.",
+   "revisor_quitadas": [
+    "MTN1027L2"
+   ],
+   "dependencias_ya_en_main": [
+    "LNN1028I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-183516.json": [
+   "RPO1104H",
+   "LNN1028I2",
+   "PUB1029F"
+  ]
+ }
+}
