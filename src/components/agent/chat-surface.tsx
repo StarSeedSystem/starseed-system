@@ -35,9 +35,9 @@ import {
   Bot, Send, Square, Lock, Plus, Sparkles, LayoutDashboard, Maximize2, Menu, X,
   PanelLeftClose, PanelLeftOpen, ArrowLeft, SlidersHorizontal,
 } from "lucide-react";
+import { RespuestaViva } from "@/components/openui/respuesta-viva";
 import { toast } from "sonner";
 
-import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { MessageActionBar } from "@/components/aurora/message-action-bar";
 import { MessageProcessModal } from "@/components/aurora/message-process-modal";
 import { VoiceNoteBar } from "@/components/aurora/voice-note-bar";
@@ -1047,7 +1047,7 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
                   )}
                 </Avatar>
                 <div className={`group relative p-3 rounded-2xl max-w-[86%] max-sm:max-w-[94%] [overflow-wrap:anywhere] sm:max-w-[80%] min-w-0 break-words text-sm shadow-sm ${msg.role === "user" ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-card border rounded-tl-none"}`}>
-                  <MessageRenderer text={msg.content} compact={msg.role === "user"} />
+                  <RespuestaViva texto={msg.content} />
                   <MessageAttachmentChips attachments={msg.attachments} />
                   {msg.pending && <span className="inline-block w-2 h-4 ml-1 bg-primary/70 animate-pulse align-middle" />}
                   {/* Chip «proceso» honesto: qué fuente/modelo respondió de
