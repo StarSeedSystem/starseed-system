@@ -1,9 +1,11 @@
 // Recuerdos de las cápsulas Memvid en Astraura (MVD1027F-d1c, parte 1) —
 // módulo PURO: sin red, sin disco, sin procesos. Solo lógica de búsqueda,
-// filtrado por alcance y detección de fuga. La E/S real (fetch a /api/memorias/capsulas)
-// se inyecta como dependencia para que sea testeable.
+// límites, filtrado por alcance y detección de fuga, según el contrato
+// architecture/memvid-capsulas.md §3. La E/S real (el cliente del servidor
+// de cápsulas) se inyecta como dependencia: en las pruebas ni una llamada.
 import {
   capsulasParaContexto,
+  type CapsulaMemoria,
   type ContextoCapsulas,
   type SujetoMemoria,
 } from "@/lib/memorias/capsulas";
@@ -36,9 +38,9 @@ export interface RecordarOpciones {
   consulta: string;
   /** Contexto del chat: qué cápsulas buscar y quién pregunta. */
   contexto: ContextoCapsulas & { actor: ActorMemoria };
-  /** Función de búsqueda (en vivo: llama a /api/memorias/capsulas; en tests: fake). */
+  /** Función de búsqueda (en vivo: el cliente de cápsulas del servidor; en tests: el falso). */
   buscar: BuscarCapsulaFn;
-  /** Si el modelo elegido es de la nube → ejecuta detectarFuga contra lo personal. */
+  /** Si el modelo elegido es de la nube: no viaja lo personal y pasa detectarFuga. */
   esModeloNube?: boolean;
   /** Tope total en ms (por defecto 800). */
   timeoutMs?: number;
@@ -47,23 +49,23 @@ export interface RecordarOpciones {
 }
 
 /** Máximo de fragmentos totales que se devuelven. */
-const MAX_FRAGMENTOS = 6;
+export const MAX_FRAGMENTOS = 6;
 /** Máximo de caracteres totales en el bloque de recuerdos. */
-const MAX_CARACTERES = 1500;
+export const MAX_CARACTERES = 1500;
 /** k por cápsula. */
-const K_POR_CAPSULA = 4;
+export const K_POR_CAPSULA = 4;
+/** Tope total de la operación (contrato §3): si se pasa, sale con lo que haya o «». */
+export const TOPE_TOTAL_MS = 800;
 
-function memoriaScopeActivaCapsulas(scope?: string): boolean {
+function memoryScopeActivaCapsulas(scope?: string): boolean {
   return scope !== "personal";
 }
 
-function aFragmentoMemoria(
-  acierto: AciertoCapsula,
-): FragmentoMemoria {
+function aFragmentoMemoria(acierto: AciertoCapsula): FragmentoMemoria {
   return {
-    id: acierto.uri ?? `capsula-${Date.now()}-${Math.random()}`,
+    id: acierto.uri ?? `cápsula:${acierto.sujeto.tipo}:${acierto.sujeto.id}`,
     alcance: acierto.alcance,
-    texto: acierto.texto,
+    texto: acierto.texto.trim(),
     origen: acierto.titulo ?? acierto.sujeto.tipo,
     at: acierto.ts ?? Date.now(),
   };
@@ -77,11 +79,14 @@ export async function recordarDeCapsulas(
     contexto,
     buscar,
     esModeloNube = false,
-    timeoutMs = 800,
+    timeoutMs = TOPE_TOTAL_MS,
     memoryScope,
   } = opts;
 
-  if (!memoriaScopeActivaCapsulas(memoryScope)) return "";
+  if (!memoryScopeActivaCapsulas(memoryScope)) return "";
+
+  const textoConsulta = consulta.trim();
+  if (!textoConsulta) return "";
 
   const actor = contexto.actor;
   const permitidos = alcanceVisiblePara(actor);
@@ -90,9 +95,32 @@ export async function recordarDeCapsulas(
   const capsulas = capsulasParaContexto(contexto, actor);
   if (capsulas.length === 0) return "";
 
-  const controlador = new AbortController();
-  const temporizador = setTimeout(() => controlador.abort(), timeoutMs);
+  // Tope total como carrera: aunque el buscador se cuelgue y no escuche
+  // señales, sale a tiempo con «» — la memoria nunca tumba la conversación.
+  let temporizador: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const trabajo = componeRecuerdos(
+      textoConsulta, capsulas, permitidos, buscar, esModeloNube,
+    );
+    const fueraDePlazo = new Promise<string>((resuelto) => {
+      temporizador = setTimeout(() => resuelto(""), timeoutMs);
+    });
+    return await Promise.race([trabajo, fueraDePlazo]);
+  } catch {
+    return "";
+  } finally {
+    clearTimeout(temporizador);
+  }
+}
 
+/** Recorre las cápsulas, busca y compone el bloque. Un fallo interno sale como «». */
+async function componeRecuerdos(
+  consulta: string,
+  capsulas: CapsulaMemoria[],
+  permitidos: AlcanceMemoria[],
+  buscar: BuscarCapsulaFn,
+  esModeloNube: boolean,
+): Promise<string> {
   try {
     const todos: FragmentoMemoria[] = [];
     let caracteresTotales = 0;
@@ -104,41 +132,37 @@ export async function recordarDeCapsulas(
       const aciertos = await buscar(capsula.sujeto, consulta, K_POR_CAPSULA);
       if (!aciertos || aciertos.length === 0) continue;
 
-      const fragmentos = aciertos.map(aFragmentoMemoria);
-      const filtrados = filtrarParaAlcance(fragmentos, permitidos);
-
+      const filtrados = filtrarParaAlcance(
+        aciertos.map(aFragmentoMemoria), permitidos,
+      );
       for (const fr of filtrados) {
         if (todos.length >= MAX_FRAGMENTOS) break;
-        if (caracteresTotales + fr.texto.length > MAX_CARACTERES) break;
-        todos.push(fr);
-        caracteresTotales += fr.texto.length;
+        const queda = MAX_CARACTERES - caracteresTotales;
+        if (queda <= 0) break;
+        // Al llenar el cupo de caracteres se recorta el último, no se tira.
+        const recortado = fr.texto.length > queda ? fr.texto.slice(0, queda) : fr.texto;
+        if (!recortado) continue;
+        todos.push({ ...fr, texto: recortado });
+        caracteresTotales += recortado.length;
       }
     }
 
-    if (todos.length === 0) return "";
-
-    let bloque = "RECUERDOS (cápsulas Memvid):\n";
-    for (const fr of todos) {
-      bloque += `- ${fr.texto}\n`;
-    }
-
+    let visibles = todos;
     if (esModeloNube) {
-      const personales = todos.filter((fr) => fr.alcance === "personal");
-      if (personales.length > 0) {
-        const fugas = detectarFuga(bloque, personales);
-        if (fugas.length > 0) {
-          // En producción no se envía el bloque si hay fuga; aquí lo marcamos.
-          // La llamada real en router.ts decidirá si suprimirlo.
-          bloque = "[FUGA DETECTADA] " + bloque;
-        }
-      }
+      // Antes de salir hacia un modelo de la nube: no viaja lo personal y, como
+      // valla final del contrato, detectarFuga contra lo personal de otra vía.
+      const personales = visibles.filter((fr) => fr.alcance === "personal");
+      visibles = visibles.filter((fr) => fr.alcance !== "personal");
+      const fuga = detectarFuga(
+        visibles.map((fr) => fr.texto).join("\n"), personales,
+      );
+      if (fuga.length > 0) return "";
     }
 
-    return bloque.trimEnd();
+    if (visibles.length === 0) return "";
+    return ["RECUERDOS (cápsulas Memvid):", ...visibles.map((fr) => `- ${fr.texto}`)].join("\n");
   } catch {
     return "";
-  } finally {
-    clearTimeout(temporizador);
   }
 }
 
