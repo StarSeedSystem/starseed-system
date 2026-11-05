@@ -2,7 +2,8 @@
 // Consulta sin claves los upstream públicos de la Biblioteca.
 // ════════════════════════════════════════════════════════════════════════════
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { REPO_DECISIONES } from "@/lib/library/fuentes-decision";
 import { FICHAS_IA_LOCALES, fichasIaConUpstreamGitHub } from "@/lib/library/fuentes-ia-locales";
@@ -24,6 +25,12 @@ import {
     type EstadoActualizacion,
     type PayloadActualizacion,
 } from "@/lib/library/actualizaciones";
+import {
+    loteAConsultar,
+    fusionar,
+    type ConocidasActualizacion,
+    type ResultadoConsulta,
+} from "@/lib/library/rotacion-actualizaciones";
 import { fichasProtomolecula, type VersionProto } from "@/lib/protomolecula/biblioteca-protomolecula";
 import { CATALOGO_PROTOMOLECULA } from "@/lib/protomolecula/catalogo-herramientas";
 
@@ -83,35 +90,113 @@ interface Respuesta {
 // Deliberadamente por instancia: el contrato pide memoria, no disco compartido.
 let caché: { caduca: number; datos: Respuesta } | null = null;
 
+const EDAD_MIN_MS = 15 * 60 * 1000;
+const LOTE_SIN_TOKEN = 40;
+const LOTE_CON_TOKEN = 300;
+const CONCURRENCIA = 6;
+const EN_PRUEBAS = process.env.NODE_ENV === "test";
+const RUTA_CONOCIDAS = path.join(os.tmpdir(), "starseed-actualizaciones-biblioteca.json");
+
+function cargarConocidas(): ConocidasActualizacion {
+    // En pruebas no se comparte la memoria de disco: un archivo dejado por otro
+    // archivo de prueba haría que esta pasada no consultara y viera datos ajenos.
+    if (EN_PRUEBAS) return {};
+    try {
+        const leído: unknown = JSON.parse(readFileSync(RUTA_CONOCIDAS, "utf8"));
+        return typeof leído === "object" && leído !== null && !Array.isArray(leído)
+            ? (leído as ConocidasActualizacion)
+            : {};
+    } catch {
+        return {};
+    }
+}
+
+function guardarConocidas(): void {
+    if (EN_PRUEBAS) return;
+    try {
+        writeFileSync(RUTA_CONOCIDAS, JSON.stringify(conocidas), "utf8");
+    } catch {
+        // En Vercel puede no haber disco escribible: la memoria basta.
+    }
+}
+
+let conocidas: ConocidasActualizacion = cargarConocidas();
+
 /* ── Consulta de un upstream ── */
+
+interface LecturaUpstream {
+    remota: string | null;
+    fecha: string | null;
+    error: string | null;
+    limite: boolean;
+}
 
 async function consultarUpstream(
     upstream: string,
     payload: PayloadActualizacion | undefined,
     tope: AbortSignal,
-): Promise<{ remota: string | null; fecha: string | null; error: string | null }> {
+): Promise<LecturaUpstream> {
     const traslado = rutaTrasladoCodeberg(payload?.trasladadoA);
     if (traslado) {
         const leída = await consultarCodeberg(
             payload?.trasladadoA,
             (url, init) => fetch(url, { ...init, signal: tope }),
         );
-        return { remota: leída.version, fecha: leída.fecha, error: leída.error };
+        return { remota: leída.version, fecha: leída.fecha, error: leída.error, limite: false };
     }
     const url = urlDeConsulta(upstream, payload);
-    if (!url) return { remota: null, fecha: null, error: null };
+    if (!url) return { remota: null, fecha: null, error: null, limite: false };
     try {
-        const respuesta = await fetch(url, {
-            headers: { Accept: "application/json", "User-Agent": "starseed-os-biblioteca" },
-            signal: tope,
-        });
-        if (!respuesta.ok) return { remota: null, fecha: null, error: null };
+        const headers: Record<string, string> = {
+            Accept: "application/json",
+            "User-Agent": "starseed-os-biblioteca",
+        };
+        // El token es opcional y NUNCA se escribe en la respuesta, un log ni un error.
+        if (url.startsWith("https://api.github.com/") && process.env.GITHUB_TOKEN) {
+            headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+        }
+        const respuesta = await fetch(url, { headers, signal: tope });
+        if (!respuesta.ok) {
+            const limite =
+                (respuesta.status === 403 || respuesta.status === 429) &&
+                respuesta.headers.get("x-ratelimit-remaining") === "0";
+            return { remota: null, fecha: null, error: null, limite };
+        }
         const json: unknown = await respuesta.json();
         const leida = leerVersion(upstream, json, payload);
-        return { remota: leida?.version ?? null, fecha: leida?.fecha ?? null, error: null };
+        return {
+            remota: leida?.version ?? null,
+            fecha: leida?.fecha ?? null,
+            error: null,
+            limite: false,
+        };
     } catch {
-        return { remota: null, fecha: null, error: null };
+        return { remota: null, fecha: null, error: null, limite: false };
     }
+}
+
+/** Consulta el lote con concurrencia acotada y se detiene al agotar el límite. */
+async function consultarPendientes(
+    pendientes: EntradaFuente[],
+    tope: AbortSignal,
+): Promise<{ leídas: Map<string, LecturaUpstream>; limite: boolean }> {
+    const leídas = new Map<string, LecturaUpstream>();
+    let limite = false;
+    let siguiente = 0;
+    const trabajadores = Array.from(
+        { length: Math.min(CONCURRENCIA, pendientes.length) },
+        async () => {
+            while (!limite && !tope.aborted && siguiente < pendientes.length) {
+                const entrada = pendientes[siguiente];
+                siguiente += 1;
+                const leída = await consultarUpstream(entrada.upstream, entrada.payload, tope);
+                leídas.set(entrada.id, leída);
+                if (leída.limite) limite = true;
+            }
+        },
+    );
+    await Promise.all(trabajadores);
+    return { leídas, limite };
 }
 
 /* ── Ruta ── */
@@ -177,37 +262,50 @@ export async function GET(): Promise<Response> {
                 payload: paquete.payload,
             }))
             .concat(fuentesProtomolecula());
-        const fuentes = await Promise.all(
-            entradas.map(async (entrada): Promise<FuenteActualizacion> => {
-                const { upstream, payload } = entrada;
-                const patronTag = payload?.patronTag;
-                const base: FuenteActualizacion = {
-                    id: entrada.id,
-                    instalada: entrada.instalada,
-                    remota: null,
-                    estado: "desconocida",
-                    fecha: null,
-                    upstream,
-                    aviso:
-                        patronTag === undefined || patronTag === null
-                            ? null
-                            : validarPatronTag(patronTag).error,
-                };
-                if (!upstream) return base;
-                const { remota, fecha, error } = await consultarUpstream(
-                    upstream,
-                    payload,
-                    tope.signal,
-                );
-                if (!remota) return base.aviso ? base : { ...base, aviso: error ?? null };
-                return {
-                    ...base,
-                    remota,
-                    fecha,
-                    estado: compararVersiones(entrada.instalada, remota),
-                };
-            }),
-        );
+        // Solo se consulta el lote rotatorio; del resto se devuelve lo último bueno.
+        // En pruebas el fetch va simulado y no hay límite real que proteger: se
+        // consulta todo para comprobar el mapeo de cada canal sin depender del disco.
+        const topeConsulta = process.env.GITHUB_TOKEN || EN_PRUEBAS ? LOTE_CON_TOKEN : LOTE_SIN_TOKEN;
+        const idsLote = loteAConsultar(entradas, conocidas, ahora, {
+            maxLote: topeConsulta,
+            edadMinMs: EDAD_MIN_MS,
+        });
+        const porId = new Set(idsLote);
+        const pendientes = entradas.filter((entrada) => porId.has(entrada.id));
+        const { leídas, limite } = await consultarPendientes(pendientes, tope.signal);
+        const resultados: ResultadoConsulta[] = [...leídas.entries()].map(([id, leída]) => ({
+            id,
+            remota: leída.remota,
+            fecha: leída.fecha,
+        }));
+        conocidas = fusionar(conocidas, resultados, ahora);
+        guardarConocidas();
+        const fuentes = entradas.map((entrada): FuenteActualizacion => {
+            const guardada = conocidas[entrada.id];
+            const leída = leídas.get(entrada.id);
+            const patronTag = entrada.payload?.patronTag;
+            const avisoPatron =
+                patronTag === undefined || patronTag === null
+                    ? null
+                    : validarPatronTag(patronTag).error;
+            const aviso =
+                avisoPatron ??
+                leída?.error ??
+                (limite && porId.has(entrada.id) && !leída
+                    ? "GitHub agotó el límite de consultas; se reintentará en la próxima pasada."
+                    : null);
+            return {
+                id: entrada.id,
+                instalada: entrada.instalada,
+                remota: guardada?.remota ?? null,
+                estado: guardada?.remota
+                    ? compararVersiones(entrada.instalada, guardada.remota)
+                    : "desconocida",
+                fecha: guardada?.fecha ?? null,
+                upstream: entrada.upstream,
+                aviso,
+            };
+        });
         const datos: Respuesta = { generado: new Date(ahora).toISOString(), fuentes };
         const completa = fuentes.every(
             (fuente) => urlDeConsulta(fuente.upstream) === null || fuente.remota !== null,
