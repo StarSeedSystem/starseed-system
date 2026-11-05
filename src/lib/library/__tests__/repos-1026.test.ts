@@ -246,6 +246,17 @@ describe("tanda 1026 · en la Biblioteca y preinstaladas", () => {
 
 describe("tanda 1026 · la ruta de actualizaciones las comprueba", () => {
     it("lee la versión real de cada upstream (commits, release y etiquetas con patrón) sin duplicar ids", async () => {
+        process.env.GITHUB_TOKEN = "test-token";
+        vi.resetModules();
+        // Borrar el archivo de persistencia para que `conocidas` empiece vacía
+        try {
+            const fs = await import("node:fs/promises");
+            const os = await import("node:os");
+            const path = await import("node:path");
+            await fs.unlink(path.join(os.tmpdir(), "starseed-actualizaciones-biblioteca.json"));
+        } catch {
+            // El archivo no existe: perfecto.
+        }
         const fetchFalso = vi.fn(async (url: string) => {
             if (url.includes("Autom8AI/Open-Higgsfield-AI/commits")) {
                 return new Response(JSON.stringify([{ sha: "d32d022aaaaaaaaaaaa", commit: { committer: { date: "2026-10-25T09:00:00Z" } } }]), { status: 200 });

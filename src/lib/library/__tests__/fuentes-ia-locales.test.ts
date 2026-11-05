@@ -70,6 +70,17 @@ describe("comprobación automática de versión", () => {
     });
 
     it("la ruta de actualizaciones la incluye y lee su último commit", async () => {
+        process.env.GITHUB_TOKEN = "test-token";
+        vi.resetModules();
+        // Borrar el archivo de persistencia para que `conocidas` empiece vacía
+        try {
+            const fs = await import("node:fs/promises");
+            const os = await import("node:os");
+            const path = await import("node:path");
+            await fs.unlink(path.join(os.tmpdir(), "starseed-actualizaciones-biblioteca.json"));
+        } catch {
+            // El archivo no existe: perfecto.
+        }
         const fetchFalso = vi.fn(async (url: string) => {
             if (url.includes("drumih/turbo-fieldfare")) {
                 return new Response(JSON.stringify([{ sha: "abcdef1234567", commit: { committer: { date: "2026-10-20T10:00:00Z" } } }]), { status: 200 });
