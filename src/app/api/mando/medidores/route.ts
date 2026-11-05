@@ -86,6 +86,23 @@ async function git(args: string[]): Promise<string> {
     }
 }
 
+/** (2026-11-05, VER1105D) Estado del director de lanzamientos: fase, detalle, version y medios. */
+async function leerEstadoLanzamientos(): Promise<{ fase: string; detalle: string; version: string; medios: Record<string, { estado: string; faltan: string[]; pequenos: string[] }> }> {
+    const carpeta = path.join(os.homedir(), ".starseed", "produccion");
+    try {
+        const crudo = await readFile(path.join(carpeta, "lanzamientos-estado.json"), "utf8");
+        const estado = JSON.parse(crudo) as { fase?: string; detalle?: string; version?: string; medios?: Record<string, { estado?: string; faltan?: string[]; pequenos?: string[] }> };
+        return {
+            fase: typeof estado.fase === "string" ? estado.fase : "",
+            detalle: typeof estado.detalle === "string" ? estado.detalle : "",
+            version: typeof estado.version === "string" ? estado.version : "",
+            medios: estado.medios ?? {},
+        };
+    } catch {
+        return { fase: "", detalle: "", version: "", medios: {} };
+    }
+}
+
 /** (2026-10-08) El interruptor y el estado de la autopublicación, para que «Sin publicar» diga
  *  quién publica cada cosa y no enseñe el fallo de una publicación manual ya superada. */
 async function leerAutopublicacion(): Promise<DatosMedidores["autopublicacion"]> {
@@ -963,7 +980,14 @@ export async function GET(peticion: Request): Promise<Response> {
             { headers: { "Cache-Control": "no-store" } },
         );
     }
-    // (2026-10-04) Los límites del plan de Claude solo necesitan su propio archivo: no se reúne todo.
+    // (2026-11-05, VER1105D) El estado del director de lanzamientos, para el medidor «Versiones».
+    if (clave === "versiones") {
+        const estadoLanzamiento = await leerEstadoLanzamientos().catch(() => null);
+        return Response.json(
+            { detalle: detalleDeMedidor(clave, { estadoLanzamiento }), generadoEn: new Date().toISOString() },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
     if (clave === "credito-claude") {
         const limitesClaude = await leerLimitesClaude().catch(() => null);
         return Response.json(
@@ -978,8 +1002,13 @@ export async function GET(peticion: Request): Promise<Response> {
             { headers: { "Cache-Control": "no-store" } },
         );
     }
-    // Un fallo leyendo git o el bus no puede tumbar el panel: se devuelve lo que sí haya.
-    const turno = await reunion.obtener();
+            const estadoLanzamiento = await leerEstadoLanzamientos().catch(() => null);
+            if (estadoLanzamiento) {
+                datos.estadoLanzamiento = estadoLanzamiento;
+            }
+
+            // Un fallo leyendo git o el bus no puede tumbar el panel: se devuelve lo que sí haya.
+            const turno = await reunion.obtener();
     // Copia: `integradas` se añade abajo y no puede quedarse pegada al resultado compartido.
     const datos: Partial<DatosMedidores> = { ...(turno.datos ?? {}) };
     // De CUÁNDO es la cifra y si está obsoleta: el panel la enseña con su edad en vez de 0.

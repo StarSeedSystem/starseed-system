@@ -28,6 +28,12 @@ import {
     type GrupoBloqueada,
     type ResumenBloqueadas,
 } from "./bloqueadas";
+import {
+    filasDeMedios,
+} from "./lanzamientos";
+import {
+    type LanzamientoEstado,
+} from "./lanzamientos-tipos";
 import { CONTENEDORES_OPCIONES } from "@/lib/genesis/conectores/contenedores";
 import {
     NOMBRE_ESTADO,
@@ -72,6 +78,8 @@ export type ClaveMedidor =
     // medidor del pulso» y «las en cadena deben ir en su propio medidor». Las esperas normales de
     // una cadena salen de «Bloqueadas» y van aquí: se desbloquean solas.
     | "en-cadena"
+    // (2026-11-05, VER1105D) Alex: «un medidor en el pulso de MetaGenesis con las versiones de cada medio».
+    | "versiones"
     // (2026-10-24, Ola 1024I · IMG1024B) Alex: «en el pulso de MetaGenesis y de los demás Genesis
     // añade un medidor de lo que sale de los procesos imaginativos… con botones para integrar o
     // reimaginar». Sustituye a IMN1021H/J (architecture/imaginacion-autodesarrollo.md §6).
@@ -2196,6 +2204,13 @@ export function detalleDeMedidor(
     const d = { ...vacios, ...datos };
     const estadoDe = (id: string) => d.progreso[id]?.estado;
     const titulo = (id: string) => d.titulos[id] || id;
+    const versionPublicada = d.versionPublicada || "";
+    const estadoLanzamiento = d.estadoLanzamiento || { fase: "", detalle: "", version: "", medios: {}, pausado: false, tono: "normal" } as LanzamientoEstado;
+
+    switch (clave) {
+    const d = { ...vacios, ...datos };
+    const estadoDe = (id: string) => d.progreso[id]?.estado;
+    const titulo = (id: string) => d.titulos[id] || id;
 
     switch (clave) {
         case "bloqueadas": {
@@ -2542,6 +2557,20 @@ export function detalleDeMedidor(
                 filas,
                 acciones: [IR_A("Ver la ramificación", "procesos")],
                 vacio: "Nada ha fallado sin resolverse en los últimos 3 días.",
+            };
+        }
+
+        case "versiones": {
+            const filas = filasDeMedios(estadoLanzamiento, versionPublicada);
+            return {
+                clave,
+                titulo: "Versiones",
+                resumen: filas.length
+                    ? `${filas.length} medio(s) con versión nueva`
+                    : "ningún medio con versión nueva",
+                filas,
+                acciones: [],
+                vacio: "Ningún medio con versión nueva.",
             };
         }
 
@@ -3204,6 +3233,8 @@ export const ORDEN_POR_DEFECTO: ClaveMedidor[] = [
     "bloqueadas",
     "en-cadena",
     "sin-publicar",
+    // (2026-11-05, VER1105D) Centro de Versiones: detrás de «sin-publicar».
+    "versiones",
     "proveedores",
     "memoria",
     "disco",
