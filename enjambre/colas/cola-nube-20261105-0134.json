@@ -1,0 +1,94 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "ola": "1104C · Contratos pendientes",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41917061103",
+   "id": "CTR1104Ub-d1",
+   "titulo": "Estudio MetaGeminis · subtítulos .vtt y .srt desde los beats del guion (parte 1 de 2)",
+   "archivos": [
+    "scripts/sociales/estudio/subtitulos.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/metageminis-estudio.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§12 `EST-SUBTITULOS`: genera `.vtt` y `.srt` a partir de los beats (inicio, fin, texto) que ya usa el estudio (mira `manifiesto.py`/`nucleo.py`). Puro y probado; quemarlos con ffmpeg solo si ffmpeg está y como función aparte.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41917061103`)\nUn agente de la nube ya avanzó esta tarea (en la Mac no pasa: pruebas del puente: n657w0000gn/T/tmpxcg99hoo/test.mp4', '-vf', 'subtitles=/var/folders/n7/32t0h2194vjdrh2ptl2n657w0000gn/T/tmpxcg99hoo/sub.srt', '-c:a', 'copy', '/var/folders/n7/32t0h2194vjdrh2ptl2n657w0000gn/T/tmpxcg99hoo/test_sub.mp4']' returned non-zero exit status 183.\n\n/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py:578: CalledProcessError\n=========================== short test summary info ============================\nFAILED scripts/sociales/estudio/test_subtitulos.py::TestQuemarSubtitulos::test_quemar_crea_archivo\n1 failed, 10 passed in 2.13s\n). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41917061103:refs/remotes/origin/nube/41917061103\"` y `git cherry-pick --no-commit 3ee2b007219b`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/sociales/estudio/subtitulos.py, scripts/sociales/estudio/test_subtitulos.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió CTR1104Ub: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: scripts/sociales/estudio/subtitulos.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CTR1104Ub",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  },
+  {
+   "id": "VOZ1105C",
+   "ola": "1105W · Voz estable",
+   "titulo": "Oído móvil sin nube · línea estable con Whisper del navegador o, si no, un pitido por turno (nunca en bucle)",
+   "archivos": [
+    "src/lib/aurora/stt-oss/oido-movil.ts",
+    "src/lib/aurora/stt-oss/__tests__/oido-movil.test.ts"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3. Módulo PURO `elegirOidoMovil({ nube, whisperDescargado, navegador })` → `nube` · `whisper-web` · `navegador-por-voz` · `navegador` con su motivo, y `debeReiniciarNavegador({ ciclosEnSilencio, enTurno })` → en móvil, tras 2 ciclos seguidos en silencio y sin turno pendiente NO se reinicia el reconocedor (se espera a la voz). Solo la decisión y sus pruebas; el cableado en `engine.ts` es la tarea D."
+  },
+  {
+   "id": "VER1105A",
+   "ola": "1105V · Centro de Versiones",
+   "titulo": "Centro de Versiones · tipos y filas de medios (puro) para el panel y la API",
+   "archivos": [
+    "src/lib/mando/lanzamientos.ts",
+    "src/lib/mando/__tests__/lanzamientos.test.ts"
+   ],
+   "depende": [],
+   "origen": "centro-versiones",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\n§1 y §4. Módulo PURO: tipos del estado del director (los de arriba); `MEDIOS_PANEL` (los 9 de §1 con id, título y formatos, en el mismo orden que `MEDIOS` de `lanzamientos_logica.py`); `filasDeMedios(estado, versionPublicada)` → una fila por medio {id, titulo, formatos[{nombre, url}], version, estado, detalle, accion} con las URLs de descarga `https://github.com/StarSeedSystem/starseed-system/releases/download/v<versión>/<archivo>` (mismos nombres que `archivos_esperados`; para `web` la URL https://starseed-os.vercel.app); `validarPeticion(body)` → la petición limpia o un error: acciones `lanzar`, `pausar`, `reanudar`, `reintentar`, `regenerar` (con `medio` de la lista) y `auto` (con `activo` booleano); nada más pasa. Pruebas de las filas con un estado de ejemplo y de cada petición válida e inválida."
+  },
+  {
+   "id": "VER1105I",
+   "ola": "1105V · Centro de Versiones",
+   "titulo": "Actualizaciones · ¿hay versión nueva en ESTE medio? (detección y comparación, puro)",
+   "archivos": [
+    "src/lib/actualizaciones/version-por-medio.ts",
+    "src/lib/actualizaciones/__tests__/version-por-medio.test.ts"
+   ],
+   "depende": [],
+   "origen": "centro-versiones",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\n§5. `medioActual(entorno)` PURO a partir de banderas que recibe (Tauri presente, plataforma Android/iOS/escritorio, modo standalone de PWA) → `web` · `pwa` · `escritorio` · `android` · `ios`; `hayActualizacion({medio, instalada, publicada})` con `compararVersiones`/`esVersionMasNueva` de `src/lib/version/os-release.ts` (para web/PWA compara el sha de `/version.json`); y `leerInstalada()` (cliente) que obtiene la versión nativa con `getVersion` de `@tauri-apps/api/app` si existe (import dinámico con try/catch) o el build de `/version.json`. Pruebas de cada medio."
+  },
+  {
+   "id": "VER1105K",
+   "ola": "1105V · Centro de Versiones",
+   "titulo": "Actualizaciones · escritorio: actualizar con el updater de Tauri que ya existe, sin perder datos",
+   "archivos": [
+    "src/lib/nativa/actualizador.ts",
+    "src/lib/nativa/__tests__/actualizador.test.ts"
+   ],
+   "depende": [],
+   "origen": "centro-versiones",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\n§5. Lee `native/src-tauri/src/lib.rs` (comandos del updater: check → download_and_install → restart) y `architecture/apps-nativas-segundo-plano.md` §8. `actualizarEscritorio(onProgreso)` invoca esos comandos YA existentes con `invoke` de `@tauri-apps/api/core` (import dinámico; fuera de Tauri devuelve {ok:false, motivo}) y emite el progreso; no toques Rust en esta tarea. Los datos de la app viven fuera del binario: el updater no los toca (dilo en un comentario con la fuente). Pruebas con `invoke` simulado (sin actualización, con actualización, error)."
+  },
+  {
+   "id": "RPO1104Ub",
+   "ola": "1104R · Repos nativos",
+   "titulo": "Biblioteca · el seguimiento de versiones deja de estar ciego (lote rotatorio, memoria y token opcional)",
+   "archivos": [
+    "src/lib/library/rotacion-actualizaciones.ts",
+    "src/lib/library/__tests__/rotacion-actualizaciones.test.ts",
+    "src/app/api/library/actualizaciones/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (§7 Comprobación) y `src/app/api/library/actualizaciones/route.ts` (léelos enteros antes de escribir).\n\nProblema medido el 04-11 en localhost:9002: de 310 fuentes, 269 salen «desconocida». La ruta lanza las 310 consultas a api.github.com A LA VEZ, sin token y con un tope total de 8 s, y GitHub solo da 60 consultas por hora sin token. Arreglo:\n1) `src/lib/library/rotacion-actualizaciones.ts` PURO: `loteAConsultar(entradas, conocidas, ahora, { maxLote, edadMinMs })` → los ids a consultar en esta pasada: primero los nunca vistos, luego los más viejos, como mucho `maxLote` (40 sin token); `fusionar(conocidas, resultados, ahora)` → guarda por id { remota, fecha, t } y NUNCA borra una remota buena por un fallo.\n2) En la ruta: consulta solo el lote, con concurrencia 6 (no 310 a la vez); para lo demás devuelve lo último conocido (estado calculado con `compararVersiones`). `conocidas` vive en memoria del módulo y se guarda, si se puede, en `path.join(os.tmpdir(), \"starseed-actualizaciones-biblioteca.json\")` (try/catch: en Vercel puede no haber disco y no pasa nada). Si GitHub responde 403/429 con `x-ratelimit-remaining: 0`, corta el lote y lo dice en `aviso`.\n3) Si existe `process.env.GITHUB_TOKEN`, manda `Authorization: Bearer` y sube `maxLote` a 300; el token NUNCA se escribe en logs, respuestas ni errores. Sin token todo funciona igual, solo más despacio.\nPruebas puras del lote y la fusión (orden, tope, no perder lo bueno).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41951108327`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 41959163141) falla «pruebas TS»: \u001b[39m\n2026-11-05T03:11:14.5771483Z \u001b[2m      Tests \u001b[22m \u001b[1m\u001b[31m1 failed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[1m\u001b[32m36 passed\u001b[39m\u001b[22m\u001b[90m (37)\u001b[39m\n2026-11-05T03:11:14.5772576Z \u001b[2m   Start at \u001b[22m 03:10:51\n2026-11-05T03:11:14.5773570Z \u001b[2m   Duration \u001b[22m 23.19s\u001b[2m (transform 405ms, setup 233ms, collect 590ms, tests 456ms, environment 806ms, prepare 167ms)\u001b[22m\n2026-11-05T03:11:14.5774160Z \n2026-11-05T03:11:14.5782055Z \n2026-11-05T03:11:14.5804143Z ##[error]AssertionError: expected null to be 'd32d022' // Object.is equality\n\n- Expected: \n\"d32d022\"\n\n+ Received: \nnull\n\n ❯ src/lib/library/__tests__/repos-1026.test.ts:275:58\n\n\n2026-11-05T03:11:14.7394410Z ##[error]Process completed with exit code 1.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41951108327:refs/remotes/origin/nube/41951108327\"` y `git cherry-pick --no-commit 26e829a963a3`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/app/api/library/actualizaciones/route.ts, src/lib/library/__tests__/rotacion-actualizaciones.test.ts, src/lib/library/rotacion-actualizaciones.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41951108327"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-183516.json": [
+   "RPO1104Ub",
+   "VER1105I",
+   "VER1105K",
+   "VOZ1105C",
+   "CTR1104Ub-d1",
+   "VER1105A"
+  ]
+ }
+}
