@@ -4727,3 +4727,16 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** clave
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-05 09:07 · mg-oracle-1105-0142
+
+**Lo que se pidió.** para todo el automejoramiento de cada capa de conciencia mesh automejorable de toda Astraura, con Colibri y los demás sistemas locales y mesh autoadaptables
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (VER1105G, MTN1027K2c). Es 100 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `VER1105G` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VER1105G conservada)
+- `MTN1027K2c` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/MTN1027K2c conservada)
