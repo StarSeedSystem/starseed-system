@@ -4727,3 +4727,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** clave
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-05 14:03 · mg-oracle-1105-0649
+
+**Lo que se pidió.** Actualizar
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (VER1105H, VER1105Fb-d2). Es 67 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `VER1105H` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VER1105H conservada)
+- `VER1105Fb-d2` — los tipos no compilan: 1 errores tsc (rama ola/VER1105Fb-d2 conservada)
+- `VER1105C` — no escribió nada
