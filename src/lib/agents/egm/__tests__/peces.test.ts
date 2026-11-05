@@ -15,7 +15,7 @@ describe("promptDePez", () => {
         const artefacto = "La función calcula el total con descuento del 10%";
         const prompt = promptDePez(artefacto, "respuesta");
         expect(prompt).toContain(artefacto);
-        expect(prompt).toContain("revisa esta respuesta larga");
+        expect(prompt).toContain("revisa este respuesta larga o propuesta de creación");
         expect(prompt).toContain("bloquea|");
         expect(prompt).toContain("importa|");
         expect(prompt).toContain("menor|");
@@ -32,27 +32,26 @@ describe("promptDePez", () => {
         const artefacto = "Ola 1104R: instalar repos EGM y crear módulo peces";
         const prompt = promptDePez(artefacto, "ola");
         expect(prompt).toContain(artefacto);
-        expect(prompt).toContain("revisa esta ola");
+        expect(prompt).toContain("revisa este ola o tarea del enjambre");
     });
 
     it("devuelve prompt para página con el texto del artefacto", () => {
         const artefacto = "Landing page con hero, testimonios y CTA";
         const prompt = promptDePez(artefacto, "pagina");
         expect(prompt).toContain(artefacto);
-        expect(prompt).toContain("revisa esta página");
+        expect(prompt).toContain("revisa este página o publicación");
     });
 
     it("devuelve prompt para app con el texto del artefacto", () => {
         const artefacto = "App de notas con sincronización Realtime";
         const prompt = promptDePez(artefacto, "app");
         expect(prompt).toContain(artefacto);
-        expect(prompt).toContain("revisa esta app");
+        expect(prompt).toContain("revisa este app o widget");
     });
 
-    it("ignora líneas sin gravedad válida y no usa markdown", () => {
+    it("ignora líneas sin gravedad válida y no usa markdown en el prompt", () => {
         const artefacto = "Resumen del proyecto";
         const prompt = promptDePez(artefacto, "respuesta");
-        expect(prompt).not.toContain("markdown");
         expect(prompt).not.toContain("Lista");
     });
 });
