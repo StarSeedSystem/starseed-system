@@ -1,0 +1,30 @@
+{
+ "ola": "oracle-20261105",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "SUP0411J",
+   "importancia": "capacidad",
+   "titulo": "Genesis · las comprobaciones de publicar dejan de leer y parsear los 31 MB de eventos.jsonl en cada llamada",
+   "archivos": [
+    "src/lib/mando/publicacion.ts",
+    "src/lib/mando/publicacion.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nMedido el 04-11 a las 23:57 con `GET /api/mando/memoria-servidor` (SUP0411H): el servidor de Genesis tiene 1022 MB de montón vivo con un techo de 2096 MB, y 668 MB son `large_object_space` (cadenas y arrays grandes) frente a 8,6 MB de código. El 04-11 murió tres veces por «JavaScript heap out of memory». Dos lecturas de archivos enteros que no dejan de crecer explican buena parte: `leerComprobaciones()` (src/lib/mando/publicacion.ts, la usa `leerPublicacion()` y con ella `GET /api/mando/publicacion`) hace `readFile` de `starseed_memory_root/olas/eventos.jsonl` ENTERO (31,5 MB el 04-11) y `interpretarComprobaciones` hace `JSON.parse` de sus ~200 000 líneas en cada llamada, para quedarse con el último evento `verificado`/`verificacion_fallida` (el último es del 09-10). El resultado no debe cambiar; solo cómo se lee. (1) Función PURA exportada `avanzarComprobaciones(estado, trozo)`: `estado` es `{ tsc, vitest, resto }` (tsc y vitest como devuelve `interpretarComprobaciones`, `resto` la línea a medias del trozo anterior); junta `resto + trozo`, procesa solo las líneas COMPLETAS (lo que va tras el último `\\n` queda en `resto`) y solo hace `JSON.parse` de las que contienen `\"verifica` (prefiltro barato); a esas les aplica `interpretarComprobaciones` y lo que no sea `null` pisa lo anterior (el último manda). Devuelve un estado nuevo, sin mutar el recibido. (2) `leerComprobacionesDe(ruta)` (exportada; `leerComprobaciones()` la llama con la ruta de siempre) guarda en el módulo, por ruta, `{ offset, estado }`. En cada llamada hace `stat`: si el tamaño es menor que el offset (archivo rotado o truncado) vuelve a 0 con el estado vacío; luego lee de `offset` a `size` con `open` + `read` en trozos de 1 MB (nunca `readFile` del archivo entero), pasa cada trozo por `avanzarComprobaciones` y guarda el offset. La primera llamada recorre el archivo una vez; las siguientes leen solo lo añadido. Sin archivo: «desconocido» como ahora. `revisionesBloqueantes` no cambia. (3) Pruebas vitest en publicacion.test.ts: una línea partida entre dos trozos se lee bien; el último evento manda; una línea rota sin «verifica» no cambia nada; un trozo vacío deja el estado igual; y con un archivo temporal (`mkdtempSync`): primera llamada, luego se añade una línea `verificacion_fallida` de tsc y la segunda devuelve «falla» leyendo solo los bytes añadidos (exporta para pruebas un contador como `bytesLeidosUltimaVez()`); y si el archivo se trunca, vuelve a empezar. Las pruebas que ya hay de `interpretarComprobaciones` no cambian y siguen en verde.",
+   "ola": "0411 · Seguimiento de la supervisión",
+   "depende": []
+  },
+  {
+   "id": "SUP0411K",
+   "importancia": "capacidad",
+   "titulo": "Genesis · leerCanal lee solo el final de canal.jsonl (20 MB) y no el archivo entero",
+   "archivos": [
+    "src/lib/mando/director-fuentes.ts",
+    "src/lib/mando/__tests__/director-fuentes.test.ts"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nMedido el 04-11 a las 23:57 con `GET /api/mando/memoria-servidor` (SUP0411H): el servidor de Genesis tiene 1022 MB de montón vivo con un techo de 2096 MB, y 668 MB son `large_object_space` (cadenas y arrays grandes) frente a 8,6 MB de código. El 04-11 murió tres veces por «JavaScript heap out of memory». Dos lecturas de archivos enteros que no dejan de crecer explican buena parte: `leerCanal(raiz, n = 60)` (src/lib/mando/director-fuentes.ts; la llama `GET /api/mando/director`) hace `readFile` de `starseed_memory_root/mando/canal.jsonl` ENTERO (20 MB el 04-11) y lo parte en líneas para quedarse con las 60 últimas. Cambio: leer solo el final. Añade un tercer parámetro opcional `maxBytes = 1_048_576`; con `open` + `stat` + `read` lee los últimos `maxBytes` (o el archivo entero si es más pequeño); si no empezó en el byte 0, descarta la primera línea (está cortada); con el resto hace lo mismo que ahora (líneas no vacías, las `n` últimas, `JSON.parse` con la línea rota ignorada, mismos campos). Sin archivo o sin permiso: `[]` como ahora; cierra siempre el descriptor (`finally`). Copia el patrón de `leerCola` de src/lib/mando/chat-director.ts, pero NO lo importes (director-fuentes no debe depender de chat-director). Los que ya llaman a `leerCanal(raiz)` o `leerCanal(raiz, n)` no cambian. Pruebas vitest en el archivo de pruebas listado, con un archivo temporal: (a) un canal de ~2 MB con `maxBytes` de 64 KB devuelve las mismas n últimas que el archivo entero; (b) la línea cortada del principio no aparece ni rompe nada; (c) un archivo pequeño da lo mismo que antes; (d) sin archivo, `[]`. Las pruebas que ya hay de leerCanal siguen en verde.",
+   "ola": "0411 · Seguimiento de la supervisión",
+   "depende": []
+  }
+ ]
+}
