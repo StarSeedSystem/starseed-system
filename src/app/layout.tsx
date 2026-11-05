@@ -100,9 +100,14 @@ import { AudiomorphicConfigHost } from "@/components/ui/backgrounds/audiomorphic
 import { RegisterSW } from "@/components/pwa/register-sw";
 // Aviso de actualización del SHELL NATIVO (apps Tauri de escritorio/Android):
 // no-op total sin window.__TAURI__ (navegador normal). Distinto del
-// UpdateBanner retirado (era para el contenido WEB, que register-sw ya
-// aplica solo) — ver el comentario en aurora-provider.tsx.
+// UpdateBanner (abajo) para contenido WEB, que register-sw ya aplica solo.
 import { ActualizacionNativa } from "@/components/pwa/actualizacion-nativa";
+// UpdateBanner: aviso de nuevo contenido web/PWA listo (service worker actualizado).
+// Se muestra temporalmente antes de la recarga automática; sin él, la app se
+// actualiza inmediatamente. Junto a AvisoActualizacion para notificar actualizaciones
+// de todas las formas (web y nativas).
+import { UpdateBanner } from "@/components/pwa/update-banner";
+import { AvisoActualizacion } from "@/components/actualizaciones/aviso-actualizacion";
 // Núcleo intocable (Ola 307): registra `validarUiSpec` + `validarContraInvariantes`
 // en `@/lib/nucleo/paquete-sistema`. Sin este cableado, `revisar` falla CERRADO
 // («nucleo-configurado») y ningún paquete compartido sería instalable.
