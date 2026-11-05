@@ -50,6 +50,7 @@ TENDENCIAS_MD = os.path.join(RAIZ, "memory", "diseno", "tendencias.md")
 COLA_TENDENCIAS = os.path.join(OLAS, "cola-diseno.json")
 CAPTURAS = os.path.join(RAIZ, "starseed_memory_root", "diseno", "capturas")
 LATIDO = os.path.join(OLAS, "latidos-externo-director-diseno.json")
+RUTA_RUBRICA = os.path.join(RAIZ, "config", "referencias-diseno", "motionsites.json")
 TOPE_VERIFICACION_S = 300
 P_SEP = os.sep
 
@@ -104,6 +105,54 @@ def _leer_json(ruta, defecto):
         return datos if isinstance(datos, type(defecto)) else defecto
     except Exception:
         return defecto
+
+
+def preguntas_rubrica(datos):
+    """Preguntas de la rúbrica MotionSites (Repos 1104 §5) desde el JSON leído.
+    Pura: [] si el JSON no trae lista de preguntas válida."""
+    rubrica = (datos or {}).get("rubrica") if isinstance(datos, dict) else None
+    if not isinstance(rubrica, list):
+        return []
+    preguntas = []
+    for item in rubrica:
+        if isinstance(item, dict) and item.get("pregunta"):
+            preguntas.append({
+                "id": str(item.get("id", "")),
+                "pregunta": str(item["pregunta"]),
+            })
+    return preguntas
+
+
+def bloque_rubrica(preguntas):
+    """Texto de la segunda lista de comprobación de la revisión; vacío si no
+    hay rúbrica (sin motionsites.json el director sigue como hoy). Pura."""
+    if not preguntas:
+        return ""
+    lineas = [
+        "Rúbrica MotionSites — segunda lista de comprobación "
+        "(después de la identidad Trinity, que manda):"
+    ]
+    lineas.extend("- %s" % p["pregunta"] for p in preguntas)
+    return "\n".join(lineas)
+
+
+def _rubrica_de_deps(deps):
+    """Bloque de rúbrica desde la dependencia `rubrica`; sin ella, vacío."""
+    lector = deps.get("rubrica")
+    try:
+        preguntas = lector() if callable(lector) else []
+    except Exception:
+        preguntas = []  # la rúbrica rota nunca frena la revisión
+    return bloque_rubrica(preguntas)
+
+
+def _leer_rubrica_real(ruta=None):
+    """Lee config/referencias-diseno/motionsites.json (solo lectura, sin red)."""
+    try:
+        with open(ruta or RUTA_RUBRICA, encoding="utf-8") as fh:
+            return preguntas_rubrica(json.load(fh))
+    except Exception:
+        return []  # sin JSON del repo, igual que antes
 
 
 def _escribir_json(ruta, datos):
@@ -203,6 +252,7 @@ def deps_por_defecto():
         "leer_pesos": lambda: _leer_json(PESOS_MODELOS, {}),
         "guardar_rotacion": lambda r: _escribir_json(ROTACION, r),
         "aprender_linea": lambda linea: _anexar(APRENDIZAJES, linea),
+        "rubrica": lambda: _leer_rubrica_real(),
     }
 
 
@@ -252,6 +302,9 @@ def _fase_briefs(deps, tareas, progreso, estado, memoria, cfg, resumen, seco):
         if not DB.es_de_interfaz(tarea):
             continue
         texto = DB.brief(tarea, memoria, max_chars=cfg.get("max_brief_chars", 2500))
+        bloque = _rubrica_de_deps(deps)
+        if bloque:
+            texto = texto + "\n\n" + bloque
         if seco:
             resumen["seco"].append("brief %s (%d chars)" % (tid, len(texto)))
         else:
@@ -323,11 +376,16 @@ def _fase_verificacion(deps, tareas, progreso, estado, cfg, resumen, seco, ahora
         if not aprobado:
             arreglos = "\n".join("- %s" % f.get("arreglo", f.get("tipo", "?"))
                                  for f in fallos[:10])
-            deps["anotar"](
-                tid,
+            mensaje = (
                 "Diseño (%s): nota %d/100 con umbral %d. Arreglos concretos:\n%s"
-                % (", ".join(rutas), nota, umbral, arreglos or "- sin detalle"),
+                % (", ".join(rutas), nota, umbral, arreglos or "- sin detalle")
             )
+            bloque = _rubrica_de_deps(deps)
+            if bloque:
+                # Repos 1104 §5: los arreglos mecánicos (identidad Trinity,
+                # que manda) primero; la rúbrica, como segunda lista.
+                mensaje = mensaje + "\n\n" + bloque
+            deps["anotar"](tid, mensaje)
             aviso = "Diseño: %s no llega al umbral (%d/%d, umbral %d). Arreglos anotados al agente y al revisor." % (
                 tid, nota, 100, umbral)
             deps["publicar"](aviso, tipo="aviso")
