@@ -206,6 +206,57 @@ describe("recordarDeCapsulas", () => {
       const lineas = r.split("\n");
       expect(lineas).toEqual(["RECUERDOS (cápsulas Memvid):", `- ${"A".repeat(800)}`, `- ${"B".repeat(700)}`]);
     });
+
+    it("deja de pedir a las cápsulas siguientes cuando ya llenó los 6 fragmentos", async () => {
+      const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
+      const cuatro = Array.from({ length: 4 }, (_, i) => ({
+        titulo: `R${i}`,
+        texto: `Recuerdo número ${i} con cuerpo entero.`,
+        alcance: "personal" as AlcanceMemoria,
+      }));
+      aciertos.set("personalidad-aurora", cuatro);
+      aciertos.set("agente-bot1", cuatro);
+      aciertos.set("cerebro-casa", [{ titulo: "R", texto: "esto no debe entrar: el cupo de seis ya está lleno", alcance: "personal" }]);
+
+      const ordenLlamadas: string[] = [];
+      const buscar: BuscarCapsulaFn = async (sujeto, _consulta, k) => {
+        ordenLlamadas.push(`${sujeto.tipo}-${sujeto.id}`);
+        const lista = aciertos.get(`${sujeto.tipo}-${sujeto.id}`) ?? [];
+        return lista.slice(0, k).map((a) => ({
+          titulo: a.titulo, texto: a.texto,
+          uri: `mv2://${sujeto.tipo}/${sujeto.id}/1`, ts: Date.now(), alcance: a.alcance, sujeto,
+        }));
+      };
+      const opts: RecordarOpciones = {
+        consulta: "test",
+        contexto: { ...contextoBase, agenteId: "bot1", cerebroId: "casa" },
+        buscar,
+      };
+      const r = await recordarDeCapsulas(opts);
+
+      expect(ordenLlamadas).toEqual(["personalidad-aurora", "agente-bot1"]); // al cerebro ya no se le pregunta
+      expect(r.split("\n")).toHaveLength(7); // cabecera + 6 fragmentos (MAX_FRAGMENTOS)
+      expect(r).not.toContain("el cupo de seis");
+    });
+
+    it("deja de pedir a las cápsulas siguientes cuando ya llenó los 1500 caracteres", async () => {
+      const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
+      aciertos.set("perfil-alex", [
+        { titulo: "R1", texto: "a".repeat(1000), alcance: "perfil" },
+        { titulo: "R2", texto: "b".repeat(1000), alcance: "perfil" },
+      ]);
+      aciertos.set("pagina-web", [{ titulo: "R", texto: "esto no debe llegar porque el espacio ya está lleno", alcance: "publica" }]);
+
+      const buscar = crearBuscarFake(aciertos);
+      const opts: RecordarOpciones = {
+        consulta: "test",
+        contexto: { actor: actorUsuario, perfilId: "alex", paginaId: "web" },
+        buscar,
+      };
+      const r = await recordarDeCapsulas(opts);
+
+      expect(r.split("\n").slice(1)).toEqual([`- ${"a".repeat(1000)}`, `- ${"b".repeat(500)}`]);
+    });
   });
 
   describe("filtrado por alcance del actor", () => {

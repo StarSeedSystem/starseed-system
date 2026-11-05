@@ -49,13 +49,13 @@ export interface RecordarOpciones {
 }
 
 /** Máximo de fragmentos totales que se devuelven. */
-export const MAX_FRAGMENTOS = 6;
+const MAX_FRAGMENTOS = 6;
 /** Máximo de caracteres totales en el bloque de recuerdos. */
-export const MAX_CARACTERES = 1500;
+const MAX_CARACTERES = 1500;
 /** k por cápsula. */
-export const K_POR_CAPSULA = 4;
+const K_POR_CAPSULA = 4;
 /** Tope total de la operación (contrato §3): si se pasa, sale con lo que haya o «». */
-export const TOPE_TOTAL_MS = 800;
+const TOPE_TOTAL_MS = 800;
 
 function memoryScopeActivaCapsulas(scope?: string): boolean {
   return scope !== "personal";
@@ -166,5 +166,3 @@ async function componeRecuerdos(
   }
 }
 
-// Re-export para que los tests no tengan que importar de dos sitios
-export { alcanceVisiblePara } from "@/lib/nucleo/alcance-memoria";
