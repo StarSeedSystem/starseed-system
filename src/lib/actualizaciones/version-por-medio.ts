@@ -1,3 +1,5 @@
+import { esVersionMasNueva } from "@/lib/version/os-release";
+
 export type Medio = "web" | "pwa" | "escritorio" | "android" | "ios";
 
 export interface EntornoDeteccion {
@@ -31,8 +33,6 @@ interface HayActualizacionParams {
   publicada: string | null | undefined;
 }
 
-import { esVersionMasNueva } from "@/lib/version/os-release";
-
 export function hayActualizacion({ medio, instalada, publicada }: HayActualizacionParams): boolean {
   if (!instalada || !publicada) return false;
   if (medio === "web" || medio === "pwa") {
@@ -42,14 +42,22 @@ export function hayActualizacion({ medio, instalada, publicada }: HayActualizaci
 }
 
 export async function leerInstalada(): Promise<{ medio: Medio; version: string | null }> {
+  const win = typeof window !== "undefined" ? window : undefined;
+  const nav = typeof navigator !== "undefined" ? navigator : undefined;
+  const tauriPresente = !!(win && (win as unknown as { __TAURI__?: unknown }).__TAURI__);
+  const ua = typeof nav?.userAgent === "string" ? nav.userAgent : "";
+  const plataforma = /android/i.test(ua)
+    ? "android"
+    : /iphone|ipad/i.test(ua)
+    ? "ios"
+    : "desktop";
+  const modoStandalone =
+    !!(win && typeof (win as unknown as { matchMedia?: (q: string) => { matches: boolean } }).matchMedia === "function" &&
+      (win as unknown as { matchMedia: (q: string) => { matches: boolean } }).matchMedia("(display-mode: standalone)").matches);
   const env: EntornoDeteccion = {
-    tauriPresente: typeof window !== "undefined" && !!(window as any).__TAURI__,
-    plataforma: typeof navigator !== "undefined" && /android/i.test(navigator.userAgent)
-      ? "android"
-      : typeof navigator !== "undefined" && /iphone|ipad/i.test(navigator.userAgent)
-      ? "ios"
-      : "desktop",
-    modoStandalone: typeof window !== "undefined" && window.matchMedia && window.matchMedia("(display-mode: standalone)").matches,
+    tauriPresente,
+    plataforma,
+    modoStandalone,
   };
   const medio = medioActual(env);
   try {
