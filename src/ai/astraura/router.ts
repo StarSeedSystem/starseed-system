@@ -62,8 +62,11 @@ import { localPrimeroDelta, migrarLocalPrimero } from "./local-primero";
 // (Ola 1018L · Tarea F) Refinado de dificultad con Laya: capa PURA, import sin
 // ciclo (router-laya solo importa TIPOS del router, borrados en runtime).
 import { refinarConLaya, type RespuestasLaya } from "./router-laya";
-// (MVD1027F-d2) Recuerdos de cápsulas Memvid
-import { recordarDeCapsulas } from "./recuerdos-capsulas";
+// (MVD1027F-d2) Recuerdos de cápsulas Memvid; (LNN1028F-b) el leg LEANN en vivo
+// va por la ruta de la API de cápsulas (acción «leann»), nunca por import directo
+// del cliente del A1: es solo de servidor y su «node:fs» no puede llegar al
+// paquete del navegador (puerta: src/lib/genesis/__tests__/sin-node-en-cliente.test.ts).
+import { recordarDeCapsulas, type BuscarLeannFn } from "./recuerdos-capsulas";
 import { findOssService } from "@/lib/services/oss-services";
 // Personalidad activa (Adenda 63 §11): bloque de system prompt compilado desde
 // la personalidad resuelta por contexto (chat > cerebro > sección > global).
@@ -1548,10 +1551,35 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
             return [];
           }
         };
+        // Búsqueda LEANN en vivo, por la API con la sesión ya puesta (LNN1028F-b):
+        // si el A1 no tiene el índice o no responde, null y el recuerdo queda Memvid.
+        const buscarLeannHttp: BuscarLeannFn = async (indice, consulta, opciones) => {
+          try {
+            const res = await fetch("/api/memorias/capsulas", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ accion: "leann", indice, consulta, ...opciones }),
+            });
+            if (!res.ok) return null;
+            const data = await res.json().catch(() => null);
+            if (!data?.ok) return null;
+            const aciertos = (data.aciertos as Array<Record<string, unknown>>) ?? [];
+            return aciertos.flatMap((a) => {
+              if (typeof a.texto !== "string" || a.texto.length === 0) return [];
+              return [{
+                id: typeof a.id === "string" ? a.id : "",
+                texto: a.texto,
+                metadatos: typeof a.metadatos === "object" && a.metadatos !== null
+                  ? (a.metadatos as Record<string, string | number>) : undefined,
+              }];
+            });
+          } catch { return null; }
+        };
         memvidRecuerdos = await recordarDeCapsulas({
           contexto: { ...contextoCapsulas, actor },
           consulta: userConsulta,
           buscar: buscarCapsula,
+          buscarLeann: buscarLeannHttp,
           memoryScope: cc?.memoryScope,
           timeoutMs: 800,
         }).catch(() => "");

@@ -3,7 +3,7 @@
 // `memvid-cliente.ts` (contrato: architecture/memvid-capsulas.md §4).
 import { NextRequest, NextResponse } from "next/server";
 import { sujetoDeParametro, estado, poner, buscar } from "@/lib/memorias/memvid-cliente";
-import { nombreIndiceLeann, ponerLeann } from "@/lib/memorias/leann-cliente";
+import { buscarLeann, nombreIndiceLeann, ponerLeann } from "@/lib/memorias/leann-cliente";
 import { alcanceDe, capsulaDe } from "@/lib/memorias/capsulas";
 import {
   alcanceVisiblePara, puedeEscribirEn, type ActorMemoria,
@@ -86,5 +86,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!aciertos) return error("Servidor de cápsulas no disponible", 503);
     return NextResponse.json({ ok: true, aciertos });
   }
-  return error("Acción no válida: «poner» o «buscar»", 400);
+  // Búsqueda por significado en el índice LEANN del sujeto (LNN1028F-b): el cliente
+  // del A1 solo se usa en el servidor; el navegador pregunta aquí y LEANN queda
+  // fuera del paquete del navegador (puerta: sin-node-en-cliente.test.ts).
+  if (cuerpo.accion === "leann") {
+    if (typeof cuerpo.indice !== "string" || typeof cuerpo.consulta !== "string" ||
+      cuerpo.indice.trim().length === 0 || cuerpo.consulta.trim().length === 0)
+      return error("Faltan el índice o la consulta", 400);
+    const k = typeof cuerpo.k === "number" && Number.isInteger(cuerpo.k) && cuerpo.k > 0
+      ? Math.min(cuerpo.k, K_MAXIMO) : K_DEFECTO;
+    const filtros = typeof cuerpo.filtros === "object" && cuerpo.filtros !== null
+      ? (cuerpo.filtros as Record<string, unknown>) : undefined;
+    const pesoVector = typeof cuerpo.pesoVector === "number" ? cuerpo.pesoVector : undefined;
+    const deLeann = await buscarLeann(cuerpo.indice, cuerpo.consulta, { k, filtros, pesoVector });
+    if (!deLeann) return error("Servidor LEANN no disponible", 503);
+    return NextResponse.json({ ok: true, aciertos: deLeann });
+  }
+  return error("Acción no válida: «poner», «buscar» o «leann»", 400);
 }

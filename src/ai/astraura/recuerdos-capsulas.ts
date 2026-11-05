@@ -1,7 +1,8 @@
 // Recuerdos de las cápsulas en Astraura: Memvid y LEANN A LA VEZ (LNN1028F-b) —
 // módulo PURO: sin red, sin disco, sin procesos. La búsqueda en vivo se inyecta
-// (Memvid: fetch a /api/memorias/capsulas; LEANN: cliente del A1 por el túnel). Sin el
-// servidor de LEANN el recuerdo sigue con Memvid y nada falla. Fusión RRF en
+// (Memvid: fetch a /api/memorias/capsulas; LEANN: la acción «leann» de esa misma ruta,
+// que en el servidor usa el cliente del A1 por el túnel). Sin el servidor de LEANN
+// el recuerdo sigue con Memvid y nada falla. Fusión RRF en
 // src/lib/memorias/fusion-recuerdos.ts (LNN1028A); contrato: leann-recuerdo-semantico.md §4.
 import {
   capsulasParaContexto, alcanceDe, saneaId,
@@ -94,25 +95,20 @@ function indiceDeSujeto(sujeto: SujetoMemoria): string {
   return `${sujeto.tipo}-${saneaId(sujeto.id)}-${alcanceDe(sujeto)}`;
 }
 
-/** En vivo: el cliente de LEANN del A1 importado perezoso; sin él, null y sigue Memvid. */
-const LEANN_EN_VIVO: BuscarLeannFn = async (indice, consulta, opciones) => {
-  try {
-    const cliente = (await import("@/lib/memorias/leann-cliente")) as { buscarLeann: BuscarLeannFn };
-    return cliente.buscarLeann(indice, consulta, opciones);
-  } catch { return null; }
-};
-
-/** Pide a Memvid y a LEANN para una cápsula, A LA VEZ; el que falle cae a []. */
+/** Pide a Memvid y a LEANN para una cápsula, A LA VEZ; el que falle cae a []
+ * (sin LEANN inyectado —navegador o pruebas— solo se consulta Memvid). */
 async function loteDeCapsula(
   capsula: CapsulaMemoria, consulta: string, permitidos: AlcanceMemoria[],
-  buscar: BuscarCapsulaFn, buscarLeann: BuscarLeannFn,
+  buscar: BuscarCapsulaFn, buscarLeann?: BuscarLeannFn,
 ): Promise<Recuerdo[]> {
   const [deMemvid, deLeann] = await Promise.all([
     buscar(capsula.sujeto, consulta, K_POR_CAPSULA).catch(() => null),
-    buscarLeann(indiceDeSujeto(capsula.sujeto), consulta, {
-      k: K_POR_CAPSULA, filtros: { alcance: { in: permitidos } },
-      pesoVector: pesoVectorPara(consulta),
-    }).catch(() => null),
+    buscarLeann
+      ? buscarLeann(indiceDeSujeto(capsula.sujeto), consulta, {
+        k: K_POR_CAPSULA, filtros: { alcance: { in: permitidos } },
+        pesoVector: pesoVectorPara(consulta),
+      }).catch(() => null)
+      : Promise.resolve(null),
   ]);
   const alcanceBase = alcanceDe(capsula.sujeto);
   return [
@@ -134,7 +130,7 @@ async function hacerRecordar(
   const capsulas = capsulasParaContexto(contexto, contexto.actor);
   if (permitidos.length === 0 || capsulas.length === 0) return "";
 
-  const buscarLeann = herramientas.buscarLeann ?? LEANN_EN_VIVO;
+  const buscarLeann = herramientas.buscarLeann;
   let temporizador: ReturnType<typeof setTimeout> | undefined;
   const tope = new Promise<never>((_, rechazar) => {
     temporizador = setTimeout(() => rechazar(new Error("recordar: tope de tiempo")),
