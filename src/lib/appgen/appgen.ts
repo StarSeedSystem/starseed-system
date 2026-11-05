@@ -19,6 +19,7 @@ import { chat } from "@/ai/client/chat";
 import type { ChatMessage } from "@/ai/providers/types";
 import { runOnServer, type RunResult } from "@/lib/brains/runtime";
 import type { BrainServer } from "@/lib/brains/brains";
+import { revisarConPeces, type RevisorPez } from "@/lib/agents/egm/revisar";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -311,6 +312,84 @@ export function parseGenerated(raw: string): GenerateResult {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Revisión EGM del artefacto (peces sin contexto · repos-libreria-1104 §2)
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Lo que ven los peces: SOLO la app generada (rutas y contenido), nunca el
+ * cerebro ni el histórico. Máximo 6 archivos y ~3,5 K por archivo.
+ */
+function artefactoDeRevision(files: AppFile[]): string {
+  return files
+    .slice(0, 6)
+    .map((f) => `--- ${f.path} (${f.language}) ---\n${truncate(f.content, 3500)}`)
+    .join("\n\n");
+}
+
+/** Los peces por chat(), el MISMO canal de modelos que ya usa el Estudio de Apps. */
+function pecesDeRevision(senal?: AbortSignal): RevisorPez[] {
+  const pez = (nombre: string, temperature: number): RevisorPez => ({
+    nombre,
+    contestar: async (prompt) =>
+      (await chat({ messages: [{ role: "user", content: prompt }], temperature, maxTokens: 400, signal: senal })).text,
+  });
+  return [pez("pez caliente", 0.7), pez("pez frío", 0.1)];
+}
+
+/** La revisión con un techo duro de tiempo (25 s); null si no dio tiempo. */
+async function revisacionTenue(files: AppFile[], senal?: AbortSignal) {
+  let corte: ReturnType<typeof setTimeout> | undefined;
+  const aTiempo = new Promise<null>((ok) => (corte = setTimeout(() => ok(null), 25_000)));
+  try {
+    const revision = await Promise.race([
+      revisarConPeces(artefactoDeRevision(files), { tipo: "app", peces: pecesDeRevision(senal) }),
+      aTiempo,
+    ]);
+    return revision;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(corte!);
+  }
+}
+
+/**
+ * Revisa el artefacto generado con los peces (2 llamadas a modelos gratuitos por
+ * el canal activo) y devuelve el resultado: si hay objecciones `importa`/`menor`
+ * viajan en `notes` (la persona aprueba); si alguna es `bloquea`, el elefante
+ * corrige UNA vez con las objeciones a la vista y se anota cómo quedó. Si la
+ * revisión no llega (sin peces, sin tiempo) devuelve el resultado tal cual.
+ */
+async function revisarResultado(
+  resultado: GenerateResult,
+  spec: string,
+  currentFiles: AppFile[],
+  senal?: AbortSignal,
+): Promise<GenerateResult> {
+  const revision = await revisacionTenue(resultado.files, senal);
+  if (!revision || !revision.objeciones.length) return resultado;
+  const resumen = revision.objeciones
+    .slice(0, 6)
+    .map((x) => `${x.gravedad}: ${x.texto}`)
+    .join(" · ");
+  if (!revision.veredicto.bloqueantes.length) {
+    const notes = [resultado.notes, `Revisión EGM: ${resumen}`].filter(Boolean).join(" ");
+    return { ...resultado, notes };
+  }
+  try {
+    const mensajes = genPrompt(spec, currentFiles);
+    mensajes[1].content +=
+      "\n\nCORRECCIÓN OBLIGATORIA: un revisor sin contexto objetó del borrador: " +
+      revision.veredicto.bloqueantes.join(" · ") +
+      ". Corrígelos todos en la versión final.";
+    const corregido = parseGenerated((await chat({ messages: mensajes, temperature: 0.3, signal: senal })).text);
+    return { ...corregido, notes: `Corregido tras la objeción de los peces: ${resumen}` };
+  } catch {
+    return { ...resultado, notes: [resultado.notes, `Revisión EGM: ${resumen}`].filter(Boolean).join(" ") };
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Generación con IA (mismo patrón chat() que el resto de la app)
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -322,7 +401,9 @@ export interface GenerateOptions {
 /**
  * Llama al modelo con `genPrompt` y devuelve `{files, notes}`. Tolerante a JSON
  * ruidoso. `currentFiles` permite refinar (Refinar) usando el proyecto actual
- * como contexto.
+ * como contexto. Antes de devolver, la creación pasa por los peces del
+ * EGM (revisores SIN contexto; repos-libreria-1104 §2): activado por defecto,
+ * como pide el contrato para las creaciones.
  */
 export async function generate(
   spec: string,
@@ -336,7 +417,8 @@ export async function generate(
     signal: opts.signal,
     onChunk: opts.onChunk,
   });
-  return parseGenerated(r.text);
+  const resultado = parseGenerated(r.text);
+  return revisarResultado(resultado, spec, currentFiles, opts.signal);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
