@@ -1217,6 +1217,8 @@ export interface NeuralSpeakOptions {
   onStart?: () => void;
   onEnd?: () => void;
   onError?: (message: string) => void;
+  /** Callback de progreso para motores troceados: (trozosSonados, totalTrozos). */
+  onChunkProgress?: (sonados: number, totales: number) => void;
 }
 
 /**
@@ -1478,7 +1480,7 @@ const CONTINUOUS_OVERLAP_MS = 280;
 async function playSequentialViaMixer(
   provider: (i: number) => Promise<Blob | null>,
   count: number,
-  opts: { onStart?: () => void; onError?: (m: string) => void; onChunk?: (i: number, blob: Blob) => void } = {},
+  opts: { onStart?: () => void; onError?: (m: string) => void; onChunk?: (i: number, blob: Blob) => void; onChunkProgress?: (sonados: number, totales: number) => void } = {},
 ): Promise<boolean> {
   try {
     const mixer = await import("@/lib/aurora/tts-oss/omnivoice-mixer");
@@ -1556,6 +1558,8 @@ async function playSequentialViaMixer(
         started = true;
         try { opts.onStart?.(); } catch { /* */ }
       }
+      // Informar progreso: este trozo se agendó correctamente
+      try { opts.onChunkProgress?.(i + 1, count); } catch { /* */ }
       lastEndAt = res.endAt;
       nextAt = Math.max(0, res.endAt - CROSS_MS / 1000);
       if (i + 1 < count) {
@@ -1578,7 +1582,7 @@ async function playSequentialViaMixer(
 async function playSequentialContinuous(
   provider: (i: number) => Promise<Blob | null>,
   count: number,
-  opts: { onStart?: () => void; onError?: (m: string) => void; onChunk?: (i: number, blob: Blob) => void } = {},
+  opts: { onStart?: () => void; onError?: (m: string) => void; onChunk?: (i: number, blob: Blob) => void; onChunkProgress?: (sonados: number, totales: number) => void } = {},
 ): Promise<HTMLAudioElement | null> {
   if (count <= 0) return null;
 
@@ -1681,6 +1685,8 @@ async function playSequentialContinuous(
             }
           };
           try { opts.onStart?.(); } catch { /* */ }
+          // Informar progreso: este trozo empezó a reproducirse
+          try { opts.onChunkProgress?.(i + 1, count); } catch { /* */ }
           const p = audio.play();
           if (p && typeof (p as Promise<void>).catch === "function") {
             (p as Promise<void>).catch(() => {
@@ -2023,6 +2029,7 @@ async function neuralSpeakChunked(
       onError: opts.onError,
       onChunk: (i, blob) =>
         void emitVoiceNote({ textHash: fullHash, chunkIndex: i, chunkCount: chunks.length, engine, blob }),
+      onChunkProgress: opts.onChunkProgress,
     },
   ).then((audio) => {
     clearVoiceIdentity(identity.token); // fin del mensaje: identidad descongelada
