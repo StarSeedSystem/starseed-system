@@ -4721,3 +4721,16 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTXR1010AMb-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTXR1010AMb-d2 conservada)
 - `IMG1102Db-d2` — los tipos no compilan: 1 errores tsc (rama ola/IMG1102Db-d2 conservada)
+
+## 2026-11-05 03:24 · mg-oracle-1104-2018
+
+**Lo que se pidió.** Publicaciones · botón «Hacerla viva
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (RTCVV1028Kb-d3, CTR1104Cb). Es 100 % de la ola.
+
+**Lo que quedó fuera, una por una:**
+- `RTCVV1028Kb-d3` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTCVV1028Kb-d3 conservada)
+- `CTR1104Cb` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/CTR1104Cb conservada)
