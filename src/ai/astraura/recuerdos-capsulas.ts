@@ -81,6 +81,8 @@ export async function recordarDeCapsulas(
     memoryScope,
   } = opts;
 
+  const textoConsulta = consulta.trim();
+  if (!textoConsulta) return "";
   if (!memoriaScopeActivaCapsulas(memoryScope)) return "";
 
   const actor = contexto.actor;
@@ -90,10 +92,7 @@ export async function recordarDeCapsulas(
   const capsulas = capsulasParaContexto(contexto, actor);
   if (capsulas.length === 0) return "";
 
-  const controlador = new AbortController();
-  const temporizador = setTimeout(() => controlador.abort(), timeoutMs);
-
-  try {
+  const ejecutar = async (): Promise<string> => {
     const todos: FragmentoMemoria[] = [];
     let caracteresTotales = 0;
 
@@ -101,7 +100,7 @@ export async function recordarDeCapsulas(
       if (todos.length >= MAX_FRAGMENTOS) break;
       if (caracteresTotales >= MAX_CARACTERES) break;
 
-      const aciertos = await buscar(capsula.sujeto, consulta, K_POR_CAPSULA);
+      const aciertos = await buscar(capsula.sujeto, textoConsulta, K_POR_CAPSULA);
       if (!aciertos || aciertos.length === 0) continue;
 
       const fragmentos = aciertos.map(aFragmentoMemoria);
@@ -124,21 +123,32 @@ export async function recordarDeCapsulas(
 
     if (esModeloNube) {
       const personales = todos.filter((fr) => fr.alcance === "personal");
-      if (personales.length > 0) {
-        const fugas = detectarFuga(bloque, personales);
-        if (fugas.length > 0) {
-          // En producción no se envía el bloque si hay fuga; aquí lo marcamos.
-          // La llamada real en router.ts decidirá si suprimirlo.
-          bloque = "[FUGA DETECTADA] " + bloque;
-        }
+      if (personales.length > 0 && detectarFuga(bloque, personales).length > 0) {
+        // Antes de salir hacia la nube, un bloque que contiene lo personal
+        // no sale entero ni marcado: se suelta.
+        return "";
       }
     }
 
     return bloque.trimEnd();
+  };
+
+  // Tope total REAL: la carrera contra el temporizador es la puerta de salida,
+  // no solo una señal que nadie escucha. Si el tope gana, cae en el catch → "".
+  let temporizador: ReturnType<typeof setTimeout> | undefined;
+  const tope = new Promise<never>((_, rechazar) => {
+    temporizador = setTimeout(
+      () => rechazar(new Error("recuerdos-capsulas: tope de tiempo")),
+      timeoutMs,
+    );
+  });
+
+  try {
+    return await Promise.race([ejecutar(), tope]);
   } catch {
     return "";
   } finally {
-    clearTimeout(temporizador);
+    if (temporizador) clearTimeout(temporizador);
   }
 }
 

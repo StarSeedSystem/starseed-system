@@ -325,7 +325,7 @@ describe("recordarDeCapsulas", () => {
   });
 
   describe("detección de fuga (esModeloNube = true)", () => {
-    it("marca [FUGA DETECTADA] cuando hay coincidencia ≥ 40 chars con fragmento personal", async () => {
+    it("devuelve cadena vacía cuando hay coincidencia ≥ 40 chars con fragmento personal (va a la nube)", async () => {
       const textoSecreto = "La contraseña del servidor es supersecreta123 y no se la digas a nadie.";
       const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
       aciertos.set("personalidad-aurora", [
@@ -341,10 +341,10 @@ describe("recordarDeCapsulas", () => {
       };
       const r = await recordarDeCapsulas(opts);
 
-      expect(r).toContain("[FUGA DETECTADA]");
+      expect(r).toBe("");
     });
 
-    it("NO marca fuga cuando el modelo NO es de la nube", async () => {
+    it("NO devuelve cadena vacía cuando el modelo NO es de la nube", async () => {
       const textoSecreto = "La contraseña del servidor es supersecreta123 y no se la digas a nadie.";
       const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
       aciertos.set("personalidad-aurora", [
@@ -360,10 +360,10 @@ describe("recordarDeCapsulas", () => {
       };
       const r = await recordarDeCapsulas(opts);
 
-      expect(r).not.toContain("[FUGA DETECTADA]");
+      expect(r).toContain("contraseña del servidor");
     });
 
-    it("NO marca fuga cuando no hay fragmentos de alcance 'personal' en los resultados", async () => {
+    it("NO devuelve cadena vacía cuando no hay fragmentos de alcance 'personal' en los resultados", async () => {
       const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
       aciertos.set("grupo-equipo", [
         { titulo: "Público", texto: "Reunión del equipo el martes a las 10.", alcance: "grupo" },
@@ -396,7 +396,43 @@ describe("recordarDeCapsulas", () => {
       };
       const r = await recordarDeCapsulas(opts);
 
-      expect(r).not.toContain("[FUGA DETECTADA]");
+      expect(r).not.toBe("");
+    });
+  });
+
+  describe("tope de tiempo real (Promise.race)", () => {
+    it("suprime también los resultados que llegan tarde, aunque no estén vacíos", async () => {
+      const aciertos = new Map<string, { titulo: string; texto: string; alcance: AlcanceMemoria }[]>();
+      aciertos.set("personalidad-aurora", [
+        { titulo: "Tardío", texto: "Recuerdo que llega demasiado tarde.", alcance: "personal" },
+      ]);
+      const buscar = async () => {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        return crearBuscarFake(aciertos)(
+          { tipo: "personalidad", id: "aurora" },
+          "tardío",
+          4,
+        );
+      };
+      const opts: RecordarOpciones = {
+        consulta: "tardío",
+        contexto: contextoBase,
+        buscar,
+        timeoutMs: 50,
+      };
+      const r = await recordarDeCapsulas(opts);
+      expect(r).toBe("");
+    });
+  });
+
+  describe("consulta vacía", () => {
+    it("no busca nada si la consulta no tiene texto útil", async () => {
+      const buscar = vi.fn();
+      for (const consulta of ["", "   ", "\n\t"]) {
+        const r = await recordarDeCapsulas({ consulta, contexto: contextoBase, buscar });
+        expect(r).toBe("");
+      }
+      expect(buscar).not.toHaveBeenCalled();
     });
   });
 
