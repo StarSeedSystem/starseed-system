@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "ola": "1105W · Voz estable",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41996552351",
+   "id": "VOZ1105Ab-d2",
+   "titulo": "Voz StarSeed · la nube y la voz del sistema hablan el mensaje ENTERO, por trozos (parte 2 de 2)",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/__tests__/motor-trozos.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3. En `hablarPorNube`: parte el texto con `trocearTexto(texto, 500)` de `src/lib/voces/trocear.ts` (la ruta `/api/voz/nube` corta a 600) y pide los trozos en orden, pidiendo el siguiente mientras suena el actual; si un trozo falla, reintenta una vez y si no, devuelve false para ESE resto (el llamador sigue con su siguiente nivel) — nunca calla a media frase sin decirlo. En `hablarPorSistema`: una utterance por trozo (≤ 200) en fila, sin `cancel()` entre trozos. Prueba con fetch y speechSynthesis simulados: un texto de 1500 caracteres pide 3–4 trozos en orden.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41996552351`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 42004302191) falla «pruebas TS»: \n- Expected: \n\"abcdef1\"\n\n+ Received: \nnull\n\n ❯ src/lib/library/__tests__/fuentes-ia-locales.test.ts:86:37\n\n\n2026-11-05T09:48:50.5135978Z \u001b[31m\u001b[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯\u001b[22m\u001b[39m\n2026-11-05T09:48:50.5136435Z \n2026-11-05T09:48:50.5136467Z \n2026-11-05T09:48:50.5140078Z ##[error]AssertionError: expected null to be 'd32d022' // Object.is equality\n\n- Expected: \n\"d32d022\"\n\n+ Received: \nnull\n\n ❯ src/lib/library/__tests__/repos-1026.test.ts:275:58\n\n\n2026-11-05T09:48:50.8240987Z ##[error]Process completed with exit code 1.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41996552351:refs/remotes/origin/nube/41996552351\"` y `git cherry-pick --no-commit f8b3e6987bd6`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/aurora/voz-starseed/__tests__/motor-trozos.test.ts, src/lib/aurora/voz-starseed/motor.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 2 (la dirección dividió VOZ1105Ab: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/aurora/voz-starseed/__tests__/motor-trozos.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "VOZ1105Ab",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "VOZ1105Ab-d1"
+   ]
+  }
+ ]
+}
