@@ -758,6 +758,45 @@ Guárdalo como proyecto en la Librería (no se construye hasta que haya Xcode di
 }
 
 /**
+ * Añade el plan BAMA al resultado si el destino es "nativa-macos".
+ * Función pura para testing sin dependencias de IA.
+ */
+export function addPlanBamaIfNeeded(
+  result: GenerateResult,
+  spec: string,
+  destino?: string,
+): GenerateResult {
+  if (destino !== "nativa-macos") return result;
+
+  const tempApp: GeneratedApp = {
+    id: "temp",
+    owner: null,
+    name: "App nativa",
+    files: result.files,
+    meta: {
+      spec,
+      notes: result.notes,
+      plugins: [],
+      connections: [],
+      requisitosNativos: requisitosNativos(),
+    },
+    shared: false,
+  };
+
+  return {
+    ...result,
+    files: [
+      ...result.files,
+      {
+        path: "PLAN-BAMA.md",
+        content: planBama(tempApp),
+        language: "markdown",
+      },
+    ],
+  };
+}
+
+/**
  * Genera la app con un destino específico (ej: "nativa-macos").
  * Si el destino es "nativa-macos", añade el plan BAMA como archivo PLAN-BAMA.md.
  */
@@ -776,27 +815,5 @@ export async function generateWithDestino(
   });
   const result = parseGenerated(r.text);
 
-  if (destino === "nativa-macos") {
-    const tempApp: GeneratedApp = {
-      id: "temp",
-      owner: null,
-      name: "App nativa",
-      files: result.files,
-      meta: {
-        spec,
-        notes: result.notes,
-        plugins: [],
-        connections: [],
-        requisitosNativos: requisitosNativos(),
-      },
-      shared: false,
-    };
-    result.files.push({
-      path: "PLAN-BAMA.md",
-      content: planBama(tempApp),
-      language: "markdown",
-    });
-  }
-
-  return result;
+  return addPlanBamaIfNeeded(result, spec, destino);
 }
