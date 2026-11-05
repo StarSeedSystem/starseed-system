@@ -4727,3 +4727,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** clave
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-05 10:23 · mg-oracle-1105-0343
+
+**Lo que se pidió.** /metagenesis: botones «Desconectar
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (MTN1027Cb-d3, RPO1104F). Es 67 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTCOL1012Ie-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTCOL1012Ie-d2 conservada)
+- `MTN1027Cb-d3` — no escribió nada
+- `RPO1104F` — no escribió nada
