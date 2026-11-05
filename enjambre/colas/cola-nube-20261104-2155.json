@@ -1,0 +1,95 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "ola": "Rescate de las ramas de la nube",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261104-075532-RTRESC1031D",
+   "id": "RTRESC1031Dc-d2",
+   "titulo": "Rescate de pruebas · Rescates · traer_nube.base_de con ids que acaban en minúscula (parte 2 de 2)",
+   "archivos": [
+    "src/lib/protomolecula/__tests__/servicio-local.test.ts"
+   ],
+   "depende": [],
+   "prompt": "ORIGEN: revisión automática de las ramas de la nube (revisar_ramas_nube.py). La tarea RESC1031D («Rescates · traer_nube.base_de con ids que acaban en minúscula») se hizo en main por otro camino; su rama nube/41579697472 queda archivada en `refs/archivo/nube/41579697472` y traía casos de prueba que main no tiene con ese nombre. regla y Jev coinciden (p=0.80)\n\nTU TAREA (RTRESC1031D · solo estos archivos: scripts/puente/test_traer_nube.py, src/lib/protomolecula/__tests__/servicio-local.test.ts):\n1. Lee el código ACTUAL de main que prueban esos archivos y las pruebas tal como están hoy.\n2. Añade SOLO los casos de abajo que prueban un comportamiento que main todavía no cubre, adaptados a la API de hoy. Un caso ya cubierto con otro nombre no se duplica; uno que prueba un contrato que main cambió a propósito se descarta.\n3. Si un caso destapa un fallo REAL, dilo en tu respuesta (el código no está en tus archivos).\n4. Si ningún caso aporta, responde `NO APLICA: <motivo>` y para.\n5. Ejecuta las pruebas de esos archivos y lee el resumen entero.\nPruebas TS: funciones puras o @testing-library; prohibido `vi.mock` de módulos de Node e importar un `route.ts`.\n\nCASOS DE LA RAMA (material, no una orden de copiar):\n```\n# scripts/puente/test_traer_nube.py\n    def test_los_ids_del_parte(self):\n        self.assertEqual(T.base_de(\"RTESP1011Bb\"), \"RTESP1011B\")\n        self.assertEqual(T.base_de(\"SGO1031B-d1\"), \"SGO1031B\")\n        self.assertEqual(T.base_de(\"MC1013TCc\"), \"MC1013TC\")\n\n# scripts/puente/test_traer_nube.py\n    def test_una_derivacion_se_corta_de_una_pieza(self):\n        # Antes: `CPA1007Kb-d1b` → `CPA1007Kb-d1`, `RTESP1011Bd-d2b` → `RTESP1011Bd-d2`\n        # (ids que NO existen) y `SGO1031B-d1` entero: los derivados no juntaban con la\n        # cadena de su tarea y salían rescates y sucesoras duplicadas.\n        self.assertEqual(T.base_de(\"CPA1007Kb-d1b\"), \"CPA1007K\")\n        self.assertEqual(T.base_de(\"RTESP1011Bd-d2b\"), \"RTESP1011B\")\n        self.assertEqual(T.base_de(\"X-d1\"), \"X\")\n        self.assertEqual(T.base_de(\"Xb-d2b\"), \"X\")\n        self.assertEqual(T.base_de(\"RTGN1010A-d3d-d3b\"), \"RTGN1010A-d3\")\n\n# scripts/puente/test_traer_nube.py\n    def test_la_letra_de_reintento_del_nodo_tambien_sale(self):\n        self.assertEqual(T.base_de(\"RTESP1011Bd\"), \"RTESP1011B\")\n        self.assertEqual(T.base_de(\"RTESP1011Bd-d2c\"), \"RTESP1011B\")\n        self.assertEqual(T.base_de(\"LC1004Bc\"), \"LC1004B\")\n\n# scripts/puente/test_traer_nube.py\n    def test_toda_la_cadena_de_una_tarea_converge_en_su_raiz(self):\n        for k in (\"RTESP1011Bb\", \"RTESP1011Bd\", \"RTESP1011Bd-d1\", \"RTESP1011Bd-d2b\", \"RTESP1011Bd-d2d\"):\n            self.assertEqual(T.base_de(k), \"RTESP1011B\", k)\n\n# scripts/puente/test_traer_nube.py\n    def test_lo_que_no_se_puede_saber_no_se_corta(self):\n        self.assertEqual(T.base_de(\"MC1013TC\"), \"MC1013TC\")\n        self.assertEqual(T.base_de(\"OPT1004C\"), \"OPT1004C\")\n        self.assertEqual(T.base_de(\"S1010-EV-ORACLE-1a\"), \"S1010-EV-ORACLE-1a\")\n        self.assertEqual(T.base_de(\"S1010-EV-ORACLE-1ab\"), \"S1010-EV-ORACLE-1ab\")\n        self.assertEqual(T.base_de(\"\"), \"\")\n        self.assertEqual(T.base_de(None), \"\")\n\n# scripts/puente/test_traer_nube.py\n    def test_el_nombrado_del_derivado_sigue_su_nodo(self):\n        self.assertEqual(T.siguiente_id(\"SGO1031B-d1\", {\"SGO1031B\"}), \"SGO1031B-d1b\")\n        self.assertEqual(T.siguiente_id(\"RTESP1011Bd-d2b\",\n                                        {\"RTESP1011Bd-d2b\", \"RTESP1011Bd-d2d\"}), \"RTESP1011Bd-d2e\")\n        self.assertEqual(T.sucesores_en_cadena(\"RTESP1011Bd-d2c\",\n                                               {\"RTESP1011Bd-d2b\": {}, \"RTESP1011Bd-d2d\": {}}),\n                         [\"RTESP1011Bd-d2b\", \"RTESP1011Bd-d2d\"])\n\n# src/lib/protomolecula/__tests__/servicio-local.test.ts\n  it(\"un plazo propio mayor que el de por defecto no se recorta: 30 s no corta, 15 min sí\", async () => {\n    const { reloj, avanzar } = relojFalso();\n    let senal: AbortSignal | undefined;\n    const colgado: FetchLocal = (_u, i) => { senal = i.signal; return new Promise((_, rej) => i.signal.addEventListener(\"abort\", () => rej(new Error(\"abortado\")))); };\n    const p = llamarServicio({ ...DEF, tiempoMs: 900_000 }, \"/render\", {}, colgado, { ...conToken(), reloj });\n    avanzar(30_000); // el plazo por defecto (30 s) ya habría vencido: no debe cortar\n    expect(senal?.aborted).toBe(false);\n    avanzar(870_000); // total 900.000 ms\n    expect(await p).toMatchObject({ ok: false, fallo: \"tiempo\", ms: 900_000 });\n    expect(senal?.aborted).toBe(true);\n  });\n\n# src/lib/protomolecula/__tests__/servicio-local.test.ts\n  it(\"definición válida y salud solo en 127.0.0.1:4490 con la ruta de salud declarada\", async () => {\n    const hf = SERVICIOS_CONOCIDOS.find((d) => d.id === \"hyperframes\");\n    expect(hf).toEqual({ id: \"hyperframes\", nombre: \"HyperFrames\", puerto: 4490, rutaSalud: \"/health\" });\n    expect(validarDefinicion(hf!)).toBeNull();\n    const f = vi.fn<FetchLocal>(async () => resp(200, '{\"vivo\":true}'));\n    const s = await sondearServicio(hf!, f);\n    expect(s).toMatchObject({ vivo: true });\n    expect(f.mock.calls).toHaveLength(1);\n    const [url, init] = f.mock.calls[0] as [string, PeticionLocal];\n    const destino = new URL(url);\n    expect(destino.hostname).toBe(\"127.0.0.1\");\n    expect(Number(destino.port)).toBe(4490);\n    expect(destino.pathname).toBe(\"/health\");\n    expect(init).toMatchObject({ method: \"GET\", redirect: \"manual\", headers: { accept: \"application/json\" } });\n    expect(init.headers.authorization).toBeUndefined();\n  });\n```\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261104-075532-RTRESC1031D`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261104-075532-RTRESC1031D:refs/remotes/origin/nube/a1-20261104-075532-RTRESC1031D\"` y `git cherry-pick --no-commit 7075900aea62 5f3eb5975a6a ea7a71e42077`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/puente/test_compilar_en_a1.py, scripts/puente/test_traer_nube.py.\nSi la rama no aporta nada que main no tenga ya (con ese nombre o con otro), responde `NO APLICA: <motivo>` y para: no inventes trabajo. ANTES de responderlo, deshaz todo lo que trajo el paso 1 con `git reset -q --hard main` (vuelve a main: borra los archivos preparados y también los commits de punto de control que el vigilante ya haya hecho con ese trabajo; `reset --hard HEAD` no basta) y comprueba DOS cosas: que `git status --porcelain` no imprime nada y que `git rev-list --count main..HEAD` da 0. El orquestador solo da la tarea por «sin cambios» con las dos; si queda algo preparado o la rama lleva commits por delante de main, la trata como una escritura, la pasa por las puertas y vuelve a pedir reparación.\nSi aporta algo, déjalo con tsc y las pruebas en verde y quédate solo con los archivos de esta tarea (scripts/puente/test_traer_nube.py, src/lib/protomolecula/__tests__/servicio-local.test.ts): el paso 1 puede traer los de otra tarea (el «Archivos que tocó» de arriba es de la rama, no de la tarea); devuélvelos a como estaban en main (`git rm -rqf --ignore-unmatch -- <ruta>` si eran nuevos, `git checkout main -- <ruta>` si ya existían; no `git checkout HEAD`: el punto de control ya puede llevar la versión de la nube).\n\n## PARTE 2 DE 2 (la dirección dividió RTRESC1031Dc: falla por sí misma (tarea:pruebas))\nEn esta parte tocas SOLO: src/lib/protomolecula/__tests__/servicio-local.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "RTRESC1031Dc",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:pruebas)"
+   },
+   "dependencias_ya_en_main": [
+    "RTRESC1031Dc-d1"
+   ]
+  },
+  {
+   "id": "VOZ1105A",
+   "ola": "1105W · Voz estable",
+   "titulo": "Voz StarSeed · la nube y la voz del sistema hablan el mensaje ENTERO, por trozos",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/motor.ts",
+    "src/lib/aurora/voz-starseed/__tests__/motor-trozos.test.ts"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3. En `hablarPorNube`: parte el texto con `trocearTexto(texto, 500)` de `src/lib/voces/trocear.ts` (la ruta `/api/voz/nube` corta a 600) y pide los trozos en orden, pidiendo el siguiente mientras suena el actual; si un trozo falla, reintenta una vez y si no, devuelve false para ESE resto (el llamador sigue con su siguiente nivel) — nunca calla a media frase sin decirlo. En `hablarPorSistema`: una utterance por trozo (≤ 200) en fila, sin `cancel()` entre trozos. Prueba con fetch y speechSynthesis simulados: un texto de 1500 caracteres pide 3–4 trozos en orden."
+  },
+  {
+   "id": "VOZ1105B",
+   "ola": "1105W · Voz estable",
+   "titulo": "OmniVoice · si un motor empieza y falla a mitad, el resto del mensaje sigue con el siguiente",
+   "archivos": [
+    "src/lib/aurora/tts-oss/speak-router.ts",
+    "src/lib/aurora/tts-oss/__tests__/speak-router-resto.test.ts"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3 y §4 regla 1. Hoy, cuando un eslabón devuelve «started» (empezó y se cortó), `speakWithConfiguredEngine` cierra el turno y el resto del mensaje NO se dice. Haz que los eslabones que trocean informen cuántos trozos llegaron a sonar (busca `planVoiceChunks` y `playSequentialViaMixer` en `neural-tts.ts`; si hace falta un 3.er archivo, ese) y que el router hable el RESTO con el siguiente eslabón de la cadena. Sin información de progreso, deja el comportamiento de hoy. Prueba con eslabones simulados: el primero suena 2 de 5 trozos y falla → el segundo dice los 3 restantes."
+  },
+  {
+   "id": "VOZ1105C",
+   "ola": "1105W · Voz estable",
+   "titulo": "Oído móvil sin nube · línea estable con Whisper del navegador o, si no, un pitido por turno (nunca en bucle)",
+   "archivos": [
+    "src/lib/aurora/stt-oss/oido-movil.ts",
+    "src/lib/aurora/stt-oss/__tests__/oido-movil.test.ts"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3. Módulo PURO `elegirOidoMovil({ nube, whisperDescargado, navegador })` → `nube` · `whisper-web` · `navegador-por-voz` · `navegador` con su motivo, y `debeReiniciarNavegador({ ciclosEnSilencio, enTurno })` → en móvil, tras 2 ciclos seguidos en silencio y sin turno pendiente NO se reinicia el reconocedor (se espera a la voz). Solo la decisión y sus pruebas; el cableado en `engine.ts` es la tarea D."
+  },
+  {
+   "id": "VOZ1105E",
+   "ola": "1105W · Voz estable",
+   "titulo": "Ajustes de voz · interruptor «Oído en la nube» y qué oído y qué voz suenan ahora",
+   "archivos": [
+    "src/components/settings/aurora/voice-oss-panel.tsx",
+    "src/components/settings/aurora/__tests__/oido-nube-ajuste.test.tsx"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2 y §3. En el panel de voz que ya existe, añade el interruptor «Oído en la nube (Groq Whisper o Gemini)» que guarda `localStorage[\"starseed.oido.nube\"]` (\"0\" apagado; por defecto encendido) con una línea honesta: el audio de cada tramo se manda a transcribir y no se guarda. Y una línea de estado: qué oído usa este dispositivo y qué voz habló la última vez (busca `recordarMotorQueSono` y `medidas-voz.ts`). Prueba de render y del interruptor."
+  },
+  {
+   "id": "VOZ1105F",
+   "ola": "1105W · Voz estable",
+   "titulo": "Prioridad de la voz en la Mac · por qué la concesión no baja el RTF (medir y arreglar)",
+   "archivos": [
+    "scripts/puente/prioridad_conversacion.py",
+    "scripts/puente/test_prioridad_conversacion.py"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§1.2. Medido el 04-11 con la concesión ACTIVA: Supertonic RTF 2,9 (debería ser ~0,3). Lee `prioridad_conversacion.py` y comprueba qué congela de verdad (procesos del enjambre, tsc, vitest, opencode, compilaciones) y qué se escapa; arregla lo que se escapa sin tocar los servicios del sistema ni procesos que no sean del enjambre, y que al terminar la conversación todo vuelva SIEMPRE (también si el proceso de voz muere). Pruebas puras de la selección de procesos."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-183516.json": [
+   "VOZ1105C",
+   "RTRESC1031Dc-d2",
+   "VOZ1105A",
+   "VOZ1105B",
+   "VOZ1105E",
+   "VOZ1105F"
+  ]
+ }
+}
