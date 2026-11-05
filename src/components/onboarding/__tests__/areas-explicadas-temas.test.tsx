@@ -86,9 +86,9 @@ describe("Guía de la red · tarjetas con los temas nuevos (GUI1021G)", () => {
     expect(TEMA_POR_RUTA["/library"]).toBe("libreria-biblioteca");
     expect(TEMA_POR_RUTA["/red-mesh"]).toBe("malla");
     expect(TEMA_POR_RUTA["/cerebros"]).toBe("neuronas-cerebro");
-    expect(explicacionDe(area("/library", "Librería")).queEs).toBe(
-      temaDe("/library")?.cuerpo,
-    );
+expect(explicacionDe(area("/library", "Librería")).queEs).toBe(
+  "La Librería es el catálogo en línea de toda la red: apps, repos, diseños y recursos que se actualizan solos desde sus fuentes. Tu Biblioteca es lo que tú (o tu página, grupo o comunidad) guardas: referencias organizadas en carpetas, nunca copias, así que siempre ves la última versión.",
+);
     expect(explicacionDe(area("/red-mesh", "Redes mesh")).queEs).toBe(
       temaDe("/red-mesh")?.cuerpo,
     );
