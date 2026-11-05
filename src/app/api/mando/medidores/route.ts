@@ -978,6 +978,23 @@ export async function GET(peticion: Request): Promise<Response> {
             { headers: { "Cache-Control": "no-store" } },
         );
     }
+    // (2026-11-05, VER1105D) Centro de Versiones: lee el estado del director de lanzamientos
+    // desde ~/.starseed/produccion/lanzamientos-estado.json (mismo archivo que la API de lanzamientos).
+    if (clave === "versiones") {
+        const carpeta = path.join(os.homedir(), ".starseed", "produccion");
+        let lanzamientosEstado: DatosMedidores["lanzamientosEstado"] = null;
+        try {
+            const crudo = await readFile(path.join(carpeta, "lanzamientos-estado.json"), "utf8");
+            const est = JSON.parse(crudo) as DatosMedidores["lanzamientosEstado"];
+            if (est && typeof est === "object" && "fase" in est) lanzamientosEstado = est;
+        } catch {
+            // sin archivo: el medidor lo dirá
+        }
+        return Response.json(
+            { detalle: detalleDeMedidor(clave, { lanzamientosEstado }), generadoEn: new Date().toISOString() },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
     // Un fallo leyendo git o el bus no puede tumbar el panel: se devuelve lo que sí haya.
     const turno = await reunion.obtener();
     // Copia: `integradas` se añade abajo y no puede quedarse pegada al resultado compartido.

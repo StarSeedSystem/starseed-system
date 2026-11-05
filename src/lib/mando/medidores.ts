@@ -75,7 +75,10 @@ export type ClaveMedidor =
     // (2026-10-24, Ola 1024I · IMG1024B) Alex: «en el pulso de MetaGenesis y de los demás Genesis
     // añade un medidor de lo que sale de los procesos imaginativos… con botones para integrar o
     // reimaginar». Sustituye a IMN1021H/J (architecture/imaginacion-autodesarrollo.md §6).
-    | "imaginacion";
+    | "imaginacion"
+    // (2026-11-05, VER1105D) Centro de Versiones: versión publicada, en curso, una fila por medio,
+    // y el lanzamiento vigente con sus pasos y jobs (architecture/centro-versiones-1105.md §4).
+    | "versiones";
 
 export type ClaseAccion =
     | "descartar"
@@ -114,7 +117,13 @@ export type ClaseAccion =
     // (1103 · U) Alex: «si ocurre eso cuando selecciono buscar más capacidades debe preguntarme si prefiero
     // potencializar las tareas aumentando el consumo de los créditos mensuales». `objetivo` = el medio.
     | "potenciar-capacidad"
-    | "mantener-ritmo";
+    | "mantener-ritmo"
+    // (2026-11-05, VER1105D) Centro de Versiones: acciones del medidor «Versiones».
+    | "lanzar-version"
+    | "pausar-lanzamiento"
+    | "reanudar-lanzamiento"
+    | "reintentar-paso"
+    | "toggle-auto-lanzamiento";
 
 export interface AccionMedidor {
     clase: ClaseAccion;
@@ -192,6 +201,8 @@ export interface DetalleMedidor {
     cargando?: { texto: string; progreso?: number };
     /** (2026-09-23) Algo que salió mal y hay que ver al abrir el panel (en rojo). */
     aviso?: string;
+    /** (2026-11-05, VER1105D) Tono de la pastilla para «Versiones»: normal · aviso · peligro. */
+    tono?: "normal" | "aviso" | "peligro";
     /** (2026-10-10, OPB1011) Solo en «Bloqueadas»: cadenas, transformadas hoy y decisiones de Alex. */
     bloqueadas?: ResumenBloqueadas;
     /** (IMG1024B) Solo en «Imaginación»: la pastilla, el ámbito, el automático y lo que espera en otros ámbitos. */
@@ -1559,6 +1570,21 @@ export interface DatosMedidores {
         ajustes: AjustesAutodesarrollo;
         ambito: AmbitoPropuesta | "todos";
         filtro_astraura?: FiltroAstraura;
+    } | null;
+    /** (2026-11-05, VER1105D) Estado del director de lanzamientos, leído de
+     *  ~/.starseed/produccion/lanzamientos-estado.json (mismo archivo que la API de lanzamientos). */
+    lanzamientosEstado?: {
+        fase: string;
+        detalle: string;
+        version: string | null;
+        pasos: { fase: string; t: number; detalle: string }[];
+        jobs: { medio: string | null; job: string; estado: string; url: string | null; inicio: string | null; fin: string | null }[];
+        medios: Record<string, { estado: string; faltan: string[]; pequenos: string[] }>;
+        run_url: string | null;
+        release_url: string | null;
+        historial: { t: number; tipo: string; version: string }[];
+        pausado: boolean;
+        tono: "normal" | "aviso" | "peligro";
     } | null;
 }
 
@@ -3162,6 +3188,120 @@ export function detalleDeMedidor(
             };
         }
 
+        case "versiones": {
+            const est = d.lanzamientosEstado;
+            if (!est) {
+                return {
+                    clave,
+                    titulo: "Versiones",
+                    resumen: "sin datos del director de lanzamientos",
+                    filas: [],
+                    acciones: [],
+                    tono: "normal",
+                    aviso: "No se pudo leer el estado de lanzamientos (~/.starseed/produccion/lanzamientos-estado.json).",
+                    vacio: "sin datos de versiones ahora mismo.",
+                };
+            }
+            // Versión publicada: la del historial más reciente con tipo "lanzado"
+            const ultimaLanzada = [...(est.historial ?? [])].reverse().find((h) => h.tipo === "lanzado");
+            const versionPublicada = ultimaLanzada ? `v${ultimaLanzada.version}` : "—";
+            // Versión en curso: la del estado actual si no es "lanzado" ni "esperando-lista"
+            const enCurso = est.version && est.fase !== "lanzado" && est.fase !== "esperando-lista" ? `v${est.version}` : "—";
+            // Tono de la pastilla
+            const tono = (est.tono ?? "normal") as "normal" | "aviso" | "peligro";
+            // Resumen para la pastilla
+            const resumen = `publicada: ${versionPublicada} · en curso: ${enCurso}`;
+            // Aviso si está atascado
+            const aviso = est.fase === "atascado" ? `Lanzamiento atascado: ${est.detalle}` : undefined;
+
+            // Filas por medio (orden del contrato §1)
+            const MEDIOS_ORDEN = [
+                { id: "web", nombre: "Sitio web oficial", icono: "🌐", formatos: ["starseed-os.vercel.app"] },
+                { id: "pwa", nombre: "App web instalable (PWA)", icono: "📱", formatos: ["manifiesto + service worker"] },
+                { id: "macos", nombre: "macOS", icono: "🍎", formatos: [".dmg universal", ".app.tar.gz + .sig"] },
+                { id: "windows", nombre: "Windows", icono: "🪟", formatos: [".msi", "-setup.exe + .sig"] },
+                { id: "linux", nombre: "Linux", icono: "🐧", formatos: [".AppImage", ".deb", ".rpm + .sig"] },
+                { id: "android", nombre: "Android", icono: "🤖", formatos: [".apk firmado"] },
+                { id: "ios", nombre: "iOS", icono: "📲", formatos: [".ipa (sin firma)"] },
+                { id: "canales", nombre: "Canales del actualizador", icono: "📡", formatos: ["latest.json", "latest-nexus.json", "latest-cafe.json"] },
+                { id: "libreria", nombre: "Librería de StarSeed OS", icono: "📚", formatos: ["/api/os/versiones"] },
+            ] as const;
+
+            const filas = MEDIOS_ORDEN.map((m) => {
+                const medio = est.medios?.[m.id];
+                if (!medio) {
+                    return {
+                        id: m.id,
+                        titulo: `${m.icono} ${m.nombre}`,
+                        estado: "desconocido",
+                        porque: "sin información del director",
+                        acciones: [] as AccionMedidor[],
+                    };
+                }
+                const estado = medio.estado;
+                let porque = "";
+                let enlace: string | undefined;
+                const formatos = m.formatos.join(", ");
+                if (estado === "al-dia") {
+                    porque = `al día · ${formatos}`;
+                    if (est.release_url && m.id !== "web" && m.id !== "pwa" && m.id !== "libreria") {
+                        enlace = `${est.release_url}`;
+                    }
+                } else if (estado === "generando") {
+                    porque = `generando: ${formatos}…`;
+                } else if (estado === "verificando") {
+                    porque = `verificando: ${formatos}…`;
+                } else if (estado === "atascado") {
+                    porque = `atascado · faltan: ${medio.faltan.join(", ") || formatos}`;
+                } else if (estado === "no-disponible") {
+                    porque = `no disponible: ${medio.faltan.join(", ") || formatos} (requiere cuenta de Apple Developer; iOS usa la PWA)`;
+                }
+                const acciones: AccionMedidor[] = [];
+                if (estado === "atascado" || estado === "generando" || estado === "verificando") {
+                    acciones.push({ clase: "reintentar-paso", texto: "Reintentar este medio", destructiva: false, objetivo: m.id });
+                }
+                return {
+                    id: m.id,
+                    titulo: `${m.icono} ${m.nombre}`,
+                    estado,
+                    porque,
+                    enlace,
+                    acciones,
+                };
+            });
+
+            // Acciones generales del medidor
+            const acciones: AccionMedidor[] = [];
+            if (est.fase === "esperando-lista" || est.fase === "lanzado") {
+                acciones.push({ clase: "lanzar-version", texto: "Lanzar versión", destructiva: false });
+            }
+            if (est.pausado) {
+                acciones.push({ clase: "reanudar-lanzamiento", texto: "Reanudar lanzamiento", destructiva: false });
+            } else if (est.fase && est.fase !== "lanzado" && est.fase !== "esperando-lista") {
+                acciones.push({ clase: "pausar-lanzamiento", texto: "Pausar lanzamiento", destructiva: false });
+            }
+            // Reintentar paso general si algún medio está generando, verificando o atascado
+            const hayMediosEnProceso = Object.values(est.medios ?? {}).some(
+                (m) => m.estado === "generando" || m.estado === "verificando" || m.estado === "atascado",
+            );
+            if (hayMediosEnProceso || est.fase === "atascado") {
+                acciones.push({ clase: "reintentar-paso", texto: "Reintentar paso", destructiva: false });
+            }
+            acciones.push({ clase: "toggle-auto-lanzamiento", texto: est.pausado ? "Activar lanzamiento automático" : "Desactivar lanzamiento automático", destructiva: false });
+            acciones.push(IR_A("Ver lanzamientos", "lanzamientos"));
+
+            return {
+                clave,
+                titulo: "Versiones",
+                resumen,
+                filas,
+                tono,
+                acciones,
+                aviso,
+                vacio: "sin información de versiones.",
+            };
+        }
+
         case "ola-activa":
         default: {
             const filas = filasDeOlasActivas(d, d.repoGitHub);
@@ -3204,6 +3344,8 @@ export const ORDEN_POR_DEFECTO: ClaveMedidor[] = [
     "bloqueadas",
     "en-cadena",
     "sin-publicar",
+    // (2026-11-05, VER1105D) Centro de Versiones: detrás de «Sin publicar» en el grupo «Lo que sale».
+    "versiones",
     "proveedores",
     "memoria",
     "disco",
