@@ -372,39 +372,51 @@ async function hablarPorLocal(texto: string, timbre: Timbre, alEmpezar?: () => v
     }
 }
 
+import { trocearTexto } from "@/lib/voces/trocear";
+
 /**
  * Habla por el nivel «nube»: síntesis en el servidor del OS (`/api/voz/nube`),
  * que usa Gemini TTS y, si no hay clave, Pollinations. Reutiliza la MISMA
  * utilidad de reproducción que los niveles del demonio (`reproducirLocal`):
  * resuelve `true` cuando el audio EMPIEZA a sonar. Nunca lanza.
  */
-async function hablarPorNube(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
-    try {
-        let resp: Response;
+export async function hablarPorNube(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
+    const trozos = trocearTexto(texto, 500);
+    let empezo = false;
+
+    for (const trozo of trozos) {
         try {
-            resp = await fetch("/api/voz/nube", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    texto,
-                    genero: timbre.genero,
-                    velocidad: timbre.local.speed,
-                }),
-                signal: AbortSignal.timeout(25_000),
-                cache: "no-store",
-            });
+            let resp: Response;
+            try {
+                resp = await fetch("/api/voz/nube", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        texto: trozo,
+                        genero: timbre.genero,
+                        velocidad: timbre.local.speed,
+                    }),
+                    signal: AbortSignal.timeout(25_000),
+                    cache: "no-store",
+                });
+            } catch {
+                return false; // red caída o timeout: se baja de nivel
+            }
+            if (!resp.ok) return false;
+            const blob = await resp.blob();
+            if (!blob.size) return false;
+
+            if (!empezo) {
+                try { alEmpezar?.(); } catch { /* el aviso no puede romper */ }
+                empezo = true;
+            }
+            const ml = await import("@/lib/aurora/motor-local");
+            if (!(await ml.reproducirLocal(blob))) return false;
         } catch {
-            return false; // red caída o timeout: se baja de nivel
+            return false;
         }
-        if (!resp.ok) return false;
-        const blob = await resp.blob();
-        if (!blob.size) return false;
-        try { alEmpezar?.(); } catch { /* el aviso no puede romper */ }
-        const ml = await import("@/lib/aurora/motor-local");
-        return await ml.reproducirLocal(blob);
-    } catch {
-        return false;
     }
+    return true;
 }
 
 /** Habla por el nivel ligero: Kokoro WASM en el navegador (`tts-oss/kokoro.ts`). */
@@ -431,13 +443,25 @@ async function hablarPorSistema(texto: string, timbre: Timbre, alEmpezar?: () =>
         const synth = window.speechSynthesis;
         if (!synth) return false;
         const p = parametrosPorNivel(timbre, "minima");
-        const u = new SpeechSynthesisUtterance(texto);
-        u.pitch = p.via === "sistema" ? p.pitch : timbre.sistema.pitch;
-        u.rate = p.via === "sistema" ? p.rate : timbre.sistema.rate;
-        u.lang = "es-ES";
-        if (alEmpezar) u.onstart = () => { try { alEmpezar(); } catch { /* */ } };
+        
+        // (VST1105A) Troceado para voz del sistema: una utterance por trozo, sin cancelar
+        const trozos = trocearTexto(texto, 200);
+        let empezo = false;
+
         synth.cancel();
-        synth.speak(u);
+        
+        for (const trozo of trozos) {
+            const u = new SpeechSynthesisUtterance(trozo);
+            u.pitch = p.via === "sistema" ? p.pitch : timbre.sistema.pitch;
+            u.rate = p.via === "sistema" ? p.rate : timbre.sistema.rate;
+            u.lang = "es-ES";
+            
+            if (!empezo) {
+                if (alEmpezar) u.onstart = () => { try { alEmpezar(); } catch { /* */ } };
+                empezo = true;
+            }
+            synth.speak(u);
+        }
         return true;
     } catch {
         return false;
