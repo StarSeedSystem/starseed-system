@@ -68,11 +68,10 @@ import type { ChatConfig } from "@/components/aurora/chat-config-menu";
 import type { AuroraMessageMeta } from "@/lib/aurora/engine";
 import { buildAttachmentsContext, type UniversalAttachment } from "@/lib/aurora/attachments";
 import { workspaceSystemExtra } from "@/lib/workspaces/workspaces";
-// Ola 1104 · OpenUI (§3): el prompt de la interfaz viva SALE de la biblioteca
-// StarSeed (`promptDeSistema`, src/lib/openui/biblioteca.tsx) y entra aquí al
-// system prompt de cada turno, igual que el resto de extras del orbe.
-import { promptDeSistema } from "@/lib/openui/biblioteca";
 import { describeUserVoiceEmotionForPrompt } from "@/lib/aurora/audio-emotion";
+import { conInterfazViva } from "@/lib/openui/prompt-astraura";
+import type { AjustesPerfilRespuesta } from "@/lib/astraura/ajustes-respuesta";
+import type { SenalesDeContenido } from "@/lib/astraura/ajustes-respuesta";
 // EAR1023C: la línea «Se oye: …» la registra el motor de oído (engine.ts) y se
 // lee aquí para el contexto de cualquier superficie del orbe/agente.
 import { lineaContextoOidoParaPrompt } from "@/lib/aurora/engine";
@@ -241,6 +240,11 @@ function clamp01(n: number): number {
 
 // ── System prompt: SÓLO los extras del orbe ─────────────────────────────────
 
+const ajustesInterfazPorDefecto: AjustesPerfilRespuesta = {
+  revisionPeces: "creaciones",
+  interfaz: "auto",
+};
+
 /**
  * Compone los "extras" del system prompt que hacen del chat del orbe el más
  * completo: acciones `[[ACCION:…]]`, herramientas del cerebro activo,
@@ -261,6 +265,11 @@ export async function composeAuroraSystem(opts: {
   includePersona?: boolean;
   /** Conversación (para resolver la personalidad POR CHAT si `includePersona`). */
   convId?: string | null;
+  /**
+   * Ajustes de respuesta del perfil (interfaz, revisión con peces). Por defecto:
+   * `{ revisionPeces: "creaciones", interfaz: "auto" }`.
+   */
+  ajustesInterfaz?: AjustesPerfilRespuesta;
 }): Promise<string> {
   const routeLabel = opts.route
     || (typeof window !== "undefined" ? window.location.pathname : "/");
@@ -318,8 +327,10 @@ export async function composeAuroraSystem(opts: {
   // 3.5) INTERFAZ VIVA (ola 1104 · OpenUI, §3): el prompt generado DESDE la
   // biblioteca StarSeed (no a mano) le enseña al modelo a escribir OpenUI Lang;
   // el Renderer de `src/components/openui/respuesta-viva.tsx` es quien lo pinta.
+  // Se incluye condicionalmente según los ajustes de `interfaz` del perfil.
   try {
-    const viva = promptDeSistema();
+    const ajustes = opts.ajustesInterfaz ?? ajustesInterfazPorDefecto;
+    const viva = conInterfazViva("", ajustes);
     if (viva) pieces.push(viva);
   } catch { /* sin interfaz viva: prompt idéntico */ }
 
