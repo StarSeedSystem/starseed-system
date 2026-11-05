@@ -68,6 +68,10 @@ import type { ChatConfig } from "@/components/aurora/chat-config-menu";
 import type { AuroraMessageMeta } from "@/lib/aurora/engine";
 import { buildAttachmentsContext, type UniversalAttachment } from "@/lib/aurora/attachments";
 import { workspaceSystemExtra } from "@/lib/workspaces/workspaces";
+// Ola 1104 · OpenUI (§3): el prompt de la interfaz viva SALE de la biblioteca
+// StarSeed (`promptDeSistema`, src/lib/openui/biblioteca.tsx) y entra aquí al
+// system prompt de cada turno, igual que el resto de extras del orbe.
+import { promptDeSistema } from "@/lib/openui/biblioteca";
 import { describeUserVoiceEmotionForPrompt } from "@/lib/aurora/audio-emotion";
 // EAR1023C: la línea «Se oye: …» la registra el motor de oído (engine.ts) y se
 // lee aquí para el contexto de cualquier superficie del orbe/agente.
@@ -310,6 +314,14 @@ export async function composeAuroraSystem(opts: {
     const k = buildSystemKnowledge(routeLabel);
     if (k) pieces.push(k);
   } catch { /* */ }
+
+  // 3.5) INTERFAZ VIVA (ola 1104 · OpenUI, §3): el prompt generado DESDE la
+  // biblioteca StarSeed (no a mano) le enseña al modelo a escribir OpenUI Lang;
+  // el Renderer de `src/components/openui/respuesta-viva.tsx` es quien lo pinta.
+  try {
+    const viva = promptDeSistema();
+    if (viva) pieces.push(viva);
+  } catch { /* sin interfaz viva: prompt idéntico */ }
 
   // 4) Nota de contexto de ruta + reafirmación del control total (como el orbe).
   pieces.push(
