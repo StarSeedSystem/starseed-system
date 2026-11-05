@@ -141,6 +141,18 @@ class Sucesor(unittest.TestCase):
         self.assertEqual(T.base_de(""), "")
         self.assertEqual(T.base_de(None), "")
 
+    def test_una_base_de_una_sola_pieza_se_corta_igual(self):
+        # Caso de la rama nube/41579697472 (RESC1031D) que main no cubría: la base puede ser una
+        # sola letra, y el sufijo de derivación (con o sin letra sucesora dentro) se corta igual.
+        self.assertEqual(T.base_de("X-d1"), "X")
+        self.assertEqual(T.base_de("Xb-d2b"), "X")
+
+    def test_toda_la_cadena_de_una_tarea_converge_en_su_raiz(self):
+        # La letra de reintento del nodo y la letra dentro de la parte derivada no parten la cadena:
+        # todas las variantes de una misma tarea vuelven a su raíz.
+        for k in ("RTESP1011Bb", "RTESP1011Bd", "RTESP1011Bd-d1", "RTESP1011Bd-d2b", "RTESP1011Bd-d2d"):
+            self.assertEqual(T.base_de(k), "RTESP1011B", k)
+
     @unittest.expectedFailure
     def test_un_id_que_ya_acababa_en_minuscula_pierde_solo_la_letra_nueva(self):
         """FALLO REAL en main: `base_de` no reconoce la sucesora de un id que ya acaba en
