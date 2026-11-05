@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, open, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { leerLatidos, leerProgreso, leerCanal } from "../director-fuentes";
