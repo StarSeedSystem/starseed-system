@@ -1,6 +1,11 @@
+<<<<<<< HEAD
 // Recuerdos de las cápsulas Memvid y LEANN en Astraura (MVD1027F-d1c, LNN1028F) —
 // módulo PURO: sin red, sin disco, sin procesos. Solo lógica de búsqueda,
 // filtrado por alcance y detección de fuga. La E/S real (fetch a /api/memorias/capsulas
+=======
+// Recuerdos de las cápsulas Memvid y LEANN en Astraura (MVD1027F, LNN1028F) —
+// módulo PURO: sin red, sin disco, sin procesos. La E/S real (fetch a /api/memorias/capsulas
+>>>>>>> 3f94244dd6 (salvavidas · LNN1028Fc: trabajo del agente antes de las puertas (tsc / vitest))
 // y al servidor LEANN del A1) se inyecta como dependencia para que sea testeable.
 import {
   capsulasParaContexto,
@@ -8,6 +13,7 @@ import {
   type ContextoCapsulas,
   type SujetoMemoria,
 } from "@/lib/memorias/capsulas";
+import { fundirRecuerdos, pesoVectorPara } from "@/lib/memorias/fusion-recuerdos";
 import {
   filtrarParaAlcance,
   detectarFuga,
@@ -20,6 +26,10 @@ import {
 // Re-exports para tests y uso externo
 export { alcanceVisiblePara, type AlcanceMemoria } from "@/lib/nucleo/alcance-memoria";
 export { alcanceDe } from "@/lib/memorias/capsulas";
+<<<<<<< HEAD
+=======
+export { fundirRecuerdos, pesoVectorPara } from "@/lib/memorias/fusion-recuerdos";
+>>>>>>> 3f94244dd6 (salvavidas · LNN1028Fc: trabajo del agente antes de las puertas (tsc / vitest))
 
 /** Acierto de Memvid (palabras clave + tiempo). */
 export interface AciertoMemvid {
@@ -108,11 +118,23 @@ const PESO_VECTOR_POR_DEFECTO = 0.5;
 const MAX_FRAGMENTOS = 6;
 /** k por cápsula. */
 const K_POR_CAPSULA = 4;
+/** Tope total en ms para el `recordar` multimodal. */
+const TOPE_MS_MULTIMODAL = 900;
+/** Umbral de palabras para juicio barato: menos de 4 palabras sin «?» no busca. */
+const MINIMO_PALABRAS = 4;
 
 function memoriaScopeActivaCapsulas(scope?: string): boolean {
   return scope !== "personal";
 }
 
+<<<<<<< HEAD
+=======
+function consultaMereceBusqueda(consulta: string): boolean {
+  const limpia = consulta.trim();
+  return limpia.length > 0 && (limpia.includes("?") || limpia.split(/\s+/).length >= MINIMO_PALABRAS);
+}
+
+>>>>>>> 3f94244dd6 (salvavidas · LNN1028Fc: trabajo del agente antes de las puertas (tsc / vitest))
 function aFragmentoDeMemvid(acierto: AciertoMemvid, alcance: AlcanceMemoria): FragmentoMemoria {
   return {
     id: acierto.uri ?? `memvid-${Date.now()}`,
@@ -133,6 +155,7 @@ function aFragmentoDeLeann(acierto: AciertoLeann, alcance: AlcanceMemoria): Frag
   };
 }
 
+<<<<<<< HEAD
 function fundirRecuerdos(
   memvid: FragmentoMemoria[],
   leann: FragmentoMemoria[],
@@ -162,6 +185,8 @@ function fundirRecuerdos(
     .slice(0, 6);
 }
 
+=======
+>>>>>>> 3f94244dd6 (salvavidas · LNN1028Fc: trabajo del agente antes de las puertas (tsc / vitest))
 function aBloqueMemvid(fragmentos: FragmentoMemoria[]): string {
   if (fragmentos.length === 0) return "";
   let bloque = "RECUERDOS (cápsulas Memvid):\n";
@@ -194,6 +219,13 @@ function nombreIndiceLeann(sujeto: SujetoMemoria): string {
   return `${sujeto.tipo}-${sujeto.id}-${alcanceDe(sujeto)}`.toLowerCase().replace(/[^a-z0-9-]/g, "-");
 }
 
+<<<<<<< HEAD
+=======
+/**
+ * El «recordar» fundido (LNN1028F): Memvid y LEANN a la vez, RRF, tope de 900 ms.
+ * Si la consulta es de menos de 4 palabras y sin «?», no busca (juicio barato).
+ */
+>>>>>>> 3f94244dd6 (salvavidas · LNN1028Fc: trabajo del agente antes de las puertas (tsc / vitest))
 export async function recordar(opts: RecordarMultimodalOpciones): Promise<Recordar> {
   const {
     consulta,
@@ -201,12 +233,21 @@ export async function recordar(opts: RecordarMultimodalOpciones): Promise<Record
     buscarMemvid,
     buscarLeann,
     esModeloNube = false,
+<<<<<<< HEAD
     timeoutMs = 900,
+=======
+    timeoutMs = TOPE_MS_MULTIMODAL,
+>>>>>>> 3f94244dd6 (salvavidas · LNN1028Fc: trabajo del agente antes de las puertas (tsc / vitest))
     memoryScope,
     pesoVector = PESO_VECTOR_POR_DEFECTO,
   } = opts;
 
+<<<<<<< HEAD
   if (consulta.split(/\s+/).length < 4 && !consulta.includes("?")) {
+=======
+  // Juicio barato: menos de 4 palabras y sin pregunta → no busca
+  if (!consultaMereceBusqueda(consulta)) {
+>>>>>>> 3f94244dd6 (salvavidas · LNN1028Fc: trabajo del agente antes de las puertas (tsc / vitest))
     return { memoria: "", leann: "", combinado: "" };
   }
 
@@ -232,7 +273,11 @@ export async function recordar(opts: RecordarMultimodalOpciones): Promise<Record
     const resultadosMemvid: FragmentoMemoria[] = [];
     const resultadosLeann: FragmentoMemoria[] = [];
 
+<<<<<<< HEAD
     const promises: Promise<void>[] = capsulas.map(async (capsula) => {
+=======
+    const promises = capsulas.map(async (capsula) => {
+>>>>>>> 3f94244dd6 (salvavidas · LNN1028Fc: trabajo del agente antes de las puertas (tsc / vitest))
       const sujeto = capsula.sujeto;
       const indiceLeann = nombreIndiceLeann(sujeto);
 
@@ -265,10 +310,17 @@ export async function recordar(opts: RecordarMultimodalOpciones): Promise<Record
     const memvidLimitado = resultadosMemvid.slice(0, MAX_FRAGMENTOS);
     const leannLimitado = resultadosLeann.slice(0, MAX_FRAGMENTOS);
 
+<<<<<<< HEAD
     const combinado = fundirRecuerdos(
       memvidLimitado.slice(0, MAX_FRAGMENTOS),
       leannLimitado.slice(0, MAX_FRAGMENTOS),
     );
+=======
+    const combinado = fundirRecuerdos([
+      memvidLimitado.map((fr) => ({ ...fr, fuente: "memvid" as const, uri: fr.id })),
+      leannLimitado.map((fr) => ({ ...fr, fuente: "leann" as const, uri: fr.id })),
+    ]);
+>>>>>>> 3f94244dd6 (salvavidas · LNN1028Fc: trabajo del agente antes de las puertas (tsc / vitest))
 
     const memoria = aBloqueMemvid(resultadosMemvid);
     const leann = aBloqueLeann(resultadosLeann);
@@ -293,7 +345,11 @@ export async function recordar(opts: RecordarMultimodalOpciones): Promise<Record
   }
 }
 
+<<<<<<< HEAD
 /** Alias retrocompatible: `recordarDeCapsulas` clásico (solo Memvid, devuelve string). */
+=======
+/** Alias retrocompatible: `recordarDeCapsulas` clásico (usa la fusión pero sin el filtro de consulta barata). */
+>>>>>>> 3f94244dd6 (salvavidas · LNN1028Fc: trabajo del agente antes de las puertas (tsc / vitest))
 export async function recordarDeCapsulas(opts: RecordarOpciones): Promise<string> {
   const {
     consulta,
