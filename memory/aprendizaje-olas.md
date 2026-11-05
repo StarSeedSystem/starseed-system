@@ -4727,3 +4727,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** clave
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-05 09:40 · mg-oracle-1105-0309
+
+**Lo que se pidió.** Publicaciones · botón «Hacerla viva
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RTCVV1028Kb-d3` — no escribió nada
