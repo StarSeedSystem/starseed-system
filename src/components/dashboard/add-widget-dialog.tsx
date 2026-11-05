@@ -420,6 +420,14 @@ export const AVAILABLE_WIDGETS: WidgetDefinition[] = [
         primaryCategory: 'archivos', secondaryCategories: ['sistema'],
         tags: ['archivos', 'documentos', 'almacenes', 'ficheros', 'real'],
     },
+    // ── OpenUI (ola 1104R) ──
+    {
+        type: 'RESPUESTA_VIVA', title: 'Respuesta viva',
+        description: 'Pinta contenido OpenUI Lang guardado (tarjetas, tablas, pasos, comparaciones, líneas de tiempo, listas y botones de acción del OS). Para escritorios y páginas de publicación.',
+        icon: <Sparkles className="h-5 w-5 text-cyan-400" />,
+        primaryCategory: 'respuestas', secondaryCategories: ['ia', 'creatividad'],
+        tags: ['openui', 'respuesta', 'viva', 'interfaz', 'generativa', 'tarjetas', 'tablas', 'pasos', 'comparaciones'], isPopular: true,
+    },
     // ── Sexta oleada: rediseño de widgets predeterminados (2026-07) ──
     {
         type: 'CLOCK_DATE', title: 'Reloj y Fecha',

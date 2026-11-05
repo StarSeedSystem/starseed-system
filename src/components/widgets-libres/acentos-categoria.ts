@@ -14,7 +14,7 @@ import { getManifest } from "@/components/dashboard/widget-manifest";
 export type FamiliaAcento =
     | "politica" | "educacion" | "cultura" | "economia" | "clima" | "cosmos"
     | "productividad" | "ubicacion" | "social" | "sistema" | "ia" | "archivos"
-    | "medios" | "aplicaciones" | "descubrimientos";
+    | "medios" | "aplicaciones" | "descubrimientos" | "respuestas";
 
 export interface AcentoFamilia {
     /** Nombre visible de la familia. */
@@ -46,6 +46,7 @@ export const ACENTOS_FAMILIA: Readonly<Record<FamiliaAcento, AcentoFamilia>> = {
     medios: { etiqueta: "Medios", acento: "#d946ef", acento2: TURQUESA },
     aplicaciones: { etiqueta: "Aplicaciones", acento: "#a3e635", acento2: VIOLETA },
     descubrimientos: { etiqueta: "Descubrimientos", acento: "#fb923c", acento2: TURQUESA },
+    respuestas: { etiqueta: "Respuestas", acento: "#007fff", acento2: "#39ff14" },
 };
 
 /** Categoría del catálogo (widget-categories.ts + las que usa el manifiesto) → familia. */
@@ -66,6 +67,7 @@ export const FAMILIA_DE_CATEGORIA: Readonly<Record<string, FamiliaAcento>> = {
     entretenimiento: "medios", ciberdelia: "medios",
     aplicaciones: "aplicaciones",
     descubrimientos: "descubrimientos", explorador: "descubrimientos",
+    respuestas: "respuestas",
 };
 
 /** Familia neutra para lo que aún no tiene categoría: discreta, nunca rota. */

@@ -60,6 +60,8 @@ const TODOS_LOS_TIPOS: WidgetType[] = [
     "NETWORK_FEED_MINI",
     // ── Protomolécula (ola 1010P) ──
     "PROTOMOLECULA",
+    // ── OpenUI (ola 1104R) ──
+    "RESPUESTA_VIVA",
 ];
 
 describe("WIDGET_MANIFEST completitud", () => {
