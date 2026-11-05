@@ -56,6 +56,8 @@ class QuienCedeLaRam(unittest.TestCase):
         self.assertTrue(P.es_enjambre("/opt/homebrew/python3.14 -u /h/bin/starseed-enjambre.py c.json"))
         self.assertTrue(P.es_enjambre("node /r/node_modules/.bin/next build"))
         self.assertTrue(P.es_enjambre("node /r/node_modules/.bin/tsc --noEmit"))
+        self.assertTrue(P.es_enjambre("node /r/node_modules/.bin/vitest run test.ts"))
+        self.assertTrue(P.es_enjambre("vitest run src/lib/__tests__/file.test.ts"))
         self.assertFalse(P.es_enjambre("node /r/node_modules/.bin/next start -p 9002"))
         self.assertFalse(P.es_enjambre("/x/llama-server --port 8790"))
         self.assertFalse(P.es_enjambre("grep opencode run"))
@@ -73,7 +75,32 @@ class QuienCedeLaRam(unittest.TestCase):
         self.assertEqual(d["motores"], [])
 
     def test_sin_conversacion_y_sin_marcas_no_se_toca_nada(self):
-        self.assertEqual(P.decidir(False, PROCESOS, set()), {"congelar": [], "reanudar": [], "motores": []})
+        self.assertEqual(P.decidir(False, PROCESOS, set()), {"congelar": [], "reanudar": [], "motores": [], "reiniciar": []})
+
+    def test_con_conversacion_se_reanudan_motores_con_t(self):
+        d = P.decidir(True, PROCESOS, set())
+        self.assertEqual(d["motores"], [14])
+        self.assertIn("reanudar", d)
+
+    def test_con_conversacion_se_reinician_motores_muertos(self):
+        procesos_sin_llama = [
+            (10, "S", "/opt/x/opencode", "/opt/x/opencode run --model groq/llama"),
+            (11, "S", "/opt/homebrew/Cellar/python@3.14/Python", "/opt/homebrew/python3.14 -u /Users/a/bin/starseed-enjambre.py cola.json"),
+            (12, "R", "node", "node /r/node_modules/.bin/next build"),
+            (13, "S", "node", "node /r/node_modules/.bin/next start -p 9002"),
+            (17, "S", "node", "node /r/node_modules/.bin/tsc --noEmit"),
+        ]
+        d = P.decidir(True, procesos_sin_llama, set())
+        self.assertIn("tts-server", d["reiniciar"])
+        self.assertIn("llama-server", d["reiniciar"])
+
+    def test_con_conversacion_se_reinician_todos_los_motores_muertos(self):
+        d = P.decidir(True, [], set())
+        self.assertEqual(d["reiniciar"], ["llama-server", "tts-server"])
+
+    def test_con_conversacion_no_se_reinicia_si_no_hay_daemon(self):
+        d = P.decidir(True, [], set(), daemon_vivo=False)
+        self.assertEqual(d["reiniciar"], [])
 
     def test_la_marca_se_guarda_y_se_borra(self):
         ruta = tempfile.mktemp()
