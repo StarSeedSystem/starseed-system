@@ -534,6 +534,72 @@ class Ola1025STest(unittest.TestCase):
         self.assertIsNone(D.item_astraura(self.libre("x")))
 
 
+class EGMRevisionTest(unittest.TestCase):
+    """Pruebas de la integración con EGM revision (RPO1104E)."""
+
+    def setUp(self):
+        self.t = tempfile.TemporaryDirectory()
+        self.home = os.path.join(self.t.name, "h")
+        self.raiz = os.path.join(self.t.name, "r")
+        self.mem = os.path.join(self.raiz, "starseed_memory_root")
+        os.makedirs(self.home)
+        os.makedirs(self.raiz)
+        # No escribimos autodesarrollo.json: usa valores por defecto (auto.aprobar=False, umbral 0.6)
+
+    def tearDown(self):
+        self.t.cleanup()
+
+    def _flota(self, raiz, tareas):
+        self.__dict__.setdefault("entregadas", []).append([t["id"] for t in tareas])
+        return {"accion": "probada", "tareas": len(tareas)}
+
+    def _correr(self, llamar_egm=None, **kw):
+        args = dict(ahora=NOCHE, capacidad=CAP, home=self.home, raiz=self.raiz, existe_ruta=lambda r: True,
+                    lanzador_diario=lambda: True, lanzador_profundo=lambda *a: True,
+                    agente_referencias=lambda raiz, ahora: None,
+                    agente_alcance=lambda raiz, ahora: None,
+                    datos={"diaria": MD, "profunda": {}, "astraura": {}, "directores": {}, "agentes": {}})
+        args.setdefault("a_la_flota", self._flota)
+        if llamar_egm is not None:
+            args["llamar_egm"] = llamar_egm
+        args.update(kw)
+        return D.ciclo(**args)
+
+    def test_egm_revision_bloquea_no_encola_ola(self):
+        """Si la revisión EGM devuelve objeción 'bloquea', la ola no se encola."""
+        def llamar_bloquea(prompt, modelo):
+            return "bloquea: La ola no tiene objetivo claro\nimporta: Falta contexto"
+        r = self._correr(llamar_egm=llamar_bloquea)
+        self.assertEqual(r["autodesarrolladas"], 0)
+        self.assertIsNone(r.get("cola"))
+        props_file = os.path.join(self.mem, "imaginacion", "propuestas.json")
+        props = json.load(open(props_file, encoding="utf-8"))
+        # La propuesta debe quedar en estado descartada con motivo EGM
+        self.assertTrue(any(p.get("estado") == "descartada" and p.get("motivo_destino", "").startswith("EGM:") for p in props.get("propuestas", [])))
+
+    def test_egm_revision_sin_bloquea_encola_ola(self):
+        """Si la revisión EGM no tiene objeciones 'bloquea', la ola se encola normalmente."""
+        def llamar_sin_bloquea(prompt, modelo):
+            return "importa: Podría mejorar el orden\nmenor: Detalle de estilo"
+        r = self._correr(llamar_egm=llamar_sin_bloquea)
+        self.assertEqual(r["autodesarrolladas"], 1)
+        self.assertIsNotNone(r.get("cola"))
+
+    def test_egm_revision_error_red_encola_como_hoy(self):
+        """Si la revisión EGM falla (red/modelo), la ola se encola como hoy."""
+        def llamar_falla(prompt, modelo):
+            raise ConnectionError("sin red")
+        r = self._correr(llamar_egm=llamar_falla)
+        self.assertEqual(r["autodesarrolladas"], 1)
+        self.assertIsNotNone(r.get("cola"))
+
+    def test_egm_revision_sin_modelos_encola_como_hoy(self):
+        """Si no hay modelos disponibles, la ola se encola como hoy."""
+        r = self._correr(llamar_egm=None)
+        self.assertEqual(r["autodesarrolladas"], 1)
+        self.assertIsNotNone(r.get("cola"))
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -21,6 +21,7 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, AQUI)
 import autodesarrollo_logica as AL, autodesarrollo_decidir as AD, autodesarrollo_fuentes as AF
 import autodesarrollo_reimaginar as AR, autodesarrollo_entregables as AE
+import egm_revision as EGM
 
 RAIZ = os.path.dirname(os.path.dirname(AQUI))
 ESTADOS_ALEX = ("aprobada", "rechazada", "pospuesta", "hecha", "descartada")
@@ -400,15 +401,40 @@ def _aplicar_en_astraura(lista, aplicar, iso):
     return n
 
 
+def _artefacto_ola(tareas, propuestas):
+    """Serializa la ola como texto para la revisión EGM."""
+    lineas = ["OLA DE TAREAS PROPUESTA POR LA IMAGINACIÓN", "=" * 50, ""]
+    for i, (tarea, prop) in enumerate(zip(tareas, propuestas), 1):
+        lineas.append(f"TAREA {i}: {tarea['titulo']} (ID: {tarea['id']})")
+        lineas.append(f"  Archivos: {', '.join(tarea['archivos']) if tarea['archivos'] else '(ninguno)'}")
+        lineas.append(f"  Prompt: {tarea['prompt'][:200]}...")
+        if prop.get("cuerpo"):
+            lineas.append(f"  Contexto: {prop['cuerpo'][:300]}...")
+        lineas.append("")
+    return "\n".join(lineas)
+
+
+def _revision_egm(artefacto, llamar_egm):
+    """Ejecuta la revisión EGM con peces. Devuelve dict con pasa, bloqueantes, error."""
+    if llamar_egm is None:
+        # Sin función de llamada = sin modelos disponibles = pasa como hoy
+        return {"pasa": True, "bloqueantes": [], "error": None, "objeciones": [], "por_modelo": {}}
+    try:
+        return EGM.revisar(artefacto, "ola", llamar_egm, n=2)
+    except Exception:
+        return {"pasa": True, "bloqueantes": [], "error": "error de red o modelo", "objeciones": [], "por_modelo": {}}
+
+
 def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_diario=None, lanzador_profundo=None,
           existe_ruta=None, datos=None, avisar=None, consejo=None, agente_referencias=None, aplicar_astraura=None,
-          a_la_flota=None, agente_alcance=None):
+          a_la_flota=None, agente_alcance=None, llamar_egm=None):
     """Un ciclo (§5). `datos`: {diaria, profunda, astraura, directores, agentes} para no leer disco ni red.
     `consejo(p)`: Jev para el veto de lo que se integraría solo (None = solo la regla). `agente_referencias(raiz,
     ahora)`: el agente de referencias de diseño (por defecto, el módulo si existe); devuelve None si no hay agente.
     `agente_alcance(raiz, ahora)`: el agente de alcance (por defecto, `agente_alcance.ciclo` si existe).
     `aplicar_astraura(item)`: aplica una creación en el backend 1.58 (None si lo hizo, o el error); por defecto, HTTP.
     `a_la_flota(raiz, tareas)`: entrega el análisis encolado al orquestador vivo (por defecto `AR.a_la_flota`).
+    `llamar_egm(prompt, modelo)`: función para llamar a modelos en la revisión EGM (None = usa modelos por defecto).
     Ola 1025S: reimaginar y preparar entregables se encargan con `AL.toca_analizar` (análisis por HTTP con su
     propio tope), no con `toca_ejecutar`: la presión de memoria de la Mac frenaba toda reimaginación."""
     ahora, home, raiz = ahora or datetime.now(), home or os.path.expanduser("~/.starseed"), raiz or RAIZ
@@ -523,7 +549,23 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
                    **({"aprobacion": True} if p.get("aprobacion_diff") else {})} for p in cola]
         esperan = [p for p in propuestas if p.get("estado") == "esperando-aprobacion"]
         cola_r = cola_e = flota = None
-        if not seco:
+        ola_bloqueada = False
+        if tareas and not seco:
+            # Revisión EGM (Elefante-Goldfish-Model) antes de encolar la ola (§2 architecture/repos-libreria-1104.md)
+            artefacto = _artefacto_ola(tareas, cola)
+            revision = _revision_egm(artefacto, llamar_egm)
+            if revision.get("error"):
+                # Error de red/modelo: se encola como hoy
+                pass
+            elif not revision.get("pasa", True):
+                # Hay objeciones 'bloquea': no se encola, se anota en las propuestas
+                bloqueantes = revision.get("bloqueantes", [])
+                for p in cola:
+                    p["estado"] = "descartada"
+                    p["motivo_destino"] = "EGM: " + "; ".join(b["texto"] for b in bloqueantes)
+                ola_bloqueada = True
+                tareas = []  # no se encola nada
+        if not seco and not ola_bloqueada:
             if tareas_e:
                 cola_e = AE.encolar(mem, tareas_e, ahora)
                 for p, t in zip(ent, tareas_e): AE.marcar_encargada(p, t, cola_e, iso)
@@ -535,8 +577,10 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
                 cola_r = AR.encolar(mem, reim, ahora)
                 por_tarea = {AR.id_tarea(p): p for p in propuestas if p.get("estado") == "reimaginando"}
                 for t in reim: AR.marcar_encolada(por_tarea[t["id"]], t, cola_r, iso)
+        # Las propuestas se escriben siempre (incluso si la ola fue bloqueada por EGM)
+        if not seco:
             _escribir(pr, propuestas if isinstance(crudo, list) else {**crudo, "actualizado": iso, "propuestas": propuestas,
-                                                                      **({"filtro_astraura": filtro} if filtro else {})})
+                                                                   **({"filtro_astraura": filtro} if filtro else {})})
             # Ola 1025S: lo encolado (de este ciclo y de los anteriores que siguen esperando) va al orquestador vivo.
             ids_f = {(p.get("reimaginacion") or {}).get("tarea") for p in propuestas if p.get("estado") == "reimaginando"}
             ids_f |= {(p.get("entregable") or {}).get("tarea") for p in propuestas if p.get("estado") == "encargada"}
