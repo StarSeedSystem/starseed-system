@@ -167,6 +167,25 @@ class TestVerificacion(unittest.TestCase):
         self.assertTrue(any(t == "aviso" and "T1" in x for t, x in reg["decir"]))
         self.assertFalse(reg["estado"]["verificadas"]["T1"]["aprobado"])
 
+    def test_nota_baja_incluye_rubrica_cuando_existe(self):
+        import unittest.mock
+        informe = informe_limpio()
+        informe["desbordes"] = ["div.a", "div.b", "div.c", "div.d", "div.e"]
+        deps, reg = deps_falsas(
+            progreso={"T1": {"estado": "commit", "modelo": "nim/kimi-k3"}},
+            tareas=[tarea_interfaz()],
+            informes=[informe],
+        )
+        # Mock de la rubrica
+        with unittest.mock.patch.object(DD, "_rubrica_motionsites", return_value="\n\nRúbrica MotionSites (segunda lista de comprobación):\n- pregunta 1\n- pregunta 2"):
+            DD.ciclo(MARTES, deps)
+        self.assertEqual(len(reg["anotar"]), 1)
+        tid, texto = reg["anotar"][0]
+        self.assertIn("pregunta 1", texto)
+        self.assertIn("pregunta 2", texto)
+        self.assertIn("Rúbrica MotionSites", texto)
+
+
     def test_no_verifica_dos_veces(self):
         deps, reg = deps_falsas(
             progreso={"T1": {"estado": "commit", "modelo": "m"}},
@@ -276,6 +295,21 @@ class TestRutasDe(unittest.TestCase):
         self.assertEqual(DD.rutas_de(["src/app/comunidad/page.tsx"]), ["/comunidad"])
         self.assertEqual(DD.rutas_de(["src/lib/x.py"]), [])
         self.assertEqual(DD.rutas_de([]), [])
+
+    def test_rubrica_motionsites(self):
+        import unittest.mock
+        with unittest.mock.patch("builtins.open", unittest.mock.mock_open(read_data='{"rubrica": [{"pregunta": "¿Es accesible?"}, {"pregunta": " ¿Es intuitivo? "}]}')):
+            res = DD._rubrica_motionsites()
+            self.assertIn("- ¿Es accesible?", res)
+            self.assertIn("- ¿Es intuitivo?", res)
+            self.assertIn("Rúbrica MotionSites", res)
+
+    def test_rubrica_vacia_o_inexistente(self):
+        import unittest.mock
+        with unittest.mock.patch("builtins.open", side_effect=FileNotFoundError):
+            self.assertEqual(DD._rubrica_motionsites(), "")
+        with unittest.mock.patch("builtins.open", unittest.mock.mock_open(read_data='{}')):
+            self.assertEqual(DD._rubrica_motionsites(), "")
 
 
 if __name__ == "__main__":
