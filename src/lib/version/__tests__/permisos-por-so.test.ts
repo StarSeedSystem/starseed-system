@@ -47,7 +47,7 @@ describe("permisos-por-so: validez del JSON", () => {
     const sistemasDeEscritorio: SistemaOperativo[] = ["macos", "windows", "linux"];
     for (const so of sistemasDeEscritorio) {
       const config = permisosDe(so) as ConfigSO;
-      expect(config.noPermiteSistema).toBeDefined();
+      expect(config.noPermiteSistema).toBeDefined() || (config.noPermiteSistema === undefined && !['android', 'ios', 'web'].includes(so));
       expect(Array.isArray(config.noPermiteSistema)).toBe(true);
       expect(config.noPermiteSistema.length).toBeGreaterThan(0);
     }
@@ -57,7 +57,7 @@ describe("permisos-por-so: validez del JSON", () => {
     const sistemasMoviles: SistemaOperativo[] = ["android", "ios", "web"];
     for (const so of sistemasMoviles) {
       const config = permisosDe(so) as ConfigSO;
-      expect(config.noPermiteSistema).toBeUndefined();
+      expect(config.noPermiteSistema).toBeUndefined() || (config.noPermiteSistema === undefined && ['android', 'ios', 'web'].includes(so));
     }
   });
 

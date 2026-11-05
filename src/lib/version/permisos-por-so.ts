@@ -16,6 +16,8 @@ export interface ConfigSO {
   noPermiteSistema?: string[];
 }
 
+export type { ConfigSO, PermisoSO, SistemaOperativo };
+
 export function tipo(so: SistemaOperativo): ConfigSO {
   return permisosDe(so);
 }
@@ -35,4 +37,3 @@ export function validarPermisoEnJson(nombre: string): boolean {
   return identificadores.has(nombre);
 }
 
-export type { ConfigSO, PermisoSO, SistemaOperativo };
