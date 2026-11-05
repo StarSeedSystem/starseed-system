@@ -62,6 +62,7 @@ export async function leerInstalada(): Promise<{ medio: Medio; version: string |
   const medio = medioActual(env);
   try {
     if (env.tauriPresente) {
+      // @ts-ignore
       const { app } = await import("@tauri-apps/api/app");
       const version = await app.getVersion();
       return { medio, version };
