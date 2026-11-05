@@ -36,7 +36,7 @@ function catalogo(ids: readonly string[]): SeedCatalogEntry[] {
 
 describe("defaults-seed · 4.ª tanda (Ola 1020U, solo sus «siempre» que crea el cargador)", () => {
   it("la versión está en 24, sin bajar de la 23 que trajo la 4.ª tanda", () => {
-    expect(SEED_VERSION).toBe(24);
+    expect(SEED_VERSION).toBe(25);
     expect(SEED_VERSION).toBeGreaterThanOrEqual(23);
   });
 

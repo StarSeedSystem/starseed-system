@@ -87,6 +87,9 @@ import { FICHAS_REPOS_1028 } from "./repos-1028";
 // de energía del propio sistema (stigoleg/keep-alive, Go, MIT).
 // Contrato: architecture/colmena-relevo-contenedores.md.
 import { FICHAS_REPOS_1101 } from "./repos-1101";
+// Tanda del 2026-11-04 (Ola 1104 · pedido de Alex): EGM, OpenUI, BAMA, MotionSites y DeepTutor.
+// Contrato: architecture/repos-libreria-1104.md.
+import { FICHAS_REPOS_1104 } from "./repos-1104";
 // Repo builtin externo de la Ola 1020: 14 repos verificados con upstream y canal
 // para que la Biblioteca autobúsque sus releases/tags/commits.
 import { REPO_EXTERNOS_1020, REPOS_YA_PRESENTES } from "./repos-externos-1020";
@@ -1054,6 +1057,8 @@ const LABS_PACKAGES: LibraryPackage[] = [
     ...FICHAS_REPOS_1028,
     /* ── Tanda del 2026-11-02 (Ola 1101 · keepalive): la neurona despierta ── */
     ...FICHAS_REPOS_1101,
+    /* ── Tanda del 2026-11-04 (Ola 1104): EGM, OpenUI, BAMA, MotionSites y DeepTutor ── */
+    ...FICHAS_REPOS_1104,
 ];
 
 /** Repo builtin de laboratorio (modelos/repos OSS reales del visionario). */

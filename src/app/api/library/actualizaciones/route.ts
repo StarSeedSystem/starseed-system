@@ -13,6 +13,7 @@ import { FICHAS_REPOS_1027 } from "@/lib/library/repos-1027";
 import { FICHAS_REPOS_1027B } from "@/lib/library/repos-1027b";
 import { FICHAS_REPOS_1028 } from "@/lib/library/repos-1028";
 import { FICHAS_REPOS_1101 } from "@/lib/library/repos-1101";
+import { FICHAS_REPOS_1104 } from "@/lib/library/repos-1104";
 import {
     urlDeConsulta,
     leerVersion,
@@ -145,7 +146,9 @@ export async function GET(): Promise<Response> {
         // porque el cargador de tipos solo conoce los tipos de la Biblioteca, y el filtro
         // por tipo las descartaría. Se recuperan por su upstream de GitHub para que sigan
         // su versión, como manda el contrato (architecture/mausbot-astraura.md).
-        const tanda1027 = FICHAS_REPOS_1027.filter(
+        // (1104 · AF) Lo mismo para la 1101 (keepalive) y la 1104: también se pintan como `app`
+        // y el filtro de tipos las dejaba sin seguir su versión.
+        const tanda1027 = [...FICHAS_REPOS_1027, ...FICHAS_REPOS_1101, ...FICHAS_REPOS_1104].filter(
             (p) =>
                 !idsDecisiones.has(p.id) &&
                 !idsSeguibles.has(p.id) &&
@@ -160,6 +163,8 @@ export async function GET(): Promise<Response> {
             // Tanda 1027b: Meta^n por commits y Memvid por etiquetas vX.Y.Z.
             // Tanda 1028: LEANN por etiquetas vX.Y.Z.
             // Tanda 1101: keepalive por etiquetas vX.Y.Z.
+            // Tanda 1104: EGM, MotionSites y DeepTutor por releases, OpenUI por la etiqueta de react-lang
+            // y BAMA por commits (recuperadas por su upstream, como la 1027).
             ...seguibles,
             ...tanda1027,
         ];
