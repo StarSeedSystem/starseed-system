@@ -16,7 +16,7 @@
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile, writeFile, readdir } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 

@@ -146,8 +146,10 @@ export function leerPropuestasArchivo(crudo: unknown): PropuestaAutomejoraArchiv
     if (Array.isArray(crudo.propuestas)) {
         for (const p of crudo.propuestas) {
             if (!esObjeto(p)) continue;
+            const id = texto(p.id);
+            if (!id) continue;
             propuestas.push({
-                id: texto(p.id) ?? "",
+                id,
                 capa: texto(p.capa) ?? "desconocida",
                 description: texto(p.description) ?? "",
                 archivos: Array.isArray(p.archivos) ? p.archivos.filter((x): x is string => typeof x === "string") : [],
