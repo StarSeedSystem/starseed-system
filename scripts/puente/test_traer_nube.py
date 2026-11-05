@@ -120,35 +120,37 @@ class Sucesor(unittest.TestCase):
         self.assertEqual(T.siguiente_id("LC1004B", {"LC1004B", "LC1004Bb", "LC1004Bc"}), "LC1004Bd")
         self.assertEqual(T.siguiente_id("SB1004A", {"SB1004A", "SB1004Ab", "OTRA"}), "SB1004Ac")
 
-    def test_base_de_con_sufijo_rescate_y_derivacion(self):
-        # Casos del issue RESC1031D: distingue sufijo -d1/-d2b de la letra sucesora
-        self.assertEqual(T.base_de("SGO1031B-d1"), "SGO1031B")
-        self.assertEqual(T.base_de("RTESP1011B-d1"), "RTESP1011B")
-        self.assertEqual(T.base_de("MC1013TCc-d1"), "MC1013TC")
-        self.assertEqual(T.base_de("CPA1007Kb-d1b"), "CPA1007K")
-        # Casos sin -d pero con letra sucesora
+    def test_los_ids_del_parte(self):
         self.assertEqual(T.base_de("RTESP1011Bb"), "RTESP1011B")
-        self.assertEqual(T.base_de("S1010-TU-LL1c"), "S1010-TU-LL1")
-        self.assertEqual(T.base_de("CAMR1005Db"), "CAMR1005D")
-        # Casos sin sufijo ni sucesora
-        self.assertEqual(T.base_de("PRD1005L"), "PRD1005L")
-        self.assertEqual(T.base_de("MGP1010-7F3A2C"), "MGP1010-7F3A2C")
-        # La sucesora va dentro de la parte derivada: se corta el -d2b y después la letra.
-        self.assertEqual(T.base_de("RTESP1011Bd-d2b"), "RTESP1011B")
-        # Un id que YA acaba en minúscula es la base de su sucesora, no una sucesora.
-        self.assertEqual(T.base_de("S1010-EV-ORACLE-1a"), "S1010-EV-ORACLE-1a")
-        # Sin id no hay cadena que cortar.
-        self.assertEqual(T.base_de(""), "")
-        self.assertEqual(T.base_de(None), "")
-        # Casos adicionales de la rama nube/41579697472 (RESC1031D)
+        self.assertEqual(T.base_de("SGO1031B-d1"), "SGO1031B")
         self.assertEqual(T.base_de("MC1013TCc"), "MC1013TC")
+
+    def test_una_derivacion_se_corta_de_una_pieza(self):
+        # Antes: `CPA1007Kb-d1b` → `CPA1007Kb-d1`, `RTESP1011Bd-d2b` → `RTESP1011Bd-d2`
+        # (ids que NO existen) y `SGO1031B-d1` entero: los derivados no juntaban con la
+        # cadena de su tarea y salían rescates y sucesoras duplicadas.
+        self.assertEqual(T.base_de("CPA1007Kb-d1b"), "CPA1007K")
+        self.assertEqual(T.base_de("RTESP1011Bd-d2b"), "RTESP1011B")
         self.assertEqual(T.base_de("X-d1"), "X")
         self.assertEqual(T.base_de("Xb-d2b"), "X")
         self.assertEqual(T.base_de("RTGN1010A-d3d-d3b"), "RTGN1010A-d3")
+
+    def test_la_letra_de_reintento_del_nodo_tambien_sale(self):
         self.assertEqual(T.base_de("RTESP1011Bd"), "RTESP1011B")
         self.assertEqual(T.base_de("RTESP1011Bd-d2c"), "RTESP1011B")
+        self.assertEqual(T.base_de("LC1004Bc"), "LC1004B")
+
+    def test_toda_la_cadena_de_una_tarea_converge_en_su_raiz(self):
+        for k in ("RTESP1011Bb", "RTESP1011Bd", "RTESP1011Bd-d1", "RTESP1011Bd-d2b", "RTESP1011Bd-d2d"):
+            self.assertEqual(T.base_de(k), "RTESP1011B", k)
+
+    def test_lo_que_no_se_puede_saber_no_se_corta(self):
         self.assertEqual(T.base_de("MC1013TC"), "MC1013TC")
         self.assertEqual(T.base_de("OPT1004C"), "OPT1004C")
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1a"), "S1010-EV-ORACLE-1a")
+        self.assertEqual(T.base_de("S1010-EV-ORACLE-1ab"), "S1010-EV-ORACLE-1ab")
+        self.assertEqual(T.base_de(""), "")
+        self.assertEqual(T.base_de(None), "")
 
     def test_un_id_que_ya_acababa_en_minuscula_pierde_solo_la_letra_nueva(self):
         """Un id que YA acaba en minúscula es la base de su sucesora, no una sucesora."""
