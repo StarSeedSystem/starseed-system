@@ -616,3 +616,35 @@ class Ola1103FTest(unittest.TestCase):
 
     def test_reglas_1103(self):
         self.assertTrue(D.firma({}).startswith("1103A|"))
+
+
+class AstrauraSinSustanciaTest(unittest.TestCase):
+    """(2026-11-05) Lo de Astraura 1.58 sin sustancia no llega a Alex como «crítica»: se descarta solo."""
+    def _astraura(self, utilidad, **extra):
+        p = propuesta(fuente="astraura", titulo="Optimización ARM NEON para install_and_run.sh",
+                      cuerpo="Optimizar los bucles con NEON.", importancia_declarada="critica", **extra)
+        if utilidad is not None:
+            p["utilidad"] = utilidad
+        return p
+
+    def test_creacion_sin_sustancia_se_descarta_aunque_sea_critica(self):
+        r = D.automatica(self._astraura(0.05), ajustes(), existe)
+        self.assertEqual(r["destino"], "descartada")
+        self.assertIn("sin sustancia", r["motivo"])
+
+    def test_con_sustancia_sigue_su_camino(self):
+        r = D.automatica(self._astraura(0.9), ajustes(), existe)
+        self.assertNotIn("sin sustancia", r.get("motivo", ""))
+
+    def test_sin_utilidad_medida_no_se_toca(self):
+        r = D.automatica(self._astraura(None), ajustes(), existe)
+        self.assertNotIn("sin sustancia", r.get("motivo", ""))
+
+    def test_otras_fuentes_no_cambian(self):
+        p = propuesta(fuente="agentes", importancia_declarada="critica")
+        p["utilidad"] = 0.05
+        self.assertNotIn("sin sustancia", D.automatica(p, ajustes(), existe).get("motivo", ""))
+
+    def test_con_el_automatico_apagado_no_decide_nada(self):
+        r = D.automatica(self._astraura(0.05), ajustes(automatico=False, aprobar=False, reimaginar=False), existe)
+        self.assertNotEqual(r["destino"], "descartada")

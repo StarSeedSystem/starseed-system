@@ -360,6 +360,10 @@ def ya_autorizada_por_astraura(p):
 #: Investigación, diseño y contenido sustanciales y de bajo riesgo se integran solos desde el suelo de §5.4 (0,6) aunque el
 #: umbral del botón sea mayor. El código de tipo «codigo» sigue con su umbral; lo de Alex, lo alto y lo crítico, nunca.
 UMBRAL_BAJO_RIESGO = UMBRAL_UTIL
+#: (2026-11-05, decisión de Alex) Una creación de Astraura por debajo de esta utilidad no es una tarea: se descarta
+#: sola si la regla de importancia la llama alta o crítica (el 05-11 esperaban así 8 de 20, desde el 25-10); con
+#: importancia baja o media sigue como antes (queda en la lista y la rehace Astraura).
+UMBRAL_BASURA_ASTRAURA = 0.2
 TIPOS_SIN_CODIGO = ("diseno", "contenido", "investigacion")
 INFRA = re.compile(r"\b(?:infraestructura|docker(?:file)?|docker-compose|kubernetes|k8s|launchd|launchctl|crontab|cron|systemd"
                    r"|tunel(?:es)?|tunnel|cloudflared|nginx|coolify|dns|firewall|certificados? ssl|migracion de (?:la )?base de datos"
@@ -523,6 +527,11 @@ def automatica(p, ajustes, existe=None, consejo=None):
     def manual(d, motivo): return {"destino": d, "aprobacion_diff": False, "motivo": motivo, "notas": ""}
     alex = es_de_alex(p)
     if alex: return dict(base, motivo=alex.replace(" → pregunta", "") + ": la decides tú")
+    u_medida = _num(p.get("utilidad"))
+    if (p.get("fuente") == "astraura" and imp in ("alta", "critica") and u_medida is not None
+            and u_medida < UMBRAL_BASURA_ASTRAURA):
+        return manual("descartada", "creación de Astraura sin sustancia (utilidad %s < %s): no llega a tarea aunque se llame «%s»"
+                      % (_coma(round(u_medida, 2)), _coma(UMBRAL_BASURA_ASTRAURA), importancia_visible(imp)))
     if camino == "astraura" and ya_autorizada_por_astraura(p):
         return manual("descartada", "Astraura ya la autorizó y la ejecuta sola (no pide tu aprobación): no hay nada que decidir")
     if imp in ("alta", "critica"):
