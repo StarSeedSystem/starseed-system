@@ -6,6 +6,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { PanelBots } from "../panel-bots";
 
+// (1105 · BOTS) La cápsula de memoria tiene su propia prueba (editor-bot-capsula.test.tsx): aquí se aísla.
+vi.mock("@/components/memorias/capsula-ajustes", () => ({ CapsulaAjustes: () => null }));
 vi.mock("@/components/avatares/cuerpo-3d-bot", () => ({
   Cuerpo3dBot: ({ bot }: { bot: { id: string } }) => <span data-testid="cuerpo-3d" data-bot={bot.id} />,
 }));
