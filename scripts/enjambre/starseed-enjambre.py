@@ -8100,7 +8100,13 @@ def ejecutar(t, intento=1):
         # siguientes no repitan la espera, y Codex sale de la rotación de esta ola.
         if modelo in MODELOS_CODEX and _cupo_codex.agotado_en(out):
             try:
-                minutos = _cupo_codex.anotar("escritura: cuota de ChatGPT agotada")
+                # (SUP0511F) Hasta la hora que da la CLI («try again at Nov 22nd, 2026 7:45 PM»), no 3 h:
+                # cada vuelta antes de tiempo le costaba un intento a una tarea.
+                _horas_cuota = getattr(_cupo_codex, "horas_de_cuota", None)
+                minutos = _cupo_codex.anotar(
+                    "escritura: cuota de ChatGPT agotada",
+                    horas=_horas_cuota(out, time.time()) if _horas_cuota else 3.0,
+                )
             except Exception:
                 minutos = 0
             for _m in list(MODELOS_CODEX):

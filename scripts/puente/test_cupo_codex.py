@@ -179,5 +179,57 @@ class TestModeloVigente(unittest.TestCase):
             os.remove(f.name)
 
 
+
+class TestReinicioQueDaLaCLI(unittest.TestCase):
+    """(SUP0511F, 05-11) La CLI dice cuándo vuelve la cuota y se aparta hasta entonces, no 3 h."""
+
+    #: Literal del log de SUP0511Cb-d1 (05-11, 17:35, gpt-5.6-terra con la cuenta gratuita de ChatGPT).
+    HOY = ("ERROR: You've hit your usage limit. Upgrade to Plus to continue using Codex "
+           "(https://chatgpt.com/explore/plus), or try again at Nov 22nd, 2026 7:45 PM.")
+
+    @staticmethod
+    def local(*t):
+        import time
+        return time.mktime(tuple(t) + (0,) * (6 - len(t)) + (0, 0, -1))
+
+    def test_la_salida_real_del_05_11(self):
+        self.assertTrue(C.agotado_en(self.HOY))
+        self.assertEqual(C.reinicio_en(self.HOY), self.local(2026, 11, 22, 19, 45))
+        horas = C.horas_de_cuota(self.HOY, self.local(2026, 11, 5, 17, 35))
+        self.assertAlmostEqual(horas, 17 * 24 + 2 + 10 / 60.0, places=3)
+
+    def test_sin_fecha_las_tres_horas_de_siempre(self):
+        self.assertIsNone(C.reinicio_en(REAL))
+        self.assertEqual(C.horas_de_cuota(REAL, AHORA), C.HORAS)
+        self.assertEqual(C.horas_de_cuota("", AHORA), C.HORAS)
+        self.assertEqual(C.horas_de_cuota(None, AHORA), C.HORAS)
+
+    def test_una_fecha_ya_pasada_o_casi_tampoco_baja_de_tres_horas(self):
+        self.assertEqual(C.horas_de_cuota(self.HOY, self.local(2026, 11, 23)), C.HORAS)
+        self.assertEqual(C.horas_de_cuota(self.HOY, self.local(2026, 11, 22, 19)), C.HORAS)
+
+    def test_una_fecha_absurda_no_lo_aparta_mas_de_un_mes(self):
+        lejos = self.HOY.replace("2026", "2031")
+        self.assertEqual(C.horas_de_cuota(lejos, self.local(2026, 11, 5)), C.HORAS_TOPE_REINICIO)
+
+    def test_variantes_de_la_fecha(self):
+        self.assertEqual(C.reinicio_en("try again on Dec 1, 2026"), self.local(2026, 12, 1))
+        self.assertEqual(C.reinicio_en("or try again at December 3rd, 2026 12:05 AM."), self.local(2026, 12, 3, 0, 5))
+        self.assertEqual(C.reinicio_en("TRY AGAIN AT Jan 9th 2027 12:30 pm"), self.local(2027, 1, 9, 12, 30))
+        self.assertEqual(C.reinicio_en("try again at Sep. 4th, 2026, 9:15 a.m."), self.local(2026, 9, 4, 9, 15))
+        self.assertIsNone(C.reinicio_en("try again at Foo 4th, 2026 9:15 AM"))
+        self.assertIsNone(C.reinicio_en("try again later"))
+
+    def test_la_marca_dura_hasta_la_fecha_de_la_cli(self):
+        import tempfile
+        ruta = os.path.join(tempfile.mkdtemp(), "codex-cupo.json")
+        ahora = self.local(2026, 11, 5, 17, 35)
+        minutos = C.anotar("escritura: cuota de ChatGPT agotada", ruta=ruta, ahora=ahora,
+                           horas=C.horas_de_cuota(self.HOY, ahora))
+        self.assertEqual(minutos, (17 * 24 + 2) * 60 + 10)
+        self.assertFalse(C.puede_escribir(ruta=ruta, ahora=self.local(2026, 11, 22, 19, 40)))
+        self.assertTrue(C.puede_escribir(ruta=ruta, ahora=self.local(2026, 11, 22, 19, 46)))
+
+
 if __name__ == "__main__":
     unittest.main()

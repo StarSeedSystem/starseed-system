@@ -32,6 +32,7 @@ Todo aquí es puro: texto, números y un reloj que se pasa como argumento.
 
 import json
 import os
+import re
 import time
 
 #: Dónde se recuerda. Fuera del repo: es estado de esta máquina, no del proyecto.
@@ -81,6 +82,48 @@ def sin_modelo_en(salida):
     """
     b = (salida or "").lower()
     return any(p in b for p in PISTAS_SIN_MODELO)
+
+
+#: (SUP0511F, 05-11) Desde noviembre la CLI SÍ dice cuándo vuelve: «You've hit your usage limit. Upgrade to
+#: Plus to continue using Codex (…), or try again at Nov 22nd, 2026 7:45 PM.» Con las 3 h de siempre, el
+#: enjambre lo volvía a probar cada 3 h hasta esa fecha y cada vuelta le costaba un intento a una tarea
+#: (SUP0511Cb-d1 a las 17:35, «sin cambios con codex (3/5)»).
+_MESES = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+          "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}
+_REINTENTA = re.compile(
+    r"try again (?:at|on) ([a-z]{3})[a-z]*\.? (\d{1,2})(?:st|nd|rd|th)?,? (\d{4})"
+    r"(?:,? (?:at )?(\d{1,2}):(\d{2})\s*([ap])\.?m\.?)?",
+    re.IGNORECASE)
+
+#: Lo más que se aparta por una fecha leída: una fecha absurda no lo deja fuera para siempre.
+HORAS_TOPE_REINICIO = 31 * 24
+
+
+def reinicio_en(salida):
+    """PURA (salvo la zona horaria): el epoch de «try again at <Mes> <día>, <año> <h>:<mm> AM/PM» en la hora
+    local de la Mac, que es la que escribe la CLI; None si la salida no trae fecha."""
+    m = _REINTENTA.search(salida or "")
+    if not m:
+        return None
+    mes = _MESES.get(m.group(1).lower())
+    if not mes:
+        return None
+    hora, minuto = (int(m.group(4)), int(m.group(5))) if m.group(4) else (0, 0)
+    if m.group(6):
+        hora = hora % 12 + (12 if m.group(6).lower() == "p" else 0)
+    try:
+        return time.mktime((int(m.group(3)), mes, int(m.group(2)), hora, minuto, 0, 0, 0, -1))
+    except (OverflowError, ValueError):
+        return None
+
+
+def horas_de_cuota(salida, ahora):
+    """Cuánto apartar a Codex tras un agotamiento: hasta la hora que da la CLI, entre `HORAS` y
+    `HORAS_TOPE_REINICIO`; sin fecha legible (o ya pasada), `HORAS` como siempre."""
+    reinicio = reinicio_en(salida)
+    if reinicio is None:
+        return HORAS
+    return min(max((reinicio - float(ahora)) / 3600.0, HORAS), float(HORAS_TOPE_REINICIO))
 
 
 def hasta_cuando(ahora, horas=HORAS):
