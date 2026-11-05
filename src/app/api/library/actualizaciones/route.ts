@@ -24,6 +24,12 @@ import {
     type EstadoActualizacion,
     type PayloadActualizacion,
 } from "@/lib/library/actualizaciones";
+import {
+    loteAConsultar,
+    fusionar,
+    type EntradaFuente,
+    type Conocida,
+} from "@/lib/library/rotacion-actualizaciones";
 import { fichasProtomolecula, type VersionProto } from "@/lib/protomolecula/biblioteca-protomolecula";
 import { CATALOGO_PROTOMOLECULA } from "@/lib/protomolecula/catalogo-herramientas";
 
