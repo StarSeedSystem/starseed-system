@@ -62,6 +62,16 @@ export type TipoRespuesta =
 
 export type TiempoMaximo = "5s" | "15s" | "30s" | "1min" | "3min" | "sin_limite";
 
+/** Revisión con peces (EGM, Ola 1104R): `creaciones` revisa solo lo que se
+ *  crea (apps, páginas, publicaciones, planes); `siempre` revisa todo, también
+ *  la charla; `nunca` no revisa nada. Defecto: `creaciones`. */
+export type RevisionPeces = "creaciones" | "siempre" | "nunca";
+
+/** Interfaz viva de OpenUI (Ola 1104R): `auto` la usa cuando la respuesta
+ *  trae datos, pasos o comparaciones; `viva` la fuerza siempre; `texto` la
+ *  apaga siempre. Defecto: `auto`. */
+export type InterfazRespuesta = "auto" | "viva" | "texto";
+
 /** Un control con su PROPIO interruptor «Automático» (Adenda «Más ajustes»). */
 export interface ControlAjuste<T> {
   /** true (por defecto) = ignora `valor`, este control no aporta nada. */
@@ -75,12 +85,25 @@ export interface AjustesManualRespuesta {
   esfuerzo: ControlAjuste<NivelEsfuerzo>;
   tipo: ControlAjuste<TipoRespuesta>;
   tiempo: ControlAjuste<TiempoMaximo>;
+  /** Opcional para no romper ajustes ya guardados sin este campo (defecto:
+   *  `creaciones`). No es un `ControlAjuste`: su propio valor ya incluye el
+   *  comportamiento automático. */
+  revisionPeces?: RevisionPeces;
+  /** Opcional por la misma razón (defecto: `auto`). */
+  interfaz?: InterfazRespuesta;
 }
 
 /** Contexto opcional del turno — reservado para matices futuros (p.ej. si la
  *  voz en vivo ya está sonando). Hoy no cambia el resultado: aditivo. */
 export interface ContextoResolucionAjustes {
   vozActiva?: boolean;
+}
+
+/** Señales del contenido que ya generó el turno, para decidir la interfaz viva. */
+export interface ContextoInterfazViva {
+  tieneDatos: boolean;
+  tienePasos: boolean;
+  tieneComparacion: boolean;
 }
 
 export interface PistaDeRuta {
@@ -197,6 +220,24 @@ export const TIEMPOS_MAXIMOS: Readonly<Record<TiempoMaximo, TiempoMaximoDef>> = 
   sin_limite: { etiqueta: "sin límite", ms: undefined },
 };
 
+// ── Catálogos de revisión e interfaz (Ola 1104R) ────────────────────────────
+
+export const ORDEN_REVISION_PECES: readonly RevisionPeces[] = ["creaciones", "siempre", "nunca"];
+
+export const ETIQUETAS_REVISION_PECES: Readonly<Record<RevisionPeces, string>> = {
+  creaciones: "Creaciones",
+  siempre: "Siempre",
+  nunca: "Nunca",
+};
+
+export const ORDEN_INTERFAZ: readonly InterfazRespuesta[] = ["auto", "viva", "texto"];
+
+export const ETIQUETAS_INTERFAZ: Readonly<Record<InterfazRespuesta, string>> = {
+  auto: "Automática",
+  viva: "Interfaz viva",
+  texto: "Solo texto",
+};
+
 // ── Valores por defecto ──────────────────────────────────────────────────────
 
 /** Los tres controles en «Automático» — estado inicial del popover. */
@@ -205,6 +246,8 @@ export function ajustesAutomaticosPorDefecto(): AjustesManualRespuesta {
     esfuerzo: { auto: true, valor: "equilibrado" },
     tipo: { auto: true, valor: "auto" },
     tiempo: { auto: true, valor: "30s" },
+    revisionPeces: "creaciones",
+    interfaz: "auto",
   };
 }
 
@@ -223,6 +266,60 @@ export const AJUSTES_RESUELTOS_AUTOMATICOS: AjustesResueltos = Object.freeze({
  *  y si hay algo que "recordar para este chat"). */
 export function esTodoAutomatico(m: AjustesManualRespuesta): boolean {
   return m.esfuerzo.auto && m.tipo.auto && m.tiempo.auto;
+}
+
+// ── Decisiones puras de la Ola 1104R ────────────────────────────────────────
+
+/** Tareas que cuentan como «creación» para la revisión con peces. Se aceptan
+ *  singular/plural y se normalizan mayúsculas y acentos. */
+const TAREAS_DE_CREACION: ReadonlySet<string> = new Set([
+  "app", "apps", "aplicacion", "aplicaciones",
+  "pagina", "paginas", "publicacion", "publicaciones",
+  "plan", "planes", "creacion", "creaciones",
+]);
+
+function normalizarTipoDeTarea(tipoDeTarea: string): string {
+  return tipoDeTarea
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+/** ¿La tarea es una creación (app, página, publicación o plan)? La charla y
+ *  cualquier tarea desconocida NO lo son. */
+export function esTareaDeCreacion(tipoDeTarea: string): boolean {
+  return TAREAS_DE_CREACION.has(normalizarTipoDeTarea(tipoDeTarea));
+}
+
+/**
+ * ¿Toca revisar el artefacto con peces antes de darlo por bueno?
+ * `creaciones` (defecto) solo para apps/páginas/publicaciones/planes; `siempre`
+ * para todo (incluida la charla); `nunca` para nada.
+ */
+export function debeRevisarConPeces(
+  ajustes: Pick<AjustesManualRespuesta, "revisionPeces">,
+  tipoDeTarea: string,
+): boolean {
+  const modo = ajustes.revisionPeces ?? "creaciones";
+  if (modo === "siempre") return true;
+  if (modo === "nunca") return false;
+  return esTareaDeCreacion(tipoDeTarea);
+}
+
+/**
+ * ¿Se pinta la respuesta con interfaz viva (OpenUI) en vez de texto plano?
+ * `auto` (defecto) solo cuando hay datos, pasos o comparaciones; `viva` siempre;
+ * `texto` nunca.
+ */
+export function debeUsarInterfazViva(
+  ajustes: Pick<AjustesManualRespuesta, "interfaz">,
+  contexto: ContextoInterfazViva,
+): boolean {
+  const modo = ajustes.interfaz ?? "auto";
+  if (modo === "viva") return true;
+  if (modo === "texto") return false;
+  return contexto.tieneDatos || contexto.tienePasos || contexto.tieneComparacion;
 }
 
 // ── Resolución ───────────────────────────────────────────────────────────────
