@@ -166,7 +166,18 @@ export function ActualizacionNativa() {
 
         if (hayNuevaVersionAndroid(instalada, release)) {
           const apk = elegirApkAndroid(release);
-          if (apk) setAndroidAviso({ version: apk.version, href: apk.href });
+          if (apk) {
+            setAndroidAviso({ version: apk.version, href: apk.href });
+            // Auto-abrir el instalador APK en el sistema
+            const tauri = leerTauriGlobal();
+            if (tauri?.core?.invoke) {
+              try {
+                void tauri.core.invoke("shell:open", { fileUrl: apk.href });
+              } catch {
+                /* noop: si falla el invoke, mostramos el aviso para que el usuario lo abra */
+              }
+            }
+          }
         }
       } catch {
         /* nunca rompe la app */

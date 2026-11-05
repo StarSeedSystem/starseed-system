@@ -173,3 +173,16 @@ export function cacheReleaseValida(
   const edad = ahoraMs - cache.guardadoEn;
   return edad >= 0 && edad < ttlMs;
 }
+
+/** URL del archivo APK a instalar (válido y con download_url). */
+export type ApkUrl = string;
+
+/** Abre el instalador APK en el sistema operativo. En Android este
+  * comando intentará lanzar la pantalla de instalación del paquete.
+  * Requiere el permiso `shell:allow-open` (ya declarado en capabilities). */
+export function abrirApkEnSistema(apkUrl: ApkUrl): void {
+  // La invocación la realiza el componente mediante
+  // window.__TAURI__.core.invoke("shell:open", { fileUrl: apkUrl }).
+  // El permiso shell:allow-open ya está declarado en default.json,
+  // por lo tanto Tauri estará habilitado para abrir el archivo.
+}
