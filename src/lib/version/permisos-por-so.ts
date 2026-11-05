@@ -11,9 +11,13 @@ export interface PermisoSO {
 
 export interface ConfigSO {
   versionMinima: string;
- arquitecturas: string[];
+  arquitecturas: string[];
   permisos: PermisoSO[];
   noPermiteSistema?: string[];
+}
+
+export function tipo(so: SistemaOperativo): ConfigSO {
+  return permisosDe(so);
 }
 
 export function permisosDe(so: SistemaOperativo): ConfigSO {
