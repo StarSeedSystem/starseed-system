@@ -6,7 +6,15 @@
  * dependencia (`buscar`) para que sea testeable. Sin red, sin disco, sin procesos.
  */
 import { describe, expect, it, vi } from "vitest";
-import { recordarDeCapsulas, type RecordarOpciones, type BuscarCapsulaFn, type AciertoCapsula } from "@/ai/astraura/recuerdos-capsulas";
+import {
+  recordar,
+  recordarDeCapsulas,
+  type RecordarOpciones,
+  type BuscarCapsulaFn,
+  type BuscarLeannFn,
+  type AciertoCapsula,
+  type AciertoLeannSuelto,
+} from "@/ai/astraura/recuerdos-capsulas";
 import { type ContextoCapsulas, type SujetoMemoria, capsulaDe } from "@/lib/memorias/capsulas";
 import { type ActorMemoria, type AlcanceMemoria } from "@/lib/nucleo/alcance-memoria";
 
@@ -567,6 +575,118 @@ describe("recordarDeCapsulas", () => {
       const idxGrupo = r.indexOf("De grupo");
       expect(idxPersonalidad).toBeLessThan(idxPerfil);
       expect(idxPerfil).toBeLessThan(idxGrupo);
+    });
+  });
+
+  describe("recordar: fusión de Memvid y LEANN (LNN1028F)", () => {
+    const consulta = "¿qué dijimos del café?";
+
+    function buscarMemvid(texto: string, alcance: AlcanceMemoria = "personal"): BuscarCapsulaFn {
+      return async (sujeto) => [{
+        titulo: "Memvid", texto, uri: `mv2://${sujeto.tipo}/${sujeto.id}/1`,
+        ts: Date.now(), alcance, sujeto,
+      }];
+    }
+
+    function buscarLeannFake(aciertos: AciertoLeannSuelto[]): BuscarLeannFn {
+      return async () => aciertos;
+    }
+
+    it("cuando responden los dos, etiqueta «memoria + significado»", async () => {
+      const buscarLeann = vi.fn(buscarLeannFake([
+        { id: "l1", texto: "Planes del café del viernes.", metadatos: { alcance: "personal" } },
+      ]));
+      const r = await recordar({
+        consulta,
+        contexto: contextoBase,
+        buscar: buscarMemvid("Café con Marta el jueves."),
+        buscarLeann,
+      });
+
+      expect(r).toContain("RECUERDOS (memoria + significado):");
+      expect(r).toContain("Café con Marta el jueves.");
+      expect(r).toContain("Planes del café del viernes.");
+      expect(buscarLeann).toHaveBeenCalledWith(
+        "personalidad-aurora-personal",
+        consulta,
+        expect.objectContaining({
+          k: 4,
+          filtros: { alcance: { in: ["personal", "perfil", "grupo", "publica"] } },
+          pesoVector: 0.7,
+        }),
+      );
+    });
+
+    it("cuando solo responde LEANN, etiqueta «significado LEANN»", async () => {
+      const r = await recordar({
+        consulta,
+        contexto: contextoBase,
+        buscar: async () => null,
+        buscarLeann: buscarLeannFake([
+          { id: "l1", texto: "El café de la esquina cambió de dueño.", metadatos: { alcance: "perfil" } },
+        ]),
+      });
+
+      expect(r).toContain("RECUERDOS (significado LEANN):");
+      expect(r).toContain("El café de la esquina cambió de dueño.");
+    });
+
+    it("cuando solo responde Memvid, etiqueta «cápsulas Memvid»", async () => {
+      const r = await recordar({
+        consulta,
+        contexto: contextoBase,
+        buscar: buscarMemvid("Café con Marta el jueves."),
+        buscarLeann: async () => null,
+      });
+
+      expect(r).toContain("RECUERDOS (cápsulas Memvid):");
+      expect(r).toContain("Café con Marta el jueves.");
+    });
+
+    it("cuando no responde ninguno, devuelve cadena vacía", async () => {
+      const r = await recordar({
+        consulta,
+        contexto: contextoBase,
+        buscar: async () => null,
+        buscarLeann: async () => [],
+      });
+
+      expect(r).toBe("");
+    });
+
+    it("consulta corta sin pregunta: no gasta ni una búsqueda", async () => {
+      const buscar = vi.fn(async () => []);
+      const buscarLeann = vi.fn(async () => []);
+      const r = await recordar({ consulta: "café", contexto: contextoBase, buscar, buscarLeann });
+
+      expect(r).toBe("");
+      expect(buscar).not.toHaveBeenCalled();
+      expect(buscarLeann).not.toHaveBeenCalled();
+    });
+
+    it("un agente de grupo no ve lo personal que devuelva LEANN", async () => {
+      const r = await recordar({
+        consulta,
+        contexto: { ...contextoBase, actor: actorGrupo },
+        buscar: async () => null,
+        buscarLeann: async () => [
+          { id: "l1", texto: "Secreto personal del café.", metadatos: { alcance: "personal" } },
+          { id: "l2", texto: "Reunión del grupo sobre el café.", metadatos: { alcance: "grupo" } },
+        ],
+      });
+
+      expect(r).toContain("Reunión del grupo sobre el café.");
+      expect(r).not.toContain("Secreto personal del café.");
+    });
+
+    it("acepta la forma posicional recordar(contexto, consulta, opciones)", async () => {
+      const r = await recordar(
+        contextoBase,
+        consulta,
+        { buscarLeann: buscarLeannFake([{ id: "l1", texto: "Café de la posicional.", metadatos: { alcance: "personal" } }]) },
+      );
+
+      expect(r).toContain("Café de la posicional.");
     });
   });
 });
