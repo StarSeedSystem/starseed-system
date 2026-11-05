@@ -48,7 +48,7 @@ export function validarPeticion(body: unknown): PeticionLanzamiento | { error: s
   const p = body as PeticionLanzamiento;
   const accionesValidas = ["lanzar", "pausar", "reanudar", "reintentar", "regenerar", "auto"];
   if (!p.accion || !accionesValidas.includes(p.accion)) return { error: "Acción inválida" };
-  if (["reintentar", "regenerar"].includes(p.accion) && !p.medio) return { error: "Medio requerido" };
+  if (p.accion === "regenerar" && !p.medio) return { error: "Medio requerido" };
   if (p.accion === "auto" && typeof p.activo !== "boolean") return { error: "Campo 'activo' requerido para 'auto'" };
   return p;
 }
