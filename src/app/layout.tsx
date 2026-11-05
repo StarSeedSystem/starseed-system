@@ -101,6 +101,7 @@ import { RegisterSW } from "@/components/pwa/register-sw";
 // UpdateBanner retirado (era para el contenido WEB, que register-sw ya
 // aplica solo) — ver el comentario en aurora-provider.tsx.
 import { ActualizacionNativa } from "@/components/pwa/actualizacion-nativa";
+import { AvisoActualizacion } from "@/components/actualizaciones/aviso-actualizacion";
 // Núcleo intocable (Ola 307): registra `validarUiSpec` + `validarContraInvariantes`
 // en `@/lib/nucleo/paquete-sistema`. Sin este cableado, `revisar` falla CERRADO
 // («nucleo-configurado») y ningún paquete compartido sería instalable.
@@ -270,6 +271,7 @@ export default function RootLayout({
             Defensivo y sin UI; se omite en dev salvo NEXT_PUBLIC_ENABLE_SW=1. */}
         <RegisterSW />
         <ActualizacionNativa />
+        <AvisoActualizacion />
         {/* Núcleo intocable cableado en el ARRANQUE: deja registrados los dos
             guardianes (UiSpec + invariantes) que revisan cualquier paquete
             compartido antes de instalarlo. Sin UI, idempotente, SSR-safe. */}
