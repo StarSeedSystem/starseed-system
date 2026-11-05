@@ -716,5 +716,80 @@ class TopeDeRescates(unittest.TestCase):
         self.assertEqual(acciones_de(dec, self.HONDO)[0]["accion"], "ya_hecha")
 
 
+class RechazoMecanico(unittest.TestCase):
+    """REV1105A: Rechazo mecánico de las puertas («no toco NINGUNO de los») se repara solo."""
+
+    def test_rechazo_mecanico_se_reescribe_con_avisos(self):
+        """Una 'rechazada' con nota 'no toco NINGUNO de los archivos...' se reescribe como tarea:alcance."""
+        tareas = [T("MTN1027L2d", archivos=["src/app/api/aurora/router.ts", "src/lib/x.ts"])]
+        prog = {"MTN1027L2d": {"estado": "rechazada", "nota": "no toco NINGUNO de los 2 archivos que declaraba", "t": _t(60)}}
+        dec = L.decidir(foto(tareas, prog))
+        a = acciones_de(dec, "MTN1027L2d")
+        self.assertEqual(len(a), 1)
+        self.assertEqual(a[0]["accion"], "reescribir")
+        self.assertEqual(a[0]["clase"], "tarea:alcance")
+        self.assertTrue(a[0]["datos"]["no_cuenta"])
+        msg = a[0]["datos"]["mensaje"]
+        self.assertIn("si su propósito ya está en main, responde NO APLICA y no toques nada", msg)
+        self.assertIn("Aviso 2/2", msg)
+
+    def test_rechazo_mecanico_archivo_no_existe_ruta_real_unica(self):
+        """Si un archivo declarado no existe y hay un único homónimo en archivos_reales, se indica la ruta real."""
+        tareas = [T("SGO1031B-d2", archivos=["src/app/api/aurora/router.ts"])]
+        prog = {"SGO1031B-d2": {"estado": "rechazada", "nota": "no toco NINGUNO de los 1 archivos que declaraba", "t": _t(60)}}
+        # El archivo real es src/ai/astraura/router.ts (mismo nombre 'router.ts')
+        f = foto(tareas, prog, archivos_reales={"src/app/api/aurora/router.ts": "src/ai/astraura/router.ts"})
+        dec = L.decidir(f)
+        a = acciones_de(dec, "SGO1031B-d2")
+        self.assertEqual(a[0]["accion"], "reescribir")
+        msg = a[0]["datos"]["mensaje"]
+        self.assertIn("ruta real candidata: src/ai/astraura/router.ts", msg)
+
+    def test_rechazo_mecanico_archivo_no_existe_varios_candidatos(self):
+        """Si hay varios homónimos, se avisa de que hay varios candidatos."""
+        tareas = [T("TEST1", archivos=["router.ts"])]
+        prog = {"TEST1": {"estado": "rechazada", "nota": "no toco NINGUNO de los 1 archivos que declaraba", "t": _t(60)}}
+        f = foto(tareas, prog, archivos_reales={"router.ts": ["src/a/router.ts", "src/b/router.ts"]})
+        dec = L.decidir(f)
+        a = acciones_de(dec, "TEST1")
+        msg = a[0]["datos"]["mensaje"]
+        self.assertIn("varios candidatos", msg)
+
+    def test_rechazo_mecanico_tercera_vez_escala_a_codex(self):
+        """A la tercera reescritura por rechazo mecánico, se escala a Codex (pedir_a_alex)."""
+        tareas = [T("MTN1027L2c", archivos=["src/x.ts"])]
+        prog = {"MTN1027L2c": {"estado": "rechazada", "nota": "no toco NINGUNO de los 1 archivos que declaraba", "t": _t(10)}}
+        # Historial con 2 reescrituras previas por rechazo mecánico en la misma cadena
+        hist = [
+            {"t": _t(200), "tid": "MTN1027L2c", "accion": "reescribir", "clase": "tarea:alcance", "motivo": "rechazo mecánico..."},
+            {"t": _t(100), "tid": "MTN1027L2c", "accion": "reescribir", "clase": "tarea:alcance", "motivo": "rechazo mecánico..."},
+        ]
+        dec = L.decidir(foto(tareas, prog, memoria={"historial": hist}))
+        a = acciones_de(dec, "MTN1027L2c")
+        self.assertEqual(a[0]["accion"], "pedir_a_alex")
+        self.assertIn("escala a Codex", a[0]["motivo"])
+        self.assertIn("escalar_a_codex", a[0]["datos"]["opciones"])
+
+    def test_rechazo_decision_sin_nota_mecanica_no_se_toca(self):
+        """Una 'rechazada' con OTRA nota (decisión con motivo) NO se reabre: sigue igual."""
+        tareas = [T("DEC1", archivos=["src/x.ts"])]
+        prog = {"DEC1": {"estado": "rechazada", "nota": "Alex decidió descartar: fuera de alcance", "t": _t(60)}}
+        dec = L.decidir(foto(tareas, prog))
+        a = acciones_de(dec, "DEC1")
+        self.assertEqual(len(a), 0)  # no hay acción: se salta en el continue
+
+    def test_rechazo_mecanico_dependencia_sigue_viva(self):
+        """Una tarea que depende de una 'rechazada' por rechazo mecánico NO se relaja: la dependencia sigue viva."""
+        tareas = [T("MTN1027L2d", archivos=["src/x.ts"]), T("DEP1", ["MTN1027L2d"], archivos=["src/y.ts"])]
+        prog = {"MTN1027L2d": {"estado": "rechazada", "nota": "no toco NINGUNO de los 1 archivos que declaraba", "t": _t(60)}}
+        dec = L.decidir(foto(tareas, prog))
+        # MTN1027L2d se reescribe (acción reescribir)
+        a_mtn = acciones_de(dec, "MTN1027L2d")
+        self.assertEqual(a_mtn[0]["accion"], "reescribir")
+        # DEP1 está en cadena esperando a MTN1027L2d (que ahora está viva)
+        self.assertIn("DEP1", dec["en_cadena"])
+        self.assertEqual(dec["en_cadena"]["DEP1"]["raiz"], "MTN1027L2d")
+
+
 if __name__ == "__main__":
     unittest.main()

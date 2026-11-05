@@ -51,7 +51,12 @@ CUMPLIDOS = frozenset({"commit", "hecho", "hecha", "integrada"})
 #: Cerradas sin código que esperar: no son trabajo pendiente ni desperdicio.
 CERRADOS = CUMPLIDOS | frozenset({"informe", "sustituida", "reasignada", "descartada"})
 #: Cerradas por una DECISIÓN con motivo (de la dirección o de Alex): no se reabren solas.
-DECIDIDOS = frozenset({"rechazada"})
+#: "rechazada" NO está aquí incondicionalmente: solo las que NO son rechazo mecánico cuentan como decididas.
+DECIDIDOS = frozenset({})
+#: Patrón de rechazo MECÁNICO de las puertas (no tocó sus archivos): se repara solo.
+_RECHAZO_MECANICO = re.compile(r"^no toco NINGUNO de los", re.I)
+#: Tope de reescrituras por rechazo mecánico por cadena antes de escalar a Codex.
+TOPE_RECHAZO_MECANICO = 2
 TRABAJANDO = frozenset({"en_curso"})
 #: Las que esperan un visto bueno: las lleva el desatascador, no este revisor.
 EN_APROBACION = frozenset({"esperando_aprobacion", "pendiente_aprobacion"})
@@ -448,8 +453,9 @@ def estado_de_dependencia(dep: str, progreso: Dict[str, Any], tareas: Dict[str, 
     """('cumplida'|'viva'|'muerta'|'desconocida', por dónde va) de UNA dependencia, por su CADENA.
 
     «viva» incluye lo que falló y aún tiene arreglo (la retoman la escalera o este revisor):
-    con la regla nueva nada muere solo. Muere lo rechazado por una decisión, lo sustituido sin
-    sucesora y lo que no existe en ninguna cola ni en el progreso."""
+    con la regla nueva nada muere solo. Muere lo rechazado por una DECISIÓN, lo sustituido sin
+    sucesora y lo que no existe en ninguna cola ni en el progreso.
+    Un rechazo MECÁNICO (no tocó archivos) NO es una decisión: la tarea se reescribe y sigue viva."""
     est = _estado(progreso, dep)
     if est in CUMPLIDOS or est == "informe" or id_en_asuntos(dep, asuntos):
         return "cumplida", "integrada en main"
@@ -467,6 +473,12 @@ def estado_de_dependencia(dep: str, progreso: Dict[str, Any], tareas: Dict[str, 
     if est in QUIETOS:
         nota = str((progreso.get(dep) or {}).get("nota") or "")
         return "viva", "%s (%s): la retoma el revisor" % (est, clase_de_fallo(nota))
+    # Rechazada: distinguir entre decisión (muerta) y rechazo mecánico (viva, se reescribe).
+    if est == "rechazada":
+        nota = str((progreso.get(dep) or {}).get("nota") or "")
+        if es_rechazo_mecanico(nota):
+            return "viva", "rechazo mecánico de las puertas: se reescribe como tarea:alcance"
+        return "muerta", "rechazada por decisión sin sucesora"
     reap = (progreso.get(dep) or {}).get("reapertura") if isinstance(progreso.get(dep), dict) else None
     if est == "pendiente" and isinstance(reap, dict):
         return "viva", "falló (%s) a las %s; la escalera la vuelve a poner en la tanda" % (
@@ -475,7 +487,7 @@ def estado_de_dependencia(dep: str, progreso: Dict[str, Any], tareas: Dict[str, 
         if dep in (tareas or {}) or est == "pendiente":
             return "viva", "pendiente en cola"
         return "desconocida", "no está en ninguna cola ni en el progreso"
-    if est in DECIDIDOS or est in CERRADOS:
+    if est in CERRADOS:
         return "muerta", "%s sin sucesora" % est
     return "viva", est
 
@@ -538,6 +550,22 @@ def transformaciones_recientes(memoria: Dict[str, Any], tid: str, ahora: float) 
     return [h for h in hist if isinstance(h, dict) and _raiz_de_cadena(h.get("tid")) == raiz
             and h.get("accion") not in ACCIONES_DEL_MEDIO
             and ahora - _t_epoch(h.get("t")) < VENTANA_TOPE_S]
+
+
+def es_rechazo_mecanico(nota: str) -> bool:
+    """¿La nota de una tarea 'rechazada' es un rechazo MECÁNICO de las puertas (no tocó archivos)?"""
+    return bool(_RECHAZO_MECANICO.search(str(nota or "")))
+
+
+def rechazos_mecanicos_en_cadena(memoria: Dict[str, Any], tid: str) -> int:
+    """Cuántas veces se ha reescrito esta cadena por rechazo mecánico (acción 'reescribir' con clase 'tarea:alcance')."""
+    raiz = _raiz_de_cadena(tid)
+    hist = (memoria or {}).get("historial") or []
+    return sum(1 for h in hist if isinstance(h, dict)
+               and _raiz_de_cadena(h.get("tid")) == raiz
+               and h.get("accion") == "reescribir"
+               and h.get("clase") == "tarea:alcance"
+               and h.get("motivo", "").startswith("rechazo mecánico"))
 
 
 def tasa(aprendizaje: Dict[str, Any], clase: str, accion: str) -> float:
@@ -739,6 +767,69 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
         nota = str(entrada.get("nota") or "")
         if est in CERRADOS or est in DECIDIDOS or est in TRABAJANDO or est in EN_APROBACION:
             continue
+
+        # 0-rechazo-mecanico) Tarea "rechazada" por las puertas (nota empieza por "no toco NINGUNO de los"):
+        # no es una decisión de la dirección ni de Alex; se repara como "tarea:alcance" con acción "reescribir".
+        if est == "rechazada" and es_rechazo_mecanico(nota):
+            cuenta = rechazos_mecanicos_en_cadena(memoria, tid)
+            if cuenta >= TOPE_RECHAZO_MECANICO:
+                # Tercera vez: escalar a Codex (acción "pedir_a_alex" con opción de escalar).
+                acciones.append(_accion(
+                    tid, "pedir_a_alex",
+                    "rechazo mecánico de las puertas (%dª vez): se escala a Codex" % (cuenta + 1),
+                    "tarea:alcance",
+                    pregunta="%s lleva %d reescrituras por rechazo mecánico y sigue sin salir. ¿La escalamos a Codex?"
+                    % (tid, cuenta),
+                    opciones=["escalar_a_codex", "descartar"]))
+                tocadas.add(tid)
+                continue
+            # Construir el mensaje con los dos avisos requeridos.
+            archivos_declarados = _archivos(t)
+            avisos = [
+                "⚠️  Aviso 1/2: si su propósito ya está en main, responde NO APLICA y no toques nada.",
+            ]
+            # Para cada archivo declarado que no existe, buscar la ruta real candidata.
+            archivos_faltantes = []
+            for af in archivos_declarados:
+                # La foto puede traer un mapa de archivos existentes: "archivos_reales" -> {declared: real_path or None}
+                # Si no está, asumimos que el archivo no existe y avisamos.
+                candidatos = foto.get("archivos_reales", {}).get(af)
+                if candidatos is None:
+                    # No hay info: no existe o no sabemos.
+                    archivos_faltantes.append((af, "no existe en disco (ni en el mapa de archivos_reales)"))
+                elif isinstance(candidatos, str):
+                    # Un único candidato real.
+                    if candidatos != af:
+                        archivos_faltantes.append((af, "ruta real candidata: %s" % candidatos))
+                elif isinstance(candidatos, list):
+                    if len(candidatos) == 1:
+                        if candidatos[0] != af:
+                            archivos_faltantes.append((af, "ruta real candidata: %s" % candidatos[0]))
+                    else:
+                        archivos_faltantes.append((af, "varios candidatos (%d): %s" % (len(candidatos), ", ".join(candidatos[:5]))))
+            for af, info in archivos_faltantes:
+                avisos.append("⚠️  Aviso 2/2 (archivo %s): %s." % (af, info))
+            if not archivos_faltantes:
+                avisos.append("⚠️  Aviso 2/2: todos los archivos declarados existen en su ruta.")
+
+            mensaje_extra = "\n".join(avisos)
+            acciones.append(_accion(
+                tid, "reescribir",
+                "rechazo mecánico de las puertas (no tocó NINGUNO de sus %d archivo(s)): se reescribe como tarea:alcance"
+                % len(archivos_declarados),
+                "tarea:alcance",
+                **enlistar(tid, {
+                    "estado": "pendiente",
+                    "mensaje": _mensaje_contexto(tid, "tarea:alcance", nota, foto) + "\n\n" + mensaje_extra,
+                    "no_cuenta": True,  # no gasta intento hacia el tope de transformaciones
+                })))
+            tocadas.add(tid)
+            continue
+
+        # Rechazada con OTRA nota (decisión con motivo): NO se reabre sola.
+        if est == "rechazada":
+            continue
+
         est_disco = _estado(progreso_disco, tid) or est
 
         # 0-hermana) (2026-10-21) Un rescate de pruebas cuya HERMANA (misma rama archivada y mismos
