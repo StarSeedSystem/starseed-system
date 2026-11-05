@@ -65,7 +65,8 @@ MINIMO_LIBRE_GB = 5.0
 MINIMO_DURANTE_GB = float(os.environ.get("STARSEED_MINIMO_DURANTE_GB", "1.5"))
 #: Lo que de verdad entra en el build. `scripts/` y `starseed_memory_root/` NO están:
 #: cambian cada minuto por el propio enjambre y reconstruirían la pantalla sin motivo.
-FUENTES = ("src", "public")
+#: (1104 · AH) Y `config/`: src/ importa sus JSON (tandas de la Librería, capas…) y entran en el build.
+FUENTES = ("src", "public", "config")
 #: (2026-09-25) También los .env: Next INCRUSTA las NEXT_PUBLIC_* en el paquete del
 #: navegador al compilar. Cambiar de proyecto de Supabase en `.env.local` sin rehacer la
 #: build dejaba la pantalla llamando al proyecto viejo (restringido) desde el navegador.

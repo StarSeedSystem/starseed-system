@@ -113,6 +113,10 @@ class NoReconstruyePorLoQueNoCompila(unittest.TestCase):
         self.assertNotIn("scripts", R.FUENTES)
         self.assertNotIn("starseed_memory_root", R.FUENTES)
 
+    def test_los_json_de_config_que_importa_src_si_cuentan(self):
+        # (1104 · AH) config/repos-libreria-*.json entra en el build por importación estática.
+        self.assertIn("config", R.FUENTES)
+
     def test_el_build_anterior_no_se_cuenta_como_fuente(self):
         self.assertIn(".next", R.IGNORADOS)
         self.assertIn("node_modules", R.IGNORADOS)
