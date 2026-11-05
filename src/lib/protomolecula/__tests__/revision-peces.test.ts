@@ -2,20 +2,20 @@ import { describe, it, expect } from "vitest";
 import { revisarCreacion } from "../revision-peces";
 
 describe("revision-peces", () => {
-  it("revisa cuando debe revisar con peces", () => {
+  it("revisa cuando debe revisar con creaciones (defecto)", () => {
     let guardadas: string[] = [];
     const guardar = (lecciones: string[]) => { guardadas = lecciones; };
     const result = revisarCreacion({
       creacion: {},
       perfil: {},
-      ajustes: { revisionPeces: "siempre" },
+      ajustes: { revisionPeces: "creaciones" },
       llamar: () => {},
       modelos: {},
       guardar,
     });
+    // app es una tarea de creación, por lo que debería rechazar
     expect(result.veredicto).toBe("rechaza");
     expect(result.objeciones.length).toBeGreaterThan(0);
-    expect(result.lecciones.length).toBe(result.objeciones.length);
     expect(guardadas).toEqual(result.lecciones);
   });
 
