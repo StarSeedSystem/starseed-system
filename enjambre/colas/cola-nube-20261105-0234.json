@@ -1,0 +1,20 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "id": "RPO1104E",
+   "ola": "1104R · Repos nativos",
+   "titulo": "EGM · la imaginación y el autodesarrollo pasan sus olas por los peces antes de encolarlas",
+   "archivos": [
+    "scripts/puente/director_autodesarrollo.py",
+    "scripts/puente/test_director_autodesarrollo.py"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2 (direcciones). Encuentra el ÚNICO punto donde el autodesarrollo encola una ola propuesta por la imaginación y, justo antes, pásala por `egm_revision.revisar(...)` (tipo `ola`). Si `ola_pasa` es False, no se encola y se anota el motivo (las objeciones `bloquea`) donde ya se anotan los descartes; si no hay modelos o fallan, se encola como hoy. Si hay más de un punto de encolado o no lo encuentras claro, responde BLOQUEADA explicando dónde mirar. Prueba con la revisión simulada.",
+   "dependencias_ya_en_main": [
+    "RPO1104D"
+   ]
+  }
+ ]
+}
