@@ -6,7 +6,8 @@
 // Panel de VISTA PREVIA para vincular un memory root (`<nombre>_memory_root/`)
 // al sistema de memorias. Lee un `memory.manifest.json` (por URL o pegado),
 // previsualiza sus ramas, lo "conecta" (guarda en localStorage) y permite una
-// "Sincronización (preview)" que sólo calcula el diff por rama — SIN escribir
+// "Sincronización (preview)" que sólo calcula el plan de merge por hash/scope
+// entre el manifiesto local y el del destino (`planificarMerge`) — SIN escribir
 // en ninguna cuenta/servidor.
 //
 // ⚠️ NO CONECTADO A LA CUENTA: todo es local. La cuenta "Ester" se conecta
@@ -30,7 +31,6 @@ import {
   CheckCircle2,
   PlusCircle,
   Pencil,
-  Minus,
   ListTree,
   FolderOpen,
   Upload,
@@ -40,12 +40,10 @@ import {
 import { cn } from "@/lib/utils";
 import {
   parseManifest,
-  diffManifest,
   summarize,
   type MemoryManifest,
-  type ManifestDiff,
-  type BranchStatus,
 } from "@/lib/memory-sync/manifest";
+import { planificarMerge, type PlanMerge } from "@/lib/memorias/memory-root-merge";
 import {
   loadManifestFromUrl,
   loadManifestFromText,
@@ -70,18 +68,20 @@ const TIPO_ICON: Record<string, string> = {
   aurora: "🌅", style: "🎨", accounts: "👤", log: "📜",
 };
 
-// Estilo del estado del diff por rama.
-const STATUS_STYLE: Record<BranchStatus, { label: string; cls: string }> = {
-  added: { label: "se añade", cls: "border-emerald-400/40 bg-emerald-500/10 text-emerald-200" },
-  updated: { label: "se actualiza", cls: "border-cyan-400/40 bg-cyan-500/10 text-cyan-200" },
-  unchanged: { label: "sin cambios", cls: "border-white/15 bg-white/5 text-white/50" },
-  removed: { label: "se quita", cls: "border-amber-400/40 bg-amber-500/10 text-amber-200" },
+// Estilo de la acción del plan de merge por hash/scope (local vs destino).
+const ACCION_STYLE: Record<PlanMerge["ramas"][number]["accion"], { label: string; cls: string }> = {
+  subir: { label: "se sube", cls: "border-emerald-400/40 bg-emerald-500/10 text-emerald-200" },
+  bajar: { label: "se baja", cls: "border-cyan-400/40 bg-cyan-500/10 text-cyan-200" },
+  conflicto: { label: "conflicto", cls: "border-amber-400/40 bg-amber-500/10 text-amber-200" },
+  intacto: { label: "sin cambios", cls: "border-white/15 bg-white/5 text-white/50" },
+  sinSync: { label: "sin sync", cls: "border-white/15 bg-white/5 text-white/40" },
 };
 
-function StatusIcon({ status }: { status: BranchStatus }) {
-  if (status === "added") return <PlusCircle className="w-3 h-3" />;
-  if (status === "updated") return <Pencil className="w-3 h-3" />;
-  if (status === "removed") return <Minus className="w-3 h-3" />;
+function AccionIcon({ accion }: { accion: PlanMerge["ramas"][number]["accion"] }) {
+  if (accion === "subir") return <PlusCircle className="w-3 h-3" />;
+  if (accion === "bajar") return <Download className="w-3 h-3" />;
+  if (accion === "conflicto") return <Pencil className="w-3 h-3" />;
+  if (accion === "sinSync") return <ShieldAlert className="w-3 h-3" />;
   return <CheckCircle2 className="w-3 h-3" />;
 }
 
@@ -165,8 +165,8 @@ export function MemoryFolderConnect({
   // Roots ya vinculados (persistidos en localStorage).
   const [roots, setRoots] = useState<ConnectedRoot[]>([]);
 
-  // Diff por root: { [rootId]: ManifestDiff } tras "Sincronizar (preview)".
-  const [diffs, setDiffs] = useState<Record<string, ManifestDiff>>({});
+  // Plan de merge por root: { [rootId]: PlanMerge } tras "Sincronizar (preview)".
+  const [diffs, setDiffs] = useState<Record<string, PlanMerge>>({});
 
   // Carga inicial de roots (sólo en cliente).
   const refresh = useCallback(() => setRoots(readRoots()), []);
@@ -211,10 +211,13 @@ export function MemoryFolderConnect({
     setDiffs((d) => { const n = { ...d }; delete n[id]; return n; });
   }
 
-  // ── Sincronizar (preview): calcula el diff por rama, SIN escribir nada ──
-  // Si el root tiene URL, re-descarga el manifiesto y lo compara con el último
-  // conocido. Si se pegó como texto (sin URL), compara contra sí mismo
-  // (resultado esperado: todo "sin cambios") para demostrar el mecanismo.
+  // ── Sincronizar (preview): plan de merge por hash/scope, SIN escribir nada ──
+  // Si el root tiene URL, re-descarga el manifiesto del DESTINO y lo compara
+  // con el manifiesto LOCAL conocido usando `planificarMerge` (contrato
+  // `architecture/memoria-cerebros-sync.md` §Pendiente): qué subir, qué bajar,
+  // qué es conflicto y qué no se toca por `scope`. Si se pegó como texto (sin
+  // URL), compara contra sí mismo (todo "sin cambios") para demostrar el
+  // mecanismo. Bidireccional: dos manifiestos, ninguna escritura.
   const [syncingId, setSyncingId] = useState<string | null>(null);
   async function syncPreview(root: ConnectedRoot) {
     setSyncingId(root.id); setError(null);
@@ -226,8 +229,8 @@ export function MemoryFolderConnect({
         // Sin fuente remota: re-parseamos el último manifiesto (no-op seguro).
         next = parseManifest(root.lastManifest);
       }
-      const diff = diffManifest(root.lastManifest, next);
-      setDiffs((d) => ({ ...d, [root.id]: diff }));
+      const plan = planificarMerge(root.lastManifest.branches, next.branches);
+      setDiffs((d) => ({ ...d, [root.id]: plan }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo previsualizar la sincronización.");
     } finally {
@@ -522,31 +525,34 @@ export function MemoryFolderConnect({
                     {/* Preview por rama del root (rama · tipo · scope · archivo) */}
                     <BranchesTable manifest={root.lastManifest} />
 
-                    {/* Resultado del diff (qué se sincronizaría por memoria) */}
+                    {/* Resultado del plan de merge (qué se sincronizaría por memoria) */}
                     {diff && (
                       <div className="rounded-lg border border-cyan-500/20 bg-cyan-950/10 p-2.5 space-y-2">
                         <div className="text-[11px] text-cyan-100/80 flex flex-wrap items-center gap-2">
-                          <span className="font-semibold">Vista previa de sincronización</span>
-                          <Badge variant="outline" className="text-[9px] border-emerald-400/40 text-emerald-200">+{diff.added} nuevas</Badge>
-                          <Badge variant="outline" className="text-[9px] border-cyan-400/40 text-cyan-200">~{diff.updated} actualizadas</Badge>
-                          <Badge variant="outline" className="text-[9px] border-white/15 text-white/55">{diff.unchanged} sin cambios</Badge>
-                          {diff.removed > 0 && (
-                            <Badge variant="outline" className="text-[9px] border-amber-400/40 text-amber-200">-{diff.removed} quitadas</Badge>
+                          <span className="font-semibold">Vista previa del merge</span>
+                          <Badge variant="outline" className="text-[9px] border-emerald-400/40 text-emerald-200">↑{diff.subir} subir</Badge>
+                          <Badge variant="outline" className="text-[9px] border-cyan-400/40 text-cyan-200">↓{diff.bajar} bajar</Badge>
+                          {diff.conflictos > 0 && (
+                            <Badge variant="outline" className="text-[9px] border-amber-400/40 text-amber-200">⚠{diff.conflictos} conflicto(s)</Badge>
+                          )}
+                          <Badge variant="outline" className="text-[9px] border-white/15 text-white/55">{diff.intactos} sin cambios</Badge>
+                          {diff.sinSync > 0 && (
+                            <Badge variant="outline" className="text-[9px] border-white/15 text-white/40">{diff.sinSync} sin sync (scope)</Badge>
                           )}
                         </div>
                         <div className="text-[10px] text-white/45">
-                          Se sincronizarían <span className="text-white/70 font-medium">{diff.toSync}</span> memoria(s). Nada se ha escrito: esto es sólo una vista previa local.
+                          Se propagarían <span className="text-white/70 font-medium">{diff.subir + diff.bajar}</span> memoria(s). Nada se ha escrito: esto es sólo una vista previa local.
                         </div>
                         <div className="flex flex-wrap gap-1.5">
-                          {diff.branches.map((b, i) => {
-                            const st = STATUS_STYLE[b.status];
+                          {diff.ramas.map((b, i) => {
+                            const st = ACCION_STYLE[b.accion];
                             return (
                               <span
                                 key={`${b.archivo}-${i}`}
                                 className={cn("text-[10px] rounded-full px-2 py-0.5 border inline-flex items-center gap-1", st.cls)}
-                                title={b.archivo}
+                                title={`${b.archivo} · hash local ${b.hashLocal ?? "—"} · hash destino ${b.hashDestino ?? "—"}`}
                               >
-                                <StatusIcon status={b.status} />
+                                <AccionIcon accion={b.accion} />
                                 {TIPO_ICON[b.tipo] ?? "•"} {b.rama} · {st.label}
                               </span>
                             );
