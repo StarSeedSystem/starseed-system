@@ -178,6 +178,8 @@ export const RICH_BLOCK_TYPES: readonly PostBlockType[] = [
     "video",
     // Protomolécula (Ola 1010P, aditivo: los antiguos siguen exactamente igual).
     "protomolecula",
+    // OpenUI (Ola 1104R, aditivo): respuesta viva.
+    "respuesta-viva",
 ] as const;
 
 /** ¿Es un bloque RICO (serializado en ss:meta, renderizado por el post-blocks-renderer)? */
