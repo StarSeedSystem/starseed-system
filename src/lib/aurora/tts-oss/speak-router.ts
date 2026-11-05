@@ -610,7 +610,7 @@ export async function speakWithConfiguredEngine(
   text: string,
   opts: ConfiguredSpeakOptions = {},
 ): Promise<boolean> {
-  const clean = (text || "").trim();
+  let clean = (text || "").trim();
   if (!clean) return false;
 
   let cfg: AuroraVoiceConfig;
@@ -705,7 +705,9 @@ export async function speakWithConfiguredEngine(
     // `playSequentialViaMixer`), sin tocar la voz. El cambio de motor solo
     // ocurre cuando el actual FALLA de verdad, y nunca a mitad de locución ya
     // empezada (`allowFamilyFailover`).
-    for (const link of orderedChain) {
+    let i = 0;
+    while (i < orderedChain.length) {
+      const link = orderedChain[i];
       // Cada eslabón envuelto: nunca lanzar sin capturar en cadenas de failover.
       const outcome = await Promise.resolve()
         .then(() => runLink(link, clean, cfg, wrappedOpts, detectedLang))
@@ -713,11 +715,16 @@ export async function speakWithConfiguredEngine(
       if (outcome === "spoke") { recordarMotorQueSono(link); return true; }
       if (outcome === "started") {
         recordarMotorQueSono(link);
-        // Llegó a sonar y se cortó: el turno YA se consumió; re-hablar el mismo
-        // texto con otro motor duplicaría la locución. Turno cerrado con dignidad.
+        const resto = remainingTextAfterChunks(clean, 1);
+        if (resto.trim()) {
+          clean = resto;
+          i++;
+          continue;
+        }
         return true;
       }
       // "declined" → siguiente eslabón de la cadena.
+      i++;
     }
     return false; // suelo garantizado: voz del navegador (mejor rankeada).
   } finally {
