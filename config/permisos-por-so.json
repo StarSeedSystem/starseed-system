@@ -235,6 +235,151 @@
         "texto": "Capability notification:allow-is-permission-granted. Acceso básico al sistema.",
         "alConceder": "al instalar",
         "noPermite": []
+      },
+      {
+        "nombre": "core:window:default",
+        "texto": "Capability core:window:default. Permite operaciones estándar de ventana.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:tray:default",
+        "texto": "Capability core:tray:default. Acceso básico a la bandeja del sistema.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-set-title",
+        "texto": "Permitir cambiar el título de la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-minimize",
+        "texto": "Permitir minimizar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-maximize",
+        "texto": "Permitir maximizar la ventana. Se conceder al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-unmaximize",
+        "texto": "Permitir desmaximizar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-close",
+        "texto": "Permitir cerrar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-start-dragging",
+        "texto": "Permitir iniciar arrastre de ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "shell:allow-execute",
+        "texto": "Ejecutar comandos en shell. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "ejecutar comandos sin restricciones",
+          "ejecutar comandos de shell sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-spawn",
+        "texto": "Crear procesos hijos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "crear procesos sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-kill",
+        "texto": "Terminar procesos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "matar procesos sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-stdin-write",
+        "texto": "Escribir en stdin de procesos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "escribir en stdin sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-open",
+        "texto": "Abrir URLs o archivos externos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "abrir URLs o archivos sin autorización"
+        ]
+      },
+      {
+        "nombre": "notification:allow-request-permission",
+        "texto": "Solicitar permiso de notificaciones. Se concede al solicitar permiso de notificaciones.",
+        "alConceder": "al solicitar permiso",
+        "noPermite": [
+          "mostrar notificaciones sin consentimiento del usuario"
+        ]
+      },
+      {
+        "nombre": "autostart:default",
+        "texto": "Capability autostart:default. Permite autoarranque con el sistema.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "autostart:allow-enable",
+        "texto": "Habilitar autoarranque. Se concede al instalar o al configurar.",
+        "alConceder": "al instalar o al configurar",
+        "noPermite": [
+          "forzar autoarranque sin consentimiento"
+        ]
+      },
+      {
+        "nombre": "autostart:allow-disable",
+        "texto": "Deshabilitar autoarranque. Se concede al desinstalar o al desactivar.",
+        "alConceder": "al desinstalar o al desactivar",
+        "noPermite": []
+      },
+      {
+        "nombre": "autostart:allow-is-enabled",
+        "texto": "Consultar si autoarranque está habilitado. Informativo.",
+        "alConceder": "automáticamente",
+        "noPermite": []
+      },
+      {
+        "nombre": "updater:default",
+        "texto": "Capability updater:default. Permite actualizaciones automáticas.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "updater:allow-check",
+        "texto": "Comprobar actualizaciones disponibles. Se concede al instalar o al solicitar.",
+        "alConceder": "al instalar o al solicitar",
+        "noPermite": [
+          "actualizar sin consentimiento del usuario"
+        ]
+      },
+      {
+        "nombre": "updater:allow-download-and-install",
+        "texto": "Descargar e instalar actualizaciones. Se concede al instalar o al solicitar.",
+        "alConceder": "al instalar o al solicitar",
+        "noPermite": [
+          "instalar actualizaciones sin consentimiento del usuario"
+        ]
       }
     ],
     "noPermiteSistema": [
@@ -338,7 +483,7 @@
         "alConceder": "automáticamente",
         "noPermite": []
       },
-{
+      {
         "nombre": "os:allow-exe-extension",
         "texto": "Permitir extensiones de ejecutables. Informativo para el sistema de archivos.",
         "alConceder": "automáticamente",
@@ -485,6 +630,151 @@
         "texto": "Capability notification:allow-is-permission-granted. Acceso básico al sistema.",
         "alConceder": "al instalar",
         "noPermite": []
+      },
+      {
+        "nombre": "core:window:default",
+        "texto": "Capability core:window:default. Permite operaciones estándar de ventana.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:tray:default",
+        "texto": "Capability core:tray:default. Acceso básico a la bandeja del sistema.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-set-title",
+        "texto": "Permitir cambiar el título de la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-minimize",
+        "texto": "Permitir minimizar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-maximize",
+        "texto": "Permitir maximizar la ventana. Se conceder al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-unmaximize",
+        "texto": "Permitir desmaximizar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-close",
+        "texto": "Permitir cerrar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-start-dragging",
+        "texto": "Permitir iniciar arrastre de ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "shell:allow-execute",
+        "texto": "Ejecutar comandos en shell. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "ejecutar comandos sin restricciones",
+          "ejecutar comandos de shell sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-spawn",
+        "texto": "Crear procesos hijos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "crear procesos sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-kill",
+        "texto": "Terminar procesos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "matar procesos sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-stdin-write",
+        "texto": "Escribir en stdin de procesos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "escribir en stdin sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-open",
+        "texto": "Abrir URLs o archivos externos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "abrir URLs o archivos sin autorización"
+        ]
+      },
+      {
+        "nombre": "notification:allow-request-permission",
+        "texto": "Solicitar permiso de notificaciones. Se concede al solicitar permiso de notificaciones.",
+        "alConceder": "al solicitar permiso",
+        "noPermite": [
+          "mostrar notificaciones sin consentimiento del usuario"
+        ]
+      },
+      {
+        "nombre": "autostart:default",
+        "texto": "Capability autostart:default. Permite autoarranque con el sistema.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "autostart:allow-enable",
+        "texto": "Habilitar autoarranque. Se concede al instalar o al configurar.",
+        "alConceder": "al instalar o al configurar",
+        "noPermite": [
+          "forzar autoarranque sin consentimiento"
+        ]
+      },
+      {
+        "nombre": "autostart:allow-disable",
+        "texto": "Deshabilitar autoarranque. Se concede al desinstalar o al desactivar.",
+        "alConceder": "al desinstalar o al desactivar",
+        "noPermite": []
+      },
+      {
+        "nombre": "autostart:allow-is-enabled",
+        "texto": "Consultar si autoarranque está habilitado. Informativo.",
+        "alConceder": "automáticamente",
+        "noPermite": []
+      },
+      {
+        "nombre": "updater:default",
+        "texto": "Capability updater:default. Permite actualizaciones automáticas.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "updater:allow-check",
+        "texto": "Comprobar actualizaciones disponibles. Se concede al instalar o al solicitar.",
+        "alConceder": "al instalar o al solicitar",
+        "noPermite": [
+          "actualizar sin consentimiento del usuario"
+        ]
+      },
+      {
+        "nombre": "updater:allow-download-and-install",
+        "texto": "Descargar e instalar actualizaciones. Se concede al instalar o al solicitar.",
+        "alConceder": "al instalar o al solicitar",
+        "noPermite": [
+          "instalar actualizaciones sin consentimiento del usuario"
+        ]
       }
     ],
     "noPermiteSistema": [
@@ -729,6 +1019,151 @@
         "texto": "Capability notification:allow-is-permission-granted. Acceso básico al sistema.",
         "alConceder": "al instalar",
         "noPermite": []
+      },
+      {
+        "nombre": "core:window:default",
+        "texto": "Capability core:window:default. Permite operaciones estándar de ventana.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:tray:default",
+        "texto": "Capability core:tray:default. Acceso básico a la bandeja del sistema.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-set-title",
+        "texto": "Permitir cambiar el título de la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-minimize",
+        "texto": "Permitir minimizar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-maximize",
+        "texto": "Permitir maximizar la ventana. Se conceder al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-unmaximize",
+        "texto": "Permitir desmaximizar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-close",
+        "texto": "Permitir cerrar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-start-dragging",
+        "texto": "Permitir iniciar arrastre de ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "shell:allow-execute",
+        "texto": "Ejecutar comandos en shell. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "ejecutar comandos sin restricciones",
+          "ejecutar comandos de shell sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-spawn",
+        "texto": "Crear procesos hijos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "crear procesos sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-kill",
+        "texto": "Terminar procesos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "matar procesos sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-stdin-write",
+        "texto": "Escribir en stdin de procesos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "escribir en stdin sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-open",
+        "texto": "Abrir URLs o archivos externos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "abrir URLs o archivos sin autorización"
+        ]
+      },
+      {
+        "nombre": "notification:allow-request-permission",
+        "texto": "Solicitar permiso de notificaciones. Se concede al solicitar permiso de notificaciones.",
+        "alConceder": "al solicitar permiso",
+        "noPermite": [
+          "mostrar notificaciones sin consentimiento del usuario"
+        ]
+      },
+      {
+        "nombre": "autostart:default",
+        "texto": "Capability autostart:default. Permite autoarranque con el sistema.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "autostart:allow-enable",
+        "texto": "Habilitar autoarranque. Se concede al instalar o al configurar.",
+        "alConceder": "al instalar o al configurar",
+        "noPermite": [
+          "forzar autoarranque sin consentimiento"
+        ]
+      },
+      {
+        "nombre": "autostart:allow-disable",
+        "texto": "Deshabilitar autoarranque. Se concede al desinstalar o al desactivar.",
+        "alConceder": "al desinstalar o al desactivar",
+        "noPermite": []
+      },
+      {
+        "nombre": "autostart:allow-is-enabled",
+        "texto": "Consultar si autoarranque está habilitado. Informativo.",
+        "alConceder": "automáticamente",
+        "noPermite": []
+      },
+      {
+        "nombre": "updater:default",
+        "texto": "Capability updater:default. Permite actualizaciones automáticas.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "updater:allow-check",
+        "texto": "Comprobar actualizaciones disponibles. Se concede al instalar o al solicitar.",
+        "alConceder": "al instalar o al solicitar",
+        "noPermite": [
+          "actualizar sin consentimiento del usuario"
+        ]
+      },
+      {
+        "nombre": "updater:allow-download-and-install",
+        "texto": "Descargar e instalar actualizaciones. Se concede al instalar o al solicitar.",
+        "alConceder": "al instalar o al solicitar",
+        "noPermite": [
+          "instalar actualizaciones sin consentimiento del usuario"
+        ]
       }
     ],
     "noPermiteSistema": [
@@ -826,6 +1261,103 @@
           "optimizar batería sin consentimiento",
           "sobrepasar políticas de ahorro de energía"
         ]
+      },
+      {
+        "nombre": "core:window:default",
+        "texto": "Capability core:window:default. Permite operaciones estándar de ventana.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:tray:default",
+        "texto": "Capability core:tray:default. Acceso básico a la bandeja del sistema.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-set-title",
+        "texto": "Permitir cambiar el título de la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-minimize",
+        "texto": "Permitir minimizar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-maximize",
+        "texto": "Permitir maximizar la ventana. Se conceder al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-unmaximize",
+        "texto": "Permitir desmaximizar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-close",
+        "texto": "Permitir cerrar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-start-dragging",
+        "texto": "Permitir iniciar arrastre de ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "shell:allow-execute",
+        "texto": "Ejecutar comandos en shell. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "ejecutar comandos sin restricciones",
+          "ejecutar comandos de shell sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-spawn",
+        "texto": "Crear procesos hijos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "crear procesos sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-kill",
+        "texto": "Terminar procesos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "matar procesos sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-stdin-write",
+        "texto": "Escribir en stdin de procesos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "escribir en stdin sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-open",
+        "texto": "Abrir URLs o archivos externos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "abrir URLs o archivos sin autorización"
+        ]
+      },
+      {
+        "nombre": "notification:allow-request-permission",
+        "texto": "Solicitar permiso de notificaciones. Se concede al solicitar permiso de notificaciones.",
+        "alConceder": "al solicitar permiso",
+        "noPermite": [
+          "mostrar notificaciones sin consentimiento del usuario"
+        ]
       }
     ]
   },
@@ -843,6 +1375,103 @@
           "acceder a la cámara sin permiso explícito",
           "grabar audio sin aprobación del usuario",
           "modificar configuraciones de red"
+        ]
+      },
+      {
+        "nombre": "core:window:default",
+        "texto": "Capability core:window:default. Permite operaciones estándar de ventana.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:tray:default",
+        "texto": "Capability core:tray:default. Acceso básico a la bandeja del sistema.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-set-title",
+        "texto": "Permitir cambiar el título de la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-minimize",
+        "texto": "Permitir minimizar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-maximize",
+        "texto": "Permitir maximizar la ventana. Se conceder al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-unmaximize",
+        "texto": "Permitir desmaximizar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-close",
+        "texto": "Permitir cerrar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-start-dragging",
+        "texto": "Permitir iniciar arrastre de ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "shell:allow-execute",
+        "texto": "Ejecutar comandos en shell. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "ejecutar comandos sin restricciones",
+          "ejecutar comandos de shell sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-spawn",
+        "texto": "Crear procesos hijos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "crear procesos sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-kill",
+        "texto": "Terminar procesos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "matar procesos sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-stdin-write",
+        "texto": "Escribir en stdin de procesos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "escribir en stdin sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-open",
+        "texto": "Abrir URLs o archivos externos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "abrir URLs o archivos sin autorización"
+        ]
+      },
+      {
+        "nombre": "notification:allow-request-permission",
+        "texto": "Solicitar permiso de notificaciones. Se concede al solicitar permiso de notificaciones.",
+        "alConceder": "al solicitar permiso",
+        "noPermite": [
+          "mostrar notificaciones sin consentimiento del usuario"
         ]
       }
     ]
@@ -887,6 +1516,103 @@
         "noPermite": [
           "importar archivos sin acción del usuario",
           "acceder a rutas de archivo sin drop explícito"
+        ]
+      },
+      {
+        "nombre": "core:window:default",
+        "texto": "Capability core:window:default. Permite operaciones estándar de ventana.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:tray:default",
+        "texto": "Capability core:tray:default. Acceso básico a la bandeja del sistema.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-set-title",
+        "texto": "Permitir cambiar el título de la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-minimize",
+        "texto": "Permitir minimizar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-maximize",
+        "texto": "Permitir maximizar la ventana. Se conceder al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-unmaximize",
+        "texto": "Permitir desmaximizar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-close",
+        "texto": "Permitir cerrar la ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "core:window:allow-start-dragging",
+        "texto": "Permitir iniciar arrastre de ventana. Se concede al instalar.",
+        "alConceder": "al instalar",
+        "noPermite": []
+      },
+      {
+        "nombre": "shell:allow-execute",
+        "texto": "Ejecutar comandos en shell. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "ejecutar comandos sin restricciones",
+          "ejecutar comandos de shell sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-spawn",
+        "texto": "Crear procesos hijos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "crear procesos sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-kill",
+        "texto": "Terminar procesos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "matar procesos sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-stdin-write",
+        "texto": "Escribir en stdin de procesos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "escribir en stdin sin autorización"
+        ]
+      },
+      {
+        "nombre": "shell:allow-open",
+        "texto": "Abrir URLs o archivos externos. Se concede al instalar o al primer uso.",
+        "alConceder": "al instalar o al primer uso",
+        "noPermite": [
+          "abrir URLs o archivos sin autorización"
+        ]
+      },
+      {
+        "nombre": "notification:allow-request-permission",
+        "texto": "Solicitar permiso de notificaciones. Se concede al solicitar permiso de notificaciones.",
+        "alConceder": "al solicitar permiso",
+        "noPermite": [
+          "mostrar notificaciones sin consentimiento del usuario"
         ]
       }
     ]
