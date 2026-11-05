@@ -63,7 +63,14 @@ export type PostBlockType =
      * no duplicación de entidades), y un cliente viejo lo ignora como ignora
      * `penpot`/`video` al no estar en RICH_BLOCK_TYPES antiguos.
      */
-    | "protomolecula";
+    | "protomolecula"
+    // ── OpenUI (Ola 1104R): respuesta viva con interfaz generativa ──
+    /**
+     * Bloque `respuesta-viva`: guarda el texto OpenUI Lang en `code` y se pinta
+     * con `RespuestaViva` (`src/components/openui/respuesta-viva.tsx`).
+     * El bloque serializa/deserializa sin perder el texto.
+     */
+    | "respuesta-viva";
 
 /** Tipo de recurso referenciado por un bloque `referencia` (o por el SourcePicker). */
 export type PostBlockRefKind =
@@ -171,6 +178,8 @@ export const RICH_BLOCK_TYPES: readonly PostBlockType[] = [
     "video",
     // Protomolécula (Ola 1010P, aditivo: los antiguos siguen exactamente igual).
     "protomolecula",
+    // OpenUI (Ola 1104R, aditivo): respuesta viva.
+    "respuesta-viva",
 ] as const;
 
 /** ¿Es un bloque RICO (serializado en ss:meta, renderizado por el post-blocks-renderer)? */
