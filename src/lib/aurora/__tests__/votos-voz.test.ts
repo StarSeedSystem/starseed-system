@@ -88,9 +88,9 @@ describe("votos-voz", () => {
   });
 
   it("leerVotos descarta lo ilegible y no lanza con el almacén roto", () => {
-    const roto: DepsVotos = { leer: () => "{no es json", escribir: () => true, borrar: () => undefined, ahora: () => AHORA };
+    const roto: DepsVotos = { leer: () => "{no es json", escribir: () => true, borrar: () => undefined, ahora: () => AHORA, neurona: () => "n-prueba" };
     expect(leerVotos(roto)).toEqual([]);
-    const lanzador: DepsVotos = { leer: () => { throw new Error("boom"); }, escribir: () => true, borrar: () => undefined, ahora: () => AHORA };
+    const lanzador: DepsVotos = { leer: () => { throw new Error("boom"); }, escribir: () => true, borrar: () => undefined, ahora: () => AHORA, neurona: () => "n-prueba" };
     expect(leerVotos(lanzador)).toEqual([]);
     const mezcla: DepsVotos = {
       leer: () => JSON.stringify([
@@ -103,6 +103,7 @@ describe("votos-voz", () => {
       escribir: () => true,
       borrar: () => undefined,
       ahora: () => AHORA,
+      neurona: () => "n-prueba",
     };
     expect(leerVotos(mezcla)).toEqual([{ motor: "kokoro", voto: 1, timestamp: 10 }]);
   });
