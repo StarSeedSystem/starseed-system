@@ -84,7 +84,7 @@ describe("comprobación automática de versión", () => {
             const entrada = datos.fuentes.find((f) => f.id === "ai-turbo-fieldfare");
             expect(entrada).toBeDefined();
             expect(entrada!.upstream).toBe("https://github.com/drumih/turbo-fieldfare");
-            expect(entrada!.remota).toBe("abcdef1234567");
+            expect(entrada!.remota).toBe("abcdef1");
             expect(entrada!.fecha).toBe("2026-10-20T10:00:00Z");
             // Las fuentes de decisiones siguen dentro, una sola vez cada una.
             const ids = datos.fuentes.map((f) => f.id);
