@@ -1,0 +1,88 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "id": "PUB1029F",
+   "ola": "1029 · CI de producción en verde",
+   "depende": [],
+   "titulo": "Guía de la red · la tarjeta /library vuelve a abrir la explicación real de la Biblioteca",
+   "archivos": [
+    "src/components/onboarding/__tests__/areas-explicadas-temas.test.tsx"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta (corre la prueba citada: si ya pasa, responde NO APLICA y no toques nada).\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de cadenas con forma de clave en código ni pruebas.\n\nContexto (2026-10-29): la autopublicación, parada desde el 25-10, ya pasa el detector de secretos y las 3.627 pruebas del puente, pero el CI de GitHub (run 40821862697, candidato c339920f7) falla en Vitest con 6 de 17.056 pruebas. Mientras haya una en rojo, nada se publica. Arregla la causa, no la prueba, salvo que la prueba sea la que quedó vieja (dilo en tu respuesta).\n\nFalla `areas-explicadas-temas.test.tsx` («la tarjeta /library abre la explicación real de la Biblioteca»): busca el texto «La biblioteca universal de la red», que ya no existe en `src` (lo cambiaron las partes GUI1021Gb del 28-10). Mira qué texto explica hoy la Biblioteca en la guía: si la tarjeta sigue abriendo la explicación correcta, actualiza la prueba al texto nuevo; si abre otra cosa o nada, arregla la tarjeta (añade su archivo a la tarea).",
+   "revisor_quitadas": [
+    "PUB1029E"
+   ]
+  },
+  {
+   "id": "VOZ1105A",
+   "ola": "1105W · Voz estable",
+   "titulo": "Voz StarSeed · la nube y la voz del sistema hablan el mensaje ENTERO, por trozos",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/motor.ts",
+    "src/lib/aurora/voz-starseed/__tests__/motor-trozos.test.ts"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3. En `hablarPorNube`: parte el texto con `trocearTexto(texto, 500)` de `src/lib/voces/trocear.ts` (la ruta `/api/voz/nube` corta a 600) y pide los trozos en orden, pidiendo el siguiente mientras suena el actual; si un trozo falla, reintenta una vez y si no, devuelve false para ESE resto (el llamador sigue con su siguiente nivel) — nunca calla a media frase sin decirlo. En `hablarPorSistema`: una utterance por trozo (≤ 200) en fila, sin `cancel()` entre trozos. Prueba con fetch y speechSynthesis simulados: un texto de 1500 caracteres pide 3–4 trozos en orden."
+  },
+  {
+   "id": "VOZ1105B",
+   "ola": "1105W · Voz estable",
+   "titulo": "OmniVoice · si un motor empieza y falla a mitad, el resto del mensaje sigue con el siguiente",
+   "archivos": [
+    "src/lib/aurora/tts-oss/speak-router.ts",
+    "src/lib/aurora/tts-oss/__tests__/speak-router-resto.test.ts"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3 y §4 regla 1. Hoy, cuando un eslabón devuelve «started» (empezó y se cortó), `speakWithConfiguredEngine` cierra el turno y el resto del mensaje NO se dice. Haz que los eslabones que trocean informen cuántos trozos llegaron a sonar (busca `planVoiceChunks` y `playSequentialViaMixer` en `neural-tts.ts`; si hace falta un 3.er archivo, ese) y que el router hable el RESTO con el siguiente eslabón de la cadena. Sin información de progreso, deja el comportamiento de hoy. Prueba con eslabones simulados: el primero suena 2 de 5 trozos y falla → el segundo dice los 3 restantes."
+  },
+  {
+   "id": "VOZ1105C",
+   "ola": "1105W · Voz estable",
+   "titulo": "Oído móvil sin nube · línea estable con Whisper del navegador o, si no, un pitido por turno (nunca en bucle)",
+   "archivos": [
+    "src/lib/aurora/stt-oss/oido-movil.ts",
+    "src/lib/aurora/stt-oss/__tests__/oido-movil.test.ts"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3. Módulo PURO `elegirOidoMovil({ nube, whisperDescargado, navegador })` → `nube` · `whisper-web` · `navegador-por-voz` · `navegador` con su motivo, y `debeReiniciarNavegador({ ciclosEnSilencio, enTurno })` → en móvil, tras 2 ciclos seguidos en silencio y sin turno pendiente NO se reinicia el reconocedor (se espera a la voz). Solo la decisión y sus pruebas; el cableado en `engine.ts` es la tarea D."
+  },
+  {
+   "id": "VOZ1105E",
+   "ola": "1105W · Voz estable",
+   "titulo": "Ajustes de voz · interruptor «Oído en la nube» y qué oído y qué voz suenan ahora",
+   "archivos": [
+    "src/components/settings/aurora/voice-oss-panel.tsx",
+    "src/components/settings/aurora/__tests__/oido-nube-ajuste.test.tsx"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2 y §3. En el panel de voz que ya existe, añade el interruptor «Oído en la nube (Groq Whisper o Gemini)» que guarda `localStorage[\"starseed.oido.nube\"]` (\"0\" apagado; por defecto encendido) con una línea honesta: el audio de cada tramo se manda a transcribir y no se guarda. Y una línea de estado: qué oído usa este dispositivo y qué voz habló la última vez (busca `recordarMotorQueSono` y `medidas-voz.ts`). Prueba de render y del interruptor."
+  },
+  {
+   "id": "VOZ1105F",
+   "ola": "1105W · Voz estable",
+   "titulo": "Prioridad de la voz en la Mac · por qué la concesión no baja el RTF (medir y arreglar)",
+   "archivos": [
+    "scripts/puente/prioridad_conversacion.py",
+    "scripts/puente/test_prioridad_conversacion.py"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§1.2. Medido el 04-11 con la concesión ACTIVA: Supertonic RTF 2,9 (debería ser ~0,3). Lee `prioridad_conversacion.py` y comprueba qué congela de verdad (procesos del enjambre, tsc, vitest, opencode, compilaciones) y qué se escapa; arregla lo que se escapa sin tocar los servicios del sistema ni procesos que no sean del enjambre, y que al terminar la conversación todo vuelva SIEMPRE (también si el proceso de voz muere). Pruebas puras de la selección de procesos."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-183516.json": [
+   "VOZ1105C",
+   "PUB1029F",
+   "VOZ1105A",
+   "VOZ1105B",
+   "VOZ1105E",
+   "VOZ1105F"
+  ]
+ }
+}
