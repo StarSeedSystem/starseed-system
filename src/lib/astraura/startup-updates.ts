@@ -36,6 +36,12 @@ import { readNeuronVoiceChoice, neuronVoiceChoiceIsStale } from "@/lib/aurora/tt
 // (2026-09-29 · persistencia entre medios) El «visto/hecho/luego» va con la cuenta.
 import { avisoResuelto, estadoAviso, marcarAviso, olvidarAviso } from "@/lib/sync/avisos-cuenta";
 import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
+// (Adenda 138 · llmfit) Firma de novedades del SCOUT: misma pauta firma+visto que el catálogo.
+import { SCOUT_SIGNATURE_KEY, scoutSignature, hasNewScoutFindings, markScoutSeen } from "@/ai/astraura/model-scout";
+import type { NeuronCapabilities } from "@/lib/neurons/neurons";
+
+// Re-exportar para tests y consumidores que no quieran depender de model-scout.ts directamente
+export { SCOUT_SIGNATURE_KEY, scoutSignature, hasNewScoutFindings, markScoutSeen } from "@/ai/astraura/model-scout";
 
 export const STARTUP_UPDATES_KEY = "starseed.astraura.startup.v1";
 export const STARTUP_UPDATES_EVENT = "starseed:astraura-startup";
@@ -79,6 +85,58 @@ function hash(s: string): string {
 export function catalogSignature(): string {
   const ids = catalogIds();
   return `${ids.length}.${REGISTRY_REVIEWED}.${hash(ids.join("|"))}`;
+}
+
+/* ────────────────────────── Firma de novedades del SCOUT (Adenda 138) ────────────────────────── */
+
+/** Firma de scout vista por última vez en ESTE medio (clave local, NO viaja con la cuenta). */
+export const SCOUT_SEEN_KEY = "starseed.astraura.scout.seen.v1";
+
+/** Lee la firma de scout guardada localmente. Nunca lanza. */
+function leerScoutSeen(): string | undefined {
+  try {
+    const raw = safeGet(SCOUT_SEEN_KEY);
+    return typeof raw === "string" && raw ? raw : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Guarda la firma de scout como vista localmente. Nunca lanza. */
+function escribirScoutSeen(sig: string): void {
+  try {
+    safeSet(SCOUT_SEEN_KEY, sig);
+  } catch {
+    /* noop */
+  }
+}
+
+/**
+ * ¿Hay hallazgos nuevos del scout para ESTE hardware?
+ * Usa `scoutSignature` del motor + `hasNewScoutFindings` (compara contra localStorage).
+ * Nunca lanza.
+ */
+export function hayNovedadesScout(caps: NeuronCapabilities, catalogLen: number): boolean {
+  try {
+    const sig = scoutSignature(caps, catalogLen);
+    return hasNewScoutFindings(sig);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Marca la firma actual del scout como vista (para no volver a avisar hasta que cambie).
+ * Nunca lanza.
+ */
+export function marcarScoutVisto(caps: NeuronCapabilities, catalogLen: number): void {
+  try {
+    const sig = scoutSignature(caps, catalogLen);
+    markScoutSeen(sig);
+    escribirScoutSeen(sig);
+  } catch {
+    /* noop */
+  }
 }
 
 /* ───────────── Avisos con la cuenta (ids estables; ver avisos-cuenta.ts) ───────────── */
@@ -267,14 +325,19 @@ const NEURON_PERSONA_STORAGE_KEY = "starseed.astraura.neuron-persona.v1";
  *   · «recordar luego» vigente → nada, sea cual sea el motivo (nunca antes de su hora);
  *   · primera configuración sin hacer, o algo que de verdad pide acción → ventana grande;
  *   · solo cambió el catálogo (modelos/fuentes nuevos) → aviso pequeño no bloqueante;
+ *   · hay hallazgos nuevos del SCOUT para este hardware → aviso pequeño no bloqueante;
  *   · firma cambiada pero sin nada nuevo que contar → nada, y se sella (`sellar`).
  */
 export type DecisionArranque =
   | { accion: "ventana"; motivo: "primera-vez" | "pendiente"; pendientes: PendingConfigItem[] }
-  | { accion: "aviso"; motivo: "novedades"; modelos: number; fuentes: number; firma: string }
+  | { accion: "aviso"; motivo: "novedades" | "novedades-scout"; modelos: number; fuentes: number; firma: string }
   | { accion: "nada"; motivo: "pospuesto" | "al-dia"; sellar?: string };
 
-export function decidirArranque(now = Date.now()): DecisionArranque {
+/**
+ * Decide la acción de arranque. Si se proveen `caps` (capacidades de la neurona),
+ * también comprueba hallazgos nuevos del SCOUT (Adenda 138 · llmfit).
+ */
+export function decidirArranque(now = Date.now(), caps?: NeuronCapabilities): DecisionArranque {
   const st = getStartupState();
   if (st.snoozeUntil && st.snoozeUntil > now) return { accion: "nada", motivo: "pospuesto" };
   if (!st.firstRunDone) return { accion: "ventana", motivo: "primera-vez", pendientes: pendingConfiguration() };
@@ -287,6 +350,17 @@ export function decidirArranque(now = Date.now()): DecisionArranque {
     const fuentes = newIntegrationsSince().length;
     if (modelos + fuentes > 0) return { accion: "aviso", motivo: "novedades", modelos, fuentes, firma };
     return { accion: "nada", motivo: "al-dia", sellar: firma };
+  }
+  // Hallazgos nuevos del SCOUT (Adenda 138 · llmfit): mismo patrón firma+visto que el catálogo.
+  // La firma del scout depende del hardware (RAM/GPU/núcleos/WebGPU) + tamaño de catálogo.
+  // Si hay novedades, es un aviso pequeño (no ventana), salvo que además haya algo pendiente.
+  if (caps) {
+    try {
+      const catalogLen = catalogIds().length;
+      if (hayNovedadesScout(caps, catalogLen)) {
+        return { accion: "aviso", motivo: "novedades-scout", modelos: 0, fuentes: 0, firma: "scout" };
+      }
+    } catch { /* degradación silenciosa */ }
   }
   return { accion: "nada", motivo: "al-dia" };
 }
