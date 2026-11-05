@@ -24,6 +24,21 @@ export const CAPA_RESPUESTA_VIVA: Capa = {
   bloqueada: false,
 };
 
+/** Molécula de ejemplo con una capa respuesta-viva lista para serializar. */
+export function moleculaConRespuestaViva(): Molecula {
+    return {
+        id: "mol-respuesta-viva",
+        titulo: "Molécula con Respuesta Viva",
+        ambito: "personal",
+        capas: [CAPA_RESPUESTA_VIVA],
+        atomos: [],
+        valores: {},
+        version: 1,
+        creadaEn: 1000,
+        actualizadaEn: 1000,
+    };
+}
+
 /** Tope del bloque serializado (deja margen dentro de MAX_SS_META_BYTES). */
 export const MAX_BLOQUE_BYTES = 32 * 1024;
 
