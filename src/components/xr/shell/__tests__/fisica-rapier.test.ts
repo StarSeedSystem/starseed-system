@@ -85,6 +85,22 @@ describe("física Rapier", () => {
         const poses = leerPoses(crearMundoFisico(RAPIER, mundo({ objetos }), "minima"));
         expect(poses.has("movil")).toBe(true); expect(poses.has("fijo")).toBe(false);
     });
+    it.skipIf(!cargado)("la rotación Euler del objeto se aplica como cuaternión", () => {
+        const girada: ObjetoMundo = { ...objeto("girada", [1, 0, 0]), rot: [0, Math.PI / 2, 0] };
+        const mf = crearMundoFisico(RAPIER, mundo({ gravedad: 0, suelo: false, objetos: [objeto("identidad", CERO), girada] }), "minima");
+        const poses = leerPoses(mf);
+        const identidad = poses.get("identidad")?.rot ?? [0, 0, 0, 0];
+        expect(identidad[0]).toBeCloseTo(0);
+        expect(identidad[1]).toBeCloseTo(0);
+        expect(identidad[2]).toBeCloseTo(0);
+        expect(identidad[3]).toBeCloseTo(1);
+        const q = poses.get("girada")?.rot ?? [0, 0, 0, 0];
+        expect(q[0]).toBeCloseTo(0);
+        expect(q[1]).toBeCloseTo(Math.SQRT1_2, 6);
+        expect(q[2]).toBeCloseTo(0);
+        expect(q[3]).toBeCloseTo(Math.SQRT1_2, 6);
+        liberarMundo(mf);
+    });
     it.skipIf(!cargado)("teletransportar mueve el cuerpo y aplicarFuerza solo a dinámicos", () => {
         const objetos = [objeto("fijo", CERO, { tipo: "fijo", forma: "caja" }), objeto("bola", [0, 5, 0])];
         const mf = crearMundoFisico(RAPIER, mundo({ gravedad: 0, suelo: false, objetos }), "minima");
