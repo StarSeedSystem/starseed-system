@@ -189,8 +189,7 @@ const Accion = defineComponent({
         className="cursor-pointer rounded-full border border-white/15 bg-background/40 px-[1.3125rem] py-[0.5rem] text-sm font-medium backdrop-blur-md transition-colors hover:border-white/25 hover:bg-background/60"
         onClick={() =>
           disparar(`Acción ${props.etiqueta}`, undefined, {
-            type: "accion_starseed",
-            params: { idAccion: props.idAccion },
+            steps: [{ type: "custom_action", name: "accion_starseed", params: { idAccion: props.idAccion } }],
           })
         }
       >
