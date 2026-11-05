@@ -36,6 +36,14 @@ import { readNeuronVoiceChoice, neuronVoiceChoiceIsStale } from "@/lib/aurora/tt
 // (2026-09-29 · persistencia entre medios) El «visto/hecho/luego» va con la cuenta.
 import { avisoResuelto, estadoAviso, marcarAviso, olvidarAviso } from "@/lib/sync/avisos-cuenta";
 import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
+// (CTR1104C · Adenda 138) Firma de novedades del scout de modelos (llmfit).
+import {
+    SCOUT_SIGNATURE_KEY,
+    scoutSignature,
+    markScoutSeen,
+} from "@/ai/astraura/model-scout";
+import { detectCapabilities } from "@/lib/neurons/neurons";
+import type { NeuronCapabilities } from "@/lib/neurons/neurons";
 
 export const STARTUP_UPDATES_KEY = "starseed.astraura.startup.v1";
 export const STARTUP_UPDATES_EVENT = "starseed:astraura-startup";
@@ -79,6 +87,44 @@ function hash(s: string): string {
 export function catalogSignature(): string {
   const ids = catalogIds();
   return `${ids.length}.${REGISTRY_REVIEWED}.${hash(ids.join("|"))}`;
+}
+
+/* ───────────── Firma de novedades del SCOUT (llmfit · Adenda 138) ───────────── */
+/** Firma actual del scout para ESTE hardware + catálogo. Barata: no ejecuta scoutModels completo. */
+export async function scoutSignatureActual(): Promise<string> {
+  try {
+    const caps = await detectCapabilities();
+    return scoutSignature(caps, catalogIds().length);
+  } catch {
+    return "0.0";
+  }
+}
+
+/** ¿La firma actual del scout debe reaparecer como novedad? Regla PURA (sin storage):
+ *  solo si había una firma previa distinta; sin línea base no se anuncia nada. */
+export function decidirNovedadScout(previa: string | null | undefined, actual: string): boolean {
+  return !!previa && previa !== actual;
+}
+
+/** ¿Hay hallazgos nuevos del scout desde la última vez? (cambio de hardware o catálogo).
+ *  Sin una firma previa no hay «novedad» que anunciar: la primera pasada solo fija la
+ *  línea base (un medio nuevo no debe repetir el aviso que otro medio ya vio). */
+export async function hayNovedadesScout(): Promise<boolean> {
+  try {
+    const previa = safeGet(SCOUT_SIGNATURE_KEY);
+    const sig = await scoutSignatureActual();
+    return decidirNovedadScout(previa, sig);
+  } catch {
+    return false;
+  }
+}
+
+/** Marca la firma actual del scout como vista (localStorage local, no viaja con la cuenta). */
+export async function marcarScoutVisto(): Promise<void> {
+  try {
+    const sig = await scoutSignatureActual();
+    markScoutSeen(sig);
+  } catch { /* noop */ }
 }
 
 /* ───────────── Avisos con la cuenta (ids estables; ver avisos-cuenta.ts) ───────────── */
@@ -271,7 +317,7 @@ const NEURON_PERSONA_STORAGE_KEY = "starseed.astraura.neuron-persona.v1";
  */
 export type DecisionArranque =
   | { accion: "ventana"; motivo: "primera-vez" | "pendiente"; pendientes: PendingConfigItem[] }
-  | { accion: "aviso"; motivo: "novedades"; modelos: number; fuentes: number; firma: string }
+  | { accion: "aviso"; motivo: "novedades" | "novedades-scout"; modelos: number; fuentes: number; firma: string }
   | { accion: "nada"; motivo: "pospuesto" | "al-dia"; sellar?: string };
 
 export function decidirArranque(now = Date.now()): DecisionArranque {
@@ -288,6 +334,27 @@ export function decidirArranque(now = Date.now()): DecisionArranque {
     if (modelos + fuentes > 0) return { accion: "aviso", motivo: "novedades", modelos, fuentes, firma };
     return { accion: "nada", motivo: "al-dia", sellar: firma };
   }
+  return { accion: "nada", motivo: "al-dia" };
+}
+
+/** Versión con scout: igual que `decidirArranque` pero también comprueba hallazgos nuevos del scout (llmfit). */
+export async function decidirArranqueConScout(now = Date.now()): Promise<DecisionArranque> {
+  const base = decidirArranque(now);
+  if (base.accion !== "nada") return base; // ya hay motivo más prioritario
+  try {
+    // Primera pasada del scout en este medio: se fija la línea base SIN avisar (no hay
+    // nada con qué comparar). Así un medio que ya vio el catálogo no repite el aviso, y
+    // los cambios posteriores de hardware/catálogo sí reaparecen.
+    if (!safeGet(SCOUT_SIGNATURE_KEY)) {
+      await marcarScoutVisto();
+      return { accion: "nada", motivo: "al-dia" };
+    }
+    const hayScout = await hayNovedadesScout();
+    if (hayScout) {
+      const sig = await scoutSignatureActual();
+      return { accion: "aviso", motivo: "novedades-scout", modelos: 0, fuentes: 0, firma: sig };
+    }
+  } catch { /* degradación silenciosa */ }
   return { accion: "nada", motivo: "al-dia" };
 }
 
@@ -320,6 +387,12 @@ export function markUpdatesSeen(patch: Partial<StartupState> = {}): void {
     firstRunDone: true,
     snoozeUntil: 0,
   });
+}
+
+/** Marca catálogo y scout como vistos (para cuando el usuario revisa la ventana). */
+export async function markUpdatesSeenConScout(patch: Partial<StartupState> = {}): Promise<void> {
+  markUpdatesSeen(patch);
+  await marcarScoutVisto();
 }
 
 /**
