@@ -273,4 +273,89 @@ export function resolverAjustes(
   };
 }
 
+// ── (1104 · RPO1104F) Revisión con peces e interfaz viva — ajustes del PERFIL ─
+// Contrato: architecture/repos-libreria-1104.md §2 (peces de EGM) y §3 (OpenUI).
+// Son ajustes de cada perfil (agente, personalidad, bot), no del próximo
+// mensaje: no cambian `resolverAjustes` ni los tres controles del popover.
+
+/** Cuándo pasan los peces (revisores sin contexto) antes de entregar. */
+export type RevisionPeces = "creaciones" | "siempre" | "nunca";
+
+/** Cómo se pinta la respuesta: interfaz viva de OpenUI, solo texto o según el contenido. */
+export type ModoInterfaz = "auto" | "viva" | "texto";
+
+/** Qué se hace en el turno. Creaciones = app, página, publicación y plan. */
+export type TipoDeTarea = "app" | "pagina" | "publicacion" | "plan" | "charla";
+
+export interface AjustesPerfilRespuesta {
+  revisionPeces: RevisionPeces;
+  interfaz: ModoInterfaz;
+}
+
+export const ORDEN_REVISION_PECES: readonly RevisionPeces[] = ["creaciones", "siempre", "nunca"];
+export const ORDEN_MODOS_INTERFAZ: readonly ModoInterfaz[] = ["auto", "viva", "texto"];
+export const TAREAS_DE_CREACION: readonly TipoDeTarea[] = ["app", "pagina", "publicacion", "plan"];
+
+export const ETIQUETAS_REVISION_PECES: Readonly<Record<RevisionPeces, string>> = {
+  creaciones: "Solo en creaciones",
+  siempre: "Siempre",
+  nunca: "Nunca",
+};
+
+export const ETIQUETAS_MODO_INTERFAZ: Readonly<Record<ModoInterfaz, string>> = {
+  auto: "Automático",
+  viva: "Interfaz viva",
+  texto: "Solo texto",
+};
+
+/** Por defecto: peces solo en las creaciones; interfaz según el contenido. */
+export function ajustesPerfilPorDefecto(): AjustesPerfilRespuesta {
+  return { revisionPeces: "creaciones", interfaz: "auto" };
+}
+
+/** Lo guardado, con cada valor que ya no existe devuelto a su valor por defecto. */
+export function normalizarAjustesPerfil(
+  guardado?: Partial<AjustesPerfilRespuesta> | null,
+): AjustesPerfilRespuesta {
+  const base = ajustesPerfilPorDefecto();
+  const peces = guardado?.revisionPeces;
+  const interfaz = guardado?.interfaz;
+  return {
+    revisionPeces: peces && ORDEN_REVISION_PECES.includes(peces) ? peces : base.revisionPeces,
+    interfaz: interfaz && ORDEN_MODOS_INTERFAZ.includes(interfaz) ? interfaz : base.interfaz,
+  };
+}
+
+export function esTareaDeCreacion(tipo: TipoDeTarea): boolean {
+  return TAREAS_DE_CREACION.includes(tipo);
+}
+
+/** ¿Pasan los peces antes de entregar? «creaciones»: app, página, publicación y plan sí; charla no. */
+export function debeRevisarConPeces(
+  ajustes: Partial<AjustesPerfilRespuesta> | null | undefined,
+  tipoDeTarea: TipoDeTarea,
+): boolean {
+  const { revisionPeces } = normalizarAjustesPerfil(ajustes);
+  if (revisionPeces === "siempre") return true;
+  if (revisionPeces === "nunca") return false;
+  return esTareaDeCreacion(tipoDeTarea);
+}
+
+export interface SenalesDeContenido {
+  tieneDatos?: boolean;
+  tienePasos?: boolean;
+  tieneComparacion?: boolean;
+}
+
+/** ¿Se pinta con la interfaz viva de OpenUI? «auto»: solo si hay datos, pasos o comparaciones. */
+export function debeUsarInterfazViva(
+  ajustes: Partial<AjustesPerfilRespuesta> | null | undefined,
+  senales: SenalesDeContenido = {},
+): boolean {
+  const { interfaz } = normalizarAjustesPerfil(ajustes);
+  if (interfaz === "viva") return true;
+  if (interfaz === "texto") return false;
+  return Boolean(senales.tieneDatos || senales.tienePasos || senales.tieneComparacion);
+}
+
 export default resolverAjustes;
