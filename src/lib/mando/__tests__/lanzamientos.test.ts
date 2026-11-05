@@ -18,7 +18,7 @@ const ESTADO_EJEMPLO: EstadoLanzamiento = {
     { fase: "esperando-publicacion", t: 1730795000, detalle: "publicada la versión: etiqueto" },
     { fase: "preparando", t: 1730796000, detalle: "preparo v0.4.0" },
     { fase: "etiquetando", t: 1730797000, detalle: "etiqueta v0.4.0 subida" },
-    { fase: "compilando", t: 1730798000, detalle: "compilando v0.4.0 en GitHub", run: 12345, run_url: "https://github.com/StarSeedSystem/starseed-system/actions/runs/12345" },
+    { fase: "compilando", t: 1730798000, detalle: "compilando v0.4.0 en GitHub" },
   ],
   jobs: [
     { medio: "macos", job: "macOS · macos-latest", estado: "ok", id: 1, url: "https://github.com/.../jobs/1", inicio: "2024-11-05T10:00:00Z", fin: "2024-11-05T10:15:00Z" },

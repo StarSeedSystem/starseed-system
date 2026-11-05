@@ -288,5 +288,5 @@ export function validarPeticion(body: unknown): ResultadoValidacion<PeticionLanz
     }
     return { ok: true, peticion: { accion: "auto", activo } };
   }
-  return { ok: true, peticion: { accion } };
+  return { ok: true, peticion: { accion: accion as AccionPeticion } };
 }
