@@ -72,6 +72,8 @@ import { workspaceSystemExtra } from "@/lib/workspaces/workspaces";
 // StarSeed (`promptDeSistema`, src/lib/openui/biblioteca.tsx) y entra aquí al
 // system prompt de cada turno, igual que el resto de extras del orbe.
 import { promptDeSistema } from "@/lib/openui/biblioteca";
+import { conInterfazViva } from "@/lib/openui/prompt-astraura";
+import type { AjustesPerfilRespuesta } from "@/lib/astraura/ajustes-respuesta";
 import { describeUserVoiceEmotionForPrompt } from "@/lib/aurora/audio-emotion";
 // EAR1023C: la línea «Se oye: …» la registra el motor de oído (engine.ts) y se
 // lee aquí para el contexto de cualquier superficie del orbe/agente.
@@ -315,14 +317,6 @@ export async function composeAuroraSystem(opts: {
     if (k) pieces.push(k);
   } catch { /* */ }
 
-  // 3.5) INTERFAZ VIVA (ola 1104 · OpenUI, §3): el prompt generado DESDE la
-  // biblioteca StarSeed (no a mano) le enseña al modelo a escribir OpenUI Lang;
-  // el Renderer de `src/components/openui/respuesta-viva.tsx` es quien lo pinta.
-  try {
-    const viva = promptDeSistema();
-    if (viva) pieces.push(viva);
-  } catch { /* sin interfaz viva: prompt idéntico */ }
-
   // 4) Nota de contexto de ruta + reafirmación del control total (como el orbe).
   pieces.push(
     `CONTEXTO ACTUAL — El usuario está en: ${routeLabel}. ` +
@@ -423,7 +417,10 @@ export async function sendAuroraTurn(opts: SendAuroraTurnOptions): Promise<Auror
   if (attachments) {
     try { attachContext = await buildAttachmentsContext(attachments); } catch { /* sin contexto: sigue igual */ }
   }
-  const system = [opts.systemExtra, attachContext, extras].filter(Boolean).join("\n\n");
+  const systemBase = [opts.systemExtra, attachContext, extras].filter(Boolean).join("\n\n");
+  // 1104 · OpenUI: añade el prompt de la biblioteca condicionalmente según los ajustes del perfil.
+  const ajustesPerfil = (persona as { ajustesRespuesta?: Partial<AjustesPerfilRespuesta> } | null)?.ajustesRespuesta;
+  const system = conInterfazViva(systemBase, ajustesPerfil);
 
   // 4) Historial (el REAL de la conversación unificada si no se pasó).
   const history = opts.history ?? historyFromCache(convId, text);
