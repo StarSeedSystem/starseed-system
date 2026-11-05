@@ -225,7 +225,7 @@ export function leerVersion(
         const primero = json[0] as { sha?: unknown; commit?: { committer?: { date?: unknown } } };
         if (!esCadena(primero?.sha)) return null;
         const fecha = primero.commit?.committer?.date;
-        return { version: primero.sha, fecha: esCadena(fecha) ? fecha : null };
+        return { version: primero.sha.slice(0, 7), fecha: esCadena(fecha) ? fecha : null };
     }
     if (urlDeConsulta(upstream)?.includes("huggingface.co/api")) {
         const modelo = json as { sha?: unknown; lastModified?: unknown };
