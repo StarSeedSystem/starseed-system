@@ -21,6 +21,18 @@ CUENTAS = re.compile(r"\b(crear|borrar|eliminar|gestionar|cerrar|abrir|cambiar)\
 #: Ola 1102 (IMG1102A): un GASTO de verdad: pagar, comprar, contratar o suscribirse; una compra, un pago, un importe, una
 #: tarjeta, una factura o algo «de pago» que se usa (créditos, plan, modelo, API…). «pago» suelto ya no basta: «acceso
 #: (libre, registro, pago)» describe una web pública y no gasta nada; «la suscripción realtime» tampoco.
+# (1104C) 'clave' en RESERVADOS se reduce a su forma de secreto: clave de API, clave privada,
+# clave SSH, clave de acceso, clave de credencial. No como sinónimo de 'importante' (paso clave, punto clave, clave para, es clave).
+# Incluye 'clave del certificado' (SSL/TLS) como secreto.
+_CLAVE_SECRETO = re.compile(
+    r"\bclave\s+(?:"
+    r"(?:de|del)\s+(?:acceso|api|token|jwt|privada|credential|credencial|certificado?)|"
+    r"(?:de\s+)?(?:acceso|api|token|jwt|privada|credential|credencial)|"
+    r"ssh|certificado?"
+    r")\b", re.IGNORECASE)
+#: Ola 1102 (IMG1102A): un GASTO de verdad: pagar, comprar, contratar o suscribirse; una compra, un pago, un importe, una
+#: tarjeta, una factura o algo «de pago» que se usa (créditos, plan, modelo, API…). «pago» suelto ya no basta: «acceso
+#: (libre, registro, pago)» describe una web pública y no gasta nada; «la suscripción realtime» tampoco.
 GASTO = re.compile(
     r"\b(?:pag(?:ar|ue|uemos|amos|aremos|aria)|compr(?:ar|e|emos|aremos|aria)|contrat(?:ar|e|emos)|suscribir(?:se|nos|te)?)\b"
     r"|\b(?:una|la|esta|cada) compra\b|\bcompras? de\b|\b(?:un|el|los|cada|primer) pagos?\b"
@@ -70,6 +82,9 @@ def es_de_alex(p: Dict) -> str:
     """El motivo si toca algo que solo decide Alex (publicar, gastar, cuentas, claves…); cadena vacía si no."""
     texto = _texto_riesgo(p)
     for tema in RESERVADOS:
+        if tema == "clave":
+            if _CLAVE_SECRETO.search(texto): return f"no accionable por el enjambre (clave de secreto): es de Alex → pregunta"
+            continue
         if re.search(rf"\b{tema}\b", texto): return f"no accionable por el enjambre ({tema}): es de Alex → pregunta"
     gasto = GASTO.search(texto)
     if gasto: return f"no accionable por el enjambre (gasto: {gasto.group(0).strip()}): es de Alex → pregunta"

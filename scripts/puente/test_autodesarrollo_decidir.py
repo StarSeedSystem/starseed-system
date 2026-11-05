@@ -492,8 +492,13 @@ class TokenSoloComoCredencial(unittest.TestCase):
 
     def test_token_que_si_es_credencial(self):
         for t in ("Rotar el token de acceso de GitHub", "Mover GITHUB_TOKEN al servidor", "Usar un API token nuevo",
-                  "Cabecera Bearer en la sonda", "Guardar la clave en el entorno", "r2_credentials.local.json"):
+                  "Cabecera Bearer en la sonda", "r2_credentials.local.json"):
             self.assertTrue(D.es_de_alex({"titulo": t, "cuerpo": ""}), t)
+
+    def test_clave_sin_contexto_de_secreto_no_es_de_alex(self):
+        """'clave' sin contexto de secreto (clave de API, SSH, etc.) → accionable."""
+        for t in ("Guardar la clave en el entorno",):
+            self.assertEqual(D.es_de_alex({"titulo": t, "cuerpo": ""}), "", t)
 
 
 # ─────────────── Ola 1102 · IMG1102A: el gasto de verdad, el carril de bajo riesgo y las autorizaciones inventadas ───────────────
