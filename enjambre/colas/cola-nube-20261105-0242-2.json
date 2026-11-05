@@ -1,0 +1,40 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "id": "RPO1104C",
+   "ola": "1104R · Repos nativos",
+   "titulo": "EGM · revisarConPeces: 2–3 modelos gratuitos distintos revisan en paralelo",
+   "archivos": [
+    "src/lib/agents/egm/revisar.ts",
+    "src/lib/agents/egm/__tests__/revisar.test.ts"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2. `revisarConPeces(artefacto, { tipo, llamar, modelos, n = 2, plazoMs })`: `llamar(modelo, prompt) → Promise<string>` es INYECTADO (nada de fetch dentro); elige `n` modelos distintos de la lista que le pasan (los gratuitos que ya lista `src/lib/mando/modelos-disponibles.ts` u otro módulo existente: búscalo), usa `promptDePez`/`leerObjeciones`/`veredicto` de `peces.ts`, tolera que un pez falle o se pase de plazo (cuenta como sin objeciones y se dice en `avisos`) y devuelve `{ objeciones, veredicto, peces, avisos }`. Si no hay modelos, devuelve pasa=true con el aviso «sin peces» (nunca bloquea por falta de modelos). Pruebas con `llamar` simulado.",
+   "dependencias_ya_en_main": [
+    "RPO1104A"
+   ]
+  },
+  {
+   "id": "RPO1104Ub",
+   "ola": "1104R · Repos nativos",
+   "titulo": "Biblioteca · el seguimiento de versiones deja de estar ciego (lote rotatorio, memoria y token opcional)",
+   "archivos": [
+    "src/lib/library/rotacion-actualizaciones.ts",
+    "src/lib/library/__tests__/rotacion-actualizaciones.test.ts",
+    "src/app/api/library/actualizaciones/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (§7 Comprobación) y `src/app/api/library/actualizaciones/route.ts` (léelos enteros antes de escribir).\n\nProblema medido el 04-11 en localhost:9002: de 310 fuentes, 269 salen «desconocida». La ruta lanza las 310 consultas a api.github.com A LA VEZ, sin token y con un tope total de 8 s, y GitHub solo da 60 consultas por hora sin token. Arreglo:\n1) `src/lib/library/rotacion-actualizaciones.ts` PURO: `loteAConsultar(entradas, conocidas, ahora, { maxLote, edadMinMs })` → los ids a consultar en esta pasada: primero los nunca vistos, luego los más viejos, como mucho `maxLote` (40 sin token); `fusionar(conocidas, resultados, ahora)` → guarda por id { remota, fecha, t } y NUNCA borra una remota buena por un fallo.\n2) En la ruta: consulta solo el lote, con concurrencia 6 (no 310 a la vez); para lo demás devuelve lo último conocido (estado calculado con `compararVersiones`). `conocidas` vive en memoria del módulo y se guarda, si se puede, en `path.join(os.tmpdir(), \"starseed-actualizaciones-biblioteca.json\")` (try/catch: en Vercel puede no haber disco y no pasa nada). Si GitHub responde 403/429 con `x-ratelimit-remaining: 0`, corta el lote y lo dice en `aviso`.\n3) Si existe `process.env.GITHUB_TOKEN`, manda `Authorization: Bearer` y sube `maxLote` a 300; el token NUNCA se escribe en logs, respuestas ni errores. Sin token todo funciona igual, solo más despacio.\nPruebas puras del lote y la fusión (orden, tope, no perder lo bueno).\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41951108327`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 41959163141) falla «pruebas TS»: \u001b[39m\n2026-11-05T03:11:14.5771483Z \u001b[2m      Tests \u001b[22m \u001b[1m\u001b[31m1 failed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[1m\u001b[32m36 passed\u001b[39m\u001b[22m\u001b[90m (37)\u001b[39m\n2026-11-05T03:11:14.5772576Z \u001b[2m   Start at \u001b[22m 03:10:51\n2026-11-05T03:11:14.5773570Z \u001b[2m   Duration \u001b[22m 23.19s\u001b[2m (transform 405ms, setup 233ms, collect 590ms, tests 456ms, environment 806ms, prepare 167ms)\u001b[22m\n2026-11-05T03:11:14.5774160Z \n2026-11-05T03:11:14.5782055Z \n2026-11-05T03:11:14.5804143Z ##[error]AssertionError: expected null to be 'd32d022' // Object.is equality\n\n- Expected: \n\"d32d022\"\n\n+ Received: \nnull\n\n ❯ src/lib/library/__tests__/repos-1026.test.ts:275:58\n\n\n2026-11-05T03:11:14.7394410Z ##[error]Process completed with exit code 1.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41951108327:refs/remotes/origin/nube/41951108327\"` y `git cherry-pick --no-commit 26e829a963a3`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/app/api/library/actualizaciones/route.ts, src/lib/library/__tests__/rotacion-actualizaciones.test.ts, src/lib/library/rotacion-actualizaciones.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41951108327"
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-183516.json": [
+   "RPO1104C",
+   "RPO1104Ub"
+  ]
+ }
+}
