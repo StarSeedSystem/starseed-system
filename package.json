@@ -41,7 +41,7 @@
     "@meshtastic/transport-http": "npm:@jsr/meshtastic__transport-http@^0.2.1",
     "@meshtastic/transport-web-bluetooth": "npm:@jsr/meshtastic__transport-web-bluetooth@^0.1.2",
     "@meshtastic/transport-web-serial": "npm:@jsr/meshtastic__transport-web-serial@^0.2.5",
-    "@openuidev/react-lang": "1.1.0",
+    "@openuidev/react-lang": "^1.1.0",
     "@pixiv/three-vrm": "3.5.5",
     "@radix-ui/react-accordion": "^1.2.3",
     "@radix-ui/react-alert-dialog": "^1.1.6",
