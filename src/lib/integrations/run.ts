@@ -31,6 +31,12 @@ import {
   ErrorTrilium,
   type Pedir,
 } from "../conectores-propios/trilium";
+import {
+  configDeeptutor,
+  estadoDeeptutor,
+  preguntarTutor,
+  type FetchFn as FetchDeeptutor,
+} from "../conectores-propios/deeptutor";
 
 import * as Crawl4AI from "./clients/crawl4ai";
 import * as Firecrawl from "./clients/firecrawl";
@@ -110,6 +116,23 @@ function gate(cfg: IntegrationConfig, fallbackEndpoint?: string): { ok: true; cf
 
 /** `fetch` real inyectado en el cliente puro de Trilium (sin `node:*`). */
 const pedirTrilium: Pedir = (url, init) => fetch(url, init);
+
+/** `fetch` real inyectado en el conector puro de DeepTutor (sin `node:*`). */
+const pedirDeeptutor: FetchDeeptutor = (url, init) => fetch(url, init);
+
+/**
+ * Config del DeepTutor opcional (§6): primero las variables de entorno
+ * `DEEPTUTOR_URL`/`DEEPTUTOR_TOKEN` y, si no están, lo que la persona guardó
+ * en Ajustes → Integraciones. El token nunca viaja en la URL.
+ */
+function configDeDeeptutor(c: IntegrationConfig) {
+  const entorno: Record<string, string | undefined> =
+    typeof process !== "undefined" ? process.env : {};
+  return configDeeptutor({
+    DEEPTUTOR_URL: (entorno.DEEPTUTOR_URL ?? "").trim() || c.endpoint,
+    DEEPTUTOR_TOKEN: (entorno.DEEPTUTOR_TOKEN ?? "").trim() || c.apiKey,
+  });
+}
 
 /** Adapta la llamada al cliente Trilium al contrato del runner, sin filtrar el token. */
 async function desdeTrilium<T>(accion: () => Promise<T>): Promise<IntegrationResult<T>> {
@@ -264,6 +287,30 @@ export async function runIntegration(
           const contenido = texto(entrada.contenido) || texto(entrada.content);
           const tipo = texto(entrada.tipo) || "text";
           return desdeTrilium(() => crearNota(base, token, padre, titulo, contenido, pedirTrilium, tipo));
+        }
+        break;
+      }
+      case "deeptutor": {
+        const config = configDeDeeptutor(c);
+        if (!config) {
+          return { ok: false, error: "DeepTutor no está configurado: falta DEEPTUTOR_URL o el endpoint." };
+        }
+        if (a === "estado") {
+          const disponible = await estadoDeeptutor(config, pedirDeeptutor);
+          return disponible
+            ? { ok: true, data: { estado: "responde" } }
+            : { ok: false, error: "DeepTutor no responde: revisa la URL y el token." };
+        }
+        if (a === "preguntar") {
+          const entrada = (input ?? {}) as Record<string, unknown>;
+          const pregunta = String(entrada.pregunta ?? entrada.texto ?? entrada.content ?? "").trim();
+          if (!pregunta) return { ok: false, error: "Falta la pregunta para el tutor." };
+          const modo = String(entrada.modo ?? entrada.capability ?? "chat");
+          const respuesta = await preguntarTutor(config, pedirDeeptutor, { pregunta, modo });
+          if (!respuesta) {
+            return { ok: false, error: "DeepTutor no respondió: sigue la habilidad educativa nativa." };
+          }
+          return { ok: true, data: respuesta };
         }
         break;
       }
@@ -445,6 +492,15 @@ export async function testIntegration(id: string, cfg?: IntegrationConfig): Prom
           const notas = await buscarNotas(c.endpoint ?? "", c.apiKey ?? "", "", pedirTrilium, 1);
           return { notas: notas.length };
         });
+      case "deeptutor": {
+        const config = configDeDeeptutor(c);
+        if (!config) {
+          return { ok: false, error: "DeepTutor no está configurado: falta DEEPTUTOR_URL o el endpoint." };
+        }
+        return (await estadoDeeptutor(config, pedirDeeptutor))
+          ? { ok: true, data: { estado: "responde" } }
+          : { ok: false, error: "DeepTutor no responde: revisa la URL y el token." };
+      }
       case "databasement":
         return await Databasement.health(c);
       case "openmanus":
