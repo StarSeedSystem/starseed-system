@@ -15,6 +15,7 @@ import { execFile } from "node:child_process";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { promisify } from "node:util";
 import path from "node:path";
+import { Buffer } from "node:buffer";
 
 import { raizDelProyecto } from "@/lib/mando/raiz";
 
@@ -60,6 +61,25 @@ export type ManifiestoPublicacion = EstadoPublicacion & {
 };
 
 const COMANDO_PUSH = "git push origin main";
+
+const TAMANO_BLOQUE = 1024 * 1024;
+
+type EstadoProgreso = {
+    tsc: "ok" | "falla" | null;
+    vitest: "ok" | "falla" | null;
+};
+
+type CacheEventos = {
+    offset: number;
+    estado: EstadoProgreso;
+};
+
+const cacheEventos: Map<string, CacheEventos> = new Map();
+
+let _bytesLeidosUltimaVez = 0;
+export function bytesLeidosUltimaVez(): number {
+    return _bytesLeidosUltimaVez;
+}
 
 /** Ruta relativa (nunca absoluta) del manifiesto pendiente de publicar. */
 const ARCHIVO_MANIFIESTO = path.join("starseed_memory_root", "relevo", "publicacion-pendiente.json");
@@ -127,6 +147,83 @@ export function interpretarComprobaciones(
     return { tsc, vitest };
 }
 
+export type EstadoProgresoLineas = {
+    tsc: "ok" | "falla" | null;
+    vitest: "ok" | "falla" | null;
+};
+
+export type EstadoAvanzado = EstadoProgresoLineas & {
+    resto: string;
+};
+
+export function avanzarComprobaciones(
+    estado: EstadoAvanzado,
+    trozo: string,
+): EstadoAvanzado {
+    const combinado = estado.resto + trozo;
+    const linees = combinado.split("\n");
+    const resto = linees.pop() ?? "";
+    const lineasCompletas = linees.filter((l) => l.includes("verif"));
+    const interpretado = interpretarComprobaciones(lineasCompletas);
+    return {
+        tsc: interpretado.tsc ?? estado.tsc,
+        vitest: interpretado.vitest ?? estado.vitest,
+        resto,
+    };
+}
+
+export function leerComprobacionesDe(rutaArchivo: string): EstadoProgresoLineas {
+    try {
+        const fsSync = require("fs");
+        const info = cacheEventos.get(rutaArchivo);
+        const stats = fsSync.statSync(rutaArchivo);
+        const tamanoActual = stats.size;
+        let offset = info?.offset ?? 0;
+        let estado = info?.estado ?? { tsc: null, vitest: null };
+
+        if (tamanoActual < offset) {
+            offset = 0;
+            estado = { tsc: null, vitest: null };
+        }
+
+        if (offset >= tamanoActual) {
+            return { tsc: estado.tsc ?? "desconocido", vitest: estado.vitest ?? "desconocido" };
+        }
+
+        const fd = fsSync.openSync(rutaArchivo, "r");
+        const buffer = Buffer.alloc(TAMANO_BLOQUE);
+        let posicion = offset;
+        let estadoLocal: EstadoProgresoLineas = { ...estado };
+
+        try {
+            while (posicion < tamanoActual) {
+                const aLeer = Math.min(TAMANO_BLOQUE, tamanoActual - posicion);
+                const leidos = fsSync.readSync(fd, buffer, 0, aLeer, posicion);
+                if (leidos === 0) break;
+                posicion += leidos;
+                _bytesLeidosUltimaVez = posicion;
+
+                const trozo = buffer.toString("utf8", 0, leidos);
+                estadoLocal = avanzarComprobaciones({ ...estadoLocal, resto: "" }, trozo);
+            }
+        } finally {
+            fsSync.closeSync(fd);
+        }
+
+        const cacheEstado: EstadoProgreso = { tsc: estadoLocal.tsc, vitest: estadoLocal.vitest };
+        cacheEventos.set(rutaArchivo, { offset: posicion, estado: cacheEstado });
+
+        return { tsc: estadoLocal.tsc ?? "desconocido", vitest: estadoLocal.vitest ?? "desconocido" };
+    } catch {
+        return { tsc: "desconocido", vitest: "desconocido" };
+    }
+}
+
+function tamanoArchivo(fd: number): number {
+    const stats = require("fs").fstatSync(fd);
+    return stats.size;
+}
+
 /** Ejecuta una orden `git` de solo lectura con tope de 15 s; devuelve `stdout` o `""`. */
 async function git(args: string[]): Promise<string> {
     try {
@@ -158,16 +255,19 @@ async function obtenerRevisionesBloqueantes(): Promise<number> {
 }
 
 /** Lee el último `verificado`/`verificacion_fallida` de `eventos.jsonl` y traduce a comprobaciones. */
+function leerComprobacionesSync(rutaArchivo: string): { tsc: EstadoComprobacion; vitest: EstadoComprobacion } {
+    const resultado = leerComprobacionesDe(rutaArchivo);
+    return { tsc: resultado.tsc, vitest: resultado.vitest };
+}
+
 async function leerComprobaciones(): Promise<Comprobaciones> {
     let resultado = { tsc: "desconocido", vitest: "desconocido" } as Comprobaciones;
-    // Las revisiones bloqueantes se leen aparte (archivo de texto, no el jsonl).
     const bloqueantes = await obtenerRevisionesBloqueantes();
     try {
-        const crudo = await readFile(path.join(raizDelProyecto(), ARCHIVO_EVENTOS), "utf8");
-        const interpretado = interpretarComprobaciones(crudo.split("\n"));
+        const estado = leerComprobacionesSync(path.join(raizDelProyecto(), ARCHIVO_EVENTOS));
         resultado = {
-            tsc: interpretado.tsc ?? "desconocido",
-            vitest: interpretado.vitest ?? "desconocido",
+            tsc: estado.tsc,
+            vitest: estado.vitest,
             revisionesBloqueantes: bloqueantes,
         };
     } catch {
