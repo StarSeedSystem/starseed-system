@@ -11,6 +11,14 @@ function moleculaDePrueba(): Molecula {
         capas: [], atomos: [], valores: {}, version: 1, creadaEn: 1000, actualizadaEn: 1000,
     };
 }
+
+// Prueba para respuesta-viva
+export function moleculaConRespuestaViva(): Molecula {
+    return {
+        id: "mol-respuesta-viva", titulo: "Molécula con Respuesta Viva", ambito: "personal",
+        capas: [CAPA_RESPUESTA_VIVA], atomos: [], valores: {}, version: 1, creadaEn: 1000, actualizadaEn: 1000,
+    };
+}
 function capaConReferencia(): Capa {
     return {
         id: "capa-1", tipo: "lienzo2d", titulo: "Capa de prueba", formato: "svg",

@@ -8,6 +8,22 @@ import { prepararDiagrama } from "@/lib/diagramas/aislar-diagrama";
 
 /** Versión del sobre JSON del bloque. */
 export const VERSION_BLOQUE = 1;
+
+/** Tipo de bloque/capa «respuesta-viva»: guarda texto OpenUI Lang y se pinta con RespuestaViva. */
+export const TIPO_RESPUESTA_VIVA = "respuesta-viva";
+
+/** Definición estándar de capa para respuesta-viva (formato openui-lang). */
+export const CAPA_RESPUESTA_VIVA: Capa = {
+  id: "respuesta-viva",
+  tipo: "respuesta-viva" as Capa["tipo"],
+  titulo: "Respuesta Viva",
+  formato: "openui-lang",
+  referencia: null,
+  orden: 0,
+  visible: true,
+  bloqueada: false,
+};
+
 /** Tope del bloque serializado (deja margen dentro de MAX_SS_META_BYTES). */
 export const MAX_BLOQUE_BYTES = 32 * 1024;
 
