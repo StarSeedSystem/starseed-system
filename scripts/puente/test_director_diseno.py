@@ -268,6 +268,103 @@ class TestInforme(unittest.TestCase):
         self.assertEqual(len([p for p in reg["publicar"] if p[0] == "informe"]), 2)
 
 
+class TestRubricaMotionSites(unittest.TestCase):
+    """Repos 1104 §5: la rúbrica de MotionSites entra como SEGUNDA lista de
+    comprobación (después de la identidad Trinity, que manda). Solo lectura del
+    JSON; sin él, todo igual que antes."""
+
+    def test_preguntas_rubrica_extrae_solo_lo_valido(self):
+        datos = {"rubrica": [
+            {"id": "primer-vistazo", "pregunta": "¿Se entiende en tres segundos?"},
+            {"sin": "pregunta"},
+            "no-diccionario",
+        ]}
+        preguntas = DD.preguntas_rubrica(datos)
+        self.assertEqual(len(preguntas), 1)
+        self.assertEqual(preguntas[0]["id"], "primer-vistazo")
+        self.assertEqual(preguntas[0]["pregunta"], "¿Se entiende en tres segundos?")
+
+    def test_preguntas_rubrica_vacia_sin_json(self):
+        self.assertEqual(DD.preguntas_rubrica({}), [])
+        self.assertEqual(DD.preguntas_rubrica(None), [])
+        self.assertEqual(DD.preguntas_rubrica({"rubrica": "no-lista"}), [])
+
+    def test_bloque_rubrica_vacio_si_no_hay_preguntas(self):
+        self.assertEqual(DD.bloque_rubrica([]), "")
+        self.assertEqual(DD.bloque_rubrica(None), "")
+
+    def test_bloque_rubrica_encabeza_averias_y_preguntas(self):
+        bloque = DD.bloque_rubrica([{"id": "firma", "pregunta": "¿Hay detalle memorable?"}])
+        self.assertIn("Rúbrica MotionSites", bloque)
+        self.assertIn("segunda lista de comprobación", bloque)
+        self.assertIn("Trinity", bloque)
+        self.assertIn("- ¿Hay detalle memorable?", bloque)
+
+    def test_brief_trae_la_rubrica_con_json_simulado(self):
+        deps, reg = deps_falsas(
+            progreso={"T1": {"estado": "en_curso", "modelo": "m"}},
+            tareas=[tarea_interfaz()],
+        )
+        deps["rubrica"] = lambda: [{"id": "primer-vistazo",
+                                    "pregunta": "¿Se entiende en tres segundos?"}]
+        DD.ciclo(MARTES, deps)
+        self.assertEqual(len(reg["anotar"]), 1)
+        self.assertIn("Rúbrica MotionSites", reg["anotar"][0][1])
+        self.assertIn("¿Se entiende en tres segundos?", reg["anotar"][0][1])
+
+    def test_sin_rubrica_el_brief_es_igual_que_antes(self):
+        deps, reg = deps_falsas(
+            progreso={"T1": {"estado": "en_curso", "modelo": "m"}},
+            tareas=[tarea_interfaz()],
+        )
+        r = DD.ciclo(MARTES, deps)
+        self.assertEqual(r["briefs"], 1)
+        texto = reg["anotar"][0][1]
+        self.assertNotIn("Rúbrica MotionSites", texto)
+
+    def test_revision_con_nota_baja_trae_las_preguntas_tras_arreglos(self):
+        informe = informe_limpio()
+        informe["desbordes"] = ["div.a", "div.b", "div.c", "div.d", "div.e"]
+        deps, reg = deps_falsas(
+            progreso={"T1": {"estado": "commit", "modelo": "nim/kimi-k3"}},
+            tareas=[tarea_interfaz()],
+            informes=[informe],
+        )
+        deps["rubrica"] = lambda: [{"id": "medios", "pregunta": "¿El medio está compuesto a propósito?"}]
+        DD.ciclo(MARTES, deps)
+        tid, texto = reg["anotar"][0]
+        self.assertEqual(tid, "T1")
+        indice_arreglos = texto.index("Arreglos")
+        self.assertIn("¿El medio está compuesto a propósito?", texto)
+        self.assertIn("Rúbrica MotionSites", texto)
+        self.assertGreater(texto.index("Rúbrica MotionSites"), indice_arreglos)
+
+    def test_revision_sin_rubrica_igual_que_antes(self):
+        informe = informe_limpio()
+        informe["desbordes"] = ["div.a", "div.b", "div.c", "div.d", "div.e"]
+        deps, reg = deps_falsas(
+            progreso={"T1": {"estado": "commit", "modelo": "nim/kimi-k3"}},
+            tareas=[tarea_interfaz()],
+            informes=[informe],
+        )
+        DD.ciclo(MARTES, deps)
+        texto = reg["anotar"][0][1]
+        self.assertNotIn("Rúbrica MotionSites", texto)
+
+    def test_lector_real_sin_archivo_devuelve_vacio(self):
+        ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "no-existe-motionsites.json")
+        self.assertEqual(DD._leer_rubrica_real(ruta), [])
+
+    def test_lector_real_del_repo_trae_la_rubrica(self):
+        ruta = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)))),
+            "config", "referencias-diseno", "motionsites.json")
+        preguntas = DD._leer_rubrica_real(ruta)
+        self.assertGreaterEqual(len(preguntas), 3)
+        self.assertEqual(preguntas[0]["id"], "primer-vistazo")
+
+
 class TestRutasDe(unittest.TestCase):
     def test_tabla_y_regla_app(self):
         self.assertEqual(DD.rutas_de(["src/components/mando/panel.tsx"]), ["/genesis"])
