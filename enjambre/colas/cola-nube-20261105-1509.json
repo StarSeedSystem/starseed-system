@@ -1,0 +1,36 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "id": "VOZ1105G",
+   "ola": "1105W · Voz estable",
+   "titulo": "Oído móvil sin nube · el reconocedor usa el Whisper del navegador por tramos (engine.ts)",
+   "archivos": [
+    "src/lib/aurora/engine.ts"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3. Lo que falta de VOZ1105D. La regla de reinicio del navegador en móvil YA está (commit «VOZ1105D»: `ciclosMudosRef` + `debeReiniciarNavegador` en el `onend` de `buildRecognition`): no la toques. Falta el oído Whisper del navegador en MÓVIL cuando no hay oído en la nube.\n(Antes VOZ1105Dc: el revisor la cerró por error al confundirla con VOZ1105D, que solo hizo la regla de reinicio.) Usa lo que dejó VOZ1105Db (ya en main): `oidoParaReconocer` (oido-movil.ts) y `transcribirTramo` (oss-stt.ts). En `buildRecognition` de `src/lib/aurora/engine.ts` ya se calcula `elegirOidoMovilRes` y NO se usa, y `whisperDescargado` mira las medidas, no el modelo: cámbialo por `oidoParaReconocer({ esMovil: isMobileDevice(), nube: oidoNubeListoYa(), whisperListo })`, con `whisperListo` = la persona activó el oído open-source (léelo en `opt-in.ts`) Y `isModelReady()`. Si da \"whisper-web\": `return buildEscuchaFusionado(\"whisper-web\")` (la misma línea estable por tramos que la nube, sin pitidos) y, en su `transcribir`, para `peticion.motor === \"whisper-web\"` llama a `transcribirTramo(tramo.pcm, tramo.rate, peticion.idioma)` con import dinámico de `oss-stt` (es pesado); en `elegir`, con motorId \"whisper-web\" devuelve `{ motor: \"whisper-web\" }` como ya hace con \"nube\". Quita `elegirOidoMovilRes` si deja de usarse. Cambios mínimos y localizados, sin reformatear.\nPrueba solo `src/lib/aurora/stt-oss/`.",
+   "dependencias_ya_en_main": [
+    "VOZ1105Db"
+   ]
+  },
+  {
+   "id": "IMG-agentes-reimaginada-diaria-tapar-las-dos",
+   "titulo": "Arreglar fuga de datos en la Biblioteca usando POST y portadas locales",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/library/library-store-panel.tsx",
+    "src/components/library/finder/finder-view.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Arreglar fuga de datos en la Biblioteca usando POST y portadas locales. ## Acción\n- Reemplazar la transmisión del objeto completo del ítem en la querystring del endpoint `/publish` por una petición **POST** con cuerpo JSON.\n- Eliminar la dependencia de `encodeURIComponent` que envía títulos a `placehold.co`; en su lugar, usar imágenes de portada almacenadas localmente en el proyecto.\n- Actualizar los componentes afectados para que construyan el payload y lo envíen mediante `fetch`/`axios` con encabezado `Content-Type: application/json`.\n- Modificar el manejo de respuestas para que no se registre información sensible en el historial del navegador ni en logs de serv Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1105-135510.json": [
+   "IMG-agentes-reimaginada-diaria-tapar-las-dos",
+   "VOZ1105G"
+  ]
+ }
+}
