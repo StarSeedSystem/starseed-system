@@ -834,6 +834,8 @@ export function useAuroraEngine(): AuroraEngine {
   // normal de Android (termina tras cada frase, o por silencio) NO cuenta como
   // roto: solo cuenta el reconocimiento que muere NADA MÁS arrancar sin audio.
   const sttRestartsRef = useRef<number>(0);
+  // (1105 · VOZ1105D) Ciclos SEGUIDOS del reconocedor del navegador sin oír nada (regla de móvil).
+  const ciclosMudosRef = useRef<number>(0);
   const sttRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Fallo fatal visible (permiso denegado / micro ocupado / se rindió).
   const [sttFatal, setSttFatal] = useState<SttFatal | null>(null);
@@ -2268,10 +2270,13 @@ export function useAuroraEngine(): AuroraEngine {
         setListening(false);
         return;
       }
-      // (1105 · VOZ) Reglas de reinicio de navegador en móvil: tras 2 ciclos
-      // seguidos en silencio y sin turno pendiente, NO se reinicia el reconocedor
-      // (se espera a la voz). Usamos la decisión pura del módulo oido-movil.
-      if (!debeReiniciarNavegador({ ciclosEnSilencio: sttRestartsRef.current, enTurno: !engagedRef.current })) {
+      // (1105 · VOZ1105D) Regla de reinicio del navegador en MÓVIL (voz-estable-1105.md §3): cada arranque
+      // PITA en Android, así que tras 2 ciclos SEGUIDOS sin oír nada y SIN conversación activa no se
+      // reinicia: se espera a que la persona toque el orbe (un pitido por turno, nunca en bucle). En una
+      // conversación (engaged) y en escritorio sigue la línea de siempre, con su contabilidad de salud.
+      ciclosMudosRef.current = sawResult ? 0 : ciclosMudosRef.current + 1;
+      if (isMobile && !debeReiniciarNavegador({ ciclosEnSilencio: ciclosMudosRef.current, enTurno: engagedRef.current })) {
+        ciclosMudosRef.current = 0;
         setListening(false);
         return;
       }
