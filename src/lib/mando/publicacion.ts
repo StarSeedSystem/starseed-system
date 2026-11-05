@@ -97,6 +97,14 @@ export function olaDeAsunto(asunto: string): string | undefined {
 }
 
 /**
+ * Función pura: cuenta las líneas que contienen «bloqueante» (case-insensitive).
+ * La misma regla que usaba `obtenerRevisionesBloqueantes` antes de la caché.
+ */
+export function contarBloqueantes(texto: string): number {
+    return texto.split("\n").filter((l) => /bloqueante/i.test(l)).length;
+}
+
+/**
  * Función pura: parsea las líneas JSONL (`eventos.jsonl`) y devuelve el resultado
  * de tsc y vitest a partir del ÚLTIMO evento `verificado`/`verificacion_fallida`.
  * Por línea: el tipo del evento está en `tipo`; el test o la puerta en `texto`/`tarea`.
@@ -269,14 +277,28 @@ async function git(args: string[]): Promise<string> {
     }
 }
 
+/** Caché en memoria para revisiones bloqueantes: { ruta, mtimeMs, size, cuenta }. */
+let cacheRevisiones: { ruta: string; mtimeMs: number; size: number; cuenta: number } | null = null;
+
 /** Cuenta las revisiones bloqueantes del último informe de revisión, si existe. */
-async function obtenerRevisionesBloqueantes(): Promise<number> {
+export async function obtenerRevisionesBloqueantes(): Promise<number> {
     // El orquestador anota el dictamen en `olas/revisiones.md`; un marcador «bloqueante»
     // o «sí, bloqueante» indica que esa revisión impide publicar. Se cuentan por sección.
-    for (const ruta of ["starseed_memory_root/olas/revisiones.md", "olas/revisiones.md"]) {
+    for (const rutaRel of ["starseed_memory_root/olas/revisiones.md", "olas/revisiones.md"]) {
+        const rutaAbs = path.join(raizDelProyecto(), rutaRel);
         try {
-            const texto = await readFile(path.join(raizDelProyecto(), ruta), "utf8");
-            return texto.split("\n").filter((l) => /bloqueante/i.test(l)).length;
+            const info = await stat(rutaAbs);
+            const mtimeMs = info.mtimeMs;
+            const size = info.size;
+
+            if (cacheRevisiones && cacheRevisiones.ruta === rutaAbs && cacheRevisiones.mtimeMs === mtimeMs && cacheRevisiones.size === size) {
+                return cacheRevisiones.cuenta;
+            }
+
+            const texto = await readFile(rutaAbs, "utf8");
+            const cuenta = contarBloqueantes(texto);
+            cacheRevisiones = { ruta: rutaAbs, mtimeMs, size, cuenta };
+            return cuenta;
         } catch {
             // se prueba la siguiente ruta
         }
