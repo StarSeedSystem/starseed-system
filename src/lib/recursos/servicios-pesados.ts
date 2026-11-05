@@ -5,8 +5,8 @@ export type TipoDestino = "aparato" | "cuenta" | "cerebro" | "malla" | "capa-pub
 export type Destino = { tipo: TipoDestino; id?: string };
 export type Colocacion = { donde: Destino; motivo: string; respaldo?: Destino; falta: string[] };
 export type Gpu = "no" | "opcional" | "recomendada" | "necesaria";
-export type ServicioId = "comfyui" | "libretranslate" | "stirling-pdf" | "archivebox" | "openhands-agent-server" | "coolify";
-export type RequisitosServicio = { id: ServicioId; nombre: string; ram_gb: number | null; ramMedidaMb: number | null; vram_gb: number | null; gpu: Gpu; docker: string; arquitecturas: string[]; so: string[]; fuente: string; medido: string | null };
+export type ServicioId = "comfyui" | "libretranslate" | "stirling-pdf" | "archivebox" | "openhands-agent-server" | "coolify" | "deeptutor";
+export type RequisitosServicio = { id: ServicioId; nombre: string; ram_gb: number | null; ramMedidaMb: number | null; vram_gb: number | null; gpu: Gpu; docker: string; arquitecturas: string[]; so: string[]; fuente: string; medido: string | null; puerto?: number };
 export type Contexto = { cuentaId: string; grupos?: string[]; aparatoId?: string; servidoresCerebro?: string[]; privado?: boolean; enjambreEscribiendo?: boolean; presionMemoria?: "ok" | "aviso"; arquitecturas?: Record<string, string>; ofertasMedidas?: string[]; permisoEspaciosHf?: boolean; t?: number };
 export type CapaPublica = { id: string; nombre: string; estado: "activa" | "inactiva" | "con-permiso"; ocpu: number | null; ramMb: number | null; arquitectura: string; gpu: boolean; motivo: string };
 export type ServicioInstalado = { servicio: ServicioId; host: "127.0.0.1"; puerto: number; bajoDemanda: true; enciendeAlPrimerUso: true; apagaSinUsoMin: 15; cabeSiMb: number };
@@ -34,7 +34,10 @@ export const REQUISITOS_SERVICIO: Record<ServicioId, RequisitosServicio> = {
   archivebox: r("archivebox", "ArchiveBox", { medido: "tiempo por página: 1 min 16 s; RAM sin medir (A1, 2026-10-20)" }),
   "openhands-agent-server": r("openhands-agent-server", "OpenHands Agent Server"),
   coolify: r("coolify", "Coolify"),
+  deeptutor: r("deeptutor", "DeepTutor", { ram_gb: 4, ramMedidaMb: null, vram_gb: null, gpu: "no", docker: "opcional", arquitecturas: ["arm64", "amd64"], so: ["linux", "macos", "windows"], fuente: "HKUDS/DeepTutor (2026-11-04)", puerto: 3782, medido: "FastAPI + Next.js, estimado 4 GB RAM, sin modelo local" }),
 };
+export const REQUISITOS_DEEPTUTOR: RequisitosServicio = REQUISITOS_SERVICIO.deeptutor;
+export const deeptutor: ServicioId = "deeptutor";
 export const CAPAS_PUBLICAS_CONOCIDAS: CapaPublica[] = [
   { id: "oracle-a1", nombre: "el A1", estado: "activa", ocpu: 2, ramMb: 12288, arquitectura: "arm64", gpu: false, motivo: "encendida 24/7, sin GPU" },
   { id: "cloud-run", nombre: "Cloud Run", estado: "inactiva", ocpu: null, ramMb: null, arquitectura: "amd64", gpu: false, motivo: "facturación de Google desactivada desde el 2026-09-25" },
@@ -134,4 +137,30 @@ export function colocarServicio(servicio: ServicioId | RequisitosServicio, ofert
   const salida: Colocacion = { donde: primero, motivo, falta };
   if (encontrados.length > 1) salida.respaldo = encontrados[1];
   return salida;
+}
+
+export type ResultadoRecomendacion = { donde: Destino; motivo: string }[];
+
+export function dondeRecomendar(servicio: ServicioId | RequisitosServicio, ofertas: OfertaNeurona[], contexto: Contexto): ResultadoRecomendacion {
+  const req = typeof servicio === "string" ? REQUISITOS_SERVICIO[servicio] : servicio;
+  if (!req) return [];
+  
+  const resultado: ResultadoRecomendacion = [];
+  const colocacion = colocarServicio(servicio, ofertas, contexto);
+  if (colocacion.donde.tipo !== "ninguno") {
+    resultado.push({ donde: colocacion.donde, motivo: colocacion.motivo });
+  }
+  
+  const a1 = CAPAS_PUBLICAS_CONOCIDAS.find((c) => c.id === "oracle-a1");
+  if (a1 && a1.estado === "activa" && req.ram_gb != null && a1.ramMb != null && a1.ramMb >= req.ram_gb * 1024) {
+    const yaIncluido = resultado.some(r => r.donde.tipo === "capa-publica" && r.donde.id === "oracle-a1");
+    if (!yaIncluido) {
+      resultado.push({ 
+        donde: { tipo: "capa-publica", id: "oracle-a1" }, 
+        motivo: "recomendado cuando su disco tenga margen (decisión de Alex: hoy no)" 
+      });
+    }
+  }
+  
+  return resultado;
 }

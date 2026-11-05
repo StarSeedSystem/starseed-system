@@ -14,8 +14,8 @@ const ctx = (c: Partial<Contexto> = {}): Contexto => ({ cuentaId: "yo", ...c });
 const publica = (nodoId: string): OfertaNeurona => oferta({ nodoId, cuentaId: "otra", presta: { cuenta: false, grupos: [], publico: true, topes: { cpuPct: 100, ramMb: 8192, discoMb: 0, soloCargando: false } } });
 
 describe("catálogo verificado", () => {
-  it("declara los seis servicios con los datos del catálogo", () => {
-    expect(Object.keys(REQUISITOS_SERVICIO).sort()).toEqual(["archivebox", "comfyui", "coolify", "libretranslate", "openhands-agent-server", "stirling-pdf"]);
+  it("declara los siete servicios con los datos del catálogo", () => {
+    expect(Object.keys(REQUISITOS_SERVICIO).sort()).toEqual(["archivebox", "comfyui", "coolify", "deeptutor", "libretranslate", "openhands-agent-server", "stirling-pdf"]);
     expect(REQUISITOS_SERVICIO.comfyui).toMatchObject({ ram_gb: 8, vram_gb: 4, gpu: "recomendada" });
     expect(REQUISITOS_SERVICIO.libretranslate).toMatchObject({ ram_gb: null, ramMedidaMb: 711 });
     expect(REQUISITOS_SERVICIO["stirling-pdf"].ramMedidaMb).toBe(1434);
@@ -140,7 +140,7 @@ describe("deeptutor", () => {
       expect(r).toEqual([{ donde: { tipo: "cuenta", id: "n1" }, motivo: "«DeepTutor» cabe en una neurona de la misma cuenta" }]);
     });
     it("una neurona con 2 GB no lo recomienda", () => {
-      const neurona = oferta({ nodoId: "n1", computo: { nucleos: 2, ramLibreMb: 2048, gpu: false, vramMb: undefined, motores: [] } });
+      const neurona = oferta({ nodoId: "n1", computo: { nucleos: 2, ramLibreMb: 2048, gpu: false, varamb: undefined, motores: [] } });
       const r = dondeRecomendar(deeptutor, [neurona], ctx());
       expect(r).toEqual([]);
     });
@@ -154,9 +154,6 @@ describe("deeptutor", () => {
       const r = colocarServicio("deeptutor", [], ctx());
       expect(r.donde.tipo).toBe("capa-publica");
       expect(r.donde.id).toBe("oracle-a1");
-    });
-    it("los seis servicios de siempre no cambian", () => {
-      expect(Object.keys(REQUISITOS_SERVICIO).sort()).toEqual(["archivebox", "comfyui", "coolify", "deeptutor", "libretranslate", "openhands-agent-server", "stirling-pdf"]);
     });
   });
 });
