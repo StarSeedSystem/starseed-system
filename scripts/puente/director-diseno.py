@@ -251,7 +251,7 @@ def _fase_briefs(deps, tareas, progreso, estado, memoria, cfg, resumen, seco):
             continue
         if not DB.es_de_interfaz(tarea):
             continue
-        texto = DB.brief(tarea, memoria, max_chars=cfg.get("max_brief_chars", 2500))
+        texto = DB.brief(tarea, memoria, max_chars=cfg.get("max_brief_chars", 2500), raiz=RAIZ)
         if seco:
             resumen["seco"].append("brief %s (%d chars)" % (tid, len(texto)))
         else:

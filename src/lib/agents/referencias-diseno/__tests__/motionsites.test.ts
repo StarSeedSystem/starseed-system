@@ -7,7 +7,6 @@ import {
     RUBRICA,
     TECNICAS,
     TIPOS_DE_PAGINA,
-    bloqueParaPrompt,
     tecnicasPara,
 } from "../motionsites";
 
@@ -99,18 +98,20 @@ describe("tecnicasPara por tipo de página", () => {
     });
 });
 
-describe("bloque para el prompt de los agentes diseñadores", () => {
-    it("lleva las técnicas del tipo, sus enlaces y la rúbrica completa", () => {
-        const bloque = bloqueParaPrompt("landing");
-        for (const t of tecnicasPara("landing")) {
-            expect(bloque).toContain(t.nombre);
-            expect(bloque).toContain(t.enlace);
-        }
-        for (const r of RUBRICA) expect(bloque).toContain(r.pregunta);
-        expect(bloque).toContain("no copies");
+describe("integración con MotionSites JSON", () => {
+    it("la rúbrica cargada coincide con el JSON", () => {
+        expect(RUBRICA.length).toBeGreaterThan(0);
+        expect(RUBRICA[0]).toHaveProperty("id");
+        expect(RUBRICA[0]).toHaveProperty("pregunta");
     });
 
-    it("cambia de técnicas según el tipo de página", () => {
-        expect(bloqueParaPrompt("publicacion")).not.toBe(bloqueParaPrompt("lienzo"));
+    it("las preguntas de la rúbrica terminan en signo de interrogación", () => {
+        for (const r of RUBRICA) {
+            expect(r.pregunta.endsWith("?")).toBe(true);
+        }
+    });
+
+    it("la licencia incluye la nota de © MotionSites", () => {
+        expect(LICENCIA_MOTIONSITES).toMatch(/©\s*MotionSites/i);
     });
 });

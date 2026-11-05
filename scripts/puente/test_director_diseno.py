@@ -114,6 +114,20 @@ class TestBrief(unittest.TestCase):
         self.assertEqual(r["briefs"], 0)
         self.assertEqual(reg["anotar"], [])
 
+    def test_brief_incluye_rubrica_motion_sites(self):
+        """El brief incluye la rúbrica de MotionSites como segunda verificación."""
+        deps, reg = deps_falsas(
+            progreso={"T1": {"estado": "en_curso", "modelo": "m"}},
+            tareas=[tarea_interfaz()],
+        )
+        r = DD.ciclo(MARTES, deps)
+        self.assertEqual(r["briefs"], 1)
+        tid, texto = reg["anotar"][0]
+        self.assertEqual(tid, "T1")
+        self.assertIn("Brief de diseño", texto)
+        self.assertIn("Rúbrica MotionSites", texto)
+        self.assertIn("MotionSites", texto)
+
     def test_director_inactivo_no_hace_nada(self):
         deps, reg = deps_falsas(
             progreso={"T1": {"estado": "en_curso"}},

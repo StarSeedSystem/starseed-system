@@ -10,6 +10,7 @@ import re
 import unicodedata
 from typing import Any, Dict, List, Optional, Tuple
 
+import diseno_motionsites as DM
 from scripts.puente.roles_agente import division_de
 
 EXTENSIONES_INTERFAZ = (".tsx", ".css", ".module.css", ".mdx")
@@ -38,7 +39,10 @@ VERIFICACION_RESUMEN = """La verificación (§4) capturará las rutas en toda la
 - Desbordes y texto cortado.
 - Contraste WCAG ≥ 4.5:1.
 - Dianas táctiles ≥ 44 px en móvil.
-- Errores de consola y elementos fuera del viewport."""
+- Errores de consola y elementos fuera del viewport.
+
+La segunda lista de comprobación es la rúbrica de MotionSites (© MotionSites):
+"""
 
 HERRAMIENTAS = [
     ("chat", "assistant-ui — https://github.com/assistant-ui/assistant-ui (chats e hilos)"),
@@ -309,9 +313,10 @@ def _bloque_adn(nombre: str, memoria_adn: Dict[str, Dict[str, str]]) -> Optional
     return "\n".join(lineas)
 
 
-def _secciones_brief(tarea: Dict, memoria: Dict[str, Any]) -> List[Tuple[str, str]]:
+def _secciones_brief(tarea: Dict, memoria: Dict[str, Any], raiz: str = "") -> List[Tuple[str, str]]:
     """Construye los apartados del brief en el orden del contrato §3, con los
-    bloques ADN de §9 tras la identidad y la sección RISE de §10 al final."""
+    bloques ADN de §9 tras la identidad y la sección RISE de §10 al final.
+    Incluye la rúbrica de MotionSites como segunda lista de comprobación §5."""
     texto = _texto_tarea(tarea)
     titulo = str(tarea.get("titulo", "") or "").strip()
     identidades = parsear_identidades(memoria.get("identidades", ""))
@@ -367,20 +372,22 @@ def _secciones_brief(tarea: Dict, memoria: Dict[str, Any]) -> List[Tuple[str, st
         ("5. Referencias", referencias_txt),
         ("6. Herramientas y skills", herramientas_txt),
         ("7. Verificación", VERIFICACION_RESUMEN),
+        ("8. Rúbrica MotionSites (segunda verificación)", DM.texto_rubrica(raiz)),
     ])
     # §10: sección RISE solo si la tarea toca movimiento.
     if es_de_movimiento(tarea):
-        secciones.append(("8. Movimiento — método RISE", RISE_TEXTO))
+        secciones.append(("9. Movimiento — método RISE", RISE_TEXTO))
     return secciones
 
 
-def brief(tarea: Dict, memoria: Dict[str, Any], max_chars: int = 2500) -> str:
+def brief(tarea: Dict, memoria: Dict[str, Any], max_chars: int = 2500, raiz: str = "") -> str:
     """Devuelve el Brief de diseño de la tarea (los 7 apartados, recortado a
-    `max_chars` sin cortar ninguna línea por la mitad)."""
+    `max_chars` sin cortar ninguna línea por la mitad).
+    Incluye la rúbrica MotionSites §5 como segunda lista de comprobación."""
     lineas: List[str] = ["# Brief de diseño — director-diseno"]
     if not any((memoria or {}).values()):
         lineas.append("Aviso: sin memoria de diseño (memory/diseno/ vacía o ausente).")
-    for titulo_sec, cuerpo in _secciones_brief(tarea, memoria or {}):
+    for titulo_sec, cuerpo in _secciones_brief(tarea, memoria or {}, raiz):
         lineas.append("\n## " + titulo_sec)
         lineas.extend(cuerpo.splitlines())
 
