@@ -1,0 +1,66 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "ola": "1105V · Centro de Versiones",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261105-090755-VER1105G",
+   "id": "VER1105Gb-d1",
+   "titulo": "Permisos por sistema · fuente única de lo que declara cada app (la verdad, sin inventar) (parte 1 de 3)",
+   "archivos": [
+    "config/permisos-por-so.json"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\n§6. Lee de verdad `native/src-tauri/capabilities/*.json`, `native/src-tauri/Info.plist`, el `AndroidManifest.xml` que use el build (búscalo en `native/` y en `native-build.yml`) y `architecture/apps-nativas-segundo-plano.md` §7. Escribe `config/permisos-por-so.json`: por SO (macos, windows, linux, android, ios, web) → versión mínima del sistema, arquitecturas, permisos declarados con su texto para la persona y cómo se concede (al instalar, al primer uso, en ajustes), y lo que ese SO NO permite. Nada que no esté en esos archivos. El módulo TS lo importa estáticamente y exporta `permisosDe(so)`. Prueba: cada identificador de permiso de las capabilities aparece en el JSON.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261105-090755-VER1105G`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261105-090755-VER1105G:refs/remotes/origin/nube/a1-20261105-090755-VER1105G\"` y `git cherry-pick --no-commit b7dfe4128a47 cd16424cb74a 18b2496df938 0999224abb78 04a026c94b5a`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: config/permisos-por-so.json, src/lib/version/__tests__/permisos-por-so.test.ts, src/lib/version/permisos-por-so.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 3 (la dirección dividió VER1105Gb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: config/permisos-por-so.json. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "VER1105Gb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  },
+  {
+   "ola": "1104R · Repos nativos",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261105-114429-RPO1104K",
+   "id": "RPO1104Kb-d1",
+   "titulo": "OpenUI · bloque «Respuesta viva» en la Protomolécula y el lienzo universal (parte 1 de 2)",
+   "archivos": [
+    "src/lib/protomolecula/bloque-protomolecula.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\nSi `@openuidev/react-lang` no está en `package.json`, responde BLOQUEADA: «falta 1104 · AG» y no toques nada. Lee antes el README y los `.d.ts` de `node_modules/@openuidev/react-lang` (y de `@openuidev/lang-core`): usa su API real, no la inventes. §3. Añade al catálogo de bloques de la Protomolécula (el que define `bloque-protomolecula.ts`) el tipo `respuesta-viva` que guarda el texto OpenUI Lang y se pinta con `RespuestaViva`, siguiendo EXACTAMENTE el patrón de los bloques existentes (no inventes otro registro). Si el lienzo universal comparte ese catálogo, queda incluido; si no, dilo en tu respuesta. Prueba: el bloque se registra y se serializa/deserializa sin perder el texto.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261105-114429-RPO1104K`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261105-114429-RPO1104K:refs/remotes/origin/nube/a1-20261105-114429-RPO1104K\"` y `git cherry-pick --no-commit 534e5c4372af 65e39a1a3d2b a4c1439a548a f693e9f71bcc`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/creation/post-blocks.ts, src/lib/protomolecula/__tests__/bloque-protomolecula.test.ts, src/lib/protomolecula/__tests__/bloque-respuesta-viva.test.ts, src/lib/protomolecula/bloque-protomolecula.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió RPO1104Kb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/protomolecula/bloque-protomolecula.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "RPO1104Kb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "RPO1104H"
+   ]
+  },
+  {
+   "id": "VER1105H",
+   "ola": "1105V · Centro de Versiones",
+   "titulo": "Librería · ficha «StarSeed OS · versiones» con el historial y la descarga de cada sistema",
+   "archivos": [
+    "src/components/library/versiones-os.tsx",
+    "src/components/library/__tests__/versiones-os.test.tsx"
+   ],
+   "depende": [],
+   "origen": "centro-versiones",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\n§5. Componente que lee `/api/os/versiones` y enseña, como una app profesional: la versión instalada en este medio y la nueva (si la hay) con «Actualizar»; el historial (versión, fecha, notas); por sistema y SO los archivos con tamaño y enlace; requisitos y permisos de `permisosDe(so)`. Móvil y escritorio. Luego móntalo dentro de la ventana «Información y versiones» que ya abre `src/components/library/franja-descarga-os.tsx` (3.er archivo, cambio mínimo). Prueba con fetch simulado.",
+   "revisor_quitadas": [
+    "VER1105F",
+    "VER1105G",
+    "VER1105I"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1105-025623.json": [
+   "VER1105Gb-d1",
+   "RPO1104Kb-d1",
+   "VER1105H"
+  ]
+ }
+}
