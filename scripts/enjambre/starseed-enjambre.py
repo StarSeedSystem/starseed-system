@@ -24,12 +24,14 @@ Tiempos configurables:
   · STARSEED_COLGADO_S — sin crecer en bytes reales del worktree se considera colgado (300 s).
 """
 
-import datetime, hashlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections
+import datetime, hashlib, json, os, re, subprocess, sys, threading, time, urllib.request, urllib.error, shutil, collections, importlib
 import signal
 import tempfile
 import contextlib, fcntl
 
 # La decisión de salud, vencimiento y reparto vive fuera para poder probarla sin lanzar una ola.
+
+_MTIMES_MODULOS = {"comprobar_en_a1": 0.0, "comprobar_en_github": 0.0}
 DIRECTORIO_ENJAMBRE = os.path.dirname(os.path.abspath(__file__))
 if DIRECTORIO_ENJAMBRE not in sys.path:
     sys.path.insert(0, DIRECTORIO_ENJAMBRE)
@@ -4181,19 +4183,43 @@ def _en_la_mac():
     return os.environ.get("STARSEED_DONDE") == "mac" and sys.platform == "darwin"
 
 
+def hay_que_recargar(visto, ahora):
+    if visto is None or ahora is None:
+        return False
+    return ahora > visto
+
+
 def _comprobar_en_a1():
-    """La función `comprobar` de comprobar_en_a1.py, o None si no se puede usar (TRA1012A).
-    Solo en la Mac (`_en_la_mac`): la nube y el A1 mismo ya compilan donde tienen memoria."""
     if not _en_la_mac():
         return None
     ruta = os.path.join(ROOT, "scripts", "puente")
-    if not os.path.isfile(os.path.join(ruta, "comprobar_en_a1.py")):
-        return None
-    if ruta not in sys.path:
-        sys.path.insert(0, ruta)
-    from comprobar_en_a1 import comprobar
+    archivo = os.path.join(ruta, "comprobar_en_a1.py")
+    mtime_ahora = os.path.getmtime(archivo) if os.path.exists(archivo) else None
 
-    return comprobar
+    global _MTIMES_MODULOS
+    if hay_que_recargar(_MTIMES_MODULOS["comprobar_en_a1"], mtime_ahora):
+        try:
+            import importlib
+            # Aseguramos que el módulo está en sys.path antes de intentar importarlo/recargarlo
+            if ruta not in sys.path:
+                sys.path.insert(0, ruta)
+            # Intentar recargar si ya estaba importado; si no, importar por primera vez
+            if "comprobar_en_a1" in sys.modules:
+                importlib.reload(sys.modules["comprobar_en_a1"])
+            else:
+                from comprobar_en_a1 import comprobar
+            # Actualizar el mtime visto
+            _MTIMES_MODULOS["comprobar_en_a1"] = mtime_ahora
+            return sys.modules.get("comprobar_en_a1", {}).get("comprobar") or comprobar
+        except Exception as e:
+            evento("aviso", "", "fallo al recargar comprobar_en_a1: %s" % str(e)[:100])
+            # Si falla la recarga, volver a importar la forma normal
+            from comprobar_en_a1 import comprobar
+            _MTIMES_MODULOS["comprobar_en_a1"] = mtime_ahora
+            return comprobar
+    else:
+        from comprobar_en_a1 import comprobar
+        return comprobar
 
 
 #: (2026-10-27, CAP1026P) Lo que la puerta tsc de la Mac espera el veredicto de GitHub antes de caer al A1 o a la
