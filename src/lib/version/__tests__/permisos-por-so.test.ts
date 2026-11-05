@@ -57,7 +57,7 @@ describe("permisos-por-so: validez del JSON", () => {
     const sistemasMoviles: SistemaOperativo[] = ["android", "ios", "web"];
     for (const so of sistemasMoviles) {
       const config = permisosDe(so) as ConfigSO;
-      expect(config.noPermiteSistema).toBeUndefined() || (config.noPermiteSistema === undefined && ['android', 'ios', 'web'].includes(so));
+      expect(config.noPermiteSistema).toBeUndefined();
     }
   });
 
