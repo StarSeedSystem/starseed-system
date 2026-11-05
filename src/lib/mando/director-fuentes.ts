@@ -1,7 +1,7 @@
 /** Fuentes reales del Director de Genesis (Ola 318 · p318B): lectores de I/O
  *  tolerantes que alimentan `director-datos.ts`. Solo servidor. */
 import { execFile } from "node:child_process";
-import { readFile, readdir } from "node:fs/promises";
+import { open, readFile, readdir } from "node:fs/promises";
 import { promisify } from "node:util";
 import path from "node:path";
 import { aEpoch, type LatidoEntrada, type TareaLatido, type ProgresoEntrada, type SaludProveedor, type MensajeCanal } from "@/lib/mando/director-datos";
@@ -136,10 +136,24 @@ export async function leerServicios(): Promise<ServicioLaunchd[]> { // launchctl
     const stdout = await intentar(async () => (await execFileAsync("launchctl", ["list"], { timeout: 5000 })).stdout, "");
     return stdout.split("\n").map(servicioDeLinea).filter((s): s is ServicioLaunchd => s !== null);
 }
-export async function leerCanal(raiz: string, n = 60): Promise<MensajeCanal[]> { // últimas n líneas de mando/canal.jsonl
-    const ruta = path.join(raiz, "starseed_memory_root", "mando", "canal.jsonl");
-    const contenido = await intentar(() => readFile(ruta, "utf-8"), ""), mensajes: MensajeCanal[] = [];
-    for (const linea of contenido.split("\n").filter((l) => l.trim()).slice(-n)) {
+/** Máximo de bytes que se leen del final del canal: el archivo crece sin parar. */
+export const MAX_BYTES_CANAL = 1_048_576;
+
+/**
+ * Puro: líneas completas de un tramo de cola. Si el tramo empieza a mitad de
+ * línea (`cortada`), esa primera línea se descarta: está incompleta.
+ */
+export function lineasDeCola(texto: string, cortada: boolean): string[] {
+    const cuerpo = cortada
+        ? (texto.includes("\n") ? texto.slice(texto.indexOf("\n") + 1) : "")
+        : texto;
+    return cuerpo.split("\n").filter((l) => l.trim() !== "");
+}
+
+/** Puro: las últimas `n` líneas del canal como mensajes; la línea rota se ignora. */
+export function mensajesDesdeLineas(lineas: readonly string[], n: number): MensajeCanal[] {
+    const mensajes: MensajeCanal[] = [];
+    for (const linea of lineas.slice(-n)) {
         try {
             const d = objeto(JSON.parse(linea));
             mensajes.push({ quien: texto(d.quien), texto: texto(d.texto), hora: fechaSeg(d.epoch) ?? texto(d.t) });
@@ -148,6 +162,30 @@ export async function leerCanal(raiz: string, n = 60): Promise<MensajeCanal[]> {
         }
     }
     return mensajes;
+}
+
+/** Lee solo los últimos `maxBytes` del archivo y devuelve sus líneas completas. */
+async function leerLineasFinales(ruta: string, maxBytes: number): Promise<string[]> {
+    let fh: Awaited<ReturnType<typeof open>> | null = null;
+    try {
+        fh = await open(ruta, "r");
+        const { size } = await fh.stat();
+        const inicio = Math.max(0, size - Math.max(0, maxBytes));
+        const bufer = Buffer.alloc(size - inicio);
+        if (bufer.length > 0) await fh.read(bufer, 0, bufer.length, inicio);
+        await fh.close();
+        fh = null;
+        return lineasDeCola(bufer.toString("utf8"), inicio > 0);
+    } catch {
+        if (fh) await fh.close().catch(() => {});
+        return [];
+    }
+}
+
+export async function leerCanal(raiz: string, n = 60, maxBytes = MAX_BYTES_CANAL): Promise<MensajeCanal[]> {
+    // últimas n líneas de mando/canal.jsonl: solo el final, no el archivo entero
+    const ruta = path.join(raiz, "starseed_memory_root", "mando", "canal.jsonl");
+    return mensajesDesdeLineas(await leerLineasFinales(ruta, maxBytes), n);
 }
 export async function leerAsuntosMain(raiz: string, n = 800): Promise<string[]> { // últimos n asuntos de git log main
     const cmd = ["log", "main", "--format=%s", "-n", String(n)], opts = { cwd: raiz, timeout: 8000, maxBuffer: 4 * 1024 * 1024 };

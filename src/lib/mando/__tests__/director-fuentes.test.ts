@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { leerLatidos, leerProgreso, leerCanal } from "../director-fuentes";
+import type { MensajeCanal } from "@/lib/mando/director-datos";
+import { leerLatidos, leerProgreso, leerCanal, lineasDeCola, mensajesDesdeLineas } from "../director-fuentes";
 
 describe("director-fuentes", () => {
     let raiz: string;
@@ -126,5 +127,77 @@ describe("director-fuentes", () => {
         });
 
         rmSync(olasTmp, { recursive: true, force: true });
+    });
+});
+
+describe("leerCanal lee solo el final del archivo", () => {
+    const raizVacia = (): string => {
+        const tmp = mkdtempSync(path.join(tmpdir(), "canal-final-"));
+        mkdirSync(path.join(tmp, "starseed_memory_root", "mando"), { recursive: true });
+        return tmp;
+    };
+    const escribirCanal = (raizTmp: string, lineas: string[]): string => {
+        const ruta = path.join(raizTmp, "starseed_memory_root", "mando", "canal.jsonl");
+        writeFileSync(ruta, lineas.join("\n"));
+        return ruta;
+    };
+    const mensaje = (i: number, relleno = 0): string =>
+        JSON.stringify({ epoch: 1_800_000_000 + i, quien: "director", texto: `msg-${i}${"x".repeat(relleno)}` });
+    // Referencia: el archivo entero, como se leía antes.
+    const leerEntero = (ruta: string, n: number): MensajeCanal[] =>
+        mensajesDesdeLineas(readFileSync(ruta, "utf8").split("\n").filter((l) => l.trim() !== ""), n);
+
+    it("un canal de ~2 MB devuelve las mismas últimas n con maxBytes de 64 KB", async () => {
+        const tmp = raizVacia(), n = 60;
+        const lineas: string[] = [];
+        for (let i = 0; i < 2600; i++) lineas.push(mensaje(i, 700));
+        const ruta = escribirCanal(tmp, lineas);
+        const esperado = leerEntero(ruta, n);
+        const leido = await leerCanal(tmp, n, 64 * 1024);
+        expect(leido).toEqual(esperado);
+        expect(leido).toHaveLength(n);
+        expect(leido[n - 1]?.texto).toBe(`msg-2599${"x".repeat(700)}`);
+        rmSync(tmp, { recursive: true, force: true });
+    });
+
+    it("la línea cortada del principio no aparece ni rompe nada", async () => {
+        const tmp = raizVacia();
+        const larga = JSON.stringify({ epoch: 1_800_000_500, quien: "director", texto: `CORTADA-${"y".repeat(200_000)}` });
+        const lineas = [larga, ...Array.from({ length: 40 }, (_, i) => mensaje(i, 10))];
+        escribirCanal(tmp, lineas);
+        const leido = await leerCanal(tmp, 60, 64 * 1024);
+        expect(leido.some((m) => (m.texto ?? "").startsWith("CORTADA-"))).toBe(false);
+        expect(leido).toHaveLength(40);
+        expect(leido[0]?.texto).toBe(`msg-0${"x".repeat(10)}`);
+        rmSync(tmp, { recursive: true, force: true });
+    });
+
+    it("un archivo pequeño da lo mismo que antes", async () => {
+        const tmp = raizVacia();
+        const ruta = escribirCanal(tmp, [mensaje(1), "esto no es json {", mensaje(2)]);
+        const esperado = leerEntero(ruta, 60);
+        expect(esperado).toHaveLength(2);
+        expect(await leerCanal(tmp, 60)).toEqual(esperado);
+        expect(await leerCanal(tmp, 60, 1024 * 1024)).toEqual(esperado);
+        rmSync(tmp, { recursive: true, force: true });
+    });
+
+    it("sin archivo devuelve vacío", async () => {
+        const tmp = raizVacia();
+        expect(await leerCanal(tmp)).toEqual([]);
+        expect(await leerCanal(tmp, 60, 64 * 1024)).toEqual([]);
+        rmSync(tmp, { recursive: true, force: true });
+    });
+
+    it("lineasDeCola descarta la primera línea si el tramo está cortado", () => {
+        expect(lineasDeCola("uno\ndos\ntres", false)).toEqual(["uno", "dos", "tres"]);
+        expect(lineasDeCola("trozo\ndos\ntres", true)).toEqual(["dos", "tres"]);
+        expect(lineasDeCola("trozo sin salto", true)).toEqual([]);
+    });
+
+    it("mensajesDesdeLineas toma las últimas n e ignora la línea rota", () => {
+        const lineas = [mensaje(1), "esto no es json {", mensaje(2), mensaje(3)];
+        expect(mensajesDesdeLineas(lineas, 2).map((m) => m.texto)).toEqual(["msg-2", "msg-3"]);
+        expect(mensajesDesdeLineas(lineas, 60).map((m) => m.texto)).toEqual(["msg-1", "msg-2", "msg-3"]);
     });
 });
