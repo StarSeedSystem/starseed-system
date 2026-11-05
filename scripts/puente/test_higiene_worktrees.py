@@ -104,6 +104,78 @@ class TestPodar(unittest.TestCase):
         self.assertIn("rama-WT1", ramas)
         self.assertIn("rama-WT2", ramas)
 
+    # ── SUP0511B (05-11): worktrees que desaparecían bajo el orquestador ──
+    def _latidos(self, tareas, nombre="latidos-cola-auto-prueba.json"):
+        ruta = os.path.join(self.repo, "starseed_memory_root", "olas", nombre)
+        with open(ruta, "w", encoding="utf-8") as f:
+            json.dump({"t": "ahora", "cola": "cola-auto-prueba.json", "tareas": tareas}, f)
+        return ruta
+
+    def test_una_tarea_que_late_no_se_poda_aunque_progreso_la_de_por_cerrada(self):
+        import time
+
+        # WT1 salió «commit» por otra vía (la nube), pero el orquestador local sigue en sus puertas.
+        self._latidos({"WT1": {"fase": "tsc", "desde": time.time() - 120, "avance": time.time() - 60}})
+        quitados = hw.podar(self.repo, self.wt_base, decir=False)
+        self.assertNotIn("WT1", quitados)
+        self.assertTrue(os.path.isdir(os.path.join(self.wt_base, "WT1")), "quitó el worktree de una tarea que late")
+        self.assertEqual(quitados, ["WT2"])
+
+    def test_un_latido_hecho_o_viejo_no_protege(self):
+        import time
+
+        viejo = time.time() - hw.LATIDO_VIVO_S - 600 if hasattr(hw, "LATIDO_VIVO_S") else 0
+        self._latidos({"WT1": {"fase": "hecho", "avance": time.time()},
+                       "WT2": {"fase": "escribiendo", "desde": viejo, "avance": viejo}})
+        self.assertEqual(hw.podar(self.repo, self.wt_base, decir=False), ["WT1", "WT2"])
+
+    def test_relee_el_estado_justo_antes_de_quitar(self):
+        # Entre la elección y el `git worktree remove`, WT1 volvió a «en_curso» (lo reabrió su orquestador).
+        ruta_p = os.path.join(self.repo, "starseed_memory_root", "olas", "progreso.json")
+        llamadas = []
+
+        def procesos_que_reabren():
+            llamadas.append(1)
+            if len(llamadas) == 1:
+                with open(ruta_p, "w") as f:
+                    json.dump({"WT1": {"estado": "en_curso"}, "WT2": {"estado": "sustituida"},
+                               "WT3": {"estado": "en_curso"}}, f)
+            return []
+
+        with unittest.mock.patch.object(hw, "_procesos", procesos_que_reabren):
+            quitados = hw.podar(self.repo, self.wt_base, decir=False)
+        self.assertTrue(os.path.isdir(os.path.join(self.wt_base, "WT1")), "quitó WT1 con una lectura vieja")
+        self.assertEqual(quitados, ["WT2"])
+
+    def test_sin_progreso_legible_no_quita_nada(self):
+        ruta_p = os.path.join(self.repo, "starseed_memory_root", "olas", "progreso.json")
+        with open(ruta_p, "w") as f:
+            f.write('{"WT1": {"estado": "com')  # a medio escribir
+        self.assertEqual(hw.podar(self.repo, self.wt_base, decir=False), [])
+
+
+class TestTareasQueLaten(unittest.TestCase):
+    def test_lee_fases_abiertas_recientes_y_tolera_basura(self):
+        import time
+
+        tmp = tempfile.mkdtemp(prefix="hw-latidos-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        ahora = time.time()
+        with open(os.path.join(tmp, "latidos-a.json"), "w") as f:
+            json.dump({"tareas": {"A": {"fase": "escribiendo", "avance": ahora},
+                                  "B": {"fase": "hecho", "avance": ahora},
+                                  "C": {"fase": "vitest", "avance": ahora - hw.LATIDO_VIVO_S - 1},
+                                  "D": {"fase": "tsc"},
+                                  "E": "no es un dict"}}, f)
+        with open(os.path.join(tmp, "latidos-roto.json"), "w") as f:
+            f.write("{no es json")
+        viejo = os.path.join(tmp, "latidos-viejo.json")
+        with open(viejo, "w") as f:
+            json.dump({"tareas": {"F": {"fase": "tsc", "avance": ahora}}}, f)
+        os.utime(viejo, (ahora - hw.LATIDO_VIVO_S - 60, ahora - hw.LATIDO_VIVO_S - 60))
+        self.assertEqual(hw.tareas_que_laten(tmp, ahora=ahora), {"A", "D"})
+        self.assertEqual(hw.tareas_que_laten(os.path.join(tmp, "no-existe")), set())
+
 
 if __name__ == "__main__":
     unittest.main()

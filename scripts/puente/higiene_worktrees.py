@@ -19,16 +19,70 @@ FIN = {"commit", "sustituida"}
 #: Cerrojo del integrador: si está ocupado no podamos esta vuelta (y no esperamos).
 CERROJO = os.path.expanduser("~/.starseed/cerrojos/integrar.lock")
 
+#: (SUP0511B, 05-11) Una tarea con latido reciente y fase abierta en `olas/latidos-*.json` es de un
+#: orquestador que sigue con ella, diga lo que diga `progreso.json`. Medido el 05-11 (vigía de la
+#: supervisión, cada 3 s): VER1105A desapareció a las 01:27:58 y SUP0411J a las 01:47:02, las dos
+#: «en_curso» en `progreso.json` un instante después; VER1105A acabó «commit» traída de la nube
+#: mientras la tanda local también la corría. Una tarea corrida en dos sitios puede salir «commit»
+#: o «sustituida» por la otra vía mientras el orquestador local sigue en sus puertas; tras el commit
+#: «salvavidas» el worktree está limpio y, esperando el veredicto de GitHub, ningún proceso nombra su
+#: carpeta: sin esta guarda, la higiene la daba por cerrada y `git worktree remove` la quitaba bajo
+#: el orquestador («[Errno 2] No such file or directory: '…/starseed-wt/<ID>'»). Además `podar`
+#: relee el estado justo antes de quitar cada una: la lectura del principio puede ser vieja.
+LATIDO_VIVO_S = 6 * 3600
+FASES_CERRADAS = {"hecho"}
 
-def candidatos(progreso, nombres, lineas_ps):
-    """PURA: carpetas con tarea en estado FIN y sin proceso que las mencione.
+
+def tareas_que_laten(olas, ahora=None):
+    """Ids con latido reciente (menos de LATIDO_VIVO_S) y fase abierta en `olas/latidos-*.json`.
+
+    Nunca lanza: un archivo ilegible no protege nada (la relectura de `podar` sigue en pie)."""
+    import glob
+    import time
+
+    ahora = time.time() if ahora is None else ahora
+    vivas = set()
+    for ruta in glob.glob(os.path.join(olas, "latidos-*.json")):
+        try:
+            if ahora - os.path.getmtime(ruta) > LATIDO_VIVO_S:
+                continue
+            with open(ruta, encoding="utf-8") as f:
+                tareas = (json.load(f) or {}).get("tareas") or {}
+        except (OSError, ValueError, AttributeError):
+            continue
+        if not isinstance(tareas, dict):
+            continue
+        for tid, latido in tareas.items():
+            if not isinstance(latido, dict) or latido.get("fase") in FASES_CERRADAS:
+                continue
+            marcas = [v for v in (latido.get("avance"), latido.get("desde"))
+                      if isinstance(v, (int, float)) and not isinstance(v, bool)]
+            if marcas and ahora - max(marcas) > LATIDO_VIVO_S:
+                continue
+            vivas.add(str(tid))
+    return vivas
+
+
+def _leer_progreso(ruta):
+    """`progreso.json` como dict; {} si no se puede leer entero (nadie sale con {})."""
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            progreso = json.load(f)
+        return progreso if isinstance(progreso, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def candidatos(progreso, nombres, lineas_ps, vivas=()):
+    """PURA: carpetas con tarea en estado FIN, sin proceso que las mencione y sin latido vivo.
 
     `starseed-wt/<nombre>` solo cuenta seguido de fin de línea o de un carácter que no
     sea letra, dígito, `_` o `-`: así `SP09291` no se confunde con `SP092910`. Un nombre
-    sin entrada en `progreso` no es candidato."""
+    sin entrada en `progreso` no es candidato; uno en `vivas` (ver `tareas_que_laten`), tampoco."""
+    vivas = set(vivas or ())
     salen = []
     for nombre in sorted(nombres):
-        if not nombre or nombre[0] in "_.":
+        if not nombre or nombre[0] in "_." or nombre in vivas:
             continue
         entrada = progreso.get(nombre)
         if not isinstance(entrada, dict) or entrada.get("estado") not in FIN:
@@ -50,21 +104,16 @@ def _procesos():
 
 def podar(raiz, wt_base, simular=False, decir=True):
     """Quita los worktrees candidatos (sin --force). Devuelve los quitados."""
-    ruta_p = os.path.join(raiz, "starseed_memory_root", "olas", "progreso.json")
-    try:
-        with open(ruta_p, encoding="utf-8") as f:
-            progreso = json.load(f)
-        if not isinstance(progreso, dict):
-            progreso = {}
-    except (OSError, ValueError):
-        progreso = {}
+    olas = os.path.join(raiz, "starseed_memory_root", "olas")
+    ruta_p = os.path.join(olas, "progreso.json")
+    progreso = _leer_progreso(ruta_p)
     nombres = [
         d
         for d in os.listdir(wt_base)
         if os.path.isdir(os.path.join(wt_base, d))
         and not os.path.islink(os.path.join(wt_base, d))
     ]
-    elegidos = candidatos(progreso, nombres, _procesos())
+    elegidos = candidatos(progreso, nombres, _procesos(), tareas_que_laten(olas))
     if simular:
         return elegidos
     import fcntl
@@ -78,6 +127,11 @@ def podar(raiz, wt_base, simular=False, decir=True):
             return []
         for nombre in elegidos:
             ruta = os.path.join(wt_base, nombre)
+            # (SUP0511B) Cada `git worktree remove` puede tardar minutos con la Mac cargada: lo leído
+            # al principio puede ser viejo. Justo antes de quitarla se vuelve a mirar todo (estado,
+            # procesos y latidos) y, si ya no es candidata, se conserva.
+            if not candidatos(_leer_progreso(ruta_p), [nombre], _procesos(), tareas_que_laten(olas)):
+                continue
             r = subprocess.run(
                 ["git", "worktree", "remove", ruta],
                 cwd=raiz,
