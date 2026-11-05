@@ -2,7 +2,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { anotarVoto, leerVotos, CLAVE_VOTOS_VOZ, MAX_VOTOS_TOTAL } from "@/lib/aurora/votos-voz";
+import { anotarVoto, leerVotos, CLAVE_VOTOS_VOZ, MAX_VOTOS_TOTAL, type DepsVotos, type VotoVoz } from "@/lib/aurora/votos-voz";
 
 function bancoCon(agora: number): Banco {
   const datos = new Map<string, string>();
@@ -52,19 +52,7 @@ interface Banco {
 
 const AHORA = 1_000_000;
 
-export interface VotoVoz {
-  motor: string;
-  voto: number;
-  timestamp: number;
-}
-
-export interface DepsVotos {
-  leer: (clave: string) => string | null;
-  escribir: (clave: string, valor: string) => boolean | void;
-  borrar: (clave: string) => void;
-  ahora: () => number;
-  neurona: () => string;
-}
+const neuronaPrueba = () => "n-prueba";
 
 describe("votos-voz", () => {
   it("anotarVoto guarda un 👍/👎 con la hora del reloj (in \"yectable)\", por motor", () => {
@@ -88,9 +76,9 @@ describe("votos-voz", () => {
   });
 
   it("leerVotos descarta lo ilegible y no lanza con el almacén roto", () => {
-    const roto: DepsVotos = { leer: () => "{no es json", escribir: () => true, borrar: () => undefined, ahora: () => AHORA };
+    const roto: DepsVotos = { leer: () => "{no es json", escribir: () => true, borrar: () => undefined, ahora: () => AHORA, neurona: neuronaPrueba };
     expect(leerVotos(roto)).toEqual([]);
-    const lanzador: DepsVotos = { leer: () => { throw new Error("boom"); }, escribir: () => true, borrar: () => undefined, ahora: () => AHORA };
+    const lanzador: DepsVotos = { leer: () => { throw new Error("boom"); }, escribir: () => true, borrar: () => undefined, ahora: () => AHORA, neurona: neuronaPrueba };
     expect(leerVotos(lanzador)).toEqual([]);
     const mezcla: DepsVotos = {
       leer: () => JSON.stringify([
@@ -103,6 +91,7 @@ describe("votos-voz", () => {
       escribir: () => true,
       borrar: () => undefined,
       ahora: () => AHORA,
+      neurona: neuronaPrueba,
     };
     expect(leerVotos(mezcla)).toEqual([{ motor: "kokoro", voto: 1, timestamp: 10 }]);
   });
