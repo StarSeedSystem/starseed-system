@@ -28,6 +28,8 @@
  */
 
 import { safeGet, safeSet } from "@/lib/safe-storage";
+import { scoutSignature, hasNewScoutFindings } from "@/ai/astraura/model-scout";
+import type { NeuronCapabilities } from "@/lib/neurons/neurons";
 import { ALL_LLM_SPECS, ALL_VOICE_SPECS } from "@/ai/astraura/model-requirements";
 import { INTEGRATIONS, REGISTRY_REVIEWED, type Integration } from "@/lib/integrations/integration-registry";
 // (A149 · olas) Configuración PENDIENTE de la neurona: la elección de voz vive
@@ -271,10 +273,10 @@ const NEURON_PERSONA_STORAGE_KEY = "starseed.astraura.neuron-persona.v1";
  */
 export type DecisionArranque =
   | { accion: "ventana"; motivo: "primera-vez" | "pendiente"; pendientes: PendingConfigItem[] }
-  | { accion: "aviso"; motivo: "novedades"; modelos: number; fuentes: number; firma: string }
+  | { accion: "aviso"; motivo: "novedades"; modelos: number; fuentes: number; firma: string; esScout?: boolean }
   | { accion: "nada"; motivo: "pospuesto" | "al-dia"; sellar?: string };
 
-export function decidirArranque(now = Date.now()): DecisionArranque {
+export function decidirArranque(now = Date.now(), caps?: NeuronCapabilities): DecisionArranque {
   const st = getStartupState();
   if (st.snoozeUntil && st.snoozeUntil > now) return { accion: "nada", motivo: "pospuesto" };
   if (!st.firstRunDone) return { accion: "ventana", motivo: "primera-vez", pendientes: pendingConfiguration() };
@@ -287,6 +289,10 @@ export function decidirArranque(now = Date.now()): DecisionArranque {
     const fuentes = newIntegrationsSince().length;
     if (modelos + fuentes > 0) return { accion: "aviso", motivo: "novedades", modelos, fuentes, firma };
     return { accion: "nada", motivo: "al-dia", sellar: firma };
+  }
+  if (caps) {
+    const scoutFirma = scoutSignature(caps, catalogIds().length);
+    if (hasNewScoutFindings(scoutFirma)) return { accion: "aviso", motivo: "novedades", modelos: 0, fuentes: 0, firma: scoutFirma, esScout: true };
   }
   return { accion: "nada", motivo: "al-dia" };
 }
