@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-<<<<<<< HEAD
 import { desdeReleases, desdeReleasesFallback, tipoVersion } from "../versiones-publicadas";
-=======
-import { desdeReleases, tipoVersion } from "../versiones-publicadas";
->>>>>>> 09e3c3c0d (salvavidas · VER1105F: trabajo del agente antes de las puertas (tsc / vitest))
 
 const JSON_RELEASES = [
   {
@@ -185,7 +181,6 @@ describe("tipoVersion", () => {
     expect(tipoVersion("Astraura-1.6.0-arm64-mac.dmg")).toBeNull();
     expect(tipoVersion("Audiomorphic_v1.2.0.apk")).toBeNull();
   });
-<<<<<<< HEAD
 });
 
 describe("desdeReleasesFallback", () => {
@@ -221,6 +216,4 @@ describe("desdeReleasesFallback", () => {
     expect(result.version).toBe("v0.3.0");
     expect(result.url).toBe("https://github.com/StarSeedSystem/starseed-system/releases/tag/v0.3.0");
   });
-=======
->>>>>>> 09e3c3c0d (salvavidas · VER1105F: trabajo del agente antes de las puertas (tsc / vitest))
 });
