@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ContextoProto, FalloPeticion, PlanPeticion } from "../contrato";
+import { planificarPeticion } from "../index";
 import { mensajesDePlan, planificar, resumenContexto, TIEMPO_PLAN_MS, type Completar, type DependenciasPlan } from "../planificar";
 import { TOPE_AGENTE_POR_HORA, TOPE_PERSONA_POR_HORA, type AlmacenTope } from "../tope";
 
@@ -160,6 +161,30 @@ describe("planificar · tope por hora (ninguna IA en bucle)", () => {
     const deps = con(ia(json(PLAN_IA)), { topePorHora: 0 });
     const r = await planificar({ texto: "hazme un cubo 3D; cuéntame un chiste", contexto: GRUPO }, deps);
     expect(esPlan(r) && r.pasos).toHaveLength(1);
+  });
+});
+
+describe("planificarPeticion · los peces revisan antes de una creación", () => {
+  const PLAN_CREACION = { resumen: "Creo un cubo", tipoCambio: "creacion", pasos: [{ tipo: "crear-objeto-3d", descripcion: "cubo", animado: false }], fuera: [] };
+  const conRevision = (revision: string): Completar => {
+    let llamadas = 0;
+    return vi.fn(async () => ({ texto: llamadas++ === 0 ? json(PLAN_CREACION) : revision, motor: "modelo-gratis" }));
+  };
+
+  it("una objeción «bloquea» impide dar por bueno el plan", async () => {
+    const r = await planificarPeticion({ texto: "haz algo raro con todo", contexto: GRUPO }, con(conRevision("bloquea: no dice qué cubo")));
+    expect(esFallo(r) && r.error).toBe("fuera-de-vocabulario");
+    expect(esFallo(r) && r.motivo).toContain("no dice qué cubo");
+  });
+
+  it("«importa» y «menor» no bloquean; una charla no gasta la segunda llamada", async () => {
+    const suave = conRevision("importa: podría detallar el color\nmenor: falta una tilde");
+    expect(esPlan(await planificarPeticion({ texto: "haz algo raro con todo", contexto: GRUPO }, con(suave)))).toBe(true);
+    expect(suave).toHaveBeenCalledTimes(2);
+
+    const charla = vi.fn(async () => ({ texto: json(PLAN_IA), motor: "modelo-gratis" }));
+    expect(esPlan(await planificarPeticion({ texto: "haz algo raro con todo", contexto: GRUPO }, con(charla)))).toBe(true);
+    expect(charla).toHaveBeenCalledTimes(1);
   });
 });
 
