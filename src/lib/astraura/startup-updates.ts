@@ -28,9 +28,10 @@
  */
 
 import { safeGet, safeSet } from "@/lib/safe-storage";
-import { ALL_LLM_SPECS, ALL_VOICE_SPECS, catalogIds } from "@/ai/astraura/model-requirements";
+import { ALL_LLM_SPECS, ALL_VOICE_SPECS } from "@/ai/astraura/model-requirements";
 import { INTEGRATIONS, REGISTRY_REVIEWED, type Integration } from "@/lib/integrations/integration-registry";
-import { scoutSignature, hasNewScoutFindings, markScoutSeen, type NeuronCapabilities, ALL_LLM_SPECS as LLM_SPECS, ALL_VOICE_SPECS as VOICE_SPECS } from "@/ai/astraura/model-scout";
+import { scoutSignature, hasNewScoutFindings, markScoutSeen } from "@/ai/astraura/model-scout";
+import type { NeuronCapabilities } from "@/lib/neurons/neurons";
 // (A149 · olas) Configuración PENDIENTE de la neurona: la elección de voz vive
 // en su propia clave por dispositivo. Módulo liviano (localStorage), sin ciclos.
 import { readNeuronVoiceChoice, neuronVoiceChoiceIsStale } from "@/lib/aurora/tts-oss/neuron-voice-constants";
@@ -376,13 +377,12 @@ export function subscribeStartupOpen(cb: () => void): () => void {
 export { scoutSignature, hasNewScoutFindings, markScoutSeen };
 export type { NeuronCapabilities };
 
-export function decidirSegunScout(caps: NeuronCapabilities): { accion: "aviso-scout"; resumen: string } | { accion: "nada" } {
+export async function decidirSegunScout(caps: NeuronCapabilities): Promise<{ accion: "aviso-scout"; resumen: string } | { accion: "nada" }> {
   try {
     const sig = scoutSignature(caps, catalogLen());
     if (hasNewScoutFindings(sig)) {
-      const { tier, best, current, hasBetter, summary } = (await import("./scout-models-fallback")).scoutModelsFallback
-        ? await import("./scout-models-fallback").scoutModelsFallback(caps)
-        : { summary: `Tu equipo puede con mejores modelos. Revisa la pestaña Astraura.` };
+      const fallback = await import("./scout-models-fallback").catch(() => null);
+      const summary = fallback?.scoutModelsFallback?.(caps)?.summary ?? `Tu equipo puede con mejores modelos. Revisa la pestaña Astraura.`;
       return { accion: "aviso-scout", resumen: summary };
     }
     return { accion: "nada" };
