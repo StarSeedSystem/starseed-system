@@ -147,7 +147,7 @@ export async function POST(peticion: Request): Promise<Response> {
             return Response.json({ ok: true, yaEnviada: true }, { headers: { "Cache-Control": "no-store" } });
         }
         const fecha = new Date().toISOString().split("T")[0];
-        const tarea = crearTareaParaCola(propuesta, fecha);
+        const tarea = crearTareaParaCola({ ...propuesta, enviada: propuesta.enviada ?? false }, fecha);
         const colaDir = path.join(baseMemoria, "olas");
         const colaArchivo = path.join(colaDir, `cola-automejora-${fecha}.json`);
         let cola: unknown[] = [];
