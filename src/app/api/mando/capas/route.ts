@@ -7,22 +7,24 @@
  *        (`~/.starseed/capacidades-nodos.json`, si existe) + último banco
  *        (`~/.starseed/capas-banco.json`, si existe). Cada computación vive en
  *        `src/lib/mando/capas-red.ts` (puro).
- * POST → `{ accion: "comprobar" | "banco" }` lanza `capas_renovar.py --json`
- *        o `capas_banco.py` DESACOPLADOS (mismo patrón que
- *        `lanzarPasadaAutopublicar` de `/api/mando/produccion`).
+ * POST → `{ accion: "comprobar" | "banco" | "mandar-propuesta" }` lanza
+ *        `capas_renovar.py --json`, `capas_banco.py` o manda una propuesta
+ *        de automejora a la cola del enjambre.
  *
  * ⚠️ Solo local (`guardianMando`). Jamás devuelve rutas del disco ni claves.
  */
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { guardianMando } from "@/lib/mando/guardian";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import { construirResumenRed, leerBanco, leerCatalogoCapas, leerNuevas } from "@/lib/mando/capas-red";
+import { leerPropuestasAutomejora, crearTareaParaCola, type PropuestaAutomejora, type PropuestaArchivo } from "@/lib/mando/automejora-propuestas";
+import { leerUltimaNoche, leerPropuestasArchivo, type UltimaNoche, type PropuestaAutomejoraArchivo } from "@/lib/mando/automejora-noche";
 import type { CapacidadesNodo } from "@/lib/network/capacidades-nodo";
 
 export const runtime = "nodejs";
@@ -66,11 +68,14 @@ export async function GET(peticion: Request): Promise<Response> {
     if (veto) return veto;
 
     const hogar = os.homedir();
-    const [crudoCatalogo, crudoEstado, crudoFichas, crudoBanco] = await Promise.all([
+    const baseMemoria = path.join(hogar, ".starseed");
+    const [crudoCatalogo, crudoEstado, crudoFichas, crudoBanco, crudoUltimaNoche, crudoPropuestas] = await Promise.all([
         leerJson(path.join(raizDelProyecto(), "config", "capas-astraura.json")),
-        leerJson(path.join(hogar, ".starseed", "capas-estado.json")),
-        leerJson(path.join(hogar, ".starseed", "capacidades-nodos.json")),
-        leerJson(path.join(hogar, ".starseed", "capas-banco.json")),
+        leerJson(path.join(baseMemoria, "capas-estado.json")),
+        leerJson(path.join(baseMemoria, "capacidades-nodos.json")),
+        leerJson(path.join(baseMemoria, "capas-banco.json")),
+        leerJson(path.join(baseMemoria, "aprendizaje", "automejora", "ultima-noche.json")),
+        leerJson(path.join(baseMemoria, "olas", "propuestas-automejora")),
     ]);
 
     const catalogo = leerCatalogoCapas(crudoCatalogo);
@@ -83,7 +88,19 @@ export async function GET(peticion: Request): Promise<Response> {
         actualizado,
     });
 
-    return Response.json({ ...resumen, servidoEn: new Date().toISOString() }, { headers: { "Cache-Control": "no-store" } });
+    const ultimaNoche = leerUltimaNoche(crudoUltimaNoche);
+    let propuestas: PropuestaAutomejoraArchivo[] = [];
+    if (Array.isArray(crudoPropuestas)) {
+        for (const p of crudoPropuestas) {
+            const leida = leerPropuestasArchivo(p);
+            if (leida) propuestas.push(leida);
+        }
+    }
+
+    return Response.json(
+        { ...resumen, servidoEn: new Date().toISOString(), ultimaNoche, propuestas },
+        { headers: { "Cache-Control": "no-store" } }
+    );
 }
 
 export async function POST(peticion: Request): Promise<Response> {
@@ -91,10 +108,14 @@ export async function POST(peticion: Request): Promise<Response> {
     if (veto) return veto;
 
     let accion: string;
+    let archivo: string | undefined;
+    let id: string | undefined;
     try {
         const cuerpo = (await peticion.json()) as unknown;
         if (!esObjeto(cuerpo) || typeof cuerpo.accion !== "string") throw new Error("no-objeto");
         accion = cuerpo.accion;
+        archivo = typeof cuerpo.archivo === "string" ? cuerpo.archivo : undefined;
+        id = typeof cuerpo.id === "string" ? cuerpo.id : undefined;
     } catch {
         return Response.json({ error: "Cuerpo JSON inválido." }, { status: 400 });
     }
@@ -107,5 +128,56 @@ export async function POST(peticion: Request): Promise<Response> {
         lanzarScript("capas_banco.py");
         return Response.json({ ok: true, accion }, { headers: { "Cache-Control": "no-store" } });
     }
-    return Response.json({ error: "Acción desconocida: usa «comprobar» o «banco»." }, { status: 400 });
+    if (accion === "mandar-propuesta") {
+        if (!archivo || !id) {
+            return Response.json({ error: "Faltan «archivo» e «id» para mandar-propuesta." }, { status: 400 });
+        }
+        const baseMemoria = path.join(os.homedir(), ".starseed");
+        const rutaArchivo = path.join(baseMemoria, "olas", "propuestas-automejora", archivo);
+        const crudo = await leerJson(rutaArchivo);
+        const propuestaArchivo = leerPropuestasArchivo(crudo);
+        if (!propuestaArchivo) {
+            return Response.json({ error: "Archivo de propuesta no encontrado o inválido." }, { status: 404 });
+        }
+        const propuesta = propuestaArchivo.propuestas.find((p) => p.id === id);
+        if (!propuesta) {
+            return Response.json({ error: "Propuesta no encontrada en el archivo." }, { status: 404 });
+        }
+        if (propuesta.enviada) {
+            return Response.json({ ok: true, yaEnviada: true }, { headers: { "Cache-Control": "no-store" } });
+        }
+        const fecha = new Date().toISOString().split("T")[0];
+        const tarea = crearTareaParaCola(propuesta, fecha);
+        const colaDir = path.join(baseMemoria, "olas");
+        const colaArchivo = path.join(colaDir, `cola-automejora-${fecha}.json`);
+        let cola: unknown[] = [];
+        const crudoCola = await leerJson(colaArchivo);
+        if (Array.isArray(crudoCola)) cola = crudoCola;
+        cola.push(tarea);
+        await writeFile(colaArchivo, JSON.stringify(cola, null, 1), "utf-8");
+        propuesta.enviada = true;
+        const nuevoArchivo = { ...propuestaArchivo, propuestas: propuestaArchivo.propuestas };
+        await writeFile(rutaArchivo, JSON.stringify(nuevoArchivo, null, 1), "utf-8");
+        return Response.json({ ok: true, accion, tarea: tarea.id }, { headers: { "Cache-Control": "no-store" } });
+    }
+    if (accion === "descartar") {
+        if (!archivo || !id) {
+            return Response.json({ error: "Faltan «archivo» e «id» para descartar." }, { status: 400 });
+        }
+        const baseMemoria = path.join(os.homedir(), ".starseed");
+        const rutaArchivo = path.join(baseMemoria, "olas", "propuestas-automejora", archivo);
+        const crudo = await leerJson(rutaArchivo);
+        const propuestaArchivo = leerPropuestasArchivo(crudo);
+        if (!propuestaArchivo) {
+            return Response.json({ error: "Archivo de propuesta no encontrado o inválido." }, { status: 404 });
+        }
+        const idx = propuestaArchivo.propuestas.findIndex((p) => p.id === id);
+        if (idx === -1) {
+            return Response.json({ error: "Propuesta no encontrada en el archivo." }, { status: 404 });
+        }
+        propuestaArchivo.propuestas.splice(idx, 1);
+        await writeFile(rutaArchivo, JSON.stringify(propuestaArchivo, null, 1), "utf-8");
+        return Response.json({ ok: true, accion }, { headers: { "Cache-Control": "no-store" } });
+    }
+    return Response.json({ error: "Acción desconocida." }, { status: 400 });
 }
