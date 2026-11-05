@@ -1,0 +1,11 @@
+{
+ "contrato": "architecture/centro-versiones-1105.md",
+ "nota": "Ajustes del director de lanzamientos. La lista de tareas que debe terminar antes del lanzamiento automático son las colas de `colas`. El interruptor «Lanzar sola al terminar cada lista» vive en ~/.starseed/produccion/lanzamientos.json (el panel lo cambia); aquí solo su valor por defecto.",
+ "colas": ["cola-versiones-1105.json"],
+ "tipo": "menor",
+ "tope_dia": 1,
+ "reintentos_job": 2,
+ "ci_tope_min": 75,
+ "auto_por_defecto": true,
+ "workflow": "native-build.yml"
+}

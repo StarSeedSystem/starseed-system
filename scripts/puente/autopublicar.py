@@ -855,6 +855,12 @@ def main(argv=None):
             subprocess.run([sys.executable, os.path.abspath(__file__)], timeout=3600)
         except Exception as e:  # noqa: BLE001 — una pasada rota no tumba al director
             print("[%s] pasada rota: %s: %s" % (time.strftime("%H:%M"), type(e).__name__, e), flush=True)
+        # (1105 · VER) Detrás, el director de lanzamientos, en su propio proceso: solo lee el estado de esta
+        # autopublicación y lanza las versiones nativas (architecture/centro-versiones-1105.md).
+        try:
+            subprocess.run([sys.executable, os.path.join(DIRECTORIO, "director_lanzamientos.py")], timeout=3600)
+        except Exception as e:  # noqa: BLE001 — un lanzamiento roto no tumba la autopublicación
+            print("[%s] lanzamientos roto: %s: %s" % (time.strftime("%H:%M"), type(e).__name__, e), flush=True)
         time.sleep(300)
 
 
