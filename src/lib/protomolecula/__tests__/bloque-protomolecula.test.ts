@@ -11,6 +11,27 @@ function moleculaDePrueba(): Molecula {
         capas: [], atomos: [], valores: {}, version: 1, creadaEn: 1000, actualizadaEn: 1000,
     };
 }
+
+function capaDeRespuestaViva(): Capa {
+    return {
+        id: "respuesta-viva",
+        tipo: "respuesta-viva",
+        titulo: "Respuesta Viva",
+        formato: "openui-lang",
+        referencia: null,
+        orden: 0,
+        visible: true,
+        bloqueada: false,
+    };
+}
+
+// Prueba para respuesta-viva
+export function moleculaConRespuestaViva(): Molecula {
+    return {
+        id: "mol-respuesta-viva", titulo: "Molécula con Respuesta Viva", ambito: "personal",
+        capas: [capaDeRespuestaViva()], atomos: [], valores: {}, version: 1, creadaEn: 1000, actualizadaEn: 1000,
+    };
+}
 function capaConReferencia(): Capa {
     return {
         id: "capa-1", tipo: "lienzo2d", titulo: "Capa de prueba", formato: "svg",

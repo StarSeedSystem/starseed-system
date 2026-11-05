@@ -8,6 +8,8 @@ import { prepararDiagrama } from "@/lib/diagramas/aislar-diagrama";
 
 /** Versión del sobre JSON del bloque. */
 export const VERSION_BLOQUE = 1;
+
+
 /** Tope del bloque serializado (deja margen dentro de MAX_SS_META_BYTES). */
 export const MAX_BLOQUE_BYTES = 32 * 1024;
 
