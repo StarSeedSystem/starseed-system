@@ -337,6 +337,10 @@ except Exception:  # sin el módulo, se comporta como antes
         def anotar(motivo="", horas=3.0):
             return 0
 
+        @staticmethod
+        def modelo_vigente(pedido):
+            return str(pedido or "").split("/", 1)[-1]
+
 
 MODELOS_CODEX = ["codex/gpt-5.6-sol"]
 RUTA_CODEX_AUTH = os.path.expanduser("~/.codex/auth.json")
@@ -4081,7 +4085,9 @@ def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
             if hueco > 0:
                 time.sleep(hueco)
             _ULTIMO_ARRANQUE_OPENCODE = time.time()
-        cmd = comando_codex(modelo, cwd)
+        # (2026-11-05) La cuenta de ChatGPT puede retirar un modelo (gpt-5.6-sol el 04-11): se pide el
+        # mejor que la CLI lista como admitido hoy (cupo_codex.modelo_vigente), sin pagar nada aparte.
+        cmd = comando_codex(_cupo_codex.modelo_vigente(modelo), cwd)
         texto = (prompt or "").rstrip() + "\n\n" + CIERRE_CODEX + "\n"
         with open(log, "a", encoding="utf-8") as f:
             # El prompt NO se vuelca al log (son miles de líneas): solo la orden y su tamaño.

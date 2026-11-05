@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Pruebas de cupo_codex.py, con la salida real del 17/09."""
 
+import json
 import os
 import sys
 import unittest
@@ -143,6 +144,39 @@ class TestRutaAlLlamar(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(casa, ".starseed", "codex-cupo.json")))
         self.assertEqual("cuenta de ChatGPT sin Codex: prueba", c.leer()["motivo"])
         self.assertFalse(c.puede_escribir(ahora=AHORA + 3600))
+
+
+class TestModeloVigente(unittest.TestCase):
+    CACHE = {"models": [
+        {"slug": "gpt-reserve", "visibility": "hide", "priority": 1},
+        {"slug": "gpt-5.6-luna", "visibility": "list", "priority": 3},
+        {"slug": "gpt-5.6-terra", "visibility": "list", "priority": 2},
+        {"slug": "codex-auto-review", "visibility": "hide", "priority": 4},
+    ]}
+
+    def test_admitidos_por_prioridad_y_sin_ocultos(self):
+        self.assertEqual(["gpt-5.6-terra", "gpt-5.6-luna"], C.modelos_admitidos(self.CACHE))
+        self.assertEqual([], C.modelos_admitidos(None))
+        self.assertEqual([], C.modelos_admitidos({"models": "roto"}))
+
+    def test_el_retirado_pasa_al_mejor_admitido(self):
+        adm = C.modelos_admitidos(self.CACHE)
+        self.assertEqual("gpt-5.6-terra", C.elegir_modelo("codex/gpt-5.6-sol", adm))
+        self.assertEqual("gpt-5.6-luna", C.elegir_modelo("codex/gpt-5.6-luna", adm))
+        self.assertEqual("gpt-5.6-terra", C.elegir_modelo("gpt-reserve", adm))
+
+    def test_sin_cache_el_pedido_tal_cual(self):
+        self.assertEqual("gpt-5.6-sol", C.elegir_modelo("codex/gpt-5.6-sol", []))
+        self.assertEqual("gpt-5.6-sol", C.modelo_vigente("codex/gpt-5.6-sol", ruta="/no/existe.json"))
+
+    def test_lee_el_cache_de_un_archivo(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(self.CACHE, f)
+        try:
+            self.assertEqual("gpt-5.6-terra", C.modelo_vigente("codex/gpt-5.6-sol", ruta=f.name))
+        finally:
+            os.remove(f.name)
 
 
 if __name__ == "__main__":

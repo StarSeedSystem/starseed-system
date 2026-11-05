@@ -159,6 +159,41 @@ def anotar(motivo="", ruta=None, ahora=None, horas=HORAS):
     return minutos_restantes(marca, ahora)
 
 
+#: Los modelos que la cuenta de ChatGPT admite HOY los guarda la propia CLI en este caché (lo
+#: refresca sola). Desde el 04-11 ya no trae `gpt-5.6-sol`: se le pide el mejor que sí liste, sin
+#: pagar nada aparte (probado el 05-11: `codex exec -m gpt-5.6-terra` responde con la suscripción).
+CACHE_MODELOS = os.path.expanduser("~/.codex/models_cache.json")
+
+
+def modelos_admitidos(datos):
+    """PURA: los `slug` con `visibility: list` del caché de la CLI, del mejor al peor (`priority`)."""
+    filas = datos.get("models") if isinstance(datos, dict) else None
+    buenos = [m for m in (filas or []) if isinstance(m, dict) and m.get("slug") and m.get("visibility") == "list"]
+    buenos.sort(key=lambda m: m.get("priority") if isinstance(m.get("priority"), (int, float)) else 1e9)
+    return [str(m["slug"]) for m in buenos]
+
+
+def elegir_modelo(pedido, admitidos):
+    """PURA: el modelo que de verdad se le pide a `codex exec`. El pedido (sin «codex/») si la cuenta
+    lo admite o si no se sabe qué admite; si no, el mejor de los que admite."""
+    nombre = str(pedido or "")
+    if nombre.startswith("codex/"):
+        nombre = nombre.split("/", 1)[1]
+    if not admitidos or nombre in admitidos:
+        return nombre
+    return admitidos[0]
+
+
+def modelo_vigente(pedido, ruta=None):
+    """`elegir_modelo` con el caché real de la CLI. Nunca lanza: sin caché, el pedido tal cual."""
+    try:
+        with open(ruta or CACHE_MODELOS, encoding="utf-8") as f:
+            datos = json.load(f)
+    except Exception:
+        datos = None
+    return elegir_modelo(pedido, modelos_admitidos(datos))
+
+
 def puede_escribir(ruta=None, ahora=None):
     """¿Tiene sentido darle un turno a Codex ahora mismo?"""
     return not sigue_agotado(leer(ruta), time.time() if ahora is None else ahora)
