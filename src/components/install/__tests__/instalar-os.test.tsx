@@ -24,6 +24,7 @@ vi.mock("@/lib/apps-oficiales/dispositivo-actual", () => ({
 }));
 
 import { BotonInstalarOS, OtrosSistemasOS } from "../instalar-os";
+import { identificadoresDe, permisosDe, SO_VERSION } from "@/lib/version/permisos-por-so";
 
 let clics: string[] = [];
 
@@ -124,5 +125,33 @@ describe("OtrosSistemasOS", () => {
         expect(hrefs).toContain(`${BASE}/StarSeed-os-0.3.0.apk`);
         expect(hrefs).not.toContain(`${BASE}/StarSeed-nexus-0.3.0.apk`);
         expect(hrefs).toContain("https://github.com/StarSeedSystem/starseed-system/releases/latest");
+    });
+
+    it("cuando se abre el desplegable, enseña los requisitos y permisos DECLARADOS de cada sistema (contrato centro-versiones-1105 §5-§6)", () => {
+        render(<OtrosSistemasOS release={est.release} />);
+        // Cerrado por defecto (no tapa la descarga) y plegable.
+        expect(screen.getByTestId("permisos-por-so").tagName.toLowerCase()).toBe("details");
+
+        fireEvent.click(screen.getByText("Requisitos y permisos de cada sistema"));
+        const panel = screen.getByTestId("permisos-por-so");
+
+        // Los seis sistemas tienen ficha, incluso los que hoy no instalable (iOS, web).
+        for (const so of SO_VERSION) expect(screen.getByTestId(`permisos-os-${so}`)).toBeTruthy();
+        for (const so of SO_VERSION) {
+            const s = permisosDe(so);
+            const ficha = screen.getByTestId(`permisos-os-${so}`);
+            for (const o of s.propios) expect(ficha.textContent).toContain(o.texto);
+            for (const causa of s.noPermite) expect(ficha.textContent).toContain(causa);
+        }
+
+        // Cada id de capability declarado para macOS queda mirable en el title de su grupo.
+        const titulado = new Set(
+            Array.from(panel.querySelectorAll<HTMLLIElement>("li[title]")).flatMap((li) => (li.getAttribute("title") ?? "").split(" · ")),
+        );
+        for (const id of identificadoresDe("macos")) expect(titulado.has(id)).toBe(true);
+
+        // macOS sin firma pide «clic derecho → Abrir» iOS dice por qué no hay .ipa hoy.
+        expect(screen.getByTestId("permisos-os-macos").textContent).toContain("clic derecho");
+        expect(screen.getByTestId("permisos-os-ios").textContent).toContain("no-disponible");
     });
 });
