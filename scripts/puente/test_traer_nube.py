@@ -185,6 +185,7 @@ class Sucesor(unittest.TestCase):
         for k in ("RTESP1011Bb", "RTESP1011Bd", "RTESP1011Bd-d1", "RTESP1011Bd-d2b", "RTESP1011Bd-d2d"):
             self.assertEqual(T.base_de(k), "RTESP1011B", k)
 
+<<<<<<< HEAD
     def test_lo_que_no_se_puede_saber_no_se_corta(self):
         """Los IDs que no podemos saber cómo cortar (porque son indistinguibles) se dejan enteros."""
         self.assertEqual(T.base_de("MC1013TC"), "MC1013TC")
@@ -194,6 +195,8 @@ class Sucesor(unittest.TestCase):
         self.assertEqual(T.base_de(""), "")
         self.assertEqual(T.base_de(None), "")
 
+=======
+>>>>>>> 5f3eb5975 (salvavidas · RTRESC1031D: trabajo del agente antes de las puertas (tsc / vitest))
     def test_tarea_reparacion_continua_desde_la_rama(self):
         original = {"id": "LC1004B", "ola": "Ola 1004L", "titulo": "Límites", "archivos": ["a.ts"],
                     "depende": ["LC1004A"], "prompt": "Haz X.", "estado": "fallo_tests", "modelo": "nim/kimi"}
