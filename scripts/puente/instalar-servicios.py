@@ -117,13 +117,15 @@ SERVICIOS = {
     # entorno: `listarModelos()` daba «sin clave» para todo y el asistente técnico no
     # tenía a quién preguntar. Se cargan como en el servicio de Telegram: el shell lee
     # ~/.hermes/.env y ~/.starseed/env y se convierte en el lanzador con exec.
+    # (2026-11-05) Alex aprobó 3 GB para Genesis: con el techo de Node en la Mac de 8 GB (~2 GB) `next start`
+    # caía «JavaScript heap out of memory» (6 veces ese día) y launchd lo revivía con la pantalla caída.
     "mando": (
         [
             "/bin/zsh",
             "-c",
             'set -a; [ -f "$HOME/.hermes/.env" ] && source "$HOME/.hermes/.env"; '
             '[ -f "$HOME/.starseed/env" ] && source "$HOME/.starseed/env"; set +a; '
-            "exec %s --cwd %s --env STARSEED_MANDO=1 --env STARSEED_LOCAL=1 "
+            "exec %s --cwd %s --env STARSEED_MANDO=1 --env STARSEED_LOCAL=1 --env NODE_OPTIONS=--max-old-space-size=3072 "
             "-- /opt/homebrew/bin/npx next start -p 9002" % (" ".join(LANZ), RAIZ),
         ],
         "/tmp/starseed-mando.log",
