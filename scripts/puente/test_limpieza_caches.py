@@ -24,6 +24,22 @@ BAK_NUEVO = H + "/.hermes/state.db.pre-update-emergency-2026-10-30.bak"
 DRIVE = "/fake/drive/StarSeed-respaldos-mac/hermes"
 rutas = lambda e: [a["ruta"] for a in (L.plan(**e) if isinstance(e, dict) else e)]  # noqa: E731
 
+#: (SUP0511E, 05-11) Con `A.limpiar` parcheado, `revisar` cree que corre de verdad y lanza todo lo real que
+#: cuelga de `limpiar_fn is limpiar`: la limpieza de worktrees sobre ~/Documents/starseed-wt (con `_leer_json`
+#: en {}, quitó VER1105Fc a las 12:17:53 y VER1105Fb-d2 a las 15:06:17 con sus agentes escribiendo), el
+#: orquestador y los servicios al día, la reparación de medidores, Experiential Labs, el relevo de Claude, la
+#: autocuración del A1 y el arriendo de dirección. En esta prueba todo eso es de mentira.
+SIN_EFECTOS_REALES = {
+    "limpiar_worktrees": lambda *a, **k: {},
+    "_lider": lambda: {"soy": True, "motivo": "prueba"},
+    "_orquestador_al_dia": lambda: {},
+    "_servicios_al_dia": lambda: {},
+    "_reparar_medidores_en_fondo": lambda forzar=False: True,
+    "_explabs_en_fondo": lambda: True,
+    "_relevo_claude": lambda: {},
+    "_a1_en_fondo": lambda: True,
+}
+
 
 def entorno(rutas, mb=None, vivos=(), enlaces=None, libre: "float | None" = 4.0, clones=None, inicio=None,
             respaldos=None, drive_vivo=None):
@@ -269,10 +285,12 @@ class LimpiezaCaches(unittest.TestCase):  # plan (puro), aplicar, recortar, reco
     def test_autocuracion_solo_con_la_limpieza_real_libera_lo_que_no_ve_y_lo_dice(self):
         sim = lambda ids: {"ok": True, "limpiados": list(ids)}  # noqa: E731
         for real, avisos in ((True, []), (False, [])):  # con una limpiar_fn simulada no se mira el disco real
-            with mock.patch.multiple(A, _leer_json=lambda r, d: d, _guardar=lambda d: 0, limpiar=sim if real else A.limpiar), \
+            with mock.patch.multiple(A, _leer_json=lambda r, d: d, _guardar=lambda d: 0, limpiar=sim if real else A.limpiar,
+                                     **SIN_EFECTOS_REALES), \
                     mock.patch.multiple(L, recoger=lambda libre: entorno([], libre=libre), borrar=lambda r: None,
                                         plan=lambda **k: [{"accion": "borrar", "ruta": CLON, "mb": 1400.0}]):
-                e = A.revisar(ahora=100_000, sondear_fn=lambda: True, limpiar_fn=sim, libre_fn=lambda: 4.0, traer_fn=int,
+                e = A.revisar(ahora=100_000, sondear_fn=lambda: True, reiniciar_fn=lambda: None, limpiar_fn=sim,
+                              libre_fn=lambda: 4.0, traer_fn=int,
                               avisar_fn=avisos.append, asignar_fn=lambda: ({"puede": False}, lambda: []), buscar_fn=dict,
                               curar_fn=lambda *a: "", servicios_fn=lambda: {"estado": "ok"}, medidores_fn=lambda a: [])
             dicho = [h[:24] for h in e["hechos"] + avisos if "liberados ≈1400 MB" in h and CLON in h]  # y qué ruta

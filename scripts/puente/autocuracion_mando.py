@@ -575,6 +575,14 @@ def limpiar_worktrees(raiz_wt=None):
     if not os.path.isdir(raiz_wt):
         return {"quitados": [], "nm_borrados": [], "errores": []}
     progreso, vivas = _tareas_vivas()
+    # (SUP0511E, 05-11) Sin progreso.json legible no se sabe qué tarea está viva, y `plan` da por
+    # «integrada» toda rama recién creada (su punta es antepasada de main): quitaría el worktree de
+    # una tarea en curso y borraría los node_modules de todas. Medido el 05-11: una prueba que dejaba
+    # `_leer_json` en {} y corría esta limpieza de verdad quitó VER1105Fc (12:17:53) y VER1105Fb-d2
+    # (15:06:17) mientras sus agentes escribían. Sin progreso, no se toca nada.
+    if not isinstance(progreso, dict) or not progreso:
+        return {"quitados": [], "nm_borrados": [],
+                "errores": ["sin progreso.json legible: no sé qué tareas están vivas y no toco ningún worktree"]}
     w = [x for x in limpieza_worktrees.recoger(raiz_wt, RAIZ, _git_wt)
          if not os.path.basename(x["ruta"]).startswith("_")]  # `_traer` es de traer_nube
     plan = limpieza_worktrees.plan(w, progreso, vivas)
