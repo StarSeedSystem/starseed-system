@@ -113,7 +113,22 @@ def minutos_restantes(marca, ahora):
 # ── la parte que toca el disco ──────────────────────────────────────────────
 
 
-def leer(ruta=RUTA):
+def _ruta(ruta):
+    """La ruta de la marca, resuelta al llamar y no al definir la función.
+
+    (2026-11-04, SUP0411I) Con `ruta=RUTA` de valor por defecto, Python fijaba la ruta
+    al cargar el módulo: cambiar `cupo_codex.RUTA` no servía de nada. `CodexCuenta` (en
+    test_acciones_de_alex) lo cambiaba para no tocar la Mac, y sus pruebas escribían la
+    marca de 2001 encima de la de verdad («cuenta de ChatGPT sin Codex», 24 h). El
+    enjambre volvía a probar Codex cada hora (7 veces del 04-11 entre las 18:35 y las
+    23:30), y con la marca real vigente cuatro pruebas contaban una acción de más y
+    frenaban la autopublicación (20:29 y 21:40).
+    """
+    return RUTA if ruta is None else ruta
+
+
+def leer(ruta=None):
+    ruta = _ruta(ruta)
     try:
         with open(ruta, encoding="utf-8") as f:
             d = json.load(f)
@@ -122,8 +137,9 @@ def leer(ruta=RUTA):
         return {}
 
 
-def anotar(motivo="", ruta=RUTA, ahora=None, horas=HORAS):
+def anotar(motivo="", ruta=None, ahora=None, horas=HORAS):
     """Guarda que Codex está agotado. Devuelve los minutos que se aparta."""
+    ruta = _ruta(ruta)
     ahora = time.time() if ahora is None else ahora
     hasta = hasta_cuando(ahora, horas)
     marca = {
@@ -143,6 +159,6 @@ def anotar(motivo="", ruta=RUTA, ahora=None, horas=HORAS):
     return minutos_restantes(marca, ahora)
 
 
-def puede_escribir(ruta=RUTA, ahora=None):
+def puede_escribir(ruta=None, ahora=None):
     """¿Tiene sentido darle un turno a Codex ahora mismo?"""
     return not sigue_agotado(leer(ruta), time.time() if ahora is None else ahora)

@@ -118,5 +118,32 @@ class TestDisco(unittest.TestCase):
         self.assertTrue(C.puede_escribir(self.ruta))
 
 
+class TestRutaAlLlamar(unittest.TestCase):
+    """(SUP0411I) Cambiar `RUTA` lleva leer, anotar y puede_escribir a la ruta nueva.
+
+    Con `ruta=RUTA` de valor por defecto, la ruta quedaba fijada al cargar el módulo y las
+    pruebas que cambiaban `RUTA` escribían en ~/.starseed de la Mac. Esta copia del módulo se
+    carga con HOME en un temporal: ni sin el arreglo toca la marca de verdad.
+    """
+
+    def test_cambiar_RUTA_cambia_donde_lee_y_escribe(self):
+        import importlib.util
+        import tempfile
+        from unittest import mock
+        casa = tempfile.mkdtemp(prefix="casa-")
+        with mock.patch.dict(os.environ, {"HOME": casa}):
+            spec = importlib.util.spec_from_file_location(
+                "cupo_codex_aislado", os.path.join(os.path.dirname(os.path.abspath(__file__)), "cupo_codex.py"))
+            c = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(c)
+        nueva = os.path.join(tempfile.mkdtemp(prefix="cupo-"), "codex-cupo.json")
+        c.RUTA = nueva
+        c.anotar("cuenta de ChatGPT sin Codex: prueba", ahora=AHORA, horas=24)
+        self.assertTrue(os.path.exists(nueva))
+        self.assertFalse(os.path.exists(os.path.join(casa, ".starseed", "codex-cupo.json")))
+        self.assertEqual("cuenta de ChatGPT sin Codex: prueba", c.leer()["motivo"])
+        self.assertFalse(c.puede_escribir(ahora=AHORA + 3600))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -22,6 +22,26 @@ CATALOGO = {
 }
 TODOS = sorted(A.CLAVES_DEL_ENJAMBRE)
 
+# (2026-11-04, SUP0411I) `construir_acciones` lee la marca de Codex de la máquina
+# (`accion_codex_cuenta`). Sin aislarla, la marca real de la Mac («cuenta de ChatGPT sin
+# Codex», 24 h) daba una acción de más en las pruebas que cuentan (1 != 2): frenó la
+# autopublicación el 04-11 a las 20:29 y a las 21:40. Y CodexCuenta escribía su marca de
+# 2001 encima de la real. Ninguna prueba de este archivo lee ni escribe la de la Mac.
+_RUTA_CUPO_DE_LA_MAC = None
+
+
+def setUpModule():
+    global _RUTA_CUPO_DE_LA_MAC
+    if A._cupo is not None:
+        import tempfile
+        _RUTA_CUPO_DE_LA_MAC = A._cupo.RUTA
+        A._cupo.RUTA = os.path.join(tempfile.mkdtemp(prefix="cupo-codex-"), "codex-cupo.json")
+
+
+def tearDownModule():
+    if A._cupo is not None and _RUTA_CUPO_DE_LA_MAC is not None:
+        A._cupo.RUTA = _RUTA_CUPO_DE_LA_MAC
+
 
 class QueEntraEnLaLista(unittest.TestCase):
     def test_sin_nada_pendiente_la_lista_esta_vacia(self):
@@ -482,3 +502,34 @@ class CodexCuenta(unittest.TestCase):
         ids = [x["id"] for x in acciones]
         # canal-de-avisos-sin-configurar es urgencia "alta", codex-cuenta es "media"
         self.assertLess(ids.index("canal-de-avisos-sin-configurar"), ids.index("codex-cuenta"))
+
+
+class LaMarcaDeCodexDeLaMacNoSeToca(unittest.TestCase):
+    """(SUP0411I) Las pruebas usan la marca de Codex que `RUTA` dice, no la de la Mac."""
+
+    def setUp(self):
+        import tempfile
+        self.antes = A._cupo.RUTA
+        A._cupo.RUTA = os.path.join(tempfile.mkdtemp(prefix="cupo-codex-"), "codex-cupo.json")
+
+    def tearDown(self):
+        A._cupo.RUTA = self.antes
+
+    def test_el_modulo_no_apunta_a_la_marca_de_la_mac(self):
+        de_la_mac = os.path.realpath(os.path.expanduser("~/.starseed/codex-cupo.json"))
+        self.assertNotEqual(de_la_mac, os.path.realpath(self.antes))
+        self.assertNotEqual(de_la_mac, os.path.realpath(A._cupo.RUTA))
+
+    def test_la_marca_vigente_se_lee_de_RUTA(self):
+        # Escrita a mano en RUTA: antes, `leer()` miraba la ruta fijada al cargar el módulo.
+        import json, time
+        with open(A._cupo.RUTA, "w", encoding="utf-8") as f:
+            json.dump({"hasta": time.time() + 3600, "desde": "hoy",
+                       "motivo": "cuenta de ChatGPT sin Codex para codex/x"}, f)
+        ids = [x["id"] for x in A.construir_acciones([], TODOS, CATALOGO)]
+        self.assertIn("codex-cuenta", ids)
+
+    def test_anotar_sin_ruta_escribe_en_RUTA(self):
+        A._cupo.anotar("cuenta de ChatGPT sin Codex: prueba", ahora=1000000000.0, horas=24)
+        self.assertTrue(os.path.exists(A._cupo.RUTA))
+        self.assertEqual("cuenta de ChatGPT sin Codex: prueba", A._cupo.leer()["motivo"])
