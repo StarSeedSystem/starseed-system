@@ -338,10 +338,16 @@
         "alConceder": "automáticamente",
         "noPermite": []
       },
-      {
+{
         "nombre": "os:allow-exe-extension",
-        "texto": "Permitir extensiones de ejecutables (.exe, .msi). Informativo para el sistema de archivos.",
+        "texto": "Permitir extensiones de ejecutables. Informativo para el sistema de archivos.",
         "alConceder": "automáticamente",
+        "noPermite": []
+      },
+      {
+        "nombre": "fs:default",
+        "texto": "Acceso a archivos por defecto. Se concede al instalar la aplicación nativa.",
+        "alConceder": "al instalar",
         "noPermite": []
       },
       {
