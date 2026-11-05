@@ -4721,3 +4721,20 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTXR1010AMb-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTXR1010AMb-d2 conservada)
 - `IMG1102Db-d2` — los tipos no compilan: 1 errores tsc (rama ola/IMG1102Db-d2 conservada)
+
+## 2026-11-05 05:31 · mg-oracle-1104-2205
+
+**Resultado.** 0 de 6 integradas. 6 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — los tipos no compilan (VER1105F, VER1105L, VER1105K, VER1105I, VER1105A). Es 83 % de la ola.
+- opencode/minimax-m3.1-flash-free no integró ninguna de sus 3 tareas.
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `VER1105N` — no escribió nada
+- `VER1105F` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VER1105F conservada)
+- `VER1105L` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VER1105L conservada)
+- `VER1105K` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VER1105K conservada)
+- `VER1105I` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VER1105I conservada)
+- `VER1105A` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VER1105A conservada)
