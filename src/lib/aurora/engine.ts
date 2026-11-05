@@ -93,7 +93,9 @@ import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/
 // turno (voice-fusionada-astraura.md §4).
 import { montarInterrupcionPorVoz, type MontajeInterrupcion } from "@/lib/aurora/interrumpir-por-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
-import { elegirOidoMovil, debeReiniciarNavegador } from "@/lib/aurora/stt-oss/oido-movil";
+import { elegirOidoMovil, debeReiniciarNavegador, oidoParaReconocer } from "@/lib/aurora/stt-oss/oido-movil";
+import { isOssSttEnabled } from "@/lib/aurora/stt-oss/opt-in";
+import { isModelReady } from "@/lib/aurora/stt-oss/oss-stt";
 // (VZF1015G) OÍDO FUSIONADO por tramos con elector (voz-fusionada-astraura.md §3)
 // y su glosario de nombres propios («Stars Seed» → StarSeed) como hotwords.
 import { escucharFusionado, tramoAWav, type FragmentoOido, type SesionEscuchaFusionada } from "@/lib/aurora/stt-oss/escucha-fusionada";
@@ -2162,13 +2164,15 @@ export function useAuroraEngine(): AuroraEngine {
     if (typeof window === "undefined") return null;
     // Idioma de la voz activa.
     const langVoz = activeRef.current.voice?.lang;
-    // Elector del oído movil (contrato voz-estable-1105.md §3): decide el oído
-    // según nube, whisper descargado o navegador.
-    const elegirOidoMovilRes = elegirOidoMovil({
+    // Elector del oído móvil (contrato voz-estable-1105.md §3): nube > whisper-web > navegador.
+    // whisperListo = opt-in activado Y modelo descargado/listo.
+    const whisperListo = isOssSttEnabled() && isModelReady();
+    const motorOido = oidoParaReconocer({
+      esMovil: isMobileDevice(),
       nube: oidoNubeListoYa(),
-      whisperDescargado: Object.keys(medidasOidoDeEstaNeurona(langVoz)).includes("whisper-web"),
-      navegador: true,
+      whisperListo,
     });
+    if (motorOido === "whisper-web") return buildEscuchaFusionado("whisper-web");
     // Elector del oído (contrato voz-fusionada-astraura.md §3): Phonon-2 es el
     // OÍDO EN FLUJO (WebSocket /v1/audio/stream); cualquier otro motor usa la
     // Web Speech del navegador (el resto de motores se conectan en sus tareas).
@@ -2849,15 +2853,23 @@ export function useAuroraEngine(): AuroraEngine {
           mudo.connect(audioCtx.destination);
           sesionOido = escucharFusionado({
             obtenerAudio: () => new Promise<FragmentoOido | null>((resolver) => { relevo = resolver; }),
-            elegir: (idioma) => motorId === "nube" ? { motor: "nube" } : elegirOido({
-              idioma: idioma || idiomaBaseDeVoz(langVoz),
-              disponibles: MOTORES_OIDO.filter(
-                (m) => m.id !== "navegador" && !(m.id === "phonon-2" && phononCaidoRef.current),
-              ).map((m) => m.id),
-              fase: "final",
-              medidas: medidasOidoDeEstaNeurona(langVoz),
-            }),
+            elegir: (idioma) => {
+              if (motorId === "nube") return { motor: "nube" };
+              if (motorId === "whisper-web") return { motor: "whisper-web" };
+              return elegirOido({
+                idioma: idioma || idiomaBaseDeVoz(langVoz),
+                disponibles: MOTORES_OIDO.filter(
+                  (m) => m.id !== "navegador" && !(m.id === "phonon-2" && phononCaidoRef.current),
+                ).map((m) => m.id),
+                fase: "final",
+                medidas: medidasOidoDeEstaNeurona(langVoz),
+              });
+            },
             transcribir: async (tramo, peticion) => {
+              if (peticion.motor === "whisper-web") { // Whisper en el navegador por tramos
+                const { transcribirTramo } = await import("@/lib/aurora/stt-oss/oss-stt");
+                return transcribirTramo(tramo.pcm, tramo.rate, peticion.idioma);
+              }
               const blob = new Blob([tramoAWav(tramo.pcm, tramo.rate)], { type: "audio/wav" });
               if (peticion.motor === "nube") { // (1105 · VOZ) oído por tramos en la nube
                 const { transcribirNube } = await import("@/lib/aurora/stt-oss/oido-nube");
