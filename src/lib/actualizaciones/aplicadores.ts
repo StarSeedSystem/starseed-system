@@ -18,6 +18,7 @@ import { puedeRecargarSuave } from "@/lib/pwa/aviso-version";
 import type { CapaActualizacion, ManifiestoVersion } from "./manifiesto";
 import type { ResultadoHumo } from "./planificador";
 import { olvidarVersionesMedidas } from "./versiones-locales";
+import { NATIVE_UPDATER } from "@/lib/nativa/actualizador";
 
 export type ResultadoAplicar =
   | { ok: true; texto: string }
@@ -127,9 +128,9 @@ async function aplicarNativa(permitirRelanzar: boolean): Promise<ResultadoAplica
   const invoke = tauri()?.core?.invoke;
   if (!invoke) return no("No es la app nativa: esta capa se actualiza desde el programa instalado.");
   try {
-    const msg = String(await invoke("check_update"));
+    const msg = String(await invoke(NATIVE_UPDATER.check));
     if (/descargada/i.test(msg) && permitirRelanzar) {
-      await invoke("reiniciar_para_actualizar");
+      await invoke(NATIVE_UPDATER.reiniciar);
       return { ok: true, texto: "Relanzando la app con la versión nueva." };
     }
     return { ok: true, texto: msg };

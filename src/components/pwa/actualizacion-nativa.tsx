@@ -28,7 +28,10 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpCircle, Download, X } from "lucide-react";
 import {
-  normalizarEstadoActualizacion,
+  normalizarEstado,
+  NATIVE_UPDATER,
+} from "@/lib/nativa/actualizador";
+import {
   textoEstadoActualizacion,
   porcentajeDescarga,
   debeMostrarToast,
@@ -41,7 +44,6 @@ import {
   type CacheReleaseAndroid,
 } from "@/lib/pwa/actualizacion-nativa-logica";
 
-const EVENTO_ACTUALIZACION = "starseed://actualizacion";
 const CACHE_KEY_ANDROID = "starseed.native.android-release.v1";
 const RELEASES_API = "https://api.github.com/repos/StarSeedSystem/starseed-system/releases/latest";
 
@@ -79,8 +81,8 @@ export function ActualizacionNativa() {
     if (!listen) return;
 
     let cancelado = false;
-    listen(EVENTO_ACTUALIZACION, (e) => {
-      const normalizado = normalizarEstadoActualizacion(e?.payload);
+    listen(NATIVE_UPDATER.EVENTO, (e) => {
+      const normalizado = normalizarEstado(e?.payload) as EstadoActualizacionNativa | null;
       if (!normalizado || cancelado) return;
       setDescartado(false);
       setEstado(normalizado);
@@ -184,7 +186,7 @@ export function ActualizacionNativa() {
     const invoke = tauri?.core?.invoke;
     if (!invoke) return;
     try {
-      void invoke("reiniciar_para_actualizar");
+      void invoke(NATIVE_UPDATER.reiniciar);
     } catch {
       /* noop */
     }
