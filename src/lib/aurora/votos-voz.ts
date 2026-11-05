@@ -31,8 +31,8 @@ function votoValido(x: unknown): VotoVoz | null {
 }
 
 function recortarVotos(votados: VotoVoz[]): VotoVoz[] {
-  const ordenados = [...votados].sort((a, b) => b.timestamp - a.timestamp);
-  return ordenados.slice(0, MAX_VOTOS_TOTAL);
+  const ordenados = [...votados].sort((a, b) => a.timestamp - b.timestamp);
+  return ordenados.slice(-MAX_VOTOS_TOTAL);
 }
 
 export function anotarVoto(p: { motor: string; voto: number }, deps: DepsVotos): boolean {
