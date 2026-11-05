@@ -123,3 +123,4 @@ export type Resultado<T> = { ok: true; valor: T } | { ok: false; motivo: string 
 export const EVENTO_ANTENAS = "starseed://antenas";
 export const EVENTO_SERIE = "starseed://serie";
 export const EVENTO_SERIE_CERRADA = "starseed://serie-cerrada";
+export const EVENTO_ACTUALIZACION = "starseed://actualizacion";;
