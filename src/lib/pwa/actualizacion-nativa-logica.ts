@@ -17,7 +17,7 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import { esVersionMasNueva } from "@/lib/version/os-release";
+import { hayActualizacion, verificarActualizacion } from "@/lib/actualizaciones/version-por-medio";
 
 /* ─────────────────────── Escritorio: evento de progreso ─────────────────────── */
 
@@ -147,7 +147,9 @@ export function hayNuevaVersionAndroid(
   if (!instalada) return false;
   const apk = elegirApkAndroid(release);
   if (!apk) return false;
-  return esVersionMasNueva(apk.version, instalada);
+  // Usar ambas funciones puras para decisión: verificación completa y chequeo directo
+  verificarActualizacion("android", instalada, apk.version);
+  return hayActualizacion({ medio: "android", instalada, publicada: apk.version });
 }
 
 /* ─────────────────────── Detección + caché (funciones puras) ─────────────────────── */

@@ -19,6 +19,10 @@ import {
   type InfoInstalada,
 } from "./version-por-medio";
 
+interface TauriApp {
+  app?: { getVersion?: () => Promise<string> };
+}
+
 export { type InfoInstalada };
 
 export async function leerInstalada(): Promise<InfoInstalada> {
