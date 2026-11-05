@@ -112,7 +112,7 @@ export function PanelCapasRed() {
       const aplanadas: PropuestaItem[] = [];
       for (const pa of datos.propuestas ?? []) {
         for (const p of pa.propuestas ?? []) {
-          aplanadas.push({ archivo: pa.fecha + ".json", fecha: pa.fecha, ...p });
+          aplanadas.push({ archivo: pa.fecha + ".json", fecha: pa.fecha, ...p, enviada: p.enviada ?? false });
         }
       }
       setPropuestasAplanadas(aplanadas);
