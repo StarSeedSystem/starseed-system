@@ -2182,6 +2182,7 @@ export function useAuroraEngine(): AuroraEngine {
     if (eleccionOido.motor === "phonon-2") return buildFlujoOido();
     // (1105 · VOZ) MÓVIL: una línea de micrófono estable con oído por tramos en la nube. El reconocedor
     // del navegador termina tras cada frase o silencio y, al reiniciarlo, Android PITA en bucle.
+    // Si la nube está lista, la preferimos para evitar el ciclo de reinicios del navegador.
     if (isMobileDevice() && oidoNubeListoYa()) return buildEscuchaFusionado("nube");
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     // (VZF1015G) FUSIÓN DEL OÍDO (§3): el camino por tramos con elector entra
