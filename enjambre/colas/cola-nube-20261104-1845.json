@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "id": "SUP0311C",
+   "titulo": "Director de autodesarrollo · respeta el arriendo de otra neurona (decidir_lider recibía un datetime)",
+   "archivos": [
+    "scripts/puente/director_autodesarrollo.py",
+    "scripts/puente/test_director_autodesarrollo.py"
+   ],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; nada de claves ni cadenas con forma de clave; nunca rutas de un worktree; nunca la IP del A1; nunca pkill, kill -9 ni systemctl; nunca `next build` en la Mac; nunca borrar: lo que sobre se MUEVE a ~/.starseed/cuarentena/. Funciones de decisión PURAS con pruebas; solo pytest/vitest de lo tocado.\n\nEn `director_autodesarrollo.ciclo`, el bloque «Liderazgo» llama `AC.decidir_lider(lider_info, ahora)` con `ahora` como `datetime`. `autocuracion_mando.decidir_lider` espera segundos (epoch): hace `float(a.get('caduca')) > float(ahora)`, `float(datetime)` lanza TypeError, lo captura y toma el arriendo como NO vigente. Medido el 03-11: con {'soy': False, 'arriendo': {'dueno': 'a1', 'caduca': ahora+600}} da (True, 'nadie dirige ahora…') con un datetime y (False, 'espera: dirige a1') con time.time(). Así el autodesarrollo de la Mac encarga aunque el A1 tenga el arriendo vigente (su nodo también corre este director): encargos repetidos. Los demás que llaman (autopublicar, vigilante-enjambre, autocuracion_mando) ya pasan segundos. Arreglo: pasar `ahora.timestamp()` (si `ahora` es datetime). No toques decidir_lider ni nada más del ciclo. Pruebas en test_director_autodesarrollo.py, por `correr` (home y raiz temporales; nunca ~/.starseed) y con `unittest.mock.patch('lider_direccion.soy_lider', return_value=…)`: con un arriendo vigente de otra neurona, `toca_ejecutar` es False y `motivo_toca` dice «no soy líder»; con el arriendo caducado (caduca < NOCHE.timestamp()) o sin arriendo, toca True. Las nuevas deben fallar sin el arreglo.",
+   "ola": "0311 · Seguimiento de la supervisión",
+   "depende": []
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-183516.json": [
+   "SUP0311C"
+  ]
+ }
+}
