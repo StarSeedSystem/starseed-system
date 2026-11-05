@@ -1,0 +1,89 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "id": "RPO1104B",
+   "ola": "1104R · Repos nativos",
+   "titulo": "EGM · lecciones: lo que los peces objetan y se resuelve vuelve al cerebro",
+   "archivos": [
+    "src/lib/agents/egm/lecciones.ts",
+    "src/lib/agents/egm/__tests__/lecciones.test.ts"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2 «Resolver = aprender». Módulo PURO: `leccionesDe({ perfilId, cerebroId, objeciones, resueltas, rechazadas, fecha })` → entradas con la forma de `CreateBrainMemoryInput` de `src/lib/cerebro/brain-memories.ts` (importa SOLO el tipo): una por objeción `bloquea`/`importa` resuelta (objeción + corrección) o rechazada (objeción + porqué), con etiqueta `leccion` y `egm`; las `menor` no se guardan. Hechos, no opiniones (como `scripts/puente/director_aprendizaje.py`). Prueba: 3 objeciones → 2 lecciones con su texto; nada sin cerebro."
+  },
+  {
+   "id": "RPO1104D",
+   "ola": "1104R · Repos nativos",
+   "titulo": "EGM · egm_revision.py: los peces para las direcciones (Python)",
+   "archivos": [
+    "scripts/puente/egm_revision.py",
+    "scripts/puente/test_egm_revision.py"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2 (direcciones). Python 3 sin dependencias nuevas: `prompt_de_pez(artefacto, tipo)`, `leer_objeciones(texto)`, `ola_pasa(objeciones)` PURAS, y `revisar(artefacto, tipo, llamar, modelos, n=2)` con `llamar` inyectado. Para llamar de verdad reutiliza cómo llaman hoy los directores a los modelos gratuitos (búscalo: `grep -n \"def \" scripts/puente/director_suenos.py scripts/puente/imaginacion_contexto.py scripts/puente/motores_director.py`); no escribas un cliente nuevo. Mismo formato de objeciones que `src/lib/agents/egm/peces.ts` si ya existe. pytest con `llamar` simulado."
+  },
+  {
+   "id": "RPO1104M",
+   "ola": "1104R · Repos nativos",
+   "titulo": "BAMA · destino nativo de macOS: requisitos y paquete de planificación (puro)",
+   "archivos": [
+    "src/lib/appgen/destino-nativo.ts",
+    "src/lib/appgen/__tests__/destino-nativo.test.ts"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§4. PURO: `requisitosNativos({ so, versionSo, xcode, swift, discoLibreGb })` → `{ puedeConstruir, puedePlanificar, faltan }` (macOS ≥ 26 y Xcode ≥ 26 para construir; planificar siempre); `planBama(app)` → el paquete de planificación de BAMA (pantallas a clonar, historias con criterios de aceptación, tokens Trinity traducidos a nombres SwiftUI, y los comandos `claude plugin marketplace add daveebbelaar/bama` / `claude plugin install bama@bama`) como datos, sin ejecutar nada. Pruebas: Mac con solo Command Line Tools → planificar sí, construir no, falta «Xcode 26»."
+  },
+  {
+   "id": "RPO1104Q",
+   "ola": "1104R · Repos nativos",
+   "titulo": "DeepTutor · la habilidad educativa nativa (explicar, comprobar, practicar, resumir)",
+   "archivos": [
+    "src/lib/education/tutor.ts",
+    "src/lib/education/__tests__/tutor.test.ts"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§6. PURO: `esPeticionDeAprender(texto)` (español e inglés: «explícame», «quiero aprender», «no entiendo», «cómo funciona», «teach me»…, sin falsos positivos obvios); `planTutoria({ concepto, nivel, recuerdos })` → pasos explicar → comprobar con una pregunta → practicar → resumir, usando los recuerdos del cerebro como base; `promptTutor(plan)` → prompt de sistema que pide cuestionarios y tarjetas en OpenUI Lang SOLO si la interfaz viva está activa (recíbelo como booleano). Pruebas."
+  },
+  {
+   "id": "RPO1104S",
+   "ola": "1104R · Repos nativos",
+   "titulo": "DeepTutor · conector opcional a un servidor propio (si hay uno, Astraura le delega)",
+   "archivos": [
+    "src/lib/conectores-propios/deeptutor.ts",
+    "src/lib/conectores-propios/__tests__/deeptutor.test.ts"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§6 «Conector opcional». `configDeeptutor(env)` lee `DEEPTUTOR_URL` y `DEEPTUTOR_TOKEN` de variables de entorno (nunca en el código ni en la memoria); `estadoDeeptutor(config, fetchFn)` comprueba que responde; `preguntarTutor(config, fetchFn, { pregunta, modo })` con `fetchFn` INYECTADO, plazo y caída limpia a `null` para que Astraura siga con la habilidad nativa. Lee la API real en el README de HKUDS/DeepTutor antes de elegir la ruta; si no queda clara, deja la ruta en una constante con un comentario y dilo en tu respuesta. Sigue el patrón de los conectores que ya hay en esa carpeta. Pruebas con fetch simulado (responde, falla, se pasa de plazo)."
+  },
+  {
+   "id": "MTN1027K2",
+   "ola": "1027N · Automejora recursiva (Meta^n)",
+   "titulo": "Genesis · Capas · propuestas de la automejora y «Mandar al enjambre»",
+   "archivos": [
+    "src/components/mando/panel-capas-red.tsx",
+    "src/app/api/mando/capas/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Meta^n (minnesotanlp/meta-n, MIT) «para todo el automejoramiento de cada capa de conciencia mesh automejorable de toda Astraura, con Colibri y los demás sistemas locales y mesh autoadaptables». Contrato: `architecture/automejora-meta-n.md` (léelo entero, sobre todo §3: Meta^n PROPONE dentro de una caja Docker sin red ni claves; el juez de StarSeed decide fuera de la caja sin ejecutar nada suyo; las funciones de ayuda nunca se cargan en caliente). Lo que hace falta de Meta^n está en `integraciones-de-codigo/meta-n/README-starseed.md`.\n\nEn Genesis · Capas: la última noche (como en Ajustes) y la lista de `starseed_memory_root/olas/propuestas-automejora/*.json` con «Mandar al enjambre» (POST `{accion: \"mandar-propuesta\", archivo, id}` en la ruta de capas: copia ESA tarea a `starseed_memory_root/olas/cola-automejora-<fecha>.json` y la marca enviada en la propuesta) y «Descartar».",
+   "dependencias_ya_en_main": [
+    "MTN1027K"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-122653.json": [
+   "RPO1104B",
+   "RPO1104D",
+   "RPO1104M",
+   "RPO1104Q",
+   "MTN1027K2",
+   "RPO1104S"
+  ]
+ }
+}
