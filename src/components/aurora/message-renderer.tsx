@@ -41,6 +41,8 @@ import { PanelProtomolecula } from "@/components/protomolecula/panel-protomolecu
 import { almacenNavegador, guardarMolecula } from "@/lib/protomolecula/almacen-moleculas";
 import { crearControlador } from "@/lib/protomolecula/controlador";
 import { moleculaDeFence } from "@/lib/protomolecula/fence-mensaje";
+import { RespuestaViva } from "@/components/openui/respuesta-viva";
+import { pareceOpenUI } from "@/lib/openui/detectar";
 
 
 /* ═══════════════════════════ Sanitización HTML/SVG ═══════════════════════════
@@ -587,17 +589,24 @@ export interface MessageRendererProps {
  * ante cualquier fallo de parseo, cae a texto plano con saltos de línea.
  */
 export function MessageRenderer({ text, compact = false, media = true, className, personalityId }: MessageRendererProps) {
+  const isLiveUI = useMemo(() => pareceOpenUI(text || ""), [text]);
+
   const segments = useMemo(() => {
+    if (isLiveUI) return [];
     try { return splitSegments(text || ""); } catch { return [{ kind: "prose", text: text || "" } as Segment]; }
-  }, [text]);
+  }, [text, isLiveUI]);
 
   return (
     <div className={cn("min-w-0 relative group/renderer", className)}>
-      {segments.map((seg, i) => {
-        if (seg.kind === "code") return <CodeBlock key={i} lang={seg.lang} code={seg.code} info={seg.info} />;
-        if (seg.kind === "svg") return <InlineSvg key={i} svg={seg.svg} />;
-        return <ProseSegment key={i} text={seg.text} />;
-      })}
+      {isLiveUI ? (
+        <RespuestaViva texto={text || ""} />
+      ) : (
+        segments.map((seg, i) => {
+          if (seg.kind === "code") return <CodeBlock key={i} lang={seg.lang} code={seg.code} info={seg.info} />;
+          if (seg.kind === "svg") return <InlineSvg key={i} svg={seg.svg} />;
+          return <ProseSegment key={i} text={seg.text} />;
+        })
+      )}
       {media && <MessageMedia text={text} compact={compact} />}
       <AuroraReadButton text={text} defaultPersonalityId={personalityId} className="absolute -top-3 -right-3 opacity-0 group-hover/renderer:opacity-100 z-10" />
     </div>
