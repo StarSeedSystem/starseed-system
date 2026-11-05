@@ -150,7 +150,7 @@ describe("director-fuentes", () => {
             const contenido = Array.from({ length: lineas }, (_, i) =>
                 JSON.stringify({ epoch: 1_800_000_000 + i, quien: "test", texto: `mensaje ${i}` })
             ).join("\n");
-            await writeFileSync(canalPath, contenido);
+            writeFileSync(canalPath, contenido);
 
             const completo = await leerCanal(raizMaxBytes, 100);
             const conMaxBytes = await leerCanal(raizMaxBytes, 100, 65536);
@@ -160,25 +160,13 @@ describe("director-fuentes", () => {
         });
 
         it("la línea cortada del principio no aparece ni rompe nada", async () => {
-            const fh = await open(canalPath, "r");
-            const { size } = await fh.stat();
-            await fh.close();
+            const canalPath2 = path.join(mandoDir, "canal-cortado.jsonl");
+            writeFileSync(canalPath2, "línea_incompleta{ \"a\": 1 }\n" + JSON.stringify({ epoch: 1_800_000_000, quien: "test", texto: "valido" }));
 
-            const maxBytes = 100;
-            const inicio = Math.max(0, size - maxBytes);
-            const fh2 = await open(canalPath, "r");
-            const bufer = Buffer.alloc(size - inicio);
-            await fh2.read(bufer, 0, bufer.length, inicio);
-            await fh2.close();
+            const resultado = await leerCanal(raizMaxBytes, 50, 100);
 
-            const texto = bufer.toString("utf8");
-            const primeraLinea = texto.split("\n")[0];
-
-            const resultado = await leerCanal(raizMaxBytes, 50, maxBytes);
-
-            for (const msg of resultado) {
-                expect(msg.texto).not.toContain(primeraLinea);
-            }
+            expect(resultado).toHaveLength(1);
+            expect(resultado[0]).toEqual({ quien: "test", texto: "valido", hora: 1_800_000_000 });
         });
 
         it("un archivo pequeño da lo mismo que antes", async () => {
