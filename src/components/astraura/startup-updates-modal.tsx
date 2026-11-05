@@ -43,7 +43,9 @@ import { toast } from "sonner";
 import {
   copiarEstadoLocalACuenta, decidirArranque, getStartupState, sellarCatalogoVisto,
   subscribeStartupOpen, openStartupUpdates, snoozeUpdates, type DecisionArranque,
+  hayNovedadesScout, marcarScoutVisto, catalogIds,
 } from "@/lib/astraura/startup-updates";
+import { detectCapabilities, type NeuronCapabilities } from "@/lib/neurons/neurons";
 import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
 import { isSetupPending, subscribeSetup, markSetupDone } from "@/lib/aurora/setup-config";
 import { esMiTurno, terminarEtapa, suscribirRito } from "@/lib/onboarding/director-rito";
@@ -53,6 +55,7 @@ import { IconoStarSeed } from "@/components/onboarding/icono-starseed";
 import { marcarRitoActivo } from "@/lib/ui/rito-activo";
 import { acentoDeIndice, clasesAcento } from "@/lib/ui/acentos";
 import { cn } from "@/lib/utils";
+import { Compass, Sparkles, ArrowRight } from "lucide-react";
 
 export function StartupUpdatesModal() {
   const [open, setOpen] = useState(false);
@@ -69,6 +72,9 @@ export function StartupUpdatesModal() {
   // (montaje + evento), la ventana de sistemas solo se abre cuando es su turno
   // y una única vez en esta sesión.
   const etapaAtendidaRef = useRef<string | null>(null);
+  // Scout findings (Adenda 138 · llmfit): hallazgos de "algo que rinde MEJOR para TU hardware"
+  const [scoutFindings, setScoutFindings] = useState<{ summary: string; hasBetter: boolean } | null>(null);
+  const [scoutCaps, setScoutCaps] = useState<NeuronCapabilities | null>(null);
   useEffect(() => () => { esperaRef.current?.(); }, []); // solo al desmontar
 
   /**
@@ -91,11 +97,14 @@ export function StartupUpdatesModal() {
   /** Escape = «Recordar luego»: pospone y cierra (nunca lanza). */
   /** Cierre definitivo: corta esperas pendientes y no reabre. */
   const cerrarDefinitivo = useCallback(() => {
+    if (scoutCaps) {
+      try { marcarScoutVisto(scoutCaps, catalogIds().length); } catch { /* */ }
+    }
     cerradaPorUsuarioRef.current = true;
     esperaRef.current?.();
     esperaRef.current = null;
     setOpen(false);
-  }, []);
+  }, [scoutCaps]);
 
   const remindLater = useCallback(() => {
     try { snoozeUpdates(); } catch { /* */ }
@@ -114,9 +123,12 @@ export function StartupUpdatesModal() {
       const pospuesta = !!st.snoozeUntil && st.snoozeUntil > Date.now();
       if (!pospuesta && decidirArranque().accion === "ventana") snoozeUpdates();
     } catch { /* cerrar nunca falla */ }
+    if (scoutCaps) {
+      try { marcarScoutVisto(scoutCaps, catalogIds().length); } catch { /* */ }
+    }
     cerrarDefinitivo();
     lanzarGuiaPendiente();
-  }, [cerrarDefinitivo, lanzarGuiaPendiente]);
+  }, [cerrarDefinitivo, lanzarGuiaPendiente, scoutCaps]);
 
   // Foco inicial + trampa de Tab + Escape (patrón de la Adenda 137).
   useModalA11y({ open, onClose: remindLater, containerRef });
@@ -257,6 +269,29 @@ export function StartupUpdatesModal() {
     return () => { clearTimeout(t); cancelaCuenta?.(); if (t2) clearTimeout(t2); if (tFallback) clearTimeout(tFallback); offSetup?.(); off(); offRito(); cancelaEspera?.(); cancelaEsperaAviso?.(); };
   }, []);
 
+  // Detectar capacidades y comprobar hallazgos del scout al abrir la ventana.
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    (async () => {
+      try {
+        const caps = await detectCapabilities();
+        if (!alive) return;
+        setScoutCaps(caps);
+        const catalogLen = catalogIds().length;
+        if (hayNovedadesScout(caps, catalogLen)) {
+          // Obtener resumen del scout para mostrar en la UI
+          const { scoutModels } = await import("@/ai/astraura/model-scout");
+          const result = scoutModels(caps, { limit: 1 });
+          if (result.hasBetter) {
+            setScoutFindings({ summary: result.summary, hasBetter: true });
+          }
+        }
+      } catch { /* degradación silenciosa */ }
+    })();
+    return () => { alive = false; };
+  }, [open]);
+
   // (Adenda 192) RED DE CORTESÍA FINAL: si esta ventana quedó abierta por
   // cualquier vía automática mientras el rito o la guía están en primer plano,
   // se repliega y espera su turno (ver lib/ui/fullscreen-modal). La apertura
@@ -311,6 +346,29 @@ export function StartupUpdatesModal() {
       </div>
       {/* Línea de acento superior, también rotativa */}
       <div aria-hidden className={cn("pointer-events-none relative z-10 -mb-px h-0.5 w-full max-w-3xl rounded-full bg-gradient-to-r", clA.degradado)} />
+      {/* Hallazgos del Scout (Adenda 138 · llmfit): "algo que rinde MEJOR para TU hardware" */}
+      {scoutFindings && scoutCaps && (
+        <div className="relative z-10 w-full max-w-3xl mb-3 rounded-xl border border-emerald-400/25 bg-emerald-500/[0.06] px-4 py-3 animate-in slide-in-from-top-2 duration-300">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="flex items-center gap-2 text-[12px] font-semibold text-emerald-200">
+                <Compass className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                Recomendación del explorador de modelos
+              </p>
+              <p className="mt-1 text-[11px] leading-snug text-emerald-100/90">{scoutFindings.summary}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setScoutFindings(null)}
+              aria-label="Descartar recomendación del explorador"
+              className="shrink-0 cursor-pointer rounded-lg p-1 text-emerald-200/70 transition-colors hover:bg-emerald-500/10 hover:text-emerald-100"
+            >
+              <ArrowRight className="h-4 w-4 rotate-90" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      )}
       <AstrauraOmniVoiceConfig
         variant="modal"
         initialSection="astraura"
