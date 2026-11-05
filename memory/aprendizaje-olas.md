@@ -4727,3 +4727,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** clave
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-05 18:53 · mg-oracle-1105-1236
+
+**Lo que se pidió.** /metagenesis: botones «Desconectar
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RTCOL1012Ie-d2` — no escribió nada
