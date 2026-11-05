@@ -105,6 +105,15 @@ jobs:
             patchelf \
             libssl-dev \
             build-essential \
+            libpipewire-0.3-dev \
+            libspa-0.2-dev \
+            libclang-dev \
+            libxcb1-dev \
+            libxrandr-dev \
+            libdbus-1-dev \
+            libegl-dev \
+            libwayland-dev \
+            libxdo-dev \
             file
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2

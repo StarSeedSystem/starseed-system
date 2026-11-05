@@ -123,6 +123,15 @@ jobs:
             patchelf \
             libssl-dev \
             build-essential \
+            libpipewire-0.3-dev \
+            libspa-0.2-dev \
+            libclang-dev \
+            libxcb1-dev \
+            libxrandr-dev \
+            libdbus-1-dev \
+            libegl-dev \
+            libwayland-dev \
+            libxdo-dev \
             file
 
       # ── Iconos del sistema que toca (regenera native/src-tauri/icons/) ──
