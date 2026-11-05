@@ -38,6 +38,7 @@ import {
 import { toast } from "sonner";
 
 import { MessageRenderer } from "@/components/aurora/message-renderer";
+import { promptDeSistema } from "@/lib/openui/biblioteca";
 import { MessageActionBar } from "@/components/aurora/message-action-bar";
 import { MessageProcessModal } from "@/components/aurora/message-process-modal";
 import { VoiceNoteBar } from "@/components/aurora/voice-note-bar";
@@ -482,6 +483,15 @@ export function ChatSurface({ variant = "embedded", className, initialConvId }: 
     } catch (e) {
       console.warn("[ChatSurface] No se pudo construir contexto completo:", e);
     }
+
+    // Interfaz viva (OpenUI): el prompt sale de la biblioteca Trinity y el
+    // renderizador pinta `root = Componente(...)`. Es automático: si el turno
+    // no aporta datos, pasos, comparaciones ni una secuencia, texto normal.
+    try {
+      systemPieces.push(
+        `${promptDeSistema()}\n\nSi la respuesta no aporta datos, pasos, comparaciones ni una secuencia de eventos, responde en texto normal: la interfaz viva es solo para lo que se lee mejor visualmente.`,
+      );
+    } catch { /* sin interfaz viva: el chat sigue en texto */ }
     return systemPieces;
   }
 

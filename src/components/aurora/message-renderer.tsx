@@ -36,6 +36,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { MessageMedia } from "@/components/aurora/universal-viewer";
 import { AuroraReadButton } from "@/components/aurora/aurora-read-button";
+import { RespuestaViva, esInterfazViva } from "@/components/openui/respuesta-viva";
 import { CodeRunner } from "@/components/aurora/code-runner";
 import { PanelProtomolecula } from "@/components/protomolecula/panel-protomolecula";
 import { almacenNavegador, guardarMolecula } from "@/lib/protomolecula/almacen-moleculas";
@@ -590,6 +591,14 @@ export function MessageRenderer({ text, compact = false, media = true, className
   const segments = useMemo(() => {
     try { return splitSegments(text || ""); } catch { return [{ kind: "prose", text: text || "" } as Segment]; }
   }, [text]);
+
+  if (esInterfazViva(text)) {
+    return (
+      <div className={cn("min-w-0 relative", className)}>
+        <RespuestaViva texto={text} />
+      </div>
+    );
+  }
 
   return (
     <div className={cn("min-w-0 relative group/renderer", className)}>
