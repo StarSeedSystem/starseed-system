@@ -36,6 +36,8 @@ import {
     leerProgreso,
     tareasDeCola,
 } from "@/lib/mando/lector-local";
+import { LanzamientoEstado } from "@/lib/mando/lanzamientos-tipos";
+import { LanzamientoEstado } from "@/lib/mando/lanzamientos-tipos";
 import {
     TERMINALES,
     agentesDeRunsNube,
@@ -86,9 +88,15 @@ async function git(args: string[]): Promise<string> {
     }
 }
 
-/** (2026-10-08) El interruptor y el estado de la autopublicación, para que «Sin publicar» diga
- *  quién publica cada cosa y no enseñe el fallo de una publicación manual ya superada. */
-async function leerAutopublicacion(): Promise<DatosMedidores["autopublicacion"]> {
+async function leerLanzamientos(): Promise<LanzamientoEstado | null> {
+    try {
+        const ruta = path.join(os.homedir(), ".starseed", "produccion", "lanzamientos-estado.json");
+        return JSON.parse(await readFile(ruta, "utf8")) as LanzamientoEstado;
+    } catch {
+        return null;
+    }
+}
+
     const carpeta = path.join(os.homedir(), ".starseed", "produccion");
     const leer = async (n: string) => JSON.parse(await readFile(path.join(carpeta, n), "utf8").catch(() => "{}")) as Record<string, unknown>;
     const [interruptor, estado] = await Promise.all([leer("autopublicar.json"), leer("autopublicar-estado.json")]);
@@ -975,6 +983,26 @@ export async function GET(peticion: Request): Promise<Response> {
         const creditosPago = await leerCreditosPago().catch(() => null);
         return Response.json(
             { detalle: detalleDeMedidor(clave, { creditosPago }), generadoEn: new Date().toISOString() },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
+    if (clave === "versiones") {
+        const estado = await leerLanzamientos();
+        return Response.json(
+            {
+                detalle: detalleDeMedidor(clave, { versiones: estado }),
+                generadoEn: new Date().toISOString(),
+            },
+            { headers: { "Cache-Control": "no-store" } },
+        );
+    }
+    if (clave === "versiones") {
+        const estado = await leerLanzamientos();
+        return Response.json(
+            {
+                detalle: detalleDeMedidor(clave, { versiones: estado }),
+                generadoEn: new Date().toISOString(),
+            },
             { headers: { "Cache-Control": "no-store" } },
         );
     }

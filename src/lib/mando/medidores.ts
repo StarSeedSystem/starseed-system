@@ -3087,7 +3087,65 @@ export function detalleDeMedidor(
             };
 
         case "integradas": {
+n        case "versiones": {
+            const v = d.versiones;
+            if (!v) {
+                return {
+                    clave,
+                    titulo: "Centro de Versiones",
+                    resumen: "Sin datos del director de lanzamientos.",
+                    filas: [],
+                    acciones: [],
+                    vacio: "No se pudo leer el estado del director de lanzamientos.",
+                };
+            }
+            const filas: FilaMedidor[] = Object.entries(v.medios || {}).map(([id, info]) => ({
+                id,
+                titulo: id,
+                estado: info.estado,
+                porque: info.faltan.length > 0 ? `Faltan: ${info.faltan.join(", ")}` : info.pequenos.length > 0 ? "Archivos pequeños" : "Al día",
+                acciones: [{ clase: "publicar" as const, texto: "Generar/Actualizar", destructiva: false }],
+            }));
+            return {
+                clave,
+                titulo: "Centro de Versiones",
+                resumen: `${v.fase} · ${v.detalle} · v${v.version}`,
+                filas,
+                acciones: [{ clase: "publicar" as const, texto: "Lanzar versión", destructiva: false }],
+                vacio: "Estado del director de lanzamientos vacío.",
+            };
+        }
             const ig = d.integradas;
+n        case "versiones": {
+            const v = d.versiones;
+            if (!v) {
+                return {
+                    clave,
+                    titulo: "Centro de Versiones",
+                    resumen: "Sin datos del director de lanzamientos.",
+                    filas: [],
+                    acciones: [],
+                    vacio: "No se pudo leer el estado del director de lanzamientos.",
+                };
+            }
+            const filas: FilaMedidor[] = Object.entries(v.medios || {}).map(([id, info]) => {
+                return {
+                    id,
+                    titulo: id,
+                    estado: info.estado,
+                    porque: info.faltan.length > 0 ? `Faltan: ${info.faltan.join(", ")}` : info.pequenos.length > 0 ? "Archivos pequeños" : "Al día",
+                    acciones: [{ clase: "publicar" as const, texto: "Generar/Actualizar", destructiva: false }],
+                };
+            });
+            return {
+                clave,
+                titulo: "Centro de Versiones",
+                resumen: `${v.fase} · ${v.detalle} · v${v.version}`,
+                filas,
+                acciones: [{ clase: "publicar" as const, texto: "Lanzar versión", destructiva: false }],
+                vacio: "Estado del director de lanzamientos vacío.",
+            };
+        }
             const repo = d.repoGitHub;
             const enMain = (ruta: string, linea?: number | null) =>
                 repo ? `https://github.com/${repo}/blob/main/${ruta}${linea ? `#L${linea}` : ""}` : undefined;
@@ -3120,6 +3178,34 @@ export function detalleDeMedidor(
                 }
                 const lista = [...unicos.values()];
                 for (const a of lista.slice(0, 12)) {
+n        case "versiones": {
+            const v = d.versiones;
+            if (!v) {
+                return {
+                    clave,
+                    titulo: "Centro de Versiones",
+                    resumen: "Sin datos del director de lanzamientos.",
+                    filas: [],
+                    acciones: [],
+                    vacio: "No se pudo leer el estado del director de lanzamientos.",
+                };
+            }
+            const filas: FilaMedidor[] = Object.entries(v.medios || {}).map(([id, info]) => ({
+                id,
+                titulo: id,
+                estado: info.estado,
+                porque: info.faltan.length > 0 ? `Faltan: ${info.faltan.join(", ")}` : info.pequenos.length > 0 ? "Archivos pequeños" : "Al día",
+                acciones: [{ clase: "publicar" as const, texto: "Generar/Actualizar", destructiva: false }],
+            }));
+            return {
+                clave,
+                titulo: "Centro de Versiones",
+                resumen: `${v.fase} · ${v.detalle} · v${v.version}`,
+                filas,
+                acciones: [{ clase: "publicar" as const, texto: "Lanzar versión", destructiva: false }],
+                vacio: "Estado del director de lanzamientos vacío.",
+            };
+        }
                     ficha.push({ etiqueta: "Archivo", valor: `${a.ruta} · +${a.mas} −${a.menos}`, enlace: enMain(a.ruta) });
                 }
                 if (lista.length > 12) ficha.push({ etiqueta: "Archivo", valor: `y ${lista.length - 12} más` });
@@ -3148,6 +3234,119 @@ export function detalleDeMedidor(
                     ficha,
                     acciones: [],
                     historica: false,
+n        case "versiones": {
+            const v = d.versiones;
+            if (!v) {
+                return {
+                    clave,
+                    titulo: "Centro de Versiones",
+                    resumen: "Sin datos del director de lanzamientos.",
+                    filas: [],
+                    acciones: [],
+                    vacio: "No se pudo leer el estado del director de lanzamientos.",
+                };
+            }
+            const filas: FilaMedidor[] = Object.entries(v.medios || {}).map(([id, info]) => ({
+                id,
+                titulo: id,
+                estado: info.estado,
+                porque: info.faltan.length > 0 ? `Faltan: ${info.faltan.join(", ")}` : info.pequenos.length > 0 ? "Archivos pequeños" : "Al día",
+                acciones: [{ clase: "publicar" as const, texto: "Generar/Actualizar", destructiva: false }],
+            }));
+            return {
+                clave,
+                titulo: "Centro de Versiones",
+                resumen: `${v.fase} · ${v.detalle} · v${v.version}`,
+                filas,
+                acciones: [{ clase: "publicar" as const, texto: "Lanzar versión", destructiva: false }],
+                vacio: "Estado del director de lanzamientos vacío.",
+            };
+        }
+n        case "versiones": {
+            const v = d.versiones;
+            if (!v) {
+                return {
+                    clave,
+                    titulo: "Centro de Versiones",
+                    resumen: "Sin datos del director de lanzamientos.",
+                    filas: [],
+                    acciones: [],
+                    vacio: "No se pudo leer el estado del director de lanzamientos.",
+                };
+            }
+            const filas: FilaMedidor[] = Object.entries(v.medios || {}).map(([id, info]) => ({
+                id,
+                titulo: id,
+                estado: info.estado,
+                porque: info.faltan.length > 0 ? `Faltan: ${info.faltan.join(", ")}` : info.pequenos.length > 0 ? "Archivos pequeños" : "Al día",
+                acciones: [{ clase: "publicar" as const, texto: "Generar/Actualizar", destructiva: false }],
+            }));
+            return {
+                clave,
+                titulo: "Centro de Versiones",
+                resumen: `${v.fase} · ${v.detalle} · v${v.version}`,
+                filas,
+                acciones: [{ clase: "publicar" as const, texto: "Lanzar versión", destructiva: false }],
+                vacio: "Estado del director de lanzamientos vacío.",
+            };
+        }
+
+        case "versiones": {\n            const v = d.versiones;
+            if (!v) {
+                return {
+                    clave,
+                    titulo: "Centro de Versiones",
+                    resumen: "Sin datos del director de lanzamientos.",
+                    filas: [],
+                    acciones: [],
+                    vacio: "No se pudo leer el estado del director de lanzamientos.",
+                };
+            }
+            const filas: FilaMedidor[] = Object.entries(v.medios || {}).map(([id, info]) => ({
+                id,
+                titulo: id,
+                estado: info.estado,
+                porque: info.faltan.length > 0 ? `Faltan: ${info.faltan.join(", ")}` : info.pequenos.length > 0 ? "Archivos pequeños" : "Al día",
+                acciones: [{ clase: "publicar" as const, texto: "Generar/Actualizar", destructiva: false }],
+            }));
+            return {
+                clave,
+                titulo: "Centro de Versiones",
+                resumen: `${v.fase} · ${v.detalle} · v${v.version}`,
+                filas,
+                acciones: [{ clase: "publicar" as const, texto: "Lanzar versión", destructiva: false }],
+                vacio: "Estado del director de lanzamientos vacío.",
+            };
+        }
+n
+        case "versiones": {
+            const v = d.versiones;
+            if (!v) {
+                return {
+                    clave,
+                    titulo: "Centro de Versiones",
+                    resumen: "Sin datos del director de lanzamientos.",
+                    filas: [],
+                    acciones: [],
+                    vacio: "No se pudo leer el estado del director de lanzamientos.",
+                };
+            }
+            const filas: FilaMedidor[] = Object.entries(v.medios || {}).map(([id, info]) => ({
+                id,
+                titulo: id,
+                estado: info.estado,
+                porque: info.faltan.length > 0 ? `Faltan: ${info.faltan.join(", ")}` : info.pequenos.length > 0 ? "Archivos pequeños" : "Al día",
+                acciones: [{ clase: "publicar" as const, texto: "Generar/Actualizar", destructiva: false }],
+            }));
+            return {
+                clave,
+                titulo: "Centro de Versiones",
+                resumen: `${v.fase} · ${v.detalle} · v${v.version}`,
+                filas,
+                acciones: [{ clase: "publicar" as const, texto: "Lanzar versión", destructiva: false }],
+                vacio: "Estado del director de lanzamientos vacío.",
+            };
+        }
                 };
             });
             return {
