@@ -3,7 +3,7 @@
  * Sin DOM, sin fetch, sin localStorage. Solo lógica de decisión.
  * Contrato: architecture/voz-estable-1105.md §3.
  */
-export type MotorOidoId = 'phonon-2'|'parakeet-v3'|'vibeasr-158'|'whisper-web'|'navegador'|'malla'|'voicestudio'|'moonshine';
+export type MotorOidoId = 'phonon-2'|'parakeet-v3'|'vibeasr-158'|'whisper-web'|'navegador'|'nube'|'navegador-por-voz'|'malla'|'moonshine';
 
 export interface MotorOido { id: MotorOidoId; idiomas: string[]; tipo: 'navegador'|'local'|'endpoint'|'malla'; flujo: boolean; licencia: string; atribucion?: boolean; tamanoMB?: number; }
 

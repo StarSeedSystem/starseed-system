@@ -93,6 +93,7 @@ import { detectorBucle, esEcoPropio, registrarDicho, ventanaEcoMs } from "@/lib/
 // turno (voice-fusionada-astraura.md §4).
 import { montarInterrupcionPorVoz, type MontajeInterrupcion } from "@/lib/aurora/interrumpir-por-voz";
 import { MOTORES_OIDO, elegirOido } from "@/lib/aurora/stt-oss";
+import { elegirOidoMovil, debeReiniciarNavegador } from "@/lib/aurora/stt-oss/oido-movil";
 // (VZF1015G) OÍDO FUSIONADO por tramos con elector (voz-fusionada-astraura.md §3)
 // y su glosario de nombres propios («Stars Seed» → StarSeed) como hotwords.
 import { escucharFusionado, tramoAWav, type FragmentoOido, type SesionEscuchaFusionada } from "@/lib/aurora/stt-oss/escucha-fusionada";
@@ -2157,10 +2158,18 @@ export function useAuroraEngine(): AuroraEngine {
 
   const buildRecognition = useCallback(() => {
     if (typeof window === "undefined") return null;
+    // Idioma de la voz activa.
+    const langVoz = activeRef.current.voice?.lang;
+    // Elector del oído movil (contrato voz-estable-1105.md §3): decide el oído
+    // según nube, whisper descargado o navegador.
+    const elegirOidoMovilRes = elegirOidoMovil({
+      nube: oidoNubeListoYa(),
+      whisperDescargado: Object.keys(medidasOidoDeEstaNeurona(langVoz)).includes("whisper-web"),
+      navegador: true,
+    });
     // Elector del oído (contrato voz-fusionada-astraura.md §3): Phonon-2 es el
     // OÍDO EN FLUJO (WebSocket /v1/audio/stream); cualquier otro motor usa la
     // Web Speech del navegador (el resto de motores se conectan en sus tareas).
-    const langVoz = activeRef.current.voice?.lang;
     const eleccionOido = elegirOido({
       idioma: idiomaBaseDeVoz(langVoz),
       disponibles: MOTORES_OIDO.filter(
@@ -2256,6 +2265,13 @@ export function useAuroraEngine(): AuroraEngine {
       }
       // Fallo fatal (permiso/micro): ya lo trató `onerror`. No reintentamos.
       if (lastErr === "not-allowed" || lastErr === "service-not-allowed" || lastErr === "audio-capture") {
+        setListening(false);
+        return;
+      }
+      // (1105 · VOZ) Reglas de reinicio de navegador en móvil: tras 2 ciclos
+      // seguidos en silencio y sin turno pendiente, NO se reinicia el reconocedor
+      // (se espera a la voz). Usamos la decisión pura del módulo oido-movil.
+      if (!debeReiniciarNavegador({ ciclosEnSilencio: sttRestartsRef.current, enTurno: !engagedRef.current })) {
         setListening(false);
         return;
       }
