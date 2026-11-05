@@ -26,6 +26,7 @@ import { ASTRAURA_158_CLOUD_SOURCE_ID, ASTRAURA_158_LOCAL_SOURCE_ID } from "@/ai
 import { ASTRAURA_158_MODEL_PREFIX, ASTRAURA_158_PERSONAS, persona158For } from "@/ai/providers/astraura-158";
 import type { Astraura158Target } from "@/lib/astraura/astraura-158-client";
 import { MensajeAsistente } from "@/components/openui/mensaje-asistente";
+import { MessageRenderer } from "@/components/aurora/message-renderer";
 import type { AjustesPerfilRespuesta } from "@/lib/astraura/ajustes-respuesta";
 import { debeUsarInterfazViva } from "@/lib/astraura/ajustes-respuesta";
 import { BTN, BTN_PRIMARY, Empty, INPUT, LABEL, MONO } from "@/components/astraura/s158/shared";
