@@ -70,6 +70,9 @@ import {
 // (2026-09-06, Ola 264 · J1b) Normalización en español del texto hablado.
 import { normalizarParaVoz } from "@/lib/voces/normalizar-es";
 import { motorRecomendado, Plataforma, MOTORES_VOZ } from "../catalogo-voces";
+// (Ola 1105 · 1105W) Troceado puramente del texto (frontera de palabra), tan
+// en la nube (≤ 500) como en la voz del sistema (≤ 200).
+import { trocearTexto } from "@/lib/voces/trocear";
 import { motoresPermitidos, type MotorInfo, type ContextoLicenciaVoz } from "./licencia-voz";
 function detectarPlataforma(): Plataforma {
     if (typeof window === "undefined") return "web";
@@ -372,36 +375,71 @@ async function hablarPorLocal(texto: string, timbre: Timbre, alEmpezar?: () => v
     }
 }
 
-/**
- * Habla por el nivel «nube»: síntesis en el servidor del OS (`/api/voz/nube`),
- * que usa Gemini TTS y, si no hay clave, Pollinations. Reutiliza la MISMA
- * utilidad de reproducción que los niveles del demonio (`reproducirLocal`):
- * resuelve `true` cuando el audio EMPIEZA a sonar. Nunca lanza.
- */
-async function hablarPorNube(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
-    try {
-        let resp: Response;
+// ── (Ola 1105 · 1105W) NUBE POR TROZOS: el mensaje ENTERO ──────────────────────
+// `/api/voz/nube` corta el texto a 600: un mensaje largo llegaba mal servido y
+// la voz se callaba a media frase. Ahora se pide trozo a trozo (≤ 500, corte
+// por palabra) EN ORDEN, el siguiente mientras suena el actual.
+
+let turnoNube = 0;
+
+/** Pide un trozo a la nube; lo reclama UNA vez más y devuelve `null` si no llega. */
+async function pedirTrozoNube(trozo: string, timbre: Timbre): Promise<Blob | null> {
+    for (let intento = 0; intento < 2; intento++) {
         try {
-            resp = await fetch("/api/voz/nube", {
+            const resp = await fetch("/api/voz/nube", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    texto,
+                    texto: trozo,
                     genero: timbre.genero,
                     velocidad: timbre.local.speed,
                 }),
                 signal: AbortSignal.timeout(25_000),
                 cache: "no-store",
             });
-        } catch {
-            return false; // red caída o timeout: se baja de nivel
-        }
-        if (!resp.ok) return false;
-        const blob = await resp.blob();
-        if (!blob.size) return false;
-        try { alEmpezar?.(); } catch { /* el aviso no puede romper */ }
+            if (resp.ok) {
+                const blob = await resp.blob();
+                if (blob.size) return blob;
+            }
+        } catch { /* red caída o timeout: se reclama la única vez */ }
+    }
+    return null;
+}
+
+/**
+ * Habla por el nivel «nube» el mensaje ENTERO, por trozos en orden: pide el
+ * siguiente mientras suena el actual y devuelve `false` si un trozo no llegó
+ * ni a la segunda (el llamador sigue con su siguiente nivel). Nunca lanza.
+ */
+export async function hablarPorNube(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
+    const trozos = trocearTexto(texto, 500);
+    if (!trozos.length) return false;
+    const mio = ++turnoNube; // un turno nuevo deja los pendientes viejos sin voz
+    let arranco = false;
+    try {
         const ml = await import("@/lib/aurora/motor-local");
-        return await ml.reproducirLocal(blob);
+        let pendiente: Promise<Blob | null> = pedirTrozoNube(trozos[0], timbre);
+        for (let i = 0; i < trozos.length; i++) {
+            const blob = await pendiente;
+            if (mio !== turnoNube) return arranco;
+            if (!blob) return false; // este trozo no sonó: avisa, nunca calla a media frase
+            // El siguiente trozo se pide AHORA: mientras suena el actual.
+            pendiente = i + 1 < trozos.length
+                ? pedirTrozoNube(trozos[i + 1], timbre)
+                : Promise.resolve(null);
+            const fin = new Promise<void>((res) => {
+                void ml.reproducirLocal(blob, { onEnd: res }).then((ok) => {
+                    if (i === 0) {
+                        arranco = ok;
+                        if (ok) { try { alEmpezar?.(); } catch { /* el aviso no puede romper */ } }
+                    }
+                    if (!ok) res();
+                });
+            });
+            await fin;
+            if (mio !== turnoNube) return arranco;
+        }
+        return arranco;
     } catch {
         return false;
     }
@@ -424,21 +462,37 @@ async function hablarPorKokoro(texto: string, timbre: Timbre, alEmpezar?: () => 
     }
 }
 
-/** Habla por el nivel mínimo: la voz del sistema (`speechSynthesis`). */
-async function hablarPorSistema(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
+/**
+ * Habla por el nivel mínimo: la voz del sistema (`speechSynthesis`).
+ * (Ola 1105 · 1105W) El mensaje ENTERO en UNA utterance POR TROZO (≤ 200) en
+ * fila, sin `cancel()` entre trozos: Chrome corta las utterances largas a
+ * ~15 s y el mensaje quedaba a media frase. Solo hay un `cancel()` al inicio,
+ * para que un turno nuevo corte al anterior.
+ */
+export async function hablarPorSistema(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
     if (typeof window === "undefined") return false;
     try {
         const synth = window.speechSynthesis;
         if (!synth) return false;
+        const trozos = trocearTexto(texto, 200);
+        if (!trozos.length) return false;
         const p = parametrosPorNivel(timbre, "minima");
-        const u = new SpeechSynthesisUtterance(texto);
-        u.pitch = p.via === "sistema" ? p.pitch : timbre.sistema.pitch;
-        u.rate = p.via === "sistema" ? p.rate : timbre.sistema.rate;
-        u.lang = "es-ES";
-        if (alEmpezar) u.onstart = () => { try { alEmpezar(); } catch { /* */ } };
+        let empezo = false;
         synth.cancel();
-        synth.speak(u);
-        return true;
+        for (const trozo of trozos) {
+            const u = new SpeechSynthesisUtterance(trozo);
+            u.pitch = p.via === "sistema" ? p.pitch : timbre.sistema.pitch;
+            u.rate = p.via === "sistema" ? p.rate : timbre.sistema.rate;
+            u.lang = "es-ES";
+            if (alEmpezar && !empezo) {
+                u.onstart = () => {
+                    empezo = true;
+                    try { alEmpezar(); } catch { /* el aviso no puede romper */ }
+                };
+            }
+            synth.speak(u);
+        }
+        return trozos.length > 0;
     } catch {
         return false;
     }
