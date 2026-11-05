@@ -140,6 +140,15 @@ class Sucesor(unittest.TestCase):
         # Sin id no hay cadena que cortar.
         self.assertEqual(T.base_de(""), "")
         self.assertEqual(T.base_de(None), "")
+        # Casos adicionales de la rama nube/41579697472 (RESC1031D)
+        self.assertEqual(T.base_de("MC1013TCc"), "MC1013TC")
+        self.assertEqual(T.base_de("X-d1"), "X")
+        self.assertEqual(T.base_de("Xb-d2b"), "X")
+        self.assertEqual(T.base_de("RTGN1010A-d3d-d3b"), "RTGN1010A-d3")
+        self.assertEqual(T.base_de("RTESP1011Bd"), "RTESP1011B")
+        self.assertEqual(T.base_de("RTESP1011Bd-d2c"), "RTESP1011B")
+        self.assertEqual(T.base_de("MC1013TC"), "MC1013TC")
+        self.assertEqual(T.base_de("OPT1004C"), "OPT1004C")
 
     @unittest.expectedFailure
     def test_un_id_que_ya_acababa_en_minuscula_pierde_solo_la_letra_nueva(self):
@@ -170,6 +179,11 @@ class Sucesor(unittest.TestCase):
         self.assertEqual(T.sucesores_en_cadena("RTESP1011Bd-d2c",
                                                {"RTESP1011Bd-d2b": {}, "RTESP1011Bd-d2d": {}}),
                          ["RTESP1011Bd-d2b", "RTESP1011Bd-d2d"])
+
+    def test_toda_la_cadena_de_una_tarea_converge_en_su_raiz(self):
+        """Todos los variantes de una tarea (sucesoras y derivadas) convergen en su raíz."""
+        for k in ("RTESP1011Bb", "RTESP1011Bd", "RTESP1011Bd-d1", "RTESP1011Bd-d2b", "RTESP1011Bd-d2d"):
+            self.assertEqual(T.base_de(k), "RTESP1011B", k)
 
     def test_tarea_reparacion_continua_desde_la_rama(self):
         original = {"id": "LC1004B", "ola": "Ola 1004L", "titulo": "Límites", "archivos": ["a.ts"],
