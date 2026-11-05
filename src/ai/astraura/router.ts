@@ -64,6 +64,11 @@ import { localPrimeroDelta, migrarLocalPrimero } from "./local-primero";
 import { refinarConLaya, type RespuestasLaya } from "./router-laya";
 // (MVD1027F-d2) Recuerdos de cápsulas Memvid
 import { recordarDeCapsulas } from "./recuerdos-capsulas";
+// (RPO1104Q · contrato §6) Habilidad educativa nativa DeepTutor: si el turno
+// pide aprender o entender algo, el router compone el prompt del tutor con las
+// memorias del cerebro ya recuperadas y el método explicar → comprobar →
+// practicar → resumir. Módulo PURO, sin servidor ni claves.
+import { esPeticionDeAprender, planTutoria, promptTutor } from "@/lib/education/tutor";
 import { findOssService } from "@/lib/services/oss-services";
 // Personalidad activa (Adenda 63 §11): bloque de system prompt compilado desde
 // la personalidad resuelta por contexto (chat > cerebro > sección > global).
@@ -1558,6 +1563,23 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       }
     }
   } catch { /* defensivo: sin recuerdos, Aurora sigue igual */ }
+  // ── Habilidad educativa nativa DeepTutor (RPO1104Q · contrato §6) ──────────
+  // Un turno que pide aprender/entender se responde con el método nativo
+  // (explicar, comprobar con una pregunta, practicar, resumir), apoyado en los
+  // recuerdos del cerebro que ya recuperó el bloque de cápsulas de arriba. La
+  // interfaz viva de OpenUI (§3) aún no expone su ajuste en este árbol, así que
+  // se pasa `false` de forma explícita: el tutor responde en texto y Markdown.
+  let tutorTexto = "";
+  try {
+    const consultaTutor = [...req.messages].reverse().find((m) => m.role === "user")?.content ?? "";
+    if (!req.soloAgente && esPeticionDeAprender(consultaTutor)) {
+      const recuerdos = memvidRecuerdos
+        .split("\n")
+        .map((linea) => linea.replace(/^[-•]\s*/, "").trim())
+        .filter((linea) => linea.length > 0 && !linea.includes("RECUERDOS (cápsulas Memvid)"));
+      tutorTexto = promptTutor(planTutoria({ concepto: consultaTutor, recuerdos }), false);
+    }
+  } catch { /* defensivo: sin tutor, Aurora sigue igual */ }
   // ── Directiva activa de automejora Meta^n (MTN1027) ────────────────────────
   // Capa elegida por el planificador si está a mano; si no, "palabra" (contrato).
   // Va DESPUÉS de las reglas y permisos, nunca antes (architecture/automejora-meta-n.md §4).
@@ -1573,7 +1595,7 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
   // `voiceStateText` va ANTES que `capText` (capacidades/skills): así la
   // verdad del estado de voz tiene prioridad sobre el texto de las skills de
   // voz (que ahora hablan en general de motores opcionales, nunca del activo).
-  const brainExtra = [personaText, ctxText, voiceStateText, capText, userCtxText, chatCfgNote, memvidRecuerdos, directivaTexto]
+  const brainExtra = [personaText, ctxText, voiceStateText, capText, userCtxText, chatCfgNote, tutorTexto ? "" : memvidRecuerdos, tutorTexto, directivaTexto]
     .filter(Boolean)
     .join("\n\n");
   const messages = brainExtra ? mergeSystemPrompt(req.messages, brainExtra) : req.messages;
@@ -1609,7 +1631,11 @@ export async function astrauraChat(req: AstrauraChatRequest): Promise<ChatRespon
       skillLabels: activeSkillLabels,
       connectorNames: connectorNames158,
     });
-    messages158 = compact158Text ? mergeSystemPrompt(req.messages, compact158Text) : req.messages;
+    // El tutor educativo también viaja al 1.58 (fuente primaria por defecto):
+    // su contexto compacto no incluye `brainExtra`, así que se une aquí para
+    // que la habilidad no se quede sólo en los modelos de contexto grande.
+    const contexto158 = [compact158Text, tutorTexto].filter(Boolean).join("\n\n");
+    messages158 = contexto158 ? mergeSystemPrompt(req.messages, contexto158) : req.messages;
   } catch {
     // Defensivo: sin contexto compacto, el 1.58 recibe el prompt base tal cual
     // (mejor un contexto sobrio que un fallo silencioso del chat entero).
