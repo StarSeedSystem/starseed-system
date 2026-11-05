@@ -1,0 +1,44 @@
+{
+  "macos": {
+    "version_minima": "10.15",
+    "arquitecturas": ["x86_64", "aarch64"],
+    "permisos": ["core:default", "core:app:default", "core:window:default", "core:webview:default", "core:event:default", "core:path:default", "core:resources:default", "core:menu:default", "core:tray:default", "core:window:allow-set-title", "core:window:allow-minimize", "core:window:allow-maximize", "core:window:allow-unmaximize", "core:window:allow-close", "core:window:allow-start-dragging", "shell:allow-execute", "shell:allow-spawn", "shell:allow-kill", "shell:allow-stdin-write", "shell:allow-open", "fs:allow-read-text-file", "fs:allow-write-text-file", "fs:allow-read-dir", "fs:allow-mkdir", "fs:scope", "fs:default", "os:allow-platform", "os:allow-version", "os:allow-os-type", "os:allow-family", "os:allow-arch", "os:allow-hostname", "os:allow-locale", "os:allow-exe-extension", "process:allow-exit", "process:allow-restart", "notification:default", "notification:allow-notify", "notification:allow-request-permission", "notification:allow-is-permission-granted", "dialog:default", "dialog:allow-open", "dialog:allow-save", "dialog:allow-message", "dialog:allow-ask", "dialog:allow-confirm", "deep-link:default", "autostart:default", "autostart:allow-enable", "autostart:allow-disable", "autostart:allow-is-enabled", "updater:default", "updater:allow-check", "updater:allow-download-and-install"],
+    "no_permite": ["root"],
+    "concesion": "al instalar"
+  },
+  "windows": {
+    "version_minima": "10.0",
+    "arquitecturas": ["x86_64"],
+    "permisos": ["core:default", "core:app:default", "core:window:default", "core:webview:default", "core:event:default", "core:path:default", "core:resources:default", "core:menu:default", "core:tray:default", "core:window:allow-set-title", "core:window:allow-minimize", "core:window:allow-maximize", "core:window:allow-unmaximize", "core:window:allow-close", "core:window:allow-start-dragging", "shell:allow-execute", "shell:allow-spawn", "shell:allow-kill", "shell:allow-stdin-write", "shell:allow-open", "fs:allow-read-text-file", "fs:allow-write-text-file", "fs:allow-read-dir", "fs:allow-mkdir", "fs:scope", "fs:default", "os:allow-platform", "os:allow-version", "os:allow-os-type", "os:allow-family", "os:allow-arch", "os:allow-hostname", "os:allow-locale", "os:allow-exe-extension", "process:allow-exit", "process:allow-restart", "notification:default", "notification:allow-notify", "notification:allow-request-permission", "notification:allow-is-permission-granted", "dialog:default", "dialog:allow-open", "dialog:allow-save", "dialog:allow-message", "dialog:allow-ask", "dialog:allow-confirm", "deep-link:default", "autostart:default", "autostart:allow-enable", "autostart:allow-disable", "autostart:allow-is-enabled", "updater:default", "updater:allow-check", "updater:allow-download-and-install"],
+    "no_permite": ["root"],
+    "concesion": "al instalar"
+  },
+  "linux": {
+    "version_minima": "22.04",
+    "arquitecturas": ["x86_64"],
+    "permisos": ["core:default", "core:app:default", "core:window:default", "core:webview:default", "core:event:default", "core:path:default", "core:resources:default", "core:menu:default", "core:tray:default", "core:window:allow-set-title", "core:window:allow-minimize", "core:window:allow-maximize", "core:window:allow-unmaximize", "core:window:allow-close", "core:window:allow-start-dragging", "shell:allow-execute", "shell:allow-spawn", "shell:allow-kill", "shell:allow-stdin-write", "shell:allow-open", "fs:allow-read-text-file", "fs:allow-write-text-file", "fs:allow-read-dir", "fs:allow-mkdir", "fs:scope", "fs:default", "os:allow-platform", "os:allow-version", "os:allow-os-type", "os:allow-family", "os:allow-arch", "os:allow-hostname", "os:allow-locale", "os:allow-exe-extension", "process:allow-exit", "process:allow-restart", "notification:default", "notification:allow-notify", "notification:allow-request-permission", "notification:allow-is-permission-granted", "dialog:default", "dialog:allow-open", "dialog:allow-save", "dialog:allow-message", "dialog:allow-ask", "dialog:allow-confirm", "deep-link:default", "autostart:default", "autostart:allow-enable", "autostart:allow-disable", "autostart:allow-is-enabled", "updater:default", "updater:allow-check", "updater:allow-download-and-install"],
+    "no_permite": ["root"],
+    "concesion": "al instalar"
+  },
+  "android": {
+    "version_minima": "8.0",
+    "arquitecturas": ["arm64-v8a", "armeabi-v7a", "x86_64"],
+    "permisos": ["core:default", "core:app:default", "core:window:default", "core:webview:default", "core:event:default", "core:path:default", "core:resources:default", "core:menu:default", "core:tray:default", "core:window:allow-set-title", "core:window:allow-minimize", "core:window:allow-maximize", "core:window:allow-unmaximize", "core:window:allow-close", "core:window:allow-start-dragging", "shell:allow-execute", "shell:allow-spawn", "shell:allow-kill", "shell:allow-stdin-write", "shell:allow-open", "fs:allow-read-text-file", "fs:allow-write-text-file", "fs:allow-read-dir", "fs:allow-mkdir", "fs:scope", "fs:default", "os:allow-platform", "os:allow-version", "os:allow-os-type", "os:allow-family", "os:allow-arch", "os:allow-hostname", "os:allow-locale", "os:allow-exe-extension", "process:allow-exit", "process:allow-restart", "notification:default", "notification:allow-notify", "notification:allow-request-permission", "notification:allow-is-permission-granted", "dialog:default", "dialog:allow-open", "dialog:allow-save", "dialog:allow-message", "dialog:allow-ask", "dialog:allow-confirm", "deep-link:default"],
+    "no_permite": ["autostart", "updater"],
+    "concesion": "al instalar"
+  },
+  "ios": {
+    "version_minima": "15.0",
+    "arquitecturas": ["arm64"],
+    "permisos": ["core:default", "core:app:default", "core:window:default", "core:webview:default", "core:event:default", "core:path:default", "core:resources:default", "core:menu:default", "core:tray:default", "core:window:allow-set-title", "core:window:allow-minimize", "core:window:allow-maximize", "core:window:allow-unmaximize", "core:window:allow-close", "core:window:allow-start-dragging", "shell:allow-execute", "shell:allow-spawn", "shell:allow-kill", "shell:allow-stdin-write", "shell:allow-open", "fs:allow-read-text-file", "fs:allow-write-text-file", "fs:allow-read-dir", "fs:allow-mkdir", "fs:scope", "fs:default", "os:allow-platform", "os:allow-version", "os:allow-os-type", "os:allow-family", "os:allow-arch", "os:allow-hostname", "os:allow-locale", "os:allow-exe-extension", "process:allow-exit", "process:allow-restart", "notification:default", "notification:allow-notify", "notification:allow-request-permission", "notification:allow-is-permission-granted", "dialog:default", "dialog:allow-open", "dialog:allow-save", "dialog:allow-message", "dialog:allow-ask", "dialog:allow-confirm", "deep-link:default"],
+    "no_permite": ["autostart", "updater"],
+    "concesion": "al instalar"
+  },
+  "web": {
+    "version_minima": "N/A",
+    "arquitecturas": ["any"],
+    "permisos": ["core:default", "core:app:default"],
+    "no_permite": ["fs", "shell"],
+    "concesion": "al primer uso"
+  }
+}
