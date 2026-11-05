@@ -1,0 +1,80 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "ola": "1105V · Centro de Versiones",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261105-090755-VER1105G",
+   "id": "VER1105Gb-d1",
+   "titulo": "Permisos por sistema · fuente única de lo que declara cada app (la verdad, sin inventar) (parte 1 de 3)",
+   "archivos": [
+    "config/permisos-por-so.json"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\n§6. Lee de verdad `native/src-tauri/capabilities/*.json`, `native/src-tauri/Info.plist`, el `AndroidManifest.xml` que use el build (búscalo en `native/` y en `native-build.yml`) y `architecture/apps-nativas-segundo-plano.md` §7. Escribe `config/permisos-por-so.json`: por SO (macos, windows, linux, android, ios, web) → versión mínima del sistema, arquitecturas, permisos declarados con su texto para la persona y cómo se concede (al instalar, al primer uso, en ajustes), y lo que ese SO NO permite. Nada que no esté en esos archivos. El módulo TS lo importa estáticamente y exporta `permisosDe(so)`. Prueba: cada identificador de permiso de las capabilities aparece en el JSON.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261105-090755-VER1105G`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261105-090755-VER1105G:refs/remotes/origin/nube/a1-20261105-090755-VER1105G\"` y `git cherry-pick --no-commit b7dfe4128a47 cd16424cb74a 18b2496df938 0999224abb78 04a026c94b5a`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: config/permisos-por-so.json, src/lib/version/__tests__/permisos-por-so.test.ts, src/lib/version/permisos-por-so.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 3 (la dirección dividió VER1105Gb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: config/permisos-por-so.json. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "VER1105Gb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  },
+  {
+   "ola": "1104R · Repos nativos",
+   "origen": "repos-1104",
+   "id": "RPO1104N-d2",
+   "titulo": "BAMA · el generador de apps ofrece «Nativa · macOS (BAMA)» con sus requisitos visibles (parte 2 de 2)",
+   "archivos": [
+    "src/lib/appgen/__tests__/appgen-destino-nativo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§4 «Plan en Genesis». Añade a los destinos del generador de apps (`src/lib/appgen/appgen.ts`, siguiendo el patrón de los destinos que ya tiene) el destino `nativa-macos` que usa `requisitosNativos` y `planBama` de `destino-nativo.ts` y guarda el plan como proyecto de la Librería en vez de construir cuando falta Xcode. Si la interfaz del generador vive en otro archivo y hace falta tocarla, ese es el 3.er archivo. Prueba del destino.\n\n## PARTE 2 DE 2 (la dirección dividió RPO1104N: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/appgen/__tests__/appgen-destino-nativo.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "RPO1104N",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "RPO1104N-d1c"
+   ]
+  },
+  {
+   "id": "RPO1104L",
+   "ola": "1104R · Repos nativos",
+   "titulo": "OpenUI · widget «Respuesta viva» para escritorios y páginas de publicación",
+   "archivos": [
+    "src/components/openui/widget-respuesta-viva.tsx",
+    "src/components/openui/__tests__/widget-respuesta-viva.test.tsx"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\nSi `@openuidev/react-lang` no está en `package.json`, responde BLOQUEADA: «falta 1104 · AG» y no toques nada. Lee antes el README y los `.d.ts` de `node_modules/@openuidev/react-lang` (y de `@openuidev/lang-core`): usa su API real, no la inventes. §3. Un widget que pinta un contenido OpenUI Lang guardado con `RespuestaViva`, registrado en el registro de widgets que ya existe (búscalo: grep `registerWidget\\|WIDGETS` en `src/lib/widgets` y `src/components/widgets-libres`); el registro cuenta como 3.er archivo. Prueba de render con un contenido de ejemplo.",
+   "dependencias_ya_en_main": [
+    "RPO1104H"
+   ]
+  },
+  {
+   "id": "VER1105D",
+   "ola": "1105V · Centro de Versiones",
+   "titulo": "Centro de Versiones · el medidor «versiones» (clave, orden y filas del medidor)",
+   "archivos": [
+    "src/lib/mando/medidores.ts",
+    "src/app/api/mando/medidores/route.ts",
+    "src/lib/mando/__tests__/medidor-versiones.test.ts"
+   ],
+   "depende": [],
+   "origen": "centro-versiones",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\n§4 «Pastilla». Añade `\"versiones\"` a `ClaveMedidor` y a `ORDEN_POR_DEFECTO` (detrás de `sin-publicar`) en `medidores.ts`, y en la ruta de medidores el caso `clave=versiones` que lee el estado del director (mismo archivo que la API de lanzamientos) y devuelve el detalle del medidor con el patrón de los demás (resumen = fase y detalle; una fila por medio con `filasDeMedios`). Cambios mínimos en esos dos archivos grandes: no reformatees nada. Prueba del caso nuevo.",
+   "dependencias_ya_en_main": [
+    "VER1105A"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1105-025623.json": [
+   "VER1105Gb-d1",
+   "VER1105D",
+   "RPO1104L",
+   "RPO1104N-d2"
+  ]
+ }
+}
