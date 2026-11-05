@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-<<<<<<< HEAD
 import { desdeReleases, desdeReleasesFallback, tipoVersion } from "../versiones-publicadas";
-=======
-import { desdeReleases, tipoVersion } from "../versiones-publicadas";
->>>>>>> 09e3c3c0d (salvavidas · VER1105F: trabajo del agente antes de las puertas (tsc / vitest))
 
 const JSON_RELEASES = [
   {
