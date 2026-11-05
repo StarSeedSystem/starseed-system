@@ -1,0 +1,92 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "ola": "1104C · Contratos pendientes",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41917061103",
+   "id": "CTR1104Ub-d1",
+   "titulo": "Estudio MetaGeminis · subtítulos .vtt y .srt desde los beats del guion (parte 1 de 2)",
+   "archivos": [
+    "scripts/sociales/estudio/subtitulos.py"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/metageminis-estudio.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§12 `EST-SUBTITULOS`: genera `.vtt` y `.srt` a partir de los beats (inicio, fin, texto) que ya usa el estudio (mira `manifiesto.py`/`nucleo.py`). Puro y probado; quemarlos con ffmpeg solo si ffmpeg está y como función aparte.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41917061103`)\nUn agente de la nube ya avanzó esta tarea (en la Mac no pasa: pruebas del puente: n657w0000gn/T/tmpxcg99hoo/test.mp4', '-vf', 'subtitles=/var/folders/n7/32t0h2194vjdrh2ptl2n657w0000gn/T/tmpxcg99hoo/sub.srt', '-c:a', 'copy', '/var/folders/n7/32t0h2194vjdrh2ptl2n657w0000gn/T/tmpxcg99hoo/test_sub.mp4']' returned non-zero exit status 183.\n\n/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py:578: CalledProcessError\n=========================== short test summary info ============================\nFAILED scripts/sociales/estudio/test_subtitulos.py::TestQuemarSubtitulos::test_quemar_crea_archivo\n1 failed, 10 passed in 2.13s\n). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41917061103:refs/remotes/origin/nube/41917061103\"` y `git cherry-pick --no-commit 3ee2b007219b`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: scripts/sociales/estudio/subtitulos.py, scripts/sociales/estudio/test_subtitulos.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió CTR1104Ub: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: scripts/sociales/estudio/subtitulos.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CTR1104Ub",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   }
+  },
+  {
+   "id": "VOZ1105A",
+   "ola": "1105W · Voz estable",
+   "titulo": "Voz StarSeed · la nube y la voz del sistema hablan el mensaje ENTERO, por trozos",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/motor.ts",
+    "src/lib/aurora/voz-starseed/__tests__/motor-trozos.test.ts"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3. En `hablarPorNube`: parte el texto con `trocearTexto(texto, 500)` de `src/lib/voces/trocear.ts` (la ruta `/api/voz/nube` corta a 600) y pide los trozos en orden, pidiendo el siguiente mientras suena el actual; si un trozo falla, reintenta una vez y si no, devuelve false para ESE resto (el llamador sigue con su siguiente nivel) — nunca calla a media frase sin decirlo. En `hablarPorSistema`: una utterance por trozo (≤ 200) en fila, sin `cancel()` entre trozos. Prueba con fetch y speechSynthesis simulados: un texto de 1500 caracteres pide 3–4 trozos en orden."
+  },
+  {
+   "id": "VOZ1105B",
+   "ola": "1105W · Voz estable",
+   "titulo": "OmniVoice · si un motor empieza y falla a mitad, el resto del mensaje sigue con el siguiente",
+   "archivos": [
+    "src/lib/aurora/tts-oss/speak-router.ts",
+    "src/lib/aurora/tts-oss/__tests__/speak-router-resto.test.ts"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§3 y §4 regla 1. Hoy, cuando un eslabón devuelve «started» (empezó y se cortó), `speakWithConfiguredEngine` cierra el turno y el resto del mensaje NO se dice. Haz que los eslabones que trocean informen cuántos trozos llegaron a sonar (busca `planVoiceChunks` y `playSequentialViaMixer` en `neural-tts.ts`; si hace falta un 3.er archivo, ese) y que el router hable el RESTO con el siguiente eslabón de la cadena. Sin información de progreso, deja el comportamiento de hoy. Prueba con eslabones simulados: el primero suena 2 de 5 trozos y falla → el segundo dice los 3 restantes."
+  },
+  {
+   "id": "VOZ1105E",
+   "ola": "1105W · Voz estable",
+   "titulo": "Ajustes de voz · interruptor «Oído en la nube» y qué oído y qué voz suenan ahora",
+   "archivos": [
+    "src/components/settings/aurora/voice-oss-panel.tsx",
+    "src/components/settings/aurora/__tests__/oido-nube-ajuste.test.tsx"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2 y §3. En el panel de voz que ya existe, añade el interruptor «Oído en la nube (Groq Whisper o Gemini)» que guarda `localStorage[\"starseed.oido.nube\"]` (\"0\" apagado; por defecto encendido) con una línea honesta: el audio de cada tramo se manda a transcribir y no se guarda. Y una línea de estado: qué oído usa este dispositivo y qué voz habló la última vez (busca `recordarMotorQueSono` y `medidas-voz.ts`). Prueba de render y del interruptor."
+  },
+  {
+   "id": "VOZ1105F",
+   "ola": "1105W · Voz estable",
+   "titulo": "Prioridad de la voz en la Mac · por qué la concesión no baja el RTF (medir y arreglar)",
+   "archivos": [
+    "scripts/puente/prioridad_conversacion.py",
+    "scripts/puente/test_prioridad_conversacion.py"
+   ],
+   "depende": [],
+   "origen": "voz-estable",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo con grep). `src/lib/aurora/engine.ts` es enorme: cambios mínimos y localizados, sin reformatear.\n\nContrato: `architecture/voz-estable-1105.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§1.2. Medido el 04-11 con la concesión ACTIVA: Supertonic RTF 2,9 (debería ser ~0,3). Lee `prioridad_conversacion.py` y comprueba qué congela de verdad (procesos del enjambre, tsc, vitest, opencode, compilaciones) y qué se escapa; arregla lo que se escapa sin tocar los servicios del sistema ni procesos que no sean del enjambre, y que al terminar la conversación todo vuelva SIEMPRE (también si el proceso de voz muere). Pruebas puras de la selección de procesos."
+  },
+  {
+   "id": "RPO1104A",
+   "ola": "1104R · Repos nativos",
+   "titulo": "EGM · peces: el revisor sin contexto (prompt, lectura de objeciones y veredicto)",
+   "archivos": [
+    "src/lib/agents/egm/peces.ts",
+    "src/lib/agents/egm/__tests__/peces.test.ts"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2. Módulo PURO: `promptDePez(artefacto, tipo)` devuelve el prompt de un revisor que NO ve contexto (solo el artefacto y su tipo: respuesta, plan, ola, página, app) y debe contestar una objeción por línea con su gravedad `bloquea` · `importa` · `menor`; `leerObjeciones(texto)` → `{ gravedad, texto }[]` tolerante (ignora líneas sin gravedad, quita duplicados); `veredicto(objeciones)` → `{ pasa, bloqueantes }` (pasa si no hay `bloquea`). Pruebas con textos reales de modelo, con ruido."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1104-183516.json": [
+   "RPO1104A",
+   "VOZ1105A",
+   "VOZ1105B",
+   "VOZ1105E",
+   "VOZ1105F",
+   "CTR1104Ub-d1"
+  ]
+ }
+}
