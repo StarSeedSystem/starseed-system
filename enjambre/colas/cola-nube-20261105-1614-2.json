@@ -1,0 +1,21 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "id": "IMG-agentes-reimaginada-diaria-tapar-las-dos",
+   "titulo": "Arreglar fuga de datos en la Biblioteca usando POST y portadas locales",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/library/library-store-panel.tsx",
+    "src/components/library/finder/finder-view.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Arreglar fuga de datos en la Biblioteca usando POST y portadas locales. ## Acción\n- Reemplazar la transmisión del objeto completo del ítem en la querystring del endpoint `/publish` por una petición **POST** con cuerpo JSON.\n- Eliminar la dependencia de `encodeURIComponent` que envía títulos a `placehold.co`; en su lugar, usar imágenes de portada almacenadas localmente en el proyecto.\n- Actualizar los componentes afectados para que construyan el payload y lo envíen mediante `fetch`/`axios` con encabezado `Content-Type: application/json`.\n- Modificar el manejo de respuestas para que no se registre información sensible en el historial del navegador ni en logs de serv Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1105-135510.json": [
+   "IMG-agentes-reimaginada-diaria-tapar-las-dos"
+  ]
+ }
+}
