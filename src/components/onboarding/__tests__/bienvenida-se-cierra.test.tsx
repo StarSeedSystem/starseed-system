@@ -111,8 +111,7 @@ describe("Bienvenida · Guía de StarSeed con Astraura", () => {
     render(<OnboardingWizard onClose={alCerrar} />);
     const fondo = document.querySelector("[data-radix-dialog-overlay], [data-state='open'][class*='fixed inset-0']");
     if (fondo) fireEvent.pointerDown(fondo);
-    await new Promise((r) => setTimeout(r, 50));
-    expect(titulo()).not.toBeNull();
+    await waitFor(() => expect(titulo()).not.toBeNull());
     expect(guardar).not.toHaveBeenCalled();
   });
 });

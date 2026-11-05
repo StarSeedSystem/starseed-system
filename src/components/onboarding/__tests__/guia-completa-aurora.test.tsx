@@ -150,7 +150,7 @@ describe("la guía de Aurora recorre el catálogo único", () => {
         fireEvent.click(screen.getByRole("button", { name: /^Ir al capítulo 9 de 9/ }));
         await esperarPaso("cuenta");
         await waitFor(() => expect(screen.getByTestId("guia-cuenta")).toBeInTheDocument());
-        await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
+        await waitFor(() => expect(screen.getByTestId("guia-tarjeta").querySelectorAll("[data-demo]")).toHaveLength(0));
         expect(screen.getByTestId("guia-tarjeta").querySelectorAll("[data-demo]")).toHaveLength(0);
     }, 30_000);
 
@@ -192,6 +192,7 @@ describe("la guía de Aurora recorre el catálogo único", () => {
 
     it("la tarjeta se desplaza por dentro y cabe en cualquier pantalla (sin desbordar a 360 px)", async () => {
         await abrir({ desde: "boton" });
+        await esperarPaso("bienvenida");
         const tarjeta = screen.getByTestId("guia-tarjeta");
         expect(tarjeta.className).toContain("max-h-[calc(100dvh-1.5rem)]");
         expect(tarjeta.className).toContain("flex-col");
@@ -218,8 +219,7 @@ describe("sin cuenta y con cuenta", () => {
     it("abrir los escritorios y los bordes Trinity no pide cuenta", async () => {
         await abrir({ desde: "ajustes", temaInicial: "escritorio" });
         await esperarPaso("escritorio");
-        await act(async () => { await new Promise((r) => setTimeout(r, 60)); });
-        expect(screen.queryByTestId("solo-con-cuenta")).toBeNull();
+        await waitFor(() => expect(screen.queryByTestId("solo-con-cuenta")).toBeNull());
         expect(screen.getByRole("button", { name: /Ir al Escritorio/ })).toBeInTheDocument();
     });
 
