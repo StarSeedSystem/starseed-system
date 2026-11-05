@@ -22,6 +22,7 @@
  * Este módulo no sintetiza nada: delega en las vías que el OS ya tiene.
  */
 
+import { trocearTexto } from "@/lib/voces/trocear";
 import type { Timbre } from "@/lib/aurora/timbres";
 import { detectarCapacidades, capacidadesEnCache, type Capacidades } from "./capacidades";
 import {
@@ -374,37 +375,50 @@ async function hablarPorLocal(texto: string, timbre: Timbre, alEmpezar?: () => v
 
 /**
  * Habla por el nivel «nube»: síntesis en el servidor del OS (`/api/voz/nube`),
- * que usa Gemini TTS y, si no hay clave, Pollinations. Reutiliza la MISMA
- * utilidad de reproducción que los niveles del demonio (`reproducirLocal`):
- * resuelve `true` cuando el audio EMPIEZA a sonar. Nunca lanza.
+ * que usa Gemini TTS y, si no hay clave, Pollinations. Parte el texto en trozos
+ * de ≤ 500 y pide el siguiente mientras suena el anterior. Reintenta UNA vez
+ * cada trozo. Nunca lanza.
  */
 async function hablarPorNube(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
-    try {
-        let resp: Response;
-        try {
-            resp = await fetch("/api/voz/nube", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    texto,
-                    genero: timbre.genero,
-                    velocidad: timbre.local.speed,
-                }),
-                signal: AbortSignal.timeout(25_000),
-                cache: "no-store",
-            });
-        } catch {
-            return false; // red caída o timeout: se baja de nivel
+    const trozos = trocearTexto(texto, 500);
+    let empezo = false;
+    const ml = await import("@/lib/aurora/motor-local");
+
+    for (const [i, trozo] of trozos.entries()) {
+        let intento = 0;
+        let exito = false;
+        while (intento < 2) {
+            try {
+                const resp = await fetch("/api/voz/nube", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        texto: trozo,
+                        genero: timbre.genero,
+                        velocidad: timbre.local.speed,
+                    }),
+                    signal: AbortSignal.timeout(25_000),
+                    cache: "no-store",
+                });
+                if (resp.ok) {
+                    const blob = await resp.blob();
+                    if (blob.size > 0) {
+                        if (!empezo) {
+                            try { alEmpezar?.(); } catch { }
+                            empezo = true;
+                        }
+                        // Espera a que el trozo termine antes de seguir
+                        await ml.reproducirLocal(blob);
+                        exito = true;
+                        break;
+                    }
+                }
+            } catch { }
+            intento++;
         }
-        if (!resp.ok) return false;
-        const blob = await resp.blob();
-        if (!blob.size) return false;
-        try { alEmpezar?.(); } catch { /* el aviso no puede romper */ }
-        const ml = await import("@/lib/aurora/motor-local");
-        return await ml.reproducirLocal(blob);
-    } catch {
-        return false;
+        if (!exito) return false;
     }
+    return true;
 }
 
 /** Habla por el nivel ligero: Kokoro WASM en el navegador (`tts-oss/kokoro.ts`). */
@@ -424,20 +438,31 @@ async function hablarPorKokoro(texto: string, timbre: Timbre, alEmpezar?: () => 
     }
 }
 
-/** Habla por el nivel mínimo: la voz del sistema (`speechSynthesis`). */
+/**
+ * Habla por el nivel mínimo: la voz del sistema (`speechSynthesis`).
+ * Parte el texto en trozos ≤ 200 y los encola sin `cancel()` entre trozos.
+ */
 async function hablarPorSistema(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
     if (typeof window === "undefined") return false;
     try {
         const synth = window.speechSynthesis;
         if (!synth) return false;
+        
+        const trozos = trocearTexto(texto, 200);
         const p = parametrosPorNivel(timbre, "minima");
-        const u = new SpeechSynthesisUtterance(texto);
-        u.pitch = p.via === "sistema" ? p.pitch : timbre.sistema.pitch;
-        u.rate = p.via === "sistema" ? p.rate : timbre.sistema.rate;
-        u.lang = "es-ES";
-        if (alEmpezar) u.onstart = () => { try { alEmpezar(); } catch { /* */ } };
-        synth.cancel();
-        synth.speak(u);
+        
+        let empezo = false;
+        for (const trozo of trozos) {
+            const u = new SpeechSynthesisUtterance(trozo);
+            u.pitch = p.via === "sistema" ? p.pitch : timbre.sistema.pitch;
+            u.rate = p.via === "sistema" ? p.rate : timbre.sistema.rate;
+            u.lang = "es-ES";
+            if (!empezo) {
+                if (alEmpezar) u.onstart = () => { try { alEmpezar(); } catch { } };
+                empezo = true;
+            }
+            synth.speak(u);
+        }
         return true;
     } catch {
         return false;
