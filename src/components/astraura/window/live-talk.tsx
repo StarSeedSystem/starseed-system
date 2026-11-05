@@ -27,13 +27,8 @@ import { ASTRAURA_158_MODEL_PREFIX, ASTRAURA_158_PERSONAS, persona158For } from 
 import type { Astraura158Target } from "@/lib/astraura/astraura-158-client";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
 import { MensajeAsistente } from "@/components/openui/mensaje-asistente";
-import { debeUsarInterfazViva } from "@/lib/astraura/ajustes-respuesta";
-"use client";
 import type { AjustesPerfilRespuesta } from "@/lib/astraura/ajustes-respuesta";
-import type { ActionEvent } from "@openuidev/react-lang";
-import type { MensajeAsistente } from "@/components/openui/mensaje-asistente";
-import type { RespuestaViva } from "@/components/openui/respuesta-viva";
-import type { debeUsarInterfazViva } from "@/lib/astraura/ajustes-respuesta";
+import { debeUsarInterfazViva } from "@/lib/astraura/ajustes-respuesta";
 import { BTN, BTN_PRIMARY, Empty, INPUT, LABEL, MONO } from "@/components/astraura/s158/shared";
 import type { Astraura158EntityKind } from "./astraura-158-window-bus";
 
@@ -224,11 +219,11 @@ export function LiveTalk({ kind, id, name, personaId, contextLines, target, clas
                 : "mr-auto rounded-tl-sm border-cyan-400/20 bg-cyan-500/[0.05] text-white/90",
             )}
           >
-            <MensajeAsistente
-  texto={t.text}
-  enCurso={false}
-  ajustesPerfil={ajustesPerfil}
-/>
+<MensajeAsistente
+              texto={t.text}
+              enCurso={false}
+              ajustesPerfil={ajustesPerfil}
+            />
             {t.notice && (
               <p className="mt-1.5 flex items-start gap-1 border-t border-amber-400/20 pt-1.5 text-[10px] leading-snug text-amber-200/85">
                 <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" /> {t.notice}
