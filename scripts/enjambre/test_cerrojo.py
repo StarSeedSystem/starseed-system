@@ -10,6 +10,7 @@ sobre el script bash: tsc fallando debe salir ≠ 0 y dejar el cerrojo liberado.
 import importlib.util
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -236,6 +237,39 @@ def test_tsc_turno_con_un_padre_que_no_es_shell_y_adoptado_por_init_si_espera(ce
                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     assert _esperar(lambda: rc.exists() and rc.read_text().strip() != "", 60), "tsc-turno no salió"
     assert rc.read_text().strip() == "0", err.read_text()
+
+
+@pytest.mark.skipif(not shutil.which("bash") or not shutil.which("pgrep"), reason="sin bash o pgrep")
+def test_tsc_turno_corta_el_tsc_si_tambien_murio_el_shell_que_lo_lanzo(cerrojos_tmp, tmp_path):
+    """(SUP0411G) El 04-11 el orquestador cortó a un agente colgado y el shell de su herramienta murió
+    con él: el propio tsc-turno quedó adoptado por init. Su `$PPID` (el de cuando arrancó: bash no lo
+    cambia) apuntaba a un proceso muerto, «sin quien espere» no lo veía y el tsc siguió 23 min con
+    3,6 GB y la Mac a carga 120. Ahora, si el padre de ahora no es el de entonces, nadie espera."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    pids = _npx_que_cuelga(tmp_path)
+    err, turno = tmp_path / "err", tmp_path / "pid-de-tsc-turno"
+    env = _entorno(cerrojos_tmp, tmp_path, STARSEED_TSC_MAX_S="300", STARSEED_TSC_VIGILA_S="1")
+    # El shell de la herramienta lanza tsc-turno y muere cuando tsc ya compila: tsc-turno queda huérfano.
+    envoltorio = ("bash '%s' 2> '%s' & echo $! > '%s'; while [ ! -s '%s' ]; do sleep 0.2; done; exit 0"
+                  % (SCRIPT, err, turno, pids))
+    subprocess.run(["sh", "-c", envoltorio], cwd=str(repo), env=env, timeout=60,
+                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    pid_turno = int(turno.read_text().strip())
+    vistos = [int(x) for x in pids.read_text().split()]
+    try:
+        assert _esperar(lambda: not _vivo(pid_turno), 40), "tsc-turno sigue vivo sin nadie que lo espere"
+        assert "ya no existe" in err.read_text()
+        assert _esperar(lambda: not any(_vivo(p) for p in vistos) and not _sleeps_vivos()), \
+            "el árbol de tsc sigue vivo"
+        assert not os.path.exists(os.path.join(_cerrojos(cerrojos_tmp), "pesado.lock"))
+    finally:  # en rojo (sin el arreglo) no se dejan huérfanos de la prueba hasta su tope de 300 s
+        for p in [pid_turno] + vistos + _sleeps_vivos():
+            if _vivo(p):
+                try:
+                    os.kill(p, signal.SIGTERM)
+                except OSError:
+                    pass
 
 
 @pytest.mark.skipif(not shutil.which("bash"), reason="no hay bash")

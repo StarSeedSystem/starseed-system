@@ -81,6 +81,13 @@ _limpiar_huerfano() {
 # orquestador → dos tsc de ~3,5 GB en la Mac de 8 GB y el gobernador bajó un trabajador.
 _sin_quien_espere() {
     [ "${PPID:-1}" = "1" ] && return 1   # lanzado directamente por launchd/systemd: sí espera alguien
+    # (SUP0411G, 2026-11-04) $PPID es el padre de cuando arrancamos: bash no lo cambia si ese padre
+    # muere y nos adopta init (o un subreaper). Si el padre de AHORA ya no es aquel, quien nos lanzó
+    # murió y nadie leerá el resultado. Medido el 04-11: el orquestador cortó a un agente colgado, el
+    # shell de su herramienta murió con él y su tsc siguió 23 min con 3,6 GB, la Mac a carga 120.
+    local padre_ahora
+    padre_ahora=$(ps -o ppid= -p "$$" 2>/dev/null | tr -d ' ')
+    [ -n "$padre_ahora" ] && [ "$padre_ahora" != "$PPID" ] && return 0
     [ "$(ps -o ppid= -p "$PPID" 2>/dev/null | tr -d ' ')" = "1" ] || return 1
     # (SUP0111J) Solo cuenta un SHELL envoltorio adoptado por init (el `zsh -c '… | tail -40'` de la
     # herramienta del agente): un pytest, un orquestador o un guion lanzados con nohup también tienen
