@@ -2,7 +2,7 @@
  * StarSeed XR · SONDEO DEL NAVEGADOR (XR1010Bc). Contrato: `architecture/starseed-xr.md` §3 (c).
  * Convierte lo que el navegador DICE (UA, https, `navigator.xr`, táctil, WebGL2/WebGPU, app instalada) en el
  * `DatosNavegador` del núcleo `src/lib/xr/capacidades.ts`. Sin React. Nunca lanza y nunca llama a
- * `requestSession` (no dispara permisos ni pide `camera-access`).
+ * `requestSession` (no dispara permisos ni pide camera‑access).
  */
 import { plataformaDeDatos, type DatosNavegador } from "@/lib/xr/capacidades";
 import { PLATAFORMAS_VISOR } from "@/lib/xr/tipos";

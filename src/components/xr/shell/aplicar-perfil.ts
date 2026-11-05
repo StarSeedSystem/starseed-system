@@ -19,7 +19,7 @@ export interface FuncionesPedidas {
 
 /**
  * Parte de `c.funciones` (`FUNCIONES_ESPERADAS` de la plataforma, o lo concedido tras `refinarFunciones`).
- * - Lista blanca (`esFuncionXR`): `camera-access` y cualquier nombre fuera del vocabulario cerrado NUNCA pasan (§3 k).
+ * - Lista blanca (`esFuncionXR`): camera‑access y cualquier nombre fuera del vocabulario cerrado NUNCA pasan (§3 k).
  * - `local-floor` va requerida: es la referencia de la Trinity (origen en el suelo) y la librería la exige igual.
  * - `plane-detection` no va nunca en opcionales: Meta solo la concede como `requiredFeatures` en Quest. Se pide
  *   requerida únicamente si la persona eligió «mundo AR con mi habitación» y la plataforma la ofrece; si no, ni se pide.

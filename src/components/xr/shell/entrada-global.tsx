@@ -6,7 +6,7 @@
  * Pinta el botón «Entrar en VR/AR» en la esquina inferior izquierda, por encima del dock y
  * lejos del orbe de Aurora (que vive a la derecha), SOLO cuando el aparato ofrece algún modo
  * inmersivo. Al pulsar NO abre la sesión aquí: navega a `/xr/os?modo=vr|ar` y allí (XR1010G)
- * se carga el motor 3D. Este archivo y lo que importa no traen three, uikit, rapier, vrm ni
+ * se carga el motor 3D. Este archivo y lo que importa no traen Three, uikit, rapier, vrm ni
  * spark: solo React, Next, lucide y los módulos XR1010B/E.
  */
 
