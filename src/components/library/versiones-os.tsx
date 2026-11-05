@@ -5,7 +5,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowUpRightDots, Loader2, ExternalLink } from "lucide-react";
+import { ArrowUpRightDots, Loader2, ExternalLink, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
 import { useSearchParams } from "next/navigation";

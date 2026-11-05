@@ -1,7 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 
-// Mock fetch global antes de cada test.
+// Mock next/navigation for useSearchParams y usePathname - MUST be before component import
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(), usePathname: () => "/" }));
+
+// Mock fetch global antes de cada test - MUST be before component import
 beforeAll(() => {
   vi.stubGlobal(
     "fetch",
@@ -77,9 +80,6 @@ beforeAll(() => {
 afterAll(() => {
   vi.restoreAllMocks();
 });
-
-// Mock next/navigation for useSearchParams y usePathname
-vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(), usePathname: () => "/" }));
 
 import { VersionesOs } from "../versiones-os";
 import { AppearanceProvider } from "@/context/appearance-context";
