@@ -95,6 +95,7 @@ import {
   type NeuralEngineSettings,
   type AstrauraVoiceConfig,
 } from "@/lib/aurora/tts-oss/voice-config";
+import { apagado, oidoNubeListoYa, motorQueSolo } from "@/lib/aurora/stt-oss/oido-nube";
 import {
   synthesizeOmniVoiceHybrid,
   getOmniVoiceRouteState,
@@ -170,6 +171,8 @@ export function VoiceOssPanel({ className }: { className?: string }) {
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [kokoroOk, setKokoroOk] = useState<boolean>(false);
   const [modelReady, setModelReady] = useState<boolean>(false);
+  const [oidoNube, setOidoNube] = useState<boolean>(!apagado());
+  const [ultimaVoz, setUltimaVoz] = useState<string>("ninguna");
 
   // ── Voz del navegador (ranking + elección fija) ──
   const [browserVoiceURI, setBrowserVoiceURI] = useState<string>("");
@@ -364,6 +367,12 @@ export function VoiceOssPanel({ className }: { className?: string }) {
       setModelReady(kokoroModelReady());
       setBrowserVoiceURI(cfg.browserVoiceURI || "");
       setSymbiotic(cfg.symbiotic === true);
+      setOidoNube(!apagado());
+      try {
+        setUltimaVoz(motorQueSolo() || "ninguna");
+      } catch {
+        setUltimaVoz("ninguna");
+      }
       try {
         const p = resolveVoiceParams();
         setStyleRate(p.rate);
@@ -822,6 +831,43 @@ export function VoiceOssPanel({ className }: { className?: string }) {
           </span>
         </li>
       </ul>
+
+      {/* Oído en la nube */}
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 space-y-2">
+        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          Audios
+        </p>
+        <p className="text-[11px] text-foreground/60">
+          el audio de cada tramo se manda a transcribir y no se guarda
+        </p>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-[11px] text-foreground/75 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={oidoNube}
+              onChange={(e) => {
+                setOidoNube(e.target.checked);
+                if (e.target.checked) {
+                  try { localStorage.removeItem("starseed.oido.nube"); } catch { /* */ }
+                } else {
+                  try { localStorage.setItem("starseed.oido.nube", "0"); } catch { /* */ }
+                }
+              }}
+              className="accent-[#7fb8ff]"
+            />
+            Oído en la nube (Groq Whisper o Gemini)
+          </label>
+          <span className="text-[11px] text-foreground/60">
+            {oidoNube ? "activado" : "desactivado"}
+          </span>
+        </div>
+        <p className="text-[10px] text-foreground/50 mt-2">
+          {oidoNube ? "Dispositivo usa oído en la nube" : "Dispositivo usa oído del navegador"}
+        </p>
+        <p className="text-[10px] text-foreground/50 mt-1">
+          Última voz: <span className="font-medium">{ultimaVoz}</span>
+        </p>
+      </div>
 
       {/* Voz por NEURONA (Adenda 87): elección nube/local de ESTE dispositivo.
           Equivalente a la tarjeta de la sección de Neuronas — misma lógica. */}

@@ -24,6 +24,8 @@ function apagado(): boolean {
     }
 }
 
+export { apagado };
+
 /** ¿Hay oído en la nube? Lo último sabido, sin esperar (lo refresca en segundo plano). */
 export function oidoNubeListoYa(): boolean {
     if (apagado()) return false;
