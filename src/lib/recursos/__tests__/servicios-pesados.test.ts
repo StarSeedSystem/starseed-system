@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CAPAS_PUBLICAS_CONOCIDAS, REQUISITOS_SERVICIO, SERVICIOS_INSTALADOS, colocarServicio } from "../servicios-pesados";
+import { CAPAS_PUBLICAS_CONOCIDAS, REQUISITOS_SERVICIO, SERVICIOS_INSTALADOS, colocarServicio, deeptutor, dondeRecomendar, REQUISITOS_DEEPTUTOR } from "../servicios-pesados";
 import type { Contexto, RequisitosServicio } from "../servicios-pesados";
 import type { OfertaNeurona } from "../oferta";
 
@@ -128,7 +128,6 @@ describe("capas públicas", () => {
     expect(r.motivo).toContain("cola sin prisa");
   });
 });
-import { deeptutor, dondeRecomendar, REQUISITOS_DEEPTUTOR } from "../servicios-pesados";
 describe("deeptutor", () => {
   it("tiene 4 GB de RAM, sin GPU, porta 3782", () => {
     expect(REQUISITOS_DEEPTUTOR).toMatchObject({ ram_gb: 4, vram_gb: null, gpu: "no", puerto: 3782 });
@@ -140,7 +139,7 @@ describe("deeptutor", () => {
       expect(r).toEqual([{ donde: { tipo: "cuenta", id: "n1" }, motivo: "«DeepTutor» cabe en una neurona de la misma cuenta" }]);
     });
     it("una neurona con 2 GB no lo recomienda", () => {
-      const neurona = oferta({ nodoId: "n1", computo: { nucleos: 2, ramLibreMb: 2048, gpu: false, varamb: undefined, motores: [] } });
+      const neurona = oferta({ nodoId: "n1", computo: { nucleos: 2, ramLibreMb: 2048, gpu: false, vramMb: undefined, motores: [] } });
       const r = dondeRecomendar(deeptutor, [neurona], ctx());
       expect(r).toEqual([]);
     });
@@ -152,8 +151,8 @@ describe("deeptutor", () => {
   describe("colocarServicio", () => {
     it("no instala deeptutor en el A1", () => {
       const r = colocarServicio("deeptutor", [], ctx());
-      expect(r.donde.tipo).toBe("capa-publica");
-      expect(r.donde.id).toBe("oracle-a1");
+      expect(r.donde.tipo).toBe("ninguno");
+      expect(r.falta.join(" ")).toContain("capacidad suficiente y visible");
     });
   });
 });

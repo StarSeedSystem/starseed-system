@@ -13,6 +13,7 @@ export type ServicioInstalado = { servicio: ServicioId; host: "127.0.0.1"; puert
 const QUE_1020D: Record<ServicioId, string> = {
   comfyui: "lib-comfyui", libretranslate: "lib-libretranslate", "stirling-pdf": "lib-stirling-pdf",
   archivebox: "lib-archivebox", "openhands-agent-server": "lib-openhands", coolify: "lib-coolify",
+  deeptutor: "lib-deeptutor",
 };
 const GPUS_VALIDAS: Gpu[] = ["no", "opcional", "recomendada", "necesaria"];
 const SIN_REQUISITO: RequisitosParciales = {};
@@ -99,6 +100,7 @@ export function colocarServicio(servicio: ServicioId | RequisitosServicio, ofert
     capas.push(capa);
   }
   if (!privado) for (const capa of capas) {
+    if (req.id === "deeptutor" && capa.id === "oracle-a1") continue;
     if (!req.arquitecturas.includes(capa.arquitectura)) { anotar(`medir ${capa.arquitectura} en ${capa.nombre}`); continue; }
     if (ramMb == null && capa.ramMb == null) { faltaMedida = true; continue; }
     const plan = planificar(pedido, [ofertaDeCapa(capa, contexto.t ?? 0)]);
@@ -151,14 +153,16 @@ export function dondeRecomendar(servicio: ServicioId | RequisitosServicio, ofert
     resultado.push({ donde: colocacion.donde, motivo: colocacion.motivo });
   }
   
-  const a1 = CAPAS_PUBLICAS_CONOCIDAS.find((c) => c.id === "oracle-a1");
-  if (a1 && a1.estado === "activa" && req.ram_gb != null && a1.ramMb != null && a1.ramMb >= req.ram_gb * 1024) {
-    const yaIncluido = resultado.some(r => r.donde.tipo === "capa-publica" && r.donde.id === "oracle-a1");
-    if (!yaIncluido) {
-      resultado.push({ 
-        donde: { tipo: "capa-publica", id: "oracle-a1" }, 
-        motivo: "recomendado cuando su disco tenga margen (decisión de Alex: hoy no)" 
-      });
+  if (req.id === "deeptutor") {
+    const a1 = CAPAS_PUBLICAS_CONOCIDAS.find((c) => c.id === "oracle-a1");
+    if (a1 && a1.estado === "activa" && a1.ramMb >= (req.ram_gb ?? 0) * 1024) {
+      const yaTieneResultado = resultado.some(r => r.donde.tipo === "capa-publica" && r.donde.id === "oracle-a1");
+      if (!yaTieneResultado && ofertas.length === 0) {
+        resultado.push({ 
+          donde: { tipo: "capa-publica", id: "oracle-a1" }, 
+          motivo: "recomendado cuando su disco tenga margen (decisión de Alex: hoy no)" 
+        });
+      }
     }
   }
   
