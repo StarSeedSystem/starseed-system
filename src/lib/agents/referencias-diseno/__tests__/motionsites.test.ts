@@ -7,6 +7,7 @@ import {
     RUBRICA,
     TECNICAS,
     TIPOS_DE_PAGINA,
+    bloqueParaPrompt,
     tecnicasPara,
 } from "../motionsites";
 
@@ -95,5 +96,21 @@ describe("tecnicasPara por tipo de página", () => {
         ]);
         const firmas = TIPOS_DE_PAGINA.map((tipo) => tecnicasPara(tipo).map((t) => t.id).join(","));
         expect(new Set(firmas).size).toBe(TIPOS_DE_PAGINA.length);
+    });
+});
+
+describe("bloque para el prompt de los agentes diseñadores", () => {
+    it("lleva las técnicas del tipo, sus enlaces y la rúbrica completa", () => {
+        const bloque = bloqueParaPrompt("landing");
+        for (const t of tecnicasPara("landing")) {
+            expect(bloque).toContain(t.nombre);
+            expect(bloque).toContain(t.enlace);
+        }
+        for (const r of RUBRICA) expect(bloque).toContain(r.pregunta);
+        expect(bloque).toContain("no copies");
+    });
+
+    it("cambia de técnicas según el tipo de página", () => {
+        expect(bloqueParaPrompt("publicacion")).not.toBe(bloqueParaPrompt("lienzo"));
     });
 });

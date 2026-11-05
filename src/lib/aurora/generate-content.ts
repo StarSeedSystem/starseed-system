@@ -20,8 +20,25 @@
 
 import { astrauraChat } from "@/ai/astraura/router";
 import type { ChatMessage } from "@/ai/providers/types";
+import {
+    bloqueParaPrompt,
+    type TipoDePagina,
+} from "@/lib/agents/referencias-diseno/motionsites";
 
 export type AuroraGenerateKind = "texto" | "codigo" | "layout" | "bloque";
+
+/** Dónde se pinta cada tipo de contenido: el lienzo o una publicación. */
+const TIPO_DE_PAGINA: Partial<Record<AuroraGenerateKind, TipoDePagina>> = {
+    codigo: "lienzo",
+    layout: "publicacion",
+    bloque: "publicacion",
+};
+
+/** Referencias de MotionSites para el prompt; `texto` va sin ellas (memoria, no página). */
+function referenciasDePagina(kind: AuroraGenerateKind): string {
+    const tipo = TIPO_DE_PAGINA[kind];
+    return tipo ? `\n\n${bloqueParaPrompt(tipo)}` : "";
+}
 
 export interface AuroraGenerateInput {
     /** Petición del usuario en lenguaje natural (qué quiere generar). */
@@ -43,6 +60,7 @@ export interface AuroraGenerateResult {
 
 function systemPromptFor(kind: AuroraGenerateKind, context?: string): string {
     const ctx = context ? `\n\nContexto de la publicación: ${context}` : "";
+    const refs = referenciasDePagina(kind);
     switch (kind) {
         case "codigo":
             return (
@@ -55,7 +73,7 @@ function systemPromptFor(kind: AuroraGenerateKind, context?: string): string {
                 "sandbox (\"allow-scripts\", origen opaco, sin acceso a cookies/redes " +
                 "sensibles). Escribe código profesional, accesible, responsive y con " +
                 "buen diseño visual (usa CSS moderno; evita dependencias externas salvo " +
-                "que sean imprescindibles y públicas)." + ctx
+                "que sean imprescindibles y públicas)." + ctx + refs
             );
         case "layout":
             return (
@@ -66,14 +84,14 @@ function systemPromptFor(kind: AuroraGenerateKind, context?: string): string {
                 '[{"type":"texto|media|codigo|embed|boton|separador|columnas2|columnas3|tarjeta","content":"..."}]. ' +
                 '"content" es el texto/HTML/URL de ese bloque según su tipo (para ' +
                 '"media"/"embed" usa una URL de ejemplo o una descripción breve si no ' +
-                "hay una real). Sé coherente con la intención pedida y con el contexto." + ctx
+                "hay una real). Sé coherente con la intención pedida y con el contexto." + ctx + refs
             );
         case "bloque":
             return (
                 "Eres Aurora, el exocórtex de StarSeed OS, generando el CONTENIDO de UN " +
                 "bloque dentro de un layout del Lienzo de Creación. Devuelve ÚNICAMENTE " +
                 "el contenido de ese bloque (texto, o fragmento de HTML/CSS/JS si el " +
-                "bloque es de código), SIN explicaciones y SIN backticks de markdown." + ctx
+                "bloque es de código), SIN explicaciones y SIN backticks de markdown." + ctx + refs
             );
         case "texto":
         default:
