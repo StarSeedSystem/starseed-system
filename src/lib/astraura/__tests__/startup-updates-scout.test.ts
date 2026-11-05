@@ -24,7 +24,8 @@ import {
     catalogSignature,
 } from "@/lib/astraura/startup-updates";
 import { safeGet, safeSet } from "@/lib/safe-storage";
-import { AVISOS_KEY, _reiniciarCacheAvisosParaPruebas, AVISO_SISTEMAS_INICIO, AVISO_CATALOGO_PREFIJO } from "@/lib/sync/avisos-cuenta";
+import { AVISOS_KEY, _reiniciarCacheAvisosParaPruebas } from "@/lib/sync/avisos-cuenta";
+import { AVISO_SISTEMAS_INICIO, AVISO_CATALOGO_PREFIJO } from "@/lib/astraura/startup-updates";
 import type { NeuronCapabilities } from "@/lib/neurons/neurons";
 
 const NEURONA = "neurona-de-prueba";
@@ -106,7 +107,7 @@ describe("scoutSignature — firma estable del hardware+catálogo", () => {
     });
 
     it("no lanza con caps incompletas", () => {
-        expect(() => scoutSignature({}, CATALOG_LEN)).not.toThrow();
+        expect(() => scoutSignature({} as NeuronCapabilities, CATALOG_LEN)).not.toThrow();
         expect(() => scoutSignature(null as any, CATALOG_LEN)).not.toThrow();
     });
 });
