@@ -4727,3 +4727,13 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** clave
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-05 17:25 · mg-oracle-1105-1044
+
+**Lo que se pidió.** Pastilla
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `VER1105D` — no escribió nada
+- `RPO1104Ic` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RPO1104Ic conservada)
