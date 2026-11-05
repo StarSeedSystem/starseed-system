@@ -111,6 +111,38 @@ function emitUpdates(): void {
   try { window.dispatchEvent(new Event(UPDATES_EVENT)); } catch { /* noop */ }
 }
 
+/* ─────────────── (1105 · VER1105J) Versión nativa nueva vista en ESTE medio ─────────────── */
+
+const PUBLICADA_KEY = "starseed.updates.publicada.v1";
+
+export interface VersionAnunciada {
+  version: string;
+  fecha?: string;
+  notas?: string;
+}
+
+/** La ventana «Hay una versión nueva» deja aquí la versión que vio: sale como aviso «update-app». */
+export function anunciarVersionPublicada(v: VersionAnunciada): void {
+  if (!isClient() || !v?.version) return;
+  try {
+    window.localStorage.setItem(
+      PUBLICADA_KEY,
+      JSON.stringify({ version: v.version, fecha: v.fecha ?? "", notas: String(v.notas ?? "").slice(0, 400) }),
+    );
+  } catch { /* cuota / modo privado */ }
+  emitUpdates();
+}
+
+function leerAnunciada(): VersionAnunciada | null {
+  if (!isClient()) return null;
+  try {
+    const p = JSON.parse(window.localStorage.getItem(PUBLICADA_KEY) || "null");
+    return p && typeof p.version === "string" && p.version ? (p as VersionAnunciada) : null;
+  } catch {
+    return null;
+  }
+}
+
 /* ─────────────────────── Marcado de vistos ─────────────────────── */
 
 /** ¿Ya vio el usuario este aviso? (los update-app se comparan por release). */
@@ -187,6 +219,22 @@ export async function getPendingNotifications(context?: string): Promise<UpdateN
         title: "StarSeed OS 0.3.0: apps que se actualizan solas, Genesis y Estaciones",
         detail:
           "StarSeed OS, Nexus y Café tienen app para macOS, Windows, Linux y Android, y la de escritorio se actualiza sola. Genesis llega a personas, grupos y comunidades. Nuevas Estaciones con transmisiones en directo. Las capas de Astraura se eligen por tarea y por dispositivo. En el navegador basta con recargar.",
+        priority: 10,
+      });
+    }
+  }
+
+  // (a2) (1105 · VER1105J) Versión nativa nueva que vio la ventana de este medio.
+  const anunciada = leerAnunciada();
+  if (anunciada) {
+    const id = `update-app::v${anunciada.version}`;
+    if (!isSeen(id)) {
+      out.push({
+        id,
+        kind: "update-app",
+        title: `StarSeed OS ${anunciada.version} disponible`,
+        detail: `${anunciada.fecha ? `Publicada el ${anunciada.fecha}. ` : ""}Actualiza desde su ventana o desde la Librería: tus datos se quedan donde están.`,
+        href: "/library",
         priority: 10,
       });
     }
