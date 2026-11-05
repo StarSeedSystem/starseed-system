@@ -1,0 +1,51 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "ola": "1104C · Contratos pendientes",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41917345455",
+   "id": "CTR1104Cc-d2",
+   "titulo": "Llmfit · la ventana de inicio usa la firma de novedades del explorador de modelos (parte 2 de 3)",
+   "archivos": [
+    "src/components/astraura/startup-updates-modal.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/recomendador-modelos-llmfit.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§8 y §14.1: cablea `scoutSignature` de `src/ai/astraura/model-scout.ts` en `startup-updates.ts` (la firma de novedades decide si la ventana reaparece, con el mismo patrón firma+visto que ya usa) y enséñalo en `startup-updates-modal.tsx`. Prueba pura: firma nueva → reaparece; misma firma ya vista → no.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41917345455`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 41947849440) falla «pruebas TS»: sh -c \"git config --local --name-only --get-regexp 'core\\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\"\n2026-11-05T01:24:33.8173810Z fatal: No url found for submodule path 'externos/hermes-jev-skills' in .gitmodules\n2026-11-05T01:24:33.8207059Z ##[warning]The process '/usr/bin/git' failed with exit code 128\n2026-11-05T01:24:33.8351784Z Cleaning up orphan processes\n2026-11-05T01:24:33.8611687Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41917345455:refs/remotes/origin/nube/41917345455\"` y `git cherry-pick --no-commit 643461e2f2ca`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/astraura/startup-updates-modal.tsx, src/lib/astraura/__tests__/startup-updates-scout.test.ts, src/lib/astraura/startup-updates.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 3 (la dirección dividió CTR1104Cc: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/astraura/startup-updates-modal.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "CTR1104Cc",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "CTR1104Cc-d1"
+   ]
+  },
+  {
+   "ola": "1105V · Centro de Versiones",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/42082285857",
+   "id": "VER1105Db-d2",
+   "titulo": "Centro de Versiones · el medidor «versiones» (clave, orden y filas del medidor) (parte 2 de 3)",
+   "archivos": [
+    "src/app/api/mando/medidores/route.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\n§4 «Pastilla». Añade `\"versiones\"` a `ClaveMedidor` y a `ORDEN_POR_DEFECTO` (detrás de `sin-publicar`) en `medidores.ts`, y en la ruta de medidores el caso `clave=versiones` que lee el estado del director (mismo archivo que la API de lanzamientos) y devuelve el detalle del medidor con el patrón de los demás (resumen = fase y detalle; una fila por medio con `filasDeMedios`). Cambios mínimos en esos dos archivos grandes: no reformatees nada. Prueba del caso nuevo.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/42082285857`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 42093370092) falla «tsc»: 19:24:38.2858179Z env:\n2026-11-05T19:24:38.2858389Z   OPENUI_TELEMETRY_DISABLED: 1\n2026-11-05T19:24:38.2858632Z   DO_NOT_TRACK: 1\n2026-11-05T19:24:38.2858883Z   NODE_OPTIONS: --max-old-space-size=8192\n2026-11-05T19:24:38.2859174Z ##[endgroup]\n2026-11-05T19:27:20.7798888Z ##[error]vitest.setup-dom.ts(16,14): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.\n2026-11-05T19:27:20.7807435Z ##[error]vitest.setup-dom.ts(17,16): error TS2306: File '/home/runner/work/starseed-system/starseed-system/node_modules/@testing-library/jest-dom/types/index.d.ts' is not a module.\n2026-11-05T19:27:21.2952577Z ##[error]Process completed with exit code 2.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/42082285857:refs/remotes/origin/nube/42082285857\"` y `git cherry-pick --no-commit 7e70d7763710`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/app/api/mando/medidores/route.ts, src/lib/mando/__tests__/medidor-versiones.test.ts, src/lib/mando/medidores.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 2 DE 3 (la dirección dividió VER1105Db: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/app/api/mando/medidores/route.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "VER1105Db",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "VER1105Db-d1"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1105-135510.json": [
+   "VER1105Db-d2",
+   "CTR1104Cc-d2"
+  ]
+ }
+}
