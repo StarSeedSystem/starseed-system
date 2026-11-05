@@ -1,6 +1,10 @@
+<<<<<<< HEAD
 import { PREFIJOS_SISTEMA, SistemaNativo } from "./os-release";
 
 export type { SistemaNativo };
+=======
+export type SistemaNativo = "os" | "nexus" | "cafe";
+>>>>>>> 6898f8294 (salvavidas · VER1105F: trabajo del agente antes de las puertas (tsc / vitest))
 
 export interface ArchivoPorSO {
   nombre: string;
@@ -34,7 +38,11 @@ interface AssetRaw {
   size: number;
 }
 
+<<<<<<< HEAD
 export interface ReleaseGithub {
+=======
+interface ReleaseApi {
+>>>>>>> 6898f8294 (salvavidas · VER1105F: trabajo del agente antes de las puertas (tsc / vitest))
   tag_name: string;
   published_at: string;
   html_url: string;
@@ -106,7 +114,11 @@ function agruparPorSO(archivos: ArchivoProcesado[], sistema: SistemaNativo): Rel
   return result;
 }
 
+<<<<<<< HEAD
 export function desdeReleases(json: ReleaseGithub[]): VersionPublicada[] {
+=======
+export function desdeReleases(json: ReleaseApi[]): VersionPublicada[] {
+>>>>>>> 6898f8294 (salvavidas · VER1105F: trabajo del agente antes de las puertas (tsc / vitest))
   if (!Array.isArray(json)) return [];
 
   const validas = json
@@ -144,6 +156,7 @@ export function desdeReleases(json: ReleaseGithub[]): VersionPublicada[] {
   return resultado;
 }
 
+<<<<<<< HEAD
 export { tipoVersion };
 
 export function desdeReleasesFallback(
@@ -187,3 +200,6 @@ export function desdeReleasesFallback(
     archivos: { os: osAssets },
   };
 }
+=======
+export { tipoVersion };
+>>>>>>> 6898f8294 (salvavidas · VER1105F: trabajo del agente antes de las puertas (tsc / vitest))
