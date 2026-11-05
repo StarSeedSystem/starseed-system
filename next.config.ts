@@ -234,7 +234,19 @@ const nextConfig: NextConfig = {
   // — Next prefiere .js sobre .ts — y con él se perdían las cabeceras, el alias de Spline y
   // el `standalone`. Un solo config, y es este).
   serverExternalPackages: ['sqlite3', 'sqlite-vec'],
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, webpack }) => {
+    // (1105 · ZOD) OpenUI (@openuidev/lang-core 1.1.0) usa `util.mergeDefs` de `zod/v4/core`, que solo trae
+    // zod ≥ 4.1; el OS sigue con zod 3.25. Solo quien vive en @openuidev/ o en src/lib/openui recibe zod 4
+    // (paquete «zod-v4»): el resto del OS no cambia. Sin esto: «'util'.'mergeDefs' is not exported» y el
+    // build se cae (CI, Vercel y el A1, 05-11).
+    config.plugins.push(
+      new webpack.NormalModuleReplacementPlugin(/^zod\/v4(\/core)?$/, (res: { context?: string; request: string }) => {
+        const ctx = String(res.context || "").replace(/\\/g, "/");
+        if (ctx.includes("/node_modules/@openuidev/") || ctx.includes("/src/lib/openui")) {
+          res.request = res.request.replace(/^zod\//, "zod-v4/");
+        }
+      }),
+    );
     // Fix for @splinetool/react-spline ESM-only package (no CJS "require" in exports)
     config.resolve.alias = {
       ...config.resolve.alias,
