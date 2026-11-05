@@ -4721,3 +4721,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RTXR1010AMb-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RTXR1010AMb-d2 conservada)
 - `IMG1102Db-d2` — los tipos no compilan: 1 errores tsc (rama ola/IMG1102Db-d2 conservada)
+
+## 2026-11-05 07:32 · mg-oracle-1105-0108
+
+**Lo que se pidió.** Rescates · traer_nube.base_de con ids que acaban en minúscula
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (RTRESC1031Dc-d2, RPO1104A). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RTRESC1031Dc-d2` — no escribió nada
+- `RPO1104A` — no escribió nada
