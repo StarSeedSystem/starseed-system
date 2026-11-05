@@ -1,10 +1,14 @@
 {
   "macos": {
     "versionMinima": "10.15",
+<<<<<<< HEAD
     "arquitecturas": [
       "x86_64",
       "arm64"
     ],
+=======
+    "arquitecturas": ["x86_64", "arm64"],
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
     "permisos": [
       {
         "nombre": "core:default",
@@ -20,43 +24,63 @@
         "nombre": "fs:allow-read-text-file",
         "texto": "Leer archivos de texto. Se concede al primer uso cuando la app necesita leer un archivo.",
         "alConceder": "al primer uso",
+<<<<<<< HEAD
         "noPermite": [
           "leer archivos fuera de $HOME/** sin permiso explícito"
         ]
+=======
+        "noPermite": ["leer archivos fuera de $HOME/** sin permiso explícito"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "fs:allow-write-text-file",
         "texto": "Escribir archivos de texto. Se concede al instalar o al solicitar guardar un archivo nuevo.",
         "alConceder": "al instalar o al primer uso",
+<<<<<<< HEAD
         "noPermite": [
           "sobrescribir archivos del sistema",
           "escribir en $HOME/** sin permiso explícito"
         ]
+=======
+        "noPermite": ["sobrescribir archivos del sistema", "escribir en $HOME/** sin permiso explícito"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "fs:allow-read-dir",
         "texto": "Leer directorios. Se concede al acceder a la lista de archivos de una carpeta.",
         "alConceder": "al primer uso",
+<<<<<<< HEAD
         "noPermite": [
           "listar contenido de /System o /Applications"
         ]
+=======
+        "noPermite": ["listar contenido de /System o /Applications"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "fs:allow-mkdir",
         "texto": "Crear directorios. Se concede al guardar archivos en una nueva carpeta.",
         "alConceder": "al instalar",
+<<<<<<< HEAD
         "noPermite": [
           "crear directorios fuera de $HOME/** o /tmp"
         ]
+=======
+        "noPermite": ["crear directorios fuera de $HOME/** o /tmp"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "fs:scope",
         "texto": "Alcance de rutas permitidas ($HOME, $APPDATA, $APPCONFIG, etc.). Se concede al instalar.",
         "alConceder": "al instalar",
+<<<<<<< HEAD
         "noPermite": [
           "acceder a $DOCUMENT/** sin autorización del usuario",
           "leer $DOWNLOAD/** sin consentimiento"
         ]
+=======
+        "noPermite": ["acceder a $DOCUMENT/** sin autorización del usuario", "leer $DOWNLOAD/** sin consentimiento"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "os:allow-platform",
@@ -104,86 +128,133 @@
         "nombre": "process:allow-exit",
         "texto": "Permitir que los procesos terminen. Necesario para el funcionamiento interno de la app.",
         "alConceder": "al instalar",
+<<<<<<< HEAD
         "noPermite": [
           "forzar la terminación de procesos del sistema"
         ]
+=======
+        "noPermite": ["forzar la terminación de procesos del sistema"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "process:allow-restart",
         "texto": "Permitir reiniciar procesos. Solo para recuperación de la aplicación.",
         "alConceder": "al instalar",
+<<<<<<< HEAD
         "noPermite": [
           "reiniciar procesos del sistema operativo"
         ]
+=======
+        "noPermite": ["reiniciar procesos del sistema operativo"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "notification:default",
         "texto": "Mostrar notificaciones nativas. Se concede al primer uso cuando la app quiere mostrar una notificación.",
         "alConceder": "al primer uso",
+<<<<<<< HEAD
         "noPermite": [
           "mostrar notificaciones sin interacción del usuario"
         ]
+=======
+        "noPermite": ["mostrar notificaciones sin interacción del usuario"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "notification:allow-notify",
         "texto": "Mostrar notificación específica. Se concede al solicitar permiso de notificaciones.",
         "alConceder": "al solicitar permiso",
+<<<<<<< HEAD
         "noPermite": [
           "mostrar notificaciones automáticas sin consentimiento"
         ]
+=======
+        "noPermite": ["mostrar notificaciones automáticas sin consentimiento"]
+      },
+      {
+        "nombre": "notification:allow-request-permission",
+        "texto": "Solicitar permiso de notificaciones al sistema. Flujo nativo de macOS.",
+        "alConceder": "nativo de macOS",
+        "noPermite": ["solicitar permiso de notificaciones sin interacción del usuario"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:default",
         "texto": "Mostrar diálogos del sistema (abrir, guardar, mensaje). Se concede al invocar un diálogo nativo.",
         "alConceder": "al invocar",
+<<<<<<< HEAD
         "noPermite": [
           "mostrar diálogos sin intervención del usuario"
         ]
+=======
+        "noPermite": ["mostrar diálogos sin intervención del usuario"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:allow-open",
         "texto": "Abrir archivo o carpeta mediante selector nativo. Se concede al usuario al seleccionar.",
         "alConceder": "por selección del usuario",
+<<<<<<< HEAD
         "noPermite": [
           "forzar apertura de rutas específicas"
         ]
+=======
+        "noPermite": ["forzar apertura de rutas específicas"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:allow-save",
         "texto": "Guardar archivo mediante selector nativo. Se concede al usuario al elegir destino.",
         "alConceder": "por selección del usuario",
+<<<<<<< HEAD
         "noPermite": [
           "sobrescribir archivos sin confirmación"
         ]
+=======
+        "noPermite": ["sobrescribir archivos sin confirmación"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:allow-message",
         "texto": "Mostrar diálogo de mensaje informativo. Se concede al invocar el diálogo.",
         "alConceder": "al invocar",
+<<<<<<< HEAD
         "noPermite": [
           "mostrar mensajes de error sin interacción"
         ]
+=======
+        "noPermite": ["mostrar mensajes de error sin interacción"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:allow-ask",
         "texto": "Mostrar diálogo de pregunta/confirmación. Se concede al usuario al responder.",
         "alConceder": "por respuesta del usuario",
+<<<<<<< HEAD
         "noPermite": [
           "forzar una respuesta concreta"
         ]
+=======
+        "noPermite": ["forzar una respuesta concreta"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:allow-confirm",
         "texto": "Diálogo de confirmación afirmativa. Se concede al hacer clic en 'Confirmar'.",
         "alConceder": "al hacer clic en Confirmar",
+<<<<<<< HEAD
         "noPermite": [
           "forzar afirmación sin intervención del usuario"
         ]
+=======
+        "noPermite": ["forzar afirmación sin intervención del usuario"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "deep-link:default",
         "texto": "Manejar enlaces profundos (starseed://). Se concede al instalar y configurar la app.",
         "alConceder": "al instalar",
+<<<<<<< HEAD
         "noPermite": [
           "interceptar enlaces de otros protocolos sin permiso"
         ]
@@ -380,6 +451,9 @@
         "noPermite": [
           "instalar actualizaciones sin consentimiento del usuario"
         ]
+=======
+        "noPermite": ["interceptar enlaces de otros protocolos sin permiso"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       }
     ],
     "noPermiteSistema": [
@@ -391,9 +465,13 @@
   },
   "windows": {
     "versionMinima": "10",
+<<<<<<< HEAD
     "arquitecturas": [
       "x86_64"
     ],
+=======
+    "arquitecturas": ["x86_64"],
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
     "permisos": [
       {
         "nombre": "core:default",
@@ -409,43 +487,63 @@
         "nombre": "fs:allow-read-text-file",
         "texto": "Leer archivos de texto. Se concede al primer uso cuando la app necesita leer un archivo.",
         "alConceder": "al primer uso",
+<<<<<<< HEAD
         "noPermite": [
           "leer archivos fuera del perfil del usuario sin permiso explícito"
         ]
+=======
+        "noPermite": ["leer archivos fuera del perfil del usuario sin permiso explícito"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "fs:allow-write-text-file",
         "texto": "Escribir archivos de texto. Se concede al instalar o al solicitar guardar un archivo nuevo.",
         "alConceder": "al instalar o al primer uso",
+<<<<<<< HEAD
         "noPermite": [
           "sobrescribir archivos del sistema",
           "escribir en perfil del usuario sin permiso explícito"
         ]
+=======
+        "noPermite": ["sobrescribir archivos del sistema", "escribir en perfil del usuario sin permiso explícito"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "fs:allow-read-dir",
         "texto": "Leer directorios. Se concede al acceder a la lista de archivos de una carpeta.",
         "alConceder": "al primer uso",
+<<<<<<< HEAD
         "noPermite": [
           "listar contenido de carpetas del sistema"
         ]
+=======
+        "noPermite": ["listar contenido de carpetas del sistema"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "fs:allow-mkdir",
         "texto": "Crear directorios. Se concede al guardar archivos en una nueva carpeta.",
         "alConceder": "al instalar",
+<<<<<<< HEAD
         "noPermite": [
           "crear directorios fuera del perfil del usuario o AppData"
         ]
+=======
+        "noPermite": ["crear directorios fuera del perfil del usuario o AppData"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "fs:scope",
         "texto": "Alcance de rutas permitidas (perfil de usuario, AppData, LocalCache). Se concede al instalar.",
         "alConceder": "al instalar",
+<<<<<<< HEAD
         "noPermite": [
           "acceder a documentos del usuario sin autorización",
           "leer carpetas del sistema"
         ]
+=======
+        "noPermite": ["acceder a documentos del usuario sin autorización", "leer carpetas del sistema"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "os:allow-platform",
@@ -485,11 +583,16 @@
       },
       {
         "nombre": "os:allow-exe-extension",
+<<<<<<< HEAD
         "texto": "Permitir extensiones de ejecutables. Informativo para el sistema de archivos.",
+=======
+        "texto": "Permitir extensiones de ejecutables (.exe, .msi). Informativo para el sistema de archivos.",
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
         "alConceder": "automáticamente",
         "noPermite": []
       },
       {
+<<<<<<< HEAD
         "nombre": "fs:default",
         "texto": "Acceso a archivos por defecto. Se concede al instalar la aplicación nativa.",
         "alConceder": "al instalar",
@@ -502,83 +605,132 @@
         "noPermite": [
           "forzar la terminación de procesos del sistema"
         ]
+=======
+        "nombre": "process:allow-exit",
+        "texto": "Permitir que los procesos terminen. Necesario para el funcionamiento interno de la app.",
+        "alConceder": "al instalar",
+        "noPermite": ["forzar la terminación de procesos del sistema"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "process:allow-restart",
         "texto": "Permitir reiniciar procesos. Solo para recuperación de la aplicación.",
         "alConceder": "al instalar",
+<<<<<<< HEAD
         "noPermite": [
           "reiniciar procesos del sistema operativo"
         ]
+=======
+        "noPermite": ["reiniciar procesos del sistema operativo"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "notification:default",
         "texto": "Mostrar notificaciones nativas. Se concede al primer uso cuando la app quiere mostrar una notificación.",
         "alConceder": "al primer uso",
+<<<<<<< HEAD
         "noPermite": [
           "mostrar notificaciones sin interacción del usuario"
         ]
+=======
+        "noPermite": ["mostrar notificaciones sin interacción del usuario"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "notification:allow-notify",
         "texto": "Mostrar notificación específica. Se concede al solicitar permiso de notificaciones.",
         "alConceder": "al solicitar permiso",
+<<<<<<< HEAD
         "noPermite": [
           "mostrar notificaciones automáticas sin consentimiento"
         ]
+=======
+        "noPermite": ["mostrar notificaciones automáticas sin consentimiento"]
+      },
+      {
+        "nombre": "notification:allow-request-permission",
+        "texto": "Solicitar permiso de notificaciones al sistema. Flujo nativo de Windows.",
+        "alConceder": "nativo de Windows",
+        "noPermite": ["solicitar permiso de notificaciones sin interacción del usuario"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:default",
         "texto": "Mostrar diálogos del sistema (abrir, guardar, mensaje). Se concede al invocar un diálogo nativo.",
         "alConceder": "al invocar",
+<<<<<<< HEAD
         "noPermite": [
           "mostrar diálogos sin intervención del usuario"
         ]
+=======
+        "noPermite": ["mostrar diálogos sin intervención del usuario"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:allow-open",
         "texto": "Abrir archivo o carpeta mediante selector nativo. Se concede al usuario al seleccionar.",
         "alConceder": "por selección del usuario",
+<<<<<<< HEAD
         "noPermite": [
           "forzar apertura de rutas específicas"
         ]
+=======
+        "noPermite": ["forzar apertura de rutas específicas"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:allow-save",
         "texto": "Guardar archivo mediante selector nativo. Se concede al usuario al elegir destino.",
         "alConceder": "por selección del usuario",
+<<<<<<< HEAD
         "noPermite": [
           "sobrescribir archivos sin confirmación"
         ]
+=======
+        "noPermite": ["sobrescribir archivos sin confirmación"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:allow-message",
         "texto": "Mostrar diálogo de mensaje informativo. Se concede al invocar el diálogo.",
         "alConceder": "al invocar",
+<<<<<<< HEAD
         "noPermite": [
           "mostrar mensajes de error sin interacción"
         ]
+=======
+        "noPermite": ["mostrar mensajes de error sin interacción"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:allow-ask",
         "texto": "Mostrar diálogo de pregunta/confirmación. Se concede al usuario al responder.",
         "alConceder": "por respuesta del usuario",
+<<<<<<< HEAD
         "noPermite": [
           "forzar una respuesta concreta"
         ]
+=======
+        "noPermite": ["forzar una respuesta concreta"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:allow-confirm",
         "texto": "Diálogo de confirmación afirmativa. Se concede al hacer clic en 'Confirmar'.",
         "alConceder": "al hacer clic en Confirmar",
+<<<<<<< HEAD
         "noPermite": [
           "forzar afirmación sin intervención del usuario"
         ]
+=======
+        "noPermite": ["forzar afirmación sin intervención del usuario"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "deep-link:default",
         "texto": "Manejar enlaces profundos. Se concede al instalar y configurar la app.",
         "alConceder": "al instalar",
+<<<<<<< HEAD
         "noPermite": [
           "interceptar enlaces de otros protocolos sin permiso"
         ]
@@ -775,6 +927,9 @@
         "noPermite": [
           "instalar actualizaciones sin consentimiento del usuario"
         ]
+=======
+        "noPermite": ["interceptar enlaces de otros protocolos sin permiso"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       }
     ],
     "noPermiteSistema": [
@@ -786,10 +941,14 @@
   },
   "linux": {
     "versionMinima": "22.04",
+<<<<<<< HEAD
     "arquitecturas": [
       "x86_64",
       "arm64"
     ],
+=======
+    "arquitecturas": ["x86_64", "arm64"],
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
     "permisos": [
       {
         "nombre": "core:default",
@@ -805,42 +964,62 @@
         "nombre": "fs:allow-read-text-file",
         "texto": "Leer archivos de texto. Se concede al primer uso cuando la app necesita leer un archivo.",
         "alConceder": "al primer uso",
+<<<<<<< HEAD
         "noPermite": [
           "leer archivos fuera de $HOME/** sin permiso explícito"
         ]
+=======
+        "noPermite": ["leer archivos fuera de $HOME/** sin permiso explícito"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "fs:allow-write-text-file",
         "texto": "Escribir archivos de texto. Se concede al instalar o al solicitar guardar un archivo nuevo.",
         "alConceder": "al instalar o al primer uso",
+<<<<<<< HEAD
         "noPermite": [
           "sobrescribir archivos del sistema",
           "escribir en $HOME/** sin permiso explícito"
         ]
+=======
+        "noPermite": ["sobrescribir archivos del sistema", "escribir en $HOME/** sin permiso explícito"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "fs:allow-read-dir",
         "texto": "Leer directorios. Se concede al acceder a la lista de archivos de una carpeta.",
         "alConceder": "al primer uso",
+<<<<<<< HEAD
         "noPermite": [
           "listar contenido de /etc o /var sin permiso"
         ]
+=======
+        "noPermite": ["listar contenido de /etc o /var sin permiso"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "fs:allow-mkdir",
         "texto": "Crear directorios. Se concede al guardar archivos en una nueva carpeta.",
         "alConceder": "al instalar",
+<<<<<<< HEAD
         "noPermite": [
           "crear directorios fuera de $HOME/** o /tmp"
         ]
+=======
+        "noPermite": ["crear directorios fuera de $HOME/** o /tmp"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "fs:scope",
         "texto": "Alcance de rutas permitidas ($HOME, $APPDATA equivalents, $DOCUMENT). Se concede al instalar.",
         "alConceder": "al instalar",
+<<<<<<< HEAD
         "noPermite": [
           "acceder a rutas del sistema fuera de $HOME sin autorización"
         ]
+=======
+        "noPermite": ["acceder a rutas del sistema fuera de $HOME sin autorización"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "os:allow-platform",
@@ -888,86 +1067,133 @@
         "nombre": "process:allow-exit",
         "texto": "Permitir que los procesos terminen. Necesario para el funcionamiento interno de la app.",
         "alConceder": "al instalar",
+<<<<<<< HEAD
         "noPermite": [
           "forzar la terminación de procesos del sistema"
         ]
+=======
+        "noPermite": ["forzar la terminación de procesos del sistema"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "process:allow-restart",
         "texto": "Permitir reiniciar procesos. Solo para recuperación de la aplicación.",
         "alConceder": "al instalar",
+<<<<<<< HEAD
         "noPermite": [
           "reiniciar procesos del sistema operativo"
         ]
+=======
+        "noPermite": ["reiniciar procesos del sistema operativo"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "notification:default",
         "texto": "Mostrar notificaciones nativas. Se concede al primer uso cuando la app quiere mostrar una notificación.",
         "alConceder": "al primer uso",
+<<<<<<< HEAD
         "noPermite": [
           "mostrar notificaciones sin interacción del usuario"
         ]
+=======
+        "noPermite": ["mostrar notificaciones sin interacción del usuario"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "notification:allow-notify",
         "texto": "Mostrar notificación específica. Se concede al solicitar permiso de notificaciones.",
         "alConceder": "al solicitar permiso",
+<<<<<<< HEAD
         "noPermite": [
           "mostrar notificaciones automáticas sin consentimiento"
         ]
+=======
+        "noPermite": ["mostrar notificaciones automáticas sin consentimiento"]
+      },
+      {
+        "nombre": "notification:allow-request-permission",
+        "texto": "Solicitar permiso de notificaciones al sistema. Flujo nativo de Linux (libnotify/desktop-notifications).",
+        "alConceder": "nativo de Linux",
+        "noPermite": ["solicitar permiso de notificaciones sin interacción del usuario"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:default",
         "texto": "Mostrar diálogos del sistema (abrir, guardar, mensaje). Se concede al invocar un diálogo nativo.",
         "alConceder": "al invocar",
+<<<<<<< HEAD
         "noPermite": [
           "mostrar diálogos sin intervención del usuario"
         ]
+=======
+        "noPermite": ["mostrar diálogos sin intervención del usuario"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:allow-open",
         "texto": "Abrir archivo o carpeta mediante selector nativo. Se concede al usuario al seleccionar.",
         "alConceder": "por selección del usuario",
+<<<<<<< HEAD
         "noPermite": [
           "forzar apertura de rutas específicas"
         ]
+=======
+        "noPermite": ["forzar apertura de rutas específicas"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:allow-save",
         "texto": "Guardar archivo mediante selector nativo. Se concede al usuario al elegir destino.",
         "alConceder": "por selección del usuario",
+<<<<<<< HEAD
         "noPermite": [
           "sobrescribir archivos sin confirmación"
         ]
+=======
+        "noPermite": ["sobrescribir archivos sin confirmación"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:allow-message",
         "texto": "Mostrar diálogo de mensaje informativo. Se concede al invocar el diálogo.",
         "alConceder": "al invocar",
+<<<<<<< HEAD
         "noPermite": [
           "mostrar mensajes de error sin interacción"
         ]
+=======
+        "noPermite": ["mostrar mensajes de error sin interacción"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:allow-ask",
         "texto": "Mostrar diálogo de pregunta/confirmación. Se concede al usuario al responder.",
         "alConceder": "por respuesta del usuario",
+<<<<<<< HEAD
         "noPermite": [
           "forzar una respuesta concreta"
         ]
+=======
+        "noPermite": ["forzar una respuesta concreta"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "dialog:allow-confirm",
         "texto": "Diálogo de confirmación afirmativa. Se concede al hacer clic en 'Confirmar'.",
         "alConceder": "al hacer clic en Confirmar",
+<<<<<<< HEAD
         "noPermite": [
           "forzar afirmación sin intervención del usuario"
         ]
+=======
+        "noPermite": ["forzar afirmación sin intervención del usuario"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       },
       {
         "nombre": "deep-link:default",
         "texto": "Manejar enlaces profundos. Se concede al instalar y configurar la app.",
         "alConceder": "al instalar",
+<<<<<<< HEAD
         "noPermite": [
           "interceptar enlaces de otros protocolos sin permiso"
         ]
@@ -1164,6 +1390,9 @@
         "noPermite": [
           "instalar actualizaciones sin consentimiento del usuario"
         ]
+=======
+        "noPermite": ["interceptar enlaces de otros protocolos sin permiso"]
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
       }
     ],
     "noPermiteSistema": [
@@ -1175,11 +1404,15 @@
   },
   "android": {
     "versionMinima": "11",
+<<<<<<< HEAD
     "arquitecturas": [
       "arm64-v8a",
       "x86_64",
       "armeabi-v7a"
     ],
+=======
+    "arquitecturas": ["arm64-v8a", "x86_64", "armeabi-v7a"],
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
     "permisos": [
       {
         "nombre": "FOREGROUND_SERVICE",
@@ -1261,6 +1494,7 @@
           "optimizar batería sin consentimiento",
           "sobrepasar políticas de ahorro de energía"
         ]
+<<<<<<< HEAD
       },
       {
         "nombre": "core:window:default",
@@ -1359,13 +1593,27 @@
           "mostrar notificaciones sin consentimiento del usuario"
         ]
       }
+=======
+      }
+    ],
+    "noPermiteSistema": [
+      "acceder a almacenamiento externo sin permiso FILE_PROVIDER",
+      "leer contactos o SMS sin autorización explícita",
+      "usar cámara o micrófono sin permiso visual y barra de indicador",
+      "modificar configuraciones del sistema sin root",
+    "backgroundLocation" no permitido sin permiso FINE/COARSE LOCATION
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
     ]
   },
   "ios": {
     "versionMinima": "15",
+<<<<<<< HEAD
     "arquitecturas": [
       "arm64"
     ],
+=======
+    "arquitecturas": ["arm64"],
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
     "permisos": [
       {
         "nombre": "NSLocalNetworkUsageDescription",
@@ -1376,6 +1624,7 @@
           "grabar audio sin aprobación del usuario",
           "modificar configuraciones de red"
         ]
+<<<<<<< HEAD
       },
       {
         "nombre": "core:window:default",
@@ -1474,13 +1723,27 @@
           "mostrar notificaciones sin consentimiento del usuario"
         ]
       }
+=======
+      }
+    ],
+    "noPermiteSistema": [
+      "instalar .ipa sin firma de Apple Developer",
+      "acceder a cámara o micrófono sin permiso visual",
+      "ejecutar código en segundo plano sin restricciones",
+      "acceder al sistema de archivos fuera de sandbox",
+      "usar Bluetooth sin pareja (pairing) explícita"
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
     ]
   },
   "web": {
     "versionMinima": "última versión",
+<<<<<<< HEAD
     "arquitecturas": [
       "cualquiera con navegador moderno"
     ],
+=======
+    "arquitecturas": ["cualquiera con navegador moderno"],
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
     "permisos": [
       {
         "nombre": "notificaciones",
@@ -1517,6 +1780,7 @@
           "importar archivos sin acción del usuario",
           "acceder a rutas de archivo sin drop explícito"
         ]
+<<<<<<< HEAD
       },
       {
         "nombre": "core:window:default",
@@ -1615,6 +1879,15 @@
           "mostrar notificaciones sin consentimiento del usuario"
         ]
       }
+=======
+      }
+    ],
+    "noPermiteSistema": [
+      "acceder al sistema de archivos completo sin sandbox",
+      "usar WebGPU sin permiso explícito del usuario",
+      "ejecutar Web Workers con acceso privilegiado",
+      "almacenar datos persistentes fuera de LocalStorage/SessionStorage sin API específicas"
+>>>>>>> b7dfe4128 (salvavidas · VER1105G: trabajo del agente antes de las puertas (tsc / vitest))
     ]
   }
 }
