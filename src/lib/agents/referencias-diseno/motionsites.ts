@@ -104,3 +104,20 @@ export function tecnicasPara(tipoDePagina: TipoDePagina): readonly Tecnica[] {
         .map((id) => INDICE.get(id))
         .filter((t): t is Tecnica => t !== undefined);
 }
+
+/**
+ * Bloque listo para el system prompt de un agente que va a construir una página:
+ * sus técnicas con enlace a la receta y la rúbrica de revisión. Palabras propias;
+ * nunca el texto completo de la receta ni sus medios.
+ */
+export function bloqueParaPrompt(tipoDePagina: TipoDePagina): string {
+    const tecnicas = tecnicasPara(tipoDePagina)
+        .map((t) => `- ${t.nombre}: ${t.cuandoUsarla} ${t.enlace}`)
+        .join("\n");
+    const rubrica = RUBRICA.map((r) => `- ${r.pregunta}`).join("\n");
+    return (
+        `Referencias de diseño para ${tipoDePagina} (estúdialas; no copies sus prompts ni medios):\n` +
+        `${tecnicas}\n\n` +
+        `Antes de entregar, revisa la página contra esta rúbrica:\n${rubrica}`
+    );
+}
