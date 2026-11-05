@@ -42,6 +42,7 @@ import { NotificationsProvider } from "@/context/notifications-context";
 import { AccountProvider } from "@/context/account-context";
 
 import { OmniDock } from "@/components/layout/omni-dock";
+import { AvisoActualizacion } from "@/components/actualizaciones/aviso-actualizacion";
 import { EntornoMontaje } from "@/components/entorno/entorno-montaje";
 import { BloqueoMontaje } from "@/components/bloqueo/bloqueo-montaje";
 import { SoloFueraDeConsola, SoloFueraDeMinima } from "@/components/layout/solo-fuera-de-consola";
@@ -270,6 +271,7 @@ export default function RootLayout({
             Defensivo y sin UI; se omite en dev salvo NEXT_PUBLIC_ENABLE_SW=1. */}
         <RegisterSW />
         <ActualizacionNativa />
+        <AvisoActualizacion />
         {/* Núcleo intocable cableado en el ARRANQUE: deja registrados los dos
             guardianes (UiSpec + invariantes) que revisan cualquier paquete
             compartido antes de instalarlo. Sin UI, idempotente, SSR-safe. */}
