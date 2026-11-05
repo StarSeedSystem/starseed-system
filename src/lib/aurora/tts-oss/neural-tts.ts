@@ -1479,7 +1479,7 @@ async function playSequentialViaMixer(
   provider: (i: number) => Promise<Blob | null>,
   count: number,
   opts: { onStart?: () => void; onError?: (m: string) => void; onChunk?: (i: number, blob: Blob) => void } = {},
-): Promise<boolean> {
+): Promise<{ ok: "started"; spoken: number } | { ok: "declined" } | boolean> {
   try {
     const mixer = await import("@/lib/aurora/tts-oss/omnivoice-mixer");
     if (!mixer.mixerSupported()) return false;
@@ -1526,6 +1526,7 @@ async function playSequentialViaMixer(
     // suena en cuanto llega.
     let nextAt = 0; // 0 ⇒ "ya" (primer trozo)
     let lastEndAt = 0;
+    let spoken = 0;
     for (let i = 0; i < count; i++) {
       if (aborted) return started; // cortado: el turno ya se consumió si empezó
       const blob = await provider(i).catch(() => null);
@@ -1551,6 +1552,7 @@ async function playSequentialViaMixer(
       if (!res.ok) {
         if (i === 0) return false;
         break;
+      spoken++;
       }
       if (!started) {
         started = true;
@@ -1569,7 +1571,7 @@ async function playSequentialViaMixer(
     // llamador —glow del orbe, reanudar micrófono— caiga cuando de verdad calla).
     const remainMs = Math.max(0, (lastEndAt - mixer.mixerNow()) * 1000);
     if (remainMs > 0 && !aborted) await sleep(remainMs);
-    return started;
+    return started ? { ok: "started", spoken } : false;
   } catch {
     return false;
   }
