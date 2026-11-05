@@ -47,10 +47,20 @@ export type WidgetCategory =
     | 'creatividad'
     | 'perfil'
     | 'sociedad'
-    | 'aplicaciones';
+    | 'aplicaciones'
+    | 'respuestas';
 
 // ── Master Category Registry ─────────────────────────────────────
 export const WIDGET_CATEGORIES: WidgetCategoryDef[] = [
+    {
+        id: 'respuestas',
+        name: 'Respuestas',
+        icon: Sparkles,
+        color: 'cyan-400',
+        description: 'Widgets de interfaz viva OpenUI para respuestas con tarjetas, tablas, pasos y acciones.',
+        tags: ['openui', 'respuesta', 'viva', 'interfaz', 'generativa', 'tarjetas', 'tablas', 'pasos', 'acciones'],
+        hasWidgets: true,
+    },
     {
         id: 'aplicaciones',
         name: 'Aplicaciones',

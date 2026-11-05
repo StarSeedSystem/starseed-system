@@ -19,6 +19,7 @@ import { buscarReferencias, type TarjetaReferencia, type TipoContexto } from "@/
 import { briefDesdeReferencias, type ObjetivoDiseno } from "@/lib/design/inspiracion-a-diseno";
 import type { TarjetaInspiracion } from "@/components/library/referencias/widget-referencias";
 import { useToast } from "@/components/ui/use-toast";
+import { WidgetRespuestaViva } from "@/components/openui/widget-respuesta-viva";
 import { ClockDateWidget } from "@/components/dashboard/widgets/clock-date-widget";
 import { TasksQuickWidget } from "@/components/dashboard/widgets/tasks-quick-widget";
 import { QuickNotesWidget } from "@/components/dashboard/widgets/quick-notes-widget";
@@ -589,6 +590,10 @@ function cuerpoClasico(
         // ── Mapa real interactivo (Ubicación) ──
         case 'MAP_LOCATION':
             return <MapWidget />;
+
+        // ── OpenUI (ola 1104R): widget Respuesta viva ──
+        case 'RESPUESTA_VIVA':
+            return <WidgetRespuestaViva widget={widget} onUpdateSettings={onUpdateSettings} />;
 
         // ── Sexta oleada: rediseño de widgets predeterminados (2026-07) ──
         case 'CLOCK_DATE':
