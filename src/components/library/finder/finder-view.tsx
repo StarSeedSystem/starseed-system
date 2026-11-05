@@ -72,6 +72,8 @@ import { useContextTrigger } from "./use-context-trigger";
 import { MoveToDialog } from "./move-to-dialog";
 import { TagsDialog } from "./tags-dialog";
 import { PublishDialog } from "./publish-dialog";
+import { CATEGORY_LABEL } from "./public-catalog-section";
+import type { PublicCategory } from "@/lib/library/public-catalog";
 // Adenda 65: versiones, ramas, comentarios, instalar/guardar en…
 import { VersionsDialog } from "./versions-dialog";
 // Adenda 66 §2: HISTORIAL (revisiones en la nube: autor/fecha/mensaje, restaurar,
@@ -538,18 +540,38 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
         [saveItem, activeFolder],
     );
 
-    const handlePublishNavigate = useCallback((item: SavedItem) => {
+    const handlePublishToCatalog = useCallback(async (item: SavedItem, category: string = "otro") => {
         const resolved = item.type === "alias" && item.targetItemId ? itemsById.get(item.targetItemId) ?? item : item;
-        const ref = {
-            kind: resolved.type,
-            title: resolved.title,
-            url: resolved.url,
-            route: resolved.route,
-            note: resolved.note,
-        };
-        const q = encodeURIComponent(JSON.stringify(ref));
-        window.location.assign(`/publish?attach=${q}`);
-    }, [itemsById]);
+        const res = await fetch("/api/library/publish", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                item: {
+                    id: resolved.id,
+                    type: resolved.type,
+                    title: resolved.title,
+                    url: resolved.url,
+                    route: resolved.route,
+                    mime: resolved.mime,
+                    thumbnail: resolved.thumbnail,
+                    content: resolved.content,
+                    language: resolved.language,
+                    description: resolved.description,
+                    note: resolved.note,
+                    tags: resolved.tags,
+                    folderId: resolved.folderId,
+                },
+                category,
+                entityRef: entityRef,
+            }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            toast.success("Publicado en la Librería", { description: `«${resolved.title}» en ${CATEGORY_LABEL[category as PublicCategory] ?? category}.` });
+        } else {
+            toast.error(data.error ?? "No se pudo publicar");
+        }
+    }, [itemsById, entityRef, toast]);
 
     // ── Versiones / edición (§13) ────────────────────────────────────────────
 
@@ -1133,7 +1155,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                         menuTarget.kind === "item"
                             ? () => {
                                   const it = itemsById.get(menuTarget.id);
-                                  if (it) handlePublishNavigate(it);
+                                  if (it) handlePublishToCatalog(it, "otro");
                               }
                             : undefined
                     }

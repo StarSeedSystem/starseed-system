@@ -79,19 +79,18 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
 
 // Imagen determinista de portada para items reales (sin imagen propia).
 function coverFor(item: StoreItem): string {
-  const palettes: Record<string, string> = {
-    app: "4c1d95/e0e7ff",
-    widget: "1e3a8a/dbeafe",
-    tema: "9f1239/ffe4e6",
-    plantilla: "065f46/d1fae5",
-    personalidad: "78350f/fef3c7",
-    cerebro: "0c4a6e/e0f2fe",
-    recurso: "3730a3/e0e7ff",
-    calendario: "115e59/ccfbf1",
+  const covers: Record<string, string> = {
+    app: "/library-covers/app.svg",
+    widget: "/library-covers/widget.svg",
+    tema: "/library-covers/tema.svg",
+    plantilla: "/library-covers/plantilla.svg",
+    personalidad: "/library-covers/personalidad.svg",
+    cerebro: "/library-covers/cerebro.svg",
+    recurso: "/library-covers/recurso.svg",
+    calendario: "/library-covers/calendario.svg",
   };
-  const pal = palettes[item.category] || "1f2937/e5e7eb";
-  const label = encodeURIComponent(item.title.slice(0, 22));
-  return `https://placehold.co/400x300/${pal}.png?text=${label}`;
+  const cover = covers[item.category] || "/library-covers/default.svg";
+  return cover;
 }
 
 // ── Valoración por estrellas (1–5) ──

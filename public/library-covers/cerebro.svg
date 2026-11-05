@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0c4a6e" />
+      <stop offset="100%" stop-color="#e0f2fe" />
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#bg)" />
+  <circle cx="200" cy="150" r="60" fill="#ffffff" fill-opacity="0.2" />
+  <path d="M200 120 L200 80 Q180 60 160 80 L160 220 Q180 240 200 240 L220 240 Q240 220 240 220 L240 80 Q220 60 200 80 Z" fill="#ffffff" fill-opacity="0.1" />
+  <text x="200" y="160" font-family="system-ui, sans-serif" font-size="20" fill="#ffffff" text-anchor="middle">Brain</text>
+</svg>

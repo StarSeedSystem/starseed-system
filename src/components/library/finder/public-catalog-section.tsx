@@ -241,4 +241,5 @@ export function PublicCatalogSection() {
     );
 }
 
+export { CATEGORY_LABEL };
 export default PublicCatalogSection;
