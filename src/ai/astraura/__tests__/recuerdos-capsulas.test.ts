@@ -37,10 +37,10 @@ function crearBuscarFake(aciertos: Map<string, { titulo: string; texto: string; 
   return async (sujeto, _consulta, k) => {
     const key = `${sujeto.tipo}-${sujeto.id}`;
     const lista = aciertos.get(key) ?? [];
-    return lista.slice(0, k).map((a) => ({
+    return lista.slice(0, k).map((a, i) => ({
       titulo: a.titulo,
       texto: a.texto,
-      uri: `mv2://${sujeto.tipo}/${sujeto.id}/1`,
+      uri: `mv2://${sujeto.tipo}/${sujeto.id}/${i + 1}`,
       ts: Date.now(),
       alcance: a.alcance,
       sujeto,
@@ -53,7 +53,7 @@ describe("recordarDeCapsulas", () => {
     it("devuelve cadena vacía cuando memoryScope === 'personal' (propiedad de opts, no de contexto)", async () => {
       const buscar = vi.fn();
       const opts: RecordarOpciones = {
-        consulta: "planes",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoBase,
         buscar,
         memoryScope: "personal",
@@ -74,7 +74,7 @@ describe("recordarDeCapsulas", () => {
       };
       const buscar = vi.fn();
       const opts: RecordarOpciones = {
-        consulta: "planes",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoSoloPrivado,
         buscar,
       };
@@ -91,7 +91,7 @@ describe("recordarDeCapsulas", () => {
       };
       const buscar = vi.fn();
       const opts: RecordarOpciones = {
-        consulta: "planes",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoVacio,
         buscar,
       };
@@ -105,7 +105,7 @@ describe("recordarDeCapsulas", () => {
     it("devuelve cadena vacía cuando buscar devuelve null o array vacío en todas las cápsulas", async () => {
       const buscar = vi.fn().mockResolvedValue(null);
       const opts: RecordarOpciones = {
-        consulta: "nada",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoBase,
         buscar,
       };
@@ -128,7 +128,7 @@ describe("recordarDeCapsulas", () => {
 
       const buscar = crearBuscarFake(aciertos);
       const opts: RecordarOpciones = {
-        consulta: "trabajo",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoBase,
         buscar,
       };
@@ -154,7 +154,7 @@ describe("recordarDeCapsulas", () => {
 
       const buscar = crearBuscarFake(aciertos);
       const opts: RecordarOpciones = {
-        consulta: "test",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoBase,
         buscar,
       };
@@ -178,7 +178,7 @@ describe("recordarDeCapsulas", () => {
 
       const buscar = crearBuscarFake(aciertos);
       const opts: RecordarOpciones = {
-        consulta: "test",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoBase,
         buscar,
       };
@@ -197,7 +197,7 @@ describe("recordarDeCapsulas", () => {
 
       const buscar = crearBuscarFake(aciertos);
       const opts: RecordarOpciones = {
-        consulta: "test",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoBase,
         buscar,
       };
@@ -222,7 +222,7 @@ describe("recordarDeCapsulas", () => {
 
       const buscar = crearBuscarFake(aciertos);
       const opts: RecordarOpciones = {
-        consulta: "equipo",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: { ...contextoBase, actor: actorGrupo },
         buscar,
       };
@@ -243,7 +243,7 @@ describe("recordarDeCapsulas", () => {
 
       const buscar = crearBuscarFake(aciertos);
       const opts: RecordarOpciones = {
-        consulta: "web",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: { ...contextoBase, actor: actorPublico, paginaId: "web" },
         buscar,
       };
@@ -265,7 +265,7 @@ describe("recordarDeCapsulas", () => {
       for (const actor of [actorUsuario, actorPersonal]) {
         const buscar = crearBuscarFake(aciertos);
         const opts: RecordarOpciones = {
-          consulta: "test",
+          consulta: "¿qué recordamos del café de Madrid?",
           contexto: { ...contextoBase, actor },
           buscar,
         };
@@ -287,7 +287,7 @@ describe("recordarDeCapsulas", () => {
         return [];
       };
       const opts: RecordarOpciones = {
-        consulta: "test",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: {
           ...contextoBase,
           agenteId: "bot1",
@@ -314,7 +314,7 @@ describe("recordarDeCapsulas", () => {
         return [];
       };
       const opts: RecordarOpciones = {
-        consulta: "test",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: { actor: actorUsuario, personalidadId: "aurora" }, // solo personalidad
         buscar,
       };
@@ -334,7 +334,7 @@ describe("recordarDeCapsulas", () => {
 
       const buscar = crearBuscarFake(aciertos);
       const opts: RecordarOpciones = {
-        consulta: "contraseña",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoBase,
         buscar,
         esModeloNube: true,
@@ -353,7 +353,7 @@ describe("recordarDeCapsulas", () => {
 
       const buscar = crearBuscarFake(aciertos);
       const opts: RecordarOpciones = {
-        consulta: "contraseña",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoBase,
         buscar,
         esModeloNube: false,
@@ -371,7 +371,7 @@ describe("recordarDeCapsulas", () => {
 
       const buscar = crearBuscarFake(aciertos);
       const opts: RecordarOpciones = {
-        consulta: "reunión",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoBase,
         buscar,
         esModeloNube: true,
@@ -389,7 +389,7 @@ describe("recordarDeCapsulas", () => {
 
       const buscar = crearBuscarFake(aciertos);
       const opts: RecordarOpciones = {
-        consulta: "clave",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoBase,
         buscar,
         esModeloNube: true,
@@ -407,7 +407,7 @@ describe("recordarDeCapsulas", () => {
         return [];
       };
       const opts: RecordarOpciones = {
-        consulta: "lento",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoBase,
         buscar,
         timeoutMs: 50,
@@ -421,7 +421,7 @@ describe("recordarDeCapsulas", () => {
         throw new Error("Red caída");
       };
       const opts: RecordarOpciones = {
-        consulta: "error",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoBase,
         buscar,
       };
@@ -437,7 +437,7 @@ describe("recordarDeCapsulas", () => {
         return [];
       };
       const opts: RecordarOpciones = {
-        consulta: "test",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoBase,
         buscar,
         timeoutMs: 300,
@@ -455,7 +455,7 @@ describe("recordarDeCapsulas", () => {
         return [];
       };
       const opts: RecordarOpciones = {
-        consulta: "test",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoBase,
         buscar,
       };
@@ -473,7 +473,7 @@ describe("recordarDeCapsulas", () => {
 
       const buscar = crearBuscarFake(aciertos);
       const opts: RecordarOpciones = {
-        consulta: "test",
+        consulta: "¿qué recordamos del café de Madrid?",
         contexto: contextoBase,
         buscar,
       };

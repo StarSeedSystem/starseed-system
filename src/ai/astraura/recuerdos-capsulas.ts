@@ -1,9 +1,11 @@
-// Recuerdos de las cápsulas Memvid en Astraura (MVD1027F-d1c, parte 1) —
-// módulo PURO: sin red, sin disco, sin procesos. Solo lógica de búsqueda,
-// filtrado por alcance y detección de fuga. La E/S real (fetch a /api/memorias/capsulas)
-// se inyecta como dependencia para que sea testeable.
+// Recuerdos de las cápsulas Memvid y del índice semántico LEANN en Astraura
+// (MVD1027F-d1c, LNN1028F) — módulo PURO: sin red, sin disco, sin procesos.
+// La E/S se inyecta (`buscar` Memvid y `buscarLeann` LEANN) para que el router de
+// cliente, que corre en el navegador, no importe los clientes de servidor (`node:*`).
 import {
   capsulasParaContexto,
+  alcanceDe,
+  saneaId,
   type ContextoCapsulas,
   type SujetoMemoria,
 } from "@/lib/memorias/capsulas";
@@ -15,6 +17,14 @@ import {
   type ActorMemoria,
   type AlcanceMemoria,
 } from "@/lib/nucleo/alcance-memoria";
+import {
+  fundirRecuerdos,
+  pesoVectorPara,
+  type Recuerdo,
+} from "@/lib/memorias/fusion-recuerdos";
+
+// Re-export para que los tests no tengan que importar de dos sitios
+export { alcanceVisiblePara } from "@/lib/nucleo/alcance-memoria";
 
 export interface AciertoCapsula {
   titulo: string;
@@ -31,57 +41,137 @@ export type BuscarCapsulaFn = (
   k: number,
 ) => Promise<AciertoCapsula[] | null>;
 
+/** Acierto de LEANN: mismo contrato que `buscarLeann` de `leann-cliente.ts`. */
+export interface AciertoLeann {
+  id?: string;
+  puntuacion?: number;
+  texto: string;
+  metadatos?: Record<string, string | number>;
+}
+
+export interface OpcionesBuscarLeann {
+  k: number;
+  filtros: Record<string, unknown>;
+  pesoVector: number;
+}
+
+export type BuscarLeannFn = (
+  indice: string,
+  consulta: string,
+  opciones: OpcionesBuscarLeann,
+) => Promise<AciertoLeann[] | null>;
+
 export interface RecordarOpciones {
-  /** Consulta del usuario. */
   consulta: string;
-  /** Contexto del chat: qué cápsulas buscar y quién pregunta. */
   contexto: ContextoCapsulas & { actor: ActorMemoria };
-  /** Función de búsqueda (en vivo: llama a /api/memorias/capsulas; en tests: fake). */
   buscar: BuscarCapsulaFn;
-  /** Si el modelo elegido es de la nube → ejecuta detectarFuga contra lo personal. */
+  /** Búsqueda por significado; sin LEANN el recuerdo sigue solo con Memvid. */
+  buscarLeann?: BuscarLeannFn;
   esModeloNube?: boolean;
-  /** Tope total en ms (por defecto 800). */
   timeoutMs?: number;
-  /** memoryScope del chat: "personal" desactiva las cápsulas. */
   memoryScope?: string;
 }
 
-/** Máximo de fragmentos totales que se devuelven. */
 const MAX_FRAGMENTOS = 6;
-/** Máximo de caracteres totales en el bloque de recuerdos. */
-const MAX_CARACTERES = 1500;
-/** k por cápsula. */
 const K_POR_CAPSULA = 4;
+const TOPE_MS = 900;
+const ALCANCES: AlcanceMemoria[] = ["personal", "perfil", "grupo", "publica"];
 
-function memoriaScopeActivaCapsulas(scope?: string): boolean {
-  return scope !== "personal";
+/** Menos de 4 palabras y sin pregunta es demasiado vago: no se gasta búsqueda. */
+export function consultaConSustancia(consulta: string): boolean {
+  const palabras = consulta.trim().split(/\s+/).filter(Boolean).length;
+  return palabras >= 4 || consulta.includes("?");
 }
 
-function aFragmentoMemoria(
-  acierto: AciertoCapsula,
-): FragmentoMemoria {
+/** Índice LEANN del sujeto: `<tipo>-<id saneado>-<alcance>`, igual que el cliente. */
+export function indiceLeannDe(sujeto: SujetoMemoria): string {
+  return `${sujeto.tipo}-${saneaId(sujeto.id)}-${alcanceDe(sujeto)}`;
+}
+
+function alcanceValido(valor: unknown, porDefecto: AlcanceMemoria): AlcanceMemoria {
+  return typeof valor === "string" && ALCANCES.includes(valor as AlcanceMemoria)
+    ? (valor as AlcanceMemoria)
+    : porDefecto;
+}
+
+function deMemvid(acierto: AciertoCapsula): Recuerdo {
   return {
-    id: acierto.uri ?? `capsula-${Date.now()}-${Math.random()}`,
-    alcance: acierto.alcance,
+    uri: acierto.uri ?? "",
     texto: acierto.texto,
-    origen: acierto.titulo ?? acierto.sujeto.tipo,
-    at: acierto.ts ?? Date.now(),
+    titulo: acierto.titulo,
+    ts: acierto.ts,
+    fuente: "memvid",
+    alcance: acierto.alcance,
   };
 }
 
-export async function recordarDeCapsulas(
-  opts: RecordarOpciones,
+function deLeann(acierto: AciertoLeann, alcanceCapsula: AlcanceMemoria): Recuerdo {
+  const uri = typeof acierto.metadatos?.uri === "string" ? acierto.metadatos.uri : "";
+  return {
+    uri: uri || acierto.id || "",
+    texto: acierto.texto,
+    fuente: "leann",
+    alcance: alcanceValido(acierto.metadatos?.alcance, alcanceCapsula),
+  };
+}
+
+/** Espera solo lo que queda de plazo; lo que llega tarde vale null y no entra. */
+function conTope<T>(promesa: Promise<T | null>, ms: number): Promise<T | null> {
+  if (ms <= 0) return Promise.resolve(null);
+  let temporizador: ReturnType<typeof setTimeout> | undefined;
+  const reloj = new Promise<null>((resolver) => {
+    temporizador = setTimeout(() => resolver(null), ms);
+  });
+  const segura = promesa.catch(() => null);
+  return Promise.race([segura, reloj]).finally(() => clearTimeout(temporizador));
+}
+
+/** Lanza una búsqueda sin dejar que un error síncrono tumbe a las demás. */
+function intentar<T>(fn: () => Promise<T | null>): Promise<T | null> {
+  return Promise.resolve().then(fn).catch(() => null);
+}
+
+function aFragmentos(recuerdos: Recuerdo[]): FragmentoMemoria[] {
+  return recuerdos.map((r) => ({
+    id: r.uri || `${r.fuente}:${r.texto}`,
+    alcance: r.alcance,
+    texto: r.texto,
+    origen: r.titulo ?? r.fuente,
+    at: r.ts ?? 0,
+  }));
+}
+
+export async function recordar(opts: RecordarOpciones): Promise<string>;
+export async function recordar(
+  contexto: ContextoCapsulas & { actor: ActorMemoria },
+  consulta: string,
+  opciones?: Omit<RecordarOpciones, "contexto" | "consulta">,
+): Promise<string>;
+export async function recordar(
+  primero: RecordarOpciones | (ContextoCapsulas & { actor: ActorMemoria }),
+  consultaPosicional?: string,
+  opcionesPosicionales?: Omit<RecordarOpciones, "contexto" | "consulta">,
 ): Promise<string> {
+  const opts: RecordarOpciones =
+    consultaPosicional === undefined
+      ? (primero as RecordarOpciones)
+      : ({
+          ...(opcionesPosicionales ?? {}),
+          contexto: primero as ContextoCapsulas & { actor: ActorMemoria },
+          consulta: consultaPosicional,
+        } as RecordarOpciones);
   const {
     consulta,
     contexto,
     buscar,
+    buscarLeann,
     esModeloNube = false,
-    timeoutMs = 800,
+    timeoutMs = TOPE_MS,
     memoryScope,
   } = opts;
 
-  if (!memoriaScopeActivaCapsulas(memoryScope)) return "";
+  if (!consultaConSustancia(consulta)) return "";
+  if (memoryScope === "personal") return "";
 
   const actor = contexto.actor;
   const permitidos = alcanceVisiblePara(actor);
@@ -90,57 +180,59 @@ export async function recordarDeCapsulas(
   const capsulas = capsulasParaContexto(contexto, actor);
   if (capsulas.length === 0) return "";
 
-  const controlador = new AbortController();
-  const temporizador = setTimeout(() => controlador.abort(), timeoutMs);
+  const limite = Date.now() + timeoutMs;
+  const pesoVector = pesoVectorPara(consulta);
 
-  try {
-    const todos: FragmentoMemoria[] = [];
-    let caracteresTotales = 0;
+  const porCapsula = await Promise.all(
+    capsulas.map(async (capsula) => {
+      const sujeto = capsula.sujeto;
+      const restante = () => limite - Date.now();
+      const [memvid, leann] = await Promise.all([
+        conTope(intentar(() => buscar(sujeto, consulta, K_POR_CAPSULA)), restante()),
+        buscarLeann
+          ? conTope(
+              intentar(() =>
+                buscarLeann(indiceLeannDe(sujeto), consulta, {
+                  k: K_POR_CAPSULA,
+                  filtros: { alcance: { in: permitidos } },
+                  pesoVector,
+                }),
+              ),
+              restante(),
+            )
+          : Promise.resolve(null),
+      ]);
+      return {
+        memvid: (memvid ?? []).map(deMemvid),
+        leann: (leann ?? []).map((a) => deLeann(a, capsula.alcance)),
+      };
+    }),
+  );
 
-    for (const capsula of capsulas) {
-      if (todos.length >= MAX_FRAGMENTOS) break;
-      if (caracteresTotales >= MAX_CARACTERES) break;
+  const memvidTodos = porCapsula.flatMap((r) => r.memvid);
+  const leannTodos = porCapsula.flatMap((r) => r.leann);
+  const fundidos = fundirRecuerdos([memvidTodos, leannTodos], { max: MAX_FRAGMENTOS });
+  const filtrados = filtrarParaAlcance(aFragmentos(fundidos), permitidos);
+  if (filtrados.length === 0) return "";
 
-      const aciertos = await buscar(capsula.sujeto, consulta, K_POR_CAPSULA);
-      if (!aciertos || aciertos.length === 0) continue;
+  const titulo =
+    memvidTodos.length > 0 && leannTodos.length > 0
+      ? "RECUERDOS (memoria + significado):"
+      : leannTodos.length > 0
+        ? "RECUERDOS (significado LEANN):"
+        : "RECUERDOS (cápsulas Memvid):";
+  let bloque = `${titulo}\n`;
+  for (const fragmento of filtrados) bloque += `- ${fragmento.texto}\n`;
+  bloque = bloque.trimEnd();
 
-      const fragmentos = aciertos.map(aFragmentoMemoria);
-      const filtrados = filtrarParaAlcance(fragmentos, permitidos);
-
-      for (const fr of filtrados) {
-        if (todos.length >= MAX_FRAGMENTOS) break;
-        if (caracteresTotales + fr.texto.length > MAX_CARACTERES) break;
-        todos.push(fr);
-        caracteresTotales += fr.texto.length;
-      }
+  if (esModeloNube) {
+    const personales = filtrados.filter((f) => f.alcance === "personal");
+    if (personales.length > 0 && detectarFuga(bloque, personales).length > 0) {
+      bloque = "[FUGA DETECTADA] " + bloque;
     }
-
-    if (todos.length === 0) return "";
-
-    let bloque = "RECUERDOS (cápsulas Memvid):\n";
-    for (const fr of todos) {
-      bloque += `- ${fr.texto}\n`;
-    }
-
-    if (esModeloNube) {
-      const personales = todos.filter((fr) => fr.alcance === "personal");
-      if (personales.length > 0) {
-        const fugas = detectarFuga(bloque, personales);
-        if (fugas.length > 0) {
-          // En producción no se envía el bloque si hay fuga; aquí lo marcamos.
-          // La llamada real en router.ts decidirá si suprimirlo.
-          bloque = "[FUGA DETECTADA] " + bloque;
-        }
-      }
-    }
-
-    return bloque.trimEnd();
-  } catch {
-    return "";
-  } finally {
-    clearTimeout(temporizador);
   }
+  return bloque;
 }
 
-// Re-export para que los tests no tengan que importar de dos sitios
-export { alcanceVisiblePara } from "@/lib/nucleo/alcance-memoria";
+/** Alias de compatibilidad: el router y los tests antiguos siguen llamando aquí. */
+export const recordarDeCapsulas = recordar;
