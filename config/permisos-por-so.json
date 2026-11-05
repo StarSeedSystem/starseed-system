@@ -1,0 +1,83 @@
+{
+  "contrato": "architecture/centro-versiones-1105.md §6 · §5",
+  "nota": "Fuente ÚNICA de lo que cada app declara de verdad. Solo hay capabilities en native/src-tauri; nada se concede fuera de estos archivos. El texto es el que ve la persona y `concede` dice cuándo lo pide el sistema.",
+  "fuentes": ["native/src-tauri/capabilities/default.json", "native/src-tauri/capabilities/desktop.json", "native/src-tauri/Info.plist", "native/src-tauri/src/android_parche.rs", ".github/workflows/native-build.yml"],
+  "grupos": {
+    "multiplataforma": ["core:default", "core:app:default", "core:window:default", "core:webview:default", "core:event:default", "core:path:default", "core:resources:default", "core:menu:default", "core:tray:default", "core:window:allow-set-title", "core:window:allow-minimize", "core:window:allow-maximize", "core:window:allow-unmaximize", "core:window:allow-close", "core:window:allow-start-dragging", "shell:allow-execute", "shell:allow-spawn", "shell:allow-kill", "shell:allow-stdin-write", "shell:allow-open", "fs:allow-read-text-file", "fs:allow-write-text-file", "fs:allow-read-dir", "fs:allow-mkdir", "fs:scope", "fs:default", "os:allow-platform", "os:allow-version", "os:allow-os-type", "os:allow-family", "os:allow-arch", "os:allow-hostname", "os:allow-locale", "os:allow-exe-extension", "process:allow-exit", "process:allow-restart", "notification:default", "notification:allow-notify", "notification:allow-request-permission", "notification:allow-is-permission-granted", "dialog:default", "dialog:allow-open", "dialog:allow-save", "dialog:allow-message", "dialog:allow-ask", "dialog:allow-confirm", "deep-link:default"],
+    "escritorio": ["autostart:default", "autostart:allow-enable", "autostart:allow-disable", "autostart:allow-is-enabled", "updater:default", "updater:allow-check", "updater:allow-download-and-install"],
+    "android": ["android.permission.INTERNET", "android.permission.FOREGROUND_SERVICE", "android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE", "android.permission.FOREGROUND_SERVICE_DATA_SYNC", "android.permission.CHANGE_WIFI_MULTICAST_STATE", "android.permission.ACCESS_NETWORK_STATE", "android.permission.ACCESS_WIFI_STATE", "android.permission.POST_NOTIFICATIONS", "android.permission.RECEIVE_BOOT_COMPLETED", "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"],
+    "red-local-macos": ["NSLocalNetworkUsageDescription"]
+  },
+  "sistemas": {
+    "macos": {
+      "nombre": "macOS",
+      "versionMinima": "10.15 (minimumSystemVersion de tauri.conf.json)",
+      "arquitecturas": ["universal: Apple Silicon (arm64) + Intel (x86_64)"],
+      "grupos": ["multiplataforma", "escritorio", "red-local-macos"],
+      "noPermite": ["Cámara, micrófono, contactos, accesibilidad o automatización: no se declaran en Info.plist ni en las capabilities.", "Instalar sin fricción: sin notarización de Apple, la primera apertura exige clic derecho → Abrir.", "Evitar el aviso de red local de macOS 15+: el sistema lo pide al primer uso."]
+    },
+    "windows": {
+      "nombre": "Windows",
+      "versionMinima": "No declarada en el repositorio (runner windows-latest; requiere WebView2)",
+      "arquitecturas": ["x64 (x86_64)"],
+      "grupos": ["multiplataforma", "escritorio"],
+      "noPermite": ["Cámara, micrófono, ubicación o contactos: no hay capabilities que los declaren.", "Saltarse SmartScreen: sin certificado de firma, Windows lo muestra la primera vez.", "Compilar para ARM64: native-build.yml solo produce x64."]
+    },
+    "linux": {
+      "nombre": "Linux",
+      "versionMinima": "No declarada en el repositorio (runner ubuntu-22.04; requiere WebKitGTK 4.1)",
+      "arquitecturas": ["x64 (amd64)"],
+      "grupos": ["multiplataforma", "escritorio"],
+      "noPermite": ["Cámara, micrófono, ubicación o contactos: no hay capabilities que los declaren.", "Bandeja sin libayatana-appindicator3: sin ella, cerrar la app sale del todo.", "ARM64: native-build.yml solo compila ubuntu-22.04 x64."]
+    },
+    "android": {
+      "nombre": "Android",
+      "versionMinima": "No declarada en el repositorio (compilada contra android-34)",
+      "arquitecturas": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"],
+      "grupos": ["multiplataforma", "android"],
+      "noPermite": ["Bluetooth, Wi-Fi Direct o USB host: no están declarados ni implementados todavía.", "Concederse la exclusión de batería sola: Android exige que la persona lo confirme en ajustes.", "Instalar desde Play Store: el APK es de carga directa (sideload) y va firmado con clave propia."]
+    },
+    "ios": {
+      "nombre": "iOS",
+      "versionMinima": "No declarada en el repositorio (build best-effort sin firma)",
+      "arquitecturas": ["arm64 (aarch64-apple-ios)", "simulador arm64 + x86_64"],
+      "grupos": ["multiplataforma"],
+      "noPermite": ["App nativa funcional y .ipa válido: el job iOS es best-effort y no produce ejecutable sin firma.", "Instalar sin re-firmar: hace falta AltStore/Sideloadly y un Apple ID, y caduca a los 7 días.", "Fondo arbitrario: iOS solo lo permite para modos concretos (bluetooth, audio, ubicación) y con cuenta de pago."]
+    },
+    "web": {
+      "nombre": "Web / PWA",
+      "versionMinima": "No aplica: la sirve el navegador (PWA instalable)",
+      "arquitecturas": ["cualquier navegador moderno (sin binario nativo)"],
+      "grupos": [],
+      "noPermite": ["Comandos, archivos o puertos: eso es exclusivo de la app nativa con capabilities.", "Notificaciones sin preguntar: el navegador las pide a la persona.", "Actualización como app nativa: usa el service worker de la PWA."]
+    }
+  },
+  "catalogo": {
+    "core:default": { "texto": "Núcleo de la app: ventana, eventos y ciclo de vida.", "concede": "al instalar" },
+    "core:app:default": { "texto": "Datos básicos de la app (nombre, versión y directorios).", "concede": "al instalar" },
+    "core:window:default": { "texto": "Crear y manejar la ventana principal.", "concede": "al instalar" },
+    "core:webview:default": { "texto": "Mostrar la web de StarSeed dentro de la app.", "concede": "al instalar" },
+    "core:event:default": { "texto": "Enviar avisos internos entre la web y la app.", "concede": "al instalar" },
+    "core:path:default": { "texto": "Resolver rutas de la app y del sistema.", "concede": "al instalar" },
+    "core:resources:default": { "texto": "Leer los recursos incluidos en la app.", "concede": "al instalar" },
+    "core:menu:default": { "texto": "Menús nativos de la ventana.", "concede": "al instalar" },
+    "core:tray:default": { "texto": "Icono de bandeja para volver a la app.", "concede": "al instalar" },
+    "core:window:allow-set-title": { "texto": "Cambiar el título de la ventana.", "concede": "al instalar" },
+    "core:window:allow-minimize": { "texto": "Minimizar la ventana.", "concede": "al instalar" },
+    "core:window:allow-maximize": { "texto": "Maximizar la ventana.", "concede": "al instalar" },
+    "core:window:allow-unmaximize": { "texto": "Restaurar la ventana.", "concede": "al instalar" },
+    "core:window:allow-close": { "texto": "Cerrar la ventana (la app puede seguir en segundo plano).", "concede": "al instalar" },
+    "core:window:allow-start-dragging": { "texto": "Arrastrar la ventana desde la barra.", "concede": "al instalar" },
+    "shell:allow-execute": { "texto": "Ejecutar comandos del sistema (sh, bash, cmd, powershell) con permiso de la persona.", "concede": "al primer uso" },
+    "shell:allow-spawn": { "texto": "Lanzar procesos en segundo plano.", "concede": "al primer uso" },
+    "shell:allow-kill": { "texto": "Detener procesos que la app lanzó.", "concede": "al primer uso" },
+    "shell:allow-stdin-write": { "texto": "Enviar entrada a un proceso lanzado.", "concede": "al primer uso" },
+    "shell:allow-open": { "texto": "Abrir enlaces con la app del sistema.", "concede": "al primer uso" },
+    "fs:allow-read-text-file": { "texto": "Leer archivos de texto (carpeta personal y rutas concedidas).", "concede": "al primer uso" },
+    "fs:allow-write-text-file": { "texto": "Escribir archivos de texto en la carpeta personal.", "concede": "al primer uso" },
+    "fs:allow-read-dir": { "texto": "Listar carpetas (carpeta personal y las concedidas).", "concede": "al primer uso" },
+    "fs:allow-mkdir": { "texto": "Crear carpetas en la carpeta personal.", "concede": "al primer uso" },
+    "fs:scope": { "texto": "Límite de rutas: casa, datos de la app, Documentos, Descargas y Escritorio.", "concede": "al instalar" },
+    "fs:default": { "texto": "Operaciones de archivo básicas dentro del límite anterior.", "concede": "al primer uso" },
+  }
+}
