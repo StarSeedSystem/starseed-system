@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { open, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { leerLatidos, leerProgreso, leerCanal } from "../director-fuentes";
@@ -160,8 +159,7 @@ describe("director-fuentes", () => {
         });
 
         it("la línea cortada del principio no aparece ni rompe nada", async () => {
-            const canalPath2 = path.join(mandoDir, "canal-cortado.jsonl");
-            writeFileSync(canalPath2, "línea_incompleta{ \"a\": 1 }\n" + JSON.stringify({ epoch: 1_800_000_000, quien: "test", texto: "valido" }));
+            writeFileSync(canalPath, "línea_incompleta{ \"a\": 1 }\n" + JSON.stringify({ epoch: 1_800_000_000, quien: "test", texto: "valido" }));
 
             const resultado = await leerCanal(raizMaxBytes, 50, 100);
 
@@ -180,7 +178,7 @@ describe("director-fuentes", () => {
                 JSON.stringify({ epoch: 1_800_000_002, quien: "b", texto: "dos" }),
                 JSON.stringify({ epoch: 1_800_000_003, quien: "c", texto: "tres" }),
             ].join("\n");
-            await writeFileSync(canalPeque, lineas);
+            writeFileSync(canalPeque, lineas);
 
             const sinMax = await leerCanal(raizPeque, 10);
             const conMax = await leerCanal(raizPeque, 10, 1024);
