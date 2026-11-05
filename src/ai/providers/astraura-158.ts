@@ -59,6 +59,8 @@ import { ASTRAURA_158_WS_READY_TIMEOUT_MS, getAstraura158Ws, type Astraura158Ws 
 import { preferenciaCapasGuardada } from "@/lib/astraura/capas-conciencia";
 import { paginaEsLocal } from "@/lib/astraura/destino-local";
 import { plegarHistorial, type Turno } from "@/lib/astraura/contexto/pliegue";
+import { leerDirectivas } from "@/lib/astraura/capas/directivas-almacen";
+import { seccionDirectivas } from "@/lib/astraura/capas/directivas";
 
 /* ───────────────────── Personalidades 1.58 (modelos de la fuente) ───────────────────── */
 
@@ -924,7 +926,14 @@ async function chat(
   const built = buildAstraura158Prompt(messages);
   if (!built.prompt.trim()) throw new Error("Astraura 1.58 error: no hay mensaje del usuario.");
   const note = mentionsSystemNote(mentions, persona);
-  const systemPrompt = note ? [built.system_prompt, note].filter(Boolean).join("\n\n") : built.system_prompt;
+  // ── Directivas Meta^n por capa/persona (sección de sistema) ──
+  const archivoDirectivas = typeof window !== "undefined" ? leerDirectivas(persona) : null;
+  const seccionDirectivasTexto = archivoDirectivas ? seccionDirectivas(archivoDirectivas) : "";
+  const systemPrompt = note
+    ? [built.system_prompt, seccionDirectivasTexto, note].filter(Boolean).join("\n\n")
+    : seccionDirectivasTexto
+      ? [built.system_prompt, seccionDirectivasTexto].filter(Boolean).join("\n\n")
+      : built.system_prompt;
   const mode = mentions.personas.length ? preferences.multi_personality_mode : undefined;
 
   // ═══════ Adenda 164 · WS con reserva a SSE ═══════
