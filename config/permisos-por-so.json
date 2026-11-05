@@ -1,0 +1,67 @@
+{
+  "macos": {
+    "minVersion": "12.0",
+    "archs": ["x86_64", "aarch64"],
+    "permissions": [
+      { "id": "shell:allow-execute", "desc": "Ejecutar comandos del sistema" },
+      { "id": "fs:allow-read-text-file", "desc": "Leer archivos del usuario" },
+      { "id": "fs:allow-write-text-file", "desc": "Escribir archivos del usuario" },
+      { "id": "notification:allow-notify", "desc": "Mostrar notificaciones" },
+      { "id": "autostart:allow-enable", "desc": "Iniciar automáticamente" },
+      { "id": "updater:allow-check", "desc": "Buscar actualizaciones" }
+    ],
+    "limitations": ["No tiene notarización oficial: requiere 'clic derecho -> Abrir' la primera vez"]
+  },
+  "windows": {
+    "minVersion": "10",
+    "archs": ["x86_64"],
+    "permissions": [
+      { "id": "shell:allow-execute", "desc": "Ejecutar comandos del sistema" },
+      { "id": "fs:allow-read-text-file", "desc": "Leer archivos del usuario" },
+      { "id": "fs:allow-write-text-file", "desc": "Escribir archivos del usuario" },
+      { "id": "notification:allow-notify", "desc": "Mostrar notificaciones" },
+      { "id": "autostart:allow-enable", "desc": "Iniciar automáticamente" },
+      { "id": "updater:allow-check", "desc": "Buscar actualizaciones" }
+    ],
+    "limitations": ["SmartScreen puede bloquear la instalación inicial"]
+  },
+  "linux": {
+    "minVersion": "22.04",
+    "archs": ["x86_64"],
+    "permissions": [
+      { "id": "shell:allow-execute", "desc": "Ejecutar comandos del sistema" },
+      { "id": "fs:allow-read-text-file", "desc": "Leer archivos del usuario" },
+      { "id": "fs:allow-write-text-file", "desc": "Escribir archivos del usuario" },
+      { "id": "notification:allow-notify", "desc": "Mostrar notificaciones" },
+      { "id": "autostart:allow-enable", "desc": "Iniciar automáticamente" },
+      { "id": "updater:allow-check", "desc": "Buscar actualizaciones" }
+    ],
+    "limitations": ["Requiere dependencias de sistema adicionales"]
+  },
+  "android": {
+    "minVersion": "10",
+    "archs": ["arm64-v8a", "armeabi-v7a"],
+    "permissions": [
+      { "id": "fs:allow-read-text-file", "desc": "Acceso a almacenamiento" },
+      { "id": "notification:allow-notify", "desc": "Mostrar notificaciones" }
+    ],
+    "limitations": ["No soporta autoarranque nativo", "No soporta updater in-app"]
+  },
+  "ios": {
+    "minVersion": "16.0",
+    "archs": ["arm64"],
+    "permissions": [
+      { "id": "fs:allow-read-text-file", "desc": "Acceso a archivos" },
+      { "id": "notification:allow-notify", "desc": "Mostrar notificaciones" }
+    ],
+    "limitations": ["Solo disponible como PWA"]
+  },
+  "web": {
+    "minVersion": "Chrome 100",
+    "archs": ["all"],
+    "permissions": [
+      { "id": "notification:allow-notify", "desc": "Mostrar notificaciones" }
+    ],
+    "limitations": ["Acceso limitado al sistema de archivos", "No ejecuta comandos nativos"]
+  }
+}
