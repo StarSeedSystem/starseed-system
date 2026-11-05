@@ -143,3 +143,42 @@ export function desdeReleases(json: ReleaseApi[]): VersionPublicada[] {
 }
 
 export { tipoVersion };
+
+export function desdeReleasesFallback(
+  version: string,
+  fecha: string,
+  notas: string,
+): VersionPublicada {
+  const base = `https://github.com/StarSeedSystem/starseed-system/releases/download`;
+  const tag = version.startsWith("v") ? version : `v${version}`;
+  const releaseUrl = `https://github.com/StarSeedSystem/starseed-system/releases/tag/${tag}`;
+
+  const href = (filename: string) => `${base}/${tag}/${filename}`;
+
+  const osAssets: ReleasePorSistema = {
+    macos: [
+      { nombre: `StarSeed.OS_${version}_universal.dmg`, bytes: 7025536, href: href(`StarSeed.OS_${version}_universal.dmg`) },
+    ],
+    windows: [
+      { nombre: `StarSeed.OS_${version}_x64-setup.exe`, bytes: 2516582, href: href(`StarSeed.OS_${version}_x64-setup.exe`) },
+      { nombre: `StarSeed.OS_${version}_x64_en-US.msi`, bytes: 3460352, href: href(`StarSeed.OS_${version}_x64_en-US.msi`) },
+    ],
+    linux: [
+      { nombre: `StarSeed.OS_${version}_amd64.AppImage`, bytes: 81800000, href: href(`StarSeed.OS_${version}_amd64.AppImage`) },
+      { nombre: `StarSeed.OS_${version}_amd64.deb`, bytes: 3774874, href: href(`StarSeed.OS_${version}_amd64.deb`) },
+      { nombre: `StarSeed.OS-${version}-1.x86_64.rpm`, bytes: 3774874, href: href(`StarSeed.OS-${version}-1.x86_64.rpm`) },
+    ],
+    android: [
+      { nombre: `StarSeed-os-${version}.apk`, bytes: 28665472, href: href(`StarSeed-os-${version}.apk`) },
+    ],
+    ios: [],
+  };
+
+  return {
+    version,
+    fecha,
+    notas,
+    url: releaseUrl,
+    archivos: { os: osAssets },
+  };
+}
