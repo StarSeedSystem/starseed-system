@@ -45,6 +45,16 @@ export {
 
 const RAÍZ = raizDelProyecto();
 const OLAS = path.join(RAÍZ, "starseed_memory_root", "olas");
+
+/**
+ * Caché de colas completas por archivo: mtimeMs + size → ColaCompleta ya interpretada.
+ * (SUP0511C) Evita leer y parsear 23 MB de colas en cada llamada a leerColasCompletas().
+ * Se devuelven copias para que quien llama pueda mutar sin tocar la caché.
+ */
+const CACHE_COLAS_COMPLETAS = new Map<
+    string,
+    { mtimeMs: number; size: number; cola: ColaCompleta }
+>();
 /**
  * Id de tarea. Acepta MAYÚSCULAS Y MINÚSCULAS (2026-09-16) porque así son los ids que el
  * enjambre lleva escribiendo desde la ola 300: `p316I`, `p320M`, `zW7`, `zO2`, `p323A`,
@@ -178,16 +188,37 @@ export async function leerColasCompletas(): Promise<ColaCompleta[]> {
         return [];
     }
     const salida: ColaCompleta[] = [];
+    const vistas = new Set<string>();
+
     for (const archivo of nombres) {
+        const ruta = path.join(OLAS, archivo);
+        vistas.add(ruta);
+        let marca: { mtimeMs: number; size: number } | null = null;
         try {
-            const crudo = JSON.parse(await readFile(path.join(OLAS, archivo), "utf-8")) as unknown;
+            const info = await stat(ruta);
+            marca = { mtimeMs: info.mtimeMs, size: info.size };
+        } catch {
+            marca = null;
+        }
+        const previa = CACHE_COLAS_COMPLETAS.get(ruta);
+        if (marca && previa && previa.mtimeMs === marca.mtimeMs && previa.size === marca.size) {
+            // Copia profunda para que el llamador pueda mutar sin tocar la caché
+            const cola = previa.cola;
+            salida.push({
+                ...cola,
+                tareas: cola.tareas.map((t) => ({ ...t, archivos: [...t.archivos], depende: [...t.depende] })),
+            });
+            continue;
+        }
+        try {
+            const crudo = JSON.parse(await readFile(ruta, "utf-8")) as unknown;
             const bruto: unknown[] = Array.isArray(crudo)
                 ? crudo
                 : Array.isArray(objeto(crudo).tareas)
                   ? (objeto(crudo).tareas as unknown[])
                   : [];
-            const info = await stat(path.join(OLAS, archivo));
-            salida.push({
+            const info = await stat(ruta);
+            const cola: ColaCompleta = {
                 nombre: archivo.replace(/^cola-/, "").replace(/\.json$/, ""),
                 archivo,
                 origen: "disco",
@@ -205,11 +236,24 @@ export async function leerColasCompletas(): Promise<ColaCompleta[]> {
                         ...extrasDeTarea(d),
                     };
                 }).filter((t) => t.id),
+            };
+            if (marca && crudo !== null) {
+                CACHE_COLAS_COMPLETAS.set(ruta, { ...marca, cola: { ...cola, tareas: cola.tareas.map((t) => ({ ...t, archivos: [...t.archivos], depende: [...t.depende] })) } });
+            } else {
+                CACHE_COLAS_COMPLETAS.delete(ruta);
+            }
+            salida.push({
+                ...cola,
+                tareas: cola.tareas.map((t) => ({ ...t, archivos: [...t.archivos], depende: [...t.depende] })),
             });
         } catch {
-            // cola ilegible: se salta
+            // cola ilegible: se salta y no se guarda en caché
+            CACHE_COLAS_COMPLETAS.delete(ruta);
         }
     }
+    // Limpiar entradas de archivos que ya no están en el directorio
+    for (const r of [...CACHE_COLAS_COMPLETAS.keys()]) if (!vistas.has(r)) CACHE_COLAS_COMPLETAS.delete(r);
+
     // Colas que solo existen en la otra máquina: se reconstruyen del bus (evento «arranque»).
     const enDisco = new Set(salida.map((c) => c.nombre));
     for (const c of await colasDelBus()) {
