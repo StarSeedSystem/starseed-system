@@ -161,24 +161,26 @@ export function VersionesOs() {
       <GlassCard className="p-4">
         <span className="text-sm text-muted-foreground font-medium">Historial de versiones</span>
         <div className="mt-3 space-y-2 max-h-40 overflow-y-auto">
-          {disponible ? [
-            {
-              version: disponible.version,
-              fecha: formatearFechaISO(disponible.fecha),
-              notas: disponible.notas.substring(0, 100) + (disponible.notas.length > 100 ? "…" : ""),
-            },
-            {
-              version: instalada,
-              fecha: "—",
-              notas: "Versión actualmente instalada",
-            },
-          ] : [
-            {
-              version: instalada,
-              fecha: "—",
-              notas: "Versión instalada (sin datos de actualización)",
-            },
-          ]}
+          {disponible ? (
+            <>
+              <div className="flex items-start gap-3 text-sm">
+                <span className="font-mono text-primary">{disponible.version}</span>
+                <span className="text-muted-foreground">{formatearFechaISO(disponible.fecha)}</span>
+                <span>{disponible.notas.substring(0, 100) + (disponible.notas.length > 100 ? "…" : "")}</span>
+              </div>
+              <div className="flex items-start gap-3 text-sm">
+                <span className="font-mono">{instalada}</span>
+                <span className="text-muted-foreground">—</span>
+                <span>Versión actualmente instalada</span>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-start gap-3 text-sm">
+              <span className="font-mono">{instalada}</span>
+              <span className="text-muted-foreground">—</span>
+              <span>Versión instalada (sin datos de actualización)</span>
+            </div>
+          )}
           {disponible && disponible.archivos?.os?.length > 0 && (
             <div className="pt-2 border-t text-xs text-muted-foreground">
               <span>•</span> {disponible.archivos.os.length} archivos para este sistema
