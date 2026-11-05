@@ -95,6 +95,7 @@ import {
   type NeuralEngineSettings,
   type AstrauraVoiceConfig,
 } from "@/lib/aurora/tts-oss/voice-config";
+import { oidoNubeListoYa, oidoNubeDisponible, CLAVE_APAGADO } from "@/lib/aurora/stt-oss/oido-nube";
 import {
   synthesizeOmniVoiceHybrid,
   getOmniVoiceRouteState,
@@ -170,6 +171,7 @@ export function VoiceOssPanel({ className }: { className?: string }) {
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [kokoroOk, setKokoroOk] = useState<boolean>(false);
   const [modelReady, setModelReady] = useState<boolean>(false);
+  const [oidoNube, setOidoNube] = useState<boolean>(!oidoNubeListoYa());
 
   // ── Voz del navegador (ranking + elección fija) ──
   const [browserVoiceURI, setBrowserVoiceURI] = useState<string>("");
@@ -822,6 +824,57 @@ export function VoiceOssPanel({ className }: { className?: string }) {
           </span>
         </li>
       </ul>
+
+      {/* ── Oído en la nube (Groq Whisper o Gemini) ──────────────────────── */}
+      <div className="rounded-xl border border-white/10 bg-white/[0.05] p-3 space-y-2.5">
+        <label className="flex items-center gap-2 text-[11px] text-foreground/75 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={oidoNube}
+            onChange={(e) => {
+              const valor = e.target.checked ? "" : "0";
+              try {
+                window.localStorage.setItem(CLAVE_APAGADO, valor);
+              } catch {}
+              setOidoNube(e.target.checked);
+            }}
+            className="accent-[#7fb8ff]"
+          />
+          <span>Oído en la nube (Groq Whisper o Gemini)</span>
+        </label>
+        <p className="text-[10px] leading-snug text-muted-foreground/60">
+          El audio de cada tramo se manda a transcribir y no se guarda.
+        </p>
+        {oidoNube && (
+          <p className="text-[10px] leading-snug text-muted-foreground">
+            <span className="text-foreground/80">
+              Oído actual:{" "}
+              {typeof window !== "undefined"
+                ? navigator.mediaDevices &&
+                  typeof navigator.mediaDevices.getUserMedia === "function"
+                  ? "micrófono del dispositivo"
+                  : "oído del navegador"
+                : "desconocido"}
+            </span>
+            ·
+            <span className="ml-2 text-foreground/80">
+              Última voz:{" "}
+              {typeof window !== "undefined"
+                ? (() => {
+                    try {
+                      const link = window.localStorage.getItem(
+                        "starseed.aurora.voice.motor-vivo.v1"
+                      );
+                      return link ? link.substring(0, 30) + "..." : "ninguna";
+                    } catch {
+                      return "ninguna";
+                    }
+                  })()
+                : "—"}
+            </span>
+          </p>
+        )}
+      </div>
 
       {/* Voz por NEURONA (Adenda 87): elección nube/local de ESTE dispositivo.
           Equivalente a la tarjeta de la sección de Neuronas — misma lógica. */}
