@@ -71,6 +71,7 @@ import {
 import { normalizarParaVoz } from "@/lib/voces/normalizar-es";
 import { motorRecomendado, Plataforma, MOTORES_VOZ } from "../catalogo-voces";
 import { motoresPermitidos, type MotorInfo, type ContextoLicenciaVoz } from "./licencia-voz";
+import { trocearTexto } from "@/lib/voces/trocear";
 function detectarPlataforma(): Plataforma {
     if (typeof window === "undefined") return "web";
     const ua = navigator.userAgent;
@@ -377,34 +378,58 @@ async function hablarPorLocal(texto: string, timbre: Timbre, alEmpezar?: () => v
  * que usa Gemini TTS y, si no hay clave, Pollinations. Reutiliza la MISMA
  * utilidad de reproducción que los niveles del demonio (`reproducirLocal`):
  * resuelve `true` cuando el audio EMPIEZA a sonar. Nunca lanza.
+ *
+ * Parte el texto en trozos de ≤ 500 caracteres (la ruta corta a 600) y pide
+ * los trozos en orden, pidiendo el siguiente mientras suena el actual. Si un
+ * trozo falla, reintenta una vez; si vuelve a fallar, devuelve false para ESE
+ * resto (el llamador sigue con su siguiente nivel) — nunca calla a media frase
+ * sin decirlo.
  */
-async function hablarPorNube(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
-    try {
-        let resp: Response;
-        try {
-            resp = await fetch("/api/voz/nube", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    texto,
-                    genero: timbre.genero,
-                    velocidad: timbre.local.speed,
-                }),
-                signal: AbortSignal.timeout(25_000),
-                cache: "no-store",
-            });
-        } catch {
-            return false; // red caída o timeout: se baja de nivel
+export async function hablarPorNube(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
+    const trozos = trocearTexto(texto, 500);
+    if (trozos.length === 0) return false;
+
+    const ml = await import("@/lib/aurora/motor-local");
+    let primerTrozo = true;
+
+    for (const trozo of trozos) {
+        let intentos = 0;
+        let ok = false;
+
+        while (intentos < 2 && !ok) {
+            intentos++;
+            try {
+                const resp = await fetch("/api/voz/nube", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        texto: trozo,
+                        genero: timbre.genero,
+                        velocidad: timbre.local.speed,
+                    }),
+                    signal: AbortSignal.timeout(25_000),
+                    cache: "no-store",
+                });
+                if (!resp.ok) continue;
+                const blob = await resp.blob();
+                if (!blob.size) continue;
+                if (primerTrozo) {
+                    try { alEmpezar?.(); } catch { /* el aviso no puede romper */ }
+                    primerTrozo = false;
+                }
+                ok = await ml.reproducirLocal(blob);
+            } catch {
+                // error de red o timeout: reintenta
+            }
         }
-        if (!resp.ok) return false;
-        const blob = await resp.blob();
-        if (!blob.size) return false;
-        try { alEmpezar?.(); } catch { /* el aviso no puede romper */ }
-        const ml = await import("@/lib/aurora/motor-local");
-        return await ml.reproducirLocal(blob);
-    } catch {
-        return false;
+
+        if (!ok) {
+            // Este trozo falló tras reintento: devuelve false para el resto
+            return false;
+        }
     }
+
+    return true;
 }
 
 /** Habla por el nivel ligero: Kokoro WASM en el navegador (`tts-oss/kokoro.ts`). */
@@ -425,19 +450,35 @@ async function hablarPorKokoro(texto: string, timbre: Timbre, alEmpezar?: () => 
 }
 
 /** Habla por el nivel mínimo: la voz del sistema (`speechSynthesis`). */
-async function hablarPorSistema(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
+export async function hablarPorSistema(texto: string, timbre: Timbre, alEmpezar?: () => void): Promise<boolean> {
     if (typeof window === "undefined") return false;
     try {
         const synth = window.speechSynthesis;
         if (!synth) return false;
         const p = parametrosPorNivel(timbre, "minima");
-        const u = new SpeechSynthesisUtterance(texto);
-        u.pitch = p.via === "sistema" ? p.pitch : timbre.sistema.pitch;
-        u.rate = p.via === "sistema" ? p.rate : timbre.sistema.rate;
-        u.lang = "es-ES";
-        if (alEmpezar) u.onstart = () => { try { alEmpezar(); } catch { /* */ } };
+        const trozos = trocearTexto(texto, 200);
+        if (trozos.length === 0) return false;
+
+        // Cancel solo al inicio, nunca entre trozos
         synth.cancel();
-        synth.speak(u);
+
+        let primerTrozo = true;
+        for (const trozo of trozos) {
+            const u = new SpeechSynthesisUtterance(trozo);
+            u.pitch = p.via === "sistema" ? p.pitch : timbre.sistema.pitch;
+            u.rate = p.via === "sistema" ? p.rate : timbre.sistema.rate;
+            u.lang = "es-ES";
+            if (primerTrozo && alEmpezar) {
+                u.onstart = () => { try { alEmpezar(); } catch { /* */ } };
+                primerTrozo = false;
+            }
+            // Esperar a que termine este trozo antes de enviar el siguiente
+            await new Promise<void>((resolve) => {
+                u.onend = () => resolve();
+                u.onerror = () => resolve(); // si hay error, seguimos con el siguiente
+                synth.speak(u);
+            });
+        }
         return true;
     } catch {
         return false;
