@@ -1,0 +1,139 @@
+{
+ "ola": "nube-20261104",
+ "tareas": [
+  {
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261104-193945-LNN1028F",
+   "id": "LNN1028Fb-d1",
+   "titulo": "Astraura · «recordar» funde Memvid y LEANN (y pregunta antes si hace falta) (parte 1 de 2)",
+   "archivos": [
+    "src/ai/astraura/recuerdos-capsulas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nEn `recuerdos-capsulas.ts` (de MVD1027F) añade `recordar(contexto, consulta)` y deja `recordarDeCapsulas` como alias: por cada cápsula de `capsulasParaContexto`, A LA VEZ `buscar` de Memvid y `buscarLeann` (filtros `{alcance: {in: alcanceVisiblePara(actor)}}`, `pesoVector = pesoVectorPara(consulta)`), luego `fundirRecuerdos`, `filtrarParaAlcance` y, si el modelo es de la nube, `detectarFuga`. Si la consulta es de menos de 4 palabras y sin pregunta, no busca (barato). Tope total 900 ms; lo que llegue tarde no entra. Pruebas: los dos responden, solo uno, ninguno.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261104-193945-LNN1028F`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261104-193945-LNN1028F:refs/remotes/origin/nube/a1-20261104-193945-LNN1028F\"` y `git cherry-pick --no-commit d0a2fd7f80df 8230fcc92004`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/recuerdos-capsulas.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió LNN1028Fb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/ai/astraura/recuerdos-capsulas.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "LNN1028Fb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "dependencias_ya_en_main": [
+    "MVD1027F-d3",
+    "LNN1028A",
+    "LNN1028D2"
+   ]
+  },
+  {
+   "ola": "1027V · Cápsulas de memoria (Memvid)",
+   "id": "MVD1027Fc",
+   "titulo": "Astraura · recuerdos de las cápsulas antes de responder (parte 1 de 3)",
+   "archivos": [
+    "src/ai/astraura/recuerdos-capsulas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Memvid (memvid/memvid, Apache-2.0) «en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda». Contrato: `architecture/memvid-capsulas.md` (léelo entero). Firmas del núcleo Rust en `integraciones-de-codigo/memvid/README-starseed.md`. Reglas: núcleo en Rust en un servidor propio (127.0.0.1:4490, token en `~/.starseed/memvid.token`), nunca el SDK de Node, nunca cuenta ni tickets de memvid.com, 50 MB por cápsula y se reparte, alcance de `src/lib/nucleo/alcance-memoria.ts`, personal y perfil cifradas.\n\n`recordarDeCapsulas(contexto, consulta)`: `capsulasParaContexto` del chat (perfil, personalidad, agente, página, grupo, cerebro), `buscar` k=4 en cada una de la más cercana a la más general hasta 6 fragmentos o 1500 caracteres, pasa `filtrarParaAlcance` y, si el modelo elegido es de la nube, `detectarFuga` contra lo personal; devuelve el bloque «RECUERDOS (cápsulas Memvid):» o \"\". En `router.ts`, junto a `chatCfgNote`, solo si `memoryScope` del chat no lo apaga; con 800 ms de tope total; si falla, \"\". Pruebas con el cliente falso.\n\n## PARTE 1 DE 3 (la dirección dividió MVD1027F: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/ai/astraura/recuerdos-capsulas.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261104-210437-MVD1027Fb`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261104-210437-MVD1027Fb:refs/remotes/origin/nube/a1-20261104-210437-MVD1027Fb\"` y `git cherry-pick --no-commit 4d4e66b97a5c 4ae18d048406 e4b38d3b932d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/__tests__/recuerdos-capsulas.test.ts, src/ai/astraura/recuerdos-capsulas.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "MVD1027F",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261104-210437-MVD1027Fb",
+   "dependencias_ya_en_main": [
+    "MVD1027D",
+    "MTN1027Jb"
+   ]
+  },
+  {
+   "ola": "1027V · Cápsulas de memoria (Memvid)",
+   "id": "MVD1027Hb",
+   "titulo": "Ajustes · «Memoria en cápsula» para personalidades y bots (parte 3 de 3)",
+   "archivos": [
+    "src/components/astraura-bots/editor-bot.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Memvid (memvid/memvid, Apache-2.0) «en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda». Contrato: `architecture/memvid-capsulas.md` (léelo entero). Firmas del núcleo Rust en `integraciones-de-codigo/memvid/README-starseed.md`. Reglas: núcleo en Rust en un servidor propio (127.0.0.1:4490, token en `~/.starseed/memvid.token`), nunca el SDK de Node, nunca cuenta ni tickets de memvid.com, 50 MB por cápsula y se reparte, alcance de `src/lib/nucleo/alcance-memoria.ts`, personal y perfil cifradas.\n\nComponente `CapsulaAjustes({ sujeto })`: interruptor (por sujeto, con `capsulas-ajustes.ts` de MVD1027H0), tamaño y cuánto queda (de la ruta GET), la línea del tiempo (últimos 20 fotogramas), «Cifrada» (fija y marcada en personal y perfil), «Exportar» (descarga el `.mv2e`/`.mv2`) e «Importar». Sin servidor: «El servidor de cápsulas no está en esta neurona» y nada más. Móntalo en el editor de cada personalidad (`personalities-hub.tsx`) y en el de cada bot (`editor-bot.tsx`).\n\n## PARTE 3 DE 3 (la dirección dividió MVD1027H: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/components/astraura-bots/editor-bot.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41800578833`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 41890162425) falla «pruebas TS»: 8\n ❯ Object.react-stack-bottom-frame node_modules/react-dom/cjs/react-dom-client.development.js:22428:20\n ❯ renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:5757:22\n ❯ updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:8018:19\n ❯ beginWork node_modules/react-dom/cjs/react-dom-client.development.js:9683:18\n ❯ runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:543:16\n ❯ performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:15052:22\n ❯ workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:14870:41\n\n\n2026-11-04T18:49:48.1149612Z ##[error]Process completed with exit code 1.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41800578833:refs/remotes/origin/nube/41800578833\"` y `git cherry-pick --no-commit 3a626461ac4f`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/astraura-bots/__tests__/editor-bot-avatar.test.tsx, src/components/astraura-bots/__tests__/editor-bot-capsula.test.tsx, src/components/astraura-bots/editor-bot.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "MVD1027H",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41800578833",
+   "dependencias_ya_en_main": [
+    "MVD1027H-d2"
+   ]
+  },
+  {
+   "ola": "1027V · Cápsulas de memoria (Memvid)",
+   "id": "MVD1027Fb",
+   "titulo": "Astraura · recuerdos de las cápsulas antes de responder (parte 1 de 3)",
+   "archivos": [
+    "src/ai/astraura/recuerdos-capsulas.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-27): Memvid (memvid/memvid, Apache-2.0) «en las memorias y capas, agentes, personalidades, perfiles, páginas, donde corresponda». Contrato: `architecture/memvid-capsulas.md` (léelo entero). Firmas del núcleo Rust en `integraciones-de-codigo/memvid/README-starseed.md`. Reglas: núcleo en Rust en un servidor propio (127.0.0.1:4490, token en `~/.starseed/memvid.token`), nunca el SDK de Node, nunca cuenta ni tickets de memvid.com, 50 MB por cápsula y se reparte, alcance de `src/lib/nucleo/alcance-memoria.ts`, personal y perfil cifradas.\n\n`recordarDeCapsulas(contexto, consulta)`: `capsulasParaContexto` del chat (perfil, personalidad, agente, página, grupo, cerebro), `buscar` k=4 en cada una de la más cercana a la más general hasta 6 fragmentos o 1500 caracteres, pasa `filtrarParaAlcance` y, si el modelo elegido es de la nube, `detectarFuga` contra lo personal; devuelve el bloque «RECUERDOS (cápsulas Memvid):» o \"\". En `router.ts`, junto a `chatCfgNote`, solo si `memoryScope` del chat no lo apaga; con 800 ms de tope total; si falla, \"\". Pruebas con el cliente falso.\n\n## PARTE 1 DE 3 (la dirección dividió MVD1027F: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/ai/astraura/recuerdos-capsulas.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41767020826`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41767020826:refs/remotes/origin/nube/41767020826\"` y `git cherry-pick --no-commit 598ba1d88bf4`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/ai/astraura/__tests__/recuerdos-capsulas.test.ts, src/ai/astraura/recuerdos-capsulas.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "MVD1027F",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41767020826",
+   "dependencias_ya_en_main": [
+    "MVD1027D",
+    "MTN1027Jb"
+   ]
+  },
+  {
+   "id": "RPO1104A",
+   "ola": "1104R · Repos nativos",
+   "titulo": "EGM · peces: el revisor sin contexto (prompt, lectura de objeciones y veredicto)",
+   "archivos": [
+    "src/lib/agents/egm/peces.ts",
+    "src/lib/agents/egm/__tests__/peces.test.ts"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2. Módulo PURO: `promptDePez(artefacto, tipo)` devuelve el prompt de un revisor que NO ve contexto (solo el artefacto y su tipo: respuesta, plan, ola, página, app) y debe contestar una objeción por línea con su gravedad `bloquea` · `importa` · `menor`; `leerObjeciones(texto)` → `{ gravedad, texto }[]` tolerante (ignora líneas sin gravedad, quita duplicados); `veredicto(objeciones)` → `{ pasa, bloqueantes }` (pasa si no hay `bloquea`). Pruebas con textos reales de modelo, con ruido."
+  },
+  {
+   "id": "RPO1104F",
+   "ola": "1104R · Repos nativos",
+   "titulo": "Ajustes de respuesta · revisión con peces e interfaz viva (decisiones puras)",
+   "archivos": [
+    "src/lib/astraura/ajustes-respuesta.ts",
+    "src/lib/astraura/__tests__/ajustes-respuesta-1104.test.ts"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2 y §3 «Ajustes». Añade a los ajustes de respuesta (sin romper los que hay) `revisionPeces: \"creaciones\" | \"siempre\" | \"nunca\"` (por defecto `creaciones`) e `interfaz: \"auto\" | \"viva\" | \"texto\"` (por defecto `auto`), y dos decisiones PURAS: `debeRevisarConPeces(ajustes, tipoDeTarea)` (creaciones = apps, páginas, publicaciones, planes; charla no) y `debeUsarInterfazViva(ajustes, { tieneDatos, tienePasos, tieneComparacion })`. Pruebas de cada combinación y de los valores por defecto."
+  },
+  {
+   "id": "RPO1104G",
+   "ola": "1104R · Repos nativos",
+   "titulo": "OpenUI · la biblioteca de componentes StarSeed (Trinity) y su prompt de sistema",
+   "archivos": [
+    "src/lib/openui/biblioteca.tsx",
+    "src/lib/openui/__tests__/biblioteca.test.tsx"
+   ],
+   "depende": [],
+   "origen": "repos-1104",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\nSi `@openuidev/react-lang` no está en `package.json`, responde BLOQUEADA: «falta 1104 · AG» y no toques nada. Lee antes el README y los `.d.ts` de `node_modules/@openuidev/react-lang` (y de `@openuidev/lang-core`): usa su API real, no la inventes. §3. Define con la API de OpenUI (componentes con props en Zod) la biblioteca StarSeed: Tarjeta, Tabla, Pasos, Comparación, LíneaDeTiempo, Lista y Acción (un botón que solo emite un evento con un id de acción; nunca ejecuta nada). Estilo Trinity con los componentes de `src/components/ui/` que ya existen (GlassCard…). Exporta la biblioteca y `promptDeSistema()` generado DESDE la biblioteca (no a mano). Prueba: la biblioteca tiene los 7 componentes y el prompt los nombra."
+  },
+  {
+   "id": "CTR1104Cb",
+   "ola": "1104C · Contratos pendientes",
+   "titulo": "Llmfit · la ventana de inicio usa la firma de novedades del explorador de modelos",
+   "archivos": [
+    "src/lib/astraura/startup-updates.ts",
+    "src/components/astraura/startup-updates-modal.tsx",
+    "src/lib/astraura/__tests__/startup-updates-scout.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo.\n\nContrato: `architecture/recomendador-modelos-llmfit.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§8 y §14.1: cablea `scoutSignature` de `src/ai/astraura/model-scout.ts` en `startup-updates.ts` (la firma de novedades decide si la ventana reaparece, con el mismo patrón firma+visto que ya usa) y enséñalo en `startup-updates-modal.tsx`. Prueba pura: firma nueva → reaparece; misma firma ya vista → no.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/41883760286`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 41910091049) falla «pruebas TS»:     class=\"pointer-events-none relative z-10 -mb-6 flex justify-center\"\n  />\n  <div\n    aria-hidden=\"true\"\n    class=\"pointer-events-none relative z-10 -mb-px h-0.5 w-full max-w-3xl rounded-full bg-gradient-to-r from-trinity-violet to-trinity-indigo\"\n  />\n  <div\n    data-testid=\"contenido\"\n  >\n    <button>\n      aplicar\n    </button>\n    <button>\n      cerrar-sin-aplicar\n    </button>\n    <button>\n      recordar-luego\n    </button>\n  </div>\n</div>\n\n ❯ src/components/astraura/__tests__/startup-updates-modal-cuenta.test.tsx:207:46\n\n\n2026-11-04T20:54:18.9012820Z ##[error]Process completed with exit code 1.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/41883760286:refs/remotes/origin/nube/41883760286\"` y `git cherry-pick --no-commit 62b7b705b723`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/astraura/startup-updates-modal.tsx, src/lib/astraura/__tests__/startup-updates-scout.test.ts, src/lib/astraura/startup-updates.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/41883760286"
+  }
+ ]
+}
