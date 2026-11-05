@@ -59,6 +59,10 @@ class QuienCedeLaRam(unittest.TestCase):
         self.assertFalse(P.es_enjambre("node /r/node_modules/.bin/next start -p 9002"))
         self.assertFalse(P.es_enjambre("/x/llama-server --port 8790"))
         self.assertFalse(P.es_enjambre("grep opencode run"))
+        self.assertTrue(P.es_enjambre("npx tsc --noEmit"))
+        self.assertTrue(P.es_enjambre("npx vitest run"))
+        self.assertTrue(P.es_enjambre("npx next build"))
+        self.assertTrue(P.es_enjambre("bash scripts/enjambre/tsc-turno.sh"))
 
     def test_con_conversacion_se_congela_el_enjambre_y_se_reanudan_los_motores(self):
         d = P.decidir(True, PROCESOS, set())

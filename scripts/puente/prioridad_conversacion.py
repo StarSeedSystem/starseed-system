@@ -57,6 +57,10 @@ PATRONES_ENJAMBRE = (
     re.compile(r"^\S*node\S*\s+\S*next\S*\s+build\b"),
     re.compile(r"^\S*node\S*\s+\S*tsc\b.*--noEmit"),
     re.compile(r"^\S*node\S*\s+\S*vitest\b"),
+    re.compile(r"^\S*npx\s+tsc\b.*--noEmit"),
+    re.compile(r"^\S*npx\s+vitest\b"),
+    re.compile(r"^\S*npx\s+next\S*\s+build\b"),
+    re.compile(r"^\S*bash\s+.*scripts/enjambre/.*\.sh\b"),
 )
 
 
@@ -72,6 +76,14 @@ def activa(concesion, ahora=None):
     """PURA: ¿dura aún la conversación?"""
     ahora = time.time() if ahora is None else ahora
     try:
+        # Si el archivo de concesión no se actualizó en los últimos 60 s, se considera muerta
+        # para garantizar que el enjambre se reanude aunque el proceso de voz muera.
+        try:
+            st = os.stat(CONCESION)
+            if ahora - st.st_mtime > 60:
+                return False
+        except OSError:
+            pass
         return float((concesion or {}).get("hasta") or 0) > ahora
     except (TypeError, ValueError):
         return False
