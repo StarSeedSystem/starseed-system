@@ -251,20 +251,28 @@ export async function recordar(opts: RecordarMultimodalOpciones): Promise<Record
     const memvidLimitado = resultadosMemvid.slice(0, MAX_FRAGMENTOS);
     const leannLimitado = resultadosLeann.slice(0, MAX_FRAGMENTOS);
 
-    const combinado = fundirRecuerdos([
-      memvidLimitado.map((fr) => ({ ...fr, fuente: "memvid" as const, uri: fr.id })),
-      leannLimitado.map((fr) => ({ ...fr, fuente: "leann" as const, uri: fr.id })),
-    ]);
+const combinadoRecuerdos = fundirRecuerdos([
+    memvidLimitado.map((fr) => ({ ...fr, fuente: "memvid" as const, uri: fr.id })),
+    leannLimitado.map((fr) => ({ ...fr, fuente: "leann" as const, uri: fr.id })),
+  ]);
 
-    const memoria = aBloqueMemvid(resultadosMemvid);
-    const leann = aBloqueLeann(resultadosLeann);
-    const combinadoStr = aBloqueCombinado(combinado);
+  const combinado: FragmentoMemoria[] = combinadoRecuerdos.map((r) => ({
+    id: r.uri,
+    alcance: r.alcance,
+    texto: r.texto,
+    origen: r.titulo ?? "fusion",
+    at: r.ts ?? Date.now(),
+  }));
 
-    let combinadoFinal = combinadoStr;
-    if (esModeloNube && combinado.length > 0) {
-      const personales = combinado.filter((fr) => fr.alcance === "personal");
-      if (personales.length > 0) {
-        const fugas = detectarFuga(combinadoStr, personales);
+  const memoria = aBloqueMemvid(resultadosMemvid);
+  const leann = aBloqueLeann(resultadosLeann);
+  const combinadoStr = aBloqueCombinado(combinado);
+
+  let combinadoFinal = combinadoStr;
+  if (esModeloNube && combinado.length > 0) {
+    const personales = combinado.filter((fr) => fr.alcance === "personal");
+    if (personales.length > 0) {
+      const fugas = detectarFuga(combinadoStr, personales);
         if (fugas.length > 0) {
           combinadoFinal = "[FUGA DETECTADA] " + combinadoFinal;
         }
