@@ -16,7 +16,8 @@ const CACHE_MS = 10 * 60 * 1000;
 let cache: { at: number; v: boolean } | null = null;
 let enCurso: Promise<boolean> | null = null;
 
-function apagado(): boolean {
+/** Comprueba si el oído en la nube está apagado por preferencia del usuario. PURO. */
+export function apagado(): boolean {
     try {
         return typeof window !== "undefined" && window.localStorage.getItem(CLAVE_APAGADO) === "0";
     } catch {
