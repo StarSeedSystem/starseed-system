@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, unlinkSync, statSync } from "node:fs";
+import { mkdtempSync, writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -187,13 +187,13 @@ describe("leerComprobacionesDe", () => {
 
     it("una línea rota sin 'verifica' no cambia el estado", () => {
         const contenido = [
-            JSON.stringify({ tipo: "verificacion_fallida", texto: "tsc ok" }),
+            JSON.stringify({ tipo: "verificacion_fallida", texto: "tsc falla" }),
             "corrupta{linea",
         ].join("\n");
         writeFileSync(archivoPath, contenido, "utf8");
 
         const resultado = leerComprobacionesDe(archivoPath);
-        expect(resultado).toEqual({ tsc: "ok", vitest: "desconocido" });
+        expect(resultado).toEqual({ tsc: "falla", vitest: "desconocido" });
     });
 
     afterEach(() => {

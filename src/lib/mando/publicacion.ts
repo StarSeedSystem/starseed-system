@@ -194,6 +194,7 @@ export function leerComprobacionesDe(rutaArchivo: string): EstadoProgresoLineas 
         const buffer = Buffer.alloc(TAMANO_BLOQUE);
         let posicion = offset;
         let estadoLocal: EstadoProgresoLineas = { ...estado };
+        let resto = "";
 
         try {
             while (posicion < tamanoActual) {
@@ -204,10 +205,23 @@ export function leerComprobacionesDe(rutaArchivo: string): EstadoProgresoLineas 
                 _bytesLeidosUltimaVez = posicion;
 
                 const trozo = buffer.toString("utf8", 0, leidos);
-                estadoLocal = avanzarComprobaciones({ ...estadoLocal, resto: "" }, trozo);
+                const avanzado = avanzarComprobaciones({ ...estadoLocal, resto }, trozo);
+                estadoLocal.tsc = avanzado.tsc;
+                estadoLocal.vitest = avanzado.vitest;
+                resto = avanzado.resto;
             }
         } finally {
             fsSync.closeSync(fd);
+        }
+
+        if (resto && !resto.includes("\n")) {
+            const combinado = resto;
+            const lineasFiltradas = [combinado].filter((l) => l.includes("verif"));
+            if (lineasFiltradas.length > 0) {
+                const interpretado = interpretarComprobaciones(lineasFiltradas);
+                if (interpretado.tsc !== null) estadoLocal.tsc = interpretado.tsc;
+                if (interpretado.vitest !== null) estadoLocal.vitest = interpretado.vitest;
+            }
         }
 
         const cacheEstado: EstadoProgreso = { tsc: estadoLocal.tsc, vitest: estadoLocal.vitest };
@@ -217,11 +231,6 @@ export function leerComprobacionesDe(rutaArchivo: string): EstadoProgresoLineas 
     } catch {
         return { tsc: "desconocido", vitest: "desconocido" };
     }
-}
-
-function tamanoArchivo(fd: number): number {
-    const stats = require("fs").fstatSync(fd);
-    return stats.size;
 }
 
 /** Ejecuta una orden `git` de solo lectura con tope de 15 s; devuelve `stdout` o `""`. */
