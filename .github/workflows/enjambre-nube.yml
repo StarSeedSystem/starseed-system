@@ -55,6 +55,11 @@ concurrency:
   group: enjambre-nube-${{ github.event.inputs.cola || github.ref }}
   cancel-in-progress: false
 
+# (1104 · AG) OpenUI (@openuidev/lang-core) avisa por telemetría al instalarse: apagada en cada npm ci.
+env:
+  OPENUI_TELEMETRY_DISABLED: "1"
+  DO_NOT_TRACK: "1"
+
 jobs:
   enjambre:
     runs-on: ubuntu-latest

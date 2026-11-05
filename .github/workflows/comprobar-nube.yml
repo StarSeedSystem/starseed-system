@@ -22,6 +22,11 @@ concurrency:
   group: comprobar-${{ github.ref }}
   cancel-in-progress: true
 
+# (1104 · AG) OpenUI (@openuidev/lang-core) avisa por telemetría al instalarse: apagada en cada npm ci.
+env:
+  OPENUI_TELEMETRY_DISABLED: "1"
+  DO_NOT_TRACK: "1"
+
 jobs:
   puertas:
     runs-on: ubuntu-latest

@@ -72,7 +72,7 @@ como "cd ~/starseed-system && git remote set-url --push origin no-se-empuja-desd
 # ── 5. Node: dependencias del repo (puertas tsc/vitest) y opencode con versión FIJA ──────────────
 paso "npm (dependencias del repo y opencode)"
 como "npm config set prefix ~/.npm-global && npm config delete omit >/dev/null 2>&1 || true"
-como "cd ~/starseed-system && h=\$(sha256sum package-lock.json | cut -c1-16); [ -f node_modules/.huella-lock ] && [ \"\$(cat node_modules/.huella-lock)\" = \"\$h\" ] || { npm ci --include=dev --no-audit --no-fund --loglevel=error && echo \$h > node_modules/.huella-lock; }"
+como "cd ~/starseed-system && h=\$(sha256sum package-lock.json | cut -c1-16); [ -f node_modules/.huella-lock ] && [ \"\$(cat node_modules/.huella-lock)\" = \"\$h\" ] || { OPENUI_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 npm ci --include=dev --no-audit --no-fund --loglevel=error && echo \$h > node_modules/.huella-lock; }"
 como "command -v ~/.npm-global/bin/opencode >/dev/null || npm install -g opencode-ai@1.18.33 --no-audit --no-fund --loglevel=error"
 como "mkdir -p ~/.config/opencode ~/.starseed ~/starseed-wt && cp $NODO/opencode.json ~/.config/opencode/opencode.json"
 

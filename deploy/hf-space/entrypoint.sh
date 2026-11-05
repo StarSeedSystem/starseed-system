@@ -35,6 +35,7 @@ preparar_repo() {
   git fetch -q origin main && git reset -q --hard origin/main
   if [ ! -x node_modules/.bin/tsc ]; then
     log "npm ci"
+    export OPENUI_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1  # (1104 · AG) sin telemetría de OpenUI
     npm ci --no-audit --no-fund --loglevel=error >> "$LOG" 2>&1 || { log "npm ci falló; abortando preparación"; return 1; }
   fi
   bash scripts/enjambre/instalar.sh >> "$LOG" 2>&1 || true

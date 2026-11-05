@@ -84,7 +84,7 @@ jobs:
           ORQ="$HOME/bin/starseed-enjambre.py"; [ -f "$ORQ" ] || ORQ="$HOME/.local/bin/starseed-enjambre.py"
           [ -f "$ORQ" ] || { echo "::error::no se instaló el orquestador"; exit 1; }
           mkdir -p .git/info; printf 'node_modules/\n' >> .git/info/exclude
-          if [ -f package-lock.json ]; then npm ci --no-audit --no-fund --loglevel=error; fi
+          if [ -f package-lock.json ]; then OPENUI_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 npm ci --no-audit --no-fund --loglevel=error; fi
           npm install -g opencode-ai@1.18.33 --no-audit --no-fund --loglevel=error
           set +e; python3 -u "$ORQ" "$RUNNER_TEMP/cola-contenedor.json" --workers 1 --solo "${{ steps.pedir.outputs.id }}"
           rc=$?; set -e
