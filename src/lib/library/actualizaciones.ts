@@ -325,7 +325,8 @@ function esTagComparable(tag: string): boolean {
  * `ruview-harness-2026-10-20`) devuelve null y se usa la comparación textual.
  */
 function tuplaDeVersion(texto: string): number[] | null {
-    const m = /^(?:release[-_/])?v?(\d+(?:\.\d+)+)/i.exec(texto.trim());
+    // (1104 · AI) También «paquete@1.2.3» y «@ámbito/paquete@1.2.3» (etiquetas de monorepo).
+    const m = /^(?:@?[\w.-]+(?:\/[\w.-]+)?@)?(?:release[-_/])?v?(\d+(?:\.\d+)+)/i.exec(texto.trim());
     if (!m) return null;
     const tupla = m[1].split(".").map((n) => Number.parseInt(n, 10));
     return tupla.every((n) => Number.isFinite(n)) ? tupla : null;
