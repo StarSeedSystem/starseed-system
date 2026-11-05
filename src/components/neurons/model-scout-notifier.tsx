@@ -5,7 +5,7 @@
  * Espejo de `model-download-notifier.tsx`: vive en segundo plano y muestra un toast
  * con enlace a Neuronas. Avisa UNA sola vez por firma de hardware/catálogo
  * (`scoutSignature`), igual que la ventana de inicio con sus firmas de catálogo.
- * Todavía no se monta en ninguna página (§9 y §14.3 del contrato).
+ * Se monta UNA vez en los globales de (app), junto a `ModelDownloadNotifier`.
  */
 
 import { useEffect } from "react";

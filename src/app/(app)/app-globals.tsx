@@ -30,6 +30,7 @@ import dynamic from "next/dynamic";
 import { AuroraIntro } from "@/components/onboarding/aurora-intro";
 import { AstrauraConfigDrawer } from "@/components/astraura/astraura-config-drawer";
 import { ModelDownloadNotifier } from "@/components/neurons/model-download-notifier";
+import { ModelScoutNotifier } from "@/components/neurons/model-scout-notifier";
 import { NeuronActivityLogger } from "@/components/neurons/neuron-activity-logger";
 import { useEffect } from "react";
 import { startAstraura158Feed } from "@/lib/astraura/astraura-158-feed";
@@ -101,6 +102,9 @@ export default function AppGlobals() {
           se monta UNA vez y escucha `starseed:open-astraura-config`. */}
       <AstrauraConfigDrawer />
       <ModelDownloadNotifier />
+      {/* Aviso de novedades del explorador de modelos (Adenda 138, §9/§14.3):
+          una vez por firma nueva de hardware/catálogo, con enlace a Neuronas. */}
+      <ModelScoutNotifier />
       <NeuronActivityLogger />
       {/* Eventos de los procesos de fondo Astraura 1.58 (imaginación · enjambre ·
           director) → avisos del OS con deep-link al Studio (Adenda 155). */}

@@ -13,6 +13,7 @@ import { useEffect } from "react";
 import { hermes } from "@/hermes-integration";
 import { AuroraIntro } from "@/components/onboarding/aurora-intro";
 import { ModelDownloadNotifier } from "@/components/neurons/model-download-notifier";
+import { ModelScoutNotifier } from "@/components/neurons/model-scout-notifier";
 import { NeuronActivityLogger } from "@/components/neurons/neuron-activity-logger";
 import { AuthGate } from "@/components/auth/auth-gate";
 import { GlobalEntityCreator } from "@/components/layout/global-entity-creator";
@@ -45,6 +46,8 @@ export default function AppProviders({ children }: { children: ReactNode }) {
           sería un SEGUNDO montaje (dos ventanas y dos helpers globales). */}
         {/* Aviso global al completar una descarga de modelo en 2º plano (Adenda 113). */}
         <ModelDownloadNotifier />
+        {/* Aviso de novedades del explorador de modelos (Adenda 138, §9/§14.3). */}
+        <ModelScoutNotifier />
         {/* Alimenta la bitácora por neurona con eventos reales de red/descargas (Adenda 115). */}
         <NeuronActivityLogger />
         {/* Motor de alarmas global + modal de aviso activo */}
