@@ -4727,3 +4727,16 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** clave
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-05 16:07 · mg-oracle-1105-0852
+
+**Lo que se pidió.** Oído en la nube (Groq Whisper o Gemini)
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `VOZ1105E` — otra cosa: ningún proveedor respondió (does not exist)
+- `VER1105Jc` — no escribió nada
