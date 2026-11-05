@@ -264,9 +264,20 @@ class Seguir(unittest.TestCase):
         self.assertEqual(C.decidir(dict(f, intentos_parche=3), set(), hilos, self.p, AHORA), "devolver")
 
     def test_trabajando_espera_hasta_la_gracia(self):
-        hilos = {"h-A": {"status": "running"}}
+        """Hilo CON salida (escribiendo) espera 12 h (GRACIA_H)."""
+        hilos = {"h-A": {"status": "running", "lastMessage": {"text": "estoy trabajando"}}}
         self.assertEqual(C.decidir(fila("A", AHORA - 3600), set(), hilos, self.p, AHORA), "esperar")
+        self.assertEqual(C.decidir(fila("A", AHORA - 10 * 3600), set(), hilos, self.p, AHORA), "esperar")
         self.assertEqual(C.decidir(fila("A", AHORA - 13 * 3600), set(), hilos, self.p, AHORA), "devolver")
+
+    def test_sin_empezar_devuelve_en_dos_horas(self):
+        """Hilo SIN salida (sin_empezar) devuelve la tarea en 2 h (GRACIA_SIN_EMPEZAR_H)."""
+        hilos = {"h-A": {"status": "running"}}  # sin lastMessage, messages, etc.
+        self.assertEqual(C.decidir(fila("A", AHORA - 3600), set(), hilos, self.p, AHORA), "esperar")
+        self.assertEqual(C.decidir(fila("A", AHORA - 2.5 * 3600), set(), hilos, self.p, AHORA), "devolver")
+        # Con salida (escribiendo) sigue con 12 h
+        hilos_con_salida = {"h-A": {"status": "running", "lastMessage": {"text": "algo"}}}
+        self.assertEqual(C.decidir(fila("A", AHORA - 10 * 3600), set(), hilos_con_salida, self.p, AHORA), "esperar")
 
     def test_sin_ramas_no_se_decide_nada_y_ajena_se_olvida(self):
         self.assertEqual(C.decidir(fila("A", AHORA - 99 * 3600), None, None, self.p, AHORA), "esperar")
