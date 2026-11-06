@@ -28,7 +28,7 @@ import { InterruptorAutopublicacion } from "@/components/mando/interruptor-autop
 import { PanelImaginacion } from "@/components/mando/panel-imaginacion";
 import { BotonReparar, ResultadoReparacion, useReparacion } from "@/components/mando/reparar-medidor";
 import { SeccionPlegable } from "@/components/mando/seccion-plegable";
-import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
+import type { AccionMedidor, ClaseAccion, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
 import type { AmbitoPropuesta } from "@/lib/mando/imaginacion-tipos";
 
 export type TonoMedidor = "normal" | "aviso" | "peligro" | "ok";
@@ -485,9 +485,9 @@ export function PanelMedidor({
     ambito?: AmbitoPropuesta;
     /** (IMG1024B) Algo cambió dentro del panel propio de un medidor: relee la pastilla. */
     alCambiar?: () => void;
-    /** (VER1105E) Datos del Centro de Versiones para la pastilla "versiones". */
+/** (VER1105E) Datos del Centro de Versiones para la pastilla "versiones". */
     versiones?: {
-        estado: { fase: string; detalle: string; version: string; tono: string };
+        estado: { fase: string; detalle: string; version: string; tono: string; pausado?: boolean };
         auto: boolean;
         filas: Array<{
             id: string;
@@ -853,7 +853,7 @@ export function PanelMedidor({
                     filas={versiones.filas}
                     estado={versiones.estado}
                     auto={versiones.auto}
-                    alAccionar={alAccionar as (clave: string, accion: { clase: string; texto: string; objetivo?: string; destructiva?: boolean; pideTexto?: string }, fila: { id: string } | undefined, texto: string) => Promise<void>}
+                    alAccionar={alAccionar!}
                 />
             ) : datos && clave === "en-cadena" ? (
                 // (2026-10-20) Las esperas normales de una cadena, en su propio medidor y agrupadas
@@ -989,9 +989,9 @@ export function PanelVersiones({
         detalle: string;
         accion: string;
     }>;
-    estado: { fase: string; detalle: string; version: string; tono: string };
+    estado: { fase: string; detalle: string; version: string; tono: string; pausado?: boolean };
     auto: boolean;
-    alAccionar: (clave: string, accion: { clase: string; texto: string; objetivo?: string; destructiva?: boolean; pideTexto?: string }, fila: { id: string } | undefined, texto: string) => Promise<void>;
+    alAccionar: (clave: ClaveMedidor, a: AccionMedidor, f: FilaMedidor | undefined, texto: string) => Promise<string>;
 }) {
     const faseOrden: Record<string, number> = {
         "esperando-lista": 0,
@@ -1020,7 +1020,7 @@ export function PanelVersiones({
                     <input
                         type="checkbox"
                         checked={auto}
-                        onChange={(e) => alAccionar("versiones", { clase: "auto", texto: e.target.checked ? "Desactivar" : "Activar" }, undefined, "")}
+                        onChange={(e) => void alAccionar("versiones", { clase: "auto" as ClaseAccion, texto: e.target.checked ? "Desactivar" : "Activar", destructiva: false }, undefined, "")}
                         className="h-3 w-3 accent-cyan-400"
                     />
                     Lanzar sola al terminar cada lista
@@ -1104,10 +1104,10 @@ export function PanelVersiones({
                                 ))}
                             </div>
                         )}
-                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+<div className="mt-1.5 flex flex-wrap items-center gap-2">
                             <button
                                 type="button"
-                                onClick={() => alAccionar("versiones", { clase: "regenerar", texto: fila.accion, objetivo: fila.id }, { id: fila.id }, "")}
+                                onClick={() => void alAccionar("versiones", { clase: "regenerar" as ClaseAccion, texto: fila.accion, objetivo: fila.id, destructiva: false }, undefined, "")}
                                 className="mc-alzar inline-flex cursor-pointer items-center gap-1 rounded-md border border-cyan-300/40 bg-cyan-400/10 px-2 py-0.5 text-[10px] text-cyan-100"
                             >
                                 {fila.accion}
@@ -1125,7 +1125,7 @@ export function PanelVersiones({
                 {estado.fase !== "lanzado" && estado.fase !== "atascado" && (
                     <button
                         type="button"
-                        onClick={() => alAccionar("versiones", { clase: "lanzar", texto: "Lanzar versión" }, undefined, "")}
+                        onClick={() => void alAccionar("versiones", { clase: "lanzar" as ClaseAccion, texto: "Lanzar versión", destructiva: false }, undefined, "")}
                         className="mc-alzar inline-flex cursor-pointer items-center gap-1 rounded-md border border-emerald-300/40 bg-emerald-400/10 px-2 py-0.5 text-[10px] text-emerald-100"
                     >
                         Lanzar versión
@@ -1135,14 +1135,14 @@ export function PanelVersiones({
                     <>
                         <button
                             type="button"
-                            onClick={() => alAccionar("versiones", { clase: estado.pausado ? "reanudar" : "pausar", texto: estado.pausado ? "Reanudar" : "Pausar" }, undefined, "")}
+                            onClick={() => void alAccionar("versiones", { clase: (estado.pausado ? "reanudar" : "pausar") as ClaseAccion, texto: estado.pausado ? "Reanudar" : "Pausar", destructiva: false }, undefined, "")}
                             className="mc-alzar inline-flex cursor-pointer items-center gap-1 rounded-md border border-amber-300/40 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-100"
                         >
                             {estado.pausado ? "Reanudar" : "Pausar"}
                         </button>
                         <button
                             type="button"
-                            onClick={() => alAccionar("versiones", { clase: "reintentar", texto: "Reintentar paso" }, undefined, "")}
+                            onClick={() => void alAccionar("versiones", { clase: "reintentar" as ClaseAccion, texto: "Reintentar paso", destructiva: false }, undefined, "")}
                             className="mc-alzar inline-flex cursor-pointer items-center gap-1 rounded-md border border-rose-300/40 bg-rose-400/10 px-2 py-0.5 text-[10px] text-rose-100"
                         >
                             Reintentar paso
