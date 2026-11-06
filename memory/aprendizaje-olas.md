@@ -4787,3 +4787,28 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** StarSeed OS
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-06 04:26 · auto-1105-221934
+
+**Lo que se pidió.** Pastilla
+
+**Resultado.** 20 de 31 integradas. 11 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — otra cosa (VER1105Db-d3, LZN1106A, IMG-diaria-endurecer el sandbox del iframe d, RPO1104S-d2, LNN1028I2-d1, RPO1104B-d2). Es 19 % de la ola.
+- 2 tareas se fueron por lo mismo — los tipos no compilan (IMG-agentes-reimaginada-profunda-sustituir-lbsb-d2, IMG-agentes-reimaginada-profunda-sustituir-lbsb). Es 6 % de la ola.
+- 2 tareas se fueron por lo mismo — la revisión lo rechazó (LNN1028I2-d2, LNN1028I2-d3). Es 6 % de la ola.
+- nvidia/nvidia/nemotron-3-ultra-550b-a55b integró 5 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `VER1105Db-d3` — otra cosa: director: reintento gratuito 1/8
+- `LZN1106A` — otra cosa
+- `IMG-diaria-endurecer el sandbox del iframe d` — otra cosa: continúa como IMG-diaria-endurecer-el-sandbox-del-iframe-d (1106I: el id con espacios hacía que Cloudroom respondiera HTTP 400 al abrir el h
+- `RPO1104S-d2` — otra cosa: continúa como RPO1104Sb desde la rama nube/a1-20261106-081554-RPO1104S-d2 (traer_nube)
+- `LNN1028I2-d1` — otra cosa: revisor: la cadena ya sigue por su sucesora LNN1028I2-d1b (en_curso): esta copia se cierra con su rama guardada
+- `RPO1104M-d2` — no escribió nada
+- `IMG-agentes-reimaginada-profunda-sustituir-lbsb-d2` — los tipos no compilan: 1 errores tsc (rama ola/IMG-agentes-reimaginada-profunda-sustituir-lbsb-d2 conservada)
+- `IMG-agentes-reimaginada-profunda-sustituir-lbsb` — los tipos no compilan: revisor: dividida en IMG-agentes-reimaginada-profunda-sustituir-lbsb-d1, IMG-agentes-reimaginada-profunda-sustituir-lbsb-d2 (tarea:tsc con 2
+- `RPO1104B-d2` — otra cosa: intento 1
+- `LNN1028I2-d2` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/LNN1028I2-d2 conservada)
+- `LNN1028I2-d3` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/LNN1028I2-d3 conservada)
