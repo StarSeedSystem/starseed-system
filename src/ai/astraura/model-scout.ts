@@ -74,7 +74,7 @@ import {
   type RunMode,
   type Backend,
 } from "./model-fit";
-import type { NeuronCapabilities } from "@/lib/neurons/neurons";
+export type { NeuronCapabilities } from "@/lib/neurons/neurons";
 
 /* ────────────────────────── Tipos públicos ────────────────────────── */
 
