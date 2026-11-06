@@ -578,6 +578,28 @@ export const INTEGRATIONS: IntegrationDescriptorExt[] = [
     ],
   },
 
+  // ── Tutor educativo opcional (§6 de repos-libreria-1104) ──────
+  {
+    id: "deeptutor",
+    ossId: "deeptutor",
+    label: "DeepTutor (tutor educativo)",
+    category: "app-platform",
+    capabilities: [
+      "Tutoría con el método explicar → comprobar → practicar → resumir",
+      "Resolver, cuestionarios, práctica e investigación con citas",
+      "Opcional: sin servidor, la habilidad educativa nativa sigue funcionando",
+    ],
+    defaultEndpoint: "http://127.0.0.1:3782",
+    needsKey: true,
+    docsUrl: "https://github.com/HKUDS/DeepTutor",
+    freeHostingHint:
+      "Opcional y sin coste de API: aloja DeepTutor en tu neurona o en el A1 (Docker o pip, puerto 3782) y define DEEPTUTOR_URL y DEEPTUTOR_TOKEN en el entorno. Si no responde, Astraura sigue con su habilidad educativa nativa.",
+    actions: [
+      { id: "estado", label: "Comprobar servidor", description: "Comprueba que el DeepTutor alojado responde." },
+      { id: "preguntar", label: "Preguntar al tutor", description: "Delega una tutoría (necesita pregunta; modo opcional: explicar, comprobar, practicar o resumir)." },
+    ],
+  },
+
   // ── Respaldo de bases de datos (P4-7) ─────────────────────────
   {
     id: "databasement",

@@ -219,6 +219,13 @@ export const AURORA_INTEGRATION_TOOLS: AuroraIntegrationTool[] = [
     actionId: "crear",
     category: "memory",
   },
+  // ── DeepTutor — tutoría, cuestionarios e investigación (opcional, §6) ──
+  {
+    name: "preguntar_tutor",
+    description: "Delega una tutoría a un DeepTutor alojado (servidor propio opcional). Entrada: { pregunta, modo? } (modo: explicar|comprobar|practicar|resumir). Si no está conectado, sigue con la habilidad educativa nativa.",
+    integrationId: "deeptutor",
+    actionId: "preguntar",
+  },
   // ── qm — memoria vectorial local cuantizada (1.58-bit embeddings, 100% local) ──
   {
     name: "qm_initialize",
