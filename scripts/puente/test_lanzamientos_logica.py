@@ -159,7 +159,10 @@ class Puertas(unittest.TestCase):
 class AplicarVersion(unittest.TestCase):
     def test_sobre_los_archivos_reales(self):
         rutas = ("native/src-tauri/tauri.conf.json", "native/src-tauri/Cargo.toml", "src/lib/version/os-release.ts")
-        textos = {r: open(os.path.join(RAIZ, r), encoding="utf-8").read() for r in rutas}
+        textos = {}
+        for r in rutas:
+            with open(os.path.join(RAIZ, r), encoding="utf-8") as f:
+                textos[r] = f.read()
         nuevos = L.aplicar_version(textos, "9.8.0", "2026-11-05", 'Notas con "comillas".')
         self.assertEqual(json.loads(nuevos[rutas[0]])["version"], "9.8.0")
         self.assertIn('version = "9.8.0"', nuevos[rutas[1]])

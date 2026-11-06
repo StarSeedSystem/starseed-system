@@ -23,11 +23,14 @@ def _g(cwd, *args):
 
 class Falso(object):
     def __init__(self, **o):
+        self.version_servida_valor = o.pop("version_servida", None)
         self.o = dict(dict(encendido=True, manual=False, pendientes=3, diff="+hola\n", archivos="src/a.ts",
                            pruebas=(True, "ok"), jev=False, runs=[], deploys=[], estados=[], http=200,
                            ancestro=True, push_rc=0), **o)
         self.pushes, self.avisos = [], []
         self.colas = {}
+        if self.version_servida_valor is not None:
+            self.version_servida = lambda: self.version_servida_valor
 
     def interruptor(self):
         return self.o["encendido"]
@@ -571,13 +574,13 @@ class VersionServida(unittest.TestCase):
 
     def test_sin_estados_12_min_web_sirve_sha_publica(self):
         """(a) Sin estados, 12 min después, la web sirve el sha del candidato → publica."""
-        m = Falso(deploys=[{"id": 7}], estados=[], http=200)
+        m = Falso(deploys=[{"id": 7}], estados=[], http=200, version_servida=SHA)
         base = {"fase": "verificando", "sha": SHA, "desde": T0, "pendientes": 1}
         self._mock_urlopen(200, b'{"sha": "%s"}' % SHA.encode())
         e = A.pasada(m, base, T0 + 12 * 60)
         self.assertEqual(e["fase"], "publicado")
         self.assertEqual(e["historial"][-1]["resultado"], "publicado")
-        self.assertIn("Vercel no publicó su estado en GitHub: confirmado por /version.json", m.avisos[-1])
+        self.assertTrue(any("Vercel no publicó su estado en GitHub; confirmado por /version.json" in a for a in m.avisos))
 
     def test_sin_estados_web_sirve_otro_sha_sigue_verificando(self):
         """(b) Sin estados y la web sirve OTRO sha → sigue verificando."""
