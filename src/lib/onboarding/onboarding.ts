@@ -1,6 +1,33 @@
 "use client";
 
 /**
+ * Clasiﬁca el error de una consulta a un servicio en dos tipos:
+ *  - 'red': la solicitud no obtuvo respuesta HTTP (fallo de transporte, DNS, conexión, timeout).
+ *  - 'indisponible': hay respuesta HTTP y su estado indica que el servicio no puede atender.
+ * La regla primera es: nunca afirmar que un servicio está caído ante un error de red.
+ */
+
+/** Devuelve 'red' si el error no tiene estatus HTTP, o 'indisponible' si lo tiene (4xx/5xx). */
+export function clasificarErrorServicio(error: unknown): "red" | "indisponible" {
+  if (!error) return "red";
+  // Intenta leer el status en el objeto de error (Supabase, fetch, etc.)
+  const err = error as Record<string, unknown>;
+  const status = typeof err.status === "number" ? err.status : undefined;
+  if (status !== undefined && status >= 400) return "indisponible";
+  // Si es un Error de JavaScript sin status numérico, es error de red
+  if (error instanceof Error && error.name !== "") return "red";
+  // Cualquier otro caso: asumir error de red por seguridad
+  return "red";
+}
+
+/** Texto legible según la clasificación del error. */
+export function textoErrorServicio(error: unknown): string {
+  const tipo = clasificarErrorServicio(error);
+  if (tipo === "red") return "No se pudo conectar";
+  return "El servicio no está disponible ahora";
+}
+
+/**
  * Onboarding de StarSeed OS — capa de datos sobre Supabase (RLS por owner/user).
  *
  * Mantiene el estado de la guía de primera ejecución (onboarding_state), la
@@ -317,8 +344,15 @@ export async function isHandleAvailable(handle: string): Promise<boolean> {
     if (yo) q2 = q2.neq("user_id", yo);
     const { data: d2 } = await q2;
     return (((d2 as { user_id: string }[]) || []).length === 0);
-  } catch {
-    // En caso de error de red, no afirmamos disponibilidad.
+  } catch (e) {
+    const tipo = clasificarErrorServicio(e);
+    if (tipo === "red") {
+      // Error de red: no se pudo conectar, no afirmes que el servicio está caído
+      console.warn("[onboarding] no se pudo conectar al comprobar handle (red)");
+    } else {
+      // Indisponibilidad: respuesta HTTP indicando fallo
+      console.warn("[onboarding] indisponibilidad al comprobar handle");
+    }
     return false;
   }
 }
@@ -487,7 +521,15 @@ export async function isEmailAvailable(address: string): Promise<boolean> {
       .limit(1);
     const rows = (data as { id: string }[]) || [];
     return rows.length === 0;
-  } catch {
+  } catch (e) {
+    const tipo = clasificarErrorServicio(e);
+    if (tipo === "red") {
+      // Error de red: no se pudo conectar, no afirmes que el servicio está caído
+      console.warn("[onboarding] no se pudo conectar al comprobar dirección (red)");
+    } else {
+      // Indisponibilidad: respuesta HTTP indicando fallo
+      console.warn("[onboarding] indisponibilidad al comprobar dirección");
+    }
     return false;
   }
 }
