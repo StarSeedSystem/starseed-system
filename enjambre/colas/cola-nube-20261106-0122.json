@@ -1,0 +1,30 @@
+{
+ "ola": "nube-20261106",
+ "tareas": [
+  {
+   "ola": "Ola 1011F · Mallas cerradas (watertight): PixelArtistry en ComfyUI y cierre por vóxeles de Blender para imprimir, física de XR y avatares",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261011-125307-WT1011B",
+   "id": "WT1011Bb-d3",
+   "titulo": "Cierre de mallas por vóxeles de Blender sin ventana, con rehorneado de textura (CPU, vale en la A1) (parte 3 de 3)",
+   "archivos": [
+    "servicios/taller-3d/motores/test_blender_voxel.py"
+   ],
+   "depende": [],
+   "prompt": "CONTRATO: `architecture/astraura-avatares-3d.md` (léelo ENTERO; §1 y §11.1). El núcleo puro YA está escrito y probado (78 pruebas) y NO se modifica: `src/lib/avatares/adn/` — `motores.ts` (motores `pixelartistry` y `blender-voxel`, campo `cierra`), `canalizacion.ts` (`planificar` con `cerrada`) y `optimizacion.ts` (destino `impresion`, campo `cerrada`, umbrales de VRAM). Usa la interfaz común de motor del taller que describen las tareas G3D1011A/B (`disponible()` y una función que devuelve dict(ok, glb, procedencia, fallo, segundos, pico_memoria_gb)); si `servicios/taller-3d/taller.py` existe, regístralo ahí; si no, deja el módulo listo y dilo. Reglas: «basta de ilusiones»; nunca descargas automáticas (solo con permiso y tras comprobar ≥ 3 veces el espacio); nada de claves en código; pruebas sin red ni GPU (simuladas). Al terminar, resumen honesto.\n\nTAREA: Con Blender sin ventana (`blender -b --python …`): importa el GLB, aplica el remallado por vóxeles con un tamaño de vóxel calculado a partir de las caras objetivo del plan, comprueba que la malla queda cerrada (sin bordes abiertos ni no-manifold; usa las mismas comprobaciones que «3D Print Toolbox → Check All» si están disponibles o cuéntalas con bmesh) y, si el destino lleva textura, vuelve a hornear el color desde el original (seleccionado a activo) con un UV nuevo. Exporta GLB y, para el destino `impresion`, también STL y 3MF si Blender los exporta en esa versión (compruébalo). Funciona en CPU: en la A1 con hilos limitados. `disponible()` comprueba el binario de Blender y su versión. Pruebas: el script de Python de Blender con bmesh simulado y la orquestación con subprocess simulado.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261011-125307-WT1011B`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261011-125307-WT1011B:refs/remotes/origin/nube/a1-20261011-125307-WT1011B\"` y `git cherry-pick --no-commit 4786cddf346d`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: servicios/taller_3d/motores/__init__.py, servicios/taller_3d/motores/blender_voxel.py, servicios/taller_3d/motores/test_blender_voxel.py.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 3 DE 3 (la dirección dividió WT1011Bb: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: servicios/taller-3d/motores/test_blender_voxel.py. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "WT1011Bb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "WT1011Bb-d2"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1105-221934.json": [
+   "WT1011Bb-d3"
+  ]
+ }
+}
