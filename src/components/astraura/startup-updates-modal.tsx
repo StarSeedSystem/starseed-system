@@ -40,10 +40,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Compass, Sparkles } from "lucide-react";
 import {
   copiarEstadoLocalACuenta, decidirArranque, getStartupState, sellarCatalogoVisto,
   subscribeStartupOpen, openStartupUpdates, snoozeUpdates, type DecisionArranque,
+  hayNovedadesScout, marcarScoutVisto,
 } from "@/lib/astraura/startup-updates";
+import { detectCapabilities, type NeuronCapabilities } from "@/lib/neurons/neurons";
 import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
 import { isSetupPending, subscribeSetup, markSetupDone } from "@/lib/aurora/setup-config";
 import { esMiTurno, terminarEtapa, suscribirRito } from "@/lib/onboarding/director-rito";
@@ -69,6 +72,9 @@ export function StartupUpdatesModal() {
   // (montaje + evento), la ventana de sistemas solo se abre cuando es su turno
   // y una única vez en esta sesión.
   const etapaAtendidaRef = useRef<string | null>(null);
+  // Scout findings (Adenda 138 · llmfit): hallazgos de modelos que rinden mejor.
+  const [scoutFindings, setScoutFindings] = useState<{ summary: string; best: Array<{ spec: { label: string }; verdict: string; requiredGb: number; estTps?: number; quant?: string; deltaVsCurrent?: string }> } | null>(null);
+  const [scoutLoading, setScoutLoading] = useState(false);
   useEffect(() => () => { esperaRef.current?.(); }, []); // solo al desmontar
 
   /**
@@ -117,6 +123,50 @@ export function StartupUpdatesModal() {
     cerrarDefinitivo();
     lanzarGuiaPendiente();
   }, [cerrarDefinitivo, lanzarGuiaPendiente]);
+
+  /** Comprueba y carga hallazgos del scout para esta neurona. */
+  const comprobarScout = useCallback(async () => {
+    setScoutLoading(true);
+    try {
+      const caps = await detectCapabilities();
+      const catalogLen = (await import("@/ai/astraura/model-requirements")).ALL_LLM_SPECS.length +
+        (await import("@/ai/astraura/model-requirements")).ALL_VOICE_SPECS.length;
+      if (hayNovedadesScout(caps, catalogLen)) {
+        const { scoutModels } = await import("@/ai/astraura/model-scout");
+        const result = scoutModels(caps, { limit: 3 });
+        if (result.hasBetter && result.best.length > 0) {
+          setScoutFindings({
+            summary: result.summary,
+            best: result.best.slice(0, 3).map((r) => ({
+              spec: { label: r.spec.label },
+              verdict: r.verdict,
+              requiredGb: r.requiredGb,
+              estTps: r.estTps,
+              quant: r.quant,
+              deltaVsCurrent: r.deltaVsCurrent,
+            })),
+          });
+        }
+      }
+    } catch {
+      /* degradación silenciosa */
+    } finally {
+      setScoutLoading(false);
+    }
+  }, []);
+
+  /** Marca los hallazgos del scout como vistos. */
+  const marcarScoutComoVisto = useCallback(async () => {
+    try {
+      const caps = await detectCapabilities();
+      const catalogLen = (await import("@/ai/astraura/model-requirements")).ALL_LLM_SPECS.length +
+        (await import("@/ai/astraura/model-requirements")).ALL_VOICE_SPECS.length;
+      marcarScoutVisto(caps, catalogLen);
+      setScoutFindings(null);
+    } catch {
+      /* noop */
+    }
+  }, []);
 
   // Foco inicial + trampa de Tab + Escape (patrón de la Adenda 137).
   useModalA11y({ open, onClose: remindLater, containerRef });
@@ -282,6 +332,24 @@ export function StartupUpdatesModal() {
     return () => { offSub?.(); };
   }, [open]);
 
+  // Comprobar hallazgos del scout al abrir la ventana (Adenda 138 · llmfit).
+  useEffect(() => {
+    if (!open) return;
+    comprobarScout();
+  }, [open, comprobarScout]);
+
+  // Marcar scout como visto al aplicar o descartar.
+  const handleApplyWithScout = useCallback(() => {
+    marcarScoutComoVisto();
+    cerrarDefinitivo();
+    lanzarGuiaPendiente();
+  }, [marcarScoutComoVisto, cerrarDefinitivo, lanzarGuiaPendiente]);
+
+  const handleDismissWithScout = useCallback(() => {
+    marcarScoutComoVisto();
+    cerrarSinAplicar();
+  }, [marcarScoutComoVisto, cerrarSinAplicar]);
+
   if (!open) return null;
 
   // (Ola 227) Aura de acentos Trinity ROTATIVA: cada apertura avanza en la
@@ -311,11 +379,55 @@ export function StartupUpdatesModal() {
       </div>
       {/* Línea de acento superior, también rotativa */}
       <div aria-hidden className={cn("pointer-events-none relative z-10 -mb-px h-0.5 w-full max-w-3xl rounded-full bg-gradient-to-r", clA.degradado)} />
+      {/* Hallazgos del Scout (Adenda 138 · llmfit): muestra modelos que rinden mejor. */}
+      {scoutLoading && (
+        <div className="relative z-10 w-full max-w-[560px] mb-2 rounded-xl border border-violet-500/20 bg-violet-950/20 px-3 py-2 animate-in fade-in-0 duration-200">
+          <div className="flex items-center gap-2 text-[12px] text-violet-300">
+            <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            Analizando el hardware de esta neurona para encontrar mejores modelos…
+          </div>
+        </div>
+      )}
+      {scoutFindings && !scoutLoading && (
+        <div className="relative z-10 w-full max-w-[560px] mb-2 rounded-xl border border-emerald-400/25 bg-emerald-500/[0.06] px-3 py-2.5 animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
+          <div className="flex items-start justify-between gap-2">
+            <p className="flex min-w-0 items-center gap-2 text-[12px] font-semibold text-emerald-300">
+              <Compass className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>Se detectaron modelos que rinden mejor en este equipo</span>
+            </p>
+          </div>
+          <p className="mt-1 text-[11px] leading-snug text-emerald-100/90">{scoutFindings.summary}</p>
+          {scoutFindings.best.length > 0 && (
+            <div className="mt-2 space-y-1.5">
+              {scoutFindings.best.map((r, i) => (
+                <div key={i} className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-white/90">{r.spec.label}</span>
+                    <span className="rounded-full border px-2 py-0.5 text-[11px] border-emerald-500/30 bg-emerald-500/15 text-emerald-300">
+                      {r.verdict === "perfecto" ? "Perfecto" : r.verdict === "bueno" ? "Bueno" : "Justo"}
+                    </span>
+                    <span className="ml-auto text-[11px] text-white/50">
+                      ~{r.requiredGb.toFixed(1)} GB{r.estTps ? ` · ~${Math.round(r.estTps)} tok/s` : ""}
+                      {r.quant ? ` · ${r.quant}` : ""}
+                    </span>
+                  </div>
+                  {r.deltaVsCurrent && (
+                    <div className="mt-1 text-[11px] text-fuchsia-300/80">{r.deltaVsCurrent}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="mt-2 text-[10px] text-emerald-100/70">
+            Se aplicará la mejor opción al pulsar «Aplicar y continuar». Puedes revisar los detalles en la pestaña Astraura.
+          </p>
+        </div>
+      )}
       <AstrauraOmniVoiceConfig
         variant="modal"
         initialSection="astraura"
-        onApply={() => { cerrarDefinitivo(); lanzarGuiaPendiente(); }}
-        onDismiss={cerrarSinAplicar}
+        onApply={handleApplyWithScout}
+        onDismiss={handleDismissWithScout}
       />
     </div>
   );
