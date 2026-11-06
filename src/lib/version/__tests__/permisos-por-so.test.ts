@@ -53,11 +53,13 @@ describe("permisos-por-so: validez del JSON", () => {
     }
   });
 
-  it("los sistemas móviles no tienen noPermiteSistema", () => {
-    const sistemasMoviles: SistemaOperativo[] = ["android", "ios", "web"];
-    for (const so of sistemasMoviles) {
+  it("todos los sistemas tienen noPermiteSistema (lo que el SO no permite)", () => {
+    const sistemas: SistemaOperativo[] = ["macos", "windows", "linux", "android", "ios", "web"];
+    for (const so of sistemas) {
       const config = permisosDe(so) as ConfigSO;
-      expect(config.noPermiteSistema).toBeUndefined();
+      expect(config.noPermiteSistema).toBeDefined();
+      expect(Array.isArray(config.noPermiteSistema)).toBe(true);
+      expect(config.noPermiteSistema!.length).toBeGreaterThan(0);
     }
   });
 
