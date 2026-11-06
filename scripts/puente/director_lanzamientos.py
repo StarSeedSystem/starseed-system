@@ -33,6 +33,8 @@ CONFIG = os.path.join(RAIZ, "config", "lanzamientos.json")
 CERROJO = os.path.expanduser("~/.starseed/cerrojos/lanzamientos.lock")
 OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 PROGRESO = os.path.join(OLAS, "progreso.json")
+#: Donde el revisor deja las colas que ya pasó a la tanda viva: la lista del lanzamiento sigue ahí.
+COLAS_FUENTE = os.path.join(RAIZ, "starseed_memory_root", "colas-fuente")
 ARCHIVOS_VERSION = ("native/src-tauri/tauri.conf.json", "native/src-tauri/Cargo.toml", "src/lib/version/os-release.ts")
 _TID = re.compile(r"\b([A-Z]{1,7}\d{3,5}[A-Za-z0-9-]*)\b")
 
@@ -91,7 +93,9 @@ def _ids_en_main(m, n=3000):
 def _lista(m, cfg):
     tareas = []
     for nombre in cfg.get("colas") or []:
-        datos = m.leer(os.path.join(OLAS, nombre), [])
+        datos = m.leer(os.path.join(OLAS, nombre), None)
+        if not datos:  # el revisor la movió a colas-fuente/ al pasarla a la tanda viva
+            datos = m.leer(os.path.join(COLAS_FUENTE, nombre), [])
         tareas += datos if isinstance(datos, list) else (datos or {}).get("tareas", [])
     return L.lista_terminada(tareas, m.leer(PROGRESO, {}), _ids_en_main(m))
 

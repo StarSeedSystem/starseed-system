@@ -103,6 +103,12 @@ class Pasadas(unittest.TestCase):
         est = D.pasada(m, {"fase": "esperando-lista"}, CFG, 1000.0)
         self.assertEqual(est["pendientes"], ["VER1105B"])
 
+    def test_lista_movida_a_colas_fuente_se_sigue_leyendo(self):
+        m = Falsos({os.path.join(D.COLAS_FUENTE, "cola-x.json"): [{"id": "VER1105A"}, {"id": "VER1105B"}],
+                    "_log": "1105V · VER1105A: algo"})
+        est = D.pasada(m, {"fase": "esperando-lista"}, CFG, 1000.0)
+        self.assertEqual(est["pendientes"], ["VER1105B"])
+
     def test_lista_terminada_espera_a_lo_publicado(self):
         m = Falsos({os.path.join(D.OLAS, "cola-x.json"): [{"id": "VER1105A"}], "_log": "x · VER1105A: hecho"})
         est = D.pasada(m, {"fase": "esperando-lista"}, CFG, 1000.0)
