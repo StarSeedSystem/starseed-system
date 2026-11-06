@@ -4766,3 +4766,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `CAPC1011Ccsb` — la revisión lo rechazó: no toco NINGUNO de los 2 archivos que declaraba (rama ola/CAPC1011Ccsb conservada)
 - `SUP0511Db-d2` — los tipos no compilan: 3 errores tsc (rama ola/SUP0511Db-d2 conservada)
 - `VER1105Db-d3` — otra cosa: reasignada a la nube 20261105
+
+## 2026-11-06 00:48 · video-1106
+
+**Lo que se pidió.** StarSeed OS
+
+**Resultado.** 2 de 5 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (DSV1105B, MBR1105A). Es 40 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+- nvidia/nvidia/nemotron-3-ultra-550b-a55b integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `DSV1105B` — otra cosa: revisor: su rama ola/DSV1105B ya tiene el trabajo y solo falló la integración: vuelve directa a las puertas
+- `DSV1105C` — los tipos no compilan: director: fallo del medio (tsc no terminó (sin memoria): la puerta no da el visto bueno): reintento sin gastar intento 1/6
+- `MBR1105A` — otra cosa: revisor: el fallo fue del medio (medio:tiempo), no de la tarea: vuelve a la cola sin gastar un intento
