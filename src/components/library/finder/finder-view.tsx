@@ -538,17 +538,28 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
         [saveItem, activeFolder],
     );
 
-    const handlePublishNavigate = useCallback((item: SavedItem) => {
+    const handlePublishNavigate = useCallback(async (item: SavedItem) => {
         const resolved = item.type === "alias" && item.targetItemId ? itemsById.get(item.targetItemId) ?? item : item;
-        const ref = {
+        const payload = {
             kind: resolved.type,
             title: resolved.title,
             url: resolved.url,
             route: resolved.route,
             note: resolved.note,
         };
-        const q = encodeURIComponent(JSON.stringify(ref));
-        window.location.assign(`/publish?attach=${q}`);
+        try {
+            const res = await fetch("/api/publish-item", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Error al publicar");
+            toast.success("Publicado en la Librería", { description: resolved.title });
+        } catch (err) {
+            console.error("Error al publicar ítem:", err);
+            toast.error("No se pudo publicar", { description: resolved.title });
+        }
     }, [itemsById]);
 
     // ── Versiones / edición (§13) ────────────────────────────────────────────

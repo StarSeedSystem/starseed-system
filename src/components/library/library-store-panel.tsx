@@ -90,8 +90,9 @@ function coverFor(item: StoreItem): string {
     calendario: "115e59/ccfbf1",
   };
   const pal = palettes[item.category] || "1f2937/e5e7eb";
-  const label = encodeURIComponent(item.title.slice(0, 22));
-  return `https://placehold.co/400x300/${pal}.png?text=${label}`;
+  const [colorBg, colorFg] = pal.split("/");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="${colorBg}"/><text x="200" y="150" fill="${colorFg}" font-family="Arial" font-size="20" text-anchor="middle">C</text></svg>`;
+  return `data:image/svg+xml;base64,${btoa(svg)}`;
 }
 
 // ── Valoración por estrellas (1–5) ──
