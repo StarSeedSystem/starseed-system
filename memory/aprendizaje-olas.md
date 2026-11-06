@@ -4812,3 +4812,24 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RPO1104B-d2` — otra cosa: intento 1
 - `LNN1028I2-d2` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/LNN1028I2-d2 conservada)
 - `LNN1028I2-d3` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/LNN1028I2-d3 conservada)
+
+## 2026-11-06 05:47 · auto-1106-042642
+
+**Lo que se pidió.** Conector opcional
+
+**Resultado.** 3 de 11 integradas. 8 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 5 tareas se fueron por lo mismo — otra cosa (ENT-agentes-referencias-diseno-agentes-re-7a7739-v1, IRD11063, IRD11061, IRD11062, ENT-agentes-referencias-diseno-agentes-re-45cd82-v1). Es 45 % de la ola.
+- 3 tareas se fueron por lo mismo — la revisión lo rechazó (IMG-agentes-referencias-diseno-agentes-refer, VER1105Db-d3, LNN1028I2-d2). Es 27 % de la ola.
+- groq/openai/gpt-oss-120b no integró ninguna de sus 4 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `IMG-agentes-referencias-diseno-agentes-refer` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/IMG-agentes-referencias-diseno-agentes-refer conservada)
+- `VER1105Db-d3` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/VER1105Db-d3 conservada)
+- `ENT-agentes-referencias-diseno-agentes-re-7a7739-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-7a7739-v1.json
+- `LNN1028I2-d2` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/LNN1028I2-d2 conservada)
+- `IRD11063` — otra cosa: 2 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-06-3.json
+- `IRD11061` — otra cosa: 2 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-06-1.json
+- `IRD11062` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-06-2.json
+- `ENT-agentes-referencias-diseno-agentes-re-45cd82-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-45cd82-v1.json
