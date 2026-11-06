@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-06 04:26:13 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-06 05:47:51 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,37 +16,25 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 41 |
 | Últimas 4 olas | en curso 0 · pendientes 80 · integradas 0 |
-| HEAD | `88d2f224c4 chore(memoria): aprendizaje de la ola auto-1105-221934` |
-| Sin publicar | 12 commits |
-| Árbol | 1 archivos sin commitear |
+| HEAD | `61ac9c0a58 chore(memoria): aprendizaje de la ola auto-1106-042642` |
+| Sin publicar | 10 commits |
+| Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1105-221934.json`, hace 29s)
+## Quién escribe ahora (latido de `cola-auto-1106-042642.json`, hace 38s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `LNN1028I2-d3` | hecho | freellmapi/auto | 1 min | 73 s | 99424 |
-| `IMG-agentes-reimaginada-profunda-sustituir-lbsb-d2` | hecho | freellmapi/auto | 10 min | 597 s | 759125 |
-| `RPO1104C` | hecho | freellmapi/auto | 27 min | 1614 s | 63264 |
-| `LNN1028I2-d2` | hecho | freellmapi/auto | 42 min | 2547 s | 103072 |
-| `LNN1028I2-d1b` | hecho | freellmapi/auto | 91 min | 5465 s | 92276 |
-| `WT1011Bb-d3` | hecho | freellmapi/auto | 92 min | 5495 s | 539842 |
-| `DR1029-1` | hecho | freellmapi/auto | 119 min | 7160 s | 27994 |
-| `IMG-agentes-reimaginada-diaria-tapar-las-dos` | hecho | freellmapi/auto | 137 min | 8243 s | 65725 |
-| `LNN1028I2-d1` | hecho | freellmapi/auto | 138 min | 8259 s | 329682 |
-| `RPO1104M-d2` | hecho | freellmapi/auto | 146 min | 8762 s | 67595 |
-| `MBR1105A` | hecho | freellmapi/auto | 165 min | 9891 s | 66696 |
-| `DSV1105C` | hecho | freellmapi/auto | 184 min | 11063 s | 60612 |
-| `SUP0611B` | hecho | freellmapi/auto | 185 min | 11099 s | 154142 |
-| `VER1105Db-d3` | hecho | freellmapi/auto | 226 min | 13581 s | 85630 |
-| `RPO1104S-d2` | hecho | freellmapi/auto | 257 min | 15445 s | 2891 |
-| `IMG-agentes-reimaginada-profunda-sustituir-lbsb` | hecho | freellmapi/auto | 276 min | 16577 s | 320654 |
-| `WT1011Bb-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 287 min | 17217 s | 184749 |
-| `VER1105Gd` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 305 min | 18320 s | 96626 |
-| `WT1011Bb-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 321 min | 19263 s | 129974 |
-| `RPO1104B-d2` | hecho | nvidia/minimaxai/minimax-m3.1-flas | 336 min | 20181 s | 32573 |
-| `RPO1104Q-d2` | hecho | freellmapi/auto | 339 min | 20366 s | 69509 |
-| `DPT1105Ab` | hecho | nvidia/nvidia/nemotron-3-super-120 | 365 min | 21883 s | 354434 |
-| `TRD1020Db-d3b` | hecho |  | 366 min | 21968 s | 258525 |
+| `VER1105Db-d3` | hecho | freellmapi/auto | 3 min | 178 s | 353353 |
+| `RPO1104S-d2` | hecho | freellmapi/auto | 7 min | 420 s | 95703 |
+| `LZN1106A` | hecho | freellmapi/auto | 16 min | 940 s | 88871 |
+| `IMG-agentes-referencias-diseno-agentes-refer` | hecho | freellmapi/auto | 38 min | 2283 s | 30376 |
+| `RPO1104B-d2` | hecho | freellmapi/auto | 52 min | 3140 s | 71965 |
+| `ENT-agentes-referencias-diseno-agentes-re-7a7739-v1` | hecho | groq/openai/gpt-oss-120b | 58 min | 3481 s | 725 |
+| `ENT-agentes-referencias-diseno-agentes-re-45cd82-v1` | hecho | groq/openai/gpt-oss-120b | 60 min | 3585 s | 801 |
+| `LNN1028I2-d2` | hecho | opencode/minimax-m3.1-flash-free | 64 min | 3857 s | 162207 |
+| `IRD11063` | hecho | groq/openai/gpt-oss-120b | 76 min | 4582 s | 550 |
+| `IRD11062` | hecho | explabs/deepseek-v4.1-flash | 77 min | 4595 s | 446 |
+| `IRD11061` | hecho | groq/openai/gpt-oss-120b | 78 min | 4660 s | 545 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
