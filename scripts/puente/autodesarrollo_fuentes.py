@@ -171,7 +171,9 @@ def de_astraura(status, fecha="", ya_encargadas=()):
 #: misma idea por cada archivo suelto del workspace, NEON para scripts y credenciales y títulos que se dan por autorizados.
 #: Este filtro decide ANTES de crear la propuesta y deja la cuenta de lo filtrado para el medidor (`filtro_astraura`).
 TOPE_ASTRAURA_DIA, VENTANA_FAMILIA_DIAS, MAX_RASTRO = 3, 7, 2000
-MOTIVOS_FILTRO = ("familia repetida", "tipo de archivo", "tope")
+#: (1106 · AST1106F) «credenciales» = toca archivos de credenciales: nunca se propone (`toca_secretos`); «tipo de archivo» =
+#: optimización NEON/SIMD o de código de un archivo que no es código (`optimizacion_sin_codigo`).
+MOTIVOS_FILTRO = ("familia repetida", "tipo de archivo", "tope", "credenciales")
 #: Lo que en la ventana impide otra de la misma familia (el mismo día, cualquiera): abierta, descartada, rechazada o agrupada.
 _BLOQUEAN = ("nueva", "pregunta", "esperando-aprobacion", "autodesarrollo", "reimaginando", "pospuesta", "agrupada", "descartada", "rechazada")
 _FICHERO = re.compile(r"[\w./-]*\w\.[A-Za-z]\w{0,5}\b|\b(?:dockerfile|makefile)\b", re.I)
@@ -193,6 +195,68 @@ def neon_sin_sentido(p):
     citados = [m.group(0) for m in _FICHERO.finditer(titulo + " " + cuerpo)]
     if any(_COMPILABLE.search(a) for a in citados) or _KERNEL.search(titulo + " " + cuerpo): return ""
     return "NEON/SIMD sin un archivo C, C++, Rust, Zig o un kernel donde aplicarlo"
+
+# ─────────────── credenciales y «optimizaciones» de lo que no es código (Ola 1106 · AST1106F) ───────────────
+#: El 06-11 seguían en «Por decidir» como «alta» la «Ingesta Automática de Workspace Soberano Local: vercel.backup.json,
+#: r2_credentials.local.json…» (utilidad 0) y la «Auto-Optimización de Código: vercel.backup.json»: proponen INGERIR o tocar
+#: archivos de secretos y eso nunca se propone. Se miran NOMBRES DE ARCHIVO, no palabras: «tokens/s», «tokenizer.json»,
+#: «design-tokens.json», «process.env», «event.key», «.env.example» o «id_rsa.pub» no son secretos.
+_NOMBRE_ARCHIVO = re.compile(r"[\w.@~-]+(?:/[\w.@~-]+)*")
+_EXT_CODIGO = frozenset("py ts tsx js jsx mjs cjs rs c cc cpp cxx h hh hpp hxx go swift kt java m mm zig s asm metal cu cl".split())
+_EXT_DOC = frozenset("md mdx rst html css scss".split())
+_EXT_SECRETO = frozenset("pem p12 pfx p8 keystore jks ppk".split())
+_ENV = re.compile(r"\.env(?:\.[\w-]+)*")
+_ENV_PLANTILLA = re.compile(r"\.(?:example|sample|template|dist|defaults?)$")
+_SIN_EXT = re.compile(r"id_(?:rsa|dsa|ecdsa|ed25519)|\.(?:netrc|pgpass|htpasswd)")
+_STEM_SECRETO = re.compile(
+    r"(?:^|[^a-z0-9])(?:credenciale?s?|credentials?|(?:client[_-]?)?secrets?|secretos?|passw(?:or)?ds?|contrasenas?"
+    r"|api[_-]?keys?|private[_-]?keys?|privkey|service[_-]?account|token|[a-z0-9]+_token"
+    r"|(?:access|api|auth|bearer|refresh|oauth|session|jwt|personal|secret)[_-]?tokens?)(?![a-z])")
+_STEM_KEY = re.compile(r"[_-]|^(?:server|private|priv|client|tls|ssl|cert|signing|apns|auth|domain|localhost|root|ca|master)$")
+
+def _es_secreto(nombre):
+    """True si `nombre` (una ruta o un nombre de archivo) es un archivo de credenciales o secretos. PURA."""
+    b = _plano(str(nombre or "").strip(" `'\"()[]{}<>").rstrip(".,;:-").rsplit("/", 1)[-1])
+    if not b: return False
+    if _ENV.fullmatch(b): return not _ENV_PLANTILLA.search(b)
+    if _SIN_EXT.fullmatch(b) or b.endswith(".local.json"): return True
+    stem, punto, ext = b.rpartition(".")
+    if not punto or not stem: return False
+    if ext in _EXT_SECRETO: return True
+    if ext == "key": return bool(_STEM_KEY.search(stem))  # «server.key» sí; «event.key» o «item.key» (código) no
+    if stem.startswith(("vercel", ".vercel")) and re.search(r"(?:^|[._-])(?:backup|bak)(?:[._-]|$)", stem): return True
+    return ext not in _EXT_CODIGO and ext not in _EXT_DOC and bool(_STEM_SECRETO.search(stem))
+def archivos_secretos(p):
+    """Los archivos de credenciales o secretos que nombran el título, el cuerpo o los archivos citados, sin repetir. PURA."""
+    archivos = p.get("archivos") or []
+    textos = [str(p.get("titulo") or ""), str(p.get("cuerpo") or "")] + [str(a) for a in ([archivos] if isinstance(archivos, str) else archivos)]
+    return list(dict.fromkeys(m.group(0).rstrip(".,;:-") for t in textos for m in _NOMBRE_ARCHIVO.finditer(t) if _es_secreto(m.group(0))))
+def toca_secretos(p):
+    """True si la propuesta nombra archivos de credenciales o secretos (`archivos_secretos`): nunca se propone. PURA."""
+    return bool(archivos_secretos(p))
+
+#: La «(Auto-)Optimización de Código: <archivo>» de Astraura es la rama gemela de «Optimización ARM NEON para <archivo>»
+#: (mismo archivo, ids seguidos); muchas llegan sin «NEON» en el cuerpo y `neon_sin_sentido` no las veía.
+_OPT_CODIGO = re.compile(r"optimizaci[oó]n\s+(?:del?\s+)?c[oó]digo|\b(?:cpu|vectoriz\w*|intr[ií]nsec\w*|arm64|aarch64)\b", re.I)
+_UN_ARCHIVO = re.compile(r"[\w.@~/-]*\w\.[A-Za-z]\w{0,9}|(?:[\w.@~-]+/)*(?:dockerfile|makefile)", re.I)
+def _objetivos_optimizacion(titulo):
+    """Lo que viene detrás del último «:» o del «para» final: «Auto-Optimización de Código: Dockerfile» → ["Dockerfile"]. PURA."""
+    m = re.search(r"(?::|\bpara\b)\s*([^:]+)$", str(titulo or ""), re.I)
+    if not m: return []
+    limpios = (o.strip(" `'\"\t").rstrip(".") for o in re.split(r"[,;]|\s+y\s+", m.group(1)))
+    return [o for o in limpios if o]
+def optimizacion_sin_codigo(p):
+    """El motivo si es una optimización de CPU/NEON/SIMD de algo que no es código compilable ni ejecutable: la NEON/SIMD que no
+    cabe (`neon_sin_sentido`) o una «(Auto-)Optimización de Código» cuyos objetivos son todos archivos que no son código
+    (Dockerfile, .sh, .json, .md, .yml…); "" si no. «Optimización de la imagen: Dockerfile» no es de CPU y pasa. PURA."""
+    motivo = neon_sin_sentido(p)
+    if motivo: return motivo
+    titulo = str(p.get("titulo") or "")
+    if not (_OPTIMIZA.search(titulo) and _OPT_CODIGO.search(titulo)): return ""
+    objetivos = _objetivos_optimizacion(titulo)
+    if not objetivos or not all(_UN_ARCHIVO.fullmatch(o) for o in objetivos): return ""
+    if any(o.rpartition(".")[2].lower() in _EXT_CODIGO for o in objetivos if "." in o): return ""
+    return "optimización de código para lo que no es código: %s" % ", ".join(objetivos)
 def familia_astraura(titulo):
     """La idea sin lo que cambia de una copia a otra: sin marcas de autorización, emojis ni símbolos, sin el objetivo de
     una optimización NEON/SIMD ni nombres de archivo, sin acentos y en minúsculas. PURA."""
@@ -208,7 +272,8 @@ def _dias(desde, hasta):
     except (TypeError, ValueError): return None
 def filtrar_astraura(nuevas, previas=(), fecha="", previo=None, tope=TOPE_ASTRAURA_DIA, ventana=VENTANA_FAMILIA_DIAS):
     """(las que entran, el resumen del día). Solo filtra las de Astraura que no están ya en `previas` (lo demás pasa tal
-    cual). Por orden: NEON/SIMD sin sentido («tipo de archivo»); su familia ya entró hoy o en este lote, o sigue abierta,
+    cual). Por orden: nombra archivos de credenciales o secretos («credenciales», 1106: nunca se propone); optimización
+    NEON/SIMD o de código de lo que no es código («tipo de archivo»); su familia ya entró hoy o en este lote, o sigue abierta,
     descartada, rechazada o agrupada en los últimos `ventana` días («familia repetida»); y como mucho `tope` de Astraura al
     día («tope»). `previo` es el resumen del ciclo anterior: el día se acumula por id y repetir el ciclo no infla nada. PURA."""
     previas = [q for q in (previas or []) if isinstance(q, dict)]
@@ -227,8 +292,8 @@ def filtrar_astraura(nuevas, previas=(), fecha="", previo=None, tope=TOPE_ASTRAU
         if not isinstance(p, dict) or p.get("fuente") != "astraura" or p.get("id") in conocidas:
             entran.append(p); continue
         fam = familia_astraura(p.get("titulo"))
-        motivo = ("tipo de archivo" if neon_sin_sentido(p) else "familia repetida" if fam in familias
-                  else "tope" if de_hoy >= tope else "entra")
+        motivo = ("credenciales" if toca_secretos(p) else "tipo de archivo" if optimizacion_sin_codigo(p)
+                  else "familia repetida" if fam in familias else "tope" if de_hoy >= tope else "entra")
         rastro[p["id"]] = motivo
         if p.get("autorizacion_inventada"): inventadas.add(p["id"])
         if motivo == "entra": familias.add(fam); de_hoy += 1; entran.append(p)

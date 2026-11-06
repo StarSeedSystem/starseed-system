@@ -330,7 +330,8 @@ class FiltroAstraura(unittest.TestCase):
         otra = {"id": "agentes:a--1", "fuente": "agentes", "titulo": "Lo de los agentes pasa siempre"}
         entran, r = F.filtrar_astraura(nuevas + [otra], [], self.HOY)
         self.assertEqual([p["id"] for p in entran], ["astraura:creation_0", "astraura:creation_1", "astraura:creation_2", "agentes:a--1"])
-        self.assertEqual((r["entran"], r["filtradas"], r["vistas"]), (3, {"familia repetida": 0, "tipo de archivo": 0, "tope": 2}, 5))
+        self.assertEqual((r["entran"], r["filtradas"], r["vistas"]),
+                         (3, {"familia repetida": 0, "tipo de archivo": 0, "tope": 2, "credenciales": 0}, 5))
         previas = [dict(p, estado="nueva") for p in entran[:3]]  # el ciclo siguiente: las 3 ya están en la lista
         entran2, r2 = F.filtrar_astraura(nuevas, previas, self.HOY, r)
         self.assertEqual([p["id"] for p in entran2], [p["id"] for p in previas])  # las conocidas pasan tal cual
@@ -338,6 +339,78 @@ class FiltroAstraura(unittest.TestCase):
         entran3, r3 = F.filtrar_astraura(nuevas[3:], previas, "2026-11-02", r2)  # otro día empieza de cero
         self.assertEqual((r3["fecha"], r3["entran"], len(entran3)), ("2026-11-02", 2, 2))
         self.assertEqual(F.filtrar_astraura([], None, self.HOY)[1]["vistas"], 0)
+
+
+class SecretosYOptimizacionSinCodigo1106(unittest.TestCase):
+    """Ola 1106 · AST1106F: con los títulos reales que seguían en «Por decidir» (propuestas.json, 06-11)."""
+    HOY = "2026-11-06"
+    INGESTA = ("Exploración Intuitiva: Ingesta Automática de Workspace Soberano Local (IA 1.58 bit): vercel.backup.json, "
+               "r2_credentials.local.json, IDEA.md, README.md")
+    BGAUTH = "Ejecución de solicitud autorizada por el Agente de Orquestación Inteligente → athena @ Génesis."
+
+    def _p(self, ident, titulo, cuerpo="// Auto-generado por Proceso Onírico", archivos=()):
+        return F._propuesta("astraura", ident, titulo, cuerpo, list(archivos), "astraura:creacion/" + ident, "sin_verificar", 3, 3,
+                            {"fecha": self.HOY, "tipo": "creacion", "id": ident})
+
+    def test_toca_secretos_con_los_titulos_reales(self):
+        for titulo in ("Optimización ARM NEON para r2_credentials.local.json", "Optimización ARM NEON para vercel.backup.json",
+                       "Optimización ARM NEON para vercel.backup.json, r2_credentials.local.json, IDEA.md, README.md",
+                       self.INGESTA, "Auto-Optimización de Código: vercel.backup.json",
+                       "⚡ [AUTORIZADO] ✅ Permiso Concedido: Auto-Optimización de Código: r2_credentials.local.json"):
+            self.assertTrue(F.toca_secretos(self._p("x", titulo)), titulo)
+        self.assertEqual(F.archivos_secretos(self._p("x", self.INGESTA)), ["vercel.backup.json", "r2_credentials.local.json"])
+        # también en el cuerpo o en los archivos citados, con nombres de archivo de secretos de cualquier tipo
+        self.assertTrue(F.toca_secretos(self._p("x", "Leer la configuración", "Cargar config/.env.production y ~/.ssh/id_rsa.")))
+        for archivo in (".env", ".env.local", "deploy/certs/server.key", "tls.pem", "cert.p12", "android/release.keystore",
+                        "secrets.yaml", "client_secret.json", "token.json", "github_token.txt", "api-tokens.json", "passwords.txt"):
+            self.assertTrue(F.toca_secretos(self._p("x", "Revisar la configuración", archivos=[archivo])), archivo)
+
+    def test_toca_secretos_sin_falsos_positivos(self):
+        for titulo, cuerpo in (("Medidor de tokens/s del modelo local", "Subir de 12 a 40 tokens/s en el M1 con BitNet b1.58."),
+                               ("Ajustar tokenizer.json del modelo BitNet", "Revisar tokenizer.json y tokenizer_config.json."),
+                               ("Leer process.env.SUPABASE_URL en src/lib/supabase.ts", "Y import.meta.env.VITE_API_TOKEN en el cliente."),
+                               ("Atajo de teclado del dock", "Leer event.key y e.key en src/components/dock.tsx."),
+                               ("Actualizar los design tokens", "En config/design-tokens.json y tokens.json."),
+                               ("Documentar .env.example", "Copiar .env.example y añadir id_rsa.pub al README.md."),
+                               ("Refactorizar src/lib/auth/credentials.ts", "Separar getCredentials() de la sesión."),
+                               ("Optimización ARM NEON para Dockerfile", "IDEA.md, README.md, setup_autostart.sh"),
+                               ("Revisar la documentación sobre secretos del sistema", "docs/secretos.md")):
+            self.assertFalse(F.toca_secretos(self._p("x", titulo, cuerpo)), (titulo, F.archivos_secretos(self._p("x", titulo, cuerpo))))
+
+    def test_optimizacion_sin_codigo(self):
+        for titulo in ("Optimización ARM NEON para IDEA.md", "Optimización ARM NEON para Dockerfile",
+                       "Optimización ARM NEON para tunnel_watchdog.sh", "Optimización ARM NEON para setup_autostart.sh"):
+            self.assertTrue(F.optimizacion_sin_codigo(self._p("x", titulo)), titulo)
+        # la rama gemela sin «NEON» en el cuerpo: `neon_sin_sentido` no la veía
+        for titulo in ("Auto-Optimización de Código: Dockerfile", "Auto-Optimización de Código: setup_autostart.sh",
+                       "Auto-Optimización de Código: IDEA.md"):
+            p = self._p("bgauth_1792934817_athena", titulo, self.BGAUTH)
+            self.assertEqual(F.neon_sin_sentido(p), "", titulo)
+            self.assertIn(titulo.split(": ")[-1], F.optimizacion_sin_codigo(p))
+        for titulo in ("Optimización ARM NEON para ggml-bitnet-mad.cpp", "Auto-Optimización de Código: src/lib/foo.ts",
+                       "Auto-Optimización de Código: kernels/ternario.c", "Optimización de la imagen: Dockerfile",
+                       "Mejorar el medidor de capacidad de Genesis", "Esquema de Agente Mutado: Hephaestus-NEON"):
+            self.assertEqual(F.optimizacion_sin_codigo(self._p("x", titulo, self.BGAUTH)), "", titulo)
+
+    def test_el_filtro_no_las_deja_entrar_y_las_cuenta(self):
+        status = {"branches": [{"id": "bgauth_1792916097_hephaestus", "requires_user_approval": True, "status": "pending_approval",
+                                "theme": "⚡ [AUTORIZADO] " + self.INGESTA, "hypothesis": self.BGAUTH}],
+                  "creations": [{"id": "creation_1793214366", "title": "Optimización ARM NEON para r2_credentials.local.json",
+                                 "content": "// Auto-generado por Proceso Onírico Auto-Reflexión & Optimización de Código ARM NEON",
+                                 "requires_user_approval": True, "status": "pending_approval", "importance_level": "high"},
+                                {"id": "creation_1793237973", "title": "Optimización ARM NEON para tunnel_watchdog.sh",
+                                 "requires_user_approval": True, "status": "pending_approval"},
+                                {"id": "creation_9", "title": "Mejorar el medidor de capacidad de Genesis",
+                                 "content": "Contar las tareas en cadena en src/lib/mando/medidores.ts.",
+                                 "requires_user_approval": True, "status": "pending_approval"}]}
+        nuevas = F.de_astraura(status, self.HOY) + [self._p("bgauth_1792934817_athena", "Auto-Optimización de Código: Dockerfile", self.BGAUTH)]
+        entran, r = F.filtrar_astraura(nuevas, [], self.HOY)
+        self.assertEqual([p["id"] for p in entran], ["astraura:creation_9"])
+        self.assertEqual(r["filtradas"], {"familia repetida": 0, "tipo de archivo": 2, "tope": 0, "credenciales": 2})
+        self.assertEqual(r["por_id"], {"astraura:creation_1793214366": "credenciales", "astraura:creation_1793237973": "tipo de archivo",
+                                       "astraura:creation_9": "entra", "astraura:bgauth_1792916097_hephaestus": "credenciales",
+                                       "astraura:bgauth_1792934817_athena": "tipo de archivo"})
+        self.assertEqual((r["entran"], r["autorizacion_inventada"]), (1, 1))
 
 
 if __name__ == "__main__":
