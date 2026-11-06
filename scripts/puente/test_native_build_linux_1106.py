@@ -21,7 +21,9 @@ class LinuxNativo(unittest.TestCase):
         wf = leer(".github/workflows/native-build.yml")
         self.assertIn("libayatana-appindicator3-dev", wf)
         self.assertNotIn("libappindicator3-dev \\", wf.replace("libayatana-appindicator3-dev", ""))
-        for paquete in ("libpipewire-0.3-dev", "libspa-0.2-dev", "libclang-dev", "libxdo-dev"):
+        # (LZ041A) xcap enlaza libgbm; linuxdeploy (AppImage) necesita FUSE 2 en 24.04.
+        for paquete in ("libpipewire-0.3-dev", "libspa-0.2-dev", "libclang-dev", "libxdo-dev", "libgbm-dev",
+                        "libfuse2t64"):
             self.assertIn(paquete, wf)
 
 

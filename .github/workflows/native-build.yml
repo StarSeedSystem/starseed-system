@@ -136,6 +136,8 @@ jobs:
             libegl-dev \
             libwayland-dev \
             libxdo-dev \
+            libgbm-dev \
+            libfuse2t64 \
             file
 
       # ── Iconos del sistema que toca (regenera native/src-tauri/icons/) ──
