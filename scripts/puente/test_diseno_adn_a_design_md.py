@@ -77,8 +77,10 @@ class TestDisenoAdnADesignMd(unittest.TestCase):
     def test_cafe_real_con_prompt_real_en_seccion_9(self):
         """El PROMPT.md real del café entra en la sección 9 junto a su dna.json."""
         base = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "memory", "diseno", "adn", "cafe")
-        with open(os.path.join(base, "dna.json"), encoding="utf-8") as f: dna_cafe = json.load(f)
-        prompt_cafe = open(os.path.join(base, "PROMPT.md"), encoding="utf-8").read()
+        with open(os.path.join(base, "dna.json"), encoding="utf-8") as f:
+            dna_cafe = json.load(f)
+        with open(os.path.join(base, "PROMPT.md"), encoding="utf-8") as f:
+            prompt_cafe = f.read()
         texto = design_md(dna_cafe, prompt_cafe)
         self.assertIn("`#FDF7EA`", texto)
         self.assertIn("Referencia (mirala primero)", texto.split("## 9. Agent Prompt Guide\n", 1)[1])
