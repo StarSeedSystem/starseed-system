@@ -54,15 +54,27 @@ describe("deeptutor · conector opcional", () => {
   });
 
   it("usa agente por defecto 'tutor' y permite agente personalizado", () => {
-    expect(configDeeptutor(ENV).agente).toBe("tutor");
-    expect(configDeeptutor({ ...ENV, DEEPTUTOR_AGENTE: "mi-agente" }).agente).toBe("mi-agente");
-    expect(configDeeptutor({ ...ENV, DEEPTUTOR_AGENTE: "  " }).agente).toBe("tutor");
+    const cfg = configDeeptutor(ENV);
+    expect(cfg).not.toBeNull();
+    expect(cfg!.agente).toBe("tutor");
+    const cfg2 = configDeeptutor({ ...ENV, DEEPTUTOR_AGENTE: "mi-agente" });
+    expect(cfg2).not.toBeNull();
+    expect(cfg2!.agente).toBe("mi-agente");
+    const cfg3 = configDeeptutor({ ...ENV, DEEPTUTOR_AGENTE: "  " });
+    expect(cfg3).not.toBeNull();
+    expect(cfg3!.agente).toBe("tutor");
   });
 
   it("url limpia trailing slash y espacios", () => {
-    expect(configDeeptutor({ ...ENV, DEEPTUTOR_URL: "http://127.0.0.1:8001/" }).url).toBe("http://127.0.0.1:8001");
-    expect(configDeeptutor({ ...ENV, DEEPTUTOR_URL: "  http://127.0.0.1:8001  " }).url).toBe("http://127.0.0.1:8001");
-    expect(configDeeptutor({ ...ENV, DEEPTUTOR_URL: "http://127.0.0.1:8001//  " }).url).toBe("http://127.0.0.1:8001");
+    const cfg1 = configDeeptutor({ ...ENV, DEEPTUTOR_URL: "http://127.0.0.1:8001/" });
+    expect(cfg1).not.toBeNull();
+    expect(cfg1!.url).toBe("http://127.0.0.1:8001");
+    const cfg2 = configDeeptutor({ ...ENV, DEEPTUTOR_URL: "  http://127.0.0.1:8001  " });
+    expect(cfg2).not.toBeNull();
+    expect(cfg2!.url).toBe("http://127.0.0.1:8001");
+    const cfg3 = configDeeptutor({ ...ENV, DEEPTUTOR_URL: "http://127.0.0.1:8001//  " });
+    expect(cfg3).not.toBeNull();
+    expect(cfg3!.url).toBe("http://127.0.0.1:8001");
   });
 
   it("estado consulta /api/system/status con Bearer y sin token en la URL", async () => {
