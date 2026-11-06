@@ -156,7 +156,7 @@ _FALLOS = (
     ("credencial", re.compile(r"keystore was tampered|incorrect key password|TAURI_SIGNING_PRIVATE_KEY.*"
                               r"(invalid|incorrect)|resource not accessible by integration|bad credentials", re.I)),
     ("codigo", re.compile(r"error\[E\d+\]|error: could not compile|TS\d{4}:|failed to bundle|"
-                          r"SyntaxError|cannot find module", re.I)),
+                          r"SyntaxError|cannot find module|unable to find library|error: linking with", re.I)),
     ("reintentar", re.compile(r"timed? ?out|ETIMEDOUT|ECONNRESET|connection reset|rate limit|\b50[234]\b|"
                               r"runner .*(lost|shutdown)|could not resolve host|network is unreachable|"
                               r"failed to download|operation was canceled", re.I)),
@@ -166,7 +166,7 @@ _FALLOS = (
 
 def clasificar_fallo(log):
     """(clase, motivo) del log de un job que falló (§3). Lo desconocido se reintenta una vez."""
-    texto = log or ""
+    texto = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", log or "")  # (1106) cargo pinta el log con colores ANSI
     for clase, patron in _FALLOS:
         m = patron.search(texto)
         if m:

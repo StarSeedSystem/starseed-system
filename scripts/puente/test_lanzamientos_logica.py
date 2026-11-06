@@ -107,6 +107,14 @@ class Fallos(unittest.TestCase):
         self.assertEqual(L.clasificar_fallo("Warning: no signing identity found")[0], "sin-firma")
         self.assertEqual(L.clasificar_fallo("")[0], "reintentar")
 
+    def test_log_con_colores_y_enlazado(self):
+        # (1106) v0.4.1 en Linux: «unable to find library -lgbm» con el log de cargo en colores ANSI.
+        pintado = ("\x1b[1m\x1b[91merror\x1b[0m\x1b[1m: linking with `cc` failed: exit status: 1\x1b[0m\n"
+                   "  = note: rust-lld: error: unable to find library -lgbm\n"
+                   "\x1b[1m\x1b[91merror\x1b[0m\x1b[1m: could not compile `starseed-native` (lib)\x1b[0m")
+        self.assertEqual(L.clasificar_fallo(pintado)[0], "codigo")
+        self.assertEqual(L.clasificar_fallo("\x1b[91merror\x1b[0m: could not compile `x`")[0], "codigo")
+
 
 class Puertas(unittest.TestCase):
     def test_lista(self):
