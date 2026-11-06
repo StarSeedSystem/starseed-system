@@ -1,0 +1,39 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "ola": "1104R · Repos nativos",
+   "id": "RPO1104Kc",
+   "titulo": "OpenUI · bloque «Respuesta viva» en la Protomolécula y el lienzo universal (parte 2 de 2)",
+   "archivos": [
+    "src/lib/protomolecula/__tests__/bloque-respuesta-viva.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\nSi `@openuidev/react-lang` no está en `package.json`, responde BLOQUEADA: «falta 1104 · AG» y no toques nada. Lee antes el README y los `.d.ts` de `node_modules/@openuidev/react-lang` (y de `@openuidev/lang-core`): usa su API real, no la inventes. §3. Añade al catálogo de bloques de la Protomolécula (el que define `bloque-protomolecula.ts`) el tipo `respuesta-viva` que guarda el texto OpenUI Lang y se pinta con `RespuestaViva`, siguiendo EXACTAMENTE el patrón de los bloques existentes (no inventes otro registro). Si el lienzo universal comparte ese catálogo, queda incluido; si no, dilo en tu respuesta. Prueba: el bloque se registra y se serializa/deserializa sin perder el texto.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261106-030554-RPO1104Kb-d2`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261106-030554-RPO1104Kb-d2:refs/remotes/origin/nube/a1-20261106-030554-RPO1104Kb-d2\"` y `git cherry-pick --no-commit 9b46e33079f9 e473b9f2fef6`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/protomolecula/__tests__/bloque-protomolecula.test.ts, src/lib/protomolecula/__tests__/bloque-respuesta-viva.test.ts, src/lib/protomolecula/bloque-protomolecula.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "RPO1104Kb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261106-030554-RPO1104Kb-d2",
+   "dependencias_ya_en_main": [
+    "RPO1104Kb-d1"
+   ]
+  },
+  {
+   "id": "IMG-agentes-reimaginada-profunda-sustituir-lbsb",
+   "titulo": "Reemplazar esperas estáticas por condiciones observables en pruebas de onboarding · lo que faltó: src/components/onboarding/Onboarding.tsx, src/lib/testing/utils.ts",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/onboarding/Onboarding.tsx",
+    "src/lib/testing/utils.ts"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de IMG-agentes-reimaginada-profunda-sustituir-lb, que ya está integrada (sha 1848c710b32d). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/components/onboarding/Onboarding.tsx, src/lib/testing/utils.ts.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Reemplazar esperas estáticas por condiciones observables en pruebas de onboarding\n\n--- encargo original, como contexto ---\nComprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Reemplazar esperas estáticas por condiciones observables en pruebas de onboarding. ## Resumen\nSe propone eliminar los `await new Promise(r => setTimeout(r, X))` o `wait(…)` usados en los tests de *onboarding* y sustituirlos por esperas basadas en condiciones observables (p.ej., aparición de un elemento, cambio de estado, resolución de una promesa). Esto mejora la fiabilidad y velocidad de la suite.\n\n## Pasos accionables (≤ 3 archivos)\n1. **src/components/onboarding/__tests__/primer-arranque.test.tsx** – Identificar todas las esperas fijas y reemplazarlas por `await waitFor(() => expect(...).toBeInTheDocument())` o por `await screen.findBy…` según corresponda.\n2. **src/compon Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261106-030554-IMG-agentes-reimaginada-profunda-sustituir-lbs`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261106-030554-IMG-agentes-reimaginada-profunda-sustituir-lbs:refs/remotes/origin/nube/a1-20261106-030554-IMG-agentes-reimaginada-profunda-sustituir-lbs\"` y `git cherry-pick --no-commit 8d8f7c43b81e 5b0d2d6aff72 8f5b93be7dd3 50f557222603`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/onboarding/Onboarding.tsx, src/components/onboarding/__tests__/primer-arranque.test.tsx, src/lib/testing/utils.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "depende_de": [],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261106-030554-IMG-agentes-reimaginada-profunda-sustituir-lbs"
+  }
+ ]
+}
