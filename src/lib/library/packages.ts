@@ -1041,6 +1041,35 @@ const LABS_PACKAGES: LibraryPackage[] = [
       author: "2noise", sourceRepoId: "starseed-labs", free: true, comingSoon: true,
       payload: { externalUrl: "https://github.com/2noise/ChatTTS", githubRepo: "2noise/ChatTTS", categoria: "voces", motorId: "chatt-ts", licencia: "AGPLv3+ (código) · CC BY-NC 4.0 solo académico (modelo)", claseLicencia: "solo-ficha", note: "Sin integración: modelo sin español, licencia académica no comercial. Solo referencia de licencia verificada." },
     },
+    /* ═══════════════════════ CATEGORÍA «MOVIMIENTO / AVATARES» ═══════════════════════
+       MotionBricks de NVIDIA: generación de movimiento humanoide en tiempo real
+       (≈15.000 FPS, 2 ms) guiada por poses objetivo y primitivas inteligentes
+       (locomoción con estilos, interacción con objetos). Encaja detrás de Kimodo
+       (Kimodo genera las poses objetivo, MotionBricks las une en tiempo real)
+       para los avatares de las personalidades de Astraura y el mundo 3D. */
+    {
+      id: "motion-nvidia-motionbricks",
+      kind: "repo",
+      name: "NVIDIA MotionBricks · movimiento tiempo real",
+      description:
+        "Generación de movimiento humanoide en tiempo real (≈15.000 FPS, 2 ms) guiada por poses objetivo y primitivas inteligentes: locomoción con estilos, interacción con objetos. Esqueletos SOMA y Unitree G1; clips BVH. Código Apache-2.0, modelos bajo NVIDIA Open Model Agreement (permite uso comercial según sus términos). Runtime con TensorRT → necesita GPU NVIDIA (probado con RTX 4090), Windows/Linux x86-64; exportador ONNX incluido. No es texto→movimiento: encaja detrás de Kimodo para los avatares de Astraura y el mundo 3D.",
+      icon: "Move3d",
+      tags: ["movimiento", "avatares", "tiempo-real", "nvidia", "tensorrt", "onnx", "kimodo"],
+      version: "1.0.0",
+      author: "NVIDIA",
+      sourceRepoId: "starseed-labs",
+      free: true,
+      comingSoon: true,
+      payload: {
+        externalUrl: "https://github.com/NVlabs/motionbricks",
+        githubRepo: "NVlabs/motionbricks",
+        categoria: "movimiento",
+        licencia: "Apache-2.0 (código) · NVIDIA Open Model Agreement (modelos)",
+        claseLicencia: "libre",
+        note: "necesita GPU NVIDIA (TensorRT); ninguna neurona actual la tiene; probar la vía ONNX en CPU",
+        corre_aqui: false,
+      },
+    },
     /* ── Modelos locales que se descargan tras comprobar dónde caben (Recursos de IA) ── */
     ...FICHAS_IA_LOCALES,
     /* ── Repos que Alex trajo para el OS (Hono, React Native Zalo Kit) ── */
