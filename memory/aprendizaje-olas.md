@@ -5945,3 +5945,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RPO1104M-d2` — otra cosa: ya en main (Claude, 06-11 13:33 UTC): destino-nativo.test.ts llegó con la parte 1 (b73ba4ed1a) con las 10 pruebas del contrato, 10/10 en ver
 - `VER1105Db-d3` — otra cosa: ya en main (Claude, 06-11): el trabajo de la nube 7e70d77637 es idéntico a main; la corrida de las 12:50 UTC fue una reapertura que no debía
 - `CTR1106As` — no escribió nada
+
+## 2026-11-06 14:46 · auto-1106-144419
+
+**Lo que se pidió.** nada cabe
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `CTR1106As` — otra cosa: repositorio o rama ajenos: worktree conservado
