@@ -94,6 +94,13 @@ import { listZipEntries } from "@/lib/files/simple-zip";
 import { abrirSelectorMedio, refDeBiblioteca, SelectorMedioGlobal } from "@/components/recursos-ia/abrir-selector-medio";
 // Variaciones públicas (Ola 1019V · §3): «Variaciones públicas» del clic derecho.
 import { accionVariaciones, claveDeItemBiblioteca } from "@/components/variaciones/accion-variaciones";
+// Handoff seguro al Lienzo de Creación: el ítem viaja recortado por el almacén
+// de la pestaña, nunca como JSON completo en la querystring (?attach=…).
+import {
+    guardarAdjunto,
+    recortarAdjunto,
+    RUTA_PUBLICACION_SEGURA,
+} from "@/lib/library/adjunto-publicacion";
 
 const TYPE_FILTERS: Array<{ key: "todos" | SavedItemType; label: string }> = [
     { key: "todos", label: "Todo" },
@@ -538,17 +545,45 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
         [saveItem, activeFolder],
     );
 
-    const handlePublishNavigate = useCallback((item: SavedItem) => {
+    const handlePublishNavigate = useCallback(async (item: SavedItem) => {
         const resolved = item.type === "alias" && item.targetItemId ? itemsById.get(item.targetItemId) ?? item : item;
-        const ref = {
-            kind: resolved.type,
+        // Solo los campos que el compositor necesita: el objeto completo (ACL,
+        // payload, historial) se queda en la Biblioteca.
+        const adjunto = recortarAdjunto({
             title: resolved.title,
             url: resolved.url,
             route: resolved.route,
             note: resolved.note,
-        };
-        const q = encodeURIComponent(JSON.stringify(ref));
-        window.location.assign(`/publish?attach=${q}`);
+        });
+        if (!adjunto) {
+            toast.error("Este ítem no tiene ruta ni URL para publicar.");
+            return;
+        }
+
+        // POST con el cuerpo en JSON: el ítem no viaja en la URL. Si la red
+        // falla, el recorte local sigue siendo válido y el flujo no se rompe.
+        let confirmado = adjunto;
+        try {
+            const res = await fetch("/api/publish/adjunto", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(adjunto),
+                credentials: "same-origin",
+                cache: "no-store",
+            });
+            if (res.ok) {
+                const data = (await res.json()) as { adjunto?: Record<string, unknown> };
+                confirmado = recortarAdjunto(data.adjunto) ?? adjunto;
+            }
+        } catch {
+            /* sin red: el handoff local sigue siendo válido */
+        }
+
+        if (!guardarAdjunto(confirmado)) {
+            toast.error("No se pudo preparar la publicación en este navegador.");
+            return;
+        }
+        window.location.assign(RUTA_PUBLICACION_SEGURA);
     }, [itemsById]);
 
     // ── Versiones / edición (§13) ────────────────────────────────────────────
@@ -1133,7 +1168,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                         menuTarget.kind === "item"
                             ? () => {
                                   const it = itemsById.get(menuTarget.id);
-                                  if (it) handlePublishNavigate(it);
+                                  if (it) void handlePublishNavigate(it);
                               }
                             : undefined
                     }

@@ -1,0 +1,35 @@
+// POST /api/publish/adjunto
+// ─────────────────────────────────────────────────────────────────────────────
+// Recibe por CUERPO JSON (nunca por querystring) el ítem que el Finder quiere
+// publicar, lo recorta a los campos imprescindibles y devuelve solo eso. El
+// cliente guarda la respuesta en el almacén de su pestaña y navega a /publish
+// con una marca mínima; así el objeto completo no queda en el historial ni en
+// los logs del servidor. No se registra el cuerpo en ningún log.
+
+import { recortarAdjunto } from "@/lib/library/adjunto-publicacion";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function POST(request: Request): Promise<Response> {
+    let cuerpo: unknown;
+    try {
+        cuerpo = await request.json();
+    } catch {
+        return Response.json({ error: "Cuerpo JSON inválido." }, { status: 400 });
+    }
+
+    const adjunto = recortarAdjunto(
+        typeof cuerpo === "object" && cuerpo !== null && !Array.isArray(cuerpo)
+            ? (cuerpo as Record<string, unknown>)
+            : null,
+    );
+    if (!adjunto) {
+        return Response.json(
+            { error: "Faltan título o destino (url/route) para publicar." },
+            { status: 400 },
+        );
+    }
+
+    return Response.json({ adjunto }, { headers: { "Cache-Control": "no-store" } });
+}
