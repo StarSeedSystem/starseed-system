@@ -7,7 +7,7 @@ import os
 # Add repo root to path so that scripts.puente modules are importable
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 
-import scripts.puente.reconstruct_mando as rm
+import scripts.puente.reconstruir_mando as rm
 import unittest
 from unittest import mock
 

@@ -106,8 +106,9 @@ class TestDisenoAdnADesignMd(unittest.TestCase):
             self.assertEqual(0, main(["--slug", "prueba", "--raiz", raiz, "--escribir"]))
         destino = os.path.join(carpeta, "DESIGN.md")
         self.assertTrue(os.path.isfile(destino))
-        self.assertIn("## 9. Agent Prompt Guide\nSin PROMPT.md",
-                      open(destino, encoding="utf-8").read())
+        with open(destino, encoding="utf-8") as f:
+            contenido = f.read()
+        self.assertIn("## 9. Agent Prompt Guide\nSin PROMPT.md", contenido)
         for vil in ("..", "../cafe", "café", "Cafe", "a/b"):
             with self.assertRaises(ValueError):
                 main(["--slug", vil, "--raiz", raiz])
