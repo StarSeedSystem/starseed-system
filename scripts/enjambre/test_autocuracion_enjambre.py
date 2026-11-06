@@ -118,6 +118,11 @@ class CerradasEnDiscoTest(unittest.TestCase):
         ids = enjambre.cerradas_en_disco(cada_s=0, ruta=self.ruta)
         self.assertEqual(sorted(ids), ["LC1007A", "MC1007B", "X"])
 
+    def test_no_aplica_tambien_esta_cerrada(self):
+        self.escribir({"VER1105Db-d3": {"estado": "no_aplica"}, "B": {"estado": "no-aplica"},
+                       "C": {"estado": "pendiente"}})
+        self.assertEqual(sorted(enjambre.cerradas_en_disco(cada_s=0, ruta=self.ruta)), ["B", "VER1105Db-d3"])
+
     def test_relee_como_mucho_cada_tanto(self):
         self.escribir({"A": {"estado": "commit"}})
         self.assertEqual(set(enjambre.cerradas_en_disco(cada_s=3600, ruta=self.ruta)), {"A"})

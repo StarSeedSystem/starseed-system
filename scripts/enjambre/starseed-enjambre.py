@@ -3276,6 +3276,9 @@ PROG = cargar_prog()
 PROGRESO_IRREVERSIBLE = {"commit", "bloqueante", "sustituida", "rechazada"}
 
 
+#: (1106) Cerradas sin código que integrar: descartada, o «no aplica» (su propósito ya estaba en main).
+CERRADAS_SIN_CODIGO = frozenset({"descartada", "no_aplica", "no-aplica"})
+
 _CERRADAS_DISCO = {"t": 0.0, "ids": frozenset()}
 
 
@@ -3305,7 +3308,7 @@ def cerradas_en_disco(cada_s=30, ruta=None):
                     k
                     for k, v in disco.items()
                     if isinstance(v, dict)
-                    and v.get("estado") in (PROGRESO_IRREVERSIBLE | {"descartada"})
+                    and v.get("estado") in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
                 )
         except Exception:
             pass
