@@ -51,7 +51,22 @@ ESTADOS_NO_AUTOMATICOS = {
     # (2026-09-29) Cierre de un sueño profundo (tarea de análisis): informe escrito, nada
     # que integrar. No es «sin cambios» ni se relanza.
     "informe",
+    # (2026-11-06) «No aplica»: su propósito ya estaba en main. El enjambre (ENJ1106N) y el
+    # revisor (REV1106N) ya la contaban cerrada; aquí faltaba, y desde las 07:32 el vigilante
+    # lanzaba cada 3 min una ola con RPO1104M-d2 y VER1105Db-d3: el orquestador las veía
+    # cerradas y salía, y el vigilante volvía a lanzarlas (~80 olas, dos commits de memoria
+    # por ola, y el informe, el relevo a los IDE y el espejo de Drive en cada una).
+    "no_aplica",
+    "no-aplica",
 }
+
+#: (2026-11-06) Cerradas porque su propósito ya está en main sin un commit propio.
+NO_APLICA = frozenset({"no_aplica", "no-aplica"})
+
+
+def _cerrada_en_main(estado):
+    """¿Este estado de progreso dice que el trabajo YA está en main? commit, hecho o «no aplica»."""
+    return estado in ("commit", "hecho") or estado in NO_APLICA
 
 # (2026-09-29) Las colas de los sueños profundos (`cola-suenos-<fecha>.json`) y su propuesta
 # (`cola-suenos-propuesta-<fecha>.json`) NO son demanda del vigilante: los sueños los lanza
@@ -213,7 +228,7 @@ def sucesora_integrada(dep, progreso, asuntos_git=()):
         if k == dep or k <= dep or base_de_cadena(k) != base:
             continue
         est = v.get("estado") if isinstance(v, dict) else ""
-        if est in ("commit", "hecho") or id_en_asuntos(k, asuntos_git or []):
+        if _cerrada_en_main(est) or id_en_asuntos(k, asuntos_git or []):
             return k
     return None
 
@@ -242,7 +257,7 @@ def seleccionar_pendientes(colas, progreso, asuntos_git, ahora=None):
         if dep not in integradas:
             e = progreso.get(dep) if isinstance(progreso, dict) else None
             est = e.get("estado") if isinstance(e, dict) else ""
-            integradas[dep] = (est in ("commit", "hecho") or id_en_asuntos(dep, asuntos_git or [])
+            integradas[dep] = (_cerrada_en_main(est) or id_en_asuntos(dep, asuntos_git or [])
                                or sucesora_integrada(dep, progreso, asuntos_git) is not None)
         return integradas[dep]
 
@@ -327,7 +342,9 @@ def aplicar_correcciones(progreso, correcciones):
         # corrección seguía en el archivo). Una corrección ANTERIOR a la integración no la
         # deshace; una posterior (alguien la reabre a propósito) sí manda.
         t_c, t_e = str(c.get("t") or ""), str(e.get("t") or "")
-        if (e.get("estado") in ("commit", "hecho") and c.get("estado") not in ("commit", "hecho")
+        # (2026-11-06) Lo mismo con «no aplica»: la escalera reabrió VER1105Db-d3 con una
+        # corrección de antes de la marca y volvió a correr (ENJ1106N).
+        if (_cerrada_en_main(e.get("estado")) and c.get("estado") not in ("commit", "hecho")
                 and t_c and t_e and t_c < t_e):
             continue
         for campo in CAMPOS_CORRECCION:
