@@ -392,6 +392,46 @@ def texto_mac(estado, decision, hechas):
         tope if tope is not None else "su tope", " (gobernador: %s)" % motivo if motivo else "")
 
 
+def cadenas_del_lote(lote, colas):
+    """PURA. Cuántas cadenas ENTERAS hay en `lote` (el de `RN.cedibles_y_lote`, el mismo que reciben el
+    reparto y el préstamo al A1): sus componentes conexas por `depende`, como las corta
+    `RN.sin_cadenas_partidas`. (2026-11-06, CAPC1011Ccsc) El botón decía «cede 5 (3 en cadenas…)» y no
+    cuántas cadenas eran; ahora dice «2 sueltas y 1 cadena entera (3 tareas)»."""
+    lote = {str(x) for x in lote or ()}
+    padre = {x: x for x in lote}
+
+    def raiz(x):
+        while padre[x] != x:
+            padre[x] = padre[padre[x]]
+            x = padre[x]
+        return x
+
+    for _nombre, tareas in colas or []:
+        for t in tareas or []:
+            tid = str(t.get("id") or "") if isinstance(t, dict) else ""
+            if tid not in lote:
+                continue
+            deps = t.get("depende") or t.get("depende_de") or []
+            for d in (deps if isinstance(deps, list) else [deps]):
+                if str(d) in lote:
+                    padre[raiz(tid)] = raiz(str(d))
+    return len({raiz(x) for x in lote})
+
+
+def _frase_cesion(mac):
+    """PURA. « y cede N…» del botón. Con `cadenas` (lo pone `reunir_nube` desde CAPC1011Ccsc) separa
+    sueltas y cadenas como el reparto; un `mac` anterior, sin ese dato, conserva la frase de antes."""
+    cede = len(mac.get("cedibles") or [])
+    en_cadenas = int(mac.get("en_cadenas") or 0)
+    if not en_cadenas:
+        return "cede %d que nadie espera" % cede
+    if mac.get("cadenas") is None:
+        return "cede %d (%d en cadenas que viajan enteras)" % (cede, en_cadenas)
+    n = int(mac["cadenas"])
+    return "cede %d: %d suelta(s) y %d cadena%s entera%s (%d tareas)" % (
+        cede, max(0, cede - en_cadenas), n, "" if n == 1 else "s", "" if n == 1 else "s", en_cadenas)
+
+
 def texto_nube(clases, plan, runs_vivos, lanzados=None, aplicado=True, mac=None, tope=None, por_traer=()):
     """PURA: la línea de la nube, con el porqué de lo que no coge. Sin `aplicado` (solo
     comprobar) dice lo que HARÍA, no lo que hizo. `mac`: {"tanda", "se_queda", "cedibles"} de
@@ -408,11 +448,8 @@ def texto_nube(clases, plan, runs_vivos, lanzados=None, aplicado=True, mac=None,
         cabeza += " de %d a la vez ahora (%s)" % (tope[0], tope[1])
     partes = [cabeza, "%d tarea(s) elegible(s)" % len(clases.get("elegibles") or [])]
     if mac and mac.get("tanda"):
-        cede = len(mac.get("cedibles") or [])
-        en_cadenas = int(mac.get("en_cadenas") or 0)
-        partes.append("la tanda de la Mac tiene %d: se queda %d para sus próximas rondas y cede %d%s"
-                      % (mac["tanda"], mac.get("se_queda") or 0, cede,
-                         (" (%d en cadenas que viajan enteras)" % en_cadenas) if en_cadenas else " que nadie espera"))
+        partes.append("la tanda de la Mac tiene %d: se queda %d para sus próximas rondas y %s"
+                      % (mac["tanda"], mac.get("se_queda") or 0, _frase_cesion(mac)))
     if mac and mac.get("prestadas"):
         partes.append("%d ya prestada(s) por MetaGenesis a otro medio (no se repiten)" % len(mac["prestadas"]))
     if plan.get("reabrir"):
@@ -867,7 +904,7 @@ def reunir_nube(ahora, estado_mac=None, ceder=True):
             cedibles, lote = RN.cedibles_y_lote(tanda, estado_mac, colas, progreso, ajenas)
         listas_en_tanda = [t for t in (estado_mac or {}).get("listas") or [] if t in tanda and t not in ajenas]
         salida["mac"] = {"tanda": len(tanda), "cedibles": cedibles, "prestadas": sorted(ajenas),
-                         "en_cadenas": len(lote),
+                         "en_cadenas": len(lote), "cadenas": cadenas_del_lote(lote, colas),
                          "se_queda": max(0, len(listas_en_tanda) - len([t for t in cedibles if t in listas_en_tanda]))}
         # (1103) La prioridad se mide sobre TODAS las colas (también lo que espera en la tanda de la Mac).
         salida["dependientes"], salida["capacidad"] = dependientes_y_capacidad(colas)
