@@ -89,10 +89,7 @@ export type ClaveMedidor =
     // añade un medidor de lo que sale de los procesos imaginativos… con botones para integrar o
     // reimaginar». Sustituye a IMN1021H/J (architecture/imaginacion-autodesarrollo.md §6).
     | "imaginacion"
-<<<<<<< HEAD
     // (2026-11-05, VER1105D) Centro de Versiones: versión publicada, versión en curso y tono.
-=======
->>>>>>> 1ce09482a (salvavidas · VER1105E: trabajo del agente antes de las puertas (tsc / vitest))
     | "versiones";
 
 export type ClaseAccion =
