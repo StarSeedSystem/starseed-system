@@ -475,6 +475,7 @@ export function PanelMedidor({
     alCerrar,
     ambito,
     alCambiar,
+    versiones,
 }: {
     clave: ClaveMedidor;
     alAccionar?: (clave: ClaveMedidor, a: AccionMedidor, f: FilaMedidor | undefined, texto: string) => Promise<string>;
@@ -484,6 +485,20 @@ export function PanelMedidor({
     ambito?: AmbitoPropuesta;
     /** (IMG1024B) Algo cambió dentro del panel propio de un medidor: relee la pastilla. */
     alCambiar?: () => void;
+    /** (VER1105E) Datos del Centro de Versiones para la pastilla "versiones". */
+    versiones?: {
+        estado: { fase: string; detalle: string; version: string; tono: string };
+        auto: boolean;
+        filas: Array<{
+            id: string;
+            titulo: string;
+            formatos: Array<{ nombre: string; url: string }>;
+            version: string;
+            estado: string;
+            detalle: string;
+            accion: string;
+        }>;
+    } | null;
 }) {
     const [datos, setDatos] = useState<DetalleMedidor | null>(null);
     const [cargando, setCargando] = useState(false);
@@ -550,6 +565,7 @@ export function PanelMedidor({
     // `primera` distingue la carga inicial de los refrescos: en un refresco NO se pinta el
     // esqueleto, o la lista parpadearía cada cinco segundos y sería ilegible.
     const cargar = useCallback(async (primera = false) => {
+        if (clave === "versiones") return; // Los datos vienen de /api/mando/lanzamientos en CentroMando
         if (primera) setCargando(true);
         try {
             const deAmbito = ambito ? `&ambito=${encodeURIComponent(ambito)}` : "";
@@ -596,9 +612,11 @@ export function PanelMedidor({
         setDatos(null);
         setRespuesta(null);
         setErrorLectura(null);
-        void cargar(true);
-        void cargarComprobacion();
-    }, [cargar, cargarComprobacion]);
+        if (clave !== "versiones") {
+            void cargar(true);
+            void cargarComprobacion();
+        }
+    }, [cargar, cargarComprobacion, clave]);
 
     /**
      * El panel se REFRESCA mientras está abierto.
@@ -615,6 +633,7 @@ export function PanelMedidor({
      * no tiene por qué pedir nada.
      */
     useEffect(() => {
+        if (clave === "versiones") return; // Los datos se actualizan desde CentroMando cada minuto
         let id: number | null = null;
         const arrancar = () => {
             if (id === null && !document.hidden) id = window.setInterval(() => void cargar(), 5_000);
@@ -636,7 +655,7 @@ export function PanelMedidor({
             parar();
             document.removeEventListener("visibilitychange", alCambiarVisibilidad);
         };
-    }, [cargar]);
+    }, [cargar, clave]);
 
     useEffect(() => {
         const alPulsar = (e: KeyboardEvent) => {
@@ -828,6 +847,14 @@ export function PanelMedidor({
                         alCambiar?.();
                     }}
                 />
+            ) : clave === "versiones" && versiones ? (
+                // (VER1105E) Centro de Versiones: panel propio con los medios, pasos y botones de control.
+                <PanelVersiones
+                    filas={versiones.filas}
+                    estado={versiones.estado}
+                    auto={versiones.auto}
+                    alAccionar={alAccionar as (clave: string, accion: { clase: string; texto: string; objetivo?: string; destructiva?: boolean; pideTexto?: string }, fila: { id: string } | undefined, texto: string) => Promise<void>}
+                />
             ) : datos && clave === "en-cadena" ? (
                 // (2026-10-20) Las esperas normales de una cadena, en su propio medidor y agrupadas
                 // por la tarea a la que esperan: no son un problema, se desbloquean solas.
@@ -936,6 +963,193 @@ export function PanelMedidor({
                     {errorLectura}
                 </p>
             ) : null}
+        </section>
+    );
+}
+
+/**
+ * PanelVersiones (VER1105E · Centro de Versiones)
+ *
+ * Muestra el estado de cada medio y formato según el contrato
+ * `architecture/centro-versiones-1105.md` §4.
+ * Lee los datos de `versiones.filas` (vía `/api/mando/lanzamientos`).
+ */
+export function PanelVersiones({
+    filas,
+    estado,
+    auto,
+    alAccionar,
+}: {
+    filas: Array<{
+        id: string;
+        titulo: string;
+        formatos: Array<{ nombre: string; url: string }>;
+        version: string;
+        estado: string;
+        detalle: string;
+        accion: string;
+    }>;
+    estado: { fase: string; detalle: string; version: string; tono: string };
+    auto: boolean;
+    alAccionar: (clave: string, accion: { clase: string; texto: string; objetivo?: string; destructiva?: boolean; pideTexto?: string }, fila: { id: string } | undefined, texto: string) => Promise<void>;
+}) {
+    const faseOrden: Record<string, number> = {
+        "esperando-lista": 0,
+        "esperando-publicacion": 1,
+        preparando: 2,
+        etiquetando: 3,
+        compilando: 4,
+        "verificando-archivos": 5,
+        publicando: 6,
+        "verificando-medios": 7,
+        lanzado: 8,
+        atascado: 9,
+    };
+    const faseActual = faseOrden[estado.fase] ?? 0;
+
+    return (
+        <section className="mc-cristal mc-desplegar mt-2 w-full p-3" role="region" aria-label="Centro de Versiones">
+            <header className="mc-centrado flex flex-wrap items-baseline justify-center gap-2">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-white/70">
+                    Centro de Versiones
+                </h3>
+                <span className="text-[11px] text-white/45">
+                    {estado.version} · {estado.fase.replace(/-/g, " ")}
+                </span>
+                <label className="ml-2 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[10px] text-white/70">
+                    <input
+                        type="checkbox"
+                        checked={auto}
+                        onChange={(e) => alAccionar("versiones", { clase: "auto", texto: e.target.checked ? "Desactivar" : "Activar" }, undefined, "")}
+                        className="h-3 w-3 accent-cyan-400"
+                    />
+                    Lanzar sola al terminar cada lista
+                </label>
+            </header>
+
+            <p className="mc-centrado mt-1 text-[10px] text-white/40">
+                {estado.detalle || "sin detalle"}
+            </p>
+
+            {/* Pasos del lanzamiento */}
+            {estado.fase !== "esperando-lista" && estado.fase !== "esperando-publicacion" && (
+                <div className="mt-2 space-y-1">
+                    <p className="text-[10px] font-semibold text-white/50">Pasos del lanzamiento</p>
+                    {[
+                        { id: "esperando-lista", label: "Lista de tareas terminada" },
+                        { id: "esperando-publicacion", label: "Publicación verificada" },
+                        { id: "preparando", label: "Preparando versión" },
+                        { id: "etiquetando", label: "Etiquetando release" },
+                        { id: "compilando", label: "Compilando binarios" },
+                        { id: "verificando-archivos", label: "Verificando archivos" },
+                        { id: "publicando", label: "Publicando release" },
+                        { id: "verificando-medios", label: "Verificando medios" },
+                        { id: "lanzado", label: "Lanzado" },
+                    ].map((paso) => {
+                        const completado = faseOrden[paso.id] !== undefined && faseOrden[paso.id] < faseActual;
+                        const actual = faseOrden[paso.id] === faseActual;
+                        return (
+                            <div
+                                key={paso.id}
+                                className={`flex items-center gap-2 text-[10px] ${
+                                    completado ? "text-emerald-200" : actual ? "text-cyan-200" : "text-white/30"
+                                }`}
+                            >
+                                <span
+                                    className={`h-2 w-2 rounded-full ${
+                                        completado ? "bg-emerald-400" : actual ? "bg-cyan-400 animate-pulse" : "bg-white/20"
+                                    }`}
+                                />
+                                <span>{paso.label}</span>
+                                {actual && <span className="text-cyan-300">▸</span>}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Medios y formatos */}
+            <div className="mt-3 space-y-2">
+                <p className="text-[10px] font-semibold text-white/50">Medios y formatos</p>
+                {filas.map((fila) => (
+                    <div key={fila.id} className="rounded-lg border border-white/10 bg-black/25 p-2 text-left">
+                        <div className="flex flex-wrap items-baseline gap-1.5">
+                            <span className="font-mono text-[11px] text-cyan-200/90">{fila.id}</span>
+                            <span className="font-medium text-[11px] text-white/80">{fila.titulo}</span>
+                            <span className={`rounded-full border px-1.5 text-[10px] ${
+                                fila.estado === "al-dia" ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-200" :
+                                fila.estado === "generando" || fila.estado === "verificando" ? "border-cyan-300/30 bg-cyan-400/10 text-cyan-100" :
+                                fila.estado === "atascado" ? "border-rose-300/35 bg-rose-400/10 text-rose-200" :
+                                "border-amber-300/35 bg-amber-400/10 text-amber-200"
+                            }`}>
+                                {fila.estado}
+                            </span>
+                            <span className="ml-auto text-[10px] tabular-nums text-white/50">v{fila.version}</span>
+                        </div>
+                        <p className="mt-0.5 text-[10px] text-white/50">{fila.detalle}</p>
+                        {fila.formatos.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1.5 text-[10px]">
+                                {fila.formatos.map((fmt) => fmt.url ? (
+                                    <a
+                                        key={fmt.nombre}
+                                        href={fmt.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="mc-alzar cursor-pointer underline decoration-dotted underline-offset-2 text-cyan-200 hover:text-cyan-100"
+                                    >
+                                        {fmt.nombre}
+                                    </a>
+                                ) : (
+                                    <span key={fmt.nombre} className="text-white/30">{fmt.nombre}</span>
+                                ))}
+                            </div>
+                        )}
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => alAccionar("versiones", { clase: "regenerar", texto: fila.accion, objetivo: fila.id }, { id: fila.id }, "")}
+                                className="mc-alzar inline-flex cursor-pointer items-center gap-1 rounded-md border border-cyan-300/40 bg-cyan-400/10 px-2 py-0.5 text-[10px] text-cyan-100"
+                            >
+                                {fila.accion}
+                            </button>
+                            {fila.id === "web" && (
+                                <span className="text-[10px] text-white/40">Autopublicación: {auto ? "activada" : "desactivada"}</span>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Botones de control del lanzamiento */}
+            <div className="mc-centrado mt-3 flex flex-wrap justify-center gap-1.5 border-t border-white/10 pt-2.5">
+                {estado.fase !== "lanzado" && estado.fase !== "atascado" && (
+                    <button
+                        type="button"
+                        onClick={() => alAccionar("versiones", { clase: "lanzar", texto: "Lanzar versión" }, undefined, "")}
+                        className="mc-alzar inline-flex cursor-pointer items-center gap-1 rounded-md border border-emerald-300/40 bg-emerald-400/10 px-2 py-0.5 text-[10px] text-emerald-100"
+                    >
+                        Lanzar versión
+                    </button>
+                )}
+                {estado.fase !== "esperando-lista" && estado.fase !== "esperando-publicacion" && estado.fase !== "lanzado" && (
+                    <>
+                        <button
+                            type="button"
+                            onClick={() => alAccionar("versiones", { clase: estado.pausado ? "reanudar" : "pausar", texto: estado.pausado ? "Reanudar" : "Pausar" }, undefined, "")}
+                            className="mc-alzar inline-flex cursor-pointer items-center gap-1 rounded-md border border-amber-300/40 bg-amber-400/10 px-2 py-0.5 text-[10px] text-amber-100"
+                        >
+                            {estado.pausado ? "Reanudar" : "Pausar"}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => alAccionar("versiones", { clase: "reintentar", texto: "Reintentar paso" }, undefined, "")}
+                            className="mc-alzar inline-flex cursor-pointer items-center gap-1 rounded-md border border-rose-300/40 bg-rose-400/10 px-2 py-0.5 text-[10px] text-rose-100"
+                        >
+                            Reintentar paso
+                        </button>
+                    </>
+                )}
+            </div>
         </section>
     );
 }

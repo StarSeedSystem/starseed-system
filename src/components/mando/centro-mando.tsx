@@ -281,8 +281,9 @@ const LUGAR_EN_PULSO: Record<string, [GrupoPulso, number]> = {
     imaginacion: ["trabajo", 7],
     integradas: ["entrega", 0],
     "sin-publicar": ["entrega", 1],
-    "Tu visto bueno": ["entrega", 2],
-    "Te toca a ti": ["entrega", 3],
+    versiones: ["entrega", 2],
+    "Tu visto bueno": ["entrega", 3],
+    "Te toca a ti": ["entrega", 4],
     proveedores: ["modelos", 0],
     tokens: ["modelos", 1],
     Jev: ["modelos", 2],
@@ -913,6 +914,13 @@ export function CentroMando() {
     /** (2026-09-23) La última publicación falló: la pastilla lo dice en vez de callar. */
     const [falloPublicacion, setFalloPublicacion] = useState<string | null>(null);
     const releerPublicandoRef = useRef<() => void>(() => undefined);
+
+    // Centro de Versiones (VER1105E): se lee de /api/mando/lanzamientos una vez por minuto.
+    const [versiones, setVersiones] = useState<{
+        estado: { fase: string; detalle: string; version: string; tono: string };
+        auto: boolean;
+        filas: Array<{ id: string; titulo: string; formatos: Array<{ nombre: string; url: string }>; version: string; estado: string; detalle: string; accion: string }>;
+    } | null>(null);
 
     // Acciones que esperan a Alex (AX1): se leen de /api/mando/acciones una vez por minuto.
     const [accionesAlex, setAccionesAlex] = useState<{ generado: string; acciones: Array<{
@@ -1679,6 +1687,42 @@ export function CentroMando() {
         };
     }, []);
 
+    // Centro de Versiones (VER1105E): se lee de /api/mando/lanzamientos una vez por minuto.
+    useEffect(() => {
+        let vivo = true;
+        let enCurso = false;
+        const cargar = async (forzar = false) => {
+            if (enCurso || (!forzar && document.visibilityState === "hidden")) return;
+            enCurso = true;
+            try {
+                const respuesta = await fetch("/api/mando/lanzamientos", { cache: "no-store" });
+                if (!vivo) return;
+                if (!respuesta.ok) return;
+                const datos = (await respuesta.json()) as {
+                    estado: { fase: string; detalle: string; version: string; tono: string };
+                    auto: boolean;
+                    filas: Array<{ id: string; titulo: string; formatos: Array<{ nombre: string; url: string }>; version: string; estado: string; detalle: string; accion: string }>;
+                };
+                setVersiones(datos);
+            } catch {
+                // Sin la Mac no hay versiones: la pastilla se queda en null.
+            } finally {
+                enCurso = false;
+            }
+        };
+        void cargar(true);
+        const cada = window.setInterval(() => void cargar(), 60_000);
+        const alVolver = () => {
+            if (document.visibilityState === "visible") void cargar(true);
+        };
+        document.addEventListener("visibilitychange", alVolver);
+        return () => {
+            vivo = false;
+            window.clearInterval(cada);
+            document.removeEventListener("visibilitychange", alVolver);
+        };
+    }, []);
+
     // (2026-09-09) La cuota REAL de Google Drive. `df` de la carpeta de DriveFS en
     // macOS informa del disco LOCAL, no de Drive: por eso Genesis llegó a decir
     // «6 GB libres de 228» con un Drive de 2 TB. El servidor ya devuelve null en ese
@@ -2131,6 +2175,13 @@ export function CentroMando() {
                                 cargando: Boolean(publicando),
                             },
                             {
+                                clave: "versiones" as const,
+                                titulo: "Versiones",
+                                valor: versiones?.estado?.version ?? "v… en curso",
+                                tono: (versiones?.estado?.tono as TonoMedidor) ?? "normal",
+                                detalle: versiones?.estado?.detalle ?? "leyendo estado del director…",
+                            },
+                            {
                                 clave: "proveedores" as const,
                                 // (2026-10-09) «Proveedores agotados 10» contaba lo que NO hay. Lo que
                                 // decide si el enjambre escribe es cuántos modelos tienen cupo.
@@ -2362,6 +2413,7 @@ export function CentroMando() {
                             alCerrar={() => setMedidorAbierto(null)}
                             ambito={medidorAbierto === "imaginacion" ? ambitoPulso : undefined}
                             alCambiar={() => void cargarMedidoresResumen(true)}
+                            versiones={medidorAbierto === "versiones" ? versiones : undefined}
                         />
                     ) : accionesAlexAbierto ? (
                         <PanelAccionesAlex
