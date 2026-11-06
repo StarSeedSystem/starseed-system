@@ -84,6 +84,55 @@ describe("permisos-por-so: validez del JSON", () => {
     // Deben verse varios valores distintos
     expect(valoresVistos.size).toBeGreaterThan(1);
   });
+
+  it("no hay permisos con nombre vacío", () => {
+    const sistemas: SistemaOperativo[] = ["macos", "windows", "linux", "android", "ios", "web"];
+    for (const so of sistemas) {
+      const config = permisosDe(so);
+      for (const permiso of config.permisos) {
+        expect(permiso.nombre.trim().length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("alConceder usa el vocabulario del JSON (sin variantes inventadas)", () => {
+    const valoresEsperados = [
+      "al instalar",
+      "al primer uso",
+      "al invocar",
+      "al solicitar permiso",
+      "al desinstalar",
+      "al hacer clic",
+      "automáticamente",
+      "por acción de soltar",
+      "por respuesta del usuario",
+      "por selección del usuario",
+    ];
+    const sistemas: SistemaOperativo[] = ["macos", "windows", "linux", "android", "ios", "web"];
+    for (const so of sistemas) {
+      const config = permisosDe(so);
+      for (const permiso of config.permisos) {
+        const encaja = valoresEsperados.some((v) => permiso.alConceder.includes(v));
+        expect(
+          encaja,
+          `"${permiso.alConceder}" de ${permiso.nombre} (${so}) no encaja con el vocabulario`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("las arquitecturas incluyen las compatibles para cada sistema", () => {
+    expect(permisosDe("macos").arquitecturas).toContain("x86_64");
+    expect(permisosDe("macos").arquitecturas).toContain("arm64");
+    expect(permisosDe("windows").arquitecturas).toContain("x86_64");
+    expect(permisosDe("linux").arquitecturas).toContain("x86_64");
+    expect(permisosDe("linux").arquitecturas).toContain("arm64");
+    expect(permisosDe("android").arquitecturas).toContain("arm64-v8a");
+    expect(permisosDe("android").arquitecturas).toContain("x86_64");
+    expect(permisosDe("android").arquitecturas).toContain("armeabi-v7a");
+    expect(permisosDe("ios").arquitecturas).toContain("arm64");
+    expect(permisosDe("web").arquitecturas).toContain("cualquiera con navegador moderno");
+  });
 });
 
 describe("permisos-por-so: cobertura de identificadores de capabilities", () => {
