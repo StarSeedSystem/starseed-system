@@ -1,0 +1,55 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "revisor_quitadas": [
+    "MTN1027L2"
+   ],
+   "id": "LNN1028I2-d1",
+   "titulo": "Biblioteca · registrar la tanda 1028 (parte 1 de 3)",
+   "archivos": [
+    "src/lib/library/packages.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nComo MTN1027L2 con la 1027b: `FICHAS_REPOS_1028` en el catálogo, sus ids en la siembra (sube `SEED_VERSION` en 1) y en `fichasIaConUpstreamGitHub([...])`.\n\n## PARTE 1 DE 3 (la dirección dividió LNN1028I2: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/library/packages.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "LNN1028I2",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "LNN1028I"
+   ]
+  },
+  {
+   "id": "IMG-diaria-endurecer el sandbox del iframe d",
+   "titulo": "Endurecer el sandbox del iframe de código del Lienzo Universal",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/creation/creation-blocks.tsx",
+    "src/lib/creation/post-blocks.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Endurecer el sandbox del iframe de código del Lienzo Universal. `src/components/creation/creation-blocks.tsx:486`. El sandbox incluye `allow-popups`: código de usuario puede abrir ventanas para phishing/redirección. Quitar ese token y documentar capacidades concedidas. Impacto 3 · esfuerzo 1 (hallazgo SA102440, confianza 0.72). Complemento: SRI (`integrity`+`crossorigin`) en los scripts de unpkg (React/Babel) de `src/lib/creation/post-blocks.ts:343` — riesgo de cadena de suministro. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-agentes-reimaginada-diaria-tapar-las-dos",
+   "titulo": "Arreglar fuga de datos en la Biblioteca usando POST y portadas locales",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/library/library-store-panel.tsx",
+    "src/components/library/finder/finder-view.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Arreglar fuga de datos en la Biblioteca usando POST y portadas locales. ## Acción\n- Reemplazar la transmisión del objeto completo del ítem en la querystring del endpoint `/publish` por una petición **POST** con cuerpo JSON.\n- Eliminar la dependencia de `encodeURIComponent` que envía títulos a `placehold.co`; en su lugar, usar imágenes de portada almacenadas localmente en el proyecto.\n- Actualizar los componentes afectados para que construyan el payload y lo envíen mediante `fetch`/`axios` con encabezado `Content-Type: application/json`.\n- Modificar el manejo de respuestas para que no se registre información sensible en el historial del navegador ni en logs de serv Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1105-135510.json": [
+   "LNN1028I2-d1",
+   "IMG-diaria-endurecer el sandbox del iframe d",
+   "IMG-agentes-reimaginada-diaria-tapar-las-dos"
+  ]
+ }
+}
