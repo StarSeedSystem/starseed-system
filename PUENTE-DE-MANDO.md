@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-06 14:30:23 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-06 14:33:55 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,18 +16,9 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 41 |
 | Últimas 4 olas | en curso 0 · pendientes 80 · integradas 0 |
-| HEAD | `b6830c0b10 chore(memoria): aprendizaje de la ola auto-1106-142012` |
-| Sin publicar | 8 commits |
+| HEAD | `fdc1cb1f6a chore(memoria): aprendizaje de la ola auto-1106-143058` |
+| Sin publicar | 10 commits |
 | Árbol | limpio |
-
-## Quién escribe ahora (latido de `cola-auto-1106-142012.json`, hace 11s)
-
-| tarea | fase | modelo | lleva | quieto | bytes |
-|---|---|---|---|---|---|
-| `CTR1106As` | hecho | freellmapi/auto | 2 min | 123 s | 267630 |
-
-**Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
-Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
 
 ## Cómo dirige cada IDE (idéntico en los cuatro)
 
