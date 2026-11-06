@@ -5972,3 +5972,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `CTR1106As` — otra cosa: repositorio o rama ajenos: worktree conservado
+
+## 2026-11-06 14:57 · auto-1106-145452
+
+**Lo que se pidió.** nada cabe
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `CTR1106As` — otra cosa: repositorio o rama ajenos: worktree conservado
