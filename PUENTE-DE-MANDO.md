@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-06 05:47:51 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-06 06:19:35 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,25 +16,16 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 41 |
 | Últimas 4 olas | en curso 0 · pendientes 80 · integradas 0 |
-| HEAD | `61ac9c0a58 chore(memoria): aprendizaje de la ola auto-1106-042642` |
-| Sin publicar | 10 commits |
+| HEAD | `c124ce46f3 chore(memoria): aprendizaje de la ola auto-1106-054758` |
+| Sin publicar | 9 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1106-042642.json`, hace 38s)
+## Quién escribe ahora (latido de `cola-auto-1106-054758.json`, hace 11s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `VER1105Db-d3` | hecho | freellmapi/auto | 3 min | 178 s | 353353 |
-| `RPO1104S-d2` | hecho | freellmapi/auto | 7 min | 420 s | 95703 |
-| `LZN1106A` | hecho | freellmapi/auto | 16 min | 940 s | 88871 |
-| `IMG-agentes-referencias-diseno-agentes-refer` | hecho | freellmapi/auto | 38 min | 2283 s | 30376 |
-| `RPO1104B-d2` | hecho | freellmapi/auto | 52 min | 3140 s | 71965 |
-| `ENT-agentes-referencias-diseno-agentes-re-7a7739-v1` | hecho | groq/openai/gpt-oss-120b | 58 min | 3481 s | 725 |
-| `ENT-agentes-referencias-diseno-agentes-re-45cd82-v1` | hecho | groq/openai/gpt-oss-120b | 60 min | 3585 s | 801 |
-| `LNN1028I2-d2` | hecho | opencode/minimax-m3.1-flash-free | 64 min | 3857 s | 162207 |
-| `IRD11063` | hecho | groq/openai/gpt-oss-120b | 76 min | 4582 s | 550 |
-| `IRD11062` | hecho | explabs/deepseek-v4.1-flash | 77 min | 4595 s | 446 |
-| `IRD11061` | hecho | groq/openai/gpt-oss-120b | 78 min | 4660 s | 545 |
+| `VER1105Db-d3` | hecho | freellmapi/auto | 2 min | 133 s | 434520 |
+| `IMG-agentes-referencias-diseno-agentes-refer` | hecho | freellmapi/auto | 23 min | 1376 s | 85699 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
