@@ -111,6 +111,17 @@ describe("deeptutor · conector opcional", () => {
     expect(await pendiente).toBeNull();
   });
 
+  it("pregunta devuelve null sin session_id válido", async () => {
+    const cfg = configDeeptutor(ENV);
+    const q = { pregunta: "Hola", modo: "explicar" as const };
+    const r1 = await preguntarTutor(cfg, falso(200, { content: "ok", session_id: 123 }).fetchFn, q);
+    expect(r1).toEqual({ texto: "ok", modo: "explicar", sesion: null });
+    const r2 = await preguntarTutor(cfg, falso(200, { content: "ok", session_id: null }).fetchFn, q);
+    expect(r2).toEqual({ texto: "ok", modo: "explicar", sesion: null });
+    const r3 = await preguntarTutor(cfg, falso(200, { content: "ok" }).fetchFn, q);
+    expect(r3).toEqual({ texto: "ok", modo: "explicar", sesion: null });
+  });
+
   it("sin conector o sin pregunta no llama a nadie", async () => {
     const { fetchFn, llamadas } = falso(200, { content: "x" });
     expect(await preguntarTutor(null, fetchFn, { pregunta: "x", modo: "resumir" })).toBeNull();
