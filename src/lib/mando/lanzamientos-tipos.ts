@@ -3,7 +3,7 @@ export interface LanzamientoEstado {
   detalle: string;
   version: string;
   pasos: { fase: string; t: number; detalle: string }[];
-  jobs: { medio: string; job: string; estado: string; url: string; inicio: string; fin: string }[];
+  jobs: { medio: string; job: string; estado: string; url?: string; inicio?: string; fin?: string }[];
   medios: Record<string, { estado: string; faltan: string[]; pequenos: string[] }>;
   run_url?: string;
   release_url?: string;
