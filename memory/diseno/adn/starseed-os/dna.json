@@ -11,7 +11,9 @@
   "tipo": {"familias": [
     {"rol": "cuerpo", "nombre": "Inter", "fallback": "system-ui, sans-serif"},
     {"rol": "titular", "nombre": "Rajdhani", "fallback": "Inter"},
-    {"rol": "codigo", "nombre": "JetBrains Mono", "fallback": "monospace"}
+    {"rol": "codigo", "nombre": "JetBrains Mono", "fallback": "monospace"},
+    {"rol": "display_editorial", "nombre": "Satoshi", "fallback": "Rajdhani, Inter", "licencia": "ITF Free Font", "carga": "Fontshare CSS"},
+    {"rol": "organico", "nombre": "Quicksand", "fallback": "Inter", "licencia": "SIL Open Font License"}
   ]},
   "firmas": [
     {"jugada": "paneles cardinales entran desde perimetro", "como": "1:1.618"},
@@ -19,7 +21,11 @@
     {"jugada": "gradiente radial de acento", "como": "15% cobertura"}
   ],
   "jugada_rara": {"que": "linea de horizonte cruza Trinity sin intersectar centro", "como": "1:2", "por_que": "marca creacion"},
-  "prohibiciones": ["hex sueltos", "ruido decorativo", "controles en centro", "sombras multiples", "animar dimensiones"],
+  "sombras": {
+    "interfaz": "sombra simple (una sola: shadow-md o shadow-lg) - para listas, formularios, paneles, chats, tablas",
+    "protagonista": "brillo multicapa (0 0 32px rgba(0,127,255,0.35), 0 12px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.15)) - solo en piezas destacadas"
+  },
+  "prohibiciones": ["hex sueltos", "ruido decorativo", "controles en centro", "animar dimensiones"],
   "pruebas": [
     {"id": "p1", "comprobacion": "acento 20-30%", "auto": true},
     {"id": "p2", "comprobacion": "max 3 tamanos", "auto": true},
