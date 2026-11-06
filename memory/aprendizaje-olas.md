@@ -4727,3 +4727,19 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** clave
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-06 03:05 · mg-oracle-1105-1936
+
+**Lo que se pidió.** falta 1104 · AG
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 4 tareas se fueron por lo mismo — los tipos no compilan (RPO1104Kb-d2, IMG-agentes-reimaginada-profunda-sustituir-lbs, VER1105Db-d2, CTR1104Cc-d2). Es 100 % de la ola.
+- openrouter/cohere/north-mini-code:free no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RPO1104Kb-d2` — los tipos no compilan: 3 errores tsc (rama ola/RPO1104Kb-d2 conservada)
+- `IMG-agentes-reimaginada-profunda-sustituir-lbs` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/IMG-agentes-reimaginada-profunda-sustituir-lbs co
+- `VER1105Db-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/VER1105Db-d2 conservada)
+- `CTR1104Cc-d2` — los tipos no compilan: 1 errores tsc (rama ola/CTR1104Cc-d2 conservada)
