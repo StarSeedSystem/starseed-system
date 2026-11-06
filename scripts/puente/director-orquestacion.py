@@ -175,6 +175,12 @@ def calcular_orden():
         "reasignada",
         "en_curso",
         "esperando_aprobacion",
+        # (1106 · ORQ1106A) Cerradas sin código: no son pendientes ni bloquean a nadie (el medidor enseñaba
+        # una descartada como «lista» y a su hermana como «bloqueada sin salida»).
+        "descartada",
+        "no_aplica",
+        "no-aplica",
+        "informe",
     }
     p = progreso()
     por_id = _tareas_de_colas()
@@ -239,6 +245,12 @@ def pendientes_totales():
         "reasignada",
         "en_curso",
         "esperando_aprobacion",
+        # (1106 · ORQ1106A) Cerradas sin código: no son pendientes ni bloquean a nadie (el medidor enseñaba
+        # una descartada como «lista» y a su hermana como «bloqueada sin salida»).
+        "descartada",
+        "no_aplica",
+        "no-aplica",
+        "informe",
     }
     p, vistas, n = progreso(), set(), 0
     try:
