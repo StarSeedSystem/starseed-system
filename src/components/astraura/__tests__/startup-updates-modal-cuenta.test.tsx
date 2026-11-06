@@ -7,16 +7,20 @@
  *  · NO decide mientras la cuenta no sea fiable (nada de «nunca visto» a ciegas);
  *  · con la cuenta ya configurada (o un «visto» local antiguo) no abre nada;
  *  · medio nuevo y cuenta vacía → abre la ventana grande;
- *  · cambio de catálogo → aviso pequeño con «Ver», no ventana, y solo una vez;
- *  · toda vía de cierre deja rastro con la cuenta (cerrar sin aplicar, «recordar luego», aplicar).
- */
-import { act, cleanup, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+  *  · cambio de catálogo → aviso pequeño con «Ver», no ventana, y solo una vez;
+  *  · firma nueva del scout → aviso pequeño, mismo patrón firma+visto; ya vista → no
+  *    repite; la firma cambia (RAM/GPU) → reaparece (Adenda 138 · llmfit);
+  *  · toda vía de cierre deja rastro con la cuenta (cerrar sin aplicar, «recordar luego», aplicar).
+  */
+ import { act, cleanup, render, screen } from "@testing-library/react";
+ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+ import type { NeuronCapabilities } from "@/lib/neurons/neurons";
 
-const ctl = vi.hoisted(() => ({
-    listos: [] as Array<() => void>,
-    toast: vi.fn(),
-}));
+ const ctl = vi.hoisted(() => ({
+     listos: [] as Array<() => void>,
+     toast: vi.fn(),
+     caps: null as NeuronCapabilities | null,
+ }));
 
 vi.mock("@/lib/sync/realtime-sync", () => ({
     // El test decide CUÁNDO la cuenta pasa a ser fiable (`ctl.listos`).
@@ -27,7 +31,11 @@ vi.mock("@/lib/sync/realtime-sync", () => ({
         };
     },
 }));
-vi.mock("sonner", () => ({ toast: (...a: unknown[]) => ctl.toast(...a) }));
+ vi.mock("sonner", () => ({ toast: (...a: unknown[]) => ctl.toast(...a) }));
+ vi.mock("@/lib/neurons/neurons", () => ({
+     // El test controla qué capacidades ve la neurona (para la firma del scout).
+     detectCapabilities: () => Promise.resolve(ctl.caps ?? undefined),
+ }));
 vi.mock("@/lib/aurora/setup-config", () => ({
     isSetupPending: () => false,
     subscribeSetup: () => () => undefined,
@@ -63,16 +71,21 @@ vi.mock("@/components/astraura/astraura-omnivoice-config", async () => {
 });
 
 import { StartupUpdatesModal } from "../startup-updates-modal";
-import {
-    AVISO_CATALOGO_PREFIJO,
-    AVISO_SISTEMAS_INICIO,
-    AVISO_SISTEMAS_LUEGO,
-    STARTUP_UPDATES_KEY,
-    catalogIds,
-    catalogSignature,
-    decidirArranque,
-} from "@/lib/astraura/startup-updates";
-import { AVISOS_KEY, _reiniciarCacheAvisosParaPruebas, estadoAviso } from "@/lib/sync/avisos-cuenta";
+ import {
+     AVISO_CATALOGO_PREFIJO,
+     AVISO_SISTEMAS_INICIO,
+     AVISO_SISTEMAS_LUEGO,
+     SCOUT_SIGNATURE_KEY,
+     STARTUP_UPDATES_KEY,
+     catalogIds,
+     catalogSignature,
+     decidirArranque,
+     hasNewScoutFindings,
+     marcarScoutVisto,
+     scoutSignature,
+ } from "@/lib/astraura/startup-updates";
+ import { AVISOS_KEY, _reiniciarCacheAvisosParaPruebas, estadoAviso } from "@/lib/sync/avisos-cuenta";
+ import { safeGet } from "@/lib/safe-storage";
 
 const SIG = catalogSignature();
 
@@ -210,10 +223,77 @@ describe("StartupUpdatesModal", () => {
         expect(estadoAviso(AVISO_SISTEMAS_LUEGO).estado).toBeNull();
     });
 
-    it("un «recordar luego» vigente en la cuenta no se salta su hora", async () => {
-        cuenta({ [AVISO_SISTEMAS_LUEGO]: { estado: "luego", ts: 5, hasta: Date.now() + 3 * 3_600_000 } });
-        render(<StartupUpdatesModal />);
-        await arrancarConCuentaFiable();
-        expect(screen.queryByRole("dialog")).toBeNull();
-    });
-});
+     it("un «recordar luego» vigente en la cuenta no se salta su hora", async () => {
+         cuenta({ [AVISO_SISTEMAS_LUEGO]: { estado: "luego", ts: 5, hasta: Date.now() + 3 * 3_600_000 } });
+         render(<StartupUpdatesModal />);
+         await arrancarConCuentaFiable();
+         expect(screen.queryByRole("dialog")).toBeNull();
+     });
+ });
+
+ describe("StartupUpdatesModal · firma del scout (Adenda 138 · llmfit)", () => {
+     const CAPS: NeuronCapabilities = {
+         platform: "macos",
+         gpuRenderer: "Apple M3 Pro",
+         memoryGb: 18,
+         cores: 12,
+         webgpu: true,
+         browser: "chrome",
+     };
+
+     /** Predo vacío con la primera configuración hecha y el catálogo visto: fila el SCOUT. */
+     function predoScout(): void {
+         cuenta({
+             [AVISO_SISTEMAS_INICIO]: { estado: "hecho", ts: 5 },
+             [AVISO_CATALOGO_PREFIJO + SIG]: { estado: "visto", ts: 6 },
+         });
+         localStorage.setItem(
+             STARTUP_UPDATES_KEY,
+             JSON.stringify({ firstRunDone: true, lastSig: SIG, lastCatalog: catalogIds(), autoUpdate: true }),
+         );
+     }
+
+     it("firma nueva del scout → aviso pequeño (sin ventana) que sella la firma del scout", async () => {
+         predoScout();
+         ctl.caps = { ...CAPS };
+         render(<StartupUpdatesModal />);
+         await arrancarConCuentaFiable();
+         expect(screen.queryByRole("dialog")).toBeNull();
+         expect(ctl.toast).toHaveBeenCalledTimes(1);
+         const [titulo, opciones] = ctl.toast.mock.calls[0] as [string, { action: { label: string }; description: string }];
+         expect(titulo).toBe("Astraura tiene novedades");
+         expect(opciones.description).toContain("mejor ajustadas a tu hardware");
+         // Sellado al mostrarlo: ni este medio ni otro lo repiten hasta que cambie la firma.
+         expect(safeGet(SCOUT_SIGNATURE_KEY)).toBe(scoutSignature(CAPS, catalogIds().length));
+         expect(hasNewScoutFindings(scoutSignature(CAPS, catalogIds().length))).toBe(false);
+     });
+
+     it("misma firma del scout ya vista → el aviso NO repite en otro arranque", async () => {
+         predoScout();
+         ctl.caps = { ...CAPS };
+         render(<StartupUpdatesModal />);
+         await arrancarConCuentaFiable();
+         expect(ctl.toast).toHaveBeenCalledTimes(1);
+         cleanup();
+         render(<StartupUpdatesModal />);
+         await arrancarConCuentaFiable();
+         expect(screen.queryByRole("dialog")).toBeNull();
+         expect(ctl.toast).toHaveBeenCalledTimes(1); // sigue en una: no se repite
+     });
+
+     it("la firma cambia (RAM distinta) → el aviso del scout REAPARECE", async () => {
+         predoScout();
+         ctl.caps = { ...CAPS };
+         render(<StartupUpdatesModal />);
+         await arrancarConCuentaFiable();
+         expect(ctl.toast).toHaveBeenCalledTimes(1);
+         cleanup();
+         // Otro medio con más RAM = otra firma: hay hallazgos nuevos que contar.
+         const capsAltas: NeuronCapabilities = { ...CAPS, memoryGb: 64 };
+         ctl.caps = capsAltas;
+         render(<StartupUpdatesModal />);
+         await arrancarConCuentaFiable();
+         expect(ctl.toast).toHaveBeenCalledTimes(2);
+         expect(safeGet(SCOUT_SIGNATURE_KEY)).toBe(scoutSignature(capsAltas, catalogIds().length));
+     });
+ });
