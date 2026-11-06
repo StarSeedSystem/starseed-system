@@ -210,7 +210,7 @@ function LineaTiempo({ pasos, jobs }: { pasos: LanzamientoEstado["pasos"]; jobs:
                                 }>
                                     {j.estado}
                                 </Badge>
-                                <span className="font-mono text-white/40 ml-auto">{formatoDuracion(j.inicio, j.fin)}</span>
+                                <span className="font-mono text-white/40 ml-auto">{formatoDuracion(j.inicio ?? null, j.fin ?? null)}</span>
                                 {j.url && (
                                     <a
                                         href={j.url}
