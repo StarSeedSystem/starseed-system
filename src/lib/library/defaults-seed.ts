@@ -74,7 +74,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 25;
+export const SEED_VERSION = 26;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -450,7 +450,7 @@ export const RECOMMENDED_FREE_SOURCES: string[] = [
 
 /* ─────────────────────── Estado de la siembra ─────────────────────── */
 
-/** La versión de la siembra incluye ahora a Meta^n y Memvid (1027b). */
+/** La versión de la siembra incluye ahora a LEANN (1028). */
 
 interface SeedState {
   /** Última versión de siembra aplicada en este dispositivo/cuenta. */
