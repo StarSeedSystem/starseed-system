@@ -48,6 +48,7 @@ class PuertaTsc(unittest.TestCase):
                     side_effect=lambda *_args, **_kwargs: contextlib.nullcontext(),
                 ), \
                 mock.patch.object(enjambre.time, "sleep"), \
+                mock.patch.object(enjambre, "tsc_en_a1", return_value=None), \
                 mock.patch.object(enjambre, "TSC_HEAP_MB", heap):
             return enjambre.tsc("/tmp/wt", None), llamadas
 
@@ -75,7 +76,7 @@ class PuertaTsc(unittest.TestCase):
         self.assertIn("sin memoria", errs[0])
 
     def test_errores_reales_salen_a_la_primera(self):
-        (rc, errs), llamadas = self._tsc([(2, "a.ts(1,1): error TS2322: x\n")])
+        (rc, errs), llamadas = self._tsc([(2, "a.ts(1,1): error TS2322: x\n"), (0, "")])
         self.assertEqual(errs, ["a.ts(1,1): error TS2322: x"])
         self.assertEqual(len(llamadas), 1)
 

@@ -164,10 +164,15 @@ def heap_tsc_mb(node_options, defecto=2560):
 
 #: Lo que se pide en el reintento por memoria: nunca menos de 3584 ni menos que el del medio.
 TSC_HEAP_MB = heap_tsc_mb(os.environ.get("NODE_OPTIONS"))
-ENV_TSC = {"NODE_ENV": "development", "NODE_OPTIONS": "--max-old-space-size=%d" % TSC_HEAP_MB}
 _PATH_NODE = _node_del_repo()
-if _PATH_NODE:
-    ENV_TSC["PATH"] = _PATH_NODE
+
+
+def env_tsc():
+    """Devuelve el env para tsc/vitest con el heap actual (respeta mocks de TSC_HEAP_MB en tests)."""
+    e = {"NODE_ENV": "development", "NODE_OPTIONS": "--max-old-space-size=%d" % TSC_HEAP_MB}
+    if _PATH_NODE:
+        e["PATH"] = _PATH_NODE
+    return e
 
 # ESCRITORES: solo NIM (opencode con aihubmix/tokenrouter devuelve «sin cambios» en segundos, sin
 # editar archivos; esos dos se quedan de REVISORES, donde sí funcionan por HTTP directo).
@@ -4434,7 +4439,7 @@ def tsc(cwd, log):
     remoto = tsc_en_a1(cwd, log)
     if remoto is not None:
         return remoto
-    env = ENV_TSC
+    env = env_tsc()
     for intento in range(2):
         with SEM_PESADO, cerrojo("pesado"):
             rc, out = sh(
@@ -4451,7 +4456,7 @@ def tsc(cwd, log):
         if intento == 0:
             # Una segunda vuelta con más montón si fue la memoria, tras dejar respirar a la Mac.
             if "memoria" in motivo:
-                env = dict(ENV_TSC, NODE_OPTIONS="--max-old-space-size=%d" % max(3584, TSC_HEAP_MB))
+                env = dict(env_tsc(), NODE_OPTIONS="--max-old-space-size=%d" % max(3584, TSC_HEAP_MB))
             time.sleep(30)
     return rc, [
         "%s (%s): la puerta no da el visto bueno sin un tsc completo"
@@ -4767,7 +4772,7 @@ def _vitest_con_github(cwd, tocados, log):
                               "src/lib/mando/__tests__/sin-node-en-cliente.test.ts")
                   if os.path.isfile(os.path.join(cwd, g))]
     if extras:
-        rc, out = sh(["npx", "vitest", "run"] + list(extras), cwd=cwd, timeout=600, env=ENV_TSC, log=log)
+        rc, out = sh(["npx", "vitest", "run"] + list(extras), cwd=cwd, timeout=600, env=env_tsc(), log=log)
         if rc != 0:
             return rc, out
     evento("aviso", tid, "puerta vitest: la Mac no terminó src/lib/__tests__ en 600 s; GitHub pasó tsc y vitest "
@@ -4804,7 +4809,7 @@ def vitest(cwd, log):
             orden,
             cwd=cwd,
             timeout=600,
-            env=ENV_TSC,
+            env=env_tsc(),
             log=log,
         )
         # (SUP0411C) Sin terminar no es rojo: el verde de GitHub de este mismo árbol, si lo hay; si no, se
