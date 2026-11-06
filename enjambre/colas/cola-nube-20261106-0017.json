@@ -1,0 +1,45 @@
+{
+ "ola": "nube-20261106",
+ "tareas": [
+  {
+   "ola": "1104R · Repos nativos",
+   "origen": "repos-1104",
+   "id": "RPO1104M-d2",
+   "titulo": "BAMA · destino nativo de macOS: requisitos y paquete de planificación (puro) (parte 2 de 2)",
+   "archivos": [
+    "src/lib/appgen/__tests__/destino-nativo.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§4. PURO: `requisitosNativos({ so, versionSo, xcode, swift, discoLibreGb })` → `{ puedeConstruir, puedePlanificar, faltan }` (macOS ≥ 26 y Xcode ≥ 26 para construir; planificar siempre); `planBama(app)` → el paquete de planificación de BAMA (pantallas a clonar, historias con criterios de aceptación, tokens Trinity traducidos a nombres SwiftUI, y los comandos `claude plugin marketplace add daveebbelaar/bama` / `claude plugin install bama@bama`) como datos, sin ejecutar nada. Pruebas: Mac con solo Command Line Tools → planificar sí, construir no, falta «Xcode 26».\n\n## PARTE 2 DE 2 (la dirección dividió RPO1104M: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/appgen/__tests__/destino-nativo.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "RPO1104M",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "RPO1104M-d1"
+   ]
+  },
+  {
+   "id": "DSV1105B",
+   "ola": "1105D · Diseño de vídeo",
+   "titulo": "Estudio audiovisual: la regla de la intro canónica y el sello en las referencias",
+   "archivos": [
+    "memory/diseno/estudio-audiovisual/references/adn-y-tokens.md",
+    "memory/diseno/estudio-audiovisual/references/formatos-y-guiones.md"
+   ],
+   "depende": [],
+   "origen": "diseno-video",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; es documentación de diseño: no toques código de `src/`; conserva todo lo que no se pide cambiar; nada de claves ni rutas del disco de nadie. Fuente de verdad de la capa de vídeo: el artefacto Design System «StarSeed OS» de Claude (versión 11, 2026-11-05: componentes PautaVideo, IntroYSelloMarca, GrabacionPantallaOS, SubtitulosMarca, RegistrosPorFase, LogoSonoroSemillaEstelar, MiniaturasVideo y sección «08 · Capa de vídeo») y `memory/diseno/identidades.md` (intro canónica y sonido oficial, aprobados el 2026-10-25).\n\nAñade a `adn-y-tokens.md` un apartado «Capa de vídeo» corto que remita al artefacto y fije: toda pieza de 60 s o más abre con la intro completa `starseed_memory_root/identidad/intro/escena1-v4.mp4` (29,6 s, sin tocarla); por debajo de 60 s, el sello (tramo de la intro desde 20,45 s, con su propia banda); «Semilla estelar» corta (4,7 s) solo en tarjetas de cierre y apariciones del símbolo fuera de la intro; display vertical 9:16 de 168 px (168/28 = 6). En `formatos-y-guiones.md` §2 cambia la «intro de canal» propia por esa regla (la intro ya existe y no se rehace) y en §6/§7 añade que las escenas del programa se graban del OS real con el grabador determinista (viewport 1280×720 a 1,5×, reloj virtual a 30 fps)."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1105-221934.json": [
+   "RPO1104M-d2",
+   "DSV1105B"
+  ],
+  "cola-video-1106.json": [
+   "DSV1105B"
+  ]
+ }
+}
