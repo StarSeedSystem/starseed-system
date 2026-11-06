@@ -26,6 +26,13 @@ class LinuxNativo(unittest.TestCase):
                         "libfuse2t64"):
             self.assertIn(paquete, wf)
 
+    def test_cafe_en_linux_sin_acento_en_el_paquete(self):
+        # (LZ042A) «invalid name "star-seed-café"» en el .rpm de v0.4.2.
+        wf = leer(".github/workflows/native-build.yml")
+        self.assertIn('d["productName"]="StarSeed Cafe"', wf)
+        self.assertIn("flag=-c src-tauri/tauri.cafe-linux.conf.json", wf)
+        self.assertIn('[ "${{ runner.os }}" = "Linux" ]', wf)
+
 
 if __name__ == "__main__":
     unittest.main()

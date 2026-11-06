@@ -154,6 +154,12 @@ jobs:
         run: |
           if [ "${{ matrix.system }}" = "os" ]; then
             echo "flag=" >> "$GITHUB_OUTPUT"
+          elif [ "${{ matrix.system }}" = "cafe" ] && [ "${{ runner.os }}" = "Linux" ]; then
+            # (LZ042A) El .rpm solo admite ASCII en el nombre del paquete («star-seed-café» falla): en Linux,
+            # Café se compila como «StarSeed Cafe». Mismo identificador (sus datos no cambian) y mismos nombres
+            # de archivo que v0.3.0 («StarSeed.Cafe_…»).
+            python3 -c 'import json; r="native/src-tauri/tauri.cafe.conf.json"; d=json.load(open(r, encoding="utf-8")); d["productName"]="StarSeed Cafe"; json.dump(d, open("native/src-tauri/tauri.cafe-linux.conf.json", "w", encoding="utf-8"), ensure_ascii=False, indent=2)'
+            echo "flag=-c src-tauri/tauri.cafe-linux.conf.json" >> "$GITHUB_OUTPUT"
           else
             # tauri-action corre desde `native/`; los overrides viven en src-tauri/.
             echo "flag=-c src-tauri/tauri.${{ matrix.system }}.conf.json" >> "$GITHUB_OUTPUT"
