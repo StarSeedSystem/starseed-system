@@ -12,6 +12,7 @@ function moleculaDePrueba(): Molecula {
     };
 }
 
+<<<<<<< HEAD
 function capaDeRespuestaViva(): Capa {
     return {
         id: "respuesta-viva",
@@ -29,6 +30,13 @@ export function moleculaConRespuestaViva(): Molecula {
     return {
         id: "mol-respuesta-viva", titulo: "Molécula con Respuesta Viva", ambito: "personal",
         capas: [capaDeRespuestaViva()], atomos: [], valores: {}, version: 1, creadaEn: 1000, actualizadaEn: 1000,
+=======
+// Prueba para respuesta-viva
+export function moleculaConRespuestaViva(): Molecula {
+    return {
+        id: "mol-respuesta-viva", titulo: "Molécula con Respuesta Viva", ambito: "personal",
+        capas: [CAPA_RESPUESTA_VIVA], atomos: [], valores: {}, version: 1, creadaEn: 1000, actualizadaEn: 1000,
+>>>>>>> 534e5c437 (salvavidas · RPO1104K: trabajo del agente antes de las puertas (tsc / vitest))
     };
 }
 function capaConReferencia(): Capa {
