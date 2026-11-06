@@ -483,7 +483,9 @@ function CodeEditor({ block, patch }: EditorProps) {
                         title="Vista previa del programa"
                         // AISLAMIENTO: allow-scripts SIN allow-same-origin → origen opaco,
                         // sin acceso a cookies/localStorage/sesión de la app.
-                        sandbox="allow-scripts allow-popups allow-modals"
+                        // allow-popups ELIMINADO (SA102440): impedía phishing/redirección vía window.open.
+                        // Capacidades concedidas: allow-scripts (ejecución JS), allow-modals (alert/confirm).
+                        sandbox="allow-scripts allow-modals"
                         referrerPolicy="no-referrer"
                         srcDoc={doc}
                         className="h-64 w-full bg-white/0"

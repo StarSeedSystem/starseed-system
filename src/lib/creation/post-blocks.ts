@@ -344,14 +344,19 @@ export function buildSandboxDoc(
         return `<!doctype html><html><head>${head}</head><body><div id="app"></div><script>${safeScript(code)}</script></body></html>`;
     }
     // jsx (React vía CDN, dentro del propio iframe aislado).
+    // SRI (Subresource Integrity): protege contra manipulación de la cadena de suministro.
+    // Hashes SHA-384 calculados para las versiones exactas en unpkg (react@18, react-dom@18, @babel/standalone).
     const react = `https://unpkg.com/react@18/umd/react.production.min.js`;
     const reactDom = `https://unpkg.com/react-dom@18/umd/react-dom.production.min.js`;
     const babel = `https://unpkg.com/@babel/standalone/babel.min.js`;
+    const reactIntegrity = `sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z`;
+    const reactDomIntegrity = `sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1`;
+    const babelIntegrity = `sha384-r5Ldzi45mT2cLBHDFFiSsTooTu4rFdkBdx9D50zWqSmJ8FLuJkQQTF7h6ERx/NX0`;
     return [
         `<!doctype html><html><head>${head}`,
-        `<script crossorigin src="${react}"></script>`,
-        `<script crossorigin src="${reactDom}"></script>`,
-        `<script src="${babel}"></script>`,
+        `<script crossorigin="anonymous" integrity="${reactIntegrity}" src="${react}"></script>`,
+        `<script crossorigin="anonymous" integrity="${reactDomIntegrity}" src="${reactDom}"></script>`,
+        `<script crossorigin="anonymous" integrity="${babelIntegrity}" src="${babel}"></script>`,
         `</head><body><div id="root"></div>`,
         `<script type="text/babel" data-presets="react">`,
         safeScript(code),
