@@ -59,6 +59,23 @@ def pedir(p, notas, referencias, por, ahora_iso):
     return p
 
 
+def necesita_notas(p):
+    """PURA (1106): Alex pidió otra versión SIN notas ni referencias y aún no hay tarea: el director las escribe
+    (solo si la reimaginación automática está activa; eso lo decide quien llama)."""
+    r = p.get("reimaginacion") if isinstance(p, dict) and isinstance(p.get("reimaginacion"), dict) else {}
+    return (p.get("estado") == "reimaginando" and r.get("por") == "alex" and not r.get("tarea")
+            and not str(r.get("notas") or "").strip() and not r.get("referencias"))
+
+
+def notas_del_director(p, critica):
+    """Escribe en `p` las notas del director para una reimaginación pedida sin ellas (marcadas «director»)."""
+    r = p.setdefault("reimaginacion", {})
+    base = str(critica or "").strip() or "hazla más concreta, accionable y apoyada en referencias https verificables."
+    r["notas"] = ("Pedida sin notas; el director propone: " + base)[:AD.MAX_NOTAS]
+    r["notas_por"] = "director"
+    return p
+
+
 def _reim(p):
     r = p.get("reimaginacion")
     return r if isinstance(r, dict) else {}

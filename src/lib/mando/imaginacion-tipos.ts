@@ -25,6 +25,8 @@ export interface Reimaginacion {
   notas: string; referencias: ReferenciaPropuesta[]; pedida: string; por: QuienDecide;
   antes?: EstadoPropuesta; tarea?: string; salida?: string; cola?: string;
   encolada?: string; recibida?: string; version_nueva?: string; devuelta?: string;
+  /** (1106) «director»: Alex la pidió sin notas y el director las escribió (reimaginación automática activa). */
+  notas_por?: "director";
 }
 
 export interface PropuestaImaginacion {
@@ -284,6 +286,7 @@ export function normalizarReimaginacion(x: unknown): Reimaginacion | undefined {
   const extra: [keyof Reimaginacion, string][] = [["tarea", cadena(x.tarea, 80)], ["salida", rutaRelativa(x.salida)], ["cola", rutaRelativa(x.cola)],
     ["encolada", cadena(x.encolada, 40)], ["recibida", cadena(x.recibida, 40)], ["version_nueva", cadena(x.version_nueva, 120)], ["devuelta", cadena(x.devuelta, 40)]];
   for (const [k, v] of extra) if (v) (r as unknown as Record<string, string>)[k] = v;
+  if (x.notas_por === "director") r.notas_por = "director";
   return r;
 }
 
@@ -396,10 +399,12 @@ export type PeticionImaginacion =
   | { accion: "posponer"; id: string; horas: number }
   | { accion: "lote"; ids: string[] | "pendientes"; hacer: HacerLote; notas: string; referencias: unknown; motivo: string; ambito: AmbitoPropuesta | "todos"; por: QuienDecide }
   | { accion: "ajustes"; ajustes: unknown };
-const FALTA_REIMAGINAR = "Para reimaginar di qué cambiar (notas) o da al menos una referencia https:// válida.";
-/** El motivo por el que no se puede reimaginar con estas notas y referencias, o null. */
-export const vetoReimaginar = (notas: unknown, referencias: unknown): string | null =>
-  cadena(notas, 2000) || normalizarReferencias(referencias).length ? null : FALTA_REIMAGINAR;
+/**
+ * (1106) Reimaginar va con o sin comentarios: sin notas ni referencias, el director las escribe si la reimaginación
+ * automática está activa (si no, la flota la mejora a su criterio). Las referencias que no son https se descartan
+ * al normalizar. Se queda como función para que las demás puertas sigan pasando por aquí.
+ */
+export const vetoReimaginar = (_notas: unknown, _referencias: unknown): string | null => null;
 
 /** Interpreta el cuerpo del POST: la petición tipada o el error para un 400. «aprobar» = «integrar». */
 export function interpretarPeticion(cuerpo: unknown): PeticionImaginacion | { error: string } {

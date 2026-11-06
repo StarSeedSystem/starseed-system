@@ -184,12 +184,11 @@ describe("Ola 1024I · propuestas libres, reimaginar, lote y automático", () =>
         expect(p?.referencias).toEqual([{ titulo: "Are.na", url: "https://www.are.na/canal" }]);
         expect(normalizarPropuesta(base({ tipo: "inventado", ambito: "../x", version: 0 }))).toMatchObject({ tipo: "codigo", ambito: "metagenesis", version: 1 });
     });
-    it("reimaginar sin notas ni referencias válidas → error honesto y nada cambia", async () => {
+    it("(1106) reimaginar sin notas ni referencias válidas → «reimaginando» sin notas (las escribe el director)", async () => {
         sembrar([vieja]);
-        const r = await reimaginar("vieja", "   ", ["http://no.org", "ftp://x"], "alex", lugar());
-        expect(r.ok).toBe(false);
-        if (!r.ok) expect(r.error).toContain("reimaginar");
-        expect(enDisco()).toEqual([vieja]);
+        const r = await reimaginar("vieja", "   ", ["http://no.org", "ftp://x"], "alex", { ...lugar(), ahora: AHORA });
+        expect(r.ok && r.propuesta).toMatchObject({ estado: "reimaginando", reimaginacion: { notas: "", referencias: [], por: "alex" } });
+        expect(porId("vieja")).toMatchObject({ estado: "reimaginando", decidida: AHORA.toISOString() });
     });
     it("reimaginar con notas y referencias → «reimaginando» con lo pedido (las no https se descartan)", async () => {
         sembrar([vieja]);
@@ -239,10 +238,10 @@ describe("Ola 1024I · propuestas libres, reimaginar, lote y automático", () =>
         expect(await lote("pendientes", "rechazar", {}, { ...lugar(), ambito: "raro" })).toMatchObject({ ok: false, error: expect.stringContaining("Ámbito") });
         expect(await lote("pendientes", "rechazar", {}, { ...lugar(), ambito: "personal" })).toEqual({ ok: true, resultados: [] });
     });
-    it("lote reimaginar sin notas: error de todo el lote y nada cambia", async () => {
+    it("(1106) lote reimaginar sin notas: vale, y cada una queda «reimaginando» sin notas", async () => {
         sembrar([base({ id: "a" })]);
-        expect(await lote("pendientes", "reimaginar", { notas: "" }, lugar())).toMatchObject({ ok: false, resultados: [], error: expect.stringContaining("reimaginar") });
-        expect(enDisco()).toEqual([base({ id: "a" })]);
+        expect(await lote("pendientes", "reimaginar", { notas: "" }, lugar())).toMatchObject({ ok: true, resultados: [{ id: "a", ok: true }] });
+        expect(porId("a")).toMatchObject({ estado: "reimaginando", reimaginacion: { notas: "" } });
     });
     it("la automática NUNCA integra alta ni crítica por lote; lo bajo/medio sobre el umbral sí", async () => {
         await guardarAjustes({ auto: { aprobar: true, umbral: 0.6 } }, lugar());

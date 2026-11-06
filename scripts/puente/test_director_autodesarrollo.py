@@ -697,3 +697,18 @@ def test_id_de_tarea_sin_espacios_ni_acentos_1106i():
     assert _re.fullmatch(r"[A-Za-z0-9_-]{1,64}", tid)
     assert D.id_de_tarea("agentes:reimaginada-profunda") == "IMG-agentes-reimaginada-profunda"
     assert D.id_de_tarea("x: ñandú — ¿sí?") == "IMG-x-nandu-si"
+
+
+def test_fusion_con_disco_respeta_lo_decidido_durante_el_ciclo_1106():
+    a0 = {"id": "a", "estado": "pregunta", "utilidad": 1.0}
+    b0 = {"id": "b", "estado": "nueva"}
+    d0 = {"id": "d", "estado": "nueva", "utilidad": 1.0}
+    inicial = {p["id"]: D.huella_propuesta(p) for p in (a0, b0, d0)}
+    ciclo = [dict(a0), dict(b0, estado="descartada"), dict(d0, estado="encargada")]
+    # Mientras, Genesis integra «a», reescribe «d» igual (JavaScript guarda 1.0 como 1) y nace «c».
+    disco = {"propuestas": [dict(a0, estado="aprobada", decidida="X"), dict(b0), dict(d0, utilidad=1),
+                            {"id": "c", "estado": "nueva"}]}
+    fuera = D.fusionar_con_disco(inicial, ciclo, disco)
+    assert [(p["id"], p["estado"]) for p in fuera] == [("a", "aprobada"), ("b", "descartada"), ("d", "encargada"),
+                                                        ("c", "nueva")]
+    assert D.fusionar_con_disco(inicial, ciclo, []) == ciclo

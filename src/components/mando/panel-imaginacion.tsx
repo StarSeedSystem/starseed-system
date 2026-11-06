@@ -304,6 +304,9 @@ function FormularioReimaginar({
                 className={`${CAMPO} min-h-[5.5rem] py-2`}
             />
             <span className="text-right text-[10px] tabular-nums text-white/60">{notas.length} / 2000</span>
+            <p className="text-[11px] leading-snug text-white/70">
+                Opcional: si lo dejas vacío y la reimaginación automática está activa, el director escribe las notas por ti.
+            </p>
             <label htmlFor={`${idBase}-refs`} className="text-[11px] font-medium text-white/85">
                 Referencias (una URL https por línea, con título opcional)
             </label>
@@ -487,7 +490,7 @@ function TarjetaPropuesta({
     seleccionada: boolean;
     alSeleccionar: (id: string, si: boolean) => void;
     alIrA: (id: string) => void;
-    alDecidido: (texto: string) => Promise<void>;
+    alDecidido: (texto: string, propuesta?: PropuestaNormalizada) => Promise<void>;
 }) {
     const [cuerpoAbierto, setCuerpoAbierto] = useState(false);
     const [abierto, setAbierto] = useState<Abierto>(null);
@@ -506,7 +509,7 @@ function TarjetaPropuesta({
         setOcupado(null);
         if (!e.ok) return setError(errorDe(e));
         setAbierto(null);
-        await alDecidido(`«${p.titulo || p.id}»: ${exito(e.datos.propuesta ?? p)}`);
+        await alDecidido(`«${p.titulo || p.id}»: ${exito(e.datos.propuesta ?? p)}`, e.datos.propuesta);
     };
     const integrar = () =>
         void decidir("integrar", {}, () =>
@@ -572,7 +575,15 @@ function TarjetaPropuesta({
                                 {r.recibida ? ` · versión nueva recibida ${cuando(r.recibida)}` : ""}
                             </p>
                             {r.version_nueva ? <p>Versión nueva: {enlace(r.version_nueva, `«${titulos.get(r.version_nueva) || r.version_nueva}»`)}</p> : null}
-                            {r.notas ? <p className="mt-0.5 text-white/75">Notas: «{r.notas}»</p> : null}
+                            {r.notas ? (
+                                <p className="mt-0.5 text-white/75">
+                                    {r.notas_por === "director" ? "Notas del director (la pediste sin notas)" : "Notas"}: «{r.notas}»
+                                </p>
+                            ) : !r.referencias.length && !r.tarea ? (
+                                <p className="mt-0.5 text-white/75">
+                                    Sin notas: con la reimaginación automática activa, el director las escribe en su próximo ciclo; si no, la flota la mejora a su criterio.
+                                </p>
+                            ) : null}
                             {r.referencias.length ? (
                                 <p className="mt-0.5 flex flex-wrap gap-x-2">
                                     {r.referencias.map((x) => (
@@ -783,6 +794,8 @@ const VERBO: Record<HacerLote, { infinitivo: string; participio: string }> = {
     reimaginar: { infinitivo: "Reimaginar", participio: "reimaginando" },
     rechazar: { infinitivo: "Rechazar", participio: "rechazadas" },
 };
+/** (1106) Lo que se ve al momento tras un lote, antes de releer el disco. */
+const ESTADO_TRAS_LOTE: Record<HacerLote, EstadoPropuesta> = { integrar: "aprobada", reimaginar: "reimaginando", rechazar: "rechazada" };
 
 /** Enlace a otro ámbito en la misma vista (MetaGenesis = sin `?ambito=`). */
 function enlaceAmbito(a: AmbitoPropuesta): string {
@@ -818,6 +831,9 @@ export function PanelImaginacion({
     const [motivoLote, setMotivoLote] = useState("");
     const [ocupadoLote, setOcupadoLote] = useState(false);
     const [resultadoLote, setResultadoLote] = useState<{ hacer: HacerLote; resultados: ResultadoId[]; error?: string } | null>(null);
+    // (1106) «Releer» y lo que relee tras cada decisión se ven: girando mientras lee y la hora de la última lectura.
+    const [releyendo, setReleyendo] = useState(false);
+    const [leidoEn, setLeidoEn] = useState<Date | null>(null);
     const alCambioRef = useRef(alCambio);
     alCambioRef.current = alCambio;
     const refPestanas = useRef<(HTMLButtonElement | null)[]>([]);
@@ -832,6 +848,7 @@ export function PanelImaginacion({
             }
             setDatos({ propuestas: d.propuestas, ajustes: d.ajustes });
             setErrorLectura(null);
+            setLeidoEn(new Date());
             // La selección solo guarda lo que sigue esperando decisión (lo fallido de un lote, sí).
             const siguen = new Set(d.propuestas.filter((p) => esDecidible(p.estado)).map((p) => p.id));
             setSeleccion((s) => new Set([...s].filter((id) => siguen.has(id))));
@@ -850,13 +867,20 @@ export function PanelImaginacion({
     }, [cargar]);
 
     const tras = useCallback(async () => {
-        await cargar();
+        setReleyendo(true);
+        try {
+            await cargar();
+        } finally {
+            setReleyendo(false);
+        }
         alCambioRef.current?.();
     }, [cargar]);
 
     const alDecidido = useCallback(
-        async (texto: string) => {
+        async (texto: string, propuesta?: PropuestaNormalizada) => {
             setRespuesta(texto);
+            // (1106) Al momento: la tarjeta cambia con lo que contestó el servidor; luego se relee el disco.
+            if (propuesta) setDatos((d) => (d ? { ...d, propuestas: d.propuestas.map((x) => (x.id === propuesta.id ? propuesta : x)) } : d));
             await tras();
         },
         [tras],
@@ -932,6 +956,9 @@ export function PanelImaginacion({
             return; // nada se intentó: el formulario sigue abierto para corregirlo
         }
         setResultadoLote({ hacer: l.hacer, resultados });
+        const hechas = new Set(resultados.filter((x) => x.ok).map((x) => x.id));
+        const nuevo = ESTADO_TRAS_LOTE[l.hacer];
+        if (hechas.size) setDatos((d) => (d ? { ...d, propuestas: d.propuestas.map((x) => (hechas.has(x.id) ? { ...x, estado: nuevo } : x)) } : d));
         setSeleccion(new Set(resultados.filter((x) => !x.ok).map((x) => x.id)));
         setLote(null);
         setMotivoLote("");
@@ -979,10 +1006,17 @@ export function PanelImaginacion({
                         ))}
                     </span>
                 ) : null}
-                <button type="button" onClick={() => void tras()} className={BOTON.neutro}>
-                    <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-                    Releer
+                <button type="button" onClick={() => void tras()} disabled={releyendo} aria-busy={releyendo} className={BOTON.neutro}>
+                    {releyendo ? <Loader2 className={GIRO} aria-hidden /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden />}
+                    {releyendo ? "Releyendo…" : "Releer"}
                 </button>
+                <span role="status" aria-live="polite" className="text-white/65" data-testid="imaginacion-leido">
+                    {releyendo
+                        ? "Leyendo las propuestas…"
+                        : leidoEn
+                          ? `Leído a las ${leidoEn.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
+                          : ""}
+                </span>
             </p>
 
             {datos && propuestas.length > 0 && (() => {

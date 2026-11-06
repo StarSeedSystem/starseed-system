@@ -184,9 +184,12 @@ describe("interpretarPeticion", () => {
     expect(interpretarPeticion([])).toEqual({ error: "Cuerpo JSON inválido." });
     expect(interpretarPeticion({ accion: "borrar", id: "x" })).toMatchObject({ error: expect.stringContaining("Acción desconocida") });
   });
-  it("reimaginar sin notas ni referencias https válidas → error", () => {
-    expect(interpretarPeticion({ accion: "reimaginar", id: "x", notas: "  " })).toMatchObject({ error: expect.stringContaining("reimaginar") });
-    expect(interpretarPeticion({ accion: "reimaginar", id: "x", referencias: ["http://no.org"] })).toHaveProperty("error");
+  it("(1106) reimaginar con o sin comentarios: sin notas ni referencias también vale", () => {
+    expect(interpretarPeticion({ accion: "reimaginar", id: "x", notas: "  " })).toMatchObject({ accion: "reimaginar", id: "x" });
+    expect(interpretarPeticion({ accion: "reimaginar", id: "x" })).toMatchObject({ accion: "reimaginar", id: "x", notas: "" });
+    expect(interpretarPeticion({ accion: "lote", ids: ["a"], hacer: "reimaginar", ambito: "metagenesis" })).toMatchObject({ accion: "lote", hacer: "reimaginar" });
+    expect(normalizarReimaginacion({ notas: "x", referencias: [], pedida: "t", por: "alex", notas_por: "director" })).toMatchObject({ notas_por: "director" });
+    expect(normalizarReimaginacion({ notas: "x", referencias: [], pedida: "t", por: "alex", notas_por: "otro" })).not.toHaveProperty("notas_por");
     expect(interpretarPeticion({ accion: "reimaginar", id: "x", referencias: ["https://si.org"] })).toMatchObject({ accion: "reimaginar", notas: "" });
   });
   it("posponer valida las horas", () => {
@@ -201,7 +204,7 @@ describe("interpretarPeticion", () => {
     expect(interpretarPeticion({ accion: "lote", ids: [1], hacer: "rechazar" })).toHaveProperty("error");
     expect(interpretarPeticion({ accion: "lote", ids: "pendientes", hacer: "posponer" })).toHaveProperty("error");
     expect(interpretarPeticion({ accion: "lote", ids: "pendientes", hacer: "rechazar", ambito: "raro" })).toHaveProperty("error");
-    expect(interpretarPeticion({ accion: "lote", ids: "pendientes", hacer: "reimaginar" })).toHaveProperty("error");
+    expect(interpretarPeticion({ accion: "lote", ids: "pendientes", hacer: "reimaginar" })).toMatchObject({ hacer: "reimaginar", notas: "" }); // (1106) sin notas vale
     expect(interpretarPeticion({ accion: "lote", ids: Array.from({ length: 501 }, (_, i) => `p${i}`), hacer: "rechazar" })).toHaveProperty("error");
   });
 });

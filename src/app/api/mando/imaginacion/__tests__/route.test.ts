@@ -62,7 +62,6 @@ describe("/api/mando/imaginacion", () => {
         expect((await post({ accion: "integrar", id: "m1" })).status).toBe(200);
         expect(enDisco()[0].estado).toBe("aprobada");
         expect((await post({ accion: "aprobar", id: "m1" })).status).toBe(409); // ya decidida
-        expect((await post({ accion: "reimaginar", id: "g1" })).status).toBe(400);
         const r = await post({ accion: "reimaginar", id: "g1", notas: "otra paleta", referencias: [{ titulo: "R", url: "https://r.org/" }, "http://no"] });
         expect(r.status).toBe(200);
         expect((await r.json()).propuesta).toMatchObject({ estado: "reimaginando", reimaginacion: { notas: "otra paleta", referencias: [{ titulo: "R", url: "https://r.org/" }], por: "alex" } });
@@ -77,7 +76,7 @@ describe("/api/mando/imaginacion", () => {
         const p = await (await post({ accion: "lote", ids: "pendientes", hacer: "integrar", ambito: "grupo:g" })).json();
         expect(p).toEqual({ ok: true, resultados: [{ id: "g1", ok: true }] });
         expect(enDisco().map((d) => d.estado)).toEqual(["rechazada", "aprobada", "reimaginando"]);
-        expect((await post({ accion: "lote", ids: "pendientes", hacer: "reimaginar" })).status).toBe(400);
+        expect((await post({ accion: "lote", ids: "pendientes", hacer: "reimaginar" })).status).toBe(200); // (1106) sin notas vale
     });
     it("POST ajustes enciende el automático sin perder lo demás", async () => {
         const j = await (await post({ accion: "ajustes", ajustes: { auto: { aprobar: true } } })).json();

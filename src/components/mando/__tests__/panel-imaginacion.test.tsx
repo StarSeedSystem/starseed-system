@@ -168,6 +168,38 @@ describe("PanelImaginacion", () => {
         expect(screen.getByRole("tab", { name: /Rechazadas y pospuestas/ })).toHaveAttribute("aria-selected", "true");
     });
 
+    it("(1106) «Releer» se ve: relee y dice a qué hora leyó", async () => {
+        const { gets } = servidor([prop({ id: "a", titulo: "Cabecera" })], sinPost);
+        render(<PanelImaginacion ambito="metagenesis" />);
+        await screen.findByTestId("propuesta-a");
+        await waitFor(() => expect(screen.getByTestId("imaginacion-leido")).toHaveTextContent(/Leído a las/));
+        const antes = gets.length;
+        fireEvent.click(screen.getByRole("button", { name: "Releer" }));
+        await waitFor(() => expect(gets.length).toBeGreaterThan(antes));
+        await waitFor(() => expect(screen.getByRole("button", { name: "Releer" })).not.toBeDisabled());
+        expect(screen.getByTestId("imaginacion-leido")).toHaveTextContent(/Leído a las/);
+    });
+
+    it("(1106) reimaginar sin comentarios: se envía sin notas y la tarjeta cambia al momento", async () => {
+        const { posts } = servidor([prop({ id: "a", titulo: "Cabecera" })], (c, estado) => {
+            const p = estado.propuestas.find((x) => x.id === c.id)!;
+            p.estado = "reimaginando";
+            p.reimaginacion = { notas: "", referencias: [], pedida: HOY, por: "alex" };
+            return { json: { ok: true, propuesta: p } };
+        });
+        render(<PanelImaginacion ambito="metagenesis" />);
+        const tarjeta = await screen.findByTestId("propuesta-a");
+        fireEvent.click(within(tarjeta).getByRole("button", { name: "Reimaginar" }));
+        const formulario = within(tarjeta).getByTestId("imaginacion-a-reimaginar-formulario");
+        expect(formulario).toHaveTextContent("el director escribe las notas por ti");
+        fireEvent.click(within(formulario).getByRole("button", { name: "Pedir otra versión" }));
+        await waitFor(() => expect(posts).toHaveLength(1));
+        expect(posts[0]).toEqual({ accion: "reimaginar", id: "a", notas: "", referencias: [] });
+        await waitFor(() => expect(screen.queryByTestId("propuesta-a")).toBeNull()); // salió de «Por decidir»
+        fireEvent.click(screen.getByRole("tab", { name: /Reimaginando/ }));
+        expect(await screen.findByTestId("propuesta-a")).toHaveTextContent("Sin notas: con la reimaginación automática activa");
+    });
+
     it("reimaginar valida notas y referencias antes de enviar, y dice lo que contestó el servidor", async () => {
         const alCambio = vi.fn();
         const { posts } = servidor([prop({ id: "a", titulo: "Cabecera" }), prop({ id: "b", titulo: "Otra" })], (c, estado) => {
@@ -182,8 +214,6 @@ describe("PanelImaginacion", () => {
         const formulario = within(tarjeta).getByTestId("imaginacion-a-reimaginar-formulario");
         const pedir = within(formulario).getByRole("button", { name: "Pedir otra versión" });
 
-        fireEvent.click(pedir);
-        expect(await within(formulario).findByRole("alert")).toHaveTextContent("di qué cambiar");
         const refs = within(formulario).getByLabelText("Referencias (una URL https por línea, con título opcional)");
         fireEvent.change(refs, { target: { value: "http://inseguro.org" } });
         fireEvent.click(pedir);

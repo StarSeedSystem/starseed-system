@@ -186,5 +186,24 @@ class Encolar(unittest.TestCase):
             self.assertTrue(os.path.isfile(os.path.join(mem, "olas", nombre)))
 
 
+class NotasDelDirector1106(unittest.TestCase):
+    """(1106) Reimaginar sin comentarios: con la automática activa, el director escribe las notas."""
+
+    def test_sin_notas_el_director_las_escribe(self):
+        p = {"id": "x", "estado": "reimaginando", "reimaginacion": {"notas": " ", "referencias": [], "por": "alex", "pedida": "t"}}
+        self.assertTrue(R.necesita_notas(p))
+        R.notas_del_director(p, "Hazla accionable.")
+        self.assertTrue(p["reimaginacion"]["notas"].startswith("Pedida sin notas; el director propone: Hazla accionable."))
+        self.assertEqual(p["reimaginacion"]["notas_por"], "director")
+        self.assertFalse(R.necesita_notas(p))
+
+    def test_con_referencias_automatica_o_ya_encargada_no(self):
+        con_refs = {"estado": "reimaginando", "reimaginacion": {"notas": "", "referencias": [{"url": "https://a.org"}], "por": "alex"}}
+        auto = {"estado": "reimaginando", "reimaginacion": {"notas": "", "por": "automatica"}}
+        encargada = {"estado": "reimaginando", "reimaginacion": {"notas": "", "por": "alex", "tarea": "RIM-x"}}
+        for p in (con_refs, auto, encargada, {"estado": "nueva"}):
+            self.assertFalse(R.necesita_notas(p))
+
+
 if __name__ == "__main__":
     unittest.main()

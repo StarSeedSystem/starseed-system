@@ -434,6 +434,41 @@ def id_de_tarea(pid, tope=40):
     return ("IMG-" + s[:tope]).rstrip("-")
 
 
+def _canon(x):
+    if isinstance(x, float) and x.is_integer():
+        return int(x)
+    if isinstance(x, dict):
+        return {k: _canon(v) for k, v in x.items()}
+    if isinstance(x, list):
+        return [_canon(v) for v in x]
+    return x
+
+
+def huella_propuesta(p):
+    """PURA (1106): huella estable de una propuesta (1.0 de Python y 1 de JavaScript valen lo mismo)."""
+    return json.dumps(_canon(p), sort_keys=True, ensure_ascii=False)
+
+
+def fusionar_con_disco(inicial, propuestas, disco_crudo):
+    """PURA (1106): lo que otro cambió en propuestas.json MIENTRAS corría el ciclo (Alex integrando, rechazando o
+    reimaginando desde Genesis) manda sobre la copia del ciclo, y lo que nació en el disco se conserva. Sin esto, el
+    ciclo (minutos: Jev, EGM, Astraura) reescribía el archivo entero y esas decisiones se perdían.
+    `inicial` = {id: huella_propuesta(p)} al leer; `disco_crudo` = lo que hay ahora (lista o {propuestas: [...]})."""
+    disco = disco_crudo if isinstance(disco_crudo, list) else (
+        disco_crudo.get("propuestas") if isinstance(disco_crudo, dict) else None) or []
+    en_disco = {p["id"]: p for p in disco if isinstance(p, dict) and p.get("id")}
+    salida, vistos = [], set()
+    for p in propuestas:
+        pid = p.get("id") if isinstance(p, dict) else None
+        d = en_disco.get(pid) if pid else None
+        cambiada_fuera = d is not None and pid in inicial and huella_propuesta(d) != inicial[pid]
+        salida.append(d if cambiada_fuera else p)
+        if pid:
+            vistos.add(pid)
+    salida += [d for i, d in en_disco.items() if i not in vistos and i not in inicial]
+    return salida
+
+
 def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_diario=None, lanzador_profundo=None,
           existe_ruta=None, datos=None, avisar=None, consejo=None, agente_referencias=None, aplicar_astraura=None,
           a_la_flota=None, agente_alcance=None, llamar_egm=None):
@@ -505,6 +540,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         crudo = _json(pr, {})  # lista o {propuestas: [...]}: se respeta la forma que haya (contrato §1)
         lista = crudo if isinstance(crudo, list) else (crudo.get("propuestas") if isinstance(crudo, dict) else None) or []
         previas = {p["id"]: p for p in lista if isinstance(p, dict) and p.get("id")}
+        inicial = {k: huella_propuesta(v) for k, v in previas.items()}  # (1106) para fusionar con el disco al final
         astr, filtro = (AF.de_astraura(d.get("astraura") or {}, hoy, claves) if f["astraura"] else []), None
         if astr:  # Ola 1102 (IMG1102A): el filtro de entrada de Astraura decide antes de crear la propuesta
             astr, filtro = AF.filtrar_astraura(astr, previas.values(), hoy, crudo.get("filtro_astraura") if isinstance(crudo, dict) else None)
@@ -519,6 +555,10 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         for p in AR.caducadas(previas.values(), ahora):
             AR.devolver(p, f"la reimaginación no llegó en {AR.CADUCA_H} h: queda en tu lista", iso)
         propuestas = list(previas.values())
+        if au["reimaginar"]:  # (1106) Alex pidió otra versión sin notas: con la automática activa, las escribe el director
+            for p in propuestas:
+                if AR.necesita_notas(p):
+                    AR.notas_del_director(p, AD.critica(p, au["umbral"], existe))
         reim, devueltas = AR.pendientes(propuestas, au["max_reimaginaciones"], ahora)
         for p in devueltas:
             AR.devolver(p, f"tope de {au['max_reimaginaciones']} reimaginación(es) por cadena: queda en tu lista", iso)
@@ -588,6 +628,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
                 for t in reim: AR.marcar_encolada(por_tarea[t["id"]], t, cola_r, iso)
         # Las propuestas se escriben siempre (incluso si la ola fue bloqueada por EGM)
         if not seco:
+            propuestas = fusionar_con_disco(inicial, propuestas, _json(pr, {}))  # (1106) no pisar lo decidido entretanto
             _escribir(pr, propuestas if isinstance(crudo, list) else {**crudo, "actualizado": iso, "propuestas": propuestas,
                                                                    **({"filtro_astraura": filtro} if filtro else {})})
             # Ola 1025S: lo encolado (de este ciclo y de los anteriores que siguen esperando) va al orquestador vivo.
