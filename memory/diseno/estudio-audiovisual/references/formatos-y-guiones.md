@@ -15,12 +15,16 @@ red (cada app tapa franjas distintas con sus botones).
 
 Frecuencia: 24 fps para lo cinematográfico, 30 o 60 fps para interfaz y pantallas.
 
-## 2. Intro de canal (3–7 s)
+## 2. Intro y sello canónicos
 
-Beats: siembra del símbolo (punto → dos círculos → ojo → diamante) · entrada cardinal de los tres colores
-de la Trinity desde el perímetro · la línea de horizonte (jugada rara) · rótulo «StarSeed» en Rajdhani con
-la sección o el canal debajo en Inter · logo sonoro de 1,5–3 s. Haz versiones 16:9 y 9:16, y una corta
-(3 s) para piezas breves. Variante por registro (§6 de `adn-y-tokens.md`) para cada canal o sección.
+La intro ya existe y no se rehace: es la «Génesis del símbolo» aprobada por Alex el 2026-10-25
+(`starseed_memory_root/identidad/intro/escena1-v4.mp4`, 29,6 s) con el sonido oficial «Semilla estelar».
+Reglas (detalle en §8b de `adn-y-tokens.md`):
+
+- Pieza de 60 s o más: abre con la intro completa, sin tocarla.
+- Por debajo de 60 s: el sello, tramo de la intro desde 20,45 s, con su propia banda.
+- «Semilla estelar» corta (4,7 s) solo en tarjetas de cierre y apariciones del símbolo fuera de la intro.
+- En 9:16, display de 168 px (168/28 = 6).
 
 ## 3. Vídeo explicativo (60–180 s)
 
@@ -43,13 +47,15 @@ intro del canal; cierre con la invitación.
 
 HTML con scroll narrativo o escenas por tiempo (HyperFrames si va a vídeo): tokens de `assets/tokens.css`,
 transiciones de `transitions-dev`, fondos de `shaders` con respaldo, Three.js para 3D, versión con
-movimiento reducido. Rinde a MP4 con HyperFrames para redes.
+movimiento reducido. Rinde a MP4 con HyperFrames para redes. Las escenas del programa se graban del OS real
+con el grabador determinista (`GrabacionPantallaOS`): viewport 1280×720 a 1,5×, reloj virtual a 30 fps.
 
 ## 7. Animaciones 3D de programas del OS
 
 Del programa real a la escena: estructura (nodos, capas, flujos) → modelo 3D sencillo y legible
 (Three.js o Higgsfield `generate_3d` / `scene_builder_3d_*`) → recorrido de cámara corto (una idea por
-plano) → rótulos fuera del centro sagrado. Ejemplos: la malla cristalina que se ordena en retícula; las
+plano) → rótulos fuera del centro sagrado. Las escenas del programa se graban del OS real con el grabador
+determinista: viewport 1280×720 a 1,5× y reloj virtual a 30 fps. Ejemplos: la malla cristalina que se ordena en retícula; las
 capas de Astraura que se adaptan al aparato; Genesis repartiendo tareas a sus agentes; una propuesta que
 pasa de idea a votación y a decisión.
 

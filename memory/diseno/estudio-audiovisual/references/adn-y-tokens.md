@@ -189,6 +189,20 @@ de desbordar.
   encaja (Satoshi y Rajdhani en §4; sombra simple y brillo multicapa, y los dos fondos, en §5) y la
   composición es centrada y adaptable por aparato (§7b).
 
+## 8b. Capa de vídeo
+
+Fuente: el artefacto Design System «StarSeed OS» (§8), sección «08 · Capa de vídeo» con los componentes
+`PautaVideo`, `IntroYSelloMarca`, `GrabacionPantallaOS`, `SubtitulosMarca`, `RegistrosPorFase`,
+`LogoSonoroSemillaEstelar` y `MiniaturasVideo` (v11, 2026-11-05). La intro canónica y el sonido oficial
+están aprobados en `memory/diseno/identidades.md` (2026-10-25). Reglas:
+
+- **Intro completa:** toda pieza de 60 s o más abre con `starseed_memory_root/identidad/intro/escena1-v4.mp4`
+  (29,6 s), sin tocarla.
+- **Sello:** por debajo de 60 s, el tramo de la intro desde 20,45 s (símbolo, wordmark y apagado), con su
+  propia banda.
+- **«Semilla estelar» corta** (4,7 s): solo en tarjetas de cierre y apariciones del símbolo fuera de la intro.
+- **Display vertical 9:16:** techo de 168 px (168/28 = 6, la proporción de §4).
+
 ## 9. Nota sobre el comprobador del repo
 
 `memory/diseno/adn/starseed-os/check.py` del repo aprueba las 8 pruebas sin medir nada. No lo uses como
