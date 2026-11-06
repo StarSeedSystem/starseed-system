@@ -1,0 +1,16 @@
+{
+ "ola": "nube-20261106",
+ "tareas": [
+  {
+   "id": "IMG-diaria-endurecer-el-sandbox-del-iframe-d",
+   "titulo": "Endurecer el sandbox del iframe de código del Lienzo Universal",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/creation/creation-blocks.tsx",
+    "src/lib/creation/post-blocks.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Endurecer el sandbox del iframe de código del Lienzo Universal. `src/components/creation/creation-blocks.tsx:486`. El sandbox incluye `allow-popups`: código de usuario puede abrir ventanas para phishing/redirección. Quitar ese token y documentar capacidades concedidas. Impacto 3 · esfuerzo 1 (hallazgo SA102440, confianza 0.72). Complemento: SRI (`integrity`+`crossorigin`) en los scripts de unpkg (React/Babel) de `src/lib/creation/post-blocks.ts:343` — riesgo de cadena de suministro. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ]
+}
