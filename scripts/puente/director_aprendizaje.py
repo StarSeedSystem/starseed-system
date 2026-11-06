@@ -156,6 +156,28 @@ def leer_json(ruta, por_defecto):
         return por_defecto
 
 
+#: (2026-11-06) Cerradas sin código: «no aplica» (su propósito ya estaba en main) o descartada.
+CERRADAS_SIN_CODIGO = frozenset({"no_aplica", "no-aplica", "descartada"})
+
+
+def ola_sin_nada_que_aprender(tareas, progreso):
+    """PURA. True si TODAS las tareas de la ola estaban cerradas sin código.
+
+    (2026-11-06) El vigilante relanzó cada 3 min, desde las 07:32, una ola con RPO1104M-d2 y
+    VER1105Db-d3, las dos «no aplica»: el orquestador no corría ninguna y aquí se escribía
+    «0 de 2 integradas · 2 tareas se quedaron fuera» (73 entradas iguales en
+    memory/aprendizaje-olas.md, que cargan los agentes, y un commit por ola). Eso no es un hecho
+    de la ola: es que no hubo ola. Una tarea en cualquier otro estado (o sin entrada) sí cuenta."""
+    ids = [str(x.get("id")) for x in tareas or [] if isinstance(x, dict) and x.get("id")]
+    if not ids:
+        return False
+    for tid in ids:
+        e = (progreso or {}).get(tid) if isinstance(progreso, dict) else None
+        if not isinstance(e, dict) or e.get("estado") not in CERRADAS_SIN_CODIGO:
+            return False
+    return True
+
+
 def pedido_de(tareas):
     """El encargo de Alex viene copiado literal dentro del prompt de cada tarea.
 
@@ -256,6 +278,10 @@ def main():
         print("sin tareas legibles en %s" % ruta_cola, file=sys.stderr)
         return 1
     progreso = leer_json(os.path.join(OLAS, "progreso.json"), {})
+    if ola_sin_nada_que_aprender(tareas, progreso):
+        print("nada que aprender de %s: todas sus tareas estaban cerradas sin código"
+              % os.path.basename(ruta_cola))
+        return 0
 
     nombre = os.path.basename(ruta_cola).replace("cola-", "").replace(".json", "")
     resumen = A.resumir_ola(nombre, tareas, progreso)
