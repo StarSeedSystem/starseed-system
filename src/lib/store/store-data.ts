@@ -1,4 +1,4 @@
-# StarSeed OS — Módulo 12 · La Tienda (capa de datos)
+// StarSeed OS - Módulo 12 - La Tienda (capa de datos)
 // ----------------------------------------------------------------
 // Tienda de la Economía del Regalo: los usuarios PUBLICAN sus creaciones,
 // las INSTALAN en su Biblioteca y las VALORAN/curan. Todo libre.
