@@ -165,7 +165,7 @@ describe("deeptutor · conector opcional", () => {
     const m500 = await estadoDeeptutor(configDeeptutor(ENV), falso(500, {}).fetchFn);
     expect(m401.motivo).toContain("401");
     expect(m403.motivo).toContain("403");
-    expect(m404.motivo).toContain("404");
-    expect(m500.motivo).toContain("falló");
+    expect((m404 as { motivo: string }).motivo).toContain("404");
+    expect((m500 as { motivo: string }).motivo).toContain("falló");
   });
 });
