@@ -5,14 +5,15 @@ export type TipoDestino = "aparato" | "cuenta" | "cerebro" | "malla" | "capa-pub
 export type Destino = { tipo: TipoDestino; id?: string };
 export type Colocacion = { donde: Destino; motivo: string; respaldo?: Destino; falta: string[] };
 export type Gpu = "no" | "opcional" | "recomendada" | "necesaria";
-export type ServicioId = "comfyui" | "libretranslate" | "stirling-pdf" | "archivebox" | "openhands-agent-server" | "coolify";
-export type RequisitosServicio = { id: ServicioId; nombre: string; ram_gb: number | null; ramMedidaMb: number | null; vram_gb: number | null; gpu: Gpu; docker: string; arquitecturas: string[]; so: string[]; fuente: string; medido: string | null };
+export type ServicioId = "comfyui" | "libretranslate" | "stirling-pdf" | "archivebox" | "openhands-agent-server" | "coolify" | "deeptutor";
+export type RequisitosServicio = { id: ServicioId; nombre: string; ram_gb: number | null; ramMedidaMb: number | null; vram_gb: number | null; gpu: Gpu; docker: string; arquitecturas: string[]; so: string[]; fuente: string; medido: string | null; puerto?: number };
 export type Contexto = { cuentaId: string; grupos?: string[]; aparatoId?: string; servidoresCerebro?: string[]; privado?: boolean; enjambreEscribiendo?: boolean; presionMemoria?: "ok" | "aviso"; arquitecturas?: Record<string, string>; ofertasMedidas?: string[]; permisoEspaciosHf?: boolean; t?: number };
 export type CapaPublica = { id: string; nombre: string; estado: "activa" | "inactiva" | "con-permiso"; ocpu: number | null; ramMb: number | null; arquitectura: string; gpu: boolean; motivo: string };
 export type ServicioInstalado = { servicio: ServicioId; host: "127.0.0.1"; puerto: number; bajoDemanda: true; enciendeAlPrimerUso: true; apagaSinUsoMin: 15; cabeSiMb: number };
 const QUE_1020D: Record<ServicioId, string> = {
   comfyui: "lib-comfyui", libretranslate: "lib-libretranslate", "stirling-pdf": "lib-stirling-pdf",
   archivebox: "lib-archivebox", "openhands-agent-server": "lib-openhands", coolify: "lib-coolify",
+  deeptutor: "lib-deeptutor",
 };
 const GPUS_VALIDAS: Gpu[] = ["no", "opcional", "recomendada", "necesaria"];
 const SIN_REQUISITO: RequisitosParciales = {};
@@ -34,7 +35,10 @@ export const REQUISITOS_SERVICIO: Record<ServicioId, RequisitosServicio> = {
   archivebox: r("archivebox", "ArchiveBox", { medido: "tiempo por página: 1 min 16 s; RAM sin medir (A1, 2026-10-20)" }),
   "openhands-agent-server": r("openhands-agent-server", "OpenHands Agent Server"),
   coolify: r("coolify", "Coolify"),
+  deeptutor: r("deeptutor", "DeepTutor", { ram_gb: 4, ramMedidaMb: null, vram_gb: null, gpu: "no", docker: "opcional", arquitecturas: ["arm64", "amd64"], so: ["linux", "macos", "windows"], fuente: "ficha lib-deeptutor de config/repos-libreria-1104.json (v1.7.1, 2026-11-04): README del repo; la RAM es estimación propia (FastAPI + Next.js, sin modelo local), puerto 3782", puerto: 3782, medido: null }),
 };
+export const REQUISITOS_DEEPTUTOR: RequisitosServicio = REQUISITOS_SERVICIO.deeptutor;
+export const deeptutor: ServicioId = "deeptutor";
 export const CAPAS_PUBLICAS_CONOCIDAS: CapaPublica[] = [
   { id: "oracle-a1", nombre: "el A1", estado: "activa", ocpu: 2, ramMb: 12288, arquitectura: "arm64", gpu: false, motivo: "encendida 24/7, sin GPU" },
   { id: "cloud-run", nombre: "Cloud Run", estado: "inactiva", ocpu: null, ramMb: null, arquitectura: "amd64", gpu: false, motivo: "facturación de Google desactivada desde el 2026-09-25" },
@@ -55,30 +59,37 @@ const ofertaDeCapa = (capa: CapaPublica, t: number): OfertaNeurona => ({
   presta: { cuenta: false, grupos: [], publico: true, topes: { cpuPct: 100, ramMb: capa.ramMb ?? 0, discoMb: 0, soloCargando: false } },
   t,
 });
+// La comparación de RAM, arquitectura y capacidad se hace UNA vez (vía planificar)
+// y la usan tanto la colocación como las recomendaciones: no se duplica nunca.
+const filtrosServicio = (req: RequisitosServicio, contexto: Contexto) => {
+  const ramMb = req.ram_gb != null ? req.ram_gb * 1024 : req.ramMedidaMb;
+  const gpuNecesaria = req.gpu === "necesaria";
+  const medidas = new Set(contexto.ofertasMedidas ?? []);
+  const pedido: Peticion = { cuentaId: contexto.cuentaId, grupos: contexto.grupos ?? [], computo: { ramLibreMbMin: ramMb ?? 0, gpu: gpuNecesaria || undefined, vramMbMin: gpuNecesaria && req.vram_gb != null ? req.vram_gb * 1024 : undefined } };
+  const filtrar = (ofertas: OfertaNeurona[], anotar?: (texto: string) => void, sinMedida?: () => void): OfertaNeurona[] =>
+    ofertas.filter((o) => {
+      const arq = contexto.arquitecturas?.[o.nodoId];
+      if (arq && !req.arquitecturas.includes(arq)) { anotar?.(`medir ${arq} en ${o.nodoId}`); return false; }
+      if (ramMb == null && !medidas.has(o.nodoId)) { sinMedida?.(); return false; }
+      return planificar(pedido, [o]).length > 0;
+    });
+  return { ramMb, pedido, filtrar };
+};
 export function colocarServicio(servicio: ServicioId | RequisitosServicio, ofertas: OfertaNeurona[], contexto: Contexto): Colocacion {
   const req = typeof servicio === "string" ? REQUISITOS_SERVICIO[servicio] : servicio;
   if (!req) return { donde: { tipo: "ninguno" }, motivo: `No hay requisitos para «${servicio}»`, falta: ["declarar los requisitos del servicio"] };
-  const ramMb = req.ram_gb != null ? req.ram_gb * 1024 : req.ramMedidaMb;
+  const { ramMb, pedido, filtrar } = filtrosServicio(req, contexto);
   const gpuNecesaria = req.gpu === "necesaria";
   const privado = contexto.privado === true;
   const servidores = new Set(contexto.servidoresCerebro ?? []);
-  const medidas = new Set(contexto.ofertasMedidas ?? []);
   const tomadas = new Set<string>();
   const encontrados: Destino[] = [];
   const falta: string[] = [];
   const motivosCapas: string[] = [];
   let faltaMedida = false;
-  const pedido: Peticion = { cuentaId: contexto.cuentaId, grupos: contexto.grupos ?? [], computo: { ramLibreMbMin: ramMb ?? 0, gpu: gpuNecesaria || undefined, vramMbMin: gpuNecesaria && req.vram_gb != null ? req.vram_gb * 1024 : undefined } };
   const anotar = (texto: string) => { if (!falta.includes(texto)) falta.push(texto); };
   const buscar = (bucket: OfertaNeurona[], tipo: TipoDestino) => {
-    const validas = bucket.filter((o) => {
-      if (tomadas.has(o.nodoId)) return false;
-      const arq = contexto.arquitecturas?.[o.nodoId];
-      if (arq && !req.arquitecturas.includes(arq)) { anotar(`medir ${arq} en ${o.nodoId}`); return false; }
-      if (ramMb == null && !medidas.has(o.nodoId)) { faltaMedida = true; return false; }
-      return true;
-    });
-    const plan = planificar(pedido, validas);
+    const plan = planificar(pedido, filtrar(bucket.filter((o) => !tomadas.has(o.nodoId)), anotar, () => { faltaMedida = true; }));
     if (plan.length > 0) { tomadas.add(plan[0].ofertaId); encontrados.push({ tipo, id: plan[0].ofertaId }); }
   };
   const aparato = ofertas.filter((o) => o.nodoId === contexto.aparatoId);
@@ -96,6 +107,7 @@ export function colocarServicio(servicio: ServicioId | RequisitosServicio, ofert
     capas.push(capa);
   }
   if (!privado) for (const capa of capas) {
+    if (req.id === "deeptutor" && capa.id === "oracle-a1") continue;
     if (!req.arquitecturas.includes(capa.arquitectura)) { anotar(`medir ${capa.arquitectura} en ${capa.nombre}`); continue; }
     if (ramMb == null && capa.ramMb == null) { faltaMedida = true; continue; }
     const plan = planificar(pedido, [ofertaDeCapa(capa, contexto.t ?? 0)]);
@@ -134,4 +146,45 @@ export function colocarServicio(servicio: ServicioId | RequisitosServicio, ofert
   const salida: Colocacion = { donde: primero, motivo, falta };
   if (encontrados.length > 1) salida.respaldo = encontrados[1];
   return salida;
+}
+
+export type ResultadoRecomendacion = { donde: Destino; motivo: string }[];
+const MOTIVO_A1_DEEPTUTOR = "recomendado cuando su disco tenga margen (decisión de Alex: hoy no)";
+
+/**
+ * Recomendaciones (no colocaciones): cada neurona, servidor de la cuenta, vecino
+ * de la malla o capa pública activa que cumple los requisitos, de la cuenta hacia
+ * fuera. Para DeepTutor el A1 nunca se coloca (colocarServicio no lo elige) y aquí
+ * sale solo como recomendación en la que queda pendiente su disco. Reutiliza los
+ * mismos filtros de RAM, arquitectura y capacidad que colocarServicio (planificar).
+ */
+export function dondeRecomendar(servicio: ServicioId | RequisitosServicio, ofertas: OfertaNeurona[], contexto: Contexto): ResultadoRecomendacion {
+  const req = typeof servicio === "string" ? REQUISITOS_SERVICIO[servicio] : servicio;
+  if (!req) return [];
+  const nombre = `«${req.nombre}»`;
+  const resultado: ResultadoRecomendacion = [];
+  // Las capas con RAM declarada (el A1 no la mide capa a capa) cuentan como medidas.
+  const ctxRec: Contexto = { ...contexto, ofertasMedidas: [...(contexto.ofertasMedidas ?? []), ...CAPAS_PUBLICAS_CONOCIDAS.filter((c) => c.ramMb != null).map((c) => c.id)] };
+  const { filtrar } = filtrosServicio(req, ctxRec);
+  const servidores = new Set(contexto.servidoresCerebro ?? []);
+  const empujar = (tipo: TipoDestino, id: string, motivo: string) => resultado.push({ donde: { tipo, id }, motivo });
+  const cada = (bucket: OfertaNeurona[], tipo: TipoDestino, motivo: string) => {
+    for (const o of filtrar(bucket)) empujar(tipo, o.nodoId, motivo);
+  };
+  cada(ofertas.filter((o) => o.cuentaId === contexto.cuentaId), "cuenta", `${nombre} cabe en una neurona de la misma cuenta`);
+  cada(ofertas.filter((o) => servidores.has(o.nodoId)), "cerebro", `${nombre} cabe en un servidor del cerebro`);
+  if (contexto.privado !== true) {
+    cada(ofertas.filter((o) => o.presta.publico), "malla", `${nombre} cabe en un vecino de la malla que presta en público`);
+    for (const capa of CAPAS_PUBLICAS_CONOCIDAS) {
+      if (capa.id === "oracle-a1" && req.id === "deeptutor") continue;
+      if (capa.estado === "inactiva" || (capa.estado === "con-permiso" && !contexto.permisoEspaciosHf)) continue;
+      if (!req.arquitecturas.includes(capa.arquitectura)) continue;
+      if (filtrar([ofertaDeCapa(capa, contexto.t ?? 0)]).length > 0) empujar("capa-publica", capa.id, `${nombre} cabe en la capa pública ${capa.nombre}`);
+    }
+  }
+  if (req.id === "deeptutor") {
+    const a1 = CAPAS_PUBLICAS_CONOCIDAS.find((c) => c.id === "oracle-a1");
+    if (a1 && a1.estado === "activa") empujar("capa-publica", "oracle-a1", MOTIVO_A1_DEEPTUTOR);
+  }
+  return resultado;
 }
