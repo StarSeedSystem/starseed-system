@@ -90,6 +90,16 @@ def _ids_en_main(m, n=3000):
             for x in _TID.findall(linea)}
 
 
+def _titulo_en_main(m, tid, n=400):
+    """El título del commit de `tid` en origin/main («… · TID: título» → «título»), o ""."""
+    _, out, _ = m.git(["log", "--format=%s", "-n", str(n), "origin/main"], timeout=60)
+    for linea in out.splitlines():
+        hallado = re.search(r"\b%s: (.+)$" % re.escape(tid), linea)
+        if hallado:
+            return hallado.group(1).strip()
+    return ""
+
+
 def _lista(m, cfg):
     tareas = []
     for nombre in cfg.get("colas") or []:
@@ -116,6 +126,9 @@ def _preparar(m, est, ahora):
     rango = ("%s..origin/main" % ultimo) if ultimo else "-n200"
     _, asuntos, _ = m.git(["log", "--format=%s", rango], timeout=60)
     notas = L.notas_de(asuntos.splitlines(), v)
+    if est.get("version_sin_lanzar") and est.get("notas"):
+        # (1106) Parche de una versión que se atascó y nunca se lanzó: lleva sus notas y lo arreglado.
+        notas = L.notas_de_parche(est["notas"], est["version_sin_lanzar"], v, est.get("arreglo_titulo") or "") or notas
     if not cs.esperar_momento_seguro(tope_s=600):
         return _paso(est, "preparando", "espero un momento seguro para el commit de versión", ahora)
     with open(cs.CERROJO, "a") as lk:
@@ -261,7 +274,7 @@ def _verificar_medios(m, est, ahora):
     m.avisar("StarSeed OS v%s lanzada en macOS, Windows, Linux y Android (iOS: PWA). %s"
              % (est["version"], est.get("release_url") or ""), tipo="informe")
     return _paso(est, "lanzado", "v%s lanzada y verificada en cada medio" % est["version"], ahora,
-                 historial=hist[-30:])
+                 historial=hist[-30:], version_sin_lanzar=None, arreglo_titulo=None)
 
 
 def pasada(m, est, cfg, ahora):
@@ -302,7 +315,7 @@ def pasada(m, est, cfg, ahora):
             return dict(est, detalle="esta lista ya se lanzó", t=ahora)
         _, lista_sha, _ = m.git(["rev-parse", "origin/main"])
         est = _paso(est, "esperando-publicacion", "lista terminada", ahora, lista_lanzada=cfg.get("colas"),
-                    lista_sha=lista_sha)
+                    lista_sha=lista_sha, version_sin_lanzar=None, arreglo_titulo=None)
         fase = est["fase"]
     if fase == "esperando-publicacion":
         autopub = m.leer(AP.ESTADO, {})
@@ -339,7 +352,8 @@ def pasada(m, est, cfg, ahora):
         _, lista_sha, _ = m.git(["rev-parse", "origin/main"])
         return _paso(est, "esperando-publicacion", "arreglo %s integrado: preparo el parche v%s" % (est["arreglo"], v),
                      ahora, version=None, preparado_sha=None, arreglo=None, tipo_siguiente="parche",
-                     lista_sha=lista_sha)
+                     lista_sha=lista_sha, version_sin_lanzar=est["version"],
+                     arreglo_titulo=_titulo_en_main(m, est["arreglo"]))
     return dict(est, t=ahora)
 
 

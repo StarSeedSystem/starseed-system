@@ -181,73 +181,55 @@ class AplicarVersion(unittest.TestCase):
 
 
 class Notas(unittest.TestCase):
-    def test_de_asuntos_agrupa_por_ola(self):
-        asuntos = [
-            "Ola 1105 · VER1105A: Panel de versiones en el pulso",
-            "Ola 1105 · VER1105B: Aviso de actualización",
-            "1104R · VER1104C: Centro de Versiones",
-            "1104R · VER1104D: Pulso unificado",
-            "salvavidas · VER1105A: trabajo del agente",
-            "1105V · VER1105E: Mejoras en el puente",
-        ]
+    """(1106N) Notas para las personas: nombres de ola, sin lo interno ni paréntesis."""
+
+    REALES = [
+        "Lanzamiento v0.4.0 · LZ040A: Linux nativo en ubuntu-24.04 (PipeWire de 22.04, viejo para xcap 0.9)",
+        "1105V · Centro de Versiones · VER1105M: montar el aviso en el layout",
+        "1105V · Centro de Versiones · VER1105J: ventana «Hay una versión nueva»",
+        "salvavidas · VER1105J: trabajo del agente antes de las puertas (tsc / vitest)",
+        "Ola 1010X · StarSeed XR: el OS en visores de AR/VR (entrada automática, Trinity espacial, voz d · XR1010A: x",
+        "1104R · Repos nativos · RPO1104C: EGM · revisarConPeces (parte 2 de 2)",
+        "0611 · Seguimiento de la supervisión · SUP0611B: Reconstructor · no compila en el A1",
+        "Ola Imaginación 2026-10-29 · lo que el análisis nocturno encontró · DR1029-1: Publicar los 4 commits",
+        "1104C · Contratos pendientes · CTR1104Uc: subtítulos",
+        "Rescate de las ramas de la nube · RPO1104N-d2: algo",
+        "1020U · TRD1020Db-d3b: Traducción · idioma de lectura por perfil (parte 3 de 3)",
+        "merge: main recoge el reparto",
+    ]
+
+    def test_reales_por_ola(self):
+        self.assertEqual(L.notas_de(self.REALES, "0.4.1"),
+                         "StarSeed OS 0.4.1: Centro de Versiones, StarSeed XR: el OS en visores de AR/VR, "
+                         "Repos nativos y Traducción · idioma de lectura por perfil.")
+
+    def test_maximo_y_sin_signos_raros(self):
+        asuntos = ["%dA · Ola número %d · VER1%03dA: t" % (1000 + i, i, i) for i in range(1, 10)]
         n = L.notas_de(asuntos, "0.4.0")
-        # Formato: "Centro de Versiones, Panel de versiones en el pulso, y Mejoras en el puente."
-        self.assertEqual(n, "StarSeed OS 0.4.0: Centro de Versiones, Panel de versiones en el pulso, y Mejoras en el puente.")
+        self.assertEqual(n.count(","), 4)
+        self.assertIn(" y ", n)
+        for signo in (";", "(", ", y "):
+            self.assertNotIn(signo, n)
 
-    def test_filtra_olas_internas(self):
-        asuntos = [
-            "Supervisión · VER1105A: Revisión semanal",
-            "Seguimiento · VER1105B: Tareas pendientes",
-            "Capacidad · VER1105C: Planificación",
-            "Carril · VER1105D: Organización",
-            "Opus · VER1105E: Modelo",
-            "Contratos pendientes · VER1105F: Legal",
-            "Rescate · VER1105G: Recuperación",
-            "Imaginación · VER1105H: Ideas",
-            "Lanzamiento · VER1105I: Preparar release",
-            "chore · VER1105J: Limpieza",
-            "merge · VER1105K: Merge branch",
-            "salvavidas · VER1105L: Emergencia",
-            "1105V · VER1105M: Función real",
-        ]
-        n = L.notas_de(asuntos, "0.4.0")
-        self.assertEqual(n, "StarSeed OS 0.4.0: Función real.")
+    def test_vacio_o_solo_interno(self):
+        self.assertEqual(L.notas_de([], "0.4.1"), "StarSeed OS 0.4.1: mejoras y correcciones.")
+        self.assertEqual(L.notas_de(["salvavidas · VER1105A: x", "0611 · Supervisión · SUP0611A: y"], "0.4.1"),
+                         "StarSeed OS 0.4.1: mejoras y correcciones.")
 
-    def test_vacio_devuelve_mejoras_y_correcciones(self):
-        n = L.notas_de([], "0.4.1")
-        self.assertEqual(n, "StarSeed OS 0.4.1: mejoras y correcciones.")
-        n = L.notas_de(["salvavidas · VER1105A: trabajo"], "0.4.1")
-        self.assertEqual(n, "StarSeed OS 0.4.1: mejoras y correcciones.")
+    def test_nombre_de_ola(self):
+        self.assertEqual(L.nombre_de_ola("1105V · Centro de Versiones"), "Centro de Versiones")
+        self.assertEqual(L.nombre_de_ola("Ola CB1013 · Cerebros: Fusionar, Telepatía"), "Cerebros: Fusionar, Telepatía")
+        self.assertEqual(L.nombre_de_ola("1028 · Contenido vivo (tres niveles)"), "Contenido vivo")
+        self.assertEqual(L.nombre_de_ola("1020U", "Traducción (parte 3 de 3)"), "Traducción")
+        self.assertEqual(L.nombre_de_ola("1104R · x · lo que faltó: next.config.ts"), "x")
 
-    def test_maximo_seis_olas(self):
-        # IDs deben tener 3-5 dígitos: VER101A, VER102A, etc.
-        asuntos = [f"Ola {i} · VER{100+i}A: Ola {i}" for i in range(1, 10)]
-        n = L.notas_de(asuntos, "0.4.0", maximo=6)
-        self.assertEqual(n.count(","), 5)
-        self.assertIn(", y ", n)
-        self.assertNotIn(";", n)
-        self.assertNotIn("(", n)
-
-    def test_sin_punto_y_coma_ni_parentesis(self):
-        asuntos = ["1105V · VER1105A: Primera", "1104R · VER1104B: Segunda"]
-        n = L.notas_de(asuntos, "0.4.0")
-        self.assertNotIn(";", n)
-        self.assertNotIn("(", n)
-        self.assertTrue(n.endswith("."))
-
-    def test_orden_por_numero_commits(self):
-        # Usar títulos únicos por commit para que commit_count refleje el número real
-        asuntos = [
-            "Ola 100 · VER1105A: Una sola 1",
-            "Ola 200 · VER1105B: Dos commits 1",
-            "Ola 200 · VER1105C: Dos commits 2",
-            "Ola 300 · VER1105D: Tres commits 1",
-            "Ola 300 · VER1105E: Tres commits 2",
-            "Ola 300 · VER1105F: Tres commits 3",
-        ]
-        n = L.notas_de(asuntos, "0.4.0")
-        self.assertTrue(n.index("Tres commits 1") < n.index("Dos commits 1"))
-        self.assertTrue(n.index("Dos commits 1") < n.index("Una sola 1"))
+    def test_parche_de_una_version_que_no_se_lanzo(self):
+        n = L.notas_de_parche("StarSeed OS 0.4.0 y sus apps nativas. Llega el Centro de Versiones.", "0.4.0", "0.4.1",
+                              "Linux nativo en ubuntu-24.04 (PipeWire de 22.04, viejo para xcap 0.9)")
+        self.assertEqual(n, "StarSeed OS 0.4.1 y sus apps nativas. Llega el Centro de Versiones. "
+                            "Además: Linux nativo en ubuntu-24.04.")
+        self.assertIsNone(L.notas_de_parche("", "0.4.0", "0.4.1", "x"))
+        self.assertEqual(L.notas_de_parche("StarSeed OS 0.4.0: a.", "0.4.0", "0.4.1", ""), "StarSeed OS 0.4.1: a.")
 
 
 class Tono(unittest.TestCase):

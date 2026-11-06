@@ -272,91 +272,59 @@ def aplicar_version(textos, nueva, fecha, notas):
     return fuera
 
 
+#: (1106N) Asuntos y olas que no son novedades para las personas. Fácil de ampliar.
+NOTAS_PREFIJOS_INTERNOS = ("salvavidas", "chore", "merge", "lanzamiento", "rescate")
+NOTAS_OLAS_INTERNAS = ("Supervisión", "Seguimiento", "Capacidad", "Carril", "Opus", "Contratos pendientes",
+                       "Rescate", "Imaginación")
+
+
+def nombre_de_ola(ola, titulo=""):
+    """PURA: «Ola 1105V · Centro de Versiones (panel…)» → «Centro de Versiones». Una ola sin nombre («1020U») toma
+    el título de su tarea. Sin paréntesis (ni uno sin cerrar), sin «· lo que faltó: …»."""
+    nombre = re.sub(r"^(?:Ola\s+)?[A-Z]{0,4}\d{3,5}[A-Z]?\d?\s*(?:·\s*)?", "", (ola or "").strip()).strip()
+    nombre = nombre or (titulo or "")
+    nombre = re.sub(r"\s*·\s*lo que faltó:.*$", "", nombre)
+    nombre = re.sub(r"\s*\([^)]*\)", "", nombre)
+    nombre = re.sub(r"\s*\([^)]*$", "", nombre).strip(" .;·,")
+    if len(nombre) > 70 and ":" in nombre:
+        nombre = nombre.split(":", 1)[0].strip()
+    return nombre
+
+
 def notas_de(asuntos, version, maximo=6):
-    """Notas de la versión a partir de los asuntos de las tareas integradas («· ID: título»).
-
-    Agrupa por OLA (texto antes de « · ID:»), ordena las olas por número de commits,
-    y escribe una frase legible: 'StarSeed OS X.Y.Z: <ola 1>, <ola 2>, … y <ola N>.'.
-    Sin ';', sin '(y N más)' y sin paréntesis en los títulos.
-    """
-    PREF_JUNK = ("salvavidas", "chore", "merge", "Lanzamiento", "Rescate")
-    OLA_JUNK = ("Supervisión", "Seguimiento", "Capacidad", "Carril", "Opus",
-                "Contratos pendientes", "Rescate", "Imaginación")
-
-    ola_titulos = {}  # ola_norm -> [titulo, ...]
-
+    """PURA (1106N): notas legibles. Agrupa «<ola> · ID: título» por ola, quita lo interno, ordena las olas por
+    cuántas tareas tienen (y, a igualdad, la más reciente) y escribe «StarSeed OS X.Y.Z: a, b y c.»."""
+    olas = {}  # clave → [nombre, tareas, orden de aparición]
     for a in asuntos or []:
-        a = a.strip()
-        lower_a = a.lower()
-        # Skip tareas con prefijos internos (comparación case-insensitive)
-        if any(lower_a.startswith(p.lower()) for p in PREF_JUNK):
+        a = (a or "").strip()
+        if a.lower().startswith(NOTAS_PREFIJOS_INTERNOS):
             continue
-
-        # Extraer título: texto después de " · ID:"
-        m = re.search(r"· [A-Z]{1,7}\d{3,5}[A-Za-z0-9-]*: (.+)$", a)
+        m = re.search(r"\s·\s[A-Z]{1,7}\d{3,5}[A-Za-z0-9-]*: (.+)$", a)
         if not m:
             continue
-        titulo = m.group(1).strip()
-
-        # Extraer prefijo de ola (todo antes de " · ID:")
-        antes_id = a[:m.start()]
-        ola_raw = antes_id.strip()
-
-        # Normalized name: quitar "Ola " al inicio para agrupar
-        ola_norm = re.sub(r'^Ola\s+', '', ola_raw).strip()
-
-        # Filtrar olas cuyos nombres normalizados contienen palabras clave internas
-        if any(junk in ola_norm for junk in OLA_JUNK):
+        ola = a[:m.start()].strip()
+        if any(p in ola for p in NOTAS_OLAS_INTERNAS):
             continue
-
-        # También filtrar títulos que empiecen con prefijos internos (case-insensitive)
-        if any(titulo.lower().startswith(p.lower()) for p in PREF_JUNK):
+        nombre = nombre_de_ola(ola, m.group(1))
+        if not nombre:
             continue
-
-        if ola_norm not in ola_titulos:
-            ola_titulos[ola_norm] = []
-        ola_titulos[ola_norm].append(titulo)
-
-    # Construir info de ola: conteo de commits y título representativo (primer único, dedupado)
-    ola_info = []
-    for ola_norm, titulos_ola in ola_titulos.items():
-        # Título: primer título único (mantener orden, dedupar)
-        vistos = []
-        for t in titulos_ola:
-            if t not in vistos:
-                vistos.append(t)
-        # Extraer número de ola para ordenamiento desde el norm
-        num_match = re.search(r'(\d+)', ola_norm)
-        ola_num = int(num_match.group(1)) if num_match else 999
-        ola_info.append({
-            "ola_norm": ola_norm,
-            "commit_count": len(vistos),
-            "titulo_representativo": vistos[0] if vistos else "",
-            "ola_num": ola_num,
-        })
-
-    # Ordenar por: (a) mayor número de commits, (b) número de ola ascendente, (c) nombre de ola
-    def sort_key(ola):
-        return (-ola["commit_count"], ola["ola_num"], ola["ola_norm"])
-
-    ola_info.sort(key=sort_key)
-
-    # Tomar máximo de olas
-    ola_info = ola_info[:maximo]
-
-    if not ola_info:
+        fila = olas.setdefault(nombre.lower(), [nombre, 0, len(olas)])
+        fila[1] += 1
+    nombres = [x[0] for x in sorted(olas.values(), key=lambda x: (-x[1], x[2]))[:maximo]]
+    if not nombres:
         return "StarSeed OS %s: mejoras y correcciones." % version
-
-    # Construir la lista de títulos
-    titulos = [ola["titulo_representativo"] for ola in ola_info]
-
-    if len(titulos) == 1:
-        cuerpo = titulos[0]
-    else:
-        # Formato: "título1, título2, ..., y títuloN" (Oxford comma + y)
-        cuerpo = ", ".join(titulos[:-1]) + ", y " + titulos[-1]
-
+    cuerpo = nombres[0] if len(nombres) == 1 else ", ".join(nombres[:-1]) + " y " + nombres[-1]
     return "StarSeed OS %s: %s." % (version, cuerpo)
+
+
+def notas_de_parche(notas_previas, version_previa, version, arreglo=""):
+    """PURA (1106): el parche de una versión que se atascó y NUNCA se lanzó lleva sus notas (las personas pasan de la
+    última lanzada a esta) y lo arreglado. Sin notas previas → None."""
+    if not notas_previas or not version_previa:
+        return None
+    texto = notas_previas.strip().replace("StarSeed OS %s" % version_previa, "StarSeed OS %s" % version, 1)
+    extra = nombre_de_ola("", arreglo)
+    return texto.rstrip(".") + ". Además: %s." % extra if extra else texto
 
 
 def tono_pastilla(estado):

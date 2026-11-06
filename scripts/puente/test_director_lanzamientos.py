@@ -141,6 +141,15 @@ class Pasadas(unittest.TestCase):
         self.assertEqual(est["reintentos"], 1)
         self.assertIn(["gh", "run", "rerun", "7", "--failed", "--repo", L.REPO], m.ordenes)
 
+    def test_arreglo_integrado_prepara_parche_con_las_notas_sin_lanzar(self):
+        m = Falsos({"_log": "Lanzamiento v0.4.0 · LZ040A: Linux nativo en ubuntu-24.04 (PipeWire de 22.04)"})
+        est = D.pasada(m, {"fase": "atascado", "version": "0.4.0", "arreglo": "LZ040A",
+                           "notas": "StarSeed OS 0.4.0: Centro de Versiones."}, CFG, 1000.0)
+        self.assertEqual(est["fase"], "esperando-publicacion")
+        self.assertEqual(est["tipo_siguiente"], "parche")
+        self.assertEqual(est["version_sin_lanzar"], "0.4.0")
+        self.assertEqual(est["arreglo_titulo"], "Linux nativo en ubuntu-24.04 (PipeWire de 22.04)")
+
     def test_error_de_codigo_crea_tarea_y_se_atasca(self):
         m = Falsos()
         m.run = {"status": "completed", "jobs": [{"name": "os · macos-latest", "status": "completed",
