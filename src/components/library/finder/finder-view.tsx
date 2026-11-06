@@ -94,6 +94,16 @@ import { listZipEntries } from "@/lib/files/simple-zip";
 import { abrirSelectorMedio, refDeBiblioteca, SelectorMedioGlobal } from "@/components/recursos-ia/abrir-selector-medio";
 // Variaciones públicas (Ola 1019V · §3): «Variaciones públicas» del clic derecho.
 import { accionVariaciones, claveDeItemBiblioteca } from "@/components/variaciones/accion-variaciones";
+// Publicar sin fuga: el ítem viaja por POST (cuerpo JSON) y la pestaña guarda
+// solo la referencia saneada; en la URL queda un flag, nunca el contenido.
+import {
+    adjuntoDeRespuesta,
+    almacenDeSesion,
+    guardarAdjunto,
+    peticionAdjunto,
+    recortarAdjunto,
+    RUTA_PUBLICACION_SEGURA,
+} from "@/lib/library/publicar-seguro";
 
 const TYPE_FILTERS: Array<{ key: "todos" | SavedItemType; label: string }> = [
     { key: "todos", label: "Todo" },
@@ -538,17 +548,35 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
         [saveItem, activeFolder],
     );
 
-    const handlePublishNavigate = useCallback((item: SavedItem) => {
+    const handlePublishNavigate = useCallback(async (item: SavedItem) => {
         const resolved = item.type === "alias" && item.targetItemId ? itemsById.get(item.targetItemId) ?? item : item;
-        const ref = {
-            kind: resolved.type,
+        const base = recortarAdjunto({
             title: resolved.title,
             url: resolved.url,
             route: resolved.route,
             note: resolved.note,
-        };
-        const q = encodeURIComponent(JSON.stringify(ref));
-        window.location.assign(`/publish?attach=${q}`);
+        });
+        if (!base) {
+            toast.error("Este ítem no tiene ruta ni URL para publicar.");
+            return;
+        }
+
+        // POST con cuerpo JSON: el ítem no viaja en la URL. Si la red falla,
+        // el recorte local sigue siendo válido y el flujo no se rompe.
+        let adjunto = base;
+        try {
+            const { url, init } = peticionAdjunto(base);
+            const res = await fetch(url, init);
+            if (res.ok) adjunto = adjuntoDeRespuesta(await res.json()) ?? base;
+        } catch {
+            /* sin red: el handoff local sigue siendo válido */
+        }
+
+        if (!guardarAdjunto(almacenDeSesion(), adjunto)) {
+            toast.error("No se pudo preparar la publicación en este navegador.");
+            return;
+        }
+        window.location.assign(RUTA_PUBLICACION_SEGURA);
     }, [itemsById]);
 
     // ── Versiones / edición (§13) ────────────────────────────────────────────
@@ -1133,7 +1161,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                         menuTarget.kind === "item"
                             ? () => {
                                   const it = itemsById.get(menuTarget.id);
-                                  if (it) handlePublishNavigate(it);
+                                  if (it) void handlePublishNavigate(it);
                               }
                             : undefined
                     }
