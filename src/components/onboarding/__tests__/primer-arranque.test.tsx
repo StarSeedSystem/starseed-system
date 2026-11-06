@@ -202,8 +202,6 @@ it("se puede abrir a mano aunque se hubiera saltado", async () => {
         });
         await screen.findByRole("heading", { name: "Crea tu cuenta o entra" });
     });
-        await screen.findByRole("heading", { name: "Crea tu cuenta o entra" });
-    });
 
     it("en una web normal solo aparece el aviso discreto, que abre la misma ventana", async () => {
         est.nativa = false;
