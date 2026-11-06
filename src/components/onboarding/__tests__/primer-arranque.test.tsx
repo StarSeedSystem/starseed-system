@@ -119,8 +119,9 @@ function montar() {
     return render(arranque());
 }
 
-/** Deja correr los temporizadores de cortesía y las promesas simuladas. */
-// const pausa = (ms = 80) => act(() => new Promise<void>((r) => setTimeout(r, ms)));
+async function esperarEstados() {
+    await waitFor(() => expect(document.body).toBeInTheDocument());
+}
 
 beforeEach(() => {
     est.ruta = "/escritorios";
@@ -192,7 +193,7 @@ describe("PrimerArranque · sin sesión", () => {
         await waitFor(() => expect(screen.queryByTestId("ventana-bienvenida")).toBeNull());
     });
 
-    it("se puede abrir a mano aunque se hubiera saltado", async () => {
+it("se puede abrir a mano aunque se hubiera saltado", async () => {
         window.localStorage.setItem("starseed.primer-arranque.saltado.v1", "1");
         montar();
         await waitFor(() => expect(screen.queryByTestId("ventana-bienvenida")).toBeNull());
