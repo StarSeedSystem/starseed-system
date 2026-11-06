@@ -73,7 +73,11 @@ import { workspaceSystemExtra } from "@/lib/workspaces/workspaces";
 // system prompt de cada turno, igual que el resto de extras del orbe.
 import { promptDeSistema } from "@/lib/openui/biblioteca";
 import { conInterfazViva } from "@/lib/openui/prompt-astraura";
-import type { AjustesPerfilRespuesta } from "@/lib/astraura/ajustes-respuesta";
+import { normalizarAjustesPerfil, type AjustesPerfilRespuesta } from "@/lib/astraura/ajustes-respuesta";
+// 1104 · DeepTutor (§6 del contrato): la habilidad educativa nativa del OS —
+// explicar → comprobar → practicar → resumir — se conecta al turno de Astraura.
+import { esPeticionDeAprender, planTutoria, promptTutor, type RecuerdoTutoria } from "@/lib/education/tutor";
+import { listBrainMemories } from "@/lib/cerebro/brain-memories";
 import { describeUserVoiceEmotionForPrompt } from "@/lib/aurora/audio-emotion";
 // EAR1023C: la línea «Se oye: …» la registra el motor de oído (engine.ts) y se
 // lee aquí para el contexto de cualquier superficie del orbe/agente.
@@ -239,6 +243,36 @@ export function resolveTurnPersona(opts: {
 function clamp01(n: number): number {
   if (!Number.isFinite(n)) return 0.5;
   return n < 0 ? 0 : n > 1 ? 1 : n;
+}
+
+/** Versión de `p` que se rinde a los `ms` (para que una red lenta nunca bloquee el turno). */
+function conPlazo<T>(p: Promise<T>, ms: number): Promise<T> {
+  let id: ReturnType<typeof setTimeout> | undefined;
+  const fin = new Promise<never>((_, rechazar) => {
+    id = setTimeout(() => rechazar(new Error("plazo")), ms);
+  });
+  return Promise.race([p, fin]).finally(() => clearTimeout(id));
+}
+
+/**
+ * 1104 · DeepTutor (§6): los recuerdos del cerebro activo como base de la tutoría.
+ * Defensiva y con plazo: sin cerebro o con Supabase lento devuelve [] y la
+ * tutoría arranca sin base — nunca bloquea el turno.
+ */
+async function recuerdosDeCerebroParaTutoria(brainId: string | null | undefined): Promise<RecuerdoTutoria[]> {
+  try {
+    const memorias = await conPlazo(listBrainMemories(brainId ?? null), 1500);
+    return memorias
+      .filter((m) => (m.content || "").trim())
+      .slice(0, 8)
+      .map((m) => ({
+        texto: (m.content || "").trim(),
+        titulo: m.name || undefined,
+        tipo: (m.kinds || []).join(", ") || undefined,
+      }));
+  } catch {
+    return [];
+  }
 }
 
 // ── System prompt: SÓLO los extras del orbe ─────────────────────────────────
@@ -420,7 +454,24 @@ export async function sendAuroraTurn(opts: SendAuroraTurnOptions): Promise<Auror
   const systemBase = [opts.systemExtra, attachContext, extras].filter(Boolean).join("\n\n");
   // 1104 · OpenUI: añade el prompt de la biblioteca condicionalmente según los ajustes del perfil.
   const ajustesPerfil = (persona as { ajustesRespuesta?: Partial<AjustesPerfilRespuesta> } | null)?.ajustesRespuesta;
-  const system = conInterfazViva(systemBase, ajustesPerfil);
+  let system = conInterfazViva(systemBase, ajustesPerfil);
+  // 1104 · DeepTutor (RPO1104Q, §6 del contrato): cuando alguien pide entender o
+  // aprender un concepto, Astraura atiende el turno con el método de DeepTutor —
+  // explicar → comprobar con una pregunta → practicar → resumir — usando los
+  // recuerdos del cerebro como base y pidiendo cuestionarios y tarjetas en OpenUI
+  // Lang SOLO si la interfaz viva está activa (misma condición de conInterfazViva).
+  // Defensivo: si algo falla, el turno sigue exactamente igual que antes.
+  try {
+    if (esPeticionDeAprender(text)) {
+      const interfaz = normalizarAjustesPerfil(ajustesPerfil).interfaz;
+      const plan = planTutoria({
+        concepto: text.slice(0, 400),
+        recuerdos: await recuerdosDeCerebroParaTutoria(opts.brainId),
+      });
+      const tutorPrompt = promptTutor(plan, interfaz !== "texto" && promptDeSistema().length > 0);
+      if (tutorPrompt) system = [system, tutorPrompt].filter(Boolean).join("\n\n");
+    }
+  } catch { /* sin tutoría: el turno responde como siempre */ }
 
   // 4) Historial (el REAL de la conversación unificada si no se pasó).
   const history = opts.history ?? historyFromCache(convId, text);
