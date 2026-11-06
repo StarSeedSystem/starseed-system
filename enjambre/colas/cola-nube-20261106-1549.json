@@ -1,0 +1,77 @@
+{
+ "ola": "nube-20261106",
+ "tareas": [
+  {
+   "id": "IMG-diaria-publicar-los-4-commits-que-espera",
+   "titulo": "Publicar los 4 commits que esperan en `main` (impacto alto / esfuerzo bajo).",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Publicar los 4 commits que esperan en `main` (impacto alto / esfuerzo bajo).. HEAD es `a47bf3f5c` (INV1025D · cliente TypeScript del extractor ScrapeGraphAI) y `git rev-list origin/main..HEAD` confirma 4 sin push — la ola 1009S ya avisaba de «commits sin publicar: 4» y siguen siendo 4: el enjambre integra más rápido de lo que se publica, así que producción (`starseed-os.vercel.app`) va acumulando retraso. Pasos: con el enjambre parado, `npx tsc --noEmit` + `npx vitest run src/lib/__tests__`, luego push a `main` (despliega Vercel) y verificar `Vercel: success`. No es un deploy nuevo: es publicar lo ya integrado. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-agentes-reimaginada-profunda-corregir-ma",
+   "titulo": "Auditar y unificar la gestión de prefers-reduced-motion en componentes de avatar",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Auditar y unificar la gestión de prefers-reduced-motion en componentes de avatar. ## Contexto\nLa propuesta original citaba `src/components/avatares/avatar-vivo.tsx:370`, pero esta referencia ha dejado de ser válida o el archivo no existe en la estructura actual del repositorio. Dado que el área de trabajo es **imaginación** (reimaginar, no editar), el objetivo es definir una estrategia de corrección que sea accionable por el enjambre de agentes de código, asegurando que la accesibilidad (movimiento reducido) se maneje de forma consistente y sin dependencias rotas.\n\n## Problema Identificado\n1. **Referencia Obsoleta**: La línea específica citada ya no corresponde al código ac Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-agentes-reimaginada-agentes-reimaginada",
+   "titulo": "Auditar y limpiar caché de promesas rechazadas en carga de modelos — versión genérica accionable",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Auditar y limpiar caché de promesas rechazadas en carga de modelos — versión genérica accionable. # Reimaginación accionable\n\n## Intención conservada\nEvitar que una promesa rechazada en carga de modelo quede en caché y contamine intentos posteriores, con reintentos limitados y sin agotar créditos.\n\n## Problema\nCuando una carga falla por timeout, red, 429/402, la promesa rechazada puede persistir en caché. Los intentos siguientes reutilizan el fallo en lugar de reintentar.\n\n## Enfoque genérico y seguro\nNo se asumen nombres de archivos. La tarea es de descubrimiento + especificación, no edición.\n\n1. **Inventario de carga de modelos**\n   - Recorrer `src/lib/` y `src/components/` para identifi Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-publicar-los-59-commits-acumulado",
+   "titulo": "Publicar los 59 commits acumulados en `main` (HEAD `ca2658b88`)",
+   "area": "imaginacion",
+   "archivos": [
+    "AGENTS.md"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Publicar los 59 commits acumulados en `main` (HEAD `ca2658b88`). Impacto: alto (nada de lo integrado desde la Ola 1009S se ve en starseed-os.vercel.app; el backlog solo crece: 4 → 59 commits sin push). Esfuerzo: bajo/medio. Secuencia obligatoria según AGENTS.md: parar el orquestador, `npx tsc --noEmit` + `npx vitest run` + `npx next build`, luego push y verificar `Vercel: success`. El propio `starseed-puente puertas` lo recuerda: \"nunca build con el enjambre vivo (Mac de 8 GB)\". Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-agentes-reimaginada-profunda-validar-ent",
+   "titulo": "Validar entrada de intensidad en motor de voz",
+   "area": "imaginacion",
+   "archivos": [
+    "src/lib/aurora/voz-starseed/motor.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Validar entrada de intensidad en motor de voz. ## Reimaginar la validación de intensidad en el motor de voz\n\nEl motor de voz **voz‑starseed** debe aceptar valores de intensidad en el rango [0, 1] y garantizar que cualquier entrada fuera de este rango sea manejada de forma segura. La propuesta actualiza la lógica de validación, añade pruebas unitarias y documenta el comportamiento esperado.\n\n### Cambios clave\n\n1. **Validación centralizada** – Se crea una función `clampIntensity(value: number): number` en `motor.ts` que:\n   * Acepta cualquier número.\n   * Si el valor es menor que 0, devuelve 0.\n   * Si el valor es mayor que 1, devuelve 1.\n   Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-simplificar-la-cadena-de-publicac",
+   "titulo": "Simplificar la cadena de publicación de la Biblioteca",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/library/finder/finder-view.tsx",
+    "src/components/library/library-store-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Simplificar la cadena de publicación de la Biblioteca. verificado en vivo: `src/components/library/finder/finder-view.tsx:550` manda el JSON completo del ítem por querystring a `/publish` (queda en historial/logs) y `src/components/library/library-store-panel.tsx:93-94` filtra títulos de usuario vía `placehold.co`. Mover al body POST y usar portada local. Impacto 4 · esfuerzo 2. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-arreglar-el-ciclo-de-vida-del-orq",
+   "titulo": "Arreglar el ciclo de vida del orquestador",
+   "area": "imaginacion",
+   "archivos": [
+    "vigilante-enjambre.py",
+    "cola-auto-1028-000008.js",
+    "-000230.js"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Arreglar el ciclo de vida del orquestador. : el estado dice \"orquestador **parado**\", pero `vigilante-enjambre.py` (PID 73366) sigue vivo y regenerando colas (`cola-auto-1028-000008.json`, `…-000230.json`) cada pocos minutos con las mismas 20 tareas en `?` y latido de 5127 s. Tareas clave estancadas: `RIA1023Eb` (capaEnPropio en `src/lib/astraura/capas/repartir.ts`) lleva 2466 s fallando por **\"tsc no terminó (sin memoria)\"**, reintento 1/6. Impacto: ALTO (el enjambre consume ciclos sin escribir nada) / Esfuerzo: MEDIO (matron de un solo orquestador, puerta de memoria para tsc con `NODE_OPTIONS=--max-old-space-size=2560` ya documentada Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1106-151641.json": [
+   "IMG-diaria-publicar-los-4-commits-que-espera"
+  ]
+ }
+}
