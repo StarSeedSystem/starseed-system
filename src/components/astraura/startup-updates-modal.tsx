@@ -40,9 +40,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Sparkles, Check } from "lucide-react";
 import {
   copiarEstadoLocalACuenta, catalogIds, decidirArranque, getStartupState, marcarScoutVisto,
   sellarCatalogoVisto, subscribeStartupOpen, openStartupUpdates, snoozeUpdates, type DecisionArranque,
+  type ScoutResult,
 } from "@/lib/astraura/startup-updates";
 import type { NeuronCapabilities } from "@/lib/neurons/neurons";
 import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
@@ -57,6 +59,9 @@ import { cn } from "@/lib/utils";
 
 export function StartupUpdatesModal() {
   const [open, setOpen] = useState(false);
+  // (Adenda 138 · llmfit) Resultado del scout para mostrar al usuario. Se almacena
+  // cuando hay novedades y se pasa al contenido del modal.
+  const [scoutResult, setScoutResult] = useState<ScoutResult | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // (Adenda 138 · llmfit) Capacidades de ESTA neurona, para la firma de hallazgos del
   // SCOUT (`scoutSignature`). Detectar es caro (sondas de red): se pide UNA vez por
@@ -163,8 +168,9 @@ export function StartupUpdatesModal() {
     let cancelaEspera: (() => void) | null = null;
     let cancelaCuenta: (() => void) | null = null;
     let cancelaEsperaAviso: (() => void) | null = null;
-    const abrirConCortesia = () => {
+    const abrirConCortesia = (scoutRv?: ScoutResult) => {
       if (cerradaPorUsuarioRef.current) return;
+      if (scoutRv) setScoutResult(scoutRv);
       void import("@/lib/ui/fullscreen-modal")
         .then((m) => {
           cancelaEspera?.();
@@ -215,9 +221,13 @@ export function StartupUpdatesModal() {
         copiarEstadoLocalACuenta();
         const caps = await capsDeMedio();
         const d = decidirArranque(Date.now(), caps);
-        if (d.accion === "ventana") abrirConCortesia();
-        else if (d.accion === "aviso") mostrarAvisoNovedades(d, caps);
-        else if (d.sellar) sellarCatalogoVisto(d.sellar);
+        if (d.accion === "ventana") {
+          abrirConCortesia(d.scoutResult);
+        } else if (d.accion === "aviso") {
+          mostrarAvisoNovedades(d, caps);
+        } else if (d.sellar) {
+          sellarCatalogoVisto(d.sellar);
+        }
       } catch { /* si falla el gate, no se abre nada: mejor callar que reabrir */ }
     };
     /** ¿Toca la ventana grande ahora? (con la cuenta ya bajada) */
@@ -225,7 +235,9 @@ export function StartupUpdatesModal() {
       try {
         copiarEstadoLocalACuenta();
         const caps = await capsDeMedio();
-        return decidirArranque(Date.now(), caps).accion === "ventana";
+        const d = decidirArranque(Date.now(), caps);
+        if (d.accion === "ventana" && d.scoutResult) setScoutResult(d.scoutResult);
+        return d.accion === "ventana";
       } catch { return false; }
     };
     // (Ola 247 · 2026-09-05) Relevo directo del rito: si la máquina de estados
@@ -342,6 +354,39 @@ export function StartupUpdatesModal() {
       </div>
       {/* Línea de acento superior, también rotativa */}
       <div aria-hidden className={cn("pointer-events-none relative z-10 -mb-px h-0.5 w-full max-w-3xl rounded-full bg-gradient-to-r", clA.degradado)} />
+      {/* (Adenda 138) Sección de Scout: muestra recomendaciones del hardware */}
+      {scoutResult && (
+        <div className="w-full max-w-3xl">
+          <div className="rounded-xl border border-cyan-400/25 bg-cyan-500/[0.05] p-3">
+            <p className="flex items-center gap-2 text-[12px] font-semibold text-[var(--aw-strong)]">
+              <Sparkles className="h-3.5 w-3.5 text-cyan-300" /> Recomendaciones para tu hardware
+            </p>
+            <p className="mt-1 text-[11px] leading-snug text-[var(--aw-muted)]">
+              {scoutResult.summary}
+            </p>
+            {scoutResult.best.slice(0, 3).map((r) => (
+              <div key={r.spec.id} className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="font-medium text-white/90 text-[12px]">{r.spec.label}</span>
+                <span className={cn(
+                  "rounded-full border px-2 py-0.5 text-[11px]",
+                  r.verdict === "perfecto" ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-200"
+                    : r.verdict === "bueno" ? "border-sky-400/30 bg-sky-500/15 text-sky-200"
+                    : "border-amber-400/30 bg-amber-500/15 text-amber-200"
+                )}
+                >{r.verdict === "perfecto" ? "Perfecto" : r.verdict === "bueno" ? "Bueno" : "Justo"}</span>
+                <span className="ml-auto text-[10px] text-[var(--aw-muted)]">
+                  ~{r.requiredGb.toFixed(1)} GB
+                </span>
+              </div>
+            ))}
+            {scoutResult.best.length > 3 && (
+              <p className="mt-1 text-[10px] text-[var(--aw-muted)]">
+                +{scoutResult.best.length - 3} modelo(s) más
+              </p>
+            )}
+          </div>
+        </div>
+      )}
       <AstrauraOmniVoiceConfig
         variant="modal"
         initialSection="astraura"

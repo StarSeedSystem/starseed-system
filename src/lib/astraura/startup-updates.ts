@@ -5,24 +5,24 @@
  * ============================================================================
  * Lógica de la ventana emergente que aparece en la PRIMERA entrada de una neurona
  * y cuando queda algo por configurar. Desde 2026-09-29 (persistencia entre medios)
- * el «ya lo vi» vive CON LA CUENTA y no en cada navegador:
+ * el "ya lo vi" vive CON LA CUENTA y no en cada navegador:
  *
  *   · CON LA CUENTA (`avisos-cuenta`, clave `starseed.avisos.vistos.v1`, sincronizada y
- *     fusionada): la primera configuración hecha (`a149.sistemas.inicio`), el «recordar
- *     luego» con su hora (`a149.sistemas.luego`) y cada firma de catálogo ya vista
+ *     fusionada): la primera configuración hecha (`a149.sistemas.inicio`), el "recordar
+ *     luego" con su hora (`a149.sistemas.luego`) y cada firma de catálogo ya vista
  *     (`a149.catalogo.<firma>`). Un medio nuevo (localhost, Vercel, PWA, Tauri) hereda todo
  *     eso al bajar la cuenta y NO vuelve a abrir la ventana.
  *   · LOCAL A ESTE MEDIO (`starseed.astraura.startup.v1`, NO viaja con la cuenta): las
  *     preferencias de ESTA neurona —auto-actualización, estrategia— y la foto del catálogo
  *     (`lastCatalog`) con la que se calculan las novedades. (Antes esta cabecera decía que
- *     esa clave «viaja con la cuenta vía settings-sync»: no era cierto, no está en
+ *     esa clave "viaja con la cuenta vía settings-sync": no era cierto, no está en
  *     SYNCED_KEYS; por eso cada medio la volvía a abrir.) Lo que un medio antiguo ya tenía
  *     escrito aquí se RESPETA y se COPIA a la cuenta (`copiarEstadoLocalACuenta`).
  *
  * Qué abre la ventana grande y qué solo avisa (`decidirArranque`):
  *   · ventana: primera configuración sin hacer, o algo que de verdad pide acción;
  *   · aviso pequeño no bloqueante: el catálogo cambió (modelos/fuentes nuevos);
- *   · nada: «recordar luego» vigente, o todo al día.
+ *   · nada: "recordar luego" vigente, o todo al día.
  *
  * Módulo LIVIANO: datos + lógica pura (sin React). Nunca lanza. SSR-safe.
  */
@@ -33,15 +33,16 @@ import { INTEGRATIONS, REGISTRY_REVIEWED, type Integration } from "@/lib/integra
 // (A149 · olas) Configuración PENDIENTE de la neurona: la elección de voz vive
 // en su propia clave por dispositivo. Módulo liviano (localStorage), sin ciclos.
 import { readNeuronVoiceChoice, neuronVoiceChoiceIsStale } from "@/lib/aurora/tts-oss/neuron-voice-constants";
-// (2026-09-29 · persistencia entre medios) El «visto/hecho/luego» va con la cuenta.
+// (2026-09-29 · persistencia entre medios) El "visto/hecho/luego" va con la cuenta.
 import { avisoResuelto, estadoAviso, marcarAviso, olvidarAviso } from "@/lib/sync/avisos-cuenta";
 import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 // (Adenda 138 · llmfit) Firma de novedades del SCOUT: misma pauta firma+visto que el catálogo.
-import { SCOUT_SIGNATURE_KEY, scoutSignature, hasNewScoutFindings, markScoutSeen } from "@/ai/astraura/model-scout";
+import { SCOUT_SIGNATURE_KEY, scoutSignature, hasNewScoutFindings, markScoutSeen, scoutModels, type ScoutResult } from "@/ai/astraura/model-scout";
 import type { NeuronCapabilities } from "@/lib/neurons/neurons";
 
 // Re-exportar para tests y consumidores que no quieran depender de model-scout.ts directamente
 export { SCOUT_SIGNATURE_KEY, scoutSignature, hasNewScoutFindings, markScoutSeen } from "@/ai/astraura/model-scout";
+export type { ScoutResult, ModelRecommendation } from "@/ai/astraura/model-scout";
 
 export const STARTUP_UPDATES_KEY = "starseed.astraura.startup.v1";
 export const STARTUP_UPDATES_EVENT = "starseed:astraura-startup";
@@ -143,7 +144,7 @@ export function marcarScoutVisto(caps: NeuronCapabilities, catalogLen: number): 
 
 /** Primera configuración de sistemas hecha (`hecho`): vale para TODA la cuenta. */
 export const AVISO_SISTEMAS_INICIO = "a149.sistemas.inicio";
-/** «Recordar luego» (`luego` + hora): no volver a abrir la ventana antes de `hasta`. */
+/** "Recordar luego" (`luego` + hora): no volver a abrir la ventana antes de `hasta`. */
 export const AVISO_SISTEMAS_LUEGO = "a149.sistemas.luego";
 /** Firma de catálogo ya vista (`visto`): el id lleva la firma, así una versión más antigua o
  *  más nueva del OS no pisa a la otra (cada firma vista se recuerda). */
@@ -182,8 +183,8 @@ function leerLocal(): StartupState {
 
 /**
  * Estado efectivo: lo local de este medio SUPERPUESTO con lo que sabe la cuenta.
- *  · `firstRunDone`: hecho aquí O en la cuenta (un «hecho» viejo local se respeta siempre).
- *  · `snoozeUntil`: manda la cuenta si tiene registro (un reinicio suyo levanta el «luego»
+ *  · `firstRunDone`: hecho aquí O en la cuenta (un "hecho" viejo local se respeta siempre).
+ *  · `snoozeUntil`: manda la cuenta si tiene registro (un reinicio suyo levanta el "luego"
  *    aunque este medio guardara uno antiguo); si no, lo local (medio antiguo, aún sin copiar).
  *  · `lastSig`: la firma actual si la cuenta ya la vio; si no, la última vista aquí.
  */
@@ -207,7 +208,7 @@ export function setStartupState(patch: Partial<StartupState>): StartupState {
     const { firstRunDone, lastSig, snoozeUntil, ...prefs } = patch;
     const local = leerLocal();
     const next: StartupState = { ...local, ...prefs };
-    // Lo que atañe a la cuenta va a la cuenta; el blob local conserva lo que era «histórico».
+    // Lo que atañe a la cuenta va a la cuenta; el blob local conserva lo que era "histórico".
     if (firstRunDone === true) {
       next.firstRunDone = true;
       marcarAviso(AVISO_SISTEMAS_INICIO, "hecho");
@@ -219,7 +220,7 @@ export function setStartupState(patch: Partial<StartupState>): StartupState {
     if ("snoozeUntil" in patch) {
       const hasta = typeof snoozeUntil === "number" ? snoozeUntil : 0;
       if (hasta > Date.now()) marcarAviso(AVISO_SISTEMAS_LUEGO, "luego", { hastaMs: hasta });
-      else olvidarAviso(AVISO_SISTEMAS_LUEGO); // reinicio: «ya pendiente» en TODOS los medios
+      else olvidarAviso(AVISO_SISTEMAS_LUEGO); // reinicio: "ya pendiente" en TODOS los medios
       next.snoozeUntil = 0; // el plazo vive en la cuenta, no aquí
     }
     safeSet(STARTUP_UPDATES_KEY, JSON.stringify(next));
@@ -232,7 +233,7 @@ export function setStartupState(patch: Partial<StartupState>): StartupState {
 }
 
 /**
- * Compatibilidad hacia atrás: un medio que ya tenía la ventana «vista» en su clave local
+ * Compatibilidad hacia atrás: un medio que ya tenía la ventana "vista" en su clave local
  * (`starseed.astraura.startup.v1`) la copia a la cuenta, para que los DEMÁS medios la hereden.
  * Idempotente y sin efecto si la cuenta ya tiene su propio registro. Nunca lanza.
  */
@@ -258,7 +259,7 @@ export function copiarEstadoLocalACuenta(now = Date.now()): void {
  *     neurona nueva de una cuenta que ya la hizo no la repite);
  *   · la vía de voz de la neurona (nube ⟷ local) SOLO si nada la deja resuelta: ver
  *     `vozConfigurada`. Antes bastaba con que la clave local de voz (por dispositivo, no
- *     sincronizada) faltara, estuviera «más tarde» u obsoleta para que la ventana grande
+ *     sincronizada) faltara, estuviera "más tarde" u obsoleta para que la ventana grande
  *     reapareciera en CADA arranque de cada medio.
  */
 export interface PendingConfigItem {
@@ -266,7 +267,7 @@ export interface PendingConfigItem {
   label: string;
 }
 
-/** ¿Los overrides SINCRONIZADOS de esta neurona fijan un modo de voz (en «Todas» o en alguna personalidad)? */
+/** ¿Los overrides SINCRONIZADOS de esta neurona fijan un modo de voz (en "Todas" o en alguna personalidad)? */
 function vozDefinidaEnCuenta(): boolean {
   try {
     const neurona = neuronDeviceIdActual();
@@ -322,15 +323,15 @@ const NEURON_PERSONA_STORAGE_KEY = "starseed.astraura.neuron-persona.v1";
 /**
  * Qué hacer al arrancar. Puro sobre lo que hay guardado (la ventana ESPERA antes al primer pull
  * de la cuenta —`esperarPullInicial`— para no decidir con un medio vacío):
- *   · «recordar luego» vigente → nada, sea cual sea el motivo (nunca antes de su hora);
+ *   · "recordar luego" vigente → nada, sea cual sea el motivo (nunca antes de su hora);
  *   · primera configuración sin hacer, o algo que de verdad pide acción → ventana grande;
  *   · solo cambió el catálogo (modelos/fuentes nuevos) → aviso pequeño no bloqueante;
  *   · hay hallazgos nuevos del SCOUT para este hardware → aviso pequeño no bloqueante;
  *   · firma cambiada pero sin nada nuevo que contar → nada, y se sella (`sellar`).
  */
 export type DecisionArranque =
-  | { accion: "ventana"; motivo: "primera-vez" | "pendiente"; pendientes: PendingConfigItem[] }
-  | { accion: "aviso"; motivo: "novedades" | "novedades-scout"; modelos: number; fuentes: number; firma: string }
+  | { accion: "ventana"; motivo: "primera-vez" | "pendiente"; pendientes: PendingConfigItem[]; scoutResult?: ScoutResult }
+  | { accion: "aviso"; motivo: "novedades" | "novedades-scout"; modelos: number; fuentes: number; firma: string; scoutResult?: ScoutResult }
   | { accion: "nada"; motivo: "pospuesto" | "al-dia"; sellar?: string };
 
 /**
@@ -340,10 +341,31 @@ export type DecisionArranque =
 export function decidirArranque(now = Date.now(), caps?: NeuronCapabilities): DecisionArranque {
   const st = getStartupState();
   if (st.snoozeUntil && st.snoozeUntil > now) return { accion: "nada", motivo: "pospuesto" };
-  if (!st.firstRunDone) return { accion: "ventana", motivo: "primera-vez", pendientes: pendingConfiguration() };
+  if (!st.firstRunDone) {
+    const pendientes = pendingConfiguration();
+    let scoutResult: ScoutResult | undefined;
+    if (caps) {
+      try {
+        const catalogLen = catalogIds().length;
+        const usedIds = [...ALL_LLM_SPECS.map((s) => s.id), ...ALL_VOICE_SPECS.map((s) => s.id)];
+        scoutResult = scoutModels(caps, { kind: undefined, usedModelIds: usedIds });
+      } catch { /* silent */ }
+    }
+    return { accion: "ventana", motivo: "primera-vez", pendientes, scoutResult };
+  }
   let pendientes: PendingConfigItem[] = [];
   try { pendientes = pendingConfiguration(); } catch { /* */ }
-  if (pendientes.length > 0) return { accion: "ventana", motivo: "pendiente", pendientes };
+  if (pendientes.length > 0) {
+    let scoutResult: ScoutResult | undefined;
+    if (caps) {
+      try {
+        const catalogLen = catalogIds().length;
+        const usedIds = [...ALL_LLM_SPECS.map((s) => s.id), ...ALL_VOICE_SPECS.map((s) => s.id)];
+        scoutResult = scoutModels(caps, { kind: undefined, usedModelIds: usedIds });
+      } catch { /* silent */ }
+    }
+    return { accion: "ventana", motivo: "pendiente", pendientes, scoutResult };
+  }
   const firma = firmaActual();
   if (st.lastSig !== firma) {
     const modelos = newModelIdsSince().length;
@@ -358,7 +380,8 @@ export function decidirArranque(now = Date.now(), caps?: NeuronCapabilities): De
     try {
       const catalogLen = catalogIds().length;
       if (hayNovedadesScout(caps, catalogLen)) {
-        return { accion: "aviso", motivo: "novedades-scout", modelos: 0, fuentes: 0, firma: "scout" };
+        const scoutResult = scoutModels(caps, { kind: undefined, usedModelIds: [] });
+        return { accion: "aviso", motivo: "novedades-scout", modelos: 0, fuentes: 0, firma: "scout", scoutResult };
       }
     } catch { /* degradación silenciosa */ }
   }
@@ -374,9 +397,9 @@ export function shouldShowUpdates(now = Date.now()): boolean {
 }
 
 /**
- * Motivo por el que se muestra (para el encabezado del modal). «Novedades» = hay modelos o
+ * Motivo por el que se muestra (para el encabezado del modal). "Novedades" = hay modelos o
  * fuentes que ESTE medio aún no ha revisado —aunque la cuenta ya haya sellado la firma tras el
- * aviso pequeño—, para que «Ver» enseñe de verdad lo que hay de nuevo.
+ * aviso pequeño—, para que "Ver" enseñe de verdad lo que hay de nuevo.
  */
 export function updateReason(): "primera-vez" | "novedades" | "al-dia" {
   const st = getStartupState();
@@ -399,7 +422,7 @@ export function markUpdatesSeen(patch: Partial<StartupState> = {}): void {
 /**
  * Sella en la CUENTA que esta firma de catálogo ya se vio (aviso pequeño mostrado, o cambio sin
  * nada nuevo que contar). No toca la foto local `lastCatalog`: esa solo avanza cuando el usuario
- * revisa la ventana (`markUpdatesSeen`), así «Ver» sigue enseñando lo nuevo.
+ * revisa la ventana (`markUpdatesSeen`), así "Ver" sigue enseñando lo nuevo.
  */
 export function sellarCatalogoVisto(firma: string = firmaActual()): void {
   try { marcarAviso(AVISO_CATALOGO_PREFIJO + firma, "visto"); } catch { /* */ }
