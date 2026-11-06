@@ -114,6 +114,17 @@ export function colocarServicio(servicio: ServicioId | RequisitosServicio, ofert
     if (plan.length > 0) { tomadas.add(capa.id); encontrados.push({ tipo: "capa-publica", id: capa.id }); break; }
   }
   if (encontrados.length === 0) {
+    // Aplicación de `dondeRecomendar` (decisión de Alex, 2026-11-05: DeepTutor queda
+    // RECOMENDADO en los dispositivos y servidores que lo soportan, nunca instalado
+    // solo): cuando no se coloca, el motivo lleva la recomendación sin cambiar el
+    // destino ni la lista de faltas; la leen `resolverEndpointServicio` y quien
+    // enseña la colocación.
+    const recomendaciones = req.id === "deeptutor" ? dondeRecomendar(req, ofertas, contexto) : [];
+    const textoRecomendacion = recomendaciones.length > 0
+      ? ` Queda como recomendación: ${recomendaciones
+          .map((m) => `${m.donde.tipo === "capa-publica" ? (CAPAS_PUBLICAS_CONOCIDAS.find((c) => c.id === m.donde.id)?.nombre ?? m.donde.id ?? m.donde.tipo) : m.donde.id ?? m.donde.tipo}: ${m.motivo}`)
+          .join("; ")}.`
+      : "";
     if (gpuNecesaria && !privado) {
       anotar("una capa con GPU (hoy ninguna capa gratis la tiene)");
       for (const m of motivosCapas) anotar(m);
@@ -124,7 +135,7 @@ export function colocarServicio(servicio: ServicioId | RequisitosServicio, ofert
     if (faltaMedida) anotar("una oferta con la RAM medida");
     if (falta.length === 0) anotar("capacidad suficiente y visible");
     for (const m of motivosCapas) anotar(m);
-    return { donde: { tipo: "ninguno" }, motivo: `No hay dónde colocar «${req.nombre}»: ${falta.join("; ")}.`, falta };
+    return { donde: { tipo: "ninguno" }, motivo: `No hay dónde colocar «${req.nombre}»: ${falta.join("; ")}.${textoRecomendacion}`, falta };
   }
   const primero = encontrados[0];
   const instalado = SERVICIOS_INSTALADOS[req.id];
@@ -182,7 +193,7 @@ export function dondeRecomendar(servicio: ServicioId | RequisitosServicio, ofert
       if (filtrar([ofertaDeCapa(capa, contexto.t ?? 0)]).length > 0) empujar("capa-publica", capa.id, `${nombre} cabe en la capa pública ${capa.nombre}`);
     }
   }
-  if (req.id === "deeptutor") {
+  if (contexto.privado !== true && req.id === "deeptutor") {
     const a1 = CAPAS_PUBLICAS_CONOCIDAS.find((c) => c.id === "oracle-a1");
     if (a1 && a1.estado === "activa") empujar("capa-publica", "oracle-a1", MOTIVO_A1_DEEPTUTOR);
   }

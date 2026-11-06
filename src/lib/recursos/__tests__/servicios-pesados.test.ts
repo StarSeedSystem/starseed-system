@@ -165,6 +165,33 @@ describe("deeptutor", () => {
       expect(todo.some((d) => d && d.id === "oracle-a1")).toBe(false);
     });
   });
+  describe("aplicación", () => {
+    it("colocarServicio sin dónde lleva la recomendación en su motivo (y el A1 no se elige)", () => {
+      const vacio = colocarServicio("deeptutor", [], ctx());
+      expect(vacio.donde.tipo).toBe("ninguno");
+      expect(vacio.motivo).toContain(
+        "Queda como recomendación: el A1: recomendado cuando su disco tenga margen (decisión de Alex: hoy no)",
+      );
+      expect(vacio.falta.join(" ")).not.toContain("recomendación");
+      expect(vacio.falta.join(" ")).not.toContain("oracle-a1");
+      expect(vacio.falta).toContain("capacidad suficiente y visible");
+    });
+    it("si coloca en una neurona de la cuenta, no añade recomendación", () => {
+      const r = colocarServicio("deeptutor", [de8Gb], ctx());
+      expect(r.donde).toEqual({ tipo: "cuenta", id: "n1" });
+      expect(r.motivo).not.toContain("recomendación");
+    });
+    it("en privado la recomendación no sale al A1, ni en colocación ni en recomendación", () => {
+      const r = colocarServicio("deeptutor", [], ctx({ privado: true }));
+      expect(r.motivo).not.toContain("recomendación");
+      expect(dondeRecomendar(deeptutor, [], ctx({ privado: true }))).toEqual([]);
+    });
+    it("los servicios de siempre no llevan recomendación añadida", () => {
+      const r = colocarServicio("coolify", [], ctx());
+      expect(r.donde.tipo).toBe("capa-publica");
+      expect(r.motivo).not.toContain("recomendación");
+    });
+  });
   it("declarar deeptutor no cambia los seis servicios de siempre", () => {
     expect(Object.keys(REQUISITOS_SERVICIO).sort()).toEqual(["archivebox", "comfyui", "coolify", "deeptutor", "libretranslate", "openhands-agent-server", "stirling-pdf"]);
     for (const [id, instalado] of Object.entries(SERVICIOS_INSTALADOS)) {
