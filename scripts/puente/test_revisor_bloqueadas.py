@@ -791,5 +791,13 @@ class RechazoMecanico(unittest.TestCase):
         self.assertEqual(dec["en_cadena"]["DEP1"]["raiz"], "MTN1027L2d")
 
 
+class NoAplicaCerrada(unittest.TestCase):
+    """(1106) Una tarea «no aplica» ya está cerrada: el revisor no la toca ni pregunta por ella."""
+
+    def test_no_aplica_esta_en_cerrados(self):
+        self.assertIn("no_aplica", L.CERRADOS)
+        self.assertIn("no-aplica", L.CERRADOS)
+
+
 if __name__ == "__main__":
     unittest.main()

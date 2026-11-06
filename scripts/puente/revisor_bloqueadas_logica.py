@@ -49,7 +49,8 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 # ── estados ──────────────────────────────────────────────────────────────────────────────
 CUMPLIDOS = frozenset({"commit", "hecho", "hecha", "integrada"})
 #: Cerradas sin código que esperar: no son trabajo pendiente ni desperdicio.
-CERRADOS = CUMPLIDOS | frozenset({"informe", "sustituida", "reasignada", "descartada"})
+CERRADOS = CUMPLIDOS | frozenset({"informe", "sustituida", "reasignada", "descartada",
+                                   "no_aplica", "no-aplica"})  # (1106) su propósito ya estaba en main
 #: Cerradas por una DECISIÓN con motivo (de la dirección o de Alex): no se reabren solas.
 #: "rechazada" NO está aquí incondicionalmente: solo las que NO son rechazo mecánico cuentan como decididas.
 DECIDIDOS = frozenset({})
