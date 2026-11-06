@@ -97,6 +97,7 @@ describe("permisos-por-so: cobertura de identificadores de capabilities", () => 
       "core:path:default",
       "core:resources:default",
       "core:menu:default",
+      "core:tray:default",
       "core:window:allow-set-title",
       "core:window:allow-minimize",
       "core:window:allow-maximize",
@@ -139,7 +140,7 @@ describe("permisos-por-so: cobertura de identificadores de capabilities", () => 
 
     for (const identificador of identificadoresCapability) {
       const existe = validarPermisoEnJson(identificador);
-      expect(existe).toBe(true), ` identificador "${identificador}" no encontrado en config/permisos-por-so.json`;
+      expect(existe, `identificador "${identificador}" no encontrado en config/permisos-por-so.json`).toBe(true);
     }
   });
 
@@ -156,7 +157,7 @@ describe("permisos-por-so: cobertura de identificadores de capabilities", () => 
 
     for (const identificador of identificadoresCapability) {
       const existe = validarPermisoEnJson(identificador);
-      expect(existe).toBe(true), ` identificador "${identificador}" no encontrado en config/permisos-por-so.json`;
+      expect(existe, `identificador "${identificador}" no encontrado en config/permisos-por-so.json`).toBe(true);
     }
   });
 
@@ -175,7 +176,7 @@ describe("permisos-por-so: cobertura de identificadores de capabilities", () => 
 
     for (const identificador of identificadoresAndroid) {
       const existe = validarPermisoEnJson(identificador);
-      expect(existe).toBe(true), ` identificador "${identificador}" no encontrado en config/permisos-por-so.json`;
+      expect(existe, `identificador "${identificador}" no encontrado en config/permisos-por-so.json`).toBe(true);
     }
   });
 
@@ -188,7 +189,7 @@ describe("permisos-por-so: cobertura de identificadores de capabilities", () => 
     const identificadoresWeb = ["notificaciones", "geolocalización", "acceso-aarchivo", "drag-drop"];
     for (const identificador of identificadoresWeb) {
       const existe = validarPermisoEnJson(identificador);
-      expect(existe).toBe(true), ` identificador "${identificador}" no encontrado en config/permisos-por-so.json`;
+      expect(existe, `identificador "${identificador}" no encontrado en config/permisos-por-so.json`).toBe(true);
     }
   });
 });
