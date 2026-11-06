@@ -688,3 +688,12 @@ def test_1103_ultima_profunda_de_la_semana(tmp_path):
     assert fecha == "2026-10-31" and c["top"][0]["titulo"] == "de la sesión"
     assert _D.ultima_profunda(str(tmp_path), _dt(2026, 11, 20, 0, 0)) == ("", {})
     assert _D.ultima_profunda(str(tmp_path / "no-existe"), _dt(2026, 11, 2)) == ("", {})
+
+
+def test_id_de_tarea_sin_espacios_ni_acentos_1106i():
+    import re as _re
+    tid = D.id_de_tarea("diaria:endurecer el sandbox del iframe de código del lienzo")
+    assert tid == "IMG-diaria-endurecer-el-sandbox-del-iframe-d"
+    assert _re.fullmatch(r"[A-Za-z0-9_-]{1,64}", tid)
+    assert D.id_de_tarea("agentes:reimaginada-profunda") == "IMG-agentes-reimaginada-profunda"
+    assert D.id_de_tarea("x: ñandú — ¿sí?") == "IMG-x-nandu-si"

@@ -14,6 +14,7 @@ lanzadores, Jev, Astraura y agentes por parámetro (las pruebas no lanzan nada r
 from __future__ import annotations
 import argparse, fcntl, json, os, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
 from collections import Counter
+import re, unicodedata
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
@@ -425,6 +426,14 @@ def _revision_egm(artefacto, llamar_egm):
         return {"pasa": True, "bloqueantes": [], "error": "error de red o modelo", "objeciones": [], "por_modelo": {}}
 
 
+def id_de_tarea(pid, tope=40):
+    """PURA (1106I): id de la tarea de una propuesta, solo [A-Za-z0-9_-]. Con espacios, Cloudroom rechazaba el
+    `--request-id` (HTTP 400, «must match pattern /^[a-zA-Z0-9_-]{1,64}$/») y git no admite la rama."""
+    s = unicodedata.normalize("NFKD", str(pid)).encode("ascii", "ignore").decode()
+    s = re.sub(r"-{2,}", "-", re.sub(r"[^A-Za-z0-9_-]+", "-", s)).strip("-")
+    return ("IMG-" + s[:tope]).rstrip("-")
+
+
 def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_diario=None, lanzador_profundo=None,
           existe_ruta=None, datos=None, avisar=None, consejo=None, agente_referencias=None, aplicar_astraura=None,
           a_la_flota=None, agente_alcance=None, llamar_egm=None):
@@ -544,7 +553,7 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         fr = [x for x in aj["horario"]["franjas"] if x["desde"] > ahora.strftime("%H:%M")] if aj["horario"]["modo"] == "franjas" else []
         if cola and aj["horario"]["repartir"] and fr: cola = cola[:AL.lotes(len(cola), len(fr) + 1)[0]]
         nombre = f"cola-imaginacion-{ahora.strftime('%Y%m%d-%H%M')}"
-        tareas = [{"id": "IMG-" + p["id"].replace(":", "-")[:40], "titulo": p["titulo"], "area": "imaginacion",
+        tareas = [{"id": id_de_tarea(p["id"]), "titulo": p["titulo"], "area": "imaginacion",
                    "archivos": (p.get("archivos") or [])[:3], "depende": [], "prompt": PROMPT.format(t=p["titulo"], c=p.get("cuerpo", "")[:600]),
                    **({"aprobacion": True} if p.get("aprobacion_diff") else {})} for p in cola]
         esperan = [p for p in propuestas if p.get("estado") == "esperando-aprobacion"]

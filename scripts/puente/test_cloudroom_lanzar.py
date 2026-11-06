@@ -676,6 +676,25 @@ class Maquina(unittest.TestCase):
         self.assertEqual(self.ordenes, [])
 
 
+class IdPeticion(unittest.TestCase):
+    """(1106I) room-cli exige /^[a-zA-Z0-9_-]{1,64}$/ en `--request-id`."""
+
+    def test_id_que_cabe_queda_igual(self):
+        self.assertEqual(C.id_peticion("VER1105Db-d3", 2), "starseed-VER1105Db-d3-2")
+        self.assertEqual(C.id_peticion("VER1105Db-d3", 2, 1), "starseed-VER1105Db-d3-2-2")
+
+    def test_espacios_y_largos_se_limpian_sin_chocar(self):
+        import re
+        a = C.id_peticion("IMG-diaria-endurecer el sandbox del iframe d", 1)
+        b = C.id_peticion("IMG-diaria-endurecer el sandbox del iframe e", 1)
+        largo = C.id_peticion("IMG-agentes-reimaginada-profunda-sustituir-lbsb-d2b-x", 12, 3)
+        for x in (a, b, largo):
+            self.assertRegex(x, r"^[A-Za-z0-9_-]{1,64}$")
+        self.assertNotEqual(a, b)
+        self.assertEqual(a, C.id_peticion("IMG-diaria-endurecer el sandbox del iframe d", 1))
+        self.assertTrue(largo.endswith("-12-4"))
+
+
 if __name__ == "__main__":
     unittest.main()
 

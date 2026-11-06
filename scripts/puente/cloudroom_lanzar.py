@@ -302,6 +302,21 @@ def uso_cuenta(estado, ahora):
     return int(v.get("total") or M.CUPO_GRATIS), int(v.get("usado") or 0)
 
 
+def id_peticion(tid, n, k=0):
+    """PURA (1106I): `--request-id` de room-cli: solo [A-Za-z0-9_-] y ≤ 64, o HTTP 400 y el hilo no se abre.
+    Un id que ya cabe queda igual que antes (los reintentos siguen siendo idempotentes); si no, se limpia,
+    se recorta y lleva 8 de un sha1 del id para no chocar con otra tarea."""
+    import hashlib
+    cola = "-%d" % n + ("-%d" % (k + 1) if k else "")
+    tal_cual = "starseed-%s%s" % (tid, cola)
+    if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", tal_cual):
+        return tal_cual
+    s = unicodedata.normalize("NFKD", str(tid)).encode("ascii", "ignore").decode()
+    s = re.sub(r"-{2,}", "-", re.sub(r"[^A-Za-z0-9_-]+", "-", s)).strip("-")
+    huella = hashlib.sha1(str(tid).encode("utf-8")).hexdigest()[:8]
+    return "starseed-%s-%s%s" % (s[:64 - len("starseed--") - len(huella) - len(cola)].rstrip("-"), huella, cola)
+
+
 def rama_pedida(tid, fecha):
     return "nube/cr-%s/ola/%s" % (fecha, tid)
 
@@ -759,7 +774,7 @@ def lanzar(ids, seco=False, priorizar=False, medio=None, ahora=None, run=subproc
         datos, err, hilo, usado, fallidos = None, "" if probar else "la nube rechazó todos los modelos probados", "", None, []
         for k, (h, m, _por) in enumerate(probar):
             # Cada modelo con su `--request-id`: el mismo id sigue siendo idempotente para un reintento.
-            peticion = "starseed-%s-%d" % (tid, n) + ("-%d" % (k + 1) if k else "")
+            peticion = id_peticion(tid, n, k)
             datos, err = _json_cli(run, orden_spawn(cli, t, texto, h, m, peticion, proyecto), timeout=180)
             hilo = id_hilo(datos)
             if hilo:
