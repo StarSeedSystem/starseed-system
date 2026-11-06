@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
     serializarBloque, leerBloque, avisosDePublicacion, esMoleculaValidaNucleo, MAX_BLOQUE_BYTES,
+    CAPA_RESPUESTA_VIVA, TIPO_RESPUESTA_VIVA,
 } from "../bloque-protomolecula";
 import { isRichBlock, parseBlocks, serializeBlock } from "@/lib/creation/post-blocks";
 import type { Ambito, Capa, Molecula } from "../tipos";
@@ -12,23 +13,11 @@ function moleculaDePrueba(): Molecula {
     };
 }
 
-function capaDeRespuestaViva(): Capa {
-    return {
-        id: "respuesta-viva",
-        tipo: "respuesta-viva",
-        titulo: "Respuesta Viva",
-        formato: "openui-lang",
-        referencia: null,
-        orden: 0,
-        visible: true,
-        bloqueada: false,
-    };
-}
-
+// Prueba para respuesta-viva
 export function moleculaConRespuestaViva(): Molecula {
     return {
         id: "mol-respuesta-viva", titulo: "Molécula con Respuesta Viva", ambito: "personal",
-        capas: [capaDeRespuestaViva()], atomos: [], valores: {}, version: 1, creadaEn: 1000, actualizadaEn: 1000,
+        capas: [CAPA_RESPUESTA_VIVA], atomos: [], valores: {}, version: 1, creadaEn: 1000, actualizadaEn: 1000,
     };
 }
 function capaConReferencia(): Capa {
@@ -104,6 +93,14 @@ describe("bloque protomolecula en post-blocks", () => {
         expect(vuelta).toEqual(limpio);
         const leida = leerBloque(vuelta.code || "");
         expect(leida).toEqual({ ok: true, valor: m });
+    });
+    it("una molécula con capa respuesta-viva sobrevive al bloque intacta", () => {
+        const m = moleculaConRespuestaViva();
+        const s = serializarBloque(m);
+        expect(s.ok).toBe(true);
+        if (!s.ok) return;
+        expect(leerBloque(s.valor)).toEqual({ ok: true, valor: m });
+        expect(m.capas[0]?.tipo).toBe(TIPO_RESPUESTA_VIVA);
     });
     it("un cliente viejo ignora el bloque sin romperse (degrada como penpot/video)", () => {
         const misterioso = { id: "b2", type: "tipo-del-futuro", code: "{}" };
