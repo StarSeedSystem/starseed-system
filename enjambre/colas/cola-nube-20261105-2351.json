@@ -1,0 +1,36 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "id": "DR1029-1",
+   "ola": "Ola Imaginación 2026-10-29 · lo que el análisis nocturno encontró",
+   "titulo": "Publicar los 4 commits que esperan en `main` (impacto alto / esfuerzo bajo).",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-10-29.md`, sección «top 3 accionables». Texto literal del informe:\n\n  Publicar los 4 commits que esperan en `main` (impacto alto / esfuerzo bajo). — HEAD es `a47bf3f5c` (INV1025D · cliente TypeScript del extractor ScrapeGraphAI) y `git rev-list origin/main..HEAD` confirma 4 sin push — la ola 1009S ya avisaba de «commits sin publicar: 4» y siguen siendo 4: el enjambre integra más rápido de lo que se publica, así que producción (`starseed-os.vercel.app`) va acumulando retraso. Pasos: con el enjambre parado, `npx tsc --noEmit` + `npx vitest run src/lib/__tests__`, luego push a `main` (despliega Vercel) y verificar `Vercel: success`. No es un deploy nuevo: es publicar lo ya integrado.\n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba."
+  },
+  {
+   "area": "imaginacion",
+   "depende_de": [],
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261106-030554-IMG-agentes-reimaginada-profunda-sustituir-lbs",
+   "id": "IMG-agentes-reimaginada-profunda-sustituir-lbsb-d1",
+   "titulo": "Reemplazar esperas estáticas por condiciones observables en pruebas de onboarding · lo que faltó: src/components/onboarding/Onboarding.tsx,  (parte 1 de 2)",
+   "archivos": [
+    "src/components/onboarding/Onboarding.tsx"
+   ],
+   "depende": [],
+   "prompt": "SEGUIMIENTO de IMG-agentes-reimaginada-profunda-sustituir-lb, que ya está integrada (sha 1848c710b32d). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/components/onboarding/Onboarding.tsx, src/lib/testing/utils.ts.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Reemplazar esperas estáticas por condiciones observables en pruebas de onboarding\n\n--- encargo original, como contexto ---\nComprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Reemplazar esperas estáticas por condiciones observables en pruebas de onboarding. ## Resumen\nSe propone eliminar los `await new Promise(r => setTimeout(r, X))` o `wait(…)` usados en los tests de *onboarding* y sustituirlos por esperas basadas en condiciones observables (p.ej., aparición de un elemento, cambio de estado, resolución de una promesa). Esto mejora la fiabilidad y velocidad de la suite.\n\n## Pasos accionables (≤ 3 archivos)\n1. **src/components/onboarding/__tests__/primer-arranque.test.tsx** – Identificar todas las esperas fijas y reemplazarlas por `await waitFor(() => expect(...).toBeInTheDocument())` o por `await screen.findBy…` según corresponda.\n2. **src/compon Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261106-030554-IMG-agentes-reimaginada-profunda-sustituir-lbs`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261106-030554-IMG-agentes-reimaginada-profunda-sustituir-lbs:refs/remotes/origin/nube/a1-20261106-030554-IMG-agentes-reimaginada-profunda-sustituir-lbs\"` y `git cherry-pick --no-commit 8d8f7c43b81e 5b0d2d6aff72 8f5b93be7dd3 50f557222603`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/onboarding/Onboarding.tsx, src/components/onboarding/__tests__/primer-arranque.test.tsx, src/lib/testing/utils.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 1 DE 2 (la dirección dividió IMG-agentes-reimaginada-profunda-sustituir-lbsb: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/onboarding/Onboarding.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "IMG-agentes-reimaginada-profunda-sustituir-lbsb",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   }
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1105-221934.json": [
+   "DR1029-1"
+  ]
+ }
+}
