@@ -94,6 +94,13 @@ import { listZipEntries } from "@/lib/files/simple-zip";
 import { abrirSelectorMedio, refDeBiblioteca, SelectorMedioGlobal } from "@/components/recursos-ia/abrir-selector-medio";
 // Variaciones públicas (Ola 1019V · §3): «Variaciones públicas» del clic derecho.
 import { accionVariaciones, claveDeItemBiblioteca } from "@/components/variaciones/accion-variaciones";
+// Handoff seguro a /publish: referencia compacta en sessionStorage, nunca el
+// ítem completo en la querystring (historial, logs y capturas de URL).
+import {
+    ADJUNTO_PUBLICACION_KEY,
+    crearAdjuntoPublicacion,
+    serializarAdjuntoPublicacion,
+} from "@/lib/library/publicacion-biblioteca";
 
 const TYPE_FILTERS: Array<{ key: "todos" | SavedItemType; label: string }> = [
     { key: "todos", label: "Todo" },
@@ -540,15 +547,26 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
 
     const handlePublishNavigate = useCallback((item: SavedItem) => {
         const resolved = item.type === "alias" && item.targetItemId ? itemsById.get(item.targetItemId) ?? item : item;
-        const ref = {
+        const adjunto = crearAdjuntoPublicacion({
             kind: resolved.type,
+            id: resolved.id,
             title: resolved.title,
             url: resolved.url,
             route: resolved.route,
             note: resolved.note,
-        };
-        const q = encodeURIComponent(JSON.stringify(ref));
-        window.location.assign(`/publish?attach=${q}`);
+        });
+        if (!adjunto) {
+            toast.message("Sin destino abrible", { description: "Este ítem no tiene título, ruta ni URL que publicar." });
+            return;
+        }
+        try {
+            sessionStorage.setItem(ADJUNTO_PUBLICACION_KEY, serializarAdjuntoPublicacion(adjunto));
+        } catch {
+            toast.error("No se pudo preparar la publicación", { description: "El almacenamiento de esta pestaña no está disponible." });
+            return;
+        }
+        // Solo viaja el flag: el contenido vive en la pestaña, no en la URL.
+        window.location.assign("/publish?attach=1");
     }, [itemsById]);
 
     // ── Versiones / edición (§13) ────────────────────────────────────────────
