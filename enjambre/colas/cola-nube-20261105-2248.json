@@ -1,0 +1,41 @@
+{
+ "ola": "nube-20261105",
+ "tareas": [
+  {
+   "ola": "1104R · Repos nativos",
+   "origen": "repos-1104",
+   "id": "RPO1104B-d2",
+   "titulo": "EGM · lecciones: lo que los peces objetan y se resuelve vuelve al cerebro (parte 2 de 2)",
+   "archivos": [
+    "src/lib/agents/egm/__tests__/lecciones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§2 «Resolver = aprender». Módulo PURO: `leccionesDe({ perfilId, cerebroId, objeciones, resueltas, rechazadas, fecha })` → entradas con la forma de `CreateBrainMemoryInput` de `src/lib/cerebro/brain-memories.ts` (importa SOLO el tipo): una por objeción `bloquea`/`importa` resuelta (objeción + corrección) o rechazada (objeción + porqué), con etiqueta `leccion` y `egm`; las `menor` no se guardan. Hechos, no opiniones (como `scripts/puente/director_aprendizaje.py`). Prueba: 3 objeciones → 2 lecciones con su texto; nada sin cerebro.\n\n## PARTE 2 DE 2 (la dirección dividió RPO1104B: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/agents/egm/__tests__/lecciones.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "RPO1104B",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "dependencias_ya_en_main": [
+    "RPO1104B-d1"
+   ]
+  },
+  {
+   "id": "IMG-agentes-reimaginada-diaria-tapar-las-dos",
+   "titulo": "Arreglar fuga de datos en la Biblioteca usando POST y portadas locales",
+   "area": "imaginacion",
+   "archivos": [
+    "src/components/library/library-store-panel.tsx",
+    "src/components/library/finder/finder-view.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Arreglar fuga de datos en la Biblioteca usando POST y portadas locales. ## Acción\n- Reemplazar la transmisión del objeto completo del ítem en la querystring del endpoint `/publish` por una petición **POST** con cuerpo JSON.\n- Eliminar la dependencia de `encodeURIComponent` que envía títulos a `placehold.co`; en su lugar, usar imágenes de portada almacenadas localmente en el proyecto.\n- Actualizar los componentes afectados para que construyan el payload y lo envíen mediante `fetch`/`axios` con encabezado `Content-Type: application/json`.\n- Modificar el manejo de respuestas para que no se registre información sensible en el historial del navegador ni en logs de serv Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1105-221934.json": [
+   "RPO1104B-d2",
+   "IMG-agentes-reimaginada-diaria-tapar-las-dos"
+  ]
+ }
+}
