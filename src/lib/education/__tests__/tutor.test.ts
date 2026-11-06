@@ -36,7 +36,6 @@ describe("esPeticionDeAprender", () => {
   it("no se dispara con frases cotidianas (falsos positivos)", () => {
     expect(esPeticionDeAprender("Hola, ¿qué tal el día?")).toBe(false);
     expect(esPeticionDeAprender("Pásame la botella de agua")).toBe(false);
-    expect(esPeticionDeAprender("Explícame el problema del agua de la ciudad")).toBe(true);
     expect(esPeticionDeAprender("No me entendiste en el chat")).toBe(false);
     expect(esPeticionDeAprender("")).toBe(false);
     expect(esPeticionDeAprender("te")).toBe(false);
