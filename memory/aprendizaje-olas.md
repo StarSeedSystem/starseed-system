@@ -4727,3 +4727,42 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** clave
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-05 22:18 · auto-1105-200506
+
+**Lo que se pidió.** JavaScript heap out of memory
+
+**Resultado.** 8 de 32 integradas. 24 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 15 tareas se fueron por lo mismo — otra cosa (TRD1020Db-d3b, DPT1105Ab, LNN1028I2-d1, IMG-agentes-reimaginada-diaria-tapar-las-dos, IMG-diaria-endurecer el sandbox del iframe d, RPO1104N-d2). Es 47 % de la ola.
+- 4 tareas se fueron por lo mismo — no escribió nada (RPO1104M-d2, RPO1104B-d2, RPO1104Q-d2, RPO1104S-d2). Es 12 % de la ola.
+- 3 tareas se fueron por lo mismo — los tipos no compilan (SUP0511Cb-d1c, VER1105Gc, SUP0511Db-d2). Es 9 % de la ola.
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+- claude no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `SUP0511Cb-d1c` — los tipos no compilan: 2 errores tsc (rama ola/SUP0511Cb-d1c conservada)
+- `TRD1020Db-d3b` — otra cosa: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance
+- `DPT1105Ab` — otra cosa: director: reintento gratuito 3/8
+- `VER1105Gc` — los tipos no compilan: 3 errores tsc (rama ola/VER1105Gc conservada)
+- `LNN1028I2-d1` — otra cosa: director: reintento gratuito 4/8
+- `IMG-agentes-reimaginada-diaria-tapar-las-dos` — otra cosa: devuelta de la nube: su run terminó · la nube dijo «commit»
+- `IMG-diaria-endurecer el sandbox del iframe d` — otra cosa: Cloudroom no abrió el hilo: Error: Failed to create thread: HTTP 400: Invalid string: must match pattern /^[a-zA-Z0-9_-]{1,64}$/ (probados: 
+- `RPO1104N-d2` — otra cosa: revisor: rechazo mecánico de las puertas (no tocó NINGUNO de sus 1 archivo(s)): se reescribe como tarea:alcance
+- `RTCOL1012Ie-d2` — otra cosa: revisor: sus dependencias ya están en main: vuelve a la cola (tanda viva cola-auto-1105-200506.json)
+- `CTR1104Cc-d3` — otra cosa: reasignada a la nube 20261105
+- `CTR1104Q` — otra cosa: revisor: sus dependencias ya están en main: vuelve a la cola (tanda viva cola-auto-1105-200506.json)
+- `VER1105Db-d2` — otra cosa: continúa como VER1105Dc desde la rama nube/a1-20261106-030554-VER1105Db-d2 (traer_nube)
+- `RPO1104Kb-d2` — otra cosa: continúa como RPO1104Kc desde la rama nube/a1-20261106-030554-RPO1104Kb-d2 (traer_nube)
+- `IMG-agentes-reimaginada-profunda-sustituir-lbs` — otra cosa: continúa como IMG-agentes-reimaginada-profunda-sustituir-lbsb desde la rama nube/a1-20261106-030554-IMG-agentes-reimaginada-profunda-sustitu
+- `WT1011Bb` — pruebas en rojo: ERROR: test_remallar_voxel_success (servicios.taller_3d.motores.test_blender_voxel.TestBlenderVoxel.test_remallar_voxel_
+- `RPO1104M-d2` — no escribió nada: devuelta de la nube 20261105: no quedaba ningún run en marcha que la llevara (envío 1 de 3) · la nube dijo «sin_cambios»
+- `RPO1104B-d2` — no escribió nada: devuelta de la nube 20261105: no quedaba ningún run en marcha que la llevara (envío 1 de 3) · la nube dijo «sin_cambios»
+- `RPO1104Q-d2` — no escribió nada: devuelta de la nube 20261105: no quedaba ningún run en marcha que la llevara (envío 1 de 3) · la nube dijo «sin_cambios»
+- `RPO1104S-d2` — no escribió nada: devuelta de la nube 20261105: no quedaba ningún run en marcha que la llevara (envío 1 de 3) · la nube dijo «sin_cambios»
+- `VER1105Fb-d2` — otra cosa: continúa como VER1105Fc (ya en main: 3a752512c6)
+- `VER1105Gb-d2` — otra cosa: continúa como VER1105Gc (la que sigue el trabajo)
+- `CAPC1011Ccsb` — la revisión lo rechazó: no toco NINGUNO de los 2 archivos que declaraba (rama ola/CAPC1011Ccsb conservada)
+- `SUP0511Db-d2` — los tipos no compilan: 3 errores tsc (rama ola/SUP0511Db-d2 conservada)
+- `VER1105Db-d3` — otra cosa: reasignada a la nube 20261105
