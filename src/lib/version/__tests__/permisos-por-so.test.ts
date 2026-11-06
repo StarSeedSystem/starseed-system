@@ -43,21 +43,13 @@ describe("permisos-por-so: validez del JSON", () => {
     }
   });
 
-  it("los sistemas de escritorio tienen noPermiteSistema", () => {
-    const sistemasDeEscritorio: SistemaOperativo[] = ["macos", "windows", "linux"];
-    for (const so of sistemasDeEscritorio) {
+  it("cada sistema declara lo que NO permite (contrato §6)", () => {
+    const sistemas: SistemaOperativo[] = ["macos", "windows", "linux", "android", "ios", "web"];
+    for (const so of sistemas) {
       const config = permisosDe(so) as ConfigSO;
-      expect(config.noPermiteSistema).toBeDefined();
+      expect(config.noPermiteSistema, `${so} sin noPermiteSistema`).toBeDefined();
       expect(Array.isArray(config.noPermiteSistema)).toBe(true);
       expect(config.noPermiteSistema!.length).toBeGreaterThan(0);
-    }
-  });
-
-  it("los sistemas móviles no tienen noPermiteSistema", () => {
-    const sistemasMoviles: SistemaOperativo[] = ["android", "ios", "web"];
-    for (const so of sistemasMoviles) {
-      const config = permisosDe(so) as ConfigSO;
-      expect(config.noPermiteSistema).toBeUndefined();
     }
   });
 
@@ -212,6 +204,7 @@ describe("permisos-por-so: cobertura de identificadores de capabilities", () => 
 
   it("cada identificador de permiso de AndroidManifest aparece en el JSON", () => {
     const identificadoresAndroid = [
+      "INTERNET",
       "FOREGROUND_SERVICE",
       "FOREGROUND_SERVICE_CONNECTED_DEVICE",
       "FOREGROUND_SERVICE_DATA_SYNC",
@@ -264,5 +257,46 @@ describe("permisos-por-so: exportaciones tipo", () => {
     expect(permiso).toHaveProperty("nombre");
     expect(permiso).toHaveProperty("texto");
     expect(permiso).toHaveProperty("alConceder");
+  });
+});
+
+describe("permisos-por-so: cada SO solo declara lo suyo", () => {
+  const nombres = (so: SistemaOperativo): string[] =>
+    permisosDe(so).permisos.map((permiso) => permiso.nombre);
+
+  it("web no declara capabilities de Tauri (default.json no incluye web)", () => {
+    expect(nombres("web").some((nombre) => nombre.includes(":"))).toBe(false);
+    expect(nombres("web")).not.toContain("shell:allow-execute");
+  });
+
+  it("solo los sistemas de escritorio declaran autoarranque y updater", () => {
+    const escritorio = ["macos", "windows", "linux"];
+    const moviles = ["android", "ios", "web"];
+    for (const so of escritorio) {
+      expect(nombres(so as SistemaOperativo)).toContain("updater:allow-download-and-install");
+      expect(nombres(so as SistemaOperativo)).toContain("autostart:allow-enable");
+    }
+    for (const so of moviles) {
+      expect(nombres(so as SistemaOperativo)).not.toContain("updater:allow-download-and-install");
+      expect(nombres(so as SistemaOperativo)).not.toContain("autostart:allow-enable");
+    }
+  });
+
+  it("los permisos del manifiesto de Android solo aparecen en android", () => {
+    const manifiesto = ["FOREGROUND_SERVICE", "POST_NOTIFICATIONS", "RECEIVE_BOOT_COMPLETED"];
+    for (const permiso of manifiesto) {
+      expect(nombres("android")).toContain(permiso);
+      for (const so of ["macos", "windows", "linux", "ios", "web"] as SistemaOperativo[]) {
+        expect(nombres(so), `${permiso} no pertenece a ${so}`).not.toContain(permiso);
+      }
+    }
+  });
+
+  it("ningún permiso lleva un noPermite inventado (solo el sistema lo declara)", () => {
+    for (const so of ["macos", "windows", "linux", "android", "ios", "web"] as SistemaOperativo[]) {
+      for (const permiso of permisosDe(so).permisos) {
+        expect(permiso).not.toHaveProperty("noPermite");
+      }
+    }
   });
 });

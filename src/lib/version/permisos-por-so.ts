@@ -6,7 +6,6 @@ export interface PermisoSO {
   nombre: string;
   texto: string;
   alConceder: string;
-  noPermite?: string[];
 }
 
 export interface ConfigSO {

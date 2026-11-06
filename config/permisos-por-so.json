@@ -852,6 +852,11 @@
     ],
     "permisos": [
       {
+        "nombre": "INTERNET",
+        "texto": "Acceder a internet para cargar la web del OS y sincronizar. Se concede al instalar (permiso normal).",
+        "alConceder": "al instalar"
+      },
+      {
         "nombre": "FOREGROUND_SERVICE",
         "texto": "Ejecutar servicios en primer plano (ej. servicio de antenas). Se concede al instalar la app y aceptar el diálogo de permisos.",
         "alConceder": "al instalar"
