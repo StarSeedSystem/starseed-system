@@ -9,11 +9,12 @@
  *        `config/lanzamientos.json` (`auto_por_defecto`), y devuelve
  *        {estado, auto, filas: filasDeMedios(...)} con `NATIVE_VERSION`
  *        de `src/lib/version/os-release.ts` como versión publicada;
- *        nunca rutas del disco.
+ *        nunca rutas del disco. El director escribe el estado por fases (en
+ *        «esperando-lista» sin `medios`): `normalizarEstado` lo completa (SUP0611A).
  * POST → `validarPeticion`; `auto` escribe `lanzamientos.json`;
  *        `regenerar` de `web` escribe `~/.starseed/produccion/autopublicar-peticion.json`
- *        con {"accion": "revisar"}; las demás escriben
- *        `lanzamientos-peticion.json` (escritura atómica: tmp + rename).
+ *        con {"accion": "revisar"}; las demás (también `pausar`/`reanudar`, que lee el
+ *        director) escriben `lanzamientos-peticion.json` (escritura atómica: tmp + rename).
  *
  * ⚠️ Solo local (`guardianMando`). Jamás devuelve rutas del disco ni claves:
  * los errores de escritura son genéricos.
@@ -26,8 +27,7 @@ import path from "node:path";
 
 import { guardianMando } from "@/lib/mando/guardian";
 import { raizDelProyecto } from "@/lib/mando/raiz";
-import { validarPeticion, filasDeMedios } from "@/lib/mando/lanzamientos";
-import type { LanzamientoEstado } from "@/lib/mando/lanzamientos-tipos";
+import { validarPeticion, filasDeMedios, normalizarEstado } from "@/lib/mando/lanzamientos";
 import { NATIVE_VERSION } from "@/lib/version/os-release";
 
 export const runtime = "nodejs";
@@ -68,20 +68,6 @@ async function escribirAtomico(ruta: string, datos: unknown): Promise<void> {
     await rename(temporal, ruta);
 }
 
-function estadoVacio(): LanzamientoEstado {
-    return {
-        fase: "esperando-lista",
-        detalle: "",
-        version: NATIVE_VERSION,
-        pasos: [],
-        jobs: [],
-        medios: {},
-        historial: [],
-        pausado: false,
-        tono: "normal",
-    };
-}
-
 export async function GET(peticion: Request): Promise<Response> {
     const veto = await guardianMando(peticion);
     if (veto) return veto;
@@ -92,7 +78,7 @@ export async function GET(peticion: Request): Promise<Response> {
         leerJson(rutaConfig()),
     ]);
 
-    const estado = crudoEstado && typeof crudoEstado === "object" ? crudoEstado as LanzamientoEstado : estadoVacio();
+    const estado = normalizarEstado(crudoEstado, NATIVE_VERSION);
     const auto = crudoInterruptor && typeof crudoInterruptor === "object" && "auto" in crudoInterruptor
         ? Boolean((crudoInterruptor as { auto?: unknown }).auto)
         : crudoConfig && typeof crudoConfig === "object" && "auto_por_defecto" in crudoConfig
@@ -140,13 +126,15 @@ export async function POST(peticion: Request): Promise<Response> {
     }
 
     if (accion === "pausar" || accion === "reanudar") {
-        const crudoEstado = await leerJson(rutaEstado());
-        const estado = crudoEstado && typeof crudoEstado === "object" ? crudoEstado as LanzamientoEstado : estadoVacio();
+        // (SUP0611A) Una PETICIÓN, como pide el contrato (§4) y lee el director (`pasada`:
+        // accion «pausar»/«reanudar» → `pausado`). Antes se escribía `pausada` dentro del
+        // estado del director, que nadie leía y que él reescribe en cada pasada: el botón no
+        // pausaba nada.
         const pausada = accion === "pausar";
         try {
-            await escribirAtomico(rutaEstado(), { ...estado, pausada, detalle: `${pausada ? "Pausado" : "Reanudado"} desde MetaGenesis`, t: Date.now() });
+            await escribirAtomico(rutaPeticion(), { accion, quien: "genesis", t: ahora });
         } catch {
-            return Response.json({ error: "No se pudo guardar el estado." }, { status: 500 });
+            return Response.json({ error: "No se pudo guardar la petición." }, { status: 500 });
         }
         return Response.json({ ok: true, pausada }, { headers: { "Cache-Control": "no-store" } });
     }
