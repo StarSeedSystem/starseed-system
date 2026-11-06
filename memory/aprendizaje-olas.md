@@ -5930,3 +5930,18 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `RPO1104M-d2` — otra cosa: ya en main (Claude, 06-11 13:33 UTC): destino-nativo.test.ts llegó con la parte 1 (b73ba4ed1a) con las 10 pruebas del contrato, 10/10 en ver
 - `VER1105Db-d3` — otra cosa: ya en main (Claude, 06-11): el trabajo de la nube 7e70d77637 es idéntico a main; la corrida de las 12:50 UTC fue una reapertura que no debía
 - `CTR1106As` — otra cosa: director: reintento gratuito 4/8
+
+## 2026-11-06 14:43 · auto-1106-143403
+
+**Lo que se pidió.** Xcode 26
+
+**Resultado.** 0 de 3 integradas. 3 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (RPO1104M-d2, VER1105Db-d3). Es 67 % de la ola.
+- sin modelo anotado no integró ninguna de sus 3 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RPO1104M-d2` — otra cosa: ya en main (Claude, 06-11 13:33 UTC): destino-nativo.test.ts llegó con la parte 1 (b73ba4ed1a) con las 10 pruebas del contrato, 10/10 en ver
+- `VER1105Db-d3` — otra cosa: ya en main (Claude, 06-11): el trabajo de la nube 7e70d77637 es idéntico a main; la corrida de las 12:50 UTC fue una reapertura que no debía
+- `CTR1106As` — no escribió nada
