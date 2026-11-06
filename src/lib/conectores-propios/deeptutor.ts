@@ -24,14 +24,32 @@ export type EstadoDeeptutor =
   | { disponible: false; motivo: string };
 
 /** GET real de la API de DeepTutor 1.7 (docs.deeptutor.info/cli/server-api). */
-export const RUTA_ESTADO = "/api/system/status";
+const RUTA_ESTADO = "/api/system/status";
 /**
  * El turno genérico de DeepTutor es el WebSocket `/ws`; con `fetch` inyectado
- * solo queda el chat HTTP documentado de un compañero. Su id entra por
- * `DEEPTUTOR_AGENTE` (por defecto «tutor»).
+ * solo queda el chat HTTP documentado de un compañero (POST
+ * `/api/partners/{partner_id}/chat`). Su id entra por `DEEPTUTOR_AGENTE`
+ * (por defecto «tutor»). Si tu servidor usa otra ruta, cámbiala aquí.
  */
-export const RUTA_PREGUNTA = "/api/partners/{agente}/chat";
-export const PLAZO_MS = 8000;
+const RUTA_PREGUNTA = "/api/partners/{agente}/chat";
+const PLAZO_MS = 8000;
+
+const MODOS: Readonly<Record<string, ModoTutor>> = {
+  explicar: "explicar", explicame: "explicar", explain: "explicar", chat: "explicar",
+  charla: "explicar", conversar: "explicar", tutor: "explicar", resolver: "explicar",
+  solve: "explicar", investigar: "explicar", research: "explicar", deep_solve: "explicar",
+  deep_research: "explicar",
+  comprobar: "comprobar", comprueba: "comprobar", check: "comprobar", quiz: "comprobar",
+  cuestionario: "comprobar", test: "comprobar", preguntar: "comprobar", deep_question: "comprobar",
+  practicar: "practicar", practica: "practicar", practice: "practicar", ejercicio: "practicar",
+  resumir: "resumir", resume: "resumir", resumen: "resumir", summary: "resumir",
+};
+
+/** Normaliza el modo que llega de la integración a los cuatro del método de DeepTutor. */
+export function normalizarModo(valor: unknown): ModoTutor {
+  const clave = typeof valor === "string" ? valor.trim().toLowerCase() : "";
+  return MODOS[clave] ?? "explicar";
+}
 
 const INSTRUCCION: Record<ModoTutor, string> = {
   explicar: "Explica el concepto con claridad, en pasos y con un ejemplo.",

@@ -2,13 +2,14 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   configDeeptutor,
   estadoDeeptutor,
+  normalizarModo,
   preguntarTutor,
-  PLAZO_MS,
   type FetchFn,
   type RespuestaHttp,
 } from "../deeptutor";
 
 const ENV = { DEEPTUTOR_URL: "http://127.0.0.1:8001/", DEEPTUTOR_TOKEN: "tk-secreto" };
+const PLAZO_MS = 8000;
 
 function respuesta(status: number, cuerpo: unknown): RespuestaHttp {
   return { ok: status < 400, status, text: async () => JSON.stringify(cuerpo) };
@@ -31,6 +32,14 @@ function falso(status: number, cuerpo: unknown) {
 afterEach(() => vi.useRealTimers());
 
 describe("deeptutor · conector opcional", () => {
+  it("normaliza el modo de la integración a los cuatro del método", () => {
+    expect(normalizarModo("cuestionario")).toBe("comprobar");
+    expect(normalizarModo("Practice")).toBe("practicar");
+    expect(normalizarModo("resumen")).toBe("resumir");
+    expect(normalizarModo(undefined)).toBe("explicar");
+    expect(normalizarModo("otra-cosa")).toBe("explicar");
+  });
+
   it("config lee URL y token del entorno y normaliza", () => {
     expect(configDeeptutor(ENV)).toEqual({
       url: "http://127.0.0.1:8001",
