@@ -36,6 +36,8 @@ import type { Category } from "@/lib/data";
 import { themes, categories, courses, articles } from "@/lib/data";
 import { useToast } from "@/hooks/use-toast";
 import { useOsPosts } from "@/hooks/use-os-entities";
+// Adjunto preparado por el Finder (sessionStorage, sin querystring con datos).
+import { readPublishAttachEnvironment } from "@/lib/library/publicar-seguro";
 import type { OsEntityType } from "@/lib/os-social";
 // Subida REAL de adjuntos a Storage (bucket os-files) — Adenda 63 §4.
 import { uploadFile } from "@/lib/files/os-files";
@@ -587,33 +589,43 @@ function PublishPage() {
     const [attachUrlInput, setAttachUrlInput] = useState("");
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-    // ── Precarga desde ?attach= (Adenda 64 §6): el Finder de Bibliotecas navega
-    // aquí con /publish?attach=<JSON encodeURIComponent> para precargar un
-    // adjunto al publicar un ítem guardado. Edición mínima y segura: solo lee
-    // el query param UNA VEZ al montar y añade un Attachment con la misma forma
-    // que ya produce addUrlAttachment() — no toca el resto del compositor.
+    // ── Precarga del adjunto (Adenda 64 §6): el Finder de Bibliotecas deja el
+    // ref en sessionStorage (clave PUBLISH_ATTACH_KEY) y navega a /publish?ref=1,
+    // sin objeto en la querystring: el historial del navegador y los logs no
+    // registran nada del ítem. Se mantiene la lectura de ?attach=<json> por
+    // compatibilidad con enlaces antiguos. Solo se lee UNA VEZ al montar.
     useEffect(() => {
-        const raw = searchParams.get("attach");
+        const handoff = readPublishAttachEnvironment();
+        const raw: {
+            title?: string;
+            url?: string;
+            route?: string;
+            note?: string;
+        } | null = handoff ?? (() => {
+            const q = searchParams.get("attach");
+            if (!q) return null;
+            try {
+                return JSON.parse(decodeURIComponent(q)) as {
+                    title?: string;
+                    url?: string;
+                    route?: string;
+                    note?: string;
+                };
+            } catch {
+                /* JSON inválido o ausente: no-op */
+                return null;
+            }
+        })();
         if (!raw) return;
-        try {
-            const parsed = JSON.parse(decodeURIComponent(raw)) as {
-                title?: string;
-                url?: string;
-                route?: string;
-                note?: string;
-            };
-            const href = parsed.url || parsed.route;
-            if (!href) return;
-            const name = parsed.title?.trim() || (() => {
-                try { return new URL(href, typeof window !== "undefined" ? window.location.origin : undefined).hostname; }
-                catch { return href; }
-            })();
-            const id = `att-attach-${Date.now().toString(36)}`;
-            setAttachments((prev) => (prev.some((a) => a.value === href) ? prev : [...prev, { id, kind: "enlace", name, value: href }]));
-            if (parsed.note && !titulo) setTitulo(parsed.note.slice(0, 120));
-        } catch {
-            /* JSON inválido o ausente: no-op, el compositor sigue funcionando igual que hoy */
-        }
+        const href = raw.url || raw.route;
+        if (!href) return;
+        const name = raw.title?.trim() || (() => {
+            try { return new URL(href, typeof window !== "undefined" ? window.location.origin : undefined).hostname; }
+            catch { return href; }
+        })();
+        const id = `att-attach-${Date.now().toString(36)}`;
+        setAttachments((prev) => (prev.some((a) => a.value === href) ? prev : [...prev, { id, kind: "enlace", name, value: href }]));
+        if (raw.note && !titulo) setTitulo(raw.note.slice(0, 120));
         // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar; searchParams no cambia tras la carga inicial de esta página
     }, []);
 

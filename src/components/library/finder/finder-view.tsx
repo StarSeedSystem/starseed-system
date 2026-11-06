@@ -61,6 +61,9 @@ import { ShareAccessDialog, LIBRARY_SCOPES } from "@/components/sharing/share-ac
 // Adenda 66 §5: "Enviar a…" (DESTINOS) — distinto de ShareAccessDialog (PERMISOS).
 import { ShareToDialog } from "@/components/sharing/share-to-dialog";
 import type { ShareResourceRef } from "@/lib/sharing/share-targets";
+// Adjunto de publicación SIN querystring: el payload viaja por sessionStorage
+// (una lectura y se limpia); en la URL solo queda un flag, sin historial.
+import { stagePublishAttachEnvironment } from "@/lib/library/publicar-seguro";
 import { itemFormat } from "./item-meta";
 import { FolderTree, DRAG_MIME } from "./folder-tree";
 import { FinderBreadcrumb } from "./finder-breadcrumb";
@@ -540,15 +543,17 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
 
     const handlePublishNavigate = useCallback((item: SavedItem) => {
         const resolved = item.type === "alias" && item.targetItemId ? itemsById.get(item.targetItemId) ?? item : item;
-        const ref = {
-            kind: resolved.type,
-            title: resolved.title,
-            url: resolved.url,
-            route: resolved.route,
-            note: resolved.note,
-        };
-        const q = encodeURIComponent(JSON.stringify(ref));
-        window.location.assign(`/publish?attach=${q}`);
+        // Fuga de datos cerrada: antes iba aquí el objeto COMPLETO en la
+        // querystring de /publish (queda en el historial del navegador y en los
+        // logs del servidor). Ahora solo un flag; el ref viaja por sessionStorage.
+        window.location.assign(
+            stagePublishAttachEnvironment({
+                title: resolved.title,
+                url: resolved.url,
+                route: resolved.route,
+                note: resolved.note,
+            }),
+        );
     }, [itemsById]);
 
     // ── Versiones / edición (§13) ────────────────────────────────────────────
