@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261106",
+ "tareas": [
+  {
+   "ola": "1104R · Repos nativos",
+   "id": "RPO1104Sb",
+   "titulo": "DeepTutor · conector opcional a un servidor propio (si hay uno, Astraura le delega) (parte 2 de 2)",
+   "archivos": [
+    "src/lib/conectores-propios/__tests__/deeptutor.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Gratis primero: solo los modelos gratuitos del OS, ninguna clave nueva, ninguna pasarela de pago. Textos de la interfaz en español.\n\nContrato: `architecture/repos-libreria-1104.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§6 «Conector opcional». `configDeeptutor(env)` lee `DEEPTUTOR_URL` y `DEEPTUTOR_TOKEN` de variables de entorno (nunca en el código ni en la memoria); `estadoDeeptutor(config, fetchFn)` comprueba que responde; `preguntarTutor(config, fetchFn, { pregunta, modo })` con `fetchFn` INYECTADO, plazo y caída limpia a `null` para que Astraura siga con la habilidad nativa. Lee la API real en el README de HKUDS/DeepTutor antes de elegir la ruta; si no queda clara, deja la ruta en una constante con un comentario y dilo en tu respuesta. Sigue el patrón de los conectores que ya hay en esa carpeta. Pruebas con fetch simulado (responde, falla, se pasa de plazo).\n\n## PARTE 2 DE 2 (la dirección dividió RPO1104S: falla por sí misma (tarea:otro))\nEn esta parte tocas SOLO: src/lib/conectores-propios/__tests__/deeptutor.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/a1-20261106-081554-RPO1104S-d2`)\nUn agente de la nube ya avanzó esta tarea (trabajo a medias que no pasó las puertas: se continúa desde la rama). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/a1-20261106-081554-RPO1104S-d2:refs/remotes/origin/nube/a1-20261106-081554-RPO1104S-d2\"` y `git cherry-pick --no-commit 32519b198d7c 604925457978`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/lib/conectores-propios/__tests__/deeptutor.test.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "RPO1104S",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:otro)"
+   },
+   "origen": "nube-reparar",
+   "rama_nube": "nube/a1-20261106-081554-RPO1104S-d2",
+   "dependencias_ya_en_main": [
+    "RPO1104S-d1"
+   ]
+  }
+ ]
+}
