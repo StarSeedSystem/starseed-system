@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-06 10:56:14 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-06 10:59:29 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,8 +16,8 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 41 |
 | Últimas 4 olas | en curso 0 · pendientes 80 · integradas 0 |
-| HEAD | `c12fdce7e4 chore(memoria): aprendizaje de la ola auto-1106-105348` |
-| Sin publicar | 24 commits |
+| HEAD | `390a1a56d1 chore(memoria): aprendizaje de la ola auto-1106-105653` |
+| Sin publicar | 26 commits |
 | Árbol | limpio |
 
 ## Cómo dirige cada IDE (idéntico en los cuatro)
