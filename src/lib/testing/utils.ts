@@ -45,12 +45,16 @@ export async function esperarElemento<TElement extends Element = Element>(
   selector: string,
   options?: Parameters<typeof TLWaitFor>[1],
 ): Promise<TElement> {
-  const { getBy... } = require("@testing-library/react");
-
-  const getBy = getBy...;
+  const { getByText } = require("@testing-library/react");
 
   return await TLWaitFor(
-    () => getBy(selector),
+    () => {
+      if (typeof selector === "string" && selector.startsWith("[") && selector.endsWith("]")) {
+        const attr = selector.slice(1, -1).split(":");
+        return getByText(attr[0], { selector: attr[1] });
+      }
+      return getByText(selector);
+    },
     options,
   );
 }
@@ -84,7 +88,7 @@ export async function esperarEstado<T>(
 
 /**
  * Espera a que una promesa se resuelva sin depender de tiempos
- * (útil para simulations asíncronas en tests).
+ * (útil para simulaciones asíncronas en tests).
  *
  * @param promise La promesa a esperar
  * @param options Opciones para @testing-library/react's waitFor
