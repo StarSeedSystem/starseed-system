@@ -98,6 +98,9 @@ import { REPO_EXTERNOS_1020, REPOS_YA_PRESENTES } from "./repos-externos-1020";
 /// (mismo GitHub repo por externalUrl). No se crean paquetes duplicados.
 export { REPOS_YA_PRESENTES };
 
+/// Re-export para visibilidad: todas las fichas de las tandas 1025–1104
+export { FICHAS_REPOS_1025, FICHAS_REPOS_1026, FICHAS_REPOS_1027, FICHAS_REPOS_1027B, FICHAS_REPOS_1028, FICHAS_REPOS_1101, FICHAS_REPOS_1104 };
+
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
 /** Todo lo instalable desde la Biblioteca. */
