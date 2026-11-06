@@ -48,6 +48,7 @@ import {
     primerPasoDelCapitulo,
 } from "@/lib/onboarding/guia-completa";
 import { guardarProgresoGuia, leerProgresoGuia } from "@/lib/onboarding/guia-progreso";
+import { hastaQue } from "@/lib/testing/utils";
 import { CLAVE_INTRO_SALTADA } from "@/lib/onboarding/primer-arranque";
 
 const render = (ui: ReactElement) => renderCrudo(<AppearanceProvider>{ui}</AppearanceProvider>);
@@ -233,7 +234,7 @@ describe("teclado, dedo y movimiento", () => {
         // Con la guía de Aurora por encima, las flechas son de ella.
         document.body.dataset.ssGuia = "1";
         fireEvent.keyDown(window, { key: "ArrowRight" });
-        await act(async () => { await new Promise((r) => setTimeout(r, 120)); });
+        await hastaQue(() => screen.queryByRole("heading", { name: titulo("que-es") }));
         expect(screen.getByRole("heading", { name: titulo("que-es") })).toBeInTheDocument();
         delete document.body.dataset.ssGuia;
 
@@ -241,7 +242,7 @@ describe("teclado, dedo y movimiento", () => {
         fireEvent.click(screen.getByRole("button", { name: /^Ir al capítulo 9 de 9/ }));
         await esperarPaso("cuenta");
         fireEvent.keyDown(screen.getByLabelText("Correo"), { key: "ArrowLeft" });
-        await act(async () => { await new Promise((r) => setTimeout(r, 120)); });
+        await hastaQue(() => screen.queryByRole("heading", { name: titulo("cuenta") }));
         expect(screen.getByRole("heading", { name: titulo("cuenta") })).toBeInTheDocument();
     }, 30_000);
 
@@ -284,7 +285,7 @@ describe("teclado, dedo y movimiento", () => {
         abrirIntro({ pasoGuiaInicial: "gestos-hibridos" });
         await esperarPaso("gestos-hibridos");
         deslizar(300, 120);
-        await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+        await hastaQue(() => screen.queryByRole("heading", { name: titulo("gestos-hibridos") }));
         expect(screen.getByRole("heading", { name: titulo("gestos-hibridos") })).toBeInTheDocument();
     }, 30_000);
 
