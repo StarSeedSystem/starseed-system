@@ -192,7 +192,22 @@ class GuionTest(unittest.TestCase):
     def test_rehornear_va_de_seleccionado_a_activo(self):
         """El color se hornea del original (fuente seleccionada) al remallado (activo)."""
         original, remallada = mock.MagicMock(), mock.MagicMock()
-        remallada.material_slots = []
+        # Original con material válido (use_nodes=True)
+        mat_original = mock.MagicMock()
+        mat_original.use_nodes = True
+        original.material_slots = [mock.MagicMock()]
+        original.material_slots[0].material = mat_original
+        # Remallada con material que recibirá la textura horneada
+        remallada.material_slots = [mock.MagicMock()]
+        remallada.material_slots[0].material = mock.MagicMock()
+        remallada.material_slots[0].material.use_nodes = True
+        remallada.material_slots[0].material.node_tree = mock.MagicMock()
+        remallada.material_slots[0].material.node_tree.nodes = mock.MagicMock()
+        remallada.material_slots[0].material.node_tree.nodes.new = mock.MagicMock()
+        remallada.material_slots[0].material.node_tree.nodes.get = mock.MagicMock(return_value=mock.MagicMock())
+        remallada.material_slots[0].material.node_tree.links = mock.MagicMock()
+        remallada.material_slots[0].material.node_tree.links.new = mock.MagicMock()
+
         self.modulo.rehornear(original, remallada, "/tmp/r.png")
         self.assertEqual(self.bpy.data.images.new.call_args, mock.call("rehorneada", 1024, 1024))
         _, kwargs = self.bpy.ops.object.bake.call_args
@@ -211,6 +226,45 @@ class GuionTest(unittest.TestCase):
         setattr(self.bpy.ops.wm, "3mf_export", mock.MagicMock(side_effect=AttributeError("no hay")))
         rutas = self.modulo.exportar(mock.MagicMock(), "/tmp/m.glb", "impresion")
         self.assertEqual(rutas, ["/tmp/m.glb", "/tmp/m.stl"])
+
+    def test_rehornear_falla_si_original_sin_materiales(self):
+        """rehornear debe detectar si el original no tiene materiales válidos y fallar explícitamente."""
+        original, remallada = mock.MagicMock(), mock.MagicMock()
+        original.material_slots = []  # sin materiales
+        remallada.material_slots = [mock.MagicMock()]
+        remallada.material_slots[0].material = mock.MagicMock()
+        remallada.material_slots[0].material.use_nodes = True
+        remallada.material_slots[0].material.node_tree = mock.MagicMock()
+        remallada.material_slots[0].material.node_tree.nodes = mock.MagicMock()
+        remallada.material_slots[0].material.node_tree.nodes.new = mock.MagicMock()
+        remallada.material_slots[0].material.node_tree.nodes.get = mock.MagicMock(return_value=mock.MagicMock())
+        remallada.material_slots[0].material.node_tree.links = mock.MagicMock()
+        remallada.material_slots[0].material.node_tree.links.new = mock.MagicMock()
+
+        with self.assertRaises(RuntimeError) as cm:
+            self.modulo.rehornear(original, remallada, "/tmp/r.png")
+        self.assertIn("material", str(cm.exception).lower())
+
+    def test_rehornear_falla_si_original_con_material_sin_nodos(self):
+        """rehornear debe detectar si el material del original no usa nodos."""
+        original, remallada = mock.MagicMock(), mock.MagicMock()
+        mat_original = mock.MagicMock()
+        mat_original.use_nodes = False  # material sin nodos
+        original.material_slots = [mock.MagicMock()]
+        original.material_slots[0].material = mat_original
+        remallada.material_slots = [mock.MagicMock()]
+        remallada.material_slots[0].material = mock.MagicMock()
+        remallada.material_slots[0].material.use_nodes = True
+        remallada.material_slots[0].material.node_tree = mock.MagicMock()
+        remallada.material_slots[0].material.node_tree.nodes = mock.MagicMock()
+        remallada.material_slots[0].material.node_tree.nodes.new = mock.MagicMock()
+        remallada.material_slots[0].material.node_tree.nodes.get = mock.MagicMock(return_value=mock.MagicMock())
+        remallada.material_slots[0].material.node_tree.links = mock.MagicMock()
+        remallada.material_slots[0].material.node_tree.links.new = mock.MagicMock()
+
+        with self.assertRaises(RuntimeError) as cm:
+            self.modulo.rehornear(original, remallada, "/tmp/r.png")
+        self.assertIn("material", str(cm.exception).lower())
 
 
 if __name__ == "__main__":

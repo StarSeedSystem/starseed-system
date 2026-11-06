@@ -91,8 +91,20 @@ def cerrada(malla) -> bool:
     return estado["bordes_abiertos"] == 0 and estado["no_manifold"] == 0
 
 
+def _tiene_material_valido(objeto) -> bool:
+    """Comprueba si el objeto tiene al menos un material con use_nodes=True."""
+    for hueco in objeto.material_slots:
+        if hueco.material and hueco.material.use_nodes:
+            return True
+    return False
+
+
 def rehornear(original, remallada, ruta_textura: str) -> None:
-    """Color horneado del original (seleccionado a activo) sobre un UV nuevo."""
+    """Color horneado del original (seleccionado a activo) sobre un UV nuevo.
+    Requiere que el original tenga al menos un material válido (use_nodes=True).
+    """
+    if not _tiene_material_valido(original):
+        raise RuntimeError("el objeto original no tiene materiales válidos para hornear (use_nodes=True)")
     seleccionar(original, remallada)
     bpy.ops.object.mode_set(mode="EDIT")
     bpy.ops.mesh.select_all(action="SELECT")
