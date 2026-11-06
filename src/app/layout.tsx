@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Space_Grotesk, Source_Code_Pro, Roboto, Outfit } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "sonner";
@@ -168,30 +168,45 @@ import { AutoUpdateWatcher } from "@/components/notifications/auto-update-watche
 // ajustes de lectura valen en cualquier ruta. Ver src/lib/traduccion/pagina.ts.
 import { PaginaVivaMontaje } from "@/components/traduccion/pagina-viva-montaje";
 
-const fontInter = Inter({
-  subsets: ["latin"],
+// (1106F) Las cinco fuentes se sirven desde el repo (next/font/local), no desde Google Fonts en cada
+// build: Google empezó a dar URLs sin extensión (`fonts.gstatic.com/l/font?kit=…`) y next/font 15.5
+// se caía con «Cannot read properties of null (reading '1')», al azar, en el CI y en el A1.
+// Subconjunto latino, fuentes variables, licencia SIL OFL 1.1 (src/app/fonts/licencias/).
+const fontInter = localFont({
+  src: "./fonts/inter-latin.woff2",
+  weight: "100 900",
   variable: "--font-inter",
+  display: "swap",
 });
 
-const fontRoboto = Roboto({
-  weight: ["400", "500", "700"],
-  subsets: ["latin"],
+const fontRoboto = localFont({
+  src: "./fonts/roboto-latin.woff2",
+  weight: "400 700",
   variable: "--font-roboto",
+  display: "swap",
 });
 
-const fontOutfit = Outfit({
-  subsets: ["latin"],
+const fontOutfit = localFont({
+  src: "./fonts/outfit-latin.woff2",
+  weight: "100 900",
   variable: "--font-outfit",
+  display: "swap",
 });
 
-const fontHeadline = Space_Grotesk({
-  subsets: ["latin"],
+const fontHeadline = localFont({
+  src: "./fonts/space-grotesk-latin.woff2",
+  weight: "300 700",
   variable: "--font-headline",
+  display: "swap",
 });
 
-const fontCode = Source_Code_Pro({
-  subsets: ["latin"],
+const fontCode = localFont({
+  src: "./fonts/source-code-pro-latin.woff2",
+  weight: "200 900",
   variable: "--font-code",
+  display: "swap",
+  fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+  adjustFontFallback: false,
 });
 
 
