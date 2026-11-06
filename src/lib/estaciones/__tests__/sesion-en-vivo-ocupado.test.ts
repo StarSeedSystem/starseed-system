@@ -11,7 +11,7 @@ vi.mock("@/lib/actualizaciones/momento-navegador", () => ({
 
 let T = 1_700_000_000_000;
 
-function canalAbierto(): CanalEstacion {
+function canalAbierto(): CanalEstacion & { abrir: () => void } {
   const alAbrir = new Set<() => void>();
   let abierto = false;
   return {
@@ -25,11 +25,11 @@ function canalAbierto(): CanalEstacion {
       alAbrir.add(cb);
       return () => alAbrir.delete(cb);
     },
+    cerrar: () => undefined,
     abrir() {
       abierto = true;
       for (const cb of Array.from(alAbrir)) cb();
     },
-    cerrar: () => undefined,
   };
 }
 
