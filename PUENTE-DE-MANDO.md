@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-05 22:18:10 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-06 04:26:13 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,29 +12,41 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Genesis | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | 1106T · Cadenas sin duplicados |
-| Agentes escribiendo | **1** |
-| En esta ola | integradas 0 · en curso 1 · esperando aprobación 0 · pendientes 0 |
-| Últimas 5 olas | en curso 1 · pendientes 80 · integradas 0 |
-| HEAD | `7ed7a5f78a chore(memoria): aprendizaje de la ola auto-1105-200506` |
-| Sin publicar | 19 commits |
-| Árbol | limpio |
+| Ola arriba | Sueños profundos 2026-10-24 |
+| Agentes escribiendo | **0** |
+| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 41 |
+| Últimas 4 olas | en curso 0 · pendientes 80 · integradas 0 |
+| HEAD | `88d2f224c4 chore(memoria): aprendizaje de la ola auto-1105-221934` |
+| Sin publicar | 12 commits |
+| Árbol | 1 archivos sin commitear |
 
-## Quién escribe ahora (latido de `cola-auto-1105-200506.json`, hace 36s)
+## Quién escribe ahora (latido de `cola-auto-1105-221934.json`, hace 29s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `VER1105Gc` | hecho | opencode/minimax-m3.1-flash-free | 3 min | 180 s | 242667 |
-| `SUP0511Cb-d1c` | hecho | codex/gpt-5.6-sol | 4 min | 227 s | 79694 |
-| `VER1105Dc` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 4 min | 262 s | 29434 |
-| `RTFS1013Ad-d2c` | hecho | nvidia/minimaxai/minimax-m3.1-flas | 4 min | 267 s | 278695 |
-| `WT1011Bb` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 20 min | 1188 s | 196907 |
-| `TRN1106A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 35 min | 2080 s | 142267 |
-| `SUP0511G` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 56 min | 3388 s | 377908 |
-| `CAPC1011Ccsb` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 73 min | 4371 s | 387430 |
-| `VER1105Ec` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 94 min | 5649 s | 70078 |
-| `DPT1105Ab` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 122 min | 7316 s | 343979 |
-| `SUP0511Db-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 129 min | 7740 s | 219477 |
+| `LNN1028I2-d3` | hecho | freellmapi/auto | 1 min | 73 s | 99424 |
+| `IMG-agentes-reimaginada-profunda-sustituir-lbsb-d2` | hecho | freellmapi/auto | 10 min | 597 s | 759125 |
+| `RPO1104C` | hecho | freellmapi/auto | 27 min | 1614 s | 63264 |
+| `LNN1028I2-d2` | hecho | freellmapi/auto | 42 min | 2547 s | 103072 |
+| `LNN1028I2-d1b` | hecho | freellmapi/auto | 91 min | 5465 s | 92276 |
+| `WT1011Bb-d3` | hecho | freellmapi/auto | 92 min | 5495 s | 539842 |
+| `DR1029-1` | hecho | freellmapi/auto | 119 min | 7160 s | 27994 |
+| `IMG-agentes-reimaginada-diaria-tapar-las-dos` | hecho | freellmapi/auto | 137 min | 8243 s | 65725 |
+| `LNN1028I2-d1` | hecho | freellmapi/auto | 138 min | 8259 s | 329682 |
+| `RPO1104M-d2` | hecho | freellmapi/auto | 146 min | 8762 s | 67595 |
+| `MBR1105A` | hecho | freellmapi/auto | 165 min | 9891 s | 66696 |
+| `DSV1105C` | hecho | freellmapi/auto | 184 min | 11063 s | 60612 |
+| `SUP0611B` | hecho | freellmapi/auto | 185 min | 11099 s | 154142 |
+| `VER1105Db-d3` | hecho | freellmapi/auto | 226 min | 13581 s | 85630 |
+| `RPO1104S-d2` | hecho | freellmapi/auto | 257 min | 15445 s | 2891 |
+| `IMG-agentes-reimaginada-profunda-sustituir-lbsb` | hecho | freellmapi/auto | 276 min | 16577 s | 320654 |
+| `WT1011Bb-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 287 min | 17217 s | 184749 |
+| `VER1105Gd` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 305 min | 18320 s | 96626 |
+| `WT1011Bb-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 321 min | 19263 s | 129974 |
+| `RPO1104B-d2` | hecho | nvidia/minimaxai/minimax-m3.1-flas | 336 min | 20181 s | 32573 |
+| `RPO1104Q-d2` | hecho | freellmapi/auto | 339 min | 20366 s | 69509 |
+| `DPT1105Ab` | hecho | nvidia/nvidia/nemotron-3-super-120 | 365 min | 21883 s | 354434 |
+| `TRD1020Db-d3b` | hecho |  | 366 min | 21968 s | 258525 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
