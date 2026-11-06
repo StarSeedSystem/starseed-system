@@ -551,6 +551,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
             const res = await fetch("/api/publish-item", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
                 body: JSON.stringify(payload),
             });
             const data = await res.json();
