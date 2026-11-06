@@ -17,8 +17,6 @@ import {
     markScoutSeen,
     hayNovedadesScout,
     marcarScoutVisto,
-    getStartupState,
-    setStartupState,
     decidirArranque,
     catalogIds,
     catalogSignature,
@@ -57,7 +55,7 @@ function local(estado: Record<string, unknown>): void {
 
 beforeEach(() => {
     localStorage.clear();
-    localStorage.setItem("starseed.neuron.device-id", "neurona-de-prueba");
+    localStorage.setItem("starseed.neuron.device-id", NEURONA);
     _reiniciarCacheAvisosParaPruebas();
     vi.useFakeTimers({ now: new Date("2026-11-05T12:00:00Z") });
 });
@@ -108,7 +106,7 @@ describe("scoutSignature — firma estable del hardware+catálogo", () => {
 
     it("no lanza con caps incompletas", () => {
         expect(() => scoutSignature({} as NeuronCapabilities, CATALOG_LEN)).not.toThrow();
-        expect(() => scoutSignature(null as any, CATALOG_LEN)).not.toThrow();
+        expect(() => scoutSignature(null as unknown as NeuronCapabilities, CATALOG_LEN)).not.toThrow();
     });
 });
 
