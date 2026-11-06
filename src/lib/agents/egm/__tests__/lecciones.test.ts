@@ -98,4 +98,28 @@ describe("leccionesDe", () => {
         expect(lecciones[1].content).not.toContain("Se corrigió la ruta");
         expect(lecciones[1].content).toContain("ya estaba pagado");
     });
+
+    it("genera el nombre con tipo y fecha", () => {
+        const lecciones = leccionesDe(
+            entradaCon({
+                objeciones: [{ gravedad: "bloquea", texto: "Error grave" }],
+                resueltas: [{ texto: "Error grave", correccion: "Arreglado" }],
+                fecha: "2026-11-06",
+            }),
+        );
+        expect(lecciones).toHaveLength(1);
+        expect(lecciones[0].name).toBe("Lección EGM (resuelta) · 2026-11-06");
+    });
+
+    it("usa markdown como formato por defecto", () => {
+        const lecciones = leccionesDe(
+            entradaCon({
+                objeciones: [{ gravedad: "importa", texto: "Falta validar" }],
+                rechazadas: [{ texto: "Falta validar", porque: "Ya valida el servidor" }],
+                fecha: "2026-11-06",
+            }),
+        );
+        expect(lecciones).toHaveLength(1);
+        expect(lecciones[0].format).toBe("markdown");
+    });
 });
