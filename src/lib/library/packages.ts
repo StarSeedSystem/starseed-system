@@ -97,6 +97,8 @@ import { REPO_EXTERNOS_1020, REPOS_YA_PRESENTES } from "./repos-externos-1020";
 /// Re-export para visibilidad: repos de la 3.ª tanda que YA EXISTEN en packages.ts
 /// (mismo GitHub repo por externalUrl). No se crean paquetes duplicados.
 export { REPOS_YA_PRESENTES };
+/// Re-export de la tanda 1028 (LEANN) para visibilidad del catálogo semántico
+export { FICHAS_REPOS_1028 } from "./repos-1028";
 
 /* ───────────────────────────── Tipos ───────────────────────────── */
 
