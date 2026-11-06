@@ -2356,14 +2356,19 @@ export function detalleDeMedidor(
             const versionPublicada = estado.historial?.find((h) => h.tipo === "lanzado")?.version ?? "—";
             const versionEnCurso = estado.version ?? "—";
             const tono = estado.tono ?? "normal";
-            const medios = estado.medios ?? {};
+            const mediosEstado = estado.medios ?? {};
             const pasos = estado.pasos ?? [];
 
-            const filas: FilaMedidor[] = Object.entries(medios).map(([medio, m]: [string, any]) => {
+            const FILAS_POR_DEFECTO = MEDIOS_VERSIONES.map(([k]) => k);
+
+            const filas: FilaMedidor[] = [];
+            for (const medio of FILAS_POR_DEFECTO) {
+                const m = mediosEstado[medio];
+                if (!m?.estado) continue;
                 const etiqueta = MEDIOS_VERSIONES.find(([k]) => k === medio)?.[1] ?? medio;
-                const estadoMedio = m?.estado ?? "desconocido";
-                const faltan = m?.faltan ?? [];
-                const pequenos = m?.pequenos ?? [];
+                const estadoMedio = m.estado;
+                const faltan = m.faltan ?? [];
+                const pequenos = m.pequenos ?? [];
                 let porque = `${estadoMedio}`;
                 if (faltan.length) porque += ` · faltan: ${faltan.join(", ")}`;
                 if (pequenos.length) porque += ` · pequeños: ${pequenos.join(", ")}`;
@@ -2371,7 +2376,7 @@ export function detalleDeMedidor(
                 if (esIosNoDisponible) {
                     porque += ` (sin cuenta de Apple Developer)`;
                 }
-                return {
+                filas.push({
                     id: medio,
                     titulo: etiqueta,
                     estado: estadoMedio,
@@ -2384,8 +2389,8 @@ export function detalleDeMedidor(
                         ...(esIosNoDisponible ? [{ etiqueta: "No disponible", valor: "sin cuenta de Apple Developer", aviso: true }] : []),
                     ],
                     acciones: [],
-                };
-            });
+                });
+            }
 
             const resumen = `publicada: v${versionPublicada} · en curso: v${versionEnCurso} · ${fase}${pasos.length ? ` · paso: ${pasos[pasos.length - 1]?.detalle?.slice(0, 60)}` : ""}`;
 
