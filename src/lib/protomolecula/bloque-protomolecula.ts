@@ -23,10 +23,6 @@ export const CAPA_RESPUESTA_VIVA: Capa = {
   visible: true,
   bloqueada: false,
 };
-<<<<<<< HEAD
-
-=======
->>>>>>> 534e5c437 (salvavidas · RPO1104K: trabajo del agente antes de las puertas (tsc / vitest))
 /** Tope del bloque serializado (deja margen dentro de MAX_SS_META_BYTES). */
 export const MAX_BLOQUE_BYTES = 32 * 1024;
 
