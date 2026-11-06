@@ -10,10 +10,11 @@ import { orquestadoresVivos } from "@/lib/mando/procesos-orquestador";
 import { raizDelProyecto } from "@/lib/mando/raiz";
 import {
     ejecutarReintentoInteligente,
+    obtenerIdsElegibles,
     ponerPrimera,
-    type FuentesCambio,
     type TareaAnalizar,
 } from "@/lib/mando/reintento-inteligente";
+import { fuentesPorId, idsConFuentes } from "@/lib/mando/reintento-fuentes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -92,20 +93,6 @@ async function marcarAdelantadas(dir: string, ids: string[]): Promise<void> {
     await ejecutar("python3", ["-c", programa, path.join(dir, "progreso.json"), lock, JSON.stringify(ids)]);
 }
 
-async function fuentesPorId(dir: string, ids: string[], revisionesMd: string, progreso: unknown): Promise<Record<string, FuentesCambio>> {
-    const eventos = await texto(path.join(dir, "eventos.jsonl"));
-    const pares = await Promise.all(ids.map(async (id) => {
-        const pasos = await texto(path.join(dir, "pasos", `${id}.jsonl`));
-        const log = await texto(path.join(dir, "logs", `${id}.log`));
-        const entrada = progreso && typeof progreso === "object" && !Array.isArray(progreso)
-            ? (progreso as Record<string, unknown>)[id] : null;
-        const datos = entrada && typeof entrada === "object" ? entrada as Record<string, unknown> : {};
-        const faltantes = cadenas(datos.faltantes ?? datos.archivos_faltantes);
-        return [id, { revisionesMd, eventos, pasos, log, faltantes }] as const;
-    }));
-    return Object.fromEntries(pares);
-}
-
 export async function POST(peticion: Request): Promise<Response> {
     try {
         const veto = await guardianMando(peticion);
@@ -129,7 +116,11 @@ export async function POST(peticion: Request): Promise<Response> {
         const colas = nombres.filter((n) => n.startsWith("cola-") && n.endsWith(".json") && !n.includes(".tmp"));
         const tareas = (await Promise.all(colas.map(async (n) => lista(await json(path.join(dir, n)))))).flat();
         const idsProgreso = progreso && typeof progreso === "object" ? Object.keys(progreso) : [];
-        const idsFuentes = [...new Set([...(cuerpo.ids ?? []), ...idsProgreso, ...tareas.map((t) => t.id)])];
+        // (SUP0511H, 05-11) Solo las fuentes que se pueden usar: las de las tareas pedidas (o, sin ids, las
+        // elegibles, como decide `ejecutarReintentoInteligente`) y su cadena. Antes se leían los logs y pasos de
+        // TODO el progreso y las colas (1 800 logs, 305 MB) y eventos.jsonl entero en cada llamada.
+        const pedidos = cuerpo.ids?.length ? cuerpo.ids : obtenerIdsElegibles(progreso, tareas);
+        const idsFuentes = idsConFuentes(pedidos, [...idsProgreso, ...tareas.map((t) => t.id)]);
         const fuentes = await fuentesPorId(dir, idsFuentes, revisionesMd, progreso);
         const resultado = ejecutarReintentoInteligente({
             ids: cuerpo.ids, progreso, revisionesMd, colasTareas: tareas, fuentes,
