@@ -59,6 +59,7 @@ import { samplePages, sampleGroups } from "@/data/sample-entities";
 import { listFederativeEntities, listPartidos } from "@/data/sample-governance";
 import EgoContextOption from "@/components/aurora/ego-context-option";
 import { createEgoForContext, type EgoContextKind } from "@/lib/aurora/ego";
+import { PUBLISH_HANDOFF_FLAG, tomarRefPublish } from "@/lib/library/publish-handoff";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -587,33 +588,23 @@ function PublishPage() {
     const [attachUrlInput, setAttachUrlInput] = useState("");
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-    // ── Precarga desde ?attach= (Adenda 64 §6): el Finder de Bibliotecas navega
-    // aquí con /publish?attach=<JSON encodeURIComponent> para precargar un
-    // adjunto al publicar un ítem guardado. Edición mínima y segura: solo lee
-    // el query param UNA VEZ al montar y añade un Attachment con la misma forma
-    // que ya produce addUrlAttachment() — no toca el resto del compositor.
+    // ── Precarga privada desde la Biblioteca (Adenda 64 §6): el Finder deja la
+    // referencia en sessionStorage y navega con /publish?attach=1. Así el ítem
+    // completo no queda en el historial ni en los logs del servidor. Se lee una
+    // sola vez al montar y se añade el adjunto con la forma de addUrlAttachment.
     useEffect(() => {
-        const raw = searchParams.get("attach");
-        if (!raw) return;
-        try {
-            const parsed = JSON.parse(decodeURIComponent(raw)) as {
-                title?: string;
-                url?: string;
-                route?: string;
-                note?: string;
-            };
-            const href = parsed.url || parsed.route;
-            if (!href) return;
-            const name = parsed.title?.trim() || (() => {
-                try { return new URL(href, typeof window !== "undefined" ? window.location.origin : undefined).hostname; }
-                catch { return href; }
-            })();
-            const id = `att-attach-${Date.now().toString(36)}`;
-            setAttachments((prev) => (prev.some((a) => a.value === href) ? prev : [...prev, { id, kind: "enlace", name, value: href }]));
-            if (parsed.note && !titulo) setTitulo(parsed.note.slice(0, 120));
-        } catch {
-            /* JSON inválido o ausente: no-op, el compositor sigue funcionando igual que hoy */
-        }
+        if (searchParams.get("attach") !== PUBLISH_HANDOFF_FLAG) return;
+        const parsed = tomarRefPublish();
+        if (!parsed) return;
+        const href = parsed.url || parsed.route;
+        if (!href) return;
+        const name = parsed.title?.trim() || (() => {
+            try { return new URL(href, typeof window !== "undefined" ? window.location.origin : undefined).hostname; }
+            catch { return href; }
+        })();
+        const id = `att-attach-${Date.now().toString(36)}`;
+        setAttachments((prev) => (prev.some((a) => a.value === href) ? prev : [...prev, { id, kind: "enlace", name, value: href }]));
+        if (parsed.note && !titulo) setTitulo(parsed.note.slice(0, 120));
         // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar; searchParams no cambia tras la carga inicial de esta página
     }, []);
 

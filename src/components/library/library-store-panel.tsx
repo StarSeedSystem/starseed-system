@@ -77,21 +77,25 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   CalendarDays,
 };
 
-// Imagen determinista de portada para items reales (sin imagen propia).
+// Portada local por categoría: nada de servicios externos ni títulos en la URL.
+// Los recursos viven en public/app-icons y viajan con el proyecto.
+const PORTADAS_LOCALES: Record<string, string> = {
+  app: "/app-icons/nexus.png",
+  widget: "/app-icons/omnifrecuencias.png",
+  tema: "/app-icons/audiomorphic.png",
+  plantilla: "/app-icons/library.png",
+  personalidad: "/app-icons/agent.png",
+  cerebro: "/app-icons/agent.png",
+  recurso: "/app-icons/network.png",
+  calendario: "/app-icons/clima.png",
+};
+
+export function portadaLocalPorCategoria(category: string): string {
+  return PORTADAS_LOCALES[category] || "/app-icons/library.png";
+}
+
 function coverFor(item: StoreItem): string {
-  const palettes: Record<string, string> = {
-    app: "4c1d95/e0e7ff",
-    widget: "1e3a8a/dbeafe",
-    tema: "9f1239/ffe4e6",
-    plantilla: "065f46/d1fae5",
-    personalidad: "78350f/fef3c7",
-    cerebro: "0c4a6e/e0f2fe",
-    recurso: "3730a3/e0e7ff",
-    calendario: "115e59/ccfbf1",
-  };
-  const pal = palettes[item.category] || "1f2937/e5e7eb";
-  const label = encodeURIComponent(item.title.slice(0, 22));
-  return `https://placehold.co/400x300/${pal}.png?text=${label}`;
+  return portadaLocalPorCategoria(item.category);
 }
 
 // ── Valoración por estrellas (1–5) ──

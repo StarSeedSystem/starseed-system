@@ -61,6 +61,8 @@ import { ShareAccessDialog, LIBRARY_SCOPES } from "@/components/sharing/share-ac
 // Adenda 66 §5: "Enviar a…" (DESTINOS) — distinto de ShareAccessDialog (PERMISOS).
 import { ShareToDialog } from "@/components/sharing/share-to-dialog";
 import type { ShareResourceRef } from "@/lib/sharing/share-targets";
+// Publicar… entrega la referencia por sessionStorage (nunca en la URL).
+import { guardarRefPublish } from "@/lib/library/publish-handoff";
 import { itemFormat } from "./item-meta";
 import { FolderTree, DRAG_MIME } from "./folder-tree";
 import { FinderBreadcrumb } from "./finder-breadcrumb";
@@ -540,15 +542,13 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
 
     const handlePublishNavigate = useCallback((item: SavedItem) => {
         const resolved = item.type === "alias" && item.targetItemId ? itemsById.get(item.targetItemId) ?? item : item;
-        const ref = {
-            kind: resolved.type,
+        const destino = guardarRefPublish({
             title: resolved.title,
             url: resolved.url,
             route: resolved.route,
             note: resolved.note,
-        };
-        const q = encodeURIComponent(JSON.stringify(ref));
-        window.location.assign(`/publish?attach=${q}`);
+        });
+        window.location.assign(destino);
     }, [itemsById]);
 
     // ── Versiones / edición (§13) ────────────────────────────────────────────
