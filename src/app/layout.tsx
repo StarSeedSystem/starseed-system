@@ -171,6 +171,8 @@ import { AutoUpdateWatcher } from "@/components/notifications/auto-update-watche
 // queda guardado y «Ver original» (TRD1020G) lo devuelve. GLOBAL — como los
 // ajustes de lectura valen en cualquier ruta. Ver src/lib/traduccion/pagina.ts.
 import { PaginaVivaMontaje } from "@/components/traduccion/pagina-viva-montaje";
+// Guardia global de rechazos de promesas no capturadas (IMG-agentes-reimaginada: evitar-prom).
+import { MontajeGuardianGlobal } from "@/components/observabilidad/montaje-guardian-global";
 
 // (1106F) Las cinco fuentes se sirven desde el repo (next/font/local), no desde Google Fonts en cada
 // build: Google empezó a dar URLs sin extensión (`fonts.gstatic.com/l/font?kit=…`) y next/font 15.5
@@ -455,6 +457,7 @@ export default function RootLayout({
                          <AlarmsEngine />
                          <SoloFueraDeMinima><MontajeGlobalMensajeria /></SoloFueraDeMinima>
                         <MontajeConsumo />
+                        <MontajeGuardianGlobal />
                         <CommandPalette />
                         <Toaster />
                         <Sonner />
