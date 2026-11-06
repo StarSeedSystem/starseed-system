@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   bestQuantForBudget,
   estimateMemoryGb,
+  estimateTps,
   gpuBandwidthGbps,
   scoreFit,
   type BestQuantResult,
@@ -123,6 +124,11 @@ describe("model-fit · gpuBandwidthGbps (coincidencia más larga)", () => {
     expect(bw).toBe(448); // RTX 3060 Ti = 448 GB/s, RTX 3060 = 360 GB/s
   });
 
+  it("RTX 3060 → valor de RTX 3060 (sin confundir con RTX 3060 Ti)", () => {
+    const bw = gpuBandwidthGbps("RTX 3060");
+    expect(bw).toBe(360); // RTX 3060 = 360 GB/s
+  });
+
   it("cadena vacía → undefined", () => {
     expect(gpuBandwidthGbps("")).toBeUndefined();
   });
@@ -137,5 +143,31 @@ describe("model-fit · gpuBandwidthGbps (coincidencia más larga)", () => {
 
   it("coincidencia parcial más larga gana (RX 7900 XTX vs RX 7900)", () => {
     expect(gpuBandwidthGbps("AMD Radeon RX 7900 XTX")).toBe(960);
+  });
+});
+
+describe("model-fit · estimateTps (roofline de memoria)", () => {
+  it("con bandwidth: roofline de memoria", () => {
+    const tps = estimateTps({ bandwidthGbps: 448, modelSizeGb: 5, runMode: "gpu" });
+    const expected = (448 / 5) * 0.55 * 1;
+    expect(tps).toBeCloseTo(expected, 1);
+  });
+
+  it("sin bandwidth usa constante por backend", () => {
+    const tpsCuda = estimateTps({ modelSizeGb: 5, runMode: "gpu", backend: "cuda" });
+    expect(tpsCuda).toBe(220);
+
+    const tpsMetal = estimateTps({ modelSizeGb: 5, runMode: "gpu", backend: "metal" });
+    expect(tpsMetal).toBe(250);
+  });
+
+  it("modo cpu-only devuelve constante bajo", () => {
+    const tps = estimateTps({ modelSizeGb: 5, runMode: "cpu-only", backend: "cpu-x86" });
+    expect(tps).toBe(70);
+  });
+
+  it("tamaño modelo pequeño ajusta división", () => {
+    const tps = estimateTps({ bandwidthGbps: 448, modelSizeGb: 0.1, runMode: "gpu" });
+    expect(tps).toBeGreaterThan(0);
   });
 });
