@@ -4787,3 +4787,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** StarSeed OS
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-06 08:15 · mg-oracle-1106-0137
+
+**Lo que se pidió.** Conector opcional
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `RPO1104S-d2` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/RPO1104S-d2 conservada)
