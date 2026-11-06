@@ -5374,3 +5374,20 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `RPO1104M-d2` — otra cosa: ya en main (Claude, 06-11 13:33 UTC): destino-nativo.test.ts llegó con la parte 1 (b73ba4ed1a) con las 10 pruebas del contrato, 10/10 en ver
 - `VER1105Db-d3` — otra cosa: ya en main (Claude, 06-11): el trabajo de la nube 7e70d77637 es idéntico a main; la corrida de las 12:50 UTC fue una reapertura que no debía
+
+## 2026-11-06 09:59 · auto-1106-092749
+
+**Lo que se pidió.** Buscar más capacidad
+
+**Resultado.** 0 de 4 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — la revisión lo rechazó (CAPC1011Ccsb, LNN1028I2-d2). Es 50 % de la ola.
+- 2 tareas se fueron por lo mismo — otra cosa (RPO1104M-d2, VER1105Db-d3). Es 50 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `CAPC1011Ccsb` — la revisión lo rechazó: no toco NINGUNO de los 2 archivos que declaraba (rama ola/CAPC1011Ccsb conservada)
+- `RPO1104M-d2` — otra cosa: ya en main (Claude, 06-11 13:33 UTC): destino-nativo.test.ts llegó con la parte 1 (b73ba4ed1a) con las 10 pruebas del contrato, 10/10 en ver
+- `VER1105Db-d3` — otra cosa: ya en main (Claude, 06-11): el trabajo de la nube 7e70d77637 es idéntico a main; la corrida de las 12:50 UTC fue una reapertura que no debía
+- `LNN1028I2-d2` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/LNN1028I2-d2 conservada)
