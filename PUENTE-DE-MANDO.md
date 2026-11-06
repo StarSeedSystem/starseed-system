@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-06 11:56:13 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-06 13:19:19 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,9 +16,23 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 41 |
 | Últimas 4 olas | en curso 0 · pendientes 80 · integradas 0 |
-| HEAD | `ed6f8c5e0c chore(memoria): recojo la contabilidad del enjambre antes de arrancar` |
-| Sin publicar | 29 commits |
+| HEAD | `a4ca0ee993 chore(memoria): aprendizaje de la ola auto-1106-115726` |
+| Sin publicar | 5 commits |
 | Árbol | limpio |
+
+## Quién escribe ahora (latido de `cola-auto-1106-115726.json`, hace 11s)
+
+| tarea | fase | modelo | lleva | quieto | bytes |
+|---|---|---|---|---|---|
+| `CTR1106Bs` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 121 s | 45716 |
+| `CTR1106As` | hecho | freellmapi/auto | 3 min | 201 s | 76975 |
+| `CTR1106D` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 25 min | 1524 s | 70054 |
+| `CTR1106C` | hecho | freellmapi/auto | 28 min | 1697 s | 114406 |
+| `CTR1106B` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 35 min | 2099 s | 94911 |
+| `CTR1106A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 53 min | 3168 s | 29763 |
+
+**Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
+Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
 
 ## Cómo dirige cada IDE (idéntico en los cuatro)
 
