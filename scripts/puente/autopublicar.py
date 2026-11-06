@@ -49,6 +49,7 @@ WEB = "https://starseed-os.vercel.app"
 RUTAS_HUMO = ("/", "/login", "/version.json")
 CI_TOPE_S = 50 * 60
 VERCEL_TOPE_S = 45 * 60  # Vercel ha llegado a tardar 27 min en compilar (CLAUDE.md, «Publicar»)
+VERCEL_SIN_ESTADO_S = 10 * 60  # sin estado de GitHub, tras 10 min se consulta /version.json
 VENTANA_S = 20 * 60
 MAX_DIA = 24
 #: (2026-10-08) Jev frenó 8 de 8 lotes del 07-10 con p 0,84–0,85 sin un motivo concreto (es un
@@ -136,6 +137,15 @@ def estado_vercel(estados):
     if s in ("failure", "error"):
         return "fallo", ultimo.get("target_url")
     return "esperando", url
+
+
+def confirmado_por_version(sha, servida):
+    """True solo si ambos son cadenas no vacías e iguales (sin distinguir mayúsculas). PURA."""
+    if not isinstance(sha, str) or not isinstance(servida, str):
+        return False
+    if not sha or not servida:
+        return False
+    return sha.lower() == servida.lower()
 
 
 def publicadas_hoy(historial, ahora):
@@ -291,6 +301,20 @@ class Medios(object):
             return e.code
         except Exception:
             return 0
+
+    def version_servida(self):
+        """GET a WEB + '/version.json' con el mismo User-Agent y plazo de http.
+        Devuelve str(datos['sha']) o None ante cualquier error o sin 'sha'."""
+        try:
+            url = WEB + "/version.json"
+            req = urllib.request.Request(url, headers={"User-Agent": "starseed-director-produccion"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                if r.status != 200:
+                    return None
+                datos = json.loads(r.read().decode("utf-8"))
+                return str(datos.get("sha")) if datos.get("sha") else None
+        except Exception:
+            return None
 
     def interruptor(self):
         # El botón «Pausar» de la tarjeta Producción también frena la autopublicación.
@@ -787,10 +811,20 @@ def _seguir_vercel(m, est, ahora):
     estados = m.gh("repos/%s/deployments/%s/statuses?per_page=3" % (REPO, despliegues[0]["id"])) if despliegues else []
     estado, url = estado_vercel(estados or [])
     if estado == "esperando":
-        if espera > VERCEL_TOPE_S:
-            m.avisar("Autopublicación: Vercel no confirmó %s en 45 min." % sha[:8], tipo="aviso")
-            return vetar(est, sha, "Vercel sin confirmar en 45 min", ahora)
-        return con_fase(est, "verificando", "Vercel compilando (%d min)." % (espera // 60), ahora)
+        # (SUP0511G) Sin estados de GitHub (Vercel no publicó su estado), tras 10 min consultamos /version.json
+        if not estados and espera > VERCEL_SIN_ESTADO_S:
+            servida = getattr(m, "version_servida", lambda: None)()
+            if confirmado_por_version(sha, servida):
+                # Confirmado por /version.json: seguimos como si Vercel estuviera "listo"
+                url = WEB
+                estado = "listo"
+                m.avisar("Autopublicación: Vercel no publicó su estado en GitHub; confirmado por /version.json (%s)."
+                         % sha[:8])
+        if estado == "esperando":
+            if espera > VERCEL_TOPE_S:
+                m.avisar("Autopublicación: Vercel no confirmó %s en 45 min." % sha[:8], tipo="aviso")
+                return vetar(est, sha, "Vercel sin confirmar en 45 min", ahora)
+            return con_fase(est, "verificando", "Vercel compilando (%d min)." % (espera // 60), ahora)
     if estado == "fallo":
         m.avisar("Autopublicación: Vercel no pudo construir %s; producción sigue sirviendo la versión anterior. %s"
                  % (sha[:8], url or ""), tipo="aviso")

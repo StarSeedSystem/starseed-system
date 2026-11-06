@@ -522,6 +522,109 @@ class FlujosWebhooks(unittest.TestCase):
         self.assertEqual(e.get("motivo"), "emisión falló")
 
 
+class ConfirmadoPorVersion(unittest.TestCase):
+    """Pruebas de la función pura `confirmado_por_version`."""
+
+    def test_ambos_none_falso(self):
+        self.assertFalse(A.confirmado_por_version(None, None))
+
+    def test_uno_none_falso(self):
+        self.assertFalse(A.confirmado_por_version(SHA, None))
+        self.assertFalse(A.confirmado_por_version(None, SHA))
+
+    def test_vacio_falso(self):
+        self.assertFalse(A.confirmado_por_version("", SHA))
+        self.assertFalse(A.confirmado_por_version(SHA, ""))
+
+    def test_distintos_falso(self):
+        self.assertFalse(A.confirmado_por_version(SHA, "b" * 40))
+
+    def test_iguales_true(self):
+        self.assertTrue(A.confirmado_por_version(SHA, SHA))
+
+    def test_mayusculas_true(self):
+        self.assertTrue(A.confirmado_por_version(SHA, SHA.upper()))
+        self.assertTrue(A.confirmado_por_version(SHA.upper(), SHA))
+
+
+class VersionServida(unittest.TestCase):
+    """Pruebas de la integración de version_servida en _seguir_vercel."""
+
+    def setUp(self):
+        import urllib.request
+        self.original_urlopen = urllib.request.urlopen
+
+    def tearDown(self):
+        import urllib.request
+        urllib.request.urlopen = self.original_urlopen
+
+    def _mock_urlopen(self, status=200, body=b'{}'):
+        def mock_urlopen(req, timeout=30):
+            class Resp:
+                def __enter__(self): return self
+                def __exit__(self, *a): pass
+                def read(self): return body
+                status = status
+            return Resp()
+        import urllib.request
+        urllib.request.urlopen = mock_urlopen
+
+    def test_sin_estados_12_min_web_sirve_sha_publica(self):
+        """(a) Sin estados, 12 min después, la web sirve el sha del candidato → publica."""
+        m = Falso(deploys=[{"id": 7}], estados=[], http=200)
+        base = {"fase": "verificando", "sha": SHA, "desde": T0, "pendientes": 1}
+        self._mock_urlopen(200, b'{"sha": "%s"}' % SHA.encode())
+        e = A.pasada(m, base, T0 + 12 * 60)
+        self.assertEqual(e["fase"], "publicado")
+        self.assertEqual(e["historial"][-1]["resultado"], "publicado")
+        self.assertIn("Vercel no publicó su estado en GitHub: confirmado por /version.json", m.avisos[-1])
+
+    def test_sin_estados_web_sirve_otro_sha_sigue_verificando(self):
+        """(b) Sin estados y la web sirve OTRO sha → sigue verificando."""
+        m = Falso(deploys=[{"id": 7}], estados=[], http=200)
+        base = {"fase": "verificando", "sha": SHA, "desde": T0, "pendientes": 1}
+        self._mock_urlopen(200, b'{"sha": "%s"}' % ("b" * 40).encode())
+        e = A.pasada(m, base, T0 + 12 * 60)
+        self.assertEqual(e["fase"], "verificando")
+
+    def test_sin_estados_5_min_no_llama_version_servida(self):
+        """(c) Sin estados pero solo 5 min → sigue verificando y no se llama a version_servida."""
+        m = Falso(deploys=[{"id": 7}], estados=[], http=200)
+        base = {"fase": "verificando", "sha": SHA, "desde": T0, "pendientes": 1}
+        called = []
+        def mock_urlopen(req, timeout=30):
+            called.append(req.full_url)
+            class Resp:
+                def __enter__(self): return self
+                def __exit__(self, *a): pass
+                def read(self): return b'{"sha": "%s"}' % SHA.encode()
+                status = 200
+            return Resp()
+        import urllib.request
+        urllib.request.urlopen = mock_urlopen
+        e = A.pasada(m, base, T0 + 5 * 60)
+        self.assertEqual(e["fase"], "verificando")
+        self.assertEqual(len(called), 0, "version_servida no debe llamarse antes de 10 min")
+
+    def test_con_estado_pending_sigue_verificando_aunque_web_sirva_sha(self):
+        """(d) Con un estado 'pending' → sigue verificando aunque la web sirva el sha."""
+        m = Falso(deploys=[{"id": 7}], estados=[{"state": "pending"}], http=200)
+        base = {"fase": "verificando", "sha": SHA, "desde": T0, "pendientes": 1}
+        self._mock_urlopen(200, b'{"sha": "%s"}' % SHA.encode())
+        e = A.pasada(m, base, T0 + 12 * 60)
+        self.assertEqual(e["fase"], "verificando")
+
+    def test_medios_sin_version_servida_como_antes(self):
+        """(e) Un Medios sin version_servida → comportamiento anterior (sigue verificando hasta 45 min)."""
+        # Falso no tiene version_servida, así que se usa el comportamiento por defecto
+        m = Falso(deploys=[{"id": 7}], estados=[], http=200)
+        base = {"fase": "verificando", "sha": SHA, "desde": T0, "pendientes": 1}
+        self._mock_urlopen(200, b'{"sha": "%s"}' % SHA.encode())
+        e = A.pasada(m, base, T0 + 12 * 60)
+        # Sin version_servida en Falso, debe seguir verificando (no tiene el método)
+        self.assertEqual(e["fase"], "verificando")
+
+
 class CiRojoACola(unittest.TestCase):
     """(PUB1029G) El CI en rojo no espera solo: se convierte en tareas `CIR<MMDD><n>` del enjambre."""
 
