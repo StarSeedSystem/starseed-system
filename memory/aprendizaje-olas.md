@@ -4766,3 +4766,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `CAPC1011Ccsb` — la revisión lo rechazó: no toco NINGUNO de los 2 archivos que declaraba (rama ola/CAPC1011Ccsb conservada)
 - `SUP0511Db-d2` — los tipos no compilan: 3 errores tsc (rama ola/SUP0511Db-d2 conservada)
 - `VER1105Db-d3` — otra cosa: reasignada a la nube 20261105
+
+## 2026-11-06 05:07 · mg-oracle-1105-2251
+
+**Lo que se pidió.** Xcode 26
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — no escribió nada (RPO1104M-d2, RPO1104S-d2). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `RPO1104M-d2` — no escribió nada
+- `RPO1104S-d2` — no escribió nada
