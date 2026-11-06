@@ -19,7 +19,7 @@ type Cuerpo = Record<string, unknown>;
 type Respuesta = { status?: number; json: unknown };
 
 /** Un servidor de mentira: GET devuelve el estado actual; POST pasa por `manejar` (que puede cambiarlo). */
-function servidor(inicial: PropuestaNormalizada[], manejar: (c: Cuerpo, estado: { propuestas: PropuestaNormalizada[]; ajustes: AjustesAutodesarrollo }) => Respuesta) {
+function servidor(inicial: PropuestaNormalizada[], manejar: (c: Cuerpo, estado: { propuestas: PropuestaNormalizada[]; ajustes: AjustesAutodesarrollo }) => Respuesta, extra: Record<string, unknown> = {}) {
     const estado = { propuestas: structuredClone(inicial), ajustes: structuredClone(AJUSTES_POR_DEFECTO) };
     const posts: Cuerpo[] = [];
     const gets: string[] = [];
@@ -33,7 +33,7 @@ function servidor(inicial: PropuestaNormalizada[], manejar: (c: Cuerpo, estado: 
                 return new Response(JSON.stringify(r.json), { status: r.status ?? 200, headers: { "Content-Type": "application/json" } });
             }
             gets.push(url);
-            return new Response(JSON.stringify({ propuestas: estado.propuestas, ajustes: estado.ajustes, resumen: {} }), {
+            return new Response(JSON.stringify({ propuestas: estado.propuestas, ajustes: estado.ajustes, resumen: {}, ...extra }), {
                 status: 200,
                 headers: { "Content-Type": "application/json" },
             });
@@ -411,14 +411,15 @@ describe("PanelImaginacion", () => {
             }),
             prop({ id: "otra", fuente: "agentes", titulo: "Propuesta de agente" }),
         ];
-        const { posts } = servidor(propuestasConAstraura, sinPost);
+        // (1106 · AST1106G) La línea cuenta el resumen que deja el director, no lo rehace con las propuestas.
+        const filtro_astraura = { fecha: hoy, tope_dia: 3, ventana_dias: 7, vistas: 15, entran: 0,
+            filtradas: { "familia repetida": 5, "tipo de archivo": 10, tope: 0, credenciales: 2 }, autorizacion_inventada: 0 };
+        const { posts } = servidor(propuestasConAstraura, sinPost, { filtro_astraura });
         render(<PanelImaginacion ambito="metagenesis" />);
         await screen.findByTestId("imaginacion-filtro-astraura");
         const etiqueta = screen.getByTestId("imaginacion-filtro-astraura");
-        expect(etiqueta).toHaveTextContent("Filtradas de Astraura hoy:");
-        expect(etiqueta).toHaveTextContent("familia");
-        expect(etiqueta).toHaveTextContent("tipo");
-        expect(etiqueta).toHaveTextContent("tope");
+        expect(etiqueta).toHaveTextContent("Astraura hoy: 15 vistas, 0 entran");
+        expect(etiqueta).toHaveTextContent("credenciales 2 · tipo de archivo 10 · familia repetida 5 · tope 0");
         expect(posts).toHaveLength(0);
     });
 

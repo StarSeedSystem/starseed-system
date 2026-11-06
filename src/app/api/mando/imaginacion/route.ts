@@ -21,7 +21,7 @@
 
 import { guardianMando } from "@/lib/mando/guardian";
 import { filtrarPorAmbito, interpretarPeticion, leerAmbito, resumenPastilla } from "@/lib/mando/imaginacion-tipos";
-import { aprobar, guardarAjustes, leerAjustes, leerPropuestas, lote, posponer, rechazar, reimaginar, type Resultado } from "@/lib/mando/imaginacion-servidor";
+import { aprobar, guardarAjustes, leerAjustes, leerPropuestasConFiltro, lote, posponer, rechazar, reimaginar, type Resultado } from "@/lib/mando/imaginacion-servidor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,9 +35,11 @@ export async function GET(peticion: Request): Promise<Response> {
     const ambito = leerAmbito(new URL(peticion.url).searchParams.get("ambito"));
     if (ambito === null) return responder({ error: "Ámbito desconocido: usa metagenesis, personal, grupo:<id> o pagina:<id>." }, 400);
     try {
-        const [todas, ajustes] = await Promise.all([leerPropuestas(), leerAjustes()]);
+        // (1106 · AST1106G) Con el resumen REAL del filtro de entrada de Astraura (vive en MetaGenesis).
+        const [{ propuestas: todas, filtro_astraura }, ajustes] = await Promise.all([leerPropuestasConFiltro(), leerAjustes()]);
         const propuestas = filtrarPorAmbito(todas, ambito);
-        return responder({ propuestas, ajustes, resumen: resumenPastilla(propuestas, new Date()), actualizadoEn: new Date().toISOString() });
+        const conFiltro = (ambito === "metagenesis" || ambito === "todos") && filtro_astraura ? { filtro_astraura } : {};
+        return responder({ propuestas, ajustes, resumen: resumenPastilla(propuestas, new Date()), actualizadoEn: new Date().toISOString(), ...conFiltro });
     } catch {
         return responder({ error: "No se pudieron leer las propuestas." }, 500);
     }

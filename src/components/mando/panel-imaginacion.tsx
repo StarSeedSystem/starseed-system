@@ -45,12 +45,12 @@ import {
     filasMedidor,
     normalizarReferencias,
     vetoReimaginar,
-    filtroAstraura,
-    etiquetaMedidorAstraura,
+    etiquetaFiltroDelDia,
     type AjustesAuto,
     type AjustesAutodesarrollo,
     type AmbitoPropuesta,
     type EstadoPropuesta,
+    type FiltroAstraura,
     type FuentePropuesta,
     type HacerLote,
     type ImportanciaPropuesta,
@@ -121,7 +121,7 @@ const dominio = (u: string) => {
 
 // ── Datos y red ─────────────────────────────────────────────────────────────────────────────────────
 
-interface DatosImaginacion { propuestas: PropuestaNormalizada[]; ajustes: AjustesAutodesarrollo }
+interface DatosImaginacion { propuestas: PropuestaNormalizada[]; ajustes: AjustesAutodesarrollo; filtro_astraura?: FiltroAstraura }
 interface ResultadoId { id: string; ok: boolean; error?: string }
 interface RespuestaPost { ok?: boolean; error?: string; propuesta?: PropuestaNormalizada; resultados?: ResultadoId[]; ajustes?: AjustesAutodesarrollo }
 type Envio = { ok: boolean; status: number; datos: RespuestaPost };
@@ -846,7 +846,7 @@ export function PanelImaginacion({
                 setErrorLectura(d?.error ?? `No se pudieron leer las propuestas (HTTP ${r.status}).`);
                 return;
             }
-            setDatos({ propuestas: d.propuestas, ajustes: d.ajustes });
+            setDatos({ propuestas: d.propuestas, ajustes: d.ajustes, filtro_astraura: d.filtro_astraura });
             setErrorLectura(null);
             setLeidoEn(new Date());
             // La selección solo guarda lo que sigue esperando decisión (lo fallido de un lote, sí).
@@ -1019,16 +1019,15 @@ export function PanelImaginacion({
                 </span>
             </p>
 
-            {datos && propuestas.length > 0 && (() => {
-                const hoy = new Date().toISOString().split("T")[0];
-                const deAstraura = propuestas.filter((p) => p.fuente === "astraura");
-                if (deAstraura.length === 0) return null;
-                const filtro = filtroAstraura(deAstraura, hoy);
-                return (
+            {(() => {
+                // (1106 · AST1106G) El resumen REAL del filtro de entrada de Astraura que deja el director (con
+                // «credenciales»), no una cuenta rehecha aquí con reglas que no eran las suyas.
+                const etiqueta = etiquetaFiltroDelDia(datos?.filtro_astraura, new Date().toISOString().slice(0, 10));
+                return etiqueta ? (
                     <p className="mc-centrado text-[11px] text-violet-200" data-testid="imaginacion-filtro-astraura">
-                        {etiquetaMedidorAstraura(filtro)}
+                        {etiqueta}
                     </p>
-                );
+                ) : null;
             })()}
 
             {datos ? <AjustesAutomatico auto={datos.ajustes.auto} alGuardar={guardarAuto} /> : null}

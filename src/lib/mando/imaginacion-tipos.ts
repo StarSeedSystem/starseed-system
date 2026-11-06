@@ -48,7 +48,7 @@ export interface FiltroAstraura {
   ventana_dias: number;
   vistas: number;
   entran: number;
-  filtradas: { "familia repetida": number; "tipo de archivo": number; tope: number };
+  filtradas: { "familia repetida": number; "tipo de archivo": number; tope: number; credenciales?: number };
   autorizacion_inventada: number;
 }
 /** El botón «Aprobación y reimaginación automática» (§3). Alta y crítica NUNCA se aprueban solas. */
@@ -196,6 +196,19 @@ export function etiquetaMedidorAstraura(filtro: FiltrosAstraura): string {
   const tipoDesc = filtradas.tipoArchivo.descartada;
   const tipoY = tipoDesc > 0 ? "1" : "0";
   return `Filtradas de Astraura hoy: ${entran} (familia ${familiaX} · tipo ${tipoY} · tope ${topeX})`;
+}
+
+/** (1106 · AST1106G) La línea del medidor con el resumen REAL que deja el director en `propuestas.json → filtro_astraura`
+ * (`autodesarrollo_fuentes.filtrar_astraura`), no una cuenta rehecha en el navegador. null si no hay resumen. PURA. */
+export function etiquetaFiltroDelDia(f: FiltroAstraura | null | undefined, hoy: string): string | null {
+  if (!f || typeof f !== "object") return null;
+  const n = (x: unknown): number => (typeof x === "number" && Number.isFinite(x) ? x : 0);
+  const fl = (f.filtradas ?? {}) as Record<string, unknown>;
+  const motivos = ["credenciales", "tipo de archivo", "familia repetida", "tope"].map((k) => `${k} ${n(fl[k])}`).join(" · ");
+  const cuando = f.fecha === hoy ? "hoy" : `el ${String(f.fecha ?? "").slice(0, 10) || "último ciclo"}`;
+  const inventada = n(f.autorizacion_inventada);
+  return `Astraura ${cuando}: ${n(f.vistas)} vistas, ${n(f.entran)} entran · filtradas: ${motivos}` +
+    (inventada ? ` · ${inventada} con autorización inventada` : "");
 }
 
 export const AJUSTES_POR_DEFECTO: AjustesAutodesarrollo = {

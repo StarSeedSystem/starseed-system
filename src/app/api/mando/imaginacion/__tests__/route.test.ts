@@ -83,3 +83,16 @@ describe("/api/mando/imaginacion", () => {
         expect(j).toMatchObject({ ok: true, ajustes: { auto: { aprobar: true, umbral: 0.75 }, automatico: true } });
     });
 });
+
+describe("/api/mando/imaginacion · filtro de Astraura (1106 · AST1106G)", () => {
+    it("GET de MetaGenesis trae el filtro_astraura real del director; un grupo no", async () => {
+        const filtro = { fecha: "2026-11-06", tope_dia: 3, ventana_dias: 7, vistas: 15, entran: 0,
+            filtradas: { "familia repetida": 5, "tipo de archivo": 10, tope: 0, credenciales: 2 }, autorizacion_inventada: 0 };
+        writeFileSync(archivo(), JSON.stringify({ propuestas: [prop("m1")], filtro_astraura: filtro }));
+        const d = await (await GET(new Request(`${URL_RUTA}?ambito=metagenesis`))).json();
+        expect(d.filtro_astraura).toEqual(filtro);
+        expect(d.propuestas).toHaveLength(1);
+        const g = await (await GET(new Request(`${URL_RUTA}?ambito=grupo:g`))).json();
+        expect(g.filtro_astraura).toBeUndefined();
+    });
+});
