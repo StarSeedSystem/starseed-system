@@ -76,6 +76,9 @@ import {
 } from "./model-fit";
 import type { NeuronCapabilities } from "@/lib/neurons/neurons";
 
+export { classifyDeviceTier } from "./model-requirements";
+export type { NeuronCapabilities } from "@/lib/neurons/neurons";
+
 /* ────────────────────────── Tipos públicos ────────────────────────── */
 
 export interface ModelRecommendation {
