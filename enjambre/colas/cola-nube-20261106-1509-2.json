@@ -1,0 +1,45 @@
+{
+ "ola": "nube-20261106",
+ "tareas": [
+  {
+   "id": "IMG-agentes-reimaginada-profunda-distinguir",
+   "titulo": "Clasificar fallos de conexión y respuestas de indisponibilidad",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Clasificar fallos de conexión y respuestas de indisponibilidad. ## Propuesta\nLocaliza el código vigente que consulta un servicio y clasifica por separado los fallos de transporte y las respuestas HTTP de indisponibilidad. No reutilices la cita obsoleta del onboarding ni presupongas nombres de funciones o archivos.\n\n## Regla de clasificación\n- **Error de red:** la solicitud no obtiene una respuesta HTTP por un fallo de transporte, DNS, conexión o tiempo de espera. Preséntalo como «no se pudo conectar»; no afirmes que el servicio está caído.\n- **Indisponibilidad:** sí hay respuesta HTTP y su estado indica que el servicio no puede atender la solicitud, por ej Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-agentes-reimaginada-profunda-evitar-prom",
+   "titulo": "Evitar promesas rechazadas no capturadas: guardias globales y reglas de lint accionables",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Evitar promesas rechazadas no capturadas: guardias globales y reglas de lint accionables. ## Objetivo\nEliminar rechazos silenciosos de Promises en runtime sin tocar lógica de negocio, con medidas mecánicas y verificables.\n\n## Problema actual\nLa propuesta anterior se apoyaba en la cita `src/components/astraura/window/astraura-158-window.tsx:567` que ya no existe en el código. Sin anclaje vigente la utilidad cae por debajo del umbral y no es accionable por el enjambre.\n\n## Reimaginación accionable\n1. **Guardia global en cliente**\n   - Registrar un listener `unhandledrejection` en el entry point de la app para capturar, clasificar y reportar rechazos no manejados. El handler debe logu Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-agentes-reimaginada-profunda-manejar-err",
+   "titulo": "Auditar y estandarizar manejo de errores en guardado de persona",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Auditar y estandarizar manejo de errores en guardado de persona. **Objetivo**\nReimaginar el manejo de errores de guardado de persona como un contrato observable y recuperable, sin editar código ahora, para que el enjambre pueda implementarlo en ≤3 archivos pequeños.\n\n**Intención conservada**\nEvitar silencios y pérdidas al guardar persona, dar feedback claro al usuario y permitir reintento seguro.\n\n**Propuesta accionable**\n1. Mapear el flujo actual de guardado de persona: identificar punto de entrada, capa de persistencia y notificaciones.\n2. Definir contrato de error: tipos recuperables vs no recuperables, mensajes usuario, logging mínimo y métrica de fallo Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-agentes-reimaginada-profunda-tratar-los",
+   "titulo": "Normalizar y clasificar errores de Supabase para UX consistente y observabilidad",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Normalizar y clasificar errores de Supabase para UX consistente y observabilidad. # Objetivo\nReimaginar el tratamiento de errores devueltos por Supabase como una capa de normalización central, accionable por el enjambre, sin acoplar a un archivo concreto.\n\n## Intención conservada\nMantener la intención original de tratar errores de Supabase, pero hacerlo accionable, medible y seguro para privacidad.\n\n## Propuesta\n1. **Mapeo de errores a categorías de dominio**\n   - Clasificar PostgrestError, AuthError y network errors en: autenticación, permisos, conflicto, validación, no encontrado, rate limit, servicio.\n   - Normalizar código, mensaje técnico y mensaje para usuario.\n2. **C Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1106-150702.json": [
+   "IMG-agentes-reimaginada-profunda-distinguir",
+   "IMG-agentes-reimaginada-profunda-evitar-prom",
+   "IMG-agentes-reimaginada-profunda-manejar-err",
+   "IMG-agentes-reimaginada-profunda-tratar-los"
+  ]
+ }
+}
