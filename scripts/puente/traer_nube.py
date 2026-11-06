@@ -293,6 +293,49 @@ def posteriores_en_cadena(tid, progreso, nuevo=None):
     return sorted(salida)
 
 
+def sucesora_viva(tid, progreso):
+    """PURA (TRN1106A): si la cadena de `tid` tiene una sucesora viva en `progreso`, devuelve su id;
+    si no, None. Una sucesora viva es: una tarea en progreso cuyo id es sucesor directo (letra b-z o -dN)
+    de `tid` o de su base, y que no está en estado cerrado. También busca en la nota de `tid`
+    «continúa como X» o «dividida en X, Y» (en este caso da igual el estado de la sucesora)."""
+    progreso = progreso or {}
+    entrada = progreso.get(tid)
+    if not isinstance(entrada, dict):
+        return None
+
+    # 1. Buscar en la nota: "continúa como X" o "dividida en X, Y" (estado de la sucesora no importa)
+    nota = str(entrada.get("nota") or "")
+    m = re.search(r"contin[aúu]a\s+como\s+(\S+)", nota)
+    if m:
+        cand = m.group(1)
+        if cand in progreso and isinstance(progreso[cand], dict):
+            return cand
+    m = re.search(r"dividida\s+en\s+(\S+)", nota)
+    if m:
+        cand = m.group(1).split(",")[0].strip()
+        if cand in progreso and isinstance(progreso[cand], dict):
+            return cand
+
+    # 2. Buscar sucesoras directas en progreso (base + letra b-z o base + -dN) que no estén cerradas
+    base = base_de(tid)
+    candidatos = []
+    for k, v in progreso.items():
+        if not isinstance(v, dict):
+            continue
+        if k == tid or k == base:
+            continue
+        # Sucesora directa: base + una letra (Xb, Xc...) o base + -dN
+        if k.startswith(base) and (len(k) == len(base) + 1 and k[-1] in "bcdefghijklmnopqrstuvwxyz"
+                                   or k.startswith(base + "-d")):
+            est = v.get("estado")
+            if est not in _CERRADAS_RESCATE:
+                candidatos.append(k)
+    if candidatos:
+        return sorted(candidatos)[0]
+
+    return None
+
+
 def decidir_rescate(tid, previa, commits, en_main, progreso, en_main_de=lambda _k: False,
                     integrada_en_nube=lambda _k: False):
     """PURA (CAP1025A). Una entrada que una pasada antigua dio por «reparada»: ¿era una integración de la
@@ -1009,6 +1052,13 @@ def _revisar(aplicar, espera_integrar_s):
                                          tarea=tarea_t)
         entradas.append(dict(fila, accion=accion, motivo=motivo, clave=clave))
     entradas = elegir_por_tarea(entradas)
+
+    # TRN1106A: si una tarea tiene sucesora viva, archivar en lugar de traer/reparar
+    for e in entradas:
+        suc = sucesora_viva(e["tid"], progreso)
+        if suc:
+            e["accion"] = "superada"
+            e["motivo"] = "archivar → la cadena sigue viva en %s" % suc
 
     traidas, reparadas, esperando, superadas_nuevas = [], [], [], []
     if aplicar:

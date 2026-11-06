@@ -332,6 +332,85 @@ class Sucesor(unittest.TestCase):
         self.assertFalse(T.es_rescate(None))
 
 
+class SucesoraViva(unittest.TestCase):
+    """TRN1106A: detectar si una tarea tiene sucesora viva para archivar en lugar de reparar."""
+
+    def test_sustituida_con_nota_continua_como(self):
+        progreso = {
+            "VER1105Fb-d2": {"estado": "sustituida", "nota": "continúa como VER1105Fc desde la rama nube/123/ola/VER1105Fb-d2 (traer_nube)"},
+            "VER1105Fc": {"estado": "commit"},
+        }
+        self.assertEqual(T.sucesora_viva("VER1105Fb-d2", progreso), "VER1105Fc")
+
+    def test_sustituida_con_nota_dividida_en(self):
+        progreso = {
+            "TASK1": {"estado": "sustituida", "nota": "dividida en TASK1a, TASK1b"},
+            "TASK1a": {"estado": "pendiente"},
+        }
+        self.assertEqual(T.sucesora_viva("TASK1", progreso), "TASK1a")
+
+    def test_pendiente_pero_tiene_sucesora_en_progreso(self):
+        # El estado volvió a "pendiente" pero la cadena sigue viva en progreso
+        progreso = {
+            "VER1105Gb-d2": {"estado": "pendiente", "nota": ""},
+            "VER1105Gc": {"estado": "en_curso"},
+        }
+        self.assertEqual(T.sucesora_viva("VER1105Gb-d2", progreso), "VER1105Gc")
+
+    def test_sin_sucesora_devuelve_none(self):
+        progreso = {
+            "LC1004B": {"estado": "fallo_tests", "nota": ""},
+        }
+        self.assertIsNone(T.sucesora_viva("LC1004B", progreso))
+
+    def test_tarea_inexistente_devuelve_none(self):
+        self.assertIsNone(T.sucesora_viva("NOEXISTE", {}))
+
+    def test_commit_con_sucesora_en_progreso(self):
+        progreso = {
+            "PRD1005L": {"estado": "commit", "nota": ""},
+            "PRD1005Lb": {"estado": "pendiente"},
+        }
+        self.assertEqual(T.sucesora_viva("PRD1005L", progreso), "PRD1005Lb")
+
+    def test_integrada_con_sucesora_en_progreso(self):
+        progreso = {
+            "BLQ1005D": {"estado": "integrada", "nota": ""},
+            "BLQ1005Db": {"estado": "en_curso"},
+        }
+        self.assertEqual(T.sucesora_viva("BLQ1005D", progreso), "BLQ1005Db")
+
+    def test_rechazada_con_sucesora_en_progreso(self):
+        progreso = {
+            "OPS1024E": {"estado": "rechazada", "nota": ""},
+            "OPS1024Eb": {"estado": "pendiente"},
+        }
+        self.assertEqual(T.sucesora_viva("OPS1024E", progreso), "OPS1024Eb")
+
+    def test_sucesora_con_sufijo_d(self):
+        progreso = {
+            "RTESP1011B": {"estado": "sustituida", "nota": "continúa como RTESP1011B-d1"},
+            "RTESP1011B-d1": {"estado": "pendiente"},
+        }
+        self.assertEqual(T.sucesora_viva("RTESP1011B", progreso), "RTESP1011B-d1")
+
+    def test_toma_la_primera_sucesora_alfabeticamente(self):
+        progreso = {
+            "TASK1": {"estado": "sustituida", "nota": ""},
+            "TASK1c": {"estado": "pendiente"},
+            "TASK1b": {"estado": "en_curso"},
+        }
+        self.assertEqual(T.sucesora_viva("TASK1", progreso), "TASK1b")
+
+    def test_no_confunde_con_tareas_sin_relacion(self):
+        progreso = {
+            "TASK1": {"estado": "sustituida", "nota": ""},
+            "OTRA": {"estado": "pendiente"},
+            "TASK2": {"estado": "en_curso"},
+        }
+        self.assertIsNone(T.sucesora_viva("TASK1", progreso))
+
+
 class Informe(unittest.TestCase):
     def test_pregunta_antes_de_borrar(self):
         t = T.texto_informe([], [], [{"rama": "nube/1/ola/RDV8", "tid": "RDV8", "motivo": "sustituida"}], [])
@@ -498,3 +577,50 @@ class RevisarConReasignadas(unittest.TestCase):
     def test_la_rama_del_mismo_run_espera_sin_preguntar(self):
         self.assertEqual(self._plan("VZF1015Q", "nube/39588171249", "completed"), {"VZF1015Q": "esperar"})
         self.assertEqual(self.preguntados, [])
+
+    def test_sustituida_con_sucesora_se_archiva_sin_reparar(self):
+        # Rama de tarea sustituida con sucesora en progreso → archivar, no reparar
+        self.progreso = {
+            "VER1105Fb-d2": {"estado": "sustituida", "nota": "continúa como VER1105Fc"},
+            "VER1105Fc": {"estado": "commit"},
+        }
+        self.filas = [{"rama": "nube/123/ola/VER1105Fb-d2", "tid": "VER1105Fb-d2",
+                       "commits": [c("salvavidas"), c("ola")], "fecha": "2026-10-24"}]
+        self.estados = {}
+        plan = {p["tid"]: p["accion"] for p in T.revisar(aplicar=False)["plan"]}
+        self.assertEqual(plan.get("VER1105Fb-d2"), "superada")
+
+    def test_pendiente_sin_sucesora_se_repara_como_siempre(self):
+        # Rama de tarea pendiente sin sucesora → reparar como siempre
+        self.progreso = {
+            "LC1004B": {"estado": "fallo_tests", "nota": ""},
+        }
+        self.filas = [{"rama": "nube/123/ola/LC1004B", "tid": "LC1004B",
+                       "commits": [c("salvavidas")], "fecha": "2026-10-24"}]
+        self.estados = {}
+        plan = {p["tid"]: p["accion"] for p in T.revisar(aplicar=False)["plan"]}
+        self.assertEqual(plan.get("LC1004B"), "reparar")
+
+    def test_pendiente_con_sucesora_en_progreso_se_archiva(self):
+        # Estado volvió a pendiente pero tiene sucesora en progreso → archivar
+        self.progreso = {
+            "VER1105Gb-d2": {"estado": "pendiente", "nota": ""},
+            "VER1105Gc": {"estado": "en_curso"},
+        }
+        self.filas = [{"rama": "nube/123/ola/VER1105Gb-d2", "tid": "VER1105Gb-d2",
+                       "commits": [c("salvavidas"), c("ola")], "fecha": "2026-10-24"}]
+        self.estados = {}
+        plan = {p["tid"]: p["accion"] for p in T.revisar(aplicar=False)["plan"]}
+        self.assertEqual(plan.get("VER1105Gb-d2"), "superada")
+
+    def test_commit_con_sucesora_en_progreso_se_archiva(self):
+        # Tarea en commit con sucesora → archivar
+        self.progreso = {
+            "PRD1005L": {"estado": "commit", "nota": ""},
+            "PRD1005Lb": {"estado": "pendiente"},
+        }
+        self.filas = [{"rama": "nube/123/ola/PRD1005L", "tid": "PRD1005L",
+                       "commits": [c("salvavidas"), c("ola")], "fecha": "2026-10-24"}]
+        self.estados = {}
+        plan = {p["tid"]: p["accion"] for p in T.revisar(aplicar=False)["plan"]}
+        self.assertEqual(plan.get("PRD1005L"), "superada")
