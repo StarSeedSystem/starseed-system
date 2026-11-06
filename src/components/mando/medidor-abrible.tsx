@@ -26,6 +26,7 @@ import { BloqueadasPanel, itemDesdeFilaMedidor } from "@/components/mando/bloque
 import { BloqueadasGrupos, CadenasBloqueadas } from "@/components/mando/bloqueadas-grupos";
 import { InterruptorAutopublicacion } from "@/components/mando/interruptor-autopublicacion";
 import { PanelImaginacion } from "@/components/mando/panel-imaginacion";
+import { PanelVersiones } from "@/components/mando/panel-versiones";
 import { BotonReparar, ResultadoReparacion, useReparacion } from "@/components/mando/reparar-medidor";
 import { SeccionPlegable } from "@/components/mando/seccion-plegable";
 import type { AccionMedidor, ClaveMedidor, DetalleMedidor, FilaMedidor } from "@/lib/mando/medidores";
@@ -816,7 +817,9 @@ export function PanelMedidor({
                 </p>
             ) : null}
 
-            {clave === "imaginacion" ? (
+            {clave === "versiones" ? (
+                <PanelVersiones />
+            ) : clave === "imaginacion" ? (
                 // (IMG1024B) «Imaginación» tiene su panel propio: propuestas libres, integrar, reimaginar,
                 // lote y el automático, contra `/api/mando/imaginacion`. Lee sus datos por su cuenta (si el
                 // medidor no contesta, el panel sigue funcionando) y, tras cada decisión, relee la cabecera.
