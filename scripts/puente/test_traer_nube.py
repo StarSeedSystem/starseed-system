@@ -402,6 +402,17 @@ class SucesoraViva(unittest.TestCase):
         }
         self.assertEqual(T.sucesora_viva("TASK1", progreso), "TASK1b")
 
+    def test_hermanas_de_una_division_no_se_suceden(self):
+        progreso = {"IMG-x-lbsb-d1": {"estado": "integrada", "nota": ""}, "IMG-x-lbsb-d2": {"estado": "fallo_tsc"}}
+        self.assertIsNone(T.sucesora_viva("IMG-x-lbsb-d1", progreso))
+        self.assertTrue(T.hermanas_de_division("X1-d1", "X1-d2b"))
+        self.assertFalse(T.hermanas_de_division("X1-d1", "X1-d1b"))
+
+    def test_sucesora_de_una_parte_si_cuenta(self):
+        progreso = {"X1-d1": {"estado": "rechazada", "nota": ""}, "X1-d1b": {"estado": "pendiente"},
+                    "X1-d2": {"estado": "pendiente"}}
+        self.assertEqual(T.sucesora_viva("X1-d1", progreso), "X1-d1b")
+
     def test_no_confunde_con_tareas_sin_relacion(self):
         progreso = {
             "TASK1": {"estado": "sustituida", "nota": ""},

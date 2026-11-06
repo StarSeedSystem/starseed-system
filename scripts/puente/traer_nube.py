@@ -293,6 +293,12 @@ def posteriores_en_cadena(tid, progreso, nuevo=None):
     return sorted(salida)
 
 
+def hermanas_de_division(a, b):
+    """PURA (1106): ¿`a` y `b` son partes distintas de la misma división (X-d1 y X-d2, X-d2b)? No se suceden."""
+    ma, mb = re.match(r"^(.+)-d(\d+)$", str(a or "")), re.match(r"^(.+)-d(\d+)", str(b or ""))
+    return bool(ma and mb and ma.group(1) == mb.group(1) and ma.group(2) != mb.group(2))
+
+
 def sucesora_viva(tid, progreso):
     """PURA (TRN1106A): si la cadena de `tid` tiene una sucesora viva en `progreso`, devuelve su id;
     si no, None. Una sucesora viva es: una tarea en progreso cuyo id es sucesor directo (letra b-z o -dN)
@@ -325,6 +331,8 @@ def sucesora_viva(tid, progreso):
         if k == tid or k == base:
             continue
         # Sucesora directa: base + una letra (Xb, Xc...) o base + -dN
+        if hermanas_de_division(tid, k):  # (1106) X-d1 y X-d2 son partes de la misma división
+            continue
         if k.startswith(base) and (len(k) == len(base) + 1 and k[-1] in "bcdefghijklmnopqrstuvwxyz"
                                    or k.startswith(base + "-d")):
             est = v.get("estado")
