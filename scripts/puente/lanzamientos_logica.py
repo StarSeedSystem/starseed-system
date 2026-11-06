@@ -324,7 +324,11 @@ def notas_de_parche(notas_previas, version_previa, version, arreglo=""):
         return None
     texto = notas_previas.strip().replace("StarSeed OS %s" % version_previa, "StarSeed OS %s" % version, 1)
     extra = nombre_de_ola("", arreglo)
-    return texto.rstrip(".") + ". Además: %s." % extra if extra else texto
+    if not extra:
+        return texto
+    if " Además: " in texto:  # parche sobre otro parche sin lanzar: una sola cláusula «Además»
+        return texto.rstrip(".") + "; %s." % extra
+    return texto.rstrip(".") + ". Además: %s." % extra
 
 
 def tono_pastilla(estado):

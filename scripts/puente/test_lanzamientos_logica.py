@@ -223,6 +223,10 @@ class Notas(unittest.TestCase):
         self.assertEqual(L.nombre_de_ola("1020U", "Traducción (parte 3 de 3)"), "Traducción")
         self.assertEqual(L.nombre_de_ola("1104R · x · lo que faltó: next.config.ts"), "x")
 
+    def test_parche_sobre_parche_una_sola_clausula(self):
+        n = L.notas_de_parche("StarSeed OS 0.4.1: a. Además: b.", "0.4.1", "0.4.2", "c (detalle)")
+        self.assertEqual(n, "StarSeed OS 0.4.2: a. Además: b; c.")
+
     def test_parche_de_una_version_que_no_se_lanzo(self):
         n = L.notas_de_parche("StarSeed OS 0.4.0 y sus apps nativas. Llega el Centro de Versiones.", "0.4.0", "0.4.1",
                               "Linux nativo en ubuntu-24.04 (PipeWire de 22.04, viejo para xcap 0.9)")
