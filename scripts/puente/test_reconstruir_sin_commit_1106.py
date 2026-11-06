@@ -42,6 +42,20 @@ class TestFrenoSinCommit(unittest.TestCase):
 
 
 class TestUnaPasadaGuard(unittest.TestCase):
+    def setUp(self):
+        # (1106F) Aislada del entorno real: test_forzar_bypasses dependía del disco libre de la Mac y de `gh`
+        # (artefacto del CI), vetó un lote de la autopublicación y escribía el estado del reconstructor.
+        for nombre, valor in (("artefacto_ci_disponible", None), ("espacio_libre_gb", 500.0),
+                              ("build_terminado", False), ("reponer_anterior_toca", False),
+                              ("publicacion_va_a_compilar", False), ("conversando", False),
+                              ("uso_de_astraura", "libre"), ("_guardar", None)):
+            p = mock.patch.object(rm, nombre, return_value=valor)
+            p.start()
+            self.addCleanup(p.stop)
+        p = mock.patch.dict(sys.modules, {"cuarentena_sin_git": mock.MagicMock()})
+        p.start()
+        self.addCleanup(p.stop)
+
     def test_blocks_compilacion(self):
         with mock.patch.object(rm, "_entradas", return_value=[]), \
              mock.patch.object(rm, "huella_de", return_value="h"), \
