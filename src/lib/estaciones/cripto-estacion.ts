@@ -125,12 +125,13 @@ export async function publicaDePrivada(privada: CryptoKey): Promise<string | nul
 
 const cachePublicas = new Map<string, Promise<CryptoKey | null>>();
 
-function llavePublica(b64: string): Promise<CryptoKey | null> {
+export function llavePublica(b64: string): Promise<CryptoKey | null> {
   let p = cachePublicas.get(b64);
   if (!p) {
     p = sutil()
       .importKey("raw", deBase64Url(b64) as BufferSource, ALG, false, ["verify"])
       .catch(() => null);
+    p.catch(() => cachePublicas.delete(b64));
     cachePublicas.set(b64, p);
     if (cachePublicas.size > 64) cachePublicas.delete(cachePublicas.keys().next().value as string);
   }
@@ -172,13 +173,14 @@ export async function temaPrivado(id: string, token: string): Promise<string> {
 
 const cacheCifrado = new Map<string, Promise<CryptoKey>>();
 
-function claveCifrado(id: string, token: string): Promise<CryptoKey> {
+export function claveCifrado(id: string, token: string): Promise<CryptoKey> {
   const k = `${id}:${token}`;
   let p = cacheCifrado.get(k);
   if (!p) {
     p = sha256(`cifrado:${id}:${token}`).then((bruto) =>
       sutil().importKey("raw", bruto as BufferSource, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]),
     );
+    p.catch(() => cacheCifrado.delete(k));
     cacheCifrado.set(k, p);
   }
   return p;
