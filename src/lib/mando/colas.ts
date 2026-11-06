@@ -169,6 +169,19 @@ export function modelosAsignables(): string[] {
     return [...ROTACION];
 }
 
+/**
+ * (SUP0511Cb, 05-11) Caché por archivo de `leerColasCompletas`, como `CACHE_COLAS` de
+ * lector-local.ts: leer e interpretar TODAS las `cola-*.json` en cada llamada eran ~23 MB por
+ * llamada (30 archivos el 05-11; cola-suenos-2026-10-31.json, 6,8 MB) en el montón de Genesis.
+ * `stat` primero; con `mtimeMs` y `size` iguales se reutiliza la cola ya interpretada. Lo que
+ * se devuelve son copias: quien llama puede mutarlas sin tocar la caché.
+ */
+const CACHE_COLAS_COMPLETAS = new Map<string, { mtimeMs: number; size: number; cola: ColaCompleta }>();
+
+function copiaDeCola(c: ColaCompleta): ColaCompleta {
+    return { ...c, tareas: c.tareas.map((t) => ({ ...t, archivos: [...t.archivos], depende: [...t.depende] })) };
+}
+
 /** Todas las colas completas del disco, de la más reciente a la más antigua. */
 export async function leerColasCompletas(): Promise<ColaCompleta[]> {
     let nombres: string[] = [];
@@ -178,16 +191,24 @@ export async function leerColasCompletas(): Promise<ColaCompleta[]> {
         return [];
     }
     const salida: ColaCompleta[] = [];
+    const vistas = new Set<string>();
     for (const archivo of nombres) {
+        const ruta = path.join(OLAS, archivo);
+        vistas.add(ruta);
         try {
-            const crudo = JSON.parse(await readFile(path.join(OLAS, archivo), "utf-8")) as unknown;
+            const info = await stat(ruta);
+            const guardada = CACHE_COLAS_COMPLETAS.get(ruta);
+            if (guardada && guardada.mtimeMs === info.mtimeMs && guardada.size === info.size) {
+                salida.push(copiaDeCola(guardada.cola));
+                continue;
+            }
+            const crudo = JSON.parse(await readFile(ruta, "utf-8")) as unknown;
             const bruto: unknown[] = Array.isArray(crudo)
                 ? crudo
                 : Array.isArray(objeto(crudo).tareas)
                   ? (objeto(crudo).tareas as unknown[])
                   : [];
-            const info = await stat(path.join(OLAS, archivo));
-            salida.push({
+            const cola: ColaCompleta = {
                 nombre: archivo.replace(/^cola-/, "").replace(/\.json$/, ""),
                 archivo,
                 origen: "disco",
@@ -205,11 +226,16 @@ export async function leerColasCompletas(): Promise<ColaCompleta[]> {
                         ...extrasDeTarea(d),
                     };
                 }).filter((t) => t.id),
-            });
+            };
+            CACHE_COLAS_COMPLETAS.set(ruta, { mtimeMs: info.mtimeMs, size: info.size, cola });
+            salida.push(copiaDeCola(cola));
         } catch {
-            // cola ilegible: se salta
+            // cola ilegible: se salta y no se guarda
+            CACHE_COLAS_COMPLETAS.delete(ruta);
         }
     }
+    // Las que ya no están en el directorio salen de la caché.
+    for (const r of [...CACHE_COLAS_COMPLETAS.keys()]) if (!vistas.has(r)) CACHE_COLAS_COMPLETAS.delete(r);
     // Colas que solo existen en la otra máquina: se reconstruyen del bus (evento «arranque»).
     const enDisco = new Set(salida.map((c) => c.nombre));
     for (const c of await colasDelBus()) {
