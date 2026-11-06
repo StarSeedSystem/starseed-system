@@ -162,6 +162,33 @@ class GuionTest(unittest.TestCase):
         with mock.patch.dict(sys.modules, {"bpy": self.bpy, "bmesh": self.bmesh}, clear=False):
             return importlib.reload(blender_voxel_blender)
 
+    def escena(self, cerrada=True, salud=None, con_textura=False):
+        """Corre main() del guion con el taller simulado y espías; vuelve la chuleta:
+        preparar, seleccionar, remallar, salud, rehornear, exportar, original,
+        remallada, intento (SystemExit o None) y texto (lo impreso)."""
+        original, remallada = mock.MagicMock(), mock.MagicMock()
+        ficha_salud = salud if salud is not None else {"bordes_abiertos": 0, "no_manifold": 0, "caras": 12}
+        with mock.patch.object(self.modulo, "preparar") as preparar, \
+                mock.patch.object(self.modulo, "malla_unica", return_value=original), \
+                mock.patch.object(self.modulo, "copiar", return_value=remallada), \
+                mock.patch.object(self.modulo, "seleccionar") as seleccionar, \
+                mock.patch.object(self.modulo, "remallar", return_value=0.1) as remallar, \
+                mock.patch.object(self.modulo, "cerrada", return_value=cerrada), \
+                mock.patch.object(self.modulo, "salud", return_value=ficha_salud) as salud_espia, \
+                mock.patch.object(self.modulo, "rehornear") as rehornear, \
+                mock.patch.object(self.modulo, "exportar", return_value=["/tmp/m.glb"]) as exportar:
+            salida = io.StringIO()
+            intento = None
+            try:
+                with redirect_stdout(salida):
+                    self.modulo.main(["/tmp/e.glb", "/tmp/m.glb", 600, con_textura, "impresion"])
+            except SystemExit as error:
+                intento = error
+            return {"preparar": preparar, "seleccionar": seleccionar, "remallar": remallar,
+                    "salud": salud_espia, "rehornear": rehornear, "exportar": exportar,
+                    "original": original, "remallada": remallada, "intento": intento,
+                    "texto": salida.getvalue()}
+
     def malla_falsa(self, dimensiones=(2, 2, 1), lados=(2, 2, 2, 2), caras=12):
         malla = mock.MagicMock()
         malla.dimensions = dimensiones
@@ -226,6 +253,43 @@ class GuionTest(unittest.TestCase):
         setattr(self.bpy.ops.wm, "3mf_export", mock.MagicMock(side_effect=AttributeError("no hay")))
         rutas = self.modulo.exportar(mock.MagicMock(), "/tmp/m.glb", "impresion")
         self.assertEqual(rutas, ["/tmp/m.glb", "/tmp/m.stl"])
+
+    def test_exportar_sin_exportador_de_stl_no_se_finge(self):
+        """Si el STL no sale en esta versión, la lista trae el 3MF y nada fingido."""
+        self.bpy.ops.wm.stl_export = mock.MagicMock(side_effect=RuntimeError("no sale"))
+        setattr(self.bpy.ops.wm, "3mf_export", mock.MagicMock())
+        rutas = self.modulo.exportar(mock.MagicMock(), "/tmp/m.glb", "impresion")
+        self.assertEqual(rutas, ["/tmp/m.glb", "/tmp/m.3mf"])
+
+    def test_main_con_malla_abierta_para_y_avisa(self):
+        """«Basta de ilusiones»: si queda abierta, avisa MALLA_NO_CERRADA y sale 1 sin exportar."""
+        chuleta = self.escena(
+            cerrada=False,
+            salud={"bordes_abiertos": 2, "no_manifold": 0, "caras": 11})
+        self.assertIsNotNone(chuleta["intento"])
+        self.assertEqual(chuleta["intento"].code, 1)
+        self.assertIn("MALLA_NO_CERRADA", chuleta["texto"])
+        self.assertIn("bordes_abiertos", chuleta["texto"])
+        chuleta["exportar"].assert_not_called()
+        chuleta["rehornear"].assert_not_called()
+
+    def test_main_feliz_reporta_voxel_y_ficha(self):
+        """El feliz imprime el vóxel y una FICHA legible, sin rehorneado ni textura ajena."""
+        chuleta = self.escena()
+        self.assertIsNone(chuleta["intento"])
+        self.assertIn("INFO: Tamaño de vóxel calculado: 0.10000", chuleta["texto"])
+        linea = next(l for l in chuleta["texto"].splitlines() if l.startswith("FICHA: "))
+        ficha = json.loads(linea[len("FICHA: "):])
+        self.assertEqual(ficha, {"salud": {"bordes_abiertos": 0, "no_manifold": 0, "caras": 12},
+                                 "extras": []})
+        chuleta["rehornear"].assert_not_called()
+
+    def test_main_con_textura_rehornea_del_original_al_remallado(self):
+        """Con textura pedida, el rehorneado se llama con (original, remallada, ruta png)."""
+        chuleta = self.escena(con_textura=True)
+        self.assertIsNone(chuleta["intento"])
+        chuleta["rehornear"].assert_called_once_with(chuleta["original"], chuleta["remallada"],
+                                                     "/tmp/m-rehorneada.png")
 
     def test_rehornear_falla_si_original_sin_materiales(self):
         """rehornear debe detectar si el original no tiene materiales válidos y fallar explícitamente."""
