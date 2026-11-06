@@ -4847,3 +4847,12 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `IMG-agentes-referencias-diseno-agentes-refer` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/IMG-agentes-referencias-diseno-agentes-refer conservada)
 - `VER1105Db-d3` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/VER1105Db-d3 conservada)
+
+## 2026-11-06 06:52 · auto-1106-062511
+
+**Lo que se pidió.** Pastilla
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `VER1105Db-d3` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/VER1105Db-d3 conservada)
