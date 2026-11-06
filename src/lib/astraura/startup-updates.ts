@@ -37,7 +37,12 @@ import { readNeuronVoiceChoice, neuronVoiceChoiceIsStale } from "@/lib/aurora/tt
 import { avisoResuelto, estadoAviso, marcarAviso, olvidarAviso } from "@/lib/sync/avisos-cuenta";
 import { neuronDeviceIdActual } from "@/lib/network/identidad-dispositivo";
 // (Adenda 138 · llmfit) Firma de novedades del SCOUT: misma pauta firma+visto que el catálogo.
-import { SCOUT_SIGNATURE_KEY, scoutSignature, hasNewScoutFindings, markScoutSeen } from "@/ai/astraura/model-scout";
+import {
+    scoutSignature,
+    hasNewScoutFindings,
+    markScoutSeen,
+} from "@/ai/astraura/model-scout";
+import { detectCapabilities } from "@/lib/neurons/neurons";
 import type { NeuronCapabilities } from "@/lib/neurons/neurons";
 
 // Re-exportar para tests y consumidores que no quieran depender de model-scout.ts directamente
@@ -87,12 +92,39 @@ export function catalogSignature(): string {
   return `${ids.length}.${REGISTRY_REVIEWED}.${hash(ids.join("|"))}`;
 }
 
-/* ────────────────────────── Firma de novedades del SCOUT (Adenda 138) ────────────────────────── */
+/* ───────────── Firma de novedades del SCOUT (llmfit · Adenda 138) ───────────── */
+/** Firma actual del scout para ESTE hardware + catálogo. Barata: no ejecuta scoutModels completo. */
+export async function scoutSignatureActual(): Promise<string> {
+  try {
+    const caps = await detectCapabilities();
+    return scoutSignature(caps, catalogIds().length);
+  } catch {
+    return "0.0";
+  }
+}
 
-/** Firma de scout vista por última vez en ESTE medio (clave local, NO viaja con la cuenta). */
+/** ¿Hay hallazgos nuevos del scout desde la última vez? (cambio de hardware o catálogo). */
+export async function hayNovedadesScout(): Promise<boolean> {
+  try {
+    const sig = await scoutSignatureActual();
+    return hasNewScoutFindings(sig);
+  } catch {
+    return false;
+  }
+}
+
+/** Marca la firma actual del scout como vista (localStorage local, no viaja con la cuenta). */
+export async function marcarScoutVisto(): Promise<void> {
+  try {
+    const sig = await scoutSignatureActual();
+    markScoutSeen(sig);
+  } catch { /* noop */ }
+}
+
+// Firma de scout vista por última vez en ESTE medio (clave local, NO viaja con la cuenta).
+// También escrita en SCOUT_SEEN_KEY para sincronización adicional.
 export const SCOUT_SEEN_KEY = "starseed.astraura.scout.seen.v1";
 
-/** Lee la firma de scout guardada localmente. Nunca lanza. */
 function leerScoutSeen(): string | undefined {
   try {
     const raw = safeGet(SCOUT_SEEN_KEY);
@@ -102,38 +134,9 @@ function leerScoutSeen(): string | undefined {
   }
 }
 
-/** Guarda la firma de scout como vista localmente. Nunca lanza. */
 function escribirScoutSeen(sig: string): void {
   try {
     safeSet(SCOUT_SEEN_KEY, sig);
-  } catch {
-    /* noop */
-  }
-}
-
-/**
- * ¿Hay hallazgos nuevos del scout para ESTE hardware?
- * Usa `scoutSignature` del motor + `hasNewScoutFindings` (compara contra localStorage).
- * Nunca lanza.
- */
-export function hayNovedadesScout(caps: NeuronCapabilities, catalogLen: number): boolean {
-  try {
-    const sig = scoutSignature(caps, catalogLen);
-    return hasNewScoutFindings(sig);
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Marca la firma actual del scout como vista (para no volver a avisar hasta que cambie).
- * Nunca lanza.
- */
-export function marcarScoutVisto(caps: NeuronCapabilities, catalogLen: number): void {
-  try {
-    const sig = scoutSignature(caps, catalogLen);
-    markScoutSeen(sig);
-    escribirScoutSeen(sig);
   } catch {
     /* noop */
   }
@@ -334,10 +337,10 @@ export type DecisionArranque =
   | { accion: "nada"; motivo: "pospuesto" | "al-dia"; sellar?: string };
 
 /**
- * Decide la acción de arranque. Si se proveen `caps` (capacidades de la neurona),
- * también comprueba hallazgos nuevos del SCOUT (Adenda 138 · llmfit).
+ * Decide la acción de arranque. Base sincrónica que solo mira el estado guardado.
+ * Si hay novedades del SCOUT, usa `decidirArranqueConScout`.
  */
-export function decidirArranque(now = Date.now(), caps?: NeuronCapabilities): DecisionArranque {
+export function decidirArranque(now = Date.now()): DecisionArranque {
   const st = getStartupState();
   if (st.snoozeUntil && st.snoozeUntil > now) return { accion: "nada", motivo: "pospuesto" };
   if (!st.firstRunDone) return { accion: "ventana", motivo: "primera-vez", pendientes: pendingConfiguration() };
@@ -351,17 +354,20 @@ export function decidirArranque(now = Date.now(), caps?: NeuronCapabilities): De
     if (modelos + fuentes > 0) return { accion: "aviso", motivo: "novedades", modelos, fuentes, firma };
     return { accion: "nada", motivo: "al-dia", sellar: firma };
   }
-  // Hallazgos nuevos del SCOUT (Adenda 138 · llmfit): mismo patrón firma+visto que el catálogo.
-  // La firma del scout depende del hardware (RAM/GPU/núcleos/WebGPU) + tamaño de catálogo.
-  // Si hay novedades, es un aviso pequeño (no ventana), salvo que además haya algo pendiente.
-  if (caps) {
-    try {
-      const catalogLen = catalogIds().length;
-      if (hayNovedadesScout(caps, catalogLen)) {
-        return { accion: "aviso", motivo: "novedades-scout", modelos: 0, fuentes: 0, firma: "scout" };
-      }
-    } catch { /* degradación silenciosa */ }
-  }
+  return { accion: "nada", motivo: "al-dia" };
+}
+
+/** Versión con scout: igual que `decidirArranque` pero también comprueba hallazgos nuevos del scout (llmfit). */
+export async function decidirArranqueConScout(now = Date.now()): Promise<DecisionArranque> {
+  const base = decidirArranque(now);
+  if (base.accion !== "nada") return base; // ya hay motivo más prioritario
+  try {
+    const hayScout = await hayNovedadesScout();
+    if (hayScout) {
+      const sig = await scoutSignatureActual();
+      return { accion: "aviso", motivo: "novedades-scout", modelos: 0, fuentes: 0, firma: sig };
+    }
+  } catch { /* degradación silenciosa */ }
   return { accion: "nada", motivo: "al-dia" };
 }
 
@@ -394,6 +400,12 @@ export function markUpdatesSeen(patch: Partial<StartupState> = {}): void {
     firstRunDone: true,
     snoozeUntil: 0,
   });
+}
+
+/** Marca catálogo y scout como vistos (para cuando el usuario revisa la ventana). */
+export async function markUpdatesSeenConScout(patch: Partial<StartupState> = {}): Promise<void> {
+  markUpdatesSeen(patch);
+  await marcarScoutVisto();
 }
 
 /**

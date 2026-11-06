@@ -41,10 +41,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
-  copiarEstadoLocalACuenta, catalogIds, decidirArranque, getStartupState, marcarScoutVisto,
-  sellarCatalogoVisto, subscribeStartupOpen, openStartupUpdates, snoozeUpdates, type DecisionArranque,
+  copiarEstadoLocalACuenta, decidirArranque, decidirArranqueConScout, getStartupState, sellarCatalogoVisto,
+  subscribeStartupOpen, openStartupUpdates, snoozeUpdates, markUpdatesSeenConScout, marcarScoutVisto, type DecisionArranque,
 } from "@/lib/astraura/startup-updates";
-import type { NeuronCapabilities } from "@/lib/neurons/neurons";
 import { cuandoCuentaFiable } from "@/lib/sync/realtime-sync";
 import { isSetupPending, subscribeSetup, markSetupDone } from "@/lib/aurora/setup-config";
 import { esMiTurno, terminarEtapa, suscribirRito } from "@/lib/onboarding/director-rito";
@@ -58,20 +57,6 @@ import { cn } from "@/lib/utils";
 export function StartupUpdatesModal() {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  // (Adenda 138 · llmfit) Capacidades de ESTA neurona, para la firma de hallazgos del
-  // SCOUT (`scoutSignature`). Detectar es caro (sondas de red): se pide UNA vez por
-  // página y se reutiliza en la decisión de arranque y al sellar.
-  const capsMemoriaRef = useRef<Promise<NeuronCapabilities | undefined> | undefined>(undefined);
-  const capsDeMedio = useCallback(async (): Promise<NeuronCapabilities | undefined> => {
-    try {
-      if (!capsMemoriaRef.current) {
-        capsMemoriaRef.current = import("@/lib/neurons/neurons").then((m) => m.detectCapabilities());
-      }
-      return await capsMemoriaRef.current;
-    } catch {
-      return undefined; // sin caps: el scout simplemente no se consulta (degrada en silencio)
-    }
-  }, []);
   // (Adenda 192) Cortesía con el rito/guía: manual = nunca replegar; espera viva.
   const manualRef = useRef(false);
   const esperaRef = useRef<(() => void) | null>(null);
@@ -177,14 +162,11 @@ export function StartupUpdatesModal() {
     // Aviso pequeño de novedades (catálogo o SCOUT; no bloqueante). Se sella al mostrarlo, así
     // ni este medio ni los demás lo repiten hasta que cambie la firma; «Ver» abre la ventana con
     // el detalle. Espera a que el rito/la guía dejen el primer plano, como la ventana grande.
-    const mostrarAvisoNovedades = (d: Extract<DecisionArranque, { accion: "aviso" }>, caps?: NeuronCapabilities) => {
+    const mostrarAvisoNovedades = (d: Extract<DecisionArranque, { accion: "aviso" }>) => {
       // (Adenda 138) El sello del SCOUT es LOCAL a este medio (la firma lleva el hardware propio,
       // así que un ordenador no le puede ahorrar el aviso a un móvil): patrón firma+visto igual.
-      if (d.motivo === "novedades-scout" && caps) {
-        try { marcarScoutVisto(caps, catalogIds().length); } catch { /* */ }
-      } else {
-        sellarCatalogoVisto(d.firma);
-      }
+      if (d.motivo === "novedades") sellarCatalogoVisto(d.firma);
+      else if (d.motivo === "novedades-scout") marcarScoutVisto();
       const partes: string[] = [];
       if (d.motivo === "novedades") {
         if (d.modelos > 0) partes.push(`${d.modelos} ${d.modelos === 1 ? "modelo nuevo" : "modelos nuevos"}`);
@@ -213,10 +195,9 @@ export function StartupUpdatesModal() {
       if (cerradaPorUsuarioRef.current) return;
       try {
         copiarEstadoLocalACuenta();
-        const caps = await capsDeMedio();
-        const d = decidirArranque(Date.now(), caps);
+        const d = await decidirArranqueConScout();
         if (d.accion === "ventana") abrirConCortesia();
-        else if (d.accion === "aviso") mostrarAvisoNovedades(d, caps);
+        else if (d.accion === "aviso") mostrarAvisoNovedades(d);
         else if (d.sellar) sellarCatalogoVisto(d.sellar);
       } catch { /* si falla el gate, no se abre nada: mejor callar que reabrir */ }
     };
@@ -224,8 +205,7 @@ export function StartupUpdatesModal() {
     const tocaVentana = async () => {
       try {
         copiarEstadoLocalACuenta();
-        const caps = await capsDeMedio();
-        return decidirArranque(Date.now(), caps).accion === "ventana";
+        return (await decidirArranqueConScout()).accion === "ventana";
       } catch { return false; }
     };
     // (Ola 247 · 2026-09-05) Relevo directo del rito: si la máquina de estados
@@ -345,15 +325,10 @@ export function StartupUpdatesModal() {
       <AstrauraOmniVoiceConfig
         variant="modal"
         initialSection="astraura"
-        onApply={() => {
+        onApply={async () => {
+          await markUpdatesSeenConScout();
           cerrarDefinitivo();
           lanzarGuiaPendiente();
-          // (Adenda 138) Aplicar = el usuario revisó el catálogo completo: la firma del
-          // SCOUT queda vista (local a este medio) y no se vuelve a anunciar hasta que
-          // cambie (nuevos catálogos o capacidades distintas). Nunca lanza.
-          void capsDeMedio()
-            .then((caps) => { if (caps) marcarScoutVisto(caps, catalogIds().length); })
-            .catch(() => { /* el sello es prescindible */ });
         }}
         onDismiss={cerrarSinAplicar}
       />
