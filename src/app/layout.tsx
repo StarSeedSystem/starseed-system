@@ -291,7 +291,6 @@ export default function RootLayout({
         <RegisterSW />
         <ActualizacionNativa />
         <UpdateBanner />
-        <AvisoActualizacion />
         {/* Núcleo intocable cableado en el ARRANQUE: deja registrados los dos
             guardianes (UiSpec + invariantes) que revisan cualquier paquete
             compartido antes de instalarlo. Sin UI, idempotente, SSR-safe. */}
@@ -452,6 +451,9 @@ export default function RootLayout({
                         <CommandPalette />
                         <Toaster />
                         <Sonner />
+                        {/* (AVS1106A) DENTRO de AppearanceProvider: su ventana usa Dialog y Button, que leen la
+                            apariencia; fuera de él tumbaba las apps instaladas al abrirse. */}
+                        <AvisoActualizacion />
                         </AuroraProvider>
                       </PerimeterProvider>
                     </ControlPanelProvider>
