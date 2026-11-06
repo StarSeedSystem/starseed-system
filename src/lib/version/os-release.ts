@@ -3,16 +3,16 @@
 // Cualquier medio que muestre la versión debe leer de aquí y jamás escribir
 // su propia fecha (ver el test medios-version-coherentes y el checkpoint).
 
-export const OS_VERSION = "2026.10.09";
+export const OS_VERSION = "2026.11.06";
 
-export const OS_FECHA = "2026-10-09";
+export const OS_FECHA = "2026-11-06";
 
 export type CanalRelease = "alpha" | "beta" | "estable";
 
 export const OS_CANAL: CanalRelease = "alpha";
 
 export const OS_NOTAS =
-  "Apps nativas 0.3.0 de StarSeed OS, Nexus y Café para macOS, Windows, Linux y Android: cada app de escritorio instalada se actualiza sola desde su propio canal (hasta ahora solo lo hacía StarSeed OS) y la Biblioteca ofrece el instalador de cada una para tu sistema. Genesis llega a personas, grupos y comunidades, se repara solo y publica tras sus pruebas. Nuevas Estaciones con transmisiones en directo libres. Las capas de Astraura (Needle 3, Bonsai 1.58 y BitNet) se eligen por tarea y por dispositivo, cada una con su huella verificada, y sus nodos dicen su salud real. La malla suma el enrutamiento cognitivo multiespectro (CAMR), y los widgets caben en su tarjeta en todos los tamaños.";
+  "StarSeed OS 0.4.0: Publicar los 4 commits que esperan en `main` (impacto alto / esfuerzo bajo).; Biblioteca: ficha de NVIDIA MotionBricks (movimiento en tiempo real para avatares), próximamente; ADN: las sombras y las tipografías que Alex decidió el 2026-10-19; BAMA · el generador de apps ofrece «Nativa · macOS (BAMA)» con sus requisitos visibles (parte 2 de 2); Reconstructor · no compila en el A1 cambios de src/ que no están en git (el parche sin commit de Hermes llegó a la pantalla); Estudio audiovisual: la regla de la intro canónica y el sello en las referencias; Llmfit · la ventana de inicio usa la firma de novedades del explorador de modelos (parte 3 de 3); MASTER del design system marcado como heredado; Estudio audiovisual: tokens.json con las duraciones reales (no 0ms); OpenUI · bloque «Respuesta viva» en la Protomolécula y el lienzo universal (parte 2 de 2); Genesis · leerColasCompletas no vuelve a leer ni parsear las colas que no cambiaron (23 MB por llamada); «Versiones» con el estado por fases del director (sin el TypeError de 'web') y «Pausar» como petición (y 1390 más).";
 
 /**
  * Versión del PAQUETE NATIVO (Tauri 2, proyecto `native/`): el shell de
@@ -21,7 +21,7 @@ export const OS_NOTAS =
  * `package.json` en cada release nativa — los cuatro sitios deben coincidir
  * (ver native/README.md §11 «Cómo publicar una release»).
  */
-export const NATIVE_VERSION = "0.3.0";
+export const NATIVE_VERSION = "0.4.0";
 
 /** Etiqueta de tag/Release de GitHub para el paquete nativo (`v<NATIVE_VERSION>`). */
 export const NATIVE_TAG = `v${NATIVE_VERSION}`;
