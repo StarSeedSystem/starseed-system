@@ -1,0 +1,39 @@
+{
+ "ola": "nube-20261106",
+ "tareas": [
+  {
+   "id": "DR1029-1",
+   "ola": "Ola Imaginación 2026-10-29 · lo que el análisis nocturno encontró",
+   "titulo": "Publicar los 4 commits que esperan en `main` (impacto alto / esfuerzo bajo).",
+   "archivos": [],
+   "depende": [],
+   "prompt": "ORIGEN: esto lo escribió el Dream —el análisis nocturno de Hermes— en `starseed_memory_root/dream/sugerencias-2026-10-29.md`, sección «top 3 accionables». Texto literal del informe:\n\n  Publicar los 4 commits que esperan en `main` (impacto alto / esfuerzo bajo). — HEAD es `a47bf3f5c` (INV1025D · cliente TypeScript del extractor ScrapeGraphAI) y `git rev-list origin/main..HEAD` confirma 4 sin push — la ola 1009S ya avisaba de «commits sin publicar: 4» y siguen siendo 4: el enjambre integra más rápido de lo que se publica, así que producción (`starseed-os.vercel.app`) va acumulando retraso. Pasos: con el enjambre parado, `npx tsc --noEmit` + `npx vitest run src/lib/__tests__`, luego push a `main` (despliega Vercel) y verificar `Vercel: success`. No es un deploy nuevo: es publicar lo ya integrado.\n\nANTES DE ESCRIBIR NADA: comprueba que sigue siendo cierto. El Dream lo escriben modelos gratuitos leyendo registros, y a veces proponen algo que YA está hecho o que se entendió mal. Si al mirar el repo resulta que no aplica, no inventes trabajo: escribe en tu respuesta una línea `NO APLICA: <motivo>` y para.\n\nSi aplica: acota el cambio a lo mínimo que resuelva lo que dice el informe, y dilo en el commit. Máximo 3 archivos y 120 líneas por archivo. Las reglas de la casa están en `memory/workflow-actual.md` — léelas: el silencio no es aprobación, integrado no es aplicado, y si una prueba falla se arregla el código, no la prueba."
+  },
+  {
+   "ola": "1105V · Centro de Versiones",
+   "origen": "nube-reparar",
+   "rama_nube": "nube/42082285857",
+   "id": "VER1105Db-d3",
+   "titulo": "Centro de Versiones · el medidor «versiones» (clave, orden y filas del medidor) (parte 3 de 3)",
+   "archivos": [
+    "src/lib/mando/__tests__/medidor-versiones.test.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Estilo Trinity (clases `mc-*` y componentes de `src/components/ui/`), textos de la interfaz en español, accesible (roles, aria-label, foco).\n\nContrato: `architecture/centro-versiones-1105.md` (léelo entero antes de escribir: es la fuente de verdad). El director que lanza las versiones ya existe: `scripts/puente/director_lanzamientos.py` y su lógica pura `scripts/puente/lanzamientos_logica.py` (MEDIOS, archivos_esperados, FASES). Su estado está en `~/.starseed/produccion/lanzamientos-estado.json`: {fase, detalle, version, pasos[{fase,t,detalle}], jobs[{medio,job,estado,url,inicio,fin}], medios{<medio>:{estado,faltan,pequenos}}, run_url, release_url, historial[], pausado, tono}.\n\n§4 «Pastilla». Añade `\"versiones\"` a `ClaveMedidor` y a `ORDEN_POR_DEFECTO` (detrás de `sin-publicar`) en `medidores.ts`, y en la ruta de medidores el caso `clave=versiones` que lee el estado del director (mismo archivo que la API de lanzamientos) y devuelve el detalle del medidor con el patrón de los demás (resumen = fase y detalle; una fila por medio con `filasDeMedios`). Cambios mínimos en esos dos archivos grandes: no reformatees nada. Prueba del caso nuevo.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/42082285857`)\nUn agente de la nube ya avanzó esta tarea (no pasa en GitHub (run 42093370092) falla «tsc»: 19:24:38.2858179Z env:\n2026-11-05T19:24:38.2858389Z   OPENUI_TELEMETRY_DISABLED: 1\n2026-11-05T19:24:38.2858632Z   DO_NOT_TRACK: 1\n2026-11-05T19:24:38.2858883Z   NODE_OPTIONS: --max-old-space-size=8192\n2026-11-05T19:24:38.2859174Z ##[endgroup]\n2026-11-05T19:27:20.7798888Z ##[error]vitest.setup-dom.ts(16,14): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.\n2026-11-05T19:27:20.7807435Z ##[error]vitest.setup-dom.ts(17,16): error TS2306: File '/home/runner/work/starseed-system/starseed-system/node_modules/@testing-library/jest-dom/types/index.d.ts' is not a module.\n2026-11-05T19:27:21.2952577Z ##[error]Process completed with exit code 2.). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/42082285857:refs/remotes/origin/nube/42082285857\"` y `git cherry-pick --no-commit 7e70d7763710`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/app/api/mando/medidores/route.ts, src/lib/mando/__tests__/medidor-versiones.test.ts, src/lib/mando/medidores.ts.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.\n\n## PARTE 3 DE 3 (la dirección dividió VER1105Db: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/lib/mando/__tests__/medidor-versiones.test.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "VER1105Db",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "revisor_quitadas": [
+    "VER1105Db-d2"
+   ]
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1105-221934.json": [
+   "DR1029-1",
+   "VER1105Db-d3"
+  ]
+ }
+}
