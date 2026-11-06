@@ -4833,3 +4833,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `IRD11061` — otra cosa: 2 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-06-1.json
 - `IRD11062` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-06-2.json
 - `ENT-agentes-referencias-diseno-agentes-re-45cd82-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-45cd82-v1.json
+
+## 2026-11-06 06:19 · auto-1106-054758
+
+**Lo que se pidió.** Pastilla
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — la revisión lo rechazó (IMG-agentes-referencias-diseno-agentes-refer, VER1105Db-d3). Es 100 % de la ola.
+- freellmapi/auto no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `IMG-agentes-referencias-diseno-agentes-refer` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/IMG-agentes-referencias-diseno-agentes-refer conservada)
+- `VER1105Db-d3` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/VER1105Db-d3 conservada)
