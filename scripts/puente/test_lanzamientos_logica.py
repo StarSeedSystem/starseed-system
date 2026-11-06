@@ -181,12 +181,73 @@ class AplicarVersion(unittest.TestCase):
 
 
 class Notas(unittest.TestCase):
-    def test_de_asuntos(self):
-        n = L.notas_de(["Ola 1105 · VER1105A: Panel de versiones en el pulso",
-                        "salvavidas · VER1105A: trabajo del agente", "1105V · VER1105B: Aviso de actualización",
-                        "1105V · VER1105B: Aviso de actualización"], "0.4.0")
-        self.assertEqual(n, "StarSeed OS 0.4.0: Panel de versiones en el pulso; Aviso de actualización.")
-        self.assertIn("mejoras y correcciones", L.notas_de([], "0.4.1"))
+    def test_de_asuntos_agrupa_por_ola(self):
+        asuntos = [
+            "Ola 1105 · VER1105A: Panel de versiones en el pulso",
+            "Ola 1105 · VER1105B: Aviso de actualización",
+            "1104R · VER1104C: Centro de Versiones",
+            "1104R · VER1104D: Pulso unificado",
+            "salvavidas · VER1105A: trabajo del agente",
+            "1105V · VER1105E: Mejoras en el puente",
+        ]
+        n = L.notas_de(asuntos, "0.4.0")
+        # Formato: "Centro de Versiones, Panel de versiones en el pulso, y Mejoras en el puente."
+        self.assertEqual(n, "StarSeed OS 0.4.0: Centro de Versiones, Panel de versiones en el pulso, y Mejoras en el puente.")
+
+    def test_filtra_olas_internas(self):
+        asuntos = [
+            "Supervisión · VER1105A: Revisión semanal",
+            "Seguimiento · VER1105B: Tareas pendientes",
+            "Capacidad · VER1105C: Planificación",
+            "Carril · VER1105D: Organización",
+            "Opus · VER1105E: Modelo",
+            "Contratos pendientes · VER1105F: Legal",
+            "Rescate · VER1105G: Recuperación",
+            "Imaginación · VER1105H: Ideas",
+            "Lanzamiento · VER1105I: Preparar release",
+            "chore · VER1105J: Limpieza",
+            "merge · VER1105K: Merge branch",
+            "salvavidas · VER1105L: Emergencia",
+            "1105V · VER1105M: Función real",
+        ]
+        n = L.notas_de(asuntos, "0.4.0")
+        self.assertEqual(n, "StarSeed OS 0.4.0: Función real.")
+
+    def test_vacio_devuelve_mejoras_y_correcciones(self):
+        n = L.notas_de([], "0.4.1")
+        self.assertEqual(n, "StarSeed OS 0.4.1: mejoras y correcciones.")
+        n = L.notas_de(["salvavidas · VER1105A: trabajo"], "0.4.1")
+        self.assertEqual(n, "StarSeed OS 0.4.1: mejoras y correcciones.")
+
+    def test_maximo_seis_olas(self):
+        # IDs deben tener 3-5 dígitos: VER101A, VER102A, etc.
+        asuntos = [f"Ola {i} · VER{100+i}A: Ola {i}" for i in range(1, 10)]
+        n = L.notas_de(asuntos, "0.4.0", maximo=6)
+        self.assertEqual(n.count(","), 5)
+        self.assertIn(", y ", n)
+        self.assertNotIn(";", n)
+        self.assertNotIn("(", n)
+
+    def test_sin_punto_y_coma_ni_parentesis(self):
+        asuntos = ["1105V · VER1105A: Primera", "1104R · VER1104B: Segunda"]
+        n = L.notas_de(asuntos, "0.4.0")
+        self.assertNotIn(";", n)
+        self.assertNotIn("(", n)
+        self.assertTrue(n.endswith("."))
+
+    def test_orden_por_numero_commits(self):
+        # Usar títulos únicos por commit para que commit_count refleje el número real
+        asuntos = [
+            "Ola 100 · VER1105A: Una sola 1",
+            "Ola 200 · VER1105B: Dos commits 1",
+            "Ola 200 · VER1105C: Dos commits 2",
+            "Ola 300 · VER1105D: Tres commits 1",
+            "Ola 300 · VER1105E: Tres commits 2",
+            "Ola 300 · VER1105F: Tres commits 3",
+        ]
+        n = L.notas_de(asuntos, "0.4.0")
+        self.assertTrue(n.index("Tres commits 1") < n.index("Dos commits 1"))
+        self.assertTrue(n.index("Dos commits 1") < n.index("Una sola 1"))
 
 
 class Tono(unittest.TestCase):

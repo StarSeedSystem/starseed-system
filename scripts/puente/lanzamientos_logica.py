@@ -272,19 +272,91 @@ def aplicar_version(textos, nueva, fecha, notas):
     return fuera
 
 
-def notas_de(asuntos, version, maximo=12):
-    """Notas de la versión a partir de los asuntos de las tareas integradas («· ID: título»)."""
-    titulos = []
+def notas_de(asuntos, version, maximo=6):
+    """Notas de la versión a partir de los asuntos de las tareas integradas («· ID: título»).
+
+    Agrupa por OLA (texto antes de « · ID:»), ordena las olas por número de commits,
+    y escribe una frase legible: 'StarSeed OS X.Y.Z: <ola 1>, <ola 2>, … y <ola N>.'.
+    Sin ';', sin '(y N más)' y sin paréntesis en los títulos.
+    """
+    PREF_JUNK = ("salvavidas", "chore", "merge", "Lanzamiento", "Rescate")
+    OLA_JUNK = ("Supervisión", "Seguimiento", "Capacidad", "Carril", "Opus",
+                "Contratos pendientes", "Rescate", "Imaginación")
+
+    ola_titulos = {}  # ola_norm -> [titulo, ...]
+
     for a in asuntos or []:
-        if (a or "").lower().startswith(("salvavidas", "chore(memoria)", "merge")):
-            continue  # el trabajo a medias del agente y la memoria no son novedades
-        m = re.search(r"· [A-Z]{1,7}\d{3,5}[A-Za-z0-9-]*: (.+)$", a or "")
-        t = re.sub(r"^Rescate de pruebas · ", "", (m.group(1) if m else "").strip())
-        if t and t not in titulos:
-            titulos.append(t)
-    cuerpo = "; ".join(titulos[:maximo]) or "mejoras y correcciones"
-    mas = " (y %d más)" % (len(titulos) - maximo) if len(titulos) > maximo else ""
-    return "StarSeed OS %s: %s%s." % (version, cuerpo, mas)
+        a = a.strip()
+        lower_a = a.lower()
+        # Skip tareas con prefijos internos (comparación case-insensitive)
+        if any(lower_a.startswith(p.lower()) for p in PREF_JUNK):
+            continue
+
+        # Extraer título: texto después de " · ID:"
+        m = re.search(r"· [A-Z]{1,7}\d{3,5}[A-Za-z0-9-]*: (.+)$", a)
+        if not m:
+            continue
+        titulo = m.group(1).strip()
+
+        # Extraer prefijo de ola (todo antes de " · ID:")
+        antes_id = a[:m.start()]
+        ola_raw = antes_id.strip()
+
+        # Normalized name: quitar "Ola " al inicio para agrupar
+        ola_norm = re.sub(r'^Ola\s+', '', ola_raw).strip()
+
+        # Filtrar olas cuyos nombres normalizados contienen palabras clave internas
+        if any(junk in ola_norm for junk in OLA_JUNK):
+            continue
+
+        # También filtrar títulos que empiecen con prefijos internos (case-insensitive)
+        if any(titulo.lower().startswith(p.lower()) for p in PREF_JUNK):
+            continue
+
+        if ola_norm not in ola_titulos:
+            ola_titulos[ola_norm] = []
+        ola_titulos[ola_norm].append(titulo)
+
+    # Construir info de ola: conteo de commits y título representativo (primer único, dedupado)
+    ola_info = []
+    for ola_norm, titulos_ola in ola_titulos.items():
+        # Título: primer título único (mantener orden, dedupar)
+        vistos = []
+        for t in titulos_ola:
+            if t not in vistos:
+                vistos.append(t)
+        # Extraer número de ola para ordenamiento desde el norm
+        num_match = re.search(r'(\d+)', ola_norm)
+        ola_num = int(num_match.group(1)) if num_match else 999
+        ola_info.append({
+            "ola_norm": ola_norm,
+            "commit_count": len(vistos),
+            "titulo_representativo": vistos[0] if vistos else "",
+            "ola_num": ola_num,
+        })
+
+    # Ordenar por: (a) mayor número de commits, (b) número de ola ascendente, (c) nombre de ola
+    def sort_key(ola):
+        return (-ola["commit_count"], ola["ola_num"], ola["ola_norm"])
+
+    ola_info.sort(key=sort_key)
+
+    # Tomar máximo de olas
+    ola_info = ola_info[:maximo]
+
+    if not ola_info:
+        return "StarSeed OS %s: mejoras y correcciones." % version
+
+    # Construir la lista de títulos
+    titulos = [ola["titulo_representativo"] for ola in ola_info]
+
+    if len(titulos) == 1:
+        cuerpo = titulos[0]
+    else:
+        # Formato: "título1, título2, ..., y títuloN" (Oxford comma + y)
+        cuerpo = ", ".join(titulos[:-1]) + ", y " + titulos[-1]
+
+    return "StarSeed OS %s: %s." % (version, cuerpo)
 
 
 def tono_pastilla(estado):
