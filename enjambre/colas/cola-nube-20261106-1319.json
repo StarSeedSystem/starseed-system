@@ -1,0 +1,17 @@
+{
+ "ola": "nube-20261106",
+ "tareas": [
+  {
+   "id": "CTR1106Bs",
+   "ola": "1106C · Contratos pendientes (2)",
+   "titulo": "Llmfit · scoutModels de punta a punta con aparatos fijos de gama alta, media y baja · lo que faltó: src/ai/astraura/model-scout.ts",
+   "archivos": [
+    "src/ai/astraura/model-scout.ts"
+   ],
+   "depende": [],
+   "origen": "seguimiento de alcance parcial",
+   "prompt": "SEGUIMIENTO de CTR1106B, que ya está integrada (sha 6f6ff2cb4cd0). Las cuatro puertas pasaron en verde y la revisión no puso pegas, pero el agente no llegó a tocar estos archivos: src/ai/astraura/model-scout.ts.\n\nTu encargo es SOLO esos archivos. No rehagas lo que ya está: léelo primero y engánchate a lo que hay. Tarea original: Llmfit · scoutModels de punta a punta con aparatos fijos de gama alta, media y baja\n\n--- encargo original, como contexto ---\nComprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest) de lo que tocas; no toques `vitest.setup-dom.ts` ni otra preparación global. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Pruebas deterministas: sin red, sin reloj real y sin detectar el aparato de verdad.\n\nContrato: `architecture/recomendador-modelos-llmfit.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§13: no hay ninguna prueba de `scoutModels(caps, opts)` (`src/ai/astraura/model-scout.ts`). Escribe `model-scout.test.ts` con tres `NeuronCapabilities` fijos (gama alta: mucha RAM y GPU grande; media: 16 GB y GPU pequeña; baja: 8 GB sin GPU), deterministas, sin `detectCapabilities()` ni red. Comprueba lo que el contrato promete: la gama baja no recibe modelos que no le caben, la alta recibe al menos los mismos y mayores, el orden es estable entre dos llamadas, y `scoutSignature` solo cambia cuando cambia la selección. Lee antes `NeuronCapabilities` y `ScoutOptions`. Toca `model-scout.ts` SOLO si una prueba destapa un fallo real, con el cambio mínimo.",
+   "depende_de": []
+  }
+ ]
+}
