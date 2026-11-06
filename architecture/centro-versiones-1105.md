@@ -31,7 +31,7 @@
 | `pwa` · App web instalable | manifiesto + service worker | con la web | SW nuevo activo |
 | `macos` | `.dmg` universal, `.app.tar.gz` + `.sig` | job `<sistema> · macos-latest` | archivos con tamaño mínimo |
 | `windows` | `.msi`, `-setup.exe` (+ `.sig`) | job `<sistema> · windows-latest` | ídem |
-| `linux` | `.AppImage`, `.deb`, `.rpm` (+ `.sig`) | job `<sistema> · ubuntu-22.04` | ídem |
+| `linux` | `.AppImage`, `.deb`, `.rpm` (+ `.sig`) | job `<sistema> · ubuntu-24.04` (glibc ≥ 2.39) | ídem |
 | `android` | `.apk` firmado | job `<sistema> · android` | ídem |
 | `ios` | `.ipa` | job iOS (sin firma) | **no disponible** hasta que haya cuenta de Apple; en iOS se usa la PWA |
 | `canales` | `latest.json`, `latest-nexus.json`, `latest-cafe.json` | job de canales | JSON válido, versión y firma por plataforma, URL a un archivo existente |
