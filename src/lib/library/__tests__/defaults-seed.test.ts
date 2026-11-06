@@ -9,7 +9,8 @@ import { FICHAS_REPOS_1025, IDS_SIEMBRA_1025, TANDA_1025_FICHAS } from "../repos
 import { FICHAS_REPOS_1026, IDS_SIEMBRA_1026, TANDA_1026_FICHAS } from "../repos-1026";
 import { FICHAS_REPOS_1027, IDS_SIEMBRA_1027, TANDA_1027_FICHAS } from "../repos-1027";
 import { IDS_SIEMBRA_1027B } from "../repos-1027b";
-import { IDS_SIEMBRA_1028 } from "../repos-1028";
+import { FICHAS_REPOS_1028, IDS_SIEMBRA_1028 } from "../repos-1028";
+import { TANDA_1028_FICHAS } from "../repos-1028";
 import { IDS_SIEMBRA_1101 } from "../repos-1101";
 import { IDS_SIEMBRA_1104 } from "../repos-1104";
 
@@ -289,5 +290,47 @@ describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remac
       expect(f.payload.downloadable, f.id).toBeUndefined();
       expect(String(f.payload.route ?? ""), f.id).toBe("");
     }
+  });
+});
+
+describe("defaults-seed · tanda 1028 (LEANN · el recuerdo semántico)", () => {
+  const nuevas = FICHAS_REPOS_1028.map((f) => f.id);
+
+  it("siembra lib-leann (la única ficha nueva de la tanda)", () => {
+    expect(nuevas).toHaveLength(1);
+    expect(nuevas[0]).toBe("lib-leann");
+    expect(RECOMMENDED_PACKAGE_IDS).toContain("lib-leann");
+  });
+
+  it("toda ficha «siempre» del JSON acaba sembrada", () => {
+    for (const f of TANDA_1028_FICHAS) {
+      if (f.preinstalar !== "siempre") continue;
+      expect(RECOMMENDED_PACKAGE_IDS).toContain(f.id);
+    }
+  });
+
+  it("la ficha LEANN es ai-source, no es descargable, no es comingSoon y no tiene route", () => {
+    const leann = FICHAS_REPOS_1028.find((f) => f.id === "lib-leann")!;
+    expect(leann.kind).toBe("ai-source");
+    expect(leann.comingSoon).toBeFalsy();
+    expect(leann.payload.route).toBeUndefined();
+    expect(String(leann.payload.externalUrl ?? "")).toContain("StarTrail-org/LEANN");
+  });
+
+  it("una cuenta nueva recibe lib-leann si la versión anterior era 24", () => {
+    const plan = selectSeedIds({
+      currentVersion: 24,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: FICHAS_REPOS_1028.map((f) => ({ id: f.id, comingSoon: f.comingSoon })),
+      alreadyOffered: [],
+      installedIds: [],
+    });
+    expect(plan.sort()).toEqual(["lib-leann"]);
+  });
+
+  it("lib-leann tiene contrato de memorias (leann-recuerdo-semantico.md)", () => {
+    const leann = FICHAS_REPOS_1028.find((f) => f.id === "lib-leann")!;
+    expect(leann.payload.contrato).toBe("architecture/leann-recuerdo-semantico.md");
   });
 });
