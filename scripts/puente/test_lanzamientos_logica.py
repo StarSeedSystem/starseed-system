@@ -244,6 +244,16 @@ class Notas(unittest.TestCase):
         self.assertEqual(L.notas_de_parche("StarSeed OS 0.4.0: a.", "0.4.0", "0.4.1", ""), "StarSeed OS 0.4.1: a.")
 
 
+class CuerpoDeRelease(unittest.TestCase):
+    def test_lleva_las_notas_y_las_descargas(self):
+        c = L.cuerpo_de_release("0.4.3", "StarSeed OS 0.4.3 y sus apps nativas. Además: x.")
+        self.assertTrue(c.startswith("## StarSeed OS 0.4.3 · OS, Nexus y Café\n\nStarSeed OS 0.4.3 y sus apps nativas."))
+        for nombre in ("`StarSeed.OS_0.4.3_universal.dmg`", "`StarSeed.Cafe_0.4.3_x64-setup.exe` · `.msi`",
+                       "`StarSeed-nexus-0.4.3.apk`", "### Notas"):
+            self.assertIn(nombre, c)
+        self.assertIn("mejoras y correcciones.", L.cuerpo_de_release("0.4.4", ""))
+
+
 class Tono(unittest.TestCase):
     def test_tonos(self):
         self.assertEqual(L.tono_pastilla({"fase": "compilando"}), "aviso")

@@ -340,3 +340,27 @@ def tono_pastilla(estado):
     if fase in FASES and fase not in ("lanzado", "esperando-lista"):
         return "aviso"
     return "normal"
+
+
+def cuerpo_de_release(version, notas):
+    """PURA (1106): el texto de la Release de GitHub. La Biblioteca (/api/os/versiones) enseña ESTE texto como las
+    notas de la versión: sin él, la versión sale sin notas."""
+    v = str(version)
+    apps = (("OS", "os"), ("Nexus", "nexus"), ("Cafe", "cafe"))
+    filas = (("macOS (Apple Silicon e Intel)", "`StarSeed.{P}_{v}_universal.dmg`"),
+             ("Windows x64", "`StarSeed.{P}_{v}_x64-setup.exe` · `.msi`"),
+             ("Linux x64 (Ubuntu 24.04 o más nuevo)", "`.AppImage` · `.deb` · `.rpm`"),
+             ("Android", "`StarSeed-{a}-{v}.apk`"),
+             ("iPhone / iPad", "la web instalable (PWA)"))
+    tabla = ["| Sistema | StarSeed OS | StarSeed Nexus | StarSeed Café |", "|---|---|---|---|"]
+    for sistema, plantilla in filas:
+        celdas = [plantilla.replace("{P}", p).replace("{a}", a).replace("{v}", v) for p, a in apps]
+        tabla.append("| %s | %s |" % (sistema, " | ".join(celdas)))
+    return "\n".join(["## StarSeed OS %s · OS, Nexus y Café" % v, "", (notas or "mejoras y correcciones.").strip(), "",
+                      "### Descargas", ""] + tabla + [
+        "", "### Notas", "",
+        "- **Si ya tienes una versión anterior**, la app de escritorio se pone al día sola (o al momento, desde el "
+        "aviso «Hay una versión nueva»).",
+        "- **Android** avisa desde la app cuando hay un APK nuevo: instalarlo es un toque.",
+        "- **Sin firma de pago.** En macOS, la primera vez: clic derecho → Abrir. En Windows: «Más información» → "
+        "«Ejecutar de todas formas». Las actualizaciones van firmadas con la clave de StarSeed.", ""])

@@ -256,7 +256,10 @@ def _verificar_archivos(m, est, cfg, ahora):
 
 def _publicar(m, est, ahora):
     etiqueta = "v" + est["version"]
-    rc, _, err = m.sh(["gh", "release", "edit", etiqueta, "--draft=false", "--latest", "--repo", L.REPO], timeout=60)
+    # (1106) Con sus notas: la Biblioteca lee el cuerpo de la Release (v0.4.3 salió vacía).
+    cuerpo = L.cuerpo_de_release(est["version"], est.get("notas") or "")
+    rc, _, err = m.sh(["gh", "release", "edit", etiqueta, "--draft=false", "--latest", "--notes", cuerpo,
+                       "--repo", L.REPO], timeout=60)
     if rc:
         return _atascado(m, est, "no pude publicar la release: %s" % err[-200:], ahora)
     return _paso(est, "verificando-medios", "release publicada: compruebo cada descarga", ahora)

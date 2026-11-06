@@ -171,7 +171,11 @@ class Pasadas(unittest.TestCase):
         self.assertEqual(est["fase"], "publicando", est.get("detalle"))
         est = D.pasada(m, est, CFG, 1001.0)
         self.assertEqual(est["fase"], "verificando-medios")
-        self.assertIn(["gh", "release", "edit", "v0.4.0", "--draft=false", "--latest", "--repo", L.REPO], m.ordenes)
+        edit = [o for o in m.ordenes if o[:6] == ["gh", "release", "edit", "v0.4.0", "--draft=false", "--latest"]]
+        self.assertEqual(len(edit), 1)
+        self.assertEqual(edit[0][6], "--notes")
+        self.assertIn("### Descargas", edit[0][7])
+        self.assertEqual(edit[0][-2:], ["--repo", L.REPO])
         est = D.pasada(m, est, CFG, 1002.0)
         self.assertEqual(est["fase"], "lanzado")
         self.assertEqual(est["historial"][-1]["version"], "0.4.0")
