@@ -973,6 +973,33 @@ def reponer_anterior_y_reiniciar() -> bool:
         _soltar_cerrojo()
 
 
+def freno_sin_commit(lineas_porcelain, propias=()):
+    from arbol_de_trabajo import ruta_de
+    propias_set = set(propias or ())
+    rutas_src = []
+    for linea in lineas_porcelain or []:
+        if not linea or len(linea) < 4:
+            continue
+        estado = linea[:2]
+        if estado.startswith("??"):
+            continue
+        ruta = ruta_de(linea)
+        if not ruta:
+            continue
+        if not ruta.startswith("src/"):
+            continue
+        if ruta in propias_set:
+            continue
+        rutas_src.append(ruta)
+    if not rutas_src:
+        return None
+    n = len(rutas_src)
+    muestra = rutas_src[:3]
+    lista = ", ".join(muestra)
+    mas = "…" if n > 3 else ""
+    return "hay %d archivo(s) de src/ cambiados sin commit en main (%s%s): no compilo lo que no está en git" % (n, lista, mas)
+
+
 # ── Frenos de máquina (2026-10-03) ───────────────────────────────────────────────────────
 #: Regla dura del proyecto: NUNCA `next build` con el enjambre vivo. El turno de
 #: `con-turno.py` solo ordena las compilaciones entre sí; un orquestador con agentes
@@ -1304,6 +1331,17 @@ def silencio_tolerable(silencio_desde, ahora, espera_s=ESPERA_MAX_SIN_RESPUESTA_
     return ahora - silencio_desde < espera_s
 
 
+def _porcelain_src(raiz=RAIZ):
+    try:
+        r = subprocess.run(["git", "status", "--porcelain", "--", "src"],
+                           cwd=raiz, capture_output=True, text=True, timeout=60)
+        if r.returncode != 0:
+            return []
+        return r.stdout.splitlines()
+    except Exception:
+        return []
+
+
 def una_pasada(forzar: bool = False) -> bool:
     """`forzar` (orden `--una-vez --ya`): compila aunque Astraura esté en uso o haya
     conversación. Solo a mano; el disco se sigue comprobando."""
@@ -1332,6 +1370,18 @@ def una_pasada(forzar: bool = False) -> bool:
         hazlo, motivo = True, "compilación pedida a mano"
     de_espera = "caido-sin-build" if caido else "esperando-maquina"
     if hazlo:
+        if not forzar and not caido:
+            try:
+                import arbol_de_trabajo
+                propias = arbol_de_trabajo.PROPIAS
+            except Exception:
+                propias = ()
+            lineas = _porcelain_src(RAIZ)
+            texto = freno_sin_commit(lineas, propias)
+            if texto:
+                print("[%s] espero: %s, pero %s" % (time.strftime("%H:%M"), motivo, texto), flush=True)
+                _guardar(dict(_leer_estado(), estado=de_espera, freno=texto, visto=time.strftime("%Y-%m-%d %H:%M:%S")))
+                return False
         freno = freno_de_maquina(forzar=forzar)
         urgente = urgencia_a1(caido, entradas) if freno else None  # (SUP0211B) el enjambre vivo no frena al A1
         via, porque = camino_de_build(freno, _leer_estado(), time.time(), actual, urgente=urgente)
