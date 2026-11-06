@@ -12,7 +12,7 @@ export type CanalRelease = "alpha" | "beta" | "estable";
 export const OS_CANAL: CanalRelease = "alpha";
 
 export const OS_NOTAS =
-  "StarSeed OS 0.4.2 y sus apps nativas (StarSeed OS, Nexus y Café para macOS, Windows, Linux y Android). Llega el Centro de Versiones: la Biblioteca muestra la versión de cada app para tu sistema y, cuando sale una nueva, un aviso te deja actualizar al momento; en escritorio la app se actualiza y se reinicia desde el propio aviso. La Protomolécula crea y edita de todo con átomos con parámetros, vídeo con HyperFrames, diagramas, fondos con shaders y respuestas vivas en el lienzo universal. La malla es ahora una retícula P2P cifrada en tiempo real y cualquier app se abre desde cualquier neurona con los recursos de toda la red. Astraura estrena voz fusionada y estable en el móvil, cerebros que se fusionan, bots en la orbe, imágenes locales por capas y cápsulas de memoria con recuerdo semántico. Genesis se abre a cualquier IA, contenedor y servicio, local primero y siempre en línea. Primeros pasos de StarSeed XR en visores de AR/VR. Además: las apps de Linux piden Ubuntu 24.04 o una distribución igual de reciente.";
+  "StarSeed OS 0.4.3 y sus apps nativas (StarSeed OS, Nexus y Café para macOS, Windows, Linux y Android). Llega el Centro de Versiones: la Biblioteca muestra la versión de cada app para tu sistema y, cuando sale una nueva, un aviso te deja actualizar al momento; en escritorio la app se actualiza y se reinicia desde el propio aviso. La Protomolécula crea y edita de todo con átomos con parámetros, vídeo con HyperFrames, diagramas, fondos con shaders y respuestas vivas en el lienzo universal. La malla es ahora una retícula P2P cifrada en tiempo real y cualquier app se abre desde cualquier neurona con los recursos de toda la red. Astraura estrena voz fusionada y estable en el móvil, cerebros que se fusionan, bots en la orbe, imágenes locales por capas y cápsulas de memoria con recuerdo semántico. Genesis se abre a cualquier IA, contenedor y servicio, local primero y siempre en línea. Primeros pasos de StarSeed XR en visores de AR/VR. Además: las apps de Linux piden Ubuntu 24.04 o una distribución igual de reciente.";
 
 /**
  * Versión del PAQUETE NATIVO (Tauri 2, proyecto `native/`): el shell de
@@ -21,7 +21,7 @@ export const OS_NOTAS =
  * `package.json` en cada release nativa — los cuatro sitios deben coincidir
  * (ver native/README.md §11 «Cómo publicar una release»).
  */
-export const NATIVE_VERSION = "0.4.2";
+export const NATIVE_VERSION = "0.4.3";
 
 /** Etiqueta de tag/Release de GitHub para el paquete nativo (`v<NATIVE_VERSION>`). */
 export const NATIVE_TAG = `v${NATIVE_VERSION}`;
