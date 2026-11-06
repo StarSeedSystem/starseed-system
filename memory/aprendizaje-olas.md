@@ -4856,3 +4856,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `VER1105Db-d3` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/VER1105Db-d3 conservada)
+
+## 2026-11-06 07:34 · auto-1106-073218
+
+**Lo que se pidió.** Pastilla
+
+**Resultado.** 0 de 2 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — otra cosa (VER1105Db-d3, RPO1104M-d2). Es 100 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `VER1105Db-d3` — otra cosa: ya en main (Claude, 06-11): el trabajo de la nube 7e70d77637 es idéntico a main; la corrida de las 12:50 UTC fue una reapertura que no debía
+- `RPO1104M-d2` — otra cosa: ya en main (Claude, 06-11 13:33 UTC): destino-nativo.test.ts llegó con la parte 1 (b73ba4ed1a) con las 10 pruebas del contrato, 10/10 en ver
