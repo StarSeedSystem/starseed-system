@@ -30,6 +30,7 @@ import {
   llaveCasaConId,
   verificar,
 } from "./cripto-estacion";
+import { marcarOcupado } from "../actualizaciones/momento-navegador";
 import { programarSondeo, RelojComun, type EstadoReloj, type PingReloj, type PongReloj } from "./reloj-comun";
 import {
   aplicarAccion,
@@ -187,6 +188,10 @@ export class SesionEnVivo {
       this.paradas.push(programarSondeo(() => this.preguntarHora(), this.opSondeo));
     }
     if (!this.llave) this.pedirEstado();
+    // Marca de directo: el medio con control pone "en directo" al arrancar.
+    if (this.llave) {
+      this.paradas.push(marcarOcupado(this.ficha.id, "directo"));
+    }
     const latir = () => {
       if (this.cerrada) return;
       if (this.llave) void this.difundirEstado();
@@ -259,7 +264,12 @@ export class SesionEnVivo {
 
   /** Da el control a este medio (enlace de control importado). */
   tomarControl(llave: CryptoKey): void {
+    const teniaLlave = this.llave !== null;
     this.llave = llave;
+    // Marca de directo: si la sesión ya estaba arrancada y no tenía control antes, marca directo.
+    if (this.arrancada && !teniaLlave) {
+      this.paradas.push(marcarOcupado(this.ficha.id, "directo"));
+    }
     this.emitir();
   }
 
