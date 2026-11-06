@@ -1,5 +1,9 @@
 # Design System Master File
 
+> **⚠️ Documento heredado (2026-02-16).** La paleta negra y oro `#CA8A04` ya no es la de StarSeed.
+> Manda el ADN `memory/diseno/adn/starseed-os/dna.json` (Trinity: zenith `#007FFF`, horizonte `#10B981`, lógica `#FFBF00`, anchor `#DC143C` sobre noche `#0A0F1D`) y el artefacto Design System «StarSeed OS» de Claude (v11, 2026-11-05).
+> Este archivo se conserva como historia.
+
 > **LOGIC:** When building a specific page, first check `design-system/pages/[page-name].md`.
 > If that file exists, its rules **override** this Master file.
 > If not, strictly follow the rules below.
