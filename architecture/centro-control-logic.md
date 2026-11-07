@@ -54,7 +54,7 @@ Sin pantalla, la sección enseña el motivo y los pasos del aparato (iOS: «Grab
 
 ## 6. Pendiente de otras olas
 
-- La CSP (`next.config.ts`) está en *Report-Only* y no define `media-src`: la vista previa `blob:` caería en `default-src 'self'` al pasar a forzar. Añadir `media-src 'self' blob:` antes.
+- La CSP (`next.config.ts`) **hecho en CTR1104B (`d0de326784`)**: `media-src 'self' blob:` añadido.
 - Batería y tipo de red: solo Chromium; en Safari y Firefox esos chips no salen.
 
 ## 7. Pruebas
