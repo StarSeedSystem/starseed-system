@@ -535,32 +535,8 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                 toast.success(created === 1 ? "Archivo subido a la biblioteca" : `${created} archivos subidos a la biblioteca`);
             }
         },
-        [saveItem, activeFolder],
+[saveItem, activeFolder],
     );
-
-    const handlePublishNavigate = useCallback(async (item: SavedItem) => {
-        const resolved = item.type === "alias" && item.targetItemId ? itemsById.get(item.targetItemId) ?? item : item;
-        const payload = {
-            kind: resolved.type,
-            title: resolved.title,
-            url: resolved.url,
-            route: resolved.route,
-            note: resolved.note,
-        };
-        try {
-            const res = await fetch("/api/publish-item", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Error al publicar");
-            toast.success("Publicado en la Librería", { description: resolved.title });
-        } catch (err) {
-            console.error("Error al publicar ítem:", err);
-            toast.error("No se pudo publicar", { description: resolved.title });
-        }
-    }, [itemsById]);
 
     // ── Versiones / edición (§13) ────────────────────────────────────────────
 
@@ -1140,14 +1116,6 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
                     }}
                     onShare={() => handleShare(menuTarget.kind, menuTarget.id)}
                     onSendTo={() => handleSendTo(menuTarget.kind, menuTarget.id)}
-                    onPublish={
-                        menuTarget.kind === "item"
-                            ? () => {
-                                  const it = itemsById.get(menuTarget.id);
-                                  if (it) handlePublishNavigate(it);
-                              }
-                            : undefined
-                    }
                     onPublishToCatalog={
                         menuTarget.kind === "item"
                             ? () => {
