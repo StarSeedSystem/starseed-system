@@ -37,9 +37,11 @@ from vigilante_logica import (
     decidir_relanzamiento,
     aplicar_correcciones,
     es_motivo_de_arbol_sucio,
+    espera_por_arranques,
     ids_colisionados,
     es_cola_de_codigo,
     motivo_de_salida,
+    racha_de_arranques,
     reaperturas_de_la_tanda,
     seleccionar_pendientes,
     ultima_salida,
@@ -767,9 +769,27 @@ def main():
     callado_desde = None
     pausa_avisada = 0.0
     higiene_hecha = 0.0
+    # (2026-11-07) Ciclo de vida: si el orquestador arranca y muere joven una y otra vez,
+    # no se relanza en bucle (eso escribía una cola nueva cada ~2 min). `arranque_en` es
+    # el instante en que la comprobación lo dio por arrancado; al verlo muerto se mide su
+    # vida, y una racha de vidas cortas frena el siguiente lanzamiento.
+    arranque_en = None
+    vidas = []
+    proximo_intento = 0.0
+    racha_avisada = 0
     while True:
         try:
+            ahora = time.time()
             hay = orquestador_vivo()
+            if not hay and arranque_en is not None:
+                vidas.append(ahora - arranque_en)
+                vidas = vidas[-12:]
+                arranque_en = None
+                racha = racha_de_arranques(vidas)
+                if racha:
+                    proximo_intento = ahora + espera_por_arranques(racha)
+                else:
+                    racha_avisada = 0
             barrer_cerrojos()
             if time.time() - higiene_hecha >= HIGIENE_CADA_S:
                 higiene_hecha = time.time()
@@ -826,6 +846,11 @@ def main():
             # (OPS1031A) Si dirige otra neurona, el orquestador lo relanza ella.
             cede = relanzar and not _dirijo()
             relanzar = relanzar and not cede
+            # (2026-11-07) Tras vidas cortas seguidas, se respeta la espera: hay trabajo,
+            # pero relanzar ya sería la tormenta que llenaba `olas/` de colas iguales.
+            en_espera_de_racha = bool(relanzar and ahora < proximo_intento)
+            if en_espera_de_racha:
+                relanzar = False
             if relanzar:
                 callado_desde = None
                 tanda = cola[:tope]
@@ -854,9 +879,28 @@ def main():
                         if curar_arbol_sucio():
                             continue
                     esperar_reintento(motivo)
+                else:
+                    # Arrancó de verdad: desde aquí se mide cuánto vive. Si muere en la
+                    # vuelta siguiente, la racha de vidas cortas frenará el relanzamiento.
+                    arranque_en = time.time()
+                    racha_avisada = 0
             elif cede:
                 # Hay trabajo, pero lo lleva el líder: ni «callado» ni «sin trabajo».
                 callado_desde = None
+            elif en_espera_de_racha:
+                # Hay trabajo, pero el orquestador anterior murió joven: toca esperar.
+                callado_desde = None
+                racha = racha_de_arranques(vidas)
+                if racha and racha != racha_avisada:
+                    racha_avisada = racha
+                    espera_s = espera_por_arranques(racha)
+                    _p.decir(
+                        "el orquestador murió joven (%d s) por %d.ª vez seguida: "
+                        "espero %d min antes de relanzarlo, sin escribir colas en bucle."
+                        % (vidas[-1], racha, max(1, espera_s // 60)),
+                        "vigilante",
+                        "aviso",
+                    )
             elif cfg.get("pausado"):
                 callado_desde = None
                 ahora = time.time()
