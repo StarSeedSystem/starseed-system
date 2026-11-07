@@ -28,6 +28,7 @@ import {
     siguienteNivelMovimiento,
     type NivelMovimiento,
 } from "./niveles";
+import { isReducedMotion } from "./prm";
 
 /** Identificador público del motor único, para registros y paneles. */
 export const MOVIMIENTO_STARSEED_ID = "starseed.movimiento-unico.v1";
