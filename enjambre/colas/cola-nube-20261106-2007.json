@@ -1,0 +1,24 @@
+{
+ "ola": "nube-20261106",
+ "tareas": [
+  {
+   "id": "APP1107T6",
+   "ola": "1107 · Neuronas autónomas (pendiente del carril Opus)",
+   "titulo": "Enseñar el estado del servidor local de la app nativa en Ajustes › Neurona y en las señales del medio",
+   "archivos": [
+    "src/lib/nativa/estado-servidor-local.ts",
+    "src/components/nativa/estado-servidor-local.tsx",
+    "src/lib/nativa/__tests__/estado-servidor-local.test.ts"
+   ],
+   "depende": [],
+   "depende_de": [],
+   "origen": "contrato architecture/apps-autonomas-sin-internet.md (T6)",
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está hecho, responde NO APLICA.\n\nContrato: architecture/apps-autonomas-sin-internet.md (léelo entero; tarea T6). La app nativa de escritorio trae su propio servidor Next en 127.0.0.1 y expone el comando Tauri `servidor_local_estado` (native/src-tauri/src/servidor_local.rs). Escribe: (1) `src/lib/nativa/estado-servidor-local.ts` con una función PURA que convierte la respuesta de `servidor_local_estado` en un texto y un tono («servidor local · listo en 127.0.0.1:47610», «arrancando», «sin paquete local: usa la web publicada», «caído, reintentando») y otra que pide el estado solo si `window.__TAURI__` existe (fuera de la app nativa no llama a nada); (2) `src/components/nativa/estado-servidor-local.tsx`, una pastilla pequeña y accesible con ese texto, que no se pinta fuera de la app nativa; (3) sus pruebas deterministas sin red. NO la montes en ningún archivo que no esté en esta lista: deja escrito en el informe dónde montarla (Ajustes › Neurona y señales del medio).\n\nReglas: como mucho los archivos listados y ≤ 120 líneas por archivo; módulos puros sin `node:*`; nada de claves; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas de lo que tocas."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1106-185713.json": [
+   "APP1107T6"
+  ]
+ }
+}
