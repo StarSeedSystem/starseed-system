@@ -35,10 +35,7 @@ import {
 import { SecurityScanPanel } from "@/components/security/security-scan-panel";
 // Voz por neurona (Adenda 87): elección nube/local POR DISPOSITIVO + instalador.
 import { NeuronVoiceChoice } from "@/components/settings/aurora/neuron-voice-choice";
-// (VER1107B) «Esta neurona» (versión, medio, sistema, aparato, servidor local y actualizaciones) y la
-// versión que anuncia cada neurona por la presencia, con «Pedir actualización».
-import { EstaNeurona } from "@/components/settings/neurons/esta-neurona";
-import { VersionNeurona } from "@/components/neurons/version-neurona";
+import { EstadoServidorLocal } from "@/components/nativa/estado-servidor-local";
 // Precarga sin internet (CTR1107E · T9): estado del service worker + botón «Descargar».
 import { PrecargaSinInternet } from "@/components/settings/neurons/precarga-sin-internet";
 
@@ -185,6 +182,9 @@ export function NeuronsPanel() {
                 renombrar y ajustar los permisos de cada neurona.
               </CardDescription>
               <p className="text-[11px] text-muted-foreground mt-2">{summarizeNeurons(neurons)}</p>
+              {/* (APP1107T6) Solo dentro de la app nativa: el servidor local de esta neurona. */}
+              <EstadoServidorLocal className="mt-2" />
+              <PrecargaSinInternet />
             </div>
             <Button variant="ghost" size="sm" className="cursor-pointer shrink-0" onClick={() => void refresh()} disabled={loading}>
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -193,15 +193,6 @@ export function NeuronsPanel() {
           </div>
         </CardHeader>
       </Card>
-
-      {/* (VER1107B) Esta neurona: lo que sabe de sí misma y sus actualizaciones. El estado del servidor
-          local (APP1107T6) vive ahora dentro de esta tarjeta. */}
-      <EstaNeurona />
-
-      {/* Precarga sin internet (CTR1107E · T9): debajo del estado del servidor
-          local (vive dentro de «Esta neurona»), enseña la precarga del service
-          worker y deja descargar la app para usarla sin internet. */}
-      <PrecargaSinInternet />
 
       {/* Voz de ESTA neurona (Adenda 87): elección nube/local por dispositivo,
           que ordena la cadena de voz de este equipo, con el instalador local. */}
@@ -291,14 +282,6 @@ export function NeuronsPanel() {
                   ))}
                 </div>
               )}
-
-              {/* (VER1107B) Versión, medio y aparato que anuncia por la presencia de la cuenta. */}
-              <VersionNeurona
-                neuronaId={n.id}
-                nombre={n.name}
-                esEsta={n.isThisDevice}
-                miNombre={neurons.find((x) => x.isThisDevice)?.name}
-              />
 
               {/* Permisos (6 switches) */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
