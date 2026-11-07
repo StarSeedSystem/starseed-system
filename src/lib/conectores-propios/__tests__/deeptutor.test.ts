@@ -5,6 +5,7 @@ import {
   normalizarModo,
   preguntarTutor,
   type FetchFn,
+  type ModoTutor,
   type RespuestaHttp,
 } from "../deeptutor";
 
@@ -144,7 +145,6 @@ describe("deeptutor · conector opcional", () => {
     expect(llamadas).toHaveLength(0);
   });
 
-<<<<<<< HEAD
   it("pregunta usa agente personalizado en la URL", async () => {
     const cfg = configDeeptutor({ ...ENV, DEEPTUTOR_AGENTE: "mi-agente" });
     const { fetchFn, llamadas } = falso(200, { content: "Respuesta", session_id: "s2" });
@@ -154,80 +154,44 @@ describe("deeptutor · conector opcional", () => {
   });
 
   it("pregunta aplica instrucción para cada modo", async () => {
-    const modos: Array<"explicar" | "comprobar" | "practicar" | "resumir"> = [
-      "explicar", "comprobar", "practicar", "resumir",
-    ];
-    for (const modo of modos) {
-      const { fetchFn, llamadas } = falso(200, { content: "x", session_id: "s1" });
-      await preguntarTutor(configDeeptutor(ENV), fetchFn, { pregunta: "P", modo });
-      const cuerpo = JSON.parse(llamadas[0].body ?? "{}");
-      expect(cuerpo.content).toContain("P");
-    }
-  });
-
-  it("pregunta devuelve sesion null cuando el servidor no la envía", async () => {
-    const { fetchFn } = falso(200, { content: "Sin sesión" });
-    const r = await preguntarTutor(configDeeptutor(ENV), fetchFn, { pregunta: "Hola", modo: "explicar" });
-    expect(r).toEqual({ texto: "Sin sesión", modo: "explicar", sesion: null });
-  });
-
-  it("estado devuelve motivo específico para 401/403/404/500", async () => {
-    const m401 = await estadoDeeptutor(configDeeptutor(ENV), falso(401, {}).fetchFn);
-    const m403 = await estadoDeeptutor(configDeeptutor(ENV), falso(403, {}).fetchFn);
-    const m404 = await estadoDeeptutor(configDeeptutor(ENV), falso(404, {}).fetchFn);
-    const m500 = await estadoDeeptutor(configDeeptutor(ENV), falso(500, {}).fetchFn);
-    expect((m401 as { motivo: string }).motivo).toContain("401");
-    expect((m403 as { motivo: string }).motivo).toContain("403");
-    expect((m404 as { motivo: string }).motivo).toContain("404");
-    expect((m500 as { motivo: string }).motivo).toContain("falló");
-  });
-=======
-  it("estado devuelve motivo honesto para 401/403", async () => {
-    const r401 = await estadoDeeptutor(configDeeptutor(ENV), falso(401, {}).fetchFn);
-    const r403 = await estadoDeeptutor(configDeeptutor(ENV), falso(403, {}).fetchFn);
-    expect(r401.disponible).toBe(false);
-    expect("motivo" in r401 && r401.motivo).toContain("401");
-    expect(r403.disponible).toBe(false);
-    expect("motivo" in r403 && r403.motivo).toContain("403");
-  });
-
-  it("estado devuelve motivo honesto para 404", async () => {
-    const r = await estadoDeeptutor(configDeeptutor(ENV), falso(404, {}).fetchFn);
-    expect(r.disponible).toBe(false);
-    expect("motivo" in r && r.motivo).toContain("404");
-  });
-
-  it("estado devuelve motivo honesto para 429", async () => {
-    const r = await estadoDeeptutor(configDeeptutor(ENV), falso(429, {}).fetchFn);
-    expect(r.disponible).toBe(false);
-    expect("motivo" in r && r.motivo).toContain("429");
-  });
-
-  it("config respeta DEEPTUTOR_AGENTE personalizado", () => {
-    const cfg = configDeeptutor({ DEEPTUTOR_URL: "http://localhost:9000", DEEPTUTOR_TOKEN: "tk", DEEPTUTOR_AGENTE: "mi-agente" });
-    expect(cfg).toEqual({ url: "http://localhost:9000", token: "tk", agente: "mi-agente" });
-  });
-
-  it("pregunta usa el agente del config en la ruta", async () => {
-    const cfg = configDeeptutor({ DEEPTUTOR_URL: "http://localhost:8001", DEEPTUTOR_TOKEN: "tk", DEEPTUTOR_AGENTE: "mi-agente" });
-    const { fetchFn, llamadas } = falso(200, { content: "respuesta", session_id: "s2" });
-    await preguntarTutor(cfg, fetchFn, { pregunta: "Hola", modo: "explicar" });
-    expect(llamadas[0].url).toBe("http://localhost:8001/api/partners/mi-agente/chat");
-  });
-
-  it("pregunta incluye instrucción para cada modo", async () => {
-    const { fetchFn, llamadas } = falso(200, { content: "ok" });
-    const INSTRUCCIONES: Record<"explicar" | "comprobar" | "practicar" | "resumir", string> = {
+    const INSTRUCCIONES: Record<ModoTutor, string> = {
       explicar: "Explica el concepto con claridad",
       comprobar: "Comprueba lo aprendido",
       practicar: "Propón un ejercicio",
       resumir: "Resume lo aprendido",
     };
     for (const modo of ["explicar", "comprobar", "practicar", "resumir"] as const) {
-      await preguntarTutor(configDeeptutor(ENV), fetchFn, { pregunta: "Q", modo });
-      const cuerpo = JSON.parse(llamadas[llamadas.length - 1].body ?? "{}") as { content: string };
+      const { fetchFn, llamadas } = falso(200, { content: "x", session_id: "s1" });
+      await preguntarTutor(configDeeptutor(ENV), fetchFn, { pregunta: "P", modo });
+      const cuerpo = JSON.parse(llamadas[0].body ?? "{}") as { content: string };
       expect(cuerpo.content).toContain(INSTRUCCIONES[modo]);
+      expect(cuerpo.content).toContain("P");
     }
   });
->>>>>>> 32519b198 (salvavidas · RPO1104S-d2: trabajo del agente antes de las puertas (tsc / vitest))
+
+  it("pregunta devuelve sesion null cuando el servidor no la envía o no es texto", async () => {
+    const cfg = configDeeptutor(ENV);
+    const q = { pregunta: "Hola", modo: "explicar" as const };
+    const r = await preguntarTutor(cfg, falso(200, { content: "Sin sesión" }).fetchFn, q);
+    expect(r).toEqual({ texto: "Sin sesión", modo: "explicar", sesion: null });
+    expect(await preguntarTutor(cfg, falso(200, { content: "ok", session_id: 123 }).fetchFn, q))
+      .toEqual({ texto: "ok", modo: "explicar", sesion: null });
+    expect(await preguntarTutor(cfg, falso(200, { content: "ok", session_id: null }).fetchFn, q))
+      .toEqual({ texto: "ok", modo: "explicar", sesion: null });
+    expect(await preguntarTutor(cfg, falso(200, { content: "ok", session_id: "" }).fetchFn, q))
+      .toEqual({ texto: "ok", modo: "explicar", sesion: null });
+  });
+
+  it("estado devuelve motivo específico para 401/403/404/429/500", async () => {
+    const m401 = await estadoDeeptutor(configDeeptutor(ENV), falso(401, {}).fetchFn);
+    const m403 = await estadoDeeptutor(configDeeptutor(ENV), falso(403, {}).fetchFn);
+    const m404 = await estadoDeeptutor(configDeeptutor(ENV), falso(404, {}).fetchFn);
+    const m429 = await estadoDeeptutor(configDeeptutor(ENV), falso(429, {}).fetchFn);
+    const m500 = await estadoDeeptutor(configDeeptutor(ENV), falso(500, {}).fetchFn);
+    expect("motivo" in m401 && m401.motivo).toContain("401");
+    expect("motivo" in m403 && m403.motivo).toContain("403");
+    expect("motivo" in m404 && m404.motivo).toContain("404");
+    expect("motivo" in m429 && m429.motivo).toContain("429");
+    expect("motivo" in m500 && m500.motivo).toContain("falló");
+  });
 });
