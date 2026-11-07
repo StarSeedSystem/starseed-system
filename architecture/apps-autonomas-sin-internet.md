@@ -1,4 +1,4 @@
-# Apps autónomas sin internet: el servidor local dentro de la app (contrato · APP1107A + APP1107B + SEG1107A + TAM1107A + CAP1107A · 2026-11-07)
+# Apps autónomas sin internet: el servidor local dentro de la app (contrato · APP1107A + APP1107B + SEG1107A + TAM1107A + CAP1107A + AND1107A · 2026-11-07)
 
 **Petición de Alex (07-11):** «Las apps instaladas dejan de funcionar cuando se pierde la conexión a internet,
 cuando deberían ser completamente autónomas e independientes, sin necesidad de ningún tipo de conexión, todo
@@ -26,7 +26,8 @@ visitado antes podía salir del service worker, nada más). Nexus y Café, igual
 | Aviso «Sin conexión: trabajando en local» | HECHO (`AvisoSinConexion`, layout raíz) |
 | CI: Next una vez + Node verificado por SHA-256 + ad-hoc en macOS; si falla, el instalador sale igual sin servidor local | ESCRITO SIN PUBLICAR (`native-build.yml`) |
 | Android (también las APK ya instaladas, v0.4.3), PWA y navegador: la app entera sin conexión con el **service worker v8** (precarga en segundo plano de las páginas principales, su código y `public/`) | ESCRITO SIN PUBLICAR (SW1107A) · llega con publicar la web, sin reinstalar nada · probado con el SW de verdad en un entorno simulado y en Chrome real contra una mini app (§9.1.1); falta con un build real de Next (T10) |
-| Android con servidor propio dentro (nodejs-mobile) e iOS | PENDIENTE. Plan exacto en §9 |
+| Android con servidor propio dentro (nodejs-mobile, el mismo envoltorio) | ESCRITO SIN PUBLICAR, detrás de un **interruptor de build APAGADO** (AND1107A, §9.1) · compila para aarch64/armv7, probado lo puro + el envoltorio en modo Android + el armado con el zip real; falta un aparato real |
+| iOS con servidor propio | PENDIENTE (§9.2) |
 | Nexus y Café | Siguen con su web. Plan en §9.3 |
 | Actualizar el servidor local por capas sin reinstalar (T1): capa firmada con la clave del updater, canal fijo, «Actualizar ahora» que reinicia solo el Node, vuelta atrás si no pasa la salud | ESCRITO SIN PUBLICAR (CAP1107A, §10) · probado en Linux con la app real (bajar, verificar, relevo en el mismo puerto y vuelta atrás); el canal está APAGADO hasta que Alex ponga `SERVIDOR_CAPAS_CANAL=1`; falta macOS y Windows (T12) |
 | Traer al servidor local lo que la app tenía en el origen de la web publicada (localStorage + IndexedDB), una vez y sin pisar nada (T4) | ESCRITO SIN PUBLICAR (APP1107B, §2.1) · pruebas puras (Rust y JS) + IndexedDB de mentira + **probado en Linux con la app real** (Tauri 2.12.5 + WebKitGTK, Xvfb, la «web» en otro origen); falta macOS y Windows (T12) |
@@ -410,6 +411,10 @@ instalador (§10); `version_paquete`/`commit_paquete` son los de lo que sirve.
   (§10).
 - Android e iOS: `tauri.android.conf.json` / `tauri.ios.conf.json` devuelven la ventana a la web publicada
   (la página de arranque es solo de escritorio). Nexus y Café pisan después con su `-c`.
+- **(AND1107A) Android con el interruptor** (input `servidor_local_android` o variable `STARSEED_SERVIDOR_LOCAL_ANDROID=1`,
+  solo StarSeed OS): `build-android` espera el artefacto `servidor-local-next`, `preparar-android.mjs` prepara el
+  proyecto (y el `tauri.android.conf.json` del runner pasa a `index.html`) y `STARSEED_SERVIDOR_LOCAL_ANDROID=1` va
+  a `$GITHUB_ENV` para `build.rs`. Sin el interruptor, ninguno de esos pasos corre (§9.1).
 
 ## 6. Tamaños
 
@@ -431,7 +436,7 @@ Medido el 2026-11-07 sobre el build de main de la Mac (`.next` de producción) y
 | Windows `.msi` | 3 MB | ≈ 83–93 MB | ≈ 525 MB |
 | Linux `.deb` / `.rpm` | 4 MB | ≈ 88–98 MB | ≈ 555 MB |
 | Linux `.AppImage` | 79 MB | ≈ 163–173 MB | — |
-| Android `.apk` | 32 MB | sin cambio | — |
+| Android `.apk` | 37 MB (v0.5.0) | sin cambio; con el interruptor de §9.1, ≈ 137 MB | ≈ 0,6 GB con el interruptor |
 
 Son estimaciones (compresión medida por pieza); las reales las escribe el CI en el resumen de cada job (el paso T8
 escribe además qué quitó). Columna «Instalado» ya sin `/api/mando` (antes: 720 / 590 / 620 MB).
@@ -571,6 +576,15 @@ rustc --edition 2021 --test native/src-tauri/src/servidor_capas_logica.rs -o /tm
 node --test native/servidor-local/__tests__/capa.test.mjs
 npx vitest run src/lib/nativa/__tests__/estado-servidor-local.test.ts src/lib/nativa/__tests__/contrato-rust.test.ts \
   src/components/network/__tests__/servidor-neurona.test.tsx
+# (AND1107A) Android: lo puro de Rust, el interruptor, el envoltorio en modo Android, el armado y lo puro de Kotlin
+rustc --edition 2021 --test native/src-tauri/src/servidor_local_android_logica.rs -o /tmp/sla && /tmp/sla
+rustc --edition 2021 --test native/src-tauri/src/android_parche.rs -o /tmp/ap && /tmp/ap
+node --test native/servidor-local/__tests__/arranque-android.test.cjs native/servidor-local/__tests__/preparar-android.test.mjs
+kotlinc native/src-tauri/android/ServidorLocalLogica.kt native/src-tauri/android/pruebas/ServidorLocalLogicaPrueba.kt \
+  -include-runtime -d /tmp/sll.jar && java -jar /tmp/sll.jar
+# El código Rust de Android con el interruptor (sin NDK; desde una copia fuera de git si el checkout es disperso)
+(cd native/src-tauri && TAURI_ANDROID_PACKAGE_UNESCAPED=app.starseed.os STARSEED_SERVIDOR_LOCAL_ANDROID=1 \
+  cargo check --target aarch64-linux-android --lib)
 ```
 
 **Cómo se verifica la migración con la app real (T12, en cada sistema):** instalar la 0.4.3, abrirla con internet,
@@ -592,32 +606,128 @@ Node lo relanzó en el mismo puerto sin recargar la página y, al matar la app, 
 
 ## 9. Android, iOS, Nexus y Café
 
-### 9.1 Android — plan exacto
+### 9.1 Android — el servidor propio DENTRO de la APK (opción A · AND1107A · ESCRITO SIN PUBLICAR, interruptor APAGADO)
 
-La APK abre la web publicada (`tauri.android.conf.json`). Hasta SW1107A, sin internet solo salía lo que el
-service worker había guardado al visitarlo; desde SW1107A el service worker v8 guarda la app entera (opción C,
-§9.1.1), y eso llega también a las APK ya instaladas en cuanto se publica la web.
+Sin el interruptor, la APK abre la web publicada (`tauri.android.conf.json`) y desde SW1107A el service worker v8
+guarda la app entera (opción C, §9.1.1), que llega también a las APK ya instaladas en cuanto se publica la web. Con
+el interruptor, la APK de StarSeed OS lleva además el MISMO servidor que escritorio (el mismo build `standalone` de
+Next, el mismo envoltorio y la misma guarda) sobre **nodejs-mobile**, y la ventana abre `http://127.0.0.1:<puerto>`.
 
 | Opción | Qué es | Tamaño | Licencia | Veredicto |
 |---|---|---|---|---|
-| **A · nodejs-mobile** (fork `digidem/nodejs-mobile`, v24.18.0-0 del 2026-08-11, Node 24) | `libnode.so` para arm64-v8a, armeabi-v7a y x86_64 (SDK ≥ 24) que corre el MISMO standalone y el MISMO envoltorio | zip de las 3 ABI 73,4 MB (lite 54,4 MB): ≈ +20–25 MB por ABI en el APK, + ≈ 50 MB del servidor comprimido | la de Node (MIT y terceros); GitHub no la detecta en el fork: confirmarla antes de distribuir | **El camino completo**: un solo código de servidor para escritorio y Android |
+| **A · nodejs-mobile** (fork `digidem/nodejs-mobile` **v24.18.0-0**, Node 24.18.0, NDK r27d) | `libnode.so` para arm64-v8a, armeabi-v7a y x86_64 (SDK ≥ 24) que corre el MISMO standalone y el MISMO envoltorio | APK ≈ 137 MB (hoy 37 MB) · ≈ 0,6 GB en el aparato (medido abajo) | **MIT** (la de Node.js, con las de terceros y polywasm): confirmado en el `LICENSE` de la etiqueta `v24.18.0-0` y en el README del repo («Node.js is available under the MIT license… the mobile patches and tooling … under the same terms»). **El zip del asset no trae LICENSE**: va aparte en la APK (`assets/servidor-local/LICENSE-nodejs-mobile.txt`, SHA-256 fijado) | **ESCRITO SIN PUBLICAR (AND1107A)**, detrás de un interruptor de build apagado hasta probarlo en un aparato real |
 | B · Export estático parcial | `output: 'export'` de las secciones que no usan API ni middleware | pequeño | — | No: el OS usa middleware, rutas dinámicas y 48 grupos de `/api`; sería otra app |
-| C · Precarga del service worker en la APK | La app pide al SW que guarde todas las páginas principales y `/_next/static` («Descargar para usar sin internet») | ≈ 20–25 MB de descarga, ≈ 176 MB en disco (medido, §9.1.1), APK igual | propia | **ESCRITO SIN PUBLICAR (SW1107A)**: abre todo sin red, sin servidor (lo de `/api` falla igual que en A sin claves) |
+| C · Precarga del service worker en la APK | La app pide al SW que guarde todas las páginas principales y `/_next/static` | ≈ 20–25 MB de descarga, ≈ 176 MB en disco, APK igual | propia | **ESCRITO SIN PUBLICAR (SW1107A, §9.1.1)**: el respaldo de A y lo de siempre sin el interruptor |
 
-Pasos de A (cada uno una tarea):
-1. CI Android: descargar `nodejs-mobile-android-24.18.0-0.zip` con SHA fijado (como `node.json`), poner
-   `libnode.so` en `jniLibs/<abi>` del proyecto que genera `cargo tauri android init` (ganchos de `build.rs` /
-   `android_parche.rs`, como el servicio de antenas) y el servidor en `assets/servidor` (comprimido).
-2. Kotlin (`PuenteNativo.kt`): en el primer arranque de cada versión, extraer `assets/servidor` a
-   `filesDir/servidor/<buildId>` (≈ 500 MB; con barra de progreso en la página de arranque); arrancar Node en un
-   hilo con el shim JNI de los ejemplos de nodejs-mobile (`startNodeWithArguments`), mismo entorno
-   (`STARSEED_PUERTO`, `STARSEED_FIRMA`…) y el envoltorio sin cambios; el pase de la ventana (§3.1) por un canal
-   propio del lanzador (nunca el entorno) y la ventana entrando por `/__starseed/entrar`.
-3. `network_security_config` que permita texto plano SOLO a `127.0.0.1`.
-4. Rust en móvil: el mismo `servidor_local_logica.rs` (la salud y la firma ya son puras) con un lanzador Kotlin en
-   vez de `std::process`; la ventana de Android pasa a `index.html` como en escritorio.
-5. Medir RAM (Next ≈ 200–300 MB) y arranque en la tablet; si no cabe, C como modo por defecto en aparatos con poca
-   memoria.
+**Cómo se enciende.**
+- **CI (la forma normal):** Actions → «StarSeed Native · Build & Release» → *Run workflow* con `plataformas` = `android`
+  y **`servidor_local_android` marcado**. El job `servidor-local-next` corre aunque no se pida escritorio; la APK de
+  StarSeed OS espera su artefacto (sondeo de la API, ≤ 55 min), lo arma y compila. Nexus y Café no cambian. Para que
+  TODAS las etiquetas `v*` lo lleven: variable del repo `STARSEED_SERVIDOR_LOCAL_ANDROID=1` (no antes de probarlo,
+  ver límites). La APK sube al Release borrador de ese run con el nombre de siempre (`StarSeed-os-<versión>.apk`).
+- **A mano:** tras `cargo tauri android init` y con `NDK_HOME` puesto:
+  `node native/servidor-local/preparar-android.mjs --tar servidor-next.tar --proyecto native/src-tauri/gen/android --conf native/src-tauri/tauri.android.conf.json`
+  y `STARSEED_SERVIDOR_LOCAL_ANDROID=1 cargo tauri android build --apk` (en `native/`). Opciones: `--abis arm64-v8a`
+  (APK ≈ 93 MB), `--nodejs-mobile-zip <zip>` y `--licencia <archivo>` sin red (los SHA-256 se comprueban igual).
+- **Apagado (por defecto):** ningún paso nuevo del CI corre, `build.rs` no enciende `starseed_servidor_android` y no
+  se compila ni una línea de Rust ni de Kotlin de esto: la APK es la de siempre. Encendido pero sin preparar el
+  proyecto, `build.rs` falla en alto; si la preparación falla en el CI, `preparar-android.mjs` deshace todo lo que
+  tocó, el build sigue sin el interruptor y un aviso amarillo lo dice.
+
+| Pieza | Archivo |
+|---|---|
+| Lógica pura (estado de Kotlin, pasos, argv contiguo, entorno, tope del heap, página de arranque) — 8 pruebas | `native/src-tauri/src/servidor_local_android_logica.rs` |
+| Pegamento (JNI, `dlopen` de libnode + `node::Start` en un hilo, tubería del pase, salud, vigía, ventana) | `native/src-tauri/src/servidor_local_android.rs` (registro: 2 `mod` + 1 línea del `setup` en `lib.rs`, bajo `cfg(starseed_servidor_android)`) |
+| Kotlin: proveedor al crear el proceso, extracción por versión, carga de libnode | `native/src-tauri/android/ServidorLocal.kt`; lo puro, `ServidorLocalLogica.kt` (7 pruebas en `android/pruebas/`) |
+| Preparar el proyecto Android: libnode verificado y sin depuración, `libc++_shared.so` del NDK, `servidor.zip`, licencia, Kotlin, manifiesto, red local, Gradle y la ventana — 11 pruebas | `native/servidor-local/preparar-android.mjs` + `nodejs-mobile.json` (versión, URL, SHA-256 del zip y del LICENSE) |
+| Envoltorio en modo Android (`STARSEED_EN_PROCESO=1`) — 4 pruebas | `native/servidor-local/starseed-arranque.cjs` (escritorio no cambia: 11/11 de siempre) |
+| Interruptor y comprobación del proyecto — 2 pruebas | `native/src-tauri/build.rs` + `android_parche.rs` (`servidor_local_encendido`, `servidor_local_preparado`) |
+| CI | `native-build.yml`: input `servidor_local_android`, pasos «Servidor local Android · …» del job `build-android` |
+
+**Cómo arranca en el aparato.**
+1. Al crearse el proceso, `ArranqueServidorLocal` (un `ContentProvider`, como el guardián de antenas) lanza un hilo
+   que carga la librería de Rust y `libnode.so` (+ `libc++_shared.so`). La primera vez de cada `buildId` extrae
+   `assets/servidor-local/servidor.zip` a `noBackupFilesDir/servidor-local/<buildId>.parcial` (fuera de la copia de
+   seguridad de Android: se regenera solo), sin dejar salir ninguna entrada de la carpeta (zip slip), escribe el
+   marcador lo último y renombra; borra las versiones anteriores. Antes comprueba el espacio (descomprimido + 10 % +
+   200 MB). Va contando a Rust por JNI (`ServidorLocal.nativoEstado`, líneas `clave=valor`).
+2. La ventana abre `index.html` (la página de arranque de escritorio, dentro del binario) y enseña el progreso
+   («Preparando StarSeed OS para usarlo sin internet (primera vez de esta versión): 37 % · 180 de 485 MB…»).
+3. Rust (`setup`, una vez por proceso): espera a Kotlin (sin noticias en 20 s, o extracción de más de 20 min →
+   respaldo), elige uno de los diez puertos, firma nueva y el **pase por una tubería propia** (`pipe`: escribe
+   `pase:<hex>` y cierra; al Node solo le llega el número del descriptor en `STARSEED_ENTRADA_FD`, nunca el pase en
+   el entorno). Entorno: el de escritorio + `STARSEED_EN_PROCESO=1`, `STARSEED_VIGIA_PADRE=0`, `TMPDIR`=cacheDir,
+   `HOME`=filesDir, `NODE_COMPILE_CACHE` (los arranques siguientes van más rápido). Arranca
+   `node --max-old-space-size=<RAM/6, entre 256 y 768> starseed-arranque.cjs` con `node::Start` (`dlsym` de
+   `_ZN4node5StartEiPPc`, argv contiguo en memoria) en un hilo con 8 MB de pila; su salida va a
+   `noBackupFilesDir/servidor-local/servidor-local.log`.
+4. Cuando la salud responde con SU firma (≤ 120 s), la ventana entra por `/__starseed/entrar?t=<pase>&a=/`. Solo se
+   la saca de la página de arranque, nunca de otra web (p. ej. un inicio de sesión con OAuth); si la persona vuelve
+   atrás hasta la página de arranque, vuelve a entrar.
+5. Vigía cada 3 s; 6 fallos seguidos o Node terminado → la web publicada (Node solo arranca una vez por proceso:
+   hasta reabrir la app). Cualquier fallo antes de «listo» (APK sin paquete, ABI sin libnode como x86 de 32 bits, sin
+   espacio, puerto ajeno, 120 s) → la web publicada, como sin el interruptor, y la página de arranque dice por qué.
+6. El envoltorio en modo Android no toca la entrada estándar del proceso de la app ni pone manejadores de
+   SIGTERM; `process.exit` (de él o de Next) **no** mata la app: registra, cierra la puerta y Rust ve caer la salud;
+   un error sin capturar se registra y el servidor sigue.
+
+**Red y seguridad.** `res/xml/starseed_red_local.xml` deja HTTP en claro **solo** hacia `127.0.0.1` y `localhost`
+(el resto, solo HTTPS, como hoy en release). `capabilities/default.json` ya concedía los diez orígenes locales en
+Android. La guarda de §3.1 es la misma; en Android el loopback lo comparten **todas las apps del aparato**: son
+«otros programas» y sin el pase no llegan a `/api` ni a nada que cambie estado.
+
+**Tamaños (medidos el 2026-11-07).**
+
+| Pieza | Sin comprimir | En el APK |
+|---|---:|---:|
+| `libnode.so` arm64-v8a (sin depuración; con ella, 82,7 MB) | 61,5 MB | 21,8 MB |
+| `libnode.so` armeabi-v7a (75,0 MB con depuración) | 54,8 MB | 20,5 MB |
+| `libnode.so` x86_64 (81,2 MB con depuración) | 63,5 MB | 22,6 MB |
+| `libc++_shared.so` del NDK, una por ABI | ≈ 1 MB | ≈ 0,4 MB |
+| `servidor.zip` (zip -9 del standalone + static + public del build de la Mac: 5.879 archivos) | 550,6 MB | 63,5 MB (el del CI, sin `/api/mando`: ≈ 61 MB / ≈ 485 MB) |
+| Las `.so` de Rust (hoy van SIN comprimir: 35,5 MB de los 37,4 de la APK) | 34,9 MB | 10,8 MB (`useLegacyPackaging`) |
+| **APK de StarSeed OS** | — | **≈ 137 MB** con las tres ABI (≈ 93 MB con `--abis arm64-v8a`); hoy 37,4 MB (v0.5.0) |
+
+En el aparato, además: el servidor extraído (≈ 485–550 MB en `noBackupFilesDir`) y las `.so` de su ABI extraídas al
+instalar (≈ 70 MB). El CI escribe el tamaño REAL de la APK firmada y su desglose en el resumen del job (paso
+«Servidor local Android · tamaño de la APK»), y el de cada pieza en el de «armar».
+
+**Límites honestos (antes de encenderlo por defecto).**
+1. **Sin probar en un aparato real.** Compilado (`cargo check` aarch64 y armv7 con y sin el interruptor; Kotlin contra
+   `android.jar` 34), probado lo puro y el envoltorio en modo Android, y armado con el zip real de nodejs-mobile; pero
+   nadie ha visto aún `node::Start` arrancar en una tablet con este código, ni Gradle empaquetarlo (no cupo en el
+   contenedor: el NDK + Gradle + Rust de Android no caben en 6,7 GB).
+2. **Origen nuevo:** la APK pasa de `https://starseed-os.vercel.app` a `http://127.0.0.1:47610`. Lo que solo vivía en
+   el `localStorage`/IndexedDB de la web publicada **no** se trae (la migración T4 es de escritorio: usa una ventana
+   oculta y Tauri móvil tiene una sola). Hay que iniciar sesión otra vez y lo local empieza vacío. Pendiente T14.
+3. **Node 24 (nodejs-mobile) en vez de 22**, y su ICU es «small-icu» (solo inglés): las fechas y números con `es` que
+   formatee el SERVIDOR salen en inglés (React lo corrige en el cliente, con un aviso de hidratación). Arreglo:
+   `icudt78l.dat` en los assets y `NODE_ICU_DATA` (pendiente T15).
+4. **Una sola vez por proceso:** si Node se cae, la web publicada hasta reabrir la app.
+5. **RAM:** Next ≈ 200–300 MB + la WebView; el heap va topado (RAM/6, 256–768 MB). Con 2 GB puede ir justo.
+6. **Primera apertura de cada versión:** extraer ≈ 500 MB (estimado 1–3 min en una tablet, con progreso).
+7. `tauri android dev`/APK de depuración con el interruptor: la red local solo deja HTTP en claro hacia 127.0.0.1
+   (un servidor de desarrollo en la LAN no cargaría).
+8. **x86 (32 bits)**: nodejs-mobile no lo trae → la web publicada.
+
+**Cómo probarlo en la tablet.**
+1. *Run workflow* con `plataformas` = `android` y `servidor_local_android` marcado. En el resumen del job
+   `os · android`: «Servidor local DENTRO de la APK» (piezas) y «APK · os · servidor local dentro: sí» (tamaño real).
+   Descargar `StarSeed-os-<versión>.apk` del Release borrador `native-<n>` e instalarla (misma clave que las de
+   siempre: actualiza encima).
+2. Primera apertura (con o sin red): página de arranque con el progreso → «Listo» → el OS en `127.0.0.1:47610`.
+   Iniciar sesión con red (origen nuevo, límite 2).
+3. **Modo avión → cerrar la app del todo → abrirla**: debe arrancar en local en segundos (sin extraer otra vez) y
+   moverse por las secciones de §7 (Escritorios, Protomolécula, Documentos, Malla…).
+4. Comprobar el servidor desde un ordenador: `adb forward tcp:47610 tcp:47610` y
+   `curl -s http://127.0.0.1:47610/__starseed/salud` → `"servidor":"starseed-os-local","listo":true,"pase":true,
+   "interna":"protegida"`, `node` `v24.18.0`. Y `curl -s -X POST http://127.0.0.1:47610/api/x` → 403 `sin-pase`.
+5. Si cae a la web publicada, la página de arranque dice el motivo. Para el registro hace falta una APK depurable
+   (`cargo tauri android build --debug --apk` con el interruptor): `adb shell run-as app.starseed.os cat
+   no_backup/servidor-local/servidor-local.log` (debe decir «pase de la app recibido» y «el Next interno solo atiende
+   a esta puerta») y `chrome://inspect` para la WebView. `adb logcat | grep -i starseed` sirve en ambas.
+6. Medir RAM (`adb shell dumpsys meminfo app.starseed.os`) y el arranque en frío; si no cabe, el respaldo C (§9.1.1)
+   sigue siendo el modo de los aparatos con poca memoria.
 
 ### 9.1.1 Service worker v8: la app entera sin conexión (opción C · SW1107A · ESCRITO SIN PUBLICAR)
 
@@ -904,6 +1014,9 @@ Siguiente paso posible: bajar solo lo cambiado (el manifiesto ya trae el SHA-256
     `objects.githubusercontent.com`, que los enlaces duros funcionen en `~/Library/Application Support` y
     `%APPDATA%`, y que la página se recargue tras «Actualizar ahora» (`servidor-local.log` dice «relevo de capa pedido
     desde la app» y «capa … activa»).
+12. **(AND1107A) Servidor local en Android, si alguien enciende el interruptor:** la APK pasa de ≈ 37 a ≈ 137 MB,
+    cambia de origen (sesión y datos locales de la web publicada no viajan: T14) y aún no se ha visto en un aparato
+    real (§9.1, límites). Por eso va apagado; las etiquetas `v*` solo lo llevan con la variable del repo.
 
 ## 12. Pendientes (tareas concretas)
 
@@ -911,6 +1024,8 @@ Siguiente paso posible: bajar solo lo cambiado (el manifiesto ya trae el SHA-256
 |---|---|
 | T1 | Capas del servidor local con firma y rollback: **ESCRITA SIN PUBLICAR (CAP1107A, §10)** — capa firmada con la clave del updater, canal fijo `servidor-local` (apagado hasta `SERVIDOR_CAPAS_CANAL=1`), «Actualizar ahora» sin cerrar la app, vuelta atrás a los 60 s / 30 s. Falta verla en macOS y Windows (con T12) y, si se quiere, bajar solo lo cambiado |
 | T2 | Android opción C (precarga del SW): **ESCRITA SIN PUBLICAR (SW1107A, §9.1.1)**. Falta A (nodejs-mobile, §9.1) |
+| T1 | Capas del servidor local con firma y rollback (§10) |
+| T2 | Android: opción C (precarga del SW) **ESCRITA SIN PUBLICAR (SW1107A, §9.1.1)**; opción A (nodejs-mobile) **ESCRITA SIN PUBLICAR detrás de un interruptor apagado (AND1107A, §9.1)**. Falta probar A en una tablet (receta en §9.1) y decidir si se enciende |
 | T3 | Medir en el CI los tamaños reales y corregir §6 |
 | T4 | Migrar al origen local lo que vivía en el origen de la web publicada: **ESCRITA SIN PUBLICAR (APP1107B, §2.1)** — localStorage + IndexedDB, sin sesión, fusión sin pisar, copia sin secretos, marcador, aviso. Falta T12 |
 | T4b | Migración SIN internet al primer arranque: **ESCRITA SIN PUBLICAR (TAM1107A, §2.1.1)** — HTML del binario con la dirección de la web (`load_html` / `loadHTMLString:baseURL:` / `WebResourceRequested`), sin leer los archivos del motor; probada con la app real en Linux sin red. Falta verla en macOS y Windows (con T12) |
@@ -923,3 +1038,6 @@ Siguiente paso posible: bajar solo lo cambiado (el manifiesto ya trae el SHA-256
 | T11 | Guarda en el envoltorio contra peticiones de otras webs al servidor local: **HECHA (SEG1107A, §3.1)** — Host exacto (rebinding), Origin/Sec-Fetch-Site, pase de Rust en cookie `HttpOnly; SameSite=Strict` para `/api`, cambios y WebSocket, sin CORS abierto y el Next interno solo para la puerta. Falta verla con la app real en macOS y Windows (con T12) |
 | T12 | Probar la migración (T4) con la app real en macOS y Windows (receta en §8; Linux ya probado, §2.1) |
 | T13 | Bajar el peso de los 291 `*_client-reference-manifest.js` en el paquete nativo: **ESCRITA SIN PUBLICAR (TAM1107A, §6.1)** — 192 → 20 MB en la app (−172 MB instalado), mismo HTML byte a byte con el standalone real. Falta ver el resumen del primer CI (T3) |
+| T13 | Bajar el peso de los 291 `*_client-reference-manifest.js` (252,6 MB, §6) en el paquete nativo |
+| T14 | Android con el interruptor: traer lo del origen de la web publicada al origen local (T4 en Android: la ventana única carga primero `offline.html` de la web con el script de exportación y luego va al servidor local) |
+| T15 | Android con el interruptor: ICU completo (`icudt78l.dat` en los assets + `NODE_ICU_DATA`) para que el servidor formatee en español |
