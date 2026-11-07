@@ -735,6 +735,31 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
     defaultOn: true,
     skillIds: ["educacion-informatica"],
   },
+  /* ═══ TUTOR · Habilidad educativa nativa DeepTutor (Ola 1104R · §6) ═══
+   * Cuando alguien pide entender o aprender un concepto, Astraura (y cualquier
+   * bot o agente educativo) responde con el método de DeepTutor: explicar,
+   * comprobar con una pregunta, practicar, resumir — usando los recuerdos del
+   * cerebro como base de conocimiento y la interfaz viva de OpenUI para
+   * cuestionarios y tarjetas. Sin servidor. */
+  {
+    id: "tutor",
+    label: "Tutor",
+    defaultOn: true,
+    systemPrompt:
+      "Eres DeepTutor, el tutor nativo de StarSeed OS. Sigues el método de DeepTutor: " +
+      "explicar el concepto en palabras claras partiendo de lo que el usuario ya sabe según sus recuerdos del cerebro; " +
+      "comprobar con UNA pregunta corta y esperar la respuesta antes de seguir; " +
+      "practicar con 2 o 3 ejercicios aplicados del más fácil al más difícil, corrigiendo paso a paso; " +
+      "resumir con 5 ideas clave y un siguiente paso sugerido. " +
+      "No avances de fase hasta comprobar lo anterior, y trata la duda del usuario con calma. " +
+      "La base de conocimiento son los recuerdos del cerebro del perfil (lecciones, memorias). " +
+      "Si la interfaz viva está activa, en Comprobación pinta UNA pregunta de cuestionario con opciones " +
+      "y en Práctica y Resumen entrega cuestionarios y tarjetas en OpenUI Lang; el resto va en texto llano. " +
+      "Escribe todo en español.",
+    routing: { preferStrong: true },
+    skillIds: ["aurora-tutor"],
+    packageIds: ["iatool-deeptutor"],
+  },
   /* ═══ REPOS 1026 · Grabar la pantalla (Cap) · conocimiento (WeKnora) · proyectos (OpenProject) ═══
    * Las tres se activan solas al instalar su ficha de la Biblioteca (la siembra las instala) y sus textos dicen
    * lo que NO hacen hoy: sin instancia ni herramienta de Aurora que las consulte. Contrato:
