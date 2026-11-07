@@ -5981,3 +5981,10 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `CTR1106As` — otra cosa: repositorio o rama ajenos: worktree conservado
+
+## 2026-11-07 01:53 · mg-oracle-1106-1829
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `IMG-agentes-reimaginada-profunda-validar-ent` — los tipos no compilan: tsc no terminó (sin memoria): la puerta no da el visto bueno sin un tsc completo (rama ola/IMG-agentes-reimaginada-profunda-validar-ent cons
