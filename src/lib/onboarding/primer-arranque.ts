@@ -65,13 +65,20 @@ export interface EntradaPrimerArranque {
     neurona: EstadoNeurona | null;
     /** Los ajustes de la neurona se pospusieron en esta visita («Más tarde»). */
     neuronaPospuesta: boolean;
+    /**
+     * (NEU1107B) La ventana «Esta neurona» (fusión de los registros de este aparato + ajustes básicos)
+     * en la app nativa: `null` = aún se está mirando; `"pendiente"` = toca abrirla (una vez por cuenta ×
+     * aparato); `"no"` o ausente = no toca. Ver `neurona-bienvenida.ts` y architecture/neurona-bienvenida.md.
+     */
+    bienvenida?: "pendiente" | "no" | null;
 }
 
 export type DecisionPrimerArranque =
     | { tipo: "nada"; motivo: string }
     | { tipo: "esperar" }
     | { tipo: "acceso"; forma: "completa" | "discreta" }
-    | { tipo: "neurona-nueva" };
+    | { tipo: "neurona-nueva" }
+    | { tipo: "bienvenida-neurona" };
 
 /** Rutas con su propio acceso o su propio rito: ahí no se abre nada encima. */
 export const RUTAS_PROPIAS = ["/login", "/bienvenida", "/onboarding", "/auth"];
@@ -107,6 +114,13 @@ export function decidirPrimerArranque(e: EntradaPrimerArranque): DecisionPrimerA
     if (e.tienePerfil === null || e.neurona === null) return { tipo: "esperar" };
     // Cuenta recién nacida sin perfil: la lleva el asistente de alta (OnboardingGate).
     if (!e.tienePerfil) return { tipo: "nada", motivo: "cuenta-nueva" };
+    // (NEU1107B) En la app nativa, tras iniciar sesión, primero «Esta neurona»: detecta los registros de
+    // este aparato desde otros medios, sugiere fusionarlos y deja editar lo básico. Sustituye a «Neurona
+    // nueva» allí; cuando no toca (ya vista, o nada que hacer), sigue la lógica de siempre.
+    if (e.modo === "nativa") {
+        if (e.bienvenida === null) return { tipo: "esperar" };
+        if (e.bienvenida === "pendiente") return { tipo: "bienvenida-neurona" };
+    }
     if (e.neuronaPospuesta) return { tipo: "nada", motivo: "neurona-pospuesta" };
     return esNeuronaNueva(e.neurona) ? { tipo: "neurona-nueva" } : { tipo: "nada", motivo: "conocida" };
 }

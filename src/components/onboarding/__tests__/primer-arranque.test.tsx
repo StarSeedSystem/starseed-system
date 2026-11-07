@@ -101,7 +101,28 @@ vi.mock("@/lib/onboarding/neuron-recommend", () => ({
 }));
 vi.mock("@/lib/perf/fondo-vivo", () => ({ guardarPreferenciaFondo: vi.fn() }));
 
+// (NEU1107B) «Esta neurona»: la decisión y la ventana tienen sus propias pruebas; aquí solo cuándo se abre.
+const bienv = vi.hoisted(() => ({ mostrar: false, lecturas: 0 }));
+vi.mock("@/lib/neurons/neurona-bienvenida-acciones", () => ({
+    reunirDatosBienvenida: async () => {
+        bienv.lecturas += 1;
+        return { uid: "u-1" };
+    },
+    decidirConDatos: (_d: unknown, manual?: boolean) =>
+        bienv.mostrar || manual ? { mostrar: true, pasos: ["ajustes", "resumen"] } : { mostrar: false, motivo: "ya-vista" },
+}));
+vi.mock("@/components/neurons/bienvenida-neurona", () => ({
+    BienvenidaNeurona: ({ manual, onClose }: { manual?: boolean; onClose: () => void }) => (
+        <div data-testid="bienvenida-neurona" data-manual={manual ? "1" : "0"}>
+            <button type="button" onClick={onClose}>
+                Cerrar «Esta neurona»
+            </button>
+        </div>
+    ),
+}));
+
 import { PrimerArranque } from "../primer-arranque";
+import { EVENTO_ABRIR_BIENVENIDA_NEURONA } from "@/lib/neurons/neurona-bienvenida";
 import { AVISO_NEURONA_CONFIGURADA, AVISO_NEURONA_NUEVA_LUEGO } from "@/lib/onboarding/primer-arranque";
 import { _reiniciarPuertasParaPruebas, registrarPuerta } from "@/lib/onboarding/puerta-visible";
 import { AVISOS_KEY, _reiniciarCacheAvisosParaPruebas, estadoAviso } from "@/lib/sync/avisos-cuenta";
@@ -135,6 +156,8 @@ beforeEach(() => {
     est.neuronas = [];
     est.navegar = vi.fn();
     neuronas.nombres = [];
+    bienv.mostrar = false;
+    bienv.lecturas = 0;
     _reiniciarPuertasParaPruebas();
     window.localStorage.clear();
     window.sessionStorage.clear();
@@ -453,5 +476,42 @@ describe("PrimerArranque · con cuenta", () => {
         est.perfil = null;
         montar();
         await waitFor(() => expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull());
+    });
+
+    it("(NEU1107B) en la app nativa, tras iniciar sesión, abre «Esta neurona» antes que «Neurona nueva», y lo mira una sola vez", async () => {
+        bienv.mostrar = true;
+        montar();
+        const ventana = await screen.findByTestId("bienvenida-neurona");
+        expect(ventana.getAttribute("data-manual")).toBe("0");
+        expect(screen.queryByRole("heading", { name: "Nueva neurona en tu cuenta" })).toBeNull();
+        // Un refresco del token (otro evento de sesión) no vuelve a leer las neuronas.
+        await act(async () => {
+            est.oyenteAuth?.();
+        });
+        expect(bienv.lecturas).toBe(1);
+        fireEvent.click(screen.getByRole("button", { name: "Cerrar «Esta neurona»" }));
+        await waitFor(() => expect(screen.queryByTestId("bienvenida-neurona")).toBeNull());
+    });
+
+    it("(NEU1107B) en la app nativa, si no toca (ya vista), sigue «Neurona nueva» como siempre", async () => {
+        montar();
+        await screen.findByRole("heading", { name: "Nueva neurona en tu cuenta" });
+        expect(screen.queryByTestId("bienvenida-neurona")).toBeNull();
+        expect(bienv.lecturas).toBe(1);
+    });
+
+    it("(NEU1107B) en la web no se abre sola (ni lee nada), pero sí a mano desde Ajustes", async () => {
+        est.nativa = false;
+        bienv.mostrar = true;
+        est.fila = { id: "dispositivo-1", name: "Mac de Ana", created_at: "2026-01-01T00:00:00Z" };
+        window.localStorage.setItem("starseed.neurons.prefs.v1", JSON.stringify({ names: { "dispositivo-1": "Mac de Ana" } }));
+        montar();
+        await waitFor(() => expect(est.consultas).toContain("neuron_devices"));
+        expect(screen.queryByTestId("bienvenida-neurona")).toBeNull();
+        expect(bienv.lecturas).toBe(0);
+        await act(async () => {
+            window.dispatchEvent(new CustomEvent(EVENTO_ABRIR_BIENVENIDA_NEURONA));
+        });
+        expect((await screen.findByTestId("bienvenida-neurona")).getAttribute("data-manual")).toBe("1");
     });
 });

@@ -24,6 +24,11 @@
  *     pinta la PUERTA de sesión (`auth/puerta-sesion.tsx`: la misma tarjeta, en el centro, sobre
  *     una vista previa difuminada), el aviso de abajo no sale: la tarjeta ya está a la vista.
  *   · Con cuenta y neurona nueva → los ajustes de la nueva neurona (NeuronSetup).
+ *   · (NEU1107B) Con cuenta en la app nativa (escritorio, Android) → «Esta neurona» UNA vez por cuenta ×
+ *     aparato (`BienvenidaNeurona`): detecta los registros de este aparato desde otros medios, sugiere
+ *     fusionarlos (preseleccionado, nunca sin el toque) y deja editar lo básico. Sustituye a «Neurona
+ *     nueva» allí. En la web y la PWA solo a mano (evento `starseed:abrir-bienvenida-neurona` o Ajustes ›
+ *     Neuronas › Esta neurona). Contrato: architecture/neurona-bienvenida.md.
  *
  * Persistencia entre medios (2026-09-29): con cuenta, NO decide «neurona nueva» hasta que la
  * cuenta esté bajada (`esperarPullInicial`): un medio recién abierto tiene el localStorage vacío y
@@ -36,7 +41,7 @@
  * abrir a mano con `abrirPrimerArranque()` (Ajustes → Personalización).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 
@@ -75,6 +80,11 @@ import {
 
 import { NeuronSetup } from "./neuron-setup";
 import { TarjetaBienvenida } from "./tarjeta-bienvenida";
+import { EVENTO_ABRIR_BIENVENIDA_NEURONA } from "@/lib/neurons/neurona-bienvenida";
+import type { DatosBienvenida } from "@/lib/neurons/neurona-bienvenida-acciones";
+
+/** (NEU1107B) «Esta neurona»: se carga solo cuando se abre (este componente vive en el layout raíz). */
+const BienvenidaNeurona = lazy(() => import("@/components/neurons/bienvenida-neurona").then((m) => ({ default: m.BienvenidaNeurona })));
 
 /* ─────────────────────────────── Datos del arranque ─────────────────────────────── */
 
@@ -128,7 +138,14 @@ function esperarPrimerPlano(cb: () => void, cadaMs: number): () => void {
     return () => window.clearInterval(id);
 }
 
-type Abierta = null | { tipo: "acceso"; paso: "intro" | "acceso"; pestana?: PestanaInicial } | { tipo: "aviso" } | { tipo: "neurona" };
+type Abierta =
+    | null
+    | { tipo: "acceso"; paso: "intro" | "acceso"; pestana?: PestanaInicial }
+    | { tipo: "aviso" }
+    | { tipo: "neurona" }
+    | { tipo: "bienvenida"; manual: boolean };
+
+type EstadoBienvenida = "pendiente" | "no" | null;
 
 export interface PrimerArranqueProps {
     /** Intervalo de la espera de cortesía (ms). Solo las pruebas lo acortan. */
@@ -149,6 +166,11 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
     const [ritoEnCurso, setRitoEnCurso] = useState(false);
     const [marcas, setMarcas] = useState({ introSaltada: false, avisoWebCerrado: false, neuronaPospuesta: false });
     const [abierta, setAbierta] = useState<Abierta>(null);
+    /** (NEU1107B) «Esta neurona» en la app nativa: null mientras se mira; sus datos para no volver a leerlos. */
+    const [bienvenida, setBienvenida] = useState<EstadoBienvenida>(null);
+    const [datosBienvenida, setDatosBienvenida] = useState<DatosBienvenida | null>(null);
+    /** Cuenta para la que ya se miró «Esta neurona» en esta visita. */
+    const bienvenidaDeRef = useRef<string | null>(null);
     /** Lo que ya se abrió solo en esta visita: no se repite al navegar. */
     const atendidaRef = useRef<Set<string>>(new Set());
     /** Espera viva a que la cuenta sea fiable (una sola a la vez). */
@@ -223,6 +245,26 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
             }
             setTienePerfil(perfil);
             setNeurona(estado);
+            // (NEU1107B) En la app nativa: ¿toca «Esta neurona»? (una vez por cuenta × aparato). Se mira
+            // una vez por cuenta y visita (el refresco del token no vuelve a leer nada). Si algo falla, no
+            // toca: nunca deja el arranque esperando.
+            if (modoActual() === "nativa" && perfil) {
+                if (bienvenidaDeRef.current !== user.id) {
+                    bienvenidaDeRef.current = user.id;
+                    setBienvenida(null);
+                    try {
+                        const m = await import("@/lib/neurons/neurona-bienvenida-acciones");
+                        const datos = await m.reunirDatosBienvenida();
+                        const d = m.decidirConDatos(datos);
+                        setDatosBienvenida(d.mostrar ? datos : null);
+                        setBienvenida(d.mostrar ? "pendiente" : "no");
+                    } catch {
+                        setBienvenida("no");
+                    }
+                }
+            } else {
+                setBienvenida("no");
+            }
         } catch {
             setSesion("comprobando"); // fallo raro: mejor no abrir nada
         }
@@ -266,8 +308,9 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
                 tienePerfil,
                 neurona,
                 neuronaPospuesta: marcas.neuronaPospuesta,
+                bienvenida,
             }),
-        [ruta, sesion, modo, marcas, ritoEnCurso, tienePerfil, neurona],
+        [ruta, sesion, modo, marcas, ritoEnCurso, tienePerfil, neurona, bienvenida],
     );
 
     // Apertura automática: una sola vez por visita y esperando a que el primer plano esté libre.
@@ -280,6 +323,7 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
         const abrir = () => {
             atendidaRef.current.add(clave);
             if (decision.tipo === "neurona-nueva") setAbierta({ tipo: "neurona" });
+            else if (decision.tipo === "bienvenida-neurona") setAbierta({ tipo: "bienvenida", manual: false });
             else if (decision.forma === "completa") setAbierta({ tipo: "acceso", paso: "intro" });
             else setAbierta({ tipo: "aviso" });
         };
@@ -308,6 +352,15 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
         return () => window.removeEventListener(EVENTO_ABRIR_PRIMER_ARRANQUE, alAbrir);
     }, [sesion]);
 
+    // (NEU1107B) «Revisar las neuronas de este aparato» desde cualquier parte (con sesión, en cualquier medio).
+    useEffect(() => {
+        const alAbrir = () => {
+            if (sesion === "cuenta") setAbierta({ tipo: "bienvenida", manual: true });
+        };
+        window.addEventListener(EVENTO_ABRIR_BIENVENIDA_NEURONA, alAbrir);
+        return () => window.removeEventListener(EVENTO_ABRIR_BIENVENIDA_NEURONA, alAbrir);
+    }, [sesion]);
+
     const saltar = useCallback(() => {
         // Con la puerta de sesión a la vista, «Explorar sin cuenta» además lleva a los escritorios (la
         // página que pidió la sesión sigue sin poder enseñarse); lo demás es lo de siempre.
@@ -331,6 +384,23 @@ export function PrimerArranque({ esperaMs = 700 }: PrimerArranqueProps) {
     }, []);
 
     if (!abierta) return null;
+    if (abierta.tipo === "bienvenida") {
+        return (
+            <Suspense fallback={null}>
+                <BienvenidaNeurona
+                    manual={abierta.manual}
+                    datos={abierta.manual ? null : datosBienvenida}
+                    onClose={() => {
+                        // Ya vista (la propia ventana lo apunta): con lo que quede, la lógica de siempre.
+                        setBienvenida("no");
+                        setNeurona((n) => (n ? { ...n, configuradaAqui: neuronaConfiguradaAqui(thisDeviceId()) } : n));
+                        leerMarcas();
+                        setAbierta(null);
+                    }}
+                />
+            </Suspense>
+        );
+    }
     if (abierta.tipo === "neurona") {
         return (
             <NeuronSetup

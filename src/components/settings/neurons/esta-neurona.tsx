@@ -16,7 +16,8 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Cpu, Download, Loader2, RotateCw, Search } from "lucide-react";
+import { Cpu, Download, GitMerge, Loader2, RotateCw, Search } from "lucide-react";
+import { EVENTO_ABRIR_BIENVENIDA_NEURONA } from "@/lib/neurons/neurona-bienvenida";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -190,6 +191,26 @@ export function EstaNeurona() {
         )}
 
         <EstadoServidorLocal />
+
+        {/* (NEU1107B) La ventana «Esta neurona» a mano: detectar registros de este aparato desde otros
+            medios, fusionarlos y editar lo básico. Contrato: architecture/neurona-bienvenida.md. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="cursor-pointer gap-1.5"
+            onClick={() => {
+              try {
+                window.dispatchEvent(new CustomEvent(EVENTO_ABRIR_BIENVENIDA_NEURONA));
+              } catch {
+                /* sin ventana */
+              }
+            }}
+          >
+            <GitMerge className="h-4 w-4" aria-hidden /> Revisar las neuronas de este aparato
+          </Button>
+          <span className="text-[11px] text-muted-foreground">Fusiona los registros repetidos de este aparato y ajusta lo básico.</span>
+        </div>
 
         {ultima && (
           <p className="text-xs text-muted-foreground">

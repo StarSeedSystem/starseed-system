@@ -112,6 +112,34 @@ describe("decidirPrimerArranque · con cuenta", () => {
     });
 });
 
+describe("decidirPrimerArranque · «Esta neurona» en la app nativa (NEU1107B)", () => {
+    const cuenta = (parcial: Partial<EntradaPrimerArranque> = {}) => base({ sesion: "cuenta", tienePerfil: true, neurona: conocida, ...parcial });
+
+    it("espera mientras se mira y, si toca, la abre antes que «Neurona nueva»", () => {
+        expect(decidirPrimerArranque(cuenta({ bienvenida: null }))).toEqual({ tipo: "esperar" });
+        expect(decidirPrimerArranque(cuenta({ bienvenida: "pendiente" }))).toEqual({ tipo: "bienvenida-neurona" });
+        expect(decidirPrimerArranque(cuenta({ bienvenida: "pendiente", neurona: { ...conocida, enCuenta: false } }))).toEqual({ tipo: "bienvenida-neurona" });
+        // Un «Más tarde» antiguo de «Neurona nueva» no la tapa: es otra ventana y sale una sola vez.
+        expect(decidirPrimerArranque(cuenta({ bienvenida: "pendiente", neuronaPospuesta: true }))).toEqual({ tipo: "bienvenida-neurona" });
+    });
+
+    it("si no toca (ya vista o nada que hacer), sigue la lógica de siempre", () => {
+        expect(decidirPrimerArranque(cuenta({ bienvenida: "no" }))).toEqual({ tipo: "nada", motivo: "conocida" });
+        expect(decidirPrimerArranque(cuenta({ bienvenida: "no", neurona: { ...conocida, enCuenta: false } }))).toEqual({ tipo: "neurona-nueva" });
+    });
+
+    it("en la web y la PWA no se abre sola (solo a mano): manda la lógica de siempre", () => {
+        expect(decidirPrimerArranque(cuenta({ modo: "web", bienvenida: "pendiente" }))).toEqual({ tipo: "nada", motivo: "conocida" });
+        expect(decidirPrimerArranque(cuenta({ modo: "pwa", bienvenida: null }))).toEqual({ tipo: "nada", motivo: "conocida" });
+    });
+
+    it("nunca encima de una cuenta sin perfil, de la consola ni de un rito", () => {
+        expect(decidirPrimerArranque(cuenta({ bienvenida: "pendiente", tienePerfil: false }))).toEqual({ tipo: "nada", motivo: "cuenta-nueva" });
+        expect(decidirPrimerArranque(cuenta({ bienvenida: "pendiente", esConsola: true, ruta: "/genesis" })).tipo).toBe("nada");
+        expect(decidirPrimerArranque(cuenta({ bienvenida: "pendiente", ritoEnCurso: true }))).toEqual({ tipo: "nada", motivo: "rito" });
+    });
+});
+
 describe("piezas", () => {
     it("esNeuronaNueva", () => {
         expect(esNeuronaNueva(conocida)).toBe(false);
