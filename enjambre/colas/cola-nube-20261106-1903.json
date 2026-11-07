@@ -1,0 +1,22 @@
+{
+ "ola": "nube-20261106",
+ "tareas": [
+  {
+   "id": "IMG-diaria-arreglar-el-ciclo-de-vida-del-orq",
+   "titulo": "Arreglar el ciclo de vida del orquestador",
+   "area": "imaginacion",
+   "archivos": [
+    "vigilante-enjambre.py",
+    "cola-auto-1028-000008.js",
+    "-000230.js"
+   ],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Arreglar el ciclo de vida del orquestador. : el estado dice \"orquestador **parado**\", pero `vigilante-enjambre.py` (PID 73366) sigue vivo y regenerando colas (`cola-auto-1028-000008.json`, `…-000230.json`) cada pocos minutos con las mismas 20 tareas en `?` y latido de 5127 s. Tareas clave estancadas: `RIA1023Eb` (capaEnPropio en `src/lib/astraura/capas/repartir.ts`) lleva 2466 s fallando por **\"tsc no terminó (sin memoria)\"**, reintento 1/6. Impacto: ALTO (el enjambre consume ciclos sin escribir nada) / Esfuerzo: MEDIO (matron de un solo orquestador, puerta de memoria para tsc con `NODE_OPTIONS=--max-old-space-size=2560` ya documentada Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1106-185713.json": [
+   "IMG-diaria-arreglar-el-ciclo-de-vida-del-orq"
+  ]
+ }
+}
