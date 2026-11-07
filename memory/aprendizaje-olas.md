@@ -6023,5 +6023,8 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `IMG-diaria-endurecer-el-sandbox-del-iframe-d-d2` — otra cosa
 
 ## 2026-11-07 06:22 · auto-1107-060724
+## 2026-11-07 12:03 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** Conector opcional
 
 **Resultado.** 1 de 1 integradas.
