@@ -95,6 +95,8 @@ scripts/hermione-bridge-server.mjs
 _commit_msg.txt
 test-account-creds.json
 public/version.json
+# (SW1107A) Manifiesto de precarga sin conexión: lo genera scripts/precarga-sw.mjs en cada build.
+public/precarga.json
 .ss_migration/
 .env.local.bak*
 

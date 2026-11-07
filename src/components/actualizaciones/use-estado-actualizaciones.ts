@@ -37,7 +37,8 @@ export async function leerServidor(f: typeof fetch = fetch): Promise<Omit<Estado
   try {
     const [v, sw] = await Promise.all([
       f("/version.json", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      f("/sw-v7.js", { cache: "no-store" }).then((r) => (r.ok ? r.text() : null)).catch(() => null),
+      // (SW1107A) El SW vigente es /sw-v8.js (/sw-v7.js solo lo importa, por compatibilidad).
+      f("/sw-v8.js", { cache: "no-store" }).then((r) => (r.ok ? r.text() : null)).catch(() => null),
     ]);
     const build = v && typeof v.build === "string" ? v.build : null;
     return { buildServidor: build, swServidor: (sw && SW_VERSION.exec(sw)?.[1]) || null, leidoEn: Date.now(), error: build ? null : "El servidor no respondió con su versión." };

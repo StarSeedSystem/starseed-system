@@ -6,7 +6,7 @@
  *     servidor frente a lo que tiene esta neurona), aplicar aquí, prueba de humo, neuronas y canaria.
  *   · ActualizacionesGenesis     — Mi Genesis: cómo llegan a MIS neuronas el OS y mi perfil.
  *   · ActualizacionesPoliGenesis — PoliGenesis: los sistemas de una entidad (datos e interfaz).
- * Todo lo que se pinta está medido (presencia, /version.json, /sw-v7.js, esta neurona) o lo
+ * Todo lo que se pinta está medido (presencia, /version.json, /sw-v8.js, esta neurona) o lo
  * guardó la persona; lo que no se mide dice «sin dato».
  * SOP: architecture/actualizaciones-por-capas-sop.md
  */

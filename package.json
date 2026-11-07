@@ -18,6 +18,7 @@
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "prebuild": "node scripts/gen-version.mjs",
     "build": "NODE_OPTIONS=--max-old-space-size=4096 next build",
+    "postbuild": "node scripts/precarga-sw.mjs",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",

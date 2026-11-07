@@ -3,10 +3,17 @@
 import { useEffect } from "react";
 
 import { puedeRecargarSuave, suscribirseAvisoVersion } from "@/lib/pwa/aviso-version";
+import { EVENTO_PRECARGA, estadoDeMensaje, pedirAlmacenPersistente, pedirPrecarga } from "@/lib/pwa/precarga-cliente";
+
+/** (SW1107A) Primera pasada de precarga: cuando el arranque ya terminó, para no competir con él. */
+const PRECARGA_TRAS_ARRANQUE_MS = 20_000;
+/** Con la pestaña visible, se le recuerda al SW cada 15 min (él decide si toca: build nueva, a medias…). */
+const PRECARGA_CADA_MS = 15 * 60 * 1000;
 
 /**
- * RegisterSW — registra el Service Worker `/sw-v7.js` para habilitar la instalación
- * (PWA) y un shell offline básico.
+ * RegisterSW — registra el Service Worker `/sw-v8.js` para habilitar la instalación (PWA) y la app
+ * entera sin conexión (SW1107A: precarga en segundo plano de las páginas principales y su código;
+ * contrato en architecture/apps-autonomas-sin-internet.md §9.1).
  *
  * Es completamente defensivo: si el navegador no soporta service workers, o el
  * registro falla, no interrumpe el render ni la app. No renderiza nada.
@@ -34,7 +41,9 @@ export function RegisterSW() {
       // el saneado se ejecuta UNA vez por dispositivo (borra cachés viejas +
       // recarga). Estaba clavado en "v5-2026-07-05" (inerte hace semanas): por eso
       // los dispositivos no se limpiaban solos.
-      const CUR = "v8-2026-07-29";
+      // (SW1107A) v9 = public/sw-v8.js. Solo toca `starseed-precache-*` y `starseed-runtime-*`: la precarga
+      // sin conexión vive en `starseed-build-*` y no se borra aquí (la retira el SW al completar otra build).
+      const CUR = "v9-2026-11-07";
       const G = "ssheal:" + CUR;
       if ("caches" in window && !sessionStorage.getItem(G)) {
         caches.keys().then((ks) => {
@@ -79,7 +88,7 @@ export function RegisterSW() {
       navigator.serviceWorker
         // updateViaCache:'none' → el SCRIPT del SW nunca sale de la caché HTTP;
         // el navegador lo revalida siempre y detecta la versión nueva al instante.
-        .register("/sw-v7.js", { scope: "/", updateViaCache: "none" })
+        .register("/sw-v8.js", { scope: "/", updateViaCache: "none" })
         .then((reg) => {
           if (cancelled || !reg) return;
           // Fuerza una comprobación de versión nueva al arrancar.
@@ -161,6 +170,44 @@ export function RegisterSW() {
     let cierraAviso: () => void = () => {};
     try { cierraAviso = suscribirseAvisoVersion(() => { void checkBuild(); }); } catch { /* */ }
 
+    // (SW1107A) PRECARGA SIN CONEXIÓN. El SW guarda en segundo plano las páginas principales, su código y
+    // public/ (manifiesto del build: /precarga.json). Aquí solo se le pide: a los 20 s del arranque, cada
+    // 15 min con la pestaña visible y al volver la red. El SW decide si toca (datos móviles, ahorro de
+    // datos, espacio, servidor local de la app de escritorio). Su estado llega por mensaje y se publica en
+    // `window.STARSEED_PRECARGA` + el evento `starseed:precarga` (para Ajustes o un aviso).
+    // `window.STARSEED_PRECARGAR(true)` = «Descargar para usar sin internet» aunque haya datos móviles.
+    const win = window as unknown as { STARSEED_PRECARGA?: unknown; STARSEED_PRECARGAR?: (forzar?: boolean) => boolean };
+    const onMensajeSW = (ev: MessageEvent) => {
+      const estado = estadoDeMensaje(ev.data);
+      if (!estado) return;
+      try {
+        win.STARSEED_PRECARGA = estado;
+        window.dispatchEvent(new CustomEvent(EVENTO_PRECARGA, { detail: estado }));
+      } catch { /* */ }
+    };
+    const precargarSiVisible = () => {
+      if (!cancelled && document.visibilityState === "visible") pedirPrecarga(false);
+    };
+    let precargaT0: ReturnType<typeof setTimeout> | null = null;
+    let precargaIv: ReturnType<typeof setInterval> | null = null;
+    let precargaOnline: ReturnType<typeof setTimeout> | null = null;
+    const onOnline = () => {
+      if (precargaOnline) clearTimeout(precargaOnline);
+      precargaOnline = setTimeout(precargarSiVisible, 3000);
+    };
+    try {
+      win.STARSEED_PRECARGAR = (forzar?: boolean) => pedirPrecarga(!!forzar);
+      navigator.serviceWorker.addEventListener("message", onMensajeSW);
+      precargaT0 = setTimeout(precargarSiVisible, PRECARGA_TRAS_ARRANQUE_MS);
+      precargaIv = setInterval(precargarSiVisible, PRECARGA_CADA_MS);
+      window.addEventListener("online", onOnline);
+      // App instalada (PWA o nativa): que el navegador no borre lo guardado cuando falte espacio.
+      const instalada =
+        (typeof window.matchMedia === "function" && window.matchMedia("(display-mode: standalone)").matches) ||
+        "__TAURI__" in window || "__TAURI_INTERNALS__" in window;
+      void pedirAlmacenPersistente(instalada);
+    } catch { /* */ }
+
     const onLoad = () => {
       if (!cancelled) register();
     };
@@ -176,6 +223,11 @@ export function RegisterSW() {
       cancelled = true;
       window.removeEventListener("load", onLoad);
       if (buildIv) clearInterval(buildIv);
+      if (precargaT0) clearTimeout(precargaT0);
+      if (precargaIv) clearInterval(precargaIv);
+      if (precargaOnline) clearTimeout(precargaOnline);
+      window.removeEventListener("online", onOnline);
+      try { navigator.serviceWorker.removeEventListener("message", onMensajeSW); } catch { /* */ }
       try { cierraAviso(); } catch { /* */ }
       try { navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange); } catch { /* */ }
     };

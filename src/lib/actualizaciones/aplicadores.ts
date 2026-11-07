@@ -5,7 +5,7 @@
  *                 sin aplicador registrado se dice, no se finge.
  *   · interfaz  → recarga suave con el mismo freno que `RegisterSW` (`puedeRecargarSuave`); si la
  *                 persona escribe, se avisa al banner «Nueva versión» (`starseed:update-ready`).
- *   · sw        → `registration.update()` y `SKIP_WAITING` al SW en espera (`public/sw-v7.js` lo
+ *   · sw        → `registration.update()` y `SKIP_WAITING` al SW en espera (`public/sw-v8.js` lo
  *                 atiende); `RegisterSW` recarga una vez al cambiar de controlador.
  *   · servicios → `POST /api/mando/servidor {accion:"reiniciar"}` (lista blanca, solo en la Mac).
  *   · modelos   → aún sin aplicador en el navegador (las capas se renuevan con su gestor): se dice.

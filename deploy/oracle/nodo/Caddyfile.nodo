@@ -56,7 +56,7 @@ genesis.{$STARSEED_HOST} {
 	@necesario {
 		path /genesis /genesis/* /metagenesis /metagenesis/*
 		path /login /login/* /auth/callback
-		path /_next/* /favicon.ico /favicon-48.png /icon.png /apple-icon.png /manifest.webmanifest /sw-v7.js /offline.html /version.json /icons/* /app-icons/* /assets/* /logo.png /starseed-symbol.png /starseed-symbol-192.png /starseed-symbol-square.png
+		path /_next/* /favicon.ico /favicon-48.png /icon.png /apple-icon.png /manifest.webmanifest /sw-v7.js /sw-v8.js /sw-logica.js /offline.html /version.json /icons/* /app-icons/* /assets/* /logo.png /starseed-symbol.png /starseed-symbol-192.png /starseed-symbol-square.png
 		path /api/mando /api/mando/* /api/genesis/proponer /api/genesis/contenedores /api/ai/astraura-158 /api/ai/astraura-158/* /api/voz/* /api/movimiento/* /api/storage/oauth/token
 	}
 

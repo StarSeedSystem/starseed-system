@@ -45,7 +45,7 @@ beforeEach(() => {
   h.humo.mockResolvedValue({ paginaCarga: true, servicios: {} });
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {
     if (url === "/version.json") return { ok: true, json: async () => ({ build: "build-nuevo-123" }) };
-    if (url === "/sw-v7.js") return { ok: true, text: async () => 'const SW_VERSION = "v9-2026-10-10";' };
+    if (url === "/sw-v8.js") return { ok: true, text: async () => 'const SW_VERSION = "v9-2026-10-10";' };
     return { ok: false };
   }));
   (window as unknown as { STARSEED_BUILD_INICIAL?: string }).STARSEED_BUILD_INICIAL = "build-viejo-001";

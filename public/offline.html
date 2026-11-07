@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>StarSeed OS · Sin conexión</title>
   <link rel="icon" href="/favicon-48.png" />
+  <!--
+    Página de respaldo del service worker (public/sw-v8.js · SW1107A). Sin red, la sirve en lugar de una
+    página que aún no está guardada en este dispositivo, en la MISMA dirección que se pidió; enseña las
+    secciones que sí están guardadas (las lee de la caché del SW) y vuelve sola al recuperar la red.
+  -->
   <style>
     :root { color-scheme: dark; }
     html, body {
@@ -26,29 +31,91 @@
     }
     img { width: 96px; height: 96px; margin-bottom: 1.5rem; opacity: 0.92; }
     h1 { font-size: 1.4rem; font-weight: 600; margin: 0 0 0.5rem; }
-    p { font-size: 0.95rem; line-height: 1.5; color: #A8A4C0; max-width: 28rem; margin: 0 0 1.75rem; }
-    button {
+    p { font-size: 0.95rem; line-height: 1.5; color: #A8A4C0; max-width: 30rem; margin: 0 0 1.25rem; }
+    code { color: #E8E6F0; background: rgba(255, 255, 255, 0.06); padding: 0.1rem 0.35rem; border-radius: 0.35rem; word-break: break-all; }
+    .acciones { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; margin-bottom: 1.75rem; }
+    button, a.boton {
       cursor: pointer;
       border: 1px solid rgba(255, 255, 255, 0.16);
       background: rgba(255, 255, 255, 0.06);
       color: #E8E6F0;
+      font: inherit;
       font-size: 0.95rem;
       padding: 0.65rem 1.4rem;
       border-radius: 0.75rem;
+      text-decoration: none;
       transition: background 200ms ease, border-color 200ms ease;
     }
-    button:hover { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.28); }
+    button:hover, a.boton:hover { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.28); }
+    button:focus-visible, a:focus-visible { outline: 2px solid #A8A4C0; outline-offset: 2px; }
+    #guardadas { max-width: 34rem; width: 100%; }
+    #guardadas h2 { font-size: 0.85rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #A8A4C0; margin: 0 0 0.75rem; }
+    #guardadas ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
+    #guardadas a { display: inline-block; color: #E8E6F0; text-decoration: none; font-size: 0.9rem; padding: 0.4rem 0.8rem; border-radius: 0.6rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); }
+    #guardadas a:hover { background: rgba(255, 255, 255, 0.1); }
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>
-  <div class="wrap">
+  <main class="wrap">
     <img src="/starseed-symbol-192.png" alt="StarSeed" />
     <h1>Sin conexión</h1>
-    <p>No hay conexión a la red en este momento. StarSeed OS volverá a cargar automáticamente cuando recuperes el acceso a internet.</p>
-    <button type="button" onclick="location.reload()">Reintentar</button>
-  </div>
+    <p id="general">No hay conexión a la red en este momento. StarSeed OS volverá a cargar automáticamente cuando recuperes el acceso a internet.</p>
+    <p id="no-guardada" hidden>Esta página (<code id="ruta"></code>) aún no está guardada en este dispositivo para usarla sin internet. Las secciones de abajo sí lo están.</p>
+    <div class="acciones">
+      <button type="button" id="reintentar">Reintentar</button>
+      <a class="boton" href="/">Ir al inicio</a>
+    </div>
+    <section id="guardadas" hidden aria-labelledby="titulo-guardadas">
+      <h2 id="titulo-guardadas">Disponible sin conexión</h2>
+      <ul id="lista"></ul>
+    </section>
+  </main>
   <script>
-    window.addEventListener("online", function () { location.reload(); });
+    (function () {
+      document.getElementById("reintentar").addEventListener("click", function () { location.reload(); });
+      window.addEventListener("online", function () { location.reload(); });
+      var ruta = location.pathname;
+      if (ruta && ruta !== "/offline.html") {
+        document.getElementById("ruta").textContent = decodeURIComponent(ruta);
+        document.getElementById("no-guardada").hidden = false;
+        document.getElementById("general").hidden = true;
+      }
+      if (!("caches" in window)) return;
+      // Las páginas guardadas: claves de las cachés de cada build y de la de ejecución del SW que son
+      // páginas (sin extensión, sin carga RSC, ni recursos ni API).
+      caches.keys().then(function (nombres) {
+        var propias = nombres.filter(function (n) { return /^starseed-(build|runtime)-/.test(n); });
+        return Promise.all(propias.map(function (n) {
+          return caches.open(n).then(function (c) { return c.keys(); }).catch(function () { return []; });
+        }));
+      }).then(function (listas) {
+        var vistas = {};
+        listas.forEach(function (claves) {
+          claves.forEach(function (req) {
+            try {
+              var u = new URL(req.url);
+              if (u.origin !== location.origin || u.search) return;
+              var p = u.pathname;
+              if (/^\/(_next|api|auth|__starseed)(\/|$)/.test(p) || /\.[a-z0-9]{1,16}$/i.test(p)) return;
+              vistas[p] = true;
+            } catch (e) { /* clave rara */ }
+          });
+        });
+        var rutas = Object.keys(vistas).sort().slice(0, 80);
+        if (!rutas.length) return;
+        var ul = document.getElementById("lista");
+        rutas.forEach(function (p) {
+          var li = document.createElement("li");
+          var a = document.createElement("a");
+          a.href = p;
+          a.textContent = p === "/" ? "Inicio" : decodeURIComponent(p.slice(1)).replace(/[-/]/g, " ");
+          li.appendChild(a);
+          ul.appendChild(li);
+        });
+        document.getElementById("guardadas").hidden = false;
+      }).catch(function () { /* sin Cache API: solo el mensaje */ });
+    })();
   </script>
 </body>
 </html>

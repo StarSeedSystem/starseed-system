@@ -380,6 +380,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         } catch {
             /* best-effort */
         }
+        // (SW1107A) Lo guardado para usar sin conexión con datos de esta sesión (respuestas de API,
+        // páginas dinámicas) se borra; las páginas estáticas y el código se quedan.
+        void import("@/lib/pwa/precarga-cliente")
+            .then((m) => m.olvidarSesionSinConexion())
+            .catch(() => undefined);
         lastProfileUserRef.current = null;
         setSession(null);
         setUser(null);

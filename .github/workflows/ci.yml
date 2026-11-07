@@ -70,6 +70,10 @@ jobs:
           # y el reconstructor de la Mac lo descarga cuando Genesis no puede compilar.
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
+      - name: Manifiesto de precarga sin conexión (postbuild)
+        # (SW1107A) Lo mismo que hace `npm run build` en Vercel tras el build: public/precarga.json para el
+        # service worker. Aquí se comprueba con el build real; nunca falla el CI (avisa en amarillo).
+        run: npm run postbuild
         # (2026-10-29, IND1029) Artefacto del build: el reconstructor de la Mac lo descarga cuando
         # Genesis no puede compilar. El .next se sube sin caché (NEXT_PUBLIC_* de variables del repo,
         # no secretos: son públicos por diseño). El artifact name usa el sha para identificar el

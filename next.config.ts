@@ -243,6 +243,10 @@ const nextConfig: NextConfig = {
     return [
       { source: '/:path*', headers: security },
       { source: '/sw-v7.js', headers: [...noCache, { key: 'Service-Worker-Allowed', value: '/' }] },
+      // (SW1107A) SW vigente, su lógica pura (importScripts) y el manifiesto de precarga de cada build.
+      { source: '/sw-v8.js', headers: [...noCache, { key: 'Service-Worker-Allowed', value: '/' }] },
+      { source: '/sw-logica.js', headers: noCache },
+      { source: '/precarga.json', headers: noCache },
       { source: '/manifest.webmanifest', headers: noCache },
       { source: '/version.json', headers: noCache },
     ];
