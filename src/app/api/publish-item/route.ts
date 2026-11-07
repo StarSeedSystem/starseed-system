@@ -2,13 +2,44 @@ import { NextResponse } from "next/server";
 import type { StoreSourceKind } from "@/lib/store/store-data";
 import { publishToStore, type PublishInput } from "@/lib/store/store-data";
 
+const ALLOWED_KIND = new Set(["package", "post", "file", "contact", "message", "page", "route", "external", "bookmark", "design", "personality"]);
+
 export async function POST(req: Request): Promise<Response> {
     try {
         const body = await req.json();
+        
+        // Validación de body.kind y body.title
+        if (!body.kind || !ALLOWED_KIND.contains(body.kind)) {
+            return NextResponse.json(
+                { error: "Kind inválido" },
+                { status: 400 }
+            );
+        }
+        if (!body.title || typeof body.title !== "string" || body.title.trim().length === 0) {
+            return NextResponse.json(
+                { error: "Título inválido" },
+                { status: 400 }
+            );
+        }
+        
+        // Sanitizar título (eliminar rutas de archivo y rutas de navegación)
+        const sanitizedTitle = body.title
+            .trim()
+            .replace(/\.\.(\\\\|\/)?/g, "")
+            .replace(/^\//, "")
+            .replace(/\\/g, "/");
+        
+        if (sanitizedTitle.length === 0) {
+            return NextResponse.json(
+                { error: "Título no válido después de sanitizar" },
+                { status: 400 }
+            );
+        }
+        
         // Construir input compatible con publishToStore
         const input: PublishInput = {
             category: body.kind || "recurso",
-            title: body.title || "Sin título",
+            title: sanitizedTitle,
             description: body.note,
             payload: body,
             sourceKind: body.kind as StoreSourceKind,
