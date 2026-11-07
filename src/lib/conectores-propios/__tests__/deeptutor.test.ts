@@ -170,14 +170,22 @@ describe("deeptutor · conector opcional", () => {
     expect(r).toEqual({ texto: "Sin sesión", modo: "explicar", sesion: null });
   });
 
-  it("estado devuelve motivo específico para 401/403/404/500", async () => {
+  it("estado devuelve no disponible si config es null", async () => {
+    const { fetchFn } = falso(200, {});
+    const r = await estadoDeeptutor(null, fetchFn);
+    expect(r).toEqual({ disponible: false, motivo: "DeepTutor no está configurado." });
+  });
+
+  it("estado devuelve motivo específico para 401/403/404/429/500", async () => {
     const m401 = await estadoDeeptutor(configDeeptutor(ENV), falso(401, {}).fetchFn);
     const m403 = await estadoDeeptutor(configDeeptutor(ENV), falso(403, {}).fetchFn);
     const m404 = await estadoDeeptutor(configDeeptutor(ENV), falso(404, {}).fetchFn);
+    const m429 = await estadoDeeptutor(configDeeptutor(ENV), falso(429, {}).fetchFn);
     const m500 = await estadoDeeptutor(configDeeptutor(ENV), falso(500, {}).fetchFn);
     expect((m401 as { motivo: string }).motivo).toContain("401");
     expect((m403 as { motivo: string }).motivo).toContain("403");
     expect((m404 as { motivo: string }).motivo).toContain("404");
+    expect((m429 as { motivo: string }).motivo).toContain("429");
     expect((m500 as { motivo: string }).motivo).toContain("falló");
   });
 });
