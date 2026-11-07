@@ -60,4 +60,7 @@ pero dependía de que la persona eligiera bien en una lista sin agrupar. Y el la
   el nombre de máquina solo sale de la app nativa o de la propia máquina, y como hash.
 - La adopción automática exige UN solo candidato `mismo`. Ante la duda, se pregunta.
 - Una fusión nunca pierde datos: respaldo + deshacer, y los ajustes se mueven, no se borran.
+  (NEU1107B) La ventana «Esta neurona» tras iniciar sesión fusiona además SIN borrar filas: las absorbidas
+  quedan en `neuron_devices` con la marca `capabilities.fusionada` y `listNeurons()` las salta. Detección,
+  reglas y semántica: `architecture/neurona-bienvenida.md`.
 - Los ritmos reales: latido cada 5 min, «online» por latido = 12 min; en vivo, la presencia.

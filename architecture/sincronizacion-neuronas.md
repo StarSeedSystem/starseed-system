@@ -224,3 +224,18 @@ sobre  = wrapSigned(cuerpo)  → { v:2, b:cuerpo, ts, nonce, s, k, f }   (ECDSA 
 - A mano: dos aparatos de la misma cuenta, uno con la app atrasada → en el otro, «Pedir actualización» →
   en el atrasado sale su ventana con «Te lo pide…»; probar también sin internet en la misma red (app nativa)
   y que una cuenta distinta no consiga abrir nada.
+
+## 10 · Fusión de los registros de un aparato tras iniciar sesión (NEU1107B · 2026-11-07)
+
+Contrato completo: `architecture/neurona-bienvenida.md`. Lo que toca a la malla:
+
+- La fusión de la ventana «Esta neurona» NO borra filas: las absorbidas se quedan con
+  `capabilities.fusionada = { en, ts, por }` y su alias en `starseed.neuronas.fusiones.v1`. La neurona que se
+  queda sigue latiendo, anunciándose en la presencia (`n` = su id) y en `conocidas`.
+- `conocidas` (faro de la app nativa) = ids vigentes + ids absorbidos que apuntan a uno vigente
+  (`idsConocidasConAlias`, `faro-clave-cuenta.ts`): el faro de un medio que aún no adoptó el id nuevo sigue
+  siendo «de mi cuenta» y con nombre. Tras fusionar, la app nativa reparte la clave de faro al momento.
+- Un medio que ve su propia fila marcada sin alias todavía lo apunta él mismo y adopta el id que se quedó
+  (`listNeurons`): sin internet entre las dos, basta con que la fila llegue.
+- Los vínculos de sincronización (`starseed.malla.vinculos.<neurona>.v1`) guardan la huella de malla, que no
+  cambia con la fusión (los ids de malla y de sync de cada medio no se comparten).
