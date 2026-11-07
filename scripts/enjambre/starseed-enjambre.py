@@ -2529,6 +2529,36 @@ def entorno_hijo(extra=None):
     return e
 
 
+# CLAVE_GIT_NO_PUSH: (0711, 2026-11-07) Un worktree comparte las referencias con el main vivo:
+# un `git push origin main` desde un agente publicaba main saltándose las puertas de la
+# autopublicación. Los vetos de bash de opencode se saltan con `bash -c`, `timeout` o `git -C`,
+# así que se corta por otro lado: git reescribe toda URL de GitHub (`insteadOf`) hacia un remoto
+# inexexistente y el `git push` del agente muere al instante (rc 128); `git fetch` no cambia.
+CLAVE_GIT_NO_PUSH = "url.nopush://bloqueado-por-starseed/.pushInsteadOf"
+URLS_GITHUB_NO_PUSH = ("https://github.com/", "git@github.com:", "ssh://git@github.com/")
+
+
+def entorno_sin_push(env):
+    """PURA: dict NUEVO con lo de `env` más tres entradas git que desactivan push a GitHub.
+
+    Se usa SOLO donde se lanza un agente (opencode y Codex), no en `entorno_hijo` ni en
+    `sh()`: el orquestador empuja él mismo las ramas `comprobar/…` de la puerta tsc y eso
+    debe seguir igual. Las entradas previas de GIT_CONFIG se conservan al final.
+    """
+    e = dict(env)
+    try:
+        total = int(e.get("GIT_CONFIG_COUNT", ""))
+    except ValueError:
+        total = 0
+    total = max(total, 0)
+    for i, url in enumerate(URLS_GITHUB_NO_PUSH):
+        indice = total + i
+        e["GIT_CONFIG_KEY_%d" % indice] = CLAVE_GIT_NO_PUSH
+        e["GIT_CONFIG_VALUE_%d" % indice] = url
+    e["GIT_CONFIG_COUNT"] = str(total + len(URLS_GITHUB_NO_PUSH))
+    return e
+
+
 _CLAVES_EXTRA = (
     # No viven en opencode.json: revisores por HTTP directo, avisos y alias históricos.
     "GROQ_API_KEY",
@@ -3953,7 +3983,10 @@ def opencode(prompt, modelo, cwd, log, timeout=1500, tid=None):
                 stderr=subprocess.STDOUT,
                 # (2026-09-07, Ola 271, P9B) la clave ACTIVA del proveedor se
                 # pasa al hijo y, si cambió, actualiza «{env:VAR}» de opencode.
-                env=entorno_hijo(_sync_opencode_clave(modelo)),
+                # (2026-11-07, 0711) el agente NO puede empujar a GitHub (ni sus hijos):
+                # su worktree comparte referencias con el main vivo y un push saltaría
+                # las puertas de la autopublicación. El orquestador (sh()) sí empuja.
+                env=entorno_sin_push(entorno_hijo(_sync_opencode_clave(modelo))),
                 # (2026-09-23) Grupo propio: al cortarlo se va con sus hijos (tsserver
                 # de ~2 GB incluido) en vez de dejarlos huérfanos. Ver `matar_grupo`.
                 start_new_session=True,
@@ -4110,7 +4143,8 @@ def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
                 stdin=subprocess.PIPE,
                 stdout=f,
                 stderr=subprocess.STDOUT,
-                env=entorno_hijo(),
+                # (2026-11-07, 0711) mismo bloqueo de push que opencode: ver `entorno_sin_push`.
+                env=entorno_sin_push(entorno_hijo()),
                 start_new_session=True,  # (2026-09-23) ver `matar_grupo`
             )
         try:
