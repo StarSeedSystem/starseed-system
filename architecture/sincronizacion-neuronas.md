@@ -136,7 +136,7 @@ conciencia compartidas y los ajustes.
 | Ficha de una señal (Radar, Mapa de señales, panel de Señales: `signal-detail.tsx`) | `PanelVinculo` de la neurona de esa señal; si no está vinculada lo dice |
 | Panel de Señales (`detected-signals-panel.tsx`) | `ListaVinculos`: todas las vinculadas con su mejor vía y latencia |
 | Cerebro → Neuronas (`neuronas-panel.tsx`) | `ListaVinculos` arriba y, en cada tarjeta de otra neurona, «Vínculo, vías y latencia» |
-| Cerebros → Servidores (`servers-panel.tsx`) | `ListaVinculos`; el registro de servidores no guarda el id de neurona, así que no se asocia un servidor del registro con su neurona sin que se vinculen |
+| Cerebros → Servidores (`servers-panel.tsx`) | `ListaVinculos`; cada tarjeta de servidor muestra su neurona vinculada (`ServidorNeurona`); la asociación servidor→neurona vive en `starseed.malla.servidor-neurona.v1` (`registro-servidor-neurona.ts`, VIN1107T1) y se hace a mano; el registro no cambia |
 
 ### 8.2 Piezas
 - `src/lib/malla/panel-vinculo.ts` (puro): mejor vía (menor latencia medida; sin medidas, orden fijo más directo
