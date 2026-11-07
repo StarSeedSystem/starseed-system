@@ -77,6 +77,40 @@ RAIZ_OLAS = os.path.join(RAIZ, "starseed_memory_root", "olas")
 def encendido(datos):
     return isinstance(datos, dict) and datos.get("activo") is True
 
+MANUAL_SIN_LATIDO_S = 3 * 3600
+
+
+def manual_viva(diario, pid_vivo, ahora, mtime):
+    """PURA: (bool, motivo) de si una publicación manual está viva.
+    
+    True si: el diario es un dict con estado == "corriendo" y:
+      - tiene un pid entero, y pid_vivo(pid) devuelve True (proceso vivo)
+      - no tiene pid (diario antiguo), pero ahora - mtime < MANUAL_SIN_LATIDO_S (hace menos de 3 h)
+    False con motivo si: el diario no es un dict, su estado no es "corriendo", o la publicación no es viva.
+    """
+    if not isinstance(diario, dict):
+        return False, "sin publicación manual en curso"
+    
+    if diario.get("estado") != "corriendo":
+        return False, "sin publicación manual en curso"
+    
+    pid = diario.get("pid")
+    if pid is not None and isinstance(pid, int):
+        try:
+            return True, "proceso manual activo (pid %d)" % pid
+        except ProcessLookupError:
+            return False, "su proceso %d ya no existe" % pid
+        except PermissionError:
+            return True, "proceso manual activo (pid %d)" % pid
+    
+    if mtime == 0:
+        return True, "proceso manual activo (sin mtime)"
+    
+    if ahora - mtime < MANUAL_SIN_LATIDO_S:
+        return True, "proceso manual activo (sin pid y %d min sin cambios)" % ((ahora - mtime) // 60)
+    
+    return False, "sin cambios desde hace %d min" % ((ahora - mtime) // 60)
+
 
 # Lo idempotente y lo que solo NOMBRA un borrado no borra nada: recrear una política o un trigger
 # (`drop … if exists` + `create`), `on delete cascade` de una clave foránea, `for delete` de una
@@ -327,7 +361,13 @@ class Medios(object):
         return set(datos) if isinstance(datos, dict) else set()
 
     def publicando_a_mano(self):
-        return (_leer(DIARIO_MANUAL, {}) or {}).get("estado") == "corriendo"
+        import os
+        import time
+        diario = _leer(DIARIO_MANUAL, {})
+        ahora = time.time()
+        mtime = os.path.getmtime(DIARIO_MANUAL) if os.path.exists(DIARIO_MANUAL) else 0
+        viva, motivo = manual_viva(diario, os.kill, ahora, mtime)
+        return viva
 
     def lider(self, ahora=None):
         """(IND1029Cb) (¿publico yo?, por qué), con el arriendo de dirección (IND1029B) solo leído y la

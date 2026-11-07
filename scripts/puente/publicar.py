@@ -256,6 +256,7 @@ class Diario(object):
             "nota": nota,
             "empezado": time.strftime("%Y-%m-%d %H:%M:%S"),
             "terminado": None,
+            "pid": os.getpid(),
             "pasos": [
                 {"clave": c, "titulo": t, "estado": "pendiente", "detalle": "", "segundos": 0}
                 for c, t in PASOS
