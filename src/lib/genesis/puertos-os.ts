@@ -35,7 +35,7 @@ function sb() {
     return createClient();
 }
 
-async function miCuenta(): Promise<string | null> {
+export async function miCuenta(): Promise<string | null> {
     try {
         const { data } = await sb().auth.getSession();
         return data.session?.user?.id ?? null;
