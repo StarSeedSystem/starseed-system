@@ -385,7 +385,8 @@ class Ola1025STest(unittest.TestCase):
         r = D.automatica(astraura(nivel="critical_security"), ajustes(), existe)
         self.assertEqual(r["destino"], "esperando-aprobacion"); self.assertIn("critical_security", r["motivo"])
         alex = D.automatica(astraura(titulo="Optimización para vercel.backup.json"), ajustes(), existe)
-        self.assertEqual(alex["destino"], "pregunta"); self.assertIn("vercel", alex["motivo"])
+        # Ola 1107 (IMG1107A): en Astraura, nombrar credenciales ya no espera a Alex: se descarta con su motivo.
+        self.assertEqual(alex["destino"], "descartada"); self.assertIn("credenciales", alex["motivo"])
 
     def test_astraura_ya_autorizada_no_espera_nada(self):
         viva = astraura(nivel="high", origen={"tipo": "rama", "id": "bgauth_1_athena", "requires_user_approval": False, "status": "running"},
@@ -647,4 +648,28 @@ class AstrauraSinSustanciaTest(unittest.TestCase):
 
     def test_con_el_automatico_apagado_no_decide_nada(self):
         r = D.automatica(self._astraura(0.05), ajustes(automatico=False, aprobar=False, reimaginar=False), existe)
+        self.assertNotEqual(r["destino"], "descartada")
+
+
+class AstrauraBasuraAntesDeAlexTest(unittest.TestCase):
+    """(Ola 1107 · IMG1107A) La basura de Astraura se descarta antes de pedirte decisión."""
+    TITULO = "Ingesta Automática de Workspace Soberano Local: vercel.backup.json, r2_credentials.local.json"
+
+    def test_caso_real_credenciales_utilidad_cero_se_descarta(self):
+        p = propuesta(fuente="astraura", titulo=self.TITULO, cuerpo="Ingerir el workspace.", archivos=[], utilidad=0)
+        r = D.automatica(p, ajustes(), existe)
+        self.assertEqual(r["destino"], "descartada")
+        self.assertNotIn("la decides tú", r["motivo"])
+
+    def test_credenciales_con_utilidad_alta_tambien_se_descarta(self):
+        p = propuesta(fuente="astraura", titulo=self.TITULO, archivos=[], utilidad=0.9)
+        self.assertEqual(D.automatica(p, ajustes(), existe)["destino"], "descartada")
+
+    def test_astraura_buena_sigue_su_camino(self):
+        p = propuesta(fuente="astraura", titulo="Mejorar el lector de archivos", utilidad=0.9)
+        self.assertNotEqual(D.automatica(p, ajustes(), existe)["destino"], "descartada")
+
+    def test_otra_fuente_con_credenciales_sigue_siendo_de_alex(self):
+        p = propuesta(fuente="agentes", titulo=self.TITULO, archivos=[], utilidad=0)
+        r = D.automatica(p, ajustes(), existe)
         self.assertNotEqual(r["destino"], "descartada")

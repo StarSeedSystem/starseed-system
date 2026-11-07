@@ -538,8 +538,21 @@ def automatica(p, ajustes, existe=None, consejo=None):
         return base
     def manual(d, motivo): return {"destino": d, "aprobacion_diff": False, "motivo": motivo, "notas": ""}
     alex = es_de_alex(p)
-    if alex: return dict(base, motivo=alex.replace(" → pregunta", "") + ": la decides tú")
     u_medida = _num(p.get("utilidad"))
+    # (Ola 1107 · IMG1107A) La basura de Astraura se descarta ANTES de pedirte nada: una creación sin sustancia (utilidad
+    # bajo el umbral) o que nombra archivos de credenciales no es una decisión tuya, es ruido.
+    if p.get("fuente") == "astraura":
+        try:
+            from autodesarrollo_fuentes import toca_secretos  # import tardío: ese módulo importa este
+            secretos = toca_secretos(p)
+        except Exception:
+            secretos = False
+        if secretos:
+            return manual("descartada", "creación de Astraura que nombra archivos de credenciales o secretos: nunca llega a tarea ni a tu lista")
+        if alex and u_medida is not None and u_medida < UMBRAL_BASURA_ASTRAURA:
+            return manual("descartada", "creación de Astraura sin sustancia (utilidad %s < %s): no hay nada que decidir aunque toque algo tuyo"
+                          % (_coma(round(u_medida, 2)), _coma(UMBRAL_BASURA_ASTRAURA)))
+    if alex: return dict(base, motivo=alex.replace(" → pregunta", "") + ": la decides tú")
     if (p.get("fuente") == "astraura" and imp in ("alta", "critica") and u_medida is not None
             and u_medida < UMBRAL_BASURA_ASTRAURA):
         return manual("descartada", "creación de Astraura sin sustancia (utilidad %s < %s): no llega a tarea aunque se llame «%s»"
