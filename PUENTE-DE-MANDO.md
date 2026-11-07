@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-07 15:42:52 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-07 16:07:22 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,18 +16,15 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 41 |
 | Últimas 4 olas | en curso 0 · pendientes 80 · integradas 0 |
-| HEAD | `6ed2f62132 chore(memoria): aprendizaje de la ola auto-1107-144902` |
-| Sin publicar | 12 commits |
+| HEAD | `b3060815a4 chore(memoria): aprendizaje de la ola auto-1107-154301` |
+| Sin publicar | 16 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1107-144902.json`, hace 12s)
+## Quién escribe ahora (latido de `cola-auto-1107-154301.json`, hace 30s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CTR1107D-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 147 s | 56128 |
-| `CTR1107E-d3` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 8 min | 477 s | 82391 |
-| `RPO1104R` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 10 min | 606 s | 33856 |
-| `CTR1104I` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 22 min | 1293 s | 42669 |
+| `CTR1107D-d2` | hecho | freellmapi/auto | 4 min | 263 s | 75084 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
