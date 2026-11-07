@@ -30,11 +30,14 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { compactarDirectorio } from "./compactar-manifiestos.mjs";
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ_REPO = path.resolve(AQUI, "..", "..");
+/** Protocolo del envoltorio (lo que Rust sabe lanzar): va en el manifiesto del paquete y de cada capa. */
+export const { PROTOCOLO } = createRequire(import.meta.url)("./starseed-arranque.cjs");
 
 export const TRIPLES = {
   "darwin-universal": ["universal-apple-darwin", "aarch64-apple-darwin", "x86_64-apple-darwin"],
@@ -110,7 +113,7 @@ export function mb(b) {
 
 // ───────────────────────────── Disco y procesos ─────────────────────────────
 
-function ejecutar(cmd, args, opciones = {}) {
+export function ejecutar(cmd, args, opciones = {}) {
   const r = spawnSync(cmd, args, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8", ...opciones });
   if (r.error || r.status !== 0) {
     throw new Error(`${cmd} ${args.join(" ")} → ${r.error ? r.error.message : `código ${r.status}`}: ${(r.stderr || "").trim().slice(0, 400)}`);
@@ -118,7 +121,7 @@ function ejecutar(cmd, args, opciones = {}) {
   return (r.stdout || "").trim();
 }
 
-function tarDelSistema() {
+export function tarDelSistema() {
   // En el runner de Windows, «tar» del bash es el GNU de Git (no abre .zip); el del sistema sí.
   if (process.platform === "win32") return path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe");
   return "tar";
@@ -128,7 +131,7 @@ function sha256(ruta) {
   return createHash("sha256").update(fs.readFileSync(ruta)).digest("hex");
 }
 
-function recorrer(dir, f, rel = "") {
+export function recorrer(dir, f, rel = "") {
   for (const e of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
     const r = rel ? `${rel}/${e.name}` : e.name;
     if (e.isDirectory()) recorrer(dir, f, r);
@@ -172,6 +175,59 @@ async function nodeOficial(clave, manifiesto, cache, trabajo) {
   return bin;
 }
 
+/**
+ * Copia el servidor (standalone + .next/static + public + envoltorio) de un build de Next ya
+ * extraído en `base` a `destino`. Lo usan el instalador (`preparar`) y las capas (`capa.mjs`, T1):
+ * así una capa trae EXACTAMENTE lo mismo que el paquete del instalador.
+ */
+export function copiarServidor(base, destino) {
+  const standalone = path.join(base, ".next", "standalone");
+  const estaticos = path.join(base, ".next", "static");
+  const publico = path.join(base, "public");
+  for (const [p, que] of [[path.join(standalone, "server.js"), "server.js del standalone"], [path.join(standalone, ".next", "BUILD_ID"), ".next/BUILD_ID del standalone"], [estaticos, ".next/static"]]) {
+    if (!fs.existsSync(p)) throw new Error(`falta ${que} (${p}): ¿se compiló con output: 'standalone'?`);
+  }
+  let sinSharp = false;
+  try {
+    const rsf = JSON.parse(fs.readFileSync(path.join(standalone, ".next", "required-server-files.json"), "utf8"));
+    sinSharp = rsf?.config?.images?.unoptimized === true;
+  } catch {}
+  fs.mkdirSync(destino, { recursive: true });
+  fs.cpSync(standalone, destino, {
+    recursive: true,
+    dereference: true,
+    filter: (src) => {
+      const rel = path.relative(standalone, src).split(path.sep).join("/");
+      return rel === "" || seCopia(rel, { sinSharp });
+    },
+  });
+  fs.cpSync(estaticos, path.join(destino, ".next", "static"), { recursive: true, dereference: true });
+  if (fs.existsSync(publico)) fs.cpSync(publico, path.join(destino, "public"), { recursive: true, dereference: true });
+  fs.copyFileSync(path.join(AQUI, "starseed-arranque.cjs"), path.join(destino, "starseed-arranque.cjs"));
+  // (APP1107B · T4) La página /__starseed/migracion la sirve el envoltorio con este script.
+  fs.copyFileSync(path.join(AQUI, "migracion-origen.js"), path.join(destino, "migracion-origen.js"));
+  // (SEG1107A · T11) La guarda del envoltorio (Host, Origin, pase de la ventana).
+  fs.copyFileSync(path.join(AQUI, "guarda.cjs"), path.join(destino, "guarda.cjs"));
+  const envSueltos = fs.readdirSync(destino).filter((n) => /^\.env(\..*)?$/.test(n));
+  if (envSueltos.length) throw new Error(`quedó un .env en el servidor: ${envSueltos.join(", ")}`);
+  return { sinSharp };
+}
+
+/** Versión del repo (package.json) y commit (GITHUB_SHA o git), para los manifiestos. */
+export function versionYCommit() {
+  let version = null;
+  try {
+    version = JSON.parse(fs.readFileSync(path.join(RAIZ_REPO, "package.json"), "utf8")).version || null;
+  } catch {}
+  let commit = process.env.GITHUB_SHA || null;
+  if (!commit) {
+    try {
+      commit = ejecutar("git", ["rev-parse", "HEAD"], { cwd: RAIZ_REPO });
+    } catch {}
+  }
+  return { version, commit };
+}
+
 // ───────────────────────────── Armar ─────────────────────────────
 
 export async function preparar(a) {
@@ -192,38 +248,10 @@ export async function preparar(a) {
       fs.mkdirSync(base, { recursive: true });
       ejecutar(tarDelSistema(), ["-xf", path.resolve(a.tar), "-C", base]);
     }
-    const standalone = path.join(base, ".next", "standalone");
-    const estaticos = path.join(base, ".next", "static");
-    const publico = path.join(base, "public");
-    for (const [p, que] of [[path.join(standalone, "server.js"), "server.js del standalone"], [path.join(standalone, ".next", "BUILD_ID"), ".next/BUILD_ID del standalone"], [estaticos, ".next/static"]]) {
-      if (!fs.existsSync(p)) throw new Error(`falta ${que} (${p}): ¿se compiló con output: 'standalone'?`);
-    }
-    let sinSharp = false;
-    try {
-      const rsf = JSON.parse(fs.readFileSync(path.join(standalone, ".next", "required-server-files.json"), "utf8"));
-      sinSharp = rsf?.config?.images?.unoptimized === true;
-    } catch {}
 
     // 2 · Copiar: standalone (sin .env ni caché; sin sharp si las imágenes no se optimizan) + static + public.
     limpiarAMedias();
-    fs.mkdirSync(destino, { recursive: true });
-    fs.cpSync(standalone, destino, {
-      recursive: true,
-      dereference: true,
-      filter: (src) => {
-        const rel = path.relative(standalone, src).split(path.sep).join("/");
-        return rel === "" || seCopia(rel, { sinSharp });
-      },
-    });
-    fs.cpSync(estaticos, path.join(destino, ".next", "static"), { recursive: true, dereference: true });
-    if (fs.existsSync(publico)) fs.cpSync(publico, path.join(destino, "public"), { recursive: true, dereference: true });
-    fs.copyFileSync(path.join(AQUI, "starseed-arranque.cjs"), path.join(destino, "starseed-arranque.cjs"));
-    // (APP1107B · T4) La página /__starseed/migracion la sirve el envoltorio con este script.
-    fs.copyFileSync(path.join(AQUI, "migracion-origen.js"), path.join(destino, "migracion-origen.js"));
-    // (SEG1107A · T11) La guarda del envoltorio (Host, Origin, pase de la ventana).
-    fs.copyFileSync(path.join(AQUI, "guarda.cjs"), path.join(destino, "guarda.cjs"));
-    const envSueltos = fs.readdirSync(destino).filter((n) => /^\.env(\..*)?$/.test(n));
-    if (envSueltos.length) throw new Error(`quedó un .env en el servidor: ${envSueltos.join(", ")}`);
+    const { sinSharp } = copiarServidor(base, destino);
 
     // 2b · (TAM1107A · T13) Los *_client-reference-manifest.js, sin repeticiones dentro de cada archivo: el
     //      mismo objeto para Next, ≈ 90 % menos en disco. Solo esta copia; cada archivo se comprueba evaluándolo
@@ -278,18 +306,11 @@ export async function preparar(a) {
       console.log(`· ${nombres[0]} responde ${v}`);
     }
 
-    // 4 · Manifiesto del paquete.
-    let version = null;
-    try {
-      version = JSON.parse(fs.readFileSync(path.join(RAIZ_REPO, "package.json"), "utf8")).version || null;
-    } catch {}
-    let commit = process.env.GITHUB_SHA || null;
-    if (!commit) {
-      try {
-        commit = ejecutar("git", ["rev-parse", "HEAD"], { cwd: RAIZ_REPO });
-      } catch {}
-    }
+    // 4 · Manifiesto del paquete. (CAP1107A · T1) `creadoMs` y `protocolo`: con ellos la app decide si
+    // una capa del servidor es más nueva que lo que trae su instalador y si sabe lanzarla.
+    const { version, commit } = versionYCommit();
     const tam = medir(destino);
+    const creadoMs = Date.now();
     const tamNode = fs.statSync(primero).size;
     const manifiesto = {
       version,
@@ -302,7 +323,9 @@ export async function preparar(a) {
       archivos: tam.archivos,
       bytes: tam.bytes,
       bytesNode: tamNode,
-      creado: new Date().toISOString(),
+      protocolo: PROTOCOLO,
+      creado: new Date(creadoMs).toISOString(),
+      creadoMs,
     };
     fs.writeFileSync(path.join(destino, "starseed-servidor.json"), JSON.stringify(manifiesto, null, 2) + "\n");
 

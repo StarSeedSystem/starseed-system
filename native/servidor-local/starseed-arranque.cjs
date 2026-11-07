@@ -59,6 +59,14 @@ const ARCHIVO_MIGRACION_JS = "migracion-origen.js";
 /** Rutas que solo viven en la Mac de desarrollo: nunca se sirven desde la app (APP1107B · T8). */
 const RUTAS_SOLO_MAC = ["/api/mando"];
 const NOMBRE = "starseed-os-local";
+/**
+ * (CAP1107A · T1) Protocolo entre la app (Rust) y este envoltorio: entorno STARSEED_*, pase por la
+ * entrada estándar, salud con firma, salida al cerrarse la entrada. Va en el manifiesto de cada capa
+ * del servidor; la app solo lanza capas con un protocolo que conoce (`PROTOCOLOS_ADMITIDOS` en
+ * native/src-tauri/src/servidor_capas_logica.rs). Si cambia algo de eso de forma incompatible, se
+ * sube aquí y allí a la vez.
+ */
+const PROTOCOLO = 1;
 const LIMITE_CUERPO = 8 * 1024 * 1024;
 const ESPERA_CONECTAR_MS = 5000;
 /** Tope para recibir el pase por la entrada estándar (Rust lo escribe nada más lanzar el proceso). */
@@ -210,6 +218,7 @@ function cuerpoSalud(estado, ahora) {
     red: estadoRed(estado.red, ahora),
     puertoInterno: estado.puertoInterno || null,
     node: process.version,
+    protocolo: PROTOCOLO,
     // (SEG1107A) Si recibió el pase de la app (nunca el pase en sí) y si el Next interno solo
     // atiende a esta puerta: "protegida" | "sin-proteger" | "comprobando".
     pase: Boolean(estado.pase),
@@ -714,7 +723,7 @@ async function principal() {
 module.exports = {
   leerConfig, rutaDe, rutaNormalizada, esSoloMac, destino, paginaMigracion, esErrorDeRed, estadoRed, cabecerasLimpias, cabecerasHaciaWeb,
   adaptarCookie, cabecerasDeVuelta, cuerpoSalud, RUTA_SALUD, RUTA_RED, RUTA_MIGRACION, RUTA_MIGRACION_JS,
-  RUTAS_SOLO_MAC, NOMBRE, LIMITE_CUERPO, protegerServidoresInternos, leerPaseDeEntrada,
+  RUTAS_SOLO_MAC, NOMBRE, LIMITE_CUERPO, protegerServidoresInternos, leerPaseDeEntrada, PROTOCOLO,
 };
 
 if (require.main === module) {
