@@ -292,14 +292,6 @@ export function NeuronsPanel() {
                 </div>
               )}
 
-              {/* (VER1107B) Versión, medio y aparato que anuncia por la presencia de la cuenta. */}
-              <VersionNeurona
-                neuronaId={n.id}
-                nombre={n.name}
-                esEsta={n.isThisDevice}
-                miNombre={neurons.find((x) => x.isThisDevice)?.name}
-              />
-
               {/* Permisos (6 switches) */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {PERMISSION_DEFS.map((p) => (
