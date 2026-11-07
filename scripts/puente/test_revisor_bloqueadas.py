@@ -716,6 +716,38 @@ class TopeDeRescates(unittest.TestCase):
         self.assertEqual(acciones_de(dec, self.HONDO)[0]["accion"], "ya_hecha")
 
 
+class RechazoPorReglaFija(unittest.TestCase):
+    """REV1107A: un rechazo cuya causa es una regla de política fija se cierra como descartada, no queda «sin resolver»."""
+    NOTA = "publicar main es de la autopublicación, no de agentes"
+
+    def test_publicar_main_se_cierra_descartada_con_su_nota(self):
+        tareas = [T("IMG1106-d", archivos=["scripts/puente/x.py"])]
+        prog = {"IMG1106-d": {"estado": "rechazada", "nota": self.NOTA, "t": _t(60)}}
+        a = acciones_de(L.decidir(foto(tareas, prog)), "IMG1106-d")
+        self.assertEqual(len(a), 1)
+        self.assertEqual(a[0]["accion"], "ya_hecha")
+        self.assertEqual(a[0]["datos"]["estado"], "descartada")
+        self.assertIn(self.NOTA, a[0]["motivo"])
+        self.assertFalse(a[0]["veto_jev"])
+
+    def test_push_y_credenciales_tambien(self):
+        for nota, regla in (("hacer push a main no lo hacen los agentes", "push"),
+                            ("la tarea toca credenciales: no la hace un agente", "credenciales")):
+            self.assertEqual(L.regla_de_politica(nota), regla, nota)
+
+    def test_otra_decision_con_motivo_sigue_sin_tocarse(self):
+        tareas = [T("DEC1")]
+        prog = {"DEC1": {"estado": "rechazada", "nota": "Alex prefiere otro diseño", "t": _t(60)}}
+        self.assertEqual(acciones_de(L.decidir(foto(tareas, prog)), "DEC1"), [])
+        self.assertIsNone(L.regla_de_politica("Alex prefiere otro diseño"))
+        self.assertIsNone(L.regla_de_politica(None))
+
+    def test_rechazo_mecanico_sigue_reescribiendose(self):
+        tareas = [T("MEC1")]
+        prog = {"MEC1": {"estado": "rechazada", "nota": "no toco NINGUNO de los 1 archivos que declaraba", "t": _t(60)}}
+        self.assertEqual(acciones_de(L.decidir(foto(tareas, prog)), "MEC1")[0]["accion"], "reescribir")
+
+
 class RechazoMecanico(unittest.TestCase):
     """REV1105A: Rechazo mecánico de las puertas («no toco NINGUNO de los») se repara solo."""
 

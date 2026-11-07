@@ -553,6 +553,24 @@ def transformaciones_recientes(memoria: Dict[str, Any], tid: str, ahora: float) 
             and ahora - _t_epoch(h.get("t")) < VENTANA_TOPE_S]
 
 
+#: Causas de rechazo que son una regla de política FIJA (no una decisión por tomar): publicar main/push es de la
+#: autopublicación, no de agentes; las credenciales no las toca ningún agente.
+_REGLAS_POLITICA = (
+    ("publicar main", re.compile(r"publicar\s+(?:la\s+rama\s+)?main\b|(?:publicaci[oó]n|publicar)\b[^.\n]{0,40}\bmain\b", re.I)),
+    ("push", re.compile(r"\bgit\s+push\b|\bhacer\s+push\b|\bpush\s+(?:a|al|de)\s+(?:main|origin|remoto)\b|\bes\s+de\s+la\s+autopublicaci[oó]n\b", re.I)),
+    ("credenciales", re.compile(r"\b(?:toca|tocar|toque|modifica\w*|lee\w*)\s+(?:las\s+|los\s+)?(?:credenciales|secretos|claves)\b", re.I)),
+)
+
+
+def regla_de_politica(nota: Any) -> Optional[str]:
+    """Nombre de la regla fija (publicar main · push · credenciales) que cita la causa del rechazo, o None. PURA."""
+    texto = str(nota or "")
+    for nombre, patron in _REGLAS_POLITICA:
+        if patron.search(texto):
+            return nombre
+    return None
+
+
 def es_rechazo_mecanico(nota: str) -> bool:
     """¿La nota de una tarea 'rechazada' es un rechazo MECÁNICO de las puertas (no tocó archivos)?"""
     return bool(_RECHAZO_MECANICO.search(str(nota or "")))
@@ -829,6 +847,15 @@ def decidir(foto: Dict[str, Any]) -> Dict[str, Any]:
 
         # Rechazada con OTRA nota (decisión con motivo): NO se reabre sola.
         if est == "rechazada":
+            # (1107 · REV1107A) Si la causa es una regla de política FIJA (publicar main, push, credenciales) no queda
+            # nada por decidir: se cierra como descartada con esa nota en vez de enseñarse «sin resolver» para siempre.
+            regla = regla_de_politica(nota)
+            if regla:
+                a = _accion(tid, "ya_hecha", "rechazada por una regla fija (%s): %s" % (regla, nota[:140]),
+                            "politica", estado="descartada")
+                a["veto_jev"] = False  # una regla fija no se discute con Jev
+                acciones.append(a)
+                tocadas.add(tid)
             continue
 
         est_disco = _estado(progreso_disco, tid) or est
