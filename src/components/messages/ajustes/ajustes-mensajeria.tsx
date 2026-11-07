@@ -3,7 +3,7 @@
 /**
  * AjustesMensajeriaDialog (contrato C3 · 2026-09-28) — la pantalla de ajustes de TODA la sección
  * Mensajería (chats y correos). Diálogo en escritorio y hoja a pantalla completa en móvil, con
- * navegación vertical por secciones: Chats · Privacidad · Notificaciones · Correos · Aurora ·
+ * navegación vertical por secciones: Chats · Privacidad · Notificaciones · Correos · Medio de transmisión · Aurora ·
  * Chats personalizados, y «Restablecer todo» con confirmación.
  *
  * Todo pasa por `useAjustesMensajeria()` (C7): local al instante, sincronizado con la cuenta.
@@ -12,7 +12,7 @@
 import { useEffect, useState, type ComponentType } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-    Bell, ChevronLeft, ChevronRight, Loader2, Mail, MessageSquare, RotateCcw, Shield, SlidersHorizontal, Sparkles,
+    Bell, ChevronLeft, ChevronRight, Loader2, Mail, MessageSquare, RotateCcw, Route, Shield, SlidersHorizontal, Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -28,8 +28,9 @@ import { SeccionNotificaciones } from "./seccion-notificaciones";
 import { SeccionCorreos } from "./seccion-correos";
 import { SeccionAurora } from "./seccion-aurora";
 import { SeccionPersonalizados, tieneAjustesPropios } from "./seccion-personalizados";
+import { SeccionMedios } from "./seccion-medios";
 
-export type SeccionAjustesMensajeria = "chats" | "privacidad" | "notificaciones" | "correos" | "aurora" | "personalizados";
+export type SeccionAjustesMensajeria = "chats" | "privacidad" | "notificaciones" | "correos" | "medios" | "aurora" | "personalizados";
 
 export interface AjustesMensajeriaDialogProps {
     open: boolean;
@@ -51,6 +52,7 @@ export const SECCIONES_AJUSTES: InfoSeccion[] = [
     { id: "privacidad", titulo: "Privacidad", descripcion: "En línea, lecturas y quién te escribe", Icono: Shield, color: ACENTO.esmeralda, Componente: SeccionPrivacidad },
     { id: "notificaciones", titulo: "Notificaciones", descripcion: "Avisos, sonidos y horas de silencio", Icono: Bell, color: ACENTO.ambar, Componente: SeccionNotificaciones },
     { id: "correos", titulo: "Correos", descripcion: "Firma, vista y dirección externa", Icono: Mail, color: ACENTO.aurora, Componente: SeccionCorreos },
+    { id: "medios", titulo: "Medio de transmisión", descripcion: "Malla, internet o servidor", Icono: Route, color: ACENTO.esmeralda, Componente: SeccionMedios },
     { id: "aurora", titulo: "Aurora", descripcion: "Tu IA en los chats", Icono: Sparkles, color: ACENTO.aurora, Componente: SeccionAurora },
     { id: "personalizados", titulo: "Chats personalizados", descripcion: "Chats con ajustes propios", Icono: SlidersHorizontal, color: ACENTO.contactos, Componente: SeccionPersonalizados },
 ];

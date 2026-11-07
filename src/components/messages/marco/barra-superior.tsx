@@ -1,35 +1,39 @@
 "use client";
 
 /**
- * Barra superior de Mensajería (2026-09-28): conmutador Mensajes | Correos, modo enfoque,
- * ajustes de la sección y los accesos globales (avisos y cuenta). Etiquetas completas siempre;
+ * Barra superior de Mensajería (2026-09-28): conmutador Mensajes | Correos | Neuronas (MSJ1107A), modo enfoque,
+ * ajustes de la sección y los accesos globales (avisos y cuenta). Etiquetas completas siempre
+ * (por debajo de 430 px, la de la pestaña activa; las otras quedan para el lector y el título);
  * en móvil el enfoque no aplica (las pantallas ya van apiladas) y su botón no se pinta.
  */
 
 import { motion } from "framer-motion";
-import { Mail, Maximize2, MessageSquare, Minimize2, Settings } from "lucide-react";
+import { BrainCircuit, Mail, Maximize2, MessageSquare, Minimize2, Settings } from "lucide-react";
 import { NotificationCenter } from "@/components/layout/notification-center";
 import { UserNav } from "@/components/layout/user-nav";
 import { cn } from "@/lib/utils";
 import { useNivelMovimiento } from "@/hooks/use-nivel-movimiento";
 import { ACENTO, MUELLE, pildoraFantasma } from "./estilos";
 
-export type SuperficieMensajes = "chats" | "mail";
+export type SuperficieMensajes = "chats" | "mail" | "neuronas";
 
 export interface ConmutadorSuperficieProps {
     superficie: SuperficieMensajes;
     onCambiar: (s: SuperficieMensajes) => void;
     noLeidosChats?: number;
     noLeidosCorreos?: number;
+    /** No leídos de los chats con las neuronas de tus cerebros. */
+    noLeidosNeuronas?: number;
     className?: string;
 }
 
-/** Control segmentado Mensajes | Correos (misma semántica que el antiguo SurfaceSwitch). */
-export function ConmutadorSuperficie({ superficie, onCambiar, noLeidosChats = 0, noLeidosCorreos = 0, className }: ConmutadorSuperficieProps) {
+/** Control segmentado Mensajes | Correos | Neuronas (misma semántica que el antiguo SurfaceSwitch). */
+export function ConmutadorSuperficie({ superficie, onCambiar, noLeidosChats = 0, noLeidosCorreos = 0, noLeidosNeuronas = 0, className }: ConmutadorSuperficieProps) {
     const nivel = useNivelMovimiento();
     const opciones: { id: SuperficieMensajes; etiqueta: string; titulo: string; Icono: typeof Mail; cuenta: number }[] = [
         { id: "chats", etiqueta: "Mensajes", titulo: "Conversaciones", Icono: MessageSquare, cuenta: noLeidosChats },
         { id: "mail", etiqueta: "Correos", titulo: "Correos (@star.seed)", Icono: Mail, cuenta: noLeidosCorreos },
+        { id: "neuronas", etiqueta: "Neuronas", titulo: "Mensajes con las neuronas de tus cerebros", Icono: BrainCircuit, cuenta: noLeidosNeuronas },
     ];
     return (
         <div
@@ -65,7 +69,8 @@ export function ConmutadorSuperficie({ superficie, onCambiar, noLeidosChats = 0,
                             />
                         )}
                         <Icono className="relative h-3.5 w-3.5" />
-                        <span className="relative">{etiqueta}</span>
+                        {/* Con tres pestañas, en pantallas muy estrechas solo la activa enseña su nombre (las demás lo dicen al lector y en el título). */}
+                        <span className={cn("relative", !activa && "max-[430px]:sr-only")}>{etiqueta}</span>
                         {cuenta > 0 && (
                             <span
                                 className="relative ml-0.5 min-w-[18px] rounded-full px-1 text-center text-[10px] font-bold leading-[18px] text-white"
@@ -92,6 +97,7 @@ export interface BarraSuperiorProps {
     puedeEnfocar: boolean;
     esMovil: boolean;
     noLeidosChats?: number;
+    noLeidosNeuronas?: number;
 }
 
 const CLASE_BOTON_ICONO =
@@ -106,10 +112,11 @@ export function BarraSuperior({
     puedeEnfocar,
     esMovil,
     noLeidosChats = 0,
+    noLeidosNeuronas = 0,
 }: BarraSuperiorProps) {
     return (
         <header className="flex shrink-0 items-center justify-between gap-2 px-3 py-2.5 sm:px-4">
-            <ConmutadorSuperficie superficie={superficie} onCambiar={onCambiarSuperficie} noLeidosChats={noLeidosChats} />
+            <ConmutadorSuperficie superficie={superficie} onCambiar={onCambiarSuperficie} noLeidosChats={noLeidosChats} noLeidosNeuronas={noLeidosNeuronas} />
             <div className="flex shrink-0 items-center gap-1.5">
                 {!esMovil && (
                     <button

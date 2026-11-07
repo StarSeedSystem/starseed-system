@@ -94,6 +94,9 @@ function MallaNeuronasEngine() {
   // (2026-10-10) Transporte universal: recepción de mensajes `tu.*` por la malla de la cuenta,
   // vínculos, enlaces locales sin internet, relé y LoRa (`architecture/transporte-universal-sin-internet.md`).
   useMotorPerezoso(() => import("@/lib/malla/transporte-universal").then((m) => m.iniciarTransporteUniversal));
+  // (2026-11-07 · MSJ1107A) Buzón de Mensajería por la malla: chats con las neuronas de los cerebros
+  // (canal «neurona» + canal de la cuenta) y mensajes de chats que viajan solo por la malla.
+  useMotorPerezoso(() => import("@/lib/mensajeria/neuronas/buzon").then((m) => m.iniciarBuzonMalla));
   // (Ola 370) Motor de vínculos ENTRE cuentas: sondea mis solicitudes/vínculos
   // y abre (o cierra) el mesh de par dedicado de cada uno ya `aceptado`. Mesh
   // COMPLETAMENTE separado del intra-cuenta de arriba — ver

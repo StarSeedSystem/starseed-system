@@ -22,6 +22,9 @@ import { useAjustesMensajeria } from "@/lib/mensajeria/ajustes-store";
 import { OPCIONES_SILENCIO, fondoCss, tamanoLetraPx } from "@/lib/mensajeria/ajustes";
 import { esHex, esColorClaro, fechaCompleta, sombrear } from "@/components/messages/dm/utilidades-hilo";
 import { FilaAjuste, Interruptor, RotuloSeccion, Segmentado, Tarjeta, PistaHereda } from "@/components/messages/info/piezas";
+// Medio de transmisión de este chat (MSJ1107A).
+import { BloqueMedioTransmision } from "@/components/messages/medios/bloque-medio";
+import { claveChat } from "@/lib/mensajeria/medios/preferencias-store";
 
 const TAMANOS: { id: TamanoLetra; etiqueta: string }[] = [
     { id: "s", etiqueta: "Pequeña" },
@@ -452,6 +455,8 @@ export function AjustesHiloPanel({ hiloId, tipo, foco }: AjustesHiloPanelProps) 
             )}
 
             {bloqueNotificaciones}
+
+            <BloqueMedioTransmision tipo={tipo} clave={claveChat(tipo, hiloId)} />
 
             {esCorreo && (
                 <Tarjeta>

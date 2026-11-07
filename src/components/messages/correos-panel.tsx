@@ -43,6 +43,10 @@ import {
     Globe2 as Globe2Icon, Maximize2, Minimize2, Settings2, BellOff, Pin, Tag, ChevronDown, ImageOff,
 } from "lucide-react";
 import { MessageRenderer } from "@/components/aurora/message-renderer";
+// Por dónde viajó cada correo (MSJ1107A).
+import { PastillaVia } from "@/components/messages/medios/pastilla-via";
+import { usePreferenciasMedio } from "@/lib/mensajeria/medios/preferencias-store";
+import type { ViaMensaje } from "@/lib/mensajeria/medios/tipos";
 import { AttachFilePickerButton } from "@/components/files/universal-file-picker";
 import type { UniversalAttachment } from "@/lib/files/os-files";
 // Invitaciones (grupo/página/evento) y referencias vivas de "Contenido de la
@@ -87,6 +91,11 @@ import { ACENTO, CLASE_ROTULO, pildoraFantasma } from "@/components/messages/mar
 const DialogoAjustesHilo = dynamic(() => import("@/components/messages/marco/dialogo-ajustes-hilo").then((m) => m.DialogoAjustesHilo), { ssr: false });
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Vía de un correo interno (MSJ1107A): el buzón @star.seed del servidor. Sin medidas: no se midió nada. */
+function viaCorreo(sale: boolean): ViaMensaje {
+    return { medio: "correo", direccion: sale ? "sale" : "entra", servidor: "Buzón @star.seed (Supabase)", confirmado: sale, confirmadoPor: sale ? "servidor" : null };
+}
 
 function formatWhen(raw?: string | null): string {
     if (!raw) return "";
@@ -742,6 +751,7 @@ function MailReader({
     const archived = estado.archivado;
     const [abiertos, setAbiertos] = useState<Set<string>>(new Set());
     const [verRemotas, setVerRemotas] = useState(false);
+    const mediosVia = usePreferenciasMedio();
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -917,12 +927,13 @@ function MailReader({
                             }
                             return (
                                 <article key={m.id} className="space-y-2 rounded-2xl border border-white/[0.06] bg-white/[0.025] px-4 py-3.5">
-                                    <div className="flex items-center gap-2.5 text-[12px] text-white/55">
+                                    <div className="flex flex-wrap items-center gap-2.5 text-[12px] text-white/55">
                                         <AvatarContacto nombre={remitente} tam={28} />
                                         <span className="font-semibold text-white/85">{remitente}</span>
                                         <span>·</span>
                                         <span>{formatWhen(m.createdAt)}</span>
                                         {m.editedAt && <span className="italic">(editado)</span>}
+                                        {!m.deleted && mediosVia.mostrarVia && <PastillaVia via={viaCorreo(m.sender === myUserId)} className="ml-auto" />}
                                     </div>
                                     {m.deleted ? (
                                         <p className="text-sm italic text-white/50">Mensaje eliminado.</p>

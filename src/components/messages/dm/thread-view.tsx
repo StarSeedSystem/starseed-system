@@ -44,6 +44,12 @@ import {
     agruparMensajes, buscarCoincidencias, debeCargarMultimedia, estadoLectura, exportarChatTexto, mensajesVisibles,
     nombreArchivoSeguro, nombrePersona, otroMiembro, resolverNombreHilo, resumenMiembros, textoEscribiendo,
 } from "@/components/messages/dm/utilidades-hilo";
+// Medio de transmisión y vía de cada mensaje (MSJ1107A).
+import { enviarMensajeChat, quitarMensajeMalla, useBandejaMalla } from "@/lib/mensajeria/neuronas/buzon";
+import { viaServidor } from "@/lib/mensajeria/medios/medios";
+import { usePreferenciasMedio } from "@/lib/mensajeria/medios/preferencias-store";
+import type { ViaMensaje } from "@/lib/mensajeria/medios/tipos";
+import type { PendienteVia } from "@/components/messages/medios/pastilla-via";
 const PanelInfoHilo = dynamic(() => import("@/components/messages/info/panel-info-hilo").then((m) => m.PanelInfoHilo), { ssr: false });
 const VisorMensaje = dynamic(() => import("@/components/messages/info/visor-mensaje").then((m) => m.VisorMensaje), { ssr: false });
 
@@ -263,10 +269,54 @@ export function ThreadView({
     // ── Carpetas (una sola instancia por chat) ───────────────────────────────
     const carpetas = useCarpetasHilo(thread.id) as ApiCarpetasHilo;
 
+    // ── Malla y vía de cada mensaje (MSJ1107A) ───────────────────────────────
+    // Los mensajes que viajaron SOLO por la malla viven en este aparato (bandeja de la malla) y se
+    // mezclan con los del servidor; los entrantes solo si los manda alguien de este chat.
+    const bandejaMalla = useBandejaMalla();
+    const mediosApi = usePreferenciasMedio();
+    const localesMalla = bandejaMalla.conv[`dm:${thread.id}`]?.mensajes;
+    const deMalla = useMemo<DmMessage[]>(() => {
+        const miembrosHilo = new Set(idsMiembros);
+        return (localesMalla ?? [])
+            .filter((m) => m.dir === "sale" || (!!m.deUid && miembrosHilo.has(m.deUid)))
+            .map((m) => ({
+                id: `malla:${m.id}`,
+                threadId: thread.id,
+                sender: m.dir === "sale" ? myUserId : m.deUid ?? null,
+                body: m.texto,
+                attachments: [] as DmAttachment[],
+                replyTo: null,
+                kind: "user" as const,
+                editedAt: null,
+                deleted: false,
+                createdAt: new Date(m.at).toISOString(),
+                formato: null,
+            }));
+    }, [localesMalla, idsMiembros, thread.id, myUserId]);
+    const conMalla = useMemo(
+        () => (deMalla.length ? [...messages, ...deMalla].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)) : messages),
+        [messages, deMalla],
+    );
+    const viaDe = useCallback(
+        (m: DmMessage): { via: ViaMensaje | null; pendiente: PendienteVia | null } => {
+            if (m.id.startsWith("malla:")) {
+                const local = localesMalla?.find((x) => `malla:${x.id}` === m.id);
+                if (!local) return { via: null, pendiente: null };
+                if (local.estado === "enviando" || local.estado === "en-espera" || local.estado === "fallido") {
+                    return { via: null, pendiente: { estado: local.estado, aviso: local.aviso, descartados: local.descartados } };
+                }
+                return { via: mediosApi.mostrarVia ? local.via ?? null : null, pendiente: null };
+            }
+            if (!mediosApi.mostrarVia || m.kind === "system" || m.deleted) return { via: null, pendiente: null };
+            return { via: bandejaMalla.vias[m.id] ?? viaServidor(m.sender === myUserId && m.kind !== "agent" ? "sale" : "entra"), pendiente: null };
+        },
+        [localesMalla, bandejaMalla.vias, mediosApi.mostrarVia, myUserId],
+    );
+
     // ── Mensajes visibles, grupos y búsqueda ─────────────────────────────────
     const { visibles, ocultos } = useMemo(
-        () => mensajesVisibles(messages, ef.vaciadoEn, mostrarTodo),
-        [messages, ef.vaciadoEn, mostrarTodo],
+        () => mensajesVisibles(conMalla, ef.vaciadoEn, mostrarTodo),
+        [conMalla, ef.vaciadoEn, mostrarTodo],
     );
     const enLista = useMemo(() => agruparMensajes(visibles), [visibles]);
     const coincidencias = useMemo(
@@ -345,14 +395,33 @@ export function ThreadView({
             replyTo: replyTo?.id ?? null,
             ...(formato ? { formato } : {}),
         };
-        // Si la columna `formato` aún no existe en la base, `sendMessage` reintenta sin ella.
-        const saved = await sendMessage(thread.id, entrada);
-        if (!saved) {
-            toast.error(myUserId ? "No se pudo enviar el mensaje. Revisa tu conexión e inténtalo de nuevo." : "Inicia sesión para enviar mensajes.");
+        if (!myUserId) {
+            toast.error("Inicia sesión para enviar mensajes.");
+            return false;
+        }
+        // Medio de transmisión del chat (MSJ1107A): por el servidor de siempre o, si así se eligió o no
+        // hay internet, por la malla. Adjuntos, formato y respuestas citadas solo viajan por el servidor.
+        const caja: { guardado: DmMessage | null } = { guardado: null };
+        const res = await enviarMensajeChat({
+            hiloId: thread.id,
+            tipo,
+            otros: idsMiembros.filter((id) => id !== myUserId),
+            texto: body,
+            soloServidor: attachments.length > 0 || !!formato || !!replyTo,
+            enviarServidor: async () => {
+                // Si la columna `formato` aún no existe en la base, `sendMessage` reintenta sin ella.
+                caja.guardado = await sendMessage(thread.id, entrada);
+                return caja.guardado ? { id: caja.guardado.id } : null;
+            },
+        });
+        if (!res.ok) {
+            toast.error(res.aviso || "No se pudo enviar el mensaje. Revisa tu conexión e inténtalo de nuevo.");
             return false;
         }
         alFinal.current = true;
-        setMessages((prev) => (prev.some((m) => m.id === saved!.id) ? prev : [...prev, saved!]));
+        const saved = caja.guardado;
+        if (saved) setMessages((prev) => (prev.some((m) => m.id === saved.id) ? prev : [...prev, saved]));
+        else if (res.enEspera) toast.message(res.aviso || "En espera de un medio: sale solo en cuanto haya uno.");
         setReplyTo(null);
         return true;
     };
@@ -578,6 +647,7 @@ export function ThreadView({
                     {!loading && enLista.map(({ mensaje: m, nuevoDia, primeroDelGrupo, ultimoDelGrupo }) => {
                         const mio = m.sender === myUserId && m.kind !== "agent";
                         const citado = replyToMessageFor(m);
+                        const { via, pendiente } = viaDe(m);
                         return (
                             <div key={m.id}>
                                 {nuevoDia && <SeparadorDia fecha={m.createdAt} />}
@@ -599,17 +669,28 @@ export function ThreadView({
                                     busqueda={busqueda.abierta ? busqueda.texto : ""}
                                     coincidenciaActiva={idActivo === m.id}
                                     destacado={destacadoId === m.id}
+                                    via={via}
+                                    pendienteVia={pendiente}
                                     onAbrirVisor={(mm) => abrirVisor(mm.id)}
                                     onReply={(mm) => {
                                         setReplyTo(mm);
                                         composerRef.current?.enfocar();
                                     }}
                                     onEdit={async (id, body) => {
+                                        if (id.startsWith("malla:")) {
+                                            toast.message("Los mensajes que viajaron solo por la malla no se pueden editar.");
+                                            return;
+                                        }
                                         const ok = await editMessage(id, body);
                                         if (ok) setMessages((prev) => prev.map((mm) => (mm.id === id ? { ...mm, body, editedAt: new Date().toISOString() } : mm)));
                                         else toast.error("No se pudo editar el mensaje.");
                                     }}
                                     onDelete={async (id) => {
+                                        if (id.startsWith("malla:")) {
+                                            const quitar = await confirmar({ title: "¿Quitar este mensaje de este aparato?", description: "Viajó solo por la malla: se quita de tu historial aquí. Quien ya lo recibió lo conserva.", confirmText: "Quitar", destructive: true });
+                                            if (quitar) quitarMensajeMalla(`dm:${thread.id}`, id.slice(6));
+                                            return;
+                                        }
                                         const ok = await confirmar({ title: "¿Eliminar este mensaje?", description: "Se eliminará para todas las personas del chat.", confirmText: "Eliminar", destructive: true });
                                         if (!ok) return;
                                         const hecho = await softDeleteMessage(id);

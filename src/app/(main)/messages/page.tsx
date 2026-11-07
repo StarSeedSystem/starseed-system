@@ -16,6 +16,10 @@
  * capa global de llamadas. Deep-links `?to=<@>`, `?attachServer=<slug>` y
  * `?ajustes=<sección>`.
  *
+ * (2026-11-07 · MSJ1107A) Tercera pestaña «Neuronas» (`?vista=neuronas`): chats con las neuronas de
+ * los cerebros de la cuenta por la malla o el servidor; cada mensaje dice por dónde viajó y cada chat
+ * elige su medio de transmisión (Ajustes › Medio de transmisión, y los de cada chat).
+ *
  * SOP: architecture/libreria-biblioteca-sync.md §8.
  * ═══════════════════════════════════════════════════════════════════════════
  */
@@ -42,6 +46,7 @@ import { companeroDm, esSolicitud } from "@/components/messages/marco/filtros-li
 import { describirSilencio } from "@/components/messages/marco/formato-tiempo";
 import { ACENTO, pildoraFantasma } from "@/components/messages/marco/estilos";
 import { useAjustesMensajeria } from "@/lib/mensajeria/ajustes-store";
+import { iniciarBuzonMalla, useNoLeidosNeuronas } from "@/lib/mensajeria/neuronas/buzon";
 import { useContactos } from "@/lib/contactos/store";
 import { anunciarContexto } from "@/lib/protomolecula/peticion/contexto";
 import {
@@ -51,8 +56,9 @@ import {
     seedMyProfile, fetchProfilesByIds, fetchProfileByUsername, type OsProfile,
 } from "@/lib/social/os-profiles";
 const AjustesMensajeriaDialog = dynamic(() => import("@/components/messages/ajustes/ajustes-mensajeria").then((m) => m.AjustesMensajeriaDialog), { ssr: false });
+const PanelNeuronas = dynamic(() => import("@/components/messages/neuronas/panel-neuronas").then((m) => m.PanelNeuronas), { ssr: false });
 
-const SECCIONES_VALIDAS: SeccionAjustesMensajeria[] = ["chats", "privacidad", "notificaciones", "correos", "aurora", "personalizados"];
+const SECCIONES_VALIDAS: SeccionAjustesMensajeria[] = ["chats", "privacidad", "notificaciones", "correos", "medios", "aurora", "personalizados"];
 
 function EmptyThreadState({ onNuevo }: { onNuevo: () => void }) {
     return (
@@ -139,6 +145,8 @@ function MessagesContent() {
     const [ajustesAbiertos, setAjustesAbiertos] = useState(false);
     const [seccionAjustes, setSeccionAjustes] = useState<SeccionAjustesMensajeria | undefined>(undefined);
     const [lectorCorreoAbierto, setLectorCorreoAbierto] = useState(false);
+    const [detalleNeuronaMovil, setDetalleNeuronaMovil] = useState(false);
+    const noLeidosNeuronas = useNoLeidosNeuronas();
     /** @handle ya procesado (evita recrear/reabrir en cada render o realtime). */
     const handledToRef = useRef<string | null>(null);
     /** Ajustes más recientes para decisiones dentro de callbacks estables. */
@@ -191,6 +199,18 @@ function MessagesContent() {
     }, [reloadThreads]);
 
     useEffect(() => subscribeThreadsList(() => void reloadThreads()), [reloadThreads]);
+
+    // Buzón de la malla (MSJ1107A): chats con las neuronas y mensajes que viajan solo por la malla. El
+    // arranque global ya lo engancha; aquí también, por si la ruta se abre sin él (cuenta referencias).
+    useEffect(() => iniciarBuzonMalla(), []);
+
+    // Deep-link ?vista=neuronas|correos|mensajes → abre esa pestaña.
+    useEffect(() => {
+        const v = searchParams?.get("vista");
+        if (v === "neuronas") setSurface("neuronas");
+        else if (v === "correos") setSurface("mail");
+        else if (v === "mensajes") setSurface("chats");
+    }, [searchParams]);
 
     // Deep-link ?attachServer=<slug> → prepara un adjunto de servidor para el
     // hilo activo.
@@ -364,10 +384,11 @@ function MessagesContent() {
         setAjustesAbiertos(true);
     }, []);
 
-    const puedeEnfocar = surface === "chats" ? !!selectedThread : lectorCorreoAbierto;
+    const puedeEnfocar = surface === "chats" ? !!selectedThread : surface === "mail" ? lectorCorreoAbierto : true;
     // En móvil, con un chat o un correo abierto, la pantalla es suya entera (su cabecera ya
     // trae «volver»): la barra de la sección se aparta para que el compositor se vea completo.
-    const detalleMovilAbierto = esMovil && (surface === "chats" ? mobileView === "thread" && !!selectedThread : lectorCorreoAbierto);
+    const detalleMovilAbierto =
+        esMovil && (surface === "chats" ? mobileView === "thread" && !!selectedThread : surface === "mail" ? lectorCorreoAbierto : detalleNeuronaMovil);
 
     return (
         <div
@@ -386,12 +407,13 @@ function MessagesContent() {
                 <BarraSuperior
                     superficie={surface}
                     onCambiarSuperficie={setSurface}
-                    onAbrirAjustes={() => abrirAjustes(surface === "mail" ? "correos" : undefined)}
+                    onAbrirAjustes={() => abrirAjustes(surface === "mail" ? "correos" : surface === "neuronas" ? "medios" : undefined)}
                     enfocado={enfocado}
                     onAlternarEnfoque={alternarEnfoque}
                     puedeEnfocar={puedeEnfocar}
                     esMovil={esMovil}
                     noLeidosChats={noLeidosChats}
+                    noLeidosNeuronas={noLeidosNeuronas}
                 />
             )}
 
@@ -439,7 +461,7 @@ function MessagesContent() {
                             )
                         }
                     />
-                ) : (
+                ) : surface === "mail" ? (
                     <CorreosPanel
                         userId={userId}
                         enfocado={enfocado}
@@ -447,6 +469,8 @@ function MessagesContent() {
                         onAbrirAjustes={() => abrirAjustes("correos")}
                         onLectorAbierto={setLectorCorreoAbierto}
                     />
+                ) : (
+                    <PanelNeuronas esMovil={esMovil} enfocado={enfocado} onAlternarEnfoque={alternarEnfoque} onDetalleAbierto={setDetalleNeuronaMovil} />
                 )}
             </div>
         </div>

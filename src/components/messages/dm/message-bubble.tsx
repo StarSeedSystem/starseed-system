@@ -53,6 +53,9 @@ import estilos from "@/components/messages/dm/hilo.module.css";
 // RecibosChips for delivery status
 import { RecibosChips } from '@/components/malla/recibos-chips';
 import type { Recibo, EstadoRecibo } from '@/lib/malla/cristal/recibos';
+// Por dónde viajó cada mensaje (MSJ1107A).
+import { PastillaVia, type PendienteVia } from "@/components/messages/medios/pastilla-via";
+import type { ViaMensaje } from "@/lib/mensajeria/medios/tipos";
 
 /** Tipo de la Biblioteca para mensajes (contrato C8). */
 const TIPO_MENSAJE_BIBLIOTECA: SaveItemInput["type"] = "message";
@@ -332,13 +335,17 @@ export interface MessageBubbleProps {
     coincidenciaActiva?: boolean;
     destacado?: boolean;
     onAbrirVisor?: (message: DmMessage) => void;
+    /** Por dónde viajó (malla, servidor…); null = sin pastilla. */
+    via?: ViaMensaje | null;
+    /** Mensaje por la malla que aún espera un medio, sale o falló. */
+    pendienteVia?: PendienteVia | null;
 }
 
 export function MessageBubble({
     message, isMine, sender, replyToMessage, isAgentThread, onReply, onEdit, onDelete,
     senderName, replyToName, esGrupo = false, primeroDelGrupo = true, ultimoDelGrupo = true, apariencia,
     estadoLectura = null, vistaPreviaEnlaces = false, cargarMultimedia = true, busqueda = "",
-    coincidenciaActiva = false, destacado = false, onAbrirVisor,
+    coincidenciaActiva = false, destacado = false, onAbrirVisor, via = null, pendienteVia = null,
 }: MessageBubbleProps) {
     const ctx = useContextoHilo();
     const [editing, setEditing] = useState(false);
@@ -478,7 +485,8 @@ export function MessageBubble({
     );
 
      const pie = (
-         <span className={cn("ml-auto flex shrink-0 items-center justify-end gap-1 pl-2 text-[10.5px] leading-none", tintaSecundaria)}>
+         <span className={cn("ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-1 pl-2 text-[10.5px] leading-none", tintaSecundaria)}>
+             {(via || pendienteVia) && <PastillaVia via={via} pendiente={pendienteVia} mio={isMine} claro={claro} />}
              {message.editedAt && <span className="italic">editado</span>}
              {mostrarHora && <time dateTime={message.createdAt}>{formatearHora(message.createdAt, formato24h)}</time>}
              {isMine && estadoLectura ? (
