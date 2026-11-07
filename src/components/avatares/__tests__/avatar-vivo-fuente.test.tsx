@@ -20,7 +20,7 @@ let currentMock: {
   addEventListener: ReturnType<typeof vi.fn>;
   removeEventListener: ReturnType<typeof vi.fn>;
   dispatchEvent: ReturnType<typeof vi.fn>;
-};
+} | undefined;
 
 function createMatchMediaMock(matches: boolean) {
   const query = "(prefers-reduced-motion: reduce)";
