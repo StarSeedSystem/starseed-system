@@ -153,6 +153,23 @@ export function emocionChatAVoz(emocion: string | undefined | null): EmocionVoz 
     return MAPA_EMOCION_CHAT[normalizarClaveEmocion(emocion)];
 }
 
+/** Tope operativo de la intensidad de emoción en este motor (Ola 264): [0, 2]. */
+const INTENSIDAD_TOPE = 2;
+
+/**
+ * Valida la intensidad de emoción que llega al motor, venga de donde venga
+ * (etiqueta `[emocion n]`, opciones del turno o timbre persistido en el estilo
+ * vivo). Acota al rango operativo [0, 2] y, ante una entrada que no es un
+ * número útil (NaN, ±Infinity), devuelve 0: «sin marca» es el relleno seguro,
+ * porque un NaN que atraviesa el timbre rompe speed/pitch en silencio. Pura.
+ */
+export function clampIntensidad(valor: number): number {
+    if (typeof valor !== "number" || !Number.isFinite(valor)) return 0;
+    if (valor < 0) return 0;
+    if (valor > INTENSIDAD_TOPE) return INTENSIDAD_TOPE;
+    return valor;
+}
+
 /** Resultado de resolver la emoción efectiva de un turno de habla. */
 export interface ResolucionEmocion {
     /** Emoción eficaz (nunca undefined: sin ninguna pista cae a "neutra"). */
@@ -190,7 +207,9 @@ export function resolverEmocion(
         : undefined;
     return {
         emocion: delTexto.emocion ?? deOpciones ?? timbre?.emocionBase ?? "neutra",
-        intensidad: delTexto.intensidad ?? opciones.intensidad ?? timbre?.intensidad ?? 1,
+        intensidad: clampIntensidad(
+            delTexto.intensidad ?? opciones.intensidad ?? timbre?.intensidad ?? 1,
+        ),
         texto: delTexto.textoLimpio,
     };
 }
