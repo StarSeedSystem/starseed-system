@@ -6080,3 +6080,10 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `CTR1107D-d3` — los tipos no compilan: 1 errores tsc (rama ola/CTR1107D-d3 conservada)
+
+## 2026-11-07 16:36 · auto-1107-163313
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `CTR1107D-d3` — los tipos no compilan: 1 errores tsc (rama ola/CTR1107D-d3 conservada)
