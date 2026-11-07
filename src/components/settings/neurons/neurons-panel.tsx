@@ -40,7 +40,8 @@ import { NeuronVoiceChoice } from "@/components/settings/aurora/neuron-voice-cho
 import { EstaNeurona } from "@/components/settings/neurons/esta-neurona";
 import { VersionNeurona } from "@/components/neurons/version-neurona";
 import { EstadoServidorLocal } from "@/components/nativa/estado-servidor-local";
-import { PrecargaSinInternet } from "./precarga-sin-internet";
+// Precarga sin internet (CTR1107E · T9): estado del service worker + botón «Descargar».
+import { PrecargaSinInternet } from "@/components/settings/neurons/precarga-sin-internet";
 
 /* ── Icono por tipo de dispositivo ── */
 const KIND_ICONS: Record<NeuronKind, typeof Monitor> = {
