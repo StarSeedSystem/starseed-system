@@ -1051,23 +1051,61 @@ export const AURORA_GENERATE_TOOLS: AuroraScreenTool[] = [
         m.buscarEnBiblioteca(pickInput(input, "consulta", "query", "q", "texto", "text", "busqueda", "búsqueda", "termino", "término")),
       ),
   },
-  // ── GENERAR CON SERVICIOS por función (usa lo que el usuario conectó en /servicios) ──
-{
-     name: "generar_imagen",
-     description:
-       "Genera una IMAGEN a partir de un prompt con varias opciones (por defecto 4) usando los modelos locales de Astraura (Qwen-Image, Krea 2, FLUX, etc.) o el servicio gratuito de Pollinations como respaldo. Soporta parámetros como opciones (número de imágenes), necesidades (texto legible, edición, transparencia), referencia (imagen de referencia) y comercial (uso comercial). Entrada: { prompt, opciones?, necesita?, referencia?, comercial? }. Úsala para «genera varias opciones de imagen de…», «créame una imagen editable de…», etc. Siempre devuelve un resultado gracias al fallback gratuito.",
-     integrationId: SCREEN_TOOL_INTEGRATION_ID,
-     actionId: "generar_imagen",
-     kind: "screen",
-     run: (input) =>
-       runServiceGeneration((m) =>
-         m.generarImagen(
-           pickInput(input, "prompt", "descripcion", "descripción", "texto", "text", "idea", "imagen"),
-           // Opciones pedidas al chat (1–8); sin dato claro, 4: las descripciones del tool prometen varias.
-           Number(pickInput(input, "opciones", "numero", "cuantas", "cuántas", "n")) || 4,
-         ),
-       ),
-   },
+// ── GENERAR CON SERVICIOS por función (usa lo que el usuario conectó en /servicios) ──
+ {
+    name: "generar_imagen",
+    description:
+      "Genera una IMAGEN a partir de un prompt con varias opciones (por defecto 4) usando los modelos locales de Astraura (Qwen-Image, Krea 2, FLUX, etc.) o el servicio gratuito de Pollinations como respaldo. Soporta parámetros como opciones (número de imágenes), necesidades (texto legible, edición, transparencia), referencia (imagen de referencia) y comercial (uso comercial). Entrada: { prompt, opciones?, necesita?, referencia?, comercial? }. Úsala para «genera varias opciones de imagen de…», «créame una imagen editable de…», etc. Siempre devuelve un resultado gracias al fallback gratuito.",
+    integrationId: SCREEN_TOOL_INTEGRATION_ID,
+    actionId: "generar_imagen",
+    kind: "screen",
+    run: async (input) => {
+      if (typeof window === "undefined") {
+        return { ok: false, error: "La generación de imágenes se hace desde el navegador." };
+      }
+      try {
+        const { generateImage, findMediaProvider } = await import("@/ai/astraura/media/media-gen");
+        const { saveResource } = await import("@/lib/library-store");
+
+        const prompt = String(
+          pickInput(input, "prompt", "descripcion", "descripción", "texto", "text", "idea", "imagen") ?? "",
+        ).trim();
+        if (!prompt) {
+          return { ok: false, error: "¿Qué imagen quieres que genere? Descríbemela." };
+        }
+
+        const opciones =
+          Number(pickInput(input, "opciones", "numero", "cuantas", "cuántas", "n")) || 4;
+
+        const res = await generateImage({ prompt, opciones });
+
+        if (!res.ok || !res.url) {
+          return { ok: false, error: res.error || "No se pudo generar la imagen." };
+        }
+
+        const providerLabel = findMediaProvider(res.provider)?.label ?? res.provider;
+        const title = `Imagen: ${prompt.slice(0, 60)}`;
+        const origin = `Astraura · ${providerLabel}`;
+
+        let savedId: string | undefined;
+        try {
+          const id = `aurora-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+          saveResource({ id, kind: "image", title, url: res.url, origin });
+          savedId = id;
+        } catch {
+          /* biblioteca no disponible en este equipo: seguimos sin id */
+        }
+
+        const message = savedId
+          ? `Generé la imagen con ${providerLabel} y la guardé en tu Biblioteca.`
+          : `Generé la imagen con ${providerLabel}, pero no pude guardarla en la Biblioteca de este equipo.`;
+
+        return { ok: true, data: { text: message, id: savedId, url: res.url } };
+      } catch {
+        return { ok: false, error: "No pude generar la imagen en esta página." };
+      }
+    },
+  },
   {
     name: "lanzar_workflow",
     description:
