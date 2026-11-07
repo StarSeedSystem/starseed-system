@@ -58,6 +58,10 @@ RUTA_CLAUDE_MD = os.path.join(RAIZ, "CLAUDE.md")
 RUTA_MIGRACION = os.path.join(RAIZ, "supabase", "migrations", "20261011090000_metageminis.sql")
 CARPETA_ESTADO = os.path.join(os.path.expanduser("~"), ".starseed", "metageminis")
 
+# Importar planificación (enfriamiento y reparto)
+sys.path.insert(0, AQUI)
+import metageminis_plan as mgp
+
 # Los mismos valores que la migración (una prueba los compara con el SQL).
 RAMAS = ("investigadora", "redactora", "campanas", "estudio", "alianzas_ia", "fondos", "seguimiento")
 CANALES = ("api_oficial", "formulario", "correo_propuesta", "manual_alex")
@@ -237,9 +241,13 @@ def rama_para(s):
     return preferida or "redactora"
 
 
-def plan(directorio, prioridad_max=2, solo_sitio=None):
-    """Qué sitios tendrían borrador y por qué los demás no. Orden: prioridad, plazo, nombre."""
+def plan(directorio, prioridad_max=2, solo_sitio=None, filas=None, ahora=None):
+    """Qué sitios tendrían borrador y por qué los demás no. Orden: prioridad, plazo, nombre.
+    Si se pasa `filas` (cola de borradores), excluye los sitios en enfriamiento con su motivo.
+    Sin `filas`, la salida no cambia (compatibilidad hacia atrás).
+    """
     elegidos, excluidos = [], []
+    ahora_str = ahora or mgp.ahora() if hasattr(mgp, 'ahora') else datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     for s in sorted(directorio, key=lambda x: (x["prioridad"], x.get("vence") or "9999-12-31", x["nombre"])):
         if solo_sitio and s["id"] != solo_sitio:
             continue
@@ -248,6 +256,11 @@ def plan(directorio, prioridad_max=2, solo_sitio=None):
             motivo = "prioridad %d: no toca todavía" % s["prioridad"]
         if motivo is None and s["prioridad"] >= 5:
             motivo = "prioridad 5: no actuar"
+        # Enfriamiento por sitio (L3)
+        if motivo is None and filas is not None:
+            en_frio, motivo_frio = mgp.en_enfriamiento(s["id"], filas, ahora_str)
+            if en_frio:
+                motivo = motivo_frio
         fila = {"id": s["id"], "nombre": s["nombre"], "prioridad": s["prioridad"], "rama": rama_para(s), "canal": canal_para(s)}
         if motivo:
             fila["motivo"] = motivo
@@ -561,7 +574,9 @@ def cerrar_ciclo(huella_, estado_final, ruta, confirmar=None):
 def ciclo(directorio, env, cola, maximo=3, prioridad_max=2, solo_sitio=None, sin_llm=False, llamar=None, consultar=None,
           contexto=None, seco=False, proveedor=None):
     """Genera hasta `maximo` borradores, los puntúa y los deja PARA APROBAR. No envía nada."""
-    elegidos, excluidos = plan(directorio, prioridad_max, solo_sitio)
+    # Obtener filas de la cola para enfriamiento (solo cola local tiene método leer)
+    filas_cola = cola.leer() if hasattr(cola, "leer") else []
+    elegidos, excluidos = plan(directorio, prioridad_max, solo_sitio, filas=filas_cola)
     por_id = {s["id"]: s for s in directorio}
     contexto = contexto if contexto is not None else contexto_starseed()
     hechos, repetidos, en_espera = [], [], []
