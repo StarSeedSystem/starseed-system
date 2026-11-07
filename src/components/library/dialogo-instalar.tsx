@@ -36,6 +36,7 @@ import { planInstalacion, resumenSeleccion, type AppParaInstalar, type Seleccion
 import { abrirWebParaInstalar, ejecutarAcciones } from "@/lib/instalaciones/ejecutar";
 
 import { Casilla, SeccionEsteDispositivo, SeccionNeuronas } from "./dialogo-instalar-secciones";
+import { SimboloStarSeed } from "./simbolo-starseed";
 import { useDatosInstalacion } from "./use-datos-instalacion";
 
 export interface DialogoInstalarProps {
@@ -156,6 +157,8 @@ function ContenidoInstalar({ app, onCerrar }: { app: AppParaInstalar; onCerrar: 
     return (
         <DialogContent className="max-h-[90dvh] max-w-lg">
             <DialogHeader>
+                {/* (LIB1107A) La ventana de instalar StarSeed OS lleva el símbolo de StarSeed. */}
+                {esOS && <SimboloStarSeed size={56} halo decorativo className="mx-auto mb-1 sm:mx-0" />}
                 <DialogTitle>¿Dónde quieres instalar {app.nombre}?</DialogTitle>
                 <DialogDescription>
                     Elige uno o varios sitios. Puedes volver aquí para añadir más cuando quieras.
@@ -261,7 +264,7 @@ function ContenidoInstalar({ app, onCerrar }: { app: AppParaInstalar; onCerrar: 
                         type="button"
                         onClick={instalar}
                         disabled={nada || instalando || esperandoVersion}
-                        className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:from-emerald-600 hover:to-teal-700 border-0 cursor-pointer"
+                        className="min-h-10 gap-2 rounded-full border-0 bg-trinity-emerald px-5 font-semibold text-slate-950 hover:bg-trinity-emerald hover:brightness-110 cursor-pointer"
                     >
                         {instalando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4" aria-hidden />}
                         Instalar

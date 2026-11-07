@@ -83,12 +83,14 @@ export function BotonInstalarOS({ className, compacto, conOtrosSistemas, onResul
                 disabled={yaInstalada || ocupado}
                 aria-describedby={compacto ? undefined : "instalar-os-pista"}
                 className={cn(
-                    "inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[13px] border px-4 py-2.5 text-sm font-bold",
+                    // (LIB1107A) Acción principal en píldora con el relleno horizonte de la Trinity
+                    // (texto noche: 7,5:1); sin degradados.
+                    "inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border px-5 py-2.5 text-sm font-bold",
                     "transition-[filter,opacity] duration-150 motion-reduce:transition-none",
                     "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300",
                     yaInstalada
                         ? "cursor-default border-emerald-400/30 bg-emerald-500/10 text-emerald-100"
-                        : "cursor-pointer border-emerald-300/30 bg-gradient-to-br from-violet-500/20 to-emerald-400/20 text-emerald-50 hover:brightness-110 disabled:opacity-75",
+                        : "cursor-pointer border-transparent bg-trinity-emerald text-slate-950 shadow-sm hover:brightness-110 disabled:opacity-75",
                 )}
             >
                 {ocupado ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden /> : <Icono className="h-4 w-4" aria-hidden />}
@@ -96,7 +98,7 @@ export function BotonInstalarOS({ className, compacto, conOtrosSistemas, onResul
             </button>
 
             {!compacto && (
-                <p id="instalar-os-pista" className="text-center text-[11px] leading-snug text-white/55">
+                <p id="instalar-os-pista" className="text-center text-xs leading-snug text-muted-foreground">
                     {cargando && plan.tipo !== "ya-instalada" ? "Buscando la última versión publicada…" : pista}
                 </p>
             )}

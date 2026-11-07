@@ -10,7 +10,8 @@
 // GitHub para este sistema, o explica cómo instalar la web en iPhone/iPad.
 // ════════════════════════════════════════════════════════════════
 
-import { Download, ExternalLink, Sparkles } from "lucide-react";
+import { ExternalLink, Sparkles } from "lucide-react";
+import { SimboloStarSeed } from "@/components/library/simbolo-starseed";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { InstallButton } from "@/components/welcome/install-button";
@@ -28,16 +29,12 @@ export function OsDownloadCard({ version = OS_VERSION }: OsDownloadCardProps) {
   return (
     <GlassCard
       variant="hover"
-      className="relative overflow-hidden p-6 border-emerald-400/20 bg-gradient-to-br from-emerald-900/30 via-teal-900/20 to-transparent"
+      className="relative overflow-hidden p-6 border-white/10"
     >
-      {/* Decoración de fondo */}
-      <div className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" />
-
       <div className="relative z-10 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-start gap-4 min-w-0">
-          <div className="shrink-0 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-3">
-            <Download className="h-7 w-7 text-emerald-300" />
-          </div>
+        <div className="flex flex-col items-center gap-4 min-w-0 text-center sm:flex-row sm:items-start sm:text-left">
+          {/* (LIB1107A) El símbolo de StarSeed en la ventana de descarga. */}
+          <SimboloStarSeed size={64} halo />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-xl font-bold font-headline text-emerald-100">

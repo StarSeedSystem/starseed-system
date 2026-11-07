@@ -358,7 +358,7 @@ function FilterBar({
             <ListFilter className="h-3.5 w-3.5" />
             <span>Filtros</span>
             {activeCount > 0 && (
-              <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-primary/20 px-1 text-[10px] font-semibold text-primary">
+              <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-primary/20 px-1 text-[11px] font-semibold text-primary">
                 {activeCount}
               </span>
             )}
@@ -406,7 +406,7 @@ function FilterBar({
             <Button variant="outline" size="sm" className="gap-2 border-white/10 hover:bg-white/10 cursor-pointer">
               <span>Etiquetas</span>
               {filter.tags.length > 0 && (
-                <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-primary/20 px-1 text-[10px] font-semibold text-primary">
+                <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-primary/20 px-1 text-[11px] font-semibold text-primary">
                   {filter.tags.length}
                 </span>
               )}
@@ -422,7 +422,7 @@ function FilterBar({
                 onCheckedChange={() => toggleTag(tag)}
                 className="cursor-pointer text-sm"
               >
-                #{tag} <span className="ml-auto text-[10px] text-muted-foreground">{count}</span>
+                #{tag} <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">{count}</span>
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>
@@ -516,12 +516,11 @@ function ShelfRow({
   if (packages.length === 0) return null;
   return (
     <section className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <Icon className={cn("h-4 w-4", accent)} />
-        <h3 className="text-sm font-bold text-white">{title}</h3>
-        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground">
-          {hint}
-        </span>
+      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+        <h3 className="flex items-center gap-2 text-base font-semibold leading-tight text-foreground">
+          <Icon className={cn("h-4 w-4", accent)} aria-hidden /> {title}
+        </h3>
+        <span className="text-xs text-muted-foreground">{hint}</span>
       </div>
       <PackageGrid
         packages={packages}
@@ -602,8 +601,8 @@ function CategoryView({
           <SymbolIcon className="h-5 w-5" />
         </div>
         <div>
-          <h2 className="text-lg font-bold text-white">{labelFor(kind)}</h2>
-          <p className="text-[11px] text-muted-foreground">
+          <h2 className="font-headline text-xl font-semibold leading-tight text-foreground">{labelFor(kind)}</h2>
+          <p className="text-xs tabular-nums text-muted-foreground">
             {items.length} paquete{items.length === 1 ? "" : "s"}
             {filtered.length !== items.length ? ` · ${filtered.length} tras filtros` : ""}
           </p>
@@ -683,10 +682,11 @@ function CategoryView({
             onOpenDetail={onOpenDetail}
           />
           <section className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <Shapes className="h-4 w-4 text-indigo-300" />
-              <h3 className="text-sm font-bold text-white">Todo en {labelFor(kind)}</h3>
-              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground">
+            <div className="flex items-center gap-2.5">
+              <h3 className="flex items-center gap-2 text-base font-semibold leading-tight text-foreground">
+                <Shapes className="h-4 w-4 text-indigo-300" aria-hidden /> Todo en {labelFor(kind)}
+              </h3>
+              <span className="rounded-full bg-white/[0.07] px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
                 {filtered.length}
               </span>
             </div>
@@ -730,25 +730,34 @@ function CategoryGrid({
   onSelect: (kind: PackageKind) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+    // Filas centradas: con 14 categorías la última fila no queda pegada a la izquierda con
+    // huecos a la derecha (2 por fila en el móvil, 3, 4 y 7 en el escritorio ancho).
+    <div className="flex flex-wrap justify-center gap-3 [&>*]:basis-[calc((100%-0.75rem)/2)] sm:[&>*]:basis-[calc((100%-1.5rem)/3)] lg:[&>*]:basis-[calc((100%-2.25rem)/4)] xl:[&>*]:basis-[calc((100%-4.5rem)/7)]">
       {kinds.map((kind) => {
         const count = counts.get(kind) ?? 0;
         const SymbolIcon = symbolFor(kind);
         return (
           <button
             key={kind}
+            type="button"
             onClick={() => onSelect(kind)}
-            className="group cursor-pointer rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-transparent p-4 text-left transition-all duration-200 hover:border-primary/40 hover:scale-[1.02]"
+            className={cn(
+              "group flex cursor-pointer flex-col items-start gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4 text-left shadow-sm",
+              "transition-[border-color,background-color,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-trinity-azure/70 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+            )}
           >
-            <div className={cn("mb-3 grid h-11 w-11 place-items-center rounded-xl border", chipFor(kind))}>
+            <span aria-hidden className={cn("grid h-11 w-11 place-items-center rounded-xl border", chipFor(kind))}>
               <SymbolIcon className="h-6 w-6" />
-            </div>
-            <p className="text-sm font-semibold text-gray-100 transition-colors group-hover:text-primary">
-              {labelFor(kind)}
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              {count} paquete{count === 1 ? "" : "s"}
-            </p>
+            </span>
+            <span className="flex flex-col">
+              <span className="text-[15px] font-semibold leading-snug text-foreground transition-colors group-hover:text-primary">
+                {labelFor(kind)}
+              </span>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {count} paquete{count === 1 ? "" : "s"}
+              </span>
+            </span>
           </button>
         );
       })}
@@ -852,20 +861,23 @@ export function CategoryPicker({
     <div className="flex flex-col gap-6">
       {/* Buscador inteligente GLOBAL */}
       <div className="relative w-full group">
-        <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-primary" />
+        <Search className="pointer-events-none absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-foreground" aria-hidden />
         <Input
+          type="search"
+          aria-label="Buscar en toda la biblioteca"
           placeholder="Buscar en toda la biblioteca: nombre, descripción o etiqueta…"
           value={globalQuery}
           onChange={(e) => setGlobalQuery(e.target.value)}
-          className="h-12 rounded-2xl border-white/10 bg-black/30 pl-12 pr-10 text-base focus-visible:ring-indigo-500/40"
+          className="h-12 rounded-full border-white/12 bg-black/30 pl-12 pr-12 text-base shadow-sm focus-visible:ring-2 focus-visible:ring-trinity-azure/50 [&::-webkit-search-cancel-button]:hidden"
         />
         {globalQuery && (
           <button
+            type="button"
             onClick={() => setGlobalQuery("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition-colors hover:bg-white/10 hover:text-white cursor-pointer"
+            className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-trinity-azure"
             aria-label="Limpiar búsqueda"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden />
           </button>
         )}
       </div>
@@ -873,10 +885,10 @@ export function CategoryPicker({
       {globalQuery.trim() ? (
         /* Resultados del buscador inteligente (toda la biblioteca) */
         <section className="flex flex-col gap-4">
-          <div className="flex items-center gap-2">
-            <Search className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-bold text-white">Resultados en toda la biblioteca</h2>
-            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <Search className="h-5 w-5 text-primary" aria-hidden />
+            <h2 className="font-headline text-xl font-semibold leading-tight text-foreground">Resultados en toda la biblioteca</h2>
+            <span className="rounded-full bg-white/[0.07] px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
               {globalResults.length}
             </span>
           </div>
@@ -893,14 +905,14 @@ export function CategoryPicker({
         <>
           {/* Ventana-selector: todas las categorías con icono simbólico + conteo */}
           <section className="flex flex-col gap-4">
-            <div className="flex items-center gap-2">
-              <Shapes className="h-5 w-5 text-indigo-300" />
-              <h2 className="text-lg font-bold text-white">Categorías · elige un tipo</h2>
-              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              <Shapes className="h-5 w-5 text-indigo-300" aria-hidden />
+              <h2 className="font-headline text-xl font-semibold leading-tight text-foreground">Categorías · elige un tipo</h2>
+              <span className="rounded-full bg-white/[0.07] px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
                 {kinds.length}
               </span>
             </div>
-            <p className="max-w-2xl text-xs text-muted-foreground">
+            <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
               Cada categoría abre su propia ventana con orden, filtros configurables (gratis · instalados
               · destacados · etiquetas), «Aurora recomienda» y las secciones Novedades, Populares y
               Relevantes. Tus filtros se recuerdan por categoría en este dispositivo.
@@ -909,11 +921,11 @@ export function CategoryPicker({
           </section>
 
           {/* Sub-secciones GENERALES (a nivel de toda la biblioteca) */}
-          <GlassCard intensity="low" className="border-white/5 p-5">
-            <div className="mb-4 flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-cyan-300" />
-              <h2 className="text-lg font-bold text-white">En toda la biblioteca</h2>
-              <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-300">
+          <GlassCard intensity="low" className="border-white/5 p-4 sm:p-6">
+            <div className="mb-5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              <Sparkles className="h-5 w-5 text-cyan-300" aria-hidden />
+              <h2 className="font-headline text-xl font-semibold leading-tight text-foreground">En toda la biblioteca</h2>
+              <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-300">
                 {hasSignals ? "Aurora aprende de tus señales" : "orden honesto y determinista"}
               </span>
             </div>

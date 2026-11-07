@@ -29,10 +29,12 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { etiquetaBuild } from "@/lib/version/os-release";
 import {
-  Rocket, DownloadCloud, MonitorSmartphone, Terminal, ShieldCheck, Cpu, Package,
+  DownloadCloud, Terminal, ShieldCheck, Cpu, Package,
   CheckCircle2, Clock, Download, Loader2, Github, KeyRound, ExternalLink,
 } from "lucide-react";
-import { BotonInstalarOS, OtrosSistemasOS } from "@/components/install/instalar-os";
+import { BotonInstalarOS } from "@/components/install/instalar-os";
+import { SimboloStarSeed } from "@/components/library/simbolo-starseed";
+import { VentanasDescargaOS } from "@/components/library/ventanas-descarga-os";
 import { toast } from "sonner";
 import {
   detectOS, companionInfo, requestMaxPermissions,
@@ -79,28 +81,33 @@ function InstallOsBlock({ os }: { os: DetectedOs }) {
   }, []);
 
   return (
-    <GlassCard className="ss-crystal relative overflow-hidden border-emerald-400/20 bg-gradient-to-br from-emerald-900/25 via-teal-900/15 to-transparent p-5">
-      <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-emerald-500/15 blur-3xl" />
-      <div className="relative z-10 flex flex-col gap-4">
-        <div className="flex items-start gap-3">
-          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-emerald-400/25 bg-emerald-500/10">
-            <MonitorSmartphone className="h-6 w-6 text-emerald-300" />
+    <GlassCard className="ss-crystal relative overflow-hidden border-white/10 p-5 sm:p-6">
+      {/* Acento radial de la marca detrás del símbolo (decorativo). */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "radial-gradient(ellipse 40% 60% at 8% 15%, hsl(var(--trinity-azure-hsl) / 0.12), transparent 70%)" }}
+      />
+      <div className="relative z-10 flex flex-col gap-6">
+        {/* (LIB1107A) Cabecera con el símbolo de StarSeed y el botón de un toque alineado. */}
+        <div className="grid items-center gap-5 md:grid-cols-[minmax(0,1fr)_18.5rem] md:gap-8">
+          <div className="flex min-w-0 flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
+            <SimboloStarSeed size={72} halo />
+            <div className="min-w-0">
+              <h3 className="font-headline text-xl font-semibold leading-tight text-foreground">Instalar StarSeed OS en este dispositivo</h3>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                Detectado: <span className="font-semibold text-foreground">{os.label}</span>
+                {os.arch ? ` · ${os.arch}` : ""}. Un toque descarga la app de la última versión para tu sistema;
+                en iPhone y iPad se instala la versión web, que funciona como una app más.
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <h3 className="text-lg font-bold text-emerald-100">Instalar StarSeed OS en este dispositivo</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Detectado: <span className="font-semibold text-emerald-200">{os.label}</span>
-              {os.arch ? ` · ${os.arch}` : ""}. Un toque descarga la app de la última versión para tu sistema;
-              en iPhone y iPad se instala la versión web, que funciona como una app más.
-            </p>
+          <div className="mx-auto w-full max-w-sm md:max-w-none">
+            <BotonInstalarOS />
           </div>
         </div>
 
-        <div className="w-full sm:max-w-sm">
-          <BotonInstalarOS />
-        </div>
-
-        <OtrosSistemasOS />
+        <VentanasDescargaOS titulo="Todos los sistemas" nivel={4} />
 
         {canPwa && !standalone && os.os !== "ios" && (
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-muted-foreground">
@@ -372,23 +379,18 @@ export function InstallOfficialSection() {
   useEffect(() => { setOs(detectOS()); }, []);
 
   return (
-    <section className="flex flex-col gap-5">
-      <div className="flex items-center gap-3">
-        <div className="grid h-10 w-10 place-items-center rounded-2xl border border-emerald-400/25 bg-emerald-500/10">
-          <Rocket className="h-5 w-5 text-emerald-300" />
+    <section className="flex flex-col gap-6">
+      <div className="flex flex-col items-center gap-2 text-center">
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+          <h2 className="font-headline text-[clamp(1.5rem,2.5vw,2rem)] font-bold leading-tight text-foreground">Instalar StarSeed</h2>
+          <Badge variant="outline" className="gap-1 rounded-full border-trinity-emerald/40 bg-trinity-emerald/10 text-xs text-emerald-200">
+            {etiquetaBuild()}
+          </Badge>
         </div>
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-[clamp(1.25rem,2.5vw,1.75rem)] font-bold font-headline text-emerald-100">Instalar StarSeed</h2>
-            <Badge variant="outline" className="gap-1 border-emerald-400/30 bg-emerald-500/10 text-[10px] text-emerald-200">
-              {etiquetaBuild()}
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground max-w-2xl">
-            Instalación oficial del sistema: el OS en tu dispositivo, el control total de Aurora y los modelos
-            de IA locales. Todo con honestidad sobre qué puede y qué no puede hacer el navegador.
-          </p>
-        </div>
+        <p className="max-w-2xl text-balance text-sm leading-relaxed text-muted-foreground">
+          Instalación oficial del sistema: el OS en tu dispositivo, el control total de Aurora y los modelos
+          de IA locales. Todo con honestidad sobre qué puede y qué no puede hacer el navegador.
+        </p>
       </div>
 
       <InstallOsBlock os={os} />

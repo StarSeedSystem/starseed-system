@@ -17,7 +17,7 @@
 // SSR-safe: todo lo que lee localStorage se calcula tras montar.
 // ════════════════════════════════════════════════════════════════════════════
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -247,7 +247,7 @@ function LivePreviewTile({ pkg }: { pkg: LibraryPackage }) {
           </div>
         </div>
         {!live && (
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[11px] leading-4 text-muted-foreground">
             Vista previa aproximada (material «{cls || "desconocido"}» sin CSS propio todavía).
           </p>
         )}
@@ -264,7 +264,7 @@ function LivePreviewTile({ pkg }: { pkg: LibraryPackage }) {
           <PkgIcon name={pkg.icon} className="h-6 w-6 text-white/85" />
         </div>
       </div>
-      <p className="text-[10px] text-muted-foreground">
+      <p className="text-[11px] leading-4 text-muted-foreground">
         {fallback
           ? "Vista previa con movimiento real (aproximación honesta: la clase exacta aún no tiene CSS propio)."
           : `Vista previa estática (animación «${cls || "desconocida"}» sin CSS propio todavía).`}
@@ -433,8 +433,11 @@ function CardRatingBadge({ pkgId }: { pkgId: string }) {
   }, [pkgId]);
   if (!value) return null;
   return (
-    <span className="inline-flex items-center gap-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[9px] font-semibold text-amber-300">
-      <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" /> {value}/5
+    <span
+      className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold leading-4 tabular-nums text-amber-300"
+      title={`Tu valoración: ${value} de 5`}
+    >
+      <Star className="h-3 w-3 fill-amber-400 text-amber-400" aria-hidden /> {value}/5
     </span>
   );
 }
@@ -622,6 +625,17 @@ export type StoreActions = ReturnType<typeof useStoreActions>;
 
 /* ───────────────────────── Tarjeta de paquete ───────────────────────── */
 
+/**
+ * (LIB1107A) Tarjeta homogénea: misma altura por fila, icono de 48 px, título y autor en una
+ * línea, descripción a dos líneas con alto reservado, etiquetas y acciones alineadas abajo.
+ * Toda la tarjeta abre la ficha con un botón real en el título (se alcanza con el teclado);
+ * las acciones quedan por encima de esa zona de clic. Superficie plana con sombra simple
+ * (interfaz de uso) en lugar de cristal con desenfoque en cada tarjeta.
+ */
+const CHIP = "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-4";
+const ACCION =
+  "h-9 gap-1.5 rounded-full px-4 text-xs font-semibold max-sm:h-11 focus-visible:ring-2 focus-visible:ring-trinity-azure/70 cursor-pointer";
+
 function PackageCard({
   pkg,
   installed,
@@ -641,23 +655,37 @@ function PackageCard({
   const busy = actions.busyId === pkg.id;
 
   return (
-    <GlassCard
-      variant="hover"
-      className="group relative flex h-full flex-col gap-3 border-white/5 bg-gradient-to-br from-white/[0.06] to-transparent p-4 transition-all duration-200 hover:border-primary/40 hover:scale-[1.015] cursor-pointer"
-      onClick={() => onOpenDetail(pkg)}
+    <article
+      className={cn(
+        "group relative flex h-full flex-col gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4 shadow-sm",
+        "transition-[border-color,background-color,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]",
+        "focus-within:border-trinity-azure/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+      )}
     >
-      {/* Cabecera: icono en contenedor de material + nombre */}
-      <div className="flex items-start gap-3 min-w-0">
-        <div className={cn("grid h-12 w-12 shrink-0 place-items-center rounded-2xl transition-transform duration-300 group-hover:scale-105", materialClassFor(pkg))}>
+      {/* Cabecera: icono en contenedor de material + nombre (botón que abre la ficha) */}
+      <div className="flex items-start gap-3">
+        <div aria-hidden className={cn("grid h-12 w-12 shrink-0 place-items-center rounded-2xl transition-transform duration-300 group-hover:scale-105 motion-reduce:transition-none", materialClassFor(pkg))}>
           <PkgIcon name={pkg.icon} className="h-6 w-6 text-white/85" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-gray-100 group-hover:text-primary transition-colors">{pkg.name}</p>
-          <p className="text-[10px] text-muted-foreground truncate">{pkg.author} · v{pkg.version}</p>
+          <h3 className="text-[15px] font-semibold leading-snug text-foreground">
+            <button
+              type="button"
+              onClick={() => onOpenDetail(pkg)}
+              className="block w-full cursor-pointer truncate text-left outline-none transition-colors group-hover:text-primary after:absolute after:inset-0 after:rounded-2xl after:content-[''] focus-visible:after:ring-2 focus-visible:after:ring-trinity-azure/70"
+              title={`Ver ficha de ${pkg.name}`}
+            >
+              {pkg.name}
+            </button>
+          </h3>
+          <p className="truncate text-xs text-muted-foreground">
+            {pkg.author} · v{pkg.version}
+          </p>
         </div>
         {installed && (
-          <span className="shrink-0 rounded-full border border-emerald-400/30 bg-emerald-500/10 p-1" title="Instalado">
-            <Check className="h-3 w-3 text-emerald-300" />
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-emerald-400/30 bg-emerald-500/10" title="Instalado">
+            <Check className="h-3.5 w-3.5 text-emerald-300" aria-hidden />
+            <span className="sr-only">Instalado</span>
           </span>
         )}
       </div>
@@ -665,76 +693,132 @@ function PackageCard({
       {/* Vista previa VIVA (solo diseño/animación): material/movimiento real en miniatura */}
       {hasLivePreview(pkg) && <LivePreviewTile pkg={pkg} />}
 
-      {/* Descripción 2 líneas */}
-      <p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{pkg.description}</p>
+      {/* Descripción a 2 líneas, con su alto reservado para alinear las filas */}
+      <p className="line-clamp-2 min-h-10 text-[13px] leading-5 text-muted-foreground">{pkg.description}</p>
 
-      {/* Chips: kind · gratis · próximamente · tu valoración */}
-      <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-1">
-        <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold", meta.chip)}>
-          <meta.icon className="h-2.5 w-2.5" /> {meta.label}
+      {/* Etiquetas: tipo · gratis · próximamente · tu valoración */}
+      <div className="mt-auto flex flex-wrap items-center gap-1.5">
+        <span className={cn(CHIP, meta.chip)}>
+          <meta.icon className="h-3 w-3" aria-hidden /> {meta.label}
         </span>
-        {pkg.free && (
-          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-semibold text-emerald-300">
-            Gratis
-          </span>
-        )}
+        {pkg.free && <span className={cn(CHIP, "border-emerald-500/30 bg-emerald-500/10 text-emerald-300")}>Gratis</span>}
         {pkg.comingSoon && (
-          <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground">
-            <Clock className="h-2.5 w-2.5" /> Próximamente
+          <span className={cn(CHIP, "border-white/15 bg-white/5 text-muted-foreground")}>
+            <Clock className="h-3 w-3" aria-hidden /> Próximamente
           </span>
         )}
         <CardRatingBadge pkgId={pkg.id} />
       </div>
 
-      {/* Acciones */}
-      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+      {/* Acciones (por encima de la zona de clic de la tarjeta) */}
+      <div className="relative z-10 flex items-center gap-2">
         {pkg.comingSoon ? (
-          <Button size="sm" disabled className="h-8 flex-1 gap-1.5 text-xs opacity-60">
-            <Clock className="h-3.5 w-3.5" /> Próximamente
+          <Button size="sm" disabled className={cn(ACCION, "flex-1 opacity-60")}>
+            <Clock className="h-3.5 w-3.5" aria-hidden /> Próximamente
           </Button>
         ) : installed ? (
           <>
             {route ? (
               <Button
                 size="sm"
-                className="h-8 flex-1 gap-1.5 bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-500 cursor-pointer"
+                className={cn(ACCION, "flex-1 bg-trinity-azure text-slate-950 hover:bg-trinity-azure hover:brightness-110")}
                 onClick={() => actions.openRoute(route, pkg.id)}
               >
-                <ExternalLink className="h-3.5 w-3.5" /> Abrir
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden /> Abrir
               </Button>
             ) : (
-              <Button size="sm" variant="outline" disabled className="h-8 flex-1 gap-1.5 border-emerald-500/30 text-xs text-emerald-300 opacity-90">
-                <Check className="h-3.5 w-3.5" /> Instalado
+              <Button size="sm" variant="outline" disabled className={cn(ACCION, "flex-1 border-emerald-500/30 text-emerald-300 opacity-90")}>
+                <Check className="h-3.5 w-3.5" aria-hidden /> Instalado
               </Button>
             )}
             <Button
               size="sm"
               variant="ghost"
-              className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-300 cursor-pointer"
+              className="h-9 w-9 shrink-0 cursor-pointer rounded-full p-0 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-300 focus-visible:ring-2 focus-visible:ring-trinity-azure/70 max-sm:h-11 max-sm:w-11"
               onClick={() => void actions.doUninstall(pkg.id, pkg.name)}
               disabled={busy}
               title="Desinstalar"
               aria-label={`Desinstalar ${pkg.name}`}
             >
-              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Trash2 className="h-3.5 w-3.5" aria-hidden />}
             </Button>
           </>
         ) : (
           <Button
             size="sm"
             className={cn(
-              "h-8 flex-1 gap-1.5 text-xs font-semibold text-white cursor-pointer",
-              needsKey ? "bg-amber-600 hover:bg-amber-500" : "bg-emerald-600 hover:bg-emerald-500",
+              ACCION,
+              "flex-1 text-slate-950 hover:brightness-110",
+              needsKey ? "bg-trinity-amber hover:bg-trinity-amber" : "bg-trinity-emerald hover:bg-trinity-emerald",
             )}
             onClick={() => void actions.doInstall(pkg)}
             disabled={busy}
           >
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : needsKey ? <KeyRound className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
-            {needsKey ? "Conseguir clave" : "Instalar"}
+            {busy ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            ) : needsKey ? (
+              <KeyRound className="h-3.5 w-3.5" aria-hidden />
+            ) : (
+              <Download className="h-3.5 w-3.5" aria-hidden />
+            )}
+            {needsKey ? "Conseguir clave" : "Instalar"}{" "}
+            <span className="sr-only">{pkg.name}</span>
           </Button>
         )}
       </div>
-    </GlassCard>
+    </article>
+  );
+}
+
+/** Esqueleto con la forma de la tarjeta (sin saltos cuando llegan los datos). */
+function PackageCardEsqueleto() {
+  return (
+    <div aria-hidden className="flex h-full flex-col gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4 motion-safe:animate-pulse">
+      <div className="flex items-start gap-3">
+        <div className="h-12 w-12 rounded-2xl bg-white/10" />
+        <div className="flex-1 space-y-2 pt-1">
+          <div className="h-4 w-2/3 rounded bg-white/10" />
+          <div className="h-3 w-1/3 rounded bg-white/[0.07]" />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 w-full rounded bg-white/[0.07]" />
+        <div className="h-3 w-4/5 rounded bg-white/[0.07]" />
+      </div>
+      <div className="mt-auto h-5 w-24 rounded-full bg-white/[0.07]" />
+      <div className="h-9 w-full rounded-full bg-white/10" />
+    </div>
+  );
+}
+
+/** Encabezado de sección común: icono, título, recuento y una línea de contexto. */
+function EncabezadoSeccion({
+  icono,
+  titulo,
+  cuenta,
+  descripcion,
+  extra,
+}: {
+  icono: ReactNode;
+  titulo: string;
+  cuenta?: number;
+  descripcion?: ReactNode;
+  extra?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+        <span aria-hidden className="grid h-5 w-5 place-items-center">
+          {icono}
+        </span>
+        <h2 className="font-headline text-xl font-semibold leading-tight text-foreground">{titulo}</h2>
+        {typeof cuenta === "number" && (
+          <span className="rounded-full bg-white/[0.07] px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">{cuenta}</span>
+        )}
+        {extra}
+      </div>
+      {descripcion && <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">{descripcion}</p>}
+    </div>
   );
 }
 
@@ -755,25 +839,26 @@ export function PackageGrid({
 }) {
   if (packages.length === 0) {
     return (
-      <div className="col-span-full flex flex-col items-center justify-center rounded-3xl border border-dashed border-white/10 bg-white/5 p-12 text-center text-muted-foreground">
-        <Package className="mb-3 h-10 w-10 opacity-25" />
-        <p className="text-sm">{emptyText}</p>
+      <div role="status" className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 px-6 py-10 text-center">
+        <Package className="h-8 w-8 text-muted-foreground/50" aria-hidden />
+        <p className="max-w-md text-sm text-muted-foreground">{emptyText}</p>
       </div>
     );
   }
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {packages.map((pkg) => (
-        <PackageCard
-          key={pkg.id}
-          pkg={pkg}
-          installed={pkg.id in data.installed}
-          aiReady={aiReady[pkg.id]}
-          actions={actions}
-          onOpenDetail={onOpenDetail}
-        />
+        <li key={pkg.id} className="min-w-0">
+          <PackageCard
+            pkg={pkg}
+            installed={pkg.id in data.installed}
+            aiReady={aiReady[pkg.id]}
+            actions={actions}
+            onOpenDetail={onOpenDetail}
+          />
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }
 
@@ -1228,15 +1313,17 @@ function ReposSection({ data }: { data: StoreData }) {
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <GitBranch className="h-5 w-5 text-lime-300" />
-        <h2 className="text-lg font-bold text-white">Repos · fuentes de paquetes</h2>
-        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-muted-foreground">{data.repos.length}</span>
-      </div>
-      <p className="text-xs text-muted-foreground max-w-2xl">
-        Como en Cydia: cada repo es una fuente de paquetes. El núcleo viene incluido; añade repos
-        de la comunidad por URL (un JSON con shape <code className="rounded bg-white/10 px-1">LibraryRepo</code>).
-      </p>
+      <EncabezadoSeccion
+        icono={<GitBranch className="h-5 w-5 text-lime-300" />}
+        titulo="Repos · fuentes de paquetes"
+        cuenta={data.repos.length}
+        descripcion={
+          <>
+            Como en Cydia: cada repo es una fuente de paquetes. El núcleo viene incluido; añade repos de la
+            comunidad por URL (un JSON con la forma <code className="rounded bg-white/10 px-1 font-code text-xs">LibraryRepo</code>).
+          </>
+        }
+      />
 
       {/* Lista de repos */}
       <div className="flex flex-col gap-2">
@@ -1431,21 +1518,18 @@ function InstalledSection({
         </GlassCard>
       )}
 
-      <div className="flex items-center gap-2">
-        <PackageCheck className="h-5 w-5 text-emerald-300" />
-        <h2 className="text-lg font-bold text-white">Instalado en tu sistema</h2>
-        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-muted-foreground">{entries.length}</span>
-      </div>
-      <p className="text-xs text-muted-foreground max-w-2xl">
-        Registro real de paquetes (viaja con tu cuenta StarSeed vía sincronización de ajustes).
-        Desinstalar revierte lo reversible.
-      </p>
+      <EncabezadoSeccion
+        icono={<PackageCheck className="h-5 w-5 text-emerald-300" />}
+        titulo="Instalado en tu sistema"
+        cuenta={entries.length}
+        descripcion="Registro real de paquetes (viaja con tu cuenta StarSeed vía sincronización de ajustes). Desinstalar revierte lo reversible."
+      />
 
       {entries.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-white/10 bg-white/5 p-12 text-center text-muted-foreground">
-          <PackageCheck className="mb-3 h-10 w-10 opacity-25" />
-          <p className="text-sm">Aún no has instalado nada.</p>
-          <p className="mt-1 text-xs">Explora Destacado o Categorías: todo es gratis y open source.</p>
+        <div role="status" className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-white/15 px-6 py-10 text-center">
+          <PackageCheck className="mb-1 h-8 w-8 text-muted-foreground/50" aria-hidden />
+          <p className="text-sm text-foreground/85">Aún no has instalado nada.</p>
+          <p className="text-sm text-muted-foreground">Explora Destacado o Categorías: todo es gratis y de código abierto.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -1622,26 +1706,26 @@ export function PackageStore({ section, query = "" }: { section: StoreSection; q
   if (!mounted) {
     // SSR / primer render: esqueleto ligero sin tocar localStorage.
     return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-busy="true">
+        <span className="sr-only" role="status">Cargando la Biblioteca…</span>
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="h-44 animate-pulse rounded-2xl border border-white/5 bg-white/[0.04]" />
+          <PackageCardEsqueleto key={i} />
         ))}
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-10">
       {q ? (
         /* Resultados de búsqueda en vivo (nombre / tags / kind) */
         <section className="flex flex-col gap-4">
-          <div className="flex items-center gap-2">
-            <Search className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-bold text-white">Resultados</h2>
-            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-muted-foreground">
-              {searchResults.length}
-            </span>
-          </div>
+          <EncabezadoSeccion
+            icono={<Search className="h-5 w-5 text-primary" />}
+            titulo="Resultados"
+            cuenta={searchResults.length}
+            descripcion={`Paquetes que coinciden con «${query.trim()}» por nombre, etiqueta o tipo.`}
+          />
           <PackageGrid
             packages={searchResults}
             data={data}
@@ -1656,13 +1740,11 @@ export function PackageStore({ section, query = "" }: { section: StoreSection; q
           {/* Recomendado para ti: solo si hay señales y algún paquete puntúa. */}
           {recommended.length > 0 && (
             <section className="flex flex-col gap-4">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-cyan-300" />
-                <h2 className="text-lg font-bold text-white">Recomendado para ti</h2>
-                <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-300">
-                  según tus búsquedas e instalaciones
-                </span>
-              </div>
+              <EncabezadoSeccion
+                icono={<Sparkles className="h-5 w-5 text-cyan-300" />}
+                titulo="Recomendado para ti"
+                descripcion="Según tus búsquedas e instalaciones."
+              />
               <PackageGrid
                 packages={recommended}
                 data={data}
@@ -1677,19 +1759,13 @@ export function PackageStore({ section, query = "" }: { section: StoreSection; q
               de la inteligencia gratis-primero de Aurora). */}
           {iaTools.length > 0 && (
             <section className="flex flex-col gap-4">
-              <div className="rounded-3xl border border-teal-400/20 bg-gradient-to-br from-teal-500/10 via-emerald-500/5 to-transparent p-5">
-                <div className="mb-4 flex flex-wrap items-center gap-2">
-                  <Bot className="h-5 w-5 text-teal-300" />
-                  <h2 className="text-lg font-bold text-white">Herramientas IA & Agentes</h2>
-                  <span className="rounded-full border border-teal-400/25 bg-teal-500/10 px-2 py-0.5 text-[10px] font-semibold text-teal-200">
-                    {iaTools.length} · gratis y open source
-                  </span>
-                </div>
-                <p className="mb-4 max-w-3xl text-xs leading-relaxed text-muted-foreground">
-                  La caja de herramientas de la inteligencia gratis-primero de Aurora: listas vivas de
-                  APIs gratis, fuentes locales, skills (calidad de UI · sentidos web) y patrones de
-                  agentes. Todo viene pre-integrado; instala más aquí cuando quieras.
-                </p>
+              <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-trinity-emerald/[0.04] p-4 shadow-sm sm:p-6">
+                <EncabezadoSeccion
+                  icono={<Bot className="h-5 w-5 text-teal-300" />}
+                  titulo="Herramientas IA & Agentes"
+                  cuenta={iaTools.length}
+                  descripcion="La caja de herramientas de la inteligencia gratis primero de Aurora: listas vivas de APIs gratis, fuentes locales, skills (calidad de UI · sentidos web) y patrones de agentes. Todo viene preintegrado; instala más aquí cuando quieras."
+                />
                 <PackageGrid
                   packages={iaTools}
                   data={data}
@@ -1707,10 +1783,11 @@ export function PackageStore({ section, query = "" }: { section: StoreSection; q
             <HuggingBayBrowser />
           </section>
           <section className="flex flex-col gap-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-amber-300" />
-              <h2 className="text-lg font-bold text-white">Destacado</h2>
-            </div>
+            <EncabezadoSeccion
+              icono={<Sparkles className="h-5 w-5 text-amber-300" />}
+              titulo="Destacado"
+              cuenta={featuredSorted.length}
+            />
             <PackageGrid
               packages={featuredSorted}
               data={data}
@@ -1721,13 +1798,11 @@ export function PackageStore({ section, query = "" }: { section: StoreSection; q
             />
           </section>
           <section className="flex flex-col gap-4">
-            <div className="flex items-center gap-2">
-              <Store className="h-5 w-5 text-emerald-300" />
-              <h2 className="text-lg font-bold text-white">Todo el catálogo</h2>
-              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-muted-foreground">
-                {data.packages.length}
-              </span>
-            </div>
+            <EncabezadoSeccion
+              icono={<Store className="h-5 w-5 text-emerald-300" />}
+              titulo="Todo el catálogo"
+              cuenta={data.packages.length}
+            />
             <PackageGrid
               packages={catalogSorted}
               data={data}

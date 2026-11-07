@@ -143,6 +143,11 @@ export interface AppFilePageProps {
   item: LibraryDetailItem | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * (LIB1107A) Sección propia de una ficha, DENTRO de la ventana, tras las acciones: p. ej. el
+   * Centro de versiones del OS. Recibe la ficha activa (también al navegar a «relacionados»).
+   */
+  seccionExtra?: (item: LibraryDetailItem) => React.ReactNode;
 }
 
 function StarsDisplay({ rating = 0, count }: { rating?: number; count?: number }) {
@@ -213,7 +218,7 @@ function appDeFicha(item: LibraryDetailItem | null): AppParaInstalar | null {
   return appPorId(item.id.slice(PREFIJO_APP.length));
 }
 
-export function AppFilePage({ item, open, onOpenChange }: AppFilePageProps) {
+export function AppFilePage({ item, open, onOpenChange, seccionExtra }: AppFilePageProps) {
   // Ficha activa: permite navegar a "relacionados" sin cerrar el modal.
   const [current, setCurrent] = useState<LibraryDetailItem | null>(item);
   const [installing, setInstalling] = useState(false);
@@ -396,7 +401,7 @@ export function AppFilePage({ item, open, onOpenChange }: AppFilePageProps) {
             <Button
               onClick={handleInstall}
               disabled={installing || (installed && !appEcosistema)}
-              className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 border-0 cursor-pointer"
+              className="min-h-10 gap-2 rounded-full border-0 bg-trinity-emerald px-5 font-semibold text-slate-950 hover:bg-trinity-emerald hover:brightness-110 cursor-pointer"
             >
               {appEcosistema && sitios > 0 ? (
                 <>
@@ -448,6 +453,9 @@ export function AppFilePage({ item, open, onOpenChange }: AppFilePageProps) {
 
           {/* Dónde vive esta app (web, este dispositivo, otras neuronas, perfiles). */}
           {appEcosistema && sitios > 0 ? <DondeEstaInstalada appId={appEcosistema.id} /> : null}
+
+          {/* Sección propia de esta ficha (p. ej. el Centro de versiones del OS). */}
+          {seccionExtra ? seccionExtra(current) : null}
 
           {/* Métricas rápidas */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -681,7 +689,7 @@ export function AppFilePage({ item, open, onOpenChange }: AppFilePageProps) {
 function MetricCell({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         {icon} {label}
       </div>
       <div className="mt-1 truncate text-sm font-semibold" title={value}>

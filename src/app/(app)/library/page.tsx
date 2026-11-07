@@ -84,7 +84,6 @@ import {
   GitBranch,
   PackageCheck,
   Palette,
-  Rocket,
   Landmark,
   Sprout,
    CalendarDays,
@@ -111,6 +110,7 @@ import { AppFilePage, type LibraryDetailItem } from "@/components/library/app-fi
 import { LibraryCatalog, starseedAppToDetail } from "@/components/library/library-catalog";
 import { FranjaDescargaOs } from "@/components/library/franja-descarga-os";
 import { VersionesOs } from "@/components/library/versiones-os";
+import { SimboloStarSeed } from "@/components/library/simbolo-starseed";
 import { InstalledServicesPanel } from "@/components/library/installed-services-panel";
 // ── Tienda viva de paquetes (estilo Cydia) — motor en lib/library/packages ──
 import { PackageStore, type StoreSection } from "@/components/library/package-store";
@@ -1422,8 +1422,23 @@ function KnowledgeExplorer({ onOpenDetail }: { onOpenDetail: (item: LibraryDetai
 // entorno: eso es lo que dejó clavada la versión en el 1 de julio.
 // ══════════════════════════════════════════════════════════════════
 
+/** Pestaña de la Biblioteca: píldora, dianas de 40 px (44 en el móvil) y un único estado activo. */
+const PESTANA =
+  "min-h-10 flex-none cursor-pointer gap-1.5 rounded-full px-4 text-sm max-sm:min-h-11 data-[state=active]:bg-white/[0.12] data-[state=active]:text-foreground data-[state=active]:shadow-sm focus-visible:ring-2 focus-visible:ring-trinity-azure/60";
+
+/**
+ * Lista de pestañas centrada. Si no caben en una fila se parten en varias, todas visibles: es la
+ * regla global del OS para `[role="tablist"]` (globals.css, Adenda 219), que aquí se respeta.
+ */
+const LISTA_PESTANAS = "mx-auto h-auto w-full max-w-full gap-1 p-1";
+
 /** Listado oficial del OS (para la ficha rica que abre la franja de descarga). */
 const OS_APP_LISTING = STARSEED_APP_LISTINGS.find((a) => a.id === "starseed-os");
+
+/** ¿Es la ficha del OS? (el catálogo la crea con el prefijo «ss-app-»). */
+function esFichaDelOS(item: LibraryDetailItem): boolean {
+  return item.id === "ss-app-starseed-os" || item.id === "starseed-os";
+}
 
 // ══════════════════════════════════════════════════════════════════
 // Área BIBLIOTECA — lo GUARDADO por una entidad (Adenda 64)
@@ -1602,12 +1617,10 @@ function LibraryContent() {
   // Ficha detallada (App Store / Play Store) — modal.
   const [detailItem, setDetailItem] = useState<LibraryDetailItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [showVersionesOs, setShowVersionesOs] = useState(false);
 
   const openDetail = (item: LibraryDetailItem) => {
     setDetailItem(item);
     setDetailOpen(true);
-    setShowVersionesOs(item.id === "starseed-os");
   };
 
   // Reacciona a cambios de query (?view / ?tab / ?area) sin recargar.
@@ -1624,78 +1637,79 @@ function LibraryContent() {
   const goPersonal = () => { setTab("coleccion"); setCollectionTab("personal"); };
 
   return (
-    <div className="flex flex-col gap-[clamp(1.5rem,3vw,2.5rem)] min-h-screen pb-24 px-[clamp(1rem,3vw,3rem)] py-[clamp(1rem,2vw,2rem)] w-full mx-auto">
-      {/* ── HERO de la tienda viva: gradiente cristal + buscador grande ── */}
-      <GlassCard className="relative overflow-hidden border-white/10 max-sm:p-4 p-[clamp(1.25rem,3vw,2.5rem)]">
-        {/* Auroras de fondo (decorativas, sin interacción) */}
-        <div className="pointer-events-none absolute -left-24 -top-28 h-72 w-72 rounded-full bg-indigo-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute right-0 -bottom-32 h-80 w-80 rounded-full bg-emerald-500/15 blur-3xl" />
-        <div className="pointer-events-none absolute left-1/2 top-0 h-56 w-56 -translate-x-1/2 rounded-full bg-cyan-400/10 blur-3xl" />
-
-        <div className="relative z-10 flex flex-col max-sm:gap-3 gap-4 items-center md:items-start text-center md:text-left">
-          <h1 className="text-2xl sm:text-[clamp(2rem,4vw,3rem)] font-bold font-headline leading-tight bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-400">
-            Biblioteca · instala cualquier cosa en tu OS
+    <div className="mx-auto flex min-h-screen w-full max-w-[1440px] flex-col gap-8 px-4 pb-24 pt-4 sm:px-6 sm:pt-6 lg:gap-10 lg:px-10 lg:pt-8">
+      {/* ── Cabecera centrada (LIB1107A): título, área y buscador en un solo eje ── */}
+      <header className="relative flex flex-col items-center gap-5 pt-2 text-center sm:pt-6">
+        {/* Un solo acento radial de la marca detrás del título (decorativo). */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 -top-8 mx-auto h-56 max-w-3xl"
+          style={{ background: "radial-gradient(ellipse 60% 70% at 50% 35%, hsl(var(--trinity-azure-hsl) / 0.12), transparent 70%)" }}
+        />
+        <div className="relative flex max-w-3xl flex-col items-center gap-3">
+          <h1 className="font-headline text-[clamp(2rem,4.5vw,3.25rem)] font-bold leading-[1.05] tracking-tight text-foreground">
+            Biblioteca
           </h1>
-          <p className="hidden sm:block text-[clamp(0.9rem,1.2vw,1.1rem)] text-muted-foreground max-w-3xl text-balance">
-            La tienda viva de StarSeed: fuentes de IA, temas, animaciones, apps, widgets, pizarras,
-            investigaciones, funciones y repos de la comunidad — todo open source y gratis-primero.
-            Lo que ves instalable actúa de verdad sobre tu sistema; lo que aún no existe se marca
-            honesto como «próximamente».
+          <p className="max-w-2xl text-balance text-[clamp(0.95rem,1.2vw,1.1rem)] leading-relaxed text-muted-foreground">
+            Instala cualquier cosa en tu OS: fuentes de IA, temas, apps, widgets y repos de la comunidad, de código
+            abierto y gratis primero. Lo que aún no existe se marca como «próximamente».
           </p>
-          <p className="sm:hidden text-[13px] leading-snug text-muted-foreground max-w-3xl line-clamp-3">
-            La tienda viva de StarSeed: IA, temas, apps, widgets y repos de la comunidad — todo open
-            source y gratis-primero. Lo instalable actúa de verdad sobre tu sistema.
-          </p>
+        </div>
 
-          {/* Buscador grande de paquetes (filtra en vivo por nombre/tags/tipo) */}
-          <div className="relative w-full max-w-2xl group">
-            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
+        {/* Conmutador de área: Librería (catálogo en línea) | Biblioteca (lo guardado).
+            SOP: architecture/libreria-biblioteca-sync.md */}
+        <div role="group" aria-label="Área de la Biblioteca" className="relative inline-flex gap-1 rounded-full border border-white/10 bg-black/30 p-1 shadow-sm">
+          {([
+            { id: "libreria", label: "Librería", Icon: Store },
+            { id: "biblioteca", label: "Biblioteca", Icon: BookMarked },
+          ] as const).map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setArea(id)}
+              aria-pressed={area === id}
+              className={cn(
+                "inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full px-5 text-sm font-semibold transition-colors max-sm:min-h-11",
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trinity-azure",
+                area === id ? "bg-white/[0.12] text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Icon className="h-4 w-4" aria-hidden /> {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Buscador de paquetes (filtra en vivo por nombre, etiquetas y tipo). Solo en la Librería. */}
+        {area === "libreria" && (
+          <form role="search" onSubmit={(e) => e.preventDefault()} className="group relative w-full max-w-2xl">
+            <label htmlFor="biblioteca-buscar" className="sr-only">
+              Buscar paquetes
+            </label>
+            <Search
+              className="pointer-events-none absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-foreground"
+              aria-hidden
+            />
             <Input
+              id="biblioteca-buscar"
+              type="search"
               placeholder="Buscar paquetes: IA, temas, widgets, pizarras, skills…"
               value={storeQuery}
               onChange={(e) => setStoreQuery(e.target.value)}
-              className="h-12 rounded-2xl border-white/10 bg-black/30 pl-12 pr-10 text-base focus-visible:ring-indigo-500/50"
+              className="h-12 rounded-full border-white/12 bg-black/30 pl-12 pr-12 text-base shadow-sm focus-visible:ring-2 focus-visible:ring-trinity-azure/50 [&::-webkit-search-cancel-button]:hidden"
             />
             {storeQuery && (
               <button
+                type="button"
                 onClick={() => setStoreQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition-colors hover:bg-white/10 hover:text-white cursor-pointer"
+                className="absolute right-2 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-trinity-azure"
                 aria-label="Limpiar búsqueda"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden />
               </button>
             )}
-          </div>
-        </div>
-      </GlassCard>
-
-      {/* ── Conmutador superior: Librería (catálogo en línea) | Biblioteca (lo guardado) ──
-          Dos áreas claramente separadas dentro de la MISMA sección /library.
-          SOP: architecture/libreria-biblioteca-sync.md */}
-      <div className="flex w-full justify-center sm:justify-start">
-        <div className="inline-flex gap-1 rounded-2xl border border-white/10 bg-black/30 p-1">
-          <button
-            type="button"
-            onClick={() => setArea("libreria")}
-            className={cn(
-              "flex items-center gap-2 rounded-xl px-4 py-2 max-sm:min-h-11 text-sm font-semibold transition-colors cursor-pointer",
-              area === "libreria" ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white",
-            )}
-          >
-            <Store className="h-4 w-4" /> Librería
-          </button>
-          <button
-            type="button"
-            onClick={() => setArea("biblioteca")}
-            className={cn(
-              "flex items-center gap-2 rounded-xl px-4 py-2 max-sm:min-h-11 text-sm font-semibold transition-colors cursor-pointer",
-              area === "biblioteca" ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white",
-            )}
-          >
-            <BookMarked className="h-4 w-4" /> Biblioteca
-          </button>
-        </div>
-      </div>
+          </form>
+        )}
+      </header>
 
       {/* ── Área BIBLIOTECA: lo guardado por una entidad (usuario/página/grupo…) ── */}
       {area === "biblioteca" && <EntityLibraryArea />}
@@ -1719,36 +1733,35 @@ function LibraryContent() {
         onValueChange={(v) => setTab(v as LibraryTab)}
         className={cn("w-full", storeQuery.trim() && "hidden")}
       >
-        <TabsList className="flex flex-wrap h-auto gap-1 bg-black/30 border border-white/10 p-1 rounded-2xl">
-          <TabsTrigger
-            value="instalar-starseed"
-            className="gap-1.5 data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-200 cursor-pointer"
-          >
-            <Rocket className="w-4 h-4" /> Instalar StarSeed
+        {/* Pestañas centradas; si no caben, se parten en filas (regla global del OS). El marco lo
+            pone el tema activo. */}
+        <TabsList className={LISTA_PESTANAS}>
+          <TabsTrigger value="instalar-starseed" className={PESTANA}>
+            <SimboloStarSeed size={18} decorativo /> Instalar StarSeed
           </TabsTrigger>
-          <TabsTrigger value="destacado" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
-            <Store className="w-4 h-4" /> Destacado
+          <TabsTrigger value="destacado" className={PESTANA}>
+            <Store className="h-4 w-4" aria-hidden /> Destacado
           </TabsTrigger>
-          <TabsTrigger value="categorias" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
-            <Shapes className="w-4 h-4" /> Categorías
+          <TabsTrigger value="categorias" className={PESTANA}>
+            <Shapes className="h-4 w-4" aria-hidden /> Categorías
           </TabsTrigger>
-          <TabsTrigger value="repos" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
-            <GitBranch className="w-4 h-4" /> Repos
+          <TabsTrigger value="repos" className={PESTANA}>
+            <GitBranch className="h-4 w-4" aria-hidden /> Repos
           </TabsTrigger>
-          <TabsTrigger value="comunidad" className="gap-1.5 data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-200 cursor-pointer">
-            <Users className="w-4 h-4" /> Comunidad
+          <TabsTrigger value="comunidad" className={PESTANA}>
+            <Users className="h-4 w-4" aria-hidden /> Comunidad
           </TabsTrigger>
-          <TabsTrigger value="coleccion" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
-            <BookMarked className="w-4 h-4" /> Mi colección
+          <TabsTrigger value="coleccion" className={PESTANA}>
+            <BookMarked className="h-4 w-4" aria-hidden /> Mi colección
           </TabsTrigger>
-          <TabsTrigger value="disenos" className="gap-1.5 data-[state=active]:bg-violet-500/15 data-[state=active]:text-violet-200 cursor-pointer">
-            <Palette className="w-4 h-4" /> Diseños
-           </TabsTrigger>
-           <TabsTrigger value="referencias" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
-             <Sparkles className="w-4 h-4" /> Referencias
-           </TabsTrigger>
-           <TabsTrigger value="instalado" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
-            <PackageCheck className="w-4 h-4" /> Instalado
+          <TabsTrigger value="disenos" className={PESTANA}>
+            <Palette className="h-4 w-4" aria-hidden /> Diseños
+          </TabsTrigger>
+          <TabsTrigger value="referencias" className={PESTANA}>
+            <Sparkles className="h-4 w-4" aria-hidden /> Referencias
+          </TabsTrigger>
+          <TabsTrigger value="instalado" className={PESTANA}>
+            <PackageCheck className="h-4 w-4" aria-hidden /> Instalado
           </TabsTrigger>
         </TabsList>
 
@@ -1783,17 +1796,17 @@ function LibraryContent() {
          {/* ── MI COLECCIÓN: la Biblioteca de siempre, intacta ── */}
         <TabsContent value="coleccion" className="mt-6">
           <Tabs value={collectionTab} onValueChange={(v) => setCollectionTab(v as CollectionTab)} className="w-full">
-            <TabsList className="flex flex-wrap h-auto gap-1 bg-black/30 border border-white/10 p-1 rounded-2xl">
-              <TabsTrigger value="explorar" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
+            <TabsList className={LISTA_PESTANAS}>
+              <TabsTrigger value="explorar" className={PESTANA}>
                 <Compass className="w-4 h-4" /> Explorar
               </TabsTrigger>
-              <TabsTrigger value="personal" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
+              <TabsTrigger value="personal" className={PESTANA}>
                 <Lock className="w-4 h-4" /> Mi Biblioteca
               </TabsTrigger>
-              <TabsTrigger value="fuentes" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
+              <TabsTrigger value="fuentes" className={PESTANA}>
                 <BookMarked className="w-4 h-4" /> Fuentes
               </TabsTrigger>
-              <TabsTrigger value="updates" className="gap-1.5 data-[state=active]:bg-white/10 cursor-pointer">
+              <TabsTrigger value="updates" className={PESTANA}>
                 <RefreshCw className="w-4 h-4" /> Actualizaciones
               </TabsTrigger>
             </TabsList>
@@ -1865,9 +1878,15 @@ function LibraryContent() {
       </>
       )}
 
-      {/* Ficha detallada tipo App Store / Play Store (visible en ambas áreas) */}
-      <AppFilePage item={detailItem} open={detailOpen} onOpenChange={setDetailOpen} />
-      {showVersionesOs && detailOpen && <VersionesOs />}
+      {/* Ficha detallada tipo App Store / Play Store (visible en ambas áreas). La del OS lleva
+          DENTRO su Centro de versiones (antes se pintaba detrás de la ventana y con un id que
+          nunca coincidía: «ss-app-starseed-os»). */}
+      <AppFilePage
+        item={detailItem}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        seccionExtra={(it) => (esFichaDelOS(it) ? <VersionesOs /> : null)}
+      />
     </div>
   );
 }

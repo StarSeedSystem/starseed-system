@@ -8,19 +8,21 @@
 // · Detector inteligente (2026-09-25): el MISMO plan que el botón de instalar
 //   (useInstalarOS → planInstalarOS): sistema detectado, archivo de la ÚLTIMA
 //   versión publicada en GitHub y, si no hay app nativa, la web instalable.
-// · Botón grande «Información y versiones» → ficha completa del OS.
+// · (2026-11-07, LIB1107A) Diseño: el símbolo oficial de StarSeed a la cabeza, una
+//   jerarquía clara (descargar → información y versiones → web), lo recomendado para
+//   este dispositivo con formato y tamaño, y los demás sistemas en segundo plano.
+//   Composición centrada en el móvil; dos columnas alineadas en el escritorio.
 // · Movimiento con los tokens de src/lib/design/movimiento.ts y respeto a
-//   prefers-reduced-motion. Una sola columna en móvil.
+//   prefers-reduced-motion.
 // ════════════════════════════════════════════════════════════════════════════
 "use client";
 
 import { useEffect, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
 import { InstallButton } from "@/components/welcome/install-button";
 import { cn } from "@/lib/utils";
 import { CURVA, DURACION } from "@/lib/design/movimiento";
+import { tamanoLegible } from "@/lib/apps-oficiales/apps-oficiales";
 import { OS_REPO_URL, OS_WEB_URL } from "@/lib/install/device-install";
 import { useInstalarOS } from "@/lib/install/instalar-os";
 import { instaladoresPorSistema, OS_RELEASES_ULTIMA_URL } from "@/lib/install/instalar-os-logica";
@@ -31,15 +33,10 @@ import {
   etiquetaBuild,
   formatearFechaBuild,
 } from "@/lib/version/os-release";
-import {
-  CheckCircle2,
-  Clock,
-  Download,
-  ExternalLink,
-  Info,
-  MonitorSmartphone,
-  Package,
-} from "lucide-react";
+import { CheckCircle2, Clock, Download, ExternalLink, Info } from "lucide-react";
+
+import { SimboloStarSeed } from "./simbolo-starseed";
+import { extensionDe } from "./ventanas-descarga-os";
 
 const CANAL_LABEL: Record<typeof OS_CANAL, string> = {
   alpha: "Alpha",
@@ -66,6 +63,9 @@ function useMovimientoReducido(): boolean {
   return reducido;
 }
 
+const ENLACE =
+  "inline-flex cursor-pointer items-center gap-1 rounded font-medium text-emerald-300 underline-offset-2 hover:text-emerald-200 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-trinity-emerald";
+
 export function FranjaDescargaOs({ onAbrirFicha }: { onAbrirFicha: () => void }) {
   const reducido = useMovimientoReducido();
   // El mismo plan que ejecuta el botón: lo que aquí se anuncia es lo que se descargará.
@@ -73,162 +73,137 @@ export function FranjaDescargaOs({ onAbrirFicha }: { onAbrirFicha: () => void })
   const rapidos = instaladoresPorSistema(release).map((g) => ({ etiqueta: g.etiqueta, asset: g.archivos[0] }));
   const tag = release ? (release.tag.startsWith("v") ? release.tag : `v${release.tag}`) : "";
   const disponible = plan.tipo !== "ya-instalada";
-  const formato =
-    plan.tipo === "descargar" ? plan.asset.formato : plan.tipo === "web" ? "App web (PWA)" : "App instalada";
+  const detalle =
+    plan.tipo === "descargar"
+      ? [plan.version, plan.asset.formato, tamanoLegible(plan.asset.bytes)].filter(Boolean).join(" · ")
+      : plan.tipo === "web"
+        ? `App web (PWA) · ${plan.detalle}`
+        : plan.detalle;
 
   // Movimiento con la voz única del OS; con movimiento reducido, duración 0.
   const transicion = `${reducido ? 0 : DURACION.normal}ms ${CURVA.entrada}`;
 
   return (
-    <GlassCard
-      variant="hover"
-      className="relative overflow-hidden border-emerald-400/30 bg-gradient-to-br from-emerald-900/40 via-teal-900/25 to-transparent p-5 shadow-[0_0_60px_-30px_rgba(16,185,129,0.6)] md:p-8"
-      data-testid="franja-descarga-os"
-    >
-      {/* Resplandores de fondo para darle presencia (solo luz, nada de emojis). */}
-      <div className="pointer-events-none absolute -right-20 -top-24 h-80 w-80 rounded-full bg-emerald-500/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-teal-500/15 blur-3xl" />
-      <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-emerald-300/15" />
+    <GlassCard className="relative overflow-hidden border-white/10 p-5 sm:p-8" data-testid="franja-descarga-os">
+      {/* Acento radial de la marca detrás del símbolo (decorativo). */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 42% 75% at 18% 35%, hsl(var(--trinity-azure-hsl) / 0.13), transparent 70%), radial-gradient(ellipse 36% 60% at 95% 105%, hsl(var(--trinity-emerald-hsl) / 0.10), transparent 70%)",
+        }}
+      />
 
-      <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 items-start gap-4">
-          <div className="hidden shrink-0 rounded-2xl border border-emerald-400/30 bg-emerald-500/15 p-3 shadow-[0_0_24px_rgba(16,185,129,0.25)] sm:block">
-            <Download className="h-8 w-8 text-emerald-300" />
-          </div>
+      {/* Composición centrada: en pantallas anchas el bloque no pasa de 64 rem y se centra en la
+          franja (sin un vacío entre el texto y las acciones). */}
+      <div className="relative z-10 mx-auto grid max-w-5xl items-center gap-6 lg:grid-cols-[minmax(0,1fr)_18.5rem] lg:gap-10">
+        <div className="flex min-w-0 flex-col items-center gap-5 text-center sm:flex-row sm:items-center sm:text-left">
+          <SimboloStarSeed size={96} halo />
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="font-headline text-2xl font-bold leading-tight text-emerald-50 md:text-3xl">
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 sm:justify-start">
+              <h2 className="font-headline text-2xl font-bold leading-tight text-foreground md:text-3xl">
                 Descarga StarSeed OS
               </h2>
-              <Badge
-                variant="outline"
-                className="gap-1 border-emerald-400/40 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200"
+              <span
+                className="rounded-full border border-trinity-emerald/40 bg-trinity-emerald/10 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-emerald-200"
                 title={etiquetaBuild()}
               >
                 {CANAL_LABEL[OS_CANAL]} · {OS_VERSION}
-              </Badge>
+              </span>
             </div>
-            <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
               Última versión publicada el{" "}
-              <strong className="font-semibold text-emerald-100">
-                {formatearFechaBuild(OS_FECHA)}
-              </strong>
-              . Instálala como app en tu dispositivo (Android, iOS, escritorio) o ábrela en la web
-              oficial.
+              <strong className="font-semibold text-foreground">{formatearFechaBuild(OS_FECHA)}</strong>. Instálala
+              como app en tu ordenador o tu móvil, o úsala en la web oficial.
             </p>
 
             {/* Detector inteligente: qué conviene a ESTE dispositivo, con honestidad. */}
             <div
-              className={cn(
-                "mt-3 max-w-xl rounded-2xl border border-emerald-400/20 bg-emerald-500/[0.07] p-3",
-                !reducido && "hover:border-emerald-400/40",
-              )}
-              style={{ transition: `border-color ${transicion}` }}
+              className="mt-4 inline-flex max-w-xl flex-col gap-0.5 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left"
               data-testid="recomendacion-dispositivo"
             >
-              <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-emerald-200/80">
-                <MonitorSmartphone className="h-3.5 w-3.5" /> Mejor opción para tu dispositivo
-              </p>
-              <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-emerald-50">
+              <p className="text-xs font-medium text-muted-foreground">Para este dispositivo</p>
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-foreground">
                 {plan.titulo}
-                <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[11px] font-medium text-white/70">
-                  {formato}
-                </span>
                 {cargando ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-white/60">
-                    <Clock className="h-3.5 w-3.5" /> Buscando la última versión…
-                  </span>
-                ) : disponible ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-300">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Disponible ahora
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                    <Clock className="h-3.5 w-3.5" aria-hidden /> Buscando la última versión…
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-300">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Ya instalada
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-300">
+                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> {disponible ? "Disponible ahora" : "Ya instalada"}
                   </span>
                 )}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">{plan.detalle}</p>
-            </div>
-
-            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-              <a
-                href={OS_WEB_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex cursor-pointer items-center gap-1 font-medium text-emerald-300 hover:text-emerald-200 hover:underline"
-              >
-                starseed-os.vercel.app <ExternalLink className="h-3 w-3" />
-              </a>
-              <a
-                href={OS_REPO_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex cursor-pointer items-center gap-1 font-medium text-emerald-300 hover:text-emerald-200 hover:underline"
-              >
-                Código fuente / releases <ExternalLink className="h-3 w-3" />
-              </a>
-              {rapidos.length > 0 && (
-                <span
-                  className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground"
-                  title="Enlaces directos a los archivos de la última versión publicada en GitHub."
-                >
-                  <Package className="h-3 w-3" /> Nativas{tag ? ` (${tag})` : ""}:
-                  {rapidos.map(({ etiqueta, asset }) => (
-                    <a
-                      key={asset.nombre}
-                      href={asset.url}
-                      download={asset.nombre}
-                      title={asset.nombre}
-                      className="cursor-pointer font-medium text-emerald-300 hover:text-emerald-200 hover:underline"
-                    >
-                      {etiqueta}
-                    </a>
-                  ))}
-                  <a
-                    href={OS_RELEASES_ULTIMA_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="cursor-pointer font-medium text-emerald-300 hover:text-emerald-200 hover:underline"
-                  >
-                    Todas
-                  </a>
-                </span>
-              )}
+              <p className="text-xs leading-relaxed text-muted-foreground">{detalle}</p>
             </div>
           </div>
         </div>
 
-        {/* Acciones: ficha (botón grande), instalación PWA real y web oficial */}
-        <div className="flex w-full shrink-0 flex-col gap-3 lg:w-80">
-          <Button
+        {/* Acciones: descargar (principal), ficha con versiones (secundaria) y la web (terciaria). */}
+        <div className="mx-auto flex w-full max-w-sm flex-col gap-2.5 lg:max-w-none">
+          <InstallButton compact className="w-full" />
+          <button
             type="button"
-            size="lg"
             onClick={onAbrirFicha}
             title="Ficha completa del OS: versiones, notas y enlaces oficiales"
             className={cn(
-              "h-14 w-full cursor-pointer gap-2 px-6 text-base font-bold",
-              "bg-emerald-400 text-emerald-950 shadow-lg shadow-emerald-500/30",
-              "hover:bg-emerald-300 focus-visible:ring-2 focus-visible:ring-emerald-200",
-              !reducido && "hover:-translate-y-0.5",
+              "inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-5 text-sm font-semibold text-foreground",
+              "hover:bg-white/[0.12] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trinity-emerald",
             )}
-            style={{ transition: `transform ${transicion}, background-color ${transicion}` }}
+            style={{ transition: `background-color ${transicion}` }}
             data-testid="boton-informacion-versiones"
           >
-            <Info className="h-5 w-5 shrink-0" /> Información y versiones
-          </Button>
-          <InstallButton className="w-full" />
+            <Info className="h-4 w-4 shrink-0" aria-hidden /> Información y versiones
+          </button>
           <a
             href={OS_WEB_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-[13px] border border-white/12 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/80 hover:bg-white/[0.08]"
-            style={{ transition: `background-color ${transicion}` }}
+            className={cn(ENLACE, "min-h-11 justify-center text-sm")}
           >
-            <ExternalLink className="h-4 w-4" /> Abrir en la web
+            Abrir en la web <ExternalLink className="h-3.5 w-3.5" aria-hidden />
           </a>
         </div>
       </div>
+
+      {/* Los demás sistemas, en segundo plano: un toque descarga su archivo directo. */}
+      <nav
+        aria-label="Descargas directas por sistema"
+        className="relative z-10 mx-auto mt-6 flex max-w-5xl flex-col items-center gap-3 border-t border-white/[0.08] pt-5 xl:flex-row xl:justify-between"
+      >
+        <p className="text-sm text-muted-foreground">
+          Descarga directa{tag ? ` · ${tag}` : ""}
+        </p>
+        <ul className="flex flex-wrap items-center justify-center gap-2">
+          {rapidos.map(({ etiqueta, asset }) => (
+            <li key={asset.nombre}>
+              <a
+                href={asset.url}
+                download={asset.nombre}
+                title={`${asset.nombre}${asset.bytes ? ` · ${tamanoLegible(asset.bytes)}` : ""}`}
+                className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-4 text-sm font-medium text-foreground/90 hover:border-white/25 hover:bg-white/[0.09] focus-visible:outline focus-visible:outline-2 focus-visible:outline-trinity-emerald"
+                style={{ transition: `background-color ${transicion}, border-color ${transicion}` }}
+              >
+                <Download className="h-3.5 w-3.5 text-emerald-300" aria-hidden />
+                {etiqueta}
+                <span className="text-xs text-muted-foreground">{extensionDe(asset.nombre)}</span>
+              </a>
+            </li>
+          ))}
+          <li>
+            <a href={OS_RELEASES_ULTIMA_URL} target="_blank" rel="noopener noreferrer" className={cn(ENLACE, "min-h-11 px-2 text-sm")}>
+              Todas <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+            </a>
+          </li>
+          <li>
+            <a href={OS_REPO_URL} target="_blank" rel="noopener noreferrer" className={cn(ENLACE, "min-h-11 px-2 text-sm")}>
+              Código fuente <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+            </a>
+          </li>
+        </ul>
+      </nav>
     </GlassCard>
   );
 }
