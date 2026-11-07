@@ -69,10 +69,10 @@ política antes de recargar y anota `STARSEED_BUILD_INICIAL`), `src/lib/neurons/
   malla): el planificador lo calcula, pero el estado necesita `os_versiones_neurona` (migración sin
   aplicar). Hasta entonces cada neurona decide sola con su política.
 - **Publicar manifiestos** en `os_versiones` desde «Publicar» (MetaGenesis) y desde PoliGenesis/Genesis.
-- **Marca de directo**: la llamada activa ya se lee del almacén de llamadas; los directos aún no ponen
-  `data-en-directo` ni llaman a `marcarOcupado(id, "directo")`.
+- **Marca de directo**: la llamada activa ya se lee del almacén de llamadas; los directos ya marcan
+  `data-en-directo` y llaman a `marcarOcupado(id, "directo")`.
 - **Aplicador de modelos** (AlmacenCapas) y de **datos** (UiSpec/operaciones de Genesis).
-- **`/version.json` sin `OS_VERSION`**: la interfaz se compara por build id (servidor frente a la pestaña).
+- **`/version.json` con `OS_VERSION`**: la interfaz se compara por build id (servidor frente a la pestaña).
 - Montar las variantes en `mi-genesis.tsx` y `poligenesis.tsx` (de otro agente: no se tocaron).
 Todas están troceadas como tareas del enjambre en el informe de la ola.
 
