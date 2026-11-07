@@ -6059,3 +6059,10 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que quedó fuera, una por una:**
 - `CTR1107D-d2` — no escribió nada
 - `CTR1107E-d3` — otra cosa: continúa como CTR1107Eb desde la rama nube/a1-20261107-202238 (traer_nube)
+
+## 2026-11-07 16:07 · auto-1107-154301
+
+**Resultado.** 1 de 2 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `CTR1107D-d3` — otra cosa
