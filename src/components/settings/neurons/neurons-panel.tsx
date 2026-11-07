@@ -35,6 +35,7 @@ import {
 import { SecurityScanPanel } from "@/components/security/security-scan-panel";
 // Voz por neurona (Adenda 87): elección nube/local POR DISPOSITIVO + instalador.
 import { NeuronVoiceChoice } from "@/components/settings/aurora/neuron-voice-choice";
+import { EstadoServidorLocal } from "@/components/nativa/estado-servidor-local";
 
 /* ── Icono por tipo de dispositivo ── */
 const KIND_ICONS: Record<NeuronKind, typeof Monitor> = {
@@ -179,6 +180,8 @@ export function NeuronsPanel() {
                 renombrar y ajustar los permisos de cada neurona.
               </CardDescription>
               <p className="text-[11px] text-muted-foreground mt-2">{summarizeNeurons(neurons)}</p>
+              {/* (APP1107T6) Solo dentro de la app nativa: el servidor local de esta neurona. */}
+              <EstadoServidorLocal className="mt-2" />
             </div>
             <Button variant="ghost" size="sm" className="cursor-pointer shrink-0" onClick={() => void refresh()} disabled={loading}>
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />

@@ -46,6 +46,7 @@ import { agruparPorAparato, esFichaVacia, normalizarGpu, type GrupoAparato } fro
 import type { RegistroMedio, TipoMedio } from "@/lib/neurons/medio";
 import { usePresenciaNeuronas, presentesPorNeurona, type PresenciaMedio } from "@/lib/neurons/presencia";
 import type { SenalesMedio } from "@/lib/neurons/senales-medio";
+import { EstadoServidorLocal } from "@/components/nativa/estado-servidor-local";
 import { leerFusiones } from "@/lib/neurons/fusion-alias";
 
 /** «hace 3 min» / «hace 2 h» / «hace 4 días». */
@@ -433,6 +434,8 @@ export function AparatosEnVivo({ neuronas, onCambio, ahora }: AparatosEnVivoProp
                         </span>
                       </div>
                       {m.presente && <ChipsSenales s={m.presente.s} />}
+                      {/* (APP1107T6) «app nativa · servidor local»: solo el medio nativo de ESTE aparato. */}
+                      {m.tipo === "app-nativa" && a.neuronas.some((n) => n.isThisDevice) && <EstadoServidorLocal className="mt-1.5" />}
                     </li>
                   );
                 })}
