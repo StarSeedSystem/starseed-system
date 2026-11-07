@@ -33,6 +33,7 @@ import type { FichaMapa } from "@/lib/senales/tipos-vivo";
 import { destinoDeSenal, textoEstado } from "@/lib/malla/sincronizacion-neuronas";
 import { solicitarSincronizacion, useSolicitudesSync } from "@/lib/malla/sincronizacion-neuronas-motor";
 import { FichaSecciones } from "./mapa-senales/secciones-ficha";
+import { PanelVinculo } from "@/components/network/panel-vinculo";
 
 // (MSH1107A) «Vincular sin internet» (QR) cuando no hay ningún camino: solo se carga si hace falta.
 const VincularSinInternet = dynamic(
@@ -101,6 +102,9 @@ export function SignalDetailCard({ signal, ficha, onClose, onOpenMesh, className
   }, [signal.id]);
   const p = signal.placement;
   const q = signal.quality;
+  // (VIN1107A) ¿Es una neurona a la que se puede vincular? Misma regla que «Sincronizar ahora».
+  const destinoVinculo = signal.antenna === "lora" ? null : destinoDeSenal(signal);
+  const vinculable = !!destinoVinculo;
 
   const run = async (a: SignalActionKind) => {
     if (!a.enabled) {
@@ -277,6 +281,17 @@ export function SignalDetailCard({ signal, ficha, onClose, onOpenMesh, className
         )}
         <p className="mt-1 text-[10px] leading-snug text-white/45">{signal.qualityDetail}</p>
       </div>
+
+      {/* (VIN1107A) Vínculo con esta neurona: vías y latencia, sincronizaciones, capas compartidas y ajustes.
+          Solo en señales que son una neurona StarSeed (no nodos LoRa ni BLE sueltos). */}
+      {vinculable && (
+        <div className="mt-2">
+          <PanelVinculo
+            neurona={destinoVinculo?.neurona ?? ""}
+            ambito={signal.starseed ? { propia: signal.starseed.ownAccount, publico: signal.starseed.publico } : undefined}
+          />
+        </div>
+      )}
 
       {ficha ? (
         <div className="mt-2 space-y-2">

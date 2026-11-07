@@ -280,3 +280,79 @@ describe("motor de sincronización entre neuronas (dos aparatos en memoria)", ()
     expect(await mac.motor.solicitar({})).toMatchObject({ ok: false, id: null });
   });
 });
+
+describe("ajustes por neurona vinculada (VIN1107A)", () => {
+  async function vinculadasYReiniciadas() {
+    const red = crearRed();
+    const almMac = new Map<string, string>();
+    const almTab = new Map<string, string>();
+    let mac = red.nodo({ ip: "192.168.1.10", yo: MAC, huella: "id:mac", almacen: almMac });
+    let tab = red.nodo({ ip: "192.168.1.20", yo: TAB, huella: "id:tab", almacen: almTab });
+    const r = await mac.motor.solicitar({ neurona: "tab-1" }, { recordar: true });
+    await red.calma();
+    await tab.motor.responder(tab.motor.instantanea().solicitudes[0].id, true, true);
+    await red.calma();
+    expect(mac.motor.solicitud(r.id!)?.estado).toBe("vinculada");
+    red.reloj.t += 24 * 3600_000;
+    red.nodos.clear();
+    mac = red.nodo({ ip: "192.168.1.10", yo: MAC, huella: "id:mac", almacen: almMac });
+    tab = red.nodo({ ip: "192.168.1.20", yo: TAB, huella: "id:tab", almacen: almTab });
+    mac.motor.cargar();
+    tab.motor.cargar();
+    return { red, mac, tab, almMac };
+  }
+
+  it("por defecto reconectar sola y todas las vías; el vínculo vivo lo dice", async () => {
+    const { mac } = await vinculadasYReiniciadas();
+    expect(mac.motor.instantanea().vinculos[0].ajustes).toEqual({ reconectarSola: true, viasPermitidas: null });
+  });
+
+  it("«reconectar sola» apagado en quien pediría: al reaparecer la tablet NO se le pide nada", async () => {
+    const { red, mac, almMac } = await vinculadasYReiniciadas();
+    mac.motor.cambiarAjustes("tab-1", { reconectarSola: false });
+    expect(mac.motor.instantanea().vinculos[0].ajustes.reconectarSola).toBe(false);
+    expect(JSON.parse(almMac.get("starseed.malla.vinculos-ajustes.v1")!)).toEqual({ "tab-1": { reconectarSola: false, viasPermitidas: null } });
+    mac.motor.activarReconexion(true);
+    await mac.motor.refrescarRed();
+    await red.calma();
+    expect(mac.motor.instantanea().solicitudes).toHaveLength(0);
+    expect(mac.enviadosNativos).toHaveLength(0);
+  });
+
+  it("«reconectar sola» apagado en quien recibe: la solicitud automática NO se acepta sola, se pregunta", async () => {
+    const { red, mac, tab } = await vinculadasYReiniciadas();
+    tab.motor.cambiarAjustes("mac-1", { reconectarSola: false });
+    mac.motor.activarReconexion(true);
+    await mac.motor.refrescarRed();
+    await red.calma();
+    const entrante = tab.motor.instantanea().solicitudes[0];
+    expect(entrante).toMatchObject({ direccion: "entrante", estado: "recibida" });
+    expect(tab.avisos).toHaveLength(0);
+  });
+
+  it("vías permitidas: sin la red local, la solicitud no sale por ahí y lo explica", async () => {
+    const red = crearRed();
+    const mac = red.nodo({ ip: "192.168.1.10", yo: MAC, huella: "id:mac" });
+    red.nodo({ ip: "192.168.1.20", yo: TAB, huella: "id:tab" });
+    mac.motor.cambiarAjustes("tab-1", { viasPermitidas: ["rele"] });
+    const r = await mac.motor.solicitar({ neurona: "tab-1", nombre: "Tablet" });
+    expect(r.ok).toBe(false);
+    expect(r.detalle).toContain("está desactivado la red local y los enlaces directos y la malla");
+    expect(mac.enviadosNativos).toHaveLength(0);
+    // Volver a permitir todas: ya sale por la red local.
+    mac.motor.cambiarAjustes("tab-1", { viasPermitidas: null });
+    expect(mac.motor.instantanea().vinculos).toHaveLength(0); // sin vínculo aún; el ajuste vive aparte
+    const r2 = await mac.motor.solicitar({ neurona: "tab-1", nombre: "Tablet" });
+    expect(r2).toMatchObject({ ok: true, via: "red-local-nativa" });
+  });
+
+  it("los ajustes guardados se leen al arrancar y olvidar un vínculo no los pierde", async () => {
+    const red = crearRed();
+    const alm = new Map<string, string>([["starseed.malla.vinculos-ajustes.v1", JSON.stringify({ "tab-1": { reconectarSola: false, viasPermitidas: ["rele", "malla-cuenta"] } })]]);
+    const mac = red.nodo({ ip: "192.168.1.10", yo: MAC, huella: "id:mac", almacen: alm });
+    expect(mac.motor.ajustes("tab-1")).toEqual({ reconectarSola: false, viasPermitidas: ["rele", "malla-cuenta"] });
+    mac.motor.olvidar("tab-1");
+    expect(mac.motor.ajustes("tab-1").reconectarSola).toBe(false);
+    expect(mac.motor.ajustes("otra")).toEqual({ reconectarSola: true, viasPermitidas: null });
+  });
+});

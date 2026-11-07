@@ -117,8 +117,42 @@ type ViaSync = "red-local-nativa" | "enlace-local" | "malla-cuenta" | "vinculo-p
 
 ## 7 · Pendiente (con motivo)
 
-- La clave de faro de la cuenta (`faro-clave.ts`) aún no se reparte a la app: sin ella los faros son
-  anónimos y la primera solicitud se difunde a las neuronas anónimas de la red. Con la clave, irá exacta.
+- La clave de faro de la cuenta YA se reparte a la app nativa (VIN1107A, §8.3). Pendiente de comprobar a mano en
+  dos aparatos: que `antenas_configurar` haga que el faro en marcha pase a emitir con la clave nueva sin
+  reiniciar la app (el Rust no se tocó en esta ola y no hay Rust en la Mac).
 - Identidad entre cuentas sin servidor: la cuenta que dice el otro no se puede comprobar offline (se dice
   así en la ventana); la huella sí.
 - `/genesis` y `/voces` no montan `MallaNeuronasMount`: allí no sale la ventana.
+
+## 8 · Panel del vínculo (VIN1107A · 2026-11-07)
+
+Pedido de Alex: desde las secciones del Radar, las Señales y las Neuronas, ver los tipos de conexión
+disponibles, la latencia de cada uno, las sincronizaciones y su estado, las capacidades y capas de
+conciencia compartidas y los ajustes.
+
+### 8.1 Dónde se ve
+| Dónde | Qué |
+|---|---|
+| Ficha de una señal (Radar, Mapa de señales, panel de Señales: `signal-detail.tsx`) | `PanelVinculo` de la neurona de esa señal; si no está vinculada lo dice |
+| Panel de Señales (`detected-signals-panel.tsx`) | `ListaVinculos`: todas las vinculadas con su mejor vía y latencia |
+| Cerebro → Neuronas (`neuronas-panel.tsx`) | `ListaVinculos` arriba y, en cada tarjeta de otra neurona, «Vínculo, vías y latencia» |
+| Cerebros → Servidores (`servers-panel.tsx`) | `ListaVinculos`; el registro de servidores no guarda el id de neurona, así que no se asocia un servidor del registro con su neurona sin que se vinculen |
+
+### 8.2 Piezas
+- `src/lib/malla/panel-vinculo.ts` (puro): mejor vía (menor latencia medida; sin medidas, orden fijo más directo
+  primero), textos de latencia («sin medir» nunca se estima), filas, de quién es (propia/ajena, privada/pública/
+  anónima; **el modelo no distingue comunitarias: se dice «sin dato»**), capas compartidas.
+- `src/lib/malla/ajustes-vinculo.ts` (puro) + motor: por neurona, SOLO en este aparato (`starseed.malla.vinculos-ajustes.v1`):
+  `reconectarSola` (apagado: ni se le pide sola ni se acepta sola su solicitud) y `viasPermitidas` (vale para pedir y
+  para contestar; el transporte universal cubre enlace-local/malla-cuenta/vinculo-par/lora y se salta solo si ninguna
+  de las cuatro está permitida; si por esto no llega nada, el resultado lo dice). Siempre queda al menos una vía.
+- `src/lib/malla/anuncio-capas.ts`: anuncia `capa:local|mesh|nube|colectiva` (solo las encendidas y con el interruptor
+  general activo; **nunca** «contexto personal») con `fijarCapacidadesAnunciadas`.
+- `src/components/network/panel-vinculo.tsx`: `PanelVinculo` y `ListaVinculos`.
+
+### 8.3 Clave de faro de la cuenta → app nativa
+`src/lib/nativa/faro-clave-cuenta.ts`, montado en `MallaNeuronasMount`. Solo en la app nativa y con sesión: lee (o crea una vez)
+`user_settings.prefs.faro_clave_v1` (RLS por dueño), vuelve a leer lo que quedó si dos neuronas la crean a la vez y la
+guarda con `antenasConfigurar` junto a `neurona` y `conocidas` (ids de las demás neuronas de la cuenta), conservando
+`meshtastic_hosts`, `nas` y `faro_apagado`. Primera vuelta a los 5 s; reintento 30 s ×4 si falla; repite cada 30 min.
+Nunca registra ni devuelve la clave; nunca toca tokens ni claves de sesión.

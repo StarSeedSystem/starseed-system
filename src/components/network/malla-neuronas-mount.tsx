@@ -106,6 +106,11 @@ function MallaNeuronasEngine() {
   // local nativo (sin internet), el transporte universal o el relé; vínculos recordados y reconexión
   // sola (`architecture/sincronizacion-neuronas.md`).
   useMotorPerezoso(() => import("@/lib/malla/sincronizacion-neuronas-motor").then((m) => m.iniciarSincronizacionNeuronas));
+  // (2026-11-07 · VIN1107A) Capas de conciencia que esta neurona anuncia a las vinculadas (el panel del
+  // vínculo dice cuáles se comparten) y clave de faro de la cuenta para la app nativa (sin ella el faro
+  // es anónimo y las neuronas propias salen en «otras cuentas cerca»). Solo la app nativa toca el faro.
+  useMotorPerezoso(() => import("@/lib/malla/anuncio-capas").then((m) => m.iniciarAnuncioCapas));
+  useMotorPerezoso(() => import("@/lib/nativa/faro-clave-cuenta").then((m) => m.iniciarClaveFaroNativa));
   // (Ola 370) Motor de vínculos ENTRE cuentas: sondea mis solicitudes/vínculos
   // y abre (o cierra) el mesh de par dedicado de cada uno ya `aceptado`. Mesh
   // COMPLETAMENTE separado del intra-cuenta de arriba — ver

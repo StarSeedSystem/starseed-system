@@ -2,6 +2,7 @@
 
 import { OssLibraryBrowser } from "@/components/settings/ai/oss-library-browser";
 import DeviceNetworkPanel from "@/components/brains/device-network-panel";
+import { ListaVinculos } from "@/components/network/panel-vinculo";
 
 /**
  * ServersPanel — Registro de servidores de cerebros + enlaces MUCHOS-A-MUCHOS.
@@ -449,6 +450,12 @@ export default function ServersPanel() {
 
       {/* Detección automática: dispositivos y red (cuenta + IP pública) */}
       <DeviceNetworkPanel />
+
+      {/* (VIN1107A) Neuronas y servidores StarSeed vinculados y activos: mejor vía, latencia y sincronizaciones. */}
+      <ListaVinculos
+        titulo="Servidores y neuronas vinculados y activos"
+        nota="Un servidor de la lista de arriba sale aquí cuando está vinculado como neurona (app nativa o StarSeed OS abierto en él). El registro de servidores no guarda el id de neurona, así que no se puede decir cuál es cuál sin que se vinculen."
+      />
 
       {/* Editor de servidor */}
       {draft && (

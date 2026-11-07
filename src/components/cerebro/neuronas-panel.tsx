@@ -38,6 +38,7 @@ import { toast } from "sonner";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { NeuronModelsPanel } from "@/components/neurons/neuron-models-panel";
 import { AparatosEnVivo } from "@/components/neurons/aparatos-en-vivo";
+import { ListaVinculos, PanelVinculo } from "@/components/network/panel-vinculo";
 import { usePresenciaNeuronas } from "@/lib/neurons/presencia";
 import {
    ensureThisNeuron,
@@ -283,6 +284,11 @@ export default function NeuronasPanel({
           />
         </div>
       )}
+
+      {/* ── Vinculadas y activas: mejor vía y latencia de cada una (VIN1107A) ── */}
+      <ListaVinculos
+        nota="Las de tu cuenta salen también abajo, en cada tarjeta. Las de otras cuentas vinculadas (públicas o no) solo salen aquí."
+      />
 
       {/* ── Tarjetas ─────────────────────────────────────────── */}
       {loading && neurons.length === 0 ? (
@@ -599,6 +605,20 @@ function NeuronCard({
 
       {/* ── Siempre disponible (pantalla cerrada) · neurona insomne (INS1027D) ── */}
       <InsomneFicha neurona={n} />
+
+      {/* ── Vínculo con esta neurona (VIN1107A): vías y latencia, sincronizaciones, capas compartidas, ajustes.
+             Las neuronas de este panel son las de TU cuenta: personales y privadas. ── */}
+      {!n.isThisDevice && (
+        <details className="group rounded-xl border border-white/8 bg-white/[0.02]">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-semibold text-white/80">
+            <Link2 className="h-3.5 w-3.5 text-emerald-300" aria-hidden /> Vínculo, vías y latencia
+            <span className="ml-auto text-[10px] font-normal text-white/40 group-open:hidden">ver</span>
+          </summary>
+          <div className="px-2 pb-2">
+            <PanelVinculo neurona={n.id} ambito={{ propia: true }} />
+          </div>
+        </details>
+      )}
 
       {/* ── Ajustes por neurona ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

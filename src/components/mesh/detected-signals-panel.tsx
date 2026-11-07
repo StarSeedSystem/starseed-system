@@ -30,6 +30,7 @@ import {
 } from "@/ai/astraura/mesh/signals";
 import { useDetectedSignals } from "./use-detected-signals";
 import { SignalDetailCard } from "./signal-detail";
+import { ListaVinculos } from "@/components/network/panel-vinculo";
 
 const ANTENNA_ICON: Record<AntennaKind, LucideIcon> = {
   lora: RadioTower,
@@ -373,6 +374,9 @@ export function DetectedSignalsPanel({ compact = false, onOpenMesh, className }:
           );
         })}
       </div>
+
+      {/* (VIN1107A) Neuronas vinculadas y activas: mejor vía y latencia de cada una. */}
+      {!compact && <ListaVinculos className="mt-2" />}
 
       {/* Fuentes NO disponibles, con su razón exacta (honestidad radical) */}
       {!compact && unavailable.length > 0 && (

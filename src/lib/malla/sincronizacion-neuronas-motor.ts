@@ -77,6 +77,18 @@ import {
   type ViaSync,
   type VinculoNeurona,
 } from "./sincronizacion-neuronas";
+import {
+  AJUSTES_VINCULO_DEFECTO,
+  CLAVE_AJUSTES_VINCULOS,
+  cambiarAjustes,
+  filtrarPasos,
+  fraseViasQuitadas,
+  leerMapaAjustes,
+  serializarMapaAjustes,
+  viaPermitida,
+  type AjustesVinculo,
+  type MapaAjustesVinculos,
+} from "./ajustes-vinculo";
 
 /* ══════════════════════════ Tipos públicos ══════════════════════════ */
 
@@ -129,6 +141,8 @@ export interface VinculoVivo extends VinculoNeurona {
   vias: LatenciaVia[];
   /** Solicitudes con esa neurona en esta sesión (la más reciente primero) y su estado. */
   sincronizaciones: SincronizacionResumen[];
+  /** Ajustes de ESTE aparato con esa neurona: reconectar sola y vías permitidas (VIN1107A). */
+  ajustes: AjustesVinculo;
 }
 
 export interface EnlaceHacia {
@@ -197,6 +211,9 @@ export interface MotorSync {
   recordar(id: string, recordar: boolean): void;
   recordarVinculo(neurona: string, recordar: boolean): void;
   olvidar(neurona: string): void;
+  /** Ajustes de este aparato con esa neurona (por defecto: reconectar sola y todas las vías). */
+  ajustes(neurona: string): AjustesVinculo;
+  cambiarAjustes(neurona: string, patch: Partial<AjustesVinculo>): void;
   /** Entrada única de todo lo que llega, venga por la vía que venga. */
   recibir(sobre: unknown, origen: OrigenSync): Promise<void>;
   tic(): void;
@@ -224,6 +241,7 @@ export function crearMotorSync(deps: DepsMotorSync): MotorSync {
   const oyentes = new Set<() => void>();
   const oyentesAviso = new Set<(a: AvisoSync) => void>();
   let vinculos: VinculoNeurona[] = [];
+  let ajustesVinculos: MapaAjustesVinculos = {};
   let cargado = false;
   let red: EstadoRedLocal | null = null;
   let cuentaCache: string | null = null;
@@ -261,6 +279,7 @@ export function crearMotorSync(deps: DepsMotorSync): MotorSync {
     const propia = deps.neuronaPropia();
     const cuenta = propia ? leerVinculos(deps.almacen.leer(claveVinculosCuenta(propia))) : [];
     vinculos = fusionarVinculos(local, cuenta);
+    ajustesVinculos = leerMapaAjustes(deps.almacen.leer(CLAVE_AJUSTES_VINCULOS));
     emitir(); // quien ya miraba (radar, ventana) ve los recordados
   }
 
@@ -275,6 +294,20 @@ export function crearMotorSync(deps: DepsMotorSync): MotorSync {
   }
 
   const vinculo = (neurona: string | undefined) => (neurona ? vinculos.find((v) => v.neurona === neurona) : undefined);
+
+  const ajustesDe = (neurona: string | undefined): AjustesVinculo =>
+    (neurona ? ajustesVinculos[neurona] : undefined) ?? AJUSTES_VINCULO_DEFECTO;
+
+  function cambiarAjustesDe(neurona: string, patch: Partial<AjustesVinculo>): void {
+    cargar();
+    ajustesVinculos = cambiarAjustes(ajustesVinculos, neurona, patch);
+    try {
+      deps.almacen.escribir(CLAVE_AJUSTES_VINCULOS, serializarMapaAjustes(ajustesVinculos));
+    } catch {
+      /* sin almacenamiento: el ajuste vale en esta sesión */
+    }
+    emitir();
+  }
 
   function poner(s: SolicitudSync): SolicitudSync {
     solicitudes.set(s.id, s);
@@ -322,7 +355,9 @@ export function crearMotorSync(deps: DepsMotorSync): MotorSync {
     const fallos: string[] = [];
     const yo = await deps.yo();
     const json = JSON.stringify(sobreNativo(firmado, yo));
-    if (deps.nativa.disponible()) {
+    // Los ajustes de esa neurona también valen para contestarle (VIN1107A).
+    const aj = ajustesDe(sol.otro.neurona);
+    if (deps.nativa.disponible() && viaPermitida(aj, "red-local-nativa")) {
       const ips = sol.ip ? [{ ip: sol.ip, puerto: PUERTO_MALLA_LOCAL }] : (difundidas.get(sol.id) ?? []);
       if (ips.length) {
         const rs = await Promise.all(ips.map((d) => deps.nativa.enviar(d.ip, d.puerto, json)));
@@ -333,13 +368,14 @@ export function crearMotorSync(deps: DepsMotorSync): MotorSync {
     const destinos: DestinoTransporteSync[] = [];
     if (sol.enlaceId) destinos.push({ enlaceId: sol.enlaceId });
     if (sol.otro.neurona || sol.otro.sync) destinos.push({ neuronDeviceId: sol.otro.neurona || undefined, syncDeviceId: sol.otro.sync });
-    for (const d of destinos) {
+    const transporteOk = !filtrarPasos(aj, ["transporte"]).quitados.length;
+    for (const d of transporteOk ? destinos : []) {
       const r = await deps.transporte.enviar(d, CANAL_SYNC, firmado);
       if (r.ok) return { ok: true, via: viaDeTipoEnlace(r.tipo) };
       if (r.motivo) fallos.push(r.motivo);
     }
     const cuenta = await miCuenta();
-    if (cuenta && deps.transporte.enLinea() && (!sol.otro.cuenta || sol.otro.cuenta === cuenta)) {
+    if (cuenta && viaPermitida(aj, "rele") && deps.transporte.enLinea() && (!sol.otro.cuenta || sol.otro.cuenta === cuenta)) {
       const r = await deps.transporte.releCuenta(firmado, cuenta);
       if (r.ok) return { ok: true, via: "rele" };
       if (r.motivo) fallos.push(r.motivo);
@@ -381,7 +417,8 @@ export function crearMotorSync(deps: DepsMotorSync): MotorSync {
   function revisarReconexiones(vecinos: readonly VecinoRedLocal[]): void {
     cargar();
     const ahora = deps.ahora();
-    const r = reconexionesPendientes({ vinculos, vecinos, presentesAntes, ultimosIntentos, enCurso: enCurso(), ahora });
+    // «Reconectar sola» apagado para una neurona: ni se le pide sola ni se la cuenta como pendiente.
+    const r = reconexionesPendientes({ vinculos: vinculos.filter((v) => ajustesDe(v.neurona).reconectarSola), vecinos, presentesAntes, ultimosIntentos, enCurso: enCurso(), ahora });
     presentesAntes = r.presentes;
     for (const x of r.reconectar) {
       ultimosIntentos[x.vinculo.neurona] = ahora;
@@ -431,7 +468,11 @@ export function crearMotorSync(deps: DepsMotorSync): MotorSync {
     const estadoRed = nativa ? await refrescarRed() : null;
     const cand = estadoRed ? candidatosRedLocal(estadoRed.vecinos, destino, vinculos) : { exactos: false, lista: [] as VecinoRedLocal[] };
     const cuenta = await miCuenta();
-    const plan = planDeEnvio({ nativa, candidatosLan: cand.lista.length, enLinea: deps.transporte.enLinea(), sesion: !!cuenta });
+    const planCompleto = planDeEnvio({ nativa, candidatosLan: cand.lista.length, enLinea: deps.transporte.enLinea(), sesion: !!cuenta });
+    // Vías que esa neurona tiene permitidas en los ajustes de este aparato (por defecto, todas).
+    const filtrado = filtrarPasos(ajustesDe(destino.neurona), planCompleto.pasos);
+    const plan = { ...planCompleto, pasos: filtrado.pasos };
+    const sinCamino = planCompleto.sinCamino + fraseViasQuitadas(filtrado.quitados);
 
     for (const paso of plan.pasos) {
       if (paso === "red-local-nativa") {
@@ -494,8 +535,8 @@ export function crearMotorSync(deps: DepsMotorSync): MotorSync {
         };
       }
     }
-    actualizar(id, (s) => transicion(s, { tipo: "fallo", motivo: plan.sinCamino }, deps.ahora()));
-    return { ok: false, id, via: null, detalle: plan.sinCamino, intentos, ofrecerQr: plan.ofrecerQr };
+    actualizar(id, (s) => transicion(s, { tipo: "fallo", motivo: sinCamino }, deps.ahora()));
+    return { ok: false, id, via: null, detalle: sinCamino, intentos, ofrecerQr: plan.ofrecerQr };
   }
 
   async function aplicarRespuesta(
@@ -563,7 +604,7 @@ export function crearMotorSync(deps: DepsMotorSync): MotorSync {
         ahora,
       }),
     );
-    if (autoAceptable(vinculo(m.de.neurona), huella)) await responder(sol.id, true, true);
+    if (ajustesDe(m.de.neurona).reconectarSola && autoAceptable(vinculo(m.de.neurona), huella)) await responder(sol.id, true, true);
   }
 
   async function recibir(sobre: unknown, origen: OrigenSync): Promise<void> {
@@ -717,6 +758,7 @@ export function crearMotorSync(deps: DepsMotorSync): MotorSync {
       enRedLocal: !!vec,
       vias: viasDeVinculo(d, medidas.get(v.neurona)),
       sincronizaciones: sincronizacionesDe(v.neurona, Array.from(solicitudes.values())),
+      ajustes: ajustesDe(v.neurona),
     };
   }
 
@@ -769,6 +811,8 @@ export function crearMotorSync(deps: DepsMotorSync): MotorSync {
     recordar,
     recordarVinculo,
     olvidar,
+    ajustes: (neurona) => (cargar(), ajustesDe(neurona)),
+    cambiarAjustes: cambiarAjustesDe,
     recibir,
     tic,
     refrescarRed,
@@ -991,6 +1035,13 @@ export function recordarVinculo(neurona: string, recordar: boolean): void {
 }
 export function olvidarVinculo(neurona: string): void {
   motorSync().olvidar(neurona);
+}
+/** Ajustes de este aparato con esa neurona (reconectar sola, vías permitidas). */
+export function ajustesDeVinculo(neurona: string): AjustesVinculo {
+  return motorSync().ajustes(neurona);
+}
+export function cambiarAjustesVinculo(neurona: string, patch: Partial<AjustesVinculo>): void {
+  motorSync().cambiarAjustes(neurona, patch);
 }
 export function alAvisoSync(cb: (a: AvisoSync) => void): () => void {
   return motorSync().alAviso(cb);
