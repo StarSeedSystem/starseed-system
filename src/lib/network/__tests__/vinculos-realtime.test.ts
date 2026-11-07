@@ -28,9 +28,11 @@ class CanalFalso implements Partial<CanalVinculoRealtime> {
 class ClienteFalso {
   readonly canales: CanalFalso[] = [];
   readonly quitados: CanalFalso[] = [];
+  lastName?: string;
   romperChannel = false;
   romperOn = false;
-  channel(): CanalFalso {
+  channel(name?: string): CanalFalso {
+    this.lastName = name;
     if (this.romperChannel) throw new Error("canal roto");
     const c = new CanalFalso();
     if (this.romperOn) {
@@ -66,6 +68,7 @@ describe("suscribirCambiosVinculos", () => {
   it("abre UN canal con esquema, tabla y los dos filtros correctos", () => {
     const cliente = new ClienteFalso();
     const soltar = suscribirCambiosVinculos(cliente, "u-abc", () => {});
+    expect(cliente.lastName).toBe("vinculos:u-abc");
     expect(cliente.canales.length).toBe(1);
     const canal = cliente.canales[0];
     expect(canal.escuchas.length).toBe(2);
