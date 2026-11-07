@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import net from "node:net";
 import http from "node:http";
+import vm from "node:vm";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { leerArgs, nombresBinario, seCopia, parchearConf, preparar, EXTERNAL_BIN } from "../preparar.mjs";
@@ -23,6 +24,8 @@ test("argumentos", () => {
   const a = leerArgs(["--tar", "x.tar", "--plataforma", "darwin-universal", "--sin-firma"]);
   assert.equal(a.tar, "x.tar");
   assert.equal(a.sinFirma, true);
+  assert.equal(a.sinCompactar, false);
+  assert.equal(leerArgs(["--tar", "x.tar", "--plataforma", "linux-x64", "--sin-compactar"]).sinCompactar, true);
   assert.throws(() => leerArgs(["--tar", "x", "--plataforma", "solaris"]), /plataforma/);
   assert.throws(() => leerArgs(["--plataforma", "linux-x64"]), /--tar o --next/);
   assert.throws(() => leerArgs(["--tar", "a", "--next", "b", "--plataforma", "linux-x64"]), /--tar o --next/);
@@ -74,6 +77,8 @@ function nextDeMentira(dir, { buildId = true } = {}) {
   if (buildId) escribir(s, ".next/BUILD_ID", "build-de-mentira");
   escribir(s, ".next/required-server-files.json", JSON.stringify({ config: { images: { unoptimized: true } } }));
   escribir(s, ".next/server/app/page.js", "//");
+  // (T13) Un manifiesto de cliente como los de Next: la misma lista de chunks repetida en cada módulo.
+  escribir(s, ".next/server/app/page_client-reference-manifest.js", MANIFIESTO_CLIENTE);
   escribir(s, ".env", "CLAVE=no-debe-viajar");
   escribir(s, ".env.production", "OTRA=tampoco");
   escribir(s, "node_modules/next/package.json", "{}");
@@ -82,6 +87,12 @@ function nextDeMentira(dir, { buildId = true } = {}) {
   escribir(dir, ".next/static/chunks/a.js", "//");
   escribir(dir, "public/logo.svg", "<svg/>");
 }
+
+const LISTA_CHUNKS = Array.from({ length: 80 }, (_, i) => [String(700 + i), `static/chunks/${700 + i}-abcdef.js`]).flat();
+const MANIFIESTO_CLIENTE = `globalThis.__RSC_MANIFEST=(globalThis.__RSC_MANIFEST||{});globalThis.__RSC_MANIFEST["/page"]=${JSON.stringify({
+  moduleLoading: { prefix: "/_next/" },
+  clientModules: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`/ci/node_modules/x/m${i}.mjs`, { id: String(i), name: "*", chunks: LISTA_CHUNKS, async: false }])),
+})}`;
 
 const PLATAFORMA = process.platform === "darwin" ? (process.arch === "arm64" ? "darwin-arm64" : "darwin-x64") : process.platform === "win32" ? "win32-x64" : "linux-x64";
 
@@ -113,6 +124,18 @@ test("arma el paquete en seco y el servidor armado arranca", { timeout: 60_000 }
       assert.equal(fs.existsSync(path.join(dest, f)), false, `no debía viajar ${f}`);
     }
     assert.equal(m.imagenes, "sin-optimizar");
+    // (T13) El manifiesto de cliente va compactado y Next lo leería igual.
+    const rutaManifiesto = path.join(dest, ".next/server/app/page_client-reference-manifest.js");
+    const compacto = fs.readFileSync(rutaManifiesto, "utf8");
+    assert.ok(compacto.length * 5 < MANIFIESTO_CLIENTE.length, "el manifiesto de cliente no se compactó");
+    const leer = (t) => {
+      const c = {};
+      vm.runInNewContext(t, c);
+      return JSON.stringify(c);
+    };
+    assert.equal(leer(compacto), leer(MANIFIESTO_CLIENTE));
+    assert.deepEqual(m.manifiestosCliente, { archivos: 1, compactados: 1, bytesAntes: MANIFIESTO_CLIENTE.length, bytesDespues: compacto.length, fallos: 0 });
+    assert.equal(fs.readFileSync(path.join(next, ".next/standalone/.next/server/app/page_client-reference-manifest.js"), "utf8"), MANIFIESTO_CLIENTE, "el build de origen no se toca");
     assert.equal(m.buildId, "build-de-mentira");
     assert.equal(JSON.parse(fs.readFileSync(path.join(dest, "starseed-servidor.json"), "utf8")).plataforma, PLATAFORMA);
     const c = JSON.parse(fs.readFileSync(conf, "utf8"));

@@ -124,6 +124,12 @@ jobs:
           STARSEED_APP_NATIVA: "1"
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      # (TAM1107A · T13) Los *_client-reference-manifest.js sin repeticiones dentro de cada archivo (≈ 192 → 20 MB;
+      # Next los lee igual). Aquí, para que el tar, los instaladores y las capas salgan ya ligeros; preparar.mjs lo
+      # repite (si ya está hecho no gana nada). Si falla, el build sigue con los de Next. compactar-manifiestos.mjs
+      - name: Compactar los manifiestos de cliente (T13)
+        continue-on-error: true
+        run: node native/servidor-local/compactar-manifiestos.mjs .next/standalone/.next/server | tee -a "$GITHUB_STEP_SUMMARY"
       # Un .tar (y no la carpeta): upload-artifact v4 deja fuera lo que empieza por «.» y aquí
       # TODO cuelga de `.next`.
       - name: Empaquetar standalone + static + public

@@ -10,10 +10,12 @@
  *     --conf native/src-tauri/tauri.conf.json   # se le añaden resources + externalBin (lo ÚLTIMO que se hace)
  *     [--node-local <binario>]           # pruebas: usa ese Node en vez de descargarlo (sin SHA del repo)
  *     [--sin-firma]                      # macOS: no firmar ad-hoc el Node
+ *     [--sin-compactar]                  # no compactar los *_client-reference-manifest.js (T13)
  *     [--src-tauri <dir>] [--cache <dir>]
  *
  * Deja:
- *   <src-tauri>/recursos/servidor/   standalone + .next/static + public + starseed-arranque.cjs
+ *   <src-tauri>/recursos/servidor/   standalone (con los manifiestos de cliente compactados, T13) + .next/static
+ *                                    + public + starseed-arranque.cjs
  *                                    + migracion-origen.js (APP1107B · T4) + guarda.cjs (SEG1107A · T11)
  *                                    + starseed-servidor.json
  *   <src-tauri>/binaries/starseed-node-<triple>[.exe]   (externalBin de Tauri: va junto al ejecutable)
@@ -29,6 +31,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { compactarDirectorio } from "./compactar-manifiestos.mjs";
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ_REPO = path.resolve(AQUI, "..", "..");
@@ -53,7 +56,7 @@ export const EXTERNAL_BIN = "binaries/starseed-node";
 // ───────────────────────────── Puro ─────────────────────────────
 
 export function leerArgs(argv) {
-  const a = { sinFirma: false };
+  const a = { sinFirma: false, sinCompactar: false };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     const v = () => argv[++i];
@@ -63,6 +66,7 @@ export function leerArgs(argv) {
     else if (k === "--conf") a.conf = v();
     else if (k === "--node-local") a.nodeLocal = v();
     else if (k === "--sin-firma") a.sinFirma = true;
+    else if (k === "--sin-compactar") a.sinCompactar = true;
     else if (k === "--src-tauri") a.srcTauri = v();
     else if (k === "--cache") a.cache = v();
     else throw new Error(`opción desconocida: ${k}`);
@@ -221,6 +225,22 @@ export async function preparar(a) {
     const envSueltos = fs.readdirSync(destino).filter((n) => /^\.env(\..*)?$/.test(n));
     if (envSueltos.length) throw new Error(`quedó un .env en el servidor: ${envSueltos.join(", ")}`);
 
+    // 2b · (TAM1107A · T13) Los *_client-reference-manifest.js, sin repeticiones dentro de cada archivo: el
+    //      mismo objeto para Next, ≈ 90 % menos en disco. Solo esta copia; cada archivo se comprueba evaluándolo
+    //      como Next y, si algo no cuadra, se queda como estaba. Un fallo aquí nunca deja la app sin servidor.
+    let manifiestosCliente = null;
+    if (!a.sinCompactar) {
+      try {
+        const t0 = Date.now();
+        const c = compactarDirectorio(path.join(destino, ".next", "server"));
+        manifiestosCliente = { archivos: c.archivos, compactados: c.compactados, bytesAntes: c.bytesAntes, bytesDespues: c.bytesDespues, fallos: c.fallos.length };
+        console.log(`· manifiestos de cliente: ${c.compactados}/${c.archivos} compactados, ${mb(c.bytesAntes)} → ${mb(c.bytesDespues)} (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
+        for (const f of c.fallos.slice(0, 10)) console.log(`  · se queda como estaba: ${f.archivo} (${f.motivo})`);
+      } catch (e) {
+        console.log(`· AVISO: no se compactaron los manifiestos de cliente (${e && e.message ? e.message : e}); van como salieron de Next`);
+      }
+    }
+
     // 3 · Node oficial (o el local de las pruebas).
     const manifiestoNode = JSON.parse(fs.readFileSync(path.join(AQUI, "node.json"), "utf8"));
     let bin;
@@ -278,6 +298,7 @@ export async function preparar(a) {
       node: versionNode,
       plataforma: a.plataforma,
       imagenes: sinSharp ? "sin-optimizar" : "sharp",
+      manifiestosCliente,
       archivos: tam.archivos,
       bytes: tam.bytes,
       bytesNode: tamNode,
@@ -301,6 +322,12 @@ export async function preparar(a) {
       `| Servidor (standalone + static + public) | ${tam.archivos} | ${mb(tam.bytes)} |`,
       `| Node ${versionNode} (${nombres[0]}) | 1 | ${mb(tamNode)} |`,
       `| **Total** | ${tam.archivos + 1} | **${mb(tam.bytes + tamNode)}** |`,
+      ...(manifiestosCliente
+        ? [
+            "",
+            `Manifiestos de cliente (T13): ${manifiestosCliente.compactados}/${manifiestosCliente.archivos} compactados, ${mb(manifiestosCliente.bytesAntes)} → ${mb(manifiestosCliente.bytesDespues)}${manifiestosCliente.fallos ? ` · ${manifiestosCliente.fallos} se quedan como estaban` : ""}`,
+          ]
+        : []),
       "",
       `Imágenes: ${sinSharp ? "sin optimizar (sin sharp)" : "con sharp"} · build ${manifiesto.buildId} · commit ${commit || "?"}`,
     ].join("\n");
