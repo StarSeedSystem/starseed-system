@@ -6021,3 +6021,7 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `IMG-diaria-endurecer-el-sandbox-del-iframe-d-d2` — otra cosa
+
+## 2026-11-07 06:22 · auto-1107-060724
+
+**Resultado.** 1 de 1 integradas.
