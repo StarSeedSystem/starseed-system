@@ -40,7 +40,6 @@ import { NeuronVoiceChoice } from "@/components/settings/aurora/neuron-voice-cho
 import { EstaNeurona } from "@/components/settings/neurons/esta-neurona";
 import { VersionNeurona } from "@/components/neurons/version-neurona";
 import { EstadoServidorLocal } from "@/components/nativa/estado-servidor-local";
-// Precarga sin internet (CTR1107E · T9): estado del service worker + botón «Descargar».
 import { PrecargaSinInternet } from "@/components/settings/neurons/precarga-sin-internet";
 
 /* ── Icono por tipo de dispositivo ── */
@@ -202,6 +201,11 @@ export function NeuronsPanel() {
       {/* (VER1107B) Esta neurona: lo que sabe de sí misma y sus actualizaciones. El estado del servidor
           local (APP1107T6) vive ahora dentro de esta tarjeta. */}
       <EstaNeurona />
+
+      {/* Precarga sin internet (CTR1107E · T9): debajo del estado del servidor
+          local (vive dentro de «Esta neurona»), enseña la precarga del service
+          worker y deja descargar la app para usarla sin internet. */}
+      <PrecargaSinInternet />
 
       {/* Voz de ESTA neurona (Adenda 87): elección nube/local por dispositivo,
           que ordena la cadena de voz de este equipo, con el instalador local. */}
