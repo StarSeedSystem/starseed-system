@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-07 01:07:40 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-07 01:38:27 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,26 +16,15 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 41 |
 | Últimas 4 olas | en curso 0 · pendientes 80 · integradas 0 |
-| HEAD | `e4d8ff1e81 chore(memoria): aprendizaje de la ola auto-1106-234449` |
-| Sin publicar | 3 commits |
+| HEAD | `629c1b0aab chore(memoria): aprendizaje de la ola auto-1107-012015` |
+| Sin publicar | 7 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1106-234449.json`, hace 13s)
+## Quién escribe ahora (latido de `cola-auto-1107-012015.json`, hace 11s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `IMG-diaria-arreglar-el-ciclo-de-vida-del-orq-d3` | hecho | nvidia/minimaxai/minimax-m3.1-flas | 2 min | 121 s | 69136 |
-| `ENT-agentes-referencias-diseno-agentes-re-68c176-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 7 min | 446 s | 837 |
-| `ENT-agentes-referencias-diseno-agentes-re-d48570-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 8 min | 504 s | 790 |
-| `ENT-agentes-referencias-diseno-agentes-re-bcff2b-v1` | hecho | groq/openai/gpt-oss-120b | 10 min | 596 s | 486 |
-| `IMG-diaria-publicar-los-59-commits-acumulado` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 13 min | 765 s | 534821 |
-| `IMG-diaria-arreglar-el-ciclo-de-vida-del-orq-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 19 min | 1154 s | 162725 |
-| `IRD11073` | hecho | nim/nvidia/nemotron-3-ultra-550b-a | 20 min | 1171 s | 784 |
-| `IRD11072` | hecho | groq/openai/gpt-oss-120b | 21 min | 1290 s | 545 |
-| `IRD11071` | hecho | nim/minimaxai/minimax-m3.1-flash | 22 min | 1298 s | 451 |
-| `IMG-agentes-reimaginada-profunda-corregir-ma` | hecho | freellmapi/auto | 46 min | 2771 s | 570954 |
-| `IMG-diaria-arreglar-el-ciclo-de-vida-del-orq-d1` | hecho | freellmapi/auto | 47 min | 2830 s | 204463 |
-| `IMG-diaria-simplificar-la-cadena-de-publicac-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 75 min | 4509 s | 69868 |
+| `IMG-diaria-publicar-los-59-commits-acumulado` | hecho | freellmapi/auto | 2 min | 123 s | 548831 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
