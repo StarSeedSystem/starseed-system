@@ -20,7 +20,7 @@ let currentMock: {
   addEventListener: ReturnType<typeof vi.fn>;
   removeEventListener: ReturnType<typeof vi.fn>;
   dispatchEvent: ReturnType<typeof vi.fn>;
-};
+} | undefined;
 let changeListeners: Set<(event: Event) => void> = new Set();
 
 function createMatchMediaMock(matches: boolean) {
