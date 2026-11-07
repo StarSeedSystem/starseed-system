@@ -16,7 +16,7 @@
  *  · Al desmontar se cancela el rAF y se limpia todo el estado.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
     moverAvatar,
     type Gesto,
@@ -55,6 +55,30 @@ export function prefiereReducirMovimiento(): boolean {
     }
 }
 
+/* ─── ACCESIBILIDAD · el interruptor reactivo ÚNICO de `prefers-reduced-motion` ───
+ * Todos los avatares (fuente, ADN y el propio hook de reproducción) leen POR
+ * AQUÍ: una sola suscripción de `useSyncExternalStore` que dispara el re-render
+ * cuando cambia la preferencia en vivo. Así ninguna variante vuelve a
+ * instanciar su propio `matchMedia` ni a leer el valor una sola vez al montar. */
+
+function suscribirReducir(avisar: () => void): () => void {
+    if (typeof window === "undefined" || !window.matchMedia) return () => {};
+    try {
+        const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+        mq.addEventListener("change", avisar);
+        return () => mq.removeEventListener("change", avisar);
+    } catch {
+        return () => {};
+    }
+}
+
+const enServidorReducir = (): boolean => false;
+
+/** Interruptor reactivo de movimiento reducido compartido por los avatares. */
+export function usarReducirMovimiento(): boolean {
+    return useSyncExternalStore(suscribirReducir, prefiereReducirMovimiento, enServidorReducir);
+}
+
 /**
  * Reproduce el gesto con `requestAnimationFrame`. Resuelve el nivel a través de
  * `moverAvatar`, avanza el fotograma según el `fps` real del clip (el tempo es
@@ -67,6 +91,7 @@ export function useMovimiento(
     op: OpcionesMovimiento = {},
 ): EstadoMovimiento {
     const { personalidadId, activo = true } = op;
+    const reducir = usarReducirMovimiento();
 
     const [clip, setClip] = useState<MovimientoClip | null>(null);
     const [nivel, setNivel] = useState<NivelMovimiento | null>(null);
@@ -85,7 +110,10 @@ export function useMovimiento(
     const pararRef = useRef<() => void>(() => undefined);
     const parar = useCallback(() => pararRef.current(), []);
 
-    /* Generación del clip: solo cuando hay gesto y sin movimiento reducido. */
+    /* Generación del clip: solo cuando hay gesto y sin movimiento reducido.
+     * La lectura va por el interruptor reactivo: si la preferencia cambia en
+     * vivo, el efecto se repite, congelando TODO (clip tirado, fotograma a 0);
+     * al volver la preferencia atrás se regenera el clip del mismo gesto. */
     useEffect(() => {
         let vivo = true;
         setClip(null);
@@ -95,7 +123,7 @@ export function useMovimiento(
         fotogramaRef.current = 0;
         inicioRef.current = 0;
         clipRef.current = null;
-        if (!gesto || prefiereReducirMovimiento()) return;
+        if (!gesto || reducir) return;
         moverAvatar(gesto, { personalidadId })
             .then((r) => {
                 if (!vivo) return;
@@ -120,6 +148,7 @@ export function useMovimiento(
         gesto?.duracionMs,
         gesto?.bucle,
         personalidadId,
+        reducir,
     ]);
 
     /* Reproducción con rAF. La pausa (`activo: false`) corta el rAF sin tirar
@@ -134,7 +163,7 @@ export function useMovimiento(
             setReproduciendo(false);
         };
 
-        if (!clip || !activo) {
+        if (!clip || !activo || reducir) {
             cancelar();
             return;
         }
@@ -188,7 +217,7 @@ export function useMovimiento(
         setReproduciendo(true);
         rafRef.current = requestAnimationFrame(paso);
         return cancelar;
-    }, [clip, gesto?.bucle, activo]);
+    }, [clip, gesto?.bucle, activo, reducir]);
 
     /* `parar()` público: corta el rAF y congela el fotograma actual. No
      * reanuda solo: se reactiva cambiando el gesto o `activo`. */

@@ -29,8 +29,8 @@ import { adnParaCalidad } from "@/lib/avatares/adn/calidad";
 import { usoPermitido } from "@/lib/avatares/adn/canalizacion";
 import { resolverRefBiblioteca, soloMismoOrigen } from "@/lib/avatares/adaptadores/resolver-ref-biblioteca";
 import type { AvatarCalidad } from "@/lib/xr/calidad-perfiles";
-import { QuantumOrb, prefersReducedMotion } from "@/components/aurora/quantum-orb";
-import { useMovimiento } from "./usar-movimiento";
+import { QuantumOrb } from "@/components/aurora/quantum-orb";
+import { useMovimiento, usarReducirMovimiento } from "./usar-movimiento";
 
 /** Las tres fuentes de avatar que acepta el componente. */
 export type FuenteAvatar =
@@ -163,23 +163,9 @@ function AvatarVivoFuente({
 
     const [listo, setListo] = useState(false); // model-viewer cargado
     const [fallo, setFallo] = useState<string | null>(null);
-    const [reducir, setReducir] = useState(false);
-
-    // Movimiento reducido reactivo: si cambia la preferencia del sistema, la
-    // animación suave de respaldo se corta (el hook ya se protege igual).
-    useEffect(() => {
-        if (typeof window === "undefined" || !window.matchMedia) return;
-        let mq: MediaQueryList;
-        try {
-            mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-        } catch {
-            return;
-        }
-        const aplicar = () => setReducir(mq.matches);
-        aplicar();
-        mq.addEventListener("change", aplicar);
-        return () => mq.removeEventListener("change", aplicar);
-    }, []);
+    // El interruptor ÚNICO de accesibilidad: si cambia la preferencia del
+    // sistema en vivo, el respaldo y el visor reaccionan solos.
+    const reducir = usarReducirMovimiento();
 
     useEffect(() => {
         if (fuente.tipo !== "glb") return;
@@ -367,7 +353,9 @@ function AvatarVivoAdn({ adn, calidad = "vrm", tamano = 160, className }: Avatar
     const [visible, setVisible] = useState(true);
     const [url, setUrl] = useState<string | null>(null);
     const [aviso, setAviso] = useState<Aviso | null>(null);
-    const [reducir] = useState(prefersReducedMotion);
+    // El mismo interruptor único: reactivo en vivo, a diferencia de la lectura
+    // puntual de antes que dejaba el visor VRM animando con movimiento reducido.
+    const reducir = usarReducirMovimiento();
     const ref = visto.base.tipo === "vrm" ? visto.base.ref ?? null : null;
     useEffect(() => { // fuera de pantalla o con la pestaña oculta: no se dibuja
         const el = caja.current;
