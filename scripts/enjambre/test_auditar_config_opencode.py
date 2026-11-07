@@ -15,13 +15,47 @@ ESPEC.loader.exec_module(modulo)
 APIKEY_ENV = "{env:STARSEED_PASARELA_APINEX_KEY}"
 
 
+def _vetos_completos() -> dict:
+    """Vetos de bash con los esenciales de la Mac, todos en deny."""
+    vetos = {"*": "allow", "rm": "deny"}
+    for patron in modulo.VETOS_ESENCIALES:
+        vetos[patron] = "deny"
+    return vetos
+
+
 def _limpia() -> dict:
     """Configuración sana del enjambre: clave por entorno, lsp apagado y vetos de bash."""
     return {
         "provider": {"apinex": {"options": {"apiKey": APIKEY_ENV}}},
         "lsp": {"typescript": {"disabled": True}},
-        "permission": {"bash": {"rm": "deny"}},
+        "permission": {"bash": _vetos_completos()},
     }
+
+
+def test_todos_los_esenciales_en_deny_no_avisa() -> None:
+    assert modulo.auditar_config_opencode(_limpia()) == []
+
+
+def test_vetos_incompletos_nombra_los_que_faltan_en_orden() -> None:
+    vetos = _vetos_completos()
+    del vetos["git push*"]
+    vetos["pkill*"] = "allow"
+    cfg = _limpia()
+    cfg["permission"]["bash"] = vetos
+    hallazgos = modulo.auditar_config_opencode(cfg)
+    assert _ids(hallazgos) == ["vetos-incompletos"]
+    hallazgo = hallazgos[0]
+    assert hallazgo["nivel"] == "avisa"
+    assert hallazgo["texto"].index("git push*") < hallazgo["texto"].index("pkill*")
+    assert "deny" in hallazgo["arreglo"]
+
+
+def test_sin_permission_solo_sale_sin_vetos_bash() -> None:
+    cfg = _limpia()
+    del cfg["permission"]
+    hallazgos = modulo.auditar_config_opencode(cfg)
+    assert _ids(hallazgos) == ["sin-vetos-bash"]
+    assert "vetos-incompletos" not in _ids(hallazgos)
 
 
 def _ids(hallazgos: list[dict]) -> list[str]:

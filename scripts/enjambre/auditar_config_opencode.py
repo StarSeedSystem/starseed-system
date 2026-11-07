@@ -15,6 +15,8 @@ from urllib.parse import urlsplit
 
 PATRON_CLAVE = re.compile(r"^\{env:[A-Z][A-Z0-9_]*\}$")
 RUTA_POR_DEFECTO = "~/.config/opencode/opencode.json"
+VETOS_ESENCIALES = ("git push*", "pkill*", "killall*", "launchctl*", "vercel*",
+                    "next build*", "npx next build*")
 
 def _hallazgo(ident: str, nivel: str, texto: str, arreglo: str) -> dict:
     return {"id": ident, "nivel": nivel, "texto": texto, "arreglo": arreglo}
@@ -93,6 +95,16 @@ def auditar_config_opencode(cfg: dict, plugins_admitidos=()) -> list[dict]:
                 "sin-vetos-bash", "avisa",
                 "No hay vetos de bash en permission: un agente puede lanzar lo que quiera.",
                 'Declara "permission": {"bash": {...}} con los vetos de la Mac.'))
+        else:
+            bash = permiso.get("bash")
+            if isinstance(bash, dict):
+                faltan = [p for p in VETOS_ESENCIALES if bash.get(p) != "deny"]
+                if faltan:
+                    hallazgos.append(_hallazgo(
+                        "vetos-incompletos", "avisa",
+                        "Faltan vetos esenciales de bash (o no están en «deny»): %s."
+                        % ", ".join(faltan),
+                        'Añádelos con "deny" después de "*" en permission.bash.'))
         return hallazgos
     except Exception:
         return ilegible
