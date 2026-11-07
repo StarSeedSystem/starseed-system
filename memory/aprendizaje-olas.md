@@ -6045,3 +6045,17 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `CTR1107G` — no escribió nada: revisor: dividida en CTR1107G-d1, CTR1107G-d2, CTR1107G-d3 (tarea:sin_cambios con 3 archivos: se divide en 3 partes encadenadas)
 - `CTR1107E` — los tipos no compilan: revisor: dividida en CTR1107E-d1, CTR1107E-d2, CTR1107E-d3 (tarea:tsc con 3 archivos: se divide en 3 partes encadenadas)
 - `CTR1107E-d3` — otra cosa: reasignada al A1 de Oracle 20261107 (colas/oracle-20261107-134635)
+
+## 2026-11-07 15:42 · auto-1107-144902
+
+**Lo que se pidió.** Tutor
+
+**Resultado.** 2 de 4 integradas. 2 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+- nvidia/nvidia/nemotron-3-ultra-550b-a55b integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `CTR1107D-d2` — no escribió nada
+- `CTR1107E-d3` — otra cosa: continúa como CTR1107Eb desde la rama nube/a1-20261107-202238 (traer_nube)
