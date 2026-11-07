@@ -9,8 +9,9 @@
  *    sin internet con aparatos de este chat (o de tu cuenta), si el chat permite «local»;
  *  · «enlace-local» (sin internet, o si el chat no permite el servidor): llamada directa 1:1 por
  *    el enlace emparejado sin internet con el aparato de la otra persona. Sin servidores;
- *  · null: no hay cómo, con el motivo honesto (grupo sin internet, sin enlace, medios que no
- *    llevan voz…).
+ *  · «malla-grupo» (GRP1107A; sin servidor en un grupo): malla completa de WebRTC, cada par por su
+ *    enlace sin internet, con tope de aparatos y solo voz si son muchos (`grupo-malla.ts`);
+ *  · null: no hay cómo, con el motivo honesto (sin enlaces, medios que no llevan voz…).
  * Un enlace cuyo aparato DICE ser de alguien que no está en el chat no recibe nada de la llamada
  * (ni la presencia ni las señales). `par.uid` sirve para enrutar, nunca para dar permisos.
  * Módulo PURO: sin red, sin DOM, sin `node:*`.
@@ -19,6 +20,7 @@
 import { normalizarPreferencias } from "@/lib/mensajeria/medios/medios";
 import type { DescarteMedio, MedioTransmision, PreferenciasMedio } from "@/lib/mensajeria/medios/tipos";
 import { motivoNoLleva } from "@/lib/mensajeria/neuronas/datos-neurona";
+import { planGrupoMalla, type PlanGrupoMalla } from "./grupo-malla";
 
 /** Como `MAX_DIRECTOS` del motor: más enlaces directos no se abren. */
 export const MAX_DIRECTOS_CHAT = 7;
@@ -30,14 +32,20 @@ export interface EnlaceLlamadaChat {
     abierto: boolean;
     /** Cuenta que DICE tener el otro aparato (solo para enrutar). */
     uid?: string;
+    /** (GRP1107A) Medidas del enlace (para el vídeo de un grupo sin servidor); sin medir = null. */
+    capacidadKbps?: number | null;
+    rttMs?: number | null;
 }
 
-export type ViaLlamadaChat = "sistema-llamadas" | "enlace-local";
+/** «malla-grupo» (GRP1107A): grupo sin servidor, malla completa por los enlaces de cada par. */
+export type ViaLlamadaChat = "sistema-llamadas" | "enlace-local" | "malla-grupo";
 
 export interface PlanLlamadaChat {
     via: ViaLlamadaChat | null;
-    /** Enlaces locales que se abren como canal directo de la llamada (solo «sistema-llamadas»). */
+    /** Enlaces locales que se abren como canal directo de la llamada («sistema-llamadas») o a los que suena («malla-grupo»). */
     directos: string[];
+    /** (GRP1107A) Solo «malla-grupo»: invitados, quién queda fuera y si va con vídeo. */
+    grupo?: PlanGrupoMalla;
     /** Enlace de la llamada directa 1:1 (solo «enlace-local»). */
     enlaceId?: string;
     /** La otra persona de la llamada directa. */
@@ -136,8 +144,30 @@ export function planLlamadaChat(e: {
         aviso = `No hay cómo llamar ${sinQue}: añade «Enlace directo sin internet» o el servidor en los ajustes de medio de este chat.`;
     } else if (!DIRECTA_ADMITE.has(e.tipoLlamada)) {
         aviso = `Las salas VR y AR necesitan el servidor; ${sinQue}, solo hay llamada de voz o de vídeo por el enlace sin internet.`;
+    } else if (otros.length > 1) {
+        // (GRP1107A) Grupo sin servidor: malla completa por los enlaces sin internet de cada par.
+        const grupo = planGrupoMalla({
+            miembros: e.miembros,
+            miUid: e.miUid,
+            enlaces: e.enlaces,
+            pedido: e.tipoLlamada === "video" ? "video" : "audio",
+        });
+        // Los enlaces cerrados o ajenos ya están descartados arriba (`enlacesDelChat`): no se repiten.
+        const yaDichos = new Set(descartados.map((d) => d.enlaceId).filter(Boolean));
+        descartados.push(
+            ...grupo.fuera.filter((f) => !f.enlaceId || !yaDichos.has(f.enlaceId)).map((f) => ({
+                medio: "local" as const,
+                ...(f.enlaceId ? { enlaceId: f.enlaceId } : {}),
+                ...(f.nombre ? { etiqueta: f.nombre } : {}),
+                motivo: f.motivo,
+            })),
+        );
+        if (grupo.ok) {
+            return { via: "malla-grupo", directos: grupo.invitados.map((i) => i.enlaceId), texto: grupo.texto, descartados, grupo };
+        }
+        aviso = `${sinQue[0].toUpperCase()}${sinQue.slice(1)}: ${grupo.aviso ?? "no hay enlaces sin internet con los aparatos de este grupo."}`;
     } else if (otros.length !== 1) {
-        aviso = `${sinQue[0].toUpperCase()}${sinQue.slice(1)}, la llamada va por un enlace sin internet y es de dos: en un grupo hace falta el servidor.`;
+        aviso = `${sinQue[0].toUpperCase()}${sinQue.slice(1)}, la llamada va por un enlace sin internet y en este chat no hay nadie más.`;
     } else {
         const enlace = utiles.find((u) => u.uid === otros[0]);
         if (enlace) {

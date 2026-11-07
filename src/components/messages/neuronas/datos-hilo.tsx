@@ -369,6 +369,18 @@ export function BarraMallaChat({ hiloId, tipo, otros, nombre }: { hiloId: string
             })
             .finally(() => setOcupado(null));
     };
+    // (GRP1107A) Grupo sin servidor: malla completa por los enlaces sin internet de cada par.
+    const llamarGrupo = (t: "audio" | "video") => {
+        if (ocupado || !otros.length) return;
+        setOcupado(`grupo-${t}`);
+        void import("@/lib/llamadas/grupo-malla-motor")
+            .then((g) => g.empezarLlamadaGrupoMalla({ hiloId, tipoChat: "grupo", tipo: t, titulo: nombre, miembros: otros }))
+            .then((r) => {
+                if (!r.ok) toast.error(r.motivo ?? "No se pudo llamar al grupo por la malla.");
+            })
+            .catch(() => toast.error("No se pudo llamar al grupo por la malla."))
+            .finally(() => setOcupado(null));
+    };
     const boton = (clave: string, Icono: typeof Phone, texto: string, onClick: () => void) => (
         <button
             type="button"
@@ -404,6 +416,12 @@ export function BarraMallaChat({ hiloId, tipo, otros, nombre }: { hiloId: string
                     {boton("audio", Phone, "Llamada directa", () => llamar("audio"))}
                     {boton("video", Video, "Vídeo", () => llamar("video"))}
                     {boton("pantalla", MonitorUp, "Pantalla", () => llamar("pantalla"))}
+                </>
+            )}
+            {tipo === "grupo" && otros.length > 0 && (
+                <>
+                    {boton("grupo-audio", Phone, "Llamada de grupo", () => llamarGrupo("audio"))}
+                    {boton("grupo-video", Video, "Vídeo de grupo", () => llamarGrupo("video"))}
                 </>
             )}
             <span className="sr-only">Chat con {nombre}</span>

@@ -404,6 +404,16 @@ function PantallaCompleta({ activa, estado, onInvitar }: { activa: LlamadaActiva
                     <p className="text-[13px] tabular-nums text-white/70" aria-live="polite">
                         {textoFase(activa, estado, ahora)}
                     </p>
+                    {activa.via && (
+                        // (GRP1107A) Por dónde va la llamada (p. ej. la malla completa sin servidores).
+                        <p
+                            className="mt-1 inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 text-[11.5px] font-medium text-emerald-100"
+                            style={{ background: "rgba(16,185,129,.14)", boxShadow: "inset 0 0 0 1px rgba(16,185,129,.35)" }}
+                            data-testid="via-llamada"
+                        >
+                            {activa.via}
+                        </p>
+                    )}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                     {enCurso && <ChipCalidad calidad={calidad} />}

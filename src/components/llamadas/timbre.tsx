@@ -123,6 +123,12 @@ export function TimbreLlamada({ timbre, miUid }: { timbre: TimbreEntrante; miUid
                     <p className="truncate text-[13px] text-white/65">
                         {timbre.tipoHilo === "grupo" ? `en ${timbre.tituloHilo ?? "un grupo"}` : TEXTO_TIPO[timbre.tipo].ayuda}
                     </p>
+                    {timbre.malla && (
+                        // (GRP1107A) Llamada de grupo sin servidor: la vía, dicha antes de contestar.
+                        <p className="truncate text-[12px] font-medium text-emerald-200/90" data-testid="timbre-via-malla">
+                            Mesh · Sin internet · por los enlaces directos{timbre.malla.video ? "" : " · solo voz"}
+                        </p>
+                    )}
                 </div>
                 {timbre.silenciado && (
                     <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/5" title="Chat silenciado: sin sonido" aria-label="Chat silenciado: sin sonido">

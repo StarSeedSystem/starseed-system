@@ -31,6 +31,7 @@ import { canalesParaLlamada } from "@/lib/llamadas/canales-directos";
 import { iceParaCanal, tipoCanalDirecto } from "@/lib/llamadas/decision-ice";
 // (NEU1107A) Las llamadas del chat respetan su «Medio de transmisión» y usan el enlace sin internet.
 import { enlacesDelChat, planLlamadaChat, type EnlaceLlamadaChat } from "@/lib/llamadas/medio-llamada-chat";
+import { esSalaGrupoMalla, type PlanGrupoMalla } from "@/lib/llamadas/grupo-malla";
 import { claveChat, preferenciasEfectivas } from "@/lib/mensajeria/medios/preferencias-store";
 import type { EnlaceLocalVivo } from "@/lib/malla/registro-enlaces-locales";
 import { olvidarTemaSesion, resolverTemaSesion } from "@/lib/llamadas/resolver-tema";
@@ -80,11 +81,22 @@ function activar(a: LlamadaActiva) {
             if (a.mensajeId && a.adjunto) {
                 void registrarFinLlamada(a.mensajeId, a.adjunto, { fin: new Date(), duracionMs: res.duracionMs, contestada: res.contestada });
             }
-            if (res.otrosDentro === 0) void terminarSesion(a.sesionId).catch(() => null);
+            // (GRP1107A) Una sala de grupo por la malla no existe en el servidor: no hay nada que cerrar.
+            if (res.otrosDentro === 0 && !esSalaGrupoMalla(a.sesionId)) void terminarSesion(a.sesionId).catch(() => null);
         }
         // «Llena» y «error» esperan a que la persona lea el motivo y cierre.
         if (s.fase === "terminada") setTimeout(() => quitarActiva(a), PAUSA_RESUMEN_MS);
     });
+}
+
+/** (GRP1107A) Para la llamada de grupo por la malla (`grupo-malla-motor.ts`): misma vigilancia. */
+export function activarLlamada(a: LlamadaActiva): void {
+    activar(a);
+}
+
+/** (GRP1107A) ¿Hay una llamada en curso en esta pestaña? */
+export function hayLlamadaEnCurso(): boolean {
+    return !!llamadaEnCurso();
 }
 
 function mensajeCrear(error: string | null): string {
@@ -108,7 +120,15 @@ function enlacesParaDecidir(vivos: EnlaceLocalVivo[]): EnlaceLlamadaChat[] {
         } catch {
             abierto = false;
         }
-        return { id: e.id, nombre: e.par.nombre || "Aparato vinculado", abierto, ...(e.par.uid ? { uid: e.par.uid } : {}) };
+        let capacidadKbps: number | null = null;
+        let rttMs: number | null = null;
+        try {
+            capacidadKbps = e.capacidadKbps();
+            rttMs = e.rttMs();
+        } catch {
+            /* sin medidas: «sin medir» */
+        }
+        return { id: e.id, nombre: e.par.nombre || "Aparato vinculado", abierto, ...(e.par.uid ? { uid: e.par.uid } : {}), capacidadKbps, rttMs };
     });
 }
 
@@ -161,7 +181,21 @@ export async function empezarLlamada(o: {
             return false;
         }
     };
+    // (GRP1107A) Grupo sin servidor: malla completa por los enlaces sin internet de cada par.
+    const grupal = async (g: PlanGrupoMalla): Promise<boolean> => {
+        try {
+            const m = await import("@/lib/llamadas/grupo-malla-motor");
+            const r = await m.empezarLlamadaGrupoMalla({ hiloId: o.hiloId, tipoChat, tipo: o.tipo === "video" ? "video" : "audio", titulo: o.titulo, miembros: o.miembros, plan: g });
+            if (!r.ok) toast.error(r.motivo ?? "No se pudo llamar al grupo por la malla.");
+            else toast.message(g.texto);
+            return r.ok;
+        } catch {
+            toast.error("No se pudo llamar al grupo por la malla.");
+            return false;
+        }
+    };
     if (plan.via === "enlace-local" && plan.otroUid) return directa(plan.otroUid);
+    if (plan.via === "malla-grupo" && plan.grupo) return grupal(plan.grupo);
     if (plan.via === null) {
         toast.error(plan.aviso ?? "No hay cómo llamar ahora.");
         return false;
@@ -196,6 +230,7 @@ export async function empezarLlamada(o: {
             tipoLlamada: o.tipo,
         });
         if (sinServidor.via === "enlace-local" && sinServidor.otroUid) return directa(sinServidor.otroUid);
+        if (sinServidor.via === "malla-grupo" && sinServidor.grupo) return grupal(sinServidor.grupo);
         toast.error(mensajeCrear(error));
         return false;
     }
@@ -439,6 +474,17 @@ export async function unirseALlamada(o: {
 
 export async function aceptarTimbre(t: TimbreEntrante, opciones: { camara?: boolean } = {}): Promise<void> {
     quitarTimbre(t.sesionId);
+    if (t.malla) {
+        // (GRP1107A) Invitación de grupo por la malla: se entra por los enlaces, sin servidor.
+        try {
+            const g = await import("@/lib/llamadas/grupo-malla-motor");
+            const r = await g.unirseAGrupoMalla(t, opciones);
+            if (!r.ok) toast.error(r.motivo ?? "No se pudo entrar en la llamada por la malla.");
+        } catch {
+            toast.error("No se pudo entrar en la llamada por la malla.");
+        }
+        return;
+    }
     const error = await unirseALlamada({
         sesionId: t.sesionId,
         tipo: t.tipo,
@@ -453,6 +499,16 @@ export async function aceptarTimbre(t: TimbreEntrante, opciones: { camara?: bool
 /** Rechaza un timbre y se lo dice a quien llama (en un 1:1, su llamada se cierra sola). */
 export async function rechazarTimbre(t: TimbreEntrante): Promise<void> {
     quitarTimbre(t.sesionId);
+    if (t.malla) {
+        // (GRP1107A) La respuesta vuelve por el enlace por el que llegó la invitación.
+        try {
+            const g = await import("@/lib/llamadas/grupo-malla-motor");
+            await g.rechazarGrupoMalla(t);
+        } catch {
+            /* sin enlace: quien llama verá que no contestó */
+        }
+        return;
+    }
     const [tema, yo] = await Promise.all([resolverTemaSesion("llamada", t.sesionId), miIdentidad()]);
     const canal = tema ? abrirCanalLlamada(t.sesionId, { tema }) : null;
     if (!canal) return;

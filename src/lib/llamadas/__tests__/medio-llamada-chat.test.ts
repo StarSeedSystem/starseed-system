@@ -78,10 +78,29 @@ describe("planLlamadaChat", () => {
         expect(p.aviso).toMatch(/Vincular sin internet/);
     });
 
-    it("sin internet en un grupo: la llamada directa es de dos, lo dice", () => {
-        const p = planLlamadaChat({ ...base, internet: false, miembros: [YO, ANA, LUIS], enlaces: [enlace("a", ANA), enlace("l", LUIS)] });
+    it("(GRP1107A) sin internet en un grupo: malla completa por los enlaces de cada miembro", () => {
+        const p = planLlamadaChat({ ...base, internet: false, miembros: [YO, ANA, LUIS], enlaces: [enlace("a", ANA), enlace("l", LUIS), enlace("d", "u-otro")] });
+        expect(p.via).toBe("malla-grupo");
+        expect(p.directos).toEqual(["local:a", "local:l"]);
+        expect(p.grupo?.invitados.map((i) => i.uid)).toEqual([ANA, LUIS]);
+        expect(p.texto).toBe("Mesh · Sin internet · malla completa · 3 aparatos · solo voz");
+        // El enlace ajeno se dice una sola vez.
+        expect(p.descartados.filter((d) => d.enlaceId === "local:d")).toHaveLength(1);
+    });
+
+    it("(GRP1107A) grupo sin internet y sin ningún enlace con sus aparatos: no hay cómo, y dice cómo vincularlos", () => {
+        const p = planLlamadaChat({ ...base, internet: false, miembros: [YO, ANA, LUIS], enlaces: [enlace("x")] });
         expect(p.via).toBeNull();
-        expect(p.aviso).toMatch(/es de dos/);
+        expect(p.aviso).toMatch(/^Sin internet: /);
+        expect(p.aviso).toMatch(/Vincular sin internet/);
+        expect(p.descartados).toContainEqual({ medio: "local", motivo: "no hay enlace sin internet con su aparato (vinculadlos con «Vincular sin internet»)" });
+    });
+
+    it("(GRP1107A) grupo con vídeo: va con vídeo si son pocos y nada mide por debajo", () => {
+        const p = planLlamadaChat({ ...base, internet: false, tipoLlamada: "video", miembros: [YO, ANA, LUIS], enlaces: [{ ...enlace("a", ANA), capacidadKbps: 5000 }, enlace("l", LUIS)] });
+        expect(p.via).toBe("malla-grupo");
+        expect(p.grupo?.video).toBe(true);
+        expect(p.grupo?.avisos.join(" ")).toMatch(/sin medir con Aparato l/);
     });
 
     it("las salas VR y AR necesitan el servidor", () => {

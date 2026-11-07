@@ -819,6 +819,12 @@ export function iniciarBuzonMalla(): () => void {
             if (activo) bajas.push(a.iniciarArchivosNeurona());
         })
         .catch(() => undefined);
+    // (GRP1107A) Timbres de llamadas de grupo sin internet (por cada enlace).
+    void import("@/lib/llamadas/grupo-malla-motor")
+        .then((g) => {
+            if (activo) bajas.push(g.iniciarGrupoMalla());
+        })
+        .catch(() => undefined);
     void asegurarOyentesCuenta();
     const tic = () => {
         if (enEspera(cargar()).length) void reintentarPendientes();

@@ -24,6 +24,8 @@ export interface LlamadaActiva {
     unoAUno: boolean;
     motor: MotorLlamada;
     minimizada: boolean;
+    /** (GRP1107A) Por dónde va, dicho en la ventana («Mesh · Sin internet · malla completa · …»). */
+    via?: string;
 }
 
 export interface TimbreEntrante {
@@ -37,6 +39,11 @@ export interface TimbreEntrante {
     /** Chat silenciado o restringido: se enseña sin sonar. */
     silenciado: boolean;
     llegada: number;
+    /**
+     * (GRP1107A) Invitación de grupo por la malla (sin servidor): el enlace por el que llegó, los
+     * miembros de la llamada y si quien llama la propuso con vídeo.
+     */
+    malla?: { enlaceId: string; miembros: string[]; video: boolean };
 }
 
 export interface EstadoLlamadas {
