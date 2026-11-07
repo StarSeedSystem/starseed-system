@@ -6014,3 +6014,9 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `IMG-diaria-publicar-los-59-commits-acumulado` — no escribió nada
+
+## 2026-11-07 12:03 · relevo-oracle-a1-cd000b
+
+**Lo que se pidió.** Conector opcional
+
+**Resultado.** 1 de 1 integradas.
