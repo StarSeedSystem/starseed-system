@@ -97,6 +97,7 @@ def manual_viva(diario, pid_vivo, ahora, mtime):
     pid = diario.get("pid")
     if pid is not None and isinstance(pid, int):
         try:
+            pid_vivo(pid)
             return True, "proceso manual activo (pid %d)" % pid
         except ProcessLookupError:
             return False, "su proceso %d ya no existe" % pid
@@ -366,7 +367,7 @@ class Medios(object):
         diario = _leer(DIARIO_MANUAL, {})
         ahora = time.time()
         mtime = os.path.getmtime(DIARIO_MANUAL) if os.path.exists(DIARIO_MANUAL) else 0
-        viva, motivo = manual_viva(diario, os.kill, ahora, mtime)
+        viva, motivo = manual_viva(diario, lambda pid: os.kill(pid, 0), ahora, mtime)
         return viva
 
     def lider(self, ahora=None):
