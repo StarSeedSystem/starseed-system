@@ -9,8 +9,9 @@
 //   evento).
 //
 // Cada editor recibe `{ block, patch }` y es autónomo. El código ejecutable se
-// previsualiza en un <iframe> AISLADO (sandbox="allow-scripts", sin
-// allow-same-origin → sin acceso a la sesión). El RENDER en el feed vive en
+// previsualiza en un <iframe> AISLADO (sandbox="allow-scripts allow-modals", sin
+// allow-same-origin ni allow-popups → origen opaco, sin acceso a la sesión ni popups).
+// El RENDER en el feed vive en
 // src/components/social/post-blocks-renderer.tsx (mismo aislamiento).
 //
 // Estilo Crystal Liquid Glass · iconos Lucide · alias @/ · SSR-safe.
@@ -30,6 +31,7 @@ import {
     type ChartKind,
     type CodeLang,
 } from "@/lib/creation/post-blocks";
+import { getSandboxAttributes } from "@/lib/creation/sandbox-config";
 import { SourcePicker, type SourceRef } from "@/components/creation/source-picker";
 // (Adenda 219) Marco de forma opcional para portada y vídeo.
 import { MarcoDeMedio } from "@/components/creation/marco-de-medio";
@@ -481,9 +483,9 @@ function CodeEditor({ block, patch }: EditorProps) {
                     <iframe
                         key={previewNonce}
                         title="Vista previa del programa"
-                        // AISLAMIENTO: allow-scripts SIN allow-same-origin → origen opaco,
-                        // sin acceso a cookies/localStorage/sesión de la app.
-                        sandbox="allow-scripts allow-popups allow-modals"
+                        // AISLAMIENTO: allow-scripts + allow-modals SIN allow-same-origin ni allow-popups →
+                        // origen opaco, sin acceso a cookies/localStorage/sesión, sin popups (phishing).
+                        sandbox={getSandboxAttributes()}
                         referrerPolicy="no-referrer"
                         srcDoc={doc}
                         className="h-64 w-full bg-white/0"
