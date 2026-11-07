@@ -51,7 +51,7 @@ import { crearBucle, falloDe, type BucleFondo, type FalloConsulta } from "@/lib/
 import { describirMedio, fusionarMedios, type RegistroMedio } from "@/lib/neurons/medio";
 import { pantallaDe } from "@/lib/neurons/huella";
 import { huellaMaquina } from "@/lib/neurons/maquina";
-import { neuronaVigente } from "@/lib/neurons/fusion-alias";
+import { escribirFusiones, fusionadaEn, leerFusiones, neuronaVigente } from "@/lib/neurons/fusion-alias";
 import { LISTA_REGISTRO_CON_PUERTA_MS, fundirVivas, latirNeuronaPorPuerta, vivasDeLaPuerta } from "@/lib/neurons/neuronas-puerta";
 // (G3D1011D · contrato avatares-3d §11) Reparto del taller 3D entre neuronas: la publicación de
 // capacidades y la traducción del hierro medido viven en el adaptador puro `reparto-taller`.
@@ -219,6 +219,11 @@ export interface NeuronSettings {
    * Cloud Run propio. `enabled:false` apaga la fuente local en esta neurona.
    */
   astraura158?: { endpoint?: string; enabled?: boolean };
+  /**
+   * (NEU1107B) Icono (tipo de aparato) que eligió la persona. Manda sobre el detectado al subir la
+   * ficha: una tableta Android se detecta como «mobile» y aquí se corrige a «tablet».
+   */
+  icono?: NeuronKind;
 }
 
 export const DEFAULT_SETTINGS: NeuronSettings = {
@@ -443,6 +448,22 @@ export function setNeuronName(deviceId: string, name: string): void {
   void upsertRemote({ id: deviceId, name: name.trim() });
 }
 
+const TIPOS_NEURONA: readonly NeuronKind[] = ["desktop", "laptop", "mobile", "tablet", "server", "other"];
+
+/** (NEU1107B) El icono guardado, solo si es un tipo conocido. Pura. */
+export function iconoElegido(v: unknown): NeuronKind | null {
+  return TIPOS_NEURONA.includes(v as NeuronKind) ? (v as NeuronKind) : null;
+}
+
+/** (NEU1107B) Fija el icono (tipo de aparato) de una neurona: en sus ajustes y en su fila. */
+export function setNeuronKind(deviceId: string, kind: NeuronKind): void {
+  const k = iconoElegido(kind);
+  if (!deviceId || !k) return;
+  setNeuronSettings(deviceId, { icono: k });
+  if (neuronaLocal && neuronaLocal.id === deviceId) neuronaLocal = { ...neuronaLocal, kind: k };
+  void upsertRemote({ id: deviceId, kind: k });
+}
+
 /** Ajustes de una neurona con los DEFAULTS aplicados (nunca lanza). */
 export function settingsFor(deviceId: string): NeuronSettings {
   const prefs = readPrefs();
@@ -571,7 +592,9 @@ async function refrescarCapacidadesBlender(): Promise<void> {
 
 /** Construye la ficha local de ESTE dispositivo (sondas locales, sin Supabase). */
 async function construirNeuronaLocal(id: string): Promise<Neuron> {
-  const { kind } = detectPlatform();
+  const { kind: detectado } = detectPlatform();
+  // (NEU1107B) El icono elegido por la persona manda sobre el detectado.
+  const kind = iconoElegido(settingsFor(id).icono) ?? detectado;
   const capabilities = await detectCapabilities();
   // AUTO-ENLACE HERMES (Adenda 71-bis; HONESTO desde Adenda 118): solo se marca
   // el bridge Hermes cuando hay un endpoint REAL configurado por env
@@ -968,9 +991,23 @@ export async function listNeurons(opts?: { fresco?: boolean }): Promise<Neuron[]
       filas = leidas ?? cache?.filas ?? (ultimaListaBuena?.owner === owner ? ultimaListaBuena.filas : null);
     }
     if (!filas) return local ? [local] : [];
-    // Las neuronas ya fusionadas en otra no se enseñan aunque vengan de una lista vieja.
+    // (NEU1107B) Una fila conservada con la marca de fusión es la de ESTE medio y el alias aún no llegó
+    // (otra neurona fusionó sin internet de por medio): se apunta el alias aquí y se adopta ya.
+    try {
+      const propia = filas.find((row) => String((row as { id?: unknown }).id ?? "") === meId);
+      const destino = propia ? fusionadaEn((propia as { capabilities?: unknown }).capabilities) : null;
+      if (destino && destino !== meId && neuronaVigente(meId) === meId) {
+        const reg = leerFusiones();
+        reg.alias[meId] = { a: destino, ts: Date.now() };
+        escribirFusiones(reg);
+        resolverAliasEsteMedio();
+      }
+    } catch { /* sin almacenamiento: la fila igual se salta abajo */ }
+    // Las neuronas ya fusionadas en otra no se enseñan aunque vengan de una lista vieja: ni las del
+    // alias ni las filas conservadas con la marca de fusión (NEU1107B).
     const data = fundirVivas(filas, vivas).filter((row) => {
       const id = String((row as { id?: unknown }).id ?? "");
+      if (fusionadaEn((row as { capabilities?: unknown }).capabilities)) return false;
       try { return neuronaVigente(id) === id; } catch { return true; }
     });
     const prefs = readPrefs();

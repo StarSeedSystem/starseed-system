@@ -15,7 +15,9 @@
  *   4. Deja el ALIAS `absorbida → principal` (viaja con la cuenta): los medios que aún usan el id
  *      viejo lo adoptan solos en su próximo latido, en vez de volver a crear la fila.
  *   5. Borra las filas absorbidas (RLS: solo las de la propia cuenta) y avisa a los medios
- *      abiertos por el canal de la cuenta.
+ *      abiertos por el canal de la cuenta. (NEU1107B) Con `conservarFilas` NO las borra: las deja
+ *      como historial con la marca `capabilities.fusionada = { en, ts, por }` (jsonb, sin migración),
+ *      y `listNeurons()` las salta. Es lo que usa la ventana de bienvenida de la neurona.
  *
  * Deshacer vuelve a crear las filas y devuelve los ajustes movidos; los medios que ya adoptaron
  * la principal siguen en ella (son el mismo aparato: si no lo fueran, «Es otra neurona»).
@@ -33,9 +35,11 @@ import {
 import { esIdNeuronaValido } from "@/lib/network/identidad-dispositivo";
 import {
   CLAVE_FUSIONES,
+  MARCA_FUSIONADA,
   escribirFusiones,
   leerFusiones,
   type EntradaMovida,
+  type MarcaFusionada,
   type RespaldoFusion,
 } from "@/lib/neurons/fusion-alias";
 import type { RegistroMedio, TipoMedio } from "@/lib/neurons/medio";
@@ -151,10 +155,16 @@ export function fichaFundida(
   absorbidas: Array<{ id: string; name?: unknown; capabilities?: unknown; last_seen_at?: unknown }>,
   ahora: number = Date.now(),
 ): NeuronCapabilities {
-  const base = (esObjeto(principal.capabilities) ? principal.capabilities : {}) as unknown as NeuronCapabilities;
+  // (NEU1107B) La marca de una fusión anterior nunca pasa a la que se queda (la escondería de las listas).
+  const sinMarca = (c: unknown): Record<string, unknown> => {
+    if (!esObjeto(c)) return {};
+    const { [MARCA_FUSIONADA]: _marca, ...resto } = c;
+    return resto;
+  };
+  const base = sinMarca(principal.capabilities) as unknown as NeuronCapabilities;
   let acc: NeuronCapabilities = { ...base, medios: mediosDeFila(principal) };
   for (const a of absorbidas) {
-    const caps = (esObjeto(a.capabilities) ? a.capabilities : {}) as Record<string, unknown>;
+    const caps = sinMarca(a.capabilities);
     // combinarCapacidades(remotas, locales): las «locales» ganan → la acumulada (principal) gana.
     acc = combinarCapacidades({ ...caps, medios: mediosDeFila(a) }, acc, ahora);
   }
@@ -243,7 +253,29 @@ export interface ResultadoFusion {
   respaldo?: number;
 }
 
-export async function fusionarNeuronas(principalId: string, absorbidasIds: readonly string[]): Promise<ResultadoFusion> {
+export interface OpcionesFusion {
+  /**
+   * (NEU1107B) No borrar las filas absorbidas: se quedan como historial con la marca
+   * `capabilities.fusionada = { en, ts, por }` y las listas las saltan. Deshacer las devuelve tal
+   * como estaban. Es lo que usa la ventana de bienvenida de la neurona.
+   */
+  conservarFilas?: boolean;
+  /** Desde dónde se fusiona (queda en la marca). */
+  por?: string;
+}
+
+/** Ficha de una fila absorbida que se conserva: la de siempre con la marca de fusión. Pura. */
+export function fichaConMarcaFusion(capabilities: unknown, principal: string, ts: number, por?: string): Record<string, unknown> {
+  const base = esObjeto(capabilities) ? { ...capabilities } : {};
+  const marca: MarcaFusionada = { en: principal, ts, ...(por ? { por } : {}) };
+  return { ...base, [MARCA_FUSIONADA]: marca };
+}
+
+export async function fusionarNeuronas(
+  principalId: string,
+  absorbidasIds: readonly string[],
+  opciones: OpcionesFusion = {},
+): Promise<ResultadoFusion> {
   const absorbidas = Array.from(new Set(absorbidasIds.filter((id) => id && id !== principalId)));
   if (!esIdNeuronaValido(principalId) || absorbidas.length === 0 || !absorbidas.every(esIdNeuronaValido)) {
     return { ok: false, motivo: "Elige la neurona que se queda y al menos otra del mismo aparato." };
@@ -282,9 +314,22 @@ export async function fusionarNeuronas(principalId: string, absorbidasIds: reado
     reg.respaldos.push(respaldo);
     escribirFusiones(reg);
 
-    // 5 · borrar las absorbidas.
-    const borrado = await supabase.from("neuron_devices").delete().in("id", absorbidas);
-    if (borrado.error) return { ok: false, motivo: `Ajustes fundidos, pero no se pudieron quitar las filas repetidas: ${borrado.error.message}` };
+    // 5 · quitar las absorbidas de la lista: borrarlas (panel de siempre) o, con `conservarFilas`,
+    //     dejarlas como historial con la marca de fusión (nada se borra; deshacer las devuelve).
+    if (opciones.conservarFilas) {
+      for (const fila of deAbsorbidas) {
+        const marcada = await supabase
+          .from("neuron_devices")
+          .update({ capabilities: fichaConMarcaFusion(fila.capabilities, principalId, ts, opciones.por) })
+          .eq("id", fila.id);
+        if (marcada.error) {
+          return { ok: false, motivo: `Ajustes fundidos, pero no se pudo marcar «${String(fila.name ?? fila.id)}» como fusionada: ${marcada.error.message}` };
+        }
+      }
+    } else {
+      const borrado = await supabase.from("neuron_devices").delete().in("id", absorbidas);
+      if (borrado.error) return { ok: false, motivo: `Ajustes fundidos, pero no se pudieron quitar las filas repetidas: ${borrado.error.message}` };
+    }
 
     resolverAliasEsteMedio();
     invalidarListaNeuronas();

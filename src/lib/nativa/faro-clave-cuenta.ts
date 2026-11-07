@@ -146,8 +146,13 @@ export async function depsReales(): Promise<DepsFaroCuenta> {
     },
     idNeurona: () => identidadDispositivo().neuronDeviceId,
     idsNeuronasCuenta: async () => {
-      const { listNeurons } = await import("@/lib/neurons/neurons");
-      return (await listNeurons()).map((n) => n.id);
+      const [{ listNeurons }, { idsConocidasConAlias, leerFusiones }] = await Promise.all([
+        import("@/lib/neurons/neurons"),
+        import("@/lib/neurons/fusion-alias"),
+      ]);
+      // (NEU1107B) Tras una fusión, el id que se quedó está en la lista y los absorbidos se añaden por su
+      // alias: un medio que aún anuncia el viejo (app cerrada, sin internet) se sigue reconociendo.
+      return idsConocidasConAlias((await listNeurons()).map((n) => n.id), leerFusiones().alias);
     },
     antenasConfig: () => puente.antenasConfig(),
     antenasConfigurar: (c) => puente.antenasConfigurar(c),

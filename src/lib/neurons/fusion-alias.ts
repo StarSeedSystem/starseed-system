@@ -103,3 +103,41 @@ export function neuronaVigente(id: string): string {
   if (!id) return id;
   return destinoDeAlias(id, leerFusiones().alias);
 }
+
+/* ───────────── Filas conservadas al fusionar (NEU1107B · architecture/neurona-bienvenida.md §3) ───────────── */
+
+/**
+ * Marca que deja una fusión «sin borrar» en `capabilities` de cada fila absorbida (jsonb que ya
+ * existe: sin migración). La fila se queda como historial; las listas la saltan.
+ */
+export const MARCA_FUSIONADA = "fusionada";
+
+export interface MarcaFusionada {
+  /** Id de la neurona que se quedó. */
+  en: string;
+  /** Epoch ms de la fusión (el id del respaldo para deshacer). */
+  ts: number;
+  /** Desde dónde se fusionó («bienvenida», «panel»…). */
+  por?: string;
+}
+
+/** Si la fila se fusionó en otra, el id de esa otra; si no, null. Pura. */
+export function fusionadaEn(capabilities: unknown): string | null {
+  if (!capabilities || typeof capabilities !== "object") return null;
+  const m = (capabilities as Record<string, unknown>)[MARCA_FUSIONADA] as { en?: unknown } | undefined;
+  return m && typeof m === "object" && typeof m.en === "string" && m.en ? m.en : null;
+}
+
+/**
+ * Ids que la app nativa debe reconocer en el faro (`antenas.json` → `conocidas`): los vigentes y,
+ * además, los absorbidos que apuntan a uno vigente. Un medio que aún no adoptó el id que se quedó
+ * (app cerrada, sin internet) sigue anunciándose con el viejo: así las demás lo siguen reconociendo
+ * como neurona de la cuenta hasta que lo adopte. Sin repetidos y ordenados. Pura.
+ */
+export function idsConocidasConAlias(vigentes: readonly string[], alias: RegistroFusiones["alias"]): string[] {
+  const out = new Set(vigentes.filter((i) => typeof i === "string" && i));
+  for (const viejo of Object.keys(alias ?? {})) {
+    if (viejo && out.has(destinoDeAlias(viejo, alias)) && !out.has(viejo)) out.add(viejo);
+  }
+  return [...out].sort();
+}
