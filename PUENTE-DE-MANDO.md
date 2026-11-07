@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-07 06:06:23 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-07 06:22:36 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,19 +12,19 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Genesis | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | 1104R · Repos nativos |
-| Agentes escribiendo | **1** |
-| En esta ola | integradas 25 · en curso 1 · esperando aprobación 0 · pendientes 2 |
-| Últimas 5 olas | en curso 1 · pendientes 82 · integradas 25 |
-| HEAD | `213a8e8a94 chore(memoria): aprendizaje de la ola auto-1107-054716` |
-| Sin publicar | 8 commits |
+| Ola arriba | Sueños profundos 2026-10-24 |
+| Agentes escribiendo | **0** |
+| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 41 |
+| Últimas 4 olas | en curso 0 · pendientes 80 · integradas 0 |
+| HEAD | `eab084eb09 chore(memoria): aprendizaje de la ola auto-1107-060724` |
+| Sin publicar | 12 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1107-054716.json`, hace 15s)
+## Quién escribe ahora (latido de `cola-auto-1107-060724.json`, hace 11s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `IMG-diaria-endurecer-el-sandbox-del-iframe-d-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 2 min | 141 s | 25698 |
+| `IMG-diaria-endurecer-el-sandbox-del-iframe-d-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1 min | 78 s | 16199 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
