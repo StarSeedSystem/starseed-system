@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-07 06:22:36 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-07 13:48:52 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -16,15 +16,26 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | Agentes escribiendo | **0** |
 | En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 41 |
 | Últimas 4 olas | en curso 0 · pendientes 80 · integradas 0 |
-| HEAD | `eab084eb09 chore(memoria): aprendizaje de la ola auto-1107-060724` |
-| Sin publicar | 12 commits |
+| HEAD | `1941968574 chore(memoria): aprendizaje de la ola auto-1107-115043` |
+| Sin publicar | 19 commits |
 | Árbol | limpio |
 
-## Quién escribe ahora (latido de `cola-auto-1107-060724.json`, hace 11s)
+## Quién escribe ahora (latido de `cola-auto-1107-115043.json`, hace 15s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `IMG-diaria-endurecer-el-sandbox-del-iframe-d-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 1 min | 78 s | 16199 |
+| `CTR1107E-d2` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 3 min | 162 s | 22510 |
+| `CTR1107G-d3` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 11 min | 669 s | 23962 |
+| `CTR1107E-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 12 min | 749 s | 123398 |
+| `CTR1107G-d2` | hecho | freellmapi/auto | 14 min | 868 s | 23251 |
+| `CTR1107D` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 19 min | 1145 s | 91962 |
+| `CTR1107F` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 25 min | 1494 s | 243232 |
+| `CTR1107G-d1` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 30 min | 1825 s | 13857 |
+| `CTR1107G` | hecho | freellmapi/auto | 36 min | 2140 s | 1745 |
+| `CTR1107E` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 36 min | 2182 s | 198963 |
+| `CTR1107B` | hecho | freellmapi/auto | 41 min | 2458 s | 197158 |
+| `CTR1107C` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 49 min | 2913 s | 81546 |
+| `CTR1107A` | hecho | nvidia/nvidia/nemotron-3-ultra-550 | 103 min | 6159 s | 107292 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
