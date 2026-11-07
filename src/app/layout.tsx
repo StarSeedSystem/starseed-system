@@ -100,6 +100,9 @@ import { RegisterSW } from "@/components/pwa/register-sw";
 // no-op total sin window.__TAURI__ (navegador normal). Distinto del
 // UpdateBanner (abajo) para contenido WEB, que register-sw ya aplica solo.
 import { ActualizacionNativa } from "@/components/pwa/actualizacion-nativa";
+// (APP1107A) «Sin conexión: trabajando en local»: pastilla diminuta; en la app nativa pregunta a su
+// servidor local por la red (architecture/apps-autonomas-sin-internet.md).
+import { AvisoSinConexion } from "@/components/nativa/aviso-sin-conexion";
 // UpdateBanner: aviso de nuevo contenido web/PWA listo (service worker actualizado).
 // Se muestra temporalmente antes de la recarga automática; sin él, la app se
 // actualiza inmediatamente. Junto a AvisoActualizacion para notificar actualizaciones
@@ -290,6 +293,7 @@ export default function RootLayout({
             Defensivo y sin UI; se omite en dev salvo NEXT_PUBLIC_ENABLE_SW=1. */}
         <RegisterSW />
         <ActualizacionNativa />
+        <AvisoSinConexion />
         <UpdateBanner />
         {/* Núcleo intocable cableado en el ARRANQUE: deja registrados los dos
             guardianes (UiSpec + invariantes) que revisan cualquier paquete

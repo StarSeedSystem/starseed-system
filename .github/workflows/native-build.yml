@@ -21,6 +21,13 @@
 #   · Linux   → .deb + .AppImage + .rpm  (+ .sig para el updater)
 #   · Android → .apk / .aab   (job separado, comentado abajo)
 #
+# SERVIDOR LOCAL (APP1107A, 2026-11-07): la app de escritorio de StarSeed OS lleva DENTRO el build
+# `standalone` de Next y un Node oficial verificado por SHA-256 (native/servidor-local/), y abre
+# http://127.0.0.1:<puerto> en vez de la web publicada: funciona sin internet. Next se compila UNA
+# vez (job `servidor-local-next`, Linux) y cada build de escritorio del OS le añade su Node. Si eso
+# falla, el instalador sale igual SIN servidor local (abre la web publicada, como antes).
+# Contrato: architecture/apps-autonomas-sin-internet.md.
+#
 # Todo vive en `native/` del repo del OS. Como los tres sistemas comparten el
 # mismo binario `starseed-native`, cada uno se construye con su `-c ...conf.json`
 # y su icono, regenerando `native/src-tauri/icons/` antes de cada build.
@@ -66,9 +73,69 @@ permissions:
   contents: write
 
 jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SERVIDOR LOCAL · next build una sola vez (APP1107A). Linux con 16 GB, como ci.yml. Con
+  # STARSEED_APP_NATIVA=1 las imágenes no se optimizan (no hace falta sharp, que es nativo por
+  # plataforma) y la caché de ISR no se escribe en disco (la app está en una carpeta de solo
+  # lectura). Lo que sale (.next/standalone + .next/static + public) es JS puro: vale para macOS,
+  # Windows y Linux; cada uno le pone su Node. `continue-on-error`: si falla, los instaladores
+  # salen igual, sin servidor local.
+  # ═══════════════════════════════════════════════════════════════════════════
+  servidor-local-next:
+    name: servidor local · next build (standalone)
+    if: github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'escritorio')
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    timeout-minutes: 45
+    env:
+      OPENUI_TELEMETRY_DISABLED: "1"
+      DO_NOT_TRACK: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      # Sin las variables públicas de Supabase del repo, la app local no sabría a qué cuenta
+      # hablar: mejor ningún servidor local que uno con un Supabase de mentira.
+      - name: Comprobar variables públicas del build
+        env:
+          URL_SUPABASE: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          ANON_SUPABASE: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$URL_SUPABASE" ] || [ -z "$ANON_SUPABASE" ]; then
+            echo "::error::Faltan las variables del repo NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY: la app sale sin servidor local."
+            exit 1
+          fi
+      - name: Instalar dependencias
+        run: npm ci
+      - name: next build (standalone, para la app)
+        run: npm run prebuild && npx next build
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+          NEXT_TELEMETRY_DISABLED: "1"
+          STARSEED_APP_NATIVA: "1"
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      # Un .tar (y no la carpeta): upload-artifact v4 deja fuera lo que empieza por «.» y aquí
+      # TODO cuelga de `.next`.
+      - name: Empaquetar standalone + static + public
+        run: |
+          test -f .next/standalone/server.js
+          rm -f .next/standalone/.env .next/standalone/.env.*
+          tar -cf servidor-next.tar .next/standalone .next/static public
+          du -sh .next/standalone .next/static public servidor-next.tar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: servidor-local-next
+          path: servidor-next.tar
+          retention-days: 3
+
   build-desktop:
     name: ${{ matrix.system }} · ${{ matrix.platform }}
-    if: github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'escritorio')
+    # Espera al build de Next (lo necesita el OS), pero corre aunque ese job falle.
+    needs: servidor-local-next
+    if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'escritorio')) }}
     strategy:
       # No cancelar el resto de la matriz si un target falla.
       fail-fast: false
@@ -165,6 +232,37 @@ jobs:
             echo "flag=-c src-tauri/tauri.${{ matrix.system }}.conf.json" >> "$GITHUB_OUTPUT"
           fi
 
+      # ── Servidor local dentro de la app (solo StarSeed OS · APP1107A) ──
+      # Descarga el build de Next del job `servidor-local-next`, baja el Node oficial de nodejs.org
+      # (versión y SHA-256 fijados en native/servidor-local/node.json; en macOS arm64 + x64 unidos
+      # con lipo y firmados ad-hoc) y añade resources + externalBin a tauri.conf.json. Cualquier
+      # fallo: el instalador sale igual, sin servidor local, y el paso siguiente lo avisa.
+      - name: Servidor local · descargar el build de Next
+        id: servidor_next
+        if: matrix.system == 'os'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: servidor-local-next
+          path: .servidor-local
+      - name: Servidor local · armar (Node oficial verificado + standalone)
+        id: servidor
+        if: matrix.system == 'os' && steps.servidor_next.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          case "${{ runner.os }}" in
+            macOS) PLAT=darwin-universal ;;
+            Windows) PLAT=win32-x64 ;;
+            *) PLAT=linux-x64 ;;
+          esac
+          node native/servidor-local/preparar.mjs --tar .servidor-local/servidor-next.tar --plataforma "$PLAT" --conf native/src-tauri/tauri.conf.json
+      - name: Servidor local · aviso si este instalador no lo lleva
+        if: matrix.system == 'os' && steps.servidor.outputs.servidor_local != 'si'
+        shell: bash
+        run: |
+          echo "::warning::Este instalador de StarSeed OS sale SIN servidor local: abrirá la web publicada (necesita internet), como antes. Mira los pasos «Servidor local» de este job y el job servidor-local-next."
+
       # ── Build + Release con la acción oficial de Tauri ──
       - name: Build (tauri-action) y subir al Release
         uses: tauri-apps/tauri-action@v0
@@ -203,6 +301,21 @@ jobs:
           includeUpdaterJson: ${{ matrix.system == 'os' }}
           # Config extra por sistema + args de target de la matriz.
           args: ${{ steps.cfg.outputs.flag }} ${{ matrix.args }}
+
+      # Tamaño real de cada instalador en el resumen del job (contrato APP1107A §tamaños).
+      - name: Tamaños de los instaladores
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Instaladores · ${{ matrix.system }} · ${{ runner.os }} · servidor local: ${{ steps.servidor.outputs.servidor_local || 'no' }}"
+            echo ""
+            echo "| Archivo | Tamaño |"
+            echo "|---|---:|"
+            find native/src-tauri/target -path '*/bundle/*' -type f \( -name '*.dmg' -o -name '*.app.tar.gz' -o -name '*.msi' -o -name '*-setup.exe' -o -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) 2>/dev/null | while read -r f; do
+              echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # CANALES DE ACTUALIZACIÓN por sistema (2026-10-09). tauri-action solo sabe

@@ -6,9 +6,15 @@ una **aplicación nativa por sistema operativo**, cada una con su icono, con
 y **acceso real a terminal/procesos del dispositivo** para el "compañero de
 control profundo" de Aurora.
 
+> **Desde la APP1107A (2026-11-07) la app de escritorio de StarSeed OS ya no es solo una ventana a la web:**
+> trae dentro el build `standalone` de Next y un Node oficial (`servidor-local/`), abre su propio servidor en
+> `http://127.0.0.1:47610` y **funciona sin internet**; con internet, `/api/*` sigue yendo a la web publicada.
+> Mientras arranca se ve `arranque/index.html`. Si el instalador no trae el paquete, hace lo de antes (web
+> publicada). Android, iOS, Nexus y Café siguen con su web. Contrato: `architecture/apps-autonomas-sin-internet.md`.
+
 | Sistema         | Web que carga                          | Icono de origen                                                                 |
 | --------------- | -------------------------------------- | ------------------------------------------------------------------------------- |
-| **StarSeed OS** | `https://starseed-os.vercel.app`       | `icons-src/os.png` (real — copia de `public/starseed-symbol-square.png`)         |
+| **StarSeed OS** | escritorio: `http://127.0.0.1:47610` (servidor local) · móvil y respaldo: `https://starseed-os.vercel.app` | `icons-src/os.png` (real — copia de `public/starseed-symbol-square.png`)         |
 | **StarSeed Nexus** | `https://starseed-nexus.vercel.app` | `icons-src/nexus.png` (placeholder; el real es `logo-detallado.png` del repo Nexus) |
 | **StarSeed Café** | `https://starseed-cafe.vercel.app`   | `icons-src/cafe.png` (placeholder; el real es `StarSeed-Café-detallado.png` del repo Café) |
 
@@ -143,8 +149,10 @@ si su origen está declarado en la capability. Por eso
 ```
 
 Sin ese bloque `remote.urls`, `window.__TAURI__.core.invoke(...)` desde la web
-desplegada sería rechazado. (`build.frontendDist`/`devUrl` también apuntan a la
-misma URL para que el CLI no busque un `dist/` local.)
+desplegada sería rechazado. Desde la APP1107A la lista lleva además los diez
+orígenes del servidor local (`http://127.0.0.1:47610` … `47619`, exactos). En el OS
+`build.frontendDist` es `../arranque` (la página de arranque, dentro del binario);
+en Android/iOS (`tauri.android|ios.conf.json`), Nexus y Café sigue siendo su web.
 
 ---
 

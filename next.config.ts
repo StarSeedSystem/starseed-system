@@ -1,6 +1,13 @@
 import type { NextConfig } from 'next';
 import path from 'path';
 
+// (APP1107A, 2026-11-07) Build para el servidor local de la app nativa de escritorio: solo con
+// STARSEED_APP_NATIVA=1 (el job `servidor-local-next` de native-build.yml). La app trae este build
+// en una carpeta de solo lectura y sin red: las imágenes se sirven tal cual (sin sharp, que es
+// nativo por plataforma) y la caché de ISR vive en memoria. En Vercel, CI y la Mac no cambia nada.
+// Contrato: architecture/apps-autonomas-sin-internet.md.
+const APP_NATIVA = process.env.STARSEED_APP_NATIVA === '1';
+
 const nextConfig: NextConfig = {
   // (2026-10-07) El Puente de Mando se llama Genesis: su página es /genesis. La URL vieja
   // redirige (con su ?pestana=/?ambito=) para que no se rompa ningún enlace, atajo ni script.
@@ -32,7 +39,11 @@ const nextConfig: NextConfig = {
   // bajo process.cwd() (arreglado además en src/lib/mando/raiz.ts). Genesis es 404 en
   // producción: sus funciones no necesitan ningún archivo del disco.
   outputFileTracingExcludes: {
-    '**': ['./venv/**', './.git/**', './.next/cache/**', './.tmp/**', './.transfer/**'],
+    '**': [
+      './venv/**', './.git/**', './.next/cache/**', './.tmp/**', './.transfer/**',
+      // App nativa: sin optimizar imágenes no hace falta sharp (y el de Linux no sirve en macOS/Windows).
+      ...(APP_NATIVA ? ['./node_modules/sharp/**', './node_modules/@img/**'] : []),
+    ],
     '/api/mando/**': [
       './src/**', './public/**', './starseed_memory_root/**', './memory/**', './docs/**', './claude/**',
       './src-tauri/**', './scripts/**', './native/**', './architecture/**', './.agent/**', './supabase/**',
@@ -53,6 +64,7 @@ const nextConfig: NextConfig = {
     // cambio de un build algo más lento; en Vercel no cambian nada que importe.
     webpackMemoryOptimizations: true,
     cpus: 1,
+    ...(APP_NATIVA ? { isrFlushToDisk: false } : {}),
   },
   // Chequeo de tipos REACTIVADO (Adenda 130): `tsc --noEmit` pasa limpio hoy, así que
   // activar el gate tiene coste 0 y evita que una regresión de tipos se despliegue en
@@ -74,6 +86,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
+    ...(APP_NATIVA ? { unoptimized: true } : {}),
     remotePatterns: [
       {
         protocol: 'https',

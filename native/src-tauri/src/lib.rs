@@ -44,6 +44,12 @@ mod recursos_ia;
 #[cfg(desktop)]
 mod segundo_plano;
 mod serie;
+// Servidor local dentro de la app (APP1107A, architecture/apps-autonomas-sin-internet.md):
+// la app de escritorio de StarSeed OS abre su propio servidor en 127.0.0.1 y funciona sin internet.
+#[cfg(desktop)]
+mod servidor_local;
+#[cfg(desktop)]
+mod servidor_local_logica;
 mod sha256;
 // `ventana_remota` (APM1017P, rehecho en APR1019A) está de vuelta con las API
 // reales: xcap 0.9 (`Window::all()`, `app_name()`, `capture_image()`), image
@@ -539,6 +545,9 @@ pub fn run() {
             nativa::iniciar(app.handle());
             // (MSH1107A) Canal local de datos entre neuronas (TCP 47071), solo StarSeed OS.
             malla_local::iniciar(app.handle());
+            // Servidor local de StarSeed OS (solo escritorio; Nexus y Café siguen con su web).
+            #[cfg(desktop)]
+            servidor_local::iniciar(app.handle());
             #[cfg(desktop)]
             {
                 if nativa::es_starseed_os(app.handle()) {
@@ -597,6 +606,7 @@ pub fn run() {
         ventana_remota::ventanas_prestables,
         ventana_remota::capturar_ventana,
         ventana_remota::entrada_ventana,
+        servidor_local::servidor_local_estado,
     ]);
     #[cfg(not(desktop))]
     registrar_comandos!(builder []);
@@ -605,6 +615,13 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error irrecuperable arrancando la app nativa StarSeed")
         .run(|_app, _evento| {
+            // Al salir, se apaga el servidor local (si la app muere de golpe, sale solo).
+            #[cfg(desktop)]
+            {
+                if matches!(_evento, tauri::RunEvent::Exit) {
+                    servidor_local::apagar();
+                }
+            }
             // macOS: con la ventana oculta, un clic en el icono del Dock la devuelve.
             #[cfg(target_os = "macos")]
             {

@@ -11,6 +11,11 @@ multicanal); Astraura 1.58 BitNet, Cactus Needle y Bonsai con capas autoadaptabl
 **ESCRITO SIN COMPILAR** (código en el repo que solo compila el CI o la Mac) o **PENDIENTE**. Nada se
 anuncia como vivo sin haberlo medido en un aparato.
 
+> **2026-11-07 (APP1107A):** la app de escritorio de StarSeed OS deja de ser una ventana a la web publicada: trae
+> su propio servidor local (Next standalone + Node) y funciona sin internet. Contrato:
+> `architecture/apps-autonomas-sin-internet.md`. El comando nuevo `servidor_local_estado` va en la lista de
+> escritorio de `lib.rs`.
+
 ---
 
 ## 0. Resumen en una pantalla (para Alex)

@@ -101,6 +101,12 @@ public/version.json
 !src-tauri/icons/
 !src-tauri/icons/**
 
+# App nativa (APP1107A): el servidor local y su Node los arma native/servidor-local/preparar.mjs en el CI.
+native/src-tauri/recursos/
+native/src-tauri/binaries/
+.servidor-local/
+servidor-next.tar
+
 # Paquetes temporales para llevar commits al contenedor de Cowork
 .transfer/
 

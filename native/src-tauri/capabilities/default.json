@@ -1,14 +1,24 @@
 {
   "$schema": "../gen/schemas/remote-schema.json",
   "identifier": "default",
-  "description": "Capability principal de StarSeed Native. Concede a Aurora (la web remota desplegada) CONTROL PROFUNDO del dispositivo tras la instalación nativa: terminal, procesos, archivos, sistema, notificaciones, diálogos y deep-links. (Autoarranque y updater viven en desktop.json: son plugins solo-escritorio y sus permisos no existen en Android/iOS.) Todos los permisos están DECLARADOS y limitados por su scope; el usuario los concede al instalar y ejecutar la app nativa. Un navegador por seguridad NO puede hacer esto — por eso existe este cuerpo nativo.",
+  "description": "Capability principal de StarSeed Native. Concede a Aurora (la web remota desplegada) CONTROL PROFUNDO del dispositivo tras la instalación nativa: terminal, procesos, archivos, sistema, notificaciones, diálogos y deep-links. (Autoarranque y updater viven en desktop.json: son plugins solo-escritorio y sus permisos no existen en Android/iOS.) Todos los permisos están DECLARADOS y limitados por su scope; el usuario los concede al instalar y ejecutar la app nativa. Un navegador por seguridad NO puede hacer esto — por eso existe este cuerpo nativo. Desde la APP1107A (2026-11-07) también el servidor local de StarSeed OS dentro de la app: SOLO los diez orígenes http://127.0.0.1:47610…47619 (los puertos fijos de src/servidor_local_logica.rs; el servidor solo escucha en 127.0.0.1 y Rust comprueba su firma antes de llevar la ventana ahí).",
   "windows": ["main"],
   "platforms": ["linux", "macOS", "windows", "android", "iOS"],
   "remote": {
     "urls": [
       "https://starseed-os.vercel.app",
       "https://starseed-nexus.vercel.app",
-      "https://starseed-cafe.vercel.app"
+      "https://starseed-cafe.vercel.app",
+      "http://127.0.0.1:47610",
+      "http://127.0.0.1:47611",
+      "http://127.0.0.1:47612",
+      "http://127.0.0.1:47613",
+      "http://127.0.0.1:47614",
+      "http://127.0.0.1:47615",
+      "http://127.0.0.1:47616",
+      "http://127.0.0.1:47617",
+      "http://127.0.0.1:47618",
+      "http://127.0.0.1:47619"
     ]
   },
   "permissions": [

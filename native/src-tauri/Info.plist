@@ -4,5 +4,22 @@
 <dict>
   <key>NSLocalNetworkUsageDescription</key>
   <string>StarSeed anuncia y escucha a tus otras neuronas en esta red, también sin internet, para enlazarlas entre sí.</string>
+  <!-- (APP1107A) La ventana abre el servidor local de la app en http://127.0.0.1:4761x. Desde macOS 14,
+       App Transport Security ya no deja cargar direcciones IP por defecto: se declara la red local y la
+       excepción exacta de 127.0.0.1 (solo http a loopback; nada más se relaja).
+       Contrato: architecture/apps-autonomas-sin-internet.md -->
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsLocalNetworking</key>
+    <true/>
+    <key>NSExceptionDomains</key>
+    <dict>
+      <key>127.0.0.1</key>
+      <dict>
+        <key>NSExceptionAllowsInsecureHTTPLoads</key>
+        <true/>
+      </dict>
+    </dict>
+  </dict>
 </dict>
 </plist>

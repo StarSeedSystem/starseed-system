@@ -6,8 +6,7 @@
   "build": {
     "beforeBuildCommand": "",
     "beforeDevCommand": "",
-    "frontendDist": "https://starseed-os.vercel.app",
-    "devUrl": "https://starseed-os.vercel.app"
+    "frontendDist": "../arranque"
   },
   "app": {
     "withGlobalTauri": true,
@@ -15,7 +14,7 @@
       {
         "label": "main",
         "title": "StarSeed OS",
-        "url": "https://starseed-os.vercel.app",
+        "url": "index.html",
         "width": 1440,
         "height": 900,
         "minWidth": 800,
