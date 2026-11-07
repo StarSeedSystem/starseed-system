@@ -81,9 +81,9 @@ export function LlamadaDirectaFlotante() {
         {ll.fase === "entrante" ? <PhoneIncoming className="h-4 w-4 animate-pulse text-emerald-300" /> : <Phone className="h-4 w-4 text-emerald-300" />}
         <span className="font-medium">
           {ll.fase === "entrante"
-            ? `${ll.nombre} te llama${ll.video ? " (vídeo)" : ""}`
+            ? `${ll.nombre} ${ll.pantalla ? "quiere enseñarte su pantalla" : `te llama${ll.video ? " (vídeo)" : ""}`}`
             : ll.fase === "llamando"
-              ? `Llamando a ${ll.nombre}…`
+              ? `${ll.pantalla ? "Compartiendo pantalla con" : "Llamando a"} ${ll.nombre}…`
               : ll.fase === "en-curso"
                 ? ll.nombre
                 : "Llamada terminada"}

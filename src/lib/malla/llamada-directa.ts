@@ -69,6 +69,8 @@ export interface EstadoLlamadaDirecta {
   enlaceId: string | null;
   nombre: string;
   video: boolean;
+  /** (NEU1107A) Quien llama comparte su pantalla (el vídeo es la pantalla; quien contesta, solo voz). */
+  pantalla: boolean;
   local: MediaStream | null;
   remoto: MediaStream | null;
   micro: boolean;
@@ -82,6 +84,7 @@ const INICIAL: EstadoLlamadaDirecta = {
   enlaceId: null,
   nombre: "",
   video: false,
+  pantalla: false,
   local: null,
   remoto: null,
   micro: true,
@@ -195,7 +198,15 @@ function manejar(e: EnlaceLocalVivo, o: Record<string, unknown>): void {
       }
       if (temporizador) clearTimeout(temporizador);
       llamadaId = id;
-      aplicar("sonar-recibido", { enlaceId: e.id, nombre: e.par.nombre, video: o.video === true, motivo: null, remoto: null, local: null });
+      aplicar("sonar-recibido", {
+        enlaceId: e.id,
+        nombre: e.par.nombre,
+        video: o.video === true,
+        pantalla: o.pantalla === true,
+        motivo: null,
+        remoto: null,
+        local: null,
+      });
       return;
     }
     case "ll.aceptar":
@@ -228,18 +239,62 @@ function nuevoId(): string {
   }
 }
 
-/** Llama por un enlace local (pide micro, y cámara si `video`, tras un gesto de la persona). */
-export async function llamarPorEnlace(enlaceId: string, video: boolean): Promise<{ ok: boolean; motivo?: string }> {
+/**
+ * Llama por un enlace local (pide micro, y cámara si `video`, tras un gesto de la persona).
+ * (NEU1107A) `pistaPantalla`: la pantalla ya pedida en el mismo gesto (el navegador solo la da
+ * ahí); va como el vídeo de la llamada, con el micro. Si se deja de compartir, sigue la voz.
+ */
+export async function llamarPorEnlace(
+  enlaceId: string,
+  video: boolean,
+  opciones: { pistaPantalla?: MediaStreamTrack | null } = {},
+): Promise<{ ok: boolean; motivo?: string }> {
   asegurarEscuchaLlamadas();
+  const pantalla = opciones.pistaPantalla ?? null;
+  const soltar = () => {
+    try {
+      pantalla?.stop();
+    } catch {
+      /* noop */
+    }
+  };
   const e = enlaceLocal(enlaceId);
-  if (!e || !e.abierto()) return { ok: false, motivo: "Ese enlace ya no está abierto." };
-  if (transicionLlamada(estado.fase, "llamar") === null) return { ok: false, motivo: "Ya hay una llamada en curso." };
-  const m = await pedirMedios(video);
-  if (!m.stream) return { ok: false, motivo: m.error };
+  if (!e || !e.abierto()) {
+    soltar();
+    return { ok: false, motivo: "Ese enlace ya no está abierto." };
+  }
+  if (transicionLlamada(estado.fase, "llamar") === null) {
+    soltar();
+    return { ok: false, motivo: "Ya hay una llamada en curso." };
+  }
+  const m = await pedirMedios(video && !pantalla);
+  if (!m.stream) {
+    soltar();
+    return { ok: false, motivo: m.error };
+  }
+  if (pantalla) {
+    try {
+      m.stream.addTrack(pantalla);
+      pantalla.onended = () => {
+        // Dejó de compartir: la llamada sigue con la voz (se renegocia por el propio canal).
+        try {
+          estado.local?.removeTrack(pantalla);
+        } catch {
+          /* noop */
+        }
+        const vivo = estado.enlaceId ? enlaceLocal(estado.enlaceId) : undefined;
+        if (vivo && estado.fase === "en-curso") void vivo.ponerPistas(estado.local);
+        poner({ pantalla: false });
+      };
+    } catch {
+      /* sin pantalla: sigue como llamada de voz */
+    }
+  }
   if (temporizador) clearTimeout(temporizador);
   llamadaId = nuevoId();
-  aplicar("llamar", { enlaceId, nombre: e.par.nombre, video, local: m.stream, remoto: null, micro: true, motivo: null, desde: null });
-  if (!enviar(e, { t: "ll.sonar", id: llamadaId, video })) {
+  const conVideo = video || !!pantalla;
+  aplicar("llamar", { enlaceId, nombre: e.par.nombre, video: conVideo, pantalla: !!pantalla, local: m.stream, remoto: null, micro: true, motivo: null, desde: null });
+  if (!enviar(e, { t: "ll.sonar", id: llamadaId, video: conVideo, ...(pantalla ? { pantalla: true } : {}) })) {
     terminar("colgar", "No se pudo avisar al otro aparato.");
     return { ok: false, motivo: "No se pudo avisar al otro aparato." };
   }
@@ -257,7 +312,8 @@ export async function contestarLlamada(): Promise<{ ok: boolean; motivo?: string
     terminar("enlace-perdido", "Se perdió el enlace directo.");
     return { ok: false, motivo: "Se perdió el enlace directo." };
   }
-  const m = await pedirMedios(estado.video);
+  // Si el otro comparte su pantalla, se contesta solo con voz (no hace falta la cámara).
+  const m = await pedirMedios(estado.video && !estado.pantalla);
   if (!m.stream) {
     enviar(e, { t: "ll.rechazar", id: llamadaId });
     terminar("rechazar", m.error ?? null);
@@ -289,6 +345,15 @@ export function alternarMicro(): void {
 
 export function estadoLlamadaDirecta(): EstadoLlamadaDirecta {
   return estado;
+}
+
+/** (NEU1107A) Escucha los cambios de la llamada directa fuera de React (el registro del chat de neurona). */
+export function suscribirLlamadaDirecta(cb: (e: EstadoLlamadaDirecta) => void): () => void {
+  const f = () => cb(estado);
+  oyentes.add(f);
+  return () => {
+    oyentes.delete(f);
+  };
 }
 
 export function useLlamadaDirecta(): EstadoLlamadaDirecta {

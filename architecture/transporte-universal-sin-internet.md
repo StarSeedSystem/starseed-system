@@ -114,12 +114,15 @@ llamada. Con el Wi-Fi sin salida a internet (o el punto de acceso de un móvil s
     `sanearSenal`): id de par válido y distinto del propio, avatar solo https/ruta/data de imagen, y un
     «fuera» solo retira a quien de verdad se va. Quien llega tarde recibe la presencia del que ya estaba
     al instante (no espera el latido de 10 s).
-  - **Falta** (otra tarea, ≥ 3 archivos de interfaz y store): que `acciones.ts` pase `canalesDirectos`
-    (`enlacesLocalesVivos()` + `abrirCanalLlamadaPorEnlace`) cuando no haya red hacia Supabase, un
-    identificador de sala que no exija el uuid de `temaLlamada`, el timbre por el enlace local y el
-    texto «por enlace directo (misma red)» en la ventana de la llamada. Hasta entonces, sin internet,
-    se llama desde «Vincular sin internet» (llamada directa 1:1 real, que seguirá conviviendo para el
-    1:1 simple).
+  - **Hecho (CTR1104N + NEU1107A · 2026-11-07)**: `acciones.ts` pasa `canalesDirectos` con los enlaces
+    locales; desde NEU1107A, solo los de aparatos de ESE chat o de tu cuenta (`enlacesDelChat`) y solo
+    si el «Medio de transmisión» del chat permite «local» (`planLlamadaChat`, puro, en
+    `src/lib/llamadas/medio-llamada-chat.ts`). Sin internet, sin el servidor entre los medios del chat,
+    o si el servidor no responde al crear la sesión, un chat 1:1 con enlace al aparato de la otra
+    persona llama DIRECTO por él (timbre, voz, vídeo; burbuja por «chat-malla»). Ya no se deduce «sin
+    red» de la fuente ICE (sin TURN se quitaba hasta el STUN). Ver `architecture/datos-por-la-malla.md`.
+  - **Falta**: llamadas de GRUPO sin internet (sala sin el uuid de la sesión del servidor y timbre
+    por el enlace a cada miembro) y el canal local nativo de la app como canal de señalización.
 - **Estaciones y capas de Astraura por el transporte universal**: `src/lib/estaciones/malla.ts` y
   `astraura-por-malla.ts`/`ia-por-malla.ts` siguen con su camino; tienen que pasar a `enviarMensaje` /
   `alRecibirMensaje` (canales `estacion`, `astraura`). Otra área trabaja hoy en estaciones.

@@ -90,7 +90,7 @@ function Portada(p: PanelInfoHiloProps & { onEditarGrupo?: () => void }) {
             <div className="mt-4 flex flex-wrap items-start justify-center gap-x-2 gap-y-3">
                 <BotonRapido icono={<MessageCircle className="h-5 w-5" />} etiqueta="Mensaje" onClick={p.onMensaje} />
                 <div className="flex flex-col items-center gap-1.5">
-                    <BotonesLlamada hiloId={p.thread.id} miembros={p.idsMiembros} titulo={p.titulo} />
+                    <BotonesLlamada hiloId={p.thread.id} miembros={p.idsMiembros} titulo={p.titulo} esGrupo={esGrupo} />
                     <span className="text-[11.5px] font-medium text-white/80">Audio y vídeo</span>
                 </div>
                 {!esGrupo && usuario && (

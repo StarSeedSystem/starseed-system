@@ -29,6 +29,10 @@ import { enlacesLocalesVivos } from "@/lib/malla/registro-enlaces-locales";
 import { abrirCanalLlamadaPorEnlace } from "@/lib/llamadas/canal-enlace-local";
 import { canalesParaLlamada } from "@/lib/llamadas/canales-directos";
 import { iceParaCanal, tipoCanalDirecto } from "@/lib/llamadas/decision-ice";
+// (NEU1107A) Las llamadas del chat respetan su «Medio de transmisión» y usan el enlace sin internet.
+import { enlacesDelChat, planLlamadaChat, type EnlaceLlamadaChat } from "@/lib/llamadas/medio-llamada-chat";
+import { claveChat, preferenciasEfectivas } from "@/lib/mensajeria/medios/preferencias-store";
+import type { EnlaceLocalVivo } from "@/lib/malla/registro-enlaces-locales";
 import { olvidarTemaSesion, resolverTemaSesion } from "@/lib/llamadas/resolver-tema";
 import { sanearNombre, urlAvatarSegura } from "@/lib/llamadas/presencia";
 import {
@@ -90,8 +94,33 @@ function mensajeCrear(error: string | null): string {
     return "No se pudo abrir la llamada. Revisa tu conexión y vuelve a intentarlo.";
 }
 
+/** (NEU1107A) ¿Hay red? (`navigator.onLine`; sin navegador se da por buena). */
+function enLinea(): boolean {
+    return typeof navigator === "undefined" || navigator.onLine !== false;
+}
+
+/** (NEU1107A) Los enlaces locales vivos, sin funciones, para la decisión pura. */
+function enlacesParaDecidir(vivos: EnlaceLocalVivo[]): EnlaceLlamadaChat[] {
+    return vivos.map((e) => {
+        let abierto = false;
+        try {
+            abierto = e.abierto();
+        } catch {
+            abierto = false;
+        }
+        return { id: e.id, nombre: e.par.nombre || "Aparato vinculado", abierto, ...(e.par.uid ? { uid: e.par.uid } : {}) };
+    });
+}
+
 /** Empieza una llamada en un chat: sesión → aviso en el chat → ventana de llamada. */
-export async function empezarLlamada(o: { hiloId: string; tipo: TipoLlamada; titulo: string; miembros: string[] }): Promise<boolean> {
+export async function empezarLlamada(o: {
+    hiloId: string;
+    tipo: TipoLlamada;
+    titulo: string;
+    miembros: string[];
+    /** (NEU1107A) Para leer los ajustes de medio del chat (por defecto: «dm» si sois dos). */
+    tipoChat?: "dm" | "grupo";
+}): Promise<boolean> {
     const actual = llamadaEnCurso();
     if (actual) {
         if (actual.hiloId === o.hiloId) {
@@ -106,6 +135,37 @@ export async function empezarLlamada(o: { hiloId: string; tipo: TipoLlamada; tit
         return false;
     }
     const yo = await miIdentidad();
+    // (NEU1107A) Por dónde va, con los ajustes de medio de ESTE chat: servidor (+ enlaces directos
+    // con aparatos de este chat), llamada directa por el enlace sin internet, o el motivo de que no.
+    const tipoChat = o.tipoChat ?? (new Set(o.miembros).size <= 2 ? "dm" : "grupo");
+    const vivos = enlacesLocalesVivos();
+    const plan = planLlamadaChat({
+        preferencias: preferenciasEfectivas(claveChat(tipoChat, o.hiloId)),
+        internet: enLinea(),
+        sesion: !!yo,
+        miembros: o.miembros,
+        miUid: yo?.uid ?? null,
+        enlaces: enlacesParaDecidir(vivos),
+        tipoLlamada: o.tipo,
+    });
+    const directa = async (otroUid: string): Promise<boolean> => {
+        // Sin servidor: llamada directa 1:1 (timbre, voz, vídeo) y su burbuja por la malla.
+        try {
+            const ln = await import("@/lib/mensajeria/neuronas/llamadas-neurona");
+            const r = await ln.llamarEnChatMalla({ hiloId: o.hiloId, tipoChat, otroUid, tipo: o.tipo === "video" ? "video" : "audio" });
+            if (!r.ok) toast.error(r.motivo ?? "No se pudo llamar por el enlace sin internet.");
+            else toast.message("Llamada directa por el enlace sin internet (sin servidores).");
+            return r.ok;
+        } catch {
+            toast.error("No se pudo llamar por el enlace sin internet.");
+            return false;
+        }
+    };
+    if (plan.via === "enlace-local" && plan.otroUid) return directa(plan.otroUid);
+    if (plan.via === null) {
+        toast.error(plan.aviso ?? "No hay cómo llamar ahora.");
+        return false;
+    }
     if (!yo) {
         toast.error("Inicia sesión para llamar.");
         return false;
@@ -124,11 +184,26 @@ export async function empezarLlamada(o: { hiloId: string; tipo: TipoLlamada; tit
     });
     if (!sesion) {
         pararStream(medios.stream);
+        // (NEU1107A) El servidor no responde (red cautiva, caída…): si hay enlace sin internet con
+        // la otra persona y el chat lo permite, la llamada va directa por él.
+        const sinServidor = planLlamadaChat({
+            preferencias: preferenciasEfectivas(claveChat(tipoChat, o.hiloId)),
+            internet: false,
+            sesion: true,
+            miembros: o.miembros,
+            miUid: yo.uid ?? null,
+            enlaces: enlacesParaDecidir(enlacesLocalesVivos()),
+            tipoLlamada: o.tipo,
+        });
+        if (sinServidor.via === "enlace-local" && sinServidor.otroUid) return directa(sinServidor.otroUid);
         toast.error(mensajeCrear(error));
         return false;
     }
-    const hayRedSupabase = ice.fuente !== "stun";
-    const enlaces = enlacesLocalesVivos();
+    // (NEU1107A) La sesión se acaba de crear en el servidor: HAY red hacia él, aunque no haya TURN
+    // (antes se deducía de la fuente ICE y, sin TURN, se quitaba hasta el STUN). Solo los enlaces
+    // que el plan permite (aparatos de este chat o de tu cuenta, y «local» entre los medios).
+    const hayRedSupabase = true;
+    const enlaces = vivos.filter((e) => plan.directos.includes(e.id));
     const decision = canalesParaLlamada({ hayRedSupabase, enlaces, tema: temaLlamada(sesion.id) });
     const adjunto = crearAdjuntoLlamada(o.tipo, sesion.id);
     const msg = await sendMessage(o.hiloId, { body: TEXTO_TIPO[o.tipo].nombre, attachments: [adjunto] });
@@ -179,6 +254,116 @@ export async function empezarLlamada(o: { hiloId: string; tipo: TipoLlamada; tit
 }
 
 /**
+ * (NEU1107A) Llamada SIN chat: con una neurona (de tu cuenta o de otra que comparte un cerebro
+ * contigo). Mismo motor y mismos canales que `empezarLlamada` (con los enlaces locales como canal
+ * directo si los hay), pero la sesión no cuelga de ningún hilo y el timbre lo da quien llama con
+ * `avisar` (por el chat de la neurona). `pistaPantalla`: la pantalla ya pedida con el gesto de la
+ * persona (el navegador solo la da en el mismo gesto); va como la pista de vídeo de la llamada.
+ */
+export async function empezarLlamadaSinChat(o: {
+    tipo: TipoLlamada;
+    titulo: string;
+    /** Otras cuentas que pueden entrar (vacío = solo tu cuenta). */
+    invitados: string[];
+    pistaPantalla?: MediaStreamTrack | null;
+    avisar: (sesionId: string) => Promise<boolean>;
+}): Promise<{ ok: boolean; sesionId?: string; motivo?: string }> {
+    const soltarPantalla = () => {
+        try {
+            o.pistaPantalla?.stop();
+        } catch {
+            /* noop */
+        }
+    };
+    if (llamadaEnCurso()) {
+        soltarPantalla();
+        return { ok: false, motivo: "Ya estás en una llamada. Cuelga antes de empezar otra." };
+    }
+    if (!soportaLlamadas()) {
+        soltarPantalla();
+        return { ok: false, motivo: "Este navegador no permite llamadas: hace falta una conexión segura (https) y un navegador actual." };
+    }
+    const yo = await miIdentidad();
+    if (!yo) {
+        soltarPantalla();
+        return { ok: false, motivo: "Inicia sesión para llamar." };
+    }
+    const conVideo = o.tipo === "video" && !o.pistaPantalla;
+    const [medios, ice] = await Promise.all([obtenerMedios({ audio: true, video: conVideo }), obtenerIceServidores()]);
+    if (!medios.stream) {
+        soltarPantalla();
+        return { ok: false, motivo: medios.error ?? "No se pudo usar el micrófono." };
+    }
+    if (o.pistaPantalla) {
+        try {
+            medios.stream.addTrack(o.pistaPantalla);
+        } catch {
+            /* sin pantalla: sigue como llamada de voz */
+        }
+    }
+    const invitados = Array.from(new Set(o.invitados.filter(Boolean)));
+    const { sesion, error } = await crearSesion({
+        tipo: `llamada:${o.tipo}`,
+        titulo: o.titulo || TEXTO_TIPO[o.tipo].nombre,
+        invitados,
+        ...(invitados.length ? { acceso: { modo: "invitados" as const, permiso: "editar" as const } } : {}),
+    });
+    if (!sesion) {
+        pararStream(medios.stream);
+        return { ok: false, motivo: mensajeCrear(error) };
+    }
+    const sesionId = sesion.id;
+    // Sesión recién creada en el servidor: hay red hacia él. Enlaces directos solo con aparatos
+    // de tu cuenta o de quien invitas (nunca con los de otras personas).
+    const hayRedSupabase = true;
+    const vivos = enlacesLocalesVivos();
+    const { utiles } = enlacesDelChat(enlacesParaDecidir(vivos), invitados, yo.uid ?? null);
+    const permitidos = new Set(utiles.map((u) => u.id));
+    const decision = canalesParaLlamada({ hayRedSupabase, enlaces: vivos.filter((e) => permitidos.has(e.id)), tema: temaLlamada(sesionId) });
+    const tipoCanal = tipoCanalDirecto(decision, hayRedSupabase);
+    const motor = new MotorLlamada({
+        sesionId,
+        yo,
+        colgarAlQuedarSolo: true,
+        iceServers: tipoCanal === "directo" ? [] : ice.iceServers,
+        hayTurn: ice.turn && tipoCanal !== "directo",
+        tema: temaLlamada(sesionId),
+        resolverTema: () => resolverTemaSesion("llamada", sesionId, { fresco: true }),
+        canalesDirectos: decision.enlaces.length > 0
+            ? () => decision.enlaces.map((e) => abrirCanalLlamadaPorEnlace(e, sesionId, clavePestana(yo.base)))
+            : undefined,
+    });
+    await motor.prepararMedios({ audio: true, video: conVideo || !!o.pistaPantalla, stream: medios.stream });
+    if (medios.aviso) motor.avisar(medios.aviso);
+    let avisado = false;
+    try {
+        avisado = await o.avisar(sesionId);
+    } catch {
+        avisado = false;
+    }
+    if (!avisado) {
+        pararStream(medios.stream);
+        void terminarSesion(sesionId).catch(() => null);
+        return { ok: false, motivo: "La neurona no recibió el aviso de la llamada (sin medio disponible ahora)." };
+    }
+    activar({
+        sesionId,
+        tipo: o.tipo,
+        hiloId: null,
+        titulo: o.titulo || TEXTO_TIPO[o.tipo].nombre,
+        mensajeId: null,
+        adjunto: null,
+        esCreador: true,
+        token: null,
+        unoAUno: true,
+        motor,
+        minimizada: false,
+    });
+    motor.entrar();
+    return { ok: true, sesionId };
+}
+
+/**
  * Entra en una llamada ya abierta (enlace, tarjeta del chat o timbre aceptado).
  * Devuelve un error en claro, o null si entró.
  */
@@ -209,7 +394,9 @@ export async function unirseALlamada(o: {
     const conVideo = o.camara ?? o.tipo === "video";
     const [ice, tema] = await Promise.all([obtenerIceServidores(), resolverTemaSesion("llamada", o.sesionId, { token: o.token, fresco: true })]);
     if (!tema) return "Este enlace de llamada no es válido.";
-    const hayRedSupabase = ice.fuente !== "stun";
+    // (NEU1107A) Sin TURN la fuente ICE es «stun» aunque haya internet: eso no quiere decir que
+    // falte la red (si no, con un enlace local se quitaba hasta el STUN y fallaba por internet).
+    const hayRedSupabase = enLinea() || ice.fuente !== "stun";
     const enlaces = enlacesLocalesVivos();
     const decision = canalesParaLlamada({ hayRedSupabase, enlaces, tema });
     const tipoCanal = tipoCanalDirecto(decision, hayRedSupabase);

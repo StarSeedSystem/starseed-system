@@ -79,7 +79,20 @@ function ElementoMenu({ tipo, onElegir, disabled }: { tipo: TipoLlamada; onElegi
     );
 }
 
-export function BotonesLlamada({ hiloId, miembros, titulo, compacto = false }: { hiloId: string; miembros: string[]; titulo: string; compacto?: boolean }) {
+export function BotonesLlamada({
+    hiloId,
+    miembros,
+    titulo,
+    compacto = false,
+    esGrupo,
+}: {
+    hiloId: string;
+    miembros: string[];
+    titulo: string;
+    compacto?: boolean;
+    /** (NEU1107A) Para respetar los ajustes de medio de este chat (grupo o 1:1). */
+    esGrupo?: boolean;
+}) {
     const [iniciando, setIniciando] = useState<TipoLlamada | null>(null);
     const { activa } = useLlamadas();
     const enEste = !!activa && activa.hiloId === hiloId && !activa.motor.cerrada;
@@ -88,7 +101,7 @@ export function BotonesLlamada({ hiloId, miembros, titulo, compacto = false }: {
         if (iniciando || !hiloId) return;
         setIniciando(tipo);
         try {
-            await empezarLlamada({ hiloId, tipo, titulo, miembros });
+            await empezarLlamada({ hiloId, tipo, titulo, miembros, ...(esGrupo === undefined ? {} : { tipoChat: esGrupo ? "grupo" : "dm" }) });
         } finally {
             setIniciando(null);
         }

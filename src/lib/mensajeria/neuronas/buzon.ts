@@ -48,6 +48,7 @@ import {
 } from "@/lib/mensajeria/medios/enviar";
 import { claveChat, preferenciasEfectivas } from "@/lib/mensajeria/medios/preferencias-store";
 import type { CandidatoMedio, PasoEnvio, PlanEnvio, ViaMensaje } from "@/lib/mensajeria/medios/tipos";
+import type { AdjuntoNeurona, FlujoNeuronaRef, LlamadaNeurona } from "@/lib/mensajeria/neuronas/datos-neurona";
 
 export const CLAVE_BANDEJA_MALLA = "starseed.mensajeria.malla.v1";
 export const CANAL_NEURONA = "neurona";
@@ -267,6 +268,52 @@ export interface EnvioNeurona {
     clave: string;
     destino: DestinoMalla;
     texto: string;
+    /** (NEU1107A) Archivo, llamada o flujo que acompaña al mensaje (el texto puede ir vacío). */
+    adjunto?: AdjuntoNeurona;
+    llamada?: LlamadaNeurona;
+    flujo?: FlujoNeuronaRef;
+    /** No espera un medio: si no sale ya, falla (timbres y anuncios de flujos). */
+    urgente?: boolean;
+    /** Id fijo (para que el archivo y su anuncio compartan identidad). */
+    id?: string;
+}
+
+/** (NEU1107A) Cuerpo que viaja por la malla o por el canal de la cuenta para un mensaje de neurona. */
+export async function cuerpoNeuronaDe(m: MensajeMalla): Promise<CuerpoNeurona> {
+    const destino = m.destino ?? {};
+    const [uid, neurona] = await Promise.all([miUid(), miNeurona()]);
+    return {
+        v: 1,
+        mid: m.id,
+        txt: m.texto,
+        at: m.at,
+        de: { n: neurona || undefined, nom: nombreEstaNeurona, u: uid ?? undefined },
+        para: { n: destino.neuronDeviceId, u: destino.uid },
+        ...(m.adjunto ? { adj: m.adjunto } : {}),
+        ...(m.llamada ? { ll: m.llamada } : {}),
+        ...(m.flujo ? { fd: m.flujo } : {}),
+    };
+}
+
+/** (NEU1107A) Guarda (o completa) un mensaje en la bandeja. */
+export function guardarMensajeMalla(m: MensajeMalla): void {
+    poner(anadirMensaje(cargar(), m));
+}
+
+/** (NEU1107A) Cambia campos de un mensaje de la bandeja. */
+export function cambiarMensajeMalla(clave: string, id: string, cambio: Partial<MensajeMalla>): void {
+    poner(actualizarMensaje(cargar(), clave, id, cambio));
+}
+
+/** (NEU1107A) Lee un mensaje de la bandeja. */
+export function mensajeMalla(clave: string, id: string): MensajeMalla | null {
+    return cargar().conv[clave]?.mensajes.find((x) => x.id === id) ?? null;
+}
+
+/** (NEU1107A) ¿Hay internet y sesión? (para decidir llamadas y el almacenamiento de la cuenta). */
+export async function hayInternetYSesion(): Promise<{ internet: boolean; uid: string | null }> {
+    const internet = typeof navigator === "undefined" ? true : navigator.onLine !== false;
+    return { internet, uid: await miUid() };
 }
 
 function cerrarSinCamino(m: MensajeMalla, plan: PlanEnvio, motivo: string | undefined, intentos: number, esPrimero: boolean): MensajeMalla {
@@ -289,15 +336,8 @@ function cerrarSinCamino(m: MensajeMalla, plan: PlanEnvio, motivo: string | unde
 async function procesarNeurona(m: MensajeMalla): Promise<MensajeMalla> {
     const destino = m.destino ?? {};
     const propia = !destino.uid;
-    const [uid, neurona] = await Promise.all([miUid(), miNeurona()]);
-    const cuerpo: CuerpoNeurona = {
-        v: 1,
-        mid: m.id,
-        txt: m.texto,
-        at: m.at,
-        de: { n: neurona || undefined, nom: nombreEstaNeurona, u: uid ?? undefined },
-        para: { n: destino.neuronDeviceId, u: destino.uid },
-    };
+    const uid = await miUid();
+    const cuerpo = await cuerpoNeuronaDe(m);
     const candidatos: CandidatoMedio[] = [
         ...(await candidatosMalla(destino)),
         candidatoServidor(
@@ -305,7 +345,11 @@ async function procesarNeurona(m: MensajeMalla): Promise<MensajeMalla> {
             !propia ? "el canal de tu cuenta en el servidor solo llega a tus propias neuronas" : "inicia sesión para usar el servidor",
         ),
     ];
-    const plan = mediosParaEnviar(preferenciasEfectivas(m.clavePrefs), candidatos, { tipo: "neurona" });
+    const plan0 = mediosParaEnviar(preferenciasEfectivas(m.clavePrefs), candidatos, { tipo: "neurona" });
+    // Un timbre o el anuncio de un flujo no esperan: si no salen ya, fallan (y se dice).
+    const plan: PlanEnvio = m.urgente
+        ? { ...plan0, siNinguno: "avisar", ...(plan0.sinCamino ? { aviso: "Ningún medio permitido está disponible ahora." } : {}) }
+        : plan0;
     const intentos = (m.intentos ?? 0) + 1;
     if (plan.sinCamino) return cerrarSinCamino(m, plan, undefined, intentos, intentos === 1);
     poner(actualizarMensaje(cargar(), m.clave, m.id, { estado: "enviando", aviso: undefined }));
@@ -330,7 +374,7 @@ async function procesarNeurona(m: MensajeMalla): Promise<MensajeMalla> {
 export async function enviarANeurona(e: EnvioNeurona): Promise<MensajeMalla> {
     const texto = e.texto.trim().slice(0, 4000);
     const m: MensajeMalla = {
-        id: nuevoId(),
+        id: e.id ?? nuevoId(),
         clave: e.clave,
         dir: "sale",
         texto,
@@ -339,9 +383,23 @@ export async function enviarANeurona(e: EnvioNeurona): Promise<MensajeMalla> {
         destino: e.destino,
         clavePrefs: claveChat("neurona", e.clave),
         intentos: 0,
+        ...(e.adjunto ? { adjunto: e.adjunto } : {}),
+        ...(e.llamada ? { llamada: e.llamada } : {}),
+        ...(e.flujo ? { flujo: e.flujo } : {}),
+        ...(e.urgente ? { urgente: true } : {}),
     };
     poner(anadirMensaje(cargar(), m));
     return procesarNeurona(m);
+}
+
+/** (NEU1107A) Vuelve a pasar por el plan de medios un mensaje de neurona ya guardado. */
+export function reenviarMensajeNeurona(m: MensajeMalla): Promise<MensajeMalla> {
+    return procesarNeurona(m);
+}
+
+/** Un archivo por la malla que aún no salió necesita el archivo en memoria (lo lleva su motor). */
+function esArchivoSinSalir(m: MensajeMalla): boolean {
+    return !!m.adjunto && m.adjunto.modo === "p2p" && !m.via;
 }
 
 /* ══════════════════════════ Chats y grupos ══════════════════════════ */
@@ -515,7 +573,12 @@ export async function reintentarPendientes(): Promise<number> {
     let salieron = 0;
     try {
         for (const m of enEspera(cargar())) {
-            if (m.clave.startsWith("dm:")) {
+            // (NEU1107A) Un archivo que espera (de una neurona o de un chat por la malla) lo lleva su motor.
+            if (esArchivoSinSalir(m)) {
+                const a = await import("./archivos-neurona");
+                const r = await a.reintentarArchivoNeurona(m);
+                if (r.estado === "enviado" || r.estado === "confirmado") salieron += 1;
+            } else if (m.clave.startsWith("dm:")) {
                 const r = await procesarChat(m, { esPrimero: false });
                 if (r.ok && !r.enEspera) salieron += 1;
             } else {
@@ -533,11 +596,28 @@ export async function reintentarPendientes(): Promise<number> {
 export async function reintentarMensaje(clave: string, id: string): Promise<void> {
     const m = cargar().conv[clave]?.mensajes.find((x) => x.id === id);
     if (!m || m.dir !== "sale") return;
-    if (m.clave.startsWith("dm:")) await procesarChat(m, { esPrimero: false });
+    if (esArchivoSinSalir(m)) await (await import("./archivos-neurona")).reintentarArchivoNeurona(m);
+    else if (m.clave.startsWith("dm:")) await (m.llamada ? anunciarEnChatMalla(m) : procesarChat(m, { esPrimero: false }));
     else await procesarNeurona(m);
 }
 
 /* ══════════════════════════ Recepción ══════════════════════════ */
+
+/** (NEU1107A) Vía de algo que llegó por un enlace del transporte universal (también la usan los flujos). */
+export function viaDeOrigenMalla(origen: { tipo: string; enlaceId: string; etiqueta: string }): Promise<ViaMensaje> {
+    return viaDeOrigen(origen);
+}
+
+/** (NEU1107A) Vía de algo que llegó por el canal de la cuenta en el servidor. */
+export function viaCuentaEntranteMalla(): ViaMensaje {
+    return viaCuentaEntrante();
+}
+
+/** (NEU1107A) Ids de esta cuenta y esta neurona (para filtrar lo que no es para aquí). */
+export async function identidadesMalla(): Promise<{ uid: string | null; neurona: string }> {
+    const [uid, neurona] = await Promise.all([miUid(), miNeurona()]);
+    return { uid, neurona };
+}
 
 async function viaDeOrigen(origen: { tipo: string; enlaceId: string; etiqueta: string }): Promise<ViaMensaje> {
     let ruta: string | null = null;
@@ -575,6 +655,7 @@ async function recibirNeurona(cuerpo: unknown, via: ViaMensaje | Promise<ViaMens
     const clave = claveEntrante(c, uid);
     if (!clave) return;
     if (acusar) void acusar(c.mid).catch(() => undefined);
+    const nuevo = !cargar().conv[clave]?.mensajes.some((x) => x.id === c.mid);
     poner(
         anadirMensaje(cargar(), {
             id: c.mid,
@@ -585,8 +666,44 @@ async function recibirNeurona(cuerpo: unknown, via: ViaMensaje | Promise<ViaMens
             estado: "recibido",
             via: await via,
             deNombre: c.de.nom,
+            ...(c.adj ? { adjunto: c.adj } : {}),
+            ...(c.ll ? { llamada: c.ll } : {}),
+            ...(c.fd ? { flujo: c.fd } : {}),
         }),
     );
+    // (NEU1107A) Una llamada por internet suena aquí (una sola vez, aunque llegue por dos caminos).
+    if (nuevo && c.ll?.via === "sistema-llamadas" && c.ll.sesion) {
+        void import("./llamadas-neurona")
+            .then((m) => m.timbreDeNeurona({ clave, cuerpo: c }))
+            .catch(() => undefined);
+    }
+    // (NEU1107A) La burbuja de una llamada directa (su timbre suena por el propio enlace local).
+    if (nuevo && c.ll?.via === "enlace-local") {
+        void import("./llamadas-neurona")
+            .then((m) => m.registroLlamadaDirectaEntrante(clave, c.mid))
+            .catch(() => undefined);
+    }
+    // (NEU1107A) Un archivo: se sigue su transferencia (y se guarda aquí cuando se verifique).
+    if (c.adj) {
+        void import("./archivos-neurona")
+            .then((a) => a.alAnunciarArchivo(clave, c.mid))
+            .catch(() => undefined);
+    }
+    // (NEU1107A) Aviso aunque el chat no esté abierto. Las llamadas ya tienen su timbre global
+    // (sistema de llamadas o llamada directa); los archivos por la malla, además, su tarjeta de aceptar.
+    if (nuevo && hiloAbierto !== clave && (c.adj || c.fd)) {
+        const quien = c.de.nom || "Una neurona";
+        const que = c.adj ? `te manda «${c.adj.nombre}»` : `empezó una transmisión en vivo («${c.fd?.nombre ?? "sin nombre"}»)`;
+        void import("sonner")
+            .then(({ toast }) => toast.message(`${quien} ${que}`, { description: "Pestaña «Neuronas» de Mensajes." }))
+            .catch(() => undefined);
+    }
+}
+
+/** (NEU1107A) Chat de neurona a la vista (sus avisos no salen como notificación). */
+let hiloAbierto: string | null = null;
+export function fijarHiloAbierto(clave: string | null): void {
+    hiloAbierto = clave;
 }
 
 async function recibirChat(cuerpo: unknown, via: Promise<ViaMensaje>): Promise<void> {
@@ -594,18 +711,75 @@ async function recibirChat(cuerpo: unknown, via: Promise<ViaMensaje>): Promise<v
     if (!c) return;
     const uid = await miUid();
     if (c.de.u && uid && c.de.u === uid) return; // eco de mi propia cuenta
+    const clave = `dm:${c.h}`;
+    const nuevo = !cargar().conv[clave]?.mensajes.some((x) => x.id === c.mid);
     poner(
         anadirMensaje(cargar(), {
             id: c.mid,
-            clave: `dm:${c.h}`,
+            clave,
             dir: "entra",
             texto: c.txt,
             at: Date.now(),
             estado: "recibido",
             via: await via,
             deUid: c.de.u,
+            ...(c.adj ? { adjunto: c.adj } : {}),
+            ...(c.ll ? { llamada: c.ll } : {}),
         }),
     );
+    // (NEU1107A) Lo mismo que en los chats de neuronas: el archivo se sigue y se guarda aquí, y la
+    // llamada directa apunta su registro.
+    if (c.adj) {
+        void import("./archivos-neurona")
+            .then((a) => a.alAnunciarArchivo(clave, c.mid))
+            .catch(() => undefined);
+    }
+    if (nuevo && c.ll?.via === "enlace-local") {
+        void import("./llamadas-neurona")
+            .then((m) => m.registroLlamadaDirectaEntrante(clave, c.mid))
+            .catch(() => undefined);
+    }
+}
+
+/**
+ * (NEU1107A) Anuncia por la MALLA en un chat o grupo (canal «chat-malla») un archivo o una llamada
+ * directa: el mensaje lleva `destino.uid` (una persona del chat) y sale por los enlaces que le
+ * llegan y permiten los ajustes de medio del chat. Nunca por el servidor: con internet y servidor,
+ * los adjuntos y las llamadas siguen por el sistema de siempre del chat.
+ */
+export async function anunciarEnChatMalla(m: MensajeMalla): Promise<MensajeMalla> {
+    const uid = m.destino?.uid;
+    const tipo = m.clavePrefs?.startsWith("grupo:") ? "grupo" : "dm";
+    const candidatos = uid ? await candidatosMalla({ uid }) : [];
+    const plan0 = mediosParaEnviar(preferenciasEfectivas(m.clavePrefs), candidatos, { tipo });
+    // La burbuja de una llamada no espera: si no sale ya, falla (y se dice).
+    const plan: PlanEnvio = m.urgente
+        ? { ...plan0, siNinguno: "avisar", ...(plan0.sinCamino ? { aviso: "Ningún medio permitido está disponible ahora." } : {}) }
+        : plan0;
+    const intentos = (m.intentos ?? 0) + 1;
+    if (plan.sinCamino) return cerrarSinCamino(m, plan, undefined, intentos, false);
+    poner(actualizarMensaje(cargar(), m.clave, m.id, { estado: "enviando", aviso: undefined }));
+    const cuerpo = {
+        v: 1,
+        mid: m.id,
+        h: m.clave.slice(3),
+        txt: m.texto,
+        at: m.at,
+        de: { u: (await miUid()) ?? undefined },
+        ...(m.adjunto ? { adj: m.adjunto } : {}),
+        ...(m.llamada ? { ll: m.llamada } : {}),
+    };
+    const r = await recorrerPlan(plan, (paso) => enviarPorPasoMalla(paso, { uid }, CANAL_CHAT_MALLA, cuerpo), { seguirSinAcuse: true });
+    if (!r.ok) return cerrarSinCamino(m, plan, r.motivo, intentos, false);
+    const cambio: Partial<MensajeMalla> = {
+        estado: r.via?.confirmado ? "confirmado" : "enviado",
+        via: r.via ?? undefined,
+        aviso: r.via?.confirmado ? undefined : r.motivo,
+        descartados: undefined,
+        intentos,
+    };
+    poner(actualizarMensaje(cargar(), m.clave, m.id, cambio));
+    return { ...m, ...cambio };
 }
 
 let arrancado = 0;
@@ -631,6 +805,18 @@ export function iniciarBuzonMalla(): () => void {
                 t.alRecibirMensaje(CANAL_NEURONA, (m) => void recibirNeurona(m.cuerpo, viaDeOrigen(m.origen))),
                 t.alRecibirMensaje(CANAL_CHAT_MALLA, (m) => void recibirChat(m.cuerpo, viaDeOrigen(m.origen))),
             );
+        })
+        .catch(() => undefined);
+    // (NEU1107A) Transmisiones en vivo (canal «neurona-flujo» y su evento en el canal de la cuenta)
+    // y archivos (el motor de la malla, para guardar aquí lo que llegue verificado).
+    void import("./flujos-neurona")
+        .then((f) => {
+            if (activo) bajas.push(f.iniciarFlujosNeurona());
+        })
+        .catch(() => undefined);
+    void import("./archivos-neurona")
+        .then((a) => {
+            if (activo) bajas.push(a.iniciarArchivosNeurona());
         })
         .catch(() => undefined);
     void asegurarOyentesCuenta();

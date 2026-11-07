@@ -65,7 +65,10 @@ export function TimbreLlamada({ timbre, miUid }: { timbre: TimbreEntrante; miUid
         if (!presentes) return;
         const llamante = presentes.some((p) => (p.uid ?? uidDeClave(p.id)) === timbre.llamante.uid);
         if (llamante) llamanteVisto.current = true;
-        const yoDentro = !!miUid && presentes.some((p) => (p.uid ?? uidDeClave(p.id)) === miUid);
+        // (NEU1107A) Si llama otra neurona de MI cuenta, su presencia lleva mi uid: «contesté desde
+        // otro aparato» solo cuando hay DOS presencias mías (la suya y la de mi otro aparato).
+        const mias = miUid ? presentes.filter((p) => (p.uid ?? uidDeClave(p.id)) === miUid).length : 0;
+        const yoDentro = timbre.llamante.uid === miUid ? mias >= 2 : mias >= 1;
         if (yoDentro) {
             quitarTimbre(timbre.sesionId);
             return;

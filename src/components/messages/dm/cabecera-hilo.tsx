@@ -133,7 +133,7 @@ export function CabeceraHilo(p: CabeceraHiloProps) {
             </button>
 
             <div className="flex shrink-0 items-center gap-0.5">
-                <BotonesLlamada hiloId={p.hiloId} miembros={p.miembros} titulo={p.nombre} compacto={p.esMovil || estrecha} />
+                <BotonesLlamada hiloId={p.hiloId} miembros={p.miembros} titulo={p.nombre} compacto={p.esMovil || estrecha} esGrupo={p.esGrupo} />
 
                 {p.onAlternarEnfoque && (
                     <button

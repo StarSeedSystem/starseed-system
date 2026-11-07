@@ -92,6 +92,13 @@ const DialogoAjustesHilo = dynamic(() => import("@/components/messages/marco/dia
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * (NEU1107A) Por dónde viajan los adjuntos de un correo, dicho y no escondido: el buzón @star.seed
+ * aún solo va por el servidor (`NO_ADMITIDOS.correo`); por la malla, el chat o la neurona.
+ */
+export const AYUDA_ADJUNTOS_CORREO =
+    "Los adjuntos de un correo viajan por el almacenamiento de tu cuenta y el buzón @star.seed (servidor). Para mandarlos por la malla, sin internet o P2P, usa el chat con esa persona o la pestaña «Neuronas».";
+
 /** Vía de un correo interno (MSJ1107A): el buzón @star.seed del servidor. Sin medidas: no se midió nada. */
 function viaCorreo(sale: boolean): ViaMensaje {
     return { medio: "correo", direccion: sale ? "sale" : "entra", servidor: "Buzón @star.seed (Supabase)", confirmado: sale, confirmadoPor: sale ? "servidor" : null };
@@ -564,6 +571,7 @@ function ComposeDialog({
                                 {attachments.map((a, i) => (
                                     <PendingAttachmentChip key={i} a={a} onRemove={() => setAttachments((prev) => prev.filter((_, j) => j !== i))} />
                                 ))}
+                                {attachments.length > 0 && <p className="w-full text-[11px] text-white/50">{AYUDA_ADJUNTOS_CORREO}</p>}
                             </div>
                         )}
 
@@ -996,6 +1004,7 @@ function MailReader({
                                 {replyAttachments.map((a, i) => (
                                     <PendingAttachmentChip key={i} a={a} onRemove={() => setReplyAttachments((prev) => prev.filter((_, j) => j !== i))} />
                                 ))}
+                                {replyAttachments.length > 0 && <p className="w-full text-[11px] text-white/50">{AYUDA_ADJUNTOS_CORREO}</p>}
                             </div>
                             <button
                                 type="button"

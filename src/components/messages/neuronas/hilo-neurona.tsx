@@ -5,10 +5,13 @@
  * cerebro contigo) en la pestaña «Neuronas» de Mensajes (MSJ1107A · 2026-11-07).
  * Historial local de este aparato (funciona sin internet), cada mensaje con su pastilla de vía,
  * aviso de lo que espera un medio con «Reintentar ahora», y los ajustes de medio de este chat.
+ * (NEU1107A) No solo texto: archivos de cualquier formato (varios, arrastrar y soltar, progreso,
+ * reanudar, SHA-256, vista previa y descarga), llamadas de voz y vídeo, pantalla compartida y
+ * transmisiones en vivo, cada una con su vía y sus confirmaciones.
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowLeft, Clock, Loader2, Maximize2, Minimize2, RotateCcw, Route, SendHorizontal } from "lucide-react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { ArrowLeft, Clock, Loader2, Maximize2, Minimize2, Paperclip, Radio, RotateCcw, Route, SendHorizontal, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -21,10 +24,16 @@ import { formatearHora } from "@/components/messages/dm/utilidades-hilo";
 import type { ConversacionNeurona } from "@/lib/mensajeria/neuronas/agrupar";
 import type { MensajeMalla } from "@/lib/mensajeria/neuronas/bandeja";
 import {
-    enviarANeurona, marcarConversacionLeida, reintentarMensaje, reintentarPendientes, useBandejaMalla,
+    enviarANeurona, fijarHiloAbierto, marcarConversacionLeida, reintentarMensaje, reintentarPendientes, useBandejaMalla,
 } from "@/lib/mensajeria/neuronas/buzon";
 import { resumenPreferencias } from "@/lib/mensajeria/medios/medios";
 import { claveChat, usePreferenciasMedio } from "@/lib/mensajeria/medios/preferencias-store";
+import { AVISO_LIMITES_MEDIOS } from "@/lib/mensajeria/neuronas/datos-neurona";
+import { enviarArchivosANeurona } from "@/lib/mensajeria/neuronas/archivos-neurona";
+import { BotonesLlamadaNeurona, PanelTransmitir, TarjetaArchivo, TarjetaFlujo, TarjetaLlamada } from "@/components/messages/neuronas/datos-hilo";
+
+/** Archivos que se aceptan de una vez (arrastrar o elegir). */
+const MAX_ARCHIVOS_A_LA_VEZ = 20;
 
 export interface HiloNeuronaProps {
     conversacion: ConversacionNeurona;
@@ -60,7 +69,10 @@ function Burbuja({ m, mostrarVia, onReintentar }: { m: MensajeMalla; mostrarVia:
                 }
             >
                 {!mio && m.deNombre && <p className="mb-0.5 text-[11.5px] font-semibold text-[#b7a6ff]">{m.deNombre}</p>}
-                <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-white">{m.texto}</p>
+                {m.adjunto && <TarjetaArchivo m={m} />}
+                {m.llamada && <TarjetaLlamada m={m} />}
+                {m.flujo && <TarjetaFlujo m={m} />}
+                {m.texto && <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-white">{m.texto}</p>}
                 <div className="mt-1 flex flex-wrap items-center justify-end gap-1.5">
                     {(pendiente || (mostrarVia && m.via)) && <PastillaVia via={pendiente ? null : m.via} pendiente={pendiente} mio={mio} />}
                     {m.estado === "fallido" && (
@@ -92,8 +104,38 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
     const [enviando, setEnviando] = useState(false);
     const [reintentando, setReintentando] = useState(false);
     const [ajustes, setAjustes] = useState(false);
+    const [transmitir, setTransmitir] = useState(false);
+    const [arrastrando, setArrastrando] = useState(false);
+    const [mandandoArchivos, setMandandoArchivos] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
     const areaRef = useRef<HTMLTextAreaElement>(null);
+    const archivoRef = useRef<HTMLInputElement>(null);
+
+    // Sus avisos no salen como notificación mientras este chat está a la vista.
+    useEffect(() => {
+        fijarHiloAbierto(conversacion.clave);
+        return () => fijarHiloAbierto(null);
+    }, [conversacion.clave]);
+
+    const mandarArchivos = async (lista: FileList | File[] | null | undefined) => {
+        const archivos = Array.from(lista ?? []);
+        if (!archivos.length || mandandoArchivos) return;
+        if (archivos.length > MAX_ARCHIVOS_A_LA_VEZ) toast.message(`Van los ${MAX_ARCHIVOS_A_LA_VEZ} primeros; el resto, en otra tanda.`);
+        setMandandoArchivos(true);
+        try {
+            const res = await enviarArchivosANeurona({ clave: conversacion.clave, destino: conversacion.destino, archivos: archivos.slice(0, MAX_ARCHIVOS_A_LA_VEZ) });
+            const fallidos = res.filter((r) => !r.ok);
+            if (fallidos.length) toast.error(fallidos[0].aviso || "Algún archivo no pudo salir: mira su tarjeta.");
+        } finally {
+            setMandandoArchivos(false);
+        }
+    };
+
+    const alArrastrar = (e: DragEvent<HTMLDivElement>) => {
+        if (!e.dataTransfer?.types?.includes("Files")) return;
+        e.preventDefault();
+        if (!arrastrando) setArrastrando(true);
+    };
 
     // Leída al abrir y cada vez que llega algo con el chat a la vista.
     const ultimoAt = mensajes.length ? mensajes[mensajes.length - 1].at : 0;
@@ -148,7 +190,32 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
         : conversacion.detalle;
 
     return (
-        <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
+        <div
+            className="relative flex h-full min-h-0 flex-col overflow-hidden"
+            onDragEnter={alArrastrar}
+            onDragOver={alArrastrar}
+            onDragLeave={(e) => {
+                if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+                setArrastrando(false);
+            }}
+            onDrop={(e) => {
+                if (!e.dataTransfer?.files?.length) return;
+                e.preventDefault();
+                setArrastrando(false);
+                void mandarArchivos(e.dataTransfer.files);
+            }}
+        >
+            {arrastrando && (
+                <div
+                    className="pointer-events-none absolute inset-2 z-30 flex flex-col items-center justify-center gap-2 rounded-[22px] text-center text-white"
+                    style={{ background: "rgba(10,12,28,.82)", boxShadow: `inset 0 0 0 2px ${ACENTO.mensajes}aa` }}
+                    data-testid="soltar-archivos"
+                >
+                    <Upload className="h-8 w-8 text-[#b7a6ff]" aria-hidden />
+                    <p className="text-[14px] font-semibold">Suelta para mandarlos a {conversacion.nombre}</p>
+                    <p className="max-w-xs text-[12px] text-white/65">Cualquier formato, varios a la vez. Viajan por el medio más directo que permitan los ajustes de este chat.</p>
+                </div>
+            )}
             <header className="flex shrink-0 items-center gap-2.5 border-b border-white/[0.06] px-3 py-2.5 sm:px-4">
                 {onAtras && (
                     <button
@@ -165,6 +232,7 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
                     <h2 className="truncate text-[15px] font-semibold text-white">{conversacion.nombre}</h2>
                     <p className="truncate text-[12px] text-white/55">{subtitulo}</p>
                 </div>
+                <BotonesLlamadaNeurona conversacion={conversacion} compacto={esMovil} />
                 <button
                     type="button"
                     onClick={() => setAjustes(true)}
@@ -221,7 +289,7 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
                             <Route className="h-6 w-6 text-white/85" />
                         </span>
                         <p className="max-w-xs text-[13.5px] text-white/70">
-                            Escribe a {conversacion.nombre}. Cada mensaje dice por dónde viajó: la malla sin internet, tu red local, internet o el servidor.
+                            Escribe, llama, comparte tu pantalla, transmite en vivo o manda archivos de cualquier formato a {conversacion.nombre}. Cada uno dice por dónde viajó: la malla sin internet, tu red local, internet o el servidor.
                         </p>
                     </div>
                 ) : (
@@ -236,6 +304,39 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
 
             <div className="shrink-0 border-t border-white/[0.06] px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
                 <div className="flex items-end gap-2">
+                    <input
+                        ref={archivoRef}
+                        type="file"
+                        multiple
+                        className="hidden"
+                        aria-hidden
+                        tabIndex={-1}
+                        data-testid="entrada-archivos"
+                        onChange={(e) => {
+                            const lista = e.target.files ? Array.from(e.target.files) : [];
+                            e.target.value = "";
+                            void mandarArchivos(lista);
+                        }}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => archivoRef.current?.click()}
+                        disabled={mandandoArchivos}
+                        aria-label={`Mandar archivos a ${conversacion.nombre}`}
+                        title={`Archivos de cualquier formato (también arrastrándolos). ${AVISO_LIMITES_MEDIOS}`}
+                        className="ss-redondo grid h-[42px] w-[42px] shrink-0 cursor-pointer place-items-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-wait disabled:opacity-50"
+                    >
+                        {mandandoArchivos ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setTransmitir(true)}
+                        aria-label={`Transmitir en vivo a ${conversacion.nombre}`}
+                        title="Transmitir en vivo (texto que llega mientras lo escribes)"
+                        className="ss-redondo grid h-[42px] w-[42px] shrink-0 cursor-pointer place-items-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+                    >
+                        <Radio className="h-4 w-4" />
+                    </button>
                     <textarea
                         ref={areaRef}
                         value={texto}
@@ -272,8 +373,23 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
                         </DialogHeader>
                         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
                             <BloqueMedioTransmision tipo="neurona" clave={clavePrefs} />
+                            <p className="mt-3 text-[12px] text-white/55">{AVISO_LIMITES_MEDIOS}</p>
                         </div>
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={transmitir} onOpenChange={setTransmitir}>
+                <DialogContent className="max-md:left-0 max-md:top-0 max-md:h-[100dvh] max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none md:max-w-lg border-white/10 bg-[rgba(10,12,28,0.96)] backdrop-blur-2xl sm:rounded-[24px]">
+                    <DialogHeader className="text-left">
+                        <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+                            <Radio className="h-4 w-4 text-[#39FF14]" /> Transmitir en vivo
+                        </DialogTitle>
+                        <DialogDescription className="text-[13px] text-white/60">
+                            A <span className="font-medium text-white/85">{conversacion.nombre}</span>
+                        </DialogDescription>
+                    </DialogHeader>
+                    {transmitir && <PanelTransmitir conversacion={conversacion} onCerrar={() => setTransmitir(false)} />}
                 </DialogContent>
             </Dialog>
         </div>

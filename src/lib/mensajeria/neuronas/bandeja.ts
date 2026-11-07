@@ -9,6 +9,30 @@
 
 import type { DescarteMedio, ViaMensaje } from "@/lib/mensajeria/medios/tipos";
 import type { DestinoMalla } from "@/lib/mensajeria/medios/enviar";
+import {
+    faseTrasRecarga,
+    leerAdjunto,
+    leerFlujoRef,
+    leerLlamada,
+    registroTrasRecarga,
+    type AdjuntoNeurona,
+    type FaseArchivoNeurona,
+    type FlujoNeuronaRef,
+    type LlamadaNeurona,
+    type RegistroLlamada,
+} from "@/lib/mensajeria/neuronas/datos-neurona";
+
+/** (NEU1107A) Estado local de un archivo del chat (se guarda con el mensaje, en este aparato). */
+export interface EstadoArchivoMensaje {
+    fase: FaseArchivoNeurona;
+    /** 0–100 mientras viaja (lo último que se vio). */
+    porcentaje?: number | null;
+    motivo?: string;
+    /** El archivo entero está guardado en ESTE aparato (se puede ver y bajar sin internet). */
+    guardado?: boolean;
+    /** Enlaces por los que viajó («Tablet de Alex + Wi-Fi local» si fue por varios). */
+    enlaces?: string[];
+}
 
 export type EstadoMensajeMalla = "enviando" | "enviado" | "confirmado" | "en-espera" | "fallido" | "recibido";
 
@@ -37,6 +61,18 @@ export interface MensajeMalla {
     intentos?: number;
     /** Por qué no salió por cada medio (cuando espera o falló). */
     descartados?: DescarteMedio[];
+    /** (NEU1107A) Archivo de cualquier formato (por la malla o por el almacenamiento de la cuenta). */
+    adjunto?: AdjuntoNeurona;
+    /** (NEU1107A) Llamada de voz o vídeo, o pantalla compartida (el timbre y su registro). */
+    llamada?: LlamadaNeurona;
+    /** (NEU1107A) Transmisión de datos en vivo (lo vivo está en memoria: `flujos-neurona.ts`). */
+    flujo?: FlujoNeuronaRef;
+    /** (NEU1107A) No espera un medio: si no sale ya, falla (timbres y anuncios de flujos). */
+    urgente?: boolean;
+    /** (NEU1107A) Estado local del archivo (fase, progreso, si está guardado aquí). */
+    archivo?: EstadoArchivoMensaje;
+    /** (NEU1107A) Cómo fue la llamada (sonando, en curso, duración, perdida…). */
+    registroLlamada?: RegistroLlamada;
 }
 
 export interface ConversacionMalla {
@@ -65,8 +101,13 @@ export function esClaveNeurona(clave: string): boolean {
 export function anadirMensaje(e: EstadoBandeja, m: MensajeMalla, max = MAX_POR_CONVERSACION): EstadoBandeja {
     const c = e.conv[m.clave] ?? { mensajes: [], leidoHasta: 0 };
     const previo = c.mensajes.find((x) => x.id === m.id);
-    // Un duplicado entrante (llegó por dos caminos) no pisa al primero.
-    if (previo && m.dir === "entra" && previo.dir === "entra") return e;
+    // Un duplicado entrante (llegó por dos caminos) no pisa al primero… salvo (NEU1107A) que traiga
+    // el mismo archivo por otro medio (p. ej. ya subido al almacenamiento de la cuenta).
+    if (previo && m.dir === "entra" && previo.dir === "entra") {
+        const otroMedio = !!m.adjunto && !!previo.adjunto && (m.adjunto.modo !== previo.adjunto.modo || m.adjunto.url !== previo.adjunto.url);
+        if (!otroMedio) return e;
+        return actualizarMensaje(e, m.clave, m.id, { adjunto: m.adjunto, archivo: undefined, via: m.via ?? previo.via });
+    }
     const sin = c.mensajes.filter((x) => x.id !== m.id);
     const mensajes = [...sin, previo ? { ...previo, ...m } : m].sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1));
     const recortados = mensajes.length > max ? mensajes.slice(mensajes.length - max) : mensajes;
@@ -147,9 +188,20 @@ export function leerBandeja(crudo: string | null): EstadoBandeja {
             // Lo que quedó «enviando» al cerrar la pestaña no se perdió: pasa a esperar y se reintenta.
             conv[k] = {
                 leidoHasta: typeof (c as ConversacionMalla).leidoHasta === "number" ? (c as ConversacionMalla).leidoHasta : 0,
-                mensajes: mensajes.map((m) =>
-                    m.estado === "enviando" ? { ...m, estado: "en-espera" as const, aviso: "Se cerró la pestaña mientras salía: se reintenta." } : m,
-                ),
+                mensajes: mensajes.map((m0) => {
+                    // (NEU1107A) Lo que viajaba (archivo o llamada) ya no tiene motor tras recargar.
+                    const fase = m0.archivo ? faseTrasRecarga(m0.archivo.fase) : undefined;
+                    const m = {
+                        ...m0,
+                        ...(m0.archivo && fase ? { archivo: { ...m0.archivo, fase } } : {}),
+                        ...(m0.registroLlamada ? { registroLlamada: registroTrasRecarga(m0.registroLlamada) } : {}),
+                    };
+                    return m.estado !== "enviando"
+                        ? m
+                        : m.urgente
+                            ? { ...m, estado: "fallido" as const, aviso: "Se cerró la pestaña mientras salía." }
+                            : { ...m, estado: "en-espera" as const, aviso: "Se cerró la pestaña mientras salía: se reintenta." };
+                }),
             };
         }
         const vias = o.vias && typeof o.vias === "object" ? (o.vias as Record<string, ViaMensaje>) : {};
@@ -167,13 +219,24 @@ export interface CuerpoNeurona {
     at?: number;
     de: { n?: string; nom?: string; u?: string };
     para?: { n?: string; u?: string };
+    /** (NEU1107A) Archivo anunciado (la transferencia P2P va aparte, por el motor de archivos). */
+    adj?: AdjuntoNeurona;
+    /** (NEU1107A) Timbre o registro de una llamada. */
+    ll?: LlamadaNeurona;
+    /** (NEU1107A) Transmisión en vivo anunciada (los trozos van por el canal «neurona-flujo»). */
+    fd?: FlujoNeuronaRef;
 }
 
 export function leerCuerpoNeurona(x: unknown): CuerpoNeurona | null {
     if (!x || typeof x !== "object") return null;
     const o = x as Record<string, unknown>;
     if (typeof o.mid !== "string" || !o.mid || o.mid.length > 80) return null;
-    if (typeof o.txt !== "string" || !o.txt.trim() || o.txt.length > 4000) return null;
+    const adj = o.adj === undefined ? null : leerAdjunto(o.adj);
+    const ll = o.ll === undefined ? null : leerLlamada(o.ll);
+    const fd = o.fd === undefined ? null : leerFlujoRef(o.fd);
+    // Un archivo, una llamada o un flujo pueden ir sin texto; un mensaje solo de texto, no.
+    const conDatos = !!(adj || ll || fd);
+    if (typeof o.txt !== "string" || o.txt.length > 4000 || (!conDatos && !o.txt.trim())) return null;
     const de = (o.de && typeof o.de === "object" ? o.de : {}) as Record<string, unknown>;
     const para = (o.para && typeof o.para === "object" ? o.para : {}) as Record<string, unknown>;
     const corto = (v: unknown, n = 80) => (typeof v === "string" && v.length <= n ? v : undefined);
@@ -184,6 +247,9 @@ export function leerCuerpoNeurona(x: unknown): CuerpoNeurona | null {
         at: typeof o.at === "number" && Number.isFinite(o.at) ? o.at : undefined,
         de: { n: corto(de.n), nom: corto(de.nom, 60), u: corto(de.u) },
         para: { n: corto(para.n), u: corto(para.u) },
+        ...(adj ? { adj } : {}),
+        ...(ll ? { ll } : {}),
+        ...(fd ? { fd } : {}),
     };
 }
 
@@ -195,6 +261,10 @@ export interface CuerpoChatMalla {
     txt: string;
     at?: number;
     de: { u?: string };
+    /** (NEU1107A) Archivo por la malla en un chat o grupo (los trozos van por el motor de archivos). */
+    adj?: AdjuntoNeurona;
+    /** (NEU1107A) Llamada directa por el enlace sin internet en un chat (su burbuja). */
+    ll?: LlamadaNeurona;
 }
 
 export function leerCuerpoChatMalla(x: unknown): CuerpoChatMalla | null {
@@ -202,7 +272,9 @@ export function leerCuerpoChatMalla(x: unknown): CuerpoChatMalla | null {
     const o = x as Record<string, unknown>;
     if (typeof o.mid !== "string" || !o.mid || o.mid.length > 80) return null;
     if (typeof o.h !== "string" || !o.h || o.h.length > 80) return null;
-    if (typeof o.txt !== "string" || !o.txt.trim() || o.txt.length > 4000) return null;
+    const adj = o.adj === undefined ? null : leerAdjunto(o.adj);
+    const ll = o.ll === undefined ? null : leerLlamada(o.ll);
+    if (typeof o.txt !== "string" || o.txt.length > 4000 || (!adj && !ll && !o.txt.trim())) return null;
     const de = (o.de && typeof o.de === "object" ? o.de : {}) as Record<string, unknown>;
     return {
         v: 1,
@@ -211,6 +283,8 @@ export function leerCuerpoChatMalla(x: unknown): CuerpoChatMalla | null {
         txt: o.txt,
         at: typeof o.at === "number" && Number.isFinite(o.at) ? o.at : undefined,
         de: { u: typeof de.u === "string" && de.u.length <= 80 ? de.u : undefined },
+        ...(adj ? { adj } : {}),
+        ...(ll ? { ll } : {}),
     };
 }
 

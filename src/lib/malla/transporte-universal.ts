@@ -591,6 +591,80 @@ export async function enviarArchivo(
   }
 }
 
+/* ══════════════════════════ Canal de datos en vivo (NEU1107A) ══════════════════════════ */
+
+export interface CanalDatosAbierto {
+  enlace: { id: string; tipo: TipoEnlace; etiqueta: string; ruta: string | null; rttMs: number | null };
+  /** Manda un cuerpo por ese enlace SIN esperar acuse (tiempo real). false si el canal no lo aceptó. */
+  enviar(cuerpo: unknown): boolean;
+  /** Bytes en cola del enlace (si lo da), para que quien emite frene. */
+  enCola(): number | null;
+}
+
+/**
+ * abrirCanalDatos — canal de datos EN VIVO hacia `destino` por UN enlace P2P (local, malla de la
+ * cuenta o vínculo entre cuentas; respeta `destino.enlaceId` si se da). Cada envío es un sobre
+ * `tu.msg` del canal de aplicación `canal`, sin esperar el acuse de cada uno: el receptor lo recibe
+ * con `alRecibirMensaje(canal)` y descarta duplicados por id. Relé y LoRa no llevan flujos (se dice
+ * en `descartados`). Nunca lanza.
+ */
+export async function abrirCanalDatos(
+  destino: DestinoTransporte,
+  canal: string,
+): Promise<{ ok: true; canal: CanalDatosAbierto } | { ok: false; motivo: string; descartados: Eleccion["descartados"] }> {
+  let lista: EnlaceDisponible[] = [];
+  try {
+    lista = await enlacesDisponibles();
+  } catch {
+    lista = [];
+  }
+  const eleccion = elegirEnlaces(lista, destino, "mensaje", 0, {});
+  const descartados = [...eleccion.descartados];
+  let elegido: EnlaceDisponible | null = null;
+  for (const { enlace } of eleccion.elegidos) {
+    if (enlace.tipo === "rele" || enlace.tipo === "lora") {
+      descartados.push({ id: enlace.id, tipo: enlace.tipo, motivo: enlace.tipo === "lora" ? "LoRa no lleva transmisiones en vivo" : "el relé del servidor no lleva transmisiones en vivo" });
+      continue;
+    }
+    elegido ??= enlace;
+  }
+  if (!elegido) return { ok: false, motivo: "No hay ningún enlace P2P abierto hacia ese aparato.", descartados };
+  const e = elegido;
+  const origen = (() => {
+    try {
+      return { s: identidadDispositivo().syncDeviceId };
+    } catch {
+      return {};
+    }
+  })();
+  return {
+    ok: true,
+    canal: {
+      enlace: { id: e.id, tipo: e.tipo, etiqueta: e.etiqueta, ruta: e.ruta ?? null, rttMs: typeof e.rttMs === "number" ? e.rttMs : null },
+      enviar(cuerpo) {
+        const sobre: SobreMensaje = { t: "tu.msg", v: 1, id: nuevoId(), c: canal, b: cuerpo, de: origen };
+        try {
+          return enviarP2PReal(e, JSON.stringify(sobre));
+        } catch {
+          return false;
+        }
+      },
+      enCola() {
+        try {
+          if (e.tipo === "local") return enlaceLocal(e.id)?.bufferedAmount() ?? null;
+          if (e.tipo === "cuenta" && e.alcanza.syncDeviceId) {
+            const mesh = getSharedMesh();
+            return mesh?.bufferedAmount ? (mesh.bufferedAmount as (d: string) => number)(e.alcanza.syncDeviceId) : null;
+          }
+        } catch {
+          /* sin medida */
+        }
+        return null;
+      },
+    },
+  };
+}
+
 /* ══════════════════════════ Flujos (audio/vídeo) ══════════════════════════ */
 
 /** Enlace local que llega a `destino`, si lo hay (las llamadas directas van solo por ahí). */

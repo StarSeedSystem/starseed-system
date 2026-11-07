@@ -47,7 +47,11 @@ import {
 // Medio de transmisión y vía de cada mensaje (MSJ1107A).
 import { enviarMensajeChat, quitarMensajeMalla, useBandejaMalla } from "@/lib/mensajeria/neuronas/buzon";
 import { viaServidor } from "@/lib/mensajeria/medios/medios";
-import { usePreferenciasMedio } from "@/lib/mensajeria/medios/preferencias-store";
+import { claveChat, usePreferenciasMedio } from "@/lib/mensajeria/medios/preferencias-store";
+// (NEU1107A) Archivos y llamadas directas por la malla cuando el medio elegido del chat es la malla.
+import { textoLlamada } from "@/lib/mensajeria/neuronas/datos-neurona";
+import { BarraMallaChat, TarjetaDatosMalla } from "@/components/messages/neuronas/datos-hilo";
+import { enviarArchivosAChatMalla } from "@/lib/mensajeria/neuronas/archivos-neurona";
 import type { ViaMensaje } from "@/lib/mensajeria/medios/tipos";
 import type { PendienteVia } from "@/components/messages/medios/pastilla-via";
 const PanelInfoHilo = dynamic(() => import("@/components/messages/info/panel-info-hilo").then((m) => m.PanelInfoHilo), { ssr: false });
@@ -274,6 +278,19 @@ export function ThreadView({
     // mezclan con los del servidor; los entrantes solo si los manda alguien de este chat.
     const bandejaMalla = useBandejaMalla();
     const mediosApi = usePreferenciasMedio();
+    // (NEU1107A) ¿Va este chat por la malla? (medios elegidos sin el servidor, o sin internet).
+    const mediosChat = usePreferenciasMedio(claveChat(tipo === "grupo" ? "grupo" : "dm", thread.id));
+    const [sinRed, setSinRed] = useState(() => typeof navigator !== "undefined" && navigator.onLine === false);
+    useEffect(() => {
+        const cambiar = () => setSinRed(navigator.onLine === false);
+        window.addEventListener("online", cambiar);
+        window.addEventListener("offline", cambiar);
+        return () => {
+            window.removeEventListener("online", cambiar);
+            window.removeEventListener("offline", cambiar);
+        };
+    }, []);
+    const soloMalla = sinRed || (mediosChat.efectivas.modo === "elegidos" && !mediosChat.efectivas.elegidos.includes("servidor"));
     const localesMalla = bandejaMalla.conv[`dm:${thread.id}`]?.mensajes;
     const deMalla = useMemo<DmMessage[]>(() => {
         const miembrosHilo = new Set(idsMiembros);
@@ -283,7 +300,7 @@ export function ThreadView({
                 id: `malla:${m.id}`,
                 threadId: thread.id,
                 sender: m.dir === "sale" ? myUserId : m.deUid ?? null,
-                body: m.texto,
+                body: m.texto || (m.adjunto ? `Archivo por la malla: ${m.adjunto.nombre}` : m.llamada ? textoLlamada(m.llamada, m.dir) : ""),
                 attachments: [] as DmAttachment[],
                 replyTo: null,
                 kind: "user" as const,
@@ -544,6 +561,15 @@ export function ThreadView({
                     if (!e.dataTransfer?.files?.length) return;
                     e.preventDefault();
                     setArrastrando(false);
+                    // (NEU1107A) Por la malla, los archivos van P2P a cada persona del chat.
+                    if (soloMalla) {
+                        const archivos = Array.from(e.dataTransfer.files).slice(0, 20);
+                        void enviarArchivosAChatMalla({ hiloId: thread.id, tipo: esGrupo ? "grupo" : "dm", otros: idsMiembros.filter((id) => id !== myUserId), archivos }).then((res) => {
+                            const fallo = res.find((r) => !r.ok);
+                            if (fallo) toast.error(fallo.aviso || "Algún archivo no pudo salir por la malla: mira su tarjeta.");
+                        });
+                        return;
+                    }
                     composerRef.current?.recibirArchivos(e.dataTransfer.files);
                 }}
             >
@@ -698,6 +724,10 @@ export function ThreadView({
                                         else toast.error("No se pudo eliminar el mensaje.");
                                     }}
                                 />
+                                {m.id.startsWith("malla:") && (() => {
+                                    const local = localesMalla?.find((x) => `malla:${x.id}` === m.id);
+                                    return local && (local.adjunto || local.llamada) ? <TarjetaDatosMalla m={local} /> : null;
+                                })()}
                             </div>
                         );
                     })}
@@ -721,6 +751,9 @@ export function ThreadView({
                     )}
                 </AnimatePresence>
 
+                {soloMalla && (
+                    <BarraMallaChat hiloId={thread.id} tipo={esGrupo ? "grupo" : "dm"} otros={idsMiembros.filter((id) => id !== myUserId)} nombre={titulo} />
+                )}
                 <ComposerHilo
                     ref={composerRef}
                     hiloId={thread.id}
