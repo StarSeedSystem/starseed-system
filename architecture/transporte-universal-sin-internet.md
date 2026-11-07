@@ -30,7 +30,8 @@ Dependencia nueva: `qrcode` + `@types/qrcode` (solo se carga al dibujar un QR, c
 
 | Rango | Enlace | Cuándo |
 |---|---|---|
-| 0 | `local` — emparejado sin internet (código/QR) | Siempre primero: ni servidores ni internet |
+| 0 | `local` — emparejado sin internet (código/QR, o abierto solo entre dos apps nativas vinculadas: `local:nativo-…`) | Siempre primero: ni servidores ni internet |
+| 0 | `nativo` — canal TCP de la app nativa con una neurona vinculada (`nativo:<ip>`, MLT1107A) | Detrás del WebRTC del rango 0; mensajes y archivos, sin flujos (ver `datos-por-la-malla.md` §6) |
 | 1 | `cuenta`/`par` con ruta medida `misma-red-local` | Canal WebRTC señalizado por internet cuyo tráfico ya va por el Wi-Fi |
 | 2 | `cuenta`/`par` por internet directo o sin medir | |
 | 3 | `cuenta`/`par` reenviado por TURN | |

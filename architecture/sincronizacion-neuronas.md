@@ -32,11 +32,16 @@ de datos entre neuronas.
 - `malla_local_estado` → `{ escuchando, puerto, motivo, ultimo_seq, vecinos: [{ ip, propia, neurona,
   tipo, puerto, canal, visto_hace_s }] }`. `canal`: `true` su faro anuncia el canal, `false` su app es
   anterior, `null` no se sabe (faros anónimos o de otra cuenta).
-- Oyente: corta conexiones que no vengan de la red local, ≤ 8 a la vez, 30 mensajes/10 s por IP, 3 s por
-  conexión, un mensaje por conexión. Hilo propio: sigue con la ventana cerrada mientras la app viva.
+- Oyente: corta conexiones que no vengan de la red local, ≤ 8 a la vez, 300 mensajes/10 s por IP
+  (30 hasta la app 0.5.0; MLT1107A lo subió para los archivos), 3 s por conexión, un mensaje por
+  conexión. Hilo propio: sigue con la ventana cerrada mientras la app viva. `malla_local_estado`
+  también dice `max_cuerpo`, `limite_mensajes` y `limite_ventana_ms` (una app anterior no los dice).
 - Lo que viaja dentro es un sobre del transporte universal `{"t":"tu.msg","v":1,"id","c","b","de"}`; el
-  canal `sync` va al motor y los demás canales a `despacharTextoTransporte` (enlace `nativo:<ip>`).
-  `{"t":"tu.ping"}` solo mide la ida y vuelta.
+  canal `sync` va al motor de sincronización (de cualquiera: va firmado y es lo que crea el vínculo).
+  `{"t":"tu.ping"}` solo mide la ida y vuelta. Desde MLT1107A la entrada abre los `nl.lote` y lo
+  demás (`tu.*` de otros canales, `archivo.*`, `nl.hola`, `nl.sen`) va al enlace `nativo:<ip>`
+  (`red-local-nativa-motor.ts`), que solo lo atiende de una neurona VINCULADA ligada por un saludo
+  firmado con la huella del vínculo. Contrato: `architecture/datos-por-la-malla.md` §6.
 
 Permisos del sistema: macOS pide «Red local» (ya declarado en `Info.plist`) y puede preguntar por
 conexiones entrantes si el cortafuegos está activo; Windows enseña el aviso del Firewall para el TCP
