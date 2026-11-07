@@ -40,6 +40,8 @@ mod faro;
 mod malla_local;
 mod malla_local_trama;
 mod nativa;
+// (VER1107B) «Esta neurona»: versión instalada, sistema, aparato y búsqueda de actualización sin instalar.
+mod neurona_info;
 mod recursos_ia;
 #[cfg(desktop)]
 mod segundo_plano;
@@ -270,6 +272,23 @@ mod actualizacion {
         Ok(Some(version))
     }
 
+    /// (VER1107B) Solo BUSCA en el canal de esta app (`latest*.json`, el mismo `check()` que la
+    /// vigilancia): no descarga, no instala y no emite eventos ni toca el estado compartido. La web lo
+    /// usa para no abrir «Hay una versión nueva» cuando la versión publicada aún no está lista para
+    /// este sistema (el canal todavía no la ofrece).
+    pub async fn buscar(app: AppHandle) -> Result<crate::neurona_info::BusquedaActualizacion, String> {
+        let actual = app.package_info().version.to_string();
+        let updater = app.updater().map_err(|e| format!("Updater no disponible: {e}"))?;
+        let encontrado = updater
+            .check()
+            .await
+            .map_err(|e| format!("No se pudo comprobar actualizaciones: {e}"))?;
+        Ok(crate::neurona_info::busqueda(
+            &actual,
+            encontrado.map(|u| (u.version.clone(), u.body.clone(), crate::neurona_info::fecha_de_json(&u.raw_json))),
+        ))
+    }
+
     /// Hilo de fondo que espera ~25 s tras el arranque (para no competir con la
     /// primera carga de la web) y luego comprueba actualizaciones cada 6 h.
     ///
@@ -473,6 +492,60 @@ fn device_info(app: tauri::AppHandle) -> DeviceInfo {
     }
 }
 
+// ───────────────────── Comandos: info_neurona / buscar_actualizacion (VER1107B) ─────────────────────
+
+/// «Esta neurona»: lo que la app nativa sabe de sí misma (versión instalada, qué sistema es, sistema
+/// operativo, arquitectura, equipo o modelo, Tauri). Lo lee la web para Ajustes › Esta neurona, para
+/// la presencia de la neurona y para comparar versiones (nunca con el build de la web). Nada se inventa:
+/// lo que el sistema no dice va como `None`.
+#[tauri::command]
+fn info_neurona(app: tauri::AppHandle) -> neurona_info::InfoNeurona {
+    let identificador = app.config().identifier.clone();
+    let escritorio = cfg!(desktop);
+    #[cfg(target_os = "android")]
+    let (equipo, modelo) = (
+        None,
+        neurona_info::componer_modelo(
+            neurona_info::propiedad_android("ro.product.manufacturer").as_deref(),
+            neurona_info::propiedad_android("ro.product.model").as_deref(),
+        ),
+    );
+    #[cfg(not(target_os = "android"))]
+    let (equipo, modelo) = (
+        neurona_info::limpiar(&tauri_plugin_os::hostname()).or_else(|| hostname_best_effort().as_deref().and_then(neurona_info::limpiar)),
+        None,
+    );
+    neurona_info::InfoNeurona {
+        app_version: app.package_info().version.to_string(),
+        app_nombre: app.package_info().name.clone(),
+        sistema: neurona_info::sistema_de_identificador(&identificador).to_string(),
+        identificador,
+        plataforma: tauri_plugin_os::platform().to_string(),
+        so_version: neurona_info::limpiar(&tauri_plugin_os::version().to_string()),
+        arquitectura: tauri_plugin_os::arch().to_string(),
+        equipo,
+        modelo,
+        tauri_version: tauri::VERSION.to_string(),
+        escritorio,
+        actualizador: escritorio,
+    }
+}
+
+/// Busca la versión nueva en el canal de esta app SIN descargarla ni instalarla (escritorio). En
+/// móvil no hay updater: la versión nueva es el .apk de la misma firma (lo decide la web).
+#[tauri::command]
+async fn buscar_actualizacion(app: tauri::AppHandle) -> Result<neurona_info::BusquedaActualizacion, String> {
+    #[cfg(desktop)]
+    {
+        actualizacion::buscar(app).await
+    }
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+        Err("En móvil la versión nueva llega instalando el APK de la misma firma.".to_string())
+    }
+}
+
 /// Resuelve el hostname sin dependencias extra: variable de entorno primero,
 /// y en Unix el comando `hostname` como respaldo. Nunca falla (Option).
 fn hostname_best_effort() -> Option<String> {
@@ -590,6 +663,8 @@ pub fn run() {
                 reiniciar_para_actualizar,
                 estado_actualizacion,
                 device_info,
+                info_neurona,
+                buscar_actualizacion,
                 recursos_ia::recursos_ia_detectar,
                 nativa::antenas_estado,
                 nativa::antenas_medir,

@@ -64,9 +64,10 @@ describe("hayActualizacion", () => {
     expect(hayActualizacion({ medio: "android", instalada: "1.0.0", publicada: "1.1" })).toBe(true);
   });
 
-  it("para nativos con basura no lanza y trata partes no numéricas como 0", () => {
+  it("para nativos con basura no lanza y NO compara (VER1107B: antes «abc» contaba como 0 y todo era más nuevo)", () => {
     expect(() => hayActualizacion({ medio: "escritorio", instalada: "abc", publicada: "1.0.0" })).not.toThrow();
-    expect(hayActualizacion({ medio: "escritorio", instalada: "abc", publicada: "1.0.0" })).toBe(true);
+    expect(hayActualizacion({ medio: "escritorio", instalada: "abc", publicada: "1.0.0" })).toBe(false);
+    expect(hayActualizacion({ medio: "escritorio", instalada: "mvq6sg7z-kt91hk", publicada: "0.5.0" })).toBe(false);
     expect(hayActualizacion({ medio: "escritorio", instalada: "1.0.0", publicada: "xyz" })).toBe(false);
   });
 });

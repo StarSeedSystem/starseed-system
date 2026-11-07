@@ -251,3 +251,14 @@ export function compararVersiones(a: string, b: string): number {
 export function esVersionMasNueva(candidata: string, actual: string): boolean {
   return compararVersiones(candidata, actual) > 0;
 }
+
+/**
+ * (VER1107B) ¿Es una versión de verdad («0.5.0», «v1.2.3», «0.6.0-beta.1»; también «1.1» o
+ * «1.2.3.4», números separados por puntos)? `compararVersiones` cuenta como 0 lo que no es número,
+ * así que un build de la web («mvq6sg7z-kt91hk») parecía la versión 0 y TODA versión publicada salía
+ * «más nueva». Antes de comparar versiones nativas, esto.
+ */
+export function esVersionSemver(v: unknown): boolean {
+  if (typeof v !== "string") return false;
+  return /^\d{1,6}(?:\.\d{1,6}){1,3}(?:[-+][0-9A-Za-z.-]{1,40})?$/.test(v.trim().replace(/^v/i, ""));
+}

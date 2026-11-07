@@ -125,6 +125,8 @@
     "allow-reiniciar-para-actualizar",
     "allow-estado-actualizacion",
     "allow-device-info",
+    "allow-info-neurona",
+    "allow-buscar-actualizacion",
     "allow-recursos-ia-detectar",
     "allow-antenas-estado",
     "allow-antenas-medir",

@@ -22,6 +22,9 @@ const COMANDOS_APP: &[&str] = &[
     "reiniciar_para_actualizar",
     "estado_actualizacion",
     "device_info",
+    // (VER1107B) «Esta neurona» y buscar la versión nueva sin instalarla.
+    "info_neurona",
+    "buscar_actualizacion",
     "recursos_ia_detectar",
     "antenas_estado",
     "antenas_medir",

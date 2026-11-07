@@ -117,6 +117,17 @@ describe("contrato web ↔ app nativa", () => {
     expect(rust("servidor_capas.rs")).toContain('get("updater")?.get("pubkey")');
   });
 
+  it("(VER1107B) info_neurona y buscar_actualizacion: Rust ↔ info-neurona.ts, registrados y con permiso", () => {
+    const web = ts("info-neurona.ts");
+    const rs = rust("neurona_info.rs");
+    expect(camposTs(web, "InfoNeuronaNativa")).toEqual(camposRust(rs, "InfoNeurona"));
+    expect(camposTs(web, "BusquedaActualizacion")).toEqual(camposRust(rs, "BusquedaActualizacion"));
+    expect(web).toContain('COMANDO_INFO = "info_neurona"');
+    expect(web).toContain('COMANDO_BUSCAR = "buscar_actualizacion"');
+    const def = JSON.parse(readFileSync(join(process.cwd(), "native/src-tauri/capabilities/default.json"), "utf8"));
+    expect(def.permissions).toEqual(expect.arrayContaining(["allow-info-neurona", "allow-buscar-actualizacion", "core:app:default"]));
+  });
+
   it("los eventos tienen el mismo nombre a los dos lados", () => {
     const n = rust("nativa.rs");
     for (const ev of ["starseed://antenas", "starseed://serie", "starseed://serie-cerrada"]) {

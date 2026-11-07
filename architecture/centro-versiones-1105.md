@@ -118,3 +118,68 @@ derecho → Abrir» la primera vez y Windows enseña SmartScreen; el updater fun
 - Versiones mayores. Credenciales y secretos.
 - Alex autorizó el 2026-11-05 que el director etiquete y publique versiones menores y parches nativos
   cuando la lista esté terminada, publicada y verificada (este contrato, §2).
+
+## 8 · La versión instalada de verdad (VER1107B · 2026-11-07)
+
+### 8.1 El fallo y su causa (comprobada)
+
+Síntoma: en las apps de escritorio y Android salía «Hay una versión nueva» y, al pulsar «Actualizar
+ahora», el updater contestaba «Ya estás en la última versión.» (texto de `check_update` en `lib.rs`).
+
+Causa: `leerInstalada()` (`src/lib/actualizaciones/version-por-medio.ts`) hacía
+`const { app } = await import("@tauri-apps/api/app")`. Eso no puede funcionar nunca: `@tauri-apps/api` no
+es dependencia de la web (ni en `package.json` ni en `node_modules`) y ese módulo tampoco exporta `app`.
+Siempre lanzaba, se caía a `/version.json` → `build` (un id de build de la web como `"mvq6sg7z-kt91hk"`),
+`compararVersiones` lo leía como `0` (las partes no numéricas cuentan 0) y TODA versión publicada salía
+«más nueva». El updater nativo compara el binario real con `latest.json` (0.5.0) y decía, con razón, «al día».
+
+### 8.2 Reglas para leer y comparar la versión (fuente: `src/lib/nativa/info-neurona.ts`)
+
+1. La versión de la app nativa se lee del objeto GLOBAL de Tauri (`withGlobalTauri: true`), en este orden:
+   `invoke("info_neurona")` (apps con VER1107B) → `__TAURI__.app.getVersion()` (todas: `core:app:default`)
+   → `invoke("plugin:app|version")`. Solo vale una versión numérica (`esVersionSemver`: `0.5.0`, `v1.2.3`,
+   `0.6.0-beta.1`, `1.1`). **Nunca** el build de la web: en la app nativa no se pide `/version.json`.
+2. Si no se sabe la versión instalada, no se abre nada (queda «desconocida» en la última comprobación).
+   `debeAvisar`, `hayActualizacion` y `decidirAviso` devuelven «no» con cualquier lado que no sea semver.
+3. Escritorio: si la lista publicada (`/api/os/versiones`) dice que hay algo más nuevo, ANTES de abrir se
+   pregunta al canal del updater de esa app con `buscar_actualizacion` (solo `check()`: no descarga, no
+   instala, no emite eventos). Si el canal no ofrece nada más nuevo → «StarSeed OS X está publicada, pero
+   aún se está preparando para este sistema»: **sin ventana y sin aviso en Notificaciones**; se guarda en la
+   última comprobación (`starseed.actualizacion.ultima-comprobacion.v1`) y lo enseña Ajustes › Esta neurona.
+   Si el updater falla (red), tampoco se abre. La ventana enseña la versión que ofrece el canal.
+4. Android: no hay updater; la ventana solo se abre si la versión publicada trae el `.apk` de la misma
+   firma (`decidirActualizacionAndroid`); sin él, también «se está preparando».
+5. Si al pulsar «Actualizar ahora» el updater dice que no hay nada, esa versión queda VISTA y se dice
+   «Ya tienes la X.Y.Z.» (la instalada; si lo publicado es más nuevo, «la N aún se está preparando…»).
+   El botón pasa a «Entendido».
+6. Decisión pura en `src/lib/actualizaciones/decision-aviso.ts`; última comprobación en
+   `src/lib/actualizaciones/ultima-comprobacion.ts`.
+
+### 8.3 Comandos nativos nuevos (`native/src-tauri/src/neurona_info.rs` + `lib.rs`)
+
+| Comando | Devuelve | Dónde |
+|---|---|---|
+| `info_neurona` | `{app_version, app_nombre, identificador, sistema (os/cafe/nexus), plataforma, so_version?, arquitectura, equipo?, modelo?, tauri_version, escritorio, actualizador}` | todas las plataformas (`tauri-plugin-os`, que ya era dependencia; Android: `getprop ro.product.manufacturer/model`) |
+| `buscar_actualizacion` | `{actual, disponible?, notas?, fecha?}` (`fecha` = `pub_date` del canal) | escritorio; en móvil devuelve error |
+
+Permisos: los dos están en `COMANDOS_APP` de `build.rs` y como `allow-info-neurona` y
+`allow-buscar-actualizacion` en `capabilities/default.json`, cuyo `remote` incluye la web publicada y los
+diez orígenes del servidor local `http://127.0.0.1:47610…47619` (desde tauri 2.11.1 un comando propio no
+responde a un origen remoto sin su `allow-<comando>`; ver APP1107B). La guardia
+`src/lib/nativa/__tests__/contrato-rust.test.ts` comprueba que lib.rs, build.rs y las capabilities casan.
+Ninguna dependencia nueva.
+
+### 8.4 Las apps ya instaladas (qué les llega y cuándo)
+
+| App instalada | Cómo carga sus páginas | Qué ve de este arreglo |
+|---|---|---|
+| Escritorio 0.1–0.4.x | la ventana ES la web publicada (`https://starseed-os.vercel.app`) | llega al publicar la web. Versión por `getVersion` (core:app se concede al origen remoto). No tiene `buscar_actualizacion` → «sin-comando» → decide con la lista, ya con la versión bien leída: con la 0.5.0 publicada, la ventana sale con razón y el updater la instala. Riesgo: si esa 0.4.x se compiló con tauri ≥ 2.11.1 sin manifiesto de la app, `check_update` desde la web responde «not allowed by ACL»; la ventana lo dice y queda «Ver en la Librería». |
+| Escritorio 0.5.0 | página de arranque del binario → **servidor local** `127.0.0.1:47610–47619` con el build de Next DEL INSTALADOR (APP1107A); respaldo: la web publicada | mientras sirva sus páginas locales **no le llega** el arreglo: la 0.5.0 no tiene las capas del servidor (CAP1107A llegó después de la etiqueta) y su web empaquetada trae el fallo. Lo corrige instalar la versión nativa siguiente: su `check_update` sí tiene permiso, así que cuando `latest.json` ofrezca la 0.5.1 «Actualizar ahora» la instala de verdad. Si cayó al respaldo (web publicada), el arreglo le llega como a la 0.4.x. |
+| Escritorio ≥ 0.5.1 (con este cambio) | servidor local; lo nuevo de la web, por capas (CAP1107A) | todo: `info_neurona` + `buscar_actualizacion`. |
+| Android 0.4.x / 0.5.0 | la web publicada (`tauri.android.conf.json`) | llega al publicar la web: `getVersion` → p. ej. 0.5.0; la ventana solo con una versión más nueva que traiga su `.apk`. |
+| Nexus y Café (todas) | su propia web (`starseed-nexus` / `starseed-cafe.vercel.app`) | esta ventana no vive en su web. Su updater mira SU canal: `tauri.nexus.conf.json` → `latest-nexus.json`, `tauri.cafe.conf.json` → `latest-cafe.json` (la fusión de configuración reemplaza el array `endpoints`), generados por el job `canales-updater` de `native-build.yml`. Revisado: sin cruces. |
+| iOS | PWA | nada cambia (no hay ventana). |
+
+Lo que necesita un aparato real: ver en una Mac con la 0.5.0 que el respaldo/servidor local se comporta
+como dice la tabla; en una app con este cambio, `info_neurona` en macOS/Windows/Linux/Android (nombre de
+equipo, versión del SO, modelo en Android) y `buscar_actualizacion` contra el `latest.json` real.
