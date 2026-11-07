@@ -9,7 +9,7 @@ export async function POST(req: Request): Promise<Response> {
         const body = await req.json();
         
         // Validación de body.kind y body.title
-        if (!body.kind || !ALLOWED_KIND.contains(body.kind)) {
+        if (!body.kind || !ALLOWED_KIND.has(body.kind)) {
             return NextResponse.json(
                 { error: "Kind inválido" },
                 { status: 400 }

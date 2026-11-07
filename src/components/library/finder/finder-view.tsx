@@ -541,11 +541,22 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
     const handlePublishNavigate = useCallback(async (item: SavedItem) => {
         const resolved = item.type === "alias" && item.targetItemId ? itemsById.get(item.targetItemId) ?? item : item;
         const payload = {
-            kind: resolved.type,
+            category: "otro",
             title: resolved.title,
-            url: resolved.url,
-            route: resolved.route,
-            note: resolved.note,
+            kind: resolved.type,
+            payload: {
+                url: resolved.url,
+                route: resolved.route,
+                mime: undefined,
+                type: undefined,
+                thumbnail: undefined,
+                content: undefined,
+                language: undefined,
+                description: resolved.note,
+                ref: { entityKind: entityRef.kind, entityId: entityRef.id, itemId: resolved.id },
+            },
+            folder: "",
+            tags: [],
         };
         try {
             const res = await fetch("/api/publish-item", {
@@ -560,7 +571,7 @@ export function FinderView({ entityRef, accent = "#7FB8FF", aclContext, compact 
             console.error("Error al publicar ítem:", err);
             toast.error("No se pudo publicar", { description: resolved.title });
         }
-    }, [itemsById]);
+    }, [itemsById, entityRef]);
 
     // ── Versiones / edición (§13) ────────────────────────────────────────────
 
