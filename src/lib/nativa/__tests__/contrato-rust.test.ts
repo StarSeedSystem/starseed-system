@@ -72,9 +72,49 @@ describe("contrato web ↔ app nativa", () => {
     for (const c of comunes) expect(permisos(def), c).toContain(allow(c));
     expect(def.remote.urls).toContain("http://127.0.0.1:47610");
     const migracion = [...permisos(cap("migracion-exportar.json")), ...permisos(cap("migracion-importar.json"))];
-    for (const c of escritorio) expect([...permisos(escr), ...migracion], c).toContain(allow(c));
+    const capas = permisos(cap("servidor-capas.json"));
+    for (const c of escritorio) expect([...permisos(escr), ...migracion, ...capas], c).toContain(allow(c));
     // La migración NO se concede a la ventana principal en la web publicada ni a nadie más.
     for (const p of [...permisos(def), ...permisos(escr)]) expect(p).not.toMatch(/^allow-migracion-origen/);
+    // (CAP1107A) «Actualizar ahora» tampoco: solo el servidor local (servidor-capas.json).
+    for (const p of [...permisos(def), ...permisos(escr), ...migracion]) expect(p).not.toBe("allow-servidor-local-actualizar");
+  });
+
+  it("(CAP1107A · T1) capas del servidor: Rust, envoltorio, capa.mjs, capability y web dicen lo mismo", () => {
+    const raiz = (f: string) => readFileSync(join(process.cwd(), f), "utf8");
+    // El estado que lee la pastilla.
+    expect(camposTs(ts("estado-servidor-local.ts"), "EstadoServidorLocal")).toEqual(camposRust(rust("servidor_local.rs"), "EstadoServidorLocal"));
+    const logica = rust("servidor_capas_logica.rs");
+    // Protocolo del envoltorio: el que pone en cada capa lo sabe lanzar esta app.
+    const protocolo = Number(raiz("native/servidor-local/starseed-arranque.cjs").match(/^const PROTOCOLO = (\d+);/m)![1]);
+    const admitidos = logica.match(/pub const PROTOCOLOS_ADMITIDOS: &\[u32\] = &\[([\d, ]+)\];/)![1].split(",").map((x) => Number(x.trim()));
+    expect(admitidos).toContain(protocolo);
+    // Lo que toda capa debe traer y el formato, iguales a los dos lados.
+    const capaMjs = raiz("native/servidor-local/capa.mjs");
+    const reqJs = [...capaMjs.match(/export const REQUERIDOS = \[([^\]]+)\]/)![1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    const reqRs = [...logica.match(/pub const REQUERIDOS: \[&str; \d+\] =\s*\[([^\]]+)\]/)![1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    expect(reqJs).toEqual(reqRs);
+    expect(capaMjs).toMatch(/export const FORMATO = 1;/);
+    expect(logica).toMatch(/pub const FORMATO: u32 = 1;/);
+    // El canal fijo que publica el CI es el que mira la app.
+    const etiqueta = capaMjs.match(/export const ETIQUETA_CANAL = "([^"]+)"/)![1];
+    const nombre = capaMjs.match(/export const NOMBRE_CANAL = "([^"]+)"/)![1];
+    expect(logica).toContain(`pub const CANAL: &str = "https://github.com/StarSeedSystem/starseed-system/releases/download/${etiqueta}/${nombre}";`);
+    // La app mínima de las capas no es más nueva que esta app.
+    const minima = capaMjs.match(/export const APP_MINIMA = "(\d+)\.(\d+)\.(\d+)"/)!.slice(1).map(Number);
+    const conf = JSON.parse(raiz("native/src-tauri/tauri.conf.json"));
+    const app = String(conf.version).split(".").map(Number);
+    expect(minima[0] * 1e6 + minima[1] * 1e3 + minima[2]).toBeLessThanOrEqual(app[0] * 1e6 + app[1] * 1e3 + app[2]);
+    // La capability: solo la ventana principal, solo los diez orígenes locales, solo ese permiso.
+    const cap = JSON.parse(raiz("native/src-tauri/capabilities/servidor-capas.json"));
+    expect(conf.app.security.capabilities).toContain(cap.identifier);
+    expect(cap.windows).toEqual(["main"]);
+    expect(cap.local).toBe(false);
+    expect(cap.permissions).toEqual(["allow-servidor-local-actualizar"]);
+    expect(cap.remote.urls).toHaveLength(10);
+    for (const u of cap.remote.urls) expect(u).toMatch(/^http:\/\/127\.0\.0\.1:476[01]\d$/);
+    // La firma se verifica con la clave del updater (la misma que firma el CI).
+    expect(rust("servidor_capas.rs")).toContain('get("updater")?.get("pubkey")');
   });
 
   it("los eventos tienen el mismo nombre a los dos lados", () => {

@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  COMANDO_ACTUALIZAR_SERVIDOR,
   COMANDO_ESTADO_SERVIDOR,
+  buildCorto,
   consultarEstadoServidor,
   interpretarEstadoServidor,
+  pedirActualizarServidor,
   textoEstadoServidor,
 } from "../estado-servidor-local";
 
@@ -44,8 +47,49 @@ describe("textoEstadoServidor", () => {
     expect(textoEstadoServidor(interpretarEstadoServidor({ fase: "sin-internet" }))?.tono).toBe("error");
     expect(textoEstadoServidor(interpretarEstadoServidor({ fase: "otro-sistema" }))).toBeNull();
   });
-  it("el detalle junta motivo y versión", () => {
-    expect(textoEstadoServidor(est({ motivo: "Todo bien", version_paquete: "0.2" }))?.detalle).toBe("Todo bien · paquete 0.2");
+  it("el detalle junta motivo, versión y qué sirve", () => {
+    expect(textoEstadoServidor(est({ motivo: "Todo bien", version_paquete: "0.2" }))?.detalle).toBe("Todo bien · paquete 0.2 · Sirve el paquete del instalador");
+  });
+});
+
+describe("(CAP1107A) capas del servidor", () => {
+  it("solo acepta builds con forma de BUILD_ID", () => {
+    expect(est({ capa: "AA0YdaG0s8hV9CgdmX1rc", capa_nueva: "../x" })).toMatchObject({ capa: "AA0YdaG0s8hV9CgdmX1rc", capa_nueva: null });
+    expect(est({ capa: 3, capas_fase: " descargando " })).toMatchObject({ capa: null, capas_fase: "descargando" });
+    expect(buildCorto("AA0YdaG0s8hV9CgdmX1rc")).toBe("AA0YdaG0");
+  });
+  it("dice qué capa sirve", () => {
+    expect(textoEstadoServidor(est({ puerto: 47610 }))).toMatchObject({ capa: "capa del instalador", nueva: null, tono: "ok" });
+    const t = textoEstadoServidor(est({ puerto: 47610, capa: "AA0YdaG0s8hV9CgdmX1rc" }))!;
+    expect(t.capa).toBe("capa AA0YdaG0");
+    expect(t.detalle).toContain("Sirve la capa AA0YdaG0s8hV9CgdmX1rc");
+  });
+  it("una capa nueva lista se ofrece; mientras baja, se dice", () => {
+    const t = textoEstadoServidor(est({ capa_nueva: "BB1", capa_nueva_version: "0.3.1 · abc1234" }))!;
+    expect(t.nueva).toBe("capa nueva lista · 0.3.1 · abc1234");
+    expect(t.detalle).toContain("Actualizar ahora");
+    expect(textoEstadoServidor(est({ capas_fase: "descargando" }))!.detalle).toContain("descargando una capa nueva");
+    expect(textoEstadoServidor(est({ capas_fase: "al-dia" }))!.detalle).toBe("Sirve el paquete del instalador");
+  });
+  it("una vuelta atrás se cuenta", () => {
+    const aviso = "La capa BB1 no pasó la salud (x): se volvió a la capa AA0YdaG0.";
+    expect(textoEstadoServidor(est({ capa: "AA0YdaG0s8hV9CgdmX1rc", capas_aviso: aviso }))!.detalle).toContain(aviso);
+  });
+  it("fuera de «local» no hay capa ni botón", () => {
+    expect(textoEstadoServidor(interpretarEstadoServidor({ fase: "arrancando", capa_nueva: "BB1" }))).toMatchObject({ capa: null, nueva: null });
+  });
+  it("«Actualizar ahora» pide el comando solo en la app y nunca lanza", async () => {
+    const llamar = vi.fn().mockResolvedValue({ ok: true, valor: "Reiniciando…" });
+    expect(await pedirActualizarServidor({ nativa: () => true, llamar })).toEqual({ ok: true, mensaje: "Reiniciando…" });
+    expect(llamar).toHaveBeenCalledWith(COMANDO_ACTUALIZAR_SERVIDOR);
+    const fuera = vi.fn();
+    expect((await pedirActualizarServidor({ nativa: () => false, llamar: fuera })).ok).toBe(false);
+    expect(fuera).not.toHaveBeenCalled();
+    expect(await pedirActualizarServidor({ nativa: () => true, llamar: async () => ({ ok: false, motivo: "No hay ninguna capa nueva lista." }) })).toEqual({
+      ok: false,
+      mensaje: "No hay ninguna capa nueva lista.",
+    });
+    expect((await pedirActualizarServidor({ nativa: () => true, llamar: async () => { throw new Error("roto"); } })).mensaje).toBe("roto");
   });
 });
 
