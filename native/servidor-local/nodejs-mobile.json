@@ -1,0 +1,19 @@
+{
+  "_comentario": "Node que va DENTRO de la APK de StarSeed OS (AND1107A, solo con el interruptor de build: apagado por defecto). nodejs-mobile, fork digidem/nodejs-mobile: Node.js 24.18.0 como libnode.so para Android (arm64-v8a, armeabi-v7a, x86_64; SDK >= 24; compilado con el NDK r27d). El SHA-256 se calculó el 2026-11-07 sobre la descarga y coincide con el «digest» que GitHub publica para el asset; preparar-android.mjs compara con ESTE valor, no con lo que baje en ese momento. Licencia: MIT (la de Node.js) con las de terceros y la de polywasm (MIT), en el LICENSE de la etiqueta v24.18.0-0: el zip del asset NO trae LICENSE, así que va aparte en la APK (assets/servidor-local/LICENSE-nodejs-mobile.txt), también con su SHA fijado. Para subir de versión: version, node, url, sha256, bytes y licencia a la vez, en el mismo commit.",
+  "version": "24.18.0-0",
+  "node": "24.18.0",
+  "url": "https://github.com/digidem/nodejs-mobile/releases/download/v24.18.0-0/nodejs-mobile-android-24.18.0-0.zip",
+  "sha256": "c84f76517754df64d9ebb0b4a030e5ff7184812511162274581fd285f2e746ce",
+  "bytes": 77000040,
+  "simbolo": "_ZN4node5StartEiPPc",
+  "abis": {
+    "arm64-v8a": "aarch64-linux-android",
+    "armeabi-v7a": "arm-linux-androideabi",
+    "x86_64": "x86_64-linux-android"
+  },
+  "licencia": {
+    "nombre": "MIT (Node.js) + licencias de terceros de Node + polywasm (MIT)",
+    "url": "https://raw.githubusercontent.com/digidem/nodejs-mobile/v24.18.0-0/LICENSE",
+    "sha256": "ef6288da287cabf89679ad3ae860f45a06c251fcf8636c4014c127186f1a6b96"
+  }
+}
