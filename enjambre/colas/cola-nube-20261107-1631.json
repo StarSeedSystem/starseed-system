@@ -1,0 +1,25 @@
+{
+ "ola": "nube-20261107",
+ "tareas": [
+  {
+   "ola": "1107C · Contratos pendientes (3)",
+   "id": "CTR1107Ec",
+   "titulo": "Apps sin internet · Ajustes → Neurona enseña la precarga y deja descargar la app para usarla sin internet (T9) (parte 3 de 3)",
+   "archivos": [
+    "src/components/settings/neurons/neurons-panel.tsx"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); funciones de decisión PURAS con su prueba; nada de claves ni cadenas con forma de clave, ni rutas del disco de nadie en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo; nunca `next build`; solo las pruebas (vitest/pytest/unittest) de lo que tocas; no toques `vitest.setup-dom.ts` ni otra preparación global. Reutiliza lo que ya existe (búscalo antes con grep) en vez de duplicarlo. Pruebas deterministas: sin red, sin reloj real y sin detectar el aparato de verdad. Publicar no es tuyo: nunca `git push`, ni `scripts/puente/publicar.py`, ni Vercel; deja tu trabajo en un commit de tu rama.\n\nContrato: `architecture/apps-autonomas-sin-internet.md` (léelo entero antes de escribir: es la fuente de verdad).\n\n§12, tarea T9. El service worker v8 (`public/sw-v8.js`) ya guarda la app para usarla sin internet y cuenta su estado: `src/components/pwa/register-sw.tsx` lo publica en `window.STARSEED_PRECARGA` y en el evento `starseed:precarga` (`EVENTO_PRECARGA`), y `window.STARSEED_PRECARGAR(true)` pide una pasada aunque haya datos móviles. Nadie lo enseña. Crea `precarga-sin-internet.tsx` (\"use client\"): al montarse lee `window.STARSEED_PRECARGA` (valídalo con `esEstadoPrecarga` de `src/lib/pwa/precarga-cliente.ts`; usa sus tipos) y escucha el evento. Enseña: «Lista para usar sin internet» si `completo`; si no, «Guardadas N de M · X MB» (`guardados`, `planificados`, `bytes` legibles) y el `motivo` tal cual si lo hay; sin estado, «Aún no hay datos de la precarga». Un botón «Descargar para usar sin internet» llama a `window.STARSEED_PRECARGAR?.(true)`; sin `serviceWorker` en `navigator`, deshabilitado y con «Este navegador no puede guardar la app para usarla sin internet». Móvil primero, iconos lucide, sin emojis, el mismo estilo que `src/components/nativa/estado-servidor-local.tsx`. Móntalo en `neurons-panel.tsx` justo debajo de `<EstadoServidorLocal className=\"mt-2\" />` (2–3 líneas). Pruebas (Testing Library, en el `.test.tsx` listado): sin estado; estado parcial con sus cifras; el evento lo actualiza; completo; el botón llama a la función de `window`; sin serviceWorker, deshabilitado. Corre vitest con `NODE_ENV=test`.\n\n## PARTE 3 DE 3 (la dirección dividió CTR1107E: falla por sí misma (tarea:tsc))\nEn esta parte tocas SOLO: src/components/settings/neurons/neurons-panel.tsx. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.\n\n## CONTINÚA DESDE LA NUBE (rama `nube/42414703466`)\nUn agente de la nube ya avanzó esta tarea (conflicto al traerla sobre el main de hoy: ec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"). No empieces de cero:\n1. Trae su trabajo a tu carpeta: `git fetch -q origin \"+refs/heads/nube/42414703466:refs/remotes/origin/nube/42414703466\"` y `git cherry-pick --no-commit a3726cf4e518 ffaa6301c031`. Si hay conflictos (por ejemplo «add/add»: el archivo ya existe en main), mira la versión de la nube con `git show <sha>:<archivo>`, combínala A MANO con lo que main tiene hoy y deja el índice limpio (`git add` de cada archivo resuelto; `git status` sin «AA»/«UU»). Nunca `git checkout --theirs -- .`: pisaría lo que main ya tiene.\n2. Comprueba que cumple el PROPÓSITO de la tarea (arriba) en el contexto de hoy: corrige lo que falle, completa lo que falte y quita lo que sobre o ya no encaje.\n3. Archivos que tocó: src/components/settings/neurons/neurons-panel.tsx.\nDeja tsc y las pruebas en verde, con pruebas nuevas para lo que arregles.",
+   "revisor": {
+    "origen": "CTR1107E",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:tsc)"
+   },
+   "origen": "nube-reparar",
+   "rama_nube": "nube/42414703466",
+   "dependencias_ya_en_main": [
+    "CTR1107E-d2"
+   ]
+  }
+ ]
+}
