@@ -91,6 +91,10 @@ describe("SYNCED_KEYS · política de persistencia", () => {
         expect(esClaveFusionable(AVISOS_KEY)).toBe(true);
     });
 
+    it("las preferencias de «Medio de transmisión» de Mensajería viajan con la cuenta (MSJ1107B)", () => {
+        expect(isSyncedKey("starseed.mensajeria.medios.v1")).toBe(true);
+    });
+
     it("secretos, bloqueo, ids de dispositivo y cachés NUNCA viajan", () => {
         for (const k of NUNCA) {
             expect(isNeverSyncedKey(k), `${k} debería estar prohibida`).toBe(true);

@@ -239,6 +239,7 @@ export const SYNCED_PREFIXES = [
     "starseed.agentes-red.perfil.", // (Ola 1025U · U3) starseed.agentes-red.perfil.<agente>.v1: visibilidad, vínculos y dispositivos virtuales de cada agente
     "starseed.mundo.agente.", // (Ola 1025U · U2) starseed.mundo.agente.<id>.v1: cerebro, capas, percepción, motores y herramientas de cada agente del mundo (sin claves)
     "starseed.malla.vinculos.", // (MSH1107A) starseed.malla.vinculos.<neurona>.v1: vínculos recordados de cada neurona (huella y nombre, SIN IPs)
+    "starseed.mensajeria.medios.", // (MSJ1107B) starseed.mensajeria.medios.v1: «Medio de transmisión» de Mensajería (general y por chat) viaja con la cuenta
 ] as const;
 
 /**
