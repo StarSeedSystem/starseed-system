@@ -188,7 +188,7 @@ export function NeuronsPanel() {
               {/* (APP1107T6) Solo dentro de la app nativa: el servidor local de esta neurona. */}
               <EstadoServidorLocal className="mt-2" />
               {/* (T9) Estado de la precarga sin conexión + botón para forzar descarga. */}
-              <PrecargaSinInternet className="mt-2" />
+              <PrecargaSinInternet />
             </div>
             <Button variant="ghost" size="sm" className="cursor-pointer shrink-0" onClick={() => void refresh()} disabled={loading}>
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
