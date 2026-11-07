@@ -379,7 +379,7 @@ describe("PanelImaginacion", () => {
     });
 
     it("muestra la etiqueta del filtro de Astraura con el formato correcto", async () => {
-        const hoy = new Date().toISOString().split("T")[0];
+        const hoy = new Date().toLocaleDateString("sv-SE"); // (IMG1107B) día local, como el panel
         const propuestasConAstraura: PropuestaNormalizada[] = [
             prop({
                 id: "a1",

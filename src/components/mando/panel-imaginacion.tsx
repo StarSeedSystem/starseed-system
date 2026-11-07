@@ -1022,7 +1022,8 @@ export function PanelImaginacion({
             {(() => {
                 // (1106 · AST1106G) El resumen REAL del filtro de entrada de Astraura que deja el director (con
                 // «credenciales»), no una cuenta rehecha aquí con reglas que no eran las suyas.
-                const etiqueta = etiquetaFiltroDelDia(datos?.filtro_astraura, new Date().toISOString().slice(0, 10));
+                // (IMG1107B) El día LOCAL, como el director (`datetime.now()` de la Mac), no el de UTC.
+                const etiqueta = etiquetaFiltroDelDia(datos?.filtro_astraura, new Date().toLocaleDateString("sv-SE"));
                 return etiqueta ? (
                     <p className="mc-centrado text-[11px] text-violet-200" data-testid="imaginacion-filtro-astraura">
                         {etiqueta}
