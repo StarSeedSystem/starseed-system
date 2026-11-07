@@ -252,6 +252,32 @@ export function TarjetaLlamada({ m }: { m: MensajeMalla }) {
 
 /* ══════════════════════════ Transmisión en vivo ══════════════════════════ */
 
+/** (GRP1107A) Reproduce lo que llega de una transmisión de audio/vídeo por canal de datos. */
+function ReproductorFlujo({ id, mime }: { id: string; mime: string }) {
+    const ref = useRef<HTMLVideoElement & HTMLAudioElement>(null);
+    const esVideo = mime.startsWith("video/");
+    useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        let baja: (() => void) | null = null;
+        let vivo = true;
+        void import("@/lib/mensajeria/neuronas/transmision-medios")
+            .then((t) => {
+                if (vivo) baja = t.crearReproductorMedios(el, id, mime);
+            })
+            .catch(() => undefined);
+        return () => {
+            vivo = false;
+            baja?.();
+        };
+    }, [id, mime]);
+    return esVideo ? (
+        <video ref={ref} className="w-full max-w-[360px] rounded-xl bg-black" playsInline autoPlay controls aria-label="Vídeo en vivo" data-testid="reproductor-flujo" />
+    ) : (
+        <audio ref={ref} autoPlay controls aria-label="Audio en vivo" data-testid="reproductor-flujo" />
+    );
+}
+
 export function TarjetaFlujo({ m }: { m: MensajeMalla }) {
     const ref = m.flujo;
     const e = useFlujoNeurona(ref?.id);
@@ -276,6 +302,10 @@ export function TarjetaFlujo({ m }: { m: MensajeMalla }) {
                         <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-black/25 p-2 text-[11px] text-white/85">
                             {(e.registros ?? []).slice(-5).map((r) => (typeof r === "string" ? r : JSON.stringify(r))).join("\n")}
                         </pre>
+                    )}
+                    {e.formato === "medios" && e.dir === "entra" && e.abierto && <ReproductorFlujo id={e.id} mime={e.mime ?? "video/webm"} />}
+                    {e.formato === "medios" && (
+                        <p className="text-[11px] text-white/55">Audio/vídeo por canal de datos (sin WebRTC de medios): llega en trozos de ~2 s, con ese retraso.</p>
                     )}
                     <p className="text-[11px] text-white/65" role="status">
                         {resumenFlujo(e)}
@@ -446,12 +476,107 @@ export function TarjetaDatosMalla({ m }: { m: MensajeMalla }) {
     );
 }
 
-/* ══════════════════════════ Transmitir en vivo (texto) ══════════════════════════ */
+/* ══════════════════════════ Transmitir en vivo (texto, y GRP1107A: voz, vídeo, pantalla) ══════════════════════════ */
 
 /** Cada cuánto sale el texto mientras se escribe (ms). */
 const RITMO_TEXTO_MS = 150;
 
+type ModoTransmitir = "texto" | "audio" | "video" | "pantalla";
+
+const MODOS_TRANSMITIR: Array<[ModoTransmitir, string, typeof Phone]> = [
+    ["texto", "Texto", FileText],
+    ["audio", "Voz", Phone],
+    ["video", "Vídeo", Video],
+    ["pantalla", "Pantalla", MonitorUp],
+];
+
+/**
+ * (GRP1107A) Audio, vídeo o pantalla en vivo por CANAL DE DATOS (cuando no hay WebRTC de medios con
+ * esa neurona: malla de la cuenta, vínculo entre cuentas…). Ritmo ajustado al tope medido.
+ */
+function TransmitirMedios({ conversacion, modo, onCerrar }: { conversacion: ConversacionNeurona; modo: Exclude<ModoTransmitir, "texto">; onCerrar: () => void }) {
+    type Control = import("@/lib/mensajeria/neuronas/transmision-medios").ControlTransmision;
+    type Estado = import("@/lib/mensajeria/neuronas/transmision-medios").EstadoTransmision;
+    const [abriendo, setAbriendo] = useState(false);
+    const [estado, setEstado] = useState<Estado | null>(null);
+    const control = useRef<Control | null>(null);
+    useEffect(() => () => control.current?.parar(), []);
+    const empezar = () => {
+        if (abriendo) return;
+        // La pantalla se pide YA, en el mismo gesto (el navegador solo la da ahí).
+        const pantalla = modo === "pantalla" ? pedirPantalla() : undefined;
+        setAbriendo(true);
+        void import("@/lib/mensajeria/neuronas/transmision-medios")
+            .then((t) => t.transmitirMedios({ conversacion, tipo: modo, pantalla }))
+            .then((r) => {
+                if (!r.ok) {
+                    toast.error(r.motivo);
+                    return;
+                }
+                control.current = r.control;
+                setEstado(r.control.estado());
+                r.control.suscribir(setEstado);
+            })
+            .catch(() => toast.error("No se pudo empezar la transmisión."))
+            .finally(() => setAbriendo(false));
+    };
+    const terminar = () => {
+        control.current?.parar();
+        control.current = null;
+        onCerrar();
+    };
+    return (
+        <div className="space-y-2" data-testid="transmitir-medios">
+            <p className="text-[12.5px] text-white/70">
+                {modo === "audio" ? "Tu voz" : modo === "video" ? "Tu cámara y tu voz" : "Tu pantalla"} llega a {conversacion.nombre} por un canal de DATOS de la malla, en trozos de ~2 s (con ese retraso), al ritmo que el enlace demuestra llevar. Es para cuando no hay llamada directa: con un enlace sin internet, la llamada va mejor.
+            </p>
+            {estado && (
+                <p className="text-[11.5px] text-white/65" role="status">
+                    {estado.activa ? "En vivo" : `Terminada${estado.motivoFin ? ` (${estado.motivoFin})` : ""}`} · {estado.via} · {estado.texto}
+                </p>
+            )}
+            <div className="flex justify-end gap-2">
+                {!estado?.activa ? (
+                    <button type="button" onClick={empezar} disabled={abriendo} className={BOTON_TARJETA} style={{ background: ACENTO.mensajes }}>
+                        {abriendo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radio className="h-3.5 w-3.5" />} Empezar a transmitir
+                    </button>
+                ) : (
+                    <button type="button" onClick={terminar} className={BOTON_TARJETA} style={{ background: "rgba(255,255,255,.18)" }}>
+                        <X className="h-3.5 w-3.5" /> Terminar
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
 export function PanelTransmitir({ conversacion, onCerrar }: { conversacion: ConversacionNeurona; onCerrar: () => void }) {
+    const [modo, setModo] = useState<ModoTransmitir>("texto");
+    const selector = (
+        <div role="group" aria-label="Qué transmitir" className="flex flex-wrap gap-1.5">
+            {MODOS_TRANSMITIR.map(([m, etiqueta, Icono]) => (
+                <button
+                    key={m}
+                    type="button"
+                    aria-pressed={modo === m}
+                    onClick={() => setModo(m)}
+                    className={cn("ss-redondo inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold transition-colors", modo === m ? "text-white" : "text-white/60 hover:text-white")}
+                    style={pildoraFantasma(ACENTO.esmeralda, modo === m)}
+                >
+                    <Icono className="h-3.5 w-3.5" aria-hidden /> {etiqueta}
+                </button>
+            ))}
+        </div>
+    );
+    return (
+        <div className="space-y-3">
+            {selector}
+            {modo === "texto" ? <PanelTransmitirTexto conversacion={conversacion} onCerrar={onCerrar} /> : <TransmitirMedios key={modo} conversacion={conversacion} modo={modo} onCerrar={onCerrar} />}
+        </div>
+    );
+}
+
+function PanelTransmitirTexto({ conversacion, onCerrar }: { conversacion: ConversacionNeurona; onCerrar: () => void }) {
     const [nombre, setNombre] = useState("Texto en vivo");
     const [texto, setTexto] = useState("");
     const [abriendo, setAbriendo] = useState(false);

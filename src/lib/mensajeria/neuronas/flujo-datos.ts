@@ -13,11 +13,12 @@
  *
  * Formatos: «texto» (cada trozo es el texto ENTERO actual: el receptor ve el último), «json» (cada
  * trozo es un registro; se guardan los últimos), «binario» (trozos base64 que se juntan para
- * guardarlos al cerrar). Los huecos de numeración se cuentan como «perdidos» (nunca se inventan).
+ * guardarlos al cerrar) y «medios» (GRP1107A: audio/vídeo en vivo en segmentos, `flujo-medios.ts`;
+ * no se guarda nada, se reproduce). Los huecos de numeración se cuentan como «perdidos» (nunca se inventan).
  * Módulo PURO (sin red, sin DOM): lo usan el motor (`flujos-neurona.ts`), la interfaz y las pruebas.
  */
 
-export type FormatoFlujo = "texto" | "json" | "binario";
+export type FormatoFlujo = "texto" | "json" | "binario" | "medios";
 
 export const CANAL_FLUJO = "neurona-flujo";
 /** Caracteres por trozo (con margen bajo el ~16 KB de un mensaje SCTP o de tiempo real). */
@@ -92,7 +93,7 @@ export function leerMensajeFlujo(x: unknown): MsgFlujo | null {
     const id = corto(o.id, 80);
     if (!id) return null;
     if (o.t === "fd.abrir") {
-        const formato = o.formato === "texto" || o.formato === "json" || o.formato === "binario" ? o.formato : null;
+        const formato = o.formato === "texto" || o.formato === "json" || o.formato === "binario" || o.formato === "medios" ? o.formato : null;
         if (!formato) return null;
         const de = (o.de && typeof o.de === "object" ? o.de : {}) as Record<string, unknown>;
         const para = (o.para && typeof o.para === "object" ? o.para : {}) as Record<string, unknown>;
@@ -208,7 +209,7 @@ export function nuevoEstadoFlujo(
         bytes: 0,
         perdidos: 0,
         siguiente: 0,
-        ...(msg.formato === "texto" ? { texto: "" } : msg.formato === "json" ? { registros: [] } : { partes: [] }),
+        ...(msg.formato === "texto" ? { texto: "" } : msg.formato === "json" ? { registros: [] } : msg.formato === "binario" ? { partes: [] } : {}),
     };
 }
 
@@ -237,6 +238,8 @@ export function aplicarTrozo(e: EstadoFlujo, msg: MsgFlujoTrozo, ahora: number):
         const registros = [...(e.registros ?? []), registro];
         return { ...base, registros: registros.slice(-MAX_REGISTROS_FLUJO), bytes: e.bytes + msg.d.length };
     }
+    // «medios»: se cuenta y se reproduce fuera (`flujo-medios.ts`); aquí no se junta nada en memoria.
+    if (e.formato === "medios") return { ...base, bytes: e.bytes + bytesDeBase64(msg.d.slice(msg.d.lastIndexOf("|") + 1)) };
     const n = bytesDeBase64(msg.d);
     if (e.recortado || e.bytes + n > MAX_BINARIO_FLUJO) return { ...base, recortado: true, bytes: e.bytes + n };
     return { ...base, partes: [...(e.partes ?? []), msg.d], bytes: e.bytes + n };
@@ -318,7 +321,7 @@ export function juntarBinario(partes: string[]): Uint8Array<ArrayBuffer> {
 export function resumenFlujo(e: EstadoFlujo): string {
     const partes = [`${e.trozos} ${e.trozos === 1 ? "trozo" : "trozos"}`];
     const b = e.bytes;
-    partes.push(b < 1024 ? `${b} ${e.formato === "binario" ? "B" : "car."}` : `${Math.round(b / 1024)} KB`);
+    partes.push(b < 1024 ? `${b} ${e.formato === "binario" || e.formato === "medios" ? "B" : "car."}` : `${Math.round(b / 1024)} KB`);
     if (e.perdidos > 0) partes.push(`${e.perdidos} ${e.perdidos === 1 ? "perdido" : "perdidos"}`);
     if (e.recortado) partes.push("demasiado grande para guardarlo entero");
     return partes.join(" · ");

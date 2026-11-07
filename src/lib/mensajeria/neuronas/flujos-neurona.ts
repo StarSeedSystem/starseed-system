@@ -32,6 +32,7 @@ import {
     type FormatoFlujo,
     type MsgFlujo,
 } from "./flujo-datos";
+import { aplicarTrozoMedios, leerTrozoMedios, SEGMENTOS_VACIO, type EstadoSegmentos } from "./flujo-medios";
 import { claveChat, preferenciasEfectivas } from "@/lib/mensajeria/medios/preferencias-store";
 import type { ViaMensaje } from "@/lib/mensajeria/medios/tipos";
 
@@ -73,6 +74,8 @@ export function useFlujoNeurona(id: string | undefined): EstadoFlujo | null {
 
 interface Salida {
     enviar(m: MsgFlujo): boolean;
+    /** Bytes en la cola del enlace (si lo da). */
+    enCola?(): number | null;
 }
 
 const salidas = new Map<string, Salida>();
@@ -96,6 +99,15 @@ export interface FlujoAbierto {
     /** Manda un trozo: texto (el texto ENTERO actual en «texto»), un registro JSON o base64. */
     enviar(d: string): boolean;
     cerrar(motivo?: string): void;
+    /** (GRP1107A) Bytes en la cola del enlace (null si no se sabe), para frenar. */
+    enCola(): number | null;
+    /** (GRP1107A) Vía por la que sale («Mesh · …»). */
+    via: string;
+}
+
+/** (GRP1107A) Estado vivo de una transmisión (fuera de React). */
+export function leerFlujoNeurona(id: string): EstadoFlujo | null {
+    return flujos.get(id) ?? null;
 }
 
 /**
@@ -107,6 +119,8 @@ export async function abrirFlujoNeurona(o: {
     nombre: string;
     formato: FormatoFlujo;
     mime?: string;
+    /** (GRP1107A) Solo por la malla P2P (audio/vídeo por canal de datos: el canal de la cuenta no los lleva). */
+    soloP2P?: boolean;
 }): Promise<{ ok: true; flujo: FlujoAbierto } | { ok: false; motivo: string }> {
     const conv = o.conversacion;
     const destino = conv.destino;
@@ -125,9 +139,11 @@ export async function abrirFlujoNeurona(o: {
             },
         });
         if (plan.sinCamino || !plan.pasos.length) return { ok: false, motivo: plan.aviso ?? "Ningún medio permitido puede llevar una transmisión en vivo ahora." };
-        const paso = plan.pasos[0];
+        const paso = o.soloP2P ? plan.pasos.find((x) => x.medio !== "servidor") : plan.pasos[0];
+        if (!paso) return { ok: false, motivo: "El audio y el vídeo por canal de datos van solo por la malla P2P y no hay ningún enlace con esa neurona ahora (con internet, usa la llamada)." };
         let salida: Salida;
         let via: ViaMensaje | null;
+        let viaTexto = "Canal de tu cuenta (tiempo real)";
         if (paso.medio === "servidor") {
             const rs = await import("@/lib/sync/realtime-sync");
             salida = {
@@ -141,7 +157,8 @@ export async function abrirFlujoNeurona(o: {
             const tu = await import("@/lib/malla/transporte-universal");
             const r = await tu.abrirCanalDatos({ ...destino, enlaceId: paso.enlaceId }, CANAL_FLUJO);
             if (!r.ok) return { ok: false, motivo: r.motivo };
-            salida = { enviar: (m) => r.canal.enviar(m) };
+            salida = { enviar: (m) => r.canal.enviar(m), enCola: () => r.canal.enCola() };
+            viaTexto = `${r.canal.enlace.etiqueta}${r.canal.enlace.rttMs !== null ? ` · ${Math.max(1, Math.round(r.canal.enlace.rttMs))} ms` : ""}`;
             via = viaDeEnlaces([r.canal.enlace], { clase: "flujo", descartados: plan.descartados, en: Date.now() });
         }
         const id = nuevoId();
@@ -165,6 +182,14 @@ export async function abrirFlujoNeurona(o: {
         let n = 0;
         const flujo: FlujoAbierto = {
             id,
+            via: viaTexto,
+            enCola() {
+                try {
+                    return salida.enCola?.() ?? null;
+                } catch {
+                    return null;
+                }
+            },
             enviar(d: string) {
                 const e = flujos.get(id);
                 if (!e?.abierto) return false;
@@ -196,6 +221,58 @@ export async function abrirFlujoNeurona(o: {
 
 const ultimoAcuse = new Map<string, { trozos: number; en: number }>();
 const respuestas = new Map<string, (m: MsgFlujo) => void>();
+
+/* ── (GRP1107A) Audio/vídeo por canal de datos: segmentos completos para reproducir ── */
+
+type SegmentoListo = { seg: number; partes: string[] };
+const segmentos = new Map<string, EstadoSegmentos>();
+const oyentesSegmentos = new Map<string, Set<(s: SegmentoListo) => void>>();
+/** Los últimos segmentos de cada flujo, para quien se suscribe tarde (abre la burbuja después). */
+const ultimosSegmentos = new Map<string, SegmentoListo[]>();
+const GUARDAR_SEGMENTOS = 2;
+
+/** Se entera de cada segmento completo de una transmisión de audio/vídeo que llega. Devuelve la baja. */
+export function alSegmentosMedios(id: string, cb: (s: SegmentoListo) => void): () => void {
+    let set = oyentesSegmentos.get(id);
+    if (!set) {
+        set = new Set();
+        oyentesSegmentos.set(id, set);
+    }
+    set.add(cb);
+    for (const s of ultimosSegmentos.get(id) ?? []) {
+        try {
+            cb(s);
+        } catch {
+            /* noop */
+        }
+    }
+    return () => {
+        set?.delete(cb);
+    };
+}
+
+/** Lo que se perdió y se reprodujo de una transmisión de audio/vídeo que llega. */
+export function segmentosDeFlujo(id: string): Pick<EstadoSegmentos, "entregados" | "perdidos"> | null {
+    const e = segmentos.get(id);
+    return e ? { entregados: e.entregados, perdidos: e.perdidos } : null;
+}
+
+function apuntarSegmento(id: string, d: string): void {
+    const t = leerTrozoMedios(d);
+    if (!t) return;
+    const r = aplicarTrozoMedios(segmentos.get(id) ?? SEGMENTOS_VACIO, t);
+    segmentos.set(id, r.estado);
+    for (const s of r.listos) {
+        ultimosSegmentos.set(id, [...(ultimosSegmentos.get(id) ?? []), s].slice(-GUARDAR_SEGMENTOS));
+        for (const cb of Array.from(oyentesSegmentos.get(id) ?? [])) {
+            try {
+                cb(s);
+            } catch {
+                /* un reproductor roto no para la recepción */
+            }
+        }
+    }
+}
 
 async function recibir(cuerpo: unknown, origen: { tipo: "p2p"; enlaceId: string } | { tipo: "cuenta" }): Promise<void> {
     const msg = leerMensajeFlujo(cuerpo);
@@ -232,6 +309,7 @@ async function recibir(cuerpo: unknown, origen: { tipo: "p2p"; enlaceId: string 
     const sig = msg.t === "fd.trozo" ? aplicarTrozo(e, msg, ahora) : cerrarEstadoFlujo(e, ahora, msg.total, msg.motivo);
     if (sig === e) return;
     poner(sig);
+    if (msg.t === "fd.trozo" && sig.formato === "medios") apuntarSegmento(msg.id, msg.d);
     const ultimo = ultimoAcuse.get(msg.id) ?? { trozos: 0, en: 0 };
     if (tocaAcuse(sig, ultimo, ahora)) {
         ultimoAcuse.set(msg.id, { trozos: sig.trozos, en: ahora });
@@ -276,4 +354,7 @@ export function __vaciarFlujosNeurona(): void {
     abiertos.clear();
     respuestas.clear();
     ultimoAcuse.clear();
+    segmentos.clear();
+    oyentesSegmentos.clear();
+    ultimosSegmentos.clear();
 }

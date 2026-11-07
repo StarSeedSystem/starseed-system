@@ -385,7 +385,8 @@ export interface LlamadaNeurona {
 export interface FlujoNeuronaRef {
     id: string;
     nombre: string;
-    formato: "texto" | "json" | "binario";
+    /** «medios» (GRP1107A): audio/vídeo en vivo por canal de datos (`flujo-medios.ts`). */
+    formato: "texto" | "json" | "binario" | "medios";
 }
 
 /** Nombre de archivo que viene de otro aparato: sin rutas, sin caracteres de control, ≤ 180. */
@@ -434,7 +435,7 @@ export function leerFlujoRef(x: unknown): FlujoNeuronaRef | null {
     if (!x || typeof x !== "object") return null;
     const o = x as Record<string, unknown>;
     const id = texto(o.id, 80);
-    const formato = o.formato === "texto" || o.formato === "json" || o.formato === "binario" ? o.formato : null;
+    const formato = o.formato === "texto" || o.formato === "json" || o.formato === "binario" || o.formato === "medios" ? o.formato : null;
     if (!id || !formato) return null;
     // eslint-disable-next-line no-control-regex
     return { id, formato, nombre: (texto(o.nombre, 80) ?? "Transmisión").replace(/[\u0000-\u001f\u007f]/g, "") || "Transmisión" };
