@@ -38,9 +38,7 @@ const LEER_ESCRIBIR_MS: u64 = 3_000;
 const MAX_CONEXIONES: usize = 8;
 const BUZON_CAP: usize = 64;
 const BUZON_EDAD_MS: u64 = 10 * 60_000;
-/// 30 mensajes cada 10 s por IP.
-const LIMITE_MENSAJES: u32 = 30;
-const LIMITE_VENTANA_MS: u64 = 10_000;
+// Límite por IP: `trama::LIMITE_MENSAJES` cada `trama::LIMITE_VENTANA_MS` (300 / 10 s desde MLT1107A).
 
 // El canal escucha justo al lado del faro: si alguien cambia uno sin el otro, no compila.
 const _: () = assert!(trama::PUERTO as u32 == crate::faro::PUERTO as u32 + 1);
@@ -59,7 +57,7 @@ fn estado() -> &'static Mutex<Estado> {
             escuchando: false,
             motivo: "El canal local aún no ha arrancado.".into(),
             buzon: Buzon::nuevo(BUZON_CAP),
-            limitador: Limitador::nuevo(LIMITE_MENSAJES, LIMITE_VENTANA_MS),
+            limitador: Limitador::nuevo(trama::LIMITE_MENSAJES, trama::LIMITE_VENTANA_MS),
         })
     })
 }
@@ -124,6 +122,11 @@ pub struct EstadoMallaLocal {
     pub motivo: String,
     pub ultimo_seq: u64,
     pub vecinos: Vec<VecinoLocal>,
+    /// Lo que este oyente admite (MLT1107A): la web lo anuncia a las neuronas vinculadas para que
+    /// nunca le manden más de lo que su limitador deja pasar. Una app anterior no lo dice.
+    pub max_cuerpo: usize,
+    pub limite_mensajes: u32,
+    pub limite_ventana_ms: u64,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -311,6 +314,9 @@ pub fn malla_local_estado() -> EstadoMallaLocal {
         motivo,
         ultimo_seq,
         vecinos: vecinos_locales(),
+        max_cuerpo: trama::MAX_CUERPO,
+        limite_mensajes: trama::LIMITE_MENSAJES,
+        limite_ventana_ms: trama::LIMITE_VENTANA_MS,
     }
 }
 

@@ -31,6 +31,14 @@ pub const MAX_CUERPO: usize = 64 * 1024;
 pub const PUERTO: u16 = 47071;
 /// Cuerpo del acuse.
 pub const ACUSE_OK: &str = "{\"ok\":true}";
+/// Mensajes que el oyente admite de cada IP por ventana. 300 cada 10 s (MLT1107A): el canal ya no
+/// lleva solo la sincronización, también los trozos de archivo de las neuronas vinculadas (dos de
+/// 16 KiB en base64 por trama). La app anterior admitía 30; la web lee los límites con
+/// `malla_local_estado`, los anuncia en su saludo y nunca manda más del 90 % del cupo del otro
+/// (`src/lib/malla/red-local-nativa.ts`). El tope de conexiones a la vez y de tiempo por conexión
+/// siguen igual.
+pub const LIMITE_MENSAJES: u32 = 300;
+pub const LIMITE_VENTANA_MS: u64 = 10_000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TipoTrama {
@@ -403,6 +411,30 @@ mod pruebas {
         c.set_read_timeout(Some(Duration::from_millis(150))).unwrap();
         assert_eq!(enviar_y_esperar(&mut c, JSON), Err(ErrorTrama::TiempoAgotado));
         servidor.join().unwrap();
+    }
+
+    /// Lo que manda la web (MLT1107A): un `nl.lote` con dos trozos de archivo de 16 KiB en base64
+    /// (`archivo.chunk` de archivos-malla.ts) cabe en una trama, con el margen que deja la web.
+    #[test]
+    fn dos_trozos_de_archivo_caben_en_una_trama() {
+        let b64 = "A".repeat(4 * ((16 * 1024 + 2) / 3));
+        let trozo = format!("{{\"t\":\"archivo.chunk\",\"id\":\"{}\",\"index\":12345,\"datosB64\":\"{b64}\"}}", "f".repeat(36));
+        let escapado = trozo.replace('"', "\\\"");
+        let lote = format!("{{\"t\":\"nl.lote\",\"m\":[\"{escapado}\",\"{escapado}\"]}}");
+        assert!(lote.len() <= MAX_CUERPO - 512, "{} B no deja el margen de la web", lote.len());
+        let t = leer_trama(&mut Cursor::new(codificar(TipoTrama::Mensaje, &lote).unwrap())).unwrap();
+        assert_eq!(t.cuerpo, lote);
+    }
+
+    #[test]
+    fn el_limitador_deja_pasar_archivos_y_corta_la_inundacion() {
+        assert!(LIMITE_MENSAJES >= 30, "nunca menos que la app anterior");
+        let mut l = Limitador::nuevo(LIMITE_MENSAJES, LIMITE_VENTANA_MS);
+        for i in 0..LIMITE_MENSAJES {
+            assert!(l.permitir("192.168.1.5", u64::from(i)), "el mensaje {i} cabe en la ventana");
+        }
+        assert!(!l.permitir("192.168.1.5", 9_999), "uno más en la misma ventana se corta");
+        assert!(l.permitir("192.168.1.5", LIMITE_VENTANA_MS), "ventana nueva");
     }
 
     #[test]
