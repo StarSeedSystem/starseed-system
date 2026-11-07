@@ -39,6 +39,8 @@ import { NeuronVoiceChoice } from "@/components/settings/aurora/neuron-voice-cho
 // versión que anuncia cada neurona por la presencia, con «Pedir actualización».
 import { EstaNeurona } from "@/components/settings/neurons/esta-neurona";
 import { VersionNeurona } from "@/components/neurons/version-neurona";
+import { EstadoServidorLocal } from "@/components/nativa/estado-servidor-local";
+import { PrecargaSinInternet } from "./precarga-sin-internet";
 
 /* ── Icono por tipo de dispositivo ── */
 const KIND_ICONS: Record<NeuronKind, typeof Monitor> = {
@@ -183,6 +185,10 @@ export function NeuronsPanel() {
                 renombrar y ajustar los permisos de cada neurona.
               </CardDescription>
               <p className="text-[11px] text-muted-foreground mt-2">{summarizeNeurons(neurons)}</p>
+              {/* (APP1107T6) Solo dentro de la app nativa: el servidor local de esta neurona. */}
+              <EstadoServidorLocal className="mt-2" />
+              {/* (T9) Estado de la precarga sin conexión + botón para forzar descarga. */}
+              <PrecargaSinInternet className="mt-2" />
             </div>
             <Button variant="ghost" size="sm" className="cursor-pointer shrink-0" onClick={() => void refresh()} disabled={loading}>
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
