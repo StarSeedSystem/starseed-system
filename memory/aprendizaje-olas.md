@@ -5981,3 +5981,29 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `CTR1106As` — otra cosa: repositorio o rama ajenos: worktree conservado
+
+## 2026-11-07 01:07 · auto-1106-234449
+
+**Lo que se pidió.** look:design-app-ui
+
+**Resultado.** 2 de 12 integradas. 10 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 6 tareas se fueron por lo mismo — otra cosa (IRD11071, IRD11072, IRD11073, ENT-agentes-referencias-diseno-agentes-re-d48570-v1, ENT-agentes-referencias-diseno-agentes-re-68c176-v1, ENT-agentes-referencias-diseno-agentes-re-bcff2b-v1). Es 50 % de la ola.
+- 2 tareas se fueron por lo mismo — no escribió nada (IMG-diaria-publicar-los-59-commits-acumulado, IMG-diaria-arreglar-el-ciclo-de-vida-del-orq-d3). Es 17 % de la ola.
+- 2 tareas se fueron por lo mismo — la revisión lo rechazó (IMG-diaria-arreglar-el-ciclo-de-vida-del-orq-d1, IMG-diaria-arreglar-el-ciclo-de-vida-del-orq-d2). Es 17 % de la ola.
+- nim/minimaxai/minimax-m3.1-flash no integró ninguna de sus 3 tareas.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+- groq/openai/gpt-oss-120b no integró ninguna de sus 2 tareas.
+
+**Lo que quedó fuera, una por una:**
+- `IMG-diaria-publicar-los-59-commits-acumulado` — no escribió nada: Jev: p=0.93 de que otro intento sea en balde (2 sin cambios) → acepto «sin cambios» y lo decide el director
+- `IMG-diaria-arreglar-el-ciclo-de-vida-del-orq-d1` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/IMG-diaria-arreglar-el-ciclo-de-vida-del-orq-d1 conservada)
+- `IMG-diaria-arreglar-el-ciclo-de-vida-del-orq-d2` — la revisión lo rechazó: no toco NINGUNO de los 1 archivos que declaraba (rama ola/IMG-diaria-arreglar-el-ciclo-de-vida-del-orq-d2 conservada)
+- `IRD11071` — otra cosa: 4 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-07-1.json
+- `IRD11072` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-07-2.json
+- `IRD11073` — otra cosa: 3 propuesta(s) · starseed_memory_root/imaginacion/agentes/referencias-diseno-2026-11-07-3.json
+- `IMG-diaria-arreglar-el-ciclo-de-vida-del-orq-d3` — no escribió nada
+- `ENT-agentes-referencias-diseno-agentes-re-d48570-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-d48570-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-68c176-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-68c176-v1.json
+- `ENT-agentes-referencias-diseno-agentes-re-bcff2b-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-bcff2b-v1.json
