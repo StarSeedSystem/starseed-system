@@ -38,34 +38,31 @@ class PruebaDejaElArbolLimpio(unittest.TestCase):
             "sin esto, cada ola cerrada deja el árbol sucio y el enjambre no vuelve a arrancar",
         )
 
+    def _leer_fuente(self):
+        ruta = os.path.join(DIRECTORIO, "director_aprendizaje.py")
+        with open(ruta, encoding="utf-8") as f:
+            return f.read()
+
     def test_se_llama_al_terminar(self):
-        fuente = open(
-            os.path.join(DIRECTORIO, "director_aprendizaje.py"), encoding="utf-8"
-        ).read()
+        fuente = self._leer_fuente()
         self.assertIn("commitear_memoria(nombre)", fuente)
 
     def test_commitea_solo_su_archivo_con_ruta_explicita(self):
         # Sin la ruta explícita se llevaría por delante lo que otro estuviera
         # preparando en el índice.
-        fuente = open(
-            os.path.join(DIRECTORIO, "director_aprendizaje.py"), encoding="utf-8"
-        ).read()
+        fuente = self._leer_fuente()
         self.assertIn('"add", "--", rel', fuente.replace("\n", "").replace(" ", "").replace('"add","--",rel', '"add", "--", rel'))
         self.assertIn("rel", fuente)
 
     def test_no_toca_el_indice_si_hay_algo_a_medias(self):
-        fuente = open(
-            os.path.join(DIRECTORIO, "director_aprendizaje.py"), encoding="utf-8"
-        ).read()
+        fuente = self._leer_fuente()
         for marca in ("rebase-merge", "rebase-apply", "MERGE_HEAD", "CHERRY_PICK_HEAD"):
             self.assertIn(marca, fuente)
 
     def test_nunca_lanza(self):
         # Un fallo aquí no puede tumbar el cierre de una ola: como mucho deja el
         # archivo suelto, que es lo de antes.
-        fuente = open(
-            os.path.join(DIRECTORIO, "director_aprendizaje.py"), encoding="utf-8"
-        ).read()
+        fuente = self._leer_fuente()
         i = fuente.find("def commitear_memoria")
         j = fuente.find("\ndef ", i + 10)
         self.assertIn("except Exception", fuente[i:j])
