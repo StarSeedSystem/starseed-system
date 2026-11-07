@@ -47,6 +47,8 @@ import { useRadarRemoto } from "@/lib/network/radar-remoto-store";
 import type { RadioLocal } from "@/lib/mando/radio-local-tipos";
 import { listNeurons, NEURON_EVENT, type Neuron } from "@/lib/neurons/neurons";
 import { useMallaNeuronasEstado } from "@/lib/network/malla-neuronas";
+import { senalesRedLocal } from "@/lib/malla/sincronizacion-neuronas";
+import { useRedLocal } from "@/lib/malla/sincronizacion-neuronas-motor";
 
 /** Cadencia de refresco del registro de neuronas (consulta a la cuenta). */
 const NEURONS_REFRESH_MS = 90_000;
@@ -193,6 +195,9 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
   // neuronas de la cuenta, compartidos por la malla P2P cifrada. El almacén
   // caduca solo (> 5 min) y no hace red: solo lee lo que ya llegó.
   const radarRemoto = useRadarRemoto();
+  // (MSH1107A) Neuronas que la app nativa oye por faro en esta red (también sin internet), con
+  // «Sincronizar ahora». Fuera de la app nativa la lista está vacía y no se sondea nada.
+  const redLocal = useRedLocal();
   const [neuronsState, setNeuronsState] = useState<NeuronsCache>(() => neuronsCache);
   const [serialPorts, setSerialPorts] = useState<SerialPortView[]>([]);
   const [serialProbed, setSerialProbed] = useState(false);
@@ -296,6 +301,8 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
               // (RDV14) Lo que oyen las otras neuronas de la cuenta, tal cual lo
               // compartió cada una: toda señal declara quién la oye de verdad.
               ...senalesVistasPorOtras(radarRemoto, now),
+              // (MSH1107A) Las que ya están pintadas como neurona de la cuenta no se repiten.
+              ...senalesRedLocal(redLocal.vecinos, redLocal.vinculos, now, new Set(neurons.map((n) => n.id))),
             ],
             now,
           ),
@@ -303,7 +310,7 @@ export function useDetectedSignals(options?: DetectedSignalsOptions): DetectedSi
         malla.misDispositivos,
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mesh, beacons, neurons, freshBle, serialPorts, tick, radioLocal, radarRemoto, malla.misDispositivos],
+    [mesh, beacons, neurons, freshBle, serialPorts, tick, radioLocal, radarRemoto, malla.misDispositivos, redLocal.vecinos, redLocal.vinculos],
   );
 
   const unavailable = useMemo<UnavailableSource[]>(() => {

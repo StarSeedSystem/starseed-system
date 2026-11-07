@@ -422,6 +422,20 @@ impl Guardian {
         }
     }
 
+    /// IPs de las neuronas StarSeed oídas por faro que NO se reconocen como de esta cuenta (de
+    /// otra cuenta, o de la tuya mientras falte la clave de faro), con los segundos desde su
+    /// último faro. Solo para el canal local (`malla_local.rs`): de quién son se sabe cuando
+    /// responden a una solicitud firmada. En la red local esas IPs ya las ve cualquiera.
+    pub fn otras_cercanas(&self) -> Vec<(String, u64)> {
+        let i = match self.interno.lock() {
+            Ok(g) => g,
+            Err(envenenado) => envenenado.into_inner(),
+        };
+        let mut v: Vec<(String, u64)> = i.otras.iter().map(|(ip, t)| (ip.clone(), t.elapsed().as_secs())).collect();
+        v.sort();
+        v
+    }
+
     fn avisar(&self) {
         let estado = self.estado();
         // Se copian fuera del cerrojo y se llaman sin él (ver `Notificador`).
@@ -495,7 +509,8 @@ impl Guardian {
             i.config.neurona.as_deref(),
             self.tipo,
             self.flags(&i),
-            0,
+            // (MSH1107A) El faro anuncia el puerto del canal local de datos (0 = no escucha).
+            crate::malla_local::puerto_anunciado(),
             ahora_s(),
             nonce,
         ))

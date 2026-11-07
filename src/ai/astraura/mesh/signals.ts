@@ -982,8 +982,10 @@ function beaconSignals(input: DetectedSignalsInput, now: number): DetectedSignal
           hint: b.offersPublic && b.port
             ? `Añade http://<host>:${b.port} como servidor de la cuenta (esta neurona ofrece internet público).`
             : "Esta neurona no anuncia puerto público: no hay endpoint que añadir." },
-        { id: "sync-now", label: "Sincronizar por relé", enabled: b.own,
-          hint: b.own ? "Encola un estado hacia tus neuronas por el relé cifrado." : "Solo se sincroniza estado con neuronas de TU cuenta." },
+        { id: "sync-now", label: "Sincronizar ahora", enabled: b.own,
+          hint: b.own
+            ? "Solicitud firmada que le aparece al instante para aceptar (red local, enlace directo, malla de la cuenta o relé)."
+            : "Solo se sincroniza estado con neuronas de TU cuenta." },
       ],
       simulated: false,
       color: ANTENNA_COLOR.relay,
@@ -1030,10 +1032,11 @@ function accountSignals(input: DetectedSignalsInput, now: number): DetectedSigna
       lastHeard: n.lastSeenMs,
       actions: [
         { id: "open-neurons", label: "Abrir panel de neuronas", enabled: true },
-        { id: "sync-now", label: "Sincronizar ahora", enabled: n.online,
-          hint: n.online
-            ? "Sube un latido al relé CIFRADO de tu cuenta. Ojo: el relé direcciona por el id de malla y el registro usa otro id, así que la recogen TODAS tus neuronas, no solo esta."
-            : "Sin latido reciente: no hay a quién entregarlo ahora. Vuelve cuando esté en línea." },
+        // (MSH1107A) Siempre se puede intentar: sin internet el registro la ve «desconectada» aunque
+        // esté en tu misma red. La solicitud firmada prueba la red local, el enlace directo, la malla
+        // de la cuenta y el relé, y dice por cuál fue (o por qué no llegó).
+        { id: "sync-now", label: "Sincronizar ahora", enabled: true,
+          hint: "Le aparece al instante una ventana para aceptar: por la red local (app nativa, sin internet), un enlace directo, la malla de tu cuenta o el relé." },
       ],
       simulated: false,
       color: ANTENNA_COLOR.account,

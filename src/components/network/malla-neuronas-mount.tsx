@@ -44,6 +44,11 @@ const LlamadaDirectaFlotante = dynamic(
   () => import("@/components/network/llamada-directa-flotante").then((m) => m.LlamadaDirectaFlotante),
   { ssr: false },
 );
+// (2026-11-07 · MSH1107A) Ventana de solicitud de sincronización entre neuronas y aviso «Vinculadas».
+const SolicitudSincronizacionFlotante = dynamic(
+  () => import("@/components/network/solicitud-sincronizacion").then((m) => m.SolicitudSincronizacionFlotante),
+  { ssr: false },
+);
 
 /** Arranca un motor cargado a demanda y devuelve su parada (si la tiene). */
 function useMotorPerezoso(cargar: () => Promise<() => void | (() => void)>) {
@@ -97,6 +102,10 @@ function MallaNeuronasEngine() {
   // (2026-11-07 · MSJ1107A) Buzón de Mensajería por la malla: chats con las neuronas de los cerebros
   // (canal «neurona» + canal de la cuenta) y mensajes de chats que viajan solo por la malla.
   useMotorPerezoso(() => import("@/lib/mensajeria/neuronas/buzon").then((m) => m.iniciarBuzonMalla));
+  // (2026-11-07 · MSH1107A) Sincronización entre neuronas: solicitud/aceptación firmadas por el canal
+  // local nativo (sin internet), el transporte universal o el relé; vínculos recordados y reconexión
+  // sola (`architecture/sincronizacion-neuronas.md`).
+  useMotorPerezoso(() => import("@/lib/malla/sincronizacion-neuronas-motor").then((m) => m.iniciarSincronizacionNeuronas));
   // (Ola 370) Motor de vínculos ENTRE cuentas: sondea mis solicitudes/vínculos
   // y abre (o cierra) el mesh de par dedicado de cada uno ya `aceptado`. Mesh
   // COMPLETAMENTE separado del intra-cuenta de arriba — ver
@@ -106,6 +115,7 @@ function MallaNeuronasEngine() {
       <MallaVinculosMotor />
       <TransferenciasArchivoToast />
       <LlamadaDirectaFlotante />
+      <SolicitudSincronizacionFlotante />
     </>
   );
 }

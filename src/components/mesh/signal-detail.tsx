@@ -14,8 +14,9 @@
  * decorativa. SSR-safe. Nunca lanza.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
   Activity, BadgeCheck, CircleSlash2, Compass, ExternalLink, Gauge, Radar,
@@ -29,7 +30,15 @@ import {
 } from "@/ai/astraura/mesh";
 import type { DetectedSignal, SignalActionKind } from "@/ai/astraura/mesh/signals";
 import type { FichaMapa } from "@/lib/senales/tipos-vivo";
+import { destinoDeSenal, textoEstado } from "@/lib/malla/sincronizacion-neuronas";
+import { solicitarSincronizacion, useSolicitudesSync } from "@/lib/malla/sincronizacion-neuronas-motor";
 import { FichaSecciones } from "./mapa-senales/secciones-ficha";
+
+// (MSH1107A) «Vincular sin internet» (QR) cuando no hay ningún camino: solo se carga si hace falta.
+const VincularSinInternet = dynamic(
+  () => import("@/components/network/vincular-sin-internet").then((m) => m.VincularSinInternet),
+  { ssr: false },
+);
 
 function fmtAge(at: number | null): string {
   if (!at) return "sin dato";
@@ -76,6 +85,20 @@ export function SignalDetailCard({ signal, ficha, onClose, onOpenMesh, className
   const router = useRouter();
   const prompt = usePrompt();
   const [busy, setBusy] = useState<string | null>(null);
+  // (MSH1107A) Solicitud de sincronización lanzada desde esta ficha: su estado en vivo y, si no hay
+  // ningún camino, la oferta de vincular por código QR.
+  const [syncId, setSyncId] = useState<string | null>(null);
+  const [syncTexto, setSyncTexto] = useState<string | null>(null);
+  const [ofrecerQr, setOfrecerQr] = useState(false);
+  const [verQr, setVerQr] = useState(false);
+  const solicitudes = useSolicitudesSync();
+  const solSync = syncId ? solicitudes.find((s) => s.id === syncId) : undefined;
+  useEffect(() => {
+    setSyncId(null);
+    setSyncTexto(null);
+    setOfrecerQr(false);
+    setVerQr(false);
+  }, [signal.id]);
   const p = signal.placement;
   const q = signal.quality;
 
@@ -119,6 +142,25 @@ export function SignalDetailCard({ signal, ficha, onClose, onOpenMesh, className
           break;
         }
         case "sync-now": {
+          if (signal.antenna !== "lora") {
+            // (MSH1107A) Neuronas: solicitud FIRMADA que la otra ve al instante en una ventana para
+            // aceptar. Va por el canal local de la app nativa (sin internet), un enlace directo, la
+            // malla de la cuenta o el relé, y SIEMPRE dice por cuál fue.
+            const destino = destinoDeSenal(signal);
+            if (!destino) {
+              toast.error("No se puede sincronizar", { description: "Esta señal no dice a qué neurona pertenece." });
+              break;
+            }
+            const r = await solicitarSincronizacion(destino);
+            setSyncId(r.id);
+            setSyncTexto(r.detalle);
+            setOfrecerQr(r.ofrecerQr);
+            if (r.ok) toast.success("Solicitud de sincronización enviada", { description: r.detalle });
+            else toast.error("No se pudo enviar la solicitud", { description: r.detalle });
+            break;
+          }
+          // LoRa: un estado StarSeed hacia ese nodo por la radio. La solicitud firmada no cabe en un
+          // paquete LoRa (≤ 200 B), así que esta acción sigue siendo la de la radio.
           const isNode = signal.antenna === "lora";
           const nodeNum = isNode ? Number(signal.id.split(":")[1]) : undefined;
           // El relé direcciona por el id de DISPOSITIVO DE MALLA. Los faros y las
@@ -402,6 +444,37 @@ export function SignalDetailCard({ signal, ficha, onClose, onOpenMesh, className
           </button>
         ))}
       </div>
+      {(solSync || syncTexto) && (
+        <p
+          aria-live="polite"
+          className={cn(
+            "mt-1.5 rounded-lg border px-2 py-1 text-[10px] leading-snug",
+            solSync?.estado === "vinculada"
+              ? "border-emerald-400/30 bg-emerald-500/[0.08] text-emerald-100"
+              : solSync && ["rechazada", "caducada", "cancelada"].includes(solSync.estado)
+                ? "border-amber-400/30 bg-amber-500/[0.08] text-amber-100"
+                : "border-sky-400/25 bg-sky-500/[0.06] text-sky-100",
+          )}
+        >
+          {solSync ? textoEstado(solSync) : syncTexto}
+        </p>
+      )}
+      {ofrecerQr && (
+        <div className="mt-1.5">
+          <button
+            type="button"
+            onClick={() => setVerQr((v) => !v)}
+            className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-violet-400/35 bg-violet-500/10 px-2.5 py-1 text-[10px] font-bold text-violet-100 transition-colors duration-200 hover:bg-violet-500/20"
+          >
+            {verQr ? "Ocultar el código" : "Vincular sin internet (código QR)"}
+          </button>
+          {verQr && (
+            <div className="mt-1.5 rounded-xl border border-white/10 bg-white/[0.02] p-2">
+              <VincularSinInternet compact />
+            </div>
+          )}
+        </div>
+      )}
       {signal.actions.some((a) => !a.enabled && a.hint) && (
         <ul className="mt-1 space-y-0.5">
           {signal.actions.filter((a) => !a.enabled && a.hint).map((a) => (

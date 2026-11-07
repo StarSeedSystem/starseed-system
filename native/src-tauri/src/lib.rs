@@ -29,13 +29,16 @@ use tauri_plugin_shell::ShellExt;
 
 // ─── Cuerpo nativo de StarSeed OS (2026-10-10, architecture/apps-nativas-segundo-plano.md) ───
 // Núcleo puro (solo std + serde, probado sin Tauri): sha256, faro, disco, carpetas,
-// antenas, serie, android. Pegamento con Tauri: nativa (comandos) y segundo_plano
+// antenas, serie, android, malla_local_trama. Pegamento con Tauri: nativa (comandos),
+// malla_local (canal de datos entre neuronas por la red local, MSH1107A) y segundo_plano
 // (bandeja y cierre que oculta, solo escritorio). android_parche lo usa build.rs.
 mod android;
 mod antenas;
 mod carpetas;
 mod disco;
 mod faro;
+mod malla_local;
+mod malla_local_trama;
 mod nativa;
 mod recursos_ia;
 #[cfg(desktop)]
@@ -534,6 +537,8 @@ pub fn run() {
             // el guardián solo en StarSeed OS). Después, en escritorio, la bandeja y el
             // cierre que oculta (también solo StarSeed OS: Nexus y Café se cierran del todo).
             nativa::iniciar(app.handle());
+            // (MSH1107A) Canal local de datos entre neuronas (TCP 47071), solo StarSeed OS.
+            malla_local::iniciar(app.handle());
             #[cfg(desktop)]
             {
                 if nativa::es_starseed_os(app.handle()) {
@@ -580,6 +585,9 @@ pub fn run() {
                 nativa::capas_borrar,
                 nativa::nas_listar,
                 nativa::nas_leer,
+                malla_local::malla_local_enviar,
+                malla_local::malla_local_estado,
+                malla_local::malla_local_recibidos,
                 $($solo_desktop,)*
             ]);
         };
