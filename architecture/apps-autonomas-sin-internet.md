@@ -1,4 +1,4 @@
-# Apps autónomas sin internet: el servidor local dentro de la app (contrato · APP1107A + APP1107B + SEG1107A · 2026-11-07)
+# Apps autónomas sin internet: el servidor local dentro de la app (contrato · APP1107A + APP1107B + SEG1107A + TAM1107A · 2026-11-07)
 
 **Petición de Alex (07-11):** «Las apps instaladas dejan de funcionar cuando se pierde la conexión a internet,
 cuando deberían ser completamente autónomas e independientes, sin necesidad de ningún tipo de conexión, todo
@@ -30,6 +30,8 @@ visitado antes podía salir del service worker, nada más). Nexus y Café, igual
 | Nexus y Café | Siguen con su web. Plan en §9.3 |
 | Actualizar el servidor local por capas sin reinstalar | PENDIENTE (fase 2, §10) |
 | Traer al servidor local lo que la app tenía en el origen de la web publicada (localStorage + IndexedDB), una vez y sin pisar nada (T4) | ESCRITO SIN PUBLICAR (APP1107B, §2.1) · pruebas puras (Rust y JS) + IndexedDB de mentira + **probado en Linux con la app real** (Tauri 2.12.5 + WebKitGTK, Xvfb, la «web» en otro origen); falta macOS y Windows (T12) |
+| … **también sin internet** en el primer arranque: HTML del binario con el origen de la web (T4b) | ESCRITO SIN PUBLICAR (TAM1107A, §2.1.1) · Rust 83/83 + vitest + `cargo check` cruzado macOS/Windows + **probado en Linux con la app real sin red** (cero peticiones a la web); falta macOS y Windows con la app real (T12) |
+| Instaladores más ligeros: los `*_client-reference-manifest.js` sin repeticiones (T13) | ESCRITO SIN PUBLICAR (TAM1107A, §6.1) · medido con el `.next` real de main: **−172 MB instalado** (192 → 20 MB), −1,1 MB en dmg/deb/AppImage; mismo HTML byte a byte con el standalone real de Next 15.5.21 |
 | Permisos de los comandos propios para la web (tauri ≥ 2.11.1 los rechaza desde un origen remoto sin ellos) | ESCRITO SIN PUBLICAR (APP1107B, §3) · comprobado en Linux: con el código de main, `servidor_local_estado`, `device_info` y `antenas_estado` desde `127.0.0.1:47610` → «not allowed»; con APP1107B responden |
 | La app sin lo que solo vive en la Mac (`/api/mando/**`) (T8) | ESCRITO SIN PUBLICAR (APP1107B, §5 y §6) |
 | El servidor local solo atiende a la ventana de la app: ni otras webs del navegador, ni DNS rebinding, ni otros programas sin el pase, ni el puerto interno de Next (T11) | HECHO (SEG1107A, §3.1: guarda del envoltorio + pase de Rust + pruebas) · probado con un Next 15.5.21 real, WebKitGTK 2.52, Chromium y la app real (Tauri debug, Linux); llega con el próximo lanzamiento nativo; falta verlo en macOS y Windows (con T12) |
@@ -74,6 +76,8 @@ server.js de Next (standalone) en 127.0.0.1:<puerto interno al azar>
 | Migración: pegamento (ventana oculta, comandos `migracion_origen_*`, copia y marcador en el disco) | `native/src-tauri/src/migracion_origen.rs` |
 | Aviso «Tus datos de la versión anterior ya están aquí» | `src/lib/nativa/migracion-origen.ts`, `src/components/nativa/aviso-migracion-origen.tsx` |
 | Lo que el build nativo deja fuera (T8) | `native/servidor-local/solo-mac.mjs` |
+| Migración sin internet (T4b): lo que habla con cada motor (WebKitGTK / WKWebView / WebView2), sin Tauri | `native/src-tauri/src/migracion_origen_local.rs` (módulo de `migracion_origen.rs`; lógica pura y pruebas en `migracion_origen_logica.rs`) |
+| Manifiestos de cliente sin repeticiones (T13) — 6 pruebas, una con el `evalManifest` de verdad de Next | `native/servidor-local/compactar-manifiestos.mjs` (pruebas: `__tests__/compactar-manifiestos.test.mjs`) |
 | Aviso en la web | `src/lib/nativa/sin-conexion.ts`, `src/components/nativa/aviso-sin-conexion.tsx` |
 | Build de Next para la app | `next.config.ts` con `STARSEED_APP_NATIVA=1` (imágenes sin optimizar, sin sharp, ISR en memoria) |
 | Sesión sin red | `src/utils/supabase/middleware.ts`: con `STARSEED_SERVIDOR_LOCAL=1`, tope de 2,5 s y un fallo de red no echa a `/login` |
@@ -160,19 +164,64 @@ internet → se reintenta; tras 3 intentos → dónde está la copia). Se cierra
 
 | | Con internet al primer arranque | Sin internet al primer arranque |
 |---|---|---|
-| macOS (WKWebView) | Todo lo de la tabla | Se pospone: la app arranca en local sin los datos viejos, lo dice, y los trae en el siguiente arranque con red (los originales siguen intactos) |
-| Windows (WebView2) | Todo; el service worker v7 del origen web (si lo había) sirve `offline.html` de su caché o de la red, da igual: solo importa el origen | Igual que macOS |
-| Linux (WebKitGTK) | Todo; si el WebKitGTK no tiene `indexedDB.databases()`, solo las cinco bases de la app | Igual que macOS |
+| macOS (WKWebView) | Todo lo de la tabla | Desde T4b, lo mismo sin red (`loadHTMLString:baseURL:`, §2.1.1). Antes: se posponía al siguiente arranque con red |
+| Windows (WebView2) | Todo; el service worker v7 del origen web (si lo había) sirve `offline.html` de su caché o de la red, da igual: solo importa el origen | Desde T4b, lo mismo sin red (`WebResourceRequested`, §2.1.1) |
+| Linux (WebKitGTK) | Todo; si el WebKitGTK no tiene `indexedDB.databases()`, solo las cinco bases de la app | Desde T4b, lo mismo sin red (`load_html`, §2.1.1; **probado con la app real**) |
 
 **Leer el disco sin red (opción b): NO, a propósito.** WKWebView guarda cada origen en carpetas con hash salado
 (`WebsiteData/Default/<hash>/<hash>/LocalStorage/localstorage.sqlite3`) y su IndexedDB en SQLite con valores
 serializados por WebKit; WebView2 usa LevelDB (con compresión y prefijos de Chromium) y la IndexedDB de V8; las tres
 cambian de formato entre versiones y el almacén está **abierto y vivo** mientras corre la ventana (leerlo a la vez
-puede dar datos a medias o corromperlo). Haría falta un lector por formato (crates nuevos de SQLite/LevelDB) para
-algo que se resuelve solo en el siguiente arranque con red. Alternativa limpia que queda **PENDIENTE (T4b)**: sin red,
-cargar la ventana oculta con un HTML local cuyo origen sea el de la web (`loadHTMLString:baseURL:` en WKWebView,
-`load_html(…, base_uri)` en WebKitGTK, un filtro `WebResourceRequested` en WebView2): lee el almacén por el propio
-motor, sin tocar sus archivos. Requiere dependencias directas de plataforma (objc2 / webkit2gtk / webview2-com).
+puede dar datos a medias o corromperlo). En su lugar, la alternativa limpia: T4b (§2.1.1).
+
+#### 2.1.1 Sin internet: el HTML del binario con el origen de la web (T4b · TAM1107A · ESCRITO SIN PUBLICAR)
+
+**Qué hace.** Si al exportar no hay internet (`hay_internet()` de `servidor_local.rs`), la ventana oculta ya no
+se pospone: se crea en `about:blank` (no pide nada) y recibe `HTML_SIN_RED` —una página de una línea que va DENTRO
+del binario, sin scripts ni recursos— **con la dirección** `https://starseed-os.vercel.app/offline.html?starseed-migracion=1&sin-red=1`.
+Como la dirección del documento es la de la web publicada, su ORIGEN también: el propio motor abre su
+`localStorage` y su IndexedDB de ese origen, sin red y sin que nadie lea sus archivos. Lo demás es lo de §2.1 tal
+cual: Tauri inyecta el exportador como script de inicio, el puente IPC y la capability `migracion-exportar` ven esa
+dirección, y Rust comprueba etiqueta y origen en cada trozo.
+
+| Sistema | Cómo se pone la dirección sin red | Archivo |
+|---|---|---|
+| Linux (WebKitGTK) | `webkit_web_view_load_html(html, base_uri)` | `migracion_origen_local.rs::cargar_webkitgtk` |
+| macOS (WKWebView) | `-[WKWebView loadHTMLString:baseURL:]` (objc2) | `…::cargar_wkwebview` |
+| Windows (WebView2) | filtro `WebResourceRequested` SOLO para `<web>/offline.html` en ESA vista (la principal no lo ve) que responde desde memoria (`SHCreateMemStream`), y `Navigate(<web>/offline.html?…)`: la petición nunca sale a la red | `…::cargar_webview2` |
+
+- **Con internet no cambia nada**: la página de verdad, como en §2.1 (probado otra vez abajo).
+- `STARSEED_MIGRACION_SIN_RED=1` fuerza el modo sin red aunque haya internet (para probarlo en T12 sin apagar el
+  Wi-Fi). El estado (`migracion_origen_estado`) dice `modo: "red" | "sin-red"`.
+- Dependencias: `webkit2gtk 2`, `objc2 0.6` + `objc2-foundation 0.3`, `webview2-com 0.39` + `windows 0.62`, cada una
+  solo en su sistema: **las mismas crates y versiones que ya trae tauri 2.12** (se unifican; el `Cargo.lock` no
+  gana ningún paquete). Si un día tauri sube de versión una de ellas, hay que subir la nuestra a la vez (riesgo 12).
+- Un sistema que no sepa (BSD…) sigue como antes: se pospone sin internet.
+
+**Probado (2026-11-07).** (1) Rust: `sin_red_solo_cuando_hace_falta_y_se_sabe` y
+`la_pagina_sin_red_tiene_el_origen_de_la_web_y_no_pide_nada` (crate real, 83/83). (2) vitest (3 nuevas en
+`migracion-origen.test.ts`): el script de inicio que arma Rust, TAL CUAL, corre en una ventana con esa dirección y
+exporta igual que con red (sin la sesión), y en `about:blank`, en el origen local o en un dominio parecido no hace
+nada ni deja la marca que bloquearía la exportación de después. (3) `cargo check` cruzado de
+`migracion_origen_local.rs` para `aarch64-apple-darwin` y `x86_64-pc-windows-msvc` con las versiones del
+`Cargo.lock` de la app (objc2 0.6.5, objc2-foundation 0.3.2, webview2-com 0.39.1, windows 0.62.2): 0 avisos, 0
+errores (el crate entero no se puede comprobar así: `ring` necesita el compilador de C de cada sistema).
+(4) **App real en Linux** (build `debug`, Tauri 2.12.5 + WebKitGTK 2.52, Xvfb; la «web publicada» cambiada solo en
+la prueba por `http://localhost:8899`, como en §2.1): arranque 1 CON la web encendida sembró en su origen 7 claves
+(con una sesión `sb-…-auth-token`, `starseed.ai.providers` y `starseed.mesh.identity.v1`) y 3 bases (notas con
+`Blob`/`Date`/`Set` e índice, líneas con `autoIncrement`, el par ECDH con un `CryptoKey`); se APAGÓ la web; arranque 2:
+`modo: "sin-red"`, la copia quedó escrita antes incluso de que arrancara el Node del servidor local,
+`estado.json` → `hecha`, 6 ajustes y 4 registros traídos, 3 bases, «no se puede copiar (CryptoKey)»
+1, sesión no copiada 1; el `/` del servidor local vio las 6 claves sin la sesión y las 3 bases; la copia (0600) sin
+`refresh_token` ni los valores secretos; y el registro de la web: **cero peticiones** durante el arranque 2. Otra
+carpeta de datos con la web encendida: `modo: "red"`, la ventana pidió `/offline.html?starseed-migracion=1` y
+`hecha` con lo mismo (el camino con red no cambió).
+
+**Límites honestos.** (1) macOS y Windows: compilado en cruzado, sin probar con la app real (T12; receta en §8 con
+`STARSEED_MIGRACION_SIN_RED=1`). (2) WebView2: si el origen de la web tiene registrado el service worker (v7/v8),
+la navegación la contesta él antes que nuestro filtro (su `offline.html` guardado): da igual, el origen es el mismo y
+el exportador corre igual. (3) Que `loadHTMLString:baseURL:` dé acceso al IndexedDB del origen en WKWebView es lo que
+hace WebKit (el mismo motor que WebKitGTK, donde está probado), pero no se ha visto aún en una Mac.
 
 **Límites honestos.** (1) Si el servidor local arranca un día en otro puerto (47611…), es otro origen: no se migra
 otra vez (el marcador es de la app) y ese origen empieza vacío — ya pasaba en APP1107A (§2). (2) Los registros de más
@@ -342,6 +391,11 @@ registro}` para pintarlo en la app (pendiente T6).
   neurona por Supabase + túnel), `/poligenesis`, `/api/genesis/**`, `/api/metagenesis/orden` y `/api/mcp/genesis`
   (funcionan igual en Vercel): quitarlos habría quitado funciones, no peso muerto.
 - `preparar.mjs` copia también `migracion-origen.js` junto al envoltorio (T4).
+- **T13 (TAM1107A):** un paso acotado en `servidor-local-next`, entre `next build` y el tar («Compactar los
+  manifiestos de cliente (T13)», `continue-on-error`), reescribe los `*_client-reference-manifest.js` del standalone
+  sin repeticiones (§6.1) y lo escribe en el resumen del job; así el tar, los instaladores y las capas (T1) salen ya
+  ligeros. `preparar.mjs` lo repite sobre su copia (si ya está hecho no gana nada; `--sin-compactar` lo salta) y lo
+  apunta en `starseed-servidor.json` (`manifiestosCliente`) y en el resumen.
 - Android e iOS: `tauri.android.conf.json` / `tauri.ios.conf.json` devuelven la ventana a la web publicada
   (la página de arranque es solo de escritorio). Nexus y Café pisan después con su `-c`.
 
@@ -379,10 +433,60 @@ archivo (dmg, msi, deb, AppImage) y casi nada en el NSIS (LZMA sólido)**. No se
 `/metagenesis` ni `/poligenesis` (§5): con ellos el «≈ 100 MB» que se estimaba no era peso muerto.
 
 **Dónde está de verdad el peso** (para T3/T13): los **291 `*_client-reference-manifest.js`** de `.next/server/app`
-suman **252,6 MB (el 61 % de `.next/server`)** y comprimen a 5,7 MB en gzip: uno por ruta, casi iguales. Bajarlos
-exige tocar cómo Next los genera o deduplicarlos al empaquetar (enlaces duros en macOS/Linux): PENDIENTE (T13).
-Otras formas de bajar: Node solo arm64 en macOS (−36 MB comprimido, Intel caería a la web) y la fase 2 (§10), que
-evita bajar el instalador entero en cada actualización.
+suman **252,6 MB (el 61 % de `.next/server`)** y comprimen a 5,7 MB en gzip: uno por ruta, casi iguales. Hecho en
+T13 (§6.1). Otras formas de bajar: Node solo arm64 en macOS (−36 MB comprimido, Intel caería a la web), la fase 2
+(§10), que evita bajar el instalador entero en cada actualización, y los HTML/RSC prerenderizados (113 + 111
+archivos, 122 MB sin comprimir, casi todo la misma carga del layout raíz: comprimen ≈ 30:1).
+
+### 6.1 Manifiestos de cliente sin repeticiones (T13 · TAM1107A · ESCRITO SIN PUBLICAR)
+
+**Por qué pesan tanto.** Next 15.5 (`build/webpack/plugins/flight-manifest-plugin.js`) escribe uno por página y por
+ruta de API. En memoria, todos los módulos de cliente de un mismo grupo de chunks comparten LA MISMA lista `chunks`
+(la del layout raíz: 122 chunks, 244 cadenas) y cada alias ESM comparte el objeto de su módulo; pero el plugin lo
+escribe con `JSON.stringify`, que la repite entera en cada uno de los ≈ 295 módulos: ≈ 6 KB × 295 ≈ 0,85 MB por
+archivo. `clientModules` es el 96 % (245 de 256 MB); `ssrModuleMapping` y `rscModuleMapping` son idénticos en los 291
+(≈ 19 KB cada uno). **Next no tiene ninguna opción para cambiarlo** (el plugin no lee nada de la configuración para
+esto). Enlaces duros: no sirven (cada archivo lleva su página dentro y todos son distintos).
+
+**Qué se hace** (`native/servidor-local/compactar-manifiestos.mjs`, solo en el build nativo): cada archivo se
+reescribe como un JS que construye EXACTAMENTE el mismo objeto, con cada valor repetido (lista u objeto) declarado
+una sola vez en una variable local — es decir, vuelven las referencias compartidas que Next tenía en memoria al
+compilar. Next lo lee igual que siempre (`evalManifest` de `server/load-manifest.external.js`: `readFileSync` +
+`vm.runInNewContext(texto, {})` + `deepFreeze`), sin `require`, sin cargador y sin nada al arrancar. Por archivo: se
+evalúan el original y el compacto como lo hace Next y se exige el MISMO JSON (con el orden de las claves) y ninguna
+otra global; si algo no cuadra, no gana o lleva `__proto__`, se queda como estaba; cada archivo se cambia con
+`rename` (nunca queda uno a medias, y un enlace duro al original no se toca). La web publicada no cambia.
+
+**Medido (2026-11-07) con el `.next` real de main de la Mac (`zEBGWRv317kUf32sxR6pE`, sin compilar):**
+
+| | Antes | Después |
+|---|---:|---:|
+| Los 291 manifiestos (todo el build) | 256,3 MB | **27,0 MB** (291/291, 11 s) |
+| Los 218 que van en la app (sin `/api/mando`, T8) | 192,1 MB | **20,3 MB** (−171,8 MB, −89 %) |
+| … gzip por archivo (dmg, `.app.tar.gz`, deb, rpm, AppImage) | 4,33 MB | 3,23 MB (−1,1 MB) |
+| … tar.gz | 4,27 MB | 3,12 MB |
+| … xz sólido (NSIS) | 0,15 MB | 0,04 MB |
+| Cargar los 218 como Next (`evalManifest` + `deepFreeze`, en caché) | 3,0–3,2 s · 325 MiB de heap | 0,6–1,0 s · 108 MiB de heap |
+
+| Instalador (estimación de §6) | Antes de T13 | Con T13 | Instalado en disco |
+|---|---:|---:|---:|
+| macOS `.dmg` y `.app.tar.gz` del updater | ≈ 123–133 MB | ≈ 122–132 MB | ≈ 655 → **≈ 483 MB** |
+| Windows `-setup.exe` (NSIS, LZMA sólido) | ≈ 55–65 MB | igual (−0,1 MB) | ≈ 525 → **≈ 353 MB** |
+| Windows `.msi` | ≈ 83–93 MB | ≈ −0,1 a −1,1 MB | ≈ 525 → **≈ 353 MB** |
+| Linux `.deb` / `.rpm` | ≈ 88–98 MB | ≈ 87–97 MB | ≈ 555 → **≈ 383 MB** |
+| Linux `.AppImage` | ≈ 163–173 MB | ≈ 162–172 MB | — |
+
+Es decir: la descarga apenas cambia (la compresión ya se comía la repetición), pero **en disco la app ocupa ≈ 172 MB
+menos (−26 % a −33 %)**, el tar del CI (sin comprimir) baja lo mismo, y el servidor local gasta menos memoria y
+tiempo al abrir cada página por primera vez (los 218 cargados: −217 MiB de heap, 3–5× más rápido).
+
+**Probado con el standalone REAL de main (Next 15.5.21), sin compilar** (`/tmp/tam1107a/verificar-servidor.mjs` en la
+Mac: dos copias con enlaces duros, A con los manifiestos de Next y B compactados; lo demás idéntico): mismas 12
+peticiones a los dos. **10/12 iguales byte a byte**: render forzado (`x-prerender-revalidate`) de `/`, `/escritorios`,
+`/agent`, `/protomolecula`, `/login` y `/settings` (307), la página dinámica `/llamada/[id]`, el 404, una carga RSC
+estática y `/api/os/versiones`; las 2 cargas RSC dinámicas solo difieren en un identificador al azar de 22
+caracteres que **también cambia entre dos peticiones al MISMO servidor A**. Ningún error en los registros. El build
+de main no se tocó (el original sigue con 879.818 bytes; el de B, 91.927).
 
 ## 7. Secciones sin internet
 
@@ -442,6 +546,13 @@ T=$(mktemp -d) && cp -R public "$T/public" && node scripts/precarga-sw.mjs --dis
 npx vitest run src/lib/nativa/__tests__/migracion-origen.test.ts src/lib/nativa/__tests__/contrato-rust.test.ts
 # (APP1107B) Lo que el build nativo deja fuera (T8): qué se quitaría en el repo de verdad, sin borrar nada
 node --test native/servidor-local/__tests__/solo-mac.test.mjs && node native/servidor-local/solo-mac.mjs --simular
+# (TAM1107A · T13) Manifiestos de cliente: pruebas (una con el evalManifest de Next si está instalado) y cuánto
+# bajaría un .next real sin tocarlo
+node --test native/servidor-local/__tests__/compactar-manifiestos.test.mjs
+node native/servidor-local/compactar-manifiestos.mjs .next/server --simular
+# (TAM1107A · T4b) Migración sin internet: Rust puro y el script de inicio de Rust en una ventana sin red
+(cd native/src-tauri && cargo test --lib -- migracion_origen)
+npx vitest run src/lib/nativa/__tests__/migracion-origen.test.ts
 ```
 
 **Cómo se verifica la migración con la app real (T12, en cada sistema):** instalar la 0.4.3, abrirla con internet,
@@ -450,7 +561,11 @@ local; al abrir: página «Trayendo tus datos de la versión anterior…» (≤ 
 `127.0.0.1:47610` con el escritorio, el widget y la nota, el aviso «Tus datos de la versión anterior ya están aquí»,
 y la sesión pedida de nuevo. En `<app_data>/migracion-origen/`: `estado.json` con `"resultado": "hecha"` y una
 `copia-*.json` sin `refresh_token` ni valores secretos. Repetir con el Wi-Fi apagado en el primer arranque: el OS
-abre en local, el aviso dice «Aún no están aquí…» y en el siguiente arranque con red se traen.
+abre en local, el aviso dice «Aún no están aquí…» y en el siguiente arranque con red se traen. **Desde T4b** ese
+arranque sin red ya los trae (`migracion_origen_estado` → `modo: "sin-red"`); para probarlo sin apagar el Wi-Fi, abrir
+la app con `STARSEED_MIGRACION_SIN_RED=1` (macOS: desde Terminal, el ejecutable de `StarSeed OS.app/Contents/MacOS/`
+—el que no es `starseed-node`— con esa variable delante; `open` no pasa variables; Windows: `set STARSEED_MIGRACION_SIN_RED=1`
+y abrir desde esa consola el `.exe` de la app) con `estado.json` borrado.
 
 Probado además en Linux con la app real (`tauri build --debug --bundles deb`): el `.deb` lleva
 `/usr/bin/starseed-node` y `/usr/lib/StarSeed OS/servidor/.next/…`; la app (Xvfb) lanzó el Node en
@@ -651,6 +766,20 @@ Diseño (PENDIENTE T1):
     se guardó (es lo primero que mirar). `servidor-local.log` debe decir «pase de la app recibido» y «el Next interno
     solo atiende a esta puerta»; la salud, `"pase":true` e `"interna":"protegida"`. Lo que no cubre está en §3.1.
 
+12. **Migración sin internet (T4b · TAM1107A).** (a) Las dependencias de plataforma (`webkit2gtk 2`, `objc2 0.6` +
+    `objc2-foundation 0.3`, `webview2-com 0.39` + `windows 0.62`) tienen que ser las MISMAS que trae tauri: sin
+    `Cargo.lock` en el repo, el CI resuelve la última tauri; si una tauri futura sube `webview2-com` a 0.40 (o
+    `webkit2gtk` a 3), el build de ese sistema falla al compilar hasta subir la nuestra igual (hoy: tauri 2.12.5 →
+    webview2-com 0.39.1, windows 0.62.2, objc2 0.6.5, objc2-foundation 0.3.2, webkit2gtk 2.0.2). (b) macOS y
+    Windows solo compilados en cruzado: en T12, mirar `migracion_origen_estado` (`modo`) y `estado.json`; si sin red
+    se queda en `pospuesta` con «No se pudo abrir sin conexión…», el motivo dice qué llamada falló.
+13. **Manifiestos compactados (T13 · TAM1107A).** Si un Next futuro cambiara cómo carga los
+    `*_client-reference-manifest.js` (hoy `vm.runInNewContext` sin `require`, igual en 15.5) o su forma, cada
+    archivo que no cuadre se queda como salió de Next (la comprobación es por archivo y en el propio build); para
+    volver atrás del todo basta quitar el paso del job y pasar `--sin-compactar` a `preparar.mjs`. Lo primero que
+    mirar si una página de la app nativa sale en blanco o con «Could not find the module … in the React Client
+    Manifest»: el resumen del job (cuántos se compactaron) y `servidor-local.log`.
+
 ## 12. Pendientes (tareas concretas)
 
 | Id | Tarea |
@@ -658,8 +787,8 @@ Diseño (PENDIENTE T1):
 | T1 | Capas del servidor local con firma y rollback (§10) |
 | T2 | Android opción C (precarga del SW): **ESCRITA SIN PUBLICAR (SW1107A, §9.1.1)**. Falta A (nodejs-mobile, §9.1) |
 | T3 | Medir en el CI los tamaños reales y corregir §6 |
-| T4 | Migrar al origen local lo que vivía en el origen de la web publicada: **ESCRITA SIN PUBLICAR (APP1107B, §2.1)** — localStorage + IndexedDB, sin sesión, fusión sin pisar, copia sin secretos, marcador, aviso. Falta T4b y T12 |
-| T4b | Migración SIN internet al primer arranque: ventana oculta con un HTML local cuyo origen sea el de la web (`loadHTMLString:baseURL:` / `load_html` / `WebResourceRequested`), sin leer los archivos del motor (§2.1) |
+| T4 | Migrar al origen local lo que vivía en el origen de la web publicada: **ESCRITA SIN PUBLICAR (APP1107B, §2.1)** — localStorage + IndexedDB, sin sesión, fusión sin pisar, copia sin secretos, marcador, aviso. Falta T12 |
+| T4b | Migración SIN internet al primer arranque: **ESCRITA SIN PUBLICAR (TAM1107A, §2.1.1)** — HTML del binario con la dirección de la web (`load_html` / `loadHTMLString:baseURL:` / `WebResourceRequested`), sin leer los archivos del motor; probada con la app real en Linux sin red. Falta verla en macOS y Windows (con T12) |
 | T5 | Pasar los 3 flujos de Genkit (server actions) a rutas `/api` para que viajen a la web con internet |
 | T6 | Enseñar `servidor_local_estado` en Ajustes → Neurona y en las señales del medio («app nativa · servidor local») |
 | T7 | Nexus y Café con sus archivos dentro (§9.3) |
@@ -668,4 +797,4 @@ Diseño (PENDIENTE T1):
 | T10 | Probar el SW v8 en un navegador real contra un `next start` del build (en el A1 o el CI, no en la Mac): precarga completa, modo avión y vuelta de la red |
 | T11 | Guarda en el envoltorio contra peticiones de otras webs al servidor local: **HECHA (SEG1107A, §3.1)** — Host exacto (rebinding), Origin/Sec-Fetch-Site, pase de Rust en cookie `HttpOnly; SameSite=Strict` para `/api`, cambios y WebSocket, sin CORS abierto y el Next interno solo para la puerta. Falta verla con la app real en macOS y Windows (con T12) |
 | T12 | Probar la migración (T4) con la app real en macOS y Windows (receta en §8; Linux ya probado, §2.1) |
-| T13 | Bajar el peso de los 291 `*_client-reference-manifest.js` (252,6 MB, §6) en el paquete nativo |
+| T13 | Bajar el peso de los 291 `*_client-reference-manifest.js` en el paquete nativo: **ESCRITA SIN PUBLICAR (TAM1107A, §6.1)** — 192 → 20 MB en la app (−172 MB instalado), mismo HTML byte a byte con el standalone real. Falta ver el resumen del primer CI (T3) |
