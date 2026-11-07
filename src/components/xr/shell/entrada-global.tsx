@@ -15,27 +15,35 @@ import { usePathname, useRouter } from "next/navigation";
 import { BotonEntradaXR } from "./boton-entrada-xr";
 import { textoEntrada } from "./texto-entrada";
 import { useCapacidadesXR } from "./use-capacidades-xr";
+import {
+    CLAVE_SUGERENCIA_XR,
+    CLAVE_SUGERENCIA_XR_LEGADA,
+    descartarSugerencia,
+    leerDescarte,
+    sugerirEntradaXR,
+    type DescartadaHasta,
+} from "./sugerencia-entrada";
 
-/** Clave local de la preferencia; ocultar aquí no retira la entrada del panel Logic. */
-export const CLAVE_BOTON_OCULTO = "starseed.xr.boton.oculto.v1";
+/** Clave antigua (v1), solo de lectura: «1» se respeta como «No volver a sugerir». */
+export const CLAVE_BOTON_OCULTO = CLAVE_SUGERENCIA_XR_LEGADA;
 
-/** Lee la preferencia sin romperse cuando el navegador bloquea el almacenamiento. */
-export function leerBotonOculto(): boolean {
+/** Lee lo que la persona cerró, sin romperse cuando el navegador bloquea el almacenamiento. */
+export function leerSugerenciaCerrada(): DescartadaHasta {
     try {
-        if (typeof localStorage === "undefined") return false;
-        return localStorage.getItem(CLAVE_BOTON_OCULTO) === "1";
+        if (typeof localStorage === "undefined") return null;
+        return leerDescarte(localStorage.getItem(CLAVE_SUGERENCIA_XR), localStorage.getItem(CLAVE_SUGERENCIA_XR_LEGADA));
     } catch {
-        return false;
+        return null;
     }
 }
 
-/** Guarda la preferencia con try/catch: un `localStorage` que lanza no rompe la vista. */
-export function guardarBotonOculto(oculto: boolean): void {
+/** Guarda el cierre con try/catch: un `localStorage` que lanza no rompe la vista. */
+export function guardarSugerenciaCerrada(ahora: number, siempre: boolean): void {
     try {
         if (typeof localStorage === "undefined") return;
-        localStorage.setItem(CLAVE_BOTON_OCULTO, oculto ? "1" : "0");
+        localStorage.setItem(CLAVE_SUGERENCIA_XR, descartarSugerencia(ahora, siempre));
     } catch {
-        // Sin almacenamiento la preferencia dura lo que esta vista.
+        // Sin almacenamiento el cierre dura lo que esta vista.
     }
 }
 
@@ -59,7 +67,18 @@ export function EntradaGlobalXR() {
     const ruta = usePathname();
     const router = useRouter();
     const { estado, datos, capacidades, plan } = useCapacidadesXR();
-    const [oculto, setOculto] = useState<boolean>(leerBotonOculto);
+    const [cerrada, setCerrada] = useState<DescartadaHasta>(leerSugerenciaCerrada);
+    // Solo se sugiere con soporte REAL confirmado por `isSessionSupported`; sondeando no se pinta.
+    const sugerencia = sugerirEntradaXR({
+        soporte: { tieneXR: datos.tieneXR, vr: datos.vr, ar: datos.ar },
+        descartadaHasta: cerrada,
+        ahora: Date.now(),
+    });
+    const cerrar = (siempre: boolean) => {
+        const ahora = Date.now();
+        guardarSugerenciaCerrada(ahora, siempre);
+        setCerrada(leerDescarte(descartarSugerencia(ahora, siempre)));
+    };
 
     const alPulsar = useCallback(
         (evento: MouseEvent<HTMLDivElement>) => {
@@ -74,22 +93,29 @@ export function EntradaGlobalXR() {
     );
 
     const texto = textoEntrada(capacidades, plan, estado === "sondeando", !datos.seguro);
-    if (oculto || esRutaSinEntradaGlobal(ruta) || texto.botones.length === 0) return null;
+    if (!sugerencia.mostrar || esRutaSinEntradaGlobal(ruta) || texto.botones.length === 0) return null;
 
     return (
         <div data-testid="entrada-global-xr">
-            <button
-                type="button"
-                aria-label="Ocultar el botón de entrada a VR y AR"
-                title="Ocultar este botón"
-                onClick={() => {
-                    setOculto(true);
-                    guardarBotonOculto(true);
-                }}
-                className="fixed bottom-40 left-24 z-50 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-[#0E101E] text-base leading-none text-[#F5F7FF] shadow transition hover:bg-[#060814] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#39FF14]/70"
-            >
-                ×
-            </button>
+            <div className="fixed bottom-40 left-24 z-50 flex items-center gap-1.5">
+                <button
+                    type="button"
+                    aria-label="Cerrar la sugerencia de entrar en VR o AR"
+                    title="Cerrar la sugerencia (volverá a sugerirse en unas semanas)"
+                    onClick={() => cerrar(false)}
+                    className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-[#0E101E] text-base leading-none text-[#F5F7FF] shadow transition hover:bg-[#060814] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#39FF14]/70"
+                >
+                    ×
+                </button>
+                <button
+                    type="button"
+                    onClick={() => cerrar(true)}
+                    title="No volver a sugerir; sigue disponible en el Centro de Control"
+                    className="inline-flex h-8 cursor-pointer items-center rounded-full border border-white/15 bg-[#0E101E] px-3 text-xs text-[#B9C0D8] shadow transition hover:bg-[#060814] hover:text-[#F5F7FF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#39FF14]/70"
+                >
+                    No volver a sugerir
+                </button>
+            </div>
             {/* El botón de XR1010E es `fixed`; se ancla a 96 px de la izquierda y del pie
                 (bottom-24/left-24) y se desactiva su `right-4` para no tapar el orbe de Aurora. */}
             <div

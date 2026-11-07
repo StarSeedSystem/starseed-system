@@ -45,6 +45,7 @@ import { SeccionLogic } from "../logic/seccion-logic";
 import { PildoraEstado } from "../logic/pildora-estado";
 import { Segmentado } from "../logic/segmentado";
 import { FilaAcceso } from "../logic/fila-acceso";
+import { TarjetaXR } from "../logic/tarjeta-xr";
 import { DeslizadorLogic } from "../logic/deslizador-logic";
 import { useIrCerrando } from "../logic/use-ir-cerrando";
 import { useGrabadora } from "../logic/use-grabadora";
@@ -355,6 +356,7 @@ export function QuickSettingsTab() {
                         onClick={() => pedirSeccion("home")}
                         testId="fila-atmosfera"
                     />
+                    <TarjetaXR />
                     <FilaAcceso
                         icono={Settings}
                         titulo="Ajustes completos"
