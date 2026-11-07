@@ -45,14 +45,45 @@ export interface OpcionesMovimiento {
     activo?: boolean;
 }
 
+/** Consulta de media compartida por todas las lecturas del área. */
+export const CONSULTA_REDUCIDO = "(prefers-reduced-motion: reduce)";
+
 /** ¿Pide el sistema reducir el movimiento? (SSR-safe: en servidor, no.) */
 export function prefiereReducirMovimiento(): boolean {
     if (typeof window === "undefined" || !window.matchMedia) return false;
     try {
-        return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        return window.matchMedia(CONSULTA_REDUCIDO).matches;
     } catch {
         return false;
     }
+}
+
+/**
+ * FUENTE ÚNICA de `prefers-reduced-motion` en el área de avatares (auditada y
+ * unificada): la única lectura reactiva que queda en `AvatarVivo` (vía fuente y
+ * vía ADN); `motor.ts` conserva su lectura puntual (módulo sin React) y
+ * quedan por adoptarlo `acompanante-personalidad.tsx`, `cuerpo-3d-bot.tsx` y
+ * `mundo/use-entorno-mundo.ts` (tampoco tiene React). SSR-safe: durante el
+ * primer pintado devuelve
+ * `false` (igual que los componentes hacían) y se corrige en el efecto, sin
+ * desajuste de hidratación.
+ */
+export function useMovimientoReducido(): boolean {
+    const [reducido, setReducido] = useState(false);
+    useEffect(() => {
+        setReducido(prefiereReducirMovimiento());
+        if (typeof window === "undefined" || !window.matchMedia) return;
+        let mq: MediaQueryList;
+        try {
+            mq = window.matchMedia(CONSULTA_REDUCIDO);
+        } catch {
+            return;
+        }
+        const alCambiar = () => setReducido(mq.matches);
+        mq.addEventListener?.("change", alCambiar);
+        return () => mq.removeEventListener?.("change", alCambiar);
+    }, []);
+    return reducido;
 }
 
 /**
@@ -67,6 +98,9 @@ export function useMovimiento(
     op: OpcionesMovimiento = {},
 ): EstadoMovimiento {
     const { personalidadId, activo = true } = op;
+    // Accesibilidad REACTIVA: si la persona activa «reducir movimiento» con el
+    // avatar montado, la generación y la reproducción se cortan en el acto.
+    const reducido = useMovimientoReducido();
 
     const [clip, setClip] = useState<MovimientoClip | null>(null);
     const [nivel, setNivel] = useState<NivelMovimiento | null>(null);
@@ -95,7 +129,7 @@ export function useMovimiento(
         fotogramaRef.current = 0;
         inicioRef.current = 0;
         clipRef.current = null;
-        if (!gesto || prefiereReducirMovimiento()) return;
+        if (!gesto || reducido) return;
         moverAvatar(gesto, { personalidadId })
             .then((r) => {
                 if (!vivo) return;
@@ -120,6 +154,7 @@ export function useMovimiento(
         gesto?.duracionMs,
         gesto?.bucle,
         personalidadId,
+        reducido,
     ]);
 
     /* Reproducción con rAF. La pausa (`activo: false`) corta el rAF sin tirar
