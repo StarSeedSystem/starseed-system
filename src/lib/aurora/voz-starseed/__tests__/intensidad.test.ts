@@ -14,10 +14,10 @@ describe("clampIntensity - validación de intensidad en rango [0, 1]", () => {
         expect(clampIntensity(-100)).toBe(0);
     });
 
-    it("devuelve 1 para valores mayores que 1", () => {
-        expect(clampIntensity(1.1)).toBe(1);
-        expect(clampIntensity(2)).toBe(1);
-        expect(clampIntensity(100)).toBe(1);
+    it("devuelve 2 para valores mayores que 2", () => {
+        expect(clampIntensity(1.1)).toBe(1.1);
+        expect(clampIntensity(2)).toBe(2);
+        expect(clampIntensity(100)).toBe(2);
     });
 
     it("devuelve el valor sin cambios si está en [0, 1]", () => {

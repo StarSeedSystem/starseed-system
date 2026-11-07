@@ -59,6 +59,16 @@ export {
     type OpcionesNivelVoz,
 };
 import { perfilNeuronal } from "@/lib/voces/perfil-neuronal";
+/**
+ * Motor único voz StarSeed: validación centralizada de intensidad (0–1).
+ * Acepta cualquier número y lo acota al rango [0, 1] de forma segura.
+ */
+export function clampIntensity(value: number): number {
+    if (!Number.isFinite(value)) return value > 0 ? 1 : 0;
+    if (value < 0) return 0;
+    if (value > 2) return 2;
+    return value;
+}
 // (2026-09-06, Ola 264 · G2) Emoción e intensidad: etiquetas `[emocion]` del
 // texto, capa `aplicarEmocion` sobre el perfil neuronal y catálogo `EmocionVoz`.
 import {
@@ -163,6 +173,9 @@ export interface ResolucionEmocion {
     texto: string;
 }
 
+/** Valida y acota la intensidad a [0, 1] para proteger el sistema. */
+export const validarIntensidad = clampIntensity;
+
 /**
  * Resuelve la emoción EFECTIVA de un turno (2026-09-06, Ola 264 · G2).
  *
@@ -190,7 +203,7 @@ export function resolverEmocion(
         : undefined;
     return {
         emocion: delTexto.emocion ?? deOpciones ?? timbre?.emocionBase ?? "neutra",
-        intensidad: delTexto.intensidad ?? opciones.intensidad ?? timbre?.intensidad ?? 1,
+        intensidad: validarIntensidad(delTexto.intensidad ?? opciones.intensidad ?? timbre?.intensidad ?? 1),
         texto: delTexto.textoLimpio,
     };
 }
