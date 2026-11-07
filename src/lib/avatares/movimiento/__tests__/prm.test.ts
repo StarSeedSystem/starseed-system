@@ -29,11 +29,11 @@ describe("isReducedMotion singleton PRM", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         resetSingletonModule();
-    };
+    });
 
     afterEach(() => {
         vi.restoreAllMocks();
-    };
+    });
 
     it("lee el estado inicial del sistema cuando el sistema pide menos movimiento", () => {
         mockMatchMedia(true);
