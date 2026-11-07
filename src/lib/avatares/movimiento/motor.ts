@@ -28,7 +28,7 @@ import {
     siguienteNivelMovimiento,
     type NivelMovimiento,
 } from "./niveles";
-import { isReducedMotion } from "./prm";
+import { isReducedMotion, subscribePRM } from "./prm";
 
 /** Identificador público del motor único, para registros y paneles. */
 export const MOVIMIENTO_STARSEED_ID = "starseed.movimiento-unico.v1";
@@ -101,14 +101,9 @@ export function nivelMovimientoActual(): NivelMovimiento | null {
     return nivelEnUso;
 }
 
-/** Lee la preferencia de accesibilidad del sistema (prefers-reduced-motion). */
+/** Lee la preferencia de accesibilidad del sistema (prefers-reduced-motion). Usa el singleton PRM. */
 function prefiereReducirMovimiento(): boolean {
-    if (typeof window === "undefined") return false;
-    try {
-        return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    } catch {
-        return false;
-    }
+    return isReducedMotion();
 }
 
 /**

@@ -29,8 +29,9 @@ import { adnParaCalidad } from "@/lib/avatares/adn/calidad";
 import { usoPermitido } from "@/lib/avatares/adn/canalizacion";
 import { resolverRefBiblioteca, soloMismoOrigen } from "@/lib/avatares/adaptadores/resolver-ref-biblioteca";
 import type { AvatarCalidad } from "@/lib/xr/calidad-perfiles";
-import { QuantumOrb, prefersReducedMotion } from "@/components/aurora/quantum-orb";
+import { QuantumOrb } from "@/components/aurora/quantum-orb";
 import { useMovimiento } from "./usar-movimiento";
+import { isReducedMotion, subscribePRM } from "@/lib/avatares/movimiento/prm";
 
 /** Las tres fuentes de avatar que acepta el componente. */
 export type FuenteAvatar =
@@ -163,22 +164,12 @@ function AvatarVivoFuente({
 
     const [listo, setListo] = useState(false); // model-viewer cargado
     const [fallo, setFallo] = useState<string | null>(null);
-    const [reducir, setReducir] = useState(false);
+    const [reducir, setReducir] = useState(() => isReducedMotion());
 
-    // Movimiento reducido reactivo: si cambia la preferencia del sistema, la
-    // animación suave de respaldo se corta (el hook ya se protege igual).
+    // Movimiento reducido reactivo: usa el singleton PRM para suscribirse a cambios.
     useEffect(() => {
-        if (typeof window === "undefined" || !window.matchMedia) return;
-        let mq: MediaQueryList;
-        try {
-            mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-        } catch {
-            return;
-        }
-        const aplicar = () => setReducir(mq.matches);
-        aplicar();
-        mq.addEventListener("change", aplicar);
-        return () => mq.removeEventListener("change", aplicar);
+        const cancelar = subscribePRM((activo) => setReducir(activo));
+        return cancelar;
     }, []);
 
     useEffect(() => {
@@ -367,7 +358,14 @@ function AvatarVivoAdn({ adn, calidad = "vrm", tamano = 160, className }: Avatar
     const [visible, setVisible] = useState(true);
     const [url, setUrl] = useState<string | null>(null);
     const [aviso, setAviso] = useState<Aviso | null>(null);
-    const [reducir] = useState(prefersReducedMotion);
+    const [reducir, setReducir] = useState(() => isReducedMotion());
+
+    // Suscripción reactiva a prefers-reduced-motion vía singleton PRM.
+    useEffect(() => {
+        const cancelar = subscribePRM((activo) => setReducir(activo));
+        return cancelar;
+    }, []);
+
     const ref = visto.base.tipo === "vrm" ? visto.base.ref ?? null : null;
     useEffect(() => { // fuera de pantalla o con la pestaña oculta: no se dibuja
         const el = caja.current;

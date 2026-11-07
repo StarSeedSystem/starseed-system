@@ -66,6 +66,7 @@ import {
   type RGB,
 } from "@/lib/aurora/quantum-orb-theme";
 import type { QuantumOrbVoiceState } from "@/lib/aurora/quantum-orb-bus";
+import { isReducedMotion, subscribePRM } from "@/lib/avatares/movimiento/prm";
 
 /** Mismo vocabulario que `quantum-orb-bus.ts` (re-exportado para comodidad). */
 export type QuantumOrbState = QuantumOrbVoiceState;
@@ -774,14 +775,9 @@ export function createQuantumOrbRenderer(particleCount: number, seed?: number): 
   return { resize, frame };
 }
 
-/** Exportado para que `quantum-orb-avatar.tsx` no duplique este chequeo. */
+/** Exportado para que `quantum-orb-avatar.tsx` no duplique este chequeo. Usa el singleton PRM. */
 export function prefersReducedMotion(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  } catch {
-    return false;
-  }
+  return isReducedMotion();
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -830,7 +826,10 @@ export function QuantumOrb({
       try { ro.observe(wrap); } catch { /* defensivo */ }
     }
 
-    const reduced = prefersReducedMotion();
+    let reduced = prefersReducedMotion();
+    const cancelarPRM = subscribePRM((activo) => {
+      reduced = activo;
+    });
     let docVisible = typeof document === "undefined" ? true : !document.hidden;
     const onVisibility = () => {
       docVisible = typeof document === "undefined" ? true : !document.hidden;
@@ -874,6 +873,7 @@ export function QuantumOrb({
       if (ro) {
         try { ro.disconnect(); } catch { /* defensivo */ }
       }
+      cancelarPRM();
     };
   }, [size]);
 

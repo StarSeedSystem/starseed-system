@@ -23,6 +23,7 @@ import {
     type MovimientoClip,
 } from "@/lib/avatares/movimiento/motor";
 import type { NivelMovimiento } from "@/lib/avatares/movimiento/niveles";
+import { isReducedMotion } from "@/lib/avatares/movimiento/prm";
 
 /** Estado público del hook: lo que el avatar dibuja en cada fotograma. */
 export interface EstadoMovimiento {
@@ -45,14 +46,9 @@ export interface OpcionesMovimiento {
     activo?: boolean;
 }
 
-/** ¿Pide el sistema reducir el movimiento? (SSR-safe: en servidor, no.) */
+/** ¿Pide el sistema reducir el movimiento? (SSR-safe: en servidor, no.) Usa el singleton PRM. */
 export function prefiereReducirMovimiento(): boolean {
-    if (typeof window === "undefined" || !window.matchMedia) return false;
-    try {
-        return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    } catch {
-        return false;
-    }
+    return isReducedMotion();
 }
 
 /**

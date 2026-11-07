@@ -62,8 +62,7 @@ function inicializarSingletonPRM(): void {
  */
 export function isReducedMotion(): boolean {
     if (!estado.inicializado && typeof window !== "undefined") {
-        estado.activo = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        estado.inicializado = true;
+        inicializarSingletonPRM();
     }
     return estado.activo;
 }
@@ -78,8 +77,7 @@ export { isReducedMotion as isReducedMotionActive };
  */
 export function subscribePRM(fn: (activo: boolean) => void): () => void {
     if (!estado.inicializado && typeof window !== "undefined") {
-        estado.activo = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        estado.inicializado = true;
+        inicializarSingletonPRM();
     }
     estado.subscripciones.add(fn);
     // Devolver el estado actual inmediatamente.
@@ -87,4 +85,11 @@ export function subscribePRM(fn: (activo: boolean) => void): () => void {
     return () => {
         estado.subscripciones.delete(fn);
     };
+}
+
+/** Solo para pruebas: resetea el singleton a su estado inicial. */
+export function __resetPRMTestOnly(): void {
+    estado.activo = false;
+    estado.subscripciones.clear();
+    estado.inicializado = false;
 }
