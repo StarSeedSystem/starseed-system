@@ -9,7 +9,7 @@
  * Mobile-first (390 px), iconos lucide, cursor-pointer, sin emojis.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
   Laptop,
@@ -89,6 +89,7 @@ import {
   type VinculoRow,
   type PeerVinculo,
 } from "@/lib/network/vinculos-entre-cuentas";
+import { codigoSeguridad } from "@/lib/network/codigo-seguridad-vinculo";
 
 function iconoTipo(tipo: NeuronKind) {
   switch (tipo) {
@@ -531,7 +532,21 @@ function VinculoEntranteCard({ v }: { v: VinculoRow }) {
 
 function VinculoRowItem({ v, peer }: { v: VinculoRow; peer?: PeerVinculo }) {
   const [revocando, setRevocando] = useState(false);
+  const [codigoSeguridadVinculo, setCodigoSeguridadVinculo] = useState<string | null>(null);
   const esSaliente = v.rol === "de";
+
+  useEffect(() => {
+    let cancelado = false;
+    if (v.estado === "aceptado" && v.dePub && v.aPub) {
+      (async () => {
+        const codigo = await codigoSeguridad(v.dePub, v.aPub);
+        if (!cancelado) setCodigoSeguridadVinculo(codigo);
+      })();
+    }
+    return () => {
+      cancelado = true;
+    };
+  }, [v.estado, v.dePub, v.aPub]);
 
   const revocar = async () => {
     setRevocando(true);
@@ -567,6 +582,16 @@ function VinculoRowItem({ v, peer }: { v: VinculoRow; peer?: PeerVinculo }) {
           {esSaliente ? "solicitado por ti" : "recibido"} ·{" "}
           {v.estado === "aceptado" ? <ResumenPermisos permisos={v.permisos} /> : <span>en espera</span>}
         </div>
+        {codigoSeguridadVinculo && (
+          <div className="mt-1.5 space-y-1">
+            <p className="font-mono text-[11px] text-sky-200" aria-label={`Código de seguridad: ${codigoSeguridadVinculo.replace(/ /g, " ")}`}>
+              Código de seguridad · {codigoSeguridadVinculo}
+            </p>
+            <p className="text-[10px] text-foreground/50">
+              Compáralo con la otra persona por otra vía (en persona o por teléfono). Si coincide en los dos aparatos, nadie se metió en medio.
+            </p>
+          </div>
+        )}
       </div>
       {(v.estado === "pendiente" || v.estado === "aceptado") && (
         <button
