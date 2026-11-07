@@ -33,6 +33,9 @@
 # release; con la variable del repo SERVIDOR_CAPAS_CANAL=1 la publica además en el canal fijo
 # (Release `servidor-local`, `latest-servidor.json`) que miran las apps instaladas: lo nuevo llega sin
 # reinstalar. Lo mismo en cada publicación de la web: .github/workflows/servidor-capa.yml.
+# SERVIDOR LOCAL EN ANDROID (AND1107A): el mismo servidor DENTRO de la APK de StarSeed OS (nodejs-mobile), detrás
+# de un interruptor APAGADO por defecto (input `servidor_local_android` o variable del repo
+# STARSEED_SERVIDOR_LOCAL_ANDROID=1). Sin él, el job de Android es exactamente el de antes. Contrato §9.1.
 #
 # Todo vive en `native/` del repo del OS. Como los tres sistemas comparten el
 # mismo binario `starseed-native`, cada uno se construye con su `-c ...conf.json`
@@ -73,6 +76,13 @@ on:
         description: "Qué compilar (coma-separados): escritorio,android,ios"
         required: false
         default: "escritorio,android,ios"
+      # (AND1107A) Interruptor APAGADO por defecto: solo para probar en un aparato real. También se
+      # enciende con la variable del repo STARSEED_SERVIDOR_LOCAL_ANDROID=1 (p. ej. en las etiquetas).
+      servidor_local_android:
+        description: "(Pruebas · AND1107A) Meter el servidor local DENTRO de la APK de StarSeed OS (nodejs-mobile). Apagado = la APK de siempre"
+        type: boolean
+        required: false
+        default: false
 
 # Permiso para crear/actualizar el Release con los instaladores.
 permissions:
@@ -89,7 +99,8 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   servidor-local-next:
     name: servidor local · next build (standalone)
-    if: github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'escritorio')
+    # (AND1107A) También cuando el interruptor de Android lo pide (su APK usa este mismo build).
+    if: github.event_name != 'workflow_dispatch' || contains(inputs.plataformas, 'escritorio') || inputs.servidor_local_android
     runs-on: ubuntu-24.04
     continue-on-error: true
     timeout-minutes: 45
@@ -407,6 +418,11 @@ jobs:
       matrix:
         system: [os, nexus, cafe]
     runs-on: ubuntu-22.04
+    # (AND1107A) `actions: read` solo para esperar el artefacto `servidor-local-next` cuando el
+    # interruptor del servidor local está encendido; `contents: write` es el de siempre (Release).
+    permissions:
+      contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
       - name: Rust + targets Android
@@ -470,6 +486,62 @@ jobs:
       - name: Iconos (${{ matrix.system }})
         working-directory: native/src-tauri
         run: npx --yes @tauri-apps/cli@latest icon "../icons-src/${{ matrix.system }}.json"
+      # ── (AND1107A) Servidor local DENTRO de la APK (nodejs-mobile) · interruptor APAGADO por defecto ──
+      # Solo StarSeed OS y solo con el input `servidor_local_android` o la variable del repo
+      # STARSEED_SERVIDOR_LOCAL_ANDROID=1. Sin él, ninguno de estos pasos corre y la APK sale exactamente
+      # como antes. Encendido: espera el build de Next del job `servidor-local-next` (el mismo que
+      # escritorio), baja nodejs-mobile y lo verifica por SHA-256 (native/servidor-local/nodejs-mobile.json)
+      # y prepara el proyecto Android (preparar-android.mjs). Si algo falla, el script lo deshace todo y la
+      # APK sale como siempre (sin servidor local); un aviso lo dice. Contrato:
+      # architecture/apps-autonomas-sin-internet.md §9.1.
+      - name: Servidor local Android · interruptor
+        id: sl_android
+        if: matrix.system == 'os' && (inputs.servidor_local_android == true || vars.STARSEED_SERVIDOR_LOCAL_ANDROID == '1')
+        shell: bash
+        run: echo "encendido=si" >> "$GITHUB_OUTPUT"
+      - name: Servidor local Android · esperar el build de Next
+        id: sl_android_espera
+        if: steps.sl_android.outputs.encendido == 'si'
+        continue-on-error: true
+        timeout-minutes: 60
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUTA="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          hay() { [ "$(gh api "$RUTA/artifacts?per_page=100" --jq '[.artifacts[] | select(.name == "servidor-local-next")] | length')" -gt 0 ]; }
+          for i in $(seq 1 110); do
+            if hay; then echo "build de Next listo"; exit 0; fi
+            E=$(gh api "$RUTA/jobs?per_page=100" --jq '[.jobs[] | select(.name | startswith("servidor local · next build"))][0] | (.status // "") + ":" + (.conclusion // "")')
+            case "$E" in
+              completed:*) sleep 5; hay && exit 0; echo "::warning::El job servidor-local-next terminó ($E) sin artefacto."; exit 1 ;;
+              ":") echo "::warning::Este run no tiene job servidor-local-next."; exit 1 ;;
+            esac
+            sleep 30
+          done
+          echo "::warning::El build de Next no llegó a tiempo."; exit 1
+      - name: Servidor local Android · descargar el build de Next
+        id: sl_android_next
+        if: steps.sl_android_espera.outcome == 'success'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: servidor-local-next
+          path: .servidor-local
+      - name: Servidor local Android · armar (nodejs-mobile verificado + standalone)
+        id: sl_android_armado
+        if: steps.sl_android_next.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          node native/servidor-local/preparar-android.mjs --tar .servidor-local/servidor-next.tar \
+            --proyecto native/src-tauri/gen/android --conf native/src-tauri/tauri.android.conf.json
+          # build.rs compila el código Rust del servidor local solo con esto (y comprueba el proyecto).
+          echo "STARSEED_SERVIDOR_LOCAL_ANDROID=1" >> "$GITHUB_ENV"
+      - name: Servidor local Android · aviso si esta APK no lo lleva
+        if: steps.sl_android.outputs.encendido == 'si' && steps.sl_android_armado.outcome != 'success'
+        shell: bash
+        run: echo "::warning::El interruptor del servidor local de Android estaba encendido, pero esta APK sale SIN él (abre la web publicada, como siempre). Mira los pasos «Servidor local Android» de este job."
       - name: Build APK (release)
         working-directory: native
         run: cargo tauri android build --apk ${{ steps.cfg.outputs.flag }}
@@ -491,6 +563,25 @@ jobs:
             --key-pass "pass:${{ secrets.ANDROID_KEY_PASSWORD }}" \
             --out "$OUT" /tmp/aligned.apk
           "$BT/apksigner" verify "$OUT" && echo "APK firmado OK: $OUT"
+      # (AND1107A) Solo con el interruptor: el tamaño REAL de la APK firmada y su desglose.
+      - name: Servidor local Android · tamaño de la APK
+        if: always() && steps.sl_android.outputs.encendido == 'si'
+        shell: bash
+        run: |
+          F="StarSeed-${{ matrix.system }}-${{ steps.ver.outputs.version }}.apk"
+          {
+            echo "### APK · ${{ matrix.system }} · servidor local dentro: ${{ steps.sl_android_armado.outcome == 'success' && 'sí' || 'no' }}"
+            echo ""
+            if [ -f "$F" ]; then
+              echo "**$F: $(du -h "$F" | cut -f1) ($(stat -c %s "$F") bytes)**"
+              echo ""
+              echo '```'
+              unzip -v "$F" | grep -E ' lib/|assets/servidor-local/' | awk '{printf "%12s %12s  %s\n", $1, $3, $8}'
+              echo '```'
+            else
+              echo "No hay APK firmada."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Subir APK al Release
         uses: softprops/action-gh-release@v2
         with:
