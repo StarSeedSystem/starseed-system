@@ -115,6 +115,18 @@ class Pasadas(unittest.TestCase):
         self.assertEqual(est["fase"], "esperando-publicacion")
         self.assertIn("aún no ha publicado", est["detalle"])
 
+    def test_lista_nueva_olvida_el_lanzamiento_anterior(self):
+        """(LZN1107A) Con el preparado_sha de la versión anterior, el director volvía a etiquetarla."""
+        m = Falsos({os.path.join(D.OLAS, "cola-x.json"): [{"id": "VER1105A"}], "_log": "x · VER1105A: hecho"})
+        previo = {"fase": "lanzado", "lista_lanzada": ["vieja.json"], "version": "0.4.3", "preparado_sha": "a" * 40,
+                  "run": 42, "run_url": "https://x/run/42", "volver_a": "compilando", "medios": {"macos": {}}}
+        est = D.pasada(m, previo, CFG, 1000.0)
+        self.assertEqual(est["fase"], "esperando-publicacion")
+        for k in ("preparado_sha", "version", "run", "run_url", "volver_a"):
+            self.assertIsNone(est.get(k), k)
+        self.assertEqual(est["medios"], {})
+        self.assertNotIn(["git", "tag"], [o[:2] for o in m.ordenes])
+
     def test_pausa_desde_el_panel(self):
         m = Falsos({D.PETICION: {"accion": "pausar"}})
         est = D.pasada(m, {"fase": "compilando", "run": 7}, CFG, 1000.0)

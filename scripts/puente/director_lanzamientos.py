@@ -280,6 +280,12 @@ def _verificar_medios(m, est, ahora):
                  historial=hist[-30:], version_sin_lanzar=None, arreglo_titulo=None)
 
 
+#: (LZN1107A) Lo que pertenece a UN lanzamiento y no puede pasar al siguiente.
+OLVIDAR_LANZAMIENTO = dict(preparado_sha=None, version=None, run=None, run_previo=None, run_url=None,
+                           release_url=None, jobs=[], medios={}, reintentos=0, regeneraciones=0,
+                           compilando_desde=None, volver_a=None, arreglo=None, notas=None)
+
+
 def pasada(m, est, cfg, ahora):
     est = dict(est or {})
     if est.get("fase") not in L.FASES + ("atascado",):
@@ -317,8 +323,10 @@ def pasada(m, est, cfg, ahora):
         if fase == "lanzado" and est.get("lista_lanzada") == cfg.get("colas"):
             return dict(est, detalle="esta lista ya se lanzó", t=ahora)
         _, lista_sha, _ = m.git(["rev-parse", "origin/main"])
+        # (LZN1107A) Una lista nueva empieza de cero: nada del lanzamiento anterior (preparado_sha, versión, run…).
+        # Con el preparado_sha viejo el director volvía a etiquetar y «compilar» la versión ya lanzada.
         est = _paso(est, "esperando-publicacion", "lista terminada", ahora, lista_lanzada=cfg.get("colas"),
-                    lista_sha=lista_sha, version_sin_lanzar=None, arreglo_titulo=None)
+                    lista_sha=lista_sha, version_sin_lanzar=None, arreglo_titulo=None, **OLVIDAR_LANZAMIENTO)
         fase = est["fase"]
     if fase == "esperando-publicacion":
         autopub = m.leer(AP.ESTADO, {})
