@@ -210,3 +210,52 @@ describe("LocalSend — solo archivos por la red local desde la app nativa o un 
     expect(r.descartados[0].motivo).toMatch(/solo vale por un enlace local/);
   });
 });
+
+describe("red local de la app nativa (MLT1107A) — rango 0, respaldo del WebRTC", () => {
+  const nativo = enlace({
+    id: "nativo:192.168.1.20",
+    tipo: "nativo",
+    alcanza: { neuronDeviceId: "N-B", syncDeviceId: "B" },
+    sinInternet: true,
+    ruta: "misma-red-local",
+    rttMs: 3,
+    admite: { mensaje: true, archivo: true, flujo: false },
+  });
+  const webrtcNativo = enlace({ id: "local:nativo-abc123", tipo: "local", rttMs: 9, sinInternet: true, admite: { mensaje: true, archivo: true, flujo: true } });
+
+  it("es rango 0 (como el local) y va antes que cualquier P2P de la cuenta, el relé o LoRa", () => {
+    const r = elegirEnlaces([lora, rele, cuentaLan, nativo], { syncDeviceId: "B", identidadRele: "fp", nodoLora: 1 }, "mensaje", 50);
+    expect(r.elegidos.map((e) => e.enlace.id)).toEqual(["nativo:192.168.1.20", "cuenta:B", "rele", "lora"]);
+    expect(rangoEnlace(nativo)).toBe(0);
+    expect(r.elegidos[0].motivo).toMatch(/red local de la app nativa/);
+  });
+
+  it("dentro del rango 0 el WebRTC va antes que el TCP aunque el TCP mida menos latencia", () => {
+    const r = elegirEnlaces([nativo, webrtcNativo], { syncDeviceId: "B" }, "mensaje");
+    expect(r.elegidos.map((e) => e.enlace.id)).toEqual(["local:nativo-abc123", "nativo:192.168.1.20"]);
+    expect(r.elegidos[0].motivo).toMatch(/abrieron solas las dos apps nativas/);
+  });
+
+  it("llega por el id de neurona y nunca lleva flujos (lo dice con su motivo)", () => {
+    expect(elegirEnlaces([nativo], { neuronDeviceId: "N-B" }, "mensaje").elegidos).toHaveLength(1);
+    const flujo = elegirEnlaces([nativo], { neuronDeviceId: "N-B" }, "flujo");
+    expect(flujo.elegidos).toHaveLength(0);
+    expect(flujo.descartados[0].motivo).toMatch(/canal TCP de la app nativa no lleva audio, vídeo ni flujos/);
+  });
+
+  it("un archivo va por el TCP solo si es el único P2P; con un WebRTC al mismo aparato, por el WebRTC", () => {
+    const soloTcp = elegirEnlaces([nativo, rele], { syncDeviceId: "B", identidadRele: "fp" }, "archivo");
+    expect(enlacesParaReparto(soloTcp).map((e) => e.id)).toEqual(["nativo:192.168.1.20"]);
+    const conCuenta = elegirEnlaces([cuentaLan, nativo], { syncDeviceId: "B" }, "archivo");
+    expect(conCuenta.elegidos[0].enlace.id).toBe("nativo:192.168.1.20");
+    expect(enlacesParaReparto(conCuenta).map((e) => e.id)).toEqual(["cuenta:B"]);
+    const conLocal = elegirEnlaces([nativo, cuentaLan, webrtcNativo], { syncDeviceId: "B" }, "archivo");
+    expect(enlacesParaReparto(conLocal).map((e) => e.id)).toEqual(["local:nativo-abc123", "cuenta:B"]);
+  });
+
+  it("si el TCP es el mejor y el WebRTC va a OTRO aparato de la misma persona, el archivo sigue por el TCP", () => {
+    const n = enlace({ ...nativo, alcanza: { neuronDeviceId: "N-B", syncDeviceId: "B", uid: "u" } });
+    const otroAparato = enlace({ id: "cuenta:P", tipo: "cuenta", ruta: "misma-red-local", alcanza: { syncDeviceId: "P", uid: "u" } });
+    expect(enlacesParaReparto(elegirEnlaces([otroAparato, n], { uid: "u" }, "archivo")).map((e) => e.id)).toEqual(["nativo:192.168.1.20"]);
+  });
+});

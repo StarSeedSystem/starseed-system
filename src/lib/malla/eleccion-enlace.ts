@@ -5,7 +5,9 @@
  * y las pruebas. Contrato: `architecture/transporte-universal-sin-internet.md`.
  *
  * ORDEN (del más directo al menos directo; Alex: «el más directo y eficiente»):
- *   0 · enlace LOCAL emparejado sin internet (código/QR): ni servidores ni internet.
+ *   0 · enlace LOCAL emparejado sin internet (código/QR, o abierto solo entre dos apps nativas por su
+ *       canal local) y el canal local de la APP NATIVA (`nativo:<ip>`, TCP 47071 con una neurona
+ *       vinculada, MLT1107A). Dentro del rango 0 va antes el WebRTC (más rápido); el TCP es el respaldo.
  *   1 · canal WebRTC de la malla de la cuenta o de un vínculo entre cuentas cuya ruta MEDIDA es la
  *       red local (host↔host): se señalizó por internet, pero el tráfico ya va por el Wi-Fi.
  *   2 · ese mismo canal por internet directo (NAT atravesado) o con ruta aún sin medir.
@@ -33,7 +35,7 @@ import type { ClaseRuta } from "@/lib/network/estadisticas-enlace";
 import { vetoPorPolitica, ordenarPorViabilidad } from "./cristal/adaptador-elegidores";
 import type { Medio } from "./cristal/tipos";
 
-export type TipoEnlace = "local" | "cuenta" | "par" | "rele" | "lora";
+export type TipoEnlace = "local" | "nativo" | "cuenta" | "par" | "rele" | "lora";
 export type ClaseEnvio = "mensaje" | "archivo" | "flujo";
 
 /** Protocolo con el que habla el enlace. Ausente = «starseed», el de siempre. */
@@ -112,6 +114,7 @@ export interface Eleccion {
 export function rangoEnlace(e: EnlaceDisponible): number {
   switch (e.tipo) {
     case "local":
+    case "nativo":
       return 0;
     case "cuenta":
     case "par":
@@ -131,6 +134,8 @@ export function rangoEnlace(e: EnlaceDisponible): number {
 export function motivoRango(e: EnlaceDisponible): string {
   switch (rangoEnlace(e)) {
     case 0:
+      if (e.tipo === "nativo") return "red local de la app nativa (neurona vinculada, sin internet)";
+      if (e.id.startsWith("local:nativo-")) return "enlace directo por la red local (lo abrieron solas las dos apps nativas)";
       return "enlace directo sin internet (emparejado en persona)";
     case 1:
       return "canal P2P por la red local (ruta medida)";
@@ -157,6 +162,14 @@ export function alcanzaDestino(e: EnlaceDisponible, d: DestinoTransporte): boole
   if (d.neuronDeviceId && a.neuronDeviceId === d.neuronDeviceId) return true;
   if (d.uid && a.uid === d.uid) return true;
   return false;
+}
+
+/**
+ * Orden DENTRO del rango 0: el enlace WebRTC directo (código/QR o abierto por las apps nativas) antes
+ * que el canal TCP de la app nativa, que es su respaldo (va al ritmo que marca el limitador del otro).
+ */
+export function ordenEnRango(e: EnlaceDisponible): number {
+  return e.tipo === "nativo" ? 1 : 0;
 }
 
 function compararNumero(a: number | null | undefined, b: number | null | undefined, asc: boolean): number {
@@ -238,6 +251,7 @@ export function elegirEnlaces(
       let medio: Medio;
       switch (e.tipo) {
         case "local": medio = "webrtc"; break;
+        case "nativo": medio = "wifi-lan"; break;
         case "cuenta": medio = "webrtc"; break;
         case "par": medio = "webrtc"; break;
         case "rele": medio = "servidor"; break;
@@ -273,7 +287,9 @@ export function elegirEnlaces(
     if (!e.admite[clase]) {
       descartar(
         clase === "flujo"
-          ? "no lleva audio ni vídeo (las llamadas directas van por el enlace local)"
+          ? e.tipo === "nativo"
+            ? "el canal TCP de la app nativa no lleva audio, vídeo ni flujos: van por el enlace directo que abren solas las dos apps"
+            : "no lleva audio ni vídeo (las llamadas directas van por el enlace local)"
           : clase === "archivo"
             ? e.tipo === "lora"
               ? "LoRa no lleva archivos"
@@ -301,6 +317,7 @@ export function elegirEnlaces(
      elegidos.sort(
        (a, b) =>
          a.rango - b.rango ||
+         ordenEnRango(a.enlace) - ordenEnRango(b.enlace) ||
          puntuar(a.enlace) - puntuar(b.enlace) ||
          compararNumero(a.enlace.rttMs, b.enlace.rttMs, true) ||
          compararNumero(a.enlace.capacidadKbps, b.enlace.capacidadKbps, false) ||
@@ -311,6 +328,7 @@ export function elegirEnlaces(
      elegidos.sort(
        (a, b) =>
          a.rango - b.rango ||
+         ordenEnRango(a.enlace) - ordenEnRango(b.enlace) ||
          compararNumero(a.enlace.rttMs, b.enlace.rttMs, true) ||
          compararNumero(a.enlace.capacidadKbps, b.enlace.capacidadKbps, false) ||
          (a.enlace.id < b.enlace.id ? -1 : a.enlace.id > b.enlace.id ? 1 : 0),
@@ -331,13 +349,21 @@ export function mismoAparato(a: AlcanceEnlace, b: AlcanceEnlace): boolean {
  * Enlaces P2P que pueden llevar trozos del MISMO archivo a la vez: nunca relé ni LoRa, y solo los
  * que llegan al mismo aparato que el mejor (un destino «persona» puede tener varios aparatos, y
  * repartir un archivo entre aparatos distintos lo rompería). El mejor va primero.
+ *
+ * El canal TCP de la app nativa (`nativo`) NUNCA reparte con otros: va a su propio ritmo (el limitador
+ * del otro) y frenaría a un canal WebRTC. Si es el mejor y hay un canal WebRTC al MISMO aparato, el
+ * archivo va por el WebRTC; si no lo hay, va solo por el TCP.
  */
 export function enlacesParaReparto(eleccion: Eleccion): EnlaceDisponible[] {
   const p2p = eleccion.elegidos
     .map((x) => x.enlace)
-    .filter((e) => e.tipo === "local" || e.tipo === "cuenta" || e.tipo === "par");
+    .filter((e) => e.tipo === "local" || e.tipo === "nativo" || e.tipo === "cuenta" || e.tipo === "par");
   if (p2p.length <= 1) return p2p;
-  const [mejor, ...resto] = p2p;
+  const primero = p2p[0];
+  const webrtc = p2p.filter((e) => e.tipo !== "nativo");
+  const candidatos = primero.tipo === "nativo" ? webrtc.filter((e) => mismoAparato(primero.alcanza, e.alcanza)) : webrtc;
+  if (!candidatos.length) return [primero];
+  const [mejor, ...resto] = candidatos;
   return [mejor, ...resto.filter((e) => mismoAparato(mejor.alcanza, e.alcanza))];
 }
 
