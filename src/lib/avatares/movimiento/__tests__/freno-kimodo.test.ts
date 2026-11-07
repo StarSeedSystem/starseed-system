@@ -8,6 +8,11 @@ vi.mock("@/lib/aurora/voz-starseed/capacidades", () => ({
   detectarCapacidades: async () => ({}),
   capacidadesEnCache: () => null,
 }));
+vi.mock("../prm", () => ({
+  isReducedMotion: () => false,
+  subscribePRM: (fn: (activo: boolean) => void) => { fn(false); return () => {}; },
+  __resetPRMTestOnly: () => {},
+}));
 import { kimodoEnPausaHasta, moverAvatar, reiniciarFrenoKimodo, type Gesto, type MovimientoClip } from "../motor";
 
 const CLIP: MovimientoClip = { esqueleto: "smplx22", fps: 30, duracionMs: 1000, rotaciones: [[0], [0]], raiz: [[0, 0, 0], [0, 0, 0]], origen: "kimodo" } as MovimientoClip;

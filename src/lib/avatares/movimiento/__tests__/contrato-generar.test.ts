@@ -9,6 +9,11 @@ vi.mock("@/lib/aurora/voz-starseed/capacidades", () => ({
   detectarCapacidades: async () => ({}),
   capacidadesEnCache: () => null,
 }));
+vi.mock("../prm", () => ({
+  isReducedMotion: () => false,
+  subscribePRM: (fn: (activo: boolean) => void) => { fn(false); return () => {}; },
+  __resetPRMTestOnly: () => {},
+}));
 import {
   moverAvatar,
   reiniciarFrenoKimodo,

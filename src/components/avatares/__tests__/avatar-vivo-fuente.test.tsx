@@ -4,14 +4,64 @@
  * URL y se envolvía otra vez; la imagen rota enseñaba su texto alternativo).
  */
 import { cleanup, render } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/dynamic", () => ({ default: () => () => null }));
 import { AvatarVivo } from "../avatar-vivo";
+import { __resetPRMTestOnly } from "@/lib/avatares/movimiento/prm";
+
+let matchMediaMock: ReturnType<typeof vi.fn>;
+let currentMock: {
+  matches: boolean;
+  media: string;
+  onchange: null;
+  addListener: ReturnType<typeof vi.fn>;
+  removeListener: ReturnType<typeof vi.fn>;
+  addEventListener: ReturnType<typeof vi.fn>;
+  removeEventListener: ReturnType<typeof vi.fn>;
+  dispatchEvent: ReturnType<typeof vi.fn>;
+};
+
+function createMatchMediaMock(matches: boolean) {
+  const query = "(prefers-reduced-motion: reduce)";
+  return {
+    matches,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  };
+}
+
+function setupMatchMediaMock(matches: boolean): void {
+  if (!currentMock) {
+    currentMock = createMatchMediaMock(matches);
+    matchMediaMock = vi.fn().mockReturnValue(currentMock);
+  } else {
+    currentMock.matches = matches;
+  }
+  if (typeof window !== "undefined") {
+    (window as any).matchMedia = matchMediaMock;
+  }
+}
 
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><circle cx="4" cy="4" r="3"/></svg>';
 
-afterEach(cleanup);
+beforeEach(() => {
+  vi.clearAllMocks();
+  __resetPRMTestOnly();
+  currentMock = undefined;
+  setupMatchMediaMock(false);
+});
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  __resetPRMTestOnly();
+});
 
 describe("AvatarVivo · fuente procedural", () => {
   it("un SVG crudo se envuelve en su data URI", () => {
