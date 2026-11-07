@@ -6007,3 +6007,10 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 - `ENT-agentes-referencias-diseno-agentes-re-d48570-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-d48570-v1.json
 - `ENT-agentes-referencias-diseno-agentes-re-68c176-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-68c176-v1.json
 - `ENT-agentes-referencias-diseno-agentes-re-bcff2b-v1` — otra cosa: 1 propuesta(s) · starseed_memory_root/imaginacion/agentes/entregable-agentes-referencias-diseno-agentes-referencias-diseno-bcff2b-v1.json
+
+## 2026-11-07 01:38 · auto-1107-012015
+
+**Resultado.** 0 de 1 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `IMG-diaria-publicar-los-59-commits-acumulado` — no escribió nada
