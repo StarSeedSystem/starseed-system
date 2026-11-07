@@ -97,6 +97,20 @@ enigo = "0.6"
 # 0.21.3 añadió dos más: en Linux (el CI) no compila. Se fija 0.21.1 hasta que deep-link lo arregle.
 [target.'cfg(target_os = "linux")'.dependencies]
 rust-ini = "=0.21.1"
+# (TAM1107A · T4b) Migración del origen web SIN internet (src/migracion_origen_local.rs): la ventana oculta
+# carga un HTML del binario con la dirección de la web publicada. Son las MISMAS crates y versiones que ya
+# trae tauri para cada motor (se unifican; no se descarga nada nuevo): WebKitGTK `load_html`.
+webkit2gtk = "2"
+
+# WKWebView `loadHTMLString:baseURL:` (objc2 y objc2-foundation de tauri/wry).
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSURL"] }
+
+# WebView2 `WebResourceRequested` + `SHCreateMemStream` (webview2-com y windows de tauri/wry).
+[target.'cfg(target_os = "windows")'.dependencies]
+webview2-com = "0.39"
+windows = { version = "0.62", features = ["Win32_UI_Shell", "Win32_System_Com"] }
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Notas de compilación (NO se compila aquí; lo hace el CI o el dueño en local):

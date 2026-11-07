@@ -13,7 +13,13 @@
 //      una página sin el código del OS que pide los datos (`migracion_origen_estado` / `_datos`),
 //      los fusiona sin pisar nada y confirma (`migracion_origen_confirmar`) → marcador y a `/`.
 // El original nunca se borra. Lógica pura y pruebas: migracion_origen_logica.rs.
+// (T4b · TAM1107A) SIN internet ya no se pospone: la ventana oculta abre un HTML del binario con la
+// dirección (el origen) de la web publicada y exporta igual, sin red (migracion_origen_local.rs). Con
+// internet, el camino de siempre. `STARSEED_MIGRACION_SIN_RED=1` fuerza el modo sin red (pruebas T12).
 // ═══════════════════════════════════════════════════════════════════════════
+
+#[path = "migracion_origen_local.rs"]
+mod local;
 
 use crate::migracion_origen_logica as l;
 use crate::servidor_local_logica as sl;
@@ -39,6 +45,8 @@ pub struct EstadoMigracion {
     /// Nombre de la copia en `<app_data>/migracion-origen/`.
     pub copia: Option<String>,
     pub resumen: Option<Value>,
+    /// (T4b) Cómo se abrió la versión anterior: "red" | "sin-red".
+    pub modo: Option<String>,
 }
 
 struct Interno {
@@ -137,14 +145,22 @@ pub fn preparar(app: &AppHandle) {
 }
 
 fn exportar(app: AppHandle) {
-    if !crate::servidor_local::hay_internet() {
+    let forzar = l::pide_forzar_sin_red(std::env::var(l::VAR_FORZAR_SIN_RED).ok().as_deref());
+    let con_red = !forzar && crate::servidor_local::hay_internet();
+    let Some(modo) = l::modo_exportacion(con_red, local::DISPONIBLE, forzar) else {
         fallar(
             &app,
             "Sin internet: los datos de la versión anterior se traerán la próxima vez que abras la app con conexión. Siguen intactos.".into(),
         );
         return;
-    }
-    let url = l::url_exportacion(sl::WEB_PUBLICADA);
+    };
+    con_estado(|e| e.modo = Some(modo.nombre().into()));
+    // Sin red, la ventana empieza en blanco (no pide nada) y recibe después el HTML local con la dirección
+    // de la web publicada; con red, la página de verdad, como siempre.
+    let url = match modo {
+        l::ModoExportacion::Red => l::url_exportacion(sl::WEB_PUBLICADA),
+        l::ModoExportacion::SinRed => l::URL_VACIA.to_string(),
+    };
     let Ok(url) = tauri::Url::parse(&url) else {
         fallar(&app, "URL de la versión anterior no válida.".into());
         return;
@@ -158,15 +174,59 @@ fn exportar(app: AppHandle) {
         .inner_size(480.0, 320.0)
         .initialization_script(&script)
         .build();
-    if let Err(e) = creada {
-        fallar(&app, format!("No se pudo abrir la versión anterior para leer sus datos: {e}"));
-        return;
+    let ventana = match creada {
+        Ok(v) => v,
+        Err(e) => {
+            fallar(&app, format!("No se pudo abrir la versión anterior para leer sus datos: {e}"));
+            return;
+        }
+    };
+    if modo == l::ModoExportacion::SinRed {
+        if let Err(e) = cargar_sin_red(&ventana) {
+            fallar(&app, format!("No se pudo abrir sin conexión la versión anterior ({e}). Tus datos siguen intactos; se reintentará."));
+            return;
+        }
     }
     std::thread::sleep(Duration::from_millis(l::ESPERA_EXPORTAR_MS));
     fallar(
         &app,
         format!("La versión anterior no respondió en {} s. Tus datos siguen intactos; se reintentará.", l::ESPERA_EXPORTAR_MS / 1000),
     );
+}
+
+/// (T4b) Pone en la ventana oculta el HTML local con la dirección de la web publicada. Espera a que el motor
+/// lo acepte (el `with_webview` corre en el hilo principal; aquí estamos en el hilo de la migración).
+fn cargar_sin_red(ventana: &tauri::WebviewWindow) -> Result<(), String> {
+    let url_base = l::url_exportacion_sin_red(sl::WEB_PUBLICADA);
+    let pagina = l::pagina_sin_red(sl::WEB_PUBLICADA);
+    let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
+    ventana
+        .with_webview(move |pw| {
+            let _ = tx.send(cargar_en(&pw, l::HTML_SIN_RED, &url_base, &pagina));
+        })
+        .map_err(|e| e.to_string())?;
+    rx.recv_timeout(Duration::from_secs(10)).map_err(|_| "la ventana no respondió".to_string())?
+}
+
+#[cfg(target_os = "linux")]
+fn cargar_en(pw: &tauri::webview::PlatformWebview, html: &str, url_base: &str, _pagina: &str) -> Result<(), String> {
+    local::cargar_webkitgtk(&pw.inner(), html, url_base)
+}
+
+#[cfg(target_os = "macos")]
+fn cargar_en(pw: &tauri::webview::PlatformWebview, html: &str, url_base: &str, _pagina: &str) -> Result<(), String> {
+    // SAFETY: `inner()` es el WKWebView vivo de esta ventana y `with_webview` corre en el hilo principal.
+    unsafe { local::cargar_wkwebview(pw.inner(), html, url_base) }
+}
+
+#[cfg(target_os = "windows")]
+fn cargar_en(pw: &tauri::webview::PlatformWebview, html: &str, url_base: &str, pagina: &str) -> Result<(), String> {
+    local::cargar_webview2(&pw.controller(), &pw.environment(), html, url_base, pagina)
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+fn cargar_en(_pw: &tauri::webview::PlatformWebview, _html: &str, _url_base: &str, _pagina: &str) -> Result<(), String> {
+    Err("este sistema no sabe abrir sin red la versión anterior".into())
 }
 
 /// Comprueba quién llama: la ventana y el origen exactos.

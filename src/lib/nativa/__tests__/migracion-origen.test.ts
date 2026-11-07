@@ -7,6 +7,7 @@
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import vm from "node:vm";
 import { afterEach, describe, expect, it } from "vitest";
 import { crearIdbDeMentira } from "./idb-de-mentira";
 import {
@@ -498,6 +499,81 @@ describe("aviso", () => {
     expect(JSON.parse(visto!)).toEqual({ resultado: "hecha", copia: "c", visto: true });
     expect(marcarVisto("{")).toBeNull();
   });
+});
+
+describe("sin internet (T4b · TAM1107A): el HTML del binario con la dirección de la web", () => {
+  const logica = leer("native/src-tauri/src/migracion_origen_logica.rs");
+  /** Un `pub const X: &str = "…";` de Rust, ya sin escapes (los de Rust y JSON coinciden aquí). */
+  const literal = (nombre: string): string => {
+    const m = logica.match(new RegExp(`pub const ${nombre}: &str = "((?:[^"\\\\]|\\\\.)*)";`));
+    if (!m) throw new Error(`falta ${nombre} en migracion_origen_logica.rs`);
+    return JSON.parse(`"${m[1]}"`) as string;
+  };
+  /** El script de inicio TAL CUAL lo arma Rust (`script_exportacion`): el módulo entero + la llamada. */
+  const scriptDeInicio = (): string => {
+    const m = logica.match(/pub fn script_exportacion[\s\S]*?format!\(\s*"((?:[^"\\]|\\.)*)"/);
+    if (!m) throw new Error("falta script_exportacion");
+    const plantilla = (JSON.parse(`"${m[1]}"`) as string).replace(/\{\{/g, "{").replace(/\}\}/g, "}");
+    return plantilla
+      .replace("{modulo_js}", () => leer("native/servidor-local/migracion-origen.js"))
+      .replace("{o}", () => JSON.stringify(M.ORIGEN_WEB));
+  };
+  /** Una ventana como la oculta: su dirección, su almacén y el puente de Tauri que apunta lo que recibe. */
+  async function ventanaOculta(direccion: string, ls: LsDeMentira, idb: unknown, tope = 3000) {
+    const llamadas: Array<[string, Record<string, unknown>]> = [];
+    const ventana: Record<string, unknown> = {
+      location: new URL(direccion),
+      localStorage: ls,
+      indexedDB: idb,
+      setTimeout,
+      clearTimeout,
+      btoa,
+      atob,
+      Blob,
+      __TAURI_INTERNALS__: { invoke: async (c: string, a: Record<string, unknown>) => void llamadas.push([c, a]) },
+    };
+    ventana.window = ventana;
+    vm.runInNewContext(scriptDeInicio(), ventana);
+    const fin = Date.now() + tope;
+    while (Date.now() < fin && !(llamadas.length && llamadas.length === llamadas[0][1].total)) await new Promise((r) => setTimeout(r, 20));
+    await new Promise((r) => setTimeout(r, 50));
+    return { llamadas, ventana };
+  }
+
+  it("la dirección sin red es del MISMO origen que la web publicada y su HTML no pide nada", () => {
+    const url = new URL(M.ORIGEN_WEB + literal("PAGINA_EXPORTACION_SIN_RED"));
+    expect(url.origin).toBe(M.ORIGEN_WEB);
+    expect(url.pathname).toBe("/offline.html");
+    expect(url.searchParams.get("starseed-migracion")).toBe("1");
+    expect(literal("URL_VACIA")).toBe("about:blank");
+    expect(literal("VAR_FORZAR_SIN_RED")).toBe("STARSEED_MIGRACION_SIN_RED");
+    const html = literal("HTML_SIN_RED").toLowerCase();
+    expect(html).toMatch(/^<!doctype html>/);
+    for (const prohibido of ["<script", "src=", "href=", "<link", "<iframe", "url(", "@import", "http:", "https:"]) expect(html).not.toContain(prohibido);
+  });
+
+  it("el script de inicio de Rust exporta en esa página igual que con red, sin la sesión", async () => {
+    const { idb, ls } = origenViejo();
+    await llenarViejo(idb);
+    const { llamadas } = await ventanaOculta(M.ORIGEN_WEB + literal("PAGINA_EXPORTACION_SIN_RED"), ls, idb);
+    expect(llamadas.length).toBeGreaterThan(0);
+    expect(new Set(llamadas.map((l) => l[0]))).toEqual(new Set(["migracion_origen_exportar"]));
+    expect(llamadas.every((l) => l[1].error === null && l[1].total === llamadas.length)).toBe(true);
+    const datos = JSON.parse(llamadas.map((l) => l[1].trozo).join(""));
+    expect(datos.origen).toBe(M.ORIGEN_WEB);
+    expect(Object.keys(datos.localStorage).sort()).toEqual(["appearance-config-v2", "comun", "starseed.ai.providers", "starseed.escritorios.v1"]);
+    expect(JSON.stringify(datos)).not.toContain("refresh_token");
+    expect(datos.indexedDB.map((b: { nombre: string }) => b.nombre)).toContain("starseed-memory");
+  }, 15_000);
+
+  it("en la página en blanco del principio (y en cualquier otro origen) no hace nada ni se bloquea para después", async () => {
+    for (const direccion of ["about:blank", "http://127.0.0.1:47610/", "https://starseed-os.vercel.app.evil.example/offline.html"]) {
+      const { idb, ls } = origenViejo();
+      const { llamadas, ventana } = await ventanaOculta(direccion, ls, idb, 300);
+      expect(llamadas).toEqual([]);
+      expect(ventana.__ssMigracionOrigen).toBeUndefined();
+    }
+  }, 15_000);
 });
 
 describe("contrato con Rust", () => {

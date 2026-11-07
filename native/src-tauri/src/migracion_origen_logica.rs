@@ -25,6 +25,17 @@ pub const ETIQUETA_VENTANA: &str = "migracion-origen";
 pub const RUTA_IMPORTADOR: &str = "/__starseed/migracion";
 /// Página ligera de la web publicada (HTML estático, sin el código del OS): solo hace falta su ORIGEN.
 pub const PAGINA_EXPORTACION: &str = "/offline.html?starseed-migracion=1";
+/// (T4b · TAM1107A) Sin internet, la ventana oculta abre ESTA dirección de la web publicada, pero con el HTML
+/// de `HTML_SIN_RED` (va dentro del binario): mismo origen → el motor lee su propio localStorage/IndexedDB sin
+/// red y sin tocar sus archivos. `sin-red=1` solo distingue la visita en los registros.
+pub const PAGINA_EXPORTACION_SIN_RED: &str = "/offline.html?starseed-migracion=1&sin-red=1";
+/// La página que se sirve sin red: sin scripts ni recursos (nada que pedir a la red). El exportador llega como
+/// script de inicio, igual que con red.
+pub const HTML_SIN_RED: &str = "<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\"><title>StarSeed OS · trayendo tus datos</title></head><body style=\"font-family:system-ui,sans-serif;background:#05070d;color:#e8f1ff\"><p>Leyendo sin conexión los datos de la versión anterior de StarSeed OS…</p></body></html>";
+/// Lo que abre la ventana oculta antes de recibir el HTML local (no pide nada a la red).
+pub const URL_VACIA: &str = "about:blank";
+/// Variable de entorno que fuerza la exportación sin red aunque haya internet (para probar T4b, T12).
+pub const VAR_FORZAR_SIN_RED: &str = "STARSEED_MIGRACION_SIN_RED";
 /// Tope de espera de la exportación (red + lectura de IndexedDB).
 pub const ESPERA_EXPORTAR_MS: u64 = 40_000;
 /// Tamaño de cada trozo que se devuelve a la página importadora (bytes UTF-8, aprox.).
@@ -298,6 +309,60 @@ pub fn url_exportacion(web: &str) -> String {
     format!("{}{}", web.trim_end_matches('/'), PAGINA_EXPORTACION)
 }
 
+// ───────────────────────────── Sin red (T4b · TAM1107A) ─────────────────────────────
+
+/// Cómo abre la ventana oculta la versión anterior.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ModoExportacion {
+    /// La página de verdad de la web publicada (como desde APP1107B).
+    Red,
+    /// El HTML del binario con la dirección de la web publicada (WebKitGTK `load_html`, WKWebView
+    /// `loadHTMLString:baseURL:`, WebView2 `WebResourceRequested`). No sale nada a la red.
+    SinRed,
+}
+
+impl ModoExportacion {
+    pub fn nombre(self) -> &'static str {
+        match self {
+            ModoExportacion::Red => "red",
+            ModoExportacion::SinRed => "sin-red",
+        }
+    }
+}
+
+/// Con internet, la página de verdad (el camino de siempre, sin cambios); sin internet —o si se fuerza—, el
+/// HTML local cuando este sistema sabe cargarlo con el origen de la web; si no, `None` (se pospone, como antes).
+pub fn modo_exportacion(hay_internet: bool, sin_red_disponible: bool, forzar_sin_red: bool) -> Option<ModoExportacion> {
+    if sin_red_disponible && (forzar_sin_red || !hay_internet) {
+        Some(ModoExportacion::SinRed)
+    } else if hay_internet {
+        Some(ModoExportacion::Red)
+    } else {
+        None
+    }
+}
+
+/// ¿El valor de `STARSEED_MIGRACION_SIN_RED` pide forzar el modo sin red?
+pub fn pide_forzar_sin_red(valor: Option<&str>) -> bool {
+    matches!(valor.map(|v| v.trim().to_ascii_lowercase()).as_deref(), Some("1" | "si" | "sí" | "true"))
+}
+
+pub fn url_exportacion_sin_red(web: &str) -> String {
+    format!("{}{}", web.trim_end_matches('/'), PAGINA_EXPORTACION_SIN_RED)
+}
+
+/// La página (sin consulta) que se responde desde memoria sin red: `<web>/offline.html`.
+pub fn pagina_sin_red(web: &str) -> String {
+    let url = url_exportacion_sin_red(web);
+    url.split(['?', '#']).next().unwrap_or("").to_string()
+}
+
+/// ¿Esta petición es la página de exportación sin red? (WebView2: solo esa se responde desde memoria; el resto
+/// de la web —que no se pide, porque el HTML no carga nada— seguiría su camino).
+pub fn es_pagina_sin_red(uri: &str, pagina: &str) -> bool {
+    !pagina.is_empty() && (uri == pagina || uri.strip_prefix(pagina).is_some_and(|r| r.starts_with('?') || r.starts_with('#')))
+}
+
 /// Script de inicio de la ventana oculta: el módulo entero + la llamada. Solo actúa en el origen de
 /// la web publicada (en una página de error o tras una redirección a otro sitio, no hace nada).
 pub fn script_exportacion(modulo_js: &str, web: &str) -> String {
@@ -476,5 +541,46 @@ mod pruebas {
         assert!(s.contains("exportarYEnviar"));
         let r = resumen_estado(&Saneado { claves: 3, ..Default::default() });
         assert_eq!(r["claves"], json!(3));
+    }
+
+    #[test]
+    fn sin_red_solo_cuando_hace_falta_y_se_sabe() {
+        use ModoExportacion::*;
+        // Con internet: el camino de siempre (la página de verdad).
+        assert_eq!(modo_exportacion(true, true, false), Some(Red));
+        assert_eq!(modo_exportacion(true, false, false), Some(Red));
+        // Sin internet: el HTML local si el sistema lo sabe cargar; si no, se pospone (None) como antes.
+        assert_eq!(modo_exportacion(false, true, false), Some(SinRed));
+        assert_eq!(modo_exportacion(false, false, false), None);
+        // Forzado (pruebas T12): sin red aunque haya internet, solo si se sabe.
+        assert_eq!(modo_exportacion(true, true, true), Some(SinRed));
+        assert_eq!(modo_exportacion(true, false, true), Some(Red));
+        assert_eq!(modo_exportacion(false, false, true), None);
+        assert_eq!((Red.nombre(), SinRed.nombre()), ("red", "sin-red"));
+        assert!(pide_forzar_sin_red(Some("1")) && pide_forzar_sin_red(Some(" Sí ")) && pide_forzar_sin_red(Some("true")));
+        assert!(!pide_forzar_sin_red(None) && !pide_forzar_sin_red(Some("0")) && !pide_forzar_sin_red(Some("")));
+    }
+
+    #[test]
+    fn la_pagina_sin_red_tiene_el_origen_de_la_web_y_no_pide_nada() {
+        let u = url_exportacion_sin_red(&format!("{WEB}/"));
+        assert_eq!(u, format!("{WEB}/offline.html?starseed-migracion=1&sin-red=1"));
+        assert_eq!(origen_de(&u), WEB, "mismo origen que la web publicada: es lo que da acceso a su almacén");
+        assert_eq!(pagina_sin_red(WEB), format!("{WEB}/offline.html"));
+        let p = pagina_sin_red(WEB);
+        assert!(es_pagina_sin_red(&u, &p));
+        assert!(es_pagina_sin_red(&p, &p));
+        assert!(es_pagina_sin_red(&format!("{p}#x"), &p));
+        assert!(!es_pagina_sin_red(&format!("{p}x"), &p));
+        assert!(!es_pagina_sin_red(&format!("{WEB}/"), &p));
+        assert!(!es_pagina_sin_red("https://starseed-os.vercel.app.evil.example/offline.html", &p));
+        assert!(!es_pagina_sin_red(&u, ""));
+        // El HTML no carga nada (ni scripts, ni estilos, ni imágenes, ni marcos): sin red no hay a quién pedírselo.
+        let h = HTML_SIN_RED.to_ascii_lowercase();
+        for prohibido in ["<script", "src=", "href=", "<link", "<iframe", "url(", "@import", "http:", "https:"] {
+            assert!(!h.contains(prohibido), "HTML_SIN_RED no debe llevar {prohibido}");
+        }
+        assert!(h.contains("<meta charset=\"utf-8\">"));
+        assert_eq!(URL_VACIA, "about:blank");
     }
 }
