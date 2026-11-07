@@ -40,6 +40,24 @@ class ProgresoIrreversibleTest(unittest.TestCase):
         disco = {"AV1": {"estado": "pendiente", "medio": "", "nota": "devuelta del carril"}}
         self.assertEqual(enjambre.fusionar_progreso(memoria, disco, {"AV1"})["AV1"], disco["AV1"])
 
+    def test_memoria_pendiente_disco_no_aplica_Conserva_estado_del_disco(self):
+        memoria = {"T1": {"estado": "pendiente"}}
+        disco = {"T1": {"estado": "no_aplica"}}
+        fundido = enjambre.fusionar_progreso(memoria, disco, {"T1"})
+        self.assertEqual(fundido["T1"], disco["T1"])
+
+    def test_memoria_pendiente_disco_descartada_Conserva_estado_del_disco(self):
+        memoria = {"T1": {"estado": "pendiente"}}
+        disco = {"T1": {"estado": "descartada"}}
+        fundido = enjambre.fusionar_progreso(memoria, disco, {"T1"})
+        self.assertEqual(fundido["T1"], disco["T1"])
+
+    def test_memoria_pendiente_disco_no_aplica_Conserva_estado_del_disco_con_guion(self):
+        memoria = {"T1": {"estado": "pendiente"}}
+        disco = {"T1": {"estado": "no-aplica"}}
+        fundido = enjambre.fusionar_progreso(memoria, disco, {"T1"})
+        self.assertEqual(fundido["T1"], disco["T1"])
+
 
 if __name__ == "__main__":
     unittest.main()
