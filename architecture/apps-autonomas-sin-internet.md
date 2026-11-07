@@ -1,4 +1,4 @@
-# Apps autónomas sin internet: el servidor local dentro de la app (contrato · APP1107A + APP1107B + SEG1107A + TAM1107A · 2026-11-07)
+# Apps autónomas sin internet: el servidor local dentro de la app (contrato · APP1107A + APP1107B + SEG1107A + TAM1107A + CAP1107A · 2026-11-07)
 
 **Petición de Alex (07-11):** «Las apps instaladas dejan de funcionar cuando se pierde la conexión a internet,
 cuando deberían ser completamente autónomas e independientes, sin necesidad de ningún tipo de conexión, todo
@@ -28,7 +28,7 @@ visitado antes podía salir del service worker, nada más). Nexus y Café, igual
 | Android (también las APK ya instaladas, v0.4.3), PWA y navegador: la app entera sin conexión con el **service worker v8** (precarga en segundo plano de las páginas principales, su código y `public/`) | ESCRITO SIN PUBLICAR (SW1107A) · llega con publicar la web, sin reinstalar nada · probado con el SW de verdad en un entorno simulado y en Chrome real contra una mini app (§9.1.1); falta con un build real de Next (T10) |
 | Android con servidor propio dentro (nodejs-mobile) e iOS | PENDIENTE. Plan exacto en §9 |
 | Nexus y Café | Siguen con su web. Plan en §9.3 |
-| Actualizar el servidor local por capas sin reinstalar | PENDIENTE (fase 2, §10) |
+| Actualizar el servidor local por capas sin reinstalar (T1): capa firmada con la clave del updater, canal fijo, «Actualizar ahora» que reinicia solo el Node, vuelta atrás si no pasa la salud | ESCRITO SIN PUBLICAR (CAP1107A, §10) · probado en Linux con la app real (bajar, verificar, relevo en el mismo puerto y vuelta atrás); el canal está APAGADO hasta que Alex ponga `SERVIDOR_CAPAS_CANAL=1`; falta macOS y Windows (T12) |
 | Traer al servidor local lo que la app tenía en el origen de la web publicada (localStorage + IndexedDB), una vez y sin pisar nada (T4) | ESCRITO SIN PUBLICAR (APP1107B, §2.1) · pruebas puras (Rust y JS) + IndexedDB de mentira + **probado en Linux con la app real** (Tauri 2.12.5 + WebKitGTK, Xvfb, la «web» en otro origen); falta macOS y Windows (T12) |
 | … **también sin internet** en el primer arranque: HTML del binario con el origen de la web (T4b) | ESCRITO SIN PUBLICAR (TAM1107A, §2.1.1) · Rust 83/83 + vitest + `cargo check` cruzado macOS/Windows + **probado en Linux con la app real sin red** (cero peticiones a la web); falta macOS y Windows con la app real (T12) |
 | Instaladores más ligeros: los `*_client-reference-manifest.js` sin repeticiones (T13) | ESCRITO SIN PUBLICAR (TAM1107A, §6.1) · medido con el `.next` real de main: **−172 MB instalado** (192 → 20 MB), −1,1 MB en dmg/deb/AppImage; mismo HTML byte a byte con el standalone real de Next 15.5.21 |
@@ -78,6 +78,11 @@ server.js de Next (standalone) en 127.0.0.1:<puerto interno al azar>
 | Lo que el build nativo deja fuera (T8) | `native/servidor-local/solo-mac.mjs` |
 | Migración sin internet (T4b): lo que habla con cada motor (WebKitGTK / WKWebView / WebView2), sin Tauri | `native/src-tauri/src/migracion_origen_local.rs` (módulo de `migracion_origen.rs`; lógica pura y pruebas en `migracion_origen_logica.rs`) |
 | Manifiestos de cliente sin repeticiones (T13) — 6 pruebas, una con el `evalManifest` de verdad de Next | `native/servidor-local/compactar-manifiestos.mjs` (pruebas: `__tests__/compactar-manifiestos.test.mjs`) |
+| (CAP1107A · T1) Capas: lógica pura (versiones, compatibilidad, elección, promoción/vuelta atrás, qué borrar, manifiesto firmado, lector estricto de tar) — solo `std`, 12 pruebas | `native/src-tauri/src/servidor_capas_logica.rs` |
+| Capas: pegamento (vigía del canal, curl, firma minisign, gzip, extracción con SHA por archivo, estado) — 5 pruebas con cargo | `native/src-tauri/src/servidor_capas.rs` |
+| Capas: armar (tar determinista + manifiesto), puntero del canal y poda — 8 pruebas | `native/servidor-local/capa.mjs` (pruebas: `__tests__/capa.test.mjs`) |
+| Capas: firmar y publicar (CI) | `native/servidor-local/publicar-capa.sh`, job `servidor-capa` de `native-build.yml`, `.github/workflows/servidor-capa.yml` |
+| Capas: «Actualizar ahora» (solo la ventana `main` desde el servidor local) | comando `servidor_local_actualizar` (`servidor_local.rs`) + capability `servidor-capas.json` |
 | Aviso en la web | `src/lib/nativa/sin-conexion.ts`, `src/components/nativa/aviso-sin-conexion.tsx` |
 | Build de Next para la app | `next.config.ts` con `STARSEED_APP_NATIVA=1` (imágenes sin optimizar, sin sharp, ISR en memoria) |
 | Sesión sin red | `src/utils/supabase/middleware.ts`: con `STARSEED_SERVIDOR_LOCAL=1`, tope de 2,5 s y un fallo de red no echa a `/login` |
@@ -367,7 +372,9 @@ el pase, el registro no tiene el pase y al matar la app el Node salió solo. Fal
    publicada; sin internet, lo dice y reintenta cada 15 s.
 
 `invoke('servidor_local_estado')` → `{fase, puerto, origen, motivo, reinicios, version_paquete, commit_paquete,
-registro}` para pintarlo en la app (pendiente T6).
+registro, capa, capa_nueva, capa_nueva_version, capas_fase, capas_aviso}` (lo pinta `EstadoServidorLocal`, T6;
+`capa*`: CAP1107A, §10). Cada arranque del Node elige antes QUÉ sirve: una capa más nueva o el paquete del
+instalador (§10); `version_paquete`/`commit_paquete` son los de lo que sirve.
 
 ## 5. CI y firma (`.github/workflows/native-build.yml`)
 
@@ -396,6 +403,11 @@ registro}` para pintarlo en la app (pendiente T6).
   sin repeticiones (§6.1) y lo escribe en el resumen del job; así el tar, los instaladores y las capas (T1) salen ya
   ligeros. `preparar.mjs` lo repite sobre su copia (si ya está hecho no gana nada; `--sin-compactar` lo salta) y lo
   apunta en `starseed-servidor.json` (`manifiestosCliente`) y en el resumen.
+- **(CAP1107A · T1) Job `servidor-capa`** (tras `build-desktop`, `continue-on-error`): con el MISMO `servidor-next.tar`
+  arma la capa, la firma con `TAURI_SIGNING_PRIVATE_KEY` y la adjunta al release; con la variable del repo
+  `SERVIDOR_CAPAS_CANAL=1` la publica además en el canal fijo. `.github/workflows/servidor-capa.yml` hace lo mismo en
+  cada publicación de la web (solo con esa variable). `starseed-servidor.json` lleva ahora `creadoMs` y `protocolo`
+  (§10).
 - Android e iOS: `tauri.android.conf.json` / `tauri.ios.conf.json` devuelven la ventana a la web publicada
   (la página de arranque es solo de escritorio). Nexus y Café pisan después con su `-c`.
 
@@ -553,6 +565,12 @@ node native/servidor-local/compactar-manifiestos.mjs .next/server --simular
 # (TAM1107A · T4b) Migración sin internet: Rust puro y el script de inicio de Rust en una ventana sin red
 (cd native/src-tauri && cargo test --lib -- migracion_origen)
 npx vitest run src/lib/nativa/__tests__/migracion-origen.test.ts
+# (CAP1107A · T1) Capas: lógica pura, pegamento (firma minisign real, extracción, estado) y armado + contrato
+rustc --edition 2021 --test native/src-tauri/src/servidor_capas_logica.rs -o /tmp/sc && /tmp/sc
+(cd native/src-tauri && cargo test --lib -- servidor_capas servidor_local)
+node --test native/servidor-local/__tests__/capa.test.mjs
+npx vitest run src/lib/nativa/__tests__/estado-servidor-local.test.ts src/lib/nativa/__tests__/contrato-rust.test.ts \
+  src/components/network/__tests__/servidor-neurona.test.tsx
 ```
 
 **Cómo se verifica la migración con la app real (T12, en cada sistema):** instalar la 0.4.3, abrirla con internet,
@@ -712,18 +730,114 @@ Son otro repositorio (`alexbordongarrigos/Starseed-Cafe`) y portales casi estát
 job de Nexus/Café hace checkout de su repo y usa sus archivos como `frontendDist` (embebidos en el binario), con la
 web publicada solo para lo que pida red. Pendiente T7.
 
-## 10. Fase siguiente: actualizar el servidor local por capas, sin reinstalar
+## 10. Actualizar el servidor local por capas, sin reinstalar (T1 · CAP1107A · ESCRITO SIN PUBLICAR)
 
-Petición de Alex del 10-10 («según el cambio se reinician los servidores dentro de la app sin reinstalarla»).
-Diseño (PENDIENTE T1):
-- Capas: **binario** (Rust, updater de siempre), **node** (cambia poco), **servidor** (`.next` + `public`, cambia
-  en cada publicación). El CI publica `servidor-<buildId>.tar.xz` (≈ 25–30 MB) + `.sig` (misma clave minisign del
-  updater) + `latest-servidor.json` en el Release.
-- La app lo descarga a `<app_data>/servidor/<buildId>/`, verifica firma y SHA, y `rutas_paquete` elige la capa
-  válida más nueva compatible con su Node (si no, la del instalador). Reinicio del Node en el mismo puerto: la
-  ventana no cambia de origen, solo recarga.
-- Rollback: si la capa nueva no da «listo» en 60 s, se marca mala y se vuelve a la anterior.
-- Siguiente paso de eso: diferencias por archivo (los chunks con hash no cambian entre builds).
+Petición de Alex del 10-10 («según el cambio se reinician los servidores dentro de la app sin reinstalarla»). Dos
+capas: **binario** (Rust + Node + página de arranque: el updater de siempre, ≈ 130 MB) y **servidor** (la carpeta
+`servidor/` del instalador: standalone + static + public + envoltorio, ≈ 45–50 MB en .tar.gz), que ahora llega sola.
+
+**Qué es una capa.** EXACTAMENTE la carpeta `servidor/` del instalador sin Node (`copiarServidor` de `preparar.mjs`,
+la misma función para los dos) en `servidor-capa-<BUILD_ID>.tar.gz` (tar ustar/pax determinista: solo archivos,
+0644, fecha 0; gzip -9) + `servidor-capa-<BUILD_ID>.json`, el **manifiesto firmado**: `formato` 1, `build_id`,
+`version`/`commit` (de la web), `creado_ms`, `app_minima` (`APP_MINIMA` de `capa.mjs`: hoy 0.5.0), `protocolo`
+(`PROTOCOLO` de `starseed-arranque.cjs`: hoy 1), `node_mayor`, `archivo {nombre, bytes, sha256}`, `total` y
+`archivos: [[ruta, bytes, sha256]…]` (por orden de bytes UTF-8). El puntero `latest-servidor.json` NO va firmado:
+dice dónde están y lleva dentro la firma del manifiesto (como `latest.json`); todo se vuelve a comprobar contra el
+manifiesto firmado.
+
+**Cómo se publica.**
+
+| Dónde | Cuándo | Qué hace |
+|---|---|---|
+| `native-build.yml` → job `servidor-capa` | Cada build nativo, tras `build-desktop` (`continue-on-error`) | Con el MISMO `servidor-next.tar` de los instaladores: arma, firma y adjunta al release (borrador); con `vars.SERVIDOR_CAPAS_CANAL == '1'`, además al canal |
+| `.github/workflows/servidor-capa.yml` | Cada push a `main` que toque la web (`src/`, `public/`, `package*.json`, `next.config.ts`, `middleware.ts`, `native/servidor-local/`) SOLO con esa variable; o a mano (con «publicar» o sin él) | `next build` igual que `servidor-local-next` (con `solo-mac.mjs`), arma, firma y publica en el canal. Uno a la vez (`concurrency` sin cancelar: con varios pushes seguidos, solo el último) |
+
+Los dos usan `native/servidor-local/publicar-capa.sh`: `capa.mjs armar` → `tauri signer sign` (la CLI lee
+`TAURI_SIGNING_PRIVATE_KEY` y `…_PASSWORD` del entorno: los dos secretos existen en el repo desde el 30-08; la clave
+nunca se escribe en disco) → `capa.mjs canal` → `gh release upload`. **Canal fijo:** Release `servidor-local`
+(prerelease: nunca «latest», así no toca el `latest.json` del updater) →
+`https://github.com/StarSeedSystem/starseed-system/releases/download/servidor-local/latest-servidor.json`. Capa y
+manifiesto primero, el puntero lo último; se quedan las 4 capas más recientes (`capa.mjs podar`). Sin el secreto:
+ni firma ni publicación (aviso). **Apagado por defecto:** hasta que Alex ponga la variable del repo
+`SERVIDOR_CAPAS_CANAL=1` (Settings → Secrets and variables → Actions → Variables), ninguna app recibe nada; solo se
+adjunta al release para revisarla.
+
+**Cómo se aplica (la app).** `servidor_capas.rs` (pegamento) + `servidor_capas_logica.rs` (puro):
+1. **Mirar.** A los 90 s del primer «listo» y luego cada 6 h (30 min tras un error), con internet, baja el puntero
+   (≤ 64 KiB) con el `curl` del sistema (solo https, también en las redirecciones). `decidir`: formato conocido,
+   build con nombre seguro, ni la del instalador ni la activa ni la pendiente ni una mala, `app_minima` ≤ esta app,
+   protocolo conocido y **más nueva** (`creado_ms`) que todo lo que ya hay: un puntero viejo o manipulado nunca hace
+   volver atrás.
+2. **Verificar el manifiesto** (≤ 16 MiB): firma minisign con **la clave pública del updater**
+   (`plugins.updater.pubkey` de `tauri.conf.json`: la misma), sin firmas «legacy», y el comentario firmado debe nombrar
+   ESE archivo (`file:servidor-capa-<build>.json`). `validar_manifiesto`: el puntero dice lo mismo que el manifiesto
+   (build, fecha, app mínima, protocolo, nombre/tamaño/SHA del .tar.gz, URLs), Node compatible, lista ordenada sin
+   repetidos, sin rutas peligrosas (`..`, absolutas, `\`, `:`, controles, punto o espacio final), sin pares que solo
+   cambian en mayúsculas, sin «archivo y carpeta», con los 6 archivos que necesita el arranque y el total cuadrado
+   (≤ 4 GiB).
+3. **Bajar.** Hace falta el .tar.gz que falte + la capa extraída + 512 MB libres. Reanudable (`-C -`) en
+   `servidor-capas/descargas/<archivo>.parcial`; SHA-256 del archivo entero contra el manifiesto.
+4. **Extraer** a `servidor-capas/<build>.extrayendo/` con el lector **estricto** de tar (solo archivos y carpetas: un
+   enlace, un dispositivo o una ruta rara tiran la capa entera): cada archivo debe estar en la lista con su tamaño, se
+   escribe con `create_new` (nunca pisa) calculando su SHA-256 y al final no puede faltar ninguno. Los idénticos a la
+   capa que sirve (misma ruta, tamaño y SHA) se **enlazan** (enlace duro) en vez de escribirse: una capa nueva ocupa
+   en disco solo lo que cambió. Se guardan dentro el manifiesto y su firma y se renombra a `servidor-capas/<build>/`:
+   queda **PENDIENTE**.
+5. **Aplicar.** La pastilla del servidor local (`EstadoServidorLocal`, Ajustes → Neuronas y Aparatos en vivo) dice
+   qué capa sirve («· capa del instalador» / «· capa AA0YdaG0») y, con una pendiente, enseña **«capa nueva lista ·
+   <versión · commit> · Actualizar ahora»**. Ese botón llama a `servidor_local_actualizar` (capability
+   `servidor-capas`: solo la ventana `main` y solo desde los diez orígenes locales; Rust comprueba además que la
+   ventana está ahora en el servidor local): cierra la entrada estándar del Node (sale solo), lo relanza **en el
+   mismo puerto** con la capa nueva y, al contestar «listo», **recarga la página**: misma ventana, mismo origen
+   (localStorage/IndexedDB intactos) y misma cookie del pase (el pase es del arranque de la app, §3.1). Sin pulsar
+   nada, la usa el siguiente arranque.
+6. **Qué sirve cada arranque del Node** (`elegir`): la pendiente (a prueba, ≤ 3 intentos sin conclusión) → la activa
+   → la anterior → el instalador. Cada capa se vuelve a comprobar antes de usarla (firma de su manifiesto,
+   `BUILD_ID` y archivos clave); una que ya no es compatible, o más vieja que el paquete de un instalador recién
+   actualizado, no se usa. El Node es siempre el de la app.
+
+**Cómo se vuelve atrás.**
+- Capa a prueba que no da «listo» en **60 s**, o cuyo Node se cierra al arrancar → **mala** (no se vuelve a bajar),
+  se borra su carpeta y se relanza AL MOMENTO con la anterior (no cuenta como caída).
+- Recién promovida, si se cae en sus primeros **30 s** → lo mismo.
+- Una capa que se cae una y otra vez (la política de siempre: más de 3 caídas en 5 min) → mala y a la anterior, en
+  vez de rendirse a la web publicada.
+- Al promover, la activa de antes queda como **anterior**. Se borran las capas que no son ni activa, ni anterior, ni
+  pendiente, ni la que sirve. **La del instalador nunca se toca** (vive dentro de la app).
+- La pastilla y `servidor-local.log` lo cuentan («La capa X no pasó la salud (…): se volvió a la capa Y.»).
+- A mano: borrar `<app_data>/servidor-capas/` (o su `estado.json`) devuelve la app a su instalador en el siguiente
+  arranque.
+
+Estado: `<app_data>/servidor-capas/estado.json` (`activa`, `anterior`, `pendiente`, `intentos`, `malas` ≤ 20,
+`aviso`), escrito de forma atómica.
+
+**Límites honestos.**
+- Solo escritorio (como el servidor local). Android/iOS siguen con el SW v8 (§9.1.1), que ya llega con publicar la web.
+- La capa trae solo el servidor: Rust, el Node y la página de arranque siguen llegando con el updater. Si una capa
+  necesita algo nuevo de Rust, se sube `APP_MINIMA` (`capa.mjs`) o `PROTOCOLO` (envoltorio +
+  `PROTOCOLOS_ADMITIDOS`): las apps viejas se quedan en su última capa compatible. `contrato-rust.test.ts` vigila que
+  Rust, envoltorio, `capa.mjs`, la capability y la web casen.
+- Se baja la capa entera (≈ 45–50 MB), no solo lo cambiado; en disco sí se reutiliza lo igual (sin enlaces duros
+  —p. ej. exFAT— cada capa ocupa ≈ 440 MB y hay como mucho tres a la vez).
+- Los archivos se verifican uno a uno al instalar la capa; luego, en cada arranque, solo la firma del manifiesto y
+  los archivos clave (un programa del MISMO usuario puede cambiar `<app_data>`, como todo lo de ese usuario).
+- `version` es la de `package.json` de la web (hoy 0.3.0): la pastilla enseña además el commit.
+- Con varias instancias de la app a la vez comparten `servidor-capas/` (funciona, pero una puede borrar la capa mala
+  que la otra aún tiene abierta).
+- Sin probar aún con la app real en macOS y Windows (T12).
+
+**Comprobado (2026-11-07, contenedor Linux, app real: `cargo build` debug + WebKitGTK + Xvfb, el paquete del
+instalador armado con `preparar.mjs` y un canal en `http://127.0.0.1` firmado con una clave de PRUEBA puesta solo en
+esa copia de `tauri.conf.json`; en depuración `STARSEED_CANAL_SERVIDOR` y `STARSEED_CAPAS_PRIMERA_MS` cambian el
+canal y la primera mirada, en release no existen).** (1) La app sirvió su instalador (`Inst1`); a los 5 s el vigía
+bajó el puntero, verificó la firma, bajó y verificó el .tar.gz, extrajo `Capa2` (10/10) y la dejó pendiente; la
+página vio «capa nueva lista», llamó a `servidor_local_actualizar`, Rust relanzó solo el Node en el MISMO puerto
+47610 con `Capa2` a prueba, contestó «listo», la promovió y recargó la página, que volvió a hablar con Rust con el
+mismo pase. (2) `Capa3Mala` (su `server.js` sale con código 1): bajada y verificada (7 de 10 archivos enlazados de
+`Capa2`), «Actualizar ahora» → «se cerró al arrancar» → mala, `estado.json` = `{activa: Capa2, malas: [Capa3Mala]}`,
+relanzada con `Capa2` en el mismo puerto, página recargada y el aviso en la pastilla.
+
+Siguiente paso posible: bajar solo lo cambiado (el manifiesto ya trae el SHA-256 de cada archivo).
 
 ## 11. Riesgos para el próximo lanzamiento nativo
 
@@ -738,9 +852,11 @@ Diseño (PENDIENTE T1):
    queda en blanco tras «Listo», es lo primero que mirar.
 4. **Windows**: MSI con ≈ 4.700 archivos (rutas ≤ 90 caracteres + prefijo: lejos de 260). El Node se lanza con
    `CREATE_NO_WINDOW`. Probar que el antivirus no frena `starseed-node.exe` sin firma Authenticode.
-5. **Tamaño del updater**: cada actualización baja el instalador entero (≈ 130 MB en macOS) hasta la fase 2.
-6. **Versión del servidor ≠ versión de la web**: las páginas son las del instalador y `/api` la de la web
-   publicada; si una API cambia de forma incompatible, se nota hasta actualizar la app (la fase 2 lo acorta).
+5. **Tamaño del updater**: cada actualización del BINARIO baja el instalador entero (≈ 130 MB en macOS); lo de la
+   web llega como capa (≈ 45–50 MB, §10) en cuanto se active el canal.
+6. **Versión del servidor ≠ versión de la web**: las páginas son las del instalador (o de la última capa) y `/api`
+   la de la web publicada; si una API cambia de forma incompatible, se nota hasta que llega la capa (§10: con
+   `SERVIDOR_CAPAS_CANAL=1`, unos 45 min tras el push) o se actualiza la app.
 7. **Origen nuevo**: hay que iniciar sesión una vez con internet en la app nueva (la sesión no se migra, a
    propósito; lo demás sí, §2.1).
 8. **Service worker v8 (SW1107A), al publicar la web:** (a) que `/precarga.json` responda 200 en el primer
@@ -779,12 +895,21 @@ Diseño (PENDIENTE T1):
     volver atrás del todo basta quitar el paso del job y pasar `--sin-compactar` a `preparar.mjs`. Lo primero que
     mirar si una página de la app nativa sale en blanco o con «Could not find the module … in the React Client
     Manifest»: el resumen del job (cuántos se compactaron) y `servidor-local.log`.
+12. **Capas del servidor (T1 · CAP1107A, §10).** (a) El canal está APAGADO: activarlo es poner
+    `SERVIDOR_CAPAS_CANAL=1`; desde entonces cada push que toque la web compila otra vez Next en el CI (≈ 20–40 min de
+    runner, uno a la vez) y llega a todas las apps ≥ 0.5.0. (b) El primer job firma con `tauri signer sign` y los
+    secretos del updater: si la clave tuviera contraseña y el secreto `…_PASSWORD` no casara, el job avisa y no publica
+    (los instaladores no se ven afectados). (c) El Release `servidor-local` lo crea el propio job (prerelease, etiqueta
+    nueva sobre el commit). (d) Con la app real en macOS y Windows: que `curl` del sistema baje de
+    `objects.githubusercontent.com`, que los enlaces duros funcionen en `~/Library/Application Support` y
+    `%APPDATA%`, y que la página se recargue tras «Actualizar ahora» (`servidor-local.log` dice «relevo de capa pedido
+    desde la app» y «capa … activa»).
 
 ## 12. Pendientes (tareas concretas)
 
 | Id | Tarea |
 |---|---|
-| T1 | Capas del servidor local con firma y rollback (§10) |
+| T1 | Capas del servidor local con firma y rollback: **ESCRITA SIN PUBLICAR (CAP1107A, §10)** — capa firmada con la clave del updater, canal fijo `servidor-local` (apagado hasta `SERVIDOR_CAPAS_CANAL=1`), «Actualizar ahora» sin cerrar la app, vuelta atrás a los 60 s / 30 s. Falta verla en macOS y Windows (con T12) y, si se quiere, bajar solo lo cambiado |
 | T2 | Android opción C (precarga del SW): **ESCRITA SIN PUBLICAR (SW1107A, §9.1.1)**. Falta A (nodejs-mobile, §9.1) |
 | T3 | Medir en el CI los tamaños reales y corregir §6 |
 | T4 | Migrar al origen local lo que vivía en el origen de la web publicada: **ESCRITA SIN PUBLICAR (APP1107B, §2.1)** — localStorage + IndexedDB, sin sesión, fusión sin pisar, copia sin secretos, marcador, aviso. Falta T12 |
