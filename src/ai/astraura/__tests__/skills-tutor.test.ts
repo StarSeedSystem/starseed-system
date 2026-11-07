@@ -8,7 +8,7 @@ describe("capacidad tutor (Ola 1104R · DeepTutor nativo)", () => {
     expect(cap).toBeDefined();
     expect(cap?.label).toBe("Tutor");
     expect(cap?.defaultOn).toBe(true);
-    expect(cap?.routing).toEqual({ preferStrong: true });
+    expect(cap?.routing).toEqual({});
     expect(cap?.skillIds).toEqual(["aurora-tutor"]);
     expect(cap?.packageIds).toContain("iatool-deeptutor");
   });
@@ -24,6 +24,9 @@ describe("capacidad tutor (Ola 1104R · DeepTutor nativo)", () => {
     expect(prompt).toContain("deeptutor");
     expect(prompt).toContain("recuerdos");
     expect(prompt).toContain("interfaz viva");
+    // Condicional: no cambia el papel de Aurora en el resto de conversaciones.
+    expect(prompt).toContain("solo entonces");
+    expect(prompt.startsWith("eres deeptutor")).toBe(false);
   });
 
   it("esPeticionDeAprender detecta «explícame la fotosíntesis» como petición de aprender", () => {
