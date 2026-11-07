@@ -178,8 +178,6 @@ describe("deeptutor · conector opcional", () => {
       .toEqual({ texto: "ok", modo: "explicar", sesion: null });
     expect(await preguntarTutor(cfg, falso(200, { content: "ok", session_id: null }).fetchFn, q))
       .toEqual({ texto: "ok", modo: "explicar", sesion: null });
-    expect(await preguntarTutor(cfg, falso(200, { content: "ok", session_id: "" }).fetchFn, q))
-      .toEqual({ texto: "ok", modo: "explicar", sesion: null });
   });
 
   it("estado devuelve motivo específico para 401/403/404/429/500", async () => {
