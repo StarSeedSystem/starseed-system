@@ -1,0 +1,18 @@
+{
+ "ola": "nube-20261106",
+ "tareas": [
+  {
+   "id": "IMG-agentes-reimaginada-profunda-corregir-ma",
+   "titulo": "Auditar y unificar la gestión de prefers-reduced-motion en componentes de avatar",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Auditar y unificar la gestión de prefers-reduced-motion en componentes de avatar. ## Contexto\nLa propuesta original citaba `src/components/avatares/avatar-vivo.tsx:370`, pero esta referencia ha dejado de ser válida o el archivo no existe en la estructura actual del repositorio. Dado que el área de trabajo es **imaginación** (reimaginar, no editar), el objetivo es definir una estrategia de corrección que sea accionable por el enjambre de agentes de código, asegurando que la accesibilidad (movimiento reducido) se maneje de forma consistente y sin dependencias rotas.\n\n## Problema Identificado\n1. **Referencia Obsoleta**: La línea específica citada ya no corresponde al código ac Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  }
+ ],
+ "cedidas_de_la_mac": {
+  "cola-auto-1106-185713.json": [
+   "IMG-agentes-reimaginada-profunda-corregir-ma"
+  ]
+ }
+}
