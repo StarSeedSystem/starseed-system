@@ -6,9 +6,9 @@ function mockMatchMedia(matches: boolean, shouldIncludeReducedMotion: boolean = 
         ? "(prefers-reduced-motion: reduce)"
         : "(other-query)";
 
-    Object.defineProperty(window, "matchMedia", {
-        writable: true,
-        value: vi.fn().mockImplementation((q: string) => ({
+    if (typeof window !== "undefined") {
+        vi.clearAllMocks();
+        (window as any).matchMedia = vi.fn().mockImplementation((q: string) => ({
             matches: q === query ? matches : false,
             media: q,
             onchange: null,
@@ -17,8 +17,8 @@ function mockMatchMedia(matches: boolean, shouldIncludeReducedMotion: boolean = 
             addEventListener: vi.fn(),
             removeEventListener: vi.fn(),
             dispatchEvent: vi.fn(),
-        })),
-    });
+        }));
+    }
 }
 
 function resetSingletonModule(): void {
@@ -29,11 +29,11 @@ describe("isReducedMotion singleton PRM", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         resetSingletonModule();
-    };
+    });
 
     afterEach(() => {
         vi.restoreAllMocks();
-    };
+    });
 
     it("lee el estado inicial del sistema cuando el sistema pide menos movimiento", () => {
         mockMatchMedia(true);
@@ -65,8 +65,10 @@ describe("isReducedMotion singleton PRM", () => {
         });
 
         mockMatchMedia(true);
-        const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-        mq.dispatchEvent(new Event("change"));
+        if (typeof window !== "undefined") {
+            const mq = (window as any).matchMedia("(prefers-reduced-motion: reduce)");
+            mq.dispatchEvent(new Event("change"));
+        }
 
         expect(estados).toContain(true);
 
