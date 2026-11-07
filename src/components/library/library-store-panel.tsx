@@ -78,7 +78,7 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
 };
 
 // Imagen determinista de portada para items reales (sin imagen propia).
-function coverFor(item: StoreItem): string {
+export function coverFor(item: StoreItem): string {
   const palettes: Record<string, string> = {
     app: "4c1d95/e0e7ff",
     widget: "1e3a8a/dbeafe",
@@ -144,7 +144,7 @@ export interface LibraryStorePanelProps {
 }
 
 /** Convierte un StoreItem en el modelo de ficha detallada (App Store/Play Store). */
-function storeItemToDetail(item: StoreItem): LibraryDetailItem {
+export function storeItemToDetail(item: StoreItem): LibraryDetailItem {
   const cat = STORE_CATEGORIES.find((c) => c.id === item.category);
   return {
     id: item.id,
