@@ -240,7 +240,12 @@ pub fn montajes_solo_lectura(salida: &str) -> Vec<String> {
         } else {
             continue;
         };
+        // Linux: «type ext4 (ro,relatime)» deja «(ro,relatime)»; macOS: «(apfs, read-only, …)» ya
+        // llega sin el «(». Sin quitar el «(» inicial, el «ro» de Linux (casi siempre la primera
+        // opción) no se reconocía nunca (TAM1107A).
         let ro = opciones
+            .trim()
+            .trim_start_matches('(')
             .trim_end_matches(')')
             .split(',')
             .any(|o| matches!(o.trim(), "ro" | "read-only"));
