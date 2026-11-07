@@ -6014,3 +6014,10 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 
 **Lo que quedó fuera, una por una:**
 - `IMG-diaria-publicar-los-59-commits-acumulado` — no escribió nada
+
+## 2026-11-07 06:06 · auto-1107-054716
+
+**Resultado.** 1 de 2 integradas. 1 tarea se quedaron fuera.
+
+**Lo que quedó fuera, una por una:**
+- `IMG-diaria-endurecer-el-sandbox-del-iframe-d-d2` — otra cosa
