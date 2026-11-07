@@ -122,8 +122,10 @@ llamada. Con el Wi-Fi sin salida a internet (o el punto de acceso de un móvil s
     o si el servidor no responde al crear la sesión, un chat 1:1 con enlace al aparato de la otra
     persona llama DIRECTO por él (timbre, voz, vídeo; burbuja por «chat-malla»). Ya no se deduce «sin
     red» de la fuente ICE (sin TURN se quitaba hasta el STUN). Ver `architecture/datos-por-la-malla.md`.
-  - **Falta**: llamadas de GRUPO sin internet (sala sin el uuid de la sesión del servidor y timbre
-    por el enlace a cada miembro) y el canal local nativo de la app como canal de señalización.
+  - ~~Falta: llamadas de GRUPO sin internet~~ → hechas en GRP1107A: sala `malla-grupo:…` sin sesión
+    del servidor, timbre `llg.*` por el enlace a cada miembro y malla COMPLETA (cada par por su
+    enlace, también `local:nativo-…`; el canal local nativo señaliza ese WebRTC desde MLT1107A). Ver
+    `architecture/datos-por-la-malla.md` §7.1.
 - **Estaciones y capas de Astraura por el transporte universal**: `src/lib/estaciones/malla.ts` y
   `astraura-por-malla.ts`/`ia-por-malla.ts` siguen con su camino; tienen que pasar a `enviarMensaje` /
   `alRecibirMensaje` (canales `estacion`, `astraura`). Otra área trabaja hoy en estaciones.
