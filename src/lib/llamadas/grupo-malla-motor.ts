@@ -141,7 +141,7 @@ export async function empezarLlamadaGrupoMalla(o: {
         acciones.activarLlamada({
             sesionId: sala,
             tipo: plan.video ? "video" : "audio",
-            hiloId: o.hiloId,
+            hiloId: hiloDeChat(o.hiloId),
             titulo: o.titulo || "Llamada de grupo",
             mensajeId: null,
             adjunto: null,
@@ -188,6 +188,11 @@ export async function empezarLlamadaGrupoMalla(o: {
     } catch {
         return { ok: false, motivo: "No se pudo llamar al grupo por la malla." };
     }
+}
+
+/** Una llamada desde la pestaña «Neuronas» (`cerebro-<sección>`) no cuelga de ningún chat. */
+function hiloDeChat(hiloId: string): string | null {
+    return hiloId.startsWith("cerebro-") ? null : hiloId;
 }
 
 function safeAbierto(e: EnlaceLocalVivo): boolean {
@@ -241,7 +246,7 @@ export async function unirseAGrupoMalla(t: TimbreEntrante, opciones: { camara?: 
         acciones.activarLlamada({
             sesionId: sala,
             tipo: medios0.video ? "video" : "audio",
-            hiloId: t.hiloId,
+            hiloId: hiloDeChat(t.hiloId),
             titulo: t.tituloHilo ?? t.llamante.nombre,
             mensajeId: null,
             adjunto: null,

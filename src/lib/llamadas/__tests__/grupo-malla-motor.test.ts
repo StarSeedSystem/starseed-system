@@ -240,6 +240,17 @@ describe("llamar a un grupo", () => {
         expect(motores[0].colgado).toBeNull();
     });
 
+    it("desde la pestaña «Neuronas»: suena en mis otras neuronas y la llamada no cuelga de ningún chat", async () => {
+        const tablet = enlaceFalso("local:nativo-tab", "u-yo", "Tablet");
+        const ana = enlaceFalso("local:ana", "u-ana", "Ana");
+        [tablet, ana].forEach((x) => registrarEnlaceLocal(x.e));
+        const r = await empezarLlamadaGrupoMalla({ hiloId: "cerebro-propias", tipoChat: "grupo", tipo: "audio", titulo: "Mis neuronas", miembros: ["u-ana"] });
+        expect(r.ok).toBe(true);
+        expect(tablet.enviados[0]).toMatchObject({ t: "llg.inv", h: "cerebro-propias" });
+        expect(ana.enviados).toHaveLength(1);
+        expect(activadas[0]).toMatchObject({ hiloId: null, titulo: "Mis neuronas" });
+    });
+
     it("sin enlaces con el grupo: no llama y dice cómo vincularlos", async () => {
         const r = await empezarLlamadaGrupoMalla({ hiloId: "h", tipoChat: "grupo", tipo: "video", titulo: "T", miembros: ["u-ana", "u-luis"] });
         expect(r.ok).toBe(false);

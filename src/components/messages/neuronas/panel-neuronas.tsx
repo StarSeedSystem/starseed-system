@@ -9,7 +9,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, RefreshCw, Route, Search, X } from "lucide-react";
+import { Loader2, Phone, RefreshCw, Route, Search, X } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AvisoSesion } from "@/components/auth/aviso-sesion";
 import { ACENTO, CLASE_ROTULO, pildoraFantasma } from "@/components/messages/marco/estilos";
@@ -263,11 +264,14 @@ export function PanelNeuronas({ esMovil, enfocado, onAlternarEnfoque, onDetalleA
                 ) : secciones.length ? (
                     secciones.map((s) => (
                         <section key={s.id} aria-label={s.titulo} className="pb-2">
-                            <div className="px-3 pb-1 pt-2">
-                                <p className={CLASE_ROTULO}>{ETIQUETA_AMBITO[s.ambito]}</p>
-                                <p className="truncate text-[13px] font-semibold text-white/85" title={s.cerebros.join(" · ") || s.titulo}>
-                                    {s.titulo}
-                                </p>
+                            <div className="flex items-end gap-2 px-3 pb-1 pt-2">
+                                <div className="min-w-0 flex-1">
+                                    <p className={CLASE_ROTULO}>{ETIQUETA_AMBITO[s.ambito]}</p>
+                                    <p className="truncate text-[13px] font-semibold text-white/85" title={s.cerebros.join(" · ") || s.titulo}>
+                                        {s.titulo}
+                                    </p>
+                                </div>
+                                {s.conversaciones.length > 1 && <BotonGrupoNeuronas titulo={s.titulo} seccionId={s.id} conversaciones={s.conversaciones} />}
                             </div>
                             <ul className="space-y-0.5">{s.conversaciones.map((c) => fila(c, s.id))}</ul>
                         </section>
@@ -330,3 +334,36 @@ export function PanelNeuronas({ esMovil, enfocado, onAlternarEnfoque, onDetalleA
 }
 
 export default PanelNeuronas;
+
+/**
+ * (GRP1107A) Llamada de grupo con las neuronas de esta sección por la malla (sin servidor): suena
+ * en cada aparato con enlace sin internet abierto (los tuyos y los de las cuentas de la sección);
+ * cada par se ve por su propio enlace. Tope de 6 aparatos; con más de 4, solo voz.
+ */
+function BotonGrupoNeuronas({ titulo, seccionId, conversaciones }: { titulo: string; seccionId: string; conversaciones: Array<{ destino: { uid?: string } }> }) {
+    const [ocupado, setOcupado] = useState(false);
+    const llamar = () => {
+        if (ocupado) return;
+        setOcupado(true);
+        const miembros = Array.from(new Set(conversaciones.map((c) => c.destino.uid).filter((u): u is string => !!u)));
+        void import("@/lib/llamadas/grupo-malla-motor")
+            .then((g) => g.empezarLlamadaGrupoMalla({ hiloId: `cerebro-${seccionId}`, tipoChat: "grupo", tipo: "audio", titulo, miembros }))
+            .then((r) => {
+                if (!r.ok) toast.error(r.motivo ?? "No se pudo llamar a estas neuronas por la malla.");
+            })
+            .catch(() => toast.error("No se pudo llamar a estas neuronas por la malla."))
+            .finally(() => setOcupado(false));
+    };
+    return (
+        <button
+            type="button"
+            onClick={llamar}
+            disabled={ocupado}
+            title="Llamada de grupo por la malla (sin servidor)"
+            aria-label={`Llamada de grupo por la malla con las neuronas de ${titulo}`}
+            className="ss-redondo grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-wait disabled:opacity-50"
+        >
+            {ocupado ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
+        </button>
+    );
+}
