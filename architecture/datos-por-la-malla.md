@@ -131,11 +131,13 @@ conocía y, sin un emparejado por QR, no había enlace WebRTC.
 
 ### 6.2 · Consentimiento y seguridad
 
-- Solo entre neuronas VINCULADAS (vínculo de MSH1107A, recordado o de esta sesión): ese vínculo es el
-  consentimiento. Una IP cuenta como «la neurona X» solo tras un `nl.hola` firmado con la identidad de
-  malla (`wrapSigned` v2 + `acceptFreshness`) cuya huella es LA MISMA que guardó el vínculo. Sin eso,
-  de esa IP no se atiende nada (ni `tu.*`, ni `archivo.*`, ni `nl.sen`). La sincronización (`sync`)
-  sigue entrando de cualquiera porque va firmada y es la que CREA el vínculo.
+- Solo entre neuronas VINCULADAS (vínculo de MSH1107A, recordado o de esta sesión) o de TU MISMA CUENTA
+  (MLL1107A, §6.6): ese vínculo, o la cuenta, es el consentimiento. Una IP cuenta como «la neurona X»
+  solo tras un `nl.hola` firmado con la identidad de malla (`wrapSigned` v2 + `acceptFreshness`) cuya
+  huella es LA MISMA que guardó el vínculo, o que trae la prueba de cuenta (`cta`) calculada con la
+  clave de faro de la cuenta sobre ESA huella. Sin eso, de esa IP no se atiende nada (ni `tu.*`, ni
+  `archivo.*`, ni `nl.sen`). La sincronización (`sync`) sigue entrando de cualquiera porque va firmada
+  y es la que CREA el vínculo.
 - Las señales `nl.sen` (oferta, respuesta, cierre) también van firmadas y solo se aceptan de la IP
   ligada con la misma huella: nadie de la red puede colar un SDP (ni su huella DTLS).
 - Los archivos SIEMPRE preguntan (`mismaCuenta: false`), igual que por un enlace QR.
@@ -145,7 +147,8 @@ conocía y, sin un emparejado por QR, no había enlace WebRTC.
 
 ```
 {"t":"nl.hola","s":<sobre firmado de { t:"nl.hola", v:1, de:{neurona,sync?,cuenta?,nombre}, para,
-   lim?:{max_cuerpo,limite_mensajes,limite_ventana_ms}, webrtc, resp?, ts }>}
+   lim?:{max_cuerpo,limite_mensajes,limite_ventana_ms}, webrtc, resp?, ts, cta? }>}
+   cta = hex(HMAC-SHA256(clave de faro, "ss-nl-cuenta-v1|<huella del sobre>|<de.neurona>|<para>|<ts>")[0..16])
 {"t":"nl.sen","s":<sobre firmado de { t:"nl.sen", v:1, k:"oferta"|"respuesta"|"cierre", s:"nativo-…",
    de, para, sdp?, n?, ts }>}
 {"t":"nl.lote","m":["<texto>", …]}      ← varios textos en una trama (≤ 32, ≤ 64 KiB − 512 B)
@@ -153,8 +156,10 @@ conocía y, sin un emparejado por QR, no había enlace WebRTC.
 ```
 
 - Saludo: cada 15 s la app mira el canal y saluda a las vinculadas que su faro oye (por id o por la
-  última IP del vínculo), si no hay ligadura de < 2 min y no se saludó esa IP en 30 s. Quien recibe un
-  saludo válido liga y contesta (`resp:true`, que no se contesta).
+  última IP del vínculo) y, si tiene la clave de faro, a las neuronas de su cuenta que el faro reconoce
+  por su id (MLL1107A), si no hay ligadura de < 2 min y no se saludó esa IP en 30 s. Quien recibe un
+  saludo válido liga y contesta (`resp:true`, que no se contesta). Antes de mandar un mensaje a una
+  neurona que el faro oye sin ligadura, se la saluda YA y se espera ≤ 1,5 s (§6.6).
 - Colas por IP: `control` (tu.*, nl.*) pasa delante de `datos` (archivo.*, en orden estricto). Cada
   trama espera el acuse de la otra app; 6 fallos seguidos (0,5 s·2ⁿ ≤ 8 s) → caído 30 s (se dice en
   el envío y el enlace sale cerrado). El motor de archivos ve la cola ×4 y frena a ~256 KiB; por
@@ -186,6 +191,48 @@ Rust `malla_local_trama` (+2: dos trozos por trama, limitador 300/10 s).
 - La app 0.5.0 (sin este cambio de Rust) frente a una nueva: los límites se respetan (30/10 s).
 - Cortafuegos: macOS «Red local» y Windows «Redes privadas» para el TCP 47071 (ya en §2 del contrato
   de sincronización); ningún puerto nuevo (el WebRTC usa los suyos, efímeros, dentro de la red).
+
+### 6.6 · Por qué la Mac mandó por el servidor a la tablet de al lado (MLL1107A · 2026-11-07)
+
+Prueba real (07-11, ~22:20 UTC): Mac «MaggaBook» con la app 0.5.0 instalada (sirve sus páginas de la
+etiqueta v0.5.0 en 127.0.0.1:47610) → tablet «Maggaboard» (Android, web publicada de main), misma
+Wi-Fi, chat de Neuronas en «Automático». Llegó como «Servidor StarSeed · 375 ms ✓».
+
+Medido y leído (nada supuesto):
+- **Red**: TCP Mac → 192.168.0.12:47071 contesta el acuse `SSM1` `{"ok":true}` en 77–147 ms (sonda
+  con `{"t":"tu.ping"}`): ni aislamiento de clientes ni cortafuegos. El grupo 239.255.70.83 está unido
+  en `en0` (`netstat -gn`, `route -n get`): la Mac no se une por la interfaz equivocada.
+- **Faro**: escuchando el grupo 4 min desde la Mac (socket atado al grupo con `SO_REUSEADDR`, sin
+  quitárselo a la app) solo llegan los faros PROPIOS (cada 15,0 s, «cuenta», id de MaggaBook); de
+  192.168.0.12, ninguno. Cuadra con `nettop` del socket de la app: en 30 s entran 130 B = 2 × (37 B
+  del faro + 28 de cabeceras), es decir, solo su propio eco. La Mac no oye a la tablet.
+- **Código que corre la Mac**: en v0.5.0 no existen `red-local-nativa*.ts` ni `senal-nativa.ts`
+  (MLT1107A entró en `3e2421e6e7`, 07-11 06:04, después de la etiqueta del 06-11 23:15);
+  `enlacesDisponibles` de v0.5.0 solo conoce `local` (QR), `cuenta`, `par`, `rele` y `lora`. Para una
+  neurona, el plan de «Automático» solo tenía el servidor.
+- **La malla de la cuenta** (`cuenta`, WebRTC señalizado por Supabase), la otra vía local que sí
+  conoce la 0.5.0, solo se abre con el botón de sincronización directa del panel de dispositivos
+  (`device-network-panel.tsx`, `ensureMesh`) y se cierra al desmontarlo: al chatear no está.
+- **En main** el enlace `nativo:<ip>` existía, pero solo entre neuronas con un vínculo de «Sincronizar
+  ahora» y solo tras el ciclo de 15 s; sin eso el mensaje iba al servidor sin decir por qué.
+
+Arreglo (web, llega a la tablet al publicar la web y a la Mac con la próxima versión nativa):
+| Pieza | Qué cambia |
+|---|---|
+| `red-local-nativa.ts` | `cta` en `nl.hola` (`textoPruebaCuenta`, `mismaPrueba`); `aceptarHola(…, { cuentaProbada })` liga tus neuronas sin vínculo (también si el vínculo guardaba otra huella); `destinosHola({ cuenta })` saluda a las de la cuenta que el faro reconoce; `ipsDeNeurona`; `diagnosticoHacia` (ligada · caída · sin canal · no se oye · sin confianza · sin respuesta) |
+| `red-local-nativa-motor.ts` | `pruebaCuenta`/`huellaPropia` (HMAC con la clave de faro de `antenas_config`, releída cada minuto; nunca se registra), `asegurarLigadura(neurona, ≤1,5 s)`: saluda ya y espera a la ligadura; si ya se saludó hace poco y no contestó (app 0.5.0), no espera |
+| `transporte-universal.ts` | `prepararEnlaceNativo(neurona)` |
+| `mensajeria/medios/enviar.ts` | `candidatosMalla` asegura el canal antes de elegir medio (solo a una neurona concreta; los chats de personas no esperan) y, si no se pudo, añade el descarte «Red local (app nativa): <motivo>» que se ve en la pastilla |
+
+Arreglo (Rust, solo con la próxima versión nativa): el faro también sale por difusión
+(255.255.255.255:47070) y a cada aparato que se oye se le contesta con un faro DIRECTO (una vez por
+IP y minuto, `toca_respuesta_directa`): si un sentido funciona, se encuentran los dos.
+
+Límites que siguen: la Mac 0.5.0 no puede mandar por la red local (su web no tiene el enlace) ni
+contesta al `nl.hola`; hasta la próxima versión, solo el enlace QR («Vincular sin internet») lleva
+mensajes Mac ↔ tablet sin servidor. Una app 0.5.0 ignora `nl.*` y `archivo.*` por el TCP.
+Pruebas: `red-local-nativa.test.ts` (+5), `red-local-nativa-motor.test.ts` (+8),
+`mensajeria/medios/__tests__/enviar-red-nativa.test.ts` (6), Rust `antenas` (+2).
 
 ## 7 · Grupos, correos y medios por la malla (GRP1107A · 2026-11-07)
 
