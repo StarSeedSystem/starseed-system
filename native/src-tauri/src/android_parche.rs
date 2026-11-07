@@ -143,6 +143,51 @@ pub fn aplica(paquete: &str, desactivado: bool) -> bool {
     !desactivado && paquete_limpio(paquete) == PAQUETE_OS
 }
 
+// ─── (AND1107A) Servidor local DENTRO de la APK — interruptor de build, APAGADO por defecto ───
+// Lo que va en el proyecto Android (libnode, el servidor en assets, ServidorLocal.kt, el manifiesto,
+// la red en claro solo hacia 127.0.0.1 y el empaquetado de las .so) lo escribe
+// native/servidor-local/preparar-android.mjs ANTES de compilar. build.rs solo enciende el código Rust
+// (`--cfg starseed_servidor_android`) y, si el proyecto no está preparado, falla en alto.
+
+/// STARSEED_SERVIDOR_LOCAL_ANDROID: «1», «si»/«sí» o «true» lo encienden; cualquier otra cosa, no.
+pub fn servidor_local_encendido(valor: Option<&str>) -> bool {
+    matches!(valor.map(|v| v.trim().to_lowercase()).as_deref(), Some("1" | "si" | "sí" | "true"))
+}
+
+/// ¿Pasó preparar-android.mjs por este proyecto? (Con el interruptor APAGADO eso sería una APK que
+/// abre la página de arranque y nadie la lleva a ninguna parte: build.rs falla en alto.)
+pub fn servidor_local_inyectado(proyecto: &Path) -> bool {
+    proyecto.join("app/src/main/java/app/starseed/nativa/ServidorLocal.kt").is_file()
+}
+
+/// Lo mínimo que deja preparar-android.mjs (si falta algo, la APK diría tener servidor y no lo tendría).
+pub fn servidor_local_preparado(proyecto: &Path) -> Result<(), String> {
+    let principal = proyecto.join("app/src/main");
+    for rel in [
+        "java/app/starseed/nativa/ServidorLocal.kt",
+        "java/app/starseed/nativa/ServidorLocalLogica.kt",
+        "assets/servidor-local/paquete.properties",
+        "assets/servidor-local/servidor.zip",
+        "res/xml/starseed_red_local.xml",
+    ] {
+        if !principal.join(rel).is_file() {
+            return Err(format!("falta {}", principal.join(rel).display()));
+        }
+    }
+    let manifiesto = std::fs::read_to_string(principal.join("AndroidManifest.xml")).map_err(|e| format!("no se pudo leer el AndroidManifest.xml: {e}"))?;
+    if !manifiesto.contains("app.starseed.nativa.ArranqueServidorLocal") || !manifiesto.contains("@xml/starseed_red_local") {
+        return Err("el AndroidManifest.xml no declara ArranqueServidorLocal ni la red local".into());
+    }
+    let jni = principal.join("jniLibs");
+    let con_node = std::fs::read_dir(&jni)
+        .map(|it| it.flatten().any(|abi| abi.path().join("libnode.so").is_file()))
+        .unwrap_or(false);
+    if !con_node {
+        return Err(format!("no hay libnode.so en {}", jni.display()));
+    }
+    Ok(())
+}
+
 fn escribir_si_cambia(ruta: &Path, contenido: &str) -> Result<bool, String> {
     if std::fs::read_to_string(ruta).map(|t| t == contenido).unwrap_or(false) {
         return Ok(false);
@@ -276,6 +321,50 @@ mod pruebas {
         assert!(aplica("app.starseed.`os`", false));
         assert!(!aplica("app.starseed.nexus", false));
         assert!(!aplica("app.starseed.os", true), "STARSEED_SIN_SERVICIO_ANDROID lo apaga");
+    }
+
+    #[test]
+    fn interruptor_del_servidor_local_apagado_por_defecto() {
+        assert!(!servidor_local_encendido(None));
+        assert!(!servidor_local_encendido(Some("")));
+        assert!(!servidor_local_encendido(Some("0")));
+        assert!(!servidor_local_encendido(Some("no")));
+        assert!(servidor_local_encendido(Some("1")));
+        assert!(servidor_local_encendido(Some(" Sí ")));
+        assert!(servidor_local_encendido(Some("true")));
+    }
+
+    #[test]
+    fn el_proyecto_preparado_o_dice_que_falta() {
+        let dir = std::env::temp_dir().join(format!("ss-android-sl-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let m = dir.join("app/src/main");
+        std::fs::create_dir_all(&m).unwrap();
+        std::fs::write(m.join("AndroidManifest.xml"), PLANTILLA).unwrap();
+        assert!(servidor_local_preparado(&dir).unwrap_err().contains("ServidorLocal.kt"));
+        assert!(!servidor_local_inyectado(&dir));
+        for rel in [
+            "java/app/starseed/nativa/ServidorLocal.kt",
+            "java/app/starseed/nativa/ServidorLocalLogica.kt",
+            "assets/servidor-local/paquete.properties",
+            "assets/servidor-local/servidor.zip",
+            "res/xml/starseed_red_local.xml",
+        ] {
+            std::fs::create_dir_all(m.join(rel).parent().unwrap()).unwrap();
+            std::fs::write(m.join(rel), "x").unwrap();
+        }
+        assert!(servidor_local_preparado(&dir).unwrap_err().contains("AndroidManifest"));
+        let con = PLANTILLA.replace(
+            "<application",
+            "<application android:networkSecurityConfig=\"@xml/starseed_red_local\"",
+        ).replace("</application>", "<provider android:name=\"app.starseed.nativa.ArranqueServidorLocal\" />\n</application>");
+        std::fs::write(m.join("AndroidManifest.xml"), con).unwrap();
+        assert!(servidor_local_preparado(&dir).unwrap_err().contains("libnode.so"));
+        std::fs::create_dir_all(m.join("jniLibs/arm64-v8a")).unwrap();
+        std::fs::write(m.join("jniLibs/arm64-v8a/libnode.so"), "x").unwrap();
+        assert_eq!(servidor_local_preparado(&dir), Ok(()));
+        assert!(servidor_local_inyectado(&dir));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

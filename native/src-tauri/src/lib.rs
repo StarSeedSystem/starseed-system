@@ -48,8 +48,15 @@ mod serie;
 // la app de escritorio de StarSeed OS abre su propio servidor en 127.0.0.1 y funciona sin internet.
 #[cfg(desktop)]
 mod servidor_local;
-#[cfg(desktop)]
+#[cfg(any(desktop, all(target_os = "android", starseed_servidor_android)))]
+#[cfg_attr(not(desktop), allow(dead_code))]
 mod servidor_local_logica;
+// (AND1107A) El mismo servidor DENTRO de la APK (nodejs-mobile), solo con el interruptor de build
+// STARSEED_SERVIDOR_LOCAL_ANDROID=1 (build.rs pone `--cfg starseed_servidor_android`). §9.1 del contrato.
+#[cfg(all(target_os = "android", starseed_servidor_android))]
+mod servidor_local_android;
+#[cfg(any(test, all(target_os = "android", starseed_servidor_android)))]
+mod servidor_local_android_logica;
 // (APP1107B · T4) Trae al servidor local lo que la app tenía en el origen de la web publicada.
 #[cfg(desktop)]
 mod migracion_origen;
@@ -558,6 +565,8 @@ pub fn run() {
             // Servidor local de StarSeed OS (solo escritorio; Nexus y Café siguen con su web).
             #[cfg(desktop)]
             servidor_local::iniciar(app.handle());
+            #[cfg(all(target_os = "android", starseed_servidor_android))]
+            servidor_local_android::iniciar(app.handle());
             #[cfg(desktop)]
             {
                 if nativa::es_starseed_os(app.handle()) {

@@ -65,7 +65,11 @@ fn main() {
     println!("cargo:rerun-if-changed=android");
     println!("cargo:rerun-if-env-changed=STARSEED_SIN_SERVICIO_ANDROID");
     println!("cargo:rerun-if-env-changed=TAURI_ANDROID_PROJECT_PATH");
+    println!("cargo:rerun-if-env-changed=STARSEED_SERVIDOR_LOCAL_ANDROID");
+    // (AND1107A) Se declara siempre (que rustc no avise de un cfg desconocido); solo se ENCIENDE abajo.
+    println!("cargo:rustc-check-cfg=cfg(starseed_servidor_android)");
     servicio_android();
+    servidor_local_android();
     tauri_build::try_build(
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(COMANDOS_APP)),
     )
@@ -104,4 +108,39 @@ fn servicio_android() {
         // Falla en alto: un APK que dice tener servicio y no lo tiene sería una ilusión.
         Err(e) => panic!("[starseed] No se pudo inyectar el servicio de antenas en Android: {e}. Para compilar sin él: STARSEED_SIN_SERVICIO_ANDROID=1"),
     }
+}
+
+/// (AND1107A) Servidor local DENTRO de la APK (nodejs-mobile) — interruptor de build APAGADO por
+/// defecto: sin STARSEED_SERVIDOR_LOCAL_ANDROID=1 no se compila ni una línea de él y la APK sale como
+/// siempre. Encendido: solo StarSeed OS, y el proyecto Android tiene que venir preparado por
+/// native/servidor-local/preparar-android.mjs (si no, falla en alto). Contrato §9.1.
+fn servidor_local_android() {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("android") {
+        return;
+    }
+    let proyecto = std::env::var_os("TAURI_ANDROID_PROJECT_PATH").map(std::path::PathBuf::from);
+    if !android_parche::servidor_local_encendido(std::env::var("STARSEED_SERVIDOR_LOCAL_ANDROID").ok().as_deref()) {
+        // Proyecto preparado pero interruptor apagado: la ventana se quedaría en la página de arranque.
+        if proyecto.as_deref().is_some_and(android_parche::servidor_local_inyectado) {
+            panic!("[starseed] El proyecto Android está preparado para el servidor local (preparar-android.mjs) pero falta STARSEED_SERVIDOR_LOCAL_ANDROID=1: enciéndelo o vuelve a `cargo tauri android init` desde cero.");
+        }
+        return;
+    }
+    let paquete = std::env::var("TAURI_ANDROID_PACKAGE_UNESCAPED")
+        .or_else(|_| std::env::var("WRY_ANDROID_PACKAGE"))
+        .unwrap_or_default();
+    if !android_parche::aplica(&paquete, false) {
+        println!("cargo:warning=[starseed] STARSEED_SERVIDOR_LOCAL_ANDROID solo vale para StarSeed OS ({paquete:?}): este APK sale sin servidor local.");
+        return;
+    }
+    match proyecto {
+        Some(proyecto) => {
+            if let Err(e) = android_parche::servidor_local_preparado(&proyecto) {
+                panic!("[starseed] STARSEED_SERVIDOR_LOCAL_ANDROID=1 pero el proyecto Android no está preparado ({e}). Prepáralo con `node native/servidor-local/preparar-android.mjs --tar <servidor-next.tar> --proyecto native/src-tauri/gen/android --conf native/src-tauri/tauri.android.conf.json` o quita la variable.");
+            }
+        }
+        None => println!("cargo:warning=[starseed] Sin TAURI_ANDROID_PROJECT_PATH: se compila el servidor local sin comprobar el proyecto Android."),
+    }
+    println!("cargo:rustc-cfg=starseed_servidor_android");
+    println!("cargo:warning=[starseed] servidor local DENTRO de la APK: encendido (AND1107A).");
 }
