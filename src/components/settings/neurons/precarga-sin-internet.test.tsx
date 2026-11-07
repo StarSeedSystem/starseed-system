@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
 import { PrecargaSinInternet } from "./precarga-sin-internet";
 
 const EVENTO_PRECARGA = "starseed:precarga";
@@ -59,9 +60,9 @@ describe("PrecargaSinInternet", () => {
       terminado: Date.now(),
     });
     render(<PrecargaSinInternet />);
-    screen.getByText(/Guardadas 5 de 10/);
-    screen.getByText(/2\.5 MB/);
-    screen.getByText(/ahorro-de-datos/);
+    expect(screen.getByText(/Guardadas 5 de 10/)).toBeInTheDocument();
+    expect(screen.getByText(/2\.5 MB/)).toBeInTheDocument();
+    expect(screen.getByText(/ahorro-de-datos/)).toBeInTheDocument();
   });
 
   it("actualiza al recibir el evento starseed:precarga", async () => {
@@ -154,6 +155,6 @@ describe("PrecargaSinInternet", () => {
     });
     render(<PrecargaSinInternet />);
 
-    screen.getByText("Este navegador no puede guardar la app para usarla sin internet");
+    expect(screen.getByText("Este navegador no puede guardar la app para usarla sin internet")).toBeInTheDocument();
   });
 });
