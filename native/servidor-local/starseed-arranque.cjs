@@ -35,6 +35,11 @@
  *      estándar (`pase:<hex>`, primera línea); `/__starseed/entrar?t=<pase>` pone la cookie
  *      (HttpOnly; SameSite=Strict). Sin CORS abierto hacia fuera, el pase nunca sale hacia la web
  *      publicada y el Next INTERNO (puerto al azar) solo atiende a esta puerta (testigo propio).
+ *   5. (AND1107A) En Android (nodejs-mobile) Node corre DENTRO del proceso de la app (no hay padre ni
+ *      entrada estándar propia): con STARSEED_EN_PROCESO=1 el pase llega por la tubería cuyo
+ *      descriptor dice STARSEED_ENTRADA_FD, nunca se llama a process.exit (cerraría la app entera: si
+ *      algo lo pide, la puerta se cierra y Rust lleva la ventana a la web publicada) y un error sin
+ *      capturar se registra sin tumbar la app.
  *
  * Nunca escucha fuera de 127.0.0.1 y no lleva claves: el servidor local no tiene secretos (el
  * pase no es una clave de nada: solo dice «soy la ventana de esta app»; nunca se escribe en el
@@ -101,7 +106,36 @@ function leerConfig(env) {
     localSiempre,
     pausaRedMs: Math.max(100, Number.parseInt(env.STARSEED_PAUSA_RED_MS || "", 10) || 20_000),
     vigiaPadre: env.STARSEED_VIGIA_PADRE !== "0",
+    // (AND1107A) Android: Node dentro del proceso de la app y el pase por una tubería propia.
+    enProceso: env.STARSEED_EN_PROCESO === "1",
+    fdEntrada: fdValido(env.STARSEED_ENTRADA_FD),
   };
+}
+
+/** Número de descriptor (≥ 3: 0, 1 y 2 son los estándar) o null. */
+function fdValido(v) {
+  const t = String(v ?? "").trim();
+  if (!/^\d{1,6}$/.test(t)) return null;
+  const n = Number(t);
+  return n >= 3 ? n : null;
+}
+
+/**
+ * (AND1107A) Dentro del proceso de la app (nodejs-mobile), process.exit mataría la app entera (la
+ * ventana incluida). Se cambia por `alSalir(codigo)` —que cierra la puerta: Rust ve que la salud deja
+ * de responder y lleva la ventana a la web publicada— y los errores sin capturar se registran sin tumbar
+ * nada. Solo con STARSEED_EN_PROCESO=1: en escritorio Node es un proceso aparte y nada cambia.
+ */
+function protegerSalidaEnProceso(proc, alSalir, registrar) {
+  const original = proc.exit;
+  proc.exit = function salidaEnProceso(codigo) {
+    const c = codigo === undefined ? proc.exitCode : codigo;
+    registrar(`AVISO: process.exit(${c === undefined ? "" : c}) ignorado: en Android cerraría la app entera; se cierra solo el servidor local`);
+    if (c !== undefined) proc.exitCode = c;
+    alSalir(c);
+  };
+  proc.on("uncaughtException", (e) => registrar("error sin capturar (la app sigue):", e && e.stack ? e.stack : e));
+  return original;
 }
 
 function rutaDe(url) {
@@ -640,6 +674,7 @@ async function principal() {
   const cfg = leerConfig(process.env);
   if (!cfg.puerto) {
     console.error("[starseed-arranque] falta STARSEED_PUERTO: este archivo lo lanza la app nativa.");
+    if (cfg.enProceso) return; // (AND1107A) en Android, salir sin matar la app (node::Start termina solo)
     process.exit(2);
   }
   const estado = {
@@ -664,19 +699,34 @@ async function principal() {
   // mano; en ambos casos se borra del entorno antes de cargar Next (que no lo vea nadie más).
   const paseEntorno = process.env.STARSEED_PASE_VENTANA;
   delete process.env.STARSEED_PASE_VENTANA;
+  // (AND1107A) En Android, la tubería propia del lanzador (Rust la escribe y la cierra antes de
+  // node::Start); el número del descriptor no es secreto, pero tampoco lo necesita nadie más.
+  delete process.env.STARSEED_ENTRADA_FD;
+  let entradaPase = null;
+  if (cfg.fdEntrada !== null) {
+    try {
+      entradaPase = fs.createReadStream(null, { fd: cfg.fdEntrada, autoClose: true });
+      entradaPase.on("error", () => {});
+    } catch {
+      entradaPase = null;
+    }
+  }
   const pasePrometido = G.paseValido(paseEntorno)
     ? Promise.resolve(paseEntorno)
-    : process.stdin.isTTY
-      ? Promise.resolve(null)
-      : leerPaseDeEntrada(process.stdin, ESPERA_PASE_MS);
+    : entradaPase
+      ? leerPaseDeEntrada(entradaPase, ESPERA_PASE_MS)
+      : cfg.enProceso || process.stdin.isTTY
+        ? Promise.resolve(null)
+        : leerPaseDeEntrada(process.stdin, ESPERA_PASE_MS);
   pasePrometido.then((pase) => {
+    if (entradaPase) entradaPase.destroy();
     estado.pase = pase || "";
     estado.paseResuelto = true;
     log(pase ? "pase de la app recibido" : "AVISO: sin pase de la app: /api y los cambios responderán 403 (la app debe mandarlo por la entrada estándar)");
     marcarListo();
   });
 
-  if (cfg.vigiaPadre && !process.stdin.isTTY) {
+  if (cfg.vigiaPadre && !cfg.enProceso && !process.stdin.isTTY) {
     process.stdin.on("end", () => {
       log("la app se cerró: salgo");
       process.exit(0);
@@ -684,7 +734,7 @@ async function principal() {
     process.stdin.on("error", () => process.exit(0));
     process.stdin.resume();
   }
-  for (const s of ["SIGTERM", "SIGINT"]) process.on(s, () => process.exit(0));
+  if (!cfg.enProceso) for (const s of ["SIGTERM", "SIGINT"]) process.on(s, () => process.exit(0));
 
   const puerta = crearPuerta(cfg, estado);
   const servidor = http.createServer((req, res) => {
@@ -694,6 +744,21 @@ async function principal() {
     });
   });
   servidor.on("upgrade", puerta.alActualizar);
+  if (cfg.enProceso) {
+    // (AND1107A) Nada de process.exit: si algo lo pide, se cierra la puerta (la salud deja de
+    // responder y Rust lleva la ventana a la web publicada) y la app sigue viva.
+    protegerSalidaEnProceso(
+      process,
+      () => {
+        estado.listo = false;
+        try {
+          servidor.close();
+          if (typeof servidor.closeAllConnections === "function") servidor.closeAllConnections();
+        } catch {}
+      },
+      log,
+    );
+  }
   servidor.on("error", (e) => {
     console.error("[starseed-arranque] no puedo escuchar en", `${HOST}:${cfg.puerto}`, String(e.code || e));
     process.exit(3);
@@ -721,7 +786,7 @@ async function principal() {
 }
 
 module.exports = {
-  leerConfig, rutaDe, rutaNormalizada, esSoloMac, destino, paginaMigracion, esErrorDeRed, estadoRed, cabecerasLimpias, cabecerasHaciaWeb,
+  leerConfig, fdValido, protegerSalidaEnProceso, rutaDe, rutaNormalizada, esSoloMac, destino, paginaMigracion, esErrorDeRed, estadoRed, cabecerasLimpias, cabecerasHaciaWeb,
   adaptarCookie, cabecerasDeVuelta, cuerpoSalud, RUTA_SALUD, RUTA_RED, RUTA_MIGRACION, RUTA_MIGRACION_JS,
   RUTAS_SOLO_MAC, NOMBRE, LIMITE_CUERPO, protegerServidoresInternos, leerPaseDeEntrada, PROTOCOLO,
 };
