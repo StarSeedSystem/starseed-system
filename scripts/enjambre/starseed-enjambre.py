@@ -2529,6 +2529,40 @@ def entorno_hijo(extra=None):
     return e
 
 
+# (2026-11-07, SUP0711A) Un agente no puede empujar a GitHub desde su worktree: el 06-11
+# dos hicieron `git push origin main` y publicaron el main vivo SIN las puertas de la
+# autopublicación. Los vetos de bash en la config de opencode se saltan con `bash -c`,
+# `timeout` o `git -C`; en cambio `url.<base>.pushInsteadOf` se pasa por GIT_CONFIG_<n>
+# y llega igual a todo hijo de cualquier hijo. REESCRIBE SOLO EL PUSH: un push a
+# https://github.com/… (o git@, ssh://) se convierte en el esquema falso
+# `url.nopush://` y muere al instante («remote-nopush is not a git command», rc 128)
+# SIN tocar la red; `git fetch` no cambia. `entorno_hijo()` y `sh()` NO la llevan:
+# el orquestador empuja él mismo las ramas `comprobar/…` de la puerta tsc.
+_CLAVES_PUSHINSTEAD = (
+    "https://github.com/",
+    "git@github.com:",
+    "ssh://git@github.com/",
+)
+_VALOR_PUSHINSTEAD = "url.nopush://bloqueado-por-starseed/.pushInsteadOf"
+
+
+def entorno_sin_push(env=None):
+    """PURA: dict NUEVO con lo de `env` y, AL FINAL de su GIT_CONFIG_*, las tres entradas
+    `pushInsteadOf` que cuelan la salida de `git push` a GitHub. No toca el dict recibido."""
+    e = dict(env or {})
+    try:
+        cuenta = int(e.get("GIT_CONFIG_COUNT", ""))
+    except (TypeError, ValueError):
+        cuenta = 0
+    if cuenta < 0:
+        cuenta = 0
+    for i, prefijo in enumerate(_CLAVES_PUSHINSTEAD):
+        e["GIT_CONFIG_KEY_%d" % (cuenta + i)] = _VALOR_PUSHINSTEAD
+        e["GIT_CONFIG_VALUE_%d" % (cuenta + i)] = prefijo
+    e["GIT_CONFIG_COUNT"] = str(cuenta + len(_CLAVES_PUSHINSTEAD))
+    return e
+
+
 _CLAVES_EXTRA = (
     # No viven en opencode.json: revisores por HTTP directo, avisos y alias históricos.
     "GROQ_API_KEY",
@@ -3953,7 +3987,8 @@ def opencode(prompt, modelo, cwd, log, timeout=1500, tid=None):
                 stderr=subprocess.STDOUT,
                 # (2026-09-07, Ola 271, P9B) la clave ACTIVA del proveedor se
                 # pasa al hijo y, si cambió, actualiza «{env:VAR}» de opencode.
-                env=entorno_hijo(_sync_opencode_clave(modelo)),
+                # (2026-11-07, SUP0711A) el hijo NO puede empujar a GitHub.
+                env=entorno_sin_push(entorno_hijo(_sync_opencode_clave(modelo))),
                 # (2026-09-23) Grupo propio: al cortarlo se va con sus hijos (tsserver
                 # de ~2 GB incluido) en vez de dejarlos huérfanos. Ver `matar_grupo`.
                 start_new_session=True,
@@ -4110,7 +4145,8 @@ def escribir_con_codex(prompt, modelo, cwd, log, timeout=1500, tid=None):
                 stdin=subprocess.PIPE,
                 stdout=f,
                 stderr=subprocess.STDOUT,
-                env=entorno_hijo(),
+                # (2026-11-07, SUP0711A) el hijo NO puede empujar a GitHub.
+                env=entorno_sin_push(entorno_hijo()),
                 start_new_session=True,  # (2026-09-23) ver `matar_grupo`
             )
         try:
