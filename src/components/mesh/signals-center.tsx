@@ -53,6 +53,9 @@ import {
 // RN5 · Voz de borde (supertonic / 1.58 local) en la misma página Señales:
 // indicador con soporte real de hardware y prueba de síntesis corta.
 import { detectarCapacidades } from "@/lib/aurora/voz-starseed/capacidades";
+// Estado del servidor local de la app nativa (APP1107T6, T6): pastilla «servidor
+// local · …» que solo se pinta dentro de la app de escritorio (window.__TAURI__).
+import { EstadoServidorLocal } from "@/components/nativa/estado-servidor-local";
 import {
   soporteSupertonic,
   nivelParaVoz,
@@ -335,9 +338,13 @@ export function SignalsCenter({ embedded = false, compact = false }: SignalsCent
               con el radar de los nodos reales de la malla. Desde aquí llegas a la Red Mesh y a cada configuración.
             </p>
           </div>
-          <Link href="/red-mesh" className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200 transition-colors duration-200 hover:bg-emerald-500/20">
-            <ExternalLink className="h-3 w-3" /> Red Mesh (mapa 3D)
-          </Link>
+          <div className="flex items-center gap-1.5">
+            {/* APP1107T6: cómo está el servidor local de este medio (solo se ve en la app nativa). */}
+            <EstadoServidorLocal />
+            <Link href="/red-mesh" className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200 transition-colors duration-200 hover:bg-emerald-500/20">
+              <ExternalLink className="h-3 w-3" /> Red Mesh (mapa 3D)
+            </Link>
+          </div>
         </div>
       )}
 
