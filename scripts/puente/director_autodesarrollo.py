@@ -589,7 +589,17 @@ def ciclo(seco=False, ahora=None, capacidad=-1, home=None, raiz=None, lanzador_d
         tareas_e = [AE.tarea(p, ahora) for p in ent]
         # Ola 1102: lo que aprobó sola la automática (carril de bajo riesgo) entra con el máximo del rango y una por archivo.
         aprobadas_c = AD.turno_de_las_solas(aprobadas["codigo"], aj["rango"]["max"] - len(auto))
-        cola = [p for p in (auto + aprobadas_c) if not _es_alcance(p)] if toca else []
+        auto_sin_publicar_main, descartadas = [], []
+        for p in auto + aprobadas_c:
+            if _es_alcance(p):
+                auto_sin_publicar_main.append(p)
+            elif AD.es_publicacion_de_main(p):
+                p = dict(p)
+                p.update(estado="descartada", motivo_destino="publicar main es de la autopublicación (o del botón 'Publicar' de Genesis), no de los agentes")
+                descartadas.append(p)
+            else:
+                auto_sin_publicar_main.append(p)
+        cola = auto_sin_publicar_main if toca else []
         fr = [x for x in aj["horario"]["franjas"] if x["desde"] > ahora.strftime("%H:%M")] if aj["horario"]["modo"] == "franjas" else []
         if cola and aj["horario"]["repartir"] and fr: cola = cola[:AL.lotes(len(cola), len(fr) + 1)[0]]
         nombre = f"cola-imaginacion-{ahora.strftime('%Y%m%d-%H%M')}"

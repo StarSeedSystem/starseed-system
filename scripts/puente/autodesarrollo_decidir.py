@@ -91,6 +91,18 @@ def es_de_alex(p: Dict) -> str:
     if CUENTAS.search(texto): return "no accionable por el enjambre (cuentas): es de Alex → pregunta"
     if SECRETOS.search(texto): return "no accionable por el enjambre (credenciales): es de Alex → pregunta"
     return ""
+def es_publicacion_de_main(p: Dict) -> bool:
+    """True si es una publicación de main que solo hace Alex (publicar), (publicación), (desplegar), (deploy) o (vercel)
+    Y el texto normalizado de la propuesta menciona main, origin, commit(s), push, pila, backlog,
+    producción, vercel, despliegue o deploy como palabra entera."""
+    if not es_de_alex(p):
+        return False
+    nombre = _norm(p.get("titulo") or "")
+    palabras_nombre = re.findall(r"\b\w+\b", nombre)
+    if not any(palabra in palabras_nombre for palabra in ["publicar", "publicacion", "desplegar", "deploy", "vercel"]):
+        return False
+    texto = _texto_riesgo(p)
+    return bool(re.search(r"\b(main|origin|commit\(s\)?|push|pila|backlog|produccion|vercel|despliegue|deploy)\b", texto))
 
 def es_accionable(p: Dict, existe: Existe) -> Tuple[bool, str]:
     texto = _texto(p); de_alex = es_de_alex(p)

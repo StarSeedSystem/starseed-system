@@ -712,3 +712,40 @@ def test_fusion_con_disco_respeta_lo_decidido_durante_el_ciclo_1106():
     assert [(p["id"], p["estado"]) for p in fuera] == [("a", "aprobada"), ("b", "descartada"), ("d", "encargada"),
                                                         ("c", "nueva")]
     assert D.fusionar_con_disco(inicial, ciclo, []) == ciclo
+
+    def test_es_publicacion_de_main(self):
+        """Probar la nueva función es_publicacion_de_main."""
+        import director_autodesarrollo as D
+        
+        # Propuesta que es de Alex y en su título aparece "publicar"
+        p1 = {"id": "diaria:pub-1", "fuente": "diaria", "titulo": "Publicar main", "cuerpo": "Publicar main en production", "estado": "nueva"}
+        self.assertTrue(D.AD.es_publicacion_de_main(p1))
+        
+        # Propuesta que es de Alex y en su título aparece "publicación"
+        p2 = {"id": "diaria:pub-2", "fuente": "diaria", "titulo": "Publicación de main", "cuerpo": "Publicación de main", "estado": "nueva"}
+        self.assertTrue(D.AD.es_publicacion_de_main(p2))
+        
+        # Propuesta que es de Alex y en su título aparece "desplegar"
+        p3 = {"id": "diaria:pub-3", "fuente": "diaria", "titulo": "Desplegar a Vercel", "cuerpo": "Desplegar main a Vercel", "estado": "nueva"}
+        self.assertTrue(D.AD.es_publicacion_de_main(p3))
+        
+        # Propuesta que es de Alex y en su título aparece "deploy"
+        p4 = {"id": "diaria:pub-4", "fuente": "diaria", "titulo": "Deploy a vercel", "cuerpo": "Deploy main a vercel", "estado": "nueva"}
+        self.assertTrue(D.AD.es_publicacion_de_main(p4))
+        
+        # Propuesta que es de Alex y en su título aparece "vercel"
+        p5 = {"id": "diaria:pub-5", "fuente": "diaria", "titulo": "Arreglar vercel", "cuerpo": "Arreglar vercel", "estado": "nueva"}
+        self.assertTrue(D.AD.es_publicacion_de_main(p5))
+        
+        # Propuesta que es de Alex pero en su título NO aparece ninguna palabra clave
+        p6 = {"id": "diaria:pub-6", "fuente": "diaria", "titulo": "Arreglar bug", "cuerpo": "Arreglar un bug de main", "estado": "nueva"}
+        self.assertFalse(D.AD.es_publicacion_de_main(p6))
+        
+        # Propuesta que NO es de Alex (no toca algo que solo decide Alex)
+        p7 = {"id": "diaria:pub-7", "fuente": "diaria", "titulo": "Arreglar el lector", "cuerpo": "Arreglar el lector de archivos", "estado": "nueva"}
+        self.assertFalse(D.AD.es_publicacion_de_main(p7))
+        
+        # Propuesta que es de Alex pero en su título la palabra clave no está presente en su texto
+        p8 = {"id": "diaria:pub-8", "fuente": "diaria", "titulo": "Arreglar cosa", "cuerpo": "Arreglar algo de vercel", "estado": "nueva"}
+        self.assertFalse(D.AD.es_publicacion_de_main(p8))
+
