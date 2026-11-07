@@ -15,6 +15,9 @@
  *   · RITMO: una cubeta de fichas por IP que nunca pasa del 60 % de lo que el limitador del otro
  *     admite (sus límites llegan en su `nl.hola`; sin ellos, los de la app anterior: 30 cada 10 s).
  *   · ENLACES: `EnlaceDisponible` de tipo `nativo` (rango 0) por cada ligadura viva.
+ *   · CUENTA (MLL1107A): dos neuronas de LA MISMA cuenta se ligan también sin «Sincronizar ahora» si el
+ *     saludo lleva la prueba de cuenta (`cta`, HMAC con la clave de faro de la cuenta atado a la huella
+ *     que firma). Se saluda también a las neuronas de la cuenta que el faro reconoce por su id.
  *
  * La SEÑALIZACIÓN WebRTC (oferta/respuesta por este canal, sin código QR) está en `senal-nativa.ts`.
  */
@@ -263,6 +266,37 @@ export interface HolaNativa {
   /** Es la contestación a otro saludo (no se contesta, para no rebotar). */
   resp?: boolean;
   ts: number;
+  /**
+   * (MLL1107A) Prueba de cuenta: `pruebaCuenta` del texto `textoPruebaCuenta` (32 hex). Solo la puede
+   * calcular quien tiene la clave de faro de la cuenta. Va DENTRO del sobre firmado.
+   */
+  cta?: string;
+}
+
+/* ══════════════════════════ Prueba de cuenta (MLL1107A) ══════════════════════════ */
+
+/** Largo de la prueba de cuenta en hex (16 bytes del HMAC-SHA256). */
+export const LARGO_PRUEBA_CUENTA = 32;
+
+export function esPruebaCuenta(x: unknown): x is string {
+  return typeof x === "string" && x.length === LARGO_PRUEBA_CUENTA && /^[0-9a-f]+$/.test(x);
+}
+
+/**
+ * Texto que se firma con la clave de faro de la cuenta. Ata la prueba a la HUELLA que firma el sobre,
+ * a las dos neuronas y al instante del saludo: copiar `cta` a un saludo firmado por otra identidad no
+ * vale, y el sobre ya trae su guarda contra repeticiones (instante + nonce). Puro.
+ */
+export function textoPruebaCuenta(p: { huella: string; de: string; para: string; ts: number }): string {
+  return `ss-nl-cuenta-v1|${p.huella}|${p.de}|${p.para}|${p.ts}`;
+}
+
+/** Comparación de dos pruebas sin cortar al primer carácter distinto. Puro. */
+export function mismaPrueba(a: string | undefined, b: string | null | undefined): boolean {
+  if (!esPruebaCuenta(a) || !esPruebaCuenta(b)) return false;
+  let d = 0;
+  for (let i = 0; i < LARGO_PRUEBA_CUENTA; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
 }
 
 function texto(x: unknown, max: number): string | undefined {
@@ -282,7 +316,7 @@ export function leerQuien(x: unknown): QuienNativo | null {
   return q;
 }
 
-export function holaNativa(p: { de: QuienNativo; para: string; limites: LimitesCanal | null; webrtc: boolean; resp?: boolean; ts: number }): HolaNativa {
+export function holaNativa(p: { de: QuienNativo; para: string; limites: LimitesCanal | null; webrtc: boolean; resp?: boolean; ts: number; cta?: string | null }): HolaNativa {
   return {
     t: "nl.hola",
     v: 1,
@@ -292,6 +326,7 @@ export function holaNativa(p: { de: QuienNativo; para: string; limites: LimitesC
     webrtc: p.webrtc,
     ...(p.resp ? { resp: true } : {}),
     ts: p.ts,
+    ...(esPruebaCuenta(p.cta) ? { cta: p.cta } : {}),
   };
 }
 
@@ -303,26 +338,52 @@ export function leerHola(x: unknown): HolaNativa | null {
   const para = texto(o.para, 80);
   if (!de || !para || typeof o.ts !== "number") return null;
   const lim = o.lim && typeof o.lim === "object" ? anuncioLimites(leerLimites(o.lim)) : undefined;
-  return { t: "nl.hola", v: 1, de, para, ...(lim ? { lim } : {}), webrtc: o.webrtc === true, ...(o.resp === true ? { resp: true } : {}), ts: o.ts };
+  return {
+    t: "nl.hola",
+    v: 1,
+    de,
+    para,
+    ...(lim ? { lim } : {}),
+    webrtc: o.webrtc === true,
+    ...(o.resp === true ? { resp: true } : {}),
+    ts: o.ts,
+    ...(esPruebaCuenta(o.cta) ? { cta: o.cta } : {}),
+  };
 }
 
 /**
- * ¿Se acepta este saludo? Solo si es para esta neurona, viene de una neurona VINCULADA y la firma es
- * de LA MISMA identidad que guardó el vínculo (primer uso en la solicitud de MSH1107A). Puro.
+ * ¿Se acepta este saludo? Solo si es para esta neurona y, además:
+ *  · viene de una neurona VINCULADA y la firma es de LA MISMA identidad que guardó el vínculo (primer
+ *    uso en la solicitud de MSH1107A), o
+ *  · (MLL1107A) trae la prueba de cuenta válida (`cuentaProbada`: quien saluda tiene la clave de faro de
+ *    TU cuenta, atada a la huella que firma). Tus propias neuronas no necesitan «Sincronizar ahora»: la
+ *    cuenta es el consentimiento. Con la prueba vale aunque el vínculo guardara otra huella (la misma
+ *    cuenta reinstaló su identidad de malla).
+ * Puro.
  */
 export function aceptarHola(
   h: HolaNativa,
   huella: string | undefined,
   yo: string,
   vinculos: readonly VinculoMinimo[],
-): { ok: true; vinculo: VinculoMinimo } | { ok: false; motivo: string } {
+  opciones: { cuentaProbada?: boolean } = {},
+): { ok: true; vinculo: VinculoMinimo; porCuenta: boolean } | { ok: false; motivo: string } {
   if (h.para !== yo) return { ok: false, motivo: "el saludo es para otra neurona" };
   if (h.de.neurona === yo) return { ok: false, motivo: "eco de esta misma neurona" };
   const v = vinculos.find((x) => x.neurona === h.de.neurona);
-  if (!v) return { ok: false, motivo: "no hay vínculo con esa neurona (primero «Sincronizar ahora»)" };
+  if (v && v.huella && huella && v.huella === huella) return { ok: true, vinculo: v, porCuenta: false };
+  if (opciones.cuentaProbada && huella) {
+    const base: VinculoMinimo = v ?? {
+      neurona: h.de.neurona,
+      nombre: h.de.nombre,
+      ...(h.de.sync ? { sync: h.de.sync } : {}),
+      ...(h.de.cuenta ? { cuenta: h.de.cuenta } : {}),
+    };
+    return { ok: true, vinculo: { ...base, huella }, porCuenta: true };
+  }
+  if (!v) return { ok: false, motivo: "no hay vínculo con esa neurona (primero «Sincronizar ahora») ni prueba de tu cuenta" };
   if (!v.huella || !huella) return { ok: false, motivo: "el vínculo no guarda la huella de esa neurona" };
-  if (v.huella !== huella) return { ok: false, motivo: "la firma no es la de la neurona vinculada" };
-  return { ok: true, vinculo: v };
+  return { ok: false, motivo: "la firma no es la de la neurona vinculada" };
 }
 
 /** Una IP que ya dijo, firmando, quién es. */
@@ -338,6 +399,8 @@ export interface Ligadura {
   webrtc: boolean;
   /** Último saludo verificado (epoch ms). */
   at: number;
+  /** (MLL1107A) Ligada por la prueba de cuenta (sin vínculo con esa huella). */
+  porCuenta?: boolean;
 }
 
 /** Una ligadura vale esto sin un saludo nuevo (cada lado saluda cada `CADA_HOLA_MS`). */
@@ -368,9 +431,30 @@ export function podarLigaduras(lista: readonly Ligadura[], ahora: number): Ligad
 }
 
 /**
+ * IPs de la red local donde puede estar esa neurona ahora: las de los faros que la reconocen por su id
+ * (solo los de TU cuenta llevan id: lo comprueba el HMAC de la clave de faro) o la última IP de su
+ * vínculo (si esa IP no es de otra neurona). Sin las que dicen no tener canal. Puro.
+ */
+export function ipsDeNeurona(neurona: string, vecinos: readonly VecinoMinimo[], vinculo?: VinculoMinimo): Array<{ ip: string; puerto: number }> {
+  const out: Array<{ ip: string; puerto: number }> = [];
+  for (const x of vecinos) {
+    if (x.canal === false) continue;
+    const porId = x.neurona === neurona;
+    const porIp = !!vinculo?.ultimaIp && x.ip === vinculo.ultimaIp && (!x.neurona || x.neurona === neurona);
+    if (!porId && !porIp) continue;
+    const ip = ipLocal(x.ip);
+    if (!ip || out.some((o) => o.ip === ip)) continue;
+    out.push({ ip, puerto: x.puerto >= 1024 ? x.puerto : PUERTO_CANAL_NATIVO });
+  }
+  return out;
+}
+
+/**
  * destinosHola — a qué IPs saludar ahora: las de las neuronas VINCULADAS que el faro oye (por su id
- * o por la última IP del vínculo, si esa IP no es de otra neurona), sin ligadura reciente y sin un
- * saludo en los últimos `ENTRE_HOLAS_MS`. Puro.
+ * o por la última IP del vínculo, si esa IP no es de otra neurona) y, con `cuenta` (esta app tiene la
+ * clave de faro: su saludo lleva la prueba de cuenta, MLL1107A), también las neuronas de TU cuenta que
+ * el faro reconoce por su id aunque no haya vínculo. Sin ligadura reciente y sin un saludo en los
+ * últimos `ENTRE_HOLAS_MS`. Puro.
  */
 export function destinosHola(p: {
   vecinos: readonly VecinoMinimo[];
@@ -378,24 +462,76 @@ export function destinosHola(p: {
   ligaduras: readonly Ligadura[];
   ultimoHola: Readonly<Record<string, number>>;
   ahora: number;
+  cuenta?: boolean;
 }): Array<{ ip: string; puerto: number; neurona: string }> {
   const out: Array<{ ip: string; puerto: number; neurona: string }> = [];
   const vistas = new Set<string>();
-  for (const v of p.vinculos) {
-    const lig = ligaduraDeNeurona(p.ligaduras, v.neurona, p.ahora);
-    if (lig && p.ahora - lig.at < CADA_HOLA_MS) continue;
-    const candidatos = p.vecinos.filter(
-      (x) => x.canal !== false && (x.neurona === v.neurona || (!!v.ultimaIp && x.ip === v.ultimaIp && (!x.neurona || x.neurona === v.neurona))),
-    );
-    for (const c of candidatos) {
-      const ip = ipLocal(c.ip);
-      if (!ip || vistas.has(ip)) continue;
-      if (p.ahora - (p.ultimoHola[ip] ?? -Infinity) < ENTRE_HOLAS_MS) continue;
-      vistas.add(ip);
-      out.push({ ip, puerto: c.puerto >= 1024 ? c.puerto : PUERTO_CANAL_NATIVO, neurona: v.neurona });
+  const poner = (neurona: string) => {
+    const lig = ligaduraDeNeurona(p.ligaduras, neurona, p.ahora);
+    if (lig && p.ahora - lig.at < CADA_HOLA_MS) return;
+    for (const c of ipsDeNeurona(neurona, p.vecinos, p.vinculos.find((v) => v.neurona === neurona))) {
+      if (vistas.has(c.ip)) continue;
+      if (p.ahora - (p.ultimoHola[c.ip] ?? -Infinity) < ENTRE_HOLAS_MS) continue;
+      vistas.add(c.ip);
+      out.push({ ip: c.ip, puerto: c.puerto, neurona });
     }
+  };
+  for (const v of p.vinculos) poner(v.neurona);
+  if (p.cuenta) {
+    const vinculadas = new Set(p.vinculos.map((v) => v.neurona));
+    for (const x of p.vecinos) if (x.neurona && !vinculadas.has(x.neurona)) poner(x.neurona);
   }
   return out;
+}
+
+/* ══════════════════════════ Diagnóstico hacia una neurona (MLL1107A) ══════════════════════════ */
+
+/** Cuánto espera un envío a que se ligue una neurona que el faro oye (una vez por saludo). */
+export const ESPERA_LIGADURA_MS = 1_500;
+
+export type EstadoHaciaNeurona =
+  | { estado: "ligada"; ip: string; motivo: string }
+  | { estado: "sin-canal" | "no-se-oye" | "sin-confianza" | "sin-respuesta" | "caida"; ip?: string; motivo: string };
+
+/**
+ * Por qué hay (o no) enlace `nativo:<ip>` con esa neurona ahora mismo, en una frase para la vía del
+ * mensaje («Red local (app nativa): …»). No mide nada: lee lo que el motor ya sabe. Puro.
+ */
+export function diagnosticoHacia(p: {
+  neurona: string;
+  escuchando: boolean;
+  vecinos: readonly VecinoMinimo[];
+  vinculos: readonly VinculoMinimo[];
+  ligaduras: readonly Ligadura[];
+  caidas: Readonly<Record<string, number>>;
+  ultimoHola: Readonly<Record<string, number>>;
+  ahora: number;
+  cuenta: boolean;
+}): EstadoHaciaNeurona {
+  const lig = ligaduraDeNeurona(p.ligaduras, p.neurona, p.ahora);
+  if (lig) {
+    if ((p.caidas[lig.ip] ?? 0) > p.ahora) return { estado: "caida", ip: lig.ip, motivo: `su app (${lig.ip}) no acusa recibo ahora; se reintenta en unos segundos` };
+    return { estado: "ligada", ip: lig.ip, motivo: `ligada en ${lig.ip}${lig.porCuenta ? " (misma cuenta)" : ""}` };
+  }
+  if (!p.escuchando) return { estado: "sin-canal", motivo: "el canal local de esta app (TCP 47071) no escucha" };
+  const vinculo = p.vinculos.find((v) => v.neurona === p.neurona);
+  const ips = ipsDeNeurona(p.neurona, p.vecinos, vinculo);
+  if (!ips.length) {
+    return { estado: "no-se-oye", motivo: "su faro no se oye en esta red local (otra red, app cerrada, o el punto de acceso no deja pasar el multicast)" };
+  }
+  const ip = ips[0].ip;
+  if (!vinculo && !p.cuenta) {
+    return { estado: "sin-confianza", ip, motivo: `se oye en ${ip}, pero sin vínculo ni clave de faro de la cuenta en esta app no hay saludo (primero «Sincronizar ahora»)` };
+  }
+  const hace = p.ahora - (p.ultimoHola[ip] ?? -Infinity);
+  return {
+    estado: "sin-respuesta",
+    ip,
+    motivo:
+      hace < ENTRE_HOLAS_MS
+        ? `se oye en ${ip}, pero su app no contestó al saludo firmado (app 0.5.0 o anterior, sin vínculo ni clave de tu cuenta, o firma distinta)`
+        : `se oye en ${ip}; aún sin saludo`,
+  };
 }
 
 /* ══════════════════════════ Enlaces para el transporte universal ══════════════════════════ */

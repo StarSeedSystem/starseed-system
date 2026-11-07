@@ -325,6 +325,24 @@ async function cargarNativo(): Promise<ModNativo | null> {
   return modNativo;
 }
 
+/**
+ * (MLL1107A) Antes de elegir el medio de un mensaje a UNA neurona: si es la app nativa y el faro oye esa
+ * neurona sin enlace `nativo:<ip>`, la saluda ya y espera un momento (`asegurarLigadura`). Devuelve qué
+ * pasó con el canal local (para decir por qué no se usó), o null fuera de la app nativa. Nunca lanza.
+ */
+export async function prepararEnlaceNativo(
+  neurona: string,
+  esperaMs?: number,
+): Promise<{ estado: string; ip?: string; motivo: string; esperadoMs: number } | null> {
+  try {
+    const red = (await cargarNativo())?.redLocalNativaActiva();
+    if (!red) return null;
+    return await red.asegurarLigadura(neurona, esperaMs);
+  } catch {
+    return null;
+  }
+}
+
 /** Todos los enlaces reales que hay ahora mismo, con lo medido de cada uno. Nunca lanza. */
 export async function enlacesDisponibles(): Promise<EnlaceDisponible[]> {
   const out: EnlaceDisponible[] = [];

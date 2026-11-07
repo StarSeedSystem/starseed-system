@@ -1,12 +1,14 @@
 /**
  * Red local de la app nativa como enlace del transporte universal (MLT1107A, puro): direcciones,
  * límites y ritmo, lotes de tramas, saludo firmado y ligaduras, enlaces y candidatos con la IP real.
+ * (MLL1107A) Prueba de cuenta en el saludo, saludo a las neuronas de la cuenta y diagnóstico.
  * Contrato: architecture/datos-por-la-malla.md §6.
  */
 import { describe, expect, it } from "vitest";
 import {
   CADA_HOLA_MS,
   ENTRE_HOLAS_MS,
+  ESPERA_LIGADURA_MS,
   LIMITES_CANAL_ANTERIOR,
   MAX_POR_LOTE,
   VIDA_LIGADURA_MS,
@@ -17,21 +19,26 @@ import {
   claseDeTexto,
   desempaquetarLote,
   destinosHola,
+  diagnosticoHacia,
   enlacesNativos,
   esEnlaceRedLocalNativa,
   esperaTrasFallo,
   holaNativa,
   idEnlaceNativo,
   ipDeEnlaceNativo,
+  esPruebaCuenta,
   ipLocal,
+  ipsDeNeurona,
   leerHola,
   leerLimites,
   ligaduraDeIp,
   ligaduraDeNeurona,
   ligar,
   maxTextoPorTrama,
+  mismaPrueba,
   nuevaCubeta,
   podarLigaduras,
+  textoPruebaCuenta,
   tomarFicha,
   type Ligadura,
   type VinculoMinimo,
@@ -247,5 +254,90 @@ describe("candidatosConIp — la IP real junto al nombre mDNS", () => {
   it("con una IP que no es de la red local no toca nada", () => {
     expect(candidatosConIp(sdp, "8.8.8.8")).toBe(sdp);
     expect(candidatosConIp(sdp, IP_A)).not.toBe(sdp);
+  });
+});
+
+describe("(MLL1107A) prueba de cuenta: tus neuronas se ligan sin «Sincronizar ahora»", () => {
+  const PRUEBA = "0123456789abcdef0123456789abcdef";
+  const hola = holaNativa({ de: { neurona: "N-B", nombre: "Tablet", sync: "S-B" }, para: "N-A", limites: null, webrtc: true, ts: 7, cta: PRUEBA });
+
+  it("la prueba viaja dentro del saludo; una prueba mal formada no se lee ni se manda", () => {
+    expect(leerHola(JSON.parse(JSON.stringify(hola)))?.cta).toBe(PRUEBA);
+    expect(leerHola({ ...hola, cta: "zz" })).not.toHaveProperty("cta");
+    expect(holaNativa({ de: { neurona: "N-B", nombre: "T" }, para: "N-A", limites: null, webrtc: false, ts: 1, cta: "corta" })).not.toHaveProperty("cta");
+    expect(esPruebaCuenta(PRUEBA)).toBe(true);
+    expect(esPruebaCuenta(PRUEBA.toUpperCase())).toBe(false);
+  });
+
+  it("el texto firmado ata la prueba a la huella, a las dos neuronas y al instante", () => {
+    const base = { huella: "fp-b", de: "N-B", para: "N-A", ts: 7 };
+    const t = textoPruebaCuenta(base);
+    expect(t).toBe("ss-nl-cuenta-v1|fp-b|N-B|N-A|7");
+    for (const cambio of [{ huella: "fp-x" }, { de: "N-X" }, { para: "N-X" }, { ts: 8 }]) expect(textoPruebaCuenta({ ...base, ...cambio })).not.toBe(t);
+    expect(mismaPrueba(PRUEBA, PRUEBA)).toBe(true);
+    expect(mismaPrueba(PRUEBA, `${PRUEBA.slice(0, 31)}0`)).toBe(false);
+    expect(mismaPrueba(PRUEBA, null)).toBe(false);
+    expect(mismaPrueba(undefined, PRUEBA)).toBe(false);
+  });
+
+  it("con la prueba válida se acepta sin vínculo (y aunque el vínculo guardara otra huella); sin firma, nunca", () => {
+    expect(aceptarHola(hola, "fp-b", "N-A", [])).toMatchObject({ ok: false, motivo: expect.stringMatching(/no hay vínculo/) });
+    expect(aceptarHola(hola, "fp-b", "N-A", [], { cuentaProbada: true })).toEqual({
+      ok: true,
+      porCuenta: true,
+      vinculo: { neurona: "N-B", nombre: "Tablet", sync: "S-B", huella: "fp-b" },
+    });
+    expect(aceptarHola(hola, "fp-nueva", "N-A", [{ neurona: "N-B", nombre: "Tablet de Alex", huella: "fp-vieja" }], { cuentaProbada: true })).toMatchObject({
+      ok: true,
+      porCuenta: true,
+      vinculo: { nombre: "Tablet de Alex", huella: "fp-nueva" },
+    });
+    expect(aceptarHola(hola, "fp-b", "N-A", [{ neurona: "N-B", nombre: "Tablet", huella: "fp-b" }], { cuentaProbada: true })).toMatchObject({ ok: true, porCuenta: false });
+    expect(aceptarHola(hola, undefined, "N-A", [], { cuentaProbada: true })).toMatchObject({ ok: false });
+    expect(aceptarHola({ ...hola, para: "N-C" }, "fp-b", "N-A", [], { cuentaProbada: true })).toMatchObject({ ok: false, motivo: expect.stringMatching(/otra neurona/) });
+  });
+
+  it("con la clave de la cuenta saluda también a las neuronas de la cuenta que el faro reconoce por su id", () => {
+    const vecinos = [
+      { ip: "192.168.0.12", neurona: "N-TABLET", puerto: 47071, canal: true },
+      { ip: "192.168.0.30", neurona: null, puerto: 47071, canal: null }, // anónima u otra cuenta: no
+      { ip: "192.168.0.31", neurona: "N-VIEJA", puerto: 47071, canal: false }, // su app no tiene canal: no
+    ];
+    expect(destinosHola({ vecinos, vinculos: [], ligaduras: [], ultimoHola: {}, ahora: 100_000 })).toEqual([]);
+    expect(destinosHola({ vecinos, vinculos: [], ligaduras: [], ultimoHola: {}, ahora: 100_000, cuenta: true })).toEqual([
+      { ip: "192.168.0.12", puerto: 47071, neurona: "N-TABLET" },
+    ]);
+    expect(destinosHola({ vecinos, vinculos: [], ligaduras: [], ultimoHola: { "192.168.0.12": 100_000 - 1 }, ahora: 100_000, cuenta: true })).toEqual([]);
+    expect(ipsDeNeurona("N-TABLET", vecinos)).toEqual([{ ip: "192.168.0.12", puerto: 47071 }]);
+    expect(ipsDeNeurona("N-X", vecinos, { neurona: "N-X", nombre: "x", ultimaIp: "192.168.0.30" })).toEqual([{ ip: "192.168.0.30", puerto: 47071 }]);
+  });
+});
+
+describe("(MLL1107A) diagnóstico hacia una neurona — por qué no hay enlace nativo", () => {
+  const base = {
+    neurona: "N-B",
+    escuchando: true,
+    vecinos: [{ ip: IP_B, neurona: "N-B", puerto: 47071, canal: true }],
+    vinculos: [] as VinculoMinimo[],
+    ligaduras: [] as Ligadura[],
+    caidas: {},
+    ultimoHola: {},
+    ahora: 1_000_000,
+    cuenta: true,
+  };
+
+  it("ligada, caída, sin canal, no se oye, sin confianza, sin respuesta", () => {
+    expect(diagnosticoHacia({ ...base, ligaduras: [ligadura({ at: 1_000_000, porCuenta: true })] })).toEqual({ estado: "ligada", ip: IP_B, motivo: `ligada en ${IP_B} (misma cuenta)` });
+    expect(diagnosticoHacia({ ...base, ligaduras: [ligadura({ at: 1_000_000 })], caidas: { [IP_B]: 1_000_001 } }).estado).toBe("caida");
+    expect(diagnosticoHacia({ ...base, escuchando: false }).estado).toBe("sin-canal");
+    expect(diagnosticoHacia({ ...base, vecinos: [] })).toMatchObject({ estado: "no-se-oye", motivo: expect.stringMatching(/faro no se oye/) });
+    expect(diagnosticoHacia({ ...base, cuenta: false })).toMatchObject({ estado: "sin-confianza", ip: IP_B, motivo: expect.stringMatching(/Sincronizar ahora/) });
+    expect(diagnosticoHacia({ ...base, ultimoHola: { [IP_B]: 1_000_000 - 5_000 } })).toMatchObject({
+      estado: "sin-respuesta",
+      ip: IP_B,
+      motivo: expect.stringMatching(/no contestó al saludo firmado \(app 0\.5\.0 o anterior/),
+    });
+    expect(diagnosticoHacia(base)).toMatchObject({ estado: "sin-respuesta", motivo: expect.stringMatching(/aún sin saludo/) });
+    expect(ESPERA_LIGADURA_MS).toBeLessThanOrEqual(2_000);
   });
 });

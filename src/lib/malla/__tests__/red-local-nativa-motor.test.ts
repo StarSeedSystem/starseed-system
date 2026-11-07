@@ -2,10 +2,12 @@
  * Motor del enlace `nativo:<ip>` (MLT1107A) con DOS apps en memoria: saludo firmado y ligadura solo
  * entre vinculadas, mensajes con el acuse de la otra app, archivos en lotes con freno, ritmo según el
  * limitador del otro, caída tras fallos y señalización WebRTC sin QR (quién ofrece, SDP con la IP real).
+ * (MLL1107A) Dos neuronas de la MISMA cuenta sin vínculo (prueba de cuenta) y `asegurarLigadura`.
  * Contrato: architecture/datos-por-la-malla.md §6.
  */
+import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { crearRedNativa, type ConexionSenal, type DepsRedNativa, type RedNativa } from "@/lib/malla/red-local-nativa-motor";
+import { crearRedNativa, hmacPruebaCuenta, type ConexionSenal, type DepsRedNativa, type RedNativa } from "@/lib/malla/red-local-nativa-motor";
 import { LIMITES_CANAL_ANTERIOR, type LimitesCanal, type VinculoMinimo } from "@/lib/malla/red-local-nativa";
 
 const IP_A = "192.168.1.10";
@@ -18,6 +20,8 @@ interface Mundo {
   /** Envíos hechos: [de, a, cuerpo, instante]. */
   envios: Array<{ de: string; a: string; cuerpo: string; at: number }>;
   falla: Set<string>;
+  /** (MLL1107A) IPs con una app 0.5.0: su Rust acusa la trama, pero su web no conoce `nl.*`. */
+  legados?: Set<string>;
 }
 
 interface Conexion extends ConexionSenal {
@@ -56,7 +60,20 @@ const SDP_B = "v=0\r\na=candidate:1 1 udp 2122260223 bbbb-2222.local 50002 typ h
 
 function app(
   m: Mundo,
-  p: { ip: string; neurona: string; huella: string; nombre: string; vinculos: VinculoMinimo[]; vecinos: Array<{ ip: string; neurona: string | null }>; limites?: LimitesCanal | null; webrtc?: boolean },
+  p: {
+    ip: string;
+    neurona: string;
+    huella: string;
+    nombre: string;
+    vinculos: VinculoMinimo[];
+    vecinos: Array<{ ip: string; neurona: string | null }>;
+    limites?: LimitesCanal | null;
+    webrtc?: boolean;
+    /** (MLL1107A) Clave de faro de la cuenta (sin ella, el saludo va sin prueba de cuenta). */
+    clave?: string;
+    /** Dormir deja correr lo pendiente ANTES de avanzar el reloj (para esperar a la otra app). */
+    dormirConCalma?: boolean;
+  },
 ) {
   const entregados: Array<{ texto: string; enlaceId: string; etiqueta: string }> = [];
   const archivos: string[] = [];
@@ -65,6 +82,7 @@ function app(
   const deps: DepsRedNativa = {
     ahora: () => m.ahora,
     dormir: async (ms) => {
+      if (p.dormirConCalma) await calma();
       m.ahora += ms;
     },
     nuevaSesion: () => `nativo-${p.neurona.toLowerCase().replace(/[^a-z0-9]/g, "")}${String(++sesiones).padStart(6, "0")}`,
@@ -76,6 +94,7 @@ function app(
     enviar: async (ip, _puerto, json) => {
       m.envios.push({ de: p.ip, a: ip, cuerpo: json, at: m.ahora });
       if (m.falla.has(ip)) return { ok: false, motivo: "tiempo agotado esperando a la otra neurona" };
+      if (m.legados?.has(ip)) return { ok: true, ms: 3 };
       const destino = m.redes[ip];
       if (!destino) return { ok: false, motivo: "no se pudo conectar" };
       // Como la app: acusa al guardarlo; la web del otro lo procesa después.
@@ -103,6 +122,12 @@ function app(
     }),
     entregarTransporte: (texto, origen) => entregados.push({ texto, enlaceId: origen.enlaceId, etiqueta: origen.etiqueta }),
     entregarArchivo: (_canal, texto) => archivos.push(texto),
+    ...(p.clave
+      ? {
+          pruebaCuenta: async (t: string) => createHmac("sha256", p.clave as string).update(t).digest("hex").slice(0, 32),
+          huellaPropia: async () => p.huella,
+        }
+      : {}),
   };
   const red = crearRedNativa(deps);
   m.redes[p.ip] = red;
@@ -318,5 +343,106 @@ describe("señalización WebRTC por el canal (sin QR)", () => {
     await a.red.ticSenales();
     await calma();
     expect(a.deps.ofrecer).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("(MLL1107A) tus neuronas se ligan sin «Sincronizar ahora»: prueba de cuenta en el saludo", () => {
+  function dosDeLaCuenta(o: { claveB?: string; vecinosA?: Array<{ ip: string; neurona: string | null }> } = {}) {
+    const m: Mundo = { ahora: 1_000_000, redes: {}, envios: [], falla: new Set() };
+    // La Mac oye el faro de la tablet (su id lo reconoce la clave de faro); la tablet no oye el de la Mac.
+    const a = app(m, { ip: IP_A, neurona: "N-A", huella: "fp-a", nombre: "MaggaBook", vinculos: [], vecinos: o.vecinosA ?? [{ ip: IP_B, neurona: "N-B" }], clave: "clave-de-la-cuenta", webrtc: false });
+    const b = app(m, { ip: IP_B, neurona: "N-B", huella: "fp-b", nombre: "Maggaboard", vinculos: [], vecinos: [], clave: o.claveB ?? "clave-de-la-cuenta", webrtc: false });
+    return { m, a, b };
+  }
+
+  it("la Mac saluda con la prueba, las dos se ligan «por cuenta» y el mensaje va por la red local", async () => {
+    const { m, a, b } = dosDeLaCuenta();
+    await b.red.refrescar();
+    await a.red.refrescar();
+    await calma();
+    const hola = JSON.parse(m.envios.find((e) => e.de === IP_A)?.cuerpo ?? "{}") as { s?: { body?: { cta?: string } } };
+    expect(hola.s?.body?.cta).toMatch(/^[0-9a-f]{32}$/);
+    expect(b.red.instantanea().ligaduras.map((l) => [l.ip, l.neurona, l.porCuenta])).toEqual([[IP_A, "N-A", true]]);
+    expect(a.red.instantanea().ligaduras.map((l) => [l.ip, l.neurona, l.porCuenta])).toEqual([[IP_B, "N-B", true]]);
+    expect(a.red.enlaces()).toEqual([expect.objectContaining({ id: "nativo:192.168.1.20", abierto: true, alcanza: { neuronDeviceId: "N-B" } })]);
+    const r = await a.red.enviarTexto(IP_B, '{"t":"tu.msg","v":1,"id":"m1","c":"neurona","b":{"txt":"Prueba de malla"}}');
+    expect(r.ok).toBe(true);
+    await calma();
+    expect(b.entregados.map((x) => x.enlaceId)).toEqual(["nativo:192.168.1.10"]);
+  });
+
+  it("otra cuenta (otra clave de faro) no liga, y lo que llegue de esa IP se ignora", async () => {
+    const { a, b } = dosDeLaCuenta({ claveB: "clave-de-otra-cuenta" });
+    await b.red.refrescar();
+    await a.red.refrescar();
+    await calma();
+    expect(b.red.instantanea().ligaduras).toEqual([]);
+    expect(b.red.instantanea().ultimoRechazo).toMatch(/no hay vínculo/);
+    expect(a.red.instantanea().ligaduras).toEqual([]);
+    await b.red.recibir('{"t":"tu.msg","v":1,"id":"x","c":"neurona","b":1}', IP_A);
+    expect(b.entregados).toEqual([]);
+  });
+
+  it("copiar la prueba de un saludo ajeno a otro firmado por OTRA identidad no vale", async () => {
+    const { m, a, b } = dosDeLaCuenta();
+    await a.red.refrescar();
+    await calma();
+    const original = JSON.parse(m.envios.find((e) => e.de === IP_A)?.cuerpo ?? "{}") as { s: { body: Record<string, unknown> } };
+    const intruso = "192.168.1.99";
+    await b.red.recibir(JSON.stringify({ t: "nl.hola", s: { v: 2, fp: "fp-intrusa", body: original.s.body } }), intruso);
+    await calma();
+    expect(b.red.instantanea().ligaduras.map((l) => l.ip)).not.toContain(intruso);
+  });
+
+  it("sin la clave en ninguna de las dos (y sin vínculo) no se saluda a nadie", async () => {
+    const m: Mundo = { ahora: 1_000_000, redes: {}, envios: [], falla: new Set() };
+    const a = app(m, { ip: IP_A, neurona: "N-A", huella: "fp-a", nombre: "Mac", vinculos: [], vecinos: [{ ip: IP_B, neurona: "N-B" }] });
+    app(m, { ip: IP_B, neurona: "N-B", huella: "fp-b", nombre: "Tablet", vinculos: [], vecinos: [] });
+    await a.red.refrescar();
+    await calma();
+    expect(m.envios).toEqual([]);
+  });
+
+  it("hmacPruebaCuenta es HMAC-SHA256 con la clave de faro (16 bytes en hex); sin clave válida, null", async () => {
+    const clave = "ab".repeat(32);
+    expect(await hmacPruebaCuenta(clave, "ss-nl-cuenta-v1|x")).toBe(createHmac("sha256", Buffer.from(clave, "hex")).update("ss-nl-cuenta-v1|x").digest("hex").slice(0, 32));
+    expect(await hmacPruebaCuenta("ab".repeat(31), "x")).toBeNull();
+    expect(await hmacPruebaCuenta(null, "x")).toBeNull();
+  });
+});
+
+describe("(MLL1107A) asegurarLigadura — antes de mandar, saludar ya y esperar un momento", () => {
+  it("no espera al ciclo de 15 s: saluda y vuelve en cuanto la otra contesta", async () => {
+    const m: Mundo = { ahora: 1_000_000, redes: {}, envios: [], falla: new Set() };
+    const a = app(m, { ip: IP_A, neurona: "N-A", huella: "fp-a", nombre: "Mac", vinculos: [], vecinos: [{ ip: IP_B, neurona: "N-B" }], clave: "k", webrtc: false, dormirConCalma: true });
+    app(m, { ip: IP_B, neurona: "N-B", huella: "fp-b", nombre: "Tablet", vinculos: [], vecinos: [], clave: "k", webrtc: false });
+    const r = await a.red.asegurarLigadura("N-B", 1_500);
+    expect(r).toMatchObject({ estado: "ligada", ip: IP_B });
+    expect(r.esperadoMs).toBeLessThan(1_500);
+    expect(a.red.enlaces().map((e) => e.id)).toEqual(["nativo:192.168.1.20"]);
+    // Ya ligada: no saluda otra vez.
+    const antes = m.envios.length;
+    expect((await a.red.asegurarLigadura("N-B")).estado).toBe("ligada");
+    expect(m.envios.length).toBe(antes);
+  });
+
+  it("con una app 0.5.0 (acusa la trama pero no contesta al saludo) espera UNA vez y lo dice; luego no vuelve a esperar", async () => {
+    const m: Mundo = { ahora: 1_000_000, redes: {}, envios: [], falla: new Set(), legados: new Set([IP_B]) };
+    const a = app(m, { ip: IP_A, neurona: "N-A", huella: "fp-a", nombre: "Tablet", vinculos: [], vecinos: [{ ip: IP_B, neurona: "N-B" }], clave: "k", webrtc: false, dormirConCalma: true });
+    const r1 = await a.red.asegurarLigadura("N-B", 1_500);
+    expect(r1).toMatchObject({ estado: "sin-respuesta", ip: IP_B, esperadoMs: 1_500, motivo: expect.stringMatching(/no contestó al saludo firmado \(app 0\.5\.0 o anterior/) });
+    const holas = () => m.envios.filter((e) => e.a === IP_B && e.cuerpo.startsWith('{"t":"nl.hola"')).length;
+    expect(holas()).toBe(1);
+    const r2 = await a.red.asegurarLigadura("N-B", 1_500);
+    expect(r2).toMatchObject({ estado: "sin-respuesta", esperadoMs: 0 });
+    expect(holas()).toBe(1);
+  });
+
+  it("si su faro no se oye en esta red, ni saluda ni espera, y lo dice", async () => {
+    const m: Mundo = { ahora: 1_000_000, redes: {}, envios: [], falla: new Set() };
+    const a = app(m, { ip: IP_A, neurona: "N-A", huella: "fp-a", nombre: "Mac", vinculos: [], vecinos: [], clave: "k", dormirConCalma: true });
+    const r = await a.red.asegurarLigadura("N-B", 1_500);
+    expect(r).toMatchObject({ estado: "no-se-oye", esperadoMs: 0, motivo: expect.stringMatching(/faro no se oye/) });
+    expect(m.envios).toEqual([]);
   });
 });

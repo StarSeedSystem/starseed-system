@@ -18,6 +18,10 @@
  *     `senal-nativa.ts` decide: la neurona de id menor ofrece (`nl.sen` firmado), la otra responde, y
  *     el enlace WebRTC de siempre (`emparejar-sin-internet.ts`) queda en el registro: por él van
  *     llamadas, pantalla y flujos. A cada SDP recibido se le añaden candidatos con la IP real.
+ *   · (MLL1107A) Con la clave de faro de la cuenta, el saludo lleva la prueba de cuenta y se saluda
+ *     también a las neuronas de la cuenta que el faro reconoce: tus aparatos se ligan sin «Sincronizar
+ *     ahora». Antes de mandar a una neurona que el faro oye, `asegurarLigadura` saluda YA y espera un
+ *     momento (una vez por saludo) en vez de irse al servidor por llegar antes del siguiente ciclo.
  */
 
 import {
@@ -26,27 +30,35 @@ import {
   LIMITES_CANAL_ANTERIOR,
   PREFIJO_SESION_NATIVA,
   PUERTO_CANAL_NATIVO,
+  ESPERA_LIGADURA_MS,
+  ENTRE_HOLAS_MS,
   aceptarHola,
   armarTrama,
   candidatosConIp,
   claseDeTexto,
   desempaquetarLote,
   destinosHola,
+  diagnosticoHacia,
   enlacesNativos,
   esperaTrasFallo,
   holaNativa,
+  esPruebaCuenta,
   idEnlaceNativo,
   ipLocal,
+  ipsDeNeurona,
   leerHola,
   leerLimites,
   ligaduraDeIp,
   ligaduraDeNeurona,
   ligar,
   maxTextoPorTrama,
+  mismaPrueba,
   nuevaCubeta,
   podarLigaduras,
+  textoPruebaCuenta,
   tomarFicha,
   type Cubeta,
+  type EstadoHaciaNeurona,
   type LimitesCanal,
   type Ligadura,
   type QuienNativo,
@@ -97,6 +109,13 @@ export interface DepsRedNativa {
   entregarTransporte(texto: string, origen: { enlaceId: string; etiqueta: string; syncDeviceId?: string }): void;
   /** Un `archivo.*` de una IP ligada → motor de archivos (que siempre pregunta). */
   entregarArchivo(canal: CanalArchivos, texto: string, etiquetaOrigen: string): void;
+  /**
+   * (MLL1107A) Prueba de cuenta de un texto: HMAC-SHA256 con la clave de faro de la cuenta, 32 hex.
+   * Null si esta app no tiene la clave. Nunca devuelve ni registra la clave.
+   */
+  pruebaCuenta?(texto: string): Promise<string | null>;
+  /** (MLL1107A) Huella de la identidad de malla con la que firma esta app (la del sobre). */
+  huellaPropia?(): Promise<string | null>;
 }
 
 export interface ResultadoEnvioNativo {
@@ -115,9 +134,17 @@ export interface InstantaneaRedNativa {
   ultimoRechazo: string | null;
 }
 
+/** (MLL1107A) Lo que `asegurarLigadura` sabe tras intentarlo. */
+export type ResultadoAsegurar = EstadoHaciaNeurona & { esperadoMs: number };
+
 export interface RedNativa {
   /** Mira el canal, saluda a las vinculadas y da un paso a la señalización. */
   refrescar(): Promise<void>;
+  /**
+   * (MLL1107A) Antes de mandar a esa neurona: si el faro la oye y no hay ligadura, la saluda YA y espera
+   * hasta `esperaMs` a que conteste. Si ya se la saludó hace poco y no contestó, no espera. Nunca lanza.
+   */
+  asegurarLigadura(neurona: string, esperaMs?: number): Promise<ResultadoAsegurar>;
   ticSenales(): Promise<void>;
   enlaces(): EnlaceDisponible[];
   /** Manda un texto (objeto JSON) a esa IP por su cola; se resuelve con el acuse de la otra app. */
@@ -171,6 +198,10 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
   const ofertas = new Map<string, string>();
   const respuestas = new Map<string, string>();
   const oyentes = new Set<() => void>();
+  /** (MLL1107A) Envíos que esperan a que se ligue una neurona. */
+  const esperas = new Map<string, Array<() => void>>();
+  /** (MLL1107A) Esta app tiene la clave de faro de la cuenta (su saludo lleva la prueba). */
+  let conClaveCuenta = false;
 
   const avisar = () => {
     for (const f of Array.from(oyentes)) {
@@ -308,11 +339,71 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
     return encolar(ip, JSON.stringify({ t, s }), puerto);
   }
 
+  /** (MLL1107A) ¿Tiene esta app la clave de faro de la cuenta? Nunca lanza. */
+  async function hayClaveCuenta(): Promise<boolean> {
+    if (!deps.pruebaCuenta) return false;
+    try {
+      return esPruebaCuenta(await deps.pruebaCuenta("ss-nl-cuenta-v1|comprobar"));
+    } catch {
+      return false;
+    }
+  }
+
+  /** (MLL1107A) Prueba de cuenta para un saludo propio (null sin clave o sin huella). Nunca lanza. */
+  async function pruebaPara(de: string, para: string, ts: number): Promise<string | null> {
+    if (!deps.pruebaCuenta || !deps.huellaPropia) return null;
+    try {
+      const huella = await deps.huellaPropia();
+      if (!huella) return null;
+      const p = await deps.pruebaCuenta(textoPruebaCuenta({ huella, de, para, ts }));
+      return esPruebaCuenta(p) ? p : null;
+    } catch {
+      return null;
+    }
+  }
+
   async function saludar(ip: string, puerto: number, neurona: string, resp: boolean): Promise<void> {
     const yo = await deps.yo();
     if (!yo) return;
-    ultimoHola[ip] = deps.ahora();
-    await firmarYEnviar(ip, puerto, "nl.hola", holaNativa({ de: yo, para: neurona, limites: misLimites, webrtc: deps.webrtc(), resp, ts: deps.ahora() }));
+    const ts = deps.ahora();
+    ultimoHola[ip] = ts;
+    const cta = await pruebaPara(yo.neurona, neurona, ts);
+    await firmarYEnviar(ip, puerto, "nl.hola", holaNativa({ de: yo, para: neurona, limites: misLimites, webrtc: deps.webrtc(), resp, ts, cta }));
+  }
+
+  function despertar(neurona: string): void {
+    const l = esperas.get(neurona);
+    if (!l) return;
+    esperas.delete(neurona);
+    for (const f of l) {
+      try {
+        f();
+      } catch {
+        /* */
+      }
+    }
+  }
+
+  /** Se resuelve en cuanto esa neurona queda ligada (true) o al pasar `ms` (lo que haya entonces). */
+  function esperarLigadura(neurona: string, ms: number): Promise<boolean> {
+    if (ligaduraDeNeurona(ligaduras, neurona, deps.ahora())) return Promise.resolve(true);
+    return new Promise((fin) => {
+      let hecho = false;
+      const cb = () => {
+        if (hecho) return;
+        hecho = true;
+        fin(true);
+      };
+      esperas.set(neurona, [...(esperas.get(neurona) ?? []), cb]);
+      void deps.dormir(ms).then(() => {
+        const l = (esperas.get(neurona) ?? []).filter((f) => f !== cb);
+        if (l.length) esperas.set(neurona, l);
+        else esperas.delete(neurona);
+        if (hecho) return;
+        hecho = true;
+        fin(!!ligaduraDeNeurona(ligaduras, neurona, deps.ahora()));
+      });
+    });
   }
 
   async function verificarSobre(cuerpo: string): Promise<{ cuerpo: unknown; huella?: string } | null> {
@@ -338,7 +429,16 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
     const h = leerHola(v.cuerpo);
     const yo = await deps.yo();
     if (!h || !yo) return;
-    const ac = aceptarHola(h, v.huella, yo.neurona, deps.vinculos());
+    // (MLL1107A) La prueba de cuenta se comprueba con LA huella que firmó el sobre.
+    let cuentaProbada = false;
+    if (h.cta && v.huella && deps.pruebaCuenta) {
+      try {
+        cuentaProbada = mismaPrueba(h.cta, await deps.pruebaCuenta(textoPruebaCuenta({ huella: v.huella, de: h.de.neurona, para: h.para, ts: h.ts })));
+      } catch {
+        cuentaProbada = false;
+      }
+    }
+    const ac = aceptarHola(h, v.huella, yo.neurona, deps.vinculos(), { cuentaProbada });
     if (!ac.ok) {
       ultimoRechazo = ac.motivo;
       avisar();
@@ -357,9 +457,11 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
       limites: h.lim ? leerLimites(h.lim) : { ...LIMITES_CANAL_ANTERIOR },
       webrtc: h.webrtc,
       at: deps.ahora(),
+      ...(ac.porCuenta ? { porCuenta: true } : {}),
     });
     delete caidas[ip];
     ultimoRechazo = null;
+    despertar(h.de.neurona);
     avisar();
     if (!h.resp && deps.ahora() - (ultimoHola[ip] ?? -Infinity) >= 1000) await saludar(ip, puerto, h.de.neurona, true);
     if (nueva) await ticSenales();
@@ -536,16 +638,58 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
     misLimites = st?.limites ?? null;
     const ahora = deps.ahora();
     ligaduras = podarLigaduras(ligaduras, ahora);
+    conClaveCuenta = await hayClaveCuenta();
     if (escuchando) {
-      const destinos = destinosHola({ vecinos, vinculos: deps.vinculos(), ligaduras, ultimoHola, ahora });
+      const destinos = destinosHola({ vecinos, vinculos: deps.vinculos(), ligaduras, ultimoHola, ahora, cuenta: conClaveCuenta });
       await Promise.all(destinos.map((d) => saludar(d.ip, d.puerto, d.neurona, false)));
     }
     await ticSenales();
     avisar();
   }
 
+  async function asegurarLigadura(neurona: string, esperaMs: number = ESPERA_LIGADURA_MS): Promise<ResultadoAsegurar> {
+    const t0 = deps.ahora();
+    const diag = (): ResultadoAsegurar => ({
+      ...diagnosticoHacia({ neurona, escuchando, vecinos, vinculos: deps.vinculos(), ligaduras, caidas, ultimoHola, ahora: deps.ahora(), cuenta: conClaveCuenta }),
+      esperadoMs: Math.max(0, deps.ahora() - t0),
+    });
+    try {
+      if (ligaduraDeNeurona(ligaduras, neurona, t0)) return diag();
+      let st: EstadoCanalNativo | null = null;
+      try {
+        st = await deps.estado();
+      } catch {
+        st = null;
+      }
+      if (st) {
+        escuchando = !!st.escuchando;
+        vecinos = st.vecinos ?? [];
+        misLimites = st.limites ?? null;
+      }
+      conClaveCuenta = await hayClaveCuenta();
+      const d0 = diag();
+      if (d0.estado !== "sin-respuesta") return d0;
+      const destino = ipsDeNeurona(neurona, vecinos, deps.vinculos().find((v) => v.neurona === neurona))[0];
+      if (!destino) return d0;
+      const hace = deps.ahora() - (ultimoHola[destino.ip] ?? -Infinity);
+      let espera = esperaMs;
+      if (hace >= ENTRE_HOLAS_MS) {
+        // No se espera al acuse del propio saludo (puede tardar segundos si la otra app no está): solo a la ligadura.
+        void saludar(destino.ip, destino.puerto, neurona, false).catch(nadaQueHacer);
+      } else {
+        // Ya hay un saludo reciente: lo que le quede de espera (si hace rato que no contesta, nada).
+        espera = Math.max(0, esperaMs - hace);
+      }
+      if (espera > 0) await esperarLigadura(neurona, espera);
+      return diag();
+    } catch {
+      return diag();
+    }
+  }
+
   return {
     refrescar,
+    asegurarLigadura,
     ticSenales,
     enlaces: () => enlacesNativos({ ligaduras, ahora: deps.ahora(), escuchando, caidas, rtt }),
     enviarTexto: (ip, texto, puerto) => encolar(ip, texto, puerto),
@@ -566,6 +710,27 @@ export function crearRedNativa(deps: DepsRedNativa): RedNativa {
       };
     },
   };
+}
+
+/* ══════════════════════════ Prueba de cuenta: HMAC con la clave de faro (MLL1107A) ══════════════════════════ */
+
+/**
+ * HMAC-SHA256(clave de faro, texto) → los primeros 16 bytes en hex. Null si la clave no es de 64 hex o
+ * no hay WebCrypto. La clave nunca sale de aquí (ni a la consola ni al resultado).
+ */
+export async function hmacPruebaCuenta(claveHex: string | null | undefined, texto: string): Promise<string | null> {
+  if (typeof claveHex !== "string" || !/^[0-9a-fA-F]{64}$/.test(claveHex)) return null;
+  try {
+    const sutil = globalThis.crypto?.subtle;
+    if (!sutil) return null;
+    const bytes = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) bytes[i] = parseInt(claveHex.slice(i * 2, i * 2 + 2), 16);
+    const k = await sutil.importKey("raw", bytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const firma = new Uint8Array(await sutil.sign("HMAC", k, new TextEncoder().encode(texto)));
+    return Array.from(firma.slice(0, 16), (b) => b.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return null;
+  }
 }
 
 /* ══════════════════════════ Instancia real (solo en la app nativa) ══════════════════════════ */
@@ -614,6 +779,14 @@ async function depsReales(): Promise<DepsRedNativa> {
   ]);
   const motor = sync.motorSync();
   motor.cargar();
+  // (MLL1107A) La clave de faro la guarda la app (antenas.json, la reparte VIN1107A): se relee cada minuto.
+  let clave: { hex: string | null; leida: number } = { hex: null, leida: -Infinity };
+  const claveFaro = async (): Promise<string | null> => {
+    if (Date.now() - clave.leida < 60_000) return clave.hex;
+    const r = await puenteNativo().antenasConfig();
+    clave = { hex: r.ok && typeof r.valor?.clave_faro === "string" ? r.valor.clave_faro : null, leida: Date.now() };
+    return clave.hex;
+  };
   return {
     ahora: () => Date.now(),
     dormir: (ms) => new Promise((r) => setTimeout(r, ms)),
@@ -681,6 +854,21 @@ async function depsReales(): Promise<DepsRedNativa> {
       void import("@/lib/network/archivos-malla")
         .then((am) => am.motorArchivosCompartido().manejarMensaje(canal, texto, { mismaCuenta: false, etiquetaOrigen, verificarPermiso: () => true }))
         .catch(nadaQueHacer);
+    },
+    pruebaCuenta: async (texto) => {
+      try {
+        return await hmacPruebaCuenta(await claveFaro(), texto);
+      } catch {
+        return null;
+      }
+    },
+    huellaPropia: async () => {
+      try {
+        const { myFingerprint } = await import("@/ai/astraura/mesh/mesh-identity");
+        return await myFingerprint();
+      } catch {
+        return null;
+      }
     },
   };
 }

@@ -86,19 +86,69 @@ function motivoNoLlega(e: EnlaceParaMedio, d: DestinoMalla): string {
     return "ese enlace va a otro aparato";
 }
 
-/** Candidatos de MALLA reales hacia `destino` (enlaces del transporte universal). Nunca lanza. */
-export async function candidatosMalla(destino: DestinoMalla): Promise<CandidatoMedio[]> {
+/** Lo que el canal local de la app nativa sabe de una neurona (`prepararEnlaceNativo`). */
+export interface EstadoRedNativa {
+    estado: string;
+    ip?: string;
+    motivo: string;
+}
+
+/**
+ * (MLL1107A) Candidato «Red local (app nativa)» que NO puede llevar el mensaje, con el motivo medido
+ * (se ve en los descartes de la vía: por qué fue por el servidor). Puro.
+ */
+export function candidatoRedNativaSinEnlace(d: EstadoRedNativa): CandidatoMedio {
+    return {
+        enlaceId: `nativo:${d.ip ?? "sin-ip"}`,
+        medio: "local",
+        etiqueta: "Red local (app nativa)",
+        abierto: false,
+        llega: false,
+        motivoNoLlega: d.motivo,
+        rttMs: null,
+        ruta: "misma-red-local",
+    };
+}
+
+/**
+ * (MLL1107A) Junta los candidatos reales con lo que dijo el canal local nativo: si ninguna vía de la red
+ * local de la app nativa llega a ese destino y el canal dijo por qué, ese motivo va como descarte. Puro.
+ */
+export function conDiagnosticoNativo(candidatos: CandidatoMedio[], d: EstadoRedNativa | null): CandidatoMedio[] {
+    if (!d || d.estado === "ligada") return candidatos;
+    if (candidatos.some((c) => c.enlaceId.startsWith("nativo:") && c.llega)) return candidatos;
+    // «No se oye» solo se dice si es la app nativa (d existe): en el navegador no hay faro.
+    return [...candidatos, candidatoRedNativaSinEnlace(d)];
+}
+
+/**
+ * Candidatos de MALLA reales hacia `destino` (enlaces del transporte universal). Nunca lanza.
+ * (MLL1107A) A una neurona concreta, en la app nativa, primero se asegura el canal local: si su faro se
+ * oye y aún no hay enlace `nativo:<ip>`, se la saluda y se espera hasta `esperarNativoMs` (una vez por
+ * saludo; si no contestó hace poco, no se espera). Así un mensaje con internet también va por la red
+ * local cuando la otra neurona de tu cuenta está al lado, y si no, la vía dice por qué.
+ */
+export async function candidatosMalla(destino: DestinoMalla, opciones: { esperarNativoMs?: number } = {}): Promise<CandidatoMedio[]> {
     try {
         const [transporte, eleccion] = await Promise.all([
             import("@/lib/malla/transporte-universal"),
             import("@/lib/malla/eleccion-enlace"),
         ]);
+        let diag: EstadoRedNativa | null = null;
+        if (destino.neuronDeviceId) {
+            try {
+                diag = await transporte.prepararEnlaceNativo(destino.neuronDeviceId, opciones.esperarNativoMs);
+            } catch {
+                diag = null;
+            }
+        }
         const enlaces = await transporte.enlacesDisponibles();
-        return candidatosDesdeEnlaces(
+        const candidatos = candidatosDesdeEnlaces(
             enlaces,
             (e) => eleccion.alcanzaDestino(e as Parameters<typeof eleccion.alcanzaDestino>[0], destino),
             (e) => motivoNoLlega(e, destino),
         );
+        return conDiagnosticoNativo(candidatos, diag);
     } catch {
         return [];
     }
