@@ -50,13 +50,9 @@ function inicializarSingletonPRM(): void {
     estado.inicializado = true;
 }
 
-// Inicializar automáticamente cuando se importe (lado cliente).
-if (typeof window !== "undefined") {
-    // Usar setTimeout para que la lectura inicial del estado no bloquee la primera renderización.
-    // Esto también da tiempo a que los componentes demanden el valor antes de que el listener
-    // del Sistema Operativo pueda cambiarlo (raro pero posible en macOS, ejemplo: accesibilidad global).
-    setTimeout(inicializarSingletonPRM, 0);
-}
+// No inicializar al cargar el módulo: window.matchMedia solo estará mockeado en test
+// y el valor leído en tiempo de evaluación sería el del polyfill de jsdom, no el deseado.
+// El estado se fija en la primera llamada a isReducedMotion / subscribePRM.
 
 /** Singleton manager de preferencia de movimiento reducido.
  *
@@ -65,10 +61,9 @@ if (typeof window !== "undefined") {
  * @returns `subscribe`: callback para actualizaciones del sistema (cambio de SO o usuario).
  */
 export function isReducedMotion(): boolean {
-    // Inicializar temprano si aún no (puede ocurrir si este módulo se importa después de que
-    // un matchMedia haya cambiado ya).
     if (!estado.inicializado && typeof window !== "undefined") {
-        inicializarSingletonPRM();
+        estado.activo = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        estado.inicializado = true;
     }
     return estado.activo;
 }
@@ -82,6 +77,10 @@ export { isReducedMotion as isReducedMotionActive };
  * @returns Función para cancelar la suscripción.
  */
 export function subscribePRM(fn: (activo: boolean) => void): () => void {
+    if (!estado.inicializado && typeof window !== "undefined") {
+        estado.activo = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        estado.inicializado = true;
+    }
     estado.subscripciones.add(fn);
     // Devolver el estado actual inmediatamente.
     fn(estado.activo);
