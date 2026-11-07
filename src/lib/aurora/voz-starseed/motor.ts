@@ -57,7 +57,6 @@ export {
     type SoporteSupertonic,
     type NivelVozSuptonica,
     type OpcionesNivelVoz,
-    clampIntensidad,
 };
 import { perfilNeuronal } from "@/lib/voces/perfil-neuronal";
 // (2026-09-06, Ola 264 · G2) Emoción e intensidad: etiquetas `[emocion]` del
