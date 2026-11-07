@@ -1,0 +1,67 @@
+{
+ "ola": "oracle-20261106",
+ "medio": "oracle",
+ "tareas": [
+  {
+   "id": "IMG-diaria-publicar-el-backlog-acumulado",
+   "titulo": "Publicar el backlog acumulado",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Publicar el backlog acumulado. 75 commits en `main` sin push (HEAD `78686d139`, olas 1024I→1025R). Con el enjambre parado, pasar las tres puertas (`npx tsc --noEmit`, `npx vitest run`, `npx next build`) y push; cada semana sin publicar hace más difícil bisecar una regresión. Impacto 5 · esfuerzo 2. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-publicar-los-140-commits-acumulad",
+   "titulo": "Publicar los 140 commits acumulados en `main`",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Publicar los 140 commits acumulados en `main`. (impacto: ALTO / esfuerzo: MEDIO). `starseed-puente puertas` confirma 140 commits sin push y el orquestador parado; la última ola cerrada reportaba solo 4. Con el enjambre vivo no se puede correr `next build` (Mac de 8 GB), así que: pausar cola, `npx tsc --noEmit` + `npx vitest run src/lib/__tests__` + build completo, y push para que Vercel despliegue. Nada de lo integrado (PDF1020B, CNV1023Db, RLB1020Rb) es «hecho» hasta verse en starseed-os.vercel.app. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-publicar-los-167-commits-acumulad",
+   "titulo": "Publicar los 167 commits acumulados en `main` (HEAD `e87f917ef`, ahead 167 vs `origin/main`).",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Publicar los 167 commits acumulados en `main` (HEAD `e87f917ef`, ahead 167 vs `origin/main`).. Es la mayor brecha producción↔repo que he registrado: el último informe de ola (`Ola 1009S`) ya avisaba de 4 sin publicar y hoy son 167 — todo lo integrado desde entonces (las olas 1021M, 1024S con `SGO1024F`/`medirFichaPropia`, las CAP1026J/K/L/M de autocuración del A1) vive solo en el Mac. Impacto: alto (producción desfasada, nada \"está hecho\" hasta verse en Genesis/Vercel). Esfuerzo: bajo-medio (puertas `tsc` + `vitest` + `next build` con el enjambre parado por los 8 GB; luego push). Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-desatascar-la-pila-de-publicacion",
+   "titulo": "Desatascar la pila de publicación: 388 commits en `main` sin push",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Desatascar la pila de publicación: 388 commits en `main` sin push. (HEAD local `90daaaff6`, el relevo aún cita `3ee480826` con 289 — la brecha crece ~100 commits desde el 27/10). Cada ola cerrada (la última, Ola 1009S con CPA1009S → `98d3daa7`) ya avisaba de \"commits sin publicar\". Impacto: ALTO (todo lo integrado es invisible en starseed-os.vercel.app) / Esfuerzo: BAJO (un solo push + verificar `Vercel: success`). Es la acción #1 permanente y nadie la ejecuta. Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "id": "IMG-diaria-publicar-la-pila-de-main-acumulad",
+   "titulo": "Publicar la pila de `main` acumulada",
+   "area": "imaginacion",
+   "archivos": [],
+   "depende": [],
+   "prompt": "Comprueba si sigue haciendo falta; si ya está hecho, responde NO APLICA. Si hace falta: Publicar la pila de `main` acumulada. 780 commits sin push (medido con `git rev-list origin/main..main`; el relevo lo confirma). Nada de las olas 1025–1029 (ART1025I GridCraft, UIG1029E ventanas plegables, RTIMG1028B) se ve en producción ni en Genesis remoto. Impacto: alto · Esfuerzo: bajo (un push + verificar `Vercel: success`). Máximo 3 archivos y 120 líneas por archivo; tsc y pruebas en verde."
+  },
+  {
+   "ola": "1028L · Recuerdo semántico (LEANN)",
+   "revisor_quitadas": [
+    "MTN1027L2"
+   ],
+   "id": "LNN1028I2-d2",
+   "titulo": "Biblioteca · registrar la tanda 1028 (parte 2 de 3)",
+   "archivos": [
+    "src/lib/library/defaults-seed.ts"
+   ],
+   "depende": [],
+   "prompt": "Comprueba primero si sigue haciendo falta; si ya está resuelto, responde NO APLICA y no toques nada.\n\nReglas: como mucho los archivos listados (≤ 3) y ≤ 120 líneas nuevas o cambiadas por archivo; módulos puros sin `node:*` si los importa el cliente (CLAUDE.md, trampa 11); nada de claves ni rutas del disco en el código; tipos con `bash scripts/enjambre/tsc-turno.sh`, nunca `npx tsc` a pelo.\n\nContexto (Alex, 2026-10-28): LEANN (StarTrail-org/LEANN, MIT) «para todo lo de Astraura multicapas con los demás sistemas; todos deben ser fusionados». Contratos: `architecture/leann-recuerdo-semantico.md` (léelo entero) y el mapa `architecture/astraura-multicapas-fusion.md` (ningún sistema aparte: entra por una puerta que ya existe). API de LEANN en `integraciones-de-codigo/leann/README-starseed.md`. LEANN corre SOLO en el A1 (127.0.0.1:4495, token en `~/.starseed/leann.token`); en la Mac no se instala. Sin servidor, todo sigue con Memvid y nada falla.\n\nComo MTN1027L2 con la 1027b: `FICHAS_REPOS_1028` en el catálogo, sus ids en la siembra (sube `SEED_VERSION` en 1) y en `fichasIaConUpstreamGitHub([...])`.\n\n## PARTE 2 DE 3 (la dirección dividió LNN1028I2: falla por sí misma (tarea:sin_cambios))\nEn esta parte tocas SOLO: src/lib/library/defaults-seed.ts. Lo demás lo hace otra parte de la misma cadena: no lo toques ni lo adelantes. Si necesitas algo de una parte anterior, ya está en main.",
+   "revisor": {
+    "origen": "LNN1028I2",
+    "accion": "dividir",
+    "motivo": "falla por sí misma (tarea:sin_cambios)"
+   },
+   "dependencias_ya_en_main": [
+    "LNN1028I2-d1b"
+   ]
+  }
+ ]
+}
