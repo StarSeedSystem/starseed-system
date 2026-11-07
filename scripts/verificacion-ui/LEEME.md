@@ -10,5 +10,8 @@ Sirven para lo único que ni `tsc` ni `vitest` ni la revisión cruzada detectan:
 - `verify_ui_final.js` — el más completo: login y recorrido con recogida de errores.
 - `verify_ui_playwright*.js` — versiones previas del mismo recorrido.
 - `check-login.js`, `debug_login*.js` — sondas del inicio de sesión.
+- `sw-sin-conexion.mjs` (SW1107A) — el service worker v8 en un Chrome sin ventana contra una mini app de mentira
+  (no necesita `next build` ni `localhost:9002`): precarga, sin red (página, RSC, `/offline.html`, API con y sin
+  respaldo) y vuelta de la red. 13 comprobaciones; sale 0 si todo va.
 
 Requiere `playwright` y Chrome instalado. Se ejecutan con `node scripts/verificacion-ui/<archivo>`.

@@ -50,7 +50,7 @@ política antes de recargar y anota `STARSEED_BUILD_INICIAL`), `src/lib/neurons/
   `decidirCapaLocal("interfaz")`. Por defecto (OS: interfaz automática) se comporta igual que antes;
   si la persona pone «Manual» o «Programada», o hay una llamada marcada, sale el banner «Nueva versión».
 - **Aplicadores**: interfaz (recarga suave con el mismo freno de escritura), sw (`update` +
-  `SKIP_WAITING`, que `public/sw-v7.js` atiende), servicios (`POST /api/mando/servidor` con lista blanca;
+  `SKIP_WAITING`, que `public/sw-v8.js` atiende; `sw-v7.js` solo lo importa), servicios (`POST /api/mando/servidor` con lista blanca;
   404 fuera de la Mac y se dice), nativa (`check_update` / `reiniciar_para_actualizar` de Tauri), datos
   (registro por sistema). Prueba de humo: `/` y `/version.json`.
 - **Presencia**: cada medio anuncia `v` (interfaz = `OS_VERSION`, sw = caché `starseed-precache-*`,

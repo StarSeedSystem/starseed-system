@@ -236,6 +236,14 @@ cargo tauri android build -c tauri.cafe.conf.json    # Café
 
 El workflow de CI incluye un job de Android **comentado** listo para habilitar
 cuando se configure la firma de Google Play (secretos `ANDROID_*`).
+
+**Sin internet (SW1107A).** La APK abre la web publicada; la deja entera disponible sin conexión el
+service worker de la web (`public/sw-v8.js`: precarga en segundo plano de las páginas principales y
+su código). La WebView de Android registra service workers para ese origen sin ningún ajuste nativo
+(wry activa JavaScript y DOM storage y no intercepta las `https` remotas), así que llega también a
+las APK ya instaladas con solo publicar la web. Detalles, tamaños y límites:
+`architecture/apps-autonomas-sin-internet.md` §9.1.1.
+
 iOS es posible con `cargo tauri ios build` pero requiere macOS + cuenta Apple.
 
 ---

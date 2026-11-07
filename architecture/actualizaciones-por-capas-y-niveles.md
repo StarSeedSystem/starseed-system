@@ -2,7 +2,7 @@
 
 Petición de Alex del 2026-10-10. Se apoya en lo que ya existe: modo por neurona manual/automático
 (`src/lib/neurons/actualizaciones.ts`), aviso de versión por ntfy y recarga suave
-(`src/lib/pwa/aviso-version.ts`, `recarga-por-version.ts`), service worker `public/sw-v7.js`,
+(`src/lib/pwa/aviso-version.ts`, `recarga-por-version.ts`), service worker `public/sw-v8.js` (antes `sw-v7.js`),
 actualizador nativo de Tauri (canales `latest*.json`, 0.3.0), autoactualización de la Biblioteca
 (`starseed.library.autoupdate.v1`) y arranque de sistemas de Astraura (`startup-updates.ts`).
 

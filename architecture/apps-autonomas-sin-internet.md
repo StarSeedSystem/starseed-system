@@ -25,7 +25,8 @@ visitado antes podía salir del service worker, nada más). Nexus y Café, igual
 | `/api/*` va a la web publicada cuando hay internet (como hasta hoy) y al servidor local cuando no | HECHO (envoltorio + pruebas) |
 | Aviso «Sin conexión: trabajando en local» | HECHO (`AvisoSinConexion`, layout raíz) |
 | CI: Next una vez + Node verificado por SHA-256 + ad-hoc en macOS; si falla, el instalador sale igual sin servidor local | ESCRITO SIN PUBLICAR (`native-build.yml`) |
-| Android e iOS | Siguen con la web publicada (sin cambios). Plan exacto en §9 |
+| Android (también las APK ya instaladas, v0.4.3), PWA y navegador: la app entera sin conexión con el **service worker v8** (precarga en segundo plano de las páginas principales, su código y `public/`) | ESCRITO SIN PUBLICAR (SW1107A) · llega con publicar la web, sin reinstalar nada · probado con el SW de verdad en un entorno simulado y en Chrome real contra una mini app (§9.1.1); falta con un build real de Next (T10) |
+| Android con servidor propio dentro (nodejs-mobile) e iOS | PENDIENTE. Plan exacto en §9 |
 | Nexus y Café | Siguen con su web. Plan en §9.3 |
 | Actualizar el servidor local por capas sin reinstalar | PENDIENTE (fase 2, §10) |
 
@@ -203,6 +204,11 @@ node --test native/servidor-local/__tests__/arranque.test.cjs
 node --test native/servidor-local/__tests__/preparar.test.mjs
 # Web
 npx vitest run src/lib/nativa/__tests__/sin-conexion.test.ts
+# Service worker v8 (SW1107A): lógica pura, el SW de verdad en un entorno simulado, el manifiesto y la página
+npx vitest run src/lib/pwa/__tests__/sw-logica.test.ts src/lib/pwa/__tests__/sw-v8.test.ts \
+  src/lib/pwa/__tests__/precarga-manifiesto.test.ts src/lib/pwa/__tests__/precarga-cliente.test.ts
+# Manifiesto con un build real, sin tocar el public/ del proyecto
+T=$(mktemp -d) && cp -R public "$T/public" && node scripts/precarga-sw.mjs --dist .next --public "$T/public" --estricto
 ```
 
 Probado además en Linux con la app real (`tauri build --debug --bundles deb`): el `.deb` lleva
@@ -214,13 +220,15 @@ Node lo relanzó en el mismo puerto sin recargar la página y, al matar la app, 
 
 ### 9.1 Android — plan exacto
 
-Hoy: la APK abre la web publicada (`tauri.android.conf.json`); sin internet solo lo que el service worker ya guardó.
+La APK abre la web publicada (`tauri.android.conf.json`). Hasta SW1107A, sin internet solo salía lo que el
+service worker había guardado al visitarlo; desde SW1107A el service worker v8 guarda la app entera (opción C,
+§9.1.1), y eso llega también a las APK ya instaladas en cuanto se publica la web.
 
 | Opción | Qué es | Tamaño | Licencia | Veredicto |
 |---|---|---|---|---|
 | **A · nodejs-mobile** (fork `digidem/nodejs-mobile`, v24.18.0-0 del 2026-08-11, Node 24) | `libnode.so` para arm64-v8a, armeabi-v7a y x86_64 (SDK ≥ 24) que corre el MISMO standalone y el MISMO envoltorio | zip de las 3 ABI 73,4 MB (lite 54,4 MB): ≈ +20–25 MB por ABI en el APK, + ≈ 50 MB del servidor comprimido | la de Node (MIT y terceros); GitHub no la detecta en el fork: confirmarla antes de distribuir | **El camino completo**: un solo código de servidor para escritorio y Android |
 | B · Export estático parcial | `output: 'export'` de las secciones que no usan API ni middleware | pequeño | — | No: el OS usa middleware, rutas dinámicas y 48 grupos de `/api`; sería otra app |
-| C · Precarga del service worker en la APK | La app pide al SW que guarde todas las páginas principales y `/_next/static` («Descargar para usar sin internet») | ≈ 50 MB en caché, APK igual | propia | **Paso rápido** mientras llega A: abre todo sin red, sin servidor (lo de `/api` falla igual que en A sin claves) |
+| C · Precarga del service worker en la APK | La app pide al SW que guarde todas las páginas principales y `/_next/static` («Descargar para usar sin internet») | ≈ 20–25 MB de descarga, ≈ 176 MB en disco (medido, §9.1.1), APK igual | propia | **ESCRITO SIN PUBLICAR (SW1107A)**: abre todo sin red, sin servidor (lo de `/api` falla igual que en A sin claves) |
 
 Pasos de A (cada uno una tarea):
 1. CI Android: descargar `nodejs-mobile-android-24.18.0-0.zip` con SHA fijado (como `node.json`), poner
@@ -235,6 +243,108 @@ Pasos de A (cada uno una tarea):
    vez de `std::process`; la ventana de Android pasa a `index.html` como en escritorio.
 5. Medir RAM (Next ≈ 200–300 MB) y arranque en la tablet; si no cabe, C como modo por defecto en aparatos con poca
    memoria.
+
+### 9.1.1 Service worker v8: la app entera sin conexión (opción C · SW1107A · ESCRITO SIN PUBLICAR)
+
+Llega a todos los medios que abren la web (APK de Android ya instaladas, PWA, navegador) **solo con publicar la
+web**: la página registra `/sw-v8.js` y el SW se actualiza solo (`/sw-v7.js` queda como una línea que importa el
+v8, para que una pestaña vieja no vuelva al v7, que al activarse borraba todas las cachés ajenas).
+
+| Pieza | Archivo |
+|---|---|
+| Lógica pura (clasificar peticiones, lista de API, manifiesto, plan, cuándo precargar, cachés) — 28 pruebas | `public/sw-logica.js` (lo carga el SW con `importScripts`; las pruebas con `require`) |
+| Service worker (estrategias, precarga, cierre de sesión) — 14 pruebas con el SW de verdad en un entorno simulado | `public/sw-v8.js`, `src/lib/pwa/__tests__/sw-v8.test.ts` + `sw-entorno-prueba.ts` |
+| Manifiesto del build (`postbuild`; en el CI, un paso propio) — 6 pruebas con un `.next` de mentira | `scripts/precarga-sw.mjs` → `public/precarga.json` (no se versiona) |
+| Página: pedir la precarga, recibir su estado, olvidar la sesión — 5 pruebas | `src/lib/pwa/precarga-cliente.ts`, `src/components/pwa/register-sw.tsx`, `signOut` de `src/context/account-context.tsx` |
+| Respaldo para lo que aún no está guardado (enseña lo que sí) | `public/offline.html` |
+| Comprobación en un Chrome de verdad (sin `next build`): mini app de mentira con los archivos reales del SW — 13/13 el 2026-11-07 | `scripts/verificacion-ui/sw-sin-conexion.mjs` |
+
+**Qué hace cada petición** (todo GET del mismo origen; POST/PUT/DELETE y otros orígenes no se tocan):
+
+| Petición | Con red | Sin red |
+|---|---|---|
+| Navegación (HTML) | Red primero sin caché del edge (cada despliegue llega al momento, como antes); la copia buena se guarda. Pasarela caída (502/503/504) o 10 s sin respuesta → la copia guardada si existe | La página de la build precargada (con o sin `?consulta`) → la última visitada → `/offline.html` en la MISMA dirección, con la lista de lo guardado |
+| Carga RSC (`RSC: 1` / `?_rsc=`: navegación interna de Next) | Red | La carga COMPLETA de esa ruta guardada en la precarga (pedida sin árbol del router: Next la aplica desde la raíz). Si es de otra build, Next navega «a la antigua» y entra la página guardada. Sin copia → 504 de texto → Next hace lo mismo. Las precargas por segmento nunca reciben la carga completa |
+| `/_next/static/**` (hash en el nombre) | Caché primero (ignora `?dpl=`) | Caché |
+| Medios de `public/` | Caché primero (como en v7) | Caché |
+| `GET /api/*` | Red; se guarda la respuesta buena (200, JSON/texto, sin `no-store`, ≤ 1 MB) solo de la **lista blanca** | La última buena, con `X-StarSeed-Sin-Conexion: 1` y `X-StarSeed-Guardado` |
+| Resto (manifest, `/_next/image`, JSON públicos) | Red primero | Copia |
+| `/sw-*.js`, `/version.json`, `/precarga.json`, `/__starseed/*`, `/auth/*`, una API abierta como página, peticiones con `Range` | Directo a la red | Directo a la red |
+
+**API con respaldo: lista BLANCA** (`API_RESPALDO_PERMITIDAS`): `/api/os/versiones`, `/api/library/actualizaciones`,
+`/api/github-repo/*` (catálogos públicos, iguales para todos). Se revisaron las 112 rutas GET: con solo una lista
+negra quedaban 8, y 5 eran de sesión, de esta neurona o estados en vivo (artcraft, astraura/automejora,
+astraura/nodos, avatares/externo, network/openwisp). Por eso una ruta nueva NUNCA se guarda hasta que alguien la
+añade; dentro de la lista blanca hay además lista negra de prefijos, de palabras (sesión, token, clave, salud,
+estado, live…), de parámetros (`token`, `key`, `code`…) y de cabeceras (`Authorization`, `Range`, SSE). Una prueba
+recorre las rutas GET reales de `src/app/api` y falla si alguna fuera de la lista quedara con respaldo.
+
+**Precarga en segundo plano.** `RegisterSW` pide «PRECARGAR» a los 20 s del arranque, cada 15 min con la pestaña
+visible y 3 s después de volver la red (`window.STARSEED_PRECARGAR(true)` la pide aunque haya datos móviles). El SW:
+1. Decide si toca (`debePrecargar`): nunca sin red; nunca en el servidor local (127.0.0.1/localhost: ya lo tiene
+   todo, salvo pedida a mano); no con ahorro de datos, datos móviles (`connection.type = cellular`) ni 2G; no dos
+   veces en el mismo minuto. Donde el navegador no dice el tipo de red (Safari, Firefox), sí.
+2. Lee `/precarga.json` (revalidado: 304 si no cambió). Misma build ya completa → solo comprueba cada 30 min; a
+   medias → sigue a los 2 min; build nueva → empieza.
+3. Planifica con el espacio libre (`navigator.storage.estimate()`, contando como libre lo que ocupan las builds
+   viejas): usa como mucho libre / 1,25 − 50 MB, y corta por **bloques**, para que lo guardado siempre sirva:
+   página sin conexión + código común; luego cada ruta (en orden de prioridad: `/`, escritorios, dashboard,
+   inicio, login…) con sus chunks iniciales, su HTML y su RSC; al final los chunks perezosos y `public/`.
+4. Baja con concurrencia 3, en la caché `starseed-build-<buildId>`: HTML y RSC sin caché HTTP y **sin seguir
+   redirecciones** (una página que manda a `/login` no se guarda como si fuera la página); un estático con hash
+   que ya está en otra caché se copia en vez de bajarlo. Cada pasada se para a los 4 min (Chrome corta un evento a
+   los 5) y la siguiente sigue donde se quedó; 4xx y redirecciones no se reintentan, red caída y 5xx sí.
+5. Build completa → retira las builds anteriores. Mientras no lo esté, se queda la anterior (y sin red se busca
+   primero en las completas). El estado vive en `starseed-meta-v1` y se avisa a la página
+   (`window.STARSEED_PRECARGA`, evento `starseed:precarga`).
+
+**Cerrar sesión** (`signOut`): el SW borra la caché de API y, de las builds y de la caché de ejecución, las páginas
+y cargas RSC que no son estáticas (las SSG son iguales para todos); la siguiente pasada las rellena con la sesión
+nueva.
+
+**Tamaños (medidos el 2026-11-07 con el build de main de la Mac, `AA0YdaG0s8hV9CgdmX1rc`):** 108 páginas (105
+estáticas, 3 dinámicas; sin `/genesis`, `/metagenesis`, `/poligenesis`, páginas de prueba ni rutas con parámetros);
+1.181 estáticos = 60,4 MB (los iniciales de las páginas: 447, 27,4 MB); `public/`: 33 archivos, 2,9 MB; HTML + RSC ≈
+112,7 MB (≈ 0,5 MB cada uno, casi todo la misma carga del layout raíz). **En disco ≈ 176 MB; de descarga ≈ 20–25 MB**
+(el HTML y el RSC comprimen ≈ 30:1, ≈ 17 KB cada uno; el JS ≈ 3–4:1), y en cada despliegue solo lo que cambió (los
+chunks con el mismo hash se copian). Manifiesto: 84 KB (23 KB comprimido). Coste en Vercel por neurona y despliegue:
+≈ 216 peticiones de páginas, casi todas servidas por el CDN (solo 3 rutas dinámicas invocan funciones).
+
+**Android (Tauri 2 / wry).** La WebView del sistema (Chromium) registra service workers para un origen `https`
+remoto sin ajustes: wry activa JavaScript y `domStorageEnabled`, no cambia el modo de caché ni pone un
+`ServiceWorkerClient`, y su `shouldInterceptRequest` solo contesta los protocolos propios de Tauri (lo demás va a
+la red, y por tanto al SW). Comprobado en el código de wry (`RustWebView.kt`, `RustWebViewClient.kt`). **No hace
+falta ningún cambio nativo**: por eso llega a las APK ya instaladas. Escritorio: Windows (WebView2) y Linux
+(WebKitGTK) también tienen SW, pero allí la app abre el servidor local (127.0.0.1, el SW no precarga); macOS
+(WKWebView) no tiene SW para orígenes remotos: allí manda el servidor local. iOS: WKWebView solo los admite con
+App-Bound Domains (pendiente con la app de iOS).
+
+**Límites honestos.**
+- La **primera vez hace falta internet**: para registrar el SW y precargar (unos minutos con Wi-Fi). Con datos
+  móviles no precarga sola (botón/llamada «forzar»). Hasta entonces, sin red solo sale lo visitado.
+- **Datos de Supabase sin red: solo lo que haya en local** (`localStorage`/IndexedDB de esta neurona, ver §7) o en
+  caché. Lo que lee Supabase en el servidor sale como estaba al precargar o visitar; lo que se escribe sin red
+  depende de cada sección (el SW nunca guarda ni repite un POST).
+- **API**: solo los tres catálogos de la lista blanca tienen respaldo; el resto falla sin red como hoy (las
+  secciones ya lo toleran, §7). Las server actions de Genkit tampoco funcionan sin red (T5).
+- **Rutas con parámetros** (`/pagina/[slug]`, `/post/[id]`…): solo las ya visitadas; si no, `/offline.html`.
+- **Espacio**: ≈ 176 MB por origen. El navegador puede borrarlo si falta espacio; en la app instalada (PWA o
+  nativa) se pide almacenamiento persistente (Chrome y Safari deciden sin preguntar; en Firefox no se pide porque
+  abre un aviso). Safari borra lo de las webs no usadas en 7 días (no a las añadidas a la pantalla de inicio).
+- Una página guardada de una build anterior se ve con esa versión hasta que vuelve la red (entonces llega la
+  nueva al momento, como siempre).
+
+**Cómo se verifica.**
+- Sin build: `node scripts/verificacion-ui/sw-sin-conexion.mjs` (Chrome sin ventana, 13 comprobaciones: registro,
+  precarga sola, sin red página/consulta/código/RSC/`offline.html`/API con y sin respaldo, y vuelta de la red).
+- Navegador (Chrome/Edge), en la web publicada: DevTools → Application → Service Workers (`sw-v8.js`, activado);
+  Cache Storage → `starseed-build-<buildId>` (≈ 1.400 entradas al terminar), `starseed-meta-v1` →
+  `/__starseed/sw-precarga-estado`; en la consola, `STARSEED_PRECARGA` (fase `lista`, `completo: true`) y
+  `STARSEED_PRECARGAR(true)` para empezar ya. Después: Network → Offline y navegar por las secciones (también
+  recargar). `curl -sI <web>/precarga.json` debe dar 200 tras el despliegue.
+- Android: abrir la app con Wi-Fi y dejarla unos minutos en primer plano → modo avión → cerrarla del todo →
+  abrirla: debe arrancar y moverse por las secciones. Con un APK de depuración (o el Chrome del móvil) se puede
+  mirar lo mismo en `chrome://inspect/#devices`.
 
 ### 9.2 iOS
 Sin app nativa publicada (ver `apps-nativas-segundo-plano.md`). nodejs-mobile iOS corre V8 sin JIT (lento); queda
@@ -275,16 +385,25 @@ Diseño (PENDIENTE T1):
 6. **Versión del servidor ≠ versión de la web**: las páginas son las del instalador y `/api` la de la web
    publicada; si una API cambia de forma incompatible, se nota hasta actualizar la app (la fase 2 lo acorta).
 7. **Origen nuevo**: hay que iniciar sesión una vez con internet en la app nueva.
+8. **Service worker v8 (SW1107A), al publicar la web:** (a) que `/precarga.json` responda 200 en el primer
+   despliegue (lo escribe `postbuild`, que npm lanza tras `npm run build` en Vercel; si no está, el SW sigue como
+   el v7 —solo lo visitado— y lo dice con la fase `sin-manifiesto`); (b) cada medio sustituye al v7 con UNA
+   recarga (la de siempre al cambiar de controlador, con su tope de dos) y pierde la caché de ejecución vieja
+   hasta que termina su primera precarga; (c) ≈ 176 MB de disco por medio: en aparatos con poco espacio la
+   precarga se queda en las rutas que caben (por prioridad) y lo dice (`parcial`/`sin-espacio`); (d) la red de la
+   precarga: ≈ 20–25 MB la primera vez y luego solo lo cambiado, nunca con datos móviles sin pedirlo.
 
 ## 12. Pendientes (tareas concretas)
 
 | Id | Tarea |
 |---|---|
 | T1 | Capas del servidor local con firma y rollback (§10) |
-| T2 | Android opción C (precarga del SW) y luego A (nodejs-mobile, §9.1) |
+| T2 | Android opción C (precarga del SW): **ESCRITA SIN PUBLICAR (SW1107A, §9.1.1)**. Falta A (nodejs-mobile, §9.1) |
 | T3 | Medir en el CI los tamaños reales y corregir §6 |
 | T4 | Migrar al origen local lo que solo vivía en el `localStorage` de la web publicada (importación guiada al primer arranque) |
 | T5 | Pasar los 3 flujos de Genkit (server actions) a rutas `/api` para que viajen a la web con internet |
 | T6 | Enseñar `servidor_local_estado` en Ajustes → Neurona y en las señales del medio («app nativa · servidor local») |
 | T7 | Nexus y Café con sus archivos dentro (§9.3) |
 | T8 | Quitar del build nativo lo que solo vive en la Mac (`/genesis`, `/metagenesis`, `/api/mando/**`) para bajar ≈ 100 MB |
+| T9 | Enseñar el estado de la precarga (evento `starseed:precarga`) en Ajustes → Neurona, con un botón «Descargar para usar sin internet» (`STARSEED_PRECARGAR(true)`, para quien solo tiene datos móviles) |
+| T10 | Probar el SW v8 en un navegador real contra un `next start` del build (en el A1 o el CI, no en la Mac): precarga completa, modo avión y vuelta de la red |
