@@ -35,22 +35,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { leerInstalada, type Medio } from "@/lib/actualizaciones/version-por-medio";
-import {
-  decidirAviso,
-  limpiarVersion,
-  MEDIOS_CON_VENTANA,
-  textoAlDia,
-  type RespuestaUpdater,
-} from "@/lib/actualizaciones/decision-aviso";
+import type { Medio } from "@/lib/actualizaciones/version-por-medio";
+import { limpiarVersion, MEDIOS_CON_VENTANA, textoAlDia } from "@/lib/actualizaciones/decision-aviso";
+import { comprobarActualizacion, type OpcionesComprobar } from "@/lib/actualizaciones/comprobar";
 import { guardarUltimaComprobacion } from "@/lib/actualizaciones/ultima-comprobacion";
 import { actualizarEscritorio, reiniciarParaActualizar } from "@/lib/nativa/actualizador";
-import { decidirActualizacionAndroid } from "@/lib/nativa/actualizador-android";
-import { buscarActualizacionNativa } from "@/lib/nativa/info-neurona";
+import { EVENTO_BUSCAR_ACTUALIZACION, type DetalleBuscar } from "@/lib/neurons/pedir-actualizacion";
 import { anunciarVersionPublicada } from "@/lib/notifications/update-notifications";
 import { textoEstadoActualizacion } from "@/lib/pwa/actualizacion-nativa-logica";
 import { esVersionMasNueva, esVersionSemver } from "@/lib/version/os-release";
-import type { VersionPublicada } from "@/lib/version/versiones-publicadas";
 
 export { limpiarVersion, MEDIOS_CON_VENTANA };
 
@@ -99,14 +92,11 @@ interface Aviso {
   fecha: string;
   notas: string;
   apk: string | null;
+  /** Otra neurona de la cuenta lo pidió («Pedir actualización»). */
+  pedidaPor: string | null;
 }
 
 type Estado = "" | "trabajando" | "lista" | "al-dia" | "error";
-
-export interface OpcionesComprobar {
-  /** Lo pide la persona (o una neurona suya): se mira aunque esa versión ya se enseñara. */
-  forzar?: boolean;
-}
 
 export function AvisoActualizacion() {
   const [aviso, setAviso] = useState<Aviso | null>(null);
@@ -114,69 +104,17 @@ export function AvisoActualizacion() {
   const [mensaje, setMensaje] = useState("");
   const enMarcha = useRef(false);
 
-  const comprobar = useCallback(async (opciones: OpcionesComprobar = {}) => {
+  const comprobar = useCallback(async (opciones: OpcionesComprobar & { pedidaPor?: string } = {}) => {
     if (enMarcha.current) return;
     enMarcha.current = true;
     try {
-      const { medio, version } = await leerInstalada();
-      if (!MEDIOS_CON_VENTANA.includes(medio)) return;
-      const instalada = esVersionSemver(version) ? limpiarVersion(version) : null;
-      if (!instalada) {
-        guardarUltimaComprobacion({ resultado: "desconocida", instalada: null, publicada: null, texto: "Esta app no dice su versión: no se compara nada." });
-        return;
-      }
-      const res = await fetch("/api/os/versiones", { cache: "no-store" });
-      if (!res.ok) return;
-      const datos = (await res.json()) as { versiones?: VersionPublicada[] };
-      const ultima = Array.isArray(datos?.versiones) ? datos.versiones[0] : undefined;
-      const publicada = ultima ? limpiarVersion(ultima.version) : null;
-      const vistas = opciones.forzar ? {} : leerVistas();
-      if (!ultima || !publicada || !debeAvisar(medio, instalada, publicada, vistas)) {
-        const nueva = !!publicada && esVersionSemver(publicada) && esVersionMasNueva(publicada, instalada);
-        guardarUltimaComprobacion({
-          resultado: nueva ? "nueva" : "al-dia",
-          instalada,
-          publicada,
-          texto: nueva ? `La ${publicada} ya se te enseñó; la tienes en la Librería.` : `Al día: tienes la ${instalada}.`,
-        });
-        return;
-      }
-
-      let updater: RespuestaUpdater | null = null;
-      let notasUpdater: string | null = null;
-      let fechaUpdater: string | null = null;
-      let apk: string | null = null;
-      if (medio === "escritorio") {
-        const b = await buscarActualizacionNativa();
-        if (b.estado === "ok") {
-          updater = { estado: "ok", disponible: b.busqueda.disponible };
-          notasUpdater = b.busqueda.notas;
-          fechaUpdater = b.busqueda.fecha;
-        } else updater = b.estado === "sin-comando" ? { estado: "sin-comando" } : { estado: "error", motivo: b.motivo };
-      } else {
-        apk = decidirActualizacionAndroid(instalada, {
-          tag_name: ultima.version,
-          assets: (ultima.archivos?.os?.android ?? []).map((a) => ({ name: a.nombre, browser_download_url: a.href })),
-        }).href;
-      }
-
-      const d = decidirAviso({ medio, instalada, publicada, vistas, updater, apk, forzar: opciones.forzar });
-      if (d.tipo === "nada") {
-        guardarUltimaComprobacion({ resultado: "error", instalada, publicada, texto: d.motivo });
-        return;
-      }
-      if (d.tipo === "preparando") {
-        guardarUltimaComprobacion({ resultado: "preparando", instalada, publicada, texto: d.texto });
-        return;
-      }
-      const deLaLista = d.version === publicada;
-      const fecha = (deLaLista ? ultima.fecha : fechaUpdater?.slice(0, 10)) ?? "";
-      const notas = (deLaLista ? ultima.notas : notasUpdater) ?? "";
-      guardarUltimaComprobacion({ resultado: "nueva", instalada, publicada: d.version, texto: `StarSeed OS ${d.version} está lista para instalar.` });
-      anunciarVersionPublicada({ version: d.version, fecha, notas });
+      const r = await comprobarActualizacion({ forzar: opciones.forzar, vistas: leerVistas() });
+      if (!r || r.decision.tipo !== "ventana" || !r.instalada) return;
+      const d = r.decision;
+      anunciarVersionPublicada({ version: d.version, fecha: r.fecha, notas: r.notas });
       setEstado("");
       setMensaje("");
-      setAviso({ medio, version: d.version, instalada, fecha, notas, apk: d.apk });
+      setAviso({ medio: r.medio, version: d.version, instalada: r.instalada, fecha: r.fecha, notas: r.notas, apk: d.apk, pedidaPor: opciones.pedidaPor ?? null });
     } catch {
       /* sin red o sin datos: se vuelve a mirar en 6 h */
     } finally {
@@ -187,7 +125,26 @@ export function AvisoActualizacion() {
   useEffect(() => {
     void comprobar();
     const id = setInterval(() => void comprobar(), INTERVALO_MS);
-    return () => clearInterval(id);
+    // (VER1107B) «Buscar actualizaciones» en esta neurona, o un pedido FIRMADO de otra neurona de la
+    // cuenta («Pedir actualización»): se mira ya, aunque esa versión ya se enseñara. Nunca se instala sola.
+    const alPedir = (e: Event) => {
+      const detalle = (e as CustomEvent<DetalleBuscar | undefined>).detail;
+      void comprobar({ forzar: true, pedidaPor: detalle?.pedidaPor });
+    };
+    window.addEventListener(EVENTO_BUSCAR_ACTUALIZACION, alPedir);
+    let parar: (() => void) | null = null;
+    let vivo = true;
+    void import("@/lib/neurons/pedir-actualizacion")
+      .then((m) => {
+        if (vivo) parar = m.iniciarEscuchaPedidos();
+      })
+      .catch(() => undefined);
+    return () => {
+      vivo = false;
+      clearInterval(id);
+      window.removeEventListener(EVENTO_BUSCAR_ACTUALIZACION, alPedir);
+      parar?.();
+    };
   }, [comprobar]);
 
   if (!aviso) return null;
@@ -257,6 +214,7 @@ export function AvisoActualizacion() {
           <DialogTitle>Hay una versión nueva</DialogTitle>
           <DialogDescription>
             StarSeed OS {aviso.version} está disponible{aviso.fecha ? ` desde el ${aviso.fecha}` : ""}. Tienes la {aviso.instalada}.
+            {aviso.pedidaPor ? ` Te lo pide «${aviso.pedidaPor}»: tú decides si se instala.` : ""}
           </DialogDescription>
         </DialogHeader>
         {aviso.notas && (

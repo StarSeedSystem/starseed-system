@@ -183,3 +183,21 @@ Ninguna dependencia nueva.
 Lo que necesita un aparato real: ver en una Mac con la 0.5.0 que el respaldo/servidor local se comporta
 como dice la tabla; en una app con este cambio, `info_neurona` en macOS/Windows/Linux/Android (nombre de
 equipo, versión del SO, modelo en Android) y `buscar_actualizacion` contra el `latest.json` real.
+
+### 8.5 Ajustes › Neuronas › «Esta neurona» (VER1107B)
+
+`src/components/settings/neurons/esta-neurona.tsx`, arriba en Ajustes › Neuronas (`neurons-panel.tsx`; la
+pastilla del servidor local y sus capas, `EstadoServidorLocal`, vive ahora dentro de esta tarjeta). Enseña,
+cada dato SOLO si se conoce: versión de la app nativa (y de dónde se leyó), medio y app (OS/Café/Nexus),
+build + versión + sha de la web (`/version.json`), sistema operativo y versión, arquitectura, equipo o
+modelo, Tauri, servidor local y capas, y la última comprobación («hace 5 min · …»).
+
+- «Buscar actualizaciones» (apps nativas): `comprobarActualizacion({ forzar: true })`
+  (`src/lib/actualizaciones/comprobar.ts`, el MISMO camino que la ventana): solo busca y dice el resultado
+  («lista para instalar», «se está preparando», «al día»…). No abre la ventana.
+- «Actualizar a la X» (escritorio, solo si el canal la ofrece): `actualizarEscritorio` con su progreso y
+  luego «Reiniciar para aplicar». Si el updater dice que no hay nada: «Ya tienes la X.Y.Z».
+- Android: «Descargar la X (.apk)», el de la misma firma (`decidirActualizacionAndroid`).
+- Web y PWA: sin botones; la versión nueva llega sola (service worker).
+- En cada neurona de la lista y en el detalle de Mensajes › Neuronas: versión, medio y aparato por la
+  presencia, «Nueva versión disponible» y «Pedir actualización» (sincronizacion-neuronas.md §9).

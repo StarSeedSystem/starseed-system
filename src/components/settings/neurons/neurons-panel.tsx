@@ -35,7 +35,10 @@ import {
 import { SecurityScanPanel } from "@/components/security/security-scan-panel";
 // Voz por neurona (Adenda 87): elección nube/local POR DISPOSITIVO + instalador.
 import { NeuronVoiceChoice } from "@/components/settings/aurora/neuron-voice-choice";
-import { EstadoServidorLocal } from "@/components/nativa/estado-servidor-local";
+// (VER1107B) «Esta neurona» (versión, medio, sistema, aparato, servidor local y actualizaciones) y la
+// versión que anuncia cada neurona por la presencia, con «Pedir actualización».
+import { EstaNeurona } from "@/components/settings/neurons/esta-neurona";
+import { VersionNeurona } from "@/components/neurons/version-neurona";
 
 /* ── Icono por tipo de dispositivo ── */
 const KIND_ICONS: Record<NeuronKind, typeof Monitor> = {
@@ -180,8 +183,6 @@ export function NeuronsPanel() {
                 renombrar y ajustar los permisos de cada neurona.
               </CardDescription>
               <p className="text-[11px] text-muted-foreground mt-2">{summarizeNeurons(neurons)}</p>
-              {/* (APP1107T6) Solo dentro de la app nativa: el servidor local de esta neurona. */}
-              <EstadoServidorLocal className="mt-2" />
             </div>
             <Button variant="ghost" size="sm" className="cursor-pointer shrink-0" onClick={() => void refresh()} disabled={loading}>
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -190,6 +191,10 @@ export function NeuronsPanel() {
           </div>
         </CardHeader>
       </Card>
+
+      {/* (VER1107B) Esta neurona: lo que sabe de sí misma y sus actualizaciones. El estado del servidor
+          local (APP1107T6) vive ahora dentro de esta tarjeta. */}
+      <EstaNeurona />
 
       {/* Voz de ESTA neurona (Adenda 87): elección nube/local por dispositivo,
           que ordena la cadena de voz de este equipo, con el instalador local. */}
@@ -279,6 +284,14 @@ export function NeuronsPanel() {
                   ))}
                 </div>
               )}
+
+              {/* (VER1107B) Versión, medio y aparato que anuncia por la presencia de la cuenta. */}
+              <VersionNeurona
+                neuronaId={n.id}
+                nombre={n.name}
+                esEsta={n.isThisDevice}
+                miNombre={neurons.find((x) => x.isThisDevice)?.name}
+              />
 
               {/* Permisos (6 switches) */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">

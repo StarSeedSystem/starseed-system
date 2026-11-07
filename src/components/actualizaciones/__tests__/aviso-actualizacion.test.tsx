@@ -20,11 +20,18 @@ vi.mock("@/lib/nativa/actualizador", () => ({
 vi.mock("@/lib/nativa/info-neurona", () => ({
   buscarActualizacionNativa: vi.fn(),
 }));
+// La escucha de pedidos de otras neuronas (red y firmas) se prueba aparte (pedir-actualizacion.test.ts).
+vi.mock("@/lib/neurons/pedir-actualizacion", async (original) => ({
+  ...(await original<typeof import("@/lib/neurons/pedir-actualizacion")>()),
+  iniciarEscuchaPedidos: vi.fn(() => () => undefined),
+}));
 
 import { AvisoActualizacion, CLAVE_VISTAS, debeAvisar, limpiarVersion } from "../aviso-actualizacion";
 import { actualizarEscritorio, reiniciarParaActualizar } from "@/lib/nativa/actualizador";
 import { buscarActualizacionNativa } from "@/lib/nativa/info-neurona";
 import { leerUltimaComprobacion } from "@/lib/actualizaciones/ultima-comprobacion";
+import { EVENTO_BUSCAR_ACTUALIZACION, iniciarEscuchaPedidos } from "@/lib/neurons/pedir-actualizacion";
+import { act } from "@testing-library/react";
 import { getPendingNotifications } from "@/lib/notifications/update-notifications";
 import { AppearanceProvider } from "@/context/appearance-context";
 
@@ -190,5 +197,18 @@ describe("AvisoActualizacion", () => {
     expect(leerUltimaComprobacion()?.resultado).toBe("al-dia");
     await userEvent.click(screen.getByRole("button", { name: /entendido/i }));
     await waitFor(() => expect(screen.queryByText("Hay una versión nueva")).not.toBeInTheDocument());
+  });
+
+  it("(VER1107B) un pedido («Buscar actualizaciones» u otra neurona) mira aunque ya se viera y dice quién lo pide", async () => {
+    window.localStorage.setItem(CLAVE_VISTAS, JSON.stringify({ "0.4.0": 1 }));
+    pintar();
+    await waitFor(() => expect(leerUltimaComprobacion()?.texto).toMatch(/ya se te enseñó/));
+    expect(screen.queryByText("Hay una versión nueva")).not.toBeInTheDocument();
+    await waitFor(() => expect(iniciarEscuchaPedidos).toHaveBeenCalled());
+    act(() => {
+      window.dispatchEvent(new CustomEvent(EVENTO_BUSCAR_ACTUALIZACION, { detail: { pedidaPor: "Mac de Alex" } }));
+    });
+    expect(await screen.findByText(/Te lo pide «Mac de Alex»: tú decides si se instala/)).toBeInTheDocument();
+    expect(actualizarEscritorio).not.toHaveBeenCalled();
   });
 });

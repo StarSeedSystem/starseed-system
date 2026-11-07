@@ -161,3 +161,66 @@ conciencia compartidas y los ajustes.
 guarda con `antenasConfigurar` junto a `neurona` y `conocidas` (ids de las demás neuronas de la cuenta), conservando
 `meshtastic_hosts`, `nas` y `faro_apagado`. Primera vuelta a los 5 s; reintento 30 s ×4 si falla; repite cada 30 min.
 Nunca registra ni devuelve la clave; nunca toca tokens ni claves de sesión.
+
+## 9 · Versión, medio y aparato de cada neurona + «Pedir actualización» (VER1107B · 2026-11-07)
+
+Pedido de Alex: en la lista y el detalle de las neuronas, la versión, el medio y el aparato de cada una;
+«Nueva versión disponible» cuando va atrasada; en esta neurona, el mismo flujo de actualización; en sus
+OTRAS neuronas, «Pedir actualización».
+
+### 9.1 Campos de presencia (retrocompatibles)
+
+La presencia de la cuenta (`PresenciaMedio`, `src/lib/neurons/presencia.ts`, canal `neur:<token>`) ya
+llevaba `v` (versión de cada capa; `v.nativa` = versión de la app nativa por `__TAURI__.app.getVersion()`)
+y `plataforma` (del navegador). Se añade un campo OPCIONAL:
+
+```
+d?: { medio: "escritorio"|"android"|"pwa"|"web"|"ios", app?: "os"|"cafe"|"nexus", so?, soV?, arq?, equipo?, pa?: 1 }
+```
+
+- `medio`, `app`, `so`, `soV`, `arq`, `equipo` salen de `info_neurona` (centro-versiones-1105.md §8.3);
+  en una app anterior solo `medio`; en el navegador, `medio: "web"|"pwa"`. `pa: 1` = esta web entiende
+  `neurona.actualizar.solicitud`. Textos recortados (≤ 60) y validados al llegar (`sanearInfoPublica`).
+- Retrocompatible: quien no lo manda (web anterior, p. ej. la empaquetada en la 0.5.0) sigue funcionando y
+  el panel dice «versión desconocida» (o su `v.nativa` si la anuncia, sin medio ni aparato). Nada se rellena.
+- Solo viaja por el canal de presencia de la cuenta (sus propios aparatos). No se añade al faro ni al
+  `de` del protocolo `sync` (que puede llegar a otras cuentas).
+- Lógica pura: `src/lib/neurons/info-publica.ts` (`formatearInfoNeurona`, `mejorMedio`: de los medios
+  abiertos de una neurona, la app nativa más nueva).
+
+### 9.2 Mensaje `neurona.actualizar.solicitud` (v1)
+
+```
+cuerpo = { t:"neurona.actualizar.solicitud", v:1, id, de, deNombre?, para, cuenta, version?, ts }
+sobre  = wrapSigned(cuerpo)  → { v:2, b:cuerpo, ts, nonce, s, k, f }   (ECDSA P-256 de mesh-identity)
+```
+
+- Sale por dos caminos a la vez: broadcast de la cuenta `neurona:actualizar` (con internet) y el
+  transporte universal, canal `neurona-actualizar` (red local nativa, enlace sin internet, malla de la
+  cuenta…). El receptor descarta el duplicado por `id`.
+- Se acepta SOLO si (`validarSolicitud`, puro, en `src/lib/neurons/pedir-actualizacion.ts`): firma v2
+  válida; `ts` a ±10 min; `nonce` no visto (`acceptFreshness`); `cuenta` = la de esta neurona; `para` =
+  esta neurona y `de` ≠ ella; huella no revocada; y la huella es de esta cuenta según el registro
+  verificado de identidades (`boundAccountFor`: la fila la insertó la propia cuenta, RLS) o, sin internet,
+  la de un vínculo RECORDADO de esta cuenta. Si el registro dice otra cuenta, el vínculo no la salva.
+- Aceptado: evento `starseed:buscar-actualizacion` → la ventana «Hay una versión nueva» de ESA neurona
+  mira ya (ignora «ya vista») y, si su canal tiene la versión, se abre con «Te lo pide «X»: tú decides si se
+  instala». Nunca instala sola; el updater de Tauri sigue verificando la firma minisign de la versión.
+- Neuronas que no lo entienden (sin `pa: 1` en su presencia): no se ofrece el botón; se dice que la abran y
+  la actualicen desde la Librería (o instalen la nueva encima).
+
+### 9.3 Dónde se ve
+
+| Dónde | Qué |
+|---|---|
+| Ajustes › Neuronas (`neurons-panel.tsx`) | tarjeta «Esta neurona» (`esta-neurona.tsx`) y, en cada neurona, `VersionNeurona` |
+| Mensajes › Neuronas (detalle del chat, `hilo-neurona.tsx`) | `VersionNeurona` bajo la cabecera, solo para neuronas de tu cuenta |
+
+### 9.4 Pruebas y lo que necesita dos aparatos
+
+- `npx vitest run src/lib/neurons/__tests__/info-publica.test.ts src/lib/neurons/__tests__/pedir-actualizacion.test.ts
+  src/components/neurons/__tests__/version-neurona.test.tsx` (firmas ECDSA reales: dueño equivocado, huella
+  de otra cuenta, cuerpo cambiado tras firmar, firma de otro sobre, caducada, revocada, sin firma).
+- A mano: dos aparatos de la misma cuenta, uno con la app atrasada → en el otro, «Pedir actualización» →
+  en el atrasado sale su ventana con «Te lo pide…»; probar también sin internet en la misma red (app nativa)
+  y que una cuenta distinta no consiga abrir nada.

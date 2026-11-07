@@ -31,6 +31,7 @@ import { medirSenales, firmaSenales, type SenalesMedio } from "@/lib/neurons/sen
 import { CLAVE_FUSIONES, EVENTO_FUSIONES } from "@/lib/neurons/fusion-alias";
 import type { VersionesPorCapa } from "@/lib/actualizaciones/capas";
 import { firmaVersiones } from "@/lib/actualizaciones/versiones-capa";
+import type { InfoPublicaNeurona } from "@/lib/neurons/info-publica";
 
 export const CLAVE_CANAL_NEURONAS = "starseed.neuronas.canal.v1";
 const MIN_REENVIO_MS = 15_000;
@@ -56,6 +57,11 @@ export interface PresenciaMedio {
   s: SenalesMedio;
   /** (2026-10-10) Versión de cada capa que tiene este medio (lib/actualizaciones/versiones-locales.ts). */
   v?: VersionesPorCapa;
+  /**
+   * (VER1107B) Medio, app, sistema operativo y aparato de este medio (`lib/neurons/info-publica.ts`).
+   * Opcional: las webs anteriores no lo mandan y el panel dice «versión desconocida».
+   */
+  d?: InfoPublicaNeurona;
 }
 
 export interface EstadoPresencia {
@@ -142,6 +148,12 @@ async function anuncio(): Promise<PresenciaMedio | null> {
     } catch {
       v = undefined;
     }
+    let d: InfoPublicaNeurona | undefined;
+    try {
+      d = (await (await import("@/lib/neurons/info-publica")).infoPublicaDeEsteMedio()) ?? undefined;
+    } catch {
+      d = undefined;
+    }
     let plataforma: string | undefined;
     try {
       const ua = navigator.userAgent || "";
@@ -161,6 +173,7 @@ async function anuncio(): Promise<PresenciaMedio | null> {
       t: Date.now(),
       s,
       ...(v && Object.keys(v).length ? { v } : {}),
+      ...(d ? { d } : {}),
     };
   } catch {
     return null;
@@ -171,7 +184,7 @@ async function enviar(forzar = false): Promise<void> {
   if (!canal) return;
   const a = await anuncio();
   if (!a || !canal) return;
-  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}`;
+  const firma = `${a.n}|${a.visible ? 1 : 0}|${firmaSenales(a.s)}|${a.v ? firmaVersiones(a.v) : ""}|${a.d ? JSON.stringify(a.d) : ""}`;
   const ahora = Date.now();
   if (!forzar && firma === ultimaFirma) return;
   if (!forzar && ahora - ultimoEnvio < MIN_REENVIO_MS) {

@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { ACENTO, pildoraFantasma } from "@/components/messages/marco/estilos";
 import { PastillaVia, type PendienteVia } from "@/components/messages/medios/pastilla-via";
 import { BloqueMedioTransmision } from "@/components/messages/medios/bloque-medio";
+import { VersionNeurona } from "@/components/neurons/version-neurona";
 import { IconoNeurona } from "@/components/messages/neuronas/icono-neurona";
 import { SeparadorDia } from "@/components/messages/dm/separador-dia";
 import { formatearHora } from "@/components/messages/dm/utilidades-hilo";
@@ -256,6 +257,15 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
                     </button>
                 )}
             </header>
+
+            {/* (VER1107B) Versión, medio y aparato de esta neurona de tu cuenta, con «Pedir actualización». */}
+            {conversacion.propia && conversacion.destino.neuronDeviceId && (
+                <VersionNeurona
+                    neuronaId={conversacion.destino.neuronDeviceId}
+                    nombre={conversacion.nombre}
+                    className="shrink-0 border-b border-white/[0.06] px-3 py-1.5 sm:px-4"
+                />
+            )}
 
             {enEspera > 0 && (
                 <div className="shrink-0 px-3 pt-2 sm:px-4">
