@@ -42,8 +42,7 @@ kind (inválido → local/llm) y filtro por tipo.
 ## Pendiente / próximos pasos
 - **Instalación completa de la app del OS** para modelos locales fuera del navegador (hoy se
   descargan los de navegador WebGPU/WASM; los de Ollama/LM Studio requieren el servidor local).
-- Persistir la cola entre recargas duras (hoy sobrevive a la navegación SPA; el estado instalado sí
-  persiste siempre).
+- ✅ **Persistir la cola entre recargas duras** — hecho en CTR1106D (`2824c35e3b`: `localStorage` `starseed.model-downloads.v1`, tope de 20 terminadas, lo interrumpido sale como error).
 - Probar/configurar el modelo propio desde la ficha (ping al endpoint/MCP) y auto-adaptar
   personalidades al terminar la descarga.
 
