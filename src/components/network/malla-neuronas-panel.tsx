@@ -538,8 +538,10 @@ function VinculoRowItem({ v, peer }: { v: VinculoRow; peer?: PeerVinculo }) {
   useEffect(() => {
     let cancelado = false;
     if (v.estado === "aceptado" && v.dePub && v.aPub) {
+      const dePub = v.dePub;
+      const aPub = v.aPub;
       (async () => {
-        const codigo = await codigoSeguridad(v.dePub, v.aPub);
+        const codigo = await codigoSeguridad(dePub, aPub);
         if (!cancelado) setCodigoSeguridadVinculo(codigo);
       })();
     }

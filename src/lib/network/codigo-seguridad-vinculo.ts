@@ -82,10 +82,9 @@ export async function codigoSeguridad(pubA: JsonWebKey, pubB: JsonWebKey): Promi
     const bytes = new Uint8Array(digest);
     const grupos: string[] = [];
     for (let i = 0; i < 5; i++) {
-      // bytes 5i .. 5i+4 (5 bytes = 40 bits) leídos como entero big-endian sin signo
       let val = 0;
       for (let j = 0; j < 5; j++) {
-        val = (val << 8) | bytes[5 * i + j];
+        val = val * 256 + bytes[5 * i + j];
       }
       grupos.push((val % 10000).toString().padStart(4, "0"));
     }
