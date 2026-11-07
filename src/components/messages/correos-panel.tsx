@@ -89,6 +89,30 @@ import { useEsMovil } from "@/components/messages/marco/use-es-movil";
 import { describirSilencio } from "@/components/messages/marco/formato-tiempo";
 import { ACENTO, CLASE_ROTULO, pildoraFantasma } from "@/components/messages/marco/estilos";
 const DialogoAjustesHilo = dynamic(() => import("@/components/messages/marco/dialogo-ajustes-hilo").then((m) => m.DialogoAjustesHilo), { ssr: false });
+// (GRP1107A) Correos guardados y reenviados por la malla (sin internet o sin buzón).
+const BandejaCorreosMalla = dynamic(() => import("@/components/messages/correos-malla").then((m) => m.BandejaCorreosMalla), { ssr: false });
+
+/** (GRP1107A) ¿Hay red? (`navigator.onLine`; sin navegador se da por buena). */
+function enLinea(): boolean {
+    return typeof navigator === "undefined" || navigator.onLine !== false;
+}
+
+/**
+ * (GRP1107A) Guarda el correo cifrado y lo manda por la malla (guardar y reenviar). Los adjuntos
+ * no viajan por aquí (se dice). Devuelve el aviso para la persona o el error.
+ */
+async function enviarPorMalla(o: { para: OsProfile[]; asunto: string; cuerpo: string; conAdjuntos: boolean }): Promise<{ ok: boolean; texto: string }> {
+    if (o.conAdjuntos) return { ok: false, texto: "Sin el buzón, los adjuntos no viajan en un correo: quítalos o mándalos por el chat o la pestaña «Neuronas» (van por la malla)." };
+    try {
+        const { motorCorreoMalla } = await import("@/lib/mail/correo-malla-motor");
+        const { textoEstadoCorreo } = await import("@/lib/mail/correo-malla");
+        const r = await motorCorreoMalla().enviar({ para: o.para.map((p) => ({ uid: p.userId, nombre: p.displayName })), asunto: o.asunto, cuerpo: o.cuerpo });
+        if (!r.ok || !r.correo) return { ok: false, texto: r.motivo ?? "No se pudo guardar el correo para la malla." };
+        return { ok: true, texto: `${textoEstadoCorreo(r.correo)}.${r.correo.aviso ? ` ${r.correo.aviso}` : ""}` };
+    } catch {
+        return { ok: false, texto: "No se pudo guardar el correo para la malla." };
+    }
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -426,6 +450,29 @@ function ComposeDialog({
 
         if (!recipients.length) { setError("Añade al menos un destinatario."); setConfirmando(false); return; }
         setSending(true);
+        // (GRP1107A) Sin red: se guarda cifrado y viaja por la malla (guardar y reenviar).
+        const porMalla = async (): Promise<boolean> => {
+            const asunto = isForward ? `Fwd: ${forwardSeed!.subject.replace(/^\s*(Fwd:\s*)+/i, "")}` : subject;
+            const cuerpo = isForward ? `${note.trim() ? note.trim() + "\n\n" : ""}--- Mensaje reenviado ---\n${forwardSeed!.body}` : body;
+            const conAdjuntos = isForward ? (forwardSeed!.attachments?.length ?? 0) > 0 : attachments.length > 0;
+            const r = await enviarPorMalla({ para: recipients, asunto, cuerpo, conAdjuntos });
+            if (!r.ok) {
+                setError(r.texto);
+                return false;
+            }
+            toast.success(r.texto);
+            onOpenChange(false);
+            return true;
+        };
+        if (!enLinea()) {
+            try {
+                await porMalla();
+            } finally {
+                setSending(false);
+                setConfirmando(false);
+            }
+            return;
+        }
         try {
             const res = isForward
                 ? await forwardMail({
@@ -444,7 +491,15 @@ function ComposeDialog({
                     attachments: attachments as unknown as DmAttachment[],
                 });
             if (res.needsAuth) { setError("Inicia sesión para enviar."); return; }
-            if (!res.ok || !res.threadId) { setError(res.error || "No se pudo enviar el correo."); return; }
+            if (!res.ok || !res.threadId) {
+                // (GRP1107A) El buzón no responde (red cautiva, caída…): no se pierde, va por la malla.
+                if (!enLinea() || /fetch|network|red|conexi/i.test(res.error ?? "")) {
+                    await porMalla();
+                    return;
+                }
+                setError(res.error || "No se pudo enviar el correo.");
+                return;
+            }
             toast.success("Correo enviado.");
             onOpenChange(false);
             onSent(res.threadId);
@@ -1066,6 +1121,8 @@ export function CorreosPanel({ userId, enfocado = false, onAlternarEnfoque, onAb
     const [etiqueta, setEtiqueta] = useState<string | null>(null);
     const [menuAbierto, setMenuAbierto] = useState<string | null>(null);
     const [ajustesDe, setAjustesDe] = useState<{ id: string; titulo: string } | null>(null);
+    // (GRP1107A) Los correos del buzón que llegaron antes por la malla (para no enseñarlos dos veces).
+    const mallaIdsServidor = useMemo(() => threads.map((t) => t.mallaId).filter((x): x is string => !!x), [threads]);
 
     // Los avisos leen SIEMPRE los ajustes más recientes (sin recrear `load`).
     const ajRef = useRef(aj);
@@ -1358,6 +1415,8 @@ export function CorreosPanel({ userId, enfocado = false, onAlternarEnfoque, onAb
                         </span>
                     </div>
                 )}
+
+                {userId && <BandejaCorreosMalla mallaIdsServidor={mallaIdsServidor} />}
 
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-16 text-center text-white/55" role="status">

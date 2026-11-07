@@ -42,13 +42,14 @@ export interface EnlaceParaMedio {
  *  · Neuronas: lo más directo primero (sin internet → red local → internet → servidores).
  *  · Chats y grupos: el servidor primero, porque guarda el historial compartido; la malla, si
  *    no hay internet o si la persona lo elige.
- *  · Correos: solo el buzón @star.seed.
+ *  · Correos: el buzón @star.seed primero; sin él (GRP1107A), guardar y reenviar por la malla
+ *    (`src/lib/mail/correo-malla.ts`).
  */
 export const ORDEN_AUTO: Record<TipoChatMedio, MedioTransmision[]> = {
     neurona: ["local", "wifi-local", "bluetooth", "p2p-internet", "turn", "servidor", "rele", "lora"],
     dm: ["servidor", "local", "wifi-local", "bluetooth", "p2p-internet", "turn"],
     grupo: ["servidor", "local", "wifi-local", "bluetooth", "p2p-internet", "turn"],
-    correo: ["correo"],
+    correo: ["correo", "local", "wifi-local", "p2p-internet", "turn"],
 };
 
 /** Por qué un tipo de chat no usa ciertos medios (para decirlo en los ajustes). */
@@ -56,7 +57,7 @@ export const NO_ADMITIDOS: Record<TipoChatMedio, string> = {
     neurona: "El buzón @star.seed es para correos.",
     dm: "LoRa y el relé cifrado aún necesitan la radio o la identidad cifrada de la otra persona; el correo va en Correos.",
     grupo: "LoRa y el relé cifrado aún necesitan la radio o la identidad cifrada de cada miembro; el correo va en Correos.",
-    correo: "Los correos aún solo viajan por el buzón @star.seed del servidor.",
+    correo: "LoRa, Bluetooth y el relé no llevan correos. Sin el buzón, el correo se guarda cifrado en este aparato y viaja por la malla a la neurona del destinatario o a una tuya que lo sube al buzón al tener internet.",
 };
 
 export function mediosAdmitidos(tipo: TipoChatMedio): MedioTransmision[] {

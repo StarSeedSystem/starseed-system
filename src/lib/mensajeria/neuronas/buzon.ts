@@ -819,10 +819,16 @@ export function iniciarBuzonMalla(): () => void {
             if (activo) bajas.push(a.iniciarArchivosNeurona());
         })
         .catch(() => undefined);
-    // (GRP1107A) Timbres de llamadas de grupo sin internet (por cada enlace).
+    // (GRP1107A) Timbres de llamadas de grupo sin internet (por cada enlace) y correos por la malla
+    // (guardar y reenviar: recibir, acusar, subir al buzón al volver la red).
     void import("@/lib/llamadas/grupo-malla-motor")
         .then((g) => {
             if (activo) bajas.push(g.iniciarGrupoMalla());
+        })
+        .catch(() => undefined);
+    void import("@/lib/mail/correo-malla-motor")
+        .then((c) => {
+            if (activo) bajas.push(c.iniciarCorreoMalla());
         })
         .catch(() => undefined);
     void asegurarOyentesCuenta();

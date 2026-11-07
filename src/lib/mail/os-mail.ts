@@ -81,6 +81,8 @@ export interface MailThreadSummary {
     lastMessage: DmMessage | null;
     unread: boolean;
     flags: MailFlags;
+    /** (GRP1107A) Id del correo que viajó antes por la malla (para no enseñarlo dos veces). */
+    mallaId?: string;
 }
 
 export interface MailThreadDetail {
@@ -271,6 +273,7 @@ export async function listMailThreads(folder: MailFolder): Promise<MailThreadSum
                     lastMessage: last,
                     unread,
                     flags: { starred: !!myFlags.starred, archived: !!myFlags.archived },
+                    ...(typeof meta.mallaId === "string" ? { mallaId: meta.mallaId } : {}),
                 } as MailThreadSummary;
             })
             .sort((a, b) => new Date(b.lastMsgAt).getTime() - new Date(a.lastMsgAt).getTime());
@@ -326,6 +329,11 @@ export async function composeMail(params: {
     subject: string;
     body: string;
     attachments?: DmAttachment[];
+    /**
+     * (GRP1107A) Id del correo guardado y reenviado por la malla: si ya hay un hilo tuyo con él,
+     * no se crea otro (subirlo dos veces —desde este aparato y desde una neurona de relevo— no lo duplica).
+     */
+    mallaId?: string;
 }): Promise<ComposeMailResult> {
     const uid = await getCurrentUserId();
     if (!uid) return { ok: false, needsAuth: true };
@@ -335,6 +343,25 @@ export async function composeMail(params: {
     const subject = params.subject.trim() || "(sin asunto)";
     try {
         const supabase = createClient();
+        if (params.mallaId) {
+            const { data: previo } = await supabase
+                .from("os_dm_threads")
+                .select("id")
+                .eq("created_by", uid)
+                .eq("meta->>mallaId", params.mallaId)
+                .limit(1)
+                .maybeSingle();
+            const id = (previo as { id?: string } | null)?.id;
+            if (id) {
+                // Si la vez anterior se cortó entre crear el hilo y guardar el mensaje, se completa aquí.
+                const { data: hay } = await supabase.from("os_dm_messages").select("id").eq("thread_id", id).limit(1).maybeSingle();
+                if (!hay) {
+                    const enviado = await sendMessage(id, { body: params.body || "", attachments: params.attachments || [] });
+                    if (!enviado) return { ok: false, error: "El correo ya estaba creado pero no se pudo guardar su mensaje." };
+                }
+                return { ok: true, threadId: id };
+            }
+        }
         const { data: threadRow, error } = await supabase
             .from("os_dm_threads")
             .insert({
@@ -347,6 +374,7 @@ export async function composeMail(params: {
                     creatorId: uid,
                     flags: {},
                     readMarks: { [uid]: new Date().toISOString() },
+                    ...(params.mallaId ? { mallaId: params.mallaId } : {}),
                 },
             })
             .select("*")
