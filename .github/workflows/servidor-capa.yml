@@ -1,0 +1,101 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# StarSeed OS · capa del servidor local en cada publicación de la web (CAP1107A · T1, 2026-11-07)
+# ---------------------------------------------------------------------------
+# Petición de Alex (10-10): «según el cambio se reinician los servidores dentro de la app sin
+# reinstalarla». Las apps de escritorio sirven las páginas de SU servidor local
+# (architecture/apps-autonomas-sin-internet.md); con esto, cada publicación de la web (push a main que
+# toca la web) compila el mismo `next build` que native-build.yml (STARSEED_APP_NATIVA=1), lo arma como
+# capa, la FIRMA con la clave del updater y la deja en el canal fijo (Release `servidor-local`,
+# `latest-servidor.json`). Las apps la bajan solas, la verifican y la usan al siguiente arranque o con
+# «Actualizar ahora» (reinicia solo el Node), con vuelta atrás si no pasa la salud.
+#
+# APAGADO por defecto: solo corre con la variable del repo SERVIDOR_CAPAS_CANAL=1 (Settings → Secrets
+# and variables → Actions → Variables) o a mano (workflow_dispatch; sin «publicar», solo arma y firma).
+# Un build a la vez; si llegan varios pushes mientras compila, solo se hace el último.
+# ═══════════════════════════════════════════════════════════════════════════
+
+name: StarSeed · capa del servidor local
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.ts"
+      - "middleware.ts"
+      - "native/servidor-local/**"
+  workflow_dispatch:
+    inputs:
+      publicar:
+        description: "Publicar en el canal fijo (si no, solo se arma y se firma)"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: servidor-capa
+  cancel-in-progress: false
+
+jobs:
+  capa:
+    name: capa del servidor local (next build + firma)
+    if: ${{ vars.SERVIDOR_CAPAS_CANAL == '1' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      OPENUI_TELEMETRY_DISABLED: "1"
+      DO_NOT_TRACK: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Comprobar variables públicas del build
+        env:
+          URL_SUPABASE: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          ANON_SUPABASE: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$URL_SUPABASE" ] || [ -z "$ANON_SUPABASE" ]; then
+            echo "::error::Faltan las variables del repo NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY: no hay capa."
+            exit 1
+          fi
+      - name: Instalar dependencias
+        run: npm ci
+      # Igual que `servidor-local-next` de native-build.yml: la app no lleva /api/mando/** (solo vive en la Mac).
+      - name: Quitar del build nativo lo que solo vive en la Mac
+        run: node native/servidor-local/solo-mac.mjs
+      - name: next build (standalone, para la app)
+        run: npm run prebuild && npx next build
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+          NEXT_TELEMETRY_DISABLED: "1"
+          STARSEED_APP_NATIVA: "1"
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      - name: Empaquetar standalone + static + public
+        run: |
+          test -f .next/standalone/server.js
+          rm -f .next/standalone/.env .next/standalone/.env.*
+          tar -cf servidor-next.tar .next/standalone .next/static public
+      - name: Armar, firmar y publicar la capa
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # "1" solo en un push con la variable puesta, o a mano marcando «publicar».
+          PUBLICAR_CANAL: ${{ ((vars.SERVIDOR_CAPAS_CANAL == '1' && github.event_name == 'push') || inputs.publicar) && '1' || '0' }}
+        run: bash native/servidor-local/publicar-capa.sh servidor-next.tar
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: servidor-capa
+          path: dist-capa/
+          retention-days: 7
+          if-no-files-found: ignore

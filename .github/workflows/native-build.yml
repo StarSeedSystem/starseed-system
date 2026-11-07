@@ -28,6 +28,12 @@
 # falla, el instalador sale igual SIN servidor local (abre la web publicada, como antes).
 # Contrato: architecture/apps-autonomas-sin-internet.md.
 #
+# CAPAS DEL SERVIDOR (CAP1107A · T1, 2026-11-07): con ese mismo build, el job `servidor-capa` arma una
+# CAPA (`servidor-capa-<build>.tar.gz` + su manifiesto FIRMADO con la clave del updater) y la adjunta al
+# release; con la variable del repo SERVIDOR_CAPAS_CANAL=1 la publica además en el canal fijo
+# (Release `servidor-local`, `latest-servidor.json`) que miran las apps instaladas: lo nuevo llega sin
+# reinstalar. Lo mismo en cada publicación de la web: .github/workflows/servidor-capa.yml.
+#
 # Todo vive en `native/` del repo del OS. Como los tres sistemas comparten el
 # mismo binario `starseed-native`, cada uno se construye con su `-c ...conf.json`
 # y su icono, regenerando `native/src-tauri/icons/` antes de cada build.
@@ -329,6 +335,38 @@ jobs:
               echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"
             done
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CAPA DEL SERVIDOR LOCAL (CAP1107A · T1). El mismo build de Next que llevan los instaladores, como
+  # capa firmada: se adjunta al release (borrador) y, con vars.SERVIDOR_CAPAS_CANAL == '1', va también
+  # al canal fijo `servidor-local` que miran las apps ya instaladas (≥ APP_MINIMA de capa.mjs). Espera a
+  # los instaladores (el release ya existe) y no los frena: `continue-on-error`. Sin el secreto
+  # TAURI_SIGNING_PRIVATE_KEY no firma ni publica nada. native/servidor-local/publicar-capa.sh
+  # ═══════════════════════════════════════════════════════════════════════════
+  servidor-capa:
+    name: servidor local · capa firmada (sin reinstalar)
+    needs: [servidor-local-next, build-desktop]
+    if: ${{ !cancelled() && needs.servidor-local-next.result == 'success' }}
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Descargar el build de Next
+        uses: actions/download-artifact@v4
+        with:
+          name: servidor-local-next
+          path: .servidor-local
+      - name: Armar, firmar y publicar la capa
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          PUBLICAR_CANAL: ${{ vars.SERVIDOR_CAPAS_CANAL }}
+        run: bash native/servidor-local/publicar-capa.sh .servidor-local/servidor-next.tar "${{ inputs.etiqueta || (github.ref_type == 'tag' && github.ref_name) || format('native-{0}', github.run_number) }}"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # CANALES DE ACTUALIZACIÓN por sistema (2026-10-09). tauri-action solo sabe
