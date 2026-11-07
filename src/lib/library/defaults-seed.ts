@@ -74,7 +74,7 @@ export const SEED_KEY = "starseed.library.seed.v1";
  * TODAS las cuentas (incluidas las existentes): al arrancar, si la versión
  * sembrada del dispositivo/cuenta es menor, se aplicará el delta de novedades.
  */
-export const SEED_VERSION = 25;
+export const SEED_VERSION = 26;
 
 /* ─────────────────────── Conjunto RECOMENDADO ───────────────────────
  * Ids REALES definidos en packages.ts (repos builtin starseed-core/labs).
@@ -430,6 +430,14 @@ const IDS_SIEMBRA_1020D: string[] = [
  * (módulo puro `repos-1104.ts`; contrato architecture/repos-libreria-1104.md), y keepalive (Ola 1101),
  * que estaba en el catálogo pero nunca entró en esta unión. Instalar SOLO registra el enlace; lo
  * nativo de cada uno lo cablea la Ola 1104R.
+ *
+ * (SEED_VERSION 26 · Ola 1028 · LNN1028I2 · parte 2 de 3) REMACHO DE LA TANDA 1028: con LEANN ya
+ * en el catálogo (parte 1) y siguiendo su repo en las actualizaciones (parte 3), la siembra vuelve
+ * a subir la versión —sin ids nuevos: `lib-leann`, sembrado desde la 21, sigue en la unión— para
+ * que TODAS las cuentas y neuronas repasen ensureDefaultsSeeded. Los ya ofrecidos no se vuelven a
+ * instalar; una desinstalada no vuelve. LEANN corre solo en el A1 (127.0.0.1:4495 con token) y la
+ * siembra solo registra su enlace: nada se descarga ni se pide clave. El remacho no toca lo que la
+ * persona ya decidió, como siempre.
  */
 export const RECOMMENDED_PACKAGE_IDS: string[] = Array.from(
   new Set([...RECOMMENDED_HASTA_16, ...IDS_SIEMBRA_1025, ...IDS_SIEMBRA_1026, ...IDS_SIEMBRA_1027, ...IDS_SIEMBRA_1027B, ...IDS_SIEMBRA_1028, ...IDS_SIEMBRA_1020C, ...IDS_SIEMBRA_1020D, ...IDS_SIEMBRA_1101, ...IDS_SIEMBRA_1104]),
@@ -450,7 +458,7 @@ export const RECOMMENDED_FREE_SOURCES: string[] = [
 
 /* ─────────────────────── Estado de la siembra ─────────────────────── */
 
-/** La versión de la siembra incluye ahora a Meta^n y Memvid (1027b). */
+/** La versión de la siembra incluye ahora a LEANN (1028). */
 
 interface SeedState {
   /** Última versión de siembra aplicada en este dispositivo/cuenta. */
