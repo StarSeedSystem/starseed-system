@@ -11,6 +11,15 @@ control profundo" de Aurora.
 > `http://127.0.0.1:47610` y **funciona sin internet**; con internet, `/api/*` sigue yendo a la web publicada.
 > Mientras arranca se ve `arranque/index.html`. Si el instalador no trae el paquete, hace lo de antes (web
 > publicada). Android, iOS, Nexus y Café siguen con su web. Contrato: `architecture/apps-autonomas-sin-internet.md`.
+>
+> **Desde la SEG1107A el servidor local solo atiende a la ventana de la app** (§3.1 del contrato): Host exacto
+> (contra el DNS rebinding) y, en `/api/*`, en lo que no sea GET/HEAD y en los WebSocket, `Origin`/`Sec-Fetch-Site`
+> propios más la cookie del **pase** de ese arranque, que Rust manda al envoltorio por su entrada estándar
+> (`pase:<hex>`) y pone en la ventana entrando por `/__starseed/entrar?t=<pase>`. Para lanzar el envoltorio **a
+> mano** (dentro de la carpeta del servidor): `STARSEED_PUERTO=47610 STARSEED_VIGIA_PADRE=0
+> STARSEED_PASE_VENTANA=$(openssl rand -hex 32) node starseed-arranque.cjs` y abrir
+> `http://127.0.0.1:47610/__starseed/entrar?t=<ese pase>`; sin eso, las páginas se ven pero `/api` responde 403
+> (`{"error":"puerta-local","motivo":"sin-pase",…}`). `preparar.mjs` copia `guarda.cjs` junto al envoltorio.
 
 | Sistema         | Web que carga                          | Icono de origen                                                                 |
 | --------------- | -------------------------------------- | ------------------------------------------------------------------------------- |

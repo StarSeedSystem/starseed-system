@@ -11,6 +11,12 @@
 // (`native/arranque/index.html`, sin red). Si el paquete falta o no arranca, la app hace lo de
 // siempre —abrir la web publicada— y lo dice; sin internet, lo dice y reintenta.
 //
+// (SEG1107A · T11) La ventana entra con un PASE de este arranque de la app: Rust lo genera una vez,
+// se lo da al envoltorio como primera línea de su entrada estándar y lleva la ventana a
+// `/__starseed/entrar?t=<pase>`, que pone la cookie que exige el servidor local para /api/* y para
+// todo lo que cambie estado (`native/servidor-local/guarda.cjs`). Ninguna otra web ni otro programa
+// lo conoce; nunca va al entorno, al registro ni a la web (`servidor_local_estado` no lo incluye).
+//
 // Nada de dependencias nuevas: procesos con std::process, salud con un TcpStream.
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -58,6 +64,9 @@ struct Interno {
     apagando: AtomicBool,
     /// URL de la página de arranque (la del primer momento de la ventana), para volver a ella.
     url_arranque: Mutex<Option<tauri::Url>>,
+    /// (SEG1107A) Pase de la ventana: uno por arranque de la app (se mantiene en los reinicios del
+    /// Node, que no recargan la página). Nunca sale de aquí salvo al envoltorio y a la URL de entrada.
+    pase: String,
 }
 
 fn interno() -> &'static Interno {
@@ -67,6 +76,7 @@ fn interno() -> &'static Interno {
         proceso: Mutex::new(None),
         apagando: AtomicBool::new(false),
         url_arranque: Mutex::new(None),
+        pase: l::pase_nuevo(),
     })
 }
 
@@ -224,7 +234,16 @@ fn lanzar_y_esperar(rutas: &l::RutasPaquete, registro: Option<&File>, preferido:
     }
     escribir_registro(registro, &format!("[servidor-local] lanzando {} en {}", rutas.node.display(), l::origen_local(puerto)));
     let mut hijo = cmd.spawn().map_err(|e| format!("No se pudo lanzar el Node de la app: {e}"))?;
-    let entrada = hijo.stdin.take();
+    let mut entrada = hijo.stdin.take();
+    // (SEG1107A) El pase de la ventana, primera línea de la entrada estándar (que sigue abierta:
+    // es también la señal de que la app vive). Sin él, el servidor no atiende /api ni cambios.
+    let pase_enviado = entrada
+        .as_mut()
+        .map(|e| e.write_all(l::linea_pase(&interno().pase).as_bytes()).and_then(|_| e.flush()).is_ok())
+        .unwrap_or(false);
+    if !pase_enviado {
+        escribir_registro(registro, "[servidor-local] no se pudo pasar el pase de la ventana al servidor local");
+    }
     if let Ok(mut p) = interno().proceso.lock() {
         *p = Some(Proceso { hijo, entrada });
     }
@@ -327,8 +346,9 @@ fn avisar(app: &AppHandle, fase: &str, mensaje: &str) {
 }
 
 /// Lleva la ventana al servidor local, salvo que ya esté en ese origen (un reinicio en el mismo
-/// puerto no recarga la página: la persona no pierde lo que tenía abierto). Si toca traer los datos
-/// de la versión anterior (APP1107B · T4), entra por la página importadora, que luego va a `/`.
+/// puerto no recarga la página: la persona no pierde lo que tenía abierto, y la cookie del pase
+/// sigue valiendo porque el pase es del arranque de la app). Si toca traer los datos de la versión
+/// anterior (APP1107B · T4), entra por la página importadora, que luego va a `/`.
 fn navegar_si_hace_falta(app: &AppHandle, puerto: u16) {
     let Some(v) = app.get_webview_window("main") else { return };
     if let Ok(actual) = v.url() {
@@ -336,11 +356,9 @@ fn navegar_si_hace_falta(app: &AppHandle, puerto: u16) {
             return;
         }
     }
-    let destino = if crate::migracion_origen::ir_al_importador() {
-        format!("{}{}", l::origen_local(puerto), crate::migracion_origen::ruta_importador())
-    } else {
-        l::url_local(puerto)
-    };
+    // (SEG1107A) Siempre por la entrada: pone la cookie del pase y redirige a la ruta.
+    let ruta = if crate::migracion_origen::ir_al_importador() { crate::migracion_origen::ruta_importador() } else { "/" };
+    let destino = l::url_entrada(puerto, &interno().pase, ruta);
     if let Ok(url) = tauri::Url::parse(&destino) {
         let _ = v.navigate(url);
     }

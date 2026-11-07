@@ -1,4 +1,4 @@
-# Apps autónomas sin internet: el servidor local dentro de la app (contrato · APP1107A + APP1107B · 2026-11-07)
+# Apps autónomas sin internet: el servidor local dentro de la app (contrato · APP1107A + APP1107B + SEG1107A · 2026-11-07)
 
 **Petición de Alex (07-11):** «Las apps instaladas dejan de funcionar cuando se pierde la conexión a internet,
 cuando deberían ser completamente autónomas e independientes, sin necesidad de ningún tipo de conexión, todo
@@ -32,6 +32,7 @@ visitado antes podía salir del service worker, nada más). Nexus y Café, igual
 | Traer al servidor local lo que la app tenía en el origen de la web publicada (localStorage + IndexedDB), una vez y sin pisar nada (T4) | ESCRITO SIN PUBLICAR (APP1107B, §2.1) · pruebas puras (Rust y JS) + IndexedDB de mentira + **probado en Linux con la app real** (Tauri 2.12.5 + WebKitGTK, Xvfb, la «web» en otro origen); falta macOS y Windows (T12) |
 | Permisos de los comandos propios para la web (tauri ≥ 2.11.1 los rechaza desde un origen remoto sin ellos) | ESCRITO SIN PUBLICAR (APP1107B, §3) · comprobado en Linux: con el código de main, `servidor_local_estado`, `device_info` y `antenas_estado` desde `127.0.0.1:47610` → «not allowed»; con APP1107B responden |
 | La app sin lo que solo vive en la Mac (`/api/mando/**`) (T8) | ESCRITO SIN PUBLICAR (APP1107B, §5 y §6) |
+| El servidor local solo atiende a la ventana de la app: ni otras webs del navegador, ni DNS rebinding, ni otros programas sin el pase, ni el puerto interno de Next (T11) | HECHO (SEG1107A, §3.1: guarda del envoltorio + pase de Rust + pruebas) · probado con un Next 15.5.21 real, WebKitGTK 2.52, Chromium y la app real (Tauri debug, Linux); llega con el próximo lanzamiento nativo; falta verlo en macOS y Windows (con T12) |
 
 ---
 
@@ -45,7 +46,10 @@ Ventana «main»
         ▼
 starseed-node  starseed-arranque.cjs      (Node oficial 22.23.4, externalBin junto al ejecutable)
   · escucha SOLO en 127.0.0.1:<puerto fijo>
-  · GET /__starseed/salud  → {servidor, firma, listo, red}      (lo lee Rust)
+  · ANTES de repartir, la guarda (guarda.cjs · SEG1107A, §3.1): Host exacto; en /api/*, en lo que no
+    sea GET/HEAD y en los WebSocket, Origin/Sec-Fetch-Site propios + la cookie del PASE de Rust
+  · GET /__starseed/entrar?t=<pase>&a=<ruta> → cookie starseed_pase (HttpOnly; Strict) + 303
+  · GET /__starseed/salud  → {servidor, firma, listo, red, pase, interna}      (lo lee Rust)
   · GET /__starseed/red    → {red: en-linea|sin-conexion|…}       (lo lee el aviso de la web)
   · /api/*  con internet   → https://starseed-os.vercel.app (reenvío; cookies adaptadas a 127.0.0.1)
   · /api/*  sin internet   → Next local (si la web no contesta, la petición se repite en local, ≤ 8 MB)
@@ -62,6 +66,7 @@ server.js de Next (standalone) en 127.0.0.1:<puerto interno al azar>
 | Pegamento con Tauri (lanzar, vigilar, navegar, apagar, comando `servidor_local_estado`) | `native/src-tauri/src/servidor_local.rs` |
 | Registro (3 líneas: `mod`, `iniciar` en `setup`, `apagar` en `RunEvent::Exit`) | `native/src-tauri/src/lib.rs` |
 | Envoltorio Node (puerta, reenvío, vigía del padre) | `native/servidor-local/starseed-arranque.cjs` |
+| Guarda del envoltorio (Host, Origin/Sec-Fetch-Site, pase, CORS, Next interno) — lógica pura, 19 pruebas (SEG1107A · T11) | `native/servidor-local/guarda.cjs` (pruebas: `__tests__/guarda.test.cjs`) |
 | Armado del paquete (CI) y Node fijado | `native/servidor-local/preparar.mjs`, `native/servidor-local/node.json` |
 | Página de arranque | `native/arranque/index.html` (`build.frontendDist`) |
 | Migración del origen web (T4): lógica pura del navegador (qué claves, códec de IndexedDB, fusión, página importadora) | `native/servidor-local/migracion-origen.js` (pruebas: `src/lib/nativa/__tests__/migracion-origen.test.ts`) |
@@ -194,7 +199,9 @@ propios responden desde `127.0.0.1` y `migracion_origen_exportar` se rechaza des
   `preparar.mjs` no copia ningún `.env` del standalone y falla si queda uno. Lo que necesita claves del
   servidor se reenvía a la web publicada cuando hay internet.
 - **Firma por arranque**: Rust genera 128 bits al azar, se los pasa al Node y solo lleva la ventana al puerto si
-  `/__starseed/salud` devuelve esa firma. Otro programa en ese puerto = «ajeno»: no se navega ahí nunca.
+  `/__starseed/salud` devuelve esa firma. Otro programa en ese puerto = «ajeno»: no se navega ahí nunca. La firma
+  es pública (cualquiera que pregunte a la salud la ve); lo que demuestra «soy la ventana de la app» es el PASE
+  (§3.1), que no sale nunca por la salud.
 - **Capabilities**: los diez orígenes exactos (no `127.0.0.1:*`) reciben los mismos permisos que la web
   publicada. Límite honesto: otro usuario de la MISMA máquina que ocupe uno de esos puertos mientras el nuestro
   está caído podría servir una página a la ventana si esta recarga sola en ese hueco; Rust no navega ahí (firma),
@@ -219,13 +226,90 @@ propios responden desde `127.0.0.1` y `migracion_origen_exportar` se rechaza des
   abriría sin sesión en el servidor local (sin red, `/api` va a Next local). El build nativo lo quita (§5) y el
   envoltorio responde 404 a `/api/mando` (normalizando `//`, `.`/`..`, `%xx` y mayúsculas) aunque estuviera.
 
+### 3.1 Guarda contra otras webs, DNS rebinding y otros programas (T11 · SEG1107A · HECHO)
+
+**Riesgo.** El servidor local escucha en `127.0.0.1:4761x`. Cualquier web abierta en un navegador de la misma
+máquina puede mandarle peticiones (un `POST` «simple», un `<form>`, un `<img>`, `sendBeacon`) aunque no pueda leer
+la respuesta; un dominio que resuelva a 127.0.0.1 (DNS rebinding) podría además leerla; y sin red `/api/*` va al
+Next local, donde varias rutas se abren sin sesión a «esta máquina» (`esDespliegueLocal`: voz, recursos de IA,
+conocimiento…). El Next de dentro escucha además en otro puerto al azar que una web podría encontrar probando.
+
+**Qué hace** (`native/servidor-local/guarda.cjs`, lógica pura; el envoltorio la aplica ANTES de repartir):
+
+| Petición | Regla | Si no |
+|---|---|---|
+| Cualquiera | `Host` exacto `127.0.0.1:<puerto>` o `localhost:<puerto>`; la ruta empieza por `/` | 421 `host-ajeno` (rebinding) / 400 |
+| `/api/*` (cualquier método), todo lo que no sea GET/HEAD (también server actions, route handlers fuera de `/api` y `OPTIONS`) y todo «upgrade» (WebSocket) | `Origin`, si viene, = el origen local exacto; `Sec-Fetch-Site`, si viene, `same-origin` o `none`; y la cookie `starseed_pase` = el pase de este arranque | 403 `origen-ajeno` / `sitio-ajeno` / `sin-pase` / `pase-malo` / `sin-pase-configurado` |
+| GET/HEAD fuera de `/api` (páginas, `/_next/static`, `public`, `/__starseed/salud`…) | Pasan; si vienen de otro sitio, solo la navegación de la pestaña entera (un enlace, la vuelta de OAuth a `/auth/callback`) | 403 `recurso-ajeno` (`<script>`, `<img>`, fetch) / `marco-ajeno` (`<iframe>`) |
+| `GET /__starseed/entrar?t=<pase>&a=<ruta>` | Con el pase: `Set-Cookie: starseed_pase=…; Path=/; HttpOnly; SameSite=Strict` y 303 a la ruta (solo del mismo origen) | 403 |
+
+La ruta se decide normalizada (`%xx` hasta tres veces, `\`, `//`, `.`/`..`, mayúsculas): ante la duda, se trata
+como `/api`. Un rechazo es un JSON `{error: "puerta-local", motivo, mensaje}` con `x-starseed-guarda: <motivo>`,
+sin caché y sin nada de la petición. Las navegaciones de la app no cambian: la primera carga, recargas, enlaces
+internos, RSC, estáticos, el service worker, `/__starseed/red` y la página de migración pasan sin más.
+
+**El pase.** Rust genera 256 bits al azar UNA vez por arranque de la app (`pase_nuevo`, dos mitades de SipHash con
+claves del generador del sistema, cada una en su hilo), los escribe como primera línea de la entrada estándar del
+Node (`pase:<hex>`; la tubería sigue abierta como vigía del padre) y lleva la ventana a
+`/__starseed/entrar?t=<pase>&a=/` (o `a=/__starseed/migracion`, T4). Nunca va al entorno del proceso (el envoltorio
+borra además `STARSEED_PASE_VENTANA`, que solo existe para pruebas a mano), ni al registro, ni a
+`servidor_local_estado`, ni a la web publicada (se quita de la cookie al reenviar `/api`). Un reinicio del Node
+recibe el MISMO pase: la página no se recarga y la cookie sigue valiendo. «listo» espera también al pase (tope 3 s;
+sin él, `/api` y los cambios responden 403 y el registro lo dice). La salud dice `pase: true|false` (nunca cuál).
+
+**CORS.** Ninguna respuesta sale con CORS abierto: se quitan todas las `Access-Control-*` salvo que `Allow-Origin`
+sea exactamente el origen local, y `Access-Control-Allow-Private-Network` siempre (en lo local y en lo reenviado).
+
+**El Next interno.** Antes de cargar `server.js`, el envoltorio envuelve `http.createServer`: lo que llegue al
+puerto INTERNO sin el testigo de la puerta (256 bits por proceso en `x-starseed-interna`, que se quita antes de que
+Next lo vea) ni la cookie del pase → 403. La cookie hace falta porque Next se llama a sí mismo por ese puerto
+(`__NEXT_PRIVATE_ORIGIN`) al redirigir tras una server action, reenviando las cookies. Al arrancar se comprueba sola:
+la salud dice `interna: "protegida"`; si un Next futuro cambiara cómo crea su servidor, `"sin-proteger"` y un AVISO
+en `servidor-local.log`.
+
+**Cubre:** POST/PUT/DELETE de cualquier web (formulario, fetch no-cors, `sendBeacon`, preflight CORS y de Private
+Network Access); GET a `/api` desde otra web (también navegando la pestaña entera); `<script>`, `<img>` e `<iframe>`
+de otras webs; DNS rebinding (al puerto público y al interno); WebSocket de otras webs; otros programas de la
+máquina sin el pase (otro usuario, otra app); el puerto interno encontrado probando; y que el pase salga hacia
+Vercel o al registro.
+
+**No cubre (límites honestos):**
+- Un programa del MISMO usuario con acceso a la memoria o a los procesos de la app: puede leer el pase como lee
+  cualquier otra cosa suya. El pase no está en el entorno ni en disco (cookie de sesión), así que no basta con
+  listar procesos o leer el almacén del motor.
+- Las cookies no distinguen puertos: si una página de la app pidiera CON credenciales algo de OTRO servidor de
+  `127.0.0.1` (p. ej. `<img src="http://127.0.0.1:8000/…">`), ese servidor recibiría la cookie. Hoy los motores
+  locales (Ollama, Astraura, ComfyUI…) se llaman con `fetch` sin credenciales, que no la manda.
+- El pase viaja en la URL de entrada: si un motor la guardara en su historial en disco (WebView2 puede), solo vale
+  hasta que se cierra la app.
+- Las páginas (GET fuera de `/api`) siguen llegando a quien navegue a ellas desde su navegador; sin el pase no hacen
+  nada en el servidor, y no se pueden enmarcar (`marco-ajeno` + `X-Frame-Options: SAMEORIGIN`).
+- Los informes CSP del navegador (`report-uri /api/csp-report`) llegan sin cookie y se rechazan (no afecta al uso).
+  `/api/externos/v1/*` (hecha para que la llamen otras webs) no se sirve desde el servidor local: se usa la web.
+- Otro usuario que ocupe el puerto mientras el nuestro está caído (§3): no tendría el pase, pero la ventana podría
+  pintar su página si recarga sola en ese hueco.
+
+**Comprobado (2026-11-07).** (1) `node --test`: guarda 19 pruebas y envoltorio 11 (de punta a punta con ataques,
+pase, entrada, CORS, puerto interno y WebSocket); en la Mac, los cuatro archivos de `native/servidor-local` 41/41.
+(2) Contenedor Linux con un standalone REAL de Next 15.5.21 detrás del envoltorio: `interna: protegida`; sin pase,
+desde otra web, con rebinding y por el puerto interno → 403/421 y la cuenta de la ruta no se movió.
+(3) WebKitGTK 2.52 (el WebKit de Linux; WKWebView es el mismo motor) empezando en `tauri://localhost` y entrando
+como entra Rust: cookie puesta e invisible para JS, `fetch` POST con `Origin` y `Sec-Fetch-Site: same-origin` → 200,
+server action con `redirect()` → `/hecho` (sin «failed to get redirect response»); desde `http://localhost:47700`, el
+formulario, el fetch no-cors, `sendBeacon`, el `<img>` y el fetch CORS no llegaron a Next; tras navegar desde esa web
+a la app, `fetch` vuelve a llevar la cookie. (4) Chromium 1243 (el motor de WebView2): igual, y un `<iframe>` de otra
+web → 403 `marco-ajeno`. (5) La app real (Tauri debug + WebKitGTK, Xvfb): el Node recibió el pase por la entrada
+estándar, la migración (T4) entró por `/__starseed/entrar` y quedó `hecha`, la página `/` hizo su POST a `/api` con
+el pase, el registro no tiene el pase y al matar la app el Node salió solo. Falta macOS y Windows con la app real.
+
 ## 4. Arranque, reinicios, apagado y respaldo
 
 1. `setup` → `servidor_local::iniciar` (solo escritorio y solo `app.starseed.os`; Nexus y Café no).
 2. Comprueba el paquete (`starseed-node`, `servidor/server.js`, `servidor/.next/BUILD_ID`,
    `servidor/starseed-arranque.cjs`). Si falta algo → **respaldo**.
-3. Elige puerto, lanza el Node, sondea la salud cada 250 ms (tope 60 s). Lista → navega (si la ventana no está
-   ya en ese origen) y la página de arranque dice «Listo».
+3. Elige puerto, lanza el Node (con el pase de la ventana en su entrada estándar, §3.1), sondea la salud cada
+   250 ms (tope 60 s). Lista → navega por `/__starseed/entrar` (si la ventana no está ya en ese origen) y la página
+   de arranque dice «Listo».
 4. Vigila cada 500 ms. Si el Node muere: pausa 0,5 s / 2 s / 5 s y relanza en el mismo puerto **sin recargar la
    página**. Más de 3 caídas en 5 min → respaldo. Probado: `kill -9` al Node → nueva firma, mismo puerto, sin
    recarga.
@@ -341,6 +425,8 @@ servidor local añade la medida que importa aquí: si la web publicada contesta 
 rustc --edition 2021 --test native/src-tauri/src/servidor_local_logica.rs -o /tmp/sl && /tmp/sl
 # Envoltorio: salud con firma, local/web, vuelta a local sin red, cookies, salida al cerrar la entrada, puerto ocupado
 node --test native/servidor-local/__tests__/arranque.test.cjs
+# (SEG1107A · T11) La guarda: lógica pura (Host, Origin, Sec-Fetch-Site, pase, rutas, CORS, entrada, Next interno)
+node --test native/servidor-local/__tests__/guarda.test.cjs
 # Armado en seco (standalone de mentira + Node de esta máquina; en macOS firma ad-hoc de verdad) y arranque del paquete
 node --test native/servidor-local/__tests__/preparar.test.mjs
 # Web
@@ -392,7 +478,8 @@ Pasos de A (cada uno una tarea):
 2. Kotlin (`PuenteNativo.kt`): en el primer arranque de cada versión, extraer `assets/servidor` a
    `filesDir/servidor/<buildId>` (≈ 500 MB; con barra de progreso en la página de arranque); arrancar Node en un
    hilo con el shim JNI de los ejemplos de nodejs-mobile (`startNodeWithArguments`), mismo entorno
-   (`STARSEED_PUERTO`, `STARSEED_FIRMA`…) y el envoltorio sin cambios.
+   (`STARSEED_PUERTO`, `STARSEED_FIRMA`…) y el envoltorio sin cambios; el pase de la ventana (§3.1) por un canal
+   propio del lanzador (nunca el entorno) y la ventana entrando por `/__starseed/entrar`.
 3. `network_security_config` que permita texto plano SOLO a `127.0.0.1`.
 4. Rust en móvil: el mismo `servidor_local_logica.rs` (la salud y la firma ya son puras) con un lanzador Kotlin en
    vez de `std::process`; la ventana de Android pasa a `index.html` como en escritorio.
@@ -557,11 +644,12 @@ Diseño (PENDIENTE T1):
     hacía la ventana principal en la 0.4.3, ahora con su capability); si no, la migración se pospone sola 3 veces y lo
     dice. (b) Una exportación grande (≈ 64 MiB) viaja en ≈ 64 llamadas IPC: segundos, no minutos. (c) La primera
     pantalla del OS sale tras «Trayendo tus datos…» (≤ 40 s en el peor caso, normalmente 1–3 s).
-11. **Servidor local y peticiones de otras webs (pendiente T11).** Sin red, `/api/*` va al Next local, y varias
-    rutas abren sin sesión a «esta máquina» (`esDespliegueLocal`: voz, recursos de IA, conocimiento…). Una web
-    maliciosa abierta en el navegador podría lanzar un POST «simple» a `http://127.0.0.1:47610/api/…` (no lee la
-    respuesta, pero la petición llega). `/api/mando` ya no está (T8); el resto pide una guarda en el envoltorio
-    (rechazar peticiones que no sean de la propia app: `Sec-Fetch-Site`/`Origin` ≠ el origen local).
+11. **Servidor local y peticiones de otras webs (T11 · HECHO, SEG1107A, §3.1).** La guarda del envoltorio cierra los
+    POST y GET a `/api` de otras webs, el DNS rebinding, otros programas sin el pase, los WebSocket ajenos y el
+    puerto interno de Next; ya no bloquea el lanzamiento. Al probar la primera app real de macOS y Windows (con
+    T12): la ventana debe entrar por `/__starseed/entrar` y `/api` responder; si saliera 403 `sin-pase`, la cookie no
+    se guardó (es lo primero que mirar). `servidor-local.log` debe decir «pase de la app recibido» y «el Next interno
+    solo atiende a esta puerta»; la salud, `"pase":true` e `"interna":"protegida"`. Lo que no cubre está en §3.1.
 
 ## 12. Pendientes (tareas concretas)
 
@@ -578,6 +666,6 @@ Diseño (PENDIENTE T1):
 | T8 | Quitar del build nativo lo que solo vive en la Mac: **ESCRITA SIN PUBLICAR (APP1107B)** — `/api/mando/**` fuera (−65,6 MB instalado, −2 MB en dmg/msi/deb; §6) y 404 en el envoltorio. `/genesis`, `/metagenesis` y `/poligenesis` se quedan: no son solo de la Mac (§5) |
 | T9 | Enseñar el estado de la precarga (evento `starseed:precarga`) en Ajustes → Neurona, con un botón «Descargar para usar sin internet» (`STARSEED_PRECARGAR(true)`, para quien solo tiene datos móviles) |
 | T10 | Probar el SW v8 en un navegador real contra un `next start` del build (en el A1 o el CI, no en la Mac): precarga completa, modo avión y vuelta de la red |
-| T11 | Guarda en el envoltorio contra peticiones de otras webs al servidor local (§11.11) |
+| T11 | Guarda en el envoltorio contra peticiones de otras webs al servidor local: **HECHA (SEG1107A, §3.1)** — Host exacto (rebinding), Origin/Sec-Fetch-Site, pase de Rust en cookie `HttpOnly; SameSite=Strict` para `/api`, cambios y WebSocket, sin CORS abierto y el Next interno solo para la puerta. Falta verla con la app real en macOS y Windows (con T12) |
 | T12 | Probar la migración (T4) con la app real en macOS y Windows (receta en §8; Linux ya probado, §2.1) |
 | T13 | Bajar el peso de los 291 `*_client-reference-manifest.js` (252,6 MB, §6) en el paquete nativo |

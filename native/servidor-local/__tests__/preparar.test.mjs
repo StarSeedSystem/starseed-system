@@ -106,7 +106,7 @@ test("arma el paquete en seco y el servidor armado arranca", { timeout: 60_000 }
 
     const m = await preparar({ next, plataforma: PLATAFORMA, nodeLocal: process.execPath, srcTauri, conf, sinFirma: false });
     const dest = path.join(srcTauri, "recursos", "servidor");
-    for (const f of ["server.js", ".next/BUILD_ID", ".next/static/chunks/a.js", "public/logo.svg", "starseed-arranque.cjs", "migracion-origen.js", "starseed-servidor.json", "node_modules/next/package.json"]) {
+    for (const f of ["server.js", ".next/BUILD_ID", ".next/static/chunks/a.js", "public/logo.svg", "starseed-arranque.cjs", "migracion-origen.js", "guarda.cjs", "starseed-servidor.json", "node_modules/next/package.json"]) {
       assert.ok(fs.existsSync(path.join(dest, f)), `falta ${f}`);
     }
     for (const f of [".env", ".env.production", "node_modules/sharp", "node_modules/@img"]) {
@@ -128,6 +128,8 @@ test("arma el paquete en seco y el servidor armado arranca", { timeout: 60_000 }
       stdio: ["pipe", "ignore", "ignore"],
       env: { ...process.env, STARSEED_PUERTO: String(puerto), STARSEED_FIRMA: "f-prueba", HOSTNAME: "127.0.0.1" },
     });
+    // Como la app: el pase de la ventana por la entrada estándar (SEG1107A).
+    hijo.stdin.write(`pase:${"5".repeat(64)}\n`);
     try {
       const fin = Date.now() + 15_000;
       let salud = null;
@@ -150,6 +152,7 @@ test("arma el paquete en seco y el servidor armado arranca", { timeout: 60_000 }
       }
       assert.ok(salud, "el servidor armado no respondió listo");
       assert.equal(salud.firma, "f-prueba");
+      assert.equal(salud.pase, true);
     } finally {
       hijo.stdin.end();
       await new Promise((r) => (hijo.exitCode !== null ? r() : hijo.once("exit", r)));

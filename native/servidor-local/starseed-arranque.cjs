@@ -28,17 +28,27 @@
  *          Mac» y aquí lo abriría sin sesión. El build nativo además lo quita (solo-mac.mjs).
  *   3. Sale solo cuando se cierra su entrada estándar: la app la tiene abierta mientras vive; si la
  *      app muere aunque sea de golpe, el sistema la cierra y este proceso no queda huérfano.
+ *   4. (SEG1107A · T11) ANTES de repartir, la guarda (`guarda.cjs`, lógica pura) decide si la
+ *      petición viene de la ventana de la app: Host exacto (contra el DNS rebinding), Origin y
+ *      Sec-Fetch-Site del propio origen, y la cookie del PASE de este arranque en /api/*, en todo
+ *      lo que no sea GET/HEAD y en los «upgrade». El pase lo genera Rust y llega por la entrada
+ *      estándar (`pase:<hex>`, primera línea); `/__starseed/entrar?t=<pase>` pone la cookie
+ *      (HttpOnly; SameSite=Strict). Sin CORS abierto hacia fuera, el pase nunca sale hacia la web
+ *      publicada y el Next INTERNO (puerto al azar) solo atiende a esta puerta (testigo propio).
  *
- * Nunca escucha fuera de 127.0.0.1 y no lleva claves: el servidor local no tiene secretos.
- * Pruebas: native/servidor-local/__tests__/arranque.test.cjs (`node --test`).
+ * Nunca escucha fuera de 127.0.0.1 y no lleva claves: el servidor local no tiene secretos (el
+ * pase no es una clave de nada: solo dice «soy la ventana de esta app»; nunca se escribe en el
+ * registro). Pruebas: native/servidor-local/__tests__/arranque.test.cjs y guarda.test.cjs.
  */
 "use strict";
 
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const http = require("node:http");
 const https = require("node:https");
 const net = require("node:net");
 const path = require("node:path");
+const G = require(path.join(__dirname, "guarda.cjs"));
 
 const HOST = "127.0.0.1";
 const RUTA_SALUD = "/__starseed/salud";
@@ -51,6 +61,11 @@ const RUTAS_SOLO_MAC = ["/api/mando"];
 const NOMBRE = "starseed-os-local";
 const LIMITE_CUERPO = 8 * 1024 * 1024;
 const ESPERA_CONECTAR_MS = 5000;
+/** Tope para recibir el pase por la entrada estándar (Rust lo escribe nada más lanzar el proceso). */
+const ESPERA_PASE_MS = 3000;
+/** Eventos del servidor HTTP que llevan una petición (y con qué se contesta). */
+const EVENTOS_CON_RESPUESTA = new Set(["request", "checkContinue", "checkExpectation"]);
+const EVENTOS_CON_SOCKET = new Set(["upgrade", "connect"]);
 const SALTO = new Set([
   "connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "proxy-connection",
   "te", "trailer", "transfer-encoding", "upgrade",
@@ -102,11 +117,12 @@ function esSoloMac(ruta) {
   return RUTAS_SOLO_MAC.some((p) => r === p || r.startsWith(p + "/"));
 }
 
-/** ¿A dónde va esta petición? "salud" | "red" | "migracion" | "migracion-js" | "solo-mac" | "web" | "local". */
+/** ¿A dónde va esta petición? "salud" | "red" | "entrar" | "migracion" | "migracion-js" | "solo-mac" | "web" | "local". */
 function destino(url, cfg, red, ahora) {
   const ruta = rutaDe(url);
   if (ruta === RUTA_SALUD) return "salud";
   if (ruta === RUTA_RED) return "red";
+  if (ruta === G.RUTA_ENTRAR) return "entrar";
   if (ruta === RUTA_MIGRACION) return "migracion";
   if (ruta === RUTA_MIGRACION_JS) return "migracion-js";
   if (esSoloMac(ruta)) return "solo-mac";
@@ -158,6 +174,11 @@ function cabecerasHaciaWeb(h, web) {
   delete out["x-forwarded-host"];
   delete out["x-forwarded-proto"];
   delete out["x-forwarded-for"];
+  // (SEG1107A) El pase de la ventana y el testigo interno no salen nunca de esta máquina.
+  delete out[G.CABECERA_INTERNA];
+  const cookie = G.quitarCookie(out.cookie);
+  if (cookie === undefined) delete out.cookie;
+  else out.cookie = cookie;
   return out;
 }
 
@@ -189,6 +210,10 @@ function cuerpoSalud(estado, ahora) {
     red: estadoRed(estado.red, ahora),
     puertoInterno: estado.puertoInterno || null,
     node: process.version,
+    // (SEG1107A) Si recibió el pase de la app (nunca el pase en sí) y si el Next interno solo
+    // atiende a esta puerta: "protegida" | "sin-proteger" | "comprobando".
+    pase: Boolean(estado.pase),
+    interna: estado.interna || "comprobando",
   });
 }
 
@@ -287,6 +312,128 @@ function json(res, codigo, cuerpo, extra) {
   res.end(texto);
 }
 
+// ───────────────────────────── Guarda (SEG1107A · T11) ─────────────────────────────
+
+function origenPropio(req) {
+  return "http://" + String(req.headers.host || "").toLowerCase();
+}
+
+/** Rechazo de la guarda: JSON claro (`guarda.cjs` · respuestaRechazo). */
+function rechazar(res, d) {
+  const r = G.respuestaRechazo(d);
+  res.writeHead(r.codigo, r.cabeceras);
+  res.end(r.cuerpo);
+}
+
+/** Lo mismo sobre un socket ya «actualizado» (WebSocket): respuesta HTTP mínima y cierre. */
+function rechazarSocket(socket, d) {
+  const r = G.respuestaRechazo(d);
+  const lineas = [`HTTP/1.1 ${r.codigo} ${http.STATUS_CODES[r.codigo] || "Error"}`];
+  for (const [k, v] of Object.entries(r.cabeceras)) lineas.push(`${k}: ${v}`);
+  lineas.push("connection: close");
+  try {
+    socket.end(lineas.join("\r\n") + "\r\n\r\n" + r.cuerpo);
+  } catch {}
+  setTimeout(() => socket.destroy(), 1000).unref();
+}
+
+/** Quita el testigo interno antes de que Next vea la petición (ni la registra ni la reenvía). */
+function quitarTestigo(req) {
+  try {
+    delete req.headers[G.CABECERA_INTERNA];
+  } catch {}
+  const raw = req.rawHeaders;
+  if (Array.isArray(raw)) {
+    for (let i = raw.length - 2; i >= 0; i -= 2) {
+      if (String(raw[i]).toLowerCase() === G.CABECERA_INTERNA) raw.splice(i, 2);
+    }
+  }
+}
+
+const RECHAZO_INTERNO = { pasa: false, codigo: 403, motivo: "interna", mensaje: "El servidor interno solo atiende a la puerta del servidor local." };
+
+/**
+ * El Next de dentro escucha en 127.0.0.1:<puerto al azar>: una web podría dar con él probando
+ * puertos y hablarle sin pasar por la guarda (y un rebinding, leerlo). Antes de cargar `server.js`,
+ * todo servidor HTTP que se cree en este proceso queda envuelto: lo que llegue por el puerto
+ * INTERNO sin el testigo de la puerta (ni la cookie del pase: Next se llama a sí mismo por ahí al
+ * redirigir tras una server action, con las cookies de la petición) recibe 403 y no llega a Next.
+ * Los servidores en otros puertos (si la app crea alguno) no cambian.
+ */
+function protegerServidoresInternos(modHttp, estado) {
+  const crear = modHttp.createServer;
+  modHttp.createServer = function (...args) {
+    const servidor = crear.apply(this, args);
+    const emitir = servidor.emit;
+    servidor.emit = function (evento, req, salida, ...resto) {
+      const conRespuesta = EVENTOS_CON_RESPUESTA.has(evento);
+      if (
+        (conRespuesta || EVENTOS_CON_SOCKET.has(evento)) &&
+        req &&
+        req.socket &&
+        estado.puertoInterno &&
+        req.socket.localPort === estado.puertoInterno
+      ) {
+        if (!G.permiteInterna(req.headers, estado.testigo, estado.pase)) {
+          if (conRespuesta) {
+            try {
+              rechazar(salida, RECHAZO_INTERNO);
+            } catch {
+              salida.destroy();
+            }
+          } else {
+            rechazarSocket(salida, RECHAZO_INTERNO);
+          }
+          return true;
+        }
+        quitarTestigo(req);
+      }
+      return emitir.call(this, evento, req, salida, ...resto);
+    };
+    return servidor;
+  };
+}
+
+/** ¿Quedó envuelto el Next interno? Una petición sin testigo debe volver con el 403 de la guarda. */
+function comprobarInterna(puerto) {
+  return new Promise((resolve) => {
+    const p = http.request({ host: HOST, port: puerto, method: "GET", path: "/__starseed/comprobar-interna", agent: false }, (r) => {
+      r.resume();
+      resolve(r.statusCode === 403 && r.headers[G.CABECERA_GUARDA] === "interna");
+    });
+    p.setTimeout(5000, () => p.destroy());
+    p.on("error", () => resolve(false));
+    p.end();
+  });
+}
+
+/**
+ * El pase llega como primera línea de la entrada estándar (`pase:<hex>`): así no queda en el
+ * entorno del proceso. Devuelve el pase o null (tope, línea mala o entrada cerrada).
+ */
+function leerPaseDeEntrada(entrada, topeMs) {
+  return new Promise((resolve) => {
+    let buf = "";
+    let hecho = false;
+    const fin = (v) => {
+      if (hecho) return;
+      hecho = true;
+      clearTimeout(t);
+      entrada.removeListener("data", alDato);
+      resolve(v);
+    };
+    const alDato = (c) => {
+      buf += c.toString("utf8");
+      const i = buf.indexOf("\n");
+      if (i !== -1) fin(G.lineaPase(buf.slice(0, i)));
+      else if (buf.length > 512) fin(null);
+    };
+    const t = setTimeout(() => fin(null), topeMs);
+    entrada.on("data", alDato);
+    entrada.once("end", () => fin(null));
+  });
+}
+
 function crearPuerta(cfg, estado) {
   const agenteWeb = new (cfg.web.startsWith("https:") ? https : http).Agent({ keepAlive: true, maxSockets: 32 });
   const moduloWeb = cfg.web.startsWith("https:") ? https : http;
@@ -302,9 +449,15 @@ function crearPuerta(cfg, estado) {
       return json(res, 503, { error: "arrancando", mensaje: "El servidor local está arrancando." }, { "retry-after": "1" });
     }
     const p = http.request(
-      { host: HOST, port: estado.puertoInterno, method: req.method, path: req.url, headers: cabecerasLimpias(req.headers) },
+      {
+        host: HOST,
+        port: estado.puertoInterno,
+        method: req.method,
+        path: req.url,
+        headers: { ...cabecerasLimpias(req.headers), [G.CABECERA_INTERNA]: estado.testigo },
+      },
       (r) => {
-        res.writeHead(r.statusCode || 502, { ...cabecerasLimpias(r.headers), "x-starseed-ruta": "local" });
+        res.writeHead(r.statusCode || 502, G.cabecerasCorsSeguras({ ...cabecerasLimpias(r.headers), "x-starseed-ruta": "local" }, origenPropio(req)));
         r.pipe(res);
       },
     );
@@ -344,7 +497,7 @@ function crearPuerta(cfg, estado) {
       resuelto = true;
       estado.red.ultimaRespuesta = Date.now();
       estado.red.sinConexionHasta = 0;
-      res.writeHead(r.statusCode || 502, { ...cabecerasDeVuelta(r.headers), "x-starseed-ruta": "web" });
+      res.writeHead(r.statusCode || 502, G.cabecerasCorsSeguras({ ...cabecerasDeVuelta(r.headers), "x-starseed-ruta": "web" }, origenPropio(req)));
       r.pipe(res);
     });
     remota.on("error", (e) => {
@@ -399,10 +552,19 @@ function crearPuerta(cfg, estado) {
   }
 
   async function manejar(req, res) {
+    // (SEG1107A · T11) Primero la guarda: rebinding, otras webs y quien no traiga el pase.
+    const decision = G.decidir({ metodo: req.method, url: req.url, cabeceras: req.headers }, { puerto: cfg.puerto, pase: estado.pase });
+    if (!decision.pasa) return rechazar(res, decision);
     const ahora = Date.now();
     switch (destino(req.url, cfg, estado.red, ahora)) {
       case "salud":
         return json(res, 200, cuerpoSalud(estado, ahora));
+      case "entrar": {
+        const r = G.entrar(req.url, { pase: estado.pase });
+        if (!r.pasa) return rechazar(res, r);
+        res.writeHead(r.codigo, r.cabeceras);
+        return res.end();
+      }
       case "red": {
         if (estadoRed(estado.red, ahora) === "desconocida") await sondearWeb();
         return json(res, 200, { red: estadoRed(estado.red, Date.now()), apiRemota: cfg.apiRemota, web: cfg.web });
@@ -436,12 +598,23 @@ function crearPuerta(cfg, estado) {
     }
   }
 
-  // WebSocket y demás «upgrade»: siempre al Next local.
+  // WebSocket y demás «upgrade»: siempre al Next local, y solo desde la propia ventana (un
+  // WebSocket no tiene política de mismo origen: sin esto, cualquier web podría abrir uno).
   function alActualizar(req, socket, cabeza) {
+    socket.on("error", () => socket.destroy());
+    const decision = G.decidir(
+      { metodo: req.method, url: req.url, cabeceras: req.headers, actualizar: true },
+      { puerto: cfg.puerto, pase: estado.pase },
+    );
+    if (!decision.pasa) return rechazarSocket(socket, decision);
     if (!estado.listo) return socket.destroy();
     const s = net.connect({ host: HOST, port: estado.puertoInterno }, () => {
       const lineas = [`${req.method} ${req.url} HTTP/${req.httpVersion}`];
-      for (let i = 0; i < req.rawHeaders.length; i += 2) lineas.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
+      for (let i = 0; i < req.rawHeaders.length; i += 2) {
+        if (String(req.rawHeaders[i]).toLowerCase() === G.CABECERA_INTERNA) continue;
+        lineas.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
+      }
+      lineas.push(`${G.CABECERA_INTERNA}: ${estado.testigo}`);
       s.write(lineas.join("\r\n") + "\r\n\r\n");
       if (cabeza && cabeza.length) s.write(cabeza);
       s.pipe(socket);
@@ -460,7 +633,39 @@ async function principal() {
     console.error("[starseed-arranque] falta STARSEED_PUERTO: este archivo lo lanza la app nativa.");
     process.exit(2);
   }
-  const estado = { firma: cfg.firma, listo: false, puertoInterno: null, red: { sinConexionHasta: 0, ultimaRespuesta: 0 } };
+  const estado = {
+    firma: cfg.firma,
+    listo: false,
+    nextListo: false,
+    puertoInterno: null,
+    red: { sinConexionHasta: 0, ultimaRespuesta: 0 },
+    // (SEG1107A) El pase de la ventana (de Rust), el testigo con el que esta puerta habla con el
+    // Next interno (nuevo en cada arranque del proceso) y si el Next interno quedó envuelto.
+    pase: "",
+    paseResuelto: false,
+    testigo: crypto.randomBytes(32).toString("hex"),
+    interna: "comprobando",
+  };
+  // «listo» (lo que espera Rust para llevar la ventana aquí) = Next acepta Y ya se sabe el pase.
+  const marcarListo = () => {
+    estado.listo = estado.nextListo && estado.paseResuelto;
+  };
+
+  // El pase: primera línea de la entrada estándar (Rust). STARSEED_PASE_VENTANA solo para probar a
+  // mano; en ambos casos se borra del entorno antes de cargar Next (que no lo vea nadie más).
+  const paseEntorno = process.env.STARSEED_PASE_VENTANA;
+  delete process.env.STARSEED_PASE_VENTANA;
+  const pasePrometido = G.paseValido(paseEntorno)
+    ? Promise.resolve(paseEntorno)
+    : process.stdin.isTTY
+      ? Promise.resolve(null)
+      : leerPaseDeEntrada(process.stdin, ESPERA_PASE_MS);
+  pasePrometido.then((pase) => {
+    estado.pase = pase || "";
+    estado.paseResuelto = true;
+    log(pase ? "pase de la app recibido" : "AVISO: sin pase de la app: /api y los cambios responderán 403 (la app debe mandarlo por la entrada estándar)");
+    marcarListo();
+  });
 
   if (cfg.vigiaPadre && !process.stdin.isTTY) {
     process.stdin.on("end", () => {
@@ -492,16 +697,24 @@ async function principal() {
   process.env.HOSTNAME = HOST;
   process.env.NODE_ENV = "production";
   esperarPuerto(estado.puertoInterno, () => {
-    estado.listo = true;
+    estado.nextListo = true;
+    marcarListo();
     log(`Next listo en el puerto interno ${estado.puertoInterno}`);
+    comprobarInterna(estado.puertoInterno).then((ok) => {
+      estado.interna = ok ? "protegida" : "sin-proteger";
+      if (ok) log("el Next interno solo atiende a esta puerta");
+      else log("AVISO: el Next interno NO quedó envuelto (¿cambió cómo crea su servidor?): su puerto al azar responde sin la guarda");
+    });
   });
+  // (SEG1107A) Antes de cargar Next: su servidor (127.0.0.1:<interno>) solo atenderá a esta puerta.
+  protegerServidoresInternos(http, estado);
   require(path.join(__dirname, "server.js"));
 }
 
 module.exports = {
   leerConfig, rutaDe, rutaNormalizada, esSoloMac, destino, paginaMigracion, esErrorDeRed, estadoRed, cabecerasLimpias, cabecerasHaciaWeb,
   adaptarCookie, cabecerasDeVuelta, cuerpoSalud, RUTA_SALUD, RUTA_RED, RUTA_MIGRACION, RUTA_MIGRACION_JS,
-  RUTAS_SOLO_MAC, NOMBRE, LIMITE_CUERPO,
+  RUTAS_SOLO_MAC, NOMBRE, LIMITE_CUERPO, protegerServidoresInternos, leerPaseDeEntrada,
 };
 
 if (require.main === module) {

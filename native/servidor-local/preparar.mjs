@@ -14,7 +14,8 @@
  *
  * Deja:
  *   <src-tauri>/recursos/servidor/   standalone + .next/static + public + starseed-arranque.cjs
- *                                    + migracion-origen.js (APP1107B · T4) + starseed-servidor.json
+ *                                    + migracion-origen.js (APP1107B · T4) + guarda.cjs (SEG1107A · T11)
+ *                                    + starseed-servidor.json
  *   <src-tauri>/binaries/starseed-node-<triple>[.exe]   (externalBin de Tauri: va junto al ejecutable)
  * El Node se descarga de nodejs.org y se compara con el SHA-256 FIJADO en node.json; en macOS se une
  * arm64 + x64 con `lipo` (la app es universal) y se firma ad-hoc (`codesign --sign -`), igual que el
@@ -215,6 +216,8 @@ export async function preparar(a) {
     fs.copyFileSync(path.join(AQUI, "starseed-arranque.cjs"), path.join(destino, "starseed-arranque.cjs"));
     // (APP1107B · T4) La página /__starseed/migracion la sirve el envoltorio con este script.
     fs.copyFileSync(path.join(AQUI, "migracion-origen.js"), path.join(destino, "migracion-origen.js"));
+    // (SEG1107A · T11) La guarda del envoltorio (Host, Origin, pase de la ventana).
+    fs.copyFileSync(path.join(AQUI, "guarda.cjs"), path.join(destino, "guarda.cjs"));
     const envSueltos = fs.readdirSync(destino).filter((n) => /^\.env(\..*)?$/.test(n));
     if (envSueltos.length) throw new Error(`quedó un .env en el servidor: ${envSueltos.join(", ")}`);
 

@@ -39,6 +39,10 @@ pub const PASO_SONDEO_MS: u64 = 250;
 
 /// Ruta de salud que responde el envoltorio `starseed-arranque.cjs` (no Next).
 pub const RUTA_SALUD: &str = "/__starseed/salud";
+/// (SEG1107A · T11) Entrada de la ventana: el envoltorio comprueba el pase, pone la cookie
+/// `starseed_pase` (HttpOnly; SameSite=Strict) y redirige a la ruta pedida. Sin esa cookie, el
+/// servidor local no atiende /api/* ni nada que cambie estado (`native/servidor-local/guarda.cjs`).
+pub const RUTA_ENTRAR: &str = "/__starseed/entrar";
 /// Nombre que el envoltorio pone en su respuesta de salud.
 pub const NOMBRE_SERVIDOR: &str = "starseed-os-local";
 
@@ -180,10 +184,6 @@ pub fn origen_local(puerto: u16) -> String {
     format!("http://{HOST}:{puerto}")
 }
 
-pub fn url_local(puerto: u16) -> String {
-    format!("{}/", origen_local(puerto))
-}
-
 /// ¿Esta URL ya es la del servidor local en ese puerto? (para no recargar la ventana sin motivo).
 pub fn es_url_local(url: &str, puerto: u16) -> bool {
     let o = origen_local(puerto);
@@ -222,6 +222,46 @@ pub fn firma_nueva() -> String {
         *parte = h.finish();
     }
     format!("{:016x}{:016x}", partes[0], partes[1])
+}
+
+/// (SEG1107A · T11) Pase de la ventana: 256 bits al azar, UNO por arranque de la app (no por
+/// arranque del Node: un reinicio del servidor no recarga la página y la cookie debe seguir
+/// valiendo). Va al envoltorio por su entrada estándar (nunca en el entorno ni en el registro) y a
+/// la ventana en la URL de entrada. Dos mitades de `firma_nueva`, cada una en un hilo propio: cada
+/// hilo siembra las claves de SipHash de `RandomState` con el generador del sistema.
+pub fn pase_nuevo() -> String {
+    let otra = std::thread::spawn(firma_nueva).join().unwrap_or_else(|_| firma_nueva());
+    let una = std::thread::spawn(firma_nueva).join().unwrap_or_else(|_| firma_nueva());
+    format!("{una}{otra}")
+}
+
+/// Primera línea que la app escribe en la entrada estándar del envoltorio.
+pub fn linea_pase(pase: &str) -> String {
+    format!("pase:{pase}\n")
+}
+
+/// Codifica un componente de URL (todo menos `A-Z a-z 0-9 - . _ ~`).
+pub fn codificar_componente(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() * 3);
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// URL con la que la ventana entra al servidor local: pone la cookie del pase y va a `ruta`
+/// (p. ej. `/` o la página importadora de la migración).
+pub fn url_entrada(puerto: u16, pase: &str, ruta: &str) -> String {
+    format!(
+        "{}{RUTA_ENTRAR}?t={}&a={}",
+        origen_local(puerto),
+        codificar_componente(pase),
+        codificar_componente(ruta)
+    )
 }
 
 // ─────────────────────────────── Salud ───────────────────────────────
@@ -421,7 +461,7 @@ mod pruebas {
 
     #[test]
     fn urls_locales() {
-        assert_eq!(url_local(47610), "http://127.0.0.1:47610/");
+        assert_eq!(origen_local(47610), "http://127.0.0.1:47610");
         assert!(es_url_local("http://127.0.0.1:47610/escritorios?x=1", 47610));
         assert!(es_url_local("http://127.0.0.1:47610", 47610));
         assert!(!es_url_local("http://127.0.0.1:476100/", 47610));
@@ -439,6 +479,8 @@ mod pruebas {
         assert_eq!(v("NODE_ENV").as_deref(), Some("production"));
         for (k, _) in &e {
             assert!(!k.contains("KEY") && !k.contains("SECRET") && !k.contains("TOKEN"), "{k}");
+            // (SEG1107A) El pase de la ventana va por la entrada estándar, nunca en el entorno.
+            assert!(!k.contains("PASE"), "{k}");
         }
         assert!(ENTORNO_QUITAR.contains(&"NODE_OPTIONS"));
     }
@@ -450,6 +492,33 @@ mod pruebas {
         assert_eq!(a.len(), 32);
         assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn pase_de_256_bits_distinto_en_cada_arranque() {
+        let a = pase_nuevo();
+        let b = pase_nuevo();
+        assert_eq!(a.len(), 64);
+        assert!(a.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert_ne!(a, b);
+        assert_ne!(a[..32], a[32..]);
+        assert_eq!(linea_pase("ab"), "pase:ab\n");
+    }
+
+    #[test]
+    fn url_de_entrada_con_el_pase_y_la_ruta_codificada() {
+        let p = "0123456789abcdef".repeat(4);
+        assert_eq!(
+            url_entrada(47610, &p, "/"),
+            format!("http://127.0.0.1:47610/__starseed/entrar?t={p}&a=%2F")
+        );
+        assert_eq!(
+            url_entrada(47611, &p, "/__starseed/migracion"),
+            format!("http://127.0.0.1:47611/__starseed/entrar?t={p}&a=%2F__starseed%2Fmigracion")
+        );
+        assert!(es_url_local(&url_entrada(47610, &p, "/"), 47610));
+        assert_eq!(codificar_componente("/a b?c=d&e#ñ"), "%2Fa%20b%3Fc%3Dd%26e%23%C3%B1");
+        assert_eq!(codificar_componente("Az09-._~"), "Az09-._~");
     }
 
     #[test]
