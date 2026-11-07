@@ -55,6 +55,11 @@ mod servidor_local_logica;
 mod migracion_origen;
 #[cfg(desktop)]
 mod migracion_origen_logica;
+// (CAP1107A · T1) Capas del servidor local: lo nuevo de la web llega sin reinstalar la app.
+#[cfg(desktop)]
+mod servidor_capas;
+#[cfg(desktop)]
+mod servidor_capas_logica;
 mod sha256;
 // `ventana_remota` (APM1017P, rehecho en APR1019A) está de vuelta con las API
 // reales: xcap 0.9 (`Window::all()`, `app_name()`, `capture_image()`), image
@@ -612,6 +617,7 @@ pub fn run() {
         ventana_remota::capturar_ventana,
         ventana_remota::entrada_ventana,
         servidor_local::servidor_local_estado,
+        servidor_local::servidor_local_actualizar,
         migracion_origen::migracion_origen_exportar,
         migracion_origen::migracion_origen_estado,
         migracion_origen::migracion_origen_datos,

@@ -17,9 +17,17 @@
 // todo lo que cambie estado (`native/servidor-local/guarda.cjs`). Ninguna otra web ni otro programa
 // lo conoce; nunca va al entorno, al registro ni a la web (`servidor_local_estado` no lo incluye).
 //
+// (CAP1107A · T1) Lo que sirve puede ser una CAPA más nueva que la del instalador
+// (`servidor_capas.rs`): cada arranque del Node elige pendiente a prueba → activa → anterior →
+// instalador. Una capa a prueba que no da «listo» en 60 s, o que se cae en sus primeros 30 s, se
+// marca mala y se relanza al momento con la anterior (sin contarlo como caída). «Actualizar ahora»
+// (`servidor_local_actualizar`) reinicia SOLO el Node en el mismo puerto y recarga la página: misma
+// ventana, mismo origen y mismo pase.
+//
 // Nada de dependencias nuevas: procesos con std::process, salud con un TcpStream.
 // ═══════════════════════════════════════════════════════════════════════════
 
+use crate::servidor_capas_logica as c;
 use crate::servidor_local_logica as l;
 use serde::Serialize;
 use std::fs::{File, OpenOptions};
@@ -49,6 +57,16 @@ pub struct EstadoServidorLocal {
     pub commit_paquete: Option<String>,
     /// Registro del servidor en esta máquina.
     pub registro: Option<String>,
+    /// (CAP1107A · T1) Capa del servidor que sirve: su build, o None si sirve el paquete del instalador.
+    pub capa: Option<String>,
+    /// Capa nueva ya descargada y verificada: la usa el siguiente arranque o «Actualizar ahora».
+    pub capa_nueva: Option<String>,
+    /// Versión (y commit corto) de esa capa nueva.
+    pub capa_nueva_version: Option<String>,
+    /// "buscando" | "descargando" | "verificando" | "lista" | "al-dia" | "sin-red" | "error"
+    pub capas_fase: Option<String>,
+    /// Lo último que pasó con las capas (p. ej. una vuelta atrás), en una frase.
+    pub capas_aviso: Option<String>,
 }
 
 struct Proceso {
@@ -67,6 +85,8 @@ struct Interno {
     /// (SEG1107A) Pase de la ventana: uno por arranque de la app (se mantiene en los reinicios del
     /// Node, que no recargan la página). Nunca sale de aquí salvo al envoltorio y a la URL de entrada.
     pase: String,
+    /// (CAP1107A) «Actualizar ahora»: el próximo cierre del Node no es una caída, es un relevo de capa.
+    reinicio_pedido: AtomicBool,
 }
 
 fn interno() -> &'static Interno {
@@ -77,6 +97,7 @@ fn interno() -> &'static Interno {
         apagando: AtomicBool::new(false),
         url_arranque: Mutex::new(None),
         pase: l::pase_nuevo(),
+        reinicio_pedido: AtomicBool::new(false),
     })
 }
 
@@ -90,10 +111,45 @@ fn ahora_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
 
-/// Estado actual del servidor local de esta app.
+/// Estado actual del servidor local de esta app (y de sus capas).
 #[tauri::command]
 pub fn servidor_local_estado() -> EstadoServidorLocal {
-    interno().estado.lock().map(|e| e.clone()).unwrap_or_default()
+    let mut e = interno().estado.lock().map(|e| e.clone()).unwrap_or_default();
+    let p = crate::servidor_capas::publico();
+    e.capa_nueva = p.nueva;
+    e.capa_nueva_version = p.nueva_version;
+    e.capas_fase = p.fase;
+    e.capas_aviso = p.aviso;
+    e
+}
+
+/// (CAP1107A · T1) «Actualizar ahora»: reinicia SOLO el Node con la capa nueva ya verificada, en el
+/// mismo puerto; la app no se cierra y la página se recarga sola al estar lista. Solo la ventana
+/// principal, desde el servidor local (capability `servidor-capas`: nunca la web publicada).
+#[tauri::command]
+pub fn servidor_local_actualizar(webview: tauri::Webview) -> Result<String, String> {
+    let e = servidor_local_estado();
+    let puerto = e.puerto.filter(|_| e.fase == "local").ok_or("El servidor local no está sirviendo ahora.")?;
+    if webview.label() != "main" {
+        return Err("Esta ventana no puede hacer esto.".into());
+    }
+    let url = webview.url().map_err(|x| x.to_string())?;
+    if !l::es_url_local(url.as_str(), puerto) {
+        return Err("Solo la app, desde su servidor local, puede pedirlo.".into());
+    }
+    if !crate::servidor_capas::hay_pendiente() {
+        return Err("No hay ninguna capa nueva lista.".into());
+    }
+    if interno().reinicio_pedido.swap(true, Ordering::SeqCst) {
+        return Ok("Ya se está actualizando.".into());
+    }
+    let _ = std::thread::Builder::new().name("servidor-local-relevo".into()).spawn(detener_proceso);
+    Ok("Reiniciando el servidor local con la capa nueva: la página se recargará sola.".into())
+}
+
+/// ¿Se está cerrando la app? (lo mira el vigía de las capas).
+pub fn apagando() -> bool {
+    interno().apagando.load(Ordering::SeqCst)
 }
 
 // ───────────────────────────── Arranque ─────────────────────────────
@@ -128,25 +184,39 @@ fn arrancar(app: AppHandle) {
         ir_a_web(&app, "No se encontró la carpeta de la app.".into());
         return;
     };
-    let rutas = l::rutas_paquete(&dir_exe, &dir_recursos, std::env::consts::OS);
-    if let Err(falta) = l::comprobar_paquete(&rutas, |p| p.exists()) {
+    let instalador = l::rutas_paquete(&dir_exe, &dir_recursos, std::env::consts::OS);
+    if let Err(falta) = l::comprobar_paquete(&instalador, |p| p.exists()) {
         ir_a_web(&app, falta.explicar());
         return;
     }
-    leer_manifiesto(&rutas.manifiesto);
     let registro = abrir_registro(&app);
     // (APP1107B · T4) La primera vez, traer lo que la app tenía en el origen de la web publicada.
     crate::migracion_origen::preparar(&app);
+    // (CAP1107A · T1) Qué capas hay y con qué clave se verifican.
+    crate::servidor_capas::preparar(&app, &instalador, registro.as_ref().and_then(|f| f.try_clone().ok()));
 
     let mut puerto_previo: Option<u16> = None;
     let mut caidas: Vec<u64> = Vec::new();
     let politica = l::PoliticaReinicio::default();
+    // Tras un relevo de capa (o una vuelta atrás) con la ventana ya en el servidor local: recargarla.
+    let mut recargar = false;
     loop {
         if interno().apagando.load(Ordering::SeqCst) {
             return;
         }
-        match lanzar_y_esperar(&rutas, registro.as_ref(), puerto_previo) {
+        let (eleccion, rutas) = crate::servidor_capas::elegir(&instalador);
+        leer_manifiesto(&rutas.manifiesto);
+        con_estado(|e| e.capa = eleccion.build().map(str::to_string));
+        if let Some(b) = eleccion.build() {
+            escribir_registro(
+                registro.as_ref(),
+                &format!("[servidor-local] capa {b}{}", if eleccion.a_prueba() { " (a prueba)" } else { "" }),
+            );
+        }
+        let espera = if eleccion.a_prueba() { c::ESPERA_SALUD_MS } else { l::ESPERA_LISTO_MS };
+        match lanzar_y_esperar(&rutas, registro.as_ref(), puerto_previo, espera) {
             Ok(puerto) => {
+                crate::servidor_capas::tras_lista(&eleccion);
                 let origen = l::origen_local(puerto);
                 con_estado(|e| {
                     e.fase = "local".into();
@@ -162,10 +232,33 @@ fn arrancar(app: AppHandle) {
                 }
                 puerto_previo = Some(puerto);
                 avisar(&app, "local", "Listo: StarSeed OS funciona en esta neurona, con o sin internet.");
+                let ya_local = ventana_en_local(&app, puerto);
                 navegar_si_hace_falta(&app, puerto);
+                if std::mem::take(&mut recargar) && ya_local {
+                    recargar_ventana(&app);
+                }
+                crate::servidor_capas::iniciar_vigia(&app);
+                let desde = Instant::now();
                 vigilar();
                 if interno().apagando.load(Ordering::SeqCst) {
                     return;
+                }
+                if interno().reinicio_pedido.swap(false, Ordering::SeqCst) {
+                    // «Actualizar ahora»: no es una caída; se relanza al momento con la capa nueva.
+                    con_estado(|e| {
+                        e.fase = "arrancando".into();
+                        e.motivo = Some("Reiniciando el servidor local con la capa nueva…".into());
+                    });
+                    escribir_registro(registro.as_ref(), "[servidor-local] relevo de capa pedido desde la app");
+                    recargar = true;
+                    continue;
+                }
+                if eleccion.a_prueba() && desde.elapsed() < Duration::from_millis(c::ESTABLE_MS) {
+                    let motivo = format!("se cerró a los {} s de arrancar", desde.elapsed().as_secs());
+                    crate::servidor_capas::tras_fallo(&eleccion, &motivo);
+                    escribir_registro(registro.as_ref(), &format!("[servidor-local] la capa nueva {motivo}: se vuelve a la anterior"));
+                    recargar = true;
+                    continue;
                 }
                 caidas.push(ahora_ms());
                 con_estado(|e| {
@@ -175,14 +268,28 @@ fn arrancar(app: AppHandle) {
                 });
                 escribir_registro(registro.as_ref(), "[servidor-local] el proceso terminó: se decide si reiniciar");
             }
-            Err(motivo) => {
+            Err(fallo) => {
+                let motivo = fallo.motivo;
                 escribir_registro(registro.as_ref(), &format!("[servidor-local] no arrancó: {motivo}"));
+                if fallo.de_la_capa && eleccion.a_prueba() {
+                    // (CAP1107A) La capa nueva no pasó la salud: mala, y se relanza ya con la anterior.
+                    crate::servidor_capas::tras_fallo(&eleccion, &motivo);
+                    recargar = true;
+                    continue;
+                }
                 caidas.push(ahora_ms());
                 con_estado(|e| e.motivo = Some(motivo.clone()));
             }
         }
         match l::decidir_reinicio(&caidas, ahora_ms(), &politica) {
             l::Reinicio::Esperar(ms) => std::thread::sleep(Duration::from_millis(ms)),
+            l::Reinicio::Rendirse if eleccion.build().is_some() => {
+                // (CAP1107A) Una capa que se cae una y otra vez: mala; se vuelve a la anterior (o al
+                // instalador) con la cuenta a cero, en vez de rendirse a la web publicada.
+                crate::servidor_capas::tras_fallo(&eleccion, "se cayó varias veces seguidas");
+                caidas.clear();
+                recargar = true;
+            }
             l::Reinicio::Rendirse => {
                 let motivo = interno()
                     .estado
@@ -198,8 +305,23 @@ fn arrancar(app: AppHandle) {
     }
 }
 
-/// Elige puerto, lanza el Node y espera a que conteste con su firma. Devuelve el puerto.
-fn lanzar_y_esperar(rutas: &l::RutasPaquete, registro: Option<&File>, preferido: Option<u16>) -> Result<u16, String> {
+/// Por qué no arrancó, y si la culpa es de lo que se sirve (la capa) o del entorno (puertos, Node…).
+struct Fallo {
+    motivo: String,
+    de_la_capa: bool,
+}
+
+fn fallo_entorno(motivo: String) -> Fallo {
+    Fallo { motivo, de_la_capa: false }
+}
+
+/// Elige puerto, lanza el Node y espera (hasta `espera_ms`) a que conteste con su firma. Devuelve el puerto.
+fn lanzar_y_esperar(
+    rutas: &l::RutasPaquete,
+    registro: Option<&File>,
+    preferido: Option<u16>,
+    espera_ms: u64,
+) -> Result<u16, Fallo> {
     let candidatos = l::orden_puertos(preferido);
     let puerto = l::elegir_puerto(
         &candidatos,
@@ -207,7 +329,7 @@ fn lanzar_y_esperar(rutas: &l::RutasPaquete, registro: Option<&File>, preferido:
         puerto_libre,
         || std::thread::sleep(Duration::from_millis(l::PAUSA_PREFERIDO_MS)),
     )
-    .ok_or_else(|| format!("Los {} puertos del servidor local están ocupados.", l::PUERTOS.len()))?;
+    .ok_or_else(|| fallo_entorno(format!("Los {} puertos del servidor local están ocupados.", l::PUERTOS.len())))?;
 
     let firma = l::firma_nueva();
     let mut cmd = Command::new(&rutas.node);
@@ -233,7 +355,7 @@ fn lanzar_y_esperar(rutas: &l::RutasPaquete, registro: Option<&File>, preferido:
         cmd.creation_flags(0x0800_0000);
     }
     escribir_registro(registro, &format!("[servidor-local] lanzando {} en {}", rutas.node.display(), l::origen_local(puerto)));
-    let mut hijo = cmd.spawn().map_err(|e| format!("No se pudo lanzar el Node de la app: {e}"))?;
+    let mut hijo = cmd.spawn().map_err(|e| fallo_entorno(format!("No se pudo lanzar el Node de la app: {e}")))?;
     let mut entrada = hijo.stdin.take();
     // (SEG1107A) El pase de la ventana, primera línea de la entrada estándar (que sigue abierta:
     // es también la señal de que la app vive). Sin él, el servidor no atiende /api ni cambios.
@@ -248,26 +370,26 @@ fn lanzar_y_esperar(rutas: &l::RutasPaquete, registro: Option<&File>, preferido:
         *p = Some(Proceso { hijo, entrada });
     }
 
-    let tope = Instant::now() + Duration::from_millis(l::ESPERA_LISTO_MS);
+    let tope = Instant::now() + Duration::from_millis(espera_ms);
     loop {
         if interno().apagando.load(Ordering::SeqCst) {
-            return Err("La app se está cerrando.".into());
+            return Err(fallo_entorno("La app se está cerrando.".into()));
         }
         if let Some(codigo) = proceso_termino() {
-            return Err(format!("El servidor local se cerró al arrancar ({codigo})."));
+            return Err(Fallo { motivo: format!("El servidor local se cerró al arrancar ({codigo})."), de_la_capa: true });
         }
         match sondear_salud(puerto, &firma) {
             Some(l::Salud::Lista) => return Ok(puerto),
             Some(l::Salud::Ajena(por_que)) => {
                 // Otro programa responde en ese puerto: jamás se lleva la ventana ahí.
                 detener_proceso();
-                return Err(format!("En {} responde otro programa: {por_que}.", l::origen_local(puerto)));
+                return Err(fallo_entorno(format!("En {} responde otro programa: {por_que}.", l::origen_local(puerto))));
             }
             Some(l::Salud::Arrancando) | None => {}
         }
         if Instant::now() >= tope {
             detener_proceso();
-            return Err(format!("El servidor local no respondió en {} s.", l::ESPERA_LISTO_MS / 1000));
+            return Err(Fallo { motivo: format!("El servidor local no respondió en {} s.", espera_ms / 1000), de_la_capa: true });
         }
         std::thread::sleep(Duration::from_millis(l::PASO_SONDEO_MS));
     }
@@ -364,6 +486,21 @@ fn navegar_si_hace_falta(app: &AppHandle, puerto: u16) {
     }
 }
 
+/// ¿La ventana principal ya está en el servidor local de ese puerto?
+fn ventana_en_local(app: &AppHandle, puerto: u16) -> bool {
+    app.get_webview_window("main")
+        .and_then(|v| v.url().ok())
+        .is_some_and(|u| l::es_url_local(u.as_str(), puerto))
+}
+
+/// (CAP1107A) Tras un relevo de capa en el mismo puerto: recarga la página (sus scripts eran de la
+/// capa anterior). La cookie del pase sigue valiendo: el pase es del arranque de la app.
+fn recargar_ventana(app: &AppHandle) {
+    if let Some(v) = app.get_webview_window("main") {
+        let _ = v.eval("location.reload()");
+    }
+}
+
 fn volver_a_arranque(app: &AppHandle) {
     let Some(v) = app.get_webview_window("main") else { return };
     let url = interno().url_arranque.lock().ok().and_then(|g| g.clone());
@@ -415,6 +552,7 @@ pub(crate) fn hay_internet() -> bool {
 
 // ───────────────────────────── Paquete y registro ─────────────────────────────
 
+/// Versión y commit de lo que sirve (el `starseed-servidor.json` del instalador o de la capa).
 fn leer_manifiesto(ruta: &Path) {
     let Ok(texto) = std::fs::read_to_string(ruta) else { return };
     let Ok(v) = serde_json::from_str::<serde_json::Value>(&texto) else { return };

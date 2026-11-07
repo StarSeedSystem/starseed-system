@@ -101,6 +101,12 @@ pub fn rutas_paquete(dir_exe: &Path, dir_recursos: &Path, os: &str) -> RutasPaqu
     }
 }
 
+/// (CAP1107A · T1) Las rutas de una CAPA del servidor (`<app_data>/servidor-capas/<build>`): la misma
+/// forma que la carpeta `servidor` del instalador; el Node es siempre el que trae la app.
+pub fn rutas_con_dir(node: PathBuf, dir: PathBuf) -> RutasPaquete {
+    RutasPaquete { node, script: dir.join(SCRIPT_ARRANQUE), manifiesto: dir.join(MANIFIESTO), dir }
+}
+
 /// Qué falta del paquete (si falta algo, la app se comporta como antes: web publicada).
 #[derive(Debug, Clone, PartialEq)]
 pub enum FaltaPaquete {
@@ -398,6 +404,12 @@ mod pruebas {
         assert_eq!(r.manifiesto, PathBuf::from("/app/Resources/servidor/starseed-servidor.json"));
         let w = rutas_paquete(Path::new("C:/SS"), Path::new("C:/SS"), "windows");
         assert_eq!(w.node, PathBuf::from("C:/SS/starseed-node.exe"));
+        // (CAP1107A) Una capa: su carpeta, el Node de la app.
+        let c = rutas_con_dir(r.node.clone(), PathBuf::from("/datos/servidor-capas/B1"));
+        assert_eq!(c.node, r.node);
+        assert_eq!(c.script, PathBuf::from("/datos/servidor-capas/B1/starseed-arranque.cjs"));
+        assert_eq!(c.manifiesto, PathBuf::from("/datos/servidor-capas/B1/starseed-servidor.json"));
+        assert!(comprobar_paquete(&c, |_| true).is_ok());
     }
 
     #[test]

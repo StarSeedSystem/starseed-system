@@ -53,6 +53,7 @@ const COMANDOS_APP: &[&str] = &[
     "capturar_ventana",
     "entrada_ventana",
     "servidor_local_estado",
+    "servidor_local_actualizar",
     "migracion_origen_exportar",
     "migracion_origen_estado",
     "migracion_origen_datos",

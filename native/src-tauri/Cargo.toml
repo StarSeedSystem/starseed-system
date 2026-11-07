@@ -92,6 +92,13 @@ base64 = "0.22"
 # Entrada remota: teclado y ratón con enigo 0.6. Sin features keyboard/mouse;
 # los traits `Keyboard` y `Mouse` están disponibles por defecto.
 enigo = "0.6"
+# ─── Capas del servidor local (CAP1107A · T1, 2026-11-07) ───
+# Verificar el manifiesto de cada capa con la MISMA clave minisign del updater. Es la crate que
+# tauri-plugin-updater ya usa para lo mismo (0.3, sin dependencias): no baja ni compila nada nuevo.
+minisign-verify = "0.3"
+# Descomprimir el .tar.gz de la capa (el tar lo lee servidor_capas_logica.rs, estricto). Ya está en
+# el árbol por `png` (image/xcap) y tauri-plugin-updater: no baja ni compila nada nuevo.
+flate2 = "1"
 
 # (2026-10-19) tauri-plugin-deep-link 2.6.2 construye `ini::ParseOption` con 2 campos y rust-ini
 # 0.21.3 añadió dos más: en Linux (el CI) no compila. Se fija 0.21.1 hasta que deep-link lo arregle.
