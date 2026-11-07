@@ -76,6 +76,7 @@ def test_tsc_turno_falla_y_libera(cerrojos_tmp, tmp_path, monkeypatch):
     env = dict(os.environ)
     env["PATH"] = "%s:%s" % (tmp_path, env.get("PATH", ""))
     env["HOME"] = str(cerrojos_tmp)  # cerrojos y caché van al tmp vía $HOME
+    env["STARSEED_TSC_DISCO_MIN_MB"] = "0"  # (SUP0711D) el disco de la máquina no decide esta prueba
     r = subprocess.run(["bash", SCRIPT], cwd=str(repo), env=env,
                        capture_output=True, text=True, timeout=120)
     assert r.returncode == 3
@@ -101,6 +102,7 @@ def test_tsc_turno_no_le_quita_el_turno_a_un_dueno_vivo(cerrojos_tmp, tmp_path):
     env = dict(os.environ)
     env["PATH"] = "%s:%s" % (tmp_path, env.get("PATH", ""))
     env["HOME"] = str(cerrojos_tmp)
+    env["STARSEED_TSC_DISCO_MIN_MB"] = "0"
     env["STARSEED_TSC_ESPERA_S"] = "1"
     env["STARSEED_TSC_MAX_ESPERA_S"] = "2"
     r = subprocess.run(["bash", SCRIPT], cwd=str(repo), env=env,
@@ -156,6 +158,9 @@ def _entorno(cerrojos_tmp, tmp_path, **extra):
     env = dict(os.environ)
     env["PATH"] = "%s:%s" % (tmp_path, env.get("PATH", ""))
     env["HOME"] = str(cerrojos_tmp)
+    # (SUP0711D) tsc-turno no compila con poco disco (5 GB por defecto en macOS): estas pruebas no
+    # dependen del disco de la máquina que las corre; las de ese mínimo lo piden con `extra`.
+    env["STARSEED_TSC_DISCO_MIN_MB"] = "0"
     env.update(extra)
     return env
 
@@ -290,4 +295,63 @@ def test_tsc_turno_en_verde_sigue_escribiendo_la_cache(cerrojos_tmp, tmp_path):
     assert open(os.path.join(_cerrojos(cerrojos_tmp), caches[0])).read().split()[1] == "0"
     r2 = subprocess.run(["bash", SCRIPT], cwd=str(repo), env=env, capture_output=True, text=True, timeout=60)
     assert r2.returncode == 0 and "sin cambios" in r2.stdout
+    assert llamadas.read_text().split() == ["x"]
+
+
+# ── (SUP0711D, 2026-11-07) sin sitio para la swap, tsc-turno no compila el proyecto entero ──
+def _npx_que_apunta(tmp_path):
+    llamadas = tmp_path / "llamadas"
+    npx = tmp_path / "npx"
+    npx.write_text("#!/bin/sh\necho x >> '%s'\nexit 0\n" % llamadas, encoding="utf-8")
+    npx.chmod(0o755)
+    return llamadas
+
+
+@pytest.mark.skipif(not shutil.which("bash") or not shutil.which("df"), reason="sin bash o df")
+def test_tsc_turno_con_poco_disco_no_compila_y_suelta_el_turno(cerrojos_tmp, tmp_path):
+    """El 07-11 un solo tsc de agente (4 GB) creó 3 archivos de swap de 1 GB en tres minutos y dejó
+    la Mac con 2,9 GB libres. Por debajo del mínimo: rc 75 («no compilé»), npx no arranca, el
+    cerrojo queda libre y no se escribe caché (la próxima pasada, con sitio, sí compila)."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    llamadas = _npx_que_apunta(tmp_path)
+    env = _entorno(cerrojos_tmp, tmp_path, STARSEED_TSC_DISCO_MIN_MB="999999999")
+    r = subprocess.run(["bash", SCRIPT], cwd=str(repo), env=env, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 75, r.stderr
+    assert "NO compilé" in r.stderr and "disco libre" in r.stderr
+    assert not llamadas.exists()  # tsc nunca arrancó
+    assert not os.path.exists(os.path.join(_cerrojos(cerrojos_tmp), "pesado.lock"))
+    assert [f for f in os.listdir(_cerrojos(cerrojos_tmp)) if f.startswith("tsc-cache-")] == []
+    # Con sitio (mínimo de 1 MB), la misma carpeta compila.
+    r2 = subprocess.run(["bash", SCRIPT], cwd=str(repo), env=dict(env, STARSEED_TSC_DISCO_MIN_MB="1"),
+                        capture_output=True, text=True, timeout=60)
+    assert r2.returncode == 0, r2.stderr
+    assert llamadas.read_text().split() == ["x"]
+
+
+@pytest.mark.skipif(not shutil.which("bash"), reason="no hay bash")
+def test_tsc_turno_sin_lectura_del_disco_compila(cerrojos_tmp, tmp_path):
+    """Si `df` no puede leer la ruta, el mínimo no frena: mejor compilar que callar."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    llamadas = _npx_que_apunta(tmp_path)
+    env = _entorno(cerrojos_tmp, tmp_path, STARSEED_TSC_DISCO_MIN_MB="999999999",
+                   STARSEED_TSC_DISCO_RUTA=str(tmp_path / "no-existe"))
+    r = subprocess.run(["bash", SCRIPT], cwd=str(repo), env=env, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    assert llamadas.read_text().split() == ["x"]
+
+
+@pytest.mark.skipif(not shutil.which("bash"), reason="no hay bash")
+def test_tsc_turno_en_verde_y_sin_cambios_no_mira_el_disco(cerrojos_tmp, tmp_path):
+    """La caché en verde va antes que el mínimo: sin cambios no hay nada que compilar ni swap que temer."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    llamadas = _npx_que_apunta(tmp_path)
+    env = _entorno(cerrojos_tmp, tmp_path)
+    r = subprocess.run(["bash", SCRIPT], cwd=str(repo), env=env, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    r2 = subprocess.run(["bash", SCRIPT], cwd=str(repo), env=dict(env, STARSEED_TSC_DISCO_MIN_MB="999999999"),
+                        capture_output=True, text=True, timeout=60)
+    assert r2.returncode == 0 and "sin cambios" in r2.stdout, r2.stderr
     assert llamadas.read_text().split() == ["x"]

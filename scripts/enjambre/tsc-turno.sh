@@ -202,6 +202,29 @@ if [ -n "$HASH_AHORA" ] && [ "$HASH_AHORA" = "${CACHE_HASH:-}" ] && [ "${CACHE_R
     exit 0
 fi
 
+# (SUP0711D, 2026-11-07) Sin sitio para la swap no se compila el proyecto entero. En la Mac de 8 GB
+# cada tsc de agente sube a 4–4,7 GB y macOS crea archivos de swap de 1 GB en el disco del sistema:
+# el 07-11 uno solo bajó el disco de 6,3 a 2,9 GB libres en tres minutos (17:37–17:40) y, por la
+# mañana, con tres agentes, de 4,3 a 2,8 GB. Por debajo del mínimo no se compila: la puerta del
+# orquestador (GitHub o el A1) corre tsc al terminar la escritura. 0 lo apaga; fuera de macOS no hay
+# mínimo salvo que se pida (la swap de Linux no crece sobre el disco). Sin lectura del disco, se compila.
+case "$(uname -s 2>/dev/null)" in Darwin) DISCO_MIN_DEF=5120 ;; *) DISCO_MIN_DEF=0 ;; esac
+DISCO_MIN_MB=${STARSEED_TSC_DISCO_MIN_MB:-$DISCO_MIN_DEF}
+case "$DISCO_MIN_MB" in ''|*[!0-9]*) DISCO_MIN_MB=$DISCO_MIN_DEF ;; esac
+_disco_libre_mb() {
+    df -Pk "${STARSEED_TSC_DISCO_RUTA:-$HOME}" 2>/dev/null | awk 'NR == 2 { print int($4 / 1024) }'
+}
+if [ "$DISCO_MIN_MB" -gt 0 ]; then
+    LIBRE_MB=$(_disco_libre_mb)
+    case "${LIBRE_MB:-x}" in
+        ''|*[!0-9]*) ;;
+        *)
+            if [ "$LIBRE_MB" -lt "$DISCO_MIN_MB" ]; then
+                _no_compilo "disco libre ${LIBRE_MB} MB (mínimo ${DISCO_MIN_MB} MB): un tsc del proyecto entero crea hasta 3 GB de swap"
+            fi ;;
+    esac
+fi
+
 echo "tsc-turno: turno tomado (pid $$), compilando…" >&2
 NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit --skipLibCheck &
 TSC_PID=$!
