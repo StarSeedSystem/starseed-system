@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { contarTrabajoReal } from "@/lib/mando/conteo-operativo";
+import { contarTrabajoReal, obtenerIdsBloqueados } from "@/lib/mando/conteo-operativo";
 
 const tarea = (id: string, estado = "pendiente", dependenciasPendientes: string[] = []) => ({
     id,
@@ -32,5 +32,17 @@ describe("conteo operativo de Genesis", () => {
     it("una copia cerrada no oculta otra definición abierta del mismo id", () => {
         const fila = [tarea("A1", "rechazada"), tarea("A1", "interrumpida")];
         expect(contarTrabajoReal(fila, [])).toMatchObject({ listas: 1, pendientes: 1 });
+    });
+    // (07-11, MED1107A) Lo que Alex vio: descartadas y «no aplica» con la dependencia sin integrar salían
+    // en «Bloqueadas» como «bloqueada sin salida».
+    it("una tarea descartada o «no aplica» no cuenta como bloqueada aunque su dependencia no llegue", () => {
+        const fila = [
+            tarea("D2", "descartada", ["D1"]),
+            tarea("N3", "no_aplica", ["N2"]),
+            tarea("H1", "no-aplica", ["X"]),
+            tarea("B1", "bloqueada", ["A1"]),
+        ];
+        expect([...obtenerIdsBloqueados(fila, [])]).toEqual(["B1"]);
+        expect(contarTrabajoReal(fila, [])).toMatchObject({ bloqueadas: 1, pendientes: 1 });
     });
 });

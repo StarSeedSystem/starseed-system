@@ -18,9 +18,13 @@ export interface ConteoOperativo {
     copiasOmitidas: number;
 }
 
+// (07-11, MED1107A) También las cerradas sin código: una tarea descartada o «no aplica» que sigue en una
+// cola con su dependencia sin integrar salía en «Bloqueadas» como «bloqueada sin salida» (Alex lo vio con
+// IMG-…-lbsb-d2 y LNN1028I2-d3). El director ya las cierra así desde ORQ1106A; el medidor no.
 const CERRADAS = new Set([
-    "commit", "bloqueante", "sin_cambios", "sustituida", "reasignada",
+    "commit", "hecho", "bloqueante", "sin_cambios", "sustituida", "reasignada",
     "rechazada", "pendiente_aprobacion", "esperando_aprobacion", "informe",
+    "descartada", "no_aplica", "no-aplica", "cancelada",
 ]);
 
 export function obtenerIdsBloqueados(
