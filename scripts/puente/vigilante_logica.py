@@ -316,6 +316,42 @@ def decidir_relanzamiento(cfg, hay_orquestador, n_pendientes):
     return (True, trabajadores, tope)
 
 
+#: (2026-11-07) Un orquestador que muere antes de esto no llegó a escribir trabajo útil:
+#: es una vida corta y, repetida, una tormenta de colas `cola-auto-*` (medido el 28-10:
+#: una cada ~2 min 22 s con las mismas 20 tareas y latido de 5127 s).
+VIDA_MINIMA_S = 300
+RACHA_ESPERA_BASE_S = 300
+RACHA_ESPERA_TOPE_S = 3600
+
+
+def racha_de_arranques(vidas, minima_s=VIDA_MINIMA_S):
+    """PURA. Arranques SEGUIDOS, los más recientes, que murieron antes de `minima_s`.
+
+    `vidas` son los segundos que vivió cada orquestador, del más viejo al más nuevo. Una vida
+    larga (o ilegible) corta la racha: lo de antes ya no cuenta. Sin esa racha no hay freno y el
+    vigilante relanza en bucle un orquestador que muere siempre al poco de arrancar.
+    """
+    n = 0
+    for vida in reversed(list(vidas or [])):
+        if isinstance(vida, bool) or not isinstance(vida, (int, float)) or vida < 0:
+            break
+        if vida >= minima_s:
+            break
+        n += 1
+    return n
+
+
+def espera_por_arranques(racha):
+    """PURA. Segundos a esperar antes de relanzar tras `racha` muertes jóvenes seguidas.
+
+    Dobla con cada muerte y tiene techo: 5, 10, 20 min… hasta `RACHA_ESPERA_TOPE_S`. Sin racha,
+    no se espera (comportamiento de siempre).
+    """
+    if racha <= 0:
+        return 0
+    return min(RACHA_ESPERA_TOPE_S, RACHA_ESPERA_BASE_S * (2 ** (racha - 1)))
+
+
 #: (2026-10-08) `intentos_auto`: la escalera del director (libre×2 → … → bloqueante) llega
 #: también por aquí con el orquestador vivo; sin su cuenta repetiría «libre» para siempre.
 #: (2026-10-10) `reintentos_medio`: los reintentos por fallo del MEDIO no suben la escalera, pero
