@@ -3,6 +3,12 @@
 // ---------------------------------------------------------------------------
 // Contrato: architecture/apps-nativas-segundo-plano.md §2 y §3.
 //
+// (MLL1107A) El faro también sale por difusión (255.255.255.255) y a quien se oye por primera vez
+// (o tras un minuto) se le contesta con un faro DIRECTO: medido el 07-11, la Mac no recibía ningún
+// faro de la tablet en la misma Wi-Fi (el TCP 47071 sí iba). Muchos puntos de acceso no reenvían el
+// multicast entre clientes Wi-Fi (o lo cortan por IGMP sin consultor); la difusión y el unicast sí
+// pasan, y con que un sentido funcione, los dos aparatos se encuentran.
+//
 // Vive en hilos de Rust del PROCESO de la app, no en la página web: por eso sigue
 // funcionando con la ventana cerrada (escritorio: bandeja; Android: el servicio en
 // primer plano mantiene vivo el proceso). Hace, sin dependencias nuevas (solo std):
@@ -516,18 +522,20 @@ impl Guardian {
         ))
     }
 
-    fn recibir(&self, datos: &[u8], de: SocketAddr) -> bool {
-        let Some(f) = faro::leer(datos) else { return false };
-        let Ok(mut i) = self.interno.lock() else { return false };
+    /// Lee un datagrama del socket del faro. None: no es un faro o es el eco del propio; Some(cambio):
+    /// es el faro de OTRO aparato y `cambio` dice si hay que avisar a la web.
+    fn recibir(&self, datos: &[u8], de: SocketAddr) -> Option<bool> {
+        let f = faro::leer(datos)?;
+        let Ok(mut i) = self.interno.lock() else { return None };
         if i.propios_nonces.contains(&f.nonce) {
-            return false; // el eco de nuestro propio faro
+            return None; // el eco de nuestro propio faro
         }
         let ip = de.ip().to_string();
         let ahora = ahora_s();
         let propia = i.clave.as_deref().map(|k| faro::es_de_mi_cuenta(&f, k, ahora)).unwrap_or(false);
         if !propia {
             i.otras.insert(ip, Instant::now());
-            return true;
+            return Some(true);
         }
         let neurona = i.clave.as_deref().and_then(|k| faro::que_neurona(&f, k, &i.config.conocidas)).map(String::from);
         let v = Vecino {
@@ -543,7 +551,7 @@ impl Guardian {
         };
         let nuevo = !i.vecinos.contains_key(&ip);
         i.vecinos.insert(ip, (v, Instant::now()));
-        nuevo
+        Some(nuevo)
     }
 
     fn caducar(&self) -> bool {
@@ -591,8 +599,30 @@ fn abrir_socket_faro() -> Result<UdpSocket, String> {
         .map_err(|e| format!("No se pudo unir al grupo local {grupo}: {e} (¿sin Wi-Fi o sin permiso de red local?)"))?;
     let _ = s.set_multicast_ttl_v4(1); // solo esta red: el faro nunca sale del router
     let _ = s.set_multicast_loop_v4(true);
+    // (MLL1107A) Difusión a la red local: el router no la reenvía fuera (255.255.255.255 no se enruta).
+    let _ = s.set_broadcast(true);
     let _ = s.set_read_timeout(Some(Duration::from_secs(1)));
     Ok(s)
+}
+
+/// (MLL1107A) Cada cuánto, como mucho, se contesta con un faro directo a la misma IP.
+pub const RESPUESTA_DIRECTA_CADA_S: u64 = 60;
+
+/// (MLL1107A) ¿Toca contestar con un faro DIRECTO (unicast) a quien acaba de anunciarse desde `ip`?
+/// Una vez por IP cada `RESPUESTA_DIRECTA_CADA_S`: dos aparatos que se contestan no rebotan más de
+/// una vez por minuto. Solo IPs de la red local. Recorta lo viejo para no crecer sin fin. Pura.
+pub fn toca_respuesta_directa(ultimas: &mut HashMap<String, u64>, ip: &str, ahora_s: u64) -> bool {
+    if crate::malla_local_trama::ip_local(ip).is_none() {
+        return false;
+    }
+    ultimas.retain(|_, t| ahora_s.saturating_sub(*t) < RESPUESTA_DIRECTA_CADA_S * 10);
+    match ultimas.get(ip) {
+        Some(t) if ahora_s.saturating_sub(*t) < RESPUESTA_DIRECTA_CADA_S => false,
+        _ => {
+            ultimas.insert(ip.to_string(), ahora_s);
+            true
+        }
+    }
 }
 
 fn arrancar_hilos(g: Arc<Guardian>) {
@@ -602,6 +632,9 @@ fn arrancar_hilos(g: Arc<Guardian>) {
         .name("starseed-faro".into())
         .spawn(move || {
             let destino = SocketAddr::from((faro::GRUPO_MULTICAST, faro::PUERTO));
+            // (MLL1107A) La misma trama por difusión: pasa donde el punto de acceso no reenvía multicast.
+            let difusion = SocketAddr::from((Ipv4Addr::BROADCAST, faro::PUERTO));
+            let mut respuestas: HashMap<String, u64> = HashMap::new();
             loop {
                 let socket = match abrir_socket_faro() {
                     Ok(s) => s,
@@ -623,6 +656,8 @@ fn arrancar_hilos(g: Arc<Guardian>) {
                             Some(b) => match socket.send_to(&b, destino) {
                                 Ok(_) => {
                                     fallos = 0;
+                                    // Un fallo de la difusión no cuenta: el multicast ya salió.
+                                    let _ = socket.send_to(&b, difusion);
                                     let anonimo = gf.interno.lock().map(|i| i.clave.is_none()).unwrap_or(true);
                                     let motivo = if anonimo {
                                         "Anunciando en la red local cada 15 s (anónimo: falta la clave de faro de tu cuenta).".to_string()
@@ -646,8 +681,16 @@ fn arrancar_hilos(g: Arc<Guardian>) {
                     }
                     // Err = tiempo agotado (1 s): se sigue con el bucle.
                     if let Ok((n, de)) = socket.recv_from(&mut buf) {
-                        if gf.recibir(&buf[..n], de) {
-                            gf.avisar();
+                        if let Some(cambio) = gf.recibir(&buf[..n], de) {
+                            if cambio {
+                                gf.avisar();
+                            }
+                            // (MLL1107A) Contestar directo: el otro nos oye aunque no le llegue nuestro multicast.
+                            if toca_respuesta_directa(&mut respuestas, &de.ip().to_string(), ahora_s()) {
+                                if let Some(b) = gf.faro_saliente() {
+                                    let _ = socket.send_to(&b, de);
+                                }
+                            }
                         }
                     }
                 }
@@ -738,6 +781,49 @@ mod pruebas {
         assert!(resumen(&e).ends_with("1 neurona(s) tuya(s) cerca"));
         e.antenas.iter_mut().for_each(|a| a.estado = "apagada".into());
         assert!(resumen(&e).starts_with("Ninguna antena viva"));
+    }
+
+    #[test]
+    fn respuesta_directa_una_vez_por_minuto_y_solo_en_la_red_local() {
+        let mut u = HashMap::new();
+        assert!(toca_respuesta_directa(&mut u, "192.168.0.12", 1_000), "primera vez: se contesta");
+        assert!(!toca_respuesta_directa(&mut u, "192.168.0.12", 1_030), "al rato: no (no rebota)");
+        assert!(toca_respuesta_directa(&mut u, "192.168.0.15", 1_030), "otra IP: sí");
+        assert!(toca_respuesta_directa(&mut u, "192.168.0.12", 1_000 + RESPUESTA_DIRECTA_CADA_S), "pasado un minuto: otra vez");
+        assert!(!toca_respuesta_directa(&mut u, "8.8.8.8", 1_000), "fuera de la red local: nunca");
+        assert!(!toca_respuesta_directa(&mut u, "no-es-ip", 1_000));
+        // Lo muy viejo se olvida (no crece sin fin).
+        assert!(toca_respuesta_directa(&mut u, "10.0.0.9", 1_000_000));
+        assert_eq!(u.len(), 1);
+    }
+
+    #[test]
+    fn un_faro_ajeno_se_lee_y_el_eco_propio_no() {
+        let g = Guardian {
+            tipo: TipoAparato::Escritorio,
+            dir_datos: std::env::temp_dir(),
+            interno: Mutex::new(Interno {
+                config: ConfigAntenas::default(),
+                clave: None,
+                vecinos: HashMap::new(),
+                otras: HashMap::new(),
+                propios_nonces: Vec::new(),
+                wifi: antena("wifi-local", "Wi-Fi local", "apagada", String::new(), true, vec![]),
+                lora: antena("lora", "LoRa", "apagada", String::new(), true, vec![]),
+                reticulum: antena("reticulum", "Reticulum", "apagada", String::new(), true, vec![]),
+                internet: antena("internet", "Internet", "apagada", String::new(), true, vec![]),
+                serie_abierta: None,
+                segundo_plano: false,
+            }),
+            notificar: Mutex::new(Vec::new()),
+        };
+        let de: SocketAddr = "192.168.0.12:47070".parse().unwrap();
+        assert_eq!(g.recibir(b"basura", de), None);
+        let propio = g.faro_saliente().expect("faro propio");
+        assert_eq!(g.recibir(&propio, de), None, "el eco del propio faro no cuenta");
+        let ajeno = faro::construir(None, None, TipoAparato::Android, 0, 47071, ahora_s(), [3; 8]);
+        assert_eq!(g.recibir(&ajeno, de), Some(true));
+        assert_eq!(g.otras_cercanas().len(), 1);
     }
 
     #[test]
