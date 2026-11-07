@@ -7,11 +7,19 @@
 import unittest
 import sys
 import os
+from datetime import datetime, timedelta
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, AQUI)
 
 import metageminis_plan as mp
+
+
+def _hace(dias_atras, ahora="2026-11-07T12:00:00Z"):
+    """(SUP0711C) Fecha ISO `dias_atras` días antes de `ahora`. Antes era «2026-11-{7-dias}»: con 15 días daba
+    «2026-11--8» y la prueba de «fuera de plazo» pasaba porque la fecha no se podía leer."""
+    base = datetime.fromisoformat(ahora.replace("Z", "+00:00"))
+    return (base - timedelta(days=dias_atras)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class TestEnEnfriamiento(unittest.TestCase):
@@ -22,21 +30,21 @@ class TestEnEnfriamiento(unittest.TestCase):
         return {
             "sitio_id": sitio_id,
             "estado": mp.ESTADO_PARA_APROBAR,
-            "creado_en": f"2026-11-{7-dias_atras:02d}T12:00:00Z",
+            "creado_en": _hace(dias_atras),
         }
 
     def fila_enviado(self, sitio_id, dias_atras):
         return {
             "sitio_id": sitio_id,
             "estado": mp.ESTADO_ENVIADO,
-            "enviado_en": f"2026-11-{7-dias_atras:02d}T12:00:00Z",
+            "enviado_en": _hace(dias_atras),
         }
 
     def fila_descartado(self, sitio_id, dias_atras):
         return {
             "sitio_id": sitio_id,
             "estado": mp.ESTADO_DESCARTADO,
-            "creado_en": f"2026-11-{7-dias_atras:02d}T12:00:00Z",
+            "creado_en": _hace(dias_atras),
         }
 
     def test_para_aprobar_no_enfria(self):
@@ -59,6 +67,15 @@ class TestEnEnfriamiento(unittest.TestCase):
         en_frio, motivo = mp.en_enfriamiento("mastodon", filas, self.AHORA, self.DIAS)
         self.assertFalse(en_frio)
         self.assertEqual(motivo, "")
+
+    def test_fecha_de_prueba_legible(self):
+        """(SUP0711C) Las fechas de las pruebas se leen: si no, «no enfría» pasaría por la razón equivocada."""
+        self.assertIsNotNone(mp._parse_iso(self.fila_enviado("x", 15)["enviado_en"]))
+
+    def test_justo_en_el_limite_no_enfria(self):
+        """Enviado hace exactamente 14 días: ya no enfría."""
+        en_frio, _ = mp.en_enfriamiento("goteo", [self.fila_enviado("goteo", 14)], self.AHORA, self.DIAS)
+        self.assertFalse(en_frio)
 
     def test_descartado_no_enfria(self):
         """Un borrador descartado NO enfría, aunque sea reciente."""
@@ -183,9 +200,31 @@ class TestRepartirIntentos(unittest.TestCase):
 class TestIntegracionPlan(unittest.TestCase):
     """Pruebas de que plan() usa las nuevas funciones (se ejecutan tras modificar metageminis.py)."""
 
+    AHORA = "2026-11-07T12:00:00Z"
+
+    def setUp(self):
+        import metageminis as mg
+        self.mg = mg
+        self.directorio = mg.cargar_directorio()
+        elegidos, _ = mg.plan(self.directorio)
+        if not elegidos:
+            self.skipTest("el directorio no tiene ningún sitio elegible")
+        self.sitio = elegidos[0]["id"]
+        self.filas = [{"sitio_id": self.sitio, "estado": mp.ESTADO_ENVIADO, "enviado_en": _hace(3, self.AHORA)}]
+
+    def test_sin_filas_la_salida_no_cambia(self):
+        self.assertEqual(self.mg.plan(self.directorio), self.mg.plan(self.directorio, filas=None, ahora=self.AHORA))
+
     def test_plan_con_cola_excluye_enfriamiento(self):
-        # Esta prueba se habilitará tras modificar metageminis.py
-        pass
+        elegidos, excluidos = self.mg.plan(self.directorio, filas=self.filas, ahora=self.AHORA)
+        self.assertNotIn(self.sitio, [e["id"] for e in elegidos])
+        motivo = [e for e in excluidos if e["id"] == self.sitio][0]["motivo"]
+        self.assertIn("vuelve en 11", motivo)
+
+    def test_el_ahora_pasado_manda(self):
+        """(SUP0711C) Un mes después del envío el sitio vuelve: plan() usa el `ahora` que se le pasa."""
+        elegidos, _ = self.mg.plan(self.directorio, filas=self.filas, ahora="2026-12-07T12:00:00Z")
+        self.assertIn(self.sitio, [e["id"] for e in elegidos])
 
 
 if __name__ == "__main__":

@@ -247,7 +247,9 @@ def plan(directorio, prioridad_max=2, solo_sitio=None, filas=None, ahora=None):
     Sin `filas`, la salida no cambia (compatibilidad hacia atrás).
     """
     elegidos, excluidos = [], []
-    ahora_str = ahora or mgp.ahora() if hasattr(mgp, 'ahora') else datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # (SUP0711C) `ahora` manda; sin él, el reloj. Antes `a or b if c else d` se leía `(a or b) if c else d` y,
+    # como metageminis_plan no tiene `ahora`, el `ahora` pasado se ignoraba siempre.
+    ahora_str = ahora or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     for s in sorted(directorio, key=lambda x: (x["prioridad"], x.get("vence") or "9999-12-31", x["nombre"])):
         if solo_sitio and s["id"] != solo_sitio:
             continue
