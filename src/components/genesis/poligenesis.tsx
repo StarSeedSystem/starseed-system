@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { CheckCircle2, ExternalLink, Landmark, Loader2, RefreshCw, Users2, Vote } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -27,8 +28,14 @@ import { GobiernoProtoResumen } from "@/components/protomolecula/gobierno";
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
 import { PanelProtoGenesis } from "@/components/protogenesis/panel-protogenesis";
+import { ActualizacionesPoliGenesis, type EntidadActualizable } from "@/components/actualizaciones/panel-actualizaciones";
 
 const SUGERENCIAS = ["Actualiza la descripción para presentar mejor al grupo", "Cambia el color de acento a verde esmeralda", "Crea un agente público que dé la bienvenida a quien llega"];
+
+const ActualizacionesPoliGenesisDinamico = dynamic(
+    () => import("@/components/actualizaciones/panel-actualizaciones").then((m) => m.ActualizacionesPoliGenesis),
+    { ssr: false, loading: () => <p className="text-[11px] text-white/50">Cargando actualizaciones…</p> },
+);
 
 export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null }) {
     const [lista, setLista] = useState<EntidadGestionable[] | null>(null);
@@ -338,6 +345,16 @@ export function PoliGenesis({ entidadInicial }: { entidadInicial?: string | null
                     })}
                         </ul>
                     )}
+                </section>
+            )}
+
+            {entidad && (
+                <section aria-label="Actualizaciones de la entidad" className="space-y-2">
+                    <ActualizacionesPoliGenesisDinamico
+                        entidad={{ tipo: entidad.tipo, slug: entidad.slug, nombre: entidad.nombre }}
+                        democratico={modo?.democratico ?? false}
+                        puedeGestionar={decidirAplicacion({ tipo: "entidad", entidad: { tipo: entidad.tipo, id: entidad.id, slug: entidad.slug, nombre: entidad.nombre } }, entidad.rango, modo?.democratico ?? false).modo !== "sin-permiso"}
+                    />
                 </section>
             )}
         </section>

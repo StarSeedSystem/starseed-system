@@ -36,6 +36,7 @@ const puertosFalsos: PuertosGenesis = (() => {
 vi.mock("@/lib/genesis/puertos-os", () => ({
     puertosDelOs: () => puertosFalsos,
     contextoDeMiCuenta: async () => ({ contexto: {}, paginasPropias: [] }),
+    miCuenta: async () => "test-uid",
 }));
 vi.mock("@/lib/genesis/historial", () => ({
     anotar: vi.fn(async () => "cuenta"),

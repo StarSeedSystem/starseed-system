@@ -9,9 +9,9 @@
 
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, RefreshCw } from "lucide-react";
 import { useAppearance } from "@/context/appearance-context";
-import { puertosDelOs, contextoDeMiCuenta } from "@/lib/genesis/puertos-os";
+import { puertosDelOs, contextoDeMiCuenta, miCuenta } from "@/lib/genesis/puertos-os";
 import type { Ambito } from "@/lib/genesis/operaciones";
 import { PanelOperaciones } from "./panel-operaciones";
 import { AtajosGenesis } from "./atajos-genesis";
@@ -19,6 +19,7 @@ import { SeccionAsignacionesGenesis, guardarAsignaciones } from "./conectores/se
 import { almacenNavegador, cargarEncargos, type RegistroEncargo } from "@/lib/protogenesis/almacen-encargos";
 import { decidirResultado, propuestaMetaGenesis, faltaDePlan, type Falta } from "@/lib/protogenesis/decision";
 import { PanelProtoGenesis } from "@/components/protogenesis/panel-protogenesis";
+import { ActualizacionesGenesis } from "@/components/actualizaciones/panel-actualizaciones";
 
 const AMBITO: Ambito = { tipo: "persona" };
 
@@ -36,6 +37,11 @@ const SUGERENCIAS = [
     "Crea un agente privado que me resuma las propuestas abiertas",
     "Haz la letra un poco más grande",
 ];
+
+const ActualizacionesGenesisDinamico = dynamic(
+    () => import("@/components/actualizaciones/panel-actualizaciones").then((m) => m.ActualizacionesGenesis),
+    { ssr: false, loading: () => <p className="text-[11px] text-white/50">Cargando actualizaciones…</p> },
+);
 
 export function MiGenesis() {
     const { rawConfig, updateConfig, bgScopeMode } = useAppearance();
@@ -58,10 +64,13 @@ export function MiGenesis() {
 
     const cargarContexto = useCallback(() => contextoDeMiCuenta(), []);
     const [encargos, setEncargos] = useState<RegistroEncargo[] | null>(null);
+    const [actualizacionesAbierta, setActualizacionesAbierta] = useState(false);
+    const [uid, setUid] = useState<string | null>(null);
     // Id del encargo cuyo panel ProtoGenesis está abierto (PG1013I): uno a la vez.
     const [panelAbierto, setPanelAbierto] = useState<string | null>(null);
 
     useEffect(() => {
+        void miCuenta().then(setUid);
         const almacen = almacenNavegador();
         if (almacen) {
             const lista = cargarEncargos(almacen); // Without moleculaId, we get all, but we want to limit per molecule? The function already limits to 50 per molecule internally.
@@ -171,6 +180,18 @@ export function MiGenesis() {
                     })}
                     </ul>
                 )}
+            </section>
+            <section aria-label="Actualizaciones de tu OS" className="space-y-2">
+                <button
+                    type="button"
+                    onClick={() => setActualizacionesAbierta((a) => !a)}
+                    className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm font-medium text-white/90 transition-colors duration-200 hover:bg-white/[0.05]"
+                >
+                    <RefreshCw className="h-4 w-4 shrink-0 text-emerald-300" aria-hidden />
+                    Actualizaciones de tu OS
+                    <span className="ml-auto text-[11px] text-white/45">{actualizacionesAbierta ? "▲" : "▼"}</span>
+                </button>
+                {actualizacionesAbierta && <ActualizacionesGenesisDinamico uid={uid} />}
             </section>
         </section>
     );
