@@ -3331,7 +3331,7 @@ def fusionar_progreso(memoria, disco, propias):
         if (
             tid not in salida
             or (propias and tid not in propias)
-            or estado in PROGRESO_IRREVERSIBLE
+            or estado in (PROGRESO_IRREVERSIBLE | CERRADAS_SIN_CODIGO)
             or prestada
         ):
             salida[tid] = valor
