@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment node
 /**
  * Auditoría de claves `starseed.*` (2026-09-29, persistencia entre medios).
  *
