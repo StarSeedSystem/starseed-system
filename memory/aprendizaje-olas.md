@@ -6028,3 +6028,20 @@ intento y se arranca desde main) y `lanzar-enjambre.sh` instala el orquestador d
 **Lo que se pidió.** Conector opcional
 
 **Resultado.** 1 de 1 integradas.
+
+## 2026-11-07 13:48 · auto-1107-115043
+
+**Lo que se pidió.** Pendiente
+
+**Resultado.** 9 de 13 integradas. 4 tareas se quedaron fuera.
+
+**Lo que se repitió** (hechos, con su número; la conclusión la sacas tú):
+- 2 tareas se fueron por lo mismo — los tipos no compilan (CTR1107D, CTR1107E). Es 15 % de la ola.
+- sin modelo anotado no integró ninguna de sus 2 tareas.
+- freellmapi/auto integró 2 tareas sin fallar una.
+
+**Lo que quedó fuera, una por una:**
+- `CTR1107D` — los tipos no compilan: revisor: dividida en CTR1107D-d1, CTR1107D-d2, CTR1107D-d3 (tarea:tsc con 3 archivos: se divide en 3 partes encadenadas)
+- `CTR1107G` — no escribió nada: revisor: dividida en CTR1107G-d1, CTR1107G-d2, CTR1107G-d3 (tarea:sin_cambios con 3 archivos: se divide en 3 partes encadenadas)
+- `CTR1107E` — los tipos no compilan: revisor: dividida en CTR1107E-d1, CTR1107E-d2, CTR1107E-d3 (tarea:tsc con 3 archivos: se divide en 3 partes encadenadas)
+- `CTR1107E-d3` — otra cosa: reasignada al A1 de Oracle 20261107 (colas/oracle-20261107-134635)
