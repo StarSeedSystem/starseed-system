@@ -57,6 +57,7 @@ export {
     type SoporteSupertonic,
     type NivelVozSuptonica,
     type OpcionesNivelVoz,
+    clampIntensidad,
 };
 import { perfilNeuronal } from "@/lib/voces/perfil-neuronal";
 // (2026-09-06, Ola 264 · G2) Emoción e intensidad: etiquetas `[emocion]` del
@@ -193,6 +194,16 @@ export function resolverEmocion(
         intensidad: delTexto.intensidad ?? opciones.intensidad ?? timbre?.intensidad ?? 1,
         texto: delTexto.textoLimpio,
     };
+}
+
+/**
+ * Valida la entrada de intensidad en el motor de voz.
+ * Garantiza que cualquier valor de entrada esté acotado al rango [0, 1].
+ */
+export function clampIntensidad(value: number): number {
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
 }
 
 /**
