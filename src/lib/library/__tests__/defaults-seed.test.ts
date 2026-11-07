@@ -12,6 +12,7 @@ import { IDS_SIEMBRA_1027B } from "../repos-1027b";
 import { IDS_SIEMBRA_1028 } from "../repos-1028";
 import { IDS_SIEMBRA_1101 } from "../repos-1101";
 import { IDS_SIEMBRA_1104 } from "../repos-1104";
+import { FICHAS_REPOS_1028 } from "../repos-1028";
 
 const SIEMPRE_2A = [
   "lib-vikunja",
@@ -288,6 +289,63 @@ describe("defaults-seed · tanda 1027 (OpenMausBot, Insomnia y Colibri) · remac
       expect(f.comingSoon, f.id).toBeFalsy();
       expect(f.payload.downloadable, f.id).toBeUndefined();
       expect(String(f.payload.route ?? ""), f.id).toBe("");
+    }
+  });
+});
+
+describe("defaults-seed · tanda 1028 (LEANN · recuerdo semántico)", () => {
+  const nuevas = FICHAS_REPOS_1028.map((f) => f.id);
+
+  it("la única ficha (lib-leann) está en la recomendación y la siembra por defecto", () => {
+    expect(TANDA_1028_FICHAS).toHaveLength(1);
+    expect([...IDS_SIEMBRA_1028]).toEqual(["lib-leann"]);
+    for (const id of nuevas) expect(RECOMMENDED_PACKAGE_IDS).toContain(id);
+    expect(new Set(RECOMMENDED_PACKAGE_IDS).size).toBe(RECOMMENDED_PACKAGE_IDS.length);
+  });
+
+  it("un usuario nuevo recibe lib-leann en la versión 25", () => {
+    const plan = selectSeedIds({
+      currentVersion: 24,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: FICHAS_REPOS_1028.map((f) => ({ id: f.id, comingSoon: f.comingSoon })),
+      alreadyOffered: [],
+      installedIds: [],
+    });
+    expect(plan).toEqual(["lib-leann"]);
+  });
+
+  it("lib-leann no se vuelve a sembrar si ya está sembrada", () => {
+    const plan = selectSeedIds({
+      currentVersion: SEED_VERSION,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: FICHAS_REPOS_1028.map((f) => ({ id: f.id, comingSoon: f.comingSoon })),
+      alreadyOffered: ["lib-leann"],
+      installedIds: ["lib-leann"],
+    });
+    expect(plan).toEqual([]);
+  });
+
+  it("lib-leann no se vuelve a sembrar si el usuario lo desinstaló deliberadamente", () => {
+    const plan = selectSeedIds({
+      currentVersion: SEED_VERSION - 1,
+      seedVersion: SEED_VERSION,
+      recommendedIds: RECOMMENDED_PACKAGE_IDS,
+      catalog: [{ id: "lib-leann", comingSoon: false }],
+      alreadyOffered: ["lib-leann"],
+      installedIds: [],
+    });
+    expect(plan).not.toContain("lib-leann");
+  });
+
+  it("lib-leann es un ai-source sin route ni skillId: instalar solo registra el enlace", () => {
+    for (const f of FICHAS_REPOS_1028) {
+      expect(f.kind).toBe("ai-source");
+      expect(f.comingSoon).toBeFalsy();
+      expect(f.payload.route).toBeUndefined();
+      expect(f.payload.skillId).toBeUndefined();
+      expect(f.payload.externalUrl).toBe("https://github.com/StarTrail-org/LEANN");
     }
   });
 });
