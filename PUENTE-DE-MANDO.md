@@ -1,6 +1,6 @@
 # Genesis · contexto compartido de los cuatro entornos
 
-> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-06 14:57:22 desde Genesis vivo.
+> Generado por `scripts/puente/sincronizar-ides.py` el 2026-11-06 16:39:21 desde Genesis vivo.
 > **No lo edites a mano: se regenera.** Lo permanente va en `CLAUDE.md` y en `AGENTS.md`.
 
 Este archivo es el primer mensaje del chat principal en **Claude (Cowork)**, **Codex**,
@@ -12,19 +12,26 @@ mismo canal, así que ninguno necesita que otro le resuma nada.
 | | |
 |---|---|
 | Genesis | **encendido** en http://127.0.0.1:9002/mando |
-| Ola arriba | Sueños profundos 2026-10-24 |
-| Agentes escribiendo | **0** |
-| En esta ola | integradas 0 · en curso 0 · esperando aprobación 0 · pendientes 41 |
-| Últimas 4 olas | en curso 0 · pendientes 80 · integradas 0 |
-| HEAD | `25abfea629 chore(memoria): aprendizaje de la ola auto-1106-145452` |
-| Sin publicar | 15 commits |
-| Árbol | limpio |
+| Ola arriba | imaginacion-20261106-1506 |
+| Agentes escribiendo | **3** |
+| En esta ola | integradas 0 · en curso 2 · esperando aprobación 0 · pendientes 4 |
+| Últimas 8 olas | en curso 7 · pendientes 92 · integradas 5 |
+| HEAD | `bb9783e756 1106 · Supervisión · ORQ1106A: el director de orquestación no cuenta las cerrad` |
+| Sin publicar | 5 commits |
+| Árbol | 1 archivos sin commitear |
 
-## Quién escribe ahora (latido de `cola-auto-1106-145452.json`, hace 12s)
+## Quién escribe ahora (latido de `cola-auto-1106-151641.json`, hace 7s)
 
 | tarea | fase | modelo | lleva | quieto | bytes |
 |---|---|---|---|---|---|
-| `CTR1106As` | hecho |  | 2 min | 130 s | 289907 |
+| `IMG-diaria-publicar-los-167-commits-acumulad` | escribiendo | freellmapi/auto | 15 min | 145 s | 165756 |
+| `LNN1028I2-d2` | escribiendo | nvidia/nvidia/nemotron-3-ultra-550 | 6 min | 228 s | 410825 |
+| `IMG-diaria-publicar-el-backlog-acumulado` | escribiendo | freellmapi/auto | 4 min | 254 s | 343364 |
+| `IMG-diaria-publicar-los-140-commits-acumulad` | hecho | freellmapi/auto | 16 min | 955 s | 68431 |
+| `IMG-diaria-desatascar-la-pila-de-publicacion` | hecho | freellmapi/auto | 18 min | 1080 s | 187741 |
+| `IMG-diaria-publicar-la-pila-de-main-acumulad` | hecho | freellmapi/auto | 27 min | 1606 s | 4681 |
+| `ENT-agentes-referencias-diseno-agentes-re-740c30-v1` | hecho | groq/openai/gpt-oss-120b | 74 min | 4424 s | 588 |
+| `ENT-agentes-referencias-diseno-agentes-re-82694d-v1` | hecho | nim/minimaxai/minimax-m3.1-flash | 74 min | 4435 s | 493 |
 
 **Quieto por encima de 300 s con los bytes parados = API colgada, no modelo lento.**
 Suéltala y dásela a un agente del IDE: `starseed-puente soltar <id>`.
