@@ -50,6 +50,11 @@ mod serie;
 mod servidor_local;
 #[cfg(desktop)]
 mod servidor_local_logica;
+// (APP1107B · T4) Trae al servidor local lo que la app tenía en el origen de la web publicada.
+#[cfg(desktop)]
+mod migracion_origen;
+#[cfg(desktop)]
+mod migracion_origen_logica;
 mod sha256;
 // `ventana_remota` (APM1017P, rehecho en APR1019A) está de vuelta con las API
 // reales: xcap 0.9 (`Window::all()`, `app_name()`, `capture_image()`), image
@@ -607,6 +612,10 @@ pub fn run() {
         ventana_remota::capturar_ventana,
         ventana_remota::entrada_ventana,
         servidor_local::servidor_local_estado,
+        migracion_origen::migracion_origen_exportar,
+        migracion_origen::migracion_origen_estado,
+        migracion_origen::migracion_origen_datos,
+        migracion_origen::migracion_origen_confirmar,
     ]);
     #[cfg(not(desktop))]
     registrar_comandos!(builder []);

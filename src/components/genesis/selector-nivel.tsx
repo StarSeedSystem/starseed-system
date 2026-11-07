@@ -71,7 +71,7 @@ export function SelectorNivelGenesis() {
                 setNivel("mi");
             } else setNivel(quiere);
         };
-        if (abiertoEnLaMac(window.location.hostname)) return decidir(true);
+        if (abiertoEnLaMac(window.location.hostname, window.location.port)) return decidir(true);
         void miAccesoMetaGenesis().then((a) => decidir(a?.miembro === true));
     }, []);
 

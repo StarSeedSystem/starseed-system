@@ -18,15 +18,24 @@
  * SOP: architecture/metagenesis-remoto-tunel.md
  */
 
+import { PUERTOS_SERVIDOR_LOCAL } from "@/lib/nativa/sin-conexion";
+
 /** Hosts de bucle local: la página está abierta en la propia Mac. */
 const BUCLE = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
 /** Un latido más viejo que esto ya no dice que la Mac esté viva (la Mac late cada 60 s). */
 export const LATIDO_VIEJO_MS = 3 * 60_000;
 
-/** ¿La página está abierta en la propia máquina del motor (bucle local)? */
-export function abiertoEnLaMac(hostname: string): boolean {
-    return BUCLE.has((hostname || "").trim().toLowerCase());
+/**
+ * ¿La página está abierta en la propia máquina del motor (bucle local)?
+ * (APP1107B · T8) La app de escritorio sirve el OS desde SU servidor local en 127.0.0.1:47610…47619:
+ * eso es otra neurona, no la Mac del motor (su `/api/mando` responde 404). Con `puerto` de esos diez,
+ * no es «la Mac» y MetaGenesis va por el túnel como desde cualquier otra neurona.
+ */
+export function abiertoEnLaMac(hostname: string, puerto?: string | number | null): boolean {
+    if (!BUCLE.has((hostname || "").trim().toLowerCase())) return false;
+    const p = Number(puerto);
+    return !(Number.isInteger(p) && (PUERTOS_SERVIDOR_LOCAL as readonly number[]).includes(p));
 }
 
 /** ¿Es una ruta del motor (`/api/mando` o `/api/mando/…`)? */

@@ -1,4 +1,4 @@
-# Apps autónomas sin internet: el servidor local dentro de la app (contrato · APP1107A · 2026-11-07)
+# Apps autónomas sin internet: el servidor local dentro de la app (contrato · APP1107A + APP1107B · 2026-11-07)
 
 **Petición de Alex (07-11):** «Las apps instaladas dejan de funcionar cuando se pierde la conexión a internet,
 cuando deberían ser completamente autónomas e independientes, sin necesidad de ningún tipo de conexión, todo
@@ -29,6 +29,9 @@ visitado antes podía salir del service worker, nada más). Nexus y Café, igual
 | Android con servidor propio dentro (nodejs-mobile) e iOS | PENDIENTE. Plan exacto en §9 |
 | Nexus y Café | Siguen con su web. Plan en §9.3 |
 | Actualizar el servidor local por capas sin reinstalar | PENDIENTE (fase 2, §10) |
+| Traer al servidor local lo que la app tenía en el origen de la web publicada (localStorage + IndexedDB), una vez y sin pisar nada (T4) | ESCRITO SIN PUBLICAR (APP1107B, §2.1) · pruebas puras (Rust y JS) + IndexedDB de mentira + **probado en Linux con la app real** (Tauri 2.12.5 + WebKitGTK, Xvfb, la «web» en otro origen); falta macOS y Windows (T12) |
+| Permisos de los comandos propios para la web (tauri ≥ 2.11.1 los rechaza desde un origen remoto sin ellos) | ESCRITO SIN PUBLICAR (APP1107B, §3) · comprobado en Linux: con el código de main, `servidor_local_estado`, `device_info` y `antenas_estado` desde `127.0.0.1:47610` → «not allowed»; con APP1107B responden |
+| La app sin lo que solo vive en la Mac (`/api/mando/**`) (T8) | ESCRITO SIN PUBLICAR (APP1107B, §5 y §6) |
 
 ---
 
@@ -61,6 +64,11 @@ server.js de Next (standalone) en 127.0.0.1:<puerto interno al azar>
 | Envoltorio Node (puerta, reenvío, vigía del padre) | `native/servidor-local/starseed-arranque.cjs` |
 | Armado del paquete (CI) y Node fijado | `native/servidor-local/preparar.mjs`, `native/servidor-local/node.json` |
 | Página de arranque | `native/arranque/index.html` (`build.frontendDist`) |
+| Migración del origen web (T4): lógica pura del navegador (qué claves, códec de IndexedDB, fusión, página importadora) | `native/servidor-local/migracion-origen.js` (pruebas: `src/lib/nativa/__tests__/migracion-origen.test.ts`) |
+| Migración: lógica pura de Rust (marcador, sesión fuera, copia sin secretos, trozos) — 8 pruebas | `native/src-tauri/src/migracion_origen_logica.rs` |
+| Migración: pegamento (ventana oculta, comandos `migracion_origen_*`, copia y marcador en el disco) | `native/src-tauri/src/migracion_origen.rs` |
+| Aviso «Tus datos de la versión anterior ya están aquí» | `src/lib/nativa/migracion-origen.ts`, `src/components/nativa/aviso-migracion-origen.tsx` |
+| Lo que el build nativo deja fuera (T8) | `native/servidor-local/solo-mac.mjs` |
 | Aviso en la web | `src/lib/nativa/sin-conexion.ts`, `src/components/nativa/aviso-sin-conexion.tsx` |
 | Build de Next para la app | `next.config.ts` con `STARSEED_APP_NATIVA=1` (imágenes sin optimizar, sin sharp, ISR en memoria) |
 | Sesión sin red | `src/utils/supabase/middleware.ts`: con `STARSEED_SERVIDOR_LOCAL=1`, tope de 2,5 s y un fallo de red no echa a `/login` |
@@ -80,7 +88,103 @@ server.js de Next (standalone) en 127.0.0.1:<puerto interno al azar>
   `PUERTOS` en Rust, `remote.urls` de `capabilities/default.json` y `desktop.json`, y `PUERTOS_SERVIDOR_LOCAL`.
 - **Origen nuevo = medio nuevo** (`architecture/persistencia-entre-medios.md`): la primera vez, con internet, se
   inicia sesión y la cuenta trae lo que viaja (`SYNCED_KEYS`, escritorios, dashboards…). Lo que solo vivía en el
-  `localStorage` de la web publicada no pasa solo (pendiente T4).
+  `localStorage`/IndexedDB del origen de la web publicada lo trae la migración de §2.1 (T4).
+
+### 2.1 Migración del origen web al origen local (T4 · APP1107B · ESCRITO SIN PUBLICAR)
+
+**Problema.** Hasta la 0.4.3 la ventana abría `https://starseed-os.vercel.app`; desde APP1107A abre
+`http://127.0.0.1:47610`. `localStorage` e IndexedDB son por origen: escritorios, widgets, ajustes, historiales,
+vínculos de neuronas, mensajes de la malla, la identidad de la malla… desaparecerían al actualizar (lo de la cuenta
+vuelve con la sesión; lo demás no).
+
+**Cómo (los tres sistemas, el mismo camino).** La app ya tiene en disco el almacén del origen viejo (WKWebView usa
+el `WKWebsiteDataStore` por defecto de `app.starseed.os`; WebView2, la carpeta de datos de usuario de la app;
+WebKitGTK, su `WebContext` por defecto) y cualquier ventana nueva de la app comparte ese almacén. Así que:
+
+1. **Exportar** (`migracion_origen.rs`, desde `servidor_local::arrancar` con el paquete ya comprobado): si el
+   marcador del disco dice que falta y hay internet, Rust abre una ventana **oculta** («migracion-origen») en
+   `https://starseed-os.vercel.app/offline.html?starseed-migracion=1` (HTML estático, sin el código del OS: no
+   escribe nada) con un **script de inicio** (`migracion-origen.js` entero, inyectado por Tauri al empezar el
+   documento, antes que la página). Si `location.origin` es el de la web: lee **todo `localStorage`** (menos la
+   sesión) y **todas las bases de IndexedDB** (`indexedDB.databases()`, o las cinco de la app si el WebKit es
+   viejo, abriéndolas SIN crearlas) con un cursor y topes, y lo pasa a Rust por IPC en trozos de 1 MiB
+   (`migracion_origen_exportar`). Rust comprueba ventana + origen, quita otra vez cualquier sesión, escribe la
+   copia y cierra la ventana. Tope: 40 s.
+2. **Importar** (`/__starseed/migracion`, página del envoltorio del servidor local, SIN el código del OS): la
+   primera vez que la ventana principal va al servidor local, Rust la lleva aquí en vez de a `/`. La página espera
+   a la exportación (`migracion_origen_estado`), pide los trozos (`migracion_origen_datos`), fusiona, confirma
+   (`migracion_origen_confirmar`), deja el marcador del aviso y va a `/`. Como corre ANTES que el OS, ningún
+   componente escribe valores por defecto que luego «ganarían» a los de la persona. Pase lo que pase (sin script,
+   sin puente, 120 s) acaba en `/`.
+
+**Qué viaja y qué no.**
+
+| Qué | Viaja a la app nueva | A la copia del disco |
+|---|---|---|
+| Sesión de Supabase (`sb-…-auth-token`, sus trozos y `-code-verifier`, `supabase.auth.*`, cualquier valor con `access_token` + `refresh_token`) | **No** (se quita en JS y otra vez en Rust): se vuelve a iniciar sesión en la app; la página y el aviso lo dicen | **No** |
+| Lo que settings-sync nunca sube (`NEVER_SYNCED_KEYS`/`_PREFIXES`: claves de IA cifradas, identidad y llaves de la malla, id de neurona, bloqueo, tokens de los medios…) y todo nombre con pinta de secreto | **Sí**: es la MISMA neurona (así la malla la sigue reconociendo y no cambia de identidad) | **No**: va `{"$ss":"omitido","motivo":"secreto","bytes":n}` |
+| El resto de `localStorage` | Sí | Sí |
+| IndexedDB: registros con valores de structured clone (fechas, Blob/File, binarios, Map, Set, `undefined`, BigInt…) con un códec etiquetado (`$ss`) | Sí, ≤ 16 MiB por registro y ≤ 64 MiB en total | Sí |
+| IndexedDB que no se puede copiar: la privada **no extraíble** de los vínculos entre cuentas (`starseed-mesh-par`, un `CryptoKey`), ciclos, otras clases | No: se cuenta y se dice; la app nueva crea un par nuevo (los vínculos ya aceptados se renuevan, `vinculos-entre-cuentas.md` §6) | No |
+| Bases de sesión de terceros (`firebaseLocalStorageDb`…) y cachés (`workbox-*`, «cache») | No | No |
+| Cookies | No (son por host; la de la sesión se rehace al entrar) | No |
+
+**Fusión (la regla más segura).** Por clave: lo que **no existe** en el origen local se trae; lo que existe con el
+**mismo valor** no se toca; lo que existe con **otro valor se queda como está** (y se cuenta como conflicto: el
+valor viejo sigue en el origen web y en la copia). IndexedDB: si la base no existe se crea con la versión, los
+almacenes y los índices de la exportada; si existe con versión menor se sube a la exportada creando solo los
+almacenes que falten; **nunca se baja** una versión (si la app nueva ya la subió, solo se añaden registros a los
+almacenes que tenga). Cada registro con `add` (si la clave ya existe → «ya estaba», nunca `put`).
+
+**Una sola vez, sin pérdidas.** `<app_data>/migracion-origen/estado.json` (0600): `hecha` → no se vuelve a pasar;
+`pospuesta` → se reintenta en el siguiente arranque; a los **3 intentos** → `abandonada` (para no retrasar cada
+arranque). El marcador es por **versión de la migración** (`VERSION_MIGRACION = 1`), no de la app: una v2 que
+traiga más cosas pasaría UNA vez más sin pisar nada; volver a pasar en cada actualización resucitaría lo que la
+persona borró. Además el origen local guarda `starseed.migracion-origen.v1` (no viaja con la cuenta): si dice
+`hecha`, la página no vuelve a importar aunque Rust no llegara a guardar su marcador. **El original nunca se borra.**
+Copia: `<app_data>/migracion-origen/copia-<versión>-<ms>.json` (0600, sin sesión ni secretos), una por exportación.
+`<app_data>` = `~/Library/Application Support/app.starseed.os` (macOS), `%APPDATA%\app.starseed.os` (Windows),
+`~/.local/share/app.starseed.os` (Linux).
+
+**Aviso** (`AvisoMigracionOrigen`, layout raíz, solo en el servidor local): «Tus datos de la versión anterior ya
+están aquí» con lo traído, los conflictos, lo que se quedó y «La sesión no se copia por seguridad: si te la pide,
+vuelve a iniciarla en esta app»; o «Aún no están aquí tus datos de la versión anterior» con el motivo (sin
+internet → se reintenta; tras 3 intentos → dónde está la copia). Se cierra y no vuelve.
+
+**Por sistema (qué cubre).**
+
+| | Con internet al primer arranque | Sin internet al primer arranque |
+|---|---|---|
+| macOS (WKWebView) | Todo lo de la tabla | Se pospone: la app arranca en local sin los datos viejos, lo dice, y los trae en el siguiente arranque con red (los originales siguen intactos) |
+| Windows (WebView2) | Todo; el service worker v7 del origen web (si lo había) sirve `offline.html` de su caché o de la red, da igual: solo importa el origen | Igual que macOS |
+| Linux (WebKitGTK) | Todo; si el WebKitGTK no tiene `indexedDB.databases()`, solo las cinco bases de la app | Igual que macOS |
+
+**Leer el disco sin red (opción b): NO, a propósito.** WKWebView guarda cada origen en carpetas con hash salado
+(`WebsiteData/Default/<hash>/<hash>/LocalStorage/localstorage.sqlite3`) y su IndexedDB en SQLite con valores
+serializados por WebKit; WebView2 usa LevelDB (con compresión y prefijos de Chromium) y la IndexedDB de V8; las tres
+cambian de formato entre versiones y el almacén está **abierto y vivo** mientras corre la ventana (leerlo a la vez
+puede dar datos a medias o corromperlo). Haría falta un lector por formato (crates nuevos de SQLite/LevelDB) para
+algo que se resuelve solo en el siguiente arranque con red. Alternativa limpia que queda **PENDIENTE (T4b)**: sin red,
+cargar la ventana oculta con un HTML local cuyo origen sea el de la web (`loadHTMLString:baseURL:` en WKWebView,
+`load_html(…, base_uri)` en WebKitGTK, un filtro `WebResourceRequested` en WebView2): lee el almacén por el propio
+motor, sin tocar sus archivos. Requiere dependencias directas de plataforma (objc2 / webkit2gtk / webview2-com).
+
+**Límites honestos.** (1) Si el servidor local arranca un día en otro puerto (47611…), es otro origen: no se migra
+otra vez (el marcador es de la app) y ese origen empieza vacío — ya pasaba en APP1107A (§2). (2) Los registros de más
+de 16 MiB (p. ej. notas de voz largas) se quedan en la versión anterior y se dice cuántos. (3) Sin probar aún con la
+app real en macOS y Windows (T12).
+
+**Probado en Linux con la app real (2026-11-07).** Build `debug` del crate con la web publicada cambiada (solo en la
+prueba) por una web de mentira en `http://localhost:8899` (otro origen, como la de verdad) que sembró en su origen 7
+claves (con una sesión `sb-…-auth-token`, `starseed.ai.providers` y `starseed.mesh.identity.v1`) y 3 bases de
+IndexedDB (notas con `Blob`, `Date`, `Set` e índice; líneas con `autoIncrement`; el par ECDH con un `CryptoKey` no
+extraíble de verdad). Arranque 1 (sin poder exportar): a los 40 s `pospuesta`, la página importadora confirmó por IPC
+y el OS abrió. Arranque 2: la ventana oculta pidió `offline.html`, exportó, Rust escribió la copia (80 ms) y la
+página importó y confirmó (≈ 0,5 s en total): `estado.json` → `hecha`, 6 ajustes y 4 registros traídos, «no se
+puede copiar (CryptoKey)» 1, sesión no copiada 1; el `/` del servidor local vio las 6 claves (sin la sesión), las
+tres bases con su versión, el índice, las claves 1 y 2 y el audio, la fecha y el conjunto intactos; la copia (0600)
+sin `refresh_token` ni los valores secretos. Arranque 3: ni ventana oculta ni página importadora; los comandos
+propios responden desde `127.0.0.1` y `migracion_origen_exportar` se rechaza desde la ventana principal.
 
 ## 3. Seguridad
 
@@ -99,6 +203,21 @@ server.js de Next (standalone) en 127.0.0.1:<puerto interno al azar>
   nodejs.org); el CI compara con ESOS valores, no con lo que baje en el momento.
 - **Sin huérfanos**: el envoltorio sale cuando se cierra su entrada estándar (la app la tiene abierta mientras
   vive). Probado matando la app de golpe: el Node salió solo.
+- **Comandos propios y ACL (APP1107B).** Desde **tauri 2.11.1** («Enforce ACL checks for IPC requests from remote
+  origins even when no AppManifest is configured») una página de un origen REMOTO —la web publicada y también
+  `http://127.0.0.1:47610…`— solo llega a un comando propio (`antenas_estado`, `check_update`, `run_terminal`,
+  `servidor_local_estado`…) si una capability con `remote` le concede `allow-<comando>`; sin manifiesto de la app esos
+  permisos ni existen. El CI no fija versión (no hay `Cargo.lock` en el repo): el próximo build nativo sale con
+  tauri ≥ 2.12 y, sin esto, **toda** llamada de la web a un comando propio se rechazaría («not allowed by ACL»).
+  Ahora `build.rs` declara `COMANDOS_APP` (genera `allow-*`; `permissions/autogenerated/` no se versiona) y
+  `default.json` / `desktop.json` conceden a la ventana `main` exactamente los mismos comandos que antes. La
+  migración tiene capabilities propias y estrechas (`local: false`): `migracion-exportar` (solo la ventana oculta,
+  solo desde la web publicada, solo `migracion_origen_exportar`) y `migracion-importar` (solo `main`, solo los diez
+  orígenes locales); Rust comprueba además etiqueta y origen en cada llamada. Una prueba
+  (`contrato-rust.test.ts`) vigila que `lib.rs`, `build.rs` y las capabilities casen.
+- **`/api/mando/**` nunca desde la app (T8).** Su puerta `guardianMando` trata 127.0.0.1 como «esta Mac» y lo
+  abriría sin sesión en el servidor local (sin red, `/api` va a Next local). El build nativo lo quita (§5) y el
+  envoltorio responde 404 a `/api/mando` (normalizando `//`, `.`/`..`, `%xx` y mayúsculas) aunque estuviera.
 
 ## 4. Arranque, reinicios, apagado y respaldo
 
@@ -131,6 +250,14 @@ registro}` para pintarlo en la app (pendiente T6).
   ["binaries/starseed-node"]` a `tauri.conf.json` del runner. Si cualquier paso falla, no toca la configuración y
   un aviso amarillo dice que ese instalador sale SIN servidor local.
 - Un paso final escribe el **tamaño real de cada instalador** en el resumen del job.
+- **T8 (APP1107B):** antes de `next build`, solo en `servidor-local-next`, `node native/servidor-local/solo-mac.mjs`
+  quita `src/app/api/mando` (73 rutas, 81 archivos fuente: el motor de la consola de MetaGenesis, que lee y escribe
+  el disco de la Mac y lanza agentes). Antes comprueba que nada de fuera lo importa (si algo lo hiciera, no quita
+  nada, avisa y el build sigue igual); el resultado va al resumen del job. La web publicada y `ci.yml` no cambian.
+  **Se quedan** `/genesis` (Mi Genesis y PoliGenesis son de cada persona), `/metagenesis` (se usa desde cualquier
+  neurona por Supabase + túnel), `/poligenesis`, `/api/genesis/**`, `/api/metagenesis/orden` y `/api/mcp/genesis`
+  (funcionan igual en Vercel): quitarlos habría quitado funciones, no peso muerto.
+- `preparar.mjs` copia también `migracion-origen.js` junto al envoltorio (T4).
 - Android e iOS: `tauri.android.conf.json` / `tauri.ios.conf.json` devuelven la ventana a la web publicada
   (la página de arranque es solo de escritorio). Nexus y Café pisan después con su `-c`.
 
@@ -141,6 +268,7 @@ Medido el 2026-11-07 sobre el build de main de la Mac (`.next` de producción) y
 | Pieza | Sin comprimir | gzip | xz |
 |---|---:|---:|---:|
 | `.next/server` + `.next/static` + `public` (2.749 archivos) | ≈ 462 MB | 45,6 MB | 24,5 MB |
+| … sin `/api/mando/**` (T8, APP1107B: −219 archivos) | **≈ 396 MB** | ≈ 43,6 MB | ≈ 24,3 MB |
 | `node_modules` trazado del standalone (≈ 1.900 archivos, sin sharp) | ≈ 40 MB | ≈ 8 MB | ≈ 6 MB |
 | Node macOS universal (arm64 107 + x64 110) | 217 MB | ≈ 71 MB | ≈ 46 MB |
 | Node Linux x64 | 119 MB | ≈ 38 MB | ≈ 30 MB |
@@ -148,17 +276,29 @@ Medido el 2026-11-07 sobre el build de main de la Mac (`.next` de producción) y
 
 | Instalador | Hoy (v0.4.3) | Estimado con servidor local | Instalado en disco |
 |---|---:|---:|---:|
-| macOS `.dmg` (universal) y `.app.tar.gz` del updater | 7 MB | ≈ 125–135 MB | ≈ 720 MB |
-| Windows `-setup.exe` (NSIS, LZMA) | 2 MB | ≈ 55–65 MB | ≈ 590 MB |
-| Windows `.msi` | 3 MB | ≈ 85–95 MB | ≈ 590 MB |
-| Linux `.deb` / `.rpm` | 4 MB | ≈ 90–100 MB | ≈ 620 MB |
-| Linux `.AppImage` | 79 MB | ≈ 165–175 MB | — |
+| macOS `.dmg` (universal) y `.app.tar.gz` del updater | 7 MB | ≈ 123–133 MB | ≈ 655 MB |
+| Windows `-setup.exe` (NSIS, LZMA) | 2 MB | ≈ 55–65 MB | ≈ 525 MB |
+| Windows `.msi` | 3 MB | ≈ 83–93 MB | ≈ 525 MB |
+| Linux `.deb` / `.rpm` | 4 MB | ≈ 88–98 MB | ≈ 555 MB |
+| Linux `.AppImage` | 79 MB | ≈ 163–173 MB | — |
 | Android `.apk` | 32 MB | sin cambio | — |
 
-Son estimaciones (compresión medida por pieza); las reales las escribe el CI en el resumen de cada job. Formas de
-bajar: Node solo arm64 en macOS (−36 MB comprimido, Intel caería a la web), quitar del build nativo las consolas
-que solo viven en la Mac (`/genesis`, `/metagenesis`, `/api/mando/**`), y la fase 2 (§10), que evita bajar el
-instalador entero en cada actualización.
+Son estimaciones (compresión medida por pieza); las reales las escribe el CI en el resumen de cada job (el paso T8
+escribe además qué quitó). Columna «Instalado» ya sin `/api/mando` (antes: 720 / 590 / 620 MB).
+
+**T8 medido (APP1107B, 2026-11-07, `.next` de main de la Mac `AA0YdaG0s8hV9CgdmX1rc`, sin compilar):** quitar
+`/api/mando/**` (73 rutas) saca de `.next/server/app` **219 archivos y 65,6 MB (62,6 MiB) sin comprimir**; ningún
+chunk compartido ni paquete de `node_modules` es solo suyo (9 KB de un chunk). Comprimido baja poquísimo —el tar de
+esas rutas da **2,0 MB en gzip y 0,22 MB en xz**— porque casi todo es el `route_client-reference-manifest.js` de cada
+ruta, casi idéntico entre rutas. Es decir: **−65 MB instalado en disco, −2 MB en los instaladores con compresión por
+archivo (dmg, msi, deb, AppImage) y casi nada en el NSIS (LZMA sólido)**. No se quitaron `/genesis`,
+`/metagenesis` ni `/poligenesis` (§5): con ellos el «≈ 100 MB» que se estimaba no era peso muerto.
+
+**Dónde está de verdad el peso** (para T3/T13): los **291 `*_client-reference-manifest.js`** de `.next/server/app`
+suman **252,6 MB (el 61 % de `.next/server`)** y comprimen a 5,7 MB en gzip: uno por ruta, casi iguales. Bajarlos
+exige tocar cómo Next los genera o deduplicarlos al empaquetar (enlaces duros en macOS/Linux): PENDIENTE (T13).
+Otras formas de bajar: Node solo arm64 en macOS (−36 MB comprimido, Intel caería a la web) y la fase 2 (§10), que
+evita bajar el instalador entero en cada actualización.
 
 ## 7. Secciones sin internet
 
@@ -181,7 +321,8 @@ de esta neurona, que en la app nativa vive en el origen `127.0.0.1:47610`.
 | Red social y gobierno (`/network/*`, `/hub`, `/grupo`, `/pagina`, `/partido`, `/evento`, `/entidad`, `/post`, `/publicar`, `/publish`, `/profile`, `/decisiones`, `/vivo`) | **Necesita internet** | Datos compartidos en Supabase (28–50 archivos por sección); se ve lo que haya en caché |
 | Biblioteca, Explorador, Habilidades, Integraciones, Apps IA, NVIDIA (`/library`, `/explorer`, `/habilidades`…) | **Necesita internet** | Catálogos remotos y GitHub (33 `/api` en `/library`); lo ya instalado funciona |
 | Estaciones y Omnifrecuencias en vivo, Clima, Navegador, Mundo de avatares | **Necesita internet** | Emisiones, APIs de tiempo y sitios externos, modelos 3D de CDN |
-| Genesis / MetaGenesis / PoliGenesis (`/genesis`, `/metagenesis`, `/poligenesis`) | **No aplica** | Consolas de la Mac y del A1 (`/api/mando/*` es 404 fuera de la Mac) |
+| Genesis / PoliGenesis (`/genesis`, `/poligenesis`) | **Necesita internet** | Mi Genesis y PoliGenesis proponen con modelos por `/api/genesis/*` (a la web) y guardan en Supabase |
+| MetaGenesis (`/metagenesis`) | **Necesita internet** | Lee los nodos de Supabase y llega al motor de la Mac por su túnel. Desde APP1107B la app (127.0.0.1:47610…) ya no se cree «la Mac» (`abiertoEnLaMac` mira el puerto); `/api/mando/*` no va en la app (T8) |
 | Tres server actions de Genkit (`src/ai/flows/*`) | **No funcionan en la app local** | Necesitan la clave de Google del servidor y las server actions no pasan por `/api` (pendiente T5) |
 
 Regla general para lo que no está en la tabla: lo local funciona; lo que lee Supabase enseña lo último guardado o
@@ -209,7 +350,21 @@ npx vitest run src/lib/pwa/__tests__/sw-logica.test.ts src/lib/pwa/__tests__/sw-
   src/lib/pwa/__tests__/precarga-manifiesto.test.ts src/lib/pwa/__tests__/precarga-cliente.test.ts
 # Manifiesto con un build real, sin tocar el public/ del proyecto
 T=$(mktemp -d) && cp -R public "$T/public" && node scripts/precarga-sw.mjs --dist .next --public "$T/public" --estricto
+# (APP1107B) Migración del origen (T4): Rust puro (usa serde_json → con cargo, en el crate real) y el JS + el aviso +
+# el contrato con Rust (ACL: lib.rs ↔ build.rs ↔ capabilities)
+(cd native/src-tauri && cargo test --lib -- migracion_origen servidor_local)
+npx vitest run src/lib/nativa/__tests__/migracion-origen.test.ts src/lib/nativa/__tests__/contrato-rust.test.ts
+# (APP1107B) Lo que el build nativo deja fuera (T8): qué se quitaría en el repo de verdad, sin borrar nada
+node --test native/servidor-local/__tests__/solo-mac.test.mjs && node native/servidor-local/solo-mac.mjs --simular
 ```
+
+**Cómo se verifica la migración con la app real (T12, en cada sistema):** instalar la 0.4.3, abrirla con internet,
+crear un escritorio y un widget, una nota de voz y un vínculo de neurona; actualizar a la versión con servidor
+local; al abrir: página «Trayendo tus datos de la versión anterior…» (≤ unos segundos) → el OS en
+`127.0.0.1:47610` con el escritorio, el widget y la nota, el aviso «Tus datos de la versión anterior ya están aquí»,
+y la sesión pedida de nuevo. En `<app_data>/migracion-origen/`: `estado.json` con `"resultado": "hecha"` y una
+`copia-*.json` sin `refresh_token` ni valores secretos. Repetir con el Wi-Fi apagado en el primer arranque: el OS
+abre en local, el aviso dice «Aún no están aquí…» y en el siguiente arranque con red se traen.
 
 Probado además en Linux con la app real (`tauri build --debug --bundles deb`): el `.deb` lleva
 `/usr/bin/starseed-node` y `/usr/lib/StarSeed OS/servidor/.next/…`; la app (Xvfb) lanzó el Node en
@@ -384,7 +539,8 @@ Diseño (PENDIENTE T1):
 5. **Tamaño del updater**: cada actualización baja el instalador entero (≈ 130 MB en macOS) hasta la fase 2.
 6. **Versión del servidor ≠ versión de la web**: las páginas son las del instalador y `/api` la de la web
    publicada; si una API cambia de forma incompatible, se nota hasta actualizar la app (la fase 2 lo acorta).
-7. **Origen nuevo**: hay que iniciar sesión una vez con internet en la app nueva.
+7. **Origen nuevo**: hay que iniciar sesión una vez con internet en la app nueva (la sesión no se migra, a
+   propósito; lo demás sí, §2.1).
 8. **Service worker v8 (SW1107A), al publicar la web:** (a) que `/precarga.json` responda 200 en el primer
    despliegue (lo escribe `postbuild`, que npm lanza tras `npm run build` en Vercel; si no está, el SW sigue como
    el v7 —solo lo visitado— y lo dice con la fase `sin-manifiesto`); (b) cada medio sustituye al v7 con UNA
@@ -392,6 +548,20 @@ Diseño (PENDIENTE T1):
    hasta que termina su primera precarga; (c) ≈ 176 MB de disco por medio: en aparatos con poco espacio la
    precarga se queda en las rutas que caben (por prioridad) y lo dice (`parcial`/`sin-espacio`); (d) la red de la
    precarga: ≈ 20–25 MB la primera vez y luego solo lo cambiado, nunca con datos móviles sin pedirlo.
+9. **ACL de los comandos propios (APP1107B).** Si alguien añade un comando a `generate_handler!` y no a
+   `COMANDOS_APP` de `build.rs` + una capability, la web no podrá llamarlo (rechazo «not allowed by ACL»); la prueba
+   `contrato-rust.test.ts` lo pone en rojo antes. Ojo con cualquier comando nuevo: concederlo a `default.json` lo abre
+   también a la web publicada.
+10. **Migración (T4), primera vez con la app real.** (a) La ventana oculta en WKWebView/WebView2/WebKitGTK: que el
+    script de inicio corra en `offline.html` y que el puente IPC conteste desde la web publicada (es lo mismo que ya
+    hacía la ventana principal en la 0.4.3, ahora con su capability); si no, la migración se pospone sola 3 veces y lo
+    dice. (b) Una exportación grande (≈ 64 MiB) viaja en ≈ 64 llamadas IPC: segundos, no minutos. (c) La primera
+    pantalla del OS sale tras «Trayendo tus datos…» (≤ 40 s en el peor caso, normalmente 1–3 s).
+11. **Servidor local y peticiones de otras webs (pendiente T11).** Sin red, `/api/*` va al Next local, y varias
+    rutas abren sin sesión a «esta máquina» (`esDespliegueLocal`: voz, recursos de IA, conocimiento…). Una web
+    maliciosa abierta en el navegador podría lanzar un POST «simple» a `http://127.0.0.1:47610/api/…` (no lee la
+    respuesta, pero la petición llega). `/api/mando` ya no está (T8); el resto pide una guarda en el envoltorio
+    (rechazar peticiones que no sean de la propia app: `Sec-Fetch-Site`/`Origin` ≠ el origen local).
 
 ## 12. Pendientes (tareas concretas)
 
@@ -400,10 +570,14 @@ Diseño (PENDIENTE T1):
 | T1 | Capas del servidor local con firma y rollback (§10) |
 | T2 | Android opción C (precarga del SW): **ESCRITA SIN PUBLICAR (SW1107A, §9.1.1)**. Falta A (nodejs-mobile, §9.1) |
 | T3 | Medir en el CI los tamaños reales y corregir §6 |
-| T4 | Migrar al origen local lo que solo vivía en el `localStorage` de la web publicada (importación guiada al primer arranque) |
+| T4 | Migrar al origen local lo que vivía en el origen de la web publicada: **ESCRITA SIN PUBLICAR (APP1107B, §2.1)** — localStorage + IndexedDB, sin sesión, fusión sin pisar, copia sin secretos, marcador, aviso. Falta T4b y T12 |
+| T4b | Migración SIN internet al primer arranque: ventana oculta con un HTML local cuyo origen sea el de la web (`loadHTMLString:baseURL:` / `load_html` / `WebResourceRequested`), sin leer los archivos del motor (§2.1) |
 | T5 | Pasar los 3 flujos de Genkit (server actions) a rutas `/api` para que viajen a la web con internet |
 | T6 | Enseñar `servidor_local_estado` en Ajustes → Neurona y en las señales del medio («app nativa · servidor local») |
 | T7 | Nexus y Café con sus archivos dentro (§9.3) |
-| T8 | Quitar del build nativo lo que solo vive en la Mac (`/genesis`, `/metagenesis`, `/api/mando/**`) para bajar ≈ 100 MB |
+| T8 | Quitar del build nativo lo que solo vive en la Mac: **ESCRITA SIN PUBLICAR (APP1107B)** — `/api/mando/**` fuera (−65,6 MB instalado, −2 MB en dmg/msi/deb; §6) y 404 en el envoltorio. `/genesis`, `/metagenesis` y `/poligenesis` se quedan: no son solo de la Mac (§5) |
 | T9 | Enseñar el estado de la precarga (evento `starseed:precarga`) en Ajustes → Neurona, con un botón «Descargar para usar sin internet» (`STARSEED_PRECARGAR(true)`, para quien solo tiene datos móviles) |
 | T10 | Probar el SW v8 en un navegador real contra un `next start` del build (en el A1 o el CI, no en la Mac): precarga completa, modo avión y vuelta de la red |
+| T11 | Guarda en el envoltorio contra peticiones de otras webs al servidor local (§11.11) |
+| T12 | Probar la migración (T4) con la app real en macOS y Windows (receta en §8; Linux ya probado, §2.1) |
+| T13 | Bajar el peso de los 291 `*_client-reference-manifest.js` (252,6 MB, §6) en el paquete nativo |

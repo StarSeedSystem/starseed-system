@@ -125,6 +125,8 @@ fn arrancar(app: AppHandle) {
     }
     leer_manifiesto(&rutas.manifiesto);
     let registro = abrir_registro(&app);
+    // (APP1107B · T4) La primera vez, traer lo que la app tenía en el origen de la web publicada.
+    crate::migracion_origen::preparar(&app);
 
     let mut puerto_previo: Option<u16> = None;
     let mut caidas: Vec<u64> = Vec::new();
@@ -325,7 +327,8 @@ fn avisar(app: &AppHandle, fase: &str, mensaje: &str) {
 }
 
 /// Lleva la ventana al servidor local, salvo que ya esté en ese origen (un reinicio en el mismo
-/// puerto no recarga la página: la persona no pierde lo que tenía abierto).
+/// puerto no recarga la página: la persona no pierde lo que tenía abierto). Si toca traer los datos
+/// de la versión anterior (APP1107B · T4), entra por la página importadora, que luego va a `/`.
 fn navegar_si_hace_falta(app: &AppHandle, puerto: u16) {
     let Some(v) = app.get_webview_window("main") else { return };
     if let Ok(actual) = v.url() {
@@ -333,7 +336,12 @@ fn navegar_si_hace_falta(app: &AppHandle, puerto: u16) {
             return;
         }
     }
-    if let Ok(url) = tauri::Url::parse(&l::url_local(puerto)) {
+    let destino = if crate::migracion_origen::ir_al_importador() {
+        format!("{}{}", l::origen_local(puerto), crate::migracion_origen::ruta_importador())
+    } else {
+        l::url_local(puerto)
+    };
+    if let Ok(url) = tauri::Url::parse(&destino) {
         let _ = v.navigate(url);
     }
 }
@@ -381,7 +389,7 @@ fn ir_a_web(app: &AppHandle, motivo: String) {
     }
 }
 
-fn hay_internet() -> bool {
+pub(crate) fn hay_internet() -> bool {
     let host = l::WEB_PUBLICADA.trim_start_matches("https://");
     let Ok(direcciones) = (host, 443u16).to_socket_addrs() else { return false };
     direcciones.take(2).any(|d| TcpStream::connect_timeout(&d, Duration::from_secs(3)).is_ok())

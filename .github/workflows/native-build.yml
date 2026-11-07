@@ -109,6 +109,13 @@ jobs:
           fi
       - name: Instalar dependencias
         run: npm ci
+      # (APP1107B · T8) La app no lleva lo que solo vive en la Mac de desarrollo: /api/mando/** (73
+      # rutas del motor de la consola de MetaGenesis, −62,6 MB de .next/server; en 127.0.0.1 su puerta
+      # `guardianMando` lo abriría sin sesión). /genesis, /metagenesis y /poligenesis SÍ van: se usan
+      # desde cualquier neurona. Solo en este job: la web publicada y ci.yml no cambian. Si algo de
+      # fuera lo importara, no quita nada (aviso) y el build sigue como antes. native/servidor-local/solo-mac.mjs
+      - name: Quitar del build nativo lo que solo vive en la Mac
+        run: node native/servidor-local/solo-mac.mjs
       - name: next build (standalone, para la app)
         run: npm run prebuild && npx next build
         env:

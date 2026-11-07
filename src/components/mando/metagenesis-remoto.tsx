@@ -75,6 +75,7 @@ export function MetaGenesisRemoto({ children }: { children: ReactNode }) {
         try {
             const fase = await comprobarConexion({
                 hostname: window.location.hostname,
+                puerto: window.location.port,
                 origenPagina: window.location.origin,
                 hostsExtra: hostsExtraDeEntorno(process.env.NEXT_PUBLIC_METAGENESIS_MOTOR_HOSTS),
                 token,

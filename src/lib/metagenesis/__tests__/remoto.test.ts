@@ -64,6 +64,16 @@ describe("URL del motor", () => {
         expect(abiertoEnLaMac("127.0.0.1")).toBe(true);
         expect(abiertoEnLaMac("starseed-os.vercel.app")).toBe(false);
         expect(abiertoEnLaMac("192.168.1.5")).toBe(false);
+        expect(abiertoEnLaMac("localhost", "9002")).toBe(true);
+    });
+
+    it("el servidor local de la app de escritorio (127.0.0.1:47610…47619) no es la Mac del motor", () => {
+        expect(abiertoEnLaMac("127.0.0.1", "47610")).toBe(false);
+        expect(abiertoEnLaMac("127.0.0.1", 47619)).toBe(false);
+        expect(abiertoEnLaMac("localhost", "47612")).toBe(false);
+        expect(abiertoEnLaMac("127.0.0.1", "47620")).toBe(true);
+        expect(abiertoEnLaMac("127.0.0.1", "")).toBe(true);
+        expect(abiertoEnLaMac("starseed-os.vercel.app", "47610")).toBe(false);
     });
 });
 

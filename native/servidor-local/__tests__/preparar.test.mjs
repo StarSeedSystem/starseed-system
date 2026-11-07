@@ -106,7 +106,7 @@ test("arma el paquete en seco y el servidor armado arranca", { timeout: 60_000 }
 
     const m = await preparar({ next, plataforma: PLATAFORMA, nodeLocal: process.execPath, srcTauri, conf, sinFirma: false });
     const dest = path.join(srcTauri, "recursos", "servidor");
-    for (const f of ["server.js", ".next/BUILD_ID", ".next/static/chunks/a.js", "public/logo.svg", "starseed-arranque.cjs", "starseed-servidor.json", "node_modules/next/package.json"]) {
+    for (const f of ["server.js", ".next/BUILD_ID", ".next/static/chunks/a.js", "public/logo.svg", "starseed-arranque.cjs", "migracion-origen.js", "starseed-servidor.json", "node_modules/next/package.json"]) {
       assert.ok(fs.existsSync(path.join(dest, f)), `falta ${f}`);
     }
     for (const f of [".env", ".env.production", "node_modules/sharp", "node_modules/@img"]) {

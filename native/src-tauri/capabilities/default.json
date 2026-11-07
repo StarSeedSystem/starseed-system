@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/remote-schema.json",
   "identifier": "default",
-  "description": "Capability principal de StarSeed Native. Concede a Aurora (la web remota desplegada) CONTROL PROFUNDO del dispositivo tras la instalación nativa: terminal, procesos, archivos, sistema, notificaciones, diálogos y deep-links. (Autoarranque y updater viven en desktop.json: son plugins solo-escritorio y sus permisos no existen en Android/iOS.) Todos los permisos están DECLARADOS y limitados por su scope; el usuario los concede al instalar y ejecutar la app nativa. Un navegador por seguridad NO puede hacer esto — por eso existe este cuerpo nativo. Desde la APP1107A (2026-11-07) también el servidor local de StarSeed OS dentro de la app: SOLO los diez orígenes http://127.0.0.1:47610…47619 (los puertos fijos de src/servidor_local_logica.rs; el servidor solo escucha en 127.0.0.1 y Rust comprueba su firma antes de llevar la ventana ahí).",
+  "description": "Capability principal de StarSeed Native. Concede a Aurora (la web remota desplegada) CONTROL PROFUNDO del dispositivo tras la instalación nativa: terminal, procesos, archivos, sistema, notificaciones, diálogos y deep-links. (Autoarranque y updater viven en desktop.json: son plugins solo-escritorio y sus permisos no existen en Android/iOS.) Todos los permisos están DECLARADOS y limitados por su scope; el usuario los concede al instalar y ejecutar la app nativa. Un navegador por seguridad NO puede hacer esto — por eso existe este cuerpo nativo. Desde la APP1107A (2026-11-07) también el servidor local de StarSeed OS dentro de la app: SOLO los diez orígenes http://127.0.0.1:47610…47619 (los puertos fijos de src/servidor_local_logica.rs; el servidor solo escucha en 127.0.0.1 y Rust comprueba su firma antes de llevar la ventana ahí). Desde la APP1107B (2026-11-07) también los permisos `allow-<comando>` de los comandos propios de la app (generados en build.rs): desde tauri 2.11.1 una página de un origen remoto no llega a ningún comando propio sin ellos.",
   "windows": ["main"],
   "platforms": ["linux", "macOS", "windows", "android", "iOS"],
   "remote": {
@@ -118,6 +118,38 @@
     "dialog:allow-ask",
     "dialog:allow-confirm",
 
-    "deep-link:default"
+    "deep-link:default",
+
+    "allow-run-terminal",
+    "allow-check-update",
+    "allow-reiniciar-para-actualizar",
+    "allow-estado-actualizacion",
+    "allow-device-info",
+    "allow-recursos-ia-detectar",
+    "allow-antenas-estado",
+    "allow-antenas-medir",
+    "allow-antenas-config",
+    "allow-antenas-configurar",
+    "allow-fondo-estado",
+    "allow-fondo-fijar",
+    "allow-fondo-arranque",
+    "allow-fondo-pedir-bateria",
+    "allow-carpetas-listar",
+    "allow-carpetas-conceder",
+    "allow-carpetas-revocar",
+    "allow-carpetas-nas",
+    "allow-serie-puertos",
+    "allow-serie-abrir",
+    "allow-serie-escribir",
+    "allow-serie-cerrar",
+    "allow-capas-estado",
+    "allow-capas-descargar",
+    "allow-capas-verificar",
+    "allow-capas-borrar",
+    "allow-nas-listar",
+    "allow-nas-leer",
+    "allow-malla-local-enviar",
+    "allow-malla-local-estado",
+    "allow-malla-local-recibidos"
   ]
 }

@@ -20,6 +20,12 @@
  *          contesta su propio error). Un fallo de red al ir a la web se repite en local si la
  *          petición se puede repetir (cuerpo ≤ 8 MB).
  *        · todo lo demás        → al Next local (páginas, /_next/static, public).
+ *        · GET /__starseed/migracion (+ su script) → la página que trae, UNA vez, lo que la app tenía en
+ *          el origen de la web publicada (APP1107B · T4; la lógica: migracion-origen.js). Sin el código
+ *          del OS: así nada escribe valores por defecto antes de importar.
+ *        · /api/mando/**        → 404 siempre (APP1107B · T8): es el motor de la consola de MetaGenesis,
+ *          que solo vive en la Mac de desarrollo; su puerta (`guardianMando`) trata 127.0.0.1 como «esta
+ *          Mac» y aquí lo abriría sin sesión. El build nativo además lo quita (solo-mac.mjs).
  *   3. Sale solo cuando se cierra su entrada estándar: la app la tiene abierta mientras vive; si la
  *      app muere aunque sea de golpe, el sistema la cierra y este proceso no queda huérfano.
  *
@@ -28,6 +34,7 @@
  */
 "use strict";
 
+const fs = require("node:fs");
 const http = require("node:http");
 const https = require("node:https");
 const net = require("node:net");
@@ -36,6 +43,11 @@ const path = require("node:path");
 const HOST = "127.0.0.1";
 const RUTA_SALUD = "/__starseed/salud";
 const RUTA_RED = "/__starseed/red";
+const RUTA_MIGRACION = "/__starseed/migracion";
+const RUTA_MIGRACION_JS = "/__starseed/migracion-origen.js";
+const ARCHIVO_MIGRACION_JS = "migracion-origen.js";
+/** Rutas que solo viven en la Mac de desarrollo: nunca se sirven desde la app (APP1107B · T8). */
+const RUTAS_SOLO_MAC = ["/api/mando"];
 const NOMBRE = "starseed-os-local";
 const LIMITE_CUERPO = 8 * 1024 * 1024;
 const ESPERA_CONECTAR_MS = 5000;
@@ -74,11 +86,30 @@ function rutaDe(url) {
   return i === -1 ? String(url || "/") : String(url).slice(0, i);
 }
 
-/** ¿A dónde va esta petición? "salud" | "red" | "web" | "local". */
+/** La ruta como la entendería un servidor: sin `//`, sin `.`/`..` y con %xx decodificado. */
+function rutaNormalizada(ruta) {
+  let r = String(ruta || "/");
+  try {
+    r = decodeURIComponent(r);
+  } catch {}
+  r = path.posix.normalize("/" + r.replace(/\\/g, "/").replace(/\/+/g, "/"));
+  return r.length > 1 ? r.replace(/\/+$/, "") : r;
+}
+
+/** ¿Es una ruta que solo vive en la Mac de desarrollo? (sin distinguir mayúsculas: defensa). */
+function esSoloMac(ruta) {
+  const r = rutaNormalizada(ruta).toLowerCase();
+  return RUTAS_SOLO_MAC.some((p) => r === p || r.startsWith(p + "/"));
+}
+
+/** ¿A dónde va esta petición? "salud" | "red" | "migracion" | "migracion-js" | "solo-mac" | "web" | "local". */
 function destino(url, cfg, red, ahora) {
   const ruta = rutaDe(url);
   if (ruta === RUTA_SALUD) return "salud";
   if (ruta === RUTA_RED) return "red";
+  if (ruta === RUTA_MIGRACION) return "migracion";
+  if (ruta === RUTA_MIGRACION_JS) return "migracion-js";
+  if (esSoloMac(ruta)) return "solo-mac";
   if (!ruta.startsWith("/api/")) return "local";
   if (!cfg.apiRemota) return "local";
   if (cfg.localSiempre.some((p) => ruta === p || ruta.startsWith(p.endsWith("/") ? p : p + "/"))) return "local";
@@ -159,6 +190,57 @@ function cuerpoSalud(estado, ahora) {
     puertoInterno: estado.puertoInterno || null,
     node: process.version,
   });
+}
+
+/**
+ * La página que importa los datos de la versión anterior (APP1107B · T4). Mínima, sin recursos de
+ * fuera y sin el código del OS; si algo falla, va a `/` igualmente (la app nunca se queda aquí).
+ */
+function paginaMigracion() {
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'self' ipc: http://ipc.localhost">
+<title>StarSeed OS</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #0A0712; color: #ECE8F5;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", Arial, sans-serif; }
+  body { display: grid; place-items: center; }
+  main { width: min(30rem, 88vw); text-align: center; padding: 2.4rem 2rem; border-radius: 1.6rem;
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); }
+  h1 { margin: 0 0 .5rem; font-size: 1.2rem; font-weight: 600; }
+  p { margin: 0; line-height: 1.5; color: #A79FBF; font-size: .95rem; }
+  .nota { margin-top: 1rem; font-size: .8rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>StarSeed OS</h1>
+  <p id="texto" role="status" aria-live="polite">Trayendo tus datos de la versión anterior…</p>
+  <p class="nota">La sesión no se copia por seguridad: si te la pide, vuelve a iniciarla en esta app.</p>
+</main>
+<script src="${RUTA_MIGRACION_JS}" onerror="location.replace('/')"></script>
+<script>
+(function () {
+  var irA = function (u) { location.replace(u); };
+  setTimeout(function () { irA("/"); }, 120000);
+  var M = window.StarseedMigracionOrigen;
+  if (!M) return irA("/");
+  var pintar = function (fase, texto) { var e = document.getElementById("texto"); if (e) e.textContent = texto; };
+  M.invocador(window, 8000).then(function (inv) {
+    return M.paginaImportar({
+      invoke: inv, localStorage: window.localStorage, indexedDB: window.indexedDB, ir: irA, pintar: pintar,
+      esperar: function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+    });
+  }).catch(function () { irA("/"); });
+})();
+</script>
+</body>
+</html>
+`;
 }
 
 // ───────────────────────────── Servidor ─────────────────────────────
@@ -325,6 +407,28 @@ function crearPuerta(cfg, estado) {
         if (estadoRed(estado.red, ahora) === "desconocida") await sondearWeb();
         return json(res, 200, { red: estadoRed(estado.red, Date.now()), apiRemota: cfg.apiRemota, web: cfg.web });
       }
+      case "migracion": {
+        const html = paginaMigracion();
+        res.writeHead(200, {
+          "content-type": "text/html; charset=utf-8",
+          "content-length": Buffer.byteLength(html),
+          "cache-control": "no-store",
+          "x-content-type-options": "nosniff",
+        });
+        return res.end(html);
+      }
+      case "migracion-js": {
+        let js;
+        try {
+          js = fs.readFileSync(path.join(__dirname, ARCHIVO_MIGRACION_JS));
+        } catch {
+          return json(res, 404, { error: "sin-migracion", mensaje: "Este paquete no trae la migración." });
+        }
+        res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "content-length": js.length, "cache-control": "no-store", "x-content-type-options": "nosniff" });
+        return res.end(js);
+      }
+      case "solo-mac":
+        return json(res, 404, { error: "solo-mac", mensaje: "La consola de MetaGenesis vive en la Mac de desarrollo; desde la app se llega a ella por su túnel (/metagenesis)." });
       case "web":
         return aLaWeb(req, res);
       default:
@@ -395,8 +499,9 @@ async function principal() {
 }
 
 module.exports = {
-  leerConfig, rutaDe, destino, esErrorDeRed, estadoRed, cabecerasLimpias, cabecerasHaciaWeb,
-  adaptarCookie, cabecerasDeVuelta, cuerpoSalud, RUTA_SALUD, RUTA_RED, NOMBRE, LIMITE_CUERPO,
+  leerConfig, rutaDe, rutaNormalizada, esSoloMac, destino, paginaMigracion, esErrorDeRed, estadoRed, cabecerasLimpias, cabecerasHaciaWeb,
+  adaptarCookie, cabecerasDeVuelta, cuerpoSalud, RUTA_SALUD, RUTA_RED, RUTA_MIGRACION, RUTA_MIGRACION_JS,
+  RUTAS_SOLO_MAC, NOMBRE, LIMITE_CUERPO,
 };
 
 if (require.main === module) {

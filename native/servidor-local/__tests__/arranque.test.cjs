@@ -47,6 +47,33 @@ test("destino: salud, red, páginas en local, /api a la web salvo sin conexión"
   assert.equal(A.destino("/api/localidad", solo, red, 1), "web");
 });
 
+test("destino: la migración (T4) y lo que solo vive en la Mac (T8)", () => {
+  const red = { sinConexionHasta: 0, ultimaRespuesta: 0 };
+  assert.equal(A.destino("/__starseed/migracion", cfgBase, red, 1), "migracion");
+  assert.equal(A.destino("/__starseed/migracion-origen.js?v=1", cfgBase, red, 1), "migracion-js");
+  // /api/mando nunca se sirve desde la app: ni a la web ni al Next local, con o sin conexión, y
+  // tampoco con los trucos de siempre para saltarse un prefijo.
+  for (const r of ["/api/mando", "/api/mando/", "/api/mando/grafo?x=1", "//api//mando/x", "/api/./mando/x", "/api/x/../mando/y", "/API/Mando/x", "/api/%6dando/x", "/api\\mando/x"]) {
+    assert.equal(A.destino(r, cfgBase, red, 1), "solo-mac", r);
+    assert.equal(A.destino(r, cfgBase, { sinConexionHasta: 10, ultimaRespuesta: 0 }, 5), "solo-mac", r);
+  }
+  for (const r of ["/api/mandos", "/api/mandox/y", "/api/metagenesis/orden", "/api/genesis/proponer"]) {
+    assert.equal(A.destino(r, cfgBase, red, 1), "web", r);
+  }
+  assert.equal(A.destino("/mando", cfgBase, red, 1), "local");
+  assert.deepEqual(A.RUTAS_SOLO_MAC, ["/api/mando"]);
+});
+
+test("página de migración: sin recursos de fuera, con su CSP y siempre acaba en /", () => {
+  const html = A.paginaMigracion();
+  assert.match(html, /Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'/);
+  assert.match(html, /<script src="\/__starseed\/migracion-origen\.js" onerror="location\.replace\('\/'\)"><\/script>/);
+  assert.match(html, /paginaImportar\(/);
+  assert.match(html, /setTimeout\(function \(\) \{ irA\("\/"\); \}, 120000\)/);
+  assert.match(html, /La sesión no se copia/);
+  assert.doesNotMatch(html, /https?:\/\/(?!ipc\.localhost)/);
+});
+
 test("errores de red y estado de la red", () => {
   assert.equal(A.esErrorDeRed({ code: "ENOTFOUND" }), true);
   assert.equal(A.esErrorDeRed({ cause: { code: "ECONNREFUSED" } }), true);
@@ -155,6 +182,23 @@ test("de punta a punta con un standalone de mentira", { timeout: 30_000 }, async
     });
     assert.equal(salud.servidor, "starseed-os-local");
     assert.equal(salud.firma, "firma-1");
+
+    // T4: la página de migración y su script (este paquete aún no lo trae: 404, y la página lo
+    // resuelve yendo a «/»); T8: /api/mando no llega a Next ni a la web.
+    const mig = await pedir(puerto, "/__starseed/migracion");
+    assert.equal(mig.status, 200);
+    assert.match(mig.headers["content-type"], /text\/html/);
+    assert.equal(mig.headers["cache-control"], "no-store");
+    assert.equal((await pedir(puerto, "/__starseed/migracion-origen.js")).status, 404);
+    fs.copyFileSync(path.join(__dirname, "..", "migracion-origen.js"), path.join(dir, "migracion-origen.js"));
+    const js = await pedir(puerto, "/__starseed/migracion-origen.js");
+    assert.equal(js.status, 200);
+    assert.match(js.headers["content-type"], /text\/javascript/);
+    assert.match(js.body, /StarseedMigracionOrigen/);
+    const mando = await pedir(puerto, "/api/mando/grafo");
+    assert.equal(mando.status, 404);
+    assert.equal(JSON.parse(mando.body).error, "solo-mac");
+    assert.equal(mando.headers["x-starseed-ruta"], undefined);
 
     const pagina = await pedir(puerto, "/escritorios");
     assert.equal(pagina.headers["x-starseed-ruta"], "local");

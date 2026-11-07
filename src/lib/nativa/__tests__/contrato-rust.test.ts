@@ -53,6 +53,30 @@ describe("contrato web ↔ app nativa", () => {
     for (const c of llamados) expect(rust("nativa.rs")).toMatch(new RegExp(`pub (async )?fn ${c}\\(`));
   });
 
+  it("cada comando propio tiene su permiso y una capability que lo concede (tauri ≥ 2.11.1, APP1107B)", () => {
+    const lib = rust("lib.rs");
+    const nombres = (bloque: string) => [...bloque.matchAll(/([a-z_][a-z0-9_:]*?)(?:,|\s*$)/gm)].map((m) => m[1].split("::").pop()!).filter(Boolean);
+    const comunes = nombres(lib.match(/generate_handler!\[([\s\S]*?)\$\(\$solo_desktop/)![1]);
+    const escritorio = nombres(lib.match(/#\[cfg\(desktop\)\]\s*registrar_comandos!\(builder \[([\s\S]*?)\]\);/)![1]);
+    expect(comunes.length).toBeGreaterThan(25);
+    expect(escritorio).toContain("servidor_local_estado");
+    const build = readFileSync(join(process.cwd(), "native/src-tauri/build.rs"), "utf8");
+    const manifiesto = [...build.match(/const COMANDOS_APP: &\[&str\] = &\[([\s\S]*?)\];/)![1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+    expect([...manifiesto].sort()).toEqual([...comunes, ...escritorio].sort());
+    const cap = (f: string) => JSON.parse(readFileSync(join(process.cwd(), "native/src-tauri/capabilities", f), "utf8"));
+    const permisos = (c: { permissions: unknown[] }) => c.permissions.filter((p): p is string => typeof p === "string");
+    const def = cap("default.json");
+    const escr = cap("desktop.json");
+    const allow = (c: string) => `allow-${c.replace(/_/g, "-")}`;
+    // Lo común lo pide la web en cualquier plataforma (también el servidor local 127.0.0.1).
+    for (const c of comunes) expect(permisos(def), c).toContain(allow(c));
+    expect(def.remote.urls).toContain("http://127.0.0.1:47610");
+    const migracion = [...permisos(cap("migracion-exportar.json")), ...permisos(cap("migracion-importar.json"))];
+    for (const c of escritorio) expect([...permisos(escr), ...migracion], c).toContain(allow(c));
+    // La migración NO se concede a la ventana principal en la web publicada ni a nadie más.
+    for (const p of [...permisos(def), ...permisos(escr)]) expect(p).not.toMatch(/^allow-migracion-origen/);
+  });
+
   it("los eventos tienen el mismo nombre a los dos lados", () => {
     const n = rust("nativa.rs");
     for (const ev of ["starseed://antenas", "starseed://serie", "starseed://serie-cerrada"]) {

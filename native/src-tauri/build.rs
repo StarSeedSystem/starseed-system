@@ -9,13 +9,66 @@
 #[path = "src/android_parche.rs"]
 mod android_parche;
 
+/// Comandos propios de la app (los de `generate_handler!` de src/lib.rs). Desde tauri 2.11.1 una
+/// página de un origen REMOTO (la web publicada, y también el servidor local http://127.0.0.1:47610…)
+/// solo llega a un comando propio si una capability con `remote` le da su permiso `allow-<comando>`;
+/// sin manifiesto de la app esos permisos ni existen y TODA llamada de la web se rechaza («not
+/// allowed by ACL»). Aquí se generan; las capabilities los conceden. Una prueba
+/// (src/lib/nativa/__tests__/contrato-rust.test.ts) vigila que esta lista, lib.rs y las capabilities
+/// casen. (APP1107B, 2026-11-07)
+const COMANDOS_APP: &[&str] = &[
+    "run_terminal",
+    "check_update",
+    "reiniciar_para_actualizar",
+    "estado_actualizacion",
+    "device_info",
+    "recursos_ia_detectar",
+    "antenas_estado",
+    "antenas_medir",
+    "antenas_config",
+    "antenas_configurar",
+    "fondo_estado",
+    "fondo_fijar",
+    "fondo_arranque",
+    "fondo_pedir_bateria",
+    "carpetas_listar",
+    "carpetas_conceder",
+    "carpetas_revocar",
+    "carpetas_nas",
+    "serie_puertos",
+    "serie_abrir",
+    "serie_escribir",
+    "serie_cerrar",
+    "capas_estado",
+    "capas_descargar",
+    "capas_verificar",
+    "capas_borrar",
+    "nas_listar",
+    "nas_leer",
+    "malla_local_enviar",
+    "malla_local_estado",
+    "malla_local_recibidos",
+    // Solo escritorio (su permiso existe en todas, pero solo se registran en escritorio).
+    "ventanas_prestables",
+    "capturar_ventana",
+    "entrada_ventana",
+    "servidor_local_estado",
+    "migracion_origen_exportar",
+    "migracion_origen_estado",
+    "migracion_origen_datos",
+    "migracion_origen_confirmar",
+];
+
 fn main() {
     println!("cargo:rerun-if-changed=src/android_parche.rs");
     println!("cargo:rerun-if-changed=android");
     println!("cargo:rerun-if-env-changed=STARSEED_SIN_SERVICIO_ANDROID");
     println!("cargo:rerun-if-env-changed=TAURI_ANDROID_PROJECT_PATH");
     servicio_android();
-    tauri_build::build()
+    tauri_build::try_build(
+        tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(COMANDOS_APP)),
+    )
+    .expect("tauri-build: no se pudo generar el contexto de la app")
 }
 
 fn servicio_android() {

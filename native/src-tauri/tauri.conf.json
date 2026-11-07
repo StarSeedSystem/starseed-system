@@ -27,7 +27,7 @@
       }
     ],
     "security": {
-      "capabilities": ["default", "desktop-only"],
+      "capabilities": ["default", "desktop-only", "migracion-exportar", "migracion-importar"],
       "csp": null
     }
   },

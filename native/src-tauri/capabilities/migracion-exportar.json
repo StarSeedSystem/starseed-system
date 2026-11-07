@@ -1,0 +1,22 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "migracion-exportar",
+  "description": "APP1107B · T4: la ventana OCULTA «migracion-origen» abre la web publicada SOLO para leer lo que la app tenía guardado en ese origen (localStorage + IndexedDB) y pasarlo al servidor local. Únicamente puede llamar a migracion_origen_exportar, únicamente desde https://starseed-os.vercel.app y nunca desde páginas locales; Rust comprueba además la etiqueta de la ventana y el origen. Contrato: architecture/apps-autonomas-sin-internet.md §2.1.",
+  "windows": [
+    "migracion-origen"
+  ],
+  "platforms": [
+    "linux",
+    "macOS",
+    "windows"
+  ],
+  "local": false,
+  "remote": {
+    "urls": [
+      "https://starseed-os.vercel.app"
+    ]
+  },
+  "permissions": [
+    "allow-migracion-origen-exportar"
+  ]
+}

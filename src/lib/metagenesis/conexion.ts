@@ -39,6 +39,8 @@ export type FaseConexion =
 
 export interface DepsConexion {
     hostname: string;
+    /** Puerto de la página (`location.port`): el servidor local de la app de escritorio no es la Mac. */
+    puerto?: string;
     origenPagina: string;
     hostsExtra: string[];
     token: (forzar?: boolean) => Promise<string | null>;
@@ -49,7 +51,7 @@ export interface DepsConexion {
 }
 
 export async function comprobarConexion(d: DepsConexion): Promise<FaseConexion> {
-    if (abiertoEnLaMac(d.hostname)) return { fase: "local" };
+    if (abiertoEnLaMac(d.hostname, d.puerto)) return { fase: "local" };
 
     const token = await d.token(false);
     if (!token) return { fase: "sin-sesion" };

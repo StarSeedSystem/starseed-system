@@ -44,6 +44,12 @@ describe("comprobarConexion", () => {
         expect(token).not.toHaveBeenCalled();
     });
 
+    it("la app de escritorio en su servidor local (127.0.0.1:47610) NO es la Mac: pregunta y va por el túnel", async () => {
+        const token = vi.fn(async () => "t");
+        expect((await comprobarConexion(deps({ hostname: "127.0.0.1", puerto: "47610", token }))).fase).not.toBe("local");
+        expect(token).toHaveBeenCalled();
+    });
+
     it("sin sesión → sin-sesion; no miembro → no-miembro (y no se lee el motor)", async () => {
         expect((await comprobarConexion(deps({ token: async () => null }))).fase).toBe("sin-sesion");
         const leerMotor = vi.fn();

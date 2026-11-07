@@ -103,6 +103,7 @@ import { ActualizacionNativa } from "@/components/pwa/actualizacion-nativa";
 // (APP1107A) «Sin conexión: trabajando en local»: pastilla diminuta; en la app nativa pregunta a su
 // servidor local por la red (architecture/apps-autonomas-sin-internet.md).
 import { AvisoSinConexion } from "@/components/nativa/aviso-sin-conexion";
+import { AvisoMigracionOrigen } from "@/components/nativa/aviso-migracion-origen";
 // UpdateBanner: aviso de nuevo contenido web/PWA listo (service worker actualizado).
 // Se muestra temporalmente antes de la recarga automática; sin él, la app se
 // actualiza inmediatamente. Junto a AvisoActualizacion para notificar actualizaciones
@@ -294,6 +295,8 @@ export default function RootLayout({
         <RegisterSW />
         <ActualizacionNativa />
         <AvisoSinConexion />
+        {/* (APP1107B · T4) La app de escritorio trajo (o no pudo traer) los datos de la versión anterior. */}
+        <AvisoMigracionOrigen />
         <UpdateBanner />
         {/* Núcleo intocable cableado en el ARRANQUE: deja registrados los dos
             guardianes (UiSpec + invariantes) que revisan cualquier paquete
