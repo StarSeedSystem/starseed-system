@@ -697,6 +697,26 @@
     return r;
   }
 
+  /** Id de neurona del medio (misma clave que `NEURON_DEVICE_ID_KEY` de src/lib/neurons/neurons.ts). */
+  var CLAVE_NEURONA = "starseed.neuron.device-id";
+  /**
+   * (NEU1107B) Si el origen local ya tenía OTRO id de neurona (la app se abrió antes de poder migrar),
+   * el de la versión anterior no se pisa (es un conflicto) pero se apunta aquí: la ventana de bienvenida
+   * de la neurona lo usa como la pista más fuerte para sugerir fusionar las dos. Solo vive en el
+   * localStorage del origen local (donde ya está el id propio); no va al resumen ni al disco.
+   * Mismo valor que `CLAVE_NEURONA_ANTERIOR` de src/lib/nativa/migracion-origen.ts.
+   */
+  var CLAVE_NEURONA_ANTERIOR = "starseed.migracion-origen.neurona-anterior.v1";
+
+  function apuntarNeuronaAnterior(datos, plan, ls) {
+    try {
+      if (plan.conflictos.indexOf(CLAVE_NEURONA) === -1) return;
+      var vieja = (datos.localStorage || {})[CLAVE_NEURONA];
+      if (typeof vieja !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{5,79}$/.test(vieja)) return;
+      ls.setItem(CLAVE_NEURONA_ANTERIOR, vieja);
+    } catch (e) { /* la pista es un extra: nunca tumba la migración */ }
+  }
+
   /**
    * Fusiona `datos` en el origen donde corre. `entorno`: { localStorage, indexedDB }.
    * Devuelve el resumen; lanza solo si los datos no se entienden.
@@ -714,6 +734,7 @@
         ajustes.errores++;
       }
     });
+    apuntarNeuronaAnterior(datos, plan, ls);
     var registros = { traidos: 0, yaEstaban: 0, errores: 0, almacenesSinSitio: 0, basesConError: 0 };
     var idb = entorno.indexedDB;
     var cadena = Promise.resolve();
@@ -838,6 +859,7 @@
     VERSION: VERSION,
     ORIGEN_WEB: ORIGEN_WEB,
     CLAVE_MARCADOR: CLAVE_MARCADOR,
+    CLAVE_NEURONA_ANTERIOR: CLAVE_NEURONA_ANTERIOR,
     LIMITES: LIMITES,
     BASES_CONOCIDAS: BASES_CONOCIDAS,
     SECRETAS_EXACTAS: SECRETAS_EXACTAS,

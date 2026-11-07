@@ -12,6 +12,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { crearIdbDeMentira } from "./idb-de-mentira";
 import {
   CLAVE_MARCADOR_MIGRACION,
+  CLAVE_NEURONA_ANTERIOR,
+  leerNeuronaAnterior,
   FRASE_SESION,
   TITULO_HECHA,
   TITULO_NO_SE_PUDO,
@@ -208,6 +210,25 @@ describe("fusión de localStorage", () => {
     expect(plan.iguales).toBe(1);
     expect(plan.conflictos).toEqual(["c"]);
     expect(plan.descartadas).toBe(2);
+  });
+
+  it("(NEU1107B) si el origen local ya tenía otro id de neurona, no lo pisa y apunta el anterior como pista", async () => {
+    const VIEJO = "62d50afc-6354-414c-9835-028f525b9d4a";
+    const datos = { formato: M.FORMATO, version: M.VERSION, localStorage: { "starseed.neuron.device-id": VIEJO, a: "1" }, indexedDB: [] };
+    const ls = new LsDeMentira({ "starseed.neuron.device-id": "nuevo-id-local-123" });
+    await M.importar(datos, { localStorage: ls, indexedDB: null });
+    expect(ls.getItem("starseed.neuron.device-id")).toBe("nuevo-id-local-123");
+    expect(ls.getItem(CLAVE_NEURONA_ANTERIOR)).toBe(VIEJO);
+    expect(leerNeuronaAnterior(ls.getItem(CLAVE_NEURONA_ANTERIOR))).toBe(VIEJO);
+    expect(M.CLAVE_NEURONA_ANTERIOR).toBe(CLAVE_NEURONA_ANTERIOR);
+    // Sin conflicto (el id viaja tal cual) no hay nada que apuntar.
+    const limpio = new LsDeMentira();
+    await M.importar(datos, { localStorage: limpio, indexedDB: null });
+    expect(limpio.getItem("starseed.neuron.device-id")).toBe(VIEJO);
+    expect(limpio.getItem(CLAVE_NEURONA_ANTERIOR)).toBeNull();
+    // Un valor raro nunca se toma por id.
+    expect(leerNeuronaAnterior("<script>")).toBeNull();
+    expect(leerNeuronaAnterior(null)).toBeNull();
   });
 });
 

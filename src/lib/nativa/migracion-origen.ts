@@ -13,6 +13,19 @@
 /** Mismo valor que `CLAVE_MARCADOR` de native/servidor-local/migracion-origen.js (lo vigila una prueba). */
 export const CLAVE_MARCADOR_MIGRACION = "starseed.migracion-origen.v1";
 
+/**
+ * (NEU1107B) Id de neurona que la app usaba en el origen de la web publicada, cuando el origen local ya
+ * tenía otro (conflicto en la migración). Mismo valor que `CLAVE_NEURONA_ANTERIOR` del .js (lo vigila una
+ * prueba). Lo usa la ventana de bienvenida de la neurona como la pista más fuerte para sugerir fusionar.
+ */
+export const CLAVE_NEURONA_ANTERIOR = "starseed.migracion-origen.neurona-anterior.v1";
+
+/** El id anterior apuntado por la migración, si parece un id de neurona válido; si no, null. Pura. */
+export function leerNeuronaAnterior(crudo: string | null | undefined): string | null {
+  const v = typeof crudo === "string" ? crudo.trim() : "";
+  return /^[A-Za-z0-9][A-Za-z0-9_.-]{5,79}$/.test(v) ? v : null;
+}
+
 export type ResultadoMigracion = "hecha" | "pospuesta" | "abandonada";
 
 export interface ResumenMigracion {

@@ -23,6 +23,12 @@ export interface EstadoPreferenciasMedio {
     /** Enseñar en cada burbuja por dónde viajó el mensaje. */
     mostrarVia: boolean;
     porChat: Record<string, PreferenciasMedio>;
+    /**
+     * (NEU1107B) Medios preferidos de cada NEURONA (id de `neuron_devices` → preferencias): lo que sale
+     * de ese aparato los usa salvo que el chat tenga los suyos. Orden: chat → neurona → generales.
+     * Opcional: un estado guardado por una web anterior no lo trae.
+     */
+    porNeurona?: Record<string, PreferenciasMedio>;
 }
 
 export const ESTADO_INICIAL: EstadoPreferenciasMedio = {
@@ -48,21 +54,37 @@ export function leerEstado(crudo: string | null): EstadoPreferenciasMedio {
                 if (typeof k === "string" && k.length <= 160) porChat[k] = normalizarPreferencias(p);
             }
         }
+        const porNeurona: Record<string, PreferenciasMedio> = {};
+        if (o.porNeurona && typeof o.porNeurona === "object") {
+            for (const [k, p] of Object.entries(o.porNeurona)) {
+                if (typeof k === "string" && k && k.length <= 80) porNeurona[k] = normalizarPreferencias(p);
+            }
+        }
         return {
             v: 1,
             global: normalizarPreferencias(o.global),
             mostrarVia: o.mostrarVia !== false,
             porChat,
+            ...(Object.keys(porNeurona).length ? { porNeurona } : {}),
         };
     } catch {
         return ESTADO_INICIAL;
     }
 }
 
-/** PURA: preferencias efectivas de un chat (las suyas o las generales). */
-export function efectivasDe(estado: EstadoPreferenciasMedio, clave?: string | null): PreferenciasMedio {
+/**
+ * PURA: preferencias efectivas de un chat: las suyas; si no tiene, las de la neurona desde la que se
+ * envía (NEU1107B); si tampoco, las generales.
+ */
+export function efectivasDe(estado: EstadoPreferenciasMedio, clave?: string | null, neurona?: string | null): PreferenciasMedio {
     if (clave && estado.porChat[clave]) return estado.porChat[clave];
+    if (neurona && estado.porNeurona?.[neurona]) return estado.porNeurona[neurona];
     return estado.global;
+}
+
+/** PURA: las propias de una neurona (null = usa las generales). */
+export function propiasDeNeurona(estado: EstadoPreferenciasMedio, neurona: string | null | undefined): PreferenciasMedio | null {
+    return neurona ? estado.porNeurona?.[neurona] ?? null : null;
 }
 
 let cache: { crudo: string | null; estado: EstadoPreferenciasMedio } | null = null;
@@ -113,9 +135,33 @@ function suscribir(cb: () => void): () => void {
     };
 }
 
-/** Preferencias efectivas fuera de React (al enviar). */
+/** Misma clave que `NEURON_DEVICE_ID_KEY` (neurons.ts): se lee sin arrastrar ese módulo ni crear nada. */
+const CLAVE_ID_NEURONA = "starseed.neuron.device-id";
+
+/** Id de la neurona de este medio (o null si aún no tiene). Nunca lanza. */
+export function neuronaDeEsteMedio(): string | null {
+    try {
+        const id = typeof localStorage === "undefined" ? null : localStorage.getItem(CLAVE_ID_NEURONA);
+        return id && id.trim() ? id.trim() : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Preferencias efectivas fuera de React (al enviar): chat → esta neurona → generales. */
 export function preferenciasEfectivas(clave?: string | null): PreferenciasMedio {
-    return efectivasDe(estadoPreferenciasMedio(), clave);
+    return efectivasDe(estadoPreferenciasMedio(), clave, neuronaDeEsteMedio());
+}
+
+/** (NEU1107B) Medios preferidos de una neurona. `null` = vuelve a usar los generales. */
+export function cambiarPreferenciasNeurona(neurona: string, p: PreferenciasMedio | null): void {
+    if (!neurona) return;
+    const e = estadoPreferenciasMedio();
+    const porNeurona = { ...(e.porNeurona ?? {}) };
+    if (p) porNeurona[neurona] = normalizarPreferencias(p);
+    else delete porNeurona[neurona];
+    const { porNeurona: _antes, ...resto } = e;
+    escribir(Object.keys(porNeurona).length ? { ...resto, porNeurona } : resto);
 }
 
 export function cambiarPreferenciasGlobales(p: PreferenciasMedio): void {
@@ -164,7 +210,7 @@ export function usePreferenciasMedio(clave?: string | null): ApiPreferenciasMedi
             estado,
             global: estado.global,
             propias: clave ? estado.porChat[clave] ?? null : null,
-            efectivas: efectivasDe(estado, clave),
+            efectivas: efectivasDe(estado, clave, neuronaDeEsteMedio()),
             mostrarVia: estado.mostrarVia,
             cambiarGlobal: cambiarPreferenciasGlobales,
             cambiarChat,
