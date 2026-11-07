@@ -22,6 +22,7 @@ import {
     type TipoChatMedio,
     type ViaMensaje,
 } from "./tipos";
+import { ETIQUETA_RED_LOCAL_NATIVA, esEnlaceRedLocalNativa } from "@/lib/malla/red-local-nativa";
 
 /** Lo mínimo de un `EnlaceDisponible` del transporte universal (solo tipos: sin acoplarse a él). */
 export interface EnlaceParaMedio {
@@ -87,6 +88,9 @@ export function normalizarPreferencias(x: unknown): PreferenciasMedio {
 export function medioDeEnlace(e: Pick<EnlaceParaMedio, "tipo" | "ruta">): MedioTransmision | null {
     switch (e.tipo) {
         case "local":
+        // (MLT1107A) El canal TCP de la app nativa con una neurona vinculada también es «sin internet»;
+        // la pastilla lo distingue por su enlace: «Red local (app nativa)».
+        case "nativo":
             return "local";
         case "cuenta":
         case "par":
@@ -139,7 +143,9 @@ export function candidatosDesdeEnlaces(
 function motivoPaso(c: CandidatoMedio): string {
     switch (c.medio) {
         case "local":
-            return "enlace directo sin internet (emparejado en persona)";
+            return esEnlaceRedLocalNativa(c.enlaceId)
+                ? "red local de la app nativa (neurona vinculada, sin internet)"
+                : "enlace directo sin internet (emparejado en persona)";
         case "wifi-local":
             return "canal P2P por tu red local (ruta medida)";
         case "bluetooth":
@@ -293,7 +299,7 @@ export function etiquetaVia(v: ViaMensaje): string {
     const partes: string[] = [];
     switch (v.medio) {
         case "local":
-            partes.push("Mesh", "Sin internet");
+            partes.push("Mesh", esEnlaceRedLocalNativa(v.enlaceId) ? ETIQUETA_RED_LOCAL_NATIVA : "Sin internet");
             break;
         case "wifi-local":
             partes.push("Mesh", "Wi-Fi local");
@@ -331,11 +337,19 @@ export interface LineaDetalle {
     valor: string;
 }
 
+/**
+ * Nombre del medio de una vía. El enlace de la red local de la app nativa (`nativo:<ip>`, o el WebRTC
+ * que abrieron solas dos apps nativas, `local:nativo-…`) es «Red local (app nativa)» (MLT1107A).
+ */
+export function nombreDeVia(v: Pick<ViaMensaje, "medio" | "enlaceId">): string {
+    if (v.medio === "local" && esEnlaceRedLocalNativa(v.enlaceId)) return ETIQUETA_RED_LOCAL_NATIVA;
+    return INFO_MEDIOS[v.medio]?.nombre ?? v.medio;
+}
+
 /** Detalle completo para la info del mensaje. */
 export function detalleVia(v: ViaMensaje): LineaDetalle[] {
-    const info = INFO_MEDIOS[v.medio];
     const out: LineaDetalle[] = [
-        { etiqueta: "Medio", valor: info?.nombre ?? v.medio },
+        { etiqueta: "Medio", valor: nombreDeVia(v) },
         { etiqueta: "Tipo", valor: familiaDe(v.medio) === "malla" ? "Malla P2P (sin servidor de por medio)" : "Internet y servidores" },
     ];
     if (v.enlace) out.push({ etiqueta: v.direccion === "entra" ? "Llegó desde" : "Enlace", valor: v.enlace });

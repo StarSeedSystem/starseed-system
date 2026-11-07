@@ -13,6 +13,9 @@
  *      acceso de un móvil (aunque no tenga datos). Ni internet, ni STUN, ni TURN, ni Supabase.
  *   4. Al abrirse, los dos se presentan (`enl.hola`: nombre e ids, solo para enrutar) y el enlace
  *      queda en el registro (`registro-enlaces-locales.ts`) que usa el transporte universal.
+ *   5. (MLT1107A) Entre dos apps NATIVAS vinculadas, el «papel» del código lo lleva su canal local
+ *      (`ofrecerPorCanal` / `responderPorCanal`, señalizados por `red-local-nativa-motor.ts`): el
+ *      mismo enlace, sin QR, con `par.origen = "red-local-nativa"` y sesión `nativo-…`.
  *
  * Llamadas directas: el mismo enlace renegocia audio/vídeo por SU PROPIO canal de datos («perfect
  * negotiation»: quien respondió es el cortés), así que una llamada tampoco necesita internet.
@@ -138,7 +141,14 @@ interface Conexion {
   armarEspera(ms: number): void;
 }
 
-function crearConexion(rol: "inicia" | "responde", sesion: string, nombre: string, codigoRef: { valor: string }, nombreRemoto?: string): Conexion {
+function crearConexion(
+  rol: "inicia" | "responde",
+  sesion: string,
+  nombre: string,
+  codigoRef: { valor: string },
+  nombreRemoto?: string,
+  origen: NonNullable<InfoParLocal["origen"]> = "codigo",
+): Conexion {
   const pc = new RTCPeerConnection({ iceServers: [] });
   const cortes = rol === "responde";
   let estado: EstadoEmparejado = "preparando";
@@ -158,7 +168,7 @@ function crearConexion(rol: "inicia" | "responde", sesion: string, nombre: strin
   const oyentesEstado = new Set<() => void>();
   const oyentesMsg = new Set<(d: string | ArrayBuffer) => void>();
   const oyentesFlujo = new Set<(s: MediaStream | null) => void>();
-  const par: InfoParLocal = { nombre: nombreRemoto || "Aparato vinculado" };
+  const par: InfoParLocal = { nombre: nombreRemoto || "Aparato vinculado", origen };
 
   const avisar = () => {
     for (const f of Array.from(oyentesEstado)) {
@@ -464,9 +474,39 @@ export async function iniciarEmparejamiento(opts: { nombre?: string } = {}): Pro
   const nombre = nombreDeEsteAparato(opts.nombre);
   const sesion = nuevaSesion();
   const codigoRef = { valor: "" };
+  const p = await prepararOferta({ sesion, nombre, codigoRef, origen: "codigo" });
+  if (!p.ok) return p;
+  const { conx } = p;
+  const { emp } = conx;
+  try {
+    codigoRef.valor = await codificarCodigo({ r: "o", s: sesion, sdp: p.sdp, n: nombre });
+  } catch {
+    emp.cancelar();
+    return { ok: false, motivo: "No se pudo preparar el código de este aparato." };
+  }
+  conx.ponerEstado("esperando-respuesta");
+  (emp as { completar: Emparejamiento["completar"] }).completar = async (texto: string) => {
+    const r = await decodificarCodigo(texto);
+    if (!r.ok) return { ok: false, motivo: r.motivo };
+    if (r.datos.r !== "a") return { ok: false, motivo: "Ese es un código para EMPEZAR; lee el código de RESPUESTA del otro aparato." };
+    if (r.datos.s !== sesion) return { ok: false, motivo: "Esa respuesta es de otro emparejamiento. Pide al otro aparato que lea tu código actual." };
+    if (emp.estado() !== "esperando-respuesta") return { ok: false, motivo: "Este emparejamiento ya no espera respuesta." };
+    return aplicarRespuesta(conx, r.datos.sdp);
+  };
+  return { ok: true, emp };
+}
+
+/** Crea la conexión de quien inicia, su canal y la oferta con los candidatos de la red local ya reunidos. */
+async function prepararOferta(o: {
+  sesion: string;
+  nombre: string;
+  codigoRef: { valor: string };
+  origen: NonNullable<InfoParLocal["origen"]>;
+  nombreRemoto?: string;
+}): Promise<{ ok: true; conx: Conexion; sdp: string } | { ok: false; motivo: string }> {
   let conx: Conexion;
   try {
-    conx = crearConexion("inicia", sesion, nombre, codigoRef);
+    conx = crearConexion("inicia", o.sesion, o.nombre, o.codigoRef, o.nombreRemoto, o.origen);
   } catch {
     return { ok: false, motivo: "El navegador no dejó crear la conexión." };
   }
@@ -480,29 +520,57 @@ export async function iniciarEmparejamiento(opts: { nombre?: string } = {}): Pro
       emp.cancelar();
       return { ok: false, motivo: MOTIVO_SIN_RED };
     }
-    codigoRef.valor = await codificarCodigo({ r: "o", s: sesion, sdp, n: nombre });
+    return { ok: true, conx, sdp };
   } catch {
     emp.cancelar();
-    return { ok: false, motivo: "No se pudo preparar el código de este aparato." };
+    return { ok: false, motivo: "No se pudo preparar la oferta de este aparato." };
   }
-  conx.ponerEstado("esperando-respuesta");
-  (emp as { completar: Emparejamiento["completar"] }).completar = async (texto: string) => {
-    const r = await decodificarCodigo(texto);
-    if (!r.ok) return { ok: false, motivo: r.motivo };
-    if (r.datos.r !== "a") return { ok: false, motivo: "Ese es un código para EMPEZAR; lee el código de RESPUESTA del otro aparato." };
-    if (r.datos.s !== sesion) return { ok: false, motivo: "Esa respuesta es de otro emparejamiento. Pide al otro aparato que lea tu código actual." };
-    if (emp.estado() !== "esperando-respuesta") return { ok: false, motivo: "Este emparejamiento ya no espera respuesta." };
-    try {
-      conx.ponerEstado("conectando");
-      conx.armarEspera(ESPERA_APERTURA_INICIA_MS);
-      await pc.setRemoteDescription({ type: "answer", sdp: r.datos.sdp });
-      return { ok: true };
-    } catch {
-      conx.ponerEstado("fallido", "La respuesta no encaja con este código (¿se generó otro después?).");
-      return { ok: false, motivo: "La respuesta no encaja con este código." };
+}
+
+/** Quien inicia aplica la respuesta del otro: si en `ESPERA_APERTURA_INICIA_MS` no se abre, no hay ruta. */
+async function aplicarRespuesta(conx: Conexion, sdp: string): Promise<{ ok: boolean; motivo?: string }> {
+  try {
+    conx.ponerEstado("conectando");
+    conx.armarEspera(ESPERA_APERTURA_INICIA_MS);
+    await conx.pc.setRemoteDescription({ type: "answer", sdp });
+    return { ok: true };
+  } catch {
+    conx.ponerEstado("fallido", "La respuesta no encaja con este código (¿se generó otro después?).");
+    return { ok: false, motivo: "La respuesta no encaja con este código." };
+  }
+}
+
+/** Crea la conexión de quien responde a partir de la oferta, con su respuesta y candidatos ya reunidos. */
+async function prepararRespuesta(o: {
+  sesion: string;
+  sdpOferta: string;
+  nombre: string;
+  codigoRef: { valor: string };
+  origen: NonNullable<InfoParLocal["origen"]>;
+  nombreRemoto?: string;
+}): Promise<{ ok: true; conx: Conexion; sdp: string } | { ok: false; motivo: string }> {
+  let conx: Conexion;
+  try {
+    conx = crearConexion("responde", o.sesion, o.nombre, o.codigoRef, o.nombreRemoto, o.origen);
+  } catch {
+    return { ok: false, motivo: "El navegador no dejó crear la conexión." };
+  }
+  const { pc, emp } = conx;
+  pc.ondatachannel = (ev) => conx.engancharCanal(ev.channel);
+  try {
+    await pc.setRemoteDescription({ type: "offer", sdp: o.sdpOferta });
+    await pc.setLocalDescription(await pc.createAnswer());
+    await esperarCandidatos(pc, ESPERA_CANDIDATOS_MS);
+    const sdp = pc.localDescription?.sdp ?? "";
+    if (contarCandidatos(sdp) === 0) {
+      emp.cancelar();
+      return { ok: false, motivo: MOTIVO_SIN_RED };
     }
-  };
-  return { ok: true, emp };
+    return { ok: true, conx, sdp };
+  } catch {
+    emp.cancelar();
+    return { ok: false, motivo: "Esa oferta no se pudo usar (¿está completa?)." };
+  }
 }
 
 /** Paso 2: lee el código de quien inicia y crea la respuesta (su código). */
@@ -514,29 +582,75 @@ export async function responderEmparejamiento(texto: string, opts: { nombre?: st
   if (r.datos.r !== "o") return { ok: false, motivo: "Ese es un código de RESPUESTA; aquí va el código que enseña quien empieza." };
   const nombre = nombreDeEsteAparato(opts.nombre);
   const codigoRef = { valor: "" };
-  let conx: Conexion;
+  const p = await prepararRespuesta({ sesion: r.datos.s, sdpOferta: r.datos.sdp, nombre, codigoRef, origen: "codigo", nombreRemoto: r.datos.n });
+  if (!p.ok) return p.motivo === MOTIVO_SIN_RED ? p : { ok: false, motivo: "Ese código no se pudo usar (¿está completo?)." };
+  const { conx } = p;
   try {
-    conx = crearConexion("responde", r.datos.s, nombre, codigoRef, r.datos.n);
+    codigoRef.valor = await codificarCodigo({ r: "a", s: r.datos.s, sdp: p.sdp, n: nombre });
   } catch {
-    return { ok: false, motivo: "El navegador no dejó crear la conexión." };
-  }
-  const { pc, emp } = conx;
-  pc.ondatachannel = (ev) => conx.engancharCanal(ev.channel);
-  try {
-    await pc.setRemoteDescription({ type: "offer", sdp: r.datos.sdp });
-    await pc.setLocalDescription(await pc.createAnswer());
-    await esperarCandidatos(pc, ESPERA_CANDIDATOS_MS);
-    const sdp = pc.localDescription?.sdp ?? "";
-    if (contarCandidatos(sdp) === 0) {
-      emp.cancelar();
-      return { ok: false, motivo: MOTIVO_SIN_RED };
-    }
-    codigoRef.valor = await codificarCodigo({ r: "a", s: r.datos.s, sdp, n: nombre });
-  } catch {
-    emp.cancelar();
+    conx.emp.cancelar();
     return { ok: false, motivo: "Ese código no se pudo usar (¿está completo?)." };
   }
   conx.ponerEstado("conectando");
   conx.armarEspera(ESPERA_APERTURA_RESPONDE_MS);
-  return { ok: true, emp };
+  return { ok: true, emp: conx.emp };
+}
+
+/* ══════════════════════════ Por un canal (sin código QR · MLT1107A) ══════════════════════════ */
+
+/**
+ * Lo mismo que el código, pero el «papel» lo lleva otro canal: el canal local de la app nativa entre
+ * dos neuronas VINCULADAS (`red-local-nativa-motor.ts`). Mismo `iceServers: []`, mismo canal de
+ * datos, mismo registro de enlaces; el enlace queda como `local:<sesión>` con `par.origen =
+ * "red-local-nativa"`. Quien llama manda el SDP (completo, con candidatos) y aplica el del otro.
+ */
+export interface OfertaPorCanal {
+  emp: Emparejamiento;
+  /** SDP de la oferta, con los candidatos de la red local ya reunidos. */
+  sdp: string;
+  /** Aplica el SDP de la respuesta del otro. */
+  completar(sdp: string): Promise<{ ok: boolean; motivo?: string }>;
+}
+
+/** Quien responde por un canal espera la apertura menos que un gesto humano (el otro aplica al instante). */
+const ESPERA_APERTURA_CANAL_MS = 30_000;
+
+export async function ofrecerPorCanal(o: { sesion: string; nombre?: string; nombreRemoto?: string }): Promise<({ ok: true } & OfertaPorCanal) | { ok: false; motivo: string }> {
+  const sop = soportaEmparejado();
+  if (!sop.ok) return { ok: false, motivo: sop.motivo ?? "No disponible." };
+  const p = await prepararOferta({ sesion: o.sesion, nombre: nombreDeEsteAparato(o.nombre), codigoRef: { valor: "" }, origen: "red-local-nativa", nombreRemoto: o.nombreRemoto });
+  if (!p.ok) return p;
+  const { conx } = p;
+  conx.ponerEstado("esperando-respuesta");
+  return {
+    ok: true,
+    emp: conx.emp,
+    sdp: p.sdp,
+    completar: async (sdp) => {
+      if (conx.emp.estado() !== "esperando-respuesta") return { ok: false, motivo: "Esta oferta ya no espera respuesta." };
+      return aplicarRespuesta(conx, sdp);
+    },
+  };
+}
+
+export async function responderPorCanal(o: {
+  sesion: string;
+  sdp: string;
+  nombre?: string;
+  nombreRemoto?: string;
+}): Promise<{ ok: true; emp: Emparejamiento; sdp: string } | { ok: false; motivo: string }> {
+  const sop = soportaEmparejado();
+  if (!sop.ok) return { ok: false, motivo: sop.motivo ?? "No disponible." };
+  const p = await prepararRespuesta({
+    sesion: o.sesion,
+    sdpOferta: o.sdp,
+    nombre: nombreDeEsteAparato(o.nombre),
+    codigoRef: { valor: "" },
+    origen: "red-local-nativa",
+    nombreRemoto: o.nombreRemoto,
+  });
+  if (!p.ok) return p;
+  p.conx.ponerEstado("conectando");
+  p.conx.armarEspera(ESPERA_APERTURA_CANAL_MS);
+  return { ok: true, emp: p.conx.emp, sdp: p.sdp };
 }

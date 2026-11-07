@@ -89,6 +89,7 @@ import {
   type AjustesVinculo,
   type MapaAjustesVinculos,
 } from "./ajustes-vinculo";
+import { desempaquetarLote, ipDeEnlaceNativo } from "./red-local-nativa";
 
 /* ══════════════════════════ Tipos públicos ══════════════════════════ */
 
@@ -868,8 +869,13 @@ function plataforma(): string | undefined {
   return undefined;
 }
 
+/** Cuenta con la que está esta neurona (null sin sesión). También la usa el canal nativo (MLT1107A). */
+export function cuentaDeEstaNeurona(): Promise<string | null> {
+  return cuentaActual();
+}
+
 /** Nombre que la persona le puso a esta neurona (preferencias de neuronas) o uno honesto por plataforma. */
-function nombreDeEstaNeurona(neurona: string): string {
+export function nombreDeEstaNeurona(neurona: string): string {
   try {
     const prefs = JSON.parse(safeGet("starseed.neurons.prefs.v1") ?? "{}") as { names?: Record<string, unknown> };
     const n = prefs.names?.[neurona];
@@ -1130,7 +1136,17 @@ export function useRedLocal(): { vecinos: VecinoRedLocal[]; vinculos: VinculoNeu
 
 /* ══════════════════════════ Arranque global ══════════════════════════ */
 
-async function manejarTextoNativo(m: MotorSync, cuerpo: string, ip: string): Promise<void> {
+/**
+ * Entrada ÚNICA de lo que llega por el canal local nativo. La sincronización (`tu.msg` del canal
+ * `sync`, firmada) se atiende aquí venga de quien venga; los lotes `nl.lote` se abren y cada texto
+ * vuelve a entrar; lo demás (`tu.*` de otros canales, `archivo.*`, `nl.hola`, `nl.sen`) va al enlace
+ * `nativo:<ip>` (MLT1107A), que solo lo atiende de una neurona VINCULADA con saludo firmado.
+ */
+async function manejarTextoNativo(m: MotorSync, cuerpo: string, ip: string, dentroDeLote = false): Promise<void> {
+  if (!dentroDeLote && cuerpo.startsWith('{"t":"nl.lote"')) {
+    for (const t of desempaquetarLote(cuerpo) ?? []) await manejarTextoNativo(m, t, ip, true);
+    return;
+  }
   let x: unknown;
   try {
     x = JSON.parse(cuerpo);
@@ -1143,13 +1159,12 @@ async function manejarTextoNativo(m: MotorSync, cuerpo: string, ip: string): Pro
     await m.recibir(o.b, { via: "red-local-nativa", ip });
     return;
   }
-  if (cuerpo.startsWith('{"t":"tu.')) {
-    // Otros canales del transporte universal que lleguen por la red local: a sus oyentes de siempre.
+  if (cuerpo.startsWith('{"t":"tu.') || cuerpo.startsWith('{"t":"nl.') || cuerpo.startsWith('{"t":"archivo.')) {
     try {
-      const tu = await import("@/lib/malla/transporte-universal");
-      tu.despacharTextoTransporte(cuerpo, { tipo: "local", enlaceId: `nativo:${ip}`, etiqueta: `Red local · ${ip}` }, () => undefined);
+      const { redLocalNativaActiva } = await import("@/lib/malla/red-local-nativa-motor");
+      await redLocalNativaActiva()?.recibir(cuerpo, ip);
     } catch {
-      /* sin transporte universal */
+      /* sin el enlace nativo */
     }
   }
 }
@@ -1171,10 +1186,11 @@ export function iniciarSincronizacionNeuronas(): () => void {
       if (!vivo) return;
       bajas.push(
         tu.alRecibirMensaje(CANAL_SYNC, (msg) => {
-          const directo = msg.origen.tipo === "local" || msg.origen.tipo === "cuenta" || msg.origen.tipo === "par";
+          const directo = msg.origen.tipo === "local" || msg.origen.tipo === "nativo" || msg.origen.tipo === "cuenta" || msg.origen.tipo === "par";
           void m.recibir(msg.cuerpo, {
             via: viaDeOrigen(msg.origen),
             enlaceId: directo ? msg.origen.enlaceId : undefined,
+            ...(msg.origen.tipo === "nativo" && ipDeEnlaceNativo(msg.origen.enlaceId) ? { ip: ipDeEnlaceNativo(msg.origen.enlaceId) as string } : {}),
             syncDeviceId: msg.origen.syncDeviceId,
             etiqueta: msg.origen.etiqueta,
           });
@@ -1201,6 +1217,14 @@ export function iniciarSincronizacionNeuronas(): () => void {
     void m.refrescarRed();
     const t = setInterval(() => void m.refrescarRed(), 15_000);
     bajas.push(() => clearInterval(t));
+    // (MLT1107A) El canal local como enlace del transporte universal y la señalización WebRTC sin QR.
+    void import("@/lib/malla/red-local-nativa-motor")
+      .then((rn) => {
+        const parar = rn.iniciarRedLocalNativa();
+        if (vivo) bajas.push(parar);
+        else parar();
+      })
+      .catch(() => undefined);
   }
 
   bajas.push(

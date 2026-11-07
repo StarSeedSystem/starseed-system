@@ -7,7 +7,11 @@
  * `architecture/genesis-niveles-malla-universal-estaciones.md`).
  *
  * Enlaces REALES que conoce (nada simulado):
- *   · local  → canal de datos emparejado SIN internet (`emparejar-sin-internet.ts`, por código/QR);
+ *   · local  → canal de datos emparejado SIN internet (`emparejar-sin-internet.ts`, por código/QR, o
+ *              abierto solo entre dos apps nativas vinculadas por su canal local: `local:nativo-…`);
+ *   · nativo → canal TCP de la app nativa con una neurona VINCULADA de esta red (`nativo:<ip>`,
+ *              `red-local-nativa-motor.ts`, MLT1107A): mensajes con el acuse de la otra app y archivos
+ *              a su ritmo; sin flujos (van por el enlace local que se abre solo);
  *   · cuenta → canal WebRTC de la malla de la cuenta (`lan-sync`/`webrtc-mesh`);
  *   · par    → canal WebRTC de un vínculo entre cuentas aceptado (`vinculos-entre-cuentas`);
  *   · rele   → relé cifrado del servidor del OS (`server-relay.uploadRelay`, solo mensajes);
@@ -54,6 +58,8 @@ import {
   type EnlaceLocalVivo,
 } from "@/lib/malla/registro-enlaces-locales";
 import { meshDeEnlaceLocal } from "@/lib/malla/mesh-de-enlace-local";
+import { esAppNativa } from "@/lib/nativa/puente";
+import { ipDeEnlaceNativo } from "@/lib/malla/red-local-nativa";
 
 export type { DestinoTransporte, EnlaceDisponible, TipoEnlace } from "@/lib/malla/eleccion-enlace";
 
@@ -150,6 +156,11 @@ export interface DepsEnvio {
   esperarAcuse(id: string, ms: number): Promise<boolean>;
   nuevoId(): string;
   origen(): { s?: string; n?: string };
+  /**
+   * Canal TCP de la app nativa (`nativo:<ip>`): se resuelve con el ACUSE de la otra app (lo guardó),
+   * así que un «ok» ya es entrega confirmada. Sin él, el enlace nativo se da por fallido.
+   */
+  enviarNativo?(enlace: EnlaceDisponible, texto: string): Promise<{ ok: boolean; detalle: string }>;
 }
 
 export interface OpcionesEnvio {
@@ -212,6 +223,19 @@ export function crearEnviador(deps: DepsEnvio) {
         }
         intentos.push({ enlaceId: enlace.id, tipo: enlace.tipo, ok: r.ok, detalle: r.detalle });
         if (r.ok) return { ...base, ok: true, confirmado: false, enlace: ref };
+        continue;
+      }
+      if (enlace.tipo === "nativo") {
+        let r: { ok: boolean; detalle: string } = { ok: false, detalle: "el canal local de la app nativa no está activo" };
+        if (deps.enviarNativo) {
+          try {
+            r = await deps.enviarNativo(enlace, texto);
+          } catch {
+            r = { ok: false, detalle: "fallo al enviar" };
+          }
+        }
+        intentos.push({ enlaceId: enlace.id, tipo: enlace.tipo, ok: r.ok, detalle: r.detalle });
+        if (r.ok) return { ...base, ok: true, confirmado: true, enlace: ref };
         continue;
       }
       let enviado = false;
@@ -286,10 +310,30 @@ function enlaceLocalDisponible(e: EnlaceLocalVivo): EnlaceDisponible {
   };
 }
 
+type ModNativo = typeof import("@/lib/malla/red-local-nativa-motor");
+let modNativo: ModNativo | null = null;
+
+/** El enlace `nativo:<ip>` solo existe en la app nativa (en el navegador ni se carga). */
+async function cargarNativo(): Promise<ModNativo | null> {
+  if (modNativo) return modNativo;
+  if (!esAppNativa()) return null;
+  try {
+    modNativo = await import("@/lib/malla/red-local-nativa-motor");
+  } catch {
+    modNativo = null;
+  }
+  return modNativo;
+}
+
 /** Todos los enlaces reales que hay ahora mismo, con lo medido de cada uno. Nunca lanza. */
 export async function enlacesDisponibles(): Promise<EnlaceDisponible[]> {
   const out: EnlaceDisponible[] = [];
   for (const e of enlacesLocalesVivos()) out.push(enlaceLocalDisponible(e));
+  try {
+    out.push(...((await cargarNativo())?.redLocalNativaActiva()?.enlaces() ?? []));
+  } catch {
+    /* sin canal local nativo */
+  }
 
   const uid = await miUid();
   try {
@@ -428,6 +472,15 @@ export const enviarMensaje = crearEnviador({
       return {};
     }
   },
+  async enviarNativo(enlace, texto) {
+    const ip = ipDeEnlaceNativo(enlace.id);
+    const red = (await cargarNativo())?.redLocalNativaActiva();
+    if (!ip || !red) return { ok: false, detalle: "el canal local de la app nativa no está activo" };
+    const r = await red.enviarTexto(ip, texto);
+    return r.ok
+      ? { ok: true, detalle: `entregado: la app del otro aparato acusó recibo${typeof r.ms === "number" ? ` (${r.ms} ms)` : ""}` }
+      : { ok: false, detalle: r.motivo ?? "no salió por la red local" };
+  },
 });
 
 /* ══════════════════════════ Recepción ══════════════════════════ */
@@ -521,6 +574,11 @@ function canalDeEnlace(e: EnlaceDisponible): CanalArchivos | null {
   if (e.tipo === "local") {
     const vivo = enlaceLocal(e.id);
     return vivo ? canalLocalEstable(vivo) : null;
+  }
+  if (e.tipo === "nativo") {
+    const ip = ipDeEnlaceNativo(e.id);
+    const red = modNativo?.redLocalNativaActiva();
+    return ip && red ? red.canalArchivos(ip) : null;
   }
   if (e.tipo === "cuenta") {
     const mesh = getSharedMesh();
@@ -626,6 +684,10 @@ export async function abrirCanalDatos(
       descartados.push({ id: enlace.id, tipo: enlace.tipo, motivo: enlace.tipo === "lora" ? "LoRa no lleva transmisiones en vivo" : "el relé del servidor no lleva transmisiones en vivo" });
       continue;
     }
+    if (enlace.tipo === "nativo") {
+      descartados.push({ id: enlace.id, tipo: enlace.tipo, motivo: "el canal TCP de la app nativa no lleva transmisiones en vivo: van por el enlace directo que abren solas las dos apps" });
+      continue;
+    }
     elegido ??= enlace;
   }
   if (!elegido) return { ok: false, motivo: "No hay ningún enlace P2P abierto hacia ese aparato.", descartados };
@@ -682,7 +744,8 @@ export async function abrirFlujo(destino: DestinoTransporte, stream: MediaStream
   if (!e) {
     return {
       ok: false,
-      motivo: "Sin un enlace local con ese aparato no hay llamada directa: vinculad los dos con «Vincular sin internet». Con internet, la llamada va por el sistema de llamadas del chat.",
+      motivo:
+        "Sin un enlace local con ese aparato no hay llamada directa: vinculad los dos con «Vincular sin internet» (entre dos apps nativas vinculadas en la misma red se abre solo en unos segundos). Con internet, la llamada va por el sistema de llamadas del chat.",
     };
   }
   const ok = await e.ponerPistas(stream);
@@ -726,7 +789,7 @@ export function asegurarRecepcionLocal(): void {
       if (typeof data !== "string" || data.startsWith('{"t":"archivo.')) {
         motorArchivosCompartido().manejarMensaje(canal, data, {
           mismaCuenta: false,
-          etiquetaOrigen: `${e.par.nombre || "Aparato vinculado"} (sin internet)`,
+          etiquetaOrigen: `${e.par.nombre || "Aparato vinculado"} (${e.par.origen === "red-local-nativa" ? "red local · app nativa" : "sin internet"})`,
           verificarPermiso: () => true,
         });
       }

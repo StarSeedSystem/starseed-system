@@ -117,3 +117,42 @@ describe("llamada directa — máquina de estados", () => {
     expect(transicionLlamada("llamando", "sin-respuesta")).toBe("terminada");
   });
 });
+
+describe("crearEnviador — red local de la app nativa (MLT1107A)", () => {
+  const nativo: EnlaceDisponible = {
+    ...base,
+    id: "nativo:192.168.1.20",
+    tipo: "nativo",
+    etiqueta: "Tablet · red local",
+    alcanza: { syncDeviceId: "B", neuronDeviceId: "N-B" },
+    sinInternet: true,
+    ruta: "misma-red-local",
+  };
+
+  it("va por el canal nativo antes que la malla de la cuenta y el acuse de la otra app lo confirma", async () => {
+    const enviarNativo = vi.fn(async () => ({ ok: true, detalle: "entregado: la app del otro aparato acusó recibo (3 ms)" }));
+    const enviarP2P = vi.fn(() => true);
+    const r = await crearEnviador(deps({ listar: async () => [rele, cuenta, nativo], enviarNativo, enviarP2P }))({ neuronDeviceId: "N-B", syncDeviceId: "B" }, "chat", { txt: "hola" });
+    expect(r).toMatchObject({ ok: true, confirmado: true, enlace: { id: "nativo:192.168.1.20", tipo: "nativo" } });
+    expect(r.intentos).toEqual([{ enlaceId: "nativo:192.168.1.20", tipo: "nativo", ok: true, detalle: expect.stringMatching(/acusó recibo/) }]);
+    expect(enviarP2P).not.toHaveBeenCalled();
+    const sobre = JSON.parse((enviarNativo.mock.calls[0] as unknown as [EnlaceDisponible, string])[1]) as SobreMensaje;
+    expect(sobre).toMatchObject({ t: "tu.msg", c: "chat", b: { txt: "hola" } });
+  });
+
+  it("si la otra app no acusa (o no hay canal nativo), sigue por el siguiente enlace y lo dice", async () => {
+    const falla = await crearEnviador(deps({ listar: async () => [nativo, cuenta], enviarNativo: async () => ({ ok: false, detalle: "La app de 192.168.1.20 no acusa recibo" }) }))({ syncDeviceId: "B" }, "chat", 1);
+    expect(falla.enlace?.id).toBe("cuenta:B");
+    expect(falla.intentos[0]).toMatchObject({ enlaceId: "nativo:192.168.1.20", ok: false, detalle: expect.stringMatching(/no acusa/) });
+    const sinCanal = await crearEnviador(deps({ listar: async () => [nativo, cuenta] }))({ syncDeviceId: "B" }, "chat", 1);
+    expect(sinCanal.intentos[0]).toMatchObject({ ok: false, detalle: expect.stringMatching(/no está activo/) });
+    expect(sinCanal.enlace?.id).toBe("cuenta:B");
+  });
+
+  it("lo que llega por el canal nativo se entrega a sus oyentes con su vía", () => {
+    const visto: string[] = [];
+    alRecibirMensaje("nativo-prueba", (m) => visto.push(`${m.origen.tipo} ${m.origen.enlaceId} ${m.origen.etiqueta}`));
+    despacharTextoTransporte(JSON.stringify({ t: "tu.msg", v: 1, id: "n1", c: "nativo-prueba", b: 1 }), { tipo: "nativo", enlaceId: "nativo:192.168.1.10", etiqueta: "Mac · red local" }, () => undefined);
+    expect(visto).toEqual(["nativo nativo:192.168.1.10 Mac · red local"]);
+  });
+});

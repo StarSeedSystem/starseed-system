@@ -22,6 +22,11 @@ export interface InfoParLocal {
   /** Cuenta que DICE tener: sirve para enrutar «a esta persona», nunca para dar permisos. */
   uid?: string;
   plataforma?: string;
+  /**
+   * Cómo se abrió: «codigo» (las dos personas se pasaron el código/QR) o «red-local-nativa» (lo
+   * abrieron solas dos apps nativas vinculadas, señalizando por su canal local; MLT1107A).
+   */
+  origen?: "codigo" | "red-local-nativa";
 }
 
 /** Un enlace local vivo (lo implementa `emparejar-sin-internet.ts`). */

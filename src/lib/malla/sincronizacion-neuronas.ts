@@ -706,6 +706,8 @@ export function motivoSinCamino(c: ContextoEnvio): string {
 export function viaDeOrigen(origen: { tipo: string; enlaceId?: string }): ViaSync {
   if (origen.enlaceId?.startsWith("nativo:")) return "red-local-nativa";
   switch (origen.tipo) {
+    case "nativo":
+      return "red-local-nativa";
     case "local":
       return "enlace-local";
     case "cuenta":

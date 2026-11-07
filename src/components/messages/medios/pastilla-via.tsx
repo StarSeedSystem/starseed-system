@@ -2,7 +2,8 @@
 
 /**
  * PastillaVia — por dónde viajó un mensaje (MSJ1107A · 2026-11-07).
- * Pastilla discreta en la burbuja («Mesh · Wi-Fi local · 12 ms ✓», «Servidor StarSeed», «LoRa»…)
+ * Pastilla discreta en la burbuja («Mesh · Wi-Fi local · 12 ms ✓», «Mesh · Red local (app nativa)»,
+ * «Servidor StarSeed», «LoRa»…)
  * que abre el detalle completo: medio, enlace, servidor, ruta medida, latencia (o «Sin medir»),
  * entrega, intentos y por qué se descartó cada medio. Nada se inventa.
  */
@@ -13,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { ACENTO, CLASE_ROTULO } from "@/components/messages/marco/estilos";
 import { ICONOS_MEDIO, type IconoMedio } from "@/components/messages/medios/iconos-medio";
-import { detalleVia, etiquetaVia, familiaDe } from "@/lib/mensajeria/medios/medios";
+import { detalleVia, etiquetaVia, familiaDe, nombreDeVia } from "@/lib/mensajeria/medios/medios";
 import { INFO_MEDIOS, type DescarteMedio, type ViaMensaje } from "@/lib/mensajeria/medios/tipos";
 
 export type PendienteVia = { estado: "enviando" | "en-espera" | "fallido"; aviso?: string; descartados?: DescarteMedio[] };
@@ -86,7 +87,7 @@ export function PastillaVia({ via, pendiente, mio = false, claro = false, classN
                     <p className={CLASE_ROTULO}>Por dónde viajó</p>
                     <p className="mt-1 flex items-center gap-1.5 text-[14px] font-semibold">
                         <Icono className="h-4 w-4 shrink-0" style={{ color }} />
-                        {pendiente ? textoPendiente(pendiente) : INFO_MEDIOS[(via as ViaMensaje).medio]?.nombre}
+                        {pendiente ? textoPendiente(pendiente) : nombreDeVia(via as ViaMensaje)}
                     </p>
                     {pendiente?.aviso && <p className="mt-1 text-[12px] leading-relaxed text-white/65">{pendiente.aviso}</p>}
                 </div>

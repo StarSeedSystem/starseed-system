@@ -140,7 +140,8 @@ export const INFO_MEDIOS: Record<MedioTransmision, InfoMedio> = {
         nombre: "Enlace directo sin internet",
         corto: "Sin internet",
         familia: "malla",
-        descripcion: "Dos aparatos emparejados en persona (código o QR): ni internet ni servidores.",
+        descripcion:
+            "Dos aparatos emparejados en persona (código o QR), o dos apps nativas vinculadas en la misma red («Red local (app nativa)»): ni internet ni servidores.",
     },
     "wifi-local": {
         id: "wifi-local",

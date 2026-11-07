@@ -5,6 +5,7 @@ import {
     etiquetaVia,
     medioDeEnlace,
     mediosParaEnviar,
+    nombreDeVia,
     normalizarPreferencias,
     resumenPreferencias,
     viaServidor,
@@ -167,5 +168,26 @@ describe("etiquetaVia y detalleVia", () => {
         expect(d.find((l) => l.etiqueta === "Entrega")?.valor).toBe("El servidor lo guardó");
         expect(d.find((l) => l.etiqueta === "Latencia")?.valor).toBe("84 ms (hasta que el servidor lo guardó)");
         expect(d.find((l) => l.etiqueta === "Servidor")?.valor).toBe("Supabase en tiempo real");
+    });
+});
+
+describe("red local de la app nativa (MLT1107A) — la pastilla lo dice", () => {
+    it("el canal TCP nativo es un medio «sin internet» y su paso lo explica", () => {
+        expect(medioDeEnlace({ tipo: "nativo", ruta: "misma-red-local" })).toBe("local");
+        const plan = mediosParaEnviar(auto, [cand({ enlaceId: "nativo:192.168.1.20", medio: "local", ruta: "misma-red-local", rttMs: 3 })], { tipo: "neurona" });
+        expect(plan.pasos[0]).toMatchObject({ enlaceId: "nativo:192.168.1.20", medio: "local", motivo: "red local de la app nativa (neurona vinculada, sin internet)" });
+    });
+
+    it("«Mesh · Red local (app nativa)» por el TCP y por el WebRTC que abrieron solas las apps; el QR sigue «Sin internet»", () => {
+        const tcp = { medio: "local" as const, direccion: "sale" as const, enlaceId: "nativo:192.168.1.20", latenciaMs: 3, latenciaFuente: "acuse" as const, confirmado: true, confirmadoPor: "destino" as const, ruta: "misma-red-local" };
+        expect(etiquetaVia(tcp)).toBe("Mesh · Red local (app nativa) · 3 ms ✓");
+        expect(etiquetaVia({ ...tcp, enlaceId: "local:nativo-abc123" })).toBe("Mesh · Red local (app nativa) · 3 ms ✓");
+        expect(etiquetaVia({ ...tcp, enlaceId: "local:abc123" })).toBe("Mesh · Sin internet · 3 ms ✓");
+        expect(nombreDeVia(tcp)).toBe("Red local (app nativa)");
+        expect(nombreDeVia({ medio: "local", enlaceId: "local:abc123" })).toBe("Enlace directo sin internet");
+        const d = detalleVia({ ...tcp, direccion: "entra", enlace: "Tablet · red local", confirmado: false, confirmadoPor: null });
+        expect(d.find((l) => l.etiqueta === "Medio")?.valor).toBe("Red local (app nativa)");
+        expect(d.find((l) => l.etiqueta === "Ruta medida")?.valor).toBe("Misma red local");
+        expect(d.find((l) => l.etiqueta === "Llegó desde")?.valor).toBe("Tablet · red local");
     });
 });
