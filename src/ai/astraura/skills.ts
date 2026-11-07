@@ -86,10 +86,13 @@ export const SKILL_CAPABILITIES: SkillCapability[] = [
       "usuario conectó un servicio propio (local o de pago), se usa automáticamente " +
       "y Pollinations queda como respaldo. Para AUDIO solo puedes sintetizar voz del " +
       "propio texto (no música). Para VÍDEO no tienes un motor gratis todavía: solo " +
-      "funciona si el usuario conectó su propio servicio; si no, explícalo sin fingir.",
+      "funciona si el usuario conectó su propio servicio; si no, explícalo sin fingir. " +
+      "Guarda lo que generes en su Biblioteca. El servicio activo se elige por " +
+      "personalidad, por neurona o por cuenta (Habilidades → Generación audiovisual). " +
+      "No inventes URLs de medios.",
     routing: {},
     skillIds: ["aurora-av-gen"],
-    packageIds: ["iatool-media-gen"],
+    packageIds: ["iatool-media-gen", "iatool-open-generative-ai", "iatool-pollinations"],
   },
   /* ═══ ADENDA 138 · Red por neurona (OpenWISP/NetJSON) ═══
    * Conocimiento para configurar cada neurona como router/AP/nodo-mesh/gateway y
