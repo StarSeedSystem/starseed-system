@@ -1225,6 +1225,14 @@ export function iniciarSincronizacionNeuronas(): () => void {
         else parar();
       })
       .catch(() => undefined);
+    // (WFD1108A) Enlace Wi-Fi directo entre neuronas, sin router: escucha su canal de control.
+    void import("@/lib/malla/enlace-wifi-motor")
+      .then((ew) => {
+        const parar = ew.iniciarEnlaceWifi();
+        if (vivo) bajas.push(parar);
+        else parar();
+      })
+      .catch(() => undefined);
   }
 
   bajas.push(

@@ -659,6 +659,8 @@ export async function enviarArchivo(
   motor: MotorArchivos = motorArchivosCompartido(),
 ): Promise<ResultadoArchivo> {
   const elegido = await canalParaArchivo(destino, archivo.size);
+  // (WFD1108A) Un archivo grande a una neurona vecina puede abrir (o proponer) el enlace Wi-Fi directo.
+  avisarAnchoWifi({ destino, clase: "archivo", bytes: archivo.size, enlace: elegido.enlaces[0] ?? null });
   const enlaces = elegido.enlaces.map((e) => ({ id: e.id, tipo: e.tipo, etiqueta: e.etiqueta }));
   if (!elegido.canal) return { ok: false, enlaces, multi: null, motivo: elegido.motivo };
   const dest: DestinoArchivo = destinoArchivo ?? { tipo: "dispositivo", id: destino.syncDeviceId ?? destino.enlaceId ?? enlaces[0]?.id };
@@ -762,6 +764,9 @@ export function enlaceLocalHacia(destino: DestinoTransporte): EnlaceLocalVivo | 
 /** Pone un flujo de audio/vídeo hacia `destino` por el enlace local. Dice con honestidad si no se puede. */
 export async function abrirFlujo(destino: DestinoTransporte, stream: MediaStream): Promise<{ ok: boolean; enlaceId?: string; motivo?: string }> {
   const e = enlaceLocalHacia(destino);
+  // (WFD1108A) Una llamada, la pantalla o una transmisión: el enlace Wi-Fi directo se retiene mientras viva
+  // el flujo y, si el enlace de ahora no basta, se abre (o se propone).
+  avisarAnchoWifi({ destino, clase: stream.getVideoTracks().length ? "flujo" : "llamada", enlace: e ? enlaceLocalDisponible(e) : null, flujo: stream });
   if (!e) {
     return {
       ok: false,
@@ -771,6 +776,32 @@ export async function abrirFlujo(destino: DestinoTransporte, stream: MediaStream
   }
   const ok = await e.ponerPistas(stream);
   return ok ? { ok, enlaceId: e.id } : { ok, enlaceId: e.id, motivo: "El navegador no dejó añadir el audio o el vídeo." };
+}
+
+/* ══════════════════════════ Enlace Wi-Fi directo (WFD1108A) ══════════════════════════ */
+
+/**
+ * Avisa al motor del enlace Wi-Fi directo de que un envío pesado va hacia `destino` (perezoso: no carga
+ * nada si el motor no arrancó, es decir, fuera de la app nativa). Nunca lanza ni espera.
+ */
+function avisarAnchoWifi(p: {
+  destino: DestinoTransporte;
+  clase: "archivo" | "llamada" | "flujo";
+  bytes?: number;
+  enlace: EnlaceDisponible | null;
+  flujo?: MediaStream;
+}): void {
+  void import("./enlace-wifi-motor")
+    .then((m) =>
+      m.alNecesitarAncho({
+        destino: { neuronDeviceId: p.destino.neuronDeviceId, syncDeviceId: p.destino.syncDeviceId },
+        clase: p.clase,
+        bytes: p.bytes,
+        enlace: p.enlace,
+        flujo: p.flujo ?? null,
+      }),
+    )
+    .catch(() => undefined);
 }
 
 /* ══════════════════════════ Arranque global ══════════════════════════ */
