@@ -614,3 +614,85 @@ timbre se perdía en silencio. La burbuja, que sí llegaba por el TCP, no sabía
 nuevo abierto al contestar); que la notificación salga con la app en segundo plano en Android; el caso
 en que la Mac ofrece (id menor) y conserva el enlace medio abierto: la tableta no puede abrir otro hasta
 que ICE dé por caído el viejo (≈ 30 s). Si pasa, «Contestar» lo dirá («no se pudo abrir el enlace»).
+
+## 10 · Mensajería completa sin internet: almacén local y fusión con la cuenta (MSJ1108C · 2026-11-08)
+
+Fase F1 de `architecture/red-sin-dependencias.md` (§7.1.1). Código en `src/lib/mensajeria/almacen/`.
+
+### 10.1 · Almacén local (IndexedDB `starseed-mensajeria-malla`)
+- Un registro por mensaje, clave = id del mensaje (el mismo en los dos extremos): `{id, clave, hlc, at, autor, dir, m, subido?, lapida?}`.
+  `m` es el `MensajeMalla` completo (vía, estado, recibos, adjunto, cita, formato, edición, borrado). Tienda `meta` para
+  «leído hasta» por conversación, vías medidas, claves públicas fijadas, operaciones pendientes y el par de claves de firma.
+- El buzón (`neuronas/buzon.ts`) sigue sirviendo su estado en memoria (síncrono, `useSyncExternalStore`). `persistencia-bandeja.ts`
+  lo respalda: arranca con la clave vieja, hidrata IndexedDB en segundo plano y desde entonces escribe **solo los mensajes que
+  cambian**. Sin IndexedDB, o si una escritura falla, el buzón vuelve a escribir la bandeja entera en localStorage como antes.
+  Otras pestañas avisan por `BroadcastChannel`.
+- El tope de 300 mensajes por conversación sigue siendo solo de lo que se muestra; el almacén conserva todo.
+- Orden entre aparatos: **reloj híbrido** (`reloj-hibrido.ts`: hora física + contador + nodo, ordenable como texto). Cada
+  mensaje saliente lleva `hlc`; al recibir, el reloj propio avanza (nunca se arrastra por una hora a más de 24 h en el futuro).
+
+### 10.2 · Migración sin pérdidas de `starseed.mensajeria.malla.v1`
+1. Copia literal del texto a `starseed.mensajeria.malla.v1.respaldo` (una sola vez; si ya existe no se pisa).
+2. La clave vieja **no se borra ni se reescribe**: queda como lectura de respaldo durante una versión (hasta el próximo
+   ciclo de lanzamientos; después se podrá retirar la lectura, nunca el respaldo sin permiso de Alex).
+3. Importar solo añade. Un id presente (o con lápida) no se toca. Se repite en cada arranque (idempotente) y recoge lo que
+   el rescate de origen de la app nativa escriba después en la clave vieja.
+4. Se traen también «leído hasta» y las vías medidas. Nada se recorta. Lo que no cumple la forma mínima se cuenta
+   (`descartados`) y sigue en el respaldo.
+5. Quitar un mensaje «de este aparato» deja una **lápida** en el almacén (no reaparece al migrar de nuevo).
+
+### 10.3 · Historial unificado y subida idempotente
+- **Sin migración de esquema.** `os_dm_messages` no tiene columna `meta`, pero su `id` se puede fijar al insertar. El mensaje de
+  la malla se sube con **su mismo id** (`dm.subirMensajeMalla`: `INSERT … ON CONFLICT (id) DO NOTHING`), con `created_at` = hora
+  original, `reply_to` (id del padre, si ya está arriba), `formato` y `body` (markdown). Subir dos veces, o desde dos aparatos de
+  la cuenta, no duplica. Los ids de la malla son UUID; si algún id viejo no lo fuera, `idServidorDe` deriva un UUID estable.
+- Solo sube cada cuenta lo suyo (el servidor exige remitente = quien sube): salientes y entrantes con `deUid` = mi cuenta.
+  Se sube en orden de reloj (la cita encuentra a su padre) y solo mensajes ya enviados con texto; lo borrado antes de subir no sube.
+- Ediciones y borrados posteriores a la subida se aplican en el servidor con `editMessage` / `softDeleteMessage` (`subidoOp`).
+- **Propuesta (no aplicada):** una columna `os_dm_messages.meta jsonb` para guardar `hlc`, vía y la firma de la operación
+  permitiría ordenar con el reloj híbrido y verificar firmas también en las copias del servidor. Hoy el servidor solo ve `created_at`.
+- La vista del hilo (`thread-view.tsx`) usa `unificarHistorial`: una copia por mensaje (la del servidor), con la **vía real** de la
+  malla; los mensajes solo-malla entran con id `malla:<id>`; las citas se resuelven al id que conoce la interfaz. Orden: hora de
+  creación; si dos mensajes están a menos de 2 minutos, manda el reloj híbrido (relojes que no coinciden).
+- Subida: al hidratar el almacén, al volver `online` y en cada tic de 20 s del buzón.
+- Grupos: cada miembro recibe por la malla su copia (`enviarMensajeChat` ya reparte por miembro); cada quien la fusiona igual.
+
+### 10.4 · Contenido rico por la malla
+- **Markdown:** el texto viaja tal cual (la interfaz ya lo pinta). **Formato enriquecido:** `fmt` (≤ 8 KB) en el cuerpo.
+- **Citas:** `rp = {id, de?, x}` (extracto ≤ 160) en el cuerpo de «chat-malla» y de «neurona».
+- **Adjuntos:** siguen por el motor de archivos (trozos, SHA-256, reanudación). La oferta ya puede llevar `vista` (miniatura
+  raster o texto, ARC1108A), que el receptor ve antes de aceptar. Pendiente: en medios lentos (Bluetooth, LoRa) mandar SOLO la
+  miniatura hasta que la persona acepte la descarga; hoy esa decisión no depende del medio. El adjunto P2P no se sube al
+  servidor (no hay dónde): queda en el almacén de cada extremo.
+- **Ediciones y borrados:** operaciones firmadas (`operaciones.ts`): ECDSA P-256 por neurona, clave no exportable en IndexedDB. Viajan por el
+  mismo canal que el mensaje; gana la edición de reloj mayor, borrar domina (lápida: se vacían texto, cita, formato y adjunto), una
+  operación que llega antes que su mensaje espera y se aplica al llegar, y la que no sale a todas las personas queda como
+  `opPendiente` y se reintenta con los pendientes. Vale solo si la firma es correcta y el autor de la operación es el autor del mensaje.
+  **Límite honesto:** la clave pública se fija la primera vez que se ve para esa cuenta (TOFU, ≤ 8 por cuenta); hasta que F0 emita el
+  certificado cuenta → neurona, alguien que se haga pasar por la cuenta con una clave nueva sería aceptado como primer uso.
+- Interfaz: hilos de cuenta (`thread-view`) y de neurona (`hilo-neurona`): Responder, Editar, Eliminar y «editado» también para
+  los mensajes de la malla. (El editor de neuronas usa `prompt` del navegador: pendiente un editor propio.)
+
+### 10.5 · Módulos huérfanos
+- `mensajeria/chat-directo.ts`: **se queda sin cablear.** Es una bandeja paralela (`starseed.chat.directo.v1`, 200 mensajes) del mismo canal
+  «chat-malla» que ya sirven `buzon.ts` y el almacén; cablearlo duplicaría el historial y partiría los ids. No aporta nada que el
+  buzón no haga (reintentos, vías, grupos, archivos). Pendiente: retirarlo y su prueba en otra ola.
+- `malla/localsend/*`: el protocolo está completo y probado (emisión, recepción como `MsgOferta`, presencia UDP) pero **hace falta un
+  servidor HTTP en 53317 y multidifusión UDP 224.0.0.167**, que un navegador no puede abrir. Solo es posible en la app nativa, en
+  `malla_local*.rs` (trabajo de CIF1108A en curso) y con la interfaz de permisos de aceptar/rechazar. Plan: (1) comando Tauri
+  que escuche 53317 y reenvíe `prepare-upload` / `upload` al webview; (2) anuncio UDP por el módulo nativo; (3) lista «Aparatos
+  LocalSend» en el panel de vínculos con PIN opcional. No se cableó: no es pequeño ni seguro sin tocar el lado Rust.
+- `nativa/nas.ts`: depende de los comandos Rust `nas_listar`/`nas_leer` y del registro de carpetas concedidas; de solo lectura
+  y sin interfaz de permisos. Plan: montar el canal «nas» tras el consentimiento por carpeta (F6, junto al nodo base). Sin
+  cablear en F1.
+
+### 10.6 · Pruebas
+`src/lib/mensajeria/almacen/__tests__/mensajeria-malla.test.ts` (14) y `persistencia-bandeja.test.ts` (3): dos motores en memoria sin
+red (`fetch` espiado) con texto markdown, adjunto, cita, edición y borrado; autoría y firma rota; operación antes del mensaje;
+orden con 10 minutos de desfase; migración con datos de forma real (450 mensajes, adjunto, «enviando»), idempotencia, lápidas,
+respaldo; subida sin duplicar desde dos aparatos; fusión con el servidor; arranque y caída a localStorage.
+
+### 10.7 · Pendiente en aparatos reales
+Migración con el historial real Mac ↔ tableta (comprobar el respaldo y el recuento antes/después); mensaje de la tableta en
+modo avión que aparece en la Mac al volver el Wi-Fi sin duplicarse; edición/borrado con la otra neurona offline; abrir dos
+pestañas de la web y ver que la bandeja se sincroniza; IndexedDB en la webview de Tauri (Android e iOS).

@@ -20,7 +20,7 @@ Todo debe autoconfigurarse con inteligencia, con sugerencias y opciones para cad
 | Sistema | Sin internet hoy | Por qué |
 |---|---|---|
 | Mensajes entre neuronas | **Sí** | Red local nativa y WebRTC sin servidores. Bluetooth y Wi‑Fi directo ya están en main (INT1108C). |
-| Mensajes de cuenta (DM) | A medias | La copia por la malla existe, pero se queda en localStorage y nunca se fusiona con el historial. Los adjuntos, el formato y las citas solo viajan por el servidor. |
+| Mensajes de cuenta (DM) | **Sí, en código (MSJ1108C), sin probar en aparatos** | Almacén IndexedDB, historial unificado con la cuenta, subida idempotente; adjuntos, formato, citas y ediciones también por la malla (§7.1.1). |
 | Llamadas 1:1 y de grupo (≤ 6) | **Sí, sin probar en aparatos** | `iceServers: []`; vídeo y pantalla viajan por el canal de datos. |
 | Archivos | **Sí** | Trozos con SHA y reanudación. Por TCP 47071 va a unos 550 KB/s; con Wi‑Fi directo, más. |
 | Publicaciones y feed | **No** | Primero se escribe en Supabase y solo después se difunde. El feed lee la tabla. |
@@ -124,6 +124,17 @@ Cada página, comunidad, grupo, canal, publicación, hilo, votación o estación
 - Los mensajes que llegan por la malla entran en el almacén local y se fusionan con el historial de la cuenta.
 - Adjuntos, formato y citas también viajan por la malla.
 - Las llamadas eligen medio con el planificador. Por Bluetooth solo va la voz; con Wi‑Fi directo o LAN, vídeo y pantalla.
+
+#### 7.1.1 · F1 hecha en código (MSJ1108C · 2026-11-08)
+- **Almacén local** por mensaje en IndexedDB, con reloj híbrido, vía, recibos y metadatos de adjuntos; migración sin pérdidas
+  desde `starseed.mensajeria.malla.v1` (respaldo literal en `.respaldo`, la clave vieja no se borra, lápidas).
+- **Fusión:** el hilo muestra un historial único (servidor + malla, sin duplicados, con la vía real); al volver internet lo
+  que solo viajó por la malla sube **con su mismo id** (idempotente, sin cambios de esquema; propuesta de columna `meta` en el detalle).
+- **Contenido rico por la malla:** markdown, formato enriquecido, citas, y ediciones/borrados como operaciones firmadas por
+  el autor, en cuentas y en neuronas. Los adjuntos siguen por el motor de archivos con miniatura primero.
+- **Huérfanos:** `chat-directo` se queda fuera (duplicaría el buzón); `localsend` y `nas` necesitan lado nativo (plan escrito).
+- Detalle, límites (TOFU de claves hasta F0) y pendientes en aparatos reales: `architecture/datos-por-la-malla.md` §10.
+- Sigue pendiente de F1: la prueba de los 18 formatos por cada medio (necesita los medios de MED1108B) y cablear `localsend`/`nas`.
 
 ### 7.2 · Publicaciones, páginas, comunidades y canales
 - Publicar escribe primero en local y se difunde a las réplicas del ámbito. El feed lee del almacén local.

@@ -27,7 +27,7 @@ import { formatearHora } from "@/components/messages/dm/utilidades-hilo";
 import type { ConversacionNeurona } from "@/lib/mensajeria/neuronas/agrupar";
 import type { MensajeMalla } from "@/lib/mensajeria/neuronas/bandeja";
 import {
-    enviarANeurona, fijarHiloAbierto, marcarConversacionLeida, reintentarMensaje, reintentarPendientes, useBandejaMalla,
+    borrarMensajeMalla, editarMensajeMalla, enviarANeurona, fijarHiloAbierto, marcarConversacionLeida, reintentarMensaje, reintentarPendientes, useBandejaMalla,
 } from "@/lib/mensajeria/neuronas/buzon";
 import { resumenPreferencias } from "@/lib/mensajeria/medios/medios";
 import { claveChat, usePreferenciasMedio } from "@/lib/mensajeria/medios/preferencias-store";
@@ -55,7 +55,21 @@ function mismoDia(a: number, b: number): boolean {
     return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate();
 }
 
-function Burbuja({ m, mostrarVia, onReintentar }: { m: MensajeMalla; mostrarVia: boolean; onReintentar: () => void }) {
+function Burbuja({
+    m,
+    mostrarVia,
+    onReintentar,
+    onResponder,
+    onEditar,
+    onEliminar,
+}: {
+    m: MensajeMalla;
+    mostrarVia: boolean;
+    onReintentar: () => void;
+    onResponder: () => void;
+    onEditar: () => void;
+    onEliminar: () => void;
+}) {
     const mio = m.dir === "sale";
     const pendiente: PendienteVia | null =
         m.estado === "enviando" || m.estado === "en-espera" || m.estado === "fallido"
@@ -73,10 +87,22 @@ function Burbuja({ m, mostrarVia, onReintentar }: { m: MensajeMalla; mostrarVia:
                 }
             >
                 {!mio && m.deNombre && <p className="mb-0.5 text-[11.5px] font-semibold text-[#b7a6ff]">{m.deNombre}</p>}
-                {m.adjunto && <TarjetaArchivo m={m} />}
-                {m.llamada && <TarjetaLlamada m={m} />}
-                {m.flujo && <TarjetaFlujo m={m} />}
-                {m.texto && <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-white">{m.texto}</p>}
+                {m.respuestaA && !m.borrado && (
+                    <p className="mb-1 truncate rounded-md border-l-2 border-white/40 bg-black/15 px-2 py-0.5 text-[12px] text-white/75" data-testid="cita-neurona">
+                        {m.respuestaA.de ? `${m.respuestaA.de}: ` : ""}
+                        {m.respuestaA.x}
+                    </p>
+                )}
+                {m.borrado ? (
+                    <p className="text-[13px] italic text-white/60">Mensaje eliminado</p>
+                ) : (
+                    <>
+                        {m.adjunto && <TarjetaArchivo m={m} />}
+                        {m.llamada && <TarjetaLlamada m={m} />}
+                        {m.flujo && <TarjetaFlujo m={m} />}
+                        {m.texto && <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-white">{m.texto}</p>}
+                    </>
+                )}
                 <div className="mt-1 flex flex-wrap items-center justify-end gap-1.5">
                     {(pendiente || (mostrarVia && m.via)) && <PastillaVia via={pendiente ? null : m.via} pendiente={pendiente} mio={mio} />}
                     {m.estado === "fallido" && (
@@ -89,6 +115,14 @@ function Burbuja({ m, mostrarVia, onReintentar }: { m: MensajeMalla; mostrarVia:
                             <RotateCcw className="h-2.5 w-2.5" /> Reintentar
                         </button>
                     )}
+                    {!m.borrado && !m.llamada && !m.flujo && (
+                        <span className="inline-flex gap-1.5 text-[10px] text-white/60">
+                            <button type="button" onClick={onResponder} className="cursor-pointer underline-offset-2 hover:underline">Responder</button>
+                            {mio && m.texto && !m.adjunto && <button type="button" onClick={onEditar} className="cursor-pointer underline-offset-2 hover:underline">Editar</button>}
+                            {mio && <button type="button" onClick={onEliminar} className="cursor-pointer underline-offset-2 hover:underline">Eliminar</button>}
+                        </span>
+                    )}
+                    {m.editadoEn && !m.borrado && <span className="text-[10px] italic text-white/50">editado</span>}
                     <time dateTime={iso} className={cn("text-[10.5px]", mio ? "text-white/70" : "text-white/50")}>
                         {formatearHora(iso, true)}
                     </time>
@@ -105,6 +139,8 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
     const mensajes = useMemo(() => bandeja.conv[conversacion.clave]?.mensajes ?? [], [bandeja, conversacion.clave]);
     const enEspera = mensajes.filter((m) => m.dir === "sale" && m.estado === "en-espera").length;
     const [texto, setTexto] = useState("");
+    // (MSJ1108C) Mensaje al que se responde (la cita viaja por la malla).
+    const [cita, setCita] = useState<MensajeMalla | null>(null);
     const [enviando, setEnviando] = useState(false);
     const [reintentando, setReintentando] = useState(false);
     const [ajustes, setAjustes] = useState(false);
@@ -177,7 +213,13 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
         setEnviando(true);
         setTexto("");
         try {
-            const m = await enviarANeurona({ clave: conversacion.clave, destino: conversacion.destino, texto: limpio });
+            const m = await enviarANeurona({
+                clave: conversacion.clave,
+                destino: conversacion.destino,
+                texto: limpio,
+                ...(cita ? { respuestaA: { id: cita.id, de: cita.dir === "sale" ? undefined : cita.deNombre, x: (cita.texto || cita.adjunto?.nombre || "").slice(0, 160) } } : {}),
+            });
+            setCita(null);
             if (m.estado === "fallido") toast.error(m.aviso || "No se pudo enviar a esta neurona.");
             else if (m.estado === "en-espera") toast.message(m.aviso || "En espera de un medio: sale solo en cuanto haya uno.");
         } finally {
@@ -335,13 +377,34 @@ export function HiloNeurona({ conversacion, cerebros, esMovil, onAtras, enfocado
                     mensajes.map((m, i) => (
                         <div key={m.id}>
                             {(i === 0 || !mismoDia(mensajes[i - 1].at, m.at)) && <SeparadorDia fecha={new Date(m.at).toISOString()} />}
-                            <Burbuja m={m} mostrarVia={medios.mostrarVia} onReintentar={() => void reintentarMensaje(m.clave, m.id)} />
+                            <Burbuja
+                                m={m}
+                                mostrarVia={medios.mostrarVia}
+                                onReintentar={() => void reintentarMensaje(m.clave, m.id)}
+                                onResponder={() => {
+                                    setCita(m);
+                                    areaRef.current?.focus();
+                                }}
+                                onEditar={() => {
+                                    const nuevo = window.prompt("Editar mensaje", m.texto);
+                                    if (nuevo && nuevo.trim() && nuevo !== m.texto) void editarMensajeMalla(m.clave, m.id, nuevo.trim()).then((ok) => !ok && toast.error("No se pudo editar el mensaje."));
+                                }}
+                                onEliminar={() => {
+                                    if (window.confirm("¿Eliminar este mensaje para todos? Se envía una orden firmada por ti.")) void borrarMensajeMalla(m.clave, m.id);
+                                }}
+                            />
                         </div>
                     ))
                 )}
             </div>
 
             <div className="shrink-0 border-t border-white/[0.06] px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
+                {cita && (
+                    <div className="mb-1.5 flex items-center justify-between gap-2 rounded-lg bg-white/[0.06] px-2.5 py-1 text-[12px] text-white/75">
+                        <span className="truncate">Respondiendo a: {cita.texto || cita.adjunto?.nombre || "mensaje"}</span>
+                        <button type="button" onClick={() => setCita(null)} className="cursor-pointer text-white/60 hover:text-white" aria-label="Quitar la cita">×</button>
+                    </div>
+                )}
                 <div className="flex items-end gap-2">
                     <input
                         ref={archivoRef}
